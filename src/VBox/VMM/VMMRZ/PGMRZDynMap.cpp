@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -481,7 +481,7 @@ VMMR0DECL(int) PGMR0DynMapInitVM(PVM pVM)
     /*
      * Do we need the cache? Skip the last bit if we don't.
      */
-    if (!HMIsEnabled(pVM))
+    if (VM_IS_RAW_MODE_ENABLED(pVM))
         return VINF_SUCCESS;
 
     /*

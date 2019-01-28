@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ____H_GLOBAL
-#define ____H_GLOBAL
+#ifndef MAIN_INCLUDED_Global_h
+#define MAIN_INCLUDED_Global_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* interface definitions */
 #include "VBox/com/VirtualBox.h"
@@ -70,6 +73,7 @@ public:
         const uint32_t                 recommendedRAM;
         const uint32_t                 recommendedVRAM;
         const uint64_t                 recommendedHDD;
+        const GraphicsControllerType_T graphicsControllerType;
         const NetworkAdapterType_T     networkAdapterType;
         const uint32_t                 numSerialEnabled;
         const StorageControllerType_T  dvdStorageControllerType;
@@ -188,5 +192,5 @@ public:
     static HRESULT vboxStatusCodeToCOM(int aVBoxStatus);
 };
 
-#endif /* !____H_GLOBAL */
+#endif /* !MAIN_INCLUDED_Global_h */
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

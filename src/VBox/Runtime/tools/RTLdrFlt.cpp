@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -224,7 +224,7 @@ int main(int argc, char **argv)
                 return RTEXITCODE_SUCCESS;
 
             case 'V':
-                RTPrintf("$Revision: 118769 $\n");
+                RTPrintf("$Revision: 127855 $\n");
                 return RTEXITCODE_SUCCESS;
 
             case VINF_GETOPT_NOT_OPTION:
@@ -256,7 +256,7 @@ int main(int argc, char **argv)
                 if (enmOpenMethod == kOpenMethod_FromImage)
                     rc = RTDbgModCreateFromImage(&hMod, pszModule, NULL, enmArch, hDbgCfg);
                 else
-                    rc = RTDbgModCreateFromPeImage(&hMod, pszModule, NULL, NIL_RTLDRMOD, cbImage, uTimestamp, hDbgCfg);
+                    rc = RTDbgModCreateFromPeImage(&hMod, pszModule, NULL, NULL, cbImage, uTimestamp, hDbgCfg);
                 if (RT_FAILURE(rc))
                     return RTMsgErrorExit(RTEXITCODE_FAILURE, "RTDbgModCreateFromImage(,%s,,) -> %Rrc", pszModule, rc);
 

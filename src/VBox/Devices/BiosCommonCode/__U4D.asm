@@ -4,7 +4,7 @@
 ;
 
 ;
-; Copyright (C) 2012-2017 Oracle Corporation
+; Copyright (C) 2012-2019 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -71,7 +71,22 @@ if VBOX_BIOS_CPU ge 80386
                 rol     eax, 16
                 .8086
 else
+                ;
+                ; If the divisor is only 16-bit, use a fast path
+                ;
+                test    cx, cx
+                jnz     do_it_the_hard_way
 
+                div     bx              ; dx:ax / bx -> ax=quotient, dx=remainder
+
+                mov     bx, dx          ; remainder in cx:bx, and we know cx=0
+
+                xor     dx, dx          ; quotient in dx:ax, dx must be zero
+
+                popf
+                ret
+
+do_it_the_hard_way:
                 ; Call C function do this.
                 push    ds
                 push    es

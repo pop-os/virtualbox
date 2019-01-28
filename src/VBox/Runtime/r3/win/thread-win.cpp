@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -44,6 +44,7 @@
 #include <iprt/log.h>
 #include <iprt/mem.h>
 #include "internal/thread.h"
+#include "internal-r3-win.h"
 
 
 /*********************************************************************************************************************************
@@ -374,5 +375,47 @@ RTR3DECL(int) RTThreadGetExecutionTimeMilli(uint64_t *pKernelTime, uint64_t *pUs
     int iLastError = GetLastError();
     AssertMsgFailed(("GetThreadTimes failed, LastError=%d\n", iLastError));
     return RTErrConvertFromWin32(iLastError);
+}
+
+
+/**
+ * Gets the native thread handle for a IPRT thread.
+ *
+ * @returns The thread handle. INVALID_HANDLE_VALUE on failure.
+ * @param   hThread     The IPRT thread handle.
+ *
+ * @note    Windows only.
+ * @note    Only valid after parent returns from the thread creation call.
+ */
+RTDECL(uintptr_t) RTThreadGetNativeHandle(RTTHREAD hThread)
+{
+    PRTTHREADINT pThread = rtThreadGet(hThread);
+    if (pThread)
+    {
+        uintptr_t hHandle = pThread->hThread;
+        rtThreadRelease(pThread);
+        return hHandle;
+    }
+    return (uintptr_t)INVALID_HANDLE_VALUE;
+}
+RT_EXPORT_SYMBOL(RTThreadGetNativeHandle);
+
+
+RTDECL(int) RTThreadPoke(RTTHREAD hThread)
+{
+    AssertReturn(hThread != RTThreadSelf(), VERR_INVALID_PARAMETER);
+    if (g_pfnNtAlertThread)
+    {
+        PRTTHREADINT pThread = rtThreadGet(hThread);
+        AssertReturn(pThread, VERR_INVALID_HANDLE);
+
+        NTSTATUS rcNt = g_pfnNtAlertThread((HANDLE)pThread->hThread);
+
+        rtThreadRelease(pThread);
+        if (NT_SUCCESS(rcNt))
+            return VINF_SUCCESS;
+        return RTErrConvertFromNtStatus(rcNt);
+    }
+    return VERR_NOT_IMPLEMENTED;
 }
 

@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -87,7 +87,7 @@
 #undef LOG_GROUP
 #include "../PC/DevHPET.cpp"
 #undef LOG_GROUP
-#include "../PC/DevLPC.cpp"
+#include "../PC/DevDMA.cpp"
 #undef LOG_GROUP
 #include "../EFI/DevSmc.cpp"
 #undef LOG_GROUP
@@ -110,6 +110,8 @@
 #include "../Parallel/DevParallel.cpp"
 #undef LOG_GROUP
 #include "../Serial/DevSerial.cpp"
+#undef LOG_GROUP
+#include "../Serial/DevOxPcie958.cpp"
 #ifdef VBOX_WITH_AHCI
 # undef LOG_GROUP
 # include "../Storage/DevAHCI.cpp"
@@ -392,11 +394,11 @@ int main()
     CHECK_MEMBER_ALIGNMENT(PCNETSTATE, StatMMIOReadRZ, 8);
 #endif
     CHECK_MEMBER_ALIGNMENT(PITSTATE, StatPITIrq, 8);
-    CHECK_MEMBER_ALIGNMENT(SerialState, CritSect, 8);
+    CHECK_MEMBER_ALIGNMENT(DEVSERIAL, UartCore, 8);
+    CHECK_MEMBER_ALIGNMENT(UARTCORE, CritSect, 8);
 #ifdef VBOX_WITH_VMSVGA
     CHECK_SIZE(VMSVGAState, RT_ALIGN_Z(sizeof(VMSVGAState), 8));
     CHECK_MEMBER_ALIGNMENT(VGASTATE, svga, 8);
-    CHECK_MEMBER_ALIGNMENT(VGASTATE, svga.u64HostWindowId, 8);
     CHECK_MEMBER_ALIGNMENT(VGASTATE, svga.au32ScratchRegion, 8);
     CHECK_MEMBER_ALIGNMENT(VGASTATE, svga.StatRegBitsPerPixelWr, 8);
 #endif

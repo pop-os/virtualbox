@@ -1,10 +1,10 @@
 /* $Id: EMHandleRCTmpl.h $ */
 /** @file
- * EM - emR3[Raw|Hm]HandleRC template.
+ * EM - emR3[Raw|Hm|Nem]HandleRC template.
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,16 +15,19 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___EMHandleRCTmpl_h
-#define ___EMHandleRCTmpl_h
+#ifndef VMM_INCLUDED_SRC_include_EMHandleRCTmpl_h
+#define VMM_INCLUDED_SRC_include_EMHandleRCTmpl_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
-#if defined(EMHANDLERC_WITH_PATM) && defined(EMHANDLERC_WITH_HM)
-# error "Only one define"
+#if defined(EMHANDLERC_WITH_PATM) + defined(EMHANDLERC_WITH_HM) + defined(EMHANDLERC_WITH_NEM) != 1
+# error "Exactly one of these must be defined: EMHANDLERC_WITH_PATM, EMHANDLERC_WITH_HM, EMHANDLERC_WITH_NEM"
 #endif
 
 
 /**
- * Process a subset of the raw-mode and hm return codes.
+ * Process a subset of the raw-mode, HM and NEM return codes.
  *
  * Since we have to share this with raw-mode single stepping, this inline
  * function has been created to avoid code duplication.
@@ -34,13 +37,14 @@
  *
  * @param   pVM     The cross context VM structure.
  * @param   pVCpu   The cross context virtual CPU structure.
- * @param   pCtx    Pointer to the guest CPU context.
  * @param   rc      The return code.
  */
 #ifdef EMHANDLERC_WITH_PATM
-int emR3RawHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
+int emR3RawHandleRC(PVM pVM, PVMCPU pVCpu, int rc)
 #elif defined(EMHANDLERC_WITH_HM) || defined(DOXYGEN_RUNNING)
-int emR3HmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
+int emR3HmHandleRC(PVM pVM, PVMCPU pVCpu, int rc)
+#elif defined(EMHANDLERC_WITH_NEM)
+int emR3NemHandleRC(PVM pVM, PVMCPU pVCpu, int rc)
 #endif
 {
     switch (rc)
@@ -72,7 +76,7 @@ int emR3HmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
             /*
              * Got a trap which needs dispatching.
              */
-            if (PATMR3IsInsidePatchJump(pVM, pCtx->eip, NULL))
+            if (PATMR3IsInsidePatchJump(pVM, pVCpu->cpum.GstCtx.eip, NULL))
             {
                 AssertReleaseMsgFailed(("FATAL ERROR: executing random instruction inside generated patch jump %08X\n", CPUMGetGuestEIP(pVCpu)));
                 rc = VERR_EM_RAW_PATCH_CONFLICT;
@@ -86,12 +90,12 @@ int emR3HmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
          */
         case VINF_PATM_PATCH_TRAP_PF:
         case VINF_PATM_PATCH_INT3:
-            rc = emR3RawPatchTrap(pVM, pVCpu, pCtx, rc);
+            rc = emR3RawPatchTrap(pVM, pVCpu, rc);
             break;
 
         case VINF_PATM_DUPLICATE_FUNCTION:
-            Assert(PATMIsPatchGCAddr(pVM, pCtx->eip));
-            rc = PATMR3DuplicateFunctionRequest(pVM, pCtx);
+            Assert(PATMIsPatchGCAddr(pVM, pVCpu->cpum.GstCtx.eip));
+            rc = PATMR3DuplicateFunctionRequest(pVM, &pVCpu->cpum.GstCtx);
             AssertRC(rc);
             rc = VINF_SUCCESS;
             break;
@@ -108,14 +112,12 @@ int emR3HmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
         case VERR_EM_RAW_PATCH_CONFLICT:
             AssertReleaseMsgFailed(("%Rrc handling is not yet implemented\n", rc));
             break;
-#endif /* EMHANDLERC_WITH_PATM */
 
-#ifdef EMHANDLERC_WITH_PATM
         /*
          * Memory mapped I/O access - attempt to patch the instruction
          */
         case VINF_PATM_HC_MMIO_PATCH_READ:
-            rc = PATMR3InstallPatch(pVM, SELMToFlat(pVM, DISSELREG_CS, CPUMCTX2CORE(pCtx), pCtx->eip),
+            rc = PATMR3InstallPatch(pVM, SELMToFlat(pVM, DISSELREG_CS, CPUMCTX2CORE(&pVCpu->cpum.GstCtx), pVCpu->cpum.GstCtx.eip),
                                       PATMFL_MMIO_ACCESS
                                     | (CPUMGetGuestCodeBits(pVCpu) == 32 ? PATMFL_CODE32 : 0));
             if (RT_FAILURE(rc))
@@ -128,6 +130,7 @@ int emR3HmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
             break;
 #endif /* EMHANDLERC_WITH_PATM */
 
+#ifndef EMHANDLERC_WITH_NEM
         /*
          * Conflict or out of page tables.
          *
@@ -135,7 +138,7 @@ int emR3HmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
          * do here is to execute the pending forced actions.
          */
         case VINF_PGM_SYNC_CR3:
-            AssertMsg(VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_PGM_SYNC_CR3 | VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL),
+            AssertMsg(VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3 | VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL),
                       ("VINF_PGM_SYNC_CR3 and no VMCPU_FF_PGM_SYNC_CR3*!\n"));
             rc = VINF_SUCCESS;
             break;
@@ -162,11 +165,13 @@ int emR3HmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
          * Paging mode change.
          */
         case VINF_PGM_CHANGE_MODE:
-            rc = PGMChangeMode(pVCpu, pCtx->cr0, pCtx->cr4, pCtx->msrEFER);
+            CPUM_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_CR0 | CPUMCTX_EXTRN_CR3 | CPUMCTX_EXTRN_CR4 | CPUMCTX_EXTRN_EFER);
+            rc = PGMChangeMode(pVCpu, pVCpu->cpum.GstCtx.cr0, pVCpu->cpum.GstCtx.cr4, pVCpu->cpum.GstCtx.msrEFER);
             if (rc == VINF_SUCCESS)
                 rc = VINF_EM_RESCHEDULE;
             AssertMsg(RT_FAILURE(rc) || (rc >= VINF_EM_FIRST && rc <= VINF_EM_LAST), ("%Rrc\n", rc));
             break;
+#endif /* !EMHANDLERC_WITH_NEM */
 
 #ifdef EMHANDLERC_WITH_PATM
         /*
@@ -182,7 +187,7 @@ int emR3HmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
         case VINF_EM_RAW_INTERRUPT_PENDING:
         case VINF_EM_RAW_RING_SWITCH_INT:
             Assert(TRPMHasTrap(pVCpu));
-            Assert(!PATMIsPatchGCAddr(pVM, pCtx->eip));
+            Assert(!PATMIsPatchGCAddr(pVM, pVCpu->cpum.GstCtx.eip));
 
             if (TRPMHasTrap(pVCpu))
             {
@@ -211,7 +216,18 @@ int emR3HmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
          */
         case VINF_IOM_R3_IOPORT_READ:
         case VINF_IOM_R3_IOPORT_WRITE:
+        case VINF_EM_RESUME_R3_HISTORY_EXEC: /* Resume EMHistoryExec after VMCPU_FF_IOM. */
             rc = emR3ExecuteIOInstruction(pVM, pVCpu);
+            break;
+
+        /*
+         * Execute pending I/O Port access.
+         */
+        case VINF_EM_PENDING_R3_IOPORT_WRITE:
+            rc = VBOXSTRICTRC_TODO(emR3ExecutePendingIoPortWrite(pVM, pVCpu));
+            break;
+        case VINF_EM_PENDING_R3_IOPORT_READ:
+            rc = VBOXSTRICTRC_TODO(emR3ExecutePendingIoPortRead(pVM, pVCpu));
             break;
 
         /*
@@ -235,48 +251,12 @@ int emR3HmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
          * GIM hypercall.
          */
         case VINF_GIM_R3_HYPERCALL:
-        {
-            /* Currently hypercall instruction (vmcall/vmmcall) emulation is compiled
-               only when Nested Hw. virt feature is enabled in IEM (for easier IEM backports). */
-#ifdef VBOX_WITH_NESTED_HWVIRT
             rc = emR3ExecuteInstruction(pVM, pVCpu, "Hypercall");
             break;
-#else
-            /** @todo IEM/REM need to handle VMCALL/VMMCALL, see
-             *        @bugref{7270#c168}. */
-            uint8_t cbInstr = 0;
-            VBOXSTRICTRC rcStrict = GIMExecHypercallInstr(pVCpu, pCtx, &cbInstr);
-            if (rcStrict == VINF_SUCCESS)
-            {
-                Assert(cbInstr);
-                pCtx->rip += cbInstr;
-                /* Update interrupt inhibition. */
-                if (   VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS)
-                    && pCtx->rip != EMGetInhibitInterruptsPC(pVCpu))
-                    VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS);
-                rc = VINF_SUCCESS;
-            }
-            else if (rcStrict == VINF_GIM_HYPERCALL_CONTINUING)
-                rc = VINF_SUCCESS;
-            else
-            {
-                Assert(rcStrict != VINF_GIM_R3_HYPERCALL);
-                rc = VBOXSTRICTRC_VAL(rcStrict);
-            }
-            break;
-#endif
-        }
 
 #ifdef EMHANDLERC_WITH_HM
-        /*
-         * (MM)IO intensive code block detected; fall back to the recompiler for better performance
-         */
-        case VINF_EM_RAW_EMULATE_IO_BLOCK:
-            rc = HMR3EmulateIoBlock(pVM, pCtx);
-            break;
-
         case VINF_EM_HM_PATCH_TPR_INSTR:
-            rc = HMR3PatchTprInstr(pVM, pVCpu, pCtx);
+            rc = HMR3PatchTprInstr(pVM, pVCpu);
             break;
 #endif
 
@@ -296,9 +276,7 @@ int emR3HmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
         case VINF_EM_RAW_EMULATE_INSTR_TSS_FAULT:
             rc = emR3ExecuteInstruction(pVM, pVCpu, "TSS FAULT: ");
             break;
-#endif
 
-#ifdef EMHANDLERC_WITH_PATM
         case VINF_PATM_PENDING_IRQ_AFTER_IRET:
             rc = emR3ExecuteInstruction(pVM, pVCpu, "EMUL: ", VINF_PATM_PENDING_IRQ_AFTER_IRET);
             break;
@@ -312,6 +290,7 @@ int emR3HmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
             break;
 
         case VINF_EM_RAW_INJECT_TRPM_EVENT:
+            CPUM_IMPORT_EXTRN_RET(pVCpu, IEM_CPUMCTX_EXTRN_XCPT_MASK);
             rc = VBOXSTRICTRC_VAL(IEMInjectTrpmEvent(pVCpu));
             /* The following condition should be removed when IEM_IMPLEMENTS_TASKSWITCH becomes true. */
             if (rc == VERR_IEM_ASPECT_NOT_IMPLEMENTED)
@@ -326,9 +305,9 @@ int emR3HmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
         case VINF_EM_RAW_STALE_SELECTOR:
         case VINF_EM_RAW_IRET_TRAP:
             /* We will not go to the recompiler if EIP points to patch code. */
-            if (PATMIsPatchGCAddr(pVM, pCtx->eip))
+            if (PATMIsPatchGCAddr(pVM, pVCpu->cpum.GstCtx.eip))
             {
-                pCtx->eip = PATMR3PatchToGCPtr(pVM, (RTGCPTR)pCtx->eip, 0);
+                pVCpu->cpum.GstCtx.eip = PATMR3PatchToGCPtr(pVM, (RTGCPTR)pVCpu->cpum.GstCtx.eip, 0);
             }
             LogFlow(("emR3RawHandleRC: %Rrc -> %Rrc\n", rc, VINF_EM_RESCHEDULE_REM));
             rc = VINF_EM_RESCHEDULE_REM;
@@ -338,7 +317,7 @@ int emR3HmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
          * Conflict in GDT, resync and continue.
          */
         case VINF_SELM_SYNC_GDT:
-            AssertMsg(VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_SELM_SYNC_GDT | VMCPU_FF_SELM_SYNC_LDT | VMCPU_FF_SELM_SYNC_TSS),
+            AssertMsg(VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_SELM_SYNC_GDT | VMCPU_FF_SELM_SYNC_LDT | VMCPU_FF_SELM_SYNC_TSS),
                       ("VINF_SELM_SYNC_GDT without VMCPU_FF_SELM_SYNC_GDT/LDT/TSS!\n"));
             rc = VINF_SUCCESS;
             break;
@@ -433,5 +412,5 @@ int emR3HmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
     return rc;
 }
 
-#endif
+#endif /* !VMM_INCLUDED_SRC_include_EMHandleRCTmpl_h */
 

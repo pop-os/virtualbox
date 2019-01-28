@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2017 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,18 +15,23 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __UIModalWindowManager_h__
-#define __UIModalWindowManager_h__
+#ifndef FEQT_INCLUDED_SRC_globals_UIModalWindowManager_h
+#define FEQT_INCLUDED_SRC_globals_UIModalWindowManager_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Qt includes: */
 #include <QObject>
 #include <QWidget>
 #include <QList>
 
-/* Object which contains stack(s) of guarded-pointer(s)
- * to the current top-level modal-window(s)
- * which could be used to determine top-level modal-dialog(s): */
-class UIModalWindowManager : public QObject
+/* GUI includes: */
+#include "UILibraryDefs.h"
+
+/** QObject subclass which contains a stack(s) of guarded-pointer(s) to the current top-level
+  * modal-window(s) which could be used to determine parents for new top-level modal-dialog(s). */
+class SHARED_LIBRARY_STUFF UIModalWindowManager : public QObject
 {
     Q_OBJECT;
 
@@ -37,51 +42,64 @@ signals:
 
 public:
 
-    /* Static API: Create/destroy stuff: */
+    /** Creates the static singleton instance. */
     static void create();
+    /** Destroys the static singleton instance. */
     static void destroy();
 
-    /* API: Access stuff: */
-    QWidget* realParentWindow(QWidget *pPossibleParentWidget);
+    /** Returns actual top-level parent window for a passed @a pPossibleParentWidget. */
+    QWidget *realParentWindow(QWidget *pPossibleParentWidget);
+    /** Returns whether passed @a pWindow is in the modal window stack. */
     bool isWindowInTheModalWindowStack(QWidget *pWindow);
+    /** Returns whether passed @a pWindow is on the top of the modal window stack. */
     bool isWindowOnTheTopOfTheModalWindowStack(QWidget *pWindow);
 
-    /* API: Register stuff: */
+    /** Registers new parent @a pWindow above the passed @a pParentWindow or as separate stack. */
     void registerNewParent(QWidget *pWindow, QWidget *pParentWindow = 0);
 
-    /* API: Main application window stuff: */
-    QWidget* mainWindowShown() const;
+    /** Defines the main application @a pWindow shown. */
+    void setMainWindowShown(QWidget *pWindow) { m_pMainWindowShown = pWindow; }
+    /** Returns the main application window shown. */
+    QWidget *mainWindowShown() const { return m_pMainWindowShown; }
 #ifdef VBOX_GUI_WITH_NETWORK_MANAGER
+    /** Returns network manager or main window shown. */
     QWidget* networkManagerOrMainWindowShown() const;
-#endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
+#endif
 
 private slots:
 
-    /* Handler: Stack cleanup stuff: */
+    /** Removes window with base-class @a pObject pointer from the stack. */
     void sltRemoveFromStack(QObject *pObject);
 
 private:
 
-    /* Constructor/destructor: */
+    /** Constructs Modal Window Manager instance. */
     UIModalWindowManager();
+    /** Destructs Modal Window Manager instance. */
     ~UIModalWindowManager();
 
-    /* Helper: Stack stuff: */
+    /** Returns whether stack contains @a pParentWindow at all or @a fAsTheTopOfStack. */
     bool contains(QWidget *pParentWindow, bool fAsTheTopOfStack = false);
 
-    /* Static helper: Access stuff: */
+    /** WORKAROUND: Preprocess (show) real parent for a passed @a pParent. */
     static void preprocessRealParent(QWidget *pParent);
 
-    /* Variables: */
+    /** Holds the list of the top-level window stacks. */
     QList<QList<QWidget*> > m_windows;
 
-    /* Static API: Instance stuff: */
-    static UIModalWindowManager* m_spInstance;
-    static UIModalWindowManager* instance();
-    friend UIModalWindowManager& windowManager();
+    /** Holds the main application window shown. */
+    QWidget *m_pMainWindowShown;
+
+    /** Holds the static singleton instance. */
+    static UIModalWindowManager *s_pInstance;
+    /** Returns the static singleton instance. */
+    static UIModalWindowManager *instance();
+    /** Allows friend-access for static singleton instance. */
+    friend UIModalWindowManager &windowManager();
 };
 
-/* Shortcut to the static UIModalWindowManager::instance() method: */
-inline UIModalWindowManager& windowManager() { return *(UIModalWindowManager::instance()); }
+/** Singleton Modal Window Manager 'official' name. */
+inline UIModalWindowManager &windowManager() { return *(UIModalWindowManager::instance()); }
 
-#endif /* !__UIModalWindowManager_h__ */
+#endif /* !FEQT_INCLUDED_SRC_globals_UIModalWindowManager_h */
+

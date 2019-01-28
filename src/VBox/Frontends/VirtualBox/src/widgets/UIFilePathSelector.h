@@ -1,10 +1,10 @@
 /* $Id: UIFilePathSelector.h $ */
 /** @file
- * VBox Qt GUI - VirtualBox Qt extensions: UIFilePathSelector class declaration.
+ * VBox Qt GUI - UIFilePathSelector class declaration.
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,24 +15,32 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UIFilePathSelector_h___
-#define ___UIFilePathSelector_h___
+#ifndef FEQT_INCLUDED_SRC_widgets_UIFilePathSelector_h
+#define FEQT_INCLUDED_SRC_widgets_UIFilePathSelector_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* GUI includes: */
 #include "QIComboBox.h"
 #include "QIWithRetranslateUI.h"
+#include "UILibraryDefs.h"
 
 /* Forward declarations: */
 class QAction;
+class QFocusEvent;
 class QHBoxLayout;
+class QObject;
+class QResizeEvent;
+class QWidget;
+class QString;
 class QILabel;
 class QILineEdit;
 class QIToolButton;
 
-
-/** QIComboBox extension providing GUI with
+/** QIComboBox subclass providing GUI with the
   * possibility to choose/reflect file/folder path. */
-class UIFilePathSelector: public QIWithRetranslateUI<QIComboBox>
+class SHARED_LIBRARY_STUFF UIFilePathSelector : public QIWithRetranslateUI<QIComboBox>
 {
     Q_OBJECT;
 
@@ -105,6 +113,9 @@ public:
     /** Sets overriden widget's @a strToolTip.
       * @note If nothing set it's generated automatically. */
     void setToolTip(const QString &strToolTip);
+
+    void setDefaultPath(const QString &strDefaultPath);
+    const QString& defaultPath() const;
 
 public slots:
 
@@ -198,7 +209,9 @@ private:
 
     /** Holds the copy action instance. */
     QAction *m_pCopyAction;
+
+    /** Path is set to m_strDefaultPath when it is reset. */
+    QString m_strDefaultPath;
 };
 
-#endif /* !___UIFilePathSelector_h___ */
-
+#endif /* !FEQT_INCLUDED_SRC_widgets_UIFilePathSelector_h */

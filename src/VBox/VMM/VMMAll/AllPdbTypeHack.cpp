@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2017 Oracle Corporation
+ * Copyright (C) 2016-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -50,9 +50,10 @@
 #include "../include/VMInternal.h"
 #include "../include/EMInternal.h"
 #include "../include/IEMInternal.h"
+#include "../include/NEMInternal.h"
 #include "../include/REMInternal.h"
-#include "../VMMR0/GMMR0Internal.h"
 #ifndef IN_RC
+# include "../VMMR0/GMMR0Internal.h"
 # include "../VMMR0/GVMMR0Internal.h"
 #endif
 #ifdef VBOX_WITH_RAW_MODE
@@ -63,7 +64,9 @@
 #ifdef IN_RING3
 # include <VBox/vmm/uvm.h>
 #endif
-#include <VBox/vmm/gvm.h>
+#ifndef IN_RC
+# include <VBox/vmm/gvm.h>
+#endif
 
 
 extern "C" {

@@ -4,7 +4,7 @@
  * Used to filter Bridged Networking Driver bindings
  */
 /*
- * Copyright (C) 2011-2017 Oracle Corporation
+ * Copyright (C) 2011-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -735,7 +735,7 @@ STDAPI DllUnregisterServer()
         keyTypeLib.remove(L"{2A0C94D1-40E1-439C-8FE8-24107CAB0840}");
     }
     catch (AdHocRegError) { return SELFREG_E_TYPELIB; }
-    
+
     try {
         AdHocRegKey keyCLSID(L"CLSID");
         keyCLSID.remove(L"{f374d1a0-bf08-4bdc-9cb2-c15ddaeef955}");

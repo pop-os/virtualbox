@@ -8,7 +8,7 @@ VirtualBox Validation Kit - Python Bindings Test #1
 
 __copyright__ = \
 """
-Copyright (C) 2010-2017 Oracle Corporation
+Copyright (C) 2010-2019 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 118412 $"
+__version__ = "$Revision: 127855 $"
 
 
 # Standard Python imports.
@@ -35,7 +35,6 @@ import os
 import sys
 import time
 import threading
-import types
 
 # Only the main script needs to modify the path.
 try:    __file__
@@ -44,36 +43,21 @@ g_ksValidationKitDir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.a
 sys.path.append(g_ksValidationKitDir);
 
 # Validation Kit imports.
-from testdriver import reporter;
 from testdriver import base;
-from testdriver import vbox;
+from testdriver import reporter;
 
 
-class tdPython1(vbox.TestDriver):
+class SubTstDrvPython1(base.SubTestDriverBase):
     """
-    Python Bindings Test #1.
+    Sub-test driver for Python Bindings Test #1.
     """
 
-    def __init__(self):
-        vbox.TestDriver.__init__(self);
-        self.asRsrcs            = None;
+    def __init__(self, oTstDrv):
+        base.SubTestDriverBase.__init__(self, 'python-binding', oTstDrv)
 
-
-    #
-    # Overridden methods.
-    #
-
-    def actionConfig(self):
+    def testIt(self):
         """
-        Import the API.
-        """
-        if not self.importVBoxApi():
-            return False;
-        return True;
-
-    def actionExecute(self):
-        """
-        Execute the testcase.
+        Execute the sub-testcase.
         """
         return  self.testEventQueueWaiting() \
             and self.testEventQueueInterrupt();
@@ -85,7 +69,7 @@ class tdPython1(vbox.TestDriver):
     def testEventQueueWaitingThreadProc(self):
         """ Thread procedure for checking that waitForEvents fails when not called by the main thread. """
         try:
-            rc2 = self.oVBoxMgr.waitForEvents(0);
+            rc2 = self.oTstDrv.oVBoxMgr.waitForEvents(0);
         except:
             return True;
         reporter.error('waitForEvents() returned "%s" when called on a worker thread, expected exception.' % (rc2,));
@@ -102,11 +86,11 @@ class tdPython1(vbox.TestDriver):
             iLoop = 0;
             while True:
                 try:
-                    rc = self.oVBoxMgr.waitForEvents(cMsTimeout);
+                    rc = self.oTstDrv.oVBoxMgr.waitForEvents(cMsTimeout);
                 except:
                     reporter.errorXcpt();
                     break;
-                if not isinstance(rc, types.IntType):
+                if not isinstance(rc, int):
                     reporter.error('waitForEvents returns non-integer type');
                     break;
                 if rc == 1:
@@ -139,7 +123,7 @@ class tdPython1(vbox.TestDriver):
         """ Thread procedure that's used for waking up the main thread. """
         time.sleep(2);
         try:
-            rc2 = self.oVBoxMgr.interruptWaitEvents();
+            rc2 = self.oTstDrv.oVBoxMgr.interruptWaitEvents();
         except:
             reporter.errorXcpt();
         else:
@@ -157,7 +141,7 @@ class tdPython1(vbox.TestDriver):
         # interrupt ourselves first and check the return value.
         for i in range(0, 10):
             try:
-                rc = self.oVBoxMgr.interruptWaitEvents();
+                rc = self.oTstDrv.oVBoxMgr.interruptWaitEvents();
             except:
                 reporter.errorXcpt();
                 break;
@@ -176,7 +160,7 @@ class tdPython1(vbox.TestDriver):
             for i in range(0, 4):
                 # Try quiesce the event queue.
                 for _ in range(1, 100):
-                    self.oVBoxMgr.waitForEvents(0);
+                    self.oTstDrv.oVBoxMgr.waitForEvents(0);
 
                 # Create a thread that will interrupt us in 2 seconds.
                 try:
@@ -196,14 +180,14 @@ class tdPython1(vbox.TestDriver):
                 oThread.start();
                 msNow = base.timestampMilli();
                 try:
-                    rc = self.oVBoxMgr.waitForEvents(cMsTimeout);
+                    rc = self.oTstDrv.oVBoxMgr.waitForEvents(cMsTimeout);
                 except:
                     reporter.errorXcpt();
                 else:
                     msElapsed = base.timestampMilli() - msNow;
 
                     # Check the return code and elapsed time.
-                    if not isinstance(rc, types.IntType):
+                    if not isinstance(rc, int):
                         reporter.error('waitForEvents returns non-integer type after %u ms, expected 1' % (msElapsed,));
                     elif rc != 1:
                         reporter.error('waitForEvents returned "%s" after %u ms, expected 1' % (rc, msElapsed));
@@ -221,5 +205,6 @@ class tdPython1(vbox.TestDriver):
 
 
 if __name__ == '__main__':
-    sys.exit(tdPython1().main(sys.argv));
+    from tests.api.tdApi1 import tdApi1;
+    sys.exit(tdApi1([SubTstDrvPython1]).main(sys.argv));
 

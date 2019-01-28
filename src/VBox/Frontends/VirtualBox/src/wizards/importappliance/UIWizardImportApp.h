@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __UIWizardImportApp_h__
-#define __UIWizardImportApp_h__
+#ifndef FEQT_INCLUDED_SRC_wizards_importappliance_UIWizardImportApp_h
+#define FEQT_INCLUDED_SRC_wizards_importappliance_UIWizardImportApp_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Local includes */
 #include "UIWizard.h"
@@ -77,5 +80,5 @@ private:
 
 typedef QPointer<UIWizardImportApp> UISafePointerWizardImportApp;
 
-#endif /* __UIWizardImportApp_h__ */
+#endif /* !FEQT_INCLUDED_SRC_wizards_importappliance_UIWizardImportApp_h */
 

@@ -32,6 +32,9 @@
 
 #ifndef _VMMOUSE_DEFS_H_
 #define _VMMOUSE_DEFS_H_
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /*
  * Command related defines
@@ -68,4 +71,4 @@
 #define VMMOUSE_RIGHT_BUTTON            0x10
 #define VMMOUSE_MIDDLE_BUTTON           0x08
 
-#endif
+#endif /* !_VMMOUSE_DEFS_H_ */

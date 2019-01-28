@@ -28,8 +28,6 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#define RT_STRICT
-
 
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
@@ -37,7 +35,7 @@
 #include "the-os2-kernel.h"
 
 #include "internal/initterm.h"
-#include <iprt/err.h>
+#include <iprt/errcore.h>
 #include <iprt/assert.h>
 
 
@@ -95,6 +93,6 @@ DECLHIDDEN(void) rtR0TermNative(void)
  */
 RTR0DECL(void *) RTR0Os2Virt2Flat(RTFAR16 fp)
 {
-    return (void *)KernSelToFlat((fp.sel << 16) | fp.off);
+    return (void *)KernSelToFlat(((uint32_t)fp.sel << 16) | fp.off);
 }
 

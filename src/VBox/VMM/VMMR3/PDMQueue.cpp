@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,7 +28,7 @@
 #endif
 #include <VBox/vmm/vm.h>
 #include <VBox/vmm/uvm.h>
-#include <VBox/err.h>
+#include <iprt/errcore.h>
 
 #include <VBox/log.h>
 #include <iprt/asm.h>
@@ -662,7 +662,7 @@ VMMR3_INT_DECL(void) PDMR3QueueFlushAll(PVM pVM)
 
         /* We're done if there were no inserts while we were busy. */
         if (   !ASMBitTest(&pVM->pdm.s.fQueueFlushing, PDM_QUEUE_FLUSH_FLAG_PENDING_BIT)
-            && !VM_FF_IS_PENDING(pVM, VM_FF_PDM_QUEUES))
+            && !VM_FF_IS_SET(pVM, VM_FF_PDM_QUEUES))
             break;
         VM_FF_CLEAR(pVM, VM_FF_PDM_QUEUES);
     }

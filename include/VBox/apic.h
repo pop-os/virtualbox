@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,8 +25,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_apic_h
-#define ___VBox_apic_h
+#ifndef VBOX_INCLUDED_apic_h
+#define VBOX_INCLUDED_apic_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/types.h>
 
@@ -60,7 +63,7 @@ DECLINLINE(uint32_t) ApicRegRead(void *pvBase, uint32_t offReg)
 }
 
 
-#ifdef ___iprt_asm_amd64_x86_h
+#ifdef IPRT_INCLUDED_asm_amd64_x86_h
 /**
  * Reads an X2APIC register.
  *
@@ -72,5 +75,5 @@ DECLINLINE(uint32_t) ApicX2RegRead32(uint32_t offReg)
 }
 #endif
 
-#endif
+#endif /* !VBOX_INCLUDED_apic_h */
 

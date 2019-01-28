@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,8 +16,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __Additions_client_seamless_host_h
-# define __Additions_client_seamless_host_h
+#ifndef GA_INCLUDED_SRC_x11_VBoxClient_seamless_h
+#define GA_INCLUDED_SRC_x11_VBoxClient_seamless_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/thread.h>
 
@@ -107,4 +110,4 @@ public:
     int selfTest();
 };
 
-#endif /* __Additions_xclient_seamless_h not defined */
+#endif /* !GA_INCLUDED_SRC_x11_VBoxClient_seamless_h */

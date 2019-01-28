@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2017 Oracle Corporation
+ * Copyright (C) 2011-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,62 +15,56 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+/* Qt includes: */
+#include <QWidget>
+#include <QUrl>
 
-/* Global includes: */
-# include <QWidget>
-# include <QUrl>
-
-/* Local includes: */
-# include "UINetworkManager.h"
-# include "UINetworkManagerDialog.h"
-# include "UINetworkManagerIndicator.h"
-# include "UINetworkRequest.h"
-# include "UINetworkCustomer.h"
-# include "VBoxGlobal.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+/* GUI includes: */
+#include "VBoxGlobal.h"
+#include "UINetworkCustomer.h"
+#include "UINetworkManager.h"
+#include "UINetworkManagerDialog.h"
+#include "UINetworkManagerIndicator.h"
+#include "UINetworkRequest.h"
 
 
-UINetworkManager* UINetworkManager::m_pInstance = 0;
+UINetworkManager* UINetworkManager::s_pInstance = 0;
 
 void UINetworkManager::create()
 {
     /* Check that instance do NOT exist: */
-    if (m_pInstance)
+    if (s_pInstance)
         return;
 
     /* Create instance: */
     new UINetworkManager;
 
     /* Prepare instance: */
-    m_pInstance->prepare();
+    s_pInstance->prepare();
 }
 
 void UINetworkManager::destroy()
 {
     /* Check that instance exists: */
-    if (!m_pInstance)
+    if (!s_pInstance)
         return;
 
     /* Cleanup instance: */
-    m_pInstance->cleanup();
+    s_pInstance->cleanup();
 
     /* Destroy instance: */
-    delete m_pInstance;
+    delete s_pInstance;
 }
 
-UINetworkManagerDialog* UINetworkManager::window() const
+UINetworkManagerDialog *UINetworkManager::window() const
 {
     return m_pNetworkManagerDialog;
 }
 
-UINetworkManagerIndicator* UINetworkManager::createIndicator() const
+UINetworkManagerIndicator *UINetworkManager::createIndicator() const
 {
     /* For Selector UI only: */
-    AssertReturn(!vboxGlobal().isVMConsoleProcess(), 0);
+    AssertReturn(vboxGlobal().uiType() == VBoxGlobal::UIType_SelectorUI, 0);
 
     /* Create network-manager state-indicator: */
     UINetworkManagerIndicator *pNetworkManagerIndicator = new UINetworkManagerIndicator;
@@ -107,11 +101,11 @@ void UINetworkManager::show()
     m_pNetworkManagerDialog->showNormal();
 }
 
-void UINetworkManager::createNetworkRequest(UINetworkRequestType type, const QList<QUrl> &urls,
+void UINetworkManager::createNetworkRequest(UINetworkRequestType enmType, const QList<QUrl> &urls,
                                             const UserDictionary &requestHeaders, UINetworkCustomer *pCustomer)
 {
     /* Create network-request: */
-    UINetworkRequest *pNetworkRequest = new UINetworkRequest(type, urls, requestHeaders, pCustomer, this);
+    UINetworkRequest *pNetworkRequest = new UINetworkRequest(enmType, urls, requestHeaders, pCustomer, this);
     /* Prepare created network-request: */
     prepareNetworkRequest(pNetworkRequest);
 }
@@ -120,13 +114,13 @@ UINetworkManager::UINetworkManager()
     : m_pNetworkManagerDialog(0)
 {
     /* Prepare instance: */
-    m_pInstance = this;
+    s_pInstance = this;
 }
 
 UINetworkManager::~UINetworkManager()
 {
     /* Cleanup instance: */
-    m_pInstance = 0;
+    s_pInstance = 0;
 }
 
 void UINetworkManager::prepare()

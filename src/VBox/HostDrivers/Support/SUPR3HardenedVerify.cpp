@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -72,6 +72,7 @@
 #include <iprt/param.h>
 #include <iprt/path.h>
 #include <iprt/string.h>
+#include <iprt/utf16.h>
 
 #include "SUPLibInternal.h"
 #if defined(RT_OS_WINDOWS) && defined(VBOX_WITH_HARDENING)
@@ -196,10 +197,9 @@ static SUPINSTFILE const    g_aSupInstallFiles[] =
 
 //#ifdef VBOX_WITH_QTGUI
     {   kSupIFT_Exe,  kSupID_AppBin,             true, "VirtualBox" SUPLIB_EXE_SUFF },
-    {   kSupIFT_Dll,  kSupID_AppPrivArch,        true, "VirtualBox" SUPLIB_DLL_SUFF },
-# ifdef RT_OS_DARWIN
     {   kSupIFT_Exe,  kSupID_AppBin,             true, "VirtualBoxVM" SUPLIB_EXE_SUFF },
-# endif
+    {   kSupIFT_Dll,  kSupID_AppPrivArch,        true, "VirtualBoxVM" SUPLIB_DLL_SUFF },
+    {   kSupIFT_Dll,  kSupID_AppPrivArch,        true, "VBoxGlobal" SUPLIB_DLL_SUFF },
 # if !defined(RT_OS_DARWIN) && !defined(RT_OS_WINDOWS) && !defined(RT_OS_OS2)
     {   kSupIFT_Dll,  kSupID_AppSharedLib,       true, "VBoxKeyboard" SUPLIB_DLL_SUFF },
 # endif

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2017 Oracle Corporation
+ * Copyright (C) 2016-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,7 +21,7 @@
 *********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_DRV_VUSB
 #include <VBox/log.h>
-#include <VBox/err.h>
+#include <iprt/errcore.h>
 #include <iprt/mem.h>
 #include <iprt/critsect.h>
 
@@ -129,7 +129,7 @@ DECLHIDDEN(PVUSBURB) vusbUrbPoolAlloc(PVUSBURBPOOL pUrbPool, VUSBXFERTYPE enmTyp
     /* Get the required amount of additional memory to allocate the whole state. */
     size_t cbMem = cbData + sizeof(VUSBURBVUSBINT) + cbHci + cTds * cbHciTd;
 
-    AssertReturn(enmType < RT_ELEMENTS(pUrbPool->aLstFreeUrbs), NULL);
+    AssertReturn((size_t)enmType < RT_ELEMENTS(pUrbPool->aLstFreeUrbs), NULL);
 
     RTCritSectEnter(&pUrbPool->CritSectPool);
     PVUSBURBHDR pHdr = NULL;
@@ -233,7 +233,7 @@ DECLHIDDEN(void) vusbUrbPoolFree(PVUSBURBPOOL pUrbPool, PVUSBURB pUrb)
     {
         /* Put it into the list of free URBs. */
         VUSBXFERTYPE enmType = pUrb->enmType;
-        AssertReturnVoid(enmType < RT_ELEMENTS(pUrbPool->aLstFreeUrbs));
+        AssertReturnVoid((size_t)enmType < RT_ELEMENTS(pUrbPool->aLstFreeUrbs));
         RTCritSectEnter(&pUrbPool->CritSectPool);
         pUrb->enmState = VUSBURBSTATE_FREE;
         RTListAppend(&pUrbPool->aLstFreeUrbs[enmType], &pHdr->NdFree);

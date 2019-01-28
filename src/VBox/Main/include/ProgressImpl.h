@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,8 +16,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ____H_PROGRESSIMPL
-#define ____H_PROGRESSIMPL
+#ifndef MAIN_INCLUDED_ProgressImpl_h
+#define MAIN_INCLUDED_ProgressImpl_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "ProgressWrap.h"
 #include "VirtualBoxBase.h"
@@ -55,7 +58,7 @@ public:
                   VirtualBox *aParent,
 #endif
                   IUnknown *aInitiator,
-                  Utf8Str aDescription,
+                  const Utf8Str &aDescription,
                   BOOL aCancelable)
     {
         return init(
@@ -87,9 +90,9 @@ public:
                   VirtualBox *aParent,
 #endif
                   IUnknown *aInitiator,
-                  Utf8Str aDescription, BOOL aCancelable,
+                  const Utf8Str &aDescription, BOOL aCancelable,
                   ULONG cOperations,
-                  Utf8Str aFirstOperationDescription)
+                  const Utf8Str &aFirstOperationDescription)
     {
         return init(
 #if !defined(VBOX_COM_INPROC)
@@ -109,16 +112,16 @@ public:
                   VirtualBox *aParent,
 #endif
                   IUnknown *aInitiator,
-                  Utf8Str aDescription,
+                  const Utf8Str &aDescription,
                   BOOL aCancelable,
                   ULONG cOperations,
                   ULONG ulTotalOperationsWeight,
-                  Utf8Str aFirstOperationDescription,
+                  const Utf8Str &aFirstOperationDescription,
                   ULONG ulFirstOperationWeight);
 
     HRESULT init(BOOL aCancelable,
                  ULONG aOperationCount,
-                 Utf8Str aOperationDescription);
+                 const Utf8Str &aOperationDescription);
 
     void uninit();
 
@@ -135,10 +138,7 @@ public:
                               const char *pcszComponent,
                               const char *aText,
                               va_list va);
-    HRESULT i_notifyCompleteEI(HRESULT aResultCode,
-                               const ComPtr<IVirtualBoxErrorInfo> &aErrorInfo);
 
-    bool i_notifyPointOfNoReturn(void);
     bool i_setCancelCallback(void (*pfnCallback)(void *), void *pvUser);
 
     static DECLCALLBACK(int) i_iprtProgressCallback(unsigned uPercentage, void *pvUser);
@@ -206,14 +206,20 @@ private:
     HRESULT getEventSource(ComPtr<IEventSource> &aEventSource);
 
     // wrapped IProgress methods
-    HRESULT setCurrentOperationProgress(ULONG aPercent);
-    HRESULT setNextOperation(const com::Utf8Str &aNextOperationDescription,
-                             ULONG aNextOperationsWeight);
     HRESULT waitForCompletion(LONG aTimeout);
     HRESULT waitForOperationCompletion(ULONG aOperation,
                                        LONG aTimeout);
-    HRESULT waitForAsyncProgressCompletion(const ComPtr<IProgress> &aPProgressAsync);
     HRESULT cancel();
+
+    // wrapped IInternalProgressControl methods
+    HRESULT setCurrentOperationProgress(ULONG aPercent);
+    HRESULT waitForOtherProgressCompletion(const ComPtr<IProgress> &aProgressOther,
+                                           ULONG aTimeoutMS);
+    HRESULT setNextOperation(const com::Utf8Str &aNextOperationDescription,
+                             ULONG aNextOperationsWeight);
+    HRESULT notifyPointOfNoReturn();
+    HRESULT notifyComplete(LONG aResultCode,
+                           const ComPtr<IVirtualBoxErrorInfo> &aErrorInfo);
 
     // internal helper methods
     double i_calcTotalPercent();
@@ -226,5 +232,5 @@ private:
     DECLARE_CLS_COPY_CTOR_ASSIGN_NOOP(Progress); /* Shuts up MSC warning C4625. */
 };
 
-#endif /* ____H_PROGRESSIMPL */
+#endif /* !MAIN_INCLUDED_ProgressImpl_h */
 

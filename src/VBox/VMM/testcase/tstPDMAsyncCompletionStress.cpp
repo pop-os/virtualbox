@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -179,8 +179,8 @@ static void tstPDMACStressTestFileVerify(PPDMACTESTFILE pTestFile, PPDMACTESTFIL
         {
             unsigned idx = 0;
 
-            while (   (pbBuf[idx] == pbTestPattern[idx])
-                   && (idx < cbCompare))
+            while (   (idx < cbCompare)
+                   && (pbBuf[idx] == pbTestPattern[idx]))
                 idx++;
 
             RTMsgError("Unexpected data for off=%RTfoff size=%u\n"

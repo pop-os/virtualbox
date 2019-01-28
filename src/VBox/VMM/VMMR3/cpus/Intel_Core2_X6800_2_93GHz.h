@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2013-2017 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,8 +16,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef VBOX_CPUDB_Intel_Core2_X6800_2_93GHz
-#define VBOX_CPUDB_Intel_Core2_X6800_2_93GHz
+#ifndef VBOX_CPUDB_Intel_Core2_X6800_2_93GHz_h
+#define VBOX_CPUDB_Intel_Core2_X6800_2_93GHz_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 
 #ifndef CPUM_DB_STANDALONE
@@ -192,7 +195,7 @@ static CPUMMSRRANGE const g_aMsrRanges_Intel_Core2_X6800_2_93GHz[] =
     MFX(0x000003f1, "IA32_PEBS_ENABLE", Ia32PebsEnable, Ia32PebsEnable, 0, UINT64_C(0xfffffffffffffffe), 0), /* value=0x0 */
     RFN(0x00000400, 0x00000417, "IA32_MCi_CTL_STATUS_ADDR_MISC", Ia32McCtlStatusAddrMiscN, Ia32McCtlStatusAddrMiscN),
     MVX(0x00000478, "TODO_0000_0478", 0, 0, 0),
-    MFX(0x00000480, "IA32_VMX_BASIC", Ia32VmxBase, ReadOnly, UINT64_C(0x1a040000000007), 0, 0), /* value=0x1a0400`00000007 */
+    MFX(0x00000480, "IA32_VMX_BASIC", Ia32VmxBasic, ReadOnly, UINT64_C(0x1a040000000007), 0, 0), /* value=0x1a0400`00000007 */
     MFX(0x00000481, "IA32_VMX_PINBASED_CTLS", Ia32VmxPinbasedCtls, ReadOnly, UINT64_C(0x1f00000016), 0, 0), /* value=0x1f`00000016 */
     MFX(0x00000482, "IA32_VMX_PROCBASED_CTLS", Ia32VmxProcbasedCtls, ReadOnly, UINT64_C(0x77b9fffe0401e172), 0, 0), /* value=0x77b9fffe`0401e172 */
     MFX(0x00000483, "IA32_VMX_EXIT_CTLS", Ia32VmxExitCtls, ReadOnly, UINT64_C(0x3efff00036dff), 0, 0), /* value=0x3efff`00036dff */
@@ -253,5 +256,5 @@ static CPUMDBENTRY const g_Entry_Intel_Core2_X6800_2_93GHz =
     /*.paMsrRanges      = */ NULL_ALONE(g_aMsrRanges_Intel_Core2_X6800_2_93GHz),
 };
 
-#endif /* !VBOX_DB_Intel_Core2_X6800_2_93GHz */
+#endif /* !VBOX_CPUDB_Intel_Core2_X6800_2_93GHz_h */
 

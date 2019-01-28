@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,6 +20,9 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_TM
+#ifdef DEBUG_bird
+# define DBGFTRACE_DISABLED /* annoying */
+#endif
 #include <VBox/vmm/tm.h>
 #include <VBox/vmm/mm.h>
 #include <VBox/vmm/dbgftrace.h>
@@ -797,7 +800,7 @@ DECL_FORCE_INLINE(uint64_t) tmTimerPollInternal(PVM pVM, PVMCPU pVCpu, uint64_t 
     {
         if (!VMCPU_FF_IS_SET(pVCpuDst, VMCPU_FF_TIMER))
         {
-            Log5(("TMAll(%u): FF: %d -> 1\n", __LINE__, VMCPU_FF_IS_PENDING(pVCpuDst, VMCPU_FF_TIMER)));
+            Log5(("TMAll(%u): FF: %d -> 1\n", __LINE__, VMCPU_FF_IS_SET(pVCpuDst, VMCPU_FF_TIMER)));
             VMCPU_FF_SET(pVCpuDst, VMCPU_FF_TIMER);
 #if defined(IN_RING3) && defined(VBOX_WITH_REM)
             REMR3NotifyTimerPending(pVM, pVCpuDst);
@@ -843,7 +846,7 @@ DECL_FORCE_INLINE(uint64_t) tmTimerPollInternal(PVM pVM, PVMCPU pVCpu, uint64_t 
                 if (    !pVM->tm.s.fRunningQueues
                     &&  !VMCPU_FF_IS_SET(pVCpuDst, VMCPU_FF_TIMER))
                 {
-                    Log5(("TMAll(%u): FF: %d -> 1\n", __LINE__, VMCPU_FF_IS_PENDING(pVCpuDst, VMCPU_FF_TIMER)));
+                    Log5(("TMAll(%u): FF: %d -> 1\n", __LINE__, VMCPU_FF_IS_SET(pVCpuDst, VMCPU_FF_TIMER)));
                     VMCPU_FF_SET(pVCpuDst, VMCPU_FF_TIMER);
 #if defined(IN_RING3) && defined(VBOX_WITH_REM)
                     REMR3NotifyTimerPending(pVM, pVCpuDst);
@@ -942,7 +945,7 @@ DECL_FORCE_INLINE(uint64_t) tmTimerPollInternal(PVM pVM, PVMCPU pVCpu, uint64_t 
         if (    !pVM->tm.s.fRunningQueues
             &&  !VMCPU_FF_IS_SET(pVCpuDst, VMCPU_FF_TIMER))
         {
-            Log5(("TMAll(%u): FF: %d -> 1\n", __LINE__, VMCPU_FF_IS_PENDING(pVCpuDst, VMCPU_FF_TIMER)));
+            Log5(("TMAll(%u): FF: %d -> 1\n", __LINE__, VMCPU_FF_IS_SET(pVCpuDst, VMCPU_FF_TIMER)));
             VMCPU_FF_SET(pVCpuDst, VMCPU_FF_TIMER);
 #if defined(IN_RING3) && defined(VBOX_WITH_REM)
             REMR3NotifyTimerPending(pVM, pVCpuDst);

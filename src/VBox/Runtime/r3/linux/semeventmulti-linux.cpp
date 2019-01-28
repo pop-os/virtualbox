@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -39,7 +39,7 @@
  * against glibc < 2.6.
  */
 #include "../posix/semeventmulti-posix.cpp"
-asm volatile (".global epoll_pwait");
+__asm__ (".global epoll_pwait");
 
 #else /* glibc < 2.6 */
 

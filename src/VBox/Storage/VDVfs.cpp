@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2017 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,6 +31,8 @@
 #include <iprt/poll.h>
 #include <VBox/vd.h>
 
+#include "VDInternal.h"
+
 
 /*********************************************************************************************************************************
 *   Structures and Typedefs                                                                                                      *
@@ -42,11 +44,11 @@
 typedef struct VDVFSFILE
 {
     /** The volume the VFS file belongs to. */
-    PVDISK         pDisk;
+    PVDISK          pDisk;
     /** Current position. */
-    uint64_t       offCurPos;
+    uint64_t        offCurPos;
     /** Flags given during creation. */
-    uint32_t       fFlags;
+    uint32_t        fFlags;
 } VDVFSFILE;
 /** Pointer to a the internal data of a DVM volume file. */
 typedef VDVFSFILE *PVDVFSFILE;
@@ -62,50 +64,57 @@ typedef VDVFSFILE *PVDVFSFILE;
  */
 static int vdReadHelper(PVDISK pDisk, uint64_t off, void *pvBuf, size_t cbRead)
 {
-    int rc = VINF_SUCCESS;
+    int rc;
 
-    /* Take shortcut if possible. */
-    if (   off % 512 == 0
-        && cbRead % 512 == 0)
+    /* Take direct route if the request is sector aligned. */
+    uint64_t const offMisalign = off & 511;
+    size_t   const cbMisalign  = (off + cbRead) & 511;
+    if (   !offMisalign
+        && !cbMisalign)
         rc = VDRead(pDisk, off, pvBuf, cbRead);
     else
     {
         uint8_t *pbBuf = (uint8_t *)pvBuf;
         uint8_t abBuf[512];
 
-        /* Unaligned access, make it aligned. */
-        if (off % 512 != 0)
+        /* Unaligned buffered read of head.  Aligns the offset. */
+        if (offMisalign)
         {
-            uint64_t offAligned = off & ~(uint64_t)(512 - 1);
-            size_t cbToCopy = 512 - (off - offAligned);
-            rc = VDRead(pDisk, offAligned, abBuf, 512);
+            rc = VDRead(pDisk, off - offMisalign, abBuf, 512);
             if (RT_SUCCESS(rc))
             {
-                memcpy(pbBuf, &abBuf[off - offAligned], cbToCopy);
-                pbBuf  += cbToCopy;
-                off    += cbToCopy;
-                cbRead -= cbToCopy;
+                size_t const cbPart = RT_MIN(512 - offMisalign, cbRead);
+                memcpy(pbBuf, &abBuf[offMisalign], cbPart);
+                pbBuf  += cbPart;
+                off    += cbPart;
+                cbRead -= cbPart;
             }
         }
+        else
+            rc = VINF_SUCCESS;
 
+        /* Aligned direct read. */
         if (   RT_SUCCESS(rc)
-            && (cbRead & ~(uint64_t)(512 - 1)))
+            && cbRead >= 512)
         {
-            size_t cbReadAligned = cbRead & ~(uint64_t)(512 - 1);
-
             Assert(!(off % 512));
-            rc = VDRead(pDisk, off, pbBuf, cbReadAligned);
+
+            size_t cbPart = cbRead - cbMisalign;
+            Assert(!(cbPart % 512));
+            rc = VDRead(pDisk, off, pbBuf, cbPart);
             if (RT_SUCCESS(rc))
             {
-                pbBuf  += cbReadAligned;
-                off    += cbReadAligned;
-                cbRead -= cbReadAligned;
+                pbBuf  += cbPart;
+                off    += cbPart;
+                cbRead -= cbPart;
             }
         }
 
+        /* Unaligned buffered read of tail. */
         if (   RT_SUCCESS(rc)
             && cbRead)
         {
+            Assert(cbRead == cbMisalign);
             Assert(cbRead < 512);
             Assert(!(off % 512));
 
@@ -125,64 +134,122 @@ static int vdReadHelper(PVDISK pDisk, uint64_t off, void *pvBuf, size_t cbRead)
  * @return  VBox status code.
  * @param   pDisk    VD disk container.
  * @param   off      Offset to start writing to.
- * @param   pvBuf    Pointer to the buffer to read from.
+ * @param   pvSrc    Pointer to the buffer to read from.
  * @param   cbWrite  Amount of bytes to write.
  */
-static int vdWriteHelper(PVDISK pDisk, uint64_t off, const void *pvBuf, size_t cbWrite)
+static int vdWriteHelper(PVDISK pDisk, uint64_t off, const void *pvSrc, size_t cbWrite)
 {
-    int rc = VINF_SUCCESS;
+    uint8_t const *pbSrc = (uint8_t const *)pvSrc;
+    uint8_t        abBuf[4096];
+    int rc;
 
-    /* Take shortcut if possible. */
-    if (   off % 512 == 0
-        && cbWrite % 512 == 0)
-        rc = VDWrite(pDisk, off, pvBuf, cbWrite);
+    /*
+     * Take direct route if the request is sector aligned.
+     */
+    uint64_t const offMisalign = off & 511;
+    size_t   const cbMisalign  = (off + cbWrite) & 511;
+    if (   !offMisalign
+        && !cbMisalign)
+    {
+        if (RTListIsEmpty(&pDisk->ListFilterChainWrite))
+            rc = VDWrite(pDisk, off, pbSrc, cbWrite);
+        else
+        {
+            /* Filtered writes must be double buffered as the filter may need to modify the input buffer directly. */
+            do
+            {
+                size_t cbThisWrite = RT_MIN(cbWrite, sizeof(abBuf));
+                rc = VDWrite(pDisk, off, memcpy(abBuf, pbSrc, cbThisWrite), cbThisWrite);
+                if (RT_SUCCESS(rc))
+                {
+                    pbSrc   += cbThisWrite;
+                    off     += cbThisWrite;
+                    cbWrite -= cbThisWrite;
+                }
+                else
+                    break;
+            } while (cbWrite > 0);
+        }
+    }
     else
     {
-        uint8_t *pbBuf = (uint8_t *)pvBuf;
-        uint8_t abBuf[512];
 
-        /* Unaligned access, make it aligned. */
-        if (off % 512 != 0)
+        /*
+         * Unaligned buffered read+write of head.  Aligns the offset.
+         */
+        if (offMisalign)
         {
-            uint64_t offAligned = off & ~(uint64_t)(512 - 1);
-            size_t cbToCopy = 512 - (off - offAligned);
-            rc = VDRead(pDisk, offAligned, abBuf, 512);
+            rc = VDRead(pDisk, off - offMisalign, abBuf, 512);
             if (RT_SUCCESS(rc))
             {
-                memcpy(&abBuf[off - offAligned], pbBuf, cbToCopy);
-                rc = VDWrite(pDisk, offAligned, abBuf, 512);
-
-                pbBuf   += cbToCopy;
-                off     += cbToCopy;
-                cbWrite -= cbToCopy;
+                size_t const cbPart = RT_MIN(512 - offMisalign, cbWrite);
+                memcpy(&abBuf[offMisalign], pbSrc, cbPart);
+                rc = VDWrite(pDisk, off - offMisalign, abBuf, 512);
+                if (RT_SUCCESS(rc))
+                {
+                    pbSrc   += cbPart;
+                    off     += cbPart;
+                    cbWrite -= cbPart;
+                }
             }
         }
+        else
+            rc = VINF_SUCCESS;
 
+        /*
+         * Aligned direct write.
+         */
         if (   RT_SUCCESS(rc)
-            && (cbWrite & ~(uint64_t)(512 - 1)))
+            && cbWrite >= 512)
         {
-            size_t cbWriteAligned = cbWrite & ~(uint64_t)(512 - 1);
-
             Assert(!(off % 512));
-            rc = VDWrite(pDisk, off, pbBuf, cbWriteAligned);
-            if (RT_SUCCESS(rc))
+            size_t cbPart = cbWrite - cbMisalign;
+            Assert(!(cbPart % 512));
+
+            if (RTListIsEmpty(&pDisk->ListFilterChainWrite))
             {
-                pbBuf   += cbWriteAligned;
-                off     += cbWriteAligned;
-                cbWrite -= cbWriteAligned;
+                rc = VDWrite(pDisk, off, pbSrc, cbPart);
+                if (RT_SUCCESS(rc))
+                {
+                    pbSrc   += cbPart;
+                    off     += cbPart;
+                    cbWrite -= cbPart;
+                }
+            }
+            else
+            {
+                /* Filtered writes must be double buffered as the filter may need to modify the input buffer directly. */
+                do
+                {
+                    size_t cbThisWrite = RT_MIN(cbPart, sizeof(abBuf));
+                    rc = VDWrite(pDisk, off, memcpy(abBuf, pbSrc, cbThisWrite), cbThisWrite);
+                    if (RT_SUCCESS(rc))
+                    {
+                        pbSrc   += cbThisWrite;
+                        off     += cbThisWrite;
+                        cbWrite -= cbThisWrite;
+                        cbPart  -= cbThisWrite;
+                    }
+                    else
+                        break;
+                } while (cbPart > 0);
             }
         }
 
+        /*
+         * Unaligned buffered read+write of tail.
+         */
         if (   RT_SUCCESS(rc)
-            && cbWrite)
+            && cbWrite > 0)
         {
+            Assert(cbWrite == cbMisalign);
             Assert(cbWrite < 512);
             Assert(!(off % 512));
 
             rc = VDRead(pDisk, off, abBuf, 512);
             if (RT_SUCCESS(rc))
             {
-                memcpy(abBuf, pbBuf, cbWrite);
+                memcpy(abBuf, pbSrc, cbWrite);
                 rc = VDWrite(pDisk, off, abBuf, 512);
             }
         }
@@ -345,7 +412,7 @@ static DECLCALLBACK(int) vdVfsFile_Write(void *pvThis, RTFOFF off, PCRTSGBUF pSg
     }
 
     size_t cbLeftToWrite;
-    if (offUnsigned + pSgBuf->paSegs[0].cbSeg < cbImage)
+    if (offUnsigned + pSgBuf->paSegs[0].cbSeg <= cbImage)
     {
         cbLeftToWrite = pSgBuf->paSegs[0].cbSeg;
         if (pcbWritten)
@@ -381,25 +448,6 @@ static DECLCALLBACK(int) vdVfsFile_Flush(void *pvThis)
 {
     PVDVFSFILE pThis = (PVDVFSFILE)pvThis;
     return VDFlush(pThis->pDisk);
-}
-
-
-/**
- * @interface_method_impl{RTVFSIOSTREAMOPS,pfnPollOne}
- */
-static DECLCALLBACK(int) vdVfsFile_PollOne(void *pvThis, uint32_t fEvents, RTMSINTERVAL cMillies, bool fIntr,
-                                           uint32_t *pfRetEvents)
-{
-    NOREF(pvThis);
-    int rc;
-    if (fEvents != RTPOLL_EVT_ERROR)
-    {
-        *pfRetEvents = fEvents & ~RTPOLL_EVT_ERROR;
-        rc = VINF_SUCCESS;
-    }
-    else
-        rc = RTVfsUtilDummyPollOne(fEvents, cMillies, fIntr, pfRetEvents);
-    return rc;
 }
 
 
@@ -540,7 +588,7 @@ DECL_HIDDEN_CONST(const RTVFSFILEOPS) g_vdVfsStdFileOps =
         vdVfsFile_Read,
         vdVfsFile_Write,
         vdVfsFile_Flush,
-        vdVfsFile_PollOne,
+        NULL /*PollOne*/,
         vdVfsFile_Tell,
         NULL /*Skip*/,
         NULL /*ZeroFill*/,
@@ -558,6 +606,8 @@ DECL_HIDDEN_CONST(const RTVFSFILEOPS) g_vdVfsStdFileOps =
     },
     vdVfsFile_Seek,
     vdVfsFile_QuerySize,
+    NULL /*SetSize*/,
+    NULL /*QueryMaxSize*/,
     RTVFSFILEOPS_VERSION
 };
 
@@ -578,9 +628,9 @@ VBOXDDU_DECL(int) VDCreateVfsFileFromDisk(PVDISK pDisk, uint32_t fFlags,
                           NIL_RTVFS, NIL_RTVFSLOCK, &hVfsFile, (void **)&pThis);
     if (RT_SUCCESS(rc))
     {
-        pThis->offCurPos = 0;
-        pThis->pDisk     = pDisk;
-        pThis->fFlags    = fFlags;
+        pThis->offCurPos        = 0;
+        pThis->pDisk            = pDisk;
+        pThis->fFlags           = fFlags;
 
         *phVfsFile = hVfsFile;
         return VINF_SUCCESS;
@@ -609,8 +659,6 @@ static DECLCALLBACK(int) vdVfsChain_Validate(PCRTVFSCHAINELEMENTREG pProviderReg
 
     if (pElement->cArgs < 1)
         return VERR_VFS_CHAIN_AT_LEAST_ONE_ARG;
-    if (pElement->cArgs > 2)
-        return VERR_VFS_CHAIN_AT_MOST_TWO_ARGS;
 
     /*
      * Parse the flag if present, save in pElement->uProvider.
@@ -619,7 +667,8 @@ static DECLCALLBACK(int) vdVfsChain_Validate(PCRTVFSCHAINELEMENTREG pProviderReg
                     ? VD_OPEN_FLAGS_READONLY : VD_OPEN_FLAGS_NORMAL;
     if (pElement->cArgs > 1)
     {
-        const char *psz = pElement->paArgs[1].psz;
+        pElement->paArgs[pElement->cArgs - 1].uProvider = true; /* indicates flags  */
+        const char *psz = pElement->paArgs[pElement->cArgs - 1].psz;
         if (*psz)
         {
             if (   !strcmp(psz, "ro")
@@ -633,15 +682,20 @@ static DECLCALLBACK(int) vdVfsChain_Validate(PCRTVFSCHAINELEMENTREG pProviderReg
                 fFlags &= ~(VD_OPEN_FLAGS_READONLY | VD_OPEN_FLAGS_NORMAL);
                 fFlags |= VD_OPEN_FLAGS_NORMAL;
             }
-            else
+            else if (strlen(psz) <= 4)
             {
-                *poffError = pElement->paArgs[0].offSpec;
+                *poffError = pElement->paArgs[pElement->cArgs - 1].offSpec;
                 return RTErrInfoSet(pErrInfo, VERR_VFS_CHAIN_INVALID_ARGUMENT, "Expected 'ro' or 'rw' as argument");
             }
+            else
+                pElement->paArgs[pElement->cArgs - 1].uProvider = false; /* indicates no flags  */
         }
     }
 
     pElement->uProvider = fFlags;
+    if (   pElement->cArgs > 2
+        || (pElement->cArgs == 2 && !pElement->paArgs[pElement->cArgs - 1].uProvider))
+           pElement->uProvider |= RT_BIT_64(63);
     return VINF_SUCCESS;
 }
 
@@ -666,7 +720,19 @@ static DECLCALLBACK(int) vdVfsChain_Instantiate(PCRTVFSCHAINELEMENTREG pProvider
         rc = VDCreate(NULL, enmType, &pDisk);
         if (RT_SUCCESS(rc))
         {
-            rc = VDOpen(pDisk, pszFormat, pElement->paArgs[0].psz, (uint32_t)pElement->uProvider, NULL);
+            if (!(pElement->uProvider & RT_BIT_64(63)))
+                rc = VDOpen(pDisk, pszFormat, pElement->paArgs[0].psz, (uint32_t)pElement->uProvider, NULL);
+            else
+            {
+                uint32_t cChain = pElement->cArgs;
+                if (pElement->cArgs >= 2 && pElement->paArgs[pElement->cArgs - 1].uProvider != 0)
+                    cChain--;
+                uint32_t const  fFinal    = (uint32_t)pElement->uProvider;
+                uint32_t const  fReadOnly = (fFinal & ~(VD_OPEN_FLAGS_READONLY | VD_OPEN_FLAGS_NORMAL)) | VD_OPEN_FLAGS_READONLY;
+                uint32_t        iChain;
+                for (iChain = 0; iChain < cChain && RT_SUCCESS(rc); iChain++)
+                    rc = VDOpen(pDisk, pszFormat, pElement->paArgs[iChain].psz, iChain + 1 >= cChain ? fFinal : fReadOnly, NULL);
+            }
             if (RT_SUCCESS(rc))
             {
                 RTVFSFILE hVfsFile;
@@ -710,7 +776,9 @@ static RTVFSCHAINELEMENTREG g_rtVfsChainIsoFsVolReg =
     /* fReserved = */           0,
     /* pszName = */             "vd",
     /* ListEntry = */           { NULL, NULL },
-    /* pszHelp = */             "Opens a container image using the VD API.\n",
+    /* pszHelp = */             "Opens a container image using the VD API.\n"
+                                "To open a snapshot chain, start with the root image and end with the more recent diff image.\n"
+                                "The final argument can be a flag 'ro' or 'r' for read-only, 'rw' for read-write.",
     /* pfnValidate = */         vdVfsChain_Validate,
     /* pfnInstantiate = */      vdVfsChain_Instantiate,
     /* pfnCanReuseElement = */  vdVfsChain_CanReuseElement,

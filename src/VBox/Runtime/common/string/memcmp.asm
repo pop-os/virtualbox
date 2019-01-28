@@ -4,7 +4,7 @@
 ;
 
 ;
-; Copyright (C) 2006-2017 Oracle Corporation
+; Copyright (C) 2006-2019 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -29,12 +29,11 @@
 BEGINCODE
 
 ;;
-; @param    pv1     gcc: rdi  msc: rcx  x86:[esp+4]
-; @param    pv2     gcc: rsi  msc: rdx  x86:[esp+8]
-; @param    cb      gcc: rdx  msc: r8   x86:[esp+0ch]
+; @param    pv1     gcc: rdi  msc: rcx  x86:[esp+4]   wcall: eax
+; @param    pv2     gcc: rsi  msc: rdx  x86:[esp+8]   wcall: edx
+; @param    cb      gcc: rdx  msc: r8   x86:[esp+0ch] wcall: ebx
 RT_NOCRT_BEGINPROC memcmp
         cld
-        xor     eax, eax
 
         ; Do the bulk of the work.
 %ifdef RT_ARCH_AMD64
@@ -49,18 +48,27 @@ RT_NOCRT_BEGINPROC memcmp
         mov     rcx, rdx
  %endif
         shr     rcx, 3
+        xor     eax, eax
         repe cmpsq
         jne     .not_equal_qword
 %else
         push    edi
         push    esi
 
+ %ifdef ASM_CALL32_WATCOM
+        mov     edi, eax
+        mov     esi, edx
+        mov     ecx, ebx
+        mov     edx, ebx
+ %else
         mov     ecx, [esp + 0ch + 8]
         mov     edi, [esp + 04h + 8]
         mov     esi, [esp + 08h + 8]
         mov     edx, ecx
+ %endif
         jecxz   .done
         shr     ecx, 2
+        xor     eax, eax
         repe cmpsd
         jne     .not_equal_dword
 %endif

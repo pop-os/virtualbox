@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __UIWizardImportAppDefs_h__
-#define __UIWizardImportAppDefs_h__
+#ifndef FEQT_INCLUDED_SRC_wizards_importappliance_UIWizardImportAppDefs_h
+#define FEQT_INCLUDED_SRC_wizards_importappliance_UIWizardImportAppDefs_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Global includes: */
 #include <QMetaType>
@@ -29,5 +32,5 @@
 typedef QPointer<UIApplianceImportEditorWidget> ImportAppliancePointer;
 Q_DECLARE_METATYPE(ImportAppliancePointer);
 
-#endif /* __UIWizardImportAppDefs_h__ */
+#endif /* !FEQT_INCLUDED_SRC_wizards_importappliance_UIWizardImportAppDefs_h */
 

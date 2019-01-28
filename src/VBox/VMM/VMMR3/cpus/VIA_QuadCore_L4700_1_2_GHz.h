@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2013-2017 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,8 +16,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef VBOX_CPUDB_VIA_QuadCore_L4700_1_2_GHz
-#define VBOX_CPUDB_VIA_QuadCore_L4700_1_2_GHz
+#ifndef VBOX_CPUDB_VIA_QuadCore_L4700_1_2_GHz_h
+#define VBOX_CPUDB_VIA_QuadCore_L4700_1_2_GHz_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 
 #ifndef CPUM_DB_STANDALONE
@@ -157,7 +160,7 @@ static CPUMMSRRANGE const g_aMsrRanges_VIA_QuadCore_L4700_1_2_GHz[] =
     MFX(0x0000038e, "IA32_PERF_GLOBAL_STATUS", Ia32PerfGlobalStatus, ReadOnly, 0, 0, 0), /* value=0x0 */
     MFN(0x0000038f, "IA32_PERF_GLOBAL_CTRL", Ia32PerfGlobalCtrl, Ia32PerfGlobalCtrl), /* value=0xffffffff`ffffffff */
     RVI(0x00000390, 0x0000047f, "ZERO_0000_0390_THRU_0000_047f", 0),
-    MFX(0x00000480, "IA32_VMX_BASIC", Ia32VmxBase, ReadOnly, UINT64_C(0x1a040000000007), 0, 0), /* value=0x1a0400`00000007 */
+    MFX(0x00000480, "IA32_VMX_BASIC", Ia32VmxBasic, ReadOnly, UINT64_C(0x1a040000000007), 0, 0), /* value=0x1a0400`00000007 */
     MFX(0x00000481, "IA32_VMX_PINBASED_CTLS", Ia32VmxPinbasedCtls, ReadOnly, UINT64_C(0x3f00000016), 0, 0), /* value=0x3f`00000016 */
     MFX(0x00000482, "IA32_VMX_PROCBASED_CTLS", Ia32VmxProcbasedCtls, ReadOnly, UINT64_C(0x77f9fffe0401e172), 0, 0), /* value=0x77f9fffe`0401e172 */
     MFX(0x00000483, "IA32_VMX_EXIT_CTLS", Ia32VmxExitCtls, ReadOnly, UINT64_C(0x3efff00036dff), 0, 0), /* value=0x3efff`00036dff */
@@ -397,5 +400,5 @@ static CPUMDBENTRY const g_Entry_VIA_QuadCore_L4700_1_2_GHz =
     /*.paMsrRanges      = */ NULL_ALONE(g_aMsrRanges_VIA_QuadCore_L4700_1_2_GHz),
 };
 
-#endif /* !VBOX_DB_VIA_QuadCore_L4700_1_2_GHz */
+#endif /* !VBOX_CPUDB_VIA_QuadCore_L4700_1_2_GHz_h */
 

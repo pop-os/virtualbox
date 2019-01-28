@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2017 Oracle Corporation
+ * Copyright (C) 2011-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -120,15 +120,30 @@ static const char * const g_apszDvmVolTypes[] =
     "FAT12",
     "FAT16",
     "FAT32",
+
+    "EFI system partition",
+
+    "Mac OS X HFS or HFS+",
+    "Mac OS X APFS",
+
     "Linux swap",
     "Linux native",
     "Linux LVM",
     "Linux SoftRaid",
+
     "FreeBSD",
     "NetBSD",
     "OpenBSD",
-    "Mac OS X HFS or HFS+",
-    "Solaris"
+    "Solaris",
+
+    "Basic data partition",
+    "Microsoft reserved partition",
+    "Windows LDM metadata",
+    "Windows LDM data",
+    "Windows recovery partition",
+    "Windows storage spaces",
+
+    "IBM GPFS",
 };
 AssertCompile(RT_ELEMENTS(g_apszDvmVolTypes) == RTDVMVOLTYPE_END);
 
@@ -160,24 +175,22 @@ static int rtDvmVolumeCreate(PRTDVMINTERNAL pThis, RTDVMVOLUMEFMT hVolFmt, PRTDV
 /**
  * Destroys a volume handle.
  *
- * @param   pThis               The volume to destroy.
+ * @param   pThis   The volume manager instance.
+ * @param   pVol    The volume to destroy.
  */
-static void rtDvmVolumeDestroy(PRTDVMVOLUMEINTERNAL pThis)
+static void rtDvmVolumeDestroy(PRTDVMINTERNAL pThis, PRTDVMVOLUMEINTERNAL pVol)
 {
-    PRTDVMINTERNAL pVolMgr = pThis->pVolMgr;
-
-    AssertPtr(pVolMgr);
+    AssertPtr(pThis);
+    AssertPtr(pThis->pDvmFmtOps);
+    Assert(pVol->pVolMgr == pThis);
 
     /* Close the volume. */
-    pVolMgr->pDvmFmtOps->pfnVolumeClose(pThis->hVolFmt);
+    pThis->pDvmFmtOps->pfnVolumeClose(pVol->hVolFmt);
 
-    pThis->u32Magic = RTDVMVOLUME_MAGIC_DEAD;
-    pThis->pVolMgr  = NULL;
-    pThis->hVolFmt  = NIL_RTDVMVOLUMEFMT;
-    RTMemFree(pThis);
-
-    /* Release the reference of the volume manager. */
-    RTDvmRelease(pVolMgr);
+    pVol->u32Magic = RTDVMVOLUME_MAGIC_DEAD;
+    pVol->pVolMgr  = NULL;
+    pVol->hVolFmt  = NIL_RTDVMVOLUMEFMT;
+    RTMemFree(pVol);
 }
 
 
@@ -239,6 +252,14 @@ static void rtDvmDestroy(PRTDVMINTERNAL pThis)
     {
         AssertPtr(pThis->pDvmFmtOps);
 
+        /* */
+        PRTDVMVOLUMEINTERNAL pItNext, pIt;
+        RTListForEachSafe(&pThis->VolumeList, pIt, pItNext, RTDVMVOLUMEINTERNAL, VolumeNode)
+        {
+            RTListNodeRemove(&pIt->VolumeNode);
+            rtDvmVolumeDestroy(pThis, pIt);
+        }
+
         /* Let the backend do it's own cleanup first. */
         pThis->pDvmFmtOps->pfnClose(pThis->hVolMgrFmt);
         pThis->hVolMgrFmt = NIL_RTDVMFMT;
@@ -252,6 +273,7 @@ static void rtDvmDestroy(PRTDVMINTERNAL pThis)
         RTVfsFileRelease(pThis->DvmDisk.hVfsFile);
         pThis->DvmDisk.hVfsFile = NIL_RTVFSFILE;
     }
+
     RTMemFree(pThis);
 }
 
@@ -353,7 +375,7 @@ RTDECL(int) RTDvmMapOpen(RTDVM hVolMgr)
                 RTListForEachSafe(&pThis->VolumeList, pIt, pItNext, RTDVMVOLUMEINTERNAL, VolumeNode)
                 {
                     RTListNodeRemove(&pIt->VolumeNode);
-                    rtDvmVolumeDestroy(pIt);
+                    rtDvmVolumeDestroy(pThis, pIt);
                 }
             }
 
@@ -473,6 +495,10 @@ RTDECL(int) RTDvmMapQueryNextVolume(RTDVM hVolMgr, RTDVMVOLUME hVol, PRTDVMVOLUM
 RTDECL(int) RTDvmMapQueryBlockStatus(RTDVM hVolMgr, uint64_t off, uint64_t cb, bool *pfAllocated)
 {
     PRTDVMINTERNAL pThis = hVolMgr;
+
+    /*
+     * Input validation.
+     */
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
     AssertPtrReturn(pfAllocated, VERR_INVALID_POINTER);
     AssertReturn(pThis->u32Magic == RTDVM_MAGIC, VERR_INVALID_HANDLE);
@@ -483,73 +509,75 @@ RTDECL(int) RTDvmMapQueryBlockStatus(RTDVM hVolMgr, uint64_t off, uint64_t cb, b
                     ("off=%#RX64 cb=%#RX64 cbDisk=%#RX64\n", off, cb, pThis->DvmDisk.cbDisk),
                     VERR_OUT_OF_RANGE);
 
-    /* Check whether the range is inuse by the volume manager metadata first. */
+    /*
+     * Check whether the range is inuse by the volume manager metadata first.
+     */
     int rc = pThis->pDvmFmtOps->pfnQueryRangeUse(pThis->hVolMgrFmt, off, cb, pfAllocated);
-    if (RT_FAILURE(rc))
+    if (RT_FAILURE(rc) || *pfAllocated)
         return rc;
 
-    if (!*pfAllocated)
+    /*
+     * Not used by volume manager metadata, so work thru the specified range one
+     * volume / void (free space) at a time.  All must be unallocated for us to
+     * reach the end, we return immediately if any portion is allocated.
+     */
+    while (cb > 0)
     {
-        bool fAllocated = false;
-
-        while (   cb > 0
-               && !fAllocated)
+        /*
+         * Search through all volumes.
+         *
+         * It is not possible to get all start sectors and sizes of all volumes
+         * here because volumes can be scattered around the disk for certain formats.
+         * Linux LVM is one example, it extents of logical volumes don't need to be
+         * contiguous on the medium.
+         */
+        bool                 fVolFound = false;
+        PRTDVMVOLUMEINTERNAL pVol;
+        RTListForEach(&pThis->VolumeList, pVol, RTDVMVOLUMEINTERNAL, VolumeNode)
         {
-            bool fVolFound = false;
             uint64_t cbIntersect;
             uint64_t offVol;
-
-            /*
-             * Search through all volumes. It is not possible to
-             * get all start sectors and sizes of all volumes here
-             * because volumes can be scattered around the disk for certain formats.
-             * Linux LVM is one example, extents of logical volumes don't need to be
-             * contigous on the medium.
-             */
-            PRTDVMVOLUMEINTERNAL pVol;
-            RTListForEach(&pThis->VolumeList, pVol, RTDVMVOLUMEINTERNAL, VolumeNode)
+            bool fIntersect = pThis->pDvmFmtOps->pfnVolumeIsRangeIntersecting(pVol->hVolFmt, off, cb, &offVol, &cbIntersect);
+            if (fIntersect)
             {
-                bool fIntersect = pThis->pDvmFmtOps->pfnVolumeIsRangeIntersecting(pVol->hVolFmt, off,
-                                                                                  cb, &offVol,
-                                                                                  &cbIntersect);
-                if (fIntersect)
+                fVolFound = true;
+                if (pVol->pfnQueryBlockStatus)
                 {
-                    fVolFound = true;
-                    if (pVol->pfnQueryBlockStatus)
+                    bool fVolAllocated = true;
+                    rc = pVol->pfnQueryBlockStatus(pVol->pvUser, offVol, cbIntersect, &fVolAllocated);
+                    if (RT_FAILURE(rc) || fVolAllocated)
                     {
-                        bool fVolAllocated = true;
-                        rc = pVol->pfnQueryBlockStatus(pVol->pvUser, offVol, cbIntersect, &fVolAllocated);
-                        if (RT_FAILURE(rc))
-                            break;
-                        if (fVolAllocated)
-                        {
-                            fAllocated = true;
-                            break;
-                        }
+                        *pfAllocated = true;
+                        return rc;
                     }
-                    else if (!(pThis->fFlags & DVM_FLAGS_NO_STATUS_CALLBACK_MARK_AS_UNUSED))
-                        fAllocated = true;
-                    /* else, flag is set, continue. */
-
-                    cb  -= cbIntersect;
-                    off += cbIntersect;
-                    break;
                 }
-            }
+                else if (!(pThis->fFlags & DVM_FLAGS_NO_STATUS_CALLBACK_MARK_AS_UNUSED))
+                {
+                    *pfAllocated = true;
+                    return VINF_SUCCESS;
+                }
+                /* else, flag is set, continue. */
 
-            if (!fVolFound)
-            {
-                if (pThis->fFlags & DVM_FLAGS_UNUSED_SPACE_MARK_AS_USED)
-                    fAllocated = true;
-
-                cb  -= pThis->DvmDisk.cbSector;
-                off += pThis->DvmDisk.cbSector;
+                cb  -= cbIntersect;
+                off += cbIntersect;
+                break;
             }
         }
 
-        *pfAllocated = fAllocated;
+        if (!fVolFound)
+        {
+            if (pThis->fFlags & DVM_FLAGS_UNUSED_SPACE_MARK_AS_USED)
+            {
+                *pfAllocated = true;
+                return VINF_SUCCESS;
+            }
+
+            cb  -= pThis->DvmDisk.cbSector;
+            off += pThis->DvmDisk.cbSector;
+        }
     }
 
+    *pfAllocated = false;
     return rc;
 }
 

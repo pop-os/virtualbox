@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,7 +31,7 @@
 #include "internal/iprt.h"
 #include <iprt/crypto/pkix.h>
 
-#include <iprt/err.h>
+#include <iprt/errcore.h>
 #include <iprt/string.h>
 
 #ifdef IPRT_WITH_OPENSSL
@@ -115,24 +115,24 @@ PCRTCRPKIXSIGNATUREDESC RTCrPkixSignatureFindByObjId(PCRTASN1OBJID pObjId, void 
 }
 
 
-RTDECL(int) RTCrPkixSignatureCreateByObjIdString(PRTCRPKIXSIGNATURE phSignature, const char *pszObjId, bool fSigning,
-                                                 PCRTASN1BITSTRING pKey,PCRTASN1DYNTYPE pParams)
+RTDECL(int) RTCrPkixSignatureCreateByObjIdString(PRTCRPKIXSIGNATURE phSignature, const char *pszObjId,
+                                                 RTCRKEY hKey, PCRTASN1DYNTYPE pParams, bool fSigning)
 {
     void *pvOpaque;
     PCRTCRPKIXSIGNATUREDESC pDesc = RTCrPkixSignatureFindByObjIdString(pszObjId, &pvOpaque);
     if (pDesc)
-        return RTCrPkixSignatureCreate(phSignature, pDesc, pvOpaque, fSigning, pKey, pParams);
+        return RTCrPkixSignatureCreate(phSignature, pDesc, pvOpaque, fSigning, hKey, pParams);
     return VERR_NOT_FOUND;
 }
 
 
-RTDECL(int) RTCrPkixSignatureCreateByObjId(PRTCRPKIXSIGNATURE phSignature, PCRTASN1OBJID pObjId, bool fSigning,
-                                           PCRTASN1BITSTRING pKey, PCRTASN1DYNTYPE pParams)
+RTDECL(int) RTCrPkixSignatureCreateByObjId(PRTCRPKIXSIGNATURE phSignature, PCRTASN1OBJID pObjId,
+                                           RTCRKEY hKey, PCRTASN1DYNTYPE pParams, bool fSigning)
 {
     void *pvOpaque;
     PCRTCRPKIXSIGNATUREDESC pDesc = RTCrPkixSignatureFindByObjId(pObjId, &pvOpaque);
     if (pDesc)
-        return RTCrPkixSignatureCreate(phSignature, pDesc, pvOpaque, fSigning, pKey, pParams);
+        return RTCrPkixSignatureCreate(phSignature, pDesc, pvOpaque, fSigning, hKey, pParams);
     return VERR_NOT_FOUND;
 }
 

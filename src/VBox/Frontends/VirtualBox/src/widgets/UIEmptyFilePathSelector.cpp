@@ -1,10 +1,10 @@
 /* $Id: UIEmptyFilePathSelector.cpp $ */
 /** @file
- * VBox Qt GUI - VirtualBox Qt extensions: UIEmptyFilePathSelector class implementation.
+ * VBox Qt GUI - UIEmptyFilePathSelector class implementation.
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,31 +15,25 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Local includes */
-# include "QIFileDialog.h"
-# include "QIToolButton.h"
-# include "QILabel.h"
-# include "QILineEdit.h"
-# include "UIIconPool.h"
-# include "UIEmptyFilePathSelector.h"
-# include "VBoxGlobal.h"
+#include "QIFileDialog.h"
+#include "QIToolButton.h"
+#include "QILabel.h"
+#include "QILineEdit.h"
+#include "UIIconPool.h"
+#include "UIEmptyFilePathSelector.h"
+#include "VBoxGlobal.h"
 
 /* Global includes */
-# include <iprt/assert.h>
-# include <QAction>
-# include <QApplication>
-# include <QClipboard>
-# include <QDir>
-# include <QFocusEvent>
-# include <QHBoxLayout>
-# include <QLineEdit>
-# include <QTimer>
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include <iprt/assert.h>
+#include <QAction>
+#include <QApplication>
+#include <QClipboard>
+#include <QDir>
+#include <QFocusEvent>
+#include <QHBoxLayout>
+#include <QLineEdit>
+#include <QTimer>
 
 
 UIEmptyFilePathSelector::UIEmptyFilePathSelector (QWidget *aParent /* = NULL */)
@@ -52,10 +46,20 @@ UIEmptyFilePathSelector::UIEmptyFilePathSelector (QWidget *aParent /* = NULL */)
     , mHomeDir (QDir::current().absolutePath())
     , mIsModified (false)
 {
-    mMainLayout = new QHBoxLayout (this);
-    mMainLayout->setMargin (0);
+    setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Fixed);
 
-    mSelectButton = new QIToolButton(this);
+    mMainLayout = new QHBoxLayout (this);
+    mMainLayout->setContentsMargins(0, 0, 0, 0);
+#ifdef VBOX_WS_MAC
+    mMainLayout->setSpacing(5);
+#endif
+
+    mSelectButton = new QToolButton(this);
+#ifdef VBOX_WS_MAC
+    mSelectButton->setStyleSheet("QToolButton { border: 0px none black; margin: 0px 0px 0px 0px; } QToolButton::menu-indicator {image: none;}");
+#else
+    mSelectButton->setAutoRaise(true);
+#endif
     mSelectButton->setIcon(UIIconPool::iconSet(":/select_file_16px.png", ":/select_file_disabled_16px.png"));
     connect(mSelectButton, SIGNAL(clicked()), this, SLOT(choose()));
     mMainLayout->addWidget(mSelectButton);

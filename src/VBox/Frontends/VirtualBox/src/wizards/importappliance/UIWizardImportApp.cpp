@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,27 +15,22 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+/* Qt includes: */
+#include <QDialogButtonBox>
+#include <QLabel>
+#include <QPushButton>
+#include <QTextEdit>
+#include <QTextStream>
+#include <QVBoxLayout>
 
-/* Global includes: */
-# include <QDialogButtonBox>
-# include <QLabel>
-# include <QPushButton>
-# include <QTextEdit>
-# include <QTextStream>
-
-/* Local includes: */
-# include "UIWizardImportApp.h"
-# include "UIWizardImportAppPageBasic1.h"
-# include "UIWizardImportAppPageBasic2.h"
-# include "UIWizardImportAppPageExpert.h"
-# include "VBoxGlobal.h"
-# include "QIDialog.h"
-# include "QIFileDialog.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+/* GUI includes: */
+#include "UIWizardImportApp.h"
+#include "UIWizardImportAppPageBasic1.h"
+#include "UIWizardImportAppPageBasic2.h"
+#include "UIWizardImportAppPageExpert.h"
+#include "VBoxGlobal.h"
+#include "QIDialog.h"
+#include "QIFileDialog.h"
 
 #include <QPrintDialog>
 #include <QPrinter>
@@ -73,10 +68,10 @@ public:
         retranslateUi();
 
         /* Setup connections: */
-        connect(m_pButtonBox, SIGNAL(rejected()), this, SLOT(reject()));
-        connect(m_pButtonBox, SIGNAL(accepted()), this, SLOT(accept()));
-        connect(m_pPrintButton, SIGNAL(clicked()), this, SLOT(sltPrint()));
-        connect(m_pSaveButton, SIGNAL(clicked()), this, SLOT(sltSave()));
+        connect(m_pButtonBox, &QDialogButtonBox::rejected, this, &UIImportLicenseViewer::reject);
+        connect(m_pButtonBox, &QDialogButtonBox::accepted, this, &UIImportLicenseViewer::accept);
+        connect(m_pPrintButton, &QPushButton::clicked,     this, &UIImportLicenseViewer::sltPrint);
+        connect(m_pSaveButton,  &QPushButton::clicked,     this, &UIImportLicenseViewer::sltSave);
     }
 
     /* Content setter: */
@@ -148,10 +143,10 @@ UIWizardImportApp::UIWizardImportApp(QWidget *pParent, const QString &strFileNam
 {
 #ifndef VBOX_WS_MAC
     /* Assign watermark: */
-    assignWatermark(":/vmw_ovf_import.png");
+    assignWatermark(":/wizard_ovf_import.png");
 #else /* VBOX_WS_MAC */
     /* Assign background image: */
-    assignBackground(":/vmw_ovf_import_bg.png");
+    assignBackground(":/wizard_ovf_import_bg.png");
 #endif /* VBOX_WS_MAC */
 }
 

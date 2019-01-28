@@ -8,7 +8,7 @@ VirtualBox Validation Kit - Guest OS installation tests.
 
 __copyright__ = \
 """
-Copyright (C) 2010-2017 Oracle Corporation
+Copyright (C) 2010-2019 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 118412 $"
+__version__ = "$Revision: 127855 $"
 
 
 # Standard Python imports.
@@ -80,7 +80,7 @@ class InstallTestVm(vboxtestvms.TestVm):
 
 
     def __init__(self, oSet, sVmName, sKind, sInstallIso, sHdCtrlNm, cGbHdd, fFlags):
-        vboxtestvms.TestVm.__init__(self, oSet, sVmName, sKind = sKind, sHddControllerType = sHdCtrlNm,
+        vboxtestvms.TestVm.__init__(self, sVmName, oSet = oSet, sKind = sKind, sHddControllerType = sHdCtrlNm,
                                     fRandomPvPMode = (fFlags & self.kfNoWin81Paravirt) == 0);
         self.sDvdImage    = os.path.join(self.ksIsoPathBase, sInstallIso);
         self.cGbHdd       = cGbHdd;
@@ -178,9 +178,6 @@ class InstallTestVm(vboxtestvms.TestVm):
                         raise base.InvalidOption('Invalid extradata specified: %s' % sExtraData)
                     reporter.log('Set extradata: %s => %s' % (sKey, sValue))
                     fRc = fRc and oSession.setExtraData(sKey, sValue)
-
-                # Enable audio adapter
-                oSession.o.machine.audioAdapter.enabled = True;
 
                 # Other variations?
 

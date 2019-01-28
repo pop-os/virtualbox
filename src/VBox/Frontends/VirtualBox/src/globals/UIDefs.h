@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,63 +15,59 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UIDefs_h___
-#define ___UIDefs_h___
+#ifndef FEQT_INCLUDED_SRC_globals_UIDefs_h
+#define FEQT_INCLUDED_SRC_globals_UIDefs_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
+
+/* Define GUI log group: */
+// WORKAROUND:
+// This define should go *before* VBox/log.h include!
+#ifndef LOG_GROUP
+# define LOG_GROUP LOG_GROUP_GUI
+#endif
 
 /* Qt includes: */
 #include <QEvent>
 #include <QStringList>
 
+/* GUI includes: */
+#include "UILibraryDefs.h"
+
 /* COM includes: */
 #include "COMEnums.h"
 
-#ifndef VBOX_WITH_PRECOMPILED_HEADERS
-/* Define GUI log group.
- * This define should go *before* VBox/log.h include: */
-#define LOG_GROUP LOG_GROUP_GUI
-#endif
 /* Other VBox includes: */
 #include <VBox/log.h>
 #include <VBox/com/defs.h>
 
 /* Defines: */
-#ifdef DEBUG
-# define AssertWrapperOk(w)      \
-    AssertMsg (w.isOk(), (#w " is not okay (RC=0x%08X)", w.lastRC()))
-# define AssertWrapperOkMsg(w, m)      \
-    AssertMsg (w.isOk(), (#w ": " m " (RC=0x%08X)", w.lastRC()))
-#else /* !DEBUG */
-# define AssertWrapperOk(w)          do {} while (0)
-# define AssertWrapperOkMsg(w, m)    do {} while (0)
-#endif /* DEBUG */
+#ifdef RT_STRICT
+# define AssertWrapperOk(w)         AssertMsg(w.isOk(), (#w " is not okay (RC=0x%08X)", w.lastRC()))
+# define AssertWrapperOkMsg(w, m)   AssertMsg(w.isOk(), (#w ": " m " (RC=0x%08X)", w.lastRC()))
+#else
+# define AssertWrapperOk(w)         do {} while (0)
+# define AssertWrapperOkMsg(w, m)   do {} while (0)
+#endif
 
-#ifndef SIZEOF_ARRAY
-# define SIZEOF_ARRAY(a) (sizeof(a) / sizeof(a[0]))
-#endif /* SIZEOF_ARRAY */
 
 /** Global namespace. */
 namespace UIDefs
 {
-    /* Additional Qt event types: */
+    /** Additional Qt event types. */
     enum UIEventType
     {
-          ResizeEventType = QEvent::User + 101
-        , SetRegionEventType
-        , ModifierKeyChangeEventType
-#ifdef VBOX_WS_WIN
-        , ShellExecuteEventType
-#endif /* VBOX_WS_WIN */
-        , ActivateActionEventType
+        ActivateActionEventType = QEvent::User + 101,
 #ifdef VBOX_WS_MAC
-        , ShowWindowEventType
-#endif /* VBOX_WS_MAC */
-        , AddVDMUrlsEventType
+        ShowWindowEventType,
+#endif
 #ifdef VBOX_GUI_USE_QGL
-        , VHWACommandProcessType
-#endif /* VBOX_GUI_USE_QGL */
+        VHWACommandProcessType,
+#endif
     };
 
-    /* Size formatting types: */
+    /** Size formatting types. */
     enum FormatSize
     {
         FormatSize_Round,
@@ -79,20 +75,23 @@ namespace UIDefs
         FormatSize_RoundUp
     };
 
-    /* File name declarations: */
-    extern const char* GUI_GuestAdditionsName;
-    extern const char* GUI_ExtPackName;
+    /** Default guest additions image name. */
+    SHARED_LIBRARY_STUFF extern const char* GUI_GuestAdditionsName;
+    /** Default extension pack name. */
+    SHARED_LIBRARY_STUFF extern const char* GUI_ExtPackName;
 
-    /* File extensions declarations: */
-    extern QStringList VBoxFileExts;
-    extern QStringList VBoxExtPackFileExts;
-    extern QStringList OVFFileExts;
-    extern QStringList OPCFileExts;
+    /** Allowed VBox file extensions. */
+    SHARED_LIBRARY_STUFF extern QStringList VBoxFileExts;
+    /** Allowed VBox Extension Pack file extensions. */
+    SHARED_LIBRARY_STUFF extern QStringList VBoxExtPackFileExts;
+    /** Allowed OVF file extensions. */
+    SHARED_LIBRARY_STUFF extern QStringList OVFFileExts;
 }
 using namespace UIDefs /* if header included */;
 
+
 #ifdef VBOX_WS_MAC
-/** Mac OS X: Known OS releases. */
+/** Known macOS releases. */
 enum MacOSXRelease
 {
     MacOSXRelease_Old,
@@ -106,7 +105,8 @@ enum MacOSXRelease
 };
 #endif /* VBOX_WS_MAC */
 
-/** Common UI: Size suffixes. */
+
+/** Size suffixes. */
 enum SizeSuffix
 {
     SizeSuffix_Byte = 0,
@@ -118,7 +118,8 @@ enum SizeSuffix
     SizeSuffix_Max
 };
 
-/** Common UI: Storage-slot struct. */
+
+/** Storage-slot struct. */
 struct StorageSlot
 {
     StorageSlot() : bus(KStorageBus_Null), port(0), device(0) {}
@@ -138,7 +139,8 @@ struct StorageSlot
 };
 Q_DECLARE_METATYPE(StorageSlot);
 
-/** Common UI: Storage-slot struct extension with exact controller name. */
+
+/** Storage-slot struct extension with exact controller name. */
 struct ExactStorageSlot : public StorageSlot
 {
     ExactStorageSlot(const QString &strController,
@@ -149,4 +151,5 @@ struct ExactStorageSlot : public StorageSlot
     QString controller;
 };
 
-#endif /* !___UIDefs_h___ */
+
+#endif /* !FEQT_INCLUDED_SRC_globals_UIDefs_h */

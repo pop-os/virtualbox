@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,6 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#define LOG_GROUP LOG_GROUP_MAIN_CERTIFICATE
+#include <iprt/err.h>
 #include <iprt/path.h>
 #include <iprt/cpp/utils.h>
 #include <VBox/com/array.h>
@@ -24,7 +26,7 @@
 #include "CertificateImpl.h"
 #include "AutoCaller.h"
 #include "Global.h"
-#include "Logging.h"
+#include "LoggingNew.h"
 
 using namespace std;
 
@@ -144,10 +146,10 @@ HRESULT Certificate::getVersionNumber(CertificateVersion_T *aVersionNumber)
     Assert(m->fValidX509);
     switch (m->X509.TbsCertificate.T0.Version.uValue.u)
     {
-        case RTCRX509TBSCERTIFICATE_V1: *aVersionNumber = (CertificateVersion_T)CertificateVersion_V1; break;
-        case RTCRX509TBSCERTIFICATE_V2: *aVersionNumber = (CertificateVersion_T)CertificateVersion_V2; break;
-        case RTCRX509TBSCERTIFICATE_V3: *aVersionNumber = (CertificateVersion_T)CertificateVersion_V3; break;
-        default: AssertFailed();        *aVersionNumber = (CertificateVersion_T)CertificateVersion_Unknown; break;
+        case RTCRX509TBSCERTIFICATE_V1: *aVersionNumber = CertificateVersion_V1; break;
+        case RTCRX509TBSCERTIFICATE_V2: *aVersionNumber = CertificateVersion_V2; break;
+        case RTCRX509TBSCERTIFICATE_V3: *aVersionNumber = CertificateVersion_V3; break;
+        default: AssertFailed();        *aVersionNumber = CertificateVersion_Unknown; break;
     }
     return S_OK;
 }

@@ -1,12 +1,12 @@
 /* $Id: darwin-pasteboard.cpp $ */
 /** @file
- * Shared Clipboard: Mac OS X host implementation.
+ * Shared Clipboard Service - Mac OS X host implementation.
  */
 
 /*
  * Includes contributions from François Revol
  *
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,19 +17,29 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#define LOG_GROUP LOG_GROUP_HGCM
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
+#define LOG_GROUP LOG_GROUP_SHARED_CLIPBOARD
 #include <Carbon/Carbon.h>
 
-#include <iprt/mem.h>
 #include <iprt/assert.h>
-#include "iprt/err.h"
+#include <iprt/mem.h>
+#include <iprt/errcore.h>
+#include <iprt/utf16.h>
 
 #include "VBox/log.h"
 #include "VBox/HostServices/VBoxClipboardSvc.h"
 #include "VBox/GuestHost/clipboard-helper.h"
 
+
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 /* For debugging */
 //#define SHOW_CLIPBOARD_CONTENT
+
 
 /**
  * Initialize the global pasteboard and return a reference to it.

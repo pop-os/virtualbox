@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -36,14 +36,10 @@
 # include <iprt/asm-amd64-x86.h>
 #endif
 #include <iprt/assert.h>
-#include <iprt/err.h>
+#include <iprt/errcore.h>
 #include <iprt/mp.h>
 #include "internal-r0drv-nt.h"
 
-
-RT_C_DECLS_BEGIN
-NTSTATUS NTAPI ZwYieldExecution(void);
-RT_C_DECLS_END
 
 
 RTDECL(RTNATIVETHREAD) RTThreadNativeSelf(void)
@@ -97,6 +93,30 @@ RTDECL(bool) RTThreadPreemptIsEnabled(RTTHREAD hThread)
 RTDECL(bool) RTThreadPreemptIsPending(RTTHREAD hThread)
 {
     Assert(hThread == NIL_RTTHREAD); RT_NOREF1(hThread);
+
+    /*
+     * The KeShouldYieldProcessor API introduced in Windows 10 looks like exactly
+     * what we want.  But of course there is a snag.  It may return with interrupts
+     * enabled when called with them disabled.  Let's just hope it doesn't get upset
+     * by disabled interrupts in other ways...
+     */
+    if (g_pfnrtKeShouldYieldProcessor)
+    {
+        RTCCUINTREG fSavedFlags = ASMGetFlags();
+        bool fReturn = g_pfnrtKeShouldYieldProcessor() != FALSE;
+        ASMSetFlags(fSavedFlags);
+        return fReturn;
+    }
+
+    /*
+     * Fallback approach for pre W10 kernels.
+     *
+     * If W10 is anything to go by, we should also check and yield when:
+     *      - pPrcb->NextThread != NULL && pPrcb->NextThread != pPrcb->CurrentThread
+     *        when QuantumEnd is zero.
+     *      - pPrcb->DpcRequestSummary & 1
+     *      - pPrcb->DpcRequestSummary & 0x1e
+     */
 
     /*
      * Read the globals and check if they are useful.
@@ -157,6 +177,8 @@ RTDECL(bool) RTThreadPreemptIsPending(RTTHREAD hThread)
 
 RTDECL(bool) RTThreadPreemptIsPendingTrusty(void)
 {
+    if (g_pfnrtKeShouldYieldProcessor)
+        return true;
 #if 0 /** @todo RTThreadPreemptIsPending isn't good enough on w7 and possibly elsewhere. */
     /* RTThreadPreemptIsPending is only reliable if we've got both offsets and size. */
     return g_offrtNtPbQuantumEnd    != 0

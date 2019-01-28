@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,8 +24,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBoxNetAdpInternal_h___
-#define ___VBoxNetAdpInternal_h___
+#ifndef VBOX_INCLUDED_SRC_VBoxNetAdp_VBoxNetAdpInternal_h
+#define VBOX_INCLUDED_SRC_VBoxNetAdp_VBoxNetAdpInternal_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/sup.h>
 #include <VBox/intnet.h>
@@ -186,5 +189,5 @@ DECLHIDDEN(int) vboxNetAdpOsCreate(PVBOXNETADP pThis, PCRTMAC pMac);
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !VBOX_INCLUDED_SRC_VBoxNetAdp_VBoxNetAdpInternal_h */
 

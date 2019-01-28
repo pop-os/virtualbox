@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -52,6 +52,9 @@ static const char *getHostIfMediumTypeText(HostNetworkInterfaceMediumType_T enmT
         case HostNetworkInterfaceMediumType_PPP: return "PPP";
         case HostNetworkInterfaceMediumType_SLIP: return "SLIP";
         case HostNetworkInterfaceMediumType_Unknown: return "Unknown";
+#ifdef VBOX_WITH_XPCOM_CPP_ENUM_HACK
+        case HostNetworkInterfaceMediumType_32BitHack: break; /* Shut up compiler warnings. */
+#endif
     }
     return "unknown";
 }
@@ -63,6 +66,9 @@ static const char *getHostIfStatusText(HostNetworkInterfaceStatus_T enmStatus)
         case HostNetworkInterfaceStatus_Up: return "Up";
         case HostNetworkInterfaceStatus_Down: return "Down";
         case HostNetworkInterfaceStatus_Unknown: return "Unknown";
+#ifdef VBOX_WITH_XPCOM_CPP_ENUM_HACK
+        case HostNetworkInterfaceStatus_32BitHack: break; /* Shut up compiler warnings. */
+#endif
     }
     return "unknown";
 }
@@ -81,6 +87,9 @@ static const char*getDeviceTypeText(DeviceType_T enmType)
         case DeviceType_USB:            return "USB";
         case DeviceType_SharedFolder:   return "SharedFolder";
         case DeviceType_Graphics3D:     return "Graphics3D";
+#ifdef VBOX_WITH_XPCOM_CPP_ENUM_HACK
+        case DeviceType_32BitHack: break; /* Shut up compiler warnings. */
+#endif
     }
     return "Unknown";
 }
@@ -380,6 +389,9 @@ static HRESULT listHddBackends(const ComPtr<IVirtualBox> pVirtualBox)
                     case DataType_Int32: RTPrintf("int"); break;
                     case DataType_Int8: RTPrintf("byte"); break;
                     case DataType_String: RTPrintf("string"); break;
+#ifdef VBOX_WITH_XPCOM_CPP_ENUM_HACK
+                    case DataType_32BitHack: break; /* Shut up compiler warnings. */
+#endif
                 }
                 RTPrintf(" flags=%#04x", propertyFlags[j]);
                 RTPrintf(" default='%ls'", Bstr(propertyDefaults[j]).raw());
@@ -610,7 +622,7 @@ static HRESULT listUsbFilters(const ComPtr<IVirtualBox> &pVirtualBox)
 static HRESULT listSystemProperties(const ComPtr<IVirtualBox> &pVirtualBox)
 {
     ComPtr<ISystemProperties> systemProperties;
-    pVirtualBox->COMGETTER(SystemProperties)(systemProperties.asOutParam());
+    CHECK_ERROR2I_RET(pVirtualBox, COMGETTER(SystemProperties)(systemProperties.asOutParam()), hrcCheck);
 
     Bstr str;
     ULONG ulValue;
@@ -745,9 +757,105 @@ static HRESULT listSystemProperties(const ComPtr<IVirtualBox> &pVirtualBox)
     RTPrintf("Default Guest Additions ISO:     %ls\n", str.raw());
     systemProperties->COMGETTER(LoggingLevel)(str.asOutParam());
     RTPrintf("Logging Level:                   %ls\n", str.raw());
+    ProxyMode_T enmProxyMode = (ProxyMode_T)42;
+    systemProperties->COMGETTER(ProxyMode)(&enmProxyMode);
+    psz = "Unknown";
+    switch (enmProxyMode)
+    {
+        case ProxyMode_System:              psz = "System"; break;
+        case ProxyMode_NoProxy:             psz = "NoProxy"; break;
+        case ProxyMode_Manual:              psz = "Manual"; break;
+#ifdef VBOX_WITH_XPCOM_CPP_ENUM_HACK
+        case ProxyMode_32BitHack:           break; /* Shut up compiler warnings. */
+#endif
+    }
+    RTPrintf("Proxy Mode:                      %s\n", psz);
+    systemProperties->COMGETTER(ProxyURL)(str.asOutParam());
+    RTPrintf("Proxy URL:                       %ls\n", str.raw());
     return S_OK;
 }
 
+
+/**
+ * Helper function for querying and displaying DHCP option for an adapter.
+ *
+ * @returns See produceList.
+ * @param   pSrv                Smart pointer to IDHCPServer.
+ * @param   vmSlot              String identifying the adapter, like '[vmname]:slot'
+ */
+static HRESULT listVmSlotDhcpOptions(const ComPtr<IDHCPServer> pSrv, const Utf8Str& vmSlot)
+{
+    RTCList<RTCString> lstParts = vmSlot.split(":");
+    if (lstParts.size() < 2)
+        return E_INVALIDARG;
+    if (lstParts[0].length() < 2 || !lstParts[0].startsWith("[") || !lstParts[0].endsWith("]"))
+        return E_INVALIDARG;
+    Bstr vmName(lstParts[0].substr(1, lstParts[0].length()-2));
+    ULONG uSlot = lstParts[1].toUInt32();
+    com::SafeArray<BSTR> options;
+    CHECK_ERROR2I_RET(pSrv, GetVmSlotOptions(vmName.raw(), uSlot, ComSafeArrayAsOutParam(options)), hrcCheck);
+    if (options.size())
+        RTPrintf("Options for NIC %d of '%ls':\n", uSlot + 1, vmName.raw());
+    for (size_t i = 0; i < options.size(); ++i)
+        RTPrintf("   %ls\n", options[i]);
+
+    return S_OK;
+}
+
+
+/**
+ * List DHCP servers.
+ *
+ * @returns See produceList.
+ * @param   pVirtualBox         Reference to the IVirtualBox smart pointer.
+ */
+static HRESULT listDhcpServers(const ComPtr<IVirtualBox> &pVirtualBox)
+{
+    HRESULT rc = S_OK;
+    com::SafeIfaceArray<IDHCPServer> svrs;
+    CHECK_ERROR_RET(pVirtualBox, COMGETTER(DHCPServers)(ComSafeArrayAsOutParam(svrs)), rc);
+    for (size_t i = 0; i < svrs.size(); ++i)
+    {
+        ComPtr<IDHCPServer> svr = svrs[i];
+        Bstr netName;
+        svr->COMGETTER(NetworkName)(netName.asOutParam());
+        RTPrintf("NetworkName:    %ls\n", netName.raw());
+        Bstr ip;
+        svr->COMGETTER(IPAddress)(ip.asOutParam());
+        RTPrintf("IP:             %ls\n", ip.raw());
+        Bstr netmask;
+        svr->COMGETTER(NetworkMask)(netmask.asOutParam());
+        RTPrintf("NetworkMask:    %ls\n", netmask.raw());
+        Bstr lowerIp;
+        svr->COMGETTER(LowerIP)(lowerIp.asOutParam());
+        RTPrintf("lowerIPAddress: %ls\n", lowerIp.raw());
+        Bstr upperIp;
+        svr->COMGETTER(UpperIP)(upperIp.asOutParam());
+        RTPrintf("upperIPAddress: %ls\n", upperIp.raw());
+        BOOL fEnabled;
+        svr->COMGETTER(Enabled)(&fEnabled);
+        RTPrintf("Enabled:        %s\n", fEnabled ? "Yes" : "No");
+        com::SafeArray<BSTR> globalOptions;
+        CHECK_ERROR_BREAK(svr, COMGETTER(GlobalOptions)(ComSafeArrayAsOutParam(globalOptions)));
+        if (globalOptions.size())
+        {
+            RTPrintf("Global options:\n");
+            for (size_t j = 0; j < globalOptions.size(); ++j)
+                RTPrintf("   %ls\n", globalOptions[j]);
+        }
+        com::SafeArray<BSTR> vmConfigs;
+        CHECK_ERROR_BREAK(svr, COMGETTER(VmConfigs)(ComSafeArrayAsOutParam(vmConfigs)));
+        for (size_t j = 0; j < vmConfigs.size(); ++j)
+        {
+            rc = listVmSlotDhcpOptions(svr, vmConfigs[j]);
+            if (FAILED(rc))
+                break;
+        }
+        RTPrintf("\n");
+    }
+
+    return rc;
+}
 
 /**
  * List extension packs.
@@ -887,6 +995,95 @@ static HRESULT listScreenShotFormats(const ComPtr<IVirtualBox> pVirtualBox)
     return rc;
 }
 
+/**
+ * List available cloud providers.
+ *
+ * @returns See produceList.
+ * @param   pVirtualBox         Reference to the IVirtualBox pointer.
+ */
+static HRESULT listCloudProviders(const ComPtr<IVirtualBox> pVirtualBox)
+{
+    HRESULT rc = S_OK;
+    ComPtr<ICloudProviderManager> pCloudProviderManager;
+    CHECK_ERROR(pVirtualBox, COMGETTER(CloudProviderManager)(pCloudProviderManager.asOutParam()));
+    com::SafeIfaceArray<ICloudProvider> apCloudProviders;
+    CHECK_ERROR(pCloudProviderManager, COMGETTER(Providers)(ComSafeArrayAsOutParam(apCloudProviders)));
+
+    RTPrintf("Supported %d cloud providers:\n", apCloudProviders.size());
+    for (size_t i = 0; i < apCloudProviders.size(); ++i)
+    {
+        ComPtr<ICloudProvider> pCloudProvider = apCloudProviders[i];
+        Bstr bstrProviderName;
+        pCloudProvider->COMGETTER(Name)(bstrProviderName.asOutParam());
+        RTPrintf("Name:            %ls\n", bstrProviderName.raw());
+        pCloudProvider->COMGETTER(ShortName)(bstrProviderName.asOutParam());
+        RTPrintf("Short Name:      %ls\n", bstrProviderName.raw());
+        Bstr bstrProviderID;
+        pCloudProvider->COMGETTER(Id)(bstrProviderID.asOutParam());
+        RTPrintf("GUID:            %ls\n", bstrProviderID.raw());
+
+        RTPrintf("\n");
+    }
+    return rc;
+}
+
+
+/**
+ * List all available cloud profiles (by iterating over the cloud providers).
+ *
+ * @returns See produceList.
+ * @param   pVirtualBox         Reference to the IVirtualBox pointer.
+ * @param   fOptLong            If true, list all profile properties.
+ */
+static HRESULT listCloudProfiles(const ComPtr<IVirtualBox> pVirtualBox, bool fOptLong)
+{
+    HRESULT rc = S_OK;
+    ComPtr<ICloudProviderManager> pCloudProviderManager;
+    CHECK_ERROR(pVirtualBox, COMGETTER(CloudProviderManager)(pCloudProviderManager.asOutParam()));
+    com::SafeIfaceArray<ICloudProvider> apCloudProviders;
+    CHECK_ERROR(pCloudProviderManager, COMGETTER(Providers)(ComSafeArrayAsOutParam(apCloudProviders)));
+
+    for (size_t i = 0; i < apCloudProviders.size(); ++i)
+    {
+        ComPtr<ICloudProvider> pCloudProvider = apCloudProviders[i];
+        com::SafeIfaceArray<ICloudProfile> apCloudProfiles;
+        CHECK_ERROR(pCloudProvider, COMGETTER(Profiles)(ComSafeArrayAsOutParam(apCloudProfiles)));
+        for (size_t j = 0; j < apCloudProfiles.size(); ++j)
+        {
+            ComPtr<ICloudProfile> pCloudProfile = apCloudProfiles[j];
+            Bstr bstrProfileName;
+            pCloudProfile->COMGETTER(Name)(bstrProfileName.asOutParam());
+            RTPrintf("Name:          %ls\n", bstrProfileName.raw());
+            Bstr bstrProviderID;
+            pCloudProfile->COMGETTER(ProviderId)(bstrProviderID.asOutParam());
+            RTPrintf("Provider GUID: %ls\n", bstrProviderID.raw());
+
+            if (fOptLong)
+            {
+                com::SafeArray<BSTR> names;
+                com::SafeArray<BSTR> values;
+                pCloudProfile->GetProperties(Bstr().raw(), ComSafeArrayAsOutParam(names), ComSafeArrayAsOutParam(values));
+                size_t cNames = names.size();
+                size_t cValues = values.size();
+                bool fFirst = true;
+                for (size_t k = 0; k < cNames; k++)
+                {
+                    Bstr value;
+                    if (k < cValues)
+                        value = values[k];
+                    RTPrintf("%s%ls=%ls\n",
+                             fFirst ? "Property:      " : "               ",
+                             names[k], value.raw());
+                    fFirst = false;
+                }
+            }
+
+            RTPrintf("\n");
+        }
+    }
+    return rc;
+}
+
 
 /**
  * The type of lists we can produce.
@@ -918,7 +1115,9 @@ enum enmListType
     kListGroups,
     kListNatNetworks,
     kListVideoInputDevices,
-    kListScreenShotFormats
+    kListScreenShotFormats,
+    kListCloudProviders,
+    kListCloudProfiles,
 };
 
 
@@ -1183,34 +1382,8 @@ static HRESULT produceList(enum enmListType enmCommand, bool fOptLong, bool fOpt
             break;
 
         case kListDhcpServers:
-        {
-            com::SafeIfaceArray<IDHCPServer> svrs;
-            CHECK_ERROR(pVirtualBox, COMGETTER(DHCPServers)(ComSafeArrayAsOutParam(svrs)));
-            for (size_t i = 0; i < svrs.size(); ++i)
-            {
-                ComPtr<IDHCPServer> svr = svrs[i];
-                Bstr netName;
-                svr->COMGETTER(NetworkName)(netName.asOutParam());
-                RTPrintf("NetworkName:    %ls\n", netName.raw());
-                Bstr ip;
-                svr->COMGETTER(IPAddress)(ip.asOutParam());
-                RTPrintf("IP:             %ls\n", ip.raw());
-                Bstr netmask;
-                svr->COMGETTER(NetworkMask)(netmask.asOutParam());
-                RTPrintf("NetworkMask:    %ls\n", netmask.raw());
-                Bstr lowerIp;
-                svr->COMGETTER(LowerIP)(lowerIp.asOutParam());
-                RTPrintf("lowerIPAddress: %ls\n", lowerIp.raw());
-                Bstr upperIp;
-                svr->COMGETTER(UpperIP)(upperIp.asOutParam());
-                RTPrintf("upperIPAddress: %ls\n", upperIp.raw());
-                BOOL fEnabled;
-                svr->COMGETTER(Enabled)(&fEnabled);
-                RTPrintf("Enabled:        %s\n", fEnabled ? "Yes" : "No");
-                RTPrintf("\n");
-            }
+            rc = listDhcpServers(pVirtualBox);
             break;
-        }
 
         case kListExtPacks:
             rc = listExtensionPacks(pVirtualBox);
@@ -1284,6 +1457,14 @@ static HRESULT produceList(enum enmListType enmCommand, bool fOptLong, bool fOpt
             rc = listScreenShotFormats(pVirtualBox);
             break;
 
+        case kListCloudProviders:
+            rc = listCloudProviders(pVirtualBox);
+            break;
+
+        case kListCloudProfiles:
+            rc = listCloudProfiles(pVirtualBox, fOptLong);
+            break;
+
         /* No default here, want gcc warnings. */
 
     } /* end switch */
@@ -1336,6 +1517,8 @@ RTEXITCODE handleList(HandlerArg *a)
         { "groups",             kListGroups,             RTGETOPT_REQ_NOTHING },
         { "webcams",            kListVideoInputDevices,  RTGETOPT_REQ_NOTHING },
         { "screenshotformats",  kListScreenShotFormats,  RTGETOPT_REQ_NOTHING },
+        { "cloudproviders",     kListCloudProviders,     RTGETOPT_REQ_NOTHING },
+        { "cloudprofiles",      kListCloudProfiles,      RTGETOPT_REQ_NOTHING },
     };
 
     int                 ch;
@@ -1387,6 +1570,8 @@ RTEXITCODE handleList(HandlerArg *a)
             case kListNatNetworks:
             case kListVideoInputDevices:
             case kListScreenShotFormats:
+            case kListCloudProviders:
+            case kListCloudProfiles:
                 enmOptCommand = (enum enmListType)ch;
                 if (fOptMultiple)
                 {

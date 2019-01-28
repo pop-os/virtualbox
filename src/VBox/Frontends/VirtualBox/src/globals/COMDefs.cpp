@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,27 +15,17 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QSocketNotifier>
+#include <QSocketNotifier>
 
 /* GUI includes: */
-# include "COMDefs.h"
+#include "COMDefs.h"
 
 /* COM includes: */
-# include "CVirtualBoxErrorInfo.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "CVirtualBoxErrorInfo.h"
 
 /* VirtualBox interface declarations: */
-#ifndef VBOX_WITH_XPCOM
-# include "VirtualBox.h"
-#else /* !VBOX_WITH_XPCOM */
-# include "VirtualBox_XPCOM.h"
-#endif /* VBOX_WITH_XPCOM */
+#include <VBox/com/VirtualBox.h>
 
 /* Other VBox includes: */
 #include <iprt/log.h>
@@ -43,10 +33,6 @@
 #ifdef VBOX_WITH_XPCOM
 
 /* Other VBox includes: */
-# include <iprt/env.h>
-# include <iprt/err.h>
-# include <iprt/path.h>
-# include <iprt/param.h>
 # include <nsEventQueueUtils.h>
 # include <nsIEventQueue.h>
 # include <nsIExceptionService.h>
@@ -235,6 +221,25 @@ void COMBase::FromSafeArray (const com::SafeGUIDArray &aArr,
         aVec[i] = *(QUuid *)&Tmp;
 #endif
     }
+}
+
+/* static */
+void COMBase::ToSafeArray (const QVector <QUuid> &aVec,
+                           com::SafeArray <BSTR> &aArr)
+{
+    aArr.reset (aVec.size());
+    for (int i = 0; i < aVec.size(); ++ i)
+        aArr [i] = SysAllocString ((const OLECHAR *)
+            (aVec.at (i).isNull() ? 0 : aVec.at(i).toString().utf16()));
+}
+
+/* static */
+void COMBase::FromSafeArray (const com::SafeArray <BSTR> &aArr,
+                             QVector <QUuid> &aVec)
+{
+    aVec.resize (static_cast <int> (aArr.size()));
+    for (int i = 0; i < aVec.size(); ++ i)
+        aVec [i] = QUuid(QString::fromUtf16 (aArr [i]));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

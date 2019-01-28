@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,29 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __UIApplianceImportEditorWidget_h__
-#define __UIApplianceImportEditorWidget_h__
+#ifndef FEQT_INCLUDED_SRC_widgets_UIApplianceImportEditorWidget_h
+#define FEQT_INCLUDED_SRC_widgets_UIApplianceImportEditorWidget_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* GUI includes: */
 #include "UIApplianceEditorWidget.h"
+
+/* Forward declarations: */
+class UIFilePathSelector;
+class QIRichTextLabel;
+class QComboBox;
+class QGridLayout;
+
+/** MAC address policies. */
+enum MACAddressImportPolicy
+{
+    MACAddressImportPolicy_KeepAllMACs,
+    MACAddressImportPolicy_KeepNATMACs,
+    MACAddressImportPolicy_StripAllMACs,
+    MACAddressImportPolicy_MAX
+};
 
 class UIApplianceImportEditorWidget: public UIApplianceEditorWidget
 {
@@ -33,7 +51,32 @@ public:
     bool import();
 
     QList<QPair<QString, QString> > licenseAgreements() const;
+
+protected:
+    /** Handles translation event. */
+    virtual void retranslateUi() /* override */;
+
+private slots:
+
+    void    sltHandlePathChanged(const QString &newPath);
+
+private:
+
+    void    prepareWidgets();
+    /** Populates MAC address policies. */
+    void    populateMACAddressImportPolicies();
+    void    setMACAddressImportPolicy(MACAddressImportPolicy enmMACAddressImportPolicy);
+    void    sltHandleMACAddressImportPolicyComboChange();
+    void    updateMACAddressImportPolicyComboToolTip();
+
+    QIRichTextLabel    *m_pPathSelectorLabel;
+    UIFilePathSelector *m_pPathSelector;
+    /** Holds the checkbox that controls 'import HDs as VDI' behaviour. */
+    QCheckBox          *m_pImportHDsAsVDI;
+    QLabel             *m_pMACComboBoxLabel;
+    QComboBox          *m_pMACComboBox;
+    QGridLayout        *m_pOptionsLayout;
+    QLabel             *m_pAdditionalOptionsLabel;
 };
 
-#endif /* __UIApplianceImportEditorWidget_h__ */
-
+#endif /* !FEQT_INCLUDED_SRC_widgets_UIApplianceImportEditorWidget_h */

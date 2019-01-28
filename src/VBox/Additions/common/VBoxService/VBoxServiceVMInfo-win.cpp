@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -39,6 +39,7 @@
 #include <iprt/system.h>
 #include <iprt/time.h>
 #include <iprt/thread.h>
+#include <iprt/utf16.h>
 
 #include <VBox/VBoxGuestLib.h>
 #include "VBoxServiceInternal.h"
@@ -158,7 +159,7 @@ static DECLCALLBACK(int) vgsvcWinVmInfoInitOnce(void *pvIgnored)
     }
     if (RT_FAILURE(rc))
     {
-        VGSvcVerbose(1, "Secur32.dll APIs are not availble (%Rrc)\n", rc);
+        VGSvcVerbose(1, "Secur32.dll APIs are not available (%Rrc)\n", rc);
         g_pfnLsaGetLogonSessionData = NULL;
         g_pfnLsaEnumerateLogonSessions = NULL;
         g_pfnLsaFreeReturnBuffer = NULL;
@@ -177,7 +178,7 @@ static DECLCALLBACK(int) vgsvcWinVmInfoInitOnce(void *pvIgnored)
     }
     if (RT_FAILURE(rc))
     {
-        VGSvcVerbose(1, "WtsApi32.dll APIs are not availble (%Rrc)\n", rc);
+        VGSvcVerbose(1, "WtsApi32.dll APIs are not available (%Rrc)\n", rc);
         g_pfnWTSFreeMemory = NULL;
         g_pfnWTSQuerySessionInformationA = NULL;
         Assert(g_WinVersion.dwMajorVersion < 5);
@@ -195,7 +196,7 @@ static DECLCALLBACK(int) vgsvcWinVmInfoInitOnce(void *pvIgnored)
     }
     if (RT_FAILURE(rc))
     {
-        VGSvcVerbose(1, "psapi.dll APIs are not availble (%Rrc)\n", rc);
+        VGSvcVerbose(1, "psapi.dll APIs are not available (%Rrc)\n", rc);
         g_pfnEnumProcesses = NULL;
         g_pfnGetModuleFileNameExW = NULL;
         Assert(g_WinVersion.dwMajorVersion < 5);
@@ -218,11 +219,13 @@ static DECLCALLBACK(int) vgsvcWinVmInfoInitOnce(void *pvIgnored)
     g_WinVersion.dwOSVersionInfoSize = sizeof(g_WinVersion);
     if (!GetVersionExA((OSVERSIONINFO *)&g_WinVersion))
     {
-        AssertFailed();
         RT_ZERO(g_WinVersion);
         g_WinVersion.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
         if (!GetVersionExA((OSVERSIONINFO *)&g_WinVersion))
+        {
+            AssertFailed();
             RT_ZERO(g_WinVersion);
+        }
     }
 
     return VINF_SUCCESS;
@@ -746,14 +749,15 @@ static bool vgsvcVMInfoWinIsLoggedIn(PVBOXSERVICEVMINFOUSER pUserInfo, PLUID pSe
     AssertPtrReturn(pUserInfo, false);
     if (!pSession)
         return false;
-    if (!g_pfnLsaGetLogonSessionData)
+    if (   !g_pfnLsaGetLogonSessionData
+        || !g_pfnLsaNtStatusToWinError)
         return false;
 
     PSECURITY_LOGON_SESSION_DATA pSessionData = NULL;
     NTSTATUS rcNt = g_pfnLsaGetLogonSessionData(pSession, &pSessionData);
     if (rcNt != STATUS_SUCCESS)
     {
-        ULONG ulError = LsaNtStatusToWinError(rcNt);
+        ULONG ulError = g_pfnLsaNtStatusToWinError(rcNt);
         switch (ulError)
         {
             case ERROR_NOT_ENOUGH_MEMORY:
@@ -1083,7 +1087,7 @@ int VGSvcVMInfoWinWriteUsers(PVBOXSERVICEVEPROPCACHE pCache, char **ppszUserList
     int rc = RTOnce(&g_vgsvcWinVmInitOnce, vgsvcWinVmInfoInitOnce, NULL);
     if (RT_FAILURE(rc))
         return rc;
-    if (!g_pfnLsaEnumerateLogonSessions || !g_pfnEnumProcesses)
+    if (!g_pfnLsaEnumerateLogonSessions || !g_pfnEnumProcesses || !g_pfnLsaNtStatusToWinError)
         return VERR_NOT_SUPPORTED;
 
     rc = VbglR3GuestPropConnect(&s_uDebugGuestPropClientID);
@@ -1099,7 +1103,7 @@ int VGSvcVMInfoWinWriteUsers(PVBOXSERVICEVEPROPCACHE pCache, char **ppszUserList
     NTSTATUS rcNt = g_pfnLsaEnumerateLogonSessions(&cSessions, &paSessions);
     if (rcNt != STATUS_SUCCESS)
     {
-        ULONG uError = LsaNtStatusToWinError(rcNt);
+        ULONG uError = g_pfnLsaNtStatusToWinError(rcNt);
         switch (uError)
         {
             case ERROR_NOT_ENOUGH_MEMORY:
@@ -1330,59 +1334,53 @@ int VGSvcVMInfoWinGetComponentVersions(uint32_t uClientID)
     /* The file information table. */
     const VBOXSERVICEVMINFOFILE aVBoxFiles[] =
     {
-        { szSysDir, "VBoxControl.exe" },
-        { szSysDir, "VBoxHook.dll" },
-        { szSysDir, "VBoxDisp.dll" },
-        { szSysDir, "VBoxTray.exe" },
-#ifdef TARGET_NT4
-        { szSysDir, "VBoxServiceNT.exe" },
-#else
-        { szSysDir, "VBoxService.exe" },
-        { szSysDir, "VBoxMRXNP.dll" },
-        { szSysDir, "VBoxGINA.dll" },
-        { szSysDir, "VBoxCredProv.dll" },
-#endif
+        { szSysDir,     "VBoxControl.exe" },
+        { szSysDir,     "VBoxHook.dll" },
+        { szSysDir,     "VBoxDisp.dll" },
+        { szSysDir,     "VBoxTray.exe" },
+        { szSysDir,     "VBoxService.exe" },
+        { szSysDir,     "VBoxMRXNP.dll" },
+        { szSysDir,     "VBoxGINA.dll" },
+        { szSysDir,     "VBoxCredProv.dll" },
 
  /* On 64-bit we don't yet have the OpenGL DLLs in native format.
     So just enumerate the 32-bit files in the SYSWOW directory. */
 #ifdef RT_ARCH_AMD64
-        { szSysWowDir, "VBoxOGLarrayspu.dll" },
-        { szSysWowDir, "VBoxOGLcrutil.dll" },
-        { szSysWowDir, "VBoxOGLerrorspu.dll" },
-        { szSysWowDir, "VBoxOGLpackspu.dll" },
-        { szSysWowDir, "VBoxOGLpassthroughspu.dll" },
-        { szSysWowDir, "VBoxOGLfeedbackspu.dll" },
-        { szSysWowDir, "VBoxOGL.dll" },
+        { szSysWowDir,  "VBoxOGLarrayspu.dll" },
+        { szSysWowDir,  "VBoxOGLcrutil.dll" },
+        { szSysWowDir,  "VBoxOGLerrorspu.dll" },
+        { szSysWowDir,  "VBoxOGLpackspu.dll" },
+        { szSysWowDir,  "VBoxOGLpassthroughspu.dll" },
+        { szSysWowDir,  "VBoxOGLfeedbackspu.dll" },
+        { szSysWowDir,  "VBoxOGL.dll" },
 #else  /* !RT_ARCH_AMD64 */
-# ifdef TARGET_NT4
-        { szSysDir, "VBoxOGLarrayspu.dll" },
-        { szSysDir, "VBoxOGLcrutil.dll" },
-        { szSysDir, "VBoxOGLerrorspu.dll" },
-        { szSysDir, "VBoxOGLpackspu.dll" },
-        { szSysDir, "VBoxOGLpassthroughspu.dll" },
-        { szSysDir, "VBoxOGLfeedbackspu.dll" },
-        { szSysDir, "VBoxOGL.dll" },
-# endif
+        { szSysDir,     "VBoxOGLarrayspu.dll" },
+        { szSysDir,     "VBoxOGLcrutil.dll" },
+        { szSysDir,     "VBoxOGLerrorspu.dll" },
+        { szSysDir,     "VBoxOGLpackspu.dll" },
+        { szSysDir,     "VBoxOGLpassthroughspu.dll" },
+        { szSysDir,     "VBoxOGLfeedbackspu.dll" },
+        { szSysDir,     "VBoxOGL.dll" },
 #endif /* !RT_ARCH_AMD64 */
 
-#ifdef TARGET_NT4
-        { szDriversDir, "VBoxGuestNT.sys" },
-        { szDriversDir, "VBoxMouseNT.sys" },
-#else
         { szDriversDir, "VBoxGuest.sys" },
+        { szDriversDir, "VBoxMouseNT.sys" },
         { szDriversDir, "VBoxMouse.sys" },
         { szDriversDir, "VBoxSF.sys"    },
-#endif
         { szDriversDir, "VBoxVideo.sys" },
     };
 
     for (unsigned i = 0; i < RT_ELEMENTS(aVBoxFiles); i++)
     {
         char szVer[128];
-        VGSvcUtilWinGetFileVersionString(aVBoxFiles[i].pszFilePath, aVBoxFiles[i].pszFileName, szVer, sizeof(szVer));
+        rc = VGSvcUtilWinGetFileVersionString(aVBoxFiles[i].pszFilePath, aVBoxFiles[i].pszFileName, szVer, sizeof(szVer));
         char szPropPath[256];
         RTStrPrintf(szPropPath, sizeof(szPropPath), "/VirtualBox/GuestAdd/Components/%s", aVBoxFiles[i].pszFileName);
-        rc = VGSvcWritePropF(uClientID, szPropPath, "%s", szVer);
+        if (   rc != VERR_FILE_NOT_FOUND
+            && rc != VERR_PATH_NOT_FOUND)
+            VGSvcWritePropF(uClientID, szPropPath, "%s", szVer);
+        else
+            VGSvcWritePropF(uClientID, szPropPath, NULL);
     }
 
     return VINF_SUCCESS;

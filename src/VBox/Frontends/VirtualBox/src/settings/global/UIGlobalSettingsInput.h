@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UIGlobalSettingsInput_h___
-#define ___UIGlobalSettingsInput_h___
+#ifndef FEQT_INCLUDED_SRC_settings_global_UIGlobalSettingsInput_h
+#define FEQT_INCLUDED_SRC_settings_global_UIGlobalSettingsInput_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* GUI includes: */
 #include "UISettingsPage.h"
@@ -30,10 +33,9 @@ class UIHotKeyTable;
 class UIHotKeyTableModel;
 typedef UISettingsCache<UIDataSettingsGlobalInput> UISettingsCacheGlobalInput;
 
-
 /** Global settings: Input page. */
-class UIGlobalSettingsInput : public UISettingsPageGlobal,
-                              public Ui::UIGlobalSettingsInput
+class SHARED_LIBRARY_STUFF UIGlobalSettingsInput : public UISettingsPageGlobal,
+                                                   public Ui::UIGlobalSettingsInput
 {
     Q_OBJECT;
 
@@ -107,5 +109,4 @@ private:
     UISettingsCacheGlobalInput *m_pCache;
 };
 
-#endif /* !___UIGlobalSettingsInput_h___ */
-
+#endif /* !FEQT_INCLUDED_SRC_settings_global_UIGlobalSettingsInput_h */

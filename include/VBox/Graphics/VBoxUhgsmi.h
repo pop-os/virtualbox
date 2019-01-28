@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,8 +24,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_VBoxUhgsmi_h
-#define ___VBox_VBoxUhgsmi_h
+#ifndef VBOX_INCLUDED_Graphics_VBoxUhgsmi_h
+#define VBOX_INCLUDED_Graphics_VBoxUhgsmi_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/cdefs.h>
 #include <iprt/types.h>
@@ -34,50 +37,41 @@ typedef struct VBOXUHGSMI *PVBOXUHGSMI;
 
 typedef struct VBOXUHGSMI_BUFFER *PVBOXUHGSMI_BUFFER;
 
-typedef struct VBOXUHGSMI_BUFFER_TYPE_FLAGS
+typedef union VBOXUHGSMI_BUFFER_TYPE_FLAGS
 {
-    union
+    uint32_t Value;
+    struct
     {
-        struct
-        {
-            uint32_t fCommand    : 1;
-            uint32_t Reserved    : 31;
-        } RT_STRUCT_NM(s);
-        uint32_t Value;
-    } RT_UNION_NM(u);
+        uint32_t fCommand       : 1;
+        uint32_t Reserved       : 31;
+    } s;
 } VBOXUHGSMI_BUFFER_TYPE_FLAGS;
 
-typedef struct VBOXUHGSMI_BUFFER_LOCK_FLAGS
+typedef union VBOXUHGSMI_BUFFER_LOCK_FLAGS
 {
-    union
+    uint32_t Value;
+    struct
     {
-        struct
-        {
-            uint32_t bReadOnly   : 1;
-            uint32_t bWriteOnly  : 1;
-            uint32_t bDonotWait  : 1;
-            uint32_t bDiscard    : 1;
-            uint32_t bLockEntire : 1;
-            uint32_t Reserved    : 27;
-        } RT_STRUCT_NM(s);
-        uint32_t Value;
-    } RT_UNION_NM(u);
+        uint32_t fReadOnly      : 1;
+        uint32_t fWriteOnly     : 1;
+        uint32_t fDonotWait     : 1;
+        uint32_t fDiscard       : 1;
+        uint32_t fLockEntire    : 1;
+        uint32_t Reserved       : 27;
+    } s;
 } VBOXUHGSMI_BUFFER_LOCK_FLAGS;
 
-typedef struct VBOXUHGSMI_BUFFER_SUBMIT_FLAGS
+typedef union VBOXUHGSMI_BUFFER_SUBMIT_FLAGS
 {
-    union
+    uint32_t Value;
+    struct
     {
-        struct
-        {
-            uint32_t bHostReadOnly          : 1;
-            uint32_t bHostWriteOnly         : 1;
-            uint32_t bDoNotRetire           : 1; /**< the buffer will be used in a subsequent command */
-            uint32_t bEntireBuffer          : 1;
-            uint32_t Reserved               : 28;
-        } RT_STRUCT_NM(s);
-        uint32_t Value;
-    } RT_UNION_NM(u);
+        uint32_t fHostReadOnly  : 1;
+        uint32_t fHostWriteOnly : 1;
+        uint32_t fDoNotRetire   : 1; /**< the buffer will be used in a subsequent command */
+        uint32_t fEntireBuffer  : 1;
+        uint32_t Reserved       : 28;
+    } s;
 } VBOXUHGSMI_BUFFER_SUBMIT_FLAGS, *PVBOXUHGSMI_BUFFER_SUBMIT_FLAGS;
 
 /* the caller can specify NULL as a hSynch and specify a valid enmSynchType to make UHGSMI create a proper object itself,
@@ -134,5 +128,5 @@ typedef struct VBOXUHGSMI_BUFFER
 #define VBoxUhgsmiBufferUnlock(_pBuf) ((_pBuf)->pfnUnlock(_pBuf))
 #define VBoxUhgsmiBufferDestroy(_pBuf) ((_pBuf)->pfnDestroy(_pBuf))
 
-#endif
+#endif /* !VBOX_INCLUDED_Graphics_VBoxUhgsmi_h */
 

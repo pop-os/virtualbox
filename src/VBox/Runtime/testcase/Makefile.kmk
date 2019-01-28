@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2017 Oracle Corporation
+# Copyright (C) 2006-2019 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -52,6 +52,7 @@ PROGRAMS += \
 	tstRTCidr \
 	tstRTCritSect \
 	tstRTCritSectRw \
+	tstRTCrPkix-1 \
 	tstRTCrX509-1 \
 	tstRTCType \
 	tstRTDigest \
@@ -79,7 +80,6 @@ PROGRAMS += \
 	tstRTInlineAsm \
 	tstIprtList \
 	tstIprtMiniString \
-	tstRTIsoFs \
 	tstLdr \
 	tstLdrLoad \
 	tstRTLocalIpc \
@@ -150,7 +150,8 @@ PROGRAMS += \
 	tstVector \
 	tstRTVfs \
 	tstRTZip \
-	tstRTJson
+	tstRTJson \
+	tstRTShMem
 
 PROGRAMS.win += \
 	tstRTCritSectW32 \
@@ -173,8 +174,9 @@ PROGRAMS.darwin += \
 	tstRTDarwinMachKernel
 ifdef VBOX_WITH_LIBCURL
  PROGRAMS += \
-	tstRTHttp \
-	tstRTS3
+ 	tstRTHttp-1 \
+ 	tstRTCRest-1 \
+ 	tstRTS3
 endif
 if1of ($(KBUILD_TARGET_ARCH), amd64 x86)
  PROGRAMS += \
@@ -265,6 +267,9 @@ tstRTCritSectW32_TEMPLATE = VBOXR3TSTEXE
 tstRTCritSectW32_SOURCES = tstRTCritSect.cpp
 tstRTCritSectW32_DEFS = TRY_WIN32_CRIT
 
+tstRTCrPkix-1_TEMPLATE      = VBOXR3TSTEXE
+tstRTCrPkix-1_SOURCES       = tstRTCrPkix-1.cpp
+
 tstRTCrX509-1_TEMPLATE      = VBOXR3TSTEXE
 tstRTCrX509-1_SOURCES       = tstRTCrX509-1.cpp
 tstRTCrX509-1_INCS          = $(tstRTCrX509-1_0_OUTDIR)
@@ -304,6 +309,11 @@ $$(tstRTCrX509-1_0_OUTDIR)/tstRTCrX509-1.h: \
 tstRTCType_TEMPLATE = VBOXR3TSTEXE
 tstRTCType_SOURCES = tstRTCType.cpp
 
+ifdef VBOX_WITH_LIBCURL
+ tstRTCRest-1_TEMPLATE = VBOXR3TSTEXE
+ tstRTCRest-1_SOURCES = tstRTCRest-1.cpp
+endif
+
 tstRTDigest_TEMPLATE = VBOXR3TSTEXE
 tstRTDigest_SOURCES = tstRTDigest.cpp
 
@@ -314,9 +324,9 @@ endif
 tstRTDigest-2_SOURCES = tstRTDigest-2.cpp
 
 ifdef VBOX_WITH_LIBCURL
-tstRTHttp_TEMPLATE = VBOXR3TSTEXE
-tstRTHttp_SOURCES = tstRTHttp.cpp
-tstRTHttp_SDKS = VBOX_LIBCURL
+tstRTHttp-1_TEMPLATE = VBOXR3TSTEXE
+tstRTHttp-1_SOURCES = tstRTHttp-1.cpp
+tstRTHttp-1_SDKS = VBOX_LIBCURL
 endif
 
 tstDir_TEMPLATE = VBOXR3TSTEXE
@@ -400,9 +410,6 @@ tstIprtList_SOURCES = tstIprtList.cpp
 
 tstIprtMiniString_TEMPLATE = VBOXR3TSTEXE
 tstIprtMiniString_SOURCES = tstIprtMiniString.cpp
-
-tstRTIsoFs_TEMPLATE = VBOXR3TSTEXE
-tstRTIsoFs_SOURCES = tstRTIsoFs.cpp
 
 tstLdr_TEMPLATE = VBOXR3TSTEXE
 tstLdr_SOURCES = tstLdr.cpp
@@ -723,6 +730,9 @@ tstRTZip_SOURCES = tstRTZip.cpp
 
 tstRTJson_TEMPLATE = VBOXR3TSTEXE
 tstRTJson_SOURCES = tstRTJson.cpp
+
+tstRTShMem_TEMPLATE = VBOXR3TSTEXE
+tstRTShMem_SOURCES = tstRTShMem.cpp
 
 #
 # Ring-0 testcases.

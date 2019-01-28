@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,12 +20,13 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_DBGF
+#define VMCPU_INCL_CPUM_GST_CTX /* For CPUM_IMPORT_EXTRN_RET(). */
 #include <VBox/vmm/dbgf.h>
 #include <VBox/vmm/cpum.h>
 #include "DBGFInternal.h"
 #include <VBox/vmm/vm.h>
 #include <VBox/vmm/uvm.h>
-#include <VBox/err.h>
+#include <iprt/errcore.h>
 #include <VBox/log.h>
 #include <VBox/param.h>
 #include <iprt/assert.h>
@@ -43,6 +44,7 @@ static DECLCALLBACK(int) dbgfR3CpuGetMode(PVM pVM, VMCPUID idCpu, CPUMMODE *penm
 {
     Assert(idCpu == VMMGetCpuId(pVM));
     PVMCPU pVCpu = VMMGetCpuById(pVM, idCpu);
+    CPUM_IMPORT_EXTRN_RET(pVCpu, CPUMCTX_EXTRN_CR0 | CPUMCTX_EXTRN_EFER);
     *penmMode = CPUMGetGuestMode(pVCpu);
     return VINF_SUCCESS;
 }
@@ -81,6 +83,7 @@ static DECLCALLBACK(int) dbgfR3CpuIn64BitCode(PVM pVM, VMCPUID idCpu, bool *pfIn
 {
     Assert(idCpu == VMMGetCpuId(pVM));
     PVMCPU pVCpu = VMMGetCpuById(pVM, idCpu);
+    CPUM_IMPORT_EXTRN_RET(pVCpu, CPUMCTX_EXTRN_CS | CPUMCTX_EXTRN_EFER);
     *pfIn64BitCode = CPUMIsGuestIn64BitCode(pVCpu);
     return VINF_SUCCESS;
 }
@@ -119,6 +122,7 @@ static DECLCALLBACK(int) dbgfR3CpuInV86Code(PVM pVM, VMCPUID idCpu, bool *pfInV8
 {
     Assert(idCpu == VMMGetCpuId(pVM));
     PVMCPU pVCpu = VMMGetCpuById(pVM, idCpu);
+    CPUM_IMPORT_EXTRN_RET(pVCpu, CPUMCTX_EXTRN_RFLAGS);
     *pfInV86Code = CPUMIsGuestInV86ModeEx(CPUMQueryGuestCtxPtr(pVCpu));
     return VINF_SUCCESS;
 }

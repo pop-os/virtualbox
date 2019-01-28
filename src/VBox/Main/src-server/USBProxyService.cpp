@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,6 +15,7 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#define LOG_GROUP LOG_GROUP_MAIN_USBPROXYBACKEND
 #include "USBProxyService.h"
 #include "HostUSBDeviceImpl.h"
 #include "HostImpl.h"
@@ -22,10 +23,10 @@
 #include "VirtualBoxImpl.h"
 
 #include "AutoCaller.h"
-#include "Logging.h"
+#include "LoggingNew.h"
 
 #include <VBox/com/array.h>
-#include <VBox/err.h>
+#include <iprt/errcore.h>
 #include <iprt/asm.h>
 #include <iprt/semaphore.h>
 #include <iprt/thread.h>
@@ -577,7 +578,7 @@ void USBProxyService::i_deviceAdded(ComObjPtr<HostUSBDevice> &aDevice,
             && pHostDevice->i_compare(pDev) < 0)
             break;
 
-        it++;
+        ++it;
     }
 
     mDevices.insert(it, aDevice);
@@ -948,11 +949,11 @@ HRESULT USBProxyService::setError(HRESULT aResultCode, const char *aText, ...)
     va_list va;
     va_start(va, aText);
     HRESULT rc = VirtualBoxBase::setErrorInternal(aResultCode,
-                                                    COM_IIDOF(IHost),
-                                                    "USBProxyService",
-                                                    Utf8Str(aText, va),
-                                                    false /* aWarning*/,
-                                                    true /* aLogIt*/);
+                                                  COM_IIDOF(IHost),
+                                                  "USBProxyService",
+                                                  Utf8Str(aText, va),
+                                                  false /* aWarning*/,
+                                                  true /* aLogIt*/);
     va_end(va);
     return rc;
 }

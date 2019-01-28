@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2011-2017 Oracle Corporation
+ * Copyright (C) 2011-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,8 +25,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBoxNetFltCmn_win_h___
-#define ___VBoxNetFltCmn_win_h___
+#ifndef VBOX_INCLUDED_SRC_VBoxNetFlt_win_drv_VBoxNetFltCmn_win_h
+#define VBOX_INCLUDED_SRC_VBoxNetFlt_win_drv_VBoxNetFltCmn_win_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #define LOG_GROUP LOG_GROUP_NET_FLT_DRV
 
@@ -517,4 +520,4 @@ AssertCompile(sizeof (UINT) == sizeof (uint32_t));
 #endif
 #include "VBoxNetFltM-win.h"
 
-#endif /* #ifndef ___VBoxNetFltCmn_win_h___ */
+#endif /* !VBOX_INCLUDED_SRC_VBoxNetFlt_win_drv_VBoxNetFltCmn_win_h */

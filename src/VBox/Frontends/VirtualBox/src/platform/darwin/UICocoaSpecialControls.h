@@ -1,10 +1,10 @@
 /* $Id: UICocoaSpecialControls.h $ */
 /** @file
- * VBox Qt GUI - VBoxCocoaSpecialControls class declaration.
+ * VBox Qt GUI - UICocoaSpecialControls class declaration.
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,26 +15,37 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___darwin_UICocoaSpecialControls_h__
-#define ___darwin_UICocoaSpecialControls_h__
+#ifndef FEQT_INCLUDED_SRC_platform_darwin_UICocoaSpecialControls_h
+#define FEQT_INCLUDED_SRC_platform_darwin_UICocoaSpecialControls_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
-/* VBox includes */
-#include "VBoxCocoaHelper.h"
-
-/* Qt includes */
-#include <QWidget>
+/* Qt includes: */
 #include <QMacCocoaViewContainer>
+#include <QWidget>
 
-/* Add typedefs for Cocoa types */
+/* GUI includes: */
+#include "VBoxCocoaHelper.h"
+#include "UILibraryDefs.h"
+
+/* Add typedefs for Cocoa types: */
 ADD_COCOA_NATIVE_REF(NSButton);
-ADD_COCOA_NATIVE_REF(NSSegmentedControl);
-ADD_COCOA_NATIVE_REF(NSSearchField);
 
-class UICocoaButton: public QMacCocoaViewContainer
+/** QMacCocoaViewContainer extension,
+  * used as cocoa button container. */
+class SHARED_LIBRARY_STUFF UICocoaButton : public QMacCocoaViewContainer
 {
     Q_OBJECT
 
+signals:
+
+    /** Notifies about button click and whether it's @a fChecked. */
+    void clicked(bool fChecked = false);
+
 public:
+
+    /** Cocoa button types. */
     enum CocoaButtonType
     {
         HelpButton,
@@ -42,89 +53,28 @@ public:
         ResetButton
     };
 
-    UICocoaButton(QWidget *pParent, CocoaButtonType type);
+    /** Constructs cocoa button passing @a pParent to the base-class.
+      * @param  enmType  Brings the button type. */
+    UICocoaButton(QWidget *pParent, CocoaButtonType enmType);
+    /** Destructs cocoa button. */
     ~UICocoaButton();
 
+    /** Returns size-hint. */
     QSize sizeHint() const;
 
-    void setText(const QString& strText);
-    void setToolTip(const QString& strTip);
+    /** Defines button @a strText. */
+    void setText(const QString &strText);
+    /** Defines button @a strToolTip. */
+    void setToolTip(const QString &strToolTip);
 
+    /** Handles button click. */
     void onClicked();
 
-signals:
-    void clicked(bool fChecked = false);
-
 private:
+
+    /** Returns native cocoa button reference. */
     NativeNSButtonRef nativeRef() const { return static_cast<NativeNSButtonRef>(cocoaView()); }
 };
 
-class UICocoaSegmentedButton: public QMacCocoaViewContainer
-{
-    Q_OBJECT
-
-public:
-    enum CocoaSegmentType
-    {
-        RoundRectSegment,
-        TexturedRoundedSegment
-    };
-
-    UICocoaSegmentedButton(QWidget *pParent, int count, CocoaSegmentType type = RoundRectSegment);
-
-    /** Returns the number of segments. */
-    int count() const;
-
-    /** Returns whether the @a iSegment is selected. */
-    bool isSelected(int iSegment) const;
-
-    /** Returns the @a iSegment description. */
-    QString description(int iSegment) const;
-
-    QSize sizeHint() const;
-
-    void setTitle(int iSegment, const QString &strTitle);
-    void setToolTip(int iSegment, const QString &strTip);
-    void setIcon(int iSegment, const QIcon& icon);
-    void setEnabled(int iSegment, bool fEnabled);
-
-    void setSelected(int iSegment);
-    void animateClick(int iSegment);
-    void onClicked(int iSegment);
-
-signals:
-    void clicked(int iSegment, bool fChecked = false);
-
-private:
-    NativeNSSegmentedControlRef nativeRef() const { return static_cast<NativeNSSegmentedControlRef>(cocoaView()); }
-};
-
-class UICocoaSearchField: public QMacCocoaViewContainer
-{
-    Q_OBJECT
-
-public:
-    UICocoaSearchField(QWidget* pParent);
-    ~UICocoaSearchField();
-
-    QSize sizeHint() const;
-
-    QString text() const;
-    void insert(const QString &strText);
-    void setToolTip(const QString &strTip);
-    void selectAll();
-
-    void markError();
-    void unmarkError();
-
-    void onTextChanged(const QString &strText);
-
-signals:
-    void textChanged(const QString& strText);
-
-private:
-    NativeNSSearchFieldRef nativeRef() const { return static_cast<NativeNSSearchFieldRef>(cocoaView()); }
-};
-
-#endif /* ___darwin_UICocoaSpecialControls_h__ */
+#endif /* !FEQT_INCLUDED_SRC_platform_darwin_UICocoaSpecialControls_h */
 

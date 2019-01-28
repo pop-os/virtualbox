@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,23 +15,28 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UIMediumSizeEditor_h___
-#define ___UIMediumSizeEditor_h___
+#ifndef FEQT_INCLUDED_SRC_widgets_UIMediumSizeEditor_h
+#define FEQT_INCLUDED_SRC_widgets_UIMediumSizeEditor_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Qt includes: */
 #include <QWidget>
 
 /* GUI includes: */
 #include "QIWithRetranslateUI.h"
+#include "UILibraryDefs.h"
 
 /* Forward declarations: */
 class QLabel;
 class QSlider;
+class QString;
+class QWidget;
 class QILineEdit;
 
-
 /** Medium size editor widget. */
-class UIMediumSizeEditor : public QIWithRetranslateUI<QWidget>
+class SHARED_LIBRARY_STUFF UIMediumSizeEditor : public QIWithRetranslateUI<QWidget>
 {
     Q_OBJECT;
 
@@ -61,6 +66,7 @@ private slots:
     void sltSizeSliderChanged(int iValue);
     /** Handles size editor change. */
     void sltSizeEditorChanged(const QString &strValue);
+    void sltSizeEditorEditingFinished();
 
 private:
 
@@ -77,7 +83,11 @@ private:
     static qulonglong sliderToSizeMB(int uValue, int iSliderScale);
     /** Updates slider/editor tool-tips. */
     void updateSizeToolTips(qulonglong uSize);
+    /** Checks if the uSize is divisible by m_uSectorSize */
+    qulonglong checkSectorSizeAlignment(qulonglong uSize);
 
+    /* Holds the block size. We force m_uSize to be multiple of this number. */
+    static const qulonglong m_uSectorSize;
     /** Holds the minimum medium size. */
     const qulonglong  m_uSizeMin;
     /** Holds the maximum medium size. */
@@ -97,5 +107,4 @@ private:
     QILineEdit *m_pEditor;
 };
 
-#endif /* !___UIMediumSizeEditor_h___ */
-
+#endif /* !FEQT_INCLUDED_SRC_widgets_UIMediumSizeEditor_h */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1275,7 +1275,7 @@ DECLINLINE(void) rtDbgAsAdjustLineAddress(PRTDBGLINE pLine, RTDBGMOD hDbgMod, RT
  * @param   pszSymbol       The symbol name.
  * @param   Addr            The address of the symbol.
  * @param   cb              The size of the symbol.
- * @param   fFlags          Symbol flags.
+ * @param   fFlags          Symbol flags, RTDBGSYMBOLADD_F_XXX.
  * @param   piOrdinal       Where to return the symbol ordinal on success. If
  *                          the interpreter doesn't do ordinals, this will be set to
  *                          UINT32_MAX. Optional
@@ -1371,6 +1371,9 @@ RTDECL(int) RTDbgAsSymbolByAddr(RTDBGAS hDbgAs, RTUINTPTR Addr, uint32_t fFlags,
         /*
          * Check for absolute symbols.  Requires iterating all modules.
          */
+        if (fFlags & RTDBGSYMADDR_FLAGS_SKIP_ABS)
+            return VERR_NOT_FOUND;
+
         uint32_t cModules;
         PRTDBGMOD pahModules = rtDbgAsSnapshotModuleTable(pDbgAs, &cModules);
         if (!pahModules)

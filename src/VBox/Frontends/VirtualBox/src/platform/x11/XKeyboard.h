@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,25 +15,31 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __XKeyboard_h__
-#define __XKeyboard_h__
+#ifndef FEQT_INCLUDED_SRC_platform_x11_XKeyboard_h
+#define FEQT_INCLUDED_SRC_platform_x11_XKeyboard_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
+
+/* GUI includes: */
+#include "UILibraryDefs.h"
 
 /* Forward declarations: */
 class QString;
 typedef struct _XDisplay Display;
 
+/** Initializes the X keyboard subsystem. */
+SHARED_LIBRARY_STUFF void initMappedX11Keyboard(Display *pDisplay, const QString &remapScancodes);
 
-// initialize the X keyboard subsystem
-void initMappedX11Keyboard(Display *pDisplay, const QString &remapScancodes);
-// our custom keyboard handler
-unsigned handleXKeyEvent(Display *pDisplay, unsigned int iDetail);
-// Called after release logging is started, in case initXKeyboard wishes to log
-// anything
-void doXKeyboardLogging(Display *dpy);
-// Wrapper for the XkbKeycodeToKeysym(3) API which falls back to the deprecated
-// XKeycodeToKeysym(3) if it is unavailable.
-unsigned long wrapXkbKeycodeToKeysym(Display *pDisplay, unsigned char cCode,
-                                     unsigned int cGroup, unsigned int cIndex);
+/** Handles native XKey events. */
+SHARED_LIBRARY_STUFF unsigned handleXKeyEvent(Display *pDisplay, unsigned int iDetail);
 
-#endif // __XKeyboard_h__
+/** Handles log requests from initXKeyboard after release logging is started. */
+SHARED_LIBRARY_STUFF void doXKeyboardLogging(Display *pDisplay);
+
+/** Wraps for the XkbKeycodeToKeysym(3) API which falls back to the deprecated XKeycodeToKeysym(3) if it is unavailable. */
+SHARED_LIBRARY_STUFF unsigned long wrapXkbKeycodeToKeysym(Display *pDisplay, unsigned char cCode,
+                                                          unsigned int cGroup, unsigned int cIndex);
+
+#endif /* !FEQT_INCLUDED_SRC_platform_x11_XKeyboard_h */
 

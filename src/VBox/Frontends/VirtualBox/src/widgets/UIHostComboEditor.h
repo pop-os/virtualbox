@@ -1,10 +1,10 @@
 /* $Id: UIHostComboEditor.h $ */
 /** @file
- * VBox Qt GUI - VirtualBox Qt extensions: UIHostComboEditor class declaration.
+ * VBox Qt GUI - UIHostComboEditor class declaration.
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,80 +15,108 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UIHostComboEditor_h___
-#define ___UIHostComboEditor_h___
+#ifndef FEQT_INCLUDED_SRC_widgets_UIHostComboEditor_h
+#define FEQT_INCLUDED_SRC_widgets_UIHostComboEditor_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Qt includes: */
 #include <QLineEdit>
-#include <QMetaType>
 #include <QMap>
+#include <QMetaType>
 #include <QSet>
 
 /* GUI includes: */
 #include "QIWithRetranslateUI.h"
+#include "UILibraryDefs.h"
 
 /* Forward declarations: */
+class QString;
+class QWidget;
 class QIToolButton;
 class UIHostComboEditorPrivate;
 #if defined(VBOX_WS_MAC) || defined(VBOX_WS_WIN)
 class ComboEditorEventFilter;
-#endif /* VBOX_WS_MAC || VBOX_WS_WIN */
+#endif
 #ifdef VBOX_WS_WIN
 class WinAltGrMonitor;
-#endif /* VBOX_WS_WIN */
+#endif
 
 
-/* Native hot-key namespace to unify
- * all the related hot-key processing stuff: */
+/** Native hot-key namespace to unify
+  * all the related hot-key processing stuff. */
 namespace UINativeHotKey
 {
-    QString toString(int iKeyCode);
-    bool isValidKey(int iKeyCode);
-    /** Translates a modifier key in host platform
+    /** Translates passed @a iKeyCode to string. */
+    SHARED_LIBRARY_STUFF QString toString(int iKeyCode);
+
+    /** Returns whether passed @a iKeyCode is valid. */
+    SHARED_LIBRARY_STUFF bool isValidKey(int iKeyCode);
+
+    /** Translates passed @a iKeyCode in host platform
       * encoding to the corresponding set 1 PC scan code.
       * @note  Non-modifier keys will return zero. */
-    unsigned modifierToSet1ScanCode(int iKeyCode);
+    SHARED_LIBRARY_STUFF unsigned modifierToSet1ScanCode(int iKeyCode);
+
 #if defined(VBOX_WS_WIN)
-    int distinguishModifierVKey(int wParam, int lParam);
+    /** Distinguishes modifier VKey by @a wParam and @a lParam. */
+    SHARED_LIBRARY_STUFF int distinguishModifierVKey(int wParam, int lParam);
 #elif defined(VBOX_WS_X11)
-    void retranslateKeyNames();
-#endif /* VBOX_WS_X11 */
+    /** Retranslates key names. */
+    SHARED_LIBRARY_STUFF void retranslateKeyNames();
+#endif
 }
 
-/* Host-combo namespace to unify
- * all the related hot-combo processing stuff: */
+
+/** Host-combo namespace to unify
+  * all the related hot-combo processing stuff. */
 namespace UIHostCombo
 {
-    int hostComboModifierIndex();
-    QString hostComboModifierName();
-    QString hostComboCacheKey();
-    QString toReadableString(const QString &strKeyCombo);
-    QList<int> toKeyCodeList(const QString &strKeyCombo);
+    /** Returns host-combo modifier index. */
+    SHARED_LIBRARY_STUFF int hostComboModifierIndex();
+    /** Returns host-combo modifier name. */
+    SHARED_LIBRARY_STUFF QString hostComboModifierName();
+    /** Returns host-combo cached key. */
+    SHARED_LIBRARY_STUFF QString hostComboCacheKey();
+
+    /** Translates passed @strKeyCombo to readable string. */
+    SHARED_LIBRARY_STUFF QString toReadableString(const QString &strKeyCombo);
+    /** Translates passed @strKeyCombo to key codes list. */
+    SHARED_LIBRARY_STUFF QList<int> toKeyCodeList(const QString &strKeyCombo);
+
     /** Returns a sequence of the set 1 PC scan codes for all
       * modifiers contained in the (host platform format) sequence passed. */
-    QList<unsigned> modifiersToScanCodes(const QString &strKeyCombo);
-    bool isValidKeyCombo(const QString &strKeyCombo);
+    SHARED_LIBRARY_STUFF QList<unsigned> modifiersToScanCodes(const QString &strKeyCombo);
+
+    /** Returns whether passed @a strKeyCombo is valid. */
+    SHARED_LIBRARY_STUFF bool isValidKeyCombo(const QString &strKeyCombo);
 }
 
-/* Host-combo wrapper: */
-class UIHostComboWrapper
+
+/** Host-combo QString wrapper. */
+class SHARED_LIBRARY_STUFF UIHostComboWrapper
 {
 public:
 
+    /** Constructs host-combo wrapper on the basis of passed @a strHostCombo. */
     UIHostComboWrapper(const QString &strHostCombo = QString())
         : m_strHostCombo(strHostCombo)
     {}
 
-    const QString& toString() const { return m_strHostCombo; }
+    /** Returns the host-combo. */
+    const QString &toString() const { return m_strHostCombo; }
 
 private:
 
+    /** Holds the host-combo. */
     QString m_strHostCombo;
 };
 Q_DECLARE_METATYPE(UIHostComboWrapper);
 
+
 /** Host-combo editor widget. */
-class UIHostComboEditor : public QIWithRetranslateUI<QWidget>
+class SHARED_LIBRARY_STUFF UIHostComboEditor : public QIWithRetranslateUI<QWidget>
 {
     Q_OBJECT;
     Q_PROPERTY(UIHostComboWrapper combo READ combo WRITE setCombo USER true);
@@ -100,8 +128,13 @@ signals:
 
 public:
 
-    /** Constructs host-combo editor for passed @a pParent. */
+    /** Constructs host-combo editor passing @a pParent to the base-class. */
     UIHostComboEditor(QWidget *pParent);
+
+protected:
+
+    /** Handles translation event. */
+    virtual void retranslateUi() /* override */;
 
 private slots:
 
@@ -110,13 +143,10 @@ private slots:
 
 private:
 
-    /** Prepares widget content. */
+    /** Prepares all. */
     void prepare();
 
-    /** Translates widget content. */
-    void retranslateUi();
-
-    /** Defines host-combo sequence. */
+    /** Defines host @a strCombo sequence. */
     void setCombo(const UIHostComboWrapper &strCombo);
     /** Returns host-combo sequence. */
     UIHostComboWrapper combo() const;
@@ -124,11 +154,12 @@ private:
     /** UIHostComboEditorPrivate instance. */
     UIHostComboEditorPrivate *m_pEditor;
     /** <b>Clear</b> QIToolButton instance. */
-    QIToolButton *m_pButtonClear;
+    QIToolButton             *m_pButtonClear;
 };
 
-/* Host-combo editor widget private stuff: */
-class UIHostComboEditorPrivate : public QLineEdit
+
+/** Host-combo editor widget private stuff. */
+class SHARED_LIBRARY_STUFF UIHostComboEditorPrivate : public QLineEdit
 {
     Q_OBJECT;
 
@@ -139,61 +170,78 @@ signals:
 
 public:
 
+    /** Constructs host-combo editor private part. */
     UIHostComboEditorPrivate();
+    /** Destructs host-combo editor private part. */
     ~UIHostComboEditorPrivate();
 
+    /** Defines host @a strCombo sequence. */
     void setCombo(const UIHostComboWrapper &strCombo);
+    /** Returns host-combo sequence. */
     UIHostComboWrapper combo() const;
 
 public slots:
 
+    /** Clears the host-combo selection. */
     void sltDeselect();
+    /** Clears the host-combo editor. */
     void sltClear();
 
 protected:
 
-    /** Qt5: Handles all native events. */
-    bool nativeEvent(const QByteArray &eventType, void *pMessage, long *pResult);
+    /** Handles native events. */
+    virtual bool nativeEvent(const QByteArray &eventType, void *pMessage, long *pResult) /* override */;
 
-    void keyPressEvent(QKeyEvent *pEvent);
-    void keyReleaseEvent(QKeyEvent *pEvent);
-    void mousePressEvent(QMouseEvent *pEvent);
-    void mouseReleaseEvent(QMouseEvent *pEvent);
+    /** Handles key-press @a pEvent. */
+    virtual void keyPressEvent(QKeyEvent *pEvent) /* override */;
+    /** Handles key-release @a pEvent. */
+    virtual void keyReleaseEvent(QKeyEvent *pEvent) /* override */;
+    /** Handles mouse-press @a pEvent. */
+    virtual void mousePressEvent(QMouseEvent *pEvent) /* override */;
+    /** Handles mouse-release @a pEvent. */
+    virtual void mouseReleaseEvent(QMouseEvent *pEvent) /* override */;
 
 private slots:
 
+    /** Releases pending keys. */
     void sltReleasePendingKeys();
 
 private:
 
+    /** PRocesses key event of @a fKeyPress type for a passed @a iKeyCode. */
     bool processKeyEvent(int iKeyCode, bool fKeyPress);
+
+    /** Updates text. */
     void updateText();
 
-    QSet<int> m_pressedKeys;
-    QSet<int> m_releasedKeys;
-    QMap<int, QString> m_shownKeys;
+    /** Holds the pressed keys. */
+    QSet<int>           m_pressedKeys;
+    /** Holds the released keys. */
+    QSet<int>           m_releasedKeys;
+    /** Holds the shown keys. */
+    QMap<int, QString>  m_shownKeys;
 
-    QTimer* m_pReleaseTimer;
-    bool m_fStartNewSequence;
+    /** Holds the release timer instance. */
+    QTimer *m_pReleaseTimer;
+
+    /** Holds whether new sequence should be started. */
+    bool  m_fStartNewSequence;
 
 #if defined(VBOX_WS_MAC) || defined(VBOX_WS_WIN)
     /** Mac, Win: Holds the native event filter instance. */
     ComboEditorEventFilter *m_pPrivateEventFilter;
-    /** Mac, Win: Allows the native event filter to
-      * redirect events directly to nativeEvent handler. */
+    /** Mac, Win: Allows the native event filter to redirect events directly to nativeEvent handler. */
     friend class ComboEditorEventFilter;
 #endif /* VBOX_WS_MAC || VBOX_WS_WIN */
 
 #if defined(VBOX_WS_MAC)
-    /** Mac: Holds the current modifier key mask. Used to figure out which modifier
-      * key was pressed when we get a kEventRawKeyModifiersChanged event. */
-    uint32_t m_uDarwinKeyModifiers;
+    /** Mac: Holds the current modifier key mask. */
+    uint32_t         m_uDarwinKeyModifiers;
 #elif defined(VBOX_WS_WIN)
-    /** Win: Holds the object monitoring key event
-      * stream for problematic AltGr events. */
+    /** Win: Holds the object monitoring key event stream for problematic AltGr events. */
     WinAltGrMonitor *m_pAltGrMonitor;
 #endif /* VBOX_WS_WIN */
 };
 
-#endif /* !___UIHostComboEditor_h___ */
 
+#endif /* !FEQT_INCLUDED_SRC_widgets_UIHostComboEditor_h */

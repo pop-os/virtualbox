@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,11 +27,11 @@
 #include "KeyboardImpl.h"
 #include "DisplayImpl.h"
 #include "VMMDev.h"
-#ifdef VBOX_WITH_VRDE_AUDIO
+#ifdef VBOX_WITH_AUDIO_VRDE
 # include "DrvAudioVRDE.h"
 #endif
-#ifdef VBOX_WITH_AUDIO_VIDEOREC
-# include "DrvAudioVideoRec.h"
+#ifdef VBOX_WITH_AUDIO_RECORDING
+# include "DrvAudioRec.h"
 #endif
 #include "Nvram.h"
 #include "UsbWebcamInterface.h"
@@ -74,12 +74,12 @@ extern "C" DECLEXPORT(int) VBoxDriversRegister(PCPDMDRVREGCB pCallbacks, uint32_
     rc = pCallbacks->pfnRegister(pCallbacks, &VMMDev::DrvReg);
     if (RT_FAILURE(rc))
         return rc;
-#ifdef VBOX_WITH_VRDE_AUDIO
+#ifdef VBOX_WITH_AUDIO_VRDE
     rc = pCallbacks->pfnRegister(pCallbacks, &AudioVRDE::DrvReg);
     if (RT_FAILURE(rc))
         return rc;
 #endif
-#ifdef VBOX_WITH_AUDIO_VIDEOREC
+#ifdef VBOX_WITH_AUDIO_RECORDING
     rc = pCallbacks->pfnRegister(pCallbacks, &AudioVideoRec::DrvReg);
     if (RT_FAILURE(rc))
         return rc;

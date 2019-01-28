@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2004-2017 Oracle Corporation
+ * Copyright (C) 2004-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,6 +15,7 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#define LOG_GROUP LOG_GROUP_MAIN_VBOXSVC
 #include <ipcIService.h>
 #include <ipcCID.h>
 
@@ -27,7 +28,7 @@
 
 #include "server.h"
 
-#include "Logging.h"
+#include "LoggingNew.h"
 
 #include <VBox/param.h>
 
@@ -55,7 +56,7 @@
 /////////////////////////////////////////////////////////////////////////////
 
 #include <nsIGenericFactory.h>
-#include <VirtualBox_XPCOM.h>
+#include <VBox/com/VirtualBox.h>
 
 #include "VBox/com/NativeEventQueue.h"
 

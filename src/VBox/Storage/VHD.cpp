@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,6 +31,7 @@
 #include <iprt/uuid.h>
 #include <iprt/path.h>
 #include <iprt/string.h>
+#include <iprt/utf16.h>
 
 #include "VDBackends.h"
 
@@ -39,6 +40,14 @@
 
 #define VHD_SECTOR_SIZE 512
 #define VHD_BLOCK_SIZE  (2 * _1M)
+
+/** The maximum VHD size is 2TB due to the 32bit sector numbers in the BAT.
+ * Note that this is the maximum file size including all footers and headers
+ * and not the maximum virtual disk size presented to the guest.
+ */
+#define VHD_MAX_SIZE    (2 * _1T)
+/** Maximum number of 512 byte sectors for a VHD image. */
+#define VHD_MAX_SECTORS (VHD_MAX_SIZE / VHD_SECTOR_SIZE)
 
 /* This is common to all VHD disk types and is located at the end of the image */
 #pragma pack(1)
@@ -321,8 +330,7 @@ static int vhdLocatorUpdate(PVHDIMAGE pImage, PVHDPLE pLocator, const char *pszF
             {
                 /* Convert to relative path. */
                 char szPath[RTPATH_MAX];
-                rc = RTPathCalcRelative(szPath, sizeof(szPath), pImage->pszFilename,
-                                        pszFilename);
+                rc = RTPathCalcRelative(szPath, sizeof(szPath), pImage->pszFilename, true /*fFromFile*/, pszFilename);
                 if (RT_SUCCESS(rc))
                 {
                     /* Update plain relative name. */
@@ -364,8 +372,7 @@ static int vhdLocatorUpdate(PVHDIMAGE pImage, PVHDPLE pLocator, const char *pszF
             {
                 /* Convert to relative path. */
                 char szPath[RTPATH_MAX];
-                rc = RTPathCalcRelative(szPath, sizeof(szPath), pImage->pszFilename,
-                                        pszFilename);
+                rc = RTPathCalcRelative(szPath, sizeof(szPath), pImage->pszFilename, true /*fFromFile*/, pszFilename);
                 if (RT_SUCCESS(rc))
                     rc = vhdFilenameToUtf16(szPath, (uint16_t *)pvBuf, cbMaxLen, &cb, false);
             }
@@ -747,6 +754,14 @@ static int vhdLoadDynamicDisk(PVHDIMAGE pImage, uint64_t uDynamicDiskHeaderOffse
     LogFlowFunc(("MaxTableEntries=%lu\n", pImage->cBlockAllocationTableEntries));
     AssertMsg(!(pImage->cbDataBlock % VHD_SECTOR_SIZE), ("%s: Data block size is not a multiple of %!\n", __FUNCTION__, VHD_SECTOR_SIZE));
 
+    /*
+     * Bail out if the number of BAT entries exceeds the number of sectors for a maximum image.
+     * Lower the number of sectors in the BAT as a few sectors are already occupied by the footers
+     * and headers.
+     */
+    if (pImage->cBlockAllocationTableEntries > (VHD_MAX_SECTORS - 2))
+        return VERR_VD_VHD_INVALID_HEADER;
+
     pImage->cSectorsPerDataBlock = pImage->cbDataBlock / VHD_SECTOR_SIZE;
     LogFlowFunc(("SectorsPerDataBlock=%u\n", pImage->cSectorsPerDataBlock));
 
@@ -779,6 +794,8 @@ static int vhdLoadDynamicDisk(PVHDIMAGE pImage, uint64_t uDynamicDiskHeaderOffse
     rc = vdIfIoIntFileReadSync(pImage->pIfIo, pImage->pStorage,
                                uBlockAllocationTableOffset, pBlockAllocationTable,
                                pImage->cBlockAllocationTableEntries * sizeof(uint32_t));
+    if (RT_FAILURE(rc))
+        return rc;
 
     /*
      * Because the offset entries inside the allocation table are stored big endian
@@ -2527,8 +2544,9 @@ static DECLCALLBACK(int) vhdResize(void *pBackendData, uint64_t cbSize,
     int rc = VINF_SUCCESS;
 
     /* Making the image smaller is not supported at the moment. */
-    if (   cbSize < pImage->cbSize
-        || pImage->uImageFlags & VD_IMAGE_FLAGS_FIXED)
+    if (cbSize < pImage->cbSize)
+        rc = VERR_VD_SHRINK_NOT_SUPPORTED;
+    else if (pImage->uImageFlags & VD_IMAGE_FLAGS_FIXED)
         rc = VERR_NOT_SUPPORTED;
     else if (cbSize > pImage->cbSize)
     {

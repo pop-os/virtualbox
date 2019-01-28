@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,15 +29,16 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #define LOG_GROUP RTLOGGROUP_TIME
-#include <iprt/win/windows.h>
+#include <iprt/nt/nt-and-windows.h>
 
 #include <iprt/time.h>
 #include "internal/iprt.h"
 
 #include <iprt/asm.h>
 #include <iprt/assert.h>
-#include <iprt/err.h>
+#include <iprt/errcore.h>
 #include "internal/time.h"
+#include "internal-r3-win.h"
 
 /*
  * Note! The selected time source be the exact same one as we use in kernel land!
@@ -51,25 +52,6 @@
 //# define USE_TICK_COUNT
 //#endif
 
-
-#ifdef USE_INTERRUPT_TIME
-
-typedef struct _MY_KSYSTEM_TIME
-{
-    ULONG LowPart;
-    LONG High1Time;
-    LONG High2Time;
-} MY_KSYSTEM_TIME;
-
-typedef struct _MY_KUSER_SHARED_DATA
-{
-    ULONG TickCountLowDeprecated;
-    ULONG TickCountMultiplier;
-    volatile MY_KSYSTEM_TIME InterruptTime;
-    /* The rest is not relevant. */
-} MY_KUSER_SHARED_DATA, *PMY_KUSER_SHARED_DATA;
-
-#endif /* USE_INTERRUPT_TIME */
 
 
 DECLINLINE(uint64_t) rtTimeGetSystemNanoTS(void)
@@ -108,31 +90,60 @@ DECLINLINE(uint64_t) rtTimeGetSystemNanoTS(void)
     return u64 * 100;
 
 #elif defined USE_INTERRUPT_TIME
-# if 0 /* ASSUME 0x7ffe0000 is set in stone */
     /*
-     * This is exactly what we want, but we have to obtain it by non-official
-     * means.
+     * Use interrupt time if we can (not possible on NT 3.1).
+     * Note! We cannot entirely depend on g_enmWinVer here as we're likely to
+     *       get called before IPRT is initialized.  Ditto g_hModNtDll.
      */
-    static MY_KUSER_SHARED_DATA *s_pUserSharedData = NULL;
-    if (!s_pUserSharedData)
+    static PFNRTLGETINTERRUPTTIMEPRECISE    s_pfnRtlGetInterruptTimePrecise = NULL;
+    static int volatile                     s_iCanUseUserSharedData         = -1;
+    int                                     iCanUseUserSharedData           = s_iCanUseUserSharedData;
+    if (iCanUseUserSharedData != -1)
+    { /* likely */ }
+    else
     {
-        /** @todo find official way of getting this or some more clever
-         * detection algorithm if necessary. The com debugger class
-         * exports this too, windbg knows it too... */
-        s_pUserSharedData = (PMY_KUSER_SHARED_DATA)(uintptr_t)0x7ffe0000;
+        /* We may be called before g_enmWinVer has been initialized. */
+        if (g_enmWinVer != kRTWinOSType_UNKNOWN)
+            iCanUseUserSharedData = g_enmWinVer > kRTWinOSType_NT310;
+        else
+        {
+            DWORD dwVer = GetVersion();
+            iCanUseUserSharedData = (dwVer & 0xff) != 3 || ((dwVer >> 8) & 0xff) >= 50;
+        }
+        if (iCanUseUserSharedData != 0)
+        {
+            FARPROC pfn = GetProcAddress(g_hModNtDll ? g_hModNtDll : GetModuleHandleW(L"ntdll"), "RtlGetInterruptTimePrecise");
+            if (pfn != NULL)
+            {
+                ASMAtomicWritePtr(&s_pfnRtlGetInterruptTimePrecise, pfn);
+                iCanUseUserSharedData = 42;
+            }
+        }
+        s_iCanUseUserSharedData = iCanUseUserSharedData;
     }
-# endif
-    PMY_KUSER_SHARED_DATA pUserSharedData = (PMY_KUSER_SHARED_DATA)(uintptr_t)0x7ffe0000;
 
-    /* use interrupt time */
-    LARGE_INTEGER Time;
-    do
+    if (iCanUseUserSharedData != 0)
     {
-        Time.HighPart = pUserSharedData->InterruptTime.High1Time;
-        Time.LowPart  = pUserSharedData->InterruptTime.LowPart;
-    } while (pUserSharedData->InterruptTime.High2Time != Time.HighPart);
+        LARGE_INTEGER Time;
+        if (iCanUseUserSharedData == 42)
+        {
+            uint64_t iIgnored;
+            Time.QuadPart = s_pfnRtlGetInterruptTimePrecise(&iIgnored);
+        }
+        else
+        {
+            PKUSER_SHARED_DATA pUserSharedData = (PKUSER_SHARED_DATA)MM_SHARED_USER_DATA_VA;
+            do
+            {
+                Time.HighPart = pUserSharedData->InterruptTime.High1Time;
+                Time.LowPart  = pUserSharedData->InterruptTime.LowPart;
+            } while (pUserSharedData->InterruptTime.High2Time != Time.HighPart);
+        }
 
-    return (uint64_t)Time.QuadPart * 100;
+        return (uint64_t)Time.QuadPart * 100;
+    }
+
+    return (uint64_t)GetTickCount() * RT_NS_1MS_64;
 
 #else
 # error "Must select a method bright guy!"

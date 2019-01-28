@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___Bus_DevPciInternal_h___
-#define ___Bus_DevPciInternal_h___
+#ifndef VBOX_INCLUDED_SRC_Bus_DevPciInternal_h
+#define VBOX_INCLUDED_SRC_Bus_DevPciInternal_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #ifndef PDMPCIDEV_INCLUDE_PRIVATE
 # define PDMPCIDEV_INCLUDE_PRIVATE /* Hack to get pdmpcidevint.h included at the right point. */
@@ -192,8 +195,8 @@ DECLCALLBACK(void) devpciR3CommonSetConfigCallbacks(PPDMDEVINS pDevIns, PPDMPCID
                                                     PFNPCICONFIGREAD pfnRead, PPFNPCICONFIGREAD ppfnReadOld,
                                                     PFNPCICONFIGWRITE pfnWrite, PPFNPCICONFIGWRITE ppfnWriteOld);
 DECLCALLBACK(uint32_t) devpciR3CommonDefaultConfigRead(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t uAddress, unsigned cb);
-DECLCALLBACK(void)     devpciR3CommonDefaultConfigWrite(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev,
-                                                        uint32_t uAddress, uint32_t u32Value, unsigned cb);
+DECLCALLBACK(VBOXSTRICTRC) devpciR3CommonDefaultConfigWrite(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev,
+                                                            uint32_t uAddress, uint32_t u32Value, unsigned cb);
 void devpciR3CommonRestoreConfig(PPDMPCIDEV pDev, uint8_t const *pbSrcConfig);
 int  devpciR3CommonRestoreRegions(PSSMHANDLE pSSM, PPDMPCIDEV pPciDev, PPCIIOREGION paIoRegions, bool fNewState);
 void devpciR3ResetDevice(PPDMPCIDEV pDev);
@@ -233,5 +236,5 @@ DECLINLINE(void) devpciR3SetDWord(PPDMPCIDEV pPciDev, int32_t iRegister, uint32_
 
 #endif /* IN_RING3 */
 
-#endif
+#endif /* !VBOX_INCLUDED_SRC_Bus_DevPciInternal_h */
 

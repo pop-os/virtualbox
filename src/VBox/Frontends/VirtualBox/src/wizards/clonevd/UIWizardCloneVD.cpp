@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,24 +15,18 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* GUI includes: */
-# include "UIWizardCloneVD.h"
-# include "UIWizardCloneVDPageBasic1.h"
-# include "UIWizardCloneVDPageBasic2.h"
-# include "UIWizardCloneVDPageBasic3.h"
-# include "UIWizardCloneVDPageBasic4.h"
-# include "UIWizardCloneVDPageExpert.h"
-# include "VBoxGlobal.h"
-# include "UIMessageCenter.h"
+#include "UIWizardCloneVD.h"
+#include "UIWizardCloneVDPageBasic1.h"
+#include "UIWizardCloneVDPageBasic2.h"
+#include "UIWizardCloneVDPageBasic3.h"
+#include "UIWizardCloneVDPageBasic4.h"
+#include "UIWizardCloneVDPageExpert.h"
+#include "VBoxGlobal.h"
+#include "UIMessageCenter.h"
 
 /* COM includes: */
-# include "CMediumFormat.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "CMediumFormat.h"
 
 
 UIWizardCloneVD::UIWizardCloneVD(QWidget *pParent, const CMedium &comSourceVirtualDisk)
@@ -42,10 +36,10 @@ UIWizardCloneVD::UIWizardCloneVD(QWidget *pParent, const CMedium &comSourceVirtu
 {
 #ifndef VBOX_WS_MAC
     /* Assign watermark: */
-    assignWatermark(":/vmw_new_harddisk.png");
+    assignWatermark(":/wizard_new_harddisk.png");
 #else /* VBOX_WS_MAC */
     /* Assign background image: */
-    assignBackground(":/vmw_new_harddisk_bg.png");
+    assignBackground(":/wizard_new_harddisk_bg.png");
 #endif /* VBOX_WS_MAC */
 }
 

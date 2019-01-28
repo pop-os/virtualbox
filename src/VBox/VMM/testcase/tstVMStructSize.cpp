@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -52,6 +52,7 @@
 #include "EMInternal.h"
 #include "IEMInternal.h"
 #include "REMInternal.h"
+#include "NEMInternal.h"
 #include "../VMMR0/GMMR0Internal.h"
 #include "../VMMR0/GVMMR0Internal.h"
 #ifdef VBOX_WITH_RAW_MODE
@@ -226,6 +227,7 @@ int main()
 #endif
     CHECK_PADDING_VM(64, em);
     /*CHECK_PADDING_VM(64, iem);*/
+    CHECK_PADDING_VM(64, nem);
     CHECK_PADDING_VM(64, tm);
     PRINT_OFFSET(VM, tm.s.VirtualSyncLock);
     CHECK_PADDING_VM(64, dbgf);
@@ -242,6 +244,7 @@ int main()
     CHECK_PADDING_VMCPU(64, iem);
     CHECK_PADDING_VMCPU(64, hm);
     CHECK_PADDING_VMCPU(64, em);
+    CHECK_PADDING_VMCPU(64, nem);
     CHECK_PADDING_VMCPU(64, trpm);
     CHECK_PADDING_VMCPU(64, tm);
     CHECK_PADDING_VMCPU(64, vmm);
@@ -411,6 +414,7 @@ int main()
 #ifdef VBOX_WITH_REM
     CHECK_MEMBER_ALIGNMENT(EM, CritSectREM, sizeof(uintptr_t));
 #endif
+    CHECK_MEMBER_ALIGNMENT(EMCPU, aExitRecords, sizeof(EMEXITREC));
     CHECK_MEMBER_ALIGNMENT(PGM, CritSectX, sizeof(uintptr_t));
     CHECK_MEMBER_ALIGNMENT(PDM, CritSect, sizeof(uintptr_t));
     CHECK_MEMBER_ALIGNMENT(MMHYPERHEAP, Lock, sizeof(uintptr_t));
@@ -426,6 +430,7 @@ int main()
     CHECK_MEMBER_ALIGNMENT(HMCPU, vmx.pfnStartVM, 8);
     CHECK_MEMBER_ALIGNMENT(HMCPU, vmx.HCPhysVmcs, 8);
     CHECK_MEMBER_ALIGNMENT(HMCPU, vmx.LastError, 8);
+    CHECK_MEMBER_ALIGNMENT(HMCPU, vmx.RestoreHost, 8);
     CHECK_MEMBER_ALIGNMENT(HMCPU, svm, 8);
     CHECK_MEMBER_ALIGNMENT(HMCPU, svm.pfnVMRun, 8);
     CHECK_MEMBER_ALIGNMENT(HMCPU, Event, 8);

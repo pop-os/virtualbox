@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -42,6 +42,8 @@ _CRTIMP __checkReturn _CONST_RETURN char *  __cdecl strpbrk(__in_z const char *p
 # else
 _CRTIMP char * __cdecl strpbrk(const char *pszStr, const char *pszChars)
 # endif
+#elif defined(__WATCOMC__)
+_WCRTLINK char *std::strpbrk(const char *pszStr, const char *pszChars)
 #else
 char *strpbrk(const char *pszStr, const char *pszChars)
 # if defined(__THROW) && !defined(RT_OS_WINDOWS) && !defined(RT_OS_OS2)

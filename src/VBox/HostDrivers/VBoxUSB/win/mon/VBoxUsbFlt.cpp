@@ -3,7 +3,7 @@
  * VBox USB Monitor Device Filtering functionality
  */
 /*
- * Copyright (C) 2011-2017 Oracle Corporation
+ * Copyright (C) 2011-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -34,11 +34,9 @@
 #include <VBox/types.h>
 #include <iprt/process.h>
 #include <iprt/assert.h>
-#include <VBox/err.h>
-//#include <VBox/sup.h>
+#include <iprt/errcore.h>
 
 #include <iprt/assert.h>
-#include <stdio.h>
 
 #pragma warning(disable : 4200)
 #include "usbdi.h"
@@ -541,45 +539,6 @@ static NTSTATUS vboxUsbFltDevPopulate(PVBOXUSBFLT_DEVICE pDevice, PDEVICE_OBJECT
                 }
             }
 
-#if 0
-            if (bPopulateNonFilterProps)
-            {
-                WCHAR RegKeyBuf[512];
-                ULONG cbRegKeyBuf = sizeof (RegKeyBuf);
-                Status = IoGetDeviceProperty(pDo,
-                                              DevicePropertyDriverKeyName,
-                                              cbRegKeyBuf,
-                                              RegKeyBuf,
-                                              &cbRegKeyBuf);
-                if (!NT_SUCCESS(Status))
-                {
-                    AssertMsgFailed((__FUNCTION__": IoGetDeviceProperty failed Status (0x%x)", Status));
-                    break;
-                }
-
-                ANSI_STRING Ansi;
-                UNICODE_STRING Unicode;
-                Ansi.Buffer = pDevice->szDrvKeyName;
-                Ansi.Length = 0;
-                Ansi.MaximumLength = sizeof(pDevice->szDrvKeyName);
-                RtlInitUnicodeString(&Unicode, RegKeyBuf);
-
-                Status = RtlUnicodeStringToAnsiString(&Ansi, &Unicode, FALSE /* do not allocate */);
-                if (!NT_SUCCESS(Status))
-                {
-                    AssertMsgFailed((__FUNCTION__": RtlUnicodeStringToAnsiString failed Status (0x%x)", Status));
-                    break;
-                }
-
-                pDevice->fHighSpend = FALSE;
-                Status = VBoxUsbToolGetDeviceSpeed(pDo, &pDevice->fHighSpend);
-                if (!NT_SUCCESS(Status))
-                {
-                    AssertMsgFailed((__FUNCTION__": VBoxUsbToolGetDeviceSpeed failed Status (0x%x)", Status));
-                    break;
-                }
-            }
-#endif
             LOG((": strings: '%s':'%s':'%s' (lang ID %x)",
                         pDevice->szMfgName, pDevice->szProduct, pDevice->szSerial, langId));
         }
@@ -1184,27 +1143,6 @@ static USBDEVICESTATE vboxUsbDevGetUserState(PVBOXUSBFLTCTX pContext, PVBOXUSBFL
             WARN(("unexpected device state(%d) for device(0x%p)", pDevice->enmState, pDevice));
             return USBDEVICESTATE_UNSUPPORTED;
     }
-}
-
-static void vboxUsbDevToUserInfo(PVBOXUSBFLTCTX pContext, PVBOXUSBFLT_DEVICE pDevice, PUSBSUP_DEVINFO pDevInfo)
-{
-#if 0
-    pDevInfo->usVendorId = pDevice->idVendor;
-    pDevInfo->usProductId = pDevice->idProduct;
-    pDevInfo->usRevision = pDevice->bcdDevice;
-    pDevInfo->enmState = vboxUsbDevGetUserState(pContext, pDevice);
-
-    strcpy(pDevInfo->szDrvKeyName, pDevice->szDrvKeyName);
-    if (pDevInfo->enmState == USBDEVICESTATE_HELD_BY_PROXY
-            || pDevInfo->enmState == USBDEVICESTATE_USED_BY_GUEST)
-    {
-        /* this is the only case where we return the obj name to the client */
-        strcpy(pDevInfo->szObjName, pDevice->szObjName);
-    }
-    pDevInfo->fHighSpeed = pDevice->fHighSpeed;
-#else
-    RT_NOREF3(pContext, pDevice, pDevInfo);
-#endif
 }
 
 NTSTATUS VBoxUsbFltGetDevice(PVBOXUSBFLTCTX pContext, HVBOXUSBDEVUSR hDevice, PUSBSUP_GETDEV_MON pInfo)

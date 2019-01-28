@@ -8,7 +8,7 @@ Base testdriver module.
 
 __copyright__ = \
 """
-Copyright (C) 2010-2017 Oracle Corporation
+Copyright (C) 2010-2019 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 118920 $"
+__version__ = "$Revision: 127855 $"
 
 
 # Standard Python imports.
@@ -39,7 +39,8 @@ import stat
 import subprocess
 import sys
 import time
-import thread
+if sys.version_info[0] < 3: import thread;            # pylint: disable=import-error
+else:                       import _thread as thread; # pylint: disable=import-error
 import threading
 import traceback
 import tempfile;
@@ -56,6 +57,10 @@ if sys.platform == 'win32':
 try:    __file__
 except: __file__ = sys.argv[0];
 g_ksValidationKitDir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)));
+
+# Python 3 hacks:
+if sys.version_info[0] >= 3:
+    long = int;     # pylint: disable=redefined-builtin,invalid-name
 
 
 #
@@ -132,7 +137,7 @@ def getDirEnv(sVar, sAlternative = None, fLocalReq = False, fTryCreate = False):
                 reporter.error('the value of env.var. "%s" is not a dir: "%s"' % (sVar, sVal));
                 raise GenError('the value of env.var. "%s" is not a dir: "%s"' % (sVar, sVal));
             try:
-                os.makedirs(sVal, 0700);
+                os.makedirs(sVal, 0o700);
             except:
                 reporter.error('makedirs failed on the value of env.var. "%s": "%s"' % (sVar, sVal));
                 raise GenError('makedirs failed on the value of env.var. "%s": "%s"' % (sVar, sVal));
@@ -281,11 +286,12 @@ def processCheckPidAndName(uPid, sName):
     if sys.platform == 'win32':
         fRc = winbase.processCheckPidAndName(uPid, sName);
     else:
-        if sys.platform in ('linux2', ):
+        sOs = utils.getHostOs();
+        if sOs == 'linux':
             asPsCmd = ['/bin/ps',     '-p', '%u' % (uPid,), '-o', 'fname='];
-        elif sys.platform in ('sunos5',):
+        elif sOs == 'solaris':
             asPsCmd = ['/usr/bin/ps', '-p', '%u' % (uPid,), '-o', 'fname='];
-        elif sys.platform in ('darwin',):
+        elif sOs == 'darwin':
             asPsCmd = ['/bin/ps',     '-p', '%u' % (uPid,), '-o', 'ucomm='];
         else:
             asPsCmd = None;
@@ -731,13 +737,13 @@ class SubTestDriverBase(object):
 
     The test drivers invokes the sub-test drivers in a private manner during
     test execution, but some of the generic bits are done automagically by the
-    base class: options, help, various other actions.
+    base class: options, help, resources, various other actions.
     """
 
     def __init__(self, sName, oTstDrv):
         self.sName              = sName;
         self.oTstDrv            = oTstDrv;
-
+        self.asRsrcs            = [];
 
     def showUsage(self):
         """
@@ -813,7 +819,7 @@ class TestDriverBase(object): # pylint: disable=R0902
                 sTmpDir = '/var/tmp';
             self.sScratchPath = os.path.abspath(os.path.join(sTmpDir, 'VBoxTestTmp'));
             if not os.path.isdir(self.sScratchPath):
-                os.makedirs(self.sScratchPath, 0700);
+                os.makedirs(self.sScratchPath, 0o700);
         os.environ['TESTBOX_PATH_SCRATCH'] = self.sScratchPath;
 
         self.sTestBoxName  = getEnv(   'TESTBOX_NAME', 'local');
@@ -849,7 +855,7 @@ class TestDriverBase(object): # pylint: disable=R0902
         self.secTimeoutFudge = 30;
 
         # List of sub-test drivers (SubTestDriverBase derivatives).
-        self.aoSubTstDrvs    = [];
+        self.aoSubTstDrvs    = [];          # type: list(SubTestDriverBase)
 
         # Use the scratch path for temporary files.
         if self.sHost in ['win', 'os2']:
@@ -858,27 +864,6 @@ class TestDriverBase(object): # pylint: disable=R0902
         os.environ['TMPDIR']      = self.sScratchPath;
         os.environ['IPRT_TMPDIR'] = self.sScratchPath; # IPRT/VBox specific.
 
-
-    def dump(self):
-        """
-        For debugging. --> __str__?
-        """
-        print >> sys.stderr, "testdriver.base: sBinPath          = '%s'" % self.sBinPath;
-        print >> sys.stderr, "testdriver.base: sScriptPath       = '%s'" % self.sScriptPath;
-        print >> sys.stderr, "testdriver.base: sScratchPath      = '%s'" % self.sScratchPath;
-        print >> sys.stderr, "testdriver.base: sTestBoxName      = '%s'" % self.sTestBoxName;
-        print >> sys.stderr, "testdriver.base: sBuildPath        = '%s'" % self.sBuildPath;
-        print >> sys.stderr, "testdriver.base: sResourcePath     = '%s'" % self.sResourcePath;
-        print >> sys.stderr, "testdriver.base: sUploadPath       = '%s'" % self.sUploadPath;
-        print >> sys.stderr, "testdriver.base: sTestSetId        = '%s'" % self.sTestSetId;
-        print >> sys.stderr, "testdriver.base: sHost             = '%s'" % self.sHost;
-        print >> sys.stderr, "testdriver.base: sHostArch         = '%s'" % self.sHostArch;
-        print >> sys.stderr, "testdriver.base: asSpecialActions  = '%s'" % self.asSpecialActions;
-        print >> sys.stderr, "testdriver.base: asNormalActions   = '%s'" % self.asNormalActions;
-        print >> sys.stderr, "testdriver.base: asActions         = '%s'" % self.asActions;
-        print >> sys.stderr, "testdriver.base: secTimeoutAbs     = '%s'" % self.secTimeoutAbs;
-        for sVar in sorted(os.environ):
-            print >> sys.stderr, "os.environ[%s] = '%s'" % (sVar, os.environ[sVar],);
 
     #
     # Resource utility methods.
@@ -1079,7 +1064,7 @@ class TestDriverBase(object): # pylint: disable=R0902
         try:
             self.aoTasks[0].waitForTask(cMsTimeout);
             return True;
-        except Exception, oXcpt:
+        except Exception as oXcpt:
             reporter.log("waitForTasksSleepWorker: %s" % (str(oXcpt),));
             return False;
 
@@ -1397,19 +1382,40 @@ class TestDriverBase(object): # pylint: disable=R0902
         Returns a set of file and/or directory names relative to
         TESTBOX_PATH_RESOURCES.
 
-        Override this.
+        Override this, call super when using sub-test drivers.
         """
-        return [];
+        asRsrcs = [];
+        for oSubTstDrv in self.aoSubTstDrvs:
+            asRsrcs.extend(oSubTstDrv.asRsrcs);
+        return asRsrcs;
 
     def actionExtract(self):
         """
         Handle the action that extracts the test resources for off site use.
         Returns a success indicator and error details with the reporter.
 
-        Usually no need to override this.
+        There is usually no need to override this.
         """
-        reporter.error('the extract action is not implemented')
-        return False;
+        fRc = True;
+        asRsrcs = self.getResourceSet();
+        for iRsrc, sRsrc in enumerate(asRsrcs):
+            reporter.log('Resource #%s: "%s"' % (iRsrc, sRsrc));
+            sSrcPath = os.path.normpath(os.path.abspath(os.path.join(self.sResourcePath, sRsrc.replace('/', os.path.sep))));
+            sDstPath = os.path.normpath(os.path.join(self.sExtractDstPath, sRsrc.replace('/', os.path.sep)));
+
+            sDstDir = os.path.dirname(sDstPath);
+            if not os.path.exists(sDstDir):
+                try:    os.makedirs(sDstDir, 0o775);
+                except: fRc = reporter.errorXcpt('Error creating directory "%s":' % (sDstDir,));
+
+            if os.path.isfile(sSrcPath):
+                try:    utils.copyFileSimple(sSrcPath, sDstPath);
+                except: fRc = reporter.errorXcpt('Error copying "%s" to "%s":' % (sSrcPath, sDstPath,));
+            elif os.path.isdir(sSrcPath):
+                fRc = reporter.error('Extracting directories have not been implemented yet');
+            else:
+                fRc = reporter.error('Missing or unsupported resource type: %s' % (sSrcPath,));
+        return fRc;
 
     def actionVerify(self):
         """
@@ -1443,7 +1449,7 @@ class TestDriverBase(object): # pylint: disable=R0902
                 try:
                     oFile = utils.openNoInherit(sFull, "rb");
                     oFile.close();
-                except Exception, oXcpt:
+                except Exception as oXcpt:
                     reporter.error('The file resource "%s" cannot be accessed: %s' % (sFull, oXcpt));
                     return False;
             elif os.path.isdir(sFull):
@@ -1538,7 +1544,7 @@ class TestDriverBase(object): # pylint: disable=R0902
                 if i > 0:
                     time.sleep(1);
 
-                for iPid in dPids.keys():
+                for iPid in dPids:
                     if not processExists(iPid):
                         reporter.log('%s (%s) terminated' % (dPids[iPid][0], iPid,));
                         self.pidFileRemove(iPid, fQuiet = True);
@@ -1613,9 +1619,9 @@ class TestDriverBase(object): # pylint: disable=R0902
                     if iNext == iArg:
                         raise InvalidOption('unknown option: %s' % (asArgs[iArg]))
                 iArg = iNext;
-        except QuietInvalidOption, oXcpt:
+        except QuietInvalidOption as oXcpt:
             return rtexitcode.RTEXITCODE_SYNTAX;
-        except InvalidOption, oXcpt:
+        except InvalidOption as oXcpt:
             reporter.error(oXcpt.str());
             return rtexitcode.RTEXITCODE_SYNTAX;
         except:

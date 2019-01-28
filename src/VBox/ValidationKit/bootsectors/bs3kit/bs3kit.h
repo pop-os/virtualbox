@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2017 Oracle Corporation
+ * Copyright (C) 2007-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,8 +24,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___bs3kit_h
-#define ___bs3kit_h
+#ifndef BS3KIT_INCLUDED_bs3kit_h
+#define BS3KIT_INCLUDED_bs3kit_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #ifndef DOXYGEN_RUNNING
 # undef  IN_RING0
@@ -827,6 +830,24 @@ typedef uint32_t            PFNBS3FARADDRCONV;
 #define BS3_SYSCALL_TO_RING3    UINT16_C(0x0006)
 /** Restore context (pointer in cx:xSI, flags in dx). */
 #define BS3_SYSCALL_RESTORE_CTX UINT16_C(0x0007)
+/** Set DRx register (value in ESI, register number in dl). */
+#define BS3_SYSCALL_SET_DRX     UINT16_C(0x0008)
+/** Get DRx register (register number in dl, value returned in ax:dx). */
+#define BS3_SYSCALL_GET_DRX     UINT16_C(0x0009)
+/** Set CRx register (value in ESI, register number in dl). */
+#define BS3_SYSCALL_SET_CRX     UINT16_C(0x000a)
+/** Get CRx register (register number in dl, value returned in ax:dx). */
+#define BS3_SYSCALL_GET_CRX     UINT16_C(0x000b)
+/** Set the task register (value in ESI). */
+#define BS3_SYSCALL_SET_TR      UINT16_C(0x000c)
+/** Get the task register (value returned in ax). */
+#define BS3_SYSCALL_GET_TR      UINT16_C(0x000d)
+/** Set the LDT register (value in ESI). */
+#define BS3_SYSCALL_SET_LDTR    UINT16_C(0x000e)
+/** Get the LDT register (value returned in ax). */
+#define BS3_SYSCALL_GET_LDTR    UINT16_C(0x000f)
+/** The last system call value. */
+#define BS3_SYSCALL_LAST        BS3_SYSCALL_GET_LDTR
 /** @} */
 
 
@@ -1141,6 +1162,10 @@ extern uint8_t    g_bBs3CurrentMode;
 
 /** Hint for 16-bit trap handlers regarding the high word of EIP. */
 extern uint32_t   g_uBs3TrapEipHint;
+
+/** Set to disable special V8086 \#GP and \#UD handling in Bs3TrapDefaultHandler.
+ * This is useful for getting   */
+extern bool volatile g_fBs3TrapNoV86Assist;
 
 /** Copy of the original real-mode interrupt vector table. */
 extern RTFAR16 g_aBs3RmIvtOriginal[256];
@@ -1511,6 +1536,7 @@ typedef enum BS3CPUVENDOR
     BS3CPUVENDOR_AMD,
     BS3CPUVENDOR_VIA,
     BS3CPUVENDOR_CYRIX,
+    BS3CPUVENDOR_SHANGHAI,
     BS3CPUVENDOR_UNKNOWN,
     BS3CPUVENDOR_END
 } BS3CPUVENDOR;
@@ -2604,8 +2630,13 @@ BS3_CMN_PROTO_NOSB(DECL_NO_RETURN(void), Bs3RegCtxRestore,(PCBS3REGCTX pRegCtx, 
 # pragma aux Bs3RegCtxRestore_c32 "_Bs3RegCtxRestore_aborts_c32" __aborts
 #endif
 
+/** @name Flags for Bs3RegCtxRestore
+ * @{ */
 /** Skip restoring the CRx registers. */
-#define BS3REGCTXRESTORE_F_SKIP_CRX     UINT16_C(0x0001)
+#define BS3REGCTXRESTORE_F_SKIP_CRX         UINT16_C(0x0001)
+/** Sets g_fBs3TrapNoV86Assist. */
+#define BS3REGCTXRESTORE_F_NO_V86_ASSIST    UINT16_C(0x0002)
+/** @} */
 
 /**
  * Prints the register context.
@@ -2798,6 +2829,44 @@ BS3_CMN_PROTO_FARSTUB(4, void, Bs3ExtCtxRestore,(PBS3EXTCTX pExtCtx));
 BS3_CMN_PROTO_STUB(PBS3EXTCTX, Bs3ExtCtxCopy,(PBS3EXTCTX pDst, PCBS3EXTCTX pSrc));
 
 
+/** @name Debug register accessors for V8086 mode (works everwhere).
+ * @{  */
+BS3_CMN_PROTO_NOSB(RTCCUINTXREG, Bs3RegGetDr0,(void));
+BS3_CMN_PROTO_NOSB(RTCCUINTXREG, Bs3RegGetDr1,(void));
+BS3_CMN_PROTO_NOSB(RTCCUINTXREG, Bs3RegGetDr2,(void));
+BS3_CMN_PROTO_NOSB(RTCCUINTXREG, Bs3RegGetDr3,(void));
+BS3_CMN_PROTO_NOSB(RTCCUINTXREG, Bs3RegGetDr6,(void));
+BS3_CMN_PROTO_NOSB(RTCCUINTXREG, Bs3RegGetDr7,(void));
+
+BS3_CMN_PROTO_NOSB(void, Bs3RegSetDr0,(RTCCUINTXREG uValue));
+BS3_CMN_PROTO_NOSB(void, Bs3RegSetDr1,(RTCCUINTXREG uValue));
+BS3_CMN_PROTO_NOSB(void, Bs3RegSetDr2,(RTCCUINTXREG uValue));
+BS3_CMN_PROTO_NOSB(void, Bs3RegSetDr3,(RTCCUINTXREG uValue));
+BS3_CMN_PROTO_NOSB(void, Bs3RegSetDr6,(RTCCUINTXREG uValue));
+BS3_CMN_PROTO_NOSB(void, Bs3RegSetDr7,(RTCCUINTXREG uValue));
+
+BS3_CMN_PROTO_NOSB(RTCCUINTXREG, Bs3RegGetDrX,(uint8_t iReg));
+BS3_CMN_PROTO_NOSB(void, Bs3RegSetDrX,(uint8_t iReg, RTCCUINTXREG uValue));
+/** @} */
+
+
+/** @name Control register accessors for V8086 mode (works everwhere).
+ * @{  */
+BS3_CMN_PROTO_NOSB(RTCCUINTXREG, Bs3RegGetCr0,(void));
+BS3_CMN_PROTO_NOSB(RTCCUINTXREG, Bs3RegGetCr2,(void));
+BS3_CMN_PROTO_NOSB(RTCCUINTXREG, Bs3RegGetCr3,(void));
+BS3_CMN_PROTO_NOSB(RTCCUINTXREG, Bs3RegGetCr4,(void));
+BS3_CMN_PROTO_NOSB(uint16_t, Bs3RegGetTr,(void));
+BS3_CMN_PROTO_NOSB(uint16_t, Bs3RegGetLdtr,(void));
+
+BS3_CMN_PROTO_NOSB(void, Bs3RegSetCr0,(RTCCUINTXREG uValue));
+BS3_CMN_PROTO_NOSB(void, Bs3RegSetCr2,(RTCCUINTXREG uValue));
+BS3_CMN_PROTO_NOSB(void, Bs3RegSetCr3,(RTCCUINTXREG uValue));
+BS3_CMN_PROTO_NOSB(void, Bs3RegSetCr4,(RTCCUINTXREG uValue));
+BS3_CMN_PROTO_NOSB(void, Bs3RegSetTr,(uint16_t uValue));
+BS3_CMN_PROTO_NOSB(void, Bs3RegSetLdtr,(uint16_t uValue));
+/** @} */
+
 
 /**
  * Trap frame.
@@ -2961,6 +3030,17 @@ BS3_CMN_PROTO_STUB(void, Bs3Trap64SetGate,(uint8_t iIdt, uint8_t bType, uint8_t 
  * points, 8 bytes each, that will create a register frame and call the generic
  * C compatible trap handlers. */
 extern uint32_t g_Bs3Trap64GenericEntriesFlatAddr;
+
+/**
+ * Adjusts the DPL the IDT entry specified by @a iIdt.
+ *
+ * The change is applied to the 16-bit, 32-bit and 64-bit IDTs.
+ *
+ * @returns Old DPL (from 64-bit IDT).
+ * @param   iIdt        The index of the IDT and IVT entry to set.
+ * @param   bDpl        The DPL.
+ */
+BS3_CMN_PROTO_STUB(uint8_t, Bs3TrapSetDpl,(uint8_t iIdt, uint8_t bDpl));
 
 /**
  * C-style trap handler.
@@ -3137,6 +3217,22 @@ BS3_CMN_PROTO_STUB(void, Bs3TestPrintf,(const char BS3_FAR *pszFormat, ...));
  * @param   va          String format arguments.
  */
 BS3_CMN_PROTO_STUB(void, Bs3TestPrintfV,(const char BS3_FAR *pszFormat, va_list BS3_FAR va));
+
+/**
+ * Same as Bs3TestPrintf, except no guest screen echo.
+ *
+ * @param   pszFormat   What to print, format string.  Explicit newline char.
+ * @param   ...         String format arguments.
+ */
+BS3_CMN_PROTO_STUB(void, Bs3TestHostPrintf,(const char BS3_FAR *pszFormat, ...));
+
+/**
+ * Same as Bs3TestPrintfV, except no guest screen echo.
+ *
+ * @param   pszFormat   What to print, format string.  Explicit newline char.
+ * @param   va          String format arguments.
+ */
+BS3_CMN_PROTO_STUB(void, Bs3TestHostPrintfV,(const char BS3_FAR *pszFormat, va_list BS3_FAR va));
 
 /**
  * Equivalent to RTTestIFailed.
@@ -3857,5 +3953,5 @@ RT_C_DECLS_END
 # endif
 #endif
 
-#endif
+#endif /* !BS3KIT_INCLUDED_bs3kit_h */
 

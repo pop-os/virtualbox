@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,13 +15,19 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UIIconPool_h___
-#define ___UIIconPool_h___
+#ifndef FEQT_INCLUDED_SRC_globals_UIIconPool_h
+#define FEQT_INCLUDED_SRC_globals_UIIconPool_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Qt includes: */
 #include <QIcon>
 #include <QPixmap>
 #include <QHash>
+
+/* GUI includes: */
+#include "UILibraryDefs.h"
 
 /* Forward declarations: */
 class CMachine;
@@ -29,7 +35,7 @@ class CMachine;
 
 /** Interface which provides GUI with static API
   * allowing to dynamically compose icons at runtime. */
-class UIIconPool
+class SHARED_LIBRARY_STUFF UIIconPool
 {
 public:
 
@@ -83,10 +89,12 @@ public:
 
 protected:
 
-    /** Icon-pool constructor. */
+    /** Constructs icon-pool.
+      * Doesn't mean to be used directly,
+      * cause this class is a bunch of statics. */
     UIIconPool() {}
 
-    /** Icon-pool destructor. */
+    /** Destructs icon-pool. */
     virtual ~UIIconPool() {}
 
 private:
@@ -97,13 +105,14 @@ private:
                         QIcon::Mode mode = QIcon::Normal, QIcon::State state = QIcon::Off);
 };
 
+
 /** UIIconPool interface extension used as general GUI icon-pool.
   * Provides GUI with guest OS types pixmap cache. */
-class UIIconPoolGeneral : public UIIconPool
+class SHARED_LIBRARY_STUFF UIIconPoolGeneral : public UIIconPool
 {
 public:
 
-    /** General icon-pool constructor. */
+    /** Constructs general icon-pool. */
     UIIconPoolGeneral();
 
     /** Returns icon defined for a passed @a comMachine. */
@@ -130,4 +139,6 @@ private:
     mutable QHash<QString, QIcon> m_guestOSTypeIcons;
 };
 
-#endif /* !___UIIconPool_h___ */
+
+#endif /* !FEQT_INCLUDED_SRC_globals_UIIconPool_h */
+

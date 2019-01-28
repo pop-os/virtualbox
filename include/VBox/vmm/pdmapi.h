@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,8 +27,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_vmm_pdmapi_h
-#define ___VBox_vmm_pdmapi_h
+#ifndef VBOX_INCLUDED_vmm_pdmapi_h
+#define VBOX_INCLUDED_vmm_pdmapi_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/vmm/pdmcommon.h>
 #ifdef IN_RING3
@@ -158,9 +161,9 @@ VMMR3_INT_DECL(PPDMCRITSECT) PDMR3DevGetCritSect(PVM pVM, PPDMDEVINS pDevIns);
 VMMR3DECL(int)          PDMR3DriverAttach(PUVM pUVM, const char *pszDevice, unsigned iDevIns, unsigned iLun, uint32_t fFlags,
                                           PPPDMIBASE ppBase);
 VMMR3DECL(int)          PDMR3DriverDetach(PUVM pUVM, const char *pszDevice, unsigned iDevIns, unsigned iLun,
-                                          const char *pszDriver, unsigned iOccurance, uint32_t fFlags);
+                                          const char *pszDriver, unsigned iOccurrence, uint32_t fFlags);
 VMMR3DECL(int)          PDMR3DriverReattach(PUVM pVM, const char *pszDevice, unsigned iDevIns, unsigned iLun,
-                                            const char *pszDriver, unsigned iOccurance, uint32_t fFlags, PCFGMNODE pCfg,
+                                            const char *pszDriver, unsigned iOccurrence, uint32_t fFlags, PCFGMNODE pCfg,
                                             PPPDMIBASE ppBase);
 VMMR3DECL(void)         PDMR3DmaRun(PVM pVM);
 VMMR3_INT_DECL(int)     PDMR3LockCall(PVM pVM);
@@ -240,4 +243,4 @@ RT_C_DECLS_END
 
 /** @} */
 
-#endif
+#endif /* !VBOX_INCLUDED_vmm_pdmapi_h */

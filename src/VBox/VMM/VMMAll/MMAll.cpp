@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -257,7 +257,7 @@ DECLINLINE(RTR0PTR) mmHyperLookupCalcR0(PVM pVM, PMMLOOKUPHYPER pLookup, uint32_
             if (pLookup->u.Locked.pvR0)
                 return (RTR0PTR)((RTR0UINTPTR)pLookup->u.Locked.pvR0 + off);
 #ifdef VBOX_WITH_2X_4GB_ADDR_SPACE
-            AssertMsg(!HMIsEnabled(pVM), ("%s\n", R3STRING(pLookup->pszDesc)));
+            AssertMsg(VM_IS_RAW_MODE_ENABLED(pVM), ("%s\n", R3STRING(pLookup->pszDesc)));
 #else
             AssertMsgFailed(("%s\n", R3STRING(pLookup->pszDesc))); NOREF(pVM);
 #endif

@@ -8,7 +8,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -401,6 +401,7 @@ main(int argc, char **argv)
     mntinf.signature[1] = VBSF_MOUNT_SIGNATURE_BYTE_1;
     mntinf.signature[2] = VBSF_MOUNT_SIGNATURE_BYTE_2;
     mntinf.length       = sizeof(mntinf);
+    mntinf.tag[0] = '\0';
 
     if (getuid())
         panic("Only root can mount shared folders from the host.\n");

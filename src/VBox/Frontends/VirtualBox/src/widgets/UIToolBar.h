@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,46 +15,78 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UIToolBar_h___
-#define ___UIToolBar_h___
+#ifndef FEQT_INCLUDED_SRC_widgets_UIToolBar_h
+#define FEQT_INCLUDED_SRC_widgets_UIToolBar_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Qt includes: */
 #include <QToolBar>
 
+/* GUI includes: */
+#include "UILibraryDefs.h"
+
 /* Forward declarations: */
 class QMainWindow;
+class QResizeEvent;
+class QWidget;
+#ifdef VBOX_WS_MAC
+class QPaintEvent;
+#endif
 
-/** QToolBar extension
-  * with few settings presets. */
-class UIToolBar : public QToolBar
+/** QToolBar extension with few settings presets. */
+class SHARED_LIBRARY_STUFF UIToolBar : public QToolBar
 {
     Q_OBJECT;
 
+signals:
+
+    /** Notifies listeners about @a newSize. */
+    void sigResized(const QSize &newSize);
+
 public:
 
-    /** Constructor, passes @a pParent to the QToolBar constructor. */
+    /** Constructs tool-bar passing @a pParent to the base-class. */
     UIToolBar(QWidget *pParent = 0);
 
-    /** Defines whether tool-bar should use text-labels.
-      * Default value if @a false. */
+    /** Defines whether tool-bar should use text-labels. */
     void setUseTextLabels(bool fEnable);
 
 #ifdef VBOX_WS_MAC
-    /** Mac OS X: Defines whether native tool-bar should be used. */
+    /** Mac OS X: Defines whether native tool-bar should be enabled. */
     void enableMacToolbar();
+    /** Mac OS X: Defines whether native tool-bar should be emulated. */
+    void emulateMacToolbar();
+
     /** Mac OS X: Defines whether native tool-bar button should be shown. */
     void setShowToolBarButton(bool fShow);
     /** Mac OS X: Updates native tool-bar layout. */
     void updateLayout();
-#endif /* VBOX_WS_MAC */
+#endif
+
+protected:
+
+    /** Handles resize @a pEvent. */
+    virtual void resizeEvent(QResizeEvent *pEvent) /* override */;
+
+#ifdef VBOX_WS_MAC
+    /** Handles paint @a pEvent. */
+    virtual void paintEvent(QPaintEvent *pEvent) /* override */;
+#endif
 
 private:
 
-    /** Prepare routine. */
+    /** Prepares all. */
     void prepare();
 
     /** Holds the parent main-window isntance. */
     QMainWindow *m_pMainWindow;
+
+#ifdef VBOX_WS_MAC
+    /** Holds whether unified tool-bar should be emulated. */
+    bool  m_fEmulateUnifiedToolbar;
+#endif
 };
 
-#endif /* !___UIToolBar_h___ */
+#endif /* !FEQT_INCLUDED_SRC_widgets_UIToolBar_h */

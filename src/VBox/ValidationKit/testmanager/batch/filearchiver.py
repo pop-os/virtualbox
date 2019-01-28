@@ -8,9 +8,11 @@ A cronjob that compresses logs and other files, moving them to the
 g_ksZipFileAreaRootDir storage area.
 """
 
+from __future__ import print_function;
+
 __copyright__ = \
 """
-Copyright (C) 2012-2017 Oracle Corporation
+Copyright (C) 2012-2019 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -29,12 +31,12 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 118412 $"
+__version__ = "$Revision: 127855 $"
 
 # Standard python imports
 import sys
 import os
-from optparse import OptionParser
+from optparse import OptionParser;  # pylint: disable=deprecated-module
 import time;
 import zipfile;
 
@@ -47,6 +49,8 @@ from common                     import utils;
 from testmanager                import config;
 from testmanager.core.db        import TMDatabaseConnection;
 from testmanager.core.testset   import TestSetData, TestSetLogic;
+
+
 
 class FileArchiverBatchJob(object): # pylint: disable=R0903
     """
@@ -67,12 +71,12 @@ class FileArchiverBatchJob(object): # pylint: disable=R0903
     def dprint(self, sText):
         """ Verbose output. """
         if self.fVerbose:
-            print sText;
+            print(sText);
         return True;
 
     def warning(self, sText):
         """Prints a warning."""
-        print sText;
+        print(sText);
         return True;
 
     def _processTestSet(self, idTestSet, asFiles, sCurDir):

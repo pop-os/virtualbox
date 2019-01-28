@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017 Oracle Corporation
+ * Copyright (C) 2017-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,7 +31,7 @@
 #include <iprt/krnlmod.h>
 
 #include <iprt/assert.h>
-#include <iprt/err.h>
+#include <iprt/errcore.h>
 #include <iprt/getopt.h>
 #include <iprt/initterm.h>
 #include <iprt/mem.h>
@@ -47,6 +47,13 @@ int main(int argc, char **argv)
     int rc = RTR3InitExe(argc, &argv, 0);
     if (RT_FAILURE(rc))
         return RTMsgInitFailure(rc);
+
+    /** @todo proper argument parsing, please. */
+    if (argc != 1)
+    {
+        RTMsgError("Syntax error: This tool takes no parameters.  It just lists the modules\n");
+        return RTEXITCODE_SYNTAX;
+    }
 
     RTEXITCODE rcExit = RTEXITCODE_SUCCESS;
     uint32_t cKrnlMods = RTKrnlModLoadedGetCount();

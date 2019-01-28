@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2017 Oracle Corporation
+ * Copyright (C) 2011-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -66,9 +66,6 @@ VMMR3DECL(int)      IEMR3Init(PVM pVM)
     for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
     {
         PVMCPU pVCpu = &pVM->aCpus[idCpu];
-        pVCpu->iem.s.pCtxR3 = CPUMQueryGuestCtxPtr(pVCpu);
-        pVCpu->iem.s.pCtxR0 = VM_R0_ADDR(pVM, pVCpu->iem.s.pCtxR3);
-        pVCpu->iem.s.pCtxRC = VM_RC_ADDR(pVM, pVCpu->iem.s.pCtxR3);
 
         pVCpu->iem.s.CodeTlb.uTlbRevision = pVCpu->iem.s.DataTlb.uTlbRevision = uInitialTlbRevision;
         pVCpu->iem.s.CodeTlb.uTlbPhysRev  = pVCpu->iem.s.DataTlb.uTlbPhysRev  = uInitialTlbPhysRev;
@@ -171,6 +168,24 @@ VMMR3DECL(int)      IEMR3Init(PVM pVM)
         while (iMemMap-- > 0)
             pVCpu->iem.s.aMemMappings[iMemMap].fAccess = IEM_ACCESS_INVALID;
     }
+
+#ifdef VBOX_WITH_NESTED_HWVIRT_VMX
+    /*
+     * Register the per-VM VMX APIC-access page handler type.
+     */
+    if (pVM->cpum.ro.GuestFeatures.fVmx)
+    {
+        PVMCPU pVCpu0 = &pVM->aCpus[0];
+        int rc = PGMR3HandlerPhysicalTypeRegister(pVM, PGMPHYSHANDLERKIND_ALL, iemVmxApicAccessPageHandler,
+                                                  NULL /* pszModR0 */,
+                                                  "iemVmxApicAccessPageHandler", NULL /* pszPfHandlerR0 */,
+                                                  NULL /* pszModRC */,
+                                                  NULL /* pszHandlerRC */, NULL /* pszPfHandlerRC */,
+                                                  "VMX APIC-access page", &pVCpu0->iem.s.hVmxApicAccessPage);
+        AssertLogRelRCReturn(rc, rc);
+    }
+#endif
+
     return VINF_SUCCESS;
 }
 
@@ -193,10 +208,7 @@ VMMR3DECL(int)      IEMR3Term(PVM pVM)
 VMMR3DECL(void)     IEMR3Relocate(PVM pVM)
 {
     for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
-    {
-        pVM->aCpus[idCpu].iem.s.pCtxRC = VM_RC_ADDR(pVM, pVM->aCpus[idCpu].iem.s.pCtxR3);
         if (pVM->aCpus[idCpu].iem.s.pStatsRC)
             pVM->aCpus[idCpu].iem.s.pStatsRC = MMHyperR3ToRC(pVM, pVM->aCpus[idCpu].iem.s.pStatsCCR3);
-    }
 }
 

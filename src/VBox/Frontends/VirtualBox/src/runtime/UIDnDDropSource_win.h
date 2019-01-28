@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2017 Oracle Corporation
+ * Copyright (C) 2014-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UIDnDDropSource_win_h___
-#define ___UIDnDDropSource_win_h___
+#ifndef FEQT_INCLUDED_SRC_runtime_UIDnDDropSource_win_h
+#define FEQT_INCLUDED_SRC_runtime_UIDnDDropSource_win_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* COM includes: */
 #include "COMEnums.h"
@@ -61,5 +64,5 @@ protected:
     Qt::DropActions  m_uCurAction;
 };
 
-#endif /* ___UIDnDDropSource_win_h___ */
+#endif /* !FEQT_INCLUDED_SRC_runtime_UIDnDDropSource_win_h */
 

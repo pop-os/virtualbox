@@ -4,7 +4,7 @@
 ;
 
 ;
-; Copyright (C) 2006-2017 Oracle Corporation
+; Copyright (C) 2006-2019 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -18,6 +18,7 @@
 ;*******************************************************************************
 ;* Header Files                                                                *
 ;*******************************************************************************
+%define RT_ASM_WITH_SEH64
 %include "VBox/asmdefs.mac"
 %include "VMMInternal.mac"
 %include "VBox/err.mac"
@@ -55,18 +56,25 @@ BEGINCODE
 ; @param    pvUser2 msc:r9  gcc:rcx x86:[esp+0x10]     The argument of that function.
 ;
 BEGINPROC vmmR0CallRing3SetJmp
+GLOBALNAME vmmR0CallRing3SetJmp2
 GLOBALNAME vmmR0CallRing3SetJmpEx
     ;
     ; Save the registers.
     ;
     push    rbp
+    SEH64_PUSH_xBP
     mov     rbp, rsp
+    SEH64_SET_FRAME_xBP 0
  %ifdef ASM_CALL64_MSC
     sub     rsp, 30h + STACK_FUZZ_SIZE  ; (10h is used by resume (??), 20h for callee spill area)
+    SEH64_ALLOCATE_STACK 30h + STACK_FUZZ_SIZE
+SEH64_END_PROLOGUE
     mov     r11, rdx                    ; pfn
     mov     rdx, rcx                    ; pJmpBuf;
  %else
     sub     rsp, 10h + STACK_FUZZ_SIZE  ; (10h is used by resume (??))
+    SEH64_ALLOCATE_STACK 10h + STACK_FUZZ_SIZE
+SEH64_END_PROLOGUE
     mov     r8, rdx                     ; pvUser1 (save it like MSC)
     mov     r9, rcx                     ; pvUser2 (save it like MSC)
     mov     r11, rsi                    ; pfn
@@ -300,19 +308,30 @@ BEGINPROC vmmR0CallRing3LongJmp
     ; Save the registers on the stack.
     ;
     push    rbp
+    SEH64_PUSH_xBP
     mov     rbp, rsp
+    SEH64_SET_FRAME_xBP 0
     push    r15
+    SEH64_PUSH_GREG r15
     push    r14
+    SEH64_PUSH_GREG r14
     push    r13
+    SEH64_PUSH_GREG r13
     push    r12
+    SEH64_PUSH_GREG r12
 %ifdef ASM_CALL64_MSC
     push    rdi
+    SEH64_PUSH_GREG rdi
     push    rsi
+    SEH64_PUSH_GREG rsi
 %endif
     push    rbx
+    SEH64_PUSH_GREG rbx
     pushf
+    SEH64_ALLOCATE_STACK 8
 %ifdef RT_OS_WINDOWS
     sub     rsp, 0a0h
+    SEH64_ALLOCATE_STACK 0a0h
     movdqa  [rsp + 000h], xmm6
     movdqa  [rsp + 010h], xmm7
     movdqa  [rsp + 020h], xmm8
@@ -326,7 +345,9 @@ BEGINPROC vmmR0CallRing3LongJmp
 %endif
 %ifdef VBOX_STRICT
     push    RESUME_MAGIC
+    SEH64_ALLOCATE_STACK 8
 %endif
+SEH64_END_PROLOGUE
 
     ;
     ; Normalize the parameters.
@@ -371,6 +392,16 @@ BEGINPROC vmmR0CallRing3LongJmp
     rep movsq
 
  %endif ; !VMM_R0_SWITCH_STACK
+
+    ; Save a PC and return PC here to assist unwinding.
+.unwind_point:
+    lea     rcx, [.unwind_point wrt RIP]
+    mov     [xDX + VMMR0JMPBUF.SavedEipForUnwind], rcx
+    mov     rcx, [xDX + VMMR0JMPBUF.rbp]
+    lea     rcx, [rcx + 8]
+    mov     [xDX + VMMR0JMPBUF.UnwindRetPcLocation], rcx
+    mov     rcx, [rcx]
+    mov     [xDX + VMMR0JMPBUF.UnwindRetPcValue], rcx
 
     ; Save RSP & RBP to enable stack dumps
     mov     rcx, rbp
@@ -450,7 +481,8 @@ ENDPROC vmmR0CallRing3LongJmp
 ;
 ; @cproto VMMR0DECL(void) vmmR0LoggerWrapper(const char *pszFormat, ...)
 ;
-EXPORTEDNAME vmmR0LoggerWrapper
+BEGINPROC_EXPORTED vmmR0LoggerWrapper
+SEH64_END_PROLOGUE
     int3
     int3
     int3

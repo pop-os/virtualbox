@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,9 +15,10 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 #undef SHWPT
 #undef PSHWPT
 #undef SHWPTE
@@ -52,7 +53,7 @@
 #undef SHW_PDPT_MASK
 #undef SHW_PDPE_PG_MASK
 
-#if PGM_SHW_TYPE == PGM_TYPE_32BIT
+#if PGM_SHW_TYPE == PGM_TYPE_32BIT || PGM_SHW_TYPE == PGM_TYPE_NESTED_32BIT
 # define SHWPT                          X86PT
 # define PSHWPT                         PX86PT
 # define SHWPTE                         X86PTE
@@ -150,31 +151,126 @@
 # define SHW_PT_SHIFT                   X86_PT_PAE_SHIFT
 # define SHW_PT_MASK                    X86_PT_PAE_MASK
 
-# if PGM_SHW_TYPE == PGM_TYPE_AMD64
+# if PGM_SHW_TYPE == PGM_TYPE_AMD64 || PGM_SHW_TYPE == PGM_TYPE_NESTED_AMD64 || /* whatever: */ PGM_SHW_TYPE == PGM_TYPE_NONE
 #  define SHW_PDPT_SHIFT                X86_PDPT_SHIFT
 #  define SHW_PDPT_MASK                 X86_PDPT_MASK_AMD64
 #  define SHW_PDPE_PG_MASK              X86_PDPE_PG_MASK
 #  define SHW_TOTAL_PD_ENTRIES          (X86_PG_AMD64_ENTRIES * X86_PG_AMD64_PDPE_ENTRIES)
 
-# else /* 32 bits PAE mode */
+# elif PGM_SHW_TYPE == PGM_TYPE_PAE || PGM_SHW_TYPE == PGM_TYPE_NESTED_PAE
 #  define SHW_PDPT_SHIFT                X86_PDPT_SHIFT
 #  define SHW_PDPT_MASK                 X86_PDPT_MASK_PAE
 #  define SHW_PDPE_PG_MASK              X86_PDPE_PG_MASK
 #  define SHW_TOTAL_PD_ENTRIES          (X86_PG_PAE_ENTRIES * X86_PG_PAE_PDPE_ENTRIES)
 
+# else
+#  error "Misconfigured PGM_SHW_TYPE or something..."
 # endif
+#endif
+
+#if PGM_SHW_TYPE == PGM_TYPE_NONE && PGM_TYPE_IS_NESTED_OR_EPT(PGM_SHW_TYPE)
+# error "PGM_TYPE_IS_NESTED_OR_EPT is true for PGM_TYPE_NONE!"
 #endif
 
 
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 RT_C_DECLS_BEGIN
 PGM_SHW_DECL(int, GetPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, uint64_t *pfFlags, PRTHCPHYS pHCPhys);
 PGM_SHW_DECL(int, ModifyPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, size_t cbPages, uint64_t fFlags, uint64_t fMask, uint32_t fOpFlags);
+PGM_SHW_DECL(int, Enter)(PVMCPU pVCpu, bool fIs64BitsPagingMode);
+PGM_SHW_DECL(int, Exit)(PVMCPU pVCpu);
+#ifdef IN_RING3
+PGM_SHW_DECL(int, Relocate)(PVMCPU pVCpu, RTGCPTR offDelta);
+#endif
 RT_C_DECLS_END
 
+
+/**
+ * Enters the shadow mode.
+ *
+ * @returns VBox status code.
+ * @param   pVCpu                   The cross context virtual CPU structure.
+ * @param   fIs64BitsPagingMode     New shadow paging mode is for 64 bits? (only relevant for 64 bits guests on a 32 bits AMD-V nested paging host)
+ */
+PGM_SHW_DECL(int, Enter)(PVMCPU pVCpu, bool fIs64BitsPagingMode)
+{
+#if PGM_TYPE_IS_NESTED_OR_EPT(PGM_SHW_TYPE)
+
+# if PGM_TYPE_IS_NESTED(PGM_SHW_TYPE) && HC_ARCH_BITS == 32
+    /* Must distinguish between 32 and 64 bits guest paging modes as we'll use
+       a different shadow paging root/mode in both cases. */
+    RTGCPHYS     GCPhysCR3 = (fIs64BitsPagingMode) ? RT_BIT_64(63) : RT_BIT_64(62);
+# else
+    RTGCPHYS     GCPhysCR3 = RT_BIT_64(63); NOREF(fIs64BitsPagingMode);
+# endif
+    PPGMPOOLPAGE pNewShwPageCR3;
+    PVM          pVM       = pVCpu->CTX_SUFF(pVM);
+
+    Assert((HMIsNestedPagingActive(pVM) || VM_IS_NEM_ENABLED(pVM)) == pVM->pgm.s.fNestedPaging);
+    Assert(pVM->pgm.s.fNestedPaging);
+    Assert(!pVCpu->pgm.s.pShwPageCR3R3);
+
+    pgmLock(pVM);
+
+    int rc = pgmPoolAlloc(pVM, GCPhysCR3, PGMPOOLKIND_ROOT_NESTED, PGMPOOLACCESS_DONTCARE, PGM_A20_IS_ENABLED(pVCpu),
+                          NIL_PGMPOOL_IDX, UINT32_MAX, true /*fLockPage*/,
+                          &pNewShwPageCR3);
+    AssertLogRelRCReturnStmt(rc, pgmUnlock(pVM), rc);
+
+    pVCpu->pgm.s.pShwPageCR3R3 = (R3PTRTYPE(PPGMPOOLPAGE))MMHyperCCToR3(pVM, pNewShwPageCR3);
+    pVCpu->pgm.s.pShwPageCR3RC = (RCPTRTYPE(PPGMPOOLPAGE))MMHyperCCToRC(pVM, pNewShwPageCR3);
+    pVCpu->pgm.s.pShwPageCR3R0 = (R0PTRTYPE(PPGMPOOLPAGE))MMHyperCCToR0(pVM, pNewShwPageCR3);
+
+    pgmUnlock(pVM);
+
+    Log(("Enter nested shadow paging mode: root %RHv phys %RHp\n", pVCpu->pgm.s.pShwPageCR3R3, pVCpu->pgm.s.CTX_SUFF(pShwPageCR3)->Core.Key));
+#else
+    NOREF(pVCpu); NOREF(fIs64BitsPagingMode);
+#endif
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Exits the shadow mode.
+ *
+ * @returns VBox status code.
+ * @param   pVCpu       The cross context virtual CPU structure.
+ */
+PGM_SHW_DECL(int, Exit)(PVMCPU pVCpu)
+{
+#if PGM_TYPE_IS_NESTED_OR_EPT(PGM_SHW_TYPE)
+    PVM pVM = pVCpu->CTX_SUFF(pVM);
+    if (pVCpu->pgm.s.CTX_SUFF(pShwPageCR3))
+    {
+        PPGMPOOL pPool = pVM->pgm.s.CTX_SUFF(pPool);
+
+        pgmLock(pVM);
+
+        /* Do *not* unlock this page as we have two of them floating around in the 32-bit host & 64-bit guest case.
+         * We currently assert when you try to free one of them; don't bother to really allow this.
+         *
+         * Note that this is two nested paging root pages max. This isn't a leak. They are reused.
+         */
+        /* pgmPoolUnlockPage(pPool, pVCpu->pgm.s.CTX_SUFF(pShwPageCR3)); */
+
+        pgmPoolFreeByPage(pPool, pVCpu->pgm.s.CTX_SUFF(pShwPageCR3), NIL_PGMPOOL_IDX, UINT32_MAX);
+        pVCpu->pgm.s.pShwPageCR3R3 = 0;
+        pVCpu->pgm.s.pShwPageCR3R0 = 0;
+        pVCpu->pgm.s.pShwPageCR3RC = 0;
+
+        pgmUnlock(pVM);
+
+        Log(("Leave nested shadow paging mode\n"));
+    }
+#else
+    RT_NOREF_PV(pVCpu);
+#endif
+    return VINF_SUCCESS;
+}
 
 
 /**
@@ -190,11 +286,14 @@ RT_C_DECLS_END
  */
 PGM_SHW_DECL(int, GetPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, uint64_t *pfFlags, PRTHCPHYS pHCPhys)
 {
-#if PGM_SHW_TYPE == PGM_TYPE_NESTED
-    NOREF(pVCpu); NOREF(GCPtr); NOREF(pfFlags); NOREF(pHCPhys);
-    return VERR_PAGE_TABLE_NOT_PRESENT;
+#if PGM_SHW_TYPE == PGM_TYPE_NONE
+    RT_NOREF(pVCpu, GCPtr);
+    AssertFailed();
+    *pfFlags = 0;
+    *pHCPhys = NIL_RTHCPHYS;
+    return VERR_PGM_SHW_NONE_IPE;
 
-#else /* PGM_SHW_TYPE != PGM_TYPE_NESTED && PGM_SHW_TYPE != PGM_TYPE_EPT */
+#else  /* PGM_SHW_TYPE != PGM_TYPE_NONE */
     PVM pVM = pVCpu->CTX_SUFF(pVM);
 
     PGM_LOCK_ASSERT_OWNER(pVM);
@@ -202,7 +301,7 @@ PGM_SHW_DECL(int, GetPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, uint64_t *pfFlags, P
     /*
      * Get the PDE.
      */
-# if PGM_SHW_TYPE == PGM_TYPE_AMD64
+# if PGM_SHW_TYPE == PGM_TYPE_AMD64 || PGM_SHW_TYPE == PGM_TYPE_NESTED_AMD64
     X86PDEPAE Pde;
 
     /* PML4 */
@@ -234,7 +333,7 @@ PGM_SHW_DECL(int, GetPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, uint64_t *pfFlags, P
     Pde.n.u1User      &= Pml4e.n.u1User & Pdpe.lm.u1User;
     Pde.n.u1NoExecute |= Pml4e.n.u1NoExecute | Pdpe.lm.u1NoExecute;
 
-# elif PGM_SHW_TYPE == PGM_TYPE_PAE
+# elif PGM_SHW_TYPE == PGM_TYPE_PAE || PGM_SHW_TYPE == PGM_TYPE_NESTED_PAE
     X86PDEPAE       Pde = pgmShwGetPaePDE(pVCpu, GCPtr);
 
 # elif PGM_SHW_TYPE == PGM_TYPE_EPT
@@ -251,13 +350,15 @@ PGM_SHW_DECL(int, GetPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, uint64_t *pfFlags, P
     Assert(pPDDst);
     Pde = pPDDst->a[iPd];
 
-# else /* PGM_TYPE_32BIT */
+# elif PGM_SHW_TYPE == PGM_TYPE_32BIT || PGM_SHW_TYPE == PGM_TYPE_NESTED_32BIT
     X86PDE          Pde = pgmShwGet32BitPDE(pVCpu, GCPtr);
+# else
+#  error "Misconfigured PGM_SHW_TYPE or something..."
 # endif
     if (!Pde.n.u1Present)
         return VERR_PAGE_TABLE_NOT_PRESENT;
 
-    /** Deal with large pages. */
+    /* Deal with large pages. */
     if (Pde.b.u1Size)
     {
         /*
@@ -268,8 +369,12 @@ PGM_SHW_DECL(int, GetPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, uint64_t *pfFlags, P
         if (pfFlags)
         {
             *pfFlags = (Pde.u & ~SHW_PDE_PG_MASK);
-# if PGM_WITH_NX(PGM_SHW_TYPE, PGM_SHW_TYPE)    /** @todo why do we have to check the guest state here? */
-            if ((Pde.u & X86_PTE_PAE_NX) && CPUMIsGuestNXEnabled(pVCpu))
+# if PGM_WITH_NX(PGM_SHW_TYPE, PGM_SHW_TYPE) || PGM_SHW_TYPE == PGM_TYPE_NESTED_PAE || PGM_SHW_TYPE == PGM_TYPE_NESTED_AMD64
+            if (   (Pde.u & X86_PTE_PAE_NX)
+#  if PGM_WITH_NX(PGM_SHW_TYPE, PGM_SHW_TYPE)
+                && CPUMIsGuestNXEnabled(pVCpu) /** @todo why do we have to check the guest state here? */
+#  endif
+               )
                 *pfFlags |= X86_PTE_PAE_NX;
 # endif
         }
@@ -292,9 +397,9 @@ PGM_SHW_DECL(int, GetPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, uint64_t *pfFlags, P
     }
     else /* mapping: */
     {
-# if    PGM_SHW_TYPE == PGM_TYPE_AMD64 \
-     || PGM_SHW_TYPE == PGM_TYPE_EPT \
-     || defined(PGM_WITHOUT_MAPPINGS)
+# if  PGM_SHW_TYPE == PGM_TYPE_AMD64 \
+  || PGM_SHW_TYPE == PGM_TYPE_EPT \
+  || defined(PGM_WITHOUT_MAPPINGS)
         AssertFailed(); /* can't happen */
         pPT = NULL;     /* shut up MSC */
 # else
@@ -302,7 +407,7 @@ PGM_SHW_DECL(int, GetPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, uint64_t *pfFlags, P
 
         PPGMMAPPING pMap = pgmGetMapping(pVM, (RTGCPTR)GCPtr);
         AssertMsgReturn(pMap, ("GCPtr=%RGv\n", GCPtr), VERR_PGM_MAPPING_IPE);
-#  if PGM_SHW_TYPE == PGM_TYPE_32BIT
+#  if PGM_SHW_TYPE == PGM_TYPE_32BIT || PGM_SHW_TYPE == PGM_TYPE_NESTED_32BIT
         pPT = pMap->aPTs[(GCPtr - pMap->GCPtr) >> X86_PD_SHIFT].CTX_SUFF(pPT);
 #  else /* PAE */
         pPT = pMap->aPTs[(GCPtr - pMap->GCPtr) >> X86_PD_SHIFT].CTX_SUFF(paPaePTs);
@@ -323,9 +428,14 @@ PGM_SHW_DECL(int, GetPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, uint64_t *pfFlags, P
     {
         *pfFlags = (SHW_PTE_GET_U(Pte) & ~SHW_PTE_PG_MASK)
                  & ((Pde.u & (X86_PTE_RW | X86_PTE_US)) | ~(uint64_t)(X86_PTE_RW | X86_PTE_US));
-# if PGM_WITH_NX(PGM_SHW_TYPE, PGM_SHW_TYPE) /** @todo why do we have to check the guest state here? */
+
+# if PGM_WITH_NX(PGM_SHW_TYPE, PGM_SHW_TYPE) || PGM_SHW_TYPE == PGM_TYPE_NESTED_PAE || PGM_SHW_TYPE == PGM_TYPE_NESTED_AMD64
         /* The NX bit is determined by a bitwise OR between the PT and PD */
-        if (((SHW_PTE_GET_U(Pte) | Pde.u) & X86_PTE_PAE_NX) && CPUMIsGuestNXEnabled(pVCpu))
+        if (   ((SHW_PTE_GET_U(Pte) | Pde.u) & X86_PTE_PAE_NX)
+#  if PGM_WITH_NX(PGM_SHW_TYPE, PGM_SHW_TYPE)
+            && CPUMIsGuestNXEnabled(pVCpu) /** @todo why do we have to check the guest state here? */
+#  endif
+           )
             *pfFlags |= X86_PTE_PAE_NX;
 # endif
     }
@@ -334,7 +444,7 @@ PGM_SHW_DECL(int, GetPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, uint64_t *pfFlags, P
         *pHCPhys = SHW_PTE_GET_HCPHYS(Pte);
 
     return VINF_SUCCESS;
-#endif /* PGM_SHW_TYPE != PGM_TYPE_NESTED */
+#endif /* PGM_SHW_TYPE != PGM_TYPE_NONE */
 }
 
 
@@ -355,25 +465,25 @@ PGM_SHW_DECL(int, GetPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, uint64_t *pfFlags, P
  */
 PGM_SHW_DECL(int, ModifyPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, size_t cb, uint64_t fFlags, uint64_t fMask, uint32_t fOpFlags)
 {
-# if PGM_SHW_TYPE == PGM_TYPE_NESTED
-    NOREF(pVCpu); NOREF(GCPtr); NOREF(cb); NOREF(fFlags); NOREF(fMask); NOREF(fOpFlags);
-    return VERR_PAGE_TABLE_NOT_PRESENT;
+#if PGM_SHW_TYPE == PGM_TYPE_NONE
+    RT_NOREF(pVCpu, GCPtr, cb, fFlags, fMask, fOpFlags);
+    AssertFailed();
+    return VERR_PGM_SHW_NONE_IPE;
 
-# else /* PGM_SHW_TYPE != PGM_TYPE_NESTED && PGM_SHW_TYPE != PGM_TYPE_EPT */
+#else  /* PGM_SHW_TYPE != PGM_TYPE_NONE */
     PVM pVM = pVCpu->CTX_SUFF(pVM);
-    int rc;
-
     PGM_LOCK_ASSERT_OWNER(pVM);
 
     /*
      * Walk page tables and pages till we're done.
      */
+    int rc;
     for (;;)
     {
         /*
          * Get the PDE.
          */
-# if PGM_SHW_TYPE == PGM_TYPE_AMD64
+# if PGM_SHW_TYPE == PGM_TYPE_AMD64 || PGM_SHW_TYPE == PGM_TYPE_NESTED_AMD64
         X86PDEPAE       Pde;
         /* PML4 */
         X86PML4E        Pml4e = pgmShwGetLongModePML4E(pVCpu, GCPtr);
@@ -398,7 +508,7 @@ PGM_SHW_DECL(int, ModifyPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, size_t cb, uint64
         const unsigned iPd = (GCPtr >> SHW_PD_SHIFT) & SHW_PD_MASK;
         Pde = pPd->a[iPd];
 
-# elif PGM_SHW_TYPE == PGM_TYPE_PAE
+# elif PGM_SHW_TYPE == PGM_TYPE_PAE || PGM_SHW_TYPE == PGM_TYPE_NESTED_PAE
         X86PDEPAE       Pde = pgmShwGetPaePDE(pVCpu, GCPtr);
 
 # elif PGM_SHW_TYPE == PGM_TYPE_EPT
@@ -415,7 +525,7 @@ PGM_SHW_DECL(int, ModifyPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, size_t cb, uint64
         Assert(pPDDst);
         Pde = pPDDst->a[iPd];
 
-# else /* PGM_TYPE_32BIT */
+# else /* PGM_TYPE_32BIT || PGM_SHW_TYPE == PGM_TYPE_NESTED_32BIT */
         X86PDE          Pde = pgmShwGet32BitPDE(pVCpu, GCPtr);
 # endif
         if (!Pde.n.u1Present)
@@ -488,6 +598,26 @@ PGM_SHW_DECL(int, ModifyPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, size_t cb, uint64
             iPTE++;
         }
     }
-# endif /* PGM_SHW_TYPE != PGM_TYPE_NESTED */
+#endif /* PGM_SHW_TYPE != PGM_TYPE_NONE */
 }
+
+
+#ifdef IN_RING3
+/**
+ * Relocate any GC pointers related to shadow mode paging.
+ *
+ * @returns VBox status code.
+ * @param   pVCpu       The cross context virtual CPU structure.
+ * @param   offDelta    The relocation offset.
+ */
+PGM_SHW_DECL(int, Relocate)(PVMCPU pVCpu, RTGCPTR offDelta)
+{
+# if PGM_SHW_TYPE != PGM_TYPE_NONE
+    pVCpu->pgm.s.pShwPageCR3RC += offDelta;
+# else
+    RT_NOREF(pVCpu, offDelta);
+# endif
+    return VINF_SUCCESS;
+}
+#endif
 

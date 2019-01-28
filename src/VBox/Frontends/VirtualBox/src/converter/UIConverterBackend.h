@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2017 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,21 +15,28 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __UIConverterBackend_h__
-#define __UIConverterBackend_h__
+#ifndef FEQT_INCLUDED_SRC_converter_UIConverterBackend_h
+#define FEQT_INCLUDED_SRC_converter_UIConverterBackend_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Qt includes: */
-#include <QString>
 #include <QColor>
 #include <QIcon>
 #include <QPixmap>
+#include <QString>
 
 /* GUI includes: */
 #include "UIDefs.h"
+#include "UILibraryDefs.h"
+#include "UIMediumDefs.h"
 #include "UIExtraDataDefs.h"
+#include "UISettingsDefs.h"
 
 /* Other VBox includes: */
 #include <iprt/assert.h>
+
 
 /* Determines if 'Object of type X' can be converted to object of other type.
  * This function always returns 'false' until re-determined for specific object type. */
@@ -37,213 +44,263 @@ template<class X> bool canConvert() { return false; }
 
 /* Converts passed 'Object X' to QColor.
  * This function returns null QColor for any object type until re-determined for specific one. */
-template<class X> QColor toColor(const X & /* xobject */) { Assert(0); return QColor(); }
+template<class X> QColor toColor(const X & /* xobject */) { AssertFailed(); return QColor(); }
 
 /* Converts passed 'Object X' to QIcon.
  * This function returns null QIcon for any object type until re-determined for specific one. */
-template<class X> QIcon toIcon(const X & /* xobject */) { Assert(0); return QIcon(); }
+template<class X> QIcon toIcon(const X & /* xobject */) { AssertFailed(); return QIcon(); }
 
 /* Converts passed 'Object X' to QPixmap.
  * This function returns null QPixmap for any object type until re-determined for specific one. */
-template<class X> QPixmap toWarningPixmap(const X & /* xobject */) { Assert(0); return QPixmap(); }
+template<class X> QPixmap toWarningPixmap(const X & /* xobject */) { AssertFailed(); return QPixmap(); }
 
 /* Converts passed 'Object of type X' to QString.
  * This function returns null QString for any object type until re-determined for specific one. */
-template<class X> QString toString(const X & /* xobject */) { Assert(0); return QString(); }
+template<class X> QString toString(const X & /* xobject */) { AssertFailed(); return QString(); }
 /* Converts passed QString to 'Object of type X'.
  * This function returns default constructed object for any object type until re-determined for specific one. */
-template<class X> X fromString(const QString & /* strData */) { Assert(0); return X(); }
+template<class X> X fromString(const QString & /* strData */) { AssertFailed(); return X(); }
 
 /* Converts passed 'Object of type X' to non-translated QString.
  * This function returns null QString for any object type until re-determined for specific one. */
-template<class X> QString toInternalString(const X & /* xobject */) { Assert(0); return QString(); }
+template<class X> QString toInternalString(const X & /* xobject */) { AssertFailed(); return QString(); }
 /* Converts passed non-translated QString to 'Object of type X'.
  * This function returns default constructed object for any object type until re-determined for specific one. */
-template<class X> X fromInternalString(const QString & /* strData */) { Assert(0); return X(); }
+template<class X> X fromInternalString(const QString & /* strData */) { AssertFailed(); return X(); }
 
 /* Converts passed 'Object of type X' to abstract integer.
  * This function returns 0 for any object type until re-determined for specific one. */
-template<class X> int toInternalInteger(const X & /* xobject */) { Assert(0); return 0; }
+template<class X> int toInternalInteger(const X & /* xobject */) { AssertFailed(); return 0; }
 /* Converts passed abstract integer to 'Object of type X'.
  * This function returns default constructed object for any object type until re-determined for specific one. */
-template<class X> X fromInternalInteger(const int & /* iData */) { Assert(0); return X(); }
+template<class X> X fromInternalInteger(const int & /* iData */) { AssertFailed(); return X(); }
+
 
 /* Declare global canConvert specializations: */
-template<> bool canConvert<SizeSuffix>();
-template<> bool canConvert<StorageSlot>();
-template<> bool canConvert<UIExtraDataMetaDefs::MenuType>();
-template<> bool canConvert<UIExtraDataMetaDefs::MenuApplicationActionType>();
-template<> bool canConvert<UIExtraDataMetaDefs::MenuHelpActionType>();
-template<> bool canConvert<UIExtraDataMetaDefs::RuntimeMenuMachineActionType>();
-template<> bool canConvert<UIExtraDataMetaDefs::RuntimeMenuViewActionType>();
-template<> bool canConvert<UIExtraDataMetaDefs::RuntimeMenuInputActionType>();
-template<> bool canConvert<UIExtraDataMetaDefs::RuntimeMenuDevicesActionType>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<SizeSuffix>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<StorageSlot>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<UIExtraDataMetaDefs::MenuType>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<UIExtraDataMetaDefs::MenuApplicationActionType>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<UIExtraDataMetaDefs::MenuHelpActionType>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<UIExtraDataMetaDefs::RuntimeMenuMachineActionType>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<UIExtraDataMetaDefs::RuntimeMenuViewActionType>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<UIExtraDataMetaDefs::RuntimeMenuInputActionType>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<UIExtraDataMetaDefs::RuntimeMenuDevicesActionType>();
 #ifdef VBOX_WITH_DEBUGGER_GUI
-template<> bool canConvert<UIExtraDataMetaDefs::RuntimeMenuDebuggerActionType>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<UIExtraDataMetaDefs::RuntimeMenuDebuggerActionType>();
 #endif /* VBOX_WITH_DEBUGGER_GUI */
 #ifdef VBOX_WS_MAC
-template<> bool canConvert<UIExtraDataMetaDefs::MenuWindowActionType>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<UIExtraDataMetaDefs::MenuWindowActionType>();
 #endif /* VBOX_WS_MAC */
-template<> bool canConvert<ToolTypeMachine>();
-template<> bool canConvert<ToolTypeGlobal>();
-template<> bool canConvert<UIVisualStateType>();
-template<> bool canConvert<DetailsElementType>();
-template<> bool canConvert<PreviewUpdateIntervalType>();
-template<> bool canConvert<EventHandlingType>();
-template<> bool canConvert<GUIFeatureType>();
-template<> bool canConvert<GlobalSettingsPageType>();
-template<> bool canConvert<MachineSettingsPageType>();
-template<> bool canConvert<WizardType>();
-template<> bool canConvert<IndicatorType>();
-template<> bool canConvert<MachineCloseAction>();
-template<> bool canConvert<MouseCapturePolicy>();
-template<> bool canConvert<GuruMeditationHandlerType>();
-template<> bool canConvert<ScalingOptimizationType>();
-template<> bool canConvert<HiDPIOptimizationType>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<UIExtraDataMetaDefs::DetailsElementOptionTypeGeneral>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<UIExtraDataMetaDefs::DetailsElementOptionTypeSystem>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<UIExtraDataMetaDefs::DetailsElementOptionTypeDisplay>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<UIExtraDataMetaDefs::DetailsElementOptionTypeStorage>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<UIExtraDataMetaDefs::DetailsElementOptionTypeAudio>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<UIExtraDataMetaDefs::DetailsElementOptionTypeSerial>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<UIExtraDataMetaDefs::DetailsElementOptionTypeUsb>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<UIExtraDataMetaDefs::DetailsElementOptionTypeSharedFolders>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<UIExtraDataMetaDefs::DetailsElementOptionTypeUserInterface>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<UIExtraDataMetaDefs::DetailsElementOptionTypeDescription>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<UIToolType>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<UIVisualStateType>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<DetailsElementType>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<PreviewUpdateIntervalType>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<EventHandlingType>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<GUIFeatureType>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<GlobalSettingsPageType>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<MachineSettingsPageType>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<WizardType>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<IndicatorType>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<MachineCloseAction>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<MouseCapturePolicy>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<GuruMeditationHandlerType>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<ScalingOptimizationType>();
 #ifndef VBOX_WS_MAC
-template<> bool canConvert<MiniToolbarAlignment>();
-#endif /* !VBOX_WS_MAC */
-template<> bool canConvert<InformationElementType>();
-template<> bool canConvert<MaxGuestResolutionPolicy>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<MiniToolbarAlignment>();
+#endif
+template<> SHARED_LIBRARY_STUFF bool canConvert<InformationElementType>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<MaxGuestResolutionPolicy>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<UIMediumFormat>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<UISettingsDefs::RecordingMode>();
 
 /* Declare COM canConvert specializations: */
-template<> bool canConvert<KMachineState>();
-template<> bool canConvert<KSessionState>();
-template<> bool canConvert<KParavirtProvider>();
-template<> bool canConvert<KDeviceType>();
-template<> bool canConvert<KClipboardMode>();
-template<> bool canConvert<KDnDMode>();
-template<> bool canConvert<KPointingHIDType>();
-template<> bool canConvert<KMediumType>();
-template<> bool canConvert<KMediumVariant>();
-template<> bool canConvert<KNetworkAttachmentType>();
-template<> bool canConvert<KNetworkAdapterType>();
-template<> bool canConvert<KNetworkAdapterPromiscModePolicy>();
-template<> bool canConvert<KPortMode>();
-template<> bool canConvert<KUSBControllerType>();
-template<> bool canConvert<KUSBDeviceState>();
-template<> bool canConvert<KUSBDeviceFilterAction>();
-template<> bool canConvert<KAudioDriverType>();
-template<> bool canConvert<KAudioControllerType>();
-template<> bool canConvert<KAuthType>();
-template<> bool canConvert<KStorageBus>();
-template<> bool canConvert<KStorageControllerType>();
-template<> bool canConvert<KChipsetType>();
-template<> bool canConvert<KNATProtocol>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<KMachineState>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<KSessionState>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<KParavirtProvider>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<KDeviceType>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<KClipboardMode>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<KDnDMode>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<KPointingHIDType>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<KGraphicsControllerType>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<KMediumType>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<KMediumVariant>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<KNetworkAttachmentType>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<KNetworkAdapterType>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<KNetworkAdapterPromiscModePolicy>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<KPortMode>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<KUSBControllerType>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<KUSBDeviceState>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<KUSBDeviceFilterAction>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<KAudioDriverType>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<KAudioControllerType>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<KAuthType>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<KStorageBus>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<KStorageControllerType>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<KChipsetType>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<KNATProtocol>();
+
 
 /* Declare global conversion specializations: */
-template<> QString toString(const SizeSuffix &sizeSuffix);
-template<> SizeSuffix fromString<SizeSuffix>(const QString &strSizeSuffix);
-template<> QString toString(const StorageSlot &storageSlot);
-template<> StorageSlot fromString<StorageSlot>(const QString &strStorageSlot);
-template<> QString toInternalString(const UIExtraDataMetaDefs::MenuType &menuType);
-template<> UIExtraDataMetaDefs::MenuType fromInternalString<UIExtraDataMetaDefs::MenuType>(const QString &strMenuType);
-template<> QString toInternalString(const UIExtraDataMetaDefs::MenuApplicationActionType &menuApplicationActionType);
-template<> UIExtraDataMetaDefs::MenuApplicationActionType fromInternalString<UIExtraDataMetaDefs::MenuApplicationActionType>(const QString &strMenuApplicationActionType);
-template<> QString toInternalString(const UIExtraDataMetaDefs::MenuHelpActionType &menuHelpActionType);
-template<> UIExtraDataMetaDefs::MenuHelpActionType fromInternalString<UIExtraDataMetaDefs::MenuHelpActionType>(const QString &strMenuHelpActionType);
-template<> QString toInternalString(const UIExtraDataMetaDefs::RuntimeMenuMachineActionType &runtimeMenuMachineActionType);
-template<> UIExtraDataMetaDefs::RuntimeMenuMachineActionType fromInternalString<UIExtraDataMetaDefs::RuntimeMenuMachineActionType>(const QString &strRuntimeMenuMachineActionType);
-template<> QString toInternalString(const UIExtraDataMetaDefs::RuntimeMenuViewActionType &runtimeMenuViewActionType);
-template<> UIExtraDataMetaDefs::RuntimeMenuViewActionType fromInternalString<UIExtraDataMetaDefs::RuntimeMenuViewActionType>(const QString &strRuntimeMenuViewActionType);
-template<> QString toInternalString(const UIExtraDataMetaDefs::RuntimeMenuInputActionType &runtimeMenuInputActionType);
-template<> UIExtraDataMetaDefs::RuntimeMenuInputActionType fromInternalString<UIExtraDataMetaDefs::RuntimeMenuInputActionType>(const QString &strRuntimeMenuInputActionType);
-template<> QString toInternalString(const UIExtraDataMetaDefs::RuntimeMenuDevicesActionType &runtimeMenuDevicesActionType);
-template<> UIExtraDataMetaDefs::RuntimeMenuDevicesActionType fromInternalString<UIExtraDataMetaDefs::RuntimeMenuDevicesActionType>(const QString &strRuntimeMenuDevicesActionType);
+template<> SHARED_LIBRARY_STUFF QString toString(const SizeSuffix &sizeSuffix);
+template<> SHARED_LIBRARY_STUFF SizeSuffix fromString<SizeSuffix>(const QString &strSizeSuffix);
+template<> SHARED_LIBRARY_STUFF QString toString(const StorageSlot &storageSlot);
+template<> SHARED_LIBRARY_STUFF StorageSlot fromString<StorageSlot>(const QString &strStorageSlot);
+template<> SHARED_LIBRARY_STUFF QString toInternalString(const UIExtraDataMetaDefs::MenuType &menuType);
+template<> SHARED_LIBRARY_STUFF UIExtraDataMetaDefs::MenuType fromInternalString<UIExtraDataMetaDefs::MenuType>(const QString &strMenuType);
+template<> SHARED_LIBRARY_STUFF QString toInternalString(const UIExtraDataMetaDefs::MenuApplicationActionType &menuApplicationActionType);
+template<> SHARED_LIBRARY_STUFF UIExtraDataMetaDefs::MenuApplicationActionType fromInternalString<UIExtraDataMetaDefs::MenuApplicationActionType>(const QString &strMenuApplicationActionType);
+template<> SHARED_LIBRARY_STUFF QString toInternalString(const UIExtraDataMetaDefs::MenuHelpActionType &menuHelpActionType);
+template<> SHARED_LIBRARY_STUFF UIExtraDataMetaDefs::MenuHelpActionType fromInternalString<UIExtraDataMetaDefs::MenuHelpActionType>(const QString &strMenuHelpActionType);
+template<> SHARED_LIBRARY_STUFF QString toInternalString(const UIExtraDataMetaDefs::RuntimeMenuMachineActionType &runtimeMenuMachineActionType);
+template<> SHARED_LIBRARY_STUFF UIExtraDataMetaDefs::RuntimeMenuMachineActionType fromInternalString<UIExtraDataMetaDefs::RuntimeMenuMachineActionType>(const QString &strRuntimeMenuMachineActionType);
+template<> SHARED_LIBRARY_STUFF QString toInternalString(const UIExtraDataMetaDefs::RuntimeMenuViewActionType &runtimeMenuViewActionType);
+template<> SHARED_LIBRARY_STUFF UIExtraDataMetaDefs::RuntimeMenuViewActionType fromInternalString<UIExtraDataMetaDefs::RuntimeMenuViewActionType>(const QString &strRuntimeMenuViewActionType);
+template<> SHARED_LIBRARY_STUFF QString toInternalString(const UIExtraDataMetaDefs::RuntimeMenuInputActionType &runtimeMenuInputActionType);
+template<> SHARED_LIBRARY_STUFF UIExtraDataMetaDefs::RuntimeMenuInputActionType fromInternalString<UIExtraDataMetaDefs::RuntimeMenuInputActionType>(const QString &strRuntimeMenuInputActionType);
+template<> SHARED_LIBRARY_STUFF QString toInternalString(const UIExtraDataMetaDefs::RuntimeMenuDevicesActionType &runtimeMenuDevicesActionType);
+template<> SHARED_LIBRARY_STUFF UIExtraDataMetaDefs::RuntimeMenuDevicesActionType fromInternalString<UIExtraDataMetaDefs::RuntimeMenuDevicesActionType>(const QString &strRuntimeMenuDevicesActionType);
 #ifdef VBOX_WITH_DEBUGGER_GUI
-template<> QString toInternalString(const UIExtraDataMetaDefs::RuntimeMenuDebuggerActionType &runtimeMenuDebuggerActionType);
-template<> UIExtraDataMetaDefs::RuntimeMenuDebuggerActionType fromInternalString<UIExtraDataMetaDefs::RuntimeMenuDebuggerActionType>(const QString &strRuntimeMenuDebuggerActionType);
+template<> SHARED_LIBRARY_STUFF QString toInternalString(const UIExtraDataMetaDefs::RuntimeMenuDebuggerActionType &runtimeMenuDebuggerActionType);
+template<> SHARED_LIBRARY_STUFF UIExtraDataMetaDefs::RuntimeMenuDebuggerActionType fromInternalString<UIExtraDataMetaDefs::RuntimeMenuDebuggerActionType>(const QString &strRuntimeMenuDebuggerActionType);
 #endif /* VBOX_WITH_DEBUGGER_GUI */
 #ifdef VBOX_WS_MAC
-template<> QString toInternalString(const UIExtraDataMetaDefs::MenuWindowActionType &menuWindowActionType);
-template<> UIExtraDataMetaDefs::MenuWindowActionType fromInternalString<UIExtraDataMetaDefs::MenuWindowActionType>(const QString &strMenuWindowActionType);
+template<> SHARED_LIBRARY_STUFF QString toInternalString(const UIExtraDataMetaDefs::MenuWindowActionType &menuWindowActionType);
+template<> SHARED_LIBRARY_STUFF UIExtraDataMetaDefs::MenuWindowActionType fromInternalString<UIExtraDataMetaDefs::MenuWindowActionType>(const QString &strMenuWindowActionType);
 #endif /* VBOX_WS_MAC */
-template<> QString toInternalString(const ToolTypeMachine &enmToolTypeMachine);
-template<> ToolTypeMachine fromInternalString<ToolTypeMachine>(const QString &strToolTypeMachine);
-template<> QString toInternalString(const ToolTypeGlobal &enmToolTypeGlobal);
-template<> ToolTypeGlobal fromInternalString<ToolTypeGlobal>(const QString &strToolTypeGlobal);
-template<> QString toInternalString(const UIVisualStateType &visualStateType);
-template<> UIVisualStateType fromInternalString<UIVisualStateType>(const QString &strVisualStateType);
-template<> QString toString(const DetailsElementType &detailsElementType);
-template<> DetailsElementType fromString<DetailsElementType>(const QString &strDetailsElementType);
-template<> QString toInternalString(const DetailsElementType &detailsElementType);
-template<> DetailsElementType fromInternalString<DetailsElementType>(const QString &strDetailsElementType);
-template<> QIcon toIcon(const DetailsElementType &detailsElementType);
-template<> QString toInternalString(const PreviewUpdateIntervalType &previewUpdateIntervalType);
-template<> PreviewUpdateIntervalType fromInternalString<PreviewUpdateIntervalType>(const QString &strPreviewUpdateIntervalType);
-template<> int toInternalInteger(const PreviewUpdateIntervalType &previewUpdateIntervalType);
-template<> PreviewUpdateIntervalType fromInternalInteger<PreviewUpdateIntervalType>(const int &iPreviewUpdateIntervalType);
-template<> EventHandlingType fromInternalString<EventHandlingType>(const QString &strEventHandlingType);
-template<> QString toInternalString(const GUIFeatureType &guiFeatureType);
-template<> GUIFeatureType fromInternalString<GUIFeatureType>(const QString &strGuiFeatureType);
-template<> QString toInternalString(const GlobalSettingsPageType &globalSettingsPageType);
-template<> GlobalSettingsPageType fromInternalString<GlobalSettingsPageType>(const QString &strGlobalSettingsPageType);
-template<> QPixmap toWarningPixmap(const GlobalSettingsPageType &globalSettingsPageType);
-template<> QString toInternalString(const MachineSettingsPageType &machineSettingsPageType);
-template<> MachineSettingsPageType fromInternalString<MachineSettingsPageType>(const QString &strMachineSettingsPageType);
-template<> QPixmap toWarningPixmap(const MachineSettingsPageType &machineSettingsPageType);
-template<> QString toInternalString(const WizardType &wizardType);
-template<> WizardType fromInternalString<WizardType>(const QString &strWizardType);
-template<> QString toInternalString(const IndicatorType &indicatorType);
-template<> IndicatorType fromInternalString<IndicatorType>(const QString &strIndicatorType);
-template<> QString toString(const IndicatorType &indicatorType);
-template<> QIcon toIcon(const IndicatorType &indicatorType);
-template<> QString toInternalString(const MachineCloseAction &machineCloseAction);
-template<> MachineCloseAction fromInternalString<MachineCloseAction>(const QString &strMachineCloseAction);
-template<> QString toInternalString(const MouseCapturePolicy &mouseCapturePolicy);
-template<> MouseCapturePolicy fromInternalString<MouseCapturePolicy>(const QString &strMouseCapturePolicy);
-template<> QString toInternalString(const GuruMeditationHandlerType &guruMeditationHandlerType);
-template<> GuruMeditationHandlerType fromInternalString<GuruMeditationHandlerType>(const QString &strGuruMeditationHandlerType);
-template<> QString toInternalString(const ScalingOptimizationType &optimizationType);
-template<> ScalingOptimizationType fromInternalString<ScalingOptimizationType>(const QString &strOptimizationType);
-template<> QString toInternalString(const HiDPIOptimizationType &optimizationType);
-template<> HiDPIOptimizationType fromInternalString<HiDPIOptimizationType>(const QString &strOptimizationType);
+template<> SHARED_LIBRARY_STUFF QString toString(const UIExtraDataMetaDefs::DetailsElementOptionTypeGeneral &enmDetailsElementOptionTypeGeneral);
+template<> SHARED_LIBRARY_STUFF QString toInternalString(const UIExtraDataMetaDefs::DetailsElementOptionTypeGeneral &enmDetailsElementOptionTypeGeneral);
+template<> SHARED_LIBRARY_STUFF UIExtraDataMetaDefs::DetailsElementOptionTypeGeneral fromInternalString<UIExtraDataMetaDefs::DetailsElementOptionTypeGeneral>(const QString &strDetailsElementOptionTypeGeneral);
+template<> SHARED_LIBRARY_STUFF QString toString(const UIExtraDataMetaDefs::DetailsElementOptionTypeSystem &enmDetailsElementOptionTypeSystem);
+template<> SHARED_LIBRARY_STUFF QString toInternalString(const UIExtraDataMetaDefs::DetailsElementOptionTypeSystem &enmDetailsElementOptionTypeSystem);
+template<> SHARED_LIBRARY_STUFF UIExtraDataMetaDefs::DetailsElementOptionTypeSystem fromInternalString<UIExtraDataMetaDefs::DetailsElementOptionTypeSystem>(const QString &strDetailsElementOptionTypeSystem);
+template<> SHARED_LIBRARY_STUFF QString toString(const UIExtraDataMetaDefs::DetailsElementOptionTypeDisplay &enmDetailsElementOptionTypeDisplay);
+template<> SHARED_LIBRARY_STUFF QString toInternalString(const UIExtraDataMetaDefs::DetailsElementOptionTypeDisplay &enmDetailsElementOptionTypeDisplay);
+template<> SHARED_LIBRARY_STUFF UIExtraDataMetaDefs::DetailsElementOptionTypeDisplay fromInternalString<UIExtraDataMetaDefs::DetailsElementOptionTypeDisplay>(const QString &strDetailsElementOptionTypeDisplay);
+template<> SHARED_LIBRARY_STUFF QString toString(const UIExtraDataMetaDefs::DetailsElementOptionTypeStorage &enmDetailsElementOptionTypeStorage);
+template<> SHARED_LIBRARY_STUFF QString toInternalString(const UIExtraDataMetaDefs::DetailsElementOptionTypeStorage &enmDetailsElementOptionTypeStorage);
+template<> SHARED_LIBRARY_STUFF UIExtraDataMetaDefs::DetailsElementOptionTypeStorage fromInternalString<UIExtraDataMetaDefs::DetailsElementOptionTypeStorage>(const QString &strDetailsElementOptionTypeStorage);
+template<> SHARED_LIBRARY_STUFF QString toString(const UIExtraDataMetaDefs::DetailsElementOptionTypeAudio &enmDetailsElementOptionTypeAudio);
+template<> SHARED_LIBRARY_STUFF QString toInternalString(const UIExtraDataMetaDefs::DetailsElementOptionTypeAudio &enmDetailsElementOptionTypeAudio);
+template<> SHARED_LIBRARY_STUFF UIExtraDataMetaDefs::DetailsElementOptionTypeAudio fromInternalString<UIExtraDataMetaDefs::DetailsElementOptionTypeAudio>(const QString &strDetailsElementOptionTypeAudio);
+template<> SHARED_LIBRARY_STUFF QString toString(const UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork &enmDetailsElementOptionTypeNetwork);
+template<> SHARED_LIBRARY_STUFF QString toInternalString(const UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork &enmDetailsElementOptionTypeNetwork);
+template<> SHARED_LIBRARY_STUFF UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork fromInternalString<UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork>(const QString &strDetailsElementOptionTypeNetwork);
+template<> SHARED_LIBRARY_STUFF QString toString(const UIExtraDataMetaDefs::DetailsElementOptionTypeSerial &enmDetailsElementOptionTypeSerial);
+template<> SHARED_LIBRARY_STUFF QString toInternalString(const UIExtraDataMetaDefs::DetailsElementOptionTypeSerial &enmDetailsElementOptionTypeSerial);
+template<> SHARED_LIBRARY_STUFF UIExtraDataMetaDefs::DetailsElementOptionTypeSerial fromInternalString<UIExtraDataMetaDefs::DetailsElementOptionTypeSerial>(const QString &strDetailsElementOptionTypeSerial);
+template<> SHARED_LIBRARY_STUFF QString toString(const UIExtraDataMetaDefs::DetailsElementOptionTypeUsb &enmDetailsElementOptionTypeUsb);
+template<> SHARED_LIBRARY_STUFF QString toInternalString(const UIExtraDataMetaDefs::DetailsElementOptionTypeUsb &enmDetailsElementOptionTypeUsb);
+template<> SHARED_LIBRARY_STUFF UIExtraDataMetaDefs::DetailsElementOptionTypeUsb fromInternalString<UIExtraDataMetaDefs::DetailsElementOptionTypeUsb>(const QString &strDetailsElementOptionTypeUsb);
+template<> SHARED_LIBRARY_STUFF QString toString(const UIExtraDataMetaDefs::DetailsElementOptionTypeSharedFolders &enmDetailsElementOptionTypeSharedFolders);
+template<> SHARED_LIBRARY_STUFF QString toInternalString(const UIExtraDataMetaDefs::DetailsElementOptionTypeSharedFolders &enmDetailsElementOptionTypeSharedFolders);
+template<> SHARED_LIBRARY_STUFF UIExtraDataMetaDefs::DetailsElementOptionTypeSharedFolders fromInternalString<UIExtraDataMetaDefs::DetailsElementOptionTypeSharedFolders>(const QString &strDetailsElementOptionTypeSharedFolders);
+template<> SHARED_LIBRARY_STUFF QString toString(const UIExtraDataMetaDefs::DetailsElementOptionTypeUserInterface &enmDetailsElementOptionTypeUserInterface);
+template<> SHARED_LIBRARY_STUFF QString toInternalString(const UIExtraDataMetaDefs::DetailsElementOptionTypeUserInterface &enmDetailsElementOptionTypeUserInterface);
+template<> SHARED_LIBRARY_STUFF UIExtraDataMetaDefs::DetailsElementOptionTypeUserInterface fromInternalString<UIExtraDataMetaDefs::DetailsElementOptionTypeUserInterface>(const QString &strDetailsElementOptionTypeUserInterface);
+template<> SHARED_LIBRARY_STUFF QString toString(const UIExtraDataMetaDefs::DetailsElementOptionTypeDescription &enmDetailsElementOptionTypeDescription);
+template<> SHARED_LIBRARY_STUFF QString toInternalString(const UIExtraDataMetaDefs::DetailsElementOptionTypeDescription &enmDetailsElementOptionTypeDescription);
+template<> SHARED_LIBRARY_STUFF UIExtraDataMetaDefs::DetailsElementOptionTypeDescription fromInternalString<UIExtraDataMetaDefs::DetailsElementOptionTypeDescription>(const QString &strDetailsElementOptionTypeDescription);
+template<> SHARED_LIBRARY_STUFF QString toInternalString(const UIToolType &enmToolType);
+template<> SHARED_LIBRARY_STUFF UIToolType fromInternalString<UIToolType>(const QString &strToolType);
+template<> SHARED_LIBRARY_STUFF QString toInternalString(const UIVisualStateType &visualStateType);
+template<> SHARED_LIBRARY_STUFF UIVisualStateType fromInternalString<UIVisualStateType>(const QString &strVisualStateType);
+template<> SHARED_LIBRARY_STUFF QString toString(const DetailsElementType &detailsElementType);
+template<> SHARED_LIBRARY_STUFF DetailsElementType fromString<DetailsElementType>(const QString &strDetailsElementType);
+template<> SHARED_LIBRARY_STUFF QString toInternalString(const DetailsElementType &detailsElementType);
+template<> SHARED_LIBRARY_STUFF DetailsElementType fromInternalString<DetailsElementType>(const QString &strDetailsElementType);
+template<> SHARED_LIBRARY_STUFF QIcon toIcon(const DetailsElementType &detailsElementType);
+template<> SHARED_LIBRARY_STUFF QString toInternalString(const PreviewUpdateIntervalType &previewUpdateIntervalType);
+template<> SHARED_LIBRARY_STUFF PreviewUpdateIntervalType fromInternalString<PreviewUpdateIntervalType>(const QString &strPreviewUpdateIntervalType);
+template<> SHARED_LIBRARY_STUFF int toInternalInteger(const PreviewUpdateIntervalType &previewUpdateIntervalType);
+template<> SHARED_LIBRARY_STUFF PreviewUpdateIntervalType fromInternalInteger<PreviewUpdateIntervalType>(const int &iPreviewUpdateIntervalType);
+template<> SHARED_LIBRARY_STUFF EventHandlingType fromInternalString<EventHandlingType>(const QString &strEventHandlingType);
+template<> SHARED_LIBRARY_STUFF QString toInternalString(const GUIFeatureType &guiFeatureType);
+template<> SHARED_LIBRARY_STUFF GUIFeatureType fromInternalString<GUIFeatureType>(const QString &strGuiFeatureType);
+template<> SHARED_LIBRARY_STUFF QString toInternalString(const GlobalSettingsPageType &globalSettingsPageType);
+template<> SHARED_LIBRARY_STUFF GlobalSettingsPageType fromInternalString<GlobalSettingsPageType>(const QString &strGlobalSettingsPageType);
+template<> SHARED_LIBRARY_STUFF QPixmap toWarningPixmap(const GlobalSettingsPageType &globalSettingsPageType);
+template<> SHARED_LIBRARY_STUFF QString toInternalString(const MachineSettingsPageType &machineSettingsPageType);
+template<> SHARED_LIBRARY_STUFF MachineSettingsPageType fromInternalString<MachineSettingsPageType>(const QString &strMachineSettingsPageType);
+template<> SHARED_LIBRARY_STUFF QPixmap toWarningPixmap(const MachineSettingsPageType &machineSettingsPageType);
+template<> SHARED_LIBRARY_STUFF QString toInternalString(const WizardType &wizardType);
+template<> SHARED_LIBRARY_STUFF WizardType fromInternalString<WizardType>(const QString &strWizardType);
+template<> SHARED_LIBRARY_STUFF QString toInternalString(const IndicatorType &indicatorType);
+template<> SHARED_LIBRARY_STUFF IndicatorType fromInternalString<IndicatorType>(const QString &strIndicatorType);
+template<> SHARED_LIBRARY_STUFF QString toString(const IndicatorType &indicatorType);
+template<> SHARED_LIBRARY_STUFF QIcon toIcon(const IndicatorType &indicatorType);
+template<> SHARED_LIBRARY_STUFF QString toInternalString(const MachineCloseAction &machineCloseAction);
+template<> SHARED_LIBRARY_STUFF MachineCloseAction fromInternalString<MachineCloseAction>(const QString &strMachineCloseAction);
+template<> SHARED_LIBRARY_STUFF QString toInternalString(const MouseCapturePolicy &mouseCapturePolicy);
+template<> SHARED_LIBRARY_STUFF MouseCapturePolicy fromInternalString<MouseCapturePolicy>(const QString &strMouseCapturePolicy);
+template<> SHARED_LIBRARY_STUFF QString toInternalString(const GuruMeditationHandlerType &guruMeditationHandlerType);
+template<> SHARED_LIBRARY_STUFF GuruMeditationHandlerType fromInternalString<GuruMeditationHandlerType>(const QString &strGuruMeditationHandlerType);
+template<> SHARED_LIBRARY_STUFF QString toInternalString(const ScalingOptimizationType &optimizationType);
+template<> SHARED_LIBRARY_STUFF ScalingOptimizationType fromInternalString<ScalingOptimizationType>(const QString &strOptimizationType);
 #ifndef VBOX_WS_MAC
-template<> QString toInternalString(const MiniToolbarAlignment &miniToolbarAlignment);
-template<> MiniToolbarAlignment fromInternalString<MiniToolbarAlignment>(const QString &strMiniToolbarAlignment);
-#endif /* !VBOX_WS_MAC */
-template<> QString toString(const InformationElementType &informationElementType);
-template<> InformationElementType fromString<InformationElementType>(const QString &strInformationElementType);
-template<> QString toInternalString(const InformationElementType &informationElementType);
-template<> InformationElementType fromInternalString<InformationElementType>(const QString &strInformationElementType);
-template<> QIcon toIcon(const InformationElementType &informationElementType);
-template<> QString toInternalString(const MaxGuestResolutionPolicy &enmMaxGuestResolutionPolicy);
-template<> MaxGuestResolutionPolicy fromInternalString<MaxGuestResolutionPolicy>(const QString &strMaxGuestResolutionPolicy);
+template<> SHARED_LIBRARY_STUFF QString toInternalString(const MiniToolbarAlignment &miniToolbarAlignment);
+template<> SHARED_LIBRARY_STUFF MiniToolbarAlignment fromInternalString<MiniToolbarAlignment>(const QString &strMiniToolbarAlignment);
+#endif
+template<> SHARED_LIBRARY_STUFF QString toString(const InformationElementType &informationElementType);
+template<> SHARED_LIBRARY_STUFF InformationElementType fromString<InformationElementType>(const QString &strInformationElementType);
+template<> SHARED_LIBRARY_STUFF QString toInternalString(const InformationElementType &informationElementType);
+template<> SHARED_LIBRARY_STUFF InformationElementType fromInternalString<InformationElementType>(const QString &strInformationElementType);
+template<> SHARED_LIBRARY_STUFF QIcon toIcon(const InformationElementType &informationElementType);
+template<> SHARED_LIBRARY_STUFF QString toInternalString(const MaxGuestResolutionPolicy &enmMaxGuestResolutionPolicy);
+template<> SHARED_LIBRARY_STUFF MaxGuestResolutionPolicy fromInternalString<MaxGuestResolutionPolicy>(const QString &strMaxGuestResolutionPolicy);
+template<> SHARED_LIBRARY_STUFF QString toString(const UIMediumFormat &enmUIMediumFormat);
+template<> SHARED_LIBRARY_STUFF QString toInternalString(const UIMediumFormat &enmUIMediumFormat);
+template<> SHARED_LIBRARY_STUFF UIMediumFormat fromInternalString<UIMediumFormat>(const QString &strUIMediumFormat);
+template<> SHARED_LIBRARY_STUFF QString toString(const UISettingsDefs::RecordingMode &enmRecordingMode);
+template<> SHARED_LIBRARY_STUFF UISettingsDefs::RecordingMode fromString<UISettingsDefs::RecordingMode>(const QString &enmRecordingMode);
 
 /* Declare COM conversion specializations: */
-template<> QColor toColor(const KMachineState &state);
-template<> QIcon toIcon(const KMachineState &state);
-template<> QString toString(const KMachineState &state);
-template<> QString toString(const KSessionState &state);
-template<> QString toString(const KParavirtProvider &type);
-template<> QString toString(const KDeviceType &type);
-template<> QString toString(const KClipboardMode &mode);
-template<> QString toString(const KDnDMode &mode);
-template<> QString toString(const KPointingHIDType &type);
-template<> QString toString(const KMediumType &type);
-template<> QString toString(const KMediumVariant &variant);
-template<> QString toString(const KNetworkAttachmentType &type);
-template<> QString toString(const KNetworkAdapterType &type);
-template<> QString toString(const KNetworkAdapterPromiscModePolicy &policy);
-template<> QString toString(const KPortMode &mode);
-template<> QString toString(const KUSBControllerType &type);
-template<> QString toString(const KUSBDeviceState &state);
-template<> QString toString(const KUSBDeviceFilterAction &action);
-template<> QString toString(const KAudioDriverType &type);
-template<> QString toString(const KAudioControllerType &type);
-template<> QString toString(const KAuthType &type);
-template<> QString toString(const KStorageBus &bus);
-template<> QString toString(const KStorageControllerType &type);
-template<> QString toString(const KChipsetType &type);
-template<> QString toString(const KNATProtocol &protocol);
-template<> QString toInternalString(const KNATProtocol &protocol);
-template<> KNATProtocol fromInternalString<KNATProtocol>(const QString &strProtocol);
-template<> KPortMode fromString<KPortMode>(const QString &strMode);
-template<> KUSBDeviceFilterAction fromString<KUSBDeviceFilterAction>(const QString &strAction);
-template<> KAudioDriverType fromString<KAudioDriverType>(const QString &strType);
-template<> KAudioControllerType fromString<KAudioControllerType>(const QString &strType);
-template<> KAuthType fromString<KAuthType>(const QString &strType);
-template<> KStorageControllerType fromString<KStorageControllerType>(const QString &strType);
+template<> SHARED_LIBRARY_STUFF QColor toColor(const KMachineState &state);
+template<> SHARED_LIBRARY_STUFF QIcon toIcon(const KMachineState &state);
+template<> SHARED_LIBRARY_STUFF QString toString(const KMachineState &state);
+template<> SHARED_LIBRARY_STUFF QString toString(const KSessionState &state);
+template<> SHARED_LIBRARY_STUFF QString toString(const KParavirtProvider &type);
+template<> SHARED_LIBRARY_STUFF QString toString(const KDeviceType &type);
+template<> SHARED_LIBRARY_STUFF QString toString(const KClipboardMode &mode);
+template<> SHARED_LIBRARY_STUFF QString toString(const KDnDMode &mode);
+template<> SHARED_LIBRARY_STUFF QString toString(const KPointingHIDType &type);
+template<> SHARED_LIBRARY_STUFF QString toString(const KGraphicsControllerType &type);
+template<> SHARED_LIBRARY_STUFF KGraphicsControllerType fromString<KGraphicsControllerType>(const QString &strType);
+template<> SHARED_LIBRARY_STUFF QString toString(const KMediumType &type);
+template<> SHARED_LIBRARY_STUFF QString toString(const KMediumVariant &variant);
+template<> SHARED_LIBRARY_STUFF QString toString(const KNetworkAttachmentType &type);
+template<> SHARED_LIBRARY_STUFF QString toString(const KNetworkAdapterType &type);
+template<> SHARED_LIBRARY_STUFF QString toString(const KNetworkAdapterPromiscModePolicy &policy);
+template<> SHARED_LIBRARY_STUFF QString toString(const KPortMode &mode);
+template<> SHARED_LIBRARY_STUFF KPortMode fromString<KPortMode>(const QString &strMode);
+template<> SHARED_LIBRARY_STUFF QString toString(const KUSBControllerType &type);
+template<> SHARED_LIBRARY_STUFF QString toString(const KUSBDeviceState &state);
+template<> SHARED_LIBRARY_STUFF QString toString(const KUSBDeviceFilterAction &action);
+template<> SHARED_LIBRARY_STUFF KUSBDeviceFilterAction fromString<KUSBDeviceFilterAction>(const QString &strAction);
+template<> SHARED_LIBRARY_STUFF QString toString(const KAudioDriverType &type);
+template<> SHARED_LIBRARY_STUFF KAudioDriverType fromString<KAudioDriverType>(const QString &strType);
+template<> SHARED_LIBRARY_STUFF QString toString(const KAudioControllerType &type);
+template<> SHARED_LIBRARY_STUFF KAudioControllerType fromString<KAudioControllerType>(const QString &strType);
+template<> SHARED_LIBRARY_STUFF QString toString(const KAuthType &type);
+template<> SHARED_LIBRARY_STUFF KAuthType fromString<KAuthType>(const QString &strType);
+template<> SHARED_LIBRARY_STUFF QString toString(const KStorageBus &bus);
+template<> SHARED_LIBRARY_STUFF QString toString(const KStorageControllerType &type);
+template<> SHARED_LIBRARY_STUFF KStorageControllerType fromString<KStorageControllerType>(const QString &strType);
+template<> SHARED_LIBRARY_STUFF QString toString(const KChipsetType &type);
+template<> SHARED_LIBRARY_STUFF QString toString(const KNATProtocol &protocol);
+template<> SHARED_LIBRARY_STUFF QString toInternalString(const KNATProtocol &protocol);
+template<> SHARED_LIBRARY_STUFF KNATProtocol fromInternalString<KNATProtocol>(const QString &strProtocol);
 
-#endif /* __UIConverterBackend_h__ */
 
+#endif /* !FEQT_INCLUDED_SRC_converter_UIConverterBackend_h */

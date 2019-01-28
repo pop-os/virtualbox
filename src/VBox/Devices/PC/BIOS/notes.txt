@@ -57,6 +57,9 @@
   and clear the memory. For those, the FDPT must be in the BIOS ROM area, or
   the OS will destroy it (even when it's at 0:300 in the IVT).
 
+- NetWare 2.15 has a similar restriction, the FDPT must explicitly point above
+  segment address C800 or the NetWare AT disk driver abends.
+
 - Windows NT (including XP) uses INT 13h/08h to obtain the DPT for each floppy
   drive. NT assumes a 13-byte DPT which includes the number of tracks. NT will
   refuse to read more tracks than the DPT specifies and formats as many tracks
@@ -103,6 +106,14 @@
 - Darwin x86 6.0.2 ISO (darwinx86-602.iso) has a bizarre boot sector (using
   El Torito hard disk emulation) with the first five bytes being zero. It
   appears to be valid despite the oddity.
+
+- Darwin 6.0.2 also uses an El Torito emulated hard disk. In addition, if
+  INT 13h/41h succeeds, Darwin uses INT13X to read from the emulated drive.
+
+- Symantec Ghost 11.5 bootable CD also uses El Torito hard disk emulation,
+  uses INT13X without checking for support, and crashes if INT13X is not
+  supported on the emulated drive.
+
 
  286 BIOS
  --------

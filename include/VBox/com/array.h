@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,8 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_com_array_h
-#define ___VBox_com_array_h
+#ifndef VBOX_INCLUDED_com_array_h
+#define VBOX_INCLUDED_com_array_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 
 /** @defgroup   grp_com_arrays    COM/XPCOM Arrays
@@ -235,10 +238,10 @@ struct SafeArrayTraits
 protected:
 
     /** Initializes memory for aElem. */
-    static void Init(T &aElem) { aElem = 0; }
+    static void Init(T &aElem) { aElem = (T)0; }
 
     /** Initializes memory occupied by aElem. */
-    static void Uninit(T &aElem) { aElem = 0; }
+    static void Uninit(T &aElem) { RT_NOREF(aElem); }
 
     /** Creates a deep copy of aFrom and stores it in aTo. */
     static void Copy(const T &aFrom, T &aTo) { aTo = aFrom; }
@@ -1620,9 +1623,8 @@ public:
             GUID guid;
             rc = SafeArrayGetIID(arg, &guid);
             AssertComRCReturnVoid(rc);
-            AssertMsgReturnVoid(InlineIsEqualGUID(COM_IIDOF(I), guid),
-                                ("Expected IID {%RTuuid}, got {%RTuuid}.\n",
-                                 &COM_IIDOF(I), &guid));
+            AssertMsgReturnVoid(InlineIsEqualGUID(COM_IIDOF(I), guid) || arg->rgsabound[0].cElements == 0 /* IDispatch if empty */,
+                                ("Expected IID {%RTuuid}, got {%RTuuid}.\n", &COM_IIDOF(I), &guid));
 
             rc = SafeArrayAccessData(arg, (void HUGEP **)&m.raw);
             AssertComRCReturnVoid(rc);
@@ -1770,5 +1772,5 @@ public:
 
 /** @} */
 
-#endif /* !___VBox_com_array_h */
+#endif /* !VBOX_INCLUDED_com_array_h */
 

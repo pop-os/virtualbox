@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,26 +15,20 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* GUI includes: */
-# include "UIConsoleEventHandler.h"
-# include "UIMainEventListener.h"
-# include "UIExtraDataManager.h"
-# include "VBoxGlobal.h"
-# include "UISession.h"
-# ifdef VBOX_WS_MAC
-#  include "VBoxUtils.h"
-# endif /* VBOX_WS_MAC */
+#include "UIConsoleEventHandler.h"
+#include "UIMainEventListener.h"
+#include "UIExtraDataManager.h"
+#include "VBoxGlobal.h"
+#include "UISession.h"
+#ifdef VBOX_WS_MAC
+# include "VBoxUtils.h"
+#endif
 
 /* COM includes: */
-# include "CEventListener.h"
-# include "CEventSource.h"
-# include "CConsole.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "CEventListener.h"
+#include "CEventSource.h"
+#include "CConsole.h"
 
 
 /** Private QObject extension
@@ -63,8 +57,8 @@ signals:
     void sigMediumChange(CMediumAttachment attachment);
     /** Notifies about VRDE device state change. */
     void sigVRDEChange();
-    /** Notifies about Video Capture device state change. */
-    void sigVideoCaptureChange();
+    /** Notifies about recording state change. */
+    void sigRecordingChange();
     /** Notifies about USB controller state change. */
     void sigUSBControllerChange();
     /** Notifies about USB @a device state change to @a fAttached, holding additional @a error information. */
@@ -187,7 +181,7 @@ void UIConsoleEventHandlerProxy::prepareListener()
         << KVBoxEventType_OnMediumChanged
         << KVBoxEventType_OnVRDEServerChanged
         << KVBoxEventType_OnVRDEServerInfoChanged
-        << KVBoxEventType_OnVideoCaptureChanged
+        << KVBoxEventType_OnRecordingChanged
         << KVBoxEventType_OnUSBControllerChanged
         << KVBoxEventType_OnUSBDeviceStateChanged
         << KVBoxEventType_OnSharedFolderChanged
@@ -196,7 +190,8 @@ void UIConsoleEventHandlerProxy::prepareListener()
         << KVBoxEventType_OnRuntimeError
         << KVBoxEventType_OnCanShowWindow
         << KVBoxEventType_OnShowWindow
-        << KVBoxEventType_OnAudioAdapterChanged;
+        << KVBoxEventType_OnAudioAdapterChanged
+        << KVBoxEventType_OnCursorPositionChanged;
 
     /* Register event listener for console event source: */
     comEventSourceConsole.RegisterListener(m_comEventListener, eventTypes,
@@ -241,8 +236,8 @@ void UIConsoleEventHandlerProxy::prepareConnections()
     connect(m_pQtListener->getWrapped(), SIGNAL(sigVRDEChange()),
             this, SIGNAL(sigVRDEChange()),
             Qt::DirectConnection);
-    connect(m_pQtListener->getWrapped(), SIGNAL(sigVideoCaptureChange()),
-            this, SIGNAL(sigVideoCaptureChange()),
+    connect(m_pQtListener->getWrapped(), SIGNAL(sigRecordingChange()),
+            this, SIGNAL(sigRecordingChange()),
             Qt::DirectConnection);
     connect(m_pQtListener->getWrapped(), SIGNAL(sigUSBControllerChange()),
             this, SIGNAL(sigUSBControllerChange()),
@@ -400,8 +395,8 @@ void UIConsoleEventHandler::prepareConnections()
     connect(m_pProxy, SIGNAL(sigVRDEChange()),
             this, SIGNAL(sigVRDEChange()),
             Qt::QueuedConnection);
-    connect(m_pProxy, SIGNAL(sigVideoCaptureChange()),
-            this, SIGNAL(sigVideoCaptureChange()),
+    connect(m_pProxy, SIGNAL(sigRecordingChange()),
+            this, SIGNAL(sigRecordingChange()),
             Qt::QueuedConnection);
     connect(m_pProxy, SIGNAL(sigUSBControllerChange()),
             this, SIGNAL(sigUSBControllerChange()),

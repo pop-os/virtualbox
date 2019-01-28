@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __UIGlobalSettingsNetworkDetailsNAT_h__
-#define __UIGlobalSettingsNetworkDetailsNAT_h__
+#ifndef FEQT_INCLUDED_SRC_settings_global_UIGlobalSettingsNetworkDetailsNAT_h
+#define FEQT_INCLUDED_SRC_settings_global_UIGlobalSettingsNetworkDetailsNAT_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* GUI includes: */
 #include "QIDialog.h"
@@ -76,7 +79,7 @@ struct UIDataSettingsGlobalNetworkNAT
 
 
 /* Global settings / Network page / Details sub-dialog: */
-class UIGlobalSettingsNetworkDetailsNAT : public QIWithRetranslateUI2<QIDialog>, public Ui::UIGlobalSettingsNetworkDetailsNAT
+class SHARED_LIBRARY_STUFF UIGlobalSettingsNetworkDetailsNAT : public QIWithRetranslateUI2<QIDialog>, public Ui::UIGlobalSettingsNetworkDetailsNAT
 {
     Q_OBJECT;
 
@@ -116,4 +119,5 @@ private:
     UIPortForwardingDataList &m_ipv6rules;
 };
 
-#endif /* __UIGlobalSettingsNetworkDetailsNAT_h__ */
+
+#endif /* !FEQT_INCLUDED_SRC_settings_global_UIGlobalSettingsNetworkDetailsNAT_h */

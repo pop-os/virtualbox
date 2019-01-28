@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,27 +15,23 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QDir>
-# include <QVBoxLayout>
-# include <QHBoxLayout>
-# include <QLineEdit>
+#include <QDir>
+#include <QLineEdit>
+#include <QHBoxLayout>
+#include <QVBoxLayout>
 
 /* GUI includes: */
-# include "UIWizardNewVMPageBasic1.h"
-# include "UIWizardNewVM.h"
-# include "UIMessageCenter.h"
-# include "UINameAndSystemEditor.h"
-# include "QIRichTextLabel.h"
+#include "QIRichTextLabel.h"
+#include "VBoxGlobal.h"
+#include "UIMessageCenter.h"
+#include "UINameAndSystemEditor.h"
+#include "UIWizardNewVMPageBasic1.h"
+#include "UIWizardNewVM.h"
 
 /* COM includes: */
-# include "CSystemProperties.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "CHost.h"
+#include "CSystemProperties.h"
 
 
 /* Defines some patterns to guess the right OS type. Should be in sync with
@@ -56,7 +52,8 @@ static const osTypePattern gs_OSTypePattern[] =
     { QRegExp(  "Wi.*98",                         Qt::CaseInsensitive), "Windows98" },
     { QRegExp(  "Wi.*95",                         Qt::CaseInsensitive), "Windows95" },
     { QRegExp(  "Wi.*Me",                         Qt::CaseInsensitive), "WindowsMe" },
-    { QRegExp( "(Wi.*NT)|(NT4)",                  Qt::CaseInsensitive), "WindowsNT4" },
+    { QRegExp( "(Wi.*NT)|(NT[-._v]*4)",           Qt::CaseInsensitive), "WindowsNT4" },
+    { QRegExp( "NT[-._v]*3[.,]*[51x]",            Qt::CaseInsensitive), "WindowsNT3x" },
     /* Note: Do not automatically set WindowsXP_64 on 64-bit hosts, as Windows XP 64-bit
      *       is extremely rare -- most users never heard of it even. So always default to 32-bit. */
     { QRegExp("((Wi.*XP)|(XP)).*",                Qt::CaseInsensitive), "WindowsXP" },
@@ -177,7 +174,9 @@ static const osTypePattern gs_OSTypePattern[] =
 };
 
 UIWizardNewVMPage1::UIWizardNewVMPage1(const QString &strGroup)
-    : m_strGroup(strGroup)
+    : m_pNameAndSystemEditor(0)
+    , m_strGroup(strGroup)
+
 {
     CHost host = vboxGlobal().host();
     m_fSupportsHWVirtEx = host.GetProcessorFeature(KProcessorFeature_HWVirtEx);
@@ -194,9 +193,12 @@ void UIWizardNewVMPage1::onNameChanged(QString strNewName)
     for (size_t i = 0; i < RT_ELEMENTS(gs_OSTypePattern); ++i)
         if (strNewName.contains(gs_OSTypePattern[i].pattern))
         {
-            m_pNameAndSystemEditor->blockSignals(true);
-            m_pNameAndSystemEditor->setType(vboxGlobal().vmGuestOSType(gs_OSTypePattern[i].pcstId));
-            m_pNameAndSystemEditor->blockSignals(false);
+            if (m_pNameAndSystemEditor)
+            {
+                m_pNameAndSystemEditor->blockSignals(true);
+                m_pNameAndSystemEditor->setType(vboxGlobal().vmGuestOSType(gs_OSTypePattern[i].pcstId));
+                m_pNameAndSystemEditor->blockSignals(false);
+            }
             break;
         }
 }
@@ -205,70 +207,113 @@ void UIWizardNewVMPage1::onOsTypeChanged()
 {
     /* If the user manually edited the OS type, we didn't want our automatic OS type guessing anymore.
      * So simply disconnect the text-edit signal. */
-    m_pNameAndSystemEditor->disconnect(SIGNAL(sigNameChanged(const QString &)), thisImp(), SLOT(sltNameChanged(const QString &)));
+    if (m_pNameAndSystemEditor)
+        m_pNameAndSystemEditor->disconnect(SIGNAL(sigNameChanged(const QString &)), thisImp(), SLOT(sltNameChanged(const QString &)));
 }
 
-bool UIWizardNewVMPage1::machineFolderCreated()
+void UIWizardNewVMPage1::composeMachineFilePath()
 {
-    return !m_strMachineFolder.isEmpty();
+    if (!m_pNameAndSystemEditor)
+        return;
+    if (m_pNameAndSystemEditor->name().isEmpty() || m_pNameAndSystemEditor->path().isEmpty())
+        return;
+    /* Get VBox: */
+    CVirtualBox vbox = vboxGlobal().virtualBox();
+
+    /* Compose machine filename: */
+    m_strMachineFilePath = vbox.ComposeMachineFilename(m_pNameAndSystemEditor->name(),
+                                                       m_strGroup,
+                                                       QString(),
+                                                       m_pNameAndSystemEditor->path());
+    /* Compose machine folder/basename: */
+    const QFileInfo fileInfo(m_strMachineFilePath);
+    m_strMachineFolder = fileInfo.absolutePath();
+    m_strMachineBaseName = fileInfo.completeBaseName();
 }
 
 bool UIWizardNewVMPage1::createMachineFolder()
 {
+    if (!m_pNameAndSystemEditor)
+        return false;
     /* Cleanup previosly created folder if any: */
-    if (machineFolderCreated() && !cleanupMachineFolder())
+    if (!cleanupMachineFolder())
     {
         msgCenter().cannotRemoveMachineFolder(m_strMachineFolder, thisImp());
         return false;
     }
 
-    /* Get VBox: */
-    CVirtualBox vbox = vboxGlobal().virtualBox();
-    /* Get default machine folder: */
-    const QString strDefaultMachineFolder = vbox.GetSystemProperties().GetDefaultMachineFolder();
-    /* Compose machine filename: */
-    const QString strMachineFilePath = vbox.ComposeMachineFilename(m_pNameAndSystemEditor->name(),
-                                                                   m_strGroup,
-                                                                   QString(),
-                                                                   strDefaultMachineFolder);
-    /* Compose machine folder/basename: */
-    const QFileInfo fileInfo(strMachineFilePath);
-    const QString strMachineFolder = fileInfo.absolutePath();
-    const QString strMachineBaseName = fileInfo.completeBaseName();
+    composeMachineFilePath();
 
-    /* Make sure that folder doesn't exists: */
-    if (QDir(strMachineFolder).exists())
+
+    /* Check if the folder already exists and check if it has been created by this wizard */
+    if (QDir(m_strMachineFolder).exists())
     {
-        msgCenter().cannotRewriteMachineFolder(strMachineFolder, thisImp());
-        return false;
+        /* Looks like we have already created this folder for this run of the wizard. Just return */
+        if (m_strCreatedFolder == m_strMachineFolder)
+            return true;
+        /* The folder is there but not because of this wizard. Avoid overwriting a existing machine's folder */
+        else
+        {
+            msgCenter().cannotRewriteMachineFolder(m_strMachineFolder, thisImp());
+            return false;
+        }
     }
 
     /* Try to create new folder (and it's predecessors): */
-    bool fMachineFolderCreated = QDir().mkpath(strMachineFolder);
+    bool fMachineFolderCreated = QDir().mkpath(m_strMachineFolder);
     if (!fMachineFolderCreated)
     {
-        msgCenter().cannotCreateMachineFolder(strMachineFolder, thisImp());
+        msgCenter().cannotCreateMachineFolder(m_strMachineFolder, thisImp());
         return false;
     }
-
-    /* Initialize fields: */
-    m_strMachineFolder = strMachineFolder;
-    m_strMachineBaseName = strMachineBaseName;
+    m_strCreatedFolder = m_strMachineFolder;
     return true;
 }
 
 bool UIWizardNewVMPage1::cleanupMachineFolder()
 {
     /* Make sure folder was previosly created: */
-    if (m_strMachineFolder.isEmpty())
-        return false;
-    /* Try to cleanup folder (and it's predecessors): */
-    bool fMachineFolderRemoved = QDir().rmpath(m_strMachineFolder);
-    /* Reset machine folder value: */
-    if (fMachineFolderRemoved)
-        m_strMachineFolder = QString();
-    /* Return cleanup result: */
-    return fMachineFolderRemoved;
+    if (!m_strCreatedFolder.isEmpty() && m_strCreatedFolder != m_strMachineFolder)
+    {
+        /* Try to cleanup folder (and it's predecessors): */
+        bool fMachineFolderRemoved = QDir().rmpath(m_strCreatedFolder);
+        /* Reset machine folder value: */
+        if (fMachineFolderRemoved)
+            m_strCreatedFolder = QString();
+        /* Return cleanup result: */
+        return fMachineFolderRemoved;
+    }
+    return true;
+}
+
+QString UIWizardNewVMPage1::machineFilePath() const
+{
+    return m_strMachineFilePath;
+}
+
+void UIWizardNewVMPage1::setMachineFilePath(const QString &strMachineFilePath)
+{
+    m_strMachineFilePath = strMachineFilePath;
+}
+
+QString UIWizardNewVMPage1::machineFolder() const
+{
+    return m_strMachineFolder;
+}
+
+void UIWizardNewVMPage1::setMachineFolder(const QString &strMachineFolder)
+{
+    m_strMachineFolder = strMachineFolder;
+}
+
+QString UIWizardNewVMPage1::machineBaseName() const
+{
+    return m_strMachineBaseName;
+}
+
+void UIWizardNewVMPage1::setMachineBaseName(const QString &strMachineBaseName)
+{
+    m_strMachineBaseName = strMachineBaseName;
 }
 
 UIWizardNewVMPageBasic1::UIWizardNewVMPageBasic1(const QString &strGroup)
@@ -278,19 +323,21 @@ UIWizardNewVMPageBasic1::UIWizardNewVMPageBasic1(const QString &strGroup)
     QVBoxLayout *pMainLayout = new QVBoxLayout(this);
     {
         m_pLabel = new QIRichTextLabel(this);
-        m_pNameAndSystemEditor = new UINameAndSystemEditor(this);
+        m_pNameAndSystemEditor = new UINameAndSystemEditor(this, true);
         pMainLayout->addWidget(m_pLabel);
         pMainLayout->addWidget(m_pNameAndSystemEditor);
         pMainLayout->addStretch();
     }
 
     /* Setup connections: */
-    connect(m_pNameAndSystemEditor, SIGNAL(sigNameChanged(const QString &)), this, SLOT(sltNameChanged(const QString &)));
-    connect(m_pNameAndSystemEditor, SIGNAL(sigOsTypeChanged()), this, SLOT(sltOsTypeChanged()));
+    connect(m_pNameAndSystemEditor, &UINameAndSystemEditor::sigNameChanged, this, &UIWizardNewVMPageBasic1::sltNameChanged);
+    connect(m_pNameAndSystemEditor, &UINameAndSystemEditor::sigPathChanged, this, &UIWizardNewVMPageBasic1::sltPathChanged);
+    connect(m_pNameAndSystemEditor, &UINameAndSystemEditor::sigOsTypeChanged, this, &UIWizardNewVMPageBasic1::sltOsTypeChanged);
 
     /* Register fields: */
     registerField("name*", m_pNameAndSystemEditor, "name", SIGNAL(sigNameChanged(const QString &)));
     registerField("type", m_pNameAndSystemEditor, "type", SIGNAL(sigOsTypeChanged()));
+    registerField("machineFilePath", this, "machineFilePath");
     registerField("machineFolder", this, "machineFolder");
     registerField("machineBaseName", this, "machineBaseName");
 }
@@ -299,6 +346,13 @@ void UIWizardNewVMPageBasic1::sltNameChanged(const QString &strNewName)
 {
     /* Call to base-class: */
     onNameChanged(strNewName);
+    composeMachineFilePath();
+}
+
+void UIWizardNewVMPageBasic1::sltPathChanged(const QString &strNewPath)
+{
+    Q_UNUSED(strNewPath);
+    composeMachineFilePath();
 }
 
 void UIWizardNewVMPageBasic1::sltOsTypeChanged()
@@ -313,7 +367,7 @@ void UIWizardNewVMPageBasic1::retranslateUi()
     setTitle(UIWizardNewVM::tr("Name and operating system"));
 
     /* Translate widgets: */
-    m_pLabel->setText(UIWizardNewVM::tr("Please choose a descriptive name for the new virtual machine "
+    m_pLabel->setText(UIWizardNewVM::tr("Please choose a descriptive name and destination folder for the new virtual machine "
                                         "and select the type of operating system you intend to install on it. "
                                         "The name you choose will be used throughout VirtualBox "
                                         "to identify this machine."));
@@ -323,6 +377,8 @@ void UIWizardNewVMPageBasic1::initializePage()
 {
     /* Translate page: */
     retranslateUi();
+    if (m_pNameAndSystemEditor)
+        m_pNameAndSystemEditor->setFocus();
 }
 
 void UIWizardNewVMPageBasic1::cleanupPage()
@@ -338,4 +394,3 @@ bool UIWizardNewVMPageBasic1::validatePage()
     /* Try to create machine folder: */
     return createMachineFolder();
 }
-

@@ -4,8 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
- *
+ * Copyright (C) 2006-2019 Oracle Corporation
  * This file is based on the X11 VESA driver:
  *
  * Copyright (c) 2000 by Conectiva S.A. (http://www.conectiva.com)
@@ -37,8 +36,11 @@
  *          Michael Thayer <michael.thayer@oracle.com>
  */
 
-#ifndef _VBOXVIDEO_H_
-#define _VBOXVIDEO_H_
+#ifndef GA_INCLUDED_SRC_x11_vboxvideo_vboxvideo_h
+#define GA_INCLUDED_SRC_x11_vboxvideo_vboxvideo_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBoxVideoGuest.h>
 #include <VBoxVideo.h>
@@ -234,5 +236,5 @@ extern void vbvxCleanUpLinuxACPI(ScreenPtr pScreen);
 extern Bool VBOXEDIDSet(struct _xf86Output *output, DisplayModePtr pmode);
 #endif
 
-#endif /* !_VBOXVIDEO_H_ */
+#endif /* !GA_INCLUDED_SRC_x11_vboxvideo_vboxvideo_h */
 

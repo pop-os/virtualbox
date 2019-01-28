@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,56 +15,77 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __UIUpdateManager_h__
-#define __UIUpdateManager_h__
+#ifndef FEQT_INCLUDED_SRC_net_UIUpdateManager_h
+#define FEQT_INCLUDED_SRC_net_UIUpdateManager_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
-/* Global includes: */
+/* Qt includes: */
 #include <QObject>
+
+/* GUI includes: */
+#include "UILibraryDefs.h"
 
 /* Forward declarations: */
 class UIUpdateQueue;
 
-/* Singleton to perform new version checks
- * and update of various VirtualBox parts. */
-class UIUpdateManager : public QObject
+/** Singleton to perform new version checks
+  * and update of various VirtualBox parts. */
+class SHARED_LIBRARY_STUFF UIUpdateManager : public QObject
 {
     Q_OBJECT;
 
+    /** Constructs Update Manager. */
+    UIUpdateManager();
+    /** Destructs Update Manager. */
+    ~UIUpdateManager();
+
 public:
 
-    /* Schedule manager: */
+    /** Schedules manager. */
     static void schedule();
-    /* Shutdown manager: */
+    /** Shutdowns manager. */
     static void shutdown();
-    /* Manager instance: */
-    static UIUpdateManager* instance() { return m_pInstance; }
+    /** Returns manager instance. */
+    static UIUpdateManager *instance() { return s_pInstance; }
+
+    /** Returns whether the Extension Pack installation is requested. */
+    bool isEPInstallationRequested() const { return m_fEPInstallationRequested; }
+    /** Defines whether the Extension Pack installation is @a fRequested. */
+    void setEPInstallationRequested(bool fRequested) { m_fEPInstallationRequested = fRequested; }
 
 public slots:
 
-    /* Force call for new version check: */
+    /** Performs forced new version check. */
     void sltForceCheck();
 
 private slots:
 
-    /* Slot to check if update is necessary: */
+    /** Checks whether update is necessary. */
     void sltCheckIfUpdateIsNecessary(bool fForceCall = false);
 
-    /* Slot to handle update finishing: */
+    /** Handles update finishing. */
     void sltHandleUpdateFinishing();
 
 private:
 
-    /* Constructor/destructor: */
-    UIUpdateManager();
-    ~UIUpdateManager();
+    /** Holds the singleton instance. */
+    static UIUpdateManager *s_pInstance;
 
-    /* Variables: */
-    static UIUpdateManager* m_pInstance;
+    /** Holds the update queue instance. */
     UIUpdateQueue *m_pQueue;
-    bool m_fIsRunning;
-    quint64 m_uTime;
+    /** Holds whether Update Manager is running. */
+    bool           m_fIsRunning;
+    /** Holds the refresh period. */
+    quint64        m_uTime;
+
+    /** Holds whether the Extension Pack installation is requested. */
+    bool  m_fEPInstallationRequested;
 };
+
+/** Singleton Update Manager 'official' name. */
 #define gUpdateManager UIUpdateManager::instance()
 
-#endif // __UIUpdateManager_h__
+#endif /* !FEQT_INCLUDED_SRC_net_UIUpdateManager_h */
 

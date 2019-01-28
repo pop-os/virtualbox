@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2017 Oracle Corporation
+# Copyright (C) 2006-2019 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -201,7 +201,7 @@ bootsector2-vbinstst-64-1_CLEAN = \
 	$(bootsector2-vbinstst-64-1_0_OUTDIR)/bs2-vbinstst-64-1.asm
 
 $$(bootsector2-vbinstst-64-1_0_OUTDIR)/bs2-vbinstst-64-1.asm: $(VBOX_VBINSTST_GEN) | $$(dir $$@)
-	$(VBOX_BLD_PYTHON) $(VBOX_VBINSTST_GEN) --target bs2-r0-64-big --output-base $(basename $@) --test-size medium
+	$(REDIRECT) -0 /dev/null -- $(VBOX_BLD_PYTHON) $(VBOX_VBINSTST_GEN) --target bs2-r0-64-big --output-base $(basename $@) --test-size medium
 
 MISCBINS += bootsector2-vbinstst-32-1
 bootsector2-vbinstst-32-1_TEMPLATE = VBoxBsTestImg
@@ -219,7 +219,7 @@ bootsector2-vbinstst-32-1_CLEAN = \
 	$(bootsector2-vbinstst-32-1_0_OUTDIR)/bs2-vbinstst-32-1.asm
 
 $$(bootsector2-vbinstst-32-1_0_OUTDIR)/bs2-vbinstst-32-1.asm: $(VBOX_VBINSTST_GEN) | $$(dir $$@)
-	$(VBOX_BLD_PYTHON) $(VBOX_VBINSTST_GEN) --target bs2-r0-32-big --output-base $(basename $@) --test-size medium
+	$(REDIRECT) -0 /dev/null -- $(VBOX_BLD_PYTHON) $(VBOX_VBINSTST_GEN) --target bs2-r0-32-big --output-base $(basename $@) --test-size medium
 
  endif
 endif # bird-only
@@ -254,6 +254,16 @@ bs3-cpu-basic-2-template.o:: \
 	$$(bs3-cpu-basic-2_0_OUTDIR)/bs3kit/bs3-cmn-instantiate.o32 \
 	$$(bs3-cpu-basic-2_0_OUTDIR)/bs3kit/bs3-cmn-instantiate.o64 \
 	$$(bs3-cpu-basic-2_0_OUTDIR)/bs3-cpu-basic-2-asm.o16
+
+# CPU weird stuff #1.
+MISCBINS += bs3-cpu-weird-1
+bs3-cpu-weird-1_TEMPLATE = VBoxBS3KitImg
+bs3-cpu-weird-1_INCS  = .
+bs3-cpu-weird-1_SOURCES = \
+	bs3kit/bs3-first-rm.asm \
+	bs3-cpu-weird-1.c \
+	bs3-cpu-weird-1-x0.c \
+	bs3-cpu-weird-1-asm.asm
 
 # FPU state corruption checker.
 MISCBINS += bs3-fpustate-1
@@ -339,7 +349,7 @@ $$(bs3-cpu-generated-1_0_OUTDIR)/bs3-cpu-generated-1-data.c16: \
 		$(PATH_SUB_CURRENT)/../../VMM/VMMAll/IEMAllInstructionsPython.py \
 		$(PATH_SUB_CURRENT)/../../VMM/VMMAll/IEMAllInstructions*.cpp.h \
                | $$(dir $$@)
-	$(VBOX_BLD_PYTHON) $< $@
+	$(REDIRECT) -0 /dev/null -- $(VBOX_BLD_PYTHON) $< $@
 
 endif # VBOX_WITH_BS3KIT
 

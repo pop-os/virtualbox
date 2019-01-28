@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,8 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_vmm_vmapi_h
-#define ___VBox_vmm_vmapi_h
+#ifndef VBOX_INCLUDED_vmm_vmapi_h
+#define VBOX_INCLUDED_vmm_vmapi_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/types.h>
 #include <VBox/vmm/stam.h>
@@ -37,6 +40,21 @@ RT_C_DECLS_BEGIN
 /** @defgroup grp_vm_apis   VM All Contexts API
  * @ingroup grp_vm
  * @{ */
+
+/** @name VM_EXEC_ENGINE_XXX - VM::bMainExecutionEngine values.
+ * @sa EMR3QueryMainExecutionEngine, VM_IS_RAW_MODE_ENABLED,  VM_IS_HM_ENABLED,
+ *     VM_IS_HM_OR_NEM_ENABLED, VM_IS_NEM_ENABLED,  VM_SET_MAIN_EXECUTION_ENGINE
+ * @{ */
+/** Has not yet been set. */
+#define VM_EXEC_ENGINE_NOT_SET              UINT8_C(0)
+/** Raw-mode. */
+#define VM_EXEC_ENGINE_RAW_MODE             UINT8_C(1)
+/** Hardware assisted virtualization thru HM. */
+#define VM_EXEC_ENGINE_HW_VIRT              UINT8_C(2)
+/** Hardware assisted virtualization thru native API (NEM). */
+#define VM_EXEC_ENGINE_NATIVE_API           UINT8_C(3)
+/** @} */
+
 
 /** @def VM_RC_ADDR
  * Converts a current context address of data within the VM structure to the equivalent
@@ -194,7 +212,11 @@ typedef DECLCALLBACK(void) FNVMATSTATE(PUVM pUVM, VMSTATE enmState, VMSTATE enmO
 /** Pointer to a VM state callback. */
 typedef FNVMATSTATE *PFNVMATSTATE;
 
-VMMDECL(const char *) VMGetStateName(VMSTATE enmState);
+VMMDECL(const char *)   VMGetStateName(VMSTATE enmState);
+
+VMMDECL(uint32_t)       VMGetResetCount(PVM pVM);
+VMMDECL(uint32_t)       VMGetSoftResetCount(PVM pVM);
+VMMDECL(uint32_t)       VMGetHardResetCount(PVM pVM);
 
 
 /**
@@ -484,6 +506,7 @@ VMMR3_INT_DECL(int)         VMR3AsyncPdmNotificationWaitU(PUVMCPU pUVCpu);
 VMMR3_INT_DECL(void)        VMR3AsyncPdmNotificationWakeupU(PUVM pUVM);
 VMMR3_INT_DECL(RTCPUID)     VMR3GetVMCPUId(PVM pVM);
 VMMR3_INT_DECL(bool)        VMR3IsLongModeAllowed(PVM pVM);
+VMMR3_INT_DECL(RTTHREAD)    VMR3GetThreadHandle(PUVMCPU pUVCpu);
 VMMR3DECL(RTTHREAD)         VMR3GetVMCPUThread(PUVM pUVM);
 VMMR3DECL(RTNATIVETHREAD)   VMR3GetVMCPUNativeThread(PVM pVM);
 VMMR3DECL(RTNATIVETHREAD)   VMR3GetVMCPUNativeThreadU(PUVM pUVM);
@@ -509,5 +532,5 @@ RT_C_DECLS_END
 
 /** @} */
 
-#endif
+#endif /* !VBOX_INCLUDED_vmm_vmapi_h */
 

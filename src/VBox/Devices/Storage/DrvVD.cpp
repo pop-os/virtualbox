@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -3084,7 +3084,7 @@ static int drvvdMediaExIoReqCompleteWorker(PVBOXDISK pThis, PPDMMEDIAEXIOREQINT 
             || pIoReq->enmType == PDMMEDIAEXIOREQTYPE_WRITE)
         {
             /* Adjust the remaining amount to transfer. */
-            Assert(pIoReq->ReadWrite.cbIoBuf > 0);
+            Assert(pIoReq->ReadWrite.cbIoBuf > 0 || rcReq == VERR_PDM_MEDIAEX_IOREQ_CANCELED);
 
             size_t cbReqIo = RT_MIN(pIoReq->ReadWrite.cbReqLeft, pIoReq->ReadWrite.cbIoBuf);
             pIoReq->ReadWrite.offStart  += cbReqIo;

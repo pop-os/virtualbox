@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -220,6 +220,7 @@ static int pgmShwGetEPTPDPtr(PVMCPU pVCpu, RTGCPTR64 GCPtr, PEPTPDPT *ppPdpt, PE
 # include "PGMAllShw.h"
 
 /* Guest - protected mode (only used for AMD-V nested paging in 64 bits mode) */
+/** @todo retire this hack. */
 # define PGM_GST_TYPE               PGM_TYPE_PROT
 # define PGM_GST_NAME(name)         PGM_GST_NAME_PROT(name)
 # define PGM_BTH_NAME(name)         PGM_BTH_NAME_AMD64_PROT(name)
@@ -257,16 +258,16 @@ static int pgmShwGetEPTPDPtr(PVMCPU pVCpu, RTGCPTR64 GCPtr, PEPTPDPT *ppPdpt, PE
 
 
 /*
- * Shadow - Nested paging mode
+ * Shadow - 32-bit nested paging mode.
  */
-# define PGM_SHW_TYPE               PGM_TYPE_NESTED
-# define PGM_SHW_NAME(name)         PGM_SHW_NAME_NESTED(name)
+# define PGM_SHW_TYPE               PGM_TYPE_NESTED_32BIT
+# define PGM_SHW_NAME(name)         PGM_SHW_NAME_NESTED_32BIT(name)
 # include "PGMAllShw.h"
 
 /* Guest - real mode */
 # define PGM_GST_TYPE               PGM_TYPE_REAL
 # define PGM_GST_NAME(name)         PGM_GST_NAME_REAL(name)
-# define PGM_BTH_NAME(name)         PGM_BTH_NAME_NESTED_REAL(name)
+# define PGM_BTH_NAME(name)         PGM_BTH_NAME_NESTED_32BIT_REAL(name)
 # include "PGMGstDefs.h"
 # include "PGMAllBth.h"
 # undef PGM_BTH_NAME
@@ -276,7 +277,7 @@ static int pgmShwGetEPTPDPtr(PVMCPU pVCpu, RTGCPTR64 GCPtr, PEPTPDPT *ppPdpt, PE
 /* Guest - protected mode */
 # define PGM_GST_TYPE               PGM_TYPE_PROT
 # define PGM_GST_NAME(name)         PGM_GST_NAME_PROT(name)
-# define PGM_BTH_NAME(name)         PGM_BTH_NAME_NESTED_PROT(name)
+# define PGM_BTH_NAME(name)         PGM_BTH_NAME_NESTED_32BIT_PROT(name)
 # include "PGMGstDefs.h"
 # include "PGMAllBth.h"
 # undef PGM_BTH_NAME
@@ -286,7 +287,7 @@ static int pgmShwGetEPTPDPtr(PVMCPU pVCpu, RTGCPTR64 GCPtr, PEPTPDPT *ppPdpt, PE
 /* Guest - 32-bit mode */
 # define PGM_GST_TYPE               PGM_TYPE_32BIT
 # define PGM_GST_NAME(name)         PGM_GST_NAME_32BIT(name)
-# define PGM_BTH_NAME(name)         PGM_BTH_NAME_NESTED_32BIT(name)
+# define PGM_BTH_NAME(name)         PGM_BTH_NAME_NESTED_32BIT_32BIT(name)
 # include "PGMGstDefs.h"
 # include "PGMAllBth.h"
 # undef PGM_BTH_NAME
@@ -296,7 +297,7 @@ static int pgmShwGetEPTPDPtr(PVMCPU pVCpu, RTGCPTR64 GCPtr, PEPTPDPT *ppPdpt, PE
 /* Guest - PAE mode */
 # define PGM_GST_TYPE               PGM_TYPE_PAE
 # define PGM_GST_NAME(name)         PGM_GST_NAME_PAE(name)
-# define PGM_BTH_NAME(name)         PGM_BTH_NAME_NESTED_PAE(name)
+# define PGM_BTH_NAME(name)         PGM_BTH_NAME_NESTED_32BIT_PAE(name)
 # include "PGMGstDefs.h"
 # include "PGMAllBth.h"
 # undef PGM_BTH_NAME
@@ -307,7 +308,7 @@ static int pgmShwGetEPTPDPtr(PVMCPU pVCpu, RTGCPTR64 GCPtr, PEPTPDPT *ppPdpt, PE
 /* Guest - AMD64 mode */
 #  define PGM_GST_TYPE              PGM_TYPE_AMD64
 #  define PGM_GST_NAME(name)        PGM_GST_NAME_AMD64(name)
-#  define PGM_BTH_NAME(name)        PGM_BTH_NAME_NESTED_AMD64(name)
+#  define PGM_BTH_NAME(name)        PGM_BTH_NAME_NESTED_32BIT_AMD64(name)
 #  include "PGMGstDefs.h"
 #  include "PGMAllBth.h"
 #  undef PGM_BTH_NAME
@@ -320,7 +321,133 @@ static int pgmShwGetEPTPDPtr(PVMCPU pVCpu, RTGCPTR64 GCPtr, PEPTPDPT *ppPdpt, PE
 
 
 /*
- * Shadow - EPT
+ * Shadow - PAE nested paging mode.
+ */
+# define PGM_SHW_TYPE               PGM_TYPE_NESTED_PAE
+# define PGM_SHW_NAME(name)         PGM_SHW_NAME_NESTED_PAE(name)
+# include "PGMAllShw.h"
+
+/* Guest - real mode */
+# define PGM_GST_TYPE               PGM_TYPE_REAL
+# define PGM_GST_NAME(name)         PGM_GST_NAME_REAL(name)
+# define PGM_BTH_NAME(name)         PGM_BTH_NAME_NESTED_PAE_REAL(name)
+# include "PGMGstDefs.h"
+# include "PGMAllBth.h"
+# undef PGM_BTH_NAME
+# undef PGM_GST_TYPE
+# undef PGM_GST_NAME
+
+/* Guest - protected mode */
+# define PGM_GST_TYPE               PGM_TYPE_PROT
+# define PGM_GST_NAME(name)         PGM_GST_NAME_PROT(name)
+# define PGM_BTH_NAME(name)         PGM_BTH_NAME_NESTED_PAE_PROT(name)
+# include "PGMGstDefs.h"
+# include "PGMAllBth.h"
+# undef PGM_BTH_NAME
+# undef PGM_GST_TYPE
+# undef PGM_GST_NAME
+
+/* Guest - 32-bit mode */
+# define PGM_GST_TYPE               PGM_TYPE_32BIT
+# define PGM_GST_NAME(name)         PGM_GST_NAME_32BIT(name)
+# define PGM_BTH_NAME(name)         PGM_BTH_NAME_NESTED_PAE_32BIT(name)
+# include "PGMGstDefs.h"
+# include "PGMAllBth.h"
+# undef PGM_BTH_NAME
+# undef PGM_GST_TYPE
+# undef PGM_GST_NAME
+
+/* Guest - PAE mode */
+# define PGM_GST_TYPE               PGM_TYPE_PAE
+# define PGM_GST_NAME(name)         PGM_GST_NAME_PAE(name)
+# define PGM_BTH_NAME(name)         PGM_BTH_NAME_NESTED_PAE_PAE(name)
+# include "PGMGstDefs.h"
+# include "PGMAllBth.h"
+# undef PGM_BTH_NAME
+# undef PGM_GST_TYPE
+# undef PGM_GST_NAME
+
+# ifdef VBOX_WITH_64_BITS_GUESTS
+/* Guest - AMD64 mode */
+#  define PGM_GST_TYPE              PGM_TYPE_AMD64
+#  define PGM_GST_NAME(name)        PGM_GST_NAME_AMD64(name)
+#  define PGM_BTH_NAME(name)        PGM_BTH_NAME_NESTED_PAE_AMD64(name)
+#  include "PGMGstDefs.h"
+#  include "PGMAllBth.h"
+#  undef PGM_BTH_NAME
+#  undef PGM_GST_TYPE
+#  undef PGM_GST_NAME
+# endif /* VBOX_WITH_64_BITS_GUESTS */
+
+# undef PGM_SHW_TYPE
+# undef PGM_SHW_NAME
+
+
+/*
+ * Shadow - AMD64 nested paging mode.
+ */
+# define PGM_SHW_TYPE               PGM_TYPE_NESTED_AMD64
+# define PGM_SHW_NAME(name)         PGM_SHW_NAME_NESTED_AMD64(name)
+# include "PGMAllShw.h"
+
+/* Guest - real mode */
+# define PGM_GST_TYPE               PGM_TYPE_REAL
+# define PGM_GST_NAME(name)         PGM_GST_NAME_REAL(name)
+# define PGM_BTH_NAME(name)         PGM_BTH_NAME_NESTED_AMD64_REAL(name)
+# include "PGMGstDefs.h"
+# include "PGMAllBth.h"
+# undef PGM_BTH_NAME
+# undef PGM_GST_TYPE
+# undef PGM_GST_NAME
+
+/* Guest - protected mode */
+# define PGM_GST_TYPE               PGM_TYPE_PROT
+# define PGM_GST_NAME(name)         PGM_GST_NAME_PROT(name)
+# define PGM_BTH_NAME(name)         PGM_BTH_NAME_NESTED_AMD64_PROT(name)
+# include "PGMGstDefs.h"
+# include "PGMAllBth.h"
+# undef PGM_BTH_NAME
+# undef PGM_GST_TYPE
+# undef PGM_GST_NAME
+
+/* Guest - 32-bit mode */
+# define PGM_GST_TYPE               PGM_TYPE_32BIT
+# define PGM_GST_NAME(name)         PGM_GST_NAME_32BIT(name)
+# define PGM_BTH_NAME(name)         PGM_BTH_NAME_NESTED_AMD64_32BIT(name)
+# include "PGMGstDefs.h"
+# include "PGMAllBth.h"
+# undef PGM_BTH_NAME
+# undef PGM_GST_TYPE
+# undef PGM_GST_NAME
+
+/* Guest - PAE mode */
+# define PGM_GST_TYPE               PGM_TYPE_PAE
+# define PGM_GST_NAME(name)         PGM_GST_NAME_PAE(name)
+# define PGM_BTH_NAME(name)         PGM_BTH_NAME_NESTED_AMD64_PAE(name)
+# include "PGMGstDefs.h"
+# include "PGMAllBth.h"
+# undef PGM_BTH_NAME
+# undef PGM_GST_TYPE
+# undef PGM_GST_NAME
+
+# ifdef VBOX_WITH_64_BITS_GUESTS
+/* Guest - AMD64 mode */
+#  define PGM_GST_TYPE              PGM_TYPE_AMD64
+#  define PGM_GST_NAME(name)        PGM_GST_NAME_AMD64(name)
+#  define PGM_BTH_NAME(name)        PGM_BTH_NAME_NESTED_AMD64_AMD64(name)
+#  include "PGMGstDefs.h"
+#  include "PGMAllBth.h"
+#  undef PGM_BTH_NAME
+#  undef PGM_GST_TYPE
+#  undef PGM_GST_NAME
+# endif /* VBOX_WITH_64_BITS_GUESTS */
+
+# undef PGM_SHW_TYPE
+# undef PGM_SHW_NAME
+
+
+/*
+ * Shadow - EPT.
  */
 # define PGM_SHW_TYPE               PGM_TYPE_EPT
 # define PGM_SHW_NAME(name)         PGM_SHW_NAME_EPT(name)
@@ -391,7 +518,394 @@ static int pgmShwGetEPTPDPtr(PVMCPU pVCpu, RTGCPTR64 GCPtr, PEPTPDPT *ppPdpt, PE
 # undef PGM_SHW_TYPE
 # undef PGM_SHW_NAME
 
+
+/*
+ * Shadow - NEM / None.
+ */
+# define PGM_SHW_TYPE               PGM_TYPE_NONE
+# define PGM_SHW_NAME(name)         PGM_SHW_NAME_NONE(name)
+# include "PGMAllShw.h"
+
+/* Guest - real mode */
+# define PGM_GST_TYPE               PGM_TYPE_REAL
+# define PGM_GST_NAME(name)         PGM_GST_NAME_REAL(name)
+# define PGM_BTH_NAME(name)         PGM_BTH_NAME_NONE_REAL(name)
+# include "PGMGstDefs.h"
+# include "PGMAllBth.h"
+# undef PGM_BTH_NAME
+# undef PGM_GST_TYPE
+# undef PGM_GST_NAME
+
+/* Guest - protected mode */
+# define PGM_GST_TYPE               PGM_TYPE_PROT
+# define PGM_GST_NAME(name)         PGM_GST_NAME_PROT(name)
+# define PGM_BTH_NAME(name)         PGM_BTH_NAME_NONE_PROT(name)
+# include "PGMGstDefs.h"
+# include "PGMAllBth.h"
+# undef PGM_BTH_NAME
+# undef PGM_GST_TYPE
+# undef PGM_GST_NAME
+
+/* Guest - 32-bit mode */
+# define PGM_GST_TYPE               PGM_TYPE_32BIT
+# define PGM_GST_NAME(name)         PGM_GST_NAME_32BIT(name)
+# define PGM_BTH_NAME(name)         PGM_BTH_NAME_NONE_32BIT(name)
+# include "PGMGstDefs.h"
+# include "PGMAllBth.h"
+# undef PGM_BTH_NAME
+# undef PGM_GST_TYPE
+# undef PGM_GST_NAME
+
+/* Guest - PAE mode */
+# define PGM_GST_TYPE               PGM_TYPE_PAE
+# define PGM_GST_NAME(name)         PGM_GST_NAME_PAE(name)
+# define PGM_BTH_NAME(name)         PGM_BTH_NAME_NONE_PAE(name)
+# include "PGMGstDefs.h"
+# include "PGMAllBth.h"
+# undef PGM_BTH_NAME
+# undef PGM_GST_TYPE
+# undef PGM_GST_NAME
+
+# ifdef VBOX_WITH_64_BITS_GUESTS
+/* Guest - AMD64 mode */
+#  define PGM_GST_TYPE              PGM_TYPE_AMD64
+#  define PGM_GST_NAME(name)        PGM_GST_NAME_AMD64(name)
+#  define PGM_BTH_NAME(name)        PGM_BTH_NAME_NONE_AMD64(name)
+#  include "PGMGstDefs.h"
+#  include "PGMAllBth.h"
+#  undef PGM_BTH_NAME
+#  undef PGM_GST_TYPE
+#  undef PGM_GST_NAME
+# endif /* VBOX_WITH_64_BITS_GUESTS */
+
+# undef PGM_SHW_TYPE
+# undef PGM_SHW_NAME
+
 #endif /* !IN_RC */
+
+
+/**
+ * Guest mode data array.
+ */
+PGMMODEDATAGST const g_aPgmGuestModeData[PGM_GUEST_MODE_DATA_ARRAY_SIZE] =
+{
+    { UINT32_MAX, NULL, NULL, NULL, NULL, NULL }, /* 0 */
+    {
+        PGM_TYPE_REAL,
+        PGM_GST_NAME_REAL(GetPage),
+        PGM_GST_NAME_REAL(ModifyPage),
+        PGM_GST_NAME_REAL(GetPDE),
+        PGM_GST_NAME_REAL(Enter),
+        PGM_GST_NAME_REAL(Exit),
+#ifdef IN_RING3
+        PGM_GST_NAME_REAL(Relocate),
+#endif
+    },
+    {
+        PGM_TYPE_PROT,
+        PGM_GST_NAME_PROT(GetPage),
+        PGM_GST_NAME_PROT(ModifyPage),
+        PGM_GST_NAME_PROT(GetPDE),
+        PGM_GST_NAME_PROT(Enter),
+        PGM_GST_NAME_PROT(Exit),
+#ifdef IN_RING3
+        PGM_GST_NAME_PROT(Relocate),
+#endif
+    },
+    {
+        PGM_TYPE_32BIT,
+        PGM_GST_NAME_32BIT(GetPage),
+        PGM_GST_NAME_32BIT(ModifyPage),
+        PGM_GST_NAME_32BIT(GetPDE),
+        PGM_GST_NAME_32BIT(Enter),
+        PGM_GST_NAME_32BIT(Exit),
+#ifdef IN_RING3
+        PGM_GST_NAME_32BIT(Relocate),
+#endif
+    },
+    {
+        PGM_TYPE_PAE,
+        PGM_GST_NAME_PAE(GetPage),
+        PGM_GST_NAME_PAE(ModifyPage),
+        PGM_GST_NAME_PAE(GetPDE),
+        PGM_GST_NAME_PAE(Enter),
+        PGM_GST_NAME_PAE(Exit),
+#ifdef IN_RING3
+        PGM_GST_NAME_PAE(Relocate),
+#endif
+    },
+#if defined(VBOX_WITH_64_BITS_GUESTS) && !defined(IN_RC)
+    {
+        PGM_TYPE_AMD64,
+        PGM_GST_NAME_AMD64(GetPage),
+        PGM_GST_NAME_AMD64(ModifyPage),
+        PGM_GST_NAME_AMD64(GetPDE),
+        PGM_GST_NAME_AMD64(Enter),
+        PGM_GST_NAME_AMD64(Exit),
+# ifdef IN_RING3
+        PGM_GST_NAME_AMD64(Relocate),
+# endif
+    },
+#endif
+};
+
+
+/**
+ * The shadow mode data array.
+ */
+PGMMODEDATASHW const g_aPgmShadowModeData[PGM_SHADOW_MODE_DATA_ARRAY_SIZE] =
+{
+    { UINT8_MAX, NULL, NULL, NULL, NULL }, /* 0 */
+    { UINT8_MAX, NULL, NULL, NULL, NULL }, /* PGM_TYPE_REAL */
+    { UINT8_MAX, NULL, NULL, NULL, NULL }, /* PGM_TYPE_PROT */
+    {
+        PGM_TYPE_32BIT,
+        PGM_SHW_NAME_32BIT(GetPage),
+        PGM_SHW_NAME_32BIT(ModifyPage),
+        PGM_SHW_NAME_32BIT(Enter),
+        PGM_SHW_NAME_32BIT(Exit),
+#ifdef IN_RING3
+        PGM_SHW_NAME_32BIT(Relocate),
+#endif
+    },
+    {
+        PGM_TYPE_PAE,
+        PGM_SHW_NAME_PAE(GetPage),
+        PGM_SHW_NAME_PAE(ModifyPage),
+        PGM_SHW_NAME_PAE(Enter),
+        PGM_SHW_NAME_PAE(Exit),
+#ifdef IN_RING3
+        PGM_SHW_NAME_PAE(Relocate),
+#endif
+    },
+#ifndef IN_RC
+    {
+        PGM_TYPE_AMD64,
+        PGM_SHW_NAME_AMD64(GetPage),
+        PGM_SHW_NAME_AMD64(ModifyPage),
+        PGM_SHW_NAME_AMD64(Enter),
+        PGM_SHW_NAME_AMD64(Exit),
+# ifdef IN_RING3
+        PGM_SHW_NAME_AMD64(Relocate),
+# endif
+    },
+    {
+        PGM_TYPE_NESTED_32BIT,
+        PGM_SHW_NAME_NESTED_32BIT(GetPage),
+        PGM_SHW_NAME_NESTED_32BIT(ModifyPage),
+        PGM_SHW_NAME_NESTED_32BIT(Enter),
+        PGM_SHW_NAME_NESTED_32BIT(Exit),
+# ifdef IN_RING3
+        PGM_SHW_NAME_NESTED_32BIT(Relocate),
+# endif
+    },
+    {
+        PGM_TYPE_NESTED_PAE,
+        PGM_SHW_NAME_NESTED_PAE(GetPage),
+        PGM_SHW_NAME_NESTED_PAE(ModifyPage),
+        PGM_SHW_NAME_NESTED_PAE(Enter),
+        PGM_SHW_NAME_NESTED_PAE(Exit),
+# ifdef IN_RING3
+        PGM_SHW_NAME_NESTED_PAE(Relocate),
+# endif
+    },
+    {
+        PGM_TYPE_NESTED_AMD64,
+        PGM_SHW_NAME_NESTED_AMD64(GetPage),
+        PGM_SHW_NAME_NESTED_AMD64(ModifyPage),
+        PGM_SHW_NAME_NESTED_AMD64(Enter),
+        PGM_SHW_NAME_NESTED_AMD64(Exit),
+# ifdef IN_RING3
+        PGM_SHW_NAME_NESTED_AMD64(Relocate),
+# endif
+    },
+    {
+        PGM_TYPE_EPT,
+        PGM_SHW_NAME_EPT(GetPage),
+        PGM_SHW_NAME_EPT(ModifyPage),
+        PGM_SHW_NAME_EPT(Enter),
+        PGM_SHW_NAME_EPT(Exit),
+# ifdef IN_RING3
+        PGM_SHW_NAME_EPT(Relocate),
+# endif
+    },
+    {
+        PGM_TYPE_NONE,
+        PGM_SHW_NAME_NONE(GetPage),
+        PGM_SHW_NAME_NONE(ModifyPage),
+        PGM_SHW_NAME_NONE(Enter),
+        PGM_SHW_NAME_NONE(Exit),
+# ifdef IN_RING3
+        PGM_SHW_NAME_NONE(Relocate),
+# endif
+    },
+#endif /* IN_RC */
+};
+
+
+/**
+ * The guest+shadow mode data array.
+ */
+PGMMODEDATABTH const g_aPgmBothModeData[PGM_BOTH_MODE_DATA_ARRAY_SIZE] =
+{
+#if   !defined(IN_RING3) && !defined(VBOX_STRICT)
+# define PGMMODEDATABTH_NULL_ENTRY()    { UINT32_MAX, UINT32_MAX, NULL, NULL, NULL, NULL, NULL, NULL, NULL }
+# define PGMMODEDATABTH_ENTRY(uShwT, uGstT, Nm) \
+    { uShwT, uGstT, Nm(InvalidatePage), Nm(SyncCR3), Nm(PrefetchPage), Nm(VerifyAccessSyncPage), Nm(MapCR3), Nm(UnmapCR3), Nm(Enter), Nm(Trap0eHandler) }
+
+#elif !defined(IN_RING3) && defined(VBOX_STRICT)
+# define PGMMODEDATABTH_NULL_ENTRY()    { UINT32_MAX, UINT32_MAX, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL }
+# define PGMMODEDATABTH_ENTRY(uShwT, uGstT, Nm) \
+    { uShwT, uGstT, Nm(InvalidatePage), Nm(SyncCR3), Nm(PrefetchPage), Nm(VerifyAccessSyncPage), Nm(MapCR3), Nm(UnmapCR3), Nm(Enter), Nm(Trap0eHandler), Nm(AssertCR3) }
+
+#elif defined(IN_RING3) && !defined(VBOX_STRICT)
+# define PGMMODEDATABTH_NULL_ENTRY()    { UINT32_MAX, UINT32_MAX, NULL, NULL, NULL, NULL, NULL, NULL }
+# define PGMMODEDATABTH_ENTRY(uShwT, uGstT, Nm) \
+    { uShwT, uGstT, Nm(InvalidatePage), Nm(SyncCR3), Nm(PrefetchPage), Nm(VerifyAccessSyncPage), Nm(MapCR3), Nm(UnmapCR3), Nm(Enter), }
+
+#elif defined(IN_RING3) && defined(VBOX_STRICT)
+# define PGMMODEDATABTH_NULL_ENTRY()    { UINT32_MAX, UINT32_MAX, NULL, NULL, NULL, NULL, NULL, NULL, NULL }
+# define PGMMODEDATABTH_ENTRY(uShwT, uGstT, Nm) \
+    { uShwT, uGstT, Nm(InvalidatePage), Nm(SyncCR3), Nm(PrefetchPage), Nm(VerifyAccessSyncPage), Nm(MapCR3), Nm(UnmapCR3), Nm(Enter), Nm(AssertCR3) }
+
+#else
+# error "Misconfig."
+#endif
+
+    /* 32-bit shadow paging mode: */
+    PGMMODEDATABTH_NULL_ENTRY(), /* 0 */
+    PGMMODEDATABTH_ENTRY(PGM_TYPE_32BIT, PGM_TYPE_REAL,  PGM_BTH_NAME_32BIT_REAL),
+    PGMMODEDATABTH_ENTRY(PGM_TYPE_32BIT, PGM_TYPE_PROT,  PGM_BTH_NAME_32BIT_PROT),
+    PGMMODEDATABTH_ENTRY(PGM_TYPE_32BIT, PGM_TYPE_32BIT, PGM_BTH_NAME_32BIT_32BIT),
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_32BIT, PGM_TYPE_PAE          - illegal */
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_32BIT, PGM_TYPE_AMD64        - illegal */
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_32BIT, PGM_TYPE_NESTED_32BIT - illegal */
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_32BIT, PGM_TYPE_NESTED_PAE   - illegal */
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_32BIT, PGM_TYPE_NESTED_AMD64 - illegal */
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_32BIT, PGM_TYPE_EPT          - illegal */
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_32BIT, PGM_TYPE_NONE         - illegal */
+
+    /* PAE shadow paging mode: */
+    PGMMODEDATABTH_NULL_ENTRY(), /* 0 */
+    PGMMODEDATABTH_ENTRY(PGM_TYPE_PAE, PGM_TYPE_REAL,  PGM_BTH_NAME_PAE_REAL),
+    PGMMODEDATABTH_ENTRY(PGM_TYPE_PAE, PGM_TYPE_PROT,  PGM_BTH_NAME_PAE_PROT),
+    PGMMODEDATABTH_ENTRY(PGM_TYPE_PAE, PGM_TYPE_32BIT, PGM_BTH_NAME_PAE_32BIT),
+    PGMMODEDATABTH_ENTRY(PGM_TYPE_PAE, PGM_TYPE_PAE,   PGM_BTH_NAME_PAE_PAE),
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_PAE, PGM_TYPE_AMD64        - illegal */
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_PAE, PGM_TYPE_NESTED_32BIT - illegal */
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_PAE, PGM_TYPE_NESTED_PAE   - illegal */
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_PAE, PGM_TYPE_NESTED_AMD64 - illegal */
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_PAE, PGM_TYPE_EPT          - illegal */
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_PAE, PGM_TYPE_NONE         - illegal */
+
+#ifndef IN_RC
+    /* AMD64 shadow paging mode: */
+    PGMMODEDATABTH_NULL_ENTRY(), /* 0 */
+    PGMMODEDATABTH_NULL_ENTRY(), //PGMMODEDATABTH_ENTRY(PGM_TYPE_AMD64, PGM_TYPE_REAL,  PGM_BTH_NAME_AMD64_REAL),
+    PGMMODEDATABTH_NULL_ENTRY(), //PGMMODEDATABTH_ENTRY(PGM_TYPE_AMD64, PGM_TYPE_PROT,  PGM_BTH_NAME_AMD64_PROT),
+    PGMMODEDATABTH_NULL_ENTRY(), //PGMMODEDATABTH_ENTRY(PGM_TYPE_AMD64, PGM_TYPE_32BIT, PGM_BTH_NAME_AMD64_32BIT),
+    PGMMODEDATABTH_NULL_ENTRY(), //PGMMODEDATABTH_ENTRY(PGM_TYPE_AMD64, PGM_TYPE_PAE,   PGM_BTH_NAME_AMD64_PAE),
+# ifdef VBOX_WITH_64_BITS_GUESTS
+    PGMMODEDATABTH_ENTRY(PGM_TYPE_AMD64, PGM_TYPE_AMD64, PGM_BTH_NAME_AMD64_AMD64),
+# else
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_AMD64, PGM_TYPE_AMD64        - illegal */
+# endif
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_AMD64, PGM_TYPE_NESTED_32BIT - illegal */
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_AMD64, PGM_TYPE_NESTED_PAE   - illegal */
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_AMD64, PGM_TYPE_NESTED_AMD64 - illegal */
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_AMD64, PGM_TYPE_EPT          - illegal */
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_AMD64, PGM_TYPE_NONE         - illegal */
+
+    /* 32-bit nested paging mode: */
+    PGMMODEDATABTH_NULL_ENTRY(), /* 0 */
+    PGMMODEDATABTH_ENTRY(PGM_TYPE_NESTED_32BIT, PGM_TYPE_REAL,  PGM_BTH_NAME_NESTED_32BIT_REAL),
+    PGMMODEDATABTH_ENTRY(PGM_TYPE_NESTED_32BIT, PGM_TYPE_PROT,  PGM_BTH_NAME_NESTED_32BIT_PROT),
+    PGMMODEDATABTH_ENTRY(PGM_TYPE_NESTED_32BIT, PGM_TYPE_32BIT, PGM_BTH_NAME_NESTED_32BIT_32BIT),
+    PGMMODEDATABTH_ENTRY(PGM_TYPE_NESTED_32BIT, PGM_TYPE_PAE,   PGM_BTH_NAME_NESTED_32BIT_PAE),
+# ifdef VBOX_WITH_64_BITS_GUESTS
+    PGMMODEDATABTH_ENTRY(PGM_TYPE_NESTED_32BIT, PGM_TYPE_AMD64, PGM_BTH_NAME_NESTED_32BIT_AMD64),
+# else
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_NESTED_32BIT, PGM_TYPE_AMD64        - illegal */
+# endif
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_NESTED_32BIT, PGM_TYPE_NESTED_32BIT - illegal */
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_NESTED_32BIT, PGM_TYPE_NESTED_PAE   - illegal */
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_NESTED_32BIT, PGM_TYPE_NESTED_AMD64 - illegal */
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_NESTED_32BIT, PGM_TYPE_EPT          - illegal */
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_NESTED_32BIT, PGM_TYPE_NONE         - illegal */
+
+    /* PAE nested paging mode: */
+    PGMMODEDATABTH_NULL_ENTRY(), /* 0 */
+    PGMMODEDATABTH_ENTRY(PGM_TYPE_NESTED_PAE, PGM_TYPE_REAL,  PGM_BTH_NAME_NESTED_PAE_REAL),
+    PGMMODEDATABTH_ENTRY(PGM_TYPE_NESTED_PAE, PGM_TYPE_PROT,  PGM_BTH_NAME_NESTED_PAE_PROT),
+    PGMMODEDATABTH_ENTRY(PGM_TYPE_NESTED_PAE, PGM_TYPE_32BIT, PGM_BTH_NAME_NESTED_PAE_32BIT),
+    PGMMODEDATABTH_ENTRY(PGM_TYPE_NESTED_PAE, PGM_TYPE_PAE,   PGM_BTH_NAME_NESTED_PAE_PAE),
+# ifdef VBOX_WITH_64_BITS_GUESTS
+    PGMMODEDATABTH_ENTRY(PGM_TYPE_NESTED_PAE, PGM_TYPE_AMD64, PGM_BTH_NAME_NESTED_PAE_AMD64),
+# else
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_NESTED_PAE, PGM_TYPE_AMD64        - illegal */
+# endif
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_NESTED_PAE, PGM_TYPE_NESTED_32BIT - illegal */
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_NESTED_PAE, PGM_TYPE_NESTED_PAE   - illegal */
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_NESTED_PAE, PGM_TYPE_NESTED_AMD64 - illegal */
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_NESTED_PAE, PGM_TYPE_EPT          - illegal */
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_NESTED_PAE, PGM_TYPE_NONE         - illegal */
+
+    /* AMD64 nested paging mode: */
+    PGMMODEDATABTH_NULL_ENTRY(), /* 0 */
+    PGMMODEDATABTH_ENTRY(PGM_TYPE_NESTED_AMD64, PGM_TYPE_REAL,  PGM_BTH_NAME_NESTED_AMD64_REAL),
+    PGMMODEDATABTH_ENTRY(PGM_TYPE_NESTED_AMD64, PGM_TYPE_PROT,  PGM_BTH_NAME_NESTED_AMD64_PROT),
+    PGMMODEDATABTH_ENTRY(PGM_TYPE_NESTED_AMD64, PGM_TYPE_32BIT, PGM_BTH_NAME_NESTED_AMD64_32BIT),
+    PGMMODEDATABTH_ENTRY(PGM_TYPE_NESTED_AMD64, PGM_TYPE_PAE,   PGM_BTH_NAME_NESTED_AMD64_PAE),
+# ifdef VBOX_WITH_64_BITS_GUESTS
+    PGMMODEDATABTH_ENTRY(PGM_TYPE_NESTED_AMD64, PGM_TYPE_AMD64, PGM_BTH_NAME_NESTED_AMD64_AMD64),
+# else
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_NESTED_AMD64, PGM_TYPE_AMD64        - illegal */
+# endif
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_NESTED_AMD64, PGM_TYPE_NESTED_32BIT - illegal */
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_NESTED_AMD64, PGM_TYPE_NESTED_PAE   - illegal */
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_NESTED_AMD64, PGM_TYPE_NESTED_AMD64 - illegal */
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_NESTED_AMD64, PGM_TYPE_EPT          - illegal */
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_NESTED_AMD64, PGM_TYPE_NONE         - illegal */
+
+    /* EPT nested paging mode: */
+    PGMMODEDATABTH_NULL_ENTRY(), /* 0 */
+    PGMMODEDATABTH_ENTRY(PGM_TYPE_EPT, PGM_TYPE_REAL,  PGM_BTH_NAME_EPT_REAL),
+    PGMMODEDATABTH_ENTRY(PGM_TYPE_EPT, PGM_TYPE_PROT,  PGM_BTH_NAME_EPT_PROT),
+    PGMMODEDATABTH_ENTRY(PGM_TYPE_EPT, PGM_TYPE_32BIT, PGM_BTH_NAME_EPT_32BIT),
+    PGMMODEDATABTH_ENTRY(PGM_TYPE_EPT, PGM_TYPE_PAE,   PGM_BTH_NAME_EPT_PAE),
+# ifdef VBOX_WITH_64_BITS_GUESTS
+    PGMMODEDATABTH_ENTRY(PGM_TYPE_EPT, PGM_TYPE_AMD64, PGM_BTH_NAME_EPT_AMD64),
+# else
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_EPT, PGM_TYPE_AMD64        - illegal */
+# endif
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_EPT, PGM_TYPE_NESTED_32BIT - illegal */
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_EPT, PGM_TYPE_NESTED_PAE   - illegal */
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_EPT, PGM_TYPE_NESTED_AMD64 - illegal */
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_EPT, PGM_TYPE_EPT          - illegal */
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_EPT, PGM_TYPE_NONE         - illegal */
+
+    /* NONE / NEM: */
+    PGMMODEDATABTH_NULL_ENTRY(), /* 0 */
+    PGMMODEDATABTH_ENTRY(PGM_TYPE_NONE, PGM_TYPE_REAL,  PGM_BTH_NAME_EPT_REAL),
+    PGMMODEDATABTH_ENTRY(PGM_TYPE_NONE, PGM_TYPE_PROT,  PGM_BTH_NAME_EPT_PROT),
+    PGMMODEDATABTH_ENTRY(PGM_TYPE_NONE, PGM_TYPE_32BIT, PGM_BTH_NAME_EPT_32BIT),
+    PGMMODEDATABTH_ENTRY(PGM_TYPE_NONE, PGM_TYPE_PAE,   PGM_BTH_NAME_EPT_PAE),
+# ifdef VBOX_WITH_64_BITS_GUESTS
+    PGMMODEDATABTH_ENTRY(PGM_TYPE_NONE, PGM_TYPE_AMD64, PGM_BTH_NAME_EPT_AMD64),
+# else
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_NONE, PGM_TYPE_AMD64        - illegal */
+# endif
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_NONE, PGM_TYPE_NESTED_32BIT - illegal */
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_NONE, PGM_TYPE_NESTED_PAE   - illegal */
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_NONE, PGM_TYPE_NESTED_AMD64 - illegal */
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_NONE, PGM_TYPE_EPT          - illegal */
+    PGMMODEDATABTH_NULL_ENTRY(), /* PGM_TYPE_NONE, PGM_TYPE_NONE         - illegal */
+
+#endif /* IN_RC */
+
+#undef PGMMODEDATABTH_ENTRY
+#undef PGMMODEDATABTH_NULL_ENTRY
+};
 
 
 #ifndef IN_RING3
@@ -456,8 +970,11 @@ VMMDECL(int) PGMTrap0eHandler(PVMCPU pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRegFram
     /*
      * Call the worker.
      */
+    uintptr_t const idxBth = pVCpu->pgm.s.idxBothModeData;
+    AssertReturn(idxBth < RT_ELEMENTS(g_aPgmBothModeData), VERR_PGM_MODE_IPE);
+    AssertReturn(g_aPgmBothModeData[idxBth].pfnTrap0eHandler, VERR_PGM_MODE_IPE);
     bool fLockTaken = false;
-    int rc = PGM_BTH_PFN(Trap0eHandler, pVCpu)(pVCpu, uErr, pRegFrame, pvFault, &fLockTaken);
+    int rc = g_aPgmBothModeData[idxBth].pfnTrap0eHandler(pVCpu, uErr, pRegFrame, pvFault, &fLockTaken);
     if (fLockTaken)
     {
         PGM_LOCK_ASSERT_OWNER(pVM);
@@ -511,7 +1028,12 @@ VMMDECL(int) PGMTrap0eHandler(PVMCPU pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRegFram
 VMMDECL(int) PGMPrefetchPage(PVMCPU pVCpu, RTGCPTR GCPtrPage)
 {
     STAM_PROFILE_START(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,Prefetch), a);
-    int rc = PGM_BTH_PFN(PrefetchPage, pVCpu)(pVCpu, GCPtrPage);
+
+    uintptr_t const idxBth = pVCpu->pgm.s.idxBothModeData;
+    AssertReturn(idxBth < RT_ELEMENTS(g_aPgmBothModeData), VERR_PGM_MODE_IPE);
+    AssertReturn(g_aPgmBothModeData[idxBth].pfnPrefetchPage, VERR_PGM_MODE_IPE);
+    int rc = g_aPgmBothModeData[idxBth].pfnPrefetchPage(pVCpu, GCPtrPage);
+
     STAM_PROFILE_STOP(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,Prefetch), a);
     AssertMsg(rc == VINF_SUCCESS || rc == VINF_PGM_SYNC_CR3 || RT_FAILURE(rc), ("rc=%Rrc\n", rc));
     return rc;
@@ -653,8 +1175,11 @@ VMMDECL(int) PGMVerifyAccess(PVMCPU pVCpu, RTGCPTR Addr, uint32_t cbSize, uint32
              * Try to sync it!
              */
             Assert(X86_TRAP_PF_RW == X86_PTE_RW && X86_TRAP_PF_US == X86_PTE_US);
-            uint32_t uErr = fAccess & (X86_TRAP_PF_RW | X86_TRAP_PF_US);
-            rc = PGM_BTH_PFN(VerifyAccessSyncPage, pVCpu)(pVCpu, Addr, fPageGst, uErr);
+            uint32_t  const uErr   = fAccess & (X86_TRAP_PF_RW | X86_TRAP_PF_US);
+            uintptr_t const idxBth = pVCpu->pgm.s.idxBothModeData;
+            AssertReturn(idxBth < RT_ELEMENTS(g_aPgmBothModeData), VERR_PGM_MODE_IPE);
+            AssertReturn(g_aPgmBothModeData[idxBth].pfnVerifyAccessSyncPage, VERR_PGM_MODE_IPE);
+            rc = g_aPgmBothModeData[idxBth].pfnVerifyAccessSyncPage(pVCpu, Addr, fPageGst, uErr);
             if (rc != VINF_SUCCESS)
                 return rc;
         }
@@ -763,7 +1288,12 @@ VMMDECL(int) PGMInvalidatePage(PVMCPU pVCpu, RTGCPTR GCPtrPage)
      */
     STAM_PROFILE_START(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,InvalidatePage), a);
     pgmLock(pVM);
-    rc = PGM_BTH_PFN(InvalidatePage, pVCpu)(pVCpu, GCPtrPage);
+
+    uintptr_t const idxBth = pVCpu->pgm.s.idxBothModeData;
+    AssertReturnStmt(idxBth < RT_ELEMENTS(g_aPgmBothModeData), pgmUnlock(pVM), VERR_PGM_MODE_IPE);
+    AssertReturnStmt(g_aPgmBothModeData[idxBth].pfnInvalidatePage, pgmUnlock(pVM), VERR_PGM_MODE_IPE);
+    rc = g_aPgmBothModeData[idxBth].pfnInvalidatePage(pVCpu, GCPtrPage);
+
     pgmUnlock(pVM);
     STAM_PROFILE_STOP(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,InvalidatePage), a);
 
@@ -834,9 +1364,15 @@ VMMDECL(VBOXSTRICTRC) PGMInterpretInstruction(PVM pVM, PVMCPU pVCpu, PCPUMCTXCOR
  */
 VMMDECL(int) PGMShwGetPage(PVMCPU pVCpu, RTGCPTR GCPtr, uint64_t *pfFlags, PRTHCPHYS pHCPhys)
 {
-    pgmLock(pVCpu->CTX_SUFF(pVM));
-    int rc = PGM_SHW_PFN(GetPage, pVCpu)(pVCpu, GCPtr, pfFlags, pHCPhys);
-    pgmUnlock(pVCpu->CTX_SUFF(pVM));
+    PVM pVM = pVCpu->CTX_SUFF(pVM);
+    pgmLock(pVM);
+
+    uintptr_t idxShw = pVCpu->pgm.s.idxShadowModeData;
+    AssertReturn(idxShw < RT_ELEMENTS(g_aPgmShadowModeData), VERR_PGM_MODE_IPE);
+    AssertReturn(g_aPgmShadowModeData[idxShw].pfnGetPage, VERR_PGM_MODE_IPE);
+    int rc = g_aPgmShadowModeData[idxShw].pfnGetPage(pVCpu, GCPtr, pfFlags, pHCPhys);
+
+    pgmUnlock(pVM);
     return rc;
 }
 
@@ -864,7 +1400,12 @@ DECLINLINE(int) pdmShwModifyPage(PVMCPU pVCpu, RTGCPTR GCPtr, uint64_t fFlags, u
 
     PVM pVM = pVCpu->CTX_SUFF(pVM);
     pgmLock(pVM);
-    int rc = PGM_SHW_PFN(ModifyPage, pVCpu)(pVCpu, GCPtr, PAGE_SIZE, fFlags, fMask, fOpFlags);
+
+    uintptr_t idxShw = pVCpu->pgm.s.idxShadowModeData;
+    AssertReturn(idxShw < RT_ELEMENTS(g_aPgmShadowModeData), VERR_PGM_MODE_IPE);
+    AssertReturn(g_aPgmShadowModeData[idxShw].pfnModifyPage, VERR_PGM_MODE_IPE);
+    int rc = g_aPgmShadowModeData[idxShw].pfnModifyPage(pVCpu, GCPtr, PAGE_SIZE, fFlags, fMask, fOpFlags);
+
     pgmUnlock(pVM);
     return rc;
 }
@@ -900,7 +1441,9 @@ VMMDECL(int) PGMShwMakePageReadonly(PVMCPU pVCpu, RTGCPTR GCPtr, uint32_t fOpFla
  */
 VMMDECL(int) PGMShwMakePageWritable(PVMCPU pVCpu, RTGCPTR GCPtr, uint32_t fOpFlags)
 {
-    return pdmShwModifyPage(pVCpu, GCPtr, X86_PTE_RW, ~(uint64_t)0, fOpFlags);
+    if (pVCpu->pgm.s.enmShadowMode != PGMMODE_NONE) /* avoid assertions */
+        return pdmShwModifyPage(pVCpu, GCPtr, X86_PTE_RW, ~(uint64_t)0, fOpFlags);
+    return VINF_SUCCESS;
 }
 
 
@@ -1012,7 +1555,7 @@ int pgmShwSyncPaePDPtr(PVMCPU pVCpu, RTGCPTR GCPtr, X86PGPAEUINT uGstPdpe, PX86P
                     /* PD not present; guest must reload CR3 to change it.
                      * No need to monitor anything in this case.
                      */
-                    Assert(!HMIsEnabled(pVM));
+                    Assert(VM_IS_RAW_MODE_ENABLED(pVM));
 
                     GCPdPt  = uGstPdpe & X86_PDPE_PG_MASK;
                     enmKind = PGMPOOLKIND_PAE_PD_PHYS;
@@ -1353,6 +1896,7 @@ int pgmShwSyncNestedPageLocked(PVMCPU pVCpu, RTGCPHYS GCPhys, uint32_t cPages, P
 {
     PGM_LOCK_ASSERT_OWNER(pVCpu->CTX_SUFF(pVM));
 
+/** @todo r=bird: Gotta love this nested paging hacking we're still carrying with us... (Split PGM_TYPE_NESTED.) */
     int rc;
     switch (enmShwPagingMode)
     {
@@ -1412,7 +1956,10 @@ int pgmShwSyncNestedPageLocked(PVMCPU pVCpu, RTGCPHYS GCPhys, uint32_t cPages, P
 VMMDECL(int) PGMGstGetPage(PVMCPU pVCpu, RTGCPTR GCPtr, uint64_t *pfFlags, PRTGCPHYS pGCPhys)
 {
     VMCPU_ASSERT_EMT(pVCpu);
-    return PGM_GST_PFN(GetPage, pVCpu)(pVCpu, GCPtr, pfFlags, pGCPhys);
+    uintptr_t idx = pVCpu->pgm.s.idxGuestModeData;
+    AssertReturn(idx < RT_ELEMENTS(g_aPgmGuestModeData), VERR_PGM_MODE_IPE);
+    AssertReturn(g_aPgmGuestModeData[idx].pfnGetPage, VERR_PGM_MODE_IPE);
+    return g_aPgmGuestModeData[idx].pfnGetPage(pVCpu, GCPtr, pfFlags, pGCPhys);
 }
 
 
@@ -1430,7 +1977,7 @@ VMMDECL(int) PGMGstGetPage(PVMCPU pVCpu, RTGCPTR GCPtr, uint64_t *pfFlags, PRTGC
  *
  * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
  * @param   GCPtr       The guest virtual address to walk by.
- * @param   pWalk       Where to return the walk result. This is valid on some
+ * @param   pWalk       Where to return the walk result. This is valid for some
  *                      error codes as well.
  */
 int pgmGstPtWalk(PVMCPU pVCpu, RTGCPTR GCPtr, PPGMPTWALKGST pWalk)
@@ -1463,13 +2010,136 @@ int pgmGstPtWalk(PVMCPU pVCpu, RTGCPTR GCPtr, PPGMPTWALKGST pWalk)
         case PGMMODE_AMD64:
         case PGMMODE_AMD64_NX:
 #endif
-        case PGMMODE_NESTED:
+        case PGMMODE_NESTED_32BIT:
+        case PGMMODE_NESTED_PAE:
+        case PGMMODE_NESTED_AMD64:
         case PGMMODE_EPT:
         default:
             AssertFailed();
             pWalk->enmType = PGMPTWALKGSTTYPE_INVALID;
             return VERR_PGM_NOT_USED_IN_MODE;
     }
+}
+
+
+/**
+ * Tries to continue the previous walk.
+ *
+ * @note    Requires the caller to hold the PGM lock from the first
+ *          pgmGstPtWalk() call to the last pgmGstPtWalkNext() call.  Otherwise
+ *          we cannot use the pointers.
+ *
+ * @returns VBox status code.
+ * @retval  VINF_SUCCESS on success.
+ * @retval  VERR_PAGE_TABLE_NOT_PRESENT on failure.  Check pWalk for details.
+ * @retval  VERR_PGM_NOT_USED_IN_MODE if not paging isn't enabled. @a pWalk is
+ *          not valid, except enmType is PGMPTWALKGSTTYPE_INVALID.
+ *
+ * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
+ * @param   GCPtr       The guest virtual address to walk by.
+ * @param   pWalk       Pointer to the previous walk result and where to return
+ *                      the result of this walk.  This is valid for some error
+ *                      codes as well.
+ */
+int pgmGstPtWalkNext(PVMCPU pVCpu, RTGCPTR GCPtr, PPGMPTWALKGST pWalk)
+{
+    /*
+     * We can only handle successfully walks.
+     * We also limit ourselves to the next page.
+     */
+    if (   pWalk->u.Core.fSucceeded
+        && GCPtr - pWalk->u.Core.GCPtr == PAGE_SIZE)
+    {
+        Assert(pWalk->u.Core.uLevel == 0);
+        if (pWalk->enmType == PGMPTWALKGSTTYPE_AMD64)
+        {
+            /*
+             * AMD64
+             */
+            if (!pWalk->u.Core.fGigantPage && !pWalk->u.Core.fBigPage)
+            {
+                /*
+                 * We fall back to full walk if the PDE table changes, if any
+                 * reserved bits are set, or if the effective page access changes.
+                 */
+                const uint64_t fPteSame = X86_PTE_P   | X86_PTE_RW | X86_PTE_US     | X86_PTE_PWT
+                                        | X86_PTE_PCD | X86_PTE_A  | X86_PTE_PAE_NX;
+                const uint64_t fPdeSame = X86_PDE_P   | X86_PDE_RW | X86_PDE_US     | X86_PDE_PWT
+                                        | X86_PDE_PCD | X86_PDE_A  | X86_PDE_PAE_NX | X86_PDE_PS;
+
+                if ((GCPtr >> X86_PD_PAE_SHIFT) == (pWalk->u.Core.GCPtr >> X86_PD_PAE_SHIFT))
+                {
+                    if (pWalk->u.Amd64.pPte)
+                    {
+                        X86PTEPAE Pte;
+                        Pte.u = pWalk->u.Amd64.pPte[1].u;
+                        if (   (Pte.u & fPteSame) == (pWalk->u.Amd64.Pte.u & fPteSame)
+                            && !(Pte.u & (pVCpu)->pgm.s.fGstAmd64MbzPteMask))
+                        {
+
+                            pWalk->u.Core.GCPtr  = GCPtr;
+                            pWalk->u.Core.GCPhys = Pte.u & X86_PTE_PAE_PG_MASK;
+                            pWalk->u.Amd64.Pte.u = Pte.u;
+                            pWalk->u.Amd64.pPte++;
+                            return VINF_SUCCESS;
+                        }
+                    }
+                }
+                else if ((GCPtr >> X86_PDPT_SHIFT) == (pWalk->u.Core.GCPtr >> X86_PDPT_SHIFT))
+                {
+                    Assert(!((GCPtr >> X86_PT_PAE_SHIFT) & X86_PT_PAE_MASK)); /* Must be first PT entry. */
+                    if (pWalk->u.Amd64.pPde)
+                    {
+                        X86PDEPAE Pde;
+                        Pde.u = pWalk->u.Amd64.pPde[1].u;
+                        if (   (Pde.u & fPdeSame) == (pWalk->u.Amd64.Pde.u & fPdeSame)
+                            && !(Pde.u & (pVCpu)->pgm.s.fGstAmd64MbzPdeMask))
+                        {
+                            /* Get the new PTE and check out the first entry. */
+                            int rc = PGM_GCPHYS_2_PTR_BY_VMCPU(pVCpu, PGM_A20_APPLY(pVCpu, (Pde.u & X86_PDE_PAE_PG_MASK)),
+                                                               &pWalk->u.Amd64.pPt);
+                            if (RT_SUCCESS(rc))
+                            {
+                                pWalk->u.Amd64.pPte = &pWalk->u.Amd64.pPt->a[0];
+                                X86PTEPAE Pte;
+                                Pte.u = pWalk->u.Amd64.pPte->u;
+                                if (   (Pte.u & fPteSame) == (pWalk->u.Amd64.Pte.u & fPteSame)
+                                    && !(Pte.u & (pVCpu)->pgm.s.fGstAmd64MbzPteMask))
+                                {
+                                    pWalk->u.Core.GCPtr  = GCPtr;
+                                    pWalk->u.Core.GCPhys = Pte.u & X86_PTE_PAE_PG_MASK;
+                                    pWalk->u.Amd64.Pte.u = Pte.u;
+                                    pWalk->u.Amd64.Pde.u = Pde.u;
+                                    pWalk->u.Amd64.pPde++;
+                                    return VINF_SUCCESS;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            else if (!pWalk->u.Core.fGigantPage)
+            {
+                if ((GCPtr & X86_PAGE_2M_BASE_MASK) == (pWalk->u.Core.GCPtr & X86_PAGE_2M_BASE_MASK))
+                {
+                    pWalk->u.Core.GCPtr   = GCPtr;
+                    pWalk->u.Core.GCPhys += PAGE_SIZE;
+                    return VINF_SUCCESS;
+                }
+            }
+            else
+            {
+                if ((GCPtr & X86_PAGE_1G_BASE_MASK) == (pWalk->u.Core.GCPtr & X86_PAGE_1G_BASE_MASK))
+                {
+                    pWalk->u.Core.GCPtr   = GCPtr;
+                    pWalk->u.Core.GCPhys += PAGE_SIZE;
+                    return VINF_SUCCESS;
+                }
+            }
+        }
+    }
+    /* Case we don't handle.  Do full walk. */
+    return pgmGstPtWalk(pVCpu, GCPtr, pWalk);
 }
 
 
@@ -1541,7 +2211,10 @@ VMMDECL(int)  PGMGstModifyPage(PVMCPU pVCpu, RTGCPTR GCPtr, size_t cb, uint64_t 
     /*
      * Call worker.
      */
-    int rc = PGM_GST_PFN(ModifyPage, pVCpu)(pVCpu, GCPtr, cb, fFlags, fMask);
+    uintptr_t idx = pVCpu->pgm.s.idxGuestModeData;
+    AssertReturn(idx < RT_ELEMENTS(g_aPgmGuestModeData), VERR_PGM_MODE_IPE);
+    AssertReturn(g_aPgmGuestModeData[idx].pfnModifyPage, VERR_PGM_MODE_IPE);
+    int rc = g_aPgmGuestModeData[idx].pfnModifyPage(pVCpu, GCPtr, cb, fFlags, fMask);
 
     STAM_PROFILE_STOP(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,GstModifyPage), a);
     return rc;
@@ -1879,8 +2552,10 @@ VMMDECL(RTHCPHYS) PGMGetInterRCCR3(PVM pVM, PVMCPU pVCpu)
         case PGMMODE_AMD64_NX:
             return pVM->pgm.s.HCPhysInterPaePML4;
 
+        case PGMMODE_NESTED_32BIT:
+        case PGMMODE_NESTED_PAE:
+        case PGMMODE_NESTED_AMD64:
         case PGMMODE_EPT:
-        case PGMMODE_NESTED:
             return 0; /* not relevant */
 
         default:
@@ -1972,11 +2647,15 @@ VMMDECL(int) PGMFlushTLB(PVMCPU pVCpu, uint64_t cr3, bool fGlobal)
     }
     PGM_A20_APPLY_TO_VAR(pVCpu, GCPhysCR3);
 
-    if (pVCpu->pgm.s.GCPhysCR3 != GCPhysCR3)
+    RTGCPHYS const GCPhysOldCR3 = pVCpu->pgm.s.GCPhysCR3;
+    if (GCPhysOldCR3 != GCPhysCR3)
     {
-        RTGCPHYS GCPhysOldCR3 = pVCpu->pgm.s.GCPhysCR3;
-        pVCpu->pgm.s.GCPhysCR3  = GCPhysCR3;
-        rc = PGM_BTH_PFN(MapCR3, pVCpu)(pVCpu, GCPhysCR3);
+        uintptr_t const idxBth = pVCpu->pgm.s.idxBothModeData;
+        AssertReturn(idxBth < RT_ELEMENTS(g_aPgmBothModeData), VERR_PGM_MODE_IPE);
+        AssertReturn(g_aPgmBothModeData[idxBth].pfnMapCR3, VERR_PGM_MODE_IPE);
+
+        pVCpu->pgm.s.GCPhysCR3 = GCPhysCR3;
+        rc = g_aPgmBothModeData[idxBth].pfnMapCR3(pVCpu, GCPhysCR3);
         if (RT_LIKELY(rc == VINF_SUCCESS))
         {
             if (pgmMapAreMappingsFloating(pVM))
@@ -1985,7 +2664,7 @@ VMMDECL(int) PGMFlushTLB(PVMCPU pVCpu, uint64_t cr3, bool fGlobal)
         else
         {
             AssertMsg(rc == VINF_PGM_SYNC_CR3, ("%Rrc\n", rc));
-            Assert(VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL | VMCPU_FF_PGM_SYNC_CR3));
+            Assert(VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL | VMCPU_FF_PGM_SYNC_CR3));
             pVCpu->pgm.s.GCPhysCR3 = GCPhysOldCR3;
             pVCpu->pgm.s.fSyncFlags |= PGM_SYNC_MAP_CR3;
             if (pgmMapAreMappingsFloating(pVM))
@@ -2078,8 +2757,13 @@ VMMDECL(int) PGMUpdateCR3(PVMCPU pVCpu, uint64_t cr3)
 
     if (pVCpu->pgm.s.GCPhysCR3 != GCPhysCR3)
     {
+        uintptr_t const idxBth = pVCpu->pgm.s.idxBothModeData;
+        AssertReturn(idxBth < RT_ELEMENTS(g_aPgmBothModeData), VERR_PGM_MODE_IPE);
+        AssertReturn(g_aPgmBothModeData[idxBth].pfnMapCR3, VERR_PGM_MODE_IPE);
+
         pVCpu->pgm.s.GCPhysCR3 = GCPhysCR3;
-        rc = PGM_BTH_PFN(MapCR3, pVCpu)(pVCpu, GCPhysCR3);
+        rc = g_aPgmBothModeData[idxBth].pfnMapCR3(pVCpu, GCPhysCR3);
+
         AssertRCSuccess(rc); /* Assumes VINF_PGM_SYNC_CR3 doesn't apply to nested paging. */ /** @todo this isn't true for the mac, but we need hw to test/fix this. */
     }
 
@@ -2168,8 +2852,11 @@ VMMDECL(int) PGMSyncCR3(PVMCPU pVCpu, uint64_t cr0, uint64_t cr3, uint64_t cr4, 
 
         if (pVCpu->pgm.s.GCPhysCR3 != GCPhysCR3)
         {
+            uintptr_t const idxBth = pVCpu->pgm.s.idxBothModeData;
+            AssertReturn(idxBth < RT_ELEMENTS(g_aPgmBothModeData), VERR_PGM_MODE_IPE);
+            AssertReturn(g_aPgmBothModeData[idxBth].pfnMapCR3, VERR_PGM_MODE_IPE);
             pVCpu->pgm.s.GCPhysCR3 = GCPhysCR3;
-            rc = PGM_BTH_PFN(MapCR3, pVCpu)(pVCpu, GCPhysCR3);
+            rc = g_aPgmBothModeData[idxBth].pfnMapCR3(pVCpu, GCPhysCR3);
         }
 
         /* Make sure we check for pending pgm pool syncs as we clear VMCPU_FF_PGM_SYNC_CR3 later on! */
@@ -2193,7 +2880,12 @@ VMMDECL(int) PGMSyncCR3(PVMCPU pVCpu, uint64_t cr0, uint64_t cr3, uint64_t cr4, 
      * Let the 'Bth' function do the work and we'll just keep track of the flags.
      */
     STAM_PROFILE_START(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,SyncCR3), a);
-    rc = PGM_BTH_PFN(SyncCR3, pVCpu)(pVCpu, cr0, cr3, cr4, fGlobal);
+
+    uintptr_t const idxBth = pVCpu->pgm.s.idxBothModeData;
+    AssertReturn(idxBth < RT_ELEMENTS(g_aPgmBothModeData), VERR_PGM_MODE_IPE);
+    AssertReturn(g_aPgmBothModeData[idxBth].pfnSyncCR3, VERR_PGM_MODE_IPE);
+    rc = g_aPgmBothModeData[idxBth].pfnSyncCR3(pVCpu, cr0, cr3, cr4, fGlobal);
+
     STAM_PROFILE_STOP(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,SyncCR3), a);
     AssertMsg(rc == VINF_SUCCESS || rc == VINF_PGM_SYNC_CR3 || RT_FAILURE(rc), ("rc=%Rrc\n", rc));
     if (rc == VINF_SUCCESS)
@@ -2237,8 +2929,8 @@ VMMDECL(int) PGMSyncCR3(PVMCPU pVCpu, uint64_t cr0, uint64_t cr3, uint64_t cr4, 
  * @returns VBox status code, with the following informational code for
  *          VM scheduling.
  * @retval  VINF_SUCCESS if the was no change, or it was successfully dealt with.
- * @retval  VINF_PGM_CHANGE_MODE if we're in RC or R0 and the mode changes.
- *          (I.e. not in R3.)
+ * @retval  VINF_PGM_CHANGE_MODE if we're in RC the mode changes.  This will
+ *          NOT be returned in ring-3 or ring-0.
  * @retval  VINF_EM_SUSPEND or VINF_EM_OFF on a fatal runtime error. (R3 only)
  *
  * @param   pVCpu       The cross context virtual CPU structure.
@@ -2296,14 +2988,444 @@ VMMDECL(int) PGMChangeMode(PVMCPU pVCpu, uint64_t cr0, uint64_t cr4, uint64_t ef
     /* Flush the TLB */
     PGM_INVL_VCPU_TLBS(pVCpu);
 
-#ifdef IN_RING3
-    return PGMR3ChangeMode(pVCpu->CTX_SUFF(pVM), pVCpu, enmGuestMode);
+#ifndef IN_RC
+    return PGMHCChangeMode(pVCpu->CTX_SUFF(pVM), pVCpu, enmGuestMode);
 #else
     LogFlow(("PGMChangeMode: returns VINF_PGM_CHANGE_MODE.\n"));
     return VINF_PGM_CHANGE_MODE;
 #endif
 }
 
+#ifndef IN_RC
+
+/**
+ * Converts a PGMMODE value to a PGM_TYPE_* \#define.
+ *
+ * @returns PGM_TYPE_*.
+ * @param   pgmMode     The mode value to convert.
+ */
+DECLINLINE(unsigned) pgmModeToType(PGMMODE pgmMode)
+{
+    switch (pgmMode)
+    {
+        case PGMMODE_REAL:          return PGM_TYPE_REAL;
+        case PGMMODE_PROTECTED:     return PGM_TYPE_PROT;
+        case PGMMODE_32_BIT:        return PGM_TYPE_32BIT;
+        case PGMMODE_PAE:
+        case PGMMODE_PAE_NX:        return PGM_TYPE_PAE;
+        case PGMMODE_AMD64:
+        case PGMMODE_AMD64_NX:      return PGM_TYPE_AMD64;
+        case PGMMODE_NESTED_32BIT:  return PGM_TYPE_NESTED_32BIT;
+        case PGMMODE_NESTED_PAE:    return PGM_TYPE_NESTED_PAE;
+        case PGMMODE_NESTED_AMD64:  return PGM_TYPE_NESTED_AMD64;
+        case PGMMODE_EPT:           return PGM_TYPE_EPT;
+        case PGMMODE_NONE:          return PGM_TYPE_NONE;
+        default:
+            AssertFatalMsgFailed(("pgmMode=%d\n", pgmMode));
+    }
+}
+
+
+/**
+ * Calculates the shadow paging mode.
+ *
+ * @returns The shadow paging mode.
+ * @param   pVM             The cross context VM structure.
+ * @param   enmGuestMode    The guest mode.
+ * @param   enmHostMode     The host mode.
+ * @param   enmShadowMode   The current shadow mode.
+ * @param   penmSwitcher    Where to store the switcher to use.
+ *                          VMMSWITCHER_INVALID means no change.
+ */
+static PGMMODE pgmCalcShadowMode(PVM pVM, PGMMODE enmGuestMode, SUPPAGINGMODE enmHostMode, PGMMODE enmShadowMode,
+                                 VMMSWITCHER *penmSwitcher)
+{
+    VMMSWITCHER enmSwitcher = VMMSWITCHER_INVALID;
+    switch (enmGuestMode)
+    {
+        /*
+         * When switching to real or protected mode we don't change
+         * anything since it's likely that we'll switch back pretty soon.
+         *
+         * During pgmR3InitPaging we'll end up here with PGMMODE_INVALID
+         * and is supposed to determine which shadow paging and switcher to
+         * use during init.
+         */
+        case PGMMODE_REAL:
+        case PGMMODE_PROTECTED:
+            if (    enmShadowMode != PGMMODE_INVALID
+                && VM_IS_RAW_MODE_ENABLED(pVM) /* always switch in hm and nem modes! */)
+                break; /* (no change) */
+
+            switch (enmHostMode)
+            {
+                case SUPPAGINGMODE_32_BIT:
+                case SUPPAGINGMODE_32_BIT_GLOBAL:
+                    enmShadowMode = PGMMODE_32_BIT;
+                    enmSwitcher = VMMSWITCHER_32_TO_32;
+                    break;
+
+                case SUPPAGINGMODE_PAE:
+                case SUPPAGINGMODE_PAE_NX:
+                case SUPPAGINGMODE_PAE_GLOBAL:
+                case SUPPAGINGMODE_PAE_GLOBAL_NX:
+                    enmShadowMode = PGMMODE_PAE;
+                    enmSwitcher = VMMSWITCHER_PAE_TO_PAE;
+                    break;
+
+                case SUPPAGINGMODE_AMD64:
+                case SUPPAGINGMODE_AMD64_GLOBAL:
+                case SUPPAGINGMODE_AMD64_NX:
+                case SUPPAGINGMODE_AMD64_GLOBAL_NX:
+                    enmShadowMode = PGMMODE_PAE;
+                    enmSwitcher = VMMSWITCHER_AMD64_TO_PAE;
+                    break;
+
+                default:
+                    AssertLogRelMsgFailedReturnStmt(("enmHostMode=%d\n", enmHostMode),
+                                                    *penmSwitcher = VMMSWITCHER_INVALID, PGMMODE_INVALID);
+            }
+            break;
+
+        case PGMMODE_32_BIT:
+            switch (enmHostMode)
+            {
+                case SUPPAGINGMODE_32_BIT:
+                case SUPPAGINGMODE_32_BIT_GLOBAL:
+                    enmShadowMode = PGMMODE_32_BIT;
+                    enmSwitcher = VMMSWITCHER_32_TO_32;
+                    break;
+
+                case SUPPAGINGMODE_PAE:
+                case SUPPAGINGMODE_PAE_NX:
+                case SUPPAGINGMODE_PAE_GLOBAL:
+                case SUPPAGINGMODE_PAE_GLOBAL_NX:
+                    enmShadowMode = PGMMODE_PAE;
+                    enmSwitcher = VMMSWITCHER_PAE_TO_PAE;
+                    break;
+
+                case SUPPAGINGMODE_AMD64:
+                case SUPPAGINGMODE_AMD64_GLOBAL:
+                case SUPPAGINGMODE_AMD64_NX:
+                case SUPPAGINGMODE_AMD64_GLOBAL_NX:
+                    enmShadowMode = PGMMODE_PAE;
+                    enmSwitcher = VMMSWITCHER_AMD64_TO_PAE;
+                    break;
+
+                default:
+                    AssertLogRelMsgFailedReturnStmt(("enmHostMode=%d\n", enmHostMode),
+                                                    *penmSwitcher = VMMSWITCHER_INVALID, PGMMODE_INVALID);
+            }
+            break;
+
+        case PGMMODE_PAE:
+        case PGMMODE_PAE_NX: /** @todo This might require more switchers and guest+both modes. */
+            switch (enmHostMode)
+            {
+                case SUPPAGINGMODE_32_BIT:
+                case SUPPAGINGMODE_32_BIT_GLOBAL:
+                    enmShadowMode = PGMMODE_PAE;
+                    enmSwitcher = VMMSWITCHER_32_TO_PAE;
+                    break;
+
+                case SUPPAGINGMODE_PAE:
+                case SUPPAGINGMODE_PAE_NX:
+                case SUPPAGINGMODE_PAE_GLOBAL:
+                case SUPPAGINGMODE_PAE_GLOBAL_NX:
+                    enmShadowMode = PGMMODE_PAE;
+                    enmSwitcher = VMMSWITCHER_PAE_TO_PAE;
+                    break;
+
+                case SUPPAGINGMODE_AMD64:
+                case SUPPAGINGMODE_AMD64_GLOBAL:
+                case SUPPAGINGMODE_AMD64_NX:
+                case SUPPAGINGMODE_AMD64_GLOBAL_NX:
+                    enmShadowMode = PGMMODE_PAE;
+                    enmSwitcher = VMMSWITCHER_AMD64_TO_PAE;
+                    break;
+
+                default:
+                    AssertLogRelMsgFailedReturnStmt(("enmHostMode=%d\n", enmHostMode),
+                                                    *penmSwitcher = VMMSWITCHER_INVALID, PGMMODE_INVALID);
+            }
+            break;
+
+        case PGMMODE_AMD64:
+        case PGMMODE_AMD64_NX:
+            switch (enmHostMode)
+            {
+                case SUPPAGINGMODE_32_BIT:
+                case SUPPAGINGMODE_32_BIT_GLOBAL:
+                    enmShadowMode = PGMMODE_AMD64;
+                    enmSwitcher = VMMSWITCHER_32_TO_AMD64;
+                    break;
+
+                case SUPPAGINGMODE_PAE:
+                case SUPPAGINGMODE_PAE_NX:
+                case SUPPAGINGMODE_PAE_GLOBAL:
+                case SUPPAGINGMODE_PAE_GLOBAL_NX:
+                    enmShadowMode = PGMMODE_AMD64;
+                    enmSwitcher = VMMSWITCHER_PAE_TO_AMD64;
+                    break;
+
+                case SUPPAGINGMODE_AMD64:
+                case SUPPAGINGMODE_AMD64_GLOBAL:
+                case SUPPAGINGMODE_AMD64_NX:
+                case SUPPAGINGMODE_AMD64_GLOBAL_NX:
+                    enmShadowMode = PGMMODE_AMD64;
+                    enmSwitcher = VMMSWITCHER_AMD64_TO_AMD64;
+                    break;
+
+                default:
+                    AssertLogRelMsgFailedReturnStmt(("enmHostMode=%d\n", enmHostMode),
+                                                    *penmSwitcher = VMMSWITCHER_INVALID, PGMMODE_INVALID);
+            }
+            break;
+
+        default:
+            AssertLogRelMsgFailedReturnStmt(("enmGuestMode=%d\n", enmGuestMode),
+                                            *penmSwitcher = VMMSWITCHER_INVALID, PGMMODE_INVALID);
+    }
+
+    /*
+     * Override the shadow mode when NEM or nested paging is active.
+     */
+    if (VM_IS_NEM_ENABLED(pVM))
+    {
+        pVM->pgm.s.fNestedPaging = true;
+        enmShadowMode = PGMMODE_NONE;
+    }
+    else
+    {
+        bool fNestedPaging = HMIsNestedPagingActive(pVM);
+        pVM->pgm.s.fNestedPaging = fNestedPaging;
+        if (fNestedPaging)
+        {
+            if (HMIsVmxActive(pVM))
+                enmShadowMode = PGMMODE_EPT;
+            else
+            {
+                /* The nested SVM paging depends on the host one. */
+                Assert(HMIsSvmActive(pVM));
+                if (   enmGuestMode == PGMMODE_AMD64
+                    || enmGuestMode == PGMMODE_AMD64_NX)
+                    enmShadowMode = PGMMODE_NESTED_AMD64;
+                else
+                    switch (pVM->pgm.s.enmHostMode)
+                    {
+                        case SUPPAGINGMODE_32_BIT:
+                        case SUPPAGINGMODE_32_BIT_GLOBAL:
+                            enmShadowMode = PGMMODE_NESTED_32BIT;
+                            break;
+
+                        case SUPPAGINGMODE_PAE:
+                        case SUPPAGINGMODE_PAE_GLOBAL:
+                        case SUPPAGINGMODE_PAE_NX:
+                        case SUPPAGINGMODE_PAE_GLOBAL_NX:
+                            enmShadowMode = PGMMODE_NESTED_PAE;
+                            break;
+
+#if HC_ARCH_BITS == 64 || defined(RT_OS_DARWIN)
+                        case SUPPAGINGMODE_AMD64:
+                        case SUPPAGINGMODE_AMD64_GLOBAL:
+                        case SUPPAGINGMODE_AMD64_NX:
+                        case SUPPAGINGMODE_AMD64_GLOBAL_NX:
+                            enmShadowMode = PGMMODE_NESTED_AMD64;
+                            break;
+#endif
+                        default:
+                            AssertLogRelMsgFailedReturnStmt(("enmHostMode=%d\n", pVM->pgm.s.enmHostMode),
+                                                            *penmSwitcher = VMMSWITCHER_INVALID, PGMMODE_INVALID);
+                    }
+            }
+        }
+    }
+
+    *penmSwitcher = enmSwitcher;
+    return enmShadowMode;
+}
+
+
+/**
+ * Performs the actual mode change.
+ * This is called by PGMChangeMode and pgmR3InitPaging().
+ *
+ * @returns VBox status code. May suspend or power off the VM on error, but this
+ *          will trigger using FFs and not informational status codes.
+ *
+ * @param   pVM             The cross context VM structure.
+ * @param   pVCpu           The cross context virtual CPU structure.
+ * @param   enmGuestMode    The new guest mode. This is assumed to be different from
+ *                          the current mode.
+ */
+VMM_INT_DECL(int) PGMHCChangeMode(PVM pVM, PVMCPU pVCpu, PGMMODE enmGuestMode)
+{
+    Log(("PGMHCChangeMode: Guest mode: %s -> %s\n", PGMGetModeName(pVCpu->pgm.s.enmGuestMode), PGMGetModeName(enmGuestMode)));
+    STAM_REL_COUNTER_INC(&pVCpu->pgm.s.cGuestModeChanges);
+
+    /*
+     * Calc the shadow mode and switcher.
+     */
+    VMMSWITCHER enmSwitcher   = VMMSWITCHER_INVALID;
+    PGMMODE     enmShadowMode = PGMMODE_INVALID;
+    enmShadowMode = pgmCalcShadowMode(pVM, enmGuestMode, pVM->pgm.s.enmHostMode, pVCpu->pgm.s.enmShadowMode, &enmSwitcher);
+
+#ifdef VBOX_WITH_RAW_MODE_NOT_R0
+    if (   enmSwitcher != VMMSWITCHER_INVALID
+        && VM_IS_RAW_MODE_ENABLED(pVM))
+    {
+        /*
+         * Select new switcher.
+         */
+        int rc = VMMR3SelectSwitcher(pVM, enmSwitcher);
+        AssertLogRelMsgRCReturn(rc,("VMMR3SelectSwitcher(%d) -> %Rrc\n", enmSwitcher, rc), rc);
+    }
+#endif
+
+    /*
+     * Exit old mode(s).
+     */
+    /* shadow */
+    if (enmShadowMode != pVCpu->pgm.s.enmShadowMode)
+    {
+        LogFlow(("PGMHCChangeMode: Shadow mode: %s -> %s\n",  PGMGetModeName(pVCpu->pgm.s.enmShadowMode), PGMGetModeName(enmShadowMode)));
+        uintptr_t idxOldShw = pVCpu->pgm.s.idxShadowModeData;
+        if (   idxOldShw < RT_ELEMENTS(g_aPgmShadowModeData)
+            && g_aPgmShadowModeData[idxOldShw].pfnExit)
+        {
+            int rc = g_aPgmShadowModeData[idxOldShw].pfnExit(pVCpu);
+            AssertMsgRCReturn(rc, ("Exit failed for shadow mode %d: %Rrc\n", pVCpu->pgm.s.enmShadowMode, rc), rc);
+        }
+    }
+    else
+        LogFlow(("PGMHCChangeMode: Shadow mode remains: %s\n",  PGMGetModeName(pVCpu->pgm.s.enmShadowMode)));
+
+    /* guest */
+    uintptr_t const idxOldGst = pVCpu->pgm.s.idxGuestModeData;
+    if (   idxOldGst < RT_ELEMENTS(g_aPgmGuestModeData)
+        && g_aPgmGuestModeData[idxOldGst].pfnExit)
+    {
+        int rc = g_aPgmGuestModeData[idxOldGst].pfnExit(pVCpu);
+        AssertMsgReturn(RT_SUCCESS(rc), ("Exit failed for guest mode %d: %Rrc\n", pVCpu->pgm.s.enmGuestMode, rc), rc);
+    }
+    pVCpu->pgm.s.GCPhysCR3 = NIL_RTGCPHYS;
+
+    /*
+     * Change the paging mode data indexes.
+     */
+    uintptr_t idxNewGst = pVCpu->pgm.s.idxGuestModeData = pgmModeToType(enmGuestMode);
+    AssertReturn(idxNewGst < RT_ELEMENTS(g_aPgmGuestModeData), VERR_PGM_MODE_IPE);
+    AssertReturn(g_aPgmGuestModeData[idxNewGst].uType == idxNewGst, VERR_PGM_MODE_IPE);
+    AssertPtrReturn(g_aPgmGuestModeData[idxNewGst].pfnGetPage, VERR_PGM_MODE_IPE);
+    AssertPtrReturn(g_aPgmGuestModeData[idxNewGst].pfnModifyPage, VERR_PGM_MODE_IPE);
+    AssertPtrReturn(g_aPgmGuestModeData[idxNewGst].pfnGetPDE, VERR_PGM_MODE_IPE);
+    AssertPtrReturn(g_aPgmGuestModeData[idxNewGst].pfnExit, VERR_PGM_MODE_IPE);
+    AssertPtrReturn(g_aPgmGuestModeData[idxNewGst].pfnEnter, VERR_PGM_MODE_IPE);
+#ifdef IN_RING3
+    AssertPtrReturn(g_aPgmGuestModeData[idxNewGst].pfnRelocate, VERR_PGM_MODE_IPE);
+#endif
+
+    uintptr_t const idxNewShw = pVCpu->pgm.s.idxShadowModeData = pgmModeToType(enmShadowMode);
+    AssertReturn(idxNewShw < RT_ELEMENTS(g_aPgmShadowModeData), VERR_PGM_MODE_IPE);
+    AssertReturn(g_aPgmShadowModeData[idxNewShw].uType == idxNewShw, VERR_PGM_MODE_IPE);
+    AssertPtrReturn(g_aPgmShadowModeData[idxNewShw].pfnGetPage, VERR_PGM_MODE_IPE);
+    AssertPtrReturn(g_aPgmShadowModeData[idxNewShw].pfnModifyPage, VERR_PGM_MODE_IPE);
+    AssertPtrReturn(g_aPgmShadowModeData[idxNewShw].pfnExit, VERR_PGM_MODE_IPE);
+    AssertPtrReturn(g_aPgmShadowModeData[idxNewShw].pfnEnter, VERR_PGM_MODE_IPE);
+#ifdef IN_RING3
+    AssertPtrReturn(g_aPgmShadowModeData[idxNewShw].pfnRelocate, VERR_PGM_MODE_IPE);
+#endif
+
+    uintptr_t const idxNewBth = pVCpu->pgm.s.idxBothModeData = (idxNewShw - PGM_TYPE_FIRST_SHADOW) * PGM_TYPE_END + idxNewGst;
+    AssertReturn(g_aPgmBothModeData[idxNewBth].uShwType == idxNewShw, VERR_PGM_MODE_IPE);
+    AssertReturn(g_aPgmBothModeData[idxNewBth].uGstType == idxNewGst, VERR_PGM_MODE_IPE);
+    AssertPtrReturn(g_aPgmBothModeData[idxNewBth].pfnInvalidatePage, VERR_PGM_MODE_IPE);
+    AssertPtrReturn(g_aPgmBothModeData[idxNewBth].pfnSyncCR3, VERR_PGM_MODE_IPE);
+    AssertPtrReturn(g_aPgmBothModeData[idxNewBth].pfnPrefetchPage, VERR_PGM_MODE_IPE);
+    AssertPtrReturn(g_aPgmBothModeData[idxNewBth].pfnVerifyAccessSyncPage, VERR_PGM_MODE_IPE);
+    AssertPtrReturn(g_aPgmBothModeData[idxNewBth].pfnMapCR3, VERR_PGM_MODE_IPE);
+    AssertPtrReturn(g_aPgmBothModeData[idxNewBth].pfnUnmapCR3, VERR_PGM_MODE_IPE);
+    AssertPtrReturn(g_aPgmBothModeData[idxNewBth].pfnEnter, VERR_PGM_MODE_IPE);
+#ifdef VBOX_STRICT
+    AssertPtrReturn(g_aPgmBothModeData[idxNewBth].pfnAssertCR3, VERR_PGM_MODE_IPE);
+#endif
+
+    /*
+     * Enter new shadow mode (if changed).
+     */
+    if (enmShadowMode != pVCpu->pgm.s.enmShadowMode)
+    {
+        pVCpu->pgm.s.enmShadowMode = enmShadowMode;
+        int rc = g_aPgmShadowModeData[idxNewShw].pfnEnter(pVCpu, enmGuestMode >= PGMMODE_AMD64);
+        AssertLogRelMsgRCReturnStmt(rc, ("Entering enmShadowMode=%s failed: %Rrc\n", PGMGetModeName(enmShadowMode), rc),
+                                    pVCpu->pgm.s.enmShadowMode = PGMMODE_INVALID, rc);
+    }
+
+    /*
+     * Always flag the necessary updates
+     */
+    VMCPU_FF_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3);
+
+    /*
+     * Enter the new guest and shadow+guest modes.
+     */
+    /* Calc the new CR3 value. */
+    RTGCPHYS GCPhysCR3;
+    switch (enmGuestMode)
+    {
+        case PGMMODE_REAL:
+        case PGMMODE_PROTECTED:
+            GCPhysCR3 = NIL_RTGCPHYS;
+            break;
+
+        case PGMMODE_32_BIT:
+            GCPhysCR3 = CPUMGetGuestCR3(pVCpu) & X86_CR3_PAGE_MASK;
+            break;
+
+        case PGMMODE_PAE_NX:
+        case PGMMODE_PAE:
+            if (!pVM->cpum.ro.GuestFeatures.fPae)
+                return VMSetRuntimeError(pVM, VMSETRTERR_FLAGS_FATAL, "PAEmode",
+                                         N_("The guest is trying to switch to the PAE mode which is currently disabled by default in VirtualBox. PAE support can be enabled using the VM settings (System/Processor)"));
+            GCPhysCR3 = CPUMGetGuestCR3(pVCpu) & X86_CR3_PAE_PAGE_MASK;
+            break;
+
+#ifdef VBOX_WITH_64_BITS_GUESTS
+        case PGMMODE_AMD64_NX:
+        case PGMMODE_AMD64:
+            GCPhysCR3 = CPUMGetGuestCR3(pVCpu) & X86_CR3_AMD64_PAGE_MASK;
+            break;
+#endif
+        default:
+            AssertLogRelMsgFailedReturn(("enmGuestMode=%d\n", enmGuestMode), VERR_PGM_MODE_IPE);
+    }
+
+    /* Enter the new guest mode.  */
+    pVCpu->pgm.s.enmGuestMode = enmGuestMode;
+    int rc = g_aPgmGuestModeData[idxNewGst].pfnEnter(pVCpu, GCPhysCR3);
+    int rc2 = g_aPgmBothModeData[idxNewBth].pfnEnter(pVCpu, GCPhysCR3);
+
+    /* Set the new guest CR3. */
+    pVCpu->pgm.s.GCPhysCR3 = GCPhysCR3;
+
+    /* status codes. */
+    AssertRC(rc);
+    AssertRC(rc2);
+    if (RT_SUCCESS(rc))
+    {
+        rc = rc2;
+        if (RT_SUCCESS(rc)) /* no informational status codes. */
+            rc = VINF_SUCCESS;
+    }
+
+    /*
+     * Notify HM.
+     */
+    HMHCChangedPagingMode(pVM, pVCpu, pVCpu->pgm.s.enmShadowMode, pVCpu->pgm.s.enmGuestMode);
+    return rc;
+}
+
+#endif /* !IN_RC */
 
 /**
  * Called by CPUM or REM when CR0.WP changes to 1.
@@ -2406,17 +3528,34 @@ VMMDECL(const char *) PGMGetModeName(PGMMODE enmMode)
 {
     switch (enmMode)
     {
-        case PGMMODE_REAL:      return "Real";
-        case PGMMODE_PROTECTED: return "Protected";
-        case PGMMODE_32_BIT:    return "32-bit";
-        case PGMMODE_PAE:       return "PAE";
-        case PGMMODE_PAE_NX:    return "PAE+NX";
-        case PGMMODE_AMD64:     return "AMD64";
-        case PGMMODE_AMD64_NX:  return "AMD64+NX";
-        case PGMMODE_NESTED:    return "Nested";
-        case PGMMODE_EPT:       return "EPT";
-        default:                return "unknown mode value";
+        case PGMMODE_REAL:          return "Real";
+        case PGMMODE_PROTECTED:     return "Protected";
+        case PGMMODE_32_BIT:        return "32-bit";
+        case PGMMODE_PAE:           return "PAE";
+        case PGMMODE_PAE_NX:        return "PAE+NX";
+        case PGMMODE_AMD64:         return "AMD64";
+        case PGMMODE_AMD64_NX:      return "AMD64+NX";
+        case PGMMODE_NESTED_32BIT:  return "Nested-32";
+        case PGMMODE_NESTED_PAE:    return "Nested-PAE";
+        case PGMMODE_NESTED_AMD64:  return "Nested-AMD64";
+        case PGMMODE_EPT:           return "EPT";
+        case PGMMODE_NONE:          return "None";
+        default:                    return "unknown mode value";
     }
+}
+
+
+/**
+ * Gets the physical address represented in the guest CR3 as PGM sees it.
+ *
+ * This is mainly for logging and debugging.
+ *
+ * @returns PGM's guest CR3 value.
+ * @param   pVCpu       The cross context virtual CPU structure.
+ */
+VMM_INT_DECL(RTGCPHYS) PGMGetGuestCR3Phys(PVMCPU pVCpu)
+{
+    return pVCpu->pgm.s.GCPhysCR3;
 }
 
 
@@ -2819,11 +3958,18 @@ VMMDECL(unsigned) PGMAssertNoMappingConflicts(PVM pVM)
 VMMDECL(unsigned) PGMAssertCR3(PVM pVM, PVMCPU pVCpu, uint64_t cr3, uint64_t cr4)
 {
     STAM_PROFILE_START(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,SyncCR3), a);
+
+    uintptr_t const idxBth = pVCpu->pgm.s.idxBothModeData;
+    AssertReturn(idxBth < RT_ELEMENTS(g_aPgmBothModeData), -VERR_PGM_MODE_IPE);
+    AssertReturn(g_aPgmBothModeData[idxBth].pfnAssertCR3, -VERR_PGM_MODE_IPE);
+
     pgmLock(pVM);
-    unsigned cErrors = PGM_BTH_PFN(AssertCR3, pVCpu)(pVCpu, cr3, cr4, 0, ~(RTGCPTR)0);
+    unsigned cErrors = g_aPgmBothModeData[idxBth].pfnAssertCR3(pVCpu, cr3, cr4, 0, ~(RTGCPTR)0);
     pgmUnlock(pVM);
+
     STAM_PROFILE_STOP(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,SyncCR3), a);
     return cErrors;
 }
 
 #endif /* VBOX_STRICT */
+

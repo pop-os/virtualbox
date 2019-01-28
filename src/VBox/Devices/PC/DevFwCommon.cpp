@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -117,6 +117,8 @@ typedef struct DMIMAINHDR
     uint8_t         u8TableVersion;
 } *DMIMAINHDRPTR;
 AssertCompileSize(DMIMAINHDR, 15);
+
+AssertCompile(sizeof(SMBIOSHDR) + sizeof(DMIMAINHDR) <= VBOX_DMI_HDR_SIZE);
 
 /** DMI header */
 typedef struct DMIHDR
@@ -955,11 +957,14 @@ int FwCommonPlantDMITable(PPDMDEVINS pDevIns, uint8_t *pTable, unsigned cbMax, P
  * reset.
  *
  * @param   pDevIns         The device instance data.
+ * @param   pHdr            Pointer to the header destination.
  * @param   cbDmiTables     Size of all DMI tables planted in bytes.
  * @param   cNumDmiTables   Number of DMI tables planted.
  */
-void FwCommonPlantSmbiosAndDmiHdrs(PPDMDEVINS pDevIns, uint16_t cbDmiTables, uint16_t cNumDmiTables)
+void FwCommonPlantSmbiosAndDmiHdrs(PPDMDEVINS pDevIns, uint8_t *pHdr, uint16_t cbDmiTables, uint16_t cNumDmiTables)
 {
+    RT_NOREF(pDevIns);
+
     struct
     {
         struct SMBIOSHDR     smbios;
@@ -994,7 +999,7 @@ void FwCommonPlantSmbiosAndDmiHdrs(PPDMDEVINS pDevIns, uint16_t cbDmiTables, uin
     aBiosHeaders.smbios.u8Checksum   = fwCommonChecksum((uint8_t*)&aBiosHeaders.smbios, sizeof(aBiosHeaders.smbios));
     aBiosHeaders.dmi.u8Checksum      = fwCommonChecksum((uint8_t*)&aBiosHeaders.dmi,    sizeof(aBiosHeaders.dmi));
 
-    PDMDevHlpPhysWrite(pDevIns, 0xfe300, &aBiosHeaders, sizeof(aBiosHeaders));
+    memcpy(pHdr, &aBiosHeaders, sizeof(aBiosHeaders));
 }
 
 /**
@@ -1163,16 +1168,17 @@ void FwCommonPlantMpsTable(PPDMDEVINS pDevIns, uint8_t *pTable, unsigned cbMax, 
  *
  * Only applicable if IOAPIC is active!
  *
- * @param   pDevIns    The device instance data.
+ * @param   pDevIns         The device instance data.
+ * @param   u32MpTableAddr  The MP table physical address.
  */
-void FwCommonPlantMpsFloatPtr(PPDMDEVINS pDevIns)
+void FwCommonPlantMpsFloatPtr(PPDMDEVINS pDevIns, uint32_t u32MpTableAddr)
 {
     MPSFLOATPTR floatPtr;
     floatPtr.au8Signature[0]       = '_';
     floatPtr.au8Signature[1]       = 'M';
     floatPtr.au8Signature[2]       = 'P';
     floatPtr.au8Signature[3]       = '_';
-    floatPtr.u32MPSAddr            = VBOX_MPS_TABLE_BASE;
+    floatPtr.u32MPSAddr            = u32MpTableAddr;
     floatPtr.u8Length              = 1; /* structure size in paragraphs */
     floatPtr.u8SpecRev             = 4; /* MPS revision 1.4 */
     floatPtr.u8Checksum            = 0;

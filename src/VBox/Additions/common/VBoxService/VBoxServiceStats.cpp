@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,10 +29,6 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #if defined(RT_OS_WINDOWS)
-# ifdef TARGET_NT4
-#  undef _WIN32_WINNT
-#  define _WIN32_WINNT 0x501
-# endif
 # include <iprt/win/windows.h>
 # include <psapi.h>
 # include <winternl.h>
@@ -60,8 +56,10 @@
 #include <iprt/system.h>
 #include <iprt/time.h>
 #include <iprt/thread.h>
+#include <VBox/err.h>
 #include <VBox/VMMDev.h> /* For VMMDevReportGuestStats and indirectly VbglR3StatReport. */
 #include <VBox/VBoxGuestLib.h>
+
 #include "VBoxServiceInternal.h"
 #include "VBoxServiceUtils.h"
 

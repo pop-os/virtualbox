@@ -8,7 +8,7 @@ VirtualBox Validation Kit - USB testcase and benchmark.
 
 __copyright__ = \
 """
-Copyright (C) 2014-2017 Oracle Corporation
+Copyright (C) 2014-2019 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 118412 $"
+__version__ = "$Revision: 127855 $"
 
 
 # Standard Python imports.
@@ -49,6 +49,11 @@ from testdriver import vboxcon;
 
 # USB gadget control import
 import usbgadget;
+
+# Python 3 hacks:
+if sys.version_info[0] >= 3:
+    xrange = range; # pylint: disable=redefined-builtin,invalid-name
+
 
 class tdUsbBenchmark(vbox.TestDriver):                                      # pylint: disable=R0902
     """
@@ -378,7 +383,7 @@ class tdUsbBenchmark(vbox.TestDriver):                                      # py
 
         oUsbGadget = usbgadget.UsbGadget();
         reporter.log('Connecting to UTS: ' + sGadgetHost);
-        fRc = oUsbGadget.connectTo(30 * 1000, sGadgetHost, uPort = uGadgetPort);
+        fRc = oUsbGadget.connectTo(30 * 1000, sGadgetHost, uPort = uGadgetPort, fTryConnect = True);
         if fRc is True:
             reporter.log('Connect succeeded');
             self.oVBox.host.addUSBDeviceSource('USBIP', sGadgetHost, sGadgetHost + (':%s' % oUsbGadget.getUsbIpPort()), [], []);
@@ -411,7 +416,8 @@ class tdUsbBenchmark(vbox.TestDriver):                                      # py
 
             self.oVBox.host.removeUSBDeviceSource(sGadgetHost);
         else:
-            reporter.testFailure('Failed to connect to USB gadget');
+            reporter.log('warning: Failed to connect to USB gadget');
+            fRc = None
 
         _ = sUsbCtrl;
         return fRc;
@@ -425,7 +431,7 @@ class tdUsbBenchmark(vbox.TestDriver):                                      # py
 
         oUsbGadget = usbgadget.UsbGadget();
         reporter.log('Connecting to UTS: ' + sGadgetHost);
-        fRc = oUsbGadget.connectTo(30 * 1000, sGadgetHost,  uPort = uGadgetPort);
+        fRc = oUsbGadget.connectTo(30 * 1000, sGadgetHost,  uPort = uGadgetPort, fTryConnect = True);
         if fRc is True:
             self.oVBox.host.addUSBDeviceSource('USBIP', sGadgetHost, sGadgetHost + (':%s' % oUsbGadget.getUsbIpPort()), [], []);
 
@@ -456,13 +462,14 @@ class tdUsbBenchmark(vbox.TestDriver):                                      # py
                         self.sleep(1);
 
                 else:
-                    reporter.testFailure('Failed to impersonate test device');
+                    reporter.testFailure('Failed to create USB device filter');
 
                 oUsbGadget.disconnectFrom();
             else:
-                reporter.testFailure('Failed to connect to USB gadget');
+                reporter.testFailure('Failed to impersonate test device');
         else:
-            reporter.testFailure('Failed to create USB device filter');
+            reporter.log('warning: Failed to connect to USB gadget');
+            fRc = None
 
         return fRc;
 

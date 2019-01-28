@@ -1,10 +1,10 @@
-/* $Rev: 128123 $ */
+/* $Rev: 127855 $ */
 /** @file
  * VBoxDrv - The VirtualBox Support Driver - Linux specifics.
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -144,9 +144,9 @@ static int force_async_tsc = 0;
  * Memory for the executable memory heap (in IPRT).
  */
 # ifdef DEBUG
-#  define EXEC_MEMORY_SIZE   6291456    /* 6 MB */
+#  define EXEC_MEMORY_SIZE   8388608    /* 8 MB */
 # else
-#  define EXEC_MEMORY_SIZE   1572864    /* 1.5 MB */
+#  define EXEC_MEMORY_SIZE   2097152    /* 2 MB */
 # endif
 extern uint8_t g_abExecMemory[EXEC_MEMORY_SIZE];
 # ifndef VBOX_WITH_TEXT_MODMEM_HACK
@@ -581,21 +581,18 @@ static int VBoxDrvLinuxIOCtl(struct inode *pInode, struct file *pFilp, unsigned 
      * Deal with the two high-speed IOCtl that takes it's arguments from
      * the session and iCmd, and only returns a VBox status code.
      */
+    AssertCompile(_IOC_NRSHIFT == 0 && _IOC_NRBITS == 8);
 #ifdef HAVE_UNLOCKED_IOCTL
-    if (RT_LIKELY(   (   uCmd == SUP_IOCTL_FAST_DO_RAW_RUN
-                      || uCmd == SUP_IOCTL_FAST_DO_HM_RUN
-                      || uCmd == SUP_IOCTL_FAST_DO_NOP)
-                  && pSession->fUnrestricted == true))
-        rc = supdrvIOCtlFast(uCmd, ulArg, &g_DevExt, pSession);
+    if (RT_LIKELY(   (unsigned int)(uCmd - SUP_IOCTL_FAST_DO_FIRST) < (unsigned int)32
+                  && pSession->fUnrestricted))
+        rc = supdrvIOCtlFast(uCmd - SUP_IOCTL_FAST_DO_FIRST, ulArg, &g_DevExt, pSession);
     else
         rc = VBoxDrvLinuxIOCtlSlow(pFilp, uCmd, ulArg, pSession);
 #else   /* !HAVE_UNLOCKED_IOCTL */
     unlock_kernel();
-    if (RT_LIKELY(   (   uCmd == SUP_IOCTL_FAST_DO_RAW_RUN
-                      || uCmd == SUP_IOCTL_FAST_DO_HM_RUN
-                      || uCmd == SUP_IOCTL_FAST_DO_NOP)
-                  && pSession->fUnrestricted == true))
-        rc = supdrvIOCtlFast(uCmd, ulArg, &g_DevExt, pSession);
+    if (RT_LIKELY(   (unsigned int)(uCmd - SUP_IOCTL_FAST_DO_FIRST) < (unsigned int)32
+                  && pSession->fUnrestricted))
+        rc = supdrvIOCtlFast(uCmd - SUP_IOCTL_FAST_DO_FIRST, ulArg, &g_DevExt, pSession);
     else
         rc = VBoxDrvLinuxIOCtlSlow(pFilp, uCmd, ulArg, pSession);
     lock_kernel();

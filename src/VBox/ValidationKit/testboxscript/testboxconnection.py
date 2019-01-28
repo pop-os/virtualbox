@@ -7,7 +7,7 @@ TestBox Script - HTTP Connection Handling.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2017 Oracle Corporation
+Copyright (C) 2012-2019 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,14 +26,19 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 118412 $"
+__version__ = "$Revision: 127855 $"
 
 
 # Standard python imports.
-import httplib
-import urllib
-import urlparse
-import sys
+import sys;
+if sys.version_info[0] >= 3:
+    import http.client as httplib;                          # pylint: disable=import-error,no-name-in-module
+    import urllib.parse as urlparse;                        # pylint: disable=import-error,no-name-in-module
+    from urllib.parse import urlencode as urllib_urlencode; # pylint: disable=import-error,no-name-in-module
+else:
+    import httplib;                                         # pylint: disable=import-error,no-name-in-module
+    import urlparse;                                        # pylint: disable=import-error,no-name-in-module
+    from urllib import urlencode as urllib_urlencode;       # pylint: disable=import-error,no-name-in-module
 
 # Validation Kit imports.
 from common import constants
@@ -54,6 +59,7 @@ class TestBoxResponse(object):
         if oResponse is not None:
             # Read the whole response (so we can log it).
             sBody = oResponse.read();
+            sBody = sBody.decode('utf-8');
 
             # Check the content type.
             sContentType = oResponse.getheader('Content-Type');
@@ -194,7 +200,7 @@ class TestBoxConnection(object):
         };
         sServerPath = '/%s/testboxdisp.py' % (self._oParsedUrl.path.strip('/'),); # pylint: disable=E1101
         dParams[constants.tbreq.ALL_PARAM_ACTION] = sAction;
-        sBody = urllib.urlencode(dParams);
+        sBody = urllib_urlencode(dParams);
         ##testboxcommons.log2('sServerPath=%s' % (sServerPath,));
         try:
             self._oConn.request('POST', sServerPath, sBody, dHeader);

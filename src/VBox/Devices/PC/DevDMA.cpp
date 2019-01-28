@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -51,9 +51,6 @@
 #include <VBox/log.h>
 #include <iprt/assert.h>
 #include <iprt/string.h>
-
-#include <stdio.h>
-#include <stdlib.h>
 
 #include "VBoxDD.h"
 
@@ -104,13 +101,14 @@
 
 /* State information for a single DMA channel. */
 typedef struct {
-    void                    *pvUser;        /* User specific context. */
-    PFNDMATRANSFERHANDLER   pfnXferHandler; /* Transfer handler for channel. */
-    uint16_t                u16BaseAddr;    /* Base address for transfers. */
-    uint16_t                u16BaseCount;   /* Base count for transfers. */
-    uint16_t                u16CurAddr;     /* Current address. */
-    uint16_t                u16CurCount;    /* Current count. */
-    uint8_t                 u8Mode;         /* Channel mode. */
+    RTR3PTR                             pvUser;         /* User specific context. */
+    R3PTRTYPE(PFNDMATRANSFERHANDLER)    pfnXferHandler; /* Transfer handler for channel. */
+    uint16_t                            u16BaseAddr;    /* Base address for transfers. */
+    uint16_t                            u16BaseCount;   /* Base count for transfers. */
+    uint16_t                            u16CurAddr;     /* Current address. */
+    uint16_t                            u16CurCount;    /* Current count. */
+    uint8_t                             u8Mode;         /* Channel mode. */
+    uint8_t                             abPadding[7];
 } DMAChannel;
 
 /* State information for a DMA controller (DMA8 or DMA16). */
@@ -124,14 +122,18 @@ typedef struct {
     uint8_t     u8Temp;         /* Temporary (mem/mem) register. */
     uint8_t     u8ModeCtr;      /* Mode register counter for reads. */
     bool        fHiByte;        /* Byte pointer (T/F -> high/low). */
+    uint8_t     abPadding0[2];
     uint32_t    is16bit;        /* True for 16-bit DMA. */
+    uint8_t     abPadding1[4];
 } DMAControl;
 
 /* Complete DMA state information. */
 typedef struct {
-    PPDMDEVINS      pDevIns;    /* Device instance. */
-    PCPDMDMACHLP    pHlp;       /* PDM DMA helpers. */
-    DMAControl      DMAC[2];    /* Two DMA controllers. */
+    PPDMDEVINSR3            pDevIns;    /* Device instance. */
+    R3PTRTYPE(PCPDMDMACHLP) pHlp;       /* PDM DMA helpers. */
+    DMAControl              DMAC[2];    /* Two DMA controllers. */
+    bool                    fRZEnabled;
+    uint8_t                 abPadding[7];
 } DMAState;
 
 /* DMA command register bits. */
@@ -188,27 +190,32 @@ enum {
     DTYPE_ILLEGAL   /* Undefined. */
 };
 
+#ifndef VBOX_DEVICE_STRUCT_TESTCASE
+
+
 /* Convert DMA channel number (0-7) to controller number (0-1). */
-#define DMACH2C(c)      (c < 4 ? 0 : 1)
+#define DMACH2C(c)          (c < 4 ? 0 : 1)
 
 #ifdef LOG_ENABLED
-static int dmaChannelMap[8] = {-1, 2, 3, 1, -1, -1, -1, 0};
+static int const g_aiDmaChannelMap[8] = {-1, 2, 3, 1, -1, -1, -1, 0};
 /* Map a DMA page register offset (0-7) to channel index (0-3). */
-#define DMAPG2CX(c)     (dmaChannelMap[c])
+# define DMAPG2CX(c)        (g_aiDmaChannelMap[c])
 #endif
 
-static int dmaMapChannel[4] = {7, 3, 1, 2};
+#ifdef IN_RING3
+static int const g_aiDmaMapChannel[4] = {7, 3, 1, 2};
 /* Map a channel index (0-3) to DMA page register offset (0-7). */
-#define DMACX2PG(c)     (dmaMapChannel[c])
+# define DMACX2PG(c)        (g_aiDmaMapChannel[c])
 /* Map a channel number (0-7) to DMA page register offset (0-7). */
-#define DMACH2PG(c)     (dmaMapChannel[c & 3])
+# define DMACH2PG(c)        (g_aiDmaMapChannel[c & 3])
+#endif
 
 /* Test the decrement bit of mode register. */
-#define IS_MODE_DEC(c)  ((c) & 0x20)
+#define IS_MODE_DEC(c)      ((c) & 0x20)
 /* Test the auto-init bit of mode register. */
-#define IS_MODE_AI(c)   ((c) & 0x10)
+#define IS_MODE_AI(c)       ((c) & 0x10)
 /* Extract the transfer type bits of mode register. */
-#define GET_MODE_XTYP(c)(((c) & 0x0c) >> 2)
+#define GET_MODE_XTYP(c)    (((c) & 0x0c) >> 2)
 
 
 /* Perform a master clear (reset) on a DMA controller. */
@@ -226,11 +233,9 @@ static void dmaClear(DMAControl *dc)
 /** Read the byte pointer and flip it. */
 DECLINLINE(bool) dmaReadBytePtr(DMAControl *dc)
 {
-    bool    bHighByte;
-
-    bHighByte = !!dc->fHiByte;
+    bool fHighByte = !!dc->fHiByte;
     dc->fHiByte ^= 1;
-    return bHighByte;
+    return fHighByte;
 }
 
 
@@ -239,7 +244,7 @@ DECLINLINE(bool) dmaReadBytePtr(DMAControl *dc)
 /**
  * @callback_method_impl{FNIOMIOPORTOUT, Ports 0-7 & 0xc0-0xcf}
  */
-static DECLCALLBACK(int) dmaWriteAddr(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT port, uint32_t u32, unsigned cb)
+PDMBOTHCBDECL(int) dmaWriteAddr(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT port, uint32_t u32, unsigned cb)
 {
     RT_NOREF(pDevIns);
     if (cb == 1)
@@ -288,7 +293,7 @@ static DECLCALLBACK(int) dmaWriteAddr(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT
 /**
  * @callback_method_impl{FNIOMIOPORTIN, Ports 0-7 & 0xc0-0xcf}
  */
-static DECLCALLBACK(int) dmaReadAddr(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT port, uint32_t *pu32, unsigned cb)
+PDMBOTHCBDECL(int) dmaReadAddr(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT port, uint32_t *pu32, unsigned cb)
 {
     RT_NOREF(pDevIns);
     if (cb == 1)
@@ -322,7 +327,7 @@ static DECLCALLBACK(int) dmaReadAddr(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT 
 /**
  * @callback_method_impl{FNIOMIOPORTOUT, Ports 0x8-0xf & 0xd0-0xdf}
  */
-static DECLCALLBACK(int) dmaWriteCtl(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT port, uint32_t u32, unsigned cb)
+PDMBOTHCBDECL(int) dmaWriteCtl(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT port, uint32_t u32, unsigned cb)
 {
     RT_NOREF(pDevIns);
     if (cb == 1)
@@ -406,7 +411,7 @@ static DECLCALLBACK(int) dmaWriteCtl(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT 
 /**
  * @callback_method_impl{FNIOMIOPORTIN, Ports 0x8-0xf & 0xd0-0xdf}
  */
-static DECLCALLBACK(int) dmaReadCtl(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT port, uint32_t *pu32, unsigned cb)
+PDMBOTHCBDECL(int) dmaReadCtl(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT port, uint32_t *pu32, unsigned cb)
 {
     RT_NOREF(pDevIns);
     if (cb == 1)
@@ -459,8 +464,7 @@ static DECLCALLBACK(int) dmaReadCtl(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT p
     return VERR_IOM_IOPORT_UNUSED;
 }
 
-/**
- */
+
 
 /**
  * @callback_method_impl{FNIOMIOPORTIN,
@@ -471,7 +475,7 @@ static DECLCALLBACK(int) dmaReadCtl(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT p
  * port 80h may be read to insert small delays or used as a scratch register by
  * a BIOS.
  */
-static DECLCALLBACK(int) dmaReadPage(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT port, uint32_t *pu32, unsigned cb)
+PDMBOTHCBDECL(int) dmaReadPage(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT port, uint32_t *pu32, unsigned cb)
 {
     RT_NOREF(pDevIns);
     DMAControl  *dc = (DMAControl *)pvUser;
@@ -503,7 +507,7 @@ static DECLCALLBACK(int) dmaReadPage(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT 
  * @callback_method_impl{FNIOMIOPORTOUT,
  *      DMA page registers - Ports 0x80-0x87 & 0x88-0x8f}
  */
-static DECLCALLBACK(int) dmaWritePage(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT port, uint32_t u32, unsigned cb)
+PDMBOTHCBDECL(int) dmaWritePage(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT port, uint32_t u32, unsigned cb)
 {
     RT_NOREF(pDevIns);
     DMAControl  *dc = (DMAControl *)pvUser;
@@ -543,7 +547,7 @@ static DECLCALLBACK(int) dmaWritePage(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT
  *      EISA style high page registers for extending the DMA addresses to cover
  *      the entire 32-bit address space.  Ports 0x480-0x487 & 0x488-0x48f}
  */
-static DECLCALLBACK(int) dmaReadHiPage(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT port, uint32_t *pu32, unsigned cb)
+PDMBOTHCBDECL(int) dmaReadHiPage(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT port, uint32_t *pu32, unsigned cb)
 {
     RT_NOREF(pDevIns);
     if (cb == 1)
@@ -564,7 +568,7 @@ static DECLCALLBACK(int) dmaReadHiPage(PPDMDEVINS pDevIns, void *pvUser, RTIOPOR
 /**
  * @callback_method_impl{FNIOMIOPORTOUT, Ports 0x480-0x487 & 0x488-0x48f}
  */
-static DECLCALLBACK(int) dmaWriteHiPage(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT port, uint32_t u32, unsigned cb)
+PDMBOTHCBDECL(int) dmaWriteHiPage(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT port, uint32_t u32, unsigned cb)
 {
     RT_NOREF(pDevIns);
     if (cb == 1)
@@ -586,6 +590,9 @@ static DECLCALLBACK(int) dmaWriteHiPage(PPDMDEVINS pDevIns, void *pvUser, RTIOPO
     }
     return VINF_SUCCESS;
 }
+
+
+#ifdef IN_RING3
 
 /** Perform any pending transfers on a single DMA channel. */
 static void dmaRunChannel(DMAState *pThis, int ctlidx, int chidx)
@@ -841,33 +848,113 @@ static DECLCALLBACK(void) dmaReset(PPDMDEVINS pDevIns)
 }
 
 /** Register DMA I/O port handlers. */
-static void dmaIORegister(PPDMDEVINS pDevIns, bool fHighPage)
+static int dmaIORegister(PPDMDEVINS pDevIns, bool fHighPage)
 {
     DMAState    *pThis = PDMINS_2_DATA(pDevIns, DMAState *);
     DMAControl  *dc8   = &pThis->DMAC[0];
     DMAControl  *dc16  = &pThis->DMAC[1];
+    int          rc;
 
     dc8->is16bit  = false;
     dc16->is16bit = true;
 
     /* Base and current address for each channel. */
-    PDMDevHlpIOPortRegister(pThis->pDevIns, 0x00, 8, dc8,       dmaWriteAddr,   dmaReadAddr,   NULL, NULL, "DMA8 Address");
-    PDMDevHlpIOPortRegister(pThis->pDevIns, 0xC0, 16, dc16,     dmaWriteAddr,   dmaReadAddr,   NULL, NULL, "DMA16 Address");
+    rc = PDMDevHlpIOPortRegister(pThis->pDevIns, 0x00, 8, dc8,       dmaWriteAddr,   dmaReadAddr,   NULL, NULL, "DMA8 Address");
+    AssertLogRelRCReturn(rc, rc);
+    rc = PDMDevHlpIOPortRegister(pThis->pDevIns, 0xC0, 16, dc16,     dmaWriteAddr,   dmaReadAddr,   NULL, NULL, "DMA16 Address");
+    AssertLogRelRCReturn(rc, rc);
 
     /* Control registers for both DMA controllers. */
-    PDMDevHlpIOPortRegister(pThis->pDevIns, 0x08, 8, dc8,       dmaWriteCtl,    dmaReadCtl,    NULL, NULL, "DMA8 Control");
-    PDMDevHlpIOPortRegister(pThis->pDevIns, 0xD0, 16, dc16,     dmaWriteCtl,    dmaReadCtl,    NULL, NULL, "DMA16 Control");
+    rc = PDMDevHlpIOPortRegister(pThis->pDevIns, 0x08, 8, dc8,       dmaWriteCtl,    dmaReadCtl,    NULL, NULL, "DMA8 Control");
+    AssertLogRelRCReturn(rc, rc);
+    rc = PDMDevHlpIOPortRegister(pThis->pDevIns, 0xD0, 16, dc16,     dmaWriteCtl,    dmaReadCtl,    NULL, NULL, "DMA16 Control");
+    AssertLogRelRCReturn(rc, rc);
 
     /* Page registers for each channel (plus a few unused ones). */
-    PDMDevHlpIOPortRegister(pThis->pDevIns, 0x80, 8, dc8,       dmaWritePage,   dmaReadPage,   NULL, NULL, "DMA8 Page");
-    PDMDevHlpIOPortRegister(pThis->pDevIns, 0x88, 8, dc16,      dmaWritePage,   dmaReadPage,   NULL, NULL, "DMA16 Page");
+    rc = PDMDevHlpIOPortRegister(pThis->pDevIns, 0x80, 8, dc8,       dmaWritePage,   dmaReadPage,   NULL, NULL, "DMA8 Page");
+    AssertLogRelRCReturn(rc, rc);
+    rc = PDMDevHlpIOPortRegister(pThis->pDevIns, 0x88, 8, dc16,      dmaWritePage,   dmaReadPage,   NULL, NULL, "DMA16 Page");
+    AssertLogRelRCReturn(rc, rc);
 
     /* Optional EISA style high page registers (address bits 24-31). */
     if (fHighPage)
     {
-        PDMDevHlpIOPortRegister(pThis->pDevIns, 0x480, 8, dc8,  dmaWriteHiPage, dmaReadHiPage, NULL, NULL, "DMA8 Page High");
-        PDMDevHlpIOPortRegister(pThis->pDevIns, 0x488, 8, dc16, dmaWriteHiPage, dmaReadHiPage, NULL, NULL, "DMA16 Page High");
+        rc = PDMDevHlpIOPortRegister(pThis->pDevIns, 0x480, 8, dc8,  dmaWriteHiPage, dmaReadHiPage, NULL, NULL, "DMA8 Page High");
+        AssertLogRelRCReturn(rc, rc);
+        rc = PDMDevHlpIOPortRegister(pThis->pDevIns, 0x488, 8, dc16, dmaWriteHiPage, dmaReadHiPage, NULL, NULL, "DMA16 Page High");
+        AssertLogRelRCReturn(rc, rc);
     }
+
+    if (pThis->fRZEnabled)
+    {
+        /*
+         * Ditto for raw-mode.
+         */
+        RTRCPTR RCPtrDc8  = PDMINS_2_DATA_RCPTR(pDevIns) + RT_OFFSETOF(DMAState, DMAC[0]);
+        RTRCPTR RCPtrDc16 = PDMINS_2_DATA_RCPTR(pDevIns) + RT_OFFSETOF(DMAState, DMAC[1]);
+
+        /* Base and current address for each channel. */
+        rc = PDMDevHlpIOPortRegisterRC(pThis->pDevIns, 0x00, 8, RCPtrDc8,       "dmaWriteAddr",   "dmaReadAddr",   NULL, NULL, "DMA8 Address");
+        AssertLogRelRCReturn(rc, rc);
+        rc = PDMDevHlpIOPortRegisterRC(pThis->pDevIns, 0xC0, 16, RCPtrDc16,     "dmaWriteAddr",   "dmaReadAddr",   NULL, NULL, "DMA16 Address");
+        AssertLogRelRCReturn(rc, rc);
+
+        /* Control registers for both DMA controllers. */
+        rc = PDMDevHlpIOPortRegisterRC(pThis->pDevIns, 0x08, 8, RCPtrDc8,       "dmaWriteCtl",    "dmaReadCtl",    NULL, NULL, "DMA8 Control");
+        AssertLogRelRCReturn(rc, rc);
+        rc = PDMDevHlpIOPortRegisterRC(pThis->pDevIns, 0xD0, 16, RCPtrDc16,     "dmaWriteCtl",    "dmaReadCtl",    NULL, NULL, "DMA16 Control");
+        AssertLogRelRCReturn(rc, rc);
+
+        /* Page registers for each channel (plus a few unused ones). */
+        rc = PDMDevHlpIOPortRegisterRC(pThis->pDevIns, 0x80, 8, RCPtrDc8,       "dmaWritePage",   "dmaReadPage",   NULL, NULL, "DMA8 Page");
+        AssertLogRelRCReturn(rc, rc);
+        rc = PDMDevHlpIOPortRegisterRC(pThis->pDevIns, 0x88, 8, RCPtrDc16,      "dmaWritePage",   "dmaReadPage",   NULL, NULL, "DMA16 Page");
+        AssertLogRelRCReturn(rc, rc);
+
+        /* Optional EISA style high page registers (address bits 24-31). */
+        if (fHighPage)
+        {
+            rc = PDMDevHlpIOPortRegisterRC(pThis->pDevIns, 0x480, 8, RCPtrDc8,  "dmaWriteHiPage", "dmaReadHiPage", NULL, NULL, "DMA8 Page High");
+            AssertLogRelRCReturn(rc, rc);
+            rc = PDMDevHlpIOPortRegisterRC(pThis->pDevIns, 0x488, 8, RCPtrDc16, "dmaWriteHiPage", "dmaReadHiPage", NULL, NULL, "DMA16 Page High");
+            AssertLogRelRCReturn(rc, rc);
+        }
+
+        /*
+         * Ditto for ring-0.
+         */
+        RTR0PTR R0PtrDc8  = PDMINS_2_DATA_R0PTR(pDevIns) + RT_OFFSETOF(DMAState, DMAC[0]);
+        RTR0PTR R0PtrDc16 = PDMINS_2_DATA_R0PTR(pDevIns) + RT_OFFSETOF(DMAState, DMAC[1]);
+
+        /* Base and current address for each channel. */
+        rc = PDMDevHlpIOPortRegisterR0(pThis->pDevIns, 0x00, 8, R0PtrDc8,       "dmaWriteAddr",   "dmaReadAddr",   NULL, NULL, "DMA8 Address");
+        AssertLogRelRCReturn(rc, rc);
+        rc = PDMDevHlpIOPortRegisterR0(pThis->pDevIns, 0xC0, 16, R0PtrDc16,     "dmaWriteAddr",   "dmaReadAddr",   NULL, NULL, "DMA16 Address");
+        AssertLogRelRCReturn(rc, rc);
+
+        /* Control registers for both DMA controllers. */
+        rc = PDMDevHlpIOPortRegisterR0(pThis->pDevIns, 0x08, 8, R0PtrDc8,       "dmaWriteCtl",    "dmaReadCtl",    NULL, NULL, "DMA8 Control");
+        AssertLogRelRCReturn(rc, rc);
+        rc = PDMDevHlpIOPortRegisterR0(pThis->pDevIns, 0xD0, 16, R0PtrDc16,     "dmaWriteCtl",    "dmaReadCtl",    NULL, NULL, "DMA16 Control");
+        AssertLogRelRCReturn(rc, rc);
+
+        /* Page registers for each channel (plus a few unused ones). */
+        rc = PDMDevHlpIOPortRegisterR0(pThis->pDevIns, 0x80, 8, R0PtrDc8,       "dmaWritePage",   "dmaReadPage",   NULL, NULL, "DMA8 Page");
+        AssertLogRelRCReturn(rc, rc);
+        rc = PDMDevHlpIOPortRegisterR0(pThis->pDevIns, 0x88, 8, R0PtrDc16,      "dmaWritePage",   "dmaReadPage",   NULL, NULL, "DMA16 Page");
+        AssertLogRelRCReturn(rc, rc);
+
+        /* Optional EISA style high page registers (address bits 24-31). */
+        if (fHighPage)
+        {
+            rc = PDMDevHlpIOPortRegisterR0(pThis->pDevIns, 0x480, 8, R0PtrDc8,  "dmaWriteHiPage", "dmaReadHiPage", NULL, NULL, "DMA8 Page High");
+            AssertLogRelRCReturn(rc, rc);
+            rc = PDMDevHlpIOPortRegisterR0(pThis->pDevIns, 0x488, 8, R0PtrDc16, "dmaWriteHiPage", "dmaReadHiPage", NULL, NULL, "DMA16 Page High");
+            AssertLogRelRCReturn(rc, rc);
+        }
+    }
+
+    return VINF_SUCCESS;
 }
 
 static void dmaSaveController(PSSMHANDLE pSSM, DMAControl *dc)
@@ -993,7 +1080,8 @@ static DECLCALLBACK(int) dmaConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
     /*
      * Validate configuration.
      */
-    if (!CFGMR3AreValuesValid(pCfg, "\0")) /* "HighPageEnable\0")) */
+    if (!CFGMR3AreValuesValid(pCfg, "RZEnabled\0"
+                                    "\0")) /* "HighPageEnable\0")) */
         return VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES;
 
     bool        bHighPage = false;
@@ -1003,7 +1091,12 @@ static DECLCALLBACK(int) dmaConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
         return rc;
 #endif
 
-    dmaIORegister(pDevIns, bHighPage);
+    int rc = CFGMR3QueryBoolDef(pCfg, "RZEnabled", &pThis->fRZEnabled, true);
+    AssertLogRelRCReturn(rc, rc);
+
+    rc = dmaIORegister(pDevIns, bHighPage);
+    AssertLogRelRCReturn(rc, rc);
+
     dmaReset(pDevIns);
 
     PDMDMACREG Reg;
@@ -1015,7 +1108,7 @@ static DECLCALLBACK(int) dmaConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
     Reg.pfnSetDREQ        = dmaSetDREQ;
     Reg.pfnGetChannelMode = dmaGetChannelMode;
 
-    int rc = PDMDevHlpDMACRegister(pDevIns, &Reg, &pThis->pHlp);
+    rc = PDMDevHlpDMACRegister(pDevIns, &Reg, &pThis->pHlp);
     if (RT_FAILURE (rc))
         return rc;
 
@@ -1036,13 +1129,13 @@ const PDMDEVREG g_DeviceDMA =
     /* szName */
     "8237A",
     /* szRCMod */
-    "",
+    "VBoxDDRC.rc",
     /* szR0Mod */
-    "",
+    "VBoxDDR0.r0",
     /* pszDescription */
     "DMA Controller Device",
     /* fFlags */
-    PDM_DEVREG_FLAGS_DEFAULT_BITS,
+    PDM_DEVREG_FLAGS_DEFAULT_BITS | PDM_DEVREG_FLAGS_R0 | PDM_DEVREG_FLAGS_RC,
     /* fClass */
     PDM_DEVREG_CLASS_DMA,
     /* cMaxInstances */
@@ -1080,3 +1173,6 @@ const PDMDEVREG g_DeviceDMA =
     /* u32VersionEnd */
     PDM_DEVREG_VERSION
 };
+#endif /* IN_RING3 */
+#endif /* !VBOX_DEVICE_STRUCT_TESTCASE */
+

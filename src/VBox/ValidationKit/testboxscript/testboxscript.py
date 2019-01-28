@@ -9,9 +9,11 @@ This script aimes at respawning the Test Box Script when it terminates
 abnormally or due to an UPGRADE request.
 """
 
+from __future__ import print_function;
+
 __copyright__ = \
 """
-Copyright (C) 2012-2017 Oracle Corporation
+Copyright (C) 2012-2019 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -30,7 +32,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 118412 $"
+__version__ = "$Revision: 127855 $"
 
 import platform;
 import subprocess;
@@ -66,10 +68,10 @@ class TestBoxScriptWrapper(object): # pylint: disable=R0903
         Cleanup
         """
         if self.oTask is not None:
-            print 'Wait for child task...'
+            print('Wait for child task...');
             self.oTask.terminate()
             self.oTask.wait()
-            print 'done. Exiting'
+            print('done. Exiting');
             self.oTask = None;
 
     def run(self):
@@ -107,10 +109,10 @@ class TestBoxScriptWrapper(object): # pylint: disable=R0903
         # Execute the testbox script almost forever in a relaxed loop.
         rcExit = TBS_EXITCODE_FAILURE;
         while True:
-            self.oTask = subprocess.Popen(asArgs,
-                                          shell = False,
-                                          creationflags = (0 if platform.system() != 'Windows'
-                                                           else subprocess.CREATE_NEW_PROCESS_GROUP)); # for Ctrl-C isolation
+            fCreationFlags = 0;
+            if platform.system() == 'Windows':
+                fCreationFlags = getattr(subprocess, 'CREATE_NEW_PROCESS_GROUP', 0x00000200); # for Ctrl-C isolation (python 2.7)
+            self.oTask = subprocess.Popen(asArgs, shell = False, creationflags = fCreationFlags);
             rcExit = self.oTask.wait();
             self.oTask = None;
             if rcExit == TBS_EXITCODE_SYNTAX:

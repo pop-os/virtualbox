@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,59 +15,97 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UINameAndSystemEditor_h___
-#define ___UINameAndSystemEditor_h___
+#ifndef FEQT_INCLUDED_SRC_widgets_UINameAndSystemEditor_h
+#define FEQT_INCLUDED_SRC_widgets_UINameAndSystemEditor_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Qt includes: */
 #include <QWidget>
 
 /* GUI includes: */
 #include "QIWithRetranslateUI.h"
-#include "VBoxGlobal.h"
+#include "UILibraryDefs.h"
+
+/* COM includes: */
+#include "COMEnums.h"
+#include "CGuestOSType.h"
 
 /* Forward declarations: */
-class QLabel;
-class QLineEdit;
 class QComboBox;
+class QLabel;
+class QILineEdit;
+class QString;
 class UIFilePathSelector;
 
-/** QWidget extension providing complex editor for basic VM parameters. */
-class UINameAndSystemEditor : public QIWithRetranslateUI<QWidget>
+/** QWidget subclass providing complex editor for basic VM parameters. */
+class SHARED_LIBRARY_STUFF UINameAndSystemEditor : public QIWithRetranslateUI<QWidget>
 {
     Q_OBJECT;
     Q_PROPERTY(QString name READ name WRITE setName);
     Q_PROPERTY(CGuestOSType type READ type WRITE setType);
 
+    /** Simple struct representing CGuestOSType cache. */
+    struct UIGuestOSType
+    {
+        QString typeId;
+        QString typeDescription;
+        bool is64bit;
+    };
+
 signals:
 
     /** Notifies listeners about VM name change. */
     void sigNameChanged(const QString &strNewName);
+    void sigPathChanged(const QString &strName);
 
     /** Notifies listeners about VM OS type change. */
     void sigOsTypeChanged();
 
 public:
 
-    /** Constructs VM parameters editor on the basis of passed @a pParent.
-      * @param fChooseFullPath determine whether we should propose to choose location. */
+    /** Constructs VM parameters editor passing @a pParent to the base-class.
+     * @param  fChooseFullPath  Controls whether we should propose to choose location. */
     UINameAndSystemEditor(QWidget *pParent, bool fChooseLocation = false);
-
-    /** Returns the VM name editor. */
-    QLineEdit* nameEditor() const { return m_pEditorName; }
-    /** Returns the VM location editor. */
-    UIFilePathSelector* locationEditor() const { return m_pEditorLocation; }
 
     /** Returns the VM name. */
     QString name() const;
+    /** Returns path string selected by the user. */
+    QString path() const;
+
     /** Defines the VM @a strName. */
     void setName(const QString &strName);
 
+    /** Defines the VM OS @a strTypeId and @a strFamilyId if passed. */
+    void setTypeId(QString strTypeId, QString strFamilyId = QString());
+    /** Returns the VM OS type ID. */
+    QString typeId() const;
+    /** Returns the VM OS family ID. */
+    QString familyId() const;
+
     /** Returns the VM OS type. */
     CGuestOSType type() const;
-    /** Defines the VM OS @a type. */
-    void setType(const CGuestOSType &type);
+    /** Defines the VM OS @a enmType. */
+    void setType(const CGuestOSType &enmType);
+
+    /** Defines the name-field @a strValidator. */
+    void setNameFieldValidator(const QString &strValidator);
 
 protected:
+
+    /** Handles translation event. */
+    virtual void retranslateUi() /* override */;
+
+private slots:
+
+    /** Handles VM OS family @a iIndex change. */
+    void sltFamilyChanged(int iIndex);
+
+    /** Handles VM OS type @a iIndex change. */
+    void sltTypeChanged(int iIndex);
+
+private:
 
     /** @name Prepare cascade.
       * @{ */
@@ -83,21 +121,17 @@ protected:
         void prepareConnections();
     /** @} */
 
-    /** Handles translation event. */
-    virtual void retranslateUi() /* override */;
+    /** Holds the current family ID list. */
+    QStringList  m_familyIDs;
 
-private slots:
+    /** Holds the current type cache. */
+    QMap<QString, QList<UIGuestOSType> >  m_types;
 
-    /** Handles VM OS family @a iIndex change. */
-    void sltFamilyChanged(int iIndex);
+    /** Holds the VM OS type ID. */
+    QString  m_strTypeId;
+    /** Holds the VM OS family ID. */
+    QString  m_strFamilyId;
 
-    /** Handles VM OS type @a iIndex change. */
-    void sltTypeChanged(int iIndex);
-
-private:
-
-    /** Holds the VM OS type. */
-    CGuestOSType            m_type;
     /** Holds the currently chosen OS type IDs on per-family basis. */
     QMap<QString, QString>  m_currentIds;
     /** Holds whether we should propose to choose a full path. */
@@ -107,23 +141,22 @@ private:
     /** Holds whether host supports long mode. */
     bool                    m_fSupportsLongMode;
 
-    /** Holds the VM name label instance. */
-    QLabel                 *m_pLabelName;
     /** Holds the VM OS family label instance. */
     QLabel                 *m_pLabelFamily;
     /** Holds the VM OS type label instance. */
     QLabel                 *m_pLabelType;
     /** Holds the VM OS type icon instance. */
     QLabel                 *m_pIconType;
-    /** Holds the VM name editor instance. */
-    QLineEdit              *m_pEditorName;
-    /** Holds the VM location editor instance. */
-    UIFilePathSelector     *m_pEditorLocation;
+
+    QLabel                 *m_pNameLabel;
+    QLabel                 *m_pPathLabel;
+    QILineEdit             *m_pNameLineEdit;
+    UIFilePathSelector     *m_pPathSelector;
     /** Holds the VM OS family combo instance. */
     QComboBox              *m_pComboFamily;
     /** Holds the VM OS type combo instance. */
     QComboBox              *m_pComboType;
+    QString                 m_strGroupName;
 };
 
-#endif /* !___UINameAndSystemEditor_h___ */
-
+#endif /* !FEQT_INCLUDED_SRC_widgets_UINameAndSystemEditor_h */

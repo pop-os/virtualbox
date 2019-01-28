@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -52,10 +52,6 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #ifdef RT_OS_WINDOWS
-# ifdef TARGET_NT4 /* HACK ALERT! PMIB_IPSTATS undefined if 0x0400 with newer SDKs. */
-#  undef _WIN32_WINNT
-#  define _WIN32_WINNT 0x0500
-# endif
 # include <iprt/win/winsock2.h>
 # include <iprt/win/iphlpapi.h>
 # include <iprt/win/ws2tcpip.h>
@@ -98,6 +94,7 @@
 #include <iprt/system.h>
 #include <iprt/time.h>
 #include <iprt/assert.h>
+#include <VBox/err.h>
 #include <VBox/version.h>
 #include <VBox/VBoxGuestLib.h>
 #include "VBoxServiceInternal.h"
@@ -556,11 +553,7 @@ static int vgsvcVMInfoWriteUsers(void)
     uint32_t cUsersInList = 0;
 
 #ifdef RT_OS_WINDOWS
-# ifndef TARGET_NT4
     rc = VGSvcVMInfoWinWriteUsers(&g_VMInfoPropCache, &pszUserList, &cUsersInList);
-# else
-    rc = VERR_NOT_IMPLEMENTED;
-# endif
 
 #elif defined(RT_OS_FREEBSD)
     /** @todo FreeBSD: Port logged on user info retrieval.
@@ -939,24 +932,30 @@ static int vgsvcVMInfoWriteNetwork(void)
     char        szPropPath[256];
 
 #ifdef RT_OS_WINDOWS
-    IP_ADAPTER_INFO *pAdpInfo = NULL;
+    /* */
+    if (   !g_pfnGetAdaptersInfo
+        && (   !g_pfnWSAIoctl
+            || !g_pfnWSASocketA
+            || !g_pfnWSAGetLastError
+            || !g_pfninet_ntoa
+            || !g_pfnclosesocket) )
+           return VINF_SUCCESS;
 
-# ifndef TARGET_NT4
-    ULONG cbAdpInfo = sizeof(*pAdpInfo);
-    pAdpInfo = (IP_ADAPTER_INFO *)RTMemAlloc(cbAdpInfo);
+    ULONG            cbAdpInfo = sizeof(IP_ADAPTER_INFO);
+    IP_ADAPTER_INFO *pAdpInfo  = (IP_ADAPTER_INFO *)RTMemAlloc(cbAdpInfo);
     if (!pAdpInfo)
     {
         VGSvcError("VMInfo/Network: Failed to allocate IP_ADAPTER_INFO\n");
         return VERR_NO_MEMORY;
     }
-    DWORD dwRet = GetAdaptersInfo(pAdpInfo, &cbAdpInfo);
+    DWORD dwRet = g_pfnGetAdaptersInfo ? g_pfnGetAdaptersInfo(pAdpInfo, &cbAdpInfo) : ERROR_NO_DATA;
     if (dwRet == ERROR_BUFFER_OVERFLOW)
     {
         IP_ADAPTER_INFO *pAdpInfoNew = (IP_ADAPTER_INFO*)RTMemRealloc(pAdpInfo, cbAdpInfo);
         if (pAdpInfoNew)
         {
             pAdpInfo = pAdpInfoNew;
-            dwRet = GetAdaptersInfo(pAdpInfo, &cbAdpInfo);
+            dwRet = g_pfnGetAdaptersInfo(pAdpInfo, &cbAdpInfo);
         }
     }
     else if (dwRet == ERROR_NO_DATA)
@@ -967,20 +966,17 @@ static int vgsvcVMInfoWriteNetwork(void)
          * system we pretend success to not bail out too early. */
         dwRet = ERROR_SUCCESS;
     }
-
     if (dwRet != ERROR_SUCCESS)
     {
-        if (pAdpInfo)
-            RTMemFree(pAdpInfo);
+        RTMemFree(pAdpInfo);
         VGSvcError("VMInfo/Network: Failed to get adapter info: Error %d\n", dwRet);
         return RTErrConvertFromWin32(dwRet);
     }
-# endif /* !TARGET_NT4 */
 
-    SOCKET sd = WSASocket(AF_INET, SOCK_DGRAM, 0, 0, 0, 0);
+    SOCKET sd = g_pfnWSASocketA(AF_INET, SOCK_DGRAM, 0, 0, 0, 0);
     if (sd == SOCKET_ERROR) /* Socket invalid. */
     {
-        int wsaErr = WSAGetLastError();
+        int wsaErr = g_pfnWSAGetLastError();
         /* Don't complain/bail out with an error if network stack is not up; can happen
          * on NT4 due to start up when not connected shares dialogs pop up. */
         if (WSAENETDOWN == wsaErr)
@@ -995,9 +991,9 @@ static int vgsvcVMInfoWriteNetwork(void)
         return RTErrConvertFromWin32(wsaErr);
     }
 
-    INTERFACE_INFO aInterfaces[20] = {0};
-    DWORD cbReturned = 0;
-# ifdef TARGET_NT4
+    INTERFACE_INFO  aInterfaces[20] = {0};
+    DWORD           cbReturned      = 0;
+# ifdef RT_ARCH_x86
     /* Workaround for uninitialized variable used in memcpy in GetTcpipInterfaceList
        (NT4SP1 at least).  It seems to be happy enough with garbages, no failure
        returns so far, so we just need to prevent it from crashing by filling the
@@ -1015,22 +1011,24 @@ static int vgsvcVMInfoWriteNetwork(void)
         mov     edi, edx
     }
 # endif
-    if (   WSAIoctl(sd,
-                    SIO_GET_INTERFACE_LIST,
-                    NULL,                /* pvInBuffer */
-                    0,                   /* cbInBuffer */
-                    &aInterfaces[0],     /* pvOutBuffer */
-                    sizeof(aInterfaces), /* cbOutBuffer */
-                    &cbReturned,
-                    NULL,                /* pOverlapped */
-                    NULL)                /* pCompletionRoutine */
-        == SOCKET_ERROR)
+    int rc = g_pfnWSAIoctl(sd,
+                           SIO_GET_INTERFACE_LIST,
+                           NULL,                /* pvInBuffer */
+                           0,                   /* cbInBuffer */
+                           &aInterfaces[0],     /* pvOutBuffer */
+                           sizeof(aInterfaces), /* cbOutBuffer */
+                           &cbReturned,
+                           NULL,                /* pOverlapped */
+                           NULL);               /* pCompletionRoutine */
+    if (rc == SOCKET_ERROR)
     {
-        VGSvcError("VMInfo/Network: Failed to WSAIoctl() on socket: Error: %d\n", WSAGetLastError());
+        VGSvcError("VMInfo/Network: Failed to WSAIoctl() on socket: Error: %d\n", g_pfnWSAGetLastError());
         if (pAdpInfo)
             RTMemFree(pAdpInfo);
-        return RTErrConvertFromWin32(WSAGetLastError());
+        g_pfnclosesocket(sd);
+        return RTErrConvertFromWin32(g_pfnWSAGetLastError());
     }
+    g_pfnclosesocket(sd);
     int cIfacesSystem = cbReturned / sizeof(INTERFACE_INFO);
 
     /** @todo Use GetAdaptersInfo() and GetAdapterAddresses (IPv4 + IPv6) for more information. */
@@ -1044,45 +1042,45 @@ static int vgsvcVMInfoWriteNetwork(void)
         pAddress = (sockaddr_in *)&(aInterfaces[i].iiAddress);
         Assert(pAddress);
         char szIp[32];
-        RTStrPrintf(szIp, sizeof(szIp), "%s", inet_ntoa(pAddress->sin_addr));
+        RTStrPrintf(szIp, sizeof(szIp), "%s", g_pfninet_ntoa(pAddress->sin_addr));
         RTStrPrintf(szPropPath, sizeof(szPropPath), "/VirtualBox/GuestInfo/Net/%RU32/V4/IP", cIfsReported);
         VGSvcPropCacheUpdate(&g_VMInfoPropCache, szPropPath, "%s", szIp);
 
         pAddress = (sockaddr_in *) & (aInterfaces[i].iiBroadcastAddress);
         RTStrPrintf(szPropPath, sizeof(szPropPath), "/VirtualBox/GuestInfo/Net/%RU32/V4/Broadcast", cIfsReported);
-        VGSvcPropCacheUpdate(&g_VMInfoPropCache, szPropPath, "%s", inet_ntoa(pAddress->sin_addr));
+        VGSvcPropCacheUpdate(&g_VMInfoPropCache, szPropPath, "%s", g_pfninet_ntoa(pAddress->sin_addr));
 
         pAddress = (sockaddr_in *)&(aInterfaces[i].iiNetmask);
         RTStrPrintf(szPropPath, sizeof(szPropPath), "/VirtualBox/GuestInfo/Net/%RU32/V4/Netmask", cIfsReported);
-        VGSvcPropCacheUpdate(&g_VMInfoPropCache, szPropPath, "%s", inet_ntoa(pAddress->sin_addr));
+        VGSvcPropCacheUpdate(&g_VMInfoPropCache, szPropPath, "%s", g_pfninet_ntoa(pAddress->sin_addr));
 
         RTStrPrintf(szPropPath, sizeof(szPropPath), "/VirtualBox/GuestInfo/Net/%RU32/Status", cIfsReported);
         VGSvcPropCacheUpdate(&g_VMInfoPropCache, szPropPath, nFlags & IFF_UP ? "Up" : "Down");
 
-# ifndef TARGET_NT4
-        IP_ADAPTER_INFO *pAdp;
-        for (pAdp = pAdpInfo; pAdp; pAdp = pAdp->Next)
-            if (!strcmp(pAdp->IpAddressList.IpAddress.String, szIp))
-                break;
-
-        RTStrPrintf(szPropPath, sizeof(szPropPath), "/VirtualBox/GuestInfo/Net/%RU32/MAC", cIfsReported);
-        if (pAdp)
+        if (pAdpInfo)
         {
-            char szMac[32];
-            RTStrPrintf(szMac, sizeof(szMac), "%02X%02X%02X%02X%02X%02X",
-                        pAdp->Address[0], pAdp->Address[1], pAdp->Address[2],
-                        pAdp->Address[3], pAdp->Address[4], pAdp->Address[5]);
-            VGSvcPropCacheUpdate(&g_VMInfoPropCache, szPropPath, "%s", szMac);
+            IP_ADAPTER_INFO *pAdp;
+            for (pAdp = pAdpInfo; pAdp; pAdp = pAdp->Next)
+                if (!strcmp(pAdp->IpAddressList.IpAddress.String, szIp))
+                    break;
+
+            RTStrPrintf(szPropPath, sizeof(szPropPath), "/VirtualBox/GuestInfo/Net/%RU32/MAC", cIfsReported);
+            if (pAdp)
+            {
+                char szMac[32];
+                RTStrPrintf(szMac, sizeof(szMac), "%02X%02X%02X%02X%02X%02X",
+                            pAdp->Address[0], pAdp->Address[1], pAdp->Address[2],
+                            pAdp->Address[3], pAdp->Address[4], pAdp->Address[5]);
+                VGSvcPropCacheUpdate(&g_VMInfoPropCache, szPropPath, "%s", szMac);
+            }
+            else
+                VGSvcPropCacheUpdate(&g_VMInfoPropCache, szPropPath, NULL);
         }
-        else
-            VGSvcPropCacheUpdate(&g_VMInfoPropCache, szPropPath, NULL);
-# endif /* !TARGET_NT4 */
 
         cIfsReported++;
     }
     if (pAdpInfo)
         RTMemFree(pAdpInfo);
-    closesocket(sd);
 
 #elif defined(RT_OS_HAIKU)
     /** @todo Haiku: implement network info. retreival */
@@ -1453,10 +1451,14 @@ static DECLCALLBACK(int) vbsvcVMInfoWorker(bool volatile *pfShutdown)
 
 #ifdef RT_OS_WINDOWS
     /* Required for network information (must be called per thread). */
-    WSADATA wsaData;
-    if (WSAStartup(MAKEWORD(2, 2), &wsaData))
-        VGSvcError("VMInfo/Network: WSAStartup failed! Error: %Rrc\n", RTErrConvertFromWin32(WSAGetLastError()));
-#endif /* RT_OS_WINDOWS */
+    if (g_pfnWSAStartup)
+    {
+        WSADATA wsaData;
+        RT_ZERO(wsaData);
+        if (g_pfnWSAStartup(MAKEWORD(2, 2), &wsaData))
+            VGSvcError("VMInfo/Network: WSAStartup failed! Error: %Rrc\n", RTErrConvertFromWin32(g_pfnWSAGetLastError()));
+    }
+#endif
 
     /*
      * Write the fixed properties first.
@@ -1599,7 +1601,8 @@ static DECLCALLBACK(int) vbsvcVMInfoWorker(bool volatile *pfShutdown)
     }
 
 #ifdef RT_OS_WINDOWS
-    WSACleanup();
+    if (g_pfnWSACleanup)
+        g_pfnWSACleanup();
 #endif
 
     return rc;

@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,8 +16,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ____H_OBJECTSTATE
-#define ____H_OBJECTSTATE
+#ifndef MAIN_INCLUDED_ObjectState_h
+#define MAIN_INCLUDED_ObjectState_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "VBox/com/defs.h"
 #include "VBox/com/AutoLock.h"
@@ -98,7 +101,7 @@ public:
 
     bool autoInitSpanConstructor(State aExpectedState);
     void autoInitSpanDestructor(State aNewState, HRESULT aFailedRC, com::ErrorInfo *aFailedEI);
-    State autoUninitSpanConstructor();
+    State autoUninitSpanConstructor(bool fTry);
     void autoUninitSpanDestructor();
 
 private:
@@ -134,4 +137,4 @@ private:
     DECLARE_CLS_COPY_CTOR_ASSIGN_NOOP(ObjectState); /* Shuts up MSC warning C4625. */
 };
 
-#endif // !____H_OBJECTSTATE
+#endif /* !MAIN_INCLUDED_ObjectState_h */

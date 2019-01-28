@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,9 +15,13 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___VMMDev_VMMDevState_h
-#define ___VMMDev_VMMDevState_h
+#ifndef VBOX_INCLUDED_SRC_VMMDev_VMMDevState_h
+#define VBOX_INCLUDED_SRC_VMMDev_VMMDevState_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
+#include <VBoxVideo.h>  /* For VBVA definitions. */
 #include <VBox/VMMDev.h>
 #include <VBox/vmm/pdmdev.h>
 #include <VBox/vmm/pdmifs.h>
@@ -27,39 +31,38 @@
 #endif
 
 #include <iprt/list.h>
+#include <iprt/memcache.h>
+
 
 #define VMMDEV_WITH_ALT_TIMESYNC
 
-typedef struct DISPLAYCHANGEINFO
+/** Request locking structure (HGCM optimization). */
+typedef struct VMMDEVREQLOCK
 {
-    uint32_t xres;
-    uint32_t yres;
-    uint32_t bpp;
-    uint32_t display;
-    int32_t xOrigin;
-    int32_t yOrigin;
-    bool fEnabled;
-    bool fChangeOrigin;
-} DISPLAYCHANGEINFO;
+    void          *pvReq;
+    PGMPAGEMAPLOCK Lock;
+} VMMDEVREQLOCK;
+/** Pointer to a request lock structure. */
+typedef VMMDEVREQLOCK *PVMMDEVREQLOCK;
 
 typedef struct DISPLAYCHANGEREQUEST
 {
     bool fPending;
     bool afAlignment[3];
-    DISPLAYCHANGEINFO displayChangeRequest;
-    DISPLAYCHANGEINFO lastReadDisplayChangeRequest;
+    VMMDevDisplayDef displayChangeRequest;
+    VMMDevDisplayDef lastReadDisplayChangeRequest;
 } DISPLAYCHANGEREQUEST;
 
 typedef struct DISPLAYCHANGEDATA
 {
     /* Which monitor is being reported to the guest. */
-    int iCurrentMonitor;
+    int32_t iCurrentMonitor;
 
     /** true if the guest responded to VMMDEV_EVENT_DISPLAY_CHANGE_REQUEST at least once */
     bool fGuestSentChangeEventAck;
     bool afAlignment[3];
 
-    DISPLAYCHANGEREQUEST aRequests[64]; /// @todo maxMonitors
+    DISPLAYCHANGEREQUEST aRequests[VBOX_VIDEO_MAX_SCREENS];
 } DISPLAYCHANGEDATA;
 
 
@@ -112,7 +115,9 @@ typedef struct VMMDEVFACILITYSTATUSENTRY
 typedef VMMDEVFACILITYSTATUSENTRY *PVMMDEVFACILITYSTATUSENTRY;
 
 
-/** device structure containing all state information */
+/**
+ * State structure for the VMM device.
+ */
 typedef struct VMMDevState
 {
     /** The PCI device structure. */
@@ -134,11 +139,18 @@ typedef struct VMMDevState
     /** Does the guest currently want the host pointer to be shown? */
     uint32_t fHostCursorRequested;
 
-    /** Alignment padding. */
-    uint32_t u32Alignment0;
+//#if HC_ARCH_BITS == 32
+//    /** Alignment padding. */
+//    uint32_t u32Alignment0;
+//#endif
 
-    /** Pointer to device instance. */
-    PPDMDEVINSR3 pDevIns;
+    /** Pointer to device instance - RC pointer. */
+    PPDMDEVINSRC pDevInsRC;
+    /** Pointer to device instance - R3 poitner. */
+    PPDMDEVINSR3 pDevInsR3;
+    /** Pointer to device instance - R0 pointer. */
+    PPDMDEVINSR0 pDevInsR0;
+
     /** LUN\#0 + Status: VMMDev port base interface. */
     PDMIBASE IBase;
     /** LUN\#0: VMMDev port interface. */
@@ -146,6 +158,9 @@ typedef struct VMMDevState
 #ifdef VBOX_WITH_HGCM
     /** LUN\#0: HGCM port interface. */
     PDMIHGCMPORT IHGCMPort;
+//# if HC_ARCH_BITS == 32
+//    RTR3PTR      R3PtrAlignment1;
+//# endif
 #endif
     /** Pointer to base interface of the driver. */
     R3PTRTYPE(PPDMIBASE) pDrvBase;
@@ -155,8 +170,6 @@ typedef struct VMMDevState
     /** HGCM connector interface */
     R3PTRTYPE(PPDMIHGCMCONNECTOR) pHGCMDrv;
 #endif
-    /** Alignment padding. */
-    RTR3PTR PtrR3Alignment1;
     /** message buffer for backdoor logging. */
     char szMsg[512];
     /** message buffer index. */
@@ -164,6 +177,12 @@ typedef struct VMMDevState
     /** Alignment padding. */
     uint32_t u32Alignment2;
 
+    /** Statistics counter for slow IRQ ACK. */
+    STAMCOUNTER StatSlowIrqAck;
+    /** Statistics counter for fast IRQ ACK - R3. */
+    STAMCOUNTER StatFastIrqAckR3;
+    /** Statistics counter for fast IRQ ACK - R0 / RC. */
+    STAMCOUNTER StatFastIrqAckRZ;
     /** IRQ number assigned to the device */
     uint32_t irq;
     /** Current host side event flags */
@@ -180,12 +199,18 @@ typedef struct VMMDevState
     bool afAlignment3[3];
 
     /** GC physical address of VMMDev RAM area */
-    RTGCPHYS32 GCPhysVMMDevRAM;
+    RTGCPHYS32                  GCPhysVMMDevRAM;
     /** R3 pointer to VMMDev RAM area */
-    R3PTRTYPE(VMMDevMemory *) pVMMDevRAMR3;
+    R3PTRTYPE(VMMDevMemory *)   pVMMDevRAMR3;
+    /** R0 pointer to VMMDev RAM area - first page only, could be NULL! */
+    R0PTRTYPE(VMMDevMemory *)   pVMMDevRAMR0;
+    /** R0 pointer to VMMDev RAM area - first page only, could be NULL! */
+    RCPTRTYPE(VMMDevMemory *)   pVMMDevRAMRC;
+#if HC_ARCH_BITS != 32
+    RTRCPTR                     RCPtrAlignment3b;
+#endif
 
-    /** R3 pointer to VMMDev Heap RAM area
-     */
+    /** R3 pointer to VMMDev Heap RAM area. */
     R3PTRTYPE(VMMDevMemory *) pVMMDevHeapR3;
     /** GC physical address of VMMDev Heap RAM area */
     RTGCPHYS32 GCPhysVMMDevHeap;
@@ -194,7 +219,7 @@ typedef struct VMMDevState
      * Until this information is reported the VMMDev refuses any other requests.
      */
     VBoxGuestInfo guestInfo;
-    /** Information report \#2, chewed a litte. */
+    /** Information report \#2, chewed a little. */
     struct
     {
         uint32_t uFullVersion; /**< non-zero if info is present. */
@@ -225,7 +250,9 @@ typedef struct VMMDevState
     /** Pointer to the credentials. */
     R3PTRTYPE(VMMDEVCREDS *) pCredentials;
 
-    bool afAlignment4[HC_ARCH_BITS == 32 ? 3 : 7];
+#if HC_ARCH_BITS == 32
+    uint32_t uAlignment4;
+#endif
 
     /* memory balloon change request */
     uint32_t    cMbMemoryBalloon;
@@ -251,7 +278,9 @@ typedef struct VMMDevState
 #ifdef VMMDEV_WITH_ALT_TIMESYNC
     uint64_t hostTime;
     bool fTimesyncBackdoorLo;
-    bool afAlignment6[3];
+    bool afAlignment6[2];
+#else
+    bool afAlignment6[1+2];
 #endif
     /** Set if GetHostTime should fail.
      * Loaded from the GetHostTimeDisabled configuration value. */
@@ -275,8 +304,6 @@ typedef struct VMMDevState
     /** Number of additional cores to keep around. */
     uint32_t cGuestCoreDumps;
 
-    bool afAlignment7[1];
-
 #ifdef VBOX_WITH_HGCM
     /** List of pending HGCM requests (VBOXHGCMCMD). */
     RTLISTANCHORR3 listHGCMCmd;
@@ -286,11 +313,16 @@ typedef struct VMMDevState
     uint32_t u32HGCMEnabled;
     /** Saved state version of restored commands. */
     uint32_t u32SSMVersion;
-#if HC_ARCH_BITS == 32
-    /** Alignment padding. */
-    uint32_t u32Alignment7;
-#endif
+    RTMEMCACHE  hHgcmCmdCache;
+    STAMPROFILE StatHgcmCmdArrival;
+    STAMPROFILE StatHgcmCmdCompletion;
+    STAMPROFILE StatHgcmCmdTotal;
+    STAMCOUNTER StatHgcmLargeCmdAllocs;
 #endif /* VBOX_WITH_HGCM */
+    STAMCOUNTER StatReqBufAllocs;
+
+    /** Per CPU request 4K sized buffers, allocated as needed. */
+    R3PTRTYPE(VMMDevRequestHeader *) apReqBufs[VMM_MAX_CPU_COUNT];
 
     /** Status LUN: Shared folders LED */
     struct
@@ -391,6 +423,7 @@ typedef VMMDevState VMMDEV;
 /** Pointer to the VMM device state. */
 typedef VMMDEV *PVMMDEV;
 AssertCompileMemberAlignment(VMMDEV, CritSect, 8);
+AssertCompileMemberAlignment(VMMDEV, StatSlowIrqAck, 8);
 AssertCompileMemberAlignment(VMMDEV, cbGuestRAM, 8);
 AssertCompileMemberAlignment(VMMDEV, enmCpuHotPlugEvent, 4);
 AssertCompileMemberAlignment(VMMDEV, aFacilityStatuses, 8);
@@ -401,6 +434,7 @@ AssertCompileMemberAlignment(VMMDEV, TestingData.Value.u64Value, 8);
 
 void VMMDevNotifyGuest(VMMDEV *pVMMDevState, uint32_t u32EventMask);
 void VMMDevCtlSetGuestFilterMask(VMMDEV *pVMMDevState, uint32_t u32OrMask, uint32_t u32NotMask);
+
 
 /** The saved state version. */
 #define VMMDEV_SAVED_STATE_VERSION                              VMMDEV_SAVED_STATE_VERSION_HGCM_PARAMS
@@ -418,5 +452,5 @@ void VMMDevCtlSetGuestFilterMask(VMMDEV *pVMMDevState, uint32_t u32OrMask, uint3
  *  This doesn't have the config part. */
 #define VMMDEV_SAVED_STATE_VERSION_VBOX_30                      11
 
-#endif /* !___VMMDev_VMMDevState_h */
+#endif /* !VBOX_INCLUDED_SRC_VMMDev_VMMDevState_h */
 

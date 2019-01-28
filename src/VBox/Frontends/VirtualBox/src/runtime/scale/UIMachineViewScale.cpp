@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,33 +15,27 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QMainWindow>
-# include <QTimer>
+#include <QMainWindow>
+#include <QTimer>
 
 /* GUI includes */
-# include "VBoxGlobal.h"
-# include "UISession.h"
-# include "UIMachineLogic.h"
-# include "UIMachineWindow.h"
-# include "UIMachineViewScale.h"
-# include "UIFrameBuffer.h"
-# include "UIExtraDataManager.h"
-# include "UIDesktopWidgetWatchdog.h"
+#include "VBoxGlobal.h"
+#include "UISession.h"
+#include "UIMachineLogic.h"
+#include "UIMachineWindow.h"
+#include "UIMachineViewScale.h"
+#include "UIFrameBuffer.h"
+#include "UIExtraDataManager.h"
+#include "UIDesktopWidgetWatchdog.h"
 
 /* COM includes: */
-# include "CConsole.h"
-# include "CDisplay.h"
+#include "CConsole.h"
+#include "CDisplay.h"
 
 /* Other VBox includes: */
-# include "VBox/log.h"
-# include <VBox/VBoxOGL.h>
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "VBox/log.h"
+#include <VBox/VBoxOGL.h>
 
 
 UIMachineViewScale::UIMachineViewScale(  UIMachineWindow *pMachineWindow
@@ -61,19 +55,35 @@ UIMachineViewScale::UIMachineViewScale(  UIMachineWindow *pMachineWindow
 
 void UIMachineViewScale::sltPerformGuestScale()
 {
-    /* Adjust frame-buffer scaled-size: */
-    frameBuffer()->setScaledSize(size());
+    /* Assign new frame-buffer logical-size: */
+    QSize scaledSize = size();
+    const double dDevicePixelRatioFormal = frameBuffer()->devicePixelRatio();
+    const double dDevicePixelRatioActual = frameBuffer()->devicePixelRatioActual();
+    const bool fUseUnscaledHiDPIOutput = frameBuffer()->useUnscaledHiDPIOutput();
+    scaledSize *= dDevicePixelRatioFormal;
+    if (!fUseUnscaledHiDPIOutput)
+        scaledSize /= dDevicePixelRatioActual;
+    frameBuffer()->setScaledSize(scaledSize);
     frameBuffer()->performRescale();
 
     /* If scaled-size is valid: */
-    const QSize scaledSize = frameBuffer()->scaledSize();
     if (scaledSize.isValid())
     {
         /* Propagate scale-factor to 3D service if necessary: */
         if (machine().GetAccelerate3DEnabled() && vboxGlobal().is3DAvailable())
         {
-            const double xScaleFactor = (double)scaledSize.width()  / frameBuffer()->width();
-            const double yScaleFactor = (double)scaledSize.height() / frameBuffer()->height();
+            double xScaleFactor = (double)scaledSize.width()  / frameBuffer()->width();
+            double yScaleFactor = (double)scaledSize.height() / frameBuffer()->height();
+#if defined(VBOX_WS_WIN) || defined(VBOX_WS_X11)
+            // WORKAROUND:
+            // On Windows and Linux opposing to macOS it's only Qt which can auto scale up,
+            // not 3D overlay itself, so for auto scale-up mode we have to take that into account.
+            if (!fUseUnscaledHiDPIOutput)
+            {
+                xScaleFactor *= dDevicePixelRatioActual;
+                yScaleFactor *= dDevicePixelRatioActual;
+            }
+#endif /* VBOX_WS_WIN || VBOX_WS_X11 */
             display().NotifyScaleFactorChange(m_uScreenId,
                                               (uint32_t)(xScaleFactor * VBOX_OGL_SCALE_FACTOR_MULTIPLIER),
                                               (uint32_t)(yScaleFactor * VBOX_OGL_SCALE_FACTOR_MULTIPLIER));
@@ -114,13 +124,25 @@ void UIMachineViewScale::applyMachineViewScaleFactor()
 {
     /* If scaled-size is valid: */
     const QSize scaledSize = frameBuffer()->scaledSize();
+    const double dDevicePixelRatioActual = frameBuffer()->devicePixelRatioActual(); Q_UNUSED(dDevicePixelRatioActual);
+    const bool fUseUnscaledHiDPIOutput = frameBuffer()->useUnscaledHiDPIOutput();
     if (scaledSize.isValid())
     {
         /* Propagate scale-factor to 3D service if necessary: */
         if (machine().GetAccelerate3DEnabled() && vboxGlobal().is3DAvailable())
         {
-            const double xScaleFactor = (double)scaledSize.width()  / frameBuffer()->width();
-            const double yScaleFactor = (double)scaledSize.height() / frameBuffer()->height();
+            double xScaleFactor = (double)scaledSize.width()  / frameBuffer()->width();
+            double yScaleFactor = (double)scaledSize.height() / frameBuffer()->height();
+#if defined(VBOX_WS_WIN) || defined(VBOX_WS_X11)
+            // WORKAROUND:
+            // On Windows and Linux opposing to macOS it's only Qt which can auto scale up,
+            // not 3D overlay itself, so for auto scale-up mode we have to take that into account.
+            if (!fUseUnscaledHiDPIOutput)
+            {
+                xScaleFactor *= dDevicePixelRatioActual;
+                yScaleFactor *= dDevicePixelRatioActual;
+            }
+#endif /* VBOX_WS_WIN || VBOX_WS_X11 */
             display().NotifyScaleFactorChange(m_uScreenId,
                                               (uint32_t)(xScaleFactor * VBOX_OGL_SCALE_FACTOR_MULTIPLIER),
                                               (uint32_t)(yScaleFactor * VBOX_OGL_SCALE_FACTOR_MULTIPLIER));
@@ -128,13 +150,10 @@ void UIMachineViewScale::applyMachineViewScaleFactor()
     }
 
     /* Take unscaled HiDPI output mode into account: */
-    const bool fUseUnscaledHiDPIOutput = gEDataManager->useUnscaledHiDPIOutput(vboxGlobal().managedVMUuid());
     frameBuffer()->setUseUnscaledHiDPIOutput(fUseUnscaledHiDPIOutput);
     /* Propagate unscaled-hidpi-output feature to 3D service if necessary: */
     if (machine().GetAccelerate3DEnabled() && vboxGlobal().is3DAvailable())
-    {
         display().NotifyHiDPIOutputPolicyChange(fUseUnscaledHiDPIOutput);
-    }
 
     /* Perform frame-buffer rescaling: */
     frameBuffer()->performRescale();
@@ -154,10 +173,10 @@ void UIMachineViewScale::resendSizeHint()
     setMaxGuestSize(sizeHint);
 
     /* Send saved size-hint to the guest: */
+    uisession()->setScreenVisibleHostDesires(screenId(), guestScreenVisibilityStatus());
     display().SetVideoModeHint(screenId(),
                                guestScreenVisibilityStatus(),
                                false, 0, 0, sizeHint.width(), sizeHint.height(), 0);
-    uisession()->setScreenVisibleHostDesires(screenId(), guestScreenVisibilityStatus());
 }
 
 QSize UIMachineViewScale::sizeHint() const

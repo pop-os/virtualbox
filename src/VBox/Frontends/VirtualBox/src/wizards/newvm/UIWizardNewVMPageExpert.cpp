@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,32 +15,26 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+/* Qt includes: */
+#include <QGridLayout>
+#include <QGroupBox>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QLineEdit>
+#include <QRadioButton>
+#include <QSpacerItem>
+#include <QSpinBox>
+#include <QVBoxLayout>
 
-/* Global includes: */
-# include <QVBoxLayout>
-# include <QHBoxLayout>
-# include <QGroupBox>
-# include <QGridLayout>
-# include <QSpacerItem>
-# include <QLineEdit>
-# include <QLabel>
-# include <QSpinBox>
-# include <QRadioButton>
-
-/* Local includes: */
-# include "UIWizardNewVMPageExpert.h"
-# include "UIWizardNewVM.h"
-# include "UIIconPool.h"
-# include "UINameAndSystemEditor.h"
-# include "VBoxGuestRAMSlider.h"
-# include "VBoxMediaComboBox.h"
-# include "QIToolButton.h"
-# include "UIMedium.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+/* GUI includes: */
+#include "QIToolButton.h"
+#include "UIGuestRAMSlider.h"
+#include "UIIconPool.h"
+#include "UIMediaComboBox.h"
+#include "UIMedium.h"
+#include "UINameAndSystemEditor.h"
+#include "UIWizardNewVM.h"
+#include "UIWizardNewVMPageExpert.h"
 
 
 UIWizardNewVMPageExpert::UIWizardNewVMPageExpert(const QString &strGroup)
@@ -54,7 +48,7 @@ UIWizardNewVMPageExpert::UIWizardNewVMPageExpert(const QString &strGroup)
             m_pNameAndSystemCnt->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Fixed);
             QHBoxLayout *pNameAndSystemCntLayout = new QHBoxLayout(m_pNameAndSystemCnt);
             {
-                m_pNameAndSystemEditor = new UINameAndSystemEditor(m_pNameAndSystemCnt);
+                m_pNameAndSystemEditor = new UINameAndSystemEditor(m_pNameAndSystemCnt, true);
                 pNameAndSystemCntLayout->addWidget(m_pNameAndSystemEditor);
             }
         }
@@ -63,16 +57,15 @@ UIWizardNewVMPageExpert::UIWizardNewVMPageExpert(const QString &strGroup)
             m_pMemoryCnt->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Fixed);
             QGridLayout *pMemoryCntLayout = new QGridLayout(m_pMemoryCnt);
             {
-                m_pRamSlider = new VBoxGuestRAMSlider(m_pMemoryCnt);
+                m_pRamSlider = new UIGuestRAMSlider(m_pMemoryCnt);
                 {
                     m_pRamSlider->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
                     m_pRamSlider->setOrientation(Qt::Horizontal);
-                    m_pRamSlider->setValue(m_pNameAndSystemEditor->type().GetRecommendedRAM());
                 }
                 m_pRamEditor = new QSpinBox(m_pMemoryCnt);
                 {
-                    m_pRamEditor->setMinimum(m_pRamSlider->minRAM());
-                    m_pRamEditor->setMaximum(m_pRamSlider->maxRAM());
+                    m_pRamEditor->setMinimum(m_pRamSlider->minimum());
+                    m_pRamEditor->setMaximum(m_pRamSlider->maximum());
                     vboxGlobal().setMinimumWidthAccordingSymbolCount(m_pRamEditor, 5);
                 }
                 m_pRamUnits = new QLabel(m_pMemoryCnt);
@@ -110,9 +103,9 @@ UIWizardNewVMPageExpert::UIWizardNewVMPageExpert(const QString &strGroup)
                 options.initFrom(m_pDiskPresent);
                 int iWidth = m_pDiskPresent->style()->pixelMetric(QStyle::PM_ExclusiveIndicatorWidth, &options, m_pDiskPresent);
                 pDiskCntLayout->setColumnMinimumWidth(0, iWidth);
-                m_pDiskSelector = new VBoxMediaComboBox(m_pDiskCnt);
+                m_pDiskSelector = new UIMediaComboBox(m_pDiskCnt);
                 {
-                    m_pDiskSelector->setType(UIMediumType_HardDisk);
+                    m_pDiskSelector->setType(UIMediumDeviceType_HardDisk);
                     m_pDiskSelector->repopulate();
                 }
                 m_pVMMButton = new QIToolButton(m_pDiskCnt);
@@ -135,21 +128,33 @@ UIWizardNewVMPageExpert::UIWizardNewVMPageExpert(const QString &strGroup)
     }
 
     /* Setup connections: */
-    connect(m_pNameAndSystemEditor, SIGNAL(sigNameChanged(const QString &)), this, SLOT(sltNameChanged(const QString &)));
-    connect(m_pNameAndSystemEditor, SIGNAL(sigOsTypeChanged()), this, SLOT(sltOsTypeChanged()));
-    connect(m_pRamSlider, SIGNAL(valueChanged(int)), this, SLOT(sltRamSliderValueChanged()));
-    connect(m_pRamEditor, SIGNAL(valueChanged(int)), this, SLOT(sltRamEditorValueChanged()));
-    connect(m_pDiskSkip, SIGNAL(toggled(bool)), this, SLOT(sltVirtualDiskSourceChanged()));
-    connect(m_pDiskCreate, SIGNAL(toggled(bool)), this, SLOT(sltVirtualDiskSourceChanged()));
-    connect(m_pDiskPresent, SIGNAL(toggled(bool)), this, SLOT(sltVirtualDiskSourceChanged()));
-    connect(m_pDiskSelector, SIGNAL(currentIndexChanged(int)), this, SLOT(sltVirtualDiskSourceChanged()));
-    connect(m_pVMMButton, SIGNAL(clicked()), this, SLOT(sltGetWithFileOpenDialog()));
+    connect(m_pNameAndSystemEditor, &UINameAndSystemEditor::sigNameChanged,
+            this, &UIWizardNewVMPageExpert::sltNameChanged);
+    connect(m_pNameAndSystemEditor, &UINameAndSystemEditor::sigPathChanged,
+            this, &UIWizardNewVMPageExpert::sltPathChanged);
+    connect(m_pNameAndSystemEditor, &UINameAndSystemEditor::sigOsTypeChanged,
+            this, &UIWizardNewVMPageExpert::sltOsTypeChanged);
+    connect(m_pRamSlider, &UIGuestRAMSlider::valueChanged,
+            this, &UIWizardNewVMPageExpert::sltRamSliderValueChanged);
+    connect(m_pRamEditor, static_cast<void(QSpinBox::*)(int)>(&QSpinBox::valueChanged),
+            this, &UIWizardNewVMPageExpert::sltRamEditorValueChanged);
+    connect(m_pDiskSkip, &QRadioButton::toggled,
+            this, &UIWizardNewVMPageExpert::sltVirtualDiskSourceChanged);
+    connect(m_pDiskCreate, &QRadioButton::toggled,
+            this, &UIWizardNewVMPageExpert::sltVirtualDiskSourceChanged);
+    connect(m_pDiskPresent, &QRadioButton::toggled,
+            this, &UIWizardNewVMPageExpert::sltVirtualDiskSourceChanged);
+    connect(m_pDiskSelector, static_cast<void(UIMediaComboBox::*)(int)>(&UIMediaComboBox::currentIndexChanged),
+            this, &UIWizardNewVMPageExpert::sltVirtualDiskSourceChanged);
+    connect(m_pVMMButton, &QIToolButton::clicked,
+            this, &UIWizardNewVMPageExpert::sltGetWithFileOpenDialog);
 
     /* Register classes: */
     qRegisterMetaType<CMedium>();
     /* Register fields: */
     registerField("name*", m_pNameAndSystemEditor, "name", SIGNAL(sigNameChanged(const QString &)));
     registerField("type", m_pNameAndSystemEditor, "type", SIGNAL(sigOsTypeChanged()));
+    registerField("machineFilePath", this, "machineFilePath");
     registerField("machineFolder", this, "machineFolder");
     registerField("machineBaseName", this, "machineBaseName");
     registerField("ram", m_pRamSlider, "value", SIGNAL(valueChanged(int)));
@@ -168,8 +173,15 @@ void UIWizardNewVMPageExpert::sltNameChanged(const QString &strNewText)
     m_pRamSlider->setValue(type.GetRecommendedRAM());
     m_pRamEditor->setValue(type.GetRecommendedRAM());
 
+    composeMachineFilePath();
     /* Broadcast complete-change: */
     emit completeChanged();
+}
+
+void UIWizardNewVMPageExpert::sltPathChanged(const QString &strNewPath)
+{
+    Q_UNUSED(strNewPath);
+    composeMachineFilePath();
 }
 
 void UIWizardNewVMPageExpert::sltOsTypeChanged()
@@ -238,6 +250,13 @@ void UIWizardNewVMPageExpert::initializePage()
 {
     /* Translate page: */
     retranslateUi();
+
+    /* Get recommended 'ram' field value: */
+    CGuestOSType type = field("type").value<CGuestOSType>();
+    ULONG recommendedRam = type.GetRecommendedRAM();
+    m_pRamSlider->setValue(recommendedRam);
+    m_pRamEditor->setValue(recommendedRam);
+
 }
 
 void UIWizardNewVMPageExpert::cleanupPage()
@@ -294,4 +313,3 @@ bool UIWizardNewVMPageExpert::validatePage()
     /* Return result: */
     return fResult;
 }
-

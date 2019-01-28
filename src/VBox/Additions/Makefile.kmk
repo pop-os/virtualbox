@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2017 Oracle Corporation
+# Copyright (C) 2006-2019 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -65,10 +65,10 @@ ifndef VBOX_ONLY_VALIDATIONKIT
   include $(PATH_SUB_CURRENT)/solaris/Makefile.kmk
  endif
  ifeq ($(KBUILD_TARGET),win)
-  include $(PATH_SUB_CURRENT)/WINNT/Makefile.kmk
   ifdef VBOX_WITH_MESA3D
    include $(PATH_SUB_CURRENT)/3D/Makefile.kmk
   endif
+  include $(PATH_SUB_CURRENT)/WINNT/Makefile.kmk
  endif
  ifeq ($(KBUILD_TARGET),darwin)
   include $(PATH_SUB_CURRENT)/darwin/Makefile.kmk
@@ -97,14 +97,11 @@ ifndef VBOX_ONLY_VALIDATIONKIT
   VBoxGuest-inf_INST = $(INST_ADDITIONS)
   VBoxGuest-inf_MODE = a+r,u+w
   VBoxGuest-inf_SOURCES = \
-	$(PATH_TARGET)/VBoxGuestCat.dir/VBoxGuest.inf
-  ifdef VBOX_SIGN_ADDITIONS
-  VBoxGuest-inf_SOURCES += \
-	$(PATH_TARGET)/VBoxGuestCat.dir/VBoxGuest.cat \
+	$(PATH_TARGET)/VBoxGuestCat.dir/VBoxGuest.inf \
+	$(if-expr defined(VBOX_SIGN_ADDITIONS),$(PATH_TARGET)/VBoxGuestCat.dir/VBoxGuest.cat,) \
 	$(PATH_TARGET)/VBoxGuestCat.dir/VBoxGuest.sys \
 	$(PATH_TARGET)/VBoxGuestCat.dir/VBoxControl.exe \
 	$(PATH_TARGET)/VBoxGuestCat.dir/VBoxTray.exe
-  endif # signing
   VBoxGuest-inf_CLEAN = $(VBoxGuest-inf_SOURCES)
   VBoxGuest-inf_BLDDIRS = \
 	$(PATH_TARGET)/VBoxGuestCat.dir
@@ -152,15 +149,23 @@ include $(FILE_KBUILD_SUB_FOOTER)
 ## @todo Create .pkg files not run files. The build server shall create a combined packaged, goverend by
 # the VBOX_WITH_COMBINED_DARWIN_GUEST_PACKAGE macro.
 ifdef VBOX_WITH_ADDITIONS_ISO.darwin.x86
- VBOX_PATH_ADDITIONS.darwin.x86 = $(PATH_OUT_BASE)/darwin.x86/$(KBUILD_TYPE)/dist
- GUESTADDITIONS_FILESPEC.darwin.x86 = \
-	VBoxDarwinAdditions-x86.dmg=$(VBOX_PATH_ADDITIONS.darwin.x86)/VBoxDarwinAdditions.dmg
+VBOX_PATH_ADDITIONS.darwin.x86 = $(PATH_OUT_BASE)/darwin.x86/$(KBUILD_TYPE)/dist/additions
+GUESTADDITIONS_FILESPEC.darwin.x86 = \
+	VBoxDarwinAdditionsLegacy.pkg=$(VBOX_PATH_ADDITIONS.darwin.x86)/VBoxGuestAdditions.pkg
+ ifndef VBOX_WITH_ADDITIONS_ISO.darwin.amd64
+GUESTADDITIONS_FILESPEC.darwin.x86 += \
+	VBoxDarwinAdditionsUninstall.tool=$(VBOX_PATH_ADDITIONS.darwin.x86)/VBoxDarwinAdditionsUninstall.tool
+ endif
 endif
 
 ifdef VBOX_WITH_ADDITIONS_ISO.darwin.amd64
- VBOX_PATH_ADDITIONS.darwin.amd64 = $(PATH_OUT_BASE)/darwin.amd64/$(KBUILD_TYPE)/dist
- GUESTADDITIONS_FILESPEC.darwin.amd64 = \
-	VBoxDarwinAdditions-amd64.dmg=$(VBOX_PATH_ADDITIONS.darwin.amd64)/VBoxDarwinAdditions.dmg
+VBOX_PATH_ADDITIONS.darwin.amd64 = $(PATH_OUT_BASE)/darwin.amd64/$(KBUILD_TYPE)/dist/additions
+GUESTADDITIONS_FILESPEC.darwin.amd64 = \
+	VBoxDarwinAdditions.pkg=$(VBOX_PATH_ADDITIONS.darwin.amd64)/VBoxGuestAdditions.pkg
+ ifndef VBOX_WITH_ADDITIONS_ISO.darwin.x86
+GUESTADDITIONS_FILESPEC.darwin.amd64 += \
+	VBoxDarwinAdditionsUninstall.tool=$(VBOX_PATH_ADDITIONS.darwin.amd64)/VBoxDarwinAdditionsUninstall.tool
+ endif
 endif
 
 # FreeBSD
@@ -205,6 +210,7 @@ ifdef VBOX_WITH_ADDITIONS_ISO.os2.x86
  VBOX_PATH_ADDITIONS.os2.x86 = $(PATH_OUT_BASE)/os2.x86/$(KBUILD_TYPE)/bin/additions
  GUESTADDITIONS_FILESPEC.os2.x86 = \
 	OS2/VBoxGuest.sys=$(VBOX_PATH_ADDITIONS.os2.x86)/VBoxGuest.sys \
+	OS2/VBoxSF.ifs=$(VBOX_PATH_ADDITIONS.os2.x86)/VBoxSF.ifs\
 	OS2/VBoxService.exe=$(VBOX_PATH_ADDITIONS.os2.x86)/VBoxService.exe \
 	OS2/VBoxControl.exe=$(VBOX_PATH_ADDITIONS.os2.x86)/VBoxControl.exe \
 	OS2/VBoxReplaceDll.exe=$(VBOX_PATH_ADDITIONS.os2.x86)/VBoxReplaceDll.exe \
@@ -260,9 +266,17 @@ ifdef VBOX_WITH_ADDITIONS_ISO.win.x86
 	VBoxWindowsAdditions-x86.exe=$(VBOX_PATH_ADDITIONS.win.x86)/VBoxWindowsAdditions-x86.exe \
 	VBoxWindowsAdditions.exe=$(VBOX_PATH_ADDITIONS.win.x86)/VBoxWindowsAdditions.exe \
 	AUTORUN.INF=$(VBOX_PATH_ADDITIONS_SRC)/WINNT/Installer/ISO/AUTORUN.INF \
-	32Bit/Readme.txt=$(VBOX_PATH_ADDITIONS_SRC)/WINNT/Installer/ISO/ReadmeDrivers.txt \
-	64Bit/Readme.txt=$(VBOX_PATH_ADDITIONS_SRC)/WINNT/Installer/ISO/ReadmeDrivers.txt \
-	cert/VBoxCertUtil.exe=$(VBOX_PATH_ADDITIONS.win.x86)/VBoxCertUtil.exe
+	cert/VBoxCertUtil.exe=$(VBOX_PATH_ADDITIONS.win.x86)/VBoxCertUtil.exe \
+	NT3x/Readme.txt=$(VBOX_PATH_ADDITIONS_SRC)/WINNT/Installer/ISO/NT3xReadme.txt \
+	NT3x/VBoxGuest.sys=$(VBOX_PATH_ADDITIONS.win.x86)/VBoxGuest.sys \
+	$(if-expr defined(VBOX_SIGN_ADDITIONS),NT3x/VBoxGuest.cat=$(VBOX_PATH_ADDITIONS.win.x86)/VBoxGuest.cat,) \
+	NT3x/VBoxGuest.inf=$(VBOX_PATH_ADDITIONS.win.x86)/VBoxGuest.inf \
+	NT3x/VBoxMouseNT.sys=$(VBOX_PATH_ADDITIONS.win.x86)/VBoxMouseNT.sys \
+	NT3x/VBoxMouse.inf=$(VBOX_PATH_ADDITIONS.win.x86)/VBoxMouse.inf \
+	$(if-expr defined(VBOX_SIGN_ADDITIONS),NT3x/VBoxMouse.cat=$(VBOX_PATH_ADDITIONS.win.x86)/VBoxMouse.cat,) \
+	NT3x/VBoxMouse.sys=$(VBOX_PATH_ADDITIONS.win.x86)/VBoxMouse.sys \
+	NT3x/VBoxControl.exe=$(VBOX_PATH_ADDITIONS.win.x86)/VBoxControl.exe \
+	NT3x/VBoxService.exe=$(VBOX_PATH_ADDITIONS.win.x86)/VBoxService.exe
 endif # win.x86
 
 if defined(VBOX_WITH_ADDITIONS_ISO.win.amd64) || defined(VBOX_WITH_ADDITIONS_ISO.win.x86)

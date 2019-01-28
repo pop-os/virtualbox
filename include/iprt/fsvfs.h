@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,8 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___iprt_fsvfs_h
-#define ___iprt_fsvfs_h
+#ifndef IPRT_INCLUDED_fsvfs_h
+#define IPRT_INCLUDED_fsvfs_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/cdefs.h>
 #include <iprt/types.h>
@@ -32,7 +35,7 @@
 
 RT_C_DECLS_BEGIN
 
-/** @defgroup grp_rt_fs_fat  FAT VFS File System
+/** @defgroup grp_rt_fs_vfs  VFS File System Implementations
  * @ingroup grp_rt_fs
  * @{
  */
@@ -118,6 +121,21 @@ RTDECL(int) RTFsFatVolFormat(RTVFSFILE hVfsFile, uint64_t offVol, uint64_t cbVol
 RTDECL(int) RTFsFatVolFormat144(RTVFSFILE hVfsFile, bool fQuick);
 
 
+
+/**
+ * Opens an EXT2/3/4 file system volume.
+ *
+ * @returns IPRT status code.
+ * @param   hVfsFileIn      The file or device backing the volume.
+ * @param   fMntFlags       RTVFSMNT_F_XXX.
+ * @param   fExtFlags       Reserved, MBZ.
+ * @param   phVfs           Where to return the virtual file system handle.
+ * @param   pErrInfo        Where to return additional error information.
+ */
+RTDECL(int) RTFsExtVolOpen(RTVFSFILE hVfsFileIn, uint32_t fMntFlags, uint32_t fExtFlags, PRTVFS phVfs, PRTERRINFO pErrInfo);
+
+
+
 /** @name RTFSISO9660_F_XXX - ISO 9660 mount flags.
  * @{ */
 /** Do not use the UDF part if present. */
@@ -146,9 +164,22 @@ RTDECL(int) RTFsFatVolFormat144(RTVFSFILE hVfsFile, bool fQuick);
 RTDECL(int) RTFsIso9660VolOpen(RTVFSFILE hVfsFileIn, uint32_t fFlags, PRTVFS phVfs, PRTERRINFO pErrInfo);
 
 
+/**
+ * Opens an NTFS file system volume.
+ *
+ * @returns IPRT status code.
+ * @param   hVfsFileIn      The file or device backing the volume.
+ * @param   fMntFlags       RTVFSMNT_F_XXX.
+ * @param   fNtfsFlags      Reserved, MBZ.
+ * @param   phVfs           Where to return the virtual file system handle.
+ * @param   pErrInfo        Where to return additional error information.
+ */
+RTDECL(int) RTFsNtfsVolOpen(RTVFSFILE hVfsFileIn, uint32_t fMntFlags, uint32_t fNtfsFlags, PRTVFS phVfs, PRTERRINFO pErrInfo);
+
+
 /** @} */
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !IPRT_INCLUDED_fsvfs_h */
 

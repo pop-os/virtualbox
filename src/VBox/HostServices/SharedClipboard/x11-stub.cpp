@@ -1,11 +1,10 @@
+/* $Id: x11-stub.cpp $*/
 /** @file
- *
- * Shared Clipboard:
- * Linux host, a stub version with no functionality for use on headless hosts.
+ * Shared Clipboard Service - Linux host, a stub version with no functionality for use on headless hosts.
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,6 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
+#define LOG_GROUP LOG_GROUP_SHARED_CLIPBOARD
 #include <VBox/HostServices/VBoxClipboardSvc.h>
 
 #include <iprt/alloc.h>
@@ -31,6 +35,8 @@
 #include <stdint.h>
 
 #include "VBoxClipboard.h"
+
+
 
 /** Initialise the host side of the shared clipboard - called by the hgcm layer. */
 int vboxClipboardInit (void)
@@ -128,3 +134,4 @@ void vboxClipboardWriteData (VBOXCLIPBOARDCLIENTDATA *pClient, void *pv,
     RT_NOREF(pClient, pv, cb, u32Format);
     LogFlowFunc(("called, returning.\n"));
 }
+

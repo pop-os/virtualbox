@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ____H_EXTPACKUTIL
-#define ____H_EXTPACKUTIL
+#ifndef MAIN_INCLUDED_ExtPackUtil_h
+#define MAIN_INCLUDED_ExtPackUtil_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #ifdef __cplusplus
 # include <iprt/cpp/ministring.h>
@@ -139,5 +142,5 @@ int                 VBoxExtPackValidateTarball(RTFILE hTarballFile, const char *
                                                PRTMANIFEST phValidManifest, PRTVFSFILE phXmlFile, RTCString *pStrDigest);
 #endif /* __cplusplus */
 
-#endif
+#endif /* !MAIN_INCLUDED_ExtPackUtil_h */
 

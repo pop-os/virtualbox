@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,51 +15,40 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+/* Qt includes: */
+#include <QDir>
+#include <QFile>
+#include <QVariant>
 
-/* Global includes: */
-# include <QDir>
-# include <QFile>
-
-/* Local includes: */
-# include "UIDownloaderUserManual.h"
-# include "UINetworkReply.h"
-# include "QIFileDialog.h"
-# include "VBoxGlobal.h"
-# include "UIMessageCenter.h"
-# include "UIModalWindowManager.h"
-# include "UIVersion.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+/* GUI includes: */
+#include "QIFileDialog.h"
+#include "VBoxGlobal.h"
+#include "UIDownloaderUserManual.h"
+#include "UIMessageCenter.h"
+#include "UIModalWindowManager.h"
+#include "UINetworkReply.h"
+#include "UIVersion.h"
 
 
 /* static */
-UIDownloaderUserManual* UIDownloaderUserManual::m_spInstance = 0;
+UIDownloaderUserManual* UIDownloaderUserManual::s_pInstance = 0;
 
 /* static */
 UIDownloaderUserManual* UIDownloaderUserManual::create()
 {
-    if (!m_spInstance)
-        m_spInstance = new UIDownloaderUserManual;
-    return m_spInstance;
-}
-
-/* static */
-UIDownloaderUserManual* UIDownloaderUserManual::current()
-{
-    return m_spInstance;
+    if (!s_pInstance)
+        s_pInstance = new UIDownloaderUserManual;
+    return s_pInstance;
 }
 
 UIDownloaderUserManual::UIDownloaderUserManual()
 {
     /* Prepare instance: */
-    if (!m_spInstance)
-        m_spInstance = this;
+    if (!s_pInstance)
+        s_pInstance = this;
 
     /* Get version number and adjust it for test and trunk builds. The server only has official releases. */
-    const QString strVersion = UIVersion(vboxGlobal().vboxVersionStringNormalized()).effectiveRelasedVersion().toString();
+    const QString strVersion = UIVersion(vboxGlobal().vboxVersionStringNormalized()).effectiveReleasedVersion().toString();
 
     /* Compose User Manual filename: */
     QString strUserManualFullFileName = vboxGlobal().helpFile();
@@ -79,11 +68,10 @@ UIDownloaderUserManual::UIDownloaderUserManual()
 UIDownloaderUserManual::~UIDownloaderUserManual()
 {
     /* Cleanup instance: */
-    if (m_spInstance == this)
-        m_spInstance = 0;
+    if (s_pInstance == this)
+        s_pInstance = 0;
 }
 
-/* virtual override */
 const QString UIDownloaderUserManual::description() const
 {
     return UIDownloader::description().arg(tr("VirtualBox User Manual"));

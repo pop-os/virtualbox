@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1337,13 +1337,13 @@ VMMR3_INT_DECL(int) FTMR3SetCheckpoint(PVM pVM, FTMCHECKPOINTTYPE enmCheckpoint)
         /* We must take special care here as the memory sync is competing with us and requires a responsive EMT. */
         while ((rc = PDMCritSectTryEnter(&pVM->ftm.s.CritSect)) == VERR_SEM_BUSY)
         {
-            if (VM_FF_IS_PENDING(pVM, VM_FF_EMT_RENDEZVOUS))
+            if (VM_FF_IS_SET(pVM, VM_FF_EMT_RENDEZVOUS))
             {
                 rc = VMMR3EmtRendezvousFF(pVM, pVCpu);
                 AssertRC(rc);
             }
 
-            if (VM_FF_IS_PENDING(pVM, VM_FF_REQUEST))
+            if (VM_FF_IS_SET(pVM, VM_FF_REQUEST))
             {
                 rc = VMR3ReqProcessU(pVM->pUVM, VMCPUID_ANY, true /*fPriorityOnly*/);
                 AssertRC(rc);

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2017 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -193,10 +193,14 @@ typedef struct CPUMDBENTRY
 #include "cpus/Intel_Core_i5_3570.h"
 #include "cpus/Intel_Core_i7_2635QM.h"
 #include "cpus/Intel_Xeon_X5482_3_20GHz.h"
+#include "cpus/Intel_Core2_X6800_2_93GHz.h"
+#include "cpus/Intel_Core2_T7600_2_33GHz.h"
+#include "cpus/Intel_Core_Duo_T2600_2_16GHz.h"
 #include "cpus/Intel_Pentium_M_processor_2_00GHz.h"
 #include "cpus/Intel_Pentium_4_3_00GHz.h"
 #include "cpus/Intel_Pentium_N3530_2_16GHz.h"
 #include "cpus/Intel_Atom_330_1_60GHz.h"
+#include "cpus/Intel_80486.h"
 #include "cpus/Intel_80386.h"
 #include "cpus/Intel_80286.h"
 #include "cpus/Intel_80186.h"
@@ -209,6 +213,8 @@ typedef struct CPUMDBENTRY
 #include "cpus/AMD_Athlon_64_3200.h"
 
 #include "cpus/VIA_QuadCore_L4700_1_2_GHz.h"
+
+#include "cpus/ZHAOXIN_KaiXian_KX_U5581_1_8GHz.h"
 
 
 
@@ -226,73 +232,90 @@ typedef struct CPUMDBENTRY
  */
 static CPUMDBENTRY const * const g_apCpumDbEntries[] =
 {
-#ifdef VBOX_CPUDB_Intel_Core_i7_6700K
+#ifdef VBOX_CPUDB_Intel_Core_i7_6700K_h
     &g_Entry_Intel_Core_i7_6700K,
 #endif
-#ifdef VBOX_CPUDB_Intel_Core_i7_5600U
+#ifdef VBOX_CPUDB_Intel_Core_i7_5600U_h
     &g_Entry_Intel_Core_i7_5600U,
 #endif
-#ifdef VBOX_CPUDB_Intel_Core_i5_3570
+#ifdef VBOX_CPUDB_Intel_Core_i5_3570_h
     &g_Entry_Intel_Core_i5_3570,
 #endif
-#ifdef VBOX_CPUDB_Intel_Core_i7_3960X
+#ifdef VBOX_CPUDB_Intel_Core_i7_3960X_h
     &g_Entry_Intel_Core_i7_3960X,
 #endif
-#ifdef VBOX_CPUDB_Intel_Core_i7_2635QM
+#ifdef VBOX_CPUDB_Intel_Core_i7_2635QM_h
     &g_Entry_Intel_Core_i7_2635QM,
 #endif
-#ifdef VBOX_CPUDB_Intel_Pentium_N3530_2_16GHz
+#ifdef VBOX_CPUDB_Intel_Pentium_N3530_2_16GHz_h
     &g_Entry_Intel_Pentium_N3530_2_16GHz,
 #endif
-#ifdef VBOX_CPUDB_Intel_Atom_330_1_60GHz
+#ifdef VBOX_CPUDB_Intel_Atom_330_1_60GHz_h
     &g_Entry_Intel_Atom_330_1_60GHz,
 #endif
-#ifdef Intel_Pentium_M_processor_2_00GHz
+#ifdef VBOX_CPUDB_Intel_Pentium_M_processor_2_00GHz_h
     &g_Entry_Intel_Pentium_M_processor_2_00GHz,
 #endif
-#ifdef VBOX_CPUDB_Intel_Xeon_X5482_3_20GHz
+#ifdef VBOX_CPUDB_Intel_Xeon_X5482_3_20GHz_h
     &g_Entry_Intel_Xeon_X5482_3_20GHz,
 #endif
-#ifdef VBOX_CPUDB_Intel_Pentium_4_3_00GHz
+#ifdef VBOX_CPUDB_Intel_Core2_X6800_2_93GHz_h
+    &g_Entry_Intel_Core2_X6800_2_93GHz,
+#endif
+#ifdef VBOX_CPUDB_Intel_Core2_T7600_2_33GHz_h
+    &g_Entry_Intel_Core2_T7600_2_33GHz,
+#endif
+#ifdef VBOX_CPUDB_Intel_Core_Duo_T2600_2_16GHz_h
+    &g_Entry_Intel_Core_Duo_T2600_2_16GHz,
+#endif
+#ifdef VBOX_CPUDB_Intel_Pentium_4_3_00GHz_h
     &g_Entry_Intel_Pentium_4_3_00GHz,
 #endif
-#ifdef VBOX_CPUDB_Intel_80486
+#ifdef VBOX_CPUDB_Intel_Pentium_4_3_00GHz_h
+    &g_Entry_Intel_Pentium_4_3_00GHz,
+#endif
+/** @todo pentium, pentium mmx, pentium pro, pentium II, pentium III */
+#ifdef VBOX_CPUDB_Intel_80486_h
     &g_Entry_Intel_80486,
 #endif
-#ifdef VBOX_CPUDB_Intel_80386
+#ifdef VBOX_CPUDB_Intel_80386_h
     &g_Entry_Intel_80386,
 #endif
-#ifdef VBOX_CPUDB_Intel_80286
+#ifdef VBOX_CPUDB_Intel_80286_h
     &g_Entry_Intel_80286,
 #endif
-#ifdef VBOX_CPUDB_Intel_80186
+#ifdef VBOX_CPUDB_Intel_80186_h
     &g_Entry_Intel_80186,
 #endif
-#ifdef VBOX_CPUDB_Intel_8086
+#ifdef VBOX_CPUDB_Intel_8086_h
     &g_Entry_Intel_8086,
 #endif
 
-#ifdef VBOX_CPUDB_AMD_FX_8150_Eight_Core
+#ifdef VBOX_CPUDB_AMD_FX_8150_Eight_Core_h
     &g_Entry_AMD_FX_8150_Eight_Core,
 #endif
-#ifdef VBOX_CPUDB_AMD_Phenom_II_X6_1100T
+#ifdef VBOX_CPUDB_AMD_Phenom_II_X6_1100T_h
     &g_Entry_AMD_Phenom_II_X6_1100T,
 #endif
-#ifdef VBOX_CPUDB_Quad_Core_AMD_Opteron_2384
+#ifdef VBOX_CPUDB_Quad_Core_AMD_Opteron_2384_h
     &g_Entry_Quad_Core_AMD_Opteron_2384,
 #endif
-#ifdef VBOX_CPUDB_AMD_Athlon_64_X2_Dual_Core_4200
+#ifdef VBOX_CPUDB_AMD_Athlon_64_X2_Dual_Core_4200_h
     &g_Entry_AMD_Athlon_64_X2_Dual_Core_4200,
 #endif
-#ifdef VBOX_CPUDB_AMD_Athlon_64_3200
+#ifdef VBOX_CPUDB_AMD_Athlon_64_3200_h
     &g_Entry_AMD_Athlon_64_3200,
 #endif
 
-#ifdef VBOX_CPUDB_VIA_QuadCore_L4700_1_2_GHz
+#ifdef VBOX_CPUDB_ZHAOXIN_KaiXian_KX_U5581_1_8GHz_h
+    &g_Entry_ZHAOXIN_KaiXian_KX_U5581_1_8GHz,
+#endif
+
+#ifdef VBOX_CPUDB_VIA_QuadCore_L4700_1_2_GHz_h
     &g_Entry_VIA_QuadCore_L4700_1_2_GHz,
 #endif
 
-#ifdef VBOX_CPUDB_NEC_V20
+#ifdef VBOX_CPUDB_NEC_V20_h
     &g_Entry_NEC_V20,
 #endif
 };
@@ -1052,7 +1075,7 @@ int cpumR3MsrRegStats(PVM pVM)
     STAM_REL_REG(pVM, &pCpum->cMsrReadsUnknown,         STAMTYPE_COUNTER,   "/CPUM/MSR-Totals/ReadsUnknown",
                  STAMUNIT_OCCURENCES, "RDMSR on unknown MSRs (raises #GP).");
     STAM_REL_REG(pVM, &pCpum->cMsrWrites,               STAMTYPE_COUNTER,   "/CPUM/MSR-Totals/Writes",
-                 STAMUNIT_OCCURENCES, "All RDMSRs making it to CPUM.");
+                 STAMUNIT_OCCURENCES, "All WRMSRs making it to CPUM.");
     STAM_REL_REG(pVM, &pCpum->cMsrWritesRaiseGp,        STAMTYPE_COUNTER,   "/CPUM/MSR-Totals/WritesRaisingGP",
                  STAMUNIT_OCCURENCES, "WRMSR raising #GPs, except unknown MSRs.");
     STAM_REL_REG(pVM, &pCpum->cMsrWritesToIgnoredBits,  STAMTYPE_COUNTER,   "/CPUM/MSR-Totals/WritesToIgnoredBits",

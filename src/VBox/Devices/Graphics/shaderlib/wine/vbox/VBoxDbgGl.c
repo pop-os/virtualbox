@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2017 Oracle Corporation
+ * Copyright (C) 2011-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -200,6 +200,7 @@ DECLEXPORT(void) dbglPrint(const char *format, ... )
 
     va_start( args, format );
     vsprintf( txt, format, args );
+    va_end( args );
 
     OutputDebugString(txt);
 }
@@ -316,7 +317,7 @@ void dbglCheckTexUnits(const struct wined3d_gl_info *gl_info, const struct IWine
             Assert(pTexture->target == pSurf->texture_target);
             Assert(DBGL_OP(IsEnabled(pSurf->texture_target)));
             Assert(pSurf->Flags & SFLAG_INTEXTURE);
-            if (pSurf->Flags & SFLAG_INSYSMEM && !pSurf->Flags & SFLAG_PBO)
+            if ((pSurf->Flags & SFLAG_INSYSMEM) && !(pSurf->Flags & SFLAG_PBO))
             {
                 Assert(pSurf->resource.allocatedMemory);
                 /* we can match GPU & our state */

@@ -1,11 +1,10 @@
+/* $Id: x11-clipboard.cpp $ */
 /** @file
- *
- * Shared Clipboard:
- * Linux host.
+ * Shared Clipboard Service - Linux host.
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,21 +15,28 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_SHARED_CLIPBOARD
-
-#include <string.h>
-
 #include <iprt/assert.h>
 #include <iprt/critsect.h>
 #include <iprt/env.h>
 #include <iprt/mem.h>
 #include <iprt/semaphore.h>
+#include <iprt/string.h>
 
 #include <VBox/GuestHost/SharedClipboard.h>
 #include <VBox/HostServices/VBoxClipboardSvc.h>
+#include <VBox/err.h>
 
 #include "VBoxClipboard.h"
 
+
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 struct _VBOXCLIPBOARDREQFROMVBOX;
 typedef struct _VBOXCLIPBOARDREQFROMVBOX VBOXCLIPBOARDREQFROMVBOX;
 
@@ -58,6 +64,8 @@ struct _VBOXCLIPBOARDCONTEXT
      * requests. */
     bool fShuttingDown;
 };
+
+
 
 /**
  * Report formats available in the X11 clipboard to VBox.

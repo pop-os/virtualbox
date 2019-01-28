@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2004-2017 Oracle Corporation
+ * Copyright (C) 2004-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,7 +19,7 @@
 #include <VBox/com/ptr.h>
 
 
-#include <iprt/err.h>
+#include <iprt/errcore.h>
 #include <iprt/thread.h>
 #include <iprt/semaphore.h>
 
@@ -81,7 +81,7 @@ void HostDnsServiceDarwin::hostDnsServiceStoreCallback(void *, void *, void *inf
 }
 
 
-HRESULT HostDnsServiceDarwin::init(VirtualBox *virtualbox)
+HRESULT HostDnsServiceDarwin::init(HostDnsMonitorProxy *proxy)
 {
     SCDynamicStoreContext ctx;
     RT_ZERO(ctx);
@@ -106,7 +106,7 @@ HRESULT HostDnsServiceDarwin::init(VirtualBox *virtualbox)
     m->m_Stopper = CFRunLoopSourceCreate(kCFAllocatorDefault, 0, &sctx);
     AssertReturn(m->m_Stopper, E_FAIL);
 
-    HRESULT hrc = HostDnsMonitor::init(virtualbox);
+    HRESULT hrc = HostDnsMonitor::init(proxy);
     AssertComRCReturn(hrc, hrc);
 
     return updateInfo();

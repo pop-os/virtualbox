@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -584,7 +584,7 @@ static LSTATUS vbpsRegOpenInterfaceKeys(VBPSREGSTATE *pState)
                                &pState->aAltDeletes[i].hkeyInterface);
             if (rc != ERROR_SUCCESS)
             {
-                AssertMsgStmt(rc == ERROR_FILE_NOT_FOUND || ERROR_ACCESS_DENIED, ("%u\n", rc), pState->rc = rc);
+                AssertMsgStmt(rc == ERROR_FILE_NOT_FOUND || rc == ERROR_ACCESS_DENIED, ("%u\n", rc), pState->rc = rc);
                 pState->aAltDeletes[i].hkeyInterface = NULL;
             }
         }
@@ -2343,7 +2343,7 @@ static void vbpsUpdateWindowsService(VBPSREGSTATE *pState, const WCHAR *pwszVBox
         {
             QUERY_SERVICE_CONFIGW   Config;
             SERVICE_STATUS          Status;
-            SERVICE_DESCRIPTION     Desc;
+            SERVICE_DESCRIPTIONW     Desc;
             uint8_t                 abPadding[sizeof(QUERY_SERVICE_CONFIGW) + 5 * _1K];
         } uBuf;
         SC_HANDLE   hService;
@@ -2461,13 +2461,13 @@ static void vbpsUpdateWindowsService(VBPSREGSTATE *pState, const WCHAR *pwszVBox
         if (fCreateIt)
         {
             Assert(pState->fUpdate);
-            hSCM = OpenSCManagerW(NULL, NULL, SC_MANAGER_CREATE_SERVICE | SC_MANAGER_CONNECT);
+            hSCM = OpenSCManagerW(NULL, NULL, SC_MANAGER_CREATE_SERVICE);
             if (hSCM)
             {
                 hService = CreateServiceW(hSCM,
                                           pwszServiceName,
                                           pwszDisplayName,
-                                          SERVICE_ALL_ACCESS /* dwDesiredAccess */,
+                                          SERVICE_CHANGE_CONFIG  /* dwDesiredAccess */,
                                           uServiceType,
                                           uStartType,
                                           uErrorControl,
@@ -2580,4 +2580,3 @@ DECLEXPORT(uint32_t) VbpsUpdateRegistrations(void)
 
     return VINF_SUCCESS;
 }
-

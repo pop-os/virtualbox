@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -211,16 +211,13 @@ static DECLCALLBACK(int) pcarchReservedMemoryRead(PPDMDEVINS pDevIns, void *pvUs
 
 /**
  * @interface_method_impl{PDMDEVREG,pfnInitComplete,
- *      Turn RAM pages between 0xa0000 and 0xeffff into reserved memory.}
- * NB: At least some OS X versions (El Capitan, Sierra) get upset and panic
- * early in the boot when we make memory between 0x0f0000-0x100000 reserved
- * and non-writable.
+ *      Turn RAM pages between 0xa0000 and 0xfffff into reserved memory.}
  */
 static DECLCALLBACK(int) pcarchInitComplete(PPDMDEVINS pDevIns)
 {
     PVM             pVM       = PDMDevHlpGetVM(pDevIns);
     int             iRegion   = 0;
-    RTGCPHYS const  GCPhysEnd = 0x0f0000;
+    RTGCPHYS const  GCPhysEnd = 0x100000;
     RTGCPHYS        GCPhysCur = 0x0a0000;
     do
     {

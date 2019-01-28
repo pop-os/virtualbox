@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -32,7 +32,7 @@
 #include <iprt/vfslowlevel.h>
 
 #include <iprt/assert.h>
-#include <iprt/err.h>
+#include <iprt/errcore.h>
 #include <iprt/file.h>
 #include <iprt/poll.h>
 #include <iprt/string.h>
@@ -406,6 +406,27 @@ static DECLCALLBACK(int) rtVfsProgressFile_QuerySize(void *pvThis, uint64_t *pcb
 
 
 /**
+ * @interface_method_impl{RTVFSFILEOPS,pfnSetSize}
+ */
+static DECLCALLBACK(int) rtVfsProgressFile_SetSize(void *pvThis, uint64_t cbFile, uint32_t fFlags)
+{
+    PRTVFSPROGRESSFILE pThis = (PRTVFSPROGRESSFILE)pvThis;
+    return RTVfsFileSetSize(pThis->hVfsFile, cbFile, fFlags);
+}
+
+
+/**
+ * @interface_method_impl{RTVFSFILEOPS,pfnQueryMaxSize}
+ */
+static DECLCALLBACK(int) rtVfsProgressFile_QueryMaxSize(void *pvThis, uint64_t *pcbMax)
+{
+    PRTVFSPROGRESSFILE pThis = (PRTVFSPROGRESSFILE)pvThis;
+    return RTVfsFileQueryMaxSize(pThis->hVfsFile, pcbMax);
+}
+
+
+
+/**
  * File progress operations.
  */
 DECL_HIDDEN_CONST(const RTVFSFILEOPS) g_rtVfsProgressFileOps =
@@ -442,6 +463,8 @@ DECL_HIDDEN_CONST(const RTVFSFILEOPS) g_rtVfsProgressFileOps =
     },
     rtVfsProgressFile_Seek,
     rtVfsProgressFile_QuerySize,
+    rtVfsProgressFile_SetSize,
+    rtVfsProgressFile_QueryMaxSize,
     RTVFSFILEOPS_VERSION
 };
 

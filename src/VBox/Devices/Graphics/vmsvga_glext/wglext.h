@@ -1,5 +1,9 @@
+
 #ifndef __wglext_h_
 #define __wglext_h_
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -947,4 +951,4 @@ typedef BOOL (WINAPI * PFNWGLDXUNLOCKOBJECTSNVPROC) (HANDLE hDevice, GLint count
 }
 #endif
 
-#endif
+#endif /* !__wglext_h_ */

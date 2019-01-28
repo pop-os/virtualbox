@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,8 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___iprt_file_h
-#define ___iprt_file_h
+#ifndef IPRT_INCLUDED_file_h
+#define IPRT_INCLUDED_file_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/cdefs.h>
 #include <iprt/types.h>
@@ -1139,33 +1142,35 @@ RTDECL(void) RTFileReadAllFree(void *pvFile, size_t cbFile);
 #define RTFILE_RDALL_VALID_MASK             (RTFILE_RDALL_O_DENY_MASK | UINT32_C(0xc0000000))
 /** @} */
 
-/** @name RTFileSetAllocationSize flags
+/**
+ * Sets the current size of the file ensuring that all required blocks
+ * are allocated on the underlying medium.
+ *
+ * @returns IPRT status code.
+ * @retval  VERR_NOT_SUPPORTED if either this operation is not supported on the
+ *          current host in an efficient manner or the given combination of
+ *          flags is not supported.
+ * @param   hFile           The handle to the file.
+ * @param   cbSize          The new size of the file to allocate.
+ * @param   fFlags          Combination of RTFILE_ALLOC_SIZE_F_*
+ */
+RTDECL(int) RTFileSetAllocationSize(RTFILE hFile, uint64_t cbSize, uint32_t fFlags);
+
+/** @name RTFILE_ALLOC_SIZE_F_XXX - RTFileSetAllocationSize flags
  * @{ */
 /** Default flags. */
 #define RTFILE_ALLOC_SIZE_F_DEFAULT         0
-/** Do not change the size of the file if the given size is
- * bigger than the current file size. Useful to preallocate
- * blocks beyond the current size for appending data in an efficient
- * manner. Might not be supported on all hosts and will return
+/** Do not change the size of the file if the given size is bigger than the
+ * current file size.
+ *
+ * Useful to preallocate blocks beyond the current size for appending data in an
+ * efficient manner. Might not be supported on all hosts and will return
  * VERR_NOT_SUPPORTED in that case. */
 #define RTFILE_ALLOC_SIZE_F_KEEP_SIZE       RT_BIT(0)
 /** Mask of valid flags. */
 #define RTFILE_ALLOC_SIZE_F_VALID           (RTFILE_ALLOC_SIZE_F_KEEP_SIZE)
 /** @} */
 
-/**
- * Sets the current size of the file ensuring that all required blocks
- * are allocated on the underlying medium.
- *
- * @returns IPRT status code.
- * @retval  VERR_NOT_SUPPORTED if either this operation is not supported on the current host
- *                             in an efficient manner or the given combination of flags is
- *                             not supported.
- * @param   hFile           The handle to the file.
- * @param   cbSize          The new size of the file to allocate.
- * @param   fFlags          Combination of RTFILE_ALLOC_SIZE_F_*
- */
-RTDECL(int) RTFileSetAllocationSize(RTFILE hFile, uint64_t cbSize, uint32_t fFlags);
 
 #ifdef IN_RING3
 
@@ -1551,5 +1556,5 @@ RTDECL(int) RTFileAioCtxWakeup(RTFILEAIOCTX hAioCtx);
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !IPRT_INCLUDED_file_h */
 

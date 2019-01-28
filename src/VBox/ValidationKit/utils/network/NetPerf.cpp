@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -226,18 +226,21 @@ static const RTGETOPTDEF g_aCmdOptions[] =
     { "--len",              'l', RTGETOPT_REQ_UINT32  },
     { "--nodelay",          'N', RTGETOPT_REQ_NOTHING },
     { "--mode",             'm', RTGETOPT_REQ_STRING  },
-    { "--warmpup",          'w', RTGETOPT_REQ_UINT32  },
+    { "--warmup",           'w', RTGETOPT_REQ_UINT32  },
     { "--cool-down",        'W', RTGETOPT_REQ_UINT32  },
     { "--server-stats",     'S', RTGETOPT_REQ_NOTHING },
     { "--single-client",    '1', RTGETOPT_REQ_NOTHING },
     { "--daemonize",        'd', RTGETOPT_REQ_NOTHING },
     { "--daemonized",       'D', RTGETOPT_REQ_NOTHING },
     { "--check-data",       'C', RTGETOPT_REQ_NOTHING },
+    { "--verbose",          'v', RTGETOPT_REQ_NOTHING },
     { "--help",             'h', RTGETOPT_REQ_NOTHING } /* for Usage() */
 };
 
 /** The test handle. */
 static RTTEST g_hTest;
+/** Verbosity level. */
+static uint32_t g_uVerbosity = 0;
 
 
 
@@ -292,13 +295,16 @@ static void Usage(PRTSTREAM pStrm)
             case 'D':
                 continue; /* internal */
             case 'w':
-                pszHelp = "Warmup time, in milliseconds (default " RT_XSTR(NETPERF_DEFAULT_WARMPUP) " ms)";
+                pszHelp = "Warmup time, in milliseconds (default " RT_XSTR(NETPERF_DEFAULT_WARMUP) " ms)";
                 break;
             case 'W':
                 pszHelp = "Cool down time, in milliseconds (default " RT_XSTR(NETPERF_DEFAULT_COOL_DOWN) " ms)";
                 break;
             case 'C':
                 pszHelp = "Check payload data at the receiving end";
+                break;
+            case 'v':
+                pszHelp = "Verbose execution.";
                 break;
             default:
                 pszHelp = "Option undocumented";
@@ -322,7 +328,8 @@ static void Usage(PRTSTREAM pStrm)
 static DECLCALLBACK(void) netperfStopTimerCallback(RTTIMERLR hTimer, void *pvUser, uint64_t iTick)
 {
     bool volatile *pfStop = (bool volatile *)pvUser;
-/*    RTPrintf("Time's Up!\n");*/
+    if (g_uVerbosity > 0)
+        RTPrintf("Time's Up!\n");
     ASMAtomicWriteBool(pfStop, true);
     NOREF(hTimer); NOREF(iTick);
 }
@@ -517,6 +524,8 @@ static int netperfTCPThroughputSend(NETPERFPARAMS const *pParams, NETPERFHDR *pB
         /*
          * Warm up.
          */
+        if (g_uVerbosity > 0)
+            RTPrintf("Warmup...\n");
         pBuf->u32State = RT_H2LE_U32_C(NETPERFHDR_WARMUP);
         rc = RTTimerLRStart(hTimer, pParams->cMsWarmup * UINT64_C(1000000) /* nsec */);
         if (RT_SUCCESS(rc))
@@ -541,6 +550,8 @@ static int netperfTCPThroughputSend(NETPERFPARAMS const *pParams, NETPERFHDR *pB
          */
         if (RT_SUCCESS(rc))
         {
+            if (g_uVerbosity > 0)
+                RTPrintf("The real thing...\n");
             pBuf->u32State = RT_H2LE_U32_C(NETPERFHDR_TESTING);
             fStop          = false;
             rc = RTTimerLRStart(hTimer, pParams->cSecTimeout * UINT64_C(1000000000) /* nsec */);
@@ -570,6 +581,8 @@ static int netperfTCPThroughputSend(NETPERFPARAMS const *pParams, NETPERFHDR *pB
          */
         if (RT_SUCCESS(rc))
         {
+            if (g_uVerbosity > 0)
+                RTPrintf("Cool down...\n");
             pBuf->u32State = RT_H2LE_U32_C(NETPERFHDR_COOL_DOWN);
             fStop          = false;
             rc = RTTimerLRStart(hTimer, pParams->cMsCoolDown * UINT64_C(1000000) /* nsec */);
@@ -594,6 +607,8 @@ static int netperfTCPThroughputSend(NETPERFPARAMS const *pParams, NETPERFHDR *pB
         /*
          * Send DONE packet.
          */
+        if (g_uVerbosity > 0)
+            RTPrintf("Done\n");
         if (RT_SUCCESS(rc))
         {
             u32Seq++;
@@ -1442,6 +1457,8 @@ static int netperfTCPClientDoLatency(NETPERFPARAMS *pParams)
         /*
          * Warm up.
          */
+        if (g_uVerbosity > 0)
+            RTPrintf("Warmup...\n");
         rc = RTTimerLRStart(hTimer, pParams->cMsWarmup * UINT64_C(1000000) /* nsec */);
         if (RT_SUCCESS(rc))
         {
@@ -1473,6 +1490,8 @@ static int netperfTCPClientDoLatency(NETPERFPARAMS *pParams)
          */
         if (RT_SUCCESS(rc))
         {
+            if (g_uVerbosity > 0)
+                RTPrintf("The real thing...\n");
             fStop = false;
             rc = RTTimerLRStart(hTimer, pParams->cSecTimeout * UINT64_C(1000000000) /* nsec */);
             if (RT_SUCCESS(rc))
@@ -1516,6 +1535,8 @@ static int netperfTCPClientDoLatency(NETPERFPARAMS *pParams)
          */
         if (RT_SUCCESS(rc))
         {
+            if (g_uVerbosity > 0)
+                RTPrintf("Cool down...\n");
             fStop = false;
             rc = RTTimerLRStart(hTimer, pParams->cMsCoolDown * UINT64_C(1000000) /* nsec */);
             if (RT_SUCCESS(rc))
@@ -1547,6 +1568,8 @@ static int netperfTCPClientDoLatency(NETPERFPARAMS *pParams)
         /*
          * Send DONE packet.
          */
+        if (g_uVerbosity > 0)
+            RTPrintf("Done\n");
         if (RT_SUCCESS(rc))
         {
             u32Seq++;
@@ -1757,8 +1780,8 @@ int main(int argc, char *argv[])
     bool                fDaemonized     = false;
     bool                fPacketSizeSet  = false;
     const char         *pszServerAddress= NULL;
-    NETPERFPARAMS       Params;
 
+    NETPERFPARAMS       Params;
     Params.uPort            = NETPERF_DEFAULT_PORT;
     Params.fServerStats     = false;
     Params.fSingleClient    = false;
@@ -1860,12 +1883,16 @@ int main(int argc, char *argv[])
                 Params.fSingleClient = true;
                 break;
 
+            case 'v':
+                g_uVerbosity++;
+                break;
+
             case 'h':
                 Usage(g_pStdOut);
                 return RTEXITCODE_SUCCESS;
 
             case 'V':
-                RTPrintf("$Revision: 118412 $\n");
+                RTPrintf("$Revision: 128238 $\n");
                 return RTEXITCODE_SUCCESS;
 
             case 'w':

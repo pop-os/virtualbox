@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,8 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___iprt_crypto_pem_h
-#define ___iprt_crypto_pem_h
+#ifndef IPRT_INCLUDED_crypto_pem_h
+#define IPRT_INCLUDED_crypto_pem_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/types.h>
 
@@ -71,6 +74,28 @@ typedef RTCRPEMMARKER const *PCRTCRPEMMARKER;
 
 
 /**
+ * A PEM field.
+ */
+typedef struct RTCRPEMFIELD
+{
+    /** Pointer to the next field. */
+    struct RTCRPEMFIELD const *pNext;
+    /** The field value. */
+    char const         *pszValue;
+    /** The field value length. */
+    size_t              cchValue;
+    /** The field name length. */
+    size_t              cchName;
+    /** The field name. */
+    char                szName[RT_FLEXIBLE_ARRAY];
+} RTCRPEMFIELD;
+/** Pointer to a PEM field. */
+typedef RTCRPEMFIELD *PRTCRPEMFIELD;
+/** Pointer to a const PEM field. */
+typedef RTCRPEMFIELD const *PCRTCRPEMFIELD;
+
+
+/**
  * A PEM section.
  *
  * The API works on linked lists of these.
@@ -85,10 +110,10 @@ typedef struct RTCRPEMSECTION
     uint8_t            *pbData;
     /** The size of the binary data. */
     size_t              cbData;
-    /** Additional text preceeding the binary data.  NULL if none. */
-    char               *pszPreamble;
-    /** The length of the preamble. */
-    size_t              cchPreamble;
+    /** List of fields, NULL if none. */
+    PCRTCRPEMFIELD      pFieldHead;
+    /** Set if RTCRPEMREADFILE_F_SENSITIVE was specified. */
+    bool                fSensitive;
 } RTCRPEMSECTION;
 /** Pointer to a PEM section. */
 typedef RTCRPEMSECTION *PRTCRPEMSECTION;
@@ -157,8 +182,10 @@ RTDECL(int) RTCrPemReadFile(const char *pszFilename, uint32_t fFlags, PCRTCRPEMM
 #define RTCRPEMREADFILE_F_CONTINUE_ON_ENCODING_ERROR    RT_BIT(0)
 /** Only PEM sections, no binary fallback. */
 #define RTCRPEMREADFILE_F_ONLY_PEM                      RT_BIT(1)
+/** Sensitive data, use the safer allocator. */
+#define RTCRPEMREADFILE_F_SENSITIVE                     RT_BIT(2)
 /** Valid flags. */
-#define RTCRPEMREADFILE_F_VALID_MASK                    UINT32_C(0x00000003)
+#define RTCRPEMREADFILE_F_VALID_MASK                    UINT32_C(0x00000007)
 /** @} */
 
 /**
@@ -181,5 +208,5 @@ RTDECL(const char *) RTCrPemFindFirstSectionInContent(void const *pvContent, siz
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !IPRT_INCLUDED_crypto_pem_h */
 

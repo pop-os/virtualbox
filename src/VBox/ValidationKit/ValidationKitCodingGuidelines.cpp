@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -70,6 +70,8 @@
  *
  * The type collection qualifiers comes first, then the other qualifiers and
  * finally the type qualifier.
+ *
+ * Python statements are terminated by semicolons (';') as a convention.
  *
  */
 

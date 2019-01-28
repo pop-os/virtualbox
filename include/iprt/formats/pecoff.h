@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,8 +24,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___iprt_formats_pecoff_h
-#define ___iprt_formats_pecoff_h
+#ifndef IPRT_INCLUDED_formats_pecoff_h
+#define IPRT_INCLUDED_formats_pecoff_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/types.h>
 #include <iprt/assertcompile.h>
@@ -656,6 +659,152 @@ typedef struct _IMAGE_RESOURCE_DATA_ENTRY
 typedef IMAGE_RESOURCE_DATA_ENTRY *PIMAGE_RESOURCE_DATA_ENTRY;
 typedef IMAGE_RESOURCE_DATA_ENTRY const *PCIMAGE_RESOURCE_DATA_ENTRY;
 
+/** @} */
+
+/** @name Image exception information
+ * @{ */
+
+/** This structure is used by AMD64 and "Itanic".
+ * MIPS uses a different one.  ARM, SH3, SH4 and PPC on WinCE also uses a different one.  */
+typedef struct _IMAGE_RUNTIME_FUNCTION_ENTRY
+{
+    uint32_t    BeginAddress;
+    uint32_t    EndAddress;
+    uint32_t    UnwindInfoAddress;
+} IMAGE_RUNTIME_FUNCTION_ENTRY;
+AssertCompileSize(IMAGE_RUNTIME_FUNCTION_ENTRY, 12);
+typedef IMAGE_RUNTIME_FUNCTION_ENTRY *PIMAGE_RUNTIME_FUNCTION_ENTRY;
+typedef IMAGE_RUNTIME_FUNCTION_ENTRY const *PCIMAGE_RUNTIME_FUNCTION_ENTRY;
+
+/**
+ * An unwind code for AMD64 and ARM64.
+ *
+ * @note Also known as UNWIND_CODE or _UNWIND_CODE.
+ */
+typedef union IMAGE_UNWIND_CODE
+{
+    struct
+    {
+        /** The prolog offset where the change takes effect.
+         * This means the instruction following the one being described.  */
+        uint8_t CodeOffset;
+        /** Unwind opcode.
+         * For AMD64 see IMAGE_AMD64_UNWIND_OP_CODES. */
+        RT_GCC_EXTENSION uint8_t UnwindOp : 4;
+        /** Opcode specific. */
+        RT_GCC_EXTENSION uint8_t OpInfo   : 4;
+    } u;
+    uint16_t    FrameOffset;
+} IMAGE_UNWIND_CODE;
+AssertCompileSize(IMAGE_UNWIND_CODE, 2);
+
+/**
+ * Unwind information for AMD64 and ARM64.
+ *
+ * Pointed to by IMAGE_RUNTIME_FUNCTION_ENTRY::UnwindInfoAddress,
+ *
+ * @note Also known as UNWIND_INFO or _UNWIND_INFO.
+ */
+typedef struct IMAGE_UNWIND_INFO
+{
+    /** Version, currently 1 or 2.  The latter if IMAGE_AMD64_UWOP_EPILOG is used. */
+    RT_GCC_EXTENSION uint8_t    Version : 3;
+    /** IMAGE_UNW_FLAG_XXX */
+    RT_GCC_EXTENSION uint8_t    Flags : 5;
+    /** Size of function prolog. */
+    uint8_t                     SizeOfProlog;
+    /** Number of opcodes in aOpcodes. */
+    uint8_t                     CountOfCodes;
+    /** Initial frame register. */
+    RT_GCC_EXTENSION uint8_t    FrameRegister : 4;
+    /** Scaled frame register offset. */
+    RT_GCC_EXTENSION uint8_t    FrameOffset : 4;
+    /** Unwind opcodes. */
+    IMAGE_UNWIND_CODE   aOpcodes[RT_FLEXIBLE_ARRAY];
+} IMAGE_UNWIND_INFO;
+AssertCompileMemberOffset(IMAGE_UNWIND_INFO, aOpcodes, 4);
+typedef IMAGE_UNWIND_INFO *PIMAGE_UNWIND_INFO;
+typedef IMAGE_UNWIND_INFO const *PCIMAGE_UNWIND_INFO;
+
+/** IMAGE_UNW_FLAGS_XXX - IMAGE_UNWIND_INFO::Flags.
+ * @{  */
+/** No handler.
+ * @note Aslo know as UNW_FLAG_NHANDLER. */
+#define IMAGE_UNW_FLAGS_NHANDLER        0
+/** Have exception handler (RVA after codes, dword aligned.)
+ * @note Aslo know as UNW_FLAG_NHANDLER. */
+#define IMAGE_UNW_FLAGS_EHANDLER        1
+/** Have unwind handler (RVA after codes, dword aligned.)
+ * @note Aslo know as UNW_FLAG_NHANDLER. */
+#define IMAGE_UNW_FLAGS_UHANDLER        2
+/** Set if not primary unwind info for a function.  An
+ * IMAGE_RUNTIME_FUNCTION_ENTRY giving the chained unwind info follows the
+ * aOpcodes array at a dword aligned offset. */
+#define IMAGE_UNW_FLAGS_CHAININFO       4
+/** @}  */
+
+/**
+ * AMD64 unwind opcodes.
+ */
+typedef enum IMAGE_AMD64_UNWIND_OP_CODES
+{
+    /** Push non-volatile register (OpInfo).
+     * YASM: [pushreg reg]
+     * MASM: .PUSHREG reg */
+    IMAGE_AMD64_UWOP_PUSH_NONVOL = 0,
+    /** Stack allocation: Size stored in scaled in the next slot if OpInfo == 0,
+     * otherwise stored unscaled in the next two slots.
+     * YASM: [allocstack size]
+     * MASM: .ALLOCSTACK size */
+    IMAGE_AMD64_UWOP_ALLOC_LARGE,
+    /** Stack allocation: OpInfo = size / 8 - 1.
+     * YASM: [allocstack size]
+     * MASM: .ALLOCSTACK size  */
+    IMAGE_AMD64_UWOP_ALLOC_SMALL,
+    /** Set frame pointer register: RSP + FrameOffset * 16.
+     * YASM: [setframe reg, offset]
+     * MASM: .SETFRAME reg, offset
+     * @code
+     *      LEA     RBP, [RSP + 20h]
+     *      [setframe RBP, 20h]
+     * @endcode */
+    IMAGE_AMD64_UWOP_SET_FPREG,
+    /** Save non-volatile register (OpInfo) on stack (RSP/FP + next slot).
+     * YASM: [savereg reg, offset]
+     * MASM: .SAVEREG reg, offset */
+    IMAGE_AMD64_UWOP_SAVE_NONVOL,
+    /** Save non-volatile register (OpInfo) on stack (RSP/FP + next two slots).
+     * YASM: [savereg reg, offset]
+     * MASM: .SAVEREG reg, offset  */
+    IMAGE_AMD64_UWOP_SAVE_NONVOL_FAR,
+    /** Epilog info, version 2+.
+     *
+     * The first time this opcode is used, the CodeOffset gives the size of the
+     * epilog and bit 0 of the OpInfo field indicates that there is only one
+     * epilog at the very end of the function.
+     *
+     * Subsequent uses of this opcode specifies epilog start offsets relative to
+     * the end of the function, using CodeOffset for the 8 lower bits and OpInfo
+     * for bits 8 thru 11.
+     *
+     * The compiler seems to stack allocations and register saving opcodes and
+     * indicates the location mirroring the first IMAGE_AMD64_UWOP_PUSH_NONVOL. */
+    IMAGE_AMD64_UWOP_EPILOG,
+    /** Undefined. */
+    IMAGE_AMD64_UWOP_RESERVED_7,
+    /** Save 128-bit XMM register (OpInfo) on stack (RSP/FP + next slot).
+     * YASM: [savexmm128 reg, offset]
+     * MASM: .SAVEXMM128 reg, offset */
+    IMAGE_AMD64_UWOP_SAVE_XMM128,
+    /** Save 128-bit XMM register (OpInfo) on stack (RSP/FP + next two slots).
+     * YASM: [savexmm128 reg, offset]
+     * MASM: .SAVEXMM128 reg, offset  */
+    IMAGE_AMD64_UWOP_SAVE_XMM128_FAR,
+    /** IRET frame, OpInfo serves as error code indicator.
+     * YASM: [pushframe with-code]
+     * MASM: .pushframe with-code  */
+    IMAGE_AMD64_UWOP_PUSH_MACHFRAME
+} IMAGE_AMD64_UNWIND_OP_CODES;
 /** @} */
 
 
@@ -1404,17 +1553,23 @@ typedef IMAGE_DEBUG_DIRECTORY const *PCIMAGE_DEBUG_DIRECTORY;
 /** @name IMAGE_DEBUG_TYPE_XXX - Debug format types.
  * Used by IMAGE_DEBUG_DIRECTORY::Type.
  * @{  */
-#define IMAGE_DEBUG_TYPE_UNKNOWN            UINT32_C(0x0)
-#define IMAGE_DEBUG_TYPE_COFF               UINT32_C(0x1)
-#define IMAGE_DEBUG_TYPE_CODEVIEW           UINT32_C(0x2)
-#define IMAGE_DEBUG_TYPE_FPO                UINT32_C(0x3)
-#define IMAGE_DEBUG_TYPE_MISC               UINT32_C(0x4)
-#define IMAGE_DEBUG_TYPE_EXCEPTION          UINT32_C(0x5)
-#define IMAGE_DEBUG_TYPE_FIXUP              UINT32_C(0x6)
-#define IMAGE_DEBUG_TYPE_OMAP_TO_SRC        UINT32_C(0x7)
-#define IMAGE_DEBUG_TYPE_OMAP_FROM_SRC      UINT32_C(0x8)
-#define IMAGE_DEBUG_TYPE_BORLAND            UINT32_C(0x9)
-#define IMAGE_DEBUG_TYPE_RESERVED10         UINT32_C(0x10)
+#define IMAGE_DEBUG_TYPE_UNKNOWN            UINT32_C(0x00)
+#define IMAGE_DEBUG_TYPE_COFF               UINT32_C(0x01)
+#define IMAGE_DEBUG_TYPE_CODEVIEW           UINT32_C(0x02)
+#define IMAGE_DEBUG_TYPE_FPO                UINT32_C(0x03)
+#define IMAGE_DEBUG_TYPE_MISC               UINT32_C(0x04)
+#define IMAGE_DEBUG_TYPE_EXCEPTION          UINT32_C(0x05)
+#define IMAGE_DEBUG_TYPE_FIXUP              UINT32_C(0x06)
+#define IMAGE_DEBUG_TYPE_OMAP_TO_SRC        UINT32_C(0x07)
+#define IMAGE_DEBUG_TYPE_OMAP_FROM_SRC      UINT32_C(0x08)
+#define IMAGE_DEBUG_TYPE_BORLAND            UINT32_C(0x09)
+#define IMAGE_DEBUG_TYPE_RESERVED10         UINT32_C(0x0a)
+#define IMAGE_DEBUG_TYPE_CLSID              UINT32_C(0x0b)
+#define IMAGE_DEBUG_TYPE_VC_FEATURE         UINT32_C(0x0c)
+#define IMAGE_DEBUG_TYPE_POGO               UINT32_C(0x0d)
+#define IMAGE_DEBUG_TYPE_ILTCG              UINT32_C(0x0e)
+#define IMAGE_DEBUG_TYPE_MPX                UINT32_C(0x0f)
+#define IMAGE_DEBUG_TYPE_REPRO              UINT32_C(0x10)
 /** @} */
 
 /** @name IMAGE_DEBUG_MISC_XXX - Misc debug data type.
@@ -2012,5 +2167,5 @@ typedef IMAGE_RELOCATION const *PCIMAGE_RELOCATION;
 
 /** @} */
 
-#endif
+#endif /* !IPRT_INCLUDED_formats_pecoff_h */
 

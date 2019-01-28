@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2010-2017 Oracle Corporation
+# Copyright (C) 2010-2019 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -42,11 +42,15 @@ VBoxControl_DEFS     += \
 	$(if $(VBOX_WITH_SHARED_FOLDERS),VBOX_WITH_SHARED_FOLDERS,)
 VBoxControl_DEFS.win += \
 	$(if $(VBOX_WITH_DPC_LATENCY_CHECKER),VBOX_WITH_DPC_LATENCY_CHECKER,)
+VBoxControl_SDKS = VBOX_ZLIB_STATIC
 VBoxControl_SOURCES = \
 	VBoxControl.cpp
 VBoxControl_SOURCES.win = \
 	VBoxControl.rc
 VBoxControl_LDFLAGS.darwin = -framework IOKit
+VBoxControl_USES.win += vboximportchecker
+VBoxControl_VBOX_IMPORT_CHECKER.win.x86 = nt31
+VBoxControl_VBOX_IMPORT_CHECKER.win.amd64 = xp64
 
 include $(FILE_KBUILD_SUB_FOOTER)
 

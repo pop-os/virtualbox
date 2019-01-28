@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2017 Oracle Corporation
+# Copyright (C) 2006-2019 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -32,7 +32,8 @@ INSTALLS += ValidationKitTestsSmokeTests
 ValidationKitTestsSmokeTests_TEMPLATE = VBoxValidationKitR3
 ValidationKitTestsSmokeTests_INST = $(INST_VALIDATIONKIT)tests/smoketests/
 ValidationKitTestsSmokeTests_EXEC_SOURCES := \
-	$(PATH_SUB_CURRENT)/tdSmokeTest1.py
+	$(PATH_SUB_CURRENT)/tdSmokeTest1.py \
+	$(PATH_SUB_CURRENT)/tdExoticOrAncient1.py
 
 VBOX_VALIDATIONKIT_PYTHON_SOURCES += $(ValidationKitTestsSmokeTests_EXEC_SOURCES)
 

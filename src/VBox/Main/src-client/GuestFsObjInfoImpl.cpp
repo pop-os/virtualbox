@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2017 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,7 +19,7 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
-#define LOG_GROUP LOG_GROUP_GUEST_CONTROL // LOG_GROUP_MAIN_GUESTFSOBJINFO
+#define LOG_GROUP LOG_GROUP_MAIN_GUESTFSOBJINFO
 #include "LoggingNew.h"
 
 #ifndef VBOX_WITH_GUEST_CONTROL
@@ -42,7 +42,7 @@ DEFINE_EMPTY_CTOR_DTOR(GuestFsObjInfo)
 
 HRESULT GuestFsObjInfo::FinalConstruct(void)
 {
-    LogFlowThisFunc(("\n"));
+    LogFlowThisFuncEnter();
     return BaseFinalConstruct();
 }
 
@@ -63,7 +63,7 @@ int GuestFsObjInfo::init(const GuestFsObjData &objData)
 
     /* Enclose the state transition NotReady->InInit->Ready. */
     AutoInitSpan autoInitSpan(this);
-    AssertReturn(autoInitSpan.isOk(), E_FAIL); /** @todo r=bird: returning COM or IPRT status codes here?*/
+    AssertReturn(autoInitSpan.isOk(), VERR_OBJECT_DESTROYED);
 
     mData = objData;
 
@@ -79,12 +79,12 @@ int GuestFsObjInfo::init(const GuestFsObjData &objData)
  */
 void GuestFsObjInfo::uninit(void)
 {
-    LogFlowThisFunc(("\n"));
-
     /* Enclose the state transition Ready->InUninit->NotReady. */
     AutoUninitSpan autoUninitSpan(this);
     if (autoUninitSpan.uninitDone())
         return;
+
+    LogFlowThisFuncEnter();
 }
 
 // implementation of wrapped private getters/setters for attributes
@@ -141,7 +141,7 @@ HRESULT GuestFsObjInfo::getGenerationId(ULONG *aGenerationId)
     return S_OK;
 }
 
-HRESULT GuestFsObjInfo::getGID(ULONG *aGID)
+HRESULT GuestFsObjInfo::getGID(LONG *aGID)
 {
     *aGID = mData.mGID;
 
@@ -204,7 +204,7 @@ HRESULT GuestFsObjInfo::getType(FsObjType_T *aType)
     return S_OK;
 }
 
-HRESULT GuestFsObjInfo::getUID(ULONG *aUID)
+HRESULT GuestFsObjInfo::getUID(LONG *aUID)
 {
     *aUID = mData.mUID;
 

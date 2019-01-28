@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2017 Oracle Corporation
+ * Copyright (C) 2007-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -93,6 +93,32 @@
 #undef Bs3RegCtxSetRipCsFromCurPtr
 #undef Bs3RegCtxSetRipCsFromFlat
 #undef Bs3RegCtxSetRipCsFromLnkPtr
+#undef Bs3RegGetCr0
+#undef Bs3RegGetCr2
+#undef Bs3RegGetCr3
+#undef Bs3RegGetCr4
+#undef Bs3RegGetDr0
+#undef Bs3RegGetDr1
+#undef Bs3RegGetDr2
+#undef Bs3RegGetDr3
+#undef Bs3RegGetDr6
+#undef Bs3RegGetDr7
+#undef Bs3RegGetDrX
+#undef Bs3RegGetLdtr
+#undef Bs3RegGetTr
+#undef Bs3RegSetCr0
+#undef Bs3RegSetCr2
+#undef Bs3RegSetCr3
+#undef Bs3RegSetCr4
+#undef Bs3RegSetDr0
+#undef Bs3RegSetDr1
+#undef Bs3RegSetDr2
+#undef Bs3RegSetDr3
+#undef Bs3RegSetDr6
+#undef Bs3RegSetDr7
+#undef Bs3RegSetDrX
+#undef Bs3RegSetLdtr
+#undef Bs3RegSetTr
 #undef Bs3SelFar32ToFlat32
 #undef Bs3SelFar32ToFlat32NoClobber
 #undef Bs3SelFlatCodeToProtFar16
@@ -130,6 +156,8 @@
 #undef Bs3TestFailed
 #undef Bs3TestFailedF
 #undef Bs3TestFailedV
+#undef Bs3TestHostPrintf
+#undef Bs3TestHostPrintfV
 #undef Bs3TestInit
 #undef Bs3TestPrintf
 #undef Bs3TestPrintfV
@@ -155,6 +183,7 @@
 #undef Bs3TrapRmV86Init
 #undef Bs3TrapRmV86InitEx
 #undef Bs3TrapRmV86SetGate
+#undef Bs3TrapSetDpl
 #undef Bs3TrapSetHandler
 #undef Bs3TrapSetHandlerEx
 #undef Bs3TrapSetJmp

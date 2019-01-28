@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,8 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___iprt_zip_h
-#define ___iprt_zip_h
+#ifndef IPRT_INCLUDED_zip_h
+#define IPRT_INCLUDED_zip_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/cdefs.h>
 #include <iprt/types.h>
@@ -254,6 +257,17 @@ RTDECL(int) RTZipGzipDecompressIoStream(RTVFSIOSTREAM hVfsIosIn, uint32_t fFlags
 RTDECL(int) RTZipGzipCompressIoStream(RTVFSIOSTREAM hVfsIosDst, uint32_t fFlags, uint8_t uLevel, PRTVFSIOSTREAM phVfsIosGzip);
 
 /**
+ * A mini GZIP program.
+ *
+ * @returns Program exit code.
+ *
+ * @param   cArgs               The number of arguments.
+ * @param   papszArgs           The argument vector.  (Note that this may be
+ *                              reordered, so the memory must be writable.)
+ */
+RTDECL(RTEXITCODE) RTZipGzipCmd(unsigned cArgs, char **papszArgs);
+
+/**
  * Opens a TAR filesystem stream.
  *
  * This is used to extract, list or check a TAR archive.
@@ -449,5 +463,5 @@ RTDECL(int) RTZipXarFsStreamFromIoStream(RTVFSIOSTREAM hVfsIosIn, uint32_t fFlag
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !IPRT_INCLUDED_zip_h */
 

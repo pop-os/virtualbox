@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017-2018 Oracle Corporation
+ * Copyright (C) 2017-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef HDA_STREAM_H
-#define HDA_STREAM_H
+#ifndef VBOX_INCLUDED_SRC_Audio_HDAStream_h
+#define VBOX_INCLUDED_SRC_Audio_HDAStream_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "DevHDACommon.h"
 
@@ -149,7 +152,12 @@ typedef struct HDASTREAMSTATE
     /** How many interrupts are pending due to
      *  BDLE interrupt-on-completion (IOC) bits set. */
     uint8_t                 cTransferPendingInterrupts;
-    uint8_t                 Padding2[4];
+    uint8_t                 Padding2[2];
+    /** The stream's timer Hz rate.
+     *  This value can can be different from the device's default Hz rate,
+     *  depending on the rate the stream expects (e.g. for 5.1 speaker setups).
+     *  Set in hdaR3StreamInit(). */
+    uint16_t                uTimerHz;
     /** Number of audio data frames for the position adjustment.
      *  0 if no position adjustment is needed. */
     uint16_t                cfPosAdjustDefault;
@@ -297,5 +305,5 @@ void              hdaR3StreamAsyncIOEnable(PHDASTREAM pStream, bool fEnable);
 /** @} */
 
 #endif /* IN_RING3 */
-#endif /* !HDA_STREAM_H */
+#endif /* !VBOX_INCLUDED_SRC_Audio_HDAStream_h */
 

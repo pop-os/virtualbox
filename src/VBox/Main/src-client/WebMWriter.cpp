@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2018 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,21 +24,11 @@
 #define LOG_GROUP LOG_GROUP_MAIN_DISPLAY
 #include "LoggingNew.h"
 
-#include <list>
-#include <map>
-#include <queue>
-#include <stack>
-
-#include <math.h> /* For lround.h. */
-
-#include <iprt/asm.h>
-#include <iprt/buildconfig.h>
 #include <iprt/cdefs.h>
 #include <iprt/critsect.h>
-#include <iprt/err.h>
+#include <iprt/errcore.h>
 #include <iprt/file.h>
-#include <iprt/rand.h>
-#include <iprt/string.h>
+#include <iprt/buildconfig.h>
 
 #include <VBox/log.h>
 #include <VBox/version.h>
@@ -142,7 +132,7 @@ int WebMWriter::Close(void)
         return VINF_SUCCESS;
 
     /* Make sure to drain all queues. */
-    processQueues(&CurSeg.queueBlocks, true /* fForce */);
+    processQueue(&CurSeg.queueBlocks, true /* fForce */);
 
     writeFooter();
 
@@ -161,9 +151,18 @@ int WebMWriter::Close(void)
     Assert(CurSeg.queueBlocks.Map.size() == 0);
     Assert(CurSeg.mapTracks.size() == 0);
 
+    com::Utf8Str strFileName = getFileName().c_str();
+
     close();
 
-    return VINF_SUCCESS;
+    int rc = VINF_SUCCESS;
+
+    /* If no clusters (= data) was written, delete the file again. */
+    if (!CurSeg.cClusters)
+        rc = RTFileDelete(strFileName.c_str());
+
+    LogFlowFuncLeaveRC(rc);
+    return rc;
 }
 
 /**
@@ -179,31 +178,23 @@ int WebMWriter::Close(void)
 int WebMWriter::AddAudioTrack(uint16_t uHz, uint8_t cChannels, uint8_t cBits, uint8_t *puTrack)
 {
 #ifdef VBOX_WITH_LIBOPUS
-    int rc;
+    AssertReturn(uHz,       VERR_INVALID_PARAMETER);
+    AssertReturn(cBits,     VERR_INVALID_PARAMETER);
+    AssertReturn(cChannels, VERR_INVALID_PARAMETER);
 
     /*
-     * Check if the requested codec rate is supported.
+     * Adjust the handed-in Hz rate to values which are supported by the Opus codec.
      *
      * Only the following values are supported by an Opus standard build
      * -- every other rate only is supported by a custom build.
+     *
+     * See opus_encoder_create() for more information.
      */
-    switch (uHz)
-    {
-        case 48000:
-        case 24000:
-        case 16000:
-        case 12000:
-        case  8000:
-            rc = VINF_SUCCESS;
-            break;
-
-        default:
-            rc = VERR_NOT_SUPPORTED;
-            break;
-    }
-
-    if (RT_FAILURE(rc))
-        return rc;
+    if      (uHz > 24000) uHz = 48000;
+    else if (uHz > 16000) uHz = 24000;
+    else if (uHz > 12000) uHz = 16000;
+    else if (uHz > 8000 ) uHz = 12000;
+    else     uHz = 8000;
 
     /* Some players (e.g. Firefox with Nestegg) rely on track numbers starting at 1.
      * Using a track number 0 will show those files as being corrupted. */
@@ -306,7 +297,7 @@ int WebMWriter::AddVideoTrack(uint16_t uWidth, uint16_t uHeight, uint32_t uFPS, 
  *
  * @returns File name as UTF-8 string.
  */
-const Utf8Str& WebMWriter::GetFileName(void)
+const com::Utf8Str& WebMWriter::GetFileName(void)
 {
     return getFileName();
 }
@@ -346,7 +337,7 @@ int WebMWriter::init(void)
  */
 void WebMWriter::destroy(void)
 {
-    CurSeg.destroy();
+    CurSeg.uninit();
 }
 
 /**
@@ -454,7 +445,7 @@ int WebMWriter::writeSimpleBlockQueued(WebMTrack *a_pTrack, WebMSimpleBlock *a_p
             CurSeg.queueBlocks.Map[tcAbsPTS] = Blocks;
         }
 
-        processQueues(&CurSeg.queueBlocks, false /* fForce */);
+        rc = processQueue(&CurSeg.queueBlocks, false /* fForce */);
     }
     catch(...)
     {
@@ -486,6 +477,7 @@ int WebMWriter::writeSimpleBlockVP8(WebMTrack *a_pTrack, const vpx_codec_enc_cfg
     if (   tcAbsPTSMs
         && tcAbsPTSMs <= a_pTrack->tcAbsLastWrittenMs)
     {
+        AssertFailed(); /* Should never happen. */
         tcAbsPTSMs = a_pTrack->tcAbsLastWrittenMs + 1;
     }
 
@@ -612,7 +604,7 @@ int WebMWriter::WriteBlock(uint8_t uTrack, const void *pvData, size_t cbData)
  * @param   fForce          Whether forcing to process the render queue or not.
  *                          Needed to drain the queues when terminating.
  */
-int WebMWriter::processQueues(WebMQueue *pQueue, bool fForce)
+int WebMWriter::processQueue(WebMQueue *pQueue, bool fForce)
 {
     if (pQueue->tsLastProcessedMs == 0)
         pQueue->tsLastProcessedMs = RTTimeMilliTS();
@@ -636,61 +628,86 @@ int WebMWriter::processQueues(WebMQueue *pQueue, bool fForce)
         /* Whether to start a new cluster or not. */
         bool fClusterStart = false;
 
-        /* No blocks written yet? Start a new cluster. */
-        if (Cluster.cBlocks == 0)
+        /* If the current segment does not have any clusters (yet),
+         * take the first absolute PTS as the starting point for that segment. */
+        if (CurSeg.cClusters == 0)
+        {
+            CurSeg.tcAbsStartMs = mapAbsPTSMs;
             fClusterStart = true;
+        }
 
-        /* Did we reach the maximum a cluster can hold? Use a new cluster then. */
-        if (mapAbsPTSMs - Cluster.tcAbsStartMs > VBOX_WEBM_CLUSTER_MAX_LEN_MS)
+        /* Determine if we need to start a new cluster. */
+            /* No blocks written yet? Start a new cluster. */
+        if (   Cluster.cBlocks == 0
+            /* Did we reach the maximum a cluster can hold? Use a new cluster then. */
+            || mapAbsPTSMs - Cluster.tcAbsStartMs > VBOX_WEBM_CLUSTER_MAX_LEN_MS
+            /* If the block map indicates that a cluster is needed for this timecode, create one. */
+            || mapBlocks.fClusterNeeded)
+        {
             fClusterStart = true;
-
-        /* If the block map indicates that a cluster is needed for this timecode, create one. */
-        if (mapBlocks.fClusterNeeded)
-            fClusterStart = true;
+        }
 
         if (   fClusterStart
             && !mapBlocks.fClusterStarted)
         {
+            /* Last written timecode of the current cluster. */
+            uint64_t tcAbsClusterLastWrittenMs;
+
             if (Cluster.fOpen) /* Close current cluster first. */
             {
-                /* Make sure that the current cluster contained some data.  */
+                Log2Func(("[C%RU64] End @ %RU64ms (duration = %RU64ms)\n",
+                          Cluster.uID, Cluster.tcAbsLastWrittenMs, Cluster.tcAbsLastWrittenMs - Cluster.tcAbsStartMs));
+
+                /* Make sure that the current cluster contained some data. */
                 Assert(Cluster.offStart);
                 Assert(Cluster.cBlocks);
+
+                /* Save the last written timecode of the current cluster before closing it. */
+                tcAbsClusterLastWrittenMs = Cluster.tcAbsLastWrittenMs;
 
                 subEnd(MkvElem_Cluster);
                 Cluster.fOpen = false;
             }
+            else /* First cluster ever? Use the segment's starting timecode. */
+                tcAbsClusterLastWrittenMs = CurSeg.tcAbsStartMs;
 
-            Cluster.fOpen        = true;
-            Cluster.uID          = CurSeg.cClusters;
-            Cluster.tcAbsStartMs = mapAbsPTSMs;
-            Cluster.offStart     = RTFileTell(getFile());
-            Cluster.cBlocks      = 0;
+            Cluster.fOpen              = true;
+            Cluster.uID                = CurSeg.cClusters;
+            /* Use the block map's currently processed TC as the cluster's starting TC. */
+            Cluster.tcAbsStartMs       = mapAbsPTSMs;
+            Cluster.tcAbsLastWrittenMs = Cluster.tcAbsStartMs;
+            Cluster.offStart           = RTFileTell(getFile());
+            Cluster.cBlocks            = 0;
+
+            AssertMsg(Cluster.tcAbsStartMs <= mapAbsPTSMs,
+                      ("Cluster #%RU64 start TC (%RU64) must not bigger than the block map's currently processed TC (%RU64)\n",
+                       Cluster.uID, Cluster.tcAbsStartMs, mapAbsPTSMs));
 
             Log2Func(("[C%RU64] Start @ %RU64ms (map TC is %RU64) / %RU64 bytes\n",
                       Cluster.uID, Cluster.tcAbsStartMs, mapAbsPTSMs, Cluster.offStart));
 
-            if (CurSeg.cClusters)
-                AssertMsg(Cluster.tcAbsStartMs, ("[C%RU64] @ %RU64 starting timecode is 0 which is invalid\n",
-                                                 Cluster.uID, Cluster.offStart));
+            /* Insert cue points for all tracks if a new cluster has been started. */
+            WebMCuePoint *pCuePoint = new WebMCuePoint(Cluster.tcAbsStartMs);
 
             WebMTracks::iterator itTrack = CurSeg.mapTracks.begin();
             while (itTrack != CurSeg.mapTracks.end())
             {
-                /* Insert cue points for all tracks if a new cluster has been started. */
-                WebMCuePoint cue(itTrack->second /* pTrack */, Cluster.offStart, Cluster.tcAbsStartMs);
-                CurSeg.lstCues.push_back(cue);
-
+                pCuePoint->Pos[itTrack->first] = new WebMCueTrackPosEntry(Cluster.offStart);
                 ++itTrack;
             }
 
+            CurSeg.lstCuePoints.push_back(pCuePoint);
+
             subStart(MkvElem_Cluster)
-                .serializeUnsignedInteger(MkvElem_Timecode, Cluster.tcAbsStartMs);
+                .serializeUnsignedInteger(MkvElem_Timecode, Cluster.tcAbsStartMs - CurSeg.tcAbsStartMs);
 
             CurSeg.cClusters++;
 
             mapBlocks.fClusterStarted = true;
         }
+
+        Log2Func(("[C%RU64] SegTcAbsStartMs=%RU64, ClusterTcAbsStartMs=%RU64, ClusterTcAbsLastWrittenMs=%RU64, mapAbsPTSMs=%RU64\n",
+                   Cluster.uID, CurSeg.tcAbsStartMs, Cluster.tcAbsStartMs, Cluster.tcAbsLastWrittenMs, mapAbsPTSMs));
 
         /* Iterate through all blocks related to the current timecode. */
         while (!mapBlocks.Queue.empty())
@@ -709,9 +726,10 @@ int WebMWriter::processQueues(WebMQueue *pQueue, bool fForce)
             AssertRC(rc2);
 
             Cluster.cBlocks++;
+            Cluster.tcAbsLastWrittenMs = pBlock->Data.tcAbsPTSMs;
 
             pTrack->cTotalBlocks++;
-            pTrack->tcAbsLastWrittenMs = pBlock->Data.tcAbsPTSMs;
+            pTrack->tcAbsLastWrittenMs = Cluster.tcAbsLastWrittenMs;
 
             if (CurSeg.tcAbsLastWrittenMs < pTrack->tcAbsLastWrittenMs)
                 CurSeg.tcAbsLastWrittenMs = pTrack->tcAbsLastWrittenMs;
@@ -721,8 +739,17 @@ int WebMWriter::processQueues(WebMQueue *pQueue, bool fForce)
             if (   !fClusterStart
                 && (pBlock->Data.fFlags & VBOX_WEBM_BLOCK_FLAG_KEY_FRAME))
             {
-                WebMCuePoint cue(pBlock->pTrack, Cluster.offStart, Cluster.tcAbsStartMs);
-                CurSeg.lstCues.push_back(cue);
+                /* Insert cue points for all tracks if a new cluster has been started. */
+                WebMCuePoint *pCuePoint = new WebMCuePoint(Cluster.tcAbsLastWrittenMs);
+
+                WebMTracks::iterator itTrack = CurSeg.mapTracks.begin();
+                while (itTrack != CurSeg.mapTracks.end())
+                {
+                    pCuePoint->Pos[itTrack->first] = new WebMCueTrackPosEntry(Cluster.offStart);
+                    ++itTrack;
+                }
+
+                CurSeg.lstCuePoints.push_back(pCuePoint);
             }
 
             delete pBlock;
@@ -774,25 +801,38 @@ int WebMWriter::writeFooter(void)
 
     subStart(MkvElem_Cues);
 
-    std::list<WebMCuePoint>::iterator itCuePoint = CurSeg.lstCues.begin();
-    while (itCuePoint != CurSeg.lstCues.end())
+    WebMCuePointList::iterator itCuePoint = CurSeg.lstCuePoints.begin();
+    while (itCuePoint != CurSeg.lstCuePoints.end())
     {
-        /* Sanity. */
-        AssertPtr(itCuePoint->pTrack);
+        WebMCuePoint *pCuePoint = (*itCuePoint);
+        AssertPtr(pCuePoint);
 
-        LogFunc(("CuePoint @ %RU64: Track #%RU8 (Cluster @ %RU64, tcAbs=%RU64)\n",
-                 RTFileTell(getFile()), itCuePoint->pTrack->uTrack,
-                 itCuePoint->offCluster, itCuePoint->tcAbs));
+        LogFunc(("CuePoint @ %RU64: %zu tracks, tcAbs=%RU64)\n",
+                 RTFileTell(getFile()), pCuePoint->Pos.size(), pCuePoint->tcAbs));
 
         subStart(MkvElem_CuePoint)
-            .serializeUnsignedInteger(MkvElem_CueTime,                itCuePoint->tcAbs)
-            .subStart(MkvElem_CueTrackPositions)
-                .serializeUnsignedInteger(MkvElem_CueTrack,           itCuePoint->pTrack->uTrack)
-                .serializeUnsignedInteger(MkvElem_CueClusterPosition, itCuePoint->offCluster - CurSeg.offStart, 8)
-                .subEnd(MkvElem_CueTrackPositions)
-            .subEnd(MkvElem_CuePoint);
+            .serializeUnsignedInteger(MkvElem_CueTime, pCuePoint->tcAbs);
 
-        itCuePoint++;
+            WebMCueTrackPosMap::iterator itTrackPos = pCuePoint->Pos.begin();
+            while (itTrackPos != pCuePoint->Pos.end())
+            {
+                WebMCueTrackPosEntry *pTrackPos = itTrackPos->second;
+                AssertPtr(pTrackPos);
+
+                LogFunc(("TrackPos (track #%RU32) @ %RU64, offCluster=%RU64)\n",
+                         itTrackPos->first, RTFileTell(getFile()), pTrackPos->offCluster));
+
+                subStart(MkvElem_CueTrackPositions)
+                    .serializeUnsignedInteger(MkvElem_CueTrack,           itTrackPos->first)
+                    .serializeUnsignedInteger(MkvElem_CueClusterPosition, pTrackPos->offCluster - CurSeg.offStart, 8)
+                    .subEnd(MkvElem_CueTrackPositions);
+
+                ++itTrackPos;
+            }
+
+        subEnd(MkvElem_CuePoint);
+
+        ++itCuePoint;
     }
 
     subEnd(MkvElem_Cues);
@@ -817,7 +857,7 @@ void WebMWriter::writeSeekHeader(void)
     else
         CurSeg.offSeekInfo = RTFileTell(getFile());
 
-    LogFunc(("Seek Headeder @ %RU64\n", CurSeg.offSeekInfo));
+    LogFunc(("Seek Header @ %RU64\n", CurSeg.offSeekInfo));
 
     subStart(MkvElem_SeekHead);
 
@@ -862,7 +902,7 @@ void WebMWriter::writeSeekHeader(void)
 
     const WebMTimecodeAbs tcAbsDurationMs = CurSeg.tcAbsLastWrittenMs - CurSeg.tcAbsStartMs;
 
-    if (!CurSeg.lstCues.empty())
+    if (!CurSeg.lstCuePoints.empty())
     {
         LogFunc(("tcAbsDurationMs=%RU64\n", tcAbsDurationMs));
         AssertMsg(tcAbsDurationMs, ("Segment seems to be empty (duration is 0)\n"));

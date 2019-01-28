@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2010-2017 Oracle Corporation
+# Copyright (C) 2010-2019 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -39,6 +39,9 @@
 --filter-out-files /testcase/tstRTLdrMachORelocs-1.o
 --filter-out-files /testcase/tstRTLdrMachORelocs-1.S
 --filter-out-files /testcase/tstRTLdrMachORelocs-1.disas
+
+# Small C and ASM header, no copyright or license text for now.
+/r3/win/vcc100-kernel32-fakes.h: --external-copyright --no-update-license
 
 # external code
 /r0drv/freebsd/alloc-r0drv-freebsd.c           : --external-copyright
@@ -88,6 +91,7 @@
 /r0drv/os2/timerA-r0drv-os2.asm                : --external-copyright
 
 /r3/os2/time-os2.cpp                           : --external-copyright
+/r3/os2/RTTimeSet-os2.cpp                      : --external-copyright
 /r0drv/os2/os2imports.imp                      : --external-copyright --treat-as .def
 
 /r3/win/VBoxRT-msvcp100-win32.def              : --external-copyright
@@ -99,4 +103,17 @@
 
 /common/math/gcc/*                             : --external-copyright --no-convert-tabs --dont-set-svn-keywords
 /common/math/gcc/udivmoddi4.c                  : --no-external-copyright --convert-tabs --set-svn-keywords
+
+# No header guard for these:
+/testcase/tstRTBigNum-uint128-div-test-data.h  : --no-fix-header-guards
+/testcase/tstRTBigNum-div-test-data.h          : --no-fix-header-guards
+/common/time/timesupref.h                      : --no-fix-header-guards
+/common/asn1/*-template.h                      : --no-fix-header-guards
+/common/asn1/*-template2.h                     : --no-fix-header-guards
+/common/crypto/*-template.h                    : --no-fix-header-guards
+/common/math/gcc/quad.h                        : --no-fix-header-guards
+/common/misc/sanity.h                          : --no-fix-header-guards
+/r3/win/vcc100-kernel32-fakes.h                : --no-fix-header-guards
+/*.h: --guard-relative-to-dir . --guard-prefix IPRT_INCLUDED_SRC_
+/include/internal/*.h: --guard-relative-to-dir include/internal --guard-prefix IPRT_INCLUDED_INTERNAL_
 

@@ -255,12 +255,9 @@
     <xsl:text> * Source    : src/VBox/Main/idl/VirtualBox.xidl&#x0A;</xsl:text>
     <xsl:text> * Generator : src/VBox/Frontends/VirtualBox/src/globals/COMWrappers.xsl&#x0A;</xsl:text>
     <xsl:text> */&#x0A;&#x0A;</xsl:text>
-    <xsl:text>/* VirtualBox interface declarations: */&#x0A;</xsl:text>
-    <xsl:text>#ifndef VBOX_WITH_XPCOM&#x0A;</xsl:text>
-    <xsl:text># include "VirtualBox.h"&#x0A;</xsl:text>
-    <xsl:text>#else /* !VBOX_WITH_XPCOM */&#x0A;</xsl:text>
-    <xsl:text># include "VirtualBox_XPCOM.h"&#x0A;</xsl:text>
-    <xsl:text>#endif /* VBOX_WITH_XPCOM */&#x0A;&#x0A;</xsl:text>
+
+    <xsl:text>#include "VBox/com/VirtualBox.h"&#x0A;&#x0A;</xsl:text>
+
     <xsl:text>/* COM includes: */&#x0A;</xsl:text>
     <xsl:text>#include "COMEnums.h"&#x0A;</xsl:text>
 
@@ -302,7 +299,14 @@
     <xsl:value-of select="substring(@name,2)"/>
     <xsl:text>_h__&#x0A;&#x0A;</xsl:text>
     <xsl:text>/* GUI includes: */&#x0A;</xsl:text>
-    <xsl:text>#include "COMDefs.h"&#x0A;&#x0A;</xsl:text>
+    <xsl:text>#include "COMDefs.h"&#x0A;</xsl:text>
+    <xsl:text>#include "UILibraryDefs.h"&#x0A;&#x0A;</xsl:text>
+    <xsl:text>/* VirtualBox interface declarations: */&#x0A;</xsl:text>
+    <xsl:text>#ifndef VBOX_WITH_LESS_VIRTUALBOX_INCLUDING&#x0A;</xsl:text>
+    <xsl:text># include &lt;VBox/com/VirtualBox.h&gt;&#x0A;</xsl:text>
+    <xsl:text>#else&#x0A;</xsl:text>
+    <xsl:text>COM_STRUCT_OR_CLASS(</xsl:text><xsl:value-of select="@name"/><xsl:text>);&#x0A;</xsl:text>
+    <xsl:text>#endif&#x0A;</xsl:text>
 
     <!-- Forward declarations: -->
     <xsl:text>/* Forward declarations: */&#x0A;</xsl:text>
@@ -321,7 +325,7 @@
 
     <!-- Interface wrapper declaration: -->
     <xsl:text>/* Interface wrapper declaration: */&#x0A;</xsl:text>
-    <xsl:text>class C</xsl:text>
+    <xsl:text>class SHARED_LIBRARY_STUFF C</xsl:text>
     <xsl:value-of select="substring(@name,2)"/>
     <xsl:text> : public CInterface&lt;</xsl:text>
     <xsl:value-of select="@name"/>
@@ -565,6 +569,10 @@
 <xsl:text> * aIface);&#x0A;</xsl:text>
   <xsl:text>&#x0A;</xsl:text>
 
+  <xsl:text>#ifdef VBOX_WITH_LESS_VIRTUALBOX_INCLUDING&#x0A;</xsl:text>
+  <xsl:text>const IID &amp;getIID() const RT_OVERRIDE;&#x0A;</xsl:text>
+  <xsl:text>#endif&#x0A;&#x0A;</xsl:text>
+
   <xsl:text>    /* Attributes (properties): */&#x0A;</xsl:text>
   <xsl:call-template name="declareAttributes">
     <xsl:with-param name="iface" select="."/>
@@ -749,6 +757,20 @@
 }
 </xsl:text>
   <xsl:text>&#x0A;</xsl:text>
+
+</xsl:template>
+
+<xsl:template name="defineIIDGetter">
+  <xsl:text>#ifdef VBOX_WITH_LESS_VIRTUALBOX_INCLUDING&#x0A;</xsl:text>
+  <xsl:text>const IID &amp;C</xsl:text>
+  <xsl:value-of select="substring(@name,2)"/>
+  <xsl:text>::getIID() const&#x0A;</xsl:text>
+  <xsl:text>{&#x0A;</xsl:text>
+  <xsl:text>    return COM_IIDOF(</xsl:text>
+  <xsl:value-of select="@name"/>
+  <xsl:text>);&#x0A;</xsl:text>
+  <xsl:text>}&#x0A;</xsl:text>
+  <xsl:text>#endif&#x0A;&#x0A;</xsl:text>
 
 </xsl:template>
 
@@ -992,6 +1014,9 @@
 
 <xsl:template name="defineMembers">
   <xsl:call-template name="defineConstructors">
+    <xsl:with-param name="iface" select="."/>
+  </xsl:call-template>
+  <xsl:call-template name="defineIIDGetter">
     <xsl:with-param name="iface" select="."/>
   </xsl:call-template>
   <xsl:call-template name="defineAttributes">
@@ -1400,7 +1425,7 @@
       </xsl:choose>
     </xsl:when>
     <!-- string types -->
-    <xsl:when test="@type = 'wstring' or @type = 'uuid'">
+    <xsl:when test="@type = 'wstring'">
       <xsl:choose>
         <xsl:when test="$isIn">
           <xsl:text>BSTRIn(a</xsl:text>
@@ -1411,6 +1436,25 @@
         </xsl:when>
         <xsl:when test="$isOut">
           <xsl:text>BSTROut(a</xsl:text>
+          <xsl:call-template name="capitalize">
+            <xsl:with-param name="str" select="@name"/>
+          </xsl:call-template>
+          <xsl:text>)</xsl:text>
+        </xsl:when>
+      </xsl:choose>
+    </xsl:when>
+    <!-- uuid is represented as string in the com -->
+    <xsl:when test="@type = 'uuid'">
+      <xsl:choose>
+        <xsl:when test="$isIn">
+          <xsl:text>GuidAsBStrIn(a</xsl:text>
+          <xsl:call-template name="capitalize">
+            <xsl:with-param name="str" select="@name"/>
+          </xsl:call-template>
+          <xsl:text>)</xsl:text>
+        </xsl:when>
+        <xsl:when test="$isOut">
+          <xsl:text>GuidAsBStrOut(a</xsl:text>
           <xsl:call-template name="capitalize">
             <xsl:with-param name="str" select="@name"/>
           </xsl:call-template>
@@ -1530,7 +1574,7 @@
           <xsl:choose>
             <!-- standard types -->
             <!--xsl:when test=".='result'">??</xsl:when-->
-            <xsl:when test=".='uuid'">QString</xsl:when>
+            <xsl:when test=".='uuid'">QUuid</xsl:when>
             <xsl:otherwise>
               <xsl:message terminate="yes">
                 <xsl:value-of select="concat(../../../@name,'::',../../@name,'::',../@name,': ')"/>

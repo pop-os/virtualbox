@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2013-2017 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,8 +16,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef VBOX_CPUDB_Quad_Core_AMD_Opteron_2384
-#define VBOX_CPUDB_Quad_Core_AMD_Opteron_2384
+#ifndef VBOX_CPUDB_Quad_Core_AMD_Opteron_2384_h
+#define VBOX_CPUDB_Quad_Core_AMD_Opteron_2384_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 
 #ifndef CPUM_DB_STANDALONE
@@ -263,5 +266,5 @@ static CPUMDBENTRY const g_Entry_Quad_Core_AMD_Opteron_2384 =
     /*.paMsrRanges      = */ NULL_ALONE(g_aMsrRanges_Quad_Core_AMD_Opteron_2384),
 };
 
-#endif /* !VBOX_DB_Quad_Core_AMD_Opteron_2384 */
+#endif /* !VBOX_CPUDB_Quad_Core_AMD_Opteron_2384_h */
 

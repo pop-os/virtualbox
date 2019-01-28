@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -538,6 +538,25 @@ DECLINLINE(bool) isBlankLine(const char *pchLine, size_t cchLine)
 
 
 /**
+ * Checks if there are @a cch blanks at @a pch.
+ *
+ * @returns true if span of @a cch blanks, false if not.
+ * @param   pch                 The start of the span to check.
+ * @param   cch                 The length of the span.
+ */
+DECLINLINE(bool) isSpanOfBlanks(const char *pch, size_t cch)
+{
+    while (cch-- > 0)
+    {
+        char const ch = *pch++;
+        if (!RT_C_IS_BLANK(ch))
+            return false;
+    }
+    return true;
+}
+
+
+/**
  * Strip trailing blanks (space & tab).
  *
  * @returns True if modified, false if not.
@@ -985,6 +1004,60 @@ bool rewrite_SvnKeywords(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PC
     }
     else if (RT_SUCCESS(rc))
         RTStrFree(pszKeywords);
+
+    return false;
+}
+
+/**
+ * Checks the svn:sync-process value and that parent is exported too.
+ *
+ * @returns false - the state carries these kinds of changes.
+ * @param   pState              The rewriter state.
+ * @param   pIn                 The input stream.
+ * @param   pOut                The output stream.
+ * @param   pSettings           The settings.
+ */
+bool rewrite_SvnSyncProcess(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
+{
+    RT_NOREF2(pIn, pOut);
+    if (   pSettings->fSkipSvnSyncProcess
+        || !ScmSvnIsInWorkingCopy(pState))
+        return false;
+
+    char *pszSyncProcess;
+    int rc = ScmSvnQueryProperty(pState, "svn:sync-process", &pszSyncProcess);
+    if (RT_SUCCESS(rc))
+    {
+        if (strcmp(pszSyncProcess, "export") == 0)
+        {
+            char *pszParentSyncProcess;
+            rc = ScmSvnQueryParentProperty(pState, "svn:sync-process", &pszParentSyncProcess);
+            if (RT_SUCCESS(rc))
+            {
+                if (strcmp(pszSyncProcess, "export") != 0)
+                    ScmError(pState, VERR_INVALID_STATE,
+                             "svn:sync-process=export, but parent directory differs: %s\n"
+                             "WARNING! Make sure to unexport everything inside the directory first!\n"
+                             "         Then you may export the directory and stuff inside it if you want.\n"
+                             "         (Just exporting the directory will not make anything inside it externally visible.)\n"
+                             , pszParentSyncProcess);
+                RTStrFree(pszParentSyncProcess);
+            }
+            else if (rc == VERR_NOT_FOUND)
+                ScmError(pState, VERR_NOT_FOUND,
+                         "svn:sync-process=export, but parent directory is not exported!\n"
+                         "WARNING! Make sure to unexport everything inside the directory first!\n"
+                         "         Then you may export the directory and stuff inside it if you want.\n"
+                         "         (Just exporting the directory will not make anything inside it externally visible.)\n");
+            else
+                ScmError(pState, rc, "ScmSvnQueryParentProperty: %Rrc\n", rc);
+        }
+        else if (strcmp(pszSyncProcess, "ignore") != 0)
+            ScmError(pState, VERR_INVALID_NAME, "Bad sync-process value: %s\n", pszSyncProcess);
+        RTStrFree(pszSyncProcess);
+    }
+    else if (rc != VERR_NOT_FOUND)
+        ScmError(pState, rc, "ScmSvnQueryProperty: %Rrc\n", rc);
 
     return false;
 }
@@ -2158,7 +2231,7 @@ static size_t findTodoCommentStart(char const *pchLine, size_t cchLineBeforeTodo
     /* Skip one '@' or  '\\'. */
     char ch;
     if (   cchLineBeforeTodo > 2
-        && (   (ch = pchLine[cchLineBeforeTodo - 1] == '@')
+        && (   ((ch = pchLine[cchLineBeforeTodo - 1]) == '@')
             || ch == '\\' ) )
         cchLineBeforeTodo--;
 
@@ -2244,9 +2317,10 @@ static size_t findTodo(char const *pchLine, size_t cchLine)
 
 
 /**
- * Flower box marker comments in C and C++ code.
+ * Doxygen todos in C and C++ code.
  *
  * @returns true if modifications were made, false if not.
+ * @param   pState              The rewriter state.
  * @param   pIn                 The input stream.
  * @param   pOut                The output stream.
  * @param   pSettings           The settings.
@@ -2328,6 +2402,790 @@ bool rewrite_Fix_C_and_CPP_Todos(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM 
     if (cChanges > 0)
         ScmVerbose(pState, 2, " * Converted %zu todo statements.\n", cChanges);
     return cChanges != 0;
+}
+
+
+/**
+ * Tries to parse a C/C++ preprocessor include directive.
+ *
+ * This is resonably forgiving and expects sane input.
+ *
+ * @retval  kScmIncludeDir_Invalid if not a valid include directive.
+ * @retval  kScmIncludeDir_Quoted
+ * @retval  kScmIncludeDir_Bracketed
+ * @retval  kScmIncludeDir_Macro
+ *
+ * @param   pState          The rewriter state (for repording malformed
+ *                          directives).
+ * @param   pchLine         The line to try parse as an include statement.
+ * @param   cchLine         The line length.
+ * @param   ppchFilename    Where to return the pointer to the filename part.
+ * @param   pcchFilename    Where to return the length of the filename.
+ */
+SCMINCLUDEDIR ScmMaybeParseCIncludeLine(PSCMRWSTATE pState, const char *pchLine, size_t cchLine,
+                                        const char **ppchFilename, size_t *pcchFilename)
+{
+    /* Skip leading spaces: */
+    while (cchLine > 0 && RT_C_IS_BLANK(*pchLine))
+        cchLine--, pchLine++;
+
+    /* Check for '#': */
+    if (cchLine > 0 && *pchLine == '#')
+    {
+        cchLine--;
+        pchLine++;
+
+        /* Skip spaces after '#' (optional): */
+        while (cchLine > 0 && RT_C_IS_BLANK(*pchLine))
+            cchLine--, pchLine++;
+
+        /* Check for 'include': */
+        static char const s_szInclude[] = "include";
+        if (   cchLine >= sizeof(s_szInclude)
+            && memcmp(pchLine, RT_STR_TUPLE(s_szInclude)) == 0)
+        {
+            cchLine -= sizeof(s_szInclude) - 1;
+            pchLine += sizeof(s_szInclude) - 1;
+
+            /* Skip spaces after 'include' word (optional): */
+            while (cchLine > 0 && RT_C_IS_BLANK(*pchLine))
+                cchLine--, pchLine++;
+            if (cchLine > 0)
+            {
+                /* Quoted or bracketed? */
+                char const chFirst = *pchLine;
+                if (chFirst == '"' || chFirst == '<')
+                {
+                    cchLine--;
+                    pchLine++;
+                    const char *pchEnd = (const char *)memchr(pchLine, chFirst == '"' ? '"' : '>', cchLine);
+                    if (pchEnd)
+                    {
+                        if (ppchFilename)
+                            *ppchFilename = pchLine;
+                        if (pcchFilename)
+                            *pcchFilename = pchEnd - pchLine;
+                        return chFirst == '"' ? kScmIncludeDir_Quoted : kScmIncludeDir_Bracketed;
+                    }
+                    ScmError(pState, VERR_PARSE_ERROR, "Unbalanced #include filename %s: %.*s\n",
+                             chFirst == '"' ? "quotes" : "brackets" , cchLine, pchLine);
+                }
+                /* C prepreprocessor macro? */
+                else if (ScmIsCIdentifierLeadChar(chFirst))
+                {
+                    size_t cchFilename = 1;
+                    while (   cchFilename < cchLine
+                           && ScmIsCIdentifierChar(pchLine[cchFilename]))
+                        cchFilename++;
+                    if (ppchFilename)
+                        *ppchFilename = pchLine;
+                    if (pcchFilename)
+                        *pcchFilename = cchFilename;
+                    return kScmIncludeDir_Macro;
+                }
+                else
+                    ScmError(pState, VERR_PARSE_ERROR, "Malformed #include filename part: %.*s\n", cchLine, pchLine);
+            }
+            else
+                ScmError(pState, VERR_PARSE_ERROR, "Missing #include filename!\n");
+        }
+    }
+
+    if (ppchFilename)
+        *ppchFilename = NULL;
+    if (pcchFilename)
+        *pcchFilename = 0;
+    return kScmIncludeDir_Invalid;
+}
+
+
+/**
+ * Fix err.h/errcore.h usage.
+ *
+ * @returns true if modifications were made, false if not.
+ * @param   pIn                 The input stream.
+ * @param   pOut                The output stream.
+ * @param   pSettings           The settings.
+ */
+bool rewrite_Fix_Err_H(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
+{
+    if (!pSettings->fFixErrH)
+        return false;
+
+    static struct
+    {
+        const char *pszHeader;
+        unsigned    cchHeader;
+        int         iLevel;
+    } const s_aHeaders[] =
+    {
+        { RT_STR_TUPLE("iprt/errcore.h"), 1 },
+        { RT_STR_TUPLE("iprt/err.h"),     2 },
+        { RT_STR_TUPLE("VBox/err.h"),     3 },
+    };
+    static RTSTRTUPLE const g_aLevel1Statuses[] =  /* Note! Keep in sync with errcore.h content! */
+    {
+        { RT_STR_TUPLE("VINF_SUCCESS") },
+        { RT_STR_TUPLE("VERR_GENERAL_FAILURE") },
+        { RT_STR_TUPLE("VERR_INVALID_PARAMETER") },
+        { RT_STR_TUPLE("VWRN_INVALID_PARAMETER") },
+        { RT_STR_TUPLE("VERR_INVALID_MAGIC") },
+        { RT_STR_TUPLE("VWRN_INVALID_MAGIC") },
+        { RT_STR_TUPLE("VERR_INVALID_HANDLE") },
+        { RT_STR_TUPLE("VWRN_INVALID_HANDLE") },
+        { RT_STR_TUPLE("VERR_INVALID_POINTER") },
+        { RT_STR_TUPLE("VERR_NO_MEMORY") },
+        { RT_STR_TUPLE("VERR_PERMISSION_DENIED") },
+        { RT_STR_TUPLE("VINF_PERMISSION_DENIED") },
+        { RT_STR_TUPLE("VERR_VERSION_MISMATCH") },
+        { RT_STR_TUPLE("VERR_NOT_IMPLEMENTED") },
+        { RT_STR_TUPLE("VERR_INVALID_FLAGS") },
+        { RT_STR_TUPLE("VERR_WRONG_ORDER") },
+        { RT_STR_TUPLE("VERR_INVALID_FUNCTION") },
+        { RT_STR_TUPLE("VERR_NOT_SUPPORTED") },
+        { RT_STR_TUPLE("VINF_NOT_SUPPORTED") },
+        { RT_STR_TUPLE("VERR_ACCESS_DENIED") },
+        { RT_STR_TUPLE("VERR_INTERRUPTED") },
+        { RT_STR_TUPLE("VINF_INTERRUPTED") },
+        { RT_STR_TUPLE("VERR_TIMEOUT") },
+        { RT_STR_TUPLE("VINF_TIMEOUT") },
+        { RT_STR_TUPLE("VERR_BUFFER_OVERFLOW") },
+        { RT_STR_TUPLE("VINF_BUFFER_OVERFLOW") },
+        { RT_STR_TUPLE("VERR_TOO_MUCH_DATA") },
+        { RT_STR_TUPLE("VERR_TRY_AGAIN") },
+        { RT_STR_TUPLE("VINF_TRY_AGAIN") },
+        { RT_STR_TUPLE("VERR_PARSE_ERROR") },
+        { RT_STR_TUPLE("VERR_OUT_OF_RANGE") },
+        { RT_STR_TUPLE("VERR_NUMBER_TOO_BIG") },
+        { RT_STR_TUPLE("VWRN_NUMBER_TOO_BIG") },
+        { RT_STR_TUPLE("VERR_CANCELLED") },
+        { RT_STR_TUPLE("VERR_TRAILING_CHARS") },
+        { RT_STR_TUPLE("VWRN_TRAILING_CHARS") },
+        { RT_STR_TUPLE("VERR_TRAILING_SPACES") },
+        { RT_STR_TUPLE("VWRN_TRAILING_SPACES") },
+        { RT_STR_TUPLE("VERR_NOT_FOUND") },
+        { RT_STR_TUPLE("VWRN_NOT_FOUND") },
+        { RT_STR_TUPLE("VERR_INVALID_STATE") },
+        { RT_STR_TUPLE("VWRN_INVALID_STATE") },
+        { RT_STR_TUPLE("VERR_OUT_OF_RESOURCES") },
+        { RT_STR_TUPLE("VWRN_OUT_OF_RESOURCES") },
+        { RT_STR_TUPLE("VERR_END_OF_STRING") },
+        { RT_STR_TUPLE("VERR_CALLBACK_RETURN") },
+        { RT_STR_TUPLE("VINF_CALLBACK_RETURN") },
+        { RT_STR_TUPLE("VERR_DUPLICATE") },
+        { RT_STR_TUPLE("VERR_MISSING") },
+        { RT_STR_TUPLE("VERR_BUFFER_UNDERFLOW") },
+        { RT_STR_TUPLE("VINF_BUFFER_UNDERFLOW") },
+        { RT_STR_TUPLE("VERR_NOT_AVAILABLE") },
+        { RT_STR_TUPLE("VERR_MISMATCH") },
+        { RT_STR_TUPLE("VERR_WRONG_TYPE") },
+        { RT_STR_TUPLE("VWRN_WRONG_TYPE") },
+        { RT_STR_TUPLE("VERR_WRONG_PARAMETER_COUNT") },
+        { RT_STR_TUPLE("VERR_WRONG_PARAMETER_TYPE") },
+        { RT_STR_TUPLE("VERR_INVALID_CLIENT_ID") },
+        { RT_STR_TUPLE("VERR_INVALID_SESSION_ID") },
+        { RT_STR_TUPLE("VERR_INCOMPATIBLE_CONFIG") },
+        { RT_STR_TUPLE("VERR_INTERNAL_ERROR") },
+        { RT_STR_TUPLE("VINF_GETOPT_NOT_OPTION") },
+        { RT_STR_TUPLE("VERR_GETOPT_UNKNOWN_OPTION") },
+    };
+
+    /*
+     * First pass: Scout #include err.h/errcore.h locations and usage.
+     *
+     * Note! This isn't entirely optimal since it's also parsing comments and
+     *       strings, not just code.  However it does a decent job for now.
+     */
+    int         iIncludeLevel = 0;
+    int         iUsageLevel   = 0;
+    uint32_t    iLine         = 0;
+    SCMEOL      enmEol;
+    size_t      cchLine;
+    const char *pchLine;
+    while ((pchLine = ScmStreamGetLine(pIn, &cchLine, &enmEol)) != NULL)
+    {
+        iLine++;
+        if (cchLine < 6)
+            continue;
+
+        /*
+         * Look for #includes.
+         */
+        const char *pchHash = (const char *)memchr(pchLine, '#', cchLine);
+        if (    pchHash
+            && isSpanOfBlanks(pchLine, pchHash - pchLine))
+        {
+            const char     *pchFilename;
+            size_t          cchFilename;
+            SCMINCLUDEDIR   enmIncDir = ScmMaybeParseCIncludeLine(pState, pchLine, cchLine, &pchFilename, &cchFilename);
+            if (   enmIncDir == kScmIncludeDir_Bracketed
+                || enmIncDir == kScmIncludeDir_Quoted)
+            {
+                unsigned i = RT_ELEMENTS(s_aHeaders);
+                while (i-- > 0)
+                    if (   s_aHeaders[i].cchHeader == cchFilename
+                        && RTStrNICmpAscii(pchFilename, s_aHeaders[i].pszHeader, cchFilename) == 0)
+                    {
+                        if (iIncludeLevel < s_aHeaders[i].iLevel)
+                            iIncludeLevel = s_aHeaders[i].iLevel;
+                        break;
+                    }
+
+                /* Special hack for error info. */
+                if (cchFilename == sizeof("errmsgdata.h") - 1 && memcmp(pchFilename, RT_STR_TUPLE("errmsgdata.h")) == 0)
+                    iUsageLevel = 4;
+
+                /* Special hack for code templates. */
+                if (   cchFilename >= sizeof(".cpp.h")
+                    && memcmp(&pchFilename[cchFilename - sizeof(".cpp.h") + 1], RT_STR_TUPLE(".cpp.h")) == 0)
+                    iUsageLevel = 4;
+                continue;
+            }
+        }
+        /*
+         * Look for VERR_, VWRN_, VINF_ prefixed identifiers in the current line.
+         */
+        const char *pchHit = (const char *)memchr(pchLine, 'V', cchLine);
+        if (pchHit)
+        {
+            const char *pchLeft = pchLine;
+            size_t      cchLeft = cchLine;
+            do
+            {
+                size_t cchLeftHit = &pchLeft[cchLeft] - pchHit;
+                if (cchLeftHit < 6)
+                    break;
+                if (    pchHit[4] == '_'
+                    && (   pchHit == pchLine
+                        || !ScmIsCIdentifierChar(pchHit[-1]))
+                    && (   (pchHit[1] == 'E' && pchHit[2] == 'R' && pchHit[3] == 'R')
+                        || (pchHit[1] == 'W' && pchHit[2] == 'R' && pchHit[3] == 'N')
+                        || (pchHit[1] == 'I' && pchHit[2] == 'N' && pchHit[3] == 'F') ) )
+                {
+                    size_t cchIdentifier = 5;
+                    while (cchIdentifier < cchLeftHit && ScmIsCIdentifierChar(pchHit[cchIdentifier]))
+                        cchIdentifier++;
+                    ScmVerbose(pState, 4, "--- status code at %u col %zu: %.*s\n",
+                               iLine, pchHit - pchLine, cchIdentifier, pchHit);
+
+                    if (iUsageLevel <= 1)
+                    {
+                        iUsageLevel = 3; /* Cannot distingish between iprt/err.h and VBox/err.h, so pick the latter for now. */
+                        for (unsigned i = 0; i < RT_ELEMENTS(g_aLevel1Statuses); i++)
+                            if (   cchIdentifier == g_aLevel1Statuses[i].cch
+                                && memcmp(pchHit, g_aLevel1Statuses[i].psz, cchIdentifier) == 0)
+                            {
+                                iUsageLevel = 1;
+                                break;
+                            }
+                    }
+
+                    pchLeft = pchHit     + cchIdentifier;
+                    cchLeft = cchLeftHit - cchIdentifier;
+                }
+                else
+                {
+                    pchLeft = pchHit     + 1;
+                    cchLeft = cchLeftHit - 1;
+                }
+                pchHit  = (const char *)memchr(pchLeft, 'V', cchLeft);
+            } while (pchHit != NULL);
+        }
+    }
+    ScmVerbose(pState, 3, "--- iIncludeLevel=%d iUsageLevel=%d\n", iIncludeLevel, iUsageLevel);
+
+    /*
+     * Second pass: Change err.h to errcore.h if we detected a need for change.
+     */
+    if (   iIncludeLevel <= iUsageLevel
+        || iIncludeLevel <= 1 /* we cannot safely eliminate errcore.h includes atm. */)
+        return false;
+
+    unsigned cChanges = 0;
+    ScmStreamRewindForReading(pIn);
+    while ((pchLine = ScmStreamGetLine(pIn, &cchLine, &enmEol)) != NULL)
+    {
+        /*
+         * Look for #includes to modify.
+         */
+        if (cchLine >= 6)
+        {
+            const char *pchHash = (const char *)memchr(pchLine, '#', cchLine);
+            if (    pchHash
+                && isSpanOfBlanks(pchLine, pchHash - pchLine))
+            {
+                const char     *pchFilename;
+                size_t          cchFilename;
+                SCMINCLUDEDIR   enmIncDir = ScmMaybeParseCIncludeLine(pState, pchLine, cchLine, &pchFilename, &cchFilename);
+                if (   enmIncDir == kScmIncludeDir_Bracketed
+                    || enmIncDir == kScmIncludeDir_Quoted)
+                {
+                    unsigned i = RT_ELEMENTS(s_aHeaders);
+                    while (i-- > 0)
+                        if (   s_aHeaders[i].cchHeader == cchFilename
+                            && RTStrNICmpAscii(pchFilename, s_aHeaders[i].pszHeader, cchFilename) == 0)
+                        {
+                            ScmStreamWrite(pOut, pchLine, pchFilename - pchLine - 1);
+                            ScmStreamWrite(pOut, RT_STR_TUPLE("<iprt/errcore.h>"));
+                            size_t cchTrailing = &pchLine[cchLine] - &pchFilename[cchFilename + 1];
+                            if (cchTrailing > 0)
+                                ScmStreamWrite(pOut, &pchFilename[cchFilename + 1], cchTrailing);
+                            ScmStreamPutEol(pOut, enmEol);
+                            cChanges++;
+                            pchLine = NULL;
+                            break;
+                        }
+                    if (!pchLine)
+                        continue;
+                }
+            }
+        }
+
+        int rc = ScmStreamPutLine(pOut, pchLine, cchLine, enmEol);
+        if (RT_FAILURE(rc))
+            return false;
+    }
+    ScmVerbose(pState, 2, " * Converted %zu err.h/errcore.h include statements.\n", cChanges);
+    return true;
+}
+
+typedef struct
+{
+    const char     *pch;
+    uint8_t         cch;
+    uint8_t         cchSpaces;          /**< Number of expected spaces before the word. */
+    bool            fSpacesBefore : 1;  /**< Whether there may be spaces or tabs before the word. */
+    bool            fIdentifier   : 1;  /**< Whether we're to expect a C/C++ identifier rather than pch/cch. */
+} SCMMATCHWORD;
+
+
+int ScmMatchWords(const char *pchLine, size_t cchLine, SCMMATCHWORD const *paWords, size_t cWords,
+                  size_t *poffNext, PRTSTRTUPLE paIdentifiers, PRTERRINFO pErrInfo)
+{
+    int rc = VINF_SUCCESS;
+
+    size_t offLine = 0;
+    for (size_t i = 0; i < cWords; i++)
+    {
+        SCMMATCHWORD const *pWord = &paWords[i];
+
+        /*
+         * Deal with spaces preceeding the word first:
+         */
+        if (pWord->fSpacesBefore)
+        {
+            size_t cchSpaces = 0;
+            size_t cchTabs   = 0;
+            while (offLine < cchLine)
+            {
+                const char ch = pchLine[offLine];
+                if (ch == ' ')
+                    cchSpaces++;
+                else if (ch == '\t')
+                    cchTabs++;
+                else
+                    break;
+                offLine++;
+            }
+
+            if (cchSpaces == pWord->cchSpaces && cchTabs == 0)
+            { /* likely */ }
+            else if (cchSpaces == 0 && cchTabs == 0)
+                return RTErrInfoSetF(pErrInfo, VERR_PARSE_ERROR, "expected space at offset %u", offLine);
+            else
+                rc = VWRN_TRAILING_SPACES;
+        }
+        else
+            Assert(pWord->cchSpaces == 0);
+
+        /*
+         * C/C++ identifier?
+         */
+        if (pWord->fIdentifier)
+        {
+            if (offLine >= cchLine)
+                return RTErrInfoSetF(pErrInfo, VERR_END_OF_STRING,
+                                     "expected '%.*s' (C/C++ identifier) at offset %u, not end of string",
+                                     pWord->cch, pWord->pch, offLine);
+            if (!ScmIsCIdentifierLeadChar(pchLine[offLine]))
+                return RTErrInfoSetF(pErrInfo, VERR_MISMATCH, "expected '%.*s' (C/C++ identifier) at offset %u",
+                                     pWord->cch, pWord->pch, offLine);
+            size_t const offStart = offLine++;
+            while (offLine < cchLine && ScmIsCIdentifierChar(pchLine[offLine]))
+                offLine++;
+            if (paIdentifiers)
+            {
+                paIdentifiers->cch = offLine - offStart;
+                paIdentifiers->psz = &pchLine[offStart];
+                paIdentifiers++;
+            }
+        }
+        /*
+         * Match the exact word.
+         */
+        else if (   pWord->cch == 0
+                 || (   pWord->cch <= cchLine - offLine
+                     && !memcmp(pWord->pch, &pchLine[offLine], pWord->cch)))
+            offLine += pWord->cch;
+        else
+            return RTErrInfoSetF(pErrInfo, VERR_MISMATCH, "expected '%.*s' at offset %u", pWord->cch, pWord->pch, offLine);
+    }
+
+    /*
+     * Check for trailing characters/whatnot.
+     */
+    if (poffNext)
+        *poffNext = offLine;
+    else if (offLine != cchLine)
+        rc = RTErrInfoSetF(pErrInfo, VERR_TRAILING_CHARS, "unexpected trailing characters at offset %u", offLine);
+    return rc;
+}
+
+
+/**
+ * Fix header file include guards and \#pragma once.
+ *
+ * @returns true if modifications were made, false if not.
+ * @param   pIn                 The input stream.
+ * @param   pOut                The output stream.
+ * @param   pSettings           The settings.
+ */
+bool rewrite_FixHeaderGuards(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
+{
+    if (!pSettings->fFixHeaderGuards)
+        return false;
+
+    /* always skip .cpp.h files */
+    size_t cchFilename = strlen(pState->pszFilename);
+    if (   cchFilename > sizeof(".cpp.h")
+        && RTStrICmpAscii(&pState->pszFilename[cchFilename - sizeof(".cpp.h") + 1], ".cpp.h") == 0)
+        return false;
+
+    RTERRINFOSTATIC ErrInfo;
+    char            szNormalized[168];
+    size_t          cchNormalized = 0;
+    int             rc;
+    bool            fRet = false;
+
+    /*
+     * Calculate the expected guard for this file, if so tasked.
+     * ASSUMES pState->pszFilename is absolute as is pSettings->pszGuardRelativeToDir.
+     */
+    szNormalized[0] = '\0';
+    if (pSettings->pszGuardRelativeToDir)
+    {
+        rc = RTStrCopy(szNormalized, sizeof(szNormalized), pSettings->pszGuardPrefix);
+        if (RT_FAILURE(rc))
+            return ScmError(pState, rc, "Guard prefix too long (or something): %s\n", pSettings->pszGuardPrefix);
+        cchNormalized = strlen(szNormalized);
+        if (strcmp(pSettings->pszGuardRelativeToDir, "{dir}") == 0)
+            rc = RTStrCopy(&szNormalized[cchNormalized], sizeof(szNormalized) - cchNormalized,
+                           RTPathFilename(pState->pszFilename));
+        else if (strcmp(pSettings->pszGuardRelativeToDir, "{parent}") == 0)
+        {
+            const char *pszSrc = RTPathFilename(pState->pszFilename);
+            if (!pszSrc || (uintptr_t)&pszSrc[-2] < (uintptr_t)pState->pszFilename || !RTPATH_IS_SLASH(pszSrc[-1]))
+                return ScmError(pState, VERR_INTERNAL_ERROR, "Error calculating {parent} header guard!\n");
+            pszSrc -= 2;
+            while (   (uintptr_t)pszSrc > (uintptr_t)pState->pszFilename
+                   && !RTPATH_IS_SLASH(pszSrc[-1])
+                   && !RTPATH_IS_VOLSEP(pszSrc[-1]))
+                pszSrc--;
+            rc = RTStrCopy(&szNormalized[cchNormalized], sizeof(szNormalized) - cchNormalized, pszSrc);
+        }
+        else
+            rc = RTPathCalcRelative(&szNormalized[cchNormalized], sizeof(szNormalized) - cchNormalized,
+                                    pSettings->pszGuardRelativeToDir, false /*fFromFile*/, pState->pszFilename);
+        if (RT_FAILURE(rc))
+            return ScmError(pState, rc, "Error calculating guard prefix (RTPathCalcRelative): %Rrc\n", rc);
+        char ch;
+        while ((ch = szNormalized[cchNormalized]) != '\0')
+        {
+            if (!ScmIsCIdentifierChar(ch))
+                szNormalized[cchNormalized] = '_';
+            cchNormalized++;
+        }
+    }
+
+    /*
+     * First part looks for the #ifndef xxxx paired with #define xxxx.
+     *
+     * We blindly assume the first preprocessor directive in the file is the guard
+     * and will be upset if this isn't the case.
+     */
+    RTSTRTUPLE  Guard       = { NULL, 0 };
+    uint32_t    cBlankLines = 0;
+    SCMEOL      enmEol;
+    size_t      cchLine;
+    const char *pchLine;
+    for (;;)
+    {
+        pchLine = ScmStreamGetLine(pIn, &cchLine, &enmEol);
+        if (pchLine == NULL)
+            return ScmError(pState, VERR_PARSE_ERROR, "Did not find any include guards!\n");
+        if (cchLine >= 2)
+        {
+            const char *pchHash = (const char *)memchr(pchLine, '#', cchLine);
+            if (    pchHash
+                && isSpanOfBlanks(pchLine, pchHash - pchLine))
+            {
+                /* #ifndef xxxx */
+                static const SCMMATCHWORD s_aIfndefGuard[] =
+                {
+                    { RT_STR_TUPLE("#"),                0, true, false },
+                    { RT_STR_TUPLE("ifndef"),           0, true, false },
+                    { RT_STR_TUPLE("IDENTIFIER"),       1, true, true },
+                    { RT_STR_TUPLE(""),                 0, true, false },
+                };
+                rc = ScmMatchWords(pchLine, cchLine, s_aIfndefGuard, RT_ELEMENTS(s_aIfndefGuard),
+                                   NULL /*poffNext*/, &Guard, RTErrInfoInitStatic(&ErrInfo));
+                if (RT_FAILURE(rc))
+                    return ScmError(pState, rc, "%u: Expected first preprocessor directive to be '#ifndef xxxx'. %s (%.*s)\n",
+                                    ScmStreamTellLine(pIn) - 1, ErrInfo.Core.pszMsg, cchLine, pchLine);
+                fRet |= rc != VINF_SUCCESS;
+                ScmVerbose(pState, 3, "line %u in %s: #ifndef %.*s\n",
+                           ScmStreamTellLine(pIn) - 1, pState->pszFilename, Guard.cch, Guard.psz);
+
+                /* #define xxxx */
+                pchLine = ScmStreamGetLine(pIn, &cchLine, &enmEol);
+                if (!pchLine)
+                    return ScmError(pState, VERR_PARSE_ERROR, "%u: Unexpected end of file after '#ifndef %.*s'\n",
+                                    ScmStreamTellLine(pIn) - 1, Guard.cch, Guard.psz);
+                const SCMMATCHWORD aDefineGuard[] =
+                {
+                    { RT_STR_TUPLE("#"),                0, true, false },
+                    { RT_STR_TUPLE("define"),           0, true, false },
+                    { Guard.psz, (uint8_t)Guard.cch,    1, true, false },
+                    { RT_STR_TUPLE(""),                 0, true, false },
+                };
+                rc = ScmMatchWords(pchLine, cchLine, aDefineGuard, RT_ELEMENTS(aDefineGuard),
+                                   NULL /*poffNext*/, NULL /*paIdentifiers*/, RTErrInfoInitStatic(&ErrInfo));
+                if (RT_FAILURE(rc))
+                    return ScmError(pState, rc, "%u: Expected '#define %.*s' to follow '#ifndef %.*s'. %s (%.*s)\n",
+                                    ScmStreamTellLine(pIn) - 1, Guard.cch, Guard.psz, Guard.cch, Guard.psz,
+                                    ErrInfo.Core.pszMsg, cchLine, pchLine);
+                fRet |= rc != VINF_SUCCESS;
+
+                if (Guard.cch >= sizeof(szNormalized))
+                    return ScmError(pState, VERR_BUFFER_OVERFLOW, "%u: Guard macro too long! %.*s\n",
+                                    ScmStreamTellLine(pIn) - 2, Guard.cch, Guard.psz);
+
+                if (szNormalized[0] != '\0')
+                {
+                    if (   Guard.cch != cchNormalized
+                        || memcmp(Guard.psz, szNormalized, cchNormalized) != 0)
+                    {
+                        ScmVerbose(pState, 2, "guard changed from %.*s to %s\n", Guard.cch, Guard.psz, szNormalized);
+                        ScmVerbose(pState, 2, "grep -rw %.*s ${WCROOT} | grep -Fv %s\n",
+                                   Guard.cch, Guard.psz, pState->pszFilename);
+                        fRet = true;
+                    }
+                    Guard.psz = szNormalized;
+                    Guard.cch = cchNormalized;
+                }
+
+                /*
+                 * Write guard, making sure we've got a single blank line preceeding it.
+                 */
+                ScmStreamPutEol(pOut, enmEol);
+                ScmStreamWrite(pOut, RT_STR_TUPLE("#ifndef "));
+                ScmStreamWrite(pOut, Guard.psz, Guard.cch);
+                ScmStreamPutEol(pOut, enmEol);
+                ScmStreamWrite(pOut, RT_STR_TUPLE("#define "));
+                ScmStreamWrite(pOut, Guard.psz, Guard.cch);
+                rc = ScmStreamPutEol(pOut, enmEol);
+                if (RT_FAILURE(rc))
+                    return false;
+                break;
+            }
+        }
+
+        if (!isBlankLine(pchLine, cchLine))
+        {
+            while (cBlankLines-- > 0)
+                ScmStreamPutEol(pOut, enmEol);
+            cBlankLines = 0;
+            rc = ScmStreamPutLine(pOut, pchLine, cchLine, enmEol);
+            if (RT_FAILURE(rc))
+                return false;
+        }
+        else
+            cBlankLines++;
+    }
+
+    /*
+     * Look for pragma once wrapped in #ifndef RT_WITHOUT_PRAGMA_ONCE.
+     */
+    size_t const iPragmaOnce = ScmStreamTellLine(pIn);
+    static const SCMMATCHWORD s_aIfndefRtWithoutPragmaOnce[] =
+    {
+        { RT_STR_TUPLE("#"),                        0, true, false },
+        { RT_STR_TUPLE("ifndef"),                   0, true, false },
+        { RT_STR_TUPLE("RT_WITHOUT_PRAGMA_ONCE"),   1, true, false },
+        { RT_STR_TUPLE(""),                         0, true, false },
+    };
+    static const SCMMATCHWORD s_aPragmaOnce[] =
+    {
+        { RT_STR_TUPLE("#"),                        0, true, false },
+        { RT_STR_TUPLE("pragma"),                   1, true, false },
+        { RT_STR_TUPLE("once"),                     1, true, false},
+        { RT_STR_TUPLE(""),                         0, true, false },
+    };
+    static const SCMMATCHWORD s_aEndif[] =
+    {
+        { RT_STR_TUPLE("#"),                        0, true, false },
+        { RT_STR_TUPLE("endif"),                    0, true, false },
+        { RT_STR_TUPLE(""),                         0, true, false },
+    };
+
+    /* #ifndef RT_WITHOUT_PRAGMA_ONCE */
+    pchLine = ScmStreamGetLine(pIn, &cchLine, &enmEol);
+    if (!pchLine)
+        return ScmError(pState, VERR_PARSE_ERROR, "%u: Unexpected end of file after header guard!\n", iPragmaOnce + 1);
+    size_t offNext;
+    rc = ScmMatchWords(pchLine, cchLine, s_aIfndefRtWithoutPragmaOnce, RT_ELEMENTS(s_aIfndefRtWithoutPragmaOnce),
+                       &offNext, NULL /*paIdentifiers*/, RTErrInfoInitStatic(&ErrInfo));
+    if (RT_SUCCESS(rc))
+    {
+        fRet |= rc != VINF_SUCCESS;
+        if (offNext != cchLine)
+            return ScmError(pState, VERR_PARSE_ERROR, "%u: Characters trailing '#ifndef RT_WITHOUT_PRAGMA_ONCE' (%.*s)\n",
+                            iPragmaOnce + 1, cchLine, pchLine);
+
+        /* # pragma once */
+        pchLine = ScmStreamGetLine(pIn, &cchLine, &enmEol);
+        if (!pchLine)
+            return ScmError(pState, VERR_PARSE_ERROR, "%u: Unexpected end of file after '#ifndef RT_WITHOUT_PRAGMA_ONCE'\n",
+                            iPragmaOnce + 2);
+        rc = ScmMatchWords(pchLine, cchLine, s_aPragmaOnce, RT_ELEMENTS(s_aPragmaOnce),
+                           NULL /*poffNext*/, NULL /*paIdentifiers*/, RTErrInfoInitStatic(&ErrInfo));
+        if (RT_SUCCESS(rc))
+            fRet |= rc != VINF_SUCCESS;
+        else
+            return ScmError(pState, rc, "%u: Expected '# pragma once' to follow '#ifndef RT_WITHOUT_PRAGMA_ONCE'! %s (%.*s)\n",
+                            iPragmaOnce + 2, ErrInfo.Core.pszMsg, cchLine, pchLine);
+
+        /* #endif */
+        pchLine = ScmStreamGetLine(pIn, &cchLine, &enmEol);
+        if (!pchLine)
+            return ScmError(pState, VERR_PARSE_ERROR, "%u: Unexpected end of file after '#ifndef RT_WITHOUT_PRAGMA_ONCE' and '#pragma once'\n",
+                            iPragmaOnce + 3);
+        rc = ScmMatchWords(pchLine, cchLine, s_aEndif, RT_ELEMENTS(s_aEndif),
+                           NULL /*poffNext*/, NULL /*paIdentifiers*/, RTErrInfoInitStatic(&ErrInfo));
+        if (RT_SUCCESS(rc))
+            fRet |= rc != VINF_SUCCESS;
+        else
+            return ScmError(pState, rc,
+                            "%u: Expected '#endif' to follow '#ifndef RT_WITHOUT_PRAGMA_ONCE' and '# pragma once'! %s (%.*s)\n",
+                            iPragmaOnce + 3, ErrInfo.Core.pszMsg, cchLine, pchLine);
+        ScmVerbose(pState, 3, "Found pragma once\n");
+        fRet |= !pSettings->fPragmaOnce;
+    }
+    else
+    {
+        rc = ScmStreamSeekByLine(pIn, iPragmaOnce);
+        if (RT_FAILURE(rc))
+            return ScmError(pState, rc, "seek error\n");
+        fRet |= pSettings->fPragmaOnce;
+        ScmVerbose(pState, 2, "Missing #pragma once\n");
+    }
+
+    /*
+     * Write the pragma once stuff.
+     */
+    if (pSettings->fPragmaOnce)
+    {
+        ScmStreamPutLine(pOut, RT_STR_TUPLE("#ifndef RT_WITHOUT_PRAGMA_ONCE"), enmEol);
+        ScmStreamPutLine(pOut, RT_STR_TUPLE("# pragma once"), enmEol);
+        rc = ScmStreamPutLine(pOut, RT_STR_TUPLE("#endif"), enmEol);
+        if (RT_FAILURE(rc))
+            return false;
+    }
+
+    /*
+     * Copy the rest of the file and remove pragma once statements, while
+     * looking for the last #endif in the file.
+     */
+    size_t iEndIfIn = 0;
+    size_t iEndIfOut = 0;
+    while ((pchLine = ScmStreamGetLine(pIn, &cchLine, &enmEol)) != NULL)
+    {
+        if (cchLine > 2)
+        {
+            const char *pchHash = (const char *)memchr(pchLine, '#', cchLine);
+            if (    pchHash
+                && isSpanOfBlanks(pchLine, pchHash - pchLine))
+            {
+                size_t off = pchHash - pchLine + 1;
+                while (off < cchLine && RT_C_IS_BLANK(pchLine[off]))
+                    off++;
+                /* #pragma once */
+                if (   off + sizeof("pragma") - 1 <= cchLine
+                    && !memcmp(&pchLine[off], RT_STR_TUPLE("pragma")))
+                {
+                    rc = ScmMatchWords(pchLine, cchLine, s_aPragmaOnce, RT_ELEMENTS(s_aPragmaOnce),
+                                       &offNext, NULL /*paIdentifiers*/, RTErrInfoInitStatic(&ErrInfo));
+                    if (RT_SUCCESS(rc))
+                    {
+                        fRet = true;
+                        continue;
+                    }
+                }
+                /* #endif */
+                else if (   off + sizeof("endif") - 1 <= cchLine
+                         && !memcmp(&pchLine[off], RT_STR_TUPLE("endif")))
+                {
+                    iEndIfIn  = ScmStreamTellLine(pIn) - 1;
+                    iEndIfOut = ScmStreamTellLine(pOut);
+                }
+            }
+        }
+
+        rc = ScmStreamPutLine(pOut, pchLine, cchLine, enmEol);
+        if (RT_FAILURE(rc))
+            return false;
+    }
+
+    /*
+     * Check out the last endif, making sure it's well formed and make sure it has the
+     * right kind of comment following it.
+     */
+    if (pSettings->fFixHeaderGuardEndif)
+    {
+        if (iEndIfOut == 0)
+            return ScmError(pState, VERR_PARSE_ERROR, "Expected '#endif' at the end of the file...\n");
+        rc = ScmStreamSeekByLine(pIn, iEndIfIn);
+        if (RT_FAILURE(rc))
+            return false;
+        rc = ScmStreamSeekByLine(pOut, iEndIfOut);
+        if (RT_FAILURE(rc))
+            return false;
+
+        pchLine = ScmStreamGetLine(pIn, &cchLine, &enmEol);
+        if (!pchLine)
+            return ScmError(pState, VERR_INTERNAL_ERROR, "ScmStreamGetLine failed re-reading #endif!\n");
+
+        char   szTmp[64 + sizeof(szNormalized)];
+        size_t cchTmp;
+        if (pSettings->fEndifGuardComment)
+            cchTmp = RTStrPrintf(szTmp, sizeof(szTmp), "#endif /* !%.*s */", Guard.cch, Guard.psz);
+        else
+            cchTmp = RTStrPrintf(szTmp, sizeof(szTmp), "#endif"); /* lazy bird */
+        fRet |= cchTmp != cchLine || memcmp(szTmp, pchLine, cchTmp) != 0;
+        rc = ScmStreamPutLine(pOut, szTmp, cchTmp, enmEol);
+        if (RT_FAILURE(rc))
+            return false;
+
+        /* Copy out the remaining lines (assumes no #pragma once here). */
+        while ((pchLine = ScmStreamGetLine(pIn, &cchLine, &enmEol)) != NULL)
+        {
+            rc = ScmStreamPutLine(pOut, pchLine, cchLine, enmEol);
+            if (RT_FAILURE(rc))
+                return false;
+        }
+    }
+
+    return fRet;
 }
 
 

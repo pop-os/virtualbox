@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2017 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,12 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#include <string>
+#define LOG_GROUP LOG_GROUP_MAIN_NATNETWORK
 #include "NetworkServiceRunner.h"
 #include "DHCPServerImpl.h"
 #include "NATNetworkImpl.h"
 #include "AutoCaller.h"
-#include "Logging.h"
 
 #include <iprt/asm.h>
 #include <iprt/cpp/utils.h>
@@ -31,6 +30,7 @@
 #include <VBox/settings.h>
 
 #include "EventImpl.h"
+#include "LoggingNew.h"
 
 #include "VirtualBoxImpl.h"
 #include <algorithm>
@@ -642,6 +642,117 @@ HRESULT NATNetwork::removePortForwardRule(BOOL aIsIpv6, const com::Utf8Str &aPor
 }
 
 
+void NATNetwork::i_updateDomainNameOption(ComPtr<IHost> &host)
+{
+    com::Bstr domain;
+    if (FAILED(host->COMGETTER(DomainName)(domain.asOutParam())))
+        LogRel(("NATNetwork: Failed to get host's domain name\n"));
+    if (domain.isNotEmpty())
+    {
+        HRESULT hrc = m->dhcpServer->AddGlobalOption(DhcpOpt_DomainName, domain.raw());
+        if (FAILED(hrc))
+            LogRel(("NATNetwork: Failed to add domain name option with %Rhrc\n", hrc));
+    }
+    else
+        m->dhcpServer->RemoveGlobalOption(DhcpOpt_DomainName);
+}
+
+void NATNetwork::i_updateDomainNameServerOption(ComPtr<IHost> &host)
+{
+    RTNETADDRIPV4 networkid, netmask;
+
+    int rc = RTCidrStrToIPv4(m->s.strIPv4NetworkCidr.c_str(), &networkid, &netmask);
+    if (RT_FAILURE(rc))
+    {
+        LogRel(("NATNetwork: Failed to parse cidr %s with %Rrc\n", m->s.strIPv4NetworkCidr.c_str(), rc));
+        return;
+    }
+
+    /* XXX: these are returned, surprisingly, in host order */
+    networkid.u = RT_H2N_U32(networkid.u);
+    netmask.u = RT_H2N_U32(netmask.u);
+
+    com::SafeArray<BSTR> nameServers;
+    HRESULT hrc = host->COMGETTER(NameServers)(ComSafeArrayAsOutParam(nameServers));
+    if (FAILED(hrc))
+    {
+        LogRel(("NATNetwork: Failed to get name servers from host with %Rhrc\n", hrc));
+        return;
+    }
+
+    size_t cAddresses = nameServers.size();
+    if (cAddresses)
+    {
+        RTCList<RTCString> lstServers;
+        /* The following code was copied (and adapted a bit) from VBoxNetDhcp::hostDnsServers */
+        /*
+        * Recent fashion is to run dnsmasq on 127.0.1.1 which we
+        * currently can't map.  If that's the only nameserver we've got,
+        * we need to use DNS proxy for VMs to reach it.
+        */
+        bool fUnmappedLoopback = false;
+
+        for (size_t i = 0; i < nameServers.size(); ++i)
+        {
+            RTNETADDRIPV4 addr;
+
+            com::Utf8Str strNameServerAddress(nameServers[i]);
+            rc = RTNetStrToIPv4Addr(strNameServerAddress.c_str(), &addr);
+            if (RT_FAILURE(rc))
+            {
+                LogRel(("NATNetwork: Failed to parse IP address %s with %Rrc\n", strNameServerAddress.c_str(), rc));
+                continue;
+            }
+
+            if (addr.u == INADDR_ANY)
+            {
+                /*
+                * This doesn't seem to be very well documented except for
+                * RTFS of res_init.c, but INADDR_ANY is a valid value for
+                * for "nameserver".
+                */
+                addr.u = RT_H2N_U32_C(INADDR_LOOPBACK);
+            }
+
+            if (addr.au8[0] == 127)
+            {
+                settings::NATLoopbackOffsetList::const_iterator it;
+
+                it = std::find(m->s.llHostLoopbackOffsetList.begin(),
+                               m->s.llHostLoopbackOffsetList.end(),
+                               strNameServerAddress);
+                if (it == m->s.llHostLoopbackOffsetList.end())
+                {
+                    fUnmappedLoopback = true;
+                    continue;
+                }
+                addr.u = RT_H2N_U32(RT_N2H_U32(networkid.u) + it->u32Offset);
+            }
+            lstServers.append(RTCStringFmt("%RTnaipv4", addr));
+        }
+
+        if (lstServers.isEmpty() && fUnmappedLoopback)
+            lstServers.append(RTCStringFmt("%RTnaipv4", networkid.u | RT_H2N_U32_C(1U))); /* proxy */
+
+        hrc = m->dhcpServer->AddGlobalOption(DhcpOpt_DomainNameServer, Bstr(RTCString::join(lstServers, " ")).raw());
+        if (FAILED(hrc))
+            LogRel(("NATNetwork: Failed to add domain name server option '%s' with %Rhrc\n", RTCString::join(lstServers, " ").c_str(), hrc));
+    }
+    else
+        m->dhcpServer->RemoveGlobalOption(DhcpOpt_DomainNameServer);
+}
+
+void NATNetwork::i_updateDnsOptions()
+{
+    ComPtr<IHost> host;
+    if (SUCCEEDED(m->pVirtualBox->COMGETTER(Host)(host.asOutParam())))
+    {
+        i_updateDomainNameOption(host);
+        i_updateDomainNameServerOption(host);
+    }
+}
+
+
 HRESULT  NATNetwork::start(const com::Utf8Str &aTrunkType)
 {
 #ifdef VBOX_WITH_NAT_SERVICE
@@ -713,7 +824,10 @@ HRESULT  NATNetwork::start(const com::Utf8Str &aTrunkType)
                 return E_FAIL;
         }
 
-        /* XXX: AddGlobalOption(DhcpOpt_Router,) - enables attachement of DhcpServer to Main. */
+#ifdef VBOX_WITH_DHCPD
+        i_updateDnsOptions();
+#endif /* VBOX_WITH_DHCPD */
+        /* XXX: AddGlobalOption(DhcpOpt_Router,) - enables attachement of DhcpServer to Main (no longer true with VBoxNetDhcpd). */
         m->dhcpServer->AddGlobalOption(DhcpOpt_Router, Bstr(m->IPv4Gateway).raw());
 
         hrc = m->dhcpServer->Start(Bstr(m->s.strNetworkName).raw(), Bstr("").raw(), Bstr(aTrunkType).raw());

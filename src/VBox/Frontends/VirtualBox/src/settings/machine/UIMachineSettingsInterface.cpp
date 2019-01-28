@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,16 +15,10 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* GUI includes: */
-# include "UIActionPool.h"
-# include "UIExtraDataManager.h"
-# include "UIMachineSettingsInterface.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "UIActionPool.h"
+#include "UIExtraDataManager.h"
+#include "UIMachineSettingsInterface.h"
 
 
 /** Machine settings: User Interface page data structure. */
@@ -133,8 +127,8 @@ struct UIDataSettingsMachineInterface
 };
 
 
-UIMachineSettingsInterface::UIMachineSettingsInterface(const QString strMachineId)
-    : m_strMachineId(strMachineId)
+UIMachineSettingsInterface::UIMachineSettingsInterface(const QUuid &uMachineId)
+    : m_uMachineId(uMachineId)
     , m_pActionPool(0)
     , m_pCache(0)
 {
@@ -318,14 +312,14 @@ void UIMachineSettingsInterface::prepare()
             /* Configure editor: */
             m_pActionPool = UIActionPool::create(UIActionPoolType_Runtime);
             m_pMenuBarEditor->setActionPool(m_pActionPool);
-            m_pMenuBarEditor->setMachineID(m_strMachineId);
+            m_pMenuBarEditor->setMachineID(m_uMachineId);
         }
 
         /* Status-bar editor created in the .ui file. */
         AssertPtrReturnVoid(m_pStatusBarEditor);
         {
             /* Configure editor: */
-            m_pStatusBarEditor->setMachineID(m_strMachineId);
+            m_pStatusBarEditor->setMachineID(m_uMachineId);
         }
     }
 

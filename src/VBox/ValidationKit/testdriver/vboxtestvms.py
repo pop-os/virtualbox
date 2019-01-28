@@ -7,7 +7,7 @@ VirtualBox Test VMs
 
 __copyright__ = \
 """
-Copyright (C) 2010-2017 Oracle Corporation
+Copyright (C) 2010-2019 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,17 +26,21 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 118412 $"
+__version__ = "$Revision: 128254 $"
 
 # Standard Python imports.
+import copy;
+import os;
 import re;
 import random;
 import socket;
+import string;
 
 # Validation Kit imports.
 from testdriver import base;
 from testdriver import reporter;
 from testdriver import vboxcon;
+from common import utils;
 
 
 # All virtualization modes.
@@ -50,6 +54,18 @@ g_dsVirtModeDescs  = {
     'hwvirt'    : 'HwVirt',
     'hwvirt-np' : 'NestedPaging'
 };
+
+## @name VM grouping flags
+## @{
+g_kfGrpSmoke     = 0x0001;                          ##< Smoke test VM.
+g_kfGrpStandard  = 0x0002;                          ##< Standard test VM.
+g_kfGrpStdSmoke  = g_kfGrpSmoke | g_kfGrpStandard;  ##< shorthand.
+g_kfGrpWithGAs   = 0x0004;                          ##< The VM has guest additions installed.
+g_kfGrpNoTxs     = 0x0008;                          ##< The VM lacks test execution service.
+g_kfGrpAncient   = 0x1000;                          ##< Ancient OS.
+g_kfGrpExotic    = 0x2000;                          ##< Exotic OS.
+## @}
+
 
 ## @name Flags.
 ## @{
@@ -72,6 +88,7 @@ g_iRegEx       = 5;
 # pylint: disable=C0301
 g_aaNameToDetails = \
 [
+    [ 'WindowsNT3x',    'WindowsNT3x',           g_k32,    1,  32, ['nt3',    'nt3[0-9]*']],                              # max cpus??
     [ 'WindowsNT4',     'WindowsNT4',            g_k32,    1,  32, ['nt4',    'nt4sp[0-9]']],                             # max cpus??
     [ 'Windows2000',    'Windows2000',           g_k32,    1,  32, ['w2k',    'w2ksp[0-9]', 'win2k', 'win2ksp[0-9]']],    # max cpus??
     [ 'WindowsXP',      'WindowsXP',             g_k32,    1,  32, ['xp',     'xpsp[0-9]']],
@@ -100,16 +117,20 @@ g_aaNameToDetails = \
     [ 'Linux_64',       'OpenSUSE_64',           g_k64,    1, 256, ['opensuse[0-9]*-64', 'suse[0-9]*-64', ]],
     [ 'Linux',          'Ubuntu',                g_k32,    1, 256, ['ubuntu[0-9]*', ]],
     [ 'Linux_64',       'Ubuntu_64',             g_k64,    1, 256, ['ubuntu[0-9]*-64', ]],
+    [ 'Linux',          'ArchLinux',             g_k32,    1, 256, ['arch[0-9]*', ]],
+    [ 'Linux_64',       'ArchLinux_64',          g_k64,    1, 256, ['arch[0-9]*-64', ]],
     [ 'Solaris',        'Solaris',               g_k32,    1, 256, ['sol10',  'sol10u[0-9]']],
     [ 'Solaris_64',     'Solaris_64',            g_k64,    1, 256, ['sol10-64', 'sol10u-64[0-9]']],
     [ 'Solaris_64',     'Solaris11_64',          g_k64,    1, 256, ['sol11u1']],
-    [ 'BSD',            'FreeBSD_64',            g_k32_64, 1, 1, ['bs-.*']], # boot sectors, wanted 64-bit type.
+    [ 'BSD',            'FreeBSD_64',            g_k32_64, 1, 1,   ['bs-.*']], # boot sectors, wanted 64-bit type.
+    [ 'DOS',            'DOS',                   g_k32,    1, 1,   ['bs-.*']],
 ];
 
 
 ## @name Guest OS type string constants.
 ## @{
 g_ksGuestOsTypeDarwin  = 'darwin';
+g_ksGuestOsTypeDOS     = 'dos';
 g_ksGuestOsTypeFreeBSD = 'freebsd';
 g_ksGuestOsTypeLinux   = 'linux';
 g_ksGuestOsTypeOS2     = 'os2';
@@ -146,6 +167,7 @@ g_kasParavirtProviders = ( g_ksParavirtProviderNone, g_ksParavirtProviderDefault
 #   during independent test runs when paravirt provider is taken randomly.
 g_kdaParavirtProvidersSupported = {
     g_ksGuestOsTypeDarwin  : ( g_ksParavirtProviderMinimal, ),
+    g_ksGuestOsTypeDOS     : ( g_ksParavirtProviderNone, ),
     g_ksGuestOsTypeFreeBSD : ( g_ksParavirtProviderNone, ),
     g_ksGuestOsTypeLinux   : ( g_ksParavirtProviderNone, g_ksParavirtProviderHyperV, g_ksParavirtProviderKVM),
     g_ksGuestOsTypeOS2     : ( g_ksParavirtProviderNone, ),
@@ -175,12 +197,31 @@ class TestVm(object):
     This is just a data object.
     """
 
-    def __init__(self, oSet, sVmName, sHd = None, sKind = None, acCpusSup = None, asVirtModesSup = None, # pylint: disable=R0913
-                 fIoApic = None, fPae = None, sNic0AttachType = None, sHddControllerType = 'IDE Controller',
-                 sFloppy = None, fVmmDevTestingPart = None, fVmmDevTestingMmio = False, asParavirtModesSup = None,
-                 fRandomPvPMode = False, sFirmwareType = 'bios', sChipsetType = 'piix3'):
+    def __init__(self, # pylint: disable=R0913
+                 sVmName,                                   # type: str
+                 fGrouping = 0,                             # type: int
+                 oSet = None,                               # type: TestVmSet
+                 sHd = None,                                # type: str
+                 sKind = None,                              # type: str
+                 acCpusSup = None,                          # type: List[int]
+                 asVirtModesSup = None,                     # type: List[str]
+                 fIoApic = None,                            # type: bool
+                 fNstHwVirt = False,                        # type: bool
+                 fPae = None,                               # type: bool
+                 sNic0AttachType = None,                    # type: str
+                 sFloppy = None,                            # type: str
+                 fVmmDevTestingPart = None,                 # type: bool
+                 fVmmDevTestingMmio = False,                # type: bool
+                 asParavirtModesSup = None,                 # type: List[str]
+                 fRandomPvPMode = False,                    # type: bool
+                 sFirmwareType = 'bios',                    # type: str
+                 sChipsetType = 'piix3',                    # type: str
+                 sHddControllerType = 'IDE Controller',     # type: str
+                 sDvdControllerType = 'IDE Controller'      # type: str
+                 ):
         self.oSet                    = oSet;
         self.sVmName                 = sVmName;
+        self.fGrouping               = fGrouping;
         self.sHd                     = sHd;          # Relative to the testrsrc root.
         self.acCpusSup               = acCpusSup;
         self.asVirtModesSup          = asVirtModesSup;
@@ -190,7 +231,9 @@ class TestVm(object):
         self.sKind                   = sKind;
         self.sGuestOsType            = None;
         self.sDvdImage               = None;         # Relative to the testrsrc root.
+        self.sDvdControllerType      = sDvdControllerType;
         self.fIoApic                 = fIoApic;
+        self.fNstHwVirt              = fNstHwVirt;
         self.fPae                    = fPae;
         self.sNic0AttachType         = sNic0AttachType;
         self.sHddControllerType      = sHddControllerType;
@@ -199,10 +242,12 @@ class TestVm(object):
         self.fVmmDevTestingMmio      = fVmmDevTestingMmio;
         self.sFirmwareType           = sFirmwareType;
         self.sChipsetType            = sChipsetType;
+        self.fCom1RawFile            = False;
 
         self.fSnapshotRestoreCurrent = False;        # Whether to restore execution on the current snapshot.
         self.fSkip                   = False;        # All VMs are included in the configured set by default.
         self.aInfo                   = None;
+        self.sCom1RawFile            = None;         # Set by createVmInner and getReconfiguredVm if fCom1RawFile is set.
         self._guessStuff(fRandomPvPMode);
 
     def _mkCanonicalGuestOSType(self, sType):
@@ -214,6 +259,8 @@ class TestVm(object):
             return g_ksGuestOsTypeDarwin
         if sType.lower().startswith('bsd'):
             return g_ksGuestOsTypeFreeBSD
+        if sType.lower().startswith('dos'):
+            return g_ksGuestOsTypeDOS
         if sType.lower().startswith('linux'):
             return g_ksGuestOsTypeLinux
         if sType.lower().startswith('os2'):
@@ -265,6 +312,8 @@ class TestVm(object):
                 self.sGuestOsType = g_ksGuestOsTypeLinux;
             elif self.sKind.find("Solaris") >= 0:
                 self.sGuestOsType = g_ksGuestOsTypeSolaris;
+            elif self.sKind.find("DOS") >= 0:
+                self.sGuestOsType = g_ksGuestOsTypeDOS;
             else:
                 reporter.fatal('The OS of test VM "%s", sKind="%s" cannot be guessed' % (self.sVmName, self.sKind));
 
@@ -302,6 +351,78 @@ class TestVm(object):
 
         return True;
 
+    def getMissingResources(self, sTestRsrc):
+        """
+        Returns a list of missing resources (paths, stuff) that the VM needs.
+        """
+        asRet = [];
+        for sPath in [ self.sHd, self.sDvdImage, self.sFloppy]:
+            if sPath is not None:
+                if not os.path.isabs(sPath):
+                    sPath = os.path.join(sTestRsrc, sPath);
+                if not os.path.exists(sPath):
+                    asRet.append(sPath);
+        return asRet;
+
+    def createVm(self, oTestDrv, eNic0AttachType = None, sDvdImage = None):
+        """
+        Creates the VM with defaults and the few tweaks as per the arguments.
+
+        Returns same as vbox.TestDriver.createTestVM.
+        """
+        if sDvdImage is not None:
+            sMyDvdImage = sDvdImage;
+        else:
+            sMyDvdImage = self.sDvdImage;
+
+        if eNic0AttachType is not None:
+            eMyNic0AttachType = eNic0AttachType;
+        elif self.sNic0AttachType is None:
+            eMyNic0AttachType = None;
+        elif self.sNic0AttachType == 'nat':
+            eMyNic0AttachType = vboxcon.NetworkAttachmentType_NAT;
+        elif self.sNic0AttachType == 'bridged':
+            eMyNic0AttachType = vboxcon.NetworkAttachmentType_Bridged;
+        else:
+            assert False, self.sNic0AttachType;
+
+        return self.createVmInner(oTestDrv, eMyNic0AttachType, sMyDvdImage);
+
+    def _generateRawPortFilename(self, oTestDrv, sInfix, sSuffix):
+        """ Generates a raw port filename. """
+        random.seed();
+        sRandom = ''.join(random.choice(string.ascii_lowercase + string.digits) for _ in range(10));
+        return os.path.join(oTestDrv.sScratchPath, self.sVmName + sInfix + sRandom + sSuffix);
+
+    def createVmInner(self, oTestDrv, eNic0AttachType, sDvdImage):
+        """
+        Same as createVm but parameters resolved.
+
+        Returns same as vbox.TestDriver.createTestVM.
+        """
+        reporter.log2('');
+        reporter.log2('Calling createTestVM on %s...' % (self.sVmName,))
+        if self.fCom1RawFile:
+            self.sCom1RawFile = self._generateRawPortFilename(oTestDrv, '-com1-', '.out');
+        return oTestDrv.createTestVM(self.sVmName,
+                                     1,                 # iGroup
+                                     sHd                = self.sHd,
+                                     sKind              = self.sKind,
+                                     fIoApic            = self.fIoApic,
+                                     fNstHwVirt         = self.fNstHwVirt,
+                                     fPae               = self.fPae,
+                                     eNic0AttachType    = eNic0AttachType,
+                                     sDvdImage          = sDvdImage,
+                                     sDvdControllerType = self.sDvdControllerType,
+                                     sHddControllerType = self.sHddControllerType,
+                                     sFloppy            = self.sFloppy,
+                                     fVmmDevTestingPart = self.fVmmDevTestingPart,
+                                     fVmmDevTestingMmio = self.fVmmDevTestingPart,
+                                     sFirmwareType      = self.sFirmwareType,
+                                     sChipsetType       = self.sChipsetType,
+                                     sCom1RawFile       = self.sCom1RawFile if self.fCom1RawFile else None
+                                     );
+
     def getReconfiguredVm(self, oTestDrv, cCpus, sVirtMode, sParavirtMode = None):
         """
         actionExecute worker that finds and reconfigure a test VM.
@@ -320,6 +441,8 @@ class TestVm(object):
                 if self.is64bitRequired() and not fHostSupports64bit:
                     fRc = None; # Skip the test.
                 elif self.isViaIncompatible() and oTestDrv.isHostCpuVia():
+                    fRc = None; # Skip the test.
+                elif self.isShanghaiIncompatible() and oTestDrv.isHostCpuShanghai():
                     fRc = None; # Skip the test.
                 elif self.isP4Incompatible() and oTestDrv.isHostCpuP4():
                     fRc = None; # Skip the test.
@@ -354,6 +477,16 @@ class TestVm(object):
                                 elif not oOsType.is64Bit and sVirtMode != 'raw':
                                     fRc = fRc and oSession.setOsType(oOsType.id + '_64');
 
+                        # New serial raw file.
+                        if fRc and self.fCom1RawFile:
+                            self.sCom1RawFile = self._generateRawPortFilename(oTestDrv, '-com1-', '.out');
+                            utils.noxcptDeleteFile(self.sCom1RawFile);
+                            fRc = oSession.setupSerialToRawFile(0, self.sCom1RawFile);
+
+                        # Make life simpler for child classes.
+                        if fRc:
+                            fRc = self._childVmReconfig(oTestDrv, oVM, oSession);
+
                         fRc = fRc and oSession.saveSettings();
                         if not oSession.close():
                             fRc = False;
@@ -361,6 +494,10 @@ class TestVm(object):
                 return (True, oVM);
         return (fRc, None);
 
+    def _childVmReconfig(self, oTestDrv, oVM, oSession):
+        """ Hook into getReconfiguredVm() for children. """
+        _ = oTestDrv; _ = oVM; _ = oSession;
+        return True;
 
     def isWindows(self):
         """ Checks if it's a Windows VM. """
@@ -369,6 +506,10 @@ class TestVm(object):
     def isOS2(self):
         """ Checks if it's an OS/2 VM. """
         return self.sGuestOsType == g_ksGuestOsTypeOS2;
+
+    def isLinux(self):
+        """ Checks if it's an Linux VM. """
+        return self.sGuestOsType == g_ksGuestOsTypeLinux;
 
     def is64bit(self):
         """ Checks if it's a 64-bit VM. """
@@ -411,7 +552,7 @@ class TestVm(object):
               or self.sVmName.find('sp2') >= 0 \
               or self.sVmName.find('sp3') >= 0:
                 return True;
-        # XP x64 on a phyical VIA box hangs exactly like a VM.
+        # XP x64 on a physical VIA box hangs exactly like a VM.
         if self.aInfo[g_iKind] in ['WindowsXP_64', 'Windows2003_64']:
             return True;
         # Vista 64 throws BSOD 0x5D (UNSUPPORTED_PROCESSOR)
@@ -421,6 +562,15 @@ class TestVm(object):
         if self.aInfo[g_iKind] in ['Solaris11_64']:
             return True;
         return False;
+
+    def isShanghaiIncompatible(self):
+        """
+        Identifies VMs that doesn't work on Shanghai.
+
+        Returns True if NOT supported on Shanghai, False if it IS supported.
+        """
+        # For now treat it just like VIA, to be adjusted later
+        return self.isViaIncompatible()
 
     def isP4Incompatible(self):
         """
@@ -446,7 +596,8 @@ class BootSectorTestVm(TestVm):
         self.f64BitRequired = f64BitRequired;
         if asVirtModesSup is None:
             asVirtModesSup = list(g_asVirtModes);
-        TestVm.__init__(self, oSet, sVmName,
+        TestVm.__init__(self, sVmName,
+                        oSet = oSet,
                         acCpusSup = [1,],
                         sFloppy = sFloppy,
                         asVirtModesSup = asVirtModesSup,
@@ -459,6 +610,63 @@ class BootSectorTestVm(TestVm):
     def is64bitRequired(self):
         return self.f64BitRequired;
 
+
+class AncientTestVm(TestVm):
+    """
+    A ancient Test VM, using the serial port for communicating results.
+
+    We're looking for 'PASSED' and 'FAILED' lines in the COM1 output.
+    """
+
+
+    def __init__(self, # pylint: disable=R0913
+                 sVmName,                                   # type: str
+                 fGrouping = g_kfGrpAncient | g_kfGrpNoTxs, # type: int
+                 sHd = None,                                # type: str
+                 sKind = None,                              # type: str
+                 acCpusSup = None,                          # type: List[int]
+                 asVirtModesSup = None,                     # type: List[str]
+                 sNic0AttachType = None,                    # type: str
+                 sFloppy = None,                            # type: str
+                 sFirmwareType = 'bios',                    # type: str
+                 sChipsetType = 'piix3',                    # type: str
+                 sHddControllerName = 'IDE Controller',     # type: str
+                 sDvdControllerName = 'IDE Controller',     # type: str
+                 cMBRamMax = None,                          # type: int
+                 ):
+        TestVm.__init__(self,
+                        sVmName,
+                        fGrouping = fGrouping,
+                        sHd = sHd,
+                        sKind = sKind,
+                        acCpusSup = [1] if acCpusSup is None else acCpusSup,
+                        asVirtModesSup = asVirtModesSup,
+                        sNic0AttachType = sNic0AttachType,
+                        sFloppy = sFloppy,
+                        sFirmwareType = sFirmwareType,
+                        sChipsetType = sChipsetType,
+                        sHddControllerType = sHddControllerName,
+                        sDvdControllerType = sDvdControllerName,
+                        asParavirtModesSup = (g_ksParavirtProviderNone,)
+                        );
+        self.fCom1RawFile = True;
+        self.cMBRamMax= cMBRamMax;
+
+
+    def _childVmReconfig(self, oTestDrv, oVM, oSession):
+        _ = oVM; _ = oTestDrv;
+        fRc = True;
+
+        # DOS 4.01 doesn't like the default 32MB of memory.
+        if fRc and self.cMBRamMax is not None:
+            try:
+                cMBRam = oSession.o.machine.memorySize;
+            except:
+                cMBRam = self.cMBRamMax + 4;
+            if self.cMBRamMax < cMBRam:
+                fRc = oSession.setRamSize(self.cMBRamMax);
+
+        return fRc;
 
 
 class TestVmSet(object):
@@ -485,8 +693,12 @@ class TestVmSet(object):
         Returns the TestVm object with the given name.
         Returns None if not found.
         """
+
+        # The 'tst-' prefix is optional.
+        sAltName = sVmName if sVmName.startswith('tst-') else 'tst-' + sVmName;
+
         for oTestVm in self.aoTestVms:
-            if oTestVm.sVmName == sVmName:
+            if oTestVm.sVmName == sVmName or oTestVm.sVmName == sAltName:
                 return oTestVm;
         return None;
 
@@ -497,10 +709,13 @@ class TestVmSet(object):
         """
         sVmNames = '';
         for oTestVm in self.aoTestVms:
+            sName = oTestVm.sVmName;
+            if sName.startswith('tst-'):
+                sName = sName[4:];
             if sVmNames == '':
-                sVmNames = oTestVm.sVmName;
+                sVmNames = sName;
             else:
-                sVmNames = sVmNames + sSep + oTestVm.sVmName;
+                sVmNames = sVmNames + sSep + sName;
         return sVmNames;
 
     def showUsage(self):
@@ -509,12 +724,12 @@ class TestVmSet(object):
         """
         reporter.log('');
         reporter.log('Test VM selection and general config options:');
-        reporter.log('  --virt-modes   <m1[:m2[:]]');
+        reporter.log('  --virt-modes   <m1[:m2[:...]]>');
         reporter.log('      Default: %s' % (':'.join(self.asVirtModesDef)));
-        reporter.log('  --skip-virt-modes <m1[:m2[:]]');
+        reporter.log('  --skip-virt-modes <m1[:m2[:...]]>');
         reporter.log('      Use this to avoid hwvirt or hwvirt-np when not supported by the host');
         reporter.log('      since we cannot detect it using the main API. Use after --virt-modes.');
-        reporter.log('  --cpu-counts   <c1[:c2[:]]');
+        reporter.log('  --cpu-counts   <c1[:c2[:...]]>');
         reporter.log('      Default: %s' % (':'.join(str(c) for c in self.acCpusDef)));
         reporter.log('  --test-vms     <vm1[:vm2[:...]]>');
         reporter.log('      Test the specified VMs in the given order. Use this to change');
@@ -524,9 +739,13 @@ class TestVmSet(object):
         reporter.log('      Skip the specified VMs when testing.');
         reporter.log('  --snapshot-restore-current');
         reporter.log('      Restores the current snapshot and resumes execution.');
-        reporter.log('  --paravirt-modes   <pv1[:pv2[:]]>');
+        reporter.log('  --paravirt-modes   <pv1[:pv2[:...]]>');
         reporter.log('      Set of paravirtualized providers (modes) to tests. Intersected with what the test VM supports.');
         reporter.log('      Default is the first PV mode the test VMs support, generally same as "legacy".');
+        reporter.log('  --with-nested-hwvirt-only');
+        reporter.log('      Test VMs using nested hardware-virtualization only.');
+        reporter.log('  --without-nested-hwvirt-only');
+        reporter.log('      Test VMs not using nested hardware-virtualization only.');
         ## @todo Add more options for controlling individual VMs.
         return True;
 
@@ -633,6 +852,16 @@ class TestVmSet(object):
             for oTestVm in self.aoTestVms:
                 oTestVm.asParavirtModesSup = oTestVm.asParavirtModesSupOrg;
 
+        elif asArgs[iArg] == '--with-nested-hwvirt-only':
+            for oTestVm in self.aoTestVms:
+                if oTestVm.fNstHwVirt is False:
+                    oTestVm.fSkip = True;
+
+        elif asArgs[iArg] == '--without-nested-hwvirt-only':
+            for oTestVm in self.aoTestVms:
+                if oTestVm.fNstHwVirt is True:
+                    oTestVm.fSkip = True;
+
         else:
             return iArg;
         return iArg + 1;
@@ -668,36 +897,7 @@ class TestVmSet(object):
                 # the machine anymore -- so just add it to the test VM list.
                 oVM = oTestDrv.addTestMachine(oTestVm.sVmName);
             else:
-                ## @todo This could possibly be moved to the TestVM object.
-                if sDvdImage is not None:
-                    sMyDvdImage = sDvdImage;
-                else:
-                    sMyDvdImage = oTestVm.sDvdImage;
-
-                if eNic0AttachType is not None:
-                    eMyNic0AttachType = eNic0AttachType;
-                elif oTestVm.sNic0AttachType is None:
-                    eMyNic0AttachType = None;
-                elif oTestVm.sNic0AttachType == 'nat':
-                    eMyNic0AttachType = vboxcon.NetworkAttachmentType_NAT;
-                elif oTestVm.sNic0AttachType == 'bridged':
-                    eMyNic0AttachType = vboxcon.NetworkAttachmentType_Bridged;
-                else:
-                    assert False, oTestVm.sNic0AttachType;
-
-                oVM = oTestDrv.createTestVM(oTestVm.sVmName, 1, \
-                                            sHd                = oTestVm.sHd, \
-                                            sKind              = oTestVm.sKind, \
-                                            fIoApic            = oTestVm.fIoApic, \
-                                            fPae               = oTestVm.fPae, \
-                                            eNic0AttachType    = eMyNic0AttachType, \
-                                            sDvdImage          = sMyDvdImage, \
-                                            sHddControllerType = oTestVm.sHddControllerType,
-                                            sFloppy            = oTestVm.sFloppy,
-                                            fVmmDevTestingPart = oTestVm.fVmmDevTestingPart,
-                                            fVmmDevTestingMmio = oTestVm.fVmmDevTestingPart,
-                                            sFirmwareType = oTestVm.sFirmwareType,
-                                            sChipsetType = oTestVm.sChipsetType);
+                oVM = oTestVm.createVm(oTestDrv, eNic0AttachType, sDvdImage);
             if oVM is None:
                 return False;
 
@@ -741,6 +941,9 @@ class TestVmSet(object):
         #
         fRc = True;
         for oTestVm in self.aoTestVms:
+            if oTestVm.fNstHwVirt and not oTestDrv.isHostCpuAmd():
+                reporter.log('Ignoring VM %s (Nested hardware-virtualization only supported on AMD CPUs).' % (oTestVm.sVmName,));
+                continue;
             if oTestVm.fSkip and self.fIgnoreSkippedVm:
                 reporter.log2('Ignoring VM %s (fSkip = True).' % (oTestVm.sVmName,));
                 continue;
@@ -847,9 +1050,142 @@ class TestVmManager(object):
     Test VM manager.
     """
 
+    ## @name VM grouping flags
+    ## @{
+    kfGrpSmoke     = g_kfGrpSmoke;
+    kfGrpStandard  = g_kfGrpStandard;
+    kfGrpStdSmoke  = g_kfGrpStdSmoke;
+    kfGrpWithGAs   = g_kfGrpWithGAs;
+    kfGrpNoTxs     = g_kfGrpNoTxs;
+    kfGrpAncient   = g_kfGrpAncient;
+    kfGrpExotic    = g_kfGrpExotic;
+    ## @}
+
+    kaTestVMs = (
+        # Linux
+        TestVm('tst-ubuntu-15_10-64-efi',   kfGrpStdSmoke,        sHd = '4.2/efi/ubuntu-15_10-efi-amd64.vdi',
+               sKind = 'Ubuntu_64', acCpusSup = range(1, 33), fIoApic = True, sFirmwareType = 'efi',
+               asParavirtModesSup = [g_ksParavirtProviderKVM,]),
+        TestVm('tst-rhel5',                 kfGrpSmoke,           sHd = '3.0/tcp/rhel5.vdi',
+               sKind = 'RedHat', acCpusSup = range(1, 33), fIoApic = True, sNic0AttachType = 'nat'),
+        TestVm('tst-arch',                  kfGrpStandard,        sHd = '4.2/usb/tst-arch.vdi',
+               sKind = 'ArchLinux_64', acCpusSup = range(1, 33), fIoApic = True, sNic0AttachType = 'nat'),
+
+        # Solaris
+        TestVm('tst-sol10',                 kfGrpSmoke,           sHd = '3.0/tcp/solaris10.vdi',
+               sKind = 'Solaris', acCpusSup = range(1, 33), fPae = True,  sNic0AttachType = 'bridged'),
+        TestVm('tst-sol10-64',              kfGrpSmoke,           sHd = '3.0/tcp/solaris10.vdi',
+               sKind = 'Solaris_64', acCpusSup = range(1, 33), sNic0AttachType = 'bridged'),
+        TestVm('tst-sol11u1',               kfGrpSmoke,           sHd = '4.2/nat/sol11u1/t-sol11u1.vdi',
+               sKind = 'Solaris11_64', acCpusSup = range(1, 33), sNic0AttachType = 'nat', fIoApic = True,
+               sHddControllerType = 'SATA Controller'),
+        #TestVm('tst-sol11u1-ich9',          kfGrpSmoke,           sHd = '4.2/nat/sol11u1/t-sol11u1.vdi',
+        #       sKind = 'Solaris11_64', acCpusSup = range(1, 33), sNic0AttachType = 'nat', fIoApic = True,
+        #       sHddControllerType = 'SATA Controller', sChipsetType = 'ich9'),
+
+        # NT 3.x
+        TestVm('tst-nt310',                 kfGrpAncient,               sHd = '5.2/great-old-ones/t-nt310/t-nt310.vdi',
+               sKind = 'WindowsNT3x', acCpusSup = [1], sHddControllerType = 'BusLogic SCSI Controller',
+               sDvdControllerType = 'BusLogic SCSI Controller'),
+        TestVm('tst-nt350',                 kfGrpAncient,               sHd = '5.2/great-old-ones/t-nt350/t-nt350.vdi',
+               sKind = 'WindowsNT3x', acCpusSup = [1], sHddControllerType = 'BusLogic SCSI Controller',
+               sDvdControllerType = 'BusLogic SCSI Controller'),
+        TestVm('tst-nt351',                 kfGrpAncient,               sHd = '5.2/great-old-ones/t-nt350/t-nt351.vdi',
+               sKind = 'WindowsNT3x', acCpusSup = [1], sHddControllerType = 'BusLogic SCSI Controller',
+               sDvdControllerType = 'BusLogic SCSI Controller'),
+
+        # NT 4
+        TestVm('tst-nt4sp1',                kfGrpStdSmoke,        sHd = '4.2/nat/nt4sp1/t-nt4sp1.vdi',
+               sKind = 'WindowsNT4', acCpusSup = [1], sNic0AttachType = 'nat'),
+
+        TestVm('tst-nt4sp6',                kfGrpStdSmoke,        sHd = '4.2/nt4sp6/t-nt4sp6.vdi',
+               sKind = 'WindowsNT4', acCpusSup = range(1, 33)),
+
+        # W2K
+        TestVm('tst-2ksp4',                 kfGrpStdSmoke,        sHd = '4.2/win2ksp4/t-win2ksp4.vdi',
+               sKind = 'Windows2000', acCpusSup = range(1, 33)),
+
+        # XP
+        TestVm('tst-xppro',                 kfGrpStdSmoke,        sHd = '4.2/nat/xppro/t-xppro.vdi',
+               sKind = 'WindowsXP', acCpusSup = range(1, 33), sNic0AttachType = 'nat'),
+        TestVm('tst-xpsp2',                 kfGrpStdSmoke,        sHd = '4.2/xpsp2/t-winxpsp2.vdi',
+               sKind = 'WindowsXP', acCpusSup = range(1, 33), fIoApic = True),
+        TestVm('tst-xpsp2-halaacpi',        kfGrpStdSmoke,        sHd = '4.2/xpsp2/t-winxp-halaacpi.vdi',
+               sKind = 'WindowsXP', acCpusSup = range(1, 33), fIoApic = True),
+        TestVm('tst-xpsp2-halacpi',         kfGrpStdSmoke,        sHd = '4.2/xpsp2/t-winxp-halacpi.vdi',
+               sKind = 'WindowsXP', acCpusSup = range(1, 33), fIoApic = True),
+        TestVm('tst-xpsp2-halapic',         kfGrpStdSmoke,        sHd = '4.2/xpsp2/t-winxp-halapic.vdi',
+               sKind = 'WindowsXP', acCpusSup = range(1, 33), fIoApic = True),
+        TestVm('tst-xpsp2-halmacpi',        kfGrpStdSmoke,        sHd = '4.2/xpsp2/t-winxp-halmacpi.vdi',
+               sKind = 'WindowsXP', acCpusSup = range(2, 33), fIoApic = True),
+        TestVm('tst-xpsp2-halmps',          kfGrpStdSmoke,        sHd = '4.2/xpsp2/t-winxp-halmps.vdi',
+               sKind = 'WindowsXP', acCpusSup = range(2, 33), fIoApic = True),
+
+        # W2K3
+        TestVm('tst-win2k3ent',             kfGrpSmoke,           sHd = '3.0/tcp/win2k3ent-acpi.vdi',
+               sKind = 'Windows2003', acCpusSup = range(1, 33), fPae = True, sNic0AttachType = 'bridged'),
+
+        # W7
+        TestVm('tst-win7',                  kfGrpStdSmoke,        sHd = '4.2/win7-32/t-win7.vdi',
+               sKind = 'Windows7', acCpusSup = range(1, 33), fIoApic = True),
+
+        # W8
+        TestVm('tst-win8-64',               kfGrpStdSmoke,        sHd = '4.2/win8-64/t-win8-64.vdi',
+               sKind = 'Windows8_64', acCpusSup = range(1, 33), fIoApic = True),
+        #TestVm('tst-win8-64-ich9',          kfGrpStdSmoke,         sHd = '4.2/win8-64/t-win8-64.vdi',
+        #       sKind = 'Windows8_64', acCpusSup = range(1, 33), fIoApic = True, sChipsetType = 'ich9'),
+
+        # W10
+        TestVm('tst-win10-efi',             kfGrpStdSmoke,        sHd = '4.2/efi/win10-efi-x86.vdi',
+               sKind = 'Windows10', acCpusSup = range(1, 33), fIoApic = True, sFirmwareType = 'efi'),
+        TestVm('tst-win10-64-efi',          kfGrpStdSmoke,        sHd = '4.2/efi/win10-efi-amd64.vdi',
+               sKind = 'Windows10_64', acCpusSup = range(1, 33), fIoApic = True, sFirmwareType = 'efi'),
+        #TestVm('tst-win10-64-efi-ich9',     kfGrpStdSmoke,         sHd = '4.2/efi/win10-efi-amd64.vdi',
+        #       sKind = 'Windows10_64', acCpusSup = range(1, 33), fIoApic = True, sFirmwareType = 'efi', sChipsetType = 'ich9'),
+
+        # Nested hardware-virtualization
+        TestVm('tst-nsthwvirt-ubuntu-64',    kfGrpStdSmoke,       sHd = '5.3/nat/nsthwvirt-ubuntu64/t-nsthwvirt-ubuntu64.vdi',
+               sKind = 'Ubuntu_64', acCpusSup = range(1, 2), asVirtModesSup = ['hwvirt-np',], fIoApic = True, fNstHwVirt = True,
+               sNic0AttachType = 'nat'),
+
+        # DOS and Old Windows.
+        AncientTestVm('tst-dos20',              sKind = 'DOS',
+                      sHd = '5.2/great-old-ones/t-dos20/t-dos20.vdi'),
+        AncientTestVm('tst-dos401-win30me',     sKind = 'DOS',
+                      sHd = '5.2/great-old-ones/t-dos401-win30me/t-dos401-win30me.vdi',                 cMBRamMax = 4),
+        AncientTestVm('tst-dos401-emm386-win30me', sKind = 'DOS',
+                      sHd = '5.2/great-old-ones/t-dos401-emm386-win30me/t-dos401-emm386-win30me.vdi',   cMBRamMax = 4),
+        AncientTestVm('tst-dos50-win31',        sKind = 'DOS',
+                      sHd = '5.2/great-old-ones/t-dos50-win31/t-dos50-win31.vdi'),
+        AncientTestVm('tst-dos50-emm386-win31', sKind = 'DOS',
+                      sHd = '5.2/great-old-ones/t-dos50-emm386-win31/t-dos50-emm386-win31.vdi'),
+        AncientTestVm('tst-dos622',             sKind = 'DOS',
+                      sHd = '5.2/great-old-ones/t-dos622/t-dos622.vdi'),
+        AncientTestVm('tst-dos622-emm386',      sKind = 'DOS',
+                      sHd = '5.2/great-old-ones/t-dos622-emm386/t-dos622-emm386.vdi'),
+        AncientTestVm('tst-dos71',              sKind = 'DOS',
+                      sHd = '5.2/great-old-ones/t-dos71/t-dos71.vdi'),
+
+        #AncientTestVm('tst-dos5-win311a',       sKind = 'DOS',  sHd = '5.2/great-old-ones/t-dos5-win311a/t-dos5-win311a.vdi'),
+    );
+
+
     def __init__(self, sResourcePath):
         self.sResourcePath = sResourcePath;
 
+    def selectSet(self, fGrouping, sTxsTransport = None, fCheckResources = True):
+        """
+        Returns a VM set with the selected VMs.
+        """
+        oSet = TestVmSet(oTestVmManager = self);
+        for oVm in self.kaTestVMs:
+            if oVm.fGrouping & fGrouping:
+                if sTxsTransport is None  or  oVm.sNic0AttachType is None  or  sTxsTransport == oVm.sNic0AttachType:
+                    if not fCheckResources  or  not oVm.getMissingResources(self.sResourcePath):
+                        oCopyVm = copy.deepcopy(oVm);
+                        oCopyVm.oSet = oSet;
+                        oSet.aoTestVms.append(oCopyVm);
+        return oSet;
 
     def getStandardVmSet(self, sTxsTransport):
         """
@@ -858,184 +1194,11 @@ class TestVmManager(object):
         This is supposed to do something seriously clever, like searching the
         testrsrc tree for usable VMs, but for the moment it's all hard coded. :-)
         """
+        return self.selectSet(self.kfGrpStandard, sTxsTransport)
 
-        oSet = TestVmSet(oTestVmManager = self);
-
-        oTestVm = TestVm(oSet, 'tst-win10-efi', sHd = '4.2/efi/win10-efi-x86.vdi',
-                         sKind = 'Windows10', acCpusSup = range(1, 33), fIoApic = True, sFirmwareType = 'efi');
-        oSet.aoTestVms.append(oTestVm);
-
-        oTestVm = TestVm(oSet, 'tst-win10-64-efi', sHd = '4.2/efi/win10-efi-amd64.vdi',
-                         sKind = 'Windows10_64', acCpusSup = range(1, 33), fIoApic = True, sFirmwareType = 'efi');
-        oSet.aoTestVms.append(oTestVm);
-
-        #oTestVm = TestVm(oSet, 'tst-win10-64-efi-ich9', sHd = '4.2/efi/win10-efi-amd64.vdi',
-        #                 sKind = 'Windows10_64', acCpusSup = range(1, 33), fIoApic = True, sFirmwareType = 'efi',
-        #                 sChipsetType = 'ich9');
-        #oSet.aoTestVms.append(oTestVm);
-
-        oTestVm = TestVm(oSet, 'tst-ubuntu-15_10-64-efi', sHd = '4.2/efi/ubuntu-15_10-efi-amd64.vdi',
-                         sKind = 'Ubuntu_64', acCpusSup = range(1, 33), fIoApic = True, sFirmwareType = 'efi');
-        oSet.aoTestVms.append(oTestVm);
-
-        oTestVm = TestVm(oSet, 'tst-nt4sp1', sHd = '4.2/' + sTxsTransport + '/nt4sp1/t-nt4sp1.vdi',
-                         sKind = 'WindowsNT4', acCpusSup = [1]);
-        oSet.aoTestVms.append(oTestVm);
-
-        oTestVm = TestVm(oSet, 'tst-xppro', sHd = '4.2/' + sTxsTransport + '/xppro/t-xppro.vdi',
-                         sKind = 'WindowsXP', acCpusSup = range(1, 33));
-        oSet.aoTestVms.append(oTestVm);
-
-        oTestVm = TestVm(oSet, 'tst-nt4sp6', sHd = '4.2/nt4sp6/t-nt4sp6.vdi',
-                         sKind = 'WindowsNT4', acCpusSup = range(1, 33));
-        oSet.aoTestVms.append(oTestVm);
-
-        oTestVm = TestVm(oSet, 'tst-2ksp4', sHd = '4.2/win2ksp4/t-win2ksp4.vdi',
-                         sKind = 'Windows2000', acCpusSup = range(1, 33));
-        oSet.aoTestVms.append(oTestVm);
-
-        oTestVm = TestVm(oSet, 'tst-xpsp2', sHd = '4.2/xpsp2/t-winxpsp2.vdi',
-                         sKind = 'WindowsXP', acCpusSup = range(1, 33), fIoApic = True);
-        oSet.aoTestVms.append(oTestVm);
-
-        oTestVm = TestVm(oSet, 'tst-xpsp2-halaacpi', sHd = '4.2/xpsp2/t-winxp-halaacpi.vdi',
-                         sKind = 'WindowsXP', acCpusSup = range(1, 33), fIoApic = True);
-        oSet.aoTestVms.append(oTestVm);
-
-        oTestVm = TestVm(oSet, 'tst-xpsp2-halacpi', sHd = '4.2/xpsp2/t-winxp-halacpi.vdi',
-                         sKind = 'WindowsXP', acCpusSup = range(1, 33), fIoApic = True);
-        oSet.aoTestVms.append(oTestVm);
-
-        oTestVm = TestVm(oSet, 'tst-xpsp2-halapic', sHd = '4.2/xpsp2/t-winxp-halapic.vdi',
-                         sKind = 'WindowsXP', acCpusSup = range(1, 33), fIoApic = True);
-        oSet.aoTestVms.append(oTestVm);
-
-        oTestVm = TestVm(oSet, 'tst-xpsp2-halmacpi', sHd = '4.2/xpsp2/t-winxp-halmacpi.vdi',
-                         sKind = 'WindowsXP', acCpusSup = range(2, 33), fIoApic = True);
-        oSet.aoTestVms.append(oTestVm);
-
-        oTestVm = TestVm(oSet, 'tst-xpsp2-halmps', sHd = '4.2/xpsp2/t-winxp-halmps.vdi',
-                         sKind = 'WindowsXP', acCpusSup = range(2, 33), fIoApic = True);
-        oSet.aoTestVms.append(oTestVm);
-
-        oTestVm = TestVm(oSet, 'tst-win7', sHd = '4.2/win7-32/t-win7.vdi',
-                         sKind = 'Windows7', acCpusSup = range(1, 33), fIoApic = True);
-        oSet.aoTestVms.append(oTestVm);
-
-        oTestVm = TestVm(oSet, 'tst-win8-64', sHd = '4.2/win8-64/t-win8-64.vdi',
-                         sKind = 'Windows8_64', acCpusSup = range(1, 33), fIoApic = True);
-        oSet.aoTestVms.append(oTestVm);
-
-        #oTestVm = TestVm(oSet, 'tst-win8-64-ich9', sHd = '4.2/win8-64/t-win8-64.vdi',
-        #                 sKind = 'Windows8_64', acCpusSup = range(1, 33), fIoApic = True, sChipsetType = 'ich9');
-        #oSet.aoTestVms.append(oTestVm);
-
-        return oSet;
-
-    def getSmokeVmSet(self):
-        """
-        Gets a representative set of VMs for smoke testing.
-        """
-
-        oSet = TestVmSet(oTestVmManager = self);
-
-        oTestVm = TestVm(oSet, 'tst-win10-efi', sHd = '4.2/efi/win10-efi-x86.vdi',
-                         sKind = 'Windows10', acCpusSup = range(1, 33), fIoApic = True, sFirmwareType = 'efi');
-        oSet.aoTestVms.append(oTestVm);
-
-        oTestVm = TestVm(oSet, 'tst-win10-64-efi', sHd = '4.2/efi/win10-efi-amd64.vdi',
-                         sKind = 'Windows10_64', acCpusSup = range(1, 33), fIoApic = True, sFirmwareType = 'efi');
-        oSet.aoTestVms.append(oTestVm);
-
-        #oTestVm = TestVm(oSet, 'tst-win10-64-efi-ich9', sHd = '4.2/efi/win10-efi-amd64.vdi',
-        #                 sKind = 'Windows10_64', acCpusSup = range(1, 33), fIoApic = True, sFirmwareType = 'efi',
-        #                 sChipsetType = 'ich9');
-        #oSet.aoTestVms.append(oTestVm);
-
-        oTestVm = TestVm(oSet, 'tst-ubuntu-15_10-64-efi', sHd = '4.2/efi/ubuntu-15_10-efi-amd64.vdi',
-                         sKind = 'Ubuntu_64', acCpusSup = range(1, 33), fIoApic = True, sFirmwareType = 'efi',
-                         asParavirtModesSup = [g_ksParavirtProviderKVM,]);
-        oSet.aoTestVms.append(oTestVm);
-
-        oTestVm = TestVm(oSet, 'tst-nt4sp1', sHd = '4.2/nat/nt4sp1/t-nt4sp1.vdi',
-                         sKind = 'WindowsNT4', acCpusSup = [1], sNic0AttachType = 'nat');
-        oSet.aoTestVms.append(oTestVm);
-
-        oTestVm = TestVm(oSet, 'tst-xppro', sHd = '4.2/nat/xppro/t-xppro.vdi',
-                         sKind = 'WindowsXP', acCpusSup = range(1, 33), sNic0AttachType = 'nat');
-        oSet.aoTestVms.append(oTestVm);
-
-        oTestVm = TestVm(oSet, 'tst-rhel5', sHd = '3.0/tcp/rhel5.vdi',
-                         sKind = 'RedHat', acCpusSup = range(1, 33), fIoApic = True, sNic0AttachType = 'nat');
-        oSet.aoTestVms.append(oTestVm);
-
-        oTestVm = TestVm(oSet, 'tst-win2k3ent', sHd = '3.0/tcp/win2k3ent-acpi.vdi',
-                         sKind = 'Windows2003', acCpusSup = range(1, 33), fPae = True, sNic0AttachType = 'bridged');
-        oSet.aoTestVms.append(oTestVm);
-
-        oTestVm = TestVm(oSet, 'tst-sol10', sHd = '3.0/tcp/solaris10.vdi',
-                         sKind = 'Solaris', acCpusSup = range(1, 33), fPae = True, sNic0AttachType = 'bridged');
-        oSet.aoTestVms.append(oTestVm);
-
-        oTestVm = TestVm(oSet, 'tst-sol10-64', sHd = '3.0/tcp/solaris10.vdi',
-                         sKind = 'Solaris_64', acCpusSup = range(1, 33), sNic0AttachType = 'bridged');
-        oSet.aoTestVms.append(oTestVm);
-
-        oTestVm = TestVm(oSet, 'tst-sol11u1', sHd = '4.2/nat/sol11u1/t-sol11u1.vdi',
-                         sKind = 'Solaris11_64', acCpusSup = range(1, 33), sNic0AttachType = 'nat',
-                         fIoApic = True, sHddControllerType = 'SATA Controller');
-        oSet.aoTestVms.append(oTestVm);
-
-        #oTestVm = TestVm(oSet, 'tst-sol11u1-ich9', sHd = '4.2/nat/sol11u1/t-sol11u1.vdi',
-        #                 sKind = 'Solaris11_64', acCpusSup = range(1, 33), sNic0AttachType = 'nat',
-        #                 fIoApic = True, sHddControllerType = 'SATA Controller', sChipsetType = 'ich9');
-        #oSet.aoTestVms.append(oTestVm);
-
-        oTestVm = TestVm(oSet, 'tst-nt4sp6', sHd = '4.2/nt4sp6/t-nt4sp6.vdi',
-                         sKind = 'WindowsNT4', acCpusSup = range(1, 33));
-        oSet.aoTestVms.append(oTestVm);
-
-        oTestVm = TestVm(oSet, 'tst-2ksp4', sHd = '4.2/win2ksp4/t-win2ksp4.vdi',
-                         sKind = 'Windows2000', acCpusSup = range(1, 33));
-        oSet.aoTestVms.append(oTestVm);
-
-        oTestVm = TestVm(oSet, 'tst-xpsp2', sHd = '4.2/xpsp2/t-winxpsp2.vdi',
-                         sKind = 'WindowsXP', acCpusSup = range(1, 33), fIoApic = True);
-        oSet.aoTestVms.append(oTestVm);
-
-        oTestVm = TestVm(oSet, 'tst-xpsp2-halaacpi', sHd = '4.2/xpsp2/t-winxp-halaacpi.vdi',
-                         sKind = 'WindowsXP', acCpusSup = range(1, 33), fIoApic = True);
-        oSet.aoTestVms.append(oTestVm);
-
-        oTestVm = TestVm(oSet, 'tst-xpsp2-halacpi', sHd = '4.2/xpsp2/t-winxp-halacpi.vdi',
-                         sKind = 'WindowsXP', acCpusSup = range(1, 33), fIoApic = True);
-        oSet.aoTestVms.append(oTestVm);
-
-        oTestVm = TestVm(oSet, 'tst-xpsp2-halapic', sHd = '4.2/xpsp2/t-winxp-halapic.vdi',
-                         sKind = 'WindowsXP', acCpusSup = range(1, 33), fIoApic = True);
-        oSet.aoTestVms.append(oTestVm);
-
-        oTestVm = TestVm(oSet, 'tst-xpsp2-halmacpi', sHd = '4.2/xpsp2/t-winxp-halmacpi.vdi',
-                         sKind = 'WindowsXP', acCpusSup = range(2, 33), fIoApic = True);
-        oSet.aoTestVms.append(oTestVm);
-
-        oTestVm = TestVm(oSet, 'tst-xpsp2-halmps', sHd = '4.2/xpsp2/t-winxp-halmps.vdi',
-                         sKind = 'WindowsXP', acCpusSup = range(2, 33), fIoApic = True);
-        oSet.aoTestVms.append(oTestVm);
-
-        oTestVm = TestVm(oSet, 'tst-win7', sHd = '4.2/win7-32/t-win7.vdi',
-                         sKind = 'Windows7', acCpusSup = range(1, 33), fIoApic = True);
-        oSet.aoTestVms.append(oTestVm);
-
-        oTestVm = TestVm(oSet, 'tst-win8-64', sHd = '4.2/win8-64/t-win8-64.vdi',
-                         sKind = 'Windows8_64', acCpusSup = range(1, 33), fIoApic = True);
-        oSet.aoTestVms.append(oTestVm);
-
-        #oTestVm = TestVm(oSet, 'tst-win8-64-ich9', sHd = '4.2/win8-64/t-win8-64.vdi',
-        #                 sKind = 'Windows8_64', acCpusSup = range(1, 33), fIoApic = True, sChipsetType = 'ich9');
-        #oSet.aoTestVms.append(oTestVm);
-
-        return oSet;
+    def getSmokeVmSet(self, sTxsTransport = None):
+        """Gets a representative set of VMs for smoke testing. """
+        return self.selectSet(self.kfGrpSmoke, sTxsTransport);
 
     def shutUpPyLint(self):
         """ Shut up already! """

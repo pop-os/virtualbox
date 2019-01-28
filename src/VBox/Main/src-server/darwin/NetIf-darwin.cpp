@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,6 +20,8 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
+#define LOG_GROUP LOG_GROUP_MAIN_HOST
+
 /*
  * Deal with conflicts first.
  * PVM - BSD mess, that FreeBSD has correct a long time ago.
@@ -29,9 +31,7 @@
 #include <sys/param.h>
 #undef PVM
 
-#define LOG_GROUP LOG_GROUP_MAIN
-
-#include <iprt/err.h>
+#include <iprt/errcore.h>
 #include <iprt/alloc.h>
 
 #include <string.h>
@@ -51,7 +51,7 @@
 #include "HostNetworkInterfaceImpl.h"
 #include "netif.h"
 #include "iokit.h"
-#include "Logging.h"
+#include "LoggingNew.h"
 
 #if 0
 int NetIfList(std::list <ComObjPtr<HostNetworkInterface> > &list)

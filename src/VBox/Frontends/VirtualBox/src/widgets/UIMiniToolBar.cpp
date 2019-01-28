@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,35 +15,31 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QApplication>
-# include <QTimer>
-# include <QLabel>
-# include <QMenu>
-# include <QMoveEvent>
-# include <QToolButton>
-# include <QStateMachine>
-# include <QPainter>
-# include <QWindow>
-# ifdef VBOX_WS_X11
-#  include <QWindowStateChangeEvent>
-# endif
+#include <QApplication>
+#include <QLabel>
+#include <QMenu>
+#include <QMoveEvent>
+#include <QPainter>
+#include <QStateMachine>
+#include <QStyle>
+#include <QTimer>
+#include <QToolButton>
+#include <QVBoxLayout>
+#include <QWindow>
+#ifdef VBOX_WS_X11
+# include <QWindowStateChangeEvent>
+#endif
 
 /* GUI includes: */
-# include "UIMiniToolBar.h"
-# include "UIAnimationFramework.h"
-# include "UIIconPool.h"
-# include "UIDesktopWidgetWatchdog.h"
-# include "VBoxGlobal.h"
-# ifdef VBOX_WS_X11
-#  include "UIExtraDataManager.h"
-# endif /* VBOX_WS_X11 */
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "UIMiniToolBar.h"
+#include "UIAnimationFramework.h"
+#include "UIIconPool.h"
+#include "UIDesktopWidgetWatchdog.h"
+#include "VBoxGlobal.h"
+#ifdef VBOX_WS_X11
+# include "UIExtraDataManager.h"
+#endif
 
 
 /** UIToolBar reimplementation

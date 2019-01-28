@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2017 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,14 +22,14 @@
 #include <VBox/com/ErrorInfo.h>
 #include <VBox/com/errorprint.h>
 
-#include <iprt/message.h>
-#include <iprt/thread.h>
-#include <iprt/stream.h>
+#include <iprt/errcore.h>
 #include <iprt/log.h>
+#include <iprt/message.h>
+#include <iprt/stream.h>
+#include <iprt/thread.h>
 
 #include <algorithm>
 #include <list>
-#include <string>
 
 #include "VBoxAutostart.h"
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UIMachine_h___
-#define ___UIMachine_h___
+#ifndef FEQT_INCLUDED_SRC_runtime_UIMachine_h
+#define FEQT_INCLUDED_SRC_runtime_UIMachine_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Qt includes: */
 #include <QObject>
@@ -46,9 +49,9 @@ signals:
 
 public:
 
-    /** Static factory to start machine with passed @a strID.
+    /** Static factory to start machine with passed @a uID.
       * @return true if machine was started, false otherwise. */
-    static bool startMachine(const QString &strID);
+    static bool startMachine(const QUuid &uID);
     /** Static constructor. */
     static bool create();
     /** Static destructor. */
@@ -70,7 +73,7 @@ public:
     void asyncChangeVisualState(UIVisualStateType visualStateType);
 
     /** Close Runtime UI. */
-    void closeRuntimeUI() { destroy(); }
+    void closeRuntimeUI();
 
 private slots:
 
@@ -119,4 +122,4 @@ private:
 
 #define gpMachine UIMachine::instance()
 
-#endif /* !___UIMachine_h___ */
+#endif /* !FEQT_INCLUDED_SRC_runtime_UIMachine_h */

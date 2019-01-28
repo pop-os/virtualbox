@@ -8,7 +8,7 @@ VirtualBox Wrapper Classes
 
 __copyright__ = \
 """
-Copyright (C) 2010-2017 Oracle Corporation
+Copyright (C) 2010-2019 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -27,15 +27,17 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 118412 $"
+__version__ = "$Revision: 127855 $"
 
 
 # Standard Python imports.
-import os
-import socket
+import os;
+import socket;
+import sys;
 
 # Validation Kit imports.
 from common     import utils;
+from common     import netutils;
 from testdriver import base;
 from testdriver import reporter;
 from testdriver import txsclient;
@@ -44,23 +46,34 @@ from testdriver import vbox;
 from testdriver.base    import TdTaskBase;
 
 
-def _ControllerNameToBus(sController):
+def _ControllerNameToBusAndType(sController):
     """ Translate a controller name to a storage bus. """
     if sController == "IDE Controller":
-        iType = vboxcon.StorageBus_IDE;
+        eBus  = vboxcon.StorageBus_IDE;
+        eType = vboxcon.StorageControllerType_PIIX4;
     elif sController == "SATA Controller":
-        iType = vboxcon.StorageBus_SATA;
+        eBus  = vboxcon.StorageBus_SATA;
+        eType = vboxcon.StorageControllerType_IntelAhci;
     elif sController == "Floppy Controller":
-        iType = vboxcon.StorageBus_Floppy;
+        eType = vboxcon.StorageControllerType_I82078;
+        eBus  = vboxcon.StorageBus_Floppy;
     elif sController == "SAS Controller":
-        iType = vboxcon.StorageBus_SAS;
+        eBus  = vboxcon.StorageBus_SAS;
+        eType = vboxcon.StorageControllerType_LsiLogicSas;
     elif sController == "SCSI Controller":
-        iType = vboxcon.StorageBus_SCSI;
+        eBus  = vboxcon.StorageBus_SCSI;
+        eType = vboxcon.StorageControllerType_LsiLogic;
+    elif sController == "BusLogic SCSI Controller":
+        eBus  = vboxcon.StorageBus_SCSI;
+        eType = vboxcon.StorageControllerType_BusLogic;
     elif sController == "NVMe Controller":
-        iType = vboxcon.StorageBus_PCIe;
+        eBus  = vboxcon.StorageBus_PCIe;
+        eType = vboxcon.StorageControllerType_NVMe;
     else:
-        iType = vboxcon.StorageBus_Null;
-    return iType;
+        eBus  = vboxcon.StorageBus_Null;
+        eType = vboxcon.StorageControllerType_Null;
+    return (eBus, eType);
+
 
 def _nameMachineState(eState):
     """ Gets the name (string) of a machine state."""
@@ -468,10 +481,10 @@ class ProgressWrapper(TdTaskBase):
             if cMsElapsed > cMsTimeout:
                 if fErrorOnTimeout:
                     if fIgnoreErrors:
-                        reporter.log('Timing out after waiting for %u s on "%s" operation %d' \
+                        reporter.log('Timing out after waiting for %s s on "%s" operation %d' \
                                      % (cMsTimeout / 1000, self.sName, iOperation))
                     else:
-                        reporter.error('Timing out after waiting for %u s on "%s" operation %d' \
+                        reporter.error('Timing out after waiting for %s s on "%s" operation %d' \
                                        % (cMsTimeout / 1000, self.sName, iOperation))
                 return -1;
 
@@ -485,6 +498,7 @@ class ProgressWrapper(TdTaskBase):
                 return -2;
             reporter.doPollWork('ProgressWrapper.waitForOperation');
         # Not reached.
+        return -3; # Make pylin happy (for now).
 
     def doQuickApiTest(self):
         """
@@ -598,7 +612,7 @@ class SessionWrapper(TdTaskBase):
         try:
             try:
                 eState = self.o.machine.state;
-            except Exception, oXcpt:
+            except Exception as oXcpt:
                 if vbox.ComError.notEqual(oXcpt, vbox.ComError.E_UNEXPECTED):
                     reporter.logXcpt();
                 return True;
@@ -733,7 +747,7 @@ class SessionWrapper(TdTaskBase):
         try:
             try:
                 eState = self.o.machine.state;
-            except Exception, oXcpt:
+            except Exception as oXcpt:
                 if vbox.ComError.notEqual(oXcpt, vbox.ComError.E_UNEXPECTED):
                     reporter.logXcpt();
                 return False;
@@ -977,6 +991,27 @@ class SessionWrapper(TdTaskBase):
             fRc = False;
         else:
             reporter.log('set CPUPropertyType_LongMode=%s for "%s"' % (fEnable, self.sName));
+        self.oTstDrv.processPendingEvents();
+        return fRc;
+
+    def enableNestedHwVirt(self, fEnable):
+        """
+        Enables or disables Nested Hardware-Virtualization.
+        Returns True on success and False on failure.  Error information is logged.
+        """
+        # Supported.
+        if self.fpApiVer < 5.3  or  not hasattr(vboxcon, 'CPUPropertyType_HWVirt'):
+            return True;
+
+        # Enable/disable it.
+        fRc = True;
+        try:
+            self.o.machine.setCPUProperty(vboxcon.CPUPropertyType_HWVirt, fEnable);
+        except:
+            reporter.errorXcpt('failed to set CPUPropertyType_HWVirt=%s for "%s"' % (fEnable, self.sName));
+            fRc = False;
+        else:
+            reporter.log('set CPUPropertyType_HWVirt=%s for "%s"' % (fEnable, self.sName));
         self.oTstDrv.processPendingEvents();
         return fRc;
 
@@ -1516,49 +1551,36 @@ class SessionWrapper(TdTaskBase):
         Returns True on success and False on failure.  Error information is logged.
         """
 
-        # Resolve missing MAC address prefix
-        cchMacAddr = len(sMacAddr)
+        # Resolve missing MAC address prefix by feeding in the host IP address bytes.
+        cchMacAddr = len(sMacAddr);
         if cchMacAddr > 0 and cchMacAddr < 12:
-            sHostName = ''
-            try:
-                sHostName = socket.getfqdn()
-                if '.' not in sHostName and not sHostName.startswith('localhost'):
-                    # somewhat misconfigured system, needs expensive approach to guessing FQDN
-                    for aAI in socket.getaddrinfo(sHostName, None):
-                        sName, _ = socket.getnameinfo(aAI[4], 0)
-                        if '.' in sName and not set(sName).issubset(set('0123456789.')) and not sName.startswith('localhost'):
-                            sHostName = sName
-                            break
+            sHostIP = netutils.getPrimaryHostIp();
+            abHostIP = socket.inet_aton(sHostIP);
+            if sys.version_info[0] < 3:
+                abHostIP = (ord(abHostIP[0]), ord(abHostIP[1]), ord(abHostIP[2]), ord(abHostIP[3]));
 
-                sHostIP = socket.gethostbyname(sHostName)
-                abHostIP = socket.inet_aton(sHostIP)
-                if   ord(abHostIP[0]) == 127 \
-                  or (ord(abHostIP[0]) == 169 and ord(abHostIP[1]) == 254) \
-                  or (ord(abHostIP[0]) == 192 and ord(abHostIP[1]) == 168 and ord(abHostIP[2]) == 56):
-                    reporter.log('warning: host IP for "%s" is %s, most likely not unique.' % (sHostName, sHostIP))
-            except:
-                reporter.errorXcpt('failed to determine the host IP for "%s".' % (sHostName,))
-                return False
-            sDefaultMac = '%02X%02X%02X%02X%02X%02X' \
-                % (0x02, ord(abHostIP[0]), ord(abHostIP[1]), ord(abHostIP[2]), ord(abHostIP[3]), iNic)
-            sMacAddr = sDefaultMac[0:(12 - cchMacAddr)] + sMacAddr
+            if   abHostIP[0] == 127 \
+              or (abHostIP[0] == 169 and abHostIP[1] == 254) \
+              or (abHostIP[0] == 192 and abHostIP[1] == 168 and abHostIP[2] == 56):
+                return reporter.error('host IP for "%s" is %s, most likely not unique.' % (netutils.getHostnameFqdn(), sHostIP,));
+
+            sDefaultMac = '%02X%02X%02X%02X%02X%02X' % (0x02, abHostIP[0], abHostIP[1], abHostIP[2], abHostIP[3], iNic);
+            sMacAddr = sDefaultMac[0:(12 - cchMacAddr)] + sMacAddr;
 
         # Get the NIC object and try set it address.
         try:
-            oNic = self.o.machine.getNetworkAdapter(iNic)
+            oNic = self.o.machine.getNetworkAdapter(iNic);
         except:
-            reporter.errorXcpt('getNetworkAdapter(%s) failed for "%s"' % (iNic, self.sName))
-            return False
+            return reporter.errorXcpt('getNetworkAdapter(%s) failed for "%s"' % (iNic, self.sName,));
 
         try:
-            oNic.MACAddress = sMacAddr
+            oNic.MACAddress = sMacAddr;
         except:
-            reporter.errorXcpt('failed to set the MAC address on slot %s to "%s" for VM "%s"' \
-                % (iNic, sMacAddr, self.sName))
-            return False
+            return reporter.errorXcpt('failed to set the MAC address on slot %s to "%s" for VM "%s"'
+                                      % (iNic, sMacAddr, self.sName));
 
-        reporter.log('set MAC address on slot %s to %s for VM "%s"' % (iNic, sMacAddr, self.sName))
-        return True
+        reporter.log('set MAC address on slot %s to %s for VM "%s"' % (iNic, sMacAddr, self.sName,));
+        return True;
 
     def setRamSize(self, cMB):
         """
@@ -1631,13 +1653,21 @@ class SessionWrapper(TdTaskBase):
             try:
                 self.o.machine.getStorageControllerByName(sController);
             except:
-                iType = _ControllerNameToBus(sController);
+                (eBus, eType) = _ControllerNameToBusAndType(sController);
                 try:
-                    self.o.machine.addStorageController(sController, iType);
-                    reporter.log('added storage controller "%s" (type %s) to %s' % (sController, iType, self.sName));
+                    oCtl = self.o.machine.addStorageController(sController, eBus);
                 except:
-                    reporter.errorXcpt('addStorageController("%s",%s) failed on "%s"' % (sController, iType, self.sName) );
+                    reporter.errorXcpt('addStorageController("%s",%s) failed on "%s"' % (sController, eBus, self.sName) );
                     return False;
+                else:
+                    try:
+                        oCtl.controllerType = eType;
+                        reporter.log('added storage controller "%s" (bus %s, type %s) to %s'
+                                    % (sController, eBus, eType, self.sName));
+                    except:
+                        reporter.errorXcpt('controllerType = %s on ("%s" / %s) failed on "%s"'
+                                           % (eType, sController, eBus, self.sName) );
+                        return False;
         finally:
             self.oTstDrv.processPendingEvents();
         return True;
@@ -1696,12 +1726,12 @@ class SessionWrapper(TdTaskBase):
         try:
             oCtl = self.o.machine.getStorageControllerByName(sController);
         except:
-            iType = _ControllerNameToBus(sController);
+            (eBus, _) = _ControllerNameToBusAndType(sController);
             try:
-                oCtl = self.o.machine.addStorageController(sController, iType);
-                reporter.log('added storage controller "%s" (type %s) to %s' % (sController, iType, self.sName));
+                oCtl = self.o.machine.addStorageController(sController, eBus);
+                reporter.log('added storage controller "%s" (bus %s) to %s' % (sController, eBus, self.sName));
             except:
-                reporter.errorXcpt('addStorageController("%s",%s) failed on "%s"' % (sController, iType, self.sName) );
+                reporter.errorXcpt('addStorageController("%s",%s) failed on "%s"' % (sController, eBus, self.sName) );
                 return False;
         try:
             oCtl.controllerType = eType;
@@ -1741,7 +1771,7 @@ class SessionWrapper(TdTaskBase):
                         oImage = self.oVBox.openMedium(sFullName, vboxcon.DeviceType_DVD, vboxcon.AccessMode_ReadOnly);
                     else:
                         oImage = self.oVBox.openDVDImage(sFullName, "");
-                except vbox.ComException, oXcpt:
+                except vbox.ComException as oXcpt:
                     if oXcpt.errno != -1:
                         reporter.errorXcpt('failed to open DVD image "%s" xxx' % (sFullName));
                     else:
@@ -2024,7 +2054,7 @@ class SessionWrapper(TdTaskBase):
 
     def setupNic(self, sType, sXXX):
         """
-        Attaches a HD to a VM.
+        Sets up a NIC to a VM.
         Returns True on success and False on failure.  Error information is logged.
         """
         if sType == "PCNet":        enmType = vboxcon.NetworkAdapterType_Am79C973;
@@ -2040,35 +2070,41 @@ class SessionWrapper(TdTaskBase):
         if enmType is not None: pass
         return True;
 
-    def setupAudio(self, eAudioCtlType):
+    def setupAudio(self, eAudioControllerType, fEnable = True, eAudioDriverType = None):
         """
-        Set guest audio controller type and host audio adapter to null
-        @param eAudioCtlType device type (vboxcon.AudioControllerType_SB16,
-                             vboxcon.AudioControllerType_AC97, vboxcon.AudioControllerType_HDA)
+        Sets up audio.
+
+        :param eAudioControllerType:    The audio controller type (vboxcon.AudioControllerType_XXX).
+        :param fEnable:                 Whether to enable or disable the audio controller (default enable).
+        :param eAudioDriverType:        The audio driver type (vboxcon.AudioDriverType_XXX), picks something suitable
+                                        if None is passed (default).
         """
-        try:
-            oAudioAdapter = self.o.machine.audioAdapter;
+        try:    oAudioAdapter = self.o.machine.audioAdapter;
+        except: return reporter.errorXcpt('Failed to get the audio adapter.');
 
-            oAudioAdapter.audioController = eAudioCtlType;
+        try:    oAudioAdapter.audioController = eAudioControllerType;
+        except: return reporter.errorXcpt('Failed to set the audio controller to %s.' % (eAudioControllerType,));
 
+        if eAudioDriverType is None:
             sHost = utils.getHostOs()
-            if   sHost == 'darwin':    oAudioAdapter.audioDriver = vboxcon.AudioDriverType_CoreAudio;
-            elif sHost == 'win':       oAudioAdapter.audioDriver = vboxcon.AudioDriverType_DirectSound;
-            elif sHost == 'linux':     oAudioAdapter.audioDriver = vboxcon.AudioDriverType_Pulse;
-            elif sHost == 'solaris':   oAudioAdapter.audioDriver = vboxcon.AudioDriverType_OSS;
+            if   sHost == 'darwin':    eAudioDriverType = vboxcon.AudioDriverType_CoreAudio;
+            elif sHost == 'win':       eAudioDriverType = vboxcon.AudioDriverType_DirectSound;
+            elif sHost == 'linux':     eAudioDriverType = vboxcon.AudioDriverType_Pulse;
+            elif sHost == 'solaris':   eAudioDriverType = vboxcon.AudioDriverType_OSS;
             else:
-                reporter.error('Unsupported host "%s".' % (sHost,));
-                oAudioAdapter.audioDriver = vboxcon.AudioDriverType_Null;
+                reporter.error('PORTME: Do not know which audio driver to pick for: %s!' % (sHost,));
+                eAudioDriverType = vboxcon.AudioDriverType_Null;
 
-            # Disable by default
-            oAudioAdapter.enabled = False;
-        except:
-            return reporter.errorXcpt('Unable to set audio adapter.')
+        try:    oAudioAdapter.audioDriver = eAudioDriverType;
+        except: return reporter.errorXcpt('Failed to set the audio driver to %s.' % (eAudioDriverType,))
 
-        reporter.log('set audio adapter type to %d' % (eAudioCtlType))
+        try:    oAudioAdapter.enabled = fEnable;
+        except: return reporter.errorXcpt('Failed to set the "enabled" property to %s.' % (fEnable,));
+
+        reporter.log('set audio adapter type to %d, driver to %d, and enabled to %s'
+                     % (eAudioControllerType, eAudioDriverType, fEnable,));
         self.oTstDrv.processPendingEvents();
-
-        return True
+        return True;
 
     def setupPreferredConfig(self):                                             # pylint: disable=R0914
         """
@@ -2141,7 +2177,7 @@ class SessionWrapper(TdTaskBase):
             if not self.setStorageControllerType(eStorCtlType, "IDE Controller"):
                 fRc = False;
         if self.fpApiVer >= 4.0:
-            if not self.setupAudio(eAudioCtlType): fRc = False;
+            if not self.setupAudio(eAudioCtlType):      fRc = False;
 
         return fRc;
 
@@ -2341,6 +2377,95 @@ class SessionWrapper(TdTaskBase):
         return True;
 
 
+    def setupSerialToRawFile(self, iSerialPort, sRawFile):
+        """
+        Enables the given serial port (zero based) and redirects it to sRawFile.
+        Returns the True on success, False on failure (logged).
+        """
+        try:
+            oPort = self.o.machine.getSerialPort(iSerialPort);
+        except:
+            fRc = reporter.errorXcpt('failed to get serial port #%u' % (iSerialPort,));
+        else:
+            try:
+                oPort.path = sRawFile;
+            except:
+                fRc = reporter.errorXcpt('failed to set the "path" property on serial port #%u to "%s"'
+                                          % (iSerialPort, sRawFile));
+            else:
+                try:
+                    oPort.hostMode = vboxcon.PortMode_RawFile;
+                except:
+                    fRc = reporter.errorXcpt('failed to set the "hostMode" property on serial port #%u to PortMode_RawFile'
+                                             % (iSerialPort,));
+                else:
+                    try:
+                        oPort.enabled = True;
+                    except:
+                        fRc = reporter.errorXcpt('failed to set the "enable" property on serial port #%u to True'
+                                                 % (iSerialPort,));
+                    else:
+                        reporter.log('set SerialPort[%s].enabled/hostMode/path=True/RawFile/%s' % (iSerialPort, sRawFile,));
+                        fRc = True;
+        self.oTstDrv.processPendingEvents();
+        return fRc;
+
+
+    def enableSerialPort(self, iSerialPort):
+        """
+        Enables the given serial port setting the initial port mode to disconnected.
+        """
+        try:
+            oPort = self.o.machine.getSerialPort(iSerialPort);
+        except:
+            fRc = reporter.errorXcpt('failed to get serial port #%u' % (iSerialPort,));
+        else:
+            try:
+                oPort.hostMode = vboxcon.PortMode_Disconnected;
+            except:
+                fRc = reporter.errorXcpt('failed to set the "hostMode" property on serial port #%u to PortMode_Disconnected'
+                                         % (iSerialPort,));
+            else:
+                try:
+                    oPort.enabled = True;
+                except:
+                    fRc = reporter.errorXcpt('failed to set the "enable" property on serial port #%u to True'
+                                             % (iSerialPort,));
+                else:
+                    reporter.log('set SerialPort[%s].enabled/hostMode/=True/Disconnected' % (iSerialPort,));
+                    fRc = True;
+        self.oTstDrv.processPendingEvents();
+        return fRc;
+
+
+    def changeSerialPortAttachment(self, iSerialPort, ePortMode, sPath, fServer):
+        """
+        Changes the attachment of the given serial port to the attachment config given.
+        """
+        try:
+            oPort = self.o.machine.getSerialPort(iSerialPort);
+        except:
+            fRc = reporter.errorXcpt('failed to get serial port #%u' % (iSerialPort,));
+        else:
+            try:
+                # Change port mode to disconnected first so changes get picked up by a potentially running VM.
+                oPort.hostMode = vboxcon.PortMode_Disconnected;
+            except:
+                fRc = reporter.errorXcpt('failed to set the "hostMode" property on serial port #%u to PortMode_Disconnected'
+                                         % (iSerialPort,));
+            else:
+                try:
+                    oPort.path     = sPath;
+                    oPort.server   = fServer;
+                    oPort.hostMode = ePortMode;
+                except:
+                    fRc = reporter.errorXcpt('failed to configure the serial port');
+                else:
+                    reporter.log('set SerialPort[%s].hostMode/path/server=%s/%s/%s'
+                                 % (iSerialPort, ePortMode, sPath, fServer));
+                    fRc = True;
+        self.oTstDrv.processPendingEvents();
+        return fRc;
 
     #
     # IConsole wrappers.
@@ -2388,6 +2513,58 @@ class SessionWrapper(TdTaskBase):
         # Wait for the VM to really power off or we'll fail to open a new session to it.
         self.oTstDrv.waitOnDirectSessionClose(self.oVM, 5000);         # fudge
         return self.waitForTask(30 * 1000);                            # fudge
+
+    def saveState(self, fPause = True):
+        """
+        Saves state of the VM.
+
+        Returns True on success.
+        Returns False on IConsole::saveState() failure.
+        Returns None if the progress object returns Failure.
+        """
+
+        if     fPause is True \
+           and self.oVM.state is vboxcon.MachineState_Running:
+            self.o.console.pause();
+        if self.oVM.state is not vboxcon.MachineState_Paused:
+            reporter.error('pause for "%s" failed' % (self.sName));
+        # Try saving state.
+        try:
+            if self.fpApiVer >= 5.0:
+                oProgress = self.o.machine.saveState()
+            else:
+                oProgress = self.o.console.saveState()
+        except:
+            reporter.logXcpt('IMachine::saveState failed on %s' % (self.sName));
+            return False;
+
+        # Wait for saving state operation to complete.
+        rc = self.oTstDrv.waitOnProgress(oProgress);
+        if rc < 0:
+            self.close();
+            return None;
+
+        # Wait for the VM to really terminate or we'll fail to open a new session to it.
+        self.oTstDrv.waitOnDirectSessionClose(self.oVM, 5000);         # fudge
+        return self.waitForTask(30 * 1000);                            # fudge
+
+    def discardSavedState(self, fRemove = True):
+        """
+        Discards saved state of the VM.
+
+        Returns True on success.
+        Returns False on IConsole::discardSaveState() failure.
+        """
+
+        try:
+            if self.fpApiVer >= 5.0:
+                self.o.machine.discardSavedState(fRemove)
+            else:
+                self.o.console.discardSavedState(fRemove)
+        except:
+            reporter.logXcpt('IMachine::discardSavedState failed on %s' % (self.sName))
+            return False
+        return True
 
     def restoreSnapshot(self, oSnapshot, fFudgeOnFailure = True):
         """
@@ -2660,7 +2837,7 @@ class SessionWrapper(TdTaskBase):
                     uPid = self.o.machine.sessionPid;
                 if uPid != os.getpid() and uPid != 0xffffffff:
                     self.uPid = uPid;
-            except Exception, oXcpt:
+            except Exception as oXcpt:
                 if vbox.ComError.equal(oXcpt, vbox.ComError.E_UNEXPECTED):
                     try:
                         if self.fpApiVer >= 4.2:
@@ -2731,7 +2908,7 @@ class SessionWrapper(TdTaskBase):
         # We need a console object.
         try:
             oConsole = self.o.console;
-        except Exception, oXcpt:
+        except Exception as oXcpt:
             if fMustSucceed or vbox.ComError.notEqual(oXcpt, vbox.ComError.E_UNEXPECTED):
                 reporter.errorXcpt('Failed to get ISession::console for "%s"' % (self.sName, ));
             return None;
@@ -2813,7 +2990,7 @@ class SessionWrapper(TdTaskBase):
             raise base.GenError('Empty sHostname is not implemented yet');
 
         oTxsSession = txsclient.tryOpenTcpSession(cMsTimeout, sHostname, fReversedSetup = fReversed,
-                                                  cMsIdleFudge = cMsTimeout / 2);
+                                                  cMsIdleFudge = cMsTimeout // 2);
         if oTxsSession is None:
             return False;
 
@@ -2946,6 +3123,7 @@ class TxsConnectTask(TdTaskBase):
                 except:
                     reporter.fatalXcpt();
                 else:
+                    reporter.log('TxsConnectTask: opening session to ip "%s"' % (sIpAddr));
                     self._openTcpSession(sIpAddr, cMsIdleFudge = 5000);
                     return None;
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017 Oracle Corporation
+ * Copyright (C) 2017-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,8 +18,12 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
-#ifndef ___VDInternal_h
-#define ___VDInternal_h
+
+#ifndef VBOX_INCLUDED_SRC_Storage_VDInternal_h
+#define VBOX_INCLUDED_SRC_Storage_VDInternal_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 #include <VBox/vd.h>
 #include <VBox/vd-plugin.h>
 
@@ -73,6 +77,8 @@ typedef struct VDIMAGE
     struct VDIMAGE     *pPrev;
     /** Link to child image descriptor, if any. */
     struct VDIMAGE     *pNext;
+    /** Cached image size. */
+    uint64_t           cbImage;
     /** Container base filename. (UTF-8) */
     char               *pszFilename;
     /** Data managed by the backend which keeps the actual info. */
@@ -90,6 +96,9 @@ typedef struct VDIMAGE
     /** I/O related things. */
     VDIO                VDIo;
 } VDIMAGE, *PVDIMAGE;
+
+/** The special uninitialized size value for he image. */
+#define VD_IMAGE_SIZE_UNINITIALIZED UINT64_C(0)
 
 /**
  * Virtual disk cache image descriptor.
@@ -275,5 +284,5 @@ DECLHIDDEN(int)      vdIoIterQueryStartNext(VDIOITER hVdIoIter, uint64_t *pu64St
 DECLHIDDEN(int)      vdIoIterQuerySegSizeByStart(VDIOITER hVdIoIter, uint64_t u64Start, size_t *pcRegSize);
 DECLHIDDEN(int)      vdIoIterAdvance(VDIOITER hVdIoIter, uint64_t cBlocksOrBytes);
 
-#endif /* !___VDInternal_h */
+#endif /* !VBOX_INCLUDED_SRC_Storage_VDInternal_h */
 

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2014-2017 Oracle Corporation
+ * Copyright (C) 2014-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,8 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_vmm_gim_h
-#define ___VBox_vmm_gim_h
+#ifndef VBOX_INCLUDED_vmm_gim_h
+#define VBOX_INCLUDED_vmm_gim_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/cdefs.h>
 #include <VBox/types.h>
@@ -188,14 +191,17 @@ VMMDECL(GIMPROVIDERID)      GIMGetProvider(PVM pVM);
 VMM_INT_DECL(bool)          GIMIsParavirtTscEnabled(PVM pVM);
 VMM_INT_DECL(bool)          GIMAreHypercallsEnabled(PVMCPU pVCpu);
 VMM_INT_DECL(VBOXSTRICTRC)  GIMHypercall(PVMCPU pVCpu, PCPUMCTX pCtx);
+VMM_INT_DECL(VBOXSTRICTRC)  GIMHypercallEx(PVMCPU pVCpu, PCPUMCTX pCtx, unsigned uDisOpcode, uint8_t cbInstr);
 VMM_INT_DECL(VBOXSTRICTRC)  GIMExecHypercallInstr(PVMCPU pVCpu, PCPUMCTX pCtx, uint8_t *pcbInstr);
 VMM_INT_DECL(VBOXSTRICTRC)  GIMXcptUD(PVMCPU pVCpu, PCPUMCTX pCtx, PDISCPUSTATE pDis, uint8_t *pcbInstr);
 VMM_INT_DECL(bool)          GIMShouldTrapXcptUD(PVMCPU pVCpu);
 VMM_INT_DECL(VBOXSTRICTRC)  GIMReadMsr(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t *puValue);
 VMM_INT_DECL(VBOXSTRICTRC)  GIMWriteMsr(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t uValue, uint64_t uRawValue);
+VMM_INT_DECL(int)           GIMQueryHypercallOpcodeBytes(PVM pVM, void *pvBuf, size_t cbBuf,
+                                                         size_t *pcbWritten, uint16_t *puDisOpcode);
 /** @} */
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !VBOX_INCLUDED_vmm_gim_h */
 

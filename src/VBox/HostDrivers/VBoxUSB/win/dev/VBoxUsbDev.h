@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2017 Oracle Corporation
+ * Copyright (C) 2011-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,8 +24,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBoxUsbDev_h___
-#define ___VBoxUsbDev_h___
+#ifndef VBOX_INCLUDED_SRC_VBoxUSB_win_dev_VBoxUsbDev_h
+#define VBOX_INCLUDED_SRC_VBoxUSB_win_dev_VBoxUsbDev_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "VBoxUsbCmn.h"
 #include <VBox/cdefs.h>
@@ -202,4 +205,4 @@ DECLINLINE(VOID) vboxUsbDdiStateReleaseAndWaitRemoved(PVBOXUSBDEV_EXT pDevExt)
     VBoxDrvToolRefWaitEqual(&pDevExt->DdiState.Ref, 0);
 }
 
-#endif /* #ifndef ___VBoxUsbDev_h___ */
+#endif /* !VBOX_INCLUDED_SRC_VBoxUSB_win_dev_VBoxUsbDev_h */

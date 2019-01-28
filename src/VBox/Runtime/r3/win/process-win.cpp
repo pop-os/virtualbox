@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -37,15 +37,11 @@
 #include <process.h>
 #include <errno.h>
 #include <Strsafe.h>
-#ifndef IPRT_TARGET_NT4
-# include <LsaLookup.h>
-#endif
+#include <LsaLookup.h>
 #include <Lmcons.h>
 
-#ifndef IPRT_TARGET_NT4
-# define _NTDEF_ /* Prevents redefining (P)UNICODE_STRING. */
-# include <Ntsecapi.h>
-#endif
+#define _NTDEF_ /* Prevents redefining (P)UNICODE_STRING. */
+#include <Ntsecapi.h>
 
 #include <iprt/process.h>
 #include "internal-r3-win.h"
@@ -65,7 +61,7 @@
 #include <iprt/pipe.h>
 #include <iprt/string.h>
 #include <iprt/socket.h>
-
+#include <iprt/utf16.h>
 
 
 /*********************************************************************************************************************************
@@ -144,6 +140,12 @@ static PFNENUMPROCESSES                 g_pfnEnumProcesses              = NULL;
 /* advapi32.dll: */
 static PFNCREATEPROCESSWITHLOGON        g_pfnCreateProcessWithLogonW    = NULL;
 static PFNLSALOOKUPNAMES2               g_pfnLsaLookupNames2            = NULL;
+static decltype(LogonUserW)            *g_pfnLogonUserW                 = NULL;
+static decltype(CreateProcessAsUserW)  *g_pfnCreateProcessAsUserW       = NULL;
+static decltype(LsaNtStatusToWinError) *g_pfnLsaNtStatusToWinError      = NULL;
+/* user32.dll: */
+static decltype(OpenWindowStationW)    *g_pfnOpenWindowStationW         = NULL;
+static decltype(CloseWindowStation)    *g_pfnCloseWindowStation        = NULL;
 /* userenv.dll: */
 static PFNCREATEENVIRONMENTBLOCK        g_pfnCreateEnvironmentBlock     = NULL;
 static PFNPFNDESTROYENVIRONMENTBLOCK    g_pfnDestroyEnvironmentBlock    = NULL;
@@ -348,10 +350,34 @@ static DECLCALLBACK(int) rtProcWinResolveOnce(void *pvUser)
     if (RT_SUCCESS(rc))
     {
         rc = RTLdrGetSymbol(hMod, "CreateProcessWithLogonW", (void **)&g_pfnCreateProcessWithLogonW);
-        AssertStmt(RT_SUCCESS(rc), g_pfnCreateProcessWithLogonW = NULL);
+        if (RT_FAILURE(rc)) { g_pfnCreateProcessWithLogonW = NULL; Assert(g_enmWinVer <= kRTWinOSType_NT4); }
 
         rc = RTLdrGetSymbol(hMod, "LsaLookupNames2", (void **)&g_pfnLsaLookupNames2);
-        AssertStmt(RT_SUCCESS(rc), g_pfnLsaLookupNames2 = NULL);
+        if (RT_FAILURE(rc)) { g_pfnLsaLookupNames2 = NULL; Assert(g_enmWinVer <= kRTWinOSType_NT4); }
+
+        rc = RTLdrGetSymbol(hMod, "LogonUserW", (void **)&g_pfnLogonUserW);
+        if (RT_FAILURE(rc)) { g_pfnLogonUserW = NULL; Assert(g_enmWinVer <= kRTWinOSType_NT350); }
+
+        rc = RTLdrGetSymbol(hMod, "CreateProcessAsUserW", (void **)&g_pfnCreateProcessAsUserW);
+        if (RT_FAILURE(rc)) { g_pfnCreateProcessAsUserW = NULL; Assert(g_enmWinVer <= kRTWinOSType_NT350); }
+
+        rc = RTLdrGetSymbol(hMod, "LsaNtStatusToWinError", (void **)&g_pfnLsaNtStatusToWinError);
+        if (RT_FAILURE(rc)) { g_pfnLsaNtStatusToWinError = NULL; Assert(g_enmWinVer <= kRTWinOSType_NT350); }
+
+        RTLdrClose(hMod);
+    }
+
+    /*
+     * user32.dll APIs.
+     */
+    rc = RTLdrLoadSystem("user32.dll", true /*fNoUnload*/, &hMod);
+    if (RT_SUCCESS(rc))
+    {
+        rc = RTLdrGetSymbol(hMod, "OpenWindowStationW", (void **)&g_pfnOpenWindowStationW);
+        if (RT_FAILURE(rc)) { g_pfnOpenWindowStationW = NULL; Assert(g_enmWinVer <= kRTWinOSType_NT310); }
+
+        rc = RTLdrGetSymbol(hMod, "CloseWindowStation", (void **)&g_pfnCloseWindowStation);
+        if (RT_FAILURE(rc)) { g_pfnCloseWindowStation = NULL; Assert(g_enmWinVer <= kRTWinOSType_NT310); }
 
         RTLdrClose(hMod);
     }
@@ -363,16 +389,16 @@ static DECLCALLBACK(int) rtProcWinResolveOnce(void *pvUser)
     if (RT_SUCCESS(rc))
     {
         rc = RTLdrGetSymbol(hMod, "LoadUserProfileW", (void **)&g_pfnLoadUserProfileW);
-        AssertStmt(RT_SUCCESS(rc), g_pfnLoadUserProfileW = NULL);
+        if (RT_FAILURE(rc)) { g_pfnLoadUserProfileW = NULL; Assert(g_enmWinVer <= kRTWinOSType_NT4); }
 
         rc = RTLdrGetSymbol(hMod, "UnloadUserProfile", (void **)&g_pfnUnloadUserProfile);
-        AssertStmt(RT_SUCCESS(rc), g_pfnUnloadUserProfile = NULL);
+        if (RT_FAILURE(rc)) { g_pfnUnloadUserProfile = NULL; Assert(g_enmWinVer <= kRTWinOSType_NT4); }
 
         rc = RTLdrGetSymbol(hMod, "CreateEnvironmentBlock", (void **)&g_pfnCreateEnvironmentBlock);
-        AssertStmt(RT_SUCCESS(rc), g_pfnCreateEnvironmentBlock = NULL);
+        if (RT_FAILURE(rc)) { g_pfnCreateEnvironmentBlock = NULL; Assert(g_enmWinVer <= kRTWinOSType_NT4); }
 
         rc = RTLdrGetSymbol(hMod, "DestroyEnvironmentBlock", (void **)&g_pfnDestroyEnvironmentBlock);
-        AssertStmt(RT_SUCCESS(rc), g_pfnDestroyEnvironmentBlock = NULL);
+        if (RT_FAILURE(rc)) { g_pfnDestroyEnvironmentBlock = NULL; Assert(g_enmWinVer <= kRTWinOSType_NT4); }
 
         RTLdrClose(hMod);
     }
@@ -431,18 +457,40 @@ static int rtProcWinGetProcessTokenHandle(DWORD dwPid, PSID pSid, PHANDLE phToke
                         if (   IsValidSid(pTokenUser->User.Sid)
                             && EqualSid(pTokenUser->User.Sid, pSid))
                         {
-                            if (DuplicateTokenEx(hTokenProc, MAXIMUM_ALLOWED,
-                                                 NULL, SecurityIdentification, TokenPrimary, phToken))
+                            /*
+                             * The following NT call is for v3.51 and does the equivalent of:
+                             *      DuplicateTokenEx(hTokenProc, MAXIMUM_ALLOWED, NULL,
+                             *                       SecurityIdentification, TokenPrimary, phToken);
+                             */
+                            if (g_pfnNtDuplicateToken)
                             {
-                                /*
-                                 * So we found the process instance which belongs to the user we want to
-                                 * to run our new process under. This duplicated token will be used for
-                                 * the actual CreateProcessAsUserW() call then.
-                                 */
-                                rc = VINF_SUCCESS;
+                                SECURITY_QUALITY_OF_SERVICE SecQoS;
+                                SecQoS.Length              = sizeof(SecQoS);
+                                SecQoS.ImpersonationLevel  = SecurityIdentification;
+                                SecQoS.ContextTrackingMode = SECURITY_DYNAMIC_TRACKING;
+                                SecQoS.EffectiveOnly       = FALSE;
+
+                                OBJECT_ATTRIBUTES ObjAttr;
+                                InitializeObjectAttributes(&ObjAttr, NULL /*Name*/, 0 /*OBJ_XXX*/, NULL /*Root*/, NULL /*SecDesc*/);
+                                ObjAttr.SecurityQualityOfService = &SecQoS;
+
+                                NTSTATUS rcNt = g_pfnNtDuplicateToken(hTokenProc, MAXIMUM_ALLOWED, &ObjAttr, FALSE,
+                                                                      TokenPrimary, phToken);
+                                if (NT_SUCCESS(rcNt))
+                                {
+                                    /*
+                                     * So we found the process instance which belongs to the user we want to
+                                     * to run our new process under. This duplicated token will be used for
+                                     * the actual CreateProcessAsUserW() call then.
+                                     */
+                                    rc = VINF_SUCCESS;
+                                }
+                                else
+                                    rc = RTErrConvertFromNtStatus(rcNt);
+
                             }
                             else
-                                rc = RTErrConvertFromWin32(GetLastError());
+                                rc = VERR_SYMBOL_NOT_FOUND; /** @todo do we really need to duplicate the token? */
                         }
                         else
                             rc = VERR_NOT_FOUND;
@@ -643,6 +691,8 @@ static int rtProcWinUserLogon(PRTUTF16 pwszUser, PRTUTF16 pwszPassword, HANDLE *
     AssertPtrReturn(pwszUser,     VERR_INVALID_POINTER);
     AssertPtrReturn(pwszPassword, VERR_INVALID_POINTER);
     AssertPtrReturn(phToken,      VERR_INVALID_POINTER);
+    if (!g_pfnLogonUserW)
+        return VERR_NOT_SUPPORTED;
 
     /*
      * Because we have to deal with http://support.microsoft.com/kb/245683
@@ -653,13 +703,13 @@ static int rtProcWinUserLogon(PRTUTF16 pwszUser, PRTUTF16 pwszPassword, HANDLE *
      * is required on older windows versions (NT4, W2K, possibly XP).
      */
     PCRTUTF16 pwszDomainNone = g_enmWinVer < kRTWinOSType_2K ? L"" /* NT4 and older */ : NULL /* Windows 2000 and up */;
-    BOOL fRc = LogonUserW(pwszUser,
-                          /* The domain always is passed as part of the UPN (user name). */
-                          pwszDomainNone,
-                          pwszPassword,
-                          LOGON32_LOGON_INTERACTIVE,
-                          LOGON32_PROVIDER_DEFAULT,
-                          phToken);
+    BOOL fRc = g_pfnLogonUserW(pwszUser,
+                               /* The domain always is passed as part of the UPN (user name). */
+                               pwszDomainNone,
+                               pwszPassword,
+                               LOGON32_LOGON_INTERACTIVE,
+                               LOGON32_PROVIDER_DEFAULT,
+                               phToken);
     if (fRc)
         return VINF_SUCCESS;
 
@@ -1266,7 +1316,11 @@ static void rtProcWinStationPrep(HANDLE hTokenToUse, STARTUPINFOW *pStartupInfo,
 {
     /** @todo Always mess with the interactive one? Maybe it's not there...  */
     *phWinStationOld = GetProcessWindowStation();
-    HWINSTA hWinStation0 = OpenWindowStationW(L"winsta0", FALSE /*fInherit*/, READ_CONTROL | WRITE_DAC);
+    HWINSTA hWinStation0;
+    if (g_pfnOpenWindowStationW)
+        hWinStation0 = g_pfnOpenWindowStationW(L"winsta0", FALSE /*fInherit*/, READ_CONTROL | WRITE_DAC);
+    else
+        hWinStation0 = OpenWindowStationA("winsta0", FALSE /*fInherit*/, READ_CONTROL | WRITE_DAC); /* (for NT3.1) */
     if (hWinStation0)
     {
         if (SetProcessWindowStation(hWinStation0))
@@ -1293,7 +1347,8 @@ static void rtProcWinStationPrep(HANDLE hTokenToUse, STARTUPINFOW *pStartupInfo,
         }
         else
             AssertFailed();
-        CloseWindowStation(hWinStation0);
+        if (g_pfnCloseWindowStation)
+            g_pfnCloseWindowStation(hWinStation0);
     }
     else
         AssertFailed();
@@ -1447,7 +1502,6 @@ static int rtProcWinCreateAsUser2(PRTUTF16 pwszUser, PRTUTF16 pwszPassword, PRTU
             {
                 dwErr = GetLastError();
 
-#ifndef IPRT_TARGET_NT4
                 /*
                  * The errors ERROR_TRUSTED_DOMAIN_FAILURE and ERROR_TRUSTED_RELATIONSHIP_FAILURE
                  * can happen if an ADC (Active Domain Controller) is offline or not reachable.
@@ -1512,11 +1566,16 @@ static int rtProcWinCreateAsUser2(PRTUTF16 pwszUser, PRTUTF16 pwszPassword, PRTU
                                 rc = dwErr != NO_ERROR ? RTErrConvertFromWin32(dwErr) : VERR_INTERNAL_ERROR_2;
                             }
                         }
-                        else
+                        else if (g_pfnLsaNtStatusToWinError)
                         {
-                            dwErr = LsaNtStatusToWinError(ntSts);
+                            dwErr = g_pfnLsaNtStatusToWinError(ntSts);
                             LogRelFunc(("LsaLookupNames2 failed with: %ld\n", dwErr));
                             rc = dwErr != NO_ERROR ? RTErrConvertFromWin32(dwErr) : VERR_INTERNAL_ERROR_2;
+                        }
+                        else
+                        {
+                            LogRelFunc(("LsaLookupNames2 failed with: %#x\n", ntSts));
+                            rc = RTErrConvertFromNtStatus(ntSts);
                         }
 
                         if (pDomainList)
@@ -1533,18 +1592,21 @@ static int rtProcWinCreateAsUser2(PRTUTF16 pwszUser, PRTUTF16 pwszPassword, PRTU
                         rtProcWinFreeAccountInfo(&accountInfo);
                         LsaClose(lsahPolicy);
                     }
-                    else
+                    else if (g_pfnLsaNtStatusToWinError)
                     {
-                        dwErr = LsaNtStatusToWinError(ntSts);
+                        dwErr = g_pfnLsaNtStatusToWinError(ntSts);
                         LogRelFunc(("LsaOpenPolicy failed with: %ld\n", dwErr));
                         rc = dwErr != NO_ERROR ? RTErrConvertFromWin32(dwErr) : VERR_INTERNAL_ERROR_3;
+                    }
+                    else
+                    {
+                        LogRelFunc(("LsaOpenPolicy failed with: %#x\n", ntSts));
+                        rc = RTErrConvertFromNtStatus(ntSts);
                     }
 
                     /* Note: pSid will be free'd down below. */
                 }
-                else
-#endif /* !IPRT_TARGET_NT4 */
-                if (dwErr == ERROR_INSUFFICIENT_BUFFER)
+                else if (dwErr == ERROR_INSUFFICIENT_BUFFER)
                 {
                     /* Allocate memory for the LookupAccountNameW output buffers and do it for real. */
                     cbSid = fRc && cbSid != 0 ? cbSid + 16 : _1K;
@@ -1671,7 +1733,8 @@ static int rtProcWinCreateAsUser2(PRTUTF16 pwszUser, PRTUTF16 pwszPassword, PRTU
                             if (RT_SUCCESS(rc))
                             {
                                 HWINSTA hOldWinStation = NULL;
-                                if (!fFound && g_enmWinVer <= kRTWinOSType_NT4) /** @todo test newer versions... */
+                                if (   !fFound
+                                    && g_enmWinVer <= kRTWinOSType_NT4) /** @todo test newer versions... */
                                     rtProcWinStationPrep(hTokenToUse, pStartupInfo, &hOldWinStation);
 
                                 /*
@@ -1680,29 +1743,34 @@ static int rtProcWinCreateAsUser2(PRTUTF16 pwszUser, PRTUTF16 pwszPassword, PRTU
                                  *      http://support.microsoft.com/kb/184802/
                                  *      http://support.microsoft.com/kb/327618/
                                  */
-                                fRc = CreateProcessAsUserW(hTokenToUse,
-                                                           *ppwszExec,
-                                                           pwszCmdLine,
-                                                           NULL,         /* pProcessAttributes */
-                                                           NULL,         /* pThreadAttributes */
-                                                           TRUE,         /* fInheritHandles */
-                                                           dwCreationFlags,
-                                                           /** @todo Warn about exceeding 8192 bytes
-                                                            *        on XP and up. */
-                                                           pwszzBlock,   /* lpEnvironment */
-                                                           NULL,         /* pCurrentDirectory */
-                                                           pStartupInfo,
-                                                           pProcInfo);
-                                if (fRc)
-                                    rc = VINF_SUCCESS;
-                                else
+                                if (g_pfnCreateProcessAsUserW)
                                 {
-                                    dwErr = GetLastError();
-                                    if (dwErr == ERROR_PRIVILEGE_NOT_HELD)
-                                        rc = rtProcWinFigureWhichPrivilegeNotHeld2();
+                                    fRc = g_pfnCreateProcessAsUserW(hTokenToUse,
+                                                                    *ppwszExec,
+                                                                    pwszCmdLine,
+                                                                    NULL,         /* pProcessAttributes */
+                                                                    NULL,         /* pThreadAttributes */
+                                                                    TRUE,         /* fInheritHandles */
+                                                                    dwCreationFlags,
+                                                                    /** @todo Warn about exceeding 8192 bytes
+                                                                     *        on XP and up. */
+                                                                    pwszzBlock,   /* lpEnvironment */
+                                                                    NULL,         /* pCurrentDirectory */
+                                                                    pStartupInfo,
+                                                                    pProcInfo);
+                                    if (fRc)
+                                        rc = VINF_SUCCESS;
                                     else
-                                        rc = RTErrConvertFromWin32(dwErr);
+                                    {
+                                        dwErr = GetLastError();
+                                        if (dwErr == ERROR_PRIVILEGE_NOT_HELD)
+                                            rc = rtProcWinFigureWhichPrivilegeNotHeld2();
+                                        else
+                                            rc = RTErrConvertFromWin32(dwErr);
+                                    }
                                 }
+                                else
+                                    rc = VERR_NOT_SUPPORTED;
 
                                 if (hOldWinStation)
                                     SetProcessWindowStation(hOldWinStation);
@@ -2191,9 +2259,10 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
         StartupInfo.wShowWindow = SW_HIDE;
     }
 
-    PCRTHANDLE  paHandles[3] = { phStdIn, phStdOut, phStdErr };
-    HANDLE     *aphStds[3]   = { &StartupInfo.hStdInput, &StartupInfo.hStdOutput, &StartupInfo.hStdError };
-    DWORD       afInhStds[3] = { 0xffffffff, 0xffffffff, 0xffffffff };
+    PCRTHANDLE  paHandles[3] = { phStdIn,                   phStdOut,                   phStdErr };
+    HANDLE     *aphStds[3]   = { &StartupInfo.hStdInput,    &StartupInfo.hStdOutput,    &StartupInfo.hStdError };
+    DWORD       afInhStds[3] = { 0xffffffff,                0xffffffff,                 0xffffffff };
+    HANDLE      ahStdDups[3] = { INVALID_HANDLE_VALUE,      INVALID_HANDLE_VALUE,       INVALID_HANDLE_VALUE };
     for (int i = 0; i < 3; i++)
     {
         if (paHandles[i])
@@ -2202,15 +2271,28 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
             switch (paHandles[i]->enmType)
             {
                 case RTHANDLETYPE_FILE:
-                    *aphStds[i] = paHandles[i]->u.hFile != NIL_RTFILE
-                                ? (HANDLE)RTFileToNative(paHandles[i]->u.hFile)
-                                : INVALID_HANDLE_VALUE;
+                {
+                    HANDLE hNativeFile = paHandles[i]->u.hFile != NIL_RTFILE
+                                       ? (HANDLE)RTFileToNative(paHandles[i]->u.hFile)
+                                       : INVALID_HANDLE_VALUE;
+                    if (   hNativeFile == *aphStds[i]
+                        && g_enmWinVer == kRTWinOSType_NT310)
+                        continue;
+                    *aphStds[i] = hNativeFile;
                     break;
+                }
 
                 case RTHANDLETYPE_PIPE:
                     *aphStds[i] = paHandles[i]->u.hPipe != NIL_RTPIPE
                                 ? (HANDLE)RTPipeToNative(paHandles[i]->u.hPipe)
                                 : INVALID_HANDLE_VALUE;
+                    if (   g_enmWinVer == kRTWinOSType_NT310
+                        && *aphStds[i] == INVALID_HANDLE_VALUE)
+                    {
+                        AssertMsgReturn(RTPipeGetCreationInheritability(paHandles[i]->u.hPipe), ("%Rrc %p\n", rc, *aphStds[i]),
+                                        VERR_INVALID_STATE);
+                        continue;
+                    }
                     break;
 
                 case RTHANDLETYPE_SOCKET:
@@ -2226,10 +2308,14 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
             /* Get the inheritability of the handle. */
             if (*aphStds[i] != INVALID_HANDLE_VALUE)
             {
-                if (!GetHandleInformation(*aphStds[i], &afInhStds[i]))
+                if (g_enmWinVer == kRTWinOSType_NT310)
+                    afInhStds[i] = 0; /* No handle info on NT 3.1, so ASSUME it is not inheritable. */
+                else if (!GetHandleInformation(*aphStds[i], &afInhStds[i]))
                 {
                     rc = RTErrConvertFromWin32(GetLastError());
-                    AssertMsgFailedReturn(("%Rrc %p\n", rc, *aphStds[i]), rc);
+                    AssertMsgFailedReturn(("%Rrc aphStds[%d] => %p paHandles[%d]={%d,%p}\n",
+                                           rc, i, *aphStds[i], i, paHandles[i]->enmType, paHandles[i]->u.uInt),
+                                          rc);
                 }
             }
         }
@@ -2237,16 +2323,33 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
 
     /*
      * Set the inheritability any handles we're handing the child.
+     *
+     * Note! On NT 3.1 there is no SetHandleInformation, so we have to duplicate
+     *       the handles to make sure they are inherited by the child.
      */
     rc = VINF_SUCCESS;
     for (int i = 0; i < 3; i++)
-        if (    (afInhStds[i] != 0xffffffff)
-            &&  !(afInhStds[i] & HANDLE_FLAG_INHERIT))
+        if (   (afInhStds[i] != 0xffffffff)
+            && !(afInhStds[i] & HANDLE_FLAG_INHERIT))
         {
-            if (!SetHandleInformation(*aphStds[i], HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT))
+            if (g_enmWinVer == kRTWinOSType_NT310)
+            {
+                if (DuplicateHandle(GetCurrentProcess(), *aphStds[i], GetCurrentProcess(), &ahStdDups[i],
+                                    i == 0 ? GENERIC_READ : GENERIC_WRITE, TRUE /*fInheritHandle*/, DUPLICATE_SAME_ACCESS))
+                    *aphStds[i] = ahStdDups[i];
+                else
+                {
+                    rc = RTErrConvertFromWin32(GetLastError());
+                    AssertMsgFailedBreak(("%Rrc aphStds[%u] => %p\n", rc, i, *aphStds[i]));
+                }
+            }
+            else if (!SetHandleInformation(*aphStds[i], HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT))
             {
                 rc = RTErrConvertFromWin32(GetLastError());
-                AssertMsgFailedBreak(("%Rrc %p\n", rc, *aphStds[i]));
+                if (rc == VERR_INVALID_FUNCTION && g_enmWinVer == kRTWinOSType_NT310)
+                    rc = VINF_SUCCESS;
+                else
+                    AssertMsgFailedBreak(("%Rrc aphStds[%u] => %p\n", rc, i, *aphStds[i]));
             }
         }
 
@@ -2350,14 +2453,26 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
         RTUtf16Free(pwszCmdLine);
     }
 
-    /* Undo any handle inherit changes. */
-    for (int i = 0; i < 3; i++)
-        if (    (afInhStds[i] != 0xffffffff)
-            &&  !(afInhStds[i] & HANDLE_FLAG_INHERIT))
-        {
-            if (!SetHandleInformation(*aphStds[i], HANDLE_FLAG_INHERIT, 0))
-                AssertMsgFailed(("%Rrc %p\n", RTErrConvertFromWin32(GetLastError()), *aphStds[i]));
-        }
+    if (g_enmWinVer != kRTWinOSType_NT310)
+    {
+        /* Undo any handle inherit changes. */
+        for (int i = 0; i < 3; i++)
+            if (   (afInhStds[i] != 0xffffffff)
+                && !(afInhStds[i] & HANDLE_FLAG_INHERIT))
+            {
+                if (   !SetHandleInformation(*aphStds[i], HANDLE_FLAG_INHERIT, 0)
+                    && (   GetLastError() != ERROR_INVALID_FUNCTION
+                        || g_enmWinVer != kRTWinOSType_NT310) )
+                    AssertMsgFailed(("%Rrc %p\n", RTErrConvertFromWin32(GetLastError()), *aphStds[i]));
+            }
+    }
+    else
+    {
+        /* Close handles duplicated for correct inheritance. */
+        for (int i = 0; i < 3; i++)
+            if (ahStdDups[i] != INVALID_HANDLE_VALUE)
+                CloseHandle(ahStdDups[i]);
+    }
 
     return rc;
 }

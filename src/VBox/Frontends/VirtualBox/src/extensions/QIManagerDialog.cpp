@@ -1,10 +1,10 @@
 /* $Id: QIManagerDialog.cpp $ */
 /** @file
- * VBox Qt GUI - QIManagerDialog class implementation.
+ * VBox Qt GUI - Qt extensions: QIManagerDialog class implementation.
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,25 +15,21 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QMenuBar>
-# include <QPushButton>
+#include <QMenuBar>
+#include <QPushButton>
+#include <QStyle>
+#include <QVBoxLayout>
 
 /* GUI includes: */
-# include "QIDialogButtonBox.h"
-# include "QIManagerDialog.h"
-# include "UIDesktopWidgetWatchdog.h"
-# ifdef VBOX_WS_MAC
-#  include "UIToolBar.h"
-#  include "UIWindowMenuManager.h"
-# endif /* VBOX_WS_MAC */
-# include "VBoxGlobal.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "QIDialogButtonBox.h"
+#include "QIManagerDialog.h"
+#include "VBoxGlobal.h"
+#include "UIDesktopWidgetWatchdog.h"
+#ifdef VBOX_WS_MAC
+# include "UIToolBar.h"
+# include "UIWindowMenuManager.h"
+#endif
 
 
 /*********************************************************************************************************************************
@@ -108,6 +104,9 @@ void QIManagerDialog::prepare()
 
     /* Center according requested widget: */
     VBoxGlobal::centerWidget(this, pCenterWidget, false);
+
+    /* Load the dialog's settings from extradata */
+    loadSettings();
 }
 
 void QIManagerDialog::prepareCentralWidget()
@@ -163,7 +162,7 @@ void QIManagerDialog::prepareButtonBox()
         /* Disable 'Reset' and 'Apply' initially: */
         button(ButtonType_Reset)->setEnabled(false);
         button(ButtonType_Apply)->setEnabled(false);
-        connect(m_pButtonBox, &QIDialogButtonBox::rejected, this, &QIManagerDialog::sigClose);
+        connect(m_pButtonBox, &QIDialogButtonBox::rejected, this, &QIManagerDialog::close);
 
         /* Configure button-box: */
         configureButtonBox();
@@ -175,20 +174,26 @@ void QIManagerDialog::prepareButtonBox()
 
 void QIManagerDialog::prepareMenuBar()
 {
+    if (!m_pWidgetMenu)
+        return;
     /* Add widget menu: */
     menuBar()->addMenu(m_pWidgetMenu);
 
 #ifdef VBOX_WS_MAC
     /* Prepare 'Window' menu: */
-    AssertPtrReturnVoid(gpWindowMenuManager);
-    menuBar()->addMenu(gpWindowMenuManager->createMenu(this));
-    gpWindowMenuManager->addWindow(this);
+    if (gpWindowMenuManager)
+    {
+        menuBar()->addMenu(gpWindowMenuManager->createMenu(this));
+        gpWindowMenuManager->addWindow(this);
+    }
 #endif
 }
 
 #ifdef VBOX_WS_MAC
 void QIManagerDialog::prepareToolBar()
 {
+    if (!m_pWidgetToolbar)
+        return;
     /* Enable unified toolbar on macOS: */
     addToolBar(m_pWidgetToolbar);
     m_pWidgetToolbar->enableMacToolbar();
@@ -199,14 +204,17 @@ void QIManagerDialog::cleanupMenuBar()
 {
 #ifdef VBOX_WS_MAC
     /* Cleanup 'Window' menu: */
-    AssertPtrReturnVoid(gpWindowMenuManager);
-    gpWindowMenuManager->removeWindow(this);
-    gpWindowMenuManager->destroyMenu(this);
+    if (gpWindowMenuManager)
+    {
+        gpWindowMenuManager->removeWindow(this);
+        gpWindowMenuManager->destroyMenu(this);
+    }
 #endif
 }
 
 void QIManagerDialog::cleanup()
 {
+    saveSettings();
     /* Cleanup menu-bar: */
     cleanupMenuBar();
 }
@@ -223,3 +231,18 @@ void QIManagerDialog::closeEvent(QCloseEvent *pEvent)
     }
 }
 
+void QIManagerDialog::setDialogGeometry(const QRect &geometry)
+{
+#ifdef VBOX_WS_MAC
+    /* Use the old approach for OSX: */
+    move(geometry.topLeft());
+    resize(geometry.size());
+#else /* VBOX_WS_MAC */
+    /* Use the new approach for Windows/X11: */
+    VBoxGlobal::setTopLevelGeometry(this, geometry);
+#endif /* !VBOX_WS_MAC */
+
+    /* Maximize (if necessary): */
+    if (shouldBeMaximized())
+        showMaximized();
+}

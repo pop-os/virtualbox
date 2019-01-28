@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2017 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,24 +15,18 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QApplication>
-# include <QHash>
-# include <QRegularExpression>
+#include <QApplication>
+#include <QHash>
+#include <QRegularExpression>
 
 /* GUI includes: */
-# include "UIConverterBackend.h"
-# include "UIIconPool.h"
-# include "VBoxGlobal.h"
+#include "VBoxGlobal.h"
+#include "UIConverterBackend.h"
+#include "UIIconPool.h"
 
 /* COM includes: */
-# include "CSystemProperties.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "CSystemProperties.h"
 
 
 /* Determines if <Object of type X> can be converted to object of other type.
@@ -52,8 +46,18 @@ template<> bool canConvert<UIExtraDataMetaDefs::RuntimeMenuDebuggerActionType>()
 #ifdef VBOX_WS_MAC
 template<> bool canConvert<UIExtraDataMetaDefs::MenuWindowActionType>() { return true; }
 #endif /* VBOX_WS_MAC */
-template<> bool canConvert<ToolTypeMachine>() { return true; }
-template<> bool canConvert<ToolTypeGlobal>() { return true; }
+template<> bool canConvert<UIExtraDataMetaDefs::DetailsElementOptionTypeGeneral>() { return true; }
+template<> bool canConvert<UIExtraDataMetaDefs::DetailsElementOptionTypeSystem>() { return true; }
+template<> bool canConvert<UIExtraDataMetaDefs::DetailsElementOptionTypeDisplay>() { return true; }
+template<> bool canConvert<UIExtraDataMetaDefs::DetailsElementOptionTypeStorage>() { return true; }
+template<> bool canConvert<UIExtraDataMetaDefs::DetailsElementOptionTypeAudio>() { return true; }
+template<> bool canConvert<UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork>() { return true; }
+template<> bool canConvert<UIExtraDataMetaDefs::DetailsElementOptionTypeSerial>() { return true; }
+template<> bool canConvert<UIExtraDataMetaDefs::DetailsElementOptionTypeUsb>() { return true; }
+template<> bool canConvert<UIExtraDataMetaDefs::DetailsElementOptionTypeSharedFolders>() { return true; }
+template<> bool canConvert<UIExtraDataMetaDefs::DetailsElementOptionTypeUserInterface>() { return true; }
+template<> bool canConvert<UIExtraDataMetaDefs::DetailsElementOptionTypeDescription>() { return true; }
+template<> bool canConvert<UIToolType>() { return true; }
 template<> bool canConvert<UIVisualStateType>() { return true; }
 template<> bool canConvert<DetailsElementType>() { return true; }
 template<> bool canConvert<PreviewUpdateIntervalType>() { return true; }
@@ -67,12 +71,14 @@ template<> bool canConvert<MachineCloseAction>() { return true; }
 template<> bool canConvert<MouseCapturePolicy>() { return true; }
 template<> bool canConvert<GuruMeditationHandlerType>() { return true; }
 template<> bool canConvert<ScalingOptimizationType>() { return true; }
-template<> bool canConvert<HiDPIOptimizationType>() { return true; }
 #ifndef VBOX_WS_MAC
 template<> bool canConvert<MiniToolbarAlignment>() { return true; }
-#endif /* !VBOX_WS_MAC */
+#endif
 template<> bool canConvert<InformationElementType>() { return true; }
 template<> bool canConvert<MaxGuestResolutionPolicy>() { return true; }
+template<> bool canConvert<UIMediumFormat>() { return true; }
+template<> bool canConvert<UISettingsDefs::RecordingMode>() { return true; }
+
 
 /* QString <= SizeSuffix: */
 template<> QString toString(const SizeSuffix &sizeSuffix)
@@ -545,17 +551,19 @@ template<> QString toInternalString(const UIExtraDataMetaDefs::RuntimeMenuMachin
     QString strResult;
     switch (runtimeMenuMachineActionType)
     {
-        case UIExtraDataMetaDefs::RuntimeMenuMachineActionType_SettingsDialog:    strResult = "SettingsDialog"; break;
-        case UIExtraDataMetaDefs::RuntimeMenuMachineActionType_TakeSnapshot:      strResult = "TakeSnapshot"; break;
-        case UIExtraDataMetaDefs::RuntimeMenuMachineActionType_InformationDialog: strResult = "InformationDialog"; break;
-        case UIExtraDataMetaDefs::RuntimeMenuMachineActionType_Pause:             strResult = "Pause"; break;
-        case UIExtraDataMetaDefs::RuntimeMenuMachineActionType_Reset:             strResult = "Reset"; break;
-        case UIExtraDataMetaDefs::RuntimeMenuMachineActionType_Detach:            strResult = "Detach"; break;
-        case UIExtraDataMetaDefs::RuntimeMenuMachineActionType_SaveState:         strResult = "SaveState"; break;
-        case UIExtraDataMetaDefs::RuntimeMenuMachineActionType_Shutdown:          strResult = "Shutdown"; break;
-        case UIExtraDataMetaDefs::RuntimeMenuMachineActionType_PowerOff:          strResult = "PowerOff"; break;
-        case UIExtraDataMetaDefs::RuntimeMenuMachineActionType_Nothing:           strResult = "Nothing"; break;
-        case UIExtraDataMetaDefs::RuntimeMenuMachineActionType_All:               strResult = "All"; break;
+        case UIExtraDataMetaDefs::RuntimeMenuMachineActionType_SettingsDialog:                strResult = "SettingsDialog"; break;
+        case UIExtraDataMetaDefs::RuntimeMenuMachineActionType_TakeSnapshot:                  strResult = "TakeSnapshot"; break;
+        case UIExtraDataMetaDefs::RuntimeMenuMachineActionType_InformationDialog:             strResult = "InformationDialog"; break;
+        case UIExtraDataMetaDefs::RuntimeMenuMachineActionType_FileManagerDialog:             strResult = "FileManagerDialog"; break;
+        case UIExtraDataMetaDefs::RuntimeMenuMachineActionType_GuestProcessControlDialog:     strResult = "GuestProcessControlDialog"; break;
+        case UIExtraDataMetaDefs::RuntimeMenuMachineActionType_Pause:                         strResult = "Pause"; break;
+        case UIExtraDataMetaDefs::RuntimeMenuMachineActionType_Reset:                         strResult = "Reset"; break;
+        case UIExtraDataMetaDefs::RuntimeMenuMachineActionType_Detach:                        strResult = "Detach"; break;
+        case UIExtraDataMetaDefs::RuntimeMenuMachineActionType_SaveState:                     strResult = "SaveState"; break;
+        case UIExtraDataMetaDefs::RuntimeMenuMachineActionType_Shutdown:                      strResult = "Shutdown"; break;
+        case UIExtraDataMetaDefs::RuntimeMenuMachineActionType_PowerOff:                      strResult = "PowerOff"; break;
+        case UIExtraDataMetaDefs::RuntimeMenuMachineActionType_Nothing:                       strResult = "Nothing"; break;
+        case UIExtraDataMetaDefs::RuntimeMenuMachineActionType_All:                           strResult = "All"; break;
         default:
         {
             AssertMsgFailed(("No text for action type=%d", runtimeMenuMachineActionType));
@@ -570,18 +578,20 @@ template<> UIExtraDataMetaDefs::RuntimeMenuMachineActionType fromInternalString<
 {
     /* Here we have some fancy stuff allowing us
      * to search through the keys using 'case-insensitive' rule: */
-    QStringList keys;            QList<UIExtraDataMetaDefs::RuntimeMenuMachineActionType> values;
-    keys << "SettingsDialog";    values << UIExtraDataMetaDefs::RuntimeMenuMachineActionType_SettingsDialog;
-    keys << "TakeSnapshot";      values << UIExtraDataMetaDefs::RuntimeMenuMachineActionType_TakeSnapshot;
-    keys << "InformationDialog"; values << UIExtraDataMetaDefs::RuntimeMenuMachineActionType_InformationDialog;
-    keys << "Pause";             values << UIExtraDataMetaDefs::RuntimeMenuMachineActionType_Pause;
-    keys << "Reset";             values << UIExtraDataMetaDefs::RuntimeMenuMachineActionType_Reset;
-    keys << "Detach";            values << UIExtraDataMetaDefs::RuntimeMenuMachineActionType_Detach;
-    keys << "SaveState";         values << UIExtraDataMetaDefs::RuntimeMenuMachineActionType_SaveState;
-    keys << "Shutdown";          values << UIExtraDataMetaDefs::RuntimeMenuMachineActionType_Shutdown;
-    keys << "PowerOff";          values << UIExtraDataMetaDefs::RuntimeMenuMachineActionType_PowerOff;
-    keys << "Nothing";           values << UIExtraDataMetaDefs::RuntimeMenuMachineActionType_Nothing;
-    keys << "All";               values << UIExtraDataMetaDefs::RuntimeMenuMachineActionType_All;
+    QStringList keys;             QList<UIExtraDataMetaDefs::RuntimeMenuMachineActionType> values;
+    keys << "SettingsDialog";                values << UIExtraDataMetaDefs::RuntimeMenuMachineActionType_SettingsDialog;
+    keys << "TakeSnapshot";                  values << UIExtraDataMetaDefs::RuntimeMenuMachineActionType_TakeSnapshot;
+    keys << "InformationDialog";             values << UIExtraDataMetaDefs::RuntimeMenuMachineActionType_InformationDialog;
+    keys << "FileManagerDialog";             values << UIExtraDataMetaDefs::RuntimeMenuMachineActionType_FileManagerDialog;
+    keys << "GuestProcessControlDialog";     values << UIExtraDataMetaDefs::RuntimeMenuMachineActionType_GuestProcessControlDialog;
+    keys << "Pause";                         values << UIExtraDataMetaDefs::RuntimeMenuMachineActionType_Pause;
+    keys << "Reset";                         values << UIExtraDataMetaDefs::RuntimeMenuMachineActionType_Reset;
+    keys << "Detach";                        values << UIExtraDataMetaDefs::RuntimeMenuMachineActionType_Detach;
+    keys << "SaveState";                     values << UIExtraDataMetaDefs::RuntimeMenuMachineActionType_SaveState;
+    keys << "Shutdown";                      values << UIExtraDataMetaDefs::RuntimeMenuMachineActionType_Shutdown;
+    keys << "PowerOff";                      values << UIExtraDataMetaDefs::RuntimeMenuMachineActionType_PowerOff;
+    keys << "Nothing";                       values << UIExtraDataMetaDefs::RuntimeMenuMachineActionType_Nothing;
+    keys << "All";                           values << UIExtraDataMetaDefs::RuntimeMenuMachineActionType_All;
     /* Invalid type for unknown words: */
     if (!keys.contains(strRuntimeMenuMachineActionType, Qt::CaseInsensitive))
         return UIExtraDataMetaDefs::RuntimeMenuMachineActionType_Invalid;
@@ -604,9 +614,9 @@ template<> QString toInternalString(const UIExtraDataMetaDefs::RuntimeMenuViewAc
         case UIExtraDataMetaDefs::RuntimeMenuViewActionType_AdjustWindow:         strResult = "AdjustWindow"; break;
         case UIExtraDataMetaDefs::RuntimeMenuViewActionType_GuestAutoresize:      strResult = "GuestAutoresize"; break;
         case UIExtraDataMetaDefs::RuntimeMenuViewActionType_TakeScreenshot:       strResult = "TakeScreenshot"; break;
-        case UIExtraDataMetaDefs::RuntimeMenuViewActionType_VideoCapture:         strResult = "VideoCapture"; break;
-        case UIExtraDataMetaDefs::RuntimeMenuViewActionType_VideoCaptureSettings: strResult = "VideoCaptureSettings"; break;
-        case UIExtraDataMetaDefs::RuntimeMenuViewActionType_StartVideoCapture:    strResult = "StartVideoCapture"; break;
+        case UIExtraDataMetaDefs::RuntimeMenuViewActionType_Recording:            strResult = "Recording"; break;
+        case UIExtraDataMetaDefs::RuntimeMenuViewActionType_RecordingSettings:    strResult = "RecordingSettings"; break;
+        case UIExtraDataMetaDefs::RuntimeMenuViewActionType_StartRecording:       strResult = "StartRecording"; break;
         case UIExtraDataMetaDefs::RuntimeMenuViewActionType_VRDEServer:           strResult = "VRDEServer"; break;
         case UIExtraDataMetaDefs::RuntimeMenuViewActionType_MenuBar:              strResult = "MenuBar"; break;
         case UIExtraDataMetaDefs::RuntimeMenuViewActionType_MenuBarSettings:      strResult = "MenuBarSettings"; break;
@@ -616,9 +626,9 @@ template<> QString toInternalString(const UIExtraDataMetaDefs::RuntimeMenuViewAc
         case UIExtraDataMetaDefs::RuntimeMenuViewActionType_StatusBar:            strResult = "StatusBar"; break;
         case UIExtraDataMetaDefs::RuntimeMenuViewActionType_StatusBarSettings:    strResult = "StatusBarSettings"; break;
         case UIExtraDataMetaDefs::RuntimeMenuViewActionType_ToggleStatusBar:      strResult = "ToggleStatusBar"; break;
-        case UIExtraDataMetaDefs::RuntimeMenuViewActionType_ScaleFactor:          strResult = "ScaleFactor"; break;
         case UIExtraDataMetaDefs::RuntimeMenuViewActionType_Resize:               strResult = "Resize"; break;
-        case UIExtraDataMetaDefs::RuntimeMenuViewActionType_Multiscreen:          strResult = "Multiscreen"; break;
+        case UIExtraDataMetaDefs::RuntimeMenuViewActionType_Remap:                strResult = "Remap"; break;
+        case UIExtraDataMetaDefs::RuntimeMenuViewActionType_Rescale:              strResult = "Rescale"; break;
         case UIExtraDataMetaDefs::RuntimeMenuViewActionType_All:                  strResult = "All"; break;
         default:
         {
@@ -644,9 +654,9 @@ template<> UIExtraDataMetaDefs::RuntimeMenuViewActionType fromInternalString<UIE
     keys << "AdjustWindow";         values << UIExtraDataMetaDefs::RuntimeMenuViewActionType_AdjustWindow;
     keys << "GuestAutoresize";      values << UIExtraDataMetaDefs::RuntimeMenuViewActionType_GuestAutoresize;
     keys << "TakeScreenshot";       values << UIExtraDataMetaDefs::RuntimeMenuViewActionType_TakeScreenshot;
-    keys << "VideoCapture";         values << UIExtraDataMetaDefs::RuntimeMenuViewActionType_VideoCapture;
-    keys << "VideoCaptureSettings"; values << UIExtraDataMetaDefs::RuntimeMenuViewActionType_VideoCaptureSettings;
-    keys << "StartVideoCapture";    values << UIExtraDataMetaDefs::RuntimeMenuViewActionType_StartVideoCapture;
+    keys << "Recording";            values << UIExtraDataMetaDefs::RuntimeMenuViewActionType_Recording;
+    keys << "RecordingSettings";    values << UIExtraDataMetaDefs::RuntimeMenuViewActionType_RecordingSettings;
+    keys << "StartRecording";       values << UIExtraDataMetaDefs::RuntimeMenuViewActionType_StartRecording;
     keys << "VRDEServer";           values << UIExtraDataMetaDefs::RuntimeMenuViewActionType_VRDEServer;
     keys << "MenuBar";              values << UIExtraDataMetaDefs::RuntimeMenuViewActionType_MenuBar;
     keys << "MenuBarSettings";      values << UIExtraDataMetaDefs::RuntimeMenuViewActionType_MenuBarSettings;
@@ -656,9 +666,9 @@ template<> UIExtraDataMetaDefs::RuntimeMenuViewActionType fromInternalString<UIE
     keys << "StatusBar";            values << UIExtraDataMetaDefs::RuntimeMenuViewActionType_StatusBar;
     keys << "StatusBarSettings";    values << UIExtraDataMetaDefs::RuntimeMenuViewActionType_StatusBarSettings;
     keys << "ToggleStatusBar";      values << UIExtraDataMetaDefs::RuntimeMenuViewActionType_ToggleStatusBar;
-    keys << "ScaleFactor";          values << UIExtraDataMetaDefs::RuntimeMenuViewActionType_ScaleFactor;
     keys << "Resize";               values << UIExtraDataMetaDefs::RuntimeMenuViewActionType_Resize;
-    keys << "Multiscreen";          values << UIExtraDataMetaDefs::RuntimeMenuViewActionType_Multiscreen;
+    keys << "Remap";                values << UIExtraDataMetaDefs::RuntimeMenuViewActionType_Remap;
+    keys << "Rescale";              values << UIExtraDataMetaDefs::RuntimeMenuViewActionType_Rescale;
     keys << "All";                  values << UIExtraDataMetaDefs::RuntimeMenuViewActionType_All;
     /* Invalid type for unknown words: */
     if (!keys.contains(strRuntimeMenuViewActionType, Qt::CaseInsensitive))
@@ -685,6 +695,7 @@ template<> QString toInternalString(const UIExtraDataMetaDefs::RuntimeMenuInputA
         case UIExtraDataMetaDefs::RuntimeMenuInputActionType_TypeAltPrintScreen: strResult = "TypeAltPrintScreen"; break;
         case UIExtraDataMetaDefs::RuntimeMenuInputActionType_Mouse:              strResult = "Mouse"; break;
         case UIExtraDataMetaDefs::RuntimeMenuInputActionType_MouseIntegration:   strResult = "MouseIntegration"; break;
+        case UIExtraDataMetaDefs::RuntimeMenuInputActionType_TypeHostKeyCombo:   strResult = "TypeHostKeyCombo"; break;
         case UIExtraDataMetaDefs::RuntimeMenuInputActionType_All:                strResult = "All"; break;
         default:
         {
@@ -713,6 +724,7 @@ template<> UIExtraDataMetaDefs::RuntimeMenuInputActionType fromInternalString<UI
     keys << "TypeAltPrintScreen"; values << UIExtraDataMetaDefs::RuntimeMenuInputActionType_TypeAltPrintScreen;
     keys << "Mouse";              values << UIExtraDataMetaDefs::RuntimeMenuInputActionType_Mouse;
     keys << "MouseIntegration";   values << UIExtraDataMetaDefs::RuntimeMenuInputActionType_MouseIntegration;
+    keys << "TypeHostKeyCombo";   values << UIExtraDataMetaDefs::RuntimeMenuInputActionType_TypeHostKeyCombo;
     keys << "All";                values << UIExtraDataMetaDefs::RuntimeMenuInputActionType_All;
     /* Invalid type for unknown words: */
     if (!keys.contains(strRuntimeMenuInputActionType, Qt::CaseInsensitive))
@@ -863,70 +875,639 @@ template<> UIExtraDataMetaDefs::MenuWindowActionType fromInternalString<UIExtraD
 }
 #endif /* VBOX_WS_MAC */
 
-/* QString <= ToolTypeMachine: */
-template<> QString toInternalString(const ToolTypeMachine &enmToolTypeMachine)
+/* QString <= UIExtraDataMetaDefs::DetailsElementOptionTypeGeneral: */
+template<> QString toString(const UIExtraDataMetaDefs::DetailsElementOptionTypeGeneral &enmDetailsElementOptionTypeGeneral)
 {
     QString strResult;
-    switch (enmToolTypeMachine)
+    switch (enmDetailsElementOptionTypeGeneral)
     {
-        case ToolTypeMachine_Invalid:   strResult = "None"; break;
-        case ToolTypeMachine_Details:   strResult = "Details"; break;
-        case ToolTypeMachine_Snapshots: strResult = "Snapshots"; break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeGeneral_Name:     strResult = QApplication::translate("VBoxGlobal", "Name"); break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeGeneral_OS:       strResult = QApplication::translate("VBoxGlobal", "OS"); break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeGeneral_Location: strResult = QApplication::translate("VBoxGlobal", "Location"); break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeGeneral_Groups:   strResult = QApplication::translate("VBoxGlobal", "Groups"); break;
         default:
         {
-            AssertMsgFailed(("No text for machine tool type=%d", enmToolTypeMachine));
+            AssertMsgFailed(("No text for details element option type=%d", enmDetailsElementOptionTypeGeneral));
             break;
         }
     }
     return strResult;
 }
 
-/* ToolTypeMachine <= QString: */
-template<> ToolTypeMachine fromInternalString<ToolTypeMachine>(const QString &strToolTypeMachine)
-{
-    /* Here we have some fancy stuff allowing us
-     * to search through the keys using 'case-insensitive' rule: */
-    QStringList keys;    QList<ToolTypeMachine> values;
-    keys << "None";      values << ToolTypeMachine_Invalid;
-    keys << "Details";   values << ToolTypeMachine_Details;
-    keys << "Snapshots"; values << ToolTypeMachine_Snapshots;
-    /* Invalid type for unknown words: */
-    if (!keys.contains(strToolTypeMachine, Qt::CaseInsensitive))
-        return ToolTypeMachine_Invalid;
-    /* Corresponding type for known words: */
-    return values.at(keys.indexOf(QRegExp(strToolTypeMachine, Qt::CaseInsensitive)));
-}
-
-/* QString <= ToolTypeGlobal: */
-template<> QString toInternalString(const ToolTypeGlobal &enmToolTypeGlobal)
+/* QString <= UIExtraDataMetaDefs::DetailsElementOptionTypeGeneral: */
+template<> QString toInternalString(const UIExtraDataMetaDefs::DetailsElementOptionTypeGeneral &enmDetailsElementOptionTypeGeneral)
 {
     QString strResult;
-    switch (enmToolTypeGlobal)
+    switch (enmDetailsElementOptionTypeGeneral)
     {
-        case ToolTypeGlobal_VirtualMedia: strResult = "VirtualMedia"; break;
-        case ToolTypeGlobal_HostNetwork:  strResult = "HostNetwork"; break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeGeneral_Name:     strResult = "Name"; break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeGeneral_OS:       strResult = "OS"; break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeGeneral_Location: strResult = "Location"; break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeGeneral_Groups:   strResult = "Groups"; break;
         default:
         {
-            AssertMsgFailed(("No text for global tool type=%d", enmToolTypeGlobal));
+            AssertMsgFailed(("No text for details element option type=%d", enmDetailsElementOptionTypeGeneral));
             break;
         }
     }
     return strResult;
 }
 
-/* ToolTypeGlobal <= QString: */
-template<> ToolTypeGlobal fromInternalString<ToolTypeGlobal>(const QString &strToolTypeGlobal)
+/* UIExtraDataMetaDefs::DetailsElementOptionTypeGeneral <= QString: */
+template<> UIExtraDataMetaDefs::DetailsElementOptionTypeGeneral fromInternalString<UIExtraDataMetaDefs::DetailsElementOptionTypeGeneral>(const QString &strDetailsElementOptionTypeGeneral)
 {
     /* Here we have some fancy stuff allowing us
      * to search through the keys using 'case-insensitive' rule: */
-    QStringList keys;       QList<ToolTypeGlobal> values;
-    keys << "VirtualMedia"; values << ToolTypeGlobal_VirtualMedia;
-    keys << "HostNetwork";  values << ToolTypeGlobal_HostNetwork;
+    QStringList keys;   QList<UIExtraDataMetaDefs::DetailsElementOptionTypeGeneral> values;
+    keys << "Name";     values << UIExtraDataMetaDefs::DetailsElementOptionTypeGeneral_Name;
+    keys << "OS";       values << UIExtraDataMetaDefs::DetailsElementOptionTypeGeneral_OS;
+    keys << "Location"; values << UIExtraDataMetaDefs::DetailsElementOptionTypeGeneral_Location;
+    keys << "Groups";   values << UIExtraDataMetaDefs::DetailsElementOptionTypeGeneral_Groups;
     /* Invalid type for unknown words: */
-    if (!keys.contains(strToolTypeGlobal, Qt::CaseInsensitive))
-        return ToolTypeGlobal_Invalid;
+    if (!keys.contains(strDetailsElementOptionTypeGeneral, Qt::CaseInsensitive))
+        return UIExtraDataMetaDefs::DetailsElementOptionTypeGeneral_Invalid;
     /* Corresponding type for known words: */
-    return values.at(keys.indexOf(QRegExp(strToolTypeGlobal, Qt::CaseInsensitive)));
+    return values.at(keys.indexOf(QRegExp(strDetailsElementOptionTypeGeneral, Qt::CaseInsensitive)));
+}
+
+/* QString <= UIExtraDataMetaDefs::DetailsElementOptionTypeSystem: */
+template<> QString toString(const UIExtraDataMetaDefs::DetailsElementOptionTypeSystem &enmDetailsElementOptionTypeSystem)
+{
+    QString strResult;
+    switch (enmDetailsElementOptionTypeSystem)
+    {
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeSystem_RAM:             strResult = QApplication::translate("VBoxGlobal", "RAM"); break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeSystem_CPUCount:        strResult = QApplication::translate("VBoxGlobal", "CPU Count"); break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeSystem_CPUExecutionCap: strResult = QApplication::translate("VBoxGlobal", "CPU Execution Cap"); break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeSystem_BootOrder:       strResult = QApplication::translate("VBoxGlobal", "Boot Order"); break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeSystem_ChipsetType:     strResult = QApplication::translate("VBoxGlobal", "Chipset Type"); break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeSystem_Firmware:        strResult = QApplication::translate("VBoxGlobal", "Firmware"); break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeSystem_Acceleration:    strResult = QApplication::translate("VBoxGlobal", "Acceleration"); break;
+        default:
+        {
+            AssertMsgFailed(("No text for details element option type=%d", enmDetailsElementOptionTypeSystem));
+            break;
+        }
+    }
+    return strResult;
+}
+
+/* QString <= UIExtraDataMetaDefs::DetailsElementOptionTypeSystem: */
+template<> QString toInternalString(const UIExtraDataMetaDefs::DetailsElementOptionTypeSystem &enmDetailsElementOptionTypeSystem)
+{
+    QString strResult;
+    switch (enmDetailsElementOptionTypeSystem)
+    {
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeSystem_RAM:             strResult = "RAM"; break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeSystem_CPUCount:        strResult = "CPUCount"; break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeSystem_CPUExecutionCap: strResult = "CPUExecutionCap"; break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeSystem_BootOrder:       strResult = "BootOrder"; break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeSystem_ChipsetType:     strResult = "ChipsetType"; break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeSystem_Firmware:        strResult = "Firmware"; break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeSystem_Acceleration:    strResult = "Acceleration"; break;
+        default:
+        {
+            AssertMsgFailed(("No text for details element option type=%d", enmDetailsElementOptionTypeSystem));
+            break;
+        }
+    }
+    return strResult;
+}
+
+/* UIExtraDataMetaDefs::DetailsElementOptionTypeSystem <= QString: */
+template<> UIExtraDataMetaDefs::DetailsElementOptionTypeSystem fromInternalString<UIExtraDataMetaDefs::DetailsElementOptionTypeSystem>(const QString &strDetailsElementOptionTypeSystem)
+{
+    /* Here we have some fancy stuff allowing us
+     * to search through the keys using 'case-insensitive' rule: */
+    QStringList keys;          QList<UIExtraDataMetaDefs::DetailsElementOptionTypeSystem> values;
+    keys << "RAM";             values << UIExtraDataMetaDefs::DetailsElementOptionTypeSystem_RAM;
+    keys << "CPUCount";        values << UIExtraDataMetaDefs::DetailsElementOptionTypeSystem_CPUCount;
+    keys << "CPUExecutionCap"; values << UIExtraDataMetaDefs::DetailsElementOptionTypeSystem_CPUExecutionCap;
+    keys << "BootOrder";       values << UIExtraDataMetaDefs::DetailsElementOptionTypeSystem_BootOrder;
+    keys << "ChipsetType";     values << UIExtraDataMetaDefs::DetailsElementOptionTypeSystem_ChipsetType;
+    keys << "Firmware";        values << UIExtraDataMetaDefs::DetailsElementOptionTypeSystem_Firmware;
+    keys << "Acceleration";    values << UIExtraDataMetaDefs::DetailsElementOptionTypeSystem_Acceleration;
+    /* Invalid type for unknown words: */
+    if (!keys.contains(strDetailsElementOptionTypeSystem, Qt::CaseInsensitive))
+        return UIExtraDataMetaDefs::DetailsElementOptionTypeSystem_Invalid;
+    /* Corresponding type for known words: */
+    return values.at(keys.indexOf(QRegExp(strDetailsElementOptionTypeSystem, Qt::CaseInsensitive)));
+}
+
+/* QString <= UIExtraDataMetaDefs::DetailsElementOptionTypeDisplay: */
+template<> QString toString(const UIExtraDataMetaDefs::DetailsElementOptionTypeDisplay &enmDetailsElementOptionTypeDisplay)
+{
+    QString strResult;
+    switch (enmDetailsElementOptionTypeDisplay)
+    {
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeDisplay_VRAM:               strResult = QApplication::translate("VBoxGlobal", "VRAM"); break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeDisplay_ScreenCount:        strResult = QApplication::translate("VBoxGlobal", "Screen Count"); break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeDisplay_ScaleFactor:        strResult = QApplication::translate("VBoxGlobal", "Scale Factor"); break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeDisplay_GraphicsController: strResult = QApplication::translate("VBoxGlobal", "Graphics Controller"); break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeDisplay_Acceleration:       strResult = QApplication::translate("VBoxGlobal", "Acceleration"); break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeDisplay_VRDE:               strResult = QApplication::translate("VBoxGlobal", "VRDE"); break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeDisplay_Recording:          strResult = QApplication::translate("VBoxGlobal", "Recording"); break;
+        default:
+        {
+            AssertMsgFailed(("No text for details element option type=%d", enmDetailsElementOptionTypeDisplay));
+            break;
+        }
+    }
+    return strResult;
+}
+
+/* QString <= UIExtraDataMetaDefs::DetailsElementOptionTypeDisplay: */
+template<> QString toInternalString(const UIExtraDataMetaDefs::DetailsElementOptionTypeDisplay &enmDetailsElementOptionTypeDisplay)
+{
+    QString strResult;
+    switch (enmDetailsElementOptionTypeDisplay)
+    {
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeDisplay_VRAM:               strResult = "VRAM"; break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeDisplay_ScreenCount:        strResult = "ScreenCount"; break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeDisplay_ScaleFactor:        strResult = "ScaleFactor"; break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeDisplay_GraphicsController: strResult = "GraphicsController"; break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeDisplay_Acceleration:       strResult = "Acceleration"; break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeDisplay_VRDE:               strResult = "VRDE"; break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeDisplay_Recording:          strResult = "Recording"; break;
+        default:
+        {
+            AssertMsgFailed(("No text for details element option type=%d", enmDetailsElementOptionTypeDisplay));
+            break;
+        }
+    }
+    return strResult;
+}
+
+/* UIExtraDataMetaDefs::DetailsElementOptionTypeDisplay <= QString: */
+template<> UIExtraDataMetaDefs::DetailsElementOptionTypeDisplay fromInternalString<UIExtraDataMetaDefs::DetailsElementOptionTypeDisplay>(const QString &strDetailsElementOptionTypeDisplay)
+{
+    /* Here we have some fancy stuff allowing us
+     * to search through the keys using 'case-insensitive' rule: */
+    QStringList keys;             QList<UIExtraDataMetaDefs::DetailsElementOptionTypeDisplay> values;
+    keys << "VRAM";               values << UIExtraDataMetaDefs::DetailsElementOptionTypeDisplay_VRAM;
+    keys << "ScreenCount";        values << UIExtraDataMetaDefs::DetailsElementOptionTypeDisplay_ScreenCount;
+    keys << "ScaleFactor";        values << UIExtraDataMetaDefs::DetailsElementOptionTypeDisplay_ScaleFactor;
+    keys << "GraphicsController"; values << UIExtraDataMetaDefs::DetailsElementOptionTypeDisplay_GraphicsController;
+    keys << "Acceleration";       values << UIExtraDataMetaDefs::DetailsElementOptionTypeDisplay_Acceleration;
+    keys << "VRDE";               values << UIExtraDataMetaDefs::DetailsElementOptionTypeDisplay_VRDE;
+    keys << "Recording";          values << UIExtraDataMetaDefs::DetailsElementOptionTypeDisplay_Recording;
+    /* Invalid type for unknown words: */
+    if (!keys.contains(strDetailsElementOptionTypeDisplay, Qt::CaseInsensitive))
+        return UIExtraDataMetaDefs::DetailsElementOptionTypeDisplay_Invalid;
+    /* Corresponding type for known words: */
+    return values.at(keys.indexOf(QRegExp(strDetailsElementOptionTypeDisplay, Qt::CaseInsensitive)));
+}
+
+/* QString <= UIExtraDataMetaDefs::DetailsElementOptionTypeStorage: */
+template<> QString toString(const UIExtraDataMetaDefs::DetailsElementOptionTypeStorage &enmDetailsElementOptionTypeStorage)
+{
+    QString strResult;
+    switch (enmDetailsElementOptionTypeStorage)
+    {
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeStorage_HardDisks:      strResult = QApplication::translate("VBoxGlobal", "Hard Disks"); break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeStorage_OpticalDevices: strResult = QApplication::translate("VBoxGlobal", "Optical Devices"); break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeStorage_FloppyDevices:  strResult = QApplication::translate("VBoxGlobal", "Floppy Devices"); break;
+        default:
+        {
+            AssertMsgFailed(("No text for details element option type=%d", enmDetailsElementOptionTypeStorage));
+            break;
+        }
+    }
+    return strResult;
+}
+
+/* QString <= UIExtraDataMetaDefs::DetailsElementOptionTypeStorage: */
+template<> QString toInternalString(const UIExtraDataMetaDefs::DetailsElementOptionTypeStorage &enmDetailsElementOptionTypeStorage)
+{
+    QString strResult;
+    switch (enmDetailsElementOptionTypeStorage)
+    {
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeStorage_HardDisks:      strResult = "HardDisks"; break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeStorage_OpticalDevices: strResult = "OpticalDevices"; break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeStorage_FloppyDevices:  strResult = "FloppyDevices"; break;
+        default:
+        {
+            AssertMsgFailed(("No text for details element option type=%d", enmDetailsElementOptionTypeStorage));
+            break;
+        }
+    }
+    return strResult;
+}
+
+/* UIExtraDataMetaDefs::DetailsElementOptionTypeStorage <= QString: */
+template<> UIExtraDataMetaDefs::DetailsElementOptionTypeStorage fromInternalString<UIExtraDataMetaDefs::DetailsElementOptionTypeStorage>(const QString &strDetailsElementOptionTypeStorage)
+{
+    /* Here we have some fancy stuff allowing us
+     * to search through the keys using 'case-insensitive' rule: */
+    QStringList keys;         QList<UIExtraDataMetaDefs::DetailsElementOptionTypeStorage> values;
+    keys << "HardDisks";      values << UIExtraDataMetaDefs::DetailsElementOptionTypeStorage_HardDisks;
+    keys << "OpticalDevices"; values << UIExtraDataMetaDefs::DetailsElementOptionTypeStorage_OpticalDevices;
+    keys << "FloppyDevices";  values << UIExtraDataMetaDefs::DetailsElementOptionTypeStorage_FloppyDevices;
+    /* Invalid type for unknown words: */
+    if (!keys.contains(strDetailsElementOptionTypeStorage, Qt::CaseInsensitive))
+        return UIExtraDataMetaDefs::DetailsElementOptionTypeStorage_Invalid;
+    /* Corresponding type for known words: */
+    return values.at(keys.indexOf(QRegExp(strDetailsElementOptionTypeStorage, Qt::CaseInsensitive)));
+}
+
+/* QString <= UIExtraDataMetaDefs::DetailsElementOptionTypeAudio: */
+template<> QString toString(const UIExtraDataMetaDefs::DetailsElementOptionTypeAudio &enmDetailsElementOptionTypeAudio)
+{
+    QString strResult;
+    switch (enmDetailsElementOptionTypeAudio)
+    {
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeAudio_Driver:     strResult = QApplication::translate("VBoxGlobal", "Driver"); break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeAudio_Controller: strResult = QApplication::translate("VBoxGlobal", "Controller"); break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeAudio_IO:         strResult = QApplication::translate("VBoxGlobal", "Input/Output"); break;
+        default:
+        {
+            AssertMsgFailed(("No text for details element option type=%d", enmDetailsElementOptionTypeAudio));
+            break;
+        }
+    }
+    return strResult;
+}
+
+/* QString <= UIExtraDataMetaDefs::DetailsElementOptionTypeAudio: */
+template<> QString toInternalString(const UIExtraDataMetaDefs::DetailsElementOptionTypeAudio &enmDetailsElementOptionTypeAudio)
+{
+    QString strResult;
+    switch (enmDetailsElementOptionTypeAudio)
+    {
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeAudio_Driver:     strResult = "Driver"; break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeAudio_Controller: strResult = "Controller"; break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeAudio_IO:         strResult = "IO"; break;
+        default:
+        {
+            AssertMsgFailed(("No text for details element option type=%d", enmDetailsElementOptionTypeAudio));
+            break;
+        }
+    }
+    return strResult;
+}
+
+/* UIExtraDataMetaDefs::DetailsElementOptionTypeAudio <= QString: */
+template<> UIExtraDataMetaDefs::DetailsElementOptionTypeAudio fromInternalString<UIExtraDataMetaDefs::DetailsElementOptionTypeAudio>(const QString &strDetailsElementOptionTypeAudio)
+{
+    /* Here we have some fancy stuff allowing us
+     * to search through the keys using 'case-insensitive' rule: */
+    QStringList keys;     QList<UIExtraDataMetaDefs::DetailsElementOptionTypeAudio> values;
+    keys << "Driver";     values << UIExtraDataMetaDefs::DetailsElementOptionTypeAudio_Driver;
+    keys << "Controller"; values << UIExtraDataMetaDefs::DetailsElementOptionTypeAudio_Controller;
+    keys << "IO";         values << UIExtraDataMetaDefs::DetailsElementOptionTypeAudio_IO;
+    /* Invalid type for unknown words: */
+    if (!keys.contains(strDetailsElementOptionTypeAudio, Qt::CaseInsensitive))
+        return UIExtraDataMetaDefs::DetailsElementOptionTypeAudio_Invalid;
+    /* Corresponding type for known words: */
+    return values.at(keys.indexOf(QRegExp(strDetailsElementOptionTypeAudio, Qt::CaseInsensitive)));
+}
+
+/* QString <= UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork: */
+template<> QString toString(const UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork &enmDetailsElementOptionTypeNetwork)
+{
+    QString strResult;
+    switch (enmDetailsElementOptionTypeNetwork)
+    {
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_NotAttached:     strResult = QApplication::translate("VBoxGlobal", "Not Attached", "network adapter"); break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_NAT:             strResult = QApplication::translate("VBoxGlobal", "NAT"); break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_BridgetAdapter:  strResult = QApplication::translate("VBoxGlobal", "Bridget Adapter"); break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_InternalNetwork: strResult = QApplication::translate("VBoxGlobal", "Internal Network"); break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_HostOnlyAdapter: strResult = QApplication::translate("VBoxGlobal", "Host Only Adapter"); break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_GenericDriver:   strResult = QApplication::translate("VBoxGlobal", "Generic Driver"); break;
+        default:
+        {
+            AssertMsgFailed(("No text for details element option type=%d", enmDetailsElementOptionTypeNetwork));
+            break;
+        }
+    }
+    return strResult;
+}
+
+/* QString <= UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork: */
+template<> QString toInternalString(const UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork &enmDetailsElementOptionTypeNetwork)
+{
+    QString strResult;
+    switch (enmDetailsElementOptionTypeNetwork)
+    {
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_NotAttached:     strResult = "NotAttached"; break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_NAT:             strResult = "NAT"; break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_BridgetAdapter:  strResult = "BridgetAdapter"; break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_InternalNetwork: strResult = "InternalNetwork"; break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_HostOnlyAdapter: strResult = "HostOnlyAdapter"; break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_GenericDriver:   strResult = "GenericDriver"; break;
+        default:
+        {
+            AssertMsgFailed(("No text for details element option type=%d", enmDetailsElementOptionTypeNetwork));
+            break;
+        }
+    }
+    return strResult;
+}
+
+/* UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork <= QString: */
+template<> UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork fromInternalString<UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork>(const QString &strDetailsElementOptionTypeNetwork)
+{
+    /* Here we have some fancy stuff allowing us
+     * to search through the keys using 'case-insensitive' rule: */
+    QStringList keys;          QList<UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork> values;
+    keys << "NotAttached";     values << UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_NotAttached;
+    keys << "NAT";             values << UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_NAT;
+    keys << "BridgetAdapter";  values << UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_BridgetAdapter;
+    keys << "InternalNetwork"; values << UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_InternalNetwork;
+    keys << "HostOnlyAdapter"; values << UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_HostOnlyAdapter;
+    keys << "GenericDriver";   values << UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_GenericDriver;
+    /* Invalid type for unknown words: */
+    if (!keys.contains(strDetailsElementOptionTypeNetwork, Qt::CaseInsensitive))
+        return UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_Invalid;
+    /* Corresponding type for known words: */
+    return values.at(keys.indexOf(QRegExp(strDetailsElementOptionTypeNetwork, Qt::CaseInsensitive)));
+}
+
+/* QString <= UIExtraDataMetaDefs::DetailsElementOptionTypeSerial: */
+template<> QString toString(const UIExtraDataMetaDefs::DetailsElementOptionTypeSerial &enmDetailsElementOptionTypeSerial)
+{
+    QString strResult;
+    switch (enmDetailsElementOptionTypeSerial)
+    {
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeSerial_Disconnected: strResult = QApplication::translate("VBoxGlobal", "Disconnected", "serial port"); break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeSerial_HostPipe:     strResult = QApplication::translate("VBoxGlobal", "Host Pipe"); break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeSerial_HostDevice:   strResult = QApplication::translate("VBoxGlobal", "Host Device"); break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeSerial_RawFile:      strResult = QApplication::translate("VBoxGlobal", "Raw File"); break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeSerial_TCP:          strResult = QApplication::translate("VBoxGlobal", "TCP"); break;
+        default:
+        {
+            AssertMsgFailed(("No text for details element option type=%d", enmDetailsElementOptionTypeSerial));
+            break;
+        }
+    }
+    return strResult;
+}
+
+/* QString <= UIExtraDataMetaDefs::DetailsElementOptionTypeSerial: */
+template<> QString toInternalString(const UIExtraDataMetaDefs::DetailsElementOptionTypeSerial &enmDetailsElementOptionTypeSerial)
+{
+    QString strResult;
+    switch (enmDetailsElementOptionTypeSerial)
+    {
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeSerial_Disconnected: strResult = "Disconnected"; break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeSerial_HostPipe:     strResult = "HostPipe"; break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeSerial_HostDevice:   strResult = "HostDevice"; break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeSerial_RawFile:      strResult = "RawFile"; break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeSerial_TCP:          strResult = "TCP"; break;
+        default:
+        {
+            AssertMsgFailed(("No text for details element option type=%d", enmDetailsElementOptionTypeSerial));
+            break;
+        }
+    }
+    return strResult;
+}
+
+/* UIExtraDataMetaDefs::DetailsElementOptionTypeSerial <= QString: */
+template<> UIExtraDataMetaDefs::DetailsElementOptionTypeSerial fromInternalString<UIExtraDataMetaDefs::DetailsElementOptionTypeSerial>(const QString &strDetailsElementOptionTypeSerial)
+{
+    /* Here we have some fancy stuff allowing us
+     * to search through the keys using 'case-insensitive' rule: */
+    QStringList keys;       QList<UIExtraDataMetaDefs::DetailsElementOptionTypeSerial> values;
+    keys << "Disconnected"; values << UIExtraDataMetaDefs::DetailsElementOptionTypeSerial_Disconnected;
+    keys << "HostPipe";     values << UIExtraDataMetaDefs::DetailsElementOptionTypeSerial_HostPipe;
+    keys << "HostDevice";   values << UIExtraDataMetaDefs::DetailsElementOptionTypeSerial_HostDevice;
+    keys << "RawFile";      values << UIExtraDataMetaDefs::DetailsElementOptionTypeSerial_RawFile;
+    keys << "TCP";          values << UIExtraDataMetaDefs::DetailsElementOptionTypeSerial_TCP;
+    /* Invalid type for unknown words: */
+    if (!keys.contains(strDetailsElementOptionTypeSerial, Qt::CaseInsensitive))
+        return UIExtraDataMetaDefs::DetailsElementOptionTypeSerial_Invalid;
+    /* Corresponding type for known words: */
+    return values.at(keys.indexOf(QRegExp(strDetailsElementOptionTypeSerial, Qt::CaseInsensitive)));
+}
+
+/* QString <= UIExtraDataMetaDefs::DetailsElementOptionTypeUsb: */
+template<> QString toString(const UIExtraDataMetaDefs::DetailsElementOptionTypeUsb &enmDetailsElementOptionTypeUsb)
+{
+    QString strResult;
+    switch (enmDetailsElementOptionTypeUsb)
+    {
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeUsb_Controller:    strResult = QApplication::translate("VBoxGlobal", "Controller"); break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeUsb_DeviceFilters: strResult = QApplication::translate("VBoxGlobal", "Device Filters"); break;
+        default:
+        {
+            AssertMsgFailed(("No text for details element option type=%d", enmDetailsElementOptionTypeUsb));
+            break;
+        }
+    }
+    return strResult;
+}
+
+/* QString <= UIExtraDataMetaDefs::DetailsElementOptionTypeUsb: */
+template<> QString toInternalString(const UIExtraDataMetaDefs::DetailsElementOptionTypeUsb &enmDetailsElementOptionTypeUsb)
+{
+    QString strResult;
+    switch (enmDetailsElementOptionTypeUsb)
+    {
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeUsb_Controller:    strResult = "Controller"; break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeUsb_DeviceFilters: strResult = "DeviceFilters"; break;
+        default:
+        {
+            AssertMsgFailed(("No text for details element option type=%d", enmDetailsElementOptionTypeUsb));
+            break;
+        }
+    }
+    return strResult;
+}
+
+/* UIExtraDataMetaDefs::DetailsElementOptionTypeUsb <= QString: */
+template<> UIExtraDataMetaDefs::DetailsElementOptionTypeUsb fromInternalString<UIExtraDataMetaDefs::DetailsElementOptionTypeUsb>(const QString &strDetailsElementOptionTypeUsb)
+{
+    /* Here we have some fancy stuff allowing us
+     * to search through the keys using 'case-insensitive' rule: */
+    QStringList keys;        QList<UIExtraDataMetaDefs::DetailsElementOptionTypeUsb> values;
+    keys << "Controller";    values << UIExtraDataMetaDefs::DetailsElementOptionTypeUsb_Controller;
+    keys << "DeviceFilters"; values << UIExtraDataMetaDefs::DetailsElementOptionTypeUsb_DeviceFilters;
+    /* Invalid type for unknown words: */
+    if (!keys.contains(strDetailsElementOptionTypeUsb, Qt::CaseInsensitive))
+        return UIExtraDataMetaDefs::DetailsElementOptionTypeUsb_Invalid;
+    /* Corresponding type for known words: */
+    return values.at(keys.indexOf(QRegExp(strDetailsElementOptionTypeUsb, Qt::CaseInsensitive)));
+}
+
+/* QString <= UIExtraDataMetaDefs::DetailsElementOptionTypeSharedFolders: */
+template<> QString toString(const UIExtraDataMetaDefs::DetailsElementOptionTypeSharedFolders &enmDetailsElementOptionTypeSharedFolders)
+{
+    QString strResult;
+    switch (enmDetailsElementOptionTypeSharedFolders)
+    {
+        default:
+        {
+            AssertMsgFailed(("No text for details element option type=%d", enmDetailsElementOptionTypeSharedFolders));
+            break;
+        }
+    }
+    return strResult;
+}
+
+/* QString <= UIExtraDataMetaDefs::DetailsElementOptionTypeSharedFolders: */
+template<> QString toInternalString(const UIExtraDataMetaDefs::DetailsElementOptionTypeSharedFolders &enmDetailsElementOptionTypeSharedFolders)
+{
+    QString strResult;
+    switch (enmDetailsElementOptionTypeSharedFolders)
+    {
+        default:
+        {
+            AssertMsgFailed(("No text for details element option type=%d", enmDetailsElementOptionTypeSharedFolders));
+            break;
+        }
+    }
+    return strResult;
+}
+
+/* UIExtraDataMetaDefs::DetailsElementOptionTypeSharedFolders <= QString: */
+template<> UIExtraDataMetaDefs::DetailsElementOptionTypeSharedFolders fromInternalString<UIExtraDataMetaDefs::DetailsElementOptionTypeSharedFolders>(const QString &strDetailsElementOptionTypeSharedFolders)
+{
+    /* Here we have some fancy stuff allowing us
+     * to search through the keys using 'case-insensitive' rule: */
+    QStringList keys;  QList<UIExtraDataMetaDefs::DetailsElementOptionTypeSharedFolders> values;
+    /* Invalid type for unknown words: */
+    if (!keys.contains(strDetailsElementOptionTypeSharedFolders, Qt::CaseInsensitive))
+        return UIExtraDataMetaDefs::DetailsElementOptionTypeSharedFolders_Invalid;
+    /* Corresponding type for known words: */
+    return values.at(keys.indexOf(QRegExp(strDetailsElementOptionTypeSharedFolders, Qt::CaseInsensitive)));
+}
+
+/* QString <= UIExtraDataMetaDefs::DetailsElementOptionTypeUserInterface: */
+template<> QString toString(const UIExtraDataMetaDefs::DetailsElementOptionTypeUserInterface &enmDetailsElementOptionTypeUserInterface)
+{
+    QString strResult;
+    switch (enmDetailsElementOptionTypeUserInterface)
+    {
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeUserInterface_MenuBar:     strResult = QApplication::translate("VBoxGlobal", "Menu Bar"); break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeUserInterface_StatusBar:   strResult = QApplication::translate("VBoxGlobal", "Status Bar"); break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeUserInterface_MiniToolbar: strResult = QApplication::translate("VBoxGlobal", "Mini Toolbar"); break;
+        default:
+        {
+            AssertMsgFailed(("No text for details element option type=%d", enmDetailsElementOptionTypeUserInterface));
+            break;
+        }
+    }
+    return strResult;
+}
+
+/* QString <= UIExtraDataMetaDefs::DetailsElementOptionTypeUserInterface: */
+template<> QString toInternalString(const UIExtraDataMetaDefs::DetailsElementOptionTypeUserInterface &enmDetailsElementOptionTypeUserInterface)
+{
+    QString strResult;
+    switch (enmDetailsElementOptionTypeUserInterface)
+    {
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeUserInterface_MenuBar:     strResult = "MenuBar"; break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeUserInterface_StatusBar:   strResult = "StatusBar"; break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeUserInterface_MiniToolbar: strResult = "MiniToolbar"; break;
+        default:
+        {
+            AssertMsgFailed(("No text for details element option type=%d", enmDetailsElementOptionTypeUserInterface));
+            break;
+        }
+    }
+    return strResult;
+}
+
+/* UIExtraDataMetaDefs::DetailsElementOptionTypeUserInterface <= QString: */
+template<> UIExtraDataMetaDefs::DetailsElementOptionTypeUserInterface fromInternalString<UIExtraDataMetaDefs::DetailsElementOptionTypeUserInterface>(const QString &strDetailsElementOptionTypeUserInterface)
+{
+    /* Here we have some fancy stuff allowing us
+     * to search through the keys using 'case-insensitive' rule: */
+    QStringList keys;      QList<UIExtraDataMetaDefs::DetailsElementOptionTypeUserInterface> values;
+    keys << "MenuBar";     values << UIExtraDataMetaDefs::DetailsElementOptionTypeUserInterface_MenuBar;
+    keys << "StatusBar";   values << UIExtraDataMetaDefs::DetailsElementOptionTypeUserInterface_StatusBar;
+    keys << "MiniToolbar"; values << UIExtraDataMetaDefs::DetailsElementOptionTypeUserInterface_MiniToolbar;
+    /* Invalid type for unknown words: */
+    if (!keys.contains(strDetailsElementOptionTypeUserInterface, Qt::CaseInsensitive))
+        return UIExtraDataMetaDefs::DetailsElementOptionTypeUserInterface_Invalid;
+    /* Corresponding type for known words: */
+    return values.at(keys.indexOf(QRegExp(strDetailsElementOptionTypeUserInterface, Qt::CaseInsensitive)));
+}
+
+/* QString <= UIExtraDataMetaDefs::DetailsElementOptionTypeDescription: */
+template<> QString toString(const UIExtraDataMetaDefs::DetailsElementOptionTypeDescription &enmDetailsElementOptionTypeDescription)
+{
+    QString strResult;
+    switch (enmDetailsElementOptionTypeDescription)
+    {
+        default:
+        {
+            AssertMsgFailed(("No text for details element option type=%d", enmDetailsElementOptionTypeDescription));
+            break;
+        }
+    }
+    return strResult;
+}
+
+/* QString <= UIExtraDataMetaDefs::DetailsElementOptionTypeDescription: */
+template<> QString toInternalString(const UIExtraDataMetaDefs::DetailsElementOptionTypeDescription &enmDetailsElementOptionTypeDescription)
+{
+    QString strResult;
+    switch (enmDetailsElementOptionTypeDescription)
+    {
+        default:
+        {
+            AssertMsgFailed(("No text for details element option type=%d", enmDetailsElementOptionTypeDescription));
+            break;
+        }
+    }
+    return strResult;
+}
+
+/* UIExtraDataMetaDefs::DetailsElementOptionTypeDescription <= QString: */
+template<> UIExtraDataMetaDefs::DetailsElementOptionTypeDescription fromInternalString<UIExtraDataMetaDefs::DetailsElementOptionTypeDescription>(const QString &strDetailsElementOptionTypeDescription)
+{
+    /* Here we have some fancy stuff allowing us
+     * to search through the keys using 'case-insensitive' rule: */
+    QStringList keys;  QList<UIExtraDataMetaDefs::DetailsElementOptionTypeDescription> values;
+    /* Invalid type for unknown words: */
+    if (!keys.contains(strDetailsElementOptionTypeDescription, Qt::CaseInsensitive))
+        return UIExtraDataMetaDefs::DetailsElementOptionTypeDescription_Invalid;
+    /* Corresponding type for known words: */
+    return values.at(keys.indexOf(QRegExp(strDetailsElementOptionTypeDescription, Qt::CaseInsensitive)));
+}
+
+/* QString <= UIToolType: */
+template<> QString toInternalString(const UIToolType &enmToolType)
+{
+    QString strResult;
+    switch (enmToolType)
+    {
+        case UIToolType_Welcome:   strResult = "Welcome"; break;
+        case UIToolType_Media:     strResult = "Media"; break;
+        case UIToolType_Network:   strResult = "Network"; break;
+        case UIToolType_Cloud:     strResult = "Cloud"; break;
+        case UIToolType_Details:   strResult = "Details"; break;
+        case UIToolType_Snapshots: strResult = "Snapshots"; break;
+        case UIToolType_Logs:      strResult = "Logs"; break;
+        default:
+        {
+            AssertMsgFailed(("No text for tool type=%d", enmToolType));
+            break;
+        }
+    }
+    return strResult;
+}
+
+/* UIToolType <= QString: */
+template<> UIToolType fromInternalString<UIToolType>(const QString &strToolType)
+{
+    /* Here we have some fancy stuff allowing us
+     * to search through the keys using 'case-insensitive' rule: */
+    QStringList keys;    QList<UIToolType> values;
+    keys << "Welcome";   values << UIToolType_Welcome;
+    keys << "Media";     values << UIToolType_Media;
+    keys << "Network";   values << UIToolType_Network;
+    keys << "Cloud";     values << UIToolType_Cloud;
+    keys << "Details";   values << UIToolType_Details;
+    keys << "Snapshots"; values << UIToolType_Snapshots;
+    keys << "Logs";      values << UIToolType_Logs;
+    /* Invalid type for unknown words: */
+    if (!keys.contains(strToolType, Qt::CaseInsensitive))
+        return UIToolType_Invalid;
+    /* Corresponding type for known words: */
+    return values.at(keys.indexOf(QRegExp(strToolType, Qt::CaseInsensitive)));
 }
 
 /* QString <= UIVisualStateType: */
@@ -1420,7 +2001,7 @@ template<> QString toInternalString(const IndicatorType &indicatorType)
         case IndicatorType_USB:           strResult = "USB"; break;
         case IndicatorType_SharedFolders: strResult = "SharedFolders"; break;
         case IndicatorType_Display:       strResult = "Display"; break;
-        case IndicatorType_VideoCapture:  strResult = "VideoCapture"; break;
+        case IndicatorType_Recording:     strResult = "Recording"; break;
         case IndicatorType_Features:      strResult = "Features"; break;
         case IndicatorType_Mouse:         strResult = "Mouse"; break;
         case IndicatorType_Keyboard:      strResult = "Keyboard"; break;
@@ -1447,7 +2028,7 @@ template<> IndicatorType fromInternalString<IndicatorType>(const QString &strInd
     keys << "USB";           values << IndicatorType_USB;
     keys << "SharedFolders"; values << IndicatorType_SharedFolders;
     keys << "Display";       values << IndicatorType_Display;
-    keys << "VideoCapture";  values << IndicatorType_VideoCapture;
+    keys << "Recording";     values << IndicatorType_Recording;
     keys << "Features";      values << IndicatorType_Features;
     keys << "Mouse";         values << IndicatorType_Mouse;
     keys << "Keyboard";      values << IndicatorType_Keyboard;
@@ -1472,7 +2053,7 @@ template<> QString toString(const IndicatorType &indicatorType)
         case IndicatorType_USB:           strResult = QApplication::translate("VBoxGlobal", "USB", "IndicatorType"); break;
         case IndicatorType_SharedFolders: strResult = QApplication::translate("VBoxGlobal", "Shared Folders", "IndicatorType"); break;
         case IndicatorType_Display:       strResult = QApplication::translate("VBoxGlobal", "Display", "IndicatorType"); break;
-        case IndicatorType_VideoCapture:  strResult = QApplication::translate("VBoxGlobal", "Video Capture", "IndicatorType"); break;
+        case IndicatorType_Recording:     strResult = QApplication::translate("VBoxGlobal", "Recording", "IndicatorType"); break;
         case IndicatorType_Features:      strResult = QApplication::translate("VBoxGlobal", "Features", "IndicatorType"); break;
         case IndicatorType_Mouse:         strResult = QApplication::translate("VBoxGlobal", "Mouse", "IndicatorType"); break;
         case IndicatorType_Keyboard:      strResult = QApplication::translate("VBoxGlobal", "Keyboard", "IndicatorType"); break;
@@ -1498,7 +2079,7 @@ template<> QIcon toIcon(const IndicatorType &indicatorType)
         case IndicatorType_USB:           return UIIconPool::iconSet(":/usb_16px.png");
         case IndicatorType_SharedFolders: return UIIconPool::iconSet(":/sf_16px.png");
         case IndicatorType_Display:       return UIIconPool::iconSet(":/display_software_16px.png");
-        case IndicatorType_VideoCapture:  return UIIconPool::iconSet(":/video_capture_16px.png");
+        case IndicatorType_Recording:     return UIIconPool::iconSet(":/video_capture_16px.png");
         case IndicatorType_Features:      return UIIconPool::iconSet(":/vtx_amdv_16px.png");
         case IndicatorType_Mouse:         return UIIconPool::iconSet(":/mouse_16px.png");
         case IndicatorType_Keyboard:      return UIIconPool::iconSet(":/hostkey_16px.png");
@@ -1642,38 +2223,6 @@ template<> ScalingOptimizationType fromInternalString<ScalingOptimizationType>(c
     /* 'None' type for empty/unknown words: */
     if (!keys.contains(strOptimizationType, Qt::CaseInsensitive))
         return ScalingOptimizationType_None;
-    /* Corresponding type for known words: */
-    return values.at(keys.indexOf(QRegExp(strOptimizationType, Qt::CaseInsensitive)));
-}
-
-/* QString <= HiDPIOptimizationType: */
-template<> QString toInternalString(const HiDPIOptimizationType &optimizationType)
-{
-    QString strResult;
-    switch (optimizationType)
-    {
-        case HiDPIOptimizationType_None:        strResult = "None"; break;
-        case HiDPIOptimizationType_Performance: strResult = "Performance"; break;
-        default:
-        {
-            AssertMsgFailed(("No text for type=%d", optimizationType));
-            break;
-        }
-    }
-    return strResult;
-}
-
-/* HiDPIOptimizationType <= QString: */
-template<> HiDPIOptimizationType fromInternalString<HiDPIOptimizationType>(const QString &strOptimizationType)
-{
-    /* Here we have some fancy stuff allowing us
-     * to search through the keys using 'case-insensitive' rule: */
-    QStringList keys;      QList<HiDPIOptimizationType> values;
-    keys << "None";        values << HiDPIOptimizationType_None;
-    keys << "Performance"; values << HiDPIOptimizationType_Performance;
-    /* 'Performance' type for empty/unknown words (for trunk): */
-    if (!keys.contains(strOptimizationType, Qt::CaseInsensitive))
-        return HiDPIOptimizationType_Performance;
     /* Corresponding type for known words: */
     return values.at(keys.indexOf(QRegExp(strOptimizationType, Qt::CaseInsensitive)));
 }
@@ -1887,3 +2436,97 @@ template<> MaxGuestResolutionPolicy fromInternalString<MaxGuestResolutionPolicy>
     return values.at(keys.indexOf(QRegExp(strMaxGuestResolutionPolicy, Qt::CaseInsensitive)));
 }
 
+/* QString <= UIMediumFormat: */
+template<> QString toString(const UIMediumFormat &enmUIMediumFormat)
+{
+    QString strResult;
+    switch (enmUIMediumFormat)
+    {
+        case UIMediumFormat_VDI:       strResult = QApplication::translate("VBoxGlobal", "VDI (VirtualBox Disk Image)", "UIMediumFormat"); break;
+        case UIMediumFormat_VMDK:      strResult = QApplication::translate("VBoxGlobal", "VMDK (Virtual Machine Disk)", "UIMediumFormat"); break;
+        case UIMediumFormat_VHD:       strResult = QApplication::translate("VBoxGlobal", "VHD (Virtual Hard Disk)", "UIMediumFormat"); break;
+        case UIMediumFormat_Parallels: strResult = QApplication::translate("VBoxGlobal", "HDD (Parallels Hard Disk)", "UIMediumFormat"); break;
+        case UIMediumFormat_QED:       strResult = QApplication::translate("VBoxGlobal", "QED (QEMU enhanced disk)", "UIMediumFormat"); break;
+        case UIMediumFormat_QCOW:      strResult = QApplication::translate("VBoxGlobal", "QCOW (QEMU Copy-On-Write)", "UIMediumFormat"); break;
+        default:
+        {
+            AssertMsgFailed(("No text for medium format=%d", enmUIMediumFormat));
+            break;
+        }
+    }
+    return strResult;
+}
+
+/* QString <= UIMediumFormat: */
+template<> QString toInternalString(const UIMediumFormat &enmUIMediumFormat)
+{
+    QString strResult;
+    switch (enmUIMediumFormat)
+    {
+        case UIMediumFormat_VDI:       strResult = "VDI"; break;
+        case UIMediumFormat_VMDK:      strResult = "VMDK"; break;
+        case UIMediumFormat_VHD:       strResult = "VHD"; break;
+        case UIMediumFormat_Parallels: strResult = "Parallels"; break;
+        case UIMediumFormat_QED:       strResult = "QED"; break;
+        case UIMediumFormat_QCOW:      strResult = "QCOW"; break;
+        default:
+        {
+            AssertMsgFailed(("No text for medium format=%d", enmUIMediumFormat));
+            break;
+        }
+    }
+    return strResult;
+}
+
+/* UIMediumFormat <= QString: */
+template<> UIMediumFormat fromInternalString<UIMediumFormat>(const QString &strUIMediumFormat)
+{
+    /* Here we have some fancy stuff allowing us
+     * to search through the keys using 'case-insensitive' rule: */
+    QStringList keys;    QList<UIMediumFormat> values;
+    keys << "VDI";       values << UIMediumFormat_VDI;
+    keys << "VMDK";      values << UIMediumFormat_VMDK;
+    keys << "VHD";       values << UIMediumFormat_VHD;
+    keys << "Parallels"; values << UIMediumFormat_Parallels;
+    keys << "QED";       values << UIMediumFormat_QED;
+    keys << "QCOW";      values << UIMediumFormat_QCOW;
+    /* VDI format for unknown words: */
+    if (!keys.contains(strUIMediumFormat, Qt::CaseInsensitive))
+        return UIMediumFormat_VDI;
+    /* Corresponding format for known words: */
+    return values.at(keys.indexOf(QRegExp(strUIMediumFormat, Qt::CaseInsensitive)));
+}
+
+/* QString <= UISettingsDefs::RecordingMode: */
+template<> QString toString(const UISettingsDefs::RecordingMode &enmRecordingMode)
+{
+    QString strResult;
+    switch (enmRecordingMode)
+    {
+        case UISettingsDefs::RecordingMode_VideoAudio: strResult = QApplication::translate("VBoxGlobal", "Video/Audio", "UISettingsDefs::RecordingMode"); break;
+        case UISettingsDefs::RecordingMode_VideoOnly:  strResult = QApplication::translate("VBoxGlobal", "Video Only",  "UISettingsDefs::RecordingMode"); break;
+        case UISettingsDefs::RecordingMode_AudioOnly:  strResult = QApplication::translate("VBoxGlobal", "Audio Only",  "UISettingsDefs::RecordingMode"); break;
+        default:
+        {
+            AssertMsgFailed(("No text for recording mode format=%d", enmRecordingMode));
+            break;
+        }
+    }
+    return strResult;
+}
+
+/* UISettingsDefs::RecordingMode <= QString: */
+template<> UISettingsDefs::RecordingMode fromString<UISettingsDefs::RecordingMode>(const QString &strRecordingMode)
+{
+    /* Here we have some fancy stuff allowing us
+     * to search through the keys using 'case-insensitive' rule: */
+    QStringList keys;      QList<UISettingsDefs::RecordingMode> values;
+    keys << "Video/Audio"; values << UISettingsDefs::RecordingMode_VideoAudio;
+    keys << "Video Only";  values << UISettingsDefs::RecordingMode_VideoOnly;
+    keys << "Audio Only";  values << UISettingsDefs::RecordingMode_AudioOnly;
+    /* Video/Audio for unknown words: */
+    if (!keys.contains(strRecordingMode, Qt::CaseInsensitive))
+        return UISettingsDefs::RecordingMode_VideoAudio;
+    /* Corresponding format for known words: */
+    return values.at(keys.indexOf(QRegExp(strRecordingMode, Qt::CaseInsensitive)));
+}

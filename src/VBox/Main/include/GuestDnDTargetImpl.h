@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2017 Oracle Corporation
+ * Copyright (C) 2014-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ____H_GUESTDNDTARGETIMPL
-#define ____H_GUESTDNDTARGETIMPL
+#ifndef MAIN_INCLUDED_GuestDnDTargetImpl_h
+#define MAIN_INCLUDED_GuestDnDTargetImpl_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "GuestDnDTargetWrap.h"
 #include "GuestDnDPrivate.h"
@@ -83,7 +86,6 @@ protected:
 
 protected:
 
-    int i_cancelOperation(void);
     int i_sendData(PSENDDATACTX pCtx, RTMSINTERVAL msTimeout);
     int i_sendDataBody(PSENDDATACTX pCtx, GuestDnDData *pData);
     int i_sendDataHeader(PSENDDATACTX pCtx, GuestDnDData *pData, GuestDnDURIData *pURIData /* = NULL */);
@@ -106,5 +108,5 @@ protected:
     friend class SendDataTask;
 };
 
-#endif /* !____H_GUESTDNDTARGETIMPL */
+#endif /* !MAIN_INCLUDED_GuestDnDTargetImpl_h */
 

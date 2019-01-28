@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2017 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -32,6 +32,7 @@
 #include <iprt/net.h>
 
 #include <iprt/asm.h>
+#include <iprt/errcore.h>
 #include <iprt/mem.h>
 #include <iprt/string.h>
 #include <iprt/stream.h>
@@ -71,7 +72,7 @@ DECLHIDDEN(int) rtNetStrToIPv4AddrEx(const char *pcszAddr, PRTNETADDRIPV4 pAddr,
 
     if (ppszNext != NULL)
         *ppszNext = pszNext;
-    return VINF_SUCCESS;
+    return rc;
 }
 
 
@@ -93,11 +94,7 @@ RTDECL(int) RTNetStrToIPv4Addr(const char *pcszAddr, PRTNETADDRIPV4 pAddr)
 
     pcszAddr = RTStrStripL(pcszAddr);
     rc = rtNetStrToIPv4AddrEx(pcszAddr, pAddr, &pszNext);
-    if (rc != VINF_SUCCESS)
-        return VERR_INVALID_PARAMETER;
-
-    pszNext = RTStrStripL(pszNext);
-    if (*pszNext != '\0')
+    if (RT_FAILURE(rc) || rc == VWRN_TRAILING_CHARS)
         return VERR_INVALID_PARAMETER;
 
     return VINF_SUCCESS;
@@ -137,11 +134,7 @@ RTDECL(bool) RTNetStrIsIPv4AddrAny(const char *pcszAddr)
 
     pcszAddr = RTStrStripL(pcszAddr);
     rc = rtNetStrToIPv4AddrEx(pcszAddr, &addrIPv4, &pszNext);
-    if (rc != VINF_SUCCESS)
-        return false;
-
-    pszNext = RTStrStripL(pszNext);
-    if (*pszNext != '\0')
+    if (RT_FAILURE(rc) || rc == VWRN_TRAILING_CHARS)
         return false;
 
     if (addrIPv4.u != 0u)       /* INADDR_ANY? */
@@ -201,6 +194,48 @@ RTDECL(int) RTNetPrefixToMaskIPv4(int iPrefix, PRTNETADDRIPV4 pMask)
     return VINF_SUCCESS;
 }
 RT_EXPORT_SYMBOL(RTNetPrefixToMaskIPv4);
+
+
+RTDECL(int) RTNetStrToIPv4Cidr(const char *pcszAddr, PRTNETADDRIPV4 pAddr, int *piPrefix)
+{
+    RTNETADDRIPV4 Addr;
+    uint8_t u8Prefix;
+    char *pszNext;
+    int rc;
+
+    AssertPtrReturn(pcszAddr, VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pAddr, VERR_INVALID_PARAMETER);
+    AssertPtrReturn(piPrefix, VERR_INVALID_PARAMETER);
+
+    pcszAddr = RTStrStripL(pcszAddr);
+    rc = rtNetStrToIPv4AddrEx(pcszAddr, &Addr, &pszNext);
+    if (RT_FAILURE(rc))
+        return rc;
+
+    /* if prefix is missing, treat is as exact (/32) address specification */
+    if (*pszNext == '\0' || rc == VWRN_TRAILING_SPACES)
+    {
+        *pAddr = Addr;
+        *piPrefix = 32;
+        return VINF_SUCCESS;
+    }
+
+    if (*pszNext != '/')
+        return VERR_INVALID_PARAMETER;
+
+    ++pszNext;
+    rc = RTStrToUInt8Ex(pszNext, &pszNext, 10, &u8Prefix);
+    if (RT_FAILURE(rc) || rc == VWRN_TRAILING_CHARS)
+        return VERR_INVALID_PARAMETER;
+
+    if (u8Prefix == 0 || u8Prefix > 32)
+        return VERR_INVALID_PARAMETER;
+
+    *pAddr = Addr;
+    *piPrefix = u8Prefix;
+    return VINF_SUCCESS;
+}
+RT_EXPORT_SYMBOL(RTNetStrToIPv4Cidr);
 
 
 static int rtNetStrToHexGroup(const char *pcszValue, char **ppszNext,

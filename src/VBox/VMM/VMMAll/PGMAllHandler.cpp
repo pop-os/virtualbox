@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,14 +25,12 @@
 #include <VBox/vmm/iom.h>
 #include <VBox/vmm/mm.h>
 #include <VBox/vmm/em.h>
+#include <VBox/vmm/nem.h>
 #include <VBox/vmm/stam.h>
 #ifdef VBOX_WITH_REM
 # include <VBox/vmm/rem.h>
 #endif
 #include <VBox/vmm/dbgf.h>
-#ifdef VBOX_WITH_REM
-# include <VBox/vmm/rem.h>
-#endif
 #include "PGMInternal.h"
 #include <VBox/vmm/vm.h>
 #include "PGMInline.h"
@@ -50,7 +48,7 @@
 *   Internal Functions                                                                                                           *
 *********************************************************************************************************************************/
 static int  pgmHandlerPhysicalSetRamFlagsAndFlushShadowPTs(PVM pVM, PPGMPHYSHANDLER pCur, PPGMRAMRANGE pRam);
-static void pgmHandlerPhysicalDeregisterNotifyREM(PVM pVM, PPGMPHYSHANDLER pCur);
+static void pgmHandlerPhysicalDeregisterNotifyREMAndNEM(PVM pVM, PPGMPHYSHANDLER pCur, int fRestoreRAM);
 static void pgmHandlerPhysicalResetRamFlags(PVM pVM, PPGMPHYSHANDLER pCur);
 
 
@@ -284,6 +282,10 @@ int pgmHandlerPhysicalExRegister(PVM pVM, PPGMPHYSHANDLER pPhysHandler, RTGCPHYS
         int rc = pgmHandlerPhysicalSetRamFlagsAndFlushShadowPTs(pVM, pPhysHandler, pRam);
         if (rc == VINF_PGM_SYNC_CR3)
             rc = VINF_PGM_GCPHYS_ALIASED;
+
+#if defined(IN_RING3) || defined(IN_RING0)
+        NEMHCNotifyHandlerPhysicalRegister(pVM, pType->enmKind, GCPhys, GCPhysLast - GCPhys + 1);
+#endif
         pgmUnlock(pVM);
 
 #ifdef VBOX_WITH_REM
@@ -390,10 +392,23 @@ static int pgmHandlerPhysicalSetRamFlagsAndFlushShadowPTs(PVM pVM, PPGMPHYSHANDL
         {
             PGM_PAGE_SET_HNDL_PHYS_STATE(pPage, uState);
 
-            int rc2 = pgmPoolTrackUpdateGCPhys(pVM, pRam->GCPhys + (i << PAGE_SHIFT), pPage,
+            const RTGCPHYS GCPhysPage = pRam->GCPhys + (i << PAGE_SHIFT);
+            int rc2 = pgmPoolTrackUpdateGCPhys(pVM, GCPhysPage, pPage,
                                                false /* allow updates of PTEs (instead of flushing) */, &fFlushTLBs);
             if (rc2 != VINF_SUCCESS && rc == VINF_SUCCESS)
                 rc = rc2;
+
+#ifndef IN_RC
+            /* Tell NEM about the protection update. */
+            if (VM_IS_NEM_ENABLED(pVM))
+            {
+                uint8_t     u2State = PGM_PAGE_GET_NEM_STATE(pPage);
+                PGMPAGETYPE enmType = (PGMPAGETYPE)PGM_PAGE_GET_TYPE(pPage);
+                NEMHCNotifyPhysPageProtChanged(pVM, GCPhysPage, PGM_PAGE_GET_HCPHYS(pPage),
+                                               pgmPhysPageCalcNemProtection(pPage, enmType), enmType, &u2State);
+                PGM_PAGE_SET_NEM_STATE(pPage, u2State);
+            }
+#endif
         }
 
         /* next */
@@ -420,11 +435,13 @@ static int pgmHandlerPhysicalSetRamFlagsAndFlushShadowPTs(PVM pVM, PPGMPHYSHANDL
  * @returns VBox status code.
  * @param   pVM             The cross context VM structure.
  * @param   pPhysHandler    The handler to deregister (but not free).
+ * @param   fRestoreAsRAM   How this will likely be restored, if we know (true,
+ *                          false, or if we don't know -1).
  */
-int pgmHandlerPhysicalExDeregister(PVM pVM, PPGMPHYSHANDLER pPhysHandler)
+int pgmHandlerPhysicalExDeregister(PVM pVM, PPGMPHYSHANDLER pPhysHandler, int fRestoreAsRAM)
 {
-    LogFlow(("pgmHandlerPhysicalExDeregister: Removing Range %RGp-%RGp %s\n",
-             pPhysHandler->Core.Key, pPhysHandler->Core.KeyLast, R3STRING(pPhysHandler->pszDesc)));
+    LogFlow(("pgmHandlerPhysicalExDeregister: Removing Range %RGp-%RGp %s fRestoreAsRAM=%d\n",
+             pPhysHandler->Core.Key, pPhysHandler->Core.KeyLast, R3STRING(pPhysHandler->pszDesc), fRestoreAsRAM));
     AssertReturn(pPhysHandler->Core.Key != NIL_RTGCPHYS, VERR_PGM_HANDLER_NOT_FOUND);
 
     /*
@@ -440,7 +457,7 @@ int pgmHandlerPhysicalExDeregister(PVM pVM, PPGMPHYSHANDLER pPhysHandler)
          * the cache.
          */
         pgmHandlerPhysicalResetRamFlags(pVM, pPhysHandler);
-        pgmHandlerPhysicalDeregisterNotifyREM(pVM, pPhysHandler);
+        pgmHandlerPhysicalDeregisterNotifyREMAndNEM(pVM, pPhysHandler, fRestoreAsRAM);
         pVM->pgm.s.pLastPhysHandlerR0 = 0;
         pVM->pgm.s.pLastPhysHandlerR3 = 0;
         pVM->pgm.s.pLastPhysHandlerRC = 0;
@@ -519,7 +536,7 @@ VMMDECL(int)  PGMHandlerPhysicalDeregister(PVM pVM, RTGCPHYS GCPhys)
          * the cache.
          */
         pgmHandlerPhysicalResetRamFlags(pVM, pRemoved);
-        pgmHandlerPhysicalDeregisterNotifyREM(pVM, pRemoved);
+        pgmHandlerPhysicalDeregisterNotifyREMAndNEM(pVM, pRemoved, -1);
         pVM->pgm.s.pLastPhysHandlerR0 = 0;
         pVM->pgm.s.pLastPhysHandlerR3 = 0;
         pVM->pgm.s.pLastPhysHandlerRC = 0;
@@ -541,7 +558,7 @@ VMMDECL(int)  PGMHandlerPhysicalDeregister(PVM pVM, RTGCPHYS GCPhys)
 /**
  * Shared code with modify.
  */
-static void pgmHandlerPhysicalDeregisterNotifyREM(PVM pVM, PPGMPHYSHANDLER pCur)
+static void pgmHandlerPhysicalDeregisterNotifyREMAndNEM(PVM pVM, PPGMPHYSHANDLER pCur, int fRestoreAsRAM)
 {
     PPGMPHYSHANDLERTYPEINT  pCurType    = PGMPHYSHANDLER_GET_TYPE(pVM, pCur);
     RTGCPHYS                GCPhysStart = pCur->Core.Key;
@@ -554,8 +571,8 @@ static void pgmHandlerPhysicalDeregisterNotifyREM(PVM pVM, PPGMPHYSHANDLER pCur)
      * we can make use of the page states to figure out whether a page should be
      * included in the REM notification or not.
      */
-    if (    (pCur->Core.Key & PAGE_OFFSET_MASK)
-        ||  ((pCur->Core.KeyLast + 1) & PAGE_OFFSET_MASK))
+    if (   (pCur->Core.Key           & PAGE_OFFSET_MASK)
+        || ((pCur->Core.KeyLast + 1) & PAGE_OFFSET_MASK))
     {
         Assert(pCurType->enmKind != PGMPHYSHANDLERKIND_MMIO);
 
@@ -594,21 +611,27 @@ static void pgmHandlerPhysicalDeregisterNotifyREM(PVM pVM, PPGMPHYSHANDLER pCur)
         }
     }
 
-#ifdef VBOX_WITH_REM
     /*
-     * Tell REM.
+     * Tell REM and NEM.
      */
-    const bool fRestoreAsRAM = pCurType->pfnHandlerR3
-                            && pCurType->enmKind != PGMPHYSHANDLERKIND_MMIO; /** @todo this isn't entirely correct. */
+    const bool fRestoreAsRAM2 = pCurType->pfnHandlerR3
+                             && pCurType->enmKind != PGMPHYSHANDLERKIND_MMIO; /** @todo this isn't entirely correct. */
+#ifdef VBOX_WITH_REM
 # ifndef IN_RING3
     REMNotifyHandlerPhysicalDeregister(pVM, pCurType->enmKind, GCPhysStart, GCPhysLast - GCPhysStart + 1,
-                                       !!pCurType->pfnHandlerR3, fRestoreAsRAM);
+                                       !!pCurType->pfnHandlerR3, fRestoreAsRAM2);
 # else
     REMR3NotifyHandlerPhysicalDeregister(pVM, pCurType->enmKind, GCPhysStart, GCPhysLast - GCPhysStart + 1,
-                                         !!pCurType->pfnHandlerR3, fRestoreAsRAM);
+                                         !!pCurType->pfnHandlerR3, fRestoreAsRAM2);
 # endif
+#endif
+    /** @todo do we need this notification? */
+#if defined(IN_RING3) || defined(IN_RING0)
+    NEMHCNotifyHandlerPhysicalDeregister(pVM, pCurType->enmKind, GCPhysStart, GCPhysLast - GCPhysStart + 1,
+                                         fRestoreAsRAM, fRestoreAsRAM2);
 #else
-    RT_NOREF_PV(pCurType);
+    RT_NOREF_PV(fRestoreAsRAM); /** @todo this needs more work for REM! */
+    RT_NOREF_PV(fRestoreAsRAM2);
 #endif
 }
 
@@ -660,6 +683,18 @@ DECLINLINE(void) pgmHandlerPhysicalRecalcPageState(PVM pVM, RTGCPHYS GCPhys, boo
                 PGM_INVL_ALL_VCPU_TLBS(pVM);
             else
                 AssertRC(rc);
+
+#ifndef IN_RC
+            /* Tell NEM about the protection update. */
+            if (VM_IS_NEM_ENABLED(pVM))
+            {
+                uint8_t     u2State = PGM_PAGE_GET_NEM_STATE(pPage);
+                PGMPAGETYPE enmType = (PGMPAGETYPE)PGM_PAGE_GET_TYPE(pPage);
+                NEMHCNotifyPhysPageProtChanged(pVM, GCPhys, PGM_PAGE_GET_HCPHYS(pPage),
+                                               pgmPhysPageCalcNemProtection(pPage, enmType), enmType, &u2State);
+                PGM_PAGE_SET_NEM_STATE(pPage, u2State);
+            }
+#endif
         }
         else
             AssertRC(rc);
@@ -682,6 +717,9 @@ void pgmHandlerPhysicalResetAliasedPage(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys
     Assert(   PGM_PAGE_GET_TYPE(pPage) == PGMPAGETYPE_MMIO2_ALIAS_MMIO
            || PGM_PAGE_GET_TYPE(pPage) == PGMPAGETYPE_SPECIAL_ALIAS_MMIO);
     Assert(PGM_PAGE_GET_HNDL_PHYS_STATE(pPage) == PGM_PAGE_HNDL_PHYS_STATE_DISABLED);
+#ifndef IN_RC
+    RTHCPHYS const HCPhysPrev = PGM_PAGE_GET_HCPHYS(pPage);
+#endif
 
     /*
      * Flush any shadow page table references *first*.
@@ -689,12 +727,12 @@ void pgmHandlerPhysicalResetAliasedPage(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys
     bool fFlushTLBs = false;
     int rc = pgmPoolTrackUpdateGCPhys(pVM, GCPhysPage, pPage, true /*fFlushPTEs*/, &fFlushTLBs);
     AssertLogRelRCReturnVoid(rc);
-# ifdef IN_RC
+#ifdef IN_RC
     if (fFlushTLBs && rc != VINF_PGM_SYNC_CR3)
         PGM_INVL_VCPU_TLBS(VMMGetCpu0(pVM));
-# else
-    HMFlushTLBOnAllVCpus(pVM);
-# endif
+#else
+    HMFlushTlbOnAllVCpus(pVM);
+#endif
 
     /*
      * Make it an MMIO/Zero page.
@@ -722,6 +760,19 @@ void pgmHandlerPhysicalResetAliasedPage(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys
         else
             AssertFailed();
     }
+
+#ifndef IN_RC
+    /*
+     * Tell NEM about the protection change.
+     */
+    if (VM_IS_NEM_ENABLED(pVM))
+    {
+        uint8_t u2State = PGM_PAGE_GET_NEM_STATE(pPage);
+        NEMHCNotifyPhysPageChanged(pVM, GCPhysPage, HCPhysPrev, pVM->pgm.s.HCPhysZeroPg,
+                                   NEM_PAGE_PROT_NONE, PGMPAGETYPE_MMIO, &u2State);
+        PGM_PAGE_SET_NEM_STATE(pPage, u2State);
+    }
+#endif
 }
 
 
@@ -753,18 +804,34 @@ static void pgmHandlerPhysicalResetRamFlags(PVM pVM, PPGMPHYSHANDLER pCur)
         {
             /* Reset aliased MMIO pages to MMIO, since this aliasing is our business.
                (We don't flip MMIO to RAM though, that's PGMPhys.cpp's job.)  */
+            bool fNemNotifiedAlready = false;
             if (   PGM_PAGE_GET_TYPE(pPage) == PGMPAGETYPE_MMIO2_ALIAS_MMIO
                 || PGM_PAGE_GET_TYPE(pPage) == PGMPAGETYPE_SPECIAL_ALIAS_MMIO)
             {
                 Assert(pCur->cAliasedPages > 0);
                 pgmHandlerPhysicalResetAliasedPage(pVM, pPage, GCPhys, false /*fDoAccounting*/);
                 pCur->cAliasedPages--;
+                fNemNotifiedAlready = true;
             }
 #ifdef VBOX_STRICT
             PPGMPHYSHANDLERTYPEINT pCurType = PGMPHYSHANDLER_GET_TYPE(pVM, pCur);
             AssertMsg(pCurType->enmKind != PGMPHYSHANDLERKIND_MMIO || PGM_PAGE_IS_MMIO(pPage), ("%RGp %R[pgmpage]\n", GCPhys, pPage));
 #endif
             PGM_PAGE_SET_HNDL_PHYS_STATE(pPage, PGM_PAGE_HNDL_PHYS_STATE_NONE);
+
+#ifndef IN_RC
+            /* Tell NEM about the protection change. */
+            if (VM_IS_NEM_ENABLED(pVM) && !fNemNotifiedAlready)
+            {
+                uint8_t     u2State = PGM_PAGE_GET_NEM_STATE(pPage);
+                PGMPAGETYPE enmType = (PGMPAGETYPE)PGM_PAGE_GET_TYPE(pPage);
+                NEMHCNotifyPhysPageProtChanged(pVM, GCPhys, PGM_PAGE_GET_HCPHYS(pPage),
+                                               pgmPhysPageCalcNemProtection(pPage, enmType), enmType, &u2State);
+                PGM_PAGE_SET_NEM_STATE(pPage, u2State);
+            }
+#else
+            RT_NOREF_PV(fNemNotifiedAlready);
+#endif
         }
         else
             AssertRC(rc);
@@ -815,10 +882,10 @@ VMMDECL(int) PGMHandlerPhysicalModify(PVM pVM, RTGCPHYS GCPhysCurrent, RTGCPHYS 
          * Clear the ram flags. (We're gonna move or free it!)
          */
         pgmHandlerPhysicalResetRamFlags(pVM, pCur);
-#ifdef VBOX_WITH_REM
-        PPGMPHYSHANDLERTYPEINT pCurType = PGMPHYSHANDLER_GET_TYPE(pVM, pCur);
-        const bool fRestoreAsRAM = pCurType->pfnHandlerR3
-                                && pCurType->enmKind != PGMPHYSHANDLERKIND_MMIO; /** @todo this isn't entirely correct. */
+#if defined(VBOX_WITH_REM) || defined(IN_RING3) || defined(IN_RING0)
+        PPGMPHYSHANDLERTYPEINT const pCurType      = PGMPHYSHANDLER_GET_TYPE(pVM, pCur);
+        bool const                   fRestoreAsRAM = pCurType->pfnHandlerR3 /** @todo this isn't entirely correct. */
+                                                  && pCurType->enmKind != PGMPHYSHANDLERKIND_MMIO;
 #endif
 
         /*
@@ -841,16 +908,24 @@ VMMDECL(int) PGMHandlerPhysicalModify(PVM pVM, RTGCPHYS GCPhysCurrent, RTGCPHYS 
 
                 if (RTAvlroGCPhysInsert(&pVM->pgm.s.CTX_SUFF(pTrees)->PhysHandlers, &pCur->Core))
                 {
+#if defined(VBOX_WITH_REM) || defined(IN_RING3) || defined(IN_RING0)
+                    RTGCPHYS            const cb            = GCPhysLast - GCPhys + 1;
+                    PGMPHYSHANDLERKIND  const enmKind       = pCurType->enmKind;
+#endif
 #ifdef VBOX_WITH_REM
-                    RTGCPHYS            cb            = GCPhysLast - GCPhys + 1;
-                    PGMPHYSHANDLERKIND  enmKind       = pCurType->enmKind;
-                    bool                fHasHCHandler = !!pCurType->pfnHandlerR3;
+                    bool                const fHasHCHandler = !!pCurType->pfnHandlerR3;
 #endif
 
                     /*
                      * Set ram flags, flush shadow PT entries and finally tell REM about this.
                      */
                     rc = pgmHandlerPhysicalSetRamFlagsAndFlushShadowPTs(pVM, pCur, pRam);
+
+                    /** @todo NEM: not sure we need this notification... */
+#if defined(IN_RING3) || defined(IN_RING0)
+                    NEMHCNotifyHandlerPhysicalModify(pVM, enmKind, GCPhysCurrent, GCPhys, cb, fRestoreAsRAM);
+#endif
+
                     pgmUnlock(pVM);
 
 #ifdef VBOX_WITH_REM
@@ -887,7 +962,7 @@ VMMDECL(int) PGMHandlerPhysicalModify(PVM pVM, RTGCPHYS GCPhysCurrent, RTGCPHYS 
          * Invalid new location, flush the cache and free it.
          * We've only gotta notify REM and free the memory.
          */
-        pgmHandlerPhysicalDeregisterNotifyREM(pVM, pCur);
+        pgmHandlerPhysicalDeregisterNotifyREMAndNEM(pVM, pCur, -1);
         pVM->pgm.s.pLastPhysHandlerR0 = 0;
         pVM->pgm.s.pLastPhysHandlerR3 = 0;
         pVM->pgm.s.pLastPhysHandlerRC = 0;
@@ -1247,6 +1322,17 @@ VMMDECL(int)  PGMHandlerPhysicalPageTempOff(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS G
             {
                 PGM_PAGE_SET_HNDL_PHYS_STATE(pPage, PGM_PAGE_HNDL_PHYS_STATE_DISABLED);
                 pCur->cTmpOffPages++;
+#ifndef IN_RC
+                /* Tell NEM about the protection change (VGA is using this to track dirty pages). */
+                if (VM_IS_NEM_ENABLED(pVM))
+                {
+                    uint8_t     u2State = PGM_PAGE_GET_NEM_STATE(pPage);
+                    PGMPAGETYPE enmType = (PGMPAGETYPE)PGM_PAGE_GET_TYPE(pPage);
+                    NEMHCNotifyPhysPageProtChanged(pVM, GCPhysPage, PGM_PAGE_GET_HCPHYS(pPage),
+                                                   pgmPhysPageCalcNemProtection(pPage, enmType), enmType, &u2State);
+                    PGM_PAGE_SET_NEM_STATE(pPage, u2State);
+                }
+#endif
             }
             pgmUnlock(pVM);
             return VINF_SUCCESS;
@@ -1261,7 +1347,6 @@ VMMDECL(int)  PGMHandlerPhysicalPageTempOff(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS G
     return VERR_PGM_HANDLER_NOT_FOUND;
 }
 
-#ifndef IEM_VERIFICATION_MODE_FULL
 
 /**
  * Replaces an MMIO page with an MMIO2 page.
@@ -1314,8 +1399,8 @@ VMMDECL(int)  PGMHandlerPhysicalPageAlias(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS GCP
     PPGMPHYSHANDLER pCur = (PPGMPHYSHANDLER)RTAvlroGCPhysGet(&pVM->pgm.s.CTX_SUFF(pTrees)->PhysHandlers, GCPhys);
     if (RT_LIKELY(pCur))
     {
-        if (RT_LIKELY(    GCPhysPage >= pCur->Core.Key
-                      &&  GCPhysPage <= pCur->Core.KeyLast))
+        if (RT_LIKELY(   GCPhysPage >= pCur->Core.Key
+                      && GCPhysPage <= pCur->Core.KeyLast))
         {
             PPGMPHYSHANDLERTYPEINT pCurType = PGMPHYSHANDLER_GET_TYPE(pVM, pCur);
             AssertReturnStmt(pCurType->enmKind == PGMPHYSHANDLERKIND_MMIO, pgmUnlock(pVM), VERR_ACCESS_DENIED);
@@ -1374,6 +1459,17 @@ VMMDECL(int)  PGMHandlerPhysicalPageAlias(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS GCP
             /* Flush its TLB entry. */
             pgmPhysInvalidatePageMapTLBEntry(pVM, GCPhysPage);
 
+# ifndef IN_RC
+            /* Tell NEM about the backing and protection change. */
+            if (VM_IS_NEM_ENABLED(pVM))
+            {
+                uint8_t u2State = PGM_PAGE_GET_NEM_STATE(pPage);
+                NEMHCNotifyPhysPageChanged(pVM, GCPhysPage, pVM->pgm.s.HCPhysZeroPg, PGM_PAGE_GET_HCPHYS(pPage),
+                                           pgmPhysPageCalcNemProtection(pPage, PGMPAGETYPE_MMIO2_ALIAS_MMIO),
+                                           PGMPAGETYPE_MMIO2_ALIAS_MMIO, &u2State);
+                PGM_PAGE_SET_NEM_STATE(pPage, u2State);
+            }
+# endif
             LogFlow(("PGMHandlerPhysicalPageAlias: => %R[pgmpage]\n", pPage));
             pgmUnlock(pVM);
             return VINF_SUCCESS;
@@ -1475,6 +1571,17 @@ VMMDECL(int)  PGMHandlerPhysicalPageAliasHC(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS G
             /* Flush its TLB entry. */
             pgmPhysInvalidatePageMapTLBEntry(pVM, GCPhysPage);
 
+# ifndef IN_RC
+            /* Tell NEM about the backing and protection change. */
+            if (VM_IS_NEM_ENABLED(pVM))
+            {
+                uint8_t u2State = PGM_PAGE_GET_NEM_STATE(pPage);
+                NEMHCNotifyPhysPageChanged(pVM, GCPhysPage, pVM->pgm.s.HCPhysZeroPg, PGM_PAGE_GET_HCPHYS(pPage),
+                                           pgmPhysPageCalcNemProtection(pPage, PGMPAGETYPE_SPECIAL_ALIAS_MMIO),
+                                           PGMPAGETYPE_SPECIAL_ALIAS_MMIO, &u2State);
+                PGM_PAGE_SET_NEM_STATE(pPage, u2State);
+            }
+# endif
             LogFlow(("PGMHandlerPhysicalPageAliasHC: => %R[pgmpage]\n", pPage));
             pgmUnlock(pVM);
             return VINF_SUCCESS;
@@ -1490,7 +1597,6 @@ VMMDECL(int)  PGMHandlerPhysicalPageAliasHC(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS G
     return VERR_PGM_HANDLER_NOT_FOUND;
 }
 
-#endif /* !IEM_VERIFICATION_MODE_FULL */
 
 /**
  * Checks if a physical range is handled

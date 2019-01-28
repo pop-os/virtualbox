@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___H_VBOXMANAGE
-#define ___H_VBOXMANAGE
+#ifndef VBOX_INCLUDED_SRC_VBoxManage_VBoxManage_h
+#define VBOX_INCLUDED_SRC_VBoxManage_VBoxManage_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #ifndef VBOX_ONLY_DOCS
 #include <VBox/com/com.h>
@@ -61,6 +64,7 @@
 #define USAGE_CREATEMEDIUM          RT_BIT_64(13)
 #define USAGE_MODIFYMEDIUM          RT_BIT_64(14)
 #define USAGE_CLONEMEDIUM           RT_BIT_64(15)
+#define USAGE_MOVEVM                RT_BIT_64(16)
 #define USAGE_CREATEHOSTIF          RT_BIT_64(17)
 #define USAGE_REMOVEHOSTIF          RT_BIT_64(18)
 #define USAGE_GETEXTRADATA          RT_BIT_64(19)
@@ -73,6 +77,8 @@
 #define USAGE_SHAREDFOLDER          (RT_BIT_64(25) | RT_BIT_64(26))
 #define USAGE_SHAREDFOLDER_ADD      RT_BIT_64(25)
 #define USAGE_SHAREDFOLDER_REMOVE   RT_BIT_64(26)
+#define USAGE_UNATTENDED            RT_BIT_64(27)
+#define USAGE_MEDIUMIO              RT_BIT_64(28)
 #define USAGE_LOADSYMS              RT_BIT_64(29)
 #define USAGE_LOADMAP               RT_BIT_64(30)
 #define USAGE_SETHDUUID             RT_BIT_64(31)
@@ -133,7 +139,6 @@
 # define USAGE_GSTCTRL_WATCH        RT_BIT(14)
 #endif
 
-#define USAGE_UNATTENDEDINSTALL     RT_BIT(27)
 
 typedef uint64_t USAGECATEGORY;
 
@@ -276,6 +281,7 @@ RTEXITCODE handleSetProperty(HandlerArg *a);
 RTEXITCODE handleSharedFolder(HandlerArg *a);
 RTEXITCODE handleExtPack(HandlerArg *a);
 RTEXITCODE handleUnattended(HandlerArg *a);
+RTEXITCODE handleMoveVM(HandlerArg *a);
 
 /* VBoxManageDisk.cpp */
 HRESULT openMedium(HandlerArg *a, const char *pszFilenameOrUuid,
@@ -295,6 +301,7 @@ HRESULT showMediumInfo(const ComPtr<IVirtualBox> &pVirtualBox,
                        bool fOptLong);
 RTEXITCODE handleShowMediumInfo(HandlerArg *a);
 RTEXITCODE handleCloseMedium(HandlerArg *a);
+RTEXITCODE handleMediumIO(HandlerArg *a);
 int parseMediumType(const char *psz, MediumType_T *penmMediumType);
 int parseBool(const char *psz, bool *pb);
 
@@ -328,4 +335,4 @@ RTEXITCODE handleBandwidthControl(HandlerArg *a);
 
 #endif /* !VBOX_ONLY_DOCS */
 
-#endif /* !___H_VBOXMANAGE */
+#endif /* !VBOX_INCLUDED_SRC_VBoxManage_VBoxManage_h */

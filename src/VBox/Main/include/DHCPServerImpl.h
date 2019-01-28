@@ -1,12 +1,10 @@
 /* $Id: DHCPServerImpl.h $ */
-
 /** @file
- *
  * VirtualBox COM class implementation
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ____H_H_DHCPSERVERIMPL
-#define ____H_H_DHCPSERVERIMPL
+#ifndef MAIN_INCLUDED_DHCPServerImpl_h
+#define MAIN_INCLUDED_DHCPServerImpl_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "DHCPServerWrap.h"
 
@@ -49,6 +50,8 @@ public:
     static const std::string kDsrKeyGateway;
     static const std::string kDsrKeyLowerIp;
     static const std::string kDsrKeyUpperIp;
+    static const std::string kDsrKeyConfig;
+    static const std::string kDsrKeyComment;
 };
 
 /**
@@ -114,16 +117,22 @@ private:
     // Wrapped IDHCPServer Methods
     HRESULT addGlobalOption(DhcpOpt_T aOption,
                             const com::Utf8Str &aValue);
+    HRESULT removeGlobalOption(DhcpOpt_T aOption);
+    HRESULT removeGlobalOptions();
     HRESULT addVmSlotOption(const com::Utf8Str &aVmName,
                             LONG aSlot,
                             DhcpOpt_T aOption,
                             const com::Utf8Str &aValue);
+    HRESULT removeVmSlotOption(const com::Utf8Str &aVmName,
+                               LONG aSlot,
+                               DhcpOpt_T aOption);
     HRESULT removeVmSlotOptions(const com::Utf8Str &aVmName,
                                 LONG aSlot);
     HRESULT start(const com::Utf8Str &aNetworkName,
                   const com::Utf8Str &aTrunkName,
                   const com::Utf8Str &aTrunkType);
     HRESULT stop();
+    HRESULT restart();
 
     struct Data;
     Data *m;
@@ -132,4 +141,4 @@ private:
     const Utf8Str mName;
 };
 
-#endif // ____H_H_DHCPSERVERIMPL
+#endif /* !MAIN_INCLUDED_DHCPServerImpl_h */

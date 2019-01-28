@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,8 +24,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___SUPLibInternal_h___
-#define ___SUPLibInternal_h___
+#ifndef VBOX_INCLUDED_SRC_Support_SUPLibInternal_h
+#define VBOX_INCLUDED_SRC_Support_SUPLibInternal_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/cdefs.h>
 #include <VBox/types.h>
@@ -337,7 +340,7 @@ extern DECLHIDDEN(uint32_t)             g_u32SessionCookie;
 extern DECLHIDDEN(SUPLIBDATA)           g_supLibData;
 extern DECLHIDDEN(uint32_t)             g_uSupFakeMode;
 extern DECLHIDDEN(PSUPGLOBALINFOPAGE)   g_pSUPGlobalInfoPageR0;
-#ifdef ___SUPDrvIOC_h___
+#ifdef VBOX_INCLUDED_SRC_Support_SUPDrvIOC_h
 extern DECLHIDDEN(PSUPQUERYFUNCS)       g_pSupFunctions;
 #endif
 extern DECLHIDDEN(SUPR3HARDENEDMAINSTATE) g_enmSupR3HardenedMainState;
@@ -360,7 +363,8 @@ int     suplibOsIOCtl(PSUPLIBDATA pThis, uintptr_t uFunction, void *pvReq, size_
 int     suplibOsIOCtlFast(PSUPLIBDATA pThis, uintptr_t uFunction, uintptr_t idCpu);
 int     suplibOsPageAlloc(PSUPLIBDATA pThis, size_t cPages, void **ppvPages);
 int     suplibOsPageFree(PSUPLIBDATA pThis, void *pvPages, size_t cPages);
-int     suplibOsQueryVTxSupported(void);
+int     suplibOsQueryVTxSupported(const char **ppszWhy);
+bool    suplibOsIsNemSupportedWhenNoVtxOrAmdV(void);
 
 
 /**
@@ -461,7 +465,7 @@ DECLHIDDEN(void)    supR3HardenedWinInitAppBin(uint32_t fFlags);
 DECLHIDDEN(void)    supR3HardenedWinInitVersion(bool fEarlyInit);
 DECLHIDDEN(void)    supR3HardenedWinInitImports(void);
 DECLHIDDEN(void)    supR3HardenedWinModifyDllSearchPath(uint32_t fFlags, const char *pszAppBinPath);
-# ifdef ___iprt_nt_nt_h___
+# ifdef IPRT_INCLUDED_nt_nt_h
 DECLHIDDEN(void)    supR3HardenedWinGetVeryEarlyImports(uintptr_t uNtDllAddr,
                                                         PFNNTWAITFORSINGLEOBJECT *ppfnNtWaitForSingleObject,
                                                         PFNNTSETEVENT *ppfnNtSetEvent);
@@ -497,5 +501,5 @@ SUPR3DECL(int)      supR3PageUnlock(void *pvStart);
 RT_C_DECLS_END
 
 
-#endif
+#endif /* !VBOX_INCLUDED_SRC_Support_SUPLibInternal_h */
 

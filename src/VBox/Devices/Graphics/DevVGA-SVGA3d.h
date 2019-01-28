@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2017 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,10 +15,12 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___DEVVMWARE3D_H___
-#define ___DEVVMWARE3D_H___
+#ifndef VBOX_INCLUDED_SRC_Graphics_DevVGA_SVGA3d_h
+#define VBOX_INCLUDED_SRC_Graphics_DevVGA_SVGA3d_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
-#include "vmsvga/svga_reg.h"
 #include "vmsvga/svga3d_reg.h"
 #include "vmsvga/svga_escape.h"
 #include "vmsvga/svga_overlay.h"
@@ -49,9 +51,6 @@
 
 
 /* DevVGA-SVGA.cpp: */
-void vmsvgaGMRFree(PVGASTATE pThis, uint32_t idGMR);
-int  vmsvgaGMRTransfer(PVGASTATE pThis, const SVGA3dTransferType enmTransferType, uint8_t *pDest, int32_t cbDestPitch,
-                       SVGAGuestPtr src, uint32_t offSrc, int32_t cbSrcPitch, uint32_t cbWidth, uint32_t cHeight);
 void vmsvga3dSurfaceUpdateHeapBuffersOnFifoThread(PVGASTATE pThis, uint32_t sid);
 
 
@@ -110,18 +109,17 @@ int vmsvga3dQueryWait(PVGASTATE pThis, uint32_t cid, SVGA3dQueryType type, SVGAG
 # define WM_VMSVGA3D_WAKEUP                     (WM_APP+1)
 # define WM_VMSVGA3D_CREATEWINDOW               (WM_APP+2)
 # define WM_VMSVGA3D_DESTROYWINDOW              (WM_APP+3)
-# define WM_VMSVGA3D_RESIZEWINDOW               (WM_APP+4)
 # define WM_VMSVGA3D_EXIT                       (WM_APP+5)
 
 DECLCALLBACK(int) vmsvga3dWindowThread(RTTHREAD ThreadSelf, void *pvUser);
 int vmsvga3dSendThreadMessage(RTTHREAD pWindowThread, RTSEMEVENT WndRequestSem, UINT msg, WPARAM wParam, LPARAM lParam);
+int vmsvga3dContextWindowCreate(HINSTANCE hInstance, RTTHREAD pWindowThread, RTSEMEVENT WndRequestSem, HWND *pHwnd);
 
 #endif
 
 void vmsvga3dUpdateHeapBuffersForSurfaces(PVGASTATE pThis, uint32_t sid);
 void vmsvga3dInfoContextWorker(PVGASTATE pThis, PCDBGFINFOHLP pHlp, uint32_t cid, bool fVerbose);
-void vmsvga3dInfoSurfaceWorker(PVGASTATE pThis, PCDBGFINFOHLP pHlp, uint32_t sid, bool fVerbose, uint32_t cxAscii, bool fInvY);
-
+void vmsvga3dInfoSurfaceWorker(PVGASTATE pThis, PCDBGFINFOHLP pHlp, uint32_t sid, bool fVerbose, uint32_t cxAscii, bool fInvY, const char *pszBitmapPath);
 
 /* DevVGA-SVGA3d-shared.cpp: */
 
@@ -229,5 +227,5 @@ const char *vmsvgaSurfaceType2String(SVGA3dSurfaceFormat format);
 const char *vmsvga3dPrimitiveType2String(SVGA3dPrimitiveType PrimitiveType);
 #endif
 
-#endif  /* !___DEVVMWARE3D_H___ */
+#endif /* !VBOX_INCLUDED_SRC_Graphics_DevVGA_SVGA3d_h */
 

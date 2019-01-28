@@ -3,7 +3,7 @@
  * VBox 3D Support API
  */
 /*
- * Copyright (C) 2012-2017 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,8 +22,12 @@
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
  */
-#ifndef ___VBoxOGL_h
-#define ___VBoxOGL_h
+
+#ifndef VBOX_INCLUDED_VBoxOGL_h
+#define VBOX_INCLUDED_VBoxOGL_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/cdefs.h>
 #include <iprt/types.h>
@@ -53,4 +57,4 @@ DECLEXPORT(int) VBoxOglSetScaleFactor(uint32_t idScreen, double dScaleFactorW, d
 
 RT_C_DECLS_END
 
-#endif /* !___VBoxOGL_h */
+#endif /* !VBOX_INCLUDED_VBoxOGL_h */

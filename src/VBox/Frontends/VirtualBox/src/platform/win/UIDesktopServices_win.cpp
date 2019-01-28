@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,28 +15,23 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* VBox includes */
-# include "UIDesktopServices.h"
+#include "UIDesktopServices.h"
 
 /* Qt includes */
-# include <QDir>
-# include <QCoreApplication>
+#include <QDir>
+#include <QCoreApplication>
+#include <QUuid>
 
 /* System includes */
-# include <iprt/win/shlobj.h>
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include <iprt/win/shlobj.h>
 
 
-bool UIDesktopServices::createMachineShortcut(const QString & /* strSrcFile */, const QString &strDstPath, const QString &strName, const QString &strUuid)
+bool UIDesktopServices::createMachineShortcut(const QString & /* strSrcFile */, const QString &strDstPath, const QString &strName, const QUuid &uUuid)
 {
     IShellLink *pShl = NULL;
     IPersistFile *pPPF = NULL;
-    QString strVBox = QDir::toNativeSeparators(QCoreApplication::applicationFilePath());
+    const QString strVBox = QDir::toNativeSeparators(QCoreApplication::applicationDirPath() + "/" + VBOX_GUI_VMRUNNER_IMAGE);
     QFileInfo fi(strVBox);
     QString strVBoxDir = QDir::toNativeSeparators(fi.absolutePath());
     HRESULT rc = CoCreateInstance(CLSID_ShellLink, NULL, CLSCTX_INPROC_SERVER, IID_IShellLink, (void**)(&pShl));
@@ -50,7 +45,7 @@ bool UIDesktopServices::createMachineShortcut(const QString & /* strSrcFile */, 
         rc = pShl->SetWorkingDirectory(strVBoxDir.utf16());
         if (FAILED(rc))
             break;
-        QString strArgs = QString("--comment \"%1\" --startvm \"%2\"").arg(strName).arg(strUuid);
+        QString strArgs = QString("--comment \"%1\" --startvm \"%2\"").arg(strName).arg(uUuid.toString());
         rc = pShl->SetArguments(strArgs.utf16());
         if (FAILED(rc))
             break;

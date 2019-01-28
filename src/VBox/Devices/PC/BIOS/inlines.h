@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,6 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifndef VBOX_INCLUDED_SRC_PC_BIOS_inlines_h
+#define VBOX_INCLUDED_SRC_PC_BIOS_inlines_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 extern unsigned inp(unsigned port);
 extern unsigned outp(unsigned port, unsigned value);
@@ -26,12 +31,38 @@ extern unsigned outpw(unsigned port, unsigned value);
 #define inw(p)      inpw(p)
 #define outw(p, v)  outpw(p, v)
 
-extern  uint8_t     read_byte(uint16_t seg, uint16_t offset);
-extern  uint16_t    read_word(uint16_t seg, uint16_t offset);
-extern  uint32_t    read_dword(uint16_t seg, uint16_t offset);
-extern  void        write_byte(uint16_t seg, uint16_t offset, uint8_t data);
-extern  void        write_word(uint16_t seg, uint16_t offset, uint16_t data);
-extern  void        write_dword(uint16_t seg, uint16_t offset, uint32_t data);
+/* Far byte/word/dword access routines. */
+
+inline uint8_t read_byte(uint16_t seg, uint16_t offset)
+{
+    return( *(seg:>(uint8_t *)offset) );
+}
+
+inline void write_byte(uint16_t seg, uint16_t offset, uint8_t data)
+{
+    *(seg:>(uint8_t *)offset) = data;
+}
+
+inline uint16_t read_word(uint16_t seg, uint16_t offset)
+{
+    return( *(seg:>(uint16_t *)offset) );
+}
+
+inline void write_word(uint16_t seg, uint16_t offset, uint16_t data)
+{
+    *(seg:>(uint16_t *)offset) = data;
+}
+
+inline uint32_t read_dword(uint16_t seg, uint16_t offset)
+{
+    return( *(seg:>(uint32_t *)offset) );
+}
+
+inline void write_dword(uint16_t seg, uint16_t offset, uint32_t data)
+{
+    *(seg:>(uint32_t *)offset) = data;
+}
+
 
 void int_enable(void);
 #pragma aux int_enable = "sti" modify exact [] nomemory;
@@ -211,3 +242,6 @@ void cpuid( uint32_t __far cpu_id[4], uint32_t leaf );
     parm [es di] [dx ax] modify [bx cx dx]
 
 #endif
+
+#endif /* !VBOX_INCLUDED_SRC_PC_BIOS_inlines_h */
+

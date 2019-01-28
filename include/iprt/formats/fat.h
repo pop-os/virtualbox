@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017 Oracle Corporation
+ * Copyright (C) 2017-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,8 +24,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___iprt_formats_fat_h
-#define ___iprt_formats_fat_h
+#ifndef IPRT_INCLUDED_formats_fat_h
+#define IPRT_INCLUDED_formats_fat_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/types.h>
 #include <iprt/assertcompile.h>
@@ -279,17 +282,19 @@ typedef struct FATBPB331FLAT
     uint16_t        cbSector;
     /** 0x0d / 0x02: Number of sectors per cluster. */
     uint8_t         cSectorsPerCluster;
-    /** 0x0e / 0x03: Number of reserved sectors before the first FAT. */
+    /** 0x0e / 0x03: Number of reserved sectors before the first FAT (0 for
+     *  NTFS). */
     uint16_t        cReservedSectors;
-    /** 0x10 / 0x05: Number of FATs. */
+    /** 0x10 / 0x05: Number of FATs (0 for NTFS). */
     uint8_t         cFats;
-    /** 0x11 / 0x06: Max size of the root directory (0 for FAT32). */
+    /** 0x11 / 0x06: Max size of the root directory (0 for FAT32 & NTFS). */
     uint16_t        cMaxRootDirEntries;
-    /** 0x13 / 0x08: Total sector count, zero if 32-bit count is used. */
+    /** 0x13 / 0x08: Total sector count, zero if 32-bit count is used (and for
+     * NTFS). */
     uint16_t        cTotalSectors16;
     /** 0x15 / 0x0a: Media ID. */
     uint8_t         bMedia;
-    /** 0x16 / 0x0b: Number of sectors per FAT (0 for FAT32). */
+    /** 0x16 / 0x0b: Number of sectors per FAT (0 for FAT32 & NTFS). */
     uint16_t        cSectorsPerFat;
     /** @} */
     /** @name New in DOS 3.0
@@ -306,7 +311,8 @@ typedef struct FATBPB331FLAT
      * the field overlapping FATBPB32::cAnotherTotalSectors */
     uint32_t        cHiddenSectors;
     /** 0x20 / 0x15: Total logical sectors.  Used if count >= 64K, otherwise
-     *  FATBPB20::cTotalSectors16 is used.  Zero if 64-bit value used with FAT32. */
+     * FATBPB20::cTotalSectors16 is used.  Zero if 64-bit value used with FAT32.
+     * (Zero for NTFS). */
     uint32_t        cTotalSectors32;
     /** @} */
 } FATBPB331FLAT;
@@ -434,6 +440,59 @@ typedef FAT32EBPB const *PCFAT32EBPB;
 
 
 /**
+ * NTFS extended BIOS parameter block (NTFSEBPB).
+ */
+#pragma pack(1)
+typedef struct NTFSEBPB
+{
+    /** The BPB.  */
+    FATBPB331FLAT   Bpb;
+
+    /** 0x24 / 0x19: BIOS INT13 pysical drive number.
+     * @note Same location as FATEBPB::bInt13Drive. */
+    uint8_t         bInt13Drive;
+    /** 0x25 / 0x1a: Reserved / flags */
+    uint8_t         bReserved;
+    /** 0x26 / 0x1b: Extended boot signature (NTFSEBPB_SIGNATURE).
+     * @note Same location as FATEBPB::bExtSignature. */
+    uint8_t         bExtSignature;
+    /** 0x27 / 0x1c: Reserved   */
+    uint8_t         bReserved2;
+
+    /** 0x28 / 0x1d: Number of sectors. */
+    uint64_t        cSectors;
+    /** 0x30 / 0x25: Logical cluster number of the master file table (MFT).   */
+    uint64_t        uLcnMft;
+    /** 0x38 / 0x2d: Logical cluster number of the MFT mirror. */
+    uint64_t        uLcnMftMirror;
+    /** 0x40 / 0x35: Logical clusters per file record segment.
+     * This is a shift count if negative.  */
+    int8_t          cClustersPerMftRecord;
+    /** 0x41 / 0x36: Reserved. */
+    uint8_t         abReserved3[3];
+    /** 0x44 / 0x39: The default logical clusters count per index node.
+     * This is a shift count if negative.  */
+    int8_t          cClustersPerIndexNode;
+    /** 0x45 / 0x3a: Reserved. */
+    uint8_t         abReserved4[3];
+    /** 0x48 / 0x3d: Volume serial number.
+     * @note This is larger than the the FAT serial numbers. */
+    uint64_t        uSerialNumber;
+    /** 0x50 / 0x45: Checksum. */
+    uint32_t        uChecksum;
+} NTFSEBPB;
+#pragma pack()
+AssertCompileSize(NTFSEBPB, 0x49);
+/** Pointer to a NTFS extended BIOS parameter block. */
+typedef NTFSEBPB *PNTFSEBPB;
+/** Pointer to a const NTFS extended BIOS parameter block. */
+typedef NTFSEBPB const *PCNTFSEBPB;
+
+/** NTFS EBPB signature (NTFSEBPB::bExtSignature). */
+#define NTFSEBPB_SIGNATURE   UINT8_C(0x80)
+
+
+/**
  * FAT boot sector layout.
  */
 #pragma pack(1)
@@ -453,6 +512,7 @@ typedef struct FATBOOTSECTOR
         FATBPB331FLAT   Bpb331;
         FATEBPB         Ebpb;
         FAT32EBPB       Fat32Ebpb;
+        NTFSEBPB        Ntfs;
     } Bpb;
     /** 0x05a: Bootloader code/data/stuff. */
     uint8_t             abStuff[0x1a3];
@@ -685,5 +745,5 @@ typedef FATDIRENTRYUNION const *PCFATDIRENTRYUNION;
 
 /** @} */
 
-#endif
+#endif /* !IPRT_INCLUDED_formats_fat_h */
 

@@ -8,7 +8,7 @@ VirtualBox Validation Kit - Local teleportation testdriver.
 
 __copyright__ = \
 """
-Copyright (C) 2010-2017 Oracle Corporation
+Copyright (C) 2010-2019 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 118412 $"
+__version__ = "$Revision: 127855 $"
 
 
 # Standard Python imports.
@@ -763,7 +763,7 @@ class tdTeleportLocal1(vbox.TestDriver):
 
         try:
             oSession.o.machine.teleporterPort = uPort;
-        except Exception, oXcpt:
+        except Exception as oXcpt:
             if not fInvalid or vbox.ComError.notEqual(oXcpt, vbox.ComError.E_INVALIDARG):
                 return reporter.testFailureXcpt('machine.teleporterPort=%u' % (uPort,));
         else:
@@ -874,14 +874,14 @@ class tdTeleportLocal1(vbox.TestDriver):
         fRc = False;
         try:
             oProgress = oSession.o.console.teleport(sHostname, uPort, sPassword, cMsMaxDowntime);
-        except vbox.ComException, oXcpt:
+        except vbox.ComException as oXcpt:
             if vbox.ComError.equal(oXcpt, hrcExpected):
                 fRc = True;
             else:
                 reporter.testFailure('hresult %s, expected %s' \
                                      % (vbox.ComError.toString(oXcpt.hresult),
                                         vbox.ComError.toString(hrcExpected)));
-        except Exception, oXcpt:
+        except Exception as oXcpt:
             reporter.testFailure('Unexpected exception %s' % (oXcpt));
         else:
             reporter.testFailure('Unpexected success');

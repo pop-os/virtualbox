@@ -7,9 +7,11 @@
 Cron job for importing revision history for a repository.
 """
 
+from __future__ import print_function;
+
 __copyright__ = \
 """
-Copyright (C) 2012-2017 Oracle Corporation
+Copyright (C) 2012-2019 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -28,12 +30,12 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 118412 $"
+__version__ = "$Revision: 127855 $"
 
 # Standard python imports
 import sys;
 import os;
-from optparse import OptionParser;
+from optparse import OptionParser; # pylint: disable=deprecated-module
 import xml.etree.ElementTree as ET;
 
 # Add Test Manager's modules path
@@ -110,12 +112,12 @@ class VcsImport(object): # pylint: disable=R0903
             asArgs.extend(self.oConfig.asExtraOptions);
         asArgs.append(self.oConfig.sUrl);
         if not self.oConfig.fQuiet:
-            print 'Executing: %s' % (asArgs,);
+            print('Executing: %s' % (asArgs,));
         sLogXml = utils.processOutputChecked(asArgs);
 
         # Parse the XML and add the entries to the database.
         oParser = ET.XMLParser(target = ET.TreeBuilder(), encoding = 'utf-8');
-        oParser.feed(sLogXml);
+        oParser.feed(sLogXml.encode('utf-8')); # does its own decoding and processOutputChecked always gives us decoded utf-8 now.
         oRoot = oParser.close();
 
         for oLogEntry in oRoot.findall('logentry'):
@@ -125,8 +127,11 @@ class VcsImport(object): # pylint: disable=R0903
             sMessage = oLogEntry.findtext('msg', '').strip();
             if sMessage == '':
                 sMessage = ' ';
+            elif len(sMessage) > VcsRevisionData.kcchMax_sMessage:
+                sMessage = sMessage[:VcsRevisionData.kcchMax_sMessage - 4] + ' ...';
             if not self.oConfig.fQuiet:
-                print 'sDate=%s iRev=%u sAuthor=%s sMsg[%s]=%s' % (sDate, iRevision, sAuthor, type(sMessage).__name__, sMessage);
+                utils.printOut(u'sDate=%s iRev=%u sAuthor=%s sMsg[%s]=%s'
+                               % (sDate, iRevision, sAuthor, type(sMessage).__name__, sMessage));
             oData = VcsRevisionData().initFromValues(self.oConfig.sRepository, iRevision, sDate, sAuthor, sMessage);
             oLogic.addVcsRevision(oData);
         oDb.commit();

@@ -7,7 +7,7 @@
  * Contributed by Ivo Smits <Ivo@UFO-Net.nl>, Howard Su and
  * Christophe Devriese <christophe.devriese@gmail.com>.
  *
- * Copyright (C) 2011-2017 Oracle Corporation
+ * Copyright (C) 2011-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -37,7 +37,7 @@
 #include <iprt/thread.h>
 #include <iprt/cpp/utils.h>
 
-#include <VBox/err.h>
+#include <iprt/errcore.h>
 #include <VBox/RemoteDesktop/VRDEOrders.h>
 #include <VBox/RemoteDesktop/VRDE.h>
 
@@ -312,7 +312,7 @@ DECLCALLBACK(int) VNCServerImpl::VRDEEnableConnections(HVRDESERVER hServer, bool
     else
     {
         const char szFeatName[] = "Property/TCP/Ports";
-        const uint32_t featLen = sizeof(VRDEFEATURE) + RT_MAX(sizeof(VNC_PORTSSIZE), sizeof(szFeatName)) - 1;
+        const uint32_t featLen = sizeof(VRDEFEATURE) + RT_MAX(VNC_PORTSSIZE, sizeof(szFeatName)) - 1;
         VRDEFEATURE *feature = (VRDEFEATURE *)RTMemTmpAlloc(featLen);
         feature->u32ClientId = 0;
         RTStrCopy(feature->achInfo, featLen - sizeof(VRDEFEATURE) + 1, szFeatName);

@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2010-2017 Oracle Corporation
+# Copyright (C) 2010-2019 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -189,7 +189,7 @@ endef
 # Tools Tools Tools
 #
 
-ifdef VBOX_USE_KSUBMIT
+if defined(VBOX_USE_KSUBMIT) && "$(KBUILD_HOST)" == "win"
  VBOX_BS3KIT_KSUBMIT_OBJ_CONV := kmk_builtin_kSubmit --
 else
  VBOX_BS3KIT_KSUBMIT_OBJ_CONV :=

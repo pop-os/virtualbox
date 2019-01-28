@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,9 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-
-#ifndef ___Debugger_DBGCInternal_h
-#define ___Debugger_DBGCInternal_h
+#ifndef DEBUGGER_INCLUDED_SRC_DBGCInternal_h
+#define DEBUGGER_INCLUDED_SRC_DBGCInternal_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 
 /*******************************************************************************
@@ -423,6 +425,8 @@ typedef DBGCSXEVT const *PCDBGCSXEVT;
 /** @name DBGCSXEVT_F_XXX
  * @{ */
 #define DBGCSXEVT_F_TAKE_ARG        RT_BIT_32(0)
+/** Windows bugcheck, should take 5 arguments. */
+#define DBGCSXEVT_F_BUGCHECK        RT_BIT_32(1)
 /** @} */
 
 
@@ -606,5 +610,5 @@ extern const uint32_t   g_cDbgcSxEvents;
 
 
 
-#endif
+#endif /* !DEBUGGER_INCLUDED_SRC_DBGCInternal_h */
 

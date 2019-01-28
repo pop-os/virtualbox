@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -49,17 +49,19 @@
  * waiters may never know that event processing finished.
  */
 
+#define LOG_GROUP LOG_GROUP_MAIN_EVENT
 #include <list>
 #include <map>
 #include <deque>
 
 #include "EventImpl.h"
 #include "AutoCaller.h"
-#include "Logging.h"
+#include "LoggingNew.h"
 
-#include <iprt/semaphore.h>
-#include <iprt/critsect.h>
 #include <iprt/asm.h>
+#include <iprt/critsect.h>
+#include <iprt/errcore.h>
+#include <iprt/semaphore.h>
 #include <iprt/time.h>
 
 #include <VBox/com/array.h>
@@ -748,9 +750,8 @@ ListenerRecord::ListenerRecord(IEventListener *aListener,
                                com::SafeArray<VBoxEventType_T> &aInterested,
                                BOOL aActive,
                                EventSource *aOwner) :
-    mActive(aActive), mOwner(aOwner), mQEventBusyCnt(0), mRefCnt(0)
+    mListener(aListener), mActive(aActive), mOwner(aOwner), mQEventBusyCnt(0), mRefCnt(0)
 {
-    mListener = aListener;
     EventMap *aEvMap = &aOwner->m->mEvMap;
 
     for (size_t i = 0; i < aInterested.size(); ++i)

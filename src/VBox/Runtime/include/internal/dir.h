@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,8 +24,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___internal_dir_h
-#define ___internal_dir_h
+#ifndef IPRT_INCLUDED_INTERNAL_dir_h
+#define IPRT_INCLUDED_INTERNAL_dir_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/cdefs.h>
 #include <iprt/types.h>
@@ -88,11 +91,18 @@ typedef struct RTDIRINTERNAL
     size_t              cbSelf;
     /** The RTDIR_F_XXX flags passed to RTDirOpenFiltered */
     uint32_t            fFlags;
+    /** Set if the specified path included a directory slash or if enmFilter is not RTDIRFILTER_NONE.
+     * This is relevant for how to interpret the RTDIR_F_NO_FOLLOW flag, as it won't
+     * have any effect if the specified path ends with a slash on posix systems.  We
+     * implement that on the other systems too, for consistency. */
+    bool                fDirSlash;
     /** Set to indicate that the Data member contains unread data. */
     bool                fDataUnread;
 
 #ifndef RTDIR_AGNOSTIC
 # ifdef RT_OS_WINDOWS
+    /** Set by RTDirRewind. */
+    bool                fRestartScan;
     /** Handle to the opened directory search. */
     HANDLE              hDir;
 #  ifndef RTNT_USE_NATIVE_NT
@@ -186,4 +196,4 @@ size_t rtDirNativeGetStructSize(const char *pszPath);
 DECLHIDDEN(int) rtDirOpenRelativeOrHandle(RTDIR *phDir, const char *pszRelativeAndFilter, RTDIRFILTER enmFilter,
                                           uint32_t fFlags, uintptr_t hRelativeDir, void *pvNativeRelative);
 
-#endif
+#endif /* !IPRT_INCLUDED_INTERNAL_dir_h */

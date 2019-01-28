@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,32 +15,27 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QGridLayout>
-# include <QVBoxLayout>
-# include <QHBoxLayout>
-# include <QButtonGroup>
-# include <QGroupBox>
-# include <QRadioButton>
-# include <QCheckBox>
-# include <QLineEdit>
+#include <QButtonGroup>
+#include <QCheckBox>
+#include <QGridLayout>
+#include <QGroupBox>
+#include <QHBoxLayout>
+#include <QLineEdit>
+#include <QRadioButton>
+#include <QVBoxLayout>
 
 /* GUI includes: */
-# include "UIWizardCloneVDPageExpert.h"
-# include "UIWizardCloneVD.h"
-# include "UIMessageCenter.h"
-# include "UIIconPool.h"
-# include "VBoxMediaComboBox.h"
-# include "QIToolButton.h"
+#include "QIToolButton.h"
+#include "UIConverter.h"
+#include "UIIconPool.h"
+#include "UIMediaComboBox.h"
+#include "UIMessageCenter.h"
+#include "UIWizardCloneVD.h"
+#include "UIWizardCloneVDPageExpert.h"
 
 /* COM includes: */
-# include "CSystemProperties.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "CSystemProperties.h"
 
 
 UIWizardCloneVDPageExpert::UIWizardCloneVDPageExpert(const CMedium &comSourceVirtualDisk, KDeviceType enmDeviceType)
@@ -53,7 +48,7 @@ UIWizardCloneVDPageExpert::UIWizardCloneVDPageExpert(const CMedium &comSourceVir
             m_pSourceDiskCnt->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Fixed);
             QHBoxLayout *pSourceDiskCntLayout = new QHBoxLayout(m_pSourceDiskCnt);
             {
-                m_pSourceDiskSelector = new VBoxMediaComboBox(m_pSourceDiskCnt);
+                m_pSourceDiskSelector = new UIMediaComboBox(m_pSourceDiskCnt);
                 {
                     m_pSourceDiskSelector->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
                     m_pSourceDiskSelector->setType(UIMediumDefs::mediumTypeToLocal(enmDeviceType));
@@ -164,13 +159,20 @@ UIWizardCloneVDPageExpert::UIWizardCloneVDPageExpert(const CMedium &comSourceVir
     }
 
     /* Setup connections: */
-    connect(m_pSourceDiskSelector, SIGNAL(currentIndexChanged(int)), this, SLOT(sltHandleSourceDiskChange()));
-    connect(m_pSourceDiskOpenButton, SIGNAL(clicked()), this, SLOT(sltHandleOpenSourceDiskClick()));
-    connect(m_pFormatButtonGroup, SIGNAL(buttonClicked(QAbstractButton*)), this, SLOT(sltMediumFormatChanged()));
-    connect(m_pVariantButtonGroup, SIGNAL(buttonClicked(QAbstractButton *)), this, SIGNAL(completeChanged()));
-    connect(m_pSplitBox, SIGNAL(stateChanged(int)), this, SIGNAL(completeChanged()));
-    connect(m_pDestinationDiskEditor, SIGNAL(textChanged(const QString &)), this, SIGNAL(completeChanged()));
-    connect(m_pDestinationDiskOpenButton, SIGNAL(clicked()), this, SLOT(sltSelectLocationButtonClicked()));
+    connect(m_pSourceDiskSelector, static_cast<void(UIMediaComboBox::*)(int)>(&UIMediaComboBox::currentIndexChanged),
+            this, &UIWizardCloneVDPageExpert::sltHandleSourceDiskChange);
+    connect(m_pSourceDiskOpenButton, &QIToolButton::clicked,
+            this, &UIWizardCloneVDPageExpert::sltHandleOpenSourceDiskClick);
+    connect(m_pFormatButtonGroup, static_cast<void(QButtonGroup::*)(QAbstractButton*)>(&QButtonGroup::buttonClicked),
+            this, &UIWizardCloneVDPageExpert::sltMediumFormatChanged);
+    connect(m_pVariantButtonGroup, static_cast<void(QButtonGroup::*)(QAbstractButton*)>(&QButtonGroup::buttonClicked),
+            this, &UIWizardCloneVDPageExpert::completeChanged);
+    connect(m_pSplitBox, &QCheckBox::stateChanged,
+            this, &UIWizardCloneVDPageExpert::completeChanged);
+    connect(m_pDestinationDiskEditor, &QLineEdit::textChanged,
+            this, &UIWizardCloneVDPageExpert::completeChanged);
+    connect(m_pDestinationDiskOpenButton, &QIToolButton::clicked,
+            this, &UIWizardCloneVDPageExpert::sltSelectLocationButtonClicked);
 
     /* Register classes: */
     qRegisterMetaType<CMedium>();
@@ -257,7 +259,8 @@ void UIWizardCloneVDPageExpert::retranslateUi()
     for (int i = 0; i < buttons.size(); ++i)
     {
         QAbstractButton *pButton = buttons[i];
-        pButton->setText(VBoxGlobal::fullMediumFormatName(m_formatNames[m_pFormatButtonGroup->id(pButton)]));
+        UIMediumFormat enmFormat = gpConverter->fromInternalString<UIMediumFormat>(m_formatNames[m_pFormatButtonGroup->id(pButton)]);
+        pButton->setText(gpConverter->toString(enmFormat));
     }
     m_pVariantCnt->setTitle(UIWizardCloneVD::tr("Storage on physical hard disk"));
     m_pDynamicalButton->setText(UIWizardCloneVD::tr("&Dynamically allocated"));

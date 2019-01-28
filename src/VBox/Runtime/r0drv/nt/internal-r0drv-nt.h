@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,8 +24,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___internal_r0drv_h
-#define ___internal_r0drv_h
+#ifndef IPRT_INCLUDED_SRC_r0drv_nt_internal_r0drv_nt_h
+#define IPRT_INCLUDED_SRC_r0drv_nt_internal_r0drv_nt_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/cpuset.h>
 #include <iprt/nt/nt.h>
@@ -57,6 +60,8 @@ extern uint32_t                                g_cRtMpNtMaxGroups;
 extern uint32_t                                g_cRtMpNtMaxCpus;
 extern RTCPUID                                 g_aidRtMpNtByCpuSetIdx[RTCPUSET_MAX_CPUS];
 
+extern decltype(ExAllocatePoolWithTag)        *g_pfnrtExAllocatePoolWithTag;
+extern decltype(ExFreePoolWithTag)            *g_pfnrtExFreePoolWithTag;
 extern PFNMYEXSETTIMERRESOLUTION               g_pfnrtNtExSetTimerResolution;
 extern PFNMYKEFLUSHQUEUEDDPCS                  g_pfnrtNtKeFlushQueuedDpcs;
 extern PFNHALREQUESTIPI_W7PLUS                 g_pfnrtHalRequestIpiW7Plus;
@@ -79,10 +84,21 @@ extern PFNKEQUERYACTIVEPROCESSORCOUNTEX        g_pfnrtKeQueryActiveProcessorCoun
 extern PFNKEQUERYLOGICALPROCESSORRELATIONSHIP  g_pfnrtKeQueryLogicalProcessorRelationship;
 extern PFNKEREGISTERPROCESSORCHANGECALLBACK    g_pfnrtKeRegisterProcessorChangeCallback;
 extern PFNKEDEREGISTERPROCESSORCHANGECALLBACK  g_pfnrtKeDeregisterProcessorChangeCallback;
+extern decltype(KeSetImportanceDpc)           *g_pfnrtKeSetImportanceDpc;
+extern decltype(KeSetTargetProcessorDpc)      *g_pfnrtKeSetTargetProcessorDpc;
+extern decltype(KeInitializeTimerEx)          *g_pfnrtKeInitializeTimerEx;
+extern PFNKESHOULDYIELDPROCESSOR               g_pfnrtKeShouldYieldProcessor;
+extern decltype(MmProtectMdlSystemAddress)    *g_pfnrtMmProtectMdlSystemAddress;
+extern decltype(MmAllocatePagesForMdl)        *g_pfnrtMmAllocatePagesForMdl;
+extern decltype(MmFreePagesFromMdl)           *g_pfnrtMmFreePagesFromMdl;
+extern decltype(MmMapLockedPagesSpecifyCache) *g_pfnrtMmMapLockedPagesSpecifyCache;
+extern decltype(MmAllocateContiguousMemorySpecifyCache) *g_pfnrtMmAllocateContiguousMemorySpecifyCache;
+extern decltype(MmSecureVirtualMemory)        *g_pfnrtMmSecureVirtualMemory;
+extern decltype(MmUnsecureVirtualMemory)      *g_pfnrtMmUnsecureVirtualMemory;
+
 extern PFNRTRTLGETVERSION                      g_pfnrtRtlGetVersion;
-#ifndef RT_ARCH_AMD64
+#ifdef RT_ARCH_X86
 extern PFNRTKEQUERYINTERRUPTTIME               g_pfnrtKeQueryInterruptTime;
-extern PFNRTKEQUERYSYSTEMTIME                  g_pfnrtKeQuerySystemTime;
 #endif
 extern PFNRTKEQUERYINTERRUPTTIMEPRECISE        g_pfnrtKeQueryInterruptTimePrecise;
 extern PFNRTKEQUERYSYSTEMTIMEPRECISE           g_pfnrtKeQuerySystemTimePrecise;
@@ -99,7 +115,11 @@ extern uint8_t                                 g_uRtNtMajorVer;
 extern uint8_t                                 g_uRtNtMinorVer;
 extern uint32_t                                g_uRtNtBuildNo;
 
+extern uintptr_t const                        *g_puRtMmHighestUserAddress;
+extern uintptr_t const                        *g_puRtMmSystemRangeStart;
 
+
+int __stdcall rtMpPokeCpuUsingFailureNotSupported(RTCPUID idCpu);
 int __stdcall rtMpPokeCpuUsingDpc(RTCPUID idCpu);
 int __stdcall rtMpPokeCpuUsingBroadcastIpi(RTCPUID idCpu);
 int __stdcall rtMpPokeCpuUsingHalReqestIpiW7Plus(RTCPUID idCpu);
@@ -108,9 +128,12 @@ int __stdcall rtMpPokeCpuUsingHalReqestIpiPreW7(RTCPUID idCpu);
 struct RTNTSDBOSVER;
 DECLHIDDEN(int)  rtR0MpNtInit(struct RTNTSDBOSVER const *pOsVerInfo);
 DECLHIDDEN(void) rtR0MpNtTerm(void);
-DECLHIDDEN(int) rtMpNtSetTargetProcessorDpc(KDPC *pDpc, RTCPUID idCpu);
+DECLHIDDEN(int)  rtMpNtSetTargetProcessorDpc(KDPC *pDpc, RTCPUID idCpu);
+#if defined(RT_ARCH_X86) && defined(NIL_RTDBGKRNLINFO)
+DECLHIDDEN(int)  rtR0Nt3InitSymbols(RTDBGKRNLINFO hKrnlInfo);
+#endif
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !IPRT_INCLUDED_SRC_r0drv_nt_internal_r0drv_nt_h */
 

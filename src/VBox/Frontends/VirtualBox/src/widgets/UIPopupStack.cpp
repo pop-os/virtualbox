@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2017 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,28 +15,23 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 /* Qt includes: */
-# include <QVBoxLayout>
-# include <QScrollArea>
-# include <QEvent>
-# include <QMainWindow>
-# include <QMenuBar>
-# include <QStatusBar>
+#include <QEvent>
+#include <QMainWindow>
+#include <QMenuBar>
+#include <QScrollArea>
+#include <QStatusBar>
+#include <QVBoxLayout>
 
 /* GUI includes: */
-# include "VBoxGlobal.h"
-# include "UIPopupStack.h"
-# include "UIPopupStackViewport.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "VBoxGlobal.h"
+#include "UIPopupStack.h"
+#include "UIPopupStackViewport.h"
 
 
-UIPopupStack::UIPopupStack(const QString &strID, UIPopupStackOrientation orientation)
+UIPopupStack::UIPopupStack(const QString &strID, UIPopupStackOrientation enmOrientation)
     : m_strID(strID)
-    , m_orientation(orientation)
+    , m_enmOrientation(enmOrientation)
     , m_pScrollArea(0)
     , m_pScrollViewport(0)
     , m_iParentMenuBarHeight(0)
@@ -46,18 +41,18 @@ UIPopupStack::UIPopupStack(const QString &strID, UIPopupStackOrientation orienta
     prepare();
 }
 
-bool UIPopupStack::exists(const QString &strPopupPaneID) const
+bool UIPopupStack::exists(const QString &strID) const
 {
     /* Redirect question to viewport: */
-    return m_pScrollViewport->exists(strPopupPaneID);
+    return m_pScrollViewport->exists(strID);
 }
 
-void UIPopupStack::createPopupPane(const QString &strPopupPaneID,
+void UIPopupStack::createPopupPane(const QString &strID,
                                    const QString &strMessage, const QString &strDetails,
                                    const QMap<int, QString> &buttonDescriptions)
 {
     /* Redirect request to viewport: */
-    m_pScrollViewport->createPopupPane(strPopupPaneID,
+    m_pScrollViewport->createPopupPane(strID,
                                        strMessage, strDetails,
                                        buttonDescriptions);
 
@@ -65,28 +60,28 @@ void UIPopupStack::createPopupPane(const QString &strPopupPaneID,
     propagateSize();
 }
 
-void UIPopupStack::updatePopupPane(const QString &strPopupPaneID,
+void UIPopupStack::updatePopupPane(const QString &strID,
                                    const QString &strMessage, const QString &strDetails)
 {
     /* Redirect request to viewport: */
-    m_pScrollViewport->updatePopupPane(strPopupPaneID,
+    m_pScrollViewport->updatePopupPane(strID,
                                        strMessage, strDetails);
 }
 
-void UIPopupStack::recallPopupPane(const QString &strPopupPaneID)
+void UIPopupStack::recallPopupPane(const QString &strID)
 {
     /* Redirect request to viewport: */
-    m_pScrollViewport->recallPopupPane(strPopupPaneID);
+    m_pScrollViewport->recallPopupPane(strID);
 }
 
-void UIPopupStack::setOrientation(UIPopupStackOrientation orientation)
+void UIPopupStack::setOrientation(UIPopupStackOrientation enmOrientation)
 {
     /* Make sure orientation has changed: */
-    if (m_orientation == orientation)
+    if (m_enmOrientation == enmOrientation)
         return;
 
     /* Update orientation: */
-    m_orientation = orientation;
+    m_enmOrientation = enmOrientation;
     sltAdjustGeometry();
 }
 
@@ -108,6 +103,45 @@ void UIPopupStack::setParent(QWidget *pParent, Qt::WindowFlags flags)
     m_iParentMenuBarHeight = parentMenuBarHeight(pParent);
     /* Recalculate parent status-bar height: */
     m_iParentStatusBarHeight = parentStatusBarHeight(pParent);
+}
+
+bool UIPopupStack::eventFilter(QObject *pWatched, QEvent *pEvent)
+{
+    /* Call to base-class if that is not parent event: */
+    if (!parent() || pWatched != parent())
+        return QWidget::eventFilter(pWatched, pEvent);
+
+    /* Handle parent geometry events: */
+    switch (pEvent->type())
+    {
+        case QEvent::Resize:
+        {
+            /* Propagate size: */
+            propagateSize();
+            /* Adjust geometry: */
+            sltAdjustGeometry();
+            break;
+        }
+        case QEvent::Move:
+        {
+            /* Adjust geometry: */
+            sltAdjustGeometry();
+            break;
+        }
+        default:
+            break; /* Shuts up MSC. */
+    }
+
+    /* Call to base-class: */
+    return QWidget::eventFilter(pWatched, pEvent);
+}
+
+void UIPopupStack::showEvent(QShowEvent*)
+{
+    /* Propagate size: */
+    propagateSize();
+    /* Adjust geometry: */
+    sltAdjustGeometry();
 }
 
 void UIPopupStack::sltAdjustGeometry()
@@ -148,7 +182,7 @@ void UIPopupStack::sltAdjustGeometry()
         iX += geo.x();
         iY += geo.y();
     }
-    switch (m_orientation)
+    switch (m_enmOrientation)
     {
         case UIPopupStackOrientation_Top:
         {
@@ -188,17 +222,14 @@ void UIPopupStack::prepare()
     /* Configure background: */
     setAutoFillBackground(false);
 #if defined(VBOX_WS_WIN) || defined (VBOX_WS_MAC)
-    /* Using Qt API to enable translucent background for the Win/Mac host.
-     * - Under x11 host Qt 4.8.3 has it broken wih KDE 4.9 for now: */
+    /* Using Qt API to enable translucent background for the Win/Mac host: */
     setAttribute(Qt::WA_TranslucentBackground);
-#endif /* VBOX_WS_WIN || VBOX_WS_MAC */
+#endif
 
 #ifdef VBOX_WS_MAC
-    /* Do not hide popup-stack
-     * and actually the seamless machine-window too
-     * due to Qt bug on window deactivation... */
+    /* Do not hide popup-stack: */
     setAttribute(Qt::WA_MacAlwaysShowToolWindow);
-#endif /* VBOX_WS_MAC */
+#endif
 
     /* Prepare content: */
     prepareContent();
@@ -246,44 +277,6 @@ void UIPopupStack::prepareContent()
         /* Add scroll-area to layout: */
         m_pMainLayout->addWidget(m_pScrollArea);
     }
-}
-
-bool UIPopupStack::eventFilter(QObject *pWatched, QEvent *pEvent)
-{
-    /* Call to base-class if that is not parent event: */
-    if (!parent() || pWatched != parent())
-        return QWidget::eventFilter(pWatched, pEvent);
-
-    /* Handle parent geometry events: */
-    switch (pEvent->type())
-    {
-        case QEvent::Resize:
-        {
-            /* Propagate size: */
-            propagateSize();
-            /* Adjust geometry: */
-            sltAdjustGeometry();
-            break;
-        }
-        case QEvent::Move:
-        {
-            /* Adjust geometry: */
-            sltAdjustGeometry();
-            break;
-        }
-        default: break; /* Shuts up MSC.  */
-    }
-
-    /* Call to base-class: */
-    return QWidget::eventFilter(pWatched, pEvent);
-}
-
-void UIPopupStack::showEvent(QShowEvent*)
-{
-    /* Propagate size: */
-    propagateSize();
-    /* Adjust geometry: */
-    sltAdjustGeometry();
 }
 
 void UIPopupStack::propagateSize()
@@ -341,7 +334,7 @@ int UIPopupStack::parentStatusBarHeight(QWidget *pParent)
         {
             /* Search for existing status-bar child: */
             if (QStatusBar *pStatusBar = pMainWindow->findChild<QStatusBar*>())
-                if(pStatusBar->isVisible())
+                if (pStatusBar->isVisible())
                     return pStatusBar->height();
 
         }
@@ -349,4 +342,3 @@ int UIPopupStack::parentStatusBarHeight(QWidget *pParent)
     /* Zero by default: */
     return 0;
 }
-

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef DEV_PCBIOS_H
-#define DEV_PCBIOS_H
+#ifndef VBOX_INCLUDED_SRC_PC_DevPcBios_h
+#define VBOX_INCLUDED_SRC_PC_DevPcBios_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /** @def VBOX_DMI_TABLE_BASE */
 #define VBOX_DMI_TABLE_BASE         0xe1000
@@ -29,6 +32,12 @@
  */
 #define VBOX_DMI_TABLE_SIZE         768
 
+/** def VBOX_DMI_TABLE_SIZE
+ *
+ * The size should be at least 16-byte aligned for a proper alignment of
+ * the MPS table.
+ */
+#define VBOX_DMI_HDR_SIZE           32
 
 /** @def VBOX_LANBOOT_SEG
  *
@@ -40,4 +49,4 @@
 #define VBOX_SMBIOS_MINOR_VER       5
 #define VBOX_SMBIOS_MAXSS           0xff   /* Not very accurate */
 
-#endif
+#endif /* !VBOX_INCLUDED_SRC_PC_DevPcBios_h */

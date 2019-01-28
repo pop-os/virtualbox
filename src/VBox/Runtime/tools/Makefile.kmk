@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2017 Oracle Corporation
+# Copyright (C) 2006-2019 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -28,22 +28,24 @@ SUB_DEPTH = ../../../..
 include $(KBUILD_PATH)/subheader.kmk
 
 
-# RTIsoMaker - ISO image maker - build version.
-BLDPROGS += bldRTIsoMaker
-bldRTIsoMaker_TEMPLATE = VBoxAdvBldProg
-bldRTIsoMaker_SOURCES = \
-	RTIsoMaker.cpp \
-       ../common/misc/buildconfig.cpp
-bldRTIsoMaker_DEFS = \
-	IPRT_BLDCFG_SCM_REV=$(if $(VBOX_SVN_REV_FALLBACK),$(VBOX_SVN_REV_FALLBACK),$(VBOX_SVN_REV)) \
-	IPRT_BLDCFG_VERSION_STRING=\"$(VBOX_VERSION_STRING)\" \
-	IPRT_BLDCFG_VERSION_MAJOR=$(VBOX_VERSION_MAJOR) \
-	IPRT_BLDCFG_VERSION_MINOR=$(VBOX_VERSION_MINOR) \
-	IPRT_BLDCFG_VERSION_BUILD=$(VBOX_VERSION_BUILD) \
-	IPRT_BLDCFG_TARGET=\"$(KBUILD_TARGET)\" \
-	IPRT_BLDCFG_TARGET_ARCH=\"$(KBUILD_TARGET_ARCH)\" \
-	IPRT_BLDCFG_TYPE=\"$(KBUILD_TYPE)\"
-bldRTIsoMaker_INCS = ../include
+if !defined(VBOX_ONLY_EXTPACKS) && !defined(VBOX_ONLY_DOCS)
+ # RTIsoMaker - ISO image maker - build version.
+ BLDPROGS += bldRTIsoMaker
+ bldRTIsoMaker_TEMPLATE = VBoxAdvBldProg
+ bldRTIsoMaker_SOURCES = \
+ 	RTIsoMaker.cpp \
+        ../common/misc/buildconfig.cpp
+ bldRTIsoMaker_DEFS = \
+ 	IPRT_BLDCFG_SCM_REV=$(if $(VBOX_SVN_REV_FALLBACK),$(VBOX_SVN_REV_FALLBACK),$(VBOX_SVN_REV)) \
+ 	IPRT_BLDCFG_VERSION_STRING=\"$(VBOX_VERSION_STRING)\" \
+ 	IPRT_BLDCFG_VERSION_MAJOR=$(VBOX_VERSION_MAJOR) \
+ 	IPRT_BLDCFG_VERSION_MINOR=$(VBOX_VERSION_MINOR) \
+ 	IPRT_BLDCFG_VERSION_BUILD=$(VBOX_VERSION_BUILD) \
+ 	IPRT_BLDCFG_TARGET=\"$(KBUILD_TARGET)\" \
+ 	IPRT_BLDCFG_TARGET_ARCH=\"$(KBUILD_TARGET_ARCH)\" \
+ 	IPRT_BLDCFG_TYPE=\"$(KBUILD_TYPE)\"
+ bldRTIsoMaker_INCS = ../include
+endif
 
 
 if !defined(VBOX_ONLY_DOCS)
@@ -53,7 +55,8 @@ if !defined(VBOX_ONLY_DOCS)
  bldRTManifest_TEMPLATE = VBoxAdvBldProg
  bldRTManifest_SOURCES  = RTManifest.cpp
 
- if !defined(VBOX_ONLY_EXTPACKS) || "$(KBUILD_TARGET)" == "win"
+
+ if !defined(VBOX_ONLY_EXTPACKS) || "$(KBUILD_TARGET)" == "win" || "$(KBUILD_TARGET)" == "darwin"
   # RTSignTool - Signing utility - build version.  Signed on windows so we can get the certificate from it.
   BLDPROGS += bldRTSignTool
   bldRTSignTool_TEMPLATE = VBoxAdvBldProg
@@ -65,6 +68,13 @@ if !defined(VBOX_ONLY_DOCS)
   endif
  endif
 
+ if !defined(VBOX_ONLY_EXTPACKS)
+  # RTLdrCheckImports - import checker.
+  PROGRAMS += bldRTLdrCheckImports
+  bldRTLdrCheckImports_TEMPLATE = VBoxAdvBldProg
+  bldRTLdrCheckImports_DEFS = IPRT_IN_BUILD_TOOL
+  bldRTLdrCheckImports_SOURCES = RTLdrCheckImports.cpp
+ endif
 endif
 
 if !defined(VBOX_ONLY_BUILD)
@@ -79,6 +89,12 @@ if !defined(VBOX_ONLY_BUILD)
  PROGRAMS += RTChMod
  RTChMod_TEMPLATE = VBoxR3Tool
  RTChMod_SOURCES = RTChMod.cpp
+
+ # RTCp - our cp clone.
+ PROGRAMS += RTCp
+ RTCp_TEMPLATE = VBoxR3Tool
+ RTCp_SOURCES = RTCp.cpp
+ RTCp_SOURCES += ../VBox/LoadVBoxDDU.cpp
 
  # RTIsoMaker - ISO image maker - build version.
  PROGRAMS += RTIsoMaker
@@ -121,6 +137,12 @@ if !defined(VBOX_ONLY_BUILD)
   RTHttp_TEMPLATE = VBoxR3Tool
   RTHttp_SOURCES = RTHttp.cpp
  endif
+
+ # RTLdrCheckImports - import checker.
+ PROGRAMS += RTLdrCheckImports
+ RTLdrCheckImports_TEMPLATE = VBoxR3Tool
+ RTLdrCheckImports_SOURCES = RTLdrCheckImports.cpp
+ RTLdrCheckImports_SOURCES += ../VBox/LoadVBoxDDU.cpp
 
  # RTMkDir - our mkdir clone.
  PROGRAMS += RTMkDir
@@ -169,6 +191,11 @@ if !defined(VBOX_ONLY_BUILD)
  PROGRAMS += RTTraceLogTool
  RTTraceLogTool_TEMPLATE = VBoxR3Tool
  RTTraceLogTool_SOURCES = RTTraceLogTool.cpp
+
+ # RTFuzzMaster - Fuzzing master tool.
+ PROGRAMS += RTFuzzMaster
+ RTFuzzMaster_TEMPLATE = VBoxR3Tool
+ RTFuzzMaster_SOURCES = RTFuzzMaster.cpp
 
  if1of ($(KBUILD_TARGET), darwin linux solaris win)
   # RTKrnlModInfo - our lsmod/kextstat clone (for testing the RTKrnlMod code).

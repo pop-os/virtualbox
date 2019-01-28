@@ -1,10 +1,10 @@
 ; $Id: vcc100-kernel32-fakesA.asm $
 ;; @file
-; IPRT - Wrappers for kernel32 APIs misisng NT4.
+; IPRT - Wrappers for kernel32 APIs missing in NT4 and earlier.
 ;
 
 ;
-; Copyright (C) 2006-2017 Oracle Corporation
+; Copyright (C) 2006-2019 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -25,38 +25,12 @@
 ;
 
 
-%include "iprt/asmdefs.mac"
+%include "vcc100-fakes.mac"
 
-%ifndef RT_ARCH_X86
- %error "This is x86 only code.
-%endif
-
-
-%macro MAKE_IMPORT_ENTRY 2
-extern _ %+ %1 %+ @ %+ %2
-global __imp__ %+ %1 %+ @ %+ %2
-__imp__ %+ %1 %+ @ %+ %2:
-    dd _ %+ %1 %+ @ %+ %2
-
-%endmacro
-
+%define FAKE_MODULE_NAME kernel32
 
 BEGINDATA
 GLOBALNAME vcc100_kernel32_fakes_asm
 
-MAKE_IMPORT_ENTRY DecodePointer, 4
-MAKE_IMPORT_ENTRY EncodePointer, 4
-MAKE_IMPORT_ENTRY InitializeCriticalSectionAndSpinCount, 8
-MAKE_IMPORT_ENTRY HeapSetInformation, 16
-MAKE_IMPORT_ENTRY HeapQueryInformation, 20
-MAKE_IMPORT_ENTRY CreateTimerQueue, 0
-MAKE_IMPORT_ENTRY CreateTimerQueueTimer, 28
-MAKE_IMPORT_ENTRY DeleteTimerQueueTimer, 12
-MAKE_IMPORT_ENTRY InitializeSListHead, 4
-MAKE_IMPORT_ENTRY InterlockedFlushSList, 4
-MAKE_IMPORT_ENTRY InterlockedPopEntrySList, 4
-MAKE_IMPORT_ENTRY InterlockedPushEntrySList, 8
-MAKE_IMPORT_ENTRY QueryDepthSList, 4
-MAKE_IMPORT_ENTRY VerifyVersionInfoA, 16
-MAKE_IMPORT_ENTRY VerSetConditionMask, 16
+%include "vcc100-kernel32-fakes.h"
 

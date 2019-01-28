@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017 Oracle Corporation
+ * Copyright (C) 2017-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,8 +18,12 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
-#ifndef ___VDBackendsInline_h
-#define ___VDBackendsInline_h
+
+#ifndef VBOX_INCLUDED_SRC_Storage_VDBackendsInline_h
+#define VBOX_INCLUDED_SRC_Storage_VDBackendsInline_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/cdefs.h>
 
@@ -108,4 +112,4 @@ RT_C_DECLS_BEGIN
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !VBOX_INCLUDED_SRC_Storage_VDBackendsInline_h */

@@ -4,7 +4,7 @@
 ;
 
 ;
-; Copyright (C) 2006-2017 Oracle Corporation
+; Copyright (C) 2006-2019 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -49,6 +49,9 @@ struc VMMR0JMPBUF
     .SpResume       resd 1
     .SavedEsp       resd 1
     .SavedEbp       resd 1
+    .SavedEipForUnwind      resd 1
+    .UnwindRetPcValue       resd 1
+    .UnwindRetPcLocation    resd 1
 %endif
 %ifdef RT_ARCH_AMD64
     ; traditional jmp_buf
@@ -86,9 +89,13 @@ struc VMMR0JMPBUF
     .SpResume       resq 1
     .SavedEsp       resq 1
     .SavedEbp       resq 1
+    .SavedEipForUnwind      resq 1
+    .UnwindRetPcValue       resq 1
+    .UnwindRetPcLocation    resq 1
 %endif
 
     ; Statistics
+    alignb 8
     .cbUsedMax      resd 1
     .cbUsedAvg      resd 1
     .cbUsedTotal    resq 1
@@ -106,15 +113,22 @@ struc VMMCPU
 
         .pR0LoggerR3            RTR3PTR_RES 1
         .pR0LoggerR0            RTR0PTR_RES 1
+        .pR0RelLoggerR3         RTR3PTR_RES 1
+        .pR0RelLoggerR0         RTR0PTR_RES 1
 
         .hCtxHook               RTR0PTR_RES 1
 
         .fInRendezvous          resb 1
 %if HC_ARCH_BITS == 32
-        .afPadding              resb 3+4
+        .afPadding              resb 2
 %else
-        .afPadding              resb 7+8
+        .afPadding              resb 6+4
 %endif
+        .fMayHaltInRing0        resb 1
+        .cNsSpinBlockThreshold  resd 1
+        .cR0Halts               resd 1
+        .cR0HaltsSucceeded      resd 1
+        .cR0HaltsToRing3        resd 1
 
         alignb 8
         .TracerCtx              resb SUPDRVTRACERUSRCTX64_size

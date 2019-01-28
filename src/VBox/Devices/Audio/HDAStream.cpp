@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017-2018 Oracle Corporation
+ * Copyright (C) 2017-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -238,6 +238,24 @@ int hdaR3StreamInit(PHDASTREAM pStream, uint8_t uSD)
     rc = hdaR3StreamMapInit(&pStream->State.Mapping, &Props);
     AssertRCReturn(rc, rc);
 
+    /*
+     * Set the stream's timer Hz rate, based on the stream channel count.
+     * Currently this is just a rough guess and we might want to optimize this further.
+     *
+     * In any case, more channels per SDI/SDO means that we have to drive data more frequently.
+     */
+    if (pThis->uTimerHz == HDA_TIMER_HZ_DEFAULT) /* Make sure that we don't have any custom Hz rate set we want to enforce */
+    {
+        if (Props.cChannels >= 5)
+            pStream->State.uTimerHz = 300;
+        else if (Props.cChannels == 4)
+            pStream->State.uTimerHz = 150;
+        else
+            pStream->State.uTimerHz = 100;
+    }
+    else
+        pStream->State.uTimerHz = pThis->uTimerHz;
+
 #ifndef VBOX_WITH_AUDIO_HDA_51_SURROUND
     if (Props.cChannels > 2)
     {
@@ -250,6 +268,7 @@ int hdaR3StreamInit(PHDASTREAM pStream, uint8_t uSD)
         LogRel2(("HDA: More than stereo (2) channels are not supported (%RU8 requested), "
                  "falling back to stereo channels for stream #%RU8\n", Props.cChannels, uSD));
         Props.cChannels = 2;
+        Props.cShift    = PDMAUDIOPCMPROPS_MAKE_SHIFT_PARMS(Props.cBytes, Props.cChannels);
     }
 #endif
 
@@ -317,6 +336,10 @@ int hdaR3StreamInit(PHDASTREAM pStream, uint8_t uSD)
             break;
     }
 
+    /* Set scheduling hint (if available). */
+    if (pStream->State.uTimerHz)
+        pCfg->Device.uSchedulingHintMs = 1000 /* ms */ / pStream->State.uTimerHz;
+
     LogFunc(("[SD%RU8] DMA @ 0x%x (%RU32 bytes), LVI=%RU16, FIFOS=%RU16\n",
              pStream->u8SD, pStream->u64BDLBase, pStream->u32CBL, pStream->u16LVI, pStream->u16FIFOS));
 
@@ -327,9 +350,9 @@ int hdaR3StreamInit(PHDASTREAM pStream, uint8_t uSD)
     if (RT_SUCCESS(rc))
     {
         /* Make sure that the chosen Hz rate dividable by the stream's rate. */
-        if (pStream->State.Cfg.Props.uHz % pThis->uTimerHz != 0)
-            LogRel(("HDA: Device timer (%RU32) does not fit to stream #%RU8 timing (%RU32)\n",
-                    pThis->uTimerHz, pStream->u8SD, pStream->State.Cfg.Props.uHz));
+        if (pStream->State.Cfg.Props.uHz % pStream->State.uTimerHz != 0)
+            LogRel(("HDA: Stream timer Hz rate (%RU32) does not fit to stream #%RU8 timing (%RU32)\n",
+                    pStream->State.uTimerHz, pStream->u8SD, pStream->State.Cfg.Props.uHz));
 
         /* Figure out how many transfer fragments we're going to use for this stream. */
         /** @todo Use a more dynamic fragment size? */
@@ -425,7 +448,7 @@ int hdaR3StreamInit(PHDASTREAM pStream, uint8_t uSD)
 
         /* Calculate the bytes we need to transfer to / from the stream's DMA per iteration.
          * This is bound to the device's Hz rate and thus to the (virtual) timing the device expects. */
-        pStream->State.cbTransferChunk = (pStream->State.Cfg.Props.uHz / pThis->uTimerHz) * pStream->State.Mapping.cbFrameSize;
+        pStream->State.cbTransferChunk = (pStream->State.Cfg.Props.uHz / pStream->State.uTimerHz) * pStream->State.Mapping.cbFrameSize;
         Assert(pStream->State.cbTransferChunk);
         Assert(pStream->State.cbTransferChunk % pStream->State.Mapping.cbFrameSize == 0);
 
@@ -433,7 +456,7 @@ int hdaR3StreamInit(PHDASTREAM pStream, uint8_t uSD)
         if (pStream->State.cbTransferChunk > pStream->State.cbTransferSize)
             pStream->State.cbTransferChunk = pStream->State.cbTransferSize;
 
-        const uint64_t cTicksPerHz = TMTimerGetFreq(pStream->pTimer) / pThis->uTimerHz;
+        const uint64_t cTicksPerHz = TMTimerGetFreq(pStream->pTimer) / pStream->State.uTimerHz;
 
         /* Calculate the timer ticks per byte for this stream. */
         pStream->State.cTicksPerByte = cTicksPerHz / pStream->State.cbTransferChunk;
@@ -445,7 +468,7 @@ int hdaR3StreamInit(PHDASTREAM pStream, uint8_t uSD)
 
         LogFunc(("[SD%RU8] Timer %uHz (%RU64 ticks per Hz), cTicksPerByte=%RU64, cbTransferChunk=%RU32, cTransferTicks=%RU64, " \
                  "cbTransferSize=%RU32\n",
-                 pStream->u8SD, pThis->uTimerHz, cTicksPerHz, pStream->State.cTicksPerByte,
+                 pStream->u8SD, pStream->State.uTimerHz, cTicksPerHz, pStream->State.cTicksPerByte,
                  pStream->State.cbTransferChunk, pStream->State.cTransferTicks, pStream->State.cbTransferSize));
 
         /* Make sure to also update the stream's DMA counter (based on its current LPIB value). */
@@ -1662,7 +1685,7 @@ bool hdaR3StreamRegisterDMAHandlers(PHDASTREAM pStream)
             pRange = &arrRanges[cRanges - 1];
 
             /* Is the current range a direct neighbor of the current BLDE? */
-            if ((pRange->uAddr + pRange->uSize) == BDLE.Desc.u64BufAdr)
+            if ((pRange->uAddr + pRange->uSize) == BDLE.Desc.u64BufAddr)
             {
                 /* Expand the current range by the current BDLE's size. */
                 pRange->uSize += BDLE.Desc.u32BufSize;
@@ -1680,7 +1703,7 @@ bool hdaR3StreamRegisterDMAHandlers(PHDASTREAM pStream)
         {
             pRange = &arrRanges[cRanges];
 
-            pRange->uAddr = BDLE.Desc.u64BufAdr;
+            pRange->uAddr = BDLE.Desc.u64BufAddr;
             pRange->uSize = BDLE.Desc.u32BufSize;
 
             LogFunc(("Adding range %zu - 0x%x (%RU32)\n", cRanges, pRange->uAddr, pRange->uSize));

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2017 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -43,7 +43,7 @@
 #include <iprt/path.h>
 #include <iprt/stream.h>
 #include <iprt/string.h>
-#include <iprt/err.h>
+#include <iprt/errcore.h>
 
 #include <iprt/win/lazy-dbghelp.h>
 
@@ -361,7 +361,7 @@ int main(int argc, char **argv)
 
 
             case 'V':
-                RTPrintf("$Revision: 125570 $");
+                RTPrintf("$Revision: 127855 $");
                 break;
 
             case 'h':

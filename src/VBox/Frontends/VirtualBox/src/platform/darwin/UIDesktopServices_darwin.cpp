@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,12 +23,12 @@
 /* Qt includes */
 #include <QString>
 
-bool UIDesktopServices::createMachineShortcut(const QString &strSrcFile, const QString &strDstPath, const QString &strName, const QString &strUuid)
+bool UIDesktopServices::createMachineShortcut(const QString &strSrcFile, const QString &strDstPath, const QString &strName, const QUuid &uUuid)
 {
     return ::darwinCreateMachineShortcut(::darwinToNativeString(strSrcFile.toUtf8().constData()),
                                          ::darwinToNativeString(strDstPath.toUtf8().constData()),
                                          ::darwinToNativeString(strName.toUtf8().constData()),
-                                         ::darwinToNativeString(strUuid.toUtf8().constData()));
+                                         ::darwinToNativeString(uUuid.toString().toUtf8().constData()));
 }
 
 bool UIDesktopServices::openInFileManager(const QString &strFile)

@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2013-2017 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -100,3 +100,19 @@ PeCoffLoaderUnloadImageExtraAction(
 #endif
 }
 
+VOID
+EFIAPI
+VBoxPeCoffLoaderMoveImageExtraAction(
+  IN PHYSICAL_ADDRESS OldBase,
+  IN PHYSICAL_ADDRESS NewBase
+  )
+{
+#if ARCH_BITS == 32
+    ASMOutU32(EFI_PORT_IMAGE_EVENT, EFI_IMAGE_EVT_CMD_START_RELOC32);
+#else
+    ASMOutU32(EFI_PORT_IMAGE_EVENT, EFI_IMAGE_EVT_CMD_START_RELOC64);
+#endif
+    vboxImageEvtU64(EFI_IMAGE_EVT_CMD_ADDR0, NewBase);
+    vboxImageEvtU64(EFI_IMAGE_EVT_CMD_ADDR1, OldBase);
+    ASMOutU32(EFI_PORT_IMAGE_EVENT, EFI_IMAGE_EVT_CMD_COMPLETE);
+}

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -49,6 +49,7 @@
 #include <iprt/log.h>
 #include <iprt/path.h>
 #include <iprt/string.h>
+#include <iprt/utf16.h>
 #include <iprt/crypto/pkcs7.h>
 #include <iprt/crypto/store.h>
 
@@ -2593,7 +2594,7 @@ l_fresh_context:
                                 ULONG ulErr = RtlGetLastWin32Error();
                                 fNoSignedCatalogFound = ulErr == ERROR_NOT_FOUND && fNoSignedCatalogFound != 0;
                                 if (iCat == 0)
-                                    SUP_DPRINTF(("supR3HardNtViCallWinVerifyTrustCatFile: CryptCATAdminEnumCatalogFromHash failed ERRROR_NOT_FOUND (%u)\n", ulErr));
+                                    SUP_DPRINTF(("supR3HardNtViCallWinVerifyTrustCatFile: CryptCATAdminEnumCatalogFromHash failed ERROR_NOT_FOUND (%u)\n", ulErr));
                                 else if (iCat == 0)
                                     SUP_DPRINTF(("supR3HardNtViCallWinVerifyTrustCatFile: CryptCATAdminEnumCatalogFromHash failed %u\n", ulErr));
                                 break;

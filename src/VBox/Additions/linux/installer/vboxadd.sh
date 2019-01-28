@@ -1,11 +1,11 @@
 #! /bin/sh
 # $Id: vboxadd.sh $
 ## @file
-# Linux Additions kernel module init script ($Revision: 127284 $)
+# Linux Additions kernel module init script ($Revision: 128393 $)
 #
 
 #
-# Copyright (C) 2006-2017 Oracle Corporation
+# Copyright (C) 2006-2019 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -112,9 +112,9 @@ begin()
 info()
 {
     if test -z "${QUIET}"; then
-        echo "${SERVICE}: $1"
+        echo "${SERVICE}: $1" | fold -s
     else
-        echo "$1"
+        echo "$1" | fold -s
     fi
 }
 
@@ -504,6 +504,10 @@ setup()
         fi
         # That is, we mark all but the requested kernel.
         rm -f "$SKIPFILE_BASE"-"$TARGET_VER"
+        test -d /lib/modules/"$TARGET_VER"/build || test -n "$QUICKSETUP" ||
+            info "Kernel headers not found for target kernel $TARGET_VER. \
+Please install them and execute
+  /sbin/rcvboxadd setup"
         for setupi in /lib/modules/*; do
             KERN_VER="${setupi##*/}"
             setup_modules "$KERN_VER"

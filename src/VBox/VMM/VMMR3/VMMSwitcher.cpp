@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -44,7 +44,8 @@
 /*********************************************************************************************************************************
 *   Global Variables                                                                                                             *
 *********************************************************************************************************************************/
-#if defined(VBOX_WITH_RAW_MODE) || (HC_ARCH_BITS != 64)
+#if defined(VBOX_WITH_RAW_MODE) || HC_ARCH_BITS != 64
+
 /** Array of switcher definitions.
  * The type and index shall match!
  */
@@ -92,8 +93,6 @@ static PVMMSWITCHERDEF g_apRawModeSwitchers[VMMSWITCHER_MAX] =
     &vmmR3SwitcherAMD64Stub_Def,
 # endif
 };
-#endif /* VBOX_WITH_RAW_MODE || (HC_ARCH_BITS != 64) */
-
 
 /** Array of switcher definitions.
  * The type and index shall match!
@@ -101,7 +100,7 @@ static PVMMSWITCHERDEF g_apRawModeSwitchers[VMMSWITCHER_MAX] =
 static PVMMSWITCHERDEF g_apHmSwitchers[VMMSWITCHER_MAX] =
 {
     NULL, /* invalid entry */
-#if HC_ARCH_BITS == 32
+# if HC_ARCH_BITS == 32
     NULL,   //&vmmR3Switcher32BitTo32Bit_Def,
     NULL,   //&vmmR3Switcher32BitToPAE_Def,
     &vmmR3Switcher32BitToAMD64_Def,
@@ -111,7 +110,7 @@ static PVMMSWITCHERDEF g_apHmSwitchers[VMMSWITCHER_MAX] =
     NULL,   //&vmmR3SwitcherPAETo32Bit_Def,
     NULL,   //&vmmR3SwitcherAMD64ToPAE_Def,
     NULL,   //&vmmR3SwitcherAMD64ToAMD64_Def,
-#else  /* !VBOX_WITH_RAW_MODE */
+# else  /* !VBOX_WITH_RAW_MODE */
     NULL,
     NULL,
     NULL,
@@ -121,15 +120,17 @@ static PVMMSWITCHERDEF g_apHmSwitchers[VMMSWITCHER_MAX] =
     NULL,
     NULL,
     NULL,
-#endif /* !VBOX_WITH_RAW_MODE */
-#ifndef RT_ARCH_AMD64
+# endif /* !VBOX_WITH_RAW_MODE */
+# ifndef RT_ARCH_AMD64
     &vmmR3SwitcherX86Stub_Def,
     NULL,
-#else
+# else
     NULL,
     &vmmR3SwitcherAMD64Stub_Def,
-#endif
+# endif
 };
+
+#endif /* VBOX_WITH_RAW_MODE || HC_ARCH_BITS != 64 */
 
 
 # ifdef VBOX_WITH_64ON32_IDT
@@ -223,7 +224,7 @@ int vmmR3SwitcherInit(PVM pVM)
     /*
      * Calc the size.
      */
-    const PVMMSWITCHERDEF *papSwitchers = HMIsEnabled(pVM) ? g_apHmSwitchers : g_apRawModeSwitchers;
+    const PVMMSWITCHERDEF *papSwitchers = VM_IS_RAW_MODE_ENABLED(pVM) ? g_apRawModeSwitchers : g_apHmSwitchers;
     unsigned cbCoreCode = 0;
     for (unsigned iSwitcher = 0; iSwitcher < VMMSWITCHER_MAX; iSwitcher++)
     {
@@ -365,7 +366,7 @@ void vmmR3SwitcherRelocate(PVM pVM, RTGCINTPTR offDelta)
     /*
      * Relocate all the switchers.
      */
-    const PVMMSWITCHERDEF *papSwitchers = HMIsEnabled(pVM) ? g_apHmSwitchers : g_apRawModeSwitchers;
+    const PVMMSWITCHERDEF *papSwitchers = VM_IS_RAW_MODE_ENABLED(pVM) ? g_apRawModeSwitchers : g_apHmSwitchers;
     for (unsigned iSwitcher = 0; iSwitcher < VMMSWITCHER_MAX; iSwitcher++)
     {
         PVMMSWITCHERDEF pSwitcher = papSwitchers[iSwitcher];
@@ -401,7 +402,7 @@ void vmmR3SwitcherRelocate(PVM pVM, RTGCINTPTR offDelta)
         pVM->pfnVMMRCToHostAsmNoReturn      = RCPtr + pSwitcher->offRCToHostAsmNoReturn;
     }
     else
-        AssertRelease(HMIsEnabled(pVM));
+        AssertRelease(!VM_IS_RAW_MODE_ENABLED(pVM));
 
 #else
     NOREF(pVM);
@@ -1009,7 +1010,7 @@ static void vmmR3SwitcherGenericRelocate(PVM pVM, PVMMSWITCHERDEF pSwitcher,
  */
 static RTRCPTR vmmR3SwitcherGetHyperGDT(PVM pVM)
 {
-    if (HMIsRawModeCtxNeeded(pVM))
+    if (VM_IS_RAW_MODE_ENABLED(pVM) || HMIsRawModeCtxNeeded(pVM))
         return SELMGetHyperGDT(pVM);
 # if HC_ARCH_BITS != 32
     AssertFailed(); /* This path is only applicable to some 32-bit hosts. */
@@ -1119,13 +1120,13 @@ VMMR3_INT_DECL(int) VMMR3SelectSwitcher(PVM pVM, VMMSWITCHER enmSwitcher)
     /*
      * Override it if HM is active.
      */
-    if (HMIsEnabled(pVM))
+    if (!VM_IS_RAW_MODE_ENABLED(pVM))
         pVM->vmm.s.enmSwitcher = HC_ARCH_BITS == 64 ? VMMSWITCHER_AMD64_STUB : VMMSWITCHER_X86_STUB;
 
     /*
      * Select the new switcher.
      */
-    const PVMMSWITCHERDEF *papSwitchers = HMIsEnabled(pVM) ? g_apHmSwitchers : g_apRawModeSwitchers;
+    const PVMMSWITCHERDEF *papSwitchers = VM_IS_RAW_MODE_ENABLED(pVM) ? g_apRawModeSwitchers : g_apHmSwitchers;
     PVMMSWITCHERDEF pSwitcher = papSwitchers[enmSwitcher];
     if (pSwitcher)
     {
@@ -1149,8 +1150,11 @@ VMMR3_INT_DECL(int) VMMR3SelectSwitcher(PVM pVM, VMMSWITCHER enmSwitcher)
 #endif /* #defined(VBOX_WITH_RAW_MODE) || (HC_ARCH_BITS != 64) */
 
 
+#if HC_ARCH_BITS == 32 && defined(VBOX_WITH_64_BITS_GUESTS)
 /**
  * Gets the switcher to be used for switching to GC.
+ *
+ * This is for 64-on-32 with HM.  Caller is HMR3Relocate().
  *
  * @returns host to guest ring 0 switcher entrypoint
  * @param   pVM             The cross context VM structure.
@@ -1180,3 +1184,5 @@ VMMR3_INT_DECL(RTR0PTR) VMMR3GetHostToGuestSwitcher(PVM pVM, VMMSWITCHER enmSwit
     }
     return NIL_RTR0PTR;
 }
+#endif
+

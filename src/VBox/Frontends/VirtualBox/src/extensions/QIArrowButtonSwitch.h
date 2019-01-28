@@ -1,10 +1,10 @@
 /* $Id: QIArrowButtonSwitch.h $ */
 /** @file
- * VBox Qt GUI - QIArrowButtonSwitch class declaration.
+ * VBox Qt GUI - Qt extensions: QIArrowButtonSwitch class declaration.
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,25 +15,29 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___QIArrowButtonSwitch_h___
-#define ___QIArrowButtonSwitch_h___
+#ifndef FEQT_INCLUDED_SRC_extensions_QIArrowButtonSwitch_h
+#define FEQT_INCLUDED_SRC_extensions_QIArrowButtonSwitch_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Qt includes: */
 #include <QIcon>
 
 /* GUI includes: */
 #include "QIRichToolButton.h"
+#include "UILibraryDefs.h"
 
 /** QIRichToolButton extension
   * representing arrow tool-button with text-label,
   * can be used as collaps/expand switch in various places. */
-class QIArrowButtonSwitch : public QIRichToolButton
+class SHARED_LIBRARY_STUFF QIArrowButtonSwitch : public QIRichToolButton
 {
     Q_OBJECT;
 
 public:
 
-    /** Constructor, passes @a pParent to the QIRichToolButton constructor. */
+    /** Constructs button passing @a pParent to the base-class. */
     QIArrowButtonSwitch(QWidget *pParent = 0);
 
     /** Defines the @a iconCollapsed and the @a iconExpanded. */
@@ -46,13 +50,13 @@ public:
 
 protected slots:
 
-    /** Button-click handler. */
+    /** Handles button-click. */
     virtual void sltButtonClicked();
 
 protected:
 
-    /** Key-press-event handler. */
-    virtual void keyPressEvent(QKeyEvent *pEvent);
+    /** Handles key-press @a pEvent. */
+    virtual void keyPressEvent(QKeyEvent *pEvent) /* override */;
 
 private:
 
@@ -68,4 +72,4 @@ private:
     QIcon m_iconExpanded;
 };
 
-#endif /* !___QIArrowButtonSwitch_h___ */
+#endif /* !FEQT_INCLUDED_SRC_extensions_QIArrowButtonSwitch_h */

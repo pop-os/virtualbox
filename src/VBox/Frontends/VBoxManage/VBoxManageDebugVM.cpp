@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2017 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,7 +29,6 @@
 
 #include <VBox/types.h>
 #include <iprt/ctype.h>
-#include <VBox/err.h>
 #include <iprt/getopt.h>
 #include <iprt/path.h>
 #include <iprt/param.h>

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2017 Oracle Corporation
+ * Copyright (C) 2007-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -38,6 +38,7 @@
 #include <sys/sunddi.h>
 #include <sys/open.h>
 #include <sys/sunldi.h>
+#include <sys/policy.h>
 #include <sys/file.h>
 #undef u /* /usr/include/sys/user.h:249:1 is where this is defined to (curproc->p_user). very cool. */
 
@@ -319,28 +320,32 @@ static int vgdrvSolarisAttach(dev_info_t *pDip, ddi_attach_cmd_t enmCmd)
                     rc = ddi_dev_regsize(pDip, 2, &g_cbMMIO);
                     if (rc == DDI_SUCCESS)
                     {
-                        rc = ddi_regs_map_setup(pDip, 2, &g_pMMIOBase, 0, g_cbMMIO, &deviceAttr,
-                                        &g_PciMMIOHandle);
+                        rc = ddi_regs_map_setup(pDip, 2, &g_pMMIOBase, 0, g_cbMMIO, &deviceAttr, &g_PciMMIOHandle);
                         if (rc == DDI_SUCCESS)
                         {
                             /*
-                             * Add IRQ of VMMDev.
+                             * Call the common device extension initializer.
                              */
-                            rc = vgdrvSolarisAddIRQ(pDip);
-                            if (rc == DDI_SUCCESS)
+                            rc = VGDrvCommonInitDevExt(&g_DevExt, g_uIOPortBase, g_pMMIOBase, g_cbMMIO,
+#if ARCH_BITS == 64
+                                                       VBOXOSTYPE_Solaris_x64,
+#else
+                                                       VBOXOSTYPE_Solaris,
+#endif
+                                                       VMMDEV_EVENT_MOUSE_POSITION_CHANGED);
+                            if (RT_SUCCESS(rc))
                             {
                                 /*
-                                 * Call the common device extension initializer.
+                                 * Add IRQ of VMMDev.
                                  */
-                                rc = VGDrvCommonInitDevExt(&g_DevExt, g_uIOPortBase, g_pMMIOBase, g_cbMMIO,
-#if ARCH_BITS == 64
-                                                           VBOXOSTYPE_Solaris_x64,
-#else
-                                                           VBOXOSTYPE_Solaris,
-#endif
-                                                           VMMDEV_EVENT_MOUSE_POSITION_CHANGED);
-                                if (RT_SUCCESS(rc))
+                                rc = vgdrvSolarisAddIRQ(pDip);
+                                if (rc == DDI_SUCCESS)
                                 {
+                                    /*
+                                     * Read host configuration.
+                                     */
+                                    VGDrvCommonProcessOptionsFromHost(&g_DevExt);
+
                                     rc = ddi_create_minor_node(pDip, DEVICE_NAME, S_IFCHR, instance, DDI_PSEUDO, 0 /* fFlags */);
                                     if (rc == DDI_SUCCESS)
                                     {
@@ -350,15 +355,14 @@ static int vgdrvSolarisAttach(dev_info_t *pDip, ddi_attach_cmd_t enmCmd)
                                     }
 
                                     LogRel((DEVICE_NAME "::Attach: ddi_create_minor_node failed.\n"));
-                                    VGDrvCommonDeleteDevExt(&g_DevExt);
+                                    vgdrvSolarisRemoveIRQ(pDip);
                                 }
                                 else
-                                    LogRel((DEVICE_NAME "::Attach: VGDrvCommonInitDevExt failed.\n"));
-
-                                vgdrvSolarisRemoveIRQ(pDip);
+                                    LogRel((DEVICE_NAME "::Attach: vgdrvSolarisAddIRQ failed.\n"));
+                                VGDrvCommonDeleteDevExt(&g_DevExt);
                             }
                             else
-                                LogRel((DEVICE_NAME "::Attach: vgdrvSolarisAddIRQ failed.\n"));
+                                LogRel((DEVICE_NAME "::Attach: VGDrvCommonInitDevExt failed.\n"));
                             ddi_regs_map_free(&g_PciMMIOHandle);
                         }
                         else
@@ -519,9 +523,26 @@ static int vgdrvSolarisOpen(dev_t *pDev, int fFlags, int fType, cred_t *pCred)
 
     /*
      * Create a new session.
+     *
+     * Note! The devfs inode with the gid isn't readily available here, so we cannot easily
+     *       to the vbox group detection like on linux.  Read config instead?
      */
     if (!(fFlags & FKLYR))
-        rc = VGDrvCommonCreateUserSession(&g_DevExt, &pSession);
+    {
+        uint32_t fRequestor = VMMDEV_REQUESTOR_USERMODE | VMMDEV_REQUESTOR_TRUST_NOT_GIVEN;
+        if (crgetruid(pCred) == 0)
+            fRequestor |= VMMDEV_REQUESTOR_USR_ROOT;
+        else
+            fRequestor |= VMMDEV_REQUESTOR_USR_USER;
+        if (secpolicy_coreadm(pCred) == 0)
+            fRequestor |= VMMDEV_REQUESTOR_GRP_WHEEL;
+        /** @todo is there any way of detecting that the process belongs to someone on the physical console?
+         * secpolicy_console() [== PRIV_SYS_DEVICES] doesn't look quite right, or does it? */
+        fRequestor |= VMMDEV_REQUESTOR_CON_DONT_KNOW;
+        fRequestor |= VMMDEV_REQUESTOR_NO_USER_DEVICE; /** @todo implement vboxuser device node. */
+
+        rc = VGDrvCommonCreateUserSession(&g_DevExt, fRequestor, &pSession);
+    }
     else
         rc = VGDrvCommonCreateKernelSession(&g_DevExt, &pSession);
     if (RT_SUCCESS(rc))
@@ -1079,6 +1100,13 @@ void VGDrvNativeISRMousePollEvent(PVBOXGUESTDEVEXT pDevExt)
      * Wake up poll waiters.
      */
     pollwakeup(&g_PollHead, POLLIN | POLLRDNORM);
+}
+
+
+bool VGDrvNativeProcessOption(PVBOXGUESTDEVEXT pDevExt, const char *pszName, const char *pszValue)
+{
+    RT_NOREF(pDevExt); RT_NOREF(pszName); RT_NOREF(pszValue);
+    return false;
 }
 
 

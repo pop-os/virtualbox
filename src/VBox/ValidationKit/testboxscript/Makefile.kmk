@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2012-2017 Oracle Corporation
+# Copyright (C) 2012-2019 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -74,6 +74,7 @@ TestBoxHelper_INST     = $(INST_TESTBOXSCRIPT)$(KBUILD_TARGET)/$(KBUILD_TARGET_A
 TestBoxHelper_SOURCES  = TestBoxHelper.cpp
 TestBoxHelper_LIBS.win = $(PATH_SDK_$(VBOX_WINDDK)_LIB)/wbemuuid.lib
 TestBoxHelper_LDFLAGS.darwin = -framework CoreFoundation
+TestBoxHelper_VBOX_IMPORT_CHECKER.win.x86 = $(NO_SUCH_VARIABLE)
 
 
 #

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,8 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___iprt_memtracker_h
-#define ___iprt_memtracker_h
+#ifndef IPRT_INCLUDED_memtracker_h
+#define IPRT_INCLUDED_memtracker_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/cdefs.h>
 #include <iprt/types.h>
@@ -83,8 +86,12 @@ typedef struct RTMEMTRACKERHDR
     PRTMEMTRACKERTAG    pTag;
     /** The tag string. */
     const char         *pszTag;
+    /** The caller address. */
+    void               *pvCaller;
     /** Pointer to the user data we're tracking. */
     void               *pvUser;
+    /** Alignment padding. */
+    size_t              uReserved;
 } RTMEMTRACKERHDR;
 /** Pointer to a memory tracker header. */
 typedef RTMEMTRACKERHDR *PRTMEMTRACKERHDR;
@@ -115,9 +122,10 @@ typedef RTMEMTRACKERHDR *PPRTMEMTRACKERHDR;
  *                              least @a cb + sizeof(RTMEMTRACKERHDR).
  * @param   cbUser              The user data size (bytes).
  * @param   pszTag              The tag string.
+ * @param   pvCaller            The return address.
  * @param   enmMethod           The method that the user called.
  */
-RTDECL(void *) RTMemTrackerHdrAlloc(void *pv, size_t cbUser, const char *pszTag, RTMEMTRACKERMETHOD enmMethod);
+RTDECL(void *) RTMemTrackerHdrAlloc(void *pv, size_t cbUser, const char *pszTag, void *pvCaller, RTMEMTRACKERMETHOD enmMethod);
 
 /**
  * Prepares for a realloc, i.e. invalidates the header.
@@ -127,8 +135,9 @@ RTDECL(void *) RTMemTrackerHdrAlloc(void *pv, size_t cbUser, const char *pszTag,
  * @param   cbOldUser           The size of the old user data, 0 if not
  *                              known.
  * @param   pszTag              The tag string.
+ * @param   pvCaller            The return address.
  */
-RTDECL(void *) RTMemTrackerHdrReallocPrep(void *pvOldUser, size_t cbOldUser, const char *pszTag);
+RTDECL(void *) RTMemTrackerHdrReallocPrep(void *pvOldUser, size_t cbOldUser, const char *pszTag, void *pvCaller);
 
 /**
  * Initializes the allocation header and links it to the relevant tag.
@@ -143,8 +152,9 @@ RTDECL(void *) RTMemTrackerHdrReallocPrep(void *pvOldUser, size_t cbOldUser, con
  *                              valid on failure of course and used to bail out
  *                              in that case.  Should not be NULL.
  * @param   pszTag              The tag string.
+ * @param   pvCaller            The return address.
  */
-RTDECL(void *) RTMemTrackerHdrReallocDone(void *pvNew, size_t cbNewUser, void *pvOldUser, const char *pszTag);
+RTDECL(void *) RTMemTrackerHdrReallocDone(void *pvNew, size_t cbNewUser, void *pvOldUser, const char *pszTag, void *pvCaller);
 
 
 /**
@@ -154,9 +164,10 @@ RTDECL(void *) RTMemTrackerHdrReallocDone(void *pvNew, size_t cbNewUser, void *p
  * @param   pvUser              Pointer to the user data.
  * @param   cbUser              The size of the user data, 0 if not known.
  * @param   pszTag              The tag string.
+ * @param   pvCaller            The return address.
  * @param   enmMethod           The method that the user called.
  */
-RTDECL(void *) RTMemTrackerHdrFree(void *pvUser, size_t cbUser, const char *pszTag, RTMEMTRACKERMETHOD enmMethod);
+RTDECL(void *) RTMemTrackerHdrFree(void *pvUser, size_t cbUser, const char *pszTag, void *pvCaller, RTMEMTRACKERMETHOD enmMethod);
 
 
 /**
@@ -232,5 +243,5 @@ RTDECL(void) RTMemTrackerDumpStatsToFile(bool fVerbose, const char *pszFilename)
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !IPRT_INCLUDED_memtracker_h */
 

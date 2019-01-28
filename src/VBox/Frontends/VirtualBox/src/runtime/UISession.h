@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UISession_h___
-#define ___UISession_h___
+#ifndef FEQT_INCLUDED_SRC_runtime_UISession_h
+#define FEQT_INCLUDED_SRC_runtime_UISession_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Qt includes: */
 #include <QObject>
@@ -38,12 +41,14 @@
 #include "CMouse.h"
 #include "CKeyboard.h"
 #include "CMachineDebugger.h"
+#include "CMedium.h"
 
 /* Forward declarations: */
 class QMenu;
 class UIFrameBuffer;
 class UIMachine;
 class UIMachineLogic;
+class UIMachineWindow;
 class UIActionPool;
 class CUSBDevice;
 class CNetworkAdapter;
@@ -125,6 +130,7 @@ public:
     UIMachineLogic* machineLogic() const;
     QWidget* mainMachineWindow() const;
     WId mainMachineWindowId() const;
+    UIMachineWindow *activeMachineWindow() const;
     QCursor cursor() const { return m_cursor; }
 
     /** @name Branding stuff.
@@ -254,8 +260,8 @@ public:
 
     /** Updates VRDE Server action state. */
     void updateStatusVRDE() { sltVRDEChange(); }
-    /** Updates Video Capture action state. */
-    void updateStatusVideoCapture() { sltVideoCaptureChange(); }
+    /** Updates Recording action state. */
+    void updateStatusRecording() { sltRecordingChange(); }
     /** Updates Audio output action state. */
     void updateAudioOutput() { sltAudioAdapterChange(); }
     /** Updates Audio input action state. */
@@ -264,7 +270,7 @@ public:
     /** @name CPU hardware virtualization features for VM.
      ** @{ */
     /** Returns whether CPU hardware virtualization extension is enabled. */
-    bool isHWVirtExEnabled() const { return m_fIsHWVirtExEnabled; }
+    KVMExecutionEngine getVMExecutionEngine() const { return m_enmVMExecutionEngine; }
     /** Returns whether nested-paging CPU hardware virtualization extension is enabled. */
     bool isHWVirtExNestedPagingEnabled() const { return m_fIsHWVirtExNestedPagingEnabled; }
     /** Returns whether the VM is currently making use of the unrestricted execution feature of VT-x. */
@@ -273,6 +279,12 @@ public:
 
     /** Returns VM's effective paravirtualization provider. */
     KParavirtProvider paraVirtProvider() const { return m_paraVirtProvider; }
+
+    /** Returns the list of visible guest windows. */
+    QList<int> listOfVisibleWindows() const;
+
+    /** Returns a vector of media attached to the machine. */
+    CMediumVector getMachineMedia() const;
 
 signals:
 
@@ -295,7 +307,7 @@ signals:
     void sigStorageDeviceChange(const CMediumAttachment &attachment, bool fRemoved, bool fSilent);
     void sigMediumChange(const CMediumAttachment &mediumAttachment);
     void sigVRDEChange();
-    void sigVideoCaptureChange();
+    void sigRecordingChange();
     void sigUSBControllerChange();
     void sigUSBDeviceStateChange(const CUSBDevice &device, bool bIsAttached, const CVirtualBoxErrorInfo &error);
     void sigSharedFolderChange();
@@ -337,7 +349,7 @@ private slots:
 
 #ifdef RT_OS_DARWIN
     /** Mac OS X: Handles menu-bar configuration-change. */
-    void sltHandleMenuBarConfigurationChange(const QString &strMachineID);
+    void sltHandleMenuBarConfigurationChange(const QUuid &uMachineID);
 #endif /* RT_OS_DARWIN */
 
     /* Console events slots */
@@ -347,7 +359,7 @@ private slots:
     void sltStateChange(KMachineState state);
     void sltAdditionsChange();
     void sltVRDEChange();
-    void sltVideoCaptureChange();
+    void sltRecordingChange();
     void sltGuestMonitorChange(KGuestMonitorChangedEventType changeType, ulong uScreenId, QRect screenGeo);
     /** Handles storage device change for @a attachment, which was @a fRemoved and it was @a fSilent for guest. */
     void sltHandleStorageDeviceChange(const CMediumAttachment &attachment, bool fRemoved, bool fSilent);
@@ -405,7 +417,7 @@ private:
     /* Common helpers: */
     void setPointerShape(const uchar *pShapeData, bool fHasAlpha, uint uXHot, uint uYHot, uint uWidth, uint uHeight);
     bool preprocessInitialization();
-    bool mountAdHocImage(KDeviceType enmDeviceType, UIMediumType enmMediumType, const QString &strMediumName);
+    bool mountAdHocImage(KDeviceType enmDeviceType, UIMediumDeviceType enmMediumType, const QString &strMediumName);
     bool postprocessInitialization();
     int countOfVisibleWindows();
     /** Loads VM settings. */
@@ -537,10 +549,11 @@ private:
     bool m_fIsValidPointerShapePresent : 1;
     bool m_fIsHidingHostPointer : 1;
 
+    /** Copy of IMachineDebugger::ExecutionEngine */
+    KVMExecutionEngine m_enmVMExecutionEngine;
+
     /** @name CPU hardware virtualization features for VM.
      ** @{ */
-    /** Holds whether CPU hardware virtualization extension is enabled. */
-    bool m_fIsHWVirtExEnabled;
     /** Holds whether nested-paging CPU hardware virtualization extension is enabled. */
     bool m_fIsHWVirtExNestedPagingEnabled;
     /** Holds whether the VM is currently making use of the unrestricted execution feature of VT-x. */
@@ -551,5 +564,4 @@ private:
     KParavirtProvider m_paraVirtProvider;
 };
 
-#endif /* !___UISession_h___ */
-
+#endif /* !FEQT_INCLUDED_SRC_runtime_UISession_h */

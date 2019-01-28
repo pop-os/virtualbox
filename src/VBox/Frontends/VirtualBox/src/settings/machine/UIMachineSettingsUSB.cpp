@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,44 +15,35 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QHeaderView>
-# include <QHelpEvent>
-# include <QToolTip>
+#include <QHeaderView>
+#include <QHelpEvent>
+#include <QMenu>
+#include <QToolTip>
 
 /* GUI includes: */
-# include "QIWidgetValidator.h"
-# include "UIConverter.h"
-# include "UIIconPool.h"
-# include "UIMachineSettingsUSB.h"
-# include "UIMachineSettingsUSBFilterDetails.h"
-# include "UIErrorString.h"
-# include "UIToolBar.h"
-# include "VBoxGlobal.h"
+#include "QIWidgetValidator.h"
+#include "UIConverter.h"
+#include "UIIconPool.h"
+#include "UIMachineSettingsUSB.h"
+#include "UIMachineSettingsUSBFilterDetails.h"
+#include "UIErrorString.h"
+#include "UIToolBar.h"
+#include "VBoxGlobal.h"
 
 /* COM includes: */
-# include "CConsole.h"
-# include "CExtPack.h"
-# include "CExtPackManager.h"
-# include "CHostUSBDevice.h"
-# include "CHostUSBDeviceFilter.h"
-# include "CUSBController.h"
-# include "CUSBDevice.h"
-# include "CUSBDeviceFilter.h"
-# include "CUSBDeviceFilters.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "CConsole.h"
+#include "CExtPack.h"
+#include "CExtPackManager.h"
+#include "CHostUSBDevice.h"
+#include "CHostUSBDeviceFilter.h"
+#include "CUSBController.h"
+#include "CUSBDevice.h"
+#include "CUSBDeviceFilter.h"
+#include "CUSBDeviceFilters.h"
 
 /* VirtualBox interface declarations: */
-#ifndef VBOX_WITH_XPCOM
-# include "VirtualBox.h"
-#else /* !VBOX_WITH_XPCOM */
-# include "VirtualBox_XPCOM.h"
-#endif /* VBOX_WITH_XPCOM */
+#include <VBox/com/VirtualBox.h>
 
 
 /** Machine settings: USB filter data structure. */
@@ -254,6 +245,8 @@ private:
 /** Machine settings: USB Filter tree-widget item. */
 class UIUSBFilterItem : public QITreeWidgetItem, public UIDataSettingsMachineUSBFilter
 {
+    Q_OBJECT;
+
 public:
 
     /** Constructs USB filter (root) item.
@@ -290,37 +283,37 @@ private:
 
         const QString strVendorId = m_strVendorId;
         if (!strVendorId.isEmpty())
-            strToolTip += UIMachineSettingsUSB::tr("<nobr>Vendor ID: %1</nobr>", "USB filter tooltip").arg(strVendorId);
+            strToolTip += tr("<nobr>Vendor ID: %1</nobr>", "USB filter tooltip").arg(strVendorId);
 
         const QString strProductId = m_strProductId;
         if (!strProductId.isEmpty())
-            strToolTip += strToolTip.isEmpty() ? "":"<br/>" + UIMachineSettingsUSB::tr("<nobr>Product ID: %2</nobr>", "USB filter tooltip").arg(strProductId);
+            strToolTip += strToolTip.isEmpty() ? "":"<br/>" + tr("<nobr>Product ID: %2</nobr>", "USB filter tooltip").arg(strProductId);
 
         const QString strRevision = m_strRevision;
         if (!strRevision.isEmpty())
-            strToolTip += strToolTip.isEmpty() ? "":"<br/>" + UIMachineSettingsUSB::tr("<nobr>Revision: %3</nobr>", "USB filter tooltip").arg(strRevision);
+            strToolTip += strToolTip.isEmpty() ? "":"<br/>" + tr("<nobr>Revision: %3</nobr>", "USB filter tooltip").arg(strRevision);
 
         const QString strProduct = m_strProduct;
         if (!strProduct.isEmpty())
-            strToolTip += strToolTip.isEmpty() ? "":"<br/>" + UIMachineSettingsUSB::tr("<nobr>Product: %4</nobr>", "USB filter tooltip").arg(strProduct);
+            strToolTip += strToolTip.isEmpty() ? "":"<br/>" + tr("<nobr>Product: %4</nobr>", "USB filter tooltip").arg(strProduct);
 
         const QString strManufacturer = m_strManufacturer;
         if (!strManufacturer.isEmpty())
-            strToolTip += strToolTip.isEmpty() ? "":"<br/>" + UIMachineSettingsUSB::tr("<nobr>Manufacturer: %5</nobr>", "USB filter tooltip").arg(strManufacturer);
+            strToolTip += strToolTip.isEmpty() ? "":"<br/>" + tr("<nobr>Manufacturer: %5</nobr>", "USB filter tooltip").arg(strManufacturer);
 
         const QString strSerial = m_strSerialNumber;
         if (!strSerial.isEmpty())
-            strToolTip += strToolTip.isEmpty() ? "":"<br/>" + UIMachineSettingsUSB::tr("<nobr>Serial No.: %1</nobr>", "USB filter tooltip").arg(strSerial);
+            strToolTip += strToolTip.isEmpty() ? "":"<br/>" + tr("<nobr>Serial No.: %1</nobr>", "USB filter tooltip").arg(strSerial);
 
         const QString strPort = m_strPort;
         if (!strPort.isEmpty())
-            strToolTip += strToolTip.isEmpty() ? "":"<br/>" + UIMachineSettingsUSB::tr("<nobr>Port: %1</nobr>", "USB filter tooltip").arg(strPort);
+            strToolTip += strToolTip.isEmpty() ? "":"<br/>" + tr("<nobr>Port: %1</nobr>", "USB filter tooltip").arg(strPort);
 
         /* Add the state field if it's a host USB device: */
         if (m_fHostUSBDevice)
         {
-            strToolTip += strToolTip.isEmpty() ? "":"<br/>" + UIMachineSettingsUSB::tr("<nobr>State: %1</nobr>", "USB filter tooltip")
-                                                              .arg(gpConverter->toString(m_enmHostUSBDeviceState));
+            strToolTip += strToolTip.isEmpty() ? "":"<br/>" + tr("<nobr>State: %1</nobr>", "USB filter tooltip")
+                                                                 .arg(gpConverter->toString(m_enmHostUSBDeviceState));
         }
 
         /* Return tool-tip: */
@@ -1331,5 +1324,5 @@ bool UIMachineSettingsUSB::createUSBFilter(CUSBDeviceFilters &comFiltersObject, 
     return fSuccess;
 }
 
-#include "UIMachineSettingsUSB.moc"
 
+#include "UIMachineSettingsUSB.moc"

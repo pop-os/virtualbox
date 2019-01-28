@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2009-2017 Oracle Corporation
+# Copyright (C) 2009-2019 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -55,10 +55,11 @@ cidet-app_SOURCES  = \
 cidet-app_DEFS = IN_DIS
 cidet-app_DEFS.linux = CIDET_REDUCED_CTX
 cidet-app_LIBS = $(PATH_STAGE_LIB)/DisasmR3Static$(VBOX_SUFF_LIB)
+cidet-app_VBOX_IMPORT_CHECKER.win.x86 = $(NO_SUCH_VARIABLE) # doesn't work on NT4 yet.
 
-#PROGRAMS += rdtsc
-#rdtsc_TEMPLATE = VBoxValidationKitR3
-#rdtsc_SOURCES  = rdtsc.cpp rdtsc-asm.asm
+PROGRAMS += rdtsc
+rdtsc_TEMPLATE = VBoxValidationKitR3
+rdtsc_SOURCES  = rdtsc.cpp rdtsc-asm.asm
 
 
 include $(FILE_KBUILD_SUB_FOOTER)

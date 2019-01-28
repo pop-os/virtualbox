@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2017 Oracle Corporation
+ * Copyright (C) 2014-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,7 +28,7 @@
 #include <VBox/com/ptr.h>
 
 #include <iprt/assert.h>
-#include <iprt/err.h>
+#include <iprt/errcore.h>
 #include <VBox/log.h>
 
 #include <iprt/win/windows.h>
@@ -86,7 +86,7 @@ HostDnsServiceWin::~HostDnsServiceWin()
 }
 
 
-HRESULT HostDnsServiceWin::init(VirtualBox *virtualbox)
+HRESULT HostDnsServiceWin::init(HostDnsMonitorProxy *proxy)
 {
     if (m == NULL)
         return E_FAIL;
@@ -128,7 +128,7 @@ HRESULT HostDnsServiceWin::init(VirtualBox *virtualbox)
             return E_FAIL;
     }
 
-    HRESULT hrc = HostDnsMonitor::init(virtualbox);
+    HRESULT hrc = HostDnsMonitor::init(proxy);
     if (FAILED(hrc))
         return hrc;
 

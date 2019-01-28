@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2007-2017 Oracle Corporation
+ * Copyright (C) 2007-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,14 +23,16 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_vmm_gmm_h
-#define ___VBox_vmm_gmm_h
+#ifndef VBOX_INCLUDED_vmm_gmm_h
+#define VBOX_INCLUDED_vmm_gmm_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/vmm/gvmm.h>
 #include <VBox/sup.h>
 #include <VBox/param.h>
 #include <VBox/ostypes.h>
-#include <VBox/VMMDev.h>
 #include <iprt/avl.h>
 
 
@@ -805,5 +807,5 @@ GMMR3DECL(bool) GMMR3IsDuplicatePage(PVM pVM, uint32_t idPage);
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !VBOX_INCLUDED_vmm_gmm_h */
 

@@ -7,7 +7,7 @@
 #
 
 #
-# Copyright (C) 2013-2017 Oracle Corporation
+# Copyright (C) 2013-2019 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -44,6 +44,11 @@ VBOX_EFI_OUTPUT_SUBDIR = $(VBOX_EFI_BUILD_TARGET)_$(VBOX_EFI_TOOL_CHAIN)
 
 # VBox Yasm command
 VBOX_YASMCMD   ?= $(firstword $(wildcard $(KBUILD_DEVTOOLS_HST)/bin/yasm$(HOSTSUFF_EXE)) yasm$(HOSTSUFF_EXE))
+
+# EFI requires python v2.x, so provide a way to select that while using 3.x for the rest of VBox.
+ifndef VBOX_BLD_PYTHON_2X
+ VBOX_BLD_PYTHON_2X = $(VBOX_BLD_PYTHON)
+endif
 
 #
 # Decide which tool chain to use for the EFI binaries.

@@ -5,7 +5,7 @@
 #
 
 #
-# Copyright (C) 2007-2017 Oracle Corporation
+# Copyright (C) 2007-2019 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -26,6 +26,7 @@ FILES_VBOXSF_NOBIN=" \
     ${PATH_ROOT}/include/iprt/assertcompile.h=>include/iprt/assertcompile.h \
     ${PATH_ROOT}/include/iprt/cdefs.h=>include/iprt/cdefs.h \
     ${PATH_ROOT}/include/iprt/err.h=>include/iprt/err.h \
+    ${PATH_ROOT}/include/iprt/errcore.h=>include/iprt/errcore.h \
     ${PATH_ROOT}/include/iprt/fs.h=>include/iprt/fs.h \
     ${PATH_ROOT}/include/iprt/latin1.h=>include/iprt/latin1.h \
     ${PATH_ROOT}/include/iprt/log.h=>include/iprt/log.h \
@@ -44,7 +45,6 @@ FILES_VBOXSF_NOBIN=" \
     ${PATH_ROOT}/include/iprt/utf16.h=>include/iprt/utf16.h \
     ${PATH_ROOT}/include/VBox/cdefs.h=>include/VBox/cdefs.h \
     ${PATH_ROOT}/include/VBox/err.h=>include/VBox/err.h \
-    ${PATH_ROOT}/include/VBox/hgcmsvc.h=>include/VBox/hgcmsvc.h \
     ${PATH_ROOT}/include/VBox/log.h=>include/VBox/log.h \
     ${PATH_ROOT}/include/VBox/ostypes.h=>include/VBox/ostypes.h \
     ${PATH_ROOT}/include/VBox/param.h=>include/VBox/param.h \

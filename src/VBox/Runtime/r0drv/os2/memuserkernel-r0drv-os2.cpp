@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,7 +31,7 @@
 #include "the-os2-kernel.h"
 
 #include <iprt/mem.h>
-#include <iprt/err.h>
+#include <iprt/errcore.h>
 
 
 RTR0DECL(int) RTR0MemUserCopyFrom(void *pvDst, RTR3PTR R3PtrSrc, size_t cb)
@@ -78,12 +78,14 @@ RTR0DECL(bool) RTR0MemAreKrnlAndUsrDifferent(void)
 
 RTR0DECL(int) RTR0MemKernelCopyFrom(void *pvDst, void const *pvSrc, size_t cb)
 {
+    RT_NOREF(pvDst, pvSrc, cb);
     return VERR_NOT_SUPPORTED;
 }
 
 
 RTR0DECL(int) RTR0MemKernelCopyTo(void *pvDst, void const *pvSrc, size_t cb)
 {
+    RT_NOREF(pvDst, pvSrc, cb);
     return VERR_NOT_SUPPORTED;
 }
 

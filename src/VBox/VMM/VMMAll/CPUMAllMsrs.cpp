@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2017 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,6 +23,10 @@
 #include <VBox/vmm/cpum.h>
 #include <VBox/vmm/apic.h>
 #include <VBox/vmm/hm.h>
+#include <VBox/vmm/hm_vmx.h>
+#ifdef VBOX_WITH_NESTED_HWVIRT_VMX
+# include <VBox/vmm/iem.h>
+#endif
 #include <VBox/vmm/tm.h>
 #include <VBox/vmm/gim.h>
 #include "CPUMInternal.h"
@@ -183,6 +187,9 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32TimestampCounter(PVMCPU pVCpu, u
 {
     RT_NOREF_PV(pVCpu); RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange);
     *puValue = TMCpuTickGet(pVCpu);
+#ifdef VBOX_WITH_NESTED_HWVIRT_SVM
+    *puValue = CPUMApplyNestedGuestTscOffset(pVCpu, *puValue);
+#endif
     return VINF_SUCCESS;
 }
 
@@ -231,8 +238,8 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrWr_Ia32ApicBase(PVMCPU pVCpu, uint32_t 
 /** @callback_method_impl{FNCPUMRDMSR} */
 static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32FeatureControl(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t *puValue)
 {
-    RT_NOREF_PV(pVCpu); RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange);
-    *puValue = 1; /* Locked, no VT-X, no SYSENTER micromanagement. */
+    RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange);
+    *puValue = pVCpu->cpum.s.Guest.hwvirt.vmx.Msrs.u64FeatCtrl;
     return VINF_SUCCESS;
 }
 
@@ -270,10 +277,30 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrWr_Ia32BiosSignId(PVMCPU pVCpu, uint32_
 /** @callback_method_impl{FNCPUMWRMSR} */
 static DECLCALLBACK(VBOXSTRICTRC) cpumMsrWr_Ia32BiosUpdateTrigger(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t uValue, uint64_t uRawValue)
 {
-    RT_NOREF_PV(pVCpu); RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange); RT_NOREF_PV(uValue); RT_NOREF_PV(uRawValue);
+    RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange); RT_NOREF_PV(uValue); RT_NOREF_PV(uRawValue);
+
+    /* Microcode updates cannot be loaded in VMX non-root mode. */
+    if (CPUMIsGuestInVmxNonRootMode(&pVCpu->cpum.s.Guest))
+        return VINF_SUCCESS;
+
     /** @todo Fake bios update trigger better.  The value is the address to an
      *        update package, I think.  We should probably GP if it's invalid. */
     return VINF_SUCCESS;
+}
+
+
+/**
+ * Get MSR_IA32_SMM_MONITOR_CTL value for IEM and cpumMsrRd_Ia32SmmMonitorCtl.
+ *
+ * @returns The MSR_IA32_SMM_MONITOR_CTL value.
+ * @param   pVCpu           The cross context per CPU structure.
+ */
+VMM_INT_DECL(uint64_t) CPUMGetGuestIa32SmmMonitorCtl(PVMCPU pVCpu)
+{
+    /* We do not support dual-monitor treatment for SMI and SMM. */
+    /** @todo SMM. */
+    RT_NOREF(pVCpu);
+    return 0;
 }
 
 
@@ -281,8 +308,7 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrWr_Ia32BiosUpdateTrigger(PVMCPU pVCpu, 
 static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32SmmMonitorCtl(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t *puValue)
 {
     RT_NOREF_PV(pVCpu); RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange);
-    /** @todo SMM. */
-    *puValue = 0;
+    *puValue = CPUMGetGuestIa32SmmMonitorCtl(pVCpu);
     return VINF_SUCCESS;
 }
 
@@ -341,6 +367,9 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32MPerf(PVMCPU pVCpu, uint32_t idM
     /** @todo Read MPERF: Adjust against previously written MPERF value.  Is TSC
      *        what we want? */
     *puValue = TMCpuTickGet(pVCpu);
+#ifdef VBOX_WITH_NESTED_HWVIRT_SVM
+    *puValue = CPUMApplyNestedGuestTscOffset(pVCpu, *puValue);
+#endif
     return VINF_SUCCESS;
 }
 
@@ -361,6 +390,9 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32APerf(PVMCPU pVCpu, uint32_t idM
     /** @todo Read APERF: Adjust against previously written MPERF value.  Is TSC
      *        what we want? */
     *puValue = TMCpuTickGet(pVCpu);
+#ifdef VBOX_WITH_NESTED_HWVIRT_SVM
+    *puValue = CPUMApplyNestedGuestTscOffset(pVCpu, *puValue);
+#endif
     return VINF_SUCCESS;
 }
 
@@ -374,20 +406,32 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrWr_Ia32APerf(PVMCPU pVCpu, uint32_t idM
 }
 
 
-/** @callback_method_impl{FNCPUMRDMSR} */
-static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32MtrrCap(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t *puValue)
+/**
+ * Get fixed IA32_MTRR_CAP value for NEM and cpumMsrRd_Ia32MtrrCap.
+ *
+ * @returns Fixed IA32_MTRR_CAP value.
+ * @param   pVCpu           The cross context per CPU structure.
+ */
+VMM_INT_DECL(uint64_t) CPUMGetGuestIa32MtrrCap(PVMCPU pVCpu)
 {
-    RT_NOREF_PV(pVCpu); RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange);
+    RT_NOREF_PV(pVCpu);
 
     /* This is currently a bit weird. :-) */
     uint8_t const   cVariableRangeRegs              = 0;
     bool const      fSystemManagementRangeRegisters = false;
     bool const      fFixedRangeRegisters            = false;
     bool const      fWriteCombiningType             = false;
-    *puValue = cVariableRangeRegs
-             | (fFixedRangeRegisters            ? RT_BIT_64(8)  : 0)
-             | (fWriteCombiningType             ? RT_BIT_64(10) : 0)
-             | (fSystemManagementRangeRegisters ? RT_BIT_64(11) : 0);
+    return cVariableRangeRegs
+         | (fFixedRangeRegisters            ? RT_BIT_64(8)  : 0)
+         | (fWriteCombiningType             ? RT_BIT_64(10) : 0)
+         | (fSystemManagementRangeRegisters ? RT_BIT_64(11) : 0);
+}
+
+/** @callback_method_impl{FNCPUMRDMSR} */
+static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32MtrrCap(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t *puValue)
+{
+    RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange);
+    *puValue = CPUMGetGuestIa32MtrrCap(pVCpu);
     return VINF_SUCCESS;
 }
 
@@ -541,21 +585,12 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32Pat(PVMCPU pVCpu, uint32_t idMsr
 static DECLCALLBACK(VBOXSTRICTRC) cpumMsrWr_Ia32Pat(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t uValue, uint64_t uRawValue)
 {
     RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange); RT_NOREF_PV(uRawValue);
-
-    for (uint32_t cShift = 0; cShift < 63; cShift += 8)
+    if (CPUMIsPatMsrValid(uValue))
     {
-        /* Check all eight bits because the top 5 bits of each byte are reserved. */
-        uint8_t uType = (uint8_t)(uValue >> cShift);
-        if ((uType >= 8) || (uType == 2) || (uType == 3))
-        {
-            Log(("CPUM: Invalid PAT type at %u:%u in IA32_PAT: %#llx (%#llx)\n",
-                 cShift + 7, cShift, uValue, uType));
-            return VERR_CPUM_RAISE_GP_0;
-        }
+        pVCpu->cpum.s.Guest.msrPAT = uValue;
+        return VINF_SUCCESS;
     }
-
-    pVCpu->cpum.s.Guest.msrPAT = uValue;
-    return VINF_SUCCESS;
+    return VERR_CPUM_RAISE_GP_0;
 }
 
 
@@ -620,11 +655,7 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrWr_Ia32SysEnterEip(PVMCPU pVCpu, uint32
         pVCpu->cpum.s.Guest.SysEnter.eip = uValue;
         return VINF_SUCCESS;
     }
-#ifdef IN_RING3
     LogRel(("CPUM: IA32_SYSENTER_EIP not canonical! %#llx\n", uValue));
-#else
-    Log(("CPUM: IA32_SYSENTER_EIP not canonical! %#llx\n", uValue));
-#endif
     RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange); RT_NOREF_PV(uRawValue);
     return VERR_CPUM_RAISE_GP_0;
 }
@@ -1229,6 +1260,18 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrWr_Ia32TscDeadline(PVMCPU pVCpu, uint32
 static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32X2ApicN(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t *puValue)
 {
     RT_NOREF_PV(pRange);
+#ifdef VBOX_WITH_NESTED_HWVIRT_VMX
+    if (   CPUMIsGuestInVmxNonRootMode(&pVCpu->cpum.s.Guest)
+        && CPUMIsGuestVmxProcCtls2Set(pVCpu, &pVCpu->cpum.s.Guest, VMX_PROC_CTLS2_VIRT_X2APIC_MODE))
+    {
+        VBOXSTRICTRC rcStrict = IEMExecVmxVirtApicAccessMsr(pVCpu, idMsr, puValue, false /* fWrite */);
+        if (rcStrict == VINF_VMX_MODIFIES_BEHAVIOR)
+            return VINF_SUCCESS;
+        if (rcStrict == VERR_OUT_OF_RANGE)
+            return VERR_CPUM_RAISE_GP_0;
+        Assert(rcStrict == VINF_VMX_INTERCEPT_NOT_ACTIVE);
+    }
+#endif
     return APICReadMsr(pVCpu, idMsr, puValue);
 }
 
@@ -1237,6 +1280,18 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32X2ApicN(PVMCPU pVCpu, uint32_t i
 static DECLCALLBACK(VBOXSTRICTRC) cpumMsrWr_Ia32X2ApicN(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t uValue, uint64_t uRawValue)
 {
     RT_NOREF_PV(pRange); RT_NOREF_PV(uRawValue);
+#ifdef VBOX_WITH_NESTED_HWVIRT_VMX
+    if (   CPUMIsGuestInVmxNonRootMode(&pVCpu->cpum.s.Guest)
+        && CPUMIsGuestVmxProcCtls2Set(pVCpu, &pVCpu->cpum.s.Guest, VMX_PROC_CTLS2_VIRT_X2APIC_MODE))
+    {
+        VBOXSTRICTRC rcStrict = IEMExecVmxVirtApicAccessMsr(pVCpu, idMsr, &uValue, true /* fWrite */);
+        if (rcStrict == VINF_VMX_MODIFIES_BEHAVIOR)
+            return VINF_SUCCESS;
+        if (rcStrict == VERR_OUT_OF_RANGE)
+            return VERR_CPUM_RAISE_GP_0;
+        Assert(rcStrict == VINF_VMX_INTERCEPT_NOT_ACTIVE);
+    }
+#endif
     return APICWriteMsr(pVCpu, idMsr, uValue);
 }
 
@@ -1261,10 +1316,10 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrWr_Ia32DebugInterface(PVMCPU pVCpu, uin
 
 
 /** @callback_method_impl{FNCPUMRDMSR} */
-static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32VmxBase(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t *puValue)
+static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32VmxBasic(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t *puValue)
 {
-    RT_NOREF_PV(pVCpu); RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange);
-    *puValue = 0;
+    RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange);
+    *puValue = pVCpu->cpum.s.Guest.hwvirt.vmx.Msrs.u64Basic;
     return VINF_SUCCESS;
 }
 
@@ -1272,17 +1327,16 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32VmxBase(PVMCPU pVCpu, uint32_t i
 /** @callback_method_impl{FNCPUMRDMSR} */
 static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32VmxPinbasedCtls(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t *puValue)
 {
-    RT_NOREF_PV(pVCpu); RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange);
-    *puValue = 0;
+    RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange);
+    *puValue = pVCpu->cpum.s.Guest.hwvirt.vmx.Msrs.PinCtls.u;
     return VINF_SUCCESS;
 }
-
 
 /** @callback_method_impl{FNCPUMRDMSR} */
 static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32VmxProcbasedCtls(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t *puValue)
 {
-    RT_NOREF_PV(pVCpu); RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange);
-    *puValue = 0;
+    RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange);
+    *puValue = pVCpu->cpum.s.Guest.hwvirt.vmx.Msrs.ProcCtls.u;
     return VINF_SUCCESS;
 }
 
@@ -1290,8 +1344,8 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32VmxProcbasedCtls(PVMCPU pVCpu, u
 /** @callback_method_impl{FNCPUMRDMSR} */
 static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32VmxExitCtls(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t *puValue)
 {
-    RT_NOREF_PV(pVCpu); RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange);
-    *puValue = 0;
+    RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange);
+    *puValue = pVCpu->cpum.s.Guest.hwvirt.vmx.Msrs.ExitCtls.u;
     return VINF_SUCCESS;
 }
 
@@ -1299,17 +1353,18 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32VmxExitCtls(PVMCPU pVCpu, uint32
 /** @callback_method_impl{FNCPUMRDMSR} */
 static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32VmxEntryCtls(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t *puValue)
 {
-    RT_NOREF_PV(pVCpu); RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange);
-    *puValue = 0;
+    RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange);
+    *puValue = pVCpu->cpum.s.Guest.hwvirt.vmx.Msrs.EntryCtls.u;
     return VINF_SUCCESS;
 }
+
 
 
 /** @callback_method_impl{FNCPUMRDMSR} */
 static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32VmxMisc(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t *puValue)
 {
-    RT_NOREF_PV(pVCpu); RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange);
-    *puValue = 0;
+    RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange);
+    *puValue = pVCpu->cpum.s.Guest.hwvirt.vmx.Msrs.u64Misc;
     return VINF_SUCCESS;
 }
 
@@ -1317,8 +1372,8 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32VmxMisc(PVMCPU pVCpu, uint32_t i
 /** @callback_method_impl{FNCPUMRDMSR} */
 static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32VmxCr0Fixed0(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t *puValue)
 {
-    RT_NOREF_PV(pVCpu); RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange);
-    *puValue = 0;
+    RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange);
+    *puValue = pVCpu->cpum.s.Guest.hwvirt.vmx.Msrs.u64Cr0Fixed0;
     return VINF_SUCCESS;
 }
 
@@ -1326,8 +1381,8 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32VmxCr0Fixed0(PVMCPU pVCpu, uint3
 /** @callback_method_impl{FNCPUMRDMSR} */
 static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32VmxCr0Fixed1(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t *puValue)
 {
-    RT_NOREF_PV(pVCpu); RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange);
-    *puValue = 0;
+    RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange);
+    *puValue = pVCpu->cpum.s.Guest.hwvirt.vmx.Msrs.u64Cr0Fixed1;
     return VINF_SUCCESS;
 }
 
@@ -1335,8 +1390,8 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32VmxCr0Fixed1(PVMCPU pVCpu, uint3
 /** @callback_method_impl{FNCPUMRDMSR} */
 static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32VmxCr4Fixed0(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t *puValue)
 {
-    RT_NOREF_PV(pVCpu); RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange);
-    *puValue = 0;
+    RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange);
+    *puValue = pVCpu->cpum.s.Guest.hwvirt.vmx.Msrs.u64Cr4Fixed0;
     return VINF_SUCCESS;
 }
 
@@ -1344,8 +1399,8 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32VmxCr4Fixed0(PVMCPU pVCpu, uint3
 /** @callback_method_impl{FNCPUMRDMSR} */
 static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32VmxCr4Fixed1(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t *puValue)
 {
-    RT_NOREF_PV(pVCpu); RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange);
-    *puValue = 0;
+    RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange);
+    *puValue = pVCpu->cpum.s.Guest.hwvirt.vmx.Msrs.u64Cr4Fixed1;
     return VINF_SUCCESS;
 }
 
@@ -1353,8 +1408,8 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32VmxCr4Fixed1(PVMCPU pVCpu, uint3
 /** @callback_method_impl{FNCPUMRDMSR} */
 static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32VmxVmcsEnum(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t *puValue)
 {
-    RT_NOREF_PV(pVCpu); RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange);
-    *puValue = 0;
+    RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange);
+    *puValue = pVCpu->cpum.s.Guest.hwvirt.vmx.Msrs.u64VmcsEnum;
     return VINF_SUCCESS;
 }
 
@@ -1362,8 +1417,8 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32VmxVmcsEnum(PVMCPU pVCpu, uint32
 /** @callback_method_impl{FNCPUMRDMSR} */
 static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32VmxProcBasedCtls2(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t *puValue)
 {
-    RT_NOREF_PV(pVCpu); RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange);
-    *puValue = 0;
+    RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange);
+    *puValue = pVCpu->cpum.s.Guest.hwvirt.vmx.Msrs.ProcCtls2.u;
     return VINF_SUCCESS;
 }
 
@@ -1417,7 +1472,7 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32VmxTrueEntryCtls(PVMCPU pVCpu, u
 static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32VmxVmFunc(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t *puValue)
 {
     RT_NOREF_PV(pVCpu); RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange);
-    *puValue = 0;
+    *puValue = pVCpu->cpum.s.Guest.hwvirt.vmx.Msrs.u64VmFunc;
     return VINF_SUCCESS;
 }
 
@@ -1499,11 +1554,11 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrWr_Amd64Efer(PVMCPU pVCpu, uint32_t idM
     RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange); RT_NOREF_PV(uRawValue);
     uint64_t uValidatedEfer;
     uint64_t const uOldEfer = pVCpu->cpum.s.Guest.msrEFER;
-    int rc = CPUMQueryValidatedGuestEfer(pVCpu->CTX_SUFF(pVM), pVCpu->cpum.s.Guest.cr0, uOldEfer, uValue, &uValidatedEfer);
+    int rc = CPUMIsGuestEferMsrWriteValid(pVCpu->CTX_SUFF(pVM), pVCpu->cpum.s.Guest.cr0, uOldEfer, uValue, &uValidatedEfer);
     if (RT_FAILURE(rc))
         return VERR_CPUM_RAISE_GP_0;
 
-    CPUMSetGuestMsrEferNoCheck(pVCpu, uOldEfer, uValidatedEfer);
+    CPUMSetGuestEferMsrNoChecks(pVCpu, uOldEfer, uValidatedEfer);
     return VINF_SUCCESS;
 }
 
@@ -4935,6 +4990,12 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrWr_AmdFam14hIbsBrTarget(PVMCPU pVCpu, u
 /** @callback_method_impl{FNCPUMRDMSR} */
 static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Gim(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t *puValue)
 {
+#if defined(VBOX_WITH_NESTED_HWVIRT_SVM) || defined(VBOX_WITH_NESTED_HWVIRT_VMX)
+    /* Raise #GP(0) like a physical CPU would since the nested-hypervisor hasn't intercept these MSRs. */
+    if (   CPUMIsGuestInSvmNestedHwVirtMode(&pVCpu->cpum.s.Guest)
+        || CPUMIsGuestInVmxNonRootMode(&pVCpu->cpum.s.Guest))
+        return VERR_CPUM_RAISE_GP_0;
+#endif
     return GIMReadMsr(pVCpu, idMsr, pRange, puValue);
 }
 
@@ -4942,6 +5003,12 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Gim(PVMCPU pVCpu, uint32_t idMsr, PC
 /** @callback_method_impl{FNCPUMWRMSR} */
 static DECLCALLBACK(VBOXSTRICTRC) cpumMsrWr_Gim(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t uValue, uint64_t uRawValue)
 {
+#if defined(VBOX_WITH_NESTED_HWVIRT_SVM) || defined(VBOX_WITH_NESTED_HWVIRT_VMX)
+    /* Raise #GP(0) like a physical CPU would since the nested-hypervisor hasn't intercept these MSRs. */
+    if (   CPUMIsGuestInSvmNestedHwVirtMode(&pVCpu->cpum.s.Guest)
+        || CPUMIsGuestInVmxNonRootMode(&pVCpu->cpum.s.Guest))
+        return VERR_CPUM_RAISE_GP_0;
+#endif
     return GIMWriteMsr(pVCpu, idMsr, pRange, uValue, uRawValue);
 }
 
@@ -5006,7 +5073,7 @@ static const PFNCPUMRDMSR g_aCpumRdMsrFns[kCpumMsrRdFn_End] =
     cpumMsrRd_Ia32TscDeadline,
     cpumMsrRd_Ia32X2ApicN,
     cpumMsrRd_Ia32DebugInterface,
-    cpumMsrRd_Ia32VmxBase,
+    cpumMsrRd_Ia32VmxBasic,
     cpumMsrRd_Ia32VmxPinbasedCtls,
     cpumMsrRd_Ia32VmxProcbasedCtls,
     cpumMsrRd_Ia32VmxExitCtls,
@@ -5724,7 +5791,7 @@ int cpumR3MsrStrictInitChecks(void)
     CPUM_ASSERT_RD_MSR_FN(Ia32TscDeadline);
     CPUM_ASSERT_RD_MSR_FN(Ia32X2ApicN);
     CPUM_ASSERT_RD_MSR_FN(Ia32DebugInterface);
-    CPUM_ASSERT_RD_MSR_FN(Ia32VmxBase);
+    CPUM_ASSERT_RD_MSR_FN(Ia32VmxBasic);
     CPUM_ASSERT_RD_MSR_FN(Ia32VmxPinbasedCtls);
     CPUM_ASSERT_RD_MSR_FN(Ia32VmxProcbasedCtls);
     CPUM_ASSERT_RD_MSR_FN(Ia32VmxExitCtls);
@@ -6167,10 +6234,10 @@ VMMDECL(uint64_t) CPUMGetGuestScalableBusFrequency(PVM pVM)
  * @param   uOldEfer    The previous EFER MSR value.
  * @param   uValidEfer  The new, validated EFER MSR value.
  *
- * @remarks One would normally call CPUMQueryValidatedGuestEfer before calling this
- *          function to change the EFER in order to perform an EFER transition.
+ * @remarks One would normally call CPUMIsGuestEferMsrWriteValid() before calling
+ *          this function to change the EFER in order to perform an EFER transition.
  */
-VMMDECL(void) CPUMSetGuestMsrEferNoCheck(PVMCPU pVCpu, uint64_t uOldEfer, uint64_t uValidEfer)
+VMMDECL(void) CPUMSetGuestEferMsrNoChecks(PVMCPU pVCpu, uint64_t uOldEfer, uint64_t uValidEfer)
 {
     pVCpu->cpum.s.Guest.msrEFER = uValidEfer;
 
@@ -6180,7 +6247,7 @@ VMMDECL(void) CPUMSetGuestMsrEferNoCheck(PVMCPU pVCpu, uint64_t uOldEfer, uint64
         != (pVCpu->cpum.s.Guest.msrEFER & (MSR_K6_EFER_NXE | MSR_K6_EFER_LME | MSR_K6_EFER_LMA)))
     {
         /// @todo PGMFlushTLB(pVCpu, cr3, true /*fGlobal*/);
-        HMFlushTLB(pVCpu);
+        HMFlushTlb(pVCpu);
 
         /* Notify PGM about NXE changes. */
         if (   (uOldEfer                    & MSR_K6_EFER_NXE)
@@ -6191,7 +6258,29 @@ VMMDECL(void) CPUMSetGuestMsrEferNoCheck(PVMCPU pVCpu, uint64_t uOldEfer, uint64
 
 
 /**
- * Validates an EFER MSR write.
+ * Checks if a guest PAT MSR write is valid.
+ *
+ * @returns @c true if the PAT bit combination is valid, @c false otherwise.
+ * @param   uValue      The PAT MSR value.
+ */
+VMMDECL(bool) CPUMIsPatMsrValid(uint64_t uValue)
+{
+    for (uint32_t cShift = 0; cShift < 63; cShift += 8)
+    {
+        /* Check all eight bits because the top 5 bits of each byte are reserved. */
+        uint8_t uType = (uint8_t)(uValue >> cShift);
+        if ((uType >= 8) || (uType == 2) || (uType == 3))
+        {
+            Log(("CPUM: Invalid PAT type at %u:%u in IA32_PAT: %#llx (%#llx)\n", cShift + 7, cShift, uValue, uType));
+            return false;
+        }
+    }
+    return true;
+}
+
+
+/**
+ * Validates an EFER MSR write and provides the new, validated EFER MSR.
  *
  * @returns VBox status code.
  * @param   pVM             The cross context VM structure.
@@ -6201,7 +6290,52 @@ VMMDECL(void) CPUMSetGuestMsrEferNoCheck(PVMCPU pVCpu, uint64_t uOldEfer, uint64
  * @param   puValidEfer     Where to store the validated EFER (only updated if
  *                          this function returns VINF_SUCCESS).
  */
-VMMDECL(int) CPUMQueryValidatedGuestEfer(PVM pVM, uint64_t uCr0, uint64_t uOldEfer, uint64_t uNewEfer, uint64_t *puValidEfer)
+VMMDECL(int) CPUMIsGuestEferMsrWriteValid(PVM pVM, uint64_t uCr0, uint64_t uOldEfer, uint64_t uNewEfer, uint64_t *puValidEfer)
+{
+    /* #GP(0) If anything outside the allowed bits is set. */
+    uint64_t fMask = CPUMGetGuestEferMsrValidMask(pVM);
+    if (uNewEfer & ~fMask)
+    {
+        Log(("CPUM: Settings disallowed EFER bit. uNewEfer=%#RX64 fAllowed=%#RX64 -> #GP(0)\n", uNewEfer, fMask));
+        return VERR_CPUM_RAISE_GP_0;
+    }
+
+    /* Check for illegal MSR_K6_EFER_LME transitions: not allowed to change LME if
+       paging is enabled. (AMD Arch. Programmer's Manual Volume 2: Table 14-5) */
+    if (   (uOldEfer & MSR_K6_EFER_LME) != (uNewEfer & MSR_K6_EFER_LME)
+        && (uCr0 & X86_CR0_PG))
+    {
+        Log(("CPUM: Illegal MSR_K6_EFER_LME change: paging is enabled!!\n"));
+        return VERR_CPUM_RAISE_GP_0;
+    }
+
+    /* There are a few more: e.g. MSR_K6_EFER_LMSLE. */
+    AssertMsg(!(uNewEfer & ~(  MSR_K6_EFER_NXE
+                             | MSR_K6_EFER_LME
+                             | MSR_K6_EFER_LMA /* ignored anyway */
+                             | MSR_K6_EFER_SCE
+                             | MSR_K6_EFER_FFXSR
+                             | MSR_K6_EFER_SVME)),
+              ("Unexpected value %#RX64\n", uNewEfer));
+
+    /* Ignore EFER.LMA, it's updated when setting CR0. */
+    fMask &= ~MSR_K6_EFER_LMA;
+
+    *puValidEfer = (uOldEfer & ~fMask) | (uNewEfer & fMask);
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Gets the mask of valid EFER bits depending on supported guest-CPU features.
+ *
+ * @returns Mask of valid EFER bits.
+ * @param   pVM     The cross context VM structure.
+ *
+ * @remarks EFER.LMA is included as part of the valid mask. It's not invalid but
+ *          rather a read-only bit.
+ */
+VMMDECL(uint64_t) CPUMGetGuestEferMsrValidMask(PVM pVM)
 {
     uint32_t const  fExtFeatures = pVM->cpum.s.aGuestCpuIdPatmExt[0].uEax >= 0x80000001
                                  ? pVM->cpum.s.aGuestCpuIdPatmExt[1].uEdx
@@ -6221,36 +6355,9 @@ VMMDECL(int) CPUMQueryValidatedGuestEfer(PVM pVM, uint64_t uCr0, uint64_t uOldEf
     if (pVM->cpum.s.GuestFeatures.fSvm)
         fMask |= MSR_K6_EFER_SVME;
 
-    /* #GP(0) If anything outside the allowed bits is set. */
-    if (uNewEfer & ~(fIgnoreMask | fMask))
-    {
-        Log(("CPUM: Settings disallowed EFER bit. uNewEfer=%#RX64 fAllowed=%#RX64 -> #GP(0)\n", uNewEfer, fMask));
-        return VERR_CPUM_RAISE_GP_0;
-    }
-
-    /* Check for illegal MSR_K6_EFER_LME transitions: not allowed to change LME if
-       paging is enabled. (AMD Arch. Programmer's Manual Volume 2: Table 14-5) */
-    if (   (uOldEfer & MSR_K6_EFER_LME) != (uNewEfer & fMask & MSR_K6_EFER_LME)
-        && (uCr0 & X86_CR0_PG))
-    {
-        Log(("CPUM: Illegal MSR_K6_EFER_LME change: paging is enabled!!\n"));
-        return VERR_CPUM_RAISE_GP_0;
-    }
-
-    /* There are a few more: e.g. MSR_K6_EFER_LMSLE */
-    AssertMsg(!(uNewEfer & ~(  MSR_K6_EFER_NXE
-                             | MSR_K6_EFER_LME
-                             | MSR_K6_EFER_LMA /* ignored anyway */
-                             | MSR_K6_EFER_SCE
-                             | MSR_K6_EFER_FFXSR
-                             | MSR_K6_EFER_SVME)),
-              ("Unexpected value %#RX64\n", uNewEfer));
-
-    *puValidEfer = (uOldEfer & ~fMask) | (uNewEfer & fMask);
-    return VINF_SUCCESS;
+    return (fIgnoreMask | fMask);
 }
 
-#ifdef IN_RING0
 
 /**
  * Fast way for HM to access the MSR_K8_TSC_AUX register.
@@ -6259,8 +6366,9 @@ VMMDECL(int) CPUMQueryValidatedGuestEfer(PVM pVM, uint64_t uCr0, uint64_t uOldEf
  * @param   pVCpu   The cross context virtual CPU structure of the calling EMT.
  * @thread  EMT(pVCpu)
  */
-VMMR0_INT_DECL(uint64_t) CPUMR0GetGuestTscAux(PVMCPU pVCpu)
+VMM_INT_DECL(uint64_t) CPUMGetGuestTscAux(PVMCPU pVCpu)
 {
+    Assert(!(pVCpu->cpum.s.Guest.fExtrn & CPUMCTX_EXTRN_TSC_AUX));
     return pVCpu->cpum.s.GuestMsrs.msr.TscAux;
 }
 
@@ -6272,10 +6380,12 @@ VMMR0_INT_DECL(uint64_t) CPUMR0GetGuestTscAux(PVMCPU pVCpu)
  * @param   uValue  The new value.
  * @thread  EMT(pVCpu)
  */
-VMMR0_INT_DECL(void) CPUMR0SetGuestTscAux(PVMCPU pVCpu, uint64_t uValue)
+VMM_INT_DECL(void) CPUMSetGuestTscAux(PVMCPU pVCpu, uint64_t uValue)
 {
+    pVCpu->cpum.s.Guest.fExtrn &= ~CPUMCTX_EXTRN_TSC_AUX;
     pVCpu->cpum.s.GuestMsrs.msr.TscAux = uValue;
 }
+
 
 /**
  * Fast way for HM to access the IA32_SPEC_CTRL register.
@@ -6284,7 +6394,7 @@ VMMR0_INT_DECL(void) CPUMR0SetGuestTscAux(PVMCPU pVCpu, uint64_t uValue)
  * @param   pVCpu   The cross context virtual CPU structure of the calling EMT.
  * @thread  EMT(pVCpu)
  */
-VMMR0_INT_DECL(uint64_t) CPUMR0GetGuestSpecCtrl(PVMCPU pVCpu)
+VMM_INT_DECL(uint64_t) CPUMGetGuestSpecCtrl(PVMCPU pVCpu)
 {
     return pVCpu->cpum.s.GuestMsrs.msr.SpecCtrl;
 }
@@ -6297,10 +6407,8 @@ VMMR0_INT_DECL(uint64_t) CPUMR0GetGuestSpecCtrl(PVMCPU pVCpu)
  * @param   uValue  The new value.
  * @thread  EMT(pVCpu)
  */
-VMMR0_INT_DECL(void) CPUMR0SetGuestSpecCtrl(PVMCPU pVCpu, uint64_t uValue)
+VMM_INT_DECL(void) CPUMSetGuestSpecCtrl(PVMCPU pVCpu, uint64_t uValue)
 {
     pVCpu->cpum.s.GuestMsrs.msr.SpecCtrl = uValue;
 }
-
-#endif /* IN_RING0 */
 

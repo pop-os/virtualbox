@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,8 +24,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___SUPDrvIOC_h___
-#define ___SUPDrvIOC_h___
+#ifndef VBOX_INCLUDED_SRC_Support_SUPDrvIOC_h
+#define VBOX_INCLUDED_SRC_Support_SUPDrvIOC_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/types.h>
 #include <VBox/sup.h>
@@ -112,12 +115,22 @@
 # define SUP_CTL_CODE_NO_SIZE(uIOCtl)           ( (uIOCtl) & ~_IOC(0,0,0,IOCPARM_MASK) )
 #endif
 
+/** @name Fast path I/O control codes.
+ * @note These must run parallel to SUP_VMMR0_DO_XXX
+ * @note Implementations ASSUMES up to 32 I/O controls codes in the fast range.
+ * @{ */
 /** Fast path IOCtl: VMMR0_DO_RAW_RUN */
 #define SUP_IOCTL_FAST_DO_RAW_RUN               SUP_CTL_CODE_FAST(64)
 /** Fast path IOCtl: VMMR0_DO_HM_RUN */
 #define SUP_IOCTL_FAST_DO_HM_RUN                SUP_CTL_CODE_FAST(65)
 /** Just a NOP call for profiling the latency of a fast ioctl call to VMMR0. */
 #define SUP_IOCTL_FAST_DO_NOP                   SUP_CTL_CODE_FAST(66)
+/** Fast path IOCtl: VMMR0_DO_NEM_RUN */
+#define SUP_IOCTL_FAST_DO_NEM_RUN               SUP_CTL_CODE_FAST(67)
+/** First fast path IOCtl number. */
+#define SUP_IOCTL_FAST_DO_FIRST                 SUP_IOCTL_FAST_DO_RAW_RUN
+/** @} */
+
 
 #ifdef RT_OS_DARWIN
 /** Cookie used to fend off some unwanted clients to the IOService.  */
@@ -209,11 +222,11 @@ typedef SUPREQHDR *PSUPREQHDR;
  *  -# When increment the major number, execute all pending work.
  *
  * @todo Pending work on next major version change:
- *          - nothing.
+ *          - Move SUP_IOCTL_FAST_DO_NOP and SUP_VMMR0_DO_NEM_RUN after NEM.
  *
  * @remarks 0x002a0000 is used by 5.1. The next version number must be 0x002b0000.
  */
-#define SUPDRV_IOC_VERSION                              0x00290001
+#define SUPDRV_IOC_VERSION                              0x00290008
 
 /** SUP_IOCTL_COOKIE. */
 typedef struct SUPCOOKIE
@@ -1601,7 +1614,7 @@ typedef struct SUPGIPSETFLAGS
  *
  * @{
  */
-#define SUP_IOCTL_UCODE_REV                             SUP_CTL_CODE_SIZE(40, SUP_IOCTL_VT_CAPS_SIZE)
+#define SUP_IOCTL_UCODE_REV                             SUP_CTL_CODE_SIZE(40, SUP_IOCTL_UCODE_REV_SIZE)
 #define SUP_IOCTL_UCODE_REV_SIZE                        sizeof(SUPUCODEREV)
 #define SUP_IOCTL_UCODE_REV_SIZE_IN                     sizeof(SUPREQHDR)
 #define SUP_IOCTL_UCODE_REV_SIZE_OUT                    sizeof(SUPUCODEREV)
@@ -1621,7 +1634,46 @@ typedef struct SUPUCODEREV
 /** @} */
 
 
+/** @name SUP_IOCTL_HWVIRT_MSRS
+ * Get hardware-virtualization MSRs.
+ *
+ * This queries a lot more information than merely VT-x/AMD-V basic capabilities
+ * provided by SUP_IOCTL_VT_CAPS.
+ */
+#define SUP_IOCTL_GET_HWVIRT_MSRS                       SUP_CTL_CODE_SIZE(41, SUP_IOCTL_GET_HWVIRT_MSRS_SIZE)
+#define SUP_IOCTL_GET_HWVIRT_MSRS_SIZE                  sizeof(SUPGETHWVIRTMSRS)
+#define SUP_IOCTL_GET_HWVIRT_MSRS_SIZE_IN               (sizeof(SUPREQHDR) + RT_SIZEOFMEMB(SUPGETHWVIRTMSRS, u.In))
+#define SUP_IOCTL_GET_HWVIRT_MSRS_SIZE_OUT              sizeof(SUPGETHWVIRTMSRS)
+
+typedef struct SUPGETHWVIRTMSRS
+{
+    /** The header. */
+    SUPREQHDR               Hdr;
+    union
+    {
+        struct
+        {
+            /** Whether to force re-querying of MSRs. */
+            bool                fForce;
+            /** Reserved. Must be false. */
+            bool                fReserved0;
+            /** Reserved. Must be false. */
+            bool                fReserved1;
+            /** Reserved. Must be false. */
+            bool                fReserved2;
+        } In;
+
+        struct
+        {
+            /** Hardware-virtualization MSRs. */
+            SUPHWVIRTMSRS      HwvirtMsrs;
+        } Out;
+    } u;
+} SUPGETHWVIRTMSRS, *PSUPGETHWVIRTMSRS;
+/** @} */
+
+
 #pragma pack()                          /* paranoia */
 
-#endif
+#endif /* !VBOX_INCLUDED_SRC_Support_SUPDrvIOC_h */
 

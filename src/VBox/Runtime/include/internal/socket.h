@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,8 +24,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___internal_socket_h
-#define ___internal_socket_h
+#ifndef IPRT_INCLUDED_INTERNAL_socket_h
+#define IPRT_INCLUDED_INTERNAL_socket_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/cdefs.h>
 #include <iprt/types.h>
@@ -54,6 +57,7 @@ RT_C_DECLS_BEGIN
 DECLHIDDEN(int) rtSocketResolverError(void);
 DECLHIDDEN(int) rtSocketCreateForNative(RTSOCKETINT **ppSocket, RTSOCKETNATIVE hNative);
 DECLHIDDEN(int) rtSocketCreate(PRTSOCKET phSocket, int iDomain, int iType, int iProtocol);
+DECLHIDDEN(int) rtSocketCreateTcpPair(RTSOCKET *phServer, RTSOCKET *phClient);
 DECLHIDDEN(int) rtSocketBind(RTSOCKET hSocket, PCRTNETADDR pAddr);
 DECLHIDDEN(int) rtSocketBindRawAddr(RTSOCKET hSocket, void const *pvAddr, size_t cbAddr);
 DECLHIDDEN(int) rtSocketListen(RTSOCKET hSocket, int cMaxPending);
@@ -69,5 +73,5 @@ DECLHIDDEN(uint32_t)    rtSocketPollDone(RTSOCKET hSocket, uint32_t fEvents, boo
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !IPRT_INCLUDED_INTERNAL_socket_h */
 

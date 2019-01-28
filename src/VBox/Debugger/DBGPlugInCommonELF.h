@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___Debugger_DBGPlugInCommonELF_h
-#define ___Debugger_DBGPlugInCommonELF_h
+#ifndef DEBUGGER_INCLUDED_SRC_DBGPlugInCommonELF_h
+#define DEBUGGER_INCLUDED_SRC_DBGPlugInCommonELF_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/types.h>
 #include <iprt/formats/elf32.h>
@@ -46,5 +49,5 @@ int DBGDiggerCommonParseElf64Mod(PUVM pUVM, const char *pszModName, const char *
                                  char const *pbStrings, size_t cbMaxStrings,
                                  RTGCPTR MinAddr, RTGCPTR MaxAddr, uint64_t uModTag);
 
-#endif
+#endif /* !DEBUGGER_INCLUDED_SRC_DBGPlugInCommonELF_h */
 

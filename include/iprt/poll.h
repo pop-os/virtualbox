@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,8 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___iprt_poll_h
-#define ___iprt_poll_h
+#ifndef IPRT_INCLUDED_poll_h
+#define IPRT_INCLUDED_poll_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/cdefs.h>
 #include <iprt/types.h>
@@ -118,6 +121,15 @@ RTDECL(int)  RTPollSetDestroy(RTPOLLSET hPollSet);
 
 /**
  * Adds a generic handle to the poll set.
+ *
+ * If a handle is entered more than once, it is recommended to add the one with
+ * RTPOLL_EVT_ERROR first to ensure that you get the right ID back when an error
+ * actually occurs.  On some hosts it is possible that polling for
+ * RTPOLL_EVT_READ on a socket may cause it to return error conditions because
+ * the two cannot so easily be distinguished.
+ *
+ * Also note that RTPOLL_EVT_ERROR may be returned by RTPoll even if not asked
+ * for.
  *
  * @returns IPRT status code
  * @retval  VERR_CONCURRENT_ACCESS if another thread is already accessing the set. The
@@ -239,5 +251,5 @@ DECLINLINE(int) RTPollSetAddSocket(RTPOLLSET hPollSet, RTSOCKET hSocket, uint32_
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !IPRT_INCLUDED_poll_h */
 

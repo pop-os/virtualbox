@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,21 +15,15 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QVBoxLayout>
-# include <QPushButton>
+#include <QVBoxLayout>
+#include <QPushButton>
 
 /* GUI includes: */
-# include "UIMachineSettingsPortForwardingDlg.h"
-# include "UIIconPool.h"
-# include "UIMessageCenter.h"
-# include "QIDialogButtonBox.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "UIMachineSettingsPortForwardingDlg.h"
+#include "UIIconPool.h"
+#include "UIMessageCenter.h"
+#include "QIDialogButtonBox.h"
 
 
 UIMachineSettingsPortForwardingDlg::UIMachineSettingsPortForwardingDlg(QWidget *pParent,

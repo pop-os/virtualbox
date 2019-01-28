@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -998,9 +998,10 @@ static int vboxNetFltNewInstance(PVBOXNETFLTGLOBALS pGlobals, const char *pszNam
      */
     int             rc;
     size_t const    cchName = strlen(pszName);
-    PVBOXNETFLTINS  pNew = (PVBOXNETFLTINS)RTMemAllocZ(RT_UOFFSETOF_DYN(VBOXNETFLTINS, szName[cchName + 1]));
+    PVBOXNETFLTINS  pNew = (PVBOXNETFLTINS)RTMemAllocZVar(RT_UOFFSETOF_DYN(VBOXNETFLTINS, szName[cchName + 1]));
     if (!pNew)
         return VERR_INTNET_FLT_IF_FAILED;
+    AssertMsg(((uintptr_t)pNew & 7) == 0, ("%p LB %#x\n", pNew, RT_UOFFSETOF_DYN(VBOXNETFLTINS, szName[cchName + 1])));
     pNew->pNext                         = NULL;
     pNew->MyPort.u32Version             = INTNETTRUNKIFPORT_VERSION;
     pNew->MyPort.pfnRetain              = vboxNetFltPortRetain;

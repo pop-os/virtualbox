@@ -6,7 +6,7 @@
 #
 
 #
-# Copyright (C) 2007-2017 Oracle Corporation
+# Copyright (C) 2007-2019 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -26,10 +26,14 @@ for item in $items; do
     loaded=`kextstat | grep $kext_item`
     if [ -z "$loaded" ] ; then
         echo "Loading $item kernel extension..."
-        kextload /Library/Extensions/$item.kext
+        XNU_VERSION=`LC_ALL=C uname -r | LC_ALL=C cut -d . -f 1`
+        if [ "$XNU_VERSION" -ge "10" ]; then
+            kextutil /Library/Extensions/$item.kext
+        else
+            kextload /Library/Extensions/$item.kext
+        fi
     fi
 done
 
-"/Library/Application Support/VirtualBox Guest Additions/VBoxService" -f
+exec "/Library/Application Support/VirtualBox Guest Additions/VBoxService" -f
 
-exit $?

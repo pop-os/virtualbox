@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2017 Oracle Corporation
+ * Copyright (C) 2011-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,26 +15,20 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+/* Qt includes: */
+#include <QGridLayout>
+#include <QProgressBar>
+#include <QStyle>
+#include <QTimer>
 
-/* Global includes: */
-# include <QTimer>
-# include <QStyle>
-# include <QGridLayout>
-# include <QProgressBar>
-
-/* Local includes: */
-# include "UINetworkRequestWidget.h"
-# include "UINetworkRequest.h"
-# include "UINetworkManager.h"
-# include "UINetworkManagerDialog.h"
-# include "UIIconPool.h"
-# include "QIToolButton.h"
-# include "QIRichTextLabel.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+/* GUI includes: */
+#include "QIRichTextLabel.h"
+#include "QIToolButton.h"
+#include "UIIconPool.h"
+#include "UINetworkManager.h"
+#include "UINetworkManagerDialog.h"
+#include "UINetworkRequest.h"
+#include "UINetworkRequestWidget.h"
 
 
 UINetworkRequestWidget::UINetworkRequestWidget(UINetworkManagerDialog *pParent, UINetworkRequest *pNetworkRequest)
@@ -124,6 +118,25 @@ UINetworkRequestWidget::UINetworkRequestWidget(UINetworkManagerDialog *pParent, 
     retranslateUi();
 }
 
+void UINetworkRequestWidget::retranslateUi()
+{
+    /* Get corresponding title: */
+    const QString &strTitle = m_pNetworkRequest->description();
+
+    /* Set popup title (default if missed): */
+    setTitle(strTitle.isEmpty() ? UINetworkManagerDialog::tr("Network Operation") : strTitle);
+
+    /* Translate retry button: */
+    m_pRetryButton->setStatusTip(UINetworkManagerDialog::tr("Restart network operation"));
+
+    /* Translate cancel button: */
+    m_pCancelButton->setStatusTip(UINetworkManagerDialog::tr("Cancel network operation"));
+
+    /* Translate error label: */
+    if (m_pNetworkRequest->reply())
+        m_pErrorPane->setText(composeErrorText(m_pNetworkRequest->reply()->errorString()));
+}
+
 void UINetworkRequestWidget::sltSetProgress(qint64 iReceived, qint64 iTotal)
 {
     /* Restart timer: */
@@ -185,25 +198,6 @@ void UINetworkRequestWidget::sltTimeIsOut()
 
     /* Set current progress to unknown: */
     m_pProgressBar->setRange(0, 0);
-}
-
-void UINetworkRequestWidget::retranslateUi()
-{
-    /* Get corresponding title: */
-    const QString &strTitle = m_pNetworkRequest->description();
-
-    /* Set popup title (default if missed): */
-    setTitle(strTitle.isEmpty() ? UINetworkManagerDialog::tr("Network Operation") : strTitle);
-
-    /* Translate retry button: */
-    m_pRetryButton->setStatusTip(UINetworkManagerDialog::tr("Restart network operation"));
-
-    /* Translate cancel button: */
-    m_pCancelButton->setStatusTip(UINetworkManagerDialog::tr("Cancel network operation"));
-
-    /* Translate error label: */
-    if (m_pNetworkRequest->reply())
-        m_pErrorPane->setText(composeErrorText(m_pNetworkRequest->reply()->errorString()));
 }
 
 /* static */

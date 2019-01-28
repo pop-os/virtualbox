@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -490,7 +490,7 @@ VMMR3DECL(int) PGMR3PoolGrow(PVM pVM)
     /** @todo change the pool to handle ROOT page allocations specially when
      *        required. */
     bool fCanUseHighMemory = HMIsNestedPagingActive(pVM)
-                          && HMGetShwPagingMode(pVM) == PGMMODE_EPT;
+                          && HMIsVmxActive(pVM);
 
     pgmLock(pVM);
 

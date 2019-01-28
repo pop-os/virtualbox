@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -910,9 +910,15 @@ DefinitionBlock ("DSDT.aml", "DSDT", 2, "VBOX  ", "VBOXBIOS", 2)
                     {
                         CreateWordField (CRS, \_SB.PCI0.LPT0._Y18._MIN, PMI0)
                         CreateWordField (CRS, \_SB.PCI0.LPT0._Y18._MAX, PMA0)
+                        CreateWordField (CRS, \_SB.PCI0.LPT0._Y18._ALN, PAL0)
+                        CreateWordField (CRS, \_SB.PCI0.LPT0._Y18._LEN, PLE0)
                         CreateWordField (CRS, \_SB.PCI0.LPT0._Y19._INT, PIQ0)
                         Store (PP0B, PMI0)
                         Store (PP0B, PMA0)
+                        If (LEqual (0x3BC, PP0B)) {
+                            Store (0x04, PAL0)
+                            Store (0x04, PLE0)
+                        }
                         ShiftLeft (0x01, PP0I, PIQ0)
                         Return (CRS)
                     }
@@ -943,9 +949,15 @@ DefinitionBlock ("DSDT.aml", "DSDT", 2, "VBOX  ", "VBOXBIOS", 2)
                     {
                         CreateWordField (CRS, \_SB.PCI0.LPT1._Y20._MIN, PMI1)
                         CreateWordField (CRS, \_SB.PCI0.LPT1._Y20._MAX, PMA1)
+                        CreateWordField (CRS, \_SB.PCI0.LPT1._Y20._ALN, PAL1)
+                        CreateWordField (CRS, \_SB.PCI0.LPT1._Y20._LEN, PLE1)
                         CreateWordField (CRS, \_SB.PCI0.LPT1._Y21._INT, PIQ1)
                         Store (PP1B, PMI1)
                         Store (PP1B, PMA1)
+                        If (LEqual (0x3BC, PP1B)) {
+                            Store (0x04, PAL1)
+                            Store (0x04, PLE1)
+                        }
                         ShiftLeft (0x01, PP1I, PIQ1)
                         Return (CRS)
                     }
@@ -1621,19 +1633,52 @@ DefinitionBlock ("DSDT.aml", "DSDT", 2, "VBOX  ", "VBOXBIOS", 2)
                 Return (CRS)
             }
 
+            /* Defined in PCI Firmware Specification 3.0 and ACPI 3.0, with both specs
+             * referencing each other. The _OSC method must be present to make Linux happy,
+             * but needs to prevent the OS from taking much control so as to not upset Windows.
+             * NB: The first DWORD is defined in the ACPI spec but not the PCI FW spec.
+             */
             Method (_OSC, 4)
             {
+                Name(SUPP, 0)   // Support field value
+                Name(CTRL, 0)   // Control field value
+
+                // Break down the input capabilities buffer into individual DWORDs
+                CreateDWordField(Arg3, 0, CDW1)
+                CreateDWordField(Arg3, 4, CDW2)
+                CreateDWordField(Arg3, 8, CDW3)
+
                 If (LEqual (Arg0, ToUUID("33db4d5b-1ff7-401c-9657-7441c03dd766")))
                 {
-                    // OS controls everything.
-                    Return (Arg3)
+                    // Stash the Support and Control fields
+                    Store(CDW2, SUPP)
+                    Store(CDW3, CTRL)
+
+                    DBG("_OSC: SUPP=")
+                    HEX4(SUPP)
+                    DBG(" CTRL=")
+                    HEX4(CTRL)
+                    DBG("\n")
+
+                    // Mask off the PCI Express Capability Structure control
+                    // Not emulated well enough to satisfy Windows (Vista and later)
+                    And(CTRL, 0x0F, CTRL)
+
+                    // If capabilities were masked, set the Capabilities Masked flag (bit 4)
+                    If (LNotEqual(CDW3, CTRL))
+                    {
+                        Or(CDW1, 0x10, CDW1)
+                    }
+
+                    // Update the Control field and return
+                    Store(CTRL, CDW3)
+                    Return(Arg3)
                 }
                 Else
                 {
-                    // UUID not known
-                    CreateDWordField(Arg3, 0, CDW1)
-                    Or(CDW1, 4, CDW1)
-                    Return (Arg3)
+                    // UUID not known, set Unrecognized UUID flag (bit 2)
+                    Or(CDW1, 0x04, CDW1)
+                    Return(Arg3)
                 }
             }
         }

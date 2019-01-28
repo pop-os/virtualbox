@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -550,25 +550,6 @@ static DECLCALLBACK(int) rtVfsMemFile_Flush(void *pvThis)
 
 
 /**
- * @interface_method_impl{RTVFSIOSTREAMOPS,pfnPollOne}
- */
-static DECLCALLBACK(int) rtVfsMemFile_PollOne(void *pvThis, uint32_t fEvents, RTMSINTERVAL cMillies, bool fIntr,
-                                              uint32_t *pfRetEvents)
-{
-    NOREF(pvThis);
-    int rc;
-    if (fEvents != RTPOLL_EVT_ERROR)
-    {
-        *pfRetEvents = fEvents & ~RTPOLL_EVT_ERROR;
-        rc = VINF_SUCCESS;
-    }
-    else
-        rc = RTVfsUtilDummyPollOne(fEvents, cMillies, fIntr, pfRetEvents);
-    return rc;
-}
-
-
-/**
  * @interface_method_impl{RTVFSIOSTREAMOPS,pfnTell}
  */
 static DECLCALLBACK(int) rtVfsMemFile_Tell(void *pvThis, PRTFOFF poffActual)
@@ -699,6 +680,28 @@ static DECLCALLBACK(int) rtVfsMemFile_QuerySize(void *pvThis, uint64_t *pcbFile)
 
 
 /**
+ * @interface_method_impl{RTVFSFILEOPS,pfnSetSize}
+ */
+static DECLCALLBACK(int) rtVfsMemFile_SetSize(void *pvThis, uint64_t cbFile, uint32_t fFlags)
+{
+    NOREF(pvThis); NOREF(cbFile); NOREF(fFlags);
+    AssertMsgFailed(("Lucky you! You get to implement this (or bug bird about it).\n"));
+    return VERR_NOT_IMPLEMENTED;
+}
+
+
+/**
+ * @interface_method_impl{RTVFSFILEOPS,pfnQueryMaxSize}
+ */
+static DECLCALLBACK(int) rtVfsMemFile_QueryMaxSize(void *pvThis, uint64_t *pcbMax)
+{
+    RT_NOREF(pvThis);
+    *pcbMax = ~(size_t)0 >> 1;
+    return VINF_SUCCESS;
+}
+
+
+/**
  * Memory file operations.
  */
 DECL_HIDDEN_CONST(const RTVFSFILEOPS) g_rtVfsMemFileOps =
@@ -717,7 +720,7 @@ DECL_HIDDEN_CONST(const RTVFSFILEOPS) g_rtVfsMemFileOps =
         rtVfsMemFile_Read,
         rtVfsMemFile_Write,
         rtVfsMemFile_Flush,
-        rtVfsMemFile_PollOne,
+        NULL /*PollOne*/,
         rtVfsMemFile_Tell,
         NULL /*Skip*/,
         NULL /*ZeroFill*/,
@@ -735,6 +738,8 @@ DECL_HIDDEN_CONST(const RTVFSFILEOPS) g_rtVfsMemFileOps =
     },
     rtVfsMemFile_Seek,
     rtVfsMemFile_QuerySize,
+    rtVfsMemFile_SetSize,
+    rtVfsMemFile_QueryMaxSize,
     RTVFSFILEOPS_VERSION
 };
 

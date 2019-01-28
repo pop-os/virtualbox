@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,28 +15,22 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+/* Qt includes: */
+#include <QGridLayout>
+#include <QMetaType>
+#include <QRadioButton>
+#include <QVBoxLayout>
 
-/* Global includes: */
-# include <QMetaType>
-# include <QVBoxLayout>
-# include <QGridLayout>
-# include <QRadioButton>
-
-/* Local includes: */
-# include "UIWizardNewVMPageBasic3.h"
-# include "UIWizardNewVM.h"
-# include "UIMessageCenter.h"
-# include "UIIconPool.h"
-# include "VBoxMediaComboBox.h"
-# include "QIToolButton.h"
-# include "UIWizardNewVD.h"
-# include "QIRichTextLabel.h"
-# include "UIMedium.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+/* GUI includes: */
+#include "QIRichTextLabel.h"
+#include "QIToolButton.h"
+#include "UIIconPool.h"
+#include "UIMediaComboBox.h"
+#include "UIMedium.h"
+#include "UIMessageCenter.h"
+#include "UIWizardNewVD.h"
+#include "UIWizardNewVM.h"
+#include "UIWizardNewVMPageBasic3.h"
 
 UIWizardNewVMPage3::UIWizardNewVMPage3()
     : m_fRecommendedNoDisk(false)
@@ -52,13 +46,13 @@ void UIWizardNewVMPage3::updateVirtualDiskSource()
     /* Fetch filed values: */
     if (m_pDiskSkip->isChecked())
     {
-        m_strVirtualDiskId = QString();
+        m_uVirtualDiskId = QUuid();
         m_strVirtualDiskName = QString();
         m_strVirtualDiskLocation = QString();
     }
     else if (m_pDiskPresent->isChecked())
     {
-        m_strVirtualDiskId = m_pDiskSelector->id();
+        m_uVirtualDiskId = m_pDiskSelector->id();
         m_strVirtualDiskName = m_pDiskSelector->currentText();
         m_strVirtualDiskLocation = m_pDiskSelector->location();
     }
@@ -67,11 +61,13 @@ void UIWizardNewVMPage3::updateVirtualDiskSource()
 void UIWizardNewVMPage3::getWithFileOpenDialog()
 {
     /* Get opened medium id: */
-    QString strMediumId = vboxGlobal().openMediumWithFileOpenDialog(UIMediumType_HardDisk, thisImp());
-    if (!strMediumId.isNull())
+    QUuid uMediumId = vboxGlobal().openMediumSelectorDialog(thisImp(), UIMediumDeviceType_HardDisk,
+                                                            fieldImp("machineBaseName").toString(),
+                                                            fieldImp("machineFolder").toString());
+    if (!uMediumId.isNull())
     {
         /* Update medium-combo if necessary: */
-        m_pDiskSelector->setCurrentItem(strMediumId);
+        m_pDiskSelector->setCurrentItem(uMediumId);
         /* Update hard disk source: */
         updateVirtualDiskSource();
         /* Focus on hard disk combo: */
@@ -108,7 +104,7 @@ void UIWizardNewVMPage3::ensureNewVirtualDiskDeleted()
         return;
 
     /* Remember virtual-disk attributes: */
-    QString strMediumID = m_virtualDisk.GetId();
+    QUuid uMediumID = m_virtualDisk.GetId();
     QString strLocation = m_virtualDisk.GetLocation();
     /* Prepare delete storage progress: */
     CProgress progress = m_virtualDisk.DeleteStorage();
@@ -123,7 +119,7 @@ void UIWizardNewVMPage3::ensureNewVirtualDiskDeleted()
         msgCenter().cannotDeleteHardDiskStorage(m_virtualDisk, strLocation, thisImp());
 
     /* Inform VBoxGlobal about it: */
-    vboxGlobal().deleteMedium(strMediumID);
+    vboxGlobal().deleteMedium(uMediumID);
 
     /* Detach virtual-disk anyway: */
     m_virtualDisk.detach();
@@ -144,9 +140,9 @@ UIWizardNewVMPageBasic3::UIWizardNewVMPageBasic3()
             options.initFrom(m_pDiskPresent);
             int iWidth = m_pDiskPresent->style()->pixelMetric(QStyle::PM_ExclusiveIndicatorWidth, &options, m_pDiskPresent);
             pDiskLayout->setColumnMinimumWidth(0, iWidth);
-            m_pDiskSelector = new VBoxMediaComboBox(this);
+            m_pDiskSelector = new UIMediaComboBox(this);
             {
-                m_pDiskSelector->setType(UIMediumType_HardDisk);
+                m_pDiskSelector->setType(UIMediumDeviceType_HardDisk);
                 m_pDiskSelector->repopulate();
             }
             m_pVMMButton = new QIToolButton(this);
@@ -167,11 +163,16 @@ UIWizardNewVMPageBasic3::UIWizardNewVMPageBasic3()
     }
 
     /* Setup connections: */
-    connect(m_pDiskSkip, SIGNAL(toggled(bool)), this, SLOT(sltVirtualDiskSourceChanged()));
-    connect(m_pDiskCreate, SIGNAL(toggled(bool)), this, SLOT(sltVirtualDiskSourceChanged()));
-    connect(m_pDiskPresent, SIGNAL(toggled(bool)), this, SLOT(sltVirtualDiskSourceChanged()));
-    connect(m_pDiskSelector, SIGNAL(currentIndexChanged(int)), this, SLOT(sltVirtualDiskSourceChanged()));
-    connect(m_pVMMButton, SIGNAL(clicked()), this, SLOT(sltGetWithFileOpenDialog()));
+    connect(m_pDiskSkip, &QRadioButton::toggled,
+            this, &UIWizardNewVMPageBasic3::sltVirtualDiskSourceChanged);
+    connect(m_pDiskCreate, &QRadioButton::toggled,
+            this, &UIWizardNewVMPageBasic3::sltVirtualDiskSourceChanged);
+    connect(m_pDiskPresent, &QRadioButton::toggled,
+            this, &UIWizardNewVMPageBasic3::sltVirtualDiskSourceChanged);
+    connect(m_pDiskSelector, static_cast<void(UIMediaComboBox::*)(int)>(&UIMediaComboBox::currentIndexChanged),
+            this, &UIWizardNewVMPageBasic3::sltVirtualDiskSourceChanged);
+    connect(m_pVMMButton, &QIToolButton::clicked,
+            this, &UIWizardNewVMPageBasic3::sltGetWithFileOpenDialog);
 
     /* Register classes: */
     qRegisterMetaType<CMedium>();
@@ -260,7 +261,7 @@ bool UIWizardNewVMPageBasic3::validatePage()
     bool fResult = true;
 
     /* Ensure unused virtual-disk is deleted: */
-    if (m_pDiskSkip->isChecked() || m_pDiskCreate->isChecked() || (!m_virtualDisk.isNull() && m_strVirtualDiskId != m_virtualDisk.GetId()))
+    if (m_pDiskSkip->isChecked() || m_pDiskCreate->isChecked() || (!m_virtualDisk.isNull() && m_uVirtualDiskId != m_virtualDisk.GetId()))
         ensureNewVirtualDiskDeleted();
 
     if (m_pDiskSkip->isChecked())
@@ -290,4 +291,3 @@ bool UIWizardNewVMPageBasic3::validatePage()
     /* Return result: */
     return fResult;
 }
-

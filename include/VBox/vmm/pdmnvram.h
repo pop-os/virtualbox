@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2012-2017 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,8 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_vmm_pdmnvram_h_
-#define ___VBox_vmm_pdmnvram_h_
+#ifndef VBOX_INCLUDED_vmm_pdmnvram_h
+#define VBOX_INCLUDED_vmm_pdmnvram_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/types.h>
 
@@ -118,5 +121,5 @@ typedef struct PDMINVRAMCONNECTOR
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !VBOX_INCLUDED_vmm_pdmnvram_h */
 

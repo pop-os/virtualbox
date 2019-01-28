@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -33,12 +33,14 @@
 # define _POSIX_C_SOURCE 1
 #endif
 #include <iprt/env.h>
-#include <iprt/string.h>
+
 #include <iprt/alloca.h>
 #include <iprt/assert.h>
 #if defined(DEBUG) && defined(RT_OS_LINUX)
 # include <iprt/asm.h>
 #endif
+#include <iprt/err.h>
+#include <iprt/string.h>
 
 #include <stdlib.h>
 #include <errno.h>

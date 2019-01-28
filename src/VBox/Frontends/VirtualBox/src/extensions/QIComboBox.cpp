@@ -1,10 +1,10 @@
 /* $Id: QIComboBox.cpp $ */
 /** @file
- * VBox Qt GUI - VirtualBox Qt extensions: QIComboBox class implementation.
+ * VBox Qt GUI - Qt extensions: QIComboBox class implementation.
  */
 
 /*
- * Copyright (C) 2016-2017 Oracle Corporation
+ * Copyright (C) 2016-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,22 +15,16 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QAccessibleWidget>
-# include <QHBoxLayout>
-# include <QLineEdit>
+#include <QAccessibleWidget>
+#include <QHBoxLayout>
+#include <QLineEdit>
 
 /* GUI includes: */
-# include "QIComboBox.h"
+#include "QIComboBox.h"
 
 /* Other VBox includes: */
-# include "iprt/assert.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "iprt/assert.h"
 
 
 /** QAccessibleWidget extension used as an accessibility interface for QIComboBox. */
@@ -335,4 +329,3 @@ void QIComboBox::prepare()
         }
     }
 }
-

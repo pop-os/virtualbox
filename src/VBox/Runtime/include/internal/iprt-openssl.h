@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,19 +24,26 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-
-#ifndef ___internal_iprt_openssl_h
-#define ___internal_iprt_openssl_h
+#ifndef IPRT_INCLUDED_INTERNAL_iprt_openssl_h
+#define IPRT_INCLUDED_INTERNAL_iprt_openssl_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/crypto/x509.h>
 
 RT_C_DECLS_BEGIN
+struct evp_md_st;
+struct evp_pkey_st;
 
 DECLHIDDEN(void) rtCrOpenSslInit(void);
 DECLHIDDEN(int)  rtCrOpenSslErrInfoCallback(const char *pach, size_t cch, void *pvUser);
 DECLHIDDEN(int)  rtCrOpenSslAddX509CertToStack(void *pvOsslStack, PCRTCRX509CERTIFICATE pCert);
 
+DECLHIDDEN(int)  rtCrKeyToOpenSslKey(RTCRKEY hKey, bool fNeedPublic, const char *pszAlgoObjId,
+                                     void /*EVP_PKEY*/ **ppEvpKey, const void /*EVP_MD*/ **ppEvpMdType, PRTERRINFO pErrInfo);
+
 RT_C_DECLS_END
 
-#endif
+#endif /* !IPRT_INCLUDED_INTERNAL_iprt_openssl_h */
 

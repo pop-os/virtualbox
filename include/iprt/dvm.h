@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2011-2017 Oracle Corporation
+ * Copyright (C) 2011-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,8 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___iprt_dvm_h
-#define ___iprt_dvm_h
+#ifndef IPRT_INCLUDED_dvm_h
+#define IPRT_INCLUDED_dvm_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/types.h>
 
@@ -54,6 +57,15 @@ typedef enum RTDVMVOLTYPE
     RTDVMVOLTYPE_FAT16,
     /** Volume hosts a FAT32 filesystem. */
     RTDVMVOLTYPE_FAT32,
+
+    /** EFI system partition (c12a7328-f81f-11d2-ba4b-00a0c93ec93b). */
+    RTDVMVOLTYPE_EFI_SYSTEM,
+
+    /** Volume hosts a Mac OS X HFS or HFS+ filesystem. */
+    RTDVMVOLTYPE_DARWIN_HFS,
+    /** Volume hosts a Mac OS X APFS filesystem. */
+    RTDVMVOLTYPE_DARWIN_APFS,
+
     /** Volume hosts a Linux swap. */
     RTDVMVOLTYPE_LINUX_SWAP,
     /** Volume hosts a Linux filesystem. */
@@ -62,16 +74,32 @@ typedef enum RTDVMVOLTYPE
     RTDVMVOLTYPE_LINUX_LVM,
     /** Volume hosts a Linux SoftRaid. */
     RTDVMVOLTYPE_LINUX_SOFTRAID,
+
     /** Volume hosts a FreeBSD disklabel. */
     RTDVMVOLTYPE_FREEBSD,
     /** Volume hosts a NetBSD disklabel. */
     RTDVMVOLTYPE_NETBSD,
     /** Volume hosts a OpenBSD disklabel. */
     RTDVMVOLTYPE_OPENBSD,
-    /** Volume hosts a Mac OS X HFS or HFS+ filesystem. */
-    RTDVMVOLTYPE_MAC_OSX_HFS,
     /** Volume hosts a Solaris volume. */
     RTDVMVOLTYPE_SOLARIS,
+
+    /** Volume hosts a Windows basic data partition . */
+    RTDVMVOLTYPE_WIN_BASIC,
+    /** Volume hosts a Microsoft reserved partition (MSR). */
+    RTDVMVOLTYPE_WIN_MSR,
+    /** Volume hosts a Windows logical disk manager (LDM) metadata partition. */
+    RTDVMVOLTYPE_WIN_LDM_META,
+    /** Volume hosts a Windows logical disk manager (LDM) data partition. */
+    RTDVMVOLTYPE_WIN_LDM_DATA,
+    /** Volume hosts a Windows recovery partition. */
+    RTDVMVOLTYPE_WIN_RECOVERY,
+    /** Volume hosts a storage spaces partition. */
+    RTDVMVOLTYPE_WIN_STORAGE_SPACES,
+
+    /** Volume hosts an IBM general parallel file system (GPFS). */
+    RTDVMVOLTYPE_IBM_GPFS,
+
     /** End of the valid values. */
     RTDVMVOLTYPE_END,
     /** Usual 32bit hack. */
@@ -370,5 +398,5 @@ RT_C_DECLS_END
 
 /** @} */
 
-#endif
+#endif /* !IPRT_INCLUDED_dvm_h */
 

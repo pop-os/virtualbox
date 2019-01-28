@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,8 +24,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBoxGuestR3LibInternal_h
-#define ___VBoxGuestR3LibInternal_h
+#ifndef GA_INCLUDED_SRC_common_VBoxGuest_lib_VBoxGuestR3LibInternal_h
+#define GA_INCLUDED_SRC_common_VBoxGuest_lib_VBoxGuestR3LibInternal_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/VMMDev.h>
 #include <VBox/VBoxGuest.h>
@@ -95,7 +98,7 @@ DECLINLINE(void) VbglHGCMParmPtrSet(HGCMFunctionParameter *pParm, void *pv, uint
 }
 
 
-#ifdef ___iprt_string_h
+#ifdef IPRT_INCLUDED_string_h
 
 DECLINLINE(void) VbglHGCMParmPtrSetString(HGCMFunctionParameter *pParm, const char *psz)
 {
@@ -104,7 +107,7 @@ DECLINLINE(void) VbglHGCMParmPtrSetString(HGCMFunctionParameter *pParm, const ch
     pParm->u.Pointer.u.linearAddr  = (uintptr_t)psz;
 }
 
-#endif /* ___iprt_string_h */
+#endif /* IPRT_INCLUDED_string_h */
 
 #ifdef VBOX_VBGLR3_XFREE86
 # undef strlen
@@ -112,5 +115,5 @@ DECLINLINE(void) VbglHGCMParmPtrSetString(HGCMFunctionParameter *pParm, const ch
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !GA_INCLUDED_SRC_common_VBoxGuest_lib_VBoxGuestR3LibInternal_h */
 

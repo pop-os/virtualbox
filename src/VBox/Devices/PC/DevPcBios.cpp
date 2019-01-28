@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -277,24 +277,27 @@ static DECLCALLBACK(int) pcbiosIOPortWrite(PPDMDEVINS pDevIns, void *pvUser, RTI
         }
 
         /* The readable, buffered version. */
+        uint32_t iMsg = pThis->iMsg;
         if (u32 == '\n' || u32 == '\r')
         {
-            pThis->szMsg[pThis->iMsg] = '\0';
-            if (pThis->iMsg)
+            AssertStmt(iMsg < sizeof(pThis->szMsg), iMsg = sizeof(pThis->szMsg) - 1);
+            pThis->szMsg[iMsg] = '\0';
+            if (iMsg)
                 Log(("pcbios: %s\n", pThis->szMsg));
-            pThis->iMsg = 0;
+            iMsg = 0;
         }
         else
         {
-            if (pThis->iMsg >= sizeof(pThis->szMsg)-1)
+            if (iMsg >= sizeof(pThis->szMsg) - 1)
             {
-                pThis->szMsg[pThis->iMsg] = '\0';
+                pThis->szMsg[iMsg] = '\0';
                 Log(("pcbios: %s\n", pThis->szMsg));
-                pThis->iMsg = 0;
+                iMsg = 0;
             }
-            pThis->szMsg[pThis->iMsg] = (char )u32;
-            pThis->szMsg[++pThis->iMsg] = '\0';
+            pThis->szMsg[iMsg] = (char)u32;
+            pThis->szMsg[++iMsg] = '\0';
         }
+        pThis->iMsg = iMsg;
         return VINF_SUCCESS;
     }
 
@@ -303,11 +306,12 @@ static DECLCALLBACK(int) pcbiosIOPortWrite(PPDMDEVINS pDevIns, void *pvUser, RTI
      */
     if (cb == 1 && Port == pThis->ShutdownPort)
     {
-        static const unsigned char szShutdown[] = "Shutdown";
-        if (u32 == szShutdown[pThis->iShutdown])
+        static const unsigned char s_szShutdown[] = "Shutdown";
+        if (   pThis->iShutdown < sizeof(s_szShutdown) /* paranoia */
+            && u32 == s_szShutdown[pThis->iShutdown])
         {
             pThis->iShutdown++;
-            if (pThis->iShutdown == 8)
+            if (pThis->iShutdown >= 8)
             {
                 pThis->iShutdown = 0;
                 LogRel(("PcBios: APM shutdown request\n"));
@@ -453,7 +457,7 @@ static DECLCALLBACK(bool) pcbiosFw_IsHardReset(PPDMDEVINS pDevIns, uint32_t fFla
                 PDMDevHlpPhysRead(pDevIns, 0x467, &Far16, sizeof(Far16));
                 pThis->cLoggedSoftResets++;
                 LogRel(("PcBios: Soft reset #%u - shutdown status %#x, warm reset vector (0040:0067) is %04x:%04x%s\n",
-                        pThis->cLoggedSoftResets, bShutdownStatus, Far16.sel, Far16.sel,
+                        pThis->cLoggedSoftResets, bShutdownStatus, Far16.sel, Far16.off,
                         pThis->cLoggedSoftResets < cMaxLogged ? "." : " - won't log any more!"));
             }
             return false;
@@ -1033,9 +1037,6 @@ static DECLCALLBACK(void) pcbiosMemSetup(PPDMDEVINS pDevIns, PDMDEVMEMSETUPCTX e
     PDEVPCBIOS pThis = PDMINS_2_DATA(pDevIns, PDEVPCBIOS);
     LogFlow(("pcbiosMemSetup:\n"));
 
-    if (pThis->u8IOAPIC)
-        FwCommonPlantMpsFloatPtr(pDevIns);
-
     /*
      * Re-shadow the LAN ROM image and make it RAM/RAM.
      *
@@ -1603,8 +1604,9 @@ static DECLCALLBACK(int)  pcbiosConstruct(PPDMDEVINS pDevIns, int iInstance, PCF
 
     if (pThis->u8IOAPIC)
     {
-        FwCommonPlantMpsTable(pDevIns, pThis->au8DMIPage + VBOX_DMI_TABLE_SIZE,
+        FwCommonPlantMpsTable(pDevIns, pThis->au8DMIPage /* aka VBOX_DMI_TABLE_BASE */ + VBOX_DMI_TABLE_SIZE,
                               _4K - VBOX_DMI_TABLE_SIZE, pThis->cCpus);
+        FwCommonPlantMpsFloatPtr(pDevIns, VBOX_DMI_TABLE_BASE + VBOX_DMI_TABLE_SIZE);
         LogRel(("PcBios: MPS table at %08x\n", VBOX_DMI_TABLE_BASE + VBOX_DMI_TABLE_SIZE));
     }
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,38 +15,32 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# ifndef VBOX_WS_MAC
-#  include <QTimer>
-# endif /* !VBOX_WS_MAC */
+#ifndef VBOX_WS_MAC
+# include <QTimer>
+#endif /* !VBOX_WS_MAC */
 
 /* GUI includes: */
-# include "VBoxGlobal.h"
-# include "UIDesktopWidgetWatchdog.h"
-# include "UIMessageCenter.h"
-# include "UISession.h"
-# include "UIActionPoolRuntime.h"
-# include "UIMachineLogicNormal.h"
-# include "UIMachineWindow.h"
-# include "UIMenuBarEditorWindow.h"
-# include "UIStatusBarEditorWindow.h"
-# include "UIExtraDataManager.h"
-# include "UIFrameBuffer.h"
-# ifndef VBOX_WS_MAC
-#  include "QIMenu.h"
-# else  /* VBOX_WS_MAC */
-#  include "VBoxUtils.h"
-# endif /* VBOX_WS_MAC */
+#include "VBoxGlobal.h"
+#include "UIDesktopWidgetWatchdog.h"
+#include "UIMessageCenter.h"
+#include "UISession.h"
+#include "UIActionPoolRuntime.h"
+#include "UIMachineLogicNormal.h"
+#include "UIMachineWindow.h"
+#include "UIMenuBarEditorWindow.h"
+#include "UIStatusBarEditorWindow.h"
+#include "UIExtraDataManager.h"
+#include "UIFrameBuffer.h"
+#ifndef VBOX_WS_MAC
+# include "QIMenu.h"
+#else  /* VBOX_WS_MAC */
+# include "VBoxUtils.h"
+#endif /* VBOX_WS_MAC */
 
 /* COM includes: */
-# include "CConsole.h"
-# include "CDisplay.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "CConsole.h"
+#include "CDisplay.h"
 
 
 UIMachineLogicNormal::UIMachineLogicNormal(QObject *pParent, UISession *pSession)
@@ -229,8 +223,8 @@ void UIMachineLogicNormal::sltHandleActionTriggerViewScreenToggle(int iIndex, bo
     display().GetScreenResolution(iIndex, uWidth, uHeight, uBitsPerPixel, uOriginX, uOriginY, monitorStatus);
     if (!fEnabled)
     {
-        display().SetVideoModeHint(iIndex, false, false, 0, 0, 0, 0, 0);
         uisession()->setScreenVisibleHostDesires(iIndex, false);
+        display().SetVideoModeHint(iIndex, false, false, 0, 0, 0, 0, 0);
     }
     else
     {
@@ -239,8 +233,8 @@ void UIMachineLogicNormal::sltHandleActionTriggerViewScreenToggle(int iIndex, bo
             uWidth = 800;
         if (!uHeight)
             uHeight = 600;
-        display().SetVideoModeHint(iIndex, true, false, 0, 0, uWidth, uHeight, 32);
         uisession()->setScreenVisibleHostDesires(iIndex, true);
+        display().SetVideoModeHint(iIndex, true, false, 0, 0, uWidth, uHeight, 32);
     }
 }
 
@@ -266,6 +260,17 @@ void UIMachineLogicNormal::sltHostScreenAvailableAreaChange()
 
     /* Call to base-class: */
     UIMachineLogic::sltHostScreenAvailableAreaChange();
+}
+
+void UIMachineLogicNormal::prepareActionGroups()
+{
+    /* Call to base-class: */
+    UIMachineLogic::prepareActionGroups();
+
+    /* Restrict 'Remap' actions for 'View' menu: */
+    actionPool()->toRuntime()->setRestrictionForMenuView(UIActionRestrictionLevel_Logic,
+                                                         (UIExtraDataMetaDefs::RuntimeMenuViewActionType)
+                                                         (UIExtraDataMetaDefs::RuntimeMenuViewActionType_Remap));
 }
 
 void UIMachineLogicNormal::prepareActionConnections()
@@ -387,4 +392,3 @@ void UIMachineLogicNormal::cleanupActionConnections()
     /* Call to base-class: */
     UIMachineLogic::cleanupActionConnections();
 }
-

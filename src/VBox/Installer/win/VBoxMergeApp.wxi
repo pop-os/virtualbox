@@ -87,13 +87,34 @@
         <!-- Include the auto-generated TypeLib block -->
         <?include $(env.PATH_TARGET)\VirtualBox_TypeLib.wxi ?>
 <?endif?>
+    </Component>
 
 <?if $(env.VBOX_WITH_SDS) = "yes" ?>
-        <File Id="VBoxSDS" Name="VBoxSDS.exe"
-              Source="$(env.PATH_OUT)\bin\VBoxSDS.exe">
+    <Component Id="cp_VBoxSDS" Guid="{3DC151E0-CA53-4213-8711-D983FDA28132}" >
+        <File Id="VBoxSDS" Name="VBoxSDS.exe" Vital="yes" KeyPath="yes"
+                    Source="$(env.PATH_OUT)\bin\VBoxSDS.exe">
         </File>
-<?endif?>
+        <!--
+            The Name of windows service is referenced in different places.
+            Don't forget to change it in other places too If you change it here :
+                VirtualBox.idl (module name),
+                VBoxSDS.cpp and VBoxProxyStub.cpp
+            -->
+        <ServiceInstall Id="VBoxSDSInstall"
+                    Account="LocalSystem"
+                    Type="ownProcess"
+                    Name="VBoxSDS"
+                    DisplayName="VirtualBox system service"
+                    Description="Used as a COM server for VirtualBox API."
+                    Start="demand"
+                    Interactive="no"
+                    ErrorControl="normal"
+                    Vital="yes">
+            <ServiceDependency Id="RPCSS" />
+        </ServiceInstall>
+        <ServiceControl Id="VBoxSDSControl" Name="VBoxSDS" Stop="both" Remove="uninstall" />
     </Component>
+<?endif?>
 
 <?if $(env.VBOX_WITH_MIDL_PROXY_STUB) = "yes" ?>
 
@@ -300,11 +321,17 @@
         <File Id="file_VirtualBox.exe" Name="VirtualBox.exe"
               Source="$(env.PATH_OUT)\bin\VirtualBox.exe">
         </File>
-    <?if $(env.VBOX_WITH_HARDENING) = "yes" ?>
-        <File Id="file_VirtualBox.dll" Name="VirtualBox.dll"
-              Source="$(env.PATH_OUT)\bin\VirtualBox.dll">
+        <File Id="file_VirtualBoxVM.exe" Name="VirtualBoxVM.exe"
+            Source="$(env.PATH_OUT)\bin\VirtualBoxVM.exe">
         </File>
-    <?endif ?>
+        <File Id="file_VBoxGlobal.dll" Name="VBoxGlobal.dll"
+            Source="$(env.PATH_OUT)\bin\VBoxGlobal.dll">
+        </File>
+        <?if $(env.VBOX_WITH_HARDENING) = "yes" ?>
+            <File Id="file_VirtualBoxVM.dll" Name="VirtualBoxVM.dll"
+                Source="$(env.PATH_OUT)\bin\VirtualBoxVM.dll">
+            </File>
+        <?endif ?>
         <File Id="file_Qt5Core$(var.VBOX_QT_INFIX).dll" Name="Qt5Core$(var.VBOX_QT_INFIX).dll"
               Source="$(env.PATH_OUT)\bin\Qt5Core$(var.VBOX_QT_INFIX).dll" />
         <File Id="file_Qt5Gui$(var.VBOX_QT_INFIX).dll" Name="Qt5Gui$(var.VBOX_QT_INFIX).dll"

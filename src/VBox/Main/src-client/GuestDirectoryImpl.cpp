@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2017 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,7 +19,7 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
-#define LOG_GROUP LOG_GROUP_GUEST_CONTROL //LOG_GROUP_MAIN_GUESTDIRECTORY
+#define LOG_GROUP LOG_GROUP_MAIN_GUESTDIRECTORY
 #include "LoggingNew.h"
 
 #ifndef VBOX_WITH_GUEST_CONTROL
@@ -57,26 +57,24 @@ void GuestDirectory::FinalRelease(void)
 // public initializer/uninitializer for internal purposes only
 /////////////////////////////////////////////////////////////////////////////
 
-int GuestDirectory::init(Console *pConsole, GuestSession *pSession,
-                         ULONG uDirID, const GuestDirectoryOpenInfo &openInfo)
+int GuestDirectory::init(Console *pConsole, GuestSession *pSession, ULONG aObjectID, const GuestDirectoryOpenInfo &openInfo)
 {
-    LogFlowThisFunc(("pConsole=%p, pSession=%p, uDirID=%RU32, strPath=%s, strFilter=%s, uFlags=%x\n",
-                     pConsole, pSession, uDirID, openInfo.mPath.c_str(), openInfo.mFilter.c_str(),
-                     openInfo.mFlags));
+    LogFlowThisFunc(("pConsole=%p, pSession=%p, aObjectID=%RU32, strPath=%s, strFilter=%s, uFlags=%x\n",
+                     pConsole, pSession, aObjectID, openInfo.mPath.c_str(), openInfo.mFilter.c_str(), openInfo.mFlags));
 
     AssertPtrReturn(pConsole, VERR_INVALID_POINTER);
     AssertPtrReturn(pSession, VERR_INVALID_POINTER);
 
     /* Enclose the state transition NotReady->InInit->Ready. */
     AutoInitSpan autoInitSpan(this);
-    AssertReturn(autoInitSpan.isOk(), E_FAIL);
+    AssertReturn(autoInitSpan.isOk(), VERR_OBJECT_DESTROYED);
 
-    int vrc = bindToSession(pConsole, pSession, uDirID /* Object ID */);
+    int vrc = bindToSession(pConsole, pSession, aObjectID);
     if (RT_SUCCESS(vrc))
     {
-        mSession = pSession;
+        mSession  = pSession;
+        mObjectID = aObjectID;
 
-        mData.mID = uDirID;
         mData.mOpenInfo = openInfo;
     }
 
@@ -105,7 +103,7 @@ int GuestDirectory::init(Console *pConsole, GuestSession *pSession,
          * it later in subsequent read() calls.
          * Note: No guest rc available because operation is asynchronous.
          */
-        vrc = mData.mProcessTool.Init(mSession, procInfo,
+        vrc = mData.mProcessTool.init(mSession, procInfo,
                                       true /* Async */, NULL /* Guest rc */);
     }
 
@@ -171,18 +169,18 @@ int GuestDirectory::i_callbackDispatcher(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGU
     AssertPtrReturn(pSvcCb, VERR_INVALID_POINTER);
 
     LogFlowThisFunc(("strPath=%s, uContextID=%RU32, uFunction=%RU32, pSvcCb=%p\n",
-                     mData.mOpenInfo.mPath.c_str(), pCbCtx->uContextID, pCbCtx->uFunction, pSvcCb));
+                     mData.mOpenInfo.mPath.c_str(), pCbCtx->uContextID, pCbCtx->uMessage, pSvcCb));
 
     int vrc;
-    switch (pCbCtx->uFunction)
+    switch (pCbCtx->uMessage)
     {
-        case GUEST_DIR_NOTIFY:
+        case GUEST_MSG_DIR_NOTIFY:
         {
             int idx = 1; /* Current parameter index. */
             CALLBACKDATA_DIR_NOTIFY dataCb;
             /* pSvcCb->mpaParms[0] always contains the context ID. */
-            pSvcCb->mpaParms[idx++].getUInt32(&dataCb.uType);
-            pSvcCb->mpaParms[idx++].getUInt32(&dataCb.rc);
+            HGCMSvcGetU32(&pSvcCb->mpaParms[idx++], &dataCb.uType);
+            HGCMSvcGetU32(&pSvcCb->mpaParms[idx++], &dataCb.rc);
 
             LogFlowFunc(("uType=%RU32, vrcGguest=%Rrc\n", dataCb.uType, (int)dataCb.rc));
 
@@ -203,26 +201,28 @@ int GuestDirectory::i_callbackDispatcher(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGU
             break;
     }
 
-#ifdef DEBUG
     LogFlowFuncLeaveRC(vrc);
-#endif
     return vrc;
 }
 
 /* static */
-Utf8Str GuestDirectory::i_guestErrorToString(int guestRc)
+Utf8Str GuestDirectory::i_guestErrorToString(int rcGuest)
 {
     Utf8Str strError;
 
     /** @todo pData->u32Flags: int vs. uint32 -- IPRT errors are *negative* !!! */
-    switch (guestRc)
+    switch (rcGuest)
     {
+        case VERR_CANT_CREATE:
+            strError += Utf8StrFmt("Access denied");
+            break;
+
         case VERR_DIR_NOT_EMPTY:
-            strError += Utf8StrFmt("Directoy is not empty");
+            strError += Utf8StrFmt("Not empty");
             break;
 
         default:
-            strError += Utf8StrFmt("%Rrc", guestRc);
+            strError += Utf8StrFmt("%Rrc", rcGuest);
             break;
     }
 
@@ -243,34 +243,110 @@ int GuestDirectory::i_onRemove(void)
     return vrc;
 }
 
+/**
+ * Closes this guest directory and removes it from the
+ * guest session's directory list.
+ *
+ * @return VBox status code.
+ * @param  prcGuest             Where to store the guest result code in case VERR_GSTCTL_GUEST_ERROR is returned.
+ */
+int GuestDirectory::i_closeInternal(int *prcGuest)
+{
+    AssertPtrReturn(prcGuest, VERR_INVALID_POINTER);
+
+    int rc = mData.mProcessTool.terminate(30 * 1000 /* 30s timeout */, prcGuest);
+    if (RT_FAILURE(rc))
+        return rc;
+
+    AssertPtr(mSession);
+    int rc2 = mSession->i_directoryUnregister(this);
+    if (RT_SUCCESS(rc))
+        rc = rc2;
+
+    LogFlowThisFunc(("Returning rc=%Rrc\n", rc));
+    return rc;
+}
+
+/**
+ * Reads the next directory entry.
+ *
+ * @return VBox status code. Will return VERR_NO_MORE_FILES if no more entries are available.
+ * @param  fsObjInfo            Where to store the read directory entry.
+ * @param  prcGuest             Where to store the guest result code in case VERR_GSTCTL_GUEST_ERROR is returned.
+ */
+int GuestDirectory::i_readInternal(ComObjPtr<GuestFsObjInfo> &fsObjInfo, int *prcGuest)
+{
+    AssertPtrReturn(prcGuest, VERR_INVALID_POINTER);
+
+    /* Create the FS info object. */
+    HRESULT hr = fsObjInfo.createObject();
+    if (FAILED(hr))
+        return VERR_COM_UNEXPECTED;
+
+    GuestProcessStreamBlock curBlock;
+    int rc = mData.mProcessTool.waitEx(GUESTPROCESSTOOL_WAIT_FLAG_STDOUT_BLOCK, &curBlock, prcGuest);
+    if (RT_SUCCESS(rc))
+    {
+        /*
+         * Note: The guest process can still be around to serve the next
+         *       upcoming stream block next time.
+         */
+        if (!mData.mProcessTool.isRunning())
+            rc = mData.mProcessTool.getTerminationStatus(); /* Tool process is not running (anymore). Check termination status. */
+
+        if (RT_SUCCESS(rc))
+        {
+            if (curBlock.GetCount()) /* Did we get content? */
+            {
+                GuestFsObjData objData;
+                rc = objData.FromLs(curBlock, true /* fLong */);
+                if (RT_SUCCESS(rc))
+                {
+                   rc = fsObjInfo->init(objData);
+                }
+                else
+                    rc = VERR_PATH_NOT_FOUND;
+            }
+            else
+            {
+                /* Nothing to read anymore. Tell the caller. */
+                rc = VERR_NO_MORE_FILES;
+            }
+        }
+    }
+
+    LogFlowThisFunc(("Returning rc=%Rrc\n", rc));
+    return rc;
+}
+
 /* static */
-HRESULT GuestDirectory::i_setErrorExternal(VirtualBoxBase *pInterface, int guestRc)
+HRESULT GuestDirectory::i_setErrorExternal(VirtualBoxBase *pInterface, int rcGuest)
 {
     AssertPtr(pInterface);
-    AssertMsg(RT_FAILURE(guestRc), ("Guest rc does not indicate a failure when setting error\n"));
+    AssertMsg(RT_FAILURE(rcGuest), ("Guest rc does not indicate a failure when setting error\n"));
 
-    return pInterface->setError(VBOX_E_IPRT_ERROR, GuestDirectory::i_guestErrorToString(guestRc).c_str());
+    return pInterface->setError(VBOX_E_IPRT_ERROR, GuestDirectory::i_guestErrorToString(rcGuest).c_str());
 }
 
 // implementation of public methods
 /////////////////////////////////////////////////////////////////////////////
 HRESULT GuestDirectory::close()
 {
-    LogFlowThisFuncEnter();
-
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
+    LogFlowThisFuncEnter();
+
     HRESULT hr = S_OK;
 
-    int guestRc;
-    int rc = mData.mProcessTool.i_terminate(30 * 1000, &guestRc);
-    if (RT_FAILURE(rc))
+    int rcGuest;
+    int vrc = i_closeInternal(&rcGuest);
+    if (RT_FAILURE(vrc))
     {
-        switch (rc)
+        switch (vrc)
         {
             case VERR_GSTCTL_GUEST_ERROR:
-                hr = GuestProcess::i_setErrorExternal(this, guestRc);
+                hr = GuestDirectory::i_setErrorExternal(this, rcGuest);
                 break;
 
             case VERR_NOT_SUPPORTED:
@@ -279,115 +355,63 @@ HRESULT GuestDirectory::close()
                 break;
 
             default:
-                hr = setError(VBOX_E_IPRT_ERROR,
-                              tr("Terminating open guest directory \"%s\" failed: %Rrc"),
-                              mData.mOpenInfo.mPath.c_str(), rc);
+                hr = setErrorBoth(VBOX_E_IPRT_ERROR, vrc,
+                                  tr("Terminating open guest directory \"%s\" failed: %Rrc"), mData.mOpenInfo.mPath.c_str(), vrc);
                 break;
         }
     }
 
-    AssertPtr(mSession);
-    int rc2 = mSession->i_directoryRemoveFromList(this);
-    if (RT_SUCCESS(rc))
-        rc = rc2;
-
-    LogFlowThisFunc(("Returning rc=%Rrc\n", rc));
     return hr;
 }
 
 HRESULT GuestDirectory::read(ComPtr<IFsObjInfo> &aObjInfo)
 {
-    LogFlowThisFuncEnter();
-
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    GuestProcessStreamBlock curBlock;
-    int guestRc;
-
-    int rc = mData.mProcessTool.i_waitEx(GUESTPROCESSTOOL_FLAG_STDOUT_BLOCK,
-                                         &curBlock, &guestRc);
-
-    /*
-     * Note: The guest process can still be around to serve the next
-     *       upcoming stream block next time.
-     */
-    if (   RT_SUCCESS(rc)
-        && !mData.mProcessTool.i_isRunning())
-    {
-        rc = mData.mProcessTool.i_terminatedOk();
-    }
-
-    if (RT_SUCCESS(rc))
-    {
-        if (curBlock.GetCount()) /* Did we get content? */
-        {
-            GuestFsObjData objData;
-            rc = objData.FromLs(curBlock);
-            if (RT_FAILURE(rc))
-                rc = VERR_PATH_NOT_FOUND;
-
-            if (RT_SUCCESS(rc))
-            {
-                /* Create the object. */
-                ComObjPtr<GuestFsObjInfo> pFsObjInfo;
-                HRESULT hr2 = pFsObjInfo.createObject();
-                if (FAILED(hr2))
-                    rc = VERR_COM_UNEXPECTED;
-
-                if (RT_SUCCESS(rc))
-                    rc = pFsObjInfo->init(objData);
-
-                if (RT_SUCCESS(rc))
-                {
-                    /* Return info object to the caller. */
-                    hr2 = pFsObjInfo.queryInterfaceTo(aObjInfo.asOutParam());
-                    if (FAILED(hr2))
-                        rc = VERR_COM_UNEXPECTED;
-                }
-            }
-        }
-        else
-        {
-            /* Nothing to read anymore. Tell the caller. */
-            rc = VERR_NO_MORE_FILES;
-        }
-    }
+    LogFlowThisFuncEnter();
 
     HRESULT hr = S_OK;
 
-    if (RT_FAILURE(rc)) /** @todo Add more errors here. */
+    ComObjPtr<GuestFsObjInfo> fsObjInfo; int rcGuest;
+    int vrc = i_readInternal(fsObjInfo, &rcGuest);
+    if (RT_SUCCESS(vrc))
     {
-        switch (rc)
+        /* Return info object to the caller. */
+        hr = fsObjInfo.queryInterfaceTo(aObjInfo.asOutParam());
+    }
+    else
+    {
+        switch (vrc)
         {
             case VERR_GSTCTL_GUEST_ERROR:
-                hr = GuestProcess::i_setErrorExternal(this, guestRc);
+                hr = GuestDirectory::i_setErrorExternal(this, rcGuest);
                 break;
 
-            case VWRN_GSTCTL_PROCESS_EXIT_CODE:
-                hr = setError(VBOX_E_IPRT_ERROR, tr("Reading directory \"%s\" failed: %Rrc"),
-                              mData.mOpenInfo.mPath.c_str(), mData.mProcessTool.i_getRc());
+            case VERR_GSTCTL_PROCESS_EXIT_CODE:
+                hr = setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("Reading directory \"%s\" failed: %Rrc"),
+                                  mData.mOpenInfo.mPath.c_str(), mData.mProcessTool.getRc());
                 break;
 
             case VERR_PATH_NOT_FOUND:
-                hr = setError(VBOX_E_IPRT_ERROR, tr("Reading directory \"%s\" failed: Path not found"),
-                              mData.mOpenInfo.mPath.c_str());
+                hr = setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("Reading directory \"%s\" failed: Path not found"),
+                                  mData.mOpenInfo.mPath.c_str());
                 break;
 
             case VERR_NO_MORE_FILES:
                 /* See SDK reference. */
-                hr = setError(VBOX_E_OBJECT_NOT_FOUND, tr("No more entries for directory \"%s\""),
-                              mData.mOpenInfo.mPath.c_str());
+                hr = setErrorBoth(VBOX_E_OBJECT_NOT_FOUND, vrc, tr("Reading directory \"%s\" failed: No more entries"),
+                                  mData.mOpenInfo.mPath.c_str());
                 break;
 
             default:
-                hr = setError(VBOX_E_IPRT_ERROR, tr("Error while reading directory \"%s\": %Rrc\n"),
-                              mData.mOpenInfo.mPath.c_str(), rc);
+                hr = setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("Reading directory \"%s\" returned error: %Rrc\n"),
+                                  mData.mOpenInfo.mPath.c_str(), vrc);
                 break;
         }
     }
 
-    LogFlowThisFunc(("Returning rc=%Rrc\n", rc));
+    LogFlowThisFunc(("Returning hr=%Rhrc / vrc=%Rrc\n", hr, vrc));
     return hr;
 }
 

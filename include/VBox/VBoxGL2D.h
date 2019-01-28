@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,8 +24,12 @@
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
  */
-#ifndef __VBoxGLSupportInfo_h__
-#define __VBoxGLSupportInfo_h__
+
+#ifndef VBOX_INCLUDED_VBoxGL2D_h
+#define VBOX_INCLUDED_VBoxGL2D_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/types.h>
 
@@ -354,4 +358,4 @@ private:
     bool mInitialized;
 };
 
-#endif /* #ifndef __VBoxGLSupportInfo_h__ */
+#endif /* !VBOX_INCLUDED_VBoxGL2D_h */

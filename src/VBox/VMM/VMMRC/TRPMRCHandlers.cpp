@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -183,7 +183,7 @@ static int trpmGCExitTrap(PVM pVM, PVMCPU pVCpu, int rc, PCPUMCTXCORE pRegFrame)
         {
             TMTimerPollVoid(pVM, pVCpu);
             Log2(("TMTimerPoll at %08RX32 - VM_FF_TM_VIRTUAL_SYNC=%d VM_FF_TM_VIRTUAL_SYNC=%d\n", pRegFrame->eip,
-                  VM_FF_IS_PENDING(pVM, VM_FF_TM_VIRTUAL_SYNC), VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_TIMER)));
+                  VM_FF_IS_SET(pVM, VM_FF_TM_VIRTUAL_SYNC), VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_TIMER)));
         }
     }
     else
@@ -210,8 +210,8 @@ static int trpmGCExitTrap(PVM pVM, PVMCPU pVCpu, int rc, PCPUMCTXCORE pRegFrame)
      * Or pending (A)PIC interrupt? Windows XP will crash if we delay APIC interrupts.
      */
     if (    rc == VINF_SUCCESS
-        &&  (   VM_FF_IS_PENDING(pVM, VM_FF_TM_VIRTUAL_SYNC | VM_FF_REQUEST | VM_FF_PGM_NO_MEMORY | VM_FF_PDM_DMA)
-             || VMCPU_FF_IS_PENDING(pVCpu,  VMCPU_FF_TIMER         | VMCPU_FF_TO_R3
+        &&  (   VM_FF_IS_ANY_SET(pVM, VM_FF_TM_VIRTUAL_SYNC | VM_FF_REQUEST | VM_FF_PGM_NO_MEMORY | VM_FF_PDM_DMA)
+             || VMCPU_FF_IS_ANY_SET(pVCpu,  VMCPU_FF_TIMER         | VMCPU_FF_TO_R3
                                           | VMCPU_FF_UPDATE_APIC   | VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC
                                           | VMCPU_FF_REQUEST       | VMCPU_FF_PGM_SYNC_CR3   | VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL
                                           | VMCPU_FF_PDM_CRITSECT  | VMCPU_FF_IEM            | VMCPU_FF_SELM_SYNC_GDT
@@ -222,7 +222,7 @@ static int trpmGCExitTrap(PVM pVM, PVMCPU pVCpu, int rc, PCPUMCTXCORE pRegFrame)
        )
     {
         /* The out of memory condition naturally outranks the others. */
-        if (RT_UNLIKELY(VM_FF_IS_PENDING(pVM, VM_FF_PGM_NO_MEMORY)))
+        if (RT_UNLIKELY(VM_FF_IS_SET(pVM, VM_FF_PGM_NO_MEMORY)))
             rc = VINF_EM_NO_MEMORY;
         else
         {
@@ -234,32 +234,32 @@ static int trpmGCExitTrap(PVM pVM, PVMCPU pVCpu, int rc, PCPUMCTXCORE pRegFrame)
                 CPUMRCProcessForceFlag(pVCpu);
 
             /* Pending Ring-3 action. */
-            if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_TO_R3 | VMCPU_FF_PDM_CRITSECT | VMCPU_FF_IEM | VMCPU_FF_IOM))
+            if (VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_TO_R3 | VMCPU_FF_PDM_CRITSECT | VMCPU_FF_IEM | VMCPU_FF_IOM))
             {
                 VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_TO_R3);
                 rc = VINF_EM_RAW_TO_R3;
             }
             /* Pending timer action. */
-            else if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_TIMER))
+            else if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_TIMER))
                 rc = VINF_EM_RAW_TIMER_PENDING;
             /* The Virtual Sync clock has stopped. */
-            else if (VM_FF_IS_PENDING(pVM, VM_FF_TM_VIRTUAL_SYNC))
+            else if (VM_FF_IS_SET(pVM, VM_FF_TM_VIRTUAL_SYNC))
                 rc = VINF_EM_RAW_TO_R3;
             /* DMA work pending? */
-            else if (VM_FF_IS_PENDING(pVM, VM_FF_PDM_DMA))
+            else if (VM_FF_IS_SET(pVM, VM_FF_PDM_DMA))
                 rc = VINF_EM_RAW_TO_R3;
             /* Pending request packets might contain actions that need immediate
                attention, such as pending hardware interrupts. */
-            else if (   VM_FF_IS_PENDING(pVM, VM_FF_REQUEST)
-                     || VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_REQUEST))
+            else if (   VM_FF_IS_SET(pVM, VM_FF_REQUEST)
+                     || VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_REQUEST))
                 rc = VINF_EM_PENDING_REQUEST;
             /* Pending GDT/LDT/TSS sync. */
-            else if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_SELM_SYNC_GDT | VMCPU_FF_SELM_SYNC_LDT | VMCPU_FF_SELM_SYNC_TSS))
+            else if (VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_SELM_SYNC_GDT | VMCPU_FF_SELM_SYNC_LDT | VMCPU_FF_SELM_SYNC_TSS))
                 rc = VINF_SELM_SYNC_GDT;
-            else if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_TRPM_SYNC_IDT))
+            else if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_TRPM_SYNC_IDT))
                 rc = VINF_EM_RAW_TO_R3;
             /* Possibly pending interrupt: dispatch it. */
-            else if (    VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC)
+            else if (    VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC)
                      && !VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS)
                      &&  PATMAreInterruptsEnabledByCtx(pVM, CPUMCTX_FROM_CORE(pRegFrame))
                )
@@ -295,7 +295,7 @@ static int trpmGCExitTrap(PVM pVM, PVMCPU pVCpu, int rc, PCPUMCTXCORE pRegFrame)
             /*
              * Try sync CR3?
              */
-            else if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_PGM_SYNC_CR3 | VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL))
+            else if (VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3 | VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL))
             {
 #if 1
                 PGMRZDynMapReleaseAutoSet(pVCpu);
@@ -332,6 +332,8 @@ DECLASM(int) TRPMGCTrap01Handler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
     PVMCPU      pVCpu = TRPMCPU_2_VMCPU(pTrpmCpu);
     LogFlow(("TRPMGC01: cs:eip=%04x:%08x uDr6=%RTreg EFL=%x\n", pRegFrame->cs.Sel, pRegFrame->eip, uDr6, CPUMRawGetEFlags(pVCpu)));
     TRPM_ENTER_DBG_HOOK(1);
+    EMRCHistoryAddExitCsEip(pVCpu, EMEXIT_MAKE_FT(EMEXIT_F_KIND_XCPT, X86_XCPT_DB),
+                            pRegFrame->cs.Sel, pRegFrame->eip, ASMReadTSC());
 
     /*
      * We currently don't make use of the X86_DR7_GD bit, but
@@ -385,6 +387,8 @@ DECLASM(int) TRPMGCHyperTrap01Handler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
     PVM         pVM   = TRPMCPU_2_VM(pTrpmCpu);
     PVMCPU      pVCpu = TRPMCPU_2_VMCPU(pTrpmCpu);
     TRPM_ENTER_DBG_HOOK_HYPER(1);
+    EMRCHistoryAddExitCsEip(pVCpu, EMEXIT_MAKE_FT(EMEXIT_F_KIND_XCPT, X86_XCPT_DB),
+                            pRegFrame->cs.Sel, pRegFrame->eip, ASMReadTSC());
     LogFlow(("TRPMGCHyper01: cs:eip=%04x:%08x uDr6=%RTreg\n", pRegFrame->cs.Sel, pRegFrame->eip, uDr6));
 
     /*
@@ -425,6 +429,8 @@ DECLASM(int) TRPMGCHyperTrap01Handler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
 DECLASM(int) TRPMGCTrap02Handler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
 {
     LogFlow(("TRPMGCTrap02Handler: cs:eip=%04x:%08x\n", pRegFrame->cs.Sel, pRegFrame->eip));
+    EMRCHistoryAddExitCsEip(TRPMCPU_2_VMCPU(pTrpmCpu), EMEXIT_MAKE_FT(EMEXIT_F_KIND_XCPT, X86_XCPT_NMI),
+                           pRegFrame->cs.Sel, pRegFrame->eip, ASMReadTSC());
 #if 0 /* Enable this iff you have a COM port and really want this debug info. */
     RTLogComPrintf("TRPMGCTrap02Handler: cs:eip=%04x:%08x\n", pRegFrame->cs.Sel, pRegFrame->eip);
 #endif
@@ -451,6 +457,8 @@ DECLASM(int) TRPMGCTrap02Handler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
 DECLASM(int) TRPMGCHyperTrap02Handler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
 {
     LogFlow(("TRPMGCHyperTrap02Handler: cs:eip=%04x:%08x\n", pRegFrame->cs.Sel, pRegFrame->eip));
+    EMRCHistoryAddExitCsEip(TRPMCPU_2_VMCPU(pTrpmCpu), EMEXIT_MAKE_FT(EMEXIT_F_KIND_XCPT, X86_XCPT_NMI),
+                           pRegFrame->cs.Sel, pRegFrame->eip, ASMReadTSC());
 #if 0 /* Enable this iff you have a COM port and really want this debug info. */
     RTLogComPrintf("TRPMGCHyperTrap02Handler: cs:eip=%04x:%08x\n", pRegFrame->cs.Sel, pRegFrame->eip);
 #endif
@@ -477,6 +485,8 @@ DECLASM(int) TRPMGCTrap03Handler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
     int     rc;
     LogFlow(("TRPMGC03: %04x:%08x EFL=%x\n", pRegFrame->cs.Sel, pRegFrame->eip, CPUMRawGetEFlags(pVCpu)));
     TRPM_ENTER_DBG_HOOK(3);
+    EMRCHistoryAddExitCsEip(pVCpu, EMEXIT_MAKE_FT(EMEXIT_F_KIND_XCPT, X86_XCPT_BP),
+                            pRegFrame->cs.Sel, pRegFrame->eip, ASMReadTSC());
     PGMRZDynMapStartAutoSet(pVCpu);
 
     /*
@@ -529,6 +539,8 @@ DECLASM(int) TRPMGCHyperTrap03Handler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
     PVMCPU  pVCpu = TRPMCPU_2_VMCPU(pTrpmCpu);
     LogFlow(("TRPMGCHyper03: %04x:%08x EFL=%x\n", pRegFrame->cs.Sel, pRegFrame->eip, CPUMRawGetEFlags(pVCpu)));
     TRPM_ENTER_DBG_HOOK_HYPER(3);
+    EMRCHistoryAddExitCsEip(pVCpu, EMEXIT_MAKE_FT(EMEXIT_F_KIND_XCPT, X86_XCPT_BP),
+                            pRegFrame->cs.Sel, pRegFrame->eip, ASMReadTSC());
 
     /*
      * Hand it over to DBGF.
@@ -560,6 +572,8 @@ DECLASM(int) TRPMGCTrap06Handler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
     int     rc;
     LogFlow(("TRPMGC06: %04x:%08x EFL=%#x/%#x\n", pRegFrame->cs.Sel, pRegFrame->eip, pRegFrame->eflags.u32, CPUMRawGetEFlags(pVCpu)));
     TRPM_ENTER_DBG_HOOK(6);
+    EMRCHistoryAddExitCsEip(pVCpu, EMEXIT_MAKE_FT(EMEXIT_F_KIND_XCPT, X86_XCPT_UD),
+                            pRegFrame->cs.Sel, pRegFrame->eip, ASMReadTSC());
     PGMRZDynMapStartAutoSet(pVCpu);
 
     if (CPUMGetGuestCPL(pVCpu) <= (EMIsRawRing1Enabled(pVM) ? 1U : 0U))
@@ -696,6 +710,8 @@ DECLASM(int) TRPMGCTrap07Handler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
     PVMCPU  pVCpu = TRPMCPU_2_VMCPU(pTrpmCpu);
     LogFlow(("TRPMGC07: %04x:%08x EFL=%x\n", pRegFrame->cs.Sel, pRegFrame->eip, CPUMRawGetEFlags(pVCpu)));
     TRPM_ENTER_DBG_HOOK(7);
+    EMRCHistoryAddExitCsEip(pVCpu, EMEXIT_MAKE_FT(EMEXIT_F_KIND_XCPT, X86_XCPT_NM),
+                            pRegFrame->cs.Sel, pRegFrame->eip, ASMReadTSC());
     PGMRZDynMapStartAutoSet(pVCpu);
 
     int rc = CPUMHandleLazyFPU(pVCpu);
@@ -722,6 +738,8 @@ DECLASM(int) TRPMGCTrap0bHandler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
     PVMCPU pVCpu = TRPMCPU_2_VMCPU(pTrpmCpu);
     LogFlow(("TRPMGC0b: %04x:%08x EFL=%x\n", pRegFrame->cs.Sel, pRegFrame->eip, CPUMRawGetEFlags(pVCpu)));
     TRPM_ENTER_DBG_HOOK(0xb);
+    EMRCHistoryAddExitCsEip(pVCpu, EMEXIT_MAKE_FT(EMEXIT_F_KIND_XCPT, X86_XCPT_NP),
+                            pRegFrame->cs.Sel, pRegFrame->eip, ASMReadTSC());
     PGMRZDynMapStartAutoSet(pVCpu);
 
     /*
@@ -833,7 +851,8 @@ static int trpmGCTrap0dHandlerRing0(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFram
     /*
      * Try handle it here, if not return to HC and emulate/interpret it there.
      */
-    switch (pCpu->pCurInstr->uOpcode)
+    uint16_t const uOpcode = pCpu->pCurInstr->uOpcode;
+    switch (uOpcode)
     {
         case OP_INT3:
             /*
@@ -844,6 +863,7 @@ static int trpmGCTrap0dHandlerRing0(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFram
             RT_FALL_THRU();
         case OP_INT:
         {
+            EMHistoryUpdateFlagsAndType(pVCpu, EMEXIT_MAKE_FT(EMEXIT_F_KIND_EM, EMEXITTYPE_INT));
             Assert(pCpu->Param1.fUse & DISUSE_IMMEDIATE8);
             Assert(!(PATMIsPatchGCAddr(pVM, PC)));
             if (pCpu->Param1.uValue == 3)
@@ -876,6 +896,8 @@ static int trpmGCTrap0dHandlerRing0(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFram
 #endif
 
         case OP_HLT:
+            EMHistoryUpdateFlagsAndType(pVCpu, EMEXIT_MAKE_FT(EMEXIT_F_KIND_EM, EMEXITTYPE_HLT));
+
             /* If it's in patch code, defer to ring-3. */
             if (PATMIsPatchGCAddr(pVM, PC))
                 break;
@@ -896,7 +918,13 @@ static int trpmGCTrap0dHandlerRing0(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFram
             /* We can safely emulate control/debug register move instructions in patched code. */
             if (    !PATMIsPatchGCAddr(pVM, PC)
                 &&  !CSAMIsKnownDangerousInstr(pVM, PC))
+            {
+                if (uOpcode == OP_MOV_CR)
+                    EMHistoryUpdateFlagsAndType(pVCpu, EMEXIT_MAKE_FT(EMEXIT_F_KIND_EM, EMEXITTYPE_MOV_CRX));
+                else
+                    EMHistoryUpdateFlagsAndType(pVCpu, EMEXIT_MAKE_FT(EMEXIT_F_KIND_EM, EMEXITTYPE_MOV_DRX));
                 break;
+            }
             RT_FALL_THRU();
         case OP_INVLPG:
         case OP_LLDT:
@@ -908,6 +936,41 @@ static int trpmGCTrap0dHandlerRing0(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFram
         case OP_RDMSR:
         case OP_WRMSR:
         {
+            /* Update history. */
+            switch (uOpcode)
+            {
+                case OP_MOV_CR:
+                    EMHistoryUpdateFlagsAndType(pVCpu, EMEXIT_MAKE_FT(EMEXIT_F_KIND_EM, EMEXITTYPE_MOV_CRX));
+                    break;
+                case OP_MOV_DR:
+                    EMHistoryUpdateFlagsAndType(pVCpu, EMEXIT_MAKE_FT(EMEXIT_F_KIND_EM, EMEXITTYPE_MOV_DRX));
+                    break;
+                case OP_INVLPG:
+                    EMHistoryUpdateFlagsAndType(pVCpu, EMEXIT_MAKE_FT(EMEXIT_F_KIND_EM, EMEXITTYPE_INVLPG));
+                    break;
+                case OP_LLDT:
+                    EMHistoryUpdateFlagsAndType(pVCpu, EMEXIT_MAKE_FT(EMEXIT_F_KIND_EM, EMEXITTYPE_LLDT));
+                    break;
+                case OP_STI:
+                    EMHistoryUpdateFlagsAndType(pVCpu, EMEXIT_MAKE_FT(EMEXIT_F_KIND_EM, EMEXITTYPE_STI));
+                    break;
+                case OP_RDPMC:
+                    EMHistoryUpdateFlagsAndType(pVCpu, EMEXIT_MAKE_FT(EMEXIT_F_KIND_EM, EMEXITTYPE_RDPMC));
+                    break;
+                case OP_CLTS:
+                    EMHistoryUpdateFlagsAndType(pVCpu, EMEXIT_MAKE_FT(EMEXIT_F_KIND_EM, EMEXITTYPE_CLTS));
+                    break;
+                case OP_WBINVD:
+                    EMHistoryUpdateFlagsAndType(pVCpu, EMEXIT_MAKE_FT(EMEXIT_F_KIND_EM, EMEXITTYPE_CLTS));
+                    break;
+                case OP_RDMSR:
+                    EMHistoryUpdateFlagsAndType(pVCpu, EMEXIT_MAKE_FT(EMEXIT_F_KIND_EM, EMEXITTYPE_MSR_READ));
+                    break;
+                case OP_WRMSR:
+                    EMHistoryUpdateFlagsAndType(pVCpu, EMEXIT_MAKE_FT(EMEXIT_F_KIND_EM, EMEXITTYPE_MSR_WRITE));
+                    break;
+            }
+
             rc = VBOXSTRICTRC_TODO(EMInterpretInstructionDisasState(pVCpu, pCpu, pRegFrame, PC, EMCODETYPE_SUPERVISOR));
             if (rc == VERR_EM_INTERPRETER)
                 rc = VINF_EM_RAW_EXCEPTION_PRIVILEGED;
@@ -940,7 +1003,8 @@ static int trpmGCTrap0dHandlerRing3(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFram
     Assert(!pRegFrame->eflags.Bits.u1VM);
     TRPM_ENTER_DBG_HOOK(0xd);
 
-    switch (pCpu->pCurInstr->uOpcode)
+    uint16_t const uOpcode = pCpu->pCurInstr->uOpcode;
+    switch (uOpcode)
     {
         /*
          * INT3 and INT xx are ring-switching.
@@ -955,6 +1019,7 @@ static int trpmGCTrap0dHandlerRing3(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFram
             RT_FALL_THRU();
         case OP_INT:
         {
+            EMHistoryUpdateFlagsAndType(pVCpu, EMEXIT_MAKE_FT(EMEXIT_F_KIND_EM, EMEXITTYPE_INT));
             Assert(pCpu->Param1.fUse & DISUSE_IMMEDIATE8);
             rc = TRPMForwardTrap(pVCpu, pRegFrame, (uint32_t)pCpu->Param1.uValue, pCpu->cbInstr, TRPM_TRAP_NO_ERRORCODE, TRPM_SOFTWARE_INT, 0xd);
             if (RT_SUCCESS(rc) && rc != VINF_EM_RAW_GUEST_TRAP)
@@ -974,6 +1039,10 @@ static int trpmGCTrap0dHandlerRing3(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFram
          */
         case OP_SYSCALL:
         case OP_SYSENTER:
+            if (uOpcode == OP_SYSCALL)
+                EMHistoryUpdateFlagsAndType(pVCpu, EMEXIT_MAKE_FT(EMEXIT_F_KIND_EM, EMEXITTYPE_SYSCALL));
+            else
+                EMHistoryUpdateFlagsAndType(pVCpu, EMEXIT_MAKE_FT(EMEXIT_F_KIND_EM, EMEXITTYPE_SYSENTER));
 #ifdef PATM_EMULATE_SYSENTER
             rc = PATMSysCall(pVM, CPUMCTX_FROM_CORE(pRegFrame), pCpu);
             if (rc == VINF_SUCCESS)
@@ -983,6 +1052,7 @@ static int trpmGCTrap0dHandlerRing3(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFram
             }
             /* else no break; */
 #endif
+            RT_FALL_THRU();
         case OP_BOUND:
         case OP_INTO:
             pVCpu->trpm.s.uActiveVector = UINT32_MAX;
@@ -1115,7 +1185,10 @@ static int trpmGCTrap0dHandler(PVM pVM, PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFram
      * Note: it's no longer safe to access the instruction opcode directly due to possible stale code TLB entries
      */
     if (Cpu.pCurInstr->uOpcode == OP_RDTSC)
+    {
+        EMHistoryUpdateFlagsAndType(pVCpu, EMEXIT_MAKE_FT(EMEXIT_F_KIND_EM, EMEXITTYPE_RDTSC));
         return trpmGCTrap0dHandlerRdTsc(pVM, pVCpu, pRegFrame);
+    }
 
     /*
      * Deal with I/O port access.
@@ -1123,6 +1196,7 @@ static int trpmGCTrap0dHandler(PVM pVM, PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFram
     if (    pVCpu->trpm.s.uActiveErrorCode == 0
         &&  (Cpu.pCurInstr->fOpType & DISOPTYPE_PORTIO))
     {
+        /* IOMRCIOPortHandler updates exit history. */
         VBOXSTRICTRC rcStrict = IOMRCIOPortHandler(pVM, pVCpu, pRegFrame, &Cpu);
         TRPM_EXIT_DBG_HOOK(0xd);
         return trpmGCExitTrap(pVM, pVCpu, VBOXSTRICTRC_TODO(rcStrict), pRegFrame);
@@ -1183,6 +1257,8 @@ DECLASM(int) TRPMGCTrap0dHandler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
     PVMCPU  pVCpu = TRPMCPU_2_VMCPU(pTrpmCpu);
     LogFlow(("TRPMGC0d: %04x:%08x err=%x EFL=%x\n", pRegFrame->cs.Sel, pRegFrame->eip, (uint32_t)pVCpu->trpm.s.uActiveErrorCode, CPUMRawGetEFlags(pVCpu)));
     TRPM_ENTER_DBG_HOOK(0xd);
+    EMRCHistoryAddExitCsEip(pVCpu, EMEXIT_MAKE_FT(EMEXIT_F_KIND_XCPT, X86_XCPT_GP),
+                            pRegFrame->cs.Sel, pRegFrame->eip, ASMReadTSC());
 
     PGMRZDynMapStartAutoSet(pVCpu);
     int rc = trpmGCTrap0dHandler(pVM, pTrpmCpu, pRegFrame);
@@ -1248,6 +1324,8 @@ DECLASM(int) TRPMGCTrap0eHandler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
     PVMCPU  pVCpu = TRPMCPU_2_VMCPU(pTrpmCpu);
     LogFlow(("TRPMGC0e: %04x:%08x err=%x cr2=%08x EFL=%x\n", pRegFrame->cs.Sel, pRegFrame->eip, (uint32_t)pVCpu->trpm.s.uActiveErrorCode, (uint32_t)pVCpu->trpm.s.uActiveCR2, CPUMRawGetEFlags(pVCpu)));
     TRPM_ENTER_DBG_HOOK(0xe);
+    EMRCHistoryAddExitCsEip(pVCpu, EMEXIT_MAKE_FT(EMEXIT_F_KIND_XCPT, X86_XCPT_PF),
+                            pRegFrame->cs.Sel, pRegFrame->eip, ASMReadTSC());
 
     /*
      * This is all PGM stuff.
@@ -1363,6 +1441,8 @@ static int trpmGCHyperGeneric(PVM pVM, PCPUMCTXCORE pRegFrame, PCTRPMGCHYPER paH
  */
 DECLASM(int) TRPMGCHyperTrap0bHandler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
 {
+    EMRCHistoryAddExitCsEip(TRPMCPU_2_VMCPU(pTrpmCpu), EMEXIT_MAKE_FT(EMEXIT_F_KIND_XCPT, X86_XCPT_NP),
+                            pRegFrame->cs.Sel, pRegFrame->eip, ASMReadTSC());
     return trpmGCHyperGeneric(TRPMCPU_2_VM(pTrpmCpu), pRegFrame, g_aTrap0bHandlers, g_aTrap0bHandlersEnd);
 }
 
@@ -1382,6 +1462,8 @@ DECLASM(int) TRPMGCHyperTrap0bHandler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
  */
 DECLASM(int) TRPMGCHyperTrap0dHandler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
 {
+    EMRCHistoryAddExitCsEip(TRPMCPU_2_VMCPU(pTrpmCpu), EMEXIT_MAKE_FT(EMEXIT_F_KIND_XCPT, X86_XCPT_GP),
+                            pRegFrame->cs.Sel, pRegFrame->eip, ASMReadTSC());
     return trpmGCHyperGeneric(TRPMCPU_2_VM(pTrpmCpu), pRegFrame, g_aTrap0dHandlers, g_aTrap0dHandlersEnd);
 }
 
@@ -1401,6 +1483,8 @@ DECLASM(int) TRPMGCHyperTrap0dHandler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
  */
 DECLASM(int) TRPMGCHyperTrap0eHandler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
 {
+    EMRCHistoryAddExitCsEip(TRPMCPU_2_VMCPU(pTrpmCpu), EMEXIT_MAKE_FT(EMEXIT_F_KIND_XCPT, X86_XCPT_PF),
+                            pRegFrame->cs.Sel, pRegFrame->eip, ASMReadTSC());
     return trpmGCHyperGeneric(TRPMCPU_2_VM(pTrpmCpu), pRegFrame, g_aTrap0dHandlers, g_aTrap0dHandlersEnd);
 }
 

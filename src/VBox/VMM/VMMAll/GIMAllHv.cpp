@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2017 Oracle Corporation
+ * Copyright (C) 2014-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,6 +29,7 @@
 #include <VBox/vmm/pdmapi.h>
 #include <VBox/vmm/pgm.h>
 #include <VBox/vmm/apic.h>
+#include <VBox/vmm/em.h>
 #include "GIMHvInternal.h"
 #include "GIMInternal.h"
 #include <VBox/vmm/vm.h>
@@ -175,14 +176,18 @@ VMM_INT_DECL(VBOXSTRICTRC) gimHvHypercall(PVMCPU pVCpu, PCPUMCTX pCtx)
 
     /*
      * Get the hypercall operation code and modes.
+     * Fast hypercalls have only two or fewer inputs but no output parameters.
      */
     const bool       fIs64BitMode     = CPUMIsGuestIn64BitCodeEx(pCtx);
     const uint64_t   uHyperIn         = fIs64BitMode ? pCtx->rcx : (pCtx->rdx << 32) | pCtx->eax;
     const uint16_t   uHyperOp         = GIM_HV_HYPERCALL_IN_CALL_CODE(uHyperIn);
     const bool       fHyperFast       = GIM_HV_HYPERCALL_IN_IS_FAST(uHyperIn);
-    /*const uint16_t   cHyperReps       = GIM_HV_HYPERCALL_IN_REP_COUNT(uHyperIn); - unused */
-    /*const uint16_t   idxHyperRepStart = GIM_HV_HYPERCALL_IN_REP_START_IDX(uHyperIn); - unused */
+    const uint16_t   cHyperReps       = GIM_HV_HYPERCALL_IN_REP_COUNT(uHyperIn);
+    const uint16_t   idxHyperRepStart = GIM_HV_HYPERCALL_IN_REP_START_IDX(uHyperIn);
     uint64_t         cHyperRepsDone   = 0;
+
+    /* Currently no repeating hypercalls are supported. */
+    RT_NOREF2(cHyperReps, idxHyperRepStart);
 
     int rc     = VINF_SUCCESS;
     int rcHv   = GIM_HV_STATUS_OPERATION_DENIED;
@@ -328,6 +333,44 @@ VMM_INT_DECL(VBOXSTRICTRC) gimHvHypercall(PVMCPU pVCpu, PCPUMCTX pCtx)
                 }
                 else
                     rcHv = GIM_HV_STATUS_ACCESS_DENIED;
+                break;
+            }
+
+            case GIM_HV_EXT_HYPERCALL_OP_QUERY_CAP:              /* Non-rep, extended hypercall. */
+            {
+                if (pHv->uPartFlags & GIM_HV_PART_FLAGS_EXTENDED_HYPERCALLS)
+                {
+                    rc = gimHvReadSlowHypercallParam(pVM, pCtx, fIs64BitMode, GIMHVHYPERCALLPARAM_OUT, &rcHv);
+                    if (   RT_SUCCESS(rc)
+                        && rcHv == GIM_HV_STATUS_SUCCESS)
+                    {
+                        rc = gimR3HvHypercallExtQueryCap(pVM, &rcHv);
+                    }
+                }
+                else
+                {
+                    LogRel(("GIM: HyperV: Denied HvExtCallQueryCapabilities when the feature is not exposed\n"));
+                    rcHv = GIM_HV_STATUS_ACCESS_DENIED;
+                }
+                break;
+            }
+
+            case GIM_HV_EXT_HYPERCALL_OP_GET_BOOT_ZEROED_MEM:    /* Non-rep, extended hypercall. */
+            {
+                if (pHv->uPartFlags & GIM_HV_PART_FLAGS_EXTENDED_HYPERCALLS)
+                {
+                    rc = gimHvReadSlowHypercallParam(pVM, pCtx, fIs64BitMode, GIMHVHYPERCALLPARAM_OUT, &rcHv);
+                    if (   RT_SUCCESS(rc)
+                        && rcHv == GIM_HV_STATUS_SUCCESS)
+                    {
+                        rc = gimR3HvHypercallExtGetBootZeroedMem(pVM, &rcHv);
+                    }
+                }
+                else
+                {
+                    LogRel(("GIM: HyperV: Denied HvExtCallGetBootZeroedMemory when the feature is not exposed\n"));
+                    rcHv = GIM_HV_STATUS_ACCESS_DENIED;
+                }
                 break;
             }
 
@@ -750,15 +793,14 @@ VMM_INT_DECL(VBOXSTRICTRC) gimHvWriteMsr(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSR
             pHv->u64GuestOsIdMsr = uRawValue;
 
             /*
-             * Notify VMM that hypercalls are now disabled/enabled.
+             * Update EM on hypercall instruction enabled state.
              */
-            for (VMCPUID i = 0; i < pVM->cCpus; i++)
-            {
-                if (uRawValue)
-                    VMMHypercallsEnable(&pVM->aCpus[i]);
-                else
-                    VMMHypercallsDisable(&pVM->aCpus[i]);
-            }
+            if (uRawValue)
+                for (VMCPUID i = 0; i < pVM->cCpus; i++)
+                    EMSetHypercallInstructionsEnabled(&pVM->aCpus[i], true);
+            else
+                for (VMCPUID i = 0; i < pVM->cCpus; i++)
+                    EMSetHypercallInstructionsEnabled(&pVM->aCpus[i], false);
 
             return VINF_SUCCESS;
 #endif /* IN_RING3 */
@@ -891,9 +933,8 @@ VMM_INT_DECL(VBOXSTRICTRC) gimHvWriteMsr(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSR
             {
                 LogRel(("GIM: HyperV: Guest indicates a fatal condition! P0=%#RX64 P1=%#RX64 P2=%#RX64 P3=%#RX64 P4=%#RX64\n",
                         pHv->uCrashP0Msr, pHv->uCrashP1Msr, pHv->uCrashP2Msr, pHv->uCrashP3Msr, pHv->uCrashP4Msr));
-
-                if (DBGF_IS_EVENT_ENABLED(pVM, DBGFEVENT_BSOD_MSR))
-                    DBGFEventGenericWithArg(pVM, pVCpu, DBGFEVENT_BSOD_MSR, pHv->uCrashP0Msr, DBGFEVENTCTX_OTHER);
+                DBGFR3ReportBugCheck(pVM, pVCpu, DBGFEVENT_BSOD_MSR, pHv->uCrashP0Msr, pHv->uCrashP1Msr,
+                                     pHv->uCrashP2Msr, pHv->uCrashP3Msr, pHv->uCrashP4Msr);
                 /* (Do not try pass VINF_EM_DBG_EVENT, doesn't work from here!) */
             }
             return VINF_SUCCESS;
@@ -1330,8 +1371,7 @@ VMM_INT_DECL(VBOXSTRICTRC) gimHvWriteMsr(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSR
  */
 VMM_INT_DECL(bool) gimHvShouldTrapXcptUD(PVMCPU pVCpu)
 {
-    PVM pVM = pVCpu->CTX_SUFF(pVM);
-    if (   !HMIsEnabled(pVM)
+    if (   VM_IS_RAW_MODE_ENABLED(pVCpu->CTX_SUFF(pVM))
         && gimHvAreHypercallsEnabled(pVCpu))
         return true;
     return false;
@@ -1339,36 +1379,36 @@ VMM_INT_DECL(bool) gimHvShouldTrapXcptUD(PVMCPU pVCpu)
 
 
 /**
- * Checks the currently disassembled instruction and executes the hypercall if
- * it's a hypercall instruction.
+ * Checks the instruction and executes the hypercall if it's a valid hypercall
+ * instruction.
+ *
+ * This interface is used by \#UD handlers and IEM.
  *
  * @returns Strict VBox status code.
  * @param   pVCpu       The cross context virtual CPU structure.
  * @param   pCtx        Pointer to the guest-CPU context.
- * @param   pDis        Pointer to the disassembled instruction state at RIP.
+ * @param   uDisOpcode  The disassembler opcode.
+ * @param   cbInstr     The instruction length.
  *
  * @thread  EMT(pVCpu).
- *
- * @todo    Make this function static when @bugref{7270#c168} is addressed.
  */
-VMM_INT_DECL(VBOXSTRICTRC) gimHvExecHypercallInstr(PVMCPU pVCpu, PCPUMCTX pCtx, PDISCPUSTATE pDis)
+VMM_INT_DECL(VBOXSTRICTRC) gimHvHypercallEx(PVMCPU pVCpu, PCPUMCTX pCtx, unsigned uDisOpcode, uint8_t cbInstr)
 {
     Assert(pVCpu);
     Assert(pCtx);
-    Assert(pDis);
     VMCPU_ASSERT_EMT(pVCpu);
 
     PVM pVM = pVCpu->CTX_SUFF(pVM);
-    CPUMCPUVENDOR const enmGuestCpuVendor = CPUMGetGuestCpuVendor(pVM);
-    if (   (   pDis->pCurInstr->uOpcode == OP_VMCALL
+    CPUMCPUVENDOR const enmGuestCpuVendor = (CPUMCPUVENDOR)pVM->cpum.ro.GuestFeatures.enmCpuVendor;
+    if (   (   uDisOpcode == OP_VMCALL
             && (   enmGuestCpuVendor == CPUMCPUVENDOR_INTEL
-                || enmGuestCpuVendor == CPUMCPUVENDOR_VIA))
-        || (   pDis->pCurInstr->uOpcode == OP_VMMCALL
+                || enmGuestCpuVendor == CPUMCPUVENDOR_VIA
+                || enmGuestCpuVendor == CPUMCPUVENDOR_SHANGHAI))
+        || (   uDisOpcode == OP_VMMCALL
             && enmGuestCpuVendor == CPUMCPUVENDOR_AMD))
-    {
         return gimHvHypercall(pVCpu, pCtx);
-    }
 
+    RT_NOREF_PV(cbInstr);
     return VERR_GIM_INVALID_HYPERCALL_INSTR;
 }
 
@@ -1418,13 +1458,13 @@ VMM_INT_DECL(VBOXSTRICTRC) gimHvXcptUD(PVMCPU pVCpu, PCPUMCTX pCtx, PDISCPUSTATE
         {
             if (pcbInstr)
                 *pcbInstr = (uint8_t)cbInstr;
-            return gimHvExecHypercallInstr(pVCpu, pCtx, &Dis);
+            return gimHvHypercallEx(pVCpu, pCtx, Dis.pCurInstr->uOpcode, Dis.cbInstr);
         }
 
         Log(("GIM: HyperV: Failed to disassemble instruction at CS:RIP=%04x:%08RX64. rc=%Rrc\n", pCtx->cs.Sel, pCtx->rip, rc));
         return rc;
     }
 
-    return gimHvExecHypercallInstr(pVCpu, pCtx, pDis);
+    return gimHvHypercallEx(pVCpu, pCtx, pDis->pCurInstr->uOpcode, pDis->cbInstr);
 }
 

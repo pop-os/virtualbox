@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2017 Oracle Corporation
+ * Copyright (C) 2011-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,13 +15,19 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UISettingsDefs_h___
-#define ___UISettingsDefs_h___
+#ifndef FEQT_INCLUDED_SRC_settings_UISettingsDefs_h
+#define FEQT_INCLUDED_SRC_settings_UISettingsDefs_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Qt includes: */
 #include <QMap>
 #include <QPair>
 #include <QString>
+
+/* GUI includes: */
+#include "UILibraryDefs.h"
 
 /* COM includes: */
 #include "COMEnums.h"
@@ -45,8 +51,17 @@ namespace UISettingsDefs
         ConfigurationAccessLevel_Partial_Running,
     };
 
-    /** Determines configuration access level for passed @a sessionState and @a machineState. */
-    ConfigurationAccessLevel configurationAccessLevel(KSessionState sessionState, KMachineState machineState);
+    /** Recording mode enum is used in Display setting page to determine the recording mode. */
+    enum RecordingMode
+    {
+        RecordingMode_VideoAudio = 0,
+        RecordingMode_VideoOnly  = 1,
+        RecordingMode_AudioOnly  = 2
+    };
+
+    /** Determines configuration access level for passed @a enmSessionState and @a enmMachineState. */
+    SHARED_LIBRARY_STUFF ConfigurationAccessLevel configurationAccessLevel(KSessionState enmSessionState,
+                                                                           KMachineState enmMachineState);
 }
 
 
@@ -121,9 +136,9 @@ public:
     /** Returns children count. */
     int childCount() const { return m_children.size(); }
     /** Returns the modifiable REFERENCE to the child cached data. */
-    ChildCacheData& child(const QString &strChildKey) { return m_children[strChildKey]; }
+    ChildCacheData &child(const QString &strChildKey) { return m_children[strChildKey]; }
     /** Wraps method above to return the modifiable REFERENCE to the child cached data. */
-    ChildCacheData& child(int iIndex) { return child(indexToKey(iIndex)); }
+    ChildCacheData &child(int iIndex) { return child(indexToKey(iIndex)); }
     /** Returns the NON-modifiable COPY to the child cached data. */
     const ChildCacheData child(const QString &strChildKey) const { return m_children[strChildKey]; }
     /** Wraps method above to return the NON-modifiable COPY to the child cached data. */
@@ -280,5 +295,5 @@ private:
     UISettingsCacheChildMap2 m_children2;
 };
 
-#endif /* !___UISettingsDefs_h___ */
 
+#endif /* !FEQT_INCLUDED_SRC_settings_UISettingsDefs_h */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2017 Oracle Corporation
+ * Copyright (C) 2007-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -33,9 +33,7 @@
 #include <VBox/log.h>
 #include <VBox/HostServices/GuestPropertySvc.h>  /* For Save and RetrieveVideoMode */
 #include <iprt/assert.h>
-#if !defined(VBOX_VBGLR3_XFREE86) && !defined(VBOX_VBGLR3_XORG)
-# include <iprt/mem.h>
-#endif
+#include <iprt/mem.h>
 #include <iprt/string.h>
 
 #include <stdio.h>
@@ -277,6 +275,61 @@ VBGLR3DECL(int) VbglR3GetDisplayChangeRequest(uint32_t *pcx, uint32_t *pcy,
 
 
 /**
+ * Query the last display change request sent from the host to the guest.
+ *
+ * @returns iprt status value
+ * @param   cDisplaysIn   How many elements in the paDisplays array.
+ * @param   pcDisplaysOut How many elements were returned.
+ * @param   paDisplays    Display information.
+ * @param   fAck          Whether or not to acknowledge the newest request sent by
+ *                        the host.  If this is set, the function will return the
+ *                        most recent host request, otherwise it will return the
+ *                        last request to be acknowledged.
+ */
+VBGLR3DECL(int) VbglR3GetDisplayChangeRequestMulti(uint32_t cDisplaysIn,
+                                                   uint32_t *pcDisplaysOut,
+                                                   VMMDevDisplayDef *paDisplays,
+                                                   bool fAck)
+{
+    VMMDevDisplayChangeRequestMulti *pReq;
+    size_t cbDisplays;
+    size_t cbAlloc;
+    int rc = VINF_SUCCESS;
+
+    AssertReturn(cDisplaysIn > 0 && cDisplaysIn <= 64 /* VBOX_VIDEO_MAX_SCREENS */, VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pcDisplaysOut, VERR_INVALID_PARAMETER);
+    AssertPtrReturn(paDisplays, VERR_INVALID_PARAMETER);
+
+    cbDisplays = cDisplaysIn * sizeof(VMMDevDisplayDef);
+    cbAlloc = RT_UOFFSETOF(VMMDevDisplayChangeRequestMulti, aDisplays) + cbDisplays;
+    pReq = (VMMDevDisplayChangeRequestMulti *)RTMemTmpAlloc(cbAlloc);
+    AssertPtrReturn(pReq, VERR_NO_MEMORY);
+
+    memset(pReq, 0, cbAlloc);
+    rc = vmmdevInitRequest(&pReq->header, VMMDevReq_GetDisplayChangeRequestMulti);
+    AssertRCReturnStmt(rc, RTMemTmpFree(pReq), rc);
+
+    pReq->header.size += (uint32_t)cbDisplays;
+    pReq->cDisplays = cDisplaysIn;
+    if (fAck)
+        pReq->eventAck = VMMDEV_EVENT_DISPLAY_CHANGE_REQUEST;
+
+    rc = vbglR3GRPerform(&pReq->header);
+    AssertRCReturnStmt(rc, RTMemTmpFree(pReq), rc);
+
+    rc = pReq->header.rc;
+    if (RT_SUCCESS(rc))
+    {
+        memcpy(paDisplays, pReq->aDisplays, pReq->cDisplays * sizeof(VMMDevDisplayDef));
+        *pcDisplaysOut = pReq->cDisplays;
+    }
+
+    RTMemTmpFree(pReq);
+    return rc;
+}
+
+
+/**
  * Query the host as to whether it likes a specific video mode.
  *
  * @returns the result of the query
@@ -313,8 +366,6 @@ VBGLR3DECL(bool) VbglR3HostLikesVideoMode(uint32_t cx, uint32_t cy, uint32_t cBi
 VBGLR3DECL(int) VbglR3VideoModeGetHighestSavedScreen(unsigned *pcScreen)
 {
 #if defined(VBOX_WITH_GUEST_PROPS)
-    using namespace guestProp;
-
     int rc;
     HGCMCLIENTID idClient = 0;
     PVBGLR3GUESTPROPENUM pHandle = NULL;
@@ -373,8 +424,6 @@ VBGLR3DECL(int) VbglR3SaveVideoMode(unsigned idScreen, unsigned cx, unsigned cy,
                                     unsigned x, unsigned y, bool fEnabled)
 {
 #ifdef VBOX_WITH_GUEST_PROPS
-    using namespace guestProp;
-
     unsigned cHighestScreen = 0;
     int rc = VbglR3VideoModeGetHighestSavedScreen(&cHighestScreen);
     if (RT_SUCCESS(rc))
@@ -384,8 +433,8 @@ VBGLR3DECL(int) VbglR3SaveVideoMode(unsigned idScreen, unsigned cx, unsigned cy,
         if (RT_SUCCESS(rc))
         {
             int rc2;
-            char szModeName[MAX_NAME_LEN];
-            char szModeParms[MAX_VALUE_LEN];
+            char szModeName[GUEST_PROP_MAX_NAME_LEN];
+            char szModeParms[GUEST_PROP_MAX_VALUE_LEN];
             RTStrPrintf(szModeName, sizeof(szModeName), VIDEO_PROP_PREFIX "%u", idScreen);
             RTStrPrintf(szModeParms, sizeof(szModeParms), "%ux%ux%u,%ux%u,%u", cx, cy, cBits, x, y, (unsigned) fEnabled);
 
@@ -456,8 +505,6 @@ VBGLR3DECL(int) VbglR3RetrieveVideoMode(unsigned idScreen,
                                         bool *pfEnabled)
 {
 #ifdef VBOX_WITH_GUEST_PROPS
-    using namespace guestProp;
-
     /*
      * First we retrieve the video mode which is saved as a string in the
      * guest property store.
@@ -470,7 +517,7 @@ VBGLR3DECL(int) VbglR3RetrieveVideoMode(unsigned idScreen,
         /* The buffer for VbglR3GuestPropReadValue.  If this is too small then
          * something is wrong with the data stored in the property. */
         char szModeParms[1024];
-        char szModeName[MAX_NAME_LEN]; /** @todo add a VbglR3GuestPropReadValueF/FV that does the RTStrPrintf for you. */
+        char szModeName[GUEST_PROP_MAX_NAME_LEN]; /** @todo add a VbglR3GuestPropReadValueF/FV that does the RTStrPrintf for you. */
         RTStrPrintf(szModeName, sizeof(szModeName), VIDEO_PROP_PREFIX "%u", idScreen);
         rc = VbglR3GuestPropReadValue(idClient, szModeName, szModeParms, sizeof(szModeParms), NULL);
         /* Try legacy single screen name. */

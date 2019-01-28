@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,17 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UIErrorString_h___
-#define ___UIErrorString_h___
+#ifndef FEQT_INCLUDED_SRC_globals_UIErrorString_h
+#define FEQT_INCLUDED_SRC_globals_UIErrorString_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Qt includes: */
 #include <QString>
+
+/* GUI includes: */
+#include "UILibraryDefs.h"
 
 /* Other VBox includes: */
 #include <VBox/com/defs.h>
@@ -31,9 +37,8 @@ class COMResult;
 class CProgress;
 class CVirtualBoxErrorInfo;
 
-
 /** Namespace simplifying COM error formatting. */
-class UIErrorString
+class SHARED_LIBRARY_STUFF UIErrorString
 {
 public:
 
@@ -58,5 +63,5 @@ private:
     static QString errorInfoToString(const COMErrorInfo &comInfo, HRESULT wrapperRC = S_OK);
 };
 
-#endif /* !___UIErrorString_h___ */
+#endif /* !FEQT_INCLUDED_SRC_globals_UIErrorString_h */
 

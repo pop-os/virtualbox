@@ -4,7 +4,7 @@
 ;
 
 ;
-; Copyright (C) 2006-2017 Oracle Corporation
+; Copyright (C) 2006-2019 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -124,7 +124,6 @@ extrn           _int13_harddisk_ext:near
 extrn           _int14_function:near
 extrn           _int15_function:near
 extrn           _int15_function_mouse:near
-extrn           _int15_function32:near
 extrn           _int16_function:near
 extrn           _int17_function:near
 extrn           _int19_function:near
@@ -148,6 +147,7 @@ if VBOX_BIOS_CPU ge 80286
 extrn           _int15_blkmove:near
 endif
 if VBOX_BIOS_CPU ge 80386
+extrn           _int15_function32:near
 extrn           _apic_setup:near
 endif
 
@@ -213,6 +213,13 @@ public          font8x8
 
 endif
 
+;; Keyboard related constants
+KBDC_DISABLE    EQU     0ADh
+KBDC_ENABLE     EQU     0AEh
+KBC_CMD         EQU     64h
+KBC_DATA        EQU     60h
+
+
 ;; NOTE: The last 8K of the ROM BIOS are peppered with fixed locations which
 ;; must be retained for compatibility. As a consequence, some of the space is
 ;; going to be wasted, but the gaps should be filled with miscellaneous code
@@ -249,11 +256,17 @@ set_int_vects   proc    near
 set_int_vects   endp
 
 eoi_jmp_post:
-                call    eoi_both_pics
+;; Calling eoi_both_pics can't be done because it writes to stack, potentially
+;; corrupting memory. AT BIOS also only clears the master PIC, not both.
+                ;; clear keyboard buffer (and possible interrupt)
+                in      al, KBC_DATA
+                mov     al, PIC_CMD_EOI
+                out     PIC_MASTER, al
+
 no_eoi_jmp_post:
-                xor     ax, ax
+                mov     ax, 40h
                 mov     ds, ax
-                jmp     dword ptr ds:[0467h]
+                jmp     dword ptr ds:[67h]
 
 seg_40_value:   dw 40h ;; Replaces a push 40; pop ds.
 
@@ -352,6 +365,7 @@ check_shutdown:
                 jmp     return_blkmove
 check_next_std:
 
+                mov     sp, 400h
                 ;; 05h = EOI + jump through 40:67
                 cmp     al, 5
                 je      eoi_jmp_post
@@ -943,11 +957,6 @@ include pmode.inc
 include pmsetup.inc
 endif
 
-
-KBDC_DISABLE    EQU     0ADh
-KBDC_ENABLE     EQU     0AEh
-KBC_CMD         EQU     64h
-KBC_DATA        EQU     60h
 
 ;; --------------------------------------------------------
 ;; INT 09h handler - Keyboard ISR (IRQ 1)
@@ -1722,12 +1731,14 @@ endif
                 push    ds
                 push    es
                 C_SETUP
-                cmp     ah, 86h
-                je      int15_handler32
+if VBOX_BIOS_CPU ge 80386
+                ;; int15_function32 exists in 386+ BIOS only, but INT 15h is
+                ;; not 386-specific
                 cmp     ah, 0E8h
                 je      int15_handler32
                 cmp     ah, 0d0h
                 je      int15_handler32
+endif
                 DO_pusha
                 cmp     ah, 53h         ; APM function?
                 je      apm_call
@@ -1737,7 +1748,9 @@ endif
                 call    _int15_function
 int15_handler_popa_ret:
                 DO_popa
+if VBOX_BIOS_CPU ge 80386
 int15_handler32_ret:
+endif
                 pop     es
                 pop     ds
                 popf
@@ -1751,20 +1764,16 @@ int15_handler_mouse:
                 call    _int15_function_mouse
                 jmp     int15_handler_popa_ret
 
-int15_handler32:
 if VBOX_BIOS_CPU ge 80386
+int15_handler32:
                 ;; need to save/restore 32-bit registers
                 .386
                 pushad
                 call    _int15_function32
                 popad
                 .286
-else
-                DO_pusha
-                call    _int15_function32
-                DO_popa
-endif
                 jmp     int15_handler32_ret
+endif
 
 ;;
 ;; Perform an IRET but retain the current carry flag value

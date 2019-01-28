@@ -7,7 +7,7 @@ Simple testcase for usbgadget2.py.
 
 __copyright__ = \
 """
-Copyright (C) 2016-2017 Oracle Corporation
+Copyright (C) 2016-2019 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,11 +26,10 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 118412 $"
+__version__ = "$Revision: 127855 $"
 
 # Standard python imports.
 import sys
-import types
 
 # Validation Kit imports.
 sys.path.insert(0, '.');
@@ -38,6 +37,13 @@ sys.path.insert(0, '..');
 sys.path.insert(0, '../..');
 import usbgadget;
 import testdriver.reporter as reporter
+from common import utils;
+
+
+# Python 3 hacks:
+if sys.version_info[0] >= 3:
+    long = int;     # pylint: disable=redefined-builtin,invalid-name
+
 
 g_cTests = 0;
 g_cFailures = 0
@@ -46,7 +52,7 @@ def boolRes(rc, fExpect = True):
     """Checks a boolean result."""
     global g_cTests, g_cFailures;
     g_cTests = g_cTests + 1;
-    if isinstance(rc, types.BooleanType):
+    if isinstance(rc, bool):
         if rc == fExpect:
             return 'PASSED';
     g_cFailures = g_cFailures + 1;
@@ -56,7 +62,7 @@ def stringRes(rc, sExpect):
     """Checks a string result."""
     global g_cTests, g_cFailures;
     g_cTests = g_cTests + 1;
-    if isinstance(rc, basestring):
+    if utils.isString(rc):
         if rc == sExpect:
             return 'PASSED';
     g_cFailures = g_cFailures + 1;
@@ -80,10 +86,10 @@ def main(asArgs): # pylint: disable=C0111,R0914,R0915
             cMsTimeout = long(asArgs[i + 1]);
             i = i + 2;
         elif asArgs[i] == '--help':
-            print 'tst-utsgadget.py [--hostname <addr|name>] [--port <num>] [--timeout <cMS>]'
+            print('tst-utsgadget.py [--hostname <addr|name>] [--port <num>] [--timeout <cMS>]');
             return 0;
         else:
-            print 'Unknown argument: %s' % (asArgs[i]);
+            print('Unknown argument: %s' % (asArgs[i],));
             return 2;
 
     oGadget = usbgadget.UsbGadget();
@@ -92,40 +98,40 @@ def main(asArgs): # pylint: disable=C0111,R0914,R0915
     else:
         rc = oGadget.connectTo(cMsTimeout, sAddress, uPort = uPort);
     if rc is False:
-        print 'connectTo failed';
+        print('connectTo failed');
         return 1;
 
     if fStdTests:
         rc = oGadget.getUsbIpPort() is not None;
-        print '%s: getUsbIpPort() -> %s' % (boolRes(rc), oGadget.getUsbIpPort());
+        print('%s: getUsbIpPort() -> %s' % (boolRes(rc), oGadget.getUsbIpPort(),));
 
         rc = oGadget.impersonate(usbgadget.g_ksGadgetImpersonationTest);
-        print '%s: impersonate()' % (boolRes(rc));
+        print('%s: impersonate()' % (boolRes(rc),));
 
         rc = oGadget.disconnectUsb();
-        print '%s: disconnectUsb()' % (boolRes(rc));
+        print('%s: disconnectUsb()' % (boolRes(rc),));
 
         rc = oGadget.connectUsb();
-        print '%s: connectUsb()' % (boolRes(rc));
+        print('%s: connectUsb()' % (boolRes(rc),));
 
         rc = oGadget.clearImpersonation();
-        print '%s: clearImpersonation()' % (boolRes(rc));
+        print('%s: clearImpersonation()' % (boolRes(rc),));
 
         # Test super speed (and therefore passing configuration items)
         rc = oGadget.impersonate(usbgadget.g_ksGadgetImpersonationTest, True);
-        print '%s: impersonate(, True)' % (boolRes(rc));
+        print('%s: impersonate(, True)' % (boolRes(rc),));
 
         rc = oGadget.clearImpersonation();
-        print '%s: clearImpersonation()' % (boolRes(rc));
+        print('%s: clearImpersonation()' % (boolRes(rc),));
 
         # Done
         rc = oGadget.disconnectFrom();
-        print '%s: disconnectFrom() -> %s' % (boolRes(rc), rc);
+        print('%s: disconnectFrom() -> %s' % (boolRes(rc), rc,));
 
     if g_cFailures != 0:
-        print 'tst-utsgadget.py: %u out of %u test failed' % (g_cFailures, g_cTests);
+        print('tst-utsgadget.py: %u out of %u test failed' % (g_cFailures, g_cTests,));
         return 1;
-    print 'tst-utsgadget.py: all %u tests passed!' % (g_cTests);
+    print('tst-utsgadget.py: all %u tests passed!' % (g_cTests,));
     return 0;
 
 

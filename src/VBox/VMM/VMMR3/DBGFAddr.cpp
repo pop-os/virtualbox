@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -46,7 +46,7 @@
  */
 DECLINLINE(bool) dbgfR3IsHMA(PUVM pUVM, RTGCUINTPTR FlatPtr)
 {
-    return !HMIsEnabled(pUVM->pVM)
+    return VM_IS_RAW_MODE_ENABLED(pUVM->pVM)
         && MMHyperIsInsideArea(pUVM->pVM, FlatPtr);
 }
 
@@ -114,7 +114,7 @@ VMMR3DECL(int) DBGFR3AddrFromSelOff(PUVM pUVM, VMCPUID idCpu, PDBGFADDRESS pAddr
     {
         DBGFSELINFO SelInfo;
         int rc = DBGFR3SelQueryInfo(pUVM, idCpu, Sel, DBGFSELQI_FLAGS_DT_GUEST | DBGFSELQI_FLAGS_DT_ADJ_64BIT_MODE, &SelInfo);
-        if (RT_FAILURE(rc) && !HMIsEnabled(pUVM->pVM))
+        if (RT_FAILURE(rc) && VM_IS_RAW_MODE_ENABLED(pUVM->pVM))
             rc = DBGFR3SelQueryInfo(pUVM, idCpu, Sel, DBGFSELQI_FLAGS_DT_SHADOW, &SelInfo);
         if (RT_FAILURE(rc))
             return rc;
@@ -204,6 +204,23 @@ VMMR3DECL(PDBGFADDRESS) DBGFR3AddrFromPhys(PUVM pUVM, PDBGFADDRESS pAddress, RTG
     pAddress->off     = PhysAddr;
     pAddress->FlatPtr = PhysAddr;
     pAddress->fFlags  = DBGFADDRESS_FLAGS_PHYS | DBGFADDRESS_FLAGS_VALID;
+    return pAddress;
+}
+
+
+/**
+ * Creates a mixed address from a flat host ring-0 address.
+ *
+ * @returns pAddress
+ * @param   pAddress        Where to store the mixed address.
+ * @param   R0Ptr           The host ring-0 address.
+ */
+VMMR3_INT_DECL(PDBGFADDRESS) DBGFR3AddrFromHostR0(PDBGFADDRESS pAddress, RTR0UINTPTR R0Ptr)
+{
+    pAddress->FlatPtr = R0Ptr;
+    pAddress->off     = R0Ptr;
+    pAddress->fFlags  = DBGFADDRESS_FLAGS_RING0 | DBGFADDRESS_FLAGS_VALID;
+    pAddress->Sel     = DBGF_SEL_FLAT;
     return pAddress;
 }
 
@@ -378,7 +395,7 @@ static DECLCALLBACK(int) dbgfR3AddrToVolatileR3PtrOnVCpu(PUVM pUVM, VMCPUID idCp
     {
         rc = VERR_NOT_SUPPORTED; /** @todo create some dedicated errors for this stuff. */
         /** @todo this may assert, create a debug version of this which doesn't. */
-        if (   !HMIsEnabled(pVM)
+        if (   VM_IS_RAW_MODE_ENABLED(pVM)
             && MMHyperIsInsideArea(pVM, pAddress->FlatPtr))
         {
             void *pv = MMHyperRCToCC(pVM, (RTRCPTR)pAddress->FlatPtr);

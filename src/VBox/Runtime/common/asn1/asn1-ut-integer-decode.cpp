@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -68,10 +68,9 @@ RTDECL(int) RTAsn1Integer_DecodeAsn1(PRTASN1CURSOR pCursor, uint32_t fFlags, PRT
                 pThis->Asn1Core.pOps    = &g_RTAsn1Integer_Vtable;
                 return VINF_SUCCESS;
             }
-            else
-                rc = RTAsn1CursorSetInfo(pCursor, VERR_ASN1_INVALID_INTEGER_ENCODING,
-                                         "%s: Invalid integer length, exepcted more than 0: %#x",
-                                         pszErrorTag, pThis->Asn1Core.cb);
+            rc = RTAsn1CursorSetInfo(pCursor, VERR_ASN1_INVALID_INTEGER_ENCODING,
+                                     "%s: Invalid integer length, exepcted more than 0: %#x",
+                                     pszErrorTag, pThis->Asn1Core.cb);
         }
     }
     RT_ZERO(*pThis);

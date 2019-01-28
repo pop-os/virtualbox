@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2004-2017 Oracle Corporation
+ * Copyright (C) 2004-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,6 +14,8 @@
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
+
+#define LOG_GROUP LOG_GROUP_MAIN_HOST
 
 #define __STDC_LIMIT_MACROS
 #define __STDC_CONSTANT_MACROS
@@ -41,7 +43,7 @@
 #include "HostVideoInputDeviceImpl.h"
 #include "MachineImpl.h"
 #include "AutoCaller.h"
-#include "Logging.h"
+#include "LoggingNew.h"
 #include "Performance.h"
 
 #include "MediumImpl.h"
@@ -216,6 +218,8 @@ struct Host::Data
                             fLongModeSupported,
                             fPAESupported,
                             fNestedPagingSupported,
+                            fUnrestrictedGuestSupported,
+                            fNestedHWVirtSupported,
                             fRecheckVTSupported;
 
     /** @}  */
@@ -280,7 +284,7 @@ HRESULT Host::init(VirtualBox *aParent)
     /* Create the list of network interfaces so their metrics get registered. */
     i_updateNetIfList();
 
-    m->hostDnsMonitorProxy.init(HostDnsMonitor::getHostDnsMonitor(m->pParent), m->pParent);
+    m->hostDnsMonitorProxy.init(m->pParent);
 
 #if defined(RT_OS_WINDOWS)
     m->pHostPowerService = new HostPowerServiceWin(m->pParent);
@@ -297,6 +301,8 @@ HRESULT Host::init(VirtualBox *aParent)
     m->fLongModeSupported = false;
     m->fPAESupported = false;
     m->fNestedPagingSupported = false;
+    m->fUnrestrictedGuestSupported = false;
+    m->fNestedHWVirtSupported = false;
     m->fRecheckVTSupported = false;
 
     if (ASMHasCpuId())
@@ -327,14 +333,16 @@ HRESULT Host::init(VirtualBox *aParent)
 
             /* VT-x? */
             if (   ASMIsIntelCpuEx(uVendorEBX, uVendorECX, uVendorEDX)
-                || ASMIsViaCentaurCpuEx(uVendorEBX, uVendorECX, uVendorEDX))
+                || ASMIsViaCentaurCpuEx(uVendorEBX, uVendorECX, uVendorEDX)
+                || ASMIsShanghaiCpuEx(uVendorEBX, uVendorECX, uVendorEDX))
             {
                 if (    (fFeaturesEcx & X86_CPUID_FEATURE_ECX_VMX)
                      && (fFeaturesEdx & X86_CPUID_FEATURE_EDX_MSR)
                      && (fFeaturesEdx & X86_CPUID_FEATURE_EDX_FXSR)
                    )
                 {
-                    int rc = SUPR3QueryVTxSupported();
+                    const char *pszIgn;
+                    int rc = SUPR3QueryVTxSupported(&pszIgn);
                     if (RT_SUCCESS(rc))
                         m->fVTSupported = true;
                 }
@@ -349,6 +357,7 @@ HRESULT Host::init(VirtualBox *aParent)
                    )
                 {
                     m->fVTSupported = true;
+                    m->fUnrestrictedGuestSupported = true;
 
                     /* Query AMD features. */
                     if (uExtMaxId >= 0x8000000a)
@@ -378,17 +387,35 @@ HRESULT Host::init(VirtualBox *aParent)
                     m->fNestedPagingSupported = true;
                 else
                     Assert(m->fNestedPagingSupported == false);
+                if (   (fVTCaps & SUPVTCAPS_AMD_V)
+                    || (fVTCaps & SUPVTCAPS_VTX_UNRESTRICTED_GUEST))
+                    m->fUnrestrictedGuestSupported = true;
+                else
+                    Assert(m->fUnrestrictedGuestSupported == false);
+                /** @todo r=klaus put accurate condition here and update it as
+                 * the feature becomes available with VT-x. */
+                if (   (fVTCaps & SUPVTCAPS_AMD_V)
+                    && m->fNestedPagingSupported)
+                    m->fNestedHWVirtSupported = true;
             }
             else
             {
                 LogRel(("SUPR0QueryVTCaps -> %Rrc\n", rc));
-                m->fVTSupported = m->fNestedPagingSupported = false;
+                m->fVTSupported = m->fNestedPagingSupported = m->fUnrestrictedGuestSupported
+                    = m->fNestedHWVirtSupported = false;
             }
             rc = SUPR3Term(false);
             AssertRC(rc);
         }
         else
             m->fRecheckVTSupported = true; /* Try again later when the driver is loaded. */
+    }
+
+    /* Check for NEM in root paritition (hyper-V / windows). */
+    if (!m->fVTSupported && SUPR3IsNemSupportedWhenNoVtxOrAmdV())
+    {
+        m->fVTSupported = m->fNestedPagingSupported = true;
+        m->fRecheckVTSupported = false;
     }
 
 #ifdef VBOX_WITH_CROGL
@@ -999,6 +1026,8 @@ HRESULT Host::getProcessorFeature(ProcessorFeature_T aFeature, BOOL *aSupported)
         case ProcessorFeature_PAE:
         case ProcessorFeature_LongMode:
         case ProcessorFeature_NestedPaging:
+        case ProcessorFeature_UnrestrictedGuest:
+        case ProcessorFeature_NestedHWVirt:
             break;
         default:
             return setError(E_INVALIDARG, tr("The aFeature value %d (%#x) is out of range."), (int)aFeature, (int)aFeature);
@@ -1013,7 +1042,9 @@ HRESULT Host::getProcessorFeature(ProcessorFeature_T aFeature, BOOL *aSupported)
 
         if (   m->fRecheckVTSupported
             && (   aFeature == ProcessorFeature_HWVirtEx
-                || aFeature == ProcessorFeature_NestedPaging)
+                || aFeature == ProcessorFeature_NestedPaging
+                || aFeature == ProcessorFeature_UnrestrictedGuest
+                || aFeature == ProcessorFeature_NestedHWVirt)
            )
         {
             alock.release();
@@ -1033,11 +1064,22 @@ HRESULT Host::getProcessorFeature(ProcessorFeature_T aFeature, BOOL *aSupported)
                         m->fNestedPagingSupported = true;
                     else
                         Assert(m->fNestedPagingSupported == false);
+                    if (   (fVTCaps & SUPVTCAPS_AMD_V)
+                        || (fVTCaps & SUPVTCAPS_VTX_UNRESTRICTED_GUEST))
+                        m->fUnrestrictedGuestSupported = true;
+                    else
+                        Assert(m->fUnrestrictedGuestSupported == false);
+                    /** @todo r=klaus put accurate condition here and update it as
+                     * the feature becomes available with VT-x. */
+                    if (   (fVTCaps & SUPVTCAPS_AMD_V)
+                        && m->fNestedPagingSupported)
+                        m->fNestedHWVirtSupported = true;
                 }
                 else
                 {
                     LogRel(("SUPR0QueryVTCaps -> %Rrc\n", rc));
-                    m->fVTSupported = m->fNestedPagingSupported = true;
+                    m->fVTSupported = m->fNestedPagingSupported = m->fUnrestrictedGuestSupported
+                        = m->fNestedHWVirtSupported = false;
                 }
                 rc = SUPR3Term(false);
                 AssertRC(rc);
@@ -1063,6 +1105,14 @@ HRESULT Host::getProcessorFeature(ProcessorFeature_T aFeature, BOOL *aSupported)
 
             case ProcessorFeature_NestedPaging:
                 *aSupported = m->fNestedPagingSupported;
+                break;
+
+            case ProcessorFeature_UnrestrictedGuest:
+                *aSupported = m->fUnrestrictedGuestSupported;
+                break;
+
+            case ProcessorFeature_NestedHWVirt:
+                *aSupported = m->fNestedHWVirtSupported;
                 break;
 
             default:

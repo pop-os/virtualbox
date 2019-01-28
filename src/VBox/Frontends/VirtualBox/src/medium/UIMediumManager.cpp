@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,217 +15,59 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QFrame>
-# include <QLabel>
-# include <QMenuBar>
-# include <QHeaderView>
-# include <QPushButton>
-# include <QProgressBar>
+#include <QFrame>
+#include <QHBoxLayout>
+#include <QHeaderView>
+#include <QLabel>
+#include <QMenuBar>
+#include <QProgressBar>
+#include <QPushButton>
 
 /* GUI includes: */
-# include "VBoxGlobal.h"
-# include "UIExtraDataManager.h"
-# include "UIMediumDetailsWidget.h"
-# include "UIMediumManager.h"
-# include "UIWizardCloneVD.h"
-# include "UIMessageCenter.h"
-# include "QIFileDialog.h"
-# include "QITabWidget.h"
-# include "QITreeWidget.h"
-# include "QILabel.h"
-# include "QIDialogButtonBox.h"
-# include "UIToolBar.h"
-# include "UIIconPool.h"
-# include "UIMedium.h"
+#include "QIDialogButtonBox.h"
+#include "QIFileDialog.h"
+#include "QILabel.h"
+#include "QIMessageBox.h"
+#include "QITabWidget.h"
+#include "VBoxGlobal.h"
+#include "UIActionPoolManager.h"
+#include "UIExtraDataManager.h"
+#include "UIMediumDetailsWidget.h"
+#include "UIMediumItem.h"
+#include "UIMediumManager.h"
+#include "UIWizardCloneVD.h"
+#include "UIMessageCenter.h"
+#include "UIToolBar.h"
+#include "UIIconPool.h"
+#include "UIMedium.h"
 
 /* COM includes: */
-# include "COMEnums.h"
-# include "CMachine.h"
-# include "CMediumFormat.h"
-# include "CStorageController.h"
-# include "CMediumAttachment.h"
+#include "COMEnums.h"
+#include "CMachine.h"
+#include "CMediumAttachment.h"
+#include "CMediumFormat.h"
+#include "CStorageController.h"
+#include "CSystemProperties.h"
 
-# ifdef VBOX_WS_MAC
-#  include "UIWindowMenuManager.h"
-# endif /* VBOX_WS_MAC */
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
-
-/** QITreeWidgetItem extension representing Media Manager item. */
-class UIMediumItem : public QITreeWidgetItem, public UIDataMedium
-{
-public:
-
-    /** Constructs top-level item.
-      * @param  guiMedium  Brings the medium to wrap around.
-      * @param  pParent    Brings the parent tree reference. */
-    UIMediumItem(const UIMedium &guiMedium, QITreeWidget *pParent);
-    /** Constructs sub-level item.
-      * @param  guiMedium  Brings the medium to wrap around.
-      * @param  pParent    Brings the parent item reference. */
-    UIMediumItem(const UIMedium &guiMedium, UIMediumItem *pParent);
-
-    /** Copies UIMedium wrapped by <i>this</i> item. */
-    virtual bool copy();
-    /** Moves UIMedium wrapped by <i>this</i> item. */
-    virtual bool move();
-    /** Removes UIMedium wrapped by <i>this</i> item. */
-    virtual bool remove() = 0;
-    /** Releases UIMedium wrapped by <i>this</i> item.
-      * @param  fInduced  Brings whether this action is caused by other user's action,
-      *                   not a direct order to release particularly selected medium. */
-    virtual bool release(bool fInduced = false);
-
-    /** Refreshes item fully. */
-    void refreshAll();
-
-    /** Returns UIMedium wrapped by <i>this</i> item. */
-    const UIMedium &medium() const { return m_guiMedium; }
-    /** Defines UIMedium wrapped by <i>this</i> item. */
-    void setMedium(const UIMedium &guiMedium);
-
-    /** Returns UIMediumType of the wrapped UIMedium. */
-    UIMediumType mediumType() const { return m_guiMedium.type(); }
-
-    /** Returns KMediumState of the wrapped UIMedium. */
-    KMediumState state() const { return m_guiMedium.state(); }
-
-    /** Returns QString <i>ID</i> of the wrapped UIMedium. */
-    QString id() const { return m_guiMedium.id(); }
-    /** Returns QString <i>location</i> of the wrapped UIMedium. */
-    QString location() const { return m_guiMedium.location(); }
-
-    /** Returns QString <i>hard-disk format</i> of the wrapped UIMedium. */
-    QString hardDiskFormat() const { return m_guiMedium.hardDiskFormat(); }
-    /** Returns QString <i>hard-disk type</i> of the wrapped UIMedium. */
-    QString hardDiskType() const { return m_guiMedium.hardDiskType(); }
-
-    /** Returns QString <i>storage details</i> of the wrapped UIMedium. */
-    QString details() const { return m_guiMedium.storageDetails(); }
-    /** Returns QString <i>encryption password ID</i> of the wrapped UIMedium. */
-    QString encryptionPasswordID() const { return m_guiMedium.encryptionPasswordID(); }
-
-    /** Returns QString <i>tool-tip</i> of the wrapped UIMedium. */
-    QString toolTip() const { return m_guiMedium.toolTip(); }
-
-    /** Returns a vector of IDs of all machines wrapped UIMedium is attached to. */
-    const QList<QString> &machineIds() const { return m_guiMedium.machineIds(); }
-    /** Returns QString <i>usage</i> of the wrapped UIMedium. */
-    QString usage() const { return m_guiMedium.usage(); }
-    /** Returns whether wrapped UIMedium is used. */
-    bool isUsed() const { return m_guiMedium.isUsed(); }
-    /** Returns whether wrapped UIMedium is used in snapshots. */
-    bool isUsedInSnapshots() const { return m_guiMedium.isUsedInSnapshots(); }
-
-    /** Returns whether <i>this</i> item is less than @a other one. */
-    bool operator<(const QTreeWidgetItem &other) const;
-
-protected:
-
-    /** Release UIMedium wrapped by <i>this</i> item from virtual @a comMachine. */
-    virtual bool releaseFrom(CMachine comMachine) = 0;
-
-    /** Returns default text. */
-    virtual QString defaultText() const /* override */;
-
-private:
-
-    /** Refreshes item information such as icon, text and tool-tip. */
-    void refresh();
-
-    /** Releases UIMedium wrapped by <i>this</i> item from virtual machine with @a strMachineId. */
-    bool releaseFrom(const QString &strMachineId);
-
-    /** Formats field text. */
-    static QString formatFieldText(const QString &strText, bool fCompact = true, const QString &strElipsis = "middle");
-
-    /** Holds the UIMedium wrapped by <i>this</i> item. */
-    UIMedium m_guiMedium;
-};
+#ifdef VBOX_WS_MAC
+# include "UIWindowMenuManager.h"
+#endif /* VBOX_WS_MAC */
 
 
-/** UIMediumItem extension representing hard-disk item. */
-class UIMediumItemHD : public UIMediumItem
-{
-public:
 
-    /** Constructs top-level item.
-      * @param  guiMedium  Brings the medium to wrap around.
-      * @param  pParent    Brings the parent tree reference. */
-    UIMediumItemHD(const UIMedium &guiMedium, QITreeWidget *pParent);
-    /** Constructs sub-level item.
-      * @param  guiMedium  Brings the medium to wrap around.
-      * @param  pParent    Brings the parent item reference. */
-    UIMediumItemHD(const UIMedium &guiMedium, UIMediumItem *pParent);
-
-protected:
-
-    /** Removes UIMedium wrapped by <i>this</i> item. */
-    virtual bool remove() /* override */;
-    /** Releases UIMedium wrapped by <i>this</i> item from virtual @a comMachine. */
-    virtual bool releaseFrom(CMachine comMachine) /* override */;
-
-private:
-
-    /** Proposes user to remove CMedium storage wrapped by <i>this</i> item. */
-    bool maybeRemoveStorage();
-};
-
-/** UIMediumItem extension representing optical-disk item. */
-class UIMediumItemCD : public UIMediumItem
-{
-public:
-
-    /** Constructs top-level item.
-      * @param  guiMedium  Brings the medium to wrap around.
-      * @param  pParent    Brings the parent tree reference. */
-    UIMediumItemCD(const UIMedium &guiMedium, QITreeWidget *pParent);
-
-protected:
-
-    /** Removes UIMedium wrapped by <i>this</i> item. */
-    virtual bool remove() /* override */;
-    /** Releases UIMedium wrapped by <i>this</i> item from virtual @a comMachine. */
-    virtual bool releaseFrom(CMachine comMachine) /* override */;
-};
-
-/** UIMediumItem extension representing floppy-disk item. */
-class UIMediumItemFD : public UIMediumItem
-{
-public:
-
-    /** Constructs top-level item.
-      * @param  guiMedium  Brings the medium to wrap around.
-      * @param  pParent    Brings the parent tree reference. */
-    UIMediumItemFD(const UIMedium &guiMedium, QITreeWidget *pParent);
-
-protected:
-
-    /** Removes UIMedium wrapped by <i>this</i> item. */
-    virtual bool remove() /* override */;
-    /** Releases UIMedium wrapped by <i>this</i> item from virtual @a comMachine. */
-    virtual bool releaseFrom(CMachine comMachine) /* override */;
-};
-
-
-/** Functor allowing to check if passed UIMediumItem is suitable by @a strID. */
+/** Functor allowing to check if passed UIMediumItem is suitable by @a uID. */
 class CheckIfSuitableByID : public CheckIfSuitableBy
 {
 public:
-    /** Constructor accepting @a strID to compare with. */
-    CheckIfSuitableByID(const QString &strID) : m_strID(strID) {}
+    /** Constructor accepting @a uID to compare with. */
+    CheckIfSuitableByID(const QUuid &uID) : m_uID(uID) {}
 
 private:
-    /** Determines whether passed UIMediumItem is suitable by @a strID. */
-    bool isItSuitable(UIMediumItem *pItem) const { return pItem->id() == m_strID; }
-    /** Holds the @a strID to compare to. */
-    QString m_strID;
+    /** Determines whether passed UIMediumItem is suitable by @a uID. */
+    bool isItSuitable(UIMediumItem *pItem) const { return pItem->id() == m_uID; }
+    /** Holds the @a uID to compare to. */
+    QUuid m_uID;
 };
 
 /** Functor allowing to check if passed UIMediumItem is suitable by @a state. */
@@ -241,512 +83,6 @@ private:
     /** Holds the @a state to compare to. */
     KMediumState m_state;
 };
-
-
-/*********************************************************************************************************************************
-*   Class UIMediumItem implementation.                                                                                           *
-*********************************************************************************************************************************/
-
-UIMediumItem::UIMediumItem(const UIMedium &guiMedium, QITreeWidget *pParent)
-    : QITreeWidgetItem(pParent)
-    , m_guiMedium(guiMedium)
-{
-    refresh();
-}
-
-UIMediumItem::UIMediumItem(const UIMedium &guiMedium, UIMediumItem *pParent)
-    : QITreeWidgetItem(pParent)
-    , m_guiMedium(guiMedium)
-{
-    refresh();
-}
-
-bool UIMediumItem::move()
-{
-    /* Open file-save dialog to choose location for current medium: */
-    const QString strFileName = QIFileDialog::getSaveFileName(location(),
-                                                              UIMediumManager::tr("Current extension (*.%1)")
-                                                                 .arg(QFileInfo(location()).suffix()),
-                                                              treeWidget(),
-                                                              UIMediumManager::tr("Choose the location of this medium"),
-                                                              0, true, true);
-    /* Negative if nothing changed: */
-    if (strFileName.isNull())
-        return false;
-
-    /* Search for corresponding medium: */
-    CMedium comMedium = medium().medium();
-
-    /* Try to assign new medium location: */
-    if (   comMedium.isOk()
-        && strFileName != location())
-    {
-        /* Prepare move storage progress: */
-        CProgress comProgress = comMedium.SetLocation(strFileName);
-
-        /* Show error message if necessary: */
-        if (!comMedium.isOk())
-        {
-            msgCenter().cannotMoveMediumStorage(comMedium, location(),
-                                                strFileName, treeWidget());
-            /* Negative if failed: */
-            return false;
-        }
-        else
-        {
-            /* Show move storage progress: */
-            msgCenter().showModalProgressDialog(comProgress, UIMediumManager::tr("Moving medium..."),
-                                                ":/progress_media_move_90px.png", treeWidget());
-
-            /* Show error message if necessary: */
-            if (!comProgress.isOk() || comProgress.GetResultCode() != 0)
-            {
-                msgCenter().cannotMoveMediumStorage(comProgress, location(),
-                                                    strFileName, treeWidget());
-                /* Negative if failed: */
-                return false;
-            }
-        }
-    }
-
-    /* Recache item: */
-    refreshAll();
-
-    /* Positive: */
-    return true;
-}
-
-bool UIMediumItem::copy()
-{
-    /* Show Clone VD wizard: */
-    UISafePointerWizard pWizard = new UIWizardCloneVD(treeWidget(), medium().medium());
-    pWizard->prepare();
-    pWizard->exec();
-
-    /* Delete if still exists: */
-    if (pWizard)
-        delete pWizard;
-
-    /* True by default: */
-    return true;
-}
-
-bool UIMediumItem::release(bool fInduced /* = false */)
-{
-    /* Refresh medium and item: */
-    m_guiMedium.refresh();
-    refresh();
-
-    /* Make sure medium was not released yet: */
-    if (medium().curStateMachineIds().isEmpty())
-        return true;
-
-    /* Confirm release: */
-    if (!msgCenter().confirmMediumRelease(medium(), fInduced, treeWidget()))
-        return false;
-
-    /* Release: */
-    foreach (const QString &strMachineId, medium().curStateMachineIds())
-        if (!releaseFrom(strMachineId))
-            return false;
-
-    /* True by default: */
-    return true;
-}
-
-void UIMediumItem::refreshAll()
-{
-    m_guiMedium.blockAndQueryState();
-    refresh();
-}
-
-void UIMediumItem::setMedium(const UIMedium &guiMedium)
-{
-    m_guiMedium = guiMedium;
-    refresh();
-}
-
-bool UIMediumItem::operator<(const QTreeWidgetItem &other) const
-{
-    int iColumn = treeWidget()->sortColumn();
-    ULONG64 uThisValue = vboxGlobal().parseSize(      text(iColumn));
-    ULONG64 uThatValue = vboxGlobal().parseSize(other.text(iColumn));
-    return uThisValue && uThatValue ? uThisValue < uThatValue : QTreeWidgetItem::operator<(other);
-}
-
-QString UIMediumItem::defaultText() const
-{
-    return UIMediumManager::tr("%1, %2: %3, %4: %5", "col.1 text, col.2 name: col.2 text, col.3 name: col.3 text")
-                               .arg(text(0))
-                               .arg(parentTree()->headerItem()->text(1)).arg(text(1))
-                               .arg(parentTree()->headerItem()->text(2)).arg(text(2));
-}
-
-void UIMediumItem::refresh()
-{
-    /* Fill-in columns: */
-    setIcon(0, m_guiMedium.icon());
-    setText(0, m_guiMedium.name());
-    setText(1, m_guiMedium.logicalSize());
-    setText(2, m_guiMedium.size());
-    /* All columns get the same tooltip: */
-    QString strToolTip = m_guiMedium.toolTip();
-    for (int i = 0; i < treeWidget()->columnCount(); ++i)
-        setToolTip(i, strToolTip);
-
-    /* Gather medium data: */
-    m_fValid =    !m_guiMedium.isNull()
-               && m_guiMedium.state() != KMediumState_Inaccessible;
-    m_enmType = m_guiMedium.type();
-    m_enmVariant = m_guiMedium.mediumVariant();
-    m_fHasChildren = m_guiMedium.hasChildren();
-    /* Gather medium options data: */
-    m_options.m_enmType = m_guiMedium.mediumType();
-    m_options.m_strLocation = m_guiMedium.location();
-    m_options.m_uLogicalSize = m_guiMedium.logicalSizeInBytes();
-    m_options.m_strDescription = m_guiMedium.description();
-    /* Gather medium details data: */
-    m_details.m_aFields.clear();
-    switch (m_enmType)
-    {
-        case UIMediumType_HardDisk:
-        {
-            m_details.m_aLabels << UIMediumManager::tr("Format:");
-            m_details.m_aLabels << UIMediumManager::tr("Storage details:");
-            m_details.m_aLabels << UIMediumManager::tr("Attached to:");
-            m_details.m_aLabels << UIMediumManager::tr("Encrypted with key:");
-            m_details.m_aLabels << UIMediumManager::tr("UUID:");
-
-            m_details.m_aFields << hardDiskFormat();
-            m_details.m_aFields << details();
-            m_details.m_aFields << (usage().isNull() ?
-                                    formatFieldText(UIMediumManager::tr("<i>Not&nbsp;Attached</i>"), false) :
-                                    formatFieldText(usage()));
-            m_details.m_aFields << (encryptionPasswordID().isNull() ?
-                                    formatFieldText(UIMediumManager::tr("<i>Not&nbsp;Encrypted</i>"), false) :
-                                    formatFieldText(encryptionPasswordID()));
-            m_details.m_aFields << id();
-
-            break;
-        }
-        case UIMediumType_DVD:
-        case UIMediumType_Floppy:
-        {
-            m_details.m_aLabels << UIMediumManager::tr("Attached to:");
-            m_details.m_aLabels << UIMediumManager::tr("UUID:");
-
-            m_details.m_aFields << (usage().isNull() ?
-                                    formatFieldText(UIMediumManager::tr("<i>Not&nbsp;Attached</i>"), false) :
-                                    formatFieldText(usage()));
-            m_details.m_aFields << id();
-            break;
-        }
-        default:
-            break;
-    }
-}
-
-bool UIMediumItem::releaseFrom(const QString &strMachineId)
-{
-    /* Open session: */
-    CSession session = vboxGlobal().openSession(strMachineId);
-    if (session.isNull())
-        return false;
-
-    /* Get machine: */
-    CMachine machine = session.GetMachine();
-
-    /* Prepare result: */
-    bool fSuccess = false;
-
-    /* Release medium from machine: */
-    if (releaseFrom(machine))
-    {
-        /* Save machine settings: */
-        machine.SaveSettings();
-        if (!machine.isOk())
-            msgCenter().cannotSaveMachineSettings(machine, treeWidget());
-        else
-            fSuccess = true;
-    }
-
-    /* Close session: */
-    session.UnlockMachine();
-
-    /* Return result: */
-    return fSuccess;
-}
-
-/* static */
-QString UIMediumItem::formatFieldText(const QString &strText, bool fCompact /* = true */,
-                                      const QString &strElipsis /* = "middle" */)
-{
-    QString strCompactString = QString("<compact elipsis=\"%1\">").arg(strElipsis);
-    QString strInfo = QString("<nobr>%1%2%3</nobr>")
-                              .arg(fCompact ? strCompactString : "")
-                              .arg(strText.isEmpty() ? UIMediumManager::tr("--", "no info") : strText)
-                              .arg(fCompact ? "</compact>" : "");
-    return strInfo;
-}
-
-
-/*********************************************************************************************************************************
-*   Class UIMediumItemHD implementation.                                                                                         *
-*********************************************************************************************************************************/
-
-UIMediumItemHD::UIMediumItemHD(const UIMedium &guiMedium, QITreeWidget *pParent)
-    : UIMediumItem(guiMedium, pParent)
-{
-}
-
-UIMediumItemHD::UIMediumItemHD(const UIMedium &guiMedium, UIMediumItem *pParent)
-    : UIMediumItem(guiMedium, pParent)
-{
-}
-
-bool UIMediumItemHD::remove()
-{
-    /* Confirm medium removal: */
-    if (!msgCenter().confirmMediumRemoval(medium(), treeWidget()))
-        return false;
-
-    /* Remember some of hard-disk attributes: */
-    CMedium hardDisk = medium().medium();
-    QString strMediumID = id();
-
-    /* Propose to remove medium storage: */
-    if (!maybeRemoveStorage())
-        return false;
-
-    /* Close hard-disk: */
-    hardDisk.Close();
-    if (!hardDisk.isOk())
-    {
-        msgCenter().cannotCloseMedium(medium(), hardDisk, treeWidget());
-        return false;
-    }
-
-    /* Remove UIMedium finally: */
-    vboxGlobal().deleteMedium(strMediumID);
-
-    /* True by default: */
-    return true;
-}
-
-bool UIMediumItemHD::releaseFrom(CMachine comMachine)
-{
-    /* Enumerate attachments: */
-    CMediumAttachmentVector attachments = comMachine.GetMediumAttachments();
-    foreach (const CMediumAttachment &attachment, attachments)
-    {
-        /* Skip non-hard-disks: */
-        if (attachment.GetType() != KDeviceType_HardDisk)
-            continue;
-
-        /* Skip unrelated hard-disks: */
-        if (attachment.GetMedium().GetId() != id())
-            continue;
-
-        /* Remember controller: */
-        CStorageController controller = comMachine.GetStorageControllerByName(attachment.GetController());
-
-        /* Try to detach device: */
-        comMachine.DetachDevice(attachment.GetController(), attachment.GetPort(), attachment.GetDevice());
-        if (!comMachine.isOk())
-        {
-            /* Return failure: */
-            msgCenter().cannotDetachDevice(comMachine, UIMediumType_HardDisk, location(),
-                                           StorageSlot(controller.GetBus(), attachment.GetPort(), attachment.GetDevice()),
-                                           treeWidget());
-            return false;
-        }
-
-        /* Return success: */
-        return true;
-    }
-
-    /* False by default: */
-    return false;
-}
-
-bool UIMediumItemHD::maybeRemoveStorage()
-{
-    /* Remember some of hard-disk attributes: */
-    CMedium hardDisk = medium().medium();
-    QString strLocation = location();
-
-    /* We don't want to try to delete inaccessible storage as it will most likely fail.
-     * Note that UIMessageCenter::confirmMediumRemoval() is aware of that and
-     * will give a corresponding hint. Therefore, once the code is changed below,
-     * the hint should be re-checked for validity. */
-    bool fDeleteStorage = false;
-    qulonglong uCapability = 0;
-    QVector<KMediumFormatCapabilities> capabilities = hardDisk.GetMediumFormat().GetCapabilities();
-    foreach (KMediumFormatCapabilities capability, capabilities)
-        uCapability |= capability;
-    if (state() != KMediumState_Inaccessible && uCapability & KMediumFormatCapabilities_File)
-    {
-        int rc = msgCenter().confirmDeleteHardDiskStorage(strLocation, treeWidget());
-        if (rc == AlertButton_Cancel)
-            return false;
-        fDeleteStorage = rc == AlertButton_Choice1;
-    }
-
-    /* If user wish to delete storage: */
-    if (fDeleteStorage)
-    {
-        /* Prepare delete storage progress: */
-        CProgress progress = hardDisk.DeleteStorage();
-        if (!hardDisk.isOk())
-        {
-            msgCenter().cannotDeleteHardDiskStorage(hardDisk, strLocation, treeWidget());
-            return false;
-        }
-        /* Show delete storage progress: */
-        msgCenter().showModalProgressDialog(progress, UIMediumManager::tr("Removing medium..."),
-                                            ":/progress_media_delete_90px.png", treeWidget());
-        if (!progress.isOk() || progress.GetResultCode() != 0)
-        {
-            msgCenter().cannotDeleteHardDiskStorage(progress, strLocation, treeWidget());
-            return false;
-        }
-    }
-
-    /* True by default: */
-    return true;
-}
-
-
-/*********************************************************************************************************************************
-*   Class UIMediumItemCD implementation.                                                                                         *
-*********************************************************************************************************************************/
-
-UIMediumItemCD::UIMediumItemCD(const UIMedium &guiMedium, QITreeWidget *pParent)
-    : UIMediumItem(guiMedium, pParent)
-{
-}
-
-bool UIMediumItemCD::remove()
-{
-    /* Confirm medium removal: */
-    if (!msgCenter().confirmMediumRemoval(medium(), treeWidget()))
-        return false;
-
-    /* Remember some of optical-disk attributes: */
-    CMedium image = medium().medium();
-    QString strMediumID = id();
-
-    /* Close optical-disk: */
-    image.Close();
-    if (!image.isOk())
-    {
-        msgCenter().cannotCloseMedium(medium(), image, treeWidget());
-        return false;
-    }
-
-    /* Remove UIMedium finally: */
-    vboxGlobal().deleteMedium(strMediumID);
-
-    /* True by default: */
-    return true;
-}
-
-bool UIMediumItemCD::releaseFrom(CMachine comMachine)
-{
-    /* Enumerate attachments: */
-    CMediumAttachmentVector attachments = comMachine.GetMediumAttachments();
-    foreach (const CMediumAttachment &attachment, attachments)
-    {
-        /* Skip non-optical-disks: */
-        if (attachment.GetType() != KDeviceType_DVD)
-            continue;
-
-        /* Skip unrelated optical-disks: */
-        if (attachment.GetMedium().GetId() != id())
-            continue;
-
-        /* Try to unmount device: */
-        comMachine.MountMedium(attachment.GetController(), attachment.GetPort(), attachment.GetDevice(), CMedium(), false /* force */);
-        if (!comMachine.isOk())
-        {
-            /* Return failure: */
-            msgCenter().cannotRemountMedium(comMachine, medium(), false /* mount? */, false /* retry? */, treeWidget());
-            return false;
-        }
-
-        /* Return success: */
-        return true;
-    }
-
-    /* Return failure: */
-    return false;
-}
-
-
-/*********************************************************************************************************************************
-*   Class UIMediumItemFD implementation.                                                                                         *
-*********************************************************************************************************************************/
-
-UIMediumItemFD::UIMediumItemFD(const UIMedium &guiMedium, QITreeWidget *pParent)
-    : UIMediumItem(guiMedium, pParent)
-{
-}
-
-bool UIMediumItemFD::remove()
-{
-    /* Confirm medium removal: */
-    if (!msgCenter().confirmMediumRemoval(medium(), treeWidget()))
-        return false;
-
-    /* Remember some of floppy-disk attributes: */
-    CMedium image = medium().medium();
-    QString strMediumID = id();
-
-    /* Close floppy-disk: */
-    image.Close();
-    if (!image.isOk())
-    {
-        msgCenter().cannotCloseMedium(medium(), image, treeWidget());
-        return false;
-    }
-
-    /* Remove UIMedium finally: */
-    vboxGlobal().deleteMedium(strMediumID);
-
-    /* True by default: */
-    return true;
-}
-
-bool UIMediumItemFD::releaseFrom(CMachine comMachine)
-{
-    /* Enumerate attachments: */
-    CMediumAttachmentVector attachments = comMachine.GetMediumAttachments();
-    foreach (const CMediumAttachment &attachment, attachments)
-    {
-        /* Skip non-floppy-disks: */
-        if (attachment.GetType() != KDeviceType_Floppy)
-            continue;
-
-        /* Skip unrelated floppy-disks: */
-        if (attachment.GetMedium().GetId() != id())
-            continue;
-
-        /* Try to unmount device: */
-        comMachine.MountMedium(attachment.GetController(), attachment.GetPort(), attachment.GetDevice(), CMedium(), false /* force */);
-        if (!comMachine.isOk())
-        {
-            /* Return failure: */
-            msgCenter().cannotRemountMedium(comMachine, medium(), false /* mount? */, false /* retry? */, treeWidget());
-            return false;
-        }
-
-        /* Return success: */
-        return true;
-    }
-
-    /* Return failure: */
-    return false;
-}
 
 
 /*********************************************************************************************************************************
@@ -806,9 +142,12 @@ void UIEnumerationProgressBar::prepare()
 *   Class UIMediumManagerWidget implementation.                                                                                  *
 *********************************************************************************************************************************/
 
-UIMediumManagerWidget::UIMediumManagerWidget(EmbedTo enmEmbedding, QWidget *pParent /* = 0 */)
+UIMediumManagerWidget::UIMediumManagerWidget(EmbedTo enmEmbedding, UIActionPool *pActionPool,
+                                             bool fShowToolbar /* = true */, QWidget *pParent /* = 0 */)
     : QIWithRetranslateUI<QWidget>(pParent)
     , m_enmEmbedding(enmEmbedding)
+    , m_pActionPool(pActionPool)
+    , m_fShowToolbar(fShowToolbar)
     , m_fPreventChangeCurrentItem(false)
     , m_pTabWidget(0)
     , m_iTabCount(3)
@@ -820,15 +159,15 @@ UIMediumManagerWidget::UIMediumManagerWidget(EmbedTo enmEmbedding, QWidget *pPar
     , m_iconFD(UIIconPool::iconSet(":/fd_16px.png", ":/fd_disabled_16px.png"))
     , m_pDetailsWidget(0)
     , m_pToolBar(0)
-    , m_pContextMenu(0)
-    , m_pMenu(0)
-    , m_pActionCopy(0), m_pActionMove(0), m_pActionRemove(0)
-    , m_pActionRelease(0), m_pActionDetails(0)
-    , m_pActionRefresh(0)
     , m_pProgressBar(0)
 {
     /* Prepare: */
     prepare();
+}
+
+QMenu *UIMediumManagerWidget::menu() const
+{
+    return m_pActionPool->action(UIActionIndexST_M_MediumWindow)->menu();
 }
 
 void UIMediumManagerWidget::setProgressBar(UIEnumerationProgressBar *pProgressBar)
@@ -842,49 +181,7 @@ void UIMediumManagerWidget::setProgressBar(UIEnumerationProgressBar *pProgressBa
 
 void UIMediumManagerWidget::retranslateUi()
 {
-    /* Translate menu: */
-    if (m_pMenu)
-        m_pMenu->setTitle(UIMediumManager::tr("&Medium"));
-
-    /* Translate actions: */
-    if (m_pActionCopy)
-    {
-        m_pActionCopy->setText(UIMediumManager::tr("&Copy..."));
-        m_pActionCopy->setToolTip(UIMediumManager::tr("Copy Disk Image File (%1)").arg(m_pActionCopy->shortcut().toString()));
-        m_pActionCopy->setStatusTip(UIMediumManager::tr("Copy selected disk image file"));
-    }
-    if (m_pActionMove)
-    {
-        m_pActionMove->setText(UIMediumManager::tr("&Move..."));
-        m_pActionMove->setToolTip(UIMediumManager::tr("Move Disk Image File (%1)").arg(m_pActionMove->shortcut().toString()));
-        m_pActionMove->setStatusTip(UIMediumManager::tr("Move selected disk image file"));
-    }
-    if (m_pActionRemove)
-    {
-        m_pActionRemove->setText(UIMediumManager::tr("&Remove..."));
-        m_pActionRemove->setToolTip(UIMediumManager::tr("Remove Disk Image File (%1)").arg(m_pActionRemove->shortcut().toString()));
-        m_pActionRemove->setStatusTip(UIMediumManager::tr("Remove selected disk image file"));
-    }
-    if (m_pActionRelease)
-    {
-        m_pActionRelease->setText(UIMediumManager::tr("Re&lease..."));
-        m_pActionRelease->setToolTip(UIMediumManager::tr("Release Disk Image File (%1)").arg(m_pActionRelease->shortcut().toString()));
-        m_pActionRelease->setStatusTip(UIMediumManager::tr("Release selected disk image file by detaching it from machines"));
-    }
-    if (m_pActionDetails)
-    {
-        m_pActionDetails->setText(UIMediumManager::tr("&Properties..."));
-        m_pActionDetails->setToolTip(UIMediumManager::tr("Open Disk Image File Properties (%1)").arg(m_pActionDetails->shortcut().toString()));
-        m_pActionDetails->setStatusTip(UIMediumManager::tr("Open pane with selected disk image file properties"));
-    }
-    if (m_pActionRefresh)
-    {
-        m_pActionRefresh->setText(UIMediumManager::tr("Re&fresh"));
-        m_pActionRefresh->setToolTip(UIMediumManager::tr("Refresh Disk Image Files (%1)").arg(m_pActionRefresh->shortcut().toString()));
-        m_pActionRefresh->setStatusTip(UIMediumManager::tr("Refresh the list of disk image files"));
-    }
-
-    /* Translate toolbar: */
+    /* Adjust toolbar: */
 #ifdef VBOX_WS_MAC
     // WORKAROUND:
     // There is a bug in Qt Cocoa which result in showing a "more arrow" when
@@ -898,13 +195,13 @@ void UIMediumManagerWidget::retranslateUi()
     /* Translate tab-widget: */
     if (m_pTabWidget)
     {
-        m_pTabWidget->setTabText(tabIndex(UIMediumType_HardDisk), UIMediumManager::tr("&Hard disks"));
-        m_pTabWidget->setTabText(tabIndex(UIMediumType_DVD), UIMediumManager::tr("&Optical disks"));
-        m_pTabWidget->setTabText(tabIndex(UIMediumType_Floppy), UIMediumManager::tr("&Floppy disks"));
+        m_pTabWidget->setTabText(tabIndex(UIMediumDeviceType_HardDisk), UIMediumManager::tr("&Hard disks"));
+        m_pTabWidget->setTabText(tabIndex(UIMediumDeviceType_DVD), UIMediumManager::tr("&Optical disks"));
+        m_pTabWidget->setTabText(tabIndex(UIMediumDeviceType_Floppy), UIMediumManager::tr("&Floppy disks"));
     }
 
     /* Translate HD tree-widget: */
-    QITreeWidget *pTreeWidgetHD = treeWidget(UIMediumType_HardDisk);
+    QITreeWidget *pTreeWidgetHD = treeWidget(UIMediumDeviceType_HardDisk);
     if (pTreeWidgetHD)
     {
         pTreeWidgetHD->headerItem()->setText(0, UIMediumManager::tr("Name"));
@@ -913,7 +210,7 @@ void UIMediumManagerWidget::retranslateUi()
     }
 
     /* Translate CD tree-widget: */
-    QITreeWidget *pTreeWidgetCD = treeWidget(UIMediumType_DVD);
+    QITreeWidget *pTreeWidgetCD = treeWidget(UIMediumDeviceType_DVD);
     if (pTreeWidgetCD)
     {
         pTreeWidgetCD->headerItem()->setText(0, UIMediumManager::tr("Name"));
@@ -921,7 +218,7 @@ void UIMediumManagerWidget::retranslateUi()
     }
 
     /* Translate FD tree-widget: */
-    QITreeWidget *pTreeWidgetFD = treeWidget(UIMediumType_Floppy);
+    QITreeWidget *pTreeWidgetFD = treeWidget(UIMediumDeviceType_Floppy);
     if (pTreeWidgetFD)
     {
         pTreeWidgetFD->headerItem()->setText(0, UIMediumManager::tr("Name"));
@@ -947,16 +244,6 @@ void UIMediumManagerWidget::retranslateUi()
         || (pTreeWidgetCD && pTreeWidgetCD->topLevelItemCount())
         || (pTreeWidgetFD && pTreeWidgetFD->topLevelItemCount()))
         sltRefreshAll();
-}
-
-void UIMediumManagerWidget::showEvent(QShowEvent *pEvent)
-{
-    /* Call to base-class: */
-    QIWithRetranslateUI<QWidget>::showEvent(pEvent);
-
-    /* Focus current tree-widget: */
-    if (currentTreeWidget())
-        currentTreeWidget()->setFocus();
 }
 
 void UIMediumManagerWidget::sltResetMediumDetailsChanges()
@@ -1006,7 +293,7 @@ void UIMediumManagerWidget::sltApplyMediumDetailsChanges()
         && newData.m_options.m_strLocation != oldData.m_options.m_strLocation)
     {
         /* Prepare move storage progress: */
-        CProgress comProgress = comMedium.SetLocation(newData.m_options.m_strLocation);
+        CProgress comProgress = comMedium.MoveTo(newData.m_options.m_strLocation);
 
         /* Show error message if necessary: */
         if (!comMedium.isOk())
@@ -1046,8 +333,8 @@ void UIMediumManagerWidget::sltApplyMediumDetailsChanges()
         else
         {
             /* Show resize storage progress: */
-            msgCenter().showModalProgressDialog(comProgress, UIMediumManager::tr("Moving medium..."),
-                                                ":/progress_media_move_90px.png", this);
+            msgCenter().showModalProgressDialog(comProgress, UIMediumManager::tr("Resizing medium..."),
+                                                ":/progress_media_resize_90px.png", this);
 
             /* Show error message if necessary: */
             if (!comProgress.isOk() || comProgress.GetResultCode() != 0)
@@ -1079,16 +366,16 @@ void UIMediumManagerWidget::sltApplyMediumDetailsChanges()
     sltHandleCurrentTabChanged();
 }
 
-void UIMediumManagerWidget::sltHandleMediumCreated(const QString &strMediumID)
+void UIMediumManagerWidget::sltHandleMediumCreated(const QUuid &uMediumID)
 {
     /* Search for corresponding medium: */
-    UIMedium medium = vboxGlobal().medium(strMediumID);
+    UIMedium medium = vboxGlobal().medium(uMediumID);
 
-    /* Ignore non-interesting mediums: */
+    /* Ignore non-interesting media: */
     if (medium.isNull() || medium.isHostDrive())
         return;
 
-    /* Ignore mediums (and their children) which are
+    /* Ignore media (and their children) which are
      * marked as hidden or attached to hidden machines only: */
     if (UIMedium::isMediumAttachedToHiddenMachinesOnly(medium))
         return;
@@ -1110,17 +397,17 @@ void UIMediumManagerWidget::sltHandleMediumCreated(const QString &strMediumID)
         setCurrentItem(treeWidget(medium.type()), pMediumItem);
 }
 
-void UIMediumManagerWidget::sltHandleMediumDeleted(const QString &strMediumID)
+void UIMediumManagerWidget::sltHandleMediumDeleted(const QUuid &uMediumID)
 {
     /* Make sure corresponding medium-item deleted: */
-    deleteMediumItem(strMediumID);
+    deleteMediumItem(uMediumID);
 }
 
 void UIMediumManagerWidget::sltHandleMediumEnumerationStart()
 {
     /* Disable 'refresh' action: */
-    if (m_pActionRefresh)
-        m_pActionRefresh->setEnabled(false);
+    if (m_pActionPool->action(UIActionIndexST_M_Medium_S_Refresh))
+        m_pActionPool->action(UIActionIndexST_M_Medium_S_Refresh)->setEnabled(false);
 
     /* Disable details-widget: */
     if (m_pDetailsWidget)
@@ -1142,9 +429,9 @@ void UIMediumManagerWidget::sltHandleMediumEnumerationStart()
     /* Reset tab-widget icons: */
     if (m_pTabWidget)
     {
-        m_pTabWidget->setTabIcon(tabIndex(UIMediumType_HardDisk), m_iconHD);
-        m_pTabWidget->setTabIcon(tabIndex(UIMediumType_DVD), m_iconCD);
-        m_pTabWidget->setTabIcon(tabIndex(UIMediumType_Floppy), m_iconFD);
+        m_pTabWidget->setTabIcon(tabIndex(UIMediumDeviceType_HardDisk), m_iconHD);
+        m_pTabWidget->setTabIcon(tabIndex(UIMediumDeviceType_DVD), m_iconCD);
+        m_pTabWidget->setTabIcon(tabIndex(UIMediumDeviceType_Floppy), m_iconFD);
     }
 
     /* Repopulate tree-widgets content: */
@@ -1155,16 +442,16 @@ void UIMediumManagerWidget::sltHandleMediumEnumerationStart()
     refetchCurrentChosenMediumItem();
 }
 
-void UIMediumManagerWidget::sltHandleMediumEnumerated(const QString &strMediumID)
+void UIMediumManagerWidget::sltHandleMediumEnumerated(const QUuid &uMediumID)
 {
     /* Search for corresponding medium: */
-    UIMedium medium = vboxGlobal().medium(strMediumID);
+    UIMedium medium = vboxGlobal().medium(uMediumID);
 
-    /* Ignore non-interesting mediums: */
+    /* Ignore non-interesting media: */
     if (medium.isNull() || medium.isHostDrive())
         return;
 
-    /* Ignore mediums (and their children) which are
+    /* Ignore media (and their children) which are
      * marked as hidden or attached to hidden machines only: */
     if (UIMedium::isMediumAttachedToHiddenMachinesOnly(medium))
         return;
@@ -1188,12 +475,18 @@ void UIMediumManagerWidget::sltHandleMediumEnumerationFinish()
         m_pDetailsWidget->setOptionsEnabled(true);
 
     /* Enable 'refresh' action: */
-    if (m_pActionRefresh)
-        m_pActionRefresh->setEnabled(true);
+    if (m_pActionPool->action(UIActionIndexST_M_Medium_S_Refresh))
+        m_pActionPool->action(UIActionIndexST_M_Medium_S_Refresh)->setEnabled(true);
 
     /* Re-fetch all current medium-items: */
     refetchCurrentMediumItems();
     refetchCurrentChosenMediumItem();
+}
+
+void UIMediumManagerWidget::sltAddMedium()
+{
+    QString strDefaultMachineFolder = vboxGlobal().virtualBox().GetSystemProperties().GetDefaultMachineFolder();
+    vboxGlobal().openMediumWithFileOpenDialog(currentMediumType(), this, strDefaultMachineFolder);
 }
 
 void UIMediumManagerWidget::sltCopyMedium()
@@ -1204,7 +497,17 @@ void UIMediumManagerWidget::sltCopyMedium()
     AssertReturnVoid(!pMediumItem->id().isNull());
 
     /* Copy current medium-item: */
-    pMediumItem->copy();
+    //pMediumItem->copy();
+
+    /* Show Clone VD wizard: */
+    UIMedium medium = pMediumItem->medium();
+    UISafePointerWizard pWizard = new UIWizardCloneVD(currentTreeWidget(), medium.medium());
+    pWizard->prepare();
+    pWizard->exec();
+
+    /* Delete if still exists: */
+    if (pWizard)
+        delete pWizard;
 }
 
 void UIMediumManagerWidget::sltMoveMedium()
@@ -1296,23 +599,34 @@ void UIMediumManagerWidget::sltHandleCurrentItemChanged()
     refetchCurrentMediumItem(mediumType(pTreeWidget));
 }
 
-void UIMediumManagerWidget::sltHandleContextMenuCall(const QPoint &position)
+void UIMediumManagerWidget::sltHandleContextMenuRequest(const QPoint &position)
 {
     /* Get current tree-widget: */
     QITreeWidget *pTreeWidget = currentTreeWidget();
     AssertPtrReturnVoid(pTreeWidget);
 
-    /* Make sure underlaying item was found: */
+    /* If underlaying item was found => make sure that item is current one: */
     QTreeWidgetItem *pItem = pTreeWidget->itemAt(position);
-    if (!pItem)
-        return;
+    if (pItem)
+        setCurrentItem(pTreeWidget, pItem);
 
-    /* Make sure that item is current one: */
-    setCurrentItem(pTreeWidget, pItem);
-
-    /* Show item context menu: */
-    if (m_pContextMenu)
-        m_pContextMenu->exec(pTreeWidget->viewport()->mapToGlobal(position));
+    /* Compose temporary context-menu: */
+    QMenu menu;
+    if (pTreeWidget->itemAt(position))
+    {
+        menu.addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Copy));
+        menu.addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Move));
+        menu.addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Remove));
+        menu.addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Release));
+        menu.addAction(m_pActionPool->action(UIActionIndexST_M_Medium_T_Details));
+    }
+    else
+    {
+        menu.addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Add));
+        menu.addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Refresh));
+    }
+    /* And show it: */
+    menu.exec(pTreeWidget->viewport()->mapToGlobal(position));
 }
 
 void UIMediumManagerWidget::sltPerformTablesAdjustment()
@@ -1342,8 +656,12 @@ void UIMediumManagerWidget::sltPerformTablesAdjustment()
 
 void UIMediumManagerWidget::prepare()
 {
-    /* Prepare this: */
-    prepareThis();
+    /* Prepare connections: */
+    prepareConnections();
+    /* Prepare actions: */
+    prepareActions();
+    /* Prepare widgets: */
+    prepareWidgets();
 
     /* Load settings: */
     loadSettings();
@@ -1366,16 +684,6 @@ void UIMediumManagerWidget::prepare()
     }
 }
 
-void UIMediumManagerWidget::prepareThis()
-{
-    /* Prepare connections: */
-    prepareConnections();
-    /* Prepare actions: */
-    prepareActions();
-    /* Prepare central-widget: */
-    prepareWidgets();
-}
-
 void UIMediumManagerWidget::prepareConnections()
 {
     /* Configure medium-processing connections: */
@@ -1395,119 +703,33 @@ void UIMediumManagerWidget::prepareConnections()
 
 void UIMediumManagerWidget::prepareActions()
 {
-    /* Create 'Copy' action: */
-    m_pActionCopy = new QAction(this);
-    AssertPtrReturnVoid(m_pActionCopy);
-    {
-        /* Configure copy-action: */
-        m_pActionCopy->setShortcut(QKeySequence("Ctrl+C"));
-        connect(m_pActionCopy, &QAction::triggered, this, &UIMediumManagerWidget::sltCopyMedium);
-    }
+    /* First of all, add actions which has smaller shortcut scope: */
+    addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Add));
+    addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Copy));
+    addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Move));
+    addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Remove));
+    addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Release));
+    addAction(m_pActionPool->action(UIActionIndexST_M_Medium_T_Details));
+    addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Refresh));
 
-    /* Create 'Move' action: */
-    m_pActionMove = new QAction(this);
-    AssertPtrReturnVoid(m_pActionMove);
-    {
-        /* Configure move-action: */
-        m_pActionMove->setShortcut(QKeySequence("Ctrl+M"));
-        connect(m_pActionMove, &QAction::triggered, this, &UIMediumManagerWidget::sltMoveMedium);
-    }
-
-    /* Create 'Remove' action: */
-    m_pActionRemove  = new QAction(this);
-    AssertPtrReturnVoid(m_pActionRemove);
-    {
-        /* Configure remove-action: */
-        m_pActionRemove->setShortcut(QKeySequence("Ctrl+R"));
-        connect(m_pActionRemove, &QAction::triggered, this, &UIMediumManagerWidget::sltRemoveMedium);
-    }
-
-    /* Create 'Release' action: */
-    m_pActionRelease = new QAction(this);
-    AssertPtrReturnVoid(m_pActionRelease);
-    {
-        /* Configure release-action: */
-        m_pActionRelease->setShortcut(QKeySequence("Ctrl+L"));
-        connect(m_pActionRelease, &QAction::triggered, this, &UIMediumManagerWidget::sltReleaseMedium);
-    }
-
-    /* Create 'Details' action: */
-    m_pActionDetails = new QAction(this);
-    AssertPtrReturnVoid(m_pActionDetails);
-    {
-        /* Configure modify-action: */
-        m_pActionDetails->setCheckable(true);
-        m_pActionDetails->setShortcut(QKeySequence("Ctrl+Space"));
-        connect(m_pActionDetails, &QAction::toggled, this, &UIMediumManagerWidget::sltToggleMediumDetailsVisibility);
-    }
-
-    /* Create 'Refresh' action: */
-    m_pActionRefresh = new QAction(this);
-    AssertPtrReturnVoid(m_pActionRefresh);
-    {
-        /* Configure refresh-action: */
-        m_pActionRefresh->setShortcut(QKeySequence(QKeySequence::Refresh));
-        connect(m_pActionRefresh, &QAction::triggered, this, &UIMediumManagerWidget::sltRefreshAll);
-    }
+    /* Connect actions: */
+    connect(m_pActionPool->action(UIActionIndexST_M_Medium_S_Add), &QAction::triggered,
+            this, &UIMediumManagerWidget::sltAddMedium);
+    connect(m_pActionPool->action(UIActionIndexST_M_Medium_S_Copy), &QAction::triggered,
+            this, &UIMediumManagerWidget::sltCopyMedium);
+    connect(m_pActionPool->action(UIActionIndexST_M_Medium_S_Move), &QAction::triggered,
+            this, &UIMediumManagerWidget::sltMoveMedium);
+    connect(m_pActionPool->action(UIActionIndexST_M_Medium_S_Remove), &QAction::triggered,
+            this, &UIMediumManagerWidget::sltRemoveMedium);
+    connect(m_pActionPool->action(UIActionIndexST_M_Medium_S_Release), &QAction::triggered,
+            this, &UIMediumManagerWidget::sltReleaseMedium);
+    connect(m_pActionPool->action(UIActionIndexST_M_Medium_T_Details), &QAction::toggled,
+            this, &UIMediumManagerWidget::sltToggleMediumDetailsVisibility);
+    connect(m_pActionPool->action(UIActionIndexST_M_Medium_S_Refresh), &QAction::triggered,
+            this, &UIMediumManagerWidget::sltRefreshAll);
 
     /* Update action icons: */
     updateActionIcons();
-
-    /* Prepare menu: */
-    prepareMenu();
-    /* Prepare context-menu: */
-    prepareContextMenu();
-}
-
-void UIMediumManagerWidget::prepareMenu()
-{
-    /* Create 'Medium' menu: */
-    m_pMenu = new QMenu(this);
-    AssertPtrReturnVoid(m_pMenu);
-    {
-        /* Configure 'Medium' menu: */
-        if (m_pActionCopy)
-            m_pMenu->addAction(m_pActionCopy);
-        if (m_pActionMove)
-            m_pMenu->addAction(m_pActionMove);
-        if (m_pActionRemove)
-            m_pMenu->addAction(m_pActionRemove);
-        if (   (m_pActionCopy || m_pActionMove || m_pActionRemove)
-            && (m_pActionRelease || m_pActionDetails))
-            m_pMenu->addSeparator();
-        if (m_pActionRelease)
-            m_pMenu->addAction(m_pActionRelease);
-        if (m_pActionDetails)
-            m_pMenu->addAction(m_pActionDetails);
-        if (   (m_pActionRelease || m_pActionDetails)
-            && (m_pActionRefresh))
-            m_pMenu->addSeparator();
-        if (m_pActionRefresh)
-            m_pMenu->addAction(m_pActionRefresh);
-    }
-}
-
-void UIMediumManagerWidget::prepareContextMenu()
-{
-    /* Create context-menu: */
-    m_pContextMenu = new QMenu(this);
-    AssertPtrReturnVoid(m_pContextMenu);
-    {
-        /* Configure contex-menu: */
-        if (m_pActionCopy)
-            m_pContextMenu->addAction(m_pActionCopy);
-        if (m_pActionMove)
-            m_pContextMenu->addAction(m_pActionMove);
-        if (m_pActionRemove)
-            m_pContextMenu->addAction(m_pActionRemove);
-        if (   (m_pActionCopy || m_pActionMove || m_pActionRemove)
-            && (m_pActionRelease || m_pActionDetails))
-            m_pContextMenu->addSeparator();
-        if (m_pActionRelease)
-            m_pContextMenu->addAction(m_pActionRelease);
-        if (m_pActionDetails)
-            m_pContextMenu->addAction(m_pActionDetails);
-    }
 }
 
 void UIMediumManagerWidget::prepareWidgets()
@@ -1524,8 +746,9 @@ void UIMediumManagerWidget::prepareWidgets()
         layout()->setSpacing(qApp->style()->pixelMetric(QStyle::PM_LayoutVerticalSpacing) / 2);
 #endif
 
-        /* Prepare toolbar: */
-        prepareToolBar();
+        /* Prepare toolbar, if requested: */
+        if (m_fShowToolbar)
+            prepareToolBar();
         /* Prepare tab-widget: */
         prepareTabWidget();
         /* Prepare details-widget: */
@@ -1540,28 +763,20 @@ void UIMediumManagerWidget::prepareToolBar()
     AssertPtrReturnVoid(m_pToolBar);
     {
         /* Configure toolbar: */
-        const int iIconMetric = (int)(QApplication::style()->pixelMetric(QStyle::PM_SmallIconSize) * 1.375);
+        const int iIconMetric = (int)(QApplication::style()->pixelMetric(QStyle::PM_LargeIconSize));
         m_pToolBar->setIconSize(QSize(iIconMetric, iIconMetric));
         m_pToolBar->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
+
         /* Add toolbar actions: */
-        if (m_pActionCopy)
-            m_pToolBar->addAction(m_pActionCopy);
-        if (m_pActionMove)
-            m_pToolBar->addAction(m_pActionMove);
-        if (m_pActionRemove)
-            m_pToolBar->addAction(m_pActionRemove);
-        if (   (m_pActionCopy || m_pActionMove || m_pActionRemove)
-            && (m_pActionRelease || m_pActionDetails))
-            m_pToolBar->addSeparator();
-        if (m_pActionRelease)
-            m_pToolBar->addAction(m_pActionRelease);
-        if (m_pActionDetails)
-            m_pToolBar->addAction(m_pActionDetails);
-        if (   (m_pActionRelease || m_pActionDetails)
-            && (m_pActionRefresh))
-            m_pToolBar->addSeparator();
-        if (m_pActionRefresh)
-            m_pToolBar->addAction(m_pActionRefresh);
+        m_pToolBar->addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Add));
+        m_pToolBar->addSeparator();
+        m_pToolBar->addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Copy));
+        m_pToolBar->addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Move));
+        m_pToolBar->addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Remove));
+        m_pToolBar->addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Release));
+        m_pToolBar->addAction(m_pActionPool->action(UIActionIndexST_M_Medium_T_Details));
+        m_pToolBar->addSeparator();
+        m_pToolBar->addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Refresh));
 
 #ifdef VBOX_WS_MAC
         /* Check whether we are embedded into a stack: */
@@ -1585,12 +800,12 @@ void UIMediumManagerWidget::prepareTabWidget()
     {
         /* Create tabs: */
         for (int i = 0; i < m_iTabCount; ++i)
-            prepareTab((UIMediumType)i);
+            prepareTab((UIMediumDeviceType)i);
         /* Configure tab-widget: */
         m_pTabWidget->setFocusPolicy(Qt::TabFocus);
-        m_pTabWidget->setTabIcon(tabIndex(UIMediumType_HardDisk), m_iconHD);
-        m_pTabWidget->setTabIcon(tabIndex(UIMediumType_DVD), m_iconCD);
-        m_pTabWidget->setTabIcon(tabIndex(UIMediumType_Floppy), m_iconFD);
+        m_pTabWidget->setTabIcon(tabIndex(UIMediumDeviceType_HardDisk), m_iconHD);
+        m_pTabWidget->setTabIcon(tabIndex(UIMediumDeviceType_DVD), m_iconCD);
+        m_pTabWidget->setTabIcon(tabIndex(UIMediumDeviceType_Floppy), m_iconFD);
         connect(m_pTabWidget, &QITabWidget::currentChanged, this, &UIMediumManagerWidget::sltHandleCurrentTabChanged);
 
         /* Add tab-widget into central layout: */
@@ -1601,7 +816,7 @@ void UIMediumManagerWidget::prepareTabWidget()
     }
 }
 
-void UIMediumManagerWidget::prepareTab(UIMediumType type)
+void UIMediumManagerWidget::prepareTab(UIMediumDeviceType type)
 {
     /* Create tab: */
     m_pTabWidget->addTab(new QWidget, QString());
@@ -1618,12 +833,12 @@ void UIMediumManagerWidget::prepareTab(UIMediumType type)
 #endif
 
             /* Prepare tree-widget: */
-            prepareTreeWidget(type, type == UIMediumType_HardDisk ? 3 : 2);
+            prepareTreeWidget(type, type == UIMediumDeviceType_HardDisk ? 3 : 2);
         }
     }
 }
 
-void UIMediumManagerWidget::prepareTreeWidget(UIMediumType type, int iColumns)
+void UIMediumManagerWidget::prepareTreeWidget(UIMediumDeviceType type, int iColumns)
 {
     /* Create tree-widget: */
     m_trees.insert(tabIndex(type), new QITreeWidget);
@@ -1649,11 +864,10 @@ void UIMediumManagerWidget::prepareTreeWidget(UIMediumType type, int iColumns)
         pTreeWidget->setSortingEnabled(true);
         connect(pTreeWidget, &QITreeWidget::currentItemChanged,
                 this, &UIMediumManagerWidget::sltHandleCurrentItemChanged);
-        if (m_pActionDetails)
-            connect(pTreeWidget, &QITreeWidget::itemDoubleClicked,
-                    m_pActionDetails, &QAction::setChecked);
+        connect(pTreeWidget, &QITreeWidget::itemDoubleClicked,
+                m_pActionPool->action(UIActionIndexST_M_Medium_T_Details), &QAction::setChecked);
         connect(pTreeWidget, &QITreeWidget::customContextMenuRequested,
-                this, &UIMediumManagerWidget::sltHandleContextMenuCall);
+                this, &UIMediumManagerWidget::sltHandleContextMenuRequest);
         connect(pTreeWidget, &QITreeWidget::resized,
                 this, &UIMediumManagerWidget::sltPerformTablesAdjustment, Qt::QueuedConnection);
         connect(pTreeWidget->header(), &QHeaderView::sectionResized,
@@ -1689,33 +903,34 @@ void UIMediumManagerWidget::prepareDetailsWidget()
 void UIMediumManagerWidget::loadSettings()
 {
     /* Details action/widget: */
-    m_pActionDetails->setChecked(gEDataManager->virtualMediaManagerDetailsExpanded());
+    m_pActionPool->action(UIActionIndexST_M_Medium_T_Details)->setChecked(gEDataManager->virtualMediaManagerDetailsExpanded());
+    sltToggleMediumDetailsVisibility(m_pActionPool->action(UIActionIndexST_M_Medium_T_Details)->isChecked());
 }
 
 void UIMediumManagerWidget::repopulateTreeWidgets()
 {
     /* Remember current medium-items: */
-    if (UIMediumItem *pMediumItem = mediumItem(UIMediumType_HardDisk))
-        m_strCurrentIdHD = pMediumItem->id();
-    if (UIMediumItem *pMediumItem = mediumItem(UIMediumType_DVD))
-        m_strCurrentIdCD = pMediumItem->id();
-    if (UIMediumItem *pMediumItem = mediumItem(UIMediumType_Floppy))
-        m_strCurrentIdFD = pMediumItem->id();
+    if (UIMediumItem *pMediumItem = mediumItem(UIMediumDeviceType_HardDisk))
+        m_uCurrentIdHD = pMediumItem->id();
+    if (UIMediumItem *pMediumItem = mediumItem(UIMediumDeviceType_DVD))
+        m_uCurrentIdCD = pMediumItem->id();
+    if (UIMediumItem *pMediumItem = mediumItem(UIMediumDeviceType_Floppy))
+        m_uCurrentIdFD = pMediumItem->id();
 
     /* Clear tree-widgets: */
-    QITreeWidget *pTreeWidgetHD = treeWidget(UIMediumType_HardDisk);
+    QITreeWidget *pTreeWidgetHD = treeWidget(UIMediumDeviceType_HardDisk);
     if (pTreeWidgetHD)
     {
         setCurrentItem(pTreeWidgetHD, 0);
         pTreeWidgetHD->clear();
     }
-    QITreeWidget *pTreeWidgetCD = treeWidget(UIMediumType_DVD);
+    QITreeWidget *pTreeWidgetCD = treeWidget(UIMediumDeviceType_DVD);
     if (pTreeWidgetCD)
     {
         setCurrentItem(pTreeWidgetCD, 0);
         pTreeWidgetCD->clear();
     }
-    QITreeWidget *pTreeWidgetFD = treeWidget(UIMediumType_Floppy);
+    QITreeWidget *pTreeWidgetFD = treeWidget(UIMediumDeviceType_Floppy);
     if (pTreeWidgetFD)
     {
         setCurrentItem(pTreeWidgetFD, 0);
@@ -1724,23 +939,23 @@ void UIMediumManagerWidget::repopulateTreeWidgets()
 
     /* Create medium-items (do not change current one): */
     m_fPreventChangeCurrentItem = true;
-    foreach (const QString &strMediumID, vboxGlobal().mediumIDs())
-        sltHandleMediumCreated(strMediumID);
+    foreach (const QUuid &uMediumID, vboxGlobal().mediumIDs())
+        sltHandleMediumCreated(uMediumID);
     m_fPreventChangeCurrentItem = false;
 
     /* Select first item as current one if nothing selected: */
-    if (pTreeWidgetHD && !mediumItem(UIMediumType_HardDisk))
+    if (pTreeWidgetHD && !mediumItem(UIMediumDeviceType_HardDisk))
         if (QTreeWidgetItem *pItem = pTreeWidgetHD->topLevelItem(0))
             setCurrentItem(pTreeWidgetHD, pItem);
-    if (pTreeWidgetCD && !mediumItem(UIMediumType_DVD))
+    if (pTreeWidgetCD && !mediumItem(UIMediumDeviceType_DVD))
         if (QTreeWidgetItem *pItem = pTreeWidgetCD->topLevelItem(0))
             setCurrentItem(pTreeWidgetCD, pItem);
-    if (pTreeWidgetFD && !mediumItem(UIMediumType_Floppy))
+    if (pTreeWidgetFD && !mediumItem(UIMediumDeviceType_Floppy))
         if (QTreeWidgetItem *pItem = pTreeWidgetFD->topLevelItem(0))
             setCurrentItem(pTreeWidgetFD, pItem);
 }
 
-void UIMediumManagerWidget::refetchCurrentMediumItem(UIMediumType type)
+void UIMediumManagerWidget::refetchCurrentMediumItem(UIMediumDeviceType type)
 {
     /* Get corresponding medium-item: */
     UIMediumItem *pMediumItem = mediumItem(type);
@@ -1770,9 +985,9 @@ void UIMediumManagerWidget::refetchCurrentChosenMediumItem()
 
 void UIMediumManagerWidget::refetchCurrentMediumItems()
 {
-    refetchCurrentMediumItem(UIMediumType_HardDisk);
-    refetchCurrentMediumItem(UIMediumType_DVD);
-    refetchCurrentMediumItem(UIMediumType_Floppy);
+    refetchCurrentMediumItem(UIMediumDeviceType_HardDisk);
+    refetchCurrentMediumItem(UIMediumDeviceType_DVD);
+    refetchCurrentMediumItem(UIMediumDeviceType_Floppy);
 }
 
 void UIMediumManagerWidget::updateActions()
@@ -1784,74 +999,30 @@ void UIMediumManagerWidget::updateActions()
     bool fNotInEnumeration = !vboxGlobal().isMediumEnumerationInProgress();
 
     /* Apply actions accessibility: */
-    if (m_pActionCopy)
-    {
-        bool fActionEnabledCopy = fNotInEnumeration && pMediumItem && checkMediumFor(pMediumItem, Action_Copy);
-        m_pActionCopy->setEnabled(fActionEnabledCopy);
-    }
-    if (m_pActionMove)
-    {
-        bool fActionEnabledMove = fNotInEnumeration && pMediumItem && checkMediumFor(pMediumItem, Action_Edit);
-        m_pActionMove->setEnabled(fActionEnabledMove);
-    }
-    if (m_pActionRemove)
-    {
-        bool fActionEnabledRemove = fNotInEnumeration && pMediumItem && checkMediumFor(pMediumItem, Action_Remove);
-        m_pActionRemove->setEnabled(fActionEnabledRemove);
-    }
-    if (m_pActionRelease)
-    {
-        bool fActionEnabledRelease = fNotInEnumeration && pMediumItem && checkMediumFor(pMediumItem, Action_Release);
-        m_pActionRelease->setEnabled(fActionEnabledRelease);
-    }
-    if (m_pActionDetails)
-    {
-        bool fActionEnabledDetails = true;
-        m_pActionDetails->setEnabled(fActionEnabledDetails);
-    }
+    bool fActionEnabledCopy = fNotInEnumeration && pMediumItem && checkMediumFor(pMediumItem, Action_Copy);
+    m_pActionPool->action(UIActionIndexST_M_Medium_S_Copy)->setEnabled(fActionEnabledCopy);
+    bool fActionEnabledMove = fNotInEnumeration && pMediumItem && checkMediumFor(pMediumItem, Action_Edit);
+    m_pActionPool->action(UIActionIndexST_M_Medium_S_Move)->setEnabled(fActionEnabledMove);
+    bool fActionEnabledRemove = fNotInEnumeration && pMediumItem && checkMediumFor(pMediumItem, Action_Remove);
+    m_pActionPool->action(UIActionIndexST_M_Medium_S_Remove)->setEnabled(fActionEnabledRemove);
+    bool fActionEnabledRelease = fNotInEnumeration && pMediumItem && checkMediumFor(pMediumItem, Action_Release);
+    m_pActionPool->action(UIActionIndexST_M_Medium_S_Release)->setEnabled(fActionEnabledRelease);
+    bool fActionEnabledDetails = true;
+    m_pActionPool->action(UIActionIndexST_M_Medium_T_Details)->setEnabled(fActionEnabledDetails);
 }
 
 void UIMediumManagerWidget::updateActionIcons()
 {
-    QString strPrefix = "hd";
-    if (m_pTabWidget)
+    const UIMediumDeviceType enmCurrentMediumType = currentMediumType();
+    if (enmCurrentMediumType != UIMediumDeviceType_Invalid)
     {
-        switch (currentMediumType())
-        {
-            case UIMediumType_HardDisk: strPrefix = "hd"; break;
-            case UIMediumType_DVD:      strPrefix = "cd"; break;
-            case UIMediumType_Floppy:   strPrefix = "fd"; break;
-            default: break;
-        }
+        m_pActionPool->action(UIActionIndexST_M_Medium_S_Add)->setState((int)enmCurrentMediumType);
+        m_pActionPool->action(UIActionIndexST_M_Medium_S_Copy)->setState((int)enmCurrentMediumType);
+        m_pActionPool->action(UIActionIndexST_M_Medium_S_Move)->setState((int)enmCurrentMediumType);
+        m_pActionPool->action(UIActionIndexST_M_Medium_S_Remove)->setState((int)enmCurrentMediumType);
+        m_pActionPool->action(UIActionIndexST_M_Medium_S_Release)->setState((int)enmCurrentMediumType);
+        m_pActionPool->action(UIActionIndexST_M_Medium_T_Details)->setState((int)enmCurrentMediumType);
     }
-    if (m_pActionCopy)
-        m_pActionCopy->setIcon(UIIconPool::iconSetFull(QString(":/%1_copy_22px.png").arg(strPrefix),
-                                                       QString(":/%1_copy_16px.png").arg(strPrefix),
-                                                       QString(":/%1_copy_disabled_22px.png").arg(strPrefix),
-                                                       QString(":/%1_copy_disabled_16px.png").arg(strPrefix)));
-    if (m_pActionMove)
-        m_pActionMove->setIcon(UIIconPool::iconSetFull(QString(":/%1_move_22px.png").arg(strPrefix),
-                                                       QString(":/%1_move_16px.png").arg(strPrefix),
-                                                       QString(":/%1_move_disabled_22px.png").arg(strPrefix),
-                                                       QString(":/%1_move_disabled_16px.png").arg(strPrefix)));
-    if (m_pActionRemove)
-        m_pActionRemove->setIcon(UIIconPool::iconSetFull(QString(":/%1_remove_22px.png").arg(strPrefix),
-                                                         QString(":/%1_remove_16px.png").arg(strPrefix),
-                                                         QString(":/%1_remove_disabled_22px.png").arg(strPrefix),
-                                                         QString(":/%1_remove_disabled_16px.png").arg(strPrefix)));
-    if (m_pActionRelease)
-        m_pActionRelease->setIcon(UIIconPool::iconSetFull(QString(":/%1_release_22px.png").arg(strPrefix),
-                                                          QString(":/%1_release_16px.png").arg(strPrefix),
-                                                          QString(":/%1_release_disabled_22px.png").arg(strPrefix),
-                                                          QString(":/%1_release_disabled_16px.png").arg(strPrefix)));
-    if (m_pActionDetails)
-        m_pActionDetails->setIcon(UIIconPool::iconSetFull(QString(":/%1_modify_22px.png").arg(strPrefix),
-                                                          QString(":/%1_modify_16px.png").arg(strPrefix),
-                                                          QString(":/%1_modify_disabled_22px.png").arg(strPrefix),
-                                                          QString(":/%1_modify_disabled_16px.png").arg(strPrefix)));
-    if (m_pActionRefresh && m_pActionRefresh->icon().isNull())
-        m_pActionRefresh->setIcon(UIIconPool::iconSetFull(":/refresh_22px.png", ":/refresh_16px.png",
-                                                          ":/refresh_disabled_22px.png", ":/refresh_disabled_16px.png"));
 }
 
 void UIMediumManagerWidget::updateTabIcons(UIMediumItem *pMediumItem, Action action)
@@ -1862,18 +1033,18 @@ void UIMediumManagerWidget::updateTabIcons(UIMediumItem *pMediumItem, Action act
     /* Prepare data for tab: */
     const QIcon *pIcon = 0;
     bool *pfInaccessible = 0;
-    const UIMediumType mediumType = pMediumItem->mediumType();
+    const UIMediumDeviceType mediumType = pMediumItem->mediumType();
     switch (mediumType)
     {
-        case UIMediumType_HardDisk:
+        case UIMediumDeviceType_HardDisk:
             pIcon = &m_iconHD;
             pfInaccessible = &m_fInaccessibleHD;
             break;
-        case UIMediumType_DVD:
+        case UIMediumDeviceType_DVD:
             pIcon = &m_iconCD;
             pfInaccessible = &m_fInaccessibleCD;
             break;
-        case UIMediumType_Floppy:
+        case UIMediumDeviceType_Floppy:
             pIcon = &m_iconFD;
             pfInaccessible = &m_fInaccessibleFD;
             break;
@@ -1946,17 +1117,17 @@ void UIMediumManagerWidget::updateTabIcons(UIMediumItem *pMediumItem, Action act
 UIMediumItem* UIMediumManagerWidget::createMediumItem(const UIMedium &medium)
 {
     /* Get medium type: */
-    UIMediumType type = medium.type();
+    UIMediumDeviceType type = medium.type();
 
     /* Create medium-item: */
     UIMediumItem *pMediumItem = 0;
     switch (type)
     {
         /* Of hard-drive type: */
-        case UIMediumType_HardDisk:
+        case UIMediumDeviceType_HardDisk:
         {
             /* Make sure corresponding tree-widget exists: */
-            QITreeWidget *pTreeWidget = treeWidget(UIMediumType_HardDisk);
+            QITreeWidget *pTreeWidget = treeWidget(UIMediumDeviceType_HardDisk);
             if (pTreeWidget)
             {
                 /* Recursively create hard-drive item: */
@@ -1964,19 +1135,19 @@ UIMediumItem* UIMediumManagerWidget::createMediumItem(const UIMedium &medium)
                 /* Make sure item was created: */
                 if (!pMediumItem)
                     break;
-                if (pMediumItem->id() == m_strCurrentIdHD)
+                if (pMediumItem->id() == m_uCurrentIdHD)
                 {
                     setCurrentItem(pTreeWidget, pMediumItem);
-                    m_strCurrentIdHD = QString();
+                    m_uCurrentIdHD = QUuid();
                 }
             }
             break;
         }
         /* Of optical-image type: */
-        case UIMediumType_DVD:
+        case UIMediumDeviceType_DVD:
         {
             /* Make sure corresponding tree-widget exists: */
-            QITreeWidget *pTreeWidget = treeWidget(UIMediumType_DVD);
+            QITreeWidget *pTreeWidget = treeWidget(UIMediumDeviceType_DVD);
             if (pTreeWidget)
             {
                 /* Create optical-disk item: */
@@ -1984,20 +1155,20 @@ UIMediumItem* UIMediumManagerWidget::createMediumItem(const UIMedium &medium)
                 /* Make sure item was created: */
                 if (!pMediumItem)
                     break;
-                LogRel2(("UIMediumManager: Optical medium-item with ID={%s} created.\n", medium.id().toUtf8().constData()));
-                if (pMediumItem->id() == m_strCurrentIdCD)
+                LogRel2(("UIMediumManager: Optical medium-item with ID={%s} created.\n", medium.id().toString().toUtf8().constData()));
+                if (pMediumItem->id() == m_uCurrentIdCD)
                 {
                     setCurrentItem(pTreeWidget, pMediumItem);
-                    m_strCurrentIdCD = QString();
+                    m_uCurrentIdCD = QUuid();
                 }
             }
             break;
         }
         /* Of floppy-image type: */
-        case UIMediumType_Floppy:
+        case UIMediumDeviceType_Floppy:
         {
             /* Make sure corresponding tree-widget exists: */
-            QITreeWidget *pTreeWidget = treeWidget(UIMediumType_Floppy);
+            QITreeWidget *pTreeWidget = treeWidget(UIMediumDeviceType_Floppy);
             if (pTreeWidget)
             {
                 /* Create floppy-disk item: */
@@ -2005,11 +1176,11 @@ UIMediumItem* UIMediumManagerWidget::createMediumItem(const UIMedium &medium)
                 /* Make sure item was created: */
                 if (!pMediumItem)
                     break;
-                LogRel2(("UIMediumManager: Floppy medium-item with ID={%s} created.\n", medium.id().toUtf8().constData()));
-                if (pMediumItem->id() == m_strCurrentIdFD)
+                LogRel2(("UIMediumManager: Floppy medium-item with ID={%s} created.\n", medium.id().toString().toUtf8().constData()));
+                if (pMediumItem->id() == m_uCurrentIdFD)
                 {
                     setCurrentItem(pTreeWidget, pMediumItem);
-                    m_strCurrentIdFD = QString();
+                    m_uCurrentIdFD = QUuid();
                 }
             }
             break;
@@ -2038,7 +1209,7 @@ UIMediumItem* UIMediumManagerWidget::createHardDiskItem(const UIMedium &medium)
     AssertReturn(!medium.medium().isNull(), 0);
 
     /* Make sure corresponding tree-widget exists: */
-    QITreeWidget *pTreeWidget = treeWidget(UIMediumType_HardDisk);
+    QITreeWidget *pTreeWidget = treeWidget(UIMediumDeviceType_HardDisk);
     if (pTreeWidget)
     {
         /* Search for existing medium-item: */
@@ -2058,7 +1229,7 @@ UIMediumItem* UIMediumManagerWidget::createHardDiskItem(const UIMedium &medium)
                     /* Make sure corresponding parent medium is already cached! */
                     UIMedium parentMedium = vboxGlobal().medium(medium.parentID());
                     if (parentMedium.isNull())
-                        AssertMsgFailed(("Parent medium with ID={%s} was not found!\n", medium.parentID().toUtf8().constData()));
+                        AssertMsgFailed(("Parent medium with ID={%s} was not found!\n", medium.parentID().toString().toUtf8().constData()));
                     /* Try to create parent medium-item: */
                     else
                         pParentMediumItem = createHardDiskItem(parentMedium);
@@ -2067,14 +1238,14 @@ UIMediumItem* UIMediumManagerWidget::createHardDiskItem(const UIMedium &medium)
                 if (pParentMediumItem)
                 {
                     pMediumItem = new UIMediumItemHD(medium, pParentMediumItem);
-                    LogRel2(("UIMediumManager: Child hard-disk medium-item with ID={%s} created.\n", medium.id().toUtf8().constData()));
+                    LogRel2(("UIMediumManager: Child hard-disk medium-item with ID={%s} created.\n", medium.id().toString().toUtf8().constData()));
                 }
             }
             /* Else just create item as top-level one: */
             if (!pMediumItem)
             {
                 pMediumItem = new UIMediumItemHD(medium, pTreeWidget);
-                LogRel2(("UIMediumManager: Root hard-disk medium-item with ID={%s} created.\n", medium.id().toUtf8().constData()));
+                LogRel2(("UIMediumManager: Root hard-disk medium-item with ID={%s} created.\n", medium.id().toString().toUtf8().constData()));
             }
         }
 
@@ -2089,7 +1260,7 @@ UIMediumItem* UIMediumManagerWidget::createHardDiskItem(const UIMedium &medium)
 void UIMediumManagerWidget::updateMediumItem(const UIMedium &medium)
 {
     /* Get medium type: */
-    UIMediumType type = medium.type();
+    UIMediumDeviceType type = medium.type();
 
     /* Search for existing medium-item: */
     UIMediumItem *pMediumItem = searchItem(treeWidget(type), CheckIfSuitableByID(medium.id()));
@@ -2104,7 +1275,7 @@ void UIMediumManagerWidget::updateMediumItem(const UIMedium &medium)
 
     /* Update medium-item: */
     pMediumItem->setMedium(medium);
-    LogRel2(("UIMediumManager: Medium-item with ID={%s} updated.\n", medium.id().toUtf8().constData()));
+    LogRel2(("UIMediumManager: Medium-item with ID={%s} updated.\n", medium.id().toString().toUtf8().constData()));
 
     /* Update tab-icons: */
     updateTabIcons(pMediumItem, Action_Edit);
@@ -2114,19 +1285,19 @@ void UIMediumManagerWidget::updateMediumItem(const UIMedium &medium)
         refetchCurrentMediumItem(type);
 }
 
-void UIMediumManagerWidget::deleteMediumItem(const QString &strMediumID)
+void UIMediumManagerWidget::deleteMediumItem(const QUuid &uMediumID)
 {
     /* Search for corresponding tree-widget: */
-    QList<UIMediumType> types;
-    types << UIMediumType_HardDisk << UIMediumType_DVD << UIMediumType_Floppy;
+    QList<UIMediumDeviceType> types;
+    types << UIMediumDeviceType_HardDisk << UIMediumDeviceType_DVD << UIMediumDeviceType_Floppy;
     QITreeWidget *pTreeWidget = 0;
     UIMediumItem *pMediumItem = 0;
-    foreach (UIMediumType type, types)
+    foreach (UIMediumDeviceType type, types)
     {
         /* Get iterated tree-widget: */
         pTreeWidget = treeWidget(type);
         /* Search for existing medium-item: */
-        pMediumItem = searchItem(pTreeWidget, CheckIfSuitableByID(strMediumID));
+        pMediumItem = searchItem(pTreeWidget, CheckIfSuitableByID(uMediumID));
         if (pMediumItem)
             break;
     }
@@ -2140,7 +1311,7 @@ void UIMediumManagerWidget::deleteMediumItem(const QString &strMediumID)
 
     /* Delete medium-item: */
     delete pMediumItem;
-    LogRel2(("UIMediumManager: Medium-item with ID={%s} deleted.\n", strMediumID.toUtf8().constData()));
+    LogRel2(("UIMediumManager: Medium-item with ID={%s} deleted.\n", uMediumID.toString().toUtf8().constData()));
 
     /* If there is no current medium-item now selected
      * we have to choose first-available medium-item as current one: */
@@ -2148,7 +1319,7 @@ void UIMediumManagerWidget::deleteMediumItem(const QString &strMediumID)
         setCurrentItem(pTreeWidget, pTreeWidget->topLevelItem(0));
 }
 
-QWidget* UIMediumManagerWidget::tab(UIMediumType type) const
+QWidget* UIMediumManagerWidget::tab(UIMediumDeviceType type) const
 {
     /* Determine tab index for passed medium type: */
     int iIndex = tabIndex(type);
@@ -2161,7 +1332,7 @@ QWidget* UIMediumManagerWidget::tab(UIMediumType type) const
     return 0;
 }
 
-QITreeWidget* UIMediumManagerWidget::treeWidget(UIMediumType type) const
+QITreeWidget* UIMediumManagerWidget::treeWidget(UIMediumDeviceType type) const
 {
     /* Determine tab index for passed medium type: */
     int iIndex = tabIndex(type);
@@ -2174,7 +1345,7 @@ QITreeWidget* UIMediumManagerWidget::treeWidget(UIMediumType type) const
     return 0;
 }
 
-UIMediumItem* UIMediumManagerWidget::mediumItem(UIMediumType type) const
+UIMediumItem* UIMediumManagerWidget::mediumItem(UIMediumDeviceType type) const
 {
     /* Get corresponding tree-widget: */
     QITreeWidget *pTreeWidget = treeWidget(type);
@@ -2182,27 +1353,27 @@ UIMediumItem* UIMediumManagerWidget::mediumItem(UIMediumType type) const
     return pTreeWidget ? toMediumItem(pTreeWidget->currentItem()) : 0;
 }
 
-UIMediumType UIMediumManagerWidget::mediumType(QITreeWidget *pTreeWidget) const
+UIMediumDeviceType UIMediumManagerWidget::mediumType(QITreeWidget *pTreeWidget) const
 {
     /* Determine tab index of passed tree-widget: */
     int iIndex = m_trees.key(pTreeWidget, -1);
 
     /* Return medium type for known tab index: */
     if (iIndex >= 0 && iIndex < m_iTabCount)
-        return (UIMediumType)iIndex;
+        return (UIMediumDeviceType)iIndex;
 
     /* Invalid by default: */
-    AssertFailedReturn(UIMediumType_Invalid);
+    AssertFailedReturn(UIMediumDeviceType_Invalid);
 }
 
-UIMediumType UIMediumManagerWidget::currentMediumType() const
+UIMediumDeviceType UIMediumManagerWidget::currentMediumType() const
 {
     /* Invalid if tab-widget doesn't exists: */
     if (!m_pTabWidget)
-        return UIMediumType_Invalid;
+        return UIMediumDeviceType_Invalid;
 
     /* Return current medium type: */
-    return (UIMediumType)m_pTabWidget->currentIndex();
+    return (UIMediumDeviceType)m_pTabWidget->currentIndex();
 }
 
 QITreeWidget* UIMediumManagerWidget::currentTreeWidget() const
@@ -2238,14 +1409,14 @@ void UIMediumManagerWidget::setCurrentItem(QITreeWidget *pTreeWidget, QTreeWidge
 }
 
 /* static */
-int UIMediumManagerWidget::tabIndex(UIMediumType type)
+int UIMediumManagerWidget::tabIndex(UIMediumDeviceType type)
 {
     /* Return tab index corresponding to known medium type: */
     switch (type)
     {
-        case UIMediumType_HardDisk: return 0;
-        case UIMediumType_DVD:      return 1;
-        case UIMediumType_Floppy:   return 2;
+        case UIMediumDeviceType_HardDisk: return 0;
+        case UIMediumDeviceType_DVD:      return 1;
+        case UIMediumDeviceType_Floppy:   return 2;
         default: break;
     }
 
@@ -2346,9 +1517,14 @@ UIMediumItem* UIMediumManagerWidget::toMediumItem(QTreeWidgetItem *pItem)
 *   Class UIMediumManagerFactory implementation.                                                                                 *
 *********************************************************************************************************************************/
 
+UIMediumManagerFactory::UIMediumManagerFactory(UIActionPool *pActionPool /* = 0 */)
+    : m_pActionPool(pActionPool)
+{
+}
+
 void UIMediumManagerFactory::create(QIManagerDialog *&pDialog, QWidget *pCenterWidget)
 {
-    pDialog = new UIMediumManager(pCenterWidget);
+    pDialog = new UIMediumManager(pCenterWidget, m_pActionPool);
 }
 
 
@@ -2356,8 +1532,9 @@ void UIMediumManagerFactory::create(QIManagerDialog *&pDialog, QWidget *pCenterW
 *   Class UIMediumManagerFactory implementation.                                                                                 *
 *********************************************************************************************************************************/
 
-UIMediumManager::UIMediumManager(QWidget *pCenterWidget)
+UIMediumManager::UIMediumManager(QWidget *pCenterWidget, UIActionPool *pActionPool)
     : QIWithRetranslateUI<QIManagerDialog>(pCenterWidget)
+    , m_pActionPool(pActionPool)
     , m_pProgressBar(0)
 {
 }
@@ -2399,13 +1576,13 @@ void UIMediumManager::retranslateUi()
 void UIMediumManager::configure()
 {
     /* Apply window icons: */
-    setWindowIcon(UIIconPool::iconSetFull(":/diskimage_32px.png", ":/diskimage_16px.png"));
+    setWindowIcon(UIIconPool::iconSetFull(":/media_manager_32px.png", ":/media_manager_16px.png"));
 }
 
 void UIMediumManager::configureCentralWidget()
 {
     /* Create widget: */
-    UIMediumManagerWidget *pWidget = new UIMediumManagerWidget(EmbedTo_Dialog, this);
+    UIMediumManagerWidget *pWidget = new UIMediumManagerWidget(EmbedTo_Dialog, m_pActionPool, true, this);
     AssertPtrReturnVoid(pWidget);
     {
         /* Configure widget: */
@@ -2466,4 +1643,3 @@ UIMediumManagerWidget *UIMediumManager::widget()
 {
     return qobject_cast<UIMediumManagerWidget*>(QIManagerDialog::widget());
 }
-

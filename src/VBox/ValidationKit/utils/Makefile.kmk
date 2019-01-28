@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2010-2017 Oracle Corporation
+# Copyright (C) 2010-2019 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -32,8 +32,12 @@ include $(KBUILD_PATH)/subheader.kmk
 #
 include $(PATH_SUB_CURRENT)/TestExecServ/Makefile.kmk
 include $(PATH_SUB_CURRENT)/cpu/Makefile.kmk
+include $(PATH_SUB_CURRENT)/fs/Makefile.kmk
 include $(PATH_SUB_CURRENT)/misc/Makefile.kmk
 include $(PATH_SUB_CURRENT)/network/Makefile.kmk
+ifneq ($(KBUILD_TARGET),os2)
+ include $(PATH_SUB_CURRENT)/serial/Makefile.kmk
+endif
 ifeq ($(KBUILD_TARGET),win)
  include $(PATH_SUB_CURRENT)/nt/Makefile.kmk
 endif

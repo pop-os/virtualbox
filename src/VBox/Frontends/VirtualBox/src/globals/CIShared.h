@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __CIShared_h__
-#define __CIShared_h__
+#ifndef FEQT_INCLUDED_SRC_globals_CIShared_h
+#define FEQT_INCLUDED_SRC_globals_CIShared_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #ifdef VBOX_CHECK_STATE
 #include <stdio.h>
@@ -404,5 +407,5 @@ template< class D > bool CIShared<D>::Data::deref() {
 
 #endif // VBOX_CHECK_STATE
 
-#endif // __CIShared_h__
+#endif /* !FEQT_INCLUDED_SRC_globals_CIShared_h */
 

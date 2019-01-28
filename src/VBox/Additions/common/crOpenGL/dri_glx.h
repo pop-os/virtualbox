@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,8 +17,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___CROPENGL_DRI_GLX_H
-#define ___CROPENGL_DRI_GLX_H
+#ifndef GA_INCLUDED_SRC_common_crOpenGL_dri_glx_h
+#define GA_INCLUDED_SRC_common_crOpenGL_dri_glx_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "chromium.h"
 #include "stub.h"
@@ -159,4 +162,4 @@ extern DECLEXPORT(void) VBOXGLXTAG(glXReleaseTexImageEXT)(Display *dpy, GLXDrawa
 
 #endif /* GLX_EXTRAS */
 
-#endif //___CROPENGL_DRI_GLX_H
+#endif /* !GA_INCLUDED_SRC_common_crOpenGL_dri_glx_h */

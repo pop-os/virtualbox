@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -52,6 +52,11 @@
  * of the LGPL is applied is otherwise unspecified.
  */
 
+#ifndef VBOX_INCLUDED_SRC_PC_BIOS_ebda_h
+#define VBOX_INCLUDED_SRC_PC_BIOS_ebda_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <stdint.h>
 
@@ -147,10 +152,10 @@ typedef struct {
     uint8_t     lhead;
     uint8_t     sig;
     uint8_t     spt;
-    uint8_t     resvd1[4];
+    uint32_t    resvd1;
     uint16_t    cyl;
     uint8_t     head;
-    uint8_t     resvd2[2];
+    uint16_t    resvd2;
     uint8_t     lspt;
     uint8_t     csum;
 } fdpt_t;
@@ -321,6 +326,41 @@ ct_assert(sizeof(ebda_data_t) < 0x380);     /* Must be under 1K in size. */
 
 #define EbdaData ((ebda_data_t *) 0)
 
+// for access to the int13ext structure
+typedef struct {
+    uint8_t     size;
+    uint8_t     reserved;
+    uint16_t    count;
+    uint16_t    offset;
+    uint16_t    segment;
+    uint32_t    lba1;
+    uint32_t    lba2;
+} int13ext_t;
+
+/* Disk Physical Table structure */
+typedef struct {
+    uint16_t    size;
+    uint16_t    infos;
+    uint32_t    cylinders;
+    uint32_t    heads;
+    uint32_t    spt;
+    uint32_t    sector_count1;
+    uint32_t    sector_count2;
+    uint16_t    blksize;
+    uint16_t    dpte_offset;
+    uint16_t    dpte_segment;
+    uint16_t    key;
+    uint8_t     dpi_length;
+    uint8_t     reserved1;
+    uint16_t    reserved2;
+    uint8_t     host_bus[4];
+    uint8_t     iface_type[8];
+    uint8_t     iface_path[8];
+    uint8_t     device_path[8];
+    uint8_t     reserved3;
+    uint8_t     checksum;
+} dpt_t;
+
 /* Note: Using fastcall reduces stack usage a little. */
 int __fastcall ata_read_sectors(bio_dsk_t __far *bios_dsk);
 int __fastcall ata_write_sectors(bio_dsk_t __far *bios_dsk);
@@ -332,8 +372,11 @@ int __fastcall ahci_read_sectors(bio_dsk_t __far *bios_dsk);
 int __fastcall ahci_write_sectors(bio_dsk_t __far *bios_dsk);
 
 extern void set_geom_lba(chs_t __far *lgeo, uint64_t nsectors);
+extern int edd_fill_dpt(dpt_t __far *dpt, bio_dsk_t __far *bios_dsk, uint8_t device);
 
 // @todo: put this elsewhere (and change/eliminate?)
 #define SET_DISK_RET_STATUS(status) write_byte(0x0040, 0x0074, status)
 
 #endif
+#endif /* !VBOX_INCLUDED_SRC_PC_BIOS_ebda_h */
+

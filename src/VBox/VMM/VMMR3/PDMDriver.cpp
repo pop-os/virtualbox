@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -745,7 +745,7 @@ int pdmR3DrvInstantiate(PVM pVM, PCFGMNODE pNode, PPDMIBASE pBaseInterface, PPDM
                         AssertReleaseRCReturn(rc, rc);
                     }
                     if (   (pDrv->pReg->fFlags & PDM_DRVREG_FLAGS_RC)
-                        && !HMIsEnabled(pVM))
+                        && VM_IS_RAW_MODE_ENABLED(pVM))
                     {
                         pNew->pvInstanceDataR0      = MMHyperR3ToRC(pVM, &pNew->achInstanceData[0]);
                         rc = PDMR3LdrGetSymbolRC(pVM, NULL, "g_pdmRCDrvHlp", &pNew->pHlpRC);

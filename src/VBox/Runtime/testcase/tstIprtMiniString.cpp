@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -30,7 +30,7 @@
 *********************************************************************************************************************************/
 #include <iprt/cpp/ministring.h>
 
-#include <iprt/err.h>
+#include <iprt/errcore.h>
 #include <iprt/mem.h>
 #include <iprt/string.h>
 #include <iprt/test.h>
@@ -81,6 +81,12 @@ static void test1(RTTEST hTest)
     RTCString empty;
     CHECK(empty.length() == 0);
     CHECK(empty.capacity() == 0);
+
+    empty.reserve(1);
+    CHECK(empty.length() == 0);
+    CHECK(empty.capacity() == 1);
+    char *pszEmpty = empty.mutableRaw();
+    CHECK(pszEmpty != NULL);
 
     RTCString sixbytes("12345");
     CHECK(sixbytes.length() == 5);

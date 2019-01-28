@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -175,11 +175,6 @@ void darwinUninstallResizeDelegate(QWidget *pWidget)
 bool darwinOpenFile(const QString& strFile)
 {
     return ::darwinOpenFile(darwinToNativeString(strFile.toUtf8().constData()));
-}
-
-double darwinBackingScaleFactor(QWidget *pWidget)
-{
-    return ::darwinBackingScaleFactor(::darwinToNativeWindow(pWidget));
 }
 
 QString darwinSystemLanguage(void)

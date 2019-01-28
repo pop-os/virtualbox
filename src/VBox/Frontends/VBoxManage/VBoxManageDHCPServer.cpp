@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -51,12 +51,16 @@ typedef enum enMainOpCodes
 {
     OP_ADD = 1000,
     OP_REMOVE,
-    OP_MODIFY
+    OP_MODIFY,
+    OP_RESTART
 } OPCODE;
 
 typedef std::pair<DhcpOpt_T, std::string> DhcpOptSpec;
 typedef std::vector<DhcpOptSpec> DhcpOpts;
 typedef DhcpOpts::iterator DhcpOptIterator;
+
+typedef std::vector<DhcpOpt_T> DhcpOptIds;
+typedef DhcpOptIds::iterator DhcpOptIdIterator;
 
 struct VmNameSlotKey
 {
@@ -80,6 +84,9 @@ struct VmNameSlotKey
 typedef std::map<VmNameSlotKey, DhcpOpts> VmSlot2OptionsM;
 typedef VmSlot2OptionsM::iterator VmSlot2OptionsIterator;
 typedef VmSlot2OptionsM::value_type VmSlot2OptionsPair;
+
+typedef std::map<VmNameSlotKey, DhcpOptIds> VmSlot2OptionIdsM;
+typedef VmSlot2OptionIdsM::iterator VmSlot2OptionIdsIterator;
 
 typedef std::vector<VmNameSlotKey> VmConfigs;
 
@@ -107,10 +114,11 @@ static const RTGETOPTDEF g_aDHCPIPOptions[] =
     { "--disable",          'd', RTGETOPT_REQ_NOTHING },
     { "-disable",           'd', RTGETOPT_REQ_NOTHING },     // deprecated
     { "--options",          'o', RTGETOPT_REQ_NOTHING },
-    { "--vm",               'n', RTGETOPT_REQ_STRING}, /* only with -o */
-    { "--slot",             's', RTGETOPT_REQ_UINT8}, /* only with -o and -n */
+    { "--vm",               'M', RTGETOPT_REQ_STRING}, /* only with -o */
+    { "--nic",              'n', RTGETOPT_REQ_UINT8}, /* only with -o and -M */
     { "--id",               'i', RTGETOPT_REQ_UINT8}, /* only with -o */
-    { "--value",            'p', RTGETOPT_REQ_STRING} /* only with -i */
+    { "--value",            'p', RTGETOPT_REQ_STRING}, /* only with -i */
+    { "--remove",           'r', RTGETOPT_REQ_NOTHING} /* only with -i */
 };
 
 static RTEXITCODE handleOp(HandlerArg *a, OPCODE enmCode, int iStart)
@@ -136,9 +144,11 @@ static RTEXITCODE handleOp(HandlerArg *a, OPCODE enmCode, int iStart)
 
     int enable = -1;
 
-    DhcpOpts        GlobalDhcpOptions;
-    VmSlot2OptionsM VmSlot2Options;
-    VmConfigs       VmConfigs2Delete;
+    DhcpOpts          GlobalDhcpOptions;
+    DhcpOptIds        GlobalDhcpOptions2Delete;
+    VmSlot2OptionsM   VmSlot2Options;
+    VmSlot2OptionIdsM VmSlot2Options2Delete;
+    VmConfigs         VmConfigs2Delete;
 
     int c;
     RTGETOPTUNION ValueUnion;
@@ -229,7 +239,7 @@ static RTEXITCODE handleOp(HandlerArg *a, OPCODE enmCode, int iStart)
             case 'o': // --options
                 {
         // {"--vm",                'n', RTGETOPT_REQ_STRING}, /* only with -o */
-        // {"--slot",              's', RTGETOPT_REQ_UINT8}, /* only with -o and -n*/
+        // {"--nic",               'c', RTGETOPT_REQ_UINT8}, /* only with -o and -n*/
         // {"--id",                'i', RTGETOPT_REQ_UINT8}, /* only with -o */
         // {"--value",             'p', RTGETOPT_REQ_STRING} /* only with -i */
                     if (fOptionsRead)
@@ -243,7 +253,7 @@ static RTEXITCODE handleOp(HandlerArg *a, OPCODE enmCode, int iStart)
                 } /* end of --options  */
                 break;
 
-            case 'n': // --vm-name
+            case 'M': // --vm
                 {
                     if (fVmOptionRead)
                         return errorSyntax(USAGE_DHCPSERVER,
@@ -253,17 +263,22 @@ static RTEXITCODE handleOp(HandlerArg *a, OPCODE enmCode, int iStart)
                     u8Slot = (uint8_t)~0; /* clear slor */
                     pszVmName = RTStrDup(ValueUnion.psz);
                 }
-                break; /* end of --vm-name */
+                break; /* end of --vm */
 
-            case 's': // --slot
+            case 'n': // --nic
                 {
                     if (!fVmOptionRead)
                         return errorSyntax(USAGE_DHCPSERVER,
                                            "vm name wasn't specified");
 
                     u8Slot = ValueUnion.u8;
+
+                    if (u8Slot < 1)
+                        return errorSyntax(USAGE_DHCPSERVER,
+                                           "invalid NIC number: %u", u8Slot);
+                    --u8Slot;
                 }
-                break; /* end of --slot */
+                break; /* end of --nic */
 
             case 'i': // --id
                 {
@@ -287,7 +302,7 @@ static RTEXITCODE handleOp(HandlerArg *a, OPCODE enmCode, int iStart)
                     if (   fVmOptionRead
                         && u8Slot == (uint8_t)~0)
                         return errorSyntax(USAGE_DHCPSERVER,
-                                           "--slot wasn't found");
+                                           "--nic wasn't found");
 
                     DhcpOpts &opts = fVmOptionRead ? VmSlot2Options[VmNameSlotKey(pszVmName, u8Slot)]
                                                     : GlobalDhcpOptions;
@@ -297,20 +312,38 @@ static RTEXITCODE handleOp(HandlerArg *a, OPCODE enmCode, int iStart)
                 }
                 break; // --end of value
 
+            case 'r': /* --remove */
+                {
+                    if (!fOptionsRead)
+                        return errorSyntax(USAGE_DHCPSERVER,
+                                           "-o wasn't found");
+
+                    if (u8OptId == (uint8_t)~0)
+                        return errorSyntax(USAGE_DHCPSERVER,
+                                           "--id wasn't found");
+                    if (   fVmOptionRead
+                        && u8Slot == (uint8_t)~0)
+                        return errorSyntax(USAGE_DHCPSERVER,
+                                           "--nic wasn't found");
+
+                    DhcpOptIds &optIds = fVmOptionRead ? VmSlot2Options2Delete[VmNameSlotKey(pszVmName, u8Slot)]
+                                                       : GlobalDhcpOptions2Delete;
+                    optIds.push_back((DhcpOpt_T)u8OptId);
+                }
+                break; /* --end of remove */
+
             default:
                 if (c > 0)
                 {
                     if (RT_C_IS_GRAPH(c))
                         return errorSyntax(USAGE_DHCPSERVER, "unhandled option: -%c", c);
-                    else
-                        return errorSyntax(USAGE_DHCPSERVER, "unhandled option: %i", c);
+                    return errorSyntax(USAGE_DHCPSERVER, "unhandled option: %i", c);
                 }
-                else if (c == VERR_GETOPT_UNKNOWN_OPTION)
+                if (c == VERR_GETOPT_UNKNOWN_OPTION)
                     return errorSyntax(USAGE_DHCPSERVER, "unknown option: %s", ValueUnion.psz);
-                else if (ValueUnion.pDef)
+                if (ValueUnion.pDef)
                     return errorSyntax(USAGE_DHCPSERVER, "%s: %Rrs", ValueUnion.pDef->pszLong, c);
-                else
-                    return errorSyntax(USAGE_DHCPSERVER, "%Rrs", c);
+                return errorSyntax(USAGE_DHCPSERVER, "%Rrs", c);
         }
     }
 
@@ -318,8 +351,11 @@ static RTEXITCODE handleOp(HandlerArg *a, OPCODE enmCode, int iStart)
         return errorSyntax(USAGE_DHCPSERVER, "You need to specify either --netname or --ifname to identify the DHCP server");
 
     if(   enmCode != OP_REMOVE
-       && GlobalDhcpOptions.size() == 0
-       && VmSlot2Options.size() == 0)
+       && enmCode != OP_RESTART
+       && GlobalDhcpOptions.empty()
+       && VmSlot2Options.empty()
+       && GlobalDhcpOptions2Delete.empty()
+       && VmSlot2Options2Delete.empty())
     {
         if(enable < 0 || pIp || pNetmask || pLowerIp || pUpperIp)
         {
@@ -373,7 +409,19 @@ static RTEXITCODE handleOp(HandlerArg *a, OPCODE enmCode, int iStart)
         return errorArgument("DHCP server does not exist");
     }
 
-    if(enmCode != OP_REMOVE)
+    if (enmCode == OP_RESTART)
+    {
+        CHECK_ERROR(svr, Restart());
+        if(FAILED(rc))
+            return errorArgument("Failed to restart server");
+    }
+    else if (enmCode == OP_REMOVE)
+    {
+        CHECK_ERROR(a->virtualBox, RemoveDHCPServer(svr));
+        if(FAILED(rc))
+            return errorArgument("Failed to remove server");
+    }
+    else
     {
         if (pIp || pNetmask || pLowerIp || pUpperIp)
         {
@@ -389,6 +437,30 @@ static RTEXITCODE handleOp(HandlerArg *a, OPCODE enmCode, int iStart)
         if(enable >= 0)
         {
             CHECK_ERROR(svr, COMSETTER(Enabled) ((BOOL)enable));
+        }
+
+        /* remove specified options */
+        DhcpOptIdIterator itOptId;
+        for (itOptId = GlobalDhcpOptions2Delete.begin();
+             itOptId != GlobalDhcpOptions2Delete.end();
+             ++itOptId)
+        {
+            CHECK_ERROR(svr, RemoveGlobalOption(*itOptId));
+        }
+        VmSlot2OptionIdsIterator itIdVector;
+        for (itIdVector = VmSlot2Options2Delete.begin();
+             itIdVector != VmSlot2Options2Delete.end();
+             ++itIdVector)
+        {
+            for(itOptId = itIdVector->second.begin();
+                itOptId != itIdVector->second.end();
+                ++itOptId)
+            {
+                CHECK_ERROR(svr,
+                            RemoveVmSlotOption(Bstr(itIdVector->first.VmName.c_str()).raw(),
+                                               itIdVector->first.u8Slot,
+                                               *itOptId));
+            }
         }
 
         /* option processing */
@@ -424,12 +496,6 @@ static RTEXITCODE handleOp(HandlerArg *a, OPCODE enmCode, int iStart)
             }
         }
     }
-    else
-    {
-        CHECK_ERROR(a->virtualBox, RemoveDHCPServer(svr));
-        if(FAILED(rc))
-            return errorArgument("Failed to remove server");
-    }
 
     return RTEXITCODE_SUCCESS;
 }
@@ -447,6 +513,8 @@ RTEXITCODE handleDHCPServer(HandlerArg *a)
         rcExit = handleOp(a, OP_ADD, 1);
     else if (strcmp(a->argv[0], "remove") == 0)
         rcExit = handleOp(a, OP_REMOVE, 1);
+    else if (strcmp(a->argv[0], "restart") == 0)
+        rcExit = handleOp(a, OP_RESTART, 1);
     else
         rcExit = errorSyntax(USAGE_DHCPSERVER, "Invalid parameter '%s'", Utf8Str(a->argv[0]).c_str());
 

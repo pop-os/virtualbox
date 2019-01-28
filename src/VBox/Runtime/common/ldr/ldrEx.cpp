@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -33,6 +33,7 @@
 #include "internal/iprt.h"
 
 #include <iprt/assert.h>
+#include <iprt/dbg.h>
 #include <iprt/err.h>
 #include <iprt/log.h>
 #include <iprt/md5.h>
@@ -67,13 +68,7 @@ RTDECL(int) RTLdrOpenWithReader(PRTLDRREADER pReader, uint32_t fFlags, RTLDRARCH
      * Resolve RTLDRARCH_HOST.
      */
     if (enmArch == RTLDRARCH_HOST)
-#if   defined(RT_ARCH_AMD64)
-        enmArch = RTLDRARCH_AMD64;
-#elif defined(RT_ARCH_X86)
-        enmArch = RTLDRARCH_X86_32;
-#else
-        enmArch = RTLDRARCH_WHATEVER;
-#endif
+        enmArch = RTLdrGetHostArch();
 
     /*
      * Read and verify the file signature.
@@ -626,6 +621,7 @@ RTDECL(int) RTLdrQueryPropEx(RTLDRMOD hLdrMod, RTLDRPROP enmProp, void *pvBits, 
         case RTLDRPROP_TIMESTAMP_SECONDS:
             *pcbRet = sizeof(int64_t);
             AssertReturn(cbBuf == sizeof(int32_t) || cbBuf == sizeof(int64_t), VERR_INVALID_PARAMETER);
+            *pcbRet = cbBuf;
             break;
         case RTLDRPROP_IS_SIGNED:
             *pcbRet = sizeof(bool);
@@ -651,6 +647,13 @@ RTDECL(int) RTLdrQueryPropEx(RTLDRMOD hLdrMod, RTLDRPROP enmProp, void *pvBits, 
             AssertReturn(cbBuf == sizeof(uint32_t) || cbBuf == sizeof(uint64_t), VERR_INVALID_PARAMETER);
             break;
         case RTLDRPROP_INTERNAL_NAME:
+        case RTLDRPROP_UNWIND_TABLE:
+            *pcbRet = 0;
+            break;
+
+        case RTLDRPROP_UNWIND_INFO:
+            AssertReturn(pvBuf, VERR_INVALID_POINTER);
+            AssertReturn(cbBuf >= sizeof(uint32_t), VERR_INVALID_PARAMETER);
             *pcbRet = 0;
             break;
 
@@ -717,6 +720,26 @@ RTDECL(int) RTLdrHashImage(RTLDRMOD hLdrMod, RTDIGESTTYPE enmDigest, char *pszDi
 RT_EXPORT_SYMBOL(RTLdrHashImage);
 
 
+RTDECL(int) RTLdrUnwindFrame(RTLDRMOD hLdrMod, void const *pvBits, uint32_t iSeg, RTLDRADDR off, PRTDBGUNWINDSTATE pState)
+{
+    /*
+     * Validate.
+     */
+    AssertMsgReturn(rtldrIsValid(hLdrMod), ("hLdrMod=%p\n", hLdrMod), VERR_INVALID_HANDLE);
+    PRTLDRMODINTERNAL pMod = (PRTLDRMODINTERNAL)hLdrMod;
+    AssertPtr(pState);
+    AssertReturn(pState->u32Magic == RTDBGUNWINDSTATE_MAGIC, VERR_INVALID_MAGIC);
+
+    /*
+     * Pass on the work.
+     */
+    if (pMod->pOps->pfnUnwindFrame)
+        return pMod->pOps->pfnUnwindFrame(pMod, pvBits, iSeg, off, pState);
+    return VERR_DBG_NO_UNWIND_INFO;
+}
+RT_EXPORT_SYMBOL(RTLdrUnwindFrame);
+
+
 /**
  * Internal method used by the IPRT debug bits.
  *
@@ -754,7 +777,7 @@ DECLHIDDEN(int) rtLdrReadAt(RTLDRMOD hLdrMod, void *pvBuf, uint32_t iDbgInfo, RT
  * @returns Name corresponding to @a enmArch
  * @param   enmArch             The value to name.
  */
-DECLHIDDEN(const char *) rtLdrArchName(RTLDRARCH enmArch)
+RTDECL(const char *) RTLdrArchName(RTLDRARCH enmArch)
 {
     switch (enmArch)
     {
@@ -762,7 +785,10 @@ DECLHIDDEN(const char *) rtLdrArchName(RTLDRARCH enmArch)
         case RTLDRARCH_WHATEVER:    return "WHATEVER";
         case RTLDRARCH_HOST:        return "HOST";
         case RTLDRARCH_AMD64:       return "AMD64";
+        case RTLDRARCH_X86_16:      return "X86_16";
         case RTLDRARCH_X86_32:      return "X86_32";
+        case RTLDRARCH_ARM32:       return "ARM32";
+        case RTLDRARCH_ARM64:       return "ARM64";
 
         case RTLDRARCH_END:
         case RTLDRARCH_32BIT_HACK:
@@ -770,3 +796,5 @@ DECLHIDDEN(const char *) rtLdrArchName(RTLDRARCH enmArch)
     }
     return "UNKNOWN";
 }
+RT_EXPORT_SYMBOL(RTLdrArchName);
+

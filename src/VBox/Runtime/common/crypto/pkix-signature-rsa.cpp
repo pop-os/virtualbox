@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -40,6 +40,7 @@
 
 #include "rsa-internal.h"
 #include "pkix-signature-builtin.h"
+#include "key-internal.h"
 
 
 /*********************************************************************************************************************************
@@ -52,10 +53,6 @@ typedef struct RTCRPKIXSIGNATURERSA
 {
     /** Set if we're signing, clear if verifying.  */
     bool                    fSigning;
-    /** The modulus.  */
-    RTBIGNUM                Modulus;
-    /** The exponent.  */
-    RTBIGNUM                Exponent;
 
     /** Temporary big number for use when signing or verifiying. */
     RTBIGNUM                TmpBigNum1;
@@ -137,62 +134,23 @@ static struct
 
 /** @impl_interface_method{RTCRPKIXSIGNATUREDESC,pfnInit}  */
 static DECLCALLBACK(int) rtCrPkixSignatureRsa_Init(PCRTCRPKIXSIGNATUREDESC pDesc, void *pvState, void *pvOpaque,
-                                                   bool fSigning, PCRTASN1BITSTRING pKey, PCRTASN1DYNTYPE pParams)
+                                                   bool fSigning, RTCRKEY hKey, PCRTASN1DYNTYPE pParams)
 {
     RT_NOREF_PV(pDesc); RT_NOREF_PV(pvState); RT_NOREF_PV(pvOpaque);
 
     if (pParams)
         return VERR_CR_PKIX_SIGNATURE_TAKES_NO_PARAMETERS;
 
+    RTCRKEYTYPE enmKeyType = RTCrKeyGetType(hKey);
+    if (fSigning)
+        AssertReturn(enmKeyType == RTCRKEYTYPE_RSA_PRIVATE, VERR_CR_PKIX_NOT_RSA_PRIVATE_KEY);
+    else
+        AssertReturn(enmKeyType == RTCRKEYTYPE_RSA_PUBLIC, VERR_CR_PKIX_NOT_RSA_PUBLIC_KEY);
+
     PRTCRPKIXSIGNATURERSA pThis = (PRTCRPKIXSIGNATURERSA)pvState;
     pThis->fSigning = fSigning;
 
-    /*
-     * Decode the key and pick the bits we really need from it.
-     */
-    RTASN1CURSORPRIMARY PrimaryCursor;
-    RTAsn1CursorInitPrimary(&PrimaryCursor, RTASN1BITSTRING_GET_BIT0_PTR(pKey), RTASN1BITSTRING_GET_BYTE_SIZE(pKey),
-                            NULL, &g_RTAsn1DefaultAllocator, RTASN1CURSOR_FLAGS_DER, "rsa");
-    int rc;
-    if (!fSigning)
-    {
-        rc = RTCrRsaPublicKey_DecodeAsn1(&PrimaryCursor.Cursor, 0, &pThis->Scratch.PublicKey, "PublicKey");
-        if (RT_SUCCESS(rc))
-        {
-            rc = RTAsn1Integer_ToBigNum(&pThis->Scratch.PublicKey.Modulus, &pThis->Modulus, 0);
-            if (RT_SUCCESS(rc))
-            {
-                rc = RTAsn1Integer_ToBigNum(&pThis->Scratch.PublicKey.PublicExponent, &pThis->Exponent, 0);
-                if (RT_SUCCESS(rc))
-                {
-                    RTAsn1VtDelete(&pThis->Scratch.PublicKey.SeqCore.Asn1Core);
-                    return VINF_SUCCESS;
-                }
-                RTBigNumDestroy(&pThis->Modulus);
-            }
-            RTAsn1VtDelete(&pThis->Scratch.PublicKey.SeqCore.Asn1Core);
-        }
-    }
-    else
-    {
-        rc = RTCrRsaPrivateKey_DecodeAsn1(&PrimaryCursor.Cursor, 0, &pThis->Scratch.PrivateKey, "PrivateKey");
-        if (RT_SUCCESS(rc))
-        {
-            rc = RTAsn1Integer_ToBigNum(&pThis->Scratch.PrivateKey.Modulus, &pThis->Modulus, RTBIGNUMINIT_F_SENSITIVE);
-            if (RT_SUCCESS(rc))
-            {
-                rc = RTAsn1Integer_ToBigNum(&pThis->Scratch.PrivateKey.PublicExponent, &pThis->Exponent, RTBIGNUMINIT_F_SENSITIVE);
-                if (RT_SUCCESS(rc))
-                {
-                    RTAsn1VtDelete(&pThis->Scratch.PrivateKey.SeqCore.Asn1Core);
-                    return VINF_SUCCESS;
-                }
-                RTBigNumDestroy(&pThis->Modulus);
-            }
-            RTAsn1VtDelete(&pThis->Scratch.PrivateKey.SeqCore.Asn1Core);
-        }
-    }
-    return rc;
+    return VINF_SUCCESS;
 }
 
 
@@ -212,9 +170,7 @@ static DECLCALLBACK(void) rtCrPkixSignatureRsa_Delete(PCRTCRPKIXSIGNATUREDESC pD
     PRTCRPKIXSIGNATURERSA pThis = (PRTCRPKIXSIGNATURERSA)pvState;
     RT_NOREF_PV(fSigning); RT_NOREF_PV(pDesc);
     Assert(pThis->fSigning == fSigning);
-
-    RTBigNumDestroy(&pThis->Modulus);
-    RTBigNumDestroy(&pThis->Exponent);
+    NOREF(pThis);
 }
 
 
@@ -236,6 +192,8 @@ static DECLCALLBACK(void) rtCrPkixSignatureRsa_Delete(PCRTCRPKIXSIGNATUREDESC pD
  *                          false, include the prefix like v2.0 (RFC-2437)
  *                          describes in step in section 9.2.1
  *                          (EMSA-PKCS1-v1_5)
+ *
+ * @remarks Must preserve informational status codes!
  */
 static int rtCrPkixSignatureRsa_EmsaPkcs1V15Encode(PRTCRPKIXSIGNATURERSA pThis, RTCRDIGEST hDigest, size_t cbEncodedMsg,
                                                    bool fNoDigestInfo)
@@ -245,7 +203,7 @@ static int rtCrPkixSignatureRsa_EmsaPkcs1V15Encode(PRTCRPKIXSIGNATURERSA pThis, 
     /*
      * Figure out which hash and select the associate prebaked DigestInfo.
      */
-    RTDIGESTTYPE const  enmDigest    = RTCrDigestGetType(hDigest);
+    RTDIGESTTYPE const  enmDigest = RTCrDigestGetType(hDigest);
     AssertReturn(enmDigest != RTDIGESTTYPE_INVALID && enmDigest != RTDIGESTTYPE_UNKNOWN, VERR_CR_PKIX_UNKNOWN_DIGEST_TYPE);
     uint8_t const      *pbDigestInfoStart = NULL;
     size_t              cbDigestInfoStart = 0;
@@ -285,18 +243,20 @@ static int rtCrPkixSignatureRsa_EmsaPkcs1V15Encode(PRTCRPKIXSIGNATURERSA pThis, 
     *pbDst++ = 0x00;
     memcpy(pbDst, pbDigestInfoStart, cbDigestInfoStart);
     pbDst += cbDigestInfoStart;
+    /* Note! Must preserve informational status codes from this call . */
     int rc = RTCrDigestFinal(hDigest, pbDst, cbHash);
-    if (RT_FAILURE(rc))
-        return rc;
-    pbDst += cbHash;
-    Assert((size_t)(pbDst - &pThis->Scratch.abSignature[0]) == cbEncodedMsg);
-    return VINF_SUCCESS;
+    if (RT_SUCCESS(rc))
+    {
+        pbDst += cbHash;
+        Assert((size_t)(pbDst - &pThis->Scratch.abSignature[0]) == cbEncodedMsg);
+    }
+    return rc;
 }
 
 
 
 /** @impl_interface_method{RTCRPKIXSIGNATUREDESC,pfnVerify}  */
-static DECLCALLBACK(int) rtCrPkixSignatureRsa_Verify(PCRTCRPKIXSIGNATUREDESC pDesc, void *pvState,
+static DECLCALLBACK(int) rtCrPkixSignatureRsa_Verify(PCRTCRPKIXSIGNATUREDESC pDesc, void *pvState, RTCRKEY hKey,
                                                      RTCRDIGEST hDigest, void const *pvSignature, size_t cbSignature)
 {
     PRTCRPKIXSIGNATURERSA pThis = (PRTCRPKIXSIGNATURERSA)pvState;
@@ -306,9 +266,16 @@ static DECLCALLBACK(int) rtCrPkixSignatureRsa_Verify(PCRTCRPKIXSIGNATUREDESC pDe
         return VERR_CR_PKIX_SIGNATURE_TOO_LONG;
 
     /*
-     * 8.2.2.1 - Length check.
+     * Get the key bits we need.
      */
-    if (cbSignature != RTBigNumByteWidth(&pThis->Modulus))
+    Assert(RTCrKeyGetType(hKey) == RTCRKEYTYPE_RSA_PUBLIC);
+    PRTBIGNUM pModulus  = &hKey->u.RsaPublic.Modulus;
+    PRTBIGNUM pExponent = &hKey->u.RsaPublic.Exponent;
+
+    /*
+     * 8.2.2.1 - Length check.  (RFC-3447)
+     */
+    if (cbSignature != RTBigNumByteWidth(pModulus))
         return VERR_CR_PKIX_INVALID_SIGNATURE_LENGTH;
 
     /*
@@ -320,7 +287,7 @@ static DECLCALLBACK(int) rtCrPkixSignatureRsa_Verify(PCRTCRPKIXSIGNATUREDESC pDe
     if (RT_FAILURE(rc))
         return rc;
     /* b) RSAVP1 - 5.2.2.2: Range check (0 <= s < n). */
-    if (RTBigNumCompare(&pThis->TmpBigNum1, &pThis->Modulus) < 0)
+    if (RTBigNumCompare(&pThis->TmpBigNum1, pModulus) < 0)
     {
         if (RTBigNumCompareWithU64(&pThis->TmpBigNum1, 0) >= 0)
         {
@@ -328,7 +295,7 @@ static DECLCALLBACK(int) rtCrPkixSignatureRsa_Verify(PCRTCRPKIXSIGNATUREDESC pDe
             rc = RTBigNumInitZero(&pThis->TmpBigNum2, 0);
             if (RT_SUCCESS(rc))
             {
-                rc = RTBigNumModExp(&pThis->TmpBigNum2, &pThis->TmpBigNum1, &pThis->Exponent, &pThis->Modulus);
+                rc = RTBigNumModExp(&pThis->TmpBigNum2, &pThis->TmpBigNum1, pExponent, pModulus);
                 if (RT_SUCCESS(rc))
                 {
                     /* c) EM' = I2OSP(m, k) -- Convert the result to bytes. */
@@ -349,7 +316,7 @@ static DECLCALLBACK(int) rtCrPkixSignatureRsa_Verify(PCRTCRPKIXSIGNATUREDESC pDe
                                  * 8.2.2.4 - Compare the two.
                                  */
                                 if (memcmp(&pThis->Scratch.abSignature[0], pbDecrypted, cbDecrypted) == 0)
-                                    rc = VINF_SUCCESS;
+                                { /* No rc = VINF_SUCCESS here,  mustpreserve informational status codes from digest. */ }
                                 else
                                 {
                                     /*
@@ -361,7 +328,7 @@ static DECLCALLBACK(int) rtCrPkixSignatureRsa_Verify(PCRTCRPKIXSIGNATUREDESC pDe
                                     if (RT_SUCCESS(rc))
                                     {
                                         if (memcmp(&pThis->Scratch.abSignature[0], pbDecrypted, cbDecrypted) == 0)
-                                            rc = VINF_SUCCESS;
+                                        { /* No rc = VINF_SUCCESS here,  mustpreserve informational status codes from digest. */ }
                                         else
                                             rc = VERR_CR_PKIX_SIGNATURE_MISMATCH;
                                     }
@@ -386,13 +353,73 @@ static DECLCALLBACK(int) rtCrPkixSignatureRsa_Verify(PCRTCRPKIXSIGNATUREDESC pDe
 
 
 /** @impl_interface_method{RTCRPKIXSIGNATUREDESC,pfnSign}  */
-static DECLCALLBACK(int) rtCrPkixSignatureRsa_Sign(PCRTCRPKIXSIGNATUREDESC pDesc, void *pvState,
+static DECLCALLBACK(int) rtCrPkixSignatureRsa_Sign(PCRTCRPKIXSIGNATUREDESC pDesc, void *pvState, RTCRKEY hKey,
                                                    RTCRDIGEST hDigest, void *pvSignature, size_t *pcbSignature)
 {
     PRTCRPKIXSIGNATURERSA pThis = (PRTCRPKIXSIGNATURERSA)pvState;
-    RT_NOREF_PV(pDesc);  RT_NOREF_PV(hDigest); RT_NOREF_PV(pvSignature); RT_NOREF_PV(pcbSignature);
-    Assert(pThis->fSigning); NOREF(pThis);
-    return VERR_NOT_IMPLEMENTED;
+    RT_NOREF_PV(pDesc);
+    Assert(pThis->fSigning);
+
+    /*
+     * Get the key bits we need.
+     */
+    Assert(RTCrKeyGetType(hKey) == RTCRKEYTYPE_RSA_PRIVATE);
+    PRTBIGNUM pModulus  = &hKey->u.RsaPrivate.Modulus;
+    PRTBIGNUM pExponent = &hKey->u.RsaPrivate.PrivateExponent;
+
+    /*
+     * Calc signature length and return if destination buffer isn't big enough.
+     */
+    size_t const cbDst        = *pcbSignature;
+    size_t const cbEncodedMsg = RTBigNumByteWidth(pModulus);
+    *pcbSignature = cbEncodedMsg;
+    if (cbEncodedMsg > sizeof(pThis->Scratch) / 2)
+        return VERR_CR_PKIX_SIGNATURE_TOO_LONG;
+    if (!pvSignature || cbDst < cbEncodedMsg)
+        return VERR_BUFFER_OVERFLOW;
+
+    /*
+     * 8.1.1.1 - EMSA-PSS encoding.  (RFC-3447)
+     */
+    int rcRetSuccess;
+    int rc = rcRetSuccess = rtCrPkixSignatureRsa_EmsaPkcs1V15Encode(pThis, hDigest, cbEncodedMsg, false /* fNoDigestInfo */);
+    if (RT_SUCCESS(rc))
+    {
+        /*
+         * 8.1.1.2 - RSA signature.
+         */
+        /* a) m = OS2IP(EM) -- Convert the encoded message (EM) to integer. */
+        rc = RTBigNumInit(&pThis->TmpBigNum1, RTBIGNUMINIT_F_ENDIAN_BIG | RTBIGNUMINIT_F_UNSIGNED,
+                          pThis->Scratch.abSignature, cbEncodedMsg);
+        if (RT_SUCCESS(rc))
+        {
+            /* b) s = RSASP1(K, m = EM) - 5.2.1.1: Range check (0 <= m < n). */
+            if (RTBigNumCompare(&pThis->TmpBigNum1, pModulus) < 0)
+            {
+                /* b) s = RSAVP1(K, m = EM) - 5.2.1.2.a: s = m^d mod n */
+                rc = RTBigNumInitZero(&pThis->TmpBigNum2, 0);
+                if (RT_SUCCESS(rc))
+                {
+                    rc = RTBigNumModExp(&pThis->TmpBigNum2, &pThis->TmpBigNum1, pExponent, pModulus);
+                    if (RT_SUCCESS(rc))
+                    {
+                        /* c) S = I2OSP(s, k) -- Convert the result to bytes. */
+                        rc = RTBigNumToBytesBigEndian(&pThis->TmpBigNum2, pvSignature, cbEncodedMsg);
+                        AssertStmt(RT_SUCCESS(rc) || rc != VERR_BUFFER_OVERFLOW, rc = VERR_CR_PKIX_INTERNAL_ERROR);
+
+                        /* Make sure we return the informational status code from the digest on success. */
+                        if (rc == VINF_SUCCESS && rcRetSuccess != VINF_SUCCESS)
+                            rc = rcRetSuccess;
+                    }
+                    RTBigNumDestroy(&pThis->TmpBigNum2);
+                }
+            }
+            else
+                rc = VERR_CR_PKIX_SIGNATURE_GE_KEY;
+            RTBigNumDestroy(&pThis->TmpBigNum1);
+        }
+    }
+    return rc;
 }
 
 

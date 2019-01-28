@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2017 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef _TFTP_H_
-#define _TFTP_H_
+#ifndef VBOX_INCLUDED_SRC_NAT_tftp_h
+#define VBOX_INCLUDED_SRC_NAT_tftp_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #define TFTP_SERVER_PORT 69
 
@@ -43,4 +46,4 @@
 #define TFTP_EONAK      8 /* Option refused. */
 
 
-#endif  /* _TFTP_H_ */
+#endif /* !VBOX_INCLUDED_SRC_NAT_tftp_h */

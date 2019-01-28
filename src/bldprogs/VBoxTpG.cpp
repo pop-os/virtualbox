@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2017 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,7 +25,7 @@
 #include <iprt/assert.h>
 #include <iprt/ctype.h>
 #include <iprt/env.h>
-#include <iprt/err.h>
+#include <iprt/errcore.h>
 #include <iprt/file.h>
 #include <iprt/getopt.h>
 #include <iprt/initterm.h>
@@ -968,6 +968,9 @@ static RTEXITCODE generateHeader(PSCMSTREAM pStrm)
                     "\n"
                     "#ifndef %s\n"
                     "#define %s\n"
+                    "#ifndef RT_WITHOUT_PRAGMA_ONCE\n"
+                    "# pragma once\n"
+                    "#endif\n"
                     "\n"
                     "#include <VBox/VBoxTpG.h>\n"
                     "\n"
@@ -2374,7 +2377,7 @@ static RTEXITCODE parseArguments(int argc,  char **argv)
             case 'V':
             {
                 /* The following is assuming that svn does it's job here. */
-                static const char s_szRev[] = "$Revision: 125570 $";
+                static const char s_szRev[] = "$Revision: 127855 $";
                 const char *psz = RTStrStripL(strchr(s_szRev, ' '));
                 RTPrintf("r%.*s\n", strchr(psz, ' ') - psz, psz);
                 return RTEXITCODE_SUCCESS;

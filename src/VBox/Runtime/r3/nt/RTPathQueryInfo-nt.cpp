@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -45,6 +45,12 @@
 #define ARE_UNICODE_STRINGS_EQUAL(a_UniStr, a_wszType) \
     (   (a_UniStr)->Length == sizeof(a_wszType) - sizeof(RTUTF16) \
      && memcmp((a_UniStr)->Buffer, a_wszType, sizeof(a_wszType) - sizeof(RTUTF16)) == 0)
+
+
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
+extern decltype(NtQueryFullAttributesFile) *g_pfnNtQueryFullAttributesFile; /* init-win.cpp */
 
 
 /* ASSUMES FileID comes after ShortName and the structs are identical up to that point. */
@@ -172,10 +178,11 @@ static int rtPathNtQueryInfoFillInDummyData(int rc, PRTFSOBJINFO pObjInfo, RTFSO
  * @param   fFlags          The flags.
  * @param   pvBuf           Query buffer space.
  * @param   cbBuf           Size of the buffer.  ASSUMES lots of space.
+ * @param   rcNtCaller      The status code that got us here.
  */
 static int rtPathNtQueryInfoInDirectoryObject(OBJECT_ATTRIBUTES *pObjAttr, PRTFSOBJINFO pObjInfo,
                                               RTFSOBJATTRADD enmAddAttr, uint32_t fFlags,
-                                              void *pvBuf, size_t cbBuf)
+                                              void *pvBuf, size_t cbBuf, NTSTATUS rcNtCaller)
 {
     RT_NOREF(fFlags);
 
@@ -264,6 +271,8 @@ static int rtPathNtQueryInfoInDirectoryObject(OBJECT_ATTRIBUTES *pObjAttr, PRTFS
         if (rcNt == STATUS_NO_MORE_FILES || rcNt == STATUS_NO_MORE_ENTRIES || rcNt == STATUS_NO_SUCH_FILE)
             return VERR_FILE_NOT_FOUND;
     }
+    else
+        return RTErrConvertFromNtStatus(rcNtCaller);
     return RTErrConvertFromNtStatus(rcNt);
 }
 
@@ -377,10 +386,11 @@ DECLHIDDEN(int) rtPathNtQueryInfoWorker(HANDLE hRootDir, UNICODE_STRING *pNtName
      * requested and it isn't a symbolic link.  NT directory object
      */
     int rc = VINF_TRY_AGAIN;
-    if (enmAddAttr != RTFSOBJATTRADD_UNIX)
+    if (   enmAddAttr != RTFSOBJATTRADD_UNIX
+        && g_pfnNtQueryFullAttributesFile)
     {
         InitializeObjectAttributes(&ObjAttr, pNtName, OBJ_CASE_INSENSITIVE, hRootDir, NULL);
-        rcNt = NtQueryFullAttributesFile(&ObjAttr, &uBuf.NetOpenInfo);
+        rcNt = g_pfnNtQueryFullAttributesFile(&ObjAttr, &uBuf.NetOpenInfo);
         if (NT_SUCCESS(rcNt))
         {
             if (!(uBuf.NetOpenInfo.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT))
@@ -402,10 +412,9 @@ DECLHIDDEN(int) rtPathNtQueryInfoWorker(HANDLE hRootDir, UNICODE_STRING *pNtName
                  || rcNt == STATUS_OBJECT_NAME_INVALID
                  || rcNt == STATUS_INVALID_PARAMETER)
         {
-            rc = rtPathNtQueryInfoInDirectoryObject(&ObjAttr, pObjInfo, enmAddAttr, fFlags, &uBuf, sizeof(uBuf));
+            rc = rtPathNtQueryInfoInDirectoryObject(&ObjAttr, pObjInfo, enmAddAttr, fFlags, &uBuf, sizeof(uBuf), rcNt);
             if (RT_SUCCESS(rc))
                 return rc;
-            rc = RTErrConvertFromNtStatus(rcNt);
         }
         else if (   rcNt != STATUS_ACCESS_DENIED
                  && rcNt != STATUS_SHARING_VIOLATION)
@@ -422,6 +431,12 @@ DECLHIDDEN(int) rtPathNtQueryInfoWorker(HANDLE hRootDir, UNICODE_STRING *pNtName
      */
     if (rc == VINF_TRY_AGAIN)
     {
+        static int volatile g_fReparsePoints = -1;
+        uint32_t            fOptions         = FILE_OPEN_FOR_BACKUP_INTENT | FILE_SYNCHRONOUS_IO_NONALERT;
+        int fReparsePoints = g_fReparsePoints;
+        if (fReparsePoints != 0 && !(fFlags & RTPATH_F_FOLLOW_LINK))
+            fOptions |= FILE_OPEN_REPARSE_POINT;
+
         InitializeObjectAttributes(&ObjAttr, pNtName, OBJ_CASE_INSENSITIVE, hRootDir, NULL);
         rcNt = NtCreateFile(&hFile,
                             FILE_READ_ATTRIBUTES | SYNCHRONIZE,
@@ -431,10 +446,29 @@ DECLHIDDEN(int) rtPathNtQueryInfoWorker(HANDLE hRootDir, UNICODE_STRING *pNtName
                             FILE_ATTRIBUTE_NORMAL,
                             FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
                             FILE_OPEN,
-                            FILE_OPEN_FOR_BACKUP_INTENT | FILE_SYNCHRONOUS_IO_NONALERT
-                            | (fFlags & RTPATH_F_FOLLOW_LINK ? 0 : FILE_OPEN_REPARSE_POINT),
+                            fOptions,
                             NULL /*pvEaBuffer*/,
                             0 /*cbEa*/);
+        if (   (   rcNt == STATUS_INVALID_PARAMETER
+                || rcNt == STATUS_INVALID_PARAMETER_9)
+            && fReparsePoints == -1
+            && (fOptions & FILE_OPEN_REPARSE_POINT))
+        {
+            fOptions &= ~FILE_OPEN_REPARSE_POINT;
+            rcNt = NtCreateFile(&hFile,
+                                FILE_READ_ATTRIBUTES | SYNCHRONIZE,
+                                &ObjAttr,
+                                &Ios,
+                                NULL /*pcbFile*/,
+                                FILE_ATTRIBUTE_NORMAL,
+                                FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                                FILE_OPEN,
+                                fOptions,
+                                NULL /*pvEaBuffer*/,
+                                0 /*cbEa*/);
+            if (rcNt != STATUS_INVALID_PARAMETER)
+                g_fReparsePoints = fReparsePoints = 0;
+        }
         if (NT_SUCCESS(rcNt))
         {
             /* Query tag information first in order to try re-open non-symlink reparse points. */
@@ -479,7 +513,15 @@ DECLHIDDEN(int) rtPathNtQueryInfoWorker(HANDLE hRootDir, UNICODE_STRING *pNtName
                 return rc;
 
             if (RT_FAILURE(rc))
-                rc = VERR_TRY_AGAIN;
+                rc = VINF_TRY_AGAIN;
+        }
+        else if (   rcNt == STATUS_OBJECT_TYPE_MISMATCH
+                 || rcNt == STATUS_OBJECT_NAME_INVALID
+                 /*|| rcNt == STATUS_INVALID_PARAMETER*/)
+        {
+            rc = rtPathNtQueryInfoInDirectoryObject(&ObjAttr, pObjInfo, enmAddAttr, fFlags, &uBuf, sizeof(uBuf), rcNt);
+            if (RT_SUCCESS(rc))
+                return rc;
         }
         else if (   rcNt != STATUS_ACCESS_DENIED
                  && rcNt != STATUS_SHARING_VIOLATION)
@@ -570,6 +612,17 @@ DECLHIDDEN(int) rtPathNtQueryInfoWorker(HANDLE hRootDir, UNICODE_STRING *pNtName
                 rc = RTErrConvertFromNtStatus(rcNt);
 
             NtClose(hFile);
+        }
+        /*
+         * Quite possibly a object directory.
+         */
+        else if (   rcNt == STATUS_OBJECT_NAME_INVALID  /* with trailing slash */
+                 || rcNt == STATUS_OBJECT_TYPE_MISMATCH /* without trailing slash */ )
+        {
+            InitializeObjectAttributes(&ObjAttr, pNtName, OBJ_CASE_INSENSITIVE, hRootDir, NULL);
+            rc = rtPathNtQueryInfoInDirectoryObject(&ObjAttr, pObjInfo, enmAddAttr, fFlags, &uBuf, sizeof(uBuf), rcNt);
+            if (RT_FAILURE(rc))
+                rc = RTErrConvertFromNtStatus(rcNt);
         }
         else
             rc = RTErrConvertFromNtStatus(rcNt);

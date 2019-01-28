@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,31 +15,25 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QApplication>
-# include <QMainWindow>
-# include <QMenuBar>
-# include <QScrollBar>
-# include <QTimer>
+#include <QApplication>
+#include <QMainWindow>
+#include <QMenuBar>
+#include <QScrollBar>
+#include <QTimer>
 
 /* GUI includes: */
-# include "UISession.h"
-# include "UIActionPoolRuntime.h"
-# include "UIMachineLogic.h"
-# include "UIMachineWindow.h"
-# include "UIMachineViewNormal.h"
-# include "UIFrameBuffer.h"
-# include "UIExtraDataManager.h"
-# include "UIDesktopWidgetWatchdog.h"
+#include "UISession.h"
+#include "UIActionPoolRuntime.h"
+#include "UIMachineLogic.h"
+#include "UIMachineWindow.h"
+#include "UIMachineViewNormal.h"
+#include "UIFrameBuffer.h"
+#include "UIExtraDataManager.h"
+#include "UIDesktopWidgetWatchdog.h"
 
 /* Other VBox includes: */
-# include "VBox/log.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "VBox/log.h"
 
 
 UIMachineViewNormal::UIMachineViewNormal(  UIMachineWindow *pMachineWindow
@@ -174,16 +168,16 @@ void UIMachineViewNormal::resendSizeHint()
     /* Send saved size-hint to the guest: */
     /// @todo What if not m_bIsGuestAutoresizeEnabled?
     ///       Just let the guest start at the default 800x600?
+    uisession()->setScreenVisibleHostDesires(screenId(), guestScreenVisibilityStatus());
     display().SetVideoModeHint(screenId(),
                                guestScreenVisibilityStatus(),
                                false, 0, 0, sizeHint.width(), sizeHint.height(), 0);
-    uisession()->setScreenVisibleHostDesires(screenId(), guestScreenVisibilityStatus());
 }
 
 void UIMachineViewNormal::adjustGuestScreenSize()
 {
     /* Should we adjust guest-screen size? Logging paranoia is required here to reveal the truth. */
-    LogRel(("GUI: UIMachineViewNormal::adjustGuestScreenSize: Adjust guest-screen size if necessary.\n"));
+    LogRel(("GUI: UIMachineViewNormal::adjustGuestScreenSize: Adjust guest-screen size if necessary\n"));
     bool fAdjust = false;
 
     /* Step 1: Is the guest-screen of another size than necessary? */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2017 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,18 +15,13 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 /* Qt includes: */
-# include <QLabel>
-# include <QCheckBox>
+#include <QLabel>
+#include <QCheckBox>
 
 /* GUI includes: */
-# include "UIPopupPaneMessage.h"
-# include "UIAnimationFramework.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "UIAnimationFramework.h"
+#include "UIPopupPaneMessage.h"
 
 
 UIPopupPaneMessage::UIPopupPaneMessage(QWidget *pParent, const QString &strText, bool fFocused)
@@ -147,6 +142,7 @@ void UIPopupPaneMessage::prepareContent()
 {
     /* Create label: */
     m_pLabel = new QLabel(this);
+    if (m_pLabel)
     {
         /* Configure label: */
         m_pLabel->setFont(tuneFont(m_pLabel->font()));

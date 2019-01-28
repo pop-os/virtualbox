@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,8 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_vmm_vmm_h
-#define ___VBox_vmm_vmm_h
+#ifndef VBOX_INCLUDED_vmm_vmm_h
+#define VBOX_INCLUDED_vmm_vmm_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/types.h>
 #include <VBox/vmm/vmapi.h>
@@ -285,80 +288,6 @@ VMM_INT_DECL(uint32_t)      VMMGetSvnRev(void);
 VMM_INT_DECL(VMMSWITCHER)   VMMGetSwitcher(PVM pVM);
 VMM_INT_DECL(bool)          VMMIsInRing3Call(PVMCPU pVCpu);
 VMM_INT_DECL(void)          VMMTrashVolatileXMMRegs(void);
-VMM_INT_DECL(int)           VMMPatchHypercall(PVM pVM, void *pvBuf, size_t cbBuf, size_t *pcbWritten);
-VMM_INT_DECL(void)          VMMHypercallsEnable(PVMCPU pVCpu);
-VMM_INT_DECL(void)          VMMHypercallsDisable(PVMCPU pVCpu);
-
-
-#if defined(IN_RING3) || defined(DOXYGEN_RUNNING)
-/** @defgroup grp_vmm_api_r3    The VMM Host Context Ring 3 API
- * @{
- */
-VMMR3_INT_DECL(int)     VMMR3Init(PVM pVM);
-VMMR3_INT_DECL(int)     VMMR3InitR0(PVM pVM);
-# ifdef VBOX_WITH_RAW_MODE
-VMMR3_INT_DECL(int)     VMMR3InitRC(PVM pVM);
-# endif
-VMMR3_INT_DECL(int)     VMMR3InitCompleted(PVM pVM, VMINITCOMPLETED enmWhat);
-VMMR3_INT_DECL(int)     VMMR3Term(PVM pVM);
-VMMR3_INT_DECL(void)    VMMR3Relocate(PVM pVM, RTGCINTPTR offDelta);
-VMMR3_INT_DECL(int)     VMMR3UpdateLoggers(PVM pVM);
-VMMR3DECL(const char *) VMMR3GetRZAssertMsg1(PVM pVM);
-VMMR3DECL(const char *) VMMR3GetRZAssertMsg2(PVM pVM);
-VMMR3_INT_DECL(int)     VMMR3SelectSwitcher(PVM pVM, VMMSWITCHER enmSwitcher);
-VMMR3_INT_DECL(RTR0PTR) VMMR3GetHostToGuestSwitcher(PVM pVM, VMMSWITCHER enmSwitcher);
-VMMR3_INT_DECL(int)     VMMR3HmRunGC(PVM pVM, PVMCPU pVCpu);
-# ifdef VBOX_WITH_RAW_MODE
-VMMR3_INT_DECL(int)     VMMR3RawRunGC(PVM pVM, PVMCPU pVCpu);
-VMMR3DECL(int)          VMMR3ResumeHyper(PVM pVM, PVMCPU pVCpu);
-VMMR3_INT_DECL(int)     VMMR3GetImportRC(PVM pVM, const char *pszSymbol, PRTRCPTR pRCPtrValue);
-VMMR3DECL(int)          VMMR3CallRC(PVM pVM, RTRCPTR RCPtrEntry, unsigned cArgs, ...);
-VMMR3DECL(int)          VMMR3CallRCV(PVM pVM, RTRCPTR RCPtrEntry, unsigned cArgs, va_list args);
-# endif
-VMMR3DECL(int)          VMMR3CallR0(PVM pVM, uint32_t uOperation, uint64_t u64Arg, PSUPVMMR0REQHDR pReqHdr);
-VMMR3DECL(void)         VMMR3FatalDump(PVM pVM, PVMCPU pVCpu, int rcErr);
-VMMR3_INT_DECL(void)    VMMR3YieldSuspend(PVM pVM);
-VMMR3_INT_DECL(void)    VMMR3YieldStop(PVM pVM);
-VMMR3_INT_DECL(void)    VMMR3YieldResume(PVM pVM);
-VMMR3_INT_DECL(void)    VMMR3SendStartupIpi(PVM pVM, VMCPUID idCpu, uint32_t uVector);
-VMMR3_INT_DECL(void)    VMMR3SendInitIpi(PVM pVM, VMCPUID idCpu);
-VMMR3DECL(int)          VMMR3RegisterPatchMemory(PVM pVM, RTGCPTR pPatchMem, unsigned cbPatchMem);
-VMMR3DECL(int)          VMMR3DeregisterPatchMemory(PVM pVM, RTGCPTR pPatchMem, unsigned cbPatchMem);
-VMMR3DECL(int)          VMMR3EmtRendezvous(PVM pVM, uint32_t fFlags, PFNVMMEMTRENDEZVOUS pfnRendezvous, void *pvUser);
-/** @defgroup grp_VMMR3EmtRendezvous_fFlags     VMMR3EmtRendezvous flags
- *  @{ */
-/** Execution type mask. */
-#define VMMEMTRENDEZVOUS_FLAGS_TYPE_MASK            UINT32_C(0x00000007)
-/** Invalid execution type. */
-#define VMMEMTRENDEZVOUS_FLAGS_TYPE_INVALID         UINT32_C(0)
-/** Let the EMTs execute the callback one by one (in no particular order).
- * Recursion from within the callback possible.  */
-#define VMMEMTRENDEZVOUS_FLAGS_TYPE_ONE_BY_ONE      UINT32_C(1)
-/** Let all the EMTs execute the callback at the same time.
- * Cannot recurse from the callback.  */
-#define VMMEMTRENDEZVOUS_FLAGS_TYPE_ALL_AT_ONCE     UINT32_C(2)
-/** Only execute the callback on one EMT (no particular one).
- * Recursion from within the callback possible.  */
-#define VMMEMTRENDEZVOUS_FLAGS_TYPE_ONCE            UINT32_C(3)
-/** Let the EMTs execute the callback one by one in ascending order.
- * Recursion from within the callback possible. */
-#define VMMEMTRENDEZVOUS_FLAGS_TYPE_ASCENDING       UINT32_C(4)
-/** Let the EMTs execute the callback one by one in descending order.
- * Recursion from within the callback possible. */
-#define VMMEMTRENDEZVOUS_FLAGS_TYPE_DESCENDING      UINT32_C(5)
-/** Stop after the first error.
- * This is not valid for any execution type where more than one EMT is active
- * at a time. */
-#define VMMEMTRENDEZVOUS_FLAGS_STOP_ON_ERROR        UINT32_C(0x00000008)
-/** Use VMREQFLAGS_PRIORITY when contacting the EMTs. */
-#define VMMEMTRENDEZVOUS_FLAGS_PRIORITY             UINT32_C(0x00000010)
-/** The valid flags. */
-#define VMMEMTRENDEZVOUS_FLAGS_VALID_MASK           UINT32_C(0x0000001f)
-/** @} */
-VMMR3_INT_DECL(int)     VMMR3EmtRendezvousFF(PVM pVM, PVMCPU pVCpu);
-VMMR3_INT_DECL(int)     VMMR3ReadR0Stack(PVM pVM, VMCPUID idCpu, RTHCUINTPTR R0Addr, void *pvBuf, size_t cbRead);
-/** @} */
-#endif /* IN_RING3 */
 
 
 /** @defgroup grp_vmm_api_r0    The VMM Host Context Ring 0 API
@@ -376,6 +305,8 @@ typedef enum VMMR0OPERATION
     VMMR0_DO_HM_RUN = SUP_VMMR0_DO_HM_RUN,
     /** Official NOP that we use for profiling. */
     VMMR0_DO_NOP = SUP_VMMR0_DO_NOP,
+    /** Official NOP that we use for profiling. */
+    VMMR0_DO_NEM_RUN = SUP_VMMR0_DO_NEM_RUN,
     /** Official slow iocl NOP that we use for profiling. */
     VMMR0_DO_SLOW_NOP,
 
@@ -404,12 +335,14 @@ typedef enum VMMR0OPERATION
 
     /** Call VMMR0 Per VM Init. */
     VMMR0_DO_VMMR0_INIT = 64,
+    /** Call VMMR0 Per VM EMT Init */
+    VMMR0_DO_VMMR0_INIT_EMT,
     /** Call VMMR0 Per VM Termination. */
     VMMR0_DO_VMMR0_TERM,
 
-    /** Setup the hardware accelerated raw-mode session. */
+    /** Setup hardware-assisted VM session. */
     VMMR0_DO_HM_SETUP_VM = 128,
-    /** Attempt to enable or disable hardware accelerated raw-mode. */
+    /** Attempt to enable or disable hardware-assisted mode. */
     VMMR0_DO_HM_ENABLE,
 
     /** Call PGMR0PhysAllocateHandyPages(). */
@@ -500,8 +433,29 @@ typedef enum VMMR0OPERATION
     /** The end of the R0 service operations. */
     VMMR0_DO_SRV_END,
 
+    /** Call NEMR0InitVM() (host specific). */
+    VMMR0_DO_NEM_INIT_VM = 576,
+    /** Call NEMR0InitVMPart2() (host specific). */
+    VMMR0_DO_NEM_INIT_VM_PART_2,
+    /** Call NEMR0MapPages() (host specific). */
+    VMMR0_DO_NEM_MAP_PAGES,
+    /** Call NEMR0UnmapPages() (host specific). */
+    VMMR0_DO_NEM_UNMAP_PAGES,
+    /** Call NEMR0ExportState() (host specific). */
+    VMMR0_DO_NEM_EXPORT_STATE,
+    /** Call NEMR0ImportState() (host specific). */
+    VMMR0_DO_NEM_IMPORT_STATE,
+    /** Call NEMR0QueryCpuTick() (host specific). */
+    VMMR0_DO_NEM_QUERY_CPU_TICK,
+    /** Call NEMR0ResumeCpuTickOnAll() (host specific). */
+    VMMR0_DO_NEM_RESUME_CPU_TICK_ON_ALL,
+    /** Call NEMR0UpdateStatistics() (host specific). */
+    VMMR0_DO_NEM_UPDATE_STATISTICS,
+    /** Call NEMR0DoExperiment() (host specific, experimental, debug only). */
+    VMMR0_DO_NEM_EXPERIMENT,
+
     /** Official call we use for testing Ring-0 APIs. */
-    VMMR0_DO_TESTS,
+    VMMR0_DO_TESTS = 640,
     /** Test the 32->64 bits switcher. */
     VMMR0_DO_TEST_SWITCHER3264,
 
@@ -558,6 +512,81 @@ VMMR0_INT_DECL(bool) VMMR0IsLogFlushDisabled(PVMCPU pVCpu);
 /** @} */
 
 
+#if defined(IN_RING3) || defined(DOXYGEN_RUNNING)
+/** @defgroup grp_vmm_api_r3    The VMM Host Context Ring 3 API
+ * @{
+ */
+VMMR3_INT_DECL(int)     VMMR3Init(PVM pVM);
+VMMR3_INT_DECL(int)     VMMR3InitR0(PVM pVM);
+# ifdef VBOX_WITH_RAW_MODE
+VMMR3_INT_DECL(int)     VMMR3InitRC(PVM pVM);
+# endif
+VMMR3_INT_DECL(int)     VMMR3InitCompleted(PVM pVM, VMINITCOMPLETED enmWhat);
+VMMR3_INT_DECL(int)     VMMR3Term(PVM pVM);
+VMMR3_INT_DECL(void)    VMMR3Relocate(PVM pVM, RTGCINTPTR offDelta);
+VMMR3_INT_DECL(int)     VMMR3UpdateLoggers(PVM pVM);
+VMMR3DECL(const char *) VMMR3GetRZAssertMsg1(PVM pVM);
+VMMR3DECL(const char *) VMMR3GetRZAssertMsg2(PVM pVM);
+VMMR3_INT_DECL(int)     VMMR3SelectSwitcher(PVM pVM, VMMSWITCHER enmSwitcher);
+VMMR3_INT_DECL(RTR0PTR) VMMR3GetHostToGuestSwitcher(PVM pVM, VMMSWITCHER enmSwitcher);
+VMMR3_INT_DECL(int)     VMMR3HmRunGC(PVM pVM, PVMCPU pVCpu);
+# ifdef VBOX_WITH_RAW_MODE
+VMMR3_INT_DECL(int)     VMMR3RawRunGC(PVM pVM, PVMCPU pVCpu);
+VMMR3DECL(int)          VMMR3ResumeHyper(PVM pVM, PVMCPU pVCpu);
+VMMR3_INT_DECL(int)     VMMR3GetImportRC(PVM pVM, const char *pszSymbol, PRTRCPTR pRCPtrValue);
+VMMR3DECL(int)          VMMR3CallRC(PVM pVM, RTRCPTR RCPtrEntry, unsigned cArgs, ...);
+VMMR3DECL(int)          VMMR3CallRCV(PVM pVM, RTRCPTR RCPtrEntry, unsigned cArgs, va_list args);
+# endif
+VMMR3DECL(int)          VMMR3CallR0(PVM pVM, uint32_t uOperation, uint64_t u64Arg, PSUPVMMR0REQHDR pReqHdr);
+VMMR3_INT_DECL(int)     VMMR3CallR0Emt(PVM pVM, PVMCPU pVCpu, VMMR0OPERATION enmOperation, uint64_t u64Arg, PSUPVMMR0REQHDR pReqHdr);
+VMMR3_INT_DECL(VBOXSTRICTRC) VMMR3CallR0EmtFast(PVM pVM, PVMCPU pVCpu, VMMR0OPERATION enmOperation);
+VMMR3DECL(void)         VMMR3FatalDump(PVM pVM, PVMCPU pVCpu, int rcErr);
+VMMR3_INT_DECL(void)    VMMR3YieldSuspend(PVM pVM);
+VMMR3_INT_DECL(void)    VMMR3YieldStop(PVM pVM);
+VMMR3_INT_DECL(void)    VMMR3YieldResume(PVM pVM);
+VMMR3_INT_DECL(void)    VMMR3SendStartupIpi(PVM pVM, VMCPUID idCpu, uint32_t uVector);
+VMMR3_INT_DECL(void)    VMMR3SendInitIpi(PVM pVM, VMCPUID idCpu);
+VMMR3DECL(int)          VMMR3RegisterPatchMemory(PVM pVM, RTGCPTR pPatchMem, unsigned cbPatchMem);
+VMMR3DECL(int)          VMMR3DeregisterPatchMemory(PVM pVM, RTGCPTR pPatchMem, unsigned cbPatchMem);
+VMMR3DECL(int)          VMMR3EmtRendezvous(PVM pVM, uint32_t fFlags, PFNVMMEMTRENDEZVOUS pfnRendezvous, void *pvUser);
+/** @defgroup grp_VMMR3EmtRendezvous_fFlags     VMMR3EmtRendezvous flags
+ *  @{ */
+/** Execution type mask. */
+#define VMMEMTRENDEZVOUS_FLAGS_TYPE_MASK            UINT32_C(0x00000007)
+/** Invalid execution type. */
+#define VMMEMTRENDEZVOUS_FLAGS_TYPE_INVALID         UINT32_C(0)
+/** Let the EMTs execute the callback one by one (in no particular order).
+ * Recursion from within the callback possible.  */
+#define VMMEMTRENDEZVOUS_FLAGS_TYPE_ONE_BY_ONE      UINT32_C(1)
+/** Let all the EMTs execute the callback at the same time.
+ * Cannot recurse from the callback.  */
+#define VMMEMTRENDEZVOUS_FLAGS_TYPE_ALL_AT_ONCE     UINT32_C(2)
+/** Only execute the callback on one EMT (no particular one).
+ * Recursion from within the callback possible.  */
+#define VMMEMTRENDEZVOUS_FLAGS_TYPE_ONCE            UINT32_C(3)
+/** Let the EMTs execute the callback one by one in ascending order.
+ * Recursion from within the callback possible. */
+#define VMMEMTRENDEZVOUS_FLAGS_TYPE_ASCENDING       UINT32_C(4)
+/** Let the EMTs execute the callback one by one in descending order.
+ * Recursion from within the callback possible. */
+#define VMMEMTRENDEZVOUS_FLAGS_TYPE_DESCENDING      UINT32_C(5)
+/** Stop after the first error.
+ * This is not valid for any execution type where more than one EMT is active
+ * at a time. */
+#define VMMEMTRENDEZVOUS_FLAGS_STOP_ON_ERROR        UINT32_C(0x00000008)
+/** Use VMREQFLAGS_PRIORITY when contacting the EMTs. */
+#define VMMEMTRENDEZVOUS_FLAGS_PRIORITY             UINT32_C(0x00000010)
+/** The valid flags. */
+#define VMMEMTRENDEZVOUS_FLAGS_VALID_MASK           UINT32_C(0x0000001f)
+/** @} */
+VMMR3_INT_DECL(int)     VMMR3EmtRendezvousFF(PVM pVM, PVMCPU pVCpu);
+VMMR3_INT_DECL(void)    VMMR3SetMayHaltInRing0(PVMCPU pVCpu, bool fMayHaltInRing0, uint32_t cNsSpinBlockThreshold);
+VMMR3_INT_DECL(int)     VMMR3ReadR0Stack(PVM pVM, VMCPUID idCpu, RTHCUINTPTR R0Addr, void *pvBuf, size_t cbRead);
+VMMR3_INT_DECL(void)    VMMR3InitR0StackUnwindState(PUVM pUVM, VMCPUID idCpu, PRTDBGUNWINDSTATE pState);
+/** @} */
+#endif /* IN_RING3 */
+
+
 #if defined(IN_RC) || defined(DOXYGEN_RUNNING)
 /** @defgroup grp_vmm_api_rc    The VMM Raw-Mode Context API
  * @{
@@ -589,4 +618,4 @@ VMMRZDECL(bool)     VMMRZCallRing3IsNotificationSet(PVMCPU pVCpu);
 /** @} */
 RT_C_DECLS_END
 
-#endif
+#endif /* !VBOX_INCLUDED_vmm_vmm_h */

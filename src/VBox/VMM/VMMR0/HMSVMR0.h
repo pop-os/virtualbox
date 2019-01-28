@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,16 +15,15 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___HMSVMR0_h
-#define ___HMSVMR0_h
+#ifndef VMM_INCLUDED_SRC_VMMR0_HMSVMR0_h
+#define VMM_INCLUDED_SRC_VMMR0_HMSVMR0_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/cdefs.h>
 #include <VBox/types.h>
-#include <VBox/vmm/em.h>
-#include <VBox/vmm/stam.h>
-#include <VBox/dis.h>
 #include <VBox/vmm/hm.h>
-#include <VBox/vmm/pgm.h>
 #include <VBox/vmm/hm_svm.h>
 
 RT_C_DECLS_BEGIN
@@ -37,23 +36,24 @@ RT_C_DECLS_BEGIN
 
 #ifdef IN_RING0
 
-VMMR0DECL(int)  SVMR0GlobalInit(void);
-VMMR0DECL(void) SVMR0GlobalTerm(void);
-VMMR0DECL(int)  SVMR0Enter(PVM pVM, PVMCPU pVCpu, PHMGLOBALCPUINFO pCpu);
-VMMR0DECL(void) SVMR0ThreadCtxCallback(RTTHREADCTXEVENT enmEvent, PVMCPU pVCpu, bool fGlobalInit);
-VMMR0DECL(int)  SVMR0EnableCpu(PHMGLOBALCPUINFO pCpu, PVM pVM, void *pvPageCpu, RTHCPHYS HCPhysCpuPage, bool fEnabledBySystem,
-                               void *pvArg);
-VMMR0DECL(int)  SVMR0DisableCpu(PHMGLOBALCPUINFO pCpu, void *pvPageCpu, RTHCPHYS pPageCpuPhys);
-VMMR0DECL(int)  SVMR0InitVM(PVM pVM);
-VMMR0DECL(int)  SVMR0TermVM(PVM pVM);
-VMMR0DECL(int)  SVMR0SetupVM(PVM pVM);
-VMMR0DECL(VBOXSTRICTRC) SVMR0RunGuestCode(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx);
-VMMR0DECL(int)  SVMR0SaveHostState(PVM pVM, PVMCPU pVCpu);
+VMMR0DECL(int)          SVMR0GlobalInit(void);
+VMMR0DECL(void)         SVMR0GlobalTerm(void);
+VMMR0DECL(int)          SVMR0Enter(PVMCPU pVCpu);
+VMMR0DECL(void)         SVMR0ThreadCtxCallback(RTTHREADCTXEVENT enmEvent, PVMCPU pVCpu, bool fGlobalInit);
+VMMR0DECL(int)          SVMR0EnableCpu(PHMPHYSCPU pHostCpu, PVM pVM, void *pvPageCpu, RTHCPHYS HCPhysCpuPage,
+                                       bool fEnabledBySystem, PCSUPHWVIRTMSRS pHwvirtMsrs);
+VMMR0DECL(int)          SVMR0DisableCpu(void *pvPageCpu, RTHCPHYS pPageCpuPhys);
+VMMR0DECL(int)          SVMR0InitVM(PVM pVM);
+VMMR0DECL(int)          SVMR0TermVM(PVM pVM);
+VMMR0DECL(int)          SVMR0SetupVM(PVM pVM);
+VMMR0DECL(VBOXSTRICTRC) SVMR0RunGuestCode(PVMCPU pVCpu);
+VMMR0DECL(int)          SVMR0ExportHostState(PVMCPU pVCpu);
+VMMR0DECL(int)          SVMR0ImportStateOnDemand(PVMCPU pVCpu, uint64_t fWhat);
+VMMR0DECL(int)          SVMR0InvalidatePage(PVMCPU pVCpu, RTGCPTR GCVirt);
 
 #if HC_ARCH_BITS == 32 && defined(VBOX_WITH_64_BITS_GUESTS)
-DECLASM(int)   SVMR0VMSwitcherRun64(RTHCPHYS pVMCBHostPhys, RTHCPHYS pVMCBPhys, PCPUMCTX pCtx, PVM pVM, PVMCPU pVCpu);
-VMMR0DECL(int) SVMR0Execute64BitsHandler(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, HM64ON32OP enmOp, uint32_t cbParam,
-                                         uint32_t *paParam);
+DECLASM(int)            SVMR0VMSwitcherRun64(RTHCPHYS pVMCBHostPhys, RTHCPHYS pVMCBPhys, PCPUMCTX pCtx, PVM pVM, PVMCPU pVCpu);
+VMMR0DECL(int)          SVMR0Execute64BitsHandler(PVMCPU pVCpu, HM64ON32OP enmOp, uint32_t cbParam, uint32_t *paParam);
 #endif /* HC_ARCH_BITS == 32 && defined(VBOX_WITH_64_BITS_GUESTS) */
 
 /**
@@ -95,5 +95,5 @@ DECLASM(void) SVMR0InvlpgA(RTGCPTR pPageGC, uint32_t u32ASID);
 
 RT_C_DECLS_END
 
-#endif /* !___HMSVMR0_h */
+#endif /* !VMM_INCLUDED_SRC_VMMR0_HMSVMR0_h */
 

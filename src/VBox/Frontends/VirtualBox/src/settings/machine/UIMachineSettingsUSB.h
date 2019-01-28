@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UIMachineSettingsUSB_h___
-#define ___UIMachineSettingsUSB_h___
+#ifndef FEQT_INCLUDED_SRC_settings_machine_UIMachineSettingsUSB_h
+#define FEQT_INCLUDED_SRC_settings_machine_UIMachineSettingsUSB_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* GUI includes: */
 #include "UISettingsPage.h"
@@ -30,10 +33,9 @@ struct UIDataSettingsMachineUSBFilter;
 typedef UISettingsCache<UIDataSettingsMachineUSBFilter> UISettingsCacheMachineUSBFilter;
 typedef UISettingsCachePool<UIDataSettingsMachineUSB, UISettingsCacheMachineUSBFilter> UISettingsCacheMachineUSB;
 
-
 /** Machine settings: USB page. */
-class UIMachineSettingsUSB : public UISettingsPageMachine,
-                             public Ui::UIMachineSettingsUSB
+class SHARED_LIBRARY_STUFF UIMachineSettingsUSB : public UISettingsPageMachine,
+                                                  public Ui::UIMachineSettingsUSB
 {
     Q_OBJECT;
 
@@ -159,5 +161,4 @@ private:
     UISettingsCacheMachineUSB *m_pCache;
 };
 
-#endif /* !___UIMachineSettingsUSB_h___ */
-
+#endif /* !FEQT_INCLUDED_SRC_settings_machine_UIMachineSettingsUSB_h */

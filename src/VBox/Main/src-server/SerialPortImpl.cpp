@@ -1,11 +1,10 @@
 /* $Id: SerialPortImpl.cpp $ */
 /** @file
- *
  * VirtualBox COM class implementation
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,6 +15,7 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#define LOG_GROUP LOG_GROUP_MAIN_SERIALPORT
 #include "SerialPortImpl.h"
 #include "MachineImpl.h"
 #include "VirtualBoxImpl.h"
@@ -29,7 +29,7 @@
 
 #include "AutoStateDep.h"
 #include "AutoCaller.h"
-#include "Logging.h"
+#include "LoggingNew.h"
 
 //////////////////////////////////////////////////////////////////////////////////
 //
@@ -249,7 +249,7 @@ HRESULT SerialPort::getHostMode(PortMode_T *aHostMode)
 HRESULT SerialPort::setHostMode(PortMode_T aHostMode)
 {
     /* the machine needs to be mutable */
-    AutoMutableOrSavedStateDependency adep(m->pMachine);
+    AutoMutableOrSavedOrRunningStateDependency adep(m->pMachine);
     if (FAILED(adep.rc())) return adep.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
@@ -288,6 +288,10 @@ HRESULT SerialPort::setHostMode(PortMode_T aHostMode)
                 break;
             case PortMode_Disconnected:
                 break;
+#ifdef VBOX_WITH_XPCOM_CPP_ENUM_HACK
+            case PortMode_32BitHack: /* (compiler warnings) */
+                AssertFailedBreak();
+#endif
         }
 
         m->bd.backup();
@@ -423,7 +427,7 @@ HRESULT SerialPort::getPath(com::Utf8Str &aPath)
 HRESULT SerialPort::setPath(const com::Utf8Str &aPath)
 {
     /* the machine needs to be mutable */
-    AutoMutableOrSavedStateDependency adep(m->pMachine);
+    AutoMutableOrSavedOrRunningStateDependency adep(m->pMachine);
     if (FAILED(adep.rc())) return adep.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
@@ -462,7 +466,7 @@ HRESULT SerialPort::getServer(BOOL *aServer)
 HRESULT SerialPort::setServer(BOOL aServer)
 {
     /* the machine needs to be mutable */
-    AutoMutableOrSavedStateDependency adep(m->pMachine);
+    AutoMutableOrSavedOrRunningStateDependency adep(m->pMachine);
     if (FAILED(adep.rc())) return adep.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
@@ -471,6 +475,42 @@ HRESULT SerialPort::setServer(BOOL aServer)
     {
         m->bd.backup();
         m->bd->fServer = RT_BOOL(aServer);
+
+        m->fModified = true;
+        // leave the lock before informing callbacks
+        alock.release();
+
+        AutoWriteLock mlock(m->pMachine COMMA_LOCKVAL_SRC_POS);
+        m->pMachine->i_setModified(Machine::IsModified_SerialPorts);
+        mlock.release();
+
+        m->pMachine->i_onSerialPortChange(this);
+    }
+
+    return S_OK;
+}
+
+HRESULT SerialPort::getUartType(UartType_T *aUartType)
+{
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    *aUartType = m->bd->uartType;
+
+    return S_OK;
+}
+
+HRESULT SerialPort::setUartType(UartType_T aUartType)
+{
+    /* the machine needs to be mutable */
+    AutoMutableOrSavedOrRunningStateDependency adep(m->pMachine);
+    if (FAILED(adep.rc())) return adep.rc();
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    if (m->bd->uartType != aUartType)
+    {
+        m->bd.backup();
+        m->bd->uartType = aUartType;
 
         m->fModified = true;
         // leave the lock before informing callbacks

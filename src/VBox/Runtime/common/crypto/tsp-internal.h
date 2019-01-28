@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,12 +24,14 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-
-#ifndef ___common_crypto_tsp_internal_h
-#define ___common_crypto_tsp_internal_h
+#ifndef IPRT_INCLUDED_SRC_common_crypto_tsp_internal_h
+#define IPRT_INCLUDED_SRC_common_crypto_tsp_internal_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #define RTASN1TMPL_TEMPLATE_FILE "../common/crypto/tsp-template.h"
 #include <iprt/asn1-generator-internal-header.h>
 
-#endif
+#endif /* !IPRT_INCLUDED_SRC_common_crypto_tsp_internal_h */
 

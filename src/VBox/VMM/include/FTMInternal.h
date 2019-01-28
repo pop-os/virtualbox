@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___FTMInternal_h
-#define ___FTMInternal_h
+#ifndef VMM_INCLUDED_SRC_include_FTMInternal_h
+#define VMM_INCLUDED_SRC_include_FTMInternal_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/cdefs.h>
 #include <VBox/types.h>
@@ -122,4 +125,4 @@ AssertCompileMemberAlignment(FTM, CritSect, 8);
 
 /** @} */
 
-#endif
+#endif /* !VMM_INCLUDED_SRC_include_FTMInternal_h */

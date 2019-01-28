@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -262,31 +262,6 @@ bool darwinScreensHaveSeparateSpaces()
         return [NSScreen performSelector: @selector(screensHaveSeparateSpaces)];
     else
         return false;
-}
-
-double darwinBackingScaleFactor(NativeNSWindowRef pWindow)
-{
-    /* If host window responds to 'backingScaleFactor' selector: */
-    if ([pWindow respondsToSelector :@selector(backingScaleFactor)])
-    {
-        /* Default scale-factor still '1': */
-        CGFloat dScaleFactor = 1.0;
-        /* Compose dynamical invocation: */
-        SEL selector = @selector(backingScaleFactor);
-        NSMethodSignature *signature = [pWindow methodSignatureForSelector :selector];
-        NSInvocation *invocation = [NSInvocation invocationWithMethodSignature :signature];
-        /* Configure invocation: */
-        [invocation setTarget :pWindow];
-        [invocation setSelector :selector];
-        /* Call for invocation: */
-        [invocation invoke];
-        /* And acquire invocation result finally: */
-        [invocation getReturnValue :&dScaleFactor];
-        /* Return scale-factor we have: */
-        return dScaleFactor;
-    }
-    /* Default scale-factor is '1': */
-    return 1.0;
 }
 
 /**
@@ -718,7 +693,7 @@ void darwinUninstallResizeDelegate(NativeNSWindowRef pWindow)
     [[UIResizeProxy sharedResizeProxy] removeWindow:pWindow];
 }
 
-void* darwinCocoaToCarbonEvent(void *pvCocoaEvent)
+void *darwinCocoaToCarbonEvent(void *pvCocoaEvent)
 {
     NSEvent *pEvent = (NSEvent*)pvCocoaEvent;
     return (void*)[pEvent eventRef];

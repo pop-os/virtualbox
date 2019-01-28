@@ -3,7 +3,7 @@
 ; VMM Ring-3 Context DLL - Definition file.
 
 ;
-; Copyright (C) 2010-2017 Oracle Corporation
+; Copyright (C) 2010-2019 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -103,13 +103,19 @@ EXPORTS
     DBGFR3CoreWrite
     DBGFR3Info
     DBGFR3InfoRegisterExternal
+    DBGFR3InfoDeregisterExternal
     DBGFR3InjectNMI
     DBGFR3LogModifyDestinations
     DBGFR3LogModifyFlags
     DBGFR3LogModifyGroups
     DBGFR3OSDetect
     DBGFR3OSQueryNameAndVersion
+    DBGFR3RegCpuQueryU8
+    DBGFR3RegCpuQueryU16
     DBGFR3RegCpuQueryU32
+    DBGFR3RegCpuQueryU64
+    DBGFR3RegCpuQueryXdtr
+    DBGFR3RegCpuQueryLrd
     DBGFR3RegFormatValue
     DBGFR3RegNmQuery
     DBGFR3RegNmQueryAll
@@ -120,6 +126,7 @@ EXPORTS
     DBGFR3MemReadString
     DBGFR3MemRead
     DBGFR3MemScan
+    DBGFR3ModInMem
     DBGFR3AddrFromFlat
     DBGFR3AsSymbolByName
     DBGFR3AsResolveAndRetain
@@ -170,6 +177,7 @@ EXPORTS
     DBGFR3PlugInUnload
     DBGFR3PlugInLoadAll
     DBGFR3PlugInUnloadAll
+    DBGFR3SelQueryInfo
     DBGFR3StackWalkBegin
     DBGFR3StackWalkNext
     DBGFR3StackWalkEnd
@@ -184,6 +192,7 @@ EXPORTS
     DBGFR3TypeValDumpEx
 
     EMR3QueryExecutionPolicy
+    EMR3QueryMainExecutionEngine
     EMR3SetExecutionPolicy
 
     FTMR3CancelStandby
@@ -199,6 +208,7 @@ EXPORTS
 
     MMR3HeapFree
     MMR3HeapRealloc
+    MMR3HeapAllocU
 
     MMR3HyperAllocOnceNoRel
 
@@ -351,6 +361,10 @@ EXPORTS
     STAMR3Snapshot
     STAMR3SnapshotFree
     STAMR3GetUnit
+    STAMR3RegisterFU
+    STAMR3RegisterVU
+    STAMR3DeregisterF
+    STAMR3DeregisterV
 
     TMR3TimerSetCritSect
     TMR3TimerLoad

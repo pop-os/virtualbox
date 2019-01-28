@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2011-2017 Oracle Corporation
+ * Copyright (C) 2011-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -33,10 +33,7 @@
 #include <iprt/critsect.h>
 #include <iprt/test.h>
 #include <iprt/system.h>
-
-#ifdef VBOX_TSTVDIO_WITH_LOG_REPLAY
-# include <VBox/vddbg.h>
-#endif
+#include <iprt/tracelog.h>
 
 #include "VDMemDisk.h"
 #include "VDIoBackend.h"
@@ -262,10 +259,8 @@ static DECLCALLBACK(int) vdScriptHandlerShowStatistics(PVDSCRIPTARG paScriptArgs
 static DECLCALLBACK(int) vdScriptHandlerResetStatistics(PVDSCRIPTARG paScriptArgs, void *pvUser);
 static DECLCALLBACK(int) vdScriptHandlerResize(PVDSCRIPTARG paScriptArgs, void *pvUser);
 static DECLCALLBACK(int) vdScriptHandlerSetFileBackend(PVDSCRIPTARG paScriptArgs, void *pvUser);
-
-#ifdef VBOX_TSTVDIO_WITH_LOG_REPLAY
+static DECLCALLBACK(int) vdScriptHandlerLoadPlugin(PVDSCRIPTARG paScriptArgs, void *pvUser);
 static DECLCALLBACK(int) vdScriptHandlerIoLogReplay(PVDSCRIPTARG paScriptArgs, void *pvUser);
-#endif
 
 /* create action */
 const VDSCRIPTTYPE g_aArgCreate[] =
@@ -368,14 +363,12 @@ const VDSCRIPTTYPE g_aArgPrintFileSize[] =
     VDSCRIPTTYPE_UINT32 /* image */
 };
 
-#ifdef VBOX_TSTVDIO_WITH_LOG_REPLAY
-/* print file size action */
+/* I/O log replay action */
 const VDSCRIPTTYPE g_aArgIoLogReplay[] =
 {
     VDSCRIPTTYPE_STRING, /* disk */
     VDSCRIPTTYPE_STRING  /* iolog */
 };
-#endif
 
 /* I/O RNG create action */
 const VDSCRIPTTYPE g_aArgIoRngCreate[] =
@@ -476,6 +469,12 @@ const VDSCRIPTTYPE g_aArgSetFileBackend[] =
     VDSCRIPTTYPE_STRING /* new file backend */
 };
 
+/* Load plugin. */
+const VDSCRIPTTYPE g_aArgLoadPlugin[] =
+{
+    VDSCRIPTTYPE_STRING /* plugin name */
+};
+
 const VDSCRIPTCALLBACK g_aScriptActions[] =
 {
     /* pcszFnName                  enmTypeReturn      paArgDesc                          cArgDescs                                      pfnHandler */
@@ -485,9 +484,7 @@ const VDSCRIPTCALLBACK g_aScriptActions[] =
     {"flush",                      VDSCRIPTTYPE_VOID, g_aArgFlush,                       RT_ELEMENTS(g_aArgFlush),                      vdScriptHandlerFlush},
     {"close",                      VDSCRIPTTYPE_VOID, g_aArgClose,                       RT_ELEMENTS(g_aArgClose),                      vdScriptHandlerClose},
     {"printfilesize",              VDSCRIPTTYPE_VOID, g_aArgPrintFileSize,               RT_ELEMENTS(g_aArgPrintFileSize),              vdScriptHandlerPrintFileSize},
-#ifdef VBOX_TSTVDIO_WITH_LOG_REPLAY
     {"ioreplay",                   VDSCRIPTTYPE_VOID, g_aArgIoLogReplay,                 RT_ELEMENTS(g_aArgIoLogReplay),                vdScriptHandlerIoLogReplay},
-#endif
     {"merge",                      VDSCRIPTTYPE_VOID, g_aArgMerge,                       RT_ELEMENTS(g_aArgMerge),                      vdScriptHandlerMerge},
     {"compact",                    VDSCRIPTTYPE_VOID, g_aArgCompact,                     RT_ELEMENTS(g_aArgCompact),                    vdScriptHandlerCompact},
     {"discard",                    VDSCRIPTTYPE_VOID, g_aArgDiscard,                     RT_ELEMENTS(g_aArgDiscard),                    vdScriptHandlerDiscard},
@@ -508,6 +505,7 @@ const VDSCRIPTCALLBACK g_aScriptActions[] =
     {"resetstatistics",            VDSCRIPTTYPE_VOID, g_aArgResetStatistics,             RT_ELEMENTS(g_aArgResetStatistics),            vdScriptHandlerResetStatistics},
     {"resize",                     VDSCRIPTTYPE_VOID, g_aArgResize,                      RT_ELEMENTS(g_aArgResize),                     vdScriptHandlerResize},
     {"setfilebackend",             VDSCRIPTTYPE_VOID, g_aArgSetFileBackend,              RT_ELEMENTS(g_aArgSetFileBackend),             vdScriptHandlerSetFileBackend},
+    {"loadplugin",                 VDSCRIPTTYPE_VOID, g_aArgLoadPlugin,                  RT_ELEMENTS(g_aArgLoadPlugin),                 vdScriptHandlerLoadPlugin}
 };
 
 const unsigned g_cScriptActions = RT_ELEMENTS(g_aScriptActions);
@@ -1399,7 +1397,6 @@ static DECLCALLBACK(int) vdScriptHandlerPrintFileSize(PVDSCRIPTARG paScriptArgs,
 }
 
 
-#ifdef VBOX_TSTVDIO_WITH_LOG_REPLAY
 static DECLCALLBACK(int) vdScriptHandlerIoLogReplay(PVDSCRIPTARG paScriptArgs, void *pvUser)
 {
     int rc = VINF_SUCCESS;
@@ -1407,147 +1404,161 @@ static DECLCALLBACK(int) vdScriptHandlerIoLogReplay(PVDSCRIPTARG paScriptArgs, v
     PVDDISK pDisk = NULL;
     const char *pcszDisk  = paScriptArgs[0].psz;
     const char *pcszIoLog = paScriptArgs[1].psz;
+    size_t cbBuf = 0;
+    void *pvBuf = NULL;
 
     pDisk = tstVDIoGetDiskByName(pGlob, pcszDisk);
     if (pDisk)
     {
-        VDIOLOGGER hIoLogger;
+        RTTRACELOGRDR hIoLogRdr = NIL_RTTRACELOGRDR;
 
-        rc = VDDbgIoLogOpen(&hIoLogger, pcszIoLog);
+        rc = RTTraceLogRdrCreateFromFile(&hIoLogRdr, pcszIoLog);
         if (RT_SUCCESS(rc))
         {
-            uint32_t fIoLogFlags;
-            VDIOLOGEVENT enmEvent;
-            void *pvBuf = NULL;
-            size_t cbBuf = 0;
+            RTTRACELOGRDRPOLLEVT enmEvt = RTTRACELOGRDRPOLLEVT_INVALID;
 
-            fIoLogFlags = VDDbgIoLogGetFlags(hIoLogger);
-
-            /* Loop through events. */
-            rc = VDDbgIoLogEventTypeGetNext(hIoLogger, &enmEvent);
-            while (   RT_SUCCESS(rc)
-                   && enmEvent != VDIOLOGEVENT_END)
+            rc = RTTraceLogRdrEvtPoll(hIoLogRdr, &enmEvt, RT_INDEFINITE_WAIT);
+            if (RT_SUCCESS(rc))
             {
-                VDDBGIOLOGREQ enmReq = VDDBGIOLOGREQ_INVALID;
-                uint64_t idEvent = 0;
-                bool fAsync = false;
-                uint64_t off = 0;
-                size_t cbIo = 0;
-                Assert(enmEvent == VDIOLOGEVENT_START);
+                AssertMsg(enmEvt == RTTRACELOGRDRPOLLEVT_HDR_RECVD, ("Expected a header received event but got: %#x\n", enmEvt));
 
-                rc = VDDbgIoLogReqTypeGetNext(hIoLogger, &enmReq);
-                if (RT_FAILURE(rc))
-                    break;
-
-                switch (enmReq)
+                /* Loop through events. */
+                rc = RTTraceLogRdrEvtPoll(hIoLogRdr, &enmEvt, RT_INDEFINITE_WAIT);
+                while (RT_SUCCESS(rc))
                 {
-                    case VDDBGIOLOGREQ_READ:
-                    {
-                        rc = VDDbgIoLogEventGetStart(hIoLogger, &idEvent, &fAsync,
-                                                     &off, &cbIo, 0, NULL);
-                        if (   RT_SUCCESS(rc)
-                            && cbIo > cbBuf)
-                        {
-                            pvBuf = RTMemRealloc(pvBuf, cbIo);
-                            if (pvBuf)
-                                cbBuf = cbIo;
-                            else
-                                rc = VERR_NO_MEMORY;
-                        }
+                    AssertMsg(enmEvt == RTTRACELOGRDRPOLLEVT_TRACE_EVENT_RECVD,
+                              ("Expected a trace event received event but got: %#x\n", enmEvt));
 
-                        if (   RT_SUCCESS(rc)
-                            && !fAsync)
-                            rc = VDRead(pDisk->pVD, off, pvBuf, cbIo);
-                        else if (RT_SUCCESS(rc))
-                            rc = VERR_NOT_SUPPORTED;
-                        break;
-                    }
-                    case VDDBGIOLOGREQ_WRITE:
-                    {
-                        rc = VDDbgIoLogEventGetStart(hIoLogger, &idEvent, &fAsync,
-                                                     &off, &cbIo, cbBuf, pvBuf);
-                        if (rc == VERR_BUFFER_OVERFLOW)
-                        {
-                            pvBuf = RTMemRealloc(pvBuf, cbIo);
-                            if (pvBuf)
-                            {
-                                cbBuf = cbIo;
-                                rc = VDDbgIoLogEventGetStart(hIoLogger, &idEvent, &fAsync,
-                                                             &off, &cbIo, cbBuf, pvBuf);
-                            }
-                            else
-                                rc = VERR_NO_MEMORY;
-                        }
-
-                        if (   RT_SUCCESS(rc)
-                            && !fAsync)
-                            rc = VDWrite(pDisk->pVD, off, pvBuf, cbIo);
-                        else if (RT_SUCCESS(rc))
-                            rc = VERR_NOT_SUPPORTED;
-                        break;
-                    }
-                    case VDDBGIOLOGREQ_FLUSH:
-                    {
-                        rc = VDDbgIoLogEventGetStart(hIoLogger, &idEvent, &fAsync,
-                                                     &off, &cbIo, 0, NULL);
-                        if (   RT_SUCCESS(rc)
-                            && !fAsync)
-                            rc = VDFlush(pDisk->pVD);
-                        else if (RT_SUCCESS(rc))
-                            rc = VERR_NOT_SUPPORTED;
-                        break;
-                    }
-                    case VDDBGIOLOGREQ_DISCARD:
-                    {
-                        PRTRANGE paRanges = NULL;
-                        unsigned cRanges = 0;
-
-                        rc = VDDbgIoLogEventGetStartDiscard(hIoLogger, &idEvent, &fAsync,
-                                                            &paRanges, &cRanges);
-                        if (   RT_SUCCESS(rc)
-                            && !fAsync)
-                        {
-                            rc = VDDiscardRanges(pDisk->pVD, paRanges, cRanges);
-                            RTMemFree(paRanges);
-                        }
-                        else if (RT_SUCCESS(rc))
-                            rc = VERR_NOT_SUPPORTED;
-                        break;
-                    }
-                    default:
-                        AssertMsgFailed(("Invalid request type %d\n", enmReq));
-                }
-
-                if (RT_SUCCESS(rc))
-                {
-                    /* Get matching complete event. */
-                    rc = VDDbgIoLogEventTypeGetNext(hIoLogger, &enmEvent);
+                    RTTRACELOGRDREVT hEvt = NIL_RTTRACELOGRDREVT;
+                    rc = RTTraceLogRdrQueryLastEvt(hIoLogRdr, &hEvt);
+                    AssertRC(rc);
                     if (RT_SUCCESS(rc))
                     {
-                        uint64_t idEvtComplete;
-                        int rcReq;
-                        uint64_t msDuration;
+                        PCRTTRACELOGEVTDESC pEvtDesc = RTTraceLogRdrEvtGetDesc(hEvt);
 
-                        Assert(enmEvent == VDIOLOGEVENT_COMPLETE);
-                        rc = VDDbgIoLogEventGetComplete(hIoLogger, &idEvtComplete, &rcReq,
-                                                        &msDuration, &cbIo, cbBuf, pvBuf);
-                        Assert(RT_FAILURE(rc) || idEvtComplete == idEvent);
+                        if (!RTStrCmp(pEvtDesc->pszId, "Read"))
+                        {
+                            RTTRACELOGEVTVAL aVals[3];
+                            unsigned cVals = 0;
+                            rc = RTTraceLogRdrEvtFillVals(hEvt, 0, &aVals[0], RT_ELEMENTS(aVals), &cVals);
+                            if (   RT_SUCCESS(rc)
+                                && cVals == 3
+                                && aVals[0].pItemDesc->enmType == RTTRACELOGTYPE_BOOL
+                                && aVals[1].pItemDesc->enmType == RTTRACELOGTYPE_UINT64
+                                && aVals[2].pItemDesc->enmType == RTTRACELOGTYPE_SIZE)
+                            {
+                                bool     fAsync = aVals[0].u.f;
+                                uint64_t off    = aVals[1].u.u64;
+                                size_t   cbIo   = (size_t)aVals[2].u.sz;
+
+                                if (cbIo > cbBuf)
+                                {
+                                    pvBuf = RTMemRealloc(pvBuf, cbIo);
+                                    if (pvBuf)
+                                        cbBuf = cbIo;
+                                    else
+                                        rc = VERR_NO_MEMORY;
+                                }
+
+                                if (   RT_SUCCESS(rc)
+                                    && !fAsync)
+                                    rc = VDRead(pDisk->pVD, off, pvBuf, cbIo);
+                                else if (RT_SUCCESS(rc))
+                                    rc = VERR_NOT_SUPPORTED;
+                            }
+                        }
+                        else if (!RTStrCmp(pEvtDesc->pszId, "Write"))
+                        {
+                            RTTRACELOGEVTVAL aVals[3];
+                            unsigned cVals = 0;
+                            rc = RTTraceLogRdrEvtFillVals(hEvt, 0, &aVals[0], RT_ELEMENTS(aVals), &cVals);
+                            if (   RT_SUCCESS(rc)
+                                && cVals == 3
+                                && aVals[0].pItemDesc->enmType == RTTRACELOGTYPE_BOOL
+                                && aVals[1].pItemDesc->enmType == RTTRACELOGTYPE_UINT64
+                                && aVals[2].pItemDesc->enmType == RTTRACELOGTYPE_SIZE)
+                            {
+                                bool     fAsync = aVals[0].u.f;
+                                uint64_t off    = aVals[1].u.u64;
+                                size_t   cbIo   = (size_t)aVals[2].u.sz;
+
+                                if (cbIo > cbBuf)
+                                {
+                                    pvBuf = RTMemRealloc(pvBuf, cbIo);
+                                    if (pvBuf)
+                                        cbBuf = cbIo;
+                                    else
+                                        rc = VERR_NO_MEMORY;
+                                }
+
+                                if (   RT_SUCCESS(rc)
+                                    && !fAsync)
+                                    rc = VDWrite(pDisk->pVD, off, pvBuf, cbIo);
+                                else if (RT_SUCCESS(rc))
+                                    rc = VERR_NOT_SUPPORTED;
+                            }
+                        }
+                        else if (!RTStrCmp(pEvtDesc->pszId, "Flush"))
+                        {
+                            RTTRACELOGEVTVAL Val;
+                            unsigned cVals = 0;
+                            rc = RTTraceLogRdrEvtFillVals(hEvt, 0, &Val, 1, &cVals);
+                            if (   RT_SUCCESS(rc)
+                                && cVals == 1
+                                && Val.pItemDesc->enmType == RTTRACELOGTYPE_BOOL)
+                            {
+                                bool fAsync = Val.u.f;
+
+                                if (   RT_SUCCESS(rc)
+                                    && !fAsync)
+                                    rc = VDFlush(pDisk->pVD);
+                                else if (RT_SUCCESS(rc))
+                                    rc = VERR_NOT_SUPPORTED;
+                            }
+                        }
+                        else if (!RTStrCmp(pEvtDesc->pszId, "Discard"))
+                        {}
+                        else
+                            AssertMsgFailed(("Invalid event ID: %s\n", pEvtDesc->pszId));
+
+                        if (RT_SUCCESS(rc))
+                        {
+                            rc = RTTraceLogRdrEvtPoll(hIoLogRdr, &enmEvt, RT_INDEFINITE_WAIT);
+                            if (RT_SUCCESS(rc))
+                            {
+                                AssertMsg(enmEvt == RTTRACELOGRDRPOLLEVT_TRACE_EVENT_RECVD,
+                                          ("Expected a trace event received event but got: %#x\n", enmEvt));
+
+                                hEvt = NIL_RTTRACELOGRDREVT;
+                                rc = RTTraceLogRdrQueryLastEvt(hIoLogRdr, &hEvt);
+                                if (RT_SUCCESS(rc))
+                                {
+                                    pEvtDesc = RTTraceLogRdrEvtGetDesc(hEvt);
+                                    AssertMsg(!RTStrCmp(pEvtDesc->pszId, "Complete"),
+                                              ("Expected a completion event but got: %s\n", pEvtDesc->pszId));
+                                }
+                            }
+                        }
                     }
-                }
 
-                if (RT_SUCCESS(rc))
-                    rc = VDDbgIoLogEventTypeGetNext(hIoLogger, &enmEvent);
+                    if (RT_FAILURE(rc))
+                        break;
+
+                    rc = RTTraceLogRdrEvtPoll(hIoLogRdr, &enmEvt, RT_INDEFINITE_WAIT);
+                }
             }
 
-            VDDbgIoLogDestroy(hIoLogger);
+            RTTraceLogRdrDestroy(hIoLogRdr);
         }
     }
     else
         rc = VERR_NOT_FOUND;
 
+    if (pvBuf)
+        RTMemFree(pvBuf);
+
     return rc;
 }
-#endif /* VBOX_TSTVDIO_WITH_LOG_REPLAY */
 
 
 static DECLCALLBACK(int) vdScriptHandlerIoRngCreate(PVDSCRIPTARG paScriptArgs, void *pvUser)
@@ -2039,6 +2050,14 @@ static DECLCALLBACK(int) vdScriptHandlerSetFileBackend(PVDSCRIPTARG paScriptArgs
         rc = VERR_NO_MEMORY;
 
     return rc;
+}
+
+static DECLCALLBACK(int) vdScriptHandlerLoadPlugin(PVDSCRIPTARG paScriptArgs, void *pvUser)
+{
+    RT_NOREF(pvUser);
+    const char *pcszPlugin = paScriptArgs[0].psz;
+
+    return VDPluginLoadFromFilename(pcszPlugin);
 }
 
 static DECLCALLBACK(int) tstVDIoFileOpen(void *pvUser, const char *pszLocation,

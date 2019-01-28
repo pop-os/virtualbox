@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,17 +15,23 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __UIWizardFirstRunPageBasic_h__
-#define __UIWizardFirstRunPageBasic_h__
+#ifndef FEQT_INCLUDED_SRC_wizards_firstrun_UIWizardFirstRunPageBasic_h
+#define FEQT_INCLUDED_SRC_wizards_firstrun_UIWizardFirstRunPageBasic_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
-/* Local includes: */
+/* Qt includes: */
+#include <QUuid>
+
+/* GUI includes: */
 #include "UIWizardPage.h"
 
 /* Forward declarations: */
 class CMachine;
-class VBoxMediaComboBox;
-class QIToolButton;
 class QIRichTextLabel;
+class QIToolButton;
+class UIMediaComboBox;
 
 /* Single page of the First Run wizard (base part): */
 class UIWizardFirstRunPage : public UIWizardPageBase
@@ -39,14 +45,14 @@ protected:
     void onOpenMediumWithFileOpenDialog();
 
     /* Stuff for 'id' field: */
-    QString id() const;
-    void setId(const QString &strId);
+    QUuid id() const;
+    void setId(const QUuid &uId);
 
     /* Variables: */
     bool m_fBootHardDiskWasSet;
 
     /* Widgets: */
-    VBoxMediaComboBox *m_pMediaSelector;
+    UIMediaComboBox *m_pMediaSelector;
     QIToolButton *m_pSelectMediaButton;
 };
 
@@ -55,12 +61,12 @@ class UIWizardFirstRunPageBasic : public UIWizardPage, public UIWizardFirstRunPa
 {
     Q_OBJECT;
     Q_PROPERTY(QString source READ source);
-    Q_PROPERTY(QString id READ id WRITE setId);
+    Q_PROPERTY(QUuid id READ id WRITE setId);
 
 public:
 
     /* Constructor: */
-    UIWizardFirstRunPageBasic(const QString &strMachineId, bool fBootHardDiskWasSet);
+    UIWizardFirstRunPageBasic(const QUuid &uMachineId, bool fBootHardDiskWasSet);
 
 protected:
 
@@ -93,5 +99,5 @@ private:
     QIRichTextLabel *m_pLabel;
 };
 
-#endif // __UIWizardFirstRunPageBasic_h__
+#endif /* !FEQT_INCLUDED_SRC_wizards_firstrun_UIWizardFirstRunPageBasic_h */
 

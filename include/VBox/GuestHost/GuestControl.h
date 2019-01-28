@@ -1,10 +1,12 @@
 /* $Id: GuestControl.h $ */
 /** @file
  * Guest Control - Common Guest and Host Code.
+ *
+ * @todo r=bird: Just merge this with GuestControlSvc.h!
  */
 
 /*
- * Copyright (C) 2016-2018 Oracle Corporation
+ * Copyright (C) 2016-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,8 +26,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_GuestHost_GuestControl_h
-#define ___VBox_GuestHost_GuestControl_h
+#ifndef VBOX_INCLUDED_GuestHost_GuestControl_h
+#define VBOX_INCLUDED_GuestHost_GuestControl_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/types.h>
 
@@ -123,7 +128,7 @@ enum eProcessStatus
 /** Don't allow symbolic links as part of the path. */
 #define PATHRENAME_FLAG_NO_SYMLINKS         RT_BIT(1)
 /** Mask of valid flags. */
-#define PATHRENAME_FLAG_VALID_MASK          UINT32_C(0x00000002)
+#define PATHRENAME_FLAG_VALID_MASK          UINT32_C(0x00000003)
 /** @} */
 
 /** @name Defines for guest process array lengths.
@@ -167,6 +172,7 @@ typedef enum VBOXSERVICETOOLBOX_STAT_EXITCODE
     VBOXSERVICETOOLBOX_STAT_EXITCODE_ACCESS_DENIED = RTEXITCODE_END,
     VBOXSERVICETOOLBOX_STAT_EXITCODE_FILE_NOT_FOUND,
     VBOXSERVICETOOLBOX_STAT_EXITCODE_PATH_NOT_FOUND,
+    VBOXSERVICETOOLBOX_STAT_EXITCODE_NET_PATH_NOT_FOUND,
     /** The usual 32-bit type hack. */
     VBOXSERVICETOOLBOX_STAT_32BIT_HACK = 0x7fffffff
 } VBOXSERVICETOOLBOX_STAT_EXITCODE;
@@ -192,5 +198,5 @@ enum eInputStatus
 
 } /* namespace guestControl */
 
-#endif /* !___VBox_GuestHost_GuestControl_h */
+#endif /* !VBOX_INCLUDED_GuestHost_GuestControl_h */
 

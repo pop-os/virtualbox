@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2015-2017 Oracle Corporation
+ * Copyright (C) 2015-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,18 +25,18 @@
 #include <VBox/vmm/hm.h>
 #include <VBox/vmm/pdmapi.h>
 #include <VBox/vmm/ssm.h>
+#include <VBox/vmm/em.h>
 #include "GIMInternal.h"
 #include <VBox/vmm/vm.h>
 
 #include <VBox/disopcode.h>
+#include <VBox/err.h>
 #include <VBox/version.h>
 
 #include <iprt/asm-math.h>
 #include <iprt/assert.h>
-#include <iprt/err.h>
 #include <iprt/string.h>
 #include <iprt/mem.h>
-#include <iprt/spinlock.h>
 
 
 
@@ -78,8 +78,8 @@ typedef KVMWALLCLOCKINFO *PKVMWALLCLOCKINFO;
  */
 static CPUMMSRRANGE const g_aMsrRanges_Kvm[] =
 {
-    GIMKVM_MSRRANGE(MSR_GIM_KVM_RANGE0_START, MSR_GIM_KVM_RANGE0_END, "KVM range 0"),
-    GIMKVM_MSRRANGE(MSR_GIM_KVM_RANGE1_START, MSR_GIM_KVM_RANGE1_END, "KVM range 1")
+    GIMKVM_MSRRANGE(MSR_GIM_KVM_RANGE0_FIRST, MSR_GIM_KVM_RANGE0_LAST, "KVM range 0"),
+    GIMKVM_MSRRANGE(MSR_GIM_KVM_RANGE1_FIRST, MSR_GIM_KVM_RANGE1_LAST, "KVM range 1")
 };
 #undef GIMKVM_MSRRANGE
 
@@ -157,25 +157,16 @@ VMMR3_INT_DECL(int) gimR3KvmInit(PVM pVM)
 
     /*
      * Setup hypercall and #UD handling.
+     * Note! We always need to trap VMCALL/VMMCALL hypercall using #UDs for raw-mode VMs.
      */
     for (VMCPUID i = 0; i < pVM->cCpus; i++)
-        VMMHypercallsEnable(&pVM->aCpus[i]);
+        EMSetHypercallInstructionsEnabled(&pVM->aCpus[i], true);
 
-    if (ASMIsAmdCpu())
-    {
-        pKvm->fTrapXcptUD   = true;
-        pKvm->uOpCodeNative = OP_VMMCALL;
-    }
-    else
-    {
-        Assert(ASMIsIntelCpu() || ASMIsViaCentaurCpu());
-        pKvm->fTrapXcptUD   = false;
-        pKvm->uOpCodeNative = OP_VMCALL;
-    }
-
-    /* We always need to trap VMCALL/VMMCALL hypercall using #UDs for raw-mode VMs. */
-    if (!HMIsEnabled(pVM))
-        pKvm->fTrapXcptUD = true;
+    size_t cbHypercall = 0;
+    rc = GIMQueryHypercallOpcodeBytes(pVM, pKvm->abOpcodeNative, sizeof(pKvm->abOpcodeNative), &cbHypercall, &pKvm->uOpcodeNative);
+    AssertLogRelRCReturn(rc, rc);
+    AssertLogRelReturn(cbHypercall == sizeof(pKvm->abOpcodeNative), VERR_GIM_IPE_1);
+    pKvm->fTrapXcptUD = pKvm->uOpcodeNative != OP_VMCALL || VM_IS_RAW_MODE_ENABLED(pVM);
 
     return VINF_SUCCESS;
 }

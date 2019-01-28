@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2017 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,22 +15,17 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QThread>
+#include <QThread>
 
 /* GUI includes: */
-# include "COMDefs.h"
-# include "UIThreadPool.h"
-# include "UIDefs.h"
+#include "COMDefs.h"
+#include "UIDefs.h"
+#include "UIThreadPool.h"
 
 /* Other VBox includes: */
 #include <iprt/assert.h>
 
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /** QThread extension used as worker-thread.
   * Capable of executing COM-related tasks. */
@@ -46,7 +41,7 @@ signals:
 public:
 
     /** Constructs worker-thread for parent worker-thread @a pPool.
-      * @param iIndex defines worker-thread index within the worker-thread pool registry. */
+      * @param  iIndex  Brings worker-thread index within the worker-thread pool registry. */
     UIThreadWorker(UIThreadPool *pPool, int iIndex);
 
     /** Returns worker-thread index within the worker-thread pool registry. */
@@ -69,6 +64,11 @@ private:
     /** Holds whether sigFinished signal should be emitted or not. */
     bool m_fNoFinishedSignal;
 };
+
+
+/*********************************************************************************************************************************
+*   Class UIThreadPool implementation.                                                                                           *
+*********************************************************************************************************************************/
 
 UIThreadPool::UIThreadPool(ulong cMaxWorkers /* = 3 */, ulong cMsWorkerIdleTimeout /* = 5000 */)
     : m_cMsIdleTimeout(cMsWorkerIdleTimeout)
@@ -206,7 +206,7 @@ void UIThreadPool::enqueueTask(UITask *pTask)
     m_everythingLocker.unlock();
 }
 
-UITask* UIThreadPool::dequeueTask(UIThreadWorker *pWorker)
+UITask *UIThreadPool::dequeueTask(UIThreadWorker *pWorker)
 {
     /* Lock initially: */
     m_everythingLocker.lock();
@@ -300,6 +300,11 @@ void UITask::start()
     emit sigComplete(this);
 }
 
+
+/*********************************************************************************************************************************
+*   Class UIThreadWorker implementation.                                                                                         *
+*********************************************************************************************************************************/
+
 UIThreadWorker::UIThreadWorker(UIThreadPool *pPool, int iIndex)
     : m_pPool(pPool)
     , m_iIndex(iIndex)
@@ -330,6 +335,7 @@ void UIThreadWorker::run()
     if (!m_fNoFinishedSignal)
         emit sigFinished(this);
 }
+
 
 #include "UIThreadPool.moc"
 

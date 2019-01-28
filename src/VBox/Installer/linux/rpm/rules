@@ -5,7 +5,7 @@
 #
 
 #
-# Copyright (C) 2006-2017 Oracle Corporation
+# Copyright (C) 2006-2019 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -48,7 +48,7 @@ ifeq ($(wildcard rpm/rules),)
 $(error call rpm/rules from src/VBox/Installer/linux)
 endif
 
-verpkg   := VirtualBox-5.2
+verpkg   := VirtualBox-6.0
 current  := $(shell pwd)
 vboxroot := $(shell while ! test -r configure && ! test "$PWD" = "/"; do cd ..; done; pwd)
 pkgdir   := $(if $(PKGDIR),$(PKGDIR),$(shell cd $(vboxroot)/..; pwd))
@@ -138,6 +138,7 @@ cfg_flags := $(if $(NOQT),--disable-qt,) \
 	     $(if $(NOSDL),--disable-vboxsdl,) \
 	     $(if $(filter el5 el6,$(rpmrel)),--build-libvpx,) \
 	     $(if $(filter el5 el6,$(rpmrel)),--build-libopus,) \
+	     $(if $(filter el5 el6,$(rpmrel)),--build-libssl,) \
 	     $(if $(filter el5,$(rpmrel)),--build-libcurl,) \
 	     $(if $(filter el5,$(rpmrel)),--disable-sdl-ttf,) \
 	     $(if $(filter el5,$(rpmrel)),--disable-pulse,) \

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2017 Oracle Corporation
+ * Copyright (C) 2007-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___GVMMR0Internal_h
-#define ___GVMMR0Internal_h
+#ifndef VMM_INCLUDED_SRC_VMMR0_GVMMR0Internal_h
+#define VMM_INCLUDED_SRC_VMMR0_GVMMR0Internal_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/mem.h>
 
@@ -62,5 +65,5 @@ typedef struct GVMMPERVM
 typedef GVMMPERVM *PGVMMPERVM;
 
 
-#endif
+#endif /* !VMM_INCLUDED_SRC_VMMR0_GVMMR0Internal_h */
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,33 +15,28 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QApplication>
-# include <QMainWindow>
-# include <QTimer>
-# ifdef VBOX_WS_MAC
-#  include <QMenuBar>
-# endif /* VBOX_WS_MAC */
+#include <QApplication>
+#include <QMainWindow>
+#include <QTimer>
+#ifdef VBOX_WS_MAC
+# include <QMenuBar>
+#endif /* VBOX_WS_MAC */
 
 /* GUI includes: */
-# include "UISession.h"
-# include "UIActionPoolRuntime.h"
-# include "UIMachineLogicFullscreen.h"
-# include "UIMachineWindow.h"
-# include "UIMachineViewFullscreen.h"
-# include "UIFrameBuffer.h"
-# include "UIExtraDataManager.h"
-# include "UIDesktopWidgetWatchdog.h"
+#include "UISession.h"
+#include "UIActionPoolRuntime.h"
+#include "UIMachineLogicFullscreen.h"
+#include "UIMachineWindow.h"
+#include "UIMachineViewFullscreen.h"
+#include "UIFrameBuffer.h"
+#include "UIExtraDataManager.h"
+#include "UIDesktopWidgetWatchdog.h"
 
 /* Other VBox includes: */
-# include "VBox/log.h"
+#include "VBox/log.h"
 
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+/* External includes: */
 #ifdef VBOX_WS_X11
 # include <limits.h>
 #endif /* VBOX_WS_X11 */

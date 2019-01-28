@@ -5,7 +5,7 @@
 #
 
 #
-# Copyright (C) 2007-2017 Oracle Corporation
+# Copyright (C) 2007-2019 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -206,7 +206,7 @@ rm $PATH_TMP/revision-generated.h
 rm $PATH_TMP/product-generated.h
 
 # If we are exporting to a folder then stop now.
-test -n "SFOLDER" && exit 0
+test -z "$FOLDER" || exit 0
 
 # Do a test build
 echo Doing a test build, this may take a while.

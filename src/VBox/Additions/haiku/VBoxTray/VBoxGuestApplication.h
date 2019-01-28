@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2017 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -44,8 +44,11 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef ___VBOXGUESTAPPLICATION__H
-#define ___VBOXGUESTAPPLICATION__H
+#ifndef GA_INCLUDED_SRC_haiku_VBoxTray_VBoxGuestApplication_h
+#define GA_INCLUDED_SRC_haiku_VBoxTray_VBoxGuestApplication_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /** @todo r=ramshankar; why are we including all the headers here!?? Do it in
  *        the .cpp please. */
@@ -72,5 +75,5 @@ class VBoxGuestApplication : public BApplication
         virtual void ReadyToRun();
 };
 
-#endif /* !___VBOXGUESTAPPLICATION__H */
+#endif /* !GA_INCLUDED_SRC_haiku_VBoxTray_VBoxGuestApplication_h */
 

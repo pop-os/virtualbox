@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2017 Oracle Corporation
+ * Copyright (C) 2011-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -42,9 +42,10 @@ struct VBOXHGCMCALLHANDLE_TYPEDEF
 };
 
 /** Call completion callback for guest calls. */
-static DECLCALLBACK(void) callComplete(VBOXHGCMCALLHANDLE callHandle, int32_t rc)
+static DECLCALLBACK(int) callComplete(VBOXHGCMCALLHANDLE callHandle, int32_t rc)
 {
     callHandle->rc = rc;
+    return VINF_SUCCESS;
 }
 
 /**
@@ -114,7 +115,7 @@ static int testHostCmd(const VBOXHGCMSVCFNTABLE *pTable, const PCMDHOST pCmd, ui
 
             if (pCmd[i].fNeedsClient)
             {
-                int client_rc = pTable->pfnConnect(pTable->pvService, 1000 /* Client ID */, NULL /* pvClient */);
+                int client_rc = pTable->pfnConnect(pTable->pvService, 1000 /* Client ID */, NULL /* pvClient */, 0, false);
                 if (RT_FAILURE(client_rc))
                     rc = client_rc;
             }
@@ -151,7 +152,7 @@ static int testHost(const VBOXHGCMSVCFNTABLE *pTable)
     RTTestSub(g_hTest, "Testing host commands ...");
 
     VBOXHGCMSVCPARM aParms[1];
-    aParms[0].setUInt32(1000 /* Context ID */);
+    HGCMSvcSetU32(&aParms[0], 1000 /* Context ID */);
 
     CMDHOST aCmdHostAll[] =
     {
@@ -177,15 +178,15 @@ static int testHost(const VBOXHGCMSVCFNTABLE *pTable)
 #endif
 
         /** Client connected, invalid parameters given. */
-        { HOST_EXEC_CMD, 1024, 0, true, VERR_INVALID_POINTER },
-        { HOST_EXEC_CMD, 1, 0, true, VERR_INVALID_POINTER },
-        { HOST_EXEC_CMD, -1, 0, true, VERR_INVALID_POINTER },
+        { HOST_MSG_EXEC_CMD, 1024, 0, true, VERR_INVALID_POINTER },
+        { HOST_MSG_EXEC_CMD, 1, 0, true, VERR_INVALID_POINTER },
+        { HOST_MSG_EXEC_CMD, -1, 0, true, VERR_INVALID_POINTER },
 
         /** Client connected, parameters given. */
-        { HOST_CANCEL_PENDING_WAITS, 1, &aParms[0], true, VINF_SUCCESS },
-        { HOST_EXEC_CMD, 1, &aParms[0], true, VINF_SUCCESS },
-        { HOST_EXEC_SET_INPUT, 1, &aParms[0], true, VINF_SUCCESS },
-        { HOST_EXEC_GET_OUTPUT, 1, &aParms[0], true, VINF_SUCCESS },
+        { HOST_MSG_CANCEL_PENDING_WAITS, 1, &aParms[0], true, VINF_SUCCESS },
+        { HOST_MSG_EXEC_CMD, 1, &aParms[0], true, VINF_SUCCESS },
+        { HOST_MSG_EXEC_SET_INPUT, 1, &aParms[0], true, VINF_SUCCESS },
+        { HOST_MSG_EXEC_GET_OUTPUT, 1, &aParms[0], true, VINF_SUCCESS },
 
         /** Client connected, unknown command + valid parameters given. */
         { -1, 1, &aParms[0], true, VINF_SUCCESS }
@@ -200,26 +201,26 @@ static int testClient(const VBOXHGCMSVCFNTABLE *pTable)
 {
     RTTestSub(g_hTest, "Testing client commands ...");
 
-    int rc = pTable->pfnConnect(pTable->pvService, 1 /* Client ID */, NULL /* pvClient */);
+    int rc = pTable->pfnConnect(pTable->pvService, 1 /* Client ID */, NULL /* pvClient */, 0, false);
     if (RT_SUCCESS(rc))
     {
         VBOXHGCMCALLHANDLE_TYPEDEF callHandle = { VINF_SUCCESS };
 
         /* No commands from host yet. */
         VBOXHGCMSVCPARM aParmsGuest[8];
-        aParmsGuest[0].setUInt32(0 /* Msg type */);
-        aParmsGuest[1].setUInt32(0 /* Parameters */);
+        HGCMSvcSetU32(&aParmsGuest[0], 0 /* Msg type */);
+        HGCMSvcSetU32(&aParmsGuest[1], 0 /* Parameters */);
         pTable->pfnCall(pTable->pvService, &callHandle, 1 /* Client ID */, NULL /* pvClient */,
-                        GUEST_MSG_WAIT, 2, &aParmsGuest[0]);
+                        GUEST_MSG_WAIT, 2, &aParmsGuest[0], 0);
         RTTEST_CHECK_RC_RET(g_hTest, callHandle.rc, VINF_SUCCESS, callHandle.rc);
 
         /* Host: Add a dummy command. */
         VBOXHGCMSVCPARM aParmsHost[8];
-        aParmsHost[0].setUInt32(1000 /* Context ID */);
-        aParmsHost[1].setString("foo.bar");
-        aParmsHost[2].setString("baz");
+        HGCMSvcSetU32(&aParmsHost[0], 1000 /* Context ID */);
+        HGCMSvcSetStr(&aParmsHost[1], "foo.bar");
+        HGCMSvcSetStr(&aParmsHost[2], "baz");
 
-        rc = pTable->pfnHostCall(pTable->pvService, HOST_EXEC_CMD, 3, &aParmsHost[0]);
+        rc = pTable->pfnHostCall(pTable->pvService, HOST_MSG_EXEC_CMD, 3, &aParmsHost[0]);
         RTTEST_CHECK_RC_RET(g_hTest, rc, VINF_SUCCESS, rc);
 
         /* Client: Disconnect again. */

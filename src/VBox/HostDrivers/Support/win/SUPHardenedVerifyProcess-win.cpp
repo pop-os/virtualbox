@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -42,6 +42,7 @@
 #include <iprt/ctype.h>
 #include <iprt/param.h>
 #include <iprt/string.h>
+#include <iprt/utf16.h>
 #include <iprt/zero.h>
 
 #ifdef IN_RING0
@@ -212,7 +213,7 @@ static const char *g_apszSupNtVpAllowedDlls[] =
 static const char *g_apszSupNtVpAllowedVmExes[] =
 {
     "VBoxHeadless.exe",
-    "VirtualBox.exe",
+    "VirtualBoxVM.exe",
     "VBoxSDL.exe",
     "VBoxNetDHCP.exe",
     "VBoxNetNAT.exe",

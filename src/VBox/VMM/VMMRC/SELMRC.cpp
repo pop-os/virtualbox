@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -330,7 +330,7 @@ DECLEXPORT(VBOXSTRICTRC) selmRCGuestGDTWritePfHandler(PVM pVM, PVMCPU pVCpu, RTG
         VMCPU_FF_SET(pVCpu, VMCPU_FF_SELM_SYNC_GDT);
     }
 
-    if (!VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_SELM_SYNC_GDT))
+    if (!VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_SELM_SYNC_GDT))
         STAM_COUNTER_INC(&pVM->selm.s.StatRCWriteGuestGDTHandled);
     else
         STAM_COUNTER_INC(&pVM->selm.s.StatRCWriteGuestGDTUnhandled);
@@ -473,7 +473,7 @@ VBOXSTRICTRC selmRCGuestTssPostWriteCheck(PVM pVM, PVMCPU pVCpu, uint32_t offGue
         }
 
         if (   rcStrict == VINF_SUCCESS
-            && !VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_SELM_SYNC_TSS)
+            && !VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_SELM_SYNC_TSS)
             && pVM->selm.s.offGuestIoBitmap != 0)
         {
             /** @todo not sure how the partial case is handled; probably not allowed */

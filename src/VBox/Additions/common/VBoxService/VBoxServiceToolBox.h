@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2017 Oracle Corporation
+ * Copyright (C) 2016-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___VBoxServiceToolBox_h
-#define ___VBoxServiceToolBox_h
+#ifndef GA_INCLUDED_SRC_common_VBoxService_VBoxServiceToolBox_h
+#define GA_INCLUDED_SRC_common_VBoxService_VBoxServiceToolBox_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/GuestHost/GuestControl.h>
 
@@ -25,5 +28,5 @@ extern bool                     VGSvcToolboxMain(int argc, char **argv, RTEXITCO
 extern int                      VGSvcToolboxExitCodeConvertToRc(const char *pszTool, RTEXITCODE rcExit);
 RT_C_DECLS_END
 
-#endif /* ___VBoxServiceToolBox_h */
+#endif /* !GA_INCLUDED_SRC_common_VBoxService_VBoxServiceToolBox_h */
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,6 +14,12 @@
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
+
+#ifndef MAIN_INCLUDED_NetworkServiceRunner_h
+#define MAIN_INCLUDED_NetworkServiceRunner_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/err.h>
 #include <iprt/types.h>
@@ -35,6 +41,7 @@ public:
     virtual ~NetworkServiceRunner();
 
     int setOption(const std::string& key, const std::string& val);
+    void clearOptions();
 
     int  start(bool aKillProcOnStop);
     int  stop();
@@ -54,3 +61,6 @@ private:
     struct Data;
     Data *m;
 };
+
+#endif /* !MAIN_INCLUDED_NetworkServiceRunner_h */
+

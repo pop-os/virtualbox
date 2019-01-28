@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,7 +31,7 @@
 #include <iprt/mp.h>
 #include "internal/iprt.h"
 
-#include <iprt/err.h>
+#include <iprt/errcore.h>
 
 
 RTDECL(int) RTMpOnAll(PFNRTMPWORKER pfnWorker, void *pvUser1, void *pvUser2)
@@ -72,10 +72,11 @@ RTDECL(int) RTMpOnSpecific(RTCPUID idCpu, PFNRTMPWORKER pfnWorker, void *pvUser1
 RT_EXPORT_SYMBOL(RTMpOnSpecific);
 
 
-RTDECL(int) RTMpOnPair(RTCPUID idCpu1, RTCPUID idCpu2, PFNRTMPWORKER pfnWorker, void *pvUser1, void *pvUser2)
+RTDECL(int) RTMpOnPair(RTCPUID idCpu1, RTCPUID idCpu2, uint32_t fFlags, PFNRTMPWORKER pfnWorker, void *pvUser1, void *pvUser2)
 {
     NOREF(idCpu1);
     NOREF(idCpu2);
+    NOREF(fFlags);
     NOREF(pfnWorker);
     NOREF(pvUser1);
     NOREF(pvUser2);

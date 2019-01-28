@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2017 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -35,7 +35,7 @@
 #include <iprt/rand.h>
 #include <iprt/string.h>
 #include <iprt/test.h>
-#ifdef VBOX
+#if defined(VBOX) && (defined(RT_ARCH_X86) || defined(RT_ARCH_AMD64))
 # include <VBox/sup.h>
 #endif
 
@@ -148,7 +148,7 @@ int main()
     if (rcExit != RTEXITCODE_SUCCESS)
         return rcExit;
     RTTestBanner(hTest);
-#ifdef VBOX
+#if defined(VBOX) && (defined(RT_ARCH_X86) || defined(RT_ARCH_AMD64))
     SUPR3Init(NULL);
 #endif
 

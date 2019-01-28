@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,23 +15,17 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QTextEdit>
+#include <QTextEdit>
 
 /* GUI includes: */
-# include "QITreeView.h"
-# include "UIApplianceExportEditorWidget.h"
-# include "VBoxGlobal.h"
-# include "UIMessageCenter.h"
+#include "QITreeView.h"
+#include "UIApplianceExportEditorWidget.h"
+#include "VBoxGlobal.h"
+#include "UIMessageCenter.h"
 
 /* COM includes: */
-# include "CAppliance.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "CAppliance.h"
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -55,7 +49,8 @@ public:
             << KVirtualSystemDescriptionType_HardDiskControllerIDE
             << KVirtualSystemDescriptionType_HardDiskControllerSATA
             << KVirtualSystemDescriptionType_HardDiskControllerSCSI
-            << KVirtualSystemDescriptionType_HardDiskControllerSAS;
+            << KVirtualSystemDescriptionType_HardDiskControllerSAS
+            << KVirtualSystemDescriptionType_CloudProfileName;
     }
 };
 
@@ -86,6 +81,7 @@ void UIApplianceExportEditorWidget::populate()
     QVector<CVirtualSystemDescription> vsds = m_pAppliance->GetVirtualSystemDescriptions();
 
     m_pModel = new UIApplianceModel(vsds, m_pTreeViewSettings);
+    m_pModel->setVsdHints(m_listVsdHints);
 
     ExportSortProxyModel *pProxy = new ExportSortProxyModel(this);
     pProxy->setSourceModel(m_pModel);

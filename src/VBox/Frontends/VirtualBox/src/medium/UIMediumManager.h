@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UIMediumManager_h___
-#define ___UIMediumManager_h___
+#ifndef FEQT_INCLUDED_SRC_medium_UIMediumManager_h
+#define FEQT_INCLUDED_SRC_medium_UIMediumManager_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* GUI includes: */
 #include "QIManagerDialog.h"
@@ -32,6 +35,7 @@ class QTreeWidgetItem;
 class QIDialogButtonBox;
 class QILabel;
 class QITreeWidget;
+class UIActionPool;
 class UIMedium;
 class UIMediumDetailsWidget;
 class UIMediumItem;
@@ -103,11 +107,14 @@ signals:
 
 public:
 
-    /** Constructs Virtual Media Manager widget. */
-    UIMediumManagerWidget(EmbedTo enmEmbedding, QWidget *pParent = 0);
+    /** Constructs Virtual Media Manager widget.
+      * @param  enmEmbedding  Brings the type of widget embedding.
+      * @param  pActionPool   Brings the action-pool reference.
+      * @param  fShowToolbar  Brings whether we should create/show toolbar. */
+    UIMediumManagerWidget(EmbedTo enmEmbedding, UIActionPool *pActionPool, bool fShowToolbar = true, QWidget *pParent = 0);
 
     /** Returns the menu. */
-    QMenu *menu() const { return m_pMenu; }
+    QMenu *menu() const;
 
 #ifdef VBOX_WS_MAC
     /** Returns the toolbar. */
@@ -123,9 +130,6 @@ protected:
       * @{ */
         /** Handles translation event. */
         virtual void retranslateUi() /* override */;
-
-        /** Handles @a pShow event. */
-        virtual void showEvent(QShowEvent *pEvent) /* override */;
     /** @} */
 
 public slots:
@@ -143,9 +147,9 @@ private slots:
     /** @name Medium operation stuff.
       * @{ */
         /** Handles VBoxGlobal::sigMediumCreated signal. */
-        void sltHandleMediumCreated(const QString &strMediumID);
+        void sltHandleMediumCreated(const QUuid &uMediumID);
         /** Handles VBoxGlobal::sigMediumDeleted signal. */
-        void sltHandleMediumDeleted(const QString &strMediumID);
+        void sltHandleMediumDeleted(const QUuid &uMediumID);
     /** @} */
 
     /** @name Medium enumeration stuff.
@@ -153,13 +157,15 @@ private slots:
         /** Handles VBoxGlobal::sigMediumEnumerationStarted signal. */
         void sltHandleMediumEnumerationStart();
         /** Handles VBoxGlobal::sigMediumEnumerated signal. */
-        void sltHandleMediumEnumerated(const QString &strMediumID);
+        void sltHandleMediumEnumerated(const QUuid &uMediumID);
         /** Handles VBoxGlobal::sigMediumEnumerationFinished signal. */
         void sltHandleMediumEnumerationFinish();
     /** @} */
 
     /** @name Menu/action stuff.
       * @{ */
+        /** Handles command to add medium. */
+        void sltAddMedium();
         /** Handles command to copy medium. */
         void sltCopyMedium();
         /** Handles command to move medium. */
@@ -181,7 +187,7 @@ private slots:
         /** Handles item change case. */
         void sltHandleCurrentItemChanged();
         /** Handles item context-menu-call case. */
-        void sltHandleContextMenuCall(const QPoint &position);
+        void sltHandleContextMenuRequest(const QPoint &position);
     /** @} */
 
     /** @name Tree-widget stuff.
@@ -196,16 +202,10 @@ private:
       * @{ */
         /** Prepares all. */
         void prepare();
-        /** Prepares this. */
-        void prepareThis();
         /** Prepares connections. */
         void prepareConnections();
         /** Prepares actions. */
         void prepareActions();
-        /** Prepares menu. */
-        void prepareMenu();
-        /** Prepares context-menu. */
-        void prepareContextMenu();
         /** Prepares widgets. */
         void prepareWidgets();
         /** Prepares toolbar. */
@@ -213,9 +213,9 @@ private:
         /** Prepares tab-widget. */
         void prepareTabWidget();
         /** Prepares tab-widget's tab. */
-        void prepareTab(UIMediumType type);
+        void prepareTab(UIMediumDeviceType type);
         /** Prepares tab-widget's tree-widget. */
-        void prepareTreeWidget(UIMediumType type, int iColumns);
+        void prepareTreeWidget(UIMediumDeviceType type, int iColumns);
         /** Prepares details-widget. */
         void prepareDetailsWidget();
         /** Load settings: */
@@ -225,7 +225,7 @@ private:
         void repopulateTreeWidgets();
 
         /** Updates details according latest changes in current item of passed @a type. */
-        void refetchCurrentMediumItem(UIMediumType type);
+        void refetchCurrentMediumItem(UIMediumDeviceType type);
         /** Updates details according latest changes in current item of chosen type. */
         void refetchCurrentChosenMediumItem();
         /** Updates details according latest changes in all current items. */
@@ -247,21 +247,21 @@ private:
         UIMediumItem *createHardDiskItem(const UIMedium &medium);
         /** Updates UIMediumItem for corresponding @a medium. */
         void updateMediumItem(const UIMedium &medium);
-        /** Deletes UIMediumItem for corresponding @a strMediumID. */
-        void deleteMediumItem(const QString &strMediumID);
+        /** Deletes UIMediumItem for corresponding @a uMediumID. */
+        void deleteMediumItem(const QUuid &uMediumID);
 
         /** Returns tab for passed medium @a type. */
-        QWidget *tab(UIMediumType type) const;
+        QWidget *tab(UIMediumDeviceType type) const;
         /** Returns tree-widget for passed medium @a type. */
-        QITreeWidget *treeWidget(UIMediumType type) const;
+        QITreeWidget *treeWidget(UIMediumDeviceType type) const;
         /** Returns item for passed medium @a type. */
-        UIMediumItem *mediumItem(UIMediumType type) const;
+        UIMediumItem *mediumItem(UIMediumDeviceType type) const;
 
         /** Returns medium type for passed @a pTreeWidget. */
-        UIMediumType mediumType(QITreeWidget *pTreeWidget) const;
+        UIMediumDeviceType mediumType(QITreeWidget *pTreeWidget) const;
 
         /** Returns current medium type. */
-        UIMediumType currentMediumType() const;
+        UIMediumDeviceType currentMediumType() const;
         /** Returns current tree-widget. */
         QITreeWidget *currentTreeWidget() const;
         /** Returns current item. */
@@ -273,8 +273,8 @@ private:
 
     /** @name Helper stuff.
       * @{ */
-        /** Returns tab index for passed UIMediumType. */
-        static int tabIndex(UIMediumType type);
+        /** Returns tab index for passed UIMediumDeviceType. */
+        static int tabIndex(UIMediumDeviceType type);
 
         /** Performs search for the @a pTree child which corresponds to the @a condition but not @a pException. */
         static UIMediumItem *searchItem(QITreeWidget *pTree,
@@ -296,6 +296,10 @@ private:
       * @{ */
         /** Holds the widget embedding type. */
         const EmbedTo m_enmEmbedding;
+        /** Holds the action-pool reference. */
+        UIActionPool *m_pActionPool;
+        /** Holds whether we should create/show toolbar. */
+        const bool    m_fShowToolbar;
 
         /** Holds whether Virtual Media Manager should preserve current item change. */
         bool m_fPreventChangeCurrentItem;
@@ -322,11 +326,11 @@ private:
         /** Holds cached floppy-disk tab-widget icon. */
         const QIcon                  m_iconFD;
         /** Holds current hard-drive tree-view item ID. */
-        QString                      m_strCurrentIdHD;
+        QUuid                        m_uCurrentIdHD;
         /** Holds current optical-disk tree-view item ID. */
-        QString                      m_strCurrentIdCD;
+        QUuid                        m_uCurrentIdCD;
         /** Holds current floppy-disk tree-view item ID. */
-        QString                      m_strCurrentIdFD;
+        QUuid                        m_uCurrentIdFD;
     /** @} */
 
     /** @name Details-widget variables.
@@ -339,22 +343,6 @@ private:
       * @{ */
         /** Holds the toolbar widget instance. */
         UIToolBar *m_pToolBar;
-        /** Holds the context-menu object instance. */
-        QMenu     *m_pContextMenu;
-        /** Holds the menu object instance. */
-        QMenu     *m_pMenu;
-        /** Holds the Copy action instance. */
-        QAction   *m_pActionCopy;
-        /** Holds the Move action instance. */
-        QAction   *m_pActionMove;
-        /** Holds the Remove action instance. */
-        QAction   *m_pActionRemove;
-        /** Holds the Release action instance. */
-        QAction   *m_pActionRelease;
-        /** Holds the Details action instance. */
-        QAction   *m_pActionDetails;
-        /** Holds the Refresh action instance. */
-        QAction   *m_pActionRefresh;
     /** @} */
 
     /** @name Progress-bar variables.
@@ -368,11 +356,20 @@ private:
 /** QIManagerDialogFactory extension used as a factory for Virtual Media Manager dialog. */
 class UIMediumManagerFactory : public QIManagerDialogFactory
 {
+public:
+
+    /** Constructs Media Manager factory acquiring additional arguments.
+      * @param  pActionPool  Brings the action-pool reference. */
+    UIMediumManagerFactory(UIActionPool *pActionPool = 0);
+
 protected:
 
     /** Creates derived @a pDialog instance.
       * @param  pCenterWidget  Brings the widget reference to center according to. */
     virtual void create(QIManagerDialog *&pDialog, QWidget *pCenterWidget) /* override */;
+
+    /** Holds the action-pool reference. */
+    UIActionPool *m_pActionPool;
 };
 
 
@@ -399,8 +396,9 @@ private slots:
 private:
 
     /** Constructs Host Network Manager dialog.
-      * @param  pCenterWidget  Brings the widget reference to center according to. */
-    UIMediumManager(QWidget *pCenterWidget);
+      * @param  pCenterWidget  Brings the widget reference to center according to.
+      * @param  pActionPool    Brings the action-pool reference. */
+    UIMediumManager(QWidget *pCenterWidget, UIActionPool *pActionPool);
 
     /** @name Event-handling stuff.
       * @{ */
@@ -426,6 +424,12 @@ private:
         virtual UIMediumManagerWidget *widget() /* override */;
     /** @} */
 
+    /** @name Action related variables.
+      * @{ */
+        /** Holds the action-pool reference. */
+        UIActionPool *m_pActionPool;
+    /** @} */
+
     /** @name Progress-bar variables.
       * @{ */
         /** Holds the progress-bar widget instance. */
@@ -436,5 +440,4 @@ private:
     friend class UIMediumManagerFactory;
 };
 
-#endif /* !___UIMediumManager_h___ */
-
+#endif /* !FEQT_INCLUDED_SRC_medium_UIMediumManager_h */

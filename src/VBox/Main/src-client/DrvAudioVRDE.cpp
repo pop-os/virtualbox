@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2018 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -605,10 +605,12 @@ AudioVRDE::~AudioVRDE(void)
  */
 int AudioVRDE::configureDriver(PCFGMNODE pLunCfg)
 {
-    CFGMR3InsertInteger(pLunCfg, "Object", (uintptr_t)this);
+    int rc = CFGMR3InsertInteger(pLunCfg, "Object", (uintptr_t)this);
+    AssertRCReturn(rc, rc);
     CFGMR3InsertInteger(pLunCfg, "ObjectVRDPServer", (uintptr_t)mpConsole->i_consoleVRDPServer());
+    AssertRCReturn(rc, rc);
 
-    return VINF_SUCCESS;
+    return AudioDriver::configureDriver(pLunCfg);
 }
 
 

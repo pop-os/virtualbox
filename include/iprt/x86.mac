@@ -5,7 +5,7 @@
 ;
 
 ;
-; Copyright (C) 2006-2017 Oracle Corporation
+; Copyright (C) 2006-2019 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -25,8 +25,10 @@
 ; terms and conditions of either the GPL or the CDDL or both.
 ;
 
-%ifndef ___iprt_x86_h
-%define ___iprt_x86_h
+%ifndef IPRT_INCLUDED_x86_h
+%define IPRT_INCLUDED_x86_h
+%ifndef RT_WITHOUT_PRAGMA_ONCE
+%endif
 %ifndef VBOX_FOR_DTRACE_LIB
 %else
 %endif
@@ -85,6 +87,9 @@
 %define X86_CPUID_VENDOR_VIA_EBX        0x746e6543
 %define X86_CPUID_VENDOR_VIA_ECX        0x736c7561
 %define X86_CPUID_VENDOR_VIA_EDX        0x48727561
+%define X86_CPUID_VENDOR_SHANGHAI_EBX   0x68532020
+%define X86_CPUID_VENDOR_SHANGHAI_ECX   0x20206961
+%define X86_CPUID_VENDOR_SHANGHAI_EDX   0x68676e61
 %define X86_CPUID_FEATURE_ECX_SSE3      RT_BIT_32(0)
 %define X86_CPUID_FEATURE_ECX_PCLMUL    RT_BIT_32(1)
 %define X86_CPUID_FEATURE_ECX_DTES64    RT_BIT_32(2)
@@ -256,7 +261,7 @@
 %define X86_CPUID_SVM_FEATURE_EDX_TSC_RATE_MSR              RT_BIT(4)
 %define X86_CPUID_SVM_FEATURE_EDX_VMCB_CLEAN                RT_BIT(5)
 %define X86_CPUID_SVM_FEATURE_EDX_FLUSH_BY_ASID             RT_BIT(6)
-%define X86_CPUID_SVM_FEATURE_EDX_DECODE_ASSIST             RT_BIT(7)
+%define X86_CPUID_SVM_FEATURE_EDX_DECODE_ASSISTS            RT_BIT(7)
 %define X86_CPUID_SVM_FEATURE_EDX_PAUSE_FILTER              RT_BIT(10)
 %define X86_CPUID_SVM_FEATURE_EDX_PAUSE_FILTER_THRESHOLD    RT_BIT(12)
 %define X86_CPUID_SVM_FEATURE_EDX_AVIC                      RT_BIT(13)
@@ -284,6 +289,7 @@
 %define X86_CR0_CACHE_DISABLE               RT_BIT_32(30)
 %define X86_CR0_PG                          RT_BIT_32(31)
 %define X86_CR0_PAGING                      RT_BIT_32(31)
+%define X86_CR0_BIT_PG                      31
 %define X86_CR3_PWT                         RT_BIT_32(3)
 %define X86_CR3_PCD                         RT_BIT_32(4)
 %define X86_CR3_PAGE_MASK                   (0xfffff000)
@@ -316,8 +322,10 @@
 %define X86_DR6_BD                          RT_BIT_32(13)
 %define X86_DR6_BS                          RT_BIT_32(14)
 %define X86_DR6_BT                          RT_BIT_32(15)
-%define X86_DR6_INIT_VAL                    0xFFFF0FF0
+%define X86_DR6_RTM                         RT_BIT_32(16)
+%define X86_DR6_INIT_VAL                    0xffff0ff0
 %define X86_DR6_RA1_MASK                    0xffff0ff0
+%define X86_DR6_RA1_MASK_RTM                0xfffe0ff0
 %define X86_DR6_RAZ_MASK                    RT_BIT_64(12)
 %define X86_DR6_MBZ_MASK                    0xffffffff00000000
 %define X86_DR6_B(iBp)                      RT_BIT_64(iBp)
@@ -333,6 +341,7 @@
 %define X86_DR7_GE                          RT_BIT_32(9)
 %define X86_DR7_LE_ALL                      0x0000000000000055
 %define X86_DR7_GE_ALL                      0x00000000000000aa
+%define X86_DR7_RTM                         RT_BIT_32(11)
 %define X86_DR7_ICE_IR                      RT_BIT_32(12)
 %define X86_DR7_GD                          RT_BIT_32(13)
 %define X86_DR7_ICE_TR1                     RT_BIT_32(14)
@@ -389,10 +398,21 @@
  %define MSR_IA32_APICBASE_GET_ADDR(a_Msr)  ((a_Msr) & X86_PAGE_4K_BASE_MASK)
 %endif
 %define MSR_CORE_THREAD_COUNT               0x35
-%define MSR_IA32_FEATURE_CONTROL            0x3A
-%define MSR_IA32_FEATURE_CONTROL_LOCK       RT_BIT_32(0)
-%define MSR_IA32_FEATURE_CONTROL_SMX_VMXON  RT_BIT_32(1)
-%define MSR_IA32_FEATURE_CONTROL_VMXON      RT_BIT_32(2)
+%define MSR_IA32_FEATURE_CONTROL                      0x3A
+%define MSR_IA32_FEATURE_CONTROL_LOCK                 RT_BIT_64(0)
+%define MSR_IA32_FEATURE_CONTROL_SMX_VMXON            RT_BIT_64(1)
+%define MSR_IA32_FEATURE_CONTROL_VMXON                RT_BIT_64(2)
+%define MSR_IA32_FEATURE_CONTROL_SENTER_LOCAL_FN_0    RT_BIT_64(8)
+%define MSR_IA32_FEATURE_CONTROL_SENTER_LOCAL_FN_1    RT_BIT_64(9)
+%define MSR_IA32_FEATURE_CONTROL_SENTER_LOCAL_FN_2    RT_BIT_64(10)
+%define MSR_IA32_FEATURE_CONTROL_SENTER_LOCAL_FN_3    RT_BIT_64(11)
+%define MSR_IA32_FEATURE_CONTROL_SENTER_LOCAL_FN_4    RT_BIT_64(12)
+%define MSR_IA32_FEATURE_CONTROL_SENTER_LOCAL_FN_5    RT_BIT_64(13)
+%define MSR_IA32_FEATURE_CONTROL_SENTER_LOCAL_FN_6    RT_BIT_64(14)
+%define MSR_IA32_FEATURE_CONTROL_SENTER_GLOBAL_EN     RT_BIT_64(15)
+%define MSR_IA32_FEATURE_CONTROL_SGX_LAUNCH_EN        RT_BIT_64(17)
+%define MSR_IA32_FEATURE_CONTROL_SGX_GLOBAL_EN        RT_BIT_64(18)
+%define MSR_IA32_FEATURE_CONTROL_LMCE                 RT_BIT_64(20)
 %define MSR_IA32_TSC_ADJUST                 0x3B
 %define MSR_IA32_SPEC_CTRL                  0x48
 %define MSR_IA32_SPEC_CTRL_F_IBRS           RT_BIT_32(0)
@@ -402,6 +422,10 @@
 %define MSR_IA32_BIOS_UPDT_TRIG             0x79
 %define MSR_IA32_BIOS_SIGN_ID               0x8B
 %define MSR_IA32_SMM_MONITOR_CTL            0x9B
+%define MSR_IA32_SMM_MONITOR_VALID                  RT_BIT_64(0)
+%define MSR_IA32_SMM_MONITOR_VMXOFF_UNBLOCK_SMI     RT_BIT_64(2)
+%define MSR_IA32_SMM_MONITOR_MSGEG_PHYSADDR(a)      (((a) >> 12) & 0xfffff)
+%define MSR_IA32_SMBASE                     0x9E
 %define MSR_IA32_PMC0                       0xC1
 %define MSR_IA32_PMC1                       0xC2
 %define MSR_IA32_PMC2                       0xC3
@@ -429,6 +453,7 @@
 %define MSR_IA32_MCG_STATUS                 0x17A
 %define MSR_IA32_MCG_CTRL                   0x17B
 %define MSR_IA32_CR_PAT                     0x277
+%define MSR_IA32_CR_PAT_INIT_VAL            0x0007040600070406
 %define MSR_IA32_PERFEVTSEL0                0x186
 %define MSR_IA32_PERFEVTSEL1                0x187
 %define MSR_FLEX_RATIO                      0x194
@@ -447,6 +472,26 @@
 %define MSR_IA32_MISC_ENABLE_XTPR_MSG_DISABLE  RT_BIT_64(23)
 %define MSR_IA32_MISC_ENABLE_XD_DISABLE        RT_BIT_64(34)
 %define MSR_IA32_DEBUGCTL                   0x000001d9
+%define MSR_IA32_DEBUGCTL_LBR               RT_BIT_64(0)
+%define MSR_IA32_DEBUGCTL_BTF               RT_BIT_64(1)
+%define MSR_IA32_DEBUGCTL_PB0               RT_BIT_64(2)
+%define MSR_IA32_DEBUGCTL_PB1               RT_BIT_64(3)
+%define MSR_IA32_DEBUGCTL_PB2               RT_BIT_64(4)
+%define MSR_IA32_DEBUGCTL_PB3               RT_BIT_64(5)
+%define MSR_IA32_DEBUGCTL_TR                RT_BIT_64(6)
+%define MSR_IA32_DEBUGCTL_BTS               RT_BIT_64(7)
+%define MSR_IA32_DEBUGCTL_BTINT             RT_BIT_64(8)
+%define MSR_IA32_DEBUGCTL_BTS_OFF_OS        RT_BIT_64(9)
+%define MSR_IA32_DEBUGCTL_BTS_OFF_USER      RT_BIT_64(10)
+%define MSR_IA32_DEBUGCTL_FREEZE_LBR_ON_PMI       RT_BIT_64(11)
+%define MSR_IA32_DEBUGCTL_FREEZE_PERFMON_ON_PMI   RT_BIT_64(12)
+%define MSR_IA32_DEBUGCTL_FREEZE_WHILE_SMM_EM     RT_BIT_64(14)
+%define MSR_IA32_DEBUGCTL_RTM               RT_BIT_64(15)
+%define MSR_IA32_DEBUGCTL_VALID_MASK_INTEL  (  MSR_IA32_DEBUGCTL_LBR | MSR_IA32_DEBUGCTL_BTF   | MSR_IA32_DEBUGCTL_TR  \
+                                             | MSR_IA32_DEBUGCTL_BTS | MSR_IA32_DEBUGCTL_BTINT | MSR_IA32_DEBUGCTL_BTS_OFF_OS \
+                                             | MSR_IA32_DEBUGCTL_BTS_OFF_USER | MSR_IA32_DEBUGCTL_FREEZE_LBR_ON_PMI \
+                                             | MSR_IA32_DEBUGCTL_FREEZE_PERFMON_ON_PMI | MSR_IA32_DEBUGCTL_FREEZE_WHILE_SMM_EM \
+                                             | MSR_IA32_DEBUGCTL_RTM)
 %define MSR_P4_LASTBRANCH_TOS               0x000001da
 %define MSR_P4_LASTBRANCH_0                 0x000001db
 %define MSR_P4_LASTBRANCH_1                 0x000001dc
@@ -490,7 +535,7 @@
 %define MSR_IA32_PEBS_ENABLE                0x3F1
 %define MSR_IA32_MC0_CTL                    0x400
 %define MSR_IA32_MC0_STATUS                 0x401
-%define MSR_IA32_VMX_BASIC_INFO             0x480
+%define MSR_IA32_VMX_BASIC                  0x480
 %define MSR_IA32_VMX_PINBASED_CTLS          0x481
 %define MSR_IA32_VMX_PROCBASED_CTLS         0x482
 %define MSR_IA32_VMX_EXIT_CTLS              0x483
@@ -501,13 +546,14 @@
 %define MSR_IA32_VMX_CR4_FIXED0             0x488
 %define MSR_IA32_VMX_CR4_FIXED1             0x489
 %define MSR_IA32_VMX_VMCS_ENUM              0x48A
-%define MSR_IA32_VMX_VMFUNC                 0x491
 %define MSR_IA32_VMX_PROCBASED_CTLS2        0x48B
 %define MSR_IA32_VMX_EPT_VPID_CAP           0x48C
 %define MSR_IA32_VMX_TRUE_PINBASED_CTLS     0x48D
 %define MSR_IA32_VMX_TRUE_PROCBASED_CTLS    0x48E
 %define MSR_IA32_VMX_TRUE_EXIT_CTLS         0x48F
 %define MSR_IA32_VMX_TRUE_ENTRY_CTLS        0x490
+%define MSR_IA32_VMX_VMFUNC                 0x491
+%define MSR_IA32_RTIT_CTL                   0x570
 %define MSR_IA32_DS_AREA                    0x600
 %define MSR_RAPL_POWER_UNIT                 0x606
 %define MSR_IA32_X2APIC_START               0x800
@@ -561,7 +607,9 @@
 %define MSR_K6_EFER                         0xc0000080
 %define  MSR_K6_EFER_SCE                     RT_BIT_32(0)
 %define  MSR_K6_EFER_LME                     RT_BIT_32(8)
+%define  MSR_K6_EFER_BIT_LME                 8
 %define  MSR_K6_EFER_LMA                     RT_BIT_32(10)
+%define  MSR_K6_EFER_BIT_LMA                 10
 %define  MSR_K6_EFER_NXE                     RT_BIT_32(11)
 %define  MSR_K6_EFER_BIT_NXE                 11
 %define  MSR_K6_EFER_SVME                    RT_BIT_32(12)
@@ -636,6 +684,10 @@
 %define X86_PAGE_4M_OFFSET_MASK             0x003fffff
 %define X86_PAGE_4M_BASE_MASK               0xffffffffffc00000
 %define X86_PAGE_4M_BASE_MASK_32            0xffc00000
+%define X86_PAGE_1G_SIZE                    _1G
+%define X86_PAGE_1G_SHIFT                   30
+%define X86_PAGE_1G_OFFSET_MASK             0x3fffffff
+%define X86_PAGE_1G_BASE_MASK               0xffffffffc0000000
 %define X86_IS_CANONICAL(a_u64Addr)         ((uint64_t)(a_u64Addr) + 0x800000000000 < UINT64_C(0x1000000000000))
 %define X86_PTE_BIT_P                       0
 %define X86_PTE_BIT_RW                      1
@@ -789,6 +841,8 @@
 %define X86_INVPCID_TYPE_ALL_CONTEXT_INCL_GLOBAL    2
 %define X86_INVPCID_TYPE_ALL_CONTEXT_EXCL_GLOBAL    3
 %define X86_INVPCID_TYPE_MAX_VALID                  X86_INVPCID_TYPE_ALL_CONTEXT_EXCL_GLOBAL
+%ifndef VBOX_FOR_DTRACE_LIB
+%endif
 %ifndef VBOX_FOR_DTRACE_LIB
 %endif
 %ifndef VBOX_FOR_DTRACE_LIB

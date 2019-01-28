@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2017 Oracle Corporation
+ * Copyright (C) 2011-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -175,7 +175,7 @@ static const struct RTDVMMBRFS2VOLTYPE
     { 0xa5, RTDVMVOLTYPE_FREEBSD },
     { 0xa9, RTDVMVOLTYPE_NETBSD },
     { 0xa6, RTDVMVOLTYPE_OPENBSD },
-    { 0xaf, RTDVMVOLTYPE_MAC_OSX_HFS },
+    { 0xaf, RTDVMVOLTYPE_DARWIN_HFS },
     { 0xbf, RTDVMVOLTYPE_SOLARIS },
     { 0xfd, RTDVMVOLTYPE_LINUX_SOFTRAID }
 };
@@ -230,7 +230,7 @@ static void rtDvmFmtMbrDestroy(PRTDVMFMTINTERNAL pThis)
 
 static int rtDvmFmtMbrReadExtended(PRTDVMFMTINTERNAL pThis, PRTDVMMBRENTRY pPrimaryEntry)
 {
-    uint32_t const  cbExt       = pPrimaryEntry->cbPart;
+    uint64_t const  cbExt       = pPrimaryEntry->cbPart;
     uint64_t const  offExtBegin = pPrimaryEntry->offPart;
 
     uint64_t        offCurBegin = offExtBegin;
@@ -500,15 +500,46 @@ static DECLCALLBACK(void) rtDvmFmtMbrClose(RTDVMFMT hVolMgrFmt)
     rtDvmFmtMbrDestroy(hVolMgrFmt);
 }
 
-static DECLCALLBACK(int) rtDvmFmtMbrQueryRangeUse(RTDVMFMT hVolMgrFmt,
-                                                  uint64_t off, uint64_t cbRange,
-                                                  bool *pfUsed)
+static DECLCALLBACK(int) rtDvmFmtMbrQueryRangeUse(RTDVMFMT hVolMgrFmt, uint64_t off, uint64_t cbRange, bool *pfUsed)
 {
-    NOREF(hVolMgrFmt);
-    NOREF(cbRange);
+    PRTDVMFMTINTERNAL pThis = hVolMgrFmt;
 
-    /* MBR uses the first sector only. */
-    *pfUsed = off < 512;
+    /*
+     * The MBR definitely uses the first 512 bytes, but we consider anything up
+     * to 1MB of alignment padding / cylinder gap to be considered in use too.
+     *
+     * The cylinder gap has been used by several boot managers and boot loaders
+     * to store code and data.
+     */
+    if (off < (uint64_t)_1M)
+    {
+        *pfUsed = true;
+        return VINF_SUCCESS;
+    }
+
+    /* Ditto for any extended partition tables. */
+    for (uint32_t iPrimary = 0; iPrimary < 4; iPrimary++)
+    {
+        PRTDVMMBRSECTOR pCur = pThis->Primary.aEntries[iPrimary].pChain;
+        while (pCur)
+        {
+            if (    off           < pCur->offOnDisk + _1M
+                &&  off + cbRange > pCur->offOnDisk)
+            {
+                *pfUsed = true;
+                return VINF_SUCCESS;
+            }
+
+
+            if (pCur->idxExtended == UINT8_MAX)
+                break;
+            pCur = pCur->aEntries[pCur->idxExtended].pChain;
+        }
+
+    }
+
+    /* Not in use. */
+    *pfUsed = false;
     return VINF_SUCCESS;
 }
 
@@ -616,10 +647,8 @@ static DECLCALLBACK(uint64_t) rtDvmFmtMbrVolumeGetFlags(RTDVMVOLUMEFMT hVolFmt)
     return fFlags;
 }
 
-static DECLCALLBACK(bool) rtDvmFmtMbrVolumeIsRangeIntersecting(RTDVMVOLUMEFMT hVolFmt,
-                                                               uint64_t offStart, size_t cbRange,
-                                                               uint64_t *poffVol,
-                                                               uint64_t *pcbIntersect)
+static DECLCALLBACK(bool) rtDvmFmtMbrVolumeIsRangeIntersecting(RTDVMVOLUMEFMT hVolFmt, uint64_t offStart, size_t cbRange,
+                                                               uint64_t *poffVol, uint64_t *pcbIntersect)
 {
     PRTDVMVOLUMEFMTINTERNAL pVol = hVolFmt;
 

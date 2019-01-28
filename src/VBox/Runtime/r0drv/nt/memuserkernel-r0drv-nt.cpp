@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,7 +31,9 @@
 #include "the-nt-kernel.h"
 
 #include <iprt/mem.h>
-#include <iprt/err.h>
+#include <iprt/errcore.h>
+
+#include "internal-r0drv-nt.h"
 
 
 RTR0DECL(int) RTR0MemUserCopyFrom(void *pvDst, RTR3PTR R3PtrSrc, size_t cb)
@@ -67,22 +69,22 @@ RTR0DECL(int) RTR0MemUserCopyTo(RTR3PTR R3PtrDst, void const *pvSrc, size_t cb)
 RTR0DECL(bool) RTR0MemUserIsValidAddr(RTR3PTR R3Ptr)
 {
 #ifdef IPRT_TARGET_NT4
-    /* Play safe+wrong... it used to be a constant, but in w2k+ is a variable. */
-    return R3Ptr < _2G;
+    uintptr_t const uLast = g_puRtMmHighestUserAddress ? *g_puRtMmHighestUserAddress : ~(uintptr_t)0 / 2;
 #else
-    return R3Ptr <= (uintptr_t)MM_HIGHEST_USER_ADDRESS;
+    uintptr_t const uLast = (uintptr_t)MM_HIGHEST_USER_ADDRESS;
 #endif
+    return R3Ptr <= uLast;
 }
 
 
 RTR0DECL(bool) RTR0MemKernelIsValidAddr(void *pv)
 {
 #ifdef IPRT_TARGET_NT4
-    /* Play safe+wrong... it used to be a constant, but in w2k+ is a variable. */
-    return (uintptr_t)pv >= _2G;
+    uintptr_t const uFirst = g_puRtMmSystemRangeStart ? *g_puRtMmSystemRangeStart : ~(uintptr_t)0 / 2 + 1;
 #else
-    return (uintptr_t)pv >= (uintptr_t)MM_SYSTEM_RANGE_START;
+    uintptr_t const uFirst = (uintptr_t)MM_SYSTEM_RANGE_START;
 #endif
+    return (uintptr_t)pv >= uFirst;
 }
 
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2017 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,20 +15,16 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QApplication>
-# include <QPainter>
-# include <QStyle>
-# include <QGraphicsSceneMouseEvent>
+#include <QApplication>
+#include <QGraphicsScene>
+#include <QGraphicsView>
+#include <QPainter>
+#include <QStyle>
+#include <QGraphicsSceneMouseEvent>
 
 /* GUI includes: */
-# include "UIGraphicsButton.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "UIGraphicsButton.h"
 
 
 UIGraphicsButton::UIGraphicsButton(QIGraphicsWidget *pParent, const QIcon &icon)
@@ -89,7 +85,15 @@ void UIGraphicsButton::paint(QPainter *pPainter, const QStyleOptionGraphicsItem*
     const int iMargin = data(GraphicsButton_Margin).toInt();
     const QIcon icon = data(GraphicsButton_Icon).value<QIcon>();
     const QSize expectedIconSize = data(GraphicsButton_IconSize).toSize();
-    const QPixmap pixmap = icon.pixmap(expectedIconSize);
+    /* Determine which QWindow this QGraphicsWidget belongs to: */
+    QWindow *pWindow = 0;
+    if (   scene()
+        && !scene()->views().isEmpty()
+        && scene()->views().first()
+        && scene()->views().first()->window())
+        pWindow = scene()->views().first()->window()->windowHandle();
+    /* Acquire pixmap: */
+    const QPixmap pixmap = icon.pixmap(pWindow, expectedIconSize);
     const QSize actualIconSize = pixmap.size() / pixmap.devicePixelRatio();
     QPoint position = QPoint(iMargin, iMargin);
     if (actualIconSize != expectedIconSize)

@@ -5,7 +5,7 @@
 #
 
 #
-# Copyright (C) 2007-2017 Oracle Corporation
+# Copyright (C) 2007-2019 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -90,7 +90,7 @@ chown -R root:admin /Applications/VirtualBox.app
 # Workaround for 10.11 beta 6 in which the above chown strips the set-uid-to-root bit.
 #
 SET_UID_BINARIES="VBoxNetAdpCtl"
-SET_UID_BINARIES="${SET_UID_BINARIES} VBoxHeadless VirtualBox VirtualBoxVM VBoxNetDHCP VBoxNetNAT" # WITH_HARDENING
+SET_UID_BINARIES="${SET_UID_BINARIES} VBoxHeadless VirtualBoxVM VBoxNetDHCP VBoxNetNAT" # WITH_HARDENING
 for bin in ${SET_UID_BINARIES}; do
     chmod u+s "/Applications/VirtualBox.app/Contents/MacOS/${bin}"
 done

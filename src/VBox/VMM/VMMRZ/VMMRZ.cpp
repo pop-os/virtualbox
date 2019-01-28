@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -146,6 +146,8 @@ VMMRZDECL(void) VMMRZCallRing3Disable(PVMCPU pVCpu)
         if (pVCpu->vmm.s.pR0LoggerR0)
             pVCpu->vmm.s.pR0LoggerR0->fFlushingDisabled = true;
 # endif
+        if (pVCpu->vmm.s.pR0RelLoggerR0)
+            pVCpu->vmm.s.pR0RelLoggerR0->fFlushingDisabled = true;
 #endif
     }
 
@@ -178,6 +180,8 @@ VMMRZDECL(void) VMMRZCallRing3Enable(PVMCPU pVCpu)
         if (pVCpu->vmm.s.pR0LoggerR0)
             pVCpu->vmm.s.pR0LoggerR0->fFlushingDisabled = false;
 # endif
+        if (pVCpu->vmm.s.pR0RelLoggerR0)
+            pVCpu->vmm.s.pR0RelLoggerR0->fFlushingDisabled = false;
 #endif
     }
 

@@ -5,7 +5,7 @@
 #
 
 #
-# Copyright (C) 2007-2017 Oracle Corporation
+# Copyright (C) 2007-2019 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -59,12 +59,15 @@ for item in $items; do
         kextunload -b $kext_item
     fi
 done
-echo "Loading newly installed kernel extensions."
-kextload "/Library/Extensions/VBoxGuest.kext"
+
+echo "Updating kernel cache (should trigger loading of new modules)."
+touch "/System/Library/Extensions/"
+kextcache -update-volume / || true
 
 load_service "org.virtualbox.additions.vboxservice" "/Library/LaunchDaemons" "root"
 load_service "org.virtualbox.additions.vboxclient" "/Library/LaunchAgents" "${USER}"
 
+echo "Warning: If VBoxService adjusts the time backwards (because of --biossystemtimeoffset), the installer may hang."
 echo "Done."
 
 exit 0;

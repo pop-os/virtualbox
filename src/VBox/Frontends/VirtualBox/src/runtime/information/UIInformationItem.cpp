@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2017 Oracle Corporation
+ * Copyright (C) 2016-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,22 +15,16 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QApplication>
-# include <QPainter>
-# include <QTextDocument>
-# include <QUrl>
+#include <QApplication>
+#include <QPainter>
+#include <QTextDocument>
+#include <QUrl>
 
 /* GUI includes: */
-# include "VBoxGlobal.h"
-# include "UIIconPool.h"
-# include "UIInformationItem.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "VBoxGlobal.h"
+#include "UIIconPool.h"
+#include "UIInformationItem.h"
 
 
 UIInformationItem::UIInformationItem(QObject *pParent)
@@ -182,8 +176,13 @@ void UIInformationItem::updateTextLayout() const
     }
 
     /* Add pixmap to text-document as image resource: */
-    m_pTextDocument->addResource(QTextDocument::ImageResource, QUrl(strIconTag),
-                                 UIIconPool::iconSet(m_strIcon).pixmap(iIconMetric, iIconMetric));
+    if (parent() && parent()->isWidgetType() && qobject_cast<QWidget*>(parent())->window())
+        m_pTextDocument->addResource(QTextDocument::ImageResource, QUrl(strIconTag),
+                                     UIIconPool::iconSet(m_strIcon).pixmap(qobject_cast<QWidget*>(parent())->window()->windowHandle(),
+                                                                           QSize(iIconMetric, iIconMetric)));
+    else
+        m_pTextDocument->addResource(QTextDocument::ImageResource, QUrl(strIconTag),
+                                     UIIconPool::iconSet(m_strIcon).pixmap(iIconMetric, iIconMetric));
 
     /* Set html-data: */
     m_pTextDocument->setHtml(report);

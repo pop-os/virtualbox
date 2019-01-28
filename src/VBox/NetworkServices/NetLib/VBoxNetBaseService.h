@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___VBoxNetBaseService_h___
-#define ___VBoxNetBaseService_h___
+#ifndef VBOX_INCLUDED_SRC_NetLib_VBoxNetBaseService_h
+#define VBOX_INCLUDED_SRC_NetLib_VBoxNetBaseService_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/critsect.h>
 
@@ -142,4 +145,4 @@ protected:
     PRTGETOPTDEF getOptionsPtr();
 };
 # endif
-#endif
+#endif /* !VBOX_INCLUDED_SRC_NetLib_VBoxNetBaseService_h */

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,12 +23,14 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_sup_h
-#define ___VBox_sup_h
+#ifndef VBOX_INCLUDED_sup_h
+#define VBOX_INCLUDED_sup_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/cdefs.h>
 #include <VBox/types.h>
-#include <VBox/err.h>
 #include <iprt/assert.h>
 #include <iprt/stdarg.h>
 #include <iprt/cpuset.h>
@@ -106,6 +108,50 @@ typedef enum SUPPAGINGMODE
 /** GDT is read-only but the writable GDT can be fetched by SUPR0GetCurrentGdtRw(). */
 #define SUPKERNELFEATURES_GDT_NEED_WRITABLE   RT_BIT(2)
 /** @} */
+
+
+/**
+ * Hardware-virtualization MSRs.
+ */
+typedef struct SUPHWVIRTMSRS
+{
+    union
+    {
+        struct
+        {
+            uint64_t        u64FeatCtrl;
+            uint64_t        u64Basic;
+            uint64_t        u64PinCtls;
+            uint64_t        u64ProcCtls;
+            uint64_t        u64ProcCtls2;
+            uint64_t        u64ExitCtls;
+            uint64_t        u64EntryCtls;
+            uint64_t        u64TruePinCtls;
+            uint64_t        u64TrueProcCtls;
+            uint64_t        u64TrueEntryCtls;
+            uint64_t        u64TrueExitCtls;
+            uint64_t        u64Misc;
+            uint64_t        u64Cr0Fixed0;
+            uint64_t        u64Cr0Fixed1;
+            uint64_t        u64Cr4Fixed0;
+            uint64_t        u64Cr4Fixed1;
+            uint64_t        u64VmcsEnum;
+            uint64_t        u64VmFunc;
+            uint64_t        u64EptVpidCaps;
+            uint64_t        a_u64Reserved[9];
+        } vmx;
+        struct
+        {
+            uint64_t        u64MsrHwcr;
+            uint64_t        u64Padding[27];
+        }svm;
+    } u;
+} SUPHWVIRTMSRS;
+AssertCompileSize(SUPHWVIRTMSRS, 224);
+/** Pointer to a hardware-virtualization MSRs struct. */
+typedef SUPHWVIRTMSRS *PSUPHWVIRTMSRS;
+/** Pointer to a hardware-virtualization MSRs struct. */
+typedef const SUPHWVIRTMSRS *PCSUPHWVIRTMSRS;
 
 
 /**
@@ -776,7 +822,7 @@ DECLINLINE(const char *) SUPGetGIPTscDeltaModeName(PSUPGLOBALINFOPAGE pGip)
     {
         case SUPGIPUSETSCDELTA_NOT_APPLICABLE:   return "Not Applicable";
         case SUPGIPUSETSCDELTA_ZERO_CLAIMED:     return "Zero Claimed";
-        case SUPGIPUSETSCDELTA_PRACTICALLY_ZERO: return "Pratically Zero";
+        case SUPGIPUSETSCDELTA_PRACTICALLY_ZERO: return "Practically Zero";
         case SUPGIPUSETSCDELTA_ROUGHLY_ZERO:     return "Roughly Zero";
         case SUPGIPUSETSCDELTA_NOT_ZERO:         return "Not Zero";
         default:                                 return "???";
@@ -809,9 +855,11 @@ typedef SUPVMMR0REQHDR *PSUPVMMR0REQHDR;
 #define SUP_VMMR0_DO_HM_RUN     1
 /** @see VMMR0_DO_NOP */
 #define SUP_VMMR0_DO_NOP        2
+/** @see VMMR0_DO_NEM_RUN */
+#define SUP_VMMR0_DO_NEM_RUN    3
 /** @} */
 
-/** SUPR3QueryVTCaps capability flags
+/** SUPR3QueryVTCaps capability flags.
  * @{
  */
 /** AMD-V support. */
@@ -1642,8 +1690,9 @@ SUPR3DECL(int) SUPR3HardenedLdrLoadPlugIn(const char *pszFilename, PRTLDRMOD phL
  * Check if the host kernel can run in VMX root mode.
  *
  * @returns VINF_SUCCESS if supported, error code indicating why if not.
+ * @param   ppszWhy         Where to return an explanatory message on failure.
  */
-SUPR3DECL(int) SUPR3QueryVTxSupported(void);
+SUPR3DECL(int) SUPR3QueryVTxSupported(const char **ppszWhy);
 
 /**
  * Return VT-x/AMD-V capabilities.
@@ -1654,6 +1703,16 @@ SUPR3DECL(int) SUPR3QueryVTxSupported(void);
  *       when accessing certain vboxdrv functions.
  */
 SUPR3DECL(int) SUPR3QueryVTCaps(uint32_t *pfCaps);
+
+/**
+ * Check if NEM is supported when no VT-x/AMD-V is indicated by the CPU.
+ *
+ * This is really only for the windows case where we're running in a root
+ * partition and isn't allowed to use the hardware directly.
+ *
+ * @returns True if NEM API support, false if not.
+ */
+SUPR3DECL(bool) SUPR3IsNemSupportedWhenNoVtxOrAmdV(void);
 
 /**
  * Open the tracer.
@@ -1824,6 +1883,16 @@ SUPR3DECL(int) SUPR3GipSetFlags(uint32_t fOrMask, uint32_t fAndMask);
  */
 SUPR3DECL(int) SUPR3QueryMicrocodeRev(uint32_t *puMicrocodeRev);
 
+/**
+ * Gets hardware-virtualization MSRs of the CPU, if available.
+ *
+ * @returns VINF_SUCCESS if available, error code indicating why if not.
+ * @param   pHwvirtMsrs     Where to store the hardware-virtualization MSRs.
+ * @param   fForceRequery   Whether to force complete re-querying of MSRs (rather
+ *                          than fetching cached values when available).
+ */
+SUPR3DECL(int) SUPR3GetHwvirtMsrs(PSUPHWVIRTMSRS pHwvirtMsrs, bool fForceRequery);
+
 /** @} */
 #endif /* IN_RING3 */
 
@@ -1905,6 +1974,8 @@ SUPR0DECL(int) SUPR0PageMapKernel(PSUPDRVSESSION pSession, RTR3PTR pvR3, uint32_
 SUPR0DECL(int) SUPR0PageProtect(PSUPDRVSESSION pSession, RTR3PTR pvR3, RTR0PTR pvR0, uint32_t offSub, uint32_t cbSub, uint32_t fProt);
 SUPR0DECL(int) SUPR0PageFree(PSUPDRVSESSION pSession, RTR3PTR pvR3);
 SUPR0DECL(int) SUPR0GipMap(PSUPDRVSESSION pSession, PRTR3PTR ppGipR3, PRTHCPHYS pHCPhysGip);
+SUPR0DECL(int) SUPR0GetVTSupport(uint32_t *pfCaps);
+SUPR0DECL(int) SUPR0GetHwvirtMsrs(PSUPHWVIRTMSRS pMsrs, uint32_t fCaps, bool fForce);
 SUPR0DECL(int) SUPR0GetSvmUsability(bool fInitSvm);
 SUPR0DECL(int) SUPR0GetVmxUsability(bool *pfIsSmxModeAmbiguous);
 SUPR0DECL(int) SUPR0GetRawModeUsability(void);
@@ -1925,6 +1996,60 @@ SUPR0DECL(int) SUPR0TscDeltaMeasureBySetIndex(PSUPDRVSESSION pSession, uint32_t 
 
 SUPR0DECL(void) SUPR0BadContext(PSUPDRVSESSION pSession, const char *pszFile, uint32_t uLine, const char *pszExpr);
 
+/** Context structure returned by SUPR0IoCtlSetup for use with
+ * SUPR0IoCtlPerform and cleaned up by SUPR0IoCtlCleanup. */
+typedef struct SUPR0IOCTLCTX *PSUPR0IOCTLCTX;
+
+/**
+ * Sets up a I/O control context for the given handle.
+ *
+ * @returns VBox status code.
+ * @param   pSession        The support driver session.
+ * @param   hHandle         The handle.
+ * @param   fFlags          Flag, MBZ.
+ * @param   ppCtx           Where the context is returned.
+ */
+SUPR0DECL(int) SUPR0IoCtlSetupForHandle(PSUPDRVSESSION pSession, intptr_t hHandle, uint32_t fFlags, PSUPR0IOCTLCTX *ppCtx);
+
+/**
+ * Cleans up the I/O control context when done.
+ *
+ * This won't close the handle passed to SUPR0IoCtlSetupForHandle.
+ *
+ * @returns VBox status code.
+ * @param   pCtx            The I/O control context to cleanup.
+ */
+SUPR0DECL(int) SUPR0IoCtlCleanup(PSUPR0IOCTLCTX pCtx);
+
+/**
+ * Performs an I/O control operation.
+ *
+ * @returns VBox status code.
+ * @param   pCtx            The I/O control context returned by
+ *                          SUPR0IoCtlSetupForHandle.
+ * @param   uFunction       The I/O control function to perform.
+ * @param   pvInput         Pointer to input buffer (ring-0).
+ * @param   pvInputUser     Ring-3 pointer corresponding to @a pvInput.
+ * @param   cbInput         The amount of input.  If zero, both input pointers
+ *                          are expected to be NULL.
+ * @param   pvOutput        Pointer to output buffer (ring-0).
+ * @param   pvOutputUser    Ring-3 pointer corresponding to @a pvInput.
+ * @param   cbOutput        The amount of input.  If zero, both input pointers
+ *                          are expected to be NULL.
+ * @param   piNativeRc      Where to return the native return code.   When
+ *                          specified the VBox status code will typically be
+ *                          VINF_SUCCESS and the caller have to consult this for
+ *                          the actual result of the operation.  (This saves
+ *                          pointless status code conversion.)  Optional.
+ *
+ * @note    On unix systems where there is only one set of buffers possible,
+ *          pass the same pointers as input and output.
+ */
+SUPR0DECL(int)  SUPR0IoCtlPerform(PSUPR0IOCTLCTX pCtx, uintptr_t uFunction,
+                                  void *pvInput, RTR3PTR pvInputUser, size_t cbInput,
+                                  void *pvOutput, RTR3PTR pvOutputUser, size_t cbOutput,
+                                  int32_t *piNativeRc);
+
 /**
  * Writes to the debugger and/or kernel log.
  *
@@ -1943,6 +2068,13 @@ SUPR0DECL(int)  SUPR0Printf(const char *pszFormat, ...) RT_IPRT_FORMAT_ATTR(1, 2
  * @returns Combination of SUPKERNELFEATURES_XXX flags.
  */
 SUPR0DECL(uint32_t) SUPR0GetKernelFeatures(void);
+
+/** @copydoc RTLogGetDefaultInstanceEx
+ * @remarks To allow overriding RTLogGetDefaultInstanceEx locally. */
+SUPR0DECL(struct RTLOGGER *) SUPR0GetDefaultLogInstanceEx(uint32_t fFlagsAndGroup);
+/** @copydoc RTLogRelGetDefaultInstanceEx
+ * @remarks To allow overriding RTLogRelGetDefaultInstanceEx locally. */
+SUPR0DECL(struct RTLOGGER *) SUPR0GetDefaultLogRelInstanceEx(uint32_t fFlagsAndGroup);
 
 
 /** @name Absolute symbols
@@ -2385,5 +2517,5 @@ extern const unsigned               g_cbSUPBuildCert;
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !VBOX_INCLUDED_sup_h */
 

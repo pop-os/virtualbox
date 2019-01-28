@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2017 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef _VBOX_NETNAT_LWIP_OPTS_H_
-#define _VBOX_NETNAT_LWIP_OPTS_H_
+#ifndef VBOX_INCLUDED_SRC_NAT_lwipopts_h
+#define VBOX_INCLUDED_SRC_NAT_lwipopts_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/cdefs.h>     /* For VBOX_STRICT. */
 #include <iprt/mem.h>
@@ -167,7 +170,7 @@
 
 /* MEMP_NUM_SYS_TIMEOUT: the number of simultaneously active
    timeouts. */
-#define MEMP_NUM_SYS_TIMEOUT    16
+#define MEMP_NUM_SYS_TIMEOUT    256
 
 
 /* this is required for IPv6 and IGMP needs */
@@ -199,4 +202,4 @@
 # define LWIP_NOASSERT 1
 #endif
 
-#endif /* _VBOX_NETNAT_LWIP_OPTS_H_ */
+#endif /* !VBOX_INCLUDED_SRC_NAT_lwipopts_h */

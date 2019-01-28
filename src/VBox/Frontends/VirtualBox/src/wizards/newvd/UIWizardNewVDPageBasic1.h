@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __UIWizardNewVDPageBasic1_h__
-#define __UIWizardNewVDPageBasic1_h__
+#ifndef FEQT_INCLUDED_SRC_wizards_newvd_UIWizardNewVDPageBasic1_h
+#define FEQT_INCLUDED_SRC_wizards_newvd_UIWizardNewVDPageBasic1_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* GUI includes: */
 #include "UIWizardPage.h"
@@ -31,8 +34,9 @@ class QButtonGroup;
 class QRadioButton;
 class QIRichTextLabel;
 
+
 /* 1st page of the New Virtual Hard Drive wizard (base part): */
-class UIWizardNewVDPage1 : public UIWizardPageBase
+class SHARED_LIBRARY_STUFF UIWizardNewVDPage1 : public UIWizardPageBase
 {
 protected:
 
@@ -52,8 +56,9 @@ protected:
     QStringList m_formatNames;
 };
 
+
 /* 1st page of the New Virtual Hard Drive wizard (basic extension): */
-class UIWizardNewVDPageBasic1 : public UIWizardPage, public UIWizardNewVDPage1
+class SHARED_LIBRARY_STUFF UIWizardNewVDPageBasic1 : public UIWizardPage, public UIWizardNewVDPage1
 {
     Q_OBJECT;
     Q_PROPERTY(CMediumFormat mediumFormat READ mediumFormat WRITE setMediumFormat);
@@ -81,5 +86,5 @@ private:
     QIRichTextLabel *m_pLabel;
 };
 
-#endif // __UIWizardNewVDPageBasic1_h__
 
+#endif /* !FEQT_INCLUDED_SRC_wizards_newvd_UIWizardNewVDPageBasic1_h */

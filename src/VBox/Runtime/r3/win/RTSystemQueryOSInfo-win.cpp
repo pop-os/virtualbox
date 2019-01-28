@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -35,8 +35,10 @@
 #include "internal-r3-win.h"
 #include <iprt/system.h>
 #include <iprt/assert.h>
-#include <iprt/string.h>
 #include <iprt/ctype.h>
+#include <iprt/errcore.h>
+#include <iprt/string.h>
+#include <iprt/utf16.h>
 
 
 /*********************************************************************************************************************************
@@ -190,6 +192,8 @@ static int rtSystemWinQueryOSVersion(RTSYSOSINFO enmInfo, char *pszInfo, size_t 
                 case kRTWinOSType_98SP1:        strcpy(szTmp, "Windows 98 (Service Pack 1)"); break;
                 case kRTWinOSType_98SE:         strcpy(szTmp, "Windows 98 (Second Edition)"); break;
                 case kRTWinOSType_ME:           strcpy(szTmp, "Windows Me"); break;
+                case kRTWinOSType_NT310:        strcpy(szTmp, "Windows NT 3.10"); break;
+                case kRTWinOSType_NT350:        strcpy(szTmp, "Windows NT 3.50"); break;
                 case kRTWinOSType_NT351:        strcpy(szTmp, "Windows NT 3.51"); break;
                 case kRTWinOSType_NT4:          strcpy(szTmp, "Windows NT 4.0"); break;
                 case kRTWinOSType_2K:           strcpy(szTmp, "Windows 2000"); break;
@@ -336,5 +340,17 @@ RTDECL(int) RTSystemQueryOSInfo(RTSYSOSINFO enmInfo, char *pszInfo, size_t cchIn
     }
 
     return VERR_NOT_SUPPORTED;
+}
+
+
+RTDECL(uint32_t) RTSystemGetNtBuildNo(void)
+{
+    return g_WinOsInfoEx.dwBuildNumber;
+}
+
+
+RTDECL(uint64_t) RTSystemGetNtVersion(void)
+{
+    return RTSYSTEM_MAKE_NT_VERSION(g_WinOsInfoEx.dwMajorVersion, g_WinOsInfoEx.dwMinorVersion, g_WinOsInfoEx.dwBuildNumber);
 }
 

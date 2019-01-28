@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -30,7 +30,7 @@
 *********************************************************************************************************************************/
 #include <iprt/list.h>
 
-#include <iprt/err.h>
+#include <iprt/errcore.h>
 #include <iprt/mem.h>
 #include <iprt/string.h>
 #include <iprt/test.h>
@@ -130,8 +130,6 @@ static void tstRTListCreate(RTTEST hTest, unsigned cElements)
 
     /* Move the list to a new one. */
     RTLISTANCHOR ListHeadNew;
-
-    RTListInit(&ListHeadNew);
     RTListMove(&ListHeadNew, &ListHead);
 
     RTTEST_CHECK(hTest, RTListIsEmpty(&ListHead) == true);

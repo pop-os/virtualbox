@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -276,7 +276,7 @@ SUPR3DECL(int) SUPR3InitEx(bool fUnrestricted, PSUPDRVSESSION *ppSession)
         strcpy(CookieReq.u.In.szMagic, SUPCOOKIE_MAGIC);
         CookieReq.u.In.u32ReqVersion = SUPDRV_IOC_VERSION;
         const uint32_t uMinVersion = (SUPDRV_IOC_VERSION & 0xffff0000) == 0x00290000
-                                   ? 0x00290001
+                                   ? 0x00290008
                                    : SUPDRV_IOC_VERSION & 0xffff0000;
         CookieReq.u.In.u32MinVersion = uMinVersion;
         rc = suplibOsIOCtl(&g_supLibData, SUP_IOCTL_COOKIE, &CookieReq, SUP_IOCTL_COOKIE_SIZE);
@@ -612,15 +612,19 @@ static int supCallVMMR0ExFake(PVMR0 pVMR0, unsigned uOperation, uint64_t u64Arg,
 SUPR3DECL(int) SUPR3CallVMMR0Fast(PVMR0 pVMR0, unsigned uOperation, VMCPUID idCpu)
 {
     NOREF(pVMR0);
-    if (RT_LIKELY(uOperation == SUP_VMMR0_DO_RAW_RUN))
-        return suplibOsIOCtlFast(&g_supLibData, SUP_IOCTL_FAST_DO_RAW_RUN, idCpu);
-    if (RT_LIKELY(uOperation == SUP_VMMR0_DO_HM_RUN))
-        return suplibOsIOCtlFast(&g_supLibData, SUP_IOCTL_FAST_DO_HM_RUN, idCpu);
-    if (RT_LIKELY(uOperation == SUP_VMMR0_DO_NOP))
-        return suplibOsIOCtlFast(&g_supLibData, SUP_IOCTL_FAST_DO_NOP, idCpu);
-
-    AssertMsgFailed(("%#x\n", uOperation));
-    return VERR_INTERNAL_ERROR;
+    static const uintptr_t s_auFunctions[4] =
+    {
+        SUP_IOCTL_FAST_DO_RAW_RUN,
+        SUP_IOCTL_FAST_DO_HM_RUN,
+        SUP_IOCTL_FAST_DO_NOP,
+        SUP_IOCTL_FAST_DO_NEM_RUN
+    };
+    AssertCompile(SUP_VMMR0_DO_RAW_RUN == 0);
+    AssertCompile(SUP_VMMR0_DO_HM_RUN  == 1);
+    AssertCompile(SUP_VMMR0_DO_NOP     == 2);
+    AssertCompile(SUP_VMMR0_DO_NEM_RUN == 3);
+    AssertMsgReturn(uOperation < RT_ELEMENTS(s_auFunctions), ("%#x\n", uOperation), VERR_INTERNAL_ERROR);
+    return suplibOsIOCtlFast(&g_supLibData, s_auFunctions[uOperation], idCpu);
 }
 
 
@@ -1658,10 +1662,11 @@ SUPR3DECL(int) SUPR3GipGetPhys(PRTHCPHYS pHCPhys)
 }
 
 
-SUPR3DECL(int) SUPR3QueryVTxSupported(void)
+SUPR3DECL(int) SUPR3QueryVTxSupported(const char **ppszWhy)
 {
+    *ppszWhy = NULL;
 #ifdef RT_OS_LINUX
-    return suplibOsQueryVTxSupported();
+    return suplibOsQueryVTxSupported(ppszWhy);
 #else
     return VINF_SUCCESS;
 #endif
@@ -1697,6 +1702,16 @@ SUPR3DECL(int) SUPR3QueryVTCaps(uint32_t *pfCaps)
             *pfCaps = Req.u.Out.fCaps;
     }
     return rc;
+}
+
+
+SUPR3DECL(bool) SUPR3IsNemSupportedWhenNoVtxOrAmdV(void)
+{
+#ifdef RT_OS_WINDOWS
+    return suplibOsIsNemSupportedWhenNoVtxOrAmdV();
+#else
+    return false;
+#endif
 }
 
 
@@ -2315,6 +2330,35 @@ SUPR3DECL(int) SUPR3GipSetFlags(uint32_t fOrMask, uint32_t fAndMask)
     int rc = suplibOsIOCtl(&g_supLibData, SUP_IOCTL_GIP_SET_FLAGS, &Req, SUP_IOCTL_GIP_SET_FLAGS_SIZE);
     if (RT_SUCCESS(rc))
         rc = Req.Hdr.rc;
+    return rc;
+}
+
+
+SUPR3DECL(int) SUPR3GetHwvirtMsrs(PSUPHWVIRTMSRS pHwvirtMsrs, bool fForceRequery)
+{
+    AssertReturn(pHwvirtMsrs, VERR_INVALID_PARAMETER);
+
+    SUPGETHWVIRTMSRS Req;
+    Req.Hdr.u32Cookie        = g_u32Cookie;
+    Req.Hdr.u32SessionCookie = g_u32SessionCookie;
+    Req.Hdr.cbIn             = SUP_IOCTL_GET_HWVIRT_MSRS_SIZE_IN;
+    Req.Hdr.cbOut            = SUP_IOCTL_GET_HWVIRT_MSRS_SIZE_OUT;
+    Req.Hdr.fFlags           = SUPREQHDR_FLAGS_DEFAULT;
+    Req.Hdr.rc               = VERR_INTERNAL_ERROR;
+
+    Req.u.In.fForce          = fForceRequery;
+    Req.u.In.fReserved0      = false;
+    Req.u.In.fReserved1      = false;
+    Req.u.In.fReserved2      = false;
+
+    int rc = suplibOsIOCtl(&g_supLibData, SUP_IOCTL_GET_HWVIRT_MSRS, &Req, SUP_IOCTL_GET_HWVIRT_MSRS_SIZE);
+    if (RT_SUCCESS(rc))
+    {
+        rc = Req.Hdr.rc;
+        *pHwvirtMsrs = Req.u.Out.HwvirtMsrs;
+    }
+    else
+        RT_ZERO(*pHwvirtMsrs);
     return rc;
 }
 

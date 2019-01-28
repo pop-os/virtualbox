@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -119,7 +119,7 @@ int vboxNetAdpCreate(PVBOXNETADP *ppNew, const char *pcszName)
             {
                 Log(("vboxNetAdpCreate: using name: %s\n", pcszName));
                 pThis->iUnit = vboxNetAdpGetUnitByName(pcszName);
-                strncpy(pThis->szName, pcszName, sizeof(pThis->szName));
+                strncpy(pThis->szName, pcszName, sizeof(pThis->szName) - 1);
                 pThis->szName[sizeof(pThis->szName) - 1] = '\0';
             }
             else

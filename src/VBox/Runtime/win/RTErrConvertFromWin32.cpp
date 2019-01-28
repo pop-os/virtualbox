@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -204,6 +204,8 @@ RTR3DECL(int)  RTErrConvertFromWin32(unsigned uNativeCode)
         case ERROR_ACCOUNT_DISABLED:        return VERR_ACCOUNT_RESTRICTED;
 
         case ERROR_INVALID_IMAGE_HASH:      return VERR_LDR_IMAGE_HASH;
+        case ERROR_UNRECOGNIZED_VOLUME:     return VERR_MEDIA_NOT_RECOGNIZED;
+        case ERROR_ELEVATION_REQUIRED:      return VERR_PROC_ELEVATION_REQUIRED;
 
 
         /*
@@ -388,6 +390,8 @@ RTR3DECL(int)  RTErrConvertFromWin32(unsigned uNativeCode)
         case WSAEHOSTUNREACH:      return VERR_NET_HOST_UNREACHABLE;
         case WSAEALREADY:          return VERR_NET_ALREADY_IN_PROGRESS;
         case WSAEINPROGRESS:       return VERR_NET_IN_PROGRESS;
+        case WSAEPROVIDERFAILEDINIT: return VERR_NET_INIT_FAILED;
+
         //case WSAESTALE                116     /* Stale NFS file handle */
         //case WSAEUCLEAN               117     /* Structure needs cleaning */
         //case WSAENOTNAM               118     /* Not a XENIX named type file */
@@ -420,6 +424,8 @@ RTR3DECL(int)  RTErrConvertFromWin32(unsigned uNativeCode)
 #ifdef WSANO_DATA
         case WSANO_DATA:            return VERR_NET_ADDRESS_NOT_AVAILABLE;
 #endif
+
+        case 1272 /*STATUS_SMB_GUEST_LOGON_BLOCKED*/: return VERR_AUTHENTICATION_FAILURE;
 
 
 #ifndef ERROR_NOT_A_REPARSE_POINT

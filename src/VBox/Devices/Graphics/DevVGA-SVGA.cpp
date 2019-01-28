@@ -11,7 +11,7 @@
  */
 
 /*
- * Copyright (C) 2013-2017 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -153,10 +153,8 @@
 #include "DevVGA.h"
 
 #include "DevVGA-SVGA.h"
-#include "vmsvga/svga_reg.h"
 #include "vmsvga/svga_escape.h"
 #include "vmsvga/svga_overlay.h"
-#include "vmsvga/svga3d_reg.h"
 #include "vmsvga/svga3d_caps.h"
 #ifdef VBOX_WITH_VMSVGA3D
 # include "DevVGA-SVGA3d.h"
@@ -240,6 +238,10 @@ typedef struct VMSVGAR3STATE
      *  busy (ugly).  */
     RTSEMEVENTMULTI         hBusyDelayedEmts;
 # endif
+
+    /** Information obout screens. */
+    VMSVGASCREENOBJECT aScreens[64];
+
     /** Tracks how much time we waste reading SVGA_REG_BUSY with a busy FIFO. */
     STAMPROFILE             StatBusyDelayEmts;
 
@@ -357,6 +359,25 @@ static SSMFIELD const g_aGMRFields[] =
 };
 
 /**
+ * SSM descriptor table for the VMSVGASCREENOBJECT structure.
+ */
+static SSMFIELD const g_aVMSVGASCREENOBJECTFields[] =
+{
+    SSMFIELD_ENTRY(             VMSVGASCREENOBJECT, fuScreen),
+    SSMFIELD_ENTRY(             VMSVGASCREENOBJECT, idScreen),
+    SSMFIELD_ENTRY(             VMSVGASCREENOBJECT, xOrigin),
+    SSMFIELD_ENTRY(             VMSVGASCREENOBJECT, yOrigin),
+    SSMFIELD_ENTRY(             VMSVGASCREENOBJECT, cWidth),
+    SSMFIELD_ENTRY(             VMSVGASCREENOBJECT, cHeight),
+    SSMFIELD_ENTRY(             VMSVGASCREENOBJECT, offVRAM),
+    SSMFIELD_ENTRY(             VMSVGASCREENOBJECT, cbPitch),
+    SSMFIELD_ENTRY(             VMSVGASCREENOBJECT, cBpp),
+    SSMFIELD_ENTRY(             VMSVGASCREENOBJECT, fDefined),
+    SSMFIELD_ENTRY(             VMSVGASCREENOBJECT, fModified),
+    SSMFIELD_ENTRY_TERM()
+};
+
+/**
  * SSM descriptor table for the VMSVGAR3STATE structure.
  */
 static SSMFIELD const g_aVMSVGAR3STATEFields[] =
@@ -454,7 +475,6 @@ static SSMFIELD const g_aVMSVGAR3STATEFields[] =
  */
 static SSMFIELD const g_aVGAStateSVGAFields[] =
 {
-    SSMFIELD_ENTRY_IGNORE(          VMSVGAState, u64HostWindowId),
     SSMFIELD_ENTRY_IGN_HCPTR(       VMSVGAState, pFIFOR3),
     SSMFIELD_ENTRY_IGN_HCPTR(       VMSVGAState, pFIFOR0),
     SSMFIELD_ENTRY_IGN_HCPTR(       VMSVGAState, pSvgaR3State),
@@ -483,10 +503,12 @@ static SSMFIELD const g_aVGAStateSVGAFields[] =
     SSMFIELD_ENTRY_IGNORE(          VMSVGAState, FIFORequestSem),
     SSMFIELD_ENTRY_IGNORE(          VMSVGAState, FIFOExtCmdSem),
     SSMFIELD_ENTRY_IGN_HCPTR(       VMSVGAState, pFIFOIOThread),
+    SSMFIELD_ENTRY_VER(             VMSVGAState, fGFBRegisters, VGA_SAVEDSTATE_VERSION_VMSVGA_SCREENS),
     SSMFIELD_ENTRY(                 VMSVGAState, uWidth),
     SSMFIELD_ENTRY(                 VMSVGAState, uHeight),
     SSMFIELD_ENTRY(                 VMSVGAState, uBpp),
     SSMFIELD_ENTRY(                 VMSVGAState, cbScanline),
+    SSMFIELD_ENTRY_VER(             VMSVGAState, uScreenOffset, VGA_SAVEDSTATE_VERSION_VMSVGA),
     SSMFIELD_ENTRY(                 VMSVGAState, u32MaxWidth),
     SSMFIELD_ENTRY(                 VMSVGAState, u32MaxHeight),
     SSMFIELD_ENTRY(                 VMSVGAState, u32ActionFlags),
@@ -499,6 +521,20 @@ static SSMFIELD const g_aVGAStateSVGAFields[] =
 };
 
 static void vmsvgaSetTraces(PVGASTATE pThis, bool fTraces);
+static int vmsvgaLoadExecFifo(PVGASTATE pThis, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass);
+static int vmsvgaSaveExecFifo(PVGASTATE pThis, PSSMHANDLE pSSM);
+
+VMSVGASCREENOBJECT *vmsvgaGetScreenObject(PVGASTATE pThis, uint32_t idScreen)
+{
+    PVMSVGAR3STATE pSVGAState = pThis->svga.pSvgaR3State;
+    if (   idScreen < (uint32_t)RT_ELEMENTS(pSVGAState->aScreens)
+        && pSVGAState
+        && pSVGAState->aScreens[idScreen].fDefined)
+    {
+        return &pSVGAState->aScreens[idScreen];
+    }
+    return NULL;
+}
 
 #endif /* IN_RING3 */
 
@@ -656,28 +692,33 @@ DECLCALLBACK(void) vmsvgaPortSetViewport(PPDMIDISPLAYPORT pInterface, uint32_t i
     Log(("vmsvgaPortSetViewPort: screen %d (%d,%d)(%d,%d)\n", idScreen, x, y, cx, cy));
     VMSVGAVIEWPORT const OldViewport = pThis->svga.viewport;
 
-    if (x < pThis->svga.uWidth)
+    /** @todo Test how it interacts with multiple screen objects. */
+    VMSVGASCREENOBJECT *pScreen = vmsvgaGetScreenObject(pThis, idScreen);
+    uint32_t const uWidth = pScreen ? pScreen->cWidth : 0;
+    uint32_t const uHeight = pScreen ? pScreen->cHeight : 0;
+
+    if (x < uWidth)
     {
         pThis->svga.viewport.x      = x;
-        pThis->svga.viewport.cx     = RT_MIN(cx, pThis->svga.uWidth - x);
+        pThis->svga.viewport.cx     = RT_MIN(cx, uWidth - x);
         pThis->svga.viewport.xRight = x + pThis->svga.viewport.cx;
     }
     else
     {
-        pThis->svga.viewport.x      = pThis->svga.uWidth;
+        pThis->svga.viewport.x      = uWidth;
         pThis->svga.viewport.cx     = 0;
-        pThis->svga.viewport.xRight = pThis->svga.uWidth;
+        pThis->svga.viewport.xRight = uWidth;
     }
-    if (y < pThis->svga.uHeight)
+    if (y < uHeight)
     {
         pThis->svga.viewport.y       = y;
-        pThis->svga.viewport.cy      = RT_MIN(cy, pThis->svga.uHeight - y);
-        pThis->svga.viewport.yLowWC  = pThis->svga.uHeight - y - pThis->svga.viewport.cy;
-        pThis->svga.viewport.yHighWC = pThis->svga.uHeight - y;
+        pThis->svga.viewport.cy      = RT_MIN(cy, uHeight - y);
+        pThis->svga.viewport.yLowWC  = uHeight - y - pThis->svga.viewport.cy;
+        pThis->svga.viewport.yHighWC = uHeight - y;
     }
     else
     {
-        pThis->svga.viewport.y       = pThis->svga.uHeight;
+        pThis->svga.viewport.y       = uHeight;
         pThis->svga.viewport.cy      = 0;
         pThis->svga.viewport.yLowWC  = 0;
         pThis->svga.viewport.yHighWC = 0;
@@ -690,7 +731,7 @@ DECLCALLBACK(void) vmsvgaPortSetViewport(PPDMIDISPLAYPORT pInterface, uint32_t i
     if (pThis->svga.f3DEnabled)
         vmsvga3dUpdateHostScreenViewport(pThis, idScreen, &OldViewport);
 # else
-    RT_NOREF(idScreen, OldViewport);
+    RT_NOREF(OldViewport);
 # endif
 }
 #endif /* IN_RING3 */
@@ -1017,7 +1058,11 @@ PDMBOTHCBDECL(int) vmsvgaReadPort(PVGASTATE pThis, uint32_t *pu32)
             VMCPUSET_ATOMIC_ADD(&pSVGAState->BusyDelayedEmts, idCpu);
             ASMAtomicIncU32(&pSVGAState->cBusyDelayedEmts);
             if (pThis->svga.fBusy)
+            {
+                PDMCritSectLeave(&pThis->CritSect); /* hack around lock order issue. */
                 rc = VMR3WaitForDeviceReady(pVM, idCpu);
+                PDMCritSectEnter(&pThis->CritSect, VERR_IGNORED);
+            }
             ASMAtomicDecU32(&pSVGAState->cBusyDelayedEmts);
             VMCPUSET_ATOMIC_DEL(&pSVGAState->BusyDelayedEmts, idCpu);
 # else
@@ -1172,7 +1217,7 @@ PDMBOTHCBDECL(int) vmsvgaReadPort(PVGASTATE pThis, uint32_t *pu32)
         /* We must return something sensible here otherwise the Linux driver
          * will take a legacy code path without 3d support.  This number also
          * limits how many screens Linux guests will allow. */
-        *pu32 = 32;
+        *pu32 = pThis->cMonitors;
         break;
 
     default:
@@ -1203,9 +1248,9 @@ PDMBOTHCBDECL(int) vmsvgaReadPort(PVGASTATE pThis, uint32_t *pu32)
             rc = VINF_IOM_R3_IOPORT_READ;
 #else
             STAM_REL_COUNTER_INC(&pThis->svga.StatRegUnknownRd);
-# ifndef DEBUG_sunlover
-            AssertMsgFailed(("reg=%#x\n", idxReg));
-# endif
+
+            /* Do not assert. The guest might be reading all registers. */
+            LogFunc(("Unknown reg=%#x\n", idxReg));
 #endif
         }
         break;
@@ -1222,69 +1267,149 @@ PDMBOTHCBDECL(int) vmsvgaReadPort(PVGASTATE pThis, uint32_t *pu32)
  * @returns VBox status code.
  * @param   pThis       VMSVGA State
  */
-int vmsvgaChangeMode(PVGASTATE pThis)
+static int vmsvgaChangeMode(PVGASTATE pThis)
 {
     int rc;
 
-    if (    pThis->svga.uWidth  == VMSVGA_VAL_UNINITIALIZED
-        ||  pThis->svga.uHeight == VMSVGA_VAL_UNINITIALIZED
-        ||  pThis->svga.uBpp    == VMSVGA_VAL_UNINITIALIZED)
-    {
-        /* Mode change in progress; wait for all values to be set. */
-        Log(("vmsvgaChangeMode: BOGUS sEnable LFB mode and resize to (%d,%d) bpp=%d\n", pThis->svga.uWidth, pThis->svga.uHeight, pThis->svga.uBpp));
-        return VINF_SUCCESS;
-    }
+    /* Always do changemode on FIFO thread. */
+    Assert(RTThreadSelf() == pThis->svga.pFIFOIOThread->Thread);
 
-    if (    pThis->svga.uWidth == 0
-        ||  pThis->svga.uHeight == 0
-        ||  pThis->svga.uBpp == 0)
-    {
-        /* Invalid mode change - BB does this early in the boot up. */
-        Log(("vmsvgaChangeMode: BOGUS sEnable LFB mode and resize to (%d,%d) bpp=%d\n", pThis->svga.uWidth, pThis->svga.uHeight, pThis->svga.uBpp));
-        return VINF_SUCCESS;
-    }
-
-    if (    pThis->last_bpp         == (unsigned)pThis->svga.uBpp
-        &&  pThis->last_scr_width   == (unsigned)pThis->svga.uWidth
-        &&  pThis->last_scr_height  == (unsigned)pThis->svga.uHeight
-        &&  pThis->last_width       == (unsigned)pThis->svga.uWidth
-        &&  pThis->last_height      == (unsigned)pThis->svga.uHeight
-        )
-    {
-        /* Nothing to do. */
-        Log(("vmsvgaChangeMode: nothing changed; ignore\n"));
-        return VINF_SUCCESS;
-    }
-
-    Log(("vmsvgaChangeMode: sEnable LFB mode and resize to (%d,%d) bpp=%d\n", pThis->svga.uWidth, pThis->svga.uHeight, pThis->svga.uBpp));
-    pThis->svga.cbScanline = ((pThis->svga.uWidth * pThis->svga.uBpp + 7) & ~7) / 8;
+    PVMSVGAR3STATE pSVGAState = pThis->svga.pSvgaR3State;
 
     pThis->pDrv->pfnLFBModeChange(pThis->pDrv, true);
-    rc = pThis->pDrv->pfnResize(pThis->pDrv, pThis->svga.uBpp, pThis->CTX_SUFF(vram_ptr), pThis->svga.cbScanline, pThis->svga.uWidth, pThis->svga.uHeight);
-    AssertRC(rc);
-    AssertReturn(rc == VINF_SUCCESS || rc == VINF_VGA_RESIZE_IN_PROGRESS, rc);
 
-    /* last stuff */
-    pThis->last_bpp         = pThis->svga.uBpp;
-    pThis->last_scr_width   = pThis->svga.uWidth;
-    pThis->last_scr_height  = pThis->svga.uHeight;
-    pThis->last_width       = pThis->svga.uWidth;
-    pThis->last_height      = pThis->svga.uHeight;
+    if (pThis->svga.fGFBRegisters)
+    {
+        /* "For backwards compatibility, when the GFB mode registers (WIDTH,
+         * HEIGHT, PITCHLOCK, BITS_PER_PIXEL) are modified, the SVGA device
+         * deletes all screens other than screen #0, and redefines screen
+         * #0 according to the specified mode. Drivers that use
+         * SVGA_CMD_DEFINE_SCREEN should destroy or redefine screen #0."
+         */
 
-    ASMAtomicOrU32(&pThis->svga.u32ActionFlags, VMSVGA_ACTION_CHANGEMODE);
+        VMSVGASCREENOBJECT *pScreen = &pSVGAState->aScreens[0];
+        pScreen->fDefined  = true;
+        pScreen->fModified = true;
+        pScreen->fuScreen  = SVGA_SCREEN_MUST_BE_SET | SVGA_SCREEN_IS_PRIMARY;
+        pScreen->idScreen  = 0;
+        pScreen->xOrigin   = 0;
+        pScreen->yOrigin   = 0;
+        pScreen->offVRAM   = 0;
+        pScreen->cbPitch   = pThis->svga.cbScanline;
+        pScreen->cWidth    = pThis->svga.uWidth;
+        pScreen->cHeight   = pThis->svga.uHeight;
+        pScreen->cBpp      = pThis->svga.uBpp;
+
+        for (unsigned iScreen = 1; iScreen < RT_ELEMENTS(pSVGAState->aScreens); ++iScreen)
+        {
+            /* Delete screen. */
+            pScreen = &pSVGAState->aScreens[iScreen];
+            if (pScreen->fDefined)
+            {
+                pScreen->fModified = true;
+                pScreen->fDefined = false;
+            }
+        }
+    }
+    else
+    {
+        /* "If Screen Objects are supported, they can be used to fully
+         * replace the functionality provided by the framebuffer registers
+         * (SVGA_REG_WIDTH, HEIGHT, etc.) and by SVGA_CAP_DISPLAY_TOPOLOGY."
+         */
+        pThis->svga.uWidth  = VMSVGA_VAL_UNINITIALIZED;
+        pThis->svga.uHeight = VMSVGA_VAL_UNINITIALIZED;
+        pThis->svga.uBpp    = VMSVGA_VAL_UNINITIALIZED;
+    }
+
+    for (unsigned iScreen = 0; iScreen < RT_ELEMENTS(pSVGAState->aScreens); ++iScreen)
+    {
+        VMSVGASCREENOBJECT *pScreen = &pSVGAState->aScreens[iScreen];
+        if (!pScreen->fModified)
+            continue;
+
+        pScreen->fModified = false;
+
+        VBVAINFOVIEW view;
+        RT_ZERO(view);
+        view.u32ViewIndex     = pScreen->idScreen;
+        // view.u32ViewOffset    = 0;
+        view.u32ViewSize      = pThis->vram_size;
+        view.u32MaxScreenSize = pThis->vram_size;
+
+        VBVAINFOSCREEN screen;
+        RT_ZERO(screen);
+        screen.u32ViewIndex   = pScreen->idScreen;
+
+        if (pScreen->fDefined)
+        {
+            if (   pScreen->cWidth  == VMSVGA_VAL_UNINITIALIZED
+                || pScreen->cHeight == VMSVGA_VAL_UNINITIALIZED
+                || pScreen->cBpp    == VMSVGA_VAL_UNINITIALIZED)
+            {
+                Assert(pThis->svga.fGFBRegisters);
+                continue;
+            }
+
+            screen.i32OriginX      = pScreen->xOrigin;
+            screen.i32OriginY      = pScreen->yOrigin;
+            screen.u32StartOffset  = pScreen->offVRAM;
+            screen.u32LineSize     = pScreen->cbPitch;
+            screen.u32Width        = pScreen->cWidth;
+            screen.u32Height       = pScreen->cHeight;
+            screen.u16BitsPerPixel = pScreen->cBpp;
+            if (!(pScreen->fuScreen & SVGA_SCREEN_DEACTIVATE))
+                screen.u16Flags    = VBVA_SCREEN_F_ACTIVE;
+            if (pScreen->fuScreen & SVGA_SCREEN_BLANKING)
+                screen.u16Flags   |= VBVA_SCREEN_F_BLANK2;
+        }
+        else
+        {
+            /* Screen is destroyed. */
+            screen.u16Flags        = VBVA_SCREEN_F_DISABLED;
+        }
+
+        rc = pThis->pDrv->pfnVBVAResize(pThis->pDrv, &view, &screen, pThis->CTX_SUFF(vram_ptr), /*fResetInputMapping=*/ true);
+        AssertRC(rc);
+    }
+
+    /* Last stuff. For the VGA device screenshot. */
+    pThis->last_bpp        = pSVGAState->aScreens[0].cBpp;
+    pThis->last_scr_width  = pSVGAState->aScreens[0].cWidth;
+    pThis->last_scr_height = pSVGAState->aScreens[0].cHeight;
+    pThis->last_width      = pSVGAState->aScreens[0].cWidth;
+    pThis->last_height     = pSVGAState->aScreens[0].cHeight;
 
     /* vmsvgaPortSetViewPort not called after state load; set sensible defaults. */
     if (    pThis->svga.viewport.cx == 0
         &&  pThis->svga.viewport.cy == 0)
     {
-        pThis->svga.viewport.cx      = pThis->svga.uWidth;
-        pThis->svga.viewport.xRight  = pThis->svga.uWidth;
-        pThis->svga.viewport.cy      = pThis->svga.uHeight;
-        pThis->svga.viewport.yHighWC = pThis->svga.uHeight;
+        pThis->svga.viewport.cx      = pSVGAState->aScreens[0].cWidth;
+        pThis->svga.viewport.xRight  = pSVGAState->aScreens[0].cWidth;
+        pThis->svga.viewport.cy      = pSVGAState->aScreens[0].cHeight;
+        pThis->svga.viewport.yHighWC = pSVGAState->aScreens[0].cHeight;
         pThis->svga.viewport.yLowWC  = 0;
     }
+
     return VINF_SUCCESS;
 }
+
+int vmsvgaUpdateScreen(PVGASTATE pThis, VMSVGASCREENOBJECT *pScreen, int x, int y, int w, int h)
+{
+    if (pThis->svga.fGFBRegisters)
+    {
+        vgaR3UpdateDisplay(pThis, x, y, w, h);
+    }
+    else
+    {
+        pThis->pDrv->pfnVBVAUpdateBegin(pThis->pDrv, pScreen->idScreen);
+        pThis->pDrv->pfnVBVAUpdateEnd(pThis->pDrv, pScreen->idScreen,
+                                      pScreen->xOrigin + x, pScreen->yOrigin + y, w, h);
+    }
+
+    return VINF_SUCCESS;
+}
+
 #endif /* IN_RING3 */
 
 #if defined(IN_RING0) || defined(IN_RING3)
@@ -1346,6 +1471,19 @@ PDMBOTHCBDECL(int) vmsvgaWritePort(PVGASTATE pThis, uint32_t u32)
         Log(("vmsvgaWritePort: SVGA_ID_0 reg adj %#x -> %#x\n", pThis->svga.u32IndexReg, idxReg));
     }
     Log(("vmsvgaWritePort index=%s (%d) val=%#x\n", vmsvgaIndexToString(pThis, idxReg), idxReg, u32));
+    /* Check if the guest uses legacy registers. See vmsvgaChangeMode */
+    switch (idxReg)
+    {
+        case SVGA_REG_WIDTH:
+        case SVGA_REG_HEIGHT:
+        case SVGA_REG_PITCHLOCK:
+        case SVGA_REG_BITS_PER_PIXEL:
+            pThis->svga.fGFBRegisters = true;
+            break;
+        default:
+            break;
+    }
+
     switch (idxReg)
     {
     case SVGA_REG_ID:
@@ -1360,18 +1498,8 @@ PDMBOTHCBDECL(int) vmsvgaWritePort(PVGASTATE pThis, uint32_t u32)
 
     case SVGA_REG_ENABLE:
         STAM_REL_COUNTER_INC(&pThis->svga.StatRegEnableWr);
-        if (    pThis->svga.fEnabled    == u32
-            &&  pThis->last_bpp         == (unsigned)pThis->svga.uBpp
-            &&  pThis->last_scr_width   == (unsigned)pThis->svga.uWidth
-            &&  pThis->last_scr_height  == (unsigned)pThis->svga.uHeight
-            &&  pThis->last_width       == (unsigned)pThis->svga.uWidth
-            &&  pThis->last_height      == (unsigned)pThis->svga.uHeight
-            )
-            /* Nothing to do. */
-            break;
-
 #ifdef IN_RING3
-        if (    u32 == 1
+        if (    (u32 & SVGA_REG_ENABLE_ENABLE)
             &&  pThis->svga.fEnabled == false)
         {
             /* Make a backup copy of the first 512kb in order to save font data etc. */
@@ -1397,31 +1525,36 @@ PDMBOTHCBDECL(int) vmsvgaWritePort(PVGASTATE pThis, uint32_t u32)
                 &&  pThis->svga.uHeight != VMSVGA_VAL_UNINITIALIZED
                 &&  pThis->svga.uBpp    != VMSVGA_VAL_UNINITIALIZED)
             {
-                rc = vmsvgaChangeMode(pThis);
-                AssertRCReturn(rc, rc);
+                ASMAtomicOrU32(&pThis->svga.u32ActionFlags, VMSVGA_ACTION_CHANGEMODE);
             }
 # ifdef LOG_ENABLED
-            Log(("configured=%d busy=%d\n", pThis->svga.fConfigured, pThis->svga.pFIFOR3[SVGA_FIFO_BUSY]));
             uint32_t *pFIFO = pThis->svga.pFIFOR3;
+            Log(("configured=%d busy=%d\n", pThis->svga.fConfigured, pFIFO[SVGA_FIFO_BUSY]));
             Log(("next %x stop %x\n", pFIFO[SVGA_FIFO_NEXT_CMD], pFIFO[SVGA_FIFO_STOP]));
 # endif
 
             /* Disable or enable dirty page tracking according to the current fTraces value. */
             vmsvgaSetTraces(pThis, !!pThis->svga.fTraces);
+
+            for (uint32_t iScreen = 0; iScreen < pThis->cMonitors; ++iScreen)
+            {
+                pThis->pDrv->pfnVBVAEnable(pThis->pDrv, iScreen, NULL, false);
+            }
         }
         else
         {
             /* Restore the text mode backup. */
             memcpy(pThis->vram_ptrR3, pThis->svga.pbVgaFrameBufferR3, VMSVGA_VGA_FB_BACKUP_SIZE);
 
-/*            pThis->svga.uHeight    = -1;
-            pThis->svga.uWidth     = -1;
-            pThis->svga.uBpp       = -1;
-            pThis->svga.cbScanline = 0; */
             pThis->pDrv->pfnLFBModeChange(pThis->pDrv, false);
 
             /* Enable dirty page tracking again when going into legacy mode. */
             vmsvgaSetTraces(pThis, true);
+
+            for (uint32_t iScreen = 0; iScreen < pThis->cMonitors; ++iScreen)
+            {
+                pThis->pDrv->pfnVBVADisable(pThis->pDrv, iScreen);
+            }
         }
 #else  /* !IN_RING3 */
         rc = VINF_IOM_R3_IOPORT_WRITE;
@@ -1432,18 +1565,11 @@ PDMBOTHCBDECL(int) vmsvgaWritePort(PVGASTATE pThis, uint32_t u32)
         STAM_REL_COUNTER_INC(&pThis->svga.StatRegWidthWr);
         if (pThis->svga.uWidth != u32)
         {
+            pThis->svga.uWidth = u32;
             if (pThis->svga.fEnabled)
             {
-#ifdef IN_RING3
-                pThis->svga.uWidth = u32;
-                rc = vmsvgaChangeMode(pThis);
-                AssertRCReturn(rc, rc);
-#else
-                rc = VINF_IOM_R3_IOPORT_WRITE;
-#endif
+                ASMAtomicOrU32(&pThis->svga.u32ActionFlags, VMSVGA_ACTION_CHANGEMODE);
             }
-            else
-                pThis->svga.uWidth = u32;
         }
         /* else: nop */
         break;
@@ -1452,18 +1578,11 @@ PDMBOTHCBDECL(int) vmsvgaWritePort(PVGASTATE pThis, uint32_t u32)
         STAM_REL_COUNTER_INC(&pThis->svga.StatRegHeightWr);
         if (pThis->svga.uHeight != u32)
         {
+            pThis->svga.uHeight = u32;
             if (pThis->svga.fEnabled)
             {
-#ifdef IN_RING3
-                pThis->svga.uHeight = u32;
-                rc = vmsvgaChangeMode(pThis);
-                AssertRCReturn(rc, rc);
-#else
-                rc = VINF_IOM_R3_IOPORT_WRITE;
-#endif
+                ASMAtomicOrU32(&pThis->svga.u32ActionFlags, VMSVGA_ACTION_CHANGEMODE);
             }
-            else
-                pThis->svga.uHeight = u32;
         }
         /* else: nop */
         break;
@@ -1477,18 +1596,11 @@ PDMBOTHCBDECL(int) vmsvgaWritePort(PVGASTATE pThis, uint32_t u32)
         STAM_REL_COUNTER_INC(&pThis->svga.StatRegBitsPerPixelWr);
         if (pThis->svga.uBpp != u32)
         {
+            pThis->svga.uBpp = u32;
             if (pThis->svga.fEnabled)
             {
-#ifdef IN_RING3
-                pThis->svga.uBpp = u32;
-                rc = vmsvgaChangeMode(pThis);
-                AssertRCReturn(rc, rc);
-#else
-                rc = VINF_IOM_R3_IOPORT_WRITE;
-#endif
+                ASMAtomicOrU32(&pThis->svga.u32ActionFlags, VMSVGA_ACTION_CHANGEMODE);
             }
-            else
-                pThis->svga.uBpp = u32;
         }
         /* else: nop */
         break;
@@ -2737,10 +2849,12 @@ static void vmsvgaR3FifoHandleExtCmd(PVGASTATE pThis)
         case VMSVGA_FIFO_EXTCMD_SAVESTATE:
         {
             Log(("vmsvgaFIFOLoop: VMSVGA_FIFO_EXTCMD_SAVESTATE.\n"));
-# ifdef VBOX_WITH_VMSVGA3D
             PSSMHANDLE pSSM = (PSSMHANDLE)pThis->svga.pvFIFOExtCmdParam;
             AssertLogRelMsgBreak(RT_VALID_PTR(pSSM), ("pSSM=%p\n", pSSM));
-            vmsvga3dSaveExec(pThis, pSSM);
+            vmsvgaSaveExecFifo(pThis, pSSM);
+# ifdef VBOX_WITH_VMSVGA3D
+            if (pThis->svga.f3DEnabled)
+                vmsvga3dSaveExec(pThis, pSSM);
 # endif
             break;
         }
@@ -2748,10 +2862,12 @@ static void vmsvgaR3FifoHandleExtCmd(PVGASTATE pThis)
         case VMSVGA_FIFO_EXTCMD_LOADSTATE:
         {
             Log(("vmsvgaFIFOLoop: VMSVGA_FIFO_EXTCMD_LOADSTATE.\n"));
-# ifdef VBOX_WITH_VMSVGA3D
             PVMSVGA_STATE_LOAD pLoadState = (PVMSVGA_STATE_LOAD)pThis->svga.pvFIFOExtCmdParam;
             AssertLogRelMsgBreak(RT_VALID_PTR(pLoadState), ("pLoadState=%p\n", pLoadState));
-            vmsvga3dLoadExec(pThis, pLoadState->pSSM, pLoadState->uVersion, pLoadState->uPass);
+            vmsvgaLoadExecFifo(pThis, pLoadState->pSSM, pLoadState->uVersion, pLoadState->uPass);
+# ifdef VBOX_WITH_VMSVGA3D
+            if (pThis->svga.f3DEnabled)
+                vmsvga3dLoadExec(pThis, pLoadState->pSSM, pLoadState->uVersion, pLoadState->uPass);
 # endif
             break;
         }
@@ -3282,13 +3398,15 @@ static DECLCALLBACK(int) vmsvgaFIFOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
             Assert(offCurrentCmd < offFifoMax && offCurrentCmd >= offFifoMin);
 
             /* First check any pending actions. */
-            if (   ASMBitTestAndClear(&pThis->svga.u32ActionFlags, VMSVGA_ACTION_CHANGEMODE_BIT)
-                && pThis->svga.p3dState != NULL)
+            if (ASMBitTestAndClear(&pThis->svga.u32ActionFlags, VMSVGA_ACTION_CHANGEMODE_BIT))
+            {
+                vmsvgaChangeMode(pThis);
 # ifdef VBOX_WITH_VMSVGA3D
-                vmsvga3dChangeMode(pThis);
-# else
-                {/*nothing*/}
+                if (pThis->svga.p3dState != NULL)
+                    vmsvga3dChangeMode(pThis);
 # endif
+            }
+
             /* Check for pending external commands (reset). */
             if (pThis->svga.u8FIFOExtCommand != VMSVGA_FIFO_EXTCMD_NONE)
                 break;
@@ -3345,7 +3463,10 @@ static DECLCALLBACK(int) vmsvgaFIFOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
                 else
                     STAM_REL_COUNTER_INC(&pSVGAState->StatR3CmdUpdateVerbose);
                 Log(("vmsvgaFIFOLoop: UPDATE (%d,%d)(%d,%d)\n", pUpdate->x, pUpdate->y, pUpdate->width, pUpdate->height));
-                vgaR3UpdateDisplay(pThis, pUpdate->x, pUpdate->y, pUpdate->width, pUpdate->height);
+                /** @todo Multiple screens? */
+                VMSVGASCREENOBJECT *pScreen = vmsvgaGetScreenObject(pThis, 0);
+                AssertBreak(pScreen);
+                vmsvgaUpdateScreen(pThis, pScreen, pUpdate->x, pUpdate->y, pUpdate->width, pUpdate->height);
                 break;
             }
 
@@ -3664,31 +3785,70 @@ static DECLCALLBACK(int) vmsvgaFIFOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
 # endif // VBOX_WITH_VMSVGA3D
             case SVGA_CMD_DEFINE_SCREEN:
             {
-                /* Note! The size of this command is specified by the guest and depends on capabilities. */
-                Assert(!(pThis->svga.pFIFOR3[SVGA_FIFO_CAPABILITIES] & SVGA_FIFO_CAP_SCREEN_OBJECT));
+                /* The size of this command is specified by the guest and depends on capabilities. */
+                Assert(pThis->svga.pFIFOR3[SVGA_FIFO_CAPABILITIES] & SVGA_FIFO_CAP_SCREEN_OBJECT_2);
+
                 SVGAFifoCmdDefineScreen *pCmd;
                 VMSVGAFIFO_GET_CMD_BUFFER_BREAK(pCmd, SVGAFifoCmdDefineScreen, sizeof(pCmd->screen.structSize));
-                RT_BZERO(&pCmd->screen.id, sizeof(*pCmd) - RT_OFFSETOF(SVGAFifoCmdDefineScreen, screen.structSize));
+                AssertBreak(pCmd->screen.structSize < pThis->svga.cbFIFO);
+                RT_UNTRUSTED_VALIDATED_FENCE();
+
+                RT_BZERO(&pCmd->screen.id, sizeof(*pCmd) - RT_OFFSETOF(SVGAFifoCmdDefineScreen, screen.id));
                 VMSVGAFIFO_GET_MORE_CMD_BUFFER_BREAK(pCmd, SVGAFifoCmdDefineScreen, RT_MAX(sizeof(pCmd->screen.structSize), pCmd->screen.structSize));
                 STAM_REL_COUNTER_INC(&pSVGAState->StatR3CmdDefineScreen);
 
-                Log(("vmsvgaFIFOLoop: SVGA_CMD_DEFINE_SCREEN id=%x flags=%x size=(%d,%d) root=(%d,%d)\n", pCmd->screen.id, pCmd->screen.flags, pCmd->screen.size.width, pCmd->screen.size.height, pCmd->screen.root.x, pCmd->screen.root.y));
-                if (pCmd->screen.flags & SVGA_SCREEN_HAS_ROOT)
-                    Log(("vmsvgaFIFOLoop: SVGA_CMD_DEFINE_SCREEN flags SVGA_SCREEN_HAS_ROOT\n"));
-                if (pCmd->screen.flags & SVGA_SCREEN_IS_PRIMARY)
-                    Log(("vmsvgaFIFOLoop: SVGA_CMD_DEFINE_SCREEN flags SVGA_SCREEN_IS_PRIMARY\n"));
-                if (pCmd->screen.flags & SVGA_SCREEN_FULLSCREEN_HINT)
-                    Log(("vmsvgaFIFOLoop: SVGA_CMD_DEFINE_SCREEN flags SVGA_SCREEN_FULLSCREEN_HINT\n"));
-                if (pCmd->screen.flags & SVGA_SCREEN_DEACTIVATE )
-                    Log(("vmsvgaFIFOLoop: SVGA_CMD_DEFINE_SCREEN flags SVGA_SCREEN_DEACTIVATE \n"));
-                if (pCmd->screen.flags & SVGA_SCREEN_BLANKING)
-                    Log(("vmsvgaFIFOLoop: SVGA_CMD_DEFINE_SCREEN flags SVGA_SCREEN_BLANKING\n"));
+                LogFunc(("SVGA_CMD_DEFINE_SCREEN id=%x flags=%x size=(%d,%d) root=(%d,%d) %d:0x%x 0x%x\n",
+                         pCmd->screen.id, pCmd->screen.flags, pCmd->screen.size.width, pCmd->screen.size.height, pCmd->screen.root.x, pCmd->screen.root.y,
+                         pCmd->screen.backingStore.ptr.gmrId, pCmd->screen.backingStore.ptr.offset, pCmd->screen.backingStore.pitch));
 
+                uint32_t const idScreen = pCmd->screen.id;
+                AssertBreak(idScreen < RT_ELEMENTS(pThis->svga.pSvgaR3State->aScreens));
+
+                uint32_t const uWidth = pCmd->screen.size.width;
+                AssertBreak(uWidth <= pThis->svga.u32MaxWidth);
+
+                uint32_t const uHeight = pCmd->screen.size.height;
+                AssertBreak(uHeight <= pThis->svga.u32MaxHeight);
+
+                uint32_t const cbWidth = uWidth * ((32 + 7) / 8); /** @todo 32? */
+                uint32_t const cbPitch = pCmd->screen.backingStore.pitch ? pCmd->screen.backingStore.pitch : cbWidth;
+                AssertBreak(cbWidth <= cbPitch);
+
+                uint32_t const uScreenOffset = pCmd->screen.backingStore.ptr.offset;
+                AssertBreak(uScreenOffset < pThis->vram_size);
+
+                uint32_t const cbVram = pThis->vram_size - uScreenOffset;
+                /* If we have a not zero pitch, then height can't exceed the available VRAM. */
+                AssertBreak(   (uHeight == 0 && cbPitch == 0)
+                            || (cbPitch > 0 && uHeight <= cbVram / cbPitch));
                 RT_UNTRUSTED_VALIDATED_FENCE();
 
-                /** @todo multi monitor support and screen object capabilities.   */
-                pThis->svga.uWidth  = pCmd->screen.size.width;
-                pThis->svga.uHeight = pCmd->screen.size.height;
+                VMSVGASCREENOBJECT *pScreen = &pThis->svga.pSvgaR3State->aScreens[idScreen];
+
+                bool const fBlank = RT_BOOL(pCmd->screen.flags & (SVGA_SCREEN_DEACTIVATE | SVGA_SCREEN_BLANKING));
+
+                pScreen->fDefined  = true;
+                pScreen->fModified = true;
+                pScreen->fuScreen  = pCmd->screen.flags;
+                pScreen->idScreen  = idScreen;
+                if (!fBlank)
+                {
+                    AssertBreak(uWidth > 0 && uHeight > 0);
+
+                    pScreen->xOrigin = pCmd->screen.root.x;
+                    pScreen->yOrigin = pCmd->screen.root.y;
+                    pScreen->cWidth  = uWidth;
+                    pScreen->cHeight = uHeight;
+                    pScreen->offVRAM = uScreenOffset;
+                    pScreen->cbPitch = cbPitch;
+                    pScreen->cBpp    = 32;
+                }
+                else
+                {
+                    /* Keep old values. */
+                }
+
+                pThis->svga.fGFBRegisters = false;
                 vmsvgaChangeMode(pThis);
                 break;
             }
@@ -3700,9 +3860,20 @@ static DECLCALLBACK(int) vmsvgaFIFOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
                 STAM_REL_COUNTER_INC(&pSVGAState->StatR3CmdDestroyScreen);
 
                 Log(("vmsvgaFIFOLoop: SVGA_CMD_DESTROY_SCREEN id=%x\n", pCmd->screenId));
+
+                uint32_t const idScreen = pCmd->screenId;
+                AssertBreak(idScreen < RT_ELEMENTS(pThis->svga.pSvgaR3State->aScreens));
+                RT_UNTRUSTED_VALIDATED_FENCE();
+
+                VMSVGASCREENOBJECT *pScreen = &pThis->svga.pSvgaR3State->aScreens[idScreen];
+                pScreen->fModified = true;
+                pScreen->fDefined  = false;
+                pScreen->idScreen  = idScreen;
+
+                vmsvgaChangeMode(pThis);
                 break;
             }
-# ifdef VBOX_WITH_VMSVGA3D
+
             case SVGA_CMD_DEFINE_GMRFB:
             {
                 SVGAFifoCmdDefineGMRFB *pCmd;
@@ -3718,59 +3889,72 @@ static DECLCALLBACK(int) vmsvgaFIFOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
 
             case SVGA_CMD_BLIT_GMRFB_TO_SCREEN:
             {
-                uint32_t width, height;
                 SVGAFifoCmdBlitGMRFBToScreen *pCmd;
                 VMSVGAFIFO_GET_CMD_BUFFER_BREAK(pCmd, SVGAFifoCmdBlitGMRFBToScreen, sizeof(*pCmd));
                 STAM_REL_COUNTER_INC(&pSVGAState->StatR3CmdBlitGmrFbToScreen);
 
-                Log(("vmsvgaFIFOLoop: SVGA_CMD_BLIT_GMRFB_TO_SCREEN src=(%d,%d) dest id=%d (%d,%d)(%d,%d)\n", pCmd->srcOrigin.x, pCmd->srcOrigin.y, pCmd->destScreenId, pCmd->destRect.left, pCmd->destRect.top, pCmd->destRect.right, pCmd->destRect.bottom));
+                LogFunc(("SVGA_CMD_BLIT_GMRFB_TO_SCREEN src=(%d,%d) dest id=%d (%d,%d)(%d,%d)\n",
+                         pCmd->srcOrigin.x, pCmd->srcOrigin.y, pCmd->destScreenId, pCmd->destRect.left, pCmd->destRect.top, pCmd->destRect.right, pCmd->destRect.bottom));
 
-                /** @todo Support GMRFB.format.s.bitsPerPixel != pThis->svga.uBpp   */
-                AssertBreak(pSVGAState->GMRFB.format.s.bitsPerPixel == pThis->svga.uBpp);
-                AssertBreak(pCmd->destScreenId == 0);
-
-                if (pCmd->destRect.left < 0)
-                    pCmd->destRect.left = 0;
-                if (pCmd->destRect.top < 0)
-                    pCmd->destRect.top = 0;
-                if (pCmd->destRect.right < 0)
-                    pCmd->destRect.right = 0;
-                if (pCmd->destRect.bottom < 0)
-                    pCmd->destRect.bottom = 0;
-
-                width  = pCmd->destRect.right - pCmd->destRect.left;
-                height = pCmd->destRect.bottom - pCmd->destRect.top;
-
-                if (    width == 0
-                    ||  height == 0)
-                    break;  /* Nothing to do. */
-
-                /* Clip to screen dimensions. */
-                if (width > pThis->svga.uWidth)
-                    width = pThis->svga.uWidth;
-                if (height > pThis->svga.uHeight)
-                    height = pThis->svga.uHeight;
-
-                /* srcOrigin */
-                AssertBreak(pSVGAState->GMRFB.bytesPerLine != 0);
-                AssertBreak(pSVGAState->GMRFB.format.s.bitsPerPixel != 0);
-
-                const uint32_t cScanlines = pThis->vram_size / pSVGAState->GMRFB.bytesPerLine;
-                AssertBreak(pCmd->srcOrigin.y < (int32_t)cScanlines);
-
-                AssertBreak(pCmd->srcOrigin.x < (int32_t)(pSVGAState->GMRFB.bytesPerLine / ((pSVGAState->GMRFB.format.s.bitsPerPixel + 7) / 8)));
-
-                unsigned offsetSource = (pCmd->srcOrigin.x * pSVGAState->GMRFB.format.s.bitsPerPixel) / 8 + pSVGAState->GMRFB.bytesPerLine * pCmd->srcOrigin.y;
-                unsigned offsetDest   = (pCmd->destRect.left * RT_ALIGN(pThis->svga.uBpp, 8)) / 8 + pThis->svga.cbScanline * pCmd->destRect.top;
-                unsigned cbCopyWidth  = (width * RT_ALIGN(pThis->svga.uBpp, 8)) / 8;
-
-                AssertBreak(offsetDest < pThis->vram_size);
-
+                AssertBreak(pCmd->destScreenId < RT_ELEMENTS(pThis->svga.pSvgaR3State->aScreens));
                 RT_UNTRUSTED_VALIDATED_FENCE();
 
-                rc = vmsvgaGMRTransfer(pThis, SVGA3D_WRITE_HOST_VRAM, pThis->CTX_SUFF(vram_ptr) + offsetDest, pThis->svga.cbScanline, pSVGAState->GMRFB.ptr, offsetSource, pSVGAState->GMRFB.bytesPerLine, cbCopyWidth, height);
+                VMSVGASCREENOBJECT *pScreen = vmsvgaGetScreenObject(pThis, pCmd->destScreenId);
+                AssertBreak(pScreen);
+
+                /** @todo Support GMRFB.format.s.bitsPerPixel != pThis->svga.uBpp   */
+                AssertBreak(pSVGAState->GMRFB.format.s.bitsPerPixel == pScreen->cBpp);
+
+                /* Clip destRect to the screen dimensions. */
+                SVGASignedRect screenRect;
+                screenRect.left   = 0;
+                screenRect.top    = 0;
+                screenRect.right  = pScreen->cWidth;
+                screenRect.bottom = pScreen->cHeight;
+                SVGASignedRect clipRect = pCmd->destRect;
+                vmsvgaClipRect(&screenRect, &clipRect);
+                RT_UNTRUSTED_VALIDATED_FENCE();
+
+                uint32_t const width  = clipRect.right - clipRect.left;
+                uint32_t const height = clipRect.bottom - clipRect.top;
+
+                if (   width == 0
+                    || height == 0)
+                    break;  /* Nothing to do. */
+
+                int32_t const srcx = pCmd->srcOrigin.x + (clipRect.left - pCmd->destRect.left);
+                int32_t const srcy = pCmd->srcOrigin.y + (clipRect.top - pCmd->destRect.top);
+
+                /* Copy the defined by GMRFB image to the screen 0 VRAM area.
+                 * Prepare parameters for vmsvgaGMRTransfer.
+                 */
+                AssertBreak(pScreen->offVRAM < pThis->vram_size); /* Paranoia. Ensured by SVGA_CMD_DEFINE_SCREEN. */
+
+                /* Destination: host buffer which describes the screen 0 VRAM.
+                 * Important are pbHstBuf and cbHstBuf. offHst and cbHstPitch are verified by vmsvgaGMRTransfer.
+                 */
+                uint8_t * const pbHstBuf = (uint8_t *)pThis->CTX_SUFF(vram_ptr) + pScreen->offVRAM;
+                uint32_t const cbScanline = pScreen->cbPitch ? pScreen->cbPitch :
+                                                               width * (RT_ALIGN(pScreen->cBpp, 8) / 8);
+                uint32_t cbHstBuf = cbScanline * pScreen->cHeight;
+                if (cbHstBuf > pThis->vram_size - pScreen->offVRAM)
+                   cbHstBuf = pThis->vram_size - pScreen->offVRAM; /* Paranoia. */
+                uint32_t const offHst =   (clipRect.left * RT_ALIGN(pScreen->cBpp, 8)) / 8
+                                        + cbScanline * clipRect.top;
+                int32_t const cbHstPitch = cbScanline;
+
+                /* Source: GMRFB. vmsvgaGMRTransfer ensures that no memory outside the GMR is read. */
+                SVGAGuestPtr const gstPtr = pSVGAState->GMRFB.ptr;
+                uint32_t const offGst =  (srcx * RT_ALIGN(pSVGAState->GMRFB.format.s.bitsPerPixel, 8)) / 8
+                                       + pSVGAState->GMRFB.bytesPerLine * srcy;
+                int32_t const cbGstPitch = pSVGAState->GMRFB.bytesPerLine;
+
+                rc = vmsvgaGMRTransfer(pThis, SVGA3D_WRITE_HOST_VRAM,
+                                       pbHstBuf, cbHstBuf, offHst, cbHstPitch,
+                                       gstPtr, offGst, cbGstPitch,
+                                       (width * RT_ALIGN(pScreen->cBpp, 8)) / 8, height);
                 AssertRC(rc);
-                vgaR3UpdateDisplay(pThis, pCmd->destRect.left, pCmd->destRect.top, pCmd->destRect.right - pCmd->destRect.left, pCmd->destRect.bottom - pCmd->destRect.top);
+                vmsvgaUpdateScreen(pThis, pScreen, clipRect.left, clipRect.top, width, height);
                 break;
             }
 
@@ -3781,11 +3965,70 @@ static DECLCALLBACK(int) vmsvgaFIFOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
                 STAM_REL_COUNTER_INC(&pSVGAState->StatR3CmdBlitScreentoGmrFb);
 
                 /* Note! This can fetch 3d render results as well!! */
-                Log(("vmsvgaFIFOLoop: SVGA_CMD_BLIT_SCREEN_TO_GMRFB dest=(%d,%d) src id=%d (%d,%d)(%d,%d)\n", pCmd->destOrigin.x, pCmd->destOrigin.y, pCmd->srcScreenId, pCmd->srcRect.left, pCmd->srcRect.top, pCmd->srcRect.right, pCmd->srcRect.bottom));
-                AssertFailed();
+                LogFunc(("SVGA_CMD_BLIT_SCREEN_TO_GMRFB dest=(%d,%d) src id=%d (%d,%d)(%d,%d)\n",
+                         pCmd->destOrigin.x, pCmd->destOrigin.y, pCmd->srcScreenId, pCmd->srcRect.left, pCmd->srcRect.top, pCmd->srcRect.right, pCmd->srcRect.bottom));
+
+                AssertBreak(pCmd->srcScreenId < RT_ELEMENTS(pThis->svga.pSvgaR3State->aScreens));
+                RT_UNTRUSTED_VALIDATED_FENCE();
+
+                VMSVGASCREENOBJECT *pScreen = vmsvgaGetScreenObject(pThis, pCmd->srcScreenId);
+                AssertBreak(pScreen);
+
+                /** @todo Support GMRFB.format.s.bitsPerPixel != pThis->svga.uBpp?   */
+                AssertBreak(pSVGAState->GMRFB.format.s.bitsPerPixel == pScreen->cBpp);
+
+                /* Clip destRect to the screen dimensions. */
+                SVGASignedRect screenRect;
+                screenRect.left   = 0;
+                screenRect.top    = 0;
+                screenRect.right  = pScreen->cWidth;
+                screenRect.bottom = pScreen->cHeight;
+                SVGASignedRect clipRect = pCmd->srcRect;
+                vmsvgaClipRect(&screenRect, &clipRect);
+                RT_UNTRUSTED_VALIDATED_FENCE();
+
+                uint32_t const width  = clipRect.right - clipRect.left;
+                uint32_t const height = clipRect.bottom - clipRect.top;
+
+                if (   width == 0
+                    || height == 0)
+                    break;  /* Nothing to do. */
+
+                int32_t const dstx = pCmd->destOrigin.x + (clipRect.left - pCmd->srcRect.left);
+                int32_t const dsty = pCmd->destOrigin.y + (clipRect.top - pCmd->srcRect.top);
+
+                /* Copy the defined by GMRFB image to the screen 0 VRAM area.
+                 * Prepare parameters for vmsvgaGMRTransfer.
+                 */
+                AssertBreak(pScreen->offVRAM < pThis->vram_size); /* Paranoia. Ensured by SVGA_CMD_DEFINE_SCREEN. */
+
+                /* Source: host buffer which describes the screen 0 VRAM.
+                 * Important are pbHstBuf and cbHstBuf. offHst and cbHstPitch are verified by vmsvgaGMRTransfer.
+                 */
+                uint8_t * const pbHstBuf = (uint8_t *)pThis->CTX_SUFF(vram_ptr) + pScreen->offVRAM;
+                uint32_t const cbScanline = pScreen->cbPitch ? pScreen->cbPitch :
+                                                               width * (RT_ALIGN(pScreen->cBpp, 8) / 8);
+                uint32_t cbHstBuf = cbScanline * pScreen->cHeight;
+                if (cbHstBuf > pThis->vram_size - pScreen->offVRAM)
+                   cbHstBuf = pThis->vram_size - pScreen->offVRAM; /* Paranoia. */
+                uint32_t const offHst =   (clipRect.left * RT_ALIGN(pScreen->cBpp, 8)) / 8
+                                        + cbScanline * clipRect.top;
+                int32_t const cbHstPitch = cbScanline;
+
+                /* Destination: GMRFB. vmsvgaGMRTransfer ensures that no memory outside the GMR is read. */
+                SVGAGuestPtr const gstPtr = pSVGAState->GMRFB.ptr;
+                uint32_t const offGst =  (dstx * RT_ALIGN(pSVGAState->GMRFB.format.s.bitsPerPixel, 8)) / 8
+                                       + pSVGAState->GMRFB.bytesPerLine * dsty;
+                int32_t const cbGstPitch = pSVGAState->GMRFB.bytesPerLine;
+
+                rc = vmsvgaGMRTransfer(pThis, SVGA3D_READ_HOST_VRAM,
+                                       pbHstBuf, cbHstBuf, offHst, cbHstPitch,
+                                       gstPtr, offGst, cbGstPitch,
+                                       (width * RT_ALIGN(pScreen->cBpp, 8)) / 8, height);
+                AssertRC(rc);
                 break;
             }
-# endif // VBOX_WITH_VMSVGA3D
+
             case SVGA_CMD_ANNOTATION_FILL:
             {
                 SVGAFifoCmdAnnotationFill *pCmd;
@@ -3823,6 +4066,14 @@ static DECLCALLBACK(int) vmsvgaFIFOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
                     AssertBreak(pHdr->size < pThis->svga.cbFIFO);
                     uint32_t cbCmd = sizeof(SVGA3dCmdHeader) + pHdr->size;
                     VMSVGAFIFO_GET_MORE_CMD_BUFFER_BREAK(pHdr, SVGA3dCmdHeader, cbCmd);
+
+                    if (RT_LIKELY(pThis->svga.f3DEnabled))
+                    { /* likely */ }
+                    else
+                    {
+                        LogRelMax(8, ("VMSVGA3d: 3D disabled, command %d skipped\n", enmCmdId));
+                        break;
+                    }
 
 /**
  * Check that the 3D command has at least a_cbMin of payload bytes after the
@@ -4306,183 +4557,390 @@ void vmsvgaGMRFree(PVGASTATE pThis, uint32_t idGMR)
 }
 
 /**
- * Copy from a GMR to host memory or vice versa
+ * Copy between a GMR and a host memory buffer.
  *
  * @returns VBox status code.
  * @param   pThis           VGA device instance data.
  * @param   enmTransferType Transfer type (read/write)
- * @param   pbDst           Host destination pointer
- * @param   cbDestPitch     Destination buffer pitch
- * @param   src             GMR description
- * @param   offSrc          Source buffer offset
- * @param   cbSrcPitch      Source buffer pitch
- * @param   cbWidth         Source width in bytes
- * @param   cHeight         Source height
+ * @param   pbHstBuf        Host buffer pointer (valid)
+ * @param   cbHstBuf        Size of host buffer (valid)
+ * @param   offHst          Host buffer offset of the first scanline
+ * @param   cbHstPitch      Destination buffer pitch
+ * @param   gstPtr          GMR description
+ * @param   offGst          Guest buffer offset of the first scanline
+ * @param   cbGstPitch      Guest buffer pitch
+ * @param   cbWidth         Width in bytes to copy
+ * @param   cHeight         Number of scanllines to copy
  */
-int vmsvgaGMRTransfer(PVGASTATE pThis, const SVGA3dTransferType enmTransferType, uint8_t *pbDst, int32_t cbDestPitch,
-                      SVGAGuestPtr src, uint32_t offSrc, int32_t cbSrcPitch, uint32_t cbWidth, uint32_t cHeight)
+int vmsvgaGMRTransfer(PVGASTATE pThis, const SVGA3dTransferType enmTransferType,
+                      uint8_t *pbHstBuf, uint32_t cbHstBuf, uint32_t offHst, int32_t cbHstPitch,
+                      SVGAGuestPtr gstPtr, uint32_t offGst, int32_t cbGstPitch,
+                      uint32_t cbWidth, uint32_t cHeight)
 {
-    PVMSVGAR3STATE          pSVGAState = pThis->svga.pSvgaR3State;
-    PGMR                    pGMR;
-    int                     rc;
-    PVMSVGAGMRDESCRIPTOR    pDesc;
-    unsigned                offDesc = 0;
+    PVMSVGAR3STATE pSVGAState = pThis->svga.pSvgaR3State;
+    int            rc;
 
-    Log(("vmsvgaGMRTransfer: gmr=%x offset=%x pitch=%d cbWidth=%d cHeight=%d; src offset=%d src pitch=%d\n",
-         src.gmrId, src.offset, cbDestPitch, cbWidth, cHeight, offSrc, cbSrcPitch));
-    Assert(cbWidth && cHeight);
+    LogFunc(("%s host %p size=%d offset %d pitch=%d; guest gmr=%#x:%#x offset=%d pitch=%d cbWidth=%d cHeight=%d\n",
+             enmTransferType == SVGA3D_READ_HOST_VRAM ? "WRITE" : "READ", /* GMR op: READ host VRAM means WRITE GMR */
+             pbHstBuf, cbHstBuf, offHst, cbHstPitch,
+             gstPtr.gmrId, gstPtr.offset, offGst, cbGstPitch, cbWidth, cHeight));
+    AssertReturn(cbWidth && cHeight, VERR_INVALID_PARAMETER);
 
-    const uint32_t cbGmrScanline = cbSrcPitch > 0 ? cbSrcPitch : -cbSrcPitch;
-
-    uint32_t cbGmrTotal; /* The GMR size in bytes. */
-    if (src.gmrId == SVGA_GMR_FRAMEBUFFER)
+    PGMR pGMR;
+    uint32_t cbGmr; /* The GMR size in bytes. */
+    if (gstPtr.gmrId == SVGA_GMR_FRAMEBUFFER)
     {
         pGMR = NULL;
-        cbGmrTotal = pThis->vram_size;
+        cbGmr = pThis->vram_size;
     }
     else
     {
-        AssertReturn(src.gmrId < pThis->svga.cGMR, VERR_INVALID_PARAMETER);
+        AssertReturn(gstPtr.gmrId < pThis->svga.cGMR, VERR_INVALID_PARAMETER);
         RT_UNTRUSTED_VALIDATED_FENCE();
-        pGMR = &pSVGAState->paGMR[src.gmrId];
-        cbGmrTotal = pGMR->cbTotal;
+        pGMR = &pSVGAState->paGMR[gstPtr.gmrId];
+        cbGmr = pGMR->cbTotal;
     }
 
-    /* Check GMR parameters */
-    AssertMsgReturn(src.offset < cbGmrTotal,
-                    ("src.gmrId=%#x src.offset=%#x offSrc=%#x cbSrcPitch=%#x cHeight=%#x cbWidth=%#x cbGmrTotal=%#x\n",
-                     src.gmrId, src.offset, offSrc, cbSrcPitch, cHeight, cbWidth, cbGmrTotal),
+    /*
+     * GMR
+     */
+    /* Calculate GMR offset of the data to be copied. */
+    AssertMsgReturn(gstPtr.offset < cbGmr,
+                    ("gmr=%#x:%#x offGst=%#x cbGstPitch=%#x cHeight=%#x cbWidth=%#x cbGmr=%#x\n",
+                     gstPtr.gmrId, gstPtr.offset, offGst, cbGstPitch, cHeight, cbWidth, cbGmr),
                     VERR_INVALID_PARAMETER);
-    AssertMsgReturn(offSrc < cbGmrTotal - src.offset,
-                    ("src.gmrId=%#x src.offset=%#x offSrc=%#x cbSrcPitch=%#x cHeight=%#x cbWidth=%#x cbGmrTotal=%#x\n",
-                     src.gmrId, src.offset, offSrc, cbSrcPitch, cHeight, cbWidth, cbGmrTotal),
+    RT_UNTRUSTED_VALIDATED_FENCE();
+    AssertMsgReturn(offGst < cbGmr - gstPtr.offset,
+                    ("gmr=%#x:%#x offGst=%#x cbGstPitch=%#x cHeight=%#x cbWidth=%#x cbGmr=%#x\n",
+                     gstPtr.gmrId, gstPtr.offset, offGst, cbGstPitch, cHeight, cbWidth, cbGmr),
                     VERR_INVALID_PARAMETER);
+    RT_UNTRUSTED_VALIDATED_FENCE();
+    uint32_t const offGmr = offGst + gstPtr.offset; /* Offset in the GMR, where the first scanline is located. */
+
+    /* Verify that cbWidth is less than scanline and fits into the GMR. */
+    uint32_t const cbGmrScanline = cbGstPitch > 0 ? cbGstPitch : -cbGstPitch;
     AssertMsgReturn(cbGmrScanline != 0,
-                    ("src.gmrId=%#x src.offset=%#x offSrc=%#x cbSrcPitch=%#x cHeight=%#x cbWidth=%#x cbGmrTotal=%#x\n",
-                     src.gmrId, src.offset, offSrc, cbSrcPitch, cHeight, cbWidth, cbGmrTotal),
+                    ("gmr=%#x:%#x offGst=%#x cbGstPitch=%#x cHeight=%#x cbWidth=%#x cbGmr=%#x\n",
+                     gstPtr.gmrId, gstPtr.offset, offGst, cbGstPitch, cHeight, cbWidth, cbGmr),
                     VERR_INVALID_PARAMETER);
+    RT_UNTRUSTED_VALIDATED_FENCE();
     AssertMsgReturn(cbWidth <= cbGmrScanline,
-                    ("src.gmrId=%#x src.offset=%#x offSrc=%#x cbSrcPitch=%#x cHeight=%#x cbWidth=%#x cbGmrTotal=%#x\n",
-                     src.gmrId, src.offset, offSrc, cbSrcPitch, cHeight, cbWidth, cbGmrTotal),
+                    ("gmr=%#x:%#x offGst=%#x cbGstPitch=%#x cHeight=%#x cbWidth=%#x cbGmr=%#x\n",
+                     gstPtr.gmrId, gstPtr.offset, offGst, cbGstPitch, cHeight, cbWidth, cbGmr),
                     VERR_INVALID_PARAMETER);
-
-    offSrc += src.offset; /* Actual offset in the GMR, where the first scanline will be copied. */
-
-    AssertMsgReturn(cbWidth <= cbGmrTotal - offSrc,
-                    ("src.gmrId=%#x src.offset=%#x offSrc=%#x cbSrcPitch=%#x cHeight=%#x cbWidth=%#x cbGmrTotal=%#x\n",
-                     src.gmrId, src.offset, offSrc, cbSrcPitch, cHeight, cbWidth, cbGmrTotal),
+    AssertMsgReturn(cbWidth <= cbGmr - offGmr,
+                    ("gmr=%#x:%#x offGst=%#x cbGstPitch=%#x cHeight=%#x cbWidth=%#x cbGmr=%#x\n",
+                     gstPtr.gmrId, gstPtr.offset, offGst, cbGstPitch, cHeight, cbWidth, cbGmr),
                     VERR_INVALID_PARAMETER);
+    RT_UNTRUSTED_VALIDATED_FENCE();
 
-    uint32_t cbGmrLeft = cbSrcPitch > 0 ? cbGmrTotal - offSrc : offSrc + cbWidth;
+    /* How many bytes are available for the data in the GMR. */
+    uint32_t const cbGmrLeft = cbGstPitch > 0 ? cbGmr - offGmr : offGmr + cbWidth;
 
+    /* How many scanlines would fit into the available data. */
     uint32_t cGmrScanlines = cbGmrLeft / cbGmrScanline;
-    uint32_t cbLastScanline = cbGmrLeft - cGmrScanlines * cbGmrScanline; /* Slack space. */
-    if (cbWidth <= cbLastScanline)
+    uint32_t const cbGmrLastScanline = cbGmrLeft - cGmrScanlines * cbGmrScanline; /* Slack space. */
+    if (cbWidth <= cbGmrLastScanline)
         ++cGmrScanlines;
 
     if (cHeight > cGmrScanlines)
         cHeight = cGmrScanlines;
 
     AssertMsgReturn(cHeight > 0,
-                    ("src.gmrId=%#x src.offset=%#x offSrc=%#x cbSrcPitch=%#x cHeight=%#x cbWidth=%#x cbGmrTotal=%#x\n",
-                     src.gmrId, src.offset, offSrc, cbSrcPitch, cHeight, cbWidth, cbGmrTotal),
+                    ("gmr=%#x:%#x offGst=%#x cbGstPitch=%#x cHeight=%#x cbWidth=%#x cbGmr=%#x\n",
+                     gstPtr.gmrId, gstPtr.offset, offGst, cbGstPitch, cHeight, cbWidth, cbGmr),
                     VERR_INVALID_PARAMETER);
-
     RT_UNTRUSTED_VALIDATED_FENCE();
 
+    /*
+     * Host buffer.
+     */
+    AssertMsgReturn(offHst < cbHstBuf,
+                    ("buffer=%p size %d offHst=%d cbHstPitch=%d cHeight=%d cbWidth=%d\n",
+                     pbHstBuf, cbHstBuf, offHst, cbHstPitch, cHeight, cbWidth),
+                    VERR_INVALID_PARAMETER);
+
+    /* Verify that cbWidth is less than scanline and fits into the buffer. */
+    uint32_t const cbHstScanline = cbHstPitch > 0 ? cbHstPitch : -cbHstPitch;
+    AssertMsgReturn(cbHstScanline != 0,
+                    ("buffer=%p size %d offHst=%d cbHstPitch=%d cHeight=%d cbWidth=%d\n",
+                     pbHstBuf, cbHstBuf, offHst, cbHstPitch, cHeight, cbWidth),
+                    VERR_INVALID_PARAMETER);
+    AssertMsgReturn(cbWidth <= cbHstScanline,
+                    ("buffer=%p size %d offHst=%d cbHstPitch=%d cHeight=%d cbWidth=%d\n",
+                     pbHstBuf, cbHstBuf, offHst, cbHstPitch, cHeight, cbWidth),
+                    VERR_INVALID_PARAMETER);
+    AssertMsgReturn(cbWidth <= cbHstBuf - offHst,
+                    ("buffer=%p size %d offHst=%d cbHstPitch=%d cHeight=%d cbWidth=%d\n",
+                     pbHstBuf, cbHstBuf, offHst, cbHstPitch, cHeight, cbWidth),
+                    VERR_INVALID_PARAMETER);
+
+    /* How many bytes are available for the data in the buffer. */
+    uint32_t const cbHstLeft = cbHstPitch > 0 ? cbHstBuf - offHst : offHst + cbWidth;
+
+    /* How many scanlines would fit into the available data. */
+    uint32_t cHstScanlines = cbHstLeft / cbHstScanline;
+    uint32_t const cbHstLastScanline = cbHstLeft - cHstScanlines * cbHstScanline; /* Slack space. */
+    if (cbWidth <= cbHstLastScanline)
+        ++cHstScanlines;
+
+    if (cHeight > cHstScanlines)
+        cHeight = cHstScanlines;
+
+    AssertMsgReturn(cHeight > 0,
+                    ("buffer=%p size %d offHst=%d cbHstPitch=%d cHeight=%d cbWidth=%d\n",
+                     pbHstBuf, cbHstBuf, offHst, cbHstPitch, cHeight, cbWidth),
+                    VERR_INVALID_PARAMETER);
+
+    uint8_t *pbHst = pbHstBuf + offHst;
+
     /* Shortcut for the framebuffer. */
-    if (src.gmrId == SVGA_GMR_FRAMEBUFFER)
+    if (gstPtr.gmrId == SVGA_GMR_FRAMEBUFFER)
     {
-        uint8_t *pSrc  = pThis->CTX_SUFF(vram_ptr) + offSrc;
+        uint8_t *pbGst = pThis->CTX_SUFF(vram_ptr) + offGmr;
+
+        uint8_t const *pbSrc;
+        int32_t cbSrcPitch;
+        uint8_t *pbDst;
+        int32_t cbDstPitch;
 
         if (enmTransferType == SVGA3D_READ_HOST_VRAM)
         {
-            /* switch src & dest */
-            uint8_t *pTemp      = pbDst;
-            int32_t cbTempPitch = cbDestPitch;
-
-            pbDst = pSrc;
-            pSrc  = pTemp;
-
-            cbDestPitch = cbSrcPitch;
-            cbSrcPitch  = cbTempPitch;
-        }
-
-        if (   pThis->svga.cbScanline == (uint32_t)cbDestPitch
-            && cbWidth                == (uint32_t)cbDestPitch
-            && cbSrcPitch             == cbDestPitch)
-        {
-            memcpy(pbDst, pSrc, cbWidth * cHeight);
+            pbSrc      = pbHst;
+            cbSrcPitch = cbHstPitch;
+            pbDst      = pbGst;
+            cbDstPitch = cbGstPitch;
         }
         else
         {
-            for(uint32_t i = 0; i < cHeight; i++)
-            {
-                memcpy(pbDst, pSrc, cbWidth);
+            pbSrc      = pbGst;
+            cbSrcPitch = cbGstPitch;
+            pbDst      = pbHst;
+            cbDstPitch = cbHstPitch;
+        }
 
-                pbDst += cbDestPitch;
-                pSrc  += cbSrcPitch;
+        if (   cbWidth == (uint32_t)cbGstPitch
+            && cbGstPitch == cbHstPitch)
+        {
+            /* Entire scanlines, positive pitch. */
+            memcpy(pbDst, pbSrc, cbWidth * cHeight);
+        }
+        else
+        {
+            for (uint32_t i = 0; i < cHeight; ++i)
+            {
+                memcpy(pbDst, pbSrc, cbWidth);
+
+                pbDst += cbDstPitch;
+                pbSrc += cbSrcPitch;
             }
         }
         return VINF_SUCCESS;
     }
 
     AssertPtrReturn(pGMR, VERR_INVALID_PARAMETER);
-    pDesc = pGMR->paDesc;
+    AssertReturn(pGMR->numDescriptors > 0, VERR_INVALID_PARAMETER);
 
-    for (uint32_t i = 0; i < cHeight; i++)
+    PVMSVGAGMRDESCRIPTOR const paDesc = pGMR->paDesc; /* Local copy of the pointer. */
+    uint32_t iDesc = 0;                               /* Index in the descriptor array. */
+    uint32_t offDesc = 0;                             /* GMR offset of the current descriptor. */
+    uint32_t offGmrScanline = offGmr;                 /* GMR offset of the scanline which is being copied. */
+    uint8_t *pbHstScanline = pbHst;                   /* Host address of the scanline which is being copied. */
+    for (uint32_t i = 0; i < cHeight; ++i)
     {
         uint32_t cbCurrentWidth = cbWidth;
-        uint32_t offCurrent     = offSrc;
-        uint8_t *pCurrentDest   = pbDst;
+        uint32_t offGmrCurrent  = offGmrScanline;
+        uint8_t *pbCurrentHost  = pbHstScanline;
 
         /* Find the right descriptor */
-        while (offDesc + pDesc->numPages * PAGE_SIZE <= offCurrent)
+        while (offDesc + paDesc[iDesc].numPages * PAGE_SIZE <= offGmrCurrent)
         {
-            offDesc += pDesc->numPages * PAGE_SIZE;
+            offDesc += paDesc[iDesc].numPages * PAGE_SIZE;
             AssertReturn(offDesc < pGMR->cbTotal, VERR_INTERNAL_ERROR); /* overflow protection */
-            pDesc++;
+            ++iDesc;
+            AssertReturn(iDesc < pGMR->numDescriptors, VERR_INTERNAL_ERROR);
         }
 
         while (cbCurrentWidth)
         {
             uint32_t cbToCopy;
 
-            if (offCurrent + cbCurrentWidth <= offDesc + pDesc->numPages * PAGE_SIZE)
+            if (offGmrCurrent + cbCurrentWidth <= offDesc + paDesc[iDesc].numPages * PAGE_SIZE)
             {
                 cbToCopy = cbCurrentWidth;
             }
             else
             {
-                cbToCopy = (offDesc + pDesc->numPages * PAGE_SIZE - offCurrent);
+                cbToCopy = (offDesc + paDesc[iDesc].numPages * PAGE_SIZE - offGmrCurrent);
                 AssertReturn(cbToCopy <= cbCurrentWidth, VERR_INVALID_PARAMETER);
             }
 
-            LogFlow(("vmsvgaGMRTransfer: %s phys=%RGp\n", (enmTransferType == SVGA3D_WRITE_HOST_VRAM) ? "READ" : "WRITE", pDesc->GCPhys + offCurrent - offDesc));
+            RTGCPHYS const GCPhys = paDesc[iDesc].GCPhys + offGmrCurrent - offDesc;
+
+            LogFlowFunc(("%s phys=%RGp\n", (enmTransferType == SVGA3D_WRITE_HOST_VRAM) ? "READ" : "WRITE", GCPhys));
 
             if (enmTransferType == SVGA3D_WRITE_HOST_VRAM)
-                rc = PDMDevHlpPhysRead(pThis->CTX_SUFF(pDevIns), pDesc->GCPhys + offCurrent - offDesc, pCurrentDest, cbToCopy);
+                rc = PDMDevHlpPhysRead(pThis->CTX_SUFF(pDevIns), GCPhys, pbCurrentHost, cbToCopy);
             else
-                rc = PDMDevHlpPhysWrite(pThis->CTX_SUFF(pDevIns), pDesc->GCPhys + offCurrent - offDesc, pCurrentDest, cbToCopy);
+                rc = PDMDevHlpPhysWrite(pThis->CTX_SUFF(pDevIns), GCPhys, pbCurrentHost, cbToCopy);
             AssertRCBreak(rc);
 
             cbCurrentWidth -= cbToCopy;
-            offCurrent     += cbToCopy;
-            pCurrentDest   += cbToCopy;
+            offGmrCurrent  += cbToCopy;
+            pbCurrentHost  += cbToCopy;
 
             /* Go to the next descriptor if there's anything left. */
             if (cbCurrentWidth)
             {
-                offDesc += pDesc->numPages * PAGE_SIZE;
-                pDesc++;
+                offDesc += paDesc[iDesc].numPages * PAGE_SIZE;
+                AssertReturn(offDesc < pGMR->cbTotal, VERR_INTERNAL_ERROR);
+                ++iDesc;
+                AssertReturn(iDesc < pGMR->numDescriptors, VERR_INTERNAL_ERROR);
             }
         }
 
-        offSrc  += cbSrcPitch;
-        pbDst   += cbDestPitch;
+        offGmrScanline += cbGstPitch;
+        pbHstScanline  += cbHstPitch;
     }
 
     return VINF_SUCCESS;
+}
+
+
+/** Unsigned coordinates in pBox. Clip to [0; pSizeSrc), [0;pSizeDest).
+ *
+ * @param pSizeSrc  Source surface dimensions.
+ * @param pSizeDest Destination surface dimensions.
+ * @param pBox      Coordinates to be clipped.
+ */
+void vmsvgaClipCopyBox(const SVGA3dSize *pSizeSrc,
+                       const SVGA3dSize *pSizeDest,
+                       SVGA3dCopyBox *pBox)
+{
+    /* Src x, w */
+    if (pBox->srcx > pSizeSrc->width)
+        pBox->srcx = pSizeSrc->width;
+    if (pBox->w > pSizeSrc->width - pBox->srcx)
+        pBox->w = pSizeSrc->width - pBox->srcx;
+
+    /* Src y, h */
+    if (pBox->srcy > pSizeSrc->height)
+        pBox->srcy = pSizeSrc->height;
+    if (pBox->h > pSizeSrc->height - pBox->srcy)
+        pBox->h = pSizeSrc->height - pBox->srcy;
+
+    /* Src z, d */
+    if (pBox->srcz > pSizeSrc->depth)
+        pBox->srcz = pSizeSrc->depth;
+    if (pBox->d > pSizeSrc->depth - pBox->srcz)
+        pBox->d = pSizeSrc->depth - pBox->srcz;
+
+    /* Dest x, w */
+    if (pBox->x > pSizeDest->width)
+        pBox->x = pSizeDest->width;
+    if (pBox->w > pSizeDest->width - pBox->x)
+        pBox->w = pSizeDest->width - pBox->x;
+
+    /* Dest y, h */
+    if (pBox->y > pSizeDest->height)
+        pBox->y = pSizeDest->height;
+    if (pBox->h > pSizeDest->height - pBox->y)
+        pBox->h = pSizeDest->height - pBox->y;
+
+    /* Dest z, d */
+    if (pBox->z > pSizeDest->depth)
+        pBox->z = pSizeDest->depth;
+    if (pBox->d > pSizeDest->depth - pBox->z)
+        pBox->d = pSizeDest->depth - pBox->z;
+}
+
+/** Unsigned coordinates in pBox. Clip to [0; pSize).
+ *
+ * @param pSize     Source surface dimensions.
+ * @param pBox      Coordinates to be clipped.
+ */
+void vmsvgaClipBox(const SVGA3dSize *pSize,
+                   SVGA3dBox *pBox)
+{
+    /* x, w */
+    if (pBox->x > pSize->width)
+        pBox->x = pSize->width;
+    if (pBox->w > pSize->width - pBox->x)
+        pBox->w = pSize->width - pBox->x;
+
+    /* y, h */
+    if (pBox->y > pSize->height)
+        pBox->y = pSize->height;
+    if (pBox->h > pSize->height - pBox->y)
+        pBox->h = pSize->height - pBox->y;
+
+    /* z, d */
+    if (pBox->z > pSize->depth)
+        pBox->z = pSize->depth;
+    if (pBox->d > pSize->depth - pBox->z)
+        pBox->d = pSize->depth - pBox->z;
+}
+
+/** Clip.
+ *
+ * @param pBound    Bounding rectangle.
+ * @param pRect     Rectangle to be clipped.
+ */
+void vmsvgaClipRect(SVGASignedRect const *pBound,
+                    SVGASignedRect *pRect)
+{
+    int32_t left;
+    int32_t top;
+    int32_t right;
+    int32_t bottom;
+
+    /* Right order. */
+    Assert(pBound->left <= pBound->right && pBound->top <= pBound->bottom);
+    if (pRect->left < pRect->right)
+    {
+        left = pRect->left;
+        right = pRect->right;
+    }
+    else
+    {
+        left = pRect->right;
+        right = pRect->left;
+    }
+    if (pRect->top < pRect->bottom)
+    {
+        top = pRect->top;
+        bottom = pRect->bottom;
+    }
+    else
+    {
+        top = pRect->bottom;
+        bottom = pRect->top;
+    }
+
+    if (left < pBound->left)
+        left = pBound->left;
+    if (right < pBound->left)
+        right = pBound->left;
+
+    if (left > pBound->right)
+        left = pBound->right;
+    if (right > pBound->right)
+        right = pBound->right;
+
+    if (top < pBound->top)
+        top = pBound->top;
+    if (bottom < pBound->top)
+        bottom = pBound->top;
+
+    if (top > pBound->bottom)
+        top = pBound->bottom;
+    if (bottom > pBound->bottom)
+        bottom = pBound->bottom;
+
+    pRect->left = left;
+    pRect->right = right;
+    pRect->top = top;
+    pRect->bottom = bottom;
 }
 
 /**
@@ -4522,6 +4980,7 @@ static void vmsvgaSetTraces(PVGASTATE pThis, bool fTraces)
         unsigned cbFrameBuffer = pThis->vram_size;
 
         Log(("vmsvgaSetTraces: enable dirty page handling for the frame buffer only (%x bytes)\n", 0));
+        /** @todo How this works with screens? */
         if (pThis->svga.uHeight != VMSVGA_VAL_UNINITIALIZED)
         {
 #ifndef DEBUG_bird /* BB-10.3.1 triggers this as it initializes everything to zero. Better just ignore it. */
@@ -4649,13 +5108,13 @@ void vmsvga3dSurfaceUpdateHeapBuffersOnFifoThread(PVGASTATE pThis, uint32_t sid)
  */
 DECLCALLBACK(void) vmsvgaR3Info3dSurface(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, const char *pszArgs)
 {
-    /* There might be a specific context ID at the start of the
-       arguments, if not show all contexts. */
-    uint32_t cid = UINT32_MAX;
+    /* There might be a specific surface ID at the start of the
+       arguments, if not show all surfaces. */
+    uint32_t sid = UINT32_MAX;
     if (pszArgs)
         pszArgs = RTStrStripL(pszArgs);
     if (pszArgs && RT_C_IS_DIGIT(*pszArgs))
-        cid = RTStrToUInt32(pszArgs);
+        sid = RTStrToUInt32(pszArgs);
 
     /* Verbose or terse display, we default to verbose. */
     bool fVerbose = true;
@@ -4684,7 +5143,32 @@ DECLCALLBACK(void) vmsvgaR3Info3dSurface(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp,
     if (RTStrIStr(pszArgs, "invy"))
         fInvY = true;
 
-    vmsvga3dInfoSurfaceWorker(PDMINS_2_DATA(pDevIns, PVGASTATE), pHlp, cid, fVerbose, cxAscii, fInvY);
+    vmsvga3dInfoSurfaceWorker(PDMINS_2_DATA(pDevIns, PVGASTATE), pHlp, sid, fVerbose, cxAscii, fInvY, NULL);
+}
+
+
+/**
+ * @callback_method_impl{FNDBGFHANDLERDEV, "vmsvga3dsurf"}
+ */
+DECLCALLBACK(void) vmsvgaR3Info3dSurfaceBmp(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, const char *pszArgs)
+{
+    /* pszArg = "sid[>dir]"
+     * Writes %dir%/info-S-sidI.bmp, where S - sequential bitmap number, I - decimal surface id.
+     */
+    char *pszBitmapPath = NULL;
+    uint32_t sid = UINT32_MAX;
+    if (pszArgs)
+        pszArgs = RTStrStripL(pszArgs);
+    if (pszArgs && RT_C_IS_DIGIT(*pszArgs))
+        RTStrToUInt32Ex(pszArgs, &pszBitmapPath, 0, &sid);
+    if (   pszBitmapPath
+        && *pszBitmapPath == '>')
+        ++pszBitmapPath;
+
+    const bool fVerbose = true;
+    const uint32_t cxAscii = 0; /* No ASCII */
+    const bool fInvY = false;   /* Do not invert. */
+    vmsvga3dInfoSurfaceWorker(PDMINS_2_DATA(pDevIns, PVGASTATE), pHlp, sid, fVerbose, cxAscii, fInvY, pszBitmapPath);
 }
 
 
@@ -4750,12 +5234,66 @@ static DECLCALLBACK(void) vmsvgaR3Info(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, c
 
 # ifdef VBOX_WITH_VMSVGA3D
     pHlp->pfnPrintf(pHlp, "3D enabled:         %RTbool\n", pThis->svga.f3DEnabled);
-    pHlp->pfnPrintf(pHlp, "Host windows ID:    %#RX64\n", pThis->svga.u64HostWindowId);
-    if (pThis->svga.u64HostWindowId != 0)
-        vmsvga3dInfoHostWindow(pHlp, pThis->svga.u64HostWindowId);
 # endif
 }
 
+/** Portion of VMSVGA state which must be loaded oin the FIFO thread.
+ */
+static int vmsvgaLoadExecFifo(PVGASTATE pThis, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
+{
+    RT_NOREF(uPass);
+
+    PVMSVGAR3STATE  pSVGAState = pThis->svga.pSvgaR3State;
+    int rc;
+
+    if (uVersion >= VGA_SAVEDSTATE_VERSION_VMSVGA_SCREENS)
+    {
+        uint32_t cScreens = 0;
+        rc = SSMR3GetU32(pSSM, &cScreens);
+        AssertRCReturn(rc, rc);
+        AssertLogRelMsgReturn(cScreens <= _64K, /* big enough */
+                              ("cScreens=%#x\n", cScreens),
+                              VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
+
+        for (uint32_t i = 0; i < cScreens; ++i)
+        {
+            VMSVGASCREENOBJECT screen;
+            RT_ZERO(screen);
+
+            rc = SSMR3GetStructEx(pSSM, &screen, sizeof(screen), 0, g_aVMSVGASCREENOBJECTFields, NULL);
+            AssertLogRelRCReturn(rc, rc);
+
+            if (screen.idScreen < RT_ELEMENTS(pSVGAState->aScreens))
+            {
+                VMSVGASCREENOBJECT *pScreen = &pSVGAState->aScreens[screen.idScreen];
+                *pScreen = screen;
+                pScreen->fModified = true;
+            }
+            else
+            {
+                LogRel(("VGA: ignored screen object %d\n", screen.idScreen));
+            }
+        }
+    }
+    else
+    {
+        /* Try to setup at least the first screen. */
+        VMSVGASCREENOBJECT *pScreen = &pSVGAState->aScreens[0];
+        pScreen->fDefined  = true;
+        pScreen->fModified = true;
+        pScreen->fuScreen  = SVGA_SCREEN_MUST_BE_SET | SVGA_SCREEN_IS_PRIMARY;
+        pScreen->idScreen  = 0;
+        pScreen->xOrigin   = 0;
+        pScreen->yOrigin   = 0;
+        pScreen->offVRAM   = pThis->svga.uScreenOffset;
+        pScreen->cbPitch   = pThis->svga.cbScanline;
+        pScreen->cWidth    = pThis->svga.uWidth;
+        pScreen->cHeight   = pThis->svga.uHeight;
+        pScreen->cBpp      = pThis->svga.uBpp;
+    }
+
+    return VINF_SUCCESS;
+}
 
 /**
  * @copydoc FNSSMDEVLOADEXEC
@@ -4848,21 +5386,16 @@ int vmsvgaLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uVersion, uint3
         }
     }
 
-# ifdef VBOX_WITH_VMSVGA3D
-    if (pThis->svga.f3DEnabled)
-    {
 #  ifdef RT_OS_DARWIN  /** @todo r=bird: this is normally done on the EMT, so for DARWIN we do that when loading saved state too now. See DevVGA-SVGA3d-shared.h. */
-        vmsvga3dPowerOn(pThis);
+    vmsvga3dPowerOn(pThis);
 #  endif
 
-        VMSVGA_STATE_LOAD LoadState;
-        LoadState.pSSM     = pSSM;
-        LoadState.uVersion = uVersion;
-        LoadState.uPass    = uPass;
-        rc = vmsvgaR3RunExtCmdOnFifoThread(pThis, VMSVGA_FIFO_EXTCMD_LOADSTATE, &LoadState, RT_INDEFINITE_WAIT);
-        AssertLogRelRCReturn(rc, rc);
-    }
-# endif
+    VMSVGA_STATE_LOAD LoadState;
+    LoadState.pSSM     = pSSM;
+    LoadState.uVersion = uVersion;
+    LoadState.uPass    = uPass;
+    rc = vmsvgaR3RunExtCmdOnFifoThread(pThis, VMSVGA_FIFO_EXTCMD_LOADSTATE, &LoadState, RT_INDEFINITE_WAIT);
+    AssertLogRelRCReturn(rc, rc);
 
     return VINF_SUCCESS;
 }
@@ -4875,8 +5408,7 @@ int vmsvgaLoadDone(PPDMDEVINS pDevIns)
     PVGASTATE       pThis = PDMINS_2_DATA(pDevIns, PVGASTATE);
     PVMSVGAR3STATE  pSVGAState = pThis->svga.pSvgaR3State;
 
-    pThis->last_bpp = VMSVGA_VAL_UNINITIALIZED;   /* force mode reset */
-    vmsvgaChangeMode(pThis);
+    ASMAtomicOrU32(&pThis->svga.u32ActionFlags, VMSVGA_ACTION_CHANGEMODE);
 
     /* Set the active cursor. */
     if (pSVGAState->Cursor.fActive)
@@ -4892,6 +5424,36 @@ int vmsvgaLoadDone(PPDMDEVINS pDevIns)
                                                    pSVGAState->Cursor.height,
                                                    pSVGAState->Cursor.pData);
         AssertRC(rc);
+    }
+    return VINF_SUCCESS;
+}
+
+/**
+ * Portion of SVGA state which must be saved in the FIFO thread.
+ */
+static int vmsvgaSaveExecFifo(PVGASTATE pThis, PSSMHANDLE pSSM)
+{
+    PVMSVGAR3STATE  pSVGAState = pThis->svga.pSvgaR3State;
+    int             rc;
+
+    /* Save the screen objects. */
+    /* Count defined screen object. */
+    uint32_t cScreens = 0;
+    for (uint32_t i = 0; i < RT_ELEMENTS(pSVGAState->aScreens); ++i)
+    {
+         if (pSVGAState->aScreens[i].fDefined)
+             ++cScreens;
+    }
+
+    rc = SSMR3PutU32(pSSM, cScreens);
+    AssertLogRelRCReturn(rc, rc);
+
+    for (uint32_t i = 0; i < cScreens; ++i)
+    {
+        VMSVGASCREENOBJECT *pScreen = &pSVGAState->aScreens[i];
+
+        rc = SSMR3PutStructEx(pSSM, pScreen, sizeof(*pScreen), 0, g_aVMSVGASCREENOBJECTFields, NULL);
+        AssertLogRelRCReturn(rc, rc);
     }
     return VINF_SUCCESS;
 }
@@ -4942,17 +5504,71 @@ int vmsvgaSaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
         }
     }
 
-# ifdef VBOX_WITH_VMSVGA3D
     /*
-     * Must save the 3d state in the FIFO thread.
+     * Must save the some state (3D in particular) in the FIFO thread.
      */
-    if (pThis->svga.f3DEnabled)
-    {
-        rc = vmsvgaR3RunExtCmdOnFifoThread(pThis, VMSVGA_FIFO_EXTCMD_SAVESTATE, pSSM, RT_INDEFINITE_WAIT);
-        AssertLogRelRCReturn(rc, rc);
-    }
-# endif
+    rc = vmsvgaR3RunExtCmdOnFifoThread(pThis, VMSVGA_FIFO_EXTCMD_SAVESTATE, pSSM, RT_INDEFINITE_WAIT);
+    AssertLogRelRCReturn(rc, rc);
+
     return VINF_SUCCESS;
+}
+
+/**
+ * Destructor for PVMSVGAR3STATE structure.
+ *
+ * @param   pThis          The VGA instance.
+ * @param   pSVGAState     Pointer to the structure. It is not deallocated.
+ */
+static void vmsvgaR3StateTerm(PVGASTATE pThis, PVMSVGAR3STATE pSVGAState)
+{
+#ifndef VMSVGA_USE_EMT_HALT_CODE
+    if (pSVGAState->hBusyDelayedEmts != NIL_RTSEMEVENTMULTI)
+    {
+        RTSemEventMultiDestroy(pSVGAState->hBusyDelayedEmts);
+        pSVGAState->hBusyDelayedEmts = NIL_RTSEMEVENT;
+    }
+#endif
+
+    if (pSVGAState->Cursor.fActive)
+    {
+        RTMemFree(pSVGAState->Cursor.pData);
+        pSVGAState->Cursor.pData = NULL;
+        pSVGAState->Cursor.fActive = false;
+    }
+
+    if (pSVGAState->paGMR)
+    {
+        for (unsigned i = 0; i < pThis->svga.cGMR; ++i)
+            if (pSVGAState->paGMR[i].paDesc)
+                RTMemFree(pSVGAState->paGMR[i].paDesc);
+
+        RTMemFree(pSVGAState->paGMR);
+        pSVGAState->paGMR = NULL;
+    }
+}
+
+/**
+ * Constructor for PVMSVGAR3STATE structure.
+ *
+ * @returns VBox status code.
+ * @param   pThis          The VGA instance.
+ * @param   pSVGAState     Pointer to the structure. It is already allocated.
+ */
+static int vmsvgaR3StateInit(PVGASTATE pThis, PVMSVGAR3STATE pSVGAState)
+{
+    int rc = VINF_SUCCESS;
+    RT_ZERO(*pSVGAState);
+
+    pSVGAState->paGMR = (PGMR)RTMemAllocZ(pThis->svga.cGMR * sizeof(GMR));
+    AssertReturn(pSVGAState->paGMR, VERR_NO_MEMORY);
+
+#ifndef VMSVGA_USE_EMT_HALT_CODE
+    /* Create semaphore for delaying EMTs wait for the FIFO to stop being busy. */
+    rc = RTSemEventMultiCreate(&pSVGAState->hBusyDelayedEmts);
+    AssertRCReturn(rc, rc);
+#endif
+
+    return rc;
 }
 
 /**
@@ -4972,7 +5588,6 @@ int vmsvgaReset(PPDMDEVINS pDevIns)
 
     Log(("vmsvgaReset\n"));
 
-
     /* Reset the FIFO processing as well as the 3d state (if we have one). */
     pThis->svga.pFIFOR3[SVGA_FIFO_NEXT_CMD] = pThis->svga.pFIFOR3[SVGA_FIFO_STOP] = 0; /** @todo should probably let the FIFO thread do this ... */
     int rc = vmsvgaR3RunExtCmdOnFifoThread(pThis, VMSVGA_FIFO_EXTCMD_RESET, NULL /*pvParam*/, 10000 /*ms*/);
@@ -4980,7 +5595,10 @@ int vmsvgaReset(PPDMDEVINS pDevIns)
     /* Reset other stuff. */
     pThis->svga.cScratchRegion = VMSVGA_SCRATCH_SIZE;
     RT_ZERO(pThis->svga.au32ScratchRegion);
-    RT_ZERO(*pThis->svga.pSvgaR3State);
+
+    vmsvgaR3StateTerm(pThis, pThis->svga.pSvgaR3State);
+    vmsvgaR3StateInit(pThis, pThis->svga.pSvgaR3State);
+
     RT_BZERO(pThis->svga.pbVgaFrameBufferR3, VMSVGA_VGA_FB_BACKUP_SIZE);
 
     /* Register caps. */
@@ -5034,30 +5652,11 @@ int vmsvgaDestruct(PPDMDEVINS pDevIns)
     /*
      * Destroy the special SVGA state.
      */
-    PVMSVGAR3STATE pSVGAState = pThis->svga.pSvgaR3State;
-    if (pSVGAState)
+    if (pThis->svga.pSvgaR3State)
     {
-# ifndef VMSVGA_USE_EMT_HALT_CODE
-        if (pSVGAState->hBusyDelayedEmts != NIL_RTSEMEVENTMULTI)
-        {
-            RTSemEventMultiDestroy(pSVGAState->hBusyDelayedEmts);
-            pSVGAState->hBusyDelayedEmts = NIL_RTSEMEVENT;
-        }
-# endif
-        if (pSVGAState->Cursor.fActive)
-            RTMemFree(pSVGAState->Cursor.pData);
+        vmsvgaR3StateTerm(pThis, pThis->svga.pSvgaR3State);
 
-        if (pSVGAState->paGMR)
-        {
-            for (unsigned i = 0; i < pThis->svga.cGMR; ++i)
-                if (pSVGAState->paGMR[i].paDesc)
-                    RTMemFree(pSVGAState->paGMR[i].paDesc);
-
-            RTMemFree(pSVGAState->paGMR);
-            pSVGAState->paGMR = NULL;
-        }
-
-        RTMemFree(pSVGAState);
+        RTMemFree(pThis->svga.pSvgaR3State);
         pThis->svga.pSvgaR3State = NULL;
     }
 
@@ -5099,13 +5698,7 @@ int vmsvgaInit(PPDMDEVINS pDevIns)
     pThis->svga.cScratchRegion = VMSVGA_SCRATCH_SIZE;
     memset(pThis->svga.au32ScratchRegion, 0, sizeof(pThis->svga.au32ScratchRegion));
 
-    pThis->svga.pSvgaR3State = (PVMSVGAR3STATE)RTMemAllocZ(sizeof(VMSVGAR3STATE));
-    AssertReturn(pThis->svga.pSvgaR3State, VERR_NO_MEMORY);
-    pSVGAState = pThis->svga.pSvgaR3State;
-
     pThis->svga.cGMR = VMSVGA_MAX_GMR_IDS;
-    pSVGAState->paGMR = (PGMR)RTMemAllocZ(pThis->svga.cGMR * sizeof(GMR));
-    AssertReturn(pSVGAState->paGMR, VERR_NO_MEMORY);
 
     /* Necessary for creating a backup of the text mode frame buffer when switching into svga mode. */
     pThis->svga.pbVgaFrameBufferR3 = (uint8_t *)RTMemAllocZ(VMSVGA_VGA_FB_BACKUP_SIZE);
@@ -5129,11 +5722,13 @@ int vmsvgaInit(PPDMDEVINS pDevIns)
         return rc;
     }
 
-# ifndef VMSVGA_USE_EMT_HALT_CODE
-    /* Create semaphore for delaying EMTs wait for the FIFO to stop being busy. */
-    rc = RTSemEventMultiCreate(&pSVGAState->hBusyDelayedEmts);
-    AssertRCReturn(rc, rc);
-# endif
+    pThis->svga.pSvgaR3State = (PVMSVGAR3STATE)RTMemAlloc(sizeof(VMSVGAR3STATE));
+    AssertReturn(pThis->svga.pSvgaR3State, VERR_NO_MEMORY);
+
+    rc = vmsvgaR3StateInit(pThis, pThis->svga.pSvgaR3State);
+    AssertMsgRCReturn(rc, ("Failed to create pSvgaR3State.\n"), rc);
+
+    pSVGAState = pThis->svga.pSvgaR3State;
 
     /* Register caps. */
     pThis->svga.u32RegCaps = SVGA_CAP_GMR | SVGA_CAP_GMR2 | SVGA_CAP_CURSOR | SVGA_CAP_CURSOR_BYPASS_2 | SVGA_CAP_EXTENDED_FIFO | SVGA_CAP_IRQMASK | SVGA_CAP_PITCHLOCK | SVGA_CAP_TRACES | SVGA_CAP_SCREEN_OBJECT_2 | SVGA_CAP_ALPHA_CURSOR;
@@ -5365,6 +5960,10 @@ int vmsvgaInit(PPDMDEVINS pDevIns)
                               "VMSVGA 3d surface details. "
                               "Accepts 'terse', 'invy', and one of 'tiny', 'medium', 'normal', 'big', 'huge', or 'gigantic'.",
                               vmsvgaR3Info3dSurface);
+    PDMDevHlpDBGFInfoRegister(pDevIns, "vmsvga3dsurf",
+                              "VMSVGA 3d surface details and bitmap: "
+                              "sid[>dir]",
+                              vmsvgaR3Info3dSurfaceBmp);
 # endif
 
     return VINF_SUCCESS;

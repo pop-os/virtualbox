@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,13 +17,34 @@
 
 /** @page pg_vbox_guideline                 VBox Coding Guidelines
  *
- * The VBox Coding guidelines are followed by all of VBox with the exception of
- * qemu. Qemu is using whatever the frenchman does.
+ * The compulsory sections of these guidelines are to be followed in all of the
+ * VBox sources.  Please note that local guidelines in parts of the VBox source
+ * tree may promote the optional ones to compulsory status.  The VBox tree also
+ * contains some 3rd party sources where it is good to follow the local coding
+ * style while keeping these guidelines in mind.
  *
- * There are a few compulsory rules and a bunch of optional ones. The following
- * sections will describe these in details. In addition there is a section of
- * Subversion 'rules'.
+ * Contents:
+ *      - @ref sec_vbox_guideline_compulsory
+ *          - @ref sec_vbox_guideline_compulsory_sub64
+ *          - @ref sec_vbox_guideline_compulsory_cppmain
+ *          - @ref sec_vbox_guideline_compulsory_cppqtgui
+ *          - @ref sec_vbox_guideline_compulsory_xslt
+ *          - @ref sec_vbox_guideline_compulsory_doxygen
+ *          - @ref sec_vbox_guideline_compulsory_guest
+ *      - @ref sec_vbox_guideline_optional
+ *          - @ref sec_vbox_guideline_optional_layout
+ *          - @ref sec_vbox_guideline_optional_prefix
+ *          - @ref sec_vbox_guideline_optional_misc
+ *      - @ref sec_vbox_guideline_warnings
+ *          - @ref sec_vbox_guideline_warnings_signed_unsigned_compare
+ *      - @ref sec_vbox_guideline_svn
  *
+ * Local guidelines overrides:
+ *      - src/VBox/VMM/:            @ref pg_vmm_guideline (src/VBox/VMM/Docs-CodingGuidelines.cpp)
+ *      - src/VBox/ValidationKit/:  @ref pg_validationkit_guideline  (src/VBox/ValidationKit/ValidationKitCodingGuidelines.cpp)
+ *      - src/VBox/Runtime/:        All of @ref sec_vbox_guideline_optional is mandatory.
+ *      - src/VBox/Main/:           @ref sec_vbox_guideline_compulsory_cppmain
+ *      - src/VBox/Frontends/VirtualBox/: @ref sec_vbox_guideline_compulsory_cppqtgui
  *
  *
  * @section sec_vbox_guideline_compulsory       Compulsory
@@ -245,6 +266,11 @@
  *
  * @subsection sec_vbox_guideline_compulsory_cppmain   C++ guidelines for Main
  *
+ * Since the Main API code is a large amount of C++ code, it is allowed but
+ * not required to use C++ style comments (as permanent comments, beyond the
+ * temporary use allowed by the general coding guideline).  This is a weak
+ * preference, i.e. large scale comment style changes are not encouraged.
+ *
  * Main is currently (2009) full of hard-to-maintain code that uses complicated
  * templates. The new mid-term goal for Main is to have less custom templates
  * instead of more for the following reasons:
@@ -384,7 +410,7 @@
  * Second, when getting inputs from memory shared with the guest, be EXTREMELY
  * careful to not re-read input from shared memory after validating it, because
  * that will create TOCTOU problems. So, after reading input from shared memory
- * always use the RT_UNTRUSTED_NONVOLATILE_COPY_FENCE() macor.  For more details
+ * always use the RT_UNTRUSTED_NONVOLATILE_COPY_FENCE() macro.  For more details
  * on TOCTOU: https://en.wikipedia.org/wiki/Time_of_check_to_time_of_use
  *
  * Thirdly, considering the recent speculation side channel issues, spectre v1
@@ -904,5 +930,7 @@ int main()
  * </ul>
  *
  * (Inspired by mozilla tree rules.)
+ *
+ *
  */
 

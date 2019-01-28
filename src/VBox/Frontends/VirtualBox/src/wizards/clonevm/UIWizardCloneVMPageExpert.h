@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2017 Oracle Corporation
+ * Copyright (C) 2011-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __UIWizardCloneVMPageExpert_h__
-#define __UIWizardCloneVMPageExpert_h__
+#ifndef FEQT_INCLUDED_SRC_wizards_clonevm_UIWizardCloneVMPageExpert_h
+#define FEQT_INCLUDED_SRC_wizards_clonevm_UIWizardCloneVMPageExpert_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Local includes: */
 #include "UIWizardCloneVMPageBasic1.h"
@@ -34,19 +37,25 @@ class UIWizardCloneVMPageExpert : public UIWizardPage,
 {
     Q_OBJECT;
     Q_PROPERTY(QString cloneName READ cloneName WRITE setCloneName);
-    Q_PROPERTY(bool reinitMACs READ isReinitMACsChecked);
+    Q_PROPERTY(QString cloneFilePath READ cloneFilePath WRITE setCloneFilePath);
     Q_PROPERTY(bool linkedClone READ isLinkedClone);
     Q_PROPERTY(KCloneMode cloneMode READ cloneMode WRITE setCloneMode);
+    Q_PROPERTY(MACAddressClonePolicy macAddressClonePolicy READ macAddressClonePolicy WRITE setMACAddressClonePolicy);
+    Q_PROPERTY(bool keepDiskNames READ keepDiskNames WRITE setKeepDiskNames);
+    Q_PROPERTY(bool keepHWUUIDs READ keepHWUUIDs WRITE setKeepHWUUIDs);
 
 public:
 
     /* Constructor: */
-    UIWizardCloneVMPageExpert(const QString &strOriginalName, bool fAdditionalInfo, bool fShowChildsOption);
+    UIWizardCloneVMPageExpert(const QString &strOriginalName, const QString &strDefaultPath,
+                              bool fAdditionalInfo, bool fShowChildsOption, const QString &strGroup);
 
 private slots:
 
-    /* Button click handler: */
-    void sltButtonClicked(QAbstractButton *pButton);
+    /* Button toggle handler: */
+    void sltButtonToggled(QAbstractButton *pButton, bool fChecked);
+    void sltNameChanged();
+    void sltPathChanged();
 
 private:
 
@@ -61,10 +70,11 @@ private:
     bool validatePage();
 
     /* Widgets: */
-    QGroupBox *m_pNameCnt;
-    QGroupBox *m_pCloneTypeCnt;
-    QGroupBox *m_pCloneModeCnt;
+    QGroupBox   *m_pNameCnt;
+    QGroupBox   *m_pCloneTypeCnt;
+    QGroupBox   *m_pCloneModeCnt;
+    QGroupBox   *m_pCloneOptionsCnt;
+    QGridLayout *m_pCloneOptionsLayout;
 };
 
-#endif // __UIWizardCloneVMPageExpert_h__
-
+#endif /* !FEQT_INCLUDED_SRC_wizards_clonevm_UIWizardCloneVMPageExpert_h */

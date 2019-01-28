@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -42,8 +42,9 @@
  */
 
 #include <slirp.h>
-#include <iprt/file.h>
 #include <iprt/asm-math.h>
+#include <iprt/file.h>
+#include <iprt/err.h>
 #include <iprt/path.h>
 
 typedef enum ENMTFTPSESSIONFMT

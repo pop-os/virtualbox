@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,6 +20,7 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #include "ExtPackManagerImpl.h"
+#include "CloudProviderManagerImpl.h"
 #include "ExtPackUtil.h"
 #include "ThreadTask.h"
 
@@ -142,6 +143,10 @@ public:
     VBOXEXTPACKCTX      enmContext;
     /** Set if we've made the pfnVirtualBoxReady or pfnConsoleReady call. */
     bool                fMadeReadyCall;
+#ifndef VBOX_COM_INPROC
+    /** Pointer to the VirtualBox object so we can create a progress object. */
+    VirtualBox         *pVirtualBox;
+#endif
 
     RTMEMEF_NEW_AND_DELETE_OPERATORS();
 };
@@ -154,6 +159,10 @@ typedef std::list< ComObjPtr<ExtPack> > ExtPackList;
  */
 struct ExtPackManager::Data
 {
+    Data()
+        : cUpdate(0)
+    {}
+
     /** The directory where the extension packs are installed. */
     Utf8Str             strBaseDir;
     /** The directory where the certificates this installation recognizes are
@@ -167,6 +176,8 @@ struct ExtPackManager::Data
 #endif
     /** The current context. */
     VBOXEXTPACKCTX      enmContext;
+    /** Update counter for the installed extension packs, increased in every list update. */
+    uint64_t            cUpdate;
 
     RTMEMEF_NEW_AND_DELETE_OPERATORS();
 };
@@ -571,9 +582,9 @@ HRESULT ExtPackFile::queryLicense(const com::Utf8Str &aPreferredLocale, const co
                     if (RT_FAILURE(vrc))
                     {
                         if (vrc != VERR_EOF)
-                            hrc = setError(VBOX_E_IPRT_ERROR, tr("RTVfsFsStrmNext failed: %Rrc"), vrc);
+                            hrc = setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("RTVfsFsStrmNext failed: %Rrc"), vrc);
                         else
-                            hrc = setError(E_UNEXPECTED, tr("'%s' was found in the manifest but not in the tarball"), szName);
+                            hrc = setErrorBoth(E_UNEXPECTED, vrc, tr("'%s' was found in the manifest but not in the tarball"), szName);
                         break;
                     }
 
@@ -607,21 +618,21 @@ HRESULT ExtPackFile::queryLicense(const com::Utf8Str &aPreferredLocale, const co
                                         hrc = S_OK;
                                     }
                                     else
-                                        hrc = setError(VBOX_E_IPRT_ERROR,
-                                                       tr("The license file '%s' is empty or contains invalid UTF-8 encoding"),
-                                                       szName);
+                                        hrc = setErrorBoth(VBOX_E_IPRT_ERROR, vrc,
+                                                           tr("The license file '%s' is empty or contains invalid UTF-8 encoding"),
+                                                           szName);
                                 }
                                 else
-                                    hrc = setError(VBOX_E_IPRT_ERROR, tr("Failed to read '%s': %Rrc"), szName, vrc);
+                                    hrc = setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("Failed to read '%s': %Rrc"), szName, vrc);
                                 RTMemFree(pvFile);
                             }
                             else
                                 hrc = setError(E_OUTOFMEMORY, tr("Failed to allocate %zu bytes for '%s'"), cbFile, szName);
                         }
                         else
-                            hrc = setError(VBOX_E_IPRT_ERROR, tr("RTVfsIoStrmQueryInfo on '%s': %Rrc"), szName, vrc);
+                            hrc = setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("RTVfsIoStrmQueryInfo on '%s': %Rrc"), szName, vrc);
                         RTVfsIoStrmRelease(hVfsIos);
-                            break;
+                        break;
                     }
 
                     /* Release current. */
@@ -633,9 +644,9 @@ HRESULT ExtPackFile::queryLicense(const com::Utf8Str &aPreferredLocale, const co
             else
                 hrc = setError(VBOX_E_OBJECT_NOT_FOUND, tr("%s"), szError);
         }
-            else
+        else
             hrc = setError(VBOX_E_OBJECT_NOT_FOUND, tr("The license file '%s' was not found in '%s'"),
-                               szName, m->strExtPackFile.c_str());
+                           szName, m->strExtPackFile.c_str());
     }
     return hrc;
 }
@@ -713,13 +724,14 @@ HRESULT ExtPack::FinalConstruct()
  * Initializes the extension pack by reading its file.
  *
  * @returns COM status code.
+ * @param   a_pVirtualBox   The VirtualBox object.
  * @param   a_enmContext    The context we're in.
  * @param   a_pszName       The name of the extension pack.  This is also the
  *                          name of the subdirector under @a a_pszParentDir
  *                          where the extension pack is installed.
  * @param   a_pszDir        The extension pack directory name.
  */
-HRESULT ExtPack::initWithDir(VBOXEXTPACKCTX a_enmContext, const char *a_pszName, const char *a_pszDir)
+HRESULT ExtPack::initWithDir(VirtualBox *a_pVirtualBox, VBOXEXTPACKCTX a_enmContext, const char *a_pszName, const char *a_pszDir)
 {
     AutoInitSpan autoInitSpan(this);
     AssertReturn(autoInitSpan.isOk(), E_FAIL);
@@ -737,6 +749,12 @@ HRESULT ExtPack::initWithDir(VBOXEXTPACKCTX a_enmContext, const char *a_pszName,
         /* pfnLoadHGCMService   = */ ExtPack::i_hlpLoadHGCMService,
         /* pfnLoadVDPlugin      = */ ExtPack::i_hlpLoadVDPlugin,
         /* pfnUnloadVDPlugin    = */ ExtPack::i_hlpUnloadVDPlugin,
+        /* pfnCreateProgress    = */ ExtPack::i_hlpCreateProgress,
+        /* pfnGetCanceledProgress = */ ExtPack::i_hlpGetCanceledProgress,
+        /* pfnUpdateProgress    = */ ExtPack::i_hlpUpdateProgress,
+        /* pfnNextOperationProgress = */ ExtPack::i_hlpNextOperationProgress,
+        /* pfnWaitOtherProgress = */ ExtPack::i_hlpWaitOtherProgress,
+        /* pfnCompleteProgress  = */ ExtPack::i_hlpCompleteProgress,
         /* pfnReserved1         = */ ExtPack::i_hlpReservedN,
         /* pfnReserved2         = */ ExtPack::i_hlpReservedN,
         /* pfnReserved3         = */ ExtPack::i_hlpReservedN,
@@ -767,6 +785,11 @@ HRESULT ExtPack::initWithDir(VBOXEXTPACKCTX a_enmContext, const char *a_pszName,
     m->pReg                         = NULL;
     m->enmContext                   = a_enmContext;
     m->fMadeReadyCall               = false;
+#ifndef VBOX_COM_INPROC
+    m->pVirtualBox                  = a_pVirtualBox;
+#else
+    RT_NOREF(a_pVirtualBox);
+#endif
 
     /*
      * Make sure the SUPR3Hardened API works (ignoring errors for now).
@@ -871,7 +894,7 @@ HRESULT ExtPack::i_callUninstallHookAndClose(IVirtualBox *a_pVirtualBox, bool a_
             {
                 LogRel(("ExtPack pfnUninstall returned %Rrc for %s\n", vrc, m->Desc.strName.c_str()));
                 if (!a_fForcedRemoval)
-                    hrc = setError(E_FAIL, tr("pfnUninstall returned %Rrc"), vrc);
+                    hrc = setErrorBoth(E_FAIL, vrc, tr("pfnUninstall returned %Rrc"), vrc);
             }
         }
         if (SUCCEEDED(hrc))
@@ -905,6 +928,7 @@ bool ExtPack::i_callVirtualBoxReadyHook(IVirtualBox *a_pVirtualBox, AutoWriteLoc
             ComPtr<ExtPack> ptrSelfRef = this;
             a_pLock->release();
             m->pReg->pfnVirtualBoxReady(m->pReg, a_pVirtualBox);
+            i_notifyCloudProviderManager();
             a_pLock->acquire();
             return true;
         }
@@ -1062,7 +1086,7 @@ bool ExtPack::i_callVmPowerOffHook(IConsole *a_pConsole, PVM a_pVM, AutoWriteLoc
     }
     return false;
 }
-#endif /* !VBOX_COM_INPROC */
+#endif /* VBOX_COM_INPROC */
 
 /**
  * Check if the extension pack is usable and has an VRDE module.
@@ -1225,6 +1249,48 @@ HRESULT ExtPack::i_refresh(bool *a_pfCanDelete)
 
     return S_OK;
 }
+
+#ifndef VBOX_COM_INPROC
+/**
+ * Checks if there are cloud providers vetoing extension pack uninstall.
+ *
+ * This needs going through the cloud provider singleton in VirtualBox,
+ * the job cannot be done purely by using the code in the extension pack).
+ * It cannot be integrated into i_callUninstallHookAndClose, because it
+ * can only do its job when the extpack lock is not held, whereas the
+ * actual uninstall must be done with the lock held all the time for
+ * consistency reasons.
+ *
+ * This is called when uninstalling or replacing an extension pack.
+ *
+ * @returns true / false
+ */
+bool ExtPack::i_areThereCloudProviderUninstallVetos()
+{
+    Assert(m->pVirtualBox != NULL); /* Only called from VBoxSVC. */
+
+    ComObjPtr<CloudProviderManager> cpm(m->pVirtualBox->i_getCloudProviderManager());
+    AssertReturn(!cpm.isNull(), false);
+
+    return !cpm->i_canRemoveExtPack(static_cast<IExtPack *>(this));
+}
+
+/**
+ * Notifies the Cloud Provider Manager that there is a new extension pack.
+ *
+ * This is called when installing an extension pack.
+ */
+void ExtPack::i_notifyCloudProviderManager()
+{
+    Assert(m->pVirtualBox != NULL); /* Only called from VBoxSVC. */
+
+    ComObjPtr<CloudProviderManager> cpm(m->pVirtualBox->i_getCloudProviderManager());
+    AssertReturnVoid(!cpm.isNull());
+
+    cpm->i_addExtPack(static_cast<IExtPack *>(this));
+}
+
+#endif /* !VBOX_COM_INPROC */
 
 /**
  * Probes the extension pack, loading the main dll and calling its registration
@@ -1716,6 +1782,144 @@ ExtPack::i_hlpUnloadVDPlugin(PCVBOXEXTPACKHLP pHlp, VBOXEXTPACK_IF_CS(IVirtualBo
 #endif
 }
 
+/*static*/ DECLCALLBACK(uint32_t)
+ExtPack::i_hlpCreateProgress(PCVBOXEXTPACKHLP pHlp, VBOXEXTPACK_IF_CS(IUnknown) *pInitiator,
+                             const char *pcszDescription, uint32_t cOperations,
+                             uint32_t uTotalOperationsWeight, const char *pcszFirstOperationDescription,
+                             uint32_t uFirstOperationWeight, VBOXEXTPACK_IF_CS(IProgress) **ppProgressOut)
+{
+    /*
+     * Validate the input and get our bearings.
+     */
+    AssertPtrReturn(pcszDescription, (uint32_t)E_INVALIDARG);
+    AssertReturn(cOperations >= 1, (uint32_t)E_INVALIDARG);
+    AssertReturn(uTotalOperationsWeight >= 1, (uint32_t)E_INVALIDARG);
+    AssertPtrReturn(pcszFirstOperationDescription, (uint32_t)E_INVALIDARG);
+    AssertReturn(uFirstOperationWeight >= 1, (uint32_t)E_INVALIDARG);
+    AssertPtrReturn(ppProgressOut, (uint32_t)E_INVALIDARG);
+
+    AssertPtrReturn(pHlp, (uint32_t)E_INVALIDARG);
+    AssertReturn(pHlp->u32Version == VBOXEXTPACKHLP_VERSION, (uint32_t)E_INVALIDARG);
+#ifndef VBOX_COM_INPROC
+    ExtPack::Data *m = RT_FROM_CPP_MEMBER(pHlp, Data, Hlp);
+#endif
+
+    ComObjPtr<Progress> pProgress;
+    HRESULT hrc = pProgress.createObject();
+    if (FAILED(hrc))
+        return hrc;
+    hrc = pProgress->init(
+#ifndef VBOX_COM_INPROC
+                          m->pVirtualBox,
+#endif
+                          pInitiator, pcszDescription, TRUE /* aCancelable */,
+                          cOperations, uTotalOperationsWeight,
+                          pcszFirstOperationDescription, uFirstOperationWeight);
+    if (FAILED(hrc))
+        return hrc;
+
+    return pProgress.queryInterfaceTo(ppProgressOut);
+}
+
+/*static*/ DECLCALLBACK(uint32_t)
+ExtPack::i_hlpGetCanceledProgress(PCVBOXEXTPACKHLP pHlp, VBOXEXTPACK_IF_CS(IProgress) *pProgress,
+                                  bool *pfCanceled)
+{
+    /*
+     * Validate the input and get our bearings.
+     */
+    AssertPtrReturn(pProgress, (uint32_t)E_INVALIDARG);
+    AssertPtrReturn(pfCanceled, (uint32_t)E_INVALIDARG);
+
+    AssertPtrReturn(pHlp, (uint32_t)E_INVALIDARG);
+    AssertReturn(pHlp->u32Version == VBOXEXTPACKHLP_VERSION, (uint32_t)E_INVALIDARG);
+
+    BOOL fCanceled = FALSE;
+    HRESULT hrc = pProgress->COMGETTER(Canceled)(&fCanceled);
+    *pfCanceled  = !!fCanceled;
+    return hrc;
+}
+
+/*static*/ DECLCALLBACK(uint32_t)
+ExtPack::i_hlpUpdateProgress(PCVBOXEXTPACKHLP pHlp, VBOXEXTPACK_IF_CS(IProgress) *pProgress,
+                             uint32_t uPercent)
+{
+    /*
+     * Validate the input and get our bearings.
+     */
+    AssertPtrReturn(pProgress, (uint32_t)E_INVALIDARG);
+    AssertReturn(uPercent <= 100, (uint32_t)E_INVALIDARG);
+
+    AssertPtrReturn(pHlp, (uint32_t)E_INVALIDARG);
+    AssertReturn(pHlp->u32Version == VBOXEXTPACKHLP_VERSION, (uint32_t)E_INVALIDARG);
+
+    ComPtr<IInternalProgressControl> pProgressControl(pProgress);
+    AssertReturn(!!pProgressControl, (uint32_t)E_INVALIDARG);
+    return pProgressControl->SetCurrentOperationProgress(uPercent);
+}
+
+/*static*/ DECLCALLBACK(uint32_t)
+ExtPack::i_hlpNextOperationProgress(PCVBOXEXTPACKHLP pHlp, VBOXEXTPACK_IF_CS(IProgress) *pProgress,
+                                    const char *pcszNextOperationDescription,
+                                    uint32_t uNextOperationWeight)
+{
+    /*
+     * Validate the input and get our bearings.
+     */
+    AssertPtrReturn(pProgress, (uint32_t)E_INVALIDARG);
+    AssertPtrReturn(pcszNextOperationDescription, (uint32_t)E_INVALIDARG);
+    AssertReturn(uNextOperationWeight >= 1, (uint32_t)E_INVALIDARG);
+
+    AssertPtrReturn(pHlp, (uint32_t)E_INVALIDARG);
+    AssertReturn(pHlp->u32Version == VBOXEXTPACKHLP_VERSION, (uint32_t)E_INVALIDARG);
+
+    ComPtr<IInternalProgressControl> pProgressControl(pProgress);
+    AssertReturn(!!pProgressControl, (uint32_t)E_INVALIDARG);
+    return pProgressControl->SetNextOperation(Bstr(pcszNextOperationDescription).raw(), uNextOperationWeight);
+}
+
+/*static*/ DECLCALLBACK(uint32_t)
+ExtPack::i_hlpWaitOtherProgress(PCVBOXEXTPACKHLP pHlp, VBOXEXTPACK_IF_CS(IProgress) *pProgress,
+                                VBOXEXTPACK_IF_CS(IProgress) *pProgressOther, uint32_t cTimeoutMS)
+{
+    /*
+     * Validate the input and get our bearings.
+     */
+    AssertPtrReturn(pProgress, (uint32_t)E_INVALIDARG);
+    AssertPtrReturn(pProgressOther, (uint32_t)E_INVALIDARG);
+
+    AssertPtrReturn(pHlp, (uint32_t)E_INVALIDARG);
+    AssertReturn(pHlp->u32Version == VBOXEXTPACKHLP_VERSION, (uint32_t)E_INVALIDARG);
+
+    ComPtr<IInternalProgressControl> pProgressControl(pProgress);
+    AssertReturn(!!pProgressControl, (uint32_t)E_INVALIDARG);
+    return pProgressControl->WaitForOtherProgressCompletion(pProgressOther, cTimeoutMS);
+}
+
+/*static*/ DECLCALLBACK(uint32_t)
+ExtPack::i_hlpCompleteProgress(PCVBOXEXTPACKHLP pHlp, VBOXEXTPACK_IF_CS(IProgress) *pProgress,
+                               uint32_t uResultCode)
+{
+    /*
+     * Validate the input and get our bearings.
+     */
+    AssertPtrReturn(pProgress, (uint32_t)E_INVALIDARG);
+
+    AssertPtrReturn(pHlp, (uint32_t)E_INVALIDARG);
+    AssertReturn(pHlp->u32Version == VBOXEXTPACKHLP_VERSION, (uint32_t)E_INVALIDARG);
+
+    ComPtr<IInternalProgressControl> pProgressControl(pProgress);
+    AssertReturn(!!pProgressControl, (uint32_t)E_INVALIDARG);
+
+    ComPtr<IVirtualBoxErrorInfo> errorInfo;
+    if (FAILED((HRESULT)uResultCode))
+    {
+        ErrorInfoKeeper eik;
+        eik.getVirtualBoxErrorInfo(errorInfo);
+    }
+    return pProgressControl->NotifyComplete(uResultCode, errorInfo);
+}
+
 /*static*/ DECLCALLBACK(int)
 ExtPack::i_hlpReservedN(PCVBOXEXTPACKHLP pHlp)
 {
@@ -1869,13 +2073,13 @@ HRESULT ExtPack::queryLicense(const com::Utf8Str &aPreferredLocale, const com::U
                 RTFileReadAllFree(pvFile, cbFile);
             }
             else if (vrc == VERR_FILE_NOT_FOUND || vrc == VERR_PATH_NOT_FOUND)
-                hrc = setError(VBOX_E_OBJECT_NOT_FOUND, tr("The license file '%s' was not found in extension pack '%s'"),
-                               szName, m->Desc.strName.c_str());
+                hrc = setErrorBoth(VBOX_E_OBJECT_NOT_FOUND, vrc, tr("The license file '%s' was not found in extension pack '%s'"),
+                                   szName, m->Desc.strName.c_str());
             else
-                hrc = setError(VBOX_E_FILE_ERROR, tr("Failed to open the license file '%s': %Rrc"), szPath, vrc);
+                hrc = setErrorBoth(VBOX_E_FILE_ERROR, vrc, tr("Failed to open the license file '%s': %Rrc"), szPath, vrc);
         }
         else
-            hrc = setError(VBOX_E_IPRT_ERROR, tr("RTPathJoin failed: %Rrc"), vrc);
+            hrc = setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("RTPathJoin failed: %Rrc"), vrc);
     }
     return hrc;
 }
@@ -1998,10 +2202,15 @@ HRESULT ExtPackManager::initExtPackManager(VirtualBox *a_pVirtualBox, VBOXEXTPAC
                         ComObjPtr<ExtPack> NewExtPack;
                         HRESULT hrc2 = NewExtPack.createObject();
                         if (SUCCEEDED(hrc2))
-                            hrc2 = NewExtPack->initWithDir(a_enmContext, pstrName->c_str(), szExtPackDir);
+                            hrc2 = NewExtPack->initWithDir(a_pVirtualBox, a_enmContext, pstrName->c_str(), szExtPackDir);
                         delete pstrName;
                         if (SUCCEEDED(hrc2))
+                        {
                             m->llInstalledExtPacks.push_back(NewExtPack);
+                            /* Paranoia, there should be no API clients before this method is finished. */
+
+                            m->cUpdate++;
+                        }
                         else if (SUCCEEDED(rc))
                             hrc = hrc2;
                     }
@@ -2131,11 +2340,10 @@ HRESULT ExtPackManager::uninstall(const com::Utf8Str &aName, BOOL aForcedRemoval
                 hrc = ptrProgress.queryInterfaceTo(aProgress.asOutParam());
             else
                 hrc = setError(VBOX_E_IPRT_ERROR,
-                              tr("Starting thread for an extension pack uninstallation failed with %Rrc"), hrc);
+                               tr("Starting thread for an extension pack uninstallation failed with %Rrc"), hrc);
         }
         else
-            hrc = setError(VBOX_E_IPRT_ERROR,
-                          tr("Looks like creating a progress object for ExtraPackUninstallTask object failed"));
+            hrc = setError(hrc, tr("Looks like creating a progress object for ExtraPackUninstallTask object failed"));
     }
     catch (std::bad_alloc &)
     {
@@ -2250,7 +2458,7 @@ HRESULT ExtPackManager::i_runSetUidToRootHelper(Utf8Str const *a_pstrDisplayInfo
         apszArgs[cArgs++] = a_pstrDisplayInfo->c_str();
     }
 
-    LogRel(("'%s'", a_pszCommand));
+    LogRel((" '%s'", a_pszCommand));
     apszArgs[cArgs++] = a_pszCommand;
 
     va_list va;
@@ -2414,7 +2622,7 @@ HRESULT ExtPackManager::i_runSetUidToRootHelper(Utf8Str const *a_pstrDisplayInfo
         RTMemFree(pszStdErrBuf);
     }
     else
-        hrc = setError(VBOX_E_IPRT_ERROR, tr("Failed to launch the helper application '%s' (%Rrc)"), szExecName, vrc);
+        hrc = setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("Failed to launch the helper application '%s' (%Rrc)"), szExecName, vrc);
 
     RTPipeClose(hPipeR);
     RTPipeClose(hStdErrPipe.u.hPipe);
@@ -2467,6 +2675,7 @@ void ExtPackManager::i_removeExtPack(const char *a_pszName)
             && pExtPackData->Desc.strName.equalsIgnoreCase(a_pszName))
         {
             m->llInstalledExtPacks.erase(it);
+            m->cUpdate++;
             return;
         }
     }
@@ -2578,10 +2787,11 @@ HRESULT ExtPackManager::i_refreshExtPack(const char *a_pszName, bool a_fUnusable
             ComObjPtr<ExtPack> ptrNewExtPack;
             hrc = ptrNewExtPack.createObject();
             if (SUCCEEDED(hrc))
-                hrc = ptrNewExtPack->initWithDir(m->enmContext, a_pszName, szDir);
+                hrc = ptrNewExtPack->initWithDir(m->pVirtualBox, m->enmContext, a_pszName, szDir);
             if (SUCCEEDED(hrc))
             {
                 m->llInstalledExtPacks.push_back(ptrNewExtPack);
+                m->cUpdate++;
                 if (ptrNewExtPack->m->fUsable)
                     LogRel(("ExtPackManager: Found extension pack '%s'.\n", a_pszName));
                 else
@@ -2682,12 +2892,19 @@ HRESULT ExtPackManager::i_doInstall(ExtPackFile *a_pExtPackFile, bool a_fReplace
                    which means we have to redo the refresh call afterwards. */
                 autoLock.release();
                 bool fRunningVMs = i_areThereAnyRunningVMs();
+                bool fVetoingCP = pExtPack->i_areThereCloudProviderUninstallVetos();
                 autoLock.acquire();
                 hrc = i_refreshExtPack(pStrName->c_str(), false /*a_fUnusableIsError*/, &pExtPack);
                 if (fRunningVMs)
                 {
-                    LogRel(("Install extension pack '%s' failed because at least one VM is still running.", pStrName->c_str()));
-                    hrc = setError(E_FAIL, tr("Install extension pack '%s' failed because at least one VM is still running"),
+                    LogRel(("Upgrading extension pack '%s' failed because at least one VM is still running.", pStrName->c_str()));
+                    hrc = setError(E_FAIL, tr("Upgrading extension pack '%s' failed because at least one VM is still running"),
+                                   pStrName->c_str());
+                }
+                else if (fVetoingCP)
+                {
+                    LogRel(("Upgrading extension pack '%s' failed because at least one Cloud Provider is still busy.", pStrName->c_str()));
+                    hrc = setError(E_FAIL, tr("Upgrading extension pack '%s' failed because at least one Cloud Provider is still busy"),
                                    pStrName->c_str());
                 }
                 else if (SUCCEEDED(hrc) && pExtPack)
@@ -2740,8 +2957,8 @@ HRESULT ExtPackManager::i_doInstall(ExtPackFile *a_pExtPackFile, bool a_fReplace
                                                     "--name",     pStrName->c_str(),
                                                     "--forced",
                                                     (const char *)NULL);
-                        hrc = setError(E_FAIL, tr("The installation hook failed: %Rrc - %s"),
-                                       ErrInfo.Core.rc, ErrInfo.Core.pszMsg);
+                        hrc = setErrorBoth(E_FAIL, ErrInfo.Core.rc, tr("The installation hook failed: %Rrc - %s"),
+                                           ErrInfo.Core.rc, ErrInfo.Core.pszMsg);
                     }
                 }
                 else if (SUCCEEDED(hrc))
@@ -2789,72 +3006,98 @@ HRESULT ExtPackManager::i_doUninstall(Utf8Str const *a_pstrName, bool a_fForcedR
     HRESULT hrc = autoCaller.rc();
     if (SUCCEEDED(hrc))
     {
-        if (a_fForcedRemoval || !i_areThereAnyRunningVMs())
-        {
-            AutoWriteLock autoLock(this COMMA_LOCKVAL_SRC_POS);
+        AutoWriteLock autoLock(this COMMA_LOCKVAL_SRC_POS);
 
-            /*
-             * Refresh the data we have on the extension pack as it may be made
-             * stale by direct meddling or some other user.
-             */
-            ExtPack *pExtPack;
-            hrc = i_refreshExtPack(a_pstrName->c_str(), false /*a_fUnusableIsError*/, &pExtPack);
-            if (SUCCEEDED(hrc))
+        /*
+         * Refresh the data we have on the extension pack as it
+         * may be made stale by direct meddling or some other user.
+         */
+        ExtPack *pExtPack;
+        hrc = i_refreshExtPack(a_pstrName->c_str(), false /*a_fUnusableIsError*/, &pExtPack);
+        if (SUCCEEDED(hrc) && pExtPack)
+        {
+            /* We must leave the lock when calling i_areThereAnyRunningVMs,
+               which means we have to redo the refresh call afterwards. */
+            autoLock.release();
+            bool fRunningVMs = i_areThereAnyRunningVMs();
+            bool fVetoingCP = pExtPack->i_areThereCloudProviderUninstallVetos();
+            autoLock.acquire();
+            if (a_fForcedRemoval || (!fRunningVMs && !fVetoingCP))
             {
-                if (!pExtPack)
+                hrc = i_refreshExtPack(a_pstrName->c_str(), false /*a_fUnusableIsError*/, &pExtPack);
+                if (SUCCEEDED(hrc))
                 {
-                    LogRel(("ExtPackManager: Extension pack '%s' is not installed, so nothing to uninstall.\n", a_pstrName->c_str()));
-                    hrc = S_OK;             /* nothing to uninstall */
-                }
-                else
-                {
-                    /*
-                     * Call the uninstall hook and unload the main dll.
-                     */
-                    hrc = pExtPack->i_callUninstallHookAndClose(m->pVirtualBox, a_fForcedRemoval);
-                    if (SUCCEEDED(hrc))
+                    if (!pExtPack)
+                    {
+                        LogRel(("ExtPackManager: Extension pack '%s' is not installed, so nothing to uninstall.\n", a_pstrName->c_str()));
+                        hrc = S_OK;             /* nothing to uninstall */
+                    }
+                    else
                     {
                         /*
-                         * Run the set-uid-to-root binary that performs the
-                         * uninstallation.  Then refresh the object.
-                         *
-                         * This refresh is theorically subject to races, but it's of
-                         * the don't-do-that variety.
+                         * Call the uninstall hook and unload the main dll.
                          */
-                        const char *pszForcedOpt = a_fForcedRemoval ? "--forced" : NULL;
-                        hrc = i_runSetUidToRootHelper(a_pstrDisplayInfo,
-                                                      "uninstall",
-                                                      "--base-dir", m->strBaseDir.c_str(),
-                                                      "--name",     a_pstrName->c_str(),
-                                                      pszForcedOpt, /* Last as it may be NULL. */
-                                                      (const char *)NULL);
+                        hrc = pExtPack->i_callUninstallHookAndClose(m->pVirtualBox, a_fForcedRemoval);
                         if (SUCCEEDED(hrc))
                         {
-                            hrc = i_refreshExtPack(a_pstrName->c_str(), false /*a_fUnusableIsError*/, &pExtPack);
+                            /*
+                             * Run the set-uid-to-root binary that performs the
+                             * uninstallation.  Then refresh the object.
+                             *
+                             * This refresh is theorically subject to races, but it's of
+                             * the don't-do-that variety.
+                             */
+                            const char *pszForcedOpt = a_fForcedRemoval ? "--forced" : NULL;
+                            hrc = i_runSetUidToRootHelper(a_pstrDisplayInfo,
+                                                          "uninstall",
+                                                          "--base-dir", m->strBaseDir.c_str(),
+                                                          "--name",     a_pstrName->c_str(),
+                                                          pszForcedOpt, /* Last as it may be NULL. */
+                                                          (const char *)NULL);
                             if (SUCCEEDED(hrc))
                             {
-                                if (!pExtPack)
-                                    LogRel(("ExtPackManager: Successfully uninstalled extension pack '%s'.\n", a_pstrName->c_str()));
-                                else
-                                    hrc = setError(E_FAIL,
-                                                   tr("Uninstall extension pack '%s' failed under mysterious circumstances"),
-                                                   a_pstrName->c_str());
+                                hrc = i_refreshExtPack(a_pstrName->c_str(), false /*a_fUnusableIsError*/, &pExtPack);
+                                if (SUCCEEDED(hrc))
+                                {
+                                    if (!pExtPack)
+                                        LogRel(("ExtPackManager: Successfully uninstalled extension pack '%s'.\n", a_pstrName->c_str()));
+                                    else
+                                        hrc = setError(E_FAIL,
+                                                       tr("Uninstall extension pack '%s' failed under mysterious circumstances"),
+                                                       a_pstrName->c_str());
+                                }
                             }
-                        }
-                        else
-                        {
-                            ErrorInfoKeeper Eik;
-                            i_refreshExtPack(a_pstrName->c_str(), false /*a_fUnusableIsError*/, NULL);
+                            else
+                            {
+                                ErrorInfoKeeper Eik;
+                                i_refreshExtPack(a_pstrName->c_str(), false /*a_fUnusableIsError*/, NULL);
+                            }
                         }
                     }
                 }
             }
-        }
-        else
-        {
-            LogRel(("Uninstall extension pack '%s' failed because at least one VM is still running.", a_pstrName->c_str()));
-            hrc = setError(E_FAIL, tr("Uninstall extension pack '%s' failed because at least one VM is still running"),
-                           a_pstrName->c_str());
+            else
+            {
+                if (fRunningVMs)
+                {
+                    LogRel(("Uninstall extension pack '%s' failed because at least one VM is still running.", a_pstrName->c_str()));
+                    hrc = setError(E_FAIL, tr("Uninstall extension pack '%s' failed because at least one VM is still running"),
+                                   a_pstrName->c_str());
+                }
+                else if (fVetoingCP)
+                {
+                    LogRel(("Uninstall extension pack '%s' failed because at least one Cloud Provider is still busy.", a_pstrName->c_str()));
+                    hrc = setError(E_FAIL, tr("Uninstall extension pack '%s' failed because at least one Cloud Provider is still busy"),
+                                   a_pstrName->c_str());
+                }
+                else
+                {
+                    LogRel(("Uninstall extension pack '%s' failed for an unknown reason.", a_pstrName->c_str()));
+                    hrc = setError(E_FAIL, tr("Uninstall extension pack '%s' failed for an unknown reason"),
+                                   a_pstrName->c_str());
+
+                }
+            }
         }
 
         /*
@@ -2862,7 +3105,10 @@ HRESULT ExtPackManager::i_doUninstall(Utf8Str const *a_pstrName, bool a_fForcedR
          * extension pack (old ones will not be called).
          */
         if (m->enmContext == VBOXEXTPACKCTX_PER_USER_DAEMON)
+        {
+            autoLock.release();
             i_callAllVirtualBoxReadyHooks();
+        }
     }
 
     return hrc;
@@ -2892,6 +3138,52 @@ void ExtPackManager::i_callAllVirtualBoxReadyHooks(void)
         else
             ++it;
     }
+}
+
+
+/**
+ * Queries objects of type @a aObjUuid from all the extension packs.
+ *
+ * @returns COM status code.
+ * @param   aObjUuid        The UUID of the kind of objects we're querying.
+ * @param   aObjects        Where to return the objects.
+ * @param   a_pstrExtPackNames Where to return the corresponding extpack names (may be NULL).
+ *
+ * @remarks The caller must not hold any locks.
+ */
+HRESULT ExtPackManager::i_queryObjects(const com::Utf8Str &aObjUuid, std::vector<ComPtr<IUnknown> > &aObjects, std::vector<com::Utf8Str> *a_pstrExtPackNames)
+{
+    aObjects.clear();
+    if (a_pstrExtPackNames)
+        a_pstrExtPackNames->clear();
+
+    AutoCaller autoCaller(this);
+    HRESULT hrc = autoCaller.rc();
+    if (SUCCEEDED(hrc))
+    {
+        AutoWriteLock autoLock(this COMMA_LOCKVAL_SRC_POS);
+        ComPtr<ExtPackManager> ptrSelfRef = this;
+
+        for (ExtPackList::iterator it = m->llInstalledExtPacks.begin();
+             it != m->llInstalledExtPacks.end();
+             ++it)
+        {
+            ComPtr<IUnknown> ptrIf;
+            HRESULT hrc2 = (*it)->queryObject(aObjUuid, ptrIf);
+            if (SUCCEEDED(hrc2))
+            {
+                aObjects.push_back(ptrIf);
+                if (a_pstrExtPackNames)
+                    a_pstrExtPackNames->push_back((*it)->m->Desc.strName);
+            }
+            else if (hrc2 != E_NOINTERFACE)
+                hrc = hrc2;
+        }
+
+        if (aObjects.size() > 0)
+            hrc = S_OK;
+    }
+    return hrc;
 }
 
 #endif /* !VBOX_COM_INPROC */
@@ -3202,6 +3494,19 @@ void ExtPackManager::i_dumpAllToReleaseLog(void)
 
     if (!m->llInstalledExtPacks.size())
         LogRel(("  None installed!\n"));
+}
+
+/**
+ * Gets the update counter (reflecting extpack list updates).
+ */
+uint64_t ExtPackManager::i_getUpdateCounter(void)
+{
+    AutoCaller autoCaller(this);
+    HRESULT hrc = autoCaller.rc();
+    if (FAILED(hrc))
+        return 0;
+    AutoReadLock autoLock(this COMMA_LOCKVAL_SRC_POS);
+    return m->cUpdate;
 }
 
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

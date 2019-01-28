@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,18 +15,21 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __HGCMThread_h__
-#define __HGCMThread_h__
+#ifndef MAIN_INCLUDED_HGCMThread_h
+#define MAIN_INCLUDED_HGCMThread_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/types.h>
 
 #include "HGCMObjects.h"
 
+/* Forward declaration of the worker thread class. */
+class HGCMThread;
+
 /** A handle for HGCM message. */
 typedef uint32_t HGCMMSGHANDLE;
-
-/** A handle for HGCM worker threads. */
-typedef uint32_t HGCMTHREADHANDLE;
 
 /* Forward declaration of message core class. */
 class HGCMMsgCore;
@@ -43,15 +46,21 @@ typedef FNHGCMNEWMSGALLOC *PFNHGCMNEWMSGALLOC;
  * @param result    Return code either from the service which actually processed the message
  *                  or from HGCM.
  * @param pMsgCore  Pointer to just processed message.
+ *
+ * @return Restricted set of VBox status codes when guest call message:
+ * @retval VINF_SUCCESS on success
+ * @retval VERR_CANCELLED if the request was cancelled.
+ * @retval VERR_ALREADY_RESET if the VM is resetting.
+ * @retval VERR_NOT_AVAILABLE if HGCM has been disconnected from the VMMDev
+ *         (shouldn't happen).
  */
-typedef DECLCALLBACK(void) HGCMMSGCALLBACK (int32_t result, HGCMMsgCore *pMsgCore);
+typedef DECLCALLBACK(int) HGCMMSGCALLBACK(int32_t result, HGCMMsgCore *pMsgCore);
+/** Pointer to a message completeion callback function. */
 typedef HGCMMSGCALLBACK *PHGCMMSGCALLBACK;
 
-/* Forward declaration of the worker thread class. */
-class HGCMThread;
 
 /** HGCM core message. */
-class HGCMMsgCore: public HGCMObject
+class HGCMMsgCore : public HGCMReferencedObject
 {
     private:
         friend class HGCMThread;
@@ -59,18 +68,19 @@ class HGCMMsgCore: public HGCMObject
         /** Version of message header. */
         uint32_t m_u32Version;
 
-        /** Thread the message belongs to, referenced by the message. */
-        HGCMThread *m_pThread;
-
         /** Message number/identifier. */
         uint32_t m_u32Msg;
+
+        /** Thread the message belongs to, referenced by the message. */
+        HGCMThread *m_pThread;
 
         /** Callback function pointer. */
         PHGCMMSGCALLBACK m_pfnCallback;
 
         /** Next element in a message queue. */
         HGCMMsgCore *m_pNext;
-        /** @todo seems not necessary. Previous element in a message queue. */
+        /** Previous element in a message queue.
+         *  @todo seems not necessary. */
         HGCMMsgCore *m_pPrev;
 
         /** Various internal flags. */
@@ -79,33 +89,32 @@ class HGCMMsgCore: public HGCMObject
         /** Result code for a Send */
         int32_t m_rcSend;
 
-        void InitializeCore (uint32_t u32MsgId, HGCMTHREADHANDLE hThread);
-
     protected:
-        virtual ~HGCMMsgCore ();
+        void InitializeCore(uint32_t u32MsgId, HGCMThread *pThread);
+
+        virtual ~HGCMMsgCore();
 
     public:
-        HGCMMsgCore () : HGCMObject(HGCMOBJ_MSG) {};
+        HGCMMsgCore() : HGCMReferencedObject(HGCMOBJ_MSG) {};
 
-        uint32_t MsgId (void) { return m_u32Msg; };
+        uint32_t MsgId(void) { return m_u32Msg; };
 
-        HGCMThread *Thread (void) { return m_pThread; };
+        HGCMThread *Thread(void) { return m_pThread; };
 
         /** Initialize message after it was allocated. */
-        virtual void Initialize (void) {};
+        virtual void Initialize(void) {};
 
         /** Uninitialize message. */
-        virtual void Uninitialize (void) {};
-
+        virtual void Uninitialize(void) {};
 };
 
 
 /** HGCM worker thread function.
  *
- *  @param ThreadHandle  Handle of the thread.
+ *  @param pThread       The HGCM thread instance.
  *  @param pvUser        User specified thread parameter.
  */
-typedef DECLCALLBACK(void) FNHGCMTHREAD (HGCMTHREADHANDLE ThreadHandle, void *pvUser);
+typedef DECLCALLBACK(void) FNHGCMTHREAD(HGCMThread *pThread, void *pvUser);
 typedef FNHGCMTHREAD *PFNHGCMTHREAD;
 
 
@@ -116,83 +125,102 @@ typedef FNHGCMTHREAD *PFNHGCMTHREAD;
 
 /** Initialize threads.
  *
- * @return VBox error code
+ * @return VBox status code.
  */
-int hgcmThreadInit (void);
-void hgcmThreadUninit (void);
+int hgcmThreadInit(void);
+void hgcmThreadUninit(void);
 
 
 /** Create a HGCM worker thread.
  *
- * @param pHandle       Where to store the returned worker thread handle.
- * @param pszThreadName Name of the thread, needed by runtime.
- * @param pfnThread     The worker thread function.
- * @param pvUser        A pointer passed to worker thread.
+ * @param ppThread          Where to return the pointer to the worker thread.
+ * @param pszThreadName     Name of the thread, needed by runtime.
+ * @param pfnThread         The worker thread function.
+ * @param pvUser            A pointer passed to worker thread.
+ * @param pszStatsSubDir    The "sub-directory" under "/HGCM/" where thread
+ *                          statistics should be registered.  The caller,
+ *                          HGCMService, will deregister them.  NULL if no stats.
+ * @param pUVM              The user mode VM handle to register statistics with.
+ *                          NULL if no stats.
  *
- * @return VBox error code
+ * @return VBox status code.
  */
-int hgcmThreadCreate (HGCMTHREADHANDLE *pHandle, const char *pszThreadName, PFNHGCMTHREAD pfnThread, void *pvUser);
+int hgcmThreadCreate(HGCMThread **ppThread, const char *pszThreadName, PFNHGCMTHREAD pfnThread, void *pvUser,
+                     const char *pszStatsSubDir, PUVM pUVM);
 
 /** Wait for termination of a HGCM worker thread.
  *
- * @param handle The HGCM thread handle.
+ * @param pThread       The HGCM thread.  The passed in reference is always
+ *                      consumed.
  *
- * @return VBox error code
+ * @return VBox status code.
  */
-int hgcmThreadWait (HGCMTHREADHANDLE handle);
+int hgcmThreadWait(HGCMThread *pThread);
 
 /** Allocate a message to be posted to HGCM worker thread.
  *
- * @param hThread       Worker thread handle.
- * @param pHandle       Where to store the returned message handle.
+ * @param pThread       The HGCM worker thread.
+ * @param ppHandle      Where to store the pointer to the new message.
  * @param u32MsgId      Message identifier.
  * @param pfnNewMessage New message allocation callback.
  *
- * @return VBox error code
+ * @return VBox status code.
  */
-int hgcmMsgAlloc (HGCMTHREADHANDLE hThread, HGCMMSGHANDLE *pHandle, uint32_t u32MsgId, PFNHGCMNEWMSGALLOC pfnNewMessage);
+int hgcmMsgAlloc(HGCMThread *pThread, HGCMMsgCore **ppHandle, uint32_t u32MsgId, PFNHGCMNEWMSGALLOC pfnNewMessage);
 
 /** Post a message to HGCM worker thread.
  *
- * @param hMsg          Message handle.
+ * @param pMsg          The message.  Reference will be consumed!
  * @param pfnCallback   Message completion callback.
  *
- * @return VBox error code
+ * @return VBox status code.
+ * @retval VINF_HGCM_ASYNC_EXECUTE on success.
+ *
+ * @thread any
  */
-int hgcmMsgPost (HGCMMSGHANDLE hMsg, PHGCMMSGCALLBACK pfnCallback);
+int hgcmMsgPost(HGCMMsgCore *pMsg, PHGCMMSGCALLBACK pfnCallback);
 
 /** Send a message to HGCM worker thread.
+ *
  *  The function will return after message is processed by thread.
  *
- * @param hMsg          Message handle.
+ * @param pMsg          The message.  Reference will be consumed!
  *
- * @return VBox error code
+ * @return VBox status code.
+ *
+ * @thread any
  */
-int hgcmMsgSend (HGCMMSGHANDLE hMsg);
+int hgcmMsgSend(HGCMMsgCore *pMsg);
 
 
 /* Wait for and get a message.
  *
- * @param hThread       The thread handle.
+ * @param pThread       The HGCM worker thread.
  * @param ppMsg         Where to store returned message pointer.
  *
- * @return VBox error code
+ * @return VBox status code.
  *
  * @thread worker thread
  */
-int hgcmMsgGet (HGCMTHREADHANDLE hThread, HGCMMsgCore **ppMsg);
+int hgcmMsgGet(HGCMThread *pThread, HGCMMsgCore **ppMsg);
 
 
 /** Worker thread has processed a message previously obtained with hgcmMsgGet.
  *
  * @param pMsg          Processed message pointer.
- * @param result        Result code, VBox erro code.
+ * @param result        Result code, VBox status code.
  *
- * @return VBox error code
+ * @return Restricted set of VBox status codes when guest call message:
+ * @retval VINF_SUCCESS on success
+ * @retval VERR_CANCELLED if the request was cancelled.
+ * @retval VERR_ALREADY_RESET if the VM is resetting.
+ * @retval VERR_NOT_AVAILABLE if HGCM has been disconnected from the VMMDev
+ *         (shouldn't happen).
  *
  * @thread worker thread
  */
-void hgcmMsgComplete (HGCMMsgCore *pMsg, int32_t result);
+int hgcmMsgComplete(HGCMMsgCore *pMsg, int32_t result);
 
 
-#endif /* __HGCMThread_h__ */
+#endif /* !MAIN_INCLUDED_HGCMThread_h */
+

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___VBox_Virtio_h
-#define ___VBox_Virtio_h
+#ifndef VBOX_INCLUDED_SRC_VirtIO_Virtio_h
+#define VBOX_INCLUDED_SRC_VirtIO_Virtio_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/ctype.h>
 
@@ -212,14 +215,17 @@ typedef struct VPCIState_st
     VQUEUE                 Queues[VIRTIO_MAX_NQUEUES];
 
 #if defined(VBOX_WITH_STATISTICS)
-    STAMPROFILEADV         StatIOReadGC;
-    STAMPROFILEADV         StatIOReadHC;
-    STAMPROFILEADV         StatIOWriteGC;
-    STAMPROFILEADV         StatIOWriteHC;
+    STAMPROFILEADV         StatIOReadR3;
+    STAMPROFILEADV         StatIOReadR0;
+    STAMPROFILEADV         StatIOReadRC;
+    STAMPROFILEADV         StatIOWriteR3;
+    STAMPROFILEADV         StatIOWriteR0;
+    STAMPROFILEADV         StatIOWriteRC;
     STAMCOUNTER            StatIntsRaised;
     STAMCOUNTER            StatIntsSkipped;
-    STAMPROFILE            StatCsGC;
-    STAMPROFILE            StatCsHC;
+    STAMPROFILE            StatCsR3;
+    STAMPROFILE            StatCsR0;
+    STAMPROFILE            StatCsRC;
 #endif /* VBOX_WITH_STATISTICS */
 } VPCISTATE;
 /** Pointer to the core (/common) state of a VirtIO PCI device. */
@@ -275,9 +281,9 @@ PVQUEUE vpciAddQueue(VPCISTATE* pState, unsigned uSize, PFNVPCIQUEUECALLBACK pfn
 DECLINLINE(int) vpciCsEnter(VPCISTATE *pState, int rcBusy)
 {
 #ifdef VPCI_CS
-    STAM_PROFILE_START(&pState->CTXSUFF(StatCs), a);
+    STAM_PROFILE_START(&pState->CTX_SUFF(StatCs), a);
     int rc = PDMCritSectEnter(&pState->cs, rcBusy);
-    STAM_PROFILE_STOP(&pState->CTXSUFF(StatCs), a);
+    STAM_PROFILE_STOP(&pState->CTX_SUFF(StatCs), a);
     return rc;
 #else
     return VINF_SUCCESS;
@@ -325,4 +331,4 @@ DECLINLINE(bool) vqueueIsEmpty(PVPCISTATE pState, PVQUEUE pQueue)
     return (vringReadAvailIndex(pState, &pQueue->VRing) == pQueue->uNextAvailIndex);
 }
 
-#endif /* !___VBox_Virtio_h */
+#endif /* !VBOX_INCLUDED_SRC_VirtIO_Virtio_h */

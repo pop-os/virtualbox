@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -70,6 +70,9 @@
 #include "internal/magics.h"
 #include "internal/socket.h"
 #include "internal/string.h"
+#ifdef RT_OS_WINDOWS
+# include "win/internal-r3-win.h"
+#endif
 
 
 /*********************************************************************************************************************************
@@ -159,8 +162,30 @@ typedef struct RTSOCKETINT
     /** The events we're currently subscribing to with WSAEventSelect.
      * This is ZERO if we're currently not subscribing to anything. */
     uint32_t            fSubscribedEvts;
-    /** Saved events which are only posted once. */
+    /** Saved events which are only posted once and events harvested for
+     * sockets entered multiple times into to a poll set.   Imagine a scenario where
+     * you have a RTPOLL_EVT_READ entry and RTPOLL_EVT_ERROR entry.  The READ
+     * condition can be triggered between checking the READ entry and the ERROR
+     * entry, and we don't want to drop the READ, so we store it here and make sure
+     * the event is signalled.
+     *
+     * The RTPOLL_EVT_ERROR is inconsistenly sticky at the momemnt... */
     uint32_t            fEventsSaved;
+    /** Set if fEventsSaved contains harvested events (used to avoid multiple
+     *  calls to rtSocketPollCheck on the same socket during rtSocketPollDone). */
+    bool                fHarvestedEvents;
+    /** Set if we're using the polling fallback. */
+    bool                fPollFallback;
+    /** Set if the fallback polling is active (event not set). */
+    bool volatile       fPollFallbackActive;
+    /** Set to shut down the fallback polling thread. */
+    bool volatile       fPollFallbackShutdown;
+    /** Socket use to wake up the select thread. */
+    RTSOCKETNATIVE      hPollFallbackNotifyW;
+    /** Socket the select thread always waits on. */
+    RTSOCKETNATIVE      hPollFallbackNotifyR;
+    /** The fallback polling thread. */
+    RTTHREAD            hPollFallbackThread;
 #endif /* RT_OS_WINDOWS */
 } RTSOCKETINT;
 
@@ -178,6 +203,71 @@ typedef union RTSOCKADDRUNION
 } RTSOCKADDRUNION;
 
 
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
+#ifdef RT_OS_WINDOWS
+/** Indicates that we've successfully initialized winsock.  */
+static uint32_t volatile g_uWinSockInitedVersion = 0;
+#endif
+
+
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
+#ifdef RT_OS_WINDOWS
+static void rtSocketPokePollFallbackThread(RTSOCKETINT *pThis);
+#endif
+
+
+
+#ifdef RT_OS_WINDOWS
+/**
+ * Initializes winsock for the process.
+ *
+ * @returns IPRT status code.
+ */
+static int rtSocketInitWinsock(void)
+{
+    if (g_uWinSockInitedVersion != 0)
+        return VINF_SUCCESS;
+
+    if (   !g_pfnWSAGetLastError
+        || !g_pfnWSAStartup
+        || !g_pfnsocket
+        || !g_pfnclosesocket)
+        return VERR_NET_INIT_FAILED;
+
+    /*
+     * Initialize winsock. Try with 2.2 and back down till we get something that works.
+     */
+    static const WORD s_awVersions[] =
+    {
+        MAKEWORD(2, 2),
+        MAKEWORD(2, 1),
+        MAKEWORD(2, 0),
+        MAKEWORD(1, 1),
+        MAKEWORD(1, 0),
+    };
+    for (uint32_t i = 0; i < RT_ELEMENTS(s_awVersions); i++)
+    {
+        WSADATA     wsaData;
+        RT_ZERO(wsaData);
+        int rcWsa = g_pfnWSAStartup(s_awVersions[i], &wsaData);
+        if (rcWsa == 0)
+        {
+            /* AssertMsg(wsaData.wVersion >= s_awVersions[i]); - triggers with winsock 1.1 */
+            ASMAtomicWriteU32(&g_uWinSockInitedVersion, wsaData.wVersion);
+            return VINF_SUCCESS;
+        }
+        AssertLogRelMsg(rcWsa == WSAVERNOTSUPPORTED, ("rcWsa=%d (winsock version %#x)\n", rcWsa, s_awVersions[i]));
+    }
+    LogRel(("Failed to init winsock!\n"));
+    return VERR_NET_INIT_FAILED;
+}
+#endif
+
+
 /**
  * Get the last error as an iprt status code.
  *
@@ -186,7 +276,9 @@ typedef union RTSOCKADDRUNION
 DECLINLINE(int) rtSocketError(void)
 {
 #ifdef RT_OS_WINDOWS
-    return RTErrConvertFromWin32(WSAGetLastError());
+    if (g_pfnWSAGetLastError)
+        return RTErrConvertFromWin32(g_pfnWSAGetLastError());
+    return VERR_NET_IO_ERROR;
 #else
     return RTErrConvertFromErrno(errno);
 #endif
@@ -199,7 +291,8 @@ DECLINLINE(int) rtSocketError(void)
 DECLINLINE(void) rtSocketErrorReset(void)
 {
 #ifdef RT_OS_WINDOWS
-    WSASetLastError(0);
+    if (g_pfnWSASetLastError)
+        g_pfnWSASetLastError(0);
 #else
     errno = 0;
 #endif
@@ -214,7 +307,9 @@ DECLINLINE(void) rtSocketErrorReset(void)
 DECLHIDDEN(int) rtSocketResolverError(void)
 {
 #ifdef RT_OS_WINDOWS
-    return RTErrConvertFromWin32(WSAGetLastError());
+    if (g_pfnWSAGetLastError)
+        return RTErrConvertFromWin32(g_pfnWSAGetLastError());
+    return VERR_UNRESOLVED_ERROR;
 #else
     switch (h_errno)
     {
@@ -354,12 +449,13 @@ DECLINLINE(void) rtSocketUnlock(RTSOCKETINT *pThis)
 static int rtSocketSwitchBlockingModeSlow(RTSOCKETINT *pThis, bool fBlocking)
 {
 #ifdef RT_OS_WINDOWS
-    u_long  uBlocking = fBlocking ? 0 : 1;
-    if (ioctlsocket(pThis->hNative, FIONBIO, &uBlocking))
+    AssertReturn(g_pfnioctlsocket, VERR_NET_NOT_UNSUPPORTED);
+    u_long uBlocking = fBlocking ? 0 : 1;
+    if (g_pfnioctlsocket(pThis->hNative, FIONBIO, &uBlocking))
         return rtSocketError();
 
 #else
-    int     fFlags    = fcntl(pThis->hNative, F_GETFL, 0);
+    int fFlags = fcntl(pThis->hNative, F_GETFL, 0);
     if (fFlags == -1)
         return rtSocketError();
 
@@ -414,10 +510,21 @@ DECLHIDDEN(int) rtSocketCreateForNative(RTSOCKETINT **ppSocket, RTSOCKETNATIVE h
     pThis->hPollSet         = NIL_RTPOLLSET;
 #endif
 #ifdef RT_OS_WINDOWS
-    pThis->hEvent           = WSA_INVALID_EVENT;
-    pThis->fPollEvts        = 0;
-    pThis->fSubscribedEvts  = 0;
-    pThis->fEventsSaved     = 0;
+    pThis->hEvent                   = WSA_INVALID_EVENT;
+    pThis->fPollEvts                = 0;
+    pThis->fSubscribedEvts          = 0;
+    pThis->fEventsSaved             = 0;
+    pThis->fHarvestedEvents         = false;
+    pThis->fPollFallback            = g_uWinSockInitedVersion < MAKEWORD(2, 0)
+                                   || g_pfnWSACreateEvent == NULL
+                                   || g_pfnWSACloseEvent == NULL
+                                   || g_pfnWSAEventSelect == NULL
+                                   || g_pfnWSAEnumNetworkEvents == NULL;
+    pThis->fPollFallbackActive      = false;
+    pThis->fPollFallbackShutdown    = false;
+    pThis->hPollFallbackNotifyR     = NIL_RTSOCKETNATIVE;
+    pThis->hPollFallbackNotifyW     = NIL_RTSOCKETNATIVE;
+    pThis->hPollFallbackThread      = NIL_RTTHREAD;
 #endif
     *ppSocket = pThis;
     return VINF_SUCCESS;
@@ -447,10 +554,24 @@ RTDECL(int) RTSocketFromNative(PRTSOCKET phSocket, RTHCINTPTR uNative)
  */
 DECLHIDDEN(int) rtSocketCreate(PRTSOCKET phSocket, int iDomain, int iType, int iProtocol)
 {
+#ifdef RT_OS_WINDOWS
+    AssertReturn(g_pfnsocket, VERR_NET_NOT_UNSUPPORTED);
+    AssertReturn(g_pfnclosesocket, VERR_NET_NOT_UNSUPPORTED);
+
+    /* Initialize WinSock. */
+    int rc2 = rtSocketInitWinsock();
+    if (RT_FAILURE(rc2))
+        return rc2;
+#endif
+
     /*
      * Create the socket.
      */
+#ifdef RT_OS_WINDOWS
+    RTSOCKETNATIVE hNative = g_pfnsocket(iDomain, iType, iProtocol);
+#else
     RTSOCKETNATIVE hNative = socket(iDomain, iType, iProtocol);
+#endif
     if (hNative == NIL_RTSOCKETNATIVE)
         return rtSocketError();
 
@@ -461,11 +582,172 @@ DECLHIDDEN(int) rtSocketCreate(PRTSOCKET phSocket, int iDomain, int iType, int i
     if (RT_FAILURE(rc))
     {
 #ifdef RT_OS_WINDOWS
-        closesocket(hNative);
+        g_pfnclosesocket(hNative);
 #else
         close(hNative);
 #endif
     }
+    return rc;
+}
+
+
+/**
+ * Wrapper around socketpair() for creating a local TCP connection.
+ *
+ * @returns IPRT status code.
+ * @param   phServer            Where to return the first native socket.
+ * @param   phClient            Where to return the second native socket.
+ */
+static int rtSocketCreateNativeTcpPair(RTSOCKETNATIVE *phServer, RTSOCKETNATIVE *phClient)
+{
+#ifdef RT_OS_WINDOWS
+    /*
+     * Initialize WinSock and make sure we got the necessary APIs.
+     */
+    int rc = rtSocketInitWinsock();
+    if (RT_FAILURE(rc))
+        return rc;
+    AssertReturn(g_pfnsocket, VERR_NET_NOT_UNSUPPORTED);
+    AssertReturn(g_pfnclosesocket, VERR_NET_NOT_UNSUPPORTED);
+    AssertReturn(g_pfnsetsockopt, VERR_NET_NOT_UNSUPPORTED);
+    AssertReturn(g_pfnbind, VERR_NET_NOT_UNSUPPORTED);
+    AssertReturn(g_pfngetsockname, VERR_NET_NOT_UNSUPPORTED);
+    AssertReturn(g_pfnlisten, VERR_NET_NOT_UNSUPPORTED);
+    AssertReturn(g_pfnaccept, VERR_NET_NOT_UNSUPPORTED);
+    AssertReturn(g_pfnconnect, VERR_NET_NOT_UNSUPPORTED);
+
+    /*
+     * Create the "server" listen socket and the "client" socket.
+     */
+    RTSOCKETNATIVE hListener = g_pfnsocket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (hListener == NIL_RTSOCKETNATIVE)
+        return rtSocketError();
+    RTSOCKETNATIVE hClient = g_pfnsocket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (hClient != NIL_RTSOCKETNATIVE)
+    {
+
+        /*
+         * We let WinSock choose a port number when we bind.
+         */
+        union
+        {
+            struct sockaddr_in  Ip;
+            struct sockaddr     Generic;
+        } uAddr;
+        RT_ZERO(uAddr);
+        uAddr.Ip.sin_family      = AF_INET;
+        uAddr.Ip.sin_addr.s_addr = RT_H2N_U32_C(INADDR_LOOPBACK);
+        //uAddr.Ip.sin_port      = 0;
+        int fReuse = 1;
+        rc = g_pfnsetsockopt(hListener, SOL_SOCKET, SO_REUSEADDR, (const char *)&fReuse, sizeof(fReuse));
+        if (rc == 0)
+        {
+            rc = g_pfnbind(hListener, &uAddr.Generic, sizeof(uAddr.Ip));
+            if (rc == 0)
+            {
+                /*
+                 * Get the address the client should connect to.  According to the docs,
+                 * we cannot assume that getsockname sets the IP and family.
+                 */
+                RT_ZERO(uAddr);
+                int cbAddr = sizeof(uAddr.Ip);
+                rc = g_pfngetsockname(hListener, &uAddr.Generic, &cbAddr);
+                if (rc == 0)
+                {
+                    uAddr.Ip.sin_family      = AF_INET;
+                    uAddr.Ip.sin_addr.s_addr = RT_H2N_U32_C(INADDR_LOOPBACK);
+
+                    /*
+                     * Listen, connect and accept.
+                     */
+                    rc = g_pfnlisten(hListener, 1 /*cBacklog*/);
+                    if (rc == 0)
+                    {
+                        rc = g_pfnconnect(hClient, &uAddr.Generic, sizeof(uAddr.Ip));
+                        if (rc == 0)
+                        {
+                            RTSOCKETNATIVE hServer = g_pfnaccept(hListener, NULL, NULL);
+                            if (hServer != NIL_RTSOCKETNATIVE)
+                            {
+                                g_pfnclosesocket(hListener);
+
+                                /*
+                                 * Done!
+                                 */
+                                *phServer = hServer;
+                                *phClient = hClient;
+                                return VINF_SUCCESS;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        rc = rtSocketError();
+        g_pfnclosesocket(hClient);
+    }
+    else
+        rc = rtSocketError();
+    g_pfnclosesocket(hListener);
+    return rc;
+
+#else
+    /*
+     * Got socket pair, so use it.
+     * Note! This isn't TCP per se, but it should fool the users.
+     */
+    int aSockets[2] = { -1, -1 };
+    if (socketpair(AF_LOCAL, SOCK_STREAM, 0, aSockets) == 0)
+    {
+        *phServer = aSockets[0];
+        *phClient = aSockets[1];
+        return VINF_SUCCESS;
+    }
+    return rtSocketError();
+#endif
+}
+
+
+/**
+ * Worker for RTTcpCreatePair.
+ *
+ * @returns IPRT status code.
+ * @param   phServer            Where to return the "server" side of the pair.
+ * @param   phClient            Where to return the "client" side of the pair.
+ * @note    There is no server or client side, but we gotta call it something.
+ */
+DECLHIDDEN(int) rtSocketCreateTcpPair(RTSOCKET *phServer, RTSOCKET *phClient)
+{
+    RTSOCKETNATIVE hServer = NIL_RTSOCKETNATIVE;
+    RTSOCKETNATIVE hClient = NIL_RTSOCKETNATIVE;
+    int rc = rtSocketCreateNativeTcpPair(&hServer, &hClient);
+    if (RT_SUCCESS(rc))
+    {
+        rc = rtSocketCreateForNative(phServer, hServer);
+        if (RT_SUCCESS(rc))
+        {
+            rc = rtSocketCreateForNative(phClient, hClient);
+            if (RT_SUCCESS(rc))
+                return VINF_SUCCESS;
+            RTSocketRelease(*phServer);
+        }
+        else
+        {
+#ifdef RT_OS_WINDOWS
+            g_pfnclosesocket(hServer);
+#else
+            close(hServer);
+#endif
+        }
+#ifdef RT_OS_WINDOWS
+        g_pfnclosesocket(hClient);
+#else
+        close(hClient);
+#endif
+    }
+
+    *phServer = NIL_RTSOCKET;
+    *phClient = NIL_RTSOCKET;
     return rc;
 }
 
@@ -500,6 +782,21 @@ static int rtSocketCloseIt(RTSOCKETINT *pThis, bool fDestroy)
     int rc = VINF_SUCCESS;
     if (ASMAtomicCmpXchgBool(&pThis->fClosed, true, false))
     {
+#ifdef RT_OS_WINDOWS
+        /*
+         * Poke the polling thread if active and give it a small chance to stop.
+         */
+        if (   pThis->fPollFallback
+            && pThis->hPollFallbackThread != NIL_RTTHREAD)
+        {
+            ASMAtomicWriteBool(&pThis->fPollFallbackShutdown, true);
+            rtSocketPokePollFallbackThread(pThis);
+            int rc2 = RTThreadWait(pThis->hPollFallbackThread, RT_MS_1SEC, NULL);
+            if (RT_SUCCESS(rc2))
+                pThis->hPollFallbackThread = NIL_RTTHREAD;
+        }
+#endif
+
         /*
          * Close the native handle.
          */
@@ -509,7 +806,8 @@ static int rtSocketCloseIt(RTSOCKETINT *pThis, bool fDestroy)
             pThis->hNative = NIL_RTSOCKETNATIVE;
 
 #ifdef RT_OS_WINDOWS
-            if (closesocket(hNative))
+            AssertReturn(g_pfnclosesocket, VERR_NET_NOT_UNSUPPORTED);
+            if (g_pfnclosesocket(hNative))
 #else
             if (close(hNative))
 #endif
@@ -525,13 +823,42 @@ static int rtSocketCloseIt(RTSOCKETINT *pThis, bool fDestroy)
 
 #ifdef RT_OS_WINDOWS
         /*
-         * Close the event.
+         * Windows specific polling cleanup.
          */
         WSAEVENT hEvent = pThis->hEvent;
-        if (hEvent == WSA_INVALID_EVENT)
+        if (hEvent != WSA_INVALID_EVENT)
         {
             pThis->hEvent = WSA_INVALID_EVENT;
-            WSACloseEvent(hEvent);
+            if (!pThis->fPollFallback)
+            {
+                Assert(g_pfnWSACloseEvent);
+                if (g_pfnWSACloseEvent)
+                    g_pfnWSACloseEvent(hEvent);
+            }
+            else
+                CloseHandle(hEvent);
+        }
+
+        if (pThis->fPollFallback)
+        {
+            if (pThis->hPollFallbackNotifyW != NIL_RTSOCKETNATIVE)
+            {
+                g_pfnclosesocket(pThis->hPollFallbackNotifyW);
+                pThis->hPollFallbackNotifyW = NIL_RTSOCKETNATIVE;
+            }
+
+            if (pThis->hPollFallbackThread != NIL_RTTHREAD)
+            {
+                int rc2 = RTThreadWait(pThis->hPollFallbackThread, RT_MS_1MIN / 2, NULL);
+                AssertRC(rc2);
+                pThis->hPollFallbackThread = NIL_RTTHREAD;
+            }
+
+            if (pThis->hPollFallbackNotifyR != NIL_RTSOCKETNATIVE)
+            {
+                g_pfnclosesocket(pThis->hPollFallbackNotifyR);
+                pThis->hPollFallbackNotifyR = NIL_RTSOCKETNATIVE;
+            }
         }
 #endif
     }
@@ -643,20 +970,6 @@ RTDECL(int) RTSocketParseInetAddress(const char *pszAddress, unsigned uPort, PRT
     AssertReturn(uPort > 0, VERR_INVALID_PARAMETER);
     AssertPtrNullReturn(pszAddress, VERR_INVALID_POINTER);
 
-#ifdef RT_OS_WINDOWS
-    /*
-     * Initialize WinSock and check version.
-     */
-    WORD    wVersionRequested = MAKEWORD(1, 1);
-    WSADATA wsaData;
-    rc = WSAStartup(wVersionRequested, &wsaData);
-    if (wsaData.wVersion != wVersionRequested)
-    {
-        AssertMsgFailed(("Wrong winsock version\n"));
-        return VERR_NOT_SUPPORTED;
-    }
-#endif
-
     /*
      * Resolve the address. Pretty crude at the moment, but we have to make
      * sure to not ask the NT 4 gethostbyname about an IPv4 address as it may
@@ -674,6 +987,18 @@ RTDECL(int) RTSocketParseInetAddress(const char *pszAddress, unsigned uPort, PRT
         pAddr->uAddr.IPv4   = IPv4Quad;
         return VINF_SUCCESS;
     }
+
+#ifdef RT_OS_WINDOWS
+    /* Initialize WinSock and check version before we call gethostbyname. */
+    if (!g_pfngethostbyname)
+        return VERR_NET_NOT_UNSUPPORTED;
+
+    int rc2 = rtSocketInitWinsock();
+    if (RT_FAILURE(rc2))
+        return rc2;
+
+# define gethostbyname g_pfngethostbyname
+#endif
 
     struct hostent *pHostEnt;
     pHostEnt = gethostbyname(pszAddress);
@@ -695,6 +1020,9 @@ RTDECL(int) RTSocketParseInetAddress(const char *pszAddress, unsigned uPort, PRT
     else
         return VERR_NET_ADDRESS_FAMILY_NOT_SUPPORTED;
 
+#ifdef RT_OS_WINDOWS
+# undef gethostbyname
+#endif
     return VINF_SUCCESS;
 }
 
@@ -747,15 +1075,16 @@ RTDECL(int) RTSocketQueryAddressStr(const char *pszHost, char *pszResult, size_t
     /*
      * Winsock2 init
      */
-    /** @todo someone should check if we really need 2, 2 here */
-    WORD    wVersionRequested = MAKEWORD(2, 2);
-    WSADATA wsaData;
-    rc = WSAStartup(wVersionRequested, &wsaData);
-    if (wsaData.wVersion != wVersionRequested)
-    {
-        AssertMsgFailed(("Wrong winsock version\n"));
-        return VERR_NOT_SUPPORTED;
-    }
+    if (   !g_pfngetaddrinfo
+        || !g_pfnfreeaddrinfo)
+        return VERR_NET_NOT_UNSUPPORTED;
+
+    int rc2 = rtSocketInitWinsock();
+    if (RT_FAILURE(rc2))
+        return rc2;
+
+#  define getaddrinfo  g_pfngetaddrinfo
+#  define freeaddrinfo g_pfnfreeaddrinfo
 # endif
 
     /** @todo r=bird: getaddrinfo and freeaddrinfo breaks the additions on NT4. */
@@ -821,6 +1150,11 @@ RTDECL(int) RTSocketQueryAddressStr(const char *pszHost, char *pszResult, size_t
     if (penmAddrType && RT_SUCCESS(rc))
         *penmAddrType = enmAddrType;
     return rc;
+
+# ifdef RT_OS_WINDOWS
+#  undef getaddrinfo
+#  undef freeaddrinfo
+# endif
 #endif /* !RT_OS_OS2 */
 }
 
@@ -835,6 +1169,10 @@ RTDECL(int) RTSocketRead(RTSOCKET hSocket, void *pvBuffer, size_t cbBuffer, size
     AssertReturn(pThis->u32Magic == RTSOCKET_MAGIC, VERR_INVALID_HANDLE);
     AssertReturn(cbBuffer > 0, VERR_INVALID_PARAMETER);
     AssertPtr(pvBuffer);
+#ifdef RT_OS_WINDOWS
+    AssertReturn(g_pfnrecv, VERR_NET_NOT_UNSUPPORTED);
+# define recv g_pfnrecv
+#endif
     AssertReturn(rtSocketTryLock(pThis), VERR_CONCURRENT_ACCESS);
 
     int rc = rtSocketSwitchBlockingMode(pThis, true /* fBlocking */);
@@ -889,6 +1227,9 @@ RTDECL(int) RTSocketRead(RTSOCKET hSocket, void *pvBuffer, size_t cbBuffer, size
     }
 
     rtSocketUnlock(pThis);
+#ifdef RT_OS_WINDOWS
+# undef recv
+#endif
     return rc;
 }
 
@@ -904,6 +1245,10 @@ RTDECL(int) RTSocketReadFrom(RTSOCKET hSocket, void *pvBuffer, size_t cbBuffer, 
     AssertReturn(cbBuffer > 0, VERR_INVALID_PARAMETER);
     AssertPtr(pvBuffer);
     AssertPtr(pcbRead);
+#ifdef RT_OS_WINDOWS
+    AssertReturn(g_pfnrecvfrom, VERR_NET_NOT_UNSUPPORTED);
+# define recvfrom g_pfnrecvfrom
+#endif
     AssertReturn(rtSocketTryLock(pThis), VERR_CONCURRENT_ACCESS);
 
     int rc = rtSocketSwitchBlockingMode(pThis, true /* fBlocking */);
@@ -943,6 +1288,9 @@ RTDECL(int) RTSocketReadFrom(RTSOCKET hSocket, void *pvBuffer, size_t cbBuffer, 
     }
 
     rtSocketUnlock(pThis);
+#ifdef RT_OS_WINDOWS
+# undef recvfrom
+#endif
     return rc;
 }
 
@@ -955,6 +1303,10 @@ RTDECL(int) RTSocketWrite(RTSOCKET hSocket, const void *pvBuffer, size_t cbBuffe
     RTSOCKETINT *pThis = hSocket;
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
     AssertReturn(pThis->u32Magic == RTSOCKET_MAGIC, VERR_INVALID_HANDLE);
+#ifdef RT_OS_WINDOWS
+    AssertReturn(g_pfnsend, VERR_NET_NOT_UNSUPPORTED);
+# define send g_pfnsend
+#endif
     AssertReturn(rtSocketTryLock(pThis), VERR_CONCURRENT_ACCESS);
 
     int rc = rtSocketSwitchBlockingMode(pThis, true /* fBlocking */);
@@ -1012,6 +1364,9 @@ RTDECL(int) RTSocketWrite(RTSOCKET hSocket, const void *pvBuffer, size_t cbBuffe
     }
 
     rtSocketUnlock(pThis);
+#ifdef RT_OS_WINDOWS
+# undef send
+#endif
     return rc;
 }
 
@@ -1024,6 +1379,10 @@ RTDECL(int) RTSocketWriteTo(RTSOCKET hSocket, const void *pvBuffer, size_t cbBuf
     RTSOCKETINT *pThis = hSocket;
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
     AssertReturn(pThis->u32Magic == RTSOCKET_MAGIC, VERR_INVALID_HANDLE);
+#ifdef RT_OS_WINDOWS
+    AssertReturn(g_pfnsendto, VERR_NET_NOT_UNSUPPORTED);
+# define sendto g_pfnsendto
+#endif
 
     /* no locking since UDP reads may be done concurrently to writes, and
      * this is the normal use case of this code. */
@@ -1065,7 +1424,10 @@ RTDECL(int) RTSocketWriteTo(RTSOCKET hSocket, const void *pvBuffer, size_t cbBuf
     else
         rc = VERR_TOO_MUCH_DATA;
 
-    rtSocketUnlock(pThis);
+    /// @todo rtSocketUnlock(pThis);
+#ifdef RT_OS_WINDOWS
+# undef sendto
+#endif
     return rc;
 }
 
@@ -1078,6 +1440,10 @@ RTDECL(int) RTSocketWriteToNB(RTSOCKET hSocket, const void *pvBuffer, size_t cbB
     RTSOCKETINT *pThis = hSocket;
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
     AssertReturn(pThis->u32Magic == RTSOCKET_MAGIC, VERR_INVALID_HANDLE);
+#ifdef RT_OS_WINDOWS
+    AssertReturn(g_pfnsendto, VERR_NET_NOT_UNSUPPORTED);
+# define sendto g_pfnsendto
+#endif
 
     /* no locking since UDP reads may be done concurrently to writes, and
      * this is the normal use case of this code. */
@@ -1119,7 +1485,10 @@ RTDECL(int) RTSocketWriteToNB(RTSOCKET hSocket, const void *pvBuffer, size_t cbB
     else
         rc = VERR_TOO_MUCH_DATA;
 
-    rtSocketUnlock(pThis);
+    /// @todo rtSocketUnlock(pThis);
+#ifdef RT_OS_WINDOWS
+# undef sendto
+#endif
     return rc;
 }
 
@@ -1145,29 +1514,58 @@ RTDECL(int) RTSocketSgWrite(RTSOCKET hSocket, PCRTSGBUF pSgBuf)
      */
     rc = VERR_NO_TMP_MEMORY;
 #ifdef RT_OS_WINDOWS
-    AssertCompileSize(WSABUF, sizeof(RTSGSEG));
-    AssertCompileMemberSize(WSABUF, buf, RT_SIZEOFMEMB(RTSGSEG, pvSeg));
-
-    LPWSABUF paMsg = (LPWSABUF)RTMemTmpAllocZ(pSgBuf->cSegs * sizeof(WSABUF));
-    if (paMsg)
+    if (g_pfnWSASend)
     {
-        for (unsigned i = 0; i < pSgBuf->cSegs; i++)
+        AssertCompileSize(WSABUF, sizeof(RTSGSEG));
+        AssertCompileMemberSize(WSABUF, buf, RT_SIZEOFMEMB(RTSGSEG, pvSeg));
+
+        LPWSABUF paMsg = (LPWSABUF)RTMemTmpAllocZ(pSgBuf->cSegs * sizeof(WSABUF));
+        if (paMsg)
         {
-            paMsg[i].buf = (char *)pSgBuf->paSegs[i].pvSeg;
-            paMsg[i].len = (u_long)pSgBuf->paSegs[i].cbSeg;
+            for (unsigned i = 0; i < pSgBuf->cSegs; i++)
+            {
+                paMsg[i].buf = (char *)pSgBuf->paSegs[i].pvSeg;
+                paMsg[i].len = (u_long)pSgBuf->paSegs[i].cbSeg;
+            }
+
+            DWORD dwSent;
+            int hrc = g_pfnWSASend(pThis->hNative, paMsg, pSgBuf->cSegs, &dwSent, MSG_NOSIGNAL, NULL, NULL);
+            if (!hrc)
+                rc = VINF_SUCCESS;
+    /** @todo check for incomplete writes */
+            else
+                rc = rtSocketError();
+
+            RTMemTmpFree(paMsg);
         }
-
-        DWORD dwSent;
-        int hrc = WSASend(pThis->hNative, paMsg, pSgBuf->cSegs, &dwSent,
-                          MSG_NOSIGNAL, NULL, NULL);
-        if (!hrc)
-            rc = VINF_SUCCESS;
-/** @todo check for incomplete writes */
-        else
-            rc = rtSocketError();
-
-        RTMemTmpFree(paMsg);
     }
+    else if (g_pfnsend)
+    {
+        rc = VINF_SUCCESS;
+        for (uint32_t iSeg = 0; iSeg < pSgBuf->cSegs; iSeg++)
+        {
+            uint8_t const *pbSeg = (uint8_t const *)pSgBuf->paSegs[iSeg].pvSeg;
+            size_t         cbSeg = pSgBuf->paSegs[iSeg].cbSeg;
+            int            cbNow;
+            ssize_t        cbWritten;
+            for (;;)
+            {
+                cbNow = cbSeg >= RTSOCKET_MAX_WRITE ? RTSOCKET_MAX_WRITE : (int)cbSeg;
+                cbWritten = g_pfnsend(pThis->hNative, (const char *)pbSeg, cbNow, MSG_NOSIGNAL);
+                if ((size_t)cbWritten >= cbSeg || cbWritten < 0)
+                    break;
+                pbSeg += cbWritten;
+                cbSeg -= cbWritten;
+            }
+            if (cbWritten < 0)
+            {
+                rc = rtSocketError();
+                break;
+            }
+        }
+    }
+    else
+        rc = VERR_NET_NOT_UNSUPPORTED;
 
 #else  /* !RT_OS_WINDOWS */
     AssertCompileSize(struct iovec, sizeof(RTSGSEG));
@@ -1245,6 +1643,9 @@ RTDECL(int) RTSocketReadNB(RTSOCKET hSocket, void *pvBuffer, size_t cbBuffer, si
     AssertReturn(cbBuffer > 0, VERR_INVALID_PARAMETER);
     AssertPtr(pvBuffer);
     AssertPtrReturn(pcbRead, VERR_INVALID_PARAMETER);
+#ifdef RT_OS_WINDOWS
+    AssertReturn(g_pfnrecv, VERR_NET_NOT_UNSUPPORTED);
+#endif
     AssertReturn(rtSocketTryLock(pThis), VERR_CONCURRENT_ACCESS);
 
     int rc = rtSocketSwitchBlockingMode(pThis, false /* fBlocking */);
@@ -1259,7 +1660,7 @@ RTDECL(int) RTSocketReadNB(RTSOCKET hSocket, void *pvBuffer, size_t cbBuffer, si
 #endif
 
 #ifdef RT_OS_WINDOWS
-    int cbRead = recv(pThis->hNative, (char *)pvBuffer, cbNow, MSG_NOSIGNAL);
+    int cbRead = g_pfnrecv(pThis->hNative, (char *)pvBuffer, cbNow, MSG_NOSIGNAL);
     if (cbRead >= 0)
     {
         *pcbRead = cbRead;
@@ -1308,6 +1709,9 @@ RTDECL(int) RTSocketWriteNB(RTSOCKET hSocket, const void *pvBuffer, size_t cbBuf
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
     AssertReturn(pThis->u32Magic == RTSOCKET_MAGIC, VERR_INVALID_HANDLE);
     AssertPtrReturn(pcbWritten, VERR_INVALID_PARAMETER);
+#ifdef RT_OS_WINDOWS
+    AssertReturn(g_pfnsend, VERR_NET_NOT_UNSUPPORTED);
+#endif
     AssertReturn(rtSocketTryLock(pThis), VERR_CONCURRENT_ACCESS);
 
     int rc = rtSocketSwitchBlockingMode(pThis, false /* fBlocking */);
@@ -1321,7 +1725,7 @@ RTDECL(int) RTSocketWriteNB(RTSOCKET hSocket, const void *pvBuffer, size_t cbBuf
 # else
     size_t cbNow = cbBuffer;
 # endif
-    int cbWritten = send(pThis->hNative, (const char *)pvBuffer, cbNow, MSG_NOSIGNAL);
+    int cbWritten = g_pfnsend(pThis->hNative, (const char *)pvBuffer, cbNow, MSG_NOSIGNAL);
     if (cbWritten >= 0)
     {
         *pcbWritten = cbWritten;
@@ -1380,23 +1784,56 @@ RTDECL(int) RTSocketSgWriteNB(RTSOCKET hSocket, PCRTSGBUF pSgBuf, size_t *pcbWri
     unsigned cSegsToSend = 0;
     rc = VERR_NO_TMP_MEMORY;
 #ifdef RT_OS_WINDOWS
-    LPWSABUF paMsg = NULL;
-
-    RTSgBufMapToNative(paMsg, pSgBuf, WSABUF, buf, char *, len, u_long, cSegsToSend);
-    if (paMsg)
+    if (g_pfnWSASend)
     {
-        DWORD dwSent = 0;
-        int hrc = WSASend(pThis->hNative, paMsg, cSegsToSend, &dwSent,
-                          MSG_NOSIGNAL, NULL, NULL);
-        if (!hrc)
-            rc = VINF_SUCCESS;
-        else
-            rc = rtSocketError();
+        LPWSABUF paMsg = NULL;
+        RTSgBufMapToNative(paMsg, pSgBuf, WSABUF, buf, char *, len, u_long, cSegsToSend);
+        if (paMsg)
+        {
+            DWORD dwSent = 0;
+            int hrc = g_pfnWSASend(pThis->hNative, paMsg, cSegsToSend, &dwSent, MSG_NOSIGNAL, NULL, NULL);
+            if (!hrc)
+                rc = VINF_SUCCESS;
+            else
+                rc = rtSocketError();
 
-        *pcbWritten = dwSent;
+            *pcbWritten = dwSent;
 
-        RTMemTmpFree(paMsg);
+            RTMemTmpFree(paMsg);
+        }
     }
+    else if (g_pfnsend)
+    {
+        size_t cbWrittenTotal = 0;
+        rc = VINF_SUCCESS;
+        for (uint32_t iSeg = 0; iSeg < pSgBuf->cSegs; iSeg++)
+        {
+            uint8_t const *pbSeg = (uint8_t const *)pSgBuf->paSegs[iSeg].pvSeg;
+            size_t         cbSeg = pSgBuf->paSegs[iSeg].cbSeg;
+            int            cbNow;
+            ssize_t        cbWritten;
+            for (;;)
+            {
+                cbNow = cbSeg >= RTSOCKET_MAX_WRITE ? RTSOCKET_MAX_WRITE : (int)cbSeg;
+                cbWritten = g_pfnsend(pThis->hNative, (const char *)pbSeg, cbNow, MSG_NOSIGNAL);
+                if ((size_t)cbWritten >= cbSeg || cbWritten < 0)
+                    break;
+                cbWrittenTotal += cbWrittenTotal;
+                pbSeg += cbWritten;
+                cbSeg -= cbWritten;
+            }
+            if (cbWritten < 0)
+            {
+                rc = rtSocketError();
+                break;
+            }
+            if (cbWritten != cbNow)
+                break;
+        }
+        *pcbWritten = cbWrittenTotal;
+    }
+    else
+        rc = VERR_NET_NOT_UNSUPPORTED;
 
 #else  /* !RT_OS_WINDOWS */
     struct iovec *paMsg = NULL;
@@ -1468,6 +1905,10 @@ RTDECL(int) RTSocketSelectOne(RTSOCKET hSocket, RTMSINTERVAL cMillies)
     AssertReturn(RTMemPoolRefCount(pThis) >= (pThis->cUsers ? 2U : 1U), VERR_CALLER_NO_REFERENCE);
     int const fdMax = (int)pThis->hNative + 1;
     AssertReturn((RTSOCKETNATIVE)(fdMax - 1) == pThis->hNative, VERR_INTERNAL_ERROR_5);
+#ifdef RT_OS_WINDOWS
+    AssertReturn(g_pfnselect, VERR_NET_NOT_UNSUPPORTED);
+# define select g_pfnselect
+#endif
 
     /*
      * Set up the file descriptor sets and do the select.
@@ -1495,22 +1936,24 @@ RTDECL(int) RTSocketSelectOne(RTSOCKET hSocket, RTMSINTERVAL cMillies)
     else
         rc = rtSocketError();
 
+#ifdef RT_OS_WINDOWS
+# undef select
+#endif
     return rc;
 }
 
 
-RTDECL(int) RTSocketSelectOneEx(RTSOCKET hSocket, uint32_t fEvents, uint32_t *pfEvents, RTMSINTERVAL cMillies)
+/**
+ * Internal worker for RTSocketSelectOneEx and rtSocketPollCheck (fallback)
+ *
+ * @returns IPRT status code
+ * @param   pThis               The socket (valid).
+ * @param   fEvents             The events to select for.
+ * @param   pfEvents            Where to return the events.
+ * @param   cMillies            How long to select for, in milliseconds.
+ */
+static int rtSocketSelectOneEx(RTSOCKET pThis, uint32_t fEvents, uint32_t *pfEvents, RTMSINTERVAL cMillies)
 {
-    /*
-     * Validate input.
-     */
-    RTSOCKETINT *pThis = hSocket;
-    AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
-    AssertReturn(pThis->u32Magic == RTSOCKET_MAGIC, VERR_INVALID_HANDLE);
-    AssertPtrReturn(pfEvents, VERR_INVALID_PARAMETER);
-    AssertReturn(!(fEvents & ~RTSOCKET_EVT_VALID_MASK), VERR_INVALID_PARAMETER);
-    AssertReturn(RTMemPoolRefCount(pThis) >= (pThis->cUsers ? 2U : 1U), VERR_CALLER_NO_REFERENCE);
-
     RTSOCKETNATIVE hNative = pThis->hNative;
     if (hNative == NIL_RTSOCKETNATIVE)
     {
@@ -1522,6 +1965,12 @@ RTDECL(int) RTSocketSelectOneEx(RTSOCKET hSocket, uint32_t fEvents, uint32_t *pf
 
     int const fdMax = (int)hNative + 1;
     AssertReturn((RTSOCKETNATIVE)(fdMax - 1) == hNative, VERR_INTERNAL_ERROR_5);
+#ifdef RT_OS_WINDOWS
+    AssertReturn(g_pfnselect, VERR_NET_NOT_UNSUPPORTED);
+    AssertReturn(g_pfn__WSAFDIsSet, VERR_NET_NOT_UNSUPPORTED);
+# define select         g_pfnselect
+# define __WSAFDIsSet   g_pfn__WSAFDIsSet
+#endif
 
     *pfEvents = 0;
 
@@ -1576,7 +2025,27 @@ RTDECL(int) RTSocketSelectOneEx(RTSOCKET hSocket, uint32_t fEvents, uint32_t *pf
     else
         rc = rtSocketError();
 
+#ifdef RT_OS_WINDOWS
+# undef select
+# undef __WSAFDIsSet
+#endif
     return rc;
+}
+
+
+RTDECL(int) RTSocketSelectOneEx(RTSOCKET hSocket, uint32_t fEvents, uint32_t *pfEvents, RTMSINTERVAL cMillies)
+{
+    /*
+     * Validate input.
+     */
+    RTSOCKETINT *pThis = hSocket;
+    AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
+    AssertReturn(pThis->u32Magic == RTSOCKET_MAGIC, VERR_INVALID_HANDLE);
+    AssertPtrReturn(pfEvents, VERR_INVALID_PARAMETER);
+    AssertReturn(!(fEvents & ~RTSOCKET_EVT_VALID_MASK), VERR_INVALID_PARAMETER);
+    AssertReturn(RTMemPoolRefCount(pThis) >= (pThis->cUsers ? 2U : 1U), VERR_CALLER_NO_REFERENCE);
+
+    return rtSocketSelectOneEx(pThis, fEvents, pfEvents, cMillies);
 }
 
 
@@ -1591,6 +2060,10 @@ RTDECL(int) RTSocketShutdown(RTSOCKET hSocket, bool fRead, bool fWrite)
     AssertReturn(pThis->u32Magic == RTSOCKET_MAGIC, VERR_INVALID_HANDLE);
     AssertReturn(RTMemPoolRefCount(pThis) >= (pThis->cUsers ? 2U : 1U), VERR_CALLER_NO_REFERENCE);
     AssertReturn(fRead || fWrite, VERR_INVALID_PARAMETER);
+#ifdef RT_OS_WINDOWS
+    AssertReturn(g_pfnshutdown, VERR_NET_NOT_UNSUPPORTED);
+# define shutdown g_pfnshutdown
+#endif
 
     /*
      * Do the job.
@@ -1606,6 +2079,9 @@ RTDECL(int) RTSocketShutdown(RTSOCKET hSocket, bool fRead, bool fWrite)
     if (shutdown(pThis->hNative, fHow) == -1)
         rc = rtSocketError();
 
+#ifdef RT_OS_WINDOWS
+# undef shutdown
+#endif
     return rc;
 }
 
@@ -1619,6 +2095,10 @@ RTDECL(int) RTSocketGetLocalAddress(RTSOCKET hSocket, PRTNETADDR pAddr)
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
     AssertReturn(pThis->u32Magic == RTSOCKET_MAGIC, VERR_INVALID_HANDLE);
     AssertReturn(RTMemPoolRefCount(pThis) >= (pThis->cUsers ? 2U : 1U), VERR_CALLER_NO_REFERENCE);
+#ifdef RT_OS_WINDOWS
+    AssertReturn(g_pfngetsockname, VERR_NET_NOT_UNSUPPORTED);
+# define getsockname g_pfngetsockname
+#endif
 
     /*
      * Get the address and convert it.
@@ -1636,6 +2116,9 @@ RTDECL(int) RTSocketGetLocalAddress(RTSOCKET hSocket, PRTNETADDR pAddr)
     else
         rc = rtSocketError();
 
+#ifdef RT_OS_WINDOWS
+# undef getsockname
+#endif
     return rc;
 }
 
@@ -1649,6 +2132,10 @@ RTDECL(int) RTSocketGetPeerAddress(RTSOCKET hSocket, PRTNETADDR pAddr)
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
     AssertReturn(pThis->u32Magic == RTSOCKET_MAGIC, VERR_INVALID_HANDLE);
     AssertReturn(RTMemPoolRefCount(pThis) >= (pThis->cUsers ? 2U : 1U), VERR_CALLER_NO_REFERENCE);
+#ifdef RT_OS_WINDOWS
+    AssertReturn(g_pfngetpeername, VERR_NET_NOT_UNSUPPORTED);
+# define getpeername g_pfngetpeername
+#endif
 
     /*
      * Get the address and convert it.
@@ -1666,6 +2153,9 @@ RTDECL(int) RTSocketGetPeerAddress(RTSOCKET hSocket, PRTNETADDR pAddr)
     else
         rc = rtSocketError();
 
+#ifdef RT_OS_WINDOWS
+# undef getpeername
+#endif
     return rc;
 }
 
@@ -1707,6 +2197,10 @@ DECLHIDDEN(int) rtSocketBindRawAddr(RTSOCKET hSocket, void const *pvAddr, size_t
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
     AssertReturn(pThis->u32Magic == RTSOCKET_MAGIC, VERR_INVALID_HANDLE);
     AssertPtrReturn(pvAddr, VERR_INVALID_POINTER);
+#ifdef RT_OS_WINDOWS
+    AssertReturn(g_pfnbind, VERR_NET_NOT_UNSUPPORTED);
+# define bind g_pfnbind
+#endif
     AssertReturn(rtSocketTryLock(pThis), VERR_CONCURRENT_ACCESS);
 
     int rc;
@@ -1716,6 +2210,9 @@ DECLHIDDEN(int) rtSocketBindRawAddr(RTSOCKET hSocket, void const *pvAddr, size_t
         rc = rtSocketError();
 
     rtSocketUnlock(pThis);
+#ifdef RT_OS_WINDOWS
+# undef bind
+#endif
     return rc;
 }
 
@@ -1736,6 +2233,10 @@ DECLHIDDEN(int) rtSocketListen(RTSOCKET hSocket, int cMaxPending)
     RTSOCKETINT *pThis = hSocket;
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
     AssertReturn(pThis->u32Magic == RTSOCKET_MAGIC, VERR_INVALID_HANDLE);
+#ifdef RT_OS_WINDOWS
+    AssertReturn(g_pfnlisten, VERR_NET_NOT_UNSUPPORTED);
+# define listen g_pfnlisten
+#endif
     AssertReturn(rtSocketTryLock(pThis), VERR_CONCURRENT_ACCESS);
 
     int rc = VINF_SUCCESS;
@@ -1743,6 +2244,9 @@ DECLHIDDEN(int) rtSocketListen(RTSOCKET hSocket, int cMaxPending)
         rc = rtSocketError();
 
     rtSocketUnlock(pThis);
+#ifdef RT_OS_WINDOWS
+# undef listen
+#endif
     return rc;
 }
 
@@ -1769,6 +2273,11 @@ DECLHIDDEN(int) rtSocketAccept(RTSOCKET hSocket, PRTSOCKET phClient, struct sock
     RTSOCKETINT *pThis = hSocket;
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
     AssertReturn(pThis->u32Magic == RTSOCKET_MAGIC, VERR_INVALID_HANDLE);
+#ifdef RT_OS_WINDOWS
+    AssertReturn(g_pfnaccept, VERR_NET_NOT_UNSUPPORTED);
+    AssertReturn(g_pfnclosesocket, VERR_NET_NOT_UNSUPPORTED);
+# define accept g_pfnaccept
+#endif
     AssertReturn(rtSocketTryLock(pThis), VERR_CONCURRENT_ACCESS);
 
     /*
@@ -1793,7 +2302,7 @@ DECLHIDDEN(int) rtSocketAccept(RTSOCKET hSocket, PRTSOCKET phClient, struct sock
         if (RT_FAILURE(rc))
         {
 #ifdef RT_OS_WINDOWS
-            closesocket(hNativeClient);
+            g_pfnclosesocket(hNativeClient);
 #else
             close(hNativeClient);
 #endif
@@ -1803,6 +2312,9 @@ DECLHIDDEN(int) rtSocketAccept(RTSOCKET hSocket, PRTSOCKET phClient, struct sock
         rc = rtSocketError();
 
     rtSocketUnlock(pThis);
+#ifdef RT_OS_WINDOWS
+# undef accept
+#endif
     return rc;
 }
 
@@ -1826,6 +2338,14 @@ DECLHIDDEN(int) rtSocketConnect(RTSOCKET hSocket, PCRTNETADDR pAddr, RTMSINTERVA
     RTSOCKETINT *pThis = hSocket;
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
     AssertReturn(pThis->u32Magic == RTSOCKET_MAGIC, VERR_INVALID_HANDLE);
+#ifdef RT_OS_WINDOWS
+    AssertReturn(g_pfnconnect, VERR_NET_NOT_UNSUPPORTED);
+    AssertReturn(g_pfnselect, VERR_NET_NOT_UNSUPPORTED);
+    AssertReturn(g_pfngetsockopt, VERR_NET_NOT_UNSUPPORTED);
+# define connect        g_pfnconnect
+# define select         g_pfnselect
+# define getsockopt     g_pfngetsockopt
+#endif
     AssertReturn(rtSocketTryLock(pThis), VERR_CONCURRENT_ACCESS);
 
     RTSOCKADDRUNION u;
@@ -1903,6 +2423,11 @@ DECLHIDDEN(int) rtSocketConnect(RTSOCKET hSocket, PCRTNETADDR pAddr, RTMSINTERVA
     }
 
     rtSocketUnlock(pThis);
+#ifdef RT_OS_WINDOWS
+# undef connect
+# undef select
+# undef getsockopt
+#endif
     return rc;
 }
 
@@ -1923,6 +2448,10 @@ DECLHIDDEN(int) rtSocketConnectRaw(RTSOCKET hSocket, void const *pvAddr, size_t 
     RTSOCKETINT *pThis = hSocket;
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
     AssertReturn(pThis->u32Magic == RTSOCKET_MAGIC, VERR_INVALID_HANDLE);
+#ifdef RT_OS_WINDOWS
+    AssertReturn(g_pfnconnect, VERR_NET_NOT_UNSUPPORTED);
+# define connect        g_pfnconnect
+#endif
     AssertReturn(rtSocketTryLock(pThis), VERR_CONCURRENT_ACCESS);
 
     int rc;
@@ -1932,6 +2461,9 @@ DECLHIDDEN(int) rtSocketConnectRaw(RTSOCKET hSocket, void const *pvAddr, size_t 
         rc = rtSocketError();
 
     rtSocketUnlock(pThis);
+#ifdef RT_OS_WINDOWS
+# undef connect
+#endif
     return rc;
 }
 
@@ -1954,6 +2486,10 @@ DECLHIDDEN(int) rtSocketSetOpt(RTSOCKET hSocket, int iLevel, int iOption, void c
     RTSOCKETINT *pThis = hSocket;
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
     AssertReturn(pThis->u32Magic == RTSOCKET_MAGIC, VERR_INVALID_HANDLE);
+#ifdef RT_OS_WINDOWS
+    AssertReturn(g_pfnsetsockopt, VERR_NET_NOT_UNSUPPORTED);
+# define setsockopt g_pfnsetsockopt
+#endif
     AssertReturn(rtSocketTryLock(pThis), VERR_CONCURRENT_ACCESS);
 
     int rc = VINF_SUCCESS;
@@ -1961,6 +2497,9 @@ DECLHIDDEN(int) rtSocketSetOpt(RTSOCKET hSocket, int iLevel, int iOption, void c
         rc = rtSocketError();
 
     rtSocketUnlock(pThis);
+#ifdef RT_OS_WINDOWS
+# undef setsockopt
+#endif
     return rc;
 }
 
@@ -1986,12 +2525,20 @@ DECLHIDDEN(int) rtSocketPollGetHandle(RTSOCKET hSocket, uint32_t fEvents, PRTHCI
     int rc = VINF_SUCCESS;
     if (pThis->hEvent != WSA_INVALID_EVENT)
         *phNative = (RTHCINTPTR)pThis->hEvent;
-    else
+    else if (g_pfnWSACreateEvent)
     {
-        pThis->hEvent = WSACreateEvent();
+        pThis->hEvent = g_pfnWSACreateEvent();
         *phNative = (RTHCINTPTR)pThis->hEvent;
         if (pThis->hEvent == WSA_INVALID_EVENT)
             rc = rtSocketError();
+    }
+    else
+    {
+        AssertCompile(WSA_INVALID_EVENT == (WSAEVENT)NULL);
+        pThis->hEvent = CreateEventW(NULL, TRUE /*fManualReset*/, FALSE /*fInitialState*/,  NULL /*pwszName*/);
+        *phNative = (RTHCINTPTR)pThis->hEvent;
+        if (pThis->hEvent == WSA_INVALID_EVENT)
+            rc = RTErrConvertFromWin32(GetLastError());
     }
 
     rtSocketUnlock(pThis);
@@ -2006,6 +2553,159 @@ DECLHIDDEN(int) rtSocketPollGetHandle(RTSOCKET hSocket, uint32_t fEvents, PRTHCI
 #ifdef RT_OS_WINDOWS
 
 /**
+ * Fallback poller thread.
+ *
+ * @returns VINF_SUCCESS.
+ * @param   hSelf               The thread handle.
+ * @param   pvUser              Socket instance data.
+ */
+static DECLCALLBACK(int) rtSocketPollFallbackThreadProc(RTTHREAD hSelf, void *pvUser)
+{
+    RTSOCKETINT *pThis = (RTSOCKETINT *)pvUser;
+    RT_NOREF(hSelf);
+# define __WSAFDIsSet g_pfn__WSAFDIsSet
+
+    /*
+     * The execution loop.
+     */
+    while (!ASMAtomicReadBool(&pThis->fPollFallbackShutdown))
+    {
+        /*
+         * Do the selecting (with a 15 second timeout because that seems like a good idea).
+         */
+        struct fd_set SetRead;
+        struct fd_set SetWrite;
+        struct fd_set SetXcpt;
+
+        FD_ZERO(&SetRead);
+        FD_ZERO(&SetWrite);
+        FD_ZERO(&SetXcpt);
+
+        FD_SET(pThis->hPollFallbackNotifyR, &SetRead);
+        FD_SET(pThis->hPollFallbackNotifyR, &SetXcpt);
+
+        bool     fActive = ASMAtomicReadBool(&pThis->fPollFallbackActive);
+        uint32_t fEvents;
+        if (!fActive)
+            fEvents = 0;
+        else
+        {
+            fEvents = ASMAtomicReadU32(&pThis->fSubscribedEvts);
+            if (fEvents & RTPOLL_EVT_READ)
+                FD_SET(pThis->hNative, &SetRead);
+            if (fEvents & RTPOLL_EVT_WRITE)
+                FD_SET(pThis->hNative, &SetWrite);
+            if (fEvents & RTPOLL_EVT_ERROR)
+                FD_SET(pThis->hNative, &SetXcpt);
+        }
+
+        struct timeval Timeout;
+        Timeout.tv_sec  = 15;
+        Timeout.tv_usec = 0;
+        int rc = g_pfnselect(INT_MAX /*ignored*/, &SetRead, &SetWrite, &SetXcpt, &Timeout);
+
+        /* Stop immediately if told to shut down. */
+        if (ASMAtomicReadBool(&pThis->fPollFallbackShutdown))
+            break;
+
+        /*
+         * Process the result.
+         */
+        if (rc > 0)
+        {
+            /* First the socket we're listening on. */
+            if (   fEvents
+                && (   FD_ISSET(pThis->hNative, &SetRead)
+                    || FD_ISSET(pThis->hNative, &SetWrite)
+                    || FD_ISSET(pThis->hNative, &SetXcpt)) )
+            {
+                ASMAtomicWriteBool(&pThis->fPollFallbackActive, false);
+                SetEvent(pThis->hEvent);
+            }
+
+            /* Then maintain the notification pipe.  (We only read one byte here
+               because we're overly paranoid wrt socket switching to blocking mode.) */
+            if (FD_ISSET(pThis->hPollFallbackNotifyR, &SetRead))
+            {
+                char chIgnored;
+                g_pfnrecv(pThis->hPollFallbackNotifyR, &chIgnored, sizeof(chIgnored), MSG_NOSIGNAL);
+            }
+        }
+        else
+            AssertMsg(rc == 0, ("%Rrc\n", rtSocketError()));
+    }
+
+# undef __WSAFDIsSet
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Pokes the fallback thread, making sure it gets out of whatever it's stuck in.
+ *
+ * @param   pThis               The socket handle.
+ */
+static void rtSocketPokePollFallbackThread(RTSOCKETINT *pThis)
+{
+    Assert(pThis->fPollFallback);
+    if (pThis->hPollFallbackThread != NIL_RTTHREAD)
+    {
+        int cbWritten = g_pfnsend(pThis->hPollFallbackNotifyW, "!", 1, MSG_NOSIGNAL);
+        AssertMsg(cbWritten == 1, ("cbWritten=%d err=%Rrc\n",  rtSocketError()));
+        RT_NOREF_PV(cbWritten);
+    }
+}
+
+
+/**
+ * Called by rtSocketPollStart to make the thread start selecting on the socket.
+ *
+ * @returns 0 on success, RTPOLL_EVT_ERROR on failure.
+ * @param   pThis               The socket handle.
+ */
+static uint32_t rtSocketPollFallbackStart(RTSOCKETINT *pThis)
+{
+    /*
+     * Reset the event and tell the thread to start selecting on the socket.
+     */
+    ResetEvent(pThis->hEvent);
+    ASMAtomicWriteBool(&pThis->fPollFallbackActive, true);
+
+    /*
+     * Wake up the thread the thread.
+     */
+    if (pThis->hPollFallbackThread != NIL_RTTHREAD)
+        rtSocketPokePollFallbackThread(pThis);
+    else
+    {
+        /*
+         * Not running, need to set it up and start it.
+         */
+        AssertLogRelReturn(pThis->hEvent != NULL && pThis->hEvent != INVALID_HANDLE_VALUE, RTPOLL_EVT_ERROR);
+
+        /* Create the notification socket pair. */
+        int rc;
+        if (pThis->hPollFallbackNotifyR == NIL_RTSOCKETNATIVE)
+        {
+            rc = rtSocketCreateNativeTcpPair(&pThis->hPollFallbackNotifyW, &pThis->hPollFallbackNotifyR);
+            AssertLogRelRCReturn(rc, RTPOLL_EVT_ERROR);
+
+            /* Make the read end non-blocking (not fatal). */
+            u_long fNonBlocking = 1;
+            rc = g_pfnioctlsocket(pThis->hPollFallbackNotifyR, FIONBIO, &fNonBlocking);
+            AssertLogRelMsg(rc == 0,  ("rc=%#x %Rrc\n", rc, rtSocketError()));
+        }
+
+        /* Finally, start the thread.  ASSUME we don't need too much stack. */
+        rc = RTThreadCreate(&pThis->hPollFallbackThread, rtSocketPollFallbackThreadProc, pThis,
+                            _128K, RTTHREADTYPE_IO, RTTHREADFLAGS_WAITABLE, "sockpoll");
+        AssertLogRelRCReturn(rc, RTPOLL_EVT_ERROR);
+    }
+    return 0;
+}
+
+
+/**
  * Undos the harm done by WSAEventSelect.
  *
  * @returns IPRT status code.
@@ -2016,30 +2716,47 @@ static int rtSocketPollClearEventAndRestoreBlocking(RTSOCKETINT *pThis)
     int rc = VINF_SUCCESS;
     if (pThis->fSubscribedEvts)
     {
-        if (WSAEventSelect(pThis->hNative, WSA_INVALID_EVENT, 0) == 0)
+        if (!pThis->fPollFallback)
         {
-            pThis->fSubscribedEvts = 0;
-
-            /*
-             * Switch back to blocking mode if that was the state before the
-             * operation.
-             */
-            if (pThis->fBlocking)
+            Assert(g_pfnWSAEventSelect && g_pfnioctlsocket);
+            if (g_pfnWSAEventSelect && g_pfnioctlsocket)
             {
-                u_long fNonBlocking = 0;
-                int rc2 = ioctlsocket(pThis->hNative, FIONBIO, &fNonBlocking);
-                if (rc2 != 0)
+                if (g_pfnWSAEventSelect(pThis->hNative, WSA_INVALID_EVENT, 0) == 0)
+                {
+                    pThis->fSubscribedEvts = 0;
+
+                    /*
+                     * Switch back to blocking mode if that was the state before the
+                     * operation.
+                     */
+                    if (pThis->fBlocking)
+                    {
+                        u_long fNonBlocking = 0;
+                        int rc2 = g_pfnioctlsocket(pThis->hNative, FIONBIO, &fNonBlocking);
+                        if (rc2 != 0)
+                        {
+                            rc = rtSocketError();
+                            AssertMsgFailed(("%Rrc; rc2=%d\n", rc, rc2));
+                        }
+                    }
+                }
+                else
                 {
                     rc = rtSocketError();
-                    AssertMsgFailed(("%Rrc; rc2=%d\n", rc, rc2));
+                    AssertMsgFailed(("%Rrc\n", rc));
                 }
             }
+            else
+            {
+                Assert(pThis->fPollFallback);
+                rc = VINF_SUCCESS;
+            }
         }
+        /*
+         * Just clear the event mask as we never started waiting if we get here.
+         */
         else
-        {
-            rc = rtSocketError();
-            AssertMsgFailed(("%Rrc\n", rc));
-        }
+            ASMAtomicWriteU32(&pThis->fSubscribedEvts, 0);
     }
     return rc;
 }
@@ -2054,23 +2771,33 @@ static int rtSocketPollClearEventAndRestoreBlocking(RTSOCKETINT *pThis)
  */
 static int rtSocketPollUpdateEvents(RTSOCKETINT *pThis, uint32_t fEvents)
 {
-    LONG fNetworkEvents = 0;
-    if (fEvents & RTPOLL_EVT_READ)
-        fNetworkEvents |= FD_READ;
-    if (fEvents & RTPOLL_EVT_WRITE)
-        fNetworkEvents |= FD_WRITE;
-    if (fEvents & RTPOLL_EVT_ERROR)
-        fNetworkEvents |= FD_CLOSE;
-    LogFlowFunc(("fNetworkEvents=%#x\n", fNetworkEvents));
-    if (WSAEventSelect(pThis->hNative, pThis->hEvent, fNetworkEvents) == 0)
+    if (!pThis->fPollFallback)
     {
-        pThis->fSubscribedEvts = fEvents;
-        return VINF_SUCCESS;
+        LONG fNetworkEvents = 0;
+        if (fEvents & RTPOLL_EVT_READ)
+            fNetworkEvents |= FD_READ;
+        if (fEvents & RTPOLL_EVT_WRITE)
+            fNetworkEvents |= FD_WRITE;
+        if (fEvents & RTPOLL_EVT_ERROR)
+            fNetworkEvents |= FD_CLOSE;
+        LogFlowFunc(("fNetworkEvents=%#x\n", fNetworkEvents));
+
+        if (g_pfnWSAEventSelect(pThis->hNative, pThis->hEvent, fNetworkEvents) == 0)
+        {
+            pThis->fSubscribedEvts = fEvents;
+            return VINF_SUCCESS;
+        }
+
+        int rc = rtSocketError();
+        AssertMsgFailed(("fNetworkEvents=%#x rc=%Rrc\n", fNetworkEvents, rtSocketError()));
+        return rc;
     }
 
-    int rc = rtSocketError();
-    AssertMsgFailed(("fNetworkEvents=%#x rc=%Rrc\n", fNetworkEvents, rtSocketError()));
-    return rc;
+    /*
+     * Update the events we're waiting for.  Caller will poke/start the thread. later
+     */
+    ASMAtomicWriteU32(&pThis->fSubscribedEvts, fEvents);
+    return VINF_SUCCESS;
 }
 
 #endif  /* RT_OS_WINDOWS */
@@ -2097,42 +2824,80 @@ static uint32_t rtSocketPollCheck(RTSOCKETINT *pThis, uint32_t fEvents)
     if ((pThis->fSubscribedEvts & fEvents) != fEvents)
         rc = rtSocketPollUpdateEvents(pThis, pThis->fSubscribedEvts | fEvents);
 
-    /* Get the event mask, ASSUMES that WSAEnumNetworkEvents doesn't clear stuff.  */
-    WSANETWORKEVENTS NetEvts;
-    RT_ZERO(NetEvts);
-    if (WSAEnumNetworkEvents(pThis->hNative, pThis->hEvent, &NetEvts) == 0)
+    if (!pThis->fPollFallback)
     {
-        if (    (NetEvts.lNetworkEvents & FD_READ)
-            &&  (fEvents & RTPOLL_EVT_READ)
-            &&  NetEvts.iErrorCode[FD_READ_BIT] == 0)
-            fRetEvents |= RTPOLL_EVT_READ;
-
-        if (    (NetEvts.lNetworkEvents & FD_WRITE)
-            &&  (fEvents & RTPOLL_EVT_WRITE)
-            &&  NetEvts.iErrorCode[FD_WRITE_BIT] == 0)
-            fRetEvents |= RTPOLL_EVT_WRITE;
-
-        if (fEvents & RTPOLL_EVT_ERROR)
+        /* Atomically get pending events and reset the event semaphore. */
+        Assert(g_pfnWSAEnumNetworkEvents);
+        WSANETWORKEVENTS NetEvts;
+        RT_ZERO(NetEvts);
+        if (g_pfnWSAEnumNetworkEvents(pThis->hNative, pThis->hEvent, &NetEvts) == 0)
         {
+            if (   (NetEvts.lNetworkEvents & FD_READ)
+                && NetEvts.iErrorCode[FD_READ_BIT] == 0)
+                fRetEvents |= RTPOLL_EVT_READ;
+
+            if (   (NetEvts.lNetworkEvents & FD_WRITE)
+                && NetEvts.iErrorCode[FD_WRITE_BIT] == 0)
+                fRetEvents |= RTPOLL_EVT_WRITE;
+
             if (NetEvts.lNetworkEvents & FD_CLOSE)
                 fRetEvents |= RTPOLL_EVT_ERROR;
             else
                 for (uint32_t i = 0; i < FD_MAX_EVENTS; i++)
-                    if (    (NetEvts.lNetworkEvents & (1L << i))
-                        &&  NetEvts.iErrorCode[i] != 0)
+                    if (   (NetEvts.lNetworkEvents & (1L << i))
+                        && NetEvts.iErrorCode[i] != 0)
                         fRetEvents |= RTPOLL_EVT_ERROR;
+
+            pThis->fEventsSaved = fRetEvents |= pThis->fEventsSaved;
+            fRetEvents &= fEvents | RTPOLL_EVT_ERROR;
         }
+        else
+            rc = rtSocketError();
     }
-    else
-        rc = rtSocketError();
 
-    /* Fall back on select if we hit an error above. */
-    if (RT_FAILURE(rc))
+    /* Fall back on select if we hit an error above or is using fallback polling. */
+    if (pThis->fPollFallback || RT_FAILURE(rc))
     {
+        rc = rtSocketSelectOneEx(pThis, fEvents & RTPOLL_EVT_ERROR ? fEvents | RTPOLL_EVT_READ : fEvents, &fRetEvents, 0);
+        if (RT_SUCCESS(rc))
+        {
+            /* rtSocketSelectOneEx may return RTPOLL_EVT_READ on disconnect.  Use
+               getpeername to fix this. */
+            if ((fRetEvents & (RTPOLL_EVT_READ | RTPOLL_EVT_ERROR)) == RTPOLL_EVT_READ)
+            {
+# if 0 /* doens't work */
+                rtSocketErrorReset();
+                char chIgn;
+                rc = g_pfnrecv(pThis->hNative, &chIgn, 0, MSG_NOSIGNAL);
+                rc = rtSocketError();
+                if (RT_FAILURE(rc))
+                    fRetEvents |= RTPOLL_EVT_ERROR;
 
+                rc = g_pfnsend(pThis->hNative, &chIgn, 0, MSG_NOSIGNAL);
+                rc = rtSocketError();
+                if (RT_FAILURE(rc))
+                    fRetEvents |= RTPOLL_EVT_ERROR;
+
+                RTSOCKADDRUNION u;
+                int cbAddr = sizeof(u);
+                if (g_pfngetpeername(pThis->hNative, &u.Addr, &cbAddr) == SOCKET_ERROR)
+                    fRetEvents |= RTPOLL_EVT_ERROR;
+# endif
+                /* If no bytes are available, assume error condition. */
+                u_long cbAvail = 0;
+                rc = g_pfnioctlsocket(pThis->hNative, FIONREAD, &cbAvail);
+                if (rc == 0 && cbAvail == 0)
+                    fRetEvents |= RTPOLL_EVT_ERROR;
+            }
+            fRetEvents &= fEvents | RTPOLL_EVT_ERROR;
+        }
+        else if (rc == VERR_TIMEOUT)
+            fRetEvents = 0;
+        else
+            fRetEvents |= RTPOLL_EVT_ERROR;
     }
 
-#else  /* RT_OS_OS2 */
+# else  /* RT_OS_OS2 */
     int aFds[4] = { pThis->hNative, pThis->hNative, pThis->hNative, -1 };
     int rc = os2_select(aFds, 1, 1, 1, 0);
     if (rc > 0)
@@ -2145,7 +2910,7 @@ static uint32_t rtSocketPollCheck(RTSOCKETINT *pThis, uint32_t fEvents)
             fRetEvents |= RTPOLL_EVT_ERROR;
         fRetEvents &= fEvents;
     }
-#endif /* RT_OS_OS2 */
+# endif /* RT_OS_OS2 */
 
     LogFlowFunc(("fRetEvents=%#x\n", fRetEvents));
     return fRetEvents;
@@ -2199,15 +2964,23 @@ DECLHIDDEN(uint32_t) rtSocketPollStart(RTSOCKET hSocket, RTPOLLSET hPollSet, uin
         && !fNoWait)
     {
         pThis->fPollEvts |= fEvents;
-        if (   fFinalEntry
-            && pThis->fSubscribedEvts != pThis->fPollEvts)
+        if (fFinalEntry)
         {
-            int rc = rtSocketPollUpdateEvents(pThis, pThis->fPollEvts);
-            if (RT_FAILURE(rc))
+            if (pThis->fSubscribedEvts != pThis->fPollEvts)
             {
-                pThis->fPollEvts = 0;
-                fRetEvents       = UINT32_MAX;
+                /** @todo seems like there might be a call to many here and that fPollEvts is
+                 *        totally unnecessary... (bird) */
+                int rc = rtSocketPollUpdateEvents(pThis, pThis->fPollEvts);
+                if (RT_FAILURE(rc))
+                {
+                    pThis->fPollEvts = 0;
+                    fRetEvents       = UINT32_MAX;
+                }
             }
+
+            /* Make sure we don't block when there are events pending relevant to an earlier poll set entry. */
+            if (pThis->fEventsSaved && !pThis->fPollFallback && g_pfnWSASetEvent && fRetEvents == 0)
+                g_pfnWSASetEvent(pThis->hEvent);
         }
     }
 # else
@@ -2219,12 +2992,26 @@ DECLHIDDEN(uint32_t) rtSocketPollStart(RTSOCKET hSocket, RTPOLLSET hPollSet, uin
         if (pThis->cUsers == 1)
         {
 # ifdef RT_OS_WINDOWS
+            pThis->fEventsSaved    &= RTPOLL_EVT_ERROR;
+            pThis->fHarvestedEvents = false;
             rtSocketPollClearEventAndRestoreBlocking(pThis);
 # endif
             pThis->hPollSet = NIL_RTPOLLSET;
         }
+# ifdef RT_OS_WINDOWS
+        else
+            pThis->fHarvestedEvents = true;
+# endif
         ASMAtomicDecU32(&pThis->cUsers);
     }
+# ifdef RT_OS_WINDOWS
+    /*
+     * Kick the poller thread on if this is the final entry and we're in
+     * winsock 1.x fallback mode.
+     */
+    else if (pThis->fPollFallback && fFinalEntry)
+        fRetEvents = rtSocketPollFallbackStart(pThis);
+# endif
 
     return fRetEvents;
 }
@@ -2255,28 +3042,56 @@ DECLHIDDEN(uint32_t) rtSocketPollDone(RTSOCKET hSocket, uint32_t fEvents, bool f
     Assert(pThis->hPollSet != NIL_RTPOLLSET);
     RT_NOREF_PV(fFinalEntry);
 
-    /* Harvest events and clear the event mask for the next round of polling. */
-    uint32_t fRetEvents = rtSocketPollCheck(pThis, fEvents);
 # ifdef RT_OS_WINDOWS
-    pThis->fPollEvts = 0;
-
     /*
-     * Save the write event if required.
-     * It is only posted once and might get lost if the another source in the
-     * pollset with a higher priority has pending events.
+     * Deactivate the poll thread if we're in winsock 1.x fallback poll mode.
      */
-    if (   !fHarvestEvents
-        && fRetEvents)
+    if (   pThis->fPollFallback
+        && pThis->hPollFallbackThread != NIL_RTTHREAD)
     {
-        pThis->fEventsSaved = fRetEvents;
-        fRetEvents = 0;
+        ASMAtomicWriteU32(&pThis->fSubscribedEvts, 0);
+        if (ASMAtomicXchgBool(&pThis->fPollFallbackActive, false))
+            rtSocketPokePollFallbackThread(pThis);
     }
 # endif
 
-    /* Make the socket blocking again and unlock the handle. */
+    /*
+     * Harvest events and clear the event mask for the next round of polling.
+     */
+    uint32_t fRetEvents;
+# ifdef RT_OS_WINDOWS
+    if (!pThis->fPollFallback)
+    {
+        if (!pThis->fHarvestedEvents)
+        {
+            fRetEvents = rtSocketPollCheck(pThis, fEvents);
+            pThis->fHarvestedEvents = true;
+        }
+        else
+            fRetEvents = pThis->fEventsSaved;
+        if (fHarvestEvents)
+            fRetEvents &= fEvents;
+        else
+            fRetEvents = 0;
+        pThis->fPollEvts = 0;
+    }
+    else
+# endif
+    {
+        if (fHarvestEvents)
+            fRetEvents = rtSocketPollCheck(pThis, fEvents);
+        else
+            fRetEvents = 0;
+    }
+
+    /*
+     * Make the socket blocking again and unlock the handle.
+     */
     if (pThis->cUsers == 1)
     {
 # ifdef RT_OS_WINDOWS
+        pThis->fEventsSaved    &= RTPOLL_EVT_ERROR;
+        pThis->fHarvestedEvents = false;
         rtSocketPollClearEventAndRestoreBlocking(pThis);
 # endif
         pThis->hPollSet = NIL_RTPOLLSET;

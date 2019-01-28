@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,115 +15,110 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QDir>
-# include <QFileInfo>
-# include <QPainter>
-# include <QTimer>
-# include <QDateTime>
-# include <QImageWriter>
-# ifdef VBOX_WS_MAC
-#  include <QMenuBar>
-# endif /* VBOX_WS_MAC */
-# ifdef VBOX_WS_X11
-#  include <QX11Info>
-# endif /* VBOX_WS_X11 */
-
-/* GUI includes: */
-# include "QIFileDialog.h"
-# include "UIActionPoolRuntime.h"
-# ifdef VBOX_GUI_WITH_NETWORK_MANAGER
-#  include "UINetworkManager.h"
-#  include "UIDownloaderAdditions.h"
-# endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
-# include "UIIconPool.h"
-# include "UIKeyboardHandler.h"
-# include "UIMouseHandler.h"
-# include "UIMachineLogic.h"
-# include "UIMachineLogicFullscreen.h"
-# include "UIMachineLogicNormal.h"
-# include "UIMachineLogicSeamless.h"
-# include "UIMachineLogicScale.h"
-# include "UIFrameBuffer.h"
-# include "UIMachineView.h"
-# include "UIMachineWindow.h"
-# include "UISession.h"
-# include "VBoxGlobal.h"
-# include "UIMessageCenter.h"
-# include "UIPopupCenter.h"
-# include "UISettingsDialogSpecific.h"
-# include "UITakeSnapshotDialog.h"
-# include "UIVMLogViewer.h"
-# include "UIConverter.h"
-# include "UIModalWindowManager.h"
-# include "UIMedium.h"
-# include "UIExtraDataManager.h"
-# include "UIAddDiskEncryptionPasswordDialog.h"
-# include "UIVMInformationDialog.h"
-# ifdef VBOX_WS_MAC
-#  include "DockIconPreview.h"
-#  include "UIExtraDataManager.h"
-# endif /* VBOX_WS_MAC */
-
-/* COM includes: */
-# include "CAudioAdapter.h"
-# include "CVirtualBoxErrorInfo.h"
-# include "CMachineDebugger.h"
-# include "CSnapshot.h"
-# include "CDisplay.h"
-# include "CStorageController.h"
-# include "CMediumAttachment.h"
-# include "CHostUSBDevice.h"
-# include "CUSBDevice.h"
-# include "CVRDEServer.h"
-# include "CSystemProperties.h"
-# include "CHostVideoInputDevice.h"
-# include "CEmulatedUSB.h"
-# include "CNetworkAdapter.h"
-# ifdef VBOX_WS_MAC
-#  include "CGuest.h"
-# endif /* VBOX_WS_MAC */
-
-/* Other VBox includes: */
-# include <iprt/path.h>
-# include <iprt/thread.h>
-# ifdef VBOX_WITH_DEBUGGER_GUI
-#  include <VBox/dbggui.h>
-#  include <iprt/ldr.h>
-# endif /* VBOX_WITH_DEBUGGER_GUI */
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
-/* VirtualBox interface declarations: */
-#ifndef VBOX_WITH_XPCOM
-# include "VirtualBox.h"
-#else /* !VBOX_WITH_XPCOM */
-# include "VirtualBox_XPCOM.h"
-#endif /* VBOX_WITH_XPCOM */
-
+#include <QDir>
+#include <QFileInfo>
+#include <QPainter>
+#include <QTimer>
+#include <QDateTime>
+#include <QImageWriter>
 #ifdef VBOX_WS_MAC
-# include "DarwinKeyboard.h"
+# include <QMenuBar>
 #endif /* VBOX_WS_MAC */
-#ifdef VBOX_WS_WIN
-# include "WinKeyboard.h"
-#endif /* VBOX_WS_WIN */
 #ifdef VBOX_WS_X11
-# include <XKeyboard.h>
+# include <QX11Info>
 #endif /* VBOX_WS_X11 */
 
-#define VBOX_WITH_REWORKED_SESSION_INFORMATION /* Define for reworked session-information window: */
+/* GUI includes: */
+#include "QIFileDialog.h"
+#include "UIActionPoolRuntime.h"
+#ifdef VBOX_GUI_WITH_NETWORK_MANAGER
+# include "UINetworkManager.h"
+# include "UIDownloaderAdditions.h"
+#endif
+#include "UIHostComboEditor.h"
+#include "UIIconPool.h"
+#include "UIKeyboardHandler.h"
+#include "UIMouseHandler.h"
+#include "UIMachineLogic.h"
+#include "UIMachineLogicFullscreen.h"
+#include "UIMachineLogicNormal.h"
+#include "UIMachineLogicSeamless.h"
+#include "UIMachineLogicScale.h"
+#include "UIFrameBuffer.h"
+#include "UIMachineView.h"
+#include "UIMachineWindow.h"
+#include "UISession.h"
+#include "VBoxGlobal.h"
+#include "UIMessageCenter.h"
+#include "UIPopupCenter.h"
+#include "UISettingsDialogSpecific.h"
+#include "UITakeSnapshotDialog.h"
+#include "UIVMLogViewerDialog.h"
+#include "UIConverter.h"
+#include "UIModalWindowManager.h"
+#include "UIMedium.h"
+#include "UIExtraDataManager.h"
+#include "UIAddDiskEncryptionPasswordDialog.h"
+#include "UIVMInformationDialog.h"
+#include "UIFileManagerDialog.h"
+#include "UIGuestProcessControlDialog.h"
+#ifdef VBOX_WS_MAC
+# include "DockIconPreview.h"
+# include "UIExtraDataManager.h"
+#endif
+
+/* COM includes: */
+#include "CAudioAdapter.h"
+#include "CRecordingSettings.h"
+#include "CVirtualBoxErrorInfo.h"
+#include "CMachineDebugger.h"
+#include "CSnapshot.h"
+#include "CDisplay.h"
+#include "CStorageController.h"
+#include "CMediumAttachment.h"
+#include "CHostUSBDevice.h"
+#include "CUSBDevice.h"
+#include "CVRDEServer.h"
+#include "CSystemProperties.h"
+#include "CHostVideoInputDevice.h"
+#include "CEmulatedUSB.h"
+#include "CNetworkAdapter.h"
+#ifdef VBOX_WS_MAC
+# include "CGuest.h"
+#endif
+
+/* Other VBox includes: */
+#include <iprt/path.h>
+#include <iprt/thread.h>
+#ifdef VBOX_WITH_DEBUGGER_GUI
+# include <VBox/dbggui.h>
+# include <iprt/ldr.h>
+#endif
+
+/* VirtualBox interface declarations: */
+#include <VBox/com/VirtualBox.h>
+
+/* External / Other VBox includes: */
+#ifdef VBOX_WS_MAC
+# include "DarwinKeyboard.h"
+#endif
+#ifdef VBOX_WS_WIN
+# include "WinKeyboard.h"
+#endif
+#ifdef VBOX_WS_X11
+# include <XKeyboard.h>
+#endif
+
+#define VBOX_WITH_REWORKED_SESSION_INFORMATION /**< Define for reworked session-information window.  @todo r-bird: What's this for? */
 
 struct USBTarget
 {
-    USBTarget() : attach(false), id(QString()) {}
-    USBTarget(bool fAttach, const QString &strId)
-        : attach(fAttach), id(strId) {}
+    USBTarget() : attach(false), id(QUuid()) {}
+    USBTarget(bool fAttach, const QUuid &uId)
+        : attach(fAttach), id(uId) {}
     bool attach;
-    QString id;
+    QUuid id;
 };
 Q_DECLARE_METATYPE(USBTarget);
 
@@ -195,7 +190,7 @@ void UIMachineLogic::prepare()
     /* Prepare menu: */
     prepareMenu();
 
-    /* Prepare machine window(s): */
+    /* Prepare machine-window(s): */
     prepareMachineWindows();
 
 #ifdef VBOX_WS_MAC
@@ -235,7 +230,7 @@ void UIMachineLogic::cleanup()
     /* Cleanup menu: */
     cleanupMenu();
 
-    /* Cleanup machine window(s): */
+    /* Cleanup machine-window(s): */
     cleanupMachineWindows();
 
     /* Cleanup handlers: */
@@ -315,13 +310,14 @@ UIMachineWindow* UIMachineLogic::mainMachineWindow() const
     /* Null if machine-window(s) not yet created: */
     if (!isMachineWindowsCreated())
         return 0;
-    /* First machine-window otherwise: */
-    return machineWindows().first();
+
+    /* First machine-window by default: */
+    return machineWindows().value(0);
 }
 
 UIMachineWindow* UIMachineLogic::activeMachineWindow() const
 {
-    /* Return null if windows are not created yet: */
+    /* Null if machine-window(s) not yet created: */
     if (!isMachineWindowsCreated())
         return 0;
 
@@ -333,7 +329,7 @@ UIMachineWindow* UIMachineLogic::activeMachineWindow() const
             return pIteratedWindow;
     }
 
-    /* Return main machine window: */
+    /* Main machine-window by default: */
     return mainMachineWindow();
 }
 
@@ -653,6 +649,12 @@ void UIMachineLogic::sltMachineStateChanged()
             }
             break;
         }
+        case KMachineState_Saving:
+        {
+            /* Insert a host combo release if press has been inserted: */
+            typeHostKeyComboPressRelease(false);
+            break;
+        }
 #ifdef VBOX_WS_X11
         case KMachineState_Starting:
         case KMachineState_Restoring:
@@ -782,6 +784,11 @@ void UIMachineLogic::sltGuestMonitorChange(KGuestMonitorChangedEventType, ulong,
     /* Make sure all machine-window(s) have proper geometry: */
     foreach (UIMachineWindow *pMachineWindow, machineWindows())
         pMachineWindow->showInNecessaryMode();
+
+#ifdef VBOX_WS_MAC
+    /* Update dock: */
+    updateDock();
+#endif
 }
 
 void UIMachineLogic::sltHostScreenCountChange()
@@ -832,10 +839,15 @@ UIMachineLogic::UIMachineLogic(QObject *pParent, UISession *pSession, UIVisualSt
     , m_fIsDockIconEnabled(true)
     , m_pDockIconPreview(0)
     , m_pDockPreviewSelectMonitorGroup(0)
+    , m_pDockSettingsMenuSeparator(0)
     , m_DockIconPreviewMonitor(0)
+    , m_pDockSettingMenuAction(0)
 #endif /* VBOX_WS_MAC */
     , m_pHostLedsState(NULL)
     , m_fIsHidLedsSyncEnabled(false)
+    , m_pLogViewerDialog(0)
+    , m_pFileManagerDialog(0)
+    , m_pProcessControlDialog(0)
 {
 }
 
@@ -943,12 +955,6 @@ void UIMachineLogic::updateDockOverlay()
 
 void UIMachineLogic::prepareRequiredFeatures()
 {
-#ifdef VBOX_WS_MAC
-# ifdef VBOX_WITH_ICHAT_THEATER
-    /* Init shared AV manager: */
-    initSharedAVManager();
-# endif /* VBOX_WITH_ICHAT_THEATER */
-#endif /* VBOX_WS_MAC */
 }
 
 void UIMachineLogic::prepareSessionConnections()
@@ -1020,6 +1026,7 @@ void UIMachineLogic::prepareActionGroups()
     m_pRunningActions->addAction(actionPool()->action(UIActionIndexRT_M_Input_M_Keyboard_S_TypeInsert));
     m_pRunningActions->addAction(actionPool()->action(UIActionIndexRT_M_Input_M_Keyboard_S_TypePrintScreen));
     m_pRunningActions->addAction(actionPool()->action(UIActionIndexRT_M_Input_M_Keyboard_S_TypeAltPrintScreen));
+    m_pRunningActions->addAction(actionPool()->action(UIActionIndexRT_M_Input_M_Keyboard_T_TypeHostKeyCombo));
 
     /* Move actions into running-n-paused actions group: */
     m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_Machine_S_Detach));
@@ -1033,9 +1040,9 @@ void UIMachineLogic::prepareActionGroups()
 #endif /* !VBOX_WS_MAC */
     m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_View_S_AdjustWindow));
     m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_View_S_TakeScreenshot));
-    m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_View_M_VideoCapture));
-    m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_View_M_VideoCapture_S_Settings));
-    m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_View_M_VideoCapture_T_Start));
+    m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_View_M_Recording));
+    m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_View_M_Recording_S_Settings));
+    m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_View_M_Recording_T_Start));
     m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_View_T_VRDEServer));
     m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_View_M_MenuBar));
     m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_View_M_MenuBar_S_Settings));
@@ -1045,7 +1052,6 @@ void UIMachineLogic::prepareActionGroups()
     m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_View_M_StatusBar));
     m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_View_M_StatusBar_S_Settings));
     m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_View_M_StatusBar_T_Visibility));
-    m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_View_M_ScaleFactor));
     m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_Input_M_Keyboard));
     m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_Input_M_Keyboard_S_Settings));
     m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_Input_M_Mouse));
@@ -1091,6 +1097,10 @@ void UIMachineLogic::prepareActionConnections()
             this, SLOT(sltTakeSnapshot()));
     connect(actionPool()->action(UIActionIndexRT_M_Machine_S_ShowInformation), SIGNAL(triggered()),
             this, SLOT(sltShowInformationDialog()));
+    connect(actionPool()->action(UIActionIndexRT_M_Machine_S_ShowFileManager), SIGNAL(triggered()),
+            this, SLOT(sltShowFileManagerDialog()));
+    connect(actionPool()->action(UIActionIndexRT_M_Machine_S_ShowGuestProcessControl), SIGNAL(triggered()),
+            this, SLOT(sltShowGuestProcessControlDialog()));
     connect(actionPool()->action(UIActionIndexRT_M_Machine_T_Pause), SIGNAL(toggled(bool)),
             this, SLOT(sltPause(bool)));
     connect(actionPool()->action(UIActionIndexRT_M_Machine_S_Reset), SIGNAL(triggered()),
@@ -1115,10 +1125,10 @@ void UIMachineLogic::prepareActionConnections()
             this, SLOT(sltToggleGuestAutoresize(bool)));
     connect(actionPool()->action(UIActionIndexRT_M_View_S_TakeScreenshot), SIGNAL(triggered()),
             this, SLOT(sltTakeScreenshot()));
-    connect(actionPool()->action(UIActionIndexRT_M_View_M_VideoCapture_S_Settings), SIGNAL(triggered()),
-            this, SLOT(sltOpenVideoCaptureOptions()));
-    connect(actionPool()->action(UIActionIndexRT_M_View_M_VideoCapture_T_Start), SIGNAL(toggled(bool)),
-            this, SLOT(sltToggleVideoCapture(bool)));
+    connect(actionPool()->action(UIActionIndexRT_M_View_M_Recording_S_Settings), SIGNAL(triggered()),
+            this, SLOT(sltOpenRecordingOptions()));
+    connect(actionPool()->action(UIActionIndexRT_M_View_M_Recording_T_Start), SIGNAL(toggled(bool)),
+            this, SLOT(sltToggleRecording(bool)));
     connect(actionPool()->action(UIActionIndexRT_M_View_T_VRDEServer), SIGNAL(toggled(bool)),
             this, SLOT(sltToggleVRDE(bool)));
 
@@ -1139,6 +1149,8 @@ void UIMachineLogic::prepareActionConnections()
             this, SLOT(sltTypePrintScreen()));
     connect(actionPool()->action(UIActionIndexRT_M_Input_M_Keyboard_S_TypeAltPrintScreen), SIGNAL(triggered()),
             this, SLOT(sltTypeAltPrintScreen()));
+    connect(actionPool()->action(UIActionIndexRT_M_Input_M_Keyboard_T_TypeHostKeyCombo), SIGNAL(toggled(bool)),
+            this, SLOT(sltTypeHostKeyComboPressRelease(bool)));
     connect(actionPool()->action(UIActionIndexRT_M_Input_M_Mouse_T_Integration), SIGNAL(toggled(bool)),
             this, SLOT(sltToggleMouseIntegration(bool)));
 
@@ -1207,9 +1219,12 @@ void UIMachineLogic::prepareHandlers()
 void UIMachineLogic::prepareDock()
 {
     QMenu *pDockMenu = actionPool()->action(UIActionIndexRT_M_Dock)->menu();
+    /* Clear the menu to get rid of any previously added actions and separators: */
+    pDockMenu->clear();
 
     /* Add all the 'Machine' menu entries to the 'Dock' menu: */
     QList<QAction*> actions = actionPool()->action(UIActionIndexRT_M_Machine)->menu()->actions();
+    m_dockMachineMenuActions.clear();
     for (int i=0; i < actions.size(); ++i)
     {
         /* Check if we really have correct action: */
@@ -1223,11 +1238,19 @@ void UIMachineLogic::prepareDock()
         /* Skip actions which have menu (to prevent consuming): */
         if (qobject_cast<UIActionMenu*>(pAction))
             continue;
+        if (!pAction->isAllowed())
+            continue;
         pDockMenu->addAction(actions.at(i));
+        m_dockMachineMenuActions.push_back(actions.at(i));
     }
-    pDockMenu->addSeparator();
+    if (!m_dockMachineMenuActions.empty())
+    {
+        m_dockMachineMenuActions.push_back(pDockMenu->addSeparator());
+    }
 
     QMenu *pDockSettingsMenu = actionPool()->action(UIActionIndexRT_M_Dock_M_DockSettings)->menu();
+    /* Clear the menu to get rid of any previously added actions and separators: */
+    pDockSettingsMenu->clear();
     QActionGroup *pDockPreviewModeGroup = new QActionGroup(this);
     QAction *pDockDisablePreview = actionPool()->action(UIActionIndexRT_M_Dock_M_DockSettings_T_DisableMonitor);
     pDockPreviewModeGroup->addAction(pDockDisablePreview);
@@ -1252,20 +1275,29 @@ void UIMachineLogic::prepareDock()
     /* Add dock icon disable overlay action to the dock settings menu: */
     pDockSettingsMenu->addAction(pDockIconDisableOverlay);
 
-    /* Monitor selection if there are more than one monitor */
-    int cGuestScreens = machine().GetMonitorCount();
-    if (cGuestScreens > 1)
+    /* If we have more than one visible window: */
+    const QList<int> visibleWindowsList = uisession()->listOfVisibleWindows();
+    const int cVisibleGuestScreens = visibleWindowsList.size();
+    if (cVisibleGuestScreens > 1)
     {
-        pDockSettingsMenu->addSeparator();
-        m_DockIconPreviewMonitor = qMin(gEDataManager->realtimeDockIconUpdateMonitor(vboxGlobal().managedVMUuid()),
-                                        cGuestScreens - 1);
+        /* Add separator: */
+        m_pDockSettingsMenuSeparator = pDockSettingsMenu->addSeparator();
+
+        int extraDataUpdateMonitor = gEDataManager->realtimeDockIconUpdateMonitor(vboxGlobal().managedVMUuid());
+        if (visibleWindowsList.contains(extraDataUpdateMonitor))
+            m_DockIconPreviewMonitor = extraDataUpdateMonitor;
+        else
+            m_DockIconPreviewMonitor = visibleWindowsList.at(cVisibleGuestScreens - 1);
+
         m_pDockPreviewSelectMonitorGroup = new QActionGroup(this);
-        for (int i = 0; i < cGuestScreens; ++i)
+
+        /* And dock preview actions: */
+        for (int i = 0; i < cVisibleGuestScreens; ++i)
         {
             QAction *pAction = new QAction(m_pDockPreviewSelectMonitorGroup);
             pAction->setCheckable(true);
-            pAction->setData(i);
-            if (m_DockIconPreviewMonitor == i)
+            pAction->setData(visibleWindowsList.at(i));
+            if (m_DockIconPreviewMonitor == visibleWindowsList.at(i))
                 pAction->setChecked(true);
         }
         pDockSettingsMenu->addActions(m_pDockPreviewSelectMonitorGroup->actions());
@@ -1273,7 +1305,7 @@ void UIMachineLogic::prepareDock()
                 this, SLOT(sltDockPreviewMonitorChanged(QAction*)));
     }
 
-    pDockMenu->addMenu(pDockSettingsMenu);
+    m_pDockSettingMenuAction = pDockMenu->addMenu(pDockSettingsMenu);
 
     /* Add it to the dock: */
     pDockMenu->setAsDockMenu();
@@ -1296,6 +1328,107 @@ void UIMachineLogic::prepareDock()
     }
     setDockIconPreviewEnabled(fEnabled);
     updateDockOverlay();
+}
+
+void UIMachineLogic::updateDock()
+{
+    QMenu *pDockSettingsMenu = actionPool()->action(UIActionIndexRT_M_Dock_M_DockSettings)->menu();
+    AssertReturnVoid(pDockSettingsMenu);
+
+    QMenu *pDockMenu = actionPool()->action(UIActionIndexRT_M_Dock)->menu();
+    AssertReturnVoid(pDockMenu);
+
+    /* Clean previous machine menu actions: */
+    for (int i=0; i < m_dockMachineMenuActions.size(); ++i)
+    {
+        pDockMenu->removeAction(m_dockMachineMenuActions.at(i));
+        if (m_dockMachineMenuActions.at(i)->isSeparator())
+            delete m_dockMachineMenuActions[i];
+    }
+    m_dockMachineMenuActions.clear();
+
+    /* Determine the list of actions to be inserted: */
+    QList<QAction*> actions = actionPool()->action(UIActionIndexRT_M_Machine)->menu()->actions();
+    QList<QAction*> allowedActions;
+    for (int i=0; i < actions.size(); ++i)
+    {
+        /* Check if we really have correct action: */
+        UIAction *pAction = qobject_cast<UIAction*>(actions.at(i));
+        /* Skip incorrect actions: */
+        if (!pAction)
+            continue;
+        /* Skip actions which have 'role' (to prevent consuming): */
+        if (pAction->menuRole() != QAction::NoRole)
+            continue;
+        /* Skip actions which have menu (to prevent consuming): */
+        if (qobject_cast<UIActionMenu*>(pAction))
+            continue;
+        if (!pAction->isAllowed())
+            continue;
+        allowedActions.push_back(actions.at(i));
+    }
+
+    if (!allowedActions.empty())
+    {
+        QAction *pSeparator = new QAction(pDockMenu);
+        pSeparator->setSeparator(true);
+        allowedActions.push_back(pSeparator);
+        pDockMenu->insertActions(m_pDockSettingMenuAction, allowedActions);
+        m_dockMachineMenuActions = allowedActions;
+    }
+
+    /* Clean the previous preview actions: */
+    if (m_pDockPreviewSelectMonitorGroup)
+    {
+        QList<QAction*> previewActions = m_pDockPreviewSelectMonitorGroup->actions();
+        foreach (QAction *pAction, previewActions)
+        {
+            pDockSettingsMenu->removeAction(pAction);
+            m_pDockPreviewSelectMonitorGroup->removeAction(pAction);
+            delete pAction;
+        }
+    }
+    const QList<int> visibleWindowsList = uisession()->listOfVisibleWindows();
+    const int cVisibleGuestScreens = visibleWindowsList.size();
+    if (cVisibleGuestScreens > 1)
+    {
+        if (!m_pDockPreviewSelectMonitorGroup)
+            m_pDockPreviewSelectMonitorGroup = new QActionGroup(this);
+        /* Only if currently selected monitor for icon preview is not enabled: */
+        if (!visibleWindowsList.contains(m_DockIconPreviewMonitor))
+        {
+            int iExtraDataUpdateMonitor = gEDataManager->realtimeDockIconUpdateMonitor(vboxGlobal().managedVMUuid());
+            if (visibleWindowsList.contains(iExtraDataUpdateMonitor))
+                m_DockIconPreviewMonitor = iExtraDataUpdateMonitor;
+            else
+                m_DockIconPreviewMonitor = visibleWindowsList.at(cVisibleGuestScreens - 1);
+        }
+        if (!m_pDockSettingsMenuSeparator)
+            m_pDockSettingsMenuSeparator = pDockSettingsMenu->addSeparator();
+        for (int i=0; i < cVisibleGuestScreens; ++i)
+        {
+            QAction *pAction = new QAction(m_pDockPreviewSelectMonitorGroup);
+            pAction->setCheckable(true);
+            pAction->setData(visibleWindowsList.at(i));
+            pAction->setText(QApplication::translate("UIActionPool", "Preview Monitor %1").arg(pAction->data().toInt() + 1));
+            if (m_DockIconPreviewMonitor == visibleWindowsList.at(i))
+                pAction->setChecked(true);
+        }
+        pDockSettingsMenu->addActions(m_pDockPreviewSelectMonitorGroup->actions());
+        connect(m_pDockPreviewSelectMonitorGroup, SIGNAL(triggered(QAction*)),
+                this, SLOT(sltDockPreviewMonitorChanged(QAction*)));
+    }
+    else
+    {
+        m_DockIconPreviewMonitor = 0;
+        /* Remove the seperator as well: */
+        if (m_pDockSettingsMenuSeparator)
+        {
+            pDockSettingsMenu->removeAction(m_pDockSettingsMenuSeparator);
+            delete m_pDockSettingsMenuSeparator;
+            m_pDockSettingsMenuSeparator = 0;
+        }
+    }
 }
 #endif /* VBOX_WS_MAC */
 
@@ -1546,6 +1679,33 @@ void UIMachineLogic::sltTypeAltPrintScreen()
     AssertWrapperOk(keyboard());
 }
 
+void UIMachineLogic::sltTypeHostKeyComboPressRelease(bool fToggleSequence)
+{
+    if (keyboardHandler())
+        keyboardHandler()->setHostKeyComboPressedFlag(fToggleSequence);
+    QList<unsigned> shortCodes = UIHostCombo::modifiersToScanCodes(gEDataManager->hostKeyCombination());
+    QVector<LONG> codes;
+    foreach (unsigned idxCode, shortCodes)
+    {
+        /* Check if we need to include extended code for this key: */
+        if (idxCode & 0x100)
+            codes << 0xE0;
+        if (fToggleSequence)
+        {
+            /* Add the press code: */
+            codes << (idxCode & 0x7F);
+        }
+        else
+        {
+            /* Add the release code: */
+            codes << ((idxCode & 0x7F) | 0x80);
+        }
+    }
+
+    keyboard().PutScancodes(codes);
+    AssertWrapperOk(keyboard());
+}
+
 void UIMachineLogic::sltTakeSnapshot()
 {
     /* Do not process if window(s) missed! */
@@ -1559,10 +1719,7 @@ void UIMachineLogic::sltTakeSnapshot()
 
     /* Assign corresponding icon: */
     if (uisession() && uisession()->machineWindowIcon())
-    {
-        const int iIconMetric = QApplication::style()->pixelMetric(QStyle::PM_LargeIconSize);
-        pDlg->setPixmap(uisession()->machineWindowIcon()->pixmap(QSize(iIconMetric, iIconMetric)));
-    }
+        pDlg->setIcon(*uisession()->machineWindowIcon());
 
     /* Search for the max available filter index: */
     QString strNameTemplate = UITakeSnapshotDialog::tr("Snapshot %1");
@@ -1586,9 +1743,9 @@ void UIMachineLogic::sltTakeSnapshot()
     /* Was the dialog accepted? */
     if (fDialogAccepted)
     {
-        QString strSnapshotId;
+        QUuid uSnapshotId;
         /* Prepare the take-snapshot progress: */
-        CProgress progress = machine().TakeSnapshot(strSnapshotName, strSnapshotDescription, true, strSnapshotId);
+        CProgress progress = machine().TakeSnapshot(strSnapshotName, strSnapshotDescription, true, uSnapshotId);
         if (machine().isOk())
         {
             /* Show the take-snapshot progress: */
@@ -1610,7 +1767,81 @@ void UIMachineLogic::sltShowInformationDialog()
         return;
 
     /* Invoke VM information dialog: */
-    UIVMInformationDialog::invoke(mainMachineWindow());
+    UIVMInformationDialog::invoke(activeMachineWindow());
+}
+
+void UIMachineLogic::sltShowFileManagerDialog()
+{
+    if (machine().isNull() || !activeMachineWindow())
+        return;
+
+    /* Create a logviewer only if we don't have one already */
+    if (m_pFileManagerDialog)
+        return;
+
+    QIManagerDialog *pFileManagerDialog;
+    UIFileManagerDialogFactory dialogFactory(actionPool(), console().GetGuest(), machine().GetName());
+    dialogFactory.prepare(pFileManagerDialog, activeMachineWindow());
+    if (pFileManagerDialog)
+    {
+        m_pFileManagerDialog = pFileManagerDialog;
+
+        /* Show instance: */
+        pFileManagerDialog->show();
+        pFileManagerDialog->setWindowState(pFileManagerDialog->windowState() & ~Qt::WindowMinimized);
+        pFileManagerDialog->activateWindow();
+        connect(pFileManagerDialog, &QIManagerDialog::sigClose,
+                this, &UIMachineLogic::sltCloseFileManagerDialog);
+    }
+}
+
+void UIMachineLogic::sltCloseFileManagerDialog()
+{
+    QIManagerDialog* pDialog = qobject_cast<QIManagerDialog*>(sender());
+    if (m_pFileManagerDialog != pDialog || !pDialog)
+        return;
+
+    /* Set the m_pLogViewerDialog to NULL before closing the dialog. or we will have redundant deletes*/
+    m_pFileManagerDialog = 0;
+    pDialog->close();
+    UIFileManagerDialogFactory().cleanup(pDialog);
+}
+
+void UIMachineLogic::sltShowGuestProcessControlDialog()
+{
+    if (machine().isNull() || !activeMachineWindow())
+        return;
+
+    /* Create a logviewer only if we don't have one already */
+    if (m_pProcessControlDialog)
+        return;
+
+    QIManagerDialog *pProcessControlDialog;
+    UIGuestProcessControlDialogFactory dialogFactory(actionPool(), console().GetGuest(), machine().GetName());
+    dialogFactory.prepare(pProcessControlDialog, activeMachineWindow());
+    if (pProcessControlDialog)
+    {
+        m_pProcessControlDialog = pProcessControlDialog;
+
+        /* Show instance: */
+        pProcessControlDialog->show();
+        pProcessControlDialog->setWindowState(pProcessControlDialog->windowState() & ~Qt::WindowMinimized);
+        pProcessControlDialog->activateWindow();
+        connect(pProcessControlDialog, &QIManagerDialog::sigClose,
+                this, &UIMachineLogic::sltCloseGuestProcessControlDialog);
+    }
+}
+
+void UIMachineLogic::sltCloseGuestProcessControlDialog()
+{
+    QIManagerDialog* pDialog = qobject_cast<QIManagerDialog*>(sender());
+    if (m_pProcessControlDialog != pDialog || !pDialog)
+        return;
+
+    /* Set the m_pLogViewerDialog to NULL before closing the dialog. or we will have redundant deletes*/
+    m_pProcessControlDialog = 0;
+    pDialog->close();
+    UIGuestProcessControlDialogFactory().cleanup(pDialog);
 }
 
 void UIMachineLogic::sltReset()
@@ -1848,30 +2079,31 @@ void UIMachineLogic::sltTakeScreenshot()
     QFile::remove(strTempFile);
 }
 
-void UIMachineLogic::sltOpenVideoCaptureOptions()
+void UIMachineLogic::sltOpenRecordingOptions()
 {
-    /* Open VM settings : Display page : Video Capture tab: */
+    /* Open VM settings : Display page : Recording tab: */
     sltOpenVMSettingsDialog("#display", "m_pCheckboxVideoCapture");
 }
 
-void UIMachineLogic::sltToggleVideoCapture(bool fEnabled)
+void UIMachineLogic::sltToggleRecording(bool fEnabled)
 {
     /* Do not process if window(s) missed! */
     if (!isMachineWindowsCreated())
         return;
 
     /* Make sure something had changed: */
-    if (machine().GetVideoCaptureEnabled() == static_cast<BOOL>(fEnabled))
+    CRecordingSettings comRecordingSettings = machine().GetRecordingSettings();
+    if (comRecordingSettings.GetEnabled() == static_cast<BOOL>(fEnabled))
         return;
 
-    /* Update Video Capture state: */
-    machine().SetVideoCaptureEnabled(fEnabled);
-    if (!machine().isOk())
+    /* Update recording state: */
+    comRecordingSettings.SetEnabled(fEnabled);
+    if (!comRecordingSettings.isOk())
     {
         /* Make sure action is updated: */
-        uisession()->updateStatusVideoCapture();
+        uisession()->updateStatusRecording();
         /* Notify about the error: */
-        return popupCenter().cannotToggleVideoCapture(activeMachineWindow(), machine(), fEnabled);
+        return popupCenter().cannotToggleRecording(activeMachineWindow(), machine(), fEnabled);
     }
 
     /* Save machine-settings: */
@@ -1879,7 +2111,7 @@ void UIMachineLogic::sltToggleVideoCapture(bool fEnabled)
     if (!machine().isOk())
     {
         /* Make sure action is updated: */
-        uisession()->updateStatusVideoCapture();
+        uisession()->updateStatusRecording();
         /* Notify about the error: */
         return msgCenter().cannotSaveMachineSettings(machine());
     }
@@ -2253,8 +2485,39 @@ void UIMachineLogic::sltLoggingToggled(bool fState)
 
 void UIMachineLogic::sltShowLogDialog()
 {
-    /* Show VM Log Viewer: */
-    UIVMLogViewer::showLogViewerFor(activeMachineWindow(), machine());
+    if (machine().isNull() || !activeMachineWindow())
+        return;
+
+    /* Create a logviewer only if we don't have one already */
+    if (m_pLogViewerDialog)
+        return;
+
+    QIManagerDialog *pLogViewerDialog;
+    UIVMLogViewerDialogFactory dialogFactory(actionPool(), machine());
+    dialogFactory.prepare(pLogViewerDialog, activeMachineWindow());
+    if (pLogViewerDialog)
+    {
+        m_pLogViewerDialog = pLogViewerDialog;
+
+        /* Show instance: */
+        pLogViewerDialog->show();
+        pLogViewerDialog->setWindowState(pLogViewerDialog->windowState() & ~Qt::WindowMinimized);
+        pLogViewerDialog->activateWindow();
+        connect(pLogViewerDialog, &QIManagerDialog::sigClose,
+                this, &UIMachineLogic::sltCloseLogViewerWindow);
+    }
+}
+
+void UIMachineLogic::sltCloseLogViewerWindow()
+{
+    QIManagerDialog* pDialog = qobject_cast<QIManagerDialog*>(sender());
+    if (m_pLogViewerDialog != pDialog || !pDialog)
+        return;
+
+    /* Set the m_pLogViewerDialog to NULL before closing the dialog. or we will have redundant deletes*/
+    m_pLogViewerDialog = 0;
+    pDialog->close();
+    UIVMLogViewerDialogFactory().cleanup(pDialog);
 }
 
 #endif /* VBOX_WITH_DEBUGGER_GUI */
@@ -2421,6 +2684,17 @@ void UIMachineLogic::sltShowGlobalPreferences()
 
     /* Just show Global Preferences: */
     showGlobalPreferences();
+}
+
+void UIMachineLogic::typeHostKeyComboPressRelease(bool fToggleSequence)
+{
+    QAction *pHostKeyAction = actionPool()->action(UIActionIndexRT_M_Input_M_Keyboard_T_TypeHostKeyCombo);
+    if (!pHostKeyAction)
+        return;
+    /* Do nothing if we try to insert host key combo press (release) and it is already in pressed (released) state: */
+    if (fToggleSequence == pHostKeyAction->isChecked())
+        return;
+    pHostKeyAction->toggle();
 }
 
 void UIMachineLogic::updateMenuDevicesStorage(QMenu *pMenu)
@@ -2724,8 +2998,8 @@ void UIMachineLogic::showGlobalPreferences(const QString &strCategory /* = QStri
 
 void UIMachineLogic::askUserForTheDiskEncryptionPasswords()
 {
-    /* Prepare the map of the encrypted mediums: */
-    EncryptedMediumMap encryptedMediums;
+    /* Prepare the map of the encrypted media: */
+    EncryptedMediumMap encryptedMedia;
     foreach (const CMediumAttachment &attachment, machine().GetMediumAttachments())
     {
         /* Acquire hard-drive attachments only: */
@@ -2737,20 +3011,20 @@ void UIMachineLogic::askUserForTheDiskEncryptionPasswords()
             QString strCipher;
             const QString strPasswordId = medium.GetEncryptionSettings(strCipher);
             if (medium.isOk())
-                encryptedMediums.insert(strPasswordId, medium.GetId());
+                encryptedMedia.insert(strPasswordId, medium.GetId());
         }
     }
 
     /* Ask for the disk encryption passwords if necessary: */
     EncryptionPasswordMap encryptionPasswords;
-    if (!encryptedMediums.isEmpty())
+    if (!encryptedMedia.isEmpty())
     {
         /* Create the dialog for acquiring encryption passwords: */
         QWidget *pDlgParent = windowManager().realParentWindow(activeMachineWindow());
         QPointer<UIAddDiskEncryptionPasswordDialog> pDlg =
              new UIAddDiskEncryptionPasswordDialog(pDlgParent,
                                                    machineName(),
-                                                   encryptedMediums);
+                                                   encryptedMedia);
         /* Execute the dialog: */
         if (pDlg->exec() == QDialog::Accepted)
         {
@@ -2932,4 +3206,3 @@ void UIMachineLogic::dbgAdjustRelativePos()
     }
 }
 #endif
-

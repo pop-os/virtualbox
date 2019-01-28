@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2014-2017 Oracle Corporation
+ * Copyright (C) 2014-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,8 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___iprt_crypto_digest_h
-#define ___iprt_crypto_digest_h
+#ifndef IPRT_INCLUDED_crypto_digest_h
+#define IPRT_INCLUDED_crypto_digest_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/asn1.h>
 
@@ -56,8 +59,8 @@ typedef struct RTCRDIGESTDESC
     uint32_t            cbHash;
     /** The size of the state. */
     uint32_t            cbState;
-    /** Reserved. */
-    uint32_t            uReserved;
+    /** Flags, RTCRDIGESTDESC_F_XXX. */
+    uint32_t            fFlags;
 
     /**
      * Allocates the digest data.
@@ -144,6 +147,16 @@ typedef struct RTCRDIGESTDESC
 /** Pointer to const message digest details and vtable. */
 typedef RTCRDIGESTDESC const *PCRTCRDIGESTDESC;
 
+/** @name RTCRDIGESTDESC_F_XXX
+ * @{ */
+/** Digest is deprecated. */
+#define RTCRDIGESTDESC_F_DEPRECATED             RT_BIT_32(0)
+/** Digest is compromised. */
+#define RTCRDIGESTDESC_F_COMPROMISED            RT_BIT_32(1)
+/** Digest is severely compromised. */
+#define RTCRDIGESTDESC_F_SERVERELY_COMPROMISED  RT_BIT_32(2)
+/** @} */
+
 /**
  * Finds a cryptographic hash / message digest descriptor by object identifier
  * string.
@@ -174,26 +187,103 @@ RTDECL(PCRTCRDIGESTDESC) RTCrDigestFindByObjIdString(const char *pszObjId, void 
 RTDECL(PCRTCRDIGESTDESC) RTCrDigestFindByObjId(PCRTASN1OBJID pObjId, void **ppvOpaque);
 
 RTDECL(PCRTCRDIGESTDESC) RTCrDigestFindByType(RTDIGESTTYPE enmDigestType);
-RTDECL(int) RTCrDigestCreateByObjIdString(PRTCRDIGEST phDigest, const char *pszObjId);
-RTDECL(int) RTCrDigestCreateByObjId(PRTCRDIGEST phDigest, PCRTASN1OBJID pObjId);
-RTDECL(int) RTCrDigestCreateByType(PRTCRDIGEST phDigest, RTDIGESTTYPE enmDigestType);
+RTDECL(int)             RTCrDigestCreateByObjIdString(PRTCRDIGEST phDigest, const char *pszObjId);
+RTDECL(int)             RTCrDigestCreateByObjId(PRTCRDIGEST phDigest, PCRTASN1OBJID pObjId);
+RTDECL(int)             RTCrDigestCreateByType(PRTCRDIGEST phDigest, RTDIGESTTYPE enmDigestType);
 
 
-RTDECL(int) RTCrDigestCreate(PRTCRDIGEST phDigest, PCRTCRDIGESTDESC pDesc, void *pvOpaque);
-RTDECL(int) RTCrDigestClone(PRTCRDIGEST phDigest, RTCRDIGEST hSrc);
-RTDECL(int) RTCrDigestReset(RTCRDIGEST hDigest);
-RTDECL(uint32_t) RTCrDigestRetain(RTCRDIGEST hDigest);
-RTDECL(uint32_t) RTCrDigestRelease(RTCRDIGEST hDigest);
-RTDECL(int) RTCrDigestUpdate(RTCRDIGEST hDigest, void const *pvData, size_t cbData);
-RTDECL(int) RTCrDigestUpdateFromVfsFile(RTCRDIGEST hDigest, RTVFSFILE hVfsFile, bool fRewindFile);
-RTDECL(int) RTCrDigestFinal(RTCRDIGEST hDigest, void *pvHash, size_t cbHash);
-RTDECL(bool) RTCrDigestMatch(RTCRDIGEST hDigest, void const *pvHash, size_t cbHash);
+/**
+ * @returns IPRT status code.
+ * @retval  VINF_SUCCESS on success.
+ * @retval  VINF_CR_DIGEST_DEPRECATED on success from a deprecated hash algorithm.
+ * @retval  VINF_CR_DIGEST_COMPROMISED on success from a compromised hash algorithm.
+ * @retval  VINF_CR_DIGEST_SEVERELY_COMPROMISED on success from a severely compromised hash algorithm.
+ */
+RTDECL(int)             RTCrDigestCreate(PRTCRDIGEST phDigest, PCRTCRDIGESTDESC pDesc, void *pvOpaque);
+/**
+ * @returns IPRT status code.
+ * @retval  VINF_SUCCESS on success.
+ * @retval  VINF_CR_DIGEST_DEPRECATED on success from a deprecated hash algorithm.
+ * @retval  VINF_CR_DIGEST_COMPROMISED on success from a compromised hash algorithm.
+ * @retval  VINF_CR_DIGEST_SEVERELY_COMPROMISED on success from a severely compromised hash algorithm.
+ */
+RTDECL(int)             RTCrDigestClone(PRTCRDIGEST phDigest, RTCRDIGEST hSrc);
+/**
+ * Resets the digest to start calculating a new digest.
+ */
+RTDECL(int)             RTCrDigestReset(RTCRDIGEST hDigest);
+
+/**
+ * Retains a references to the digest.
+ *
+ * @returns New reference count. UINT32_MAX if invalid handle.
+ * @param   hDigest     Handle to the digest.
+ */
+RTDECL(uint32_t)        RTCrDigestRetain(RTCRDIGEST hDigest);
+/**
+ * Releases a references to the digest.
+ *
+ * @returns New reference count. UINT32_MAX if invalid handle.
+ * @param   hDigest     Handle to the digest.  NIL is ignored (returns 0).
+ */
+RTDECL(uint32_t)        RTCrDigestRelease(RTCRDIGEST hDigest);
+
+/**
+ * Updates the digest with more message data.
+ *
+ * @returns IPRT status code.
+ * @param   hDigest     Handle to the digest.
+ * @param   pvData      Pointer to the message data.
+ * @param   cbData      The number of bytes of data @a pvData points to.
+ */
+RTDECL(int)             RTCrDigestUpdate(RTCRDIGEST hDigest, void const *pvData, size_t cbData);
+
+/**
+ * Updates the digest with more message data from the given VFS file handle.
+ *
+ * @returns IPRT status code.
+ * @param   hDigest     Handle to the digest.
+ * @param   hVfsFile    Handle to the VFS file.
+ * @param   fRewindFile Rewind to the start of the file if @a true, start
+ *                      consumption at the current file position if @a false.
+ */
+RTDECL(int)             RTCrDigestUpdateFromVfsFile(RTCRDIGEST hDigest, RTVFSFILE hVfsFile, bool fRewindFile);
+
+/**
+ * Finalizes the hash calculation, copying out the resulting hash value.
+ *
+ * This can be called more than once and will always return the same result.
+ *
+ * @returns IPRT status code.
+ * @retval  VINF_SUCCESS on success.
+ * @retval  VINF_CR_DIGEST_DEPRECATED on success from a deprecated hash algorithm.
+ * @retval  VINF_CR_DIGEST_COMPROMISED on success from a compromised hash algorithm.
+ * @retval  VINF_CR_DIGEST_SEVERELY_COMPROMISED on success from a severely compromised hash algorithm.
+ * @retval  VINF_BUFFER_UNDERFLOW if the supplied buffer is too big.
+ * @retval  VERR_BUFFER_OVERFLOW if the supplied buffer is too small.
+ * @retval  VERR_INVALID_STATE if there is nothing to finalize.
+ *
+ * @param   hDigest     The digest handle.
+ * @param   pvHash      Where to return the hash. Optional.
+ * @param   cbHash      The hash size.  Optional.
+ */
+RTDECL(int)             RTCrDigestFinal(RTCRDIGEST hDigest, void *pvHash, size_t cbHash);
+
+RTDECL(bool)            RTCrDigestMatch(RTCRDIGEST hDigest, void const *pvHash, size_t cbHash);
 RTDECL(uint8_t const *) RTCrDigestGetHash(RTCRDIGEST hDigest);
-RTDECL(uint32_t) RTCrDigestGetHashSize(RTCRDIGEST hDigest);
-RTDECL(uint64_t) RTCrDigestGetConsumedSize(RTCRDIGEST hDigest);
-RTDECL(bool) RTCrDigestIsFinalized(RTCRDIGEST hDigest);
-RTDECL(RTDIGESTTYPE) RTCrDigestGetType(RTCRDIGEST hDigest);
-RTDECL(const char *) RTCrDigestGetAlgorithmOid(RTCRDIGEST hDigest);
+RTDECL(uint32_t)        RTCrDigestGetHashSize(RTCRDIGEST hDigest);
+RTDECL(uint64_t)        RTCrDigestGetConsumedSize(RTCRDIGEST hDigest);
+RTDECL(bool)            RTCrDigestIsFinalized(RTCRDIGEST hDigest);
+RTDECL(RTDIGESTTYPE)    RTCrDigestGetType(RTCRDIGEST hDigest);
+RTDECL(const char *)    RTCrDigestGetAlgorithmOid(RTCRDIGEST hDigest);
+
+/**
+ * Gets the flags for the algorithm.
+ *
+ * @returns RTCRDIGESTDESC_F_XXX, UINT32_MAX on invalid handle.
+ * @param   hDigest     The digest handle.
+ */
+RTDECL(uint32_t)        RTCrDigestGetFlags(RTCRDIGEST hDigest);
 
 
 /**
@@ -227,5 +317,5 @@ RTDECL(uint32_t) RTCrDigestTypeToHashSize(RTDIGESTTYPE enmDigestType);
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !IPRT_INCLUDED_crypto_digest_h */
 

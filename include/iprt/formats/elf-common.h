@@ -24,8 +24,11 @@
  * SUCH DAMAGE.
  */
 
-#ifndef ___iprt_formats_elf_common_h
-#define ___iprt_formats_elf_common_h
+#ifndef IPRT_INCLUDED_formats_elf_common_h
+#define IPRT_INCLUDED_formats_elf_common_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/stdint.h>
 
@@ -333,5 +336,5 @@ typedef struct {
 /* Special symbol table indexes. */
 #define STN_UNDEF       0       /* Undefined symbol index. */
 
-#endif
+#endif /* !IPRT_INCLUDED_formats_elf_common_h */
 

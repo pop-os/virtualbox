@@ -1,10 +1,10 @@
 /* $Id: QIFlowLayout.h $ */
 /** @file
- * VBox Qt GUI - QIFlowLayout class declaration.
+ * VBox Qt GUI - Qt extensions: QIFlowLayout class declaration.
  */
 
 /*
- * Copyright (C) 2017 Oracle Corporation
+ * Copyright (C) 2017-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,20 +15,25 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___QIFlowLayout_h___
-#define ___QIFlowLayout_h___
+#ifndef FEQT_INCLUDED_SRC_extensions_QIFlowLayout_h
+#define FEQT_INCLUDED_SRC_extensions_QIFlowLayout_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Qt includes: */
 #include <QLayout>
 #include <QStyle>
 
+/* GUI includes: */
+#include "UILibraryDefs.h"
 
 /** QLayout extension providing GUI with the possibility to build flow-layout.
   * This kind of horizonal layout can wrap children down to the next line (row)
   * performing calculations on the basis of layout size and children size-hints.
   * It is also takes into account that some of the children can be expandable
   * horizontally allowing them to grow up to all the available width. */
-class QIFlowLayout : public QLayout
+class SHARED_LIBRARY_STUFF QIFlowLayout : public QLayout
 {
     Q_OBJECT;
 
@@ -50,11 +55,11 @@ class QIFlowLayout : public QLayout
         {}
 
         /** Holds the layout item. */
-        QLayoutItem *item;
+        QLayoutItem  *item;
         /** Holds the layout item expand policy. */
-        ExpandPolicy policy;
+        ExpandPolicy  policy;
         /** Holds the layout item desired width. */
-        int width;
+        int           width;
     };
     /** Layout item data list. */
     typedef QList<LayoutData> LayoutDataList;
@@ -128,5 +133,4 @@ private:
     int m_iSpacingV;
 };
 
-#endif /* !___QIFlowLayout_h___ */
-
+#endif /* !FEQT_INCLUDED_SRC_extensions_QIFlowLayout_h */

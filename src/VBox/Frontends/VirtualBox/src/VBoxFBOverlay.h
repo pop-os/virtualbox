@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,8 +14,12 @@
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
-#ifndef __VBoxFBOverlay_h__
-#define __VBoxFBOverlay_h__
+
+#ifndef FEQT_INCLUDED_SRC_VBoxFBOverlay_h
+#define FEQT_INCLUDED_SRC_VBoxFBOverlay_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #if defined(VBOX_GUI_USE_QGL) || defined(VBOX_WITH_VIDEOHWACCEL)
 
@@ -47,7 +51,6 @@
 #include <iprt/assert.h>
 #include <iprt/critsect.h>
 #include <iprt/asm.h>
-#include <iprt/err.h>
 #include <iprt/list.h>
 #include <VBox/VBoxGL2D.h>
 #ifdef VBOXVHWA_PROFILE_FPS
@@ -1755,12 +1758,6 @@ public:
         mGlCurrent = false;
     }
 
-    static bool isAcceleration2DVideoAvailable();
-
-    /** additional video memory required for the best 2D support performance
-     *  total amount of VRAM required is thus calculated as requiredVideoMemory + required2DOffscreenVideoMemory  */
-    static quint64 required2DOffscreenVideoMemory();
-
     /* not supposed to be called by clients */
     int vhwaLoadExec (struct SSMHANDLE * pSSM, uint32_t u32Version);
     void vhwaSaveExec (struct SSMHANDLE * pSSM);
@@ -1858,4 +1855,4 @@ private:
 
 #endif /* defined(VBOX_GUI_USE_QGL) || defined(VBOX_WITH_VIDEOHWACCEL) */
 
-#endif /* #ifndef __VBoxFBOverlay_h__ */
+#endif /* !FEQT_INCLUDED_SRC_VBoxFBOverlay_h */

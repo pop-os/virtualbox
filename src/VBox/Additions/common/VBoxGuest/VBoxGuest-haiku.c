@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2017 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -353,6 +353,13 @@ void VGDrvNativeISRMousePollEvent(PVBOXGUESTDEVEXT pDevExt)
 }
 
 
+bool VGDrvNativeProcessOption(PVBOXGUESTDEVEXT pDevExt, const char *pszName, const char *pszValue)
+{
+    RT_NOREF(pDevExt); RT_NOREF(pszName); RT_NOREF(pszValue);
+    return false;
+}
+
+
 /**
  * Sets IRQ for VMMDev.
  *
@@ -474,6 +481,11 @@ static status_t vgdrvHaikuAttach(const pci_info *pDevice)
                 rc = vgdrvHaikuAddIRQ(pState);
                 if (RT_SUCCESS(rc))
                 {
+                    /*
+                     * Read host configuration.
+                     */
+                    VGDrvCommonProcessOptionsFromHost(&g_DevExt);
+
                     LogRel((MODULE_NAME ": loaded successfully\n"));
                     return B_OK;
                 }

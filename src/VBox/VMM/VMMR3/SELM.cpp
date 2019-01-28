@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -147,7 +147,7 @@ VMMR3DECL(int) SELMR3Init(PVM pVM)
     pVM->selm.s.aHyperSel[SELM_HYPER_SEL_TSS]        = (SELM_GDT_ELEMENTS - 0x4) << 3;
     pVM->selm.s.aHyperSel[SELM_HYPER_SEL_TSS_TRAP08] = (SELM_GDT_ELEMENTS - 0x5) << 3;
 
-    if (HMIsRawModeCtxNeeded(pVM))
+    if (VM_IS_RAW_MODE_ENABLED(pVM) || HMIsRawModeCtxNeeded(pVM))
     {
         /*
          * Allocate GDT table.
@@ -195,7 +195,7 @@ VMMR3DECL(int) SELMR3Init(PVM pVM)
     pVM->selm.s.hGuestLdtWriteHandlerType  = NIL_PGMVIRTHANDLERTYPE;
     pVM->selm.s.hGuestTssWriteHandlerType  = NIL_PGMVIRTHANDLERTYPE;
 #ifdef VBOX_WITH_RAW_MODE
-    if (!HMIsEnabled(pVM))
+    if (VM_IS_RAW_MODE_ENABLED(pVM))
     {
 # ifdef SELM_TRACK_SHADOW_GDT_CHANGES
         rc = PGMR3HandlerVirtualTypeRegister(pVM, PGMVIRTHANDLERKIND_HYPERVISOR, false /*fRelocUserRC*/,
@@ -249,7 +249,7 @@ VMMR3DECL(int) SELMR3Init(PVM pVM)
     /*
      * Statistics.
      */
-    if (!HMIsEnabled(pVM))
+    if (VM_IS_RAW_MODE_ENABLED(pVM))
     {
         STAM_REG(pVM, &pVM->selm.s.StatRCWriteGuestGDTHandled,     STAMTYPE_COUNTER, "/SELM/GC/Write/Guest/GDTInt",  STAMUNIT_OCCURENCES,     "The number of handled writes to the Guest GDT.");
         STAM_REG(pVM, &pVM->selm.s.StatRCWriteGuestGDTUnhandled,   STAMTYPE_COUNTER, "/SELM/GC/Write/Guest/GDTEmu",  STAMUNIT_OCCURENCES,     "The number of unhandled writes to the Guest GDT.");
@@ -297,7 +297,7 @@ VMMR3DECL(int) SELMR3Init(PVM pVM)
     /*
      * Default action when entering raw mode for the first time
      */
-    if (!HMIsEnabled(pVM))
+    if (VM_IS_RAW_MODE_ENABLED(pVM))
     {
         PVMCPU pVCpu = &pVM->aCpus[0];  /* raw mode implies on VCPU */
         VMCPU_FF_SET(pVCpu, VMCPU_FF_SELM_SYNC_TSS);
@@ -309,15 +309,15 @@ VMMR3DECL(int) SELMR3Init(PVM pVM)
     /*
      * Register info handlers.
      */
-    if (HMIsRawModeCtxNeeded(pVM))
+    if (VM_IS_RAW_MODE_ENABLED(pVM) || HMIsRawModeCtxNeeded(pVM))
     {
         DBGFR3InfoRegisterInternal(pVM, "gdt",      "Displays the shadow GDT. No arguments.",   &selmR3InfoGdt);
         DBGFR3InfoRegisterInternal(pVM, "ldt",      "Displays the shadow LDT. No arguments.",   &selmR3InfoLdt);
         //DBGFR3InfoRegisterInternal(pVM, "tss",      "Displays the shadow TSS. No arguments.",   &selmR3InfoTss);
     }
-    DBGFR3InfoRegisterInternal(pVM, "gdtguest", "Displays the guest GDT. No arguments.",    &selmR3InfoGdtGuest);
-    DBGFR3InfoRegisterInternal(pVM, "ldtguest", "Displays the guest LDT. No arguments.",    &selmR3InfoLdtGuest);
-    //DBGFR3InfoRegisterInternal(pVM, "tssguest", "Displays the guest TSS. No arguments.",    &selmR3InfoTssGuest);
+    DBGFR3InfoRegisterInternalEx(pVM, "gdtguest", "Displays the guest GDT. No arguments.", &selmR3InfoGdtGuest, DBGFINFO_FLAGS_RUN_ON_EMT);
+    DBGFR3InfoRegisterInternalEx(pVM, "ldtguest", "Displays the guest LDT. No arguments.", &selmR3InfoLdtGuest, DBGFINFO_FLAGS_RUN_ON_EMT);
+    //DBGFR3InfoRegisterInternal(pVM, "tssguest", "Displays the guest TSS. No arguments.", &selmR3InfoTssGuest, DBGFINFO_FLAGS_RUN_ON_EMT);
 
     return rc;
 }
@@ -348,7 +348,7 @@ VMMR3DECL(int) SELMR3InitFinalize(PVM pVM)
     int rc = CFGMR3QueryBoolDef(CFGMR3GetRoot(pVM), "DoubleFault", &f, false);
 # endif
     AssertLogRelRCReturn(rc, rc);
-    if (f && HMIsRawModeCtxNeeded(pVM))
+    if (f && (VM_IS_RAW_MODE_ENABLED(pVM) || HMIsRawModeCtxNeeded(pVM)))
     {
         PX86DESC paGdt = pVM->selm.s.paGdtR3;
         rc = PGMMapSetPage(pVM, MMHyperR3ToRC(pVM, &paGdt[pVM->selm.s.aHyperSel[SELM_HYPER_SEL_TSS_TRAP08] >> 3]), sizeof(paGdt[0]),
@@ -482,7 +482,7 @@ VMMR3DECL(void) SELMR3Relocate(PVM pVM)
     PX86DESC paGdt = pVM->selm.s.paGdtR3;
     LogFlow(("SELMR3Relocate\n"));
 
-    if (HMIsRawModeCtxNeeded(pVM))
+    if (VM_IS_RAW_MODE_ENABLED(pVM) || HMIsRawModeCtxNeeded(pVM))
     {
         for (VMCPUID i = 0; i < pVM->cCpus; i++)
         {
@@ -544,7 +544,7 @@ VMMR3DECL(void) SELMR3Relocate(PVM pVM)
         /* TRPM will be updating the eip */
     }
 
-    if (!HMIsEnabled(pVM))
+    if (VM_IS_RAW_MODE_ENABLED(pVM))
     {
         /*
          * Update shadow GDT/LDT/TSS write access handlers.
@@ -671,7 +671,7 @@ VMMR3DECL(void) SELMR3Reset(PVM pVM)
     pVM->selm.s.fSyncTSSRing0Stack = false;
 
 #ifdef VBOX_WITH_RAW_MODE
-    if (!HMIsEnabled(pVM))
+    if (VM_IS_RAW_MODE_ENABLED(pVM))
     {
         /*
          * Default action when entering raw mode for the first time
@@ -700,7 +700,7 @@ static DECLCALLBACK(int) selmR3Save(PVM pVM, PSSMHANDLE pSSM)
      */
     PSELM pSelm = &pVM->selm.s;
 
-    SSMR3PutBool(pSSM, HMIsEnabled(pVM));
+    SSMR3PutBool(pSSM, !VM_IS_RAW_MODE_ENABLED(pVM));
     SSMR3PutBool(pSSM, pSelm->fSyncTSSRing0Stack);
     SSMR3PutSel(pSSM, pSelm->aHyperSel[SELM_HYPER_SEL_CS]);
     SSMR3PutSel(pSSM, pSelm->aHyperSel[SELM_HYPER_SEL_DS]);
@@ -787,7 +787,7 @@ static DECLCALLBACK(int) selmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion,
 static DECLCALLBACK(int) selmR3LoadDone(PVM pVM, PSSMHANDLE pSSM)
 {
 #ifdef VBOX_WITH_RAW_MODE
-    if (!HMIsEnabled(pVM))
+    if (VM_IS_RAW_MODE_ENABLED(pVM))
     {
         PVMCPU pVCpu = VMMGetCpu(pVM);
 
@@ -837,7 +837,7 @@ static DECLCALLBACK(int) selmR3LoadDone(PVM pVM, PSSMHANDLE pSSM)
 static int selmR3UpdateShadowGdt(PVM pVM, PVMCPU pVCpu)
 {
     LogFlow(("selmR3UpdateShadowGdt\n"));
-    Assert(!HMIsEnabled(pVM));
+    Assert(VM_IS_RAW_MODE_ENABLED(pVM));
 
     /*
      * Always assume the best...
@@ -1098,7 +1098,7 @@ static int selmR3UpdateShadowLdt(PVM pVM, PVMCPU pVCpu)
 {
     LogFlow(("selmR3UpdateShadowLdt\n"));
     int rc = VINF_SUCCESS;
-    Assert(!HMIsEnabled(pVM));
+    Assert(VM_IS_RAW_MODE_ENABLED(pVM));
 
     /*
      * Always assume the best...
@@ -1335,7 +1335,7 @@ static int selmR3UpdateShadowLdt(PVM pVM, PVMCPU pVCpu)
 static VBOXSTRICTRC selmR3UpdateSegmentRegisters(PVM pVM, PVMCPU pVCpu)
 {
     Assert(CPUMIsGuestInProtectedMode(pVCpu));
-    Assert(!HMIsEnabled(pVM));
+    Assert(VM_IS_RAW_MODE_ENABLED(pVM));
 
     /*
      * No stale selectors in V8086 mode.
@@ -1438,7 +1438,7 @@ static VBOXSTRICTRC selmR3UpdateSegmentRegisters(PVM pVM, PVMCPU pVCpu)
 VMMR3DECL(VBOXSTRICTRC) SELMR3UpdateFromCPUM(PVM pVM, PVMCPU pVCpu)
 {
     STAM_PROFILE_START(&pVM->selm.s.StatUpdateFromCPUM, a);
-    AssertReturn(!HMIsEnabled(pVM), VERR_SELM_HM_IPE);
+    AssertReturn(VM_IS_RAW_MODE_ENABLED(pVM), VERR_SELM_HM_IPE);
 
     /*
      * GDT sync
@@ -1500,7 +1500,7 @@ VMMR3DECL(int) SELMR3SyncTSS(PVM pVM, PVMCPU pVCpu)
 {
     LogFlow(("SELMR3SyncTSS\n"));
     int rc;
-    AssertReturnStmt(!HMIsEnabled(pVM), VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_SELM_SYNC_TSS), VINF_SUCCESS);
+    AssertReturnStmt(VM_IS_RAW_MODE_ENABLED(pVM), VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_SELM_SYNC_TSS), VINF_SUCCESS);
 
     STAM_PROFILE_START(&pVM->selm.s.StatTSSSync, a);
     Assert(VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_SELM_SYNC_TSS));
@@ -1737,7 +1737,7 @@ VMMR3DECL(int) SELMR3DebugCheck(PVM pVM)
 {
 # ifdef VBOX_STRICT
     PVMCPU pVCpu = VMMGetCpu(pVM);
-    AssertReturn(!HMIsEnabled(pVM), VERR_SELM_HM_IPE);
+    AssertReturn(VM_IS_RAW_MODE_ENABLED(pVM), VERR_SELM_HM_IPE);
 
     /*
      * Get GDTR and check for conflict.

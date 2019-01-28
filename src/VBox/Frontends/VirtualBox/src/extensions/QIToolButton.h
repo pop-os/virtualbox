@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,49 +15,33 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __QIToolButton_h__
-#define __QIToolButton_h__
+#ifndef FEQT_INCLUDED_SRC_extensions_QIToolButton_h
+#define FEQT_INCLUDED_SRC_extensions_QIToolButton_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
-/* Global includes: */
+/* Qt includes: */
 #include <QToolButton>
 
-/* QToolButton reimplementation: */
-class QIToolButton: public QToolButton
+/* GUI includes: */
+#include "UILibraryDefs.h"
+
+/** QToolButton subclass with extended functionality. */
+class SHARED_LIBRARY_STUFF QIToolButton : public QToolButton
 {
     Q_OBJECT;
 
 public:
 
-    QIToolButton(QWidget *pParent = 0)
-        : QToolButton(pParent)
-    {
-#ifdef VBOX_WS_MAC
-        /* Keep size-hint alive: */
-        const QSize sh = sizeHint();
-        setStyleSheet("QToolButton { border: 0px none black; margin: 0px 0px 0px 0px; } QToolButton::menu-indicator {image: none;}");
-        setFixedSize(sh);
-#else /* !VBOX_WS_MAC */
-        setAutoRaise(true);
-#endif /* !VBOX_WS_MAC */
-    }
+    /** Constructs tool-button passing @a pParent to the base-class. */
+    QIToolButton(QWidget *pParent = 0);
 
-    /** Sets the auto-raise status. */
-    virtual void setAutoRaise(bool fEnable)
-    {
-#ifdef VBOX_WS_MAC
-        /* Ignore for Mac OS X: */
-        Q_UNUSED(fEnable);
-#else /* !VBOX_WS_MAC */
-        /* Call to base-class: */
-        QToolButton::setAutoRaise(fEnable);
-#endif /* !VBOX_WS_MAC */
-    }
+    /** Sets whether the auto-raise status @a fEnabled. */
+    virtual void setAutoRaise(bool fEnabled);
 
-    void removeBorder()
-    {
-        setStyleSheet("QToolButton { border: 0px }");
-    }
+    /** Removes the tool-button border. */
+    void removeBorder();
 };
 
-#endif /* __QIToolButton_h__ */
-
+#endif /* !FEQT_INCLUDED_SRC_extensions_QIToolButton_h */

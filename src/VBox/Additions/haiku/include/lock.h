@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2017 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,8 +29,11 @@
 /** @todo r=ramshankar: Eventually this file should be shipped by Haiku and
  *        should be removed from the VBox tree. */
 
-#ifndef _KERNEL_LOCK_H
-#define _KERNEL_LOCK_H
+#ifndef GA_INCLUDED_HAIKU_lock_h
+#define GA_INCLUDED_HAIKU_lock_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <OS.h>
 
@@ -302,4 +305,4 @@ extern void lock_debug_init();
 }
 #endif
 
-#endif  /* _KERNEL_LOCK_H */
+#endif /* !GA_INCLUDED_HAIKU_lock_h */

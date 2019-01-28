@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,8 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_vmm_trpm_h
-#define ___VBox_vmm_trpm_h
+#ifndef VBOX_INCLUDED_vmm_trpm_h
+#define VBOX_INCLUDED_vmm_trpm_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/types.h>
 #include <iprt/x86.h>
@@ -100,7 +103,7 @@ VMMR3DECL(void)     TRPMR3Relocate(PVM pVM, RTGCINTPTR offDelta);
 VMMR3DECL(void)     TRPMR3ResetCpu(PVMCPU pVCpu);
 VMMR3DECL(void)     TRPMR3Reset(PVM pVM);
 VMMR3DECL(int)      TRPMR3Term(PVM pVM);
-VMMR3DECL(int)      TRPMR3InjectEvent(PVM pVM, PVMCPU pVCpu, TRPMEVENT enmEvent);
+VMMR3DECL(int)      TRPMR3InjectEvent(PVM pVM, PVMCPU pVCpu, TRPMEVENT enmEvent, bool *pfInjected);
 # ifdef VBOX_WITH_RAW_MODE
 VMMR3_INT_DECL(int) TRPMR3GetImportRC(PVM pVM, const char *pszSymbol, PRTRCPTR pRCPtrValue);
 VMMR3DECL(int)      TRPMR3SyncIDT(PVM pVM, PVMCPU pVCpu);
@@ -149,4 +152,4 @@ VMMR0DECL(void)     TRPMR0SetupInterruptDispatcherFrame(PVM pVM, void *pvRet);
 /** @} */
 RT_C_DECLS_END
 
-#endif
+#endif /* !VBOX_INCLUDED_vmm_trpm_h */

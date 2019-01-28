@@ -8,7 +8,7 @@ VirtualBox Validation Kit - Medium and Snapshot Tree Depth Test #1
 
 __copyright__ = \
 """
-Copyright (C) 2010-2017 Oracle Corporation
+Copyright (C) 2010-2019 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 118412 $"
+__version__ = "$Revision: 127855 $"
 
 
 # Standard Python imports.
@@ -41,36 +41,22 @@ g_ksValidationKitDir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.a
 sys.path.append(g_ksValidationKitDir)
 
 # Validation Kit imports.
+from testdriver import base
 from testdriver import reporter
-from testdriver import vbox
 from testdriver import vboxcon
 
 
-class tdTreeDepth1(vbox.TestDriver):
+class SubTstDrvTreeDepth1(base.SubTestDriverBase):
     """
-    Medium and Snapshot Tree Depth Test #1.
+    Sub-test driver for Medium and Snapshot Tree Depth Test #1.
     """
 
-    def __init__(self):
-        vbox.TestDriver.__init__(self)
-        self.asRsrcs            = None
+    def __init__(self, oTstDrv):
+        base.SubTestDriverBase.__init__(self, 'tree-depth', oTstDrv)
 
-
-    #
-    # Overridden methods.
-    #
-
-    def actionConfig(self):
+    def testIt(self):
         """
-        Import the API.
-        """
-        if not self.importVBoxApi():
-            return False
-        return True
-
-    def actionExecute(self):
-        """
-        Execute the testcase.
+        Execute the sub-testcase.
         """
         return  self.testMediumTreeDepth() \
             and self.testSnapshotTreeDepth()
@@ -86,14 +72,14 @@ class tdTreeDepth1(vbox.TestDriver):
         reporter.testStart('mediumTreeDepth')
 
         try:
-            oVM = self.createTestVM('test-medium', 1, None, 4)
+            oVM = self.oTstDrv.createTestVM('test-medium', 1, None, 4)
             assert oVM is not None
 
             # create chain with 300 disk images (medium tree depth limit)
             fRc = True
-            oSession = self.openSession(oVM)
+            oSession = self.oTstDrv.openSession(oVM)
             for i in range(1, 301):
-                sHddPath = os.path.join(self.sScratchPath, 'Test' + str(i) + '.vdi')
+                sHddPath = os.path.join(self.oTstDrv.sScratchPath, 'Test' + str(i) + '.vdi')
                 if i is 1:
                     oHd = oSession.createBaseHd(sHddPath, cb=1024*1024)
                 else:
@@ -111,7 +97,7 @@ class tdTreeDepth1(vbox.TestDriver):
             sSettingsFile = oVM.settingsFilePath
             reporter.log('unregistering VM')
             oVM.unregister(vboxcon.CleanupMode_DetachAllReturnNone)
-            oVBox = self.oVBoxMgr.getVirtualBox()
+            oVBox = self.oTstDrv.oVBoxMgr.getVirtualBox()
             reporter.log('opening VM %s, testing config reading' % (sSettingsFile))
             oVM = oVBox.openMachine(sSettingsFile)
 
@@ -128,12 +114,12 @@ class tdTreeDepth1(vbox.TestDriver):
         reporter.testStart('snapshotTreeDepth')
 
         try:
-            oVM = self.createTestVM('test-snap', 1, None, 4)
+            oVM = self.oTstDrv.createTestVM('test-snap', 1, None, 4)
             assert oVM is not None
 
             # modify the VM config, create and attach empty HDD
-            oSession = self.openSession(oVM)
-            sHddPath = os.path.join(self.sScratchPath, 'TestSnapEmpty.vdi')
+            oSession = self.oTstDrv.openSession(oVM)
+            sHddPath = os.path.join(self.oTstDrv.sScratchPath, 'TestSnapEmpty.vdi')
             fRc = True
             fRc = fRc and oSession.createAndAttachHd(sHddPath, cb=1024*1024, sController='SATA Controller', fImmutable=False)
             fRc = fRc and oSession.saveSettings()
@@ -147,7 +133,7 @@ class tdTreeDepth1(vbox.TestDriver):
             sSettingsFile = oVM.settingsFilePath
             reporter.log('unregistering VM')
             oVM.unregister(vboxcon.CleanupMode_DetachAllReturnNone)
-            oVBox = self.oVBoxMgr.getVirtualBox()
+            oVBox = self.oTstDrv.oVBoxMgr.getVirtualBox()
             reporter.log('opening VM %s, testing config reading' % (sSettingsFile))
             oVM = oVBox.openMachine(sSettingsFile)
 
@@ -159,5 +145,7 @@ class tdTreeDepth1(vbox.TestDriver):
 
 
 if __name__ == '__main__':
-    sys.exit(tdTreeDepth1().main(sys.argv))
+    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+    from tdApi1 import tdApi1;      # pylint: disable=relative-import
+    sys.exit(tdApi1([SubTstDrvTreeDepth1]).main(sys.argv))
 

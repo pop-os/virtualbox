@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2017 Oracle Corporation
+ * Copyright (C) 2011-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -492,12 +492,11 @@ static NTSTATUS vboxUsbRtDispatchGetDevice(PVBOXUSBDEV_EXT pDevExt, PIRP pIrp)
         && pSl->Parameters.DeviceIoControl.InputBufferLength  == sizeof(*pDev)
         && pSl->Parameters.DeviceIoControl.OutputBufferLength == sizeof(*pDev))
     {
+        /* Even if we don't return it, we need to query the HS flag for later use. */
         Status = VBoxUsbToolGetDeviceSpeed(pDevExt->pLowerDO, &pDevExt->Rt.fIsHighSpeed);
         if (NT_SUCCESS(Status))
         {
             pDev->hDevice = pDevExt->Rt.hMonDev;
-            pDev->fAttached = true;
-            pDev->fHiSpeed = pDevExt->Rt.fIsHighSpeed;
             cbOut = sizeof (*pDev);
         }
     }

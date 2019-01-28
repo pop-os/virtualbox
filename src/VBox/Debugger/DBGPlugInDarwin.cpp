@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,9 +22,10 @@
 #define LOG_GROUP LOG_GROUP_DBGF /// @todo add new log group.
 #include "DBGPlugIns.h"
 #include <VBox/vmm/dbgf.h>
-#include <iprt/string.h>
+#include <iprt/err.h>
 #include <iprt/mem.h>
 #include <iprt/stream.h>
+#include <iprt/string.h>
 #include <iprt/uuid.h>
 #include <iprt/ctype.h>
 #include <iprt/formats/mach-o.h>
@@ -128,6 +129,7 @@ typedef DBGDIGGERDARWIN *PDBGDIGGERDARWIN;
 *   Internal Functions                                                                                                           *
 *********************************************************************************************************************************/
 static DECLCALLBACK(int)  dbgDiggerDarwinInit(PUVM pUVM, void *pvData);
+
 
 
 /**
@@ -299,6 +301,18 @@ static DECLCALLBACK(int) dbgDiggerDarwinIDmsg_QueryKernelLog(PDBGFOSIDMESG pThis
         Log(("dbgDiggerDarwinIDmsg_QueryKernelLog: Error reading %#x bytes at %RGv: %Rrc\n", MsgBuf.msg_size, MsgBuf.msg_bufc, rc));
     RTMemFree(pchMsgBuf);
     return rc;
+}
+
+
+/**
+ * @copydoc DBGFOSREG::pfnStackUnwindAssist
+ */
+static DECLCALLBACK(int) dbgDiggerDarwinStackUnwindAssist(PUVM pUVM, void *pvData, VMCPUID idCpu, PDBGFSTACKFRAME pFrame,
+                                                          PRTDBGUNWINDSTATE pState, PCCPUMCTX pInitialCtx, RTDBGAS hAs,
+                                                          uint64_t *puScratch)
+{
+    RT_NOREF(pUVM, pvData, idCpu, pFrame, pState, pInitialCtx, hAs, puScratch);
+    return VINF_SUCCESS;
 }
 
 
@@ -971,18 +985,19 @@ static DECLCALLBACK(int)  dbgDiggerDarwinConstruct(PUVM pUVM, void *pvData)
 
 const DBGFOSREG g_DBGDiggerDarwin =
 {
-    /* .u32Magic = */           DBGFOSREG_MAGIC,
-    /* .fFlags = */             0,
-    /* .cbData = */             sizeof(DBGDIGGERDARWIN),
-    /* .szName = */             "Darwin",
-    /* .pfnConstruct = */       dbgDiggerDarwinConstruct,
-    /* .pfnDestruct = */        dbgDiggerDarwinDestruct,
-    /* .pfnProbe = */           dbgDiggerDarwinProbe,
-    /* .pfnInit = */            dbgDiggerDarwinInit,
-    /* .pfnRefresh = */         dbgDiggerDarwinRefresh,
-    /* .pfnTerm = */            dbgDiggerDarwinTerm,
-    /* .pfnQueryVersion = */    dbgDiggerDarwinQueryVersion,
-    /* .pfnQueryInterface = */  dbgDiggerDarwinQueryInterface,
-    /* .u32EndMagic = */        DBGFOSREG_MAGIC
+    /* .u32Magic = */               DBGFOSREG_MAGIC,
+    /* .fFlags = */                 0,
+    /* .cbData = */                 sizeof(DBGDIGGERDARWIN),
+    /* .szName = */                 "Darwin",
+    /* .pfnConstruct = */           dbgDiggerDarwinConstruct,
+    /* .pfnDestruct = */            dbgDiggerDarwinDestruct,
+    /* .pfnProbe = */               dbgDiggerDarwinProbe,
+    /* .pfnInit = */                dbgDiggerDarwinInit,
+    /* .pfnRefresh = */             dbgDiggerDarwinRefresh,
+    /* .pfnTerm = */                dbgDiggerDarwinTerm,
+    /* .pfnQueryVersion = */        dbgDiggerDarwinQueryVersion,
+    /* .pfnQueryInterface = */      dbgDiggerDarwinQueryInterface,
+    /* .pfnStackUnwindAssist = */   dbgDiggerDarwinStackUnwindAssist,
+    /* .u32EndMagic = */            DBGFOSREG_MAGIC
 };
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,37 +15,32 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QGridLayout>
-# include <QVBoxLayout>
-# include <QRegExpValidator>
-# include <QGroupBox>
-# include <QRadioButton>
-# include <QCheckBox>
-# include <QButtonGroup>
-# include <QLineEdit>
-# include <QSlider>
-# include <QLabel>
+#include <QGridLayout>
+#include <QVBoxLayout>
+#include <QRegExpValidator>
+#include <QGroupBox>
+#include <QRadioButton>
+#include <QCheckBox>
+#include <QButtonGroup>
+#include <QLineEdit>
+#include <QSlider>
+#include <QLabel>
 
 /* GUI includes: */
-# include "UIWizardNewVDPageExpert.h"
-# include "UIWizardNewVD.h"
-# include "VBoxGlobal.h"
-# include "UIMessageCenter.h"
-# include "UIIconPool.h"
-# include "QIRichTextLabel.h"
-# include "QIToolButton.h"
-# include "QILineEdit.h"
-# include "UIMediumSizeEditor.h"
+#include "UIConverter.h"
+#include "UIWizardNewVDPageExpert.h"
+#include "UIWizardNewVD.h"
+#include "VBoxGlobal.h"
+#include "UIMessageCenter.h"
+#include "UIIconPool.h"
+#include "QIRichTextLabel.h"
+#include "QIToolButton.h"
+#include "QILineEdit.h"
+#include "UIMediumSizeEditor.h"
 
 /* COM includes: */
-# include "CSystemProperties.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "CSystemProperties.h"
 
 
 UIWizardNewVDPageExpert::UIWizardNewVDPageExpert(const QString &strDefaultName, const QString &strDefaultPath, qulonglong uDefaultSize)
@@ -158,12 +153,18 @@ UIWizardNewVDPageExpert::UIWizardNewVDPageExpert(const QString &strDefaultName, 
     }
 
     /* Setup connections: */
-    connect(m_pFormatButtonGroup, SIGNAL(buttonClicked(QAbstractButton*)), this, SLOT(sltMediumFormatChanged()));
-    connect(m_pVariantButtonGroup, SIGNAL(buttonClicked(QAbstractButton *)), this, SIGNAL(completeChanged()));
-    connect(m_pSplitBox, SIGNAL(stateChanged(int)), this, SIGNAL(completeChanged()));
-    connect(m_pLocationEditor, SIGNAL(textChanged(const QString &)), this, SIGNAL(completeChanged()));
-    connect(m_pLocationOpenButton, SIGNAL(clicked()), this, SLOT(sltSelectLocationButtonClicked()));
-    connect(m_pEditorSize, &UIMediumSizeEditor::sigSizeChanged, this, &UIWizardNewVDPageExpert::completeChanged);
+    connect(m_pFormatButtonGroup, static_cast<void(QButtonGroup::*)(QAbstractButton*)>(&QButtonGroup::buttonClicked),
+            this, &UIWizardNewVDPageExpert::sltMediumFormatChanged);
+    connect(m_pVariantButtonGroup, static_cast<void(QButtonGroup::*)(QAbstractButton*)>(&QButtonGroup::buttonClicked),
+            this, &UIWizardNewVDPageExpert::completeChanged);
+    connect(m_pSplitBox, &QCheckBox::stateChanged,
+            this, &UIWizardNewVDPageExpert::completeChanged);
+    connect(m_pLocationEditor, &QLineEdit::textChanged,
+            this, &UIWizardNewVDPageExpert::completeChanged);
+    connect(m_pLocationOpenButton, &QIToolButton::clicked,
+            this, &UIWizardNewVDPageExpert::sltSelectLocationButtonClicked);
+    connect(m_pEditorSize, &UIMediumSizeEditor::sigSizeChanged,
+            this, &UIWizardNewVDPageExpert::completeChanged);
 
     /* Register classes: */
     qRegisterMetaType<CMediumFormat>();
@@ -222,7 +223,8 @@ void UIWizardNewVDPageExpert::retranslateUi()
     for (int i = 0; i < buttons.size(); ++i)
     {
         QAbstractButton *pButton = buttons[i];
-        pButton->setText(VBoxGlobal::fullMediumFormatName(m_formatNames[m_pFormatButtonGroup->id(pButton)]));
+        UIMediumFormat enmFormat = gpConverter->fromInternalString<UIMediumFormat>(m_formatNames[m_pFormatButtonGroup->id(pButton)]);
+        pButton->setText(gpConverter->toString(enmFormat));
     }
     m_pVariantCnt->setTitle(UIWizardNewVD::tr("Storage on physical hard disk"));
     m_pDynamicalButton->setText(UIWizardNewVD::tr("&Dynamically allocated"));
@@ -251,23 +253,30 @@ bool UIWizardNewVDPageExpert::validatePage()
     /* Initial result: */
     bool fResult = true;
 
-    /* Lock finish button: */
-    startProcessing();
-
-    /* Make sure such virtual-disk doesn't exists: */
-    QString strMediumPath(mediumPath());
+    /* Make sure such file doesn't exist already: */
+    const QString strMediumPath(mediumPath());
     fResult = !QFileInfo(strMediumPath).exists();
     if (!fResult)
+    {
         msgCenter().cannotOverwriteHardDiskStorage(strMediumPath, this);
+        return fResult;
+    }
 
+    /* Make sure we are passing FAT size limitation: */
+    fResult = checkFATSizeLimitation();
+    if (!fResult)
+    {
+        msgCenter().cannotCreateHardDiskStorageInFAT(strMediumPath, this);
+        return fResult;
+    }
+
+    /* Lock finish button: */
+    startProcessing();
     /* Try to create virtual-disk: */
-    if (fResult)
-        fResult = qobject_cast<UIWizardNewVD*>(wizard())->createVirtualDisk();
-
+    fResult = qobject_cast<UIWizardNewVD*>(wizard())->createVirtualDisk();
     /* Unlock finish button: */
     endProcessing();
 
     /* Return result: */
     return fResult;
 }
-

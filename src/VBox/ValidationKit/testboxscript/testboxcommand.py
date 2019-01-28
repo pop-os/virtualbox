@@ -7,7 +7,7 @@ TestBox Script - Command Processor.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2017 Oracle Corporation
+Copyright (C) 2012-2019 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 118412 $"
+__version__ = "$Revision: 127855 $"
 
 # Standard python imports.
 import os;
@@ -180,11 +180,11 @@ class TestBoxCommand(object):
             asCmd = ['/sbin/shutdown', '-r', 'now'];
         try:
             utils.sudoProcessOutputChecked(asCmd);
-        except Exception, oXcpt:
+        except Exception as oXcpt:
             if asCmd2 is not None:
                 try:
                     utils.sudoProcessOutputChecked(asCmd2);
-                except Exception, oXcpt:
+                except Exception as oXcpt:
                     testboxcommons.log('Error executing reboot command "%s" as well as "%s": %s' % (asCmd, asCmd2, oXcpt));
                     return False;
             testboxcommons.log('Error executing reboot command "%s": %s' % (asCmd, oXcpt));
@@ -243,6 +243,7 @@ class TestBoxCommand(object):
         if fReboot:
             self.doReboot();
         sys.exit(TBS_EXITCODE_NEED_UPGRADE);
+        return False;                   # shuts up pylint (it will probably complain later when it learns DECL_NO_RETURN).
 
     def _cmdUpgrade(self, oResponse, oConnection):
         """
@@ -277,7 +278,7 @@ class TestBoxCommand(object):
         """
         try:
             sCmdName = oResponse.getStringChecked(constants.tbresp.ALL_PARAM_RESULT);
-        except Exception, oXcpt:
+        except Exception as oXcpt:
             oConnection.close();
             return False;
 
@@ -288,22 +289,22 @@ class TestBoxCommand(object):
             try:
                 # Execute the handler.
                 fRc = self._dfnCommands[sCmdName](oResponse, oConnection)
-            except Exception, oXcpt:
+            except Exception as oXcpt:
                 # NACK the command if an exception is raised during parameter validation.
                 testboxcommons.log1Xcpt('Exception executing "%s": %s' % (sCmdName, oXcpt));
                 if oConnection.isConnected():
                     try:
                         oConnection.sendReplyAndClose(constants.tbreq.COMMAND_NACK, sCmdName);
-                    except Exception, oXcpt2:
+                    except Exception as oXcpt2:
                         testboxcommons.log('Failed to NACK "%s": %s' % (sCmdName, oXcpt2));
         elif sCmdName in [constants.tbresp.STATUS_DEAD, constants.tbresp.STATUS_NACK]:
-            testboxcommons.log('Received status in stead of command: %s' % (sCmdName, ));
+            testboxcommons.log('Received status instead of command: %s' % (sCmdName, ));
         else:
             # NOTSUP the unknown command.
             testboxcommons.log('Received unknown command: %s' % (sCmdName, ));
             try:
                 oConnection.sendReplyAndClose(constants.tbreq.COMMAND_NOTSUP, sCmdName);
-            except Exception, oXcpt:
+            except Exception as oXcpt:
                 testboxcommons.log('Failed to NOTSUP "%s": %s' % (sCmdName, oXcpt));
         return fRc;
 

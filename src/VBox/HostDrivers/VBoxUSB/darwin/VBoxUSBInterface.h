@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2017 Oracle Corporation
+ * Copyright (C) 2007-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,8 +24,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBoxUSBInterface_h
-#define ___VBoxUSBInterface_h
+#ifndef VBOX_INCLUDED_SRC_VBoxUSB_darwin_VBoxUSBInterface_h
+#define VBOX_INCLUDED_SRC_VBoxUSB_darwin_VBoxUSBInterface_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/usbfilter.h>
 
@@ -58,5 +61,5 @@ typedef VBOXUSBADDFILTEROUT *PVBOXUSBADDFILTEROUT;
 /** Cookie used to fend off some unwanted clients to the IOService.  */
 #define VBOXUSB_DARWIN_IOSERVICE_COOKIE     UINT32_C(0x62735556) /* 'VUsb' */
 
-#endif
+#endif /* !VBOX_INCLUDED_SRC_VBoxUSB_darwin_VBoxUSBInterface_h */
 

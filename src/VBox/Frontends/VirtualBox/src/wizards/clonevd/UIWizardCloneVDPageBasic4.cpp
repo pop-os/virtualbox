@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,30 +15,24 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QDir>
-# include <QVBoxLayout>
-# include <QHBoxLayout>
-# include <QLineEdit>
+#include <QDir>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QLineEdit>
 
 /* GUI includes: */
-# include "UIWizardCloneVDPageBasic4.h"
-# include "UIWizardCloneVD.h"
-# include "VBoxGlobal.h"
-# include "UIMessageCenter.h"
-# include "UIIconPool.h"
-# include "QIFileDialog.h"
-# include "QIRichTextLabel.h"
-# include "QIToolButton.h"
+#include "UIWizardCloneVDPageBasic4.h"
+#include "UIWizardCloneVD.h"
+#include "VBoxGlobal.h"
+#include "UIMessageCenter.h"
+#include "UIIconPool.h"
+#include "QIFileDialog.h"
+#include "QIRichTextLabel.h"
+#include "QIToolButton.h"
 
 /* COM includes: */
-# include "CMediumFormat.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "CMediumFormat.h"
 
 
 UIWizardCloneVDPage4::UIWizardCloneVDPage4()
@@ -190,8 +184,8 @@ UIWizardCloneVDPageBasic4::UIWizardCloneVDPageBasic4()
     }
 
     /* Setup page connections: */
-    connect(m_pDestinationDiskEditor, SIGNAL(textChanged(const QString &)), this, SIGNAL(completeChanged()));
-    connect(m_pDestinationDiskOpenButton, SIGNAL(clicked()), this, SLOT(sltSelectLocationButtonClicked()));
+    connect(m_pDestinationDiskEditor, &QLineEdit::textChanged,    this, &UIWizardCloneVDPageBasic4::completeChanged);
+    connect(m_pDestinationDiskOpenButton, &QIToolButton::clicked, this, &UIWizardCloneVDPageBasic4::sltSelectLocationButtonClicked);
 
     /* Register fields: */
     registerField("mediumPath", this, "mediumPath");

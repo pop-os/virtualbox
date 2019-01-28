@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UIMachineSettingsNetwork_h___
-#define ___UIMachineSettingsNetwork_h___
+#ifndef FEQT_INCLUDED_SRC_settings_machine_UIMachineSettingsNetwork_h
+#define FEQT_INCLUDED_SRC_settings_machine_UIMachineSettingsNetwork_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* GUI includes: */
 #include "UISettingsPage.h"
@@ -31,9 +34,8 @@ typedef UISettingsCache<UIDataPortForwardingRule> UISettingsCachePortForwardingR
 typedef UISettingsCachePool<UIDataSettingsMachineNetworkAdapter, UISettingsCachePortForwardingRule> UISettingsCacheMachineNetworkAdapter;
 typedef UISettingsCachePool<UIDataSettingsMachineNetwork, UISettingsCacheMachineNetworkAdapter> UISettingsCacheMachineNetwork;
 
-
 /** Machine settings: Network page. */
-class UIMachineSettingsNetworkPage : public UISettingsPageMachine
+class SHARED_LIBRARY_STUFF UIMachineSettingsNetworkPage : public UISettingsPageMachine
 {
     Q_OBJECT;
 
@@ -141,5 +143,4 @@ private:
     UISettingsCacheMachineNetwork *m_pCache;
 };
 
-#endif /* !___UIMachineSettingsNetwork_h___ */
-
+#endif /* !FEQT_INCLUDED_SRC_settings_machine_UIMachineSettingsNetwork_h */

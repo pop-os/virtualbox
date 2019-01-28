@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,30 +15,27 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QDir>
-# include <QDialogButtonBox>
-# include <QEvent>
-# include <QLabel>
-# include <QPainter>
-# include <QPushButton>
+#include <QDialogButtonBox>
+#include <QDir>
+#include <QEvent>
+#include <QLabel>
+#include <QPainter>
+#include <QPushButton>
+#include <QStyle>
+#include <QVBoxLayout>
 
 /* GUI includes: */
-# include "UIConverter.h"
-# include "UIExtraDataManager.h"
-# include "UIIconPool.h"
-# include "VBoxAboutDlg.h"
-# include "VBoxGlobal.h"
+#include "UIConverter.h"
+#include "UIExtraDataManager.h"
+#include "UIIconPool.h"
+#include "VBoxAboutDlg.h"
+#include "VBoxGlobal.h"
 
 /* Other VBox includes: */
-# include <iprt/path.h>
-# include <VBox/version.h> /* VBOX_VENDOR */
+#include <iprt/path.h>
+#include <VBox/version.h> /* VBOX_VENDOR */
 
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 VBoxAboutDlg::VBoxAboutDlg(QWidget *pParent, const QString &strVersion)
 #ifdef VBOX_WS_MAC
@@ -56,6 +53,7 @@ VBoxAboutDlg::VBoxAboutDlg(QWidget *pParent, const QString &strVersion)
     , m_pPseudoParent(0)
 #endif
     , m_strVersion(strVersion)
+    , m_pMainLayout(0)
     , m_pLabel(0)
 {
     /* Prepare: */
@@ -67,14 +65,15 @@ bool VBoxAboutDlg::event(QEvent *pEvent)
     /* Set fixed-size for dialog: */
     if (pEvent->type() == QEvent::Polish)
         setFixedSize(m_size);
+
     /* Call to base-class: */
     return QIDialog::event(pEvent);
 }
 
-void VBoxAboutDlg::paintEvent(QPaintEvent * /* pEvent */)
+void VBoxAboutDlg::paintEvent(QPaintEvent *)
 {
-    QPainter painter(this);
     /* Draw About-VirtualBox background image: */
+    QPainter painter(this);
     painter.drawPixmap(0, 0, m_pixmap);
 }
 
@@ -151,7 +150,7 @@ void VBoxAboutDlg::prepareMainLayout()
 {
     /* Create main-layout: */
     m_pMainLayout = new QVBoxLayout(this);
-    AssertPtrReturnVoid(m_pMainLayout);
+    if (m_pMainLayout)
     {
         /* Prepare label: */
         prepareLabel();
@@ -165,7 +164,7 @@ void VBoxAboutDlg::prepareLabel()
 {
     /* Create label for version text: */
     m_pLabel = new QLabel;
-    AssertPtrReturnVoid(m_pLabel);
+    if (m_pLabel)
     {
         /* Prepare label for version text: */
         QPalette palette;
@@ -190,7 +189,7 @@ void VBoxAboutDlg::prepareCloseButton()
 {
     /* Create button-box: */
     QDialogButtonBox *pButtonBox = new QDialogButtonBox;
-    AssertPtrReturnVoid(pButtonBox);
+    if (pButtonBox)
     {
         /* Create close-button: */
         QPushButton *pCloseButton = pButtonBox->addButton(QDialogButtonBox::Close);

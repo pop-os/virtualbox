@@ -4,7 +4,7 @@
 ;
 
 ;
-; Copyright (C) 2006-2017 Oracle Corporation
+; Copyright (C) 2006-2019 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -158,6 +158,8 @@ apm_pm16_entry_from_32:
 _TEXT		ends
 
 
+if VBOX_BIOS_CPU ge 80386
+
 .386
 
 BIOS32		segment	public 'CODE' use32
@@ -201,5 +203,7 @@ apm_pm32_back:				; return here from 16-bit code
 		retf
 
 BIOS32		ends
+
+endif		; 32-bit code
 
 		end

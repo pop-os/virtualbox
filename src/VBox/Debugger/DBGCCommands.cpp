@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -52,6 +52,7 @@ static FNDBGCCMD dbgcCmdQuit;
 static FNDBGCCMD dbgcCmdStop;
 static FNDBGCCMD dbgcCmdDetect;
 static FNDBGCCMD dbgcCmdDmesg;
+extern FNDBGCCMD dbgcCmdDumpImage;
 static FNDBGCCMD dbgcCmdCpu;
 static FNDBGCCMD dbgcCmdInfo;
 static FNDBGCCMD dbgcCmdLog;
@@ -60,6 +61,7 @@ static FNDBGCCMD dbgcCmdLogFlags;
 static FNDBGCCMD dbgcCmdLogFlush;
 static FNDBGCCMD dbgcCmdFormat;
 static FNDBGCCMD dbgcCmdLoadImage;
+static FNDBGCCMD dbgcCmdLoadInMem;
 static FNDBGCCMD dbgcCmdLoadMap;
 static FNDBGCCMD dbgcCmdLoadSeg;
 static FNDBGCCMD dbgcCmdUnload;
@@ -116,6 +118,14 @@ static const DBGCVARDESC    g_aArgDmesg[] =
 };
 
 
+/** 'dumpimage' arguments. */
+static const DBGCVARDESC    g_aArgDumpImage[] =
+{
+    /* cTimesMin,   cTimesMax,  enmCategory,            fFlags,                         pszName,        pszDescription */
+    {  1,           ~0U,        DBGCVAR_CAT_POINTER,    0,                              "address",      "Address of image to dump." },
+};
+
+
 /** 'help' arguments. */
 static const DBGCVARDESC    g_aArgHelp[] =
 {
@@ -152,6 +162,15 @@ static const DBGCVARDESC    g_aArgLoadMap[] =
     {  0,           1,          DBGCVAR_CAT_STRING,     DBGCVD_FLAGS_DEP_PREV,          "name",         "The module name. Empty string means default. (optional)" },
     {  0,           1,          DBGCVAR_CAT_NUMBER,     DBGCVD_FLAGS_DEP_PREV,          "subtrahend",   "Value to subtract from the addresses in the map file to rebase it correctly to address. (optional)" },
     {  0,           1,          DBGCVAR_CAT_NUMBER,     DBGCVD_FLAGS_DEP_PREV,          "seg",          "The module segment number (0-based). (optional)" },
+};
+
+
+/** loadinmem arguments. */
+static const DBGCVARDESC    g_aArgLoadInMem[] =
+{
+    /* cTimesMin,   cTimesMax,  enmCategory,            fFlags,                         pszName,        pszDescription */
+    {  0,           1,          DBGCVAR_CAT_POINTER,    0,                              "address",      "The module address." },
+    {  0,           1,          DBGCVAR_CAT_STRING,     0,                              "name",         "The module name. (optional)" },
 };
 
 
@@ -240,6 +259,7 @@ const DBGCCMD    g_aDbgcCmds[] =
     { "format",     1,        1,        &g_aArgAny[0],       RT_ELEMENTS(g_aArgAny),       0, dbgcCmdFormat,    "",                     "Evaluates an expression and formats it." },
     { "detect",     0,        0,        NULL,                0,                            0, dbgcCmdDetect,    "",                     "Detects or re-detects the guest os and starts the OS specific digger." },
     { "dmesg",      0,        1,        &g_aArgDmesg[0],     RT_ELEMENTS(g_aArgDmesg),     0, dbgcCmdDmesg,     "[N last messages]",    "Displays the guest os kernel messages, if available." },
+    { "dumpimage",  1,        ~0U,      &g_aArgDumpImage[0], RT_ELEMENTS(g_aArgDumpImage), 0, dbgcCmdDumpImage, "<addr1> [addr2..[addrN]]", "Dumps executable images." },
     { "harakiri",   0,        0,        NULL,                0,                            0, dbgcCmdHarakiri,  "",                     "Kills debugger process." },
     { "help",       0,        ~0U,      &g_aArgHelp[0],      RT_ELEMENTS(g_aArgHelp),      0, dbgcCmdHelp,      "[cmd/op [..]]",        "Display help. For help about info items try 'info help'." },
     { "info",       1,        2,        &g_aArgInfo[0],      RT_ELEMENTS(g_aArgInfo),      0, dbgcCmdInfo,      "<info> [args]",        "Display info register in the DBGF. For a list of info items try 'info help'." },
@@ -248,6 +268,7 @@ const DBGCCMD    g_aDbgcCmds[] =
                                                                                                                                                  /*"Optionally giving the module a name other than the file name stem."*/ }, /** @todo implement line breaks */
     { "loadimage32",2,        3,        &g_aArgLoadImage[0], RT_ELEMENTS(g_aArgLoadImage), 0, dbgcCmdLoadImage, "<filename> <address> [name]", "loadimage variant for selecting 32-bit images (mach-o)." },
     { "loadimage64",2,        3,        &g_aArgLoadImage[0], RT_ELEMENTS(g_aArgLoadImage), 0, dbgcCmdLoadImage, "<filename> <address> [name]", "loadimage variant for selecting 64-bit images (mach-o)." },
+    { "loadinmem",  1,        2,        &g_aArgLoadInMem[0], RT_ELEMENTS(g_aArgLoadInMem), 0, dbgcCmdLoadInMem, "<address> [name]",    "Tries to load a image mapped at the given address." },
     { "loadmap",    2,        5,        &g_aArgLoadMap[0],   RT_ELEMENTS(g_aArgLoadMap),   0, dbgcCmdLoadMap,   "<filename> <address> [name] [subtrahend] [seg]",
                                                                                                                                        "Loads the symbols from a map file, usually at a specified address. "
                                                                                                                                        /*"Optionally giving the module a name other than the file name stem "
@@ -1348,6 +1369,55 @@ static DECLCALLBACK(int) dbgcCmdLoadImage(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, P
 
 
 /**
+ * @callback_method_impl{FNDBGCCMD, The 'loadinmem' command.}
+ */
+static DECLCALLBACK(int) dbgcCmdLoadInMem(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PUVM pUVM, PCDBGCVAR paArgs, unsigned cArgs)
+{
+    /*
+     * Validate the parsing and make sense of the input.
+     * This is a mess as usual because we don't trust the parser yet.
+     */
+    AssertReturn(    cArgs >= 1
+                 &&  cArgs <= 2
+                 &&  DBGCVAR_ISPOINTER(paArgs[0].enmType)
+                 &&  (cArgs < 2 || paArgs[1].enmType == DBGCVAR_TYPE_STRING),
+                 VERR_DBGC_PARSE_INCORRECT_ARG_TYPE);
+
+    RTLDRARCH       enmArch    = RTLDRARCH_WHATEVER;
+    const char     *pszModName = cArgs >= 2 ? paArgs[1].u.pszString : NULL;
+    DBGFADDRESS     ModAddress;
+    int rc = pCmdHlp->pfnVarToDbgfAddr(pCmdHlp, &paArgs[0], &ModAddress);
+    if (RT_FAILURE(rc))
+        return DBGCCmdHlpVBoxError(pCmdHlp, rc, "pfnVarToDbgfAddr: %Dv\n", &paArgs[1]);
+
+    /*
+     * Try create a module for it.
+     */
+    uint32_t fFlags = DBGFMODINMEM_F_NO_CONTAINER_FALLBACK | DBGFMODINMEM_F_NO_READER_FALLBACK;
+    RTDBGMOD hDbgMod;
+    RTERRINFOSTATIC ErrInfo;
+    rc = DBGFR3ModInMem(pUVM, &ModAddress, fFlags, pszModName, pszModName, enmArch, 0 /*cbImage*/,
+                        &hDbgMod, RTErrInfoInitStatic(&ErrInfo));
+    if (RT_FAILURE(rc))
+    {
+        if (RTErrInfoIsSet(&ErrInfo.Core))
+            return DBGCCmdHlpFail(pCmdHlp, pCmd, "DBGFR3ModInMem failed for %Dv: %s",  &ModAddress, ErrInfo.Core.pszMsg);
+        return DBGCCmdHlpFailRc(pCmdHlp, pCmd, rc, "DBGFR3ModInMem failed for %Dv", &ModAddress);
+    }
+
+    /*
+     * Link the module into the appropriate address space.
+     */
+    PDBGC pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
+    rc = DBGFR3AsLinkModule(pUVM, pDbgc->hDbgAs, hDbgMod, &ModAddress, NIL_RTDBGSEGIDX, RTDBGASLINK_FLAGS_REPLACE);
+    RTDbgModRelease(hDbgMod);
+    if (RT_FAILURE(rc))
+        return DBGCCmdHlpFailRc(pCmdHlp, pCmd, rc, "DBGFR3AsLinkModule failed for %Dv", &ModAddress);
+    return VINF_SUCCESS;
+}
+
+
+/**
  * @callback_method_impl{FNDBGCCMD, The 'loadmap' command.}
  */
 static DECLCALLBACK(int) dbgcCmdLoadMap(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PUVM pUVM, PCDBGCVAR paArgs, unsigned cArgs)
@@ -1430,7 +1500,7 @@ static DECLCALLBACK(int) dbgcCmdLoadSeg(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PUV
     if (RT_FAILURE(rc))
         return DBGCCmdHlpVBoxError(pCmdHlp, rc, "pfnVarToDbgfAddr: %Dv\n", &paArgs[1]);
 
-    RTDBGSEGIDX     iModSeg     = (RTDBGSEGIDX)paArgs[1].u.u64Number;
+    RTDBGSEGIDX     iModSeg     = (RTDBGSEGIDX)paArgs[2].u.u64Number;
     if (    iModSeg != paArgs[2].u.u64Number
         ||  iModSeg > RTDBGSEGIDX_LAST)
         return DBGCCmdHlpPrintf(pCmdHlp, "Segment index out of range: %Dv; range={0..%#x}\n", &paArgs[1], RTDBGSEGIDX_LAST);
@@ -1446,9 +1516,10 @@ static DECLCALLBACK(int) dbgcCmdLoadSeg(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PUV
      * Call the debug info manager about this loading.
      */
     PDBGC pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
-    rc = DBGFR3AsLoadImage(pUVM, pDbgc->hDbgAs, pszFilename, pszModName, RTLDRARCH_WHATEVER, &ModAddress, iModSeg, 0 /*fFlags*/);
+    rc = DBGFR3AsLoadImage(pUVM, pDbgc->hDbgAs, pszFilename, pszModName, RTLDRARCH_WHATEVER,
+                           &ModAddress, iModSeg, RTDBGASLINK_FLAGS_REPLACE);
     if (RT_FAILURE(rc))
-        return DBGCCmdHlpVBoxError(pCmdHlp, rc, "DBGFR3ModuleLoadImage(,,'%s','%s',%Dv,)\n",
+        return DBGCCmdHlpVBoxError(pCmdHlp, rc, "DBGFR3ModuleLoadImage(,,'%s','%s',%Dv,,)\n",
                                    pszFilename, pszModName, &paArgs[1]);
 
     NOREF(pCmd);

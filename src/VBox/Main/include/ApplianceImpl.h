@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ____H_APPLIANCEIMPL
-#define ____H_APPLIANCEIMPL
+#ifndef MAIN_INCLUDED_ApplianceImpl_h
+#define MAIN_INCLUDED_ApplianceImpl_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* VBox includes */
 #include "VirtualSystemDescriptionWrap.h"
@@ -38,8 +41,6 @@ struct LocationInfo;
 typedef struct VDINTERFACE   *PVDINTERFACE;
 typedef struct VDINTERFACEIO *PVDINTERFACEIO;
 typedef struct SHASTORAGE    *PSHASTORAGE;
-
-typedef enum applianceIOName { applianceIOTar, applianceIOFile, applianceIOSha } APPLIANCEIONAME;
 
 namespace ovf
 {
@@ -115,36 +116,40 @@ private:
 
     struct ImportStack;
     class TaskOVF;
+    class TaskOPC;
+    class TaskCloud;
+
     struct Data;            // opaque, defined in ApplianceImpl.cpp
     Data *m;
 
-    enum SetUpProgressMode { ImportFile, ImportS3, WriteFile, WriteS3 };
+    enum SetUpProgressMode { ImportFile, ImportS3, WriteFile, WriteS3, ExportCloud };
 
     /** @name General stuff
      * @{
      */
     bool i_isApplianceIdle();
     HRESULT i_searchUniqueVMName(Utf8Str& aName) const;
-    HRESULT i_searchUniqueDiskImageFilePath(Utf8Str& aName) const;
+    HRESULT i_searchUniqueImageFilePath(const Utf8Str &aMachineFolder,
+                                        DeviceType_T aDeviceType,
+                                        Utf8Str &aName) const;
     HRESULT i_setUpProgress(ComObjPtr<Progress> &pProgress,
                             const Utf8Str &strDescription,
                             SetUpProgressMode mode);
-    void i_waitForAsyncProgress(ComObjPtr<Progress> &pProgressThis, ComPtr<IProgress> &pProgressAsync);
     void i_addWarning(const char* aWarning, ...);
     void i_disksWeight();
     void i_parseBucket(Utf8Str &aPath, Utf8Str &aBucket);
 
     static void i_importOrExportThreadTask(TaskOVF *pTask);
+    static void i_exportOPCThreadTask(TaskOPC *pTask);
+    static void i_exportCloudThreadTask(TaskCloud *pTask);
 
-    HRESULT i_initSetOfSupportedStandardsURI();
+    HRESULT i_initBackendNames();
 
     Utf8Str i_typeOfVirtualDiskFormatFromURI(Utf8Str type) const;
 
+#if 0 /* unused */
     std::set<Utf8Str> i_URIFromTypeOfVirtualDiskFormat(Utf8Str type);
-
-    HRESULT i_initApplianceIONameMap();
-
-    Utf8Str i_applianceIOName(APPLIANCEIONAME type) const;
+#endif
 
     HRESULT i_findMediumFormatFromDiskImage(const ovf::DiskImage &di, ComObjPtr<MediumFormat>& mf);
 
@@ -185,8 +190,8 @@ private:
                                        int32_t &lDevice);
 
     void i_importOneDiskImage(const ovf::DiskImage &di,
-                              Utf8Str *strTargetPath,
-                              ComObjPtr<Medium> &pTargetHD,
+                              const Utf8Str &strDstPath,
+                              ComObjPtr<Medium> &pTargetMedium,
                               ImportStack &stack);
 
     void i_importMachineGeneric(const ovf::VirtualSystem &vsysThis,
@@ -214,11 +219,14 @@ private:
      * @{
      */
     HRESULT i_writeImpl(ovf::OVFVersion_T aFormat, const LocationInfo &aLocInfo, ComObjPtr<Progress> &aProgress);
+    HRESULT i_writeOPCImpl(ovf::OVFVersion_T aFormat, const LocationInfo &aLocInfo, ComObjPtr<Progress> &aProgress);
+    HRESULT i_writeCloudImpl(const LocationInfo &aLocInfo, ComObjPtr<Progress> &aProgress);
 
     HRESULT i_writeFS(TaskOVF *pTask);
     HRESULT i_writeFSOVF(TaskOVF *pTask, AutoWriteLockBase& writeLock);
     HRESULT i_writeFSOVA(TaskOVF *pTask, AutoWriteLockBase& writeLock);
-    HRESULT i_writeFSOPC(TaskOVF *pTask, AutoWriteLockBase& writeLock);
+    HRESULT i_writeFSOPC(TaskOPC *pTask);
+    HRESULT i_writeFSCloud(TaskCloud *pTask);
     HRESULT i_writeFSImpl(TaskOVF *pTask, AutoWriteLockBase &writeLock, RTVFSFSSTREAM hVfsFssDst);
     HRESULT i_writeBufferToFile(RTVFSFSSTREAM hVfsFssDst, const char *pszFilename, const void *pvContent, size_t cbContent);
 
@@ -314,6 +322,7 @@ private:
     HRESULT addDescription(VirtualSystemDescriptionType_T aType,
                            const com::Utf8Str &aVBoxValue,
                            const com::Utf8Str &aExtraConfigValue);
+    HRESULT removeDescriptionByType(VirtualSystemDescriptionType_T aType);
     void i_removeByType(VirtualSystemDescriptionType_T aType);
 
     struct Data;
@@ -322,5 +331,5 @@ private:
     friend class Machine;
 };
 
-#endif // !____H_APPLIANCEIMPL
+#endif /* !MAIN_INCLUDED_ApplianceImpl_h */
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

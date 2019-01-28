@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,10 +29,11 @@
 #include <iprt/asm.h>
 #include <iprt/net.h>
 #include <iprt/semaphore.h>
+#include <iprt/string.h>
 #ifdef IN_RING3
 # include <iprt/mem.h>
 # include <iprt/uuid.h>
-#endif /* IN_RING3 */
+#endif
 #include <VBox/VBoxPktDmp.h>
 #include "VBoxDD.h"
 #include "../VirtIO/Virtio.h"
@@ -63,8 +64,11 @@
 
 #endif /* VBOX_DEVICE_STRUCT_TESTCASE */
 
-
-#define VNET_TX_DELAY           150   /**< 150 microseconds */
+/*
+ * Commenting out VNET_TX_DELAY enables async transmission in a dedicated thread.
+ * When VNET_TX_DELAY is defined, a timer handler does the job.
+ */
+//#define VNET_TX_DELAY           150   /**< 150 microseconds */
 #define VNET_MAX_FRAME_SIZE     65535 + 18  /**< Max IP packet size + Ethernet header with VLAN tag */
 #define VNET_MAC_FILTER_LEN     32
 #define VNET_MAX_VID            (1 << 12)
@@ -153,7 +157,13 @@ typedef struct VNetState_st
     uint32_t                u32MinDiff;
     uint32_t                u32MaxDiff;
     uint64_t                u64NanoTS;
-#endif /* VNET_TX_DELAY */
+#else /* !VNET_TX_DELAY */
+    /** The support driver session handle. */
+    R3R0PTRTYPE(PSUPDRVSESSION)     pSupDrvSession;
+    /** The event semaphore TX thread waits on. */
+    SUPSEMEVENT                     hTxEvent;
+    R3PTRTYPE(PPDMTHREAD)           pTxThread;
+#endif /* !VNET_TX_DELAY */
 
     /** Indicates transmission in progress -- only one thread is allowed. */
     uint32_t                uIsTransmitting;
@@ -209,6 +219,8 @@ typedef struct VNetState_st
     STAMPROFILE             StatTransmitSend;
     STAMPROFILE             StatRxOverflow;
     STAMCOUNTER             StatRxOverflowWakeup;
+    STAMCOUNTER             StatTransmitByNetwork;
+    STAMCOUNTER             StatTransmitByThread;
 #endif /* VBOX_WITH_STATISTICS */
     /** @}  */
 } VNETSTATE;
@@ -1410,6 +1422,9 @@ static void vnetTransmitPendingPackets(PVNETSTATE pThis, PVQUEUE pQueue, bool fO
 static DECLCALLBACK(void) vnetNetworkDown_XmitPending(PPDMINETWORKDOWN pInterface)
 {
     PVNETSTATE pThis = RT_FROM_MEMBER(pInterface, VNETSTATE, INetworkDown);
+#if defined(VBOX_WITH_STATISTICS)
+    STAM_REL_COUNTER_INC(&pThis->StatTransmitByNetwork);
+#endif /* VBOX_WITH_STATISTICS */
     vnetTransmitPendingPackets(pThis, pThis->pTxQueue, false /*fOnWorkerThread*/);
 }
 
@@ -1475,13 +1490,102 @@ static DECLCALLBACK(void) vnetTxTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void 
     vnetCsLeave(pThis);
 }
 
+inline int vnetCreateTxThreadAndEvent(PPDMDEVINS pDevIns, PVNETSTATE pThis)
+{
+    RT_NOREF(pDevIns, pThis);
+    return VINF_SUCCESS;
+}
+
+inline void vnetDestroyTxThreadAndEvent(PVNETSTATE pThis)
+{
+    RT_NOREF(pThis);
+}
 #else /* !VNET_TX_DELAY */
+
+static DECLCALLBACK(int) vnetTxThread(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
+{
+    RT_NOREF(pDevIns);
+    PVNETSTATE pThis = (PVNETSTATE)pThread->pvUser;
+    int rc = VINF_SUCCESS;
+
+    if (pThread->enmState == PDMTHREADSTATE_INITIALIZING)
+        return VINF_SUCCESS;
+
+    while (pThread->enmState == PDMTHREADSTATE_RUNNING)
+    {
+        rc = SUPSemEventWaitNoResume(pThis->pSupDrvSession, pThis->hTxEvent, RT_INDEFINITE_WAIT);
+        if (RT_UNLIKELY(pThread->enmState != PDMTHREADSTATE_RUNNING))
+            break;
+#if defined(VBOX_WITH_STATISTICS)
+        STAM_REL_COUNTER_INC(&pThis->StatTransmitByThread);
+#endif /* VBOX_WITH_STATISTICS */
+        while (true)
+        {
+            vnetTransmitPendingPackets(pThis, pThis->pTxQueue, false /*fOnWorkerThread*/); /// @todo shouldn't it be true instead?
+            Log(("vnetTxThread: enable kicking and get to sleep\n"));
+            vringSetNotification(&pThis->VPCI, &pThis->pTxQueue->VRing, true);
+            if (vqueueIsEmpty(&pThis->VPCI, pThis->pTxQueue))
+                break;
+            vringSetNotification(&pThis->VPCI, &pThis->pTxQueue->VRing, false);
+        }
+    }
+
+    return rc;
+}
+
+/**
+ * Unblock TX thread so it can respond to a state change.
+ *
+ * @returns VBox status code.
+ * @param   pDevIns     The device instance.
+ * @param   pThread     The send thread.
+ */
+static DECLCALLBACK(int) vnetTxThreadWakeUp(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
+{
+    RT_NOREF(pDevIns);
+    PVNETSTATE pThis = (PVNETSTATE)pThread->pvUser;
+    return SUPSemEventSignal(pThis->pSupDrvSession, pThis->hTxEvent);
+}
+
+static int vnetCreateTxThreadAndEvent(PPDMDEVINS pDevIns, PVNETSTATE pThis)
+{
+    int rc = SUPSemEventCreate(pThis->pSupDrvSession, &pThis->hTxEvent);
+    if (RT_FAILURE(rc))
+        return PDMDevHlpVMSetError(pDevIns, rc, RT_SRC_POS,
+                                   N_("VNET: Failed to create SUP event semaphore"));
+    rc = PDMDevHlpThreadCreate(pDevIns, &pThis->pTxThread, pThis, vnetTxThread,
+                               vnetTxThreadWakeUp, 0, RTTHREADTYPE_IO, INSTANCE(pThis));
+    if (RT_FAILURE(rc))
+        return PDMDevHlpVMSetError(pDevIns, rc, RT_SRC_POS,
+                                   N_("VNET: Failed to create worker thread %s"), INSTANCE(pThis));
+    return VINF_SUCCESS;
+}
+
+static void vnetDestroyTxThreadAndEvent(PVNETSTATE pThis)
+{
+    if (pThis->pTxThread)
+    {
+        int rcThread;
+        /* Destroy the thread. */
+        int rc = PDMR3ThreadDestroy(pThis->pTxThread, &rcThread);
+        if (RT_FAILURE(rc) || RT_FAILURE(rcThread))
+            AssertMsgFailed(("%s Failed to destroy async IO thread rc=%Rrc rcThread=%Rrc\n", __FUNCTION__, rc, rcThread));
+        pThis->pTxThread = NULL;
+    }
+    if (pThis->hTxEvent != NIL_SUPSEMEVENT)
+    {
+        SUPSemEventClose(pThis->pSupDrvSession, pThis->hTxEvent);
+        pThis->hTxEvent = NIL_SUPSEMEVENT;
+    }
+}
 
 static DECLCALLBACK(void) vnetQueueTransmit(void *pvState, PVQUEUE pQueue)
 {
     PVNETSTATE pThis = (PVNETSTATE)pvState;
 
-    vnetTransmitPendingPackets(pThis, pQueue, false /*fOnWorkerThread*/);
+    Log(("vnetQueueTransmit: disable kicking and wake up TX thread\n"));
+    vringSetNotification(&pThis->VPCI, &pQueue->VRing, false);
+    SUPSemEventSignal(pThis->pSupDrvSession, pThis->hTxEvent);
 }
 
 #endif /* !VNET_TX_DELAY */
@@ -1918,6 +2022,7 @@ static DECLCALLBACK(void) vnetDetach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t
         return;
     }
 
+    vnetDestroyTxThreadAndEvent(pThis);
     /*
      * Zero some important members.
      */
@@ -1965,6 +2070,8 @@ static DECLCALLBACK(int) vnetAttach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t 
         pThis->pDrv = PDMIBASE_QUERY_INTERFACE(pThis->pDrvBase, PDMINETWORKUP);
         AssertMsgStmt(pThis->pDrv, ("Failed to obtain the PDMINETWORKUP interface!\n"),
                       rc = VERR_PDM_MISSING_INTERFACE_BELOW);
+
+        vnetCreateTxThreadAndEvent(pDevIns, pThis);
     }
     else if (   rc == VERR_PDM_NO_ATTACHED_DRIVER
              || rc == VERR_PDM_CFG_MISSING_DRIVER_NAME)
@@ -2031,8 +2138,10 @@ static DECLCALLBACK(int) vnetDestruct(PPDMDEVINS pDevIns)
     PDMDEV_CHECK_VERSIONS_RETURN_QUIET(pDevIns);
     PVNETSTATE pThis = PDMINS_2_DATA(pDevIns, PVNETSTATE);
 
+#ifdef VNET_TX_DELAY
     LogRel(("TxTimer stats (avg/min/max): %7d usec %7d usec %7d usec\n",
             pThis->u32AvgDiff, pThis->u32MinDiff, pThis->u32MaxDiff));
+#endif /* VNET_TX_DELAY */
     Log(("%s Destroying instance\n", INSTANCE(pThis)));
     if (pThis->hEventMoreRxDescAvail != NIL_RTSEMEVENT)
     {
@@ -2162,7 +2271,11 @@ static DECLCALLBACK(int) vnetConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
     if (RT_FAILURE(rc))
         return rc;
 
-#ifdef VNET_TX_DELAY
+#ifndef VNET_TX_DELAY
+    pThis->pSupDrvSession = PDMDevHlpGetSupDrvSession(pDevIns);
+    pThis->hTxEvent       = NIL_SUPSEMEVENT;
+    pThis->pTxThread      = NULL;
+#else /* VNET_TX_DELAY */
     /* Create Transmit Delay Timer */
     rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL, vnetTxTimer, pThis,
                                 TMTIMER_FLAGS_NO_CRIT_SECT,
@@ -2187,6 +2300,8 @@ static DECLCALLBACK(int) vnetConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
         pThis->pDrv = PDMIBASE_QUERY_INTERFACE(pThis->pDrvBase, PDMINETWORKUP);
         AssertMsgReturn(pThis->pDrv, ("Failed to obtain the PDMINETWORKUP interface!\n"),
                         VERR_PDM_MISSING_INTERFACE_BELOW);
+
+        vnetCreateTxThreadAndEvent(pDevIns, pThis);
     }
     else if (   rc == VERR_PDM_NO_ATTACHED_DRIVER
              || rc == VERR_PDM_CFG_MISSING_DRIVER_NAME )
@@ -2220,6 +2335,8 @@ static DECLCALLBACK(int) vnetConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
     PDMDevHlpSTAMRegisterF(pDevIns, &pThis->StatRxOverflowWakeup,   STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,     "Nr of RX overflow wakeups",          "/Devices/VNet%d/RxOverflowWakeup", iInstance);
     PDMDevHlpSTAMRegisterF(pDevIns, &pThis->StatTransmit,           STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS_PER_CALL, "Profiling transmits in HC",          "/Devices/VNet%d/Transmit/Total", iInstance);
     PDMDevHlpSTAMRegisterF(pDevIns, &pThis->StatTransmitSend,       STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS_PER_CALL, "Profiling send transmit in HC",      "/Devices/VNet%d/Transmit/Send", iInstance);
+    PDMDevHlpSTAMRegisterF(pDevIns, &pThis->StatTransmitByNetwork,  STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT,          "Network-initiated transmissions",    "/Devices/VNet%d/Transmit/ByNetwork", iInstance);
+    PDMDevHlpSTAMRegisterF(pDevIns, &pThis->StatTransmitByThread,   STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT,          "Thread-initiated transmissions",     "/Devices/VNet%d/Transmit/ByThread", iInstance);
 #endif /* VBOX_WITH_STATISTICS */
 
     return VINF_SUCCESS;

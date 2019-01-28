@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2017 Oracle Corporation
+# Copyright (C) 2006-2019 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -63,27 +63,6 @@ if  !defined(VBOX_ONLY_DOCS) \
  endif
 
 endif # !defined(VBOX_ONLY_DOCS) && !defined(VBOX_ONLY_VALIDATIONKIT)
-
-
-#
-# Build test for the linux host kernel modules.
-#
-if   defined(VBOX_WITH_TESTCASES) \
- && !defined(VBOX_ONLY_SDK) \
- && !defined(VBOX_ONLY_DOCS) \
- && !defined(VBOX_ONLY_VALIDATIONKIT) \
- && !defined(VBOX_WITHOUT_LINUX_TEST_BUILDS) \
- && "$(KBUILD_TARGET)" == "linux" \
- && "$(KBUILD_HOST_ARCH)" == "$(KBUILD_TARGET_ARCH)"
-
- ifneq ($(KERN_DIR),)
-  $(foreach module, vboxdrv-src $(if $(VBOX_WITH_NETFLT),VBoxNetFlt-src) \
-   $(if $(VBOX_WITH_NETADP),VBoxNetAdp-src) $(if $(VBOX_WITH_PCI_PASSTHROUGH),VBoxPci-src), \
-   $(eval $(VBOX_LINUX_GENERATE_KMOD_TEST)))
- endif
-
-endif
-
 
 # Let kBuild generate the rules.
 include $(FILE_KBUILD_SUB_FOOTER)

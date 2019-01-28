@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2013-2017 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,14 +16,17 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef VBOX_CPUDB_Intel_80386
-#define VBOX_CPUDB_Intel_80386
+#ifndef VBOX_CPUDB_Intel_80386_h
+#define VBOX_CPUDB_Intel_80386_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #ifndef CPUM_DB_STANDALONE
 /**
  * Fake CPUID leaves for Intel(R) 80386.
  *
- * We fake these to keep the CPUM ignorant of CPUs wihtout CPUID leaves
+ * We fake these to keep the CPUM ignorant of CPUs withou CPUID leaves
  * and avoid having to seed CPUM::GuestFeatures filling with bits from the
  * CPUMDBENTRY.
  */
@@ -68,5 +71,5 @@ static CPUMDBENTRY const g_Entry_Intel_80386 =
     /*.paMsrRanges      = */ NULL,
 };
 
-#endif /* !VBOX_CPUDB_Intel_80386 */
+#endif /* !VBOX_CPUDB_Intel_80386_h */
 

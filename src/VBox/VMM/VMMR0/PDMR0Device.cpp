@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -404,15 +404,6 @@ static DECLCALLBACK(RTTRACEBUF) pdmR0DevHlp_DBGFTraceBuf(PPDMDEVINS pDevIns)
 }
 
 
-/** @interface_method_impl{PDMDEVHLPR0,pfnCanEmulateIoBlock} */
-static DECLCALLBACK(bool) pdmR0DevHlp_CanEmulateIoBlock(PPDMDEVINS pDevIns)
-{
-    PDMDEV_ASSERT_DEVINS(pDevIns);
-    LogFlow(("pdmR0DevHlp_GetVM: caller='%p'/%d\n", pDevIns, pDevIns->iInstance));
-    return HMCanEmulateIoBlock(VMMGetCpu(pDevIns->Internal.s.pVMR0));
-}
-
-
 /**
  * The Ring-0 Device Helper Callbacks.
  */
@@ -434,7 +425,6 @@ extern DECLEXPORT(const PDMDEVHLPR0) g_pdmR0DevHlp =
     pdmR0DevHlp_VMSetRuntimeErrorV,
     pdmR0DevHlp_PATMSetMMIOPatchInfo,
     pdmR0DevHlp_GetVM,
-    pdmR0DevHlp_CanEmulateIoBlock,
     pdmR0DevHlp_GetVMCPU,
     pdmR0DevHlp_GetCurrentCpuId,
     pdmR0DevHlp_TMTimeVirtGet,

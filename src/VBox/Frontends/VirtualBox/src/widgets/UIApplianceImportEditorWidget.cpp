@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,24 +15,25 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QCheckBox>
-# include <QTextEdit>
+#include <QCheckBox>
+#include <QGridLayout>
+#include <QLabel>
+#include <QTextEdit>
+#include <QVBoxLayout>
 
 /* GUI includes: */
-# include "QITreeView.h"
-# include "UIApplianceImportEditorWidget.h"
-# include "VBoxGlobal.h"
-# include "UIMessageCenter.h"
+#include "QIRichTextLabel.h"
+#include "QITreeView.h"
+#include "UIApplianceImportEditorWidget.h"
+#include "UIFilePathSelector.h"
+#include "UIMessageCenter.h"
+#include "UIWizardImportApp.h"
+#include "VBoxGlobal.h"
 
 /* COM includes: */
-# include "CAppliance.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "CAppliance.h"
+#include "CSystemProperties.h"
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -53,9 +54,99 @@ public:
 
 UIApplianceImportEditorWidget::UIApplianceImportEditorWidget(QWidget *pParent)
     : UIApplianceEditorWidget(pParent)
+    , m_pPathSelectorLabel(0)
+    , m_pPathSelector(0)
+    , m_pImportHDsAsVDI(0)
+    , m_pMACComboBoxLabel(0)
+    , m_pMACComboBox(0)
+    , m_pOptionsLayout(0)
+    , m_pAdditionalOptionsLabel(0)
 {
-    /* Show the MAC check box */
-    m_pCheckBoxReinitMACs->setHidden(false);
+    prepareWidgets();
+}
+
+void UIApplianceImportEditorWidget::prepareWidgets()
+{
+    /* Create path selector label: */
+    m_pPathSelectorLabel = new QIRichTextLabel(this);
+    if (m_pPathSelectorLabel)
+    {
+        /* Add into layout: */
+        m_pLayout->addWidget(m_pPathSelectorLabel);
+    }
+
+    /* Create path selector editor: */
+    m_pPathSelector = new UIFilePathSelector(this);
+    if (m_pPathSelector)
+    {
+        m_pPathSelector->setResetEnabled(true);
+        m_pPathSelector->setDefaultPath(vboxGlobal().virtualBox().GetSystemProperties().GetDefaultMachineFolder());
+        m_pPathSelector->setPath(vboxGlobal().virtualBox().GetSystemProperties().GetDefaultMachineFolder());
+        connect(m_pPathSelector, &UIFilePathSelector::pathChanged, this, &UIApplianceImportEditorWidget::sltHandlePathChanged);
+
+        /* Add into layout: */
+        m_pLayout->addWidget(m_pPathSelector);
+    }
+
+    /* Create options layout: */
+    m_pOptionsLayout = new QGridLayout;
+    if (m_pOptionsLayout)
+    {
+        m_pOptionsLayout->setColumnStretch(0, 0);
+        m_pOptionsLayout->setColumnStretch(1, 1);
+
+        /* Create MAC address policy label: */
+        m_pMACComboBoxLabel = new QLabel;
+        if (m_pMACComboBoxLabel)
+        {
+            m_pMACComboBoxLabel->setAlignment(Qt::AlignRight | Qt::AlignTrailing | Qt::AlignVCenter);
+
+            /* Add into layout: */
+            m_pOptionsLayout->addWidget(m_pMACComboBoxLabel, 0, 0);
+        }
+
+        /* Create MAC address policy combo: */
+        m_pMACComboBox = new QComboBox;
+        if (m_pMACComboBox)
+        {
+            m_pMACComboBox->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+            m_pMACComboBoxLabel->setBuddy(m_pMACComboBox);
+
+            /* Add into layout: */
+            m_pOptionsLayout->addWidget(m_pMACComboBox, 0, 1, 1, 2);
+        }
+
+        /* Create additional options label: */
+        m_pAdditionalOptionsLabel = new QLabel;
+        if (m_pAdditionalOptionsLabel)
+        {
+            m_pAdditionalOptionsLabel->setAlignment(Qt::AlignRight | Qt::AlignTrailing | Qt::AlignVCenter);
+
+            /* Add into layout: */
+            m_pOptionsLayout->addWidget(m_pAdditionalOptionsLabel, 1, 0);
+        }
+
+        /* Create import HDs as VDIs checkbox: */
+        m_pImportHDsAsVDI = new QCheckBox;
+        {
+            m_pImportHDsAsVDI->setCheckState(Qt::Checked);
+
+            /* Add into layout: */
+            m_pOptionsLayout->addWidget(m_pImportHDsAsVDI, 1, 1);
+        }
+
+        /* Add into layout: */
+        m_pLayout->addLayout(m_pOptionsLayout);
+    }
+
+    /* Populate MAC address import combo: */
+    populateMACAddressImportPolicies();
+    /* And connect this combo' signals afterwards: */
+    connect(m_pMACComboBox, static_cast<void(QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
+            this, &UIApplianceImportEditorWidget::sltHandleMACAddressImportPolicyComboChange);
+
+    /* Apply language settings: */
+    retranslateUi();
 }
 
 bool UIApplianceImportEditorWidget::setFile(const QString& strFile)
@@ -136,6 +227,10 @@ bool UIApplianceImportEditorWidget::setFile(const QString& strFile)
             m_pAppliance = NULL;
         }
     }
+    /* Make sure we initialize model items with correct base folder path: */
+    if (m_pPathSelector)
+        sltHandlePathChanged(m_pPathSelector->path());
+
     return fResult;
 }
 
@@ -152,8 +247,24 @@ bool UIApplianceImportEditorWidget::import()
         /* Start the import asynchronously */
         CProgress progress;
         QVector<KImportOptions> options;
-        if (!m_pCheckBoxReinitMACs->isChecked())
-            options.append(KImportOptions_KeepAllMACs);
+        if (m_pMACComboBox)
+        {
+            MACAddressImportPolicy macPolicy = static_cast<MACAddressImportPolicy>(m_pMACComboBox->currentIndex());
+            switch (macPolicy)
+            {
+                case MACAddressImportPolicy_KeepAllMACs:
+                    options.append(KImportOptions_KeepAllMACs);
+                    break;
+                case MACAddressImportPolicy_KeepNATMACs:
+                    options.append(KImportOptions_KeepNATMACs);
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        if (m_pImportHDsAsVDI->isChecked())
+            options.append(KImportOptions_ImportToVDI);
         progress = m_pAppliance->ImportMachines(options);
         bool fResult = m_pAppliance->isOk();
         if (fResult)
@@ -198,3 +309,84 @@ QList<QPair<QString, QString> > UIApplianceImportEditorWidget::licenseAgreements
     return list;
 }
 
+void UIApplianceImportEditorWidget::retranslateUi()
+{
+    UIApplianceEditorWidget::retranslateUi();
+    if (m_pPathSelectorLabel)
+        m_pPathSelectorLabel->setText(UIWizardImportApp::tr("You can modify the base folder which will host all the virtual machines. "
+                                                            "Home folders can also be individually (per virtual machine) modified."));
+    if (m_pImportHDsAsVDI)
+    {
+        m_pImportHDsAsVDI->setText(tr("&Import hard drives as VDI"));
+        m_pImportHDsAsVDI->setToolTip(tr("When checked, all the hard drives that belong to this appliance will be imported in VDI format."));
+    }
+
+    /* Translate MAC address policy combo-box: */
+    m_pMACComboBoxLabel->setText(tr("MAC Address &Policy:"));
+    m_pMACComboBox->setItemText(MACAddressImportPolicy_KeepAllMACs,
+                                tr("Include all network adapter MAC addresses"));
+    m_pMACComboBox->setItemText(MACAddressImportPolicy_KeepNATMACs,
+                                tr("Include only NAT network adapter MAC addresses"));
+    m_pMACComboBox->setItemText(MACAddressImportPolicy_StripAllMACs,
+                                tr("Generate new MAC addresses for all network adapters"));
+    m_pMACComboBox->setItemData(MACAddressImportPolicy_KeepAllMACs,
+                                tr("Include all network adapter MAC addresses during cloning."), Qt::ToolTipRole);
+    m_pMACComboBox->setItemData(MACAddressImportPolicy_KeepNATMACs,
+                                tr("Include only NAT network adapter MAC addresses during cloning."), Qt::ToolTipRole);
+    m_pMACComboBox->setItemData(MACAddressImportPolicy_StripAllMACs,
+                                tr("Generate new MAC addresses for all network adapters during cloning."), Qt::ToolTipRole);
+
+    m_pAdditionalOptionsLabel->setText(tr("Additional Options:"));
+
+#if 0 /* this may be needed if contents became dinamical to avoid label jumping */
+    QList<QWidget*> labels;
+    labels << m_pMACComboBoxLabel;
+    labels << m_pAdditionalOptionsLabel;
+
+    int iMaxWidth = 0;
+    foreach (QWidget *pLabel, labels)
+        iMaxWidth = qMax(iMaxWidth, pLabel->minimumSizeHint().width());
+    m_pOptionsLayout->setColumnMinimumWidth(0, iMaxWidth);
+#endif /* this may be needed if contents became dinamical to avoid label jumping */
+}
+
+void UIApplianceImportEditorWidget::sltHandlePathChanged(const QString &newPath)
+{
+    setVirtualSystemBaseFolder(newPath);
+}
+
+void UIApplianceImportEditorWidget::populateMACAddressImportPolicies()
+{
+    AssertReturnVoid(m_pMACComboBox->count() == 0);
+
+    /* Apply hardcoded policies list: */
+    for (int i = 0; i < (int)MACAddressImportPolicy_MAX; ++i)
+    {
+        m_pMACComboBox->addItem(QString::number(i));
+        m_pMACComboBox->setItemData(i, i);
+    }
+
+    /* Set default: */
+    setMACAddressImportPolicy(MACAddressImportPolicy_KeepNATMACs);
+}
+
+void UIApplianceImportEditorWidget::setMACAddressImportPolicy(MACAddressImportPolicy enmMACAddressImportPolicy)
+{
+    const int iIndex = m_pMACComboBox->findData((int)enmMACAddressImportPolicy);
+    AssertMsg(iIndex != -1, ("Data not found!"));
+    m_pMACComboBox->setCurrentIndex(iIndex);
+}
+
+void UIApplianceImportEditorWidget::sltHandleMACAddressImportPolicyComboChange()
+{
+    /* Update tool-tip: */
+    updateMACAddressImportPolicyComboToolTip();
+}
+
+void UIApplianceImportEditorWidget::updateMACAddressImportPolicyComboToolTip()
+{
+    const int iCurrentIndex = m_pMACComboBox->currentIndex();
+    const QString strCurrentToolTip = m_pMACComboBox->itemData(iCurrentIndex, Qt::ToolTipRole).toString();
+    AssertMsg(!strCurrentToolTip.isEmpty(), ("Data not found!"));
+    m_pMACComboBox->setToolTip(strCurrentToolTip);
+}

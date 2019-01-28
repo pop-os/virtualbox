@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___build_VBoxDD_h
-#define ___build_VBoxDD_h
+#ifndef VBOX_INCLUDED_SRC_build_VBoxDD_h
+#define VBOX_INCLUDED_SRC_build_VBoxDD_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/vmm/pdm.h>
 
@@ -66,6 +69,7 @@ extern const PDMDEVREG g_DeviceACPI;
 extern const PDMDEVREG g_DeviceDMA;
 extern const PDMDEVREG g_DeviceFloppyController;
 extern const PDMDEVREG g_DeviceSerialPort;
+extern const PDMDEVREG g_DeviceOxPcie958;
 extern const PDMDEVREG g_DeviceParallelPort;
 #ifdef VBOX_WITH_AHCI
 extern const PDMDEVREG g_DeviceAHCI;
@@ -89,6 +93,9 @@ extern const PDMDEVREG g_DeviceEFI;
 extern const PDMDEVREG g_DevicePciRaw;
 #endif
 extern const PDMDEVREG g_DeviceGIMDev;
+#ifdef VBOX_WITH_NEW_LPC_DEVICE
+extern const PDMDEVREG g_DeviceLPC;
+#endif
 #ifdef VBOX_WITH_VIRTUALKD
 extern const PDMDEVREG g_DeviceVirtualKD;
 #endif
@@ -187,5 +194,5 @@ int acpiCleanupSsdt(PPDMDEVINS pDevIns, void *pvPtr);
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !VBOX_INCLUDED_SRC_build_VBoxDD_h */
 

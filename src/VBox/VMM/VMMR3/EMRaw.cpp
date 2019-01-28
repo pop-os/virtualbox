@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,6 +20,7 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_EM
+#define VMCPU_INCL_CPUM_GST_CTX
 #include <VBox/vmm/em.h>
 #include <VBox/vmm/vmm.h>
 #include <VBox/vmm/patm.h>
@@ -49,6 +50,7 @@
 #include <VBox/vmm/dbgf.h>
 #include "VMMTracing.h"
 
+#include <VBox/err.h>
 #include <VBox/log.h>
 #include <iprt/asm.h>
 #include <iprt/string.h>
@@ -59,13 +61,15 @@
 /*********************************************************************************************************************************
 *   Internal Functions                                                                                                           *
 *********************************************************************************************************************************/
-static int      emR3RawForcedActions(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx);
+static int      emR3RawHandleRC(PVM pVM, PVMCPU pVCpu, int rc);
+static int      emR3RawForcedActions(PVM pVM, PVMCPU pVCpu);
 DECLINLINE(int) emR3RawExecuteInstruction(PVM pVM, PVMCPU pVCpu, const char *pszPrefix, int rcGC = VINF_SUCCESS);
 static int      emR3RawGuestTrap(PVM pVM, PVMCPU pVCpu);
-static int      emR3RawPatchTrap(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int gcret);
+static int      emR3RawPatchTrap(PVM pVM, PVMCPU pVCpu, int gcret);
 static int      emR3RawPrivileged(PVM pVM, PVMCPU pVCpu);
 static int      emR3RawExecuteIOInstruction(PVM pVM, PVMCPU pVCpu);
 static int      emR3RawRingSwitch(PVM pVM, PVMCPU pVCpu);
+static int      emR3RawUpdateForceFlag(PVM pVM, PVMCPU pVCpu, int rc);
 
 #define EMHANDLERC_WITH_PATM
 #define emR3ExecuteInstruction   emR3RawExecuteInstruction
@@ -122,9 +126,8 @@ static void emR3RecordCli(PVM pVM, PVMCPU pVCpu, RTGCPTR GCPtrInstr)
 int emR3RawResumeHyper(PVM pVM, PVMCPU pVCpu)
 {
     int         rc;
-    PCPUMCTX    pCtx = pVCpu->em.s.pCtx;
     Assert(pVCpu->em.s.enmState == EMSTATE_DEBUG_HYPER);
-    Log(("emR3RawResumeHyper: cs:eip=%RTsel:%RGr efl=%RGr\n", pCtx->cs.Sel, pCtx->eip, pCtx->eflags));
+    Log(("emR3RawResumeHyper: cs:eip=%RTsel:%RGr efl=%RGr\n", pVCpu->cpum.GstCtx.cs.Sel, pVCpu->cpum.GstCtx.eip, pVCpu->cpum.GstCtx.eflags));
 
     /*
      * Resume execution.
@@ -132,16 +135,16 @@ int emR3RawResumeHyper(PVM pVM, PVMCPU pVCpu)
     CPUMRawEnter(pVCpu);
     CPUMSetHyperEFlags(pVCpu, CPUMGetHyperEFlags(pVCpu) | X86_EFL_RF);
     rc = VMMR3ResumeHyper(pVM, pVCpu);
-    Log(("emR3RawResumeHyper: cs:eip=%RTsel:%RGr efl=%RGr - returned from GC with rc=%Rrc\n", pCtx->cs.Sel, pCtx->eip, pCtx->eflags, rc));
+    Log(("emR3RawResumeHyper: cs:eip=%RTsel:%RGr efl=%RGr - returned from GC with rc=%Rrc\n", pVCpu->cpum.GstCtx.cs.Sel, pVCpu->cpum.GstCtx.eip, pVCpu->cpum.GstCtx.eflags, rc));
     rc = CPUMRawLeave(pVCpu, rc);
-    VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_RESUME_GUEST_MASK);
+    VMCPU_FF_CLEAR_MASK(pVCpu, VMCPU_FF_RESUME_GUEST_MASK);
 
     /*
      * Deal with the return code.
      */
-    rc = emR3HighPriorityPostForcedActions(pVM, pVCpu, rc);
-    rc = emR3RawHandleRC(pVM, pVCpu, pCtx, rc);
-    rc = emR3RawUpdateForceFlag(pVM, pVCpu, pCtx, rc);
+    rc = VBOXSTRICTRC_TODO(emR3HighPriorityPostForcedActions(pVM, pVCpu, rc));
+    rc = emR3RawHandleRC(pVM, pVCpu, rc);
+    rc = emR3RawUpdateForceFlag(pVM, pVCpu, rc);
     return rc;
 }
 
@@ -159,7 +162,6 @@ int emR3RawStep(PVM pVM, PVMCPU pVCpu)
            || pVCpu->em.s.enmState == EMSTATE_DEBUG_GUEST_RAW
            || pVCpu->em.s.enmState == EMSTATE_DEBUG_GUEST_REM);
     int         rc;
-    PCPUMCTX    pCtx   = pVCpu->em.s.pCtx;
     bool        fGuest = pVCpu->em.s.enmState != EMSTATE_DEBUG_HYPER;
 #ifndef DEBUG_sander
     Log(("emR3RawStep: cs:eip=%RTsel:%RGr efl=%RGr\n", fGuest ? CPUMGetGuestCS(pVCpu) : CPUMGetHyperCS(pVCpu),
@@ -170,10 +172,10 @@ int emR3RawStep(PVM pVM, PVMCPU pVCpu)
         /*
          * Check vital forced actions, but ignore pending interrupts and timers.
          */
-        if (    VM_FF_IS_PENDING(pVM, VM_FF_HIGH_PRIORITY_PRE_RAW_MASK)
-            ||  VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_HIGH_PRIORITY_PRE_RAW_MASK))
+        if (    VM_FF_IS_ANY_SET(pVM, VM_FF_HIGH_PRIORITY_PRE_RAW_MASK)
+            ||  VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_HIGH_PRIORITY_PRE_RAW_MASK))
         {
-            rc = emR3RawForcedActions(pVM, pVCpu, pCtx);
+            rc = emR3RawForcedActions(pVM, pVCpu);
             VBOXVMM_EM_FF_RAW_RET(pVCpu, rc);
             if (rc != VINF_SUCCESS)
                 return rc;
@@ -205,7 +207,7 @@ int emR3RawStep(PVM pVM, PVMCPU pVCpu)
     } while (   rc == VINF_SUCCESS
              || rc == VINF_EM_RAW_INTERRUPT);
     rc = CPUMRawLeave(pVCpu, rc);
-    VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_RESUME_GUEST_MASK);
+    VMCPU_FF_CLEAR_MASK(pVCpu, VMCPU_FF_RESUME_GUEST_MASK);
 
     /*
      * Make sure the trap flag is cleared.
@@ -219,9 +221,9 @@ int emR3RawStep(PVM pVM, PVMCPU pVCpu)
     /*
      * Deal with the return codes.
      */
-    rc = emR3HighPriorityPostForcedActions(pVM, pVCpu, rc);
-    rc = emR3RawHandleRC(pVM, pVCpu, pCtx, rc);
-    rc = emR3RawUpdateForceFlag(pVM, pVCpu, pCtx, rc);
+    rc = VBOXSTRICTRC_TODO(emR3HighPriorityPostForcedActions(pVM, pVCpu, rc));
+    rc = emR3RawHandleRC(pVM, pVCpu, rc);
+    rc = emR3RawUpdateForceFlag(pVM, pVCpu, rc);
     return rc;
 }
 
@@ -271,7 +273,6 @@ static int emR3RawExecuteInstructionWorker(PVM pVM, PVMCPU pVCpu, int rcGC, cons
 static int emR3RawExecuteInstructionWorker(PVM pVM, PVMCPU pVCpu, int rcGC)
 #endif
 {
-    PCPUMCTX pCtx = pVCpu->em.s.pCtx;
     int      rc;
 
 #ifdef LOG_ENABLED
@@ -291,12 +292,12 @@ static int emR3RawExecuteInstructionWorker(PVM pVM, PVMCPU pVCpu, int rcGC)
      * tell PATM there is a trap in this code and have it take the appropriate actions
      * to allow us execute the code in REM.
      */
-    if (PATMIsPatchGCAddr(pVM, pCtx->eip))
+    if (PATMIsPatchGCAddr(pVM, pVCpu->cpum.GstCtx.eip))
     {
-        Log(("emR3RawExecuteInstruction: In patch block. eip=%RRv\n", (RTRCPTR)pCtx->eip));
+        Log(("emR3RawExecuteInstruction: In patch block. eip=%RRv\n", (RTRCPTR)pVCpu->cpum.GstCtx.eip));
 
         RTGCPTR uNewEip;
-        rc = PATMR3HandleTrap(pVM, pCtx, pCtx->eip, &uNewEip);
+        rc = PATMR3HandleTrap(pVM, &pVCpu->cpum.GstCtx, pVCpu->cpum.GstCtx.eip, &uNewEip);
         switch (rc)
         {
             /*
@@ -305,11 +306,11 @@ static int emR3RawExecuteInstructionWorker(PVM pVM, PVMCPU pVCpu, int rcGC)
              */
             case VINF_SUCCESS:
                 Log(("emR3RawExecuteInstruction: Executing instruction starting at new address %RGv IF=%d VMIF=%x\n",
-                     uNewEip, pCtx->eflags.Bits.u1IF, pVCpu->em.s.pPatmGCState->uVMFlags));
-                pCtx->eip = uNewEip;
-                Assert(pCtx->eip);
+                     uNewEip, pVCpu->cpum.GstCtx.eflags.Bits.u1IF, pVCpu->em.s.pPatmGCState->uVMFlags));
+                pVCpu->cpum.GstCtx.eip = uNewEip;
+                Assert(pVCpu->cpum.GstCtx.eip);
 
-                if (pCtx->eflags.Bits.u1IF)
+                if (pVCpu->cpum.GstCtx.eflags.Bits.u1IF)
                 {
                     /*
                      * The last instruction in the patch block needs to be executed!! (sti/sysexit for example)
@@ -329,8 +330,8 @@ static int emR3RawExecuteInstructionWorker(PVM pVM, PVMCPU pVCpu, int rcGC)
              */
             case VINF_PATCH_EMULATE_INSTR:
                 Log(("emR3RawExecuteInstruction: Emulate patched instruction at %RGv IF=%d VMIF=%x\n",
-                     uNewEip, pCtx->eflags.Bits.u1IF, pVCpu->em.s.pPatmGCState->uVMFlags));
-                pCtx->eip = uNewEip;
+                     uNewEip, pVCpu->cpum.GstCtx.eflags.Bits.u1IF, pVCpu->em.s.pPatmGCState->uVMFlags));
+                pVCpu->cpum.GstCtx.eip = uNewEip;
                 return emR3RawExecuteInstruction(pVM, pVCpu, "PATCHIR");
 
             /*
@@ -338,9 +339,9 @@ static int emR3RawExecuteInstructionWorker(PVM pVM, PVMCPU pVCpu, int rcGC)
              */
             case VERR_PATCH_DISABLED:
                 Log(("emR3RawExecuteInstruction: Disabled patch -> new eip %RGv IF=%d VMIF=%x\n",
-                     uNewEip, pCtx->eflags.Bits.u1IF, pVCpu->em.s.pPatmGCState->uVMFlags));
-                pCtx->eip = uNewEip;
-                if (pCtx->eflags.Bits.u1IF)
+                     uNewEip, pVCpu->cpum.GstCtx.eflags.Bits.u1IF, pVCpu->em.s.pPatmGCState->uVMFlags));
+                pVCpu->cpum.GstCtx.eip = uNewEip;
+                if (pVCpu->cpum.GstCtx.eflags.Bits.u1IF)
                 {
                     /*
                      * The last instruction in the patch block needs to be executed!! (sti/sysexit for example)
@@ -367,7 +368,7 @@ static int emR3RawExecuteInstructionWorker(PVM pVM, PVMCPU pVCpu, int rcGC)
      */
 #define VBOX_WITH_FIRST_IEM_STEP_B
 #if defined(VBOX_WITH_FIRST_IEM_STEP_B) || !defined(VBOX_WITH_REM)
-    Log(("EMINS: %04x:%RGv RSP=%RGv\n", pCtx->cs.Sel, (RTGCPTR)pCtx->rip, (RTGCPTR)pCtx->rsp));
+    Log(("EMINS: %04x:%RGv RSP=%RGv\n", pVCpu->cpum.GstCtx.cs.Sel, (RTGCPTR)pVCpu->cpum.GstCtx.rip, (RTGCPTR)pVCpu->cpum.GstCtx.rsp));
     STAM_PROFILE_START(&pVCpu->em.s.StatIEMEmu, a);
     rc = VBOXSTRICTRC_TODO(IEMExecOne(pVCpu));
     STAM_PROFILE_STOP(&pVCpu->em.s.StatIEMEmu, a);
@@ -383,7 +384,7 @@ static int emR3RawExecuteInstructionWorker(PVM pVM, PVMCPU pVCpu, int rcGC)
 #ifdef VBOX_WITH_REM
         STAM_PROFILE_START(&pVCpu->em.s.StatREMEmu, b);
 # ifndef VBOX_WITH_FIRST_IEM_STEP_B
-        Log(("EMINS[rem]: %04x:%RGv RSP=%RGv\n", pCtx->cs.Sel, (RTGCPTR)pCtx->rip, (RTGCPTR)pCtx->rsp));
+        Log(("EMINS[rem]: %04x:%RGv RSP=%RGv\n", pVCpu->cpum.GstCtx.cs.Sel, (RTGCPTR)pVCpu->cpum.GstCtx.rip, (RTGCPTR)pVCpu->cpum.GstCtx.rsp));
 //# elif defined(DEBUG_bird)
 //        AssertFailed();
 # endif
@@ -455,8 +456,6 @@ static int emR3RawExecuteIOInstruction(PVM pVM, PVMCPU pVCpu)
  */
 static int emR3RawGuestTrap(PVM pVM, PVMCPU pVCpu)
 {
-    PCPUMCTX pCtx = pVCpu->em.s.pCtx;
-
     /*
      * Get the trap info.
      */
@@ -482,10 +481,10 @@ static int emR3RawGuestTrap(PVM pVM, PVMCPU pVCpu)
      */
     uint32_t uCpl = CPUMGetGuestCPL(pVCpu);
     if (    uCpl == 0
-        &&  PATMIsPatchGCAddr(pVM, pCtx->eip))
+        &&  PATMIsPatchGCAddr(pVM, pVCpu->cpum.GstCtx.eip))
     {
-        LogFlow(("emR3RawGuestTrap: trap %#x in patch code; eip=%08x\n", u8TrapNo, pCtx->eip));
-        return emR3RawPatchTrap(pVM, pVCpu, pCtx, rc);
+        LogFlow(("emR3RawGuestTrap: trap %#x in patch code; eip=%08x\n", u8TrapNo, pVCpu->cpum.GstCtx.eip));
+        return emR3RawPatchTrap(pVM, pVCpu, rc);
     }
 #endif
 
@@ -510,7 +509,7 @@ static int emR3RawGuestTrap(PVM pVM, PVMCPU pVCpu)
             TRPMERRORCODE enmError = uErrorCode != ~0U
                                    ? TRPM_TRAP_HAS_ERRORCODE
                                    : TRPM_TRAP_NO_ERRORCODE;
-            rc = TRPMForwardTrap(pVCpu, CPUMCTX2CORE(pCtx), u8TrapNo, uErrorCode, enmError, TRPM_TRAP, -1);
+            rc = TRPMForwardTrap(pVCpu, CPUMCTX2CORE(&pVCpu->cpum.GstCtx), u8TrapNo, uErrorCode, enmError, TRPM_TRAP, -1);
             if (rc == VINF_SUCCESS /* Don't use RT_SUCCESS */)
             {
                 TRPMResetTrap(pVCpu);
@@ -524,11 +523,11 @@ static int emR3RawGuestTrap(PVM pVM, PVMCPU pVCpu)
      * Scan kernel code that traps; we might not get another chance.
      */
     /** @todo move this up before the dispatching? */
-    if (    (pCtx->ss.Sel & X86_SEL_RPL) <= 1
-        &&  !pCtx->eflags.Bits.u1VM)
+    if (    (pVCpu->cpum.GstCtx.ss.Sel & X86_SEL_RPL) <= 1
+        &&  !pVCpu->cpum.GstCtx.eflags.Bits.u1VM)
     {
-        Assert(!PATMIsPatchGCAddr(pVM, pCtx->eip));
-        CSAMR3CheckCodeEx(pVM, pCtx, pCtx->eip);
+        Assert(!PATMIsPatchGCAddr(pVM, pVCpu->cpum.GstCtx.eip));
+        CSAMR3CheckCodeEx(pVM, &pVCpu->cpum.GstCtx, pVCpu->cpum.GstCtx.eip);
     }
 
     /*
@@ -540,7 +539,7 @@ static int emR3RawGuestTrap(PVM pVM, PVMCPU pVCpu)
          * If MONITOR & MWAIT are supported, then interpret them here.
          */
         DISCPUSTATE cpu;
-        rc = CPUMR3DisasmInstrCPU(pVM, pVCpu, pCtx, pCtx->rip, &cpu, "Guest Trap (#UD): ");
+        rc = CPUMR3DisasmInstrCPU(pVM, pVCpu, &pVCpu->cpum.GstCtx, pVCpu->cpum.GstCtx.rip, &cpu, "Guest Trap (#UD): ");
         if (    RT_SUCCESS(rc)
             && (cpu.pCurInstr->uOpcode == OP_MONITOR || cpu.pCurInstr->uOpcode == OP_MWAIT))
         {
@@ -551,7 +550,8 @@ static int emR3RawGuestTrap(PVM pVM, PVMCPU pVCpu)
                 rc = TRPMResetTrap(pVCpu);
                 AssertRC(rc);
 
-                rc = VBOXSTRICTRC_TODO(EMInterpretInstructionDisasState(pVCpu, &cpu, CPUMCTX2CORE(pCtx), 0, EMCODETYPE_SUPERVISOR));
+                rc = VBOXSTRICTRC_TODO(EMInterpretInstructionDisasState(pVCpu, &cpu, CPUMCTX2CORE(&pVCpu->cpum.GstCtx),
+                                                                        0, EMCODETYPE_SUPERVISOR));
                 if (RT_SUCCESS(rc))
                     return rc;
                 return emR3RawExecuteInstruction(pVM, pVCpu, "Monitor: ");
@@ -566,7 +566,7 @@ static int emR3RawGuestTrap(PVM pVM, PVMCPU pVCpu)
         /** @todo We're not supposed to be here with a false guest trap concerning
          *        I/O access. We can easily handle those in RC.  */
         DISCPUSTATE cpu;
-        rc = CPUMR3DisasmInstrCPU(pVM, pVCpu, pCtx, pCtx->rip, &cpu, "Guest Trap: ");
+        rc = CPUMR3DisasmInstrCPU(pVM, pVCpu, &pVCpu->cpum.GstCtx, pVCpu->cpum.GstCtx.rip, &cpu, "Guest Trap: ");
         if (    RT_SUCCESS(rc)
             &&  (cpu.pCurInstr->fOpType & DISOPTYPE_PORTIO))
         {
@@ -589,7 +589,7 @@ static int emR3RawGuestTrap(PVM pVM, PVMCPU pVCpu)
     RTGCPHYS    GCPhys = 0;
     int rc2 = PGMGstGetPage(pVCpu, uCR2, &fFlags, &GCPhys);
     Log(("emR3RawGuestTrap: cs:eip=%04x:%08x: trap=%02x err=%08x cr2=%08x cr0=%08x%s: Phys=%RGp fFlags=%08llx %s %s %s%s rc2=%d\n",
-         pCtx->cs.Sel, pCtx->eip, u8TrapNo, uErrorCode, uCR2, (uint32_t)pCtx->cr0,
+         pVCpu->cpum.GstCtx.cs.Sel, pVCpu->cpum.GstCtx.eip, u8TrapNo, uErrorCode, uCR2, (uint32_t)pVCpu->cpum.GstCtx.cr0,
          (enmType == TRPM_SOFTWARE_INT) ? " software" : "",  GCPhys, fFlags,
          fFlags & X86_PTE_P  ? "P " : "NP", fFlags & X86_PTE_US ? "U"  : "S",
          fFlags & X86_PTE_RW ? "RW" : "R0", fFlags & X86_PTE_G  ? " G" : "", rc2));
@@ -600,7 +600,7 @@ static int emR3RawGuestTrap(PVM pVM, PVMCPU pVCpu)
      * (Because of stuff like above we must set CR2 in a delayed fashion.)
      */
     if (u8TrapNo == 14 /* #PG */)
-        pCtx->cr2 = uCR2;
+        pVCpu->cpum.GstCtx.cr2 = uCR2;
 
     return VINF_EM_RESCHEDULE_REM;
 }
@@ -618,19 +618,18 @@ static int emR3RawRingSwitch(PVM pVM, PVMCPU pVCpu)
 {
     int         rc;
     DISCPUSTATE Cpu;
-    PCPUMCTX    pCtx = pVCpu->em.s.pCtx;
 
     /*
      * sysenter, syscall & callgate
      */
-    rc = CPUMR3DisasmInstrCPU(pVM, pVCpu, pCtx, pCtx->rip, &Cpu, "RSWITCH: ");
+    rc = CPUMR3DisasmInstrCPU(pVM, pVCpu, &pVCpu->cpum.GstCtx, pVCpu->cpum.GstCtx.rip, &Cpu, "RSWITCH: ");
     if (RT_SUCCESS(rc))
     {
         if (Cpu.pCurInstr->uOpcode == OP_SYSENTER)
         {
-            if (pCtx->SysEnter.cs != 0)
+            if (pVCpu->cpum.GstCtx.SysEnter.cs != 0)
             {
-                rc = PATMR3InstallPatch(pVM, SELMToFlat(pVM, DISSELREG_CS, CPUMCTX2CORE(pCtx), pCtx->eip),
+                rc = PATMR3InstallPatch(pVM, SELMToFlat(pVM, DISSELREG_CS, CPUMCTX2CORE(&pVCpu->cpum.GstCtx), pVCpu->cpum.GstCtx.eip),
                                         CPUMGetGuestCodeBits(pVCpu) == 32 ? PATMFL_CODE32 : 0);
                 if (RT_SUCCESS(rc))
                 {
@@ -672,10 +671,9 @@ static int emR3RawRingSwitch(PVM pVM, PVMCPU pVCpu)
  * @returns VBox status code suitable for EM.
  * @param   pVM     The cross context VM structure.
  * @param   pVCpu   The cross context virtual CPU structure.
- * @param   pCtx    Pointer to the guest CPU context.
  * @param   gcret   GC return code.
  */
-static int emR3RawPatchTrap(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int gcret)
+static int emR3RawPatchTrap(PVM pVM, PVMCPU pVCpu, int gcret)
 {
     uint8_t         u8TrapNo;
     int             rc;
@@ -683,7 +681,7 @@ static int emR3RawPatchTrap(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int gcret)
     RTGCUINT        uErrorCode;
     RTGCUINTPTR     uCR2;
 
-    Assert(PATMIsPatchGCAddr(pVM, pCtx->eip));
+    Assert(PATMIsPatchGCAddr(pVM, pVCpu->cpum.GstCtx.eip));
 
     if (gcret == VINF_PATM_PATCH_INT3)
     {
@@ -721,16 +719,16 @@ static int emR3RawPatchTrap(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int gcret)
         DBGFR3_DISAS_INSTR_CUR_LOG(pVCpu, "Patch code");
 
         DISCPUSTATE Cpu;
-        rc = CPUMR3DisasmInstrCPU(pVM, pVCpu, pCtx, pCtx->eip, &Cpu, "Patch code: ");
+        rc = CPUMR3DisasmInstrCPU(pVM, pVCpu, &pVCpu->cpum.GstCtx, pVCpu->cpum.GstCtx.eip, &Cpu, "Patch code: ");
         if (    RT_SUCCESS(rc)
             &&  Cpu.pCurInstr->uOpcode == OP_IRET)
         {
             uint32_t eip, selCS, uEFlags;
 
             /* Iret crashes are bad as we have already changed the flags on the stack */
-            rc  = PGMPhysSimpleReadGCPtr(pVCpu, &eip,     pCtx->esp, 4);
-            rc |= PGMPhysSimpleReadGCPtr(pVCpu, &selCS,   pCtx->esp+4, 4);
-            rc |= PGMPhysSimpleReadGCPtr(pVCpu, &uEFlags, pCtx->esp+8, 4);
+            rc  = PGMPhysSimpleReadGCPtr(pVCpu, &eip,     pVCpu->cpum.GstCtx.esp, 4);
+            rc |= PGMPhysSimpleReadGCPtr(pVCpu, &selCS,   pVCpu->cpum.GstCtx.esp+4, 4);
+            rc |= PGMPhysSimpleReadGCPtr(pVCpu, &uEFlags, pVCpu->cpum.GstCtx.esp+8, 4);
             if (rc == VINF_SUCCESS)
             {
                 if (    (uEFlags & X86_EFL_VM)
@@ -738,16 +736,16 @@ static int emR3RawPatchTrap(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int gcret)
                 {
                     uint32_t selSS, esp;
 
-                    rc |= PGMPhysSimpleReadGCPtr(pVCpu, &esp,     pCtx->esp + 12, 4);
-                    rc |= PGMPhysSimpleReadGCPtr(pVCpu, &selSS,   pCtx->esp + 16, 4);
+                    rc |= PGMPhysSimpleReadGCPtr(pVCpu, &esp,     pVCpu->cpum.GstCtx.esp + 12, 4);
+                    rc |= PGMPhysSimpleReadGCPtr(pVCpu, &selSS,   pVCpu->cpum.GstCtx.esp + 16, 4);
 
                     if (uEFlags & X86_EFL_VM)
                     {
                         uint32_t selDS, selES, selFS, selGS;
-                        rc  = PGMPhysSimpleReadGCPtr(pVCpu, &selES,   pCtx->esp + 20, 4);
-                        rc |= PGMPhysSimpleReadGCPtr(pVCpu, &selDS,   pCtx->esp + 24, 4);
-                        rc |= PGMPhysSimpleReadGCPtr(pVCpu, &selFS,   pCtx->esp + 28, 4);
-                        rc |= PGMPhysSimpleReadGCPtr(pVCpu, &selGS,   pCtx->esp + 32, 4);
+                        rc  = PGMPhysSimpleReadGCPtr(pVCpu, &selES,   pVCpu->cpum.GstCtx.esp + 20, 4);
+                        rc |= PGMPhysSimpleReadGCPtr(pVCpu, &selDS,   pVCpu->cpum.GstCtx.esp + 24, 4);
+                        rc |= PGMPhysSimpleReadGCPtr(pVCpu, &selFS,   pVCpu->cpum.GstCtx.esp + 28, 4);
+                        rc |= PGMPhysSimpleReadGCPtr(pVCpu, &selGS,   pVCpu->cpum.GstCtx.esp + 32, 4);
                         if (rc == VINF_SUCCESS)
                         {
                             Log(("Patch code: IRET->VM stack frame: return address %04X:%08RX32 eflags=%08x ss:esp=%04X:%08RX32\n", selCS, eip, uEFlags, selSS, esp));
@@ -763,10 +761,10 @@ static int emR3RawPatchTrap(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int gcret)
         }
 #endif /* LOG_ENABLED */
         Log(("emR3RawPatchTrap: in patch: eip=%08x: trap=%02x err=%08x cr2=%08x cr0=%08x\n",
-             pCtx->eip, u8TrapNo, uErrorCode, uCR2, (uint32_t)pCtx->cr0));
+             pVCpu->cpum.GstCtx.eip, u8TrapNo, uErrorCode, uCR2, (uint32_t)pVCpu->cpum.GstCtx.cr0));
 
         RTGCPTR uNewEip;
-        rc = PATMR3HandleTrap(pVM, pCtx, pCtx->eip, &uNewEip);
+        rc = PATMR3HandleTrap(pVM, &pVCpu->cpum.GstCtx, pVCpu->cpum.GstCtx.eip, &uNewEip);
         switch (rc)
         {
             /*
@@ -779,20 +777,20 @@ static int emR3RawPatchTrap(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int gcret)
                 if (!(pVCpu->em.s.pPatmGCState->uVMFlags & X86_EFL_IF))
                     Log(("emR3RawPatchTrap: Virtual IF flag disabled!!\n"));
 
-                pCtx->eip = uNewEip;
-                AssertRelease(pCtx->eip);
+                pVCpu->cpum.GstCtx.eip = uNewEip;
+                AssertRelease(pVCpu->cpum.GstCtx.eip);
 
-                if (pCtx->eflags.Bits.u1IF)
+                if (pVCpu->cpum.GstCtx.eflags.Bits.u1IF)
                 {
                     /* Windows XP lets irets fault intentionally and then takes action based on the opcode; an
                      * int3 patch overwrites it and leads to blue screens. Remove the patch in this case.
                      */
                     if (    u8TrapNo == X86_XCPT_GP
-                        &&  PATMIsInt3Patch(pVM, pCtx->eip, NULL, NULL))
+                        &&  PATMIsInt3Patch(pVM, pVCpu->cpum.GstCtx.eip, NULL, NULL))
                     {
                         /** @todo move to PATMR3HandleTrap */
-                        Log(("Possible Windows XP iret fault at %08RX32\n", pCtx->eip));
-                        PATMR3RemovePatch(pVM, pCtx->eip);
+                        Log(("Possible Windows XP iret fault at %08RX32\n", pVCpu->cpum.GstCtx.eip));
+                        PATMR3RemovePatch(pVM, pVCpu->cpum.GstCtx.eip);
                     }
 
                     /** @todo Knoppix 5 regression when returning VINF_SUCCESS here and going back to raw mode. */
@@ -810,9 +808,9 @@ static int emR3RawPatchTrap(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int gcret)
              */
             case VINF_PATCH_EMULATE_INSTR:
                 Log(("emR3RawPatchTrap: Emulate patched instruction at %RGv IF=%d VMIF=%x\n",
-                     uNewEip, pCtx->eflags.Bits.u1IF, pVCpu->em.s.pPatmGCState->uVMFlags));
-                pCtx->eip = uNewEip;
-                AssertRelease(pCtx->eip);
+                     uNewEip, pVCpu->cpum.GstCtx.eflags.Bits.u1IF, pVCpu->em.s.pPatmGCState->uVMFlags));
+                pVCpu->cpum.GstCtx.eip = uNewEip;
+                AssertRelease(pVCpu->cpum.GstCtx.eip);
                 return emR3RawExecuteInstruction(pVM, pVCpu, "PATCHEMUL: ");
 
             /*
@@ -821,10 +819,10 @@ static int emR3RawPatchTrap(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int gcret)
             case VERR_PATCH_DISABLED:
                 if (!(pVCpu->em.s.pPatmGCState->uVMFlags & X86_EFL_IF))
                     Log(("emR3RawPatchTrap: Virtual IF flag disabled!!\n"));
-                pCtx->eip = uNewEip;
-                AssertRelease(pCtx->eip);
+                pVCpu->cpum.GstCtx.eip = uNewEip;
+                AssertRelease(pVCpu->cpum.GstCtx.eip);
 
-                if (pCtx->eflags.Bits.u1IF)
+                if (pVCpu->cpum.GstCtx.eflags.Bits.u1IF)
                 {
                     /*
                      * The last instruction in the patch block needs to be executed!! (sti/sysexit for example)
@@ -859,28 +857,26 @@ static int emR3RawPatchTrap(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int gcret)
  */
 static int emR3RawPrivileged(PVM pVM, PVMCPU pVCpu)
 {
-    PCPUMCTX    pCtx = pVCpu->em.s.pCtx;
-
-    Assert(!pCtx->eflags.Bits.u1VM);
+    Assert(!pVCpu->cpum.GstCtx.eflags.Bits.u1VM);
 
     if (PATMIsEnabled(pVM))
     {
         /*
          * Check if in patch code.
          */
-        if (PATMR3IsInsidePatchJump(pVM, pCtx->eip, NULL))
+        if (PATMR3IsInsidePatchJump(pVM, pVCpu->cpum.GstCtx.eip, NULL))
         {
 #ifdef LOG_ENABLED
             DBGFR3_INFO_LOG(pVM, pVCpu, "cpumguest", "PRIV");
 #endif
-            AssertMsgFailed(("FATAL ERROR: executing random instruction inside generated patch jump %08x\n", pCtx->eip));
+            AssertMsgFailed(("FATAL ERROR: executing random instruction inside generated patch jump %08x\n", pVCpu->cpum.GstCtx.eip));
             return VERR_EM_RAW_PATCH_CONFLICT;
         }
-        if (   (pCtx->ss.Sel & X86_SEL_RPL) == 0
-            && !pCtx->eflags.Bits.u1VM
-            && !PATMIsPatchGCAddr(pVM, pCtx->eip))
+        if (   (pVCpu->cpum.GstCtx.ss.Sel & X86_SEL_RPL) == 0
+            && !pVCpu->cpum.GstCtx.eflags.Bits.u1VM
+            && !PATMIsPatchGCAddr(pVM, pVCpu->cpum.GstCtx.eip))
         {
-            int rc = PATMR3InstallPatch(pVM, SELMToFlat(pVM, DISSELREG_CS, CPUMCTX2CORE(pCtx), pCtx->eip),
+            int rc = PATMR3InstallPatch(pVM, SELMToFlat(pVM, DISSELREG_CS, CPUMCTX2CORE(&pVCpu->cpum.GstCtx), pVCpu->cpum.GstCtx.eip),
                                         CPUMGetGuestCodeBits(pVCpu) == 32 ? PATMFL_CODE32 : 0);
             if (RT_SUCCESS(rc))
             {
@@ -894,7 +890,7 @@ static int emR3RawPrivileged(PVM pVM, PVMCPU pVCpu)
     }
 
 #ifdef LOG_ENABLED
-    if (!PATMIsPatchGCAddr(pVM, pCtx->eip))
+    if (!PATMIsPatchGCAddr(pVM, pVCpu->cpum.GstCtx.eip))
     {
         DBGFR3_INFO_LOG(pVM, pVCpu, "cpumguest", "PRIV");
         DBGFR3_DISAS_INSTR_CUR_LOG(pVCpu, "Privileged instr");
@@ -907,7 +903,7 @@ static int emR3RawPrivileged(PVM pVM, PVMCPU pVCpu)
     DISCPUSTATE Cpu;
     int         rc;
 
-    rc = CPUMR3DisasmInstrCPU(pVM, pVCpu, pCtx, pCtx->rip, &Cpu, "PRIV: ");
+    rc = CPUMR3DisasmInstrCPU(pVM, pVCpu, &pVCpu->cpum.GstCtx, pVCpu->cpum.GstCtx.rip, &Cpu, "PRIV: ");
     if (RT_SUCCESS(rc))
     {
 #ifdef VBOX_WITH_STATISTICS
@@ -922,7 +918,7 @@ static int emR3RawPrivileged(PVM pVM, PVMCPU pVCpu)
                 break;
             case OP_CLI:
                 STAM_COUNTER_INC(&pStats->StatCli);
-                emR3RecordCli(pVM, pVCpu, pCtx->rip);
+                emR3RecordCli(pVM, pVCpu, pVCpu->cpum.GstCtx.rip);
                 break;
             case OP_STI:
                 STAM_COUNTER_INC(&pStats->StatSti);
@@ -986,48 +982,48 @@ static int emR3RawPrivileged(PVM pVM, PVMCPU pVCpu)
                 break;
         }
 #endif /* VBOX_WITH_STATISTICS */
-        if (    (pCtx->ss.Sel & X86_SEL_RPL) == 0
-            &&  !pCtx->eflags.Bits.u1VM
+        if (    (pVCpu->cpum.GstCtx.ss.Sel & X86_SEL_RPL) == 0
+            &&  !pVCpu->cpum.GstCtx.eflags.Bits.u1VM
             &&  CPUMGetGuestCodeBits(pVCpu) == 32)
         {
             STAM_PROFILE_START(&pVCpu->em.s.StatPrivEmu, a);
             switch (Cpu.pCurInstr->uOpcode)
             {
                 case OP_CLI:
-                    pCtx->eflags.u32 &= ~X86_EFL_IF;
+                    pVCpu->cpum.GstCtx.eflags.u32 &= ~X86_EFL_IF;
                     Assert(Cpu.cbInstr == 1);
-                    pCtx->rip += Cpu.cbInstr;
+                    pVCpu->cpum.GstCtx.rip += Cpu.cbInstr;
                     STAM_PROFILE_STOP(&pVCpu->em.s.StatPrivEmu, a);
                     return VINF_EM_RESCHEDULE_REM; /* must go to the recompiler now! */
 
                 case OP_STI:
-                    pCtx->eflags.u32 |= X86_EFL_IF;
-                    EMSetInhibitInterruptsPC(pVCpu, pCtx->rip + Cpu.cbInstr);
+                    pVCpu->cpum.GstCtx.eflags.u32 |= X86_EFL_IF;
+                    EMSetInhibitInterruptsPC(pVCpu, pVCpu->cpum.GstCtx.rip + Cpu.cbInstr);
                     Assert(Cpu.cbInstr == 1);
-                    pCtx->rip += Cpu.cbInstr;
+                    pVCpu->cpum.GstCtx.rip += Cpu.cbInstr;
                     STAM_PROFILE_STOP(&pVCpu->em.s.StatPrivEmu, a);
                     return VINF_SUCCESS;
 
                 case OP_HLT:
-                    if (PATMIsPatchGCAddr(pVM, pCtx->eip))
+                    if (PATMIsPatchGCAddr(pVM, pVCpu->cpum.GstCtx.eip))
                     {
                         PATMTRANSSTATE  enmState;
-                        RTGCPTR         pOrgInstrGC = PATMR3PatchToGCPtr(pVM, pCtx->eip, &enmState);
+                        RTGCPTR         pOrgInstrGC = PATMR3PatchToGCPtr(pVM, pVCpu->cpum.GstCtx.eip, &enmState);
 
                         if (enmState == PATMTRANS_OVERWRITTEN)
                         {
                             rc = PATMR3DetectConflict(pVM, pOrgInstrGC, pOrgInstrGC);
                             Assert(rc == VERR_PATCH_DISABLED);
                             /* Conflict detected, patch disabled */
-                            Log(("emR3RawPrivileged: detected conflict -> disabled patch at %08RX32\n", pCtx->eip));
+                            Log(("emR3RawPrivileged: detected conflict -> disabled patch at %08RX32\n", pVCpu->cpum.GstCtx.eip));
 
                             enmState = PATMTRANS_SAFE;
                         }
 
                         /* The translation had better be successful. Otherwise we can't recover. */
-                        AssertReleaseMsg(pOrgInstrGC && enmState != PATMTRANS_OVERWRITTEN, ("Unable to translate instruction address at %08RX32\n", pCtx->eip));
+                        AssertReleaseMsg(pOrgInstrGC && enmState != PATMTRANS_OVERWRITTEN, ("Unable to translate instruction address at %08RX32\n", pVCpu->cpum.GstCtx.eip));
                         if (enmState != PATMTRANS_OVERWRITTEN)
-                            pCtx->eip = pOrgInstrGC;
+                            pVCpu->cpum.GstCtx.eip = pOrgInstrGC;
                     }
                     /* no break; we could just return VINF_EM_HALT here */
                     RT_FALL_THRU();
@@ -1035,14 +1031,15 @@ static int emR3RawPrivileged(PVM pVM, PVMCPU pVCpu)
                 case OP_MOV_CR:
                 case OP_MOV_DR:
 #ifdef LOG_ENABLED
-                    if (PATMIsPatchGCAddr(pVM, pCtx->eip))
+                    if (PATMIsPatchGCAddr(pVM, pVCpu->cpum.GstCtx.eip))
                     {
                         DBGFR3_INFO_LOG(pVM, pVCpu, "cpumguest", "PRIV");
                         DBGFR3_DISAS_INSTR_CUR_LOG(pVCpu, "Privileged instr");
                     }
 #endif
 
-                    rc = VBOXSTRICTRC_TODO(EMInterpretInstructionDisasState(pVCpu, &Cpu, CPUMCTX2CORE(pCtx), 0, EMCODETYPE_SUPERVISOR));
+                    rc = VBOXSTRICTRC_TODO(EMInterpretInstructionDisasState(pVCpu, &Cpu, CPUMCTX2CORE(&pVCpu->cpum.GstCtx),
+                                                                            0, EMCODETYPE_SUPERVISOR));
                     if (RT_SUCCESS(rc))
                     {
                         STAM_PROFILE_STOP(&pVCpu->em.s.StatPrivEmu, a);
@@ -1054,25 +1051,25 @@ static int emR3RawPrivileged(PVM pVM, PVMCPU pVCpu)
                             /* Deal with CR0 updates inside patch code that force
                              * us to go to the recompiler.
                              */
-                            if (   PATMIsPatchGCAddr(pVM, pCtx->rip)
-                                && (pCtx->cr0 & (X86_CR0_WP|X86_CR0_PG|X86_CR0_PE)) != (X86_CR0_WP|X86_CR0_PG|X86_CR0_PE))
+                            if (   PATMIsPatchGCAddr(pVM, pVCpu->cpum.GstCtx.rip)
+                                && (pVCpu->cpum.GstCtx.cr0 & (X86_CR0_WP|X86_CR0_PG|X86_CR0_PE)) != (X86_CR0_WP|X86_CR0_PG|X86_CR0_PE))
                             {
                                 PATMTRANSSTATE  enmState;
-                                RTGCPTR         pOrgInstrGC = PATMR3PatchToGCPtr(pVM, pCtx->rip, &enmState);
+                                RTGCPTR         pOrgInstrGC = PATMR3PatchToGCPtr(pVM, pVCpu->cpum.GstCtx.rip, &enmState);
 
-                                Log(("Force recompiler switch due to cr0 (%RGp) update rip=%RGv -> %RGv (enmState=%d)\n", pCtx->cr0, pCtx->rip, pOrgInstrGC, enmState));
+                                Log(("Force recompiler switch due to cr0 (%RGp) update rip=%RGv -> %RGv (enmState=%d)\n", pVCpu->cpum.GstCtx.cr0, pVCpu->cpum.GstCtx.rip, pOrgInstrGC, enmState));
                                 if (enmState == PATMTRANS_OVERWRITTEN)
                                 {
                                     rc = PATMR3DetectConflict(pVM, pOrgInstrGC, pOrgInstrGC);
                                     Assert(rc == VERR_PATCH_DISABLED);
                                     /* Conflict detected, patch disabled */
-                                    Log(("emR3RawPrivileged: detected conflict -> disabled patch at %RGv\n", (RTGCPTR)pCtx->rip));
+                                    Log(("emR3RawPrivileged: detected conflict -> disabled patch at %RGv\n", (RTGCPTR)pVCpu->cpum.GstCtx.rip));
                                     enmState = PATMTRANS_SAFE;
                                 }
                                 /* The translation had better be successful. Otherwise we can't recover. */
-                                AssertReleaseMsg(pOrgInstrGC && enmState != PATMTRANS_OVERWRITTEN, ("Unable to translate instruction address at %RGv\n", (RTGCPTR)pCtx->rip));
+                                AssertReleaseMsg(pOrgInstrGC && enmState != PATMTRANS_OVERWRITTEN, ("Unable to translate instruction address at %RGv\n", (RTGCPTR)pVCpu->cpum.GstCtx.rip));
                                 if (enmState != PATMTRANS_OVERWRITTEN)
-                                    pCtx->rip = pOrgInstrGC;
+                                    pVCpu->cpum.GstCtx.rip = pOrgInstrGC;
                             }
 
                             /* Reschedule is necessary as the execution/paging mode might have changed. */
@@ -1087,8 +1084,8 @@ static int emR3RawPrivileged(PVM pVM, PVMCPU pVCpu)
         }
     }
 
-    if (PATMIsPatchGCAddr(pVM, pCtx->eip))
-        return emR3RawPatchTrap(pVM, pVCpu, pCtx, VINF_PATM_PATCH_TRAP_GP);
+    if (PATMIsPatchGCAddr(pVM, pVCpu->cpum.GstCtx.eip))
+        return emR3RawPatchTrap(pVM, pVCpu, VINF_PATM_PATCH_TRAP_GP);
 
     return emR3RawExecuteInstruction(pVM, pVCpu, "PRIV");
 }
@@ -1109,12 +1106,11 @@ static int emR3RawPrivileged(PVM pVM, PVMCPU pVCpu)
  *
  * @param   pVM     The cross context VM structure.
  * @param   pVCpu   The cross context virtual CPU structure.
- * @param   pCtx    Pointer to the guest CPU context.
  * @param   rc      The result code.
  */
-int emR3RawUpdateForceFlag(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
+static int emR3RawUpdateForceFlag(PVM pVM, PVMCPU pVCpu, int rc)
 {
-    if (PATMIsPatchGCAddr(pVM, pCtx->eip)) /** @todo check cs selector base/type */
+    if (PATMIsPatchGCAddr(pVM, pVCpu->cpum.GstCtx.eip)) /** @todo check cs selector base/type */
     {
         /* ignore reschedule attempts. */
         switch (rc)
@@ -1143,7 +1139,7 @@ int emR3RawUpdateForceFlag(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
  */
 VMMR3_INT_DECL(int) EMR3CheckRawForcedActions(PVM pVM, PVMCPU pVCpu)
 {
-    int rc = emR3RawForcedActions(pVM, pVCpu, pVCpu->em.s.pCtx);
+    int rc = emR3RawForcedActions(pVM, pVCpu);
     VBOXVMM_EM_FF_RAW_RET(pVCpu, rc);
     return rc;
 }
@@ -1158,9 +1154,8 @@ VMMR3_INT_DECL(int) EMR3CheckRawForcedActions(PVM pVM, PVMCPU pVCpu)
  *          EM statuses.
  * @param   pVM         The cross context VM structure.
  * @param   pVCpu       The cross context virtual CPU structure.
- * @param   pCtx        Pointer to the guest CPU context.
  */
-static int emR3RawForcedActions(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
+static int emR3RawForcedActions(PVM pVM, PVMCPU pVCpu)
 {
     /*
      * Note that the order is *vitally* important!
@@ -1171,7 +1166,7 @@ static int emR3RawForcedActions(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
     /*
      * Sync selector tables.
      */
-    if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_SELM_SYNC_GDT | VMCPU_FF_SELM_SYNC_LDT))
+    if (VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_SELM_SYNC_GDT | VMCPU_FF_SELM_SYNC_LDT))
     {
         VBOXSTRICTRC rcStrict = SELMR3UpdateFromCPUM(pVM, pVCpu);
         if (rcStrict != VINF_SUCCESS)
@@ -1185,13 +1180,13 @@ static int emR3RawForcedActions(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
      * and PGMShwModifyPage, so we're in for trouble if for instance a
      * PGMSyncCR3+pgmR3PoolClearAll is pending.
      */
-    if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_TRPM_SYNC_IDT))
+    if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_TRPM_SYNC_IDT))
     {
-        if (   VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_PGM_SYNC_CR3)
+        if (   VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3)
             && EMIsRawRing0Enabled(pVM)
             && CSAMIsEnabled(pVM))
         {
-            int rc = PGMSyncCR3(pVCpu, pCtx->cr0, pCtx->cr3, pCtx->cr4, VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3));
+            int rc = PGMSyncCR3(pVCpu, pVCpu->cpum.GstCtx.cr0, pVCpu->cpum.GstCtx.cr3, pVCpu->cpum.GstCtx.cr4, VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3));
             if (RT_FAILURE(rc))
                 return rc;
         }
@@ -1204,7 +1199,7 @@ static int emR3RawForcedActions(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
     /*
      * Sync TSS.
      */
-    if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_SELM_SYNC_TSS))
+    if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_SELM_SYNC_TSS))
     {
         int rc = SELMR3SyncTSS(pVM, pVCpu);
         if (RT_FAILURE(rc))
@@ -1214,20 +1209,20 @@ static int emR3RawForcedActions(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
     /*
      * Sync page directory.
      */
-    if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_PGM_SYNC_CR3 | VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL))
+    if (VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3 | VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL))
     {
         Assert(pVCpu->em.s.enmState != EMSTATE_WAIT_SIPI);
-        int rc = PGMSyncCR3(pVCpu, pCtx->cr0, pCtx->cr3, pCtx->cr4, VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3));
+        int rc = PGMSyncCR3(pVCpu, pVCpu->cpum.GstCtx.cr0, pVCpu->cpum.GstCtx.cr3, pVCpu->cpum.GstCtx.cr4, VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3));
         if (RT_FAILURE(rc))
             return rc == VERR_PGM_NO_HYPERVISOR_ADDRESS ? VINF_EM_RESCHEDULE_REM : rc;
 
-        Assert(!VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_SELM_SYNC_GDT | VMCPU_FF_SELM_SYNC_LDT));
+        Assert(!VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_SELM_SYNC_GDT | VMCPU_FF_SELM_SYNC_LDT));
 
         /* Prefetch pages for EIP and ESP. */
         /** @todo This is rather expensive. Should investigate if it really helps at all. */
-        rc = PGMPrefetchPage(pVCpu, SELMToFlat(pVM, DISSELREG_CS, CPUMCTX2CORE(pCtx), pCtx->rip));
+        rc = PGMPrefetchPage(pVCpu, SELMToFlat(pVM, DISSELREG_CS, CPUMCTX2CORE(&pVCpu->cpum.GstCtx), pVCpu->cpum.GstCtx.rip));
         if (rc == VINF_SUCCESS)
-            rc = PGMPrefetchPage(pVCpu, SELMToFlat(pVM, DISSELREG_SS, CPUMCTX2CORE(pCtx), pCtx->rsp));
+            rc = PGMPrefetchPage(pVCpu, SELMToFlat(pVM, DISSELREG_SS, CPUMCTX2CORE(&pVCpu->cpum.GstCtx), pVCpu->cpum.GstCtx.rsp));
         if (rc != VINF_SUCCESS)
         {
             if (rc != VINF_PGM_SYNC_CR3)
@@ -1235,12 +1230,12 @@ static int emR3RawForcedActions(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
                 AssertLogRelMsgReturn(RT_FAILURE(rc), ("%Rrc\n", rc), VERR_IPE_UNEXPECTED_INFO_STATUS);
                 return rc;
             }
-            rc = PGMSyncCR3(pVCpu, pCtx->cr0, pCtx->cr3, pCtx->cr4, VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3));
+            rc = PGMSyncCR3(pVCpu, pVCpu->cpum.GstCtx.cr0, pVCpu->cpum.GstCtx.cr3, pVCpu->cpum.GstCtx.cr4, VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3));
             if (RT_FAILURE(rc))
                 return rc;
         }
         /** @todo maybe prefetch the supervisor stack page as well */
-        Assert(!VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_SELM_SYNC_GDT | VMCPU_FF_SELM_SYNC_LDT));
+        Assert(!VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_SELM_SYNC_GDT | VMCPU_FF_SELM_SYNC_LDT));
     }
 
     /*
@@ -1260,7 +1255,7 @@ static int emR3RawForcedActions(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
      * since we ran FFs. The allocate handy pages must for instance always be followed by
      * this check.
      */
-    if (VM_FF_IS_PENDING(pVM, VM_FF_PGM_NO_MEMORY))
+    if (VM_FF_IS_SET(pVM, VM_FF_PGM_NO_MEMORY))
         return VINF_EM_NO_MEMORY;
 
     return VINF_SUCCESS;
@@ -1286,8 +1281,7 @@ int emR3RawExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone)
     STAM_REL_PROFILE_ADV_START(&pVCpu->em.s.StatRAWTotal, a);
 
     int      rc = VERR_IPE_UNINITIALIZED_STATUS;
-    PCPUMCTX pCtx = pVCpu->em.s.pCtx;
-    LogFlow(("emR3RawExecute: (cs:eip=%04x:%08x)\n", pCtx->cs.Sel, pCtx->eip));
+    LogFlow(("emR3RawExecute: (cs:eip=%04x:%08x)\n", pVCpu->cpum.GstCtx.cs.Sel, pVCpu->cpum.GstCtx.eip));
     pVCpu->em.s.fForceRAW = false;
     *pfFFDone = false;
 
@@ -1306,12 +1300,12 @@ int emR3RawExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone)
          * Check various preconditions.
          */
 #ifdef VBOX_STRICT
-        Assert(pCtx->eflags.Bits.u1VM || (pCtx->ss.Sel & X86_SEL_RPL) == 3 || (pCtx->ss.Sel & X86_SEL_RPL) == 0
-               || (EMIsRawRing1Enabled(pVM) && (pCtx->ss.Sel & X86_SEL_RPL) == 1));
-        AssertMsg(   (pCtx->eflags.u32 & X86_EFL_IF)
-                  || PATMShouldUseRawMode(pVM, (RTGCPTR)pCtx->eip),
-                  ("Tried to execute code with IF at EIP=%08x!\n", pCtx->eip));
-        if (    !VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_PGM_SYNC_CR3 | VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL)
+        Assert(pVCpu->cpum.GstCtx.eflags.Bits.u1VM || (pVCpu->cpum.GstCtx.ss.Sel & X86_SEL_RPL) == 3 || (pVCpu->cpum.GstCtx.ss.Sel & X86_SEL_RPL) == 0
+               || (EMIsRawRing1Enabled(pVM) && (pVCpu->cpum.GstCtx.ss.Sel & X86_SEL_RPL) == 1));
+        AssertMsg(   (pVCpu->cpum.GstCtx.eflags.u32 & X86_EFL_IF)
+                  || PATMShouldUseRawMode(pVM, (RTGCPTR)pVCpu->cpum.GstCtx.eip),
+                  ("Tried to execute code with IF at EIP=%08x!\n", pVCpu->cpum.GstCtx.eip));
+        if (    !VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3 | VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL)
             &&  PGMMapHasConflicts(pVM))
         {
             PGMMapCheck(pVM);
@@ -1323,10 +1317,10 @@ int emR3RawExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone)
         /*
          * Process high priority pre-execution raw-mode FFs.
          */
-        if (    VM_FF_IS_PENDING(pVM, VM_FF_HIGH_PRIORITY_PRE_RAW_MASK)
-            ||  VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_HIGH_PRIORITY_PRE_RAW_MASK))
+        if (    VM_FF_IS_ANY_SET(pVM, VM_FF_HIGH_PRIORITY_PRE_RAW_MASK)
+            ||  VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_HIGH_PRIORITY_PRE_RAW_MASK))
         {
-            rc = emR3RawForcedActions(pVM, pVCpu, pCtx);
+            rc = emR3RawForcedActions(pVM, pVCpu);
             VBOXVMM_EM_FF_RAW_RET(pVCpu, rc);
             if (rc != VINF_SUCCESS)
                 break;
@@ -1347,17 +1341,17 @@ int emR3RawExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone)
         /*
          * Scan code before executing it. Don't bother with user mode or V86 code
          */
-        if (    (pCtx->ss.Sel & X86_SEL_RPL) <= 1
-            &&  !pCtx->eflags.Bits.u1VM
-            && !PATMIsPatchGCAddr(pVM, pCtx->eip))
+        if (    (pVCpu->cpum.GstCtx.ss.Sel & X86_SEL_RPL) <= 1
+            &&  !pVCpu->cpum.GstCtx.eflags.Bits.u1VM
+            && !PATMIsPatchGCAddr(pVM, pVCpu->cpum.GstCtx.eip))
         {
             STAM_PROFILE_ADV_SUSPEND(&pVCpu->em.s.StatRAWEntry, b);
-            CSAMR3CheckCodeEx(pVM, pCtx, pCtx->eip);
+            CSAMR3CheckCodeEx(pVM, &pVCpu->cpum.GstCtx, pVCpu->cpum.GstCtx.eip);
             STAM_PROFILE_ADV_RESUME(&pVCpu->em.s.StatRAWEntry, b);
-            if (    VM_FF_IS_PENDING(pVM, VM_FF_HIGH_PRIORITY_PRE_RAW_MASK)
-                ||  VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_HIGH_PRIORITY_PRE_RAW_MASK))
+            if (    VM_FF_IS_ANY_SET(pVM, VM_FF_HIGH_PRIORITY_PRE_RAW_MASK)
+                ||  VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_HIGH_PRIORITY_PRE_RAW_MASK))
             {
-                rc = emR3RawForcedActions(pVM, pVCpu, pCtx);
+                rc = emR3RawForcedActions(pVM, pVCpu);
                 VBOXVMM_EM_FF_RAW_RET(pVCpu, rc);
                 if (rc != VINF_SUCCESS)
                 {
@@ -1372,18 +1366,18 @@ int emR3RawExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone)
          * Log important stuff before entering GC.
          */
         PPATMGCSTATE pGCState = PATMR3QueryGCStateHC(pVM);
-        if (pCtx->eflags.Bits.u1VM)
-            Log(("RV86: %04x:%08x IF=%d VMFlags=%x\n", pCtx->cs.Sel, pCtx->eip, pCtx->eflags.Bits.u1IF, pGCState->uVMFlags));
-        else if ((pCtx->ss.Sel & X86_SEL_RPL) == 1)
+        if (pVCpu->cpum.GstCtx.eflags.Bits.u1VM)
+            Log(("RV86: %04x:%08x IF=%d VMFlags=%x\n", pVCpu->cpum.GstCtx.cs.Sel, pVCpu->cpum.GstCtx.eip, pVCpu->cpum.GstCtx.eflags.Bits.u1IF, pGCState->uVMFlags));
+        else if ((pVCpu->cpum.GstCtx.ss.Sel & X86_SEL_RPL) == 1)
             Log(("RR0: %x:%08x ESP=%x:%08x EFL=%x IF=%d/%d VMFlags=%x PIF=%d CPL=%d (Scanned=%d)\n",
-                 pCtx->cs.Sel, pCtx->eip, pCtx->ss.Sel, pCtx->esp, CPUMRawGetEFlags(pVCpu), !!(pGCState->uVMFlags & X86_EFL_IF), pCtx->eflags.Bits.u1IF,
-                 pGCState->uVMFlags, pGCState->fPIF, (pCtx->ss.Sel & X86_SEL_RPL), CSAMIsPageScanned(pVM, (RTGCPTR)pCtx->eip)));
+                 pVCpu->cpum.GstCtx.cs.Sel, pVCpu->cpum.GstCtx.eip, pVCpu->cpum.GstCtx.ss.Sel, pVCpu->cpum.GstCtx.esp, CPUMRawGetEFlags(pVCpu), !!(pGCState->uVMFlags & X86_EFL_IF), pVCpu->cpum.GstCtx.eflags.Bits.u1IF,
+                 pGCState->uVMFlags, pGCState->fPIF, (pVCpu->cpum.GstCtx.ss.Sel & X86_SEL_RPL), CSAMIsPageScanned(pVM, (RTGCPTR)pVCpu->cpum.GstCtx.eip)));
 # ifdef VBOX_WITH_RAW_RING1
-        else if ((pCtx->ss.Sel & X86_SEL_RPL) == 2)
-            Log(("RR1: %x:%08x ESP=%x:%08x IF=%d VMFlags=%x CPL=%x\n", pCtx->cs.Sel, pCtx->eip, pCtx->ss.Sel, pCtx->esp, pCtx->eflags.Bits.u1IF, pGCState->uVMFlags, (pCtx->ss.Sel & X86_SEL_RPL)));
+        else if ((pVCpu->cpum.GstCtx.ss.Sel & X86_SEL_RPL) == 2)
+            Log(("RR1: %x:%08x ESP=%x:%08x IF=%d VMFlags=%x CPL=%x\n", pVCpu->cpum.GstCtx.cs.Sel, pVCpu->cpum.GstCtx.eip, pVCpu->cpum.GstCtx.ss.Sel, pVCpu->cpum.GstCtx.esp, pVCpu->cpum.GstCtx.eflags.Bits.u1IF, pGCState->uVMFlags, (pVCpu->cpum.GstCtx.ss.Sel & X86_SEL_RPL)));
 # endif
-        else if ((pCtx->ss.Sel & X86_SEL_RPL) == 3)
-            Log(("RR3: %x:%08x ESP=%x:%08x IF=%d VMFlags=%x\n", pCtx->cs.Sel, pCtx->eip, pCtx->ss.Sel, pCtx->esp, pCtx->eflags.Bits.u1IF, pGCState->uVMFlags));
+        else if ((pVCpu->cpum.GstCtx.ss.Sel & X86_SEL_RPL) == 3)
+            Log(("RR3: %x:%08x ESP=%x:%08x IF=%d VMFlags=%x\n", pVCpu->cpum.GstCtx.cs.Sel, pVCpu->cpum.GstCtx.eip, pVCpu->cpum.GstCtx.ss.Sel, pVCpu->cpum.GstCtx.esp, pVCpu->cpum.GstCtx.eflags.Bits.u1IF, pGCState->uVMFlags));
 #endif /* LOG_ENABLED */
 
 
@@ -1395,9 +1389,9 @@ int emR3RawExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone)
         if (RT_LIKELY(emR3IsExecutionAllowed(pVM, pVCpu)))
         {
             STAM_PROFILE_START(&pVCpu->em.s.StatRAWExec, c);
-            VBOXVMM_EM_RAW_RUN_PRE(pVCpu, pCtx);
+            VBOXVMM_EM_RAW_RUN_PRE(pVCpu, &pVCpu->cpum.GstCtx);
             rc = VMMR3RawRunGC(pVM, pVCpu);
-            VBOXVMM_EM_RAW_RUN_RET(pVCpu, pCtx, rc);
+            VBOXVMM_EM_RAW_RUN_RET(pVCpu, &pVCpu->cpum.GstCtx, rc);
             STAM_PROFILE_STOP(&pVCpu->em.s.StatRAWExec, c);
         }
         else
@@ -1411,8 +1405,8 @@ int emR3RawExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone)
         STAM_PROFILE_ADV_START(&pVCpu->em.s.StatRAWTail, d);
 
         LogFlow(("RR%u-E: %08x ESP=%08x EFL=%x IF=%d/%d VMFlags=%x PIF=%d\n",
-                 (pCtx->ss.Sel & X86_SEL_RPL), pCtx->eip, pCtx->esp, CPUMRawGetEFlags(pVCpu),
-                 !!(pGCState->uVMFlags & X86_EFL_IF), pCtx->eflags.Bits.u1IF, pGCState->uVMFlags, pGCState->fPIF));
+                 (pVCpu->cpum.GstCtx.ss.Sel & X86_SEL_RPL), pVCpu->cpum.GstCtx.eip, pVCpu->cpum.GstCtx.esp, CPUMRawGetEFlags(pVCpu),
+                 !!(pGCState->uVMFlags & X86_EFL_IF), pVCpu->cpum.GstCtx.eflags.Bits.u1IF, pGCState->uVMFlags, pGCState->fPIF));
         LogFlow(("VMMR3RawRunGC returned %Rrc\n", rc));
 
 
@@ -1422,16 +1416,16 @@ int emR3RawExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone)
          * execution FFs before doing anything else.
          */
         rc = CPUMRawLeave(pVCpu, rc);
-        VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_RESUME_GUEST_MASK);
-        if (    VM_FF_IS_PENDING(pVM, VM_FF_HIGH_PRIORITY_POST_MASK)
-            ||  VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_HIGH_PRIORITY_POST_MASK))
-            rc = emR3HighPriorityPostForcedActions(pVM, pVCpu, rc);
+        VMCPU_FF_CLEAR_MASK(pVCpu, VMCPU_FF_RESUME_GUEST_MASK);
+        if (    VM_FF_IS_ANY_SET(pVM, VM_FF_HIGH_PRIORITY_POST_MASK)
+            ||  VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_HIGH_PRIORITY_POST_MASK))
+            rc = VBOXSTRICTRC_TODO(emR3HighPriorityPostForcedActions(pVM, pVCpu, rc));
 
 #ifdef VBOX_STRICT
         /*
          * Assert TSS consistency & rc vs patch code.
          */
-        if (   !VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_SELM_SYNC_TSS | VMCPU_FF_SELM_SYNC_GDT) /* GDT implies TSS at the moment. */
+        if (   !VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_SELM_SYNC_TSS | VMCPU_FF_SELM_SYNC_GDT) /* GDT implies TSS at the moment. */
             &&  EMIsRawRing0Enabled(pVM))
             SELMR3CheckTSS(pVM);
         switch (rc)
@@ -1448,14 +1442,14 @@ int emR3RawExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone)
                 break;
 
             default:
-                if (PATMIsPatchGCAddr(pVM, pCtx->eip) && !(pCtx->eflags.u32 & X86_EFL_TF))
+                if (PATMIsPatchGCAddr(pVM, pVCpu->cpum.GstCtx.eip) && !(pVCpu->cpum.GstCtx.eflags.u32 & X86_EFL_TF))
                     LogIt(0, LOG_GROUP_PATM, ("Patch code interrupted at %RRv for reason %Rrc\n", (RTRCPTR)CPUMGetGuestEIP(pVCpu), rc));
                 break;
         }
         /*
          * Let's go paranoid!
          */
-        if (    !VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_PGM_SYNC_CR3 | VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL)
+        if (    !VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3 | VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL)
             &&  PGMMapHasConflicts(pVM))
         {
             PGMMapCheck(pVM);
@@ -1472,10 +1466,10 @@ int emR3RawExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone)
             STAM_PROFILE_ADV_STOP(&pVCpu->em.s.StatRAWTail, d);
             break;
         }
-        rc = emR3RawHandleRC(pVM, pVCpu, pCtx, rc);
+        rc = emR3RawHandleRC(pVM, pVCpu, rc);
         if (rc != VINF_SUCCESS)
         {
-            rc = emR3RawUpdateForceFlag(pVM, pVCpu, pCtx, rc);
+            rc = emR3RawUpdateForceFlag(pVM, pVCpu, rc);
             if (rc != VINF_SUCCESS)
             {
                 STAM_PROFILE_ADV_STOP(&pVCpu->em.s.StatRAWTail, d);
@@ -1490,10 +1484,10 @@ int emR3RawExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone)
         TMTimerPollVoid(pVM, pVCpu);
 #endif
         STAM_PROFILE_ADV_STOP(&pVCpu->em.s.StatRAWTail, d);
-        if (    VM_FF_IS_PENDING(pVM, ~VM_FF_HIGH_PRIORITY_PRE_RAW_MASK | VM_FF_PGM_NO_MEMORY)
-            ||  VMCPU_FF_IS_PENDING(pVCpu, ~VMCPU_FF_HIGH_PRIORITY_PRE_RAW_MASK))
+        if (    VM_FF_IS_ANY_SET(pVM, ~VM_FF_HIGH_PRIORITY_PRE_RAW_MASK | VM_FF_PGM_NO_MEMORY)
+            ||  VMCPU_FF_IS_ANY_SET(pVCpu, ~VMCPU_FF_HIGH_PRIORITY_PRE_RAW_MASK))
         {
-            Assert(pCtx->eflags.Bits.u1VM || (pCtx->ss.Sel & X86_SEL_RPL) != (EMIsRawRing1Enabled(pVM) ? 2U : 1U));
+            Assert(pVCpu->cpum.GstCtx.eflags.Bits.u1VM || (pVCpu->cpum.GstCtx.ss.Sel & X86_SEL_RPL) != (EMIsRawRing1Enabled(pVM) ? 2U : 1U));
 
             STAM_REL_PROFILE_ADV_SUSPEND(&pVCpu->em.s.StatRAWTotal, a);
             rc = emR3ForcedActions(pVM, pVCpu, rc);
@@ -1502,7 +1496,7 @@ int emR3RawExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone)
             if (    rc != VINF_SUCCESS
                 &&  rc != VINF_EM_RESCHEDULE_RAW)
             {
-                rc = emR3RawUpdateForceFlag(pVM, pVCpu, pCtx, rc);
+                rc = emR3RawUpdateForceFlag(pVM, pVCpu, rc);
                 if (rc != VINF_SUCCESS)
                 {
                     *pfFFDone = true;

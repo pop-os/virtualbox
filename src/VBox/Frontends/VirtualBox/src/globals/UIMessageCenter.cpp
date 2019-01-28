@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,89 +15,87 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QDir>
-# include <QFileInfo>
-# include <QLocale>
-# include <QThread>
-# include <QProcess>
-# ifdef VBOX_WS_MAC
-#  include <QPushButton>
-# endif /* VBOX_WS_MAC */
+#include <QDir>
+#include <QFileInfo>
+#include <QLocale>
+#include <QThread>
+#include <QProcess>
+#ifdef VBOX_WS_MAC
+# include <QPushButton>
+#endif
 
 /* GUI includes: */
-# include "VBoxGlobal.h"
-# include "UIConverter.h"
-# include "UIMessageCenter.h"
-# include "UISelectorWindow.h"
-# include "UIProgressDialog.h"
-# include "UIErrorString.h"
-# ifdef VBOX_GUI_WITH_NETWORK_MANAGER
-#  include "UINetworkManager.h"
-#  include "UINetworkManagerDialog.h"
-# endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
-# include "UIModalWindowManager.h"
-# include "UIExtraDataManager.h"
-# include "UIMedium.h"
-# ifdef VBOX_OSE
-#  include "UIDownloaderUserManual.h"
-# endif /* VBOX_OSE */
-# include "UIMachine.h"
-# include "VBoxAboutDlg.h"
-# include "UIHostComboEditor.h"
-# ifdef VBOX_WS_MAC
-#  include "VBoxUtils-darwin.h"
-# endif /* VBOX_WS_MAC */
-# ifdef VBOX_WS_WIN
-#  include <Htmlhelp.h>
-# endif /* VBOX_WS_WIN */
+#include "QIMessageBox.h"
+#include "VBoxGlobal.h"
+#include "UIConverter.h"
+#include "UIMessageCenter.h"
+#include "UIProgressDialog.h"
+#include "UIErrorString.h"
+#ifdef VBOX_GUI_WITH_NETWORK_MANAGER
+# include "UINetworkManager.h"
+# include "UINetworkManagerDialog.h"
+#endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
+#include "UIModalWindowManager.h"
+#include "UIExtraDataManager.h"
+#include "UIMedium.h"
+#ifdef VBOX_OSE
+# include "UIDownloaderUserManual.h"
+#endif /* VBOX_OSE */
+#include "VBoxAboutDlg.h"
+#include "UIHostComboEditor.h"
+#ifdef VBOX_WS_MAC
+# include "VBoxUtils-darwin.h"
+#endif
+#ifdef VBOX_WS_WIN
+# include <Htmlhelp.h>
+#endif
 
 /* COM includes: */
-# include "CNATNetwork.h"
-# include "CDHCPServer.h"
-# include "CNATEngine.h"
-# include "CSerialPort.h"
-# include "CSharedFolder.h"
-# include "CSnapshot.h"
-# include "CStorageController.h"
-# include "CConsole.h"
-# include "CMachine.h"
-# include "CSystemProperties.h"
-# include "CVirtualBoxErrorInfo.h"
-# include "CMediumAttachment.h"
-# include "CMediumFormat.h"
-# include "CAppliance.h"
-# include "CExtPackManager.h"
-# include "CExtPackFile.h"
-# include "CHostNetworkInterface.h"
-# ifdef VBOX_WITH_DRAG_AND_DROP
-#  include "CGuest.h"
-#  include "CDnDSource.h"
-#  include "CDnDTarget.h"
-# endif /* VBOX_WITH_DRAG_AND_DROP */
+#include "CCloudClient.h"
+#include "CCloudProfile.h"
+#include "CCloudProvider.h"
+#include "CCloudProviderManager.h"
+#include "CNATNetwork.h"
+#include "CDHCPServer.h"
+#include "CNATEngine.h"
+#include "CSerialPort.h"
+#include "CSharedFolder.h"
+#include "CSnapshot.h"
+#include "CStorageController.h"
+#include "CConsole.h"
+#include "CMachine.h"
+#include "CSystemProperties.h"
+#include "CVirtualBoxErrorInfo.h"
+#include "CMediumAttachment.h"
+#include "CMediumFormat.h"
+#include "CAppliance.h"
+#include "CExtPackManager.h"
+#include "CExtPackFile.h"
+#include "CHostNetworkInterface.h"
+#include "CVFSExplorer.h"
+#ifdef VBOX_WITH_DRAG_AND_DROP
+# include "CGuest.h"
+# include "CDnDSource.h"
+# include "CDnDTarget.h"
+#endif /* VBOX_WITH_DRAG_AND_DROP */
 
 /* Other VBox includes: */
-# include <iprt/param.h>
-# include <iprt/path.h>
+#include <iprt/param.h>
+#include <iprt/path.h>
 
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
-#include <iprt/err.h>
+#include <iprt/errcore.h>
 
 
 /* static */
-UIMessageCenter* UIMessageCenter::m_spInstance = 0;
-UIMessageCenter* UIMessageCenter::instance() { return m_spInstance; }
+UIMessageCenter *UIMessageCenter::s_pInstance = 0;
+UIMessageCenter *UIMessageCenter::instance() { return s_pInstance; }
 
 /* static */
 void UIMessageCenter::create()
 {
     /* Make sure instance is NOT created yet: */
-    if (m_spInstance)
+    if (s_pInstance)
     {
         AssertMsgFailed(("UIMessageCenter instance is already created!"));
         return;
@@ -106,28 +104,23 @@ void UIMessageCenter::create()
     /* Create instance: */
     new UIMessageCenter;
     /* Prepare instance: */
-    m_spInstance->prepare();
+    s_pInstance->prepare();
 }
 
 /* static */
 void UIMessageCenter::destroy()
 {
     /* Make sure instance is NOT destroyed yet: */
-    if (!m_spInstance)
+    if (!s_pInstance)
     {
         AssertMsgFailed(("UIMessageCenter instance is already destroyed!"));
         return;
     }
 
     /* Cleanup instance: */
-    m_spInstance->cleanup();
+    s_pInstance->cleanup();
     /* Destroy instance: */
-    delete m_spInstance;
-}
-
-bool UIMessageCenter::warningShown(const QString &strWarningName) const
-{
-    return m_warnings.contains(strWarningName);
+    delete s_pInstance;
 }
 
 void UIMessageCenter::setWarningShown(const QString &strWarningName, bool fWarningShown) const
@@ -138,7 +131,12 @@ void UIMessageCenter::setWarningShown(const QString &strWarningName, bool fWarni
         m_warnings.removeAll(strWarningName);
 }
 
-int UIMessageCenter::message(QWidget *pParent, MessageType type,
+bool UIMessageCenter::warningShown(const QString &strWarningName) const
+{
+    return m_warnings.contains(strWarningName);
+}
+
+int UIMessageCenter::message(QWidget *pParent, MessageType enmType,
                              const QString &strMessage,
                              const QString &strDetails,
                              const char *pcszAutoConfirmId /* = 0*/,
@@ -154,7 +152,7 @@ int UIMessageCenter::message(QWidget *pParent, MessageType type,
     {
         /* We have to throw a blocking signal
          * to show a message-box in the GUI thread: */
-        emit sigToShowMessageBox(pParent, type,
+        emit sigToShowMessageBox(pParent, enmType,
                                  strMessage, strDetails,
                                  iButton1, iButton2, iButton3,
                                  strButtonText1, strButtonText2, strButtonText3,
@@ -163,30 +161,30 @@ int UIMessageCenter::message(QWidget *pParent, MessageType type,
         return 0;
     }
     /* In usual case we can chow a message-box directly: */
-    return showMessageBox(pParent, type,
+    return showMessageBox(pParent, enmType,
                           strMessage, strDetails,
                           iButton1, iButton2, iButton3,
                           strButtonText1, strButtonText2, strButtonText3,
                           QString(pcszAutoConfirmId));
 }
 
-void UIMessageCenter::error(QWidget *pParent, MessageType type,
+void UIMessageCenter::error(QWidget *pParent, MessageType enmType,
                            const QString &strMessage,
                            const QString &strDetails,
                            const char *pcszAutoConfirmId /* = 0*/) const
 {
-    message(pParent, type, strMessage, strDetails, pcszAutoConfirmId,
+    message(pParent, enmType, strMessage, strDetails, pcszAutoConfirmId,
             AlertButton_Ok | AlertButtonOption_Default | AlertButtonOption_Escape);
 }
 
-bool UIMessageCenter::errorWithQuestion(QWidget *pParent, MessageType type,
+bool UIMessageCenter::errorWithQuestion(QWidget *pParent, MessageType enmType,
                                         const QString &strMessage,
                                         const QString &strDetails,
                                         const char *pcszAutoConfirmId /* = 0*/,
                                         const QString &strOkButtonText /* = QString()*/,
                                         const QString &strCancelButtonText /* = QString()*/) const
 {
-    return (message(pParent, type, strMessage, strDetails, pcszAutoConfirmId,
+    return (message(pParent, enmType, strMessage, strDetails, pcszAutoConfirmId,
                     AlertButton_Ok | AlertButtonOption_Default,
                     AlertButton_Cancel | AlertButtonOption_Escape,
                     0 /* third button */,
@@ -196,14 +194,14 @@ bool UIMessageCenter::errorWithQuestion(QWidget *pParent, MessageType type,
             AlertButtonMask) == AlertButton_Ok;
 }
 
-void UIMessageCenter::alert(QWidget *pParent, MessageType type,
+void UIMessageCenter::alert(QWidget *pParent, MessageType enmType,
                            const QString &strMessage,
                            const char *pcszAutoConfirmId /* = 0*/) const
 {
-    error(pParent, type, strMessage, QString(), pcszAutoConfirmId);
+    error(pParent, enmType, strMessage, QString(), pcszAutoConfirmId);
 }
 
-int UIMessageCenter::question(QWidget *pParent, MessageType type,
+int UIMessageCenter::question(QWidget *pParent, MessageType enmType,
                               const QString &strMessage,
                               const char *pcszAutoConfirmId/* = 0*/,
                               int iButton1 /* = 0*/,
@@ -213,11 +211,11 @@ int UIMessageCenter::question(QWidget *pParent, MessageType type,
                               const QString &strButtonText2 /* = QString()*/,
                               const QString &strButtonText3 /* = QString()*/) const
 {
-    return message(pParent, type, strMessage, QString(), pcszAutoConfirmId,
+    return message(pParent, enmType, strMessage, QString(), pcszAutoConfirmId,
                    iButton1, iButton2, iButton3, strButtonText1, strButtonText2, strButtonText3);
 }
 
-bool UIMessageCenter::questionBinary(QWidget *pParent, MessageType type,
+bool UIMessageCenter::questionBinary(QWidget *pParent, MessageType enmType,
                                      const QString &strMessage,
                                      const char *pcszAutoConfirmId /* = 0*/,
                                      const QString &strOkButtonText /* = QString()*/,
@@ -225,7 +223,7 @@ bool UIMessageCenter::questionBinary(QWidget *pParent, MessageType type,
                                      bool fDefaultFocusForOk /* = true*/) const
 {
     return fDefaultFocusForOk ?
-           ((question(pParent, type, strMessage, pcszAutoConfirmId,
+           ((question(pParent, enmType, strMessage, pcszAutoConfirmId,
                       AlertButton_Ok | AlertButtonOption_Default,
                       AlertButton_Cancel | AlertButtonOption_Escape,
                       0 /* third button */,
@@ -233,7 +231,7 @@ bool UIMessageCenter::questionBinary(QWidget *pParent, MessageType type,
                       strCancelButtonText,
                       QString() /* third button */) &
              AlertButtonMask) == AlertButton_Ok) :
-           ((question(pParent, type, strMessage, pcszAutoConfirmId,
+           ((question(pParent, enmType, strMessage, pcszAutoConfirmId,
                       AlertButton_Ok,
                       AlertButton_Cancel | AlertButtonOption_Default | AlertButtonOption_Escape,
                       0 /* third button */,
@@ -243,14 +241,14 @@ bool UIMessageCenter::questionBinary(QWidget *pParent, MessageType type,
              AlertButtonMask) == AlertButton_Ok);
 }
 
-int UIMessageCenter::questionTrinary(QWidget *pParent, MessageType type,
+int UIMessageCenter::questionTrinary(QWidget *pParent, MessageType enmType,
                                      const QString &strMessage,
                                      const char *pcszAutoConfirmId /* = 0*/,
                                      const QString &strChoice1ButtonText /* = QString()*/,
                                      const QString &strChoice2ButtonText /* = QString()*/,
                                      const QString &strCancelButtonText /* = QString()*/) const
 {
-    return question(pParent, type, strMessage, pcszAutoConfirmId,
+    return question(pParent, enmType, strMessage, pcszAutoConfirmId,
                     AlertButton_Choice1,
                     AlertButton_Choice2 | AlertButtonOption_Default,
                     AlertButton_Cancel | AlertButtonOption_Escape,
@@ -259,7 +257,7 @@ int UIMessageCenter::questionTrinary(QWidget *pParent, MessageType type,
                     strCancelButtonText);
 }
 
-int UIMessageCenter::messageWithOption(QWidget *pParent, MessageType type,
+int UIMessageCenter::messageWithOption(QWidget *pParent, MessageType enmType,
                                        const QString &strMessage,
                                        const QString &strOptionText,
                                        bool fDefaultOptionValue /* = true */,
@@ -277,7 +275,7 @@ int UIMessageCenter::messageWithOption(QWidget *pParent, MessageType type,
     /* Assign corresponding title and icon: */
     QString strTitle;
     AlertIconType icon;
-    switch (type)
+    switch (enmType)
     {
         default:
         case MessageType_Info:
@@ -383,6 +381,20 @@ bool UIMessageCenter::showModalProgressDialog(CProgress &progress,
     return fRc;
 }
 
+void UIMessageCenter::warnAboutUnknownOptionType(const QString &strOption)
+{
+    alert(0, MessageType_Error,
+          tr("Unknown option <b>%1</b>.")
+             .arg(strOption));
+}
+
+void UIMessageCenter::warnAboutUnrelatedOptionType(const QString &strOption)
+{
+    alert(0, MessageType_Error,
+          tr("<b>%1</b> is an option for the VirtualBox VM runner (VirtualBoxVM) application, not the VirtualBox Manager.")
+             .arg(strOption));
+}
+
 #ifdef RT_OS_LINUX
 void UIMessageCenter::warnAboutWrongUSBMounted() const
 {
@@ -399,6 +411,26 @@ void UIMessageCenter::cannotStartSelector() const
     alert(0, MessageType_Critical,
           tr("<p>Cannot start the VirtualBox Manager due to local restrictions.</p>"
              "<p>The application will now terminate.</p>"));
+}
+
+void UIMessageCenter::cannotStartRuntime() const
+{
+    /* Prepare error string: */
+    const QString strError = tr("<p>You must specify a machine to start, using the command line.</p><p>%1</p>",
+                                "There will be a usage text passed as argument.");
+
+    /* Prepare Usage, it can change in future: */
+    const QString strTable = QString("<table cellspacing=0 style='white-space:pre'>%1</table>");
+    const QString strUsage = tr("<tr>"
+                                "<td>Usage: VirtualBoxVM --startvm &lt;name|UUID&gt;</td>"
+                                "</tr>"
+                                "<tr>"
+                                "<td>Starts the VirtualBox virtual machine with the given "
+                                "name or unique identifier (UUID).</td>"
+                                "</tr>");
+
+    /* Show error: */
+    alert(0, MessageType_Error, strError.arg(strTable.arg(strUsage)));
 }
 
 void UIMessageCenter::showBetaBuildWarning() const
@@ -484,11 +516,11 @@ void UIMessageCenter::cannotFindMachineByName(const CVirtualBox &vbox, const QSt
           UIErrorString::formatErrorInfo(vbox));
 }
 
-void UIMessageCenter::cannotFindMachineById(const CVirtualBox &vbox, const QString &strId) const
+void UIMessageCenter::cannotFindMachineById(const CVirtualBox &vbox, const QUuid &uId) const
 {
     error(0, MessageType_Error,
           tr("There is no virtual machine with the identifier <b>%1</b>.")
-             .arg(strId),
+             .arg(uId.toString()),
           UIErrorString::formatErrorInfo(vbox));
 }
 
@@ -637,7 +669,7 @@ int UIMessageCenter::confirmMachineRemoval(const QList<CMachine> &machines) cons
                 {
                     /* Check if that hard disk isn't shared.
                      * If hard disk is shared, it will *never* be deleted: */
-                    QVector<QString> usedMachineList = attachment.GetMedium().GetMachineIds();
+                    QVector<QUuid> usedMachineList = attachment.GetMedium().GetMachineIds();
                     if (usedMachineList.size() == 1)
                     {
                         fMachineWithHardDiskPresent = true;
@@ -721,7 +753,7 @@ bool UIMessageCenter::warnAboutInaccessibleMedia() const
                              "see which files are inaccessible, or press <b>Ignore</b> to "
                              "ignore this message.</p>"),
                           "warnAboutInaccessibleMedia",
-                          tr("Ignore"), tr("Check", "inaccessible media message box"));
+                          tr("Check", "inaccessible media message box"), tr("Ignore"));
 }
 
 bool UIMessageCenter::confirmDiscardSavedState(const QString &strNames) const
@@ -840,6 +872,23 @@ bool UIMessageCenter::confirmStartMultipleMachines(const QString &strNames) cons
                              "host system resources. Do you wish to proceed?</p>").arg(strNames),
                           "confirmStartMultipleMachines" /* auto-confirm id */);
 }
+
+void UIMessageCenter::cannotMoveMachine(const CMachine &machine, QWidget *pParent /* = 0 */) const
+{
+    error(pParent, MessageType_Error,
+          tr("Failed to move the virtual machine <b>%1</b>.")
+          .arg(CMachine(machine).GetName()),
+          UIErrorString::formatErrorInfo(machine));
+}
+
+void UIMessageCenter::cannotMoveMachine(const CProgress &progress, const QString &strMachineName, QWidget *pParent /* = 0 */) const
+{
+    error(pParent, MessageType_Error,
+          tr("Failed to move the virtual machine <b>%1</b>.")
+          .arg(strMachineName),
+          UIErrorString::formatErrorInfo(progress));
+}
+
 
 int UIMessageCenter::confirmSnapshotRestoring(const QString &strSnapshotName, bool fAlsoCreateNewSnapshot) const
 {
@@ -966,12 +1015,12 @@ void UIMessageCenter::cannotFindSnapshotByName(const CMachine &comMachine,
 }
 
 void UIMessageCenter::cannotFindSnapshotById(const CMachine &comMachine,
-                                             const QString &strId,
+                                             const QUuid &uId,
                                              QWidget *pParent /* = 0 */) const
 {
     error(pParent, MessageType_Error,
           tr("Can't find snapshot with ID=<b>%1</b>.")
-             .arg(strId),
+             .arg(uId.toString()),
           UIErrorString::formatErrorInfo(comMachine));
 }
 
@@ -1096,26 +1145,26 @@ int UIMessageCenter::confirmRemovingOfLastDVDDevice(QWidget *pParent /* = 0*/) c
                           false /* ok button by default? */);
 }
 
-void UIMessageCenter::cannotAttachDevice(const CMachine &machine, UIMediumType type,
+void UIMessageCenter::cannotAttachDevice(const CMachine &machine, UIMediumDeviceType enmType,
                                          const QString &strLocation, const StorageSlot &storageSlot,
                                          QWidget *pParent /* = 0*/)
 {
     QString strMessage;
-    switch (type)
+    switch (enmType)
     {
-        case UIMediumType_HardDisk:
+        case UIMediumDeviceType_HardDisk:
         {
             strMessage = tr("Failed to attach the hard disk (<nobr><b>%1</b></nobr>) to the slot <i>%2</i> of the machine <b>%3</b>.")
                             .arg(strLocation).arg(gpConverter->toString(storageSlot)).arg(CMachine(machine).GetName());
             break;
         }
-        case UIMediumType_DVD:
+        case UIMediumDeviceType_DVD:
         {
             strMessage = tr("Failed to attach the optical drive (<nobr><b>%1</b></nobr>) to the slot <i>%2</i> of the machine <b>%3</b>.")
                             .arg(strLocation).arg(gpConverter->toString(storageSlot)).arg(CMachine(machine).GetName());
             break;
         }
-        case UIMediumType_Floppy:
+        case UIMediumDeviceType_Floppy:
         {
             strMessage = tr("Failed to attach the floppy drive (<nobr><b>%1</b></nobr>) to the slot <i>%2</i> of the machine <b>%3</b>.")
                             .arg(strLocation).arg(gpConverter->toString(storageSlot)).arg(CMachine(machine).GetName());
@@ -1224,9 +1273,9 @@ bool UIMessageCenter::confirmMediumRelease(const UIMedium &medium, bool fInduced
     /* Prepare the usage: */
     QStringList usage;
     CVirtualBox vbox = vboxGlobal().virtualBox();
-    foreach (const QString &strMachineID, medium.curStateMachineIds())
+    foreach (const QUuid &uMachineID, medium.curStateMachineIds())
     {
-        CMachine machine = vbox.FindMachine(strMachineID);
+        CMachine machine = vbox.FindMachine(uMachineID.toString());
         if (!vbox.isOk() || machine.isNull())
             continue;
         usage << machine.GetName();
@@ -1255,7 +1304,7 @@ bool UIMessageCenter::confirmMediumRemoval(const UIMedium &medium, QWidget *pPar
     QString strMessage;
     switch (medium.type())
     {
-        case UIMediumType_HardDisk:
+        case UIMediumDeviceType_HardDisk:
         {
             strMessage = tr("<p>Are you sure you want to remove the virtual hard disk "
                             "<nobr><b>%1</b></nobr> from the list of known disk image files?</p>");
@@ -1274,7 +1323,7 @@ bool UIMessageCenter::confirmMediumRemoval(const UIMedium &medium, QWidget *pPar
             }
             break;
         }
-        case UIMediumType_DVD:
+        case UIMediumDeviceType_DVD:
         {
             strMessage = tr("<p>Are you sure you want to remove the virtual optical disk "
                             "<nobr><b>%1</b></nobr> from the list of known disk image files?</p>");
@@ -1282,7 +1331,7 @@ bool UIMessageCenter::confirmMediumRemoval(const UIMedium &medium, QWidget *pPar
                              "deleted and that it will be possible to use it later again.</p>");
             break;
         }
-        case UIMediumType_Floppy:
+        case UIMediumDeviceType_Floppy:
         {
             strMessage = tr("<p>Are you sure you want to remove the virtual floppy disk "
                             "<nobr><b>%1</b></nobr> from the list of known disk image files?</p>");
@@ -1352,25 +1401,25 @@ void UIMessageCenter::cannotResizeHardDiskStorage(const CProgress &comProgress, 
           UIErrorString::formatErrorInfo(comProgress));
 }
 
-void UIMessageCenter::cannotDetachDevice(const CMachine &machine, UIMediumType type, const QString &strLocation, const StorageSlot &storageSlot, QWidget *pParent /* = 0*/) const
+void UIMessageCenter::cannotDetachDevice(const CMachine &machine, UIMediumDeviceType enmType, const QString &strLocation, const StorageSlot &storageSlot, QWidget *pParent /* = 0*/) const
 {
     /* Prepare the message: */
     QString strMessage;
-    switch (type)
+    switch (enmType)
     {
-        case UIMediumType_HardDisk:
+        case UIMediumDeviceType_HardDisk:
         {
             strMessage = tr("Failed to detach the hard disk (<nobr><b>%1</b></nobr>) from the slot <i>%2</i> of the machine <b>%3</b>.")
                             .arg(strLocation, gpConverter->toString(storageSlot), CMachine(machine).GetName());
             break;
         }
-        case UIMediumType_DVD:
+        case UIMediumDeviceType_DVD:
         {
             strMessage = tr("Failed to detach the optical drive (<nobr><b>%1</b></nobr>) from the slot <i>%2</i> of the machine <b>%3</b>.")
                             .arg(strLocation, gpConverter->toString(storageSlot), CMachine(machine).GetName());
             break;
         }
-        case UIMediumType_Floppy:
+        case UIMediumDeviceType_Floppy:
         {
             strMessage = tr("Failed to detach the floppy drive (<nobr><b>%1</b></nobr>) from the slot <i>%2</i> of the machine <b>%3</b>.")
                             .arg(strLocation, gpConverter->toString(storageSlot), CMachine(machine).GetName());
@@ -1389,7 +1438,7 @@ bool UIMessageCenter::cannotRemountMedium(const CMachine &machine, const UIMediu
     QString strMessage;
     switch (medium.type())
     {
-        case UIMediumType_DVD:
+        case UIMediumDeviceType_DVD:
         {
             if (fMount)
             {
@@ -1405,7 +1454,7 @@ bool UIMessageCenter::cannotRemountMedium(const CMachine &machine, const UIMediu
             }
             break;
         }
-        case UIMediumType_Floppy:
+        case UIMediumDeviceType_Floppy:
         {
             if (fMount)
             {
@@ -1437,7 +1486,7 @@ bool UIMessageCenter::cannotRemountMedium(const CMachine &machine, const UIMediu
     return false;
 }
 
-void UIMessageCenter::cannotOpenMedium(const CVirtualBox &vbox, UIMediumType /* type */, const QString &strLocation, QWidget *pParent /* = 0*/) const
+void UIMessageCenter::cannotOpenMedium(const CVirtualBox &vbox, UIMediumDeviceType, const QString &strLocation, QWidget *pParent /* = 0*/) const
 {
     /* Show the error: */
     error(pParent, MessageType_Error,
@@ -1558,6 +1607,112 @@ void UIMessageCenter::cannotSaveDHCPServerParameter(const CDHCPServer &comServer
           UIErrorString::formatErrorInfo(comServer));
 }
 
+void UIMessageCenter::cannotAcquireCloudProviderManager(const CVirtualBox &comVBox, QWidget *pParent /* = 0 */) const
+{
+    error(pParent, MessageType_Error,
+          tr("Failed to acquire cloud provider manager."),
+          UIErrorString::formatErrorInfo(comVBox));
+}
+
+void UIMessageCenter::cannotAcquireCloudProviderManagerParameter(const CCloudProviderManager &comManager, QWidget *pParent /* = 0 */) const
+{
+    error(pParent, MessageType_Error,
+          tr("Failed to acquire cloud provider manager parameter."),
+          UIErrorString::formatErrorInfo(comManager));
+}
+
+void UIMessageCenter::cannotFindCloudProvider(const CCloudProviderManager &comManager, const QUuid &uId, QWidget *pParent /* = 0 */) const
+{
+    error(pParent, MessageType_Error,
+          tr("Failed to find cloud provider with following uuid: <b>%1</b>.").arg(uId.toString()),
+          UIErrorString::formatErrorInfo(comManager));
+}
+
+void UIMessageCenter::cannotAcquireCloudProviderParameter(const CCloudProvider &comProvider, QWidget *pParent /* = 0 */) const
+{
+    error(pParent, MessageType_Error,
+          tr("Failed to acquire cloud provider parameter."),
+          UIErrorString::formatErrorInfo(comProvider));
+}
+
+void UIMessageCenter::cannotFindCloudProfile(const CCloudProvider &comProvider, const QString &strName, QWidget *pParent /* = 0 */) const
+{
+    error(pParent, MessageType_Error,
+          tr("Failed to find cloud profile with following name: <b>%1</b>.").arg(strName),
+          UIErrorString::formatErrorInfo(comProvider));
+}
+
+void UIMessageCenter::cannotCreateCloudProfle(const CCloudProvider &comProvider, QWidget *pParent /* = 0 */) const
+{
+    error(pParent, MessageType_Error,
+          tr("Failed to create cloud profile."),
+          UIErrorString::formatErrorInfo(comProvider));
+}
+
+void UIMessageCenter::cannotSaveCloudProfiles(const CCloudProvider &comProvider, QWidget *pParent /* = 0 */) const
+{
+    error(pParent, MessageType_Error,
+          tr("Failed to save cloud profiles."),
+          UIErrorString::formatErrorInfo(comProvider));
+}
+
+void UIMessageCenter::cannotImportCloudProfiles(const CCloudProvider &comProvider, QWidget *pParent /* = 0 */) const
+{
+    error(pParent, MessageType_Error,
+          tr("Failed to import cloud profiles."),
+          UIErrorString::formatErrorInfo(comProvider));
+}
+
+void UIMessageCenter::cannotAcquireCloudProfileParameter(const CCloudProfile &comProfile, QWidget *pParent /* = 0 */) const
+{
+    error(pParent, MessageType_Error,
+          tr("Failed to acquire cloud profile parameter."),
+          UIErrorString::formatErrorInfo(comProfile));
+}
+
+void UIMessageCenter::cannotAssignCloudProfileParameter(const CCloudProfile &comProfile, QWidget *pParent /* = 0 */) const
+{
+    error(pParent, MessageType_Error,
+          tr("Failed to assign cloud profile parameter."),
+          UIErrorString::formatErrorInfo(comProfile));
+}
+
+void UIMessageCenter::cannotCreateCloudClient(const CCloudProfile &comProfile, QWidget *pParent /* = 0 */) const
+{
+    error(pParent, MessageType_Error,
+          tr("Failed to create cloud client."),
+          UIErrorString::formatErrorInfo(comProfile));
+}
+
+void UIMessageCenter::cannotAcquireCloudClientParameter(const CCloudClient &comClient, QWidget *pParent /* = 0 */) const
+{
+    error(pParent, MessageType_Error,
+          tr("Failed to acquire cloud client parameter."),
+          UIErrorString::formatErrorInfo(comClient));
+}
+
+bool UIMessageCenter::confirmCloudProfileRemoval(const QString &strName, QWidget *pParent /* = 0 */) const
+{
+    return questionBinary(pParent, MessageType_Question,
+                          tr("<p>Do you want to remove the cloud profile <nobr><b>%1</b>?</nobr></p>")
+                             .arg(strName),
+                          0 /* auto-confirm id */,
+                          tr("Remove") /* ok button text */,
+                          QString() /* cancel button text */,
+                          false /* ok button by default? */);
+}
+
+bool UIMessageCenter::confirmCloudProfilesImport(QWidget *pParent /* = 0 */) const
+{
+    return questionBinary(pParent, MessageType_Question,
+                          tr("<p>Do you want to import cloud profiles from external files?</p>"
+                             "<p>VirtualBox cloud profiles will be overwritten and their data will be lost.</p>"),
+                          0 /* auto-confirm id */,
+                          tr("Import") /* ok button text */,
+                          QString() /* cancel button text */,
+                          false /* ok button by default? */);
+}
+
 bool UIMessageCenter::confirmHardDisklessMachine(QWidget *pParent /* = 0*/) const
 {
     return questionBinary(pParent, MessageType_Warning,
@@ -1635,6 +1790,13 @@ void UIMessageCenter::cannotCreateHardDiskStorage(const CProgress &progress, con
           UIErrorString::formatErrorInfo(progress));
 }
 
+void UIMessageCenter::cannotCreateHardDiskStorageInFAT(const QString &strLocation, QWidget *pParent /* = 0 */) const
+{
+    alert(pParent, MessageType_Info,
+          tr("Failed to create the hard disk storage <nobr><b>%1</b>.</nobr> FAT file systems have 4GB file size limit.")
+          .arg(strLocation));
+}
+
 void UIMessageCenter::cannotCreateMediumStorage(const CVirtualBox &comVBox, const QString &strLocation, QWidget *pParent /* = 0 */) const
 {
     error(pParent, MessageType_Error,
@@ -1710,18 +1872,44 @@ void UIMessageCenter::cannotImportAppliance(const CProgress &progress, const QSt
           UIErrorString::formatErrorInfo(progress));
 }
 
-void UIMessageCenter::cannotCheckFiles(const CProgress &progress, QWidget *pParent /* = 0*/) const
+bool UIMessageCenter::cannotCheckFiles(const CAppliance &comAppliance, QWidget *pParent /* = 0 */) const
 {
     error(pParent, MessageType_Error,
           tr("Failed to check files."),
-          UIErrorString::formatErrorInfo(progress));
+          UIErrorString::formatErrorInfo(comAppliance));
+    return false;
 }
 
-void UIMessageCenter::cannotRemoveFiles(const CProgress &progress, QWidget *pParent /* = 0*/) const
+bool UIMessageCenter::cannotCheckFiles(const CVFSExplorer &comVFSExplorer, QWidget *pParent /* = 0 */) const
+{
+    error(pParent, MessageType_Error,
+          tr("Failed to check files."),
+          UIErrorString::formatErrorInfo(comVFSExplorer));
+    return false;
+}
+
+bool UIMessageCenter::cannotCheckFiles(const CProgress &comProgress, QWidget *pParent /* = 0 */) const
+{
+    error(pParent, MessageType_Error,
+          tr("Failed to check files."),
+          UIErrorString::formatErrorInfo(comProgress));
+    return false;
+}
+
+bool UIMessageCenter::cannotRemoveFiles(const CVFSExplorer &comVFSExplorer, QWidget *pParent /* = 0 */) const
 {
     error(pParent, MessageType_Error,
           tr("Failed to remove file."),
-          UIErrorString::formatErrorInfo(progress));
+          UIErrorString::formatErrorInfo(comVFSExplorer));
+    return false;
+}
+
+bool UIMessageCenter::cannotRemoveFiles(const CProgress &comProgress, QWidget *pParent /* = 0 */) const
+{
+    error(pParent, MessageType_Error,
+          tr("Failed to remove file."),
+          UIErrorString::formatErrorInfo(comProgress));
+    return false;
 }
 
 bool UIMessageCenter::confirmExportMachinesInSaveState(const QStringList &machineNames, QWidget *pParent /* = 0*/) const
@@ -1738,15 +1926,16 @@ bool UIMessageCenter::confirmExportMachinesInSaveState(const QStringList &machin
                           tr("Continue"));
 }
 
-void UIMessageCenter::cannotExportAppliance(const CAppliance &appliance, QWidget *pParent /* = 0*/) const
+bool UIMessageCenter::cannotExportAppliance(const CAppliance &comAppliance, QWidget *pParent /* = 0 */) const
 {
     error(pParent, MessageType_Error,
           tr("Failed to prepare the export of the appliance <b>%1</b>.")
-             .arg(CAppliance(appliance).GetPath()),
-          UIErrorString::formatErrorInfo(appliance));
+             .arg(CAppliance(comAppliance).GetPath()),
+          UIErrorString::formatErrorInfo(comAppliance));
+    return false;
 }
 
-void UIMessageCenter::cannotExportAppliance(const CMachine &machine, const QString &strPath, QWidget *pParent /* = 0*/) const
+void UIMessageCenter::cannotExportAppliance(const CMachine &machine, const QString &strPath, QWidget *pParent /* = 0 */) const
 {
     error(pParent, MessageType_Error,
           tr("Failed to prepare the export of the appliance <b>%1</b>.")
@@ -1754,19 +1943,21 @@ void UIMessageCenter::cannotExportAppliance(const CMachine &machine, const QStri
           UIErrorString::formatErrorInfo(machine));
 }
 
-void UIMessageCenter::cannotExportAppliance(const CProgress &progress, const QString &strPath, QWidget *pParent /* = 0*/) const
+bool UIMessageCenter::cannotExportAppliance(const CProgress &comProgress, const QString &strPath, QWidget *pParent /* = 0 */) const
 {
     error(pParent, MessageType_Error,
           tr("Failed to export appliance <b>%1</b>.")
              .arg(strPath),
-          UIErrorString::formatErrorInfo(progress));
+          UIErrorString::formatErrorInfo(comProgress));
+    return false;
 }
 
-void UIMessageCenter::cannotAddDiskEncryptionPassword(const CAppliance &appliance, QWidget *pParent /* = 0 */)
+bool UIMessageCenter::cannotAddDiskEncryptionPassword(const CAppliance &comAppliance, QWidget *pParent /* = 0 */)
 {
     error(pParent, MessageType_Error,
           tr("Bad password or authentication failure."),
-          UIErrorString::formatErrorInfo(appliance));
+          UIErrorString::formatErrorInfo(comAppliance));
+    return false;
 }
 
 void UIMessageCenter::showRuntimeError(const CConsole &console, bool fFatal, const QString &strErrorId, const QString &strErrorMsg) const
@@ -1777,7 +1968,7 @@ void UIMessageCenter::showRuntimeError(const CConsole &console, bool fFatal, con
     /* Prepare variables: */
     CConsole console1 = console;
     KMachineState state = console1.GetState();
-    MessageType type;
+    MessageType enmType;
     QString severity;
 
     /// @todo Move to Runtime UI!
@@ -1793,19 +1984,19 @@ void UIMessageCenter::showRuntimeError(const CConsole &console, bool fFatal, con
     /* Compose type, severity, advance confirm id: */
     if (fFatal)
     {
-        type = MessageType_Critical;
+        enmType = MessageType_Critical;
         severity = tr("<nobr>Fatal Error</nobr>", "runtime error info");
         autoConfimId += "fatal.";
     }
     else if (state == KMachineState_Paused)
     {
-        type = MessageType_Error;
+        enmType = MessageType_Error;
         severity = tr("<nobr>Non-Fatal Error</nobr>", "runtime error info");
         autoConfimId += "error.";
     }
     else
     {
-        type = MessageType_Warning;
+        enmType = MessageType_Warning;
         severity = tr("<nobr>Warning</nobr>", "runtime error info");
         autoConfimId += "warning.";
     }
@@ -1828,17 +2019,17 @@ void UIMessageCenter::showRuntimeError(const CConsole &console, bool fFatal, con
         formatted = "<qt>" + formatted + "</qt>";
 
     /* Show the error: */
-    if (type == MessageType_Critical)
+    if (enmType == MessageType_Critical)
     {
-        error(0, type,
+        error(0, enmType,
               tr("<p>A fatal error has occurred during virtual machine execution! "
                  "The virtual machine will be powered off. Please copy the following error message "
                  "using the clipboard to help diagnose the problem:</p>"),
               formatted, autoConfimId.data());
     }
-    else if (type == MessageType_Error)
+    else if (enmType == MessageType_Error)
     {
-        error(0, type,
+        error(0, enmType,
               tr("<p>An error has occurred during virtual machine execution! "
                  "The error details are shown below. You may try to correct the error "
                  "and resume the virtual machine execution.</p>"),
@@ -1846,7 +2037,7 @@ void UIMessageCenter::showRuntimeError(const CConsole &console, bool fFatal, con
     }
     else
     {
-        error(0, type,
+        error(0, enmType,
               tr("<p>The virtual machine execution may run into an error condition as described below. "
                  "We suggest that you take an appropriate action to avert the error.</p>"),
               formatted, autoConfimId.data());
@@ -2212,7 +2403,7 @@ void UIMessageCenter::warnAboutUserManualDownloaded(const QString &strURL, const
              .arg(strURL, strTarget));
 }
 
-bool UIMessageCenter::warAboutOutdatedExtensionPack(const QString &strExtPackName, const QString &strExtPackVersion) const
+bool UIMessageCenter::warnAboutOutdatedExtensionPack(const QString &strExtPackName, const QString &strExtPackVersion) const
 {
     return questionBinary(windowManager().networkManagerOrMainWindowShown(), MessageType_Question,
                           tr("<p>You have an old version (%1) of the <b><nobr>%2</nobr></b> installed.</p>"
@@ -2627,14 +2818,14 @@ void UIMessageCenter::sltShowUserManual(const QString &strLocation)
 #endif
 }
 
-void UIMessageCenter::sltShowMessageBox(QWidget *pParent, MessageType type,
+void UIMessageCenter::sltShowMessageBox(QWidget *pParent, MessageType enmType,
                                         const QString &strMessage, const QString &strDetails,
                                         int iButton1, int iButton2, int iButton3,
                                         const QString &strButtonText1, const QString &strButtonText2, const QString &strButtonText3,
                                         const QString &strAutoConfirmId) const
 {
     /* Now we can show a message-box directly: */
-    showMessageBox(pParent, type,
+    showMessageBox(pParent, enmType,
                    strMessage, strDetails,
                    iButton1, iButton2, iButton3,
                    strButtonText1, strButtonText2, strButtonText3,
@@ -2644,13 +2835,13 @@ void UIMessageCenter::sltShowMessageBox(QWidget *pParent, MessageType type,
 UIMessageCenter::UIMessageCenter()
 {
     /* Assign instance: */
-    m_spInstance = this;
+    s_pInstance = this;
 }
 
 UIMessageCenter::~UIMessageCenter()
 {
     /* Unassign instance: */
-    m_spInstance = 0;
+    s_pInstance = 0;
 }
 
 void UIMessageCenter::prepare()
@@ -2661,7 +2852,7 @@ void UIMessageCenter::prepare()
     qRegisterMetaType<CMachine>();
     qRegisterMetaType<CConsole>();
     qRegisterMetaType<CHostNetworkInterface>();
-    qRegisterMetaType<UIMediumType>();
+    qRegisterMetaType<UIMediumDeviceType>();
     qRegisterMetaType<StorageSlot>();
 
     /* Prepare interthread connection: */
@@ -2695,7 +2886,7 @@ void UIMessageCenter::cleanup()
      /* Nothing for now... */
 }
 
-int UIMessageCenter::showMessageBox(QWidget *pParent, MessageType type,
+int UIMessageCenter::showMessageBox(QWidget *pParent, MessageType enmType,
                                     const QString &strMessage, const QString &strDetails,
                                     int iButton1, int iButton2, int iButton3,
                                     const QString &strButtonText1, const QString &strButtonText2, const QString &strButtonText3,
@@ -2709,8 +2900,10 @@ int UIMessageCenter::showMessageBox(QWidget *pParent, MessageType type,
     QStringList confirmedMessageList;
     if (!strAutoConfirmId.isEmpty())
     {
-        const QString strID = vboxGlobal().isVMConsoleProcess() ? vboxGlobal().managedVMUuid() : UIExtraDataManager::GlobalID;
-        confirmedMessageList = gEDataManager->suppressedMessages(strID);
+        const QUuid uID = vboxGlobal().uiType() == VBoxGlobal::UIType_RuntimeUI
+                        ? vboxGlobal().managedVMUuid()
+                        : UIExtraDataManager::GlobalID;
+        confirmedMessageList = gEDataManager->suppressedMessages(uID);
         if (   confirmedMessageList.contains(strAutoConfirmId)
             || confirmedMessageList.contains("allMessageBoxes")
             || confirmedMessageList.contains("all") )
@@ -2729,7 +2922,7 @@ int UIMessageCenter::showMessageBox(QWidget *pParent, MessageType type,
     /* Choose title and icon: */
     QString title;
     AlertIconType icon;
-    switch (type)
+    switch (enmType)
     {
         default:
         case MessageType_Info:
@@ -2807,4 +3000,3 @@ int UIMessageCenter::showMessageBox(QWidget *pParent, MessageType type,
     /* Return result-code: */
     return iResultCode;
 }
-

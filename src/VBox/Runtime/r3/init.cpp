@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -53,13 +53,16 @@
 #include <iprt/initterm.h>
 #include <iprt/asm.h>
 #include <iprt/assert.h>
-#include <iprt/err.h>
+#include <iprt/errcore.h>
 #include <iprt/log.h>
 #include <iprt/mem.h>
 #include <iprt/path.h>
 #include <iprt/time.h>
 #include <iprt/string.h>
 #include <iprt/param.h>
+#ifdef RT_OS_WINDOWS
+# include <iprt/utf16.h>
+#endif
 #if !defined(IN_GUEST) && !defined(RT_NO_GIP)
 # include <iprt/file.h>
 # include <VBox/sup.h>
@@ -106,16 +109,6 @@ static char **              g_papszrtOrgArgs;
  * Program start nanosecond TS.
  */
 DECLHIDDEN(uint64_t)        g_u64ProgramStartNanoTS;
-
-/**
- * Program start microsecond TS.
- */
-DECLHIDDEN(uint64_t)        g_u64ProgramStartMicroTS;
-
-/**
- * Program start millisecond TS.
- */
-DECLHIDDEN(uint64_t)        g_u64ProgramStartMilliTS;
 
 /**
  * The process identifier of the running process.
@@ -291,6 +284,9 @@ static int rtR3InitArgv(uint32_t fFlags, int cArgs, char ***ppapszArgs)
                Unfortunately for us, __wargv is only initialized if we have a
                unicode main function.  So, we have to use CommandLineToArgvW to get
                something similar. It should do the same conversion... :-) */
+            /** @todo Replace this CommandLineToArgvW call with a call into
+             *        getoptargv.cpp so we don't depend on shell32 and an API not present
+             *        in NT 3.1.  */
             int    cArgsW     = -1;
             PWSTR *papwszArgs = NULL;
             if (   papszOrgArgs == __argv
@@ -300,7 +296,7 @@ static int rtR3InitArgv(uint32_t fFlags, int cArgs, char ***ppapszArgs)
                 AssertMsg(cArgsW == cArgs, ("%d vs %d\n", cArgsW, cArgs));
                 for (int i = 0; i < cArgs; i++)
                 {
-                    int rc = RTUtf16ToUtf8(papwszArgs[i], &papszArgs[i]);
+                    int rc = RTUtf16ToUtf8Tag(papwszArgs[i], &papszArgs[i], "will-leak:rtR3InitArgv");
                     if (RT_FAILURE(rc))
                     {
                         while (i--)
@@ -443,7 +439,7 @@ static int rtR3InitBody(uint32_t fFlags, int cArgs, char ***ppapszArgs, const ch
     if (fFlags & RTR3INIT_FLAGS_SUPLIB)
     {
         rc = SUPR3Init(NULL);
-        AssertMsgRCReturn(rc, ("Failed to initializable the support library, rc=%Rrc!\n", rc), rc);
+        AssertMsgRCReturn(rc, ("Failed to initialize the support library, rc=%Rrc!\n", rc), rc);
     }
 #endif
 
@@ -466,12 +462,10 @@ static int rtR3InitBody(uint32_t fFlags, int cArgs, char ***ppapszArgs, const ch
 #endif
 
     /*
-     * Init the program start TSes.
+     * Init the program start timestamp TS.
      * Do that here to be sure that the GIP time was properly updated the 1st time.
      */
     g_u64ProgramStartNanoTS = RTTimeNanoTS();
-    g_u64ProgramStartMicroTS = g_u64ProgramStartNanoTS / 1000;
-    g_u64ProgramStartMilliTS = g_u64ProgramStartNanoTS / 1000000;
 
     /*
      * The remainder cannot easily be undone, so it has to go last.

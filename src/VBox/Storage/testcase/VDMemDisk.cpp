@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2011-2017 Oracle Corporation
+ * Copyright (C) 2011-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,7 +16,7 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 #define LOGGROUP LOGGROUP_DEFAULT /** @todo Log group */
-#include <iprt/err.h>
+#include <iprt/errcore.h>
 #include <iprt/log.h>
 #include <iprt/assert.h>
 #include <iprt/avl.h>

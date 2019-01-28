@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2017 Oracle Corporation
+ * Copyright (C) 2016-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,12 +29,19 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #include <iprt/json.h>
+
+#include <iprt/err.h>
 #include <iprt/string.h>
 #include <iprt/test.h>
 
-static const char *g_pszJson =
+
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
+static const char g_szJson[] =
     "{\n"
-    "    \"number\": 100,\n"
+    "    \"integer\": 100,\n"
+    "    \"number\": 22.22,\n"
     "    \"string\": \"test\",\n"
     "    \"array\": [1, 2, 3, 4, 5, \"6\"],\n"
     "    \"subobject\":\n"
@@ -74,15 +81,52 @@ static void tstBasic(RTTEST hTest)
         { "[ ]",           VINF_SUCCESS },
         { "[ 100, 200 ]",  VINF_SUCCESS },
         { "{ \"1\": 1 }",  VINF_SUCCESS },
-        { "{ \"1\": 1, \"2\": 2 }", VINF_SUCCESS }
+        { "{ \"1\": 1, \"2\": 2 }", VINF_SUCCESS },
+        { "20", VINF_SUCCESS },
+        { "-20", VINF_SUCCESS },
+        { "{\"positive\":20}", VINF_SUCCESS },
+        { "{\"negative\":-20}", VINF_SUCCESS },
+        { "\"\\u0001\"", VINF_SUCCESS },
+        { "\"\\u000\"", VERR_JSON_INVALID_UTF16_ESCAPE_SEQUENCE },
+        { "\"\\u00\"", VERR_JSON_INVALID_UTF16_ESCAPE_SEQUENCE },
+        { "\"\\u0\"", VERR_JSON_INVALID_UTF16_ESCAPE_SEQUENCE },
+        { "\"\\u\"", VERR_JSON_INVALID_UTF16_ESCAPE_SEQUENCE },
+        { "\"\\uGhKl\"", VERR_JSON_INVALID_UTF16_ESCAPE_SEQUENCE },
+        { "\"\\u0000z\"", VERR_JSON_INVALID_CODEPOINT },
+        { "\"\\uffff\"", VERR_JSON_INVALID_CODEPOINT },
+        { "\"\\ufffe\"", VERR_JSON_INVALID_CODEPOINT },
+        { "\"\\ufffd\"", VINF_SUCCESS},
+        { "\"\\ufffd1\"", VINF_SUCCESS},
+        { "\"\\ufffd12\"", VINF_SUCCESS},
+        { "\"\\uD801\\udC37\\ud852\\uDf62\"", VINF_SUCCESS },  /* U+10437 U+24B62 */
+        { "\"\\uD801 \\udC37\"", VERR_JSON_MISSING_SURROGATE_PAIR },
+        { "\"\\uD801udC37\"", VERR_JSON_MISSING_SURROGATE_PAIR },
+        { "\"\\uD801\"", VERR_JSON_MISSING_SURROGATE_PAIR },
+        { "\"\\uD801\\\"", VERR_JSON_MISSING_SURROGATE_PAIR },
+        { "\"\\uD801\\u\"", VERR_JSON_INVALID_UTF16_ESCAPE_SEQUENCE },
+        { "\"\\uD801\\ud\"", VERR_JSON_INVALID_UTF16_ESCAPE_SEQUENCE },
+        { "\"\\uD801\\udc\"", VERR_JSON_INVALID_UTF16_ESCAPE_SEQUENCE },
+        { "\"\\uD801\\udc3\"", VERR_JSON_INVALID_UTF16_ESCAPE_SEQUENCE },
+        { "\"\\uD801\\uDc37\"", VINF_SUCCESS},
+        { "\"\\uDbff\\uDfff\"", VINF_SUCCESS},
+        { "\"\\t\\n\\b\\f\\r\\\\\\/\"", VINF_SUCCESS},
     };
     for (unsigned iTest = 0; iTest < RT_ELEMENTS(aTests); iTest++)
     {
+        RTERRINFOSTATIC ErrInfo;
         RTJSONVAL hJsonVal = NIL_RTJSONVAL;
-        int rc = RTJsonParseFromString(&hJsonVal, aTests[iTest].pszJson, NULL);
+        int rc = RTJsonParseFromString(&hJsonVal, aTests[iTest].pszJson, RTErrInfoInitStatic(&ErrInfo));
         if (rc != aTests[iTest].iRcResult)
-            RTTestFailed(hTest, "RTJsonParseFromString() for \"%s\" failed, expected %Rrc got %Rrc\n",
-                         aTests[iTest].pszJson, aTests[iTest].iRcResult, rc);
+        {
+            if (RTErrInfoIsSet(&ErrInfo.Core))
+                RTTestFailed(hTest, "RTJsonParseFromString() for \"%s\" failed, expected %Rrc got %Rrc\n%s",
+                             aTests[iTest].pszJson, aTests[iTest].iRcResult, rc, ErrInfo.Core.pszMsg);
+            else
+                RTTestFailed(hTest, "RTJsonParseFromString() for \"%s\" failed, expected %Rrc got %Rrc",
+                             aTests[iTest].pszJson, aTests[iTest].iRcResult, rc);
+        }
+        else if (rc == VERR_JSON_MALFORMED && !RTErrInfoIsSet(&ErrInfo.Core))
+            RTTestFailed(hTest, "RTJsonParseFromString() did not return error info for \"%s\" failed", aTests[iTest].pszJson);
         if (RT_SUCCESS(rc))
         {
             if (hJsonVal != NIL_RTJSONVAL)
@@ -128,10 +172,16 @@ static void tstCorrectnessRcForInvalidType(RTTEST hTest, RTJSONVAL hJsonVal, RTJ
         RTTEST_CHECK_RC(hTest, RTJsonValueQueryByName(hJsonVal, "test", &hJsonValMember), VERR_JSON_VALUE_INVALID_TYPE);
     }
 
-    if (enmType != RTJSONVALTYPE_NUMBER)
+    if (enmType != RTJSONVALTYPE_INTEGER)
     {
         int64_t i64Num = 0;
         RTTEST_CHECK_RC(hTest, RTJsonValueQueryInteger(hJsonVal, &i64Num), VERR_JSON_VALUE_INVALID_TYPE);
+    }
+
+    if (enmType != RTJSONVALTYPE_NUMBER)
+    {
+        double rdNum = 0.0;
+        RTTEST_CHECK_RC(hTest, RTJsonValueQueryNumber(hJsonVal, &rdNum), VERR_JSON_VALUE_INVALID_TYPE);
     }
 
     if (enmType != RTJSONVALTYPE_STRING)
@@ -160,7 +210,7 @@ static void tstArray(RTTEST hTest, RTJSONVAL hJsonVal)
         int64_t i64Num = 0;
         RTJSONVAL hJsonValItem = NIL_RTJSONVAL;
         RTTEST_CHECK_RC_OK_RETV(hTest, RTJsonValueQueryByIndex(hJsonVal, i - 1, &hJsonValItem));
-        RTTEST_CHECK(hTest, RTJsonValueGetType(hJsonValItem) == RTJSONVALTYPE_NUMBER);
+        RTTEST_CHECK(hTest, RTJsonValueGetType(hJsonValItem) == RTJSONVALTYPE_INTEGER);
         RTTEST_CHECK_RC_OK_RETV(hTest, RTJsonValueQueryInteger(hJsonValItem, &i64Num));
         RTTEST_CHECK(hTest, i64Num == (int64_t)i);
         RTTEST_CHECK(hTest, RTJsonValueRelease(hJsonValItem) == 1);
@@ -216,12 +266,21 @@ static void tstIterator(RTTEST hTest, RTJSONVAL hJsonVal)
                     RTTEST_CHECK(hTest, strcmp(pszStr, "test") == 0);
                     break;
                 }
-                case RTJSONVALTYPE_NUMBER:
+                case RTJSONVALTYPE_INTEGER:
                 {
-                    RTTEST_CHECK(hTest, strcmp(pszName, "number") == 0);
+                    RTTEST_CHECK(hTest, strcmp(pszName, "integer") == 0);
                     int64_t i64Num = 0;
                     RTTEST_CHECK_RC_OK(hTest, RTJsonValueQueryInteger(hJsonValMember, &i64Num));
                     RTTEST_CHECK(hTest, i64Num == 100);
+                    break;
+                }
+                case RTJSONVALTYPE_NUMBER:
+                {
+                    RTTEST_CHECK(hTest, strcmp(pszName, "number") == 0);
+                    double rdNum = 0.0;
+                    RTTEST_CHECK_RC_OK(hTest, RTJsonValueQueryNumber(hJsonValMember, &rdNum));
+                    double const rdExpect = 22.22;
+                    RTTEST_CHECK(hTest, rdNum == rdExpect);
                     break;
                 }
                 case RTJSONVALTYPE_NULL:
@@ -255,7 +314,7 @@ static void tstCorrectness(RTTEST hTest)
     RTTestSub(hTest, "Correctness");
 
     RTJSONVAL hJsonVal = NIL_RTJSONVAL;
-    RTTEST_CHECK_RC_OK_RETV(hTest, RTJsonParseFromString(&hJsonVal, g_pszJson, NULL));
+    RTTEST_CHECK_RC_OK_RETV(hTest, RTJsonParseFromString(&hJsonVal, g_szJson, NULL));
 
     if (hJsonVal != NIL_RTJSONVAL)
     {
@@ -274,16 +333,29 @@ static void tstCorrectness(RTTEST hTest)
         RTTestFailed(hTest, "RTJsonParseFromString() returned success but no value\n");
 }
 
-int main()
+int main(int argc, char **argv)
 {
     RTTEST hTest;
-    int rc = RTTestInitAndCreate("tstRTJson", &hTest);
+    int rc = RTTestInitExAndCreate(argc, &argv, 0, "tstRTJson", &hTest);
     if (rc)
         return rc;
     RTTestBanner(hTest);
 
     tstBasic(hTest);
     tstCorrectness(hTest);
+    for (int i = 1; i < argc; i++)
+    {
+        RTTestSubF(hTest, "file %Rbn", argv[i]);
+        RTERRINFOSTATIC ErrInfo;
+        RTJSONVAL       hFileValue = NIL_RTJSONVAL;
+        rc = RTJsonParseFromFile(&hFileValue, argv[i], RTErrInfoInitStatic(&ErrInfo));
+        if (RT_SUCCESS(rc))
+            RTJsonValueRelease(hFileValue);
+        else if (RTErrInfoIsSet(&ErrInfo.Core))
+            RTTestFailed(hTest, "%Rrc - %s", rc, ErrInfo.Core.pszMsg);
+        else
+            RTTestFailed(hTest, "%Rrc", rc);
+    }
 
     /*
      * Summary.

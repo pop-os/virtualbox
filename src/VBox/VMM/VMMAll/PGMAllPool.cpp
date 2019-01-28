@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -92,12 +92,10 @@ DECLINLINE(bool) pgmPoolIsBigPage(PGMPOOLKIND enmKind)
 /**
  * Flushes a chain of pages sharing the same access monitor.
  *
- * @returns VBox status code suitable for scheduling.
  * @param   pPool       The pool.
  * @param   pPage       A page in the chain.
- * @todo VBOXSTRICTRC
  */
-int pgmPoolMonitorChainFlush(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
+void pgmPoolMonitorChainFlush(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
 {
     LogFlow(("pgmPoolMonitorChainFlush: Flush page %RGp type=%d\n", pPage->GCPhys, pPage->enmKind));
 
@@ -118,7 +116,6 @@ int pgmPoolMonitorChainFlush(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
     /*
      * Iterate the list flushing each shadow page.
      */
-    int rc = VINF_SUCCESS;
     for (;;)
     {
         idx = pPage->iMonitoredNext;
@@ -133,7 +130,6 @@ int pgmPoolMonitorChainFlush(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
             break;
         pPage = &pPool->aPages[idx];
     }
-    return rc;
 }
 
 
@@ -867,19 +863,19 @@ static int pgmRZPoolAccessPfHandlerFlush(PVM pVM, PVMCPU pVCpu, PPGMPOOL pPool, 
     /*
      * First, do the flushing.
      */
-    int rc = pgmPoolMonitorChainFlush(pPool, pPage);
+    pgmPoolMonitorChainFlush(pPool, pPage);
 
     /*
      * Emulate the instruction (xp/w2k problem, requires pc/cr2/sp detection).
      * Must do this in raw mode (!); XP boot will fail otherwise.
      */
+    int rc = VINF_SUCCESS;
     VBOXSTRICTRC rc2 = EMInterpretInstructionDisasState(pVCpu, pDis, pRegFrame, pvFault, EMCODETYPE_ALL);
     if (rc2 == VINF_SUCCESS)
     { /* do nothing */ }
     else if (rc2 == VINF_EM_RESCHEDULE)
     {
-        if (rc == VINF_SUCCESS)
-            rc = VBOXSTRICTRC_VAL(rc2);
+        rc = VBOXSTRICTRC_VAL(rc2);
 # ifndef IN_RING3
         VMCPU_FF_SET(pVCpu, VMCPU_FF_TO_R3);
 # endif
@@ -1485,10 +1481,7 @@ pgmPoolAccessHandler(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys, void *pvPhys, void 
             }
         }
         else
-        {
-            /* ASSUME that VERR_PGM_POOL_CLEARED can be ignored here and that FFs will deal with it in due time. */
             pgmPoolMonitorChainFlush(pPool, pPage);
-        }
 
         STAM_PROFILE_STOP_EX(&pPool->CTX_SUFF_Z(StatMonitor), &pPool->CTX_MID_Z(StatMonitor,FlushPage), a);
     }
@@ -2919,7 +2912,7 @@ int pgmPoolSyncCR3(PVMCPU pVCpu)
  *
  * @returns VBox status code.
  * @retval  VINF_SUCCESS if successfully added.
- * @retval  VERR_PGM_POOL_FLUSHED if the pool was flushed.
+ *
  * @param   pPool       The pool.
  * @param   iUser       The user index.
  */
@@ -2949,7 +2942,7 @@ static int pgmPoolTrackFreeOneUser(PPGMPOOL pPool, uint16_t iUser)
  *
  * @returns VBox status code.
  * @retval  VINF_SUCCESS if successfully added.
- * @retval  VERR_PGM_POOL_FLUSHED if the pool was flushed.
+ *
  * @param   pPool       The pool.
  * @param   pPage       The cached page.
  * @param   GCPhys      The GC physical address of the page we're gonna shadow.
@@ -3037,7 +3030,7 @@ DECLINLINE(int) pgmPoolTrackInsert(PPGMPOOL pPool, PPGMPOOLPAGE pPage, RTGCPHYS 
  *
  * @returns VBox status code.
  * @retval  VINF_SUCCESS if successfully added.
- * @retval  VERR_PGM_POOL_FLUSHED if the pool was flushed.
+ *
  * @param   pPool       The pool.
  * @param   pPage       The cached page.
  * @param   iUser       The user index.
@@ -3314,15 +3307,15 @@ static bool pgmPoolTrackFlushGCPhysPTInt(PVM pVM, PCPGMPAGE pPhysPage, bool fFlu
             {
                 switch (PGM_PAGE_GET_HNDL_PHYS_STATE(pPhysPage))
                 {
-                    case PGM_PAGE_HNDL_PHYS_STATE_NONE:         /** No handler installed. */
-                    case PGM_PAGE_HNDL_PHYS_STATE_DISABLED:     /** Monitoring is temporarily disabled. */
+                    case PGM_PAGE_HNDL_PHYS_STATE_NONE:         /* No handler installed. */
+                    case PGM_PAGE_HNDL_PHYS_STATE_DISABLED:     /* Monitoring is temporarily disabled. */
                         u32OrMask = X86_PTE_RW;
                         u32AndMask = UINT32_MAX;
                         fRet = true;
                         STAM_COUNTER_INC(&pPool->StatTrackFlushEntryKeep);
                         break;
 
-                    case PGM_PAGE_HNDL_PHYS_STATE_WRITE:        /** Write access is monitored. */
+                    case PGM_PAGE_HNDL_PHYS_STATE_WRITE:        /* Write access is monitored. */
                         u32OrMask = 0;
                         u32AndMask = ~X86_PTE_RW;
                         fRet = true;
@@ -5098,7 +5091,6 @@ void pgmPoolFreeByPage(PPGMPOOL pPool, PPGMPOOLPAGE pPage, uint16_t iUser, uint3
  *
  * @returns VBox status code.
  * @retval  VINF_SUCCESS on success.
- * @retval  VERR_PGM_POOL_FLUSHED if the pool was flushed.
  *
  * @param   pPool       The pool.
  * @param   enmKind     Page table kind
@@ -5150,7 +5142,6 @@ static int pgmPoolMakeMoreFreePages(PPGMPOOL pPool, PGMPOOLKIND enmKind, uint16_
  * @returns VBox status code.
  * @retval  VINF_SUCCESS if a NEW page was allocated.
  * @retval  VINF_PGM_CACHED_PAGE if a CACHED page was returned.
- * @retval  VERR_PGM_POOL_FLUSHED if the pool was flushed.
  *
  * @param   pVM         The cross context VM structure.
  * @param   GCPhys      The GC physical address of the page we're gonna shadow.

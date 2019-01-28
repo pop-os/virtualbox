@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2017 Oracle Corporation
+ * Copyright (C) 2007-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -232,6 +232,10 @@ static int vgdrvFreeBSDOpen(struct cdev *pDev, int fOpen, struct thread *pTd)
 {
     int                 rc;
     PVBOXGUESTSESSION   pSession;
+    uint32_t            fRequestor;
+    struct ucred       *pCred = curthread->td_ucred;
+    if (!pCred)
+        pCred = curproc->p_ucred;
 
     LogFlow(("vgdrvFreeBSDOpen:\n"));
 
@@ -244,7 +248,18 @@ static int vgdrvFreeBSDOpen(struct cdev *pDev, int fOpen, struct thread *pTd)
     /*
      * Create a new session.
      */
-    rc = VGDrvCommonCreateUserSession(&g_DevExt, &pSession);
+    fRequestor = VMMDEV_REQUESTOR_USERMODE | VMMDEV_REQUESTOR_TRUST_NOT_GIVEN;
+    if (pCred && pCred->cr_uid == 0)
+        fRequestor |= VMMDEV_REQUESTOR_USR_ROOT;
+    else
+        fRequestor |= VMMDEV_REQUESTOR_USR_USER;
+    if (pCred && groupmember(0, pCred))
+        fRequestor |= VMMDEV_REQUESTOR_GRP_WHEEL;
+    fRequestor |= VMMDEV_REQUESTOR_NO_USER_DEVICE; /** @todo implement /dev/vboxuser
+    if (!fUnrestricted)
+        fRequestor |= VMMDEV_REQUESTOR_USER_DEVICE; */
+    fRequestor |= VMMDEV_REQUESTOR_CON_DONT_KNOW; /** @todo see if we can figure out console relationship of pProc. */
+    rc = VGDrvCommonCreateUserSession(&g_DevExt, fRequestor, &pSession);
     if (RT_SUCCESS(rc))
     {
         if (ASMAtomicCmpXchgPtr(&pDev->si_drv1, pSession, (void *)0x42))
@@ -562,6 +577,7 @@ static int vgdrvFreeBSDDetach(device_t pDevice)
     return 0;
 }
 
+
 /**
  * Interrupt service routine.
  *
@@ -586,6 +602,14 @@ void VGDrvNativeISRMousePollEvent(PVBOXGUESTDEVEXT pDevExt)
      */
     selwakeup(&g_SelInfo);
 }
+
+
+bool VGDrvNativeProcessOption(PVBOXGUESTDEVEXT pDevExt, const char *pszName, const char *pszValue)
+{
+    RT_NOREF(pDevExt); RT_NOREF(pszName); RT_NOREF(pszValue);
+    return false;
+}
+
 
 /**
  * Sets IRQ for VMMDev.
@@ -697,6 +721,11 @@ static int vgdrvFreeBSDAttach(device_t pDevice)
                 rc = vgdrvFreeBSDAddIRQ(pDevice, pState);
                 if (RT_SUCCESS(rc))
                 {
+                    /*
+                     * Read host configuration.
+                     */
+                    VGDrvCommonProcessOptionsFromHost(&g_DevExt);
+
                     /*
                      * Configure device cloning.
                      */

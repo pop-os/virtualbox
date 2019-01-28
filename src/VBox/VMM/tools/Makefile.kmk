@@ -1,11 +1,10 @@
-
 # $Id: Makefile.kmk $
 ## @file
 # Sub-Makefile for VMM tools.
 #
 
 #
-# Copyright (C) 2006-2017 Oracle Corporation
+# Copyright (C) 2006-2019 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -24,10 +23,10 @@ include $(KBUILD_PATH)/subheader.kmk
 # Targets.
 #
 ifdef VBOX_WITH_HARDENING
- PROGRAMS += VBoxVMMPreloadHardened
- DLLS     += VBoxVMMPreload
+PROGRAMS += VBoxVMMPreloadHardened
+DLLS     += VBoxVMMPreload
 else
- PROGRAMS += VBoxVMMPreload
+PROGRAMS += VBoxVMMPreload
 endif
 
 
@@ -46,7 +45,7 @@ VBoxVMMPreload_TEMPLATE  := $(if $(VBOX_WITH_HARDENING),VBoxR3Dll,VBOXR3EXE)
 VBoxVMMPreload_SOURCES    = VBoxVMMPreload.cpp
 VBoxVMMPreload_LIBS = $(LIB_RUNTIME)
 ifdef VBOX_WITH_HARDENING
- VBoxVMMPreload_LDFLAGS.darwin += -install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VBoxVMMPreload.dylib
+VBoxVMMPreload_LDFLAGS.darwin += -install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VBoxVMMPreload.dylib
 endif
 
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2017 Oracle Corporation
+ * Copyright (C) 2007-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,7 +31,7 @@
 #include <iprt/mem.h>
 #include <iprt/assert.h>
 #include <iprt/string.h>
-#include <iprt/err.h>
+#include <iprt/errcore.h>
 #include "VBoxGuestR3LibInternal.h"
 
 
@@ -51,7 +51,7 @@ int vbglR3GRAlloc(VMMDevRequestHeader **ppReq, size_t cb, VMMDevRequestType enmR
         pReq->requestType = enmReqType;
         pReq->rc          = VERR_GENERAL_FAILURE;
         pReq->reserved1   = 0;
-        pReq->reserved2   = 0;
+        pReq->fRequestor  = 0;
 
         *ppReq = pReq;
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2015-2017 Oracle Corporation
+ * Copyright (C) 2015-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,29 +15,83 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QApplication>
-# include <QDesktopWidget>
-# include <QScreen>
-# ifdef VBOX_WS_X11
-#  include <QTimer>
-# endif
+#include <QApplication>
+#include <QDesktopWidget>
+#include <QScreen>
+#ifdef VBOX_WS_WIN
+# include <QLibrary>
+#endif
+#ifdef VBOX_WS_X11
+# include <QTimer>
+#endif
 
 /* GUI includes: */
-# include "UIDesktopWidgetWatchdog.h"
-# ifdef VBOX_WS_X11
-#  include "VBoxGlobal.h"
-# endif /* VBOX_WS_X11 */
+#include "UIDesktopWidgetWatchdog.h"
+#ifdef VBOX_WS_X11
+# include "VBoxGlobal.h"
+#endif /* VBOX_WS_X11 */
 
 /* Other VBox includes: */
-# include <iprt/assert.h>
-# include <VBox/log.h>
+#include <iprt/asm.h>
+#include <iprt/assert.h>
+#include <iprt/ldr.h>
+#include <VBox/log.h>
 
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+/* Platform includes: */
+#ifdef VBOX_WS_WIN
+# include <iprt/win/windows.h>
+#endif
+
+
+#ifdef VBOX_WS_WIN
+
+# ifndef DPI_ENUMS_DECLARED
+typedef enum _MONITOR_DPI_TYPE // gently stolen from MSDN
+{
+    MDT_EFFECTIVE_DPI  = 0,
+    MDT_ANGULAR_DPI    = 1,
+    MDT_RAW_DPI        = 2,
+    MDT_DEFAULT        = MDT_EFFECTIVE_DPI
+} MONITOR_DPI_TYPE;
+# endif
+typedef void (WINAPI *PFN_GetDpiForMonitor)(HMONITOR, MONITOR_DPI_TYPE, UINT *, UINT *);
+
+/** Set when dynamic API import is reoslved. */
+static bool volatile        g_fResolved;
+/** Pointer to Shcore.dll!GetDpiForMonitor, introduced in windows 8.1. */
+static PFN_GetDpiForMonitor g_pfnGetDpiForMonitor = NULL;
+
+/** @returns true if all APIs found, false if missing APIs  */
+static bool ResolveDynamicImports(void)
+{
+    if (!g_fResolved)
+    {
+        PFN_GetDpiForMonitor pfn = (decltype(pfn))RTLdrGetSystemSymbol("Shcore.dll", "GetDpiForMonitor");
+        g_pfnGetDpiForMonitor = pfn;
+        ASMCompilerBarrier();
+
+        g_fResolved = true;
+    }
+    return g_pfnGetDpiForMonitor != NULL;
+}
+
+static BOOL CALLBACK MonitorEnumProcF(HMONITOR hMonitor, HDC hdcMonitor, LPRECT lpClipRect, LPARAM dwData)
+{
+    /* These required for clipped screens only: */
+    RT_NOREF(hdcMonitor, lpClipRect);
+
+    /* Acquire effective DPI (available since Windows 8.1): */
+    AssertReturn(g_pfnGetDpiForMonitor, false);
+    UINT uOutX = 0;
+    UINT uOutY = 0;
+    g_pfnGetDpiForMonitor(hMonitor, MDT_EFFECTIVE_DPI, &uOutX, &uOutY);
+    reinterpret_cast<QList<QPair<int, int> >*>(dwData)->append(qMakePair(uOutX, uOutY));
+
+    return TRUE;
+}
+
+#endif /* VBOX_WS_WIN */
 
 
 #ifdef VBOX_WS_X11
@@ -178,42 +232,42 @@ void UIInvisibleWindow::resizeEvent(QResizeEvent *pEvent)
 *********************************************************************************************************************************/
 
 /* static */
-UIDesktopWidgetWatchdog *UIDesktopWidgetWatchdog::m_spInstance = 0;
+UIDesktopWidgetWatchdog *UIDesktopWidgetWatchdog::s_pInstance = 0;
 
 /* static */
 void UIDesktopWidgetWatchdog::create()
 {
     /* Make sure instance isn't created: */
-    AssertReturnVoid(!m_spInstance);
+    AssertReturnVoid(!s_pInstance);
 
     /* Create/prepare instance: */
     new UIDesktopWidgetWatchdog;
-    AssertReturnVoid(m_spInstance);
-    m_spInstance->prepare();
+    AssertReturnVoid(s_pInstance);
+    s_pInstance->prepare();
 }
 
 /* static */
 void UIDesktopWidgetWatchdog::destroy()
 {
     /* Make sure instance is created: */
-    AssertReturnVoid(m_spInstance);
+    AssertReturnVoid(s_pInstance);
 
     /* Cleanup/destroy instance: */
-    m_spInstance->cleanup();
-    delete m_spInstance;
-    AssertReturnVoid(!m_spInstance);
+    s_pInstance->cleanup();
+    delete s_pInstance;
+    AssertReturnVoid(!s_pInstance);
 }
 
 UIDesktopWidgetWatchdog::UIDesktopWidgetWatchdog()
 {
     /* Initialize instance: */
-    m_spInstance = this;
+    s_pInstance = this;
 }
 
 UIDesktopWidgetWatchdog::~UIDesktopWidgetWatchdog()
 {
     /* Deinitialize instance: */
-    m_spInstance = 0;
+    s_pInstance = 0;
 }
 
 int UIDesktopWidgetWatchdog::overallDesktopWidth() const
@@ -232,6 +286,12 @@ int UIDesktopWidgetWatchdog::screenCount() const
 {
     /* Redirect call to desktop-widget: */
     return QApplication::desktop()->screenCount();
+}
+
+int UIDesktopWidgetWatchdog::primaryScreen() const
+{
+    /* Redirect call to desktop-widget: */
+    return QApplication::desktop()->primaryScreen();
 }
 
 int UIDesktopWidgetWatchdog::screenNumber(const QWidget *pWidget) const
@@ -354,13 +414,14 @@ bool UIDesktopWidgetWatchdog::isFakeScreenDetected() const
 }
 #endif /* VBOX_WS_X11 */
 
-double UIDesktopWidgetWatchdog::devicePixelRatio(int iHostScreenIndex)
+double UIDesktopWidgetWatchdog::devicePixelRatio(int iHostScreenIndex /* = -1 */)
 {
     /* First, we should check whether the screen is valid: */
     QScreen *pScreen = iHostScreenIndex == -1
                      ? QGuiApplication::primaryScreen()
                      : QGuiApplication::screens().value(iHostScreenIndex);
     AssertPtrReturn(pScreen, 1.0);
+
     /* Then acquire device-pixel-ratio: */
     return pScreen->devicePixelRatio();
 }
@@ -369,6 +430,45 @@ double UIDesktopWidgetWatchdog::devicePixelRatio(QWidget *pWidget)
 {
     /* Redirect call to wrapper above: */
     return devicePixelRatio(screenNumber(pWidget));
+}
+
+double UIDesktopWidgetWatchdog::devicePixelRatioActual(int iHostScreenIndex /* = -1 */)
+{
+    /* First, we should check whether the screen is valid: */
+    QScreen *pScreen = 0;
+    if (iHostScreenIndex == -1)
+    {
+        pScreen = QGuiApplication::primaryScreen();
+        iHostScreenIndex = QGuiApplication::screens().indexOf(pScreen);
+    }
+    else
+        pScreen = QGuiApplication::screens().value(iHostScreenIndex);
+    AssertPtrReturn(pScreen, 1.0);
+
+#ifdef VBOX_WS_WIN
+    /* Enumerate available monitors through EnumDisplayMonitors if GetDpiForMonitor is available: */
+    if (ResolveDynamicImports())
+    {
+        QList<QPair<int, int> > listOfScreenDPI;
+        EnumDisplayMonitors(0, 0, MonitorEnumProcF, (LPARAM)&listOfScreenDPI);
+        if (iHostScreenIndex >= 0 && iHostScreenIndex < listOfScreenDPI.size())
+        {
+            const QPair<int, int> dpiPair = listOfScreenDPI.at(iHostScreenIndex);
+            if (dpiPair.first > 0)
+                return (double)dpiPair.first / 96 /* dpi unawarness value */;
+        }
+    }
+
+#endif /* VBOX_WS_WIN */
+
+    /* Then acquire device-pixel-ratio: */
+    return pScreen->devicePixelRatio();
+}
+
+double UIDesktopWidgetWatchdog::devicePixelRatioActual(QWidget *pWidget)
+{
+    /* Redirect call to wrapper above: */
+    return devicePixelRatioActual(screenNumber(pWidget));
 }
 
 void UIDesktopWidgetWatchdog::sltHostScreenAdded(QScreen *pHostScreen)

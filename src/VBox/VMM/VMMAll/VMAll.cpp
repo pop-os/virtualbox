@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -388,5 +388,44 @@ VMMDECL(const char *) VMGetStateName(VMSTATE enmState)
         default:
             return "Unknown";
     }
+}
+
+
+/**
+ * Gets the total reset count.
+ *
+ * @returns Reset count. UINT32_MAX if @a pVM is invalid.
+ * @param   pVM         The VM handle.
+ */
+VMMDECL(uint32_t) VMGetResetCount(PVM pVM)
+{
+    VM_ASSERT_VALID_EXT_RETURN(pVM, UINT32_MAX);
+    return pVM->vm.s.cResets;
+}
+
+
+/**
+ * Gets the soft reset count.
+ *
+ * @returns Soft reset count. UINT32_MAX if @a pVM is invalid.
+ * @param   pVM         The VM handle.
+ */
+VMMDECL(uint32_t) VMGetSoftResetCount(PVM pVM)
+{
+    VM_ASSERT_VALID_EXT_RETURN(pVM, UINT32_MAX);
+    return pVM->vm.s.cSoftResets;
+}
+
+
+/**
+ * Gets the hard reset count.
+ *
+ * @returns Hard reset count. UINT32_MAX if @a pVM is invalid.
+ * @param   pVM         The VM handle.
+ */
+VMMDECL(uint32_t) VMGetHardResetCount(PVM pVM)
+{
+    VM_ASSERT_VALID_EXT_RETURN(pVM, UINT32_MAX);
+    return pVM->vm.s.cHardResets;
 }
 

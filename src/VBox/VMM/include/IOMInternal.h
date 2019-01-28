@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___IOMInternal_h
-#define ___IOMInternal_h
+#ifndef VMM_INCLUDED_SRC_include_IOMInternal_h
+#define VMM_INCLUDED_SRC_include_IOMInternal_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #define IOM_WITH_CRIT_SECT_RW
 
@@ -502,5 +505,5 @@ RT_C_DECLS_END
 
 /** @} */
 
-#endif /* !___IOMInternal_h */
+#endif /* !VMM_INCLUDED_SRC_include_IOMInternal_h */
 

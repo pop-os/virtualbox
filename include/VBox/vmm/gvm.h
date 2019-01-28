@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2017 Oracle Corporation
+ * Copyright (C) 2007-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,12 +24,15 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-
-#ifndef ___VBox_vmm_gvm_h
-#define ___VBox_vmm_gvm_h
+#ifndef VBOX_INCLUDED_vmm_gvm_h
+#define VBOX_INCLUDED_vmm_gvm_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/types.h>
 #include <iprt/thread.h>
+#include <iprt/assertcompile.h>
 
 
 /** @defgroup grp_gvmcpu    GVMCPU - The Global VMCPU Data
@@ -41,21 +44,49 @@ typedef struct GVMCPU
 {
     /** VCPU id (0 - (pVM->cCpus - 1). */
     VMCPUID         idCpu;
+    /** Padding. */
+    uint32_t        uPadding;
 
     /** Handle to the EMT thread. */
     RTNATIVETHREAD  hEMT;
 
+    /** Pointer to the global (ring-0) VM structure this CPU belongs to. */
+    PGVM            pGVM;
+    /** Pointer to the corresponding cross context CPU structure. */
+    PVMCPU          pVCpu;
+    /** Pointer to the corresponding cross context VM structure. */
+    PVM             pVM;
+
+    /** Padding so gvmm starts on a 64 byte boundrary. */
+    uint8_t         abPadding[HC_ARCH_BITS == 32 ? 4*4 + 24 : 24];
+
     /** The GVMM per vcpu data. */
     union
     {
-#ifdef ___GVMMR0Internal_h
+#ifdef VMM_INCLUDED_SRC_VMMR0_GVMMR0Internal_h
         struct GVMMPERVCPU  s;
 #endif
         uint8_t             padding[64];
     } gvmm;
+
+#ifdef VBOX_WITH_NEM_R0
+    /** The NEM per vcpu data. */
+    union
+    {
+# ifdef VMM_INCLUDED_SRC_include_NEMInternal_h
+        struct NEMR0PERVCPU s;
+# endif
+        uint8_t             padding[64];
+    } nem;
+#endif
 } GVMCPU;
-/** Pointer to the GVMCPU data. */
-typedef GVMCPU *PGVMCPU;
+AssertCompileMemberOffset(GVMCPU, gvmm,   64);
+#ifdef VBOX_WITH_NEM_R0
+AssertCompileMemberOffset(GVMCPU, nem,    64 + 64);
+AssertCompileSize(        GVMCPU,         64 + 64 + 64);
+#else
+AssertCompileSize(        GVMCPU,         64 + 64);
+#endif
 
 /** @} */
 
@@ -81,17 +112,20 @@ typedef struct GVM
     uint32_t        hSelf;
     /** The ring-0 mapping of the VM structure. */
     PVM             pVM;
+    /** The ring-3 mapping of the VM structure. */
+    PVMR3           pVMR3;
     /** The support driver session the VM is associated with. */
     PSUPDRVSESSION  pSession;
     /** Number of Virtual CPUs, i.e. how many entries there are in aCpus.
      * Same same as VM::cCpus. */
     uint32_t        cCpus;
-    uint32_t        padding;
+    /** Padding so gvmm starts on a 64 byte boundrary.   */
+    uint8_t         abPadding[HC_ARCH_BITS == 32 ? 12 + 28 : 28];
 
     /** The GVMM per vm data. */
     union
     {
-#ifdef ___GVMMR0Internal_h
+#ifdef VMM_INCLUDED_SRC_VMMR0_GVMMR0Internal_h
         struct GVMMPERVM    s;
 #endif
         uint8_t             padding[256];
@@ -100,30 +134,50 @@ typedef struct GVM
     /** The GMM per vm data. */
     union
     {
-#ifdef ___GMMR0Internal_h
+#ifdef VMM_INCLUDED_SRC_VMMR0_GMMR0Internal_h
         struct GMMPERVM     s;
 #endif
         uint8_t             padding[512];
     } gmm;
 
+#ifdef VBOX_WITH_NEM_R0
+    /** The NEM per vcpu data. */
+    union
+    {
+# ifdef VMM_INCLUDED_SRC_include_NEMInternal_h
+        struct NEMR0PERVM   s;
+# endif
+        uint8_t             padding[256];
+    } nem;
+#endif
+
     /** The RAWPCIVM per vm data. */
     union
     {
-#ifdef ___VBox_rawpci_h
+#ifdef VBOX_INCLUDED_rawpci_h
         struct RAWPCIPERVM s;
 #endif
-        uint8_t     padding[64];
+        uint8_t             padding[64];
     } rawpci;
-
 
     /** GVMCPU array for the configured number of virtual CPUs. */
     GVMCPU          aCpus[1];
 } GVM;
+AssertCompileMemberOffset(GVM, gvmm,   64);
+AssertCompileMemberOffset(GVM, gmm,    64 + 256);
+#ifdef VBOX_WITH_NEM_R0
+AssertCompileMemberOffset(GVM, nem,    64 + 256 + 512);
+AssertCompileMemberOffset(GVM, rawpci, 64 + 256 + 512 + 256);
+AssertCompileMemberOffset(GVM, aCpus,  64 + 256 + 512 + 256 + 64);
+#else
+AssertCompileMemberOffset(GVM, rawpci, 64 + 256 + 512);
+AssertCompileMemberOffset(GVM, aCpus,  64 + 256 + 512 + 64);
+#endif
 
 /** The GVM::u32Magic value (Wayne Shorter). */
 #define GVM_MAGIC       0x19330825
 
 /** @} */
 
-#endif
+#endif /* !VBOX_INCLUDED_vmm_gvm_h */
 

@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2017 Oracle Corporation
+# Copyright (C) 2006-2019 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -36,14 +36,14 @@ VBoxSharedFolders_LDFLAGS.darwin = \
 	-install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VBoxSharedFolders.dylib
 
 VBoxSharedFolders_SOURCES = \
-	service.cpp \
+	VBoxSharedFoldersSvc.cpp \
 	shflhandle.cpp \
 	vbsf.cpp \
 	vbsfpath.cpp \
 	vbsfpathabs.cpp \
 	mappings.cpp
 VBoxSharedFolders_SOURCES.win = \
-	VBoxSharedFolders.rc
+	VBoxSharedFoldersSvc.rc
 
 VBoxSharedFolders_LIBS = \
 	$(LIB_VMM) \

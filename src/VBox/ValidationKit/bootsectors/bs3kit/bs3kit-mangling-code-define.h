@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2017 Oracle Corporation
+ * Copyright (C) 2007-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -93,6 +93,32 @@
 #define Bs3RegCtxSetRipCsFromCurPtr BS3_CMN_MANGLER(Bs3RegCtxSetRipCsFromCurPtr)
 #define Bs3RegCtxSetRipCsFromFlat BS3_CMN_MANGLER(Bs3RegCtxSetRipCsFromFlat)
 #define Bs3RegCtxSetRipCsFromLnkPtr BS3_CMN_MANGLER(Bs3RegCtxSetRipCsFromLnkPtr)
+#define Bs3RegGetCr0 BS3_CMN_MANGLER(Bs3RegGetCr0)
+#define Bs3RegGetCr2 BS3_CMN_MANGLER(Bs3RegGetCr2)
+#define Bs3RegGetCr3 BS3_CMN_MANGLER(Bs3RegGetCr3)
+#define Bs3RegGetCr4 BS3_CMN_MANGLER(Bs3RegGetCr4)
+#define Bs3RegGetDr0 BS3_CMN_MANGLER(Bs3RegGetDr0)
+#define Bs3RegGetDr1 BS3_CMN_MANGLER(Bs3RegGetDr1)
+#define Bs3RegGetDr2 BS3_CMN_MANGLER(Bs3RegGetDr2)
+#define Bs3RegGetDr3 BS3_CMN_MANGLER(Bs3RegGetDr3)
+#define Bs3RegGetDr6 BS3_CMN_MANGLER(Bs3RegGetDr6)
+#define Bs3RegGetDr7 BS3_CMN_MANGLER(Bs3RegGetDr7)
+#define Bs3RegGetDrX BS3_CMN_MANGLER(Bs3RegGetDrX)
+#define Bs3RegGetLdtr BS3_CMN_MANGLER(Bs3RegGetLdtr)
+#define Bs3RegGetTr BS3_CMN_MANGLER(Bs3RegGetTr)
+#define Bs3RegSetCr0 BS3_CMN_MANGLER(Bs3RegSetCr0)
+#define Bs3RegSetCr2 BS3_CMN_MANGLER(Bs3RegSetCr2)
+#define Bs3RegSetCr3 BS3_CMN_MANGLER(Bs3RegSetCr3)
+#define Bs3RegSetCr4 BS3_CMN_MANGLER(Bs3RegSetCr4)
+#define Bs3RegSetDr0 BS3_CMN_MANGLER(Bs3RegSetDr0)
+#define Bs3RegSetDr1 BS3_CMN_MANGLER(Bs3RegSetDr1)
+#define Bs3RegSetDr2 BS3_CMN_MANGLER(Bs3RegSetDr2)
+#define Bs3RegSetDr3 BS3_CMN_MANGLER(Bs3RegSetDr3)
+#define Bs3RegSetDr6 BS3_CMN_MANGLER(Bs3RegSetDr6)
+#define Bs3RegSetDr7 BS3_CMN_MANGLER(Bs3RegSetDr7)
+#define Bs3RegSetDrX BS3_CMN_MANGLER(Bs3RegSetDrX)
+#define Bs3RegSetLdtr BS3_CMN_MANGLER(Bs3RegSetLdtr)
+#define Bs3RegSetTr BS3_CMN_MANGLER(Bs3RegSetTr)
 #define Bs3SelFar32ToFlat32 BS3_CMN_MANGLER(Bs3SelFar32ToFlat32)
 #define Bs3SelFar32ToFlat32NoClobber BS3_CMN_MANGLER(Bs3SelFar32ToFlat32NoClobber)
 #define Bs3SelFlatCodeToProtFar16 BS3_CMN_MANGLER(Bs3SelFlatCodeToProtFar16)
@@ -130,6 +156,8 @@
 #define Bs3TestFailed BS3_CMN_MANGLER(Bs3TestFailed)
 #define Bs3TestFailedF BS3_CMN_MANGLER(Bs3TestFailedF)
 #define Bs3TestFailedV BS3_CMN_MANGLER(Bs3TestFailedV)
+#define Bs3TestHostPrintf BS3_CMN_MANGLER(Bs3TestHostPrintf)
+#define Bs3TestHostPrintfV BS3_CMN_MANGLER(Bs3TestHostPrintfV)
 #define Bs3TestInit BS3_CMN_MANGLER(Bs3TestInit)
 #define Bs3TestPrintf BS3_CMN_MANGLER(Bs3TestPrintf)
 #define Bs3TestPrintfV BS3_CMN_MANGLER(Bs3TestPrintfV)
@@ -155,6 +183,7 @@
 #define Bs3TrapRmV86Init BS3_CMN_MANGLER(Bs3TrapRmV86Init)
 #define Bs3TrapRmV86InitEx BS3_CMN_MANGLER(Bs3TrapRmV86InitEx)
 #define Bs3TrapRmV86SetGate BS3_CMN_MANGLER(Bs3TrapRmV86SetGate)
+#define Bs3TrapSetDpl BS3_CMN_MANGLER(Bs3TrapSetDpl)
 #define Bs3TrapSetHandler BS3_CMN_MANGLER(Bs3TrapSetHandler)
 #define Bs3TrapSetHandlerEx BS3_CMN_MANGLER(Bs3TrapSetHandlerEx)
 #define Bs3TrapSetJmp BS3_CMN_MANGLER(Bs3TrapSetJmp)

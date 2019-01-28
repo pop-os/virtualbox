@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,8 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___iprt_vfs_h
-#define ___iprt_vfs_h
+#ifndef IPRT_INCLUDED_vfs_h
+#define IPRT_INCLUDED_vfs_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/cdefs.h>
 #include <iprt/types.h>
@@ -112,6 +115,31 @@ RTDECL(int)         RTVfsCreate(const char *pszName, uint32_t fFlags, PRTVFS phV
 RTDECL(uint32_t)    RTVfsRetain(RTVFS hVfs);
 RTDECL(uint32_t)    RTVfsRetainDebug(RTVFS hVfs, RT_SRC_POS_DECL);
 RTDECL(uint32_t)    RTVfsRelease(RTVFS hVfs);
+
+/** @name RTVFSMNT_F_XXX - Flags for RTVfsMount
+ * @{ */
+/** Mount read-only. */
+#define RTVFSMNT_F_READ_ONLY            RT_BIT_32(0)
+/** Purpose is . */
+#define RTVFSMNT_F_FOR_RANGE_IN_USE     RT_BIT_32(1)
+/** Valid mask. */
+#define RTVFSMNT_F_VALID_MASK           UINT32_C(0x00000003)
+/** @} */
+
+/**
+ * Does the file system detection and mounting.
+ *
+ * @returns IPRT status code.
+ * @retval  VERR_VFS_UNSUPPORTED_FORMAT if not recognized as a support file
+ *          system.
+ * @param   hVfsFileIn      The file handle of the volume.
+ * @param   fFlags          RTVFSMTN_F_XXX.
+ * @param   phVfs           Where to return the VFS handle on success.
+ * @param   pErrInfo        Where to return additional error information.
+ *                          Optional.
+ */
+RTDECL(int)         RTVfsMountVol(RTVFSFILE hVfsFileIn, uint32_t fFlags, PRTVFS phVfs, PRTERRINFO pErrInfo);
+
 RTDECL(int)         RTVfsAttach(RTVFS hVfs, const char *pszMountPoint, uint32_t fFlags, RTVFS hVfsAttach);
 RTDECL(int)         RTVfsDetach(RTVFS hVfs, const char *pszMountPoint, RTVFS hVfsToDetach, PRTVFS *phVfsDetached);
 RTDECL(uint32_t)    RTVfsGetAttachmentCount(RTVFS hVfs);
@@ -119,11 +147,19 @@ RTDECL(int)         RTVfsGetAttachment(RTVFS hVfs, uint32_t iOrdinal, PRTVFS *ph
                                        char *pszMountPoint, size_t cbMountPoint);
 
 /**
+ * Opens the root director of the given VFS.
+ *
+ * @returns IPRT status code.
+ * @param   hVfs        VFS handle.
+ * @param   phDir       Where to return the root directory handle.
+ */
+RTDECL(int) RTVfsOpenRoot(RTVFS hVfs, PRTVFSDIR phDir);
+
+/**
  * Queries information about a object in the virtual filesystem.
  *
  * @returns IPRT Status code.
  * @param   hVfs        VFS handle.
- *                      relative to.
  * @param   pszPath     Path to the object, relative to the VFS root.
  * @param   pObjInfo    Where to return info.
  * @param   enmAddAttr  What to return.
@@ -142,7 +178,8 @@ RTDECL(int) RTVfsQueryPathInfo(RTVFS hVfs, const char *pszPath, PRTFSOBJINFO pOb
  * @param   cb          Number of bytes to check.
  * @param   pfUsed      Where to store the result.
  */
-RTDECL(int) RTVfsIsRangeInUse(RTVFS hVfs, uint64_t off, size_t cb, bool *pfUsed);
+RTDECL(int) RTVfsQueryRangeState(RTVFS hVfs, uint64_t off, size_t cb, bool *pfUsed);
+
 
 /** @defgroup grp_vfs_obj           VFS Base Object API
  * @{
@@ -165,6 +202,67 @@ RTDECL(uint32_t)        RTVfsObjRetainDebug(RTVFSOBJ hVfsObj, RT_SRC_POS_DECL);
  */
 RTDECL(uint32_t)        RTVfsObjRelease(RTVFSOBJ hVfsObj);
 
+/** @name RTVFSOBJ_F_XXX - Flags or RTVfsObjOpen and RTVfsDirOpenObj.
+ * @note Must leave space for RTPATH_F_XXX.
+ * @{ */
+/** Directory (RTFS_TYPE_DIRECTORY). */
+#define RTVFSOBJ_F_OPEN_DIRECTORY           RT_BIT_32(8)
+/** Symbolic link (RTFS_TYPE_SYMLINK). */
+#define RTVFSOBJ_F_OPEN_SYMLINK             RT_BIT_32(9)
+/** Regular file (RTFS_TYPE_FILE). */
+#define RTVFSOBJ_F_OPEN_FILE                RT_BIT_32(10)
+/** Character device (RTFS_TYPE_DEV_CHAR). */
+#define RTVFSOBJ_F_OPEN_DEV_CHAR            RT_BIT_32(11)
+/** Block device (RTFS_TYPE_DEV_BLOCK). */
+#define RTVFSOBJ_F_OPEN_DEV_BLOCK           RT_BIT_32(12)
+/** Named pipe (fifo) (RTFS_TYPE_FIFO). */
+#define RTVFSOBJ_F_OPEN_FIFO                RT_BIT_32(13)
+/** Socket (RTFS_TYPE_SOCKET). */
+#define RTVFSOBJ_F_OPEN_SOCKET              RT_BIT_32(14)
+/** Mounted VFS. */
+#define RTVFSOBJ_F_OPEN_MOUNT               RT_BIT_32(15)
+/** Mask object types we wish to open. */
+#define RTVFSOBJ_F_OPEN_MASK                UINT32_C(0x0000ff00)
+/** Any kind of object that translates to RTVFSOBJTYPE_FILE. */
+#define RTVFSOBJ_F_OPEN_ANY_FILE            (RTVFSOBJ_F_OPEN_FILE | RTVFSOBJ_F_OPEN_DEV_BLOCK)
+/** Any kind of object that translates to RTVFSOBJTYPE_IOS or
+ *  RTVFSOBJTYPE_FILE. */
+#define RTVFSOBJ_F_OPEN_ANY_IO_STREAM       (  RTVFSOBJ_F_ANY_OPEN_FILE | RTVFSOBJ_F_DEV_OPEN_BLOCK \
+                                             | RTVFSOBJ_F_OPEN_FIFO     | RTVFSOBJ_F_OPEN_SOCKET)
+/** Any kind of object. */
+#define RTVFSOBJ_F_OPEN_ANY                 RTVFSOBJ_F_OPEN_MASK
+
+/** Do't create anything, return file not found. */
+#define RTVFSOBJ_F_CREATE_NOTHING           UINT32_C(0x00000000)
+/** Create a file if the if the object was not found and the RTFILE_O_XXX
+ * flags allows it. */
+#define RTVFSOBJ_F_CREATE_FILE              UINT32_C(0x00010000)
+/** Create a directory if the object was not found and the RTFILE_O_XXX
+ * flags allows it. */
+#define RTVFSOBJ_F_CREATE_DIRECTORY         UINT32_C(0x00020000)
+/** The creation type mask. */
+#define RTVFSOBJ_F_CREATE_MASK              UINT32_C(0x00070000)
+
+/** Indicate that this call is for traversal.
+ * @internal only  */
+#define RTVFSOBJ_F_TRAVERSAL                RT_BIT_32(31)
+/** Valid mask for external callers. */
+#define RTVFSOBJ_F_VALID_MASK               UINT32_C(0x0007ff00)
+/** @} */
+
+/**
+ * Opens any file system object in the given VFS.
+ *
+ * @returns IPRT status code.
+ * @param   hVfs            The VFS to open the object within.
+ * @param   pszPath         Path to the file.
+ * @param   fFileOpen       RTFILE_O_XXX flags.
+ * @param   fObjFlags       More flags: RTVFSOBJ_F_XXX, RTPATH_F_XXX.
+ * @param   phVfsObj        Where to return the object handle.
+ * @sa      RTVfsDirOpenObj, RTVfsDirOpenDir, RTVfsDirOpenFile
+ */
+RTDECL(int)             RTVfsObjOpen(RTVFS hVfs, const char *pszPath, uint64_t fFileOpen, uint32_t fObjFlags, PRTVFSOBJ phVfsObj);
+
 /**
  * Query information about the object.
  *
@@ -180,6 +278,68 @@ RTDECL(uint32_t)        RTVfsObjRelease(RTVFSOBJ hVfsObj);
  */
 RTDECL(int)             RTVfsObjQueryInfo(RTVFSOBJ hVfsObj, PRTFSOBJINFO pObjInfo, RTFSOBJATTRADD enmAddAttr);
 
+/**
+ * Sets the file mode for the given VFS object.
+ *
+ * @returns IPRT status code.
+ * @retval  VERR_INVALID_FUNCTION if the object type has no file mode to set.
+ *          Only directories, files and symbolic links support this operation.
+ *
+ * @param   hVfsObj         The VFS object handle.
+ * @param   fMode           The mode mask.
+ * @param   fMask           The bits in the mode mask which should be changed.
+ */
+RTDECL(int)             RTVfsObjSetMode(RTVFSOBJ hVfsObj, RTFMODE fMode, RTFMODE fMask);
+
+/**
+ * Sets one or more timestamps for the given VFS object.
+ *
+ * @returns IPRT status code.
+ * @retval  VERR_INVALID_FUNCTION if the object type has no file mode to set.
+ *          Only directories, files and symbolic links support this operation.
+ *
+ * @param   hVfsObj             The VFS object handle.
+ * @param   pAccessTime         Pointer to the new access time. NULL if not to
+ *                              be changed.
+ * @param   pModificationTime   Pointer to the new modifcation time. NULL if not
+ *                              to be changed.
+ * @param   pChangeTime         Pointer to the new change time. NULL if not to
+ *                              be changed.
+ * @param   pBirthTime          Pointer to the new time of birth. NULL if not to
+ *                              be changed.
+ *
+ * @remarks See RTFileSetTimes for restrictions and behavior imposed by the
+ *          host OS or underlying VFS provider.
+ * @sa      RTFileSetTimes, RTPathSetTimes
+ */
+RTDECL(int)             RTVfsObjSetTimes(RTVFSOBJ hVfsObj, PCRTTIMESPEC pAccessTime, PCRTTIMESPEC pModificationTime,
+                                         PCRTTIMESPEC pChangeTime, PCRTTIMESPEC pBirthTime);
+
+/**
+ * Set the unix style owner and group on the given VFS object.
+ *
+ * @returns IPRT status code.
+ * @retval  VERR_INVALID_FUNCTION if the object type has no file mode to set.
+ *          Only directories, files and symbolic links support this operation.
+ *
+ * @param   hVfsObj         The VFS object handle.
+ * @param   uid             The user ID of the new owner.  NIL_RTUID if
+ *                          unchanged.
+ * @param   gid             The group ID of the new owner group. NIL_RTGID if
+ *                          unchanged.
+ *
+ * @sa      RTFileSetOwner, RTPathSetOwner.
+ */
+RTDECL(int)             RTVfsObjSetOwner(RTVFSOBJ hVfsObj, RTUID uid, RTGID gid);
+
+
+/**
+ * Gets the type of a VFS object.
+ *
+ * @returns The VFS object type on success, RTVFSOBJTYPE_INVALID on failure.
+ * @param   hVfsObj         The VFS base object handle.
+ */
+RTDECL(RTVFSOBJTYPE)    RTVfsObjGetType(RTVFSOBJ hVfsObj);
 
 /**
  * Converts a VFS base object handle to a VFS handle.
@@ -437,6 +597,20 @@ RTDECL(uint32_t)    RTVfsDirRelease(RTVFSDIR hVfsDir);
  * @param   phVfsDir        Where to return the directory.
  */
 RTDECL(int) RTVfsDirOpen(RTVFS hVfs, const char *pszPath, uint32_t fFlags, PRTVFSDIR phVfsDir);
+
+/**
+ * Opens any file system object in or under the given directory.
+ *
+ * @returns IPRT status code.
+ * @param   hVfsDir         The VFS directory start walking the @a pszPath
+ *                          relative to.
+ * @param   pszPath         Path to the file.
+ * @param   fFileOpen       RTFILE_O_XXX flags.
+ * @param   fObjFlags       More flags: RTVFSOBJ_F_XXX, RTPATH_F_XXX.
+ * @param   phVfsObj        Where to return the object handle.
+ * @sa      RTVfsObjOpen, RTVfsDirOpenDir, RTVfsDirOpenFile
+ */
+RTDECL(int) RTVfsDirOpenObj(RTVFSDIR hVfsDir, const char *pszPath, uint64_t fFileOpen, uint32_t fObjFlags, PRTVFSOBJ phVfsObj);
 
 /**
  * Opens a file in or under the given directory.
@@ -1240,10 +1414,57 @@ RTDECL(RTFOFF)      RTVfsFileTell(RTVFSFILE hVfsFile);
  */
 RTDECL(int)         RTVfsFileSeek(RTVFSFILE hVfsFile, RTFOFF offSeek, uint32_t uMethod, uint64_t *poffActual);
 
-RTDECL(int)         RTVfsFileSetSize(RTVFSFILE hVfsFile, uint64_t cbSize);
+/**
+ * Sets the size of a file.
+ *
+ * This may also be used for preallocating space
+ * (RTVFSFILE_SIZE_F_PREALLOC_KEEP_SIZE).
+ *
+ * @returns IPRT status code.
+ * @retval  VERR_ACCESS_DENIED if handle isn't writable.
+ * @retval  VERR_WRITE_PROTECT if read-only file system.
+ * @retval  VERR_FILE_TOO_BIG if cbSize is larger than what the file system can
+ *          theoretically deal with.
+ * @retval  VERR_DISK_FULL if the file system if full.
+ * @retval  VERR_NOT_SUPPORTED if fFlags indicates some operation that's not
+ *          supported by the file system / host operating system.
+ *
+ * @param   hVfsFile        The VFS file handle.
+ * @param   cbSize          The new file size.
+ * @param   fFlags          RTVFSFILE_SIZE_F_NORMAL, RTVFSFILE_SIZE_F_GROW, or
+ *                          RTVFSFILE_SIZE_F_GROW_KEEP_SIZE.
+ *
+ * @sa      RTFileSetSize, RTFileSetAllocationSize
+ */
+RTDECL(int)         RTVfsFileSetSize(RTVFSFILE hVfsFile, uint64_t cbSize, uint32_t fFlags);
+
+/** @name RTVFSFILE_SIZE_F_XXX - RTVfsFileSetSize flags.
+ * @{ */
+/** Normal truncate or grow (zero'ed) like RTFileSetSize . */
+#define RTVFSFILE_SIZE_F_NORMAL             UINT32_C(0x00000001)
+/** Only grow the file, ignore call if cbSize would trunacte the file.
+ * This is what RTFileSetAllocationSize does by default.  */
+#define RTVFSFILE_SIZE_F_GROW               UINT32_C(0x00000002)
+/** Only grow the file, ignore call if cbSize would trunacte the file.
+ * This is what RTFileSetAllocationSize does by default.  */
+#define RTVFSFILE_SIZE_F_GROW_KEEP_SIZE     UINT32_C(0x00000003)
+/** Action mask. */
+#define RTVFSFILE_SIZE_F_ACTION_MASK        UINT32_C(0x00000003)
+/** Validate the flags.
+ * Will reference @a a_fFlags more than once.  */
+#define RTVFSFILE_SIZE_F_IS_VALID(a_fFlags) \
+    ( !((a_fFlags) & ~RTVFSFILE_SIZE_F_ACTION_MASK) && ((a_fFlags) & RTVFSFILE_SIZE_F_ACTION_MASK) != 0 )
+/** @} */
+
+
+/** Mask of valid flags. */
+#define RTFILE_ALLOC_SIZE_F_VALID           (RTFILE_ALLOC_SIZE_F_KEEP_SIZE)
+/** @} */
+
+
 RTDECL(int)         RTVfsFileGetSize(RTVFSFILE hVfsFile, uint64_t *pcbSize);
 RTDECL(RTFOFF)      RTVfsFileGetMaxSize(RTVFSFILE hVfsFile);
-RTDECL(int)         RTVfsFileGetMaxSizeEx(RTVFSFILE hVfsFile, PRTFOFF pcbMax);
+RTDECL(int)         RTVfsFileQueryMaxSize(RTVFSFILE hVfsFile, uint64_t *pcbMax);
 
 /**
  * Get the RTFILE_O_XXX flags for the I/O stream.
@@ -1558,6 +1779,23 @@ RTDECL(int) RTVfsFsStrmToDirUndo(RTVFSFSSTREAM hVfsFss);
 
 RTDECL(int) RTVfsChainOpenVfs(const char *pszSpec, PRTVFS phVfs, uint32_t *poffError, PRTERRINFO pErrInfo);
 RTDECL(int) RTVfsChainOpenFsStream(const char *pszSpec, PRTVFSFSSTREAM  phVfsFss, uint32_t *poffError, PRTERRINFO pErrInfo);
+
+/**
+ * Opens any kind of file system object.
+ *
+ * @returns IPRT status code.
+ * @param   pszSpec         The VFS chain specification or plain path.
+ * @param   fFileOpen       RTFILE_O_XXX flags.
+ * @param   fObjFlags       More flags: RTVFSOBJ_F_XXX, RTPATH_F_XXX.
+ * @param   phVfsObj        Where to return the handle to the opened object.
+ * @param   poffError       Where to on error return an offset into @a pszSpec
+ *                          of what cause the error.  Optional.
+ * @param   pErrInfo        Where to return additional error information.
+ *                          Optional.
+ */
+RTDECL(int) RTVfsChainOpenObj(const char *pszSpec, uint64_t fFileOpen, uint32_t fObjFlags,
+                              PRTVFSOBJ phVfsObj, uint32_t *poffError, PRTERRINFO pErrInfo);
+
 RTDECL(int) RTVfsChainOpenDir(const char *pszSpec, uint32_t fOpen, PRTVFSDIR phVfsDir, uint32_t *poffError, PRTERRINFO pErrInfo);
 RTDECL(int) RTVfsChainOpenParentDir(const char *pszSpec, uint32_t fOpen, PRTVFSDIR phVfsDir, const char **ppszChild,
                                     uint32_t *poffError, PRTERRINFO pErrInfo);
@@ -1649,5 +1887,5 @@ RTDECL(RTEXITCODE) RTVfsChainMsgErrorExitFailure(const char *pszFunction, const 
 
 RT_C_DECLS_END
 
-#endif /* !___iprt_vfs_h */
+#endif /* !IPRT_INCLUDED_vfs_h */
 

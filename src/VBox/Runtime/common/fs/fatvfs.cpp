@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017 Oracle Corporation
+ * Copyright (C) 2017-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -46,6 +46,7 @@
 #include <iprt/sg.h>
 #include <iprt/thread.h>
 #include <iprt/uni.h>
+#include <iprt/utf16.h>
 #include <iprt/vfs.h>
 #include <iprt/vfslowlevel.h>
 #include <iprt/zero.h>
@@ -506,6 +507,7 @@ static int  rtFsFatDirShrd_GetEntryForUpdate(PRTFSFATDIRSHRD pThis, uint32_t off
                                              PFATDIRENTRY *ppDirEntry, uint32_t *puWriteLock);
 static int  rtFsFatDirShrd_PutEntryAfterUpdate(PRTFSFATDIRSHRD pThis, PFATDIRENTRY pDirEntry, uint32_t uWriteLock);
 static int  rtFsFatDirShrd_Flush(PRTFSFATDIRSHRD pThis);
+static int  rtFsFatDir_NewWithShared(PRTFSFATVOL pThis, PRTFSFATDIRSHRD pShared, PRTVFSDIR phVfsDir);
 static int  rtFsFatDir_New(PRTFSFATVOL pThis, PRTFSFATDIRSHRD pParentDir, PCFATDIRENTRY pDirEntry, uint32_t offEntryInDir,
                            uint32_t idxCluster, uint64_t offDisk, uint32_t cbDir, PRTVFSDIR phVfsDir);
 
@@ -729,7 +731,7 @@ static uint32_t rtFsFatChain_GetClusterByIndex(PCRTFSFATCHAIN pChain, uint32_t i
              * No, do linear search from the start, skipping the first part.
              */
             pPart = RTListGetFirst(&pChain->ListParts, RTFSFATCHAINPART, ListEntry);
-            while (idxPart-- > 1)
+            while (idxPart-- > 0)
                 pPart = RTListGetNext(&pChain->ListParts, pPart, RTFSFATCHAINPART, ListEntry);
         }
 
@@ -903,6 +905,7 @@ static int rtFsFatClusterMap_Create(PRTFSFATVOL pThis, uint8_t const *pbFirst512
 static int rtFsFatClusterMap_FlushWorker(PRTFSFATVOL pThis, uint32_t const iFirstEntry, uint32_t const iLastEntry)
 {
     PRTFSFATCLUSTERMAPCACHE pFatCache = pThis->pFatCache;
+    Log3(("rtFsFatClusterMap_FlushWorker: %p %#x %#x\n", pThis, iFirstEntry, iLastEntry));
 
     /*
      * Walk the cache entries, accumulating segments to flush.
@@ -1224,6 +1227,9 @@ static int rtFsFatClusterMap_Fat12_ReadClusterChain(PRTFSFATCLUSTERMAPCACHE pFat
             return rc;
 
         /* Next cluster. */
+#ifdef LOG_ENABLED
+        const uint32_t idxPrevCluster = idxCluster;
+#endif
         bool     fOdd   = idxCluster & 1;
         uint32_t offFat = idxCluster * 3 / 2;
         idxCluster = RT_MAKE_U16(pbFat[offFat], pbFat[offFat + 1]);
@@ -1231,6 +1237,7 @@ static int rtFsFatClusterMap_Fat12_ReadClusterChain(PRTFSFATCLUSTERMAPCACHE pFat
             idxCluster >>= 4;
         else
             idxCluster &= 0x0fff;
+        Log4(("Fat/ReadChain12: [%#x] %#x (next: %#x)\n", pChain->cClusters - 1, idxPrevCluster, idxCluster));
     }
 }
 
@@ -1381,11 +1388,13 @@ static int rtFsFatClusterMap_SetCluster12(PRTFSFATCLUSTERMAPCACHE pFatCache, uin
     uint32_t offFat = idxCluster * 3 / 2;
     if (idxCluster & 1)
     {
+        Log3(("Fat/SetCluster12: [%#x]: %#x -> %#x\n", idxCluster, (((pbFat[offFat]) & 0xf0) >> 4) | ((unsigned)pbFat[offFat + 1] << 4), uValue));
         pbFat[offFat]     = ((uint8_t)0x0f & pbFat[offFat]) | ((uint8_t)uValue << 4);
         pbFat[offFat + 1] = (uint8_t)(uValue >> 4);
     }
     else
     {
+        Log3(("Fat/SetCluster12: [%#x]: %#x -> %#x\n", idxCluster, pbFat[offFat] | ((pbFat[offFat + 1] & 0x0f) << 8), uValue));
         pbFat[offFat]     = (uint8_t)uValue;
         pbFat[offFat + 1] = ((uint8_t)0xf0 & pbFat[offFat + 1]) | (uint8_t)(uValue >> 8);
     }
@@ -2297,6 +2306,7 @@ static int rtFsFatObj_SetSize(PRTFSFATOBJ pObj, uint32_t cbFile)
             pObj->fMaybeDirtyDirEnt = true;
         }
     }
+    Log3(("rtFsFatObj_SetSize: Returns %Rrc\n", rc));
     return rc;
 }
 
@@ -2517,6 +2527,31 @@ static DECLCALLBACK(int) rtFsFatFile_QuerySize(void *pvThis, uint64_t *pcbFile)
 
 
 /**
+ * @interface_method_impl{RTVFSFILEOPS,pfnSetSize}
+ */
+static DECLCALLBACK(int) rtFsFatFile_SetSize(void *pvThis, uint64_t cbFile, uint32_t fFlags)
+{
+    PRTFSFATFILE     pThis   = (PRTFSFATFILE)pvThis;
+    PRTFSFATFILESHRD pShared = pThis->pShared;
+    AssertReturn(!fFlags, VERR_NOT_SUPPORTED);
+    if (cbFile > UINT32_MAX)
+        return VERR_FILE_TOO_BIG;
+    return rtFsFatObj_SetSize(&pShared->Core, (uint32_t)cbFile);
+}
+
+
+/**
+ * @interface_method_impl{RTVFSFILEOPS,pfnQueryMaxSize}
+ */
+static DECLCALLBACK(int) rtFsFatFile_QueryMaxSize(void *pvThis, uint64_t *pcbMax)
+{
+    RT_NOREF(pvThis);
+    *pcbMax = UINT32_MAX;
+    return VINF_SUCCESS;
+}
+
+
+/**
  * FAT file operations.
  */
 DECL_HIDDEN_CONST(const RTVFSFILEOPS) g_rtFsFatFileOps =
@@ -2553,6 +2588,8 @@ DECL_HIDDEN_CONST(const RTVFSFILEOPS) g_rtFsFatFileOps =
     },
     rtFsFatFile_Seek,
     rtFsFatFile_QuerySize,
+    rtFsFatFile_SetSize,
+    rtFsFatFile_QueryMaxSize,
     RTVFSFILEOPS_VERSION
 };
 
@@ -2614,7 +2651,10 @@ static int rtFsFatFile_New(PRTFSFATVOL pThis, PRTFSFATDIRSHRD pParentDir, PCFATD
                  */
                 if (   (fOpen & RTFILE_O_TRUNCATE)
                     || (fOpen & RTFILE_O_ACTION_MASK) == RTFILE_O_CREATE_REPLACE)
+                {
+                    Log3(("rtFsFatFile_New: calling rtFsFatObj_SetSize to zap the file size.\n"));
                     rc = rtFsFatObj_SetSize(&pShared->Core, 0);
+                }
                 if (RT_SUCCESS(rc))
                 {
                     LogFlow(("rtFsFatFile_New: cbObject=%#RX32 pShared=%p\n", pShared->Core.cbObject, pShared));
@@ -3999,67 +4039,56 @@ static DECLCALLBACK(int) rtFsFatDir_SetOwner(void *pvThis, RTUID uid, RTGID gid)
 
 
 /**
- * @interface_method_impl{RTVFSOBJOPS,pfnTraversalOpen}
+ * @interface_method_impl{RTVFSDIROPS,pfnOpen}
  */
-static DECLCALLBACK(int) rtFsFatDir_TraversalOpen(void *pvThis, const char *pszEntry, PRTVFSDIR phVfsDir,
-                                                  PRTVFSSYMLINK phVfsSymlink, PRTVFS phVfsMounted)
-{
-    /*
-     * FAT doesn't do symbolic links and mounting file systems within others
-     * haven't been implemented yet, I think, so only care if a directory is
-     * asked for.
-     */
-    int rc;
-    if (phVfsSymlink)
-        *phVfsSymlink = NIL_RTVFSSYMLINK;
-    if (phVfsMounted)
-        *phVfsMounted = NIL_RTVFS;
-    if (phVfsDir)
-    {
-        *phVfsDir = NIL_RTVFSDIR;
-
-        PRTFSFATDIR     pThis   = (PRTFSFATDIR)pvThis;
-        PRTFSFATDIRSHRD pShared = pThis->pShared;
-        uint32_t        offEntryInDir;
-        bool            fLong;
-        FATDIRENTRY     DirEntry;
-        rc = rtFsFatDirShrd_FindEntry(pShared, pszEntry, &offEntryInDir, &fLong, &DirEntry);
-        if (RT_SUCCESS(rc))
-        {
-            switch (DirEntry.fAttrib & (FAT_ATTR_DIRECTORY | FAT_ATTR_VOLUME))
-            {
-                case FAT_ATTR_DIRECTORY:
-                {
-                    rc = rtFsFatDir_New(pShared->Core.pVol, pShared, &DirEntry, offEntryInDir,
-                                        RTFSFAT_GET_CLUSTER(&DirEntry, pShared->Core.pVol), UINT64_MAX /*offDisk*/,
-                                        DirEntry.cbFile, phVfsDir);
-                    break;
-                }
-                case 0:
-                    rc = VERR_NOT_A_DIRECTORY;
-                    break;
-                default:
-                    rc = VERR_PATH_NOT_FOUND;
-                    break;
-            }
-        }
-        else if (rc == VERR_FILE_NOT_FOUND)
-            rc = VERR_PATH_NOT_FOUND;
-    }
-    else
-        rc = VERR_PATH_NOT_FOUND;
-    LogFlow(("rtFsFatDir_TraversalOpen: %s -> %Rrc\n", pszEntry, rc));
-    return rc;
-}
-
-
-/**
- * @interface_method_impl{RTVFSDIROPS,pfnOpenFile}
- */
-static DECLCALLBACK(int) rtFsFatDir_OpenFile(void *pvThis, const char *pszFilename, uint32_t fOpen, PRTVFSFILE phVfsFile)
+static DECLCALLBACK(int) rtFsFatDir_Open(void *pvThis, const char *pszEntry, uint64_t fOpen,
+                                         uint32_t fFlags, PRTVFSOBJ phVfsObj)
 {
     PRTFSFATDIR     pThis   = (PRTFSFATDIR)pvThis;
     PRTFSFATDIRSHRD pShared = pThis->pShared;
+    int             rc;
+
+    /*
+     * Special cases '.' and '.'
+     */
+    if (pszEntry[0] == '.')
+    {
+        PRTFSFATDIRSHRD pSharedToOpen;
+        if (pszEntry[1] == '\0')
+            pSharedToOpen = pShared;
+        else if (pszEntry[1] == '.' && pszEntry[2] == '\0')
+        {
+            pSharedToOpen = pShared->Core.pParentDir;
+            if (!pSharedToOpen)
+                pSharedToOpen = pShared;
+        }
+        else
+            pSharedToOpen = NULL;
+        if (pSharedToOpen)
+        {
+            if (fFlags & RTVFSOBJ_F_OPEN_DIRECTORY)
+            {
+                if (   (fOpen & RTFILE_O_ACTION_MASK) == RTFILE_O_OPEN
+                    || (fOpen & RTFILE_O_ACTION_MASK) == RTFILE_O_OPEN_CREATE)
+                {
+                    rtFsFatDirShrd_Retain(pSharedToOpen);
+                    RTVFSDIR hVfsDir;
+                    rc = rtFsFatDir_NewWithShared(pShared->Core.pVol, pSharedToOpen, &hVfsDir);
+                    if (RT_SUCCESS(rc))
+                    {
+                        *phVfsObj = RTVfsObjFromDir(hVfsDir);
+                        RTVfsDirRelease(hVfsDir);
+                        AssertStmt(*phVfsObj != NIL_RTVFSOBJ, rc = VERR_INTERNAL_ERROR_3);
+                    }
+                }
+                else
+                    rc = VERR_ACCESS_DENIED;
+            }
+            else
+                rc = VERR_IS_A_DIRECTORY;
+            return rc;
+        }
+    }
 
     /*
      * Try open existing file.
@@ -4067,118 +4096,125 @@ static DECLCALLBACK(int) rtFsFatDir_OpenFile(void *pvThis, const char *pszFilena
     uint32_t    offEntryInDir;
     bool        fLong;
     FATDIRENTRY DirEntry;
-    int rc = rtFsFatDirShrd_FindEntry(pShared, pszFilename, &offEntryInDir, &fLong, &DirEntry);
+    rc = rtFsFatDirShrd_FindEntry(pShared, pszEntry, &offEntryInDir, &fLong, &DirEntry);
     if (RT_SUCCESS(rc))
     {
         switch (DirEntry.fAttrib & (FAT_ATTR_DIRECTORY | FAT_ATTR_VOLUME))
         {
             case 0:
-                if (   !(DirEntry.fAttrib & FAT_ATTR_READONLY)
-                    || !(fOpen & RTFILE_O_WRITE))
+                if (fFlags & RTVFSOBJ_F_OPEN_FILE)
                 {
-                    if (   (fOpen & RTFILE_O_ACTION_MASK) == RTFILE_O_OPEN
-                        || (fOpen & RTFILE_O_ACTION_MASK) == RTFILE_O_OPEN_CREATE
-                        || (fOpen & RTFILE_O_ACTION_MASK) == RTFILE_O_CREATE_REPLACE)
-                        rc = rtFsFatFile_New(pShared->Core.pVol, pShared, &DirEntry, offEntryInDir, fOpen, phVfsFile);
+                    if (   !(DirEntry.fAttrib & FAT_ATTR_READONLY)
+                        || !(fOpen & RTFILE_O_WRITE))
+                    {
+                        if (   (fOpen & RTFILE_O_ACTION_MASK) == RTFILE_O_OPEN
+                            || (fOpen & RTFILE_O_ACTION_MASK) == RTFILE_O_OPEN_CREATE
+                            || (fOpen & RTFILE_O_ACTION_MASK) == RTFILE_O_CREATE_REPLACE)
+                        {
+                            RTVFSFILE hVfsFile;
+                            rc = rtFsFatFile_New(pShared->Core.pVol, pShared, &DirEntry, offEntryInDir, fOpen, &hVfsFile);
+                            if (RT_SUCCESS(rc))
+                            {
+                                *phVfsObj = RTVfsObjFromFile(hVfsFile);
+                                RTVfsFileRelease(hVfsFile);
+                                AssertStmt(*phVfsObj != NIL_RTVFSOBJ, rc = VERR_INTERNAL_ERROR_3);
+                            }
+                        }
+                        else
+                            rc = VERR_ALREADY_EXISTS;
+                    }
                     else
-                        rc = VERR_ALREADY_EXISTS;
+                        rc = VERR_ACCESS_DENIED;
                 }
                 else
-                    rc = VERR_ACCESS_DENIED;
+                    rc = VERR_IS_A_FILE;
                 break;
 
             case FAT_ATTR_DIRECTORY:
-                rc = VERR_NOT_A_FILE;
+                if (fFlags & RTVFSOBJ_F_OPEN_DIRECTORY)
+                {
+                    if (   !(DirEntry.fAttrib & FAT_ATTR_READONLY)
+                        || !(fOpen & RTFILE_O_WRITE))
+                    {
+                        if (   (fOpen & RTFILE_O_ACTION_MASK) == RTFILE_O_OPEN
+                            || (fOpen & RTFILE_O_ACTION_MASK) == RTFILE_O_OPEN_CREATE)
+                        {
+                            RTVFSDIR hVfsDir;
+                            rc = rtFsFatDir_New(pShared->Core.pVol, pShared, &DirEntry, offEntryInDir,
+                                                RTFSFAT_GET_CLUSTER(&DirEntry, pShared->Core.pVol), UINT64_MAX /*offDisk*/,
+                                                DirEntry.cbFile, &hVfsDir);
+                            if (RT_SUCCESS(rc))
+                            {
+                                *phVfsObj = RTVfsObjFromDir(hVfsDir);
+                                RTVfsDirRelease(hVfsDir);
+                                AssertStmt(*phVfsObj != NIL_RTVFSOBJ, rc = VERR_INTERNAL_ERROR_3);
+                            }
+                        }
+                        else if ((fOpen & RTFILE_O_ACTION_MASK) == RTFILE_O_CREATE_REPLACE)
+                            rc = VERR_INVALID_FUNCTION;
+                        else
+                            rc = VERR_ALREADY_EXISTS;
+                    }
+                    else
+                        rc = VERR_ACCESS_DENIED;
+                }
+                else
+                    rc = VERR_IS_A_DIRECTORY;
                 break;
+
             default:
                 rc = VERR_PATH_NOT_FOUND;
                 break;
         }
     }
     /*
-     * Create the file?
+     * Create a file or directory?
      */
-    else if (   rc == VERR_FILE_NOT_FOUND
-             && (   (fOpen & RTFILE_O_ACTION_MASK) == RTFILE_O_CREATE
-                 || (fOpen & RTFILE_O_ACTION_MASK) == RTFILE_O_OPEN_CREATE
-                 || (fOpen & RTFILE_O_ACTION_MASK) == RTFILE_O_CREATE_REPLACE) )
+    else if (rc == VERR_FILE_NOT_FOUND)
     {
-        rc = rtFsFatDirShrd_CreateEntry(pShared, pszFilename, FAT_ATTR_ARCHIVE, 0 /*cbInitial*/, &offEntryInDir, &DirEntry);
-        if (RT_SUCCESS(rc))
-            rc = rtFsFatFile_New(pShared->Core.pVol, pShared, &DirEntry, offEntryInDir, fOpen, phVfsFile);
-    }
-    return rc;
-}
-
-
-/**
- * @interface_method_impl{RTVFSDIROPS,pfnOpenDir}
- */
-static DECLCALLBACK(int) rtFsFatDir_OpenDir(void *pvThis, const char *pszSubDir, uint32_t fFlags, PRTVFSDIR phVfsDir)
-{
-    PRTFSFATDIR     pThis   = (PRTFSFATDIR)pvThis;
-    PRTFSFATDIRSHRD pShared = pThis->pShared;
-    AssertReturn(!fFlags, VERR_INVALID_FLAGS);
-
-    /*
-     * Try open directory.
-     */
-    uint32_t    offEntryInDir;
-    bool        fLong;
-    FATDIRENTRY DirEntry;
-    int rc = rtFsFatDirShrd_FindEntry(pShared, pszSubDir, &offEntryInDir, &fLong, &DirEntry);
-    LogFlow(("rtFsFatDir_OpenDir: FindEntry(,%s,,,) -> %Rrc fLong=%d offEntryInDir=%#RX32\n", pszSubDir, rc, fLong, offEntryInDir));
-    if (RT_SUCCESS(rc))
-    {
-        switch (DirEntry.fAttrib & (FAT_ATTR_DIRECTORY | FAT_ATTR_VOLUME))
+        if (   (   (fOpen & RTFILE_O_ACTION_MASK) == RTFILE_O_CREATE
+                || (fOpen & RTFILE_O_ACTION_MASK) == RTFILE_O_OPEN_CREATE
+                || (fOpen & RTFILE_O_ACTION_MASK) == RTFILE_O_CREATE_REPLACE)
+            && (fFlags & RTVFSOBJ_F_CREATE_MASK) != RTVFSOBJ_F_CREATE_NOTHING)
         {
-            case FAT_ATTR_DIRECTORY:
-                rc = rtFsFatDir_New(pShared->Core.pVol, pShared, &DirEntry, offEntryInDir,
-                                    RTFSFAT_GET_CLUSTER(&DirEntry, pShared->Core.pVol), UINT64_MAX /*offDisk*/,
-                                    DirEntry.cbFile, phVfsDir);
-                break;
-
-            case 0:
-                rc = VERR_NOT_A_DIRECTORY;
-                break;
-
-            default:
-                rc = VERR_PATH_NOT_FOUND;
-                break;
+            if ((fFlags & RTVFSOBJ_F_CREATE_MASK) == RTVFSOBJ_F_CREATE_FILE)
+            {
+                rc = rtFsFatDirShrd_CreateEntry(pShared, pszEntry, FAT_ATTR_ARCHIVE, 0 /*cbInitial*/, &offEntryInDir, &DirEntry);
+                if (RT_SUCCESS(rc))
+                {
+                    RTVFSFILE hVfsFile;
+                    rc = rtFsFatFile_New(pShared->Core.pVol, pShared, &DirEntry, offEntryInDir, fOpen, &hVfsFile);
+                    if (RT_SUCCESS(rc))
+                    {
+                        *phVfsObj = RTVfsObjFromFile(hVfsFile);
+                        RTVfsFileRelease(hVfsFile);
+                        AssertStmt(*phVfsObj != NIL_RTVFSOBJ, rc = VERR_INTERNAL_ERROR_3);
+                    }
+                }
+            }
+            else if ((fFlags & RTVFSOBJ_F_CREATE_MASK) == RTVFSOBJ_F_CREATE_DIRECTORY)
+            {
+                rc = rtFsFatDirShrd_CreateEntry(pShared, pszEntry, FAT_ATTR_ARCHIVE | FAT_ATTR_DIRECTORY,
+                                                pShared->Core.pVol->cbCluster, &offEntryInDir, &DirEntry);
+                if (RT_SUCCESS(rc))
+                {
+                    RTVFSDIR hVfsDir;
+                    rc = rtFsFatDir_New(pShared->Core.pVol, pShared, &DirEntry, offEntryInDir,
+                                        RTFSFAT_GET_CLUSTER(&DirEntry, pShared->Core.pVol), UINT64_MAX /*offDisk*/,
+                                        DirEntry.cbFile, &hVfsDir);
+                    if (RT_SUCCESS(rc))
+                    {
+                        *phVfsObj = RTVfsObjFromDir(hVfsDir);
+                        RTVfsDirRelease(hVfsDir);
+                        AssertStmt(*phVfsObj != NIL_RTVFSOBJ, rc = VERR_INTERNAL_ERROR_3);
+                    }
+                }
+            }
+            else
+                rc = VERR_VFS_UNSUPPORTED_CREATE_TYPE;
         }
     }
-    return rc;
-}
 
-
-/**
- * @interface_method_impl{RTVFSDIROPS,pfnCreateDir}
- */
-static DECLCALLBACK(int) rtFsFatDir_CreateDir(void *pvThis, const char *pszSubDir, RTFMODE fMode, PRTVFSDIR phVfsDir)
-{
-    PRTFSFATDIR     pThis   = (PRTFSFATDIR)pvThis;
-    PRTFSFATDIRSHRD pShared = pThis->pShared;
-    RT_NOREF(fMode);
-
-    /*
-     * Check if it already exists in any form.
-     */
-    uint32_t    offEntryInDir;
-    bool        fLong;
-    FATDIRENTRY DirEntry;
-    int rc = rtFsFatDirShrd_FindEntry(pShared, pszSubDir, &offEntryInDir, &fLong, &DirEntry);
-    if (rc != VERR_FILE_NOT_FOUND)
-        return RT_SUCCESS(rc) ? VERR_ALREADY_EXISTS : rc;
-
-    /*
-     * Okay, create it.
-     */
-    rc = rtFsFatDirShrd_CreateEntry(pShared, pszSubDir, FAT_ATTR_ARCHIVE | FAT_ATTR_DIRECTORY,
-                                    pShared->Core.pVol->cbCluster, &offEntryInDir, &DirEntry);
-    if (RT_SUCCESS(rc))
-        rc = rtFsFatDir_New(pShared->Core.pVol, pShared, &DirEntry, offEntryInDir,
-                            RTFSFAT_GET_CLUSTER(&DirEntry, pShared->Core.pVol), UINT64_MAX /*offDisk*/,
-                            DirEntry.cbFile, phVfsDir);
     return rc;
 }
 
@@ -4201,37 +4237,6 @@ static DECLCALLBACK(int) rtFsFatDir_CreateSymlink(void *pvThis, const char *pszS
 {
     RT_NOREF(pvThis, pszSymlink, pszTarget, enmType, phVfsSymlink);
     return VERR_NOT_SUPPORTED;
-}
-
-
-/**
- * @interface_method_impl{RTVFSDIROPS,pfnQueryEntryInfo}
- */
-static DECLCALLBACK(int) rtFsFatDir_QueryEntryInfo(void *pvThis, const char *pszEntry,
-                                                   PRTFSOBJINFO pObjInfo, RTFSOBJATTRADD enmAddAttr)
-{
-    /*
-     * Try locate the entry.
-     */
-    PRTFSFATDIR     pThis   = (PRTFSFATDIR)pvThis;
-    PRTFSFATDIRSHRD pShared = pThis->pShared;
-    uint32_t        offEntryInDir;
-    bool            fLong;
-    FATDIRENTRY     DirEntry;
-    int rc = rtFsFatDirShrd_FindEntry(pShared, pszEntry, &offEntryInDir, &fLong, &DirEntry);
-    Log2(("rtFsFatDir_QueryEntryInfo: FindEntry(,%s,) -> %Rrc\n", pszEntry, rc));
-    if (RT_SUCCESS(rc))
-    {
-        /*
-         * To avoid duplicating code in rtFsFatObj_InitFromDirRec and
-         * rtFsFatObj_QueryInfo, we create a dummy RTFSFATOBJ on the stack.
-         */
-        RTFSFATOBJ TmpObj;
-        RT_ZERO(TmpObj);
-        rtFsFatObj_InitFromDirEntry(&TmpObj, &DirEntry, offEntryInDir, pShared->Core.pVol);
-        rc = rtFsFatObj_QueryInfo(&TmpObj, pObjInfo, enmAddAttr);
-    }
-    return rc;
 }
 
 
@@ -4639,13 +4644,14 @@ static const RTVFSDIROPS g_rtFsFatDirOps =
         rtFsFatDir_SetOwner,
         RTVFSOBJSETOPS_VERSION
     },
-    rtFsFatDir_TraversalOpen,
-    rtFsFatDir_OpenFile,
-    rtFsFatDir_OpenDir,
-    rtFsFatDir_CreateDir,
+    rtFsFatDir_Open,
+    NULL /* pfnFollowAbsoluteSymlink */,
+    NULL /* pfnOpenFile*/,
+    NULL /* pfnOpenDir */,
+    NULL /* pfnCreateDir */,
     rtFsFatDir_OpenSymlink,
     rtFsFatDir_CreateSymlink,
-    rtFsFatDir_QueryEntryInfo,
+    NULL /* pfnQueryEntryInfo */,
     rtFsFatDir_UnlinkEntry,
     rtFsFatDir_RenameEntry,
     rtFsFatDir_RewindDir,
@@ -4973,10 +4979,12 @@ static DECLCALLBACK(int) rtFsFatVol_OpenRoot(void *pvThis, PRTVFSDIR phVfsDir)
 
 
 /**
- * @interface_method_impl{RTVFSOPS,pfnIsRangeInUse}
+ * @interface_method_impl{RTVFSOPS,pfnQueryRangeState}
  */
-static DECLCALLBACK(int) rtFsFatVol_IsRangeInUse(void *pvThis, RTFOFF off, size_t cb, bool *pfUsed)
+static DECLCALLBACK(int) rtFsFatVol_QueryRangeState(void *pvThis, uint64_t off, size_t cb, bool *pfUsed)
 {
+
+
     RT_NOREF(pvThis, off, cb, pfUsed);
     return VERR_NOT_IMPLEMENTED;
 }
@@ -4995,7 +5003,7 @@ DECL_HIDDEN_CONST(const RTVFSOPS) g_rtFsFatVolOps =
     RTVFSOPS_VERSION,
     0 /* fFeatures */,
     rtFsFatVol_OpenRoot,
-    rtFsFatVol_IsRangeInUse,
+    rtFsFatVol_QueryRangeState,
     RTVFSOPS_VERSION
 };
 
@@ -5639,7 +5647,7 @@ static int rtFsFatVolTryInit(PRTFSFATVOL pThis, RTVFS hVfsSelf, RTVFSFILE hVfsBa
      * Extract info from the BPB and validate the two special FAT entries.
      *
      * Check the DOS signature first.  The PC-DOS 1.0 boot floppy does not have
-     * a signature and we ASSUME this is the case for all flopies formated by it.
+     * a signature and we ASSUME this is the case for all floppies formated by it.
      */
     if (Buf.BootSector.uSignature != FATBOOTSECTOR_SIGNATURE)
     {

@@ -6,9 +6,11 @@
 Testdriver reporter module.
 """
 
+from __future__ import print_function;
+
 __copyright__ = \
 """
-Copyright (C) 2010-2017 Oracle Corporation
+Copyright (C) 2010-2019 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -27,7 +29,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 118779 $"
+__version__ = "$Revision: 127855 $"
 
 
 # Standard Python imports.
@@ -383,18 +385,17 @@ class LocalReporter(ReporterBase):
         # Figure the main log directory.
         #
         try:
-            import user;
-            self.sDefLogDir = os.path.abspath(os.path.join(user.home, "VBoxTestLogs"));
+            self.sDefLogDir = os.path.abspath(os.path.expanduser(os.path.join('~', 'VBoxTestLogs')));
         except:
             self.sDefLogDir = os.path.abspath("VBoxTestLogs");
         try:
             sLogDir = os.path.abspath(os.environ.get('TESTBOX_REPORTER_LOG_DIR', self.sDefLogDir));
             if not os.path.isdir(sLogDir):
-                os.makedirs(sLogDir, 0x1e8); # 0750 = 0x1e8
+                os.makedirs(sLogDir, 0o750);
         except:
             sLogDir = self.sDefLogDir;
             if not os.path.isdir(sLogDir):
-                os.makedirs(sLogDir, 0x1e8); # 0750 = 0x1e8
+                os.makedirs(sLogDir, 0o750);
 
         #
         # Make a subdirectory for this test run.
@@ -402,17 +403,20 @@ class LocalReporter(ReporterBase):
         sTs = datetime.datetime.utcnow().strftime('%Y-%m-%dT%H-%M-%S.log');
         self.sLogDir = sLogDir = os.path.join(sLogDir, '%s-%s' % (sTs, self.sName));
         try:
-            os.makedirs(self.sLogDir, 0x1e8); # 0750 = 0x1e8
+            os.makedirs(self.sLogDir, 0o750);
         except:
             self.sLogDir = '%s-%s' % (self.sLogDir, os.getpid());
-            os.makedirs(self.sLogDir, 0x1e8); # 0750 = 0x1e8
+            os.makedirs(self.sLogDir, 0o750);
 
         #
         # Open the log file and write a header.
         #
         sLogName = os.path.join(self.sLogDir, 'testsuite.log');
         sTsIso = utils.getIsoTimestamp();
-        self.oLogFile = utils.openNoInherit(sLogName, "w");
+        if sys.version_info[0] >= 3: # Add 'b' to prevent write taking issue with encode('utf-8') not returning a string.
+            self.oLogFile = utils.openNoInherit(sLogName, "wb");
+        else:
+            self.oLogFile = utils.openNoInherit(sLogName, "w");
         self.oLogFile.write(('Created log file at %s.\nRunning: %s' % (sTsIso, sys.argv)).encode('utf-8'));
 
         #
@@ -423,7 +427,10 @@ class LocalReporter(ReporterBase):
         #       test wrapper either.
         #
         sXmlName = os.path.join(self.sLogDir, 'testsuite.xml');
-        self.oXmlFile = utils.openNoInherit(sXmlName, "w");
+        if sys.version_info[0] >= 3: # Add 'b' to prevent write taking issue with encode('utf-8') not returning a string.
+            self.oXmlFile = utils.openNoInherit(sXmlName, "wb");
+        else:
+            self.oXmlFile = utils.openNoInherit(sXmlName, "w");
         self._xmlWrite([ '<?xml version="1.0" encoding="UTF-8" ?>',
                          '<Test timestamp="%s" name="%s">' % (sTsIso, self._xmlEscAttr(self.sName),), ],
                        fIndent = False);
@@ -431,7 +438,7 @@ class LocalReporter(ReporterBase):
     def __del__(self):
         """Ends and completes the log files."""
         try:    sTsIso = self.fnGetIsoTimestamp();
-        except Exception, oXcpt:
+        except Exception as oXcpt:
             sTsIso = str(oXcpt);
 
         if self.oLogFile is not None:
@@ -497,11 +504,14 @@ class LocalReporter(ReporterBase):
                 sLogText = '%s %s' % (sTsPrf, sText);
 
             # output it.
-            sAscii = sLogText.encode('ascii', 'replace');
-            if self.iDebug == 0:
-                print >> self.oStdErr, '%s: %s' % (self.sName, sAscii)
+            if sys.version_info[0] >= 3:
+                sAscii = sLogText;
             else:
-                print >> self.oStdErr, '%s' % (sAscii)
+                sAscii = sLogText.encode('ascii', 'replace');
+            if self.iDebug == 0:
+                print('%s: %s' % (self.sName, sAscii), file = self.oStdErr);
+            else:
+                print('%s' % (sAscii), file = self.oStdErr);
             sLogText += '\n';
             try:
                 self.oLogFile.write(sLogText.encode('utf-8'));
@@ -520,20 +530,20 @@ class LocalReporter(ReporterBase):
         # Open the destination file and copy over the data.
         fRc = True;
         try:
-            oDstFile = utils.openNoInherit(sDstFilename, 'w');
-        except Exception, oXcpt:
+            oDstFile = utils.openNoInherit(sDstFilename, 'wb');
+        except Exception as oXcpt:
             self.log(0, 'error opening %s: %s' % (sDstFilename, oXcpt), sCaller, sTsPrf);
         else:
             while True:
                 try:
                     abBuf = oSrcFile.read(65536);
-                except Exception, oXcpt:
+                except Exception as oXcpt:
                     fRc = False;
                     self.log(0, 'error reading %s: %s' % (sSrcFilename, oXcpt), sCaller, sTsPrf);
                 else:
                     try:
                         oDstFile.write(abBuf);
-                    except Exception, oXcpt:
+                    except Exception as oXcpt:
                         fRc = False;
                         self.log(0, 'error writing %s: %s' % (sDstFilename, oXcpt), sCaller, sTsPrf);
                     else:
@@ -561,12 +571,12 @@ class LocalReporter(ReporterBase):
         fRc = True;
         try:
             oDstFile = utils.openNoInherit(sDstFilename, 'w');
-        except Exception, oXcpt:
+        except Exception as oXcpt:
             self.log(0, 'error opening %s: %s' % (sDstFilename, oXcpt), sCaller, sTsPrf);
         else:
             try:
                 oDstFile.write(sLog);
-            except Exception, oXcpt:
+            except Exception as oXcpt:
                 fRc = False;
                 self.log(0, 'error writing %s: %s' % (sDstFilename, oXcpt), sCaller, sTsPrf);
 
@@ -649,14 +659,20 @@ class RemoteReporter(ReporterBase):
         self.fDebugXml          = 'TESTDRIVER_REPORTER_DEBUG_XML' in os.environ;
 
         # Prepare the TM connecting.
-        import urlparse;
-        import httplib;
-        import urllib;
         from common import constants;
-
-        self._fnUrlEncode       = urllib.urlencode;
-        self._fnUrlParseQs      = urlparse.parse_qs;
-        self._oParsedTmUrl      = urlparse.urlparse(self.sTestManagerUrl);
+        if sys.version_info[0] >= 3:
+            import urllib;
+            self._fnUrlEncode       = urllib.parse.urlencode;                       # pylint: disable=no-member
+            self._fnUrlParseQs      = urllib.parse.parse_qs;                        # pylint: disable=no-member
+            self._oParsedTmUrl      = urllib.parse.urlparse(self.sTestManagerUrl);  # pylint: disable=no-member
+            import http.client as httplib;                                      # pylint: disable=no-name-in-module,import-error
+        else:
+            import urllib;
+            self._fnUrlEncode       = urllib.urlencode;                             # pylint: disable=no-member
+            import urlparse;                                                        # pylint: disable=import-error
+            self._fnUrlParseQs      = urlparse.parse_qs;                            # pylint: disable=no-member
+            self._oParsedTmUrl      = urlparse.urlparse(self.sTestManagerUrl);      # pylint: disable=no-member
+            import httplib;                                                     # pylint: disable=no-name-in-module,import-error
 
         if     sys.version_info[0] >= 3 \
            or (sys.version_info[0] == 2 and sys.version_info[1] >= 6):
@@ -688,7 +704,7 @@ class RemoteReporter(ReporterBase):
         };
         self._sTmServerPath = '/%s/testboxdisp.py?%s' \
                             % ( self._oParsedTmUrl.path.strip('/'), # pylint: disable=E1101
-                                urllib.urlencode(dParams), );
+                                self._fnUrlEncode(dParams), );
 
     def __del__(self):
         """Flush pending log messages?"""
@@ -697,7 +713,10 @@ class RemoteReporter(ReporterBase):
 
     def _writeOutput(self, sText):
         """ Does the actual writing and flushing. """
-        print >> self.oOutput, sText.encode('ascii', 'replace');
+        if sys.version_info[0] >= 3:
+            print(sText, file = self.oOutput);
+        else:
+            print(sText.encode('ascii', 'replace'), file = self.oOutput);
         if self.fFlushEachLine: self.oOutput.flush();
         return None;
 
@@ -711,20 +730,25 @@ class RemoteReporter(ReporterBase):
         Returns True, False or None.  None should be retried, the others not.
         May raise exception on HTTP issue (retry ok).
         """
-        import httplib;
+        if sys.version_info[0] >= 3:    import http.client as httplib;  # pylint: disable=no-name-in-module,import-error
+        else:                           import httplib;                 # pylint: disable=import-error
         from common import constants;
 
         # Read the response and (optionally) close the connection.
         oResponse = oConn.getresponse();
         try:
             sRspBody  = oResponse.read();
-        except httplib.IncompleteRead, oXcpt:
+        except httplib.IncompleteRead as oXcpt:
             self._writeOutput('%s: %s: Warning: httplib.IncompleteRead: %s [expected %s, got %s]'
                               % (utils.getTimePrefix(), sOperation, oXcpt, oXcpt.expected, len(oXcpt.partial),));
             sRspBody = oXcpt.partial;
         if fClose is True:
             try:    oConn.close();
             except: pass;
+
+        # Make sure it's a string which encoding we grok.
+        if hasattr(sRspBody, 'decode'):
+            sRspBody = sRspBody.decode('utf-8', 'ignore');
 
         # Check the content type.
         sContentType = oResponse.getheader('Content-Type');
@@ -860,7 +884,7 @@ class RemoteReporter(ReporterBase):
                 if fRc is False:
                     self._writeOutput('_xmlDoFlush: Failed - we should abort the test, really.');
                     return (None, True);
-            except Exception, oXcpt:
+            except Exception as oXcpt:
                 if not fDtor:
                     logXcpt('warning: exception during XML_RESULTS request');
                 else:
@@ -1181,11 +1205,15 @@ class FileWrapperTestPipe(object):
                 traceback.print_exc();
             self.fStarted = True;
 
-        if isinstance(sText, array.array):
-            try:
-                sText = sText.tostring();
-            except:
-                pass;
+        # Turn non-string stuff into strings.
+        if not utils.isString(sText):
+            if isinstance(sText, array.array):
+                try:    sText = sText.tostring();
+                except: pass;
+            if not utils.isString(sText) and hasattr(sText, 'decode'):
+                try:    sText = sText.decode('utf-8', 'ignore');
+                except: pass;
+
         try:
             g_oReporter.subXmlWrite(self, sText, utils.getCallerName());
             # Parse the supplied text and look for <Failed.../> tags to keep track of the
@@ -1422,7 +1450,7 @@ def addLogFile(sFilename, sKind, sDescription = '', sAltName = None):
 
     try:
         oSrcFile = utils.openNoInherit(sFilename, 'rb');
-    except IOError, oXcpt:
+    except IOError as oXcpt:
         if oXcpt.errno != errno.ENOENT:
             logXcpt('addLogFile(%s,%s,%s)' % (sFilename, sDescription, sKind));
         else:
@@ -1623,7 +1651,7 @@ def addSubXmlFile(sFilename):
     fRc = False;
     try:
         oSrcFile = utils.openNoInherit(sFilename, 'r');
-    except IOError, oXcpt:
+    except IOError as oXcpt:
         if oXcpt.errno != errno.ENOENT:
             logXcpt('addSubXmlFile(%s)' % (sFilename,));
     except:
@@ -1726,7 +1754,7 @@ def _InitReporterModule():
     elif g_sReporterName == "remote":
         g_oReporter = RemoteReporter(); # Correct, but still plain stupid. pylint: disable=redefined-variable-type
     else:
-        print >> sys.stderr, os.path.basename(__file__) + ": Unknown TESTBOX_REPORTER value: '" + g_sReporterName + "'";
+        print(os.path.basename(__file__) + ": Unknown TESTBOX_REPORTER value: '" + g_sReporterName + "'", file = sys.stderr);
         raise Exception("Unknown TESTBOX_REPORTER value '" + g_sReporterName + "'");
 
 if __name__ != "checker": # pychecker avoidance.

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -132,7 +132,7 @@ int pdmR3DevInit(PVM pVM)
      * Get the RC & R0 devhlps and create the devhlp R3 task queue.
      */
     PCPDMDEVHLPRC pHlpRC = NIL_RTRCPTR;
-    if (!HMIsEnabled(pVM))
+    if (VM_IS_RAW_MODE_ENABLED(pVM))
     {
         rc = PDMR3LdrGetSymbolRC(pVM, NULL, "g_pdmRCDevHlp", &pHlpRC);
         AssertReleaseRCReturn(rc, rc);
@@ -494,15 +494,15 @@ static int pdmR3DevLoadModules(PVM pVM)
     /*
      * Load the internal VMM APIC device.
      */
-    int rc2 = pdmR3DevReg_Register(&RegCB.Core, &g_DeviceAPIC);
-    AssertRCReturn(rc2, rc2);
+    int rc = APICR3RegisterDevice(&RegCB.Core);
+    AssertRCReturn(rc, rc);
 
     /*
      * Load the builtin module.
      */
     PCFGMNODE pDevicesNode = CFGMR3GetChild(CFGMR3GetRoot(pVM), "PDM/Devices");
     bool fLoadBuiltin;
-    int rc = CFGMR3QueryBool(pDevicesNode, "LoadBuiltin", &fLoadBuiltin);
+    rc = CFGMR3QueryBool(pDevicesNode, "LoadBuiltin", &fLoadBuiltin);
     if (rc == VERR_CFGM_VALUE_NOT_FOUND || rc == VERR_CFGM_NO_PARENT)
         fLoadBuiltin = true;
     else if (RT_FAILURE(rc))
@@ -989,23 +989,23 @@ VMMR3DECL(int) PDMR3DriverAttach(PUVM pUVM, const char *pszDevice, unsigned iIns
  * @param   iLun            The Logical Unit in which to look for the driver.
  * @param   pszDriver       The name of the driver which to detach.  If NULL
  *                          then the entire driver chain is detatched.
- * @param   iOccurance      The occurrence of that driver in the chain.  This is
+ * @param   iOccurrence     The occurrence of that driver in the chain.  This is
  *                          usually 0.
  * @param   fFlags          Flags, combination of the PDMDEVATT_FLAGS_* \#defines.
  * @thread  EMT
  */
 VMMR3DECL(int) PDMR3DriverDetach(PUVM pUVM, const char *pszDevice, unsigned iDevIns, unsigned iLun,
-                                 const char *pszDriver, unsigned iOccurance, uint32_t fFlags)
+                                 const char *pszDriver, unsigned iOccurrence, uint32_t fFlags)
 {
-    LogFlow(("PDMR3DriverDetach: pszDevice=%p:{%s} iDevIns=%u iLun=%u pszDriver=%p:{%s} iOccurance=%u fFlags=%#x\n",
-             pszDevice, pszDevice, iDevIns, iLun, pszDriver, pszDriver, iOccurance, fFlags));
+    LogFlow(("PDMR3DriverDetach: pszDevice=%p:{%s} iDevIns=%u iLun=%u pszDriver=%p:{%s} iOccurrence=%u fFlags=%#x\n",
+             pszDevice, pszDevice, iDevIns, iLun, pszDriver, pszDriver, iOccurrence, fFlags));
     UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
     PVM pVM = pUVM->pVM;
     VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
     VM_ASSERT_EMT(pVM);
     AssertPtr(pszDevice);
     AssertPtrNull(pszDriver);
-    Assert(iOccurance == 0 || pszDriver);
+    Assert(iOccurrence == 0 || pszDriver);
     Assert(!(fFlags & ~(PDM_TACH_FLAGS_NOT_HOT_PLUG)));
 
     /*
@@ -1027,9 +1027,9 @@ VMMR3DECL(int) PDMR3DriverDetach(PUVM pUVM, const char *pszDevice, unsigned iDev
                 {
                     if (!strcmp(pDrvIns->pReg->szName, pszDriver))
                     {
-                        if (iOccurance == 0)
+                        if (iOccurrence == 0)
                             break;
-                        iOccurance--;
+                        iOccurrence--;
                     }
                     pDrvIns = pDrvIns->Internal.s.pDown;
                 }
@@ -1064,7 +1064,7 @@ VMMR3DECL(int) PDMR3DriverDetach(PUVM pUVM, const char *pszDevice, unsigned iDev
  * @param   pszDriver       The name of the driver which to detach and replace.
  *                          If NULL then the entire driver chain is to be
  *                          reattached.
- * @param   iOccurance      The occurrence of that driver in the chain.  This is
+ * @param   iOccurrence     The occurrence of that driver in the chain.  This is
  *                          usually 0.
  * @param   fFlags          Flags, combination of the PDMDEVATT_FLAGS_* \#defines.
  * @param   pCfg            The configuration of the new driver chain that is
@@ -1079,10 +1079,10 @@ VMMR3DECL(int) PDMR3DriverDetach(PUVM pUVM, const char *pszDevice, unsigned iDev
  * @thread  Any thread. The EMTs will be involved at some point though.
  */
 VMMR3DECL(int)  PDMR3DriverReattach(PUVM pUVM, const char *pszDevice, unsigned iDevIns, unsigned iLun,
-                                    const char *pszDriver, unsigned iOccurance, uint32_t fFlags,
+                                    const char *pszDriver, unsigned iOccurrence, uint32_t fFlags,
                                     PCFGMNODE pCfg, PPPDMIBASE ppBase)
 {
-    NOREF(pUVM); NOREF(pszDevice); NOREF(iDevIns); NOREF(iLun); NOREF(pszDriver); NOREF(iOccurance);
+    NOREF(pUVM); NOREF(pszDevice); NOREF(iDevIns); NOREF(iLun); NOREF(pszDriver); NOREF(iOccurrence);
     NOREF(fFlags); NOREF(pCfg); NOREF(ppBase);
     return VERR_NOT_IMPLEMENTED;
 }

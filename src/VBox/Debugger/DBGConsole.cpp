@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -164,6 +164,7 @@
 #include <VBox/vmm/dbgf.h>
 #include <VBox/vmm/vmapi.h> /* VMR3GetVM() */
 #include <VBox/vmm/hm.h>    /* HMR3IsEnabled */
+#include <VBox/vmm/nem.h>   /* NEMR3IsEnabled */
 #include <VBox/err.h>
 #include <VBox/log.h>
 
@@ -814,18 +815,39 @@ static int dbgcProcessEvent(PDBGC pDbgc, PCDBGFEVENT pEvent)
                 if (pEvtDesc->enmKind == kDbgcSxEventKind_Interrupt)
                 {
                     Assert(pEvtDesc->pszDesc);
+                    Assert(pEvent->u.Generic.cArgs == 1);
                     rc = pDbgc->CmdHlp.pfnPrintf(&pDbgc->CmdHlp, NULL, "\ndbgf event: %s no %#llx! (%s)\n",
-                                                 pEvtDesc->pszDesc, pEvent->u.Generic.uArg, pEvtDesc->pszName);
+                                                 pEvtDesc->pszDesc, pEvent->u.Generic.auArgs[0], pEvtDesc->pszName);
+                }
+                else if (pEvtDesc->fFlags & DBGCSXEVT_F_BUGCHECK)
+                {
+                    Assert(pEvent->u.Generic.cArgs >= 5);
+                    char szDetails[512];
+                    DBGFR3FormatBugCheck(pDbgc->pUVM, szDetails, sizeof(szDetails), pEvent->u.Generic.auArgs[0],
+                                         pEvent->u.Generic.auArgs[1], pEvent->u.Generic.auArgs[2],
+                                         pEvent->u.Generic.auArgs[3], pEvent->u.Generic.auArgs[4]);
+                    rc = pDbgc->CmdHlp.pfnPrintf(&pDbgc->CmdHlp, NULL, "\ndbgf event: %s %s%s!\n%s", pEvtDesc->pszName,
+                                                 pEvtDesc->pszDesc ? "- " : "", pEvtDesc->pszDesc ? pEvtDesc->pszDesc : "",
+                                                 szDetails);
                 }
                 else if (   (pEvtDesc->fFlags & DBGCSXEVT_F_TAKE_ARG)
-                         || pEvent->u.Generic.uArg != 0)
+                         || pEvent->u.Generic.cArgs > 1
+                         || (   pEvent->u.Generic.cArgs == 1
+                             && pEvent->u.Generic.auArgs[0] != 0))
                 {
                     if (pEvtDesc->pszDesc)
-                        rc = pDbgc->CmdHlp.pfnPrintf(&pDbgc->CmdHlp, NULL, "\ndbgf event: %s - %s! arg=%#llx\n",
-                                                     pEvtDesc->pszName, pEvtDesc->pszDesc, pEvent->u.Generic.uArg);
+                        rc = pDbgc->CmdHlp.pfnPrintf(&pDbgc->CmdHlp, NULL, "\ndbgf event: %s - %s!",
+                                                     pEvtDesc->pszName, pEvtDesc->pszDesc);
                     else
-                        rc = pDbgc->CmdHlp.pfnPrintf(&pDbgc->CmdHlp, NULL, "\ndbgf event: %s! arg=%#llx\n",
-                                                     pEvtDesc->pszName, pEvent->u.Generic.uArg);
+                        rc = pDbgc->CmdHlp.pfnPrintf(&pDbgc->CmdHlp, NULL, "\ndbgf event: %s!", pEvtDesc->pszName);
+                    if (pEvent->u.Generic.cArgs <= 1)
+                        rc = pDbgc->CmdHlp.pfnPrintf(&pDbgc->CmdHlp, NULL, " arg=%#llx\n", pEvent->u.Generic.auArgs[0]);
+                    else
+                    {
+                        for (uint32_t i = 0; i < pEvent->u.Generic.cArgs; i++)
+                            rc = pDbgc->CmdHlp.pfnPrintf(&pDbgc->CmdHlp, NULL, " args[%u]=%#llx", i, pEvent->u.Generic.auArgs[i]);
+                        rc = pDbgc->CmdHlp.pfnPrintf(&pDbgc->CmdHlp, NULL, "\n");
+                    }
                 }
                 else
                 {
@@ -1210,7 +1232,7 @@ DBGDECL(int) DBGCCreate(PUVM pUVM, PDBGCBACK pBack, unsigned fFlags)
     int rc = dbgcCreate(&pDbgc, pBack, fFlags);
     if (RT_FAILURE(rc))
         return rc;
-    if (!HMR3IsEnabled(pUVM))
+    if (!HMR3IsEnabled(pUVM) && !NEMR3IsEnabled(pUVM))
         pDbgc->hDbgAs = DBGF_AS_RC_AND_GC_GLOBAL;
 
     /*

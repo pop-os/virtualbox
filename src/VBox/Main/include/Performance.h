@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,8 +14,12 @@
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
-#ifndef ___performance_h
-#define ___performance_h
+
+#ifndef MAIN_INCLUDED_Performance_h
+#define MAIN_INCLUDED_Performance_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/com/defs.h>
 #include <VBox/com/ptr.h>
@@ -897,5 +901,5 @@ namespace pm
         void processMetricList(const com::Utf8Str &name, const ComPtr<IUnknown> object);
     };
 }
-#endif /* ___performance_h */
+#endif /* !MAIN_INCLUDED_Performance_h */
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

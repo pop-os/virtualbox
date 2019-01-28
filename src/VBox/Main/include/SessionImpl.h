@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ____H_SESSIONIMPL
-#define ____H_SESSIONIMPL
+#ifndef MAIN_INCLUDED_SessionImpl_h
+#define MAIN_INCLUDED_SessionImpl_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "SessionWrap.h"
 #include "ConsoleImpl.h"
@@ -101,7 +104,7 @@ private:
                         BOOL aAdd);
     HRESULT onCPUExecutionCapChange(ULONG aExecutionCap);
     HRESULT onVRDEServerChange(BOOL aRestart);
-    HRESULT onVideoCaptureChange();
+    HRESULT onRecordingChange(BOOL aEnable);
     HRESULT onUSBControllerChange();
     HRESULT onSharedFolderChange(BOOL aGlobal);
     HRESULT onUSBDeviceAttach(const ComPtr<IUSBDevice> &aDevice,
@@ -165,5 +168,5 @@ private:
     ClientTokenHolder *mClientTokenHolder;
 };
 
-#endif // !____H_SESSIONIMPL
+#endif /* !MAIN_INCLUDED_SessionImpl_h */
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

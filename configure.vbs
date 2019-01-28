@@ -9,7 +9,7 @@
 '
 
 '
-' Copyright (C) 2006-2017 Oracle Corporation
+' Copyright (C) 2006-2019 Oracle Corporation
 '
 ' This file is part of VirtualBox Open Source Edition (OSE), as
 ' available from http://www.virtualbox.org. This file is free software;
@@ -44,6 +44,9 @@ g_strPathDDK = ""
 
 dim g_strTargetArch
 g_strTargetArch = ""
+
+dim g_strHostArch
+g_strHostArch = ""
 
 dim g_blnDisableCOM, g_strDisableCOM
 g_blnDisableCOM = False
@@ -933,6 +936,7 @@ sub CheckForkBuild(strOptkBuild)
    LogPrint " Host architecture: " & str & "."
    Wscript.Echo " Host architecture: " & str & "."
    EnvPrint "set KBUILD_HOST_ARCH=" & str
+   g_strHostArch = str
 
    str = EnvGetFirst("KBUILD_HOST_CPU", "BUILD_PLATFORM_CPU")
     ' perhaps a bit pedantic this since this isn't clearly define nor used much...
@@ -947,8 +951,8 @@ sub CheckForkBuild(strOptkBuild)
    ' Determin the location of the kBuild binaries.
    '
    if g_strPathkBuildBin = "" then
-      g_strPathkBuildBin = g_strPathkBuild & "/bin/win." & g_strTargetArch
-      if FileExists(g_strPathkBuild & "/kmk.exe") = False then
+      g_strPathkBuildBin = g_strPathkBuild & "/bin/win." & g_strHostArch
+      if FileExists(g_strPathkBuildBin & "/kmk.exe") = False then
          g_strPathkBuildBin = g_strPathkBuild & "/bin/win.x86"
       end if
    end if
@@ -1816,6 +1820,7 @@ sub CheckForXml2(strOptXml2)
    end if
 
    strPathXml2 = UnixSlashes(PathAbs(strPathXml2))
+   CfgPrint "SDK_VBOX_LIBXML2_DEFS  := _REENTRANT"
    CfgPrint "SDK_VBOX_LIBXML2_INCS  := " & strPathXml2 & "/include"
    CfgPrint "SDK_VBOX_LIBXML2_LIBS  := " & strPathXml2 & "/lib/libxml2.lib"
 
@@ -2278,13 +2283,14 @@ Sub Main
    CheckSourcePath
    CheckForkBuild strOptkBuild
    CheckForWinDDK strOptDDK
-   CfgPrint "VBOX_WITH_WDDM_W8     := " '' @todo look for WinDDKv8
    CheckForVisualCPP strOptVC, strOptVCCommon, blnOptVCExpressEdition
    CheckForPlatformSDK strOptSDK
    CheckForMidl
    CheckForMinGW32 strOptMinGW32, strOptW32API
    CheckForMinGWw64 strOptMinGWw64
    CfgPrint "VBOX_WITH_OPEN_WATCOM := " '' @todo look for openwatcom 1.9+
+   CfgPrint "VBOX_WITH_LIBVPX := " '' @todo look for libvpx 1.1.0+
+   CfgPrint "VBOX_WITH_LIBOPUS := " '' @todo look for libopus 1.2.1+
    EnvPrint "set PATH=%PATH%;" & g_strPath& "/tools/win." & g_strTargetArch & "/bin;" '' @todo look for yasm
    if blnOptDisableSDL = True then
       DisableSDL "--disable-sdl"

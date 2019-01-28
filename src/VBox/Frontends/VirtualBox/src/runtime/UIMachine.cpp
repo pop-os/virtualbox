@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,34 +15,29 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* GUI includes: */
-# include "VBoxGlobal.h"
-# include "UIExtraDataManager.h"
-# include "UIMachine.h"
-# include "UISession.h"
-# include "UIActionPoolRuntime.h"
-# include "UIMachineLogic.h"
-# include "UIMachineWindow.h"
-# include "UIMessageCenter.h"
+#include "VBoxGlobal.h"
+#include "UIExtraDataManager.h"
+#include "UIMachine.h"
+#include "UISession.h"
+#include "UIActionPoolRuntime.h"
+#include "UIMachineLogic.h"
+#include "UIMachineWindow.h"
+#include "UIMessageCenter.h"
 
 /* COM includes: */
-# include "CMachine.h"
-# include "CSession.h"
-# include "CConsole.h"
-# include "CSnapshot.h"
-# include "CProgress.h"
+#include "CMachine.h"
+#include "CSession.h"
+#include "CConsole.h"
+#include "CSnapshot.h"
+#include "CProgress.h"
 
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
-/* static */
-UIMachine* UIMachine::m_spInstance = 0;
 
 /* static */
-bool UIMachine::startMachine(const QString &strID)
+UIMachine *UIMachine::m_spInstance = 0;
+
+/* static */
+bool UIMachine::startMachine(const QUuid &uID)
 {
     /* Make sure machine is not created: */
     AssertReturn(!m_spInstance, false);
@@ -51,7 +46,7 @@ bool UIMachine::startMachine(const QString &strID)
     if (vboxGlobal().shouldRestoreCurrentSnapshot())
     {
         /* Create temporary session: */
-        CSession session = vboxGlobal().openSession(strID, KLockType_VM);
+        CSession session = vboxGlobal().openSession(uID, KLockType_VM);
         if (session.isNull())
             return false;
 
@@ -81,7 +76,7 @@ bool UIMachine::startMachine(const QString &strID)
     if (vboxGlobal().isSeparateProcess())
     {
         /* Get corresponding machine: */
-        CMachine machine = vboxGlobal().virtualBox().FindMachine(vboxGlobal().managedVMUuid());
+        CMachine machine = vboxGlobal().virtualBox().FindMachine(vboxGlobal().managedVMUuid().toString());
         AssertMsgReturn(!machine.isNull(), ("VBoxGlobal::managedVMUuid() should have filter that case before!\n"), false);
 
         /* Try to launch corresponding machine: */
@@ -131,14 +126,20 @@ void UIMachine::destroy()
 
 QWidget* UIMachine::activeWindow() const
 {
-    if (machineLogic() &&  machineLogic()->activeMachineWindow())
-        return machineLogic()->activeMachineWindow();
-    return 0;
+    return   machineLogic() && machineLogic()->activeMachineWindow()
+           ? machineLogic()->activeMachineWindow()
+           : 0;
 }
 
 void UIMachine::asyncChangeVisualState(UIVisualStateType visualState)
 {
     emit sigRequestAsyncVisualStateChange(visualState);
+}
+
+void UIMachine::closeRuntimeUI()
+{
+    /* Quit application: */
+    QApplication::quit();
 }
 
 void UIMachine::sltChangeVisualState(UIVisualStateType visualState)
@@ -206,8 +207,10 @@ bool UIMachine::prepare()
 
     /* Cache medium data early if necessary: */
     if (vboxGlobal().agressiveCaching())
-        vboxGlobal().startMediumEnumeration();
-
+    {
+        AssertReturn(m_pSession, false);
+        vboxGlobal().startMediumEnumeration(m_pSession->getMachineMedia());
+    }
     /* Prepare machine-logic: */
     prepareMachineLogic();
 
@@ -303,13 +306,9 @@ void UIMachine::cleanup()
 
     /* Cleanup session UI: */
     cleanupSession();
-
-    /* Quit application: */
-    QApplication::quit();
 }
 
 void UIMachine::enterInitialVisualState()
 {
     sltChangeVisualState(m_initialVisualState);
 }
-

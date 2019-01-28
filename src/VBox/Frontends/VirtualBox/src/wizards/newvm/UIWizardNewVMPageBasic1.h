@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __UIWizardNewVMPageBasic1_h__
-#define __UIWizardNewVMPageBasic1_h__
+#ifndef FEQT_INCLUDED_SRC_wizards_newvm_UIWizardNewVMPageBasic1_h
+#define FEQT_INCLUDED_SRC_wizards_newvm_UIWizardNewVMPageBasic1_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Local includes: */
 #include "UIWizardPage.h"
@@ -37,30 +40,39 @@ protected:
     void onNameChanged(QString strNewName);
     void onOsTypeChanged();
 
-    /* Helping stuff: */
-    bool machineFolderCreated();
     bool createMachineFolder();
+    /** Removes a previously created folder (if exists) before creating a new one.
+     *  used during page cleanup and new folder creation. */
     bool cleanupMachineFolder();
 
-    /** Returns the machine folder value. */
-    QString machineFolder() const { return m_strMachineFolder; }
-    /** Defines the @a strMachineFolder value. */
-    void setMachineFolder(const QString &strMachineFolder) { m_strMachineFolder = strMachineFolder; }
+    QString machineFilePath() const;
+    void setMachineFilePath(const QString &strMachineFilePath);
 
-    /** Returns the machine base-name value. */
-    QString machineBaseName() const { return m_strMachineBaseName; }
-    /** Defines the @a strMachineBaseName value. */
-    void setMachineBaseName(const QString &strMachineBaseName) { m_strMachineBaseName = strMachineBaseName; }
+    QString machineFolder() const;
+    void setMachineFolder(const QString &strMachineFolder);
 
-    /** Holds the machine folder value. */
-    QString m_strMachineFolder;
-    /** Holds the machine base-name value. */
-    QString m_strMachineBaseName;
+    QString machineBaseName() const;
+    void setMachineBaseName(const QString &strMachineBaseName);
 
-    /* Widgets: */
+    /** calls CVirtualBox::ComposeMachineFilename(...) and sets related member variables */
+    void composeMachineFilePath();
+
+    /** Provides a path selector and a line edit field for path and name entry. */
     UINameAndSystemEditor *m_pNameAndSystemEditor;
 
-    /* Variables: */
+private:
+
+    /** Full path (including the file name) of the machine's configuration file. */
+    QString m_strMachineFilePath;
+    /** Path of the folder hosting the machine's configuration file. Generated from m_strMachineFilePath. */
+    QString m_strMachineFolder;
+    /** Path of the folder created by this wizard page. Used to remove previously created
+     *  folder. see cleanupMachineFolder();*/
+    QString m_strCreatedFolder;
+    /** Base name of the machine is generated from the m_strMachineFilePath. */
+    QString m_strMachineBaseName;
+
+
     QString m_strGroup;
     bool m_fSupportsHWVirtEx;
     bool m_fSupportsLongMode;
@@ -70,6 +82,7 @@ protected:
 class UIWizardNewVMPageBasic1 : public UIWizardPage, public UIWizardNewVMPage1
 {
     Q_OBJECT;
+    Q_PROPERTY(QString machineFilePath READ machineFilePath WRITE setMachineFilePath);
     Q_PROPERTY(QString machineFolder READ machineFolder WRITE setMachineFolder);
     Q_PROPERTY(QString machineBaseName READ machineBaseName WRITE setMachineBaseName);
 
@@ -87,6 +100,7 @@ private slots:
 
     /* Handlers: */
     void sltNameChanged(const QString &strNewText);
+    void sltPathChanged(const QString &strNewPath);
     void sltOsTypeChanged();
 
 private:
@@ -105,5 +119,4 @@ private:
     QIRichTextLabel *m_pLabel;
 };
 
-#endif // __UIWizardNewVMPageBasic1_h__
-
+#endif /* !FEQT_INCLUDED_SRC_wizards_newvm_UIWizardNewVMPageBasic1_h */

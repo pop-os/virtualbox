@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,8 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_vmm_iom_h
-#define ___VBox_vmm_iom_h
+#ifndef VBOX_INCLUDED_vmm_iom_h
+#define VBOX_INCLUDED_vmm_iom_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/types.h>
 #include <VBox/dis.h>
@@ -159,9 +162,11 @@ RT_C_DECLS_BEGIN
  * Checks whether the write mode allows aligned QWORD accesses to be passed
  * thru to the device handler.
  * @param   a_fFlags        The MMIO handler flags.
- * @remarks The current implementation makes ASSUMPTIONS about the mode values!
  */
-#define IOMMMIO_DOES_WRITE_MODE_ALLOW_QWORD(a_fFlags)   RT_BOOL((a_fFlags) & UINT32_C(0x00000020))
+#define IOMMMIO_DOES_WRITE_MODE_ALLOW_QWORD(a_fFlags) \
+    (   ((a_fFlags) & IOMMMIO_FLAGS_WRITE_MODE) == IOMMMIO_FLAGS_WRITE_DWORD_QWORD_ZEROED \
+     || ((a_fFlags) & IOMMMIO_FLAGS_WRITE_MODE) == IOMMMIO_FLAGS_WRITE_DWORD_QWORD_READ_MISSING \
+     || ((a_fFlags) & IOMMMIO_FLAGS_WRITE_MODE) == IOMMMIO_FLAGS_WRITE_ONLY_DWORD_QWORD )
 
 
 /**
@@ -380,5 +385,5 @@ VMMR3_INT_DECL(void) IOMR3NotifyDebugEventChange(PVM pVM, DBGFEVENT enmEvent, bo
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !VBOX_INCLUDED_vmm_iom_h */
 

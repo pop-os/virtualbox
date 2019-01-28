@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017 Oracle Corporation
+ * Copyright (C) 2017-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UITabBar_h___
-#define ___UITabBar_h___
+#ifndef FEQT_INCLUDED_SRC_widgets_UITabBar_h
+#define FEQT_INCLUDED_SRC_widgets_UITabBar_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Qt includes: */
 #include <QIcon>
@@ -55,8 +58,11 @@ signals:
 
 public:
 
+    /** Alignment types. */
+    enum Alignment { Align_Left, Align_Right };
+
     /** Constructs tab-bar passing @a pParent to the base-class. */
-    UITabBar(QWidget *pParent = 0);
+    UITabBar(Alignment enmAlignment, QWidget *pParent = 0);
 
     /** Adds new tab for passed @a pAction. @returns unique tab ID. */
     QUuid addTab(const QAction *pAction);
@@ -103,6 +109,12 @@ private:
     /** Updates children styles. */
     void updateChildrenStyles();
 
+    /** @name Contents: Common
+      * @{ */
+        /** Holds the alignment. */
+        Alignment m_enmAlignment;
+    /** @} */
+
     /** @name Contents: Widgets
       * @{ */
         /** Holds the main layout instance. */
@@ -127,5 +139,5 @@ private:
     /** @} */
 };
 
-#endif /* !___UITabBar_h___ */
+#endif /* !FEQT_INCLUDED_SRC_widgets_UITabBar_h */
 

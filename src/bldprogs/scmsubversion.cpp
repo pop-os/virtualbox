@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -602,7 +602,7 @@ static int scmSvnRunAndGetOutput(PSCMRWSTATE pState, const char **papszArgs, boo
     {
         if (fNormalFailureOk || Status.enmReason != RTPROCEXITREASON_NORMAL)
             RTMsgError("%s: %s -> %s %u\n",
-                       pState->pszFilename, pszCmdLine,
+                       pState ? pState->pszFilename : "<NONE>", pszCmdLine,
                        Status.enmReason == RTPROCEXITREASON_NORMAL   ? "exit code"
                        : Status.enmReason == RTPROCEXITREASON_SIGNAL ? "signal"
                        : Status.enmReason == RTPROCEXITREASON_ABEND  ? "abnormal end"
@@ -753,7 +753,10 @@ static void scmSvnTryResolveFunctions(void)
 # endif
                         rc = RTLdrLoadEx(szPath, &ahMods[iLib], RTLDRLOAD_FLAGS_NT_SEARCH_DLL_LOAD_DIR , NULL);
                         if (RT_SUCCESS(rc))
+                        {
+                            RTMEM_WILL_LEAK(ahMods[iLib]);
                             break;
+                        }
                     }
                 }
             }
@@ -1429,6 +1432,44 @@ int ScmSvnQueryProperty(PSCMRWSTATE pState, const char *pszName, char **ppszValu
                 rc = VERR_NOT_FOUND;
             RTStrFree(pszValue);
         }
+    }
+    return rc;
+}
+
+
+/**
+ * Queries the value of an SVN property on the parent dir/whatever.
+ *
+ * This will not adjust for scheduled changes to the parent!
+ *
+ * @returns IPRT status code.
+ * @retval  VERR_INVALID_STATE if not a SVN WC file.
+ * @retval  VERR_NOT_FOUND if the property wasn't found.
+ * @param   pState              The rewrite state to work on.
+ * @param   pszName             The property name.
+ * @param   ppszValue           Where to return the property value.  Free this
+ *                              using RTStrFree.  Optional.
+ */
+int ScmSvnQueryParentProperty(PSCMRWSTATE pState, const char *pszName, char **ppszValue)
+{
+    /*
+     * Strip the filename and use ScmSvnQueryProperty.
+     */
+    char szPath[RTPATH_MAX];
+    int rc = RTStrCopy(szPath, sizeof(szPath), pState->pszFilename);
+    if (RT_SUCCESS(rc))
+    {
+        RTPathStripFilename(szPath);
+        SCMRWSTATE ParentState;
+        ParentState.pszFilename         = szPath;
+        ParentState.fFirst              = false;
+        ParentState.fIsInSvnWorkingCopy = true;
+        ParentState.cSvnPropChanges     = 0;
+        ParentState.paSvnPropChanges    = NULL;
+        ParentState.rc                  = VINF_SUCCESS;
+        rc = ScmSvnQueryProperty(&ParentState, pszName, ppszValue);
+        if (RT_SUCCESS(rc))
+            rc = ParentState.rc;
     }
     return rc;
 }

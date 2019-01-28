@@ -1,12 +1,10 @@
 /* $Id: DHCPServerImpl.cpp $ */
-
 /** @file
- *
  * VirtualBox COM class implementation
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,15 +15,18 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#include <string>
+#define LOG_GROUP LOG_GROUP_MAIN_DHCPSERVER
 #include "NetworkServiceRunner.h"
 #include "DHCPServerImpl.h"
 #include "AutoCaller.h"
-#include "Logging.h"
+#include "LoggingNew.h"
 
 #include <iprt/asm.h>
+#include <iprt/file.h>
 #include <iprt/net.h>
+#include <iprt/path.h>
 #include <iprt/cpp/utils.h>
+#include <iprt/cpp/xml.h>
 
 #include <VBox/com/array.h>
 #include <VBox/settings.h>
@@ -37,6 +38,8 @@
 const std::string DHCPServerRunner::kDsrKeyGateway = "--gateway";
 const std::string DHCPServerRunner::kDsrKeyLowerIp = "--lower-ip";
 const std::string DHCPServerRunner::kDsrKeyUpperIp = "--upper-ip";
+const std::string DHCPServerRunner::kDsrKeyConfig  = "--config";
+const std::string DHCPServerRunner::kDsrKeyComment = "--comment";
 
 
 struct DHCPServer::Data
@@ -44,7 +47,9 @@ struct DHCPServer::Data
     Data()
         : enabled(FALSE)
         , router(false)
-    {}
+    {
+        tempConfigFileName[0] = '\0';
+    }
 
     Utf8Str IPAddress;
     Utf8Str lowerIP;
@@ -56,6 +61,11 @@ struct DHCPServer::Data
 
     settings::DhcpOptionMap GlobalDhcpOptions;
     settings::VmSlot2OptionsMap VmSlot2Options;
+
+    char tempConfigFileName[RTPATH_MAX];
+    com::Utf8Str networkName;
+    com::Utf8Str trunkName;
+    com::Utf8Str trunkType;
 };
 
 
@@ -97,6 +107,9 @@ void DHCPServer::uninit()
     AutoUninitSpan autoUninitSpan(this);
     if (autoUninitSpan.uninitDone())
         return;
+
+    if (m->dhcp.isRunning())
+        stop();
 
     unconst(mVirtualBox) = NULL;
 }
@@ -257,36 +270,30 @@ HRESULT DHCPServer::setConfiguration(const com::Utf8Str &aIPAddress,
                                      const com::Utf8Str &aUpperIP)
 {
     RTNETADDRIPV4 IPAddress, NetworkMask, LowerIP, UpperIP;
-    int rc;
 
-    rc = RTNetStrToIPv4Addr(aIPAddress.c_str(), &IPAddress);
-    if (RT_FAILURE(rc))
-        return mVirtualBox->setErrorBoth(E_INVALIDARG, rc,
-                   "Invalid server address");
+    int vrc = RTNetStrToIPv4Addr(aIPAddress.c_str(), &IPAddress);
+    if (RT_FAILURE(vrc))
+        return mVirtualBox->setErrorBoth(E_INVALIDARG, vrc, "Invalid server address");
 
-    rc = RTNetStrToIPv4Addr(aNetworkMask.c_str(), &NetworkMask);
-    if (RT_FAILURE(rc))
-        return mVirtualBox->setErrorBoth(E_INVALIDARG, rc,
-                   "Invalid netmask");
+    vrc = RTNetStrToIPv4Addr(aNetworkMask.c_str(), &NetworkMask);
+    if (RT_FAILURE(vrc))
+        return mVirtualBox->setErrorBoth(E_INVALIDARG, vrc, "Invalid netmask");
 
-    rc = RTNetStrToIPv4Addr(aLowerIP.c_str(), &LowerIP);
-    if (RT_FAILURE(rc))
-        return mVirtualBox->setErrorBoth(E_INVALIDARG, rc,
-                   "Invalid range lower address");
+    vrc = RTNetStrToIPv4Addr(aLowerIP.c_str(), &LowerIP);
+    if (RT_FAILURE(vrc))
+        return mVirtualBox->setErrorBoth(E_INVALIDARG, vrc, "Invalid range lower address");
 
-    rc = RTNetStrToIPv4Addr(aUpperIP.c_str(), &UpperIP);
-    if (RT_FAILURE(rc))
-        return mVirtualBox->setErrorBoth(E_INVALIDARG, rc,
-                   "Invalid range upper address");
+    vrc = RTNetStrToIPv4Addr(aUpperIP.c_str(), &UpperIP);
+    if (RT_FAILURE(vrc))
+        return mVirtualBox->setErrorBoth(E_INVALIDARG, vrc, "Invalid range upper address");
 
     /*
      * Insist on continuous mask.  May be also accept prefix length
      * here or address/prefix for aIPAddress?
      */
-    rc = RTNetMaskToPrefixIPv4(&NetworkMask, NULL);
-    if (RT_FAILURE(rc))
-        return mVirtualBox->setErrorBoth(E_INVALIDARG, rc,
-                   "Invalid netmask");
+    vrc = RTNetMaskToPrefixIPv4(&NetworkMask, NULL);
+    if (RT_FAILURE(vrc))
+        return mVirtualBox->setErrorBoth(E_INVALIDARG, vrc, "Invalid netmask");
 
     /* It's more convenient to convert to host order once */
     IPAddress.u = RT_N2H_U32(IPAddress.u);
@@ -300,38 +307,27 @@ HRESULT DHCPServer::setConfiguration(const com::Utf8Str &aIPAddress,
     if (   (IPAddress.u & UINT32_C(0xe0000000)) == UINT32_C(0xe0000000)
         || (IPAddress.u & ~NetworkMask.u) == 0
         || ((IPAddress.u & ~NetworkMask.u) | NetworkMask.u) == UINT32_C(0xffffffff))
-    {
-        return mVirtualBox->setError(E_INVALIDARG,
-                   "Invalid server address");
-    }
+        return mVirtualBox->setError(E_INVALIDARG, "Invalid server address");
 
     if (   (LowerIP.u & UINT32_C(0xe0000000)) == UINT32_C(0xe0000000)
         || (LowerIP.u & NetworkMask.u) != (IPAddress.u &NetworkMask.u)
         || (LowerIP.u & ~NetworkMask.u) == 0
         || ((LowerIP.u & ~NetworkMask.u) | NetworkMask.u) == UINT32_C(0xffffffff))
-    {
-        return mVirtualBox->setError(E_INVALIDARG,
-                   "Invalid range lower address");
-    }
+        return mVirtualBox->setError(E_INVALIDARG, "Invalid range lower address");
 
     if (   (UpperIP.u & UINT32_C(0xe0000000)) == UINT32_C(0xe0000000)
         || (UpperIP.u & NetworkMask.u) != (IPAddress.u &NetworkMask.u)
         || (UpperIP.u & ~NetworkMask.u) == 0
         || ((UpperIP.u & ~NetworkMask.u) | NetworkMask.u) == UINT32_C(0xffffffff))
-    {
-        return mVirtualBox->setError(E_INVALIDARG,
-                   "Invalid range upper address");
-    }
+        return mVirtualBox->setError(E_INVALIDARG, "Invalid range upper address");
 
     /* The range should be valid ... */
     if (LowerIP.u > UpperIP.u)
-        return mVirtualBox->setError(E_INVALIDARG,
-                   "Invalid range bounds");
+        return mVirtualBox->setError(E_INVALIDARG, "Invalid range bounds");
 
     /* ... and shouldn't contain the server's address */
     if (LowerIP.u <= IPAddress.u && IPAddress.u <= UpperIP.u)
-        return mVirtualBox->setError(E_INVALIDARG,
-                   "Server address within range bounds");
+        return mVirtualBox->setError(E_INVALIDARG, "Server address within range bounds");
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
     m->IPAddress = aIPAddress;
@@ -415,14 +411,12 @@ int DHCPServer::addOption(settings::DhcpOptionMap &aMap,
     else
     {
         uint8_t u8Code;
-        uint32_t u32Enc;
-        char *pszNext;
-        int rc;
-
-        rc = RTStrToUInt8Ex(aValue.c_str(), &pszNext, 10, &u8Code);
-        if (!RT_SUCCESS(rc))
+        char    *pszNext;
+        int vrc = RTStrToUInt8Ex(aValue.c_str(), &pszNext, 10, &u8Code);
+        if (!RT_SUCCESS(vrc))
             return VERR_PARSE_ERROR;
 
+        uint32_t u32Enc;
         switch (*pszNext)
         {
             case ':':           /* support legacy format too */
@@ -439,8 +433,8 @@ int DHCPServer::addOption(settings::DhcpOptionMap &aMap,
 
             case '@':
             {
-                rc = RTStrToUInt32Ex(pszNext + 1, &pszNext, 10, &u32Enc);
-                if (!RT_SUCCESS(rc))
+                vrc = RTStrToUInt32Ex(pszNext + 1, &pszNext, 10, &u32Enc);
+                if (!RT_SUCCESS(vrc))
                     return VERR_PARSE_ERROR;
                 if (*pszNext != '=')
                     return VERR_PARSE_ERROR;
@@ -471,9 +465,35 @@ HRESULT DHCPServer::addGlobalOption(DhcpOpt_T aOption, const com::Utf8Str &aValu
     /* Indirect way to understand that we're on NAT network */
     if (aOption == DhcpOpt_Router)
     {
-        m->dhcp.setOption(NetworkServiceRunner::kNsrKeyNeedMain, "on");
         m->router = true;
     }
+
+    alock.release();
+
+    AutoWriteLock vboxLock(mVirtualBox COMMA_LOCKVAL_SRC_POS);
+    return mVirtualBox->i_saveSettings();
+}
+
+
+HRESULT DHCPServer::removeGlobalOption(DhcpOpt_T aOption)
+{
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    settings::DhcpOptionMap::size_type cErased = m->GlobalDhcpOptions.erase(aOption);
+    if (!cErased)
+        return E_INVALIDARG;
+
+    alock.release();
+
+    AutoWriteLock vboxLock(mVirtualBox COMMA_LOCKVAL_SRC_POS);
+    return mVirtualBox->i_saveSettings();
+}
+
+
+HRESULT DHCPServer::removeGlobalOptions()
+{
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+    m->GlobalDhcpOptions.clear();
 
     alock.release();
 
@@ -524,6 +544,21 @@ HRESULT DHCPServer::addVmSlotOption(const com::Utf8Str &aVmName,
     settings::DhcpOptionMap &map = m->VmSlot2Options[settings::VmNameSlotKey(aVmName, aSlot)];
     int rc = addOption(map, aOption, aValue);
     if (!RT_SUCCESS(rc))
+        return E_INVALIDARG;
+
+    alock.release();
+
+    AutoWriteLock vboxLock(mVirtualBox COMMA_LOCKVAL_SRC_POS);
+    return mVirtualBox->i_saveSettings();
+}
+
+
+HRESULT DHCPServer::removeVmSlotOption(const com::Utf8Str &aVmName, LONG aSlot, DhcpOpt_T aOption)
+{
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+    settings::DhcpOptionMap &map = i_findOptMapByVmNameSlot(aVmName, aSlot);
+    settings::DhcpOptionMap::size_type cErased = map.erase(aOption);
+    if (!cErased)
         return E_INVALIDARG;
 
     alock.release();
@@ -617,6 +652,30 @@ HRESULT DHCPServer::getEventSource(ComPtr<IEventSource> &aEventSource)
 }
 
 
+DECLINLINE(void) addOptionChild(xml::ElementNode *pParent, uint32_t OptCode, const settings::DhcpOptValue &OptValue)
+{
+    xml::ElementNode *pOption = pParent->createChild("Option");
+    pOption->setAttribute("name", OptCode);
+    pOption->setAttribute("encoding", OptValue.encoding);
+    pOption->setAttribute("value", OptValue.text.c_str());
+}
+
+
+HRESULT DHCPServer::restart()
+{
+    if (!m->dhcp.isRunning())
+        return E_FAIL;
+    /*
+        * Disabled servers will be brought down, but won't be restarted.
+        * (see DHCPServer::start)
+        */
+    HRESULT hrc = stop();
+    if (SUCCEEDED(hrc))
+        hrc = start(m->networkName, m->trunkName, m->trunkType);
+    return hrc;
+}
+
+
 HRESULT DHCPServer::start(const com::Utf8Str &aNetworkName,
                           const com::Utf8Str &aTrunkName,
                           const com::Utf8Str &aTrunkType)
@@ -624,6 +683,112 @@ HRESULT DHCPServer::start(const com::Utf8Str &aNetworkName,
     /* Silently ignore attempts to run disabled servers. */
     if (!m->enabled)
         return S_OK;
+
+    /*
+     * @todo: the existing code cannot handle concurrent attempts to start DHCP server.
+     * Note that technically it may receive different parameters from different callers.
+     */
+    m->networkName = aNetworkName;
+    m->trunkName = aTrunkName;
+    m->trunkType = aTrunkType;
+
+    m->dhcp.clearOptions();
+#ifdef VBOX_WITH_DHCPD
+    int rc = RTPathTemp(m->tempConfigFileName, sizeof(m->tempConfigFileName));
+    if (RT_FAILURE(rc))
+        return E_FAIL;
+    rc = RTPathAppend(m->tempConfigFileName, sizeof(m->tempConfigFileName), "dhcp-config-XXXXX.xml");
+    if (RT_FAILURE(rc))
+    {
+        m->tempConfigFileName[0] = '\0';
+        return E_FAIL;
+    }
+    rc = RTFileCreateTemp(m->tempConfigFileName, 0600);
+    if (RT_FAILURE(rc))
+    {
+        m->tempConfigFileName[0] = '\0';
+        return E_FAIL;
+    }
+
+    xml::Document doc;
+    xml::ElementNode *pElmRoot = doc.createRootElement("DHCPServer");
+    pElmRoot->setAttribute("networkName", m->networkName.c_str());
+    if (!m->trunkName.isEmpty())
+        pElmRoot->setAttribute("trunkName", m->trunkName.c_str());
+    pElmRoot->setAttribute("trunkType", m->trunkType.c_str());
+    pElmRoot->setAttribute("IPAddress",  Utf8Str(m->IPAddress).c_str());
+    pElmRoot->setAttribute("networkMask", Utf8Str(m->GlobalDhcpOptions[DhcpOpt_SubnetMask].text).c_str());
+    pElmRoot->setAttribute("lowerIP", Utf8Str(m->lowerIP).c_str());
+    pElmRoot->setAttribute("upperIP", Utf8Str(m->upperIP).c_str());
+
+    /* Process global options */
+    xml::ElementNode *pOptions = pElmRoot->createChild("Options");
+    // settings::DhcpOptionMap::const_iterator itGlobal;
+    for (settings::DhcpOptionMap::const_iterator it = m->GlobalDhcpOptions.begin();
+         it != m->GlobalDhcpOptions.end();
+         ++it)
+        addOptionChild(pOptions, (*it).first, (*it).second);
+
+    /* Process network-adapter-specific options */
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+    HRESULT hrc = S_OK;
+    ComPtr<IMachine> machine;
+    ComPtr<INetworkAdapter> nic;
+    settings::VmSlot2OptionsIterator it;
+    for(it = m->VmSlot2Options.begin(); it != m->VmSlot2Options.end(); ++it)
+    {
+        alock.release();
+        hrc = mVirtualBox->FindMachine(Bstr(it->first.VmName).raw(), machine.asOutParam());
+        alock.acquire();
+
+        if (FAILED(hrc))
+            continue;
+
+        alock.release();
+        hrc = machine->GetNetworkAdapter(it->first.Slot, nic.asOutParam());
+        alock.acquire();
+
+        if (FAILED(hrc))
+            continue;
+
+        com::Bstr mac;
+
+        alock.release();
+        hrc = nic->COMGETTER(MACAddress)(mac.asOutParam());
+        alock.acquire();
+
+        if (FAILED(hrc)) /* no MAC address ??? */
+            continue;
+
+        /* Convert MAC address from XXXXXXXXXXXX to XX:XX:XX:XX:XX:XX */
+        Utf8Str strMacWithoutColons(mac);
+        const char *pszSrc = strMacWithoutColons.c_str();
+        RTMAC binaryMac;
+        if (RTStrConvertHexBytes(pszSrc, &binaryMac, sizeof(binaryMac), 0) != VINF_SUCCESS)
+            continue;
+        char szMac[18]; /* "XX:XX:XX:XX:XX:XX" */
+        if (RTStrPrintHexBytes(szMac, sizeof(szMac), &binaryMac, sizeof(binaryMac), RTSTRPRINTHEXBYTES_F_SEP_COLON) != VINF_SUCCESS)
+            continue;
+
+        xml::ElementNode *pMacConfig = pElmRoot->createChild("Config");
+        pMacConfig->setAttribute("MACAddress", szMac);
+
+        com::Utf8Str encodedOption;
+        settings::DhcpOptionMap &map = i_findOptMapByVmNameSlot(it->first.VmName, it->first.Slot);
+        settings::DhcpOptionMap::const_iterator itAdapterOption;
+        for (itAdapterOption = map.begin(); itAdapterOption != map.end(); ++itAdapterOption)
+            addOptionChild(pMacConfig, (*itAdapterOption).first, (*itAdapterOption).second);
+    }
+
+    xml::XmlFileWriter writer(doc);
+    writer.write(m->tempConfigFileName, true);
+
+    m->dhcp.setOption(DHCPServerRunner::kDsrKeyConfig, m->tempConfigFileName);
+    m->dhcp.setOption(DHCPServerRunner::kDsrKeyComment, m->networkName.c_str());
+#else /* !VBOX_WITH_DHCPD */
+    /* Main is needed for NATNetwork */
+    if (m->router)
+        m->dhcp.setOption(NetworkServiceRunner::kNsrKeyNeedMain, "on");
 
     /* Commmon Network Settings */
     m->dhcp.setOption(NetworkServiceRunner::kNsrKeyNetwork, aNetworkName.c_str());
@@ -646,6 +811,7 @@ HRESULT DHCPServer::start(const com::Utf8Str &aNetworkName,
     m->dhcp.setOption(NetworkServiceRunner::kNsrIpNetmask, Utf8Str(m->GlobalDhcpOptions[DhcpOpt_SubnetMask].text).c_str());
     m->dhcp.setOption(DHCPServerRunner::kDsrKeyLowerIp, Utf8Str(m->lowerIP).c_str());
     m->dhcp.setOption(DHCPServerRunner::kDsrKeyUpperIp, Utf8Str(m->upperIP).c_str());
+#endif /* !VBOX_WITH_DHCPD */
 
     /* XXX: This parameters Dhcp Server will fetch via API */
     return RT_FAILURE(m->dhcp.start(!m->router /* KillProcOnExit */)) ? E_FAIL : S_OK;
@@ -655,6 +821,13 @@ HRESULT DHCPServer::start(const com::Utf8Str &aNetworkName,
 
 HRESULT DHCPServer::stop (void)
 {
+#ifdef VBOX_WITH_DHCPD
+    if (m->tempConfigFileName[0])
+    {
+        RTFileDelete(m->tempConfigFileName);
+        m->tempConfigFileName[0] = 0;
+    }
+#endif /* VBOX_WITH_DHCPD */
     return RT_FAILURE(m->dhcp.stop()) ? E_FAIL : S_OK;
 }
 

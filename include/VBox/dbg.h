@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,8 +27,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_dbg_h
-#define ___VBox_dbg_h
+#ifndef VBOX_INCLUDED_dbg_h
+#define VBOX_INCLUDED_dbg_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/cdefs.h>
 #include <VBox/types.h>
@@ -36,7 +39,7 @@
 
 #include <iprt/stdarg.h>
 #ifdef IN_RING3
-# include <iprt/err.h>
+# include <iprt/errcore.h>
 #endif
 
 RT_C_DECLS_BEGIN
@@ -719,7 +722,7 @@ DECLINLINE(int) RT_IPRT_FORMAT_ATTR(2, 3) DBGCCmdHlpPrintf(PDBGCCMDHLP pCmdHlp, 
  *                      well as the debugger ones.
  * @param   ...         Arguments specified in the format string.
  */
-DECLINLINE(int) RT_IPRT_FORMAT_ATTR(2, 3) DBGCCmdHlpPrintfEx(PDBGCCMDHLP pCmdHlp, size_t *pcbWritten,
+DECLINLINE(int) RT_IPRT_FORMAT_ATTR(3, 4) DBGCCmdHlpPrintfEx(PDBGCCMDHLP pCmdHlp, size_t *pcbWritten,
                                                              const char *pszFormat, ...)
 {
     va_list va;
@@ -730,6 +733,28 @@ DECLINLINE(int) RT_IPRT_FORMAT_ATTR(2, 3) DBGCCmdHlpPrintfEx(PDBGCCMDHLP pCmdHlp
     va_end(va);
 
     return rc;
+}
+
+/**
+ * Command helper for writing formatted text to the debug console.
+ *
+ * @returns Number of bytes written.
+ * @param   pCmdHlp     Pointer to the command callback structure.
+ * @param   pszFormat   The format string.  This may use all IPRT extensions as
+ *                      well as the debugger ones.
+ * @param   ...         Arguments specified in the format string.
+ */
+DECLINLINE(size_t) RT_IPRT_FORMAT_ATTR(2, 3) DBGCCmdHlpPrintfLen(PDBGCCMDHLP pCmdHlp, const char *pszFormat, ...)
+{
+    va_list va;
+    int     rc;
+    size_t  cbWritten = 0;
+
+    va_start(va, pszFormat);
+    rc = pCmdHlp->pfnPrintfV(pCmdHlp, &cbWritten, pszFormat, va);
+    va_end(va);
+
+    return RT_SUCCESS(rc) ? cbWritten : 0;
 }
 
 /**
@@ -1150,4 +1175,4 @@ DBGDECL(int)    DBGCTcpTerminate(PUVM pUVM, void *pvData);
 /** @} */
 RT_C_DECLS_END
 
-#endif
+#endif /* !VBOX_INCLUDED_dbg_h */

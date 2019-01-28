@@ -4,7 +4,7 @@
 ;
 
 ;
-; Copyright (C) 2006-2017 Oracle Corporation
+; Copyright (C) 2006-2019 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -96,8 +96,8 @@ struc CPUM
     .fXStateHostMask            resq    1
 
     alignb 64
-    .HostFeatures               resb    32
-    .GuestFeatures              resb    32
+    .HostFeatures               resb    48
+    .GuestFeatures              resb    48
     .GuestInfo                  resb    RTHCPTR_CB*4 + RTRCPTR_CB*2 + 4*12
 
     ; Patch manager saved state compatability CPUID leaf arrays
@@ -229,29 +229,33 @@ struc CPUMCPU
     .Guest.pXStateRC      RTRCPTR_RES 1
     .Guest.aoffXState         resw    64
     .Guest.fWorldSwitcher     resd    1
+    .Guest.fExtrn             resq    1
     alignb 8
     .Guest.hwvirt.svm.uMsrHSavePa            resq         1
     .Guest.hwvirt.svm.GCPhysVmcb             resq         1
     .Guest.hwvirt.svm.pVmcbR0                RTR0PTR_RES  1
+    alignb 8
     .Guest.hwvirt.svm.pVmcbR3                RTR3PTR_RES  1
-%if HC_ARCH_BITS == 32
-    .Guest.hwvirt.svm.abPadding0             resb         8
-%endif
+    alignb 8
     .Guest.hwvirt.svm.HostState              resb         184
-    .Guest.hwvirt.svm.fGif                   resb         1
-    .Guest.hwvirt.svm.u8Padding0             resb         1
+    .Guest.hwvirt.svm.uPrevPauseTick         resq         1
     .Guest.hwvirt.svm.cPauseFilter           resw         1
     .Guest.hwvirt.svm.cPauseFilterThreshold  resw         1
     .Guest.hwvirt.svm.fInterceptEvents       resb         1
-    .Guest.hwvirt.svm.fHMCachedVmcb          resb         1
+    alignb 8
     .Guest.hwvirt.svm.pvMsrBitmapR0          RTR0PTR_RES  1
+    alignb 8
     .Guest.hwvirt.svm.pvMsrBitmapR3          RTR3PTR_RES  1
+    alignb 8
     .Guest.hwvirt.svm.pvIoBitmapR0           RTR0PTR_RES  1
+    alignb 8
     .Guest.hwvirt.svm.pvIoBitmapR3           RTR3PTR_RES  1
+    alignb 8
     .Guest.hwvirt.svm.HCPhysVmcb             RTHCPHYS_RES 1
-%if HC_ARCH_BITS == 32
-    .Guest.hwvirt.svm.abPadding2             resb         16
-%endif
+    .Guest.hwvirt.svm.u64Padding0            resq         19
+    .Guest.hwvirt.enmHwvirt                  resd         1
+    .Guest.hwvirt.fGif                       resb         1
+    alignb 8
     .Guest.hwvirt.fLocalForcedActions        resd         1
     alignb 64
 
@@ -515,29 +519,33 @@ struc CPUMCPU
     .Hyper.pXStateRC      RTRCPTR_RES 1
     .Hyper.aoffXState         resw    64
     .Hyper.fWorldSwitcher     resd    1
+    .Hyper.fExtrn             resq    1
     alignb 8
     .Hyper.hwvirt.svm.uMsrHSavePa            resq         1
     .Hyper.hwvirt.svm.GCPhysVmcb             resq         1
     .Hyper.hwvirt.svm.pVmcbR0                RTR0PTR_RES  1
+    alignb 8
     .Hyper.hwvirt.svm.pVmcbR3                RTR3PTR_RES  1
-%if HC_ARCH_BITS == 32
-    .Hyper.hwvirt.svm.abPadding0             resb         8
-%endif
+    alignb 8
     .Hyper.hwvirt.svm.HostState              resb         184
-    .Hyper.hwvirt.svm.fGif                   resb         1
-    .Hyper.hwvirt.svm.u8Padding0             resb         1
+    .Hyper.hwvirt.svm.uPrevPauseTick         resq         1
     .Hyper.hwvirt.svm.cPauseFilter           resw         1
     .Hyper.hwvirt.svm.cPauseFilterThreshold  resw         1
     .Hyper.hwvirt.svm.fInterceptEvents       resb         1
-    .Hyper.hwvirt.svm.fHMCachedVmcb          resb         1
+    alignb 8
     .Hyper.hwvirt.svm.pvMsrBitmapR0          RTR0PTR_RES  1
+    alignb 8
     .Hyper.hwvirt.svm.pvMsrBitmapR3          RTR3PTR_RES  1
+    alignb 8
     .Hyper.hwvirt.svm.pvIoBitmapR0           RTR0PTR_RES  1
+    alignb 8
     .Hyper.hwvirt.svm.pvIoBitmapR3           RTR3PTR_RES  1
+    alignb 8
     .Hyper.hwvirt.svm.HCPhysVmcb             RTHCPHYS_RES 1
-%if HC_ARCH_BITS == 32
-    .Hyper.hwvirt.svm.abPadding2             resb         16
-%endif
+    .Hyper.hwvirt.svm.u64Padding0            resq         19
+    .Hyper.hwvirt.enmHwvirt                  resd         1
+    .Hyper.hwvirt.fGif                       resb         1
+    alignb 8
     .Hyper.hwvirt.fLocalForcedActions        resd         1
     alignb 64
 

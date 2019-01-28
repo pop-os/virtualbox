@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,8 +24,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___SUPDrvInternal_h
-#define ___SUPDrvInternal_h
+#ifndef VBOX_INCLUDED_SRC_Support_SUPDrvInternal_h
+#define VBOX_INCLUDED_SRC_Support_SUPDrvInternal_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 
 /*******************************************************************************
@@ -460,6 +463,32 @@ typedef struct SUPDRVUSAGE
     /** The usage count. */
     uint32_t volatile               cUsage;
 } SUPDRVUSAGE, *PSUPDRVUSAGE;
+
+
+/**
+ * I/O control context.
+ */
+typedef struct SUPR0IOCTLCTX
+{
+    /** Magic value (SUPR0IOCTLCTX_MAGIC). */
+    uint32_t                u32Magic;
+    /** Reference counter. */
+    uint32_t volatile       cRefs;
+#ifdef RT_OS_WINDOWS
+# ifndef SUPDRV_AGNOSTIC
+    /** The file object, referenced. */
+    PFILE_OBJECT            pFileObject;
+    /** The device object, not referenced. */
+    PDEVICE_OBJECT          pDeviceObject;
+    /** Pointer to fast I/O routine if available. */
+    FAST_IO_DEVICE_CONTROL *pfnFastIoDeviceControl;
+# else
+    void                   *apvPadding[3];
+# endif
+#endif
+} SUPR0IOCTLCTX;
+/** Magic value for SUPR0IOCTLCTX (Ahmad Jamal). */
+#define SUPR0IOCTLCTX_MAGIC     UINT32_C(0x19300702)
 
 
 /**
@@ -1009,7 +1038,7 @@ int VBOXCALL    supdrvDarwinResumeSuspendedKbds(void);
 *******************************************************************************/
 /* SUPDrv.c */
 int  VBOXCALL   supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, PSUPREQHDR pReqHdr, size_t cbReq);
-int  VBOXCALL   supdrvIOCtlFast(uintptr_t uIOCtl, VMCPUID idCpu, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession);
+int  VBOXCALL   supdrvIOCtlFast(uintptr_t uOperation, VMCPUID idCpu, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession);
 int  VBOXCALL   supdrvIDC(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, PSUPDRVIDCREQHDR pReqHdr);
 int  VBOXCALL   supdrvInitDevExt(PSUPDRVDEVEXT pDevExt, size_t cbSession);
 void VBOXCALL   supdrvDeleteDevExt(PSUPDRVDEVEXT pDevExt);
@@ -1056,5 +1085,5 @@ const SUPDRVTRACERREG * VBOXCALL supdrvDTraceInit(void);
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !VBOX_INCLUDED_SRC_Support_SUPDrvInternal_h */
 

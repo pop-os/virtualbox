@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -214,7 +214,7 @@ HRESULT MachineDebugger::i_setEmExecPolicyProperty(EMEXECPOLICY enmPolicy, BOOL 
             {
                 int vrc = EMR3SetExecutionPolicy(ptrVM.rawUVM(), enmPolicy, fEnforce != FALSE);
                 if (RT_FAILURE(vrc))
-                    hrc = setError(VBOX_E_VM_ERROR, tr("EMR3SetExecutionPolicy failed with %Rrc"), vrc);
+                    hrc = setErrorBoth(VBOX_E_VM_ERROR, vrc, tr("EMR3SetExecutionPolicy failed with %Rrc"), vrc);
             }
         }
     }
@@ -337,11 +337,11 @@ HRESULT MachineDebugger::setPATMEnabled(BOOL aPATMEnabled)
 
     int vrc = PATMR3AllowPatching(ptrVM.rawUVM(), RT_BOOL(aPATMEnabled));
     if (RT_FAILURE(vrc))
-        return setError(VBOX_E_VM_ERROR, tr("PATMR3AllowPatching returned %Rrc"), vrc);
+        return setErrorBoth(VBOX_E_VM_ERROR, vrc, tr("PATMR3AllowPatching returned %Rrc"), vrc);
 
 #else  /* !VBOX_WITH_RAW_MODE */
     if (aPATMEnabled)
-        return setError(VBOX_E_VM_ERROR, tr("PATM not present"), VERR_NOT_SUPPORTED);
+        return setErrorBoth(VBOX_E_VM_ERROR, VERR_RAW_MODE_NOT_SUPPORTED, tr("PATM not present"), VERR_NOT_SUPPORTED);
 #endif /* !VBOX_WITH_RAW_MODE */
     return S_OK;
 }
@@ -394,11 +394,11 @@ HRESULT MachineDebugger::setCSAMEnabled(BOOL aCSAMEnabled)
 
     int vrc = CSAMR3SetScanningEnabled(ptrVM.rawUVM(), aCSAMEnabled != FALSE);
     if (RT_FAILURE(vrc))
-        return setError(VBOX_E_VM_ERROR, tr("CSAMR3SetScanningEnabled returned %Rrc"), vrc);
+        return setErrorBoth(VBOX_E_VM_ERROR, vrc, tr("CSAMR3SetScanningEnabled returned %Rrc"), vrc);
 
 #else  /* !VBOX_WITH_RAW_MODE */
     if (aCSAMEnabled)
-        return setError(VBOX_E_VM_ERROR, tr("CASM not present"), VERR_NOT_SUPPORTED);
+        return setErrorBoth(VBOX_E_VM_ERROR, VERR_RAW_MODE_NOT_SUPPORTED, tr("CASM not present"));
 #endif /* !VBOX_WITH_RAW_MODE */
     return S_OK;
 }
@@ -489,7 +489,8 @@ HRESULT MachineDebugger::i_logStringProps(PRTLOGGER pLogger, PFNLOGGETSTR pfnLog
                 return S_OK;
             }
             *pstrSettings = "";
-            AssertReturn(vrc == VERR_BUFFER_OVERFLOW, setError(VBOX_E_IPRT_ERROR, tr("%s returned %Rrc"), pszLogGetStr, vrc));
+            AssertReturn(vrc == VERR_BUFFER_OVERFLOW,
+                         setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("%s returned %Rrc"), pszLogGetStr, vrc));
         }
         else
             return E_OUTOFMEMORY;
@@ -531,6 +532,36 @@ HRESULT MachineDebugger::getLogRelDestinations(com::Utf8Str &aLogRelDestinations
 }
 
 /**
+ * Return the main execution engine of the VM.
+ *
+ * @returns COM status code
+ * @param   apenmEngine     Address of the result variable.
+ */
+HRESULT MachineDebugger::getExecutionEngine(VMExecutionEngine_T *apenmEngine)
+{
+    *apenmEngine = VMExecutionEngine_NotSet;
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+    Console::SafeVMPtrQuiet ptrVM(mParent);
+    if (ptrVM.isOk())
+    {
+        uint8_t bEngine = UINT8_MAX;
+        int rc = EMR3QueryMainExecutionEngine(ptrVM.rawUVM(), &bEngine);
+        if (RT_SUCCESS(rc))
+            switch (bEngine)
+            {
+                case VM_EXEC_ENGINE_NOT_SET:    *apenmEngine = VMExecutionEngine_NotSet; break;
+                case VM_EXEC_ENGINE_RAW_MODE:   *apenmEngine = VMExecutionEngine_RawMode; break;
+                case VM_EXEC_ENGINE_HW_VIRT:    *apenmEngine = VMExecutionEngine_HwVirt; break;
+                case VM_EXEC_ENGINE_NATIVE_API: *apenmEngine = VMExecutionEngine_NativeApi; break;
+                default: AssertMsgFailed(("bEngine=%d\n", bEngine));
+            }
+    }
+
+    return S_OK;
+}
+
+/**
  * Returns the current hardware virtualization flag.
  *
  * @returns COM status code
@@ -538,14 +569,16 @@ HRESULT MachineDebugger::getLogRelDestinations(com::Utf8Str &aLogRelDestinations
  */
 HRESULT MachineDebugger::getHWVirtExEnabled(BOOL *aHWVirtExEnabled)
 {
+    *aHWVirtExEnabled = false;
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
     Console::SafeVMPtrQuiet ptrVM(mParent);
-
     if (ptrVM.isOk())
-        *aHWVirtExEnabled = HMR3IsEnabled(ptrVM.rawUVM());
-    else
-        *aHWVirtExEnabled = false;
+    {
+        uint8_t bEngine = UINT8_MAX;
+        int rc = EMR3QueryMainExecutionEngine(ptrVM.rawUVM(), &bEngine);
+        *aHWVirtExEnabled = RT_SUCCESS(rc) && bEngine == VM_EXEC_ENGINE_HW_VIRT;
+    }
 
     return S_OK;
 }
@@ -636,7 +669,7 @@ HRESULT MachineDebugger::getOSName(com::Utf8Str &aOSName)
             }
         }
         else
-            hrc = setError(VBOX_E_VM_ERROR, tr("DBGFR3OSQueryNameAndVersion failed with %Rrc"), vrc);
+            hrc = setErrorBoth(VBOX_E_VM_ERROR, vrc, tr("DBGFR3OSQueryNameAndVersion failed with %Rrc"), vrc);
     }
     return hrc;
 }
@@ -667,7 +700,7 @@ HRESULT MachineDebugger::getOSVersion(com::Utf8Str &aOSVersion)
             }
         }
         else
-            hrc = setError(VBOX_E_VM_ERROR, tr("DBGFR3OSQueryNameAndVersion failed with %Rrc"), vrc);
+            hrc = setErrorBoth(VBOX_E_VM_ERROR, vrc, tr("DBGFR3OSQueryNameAndVersion failed with %Rrc"), vrc);
     }
     return hrc;
 }
@@ -738,7 +771,7 @@ HRESULT MachineDebugger::setVirtualTimeRate(ULONG aVirtualTimeRate)
         {
             int vrc = TMR3SetWarpDrive(ptrVM.rawUVM(), aVirtualTimeRate);
             if (RT_FAILURE(vrc))
-                hrc = setError(VBOX_E_VM_ERROR, tr("TMR3SetWarpDrive(, %u) failed with rc=%Rrc"), aVirtualTimeRate, vrc);
+                hrc = setErrorBoth(VBOX_E_VM_ERROR, vrc, tr("TMR3SetWarpDrive(, %u) failed with rc=%Rrc"), aVirtualTimeRate, vrc);
         }
     }
 
@@ -811,7 +844,7 @@ HRESULT MachineDebugger::dumpGuestCore(const com::Utf8Str &aFilename, const com:
         if (RT_SUCCESS(vrc))
             hrc = S_OK;
         else
-            hrc = setError(E_FAIL, tr("DBGFR3CoreWrite failed with %Rrc"), vrc);
+            hrc = setErrorBoth(E_FAIL, vrc, tr("DBGFR3CoreWrite failed with %Rrc"), vrc);
     }
 
     return hrc;
@@ -977,7 +1010,7 @@ HRESULT MachineDebugger::info(const com::Utf8Str &aName, const com::Utf8Str &aAr
                     hrc = E_OUTOFMEMORY;
             }
             else
-                hrc = setError(VBOX_E_VM_ERROR, tr("DBGFR3Info failed with %Rrc"), vrc);
+                hrc = setErrorBoth(VBOX_E_VM_ERROR, vrc, tr("DBGFR3Info failed with %Rrc"), vrc);
             MachineDebuggerInfoDelete(&Hlp);
         }
     }
@@ -997,7 +1030,7 @@ HRESULT MachineDebugger::injectNMI()
         if (RT_SUCCESS(vrc))
             hrc = S_OK;
         else
-            hrc = setError(E_FAIL, tr("DBGFR3InjectNMI failed with %Rrc"), vrc);
+            hrc = setErrorBoth(E_FAIL, vrc, tr("DBGFR3InjectNMI failed with %Rrc"), vrc);
     }
     return hrc;
 }
@@ -1014,7 +1047,7 @@ HRESULT MachineDebugger::modifyLogFlags(const com::Utf8Str &aSettings)
         if (RT_SUCCESS(vrc))
             hrc = S_OK;
         else
-            hrc = setError(E_FAIL, tr("DBGFR3LogModifyFlags failed with %Rrc"), vrc);
+            hrc = setErrorBoth(E_FAIL, vrc, tr("DBGFR3LogModifyFlags failed with %Rrc"), vrc);
     }
     return hrc;
 }
@@ -1031,7 +1064,7 @@ HRESULT MachineDebugger::modifyLogGroups(const com::Utf8Str &aSettings)
         if (RT_SUCCESS(vrc))
             hrc = S_OK;
         else
-            hrc = setError(E_FAIL, tr("DBGFR3LogModifyGroups failed with %Rrc"), vrc);
+            hrc = setErrorBoth(E_FAIL, vrc, tr("DBGFR3LogModifyGroups failed with %Rrc"), vrc);
     }
     return hrc;
 }
@@ -1048,7 +1081,7 @@ HRESULT MachineDebugger::modifyLogDestinations(const com::Utf8Str &aSettings)
         if (RT_SUCCESS(vrc))
             hrc = S_OK;
         else
-            hrc = setError(E_FAIL, tr("DBGFR3LogModifyDestinations failed with %Rrc"), vrc);
+            hrc = setErrorBoth(E_FAIL, vrc, tr("DBGFR3LogModifyDestinations failed with %Rrc"), vrc);
     }
     return hrc;
 }
@@ -1190,7 +1223,7 @@ HRESULT MachineDebugger::detectOS(com::Utf8Str &aOs)
             }
         }
         else
-            hrc = setError(VBOX_E_VM_ERROR, tr("DBGFR3OSDetect failed with %Rrc"), vrc);
+            hrc = setErrorBoth(VBOX_E_VM_ERROR, vrc, tr("DBGFR3OSDetect failed with %Rrc"), vrc);
     }
     return hrc;
 }
@@ -1294,13 +1327,13 @@ HRESULT MachineDebugger::getRegister(ULONG aCpuId, const com::Utf8Str &aName, co
             }
         }
         else if (vrc == VERR_DBGF_REGISTER_NOT_FOUND)
-            hrc = setError(E_FAIL, tr("Register '%s' was not found"), aName.c_str());
+            hrc = setErrorBoth(E_FAIL, vrc, tr("Register '%s' was not found"), aName.c_str());
         else if (vrc == VERR_INVALID_CPU_ID)
-            hrc = setError(E_FAIL, tr("Invalid CPU ID: %u"), aCpuId);
+            hrc = setErrorBoth(E_FAIL, vrc, tr("Invalid CPU ID: %u"), aCpuId);
         else
-            hrc = setError(VBOX_E_VM_ERROR,
-                           tr("DBGFR3RegNmQuery failed with rc=%Rrc querying register '%s' with default cpu set to %u"),
-                           vrc, aName.c_str(), aCpuId);
+            hrc = setErrorBoth(VBOX_E_VM_ERROR, vrc,
+                               tr("DBGFR3RegNmQuery failed with rc=%Rrc querying register '%s' with default cpu set to %u"),
+                               vrc, aName.c_str(), aCpuId);
     }
 
     return hrc;
@@ -1353,7 +1386,7 @@ HRESULT MachineDebugger::getRegisters(ULONG aCpuId, std::vector<com::Utf8Str> &a
                     }
                 }
                 else
-                    hrc = setError(E_FAIL, tr("DBGFR3RegNmQueryAll failed with %Rrc"), vrc);
+                    hrc = setErrorBoth(E_FAIL, vrc, tr("DBGFR3RegNmQueryAll failed with %Rrc"), vrc);
 
                 RTMemFree(paRegs);
             }
@@ -1361,7 +1394,7 @@ HRESULT MachineDebugger::getRegisters(ULONG aCpuId, std::vector<com::Utf8Str> &a
                 hrc = E_OUTOFMEMORY;
         }
         else
-            hrc = setError(E_FAIL, tr("DBGFR3RegNmQueryAllCount failed with %Rrc"), vrc);
+            hrc = setErrorBoth(E_FAIL, vrc, tr("DBGFR3RegNmQueryAllCount failed with %Rrc"), vrc);
     }
     return hrc;
 }
@@ -1504,7 +1537,7 @@ HRESULT MachineDebugger::dumpGuestStack(ULONG aCpuId, com::Utf8Str &aStack)
                 DBGFR3StackWalkEnd(pFirstFrame);
             }
             else
-                hrc = setError(E_FAIL, tr("DBGFR3StackWalkBegin failed with %Rrc"), vrc);
+                hrc = setErrorBoth(E_FAIL, vrc, tr("DBGFR3StackWalkBegin failed with %Rrc"), vrc);
 
             /*
              * Resume the VM if we suspended it.
@@ -1516,7 +1549,7 @@ HRESULT MachineDebugger::dumpGuestStack(ULONG aCpuId, com::Utf8Str &aStack)
             }
         }
         else
-            hrc = setError(E_FAIL, tr("Suspending the VM failed with %Rrc\n"), vrc);
+            hrc = setErrorBoth(E_FAIL, vrc, tr("Suspending the VM failed with %Rrc\n"), vrc);
     }
 
     return hrc;

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,27 +15,21 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QAccessibleWidget>
-# include <QAction>
-# include <QHeaderView>
-# include <QLayout>
-# include <QTabWidget>
-# include <QToolButton>
+#include <QAccessibleWidget>
+#include <QAction>
+#include <QHeaderView>
+#include <QLayout>
+#include <QTabWidget>
+#include <QToolButton>
 
 /* GUI includes: */
-# include "QITabWidget.h"
-# include "QITreeWidget.h"
-# include "UISettingsSelector.h"
-# include "UIIconPool.h"
-# include "UISettingsPage.h"
-# include "UIToolBar.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "QITabWidget.h"
+#include "QITreeWidget.h"
+#include "UISettingsSelector.h"
+#include "UIIconPool.h"
+#include "UISettingsPage.h"
+#include "UIToolBar.h"
 
 
 /** QAccessibleWidget extension used as an accessibility interface for UIToolBar buttons. */
@@ -815,4 +809,3 @@ UISelectorActionItem *UISettingsSelectorToolBar::findActionItemByTabWidget(QTabW
     return pResult;
 
 }
-

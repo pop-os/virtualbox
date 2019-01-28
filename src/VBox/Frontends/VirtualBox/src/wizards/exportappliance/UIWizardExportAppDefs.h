@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,49 +15,55 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __UIWizardExportAppDefs_h__
-#define __UIWizardExportAppDefs_h__
+#ifndef FEQT_INCLUDED_SRC_wizards_exportappliance_UIWizardExportAppDefs_h
+#define FEQT_INCLUDED_SRC_wizards_exportappliance_UIWizardExportAppDefs_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
-/* Global includes: */
+/* Qt includes: */
 #include <QMetaType>
 #include <QPointer>
 #include <QListWidget>
 
-/* Local includes: */
+/* GUI includes: */
 #include "UIApplianceExportEditorWidget.h"
-
-/* Typedefs: */
-enum StorageType { Filesystem, SunCloud, S3 };
-Q_DECLARE_METATYPE(StorageType);
 
 /* Typedefs: */
 typedef QPointer<UIApplianceExportEditorWidget> ExportAppliancePointer;
 Q_DECLARE_METATYPE(ExportAppliancePointer);
 
-class VMListWidgetItem : public QListWidgetItem
+/** QListWidgetItem subclass for Export Appliance wizard VM list. */
+class UIVMListWidgetItem : public QListWidgetItem
 {
 public:
 
-    VMListWidgetItem(QPixmap &pixIcon, QString &strText, QString strUuid, bool fInSaveState, QListWidget *pParent)
+    /** Constructs VM list item passing @a pixIcon, @a strText and @a pParent to the base-class.
+      * @param  strUuid       Brings the machine ID.
+      * @param  fInSaveState  Brings whether machine is in Saved state. */
+    UIVMListWidgetItem(QPixmap &pixIcon, QString &strText, QUuid aUuid, bool fInSaveState, QListWidget *pParent)
         : QListWidgetItem(pixIcon, strText, pParent)
-        , m_strUuid(strUuid)
+        , m_uUuid(aUuid)
         , m_fInSaveState(fInSaveState)
-    {
-    }
+    {}
 
+    /** Returns whether this item is less than @a other. */
     bool operator<(const QListWidgetItem &other) const
     {
         return text().toLower() < other.text().toLower();
     }
 
-    QString uuid() { return m_strUuid; }
-    bool isInSaveState() { return m_fInSaveState; }
+    /** Returns the machine ID. */
+    QUuid uuid() const { return m_uUuid; }
+    /** Returns whether machine is in Saved state. */
+    bool isInSaveState() const { return m_fInSaveState; }
 
 private:
 
-    QString m_strUuid;
-    bool m_fInSaveState;
+    /** Holds the machine ID. */
+    QUuid    m_uUuid;
+    /** Holds whether machine is in Saved state. */
+    bool     m_fInSaveState;
 };
 
-#endif /* __UIWizardExportAppDefs_h__ */
-
+#endif /* !FEQT_INCLUDED_SRC_wizards_exportappliance_UIWizardExportAppDefs_h */

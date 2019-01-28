@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,48 +15,74 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef _QISplitter_h_
-#define _QISplitter_h_
+#ifndef FEQT_INCLUDED_SRC_extensions_QISplitter_h
+#define FEQT_INCLUDED_SRC_extensions_QISplitter_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
-/* Global includes */
+/* Qt includes: */
 #include <QSplitter>
 
-class QISplitter : public QSplitter
+/* GUI includes: */
+#include "UILibraryDefs.h"
+
+/* Forward declarations: */
+class QSplitterHandle;
+
+/** QSplitter subclass with extended functionality. */
+class SHARED_LIBRARY_STUFF QISplitter : public QSplitter
 {
     Q_OBJECT;
 
 public:
 
-    enum Type { Native, Shade };
+    /** Handle types. */
+    enum Type { Flat, Shade, Native };
 
+    /** Constructs splitter passing @a pParent to the base-class. */
     QISplitter(QWidget *pParent = 0);
-    QISplitter(Qt::Orientation orientation, QWidget *pParent = 0);
+    /** Constructs splitter passing @a enmOrientation and @a pParent to the base-class.
+      * @param  enmType  Brings the splitter handle type. */
+    QISplitter(Qt::Orientation enmOrientation, Type enmType, QWidget *pParent = 0);
 
-    void setHandleType(Type type) { m_type = type; }
-    Type handleType() const { return m_type; }
-
-    void configureColors(const QColor &color1, const QColor &color2) { m_color1 = color1; m_color2 = color2; }
+    /** Configure custom color defined as @a color. */
+    void configureColor(const QColor &color);
+    /** Configure custom colors defined as @a color1 and @a color2. */
+    void configureColors(const QColor &color1, const QColor &color2);
 
 protected:
 
-    bool eventFilter(QObject *pWatched, QEvent *pEvent);
+    /** Preprocesses Qt @a pEvent for passed @a pObject. */
+    virtual bool eventFilter(QObject *pObject, QEvent *pEvent) /* override */;
+
+    /** Handles show @a pEvent. */
     void showEvent(QShowEvent *pEvent);
 
-    QSplitterHandle* createHandle();
+    /** Creates handle. */
+    QSplitterHandle *createHandle();
 
 private:
 
+    /** Holds the serialized base-state. */
     QByteArray m_baseState;
 
-    bool m_fPolished;
-    Type m_type;
-#ifdef VBOX_WS_MAC
-    bool m_fHandleGrabbed;
-#endif /* VBOX_WS_MAC */
+    /** Holds the handle type. */
+    Type m_enmType;
 
+    /** Holds whether the splitter is polished. */
+    bool m_fPolished : 1;
+#ifdef VBOX_WS_MAC
+    /** Holds whether handle is grabbed. */
+    bool m_fHandleGrabbed : 1;
+#endif
+
+    /** Holds color. */
+    QColor m_color;
+    /** Holds color1. */
     QColor m_color1;
+    /** Holds color2. */
     QColor m_color2;
 };
 
-#endif /* _QISplitter_h_ */
-
+#endif /* !FEQT_INCLUDED_SRC_extensions_QISplitter_h */

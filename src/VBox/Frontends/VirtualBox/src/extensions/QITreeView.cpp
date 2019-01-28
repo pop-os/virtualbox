@@ -1,10 +1,10 @@
 /* $Id: QITreeView.cpp $ */
 /** @file
- * VBox Qt GUI - VirtualBox Qt extensions: QITreeView class implementation.
+ * VBox Qt GUI - Qt extensions: QITreeView class implementation.
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,23 +15,17 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QAccessibleWidget>
-# include <QMouseEvent>
-# include <QPainter>
-# include <QSortFilterProxyModel>
+#include <QAccessibleWidget>
+#include <QMouseEvent>
+#include <QPainter>
+#include <QSortFilterProxyModel>
 
 /* GUI includes: */
-# include "QITreeView.h"
+#include "QITreeView.h"
 
 /* Other VBox includes: */
-# include "iprt/assert.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "iprt/assert.h"
 
 
 /** QAccessibleObject extension used as an accessibility interface for QITreeViewItem. */
@@ -463,4 +457,3 @@ void QITreeView::prepare()
     /* Mark root hidden: */
     setRootIsDecorated(false);
 }
-

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,9 +16,9 @@
  */
 
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 RT_C_DECLS_BEGIN
 #if PGM_GST_TYPE == PGM_TYPE_32BIT \
  || PGM_GST_TYPE == PGM_TYPE_PAE \
@@ -29,7 +29,47 @@ PGM_GST_DECL(int,  GetPage)(PVMCPU pVCpu, RTGCPTR GCPtr, uint64_t *pfFlags, PRTG
 PGM_GST_DECL(int,  ModifyPage)(PVMCPU pVCpu, RTGCPTR GCPtr, size_t cb, uint64_t fFlags, uint64_t fMask);
 PGM_GST_DECL(int,  GetPDE)(PVMCPU pVCpu, RTGCPTR GCPtr, PX86PDEPAE pPDE);
 PGM_GST_DECL(bool, HandlerVirtualUpdate)(PVM pVM, uint32_t cr4);
+
+#ifdef IN_RING3 /* r3 only for now.  */
+PGM_GST_DECL(int, Enter)(PVMCPU pVCpu, RTGCPHYS GCPhysCR3);
+PGM_GST_DECL(int, Relocate)(PVMCPU pVCpu, RTGCPTR offDelta);
+PGM_GST_DECL(int, Exit)(PVMCPU pVCpu);
+#endif
 RT_C_DECLS_END
+
+
+/**
+ * Enters the guest mode.
+ *
+ * @returns VBox status code.
+ * @param   pVCpu       The cross context virtual CPU structure.
+ * @param   GCPhysCR3   The physical address from the CR3 register.
+ */
+PGM_GST_DECL(int, Enter)(PVMCPU pVCpu, RTGCPHYS GCPhysCR3)
+{
+    /*
+     * Map and monitor CR3
+     */
+    uintptr_t idxBth = pVCpu->pgm.s.idxBothModeData;
+    AssertReturn(idxBth < RT_ELEMENTS(g_aPgmBothModeData), VERR_PGM_MODE_IPE);
+    AssertReturn(g_aPgmBothModeData[idxBth].pfnMapCR3, VERR_PGM_MODE_IPE);
+    return g_aPgmBothModeData[idxBth].pfnMapCR3(pVCpu, GCPhysCR3);
+}
+
+
+/**
+ * Exits the guest mode.
+ *
+ * @returns VBox status code.
+ * @param   pVCpu       The cross context virtual CPU structure.
+ */
+PGM_GST_DECL(int, Exit)(PVMCPU pVCpu)
+{
+    uintptr_t idxBth = pVCpu->pgm.s.idxBothModeData;
+    AssertReturn(idxBth < RT_ELEMENTS(g_aPgmBothModeData), VERR_PGM_MODE_IPE);
+    AssertReturn(g_aPgmBothModeData[idxBth].pfnUnmapCR3, VERR_PGM_MODE_IPE);
+    return g_aPgmBothModeData[idxBth].pfnUnmapCR3(pVCpu);
+}
 
 
 #if PGM_GST_TYPE == PGM_TYPE_32BIT \
@@ -45,7 +85,7 @@ DECLINLINE(int) PGM_GST_NAME(WalkReturnNotPresent)(PVMCPU pVCpu, PGSTPTWALK pWal
     return VERR_PAGE_TABLE_NOT_PRESENT;
 }
 
-DECLINLINE(int) PGM_GST_NAME(WalkReturnBadPhysAddr)(PVMCPU pVCpu, PGSTPTWALK pWalk, int rc, int iLevel)
+DECLINLINE(int) PGM_GST_NAME(WalkReturnBadPhysAddr)(PVMCPU pVCpu, PGSTPTWALK pWalk, int iLevel, int rc)
 {
     AssertMsg(rc == VERR_PGM_INVALID_GC_PHYSICAL_ADDRESS, ("%Rrc\n", rc)); NOREF(rc); NOREF(pVCpu);
     pWalk->Core.fBadPhysAddr    = true;
@@ -699,3 +739,22 @@ PGM_GST_DECL(bool, HandlerVirtualUpdate)(PVM pVM, uint32_t cr4)
 #endif
 }
 
+
+#ifdef IN_RING3
+/**
+ * Relocate any GC pointers related to guest mode paging.
+ *
+ * @returns VBox status code.
+ * @param   pVCpu       The cross context virtual CPU structure.
+ * @param   offDelta    The relocation offset.
+ */
+PGM_GST_DECL(int, Relocate)(PVMCPU pVCpu, RTGCPTR offDelta)
+{
+    pVCpu->pgm.s.pGst32BitPdRC += offDelta;
+    for (unsigned i = 0; i < RT_ELEMENTS(pVCpu->pgm.s.apGstPaePDsRC); i++)
+        pVCpu->pgm.s.apGstPaePDsRC[i] += offDelta;
+    pVCpu->pgm.s.pGstPaePdptRC += offDelta;
+
+    return VINF_SUCCESS;
+}
+#endif

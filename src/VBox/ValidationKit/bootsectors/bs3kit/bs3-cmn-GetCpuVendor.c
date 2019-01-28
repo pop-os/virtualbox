@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2017 Oracle Corporation
+ * Copyright (C) 2007-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -42,6 +42,8 @@ BS3_CMN_DEF(BS3CPUVENDOR, Bs3GetCpuVendor,(void))
             return BS3CPUVENDOR_AMD;
         if (ASMIsViaCentaurCpuEx(uEbx, uEcx, uEdx))
             return BS3CPUVENDOR_VIA;
+        if (ASMIsShanghaiCpuEx(uEbx, uEcx, uEdx))
+            return BS3CPUVENDOR_SHANGHAI;
         return BS3CPUVENDOR_UNKNOWN;
     }
     return BS3CPUVENDOR_INTEL;

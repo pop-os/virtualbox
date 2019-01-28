@@ -1,10 +1,10 @@
 /* $Id: QIGraphicsWidget.h $ */
 /** @file
- * VBox Qt GUI - QIGraphicsWidget class declaration.
+ * VBox Qt GUI - Qt extensions: QIGraphicsWidget class declaration.
  */
 
 /*
- * Copyright (C) 2012-2017 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,25 +15,30 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __QIGraphicsWidget_h__
-#define __QIGraphicsWidget_h__
+#ifndef FEQT_INCLUDED_SRC_extensions_graphics_QIGraphicsWidget_h
+#define FEQT_INCLUDED_SRC_extensions_graphics_QIGraphicsWidget_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Qt includes: */
 #include <QGraphicsWidget>
 
-/* Graphics widget extension: */
-class QIGraphicsWidget : public QGraphicsWidget
+/* GUI includes: */
+#include "UILibraryDefs.h"
+
+/** QGraphicsWidget extension with advanced functionality. */
+class SHARED_LIBRARY_STUFF QIGraphicsWidget : public QGraphicsWidget
 {
     Q_OBJECT;
 
 public:
 
-    /* Constructor: */
+    /** Constructs graphics-widget passing @a pParent to the base-class. */
     QIGraphicsWidget(QGraphicsWidget *pParent = 0);
 
-    /* API: Size-hint stuff: */
+    /** Returns minimum size-hint. */
     virtual QSizeF minimumSizeHint() const;
 };
 
-#endif /* __QIGraphicsWidget_h__ */
-
+#endif /* !FEQT_INCLUDED_SRC_extensions_graphics_QIGraphicsWidget_h */

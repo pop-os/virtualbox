@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,25 +15,19 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QVBoxLayout>
-# include <QButtonGroup>
-# include <QRadioButton>
-# include <QCheckBox>
+#include <QVBoxLayout>
+#include <QButtonGroup>
+#include <QRadioButton>
+#include <QCheckBox>
 
 /* GUI includes: */
-# include "UIWizardNewVDPageBasic2.h"
-# include "UIWizardNewVD.h"
-# include "QIRichTextLabel.h"
+#include "UIWizardNewVDPageBasic2.h"
+#include "UIWizardNewVD.h"
+#include "QIRichTextLabel.h"
 
 /* COM includes: */
-# include "CMediumFormat.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "CMediumFormat.h"
 
 
 UIWizardNewVDPage2::UIWizardNewVDPage2()
@@ -113,8 +107,10 @@ UIWizardNewVDPageBasic2::UIWizardNewVDPageBasic2()
     }
 
     /* Setup connections: */
-    connect(m_pVariantButtonGroup, SIGNAL(buttonClicked(QAbstractButton *)), this, SIGNAL(completeChanged()));
-    connect(m_pSplitBox, SIGNAL(stateChanged(int)), this, SIGNAL(completeChanged()));
+    connect(m_pVariantButtonGroup,static_cast<void(QButtonGroup::*)(QAbstractButton*)>(&QButtonGroup::buttonClicked),
+            this, &UIWizardNewVDPageBasic2::completeChanged);
+    connect(m_pSplitBox, &QCheckBox::stateChanged,
+            this, &UIWizardNewVDPageBasic2::completeChanged);
 
     /* Register fields: */
     registerField("mediumVariant", this, "mediumVariant");

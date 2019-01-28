@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2017 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,14 +15,18 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UINetworkReply_h___
-#define ___UINetworkReply_h___
+#ifndef FEQT_INCLUDED_SRC_net_UINetworkReply_h
+#define FEQT_INCLUDED_SRC_net_UINetworkReply_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Qt includes: */
 #include <QPointer>
 #include <QUrl>
 
 /* GUI includes: */
+#include "UILibraryDefs.h"
 #include "UINetworkDefs.h"
 
 /* Forward declarations: */
@@ -30,7 +34,7 @@ class UINetworkReplyPrivate;
 
 /** QObject extension
   * used as network-reply interface. */
-class UINetworkReply : public QObject
+class SHARED_LIBRARY_STUFF UINetworkReply : public QObject
 {
     Q_OBJECT;
 
@@ -104,5 +108,5 @@ private:
     UINetworkReplyPrivate *m_pReply;
 };
 
-#endif /* !___UINetworkReply_h___ */
+#endif /* !FEQT_INCLUDED_SRC_net_UINetworkReply_h */
 

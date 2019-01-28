@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UIMachineSettingsSF_h___
-#define ___UIMachineSettingsSF_h___
+#ifndef FEQT_INCLUDED_SRC_settings_machine_UIMachineSettingsSF_h
+#define FEQT_INCLUDED_SRC_settings_machine_UIMachineSettingsSF_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* GUI includes: */
 #include "UISettingsPage.h"
@@ -33,10 +36,9 @@ enum UISharedFolderType { MachineType, ConsoleType };
 typedef UISettingsCache<UIDataSettingsSharedFolder> UISettingsCacheSharedFolder;
 typedef UISettingsCachePool<UIDataSettingsSharedFolders, UISettingsCacheSharedFolder> UISettingsCacheSharedFolders;
 
-
 /** Machine settings: Shared Folders page. */
-class UIMachineSettingsSF : public UISettingsPageMachine,
-                            public Ui::UIMachineSettingsSF
+class SHARED_LIBRARY_STUFF UIMachineSettingsSF : public UISettingsPageMachine,
+                                                 public Ui::UIMachineSettingsSF
 {
     Q_OBJECT;
 
@@ -152,5 +154,4 @@ private:
     UISettingsCacheSharedFolders *m_pCache;
 };
 
-#endif /* !___UIMachineSettingsSF_h___ */
-
+#endif /* !FEQT_INCLUDED_SRC_settings_machine_UIMachineSettingsSF_h */

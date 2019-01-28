@@ -8,7 +8,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -81,6 +81,7 @@ AssertCompileSize(RTHCPHYS, 8);
 #include "EMInternal.h"
 #include "IEMInternal.h"
 #include "REMInternal.h"
+#include "NEMInternal.h"
 #include <VBox/vmm/vm.h>
 #include <VBox/vmm/hm_vmx.h>
 #include <VBox/param.h>

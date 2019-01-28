@@ -19,7 +19,7 @@
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of a free software library; you can redistribute
  * it and/or modify it under the terms of the GNU Lesser General
@@ -40,6 +40,9 @@
 
 #ifndef ___VirtualBox_CXPCOM_h
 #define ___VirtualBox_CXPCOM_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #ifdef __cplusplus
 # include "VirtualBox_XPCOM.h"

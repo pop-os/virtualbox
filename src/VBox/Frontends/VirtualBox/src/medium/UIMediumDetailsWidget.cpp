@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,38 +15,32 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QComboBox>
-# include <QLabel>
-# include <QPushButton>
-# include <QSlider>
-# include <QStackedLayout>
-# include <QStyle>
-# include <QTextEdit>
-# include <QVBoxLayout>
+#include <QComboBox>
+#include <QLabel>
+#include <QPushButton>
+#include <QSlider>
+#include <QStackedLayout>
+#include <QStyle>
+#include <QTextEdit>
+#include <QVBoxLayout>
 
 /* GUI includes: */
-# include "QIDialogButtonBox.h"
-# include "QIFileDialog.h"
-# include "QILabel.h"
-# include "QILineEdit.h"
-# include "QITabWidget.h"
-# include "QIToolButton.h"
-# include "UIConverter.h"
-# include "UIIconPool.h"
-# include "UIMediumDetailsWidget.h"
-# include "UIMediumManager.h"
-# include "UIMediumSizeEditor.h"
-# include "VBoxGlobal.h"
+#include "QIDialogButtonBox.h"
+#include "QIFileDialog.h"
+#include "QILabel.h"
+#include "QILineEdit.h"
+#include "QITabWidget.h"
+#include "QIToolButton.h"
+#include "UIConverter.h"
+#include "UIIconPool.h"
+#include "UIMediumDetailsWidget.h"
+#include "UIMediumManager.h"
+#include "UIMediumSizeEditor.h"
+#include "VBoxGlobal.h"
 
 /* COM includes: */
-# include "CSystemProperties.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "CSystemProperties.h"
 
 
 UIMediumDetailsWidget::UIMediumDetailsWidget(UIMediumManagerWidget *pParent, EmbedTo enmEmbedding)
@@ -69,7 +63,7 @@ UIMediumDetailsWidget::UIMediumDetailsWidget(UIMediumManagerWidget *pParent, Emb
     prepare();
 }
 
-void UIMediumDetailsWidget::setCurrentType(UIMediumType enmType)
+void UIMediumDetailsWidget::setCurrentType(UIMediumDeviceType enmType)
 {
     /* If known type was requested => raise corresponding container: */
     if (m_aContainers.contains(enmType))
@@ -542,10 +536,10 @@ void UIMediumDetailsWidget::prepareTabDetails()
         AssertPtrReturnVoid(m_pLayoutDetails);
         {
             /* Create information-containers: */
-            for (int i = (int)UIMediumType_HardDisk; i < (int)UIMediumType_All; ++i)
+            for (int i = (int)UIMediumDeviceType_HardDisk; i < (int)UIMediumDeviceType_All; ++i)
             {
-                const UIMediumType enmType = (UIMediumType)i;
-                prepareInformationContainer(enmType, enmType == UIMediumType_HardDisk ? 5 : 2); /// @todo Remove hard-coded values.
+                const UIMediumDeviceType enmType = (UIMediumDeviceType)i;
+                prepareInformationContainer(enmType, enmType == UIMediumDeviceType_HardDisk ? 5 : 2); /// @todo Remove hard-coded values.
             }
         }
 
@@ -554,7 +548,7 @@ void UIMediumDetailsWidget::prepareTabDetails()
     }
 }
 
-void UIMediumDetailsWidget::prepareInformationContainer(UIMediumType enmType, int cFields)
+void UIMediumDetailsWidget::prepareInformationContainer(UIMediumDeviceType enmType, int cFields)
 {
     /* Create information-container: */
     m_aContainers[enmType] = new QWidget;
@@ -627,7 +621,7 @@ void UIMediumDetailsWidget::loadDataForOptions()
         /* Populate type combo-box: */
         switch (m_newData.m_enmType)
         {
-            case UIMediumType_HardDisk:
+            case UIMediumDeviceType_HardDisk:
             {
                 /* No type changes for differencing disks: */
                 if (m_oldData.m_enmVariant & KMediumVariant_Diff)
@@ -645,12 +639,12 @@ void UIMediumDetailsWidget::loadDataForOptions()
                 }
                 break;
             }
-            case UIMediumType_DVD:
+            case UIMediumDeviceType_DVD:
             {
                 m_pComboBoxType->addItem(QString(), QVariant::fromValue(KMediumType_Readonly));
                 break;
             }
-            case UIMediumType_Floppy:
+            case UIMediumDeviceType_Floppy:
             {
                 m_pComboBoxType->addItem(QString(), QVariant::fromValue(KMediumType_Writethrough));
                 m_pComboBoxType->addItem(QString(), QVariant::fromValue(KMediumType_Readonly));
@@ -686,7 +680,7 @@ void UIMediumDetailsWidget::loadDataForOptions()
 
     /* Load size: */
     const bool fEnableResize =    m_newData.m_fValid
-                               && m_newData.m_enmType == UIMediumType_HardDisk
+                               && m_newData.m_enmType == UIMediumDeviceType_HardDisk
                                && !(m_newData.m_enmVariant & KMediumVariant_Fixed);
     m_pLabelSize->setEnabled(fEnableResize);
     m_pEditorSize->setEnabled(fEnableResize);
@@ -828,13 +822,13 @@ QString UIMediumDetailsWidget::mediumTypeTip(KMediumType enmType)
     AssertFailedReturn(QString());
 }
 
-QWidget *UIMediumDetailsWidget::infoContainer(UIMediumType enmType) const
+QWidget *UIMediumDetailsWidget::infoContainer(UIMediumDeviceType enmType) const
 {
     /* Return information-container for known medium type: */
     return m_aContainers.value(enmType, 0);
 }
 
-QLabel *UIMediumDetailsWidget::infoLabel(UIMediumType enmType, int iIndex) const
+QLabel *UIMediumDetailsWidget::infoLabel(UIMediumDeviceType enmType, int iIndex) const
 {
     /* Acquire list of labels: */
     const QList<QLabel*> aLabels = m_aLabels.value(enmType, QList<QLabel*>());
@@ -843,7 +837,7 @@ QLabel *UIMediumDetailsWidget::infoLabel(UIMediumType enmType, int iIndex) const
     return aLabels.value(iIndex, 0);
 }
 
-QILabel *UIMediumDetailsWidget::infoField(UIMediumType enmType, int iIndex) const
+QILabel *UIMediumDetailsWidget::infoField(UIMediumDeviceType enmType, int iIndex) const
 {
     /* Acquire list of fields: */
     const QList<QILabel*> aFields = m_aFields.value(enmType, QList<QILabel*>());

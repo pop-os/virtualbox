@@ -9,7 +9,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -5915,7 +5915,7 @@ static int intnetR0NetworkCreateTrunkIf(PINTNETNETWORK pNetwork, PSUPDRVSESSION 
 /**
  * Trunk reconnection thread function. It runs until signalled by another thread or by itself (upon
  * successful trunk re-connection).
- * 
+ *
  * Note that this function erases pNetwork->hTrunkReconnectThread right before it terminates!
  */
 static DECLCALLBACK(int) intnetR0TrunkReconnectThread(RTTHREAD hThread, void *pvUser)
@@ -5938,9 +5938,25 @@ static DECLCALLBACK(int) intnetR0TrunkReconnectThread(RTTHREAD hThread, void *pv
          */
         if (RT_FAILURE(RTSemMutexRequestNoResume(pIntNet->hMtxCreateOpenDestroy, RT_MS_1SEC)))
             continue;
-
+#if 0
+        /*
+         * This thread should be long gone by the time the network has been destroyed, but if we are
+         * really paranoid we should include the following code.
+         */
+        /*
+         * The network could have been destroyed while we were waiting on the big mutex, let us verify
+         * it is still valid by going over the list of existing networks.
+         */
+        PINTNETNETWORK pExistingNetwork = pIntNet->pNetworks;
+        for (; pExistingNetwork; pExistingNetwork = pExistingNetwork->pNext)
+            if (pExistingNetwork == pNetwork)
+                break;
+        /* We need the network to exist and to have at least one interface. */
+        if (pExistingNetwork && pNetwork->MacTab.cEntries)
+#else
         /* We need the network to have at least one interface. */
         if (pNetwork->MacTab.cEntries)
+#endif
         {
             PINTNETIF pAnyIf = pNetwork->MacTab.paEntries[0].pIf;
             PSUPDRVSESSION pAnySession = pAnyIf ? pAnyIf->pSession : NULL;
@@ -6046,7 +6062,7 @@ static DECLCALLBACK(void) intnetR0NetworkDestruct(void *pvObj, void *pvUser1, vo
          * exceed the time the reconnection thread waits on acquiring the big mutex, otherwise
          * we will give up waiting for thread termination prematurely. Unfortunately it seems
          * we have no way to terminate the thread if it failed to stop gracefully.
-         * 
+         *
          * Note that it is ok if the thread has already wiped out hTrunkReconnectThread by now,
          * this means we no longer need to wait for it.
          */
@@ -6750,6 +6766,10 @@ INTNETR0DECL(void) IntNetR0Term(void)
      */
     AssertReturnVoid(ASMAtomicCmpXchgU32(&pIntNet->u32Magic, ~INTNET_MAGIC, INTNET_MAGIC));
     Assert(pIntNet->pNetworks == NULL);
+    /*
+     * @todo Do we really need to be paranoid enough to go over the list of networks here,
+     * trying to terminate trunk re-connection threads here?
+     */
     if (pIntNet->hMtxCreateOpenDestroy != NIL_RTSEMMUTEX)
     {
         RTSemMutexDestroy(pIntNet->hMtxCreateOpenDestroy);

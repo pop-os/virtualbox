@@ -8,7 +8,7 @@ VirtualBox Validation Kit - Guest Control Tests.
 
 __copyright__ = \
 """
-Copyright (C) 2010-2017 Oracle Corporation
+Copyright (C) 2010-2019 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -27,10 +27,13 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 118412 $"
+__version__ = "$Revision: 127855 $"
 
 # Disable bitching about too many arguments per function.
 # pylint: disable=R0913
+
+# Disable bitching about semicolons at the end of lines.
+# pylint: disable=W0301
 
 ## @todo Convert map() usage to a cleaner alternative Python now offers.
 # pylint: disable=W0141
@@ -538,7 +541,7 @@ class tdStepSessionSetEnv(tdSessionStepBase):
                 oGstCtrlSession.environmentScheduleSet(self.sVar, self.sValue);
             else:
                 oGstCtrlSession.environmentSet(self.sVar, self.sValue);
-        except vbox.ComException, oXcpt:
+        except vbox.ComException as oXcpt:
             # Is this an expected failure?
             if vbox.ComError.equal(oXcpt, self.hrcExpected):
                 return True;
@@ -579,7 +582,7 @@ class tdStepSessionUnsetEnv(tdSessionStepBase):
                 oGstCtrlSession.environmentScheduleUnset(self.sVar);
             else:
                 oGstCtrlSession.environmentUnset(self.sVar);
-        except vbox.ComException, oXcpt:
+        except vbox.ComException as oXcpt:
             # Is this an expected failure?
             if vbox.ComError.equal(oXcpt, self.hrcExpected):
                 return True;
@@ -620,7 +623,7 @@ class tdStepSessionBulkEnv(tdSessionStepBase):
                 oTstDrv.oVBoxMgr.setArray(oGstCtrlSession, 'environmentChanges', self.asEnv);
             else:
                 oTstDrv.oVBoxMgr.setArray(oGstCtrlSession, 'environment', self.asEnv);
-        except vbox.ComException, oXcpt:
+        except vbox.ComException as oXcpt:
             # Is this an expected failure?
             if vbox.ComError.equal(oXcpt, self.hrcExpected):
                 return True;
@@ -725,7 +728,7 @@ class tdStepStat(tdSessionStepBase):
                     oFsInfo = oGstCtrlSession.fsObjQueryInfo(self.sPath, self.fFollowLinks);
                 else:
                     oFsInfo = oGstCtrlSession.fileQueryInfo(self.sPath);
-            except vbox.ComException, oXcpt:
+            except vbox.ComException as oXcpt:
                 ## @todo: The error reporting in the API just plain sucks! Most of the errors are
                 ##        VBOX_E_IPRT_ERROR and there seems to be no way to distinguish between
                 ##        non-existing files/path and a lot of other errors.  Fix API and test!
@@ -920,14 +923,15 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
         ## @todo base.TestBase.
         self.asTestsDef = \
         [
-            'session_basic', 'session_env', 'session_file_ref', 'session_dir_ref', 'session_proc_ref', \
-            'exec_basic', 'exec_errorlevel', 'exec_timeout', \
-            'dir_create', 'dir_create_temp', 'dir_read', \
-            'file_remove', 'file_stat', 'file_read', 'file_write', \
-            'copy_to', 'copy_from', \
+            'session_basic', 'session_env', 'session_file_ref', 'session_dir_ref', 'session_proc_ref',
+            'exec_basic', 'exec_errorlevel', 'exec_timeout',
+            'dir_create', 'dir_create_temp', 'dir_read',
+            'file_remove', 'file_stat', 'file_read', 'file_write',
+            'copy_to', 'copy_from',
             'update_additions'
         ];
         self.asTests    = self.asTestsDef;
+        self.asRsrcs    = ['5.3/guestctrl/50mb_rnd.dat', ];
 
     def parseOption(self, asArgs, iArg):                                        # pylint: disable=R0912,R0915
         if asArgs[iArg] == '--add-guest-ctrl-tests':
@@ -1029,12 +1033,11 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
             fRc, oTxsSession = self.testGuestCtrlDirRead(oSession, oTxsSession, oTestVm);
         reporter.testDone(fSkip);
 
-        # FIXME: Failing test.
-        # reporter.testStart('Copy to guest');
-        # fSkip = 'copy_to' not in self.asTests or fRc is False;
-        # if fSkip is False:
-        #     fRc, oTxsSession = self.testGuestCtrlCopyTo(oSession, oTxsSession, oTestVm);
-        # reporter.testDone(fSkip);
+        reporter.testStart('Copy to guest');
+        fSkip = 'copy_to' not in self.asTests or fRc is False;
+        if fSkip is False:
+            fRc, oTxsSession = self.testGuestCtrlCopyTo(oSession, oTxsSession, oTestVm);
+        reporter.testDone(fSkip);
 
         reporter.testStart('Copy from guest');
         fSkip = 'copy_from' not in self.asTests or fRc is False;
@@ -1089,20 +1092,21 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
             else:
                 curProgress = oGuestSession.copyFrom(sSrc, sDst, aFlags);
             if curProgress is not None:
-                oProgress = vboxwrappers.ProgressWrapper(curProgress, self.oTstDrv.oVBoxMgr, self, "gctrlCopyFrm");
+                oProgress = vboxwrappers.ProgressWrapper(curProgress, self.oTstDrv.oVBoxMgr, self.oTstDrv, "gctrlFileCopyFrom");
                 try:
-                    iRc = oProgress.waitForOperation(0, fIgnoreErrors = True);
-                    if iRc != 0:
-                        reporter.log('Waiting for copyFrom failed');
+                    oProgress.wait();
+                    if not oProgress.isSuccess():
+                        oProgress.logResult(fIgnoreErrors = True);
                         fRc = False;
                 except:
-                    reporter.logXcpt('Copy from waiting exception for sSrc="%s", sDst="%s":' \
-                                     % (sSrc, sDst));
+                    reporter.logXcpt('Waiting exception for sSrc="%s", sDst="%s":' % (sSrc, sDst));
                     fRc = False;
+            else:
+                reporter.error('No progress object returned');
+                fRc = False;
         except:
             # Just log, don't assume an error here (will be done in the main loop then).
-            reporter.logXcpt('Copy from exception for sSrc="%s", sDst="%s":' \
-                             % (sSrc, sDst));
+            reporter.logXcpt('Copy from exception for sSrc="%s", sDst="%s":' % (sSrc, sDst));
             fRc = False;
 
         return fRc;
@@ -1113,177 +1117,28 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
         """
         fRc = True; # Be optimistic.
         try:
-            reporter.log2('Copying host file "%s" to guest "%s"' % (sSrc, sDst));
+            reporter.log2('Copying host file "%s" to guest "%s" (flags %s)' % (sSrc, sDst, aFlags));
             if self.oTstDrv.fpApiVer >= 5.0:
                 curProgress = oGuestSession.fileCopyToGuest(sSrc, sDst, aFlags);
             else:
                 curProgress = oGuestSession.copyTo(sSrc, sDst, aFlags);
             if curProgress is not None:
-                oProgress = vboxwrappers.ProgressWrapper(curProgress, self.oTstDrv.oVBoxMgr, self, "gctrlCopyTo");
+                oProgress = vboxwrappers.ProgressWrapper(curProgress, self.oTstDrv.oVBoxMgr, self.oTstDrv, "gctrlCopyFileTo");
                 try:
-                    iRc = oProgress.waitForOperation(0, fIgnoreErrors = True);
-                    if iRc != 0:
-                        reporter.log('Waiting for copyTo failed');
+                    oProgress.wait();
+                    if not oProgress.isSuccess():
+                        oProgress.logResult(fIgnoreErrors = True);
                         fRc = False;
                 except:
-                    reporter.logXcpt('Copy to waiting exception for sSrc="%s", sDst="%s":' \
-                                     % (sSrc, sDst));
+                    reporter.logXcpt('Wait exception for sSrc="%s", sDst="%s":' % (sSrc, sDst));
                     fRc = False;
             else:
                 reporter.error('No progress object returned');
+                fRc = False;
         except:
             # Just log, don't assume an error here (will be done in the main loop then).
-            reporter.logXcpt('Copy to exception for sSrc="%s", sDst="%s":' \
-                             % (sSrc, sDst));
+            reporter.logXcpt('Copy to exception for sSrc="%s", sDst="%s":' % (sSrc, sDst));
             fRc = False;
-
-        return fRc;
-
-    def gctrlCopyFrom(self, oTest, oRes, oGuestSession, subDir = ''): # pylint: disable=R0914
-        """
-        Copies files / directories to the host.
-        Source always contains the absolute path, subDir all paths
-        below it.
-        """
-        ## @todo r=bird: The use subDir and sSubDir in this method is extremely confusing!!
-        #                Just follow the coding guidelines and ALWAYS use prefixes, please!
-        fRc = True; # Be optimistic.
-
-        sSrc = oTest.sSrc;
-        sDst = oTest.sDst;
-        aFlags = oTest.aFlags;
-
-        if     sSrc == "" \
-            or os.path.isfile(sSrc):
-            return self.gctrlCopyFileFrom(oGuestSession, \
-                                          sSrc, sDst, aFlags);
-        sSrcAbs = sSrc;
-        if subDir != "":
-            sSrcAbs = os.path.join(sSrc, subDir);
-        sFilter = ""; # No filter.
-
-        sDstAbs = os.path.join(sDst, subDir);
-        reporter.log2('Copying guest directory "%s" to host "%s"' % (sSrcAbs, sDstAbs));
-
-        try:
-            #reporter.log2('Directory="%s", filter="%s", aFlags="%s"' % (sCurDir, sFilter, aFlags));
-            oCurDir = oGuestSession.directoryOpen(sSrcAbs, sFilter, aFlags);
-            while fRc:
-                try:
-                    oFsObjInfo = oCurDir.read();
-                    if     oFsObjInfo.name == "." \
-                        or oFsObjInfo.name == "..":
-                        #reporter.log2('\tSkipping "%s"' % (oFsObjInfo.name,));
-                        continue; # Skip "." and ".." entries.
-                    if oFsObjInfo.type is vboxcon.FsObjType_Directory:
-                        #reporter.log2('\tDirectory "%s"' % (oFsObjInfo.name,));
-                        sDirCreate = sDst;
-                        if subDir != "":
-                            sDirCreate = os.path.join(sDirCreate, subDir);
-                        sDirCreate = os.path.join(sDirCreate, oFsObjInfo.name);
-                        try:
-                            reporter.log2('\tCreating directory "%s"' % (sDirCreate,));
-                            os.makedirs(sDirCreate);
-                            sSubDir = oFsObjInfo.name;
-                            if subDir != "":
-                                sSubDir = os.path.join(subDir, oFsObjInfo.name);
-                            self.gctrlCopyFrom(oTest, oRes, oGuestSession, sSubDir);
-                        except (OSError) as e:
-                            if e.errno == errno.EEXIST:
-                                pass;
-                            else:
-                                # Just log, don't assume an error here (will be done in the main loop then).
-                                reporter.logXcpt('\tDirectory creation exception for directory="%s":' % (sSubDir,));
-                                raise;
-                    elif oFsObjInfo.type is vboxcon.FsObjType_File:
-                        #reporter.log2('\tFile "%s"' % (oFsObjInfo.name,));
-                        sSourceFile = os.path.join(sSrcAbs, oFsObjInfo.name);
-                        sDestFile = os.path.join(sDstAbs, oFsObjInfo.name);
-                        self.gctrlCopyFileFrom(oGuestSession, sSourceFile, sDestFile, aFlags);
-                    elif oFsObjInfo.type is vboxcon.FsObjType_Symlink:
-                        #reporter.log2('\tSymlink "%s" -- not tested yet' % oFsObjInfo.name);
-                        pass;
-                    else:
-                        reporter.error('\tDirectory "%s" contains invalid directory entry "%s" (%d)' \
-                                       % (sSubDir, oFsObjInfo.name, oFsObjInfo.type));
-                        fRc = False;
-                except Exception, oXcpt:
-                    # No necessarily an error -- could be VBOX_E_OBJECT_NOT_FOUND. See reference.
-                    if vbox.ComError.equal(oXcpt, vbox.ComError.VBOX_E_OBJECT_NOT_FOUND):
-                        #reporter.log2('\tNo more directory entries for "%s"' % (sCurDir,));
-                        break
-                    # Just log, don't assume an error here (will be done in the main loop then).
-                    reporter.logXcpt('\tDirectory read exception for directory="%s":' % (sSrcAbs,));
-                    fRc = False;
-                    break;
-            oCurDir.close();
-        except:
-            # Just log, don't assume an error here (will be done in the main loop then).
-            reporter.logXcpt('\tDirectory open exception for directory="%s":' % (sSrcAbs,));
-            fRc = False;
-
-        return fRc;
-
-    def gctrlCopyTo(self, oTest, oGuestSession, subDir = ''): # pylint: disable=R0914
-        """
-        Copies files / directories to the guest.
-        Source always contains the absolute path,
-        subDir all paths below it.
-        """
-        fRc = True; # Be optimistic.
-
-        sSrc = oTest.sSrc;
-        sDst = oTest.sDst;
-        aFlags = oTest.aFlags;
-
-        reporter.log2('sSrc=%s, sDst=%s, aFlags=%s' % (sSrc, sDst, aFlags));
-
-        sSrcAbs = sSrc;
-        if subDir != "":
-            sSrcAbs = os.path.join(sSrc, subDir);
-
-        # Note: Current test might want to test copying empty sources
-        if     not os.path.exists(sSrcAbs) \
-            or os.path.isfile(sSrcAbs):
-            return self.gctrlCopyFileTo(oGuestSession, \
-                                        sSrcAbs, sDst, aFlags);
-
-        sDstAbs = os.path.join(sDst, subDir);
-        reporter.log2('Copying host directory "%s" to guest "%s"' % (sSrcAbs, sDstAbs));
-
-        try:
-            # Note: Symlinks intentionally not considered here.
-            for (sDirCurrent, oDirs, oFiles) in os.walk(sSrcAbs, topdown=True):
-                for sFile in oFiles:
-                    sCurFile = os.path.join(sDirCurrent, sFile);
-                    reporter.log2('Processing host file "%s"' % (sCurFile,));
-                    sFileDest = os.path.join(sDstAbs, os.path.relpath(sCurFile, sSrcAbs));
-                    reporter.log2('Copying file to "%s"' % (sFileDest,));
-                    fRc = self.gctrlCopyFileTo(oGuestSession, \
-                                               sCurFile, sFileDest, aFlags);
-                    if fRc is False:
-                        break;
-
-                if fRc is False:
-                    break;
-
-                for sSubDir in oDirs:
-                    sCurDir = os.path.join(sDirCurrent, sSubDir);
-                    reporter.log2('Processing host dir "%s"' % (sCurDir,));
-                    sDirDest = os.path.join(sDstAbs, os.path.relpath(sCurDir, sSrcAbs));
-                    reporter.log2('Creating guest dir "%s"' % (sDirDest,));
-                    oGuestSession.directoryCreate(sDirDest, \
-                                                  700, [ vboxcon.DirectoryCreateFlag_Parents ]);
-                    if fRc is False:
-                        break;
-
-                if fRc is False:
-                    break;
-        except:
-            # Just log, don't assume an error here (will be done in the main loop then).
-            reporter.logXcpt('Copy to exception for sSrc="%s", sDst="%s":' \
-                             % (sSrcAbs, sDst));
-            return False;
 
         return fRc;
 
@@ -1358,7 +1213,7 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
                         reporter.error('\tDirectory "%s" contains invalid directory entry "%s" (type %d)' % \
                                        (sCurDir, oFsObjInfo.name, oFsObjInfo.type));
                         fRc = False;
-                except Exception, oXcpt:
+                except Exception as oXcpt:
                     # No necessarily an error -- could be VBOX_E_OBJECT_NOT_FOUND. See reference.
                     if vbox.ComError.equal(oXcpt, vbox.ComError.VBOX_E_OBJECT_NOT_FOUND):
                         #reporter.log2('\tNo more directory entries for "%s"' % (sCurDir,));
@@ -1426,10 +1281,10 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
         ## @todo Compare execution timeouts!
         #tsStart = base.timestampMilli();
 
-        reporter.log2('Using session user=%s, sDomain=%s, session name=%s, session timeout=%d' \
+        reporter.log2('Using session user=%s, sDomain=%s, name=%s, timeout=%d' \
                       % (oGuestSession.user, oGuestSession.domain, \
                          oGuestSession.name, oGuestSession.timeout));
-        reporter.log2('Executing cmd=%s, aFlags=%s, timeout=%d, args=%s, env=%s' \
+        reporter.log2('Executing sCmd=%s, aFlags=%s, timeoutMS=%d, aArgs=%s, aEnv=%s' \
                       % (oTest.sCmd, oTest.aFlags, oTest.timeoutMS, \
                          oTest.aArgs, oTest.aEnv));
         try:
@@ -2072,7 +1927,7 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
             [ tdTestExec(sCmd = "%$%%%&", sUser = sUser, sPassword = sPassword),
               tdTestResultExec(fRc = False) ],
             # More stuff.
-            [ tdTestExec(sCmd = "ƒ‰‹ˆ÷‹¸", sUser = sUser, sPassword = sPassword),
+            [ tdTestExec(sCmd = u"ƒ‰‹ˆ÷‹¸", sUser = sUser, sPassword = sPassword),
               tdTestResultExec(fRc = False) ],
             [ tdTestExec(sCmd = "???://!!!", sUser = sUser, sPassword = sPassword),
               tdTestResultExec(fRc = False) ],
@@ -2209,6 +2064,7 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
         #
         # First batch: One session per guest process.
         #
+        reporter.log('One session per guest process ...');
         for (i, aTest) in enumerate(aaTests):
             curTest = aTest[0]; # tdTestExec, use an index, later.
             curRes  = aTest[1]; # tdTestResultExec
@@ -2226,9 +2082,12 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
 
         # No sessions left?
         if fRc is True:
-            cSessions = len(self.oTstDrv.oVBoxMgr.getArray(oSession.o.console.guest, 'sessions'));
+            aSessions = self.oTstDrv.oVBoxMgr.getArray(oSession.o.console.guest, 'sessions');
+            cSessions   = len(aSessions);
             if cSessions is not 0:
-                reporter.error('Found %d stale session(s), expected 0' % (cSessions,));
+                reporter.error('Found %d stale session(s), expected 0:' % (cSessions,));
+                for (i, aSession) in enumerate(aSessions):
+                    reporter.log('\tStale session #%d ("%s")' % (aSession.id, aSession.name));
                 fRc = False;
 
         if fRc is False:
@@ -2588,10 +2447,10 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
                                       sDirectory = 'C:\\Windows', fMode = 1234),
                   tdTestResult(fRc = False) ],
                 [ tdTestDirCreateTemp(sUser = sUser, sPassword = sPassword, sTemplate = 'xXx',
-                                      sDirectory = 'C:\\Windows', fMode = 0700),
+                                      sDirectory = 'C:\\Windows', fMode = 0o700),
                   tdTestResult(fRc = False) ],
                 [ tdTestDirCreateTemp(sUser = sUser, sPassword = sPassword, sTemplate = 'xxx',
-                                      sDirectory = 'C:\\Windows', fMode = 0700),
+                                      sDirectory = 'C:\\Windows', fMode = 0o700),
                   tdTestResult(fRc = False) ],
                 # More unusual stuff.
                 [ tdTestDirCreateTemp(sUser = sUser, sPassword = sPassword, sTemplate = 'foo',
@@ -2629,19 +2488,19 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
                 #   tdTestResult(fRc = True) ],
                 # [ tdTestDirCreateTemp(sUser = sUser, sPassword = sPassword, sTemplate = 'XXX',
                 #                       sDirectory = sScratch,
-                #                       fMode = 0700),
+                #                       fMode = 0o700),
                 #   tdTestResult(fRc = True) ],
                 # [ tdTestDirCreateTemp(sUser = sUser, sPassword = sPassword, sTemplate = 'XXX',
                 #                     sDirectory = sScratch,
-                #                     fMode = 0700),
+                #                     fMode = 0o700),
                 #   tdTestResult(fRc = True) ],
                 # [ tdTestDirCreateTemp(sUser = sUser, sPassword = sPassword, sTemplate = 'XXX',
                 #                       sDirectory = sScratch,
-                #                       fMode = 0755),
+                #                       fMode = 0o755),
                 #   tdTestResult(fRc = True) ],
                 # [ tdTestDirCreateTemp(sUser = sUser, sPassword = sPassword, sTemplate = 'XXX',
                 #                       sDirectory = sScratch,
-                #                       fMode = 0755),
+                #                       fMode = 0o755),
                 #   tdTestResult(fRc = True) ],
                 # Secure variants.
                 # [ tdTestDirCreateTemp(sUser = sUser, sPassword = sPassword, sTemplate = 'XXX',
@@ -2658,33 +2517,33 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
                 #   tdTestResult(fRc = True) ],
                 # [ tdTestDirCreateTemp(sUser = sUser, sPassword = sPassword, sTemplate = 'XXX',
                 #                       sDirectory = sScratch,
-                #                       fSecure = True, fMode = 0700),
+                #                       fSecure = True, fMode = 0o700),
                 #   tdTestResult(fRc = True) ],
                 # [ tdTestDirCreateTemp(sUser = sUser, sPassword = sPassword, sTemplate = 'XXX',
                 #                       sDirectory = sScratch,
-                #                       fSecure = True, fMode = 0700),
+                #                       fSecure = True, fMode = 0o700),
                 #   tdTestResult(fRc = True) ],
                 # [ tdTestDirCreateTemp(sUser = sUser, sPassword = sPassword, sTemplate = 'XXX',
                 #                       sDirectory = sScratch,
-                #                       fSecure = True, fMode = 0755),
+                #                       fSecure = True, fMode = 0o755),
                 #   tdTestResult(fRc = True) ],
                 # [ tdTestDirCreateTemp(sUser = sUser, sPassword = sPassword, sTemplate = 'XXX',
                 #                       sDirectory = sScratch,
-                #                       fSecure = True, fMode = 0755),
+                #                       fSecure = True, fMode = 0o755),
                 #   tdTestResult(fRc = True) ],
                 # Random stuff.
                 # [ tdTestDirCreateTemp(sUser = sUser, sPassword = sPassword,
                 #                       sTemplate = "XXX-".join(random.choice(string.ascii_lowercase) for i in range(32)),
                 #                       sDirectory = sScratch,
-                #                       fSecure = True, fMode = 0755),
+                #                       fSecure = True, fMode = 0o755),
                 #   tdTestResult(fRc = True) ],
                 # [ tdTestDirCreateTemp(sUser = sUser, sPassword = sPassword, sTemplate = "".join('X' for i in range(32)),
                 #                       sDirectory = sScratch,
-                #                       fSecure = True, fMode = 0755),
+                #                       fSecure = True, fMode = 0o755),
                 #   tdTestResult(fRc = True) ],
                 # [ tdTestDirCreateTemp(sUser = sUser, sPassword = sPassword, sTemplate = "".join('X' for i in range(128)),
                 #                       sDirectory = sScratch,
-                #                       fSecure = True, fMode = 0755),
+                #                       fSecure = True, fMode = 0o755),
                 #   tdTestResult(fRc = True) ]
             # ]);
 
@@ -3167,13 +3026,14 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
         for (i, aTest) in enumerate(aaTests):
             curTest = aTest[0]; # tdTestFileReadWrite, use an index, later.
             curRes  = aTest[1]; # tdTestResult
-            reporter.log('Testing #%d, sFile="%s", cbToReadWrite=%d, sOpenMode="%s", sDisposition="%s", cbOffset=%d ...' % \
+            reporter.log('Testing #%d, sFile="%s", cbToReadWrite=%d, sOpenMode="%s", sDisposition="%s", cbOffset=%d ...' %
                          (i, curTest.sFile, curTest.cbToReadWrite, curTest.sOpenMode, curTest.sDisposition, curTest.cbOffset));
             curTest.setEnvironment(oSession, oTxsSession, oTestVm);
             fRc, curGuestSession = curTest.createSession('testGuestCtrlFileWrite: Test #%d' % (i,));
             if fRc is False:
                 reporter.error('Test #%d failed: Could not create session' % (i,));
                 break;
+
             try:
                 if curTest.cbOffset > 0: # The offset parameter is gone.
                     if self.oTstDrv.fpApiVer >= 5.0:
@@ -3181,12 +3041,12 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
                                                              curTest.getSharingMode(), []);
                         curFile.seek(curTest.cbOffset, vboxcon.FileSeekOrigin_Begin);
                     else:
-                        curFile = curGuestSession.fileOpenEx(curTest.sFile, curTest.sOpenMode, curTest.sDisposition, \
+                        curFile = curGuestSession.fileOpenEx(curTest.sFile, curTest.sOpenMode, curTest.sDisposition,
                                                              curTest.sSharingMode, curTest.lCreationMode, curTest.cbOffset);
                     curOffset = long(curFile.offset);
                     resOffset = long(curTest.cbOffset);
                     if curOffset != resOffset:
-                        reporter.error('Test #%d failed: Initial offset on open does not match: Got %d, expected %d' \
+                        reporter.error('Test #%d failed: Initial offset on open does not match: Got %d, expected %d'
                                        % (i, curOffset, resOffset));
                         fRc = False;
                 else:
@@ -3194,16 +3054,15 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
                         curFile = curGuestSession.fileOpen(curTest.sFile, curTest.getAccessMode(), curTest.getOpenAction(),
                                                            curTest.lCreationMode);
                     else:
-                        curFile = curGuestSession.fileOpen(curTest.sFile, curTest.sOpenMode, curTest.sDisposition, \
+                        curFile = curGuestSession.fileOpen(curTest.sFile, curTest.sOpenMode, curTest.sDisposition,
                                                            curTest.lCreationMode);
-                if  fRc \
-                and curTest.cbToReadWrite > 0:
+                if fRc and curTest.cbToReadWrite > 0:
                     ## @todo Split this up in 64K writes. Later.
                     ## @todo Test timeouts.
                     cBytesWritten = curFile.write(curTest.aBuf, 30 * 1000);
-                    if  curRes.cbProcessed > 0 \
-                    and curRes.cbProcessed != cBytesWritten:
-                        reporter.error('Test #%d failed: Written buffer length does not match: Got %d, expected %d' \
+                    if    curRes.cbProcessed > 0 \
+                      and curRes.cbProcessed != cBytesWritten:
+                        reporter.error('Test #%d failed: Written buffer length does not match: Got %d, expected %d'
                                        % (i, cBytesWritten, curRes.cbProcessed));
                         fRc = False;
                     if fRc:
@@ -3217,29 +3076,27 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
                         except:
                             reporter.logXcpt('Seeking back to initial write position failed:');
                             fRc = False;
-                        if  fRc \
-                        and long(curFile.offset) != curTest.cbOffset:
-                            reporter.error('Test #%d failed: Initial write position does not match current position, \
-                                           got %d, expected %d' \
-                                           % (i, long(curFile.offset), curTest.cbOffset));
+                        if fRc and long(curFile.offset) != curTest.cbOffset:
+                            reporter.error('Test #%d failed: Initial write position does not match current position, '
+                                           'got %d, expected %d' % (i, long(curFile.offset), curTest.cbOffset));
                             fRc = False;
                     if fRc:
                         aBufRead = curFile.read(curTest.cbToReadWrite, 30 * 1000);
                         if len(aBufRead) != curTest.cbToReadWrite:
-                            reporter.error('Test #%d failed: Got buffer length %d, expected %d' \
+                            reporter.error('Test #%d failed: Got buffer length %d, expected %d'
                                            % (i, len(aBufRead), curTest.cbToReadWrite));
                             fRc = False;
-                        if  fRc \
-                        and curRes.aBuf is not None \
-                        and buffer(curRes.aBuf) != aBufRead:
-                            reporter.error('Test #%d failed: Got buffer\n%s, expected\n%s' \
+                        if    fRc \
+                          and curRes.aBuf is not None \
+                          and curRes.aBuf != aBufRead:
+                            reporter.error('Test #%d failed: Got buffer\n%s, expected\n%s'
                                            % (i, aBufRead, curRes.aBuf));
                             fRc = False;
                 # Test final offset.
                 curOffset = long(curFile.offset);
                 resOffset = long(curRes.cbOffset);
                 if curOffset != resOffset:
-                    reporter.error('Test #%d failed: Final offset does not match: Got %d, expected %d' \
+                    reporter.error('Test #%d failed: Final offset does not match: Got %d, expected %d'
                                    % (i, curOffset, resOffset));
                     fRc = False;
                 curFile.close();
@@ -3263,36 +3120,33 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
 
         if oTestVm.isWindows():
             sUser = "Administrator";
+            sScratchGst = "C:\\Temp\\vboxtest\\testGuestCtrlCopyTo\\";
+            sScratchGstNotExist = "C:\\does-not-exist\\";
+            sScratchGstInvalid = "?*|invalid-name?*|";
         else:
             sUser = "vbox";
+            sScratchGst = "/tmp/testGuestCtrlCopyTo/";
+            sScratchGstNotExist = "/tmp/does-not-exist/";
+            sScratchGstInvalid = "/";
         sPassword = "password";
-
-        if oTestVm.isWindows():
-            sScratch = "C:\\Temp\\vboxtest\\testGuestCtrlCopyTo\\";
 
         if oTxsSession.syncMkDir('${SCRATCH}/testGuestCtrlCopyTo') is False:
             reporter.error('Could not create scratch directory on guest');
             return (False, oTxsSession);
 
-        # Some stupid trickery to guess the location of the iso.
-        sVBoxValidationKitISO = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../VBoxValidationKit.iso'));
-        if not os.path.isfile(sVBoxValidationKitISO):
-            sVBoxValidationKitISO = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../VBoxTestSuite.iso'));
-        if not os.path.isfile(sVBoxValidationKitISO):
-            sCur = os.getcwd();
-            for i in range(0, 10):
-                sVBoxValidationKitISO = os.path.join(sCur, 'validationkit/VBoxValidationKit.iso');
-                if os.path.isfile(sVBoxValidationKitISO):
-                    break;
-                sVBoxValidationKitISO = os.path.join(sCur, 'testsuite/VBoxTestSuite.iso');
-                if os.path.isfile(sVBoxValidationKitISO):
-                    break;
-                sCur = os.path.abspath(os.path.join(sCur, '..'));
-                if i is None: pass; # shut up pychecker/pylint.
-        if os.path.isfile(sVBoxValidationKitISO):
-            reporter.log('Validation Kit .ISO found at: %s' % (sVBoxValidationKitISO,));
+        ## @todo r=klaus It's not good to use files with unpredictable size
+        # for testing. Causes all sorts of weird failures as things grow,
+        # exceeding the free space of the test VMs. Especially as this used
+        # the very big (and quickly growing) validation kit ISO originally.
+        sTestFileBig = self.oTstDrv.getFullResourceName('5.3/guestctrl/50mb_rnd.dat');
+        if not os.path.isfile(sTestFileBig):
+            sTestFileBig = self.oTstDrv.getGuestAdditionsIso();
+        if sTestFileBig == '' or not os.path.isfile(sTestFileBig):
+            sTestFileBig = self.oTstDrv.sVBoxValidationKitIso;
+        if os.path.isfile(sTestFileBig):
+            reporter.log('Test file for big copy found at: %s' % (sTestFileBig,));
         else:
-            reporter.log('Warning: Validation Kit .ISO not found -- some tests might fail');
+            reporter.log('Warning: Test file for big copy not found -- some tests might fail');
 
         aaTests = [];
         if oTestVm.isWindows():
@@ -3300,59 +3154,95 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
                 # Destination missing.
                 [ tdTestCopyTo(sUser = sUser, sPassword = sPassword, sSrc = ''),
                   tdTestResult(fRc = False) ],
-                [ tdTestCopyTo(sUser = sUser, sPassword = sPassword, sSrc = 'C:\\Windows',
-                               aFlags = [ 1234 ] ),
+                [ tdTestCopyTo(sUser = sUser, sPassword = sPassword, sSrc = '/placeholder',
+                               aFlags = [ 80 ] ),
                   tdTestResult(fRc = False) ],
                 # Source missing.
                 [ tdTestCopyTo(sUser = sUser, sPassword = sPassword, sDst = ''),
                   tdTestResult(fRc = False) ],
-                [ tdTestCopyTo(sUser = sUser, sPassword = sPassword, sDst = 'C:\\Windows',
-                               aFlags = [ 1234 ] ),
+                [ tdTestCopyTo(sUser = sUser, sPassword = sPassword, sDst = '/placeholder',
+                               aFlags = [ 80 ] ),
+                  tdTestResult(fRc = False) ],
+                # Testing DirectoryCopyFlag flags.
+                [ tdTestCopyTo(sUser = sUser, sPassword = sPassword, sSrc = sTestFileBig,
+                               sDst = sScratchGstInvalid, aFlags = [ 80 ] ),
+                  tdTestResult(fRc = False) ],
+                # Testing FileCopyFlag flags.
+                [ tdTestCopyTo(sUser = sUser, sPassword = sPassword, sSrc = sTestFileBig,
+                               sDst = sScratchGstInvalid, aFlags = [ 80 ] ),
                   tdTestResult(fRc = False) ],
                 # Nothing to copy (source and/or destination is empty).
                 [ tdTestCopyTo(sUser = sUser, sPassword = sPassword, sSrc = 'z:\\'),
                   tdTestResult(fRc = False) ],
                 [ tdTestCopyTo(sUser = sUser, sPassword = sPassword, sSrc = '\\\\uncrulez\\foo'),
-
                   tdTestResult(fRc = False) ],
                 [ tdTestCopyTo(sUser = sUser, sPassword = sPassword, sSrc = 'non-exist',
-                               sDst = os.path.join(sScratch, 'non-exist.dll')),
-                  tdTestResult(fRc = False) ],
-                # Copying single files.
-                [ tdTestCopyTo(sUser = sUser, sPassword = sPassword, sSrc = sVBoxValidationKitISO,
-                               sDst = 'C:\\non-exist\\'),
-                  tdTestResult(fRc = False) ],
-                [ tdTestCopyTo(sUser = sUser, sPassword = sPassword, sSrc = sVBoxValidationKitISO,
-                               sDst = 'C:\\non\\exist\\'),
-                  tdTestResult(fRc = False) ],
-                [ tdTestCopyTo(sUser = sUser, sPassword = sPassword, sSrc = sVBoxValidationKitISO,
-                               sDst = 'C:\\non\\exist\\renamedfile.dll'),
-                  tdTestResult(fRc = False) ],
-                [ tdTestCopyTo(sUser = sUser, sPassword = sPassword, sSrc = sVBoxValidationKitISO,
-                               sDst = os.path.join(sScratch, 'HostGuestAdditions.iso')),
-                  tdTestResult(fRc = True) ],
-                [ tdTestCopyTo(sUser = sUser, sPassword = sPassword, sSrc = sVBoxValidationKitISO,
-                               sDst = os.path.join(sScratch, 'HostGuestAdditions.iso')),
-                  tdTestResult(fRc = True) ],
-                # Destination is a directory, should fail.
-                [ tdTestCopyTo(sUser = sUser, sPassword = sPassword, sSrc = sVBoxValidationKitISO,
-                               sDst = sScratch),
+                               sDst = os.path.join(sScratchGst, 'non-exist.dll')),
                   tdTestResult(fRc = False) ]
-                ## @todo Add testing the CopyTo flags here!
             ]);
 
-            if self.oTstDrv.sHost == 'win':
-                ## @todo Check for Windows (7) host.
+            #
+            # Single file handling.
+            #
+            if self.oTstDrv.fpApiVer > 5.2:
                 aaTests.extend([
-                    # Copying directories with contain files we don't have read access to.
-                    [ tdTestCopyTo(sUser = sUser, sPassword = sPassword, sSrc = 'C:\\Windows\\security',
-                                   sDst = sScratch),
+                    [ tdTestCopyTo(sUser = sUser, sPassword = sPassword, sSrc = sTestFileBig,
+                                   sDst = sScratchGstInvalid),
                       tdTestResult(fRc = False) ],
-                    # Copying directories with regular files.
-                    [ tdTestCopyTo(sUser = sUser, sPassword = sPassword, sSrc = 'C:\\Windows\\Help',
-                                   sDst = sScratch),
+                    [ tdTestCopyTo(sUser = sUser, sPassword = sPassword, sSrc = sTestFileBig,
+                                   sDst = sScratchGstNotExist),
+                      tdTestResult(fRc = False) ],
+                    [ tdTestCopyTo(sUser = sUser, sPassword = sPassword, sSrc = sTestFileBig,
+                                   sDst = sScratchGstNotExist),
+                      tdTestResult(fRc = False) ],
+                    [ tdTestCopyTo(sUser = sUser, sPassword = sPassword, sSrc = sTestFileBig,
+                                   sDst = os.path.join(sScratchGstNotExist, 'renamedfile.dll')),
+                      tdTestResult(fRc = False) ],
+                    [ tdTestCopyTo(sUser = sUser, sPassword = sPassword, sSrc = sTestFileBig,
+                                   sDst = os.path.join(sScratchGst, 'HostGABig.dat')),
+                      tdTestResult(fRc = True) ],
+                    [ tdTestCopyTo(sUser = sUser, sPassword = sPassword, sSrc = sTestFileBig,
+                                   sDst = os.path.join(sScratchGst, 'HostGABig.dat')),
+                      tdTestResult(fRc = True) ],
+                    # Note: Copying files into directories via Main is supported only in versions > 5.2.
+                    # Destination is a directory.
+                    [ tdTestCopyTo(sUser = sUser, sPassword = sPassword, sSrc = sTestFileBig,
+                                   sDst = sScratchGst),
+                      tdTestResult(fRc = True) ],
+                    # Copy over file again into same directory (overwrite).
+                    [ tdTestCopyTo(sUser = sUser, sPassword = sPassword, sSrc = sTestFileBig,
+                                   sDst = sScratchGst),
                       tdTestResult(fRc = True) ]
                 ]);
+
+                aaTests.extend([
+                    # Copy the same file over to the guest, but this time store the file into the former
+                    # file's ADS (Alternate Data Stream). Only works on Windows, of course.
+                    [ tdTestCopyTo(sUser = sUser, sPassword = sPassword, sSrc = sTestFileBig,
+                                   sDst = os.path.join(sScratchGst, 'HostGABig.dat:ADS-Test')),
+                      tdTestResult(fRc = True) ]
+                ]);
+
+            #
+            # Directory handling.
+            #
+            ## @todo r=michaln disabled completely, can fill up the guest disk or fail without giving a reason
+            if self.oTstDrv.fpApiVer > 6.0: # Copying directories via Main is supported only in versions > 5.2.
+                if self.oTstDrv.sHost == "win":
+                    sSystemRoot = os.getenv('SystemRoot', 'C:\\Windows')
+                    aaTests.extend([
+                        # Copying directories with contain files we don't have read access to.
+                        ## @todo r=klaus disabled, because this can fill up the guest disk, making other tests fail,
+                        ## additionally it's not really clear if this fails reliably on all Windows versions, even
+                        ## the old ones like XP with a "proper" administrator.
+                        #[ tdTestCopyTo(sUser = sUser, sPassword = sPassword, sSrc = os.path.join(sSystemRoot, 'security'),
+                        #               sDst = sScratchGst, aFlags = [ vboxcon.DirectoryCopyFlag_CopyIntoExisting ]),
+                        #  tdTestResult(fRc = False) ],
+                        # Copying directories with regular files.
+                        [ tdTestCopyTo(sUser = sUser, sPassword = sPassword, sSrc = os.path.join(sSystemRoot, 'Help'),
+                                       sDst = sScratchGst, aFlags = [ vboxcon.DirectoryCopyFlag_CopyIntoExisting ]),
+                          tdTestResult(fRc = True) ]
+                        ]);
         else:
             reporter.log('No OS-specific tests for non-Windows yet!');
 
@@ -3360,15 +3250,39 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
         for (i, aTest) in enumerate(aaTests):
             curTest = aTest[0]; # tdTestExec, use an index, later.
             curRes  = aTest[1]; # tdTestResult
-            reporter.log('Testing #%d, sSrc="%s", sDst="%s", aFlags="%s" ...' % \
+            reporter.log('Testing #%d, sSrc=%s, sDst=%s, aFlags=%s ...' % \
                          (i, curTest.sSrc, curTest.sDst, curTest.aFlags));
             curTest.setEnvironment(oSession, oTxsSession, oTestVm);
             fRc, curGuestSession = curTest.createSession('testGuestCtrlCopyTo: Test #%d' % (i,));
             if fRc is False:
                 reporter.error('Test #%d failed: Could not create session' % (i,));
                 break;
-            fRc2 = self.gctrlCopyTo(curTest, curGuestSession);
+
+            fRc2 = False;
+            if os.path.isdir(curTest.sSrc):
+                try:
+                    curProgress = curGuestSession.directoryCopyToGuest(curTest.sSrc, curTest.sDst, curTest.aFlags);
+                    if curProgress is not None:
+                        oProgress = vboxwrappers.ProgressWrapper(curProgress, self.oTstDrv.oVBoxMgr, self.oTstDrv, \
+                                                                 "gctrlDirCopyTo");
+                        try:
+                            oProgress.wait();
+                            if not oProgress.isSuccess():
+                                oProgress.logResult(fIgnoreErrors = True);
+                                fRc = False;
+                        except:
+                            reporter.logXcpt('Waiting exception for sSrc="%s", sDst="%s":' % (curTest.sSrc, curTest.sDst));
+                            fRc2 = False;
+                    else:
+                        reporter.error('No progress object returned');
+                        fRc2 = False;
+                except:
+                    fRc2 = False;
+            else:
+                fRc2 = self.gctrlCopyFileTo(curGuestSession, curTest.sSrc, curTest.sDst, curTest.aFlags);
+
             curTest.closeSession();
+
             if fRc2 is curRes.fRc:
                 ## @todo Verify the copied results (size, checksum?).
                 pass;
@@ -3390,14 +3304,24 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
             sUser = "vbox";
         sPassword = "password";
 
-        sScratch = os.path.join(self.oTstDrv.sScratchPath, "testGctrlCopyFrom");
+        sScratchHst = os.path.join(self.oTstDrv.sScratchPath, "testGctrlCopyFrom");
+
+        if self.oTstDrv.sHost == "win":
+            sScratchHstNotExist      = sScratchHst + "\\does-not-exist\\";
+            sScratchHstNotExistChain = sScratchHst + "\\does\\not\\exist\\";
+            sScratchHstInvalid       = "?*|invalid-name?*|";
+        else:
+            sScratchHstNotExist      = sScratchHst + "/does-not-exist/";
+            sScratchHstNotExistChain = sScratchHst + "/does/not/exist/";
+            sScratchHstInvalid       = "/";
+
         try:
-            os.makedirs(sScratch);
+            os.makedirs(sScratchHst);
         except OSError as e:
             if e.errno != errno.EEXIST:
-                reporter.error('Failed: Unable to create scratch directory \"%s\"' % (sScratch,));
+                reporter.error('Failed: Unable to create scratch directory \"%s\"' % (sScratchHst,));
                 return (False, oTxsSession);
-        reporter.log('Scratch path is: %s' % (sScratch,));
+        reporter.log('Scratch path is: %s' % (sScratchHst,));
 
         aaTests = [];
         if oTestVm.isWindows():
@@ -3405,50 +3329,102 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
                 # Destination missing.
                 [ tdTestCopyFrom(sUser = sUser, sPassword = sPassword, sSrc = ''),
                   tdTestResult(fRc = False) ],
-                [ tdTestCopyFrom(sUser = sUser, sPassword = sPassword, sSrc = 'C:\\Windows',
-                                 aFlags = [ 1234 ] ),
+                [ tdTestCopyFrom(sUser = sUser, sPassword = sPassword, sSrc = 'Something',
+                                 aFlags = [ 80 ] ),
                   tdTestResult(fRc = False) ],
                 # Source missing.
                 [ tdTestCopyFrom(sUser = sUser, sPassword = sPassword, sDst = ''),
                   tdTestResult(fRc = False) ],
-                [ tdTestCopyFrom(sUser = sUser, sPassword = sPassword, sDst = 'C:\\Windows',
-                                 aFlags = [ 1234 ] ),
+                [ tdTestCopyFrom(sUser = sUser, sPassword = sPassword, sDst = 'Something',
+                                 aFlags = [ 80 ] ),
+                  tdTestResult(fRc = False) ],
+                # Testing DirectoryCopyFlag flags.
+                [ tdTestCopyFrom(sUser = sUser, sPassword = sPassword, sSrc = 'C:\\Windows\\system32',
+                                 sDst = sScratchHstInvalid, aFlags = [ 80 ] ),
+                  tdTestResult(fRc = False) ],
+                # Testing FileCopyFlag flags.
+                [ tdTestCopyFrom(sUser = sUser, sPassword = sPassword, sSrc = 'C:\\Windows\\system32\\ole32.dll',
+                                 sDst = sScratchHstInvalid, aFlags = [ 80 ] ),
                   tdTestResult(fRc = False) ],
                 # Nothing to copy (sDst is empty / unreachable).
                 [ tdTestCopyFrom(sUser = sUser, sPassword = sPassword, sSrc = 'z:\\'),
                   tdTestResult(fRc = False) ],
                 [ tdTestCopyFrom(sUser = sUser, sPassword = sPassword, sSrc = '\\\\uncrulez\\foo'),
-
                   tdTestResult(fRc = False) ],
                 [ tdTestCopyFrom(sUser = sUser, sPassword = sPassword, sSrc = 'non-exist',
-                                 sDst = os.path.join(sScratch, 'non-exist.dll')),
+                                 sDst = os.path.join(sScratchHst, 'non-exist.dll')),
                   tdTestResult(fRc = False) ]
-                ## @todo Add testing the CopyFrom aFlags here!
             ]);
 
-            if self.oTstDrv.sHost == 'win':
+            #
+            # Single file handling.
+            #
+            if self.oTstDrv.fpApiVer > 5.2:
                 aaTests.extend([
-                    # FIXME: Failing test.
                     # Copying single files.
-                    # [ tdTestCopyFrom(sUser = sUser, sPassword = sPassword, sSrc = 'C:\\Windows\\system32\\ole32.dll',
-                    #                sDst = 'C:\\non-exist\\'), tdTestResult(fRc = False) ],
-                    # [ tdTestCopyFrom(sUser = sUser, sPassword = sPassword, sSrc = 'C:\\Windows\\system32\\ole32.dll',
-                    #                sDst = 'C:\\non\\exist\\'), tdTestResult(fRc = False) ],
-                    # [ tdTestCopyFrom(sUser = sUser, sPassword = sPassword, sSrc = 'C:\\Windows\\system32\\ole32.dll',
-                    #                sDst = 'C:\\non\\exist\\renamedfile.dll'), tdTestResult(fRc = False) ],
-                    # [ tdTestCopyFrom(sUser = sUser, sPassword = sPassword, sSrc = 'C:\\Windows\\system32\\ole32.dll',
-                    #                sDst = os.path.join(sScratch, 'renamedfile.dll')), tdTestResult(fRc = True) ],
-                    # [ tdTestCopyFrom(sUser = sUser, sPassword = sPassword, sSrc = 'C:\\Windows\\system32\\ole32.dll',
-                    #                sDst = os.path.join(sScratch, 'renamedfile.dll')), tdTestResult(fRc = True) ],
-                    # Destination is a directory, should fail.
                     [ tdTestCopyFrom(sUser = sUser, sPassword = sPassword, sSrc = 'C:\\Windows\\system32\\ole32.dll',
-                                     sDst = sScratch),
+                                     sDst = sScratchHstInvalid),
                       tdTestResult(fRc = False) ],
-                    # Copying directories.
+                    [ tdTestCopyFrom(sUser = sUser, sPassword = sPassword, sSrc = 'C:\\Windows\\system32\\ole32.dll',
+                                     sDst = os.path.join(sScratchHstInvalid, 'renamedfile.dll')),
+                      tdTestResult(fRc = False) ],
+                    # Copy over file using a different destination name.
+                    [ tdTestCopyFrom(sUser = sUser, sPassword = sPassword, sSrc = 'C:\\Windows\\system32\\ole32.dll',
+                                     sDst = os.path.join(sScratchHst, 'renamedfile.dll')),
+                      tdTestResult(fRc = True) ],
+                    # Copy over same file (and overwrite existing one).
+                    [ tdTestCopyFrom(sUser = sUser, sPassword = sPassword, sSrc = 'C:\\Windows\\system32\\ole32.dll',
+                                     sDst = os.path.join(sScratchHst, 'renamedfile.dll')),
+                      tdTestResult(fRc = True) ],
+                    # Note: Copying files into directories via Main is supported only in versions > 5.2.
+                    # Destination is a directory with a trailing slash (should work).
+                    # See "cp" syntax.
+                    [ tdTestCopyFrom(sUser = sUser, sPassword = sPassword, sSrc = 'C:\\Windows\\system32\\ole32.dll',
+                                     sDst = sScratchHst + "/"),
+                      tdTestResult(fRc = True) ],
+                    # Destination is a directory (without a trailing slash, should also work).
+                    # See "cp" syntax.
+                    [ tdTestCopyFrom(sUser = sUser, sPassword = sPassword, sSrc = 'C:\\Windows\\system32\\ole32.dll',
+                                     sDst = sScratchHst),
+                      tdTestResult(fRc = True) ],
+                    # Destination is a non-existing directory.
+                    [ tdTestCopyFrom(sUser = sUser, sPassword = sPassword, sSrc = 'C:\\Windows\\system32\\ole32.dll',
+                                     sDst = sScratchHstNotExist),
+                      tdTestResult(fRc = False) ]
+                ]);
+
+            #
+            # Directory handling.
+            #
+            if self.oTstDrv.fpApiVer > 5.2: # Copying directories via Main is supported only in versions > 5.2.
+                aaTests.extend([
+                    # Copying entire directories (destination is "<sScratchHst>\Web").
                     [ tdTestCopyFrom(sUser = sUser, sPassword = sPassword, sSrc = 'C:\\Windows\\Web',
-                                     sDst = sScratch),
+                                     sDst = sScratchHst),
+                      tdTestResult(fRc = True) ],
+                    # Repeat -- this time it should fail, as the destination directory already exists (and
+                    # DirectoryCopyFlag_CopyIntoExisting is not specified).
+                    [ tdTestCopyFrom(sUser = sUser, sPassword = sPassword, sSrc = 'C:\\Windows\\Web',
+                                     sDst = sScratchHst + "/"),
+                      tdTestResult(fRc = False) ],
+                    # Next try with the DirectoryCopyFlag_CopyIntoExisting flag being set.
+                    [ tdTestCopyFrom(sUser = sUser, sPassword = sPassword, sSrc = 'C:\\Windows\\Web',
+                                     sDst = sScratchHst, aFlags = [ vboxcon.DirectoryCopyFlag_CopyIntoExisting ]),
+                      tdTestResult(fRc = True) ],
+                    # Ditto, with trailing slash.
+                    [ tdTestCopyFrom(sUser = sUser, sPassword = sPassword, sSrc = 'C:\\Windows\\Web',
+                                     sDst = sScratchHst + "/", aFlags = [ vboxcon.DirectoryCopyFlag_CopyIntoExisting ]),
+                      tdTestResult(fRc = True) ],
+                    # Copying contents of directories into a non-existing directory chain on the host which fail.
+                    [ tdTestCopyFrom(sUser = sUser, sPassword = sPassword, sSrc = 'C:\\Windows\\Web\\',
+                                     sDst = sScratchHstNotExistChain,
+                                     aFlags = [ vboxcon.DirectoryCopyFlag_CopyIntoExisting ]),
+                      tdTestResult(fRc = False) ],
+                    # Copying contents of directories into a non-existing directory on the host, which should succeed.
+                    [ tdTestCopyFrom(sUser = sUser, sPassword = sPassword, sSrc = 'C:\\Windows\\Web\\',
+                                     sDst = sScratchHstNotExist,
+                                     aFlags = [ vboxcon.DirectoryCopyFlag_CopyIntoExisting ]),
                       tdTestResult(fRc = True) ]
-                    ## @todo Add testing the CopyFrom aFlags here!
                 ]);
         else:
             reporter.log('No OS-specific tests for non-Windows yet!');
@@ -3464,7 +3440,40 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
             if fRc is False:
                 reporter.error('Test #%d failed: Could not create session' % (i,));
                 break;
-            fRc2 = self.gctrlCopyFrom(curTest, curRes, curGuestSession);
+
+            fRc2 = True;
+
+            try:
+                if self.oTstDrv.fpApiVer >= 5.0:
+                    oFsInfo = curGuestSession.fsObjQueryInfo(curTest.sSrc, True); # fFollowSymlinks
+                else:
+                    oFsInfo = curGuestSession.fileQueryInfo(curTest.sSrc);
+
+                if oFsInfo.type is vboxcon.FsObjType_Directory:
+                    curProgress = curGuestSession.directoryCopyFromGuest(curTest.sSrc, curTest.sDst, curTest.aFlags);
+                    if curProgress is not None:
+                        oProgress = vboxwrappers.ProgressWrapper(curProgress, self.oTstDrv.oVBoxMgr, self.oTstDrv, \
+                                                                 "gctrlDirCopyFrom");
+                        try:
+                            oProgress.wait();
+                            if not oProgress.isSuccess():
+                                oProgress.logResult(fIgnoreErrors = True);
+                                fRc2 = False;
+                        except:
+                            reporter.logXcpt('Waiting exception for sSrc="%s", sDst="%s":' % (curTest.sSrc, curTest.sDst));
+                            fRc2 = False;
+                    else:
+                        reporter.error('No progress object returned');
+                        fRc2 = False;
+                elif oFsInfo.type is vboxcon.FsObjType_File:
+                    fRc2 = self.gctrlCopyFileFrom(curGuestSession, curTest.sSrc, curTest.sDst, curTest.aFlags);
+                else:
+                    reporter.log2('Element "%s" not handled (yet), skipping' % oFsInfo.name);
+
+            except:
+                reporter.logXcpt('Query information exception for sSrc="%s", sDst="%s":' % (curTest.sSrc, curTest.sDst));
+                fRc2 = False;
+
             curTest.closeSession();
             if fRc2 is curRes.fRc:
                 ## @todo Verify the copied results (size, checksum?).
@@ -3562,16 +3571,18 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
             try:
                 curProgress = curTest.oTest.oGuest.updateGuestAdditions(curTest.sSrc, curTest.aArgs, curTest.aFlags);
                 if curProgress is not None:
-                    oProgress = vboxwrappers.ProgressWrapper(curProgress, self.oTstDrv.oVBoxMgr, self, "gctrlUpGA");
+                    oProgress = vboxwrappers.ProgressWrapper(curProgress, self.oTstDrv.oVBoxMgr, self.oTstDrv, "gctrlUpGA");
                     try:
-                        iRc = oProgress.waitForOperation(0, fIgnoreErrors = True);
-                        if iRc != 0:
-                            reporter.log('Waiting for updating Guest Additions failed');
+                        oProgress.wait();
+                        if not oProgress.isSuccess():
+                            oProgress.logResult(fIgnoreErrors = True);
                             fRc = False;
                     except:
-                        reporter.logXcpt('Updating Guest Additions waiting exception for sSrc="%s", aFlags="%s":' \
-                                         % (curTest.sSrc, curTest.aFlags));
+                        reporter.logXcpt('Waiting exception for updating Guest Additions:');
                         fRc = False;
+                else:
+                    reporter.error('No progress object returned');
+                    fRc = False;
             except:
                 # Just log, don't assume an error here (will be done in the main loop then).
                 reporter.logXcpt('Updating Guest Additions exception for sSrc="%s", aFlags="%s":' \
@@ -3598,7 +3609,8 @@ class tdAddGuestCtrl(vbox.TestDriver):                                         #
 
     def __init__(self):
         vbox.TestDriver.__init__(self);
-        self.oTestVmSet = self.oTestVmManager.getStandardVmSet('nat');
+        self.oTestVmSet = self.oTestVmManager.getSmokeVmSet('nat');
+        self.asRsrcs    = None;
         self.fQuick     = False; # Don't skip lengthly tests by default.
         self.addSubTestDriver(SubTstDrvAddGuestCtrl(self));
 
@@ -3739,4 +3751,3 @@ class tdAddGuestCtrl(vbox.TestDriver):                                         #
 
 if __name__ == '__main__':
     sys.exit(tdAddGuestCtrl().main(sys.argv));
-

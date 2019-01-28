@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2004-2017 Oracle Corporation
+ * Copyright (C) 2004-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,25 +19,25 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
+#define LOG_GROUP LOG_GROUP_MAIN_VBOXSVC
 #include <iprt/win/windows.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <tchar.h>
+#ifdef DEBUG_bird
+# include <RpcAsync.h>
+#endif
 
 #include "VBox/com/defs.h"
 #include "VBox/com/com.h"
 #include "VBox/com/VirtualBox.h"
 
 #include "VirtualBoxImpl.h"
-#include "Logging.h"
+#include "LoggingNew.h"
 
 #include "svchlp.h"
 
-#include <VBox/err.h>
+#include <iprt/errcore.h>
 #include <iprt/buildconfig.h>
 #include <iprt/initterm.h>
 #include <iprt/string.h>
-#include <iprt/uni.h>
 #include <iprt/path.h>
 #include <iprt/getopt.h>
 #include <iprt/message.h>
@@ -95,10 +95,10 @@ volatile uint32_t dwTimeOut = dwNormalTimeout; /* time for EXE to be idle before
 
 
 
-/* Passed to CreateThread to monitor the shutdown event */
-static DWORD WINAPI MonitorProc(void* pv)
+/** Passed to CreateThread to monitor the shutdown event. */
+static DWORD WINAPI MonitorProc(void *pv)
 {
-    CExeModule* p = (CExeModule*)pv;
+    CExeModule *p = (CExeModule *)pv;
     p->MonitorShutdown();
     return 0;
 }
@@ -191,6 +191,7 @@ bool CExeModule::StartMonitor()
 
 
 #ifdef VBOX_WITH_SDS
+
 class VBoxSVCRegistration;
 
 /**
@@ -316,6 +317,14 @@ public:
 
 HRESULT VirtualBoxClassFactory::i_registerWithSds(IUnknown **ppOtherVirtualBox)
 {
+# ifdef DEBUG_bird
+    RPC_CALL_ATTRIBUTES_V2_W CallAttribs = { RPC_CALL_ATTRIBUTES_VERSION, RPC_QUERY_CLIENT_PID | RPC_QUERY_IS_CLIENT_LOCAL };
+    RPC_STATUS rcRpc = RpcServerInqCallAttributesW(NULL, &CallAttribs);
+    LogRel(("i_registerWithSds: RpcServerInqCallAttributesW -> %#x ClientPID=%#x IsClientLocal=%d ProtocolSequence=%#x CallStatus=%#x CallType=%#x OpNum=%#x InterfaceUuid=%RTuuid\n",
+            rcRpc, CallAttribs.ClientPID, CallAttribs.IsClientLocal, CallAttribs.ProtocolSequence, CallAttribs.CallStatus,
+            CallAttribs.CallType, CallAttribs.OpNum, &CallAttribs.InterfaceUuid));
+# endif
+
     /*
      * Connect to VBoxSDS.
      */
@@ -367,6 +376,13 @@ void VirtualBoxClassFactory::i_deregisterWithSds(void)
 
 HRESULT VirtualBoxClassFactory::i_getVirtualBox(IUnknown **ppResult)
 {
+# ifdef DEBUG_bird
+    RPC_CALL_ATTRIBUTES_V2_W CallAttribs = { RPC_CALL_ATTRIBUTES_VERSION, RPC_QUERY_CLIENT_PID | RPC_QUERY_IS_CLIENT_LOCAL };
+    RPC_STATUS rcRpc = RpcServerInqCallAttributesW(NULL, &CallAttribs);
+    LogRel(("i_getVirtualBox: RpcServerInqCallAttributesW -> %#x ClientPID=%#x IsClientLocal=%d ProtocolSequence=%#x CallStatus=%#x CallType=%#x OpNum=%#x InterfaceUuid=%RTuuid\n",
+            rcRpc, CallAttribs.ClientPID, CallAttribs.IsClientLocal, CallAttribs.ProtocolSequence, CallAttribs.CallStatus,
+            CallAttribs.CallType, CallAttribs.OpNum, &CallAttribs.InterfaceUuid));
+# endif
     IUnknown *pObj = m_pObj;
     if (pObj)
     {
@@ -384,6 +400,91 @@ HRESULT VirtualBoxClassFactory::i_getVirtualBox(IUnknown **ppResult)
 
 
 /**
+ * Custom instantiation of CComObjectCached.
+ *
+ * This catches certain QueryInterface callers for the purpose of watching for
+ * abnormal client process termination (@bugref{3300}).
+ *
+ * @todo just merge this into class VirtualBox VirtualBoxImpl.h
+ */
+class VirtualBoxObjectCached : public VirtualBox
+{
+public:
+    VirtualBoxObjectCached(void * = NULL)
+        : VirtualBox()
+    {
+    }
+
+    virtual ~VirtualBoxObjectCached()
+    {
+        m_iRef = LONG_MIN / 2; /* Catch refcount screwups by setting refcount something insane. */
+        FinalRelease();
+    }
+
+    /** @name IUnknown implementation for VirtualBox
+     * @{  */
+
+    STDMETHOD_(ULONG, AddRef)() throw()
+    {
+        ULONG cRefs = InternalAddRef();
+        if (cRefs == 2)
+        {
+            AssertMsg(ATL::_pAtlModule, ("ATL: referring to ATL module without having one declared in this linking namespace\n"));
+            ATL::_pAtlModule->Lock();
+        }
+        return cRefs;
+    }
+
+    STDMETHOD_(ULONG, Release)() throw()
+    {
+        ULONG cRefs = InternalRelease();
+        if (cRefs == 0)
+            delete this;
+        else if (cRefs == 1)
+        {
+            AssertMsg(ATL::_pAtlModule, ("ATL: referring to ATL module without having one declared in this linking namespace\n"));
+            ATL::_pAtlModule->Unlock();
+        }
+        return cRefs;
+    }
+
+    STDMETHOD(QueryInterface)(REFIID iid, void **ppvObj) throw()
+    {
+        HRESULT hrc = _InternalQueryInterface(iid, ppvObj);
+#ifdef VBOXSVC_WITH_CLIENT_WATCHER
+        i_logCaller("QueryInterface %RTuuid -> %Rhrc %p", &iid, hrc, *ppvObj);
+#endif
+        return hrc;
+    }
+
+    /** @} */
+
+    static HRESULT WINAPI CreateInstance(VirtualBoxObjectCached **ppObj) throw()
+    {
+        AssertReturn(ppObj, E_POINTER);
+        *ppObj = NULL;
+
+        HRESULT hrc = E_OUTOFMEMORY;
+        VirtualBoxObjectCached *p = new (std::nothrow) VirtualBoxObjectCached();
+        if (p)
+        {
+            p->SetVoid(NULL);
+            p->InternalFinalConstructAddRef();
+            hrc = p->_AtlInitialConstruct();
+            if (SUCCEEDED(hrc))
+                hrc = p->FinalConstruct();
+            p->InternalFinalConstructRelease();
+            if (FAILED(hrc))
+                delete p;
+            else
+                *ppObj = p;
+        }
+        return hrc;
+    }
+};
+
+
+/**
  * Custom class factory impl for the VirtualBox singleton.
  *
  * This will consult with VBoxSDS on whether this VBoxSVC instance should
@@ -398,6 +499,9 @@ HRESULT VirtualBoxClassFactory::i_getVirtualBox(IUnknown **ppResult)
  */
 STDMETHODIMP VirtualBoxClassFactory::CreateInstance(LPUNKNOWN pUnkOuter, REFIID riid, void **ppvObj)
 {
+# ifdef VBOXSVC_WITH_CLIENT_WATCHER
+    VirtualBox::i_logCaller("VirtualBoxClassFactory::CreateInstance: %RTuuid", riid);
+# endif
     HRESULT hrc = E_POINTER;
     if (ppvObj != NULL)
     {
@@ -434,8 +538,8 @@ STDMETHODIMP VirtualBoxClassFactory::CreateInstance(LPUNKNOWN pUnkOuter, REFIID 
                         else if (SUCCEEDED(hrc))
                         {
                             ATL::_pAtlModule->Lock();
-                            ATL::CComObjectCached<VirtualBox> *p;
-                            m_hrcCreate = hrc = ATL::CComObjectCached<VirtualBox>::CreateInstance(&p);
+                            VirtualBoxObjectCached *p;
+                            m_hrcCreate = hrc = VirtualBoxObjectCached::CreateInstance(&p);
                             if (SUCCEEDED(hrc))
                             {
                                 m_hrcCreate = hrc = p->QueryInterface(IID_IUnknown, (void **)&m_pObj);
@@ -480,7 +584,7 @@ STDMETHODIMP VirtualBoxClassFactory::CreateInstance(LPUNKNOWN pUnkOuter, REFIID 
     return hrc;
 }
 
-#endif /* VBOX_WITH_SDS */
+#endif // VBOX_WITH_SDS
 
 
 /*
@@ -631,6 +735,15 @@ static void DestroyMainWindow()
 }
 
 
+/** Special export that make VBoxProxyStub not register this process as one that
+ * VBoxSDS should be watching.
+ */
+extern "C" DECLEXPORT(void) VBOXCALL Is_VirtualBox_service_process_like_VBoxSDS_And_VBoxSDS(void)
+{
+    /* never called, just need to be here */
+}
+
+
 /////////////////////////////////////////////////////////////////////////////
 //
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/, LPSTR /*lpCmdLine*/, int /*nShowCmd*/)
@@ -761,28 +874,28 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/, LPSTR /*lpC
 
             case 'h':
             {
-                TCHAR txt[]= L"Options:\n\n"
-                             L"/RegServer:\tregister COM out-of-proc server\n"
-                             L"/UnregServer:\tunregister COM out-of-proc server\n"
-                             L"/ReregServer:\tunregister and register COM server\n"
-                             L"no options:\trun the server";
-                TCHAR title[]=_T("Usage");
+                static const WCHAR s_wszText[]  = L"Options:\n\n"
+                                                  L"/RegServer:\tregister COM out-of-proc server\n"
+                                                  L"/UnregServer:\tunregister COM out-of-proc server\n"
+                                                  L"/ReregServer:\tunregister and register COM server\n"
+                                                  L"no options:\trun the server";
+                static const WCHAR s_wszTitle[] = L"Usage";
                 fRun = false;
-                MessageBox(NULL, txt, title, MB_OK);
+                MessageBoxW(NULL, s_wszText, s_wszTitle, MB_OK);
                 return 0;
             }
 
             case 'V':
             {
-                char *psz = NULL;
-                RTStrAPrintf(&psz, "%sr%s\n", RTBldCfgVersion(), RTBldCfgRevisionStr());
-                PRTUTF16 txt = NULL;
-                RTStrToUtf16(psz, &txt);
-                TCHAR title[]=_T("Version");
+                static const WCHAR s_wszTitle[] = L"Version";
+                char         *pszText = NULL;
+                RTStrAPrintf(&pszText, "%sr%s\n", RTBldCfgVersion(), RTBldCfgRevisionStr());
+                PRTUTF16     pwszText = NULL;
+                RTStrToUtf16(pszText, &pwszText);
+                RTStrFree(pszText);
+                MessageBoxW(NULL, pwszText, s_wszTitle, MB_OK);
+                RTUtf16Free(pwszText);
                 fRun = false;
-                MessageBox(NULL, txt, title, MB_OK);
-                RTStrFree(psz);
-                RTUtf16Free(txt);
                 return 0;
             }
 
@@ -872,7 +985,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/, LPSTR /*lpC
             }
             if (RT_FAILURE(vrc))
             {
-                Log(("SVCMAIN: Failed to process Helper request (%Rrc).", vrc));
+                Log(("SVCMAIN: Failed to process Helper request (%Rrc).\n", vrc));
                 nRet = 1;
             }
         }

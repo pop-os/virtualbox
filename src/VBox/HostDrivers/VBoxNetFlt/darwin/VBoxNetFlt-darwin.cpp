@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1070,6 +1070,8 @@ static int vboxNetFltDarwinAttachToInterface(PVBOXNETFLTINS pThis, bool fRedisco
         return VERR_INTNET_FLT_IF_NOT_FOUND;
     }
 
+    AssertCompileMemberAlignment(VBOXNETFLTINS, u.s.pIfNet, ARCH_BITS / 8);
+    AssertMsg(!((uintptr_t)&pThis->u.s.pIfNet & (ARCH_BITS / 8 - 1)), ("pThis=%p\n", pThis));
     RTSpinlockAcquire(pThis->hSpinlock);
     ASMAtomicUoWritePtr(&pThis->u.s.pIfNet, pIfNet);
     RTSpinlockRelease(pThis->hSpinlock);

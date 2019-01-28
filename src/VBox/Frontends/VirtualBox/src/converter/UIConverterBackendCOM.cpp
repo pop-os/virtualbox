@@ -1,10 +1,10 @@
 /* $Id: UIConverterBackendCOM.cpp $ */
 /** @file
- * VBox Qt GUI - UIConverterBackend implementation.
+ * VBox Qt GUI - UIConverterBackendCOM implementation.
  */
 
 /*
- * Copyright (C) 2012-2017 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,22 +15,16 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QApplication>
-# include <QHash>
+#include <QApplication>
+#include <QHash>
 
 /* GUI includes: */
-# include "UIConverterBackend.h"
-# include "UIIconPool.h"
+#include "UIConverterBackend.h"
+#include "UIIconPool.h"
 
 /* COM includes: */
-# include "COMEnums.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "COMEnums.h"
 
 
 /* Determines if <Object of type X> can be converted to object of other type.
@@ -42,6 +36,7 @@ template<> bool canConvert<KDeviceType>() { return true; }
 template<> bool canConvert<KClipboardMode>() { return true; }
 template<> bool canConvert<KDnDMode>() { return true; }
 template<> bool canConvert<KPointingHIDType>() { return true; }
+template<> bool canConvert<KGraphicsControllerType>() { return true; }
 template<> bool canConvert<KMediumType>() { return true; }
 template<> bool canConvert<KMediumVariant>() { return true; }
 template<> bool canConvert<KNetworkAttachmentType>() { return true; }
@@ -58,6 +53,7 @@ template<> bool canConvert<KStorageBus>() { return true; }
 template<> bool canConvert<KStorageControllerType>() { return true; }
 template<> bool canConvert<KChipsetType>() { return true; }
 template<> bool canConvert<KNATProtocol>() { return true; }
+
 
 /* QColor <= KMachineState: */
 template<> QColor toColor(const KMachineState &state)
@@ -260,6 +256,35 @@ template<> QString toString(const KPointingHIDType &type)
     return QString();
 }
 
+/* QString <= KGraphicsControllerType: */
+template<> QString toString(const KGraphicsControllerType &type)
+{
+    switch (type)
+    {
+        case KGraphicsControllerType_Null:     return QApplication::translate("VBoxGlobal", "None",     "GraphicsControllerType");
+        case KGraphicsControllerType_VBoxVGA:  return QApplication::translate("VBoxGlobal", "VBoxVGA",  "GraphicsControllerType");
+        case KGraphicsControllerType_VMSVGA:   return QApplication::translate("VBoxGlobal", "VMSVGA",   "GraphicsControllerType");
+        case KGraphicsControllerType_VBoxSVGA: return QApplication::translate("VBoxGlobal", "VBoxSVGA", "GraphicsControllerType");
+        default: AssertMsgFailed(("No text for %d", type)); break;
+    }
+    return QString();
+}
+
+/* KGraphicsControllerType <= QString: */
+template<> KGraphicsControllerType fromString<KGraphicsControllerType>(const QString &strType)
+{
+    QHash<QString, KGraphicsControllerType> list;
+    list.insert(QApplication::translate("VBoxGlobal", "None",     "GraphicsControllerType"), KGraphicsControllerType_Null);
+    list.insert(QApplication::translate("VBoxGlobal", "VBoxVGA",  "GraphicsControllerType"), KGraphicsControllerType_VBoxVGA);
+    list.insert(QApplication::translate("VBoxGlobal", "VMSVGA",   "GraphicsControllerType"), KGraphicsControllerType_VMSVGA);
+    list.insert(QApplication::translate("VBoxGlobal", "VBoxSVGA", "GraphicsControllerType"), KGraphicsControllerType_VBoxSVGA);
+    if (!list.contains(strType))
+    {
+        AssertMsgFailed(("No value for '%s'", strType.toUtf8().constData()));
+    }
+    return list.value(strType, KGraphicsControllerType_Null);
+}
+
 /* QString <= KMediumType: */
 template<> QString toString(const KMediumType &type)
 {
@@ -279,12 +304,8 @@ template<> QString toString(const KMediumType &type)
 /* QString <= KMediumVariant: */
 template<> QString toString(const KMediumVariant &variant)
 {
-#ifdef _MSC_VER
-# pragma warning(push)
-# pragma warning(disable:4063) /* warning C4063: case '65537' is not a valid value for switch of enum 'KMediumVariant' */
-#endif
     /* Note: KMediumVariant_Diff and KMediumVariant_Fixed are so far mutually exclusive: */
-    switch (variant)
+    switch ((int)variant)
     {
         case KMediumVariant_Standard:
             return QApplication::translate("VBoxGlobal", "Dynamically allocated storage", "MediumVariant");
@@ -311,9 +332,6 @@ template<> QString toString(const KMediumVariant &variant)
         default:
             AssertMsgFailed(("No text for %d", variant)); break;
     }
-#ifdef _MSC_VER
-# pragma warning(pop)
-#endif
     return QString();
 }
 
@@ -384,6 +402,22 @@ template<> QString toString(const KPortMode &mode)
     return QString();
 }
 
+/* KPortMode <= QString: */
+template<> KPortMode fromString<KPortMode>(const QString &strMode)
+{
+    QHash<QString, KPortMode> list;
+    list.insert(QApplication::translate("VBoxGlobal", "Disconnected", "PortMode"), KPortMode_Disconnected);
+    list.insert(QApplication::translate("VBoxGlobal", "Host Pipe", "PortMode"),    KPortMode_HostPipe);
+    list.insert(QApplication::translate("VBoxGlobal", "Host Device", "PortMode"),  KPortMode_HostDevice);
+    list.insert(QApplication::translate("VBoxGlobal", "Raw File", "PortMode"),     KPortMode_RawFile);
+    list.insert(QApplication::translate("VBoxGlobal", "TCP", "PortMode"),          KPortMode_TCP);
+    if (!list.contains(strMode))
+    {
+        AssertMsgFailed(("No value for '%s'", strMode.toUtf8().constData()));
+    }
+    return list.value(strMode, KPortMode_Disconnected);
+}
+
 /* QString <= KUSBControllerType: */
 template<> QString toString(const KUSBControllerType &type)
 {
@@ -425,6 +459,19 @@ template<> QString toString(const KUSBDeviceFilterAction &action)
     return QString();
 }
 
+/* KUSBDeviceFilterAction <= QString: */
+template<> KUSBDeviceFilterAction fromString<KUSBDeviceFilterAction>(const QString &strAction)
+{
+    QHash<QString, KUSBDeviceFilterAction> list;
+    list.insert(QApplication::translate("VBoxGlobal", "Ignore", "USBDeviceFilterAction"), KUSBDeviceFilterAction_Ignore);
+    list.insert(QApplication::translate("VBoxGlobal", "Hold", "USBDeviceFilterAction"),   KUSBDeviceFilterAction_Hold);
+    if (!list.contains(strAction))
+    {
+        AssertMsgFailed(("No value for '%s'", strAction.toUtf8().constData()));
+    }
+    return list.value(strAction, KUSBDeviceFilterAction_Null);
+}
+
 /* QString <= KAudioDriverType: */
 template<> QString toString(const KAudioDriverType &type)
 {
@@ -444,6 +491,26 @@ template<> QString toString(const KAudioDriverType &type)
     return QString();
 }
 
+/* KAudioDriverType <= QString: */
+template<> KAudioDriverType fromString<KAudioDriverType>(const QString &strType)
+{
+    QHash<QString, KAudioDriverType> list;
+    list.insert(QApplication::translate("VBoxGlobal", "Null Audio Driver", "AudioDriverType"),   KAudioDriverType_Null);
+    list.insert(QApplication::translate("VBoxGlobal", "Windows Multimedia", "AudioDriverType"),  KAudioDriverType_WinMM);
+    list.insert(QApplication::translate("VBoxGlobal", "OSS Audio Driver", "AudioDriverType"),    KAudioDriverType_OSS);
+    list.insert(QApplication::translate("VBoxGlobal", "ALSA Audio Driver", "AudioDriverType"),   KAudioDriverType_ALSA);
+    list.insert(QApplication::translate("VBoxGlobal", "Windows DirectSound", "AudioDriverType"), KAudioDriverType_DirectSound);
+    list.insert(QApplication::translate("VBoxGlobal", "CoreAudio", "AudioDriverType"),           KAudioDriverType_CoreAudio);
+    // list.insert(..., KAudioDriverType_MMPM);
+    list.insert(QApplication::translate("VBoxGlobal", "PulseAudio", "AudioDriverType"),          KAudioDriverType_Pulse);
+    list.insert(QApplication::translate("VBoxGlobal", "Solaris Audio", "AudioDriverType"),       KAudioDriverType_SolAudio);
+    if (!list.contains(strType))
+    {
+        AssertMsgFailed(("No value for '%s'", strType.toUtf8().constData()));
+    }
+    return list.value(strType, KAudioDriverType_Null);
+}
+
 /* QString <= KAudioControllerType: */
 template<> QString toString(const KAudioControllerType &type)
 {
@@ -457,6 +524,20 @@ template<> QString toString(const KAudioControllerType &type)
     return QString();
 }
 
+/* KAudioControllerType <= QString: */
+template<> KAudioControllerType fromString<KAudioControllerType>(const QString &strType)
+{
+    QHash<QString, KAudioControllerType> list;
+    list.insert(QApplication::translate("VBoxGlobal", "ICH AC97", "AudioControllerType"),        KAudioControllerType_AC97);
+    list.insert(QApplication::translate("VBoxGlobal", "SoundBlaster 16", "AudioControllerType"), KAudioControllerType_SB16);
+    list.insert(QApplication::translate("VBoxGlobal", "Intel HD Audio", "AudioControllerType"),  KAudioControllerType_HDA);
+    if (!list.contains(strType))
+    {
+        AssertMsgFailed(("No value for '%s'", strType.toUtf8().constData()));
+    }
+    return list.value(strType, KAudioControllerType_AC97);
+}
+
 /* QString <= KAuthType: */
 template<> QString toString(const KAuthType &type)
 {
@@ -468,6 +549,20 @@ template<> QString toString(const KAuthType &type)
         default: AssertMsgFailed(("No text for %d", type)); break;
     }
     return QString();
+}
+
+/* KAuthType <= QString: */
+template<> KAuthType fromString<KAuthType>(const QString &strType)
+{
+    QHash<QString, KAuthType> list;
+    list.insert(QApplication::translate("VBoxGlobal", "Null", "AuthType"),     KAuthType_Null);
+    list.insert(QApplication::translate("VBoxGlobal", "External", "AuthType"), KAuthType_External);
+    list.insert(QApplication::translate("VBoxGlobal", "Guest", "AuthType"),    KAuthType_Guest);
+    if (!list.contains(strType))
+    {
+        AssertMsgFailed(("No value for '%s'", strType.toUtf8().constData()));
+    }
+    return list.value(strType, KAuthType_Null);
 }
 
 /* QString <= KStorageBus: */
@@ -505,6 +600,27 @@ template<> QString toString(const KStorageControllerType &type)
         default: AssertMsgFailed(("No text for %d", type)); break;
     }
     return QString();
+}
+
+/* KStorageControllerType <= QString: */
+template<> KStorageControllerType fromString<KStorageControllerType>(const QString &strType)
+{
+    QHash<QString, KStorageControllerType> list;
+    list.insert(QApplication::translate("VBoxGlobal", "Lsilogic", "StorageControllerType"),     KStorageControllerType_LsiLogic);
+    list.insert(QApplication::translate("VBoxGlobal", "BusLogic", "StorageControllerType"),     KStorageControllerType_BusLogic);
+    list.insert(QApplication::translate("VBoxGlobal", "AHCI", "StorageControllerType"),         KStorageControllerType_IntelAhci);
+    list.insert(QApplication::translate("VBoxGlobal", "PIIX3", "StorageControllerType"),        KStorageControllerType_PIIX3);
+    list.insert(QApplication::translate("VBoxGlobal", "PIIX4", "StorageControllerType"),        KStorageControllerType_PIIX4);
+    list.insert(QApplication::translate("VBoxGlobal", "ICH6", "StorageControllerType"),         KStorageControllerType_ICH6);
+    list.insert(QApplication::translate("VBoxGlobal", "I82078", "StorageControllerType"),       KStorageControllerType_I82078);
+    list.insert(QApplication::translate("VBoxGlobal", "LsiLogic SAS", "StorageControllerType"), KStorageControllerType_LsiLogicSas);
+    list.insert(QApplication::translate("VBoxGlobal", "USB", "StorageControllerType"),          KStorageControllerType_USB);
+    list.insert(QApplication::translate("VBoxGlobal", "NVMe", "StorageControllerType"),         KStorageControllerType_NVMe);
+    if (!list.contains(strType))
+    {
+        AssertMsgFailed(("No value for '%s'", strType.toUtf8().constData()));
+    }
+    return list.value(strType, KStorageControllerType_Null);
 }
 
 /* QString <= KChipsetType: */
@@ -561,102 +677,3 @@ template<> KNATProtocol fromInternalString<KNATProtocol>(const QString &strProto
     /* Corresponding type for known words: */
     return values.at(keys.indexOf(QRegExp(strProtocol, Qt::CaseInsensitive)));
 }
-
-/* KPortMode <= QString: */
-template<> KPortMode fromString<KPortMode>(const QString &strMode)
-{
-    QHash<QString, KPortMode> list;
-    list.insert(QApplication::translate("VBoxGlobal", "Disconnected", "PortMode"), KPortMode_Disconnected);
-    list.insert(QApplication::translate("VBoxGlobal", "Host Pipe", "PortMode"),    KPortMode_HostPipe);
-    list.insert(QApplication::translate("VBoxGlobal", "Host Device", "PortMode"),  KPortMode_HostDevice);
-    list.insert(QApplication::translate("VBoxGlobal", "Raw File", "PortMode"),     KPortMode_RawFile);
-    list.insert(QApplication::translate("VBoxGlobal", "TCP", "PortMode"),          KPortMode_TCP);
-    if (!list.contains(strMode))
-    {
-        AssertMsgFailed(("No value for '%s'", strMode.toUtf8().constData()));
-    }
-    return list.value(strMode, KPortMode_Disconnected);
-}
-
-/* KUSBDeviceFilterAction <= QString: */
-template<> KUSBDeviceFilterAction fromString<KUSBDeviceFilterAction>(const QString &strAction)
-{
-    QHash<QString, KUSBDeviceFilterAction> list;
-    list.insert(QApplication::translate("VBoxGlobal", "Ignore", "USBDeviceFilterAction"), KUSBDeviceFilterAction_Ignore);
-    list.insert(QApplication::translate("VBoxGlobal", "Hold", "USBDeviceFilterAction"),   KUSBDeviceFilterAction_Hold);
-    if (!list.contains(strAction))
-    {
-        AssertMsgFailed(("No value for '%s'", strAction.toUtf8().constData()));
-    }
-    return list.value(strAction, KUSBDeviceFilterAction_Null);
-}
-
-/* KAudioDriverType <= QString: */
-template<> KAudioDriverType fromString<KAudioDriverType>(const QString &strType)
-{
-    QHash<QString, KAudioDriverType> list;
-    list.insert(QApplication::translate("VBoxGlobal", "Null Audio Driver", "AudioDriverType"),   KAudioDriverType_Null);
-    list.insert(QApplication::translate("VBoxGlobal", "Windows Multimedia", "AudioDriverType"),  KAudioDriverType_WinMM);
-    list.insert(QApplication::translate("VBoxGlobal", "OSS Audio Driver", "AudioDriverType"),    KAudioDriverType_OSS);
-    list.insert(QApplication::translate("VBoxGlobal", "ALSA Audio Driver", "AudioDriverType"),   KAudioDriverType_ALSA);
-    list.insert(QApplication::translate("VBoxGlobal", "Windows DirectSound", "AudioDriverType"), KAudioDriverType_DirectSound);
-    list.insert(QApplication::translate("VBoxGlobal", "CoreAudio", "AudioDriverType"),           KAudioDriverType_CoreAudio);
-    // list.insert(..., KAudioDriverType_MMPM);
-    list.insert(QApplication::translate("VBoxGlobal", "PulseAudio", "AudioDriverType"),          KAudioDriverType_Pulse);
-    list.insert(QApplication::translate("VBoxGlobal", "Solaris Audio", "AudioDriverType"),       KAudioDriverType_SolAudio);
-    if (!list.contains(strType))
-    {
-        AssertMsgFailed(("No value for '%s'", strType.toUtf8().constData()));
-    }
-    return list.value(strType, KAudioDriverType_Null);
-}
-
-/* KAudioControllerType <= QString: */
-template<> KAudioControllerType fromString<KAudioControllerType>(const QString &strType)
-{
-    QHash<QString, KAudioControllerType> list;
-    list.insert(QApplication::translate("VBoxGlobal", "ICH AC97", "AudioControllerType"),        KAudioControllerType_AC97);
-    list.insert(QApplication::translate("VBoxGlobal", "SoundBlaster 16", "AudioControllerType"), KAudioControllerType_SB16);
-    list.insert(QApplication::translate("VBoxGlobal", "Intel HD Audio", "AudioControllerType"),  KAudioControllerType_HDA);
-    if (!list.contains(strType))
-    {
-        AssertMsgFailed(("No value for '%s'", strType.toUtf8().constData()));
-    }
-    return list.value(strType, KAudioControllerType_AC97);
-}
-
-/* KAuthType <= QString: */
-template<> KAuthType fromString<KAuthType>(const QString &strType)
-{
-    QHash<QString, KAuthType> list;
-    list.insert(QApplication::translate("VBoxGlobal", "Null", "AuthType"),     KAuthType_Null);
-    list.insert(QApplication::translate("VBoxGlobal", "External", "AuthType"), KAuthType_External);
-    list.insert(QApplication::translate("VBoxGlobal", "Guest", "AuthType"),    KAuthType_Guest);
-    if (!list.contains(strType))
-    {
-        AssertMsgFailed(("No value for '%s'", strType.toUtf8().constData()));
-    }
-    return list.value(strType, KAuthType_Null);
-}
-
-/* KStorageControllerType <= QString: */
-template<> KStorageControllerType fromString<KStorageControllerType>(const QString &strType)
-{
-    QHash<QString, KStorageControllerType> list;
-    list.insert(QApplication::translate("VBoxGlobal", "Lsilogic", "StorageControllerType"),     KStorageControllerType_LsiLogic);
-    list.insert(QApplication::translate("VBoxGlobal", "BusLogic", "StorageControllerType"),     KStorageControllerType_BusLogic);
-    list.insert(QApplication::translate("VBoxGlobal", "AHCI", "StorageControllerType"),         KStorageControllerType_IntelAhci);
-    list.insert(QApplication::translate("VBoxGlobal", "PIIX3", "StorageControllerType"),        KStorageControllerType_PIIX3);
-    list.insert(QApplication::translate("VBoxGlobal", "PIIX4", "StorageControllerType"),        KStorageControllerType_PIIX4);
-    list.insert(QApplication::translate("VBoxGlobal", "ICH6", "StorageControllerType"),         KStorageControllerType_ICH6);
-    list.insert(QApplication::translate("VBoxGlobal", "I82078", "StorageControllerType"),       KStorageControllerType_I82078);
-    list.insert(QApplication::translate("VBoxGlobal", "LsiLogic SAS", "StorageControllerType"), KStorageControllerType_LsiLogicSas);
-    list.insert(QApplication::translate("VBoxGlobal", "USB", "StorageControllerType"),          KStorageControllerType_USB);
-    list.insert(QApplication::translate("VBoxGlobal", "NVMe", "StorageControllerType"),         KStorageControllerType_NVMe);
-    if (!list.contains(strType))
-    {
-        AssertMsgFailed(("No value for '%s'", strType.toUtf8().constData()));
-    }
-    return list.value(strType, KStorageControllerType_Null);
-}
-

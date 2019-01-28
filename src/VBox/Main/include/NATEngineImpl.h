@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,8 +17,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ____H_NATENGINE
-#define ____H_NATENGINE
+#ifndef MAIN_INCLUDED_NATEngineImpl_h
+#define MAIN_INCLUDED_NATEngineImpl_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "NATEngineWrap.h"
 
@@ -106,4 +109,4 @@ private:
     Machine * const mParent;
     INetworkAdapter * const mAdapter;
 };
-#endif
+#endif /* !MAIN_INCLUDED_NATEngineImpl_h */

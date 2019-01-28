@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -94,8 +94,8 @@ VMMR3_INT_DECL(int) PGMR3HandlerPhysicalTypeRegisterEx(PVM pVM, PGMPHYSHANDLERKI
     AssertPtrReturn(pfnHandlerR3, VERR_INVALID_POINTER);
     AssertReturn(pfnHandlerR0   != NIL_RTR0PTR, VERR_INVALID_POINTER);
     AssertReturn(pfnPfHandlerR0 != NIL_RTR0PTR, VERR_INVALID_POINTER);
-    AssertReturn(pfnHandlerRC   != NIL_RTRCPTR || HMIsEnabled(pVM), VERR_INVALID_POINTER);
-    AssertReturn(pfnPfHandlerRC != NIL_RTRCPTR || HMIsEnabled(pVM), VERR_INVALID_POINTER);
+    AssertReturn(pfnHandlerRC   != NIL_RTRCPTR || !VM_IS_RAW_MODE_ENABLED(pVM), VERR_INVALID_POINTER);
+    AssertReturn(pfnPfHandlerRC != NIL_RTRCPTR || !VM_IS_RAW_MODE_ENABLED(pVM), VERR_INVALID_POINTER);
     AssertPtrReturn(pszDesc, VERR_INVALID_POINTER);
     AssertReturn(   enmKind == PGMPHYSHANDLERKIND_WRITE
                  || enmKind == PGMPHYSHANDLERKIND_ALL
@@ -193,7 +193,7 @@ VMMR3DECL(int) PGMR3HandlerPhysicalTypeRegister(PVM pVM, PGMPHYSHANDLERKIND enmK
              */
             RTRCPTR pfnHandlerRC   = NIL_RTRCPTR;
             RTRCPTR pfnPfHandlerRC = NIL_RTRCPTR;
-            if (!HMIsEnabled(pVM))
+            if (VM_IS_RAW_MODE_ENABLED(pVM))
             {
                 rc = PDMR3LdrGetSymbolRCLazy(pVM, pszHandlerRC ? pszModRC : NULL, NULL /*pszSearchPath*/,
                                              pszHandlerRC ? pszHandlerRC : "pgmPhysHandlerRedirectToHC", &pfnHandlerRC);
@@ -267,7 +267,19 @@ static DECLCALLBACK(int) pgmR3HandlerPhysicalOneClear(PAVLROGCPHYSNODECORE pNode
         PPGMPAGE pPage;
         int rc = pgmPhysGetPageWithHintEx(pVM, GCPhys, &pPage, &pRamHint);
         if (RT_SUCCESS(rc))
+        {
             PGM_PAGE_SET_HNDL_PHYS_STATE(pPage, PGM_PAGE_HNDL_PHYS_STATE_NONE);
+
+            /* Tell NEM about the protection change. */
+            if (VM_IS_NEM_ENABLED(pVM))
+            {
+                uint8_t     u2State = PGM_PAGE_GET_NEM_STATE(pPage);
+                PGMPAGETYPE enmType = (PGMPAGETYPE)PGM_PAGE_GET_TYPE(pPage);
+                NEMHCNotifyPhysPageProtChanged(pVM, GCPhys, PGM_PAGE_GET_HCPHYS(pPage),
+                                               pgmPhysPageCalcNemProtection(pPage, enmType), enmType, &u2State);
+                PGM_PAGE_SET_NEM_STATE(pPage, u2State);
+            }
+        }
         else
             AssertRC(rc);
 
@@ -299,7 +311,19 @@ static DECLCALLBACK(int) pgmR3HandlerPhysicalOneSet(PAVLROGCPHYSNODECORE pNode, 
         PPGMPAGE pPage;
         int rc = pgmPhysGetPageWithHintEx(pVM, GCPhys, &pPage, &pRamHint);
         if (RT_SUCCESS(rc))
+        {
             PGM_PAGE_SET_HNDL_PHYS_STATE(pPage, uState);
+
+            /* Tell NEM about the protection change. */
+            if (VM_IS_NEM_ENABLED(pVM))
+            {
+                uint8_t     u2State = PGM_PAGE_GET_NEM_STATE(pPage);
+                PGMPAGETYPE enmType = (PGMPAGETYPE)PGM_PAGE_GET_TYPE(pPage);
+                NEMHCNotifyPhysPageProtChanged(pVM, GCPhys, PGM_PAGE_GET_HCPHYS(pPage),
+                                               pgmPhysPageCalcNemProtection(pPage, enmType), enmType, &u2State);
+                PGM_PAGE_SET_NEM_STATE(pPage, u2State);
+            }
+        }
         else
             AssertRC(rc);
 
@@ -337,7 +361,7 @@ VMMR3_INT_DECL(int) PGMR3HandlerVirtualTypeRegisterEx(PVM pVM, PGMVIRTHANDLERKIN
                                                       RCPTRTYPE(FNPGMRCVIRTPFHANDLER) pfnPfHandlerRC,
                                                       const char *pszDesc, PPGMVIRTHANDLERTYPE phType)
 {
-    AssertReturn(!HMIsEnabled(pVM), VERR_NOT_AVAILABLE); /* Not supported/relevant for VT-x and AMD-V. */
+    AssertReturn(VM_IS_RAW_MODE_ENABLED(pVM), VERR_NOT_AVAILABLE); /* Only supported/relevant for raw-mode. */
     AssertReturn(   enmKind == PGMVIRTHANDLERKIND_WRITE
                  || enmKind == PGMVIRTHANDLERKIND_ALL
                  || enmKind == PGMVIRTHANDLERKIND_HYPERVISOR,
@@ -465,7 +489,7 @@ VMMR3_INT_DECL(int) PGMR3HandlerVirtualTypeRegister(PVM pVM, PGMVIRTHANDLERKIND 
 VMMR3_INT_DECL(int) PGMR3HandlerVirtualRegister(PVM pVM, PVMCPU pVCpu, PGMVIRTHANDLERTYPE hType, RTGCPTR GCPtr, RTGCPTR GCPtrLast,
                                                 void *pvUserR3, RTRCPTR pvUserRC, const char *pszDesc)
 {
-    AssertReturn(!HMIsEnabled(pVM), VERR_NOT_AVAILABLE); /* Not supported/relevant for VT-x and AMD-V. */
+    AssertReturn(VM_IS_RAW_MODE_ENABLED(pVM), VERR_NOT_AVAILABLE); /* Only supported/relevant for raw-mode. */
     PPGMVIRTHANDLERTYPEINT pType = PGMVIRTHANDLERTYPEINT_FROM_HANDLE(pVM, hType);
     Log(("PGMR3HandlerVirtualRegister: GCPhys=%RGp GCPhysLast=%RGp pvUserR3=%RHv pvUserGC=%RRv hType=%#x (%d, %s) pszDesc=%RHv:%s\n",
          GCPtr, GCPtrLast, pvUserR3, pvUserRC, hType, pType->enmKind, R3STRING(pType->pszDesc), pszDesc, R3STRING(pszDesc)));

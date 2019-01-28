@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -52,6 +52,11 @@
  * of the LGPL is applied is otherwise unspecified.
  */
 
+#ifndef VBOX_INCLUDED_SRC_PC_BIOS_ata_h
+#define VBOX_INCLUDED_SRC_PC_BIOS_ata_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #define ATA_DATA_NO      0x00
 #define ATA_DATA_IN      0x01
@@ -179,43 +184,7 @@
 #define ATA_CMD_WRITE_SECTORS_EXT            0x34
 #define ATA_CMD_WRITE_VERIFY                 0x3C
 
-// for access to the int13ext structure
-typedef struct {
-    uint8_t     size;
-    uint8_t     reserved;
-    uint16_t    count;
-    uint16_t    offset;
-    uint16_t    segment;
-    uint32_t    lba1;
-    uint32_t    lba2;
-} int13ext_t;
-
-#define Int13Ext ((int13ext_t *) 0)
-
-// Disk Physical Table definition
-typedef struct {
-    uint16_t    size;
-    uint16_t    infos;
-    uint32_t    cylinders;
-    uint32_t    heads;
-    uint32_t    spt;
-    uint32_t    sector_count1;
-    uint32_t    sector_count2;
-    uint16_t    blksize;
-    uint16_t    dpte_offset;
-    uint16_t    dpte_segment;
-    uint16_t    key;
-    uint8_t     dpi_length;
-    uint8_t     reserved1;
-    uint16_t    reserved2;
-    uint8_t     host_bus[4];
-    uint8_t     iface_type[8];
-    uint8_t     iface_path[8];
-    uint8_t     device_path[8];
-    uint8_t     reserved3;
-    uint8_t     checksum;
-} dpt_t;
-
-#define Int13DPT ((dpt_t *) 0)
-
 extern void     ata_reset(uint16_t device);
+
+#endif /* !VBOX_INCLUDED_SRC_PC_BIOS_ata_h */
+

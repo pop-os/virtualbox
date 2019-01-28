@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -82,8 +82,9 @@
 *********************************************************************************************************************************/
 /* Enable dev_vmm Log3 statements to get IRQ-related logging. */
 #define LOG_GROUP LOG_GROUP_DEV_VMM
-#include <VBoxVideo.h>  /* For VBVA definitions. */
+#include <VBox/AssertGuest.h>
 #include <VBox/VMMDev.h>
+#include <VBox/vmm/dbgf.h>
 #include <VBox/vmm/mm.h>
 #include <VBox/log.h>
 #include <VBox/param.h>
@@ -149,6 +150,7 @@
 
 
 #ifndef VBOX_DEVICE_STRUCT_TESTCASE
+#ifdef IN_RING3
 
 /* -=-=-=-=- Misc Helpers -=-=-=-=- */
 
@@ -169,6 +171,7 @@ static void vmmdevLogGuestOsInfo(VBoxGuestInfo *pGuestInfo)
         case VBOXOSTYPE_Win98:                            pszOs = "Windows 98";     break;
         case VBOXOSTYPE_WinMe:                            pszOs = "Windows Me";     break;
         case VBOXOSTYPE_WinNT:                            pszOs = "Windows NT";     break;
+        case VBOXOSTYPE_WinNT3x:                          pszOs = "Windows NT 3.x"; break;
         case VBOXOSTYPE_WinNT4:                           pszOs = "Windows NT4";    break;
         case VBOXOSTYPE_Win2k:                            pszOs = "Windows 2k";     break;
         case VBOXOSTYPE_WinXP:                            pszOs = "Windows XP";     break;
@@ -226,6 +229,7 @@ static void vmmdevLogGuestOsInfo(VBoxGuestInfo *pGuestInfo)
             pGuestInfo->osType & VBOXOSTYPE_x64 ? 64 : 32));
 }
 
+
 /**
  * Sets the IRQ (raise it or lower it) for 1.03 additions.
  *
@@ -238,13 +242,13 @@ static void vmmdevSetIRQ_Legacy(PVMMDEV pThis)
     if (pThis->fu32AdditionsOk)
     {
         /* Filter unsupported events */
-        uint32_t fEvents = pThis->u32HostEventFlags & pThis->pVMMDevRAMR3->V.V1_03.u32GuestEventMask;
+        uint32_t fEvents = pThis->u32HostEventFlags & pThis->CTX_SUFF(pVMMDevRAM)->V.V1_03.u32GuestEventMask;
 
         Log(("vmmdevSetIRQ: fEvents=%#010x, u32HostEventFlags=%#010x, u32GuestEventMask=%#010x.\n",
-             fEvents, pThis->u32HostEventFlags, pThis->pVMMDevRAMR3->V.V1_03.u32GuestEventMask));
+             fEvents, pThis->u32HostEventFlags, pThis->CTX_SUFF(pVMMDevRAM)->V.V1_03.u32GuestEventMask));
 
         /* Move event flags to VMMDev RAM */
-        pThis->pVMMDevRAMR3->V.V1_03.u32HostEvents = fEvents;
+        pThis->CTX_SUFF(pVMMDevRAM)->V.V1_03.u32HostEvents = fEvents;
 
         uint32_t uIRQLevel = 0;
         if (fEvents)
@@ -257,12 +261,13 @@ static void vmmdevSetIRQ_Legacy(PVMMDEV pThis)
 
         /* Set IRQ level for pin 0 (see NoWait comment in vmmdevMaybeSetIRQ). */
         /** @todo make IRQ pin configurable, at least a symbolic constant */
-        PDMDevHlpPCISetIrqNoWait(pThis->pDevIns, 0, uIRQLevel);
+        PDMDevHlpPCISetIrqNoWait(pThis->CTX_SUFF(pDevIns), 0, uIRQLevel);
         Log(("vmmdevSetIRQ: IRQ set %d\n", uIRQLevel));
     }
     else
         Log(("vmmdevSetIRQ: IRQ is not generated, guest has not yet reported to us.\n"));
 }
+
 
 /**
  * Sets the IRQ if there are events to be delivered.
@@ -284,7 +289,7 @@ static void vmmdevMaybeSetIRQ(PVMMDEV pThis)
          *       which has already happened.
          */
         pThis->pVMMDevRAMR3->V.V1_04.fHaveEvents = true;
-        PDMDevHlpPCISetIrqNoWait(pThis->pDevIns, 0, 1);
+        PDMDevHlpPCISetIrqNoWait(pThis->pDevInsR3, 0, 1);
         Log3(("vmmdevMaybeSetIRQ: IRQ set.\n"));
     }
 }
@@ -353,17 +358,24 @@ void VMMDevNotifyGuest(PVMMDEV pThis, uint32_t fAddEvents)
     /*
      * Only notify the VM when it's running.
      */
-    VMSTATE enmVMState = PDMDevHlpVMState(pThis->pDevIns);
-/** @todo r=bird: Shouldn't there be more states here?  Wouldn't we drop
- *        notifications now when we're in the process of suspending or
- *        similar? */
+    VMSTATE enmVMState = PDMDevHlpVMState(pThis->pDevInsR3);
     if (   enmVMState == VMSTATE_RUNNING
-        || enmVMState == VMSTATE_RUNNING_LS)
+        || enmVMState == VMSTATE_RUNNING_LS
+        || enmVMState == VMSTATE_LOADING
+        || enmVMState == VMSTATE_RESUMING
+        || enmVMState == VMSTATE_SUSPENDING
+        || enmVMState == VMSTATE_SUSPENDING_LS
+        || enmVMState == VMSTATE_SUSPENDING_EXT_LS
+        || enmVMState == VMSTATE_DEBUGGING
+        || enmVMState == VMSTATE_DEBUGGING_LS
+       )
     {
         PDMCritSectEnter(&pThis->CritSect, VERR_IGNORED);
         vmmdevNotifyGuestWorker(pThis, fAddEvents);
         PDMCritSectLeave(&pThis->CritSect);
     }
+    else
+        LogRel(("VMMDevNotifyGuest: fAddEvents=%#x ignored because enmVMState=%d\n", fAddEvents, enmVMState));
 }
 
 /**
@@ -440,7 +452,7 @@ static int vmmdevReqHandler_ReportGuestInfo(PVMMDEV pThis, VMMDevRequestHeader *
         return VERR_VERSION_MISMATCH;
 
     /* Clear our IRQ in case it was high for whatever reason. */
-    PDMDevHlpPCISetIrqNoWait(pThis->pDevIns, 0, 0);
+    PDMDevHlpPCISetIrqNoWait(pThis->pDevInsR3, 0, 0);
 
     return VINF_SUCCESS;
 }
@@ -540,11 +552,39 @@ static int vmmDevReqHandler_HeartbeatConfigure(PVMMDEV pThis, VMMDevRequestHeade
     }
     else
     {
-        LogRel(("VMMDev: vmmDevReqHandler_HeartbeatConfigure: No change (fHeartbeatActive=%RTbool).\n", pThis->fHeartbeatActive));
+        LogRel(("VMMDev: vmmDevReqHandler_HeartbeatConfigure: No change (fHeartbeatActive=%RTbool)\n", pThis->fHeartbeatActive));
         rc = VINF_SUCCESS;
     }
 
     return rc;
+}
+
+
+/**
+ * Handles VMMDevReq_NtBugCheck.
+ *
+ * @returns VBox status code that the guest should see.
+ * @param   pThis     The VMMDev instance data.
+ * @param   pReqHdr   The header of the request to handle.
+ */
+static int vmmDevReqHandler_NtBugCheck(PVMMDEV pThis, VMMDevRequestHeader *pReqHdr)
+{
+    if (pReqHdr->size == sizeof(VMMDevReqNtBugCheck))
+    {
+        VMMDevReqNtBugCheck const *pReq = (VMMDevReqNtBugCheck const *)pReqHdr;
+        DBGFR3ReportBugCheck(PDMDevHlpGetVM(pThis->pDevInsR3), PDMDevHlpGetVMCPU(pThis->pDevInsR3), DBGFEVENT_BSOD_VMMDEV,
+                             pReq->uBugCheck, pReq->auParameters[0], pReq->auParameters[1],
+                             pReq->auParameters[2], pReq->auParameters[3]);
+    }
+    else if (pReqHdr->size == sizeof(VMMDevRequestHeader))
+    {
+        LogRel(("VMMDev: NT BugCheck w/o data.\n"));
+        DBGFR3ReportBugCheck(PDMDevHlpGetVM(pThis->pDevInsR3), PDMDevHlpGetVMCPU(pThis->pDevInsR3), DBGFEVENT_BSOD_VMMDEV,
+                             0, 0, 0, 0, 0);
+    }
+    else
+        return VERR_INVALID_PARAMETER;
+    return VINF_SUCCESS;
 }
 
 
@@ -693,7 +733,7 @@ static int vmmdevReqHandler_ReportGuestInfo2(PVMMDEV pThis, VMMDevRequestHeader 
         pThis->pDrv->pfnUpdateGuestInfo2(pThis->pDrv, uFullVersion, pszName, pInfo2->additionsRevision, pInfo2->additionsFeatures);
 
     /* Clear our IRQ in case it was high for whatever reason. */
-    PDMDevHlpPCISetIrqNoWait(pThis->pDevIns, 0, 0);
+    PDMDevHlpPCISetIrqNoWait(pThis->pDevInsR3, 0, 0);
 
     return VINF_SUCCESS;
 }
@@ -1131,7 +1171,7 @@ static int vmmdevReqHandler_GetHostTime(PVMMDEV pThis, VMMDevRequestHeader *pReq
     if (RT_LIKELY(!pThis->fGetHostTimeDisabled))
     {
         RTTIMESPEC now;
-        pReq->time = RTTimeSpecGetMilli(PDMDevHlpTMUtcNow(pThis->pDevIns, &now));
+        pReq->time = RTTimeSpecGetMilli(PDMDevHlpTMUtcNow(pThis->pDevInsR3, &now));
         return VINF_SUCCESS;
     }
     return VERR_NOT_SUPPORTED;
@@ -1150,7 +1190,7 @@ static int vmmdevReqHandler_GetHypervisorInfo(PVMMDEV pThis, VMMDevRequestHeader
     VMMDevReqHypervisorInfo *pReq = (VMMDevReqHypervisorInfo *)pReqHdr;
     AssertMsgReturn(pReq->header.size == sizeof(*pReq), ("%u\n", pReq->header.size), VERR_INVALID_PARAMETER);
 
-    return PGMR3MappingsSize(PDMDevHlpGetVM(pThis->pDevIns), &pReq->hypervisorSize);
+    return PGMR3MappingsSize(PDMDevHlpGetVM(pThis->pDevInsR3), &pReq->hypervisorSize);
 }
 
 
@@ -1167,7 +1207,7 @@ static int vmmdevReqHandler_SetHypervisorInfo(PVMMDEV pThis, VMMDevRequestHeader
     AssertMsgReturn(pReq->header.size == sizeof(*pReq), ("%u\n", pReq->header.size), VERR_INVALID_PARAMETER);
 
     int rc;
-    PVM pVM = PDMDevHlpGetVM(pThis->pDevIns);
+    PVM pVM = PDMDevHlpGetVM(pThis->pDevInsR3);
     if (pReq->hypervisorStart == 0)
         rc = PGMR3MappingsUnfix(pVM);
     else
@@ -1201,7 +1241,7 @@ static int vmmdevReqHandler_RegisterPatchMemory(PVMMDEV pThis, VMMDevRequestHead
     VMMDevReqPatchMemory *pReq = (VMMDevReqPatchMemory *)pReqHdr;
     AssertMsgReturn(pReq->header.size == sizeof(*pReq), ("%u\n", pReq->header.size), VERR_INVALID_PARAMETER);
 
-    return VMMR3RegisterPatchMemory(PDMDevHlpGetVM(pThis->pDevIns), pReq->pPatchMem, pReq->cbPatchMem);
+    return VMMR3RegisterPatchMemory(PDMDevHlpGetVM(pThis->pDevInsR3), pReq->pPatchMem, pReq->cbPatchMem);
 }
 
 
@@ -1217,7 +1257,7 @@ static int vmmdevReqHandler_DeregisterPatchMemory(PVMMDEV pThis, VMMDevRequestHe
     VMMDevReqPatchMemory *pReq = (VMMDevReqPatchMemory *)pReqHdr;
     AssertMsgReturn(pReq->header.size == sizeof(*pReq), ("%u\n", pReq->header.size), VERR_INVALID_PARAMETER);
 
-    return VMMR3DeregisterPatchMemory(PDMDevHlpGetVM(pThis->pDevIns), pReq->pPatchMem, pReq->cbPatchMem);
+    return VMMR3DeregisterPatchMemory(PDMDevHlpGetVM(pThis->pDevInsR3), pReq->pPatchMem, pReq->cbPatchMem);
 }
 
 
@@ -1238,13 +1278,13 @@ static int vmmdevReqHandler_SetPowerStatus(PVMMDEV pThis, VMMDevRequestHeader *p
         case VMMDevPowerState_Pause:
         {
             LogRel(("VMMDev: Guest requests the VM to be suspended (paused)\n"));
-            return PDMDevHlpVMSuspend(pThis->pDevIns);
+            return PDMDevHlpVMSuspend(pThis->pDevInsR3);
         }
 
         case VMMDevPowerState_PowerOff:
         {
             LogRel(("VMMDev: Guest requests the VM to be turned off\n"));
-            return PDMDevHlpVMPowerOff(pThis->pDevIns);
+            return PDMDevHlpVMPowerOff(pThis->pDevInsR3);
         }
 
         case VMMDevPowerState_SaveState:
@@ -1252,7 +1292,7 @@ static int vmmdevReqHandler_SetPowerStatus(PVMMDEV pThis, VMMDevRequestHeader *p
             if (true /*pThis->fAllowGuestToSaveState*/)
             {
                 LogRel(("VMMDev: Guest requests the VM to be saved and powered off\n"));
-                return PDMDevHlpVMSuspendSaveAndPowerOff(pThis->pDevIns);
+                return PDMDevHlpVMSuspendSaveAndPowerOff(pThis->pDevInsR3);
             }
             LogRel(("VMMDev: Guest requests the VM to be saved and powered off, declined\n"));
             return VERR_ACCESS_DENIED;
@@ -1309,21 +1349,16 @@ static int vmmdevReqHandler_GetDisplayChangeRequest(PVMMDEV pThis, VMMDevRequest
         pThis->displayChangeData.fGuestSentChangeEventAck = true;
     }
 
-    if (pThis->displayChangeData.fGuestSentChangeEventAck)
-    {
-        pReq->xres = pDispRequest->lastReadDisplayChangeRequest.xres;
-        pReq->yres = pDispRequest->lastReadDisplayChangeRequest.yres;
-        pReq->bpp  = pDispRequest->lastReadDisplayChangeRequest.bpp;
-    }
-    else
-    {
-        /* This is not a response to a VMMDEV_EVENT_DISPLAY_CHANGE_REQUEST, just
-         * read the last valid video mode hint. This happens when the guest X server
-         * determines the initial mode. */
-        pReq->xres = pDispRequest->displayChangeRequest.xres;
-        pReq->yres = pDispRequest->displayChangeRequest.yres;
-        pReq->bpp  = pDispRequest->displayChangeRequest.bpp;
-    }
+    /* If not a response to a VMMDEV_EVENT_DISPLAY_CHANGE_REQUEST, just
+     * read the last valid video mode hint. This happens when the guest X server
+     * determines the initial mode. */
+    VMMDevDisplayDef const *pDisplayDef = pThis->displayChangeData.fGuestSentChangeEventAck ?
+                                              &pDispRequest->lastReadDisplayChangeRequest :
+                                              &pDispRequest->displayChangeRequest;
+    pReq->xres = RT_BOOL(pDisplayDef->fDisplayFlags & VMMDEV_DISPLAY_CX)  ? pDisplayDef->cx : 0;
+    pReq->yres = RT_BOOL(pDisplayDef->fDisplayFlags & VMMDEV_DISPLAY_CY)  ? pDisplayDef->cy : 0;
+    pReq->bpp  = RT_BOOL(pDisplayDef->fDisplayFlags & VMMDEV_DISPLAY_BPP) ? pDisplayDef->cBitsPerPixel : 0;
+
     Log(("VMMDev: returning display change request xres = %d, yres = %d, bpp = %d\n", pReq->xres, pReq->yres, pReq->bpp));
 
     return VINF_SUCCESS;
@@ -1394,23 +1429,17 @@ static int vmmdevReqHandler_GetDisplayChangeRequest2(PVMMDEV pThis, VMMDevReques
         pDispRequest = &pThis->displayChangeData.aRequests[pThis->displayChangeData.iCurrentMonitor];
     }
 
-    if (pThis->displayChangeData.fGuestSentChangeEventAck)
-    {
-        pReq->xres    = pDispRequest->lastReadDisplayChangeRequest.xres;
-        pReq->yres    = pDispRequest->lastReadDisplayChangeRequest.yres;
-        pReq->bpp     = pDispRequest->lastReadDisplayChangeRequest.bpp;
-        pReq->display = pDispRequest->lastReadDisplayChangeRequest.display;
-    }
-    else
-    {
-        /* This is not a response to a VMMDEV_EVENT_DISPLAY_CHANGE_REQUEST, just
-         * read the last valid video mode hint. This happens when the guest X server
-         * determines the initial video mode. */
-        pReq->xres    = pDispRequest->displayChangeRequest.xres;
-        pReq->yres    = pDispRequest->displayChangeRequest.yres;
-        pReq->bpp     = pDispRequest->displayChangeRequest.bpp;
-        pReq->display = pDispRequest->displayChangeRequest.display;
-    }
+    /* If not a response to a VMMDEV_EVENT_DISPLAY_CHANGE_REQUEST, just
+     * read the last valid video mode hint. This happens when the guest X server
+     * determines the initial mode. */
+    VMMDevDisplayDef const *pDisplayDef = pThis->displayChangeData.fGuestSentChangeEventAck ?
+                                              &pDispRequest->lastReadDisplayChangeRequest :
+                                              &pDispRequest->displayChangeRequest;
+    pReq->xres    = RT_BOOL(pDisplayDef->fDisplayFlags & VMMDEV_DISPLAY_CX)  ? pDisplayDef->cx : 0;
+    pReq->yres    = RT_BOOL(pDisplayDef->fDisplayFlags & VMMDEV_DISPLAY_CY)  ? pDisplayDef->cy : 0;
+    pReq->bpp     = RT_BOOL(pDisplayDef->fDisplayFlags & VMMDEV_DISPLAY_BPP) ? pDisplayDef->cBitsPerPixel : 0;
+    pReq->display = pDisplayDef->idDisplay;
+
     Log(("VMMDev: returning display change request xres = %d, yres = %d, bpp = %d at %d\n",
          pReq->xres, pReq->yres, pReq->bpp, pReq->display));
 
@@ -1485,34 +1514,94 @@ static int vmmdevReqHandler_GetDisplayChangeRequestEx(PVMMDEV pThis, VMMDevReque
         pDispRequest = &pThis->displayChangeData.aRequests[pThis->displayChangeData.iCurrentMonitor];
     }
 
-    if (pThis->displayChangeData.fGuestSentChangeEventAck)
+    /* If not a response to a VMMDEV_EVENT_DISPLAY_CHANGE_REQUEST, just
+     * read the last valid video mode hint. This happens when the guest X server
+     * determines the initial mode. */
+    VMMDevDisplayDef const *pDisplayDef = pThis->displayChangeData.fGuestSentChangeEventAck ?
+                                              &pDispRequest->lastReadDisplayChangeRequest :
+                                              &pDispRequest->displayChangeRequest;
+    pReq->xres          = RT_BOOL(pDisplayDef->fDisplayFlags & VMMDEV_DISPLAY_CX)  ? pDisplayDef->cx : 0;
+    pReq->yres          = RT_BOOL(pDisplayDef->fDisplayFlags & VMMDEV_DISPLAY_CY)  ? pDisplayDef->cy : 0;
+    pReq->bpp           = RT_BOOL(pDisplayDef->fDisplayFlags & VMMDEV_DISPLAY_BPP) ? pDisplayDef->cBitsPerPixel : 0;
+    pReq->display       = pDisplayDef->idDisplay;
+    pReq->cxOrigin      = pDisplayDef->xOrigin;
+    pReq->cyOrigin      = pDisplayDef->yOrigin;
+    pReq->fEnabled      = !RT_BOOL(pDisplayDef->fDisplayFlags & VMMDEV_DISPLAY_DISABLED);
+    pReq->fChangeOrigin = RT_BOOL(pDisplayDef->fDisplayFlags & VMMDEV_DISPLAY_ORIGIN);
+
+    Log(("VMMDevEx: returning display change request xres = %d, yres = %d, bpp = %d id %d xPos = %d, yPos = %d & Enabled=%d\n",
+         pReq->xres, pReq->yres, pReq->bpp, pReq->display, pReq->cxOrigin, pReq->cyOrigin, pReq->fEnabled));
+
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Handles VMMDevReq_GetDisplayChangeRequestMulti.
+ *
+ * @returns VBox status code that the guest should see.
+ * @param   pThis           The VMMDev instance data.
+ * @param   pReqHdr         The header of the request to handle.
+ */
+static int vmmdevReqHandler_GetDisplayChangeRequestMulti(PVMMDEV pThis, VMMDevRequestHeader *pReqHdr)
+{
+    VMMDevDisplayChangeRequestMulti *pReq = (VMMDevDisplayChangeRequestMulti *)pReqHdr;
+    unsigned i;
+
+    ASSERT_GUEST_MSG_RETURN(pReq->header.size >= sizeof(*pReq),
+                            ("%u\n", pReq->header.size), VERR_INVALID_PARAMETER);
+    RT_UNTRUSTED_VALIDATED_FENCE();
+
+    uint32_t const cDisplays = pReq->cDisplays;
+    ASSERT_GUEST_MSG_RETURN(cDisplays > 0 && cDisplays <= RT_ELEMENTS(pThis->displayChangeData.aRequests),
+                            ("cDisplays %u\n", cDisplays), VERR_INVALID_PARAMETER);
+    RT_UNTRUSTED_VALIDATED_FENCE();
+
+    ASSERT_GUEST_MSG_RETURN(pReq->header.size >= sizeof(*pReq) + (cDisplays - 1) * sizeof(VMMDevDisplayDef),
+                            ("%u\n", pReq->header.size), VERR_INVALID_PARAMETER);
+    RT_UNTRUSTED_VALIDATED_FENCE();
+
+    if (pReq->eventAck == VMMDEV_EVENT_DISPLAY_CHANGE_REQUEST)
     {
-        pReq->xres          = pDispRequest->lastReadDisplayChangeRequest.xres;
-        pReq->yres          = pDispRequest->lastReadDisplayChangeRequest.yres;
-        pReq->bpp           = pDispRequest->lastReadDisplayChangeRequest.bpp;
-        pReq->display       = pDispRequest->lastReadDisplayChangeRequest.display;
-        pReq->cxOrigin      = pDispRequest->lastReadDisplayChangeRequest.xOrigin;
-        pReq->cyOrigin      = pDispRequest->lastReadDisplayChangeRequest.yOrigin;
-        pReq->fEnabled      = pDispRequest->lastReadDisplayChangeRequest.fEnabled;
-        pReq->fChangeOrigin = pDispRequest->lastReadDisplayChangeRequest.fChangeOrigin;
+        uint32_t cDisplaysOut = 0;
+        /* Remember which resolution the client has queried, subsequent reads
+         * will return the same values. */
+        for (i = 0; i < RT_ELEMENTS(pThis->displayChangeData.aRequests); ++i)
+        {
+            DISPLAYCHANGEREQUEST *pDCR = &pThis->displayChangeData.aRequests[i];
+
+            pDCR->lastReadDisplayChangeRequest = pDCR->displayChangeRequest;
+
+            if (pDCR->fPending)
+            {
+                if (cDisplaysOut < cDisplays)
+                    pReq->aDisplays[cDisplaysOut] = pDCR->lastReadDisplayChangeRequest;
+
+                cDisplaysOut++;
+                pDCR->fPending = false;
+            }
+        }
+
+        pReq->cDisplays = cDisplaysOut;
+        pThis->displayChangeData.fGuestSentChangeEventAck = true;
     }
     else
     {
-        /* This is not a response to a VMMDEV_EVENT_DISPLAY_CHANGE_REQUEST, just
-         * read the last valid video mode hint. This happens when the guest X server
-         * determines the initial video mode. */
-        pReq->xres          = pDispRequest->displayChangeRequest.xres;
-        pReq->yres          = pDispRequest->displayChangeRequest.yres;
-        pReq->bpp           = pDispRequest->displayChangeRequest.bpp;
-        pReq->display       = pDispRequest->displayChangeRequest.display;
-        pReq->cxOrigin      = pDispRequest->displayChangeRequest.xOrigin;
-        pReq->cyOrigin      = pDispRequest->displayChangeRequest.yOrigin;
-        pReq->fEnabled      = pDispRequest->displayChangeRequest.fEnabled;
-        pReq->fChangeOrigin = pDispRequest->displayChangeRequest.fChangeOrigin;
-
+        /* Fill the guest request with monitor layout data. */
+        for (i = 0; i < cDisplays; ++i)
+        {
+            /* If not a response to a VMMDEV_EVENT_DISPLAY_CHANGE_REQUEST, just
+             * read the last valid video mode hint. This happens when the guest X server
+             * determines the initial mode. */
+            DISPLAYCHANGEREQUEST const *pDCR = &pThis->displayChangeData.aRequests[i];
+            VMMDevDisplayDef const *pDisplayDef = pThis->displayChangeData.fGuestSentChangeEventAck ?
+                &pDCR->lastReadDisplayChangeRequest :
+                &pDCR->displayChangeRequest;
+            pReq->aDisplays[i] = *pDisplayDef;
+        }
     }
-    Log(("VMMDevEx: returning display change request xres = %d, yres = %d, bpp = %d id %d xPos = %d, yPos = %d & Enabled=%d\n",
-         pReq->xres, pReq->yres, pReq->bpp, pReq->display, pReq->cxOrigin, pReq->cyOrigin, pReq->fEnabled));
+
+    Log(("VMMDev: returning multimonitor display change request cDisplays %d\n", cDisplays));
 
     return VINF_SUCCESS;
 }
@@ -1595,9 +1684,13 @@ static int vmmdevReqHandler_AcknowledgeEvents(PVMMDEV pThis, VMMDevRequestHeader
 {
     VMMDevEvents *pReq = (VMMDevEvents *)pReqHdr;
     AssertMsgReturn(pReq->header.size == sizeof(*pReq), ("%u\n", pReq->header.size), VERR_INVALID_PARAMETER);
+    STAM_REL_COUNTER_INC(&pThis->StatSlowIrqAck);
 
     if (!VMMDEV_INTERFACE_VERSION_IS_1_03(pThis))
     {
+        /*
+         * Note! This code is duplicated in vmmdevFastRequestIrqAck.
+         */
         if (pThis->fNewGuestFilterMask)
         {
             pThis->fNewGuestFilterMask = false;
@@ -1607,8 +1700,9 @@ static int vmmdevReqHandler_AcknowledgeEvents(PVMMDEV pThis, VMMDevRequestHeader
         pReq->events = pThis->u32HostEventFlags & pThis->u32GuestFilterMask;
 
         pThis->u32HostEventFlags &= ~pThis->u32GuestFilterMask;
-        pThis->pVMMDevRAMR3->V.V1_04.fHaveEvents = false;
-        PDMDevHlpPCISetIrqNoWait(pThis->pDevIns, 0, 0);
+        pThis->CTX_SUFF(pVMMDevRAM)->V.V1_04.fHaveEvents = false;
+
+        PDMDevHlpPCISetIrqNoWait(pThis->CTX_SUFF(pDevIns), 0, 0);
     }
     else
         vmmdevSetIRQ_Legacy(pThis);
@@ -1694,8 +1788,12 @@ static int vmmdevReqHandler_HGCMDisconnect(PVMMDEV pThis, VMMDevRequestHeader *p
  * @param   pThis           The VMMDev instance data.
  * @param   pReqHdr         The header of the request to handle.
  * @param   GCPhysReqHdr    The guest physical address of the request header.
+ * @param   tsArrival       The STAM_GET_TS() value when the request arrived.
+ * @param   ppLock          Pointer to the lock info pointer (latter can be
+ *                          NULL).  Set to NULL if HGCM takes lock ownership.
  */
-static int vmmdevReqHandler_HGCMCall(PVMMDEV pThis, VMMDevRequestHeader *pReqHdr, RTGCPHYS GCPhysReqHdr)
+static int vmmdevReqHandler_HGCMCall(PVMMDEV pThis, VMMDevRequestHeader *pReqHdr, RTGCPHYS GCPhysReqHdr,
+                                     uint64_t tsArrival, PVMMDEVREQLOCK *ppLock)
 {
     VMMDevHGCMCall *pReq = (VMMDevHGCMCall *)pReqHdr;
     AssertMsgReturn(pReq->header.header.size >= sizeof(*pReq), ("%u\n", pReq->header.header.size), VERR_INVALID_PARAMETER);
@@ -1705,7 +1803,8 @@ static int vmmdevReqHandler_HGCMCall(PVMMDEV pThis, VMMDevRequestHeader *pReqHdr
         Log2(("VMMDevReq_HGCMCall: sizeof(VMMDevHGCMRequest) = %04X\n", sizeof(VMMDevHGCMCall)));
         Log2(("%.*Rhxd\n", pReq->header.header.size, pReq));
 
-        return vmmdevHGCMCall(pThis, pReq, pReq->header.header.size, GCPhysReqHdr, pReq->header.header.requestType);
+        return vmmdevHGCMCall(pThis, pReq, pReq->header.header.size, GCPhysReqHdr, pReq->header.header.requestType,
+                              tsArrival, ppLock);
     }
 
     Log(("VMMDevReq_HGCMCall: HGCM Connector is NULL!\n"));
@@ -1754,7 +1853,7 @@ static int vmmdevReqHandler_HGCMCancel2(PVMMDEV pThis, VMMDevRequestHeader *pReq
         return vmmdevHGCMCancel2(pThis, pReq->physReqToCancel);
     }
 
-    Log(("VMMDevReq_HGCMConnect2: HGCM Connector is NULL!\n"));
+    Log(("VMMDevReq_HGCMCancel2: HGCM Connector is NULL!\n"));
     return VERR_NOT_SUPPORTED;
 }
 
@@ -1963,7 +2062,7 @@ static int vmmdevReqHandler_ChangeMemBalloon(PVMMDEV pThis, VMMDevRequestHeader 
                     ("%u\n", pReq->header.size), VERR_INVALID_PARAMETER);
 
     Log(("VMMDevReq_ChangeMemBalloon\n"));
-    int rc = PGMR3PhysChangeMemBalloon(PDMDevHlpGetVM(pThis->pDevIns), !!pReq->fInflate, pReq->cPages, pReq->aPhysPage);
+    int rc = PGMR3PhysChangeMemBalloon(PDMDevHlpGetVM(pThis->pDevInsR3), !!pReq->fInflate, pReq->cPages, pReq->aPhysPage);
     if (pReq->fInflate)
         STAM_REL_U32_INC(&pThis->StatMemBalloonChunks);
     else
@@ -2199,7 +2298,10 @@ static int vmmdevReqHandler_GetHostVersion(VMMDevRequestHeader *pReqHdr)
     pReq->minor     = RTBldCfgVersionMinor();
     pReq->build     = RTBldCfgVersionBuild();
     pReq->revision  = RTBldCfgRevision();
-    pReq->features  = VMMDEV_HVF_HGCM_PHYS_PAGE_LIST;
+    pReq->features  = VMMDEV_HVF_HGCM_PHYS_PAGE_LIST
+                    | VMMDEV_HVF_HGCM_EMBEDDED_BUFFERS
+                    | VMMDEV_HVF_HGCM_CONTIGUOUS_PAGE_LIST
+                    | VMMDEV_HVF_FAST_IRQ_ACK;
     return VINF_SUCCESS;
 }
 
@@ -2321,7 +2423,7 @@ static int vmmdevReqHandler_RegisterSharedModule(PVMMDEV pThis, VMMDevRequestHea
     /*
      * Forward the request to the VMM.
      */
-    return PGMR3SharedModuleRegister(PDMDevHlpGetVM(pThis->pDevIns), pReq->enmGuestOS, pReq->szName, pReq->szVersion,
+    return PGMR3SharedModuleRegister(PDMDevHlpGetVM(pThis->pDevInsR3), pReq->enmGuestOS, pReq->szName, pReq->szVersion,
                                      pReq->GCBaseAddr, pReq->cbModule, pReq->cRegions, pReq->aRegions);
 }
 
@@ -2351,7 +2453,7 @@ static int vmmdevReqHandler_UnregisterSharedModule(PVMMDEV pThis, VMMDevRequestH
     /*
      * Forward the request to the VMM.
      */
-    return PGMR3SharedModuleUnregister(PDMDevHlpGetVM(pThis->pDevIns), pReq->szName, pReq->szVersion,
+    return PGMR3SharedModuleUnregister(PDMDevHlpGetVM(pThis->pDevInsR3), pReq->szName, pReq->szVersion,
                                        pReq->GCBaseAddr, pReq->cbModule);
 }
 
@@ -2367,7 +2469,7 @@ static int vmmdevReqHandler_CheckSharedModules(PVMMDEV pThis, VMMDevRequestHeade
     VMMDevSharedModuleCheckRequest *pReq = (VMMDevSharedModuleCheckRequest *)pReqHdr;
     AssertMsgReturn(pReq->header.size == sizeof(VMMDevSharedModuleCheckRequest),
                     ("%u\n", pReq->header.size), VERR_INVALID_PARAMETER);
-    return PGMR3SharedModuleCheckAll(PDMDevHlpGetVM(pThis->pDevIns));
+    return PGMR3SharedModuleCheckAll(PDMDevHlpGetVM(pThis->pDevInsR3));
 }
 
 /**
@@ -2405,7 +2507,7 @@ static int vmmdevReqHandler_DebugIsPageShared(PVMMDEV pThis, VMMDevRequestHeader
                     ("%u\n", pReq->header.size), VERR_INVALID_PARAMETER);
 
 # ifdef DEBUG
-    return PGMR3SharedModuleGetPageState(PDMDevHlpGetVM(pThis->pDevIns), pReq->GCPtrPage, &pReq->fShared, &pReq->uPageFlags);
+    return PGMR3SharedModuleGetPageState(PDMDevHlpGetVM(pThis->pDevInsR3), pReq->GCPtrPage, &pReq->fShared, &pReq->uPageFlags);
 # else
     RT_NOREF1(pThis);
     return VERR_NOT_IMPLEMENTED;
@@ -2465,9 +2567,35 @@ static int vmmdevReqHandler_WriteCoreDump(PVMMDEV pThis, VMMDevRequestHeader *pR
     /*
      * Write the core file.
      */
-    PUVM pUVM = PDMDevHlpGetUVM(pThis->pDevIns);
+    PUVM pUVM = PDMDevHlpGetUVM(pThis->pDevInsR3);
     return DBGFR3CoreWrite(pUVM, szCorePath, true /*fReplaceFile*/);
 }
+
+
+/**
+ * Sets request status to VINF_HGCM_ASYNC_EXECUTE.
+ *
+ * @param   pThis           The VMM device instance data.
+ * @param   GCPhysReqHdr    The guest physical address of the request.
+ * @param   pLock           Pointer to the request locking info.  NULL if not
+ *                          locked.
+ */
+DECLINLINE(void) vmmdevReqHdrSetHgcmAsyncExecute(PVMMDEV pThis, RTGCPHYS GCPhysReqHdr, PVMMDEVREQLOCK pLock)
+{
+    if (pLock)
+        ((VMMDevRequestHeader volatile *)pLock->pvReq)->rc = VINF_HGCM_ASYNC_EXECUTE;
+    else
+    {
+        int32_t rcReq = VINF_HGCM_ASYNC_EXECUTE;
+        PDMDevHlpPhysWrite(pThis->pDevInsR3, GCPhysReqHdr + RT_UOFFSETOF(VMMDevRequestHeader, rc), &rcReq, sizeof(rcReq));
+    }
+}
+
+
+/** @name VMMDEVREQDISP_POST_F_XXX - post dispatcher optimizations.
+ * @{ */
+#define VMMDEVREQDISP_POST_F_NO_WRITE_OUT    RT_BIT_32(0)
+/** @} */
 
 
 /**
@@ -2478,15 +2606,16 @@ static int vmmdevReqHandler_WriteCoreDump(PVMMDEV pThis, VMMDevRequestHeader *pR
  * @param   pReqHdr         The request header (cached in host memory).
  * @param   GCPhysReqHdr    The guest physical address of the request (for
  *                          HGCM).
- * @param   pfDelayedUnlock Where to indicate whether the critical section exit
- *                          needs to be delayed till after the request has been
- *                          written back. This is a HGCM kludge, see critsect
- *                          work in hgcmCompletedWorker for more details.
+ * @param   tsArrival       The STAM_GET_TS() value when the request arrived.
+ * @param   pfPostOptimize  HGCM optimizations, VMMDEVREQDISP_POST_F_XXX.
+ * @param   ppLock          Pointer to the lock info pointer (latter can be
+ *                          NULL).  Set to NULL if HGCM takes lock ownership.
  */
-static int vmmdevReqDispatcher(PVMMDEV pThis, VMMDevRequestHeader *pReqHdr, RTGCPHYS GCPhysReqHdr, bool *pfDelayedUnlock)
+static int vmmdevReqDispatcher(PVMMDEV pThis, VMMDevRequestHeader *pReqHdr, RTGCPHYS GCPhysReqHdr,
+                               uint64_t tsArrival, uint32_t *pfPostOptimize, PVMMDEVREQLOCK *ppLock)
 {
     int rcRet = VINF_SUCCESS;
-    *pfDelayedUnlock = false;
+    Assert(*pfPostOptimize == 0);
 
     switch (pReqHdr->requestType)
     {
@@ -2570,6 +2699,10 @@ static int vmmdevReqDispatcher(PVMMDEV pThis, VMMDevRequestHeader *pReqHdr, RTGC
             pReqHdr->rc = vmmdevReqHandler_GetDisplayChangeRequestEx(pThis, pReqHdr);
             break;
 
+        case VMMDevReq_GetDisplayChangeRequestMulti:
+            pReqHdr->rc = vmmdevReqHandler_GetDisplayChangeRequestMulti(pThis, pReqHdr);
+            break;
+
         case VMMDevReq_VideoModeSupported:
             pReqHdr->rc = vmmdevReqHandler_VideoModeSupported(pThis, pReqHdr);
             break;
@@ -2592,13 +2725,19 @@ static int vmmdevReqDispatcher(PVMMDEV pThis, VMMDevRequestHeader *pReqHdr, RTGC
 
 #ifdef VBOX_WITH_HGCM
         case VMMDevReq_HGCMConnect:
+            vmmdevReqHdrSetHgcmAsyncExecute(pThis, GCPhysReqHdr, *ppLock);
             pReqHdr->rc = vmmdevReqHandler_HGCMConnect(pThis, pReqHdr, GCPhysReqHdr);
-            *pfDelayedUnlock = true;
+            Assert(pReqHdr->rc == VINF_HGCM_ASYNC_EXECUTE || RT_FAILURE_NP(pReqHdr->rc));
+            if (RT_SUCCESS(pReqHdr->rc))
+                *pfPostOptimize |= VMMDEVREQDISP_POST_F_NO_WRITE_OUT;
             break;
 
         case VMMDevReq_HGCMDisconnect:
+            vmmdevReqHdrSetHgcmAsyncExecute(pThis, GCPhysReqHdr, *ppLock);
             pReqHdr->rc = vmmdevReqHandler_HGCMDisconnect(pThis, pReqHdr, GCPhysReqHdr);
-            *pfDelayedUnlock = true;
+            Assert(pReqHdr->rc == VINF_HGCM_ASYNC_EXECUTE || RT_FAILURE_NP(pReqHdr->rc));
+            if (RT_SUCCESS(pReqHdr->rc))
+                *pfPostOptimize |= VMMDEVREQDISP_POST_F_NO_WRITE_OUT;
             break;
 
 # ifdef VBOX_WITH_64_BITS_GUESTS
@@ -2607,13 +2746,15 @@ static int vmmdevReqDispatcher(PVMMDEV pThis, VMMDevRequestHeader *pReqHdr, RTGC
 # else
         case VMMDevReq_HGCMCall:
 # endif /* VBOX_WITH_64_BITS_GUESTS */
-            pReqHdr->rc = vmmdevReqHandler_HGCMCall(pThis, pReqHdr, GCPhysReqHdr);
-            *pfDelayedUnlock = true;
+            vmmdevReqHdrSetHgcmAsyncExecute(pThis, GCPhysReqHdr, *ppLock);
+            pReqHdr->rc = vmmdevReqHandler_HGCMCall(pThis, pReqHdr, GCPhysReqHdr, tsArrival, ppLock);
+            Assert(pReqHdr->rc == VINF_HGCM_ASYNC_EXECUTE || RT_FAILURE_NP(pReqHdr->rc));
+            if (RT_SUCCESS(pReqHdr->rc))
+                *pfPostOptimize |= VMMDEVREQDISP_POST_F_NO_WRITE_OUT;
             break;
 
         case VMMDevReq_HGCMCancel:
             pReqHdr->rc = vmmdevReqHandler_HGCMCancel(pThis, pReqHdr, GCPhysReqHdr);
-            *pfDelayedUnlock = true;
             break;
 
         case VMMDevReq_HGCMCancel2:
@@ -2730,6 +2871,10 @@ static int vmmdevReqDispatcher(PVMMDEV pThis, VMMDevRequestHeader *pReqHdr, RTGC
             pReqHdr->rc = vmmDevReqHandler_HeartbeatConfigure(pThis, pReqHdr);
             break;
 
+        case VMMDevReq_NtBugCheck:
+            pReqHdr->rc = vmmDevReqHandler_NtBugCheck(pThis, pReqHdr);
+            break;
+
         default:
         {
             pReqHdr->rc = VERR_NOT_IMPLEMENTED;
@@ -2742,13 +2887,16 @@ static int vmmdevReqDispatcher(PVMMDEV pThis, VMMDevRequestHeader *pReqHdr, RTGC
 
 
 /**
- * @callback_method_impl{FNIOMIOPORTOUT, Port I/O Handler for the generic
- *                      request interface.}
+ * @callback_method_impl{FNIOMIOPORTOUT,
+ * Port I/O write andler for the generic request interface.}
  */
 static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
 {
+    uint64_t tsArrival;
+    STAM_GET_TS(tsArrival);
+
     RT_NOREF2(Port, cb);
-    PVMMDEV pThis = (VMMDevState*)pvUser;
+    PVMMDEV pThis = (VMMDevState *)pvUser;
 
     /*
      * The caller has passed the guest context physical address of the request
@@ -2775,10 +2923,7 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
 
     Log2(("VMMDev request issued: %d\n", requestHeader.requestType));
 
-    int                  rcRet          = VINF_SUCCESS;
-    bool                 fDelayedUnlock = false;
-    VMMDevRequestHeader *pRequestHeader = NULL;
-
+    int rcRet = VINF_SUCCESS;
     /* Check that is doesn't exceed the max packet size. */
     if (requestHeader.size <= VMMDEV_MAX_VMMDEVREQ_SIZE)
     {
@@ -2797,30 +2942,85 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
            )
         {
             /*
-             * The request looks fine. Allocate a heap block for it, read the
-             * entire package from guest memory and feed it to the dispatcher.
+             * The request looks fine.  Copy it into a buffer.
+             *
+             * The buffer is only used while on this thread, and this thread is one
+             * of the EMTs, so we keep a 4KB buffer for each EMT around to avoid
+             * wasting time with the heap.  Larger allocations goes to the heap, though.
              */
-            pRequestHeader = (VMMDevRequestHeader *)RTMemAlloc(requestHeader.size);
-            if (pRequestHeader)
+            VMCPUID              iCpu = PDMDevHlpGetCurrentCpuId(pDevIns);
+            VMMDevRequestHeader *pRequestHeaderFree = NULL;
+            VMMDevRequestHeader *pRequestHeader     = NULL;
+            if (   requestHeader.size <= _4K
+                && iCpu < RT_ELEMENTS(pThis->apReqBufs))
             {
-                memcpy(pRequestHeader, &requestHeader, sizeof(VMMDevRequestHeader));
-                size_t cbLeft = requestHeader.size - sizeof(VMMDevRequestHeader);
-                if (cbLeft)
-                    PDMDevHlpPhysRead(pDevIns,
-                                      (RTGCPHYS)u32             + sizeof(VMMDevRequestHeader),
-                                      (uint8_t *)pRequestHeader + sizeof(VMMDevRequestHeader),
-                                      cbLeft);
-
-                PDMCritSectEnter(&pThis->CritSect, VERR_IGNORED);
-                rcRet = vmmdevReqDispatcher(pThis, pRequestHeader, u32, &fDelayedUnlock);
-                if (!fDelayedUnlock)
-                    PDMCritSectLeave(&pThis->CritSect);
+                pRequestHeader = pThis->apReqBufs[iCpu];
+                if (pRequestHeader)
+                { /* likely */ }
+                else
+                    pThis->apReqBufs[iCpu] = pRequestHeader = (VMMDevRequestHeader *)RTMemPageAlloc(_4K);
             }
             else
             {
-                Log(("VMMDev: RTMemAlloc failed!\n"));
-                requestHeader.rc = VERR_NO_MEMORY;
+                Assert(iCpu != NIL_VMCPUID);
+                STAM_REL_COUNTER_INC(&pThis->StatReqBufAllocs);
+                pRequestHeaderFree = pRequestHeader = (VMMDevRequestHeader *)RTMemAlloc(RT_MAX(requestHeader.size, 512));
             }
+            if (pRequestHeader)
+            {
+                memcpy(pRequestHeader, &requestHeader, sizeof(VMMDevRequestHeader));
+
+                /* Try lock the request if it's a HGCM call and not crossing a page boundrary.
+                   Saves on PGM interaction. */
+                VMMDEVREQLOCK   Lock   = { NULL, { 0, NULL } };
+                PVMMDEVREQLOCK  pLock  = NULL;
+                size_t          cbLeft = requestHeader.size - sizeof(VMMDevRequestHeader);
+                if (cbLeft)
+                {
+                    if (   (   requestHeader.requestType == VMMDevReq_HGCMCall32
+                            || requestHeader.requestType == VMMDevReq_HGCMCall64)
+                        && ((u32 + requestHeader.size) >> X86_PAGE_SHIFT) == (u32 >> X86_PAGE_SHIFT)
+                        && RT_SUCCESS(PDMDevHlpPhysGCPhys2CCPtr(pDevIns, u32, 0 /*fFlags*/, &Lock.pvReq, &Lock.Lock)) )
+                    {
+                        memcpy((uint8_t *)pRequestHeader + sizeof(VMMDevRequestHeader),
+                               (uint8_t *)Lock.pvReq     + sizeof(VMMDevRequestHeader), cbLeft);
+                        pLock = &Lock;
+                    }
+                    else
+                        PDMDevHlpPhysRead(pDevIns,
+                                          (RTGCPHYS)u32             + sizeof(VMMDevRequestHeader),
+                                          (uint8_t *)pRequestHeader + sizeof(VMMDevRequestHeader),
+                                          cbLeft);
+                }
+
+                /*
+                 * Feed buffered request thru the dispatcher.
+                 */
+                uint32_t fPostOptimize = 0;
+                PDMCritSectEnter(&pThis->CritSect, VERR_IGNORED);
+                rcRet = vmmdevReqDispatcher(pThis, pRequestHeader, u32, tsArrival, &fPostOptimize, &pLock);
+                PDMCritSectLeave(&pThis->CritSect);
+
+                /*
+                 * Write the result back to guest memory (unless it is a locked HGCM call).
+                 */
+                if (!(fPostOptimize & VMMDEVREQDISP_POST_F_NO_WRITE_OUT))
+                {
+                    if (pLock)
+                        memcpy(pLock->pvReq, pRequestHeader, pRequestHeader->size);
+                    else
+                        PDMDevHlpPhysWrite(pDevIns, u32, pRequestHeader, pRequestHeader->size);
+                }
+
+                if (!pRequestHeaderFree)
+                { /* likely */ }
+                else
+                    RTMemFree(pRequestHeaderFree);
+                return rcRet;
+            }
+
+            Log(("VMMDev: RTMemAlloc failed!\n"));
+            requestHeader.rc = VERR_NO_MEMORY;
         }
         else
         {
@@ -2836,25 +3036,182 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
     }
 
     /*
-     * Write the result back to guest memory
+     * Write the result back to guest memory.
      */
-    if (pRequestHeader)
-    {
-        PDMDevHlpPhysWrite(pDevIns, u32, pRequestHeader, pRequestHeader->size);
-        if (fDelayedUnlock)
-            PDMCritSectLeave(&pThis->CritSect);
-        RTMemFree(pRequestHeader);
-    }
-    else
-    {
-        /* early error case; write back header only */
-        PDMDevHlpPhysWrite(pDevIns, u32, &requestHeader, sizeof(requestHeader));
-        Assert(!fDelayedUnlock);
-    }
+    PDMDevHlpPhysWrite(pDevIns, u32, &requestHeader, sizeof(requestHeader));
 
     return rcRet;
 }
 
+#endif /* IN_RING3 */
+
+
+/**
+ * @callback_method_impl{FNIOMIOPORTOUT, Port I/O write handler for requests
+ * that can be handled w/o going to ring-3.}
+ */
+PDMBOTHCBDECL(int) vmmdevFastRequestHandler(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
+{
+#ifndef IN_RING3
+# if 0 /* This functionality is offered through reading the port (vmmdevFastRequestIrqAck). Leaving it here for later. */
+    PVMMDEV pThis = (VMMDevState *)pvUser;
+    Assert(PDMINS_2_DATA(pDevIns, PVMMDEV) == pThis);
+    RT_NOREF2(Port, cb);
+
+    /*
+     * We only process a limited set of requests here, reflecting the rest down
+     * to ring-3.  So, try read the whole request into a stack buffer and check
+     * if we can handle it.
+     */
+    union
+    {
+        VMMDevRequestHeader Hdr;
+        VMMDevEvents        Ack;
+    } uReq;
+    RT_ZERO(uReq);
+
+    VBOXSTRICTRC rcStrict;
+    if (pThis->fu32AdditionsOk)
+    {
+        /* Read it into memory. */
+        uint32_t cbToRead = sizeof(uReq); /* (Adjust to stay within a page if we support more than ack requests.) */
+        rcStrict = PDMDevHlpPhysRead(pDevIns, u32, &uReq, cbToRead);
+        if (rcStrict == VINF_SUCCESS)
+        {
+            /*
+             * Validate the request and check that we want to handle it here.
+             */
+            if (   uReq.Hdr.size        >= sizeof(uReq.Hdr)
+                && uReq.Hdr.version     == VMMDEV_REQUEST_HEADER_VERSION
+                && (   uReq.Hdr.requestType == VMMDevReq_AcknowledgeEvents
+                    && uReq.Hdr.size        == sizeof(uReq.Ack)
+                    && cbToRead             == sizeof(uReq.Ack)
+                    && pThis->CTX_SUFF(pVMMDevRAM) != NULL)
+               )
+            {
+                RT_UNTRUSTED_VALIDATED_FENCE();
+
+                /*
+                 * Try grab the critical section.
+                 */
+                int rc2 = PDMCritSectEnter(&pThis->CritSect, VINF_IOM_R3_IOPORT_WRITE);
+                if (rc2 == VINF_SUCCESS)
+                {
+                    /*
+                     * Handle the request and write back the result to the guest.
+                     */
+                    uReq.Hdr.rc = vmmdevReqHandler_AcknowledgeEvents(pThis, &uReq.Hdr);
+
+                    rcStrict = PDMDevHlpPhysWrite(pDevIns, u32, &uReq, uReq.Hdr.size);
+                    PDMCritSectLeave(&pThis->CritSect);
+                    if (rcStrict == VINF_SUCCESS)
+                    { /* likely */ }
+                    else
+                        Log(("vmmdevFastRequestHandler: PDMDevHlpPhysWrite(%#RX32+rc,4) -> %Rrc (%RTbool)\n",
+                             u32, VBOXSTRICTRC_VAL(rcStrict), PGM_PHYS_RW_IS_SUCCESS(rcStrict) ));
+                }
+                else
+                {
+                    Log(("vmmdevFastRequestHandler: PDMCritSectEnter -> %Rrc\n", rc2));
+                    rcStrict = rc2;
+                }
+            }
+            else
+            {
+                Log(("vmmdevFastRequestHandler: size=%#x version=%#x requestType=%d (pVMMDevRAM=%p) -> R3\n",
+                     uReq.Hdr.size, uReq.Hdr.version, uReq.Hdr.requestType, pThis->CTX_SUFF(pVMMDevRAM) ));
+                rcStrict = VINF_IOM_R3_IOPORT_WRITE;
+            }
+        }
+        else
+            Log(("vmmdevFastRequestHandler: PDMDevHlpPhysRead(%#RX32,%#RX32) -> %Rrc\n", u32, cbToRead, VBOXSTRICTRC_VAL(rcStrict)));
+    }
+    else
+    {
+        Log(("vmmdevFastRequestHandler: additions nok-okay\n"));
+        rcStrict = VINF_IOM_R3_IOPORT_WRITE;
+    }
+
+    return VBOXSTRICTRC_VAL(rcStrict);
+# else
+    RT_NOREF(pDevIns, pvUser, Port, u32, cb);
+    return VINF_IOM_R3_IOPORT_WRITE;
+# endif
+
+#else  /* IN_RING3 */
+    return vmmdevRequestHandler(pDevIns, pvUser, Port, u32, cb);
+#endif /* IN_RING3 */
+}
+
+
+/**
+ * @callback_method_impl{FNIOMIOPORTIN,
+ * Port I/O read handler for IRQ acknowledging and getting pending events (same
+ * as VMMDevReq_AcknowledgeEvents - just faster).}
+ */
+PDMBOTHCBDECL(int) vmmdevFastRequestIrqAck(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb)
+{
+    PVMMDEV pThis = (VMMDevState *)pvUser;
+    Assert(PDMINS_2_DATA(pDevIns, PVMMDEV) == pThis);
+    RT_NOREF(Port);
+
+    /* Only 32-bit accesses. */
+    ASSERT_GUEST_MSG_RETURN(cb == sizeof(uint32_t), ("cb=%d\n", cb), VERR_IOM_IOPORT_UNUSED);
+
+    /* The VMMDev memory mapping might've failed, go to ring-3 in that case. */
+    VBOXSTRICTRC rcStrict;
+#ifndef IN_RING3
+    if (pThis->CTX_SUFF(pVMMDevRAM) != NULL)
+#endif
+    {
+        /* Enter critical section and check that the additions has been properly
+           initialized and that we're not in legacy v1.3 device mode. */
+        rcStrict = PDMCritSectEnter(&pThis->CritSect, VINF_IOM_R3_IOPORT_READ);
+        if (rcStrict == VINF_SUCCESS)
+        {
+            if (   pThis->fu32AdditionsOk
+                && !VMMDEV_INTERFACE_VERSION_IS_1_03(pThis))
+            {
+                /*
+                 * Do the job.
+                 *
+                 * Note! This code is duplicated in vmmdevReqHandler_AcknowledgeEvents.
+                 */
+                STAM_REL_COUNTER_INC(&pThis->CTX_SUFF_Z(StatFastIrqAck));
+
+                if (pThis->fNewGuestFilterMask)
+                {
+                    pThis->fNewGuestFilterMask = false;
+                    pThis->u32GuestFilterMask = pThis->u32NewGuestFilterMask;
+                }
+
+                *pu32 = pThis->u32HostEventFlags & pThis->u32GuestFilterMask;
+
+                pThis->u32HostEventFlags &= ~pThis->u32GuestFilterMask;
+                pThis->CTX_SUFF(pVMMDevRAM)->V.V1_04.fHaveEvents = false;
+
+                PDMDevHlpPCISetIrqNoWait(pDevIns, 0, 0);
+            }
+            else
+            {
+                Log(("vmmdevFastRequestIrqAck: fu32AdditionsOk=%d interfaceVersion=%#x\n", pThis->fu32AdditionsOk,
+                     pThis->guestInfo.interfaceVersion));
+                *pu32 = UINT32_MAX;
+            }
+
+            PDMCritSectLeave(&pThis->CritSect);
+        }
+    }
+#ifndef IN_RING3
+    else
+        rcStrict = VINF_IOM_R3_IOPORT_READ;
+#endif
+    return VBOXSTRICTRC_VAL(rcStrict);
+}
+
+
+
+#ifdef IN_RING3
 
 /* -=-=-=-=-=- PCI Device -=-=-=-=-=- */
 
@@ -2933,6 +3290,7 @@ static DECLCALLBACK(int) vmmdevIORAMRegionMap(PPDMDEVINS pDevIns, PPDMPCIDEV pPc
 static DECLCALLBACK(int) vmmdevIOPortRegionMap(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t iRegion,
                                                RTGCPHYS GCPhysAddress, RTGCPHYS cb, PCIADDRESSSPACE enmType)
 {
+    LogFlow(("vmmdevIOPortRegionMap: iRegion=%d GCPhysAddress=%RGp cb=%RGp enmType=%d\n", iRegion, GCPhysAddress, cb, enmType));
     RT_NOREF3(iRegion, cb, enmType);
     PVMMDEV pThis = RT_FROM_MEMBER(pPciDev, VMMDEV, PciDev);
 
@@ -2945,7 +3303,24 @@ static DECLCALLBACK(int) vmmdevIOPortRegionMap(PPDMDEVINS pDevIns, PPDMPCIDEV pP
      */
     int rc = PDMDevHlpIOPortRegister(pDevIns, (RTIOPORT)GCPhysAddress + VMMDEV_PORT_OFF_REQUEST, 1,
                                      pThis, vmmdevRequestHandler, NULL, NULL, NULL, "VMMDev Request Handler");
-    AssertRC(rc);
+    AssertLogRelRCReturn(rc, rc);
+
+    /* The fast one: */
+    rc = PDMDevHlpIOPortRegister(pDevIns, (RTIOPORT)GCPhysAddress + VMMDEV_PORT_OFF_REQUEST_FAST, 1,
+                                 pThis, vmmdevFastRequestHandler, vmmdevFastRequestIrqAck, NULL, NULL, "VMMDev Fast R0/RC Requests");
+    AssertLogRelRCReturn(rc, rc);
+    if (pThis->fRZEnabled)
+    {
+        rc = PDMDevHlpIOPortRegisterR0(pDevIns, (RTIOPORT)GCPhysAddress + VMMDEV_PORT_OFF_REQUEST_FAST, 1,
+                                       PDMINS_2_DATA_R0PTR(pDevIns), "vmmdevFastRequestHandler", "vmmdevFastRequestIrqAck",
+                                       NULL, NULL, "VMMDev Fast R0/RC Requests");
+        AssertLogRelRCReturn(rc, rc);
+        rc = PDMDevHlpIOPortRegisterRC(pDevIns, (RTIOPORT)GCPhysAddress + VMMDEV_PORT_OFF_REQUEST_FAST, 1,
+                                       PDMINS_2_DATA_RCPTR(pDevIns), "vmmdevFastRequestHandler", "vmmdevFastRequestIrqAck",
+                                       NULL, NULL, "VMMDev Fast R0/RC Requests");
+        AssertLogRelRCReturn(rc, rc);
+    }
+
     return rc;
 }
 
@@ -3179,68 +3554,103 @@ vmmdevIPort_UpdateMouseCapabilities(PPDMIVMMDEVPORT pInterface, uint32_t fCapsAd
     return VINF_SUCCESS;
 }
 
+static bool vmmdevIsMonitorDefEqual(VMMDevDisplayDef const *pNew, VMMDevDisplayDef const *pOld)
+{
+    bool     fEqual = pNew->idDisplay == pOld->idDisplay;
+
+    fEqual = fEqual && (   !RT_BOOL(pNew->fDisplayFlags & VMMDEV_DISPLAY_ORIGIN)    /* No change. */
+                        || (   RT_BOOL(pOld->fDisplayFlags & VMMDEV_DISPLAY_ORIGIN) /* Old value exists and */
+                            && pNew->xOrigin == pOld->xOrigin                       /* the old is equal to the new. */
+                            && pNew->yOrigin == pOld->yOrigin));
+
+    fEqual = fEqual && (   !RT_BOOL(pNew->fDisplayFlags & VMMDEV_DISPLAY_CX)
+                        || (   RT_BOOL(pOld->fDisplayFlags & VMMDEV_DISPLAY_CX)
+                            && pNew->cx == pOld->cx));
+
+    fEqual = fEqual && (   !RT_BOOL(pNew->fDisplayFlags & VMMDEV_DISPLAY_CY)
+                        || (   RT_BOOL(pOld->fDisplayFlags & VMMDEV_DISPLAY_CY)
+                            && pNew->cy == pOld->cy));
+
+    fEqual = fEqual && (   !RT_BOOL(pNew->fDisplayFlags & VMMDEV_DISPLAY_BPP)
+                        || (   RT_BOOL(pOld->fDisplayFlags & VMMDEV_DISPLAY_BPP)
+                            && pNew->cBitsPerPixel == pOld->cBitsPerPixel));
+
+    fEqual = fEqual && (   RT_BOOL(pNew->fDisplayFlags & VMMDEV_DISPLAY_DISABLED)
+                        == RT_BOOL(pOld->fDisplayFlags & VMMDEV_DISPLAY_DISABLED));
+
+    fEqual = fEqual && (   RT_BOOL(pNew->fDisplayFlags & VMMDEV_DISPLAY_PRIMARY)
+                        == RT_BOOL(pOld->fDisplayFlags & VMMDEV_DISPLAY_PRIMARY));
+
+    return fEqual;
+}
+
 /**
  * @interface_method_impl{PDMIVMMDEVPORT,pfnRequestDisplayChange}
  */
 static DECLCALLBACK(int)
-vmmdevIPort_RequestDisplayChange(PPDMIVMMDEVPORT pInterface, uint32_t cx, uint32_t cy, uint32_t cBits, uint32_t idxDisplay,
-                                 int32_t xOrigin, int32_t yOrigin, bool fEnabled, bool fChangeOrigin)
+vmmdevIPort_RequestDisplayChange(PPDMIVMMDEVPORT pInterface, uint32_t cDisplays, VMMDevDisplayDef const *paDisplays, bool fForce)
 {
-    PVMMDEV pThis = RT_FROM_MEMBER(pInterface, VMMDEV, IPort);
+    int rc = VINF_SUCCESS;
 
-    if (idxDisplay >= RT_ELEMENTS(pThis->displayChangeData.aRequests))
-        return VERR_INVALID_PARAMETER;
+    PVMMDEV pThis = RT_FROM_MEMBER(pInterface, VMMDEV, IPort);
+    bool fNotifyGuest = false;
 
     PDMCritSectEnter(&pThis->CritSect, VERR_IGNORED);
 
-    DISPLAYCHANGEREQUEST *pRequest = &pThis->displayChangeData.aRequests[idxDisplay];
-
-    /* Verify that the new resolution is different and that guest does not yet know about it. */
-    bool fSameResolution = (!cx    || pRequest->lastReadDisplayChangeRequest.xres == cx)
-                        && (!cy    || pRequest->lastReadDisplayChangeRequest.yres == cy)
-                        && (!cBits || pRequest->lastReadDisplayChangeRequest.bpp  == cBits)
-                        && pRequest->lastReadDisplayChangeRequest.xOrigin  == xOrigin
-                        && pRequest->lastReadDisplayChangeRequest.yOrigin  == yOrigin
-                        && pRequest->lastReadDisplayChangeRequest.fEnabled == fEnabled
-                        && pRequest->lastReadDisplayChangeRequest.display  == idxDisplay;
-
-    if (!cx && !cy && !cBits)
+    uint32_t i;
+    for (i = 0; i < cDisplays; ++i)
     {
-        /* Special case of reset video mode. */
-        fSameResolution = false;
+        VMMDevDisplayDef const *p = &paDisplays[i];
+
+        /* Either one display definition is provided or the display id must be equal to the array index. */
+        AssertBreakStmt(cDisplays == 1 || p->idDisplay == i, rc = VERR_INVALID_PARAMETER);
+        AssertBreakStmt(p->idDisplay < RT_ELEMENTS(pThis->displayChangeData.aRequests), rc = VERR_INVALID_PARAMETER);
+
+        DISPLAYCHANGEREQUEST *pRequest = &pThis->displayChangeData.aRequests[p->idDisplay];
+
+        VMMDevDisplayDef const *pLastRead = &pRequest->lastReadDisplayChangeRequest;
+
+        /* Verify that the new resolution is different and that guest does not yet know about it. */
+        bool const fDifferentResolution = fForce || !vmmdevIsMonitorDefEqual(p, pLastRead);
+
+        LogFunc(("same=%d. New: %dx%d, cBits=%d, id=%d. Old: %dx%d, cBits=%d, id=%d. @%d,%d, Enabled=%d, ChangeOrigin=%d\n",
+                 !fDifferentResolution, p->cx, p->cy, p->cBitsPerPixel, p->idDisplay,
+                 pLastRead->cx, pLastRead->cy, pLastRead->cBitsPerPixel, pLastRead->idDisplay,
+                 p->xOrigin, p->yOrigin,
+                 !RT_BOOL(p->fDisplayFlags & VMMDEV_DISPLAY_DISABLED),
+                 RT_BOOL(p->fDisplayFlags & VMMDEV_DISPLAY_ORIGIN)));
+
+        /* We could validate the information here but hey, the guest can do that as well! */
+        pRequest->displayChangeRequest = *p;
+        pRequest->fPending = fDifferentResolution;
+
+        fNotifyGuest = fNotifyGuest || fDifferentResolution;
     }
 
-    Log3(("vmmdevIPort_RequestDisplayChange: same=%d. new: cx=%d, cy=%d, cBits=%d, idxDisplay=%d.\
-          old: cx=%d, cy=%d, cBits=%d, idxDisplay=%d. \n \
-          ,OriginX = %d , OriginY=%d, Enabled=%d, ChangeOrigin=%d\n",
-          fSameResolution, cx, cy, cBits, idxDisplay, pRequest->lastReadDisplayChangeRequest.xres,
-          pRequest->lastReadDisplayChangeRequest.yres, pRequest->lastReadDisplayChangeRequest.bpp,
-          pRequest->lastReadDisplayChangeRequest.display,
-          xOrigin, yOrigin, fEnabled, fChangeOrigin));
-
-    /* we could validate the information here but hey, the guest can do that as well! */
-    pRequest->displayChangeRequest.xres          = cx;
-    pRequest->displayChangeRequest.yres          = cy;
-    pRequest->displayChangeRequest.bpp           = cBits;
-    pRequest->displayChangeRequest.display       = idxDisplay;
-    pRequest->displayChangeRequest.xOrigin       = xOrigin;
-    pRequest->displayChangeRequest.yOrigin       = yOrigin;
-    pRequest->displayChangeRequest.fEnabled      = fEnabled;
-    pRequest->displayChangeRequest.fChangeOrigin = fChangeOrigin;
-
-    pRequest->fPending = !fSameResolution;
-
-    if (!fSameResolution)
+    if (RT_SUCCESS(rc))
     {
-        LogRel(("VMMDev: SetVideoModeHint: Got a video mode hint (%dx%dx%d)@(%dx%d),(%d;%d) at %d\n",
-                cx, cy, cBits, xOrigin, yOrigin, fEnabled, fChangeOrigin, idxDisplay));
+        if (fNotifyGuest)
+        {
+            for (i = 0; i < RT_ELEMENTS(pThis->displayChangeData.aRequests); ++i)
+            {
+                DISPLAYCHANGEREQUEST *pRequest = &pThis->displayChangeData.aRequests[i];
+                if (pRequest->fPending)
+                {
+                    VMMDevDisplayDef const *p = &pRequest->displayChangeRequest;
+                    LogRel(("VMMDev: SetVideoModeHint: Got a video mode hint (%dx%dx%d)@(%dx%d),(%d;%d) at %d\n",
+                            p->cx, p->cy, p->cBitsPerPixel, p->xOrigin, p->yOrigin,
+                            !RT_BOOL(p->fDisplayFlags & VMMDEV_DISPLAY_DISABLED),
+                            RT_BOOL(p->fDisplayFlags & VMMDEV_DISPLAY_ORIGIN), i));
+                }
+            }
 
-        /* IRQ so the guest knows what's going on */
-        VMMDevNotifyGuest(pThis, VMMDEV_EVENT_DISPLAY_CHANGE_REQUEST);
+            /* IRQ so the guest knows what's going on */
+            VMMDevNotifyGuest(pThis, VMMDEV_EVENT_DISPLAY_CHANGE_REQUEST);
+        }
     }
 
     PDMCritSectLeave(&pThis->CritSect);
-    return VINF_SUCCESS;
+    return rc;
 }
 
 /**
@@ -3892,8 +4302,15 @@ static DECLCALLBACK(void) vmmdevReset(PPDMDEVINS pDevIns)
  */
 static DECLCALLBACK(void) vmmdevRelocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta)
 {
-    NOREF(pDevIns);
-    NOREF(offDelta);
+    if (offDelta)
+    {
+        PVMMDEV pThis = PDMINS_2_DATA(pDevIns, PVMMDEV);
+        LogFlow(("vmmdevRelocate: offDelta=%RGv\n", offDelta));
+
+        if (pThis->pVMMDevRAMRC)
+            pThis->pVMMDevRAMRC += offDelta;
+        pThis->pDevInsRC = PDMDEVINS_2_RCPTR(pDevIns);
+    }
 }
 
 
@@ -3916,9 +4333,20 @@ static DECLCALLBACK(int) vmmdevDestruct(PPDMDEVINS pDevIns)
     }
 
 #ifdef VBOX_WITH_HGCM
+    /*
+     * Everything HGCM.
+     */
     vmmdevHGCMDestroy(pThis);
-    RTCritSectDelete(&pThis->critsectHGCMCmdList);
 #endif
+
+    /*
+     * Free the request buffers.
+     */
+    for (uint32_t iCpu = 0; iCpu < RT_ELEMENTS(pThis->apReqBufs); iCpu++)
+    {
+        pThis->apReqBufs[iCpu] = NULL;
+        RTMemPageFree(pThis->apReqBufs[iCpu], _4K);
+    }
 
 #ifndef VBOX_WITHOUT_TESTING_FEATURES
     /*
@@ -3946,7 +4374,9 @@ static DECLCALLBACK(int) vmmdevConstruct(PPDMDEVINS pDevIns, int iInstance, PCFG
      * Initialize data (most of it anyway).
      */
     /* Save PDM device instance data for future reference. */
-    pThis->pDevIns = pDevIns;
+    pThis->pDevInsR3 = pDevIns;
+    pThis->pDevInsR0 = PDMDEVINS_2_R0PTR(pDevIns);
+    pThis->pDevInsRC = PDMDEVINS_2_RCPTR(pDevIns);
 
     /* PCI vendor, just a free bogus value */
     PCIDevSetVendorId(&pThis->PciDev, 0x80ee);
@@ -3998,6 +4428,10 @@ static DECLCALLBACK(int) vmmdevConstruct(PPDMDEVINS pDevIns, int iInstance, PCFG
 #ifdef VBOX_WITH_HGCM
     /* HGCM port */
     pThis->IHGCMPort.pfnCompleted           = hgcmCompleted;
+    pThis->IHGCMPort.pfnIsCmdRestored       = hgcmIsCmdRestored;
+    pThis->IHGCMPort.pfnIsCmdCancelled      = hgcmIsCmdCancelled;
+    pThis->IHGCMPort.pfnGetRequestor        = hgcmGetRequestor;
+    pThis->IHGCMPort.pfnGetVMMDevSessionId  = hgcmGetVMMDevSessionId;
 #endif
 
     pThis->pCredentials = (VMMDEVCREDS *)RTMemAllocZ(sizeof(*pThis->pCredentials));
@@ -4160,6 +4594,9 @@ static DECLCALLBACK(int) vmmdevConstruct(PPDMDEVINS pDevIns, int iInstance, PCFG
 
     /*
      * Allocate and initialize the MMIO2 memory.
+     *
+     * We map the first page into raw-mode and kernel contexts so we can handle
+     * interrupt acknowledge requests more timely.
      */
     rc = PDMDevHlpMMIO2Register(pDevIns, &pThis->PciDev, 1 /*iRegion*/, VMMDEV_RAM_SIZE, 0 /*fFlags*/,
                                 (void **)&pThis->pVMMDevRAMR3, "VMMDev");
@@ -4167,7 +4604,24 @@ static DECLCALLBACK(int) vmmdevConstruct(PPDMDEVINS pDevIns, int iInstance, PCFG
         return PDMDevHlpVMSetError(pDevIns, rc, RT_SRC_POS,
                                    N_("Failed to allocate %u bytes of memory for the VMM device"), VMMDEV_RAM_SIZE);
     vmmdevInitRam(pThis);
+    if (pThis->fRZEnabled)
+    {
+        rc = PDMDevHlpMMIO2MapKernel(pDevIns, &pThis->PciDev, 1 /*iRegion*/, 0 /*off*/, PAGE_SIZE, "VMMDev", &pThis->pVMMDevRAMR0);
+        if (RT_FAILURE(rc))
+            return PDMDevHlpVMSetError(pDevIns, rc, RT_SRC_POS,
+                                       N_("Failed to map first page of the VMMDev ram into kernel space: %Rrc"), rc);
 
+#ifdef VBOX_WITH_RAW_MODE
+        rc = PDMDevHlpMMHyperMapMMIO2(pDevIns, &pThis->PciDev, 1 /*iRegion*/, 0 /*off*/, PAGE_SIZE, "VMMDev", &pThis->pVMMDevRAMRC);
+        if (RT_FAILURE(rc))
+            return PDMDevHlpVMSetError(pDevIns, rc, RT_SRC_POS,
+                                       N_("Failed to map first page of the VMMDev ram into raw-mode context: %Rrc"), rc);
+#endif
+    }
+
+    /*
+     * Allocate and initialize the MMIO2 heap.
+     */
     if (pThis->fHeapEnabled)
     {
         rc = PDMDevHlpMMIO2Register(pDevIns, &pThis->PciDev, 2 /*iRegion*/, VMMDEV_HEAP_SIZE, 0 /*fFlags*/,
@@ -4251,11 +4705,9 @@ static DECLCALLBACK(int) vmmdevConstruct(PPDMDEVINS pDevIns, int iInstance, PCFG
     AssertRCReturn(rc, rc);
 
 #ifdef VBOX_WITH_HGCM
-    RTListInit(&pThis->listHGCMCmd);
-    rc = RTCritSectInit(&pThis->critsectHGCMCmdList);
+    rc = vmmdevHGCMInit(pThis);
     AssertRCReturn(rc, rc);
-    pThis->u32HGCMEnabled = 0;
-#endif /* VBOX_WITH_HGCM */
+#endif
 
     /*
      * In this version of VirtualBox the GUI checks whether "needs host cursor"
@@ -4263,7 +4715,29 @@ static DECLCALLBACK(int) vmmdevConstruct(PPDMDEVINS pDevIns, int iInstance, PCFG
      */
     pThis->mouseCapabilities |= VMMDEV_MOUSE_HOST_RECHECKS_NEEDS_HOST_CURSOR;
 
-    PDMDevHlpSTAMRegisterF(pDevIns, &pThis->StatMemBalloonChunks, STAMTYPE_U32, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Memory balloon size", "/Devices/VMMDev/BalloonChunks");
+    /*
+     * Statistics.
+     */
+    PDMDevHlpSTAMRegisterF(pDevIns, &pThis->StatMemBalloonChunks, STAMTYPE_U32, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT,
+                           "Memory balloon size",                           "/Devices/VMMDev/BalloonChunks");
+    PDMDevHlpSTAMRegisterF(pDevIns, &pThis->StatFastIrqAckR3,      STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT,
+                           "Fast IRQ acknowledgments handled in ring-3.",   "/Devices/VMMDev/FastIrqAckR3");
+    PDMDevHlpSTAMRegisterF(pDevIns, &pThis->StatFastIrqAckRZ,      STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT,
+                           "Fast IRQ acknowledgments handled in ring-0 or raw-mode.", "/Devices/VMMDev/FastIrqAckRZ");
+    PDMDevHlpSTAMRegisterF(pDevIns, &pThis->StatSlowIrqAck,        STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT,
+                           "Slow IRQ acknowledgments (old style).",         "/Devices/VMMDev/SlowIrqAck");
+    PDMDevHlpSTAMRegisterF(pDevIns, &pThis->StatReqBufAllocs,      STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT,
+                           "Times a larger request buffer was required.",   "/Devices/VMMDev/LargeReqBufAllocs");
+#ifdef VBOX_WITH_HGCM
+    PDMDevHlpSTAMRegisterF(pDevIns, &pThis->StatHgcmCmdArrival,    STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS_PER_CALL,
+                           "Profiling HGCM call arrival processing",        "/HGCM/MsgArrival");
+    PDMDevHlpSTAMRegisterF(pDevIns, &pThis->StatHgcmCmdCompletion, STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS_PER_CALL,
+                           "Profiling HGCM call completion processing",     "/HGCM/MsgCompletion");
+    PDMDevHlpSTAMRegisterF(pDevIns, &pThis->StatHgcmCmdTotal,      STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS_PER_CALL,
+                           "Profiling whole HGCM call.",                    "/HGCM/MsgTotal");
+    PDMDevHlpSTAMRegisterF(pDevIns, &pThis->StatHgcmLargeCmdAllocs,STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT,
+                           "Times the allocation cache could not be used.", "/HGCM/LargeCmdAllocs");
+#endif
 
     /*
      * Generate a unique session id for this VM; it will be changed for each
@@ -4328,5 +4802,5 @@ extern "C" const PDMDEVREG g_DeviceVMMDev =
     /* u32VersionEnd */
     PDM_DEVREG_VERSION
 };
+#endif /* IN_RING3 */
 #endif /* !VBOX_DEVICE_STRUCT_TESTCASE */
-

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2017 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UIGlobalSettingsDisplay_h___
-#define ___UIGlobalSettingsDisplay_h___
+#ifndef FEQT_INCLUDED_SRC_settings_global_UIGlobalSettingsDisplay_h
+#define FEQT_INCLUDED_SRC_settings_global_UIGlobalSettingsDisplay_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* GUI includes: */
 #include "UISettingsPage.h"
@@ -26,10 +29,9 @@
 struct UIDataSettingsGlobalDisplay;
 typedef UISettingsCache<UIDataSettingsGlobalDisplay> UISettingsCacheGlobalDisplay;
 
-
 /** Global settings: Display page. */
-class UIGlobalSettingsDisplay : public UISettingsPageGlobal,
-                                public Ui::UIGlobalSettingsDisplay
+class SHARED_LIBRARY_STUFF UIGlobalSettingsDisplay : public UISettingsPageGlobal,
+                                                     public Ui::UIGlobalSettingsDisplay
 {
     Q_OBJECT;
 
@@ -81,5 +83,4 @@ private:
     UISettingsCacheGlobalDisplay *m_pCache;
 };
 
-#endif /* !___UIGlobalSettingsDisplay_h___ */
-
+#endif /* !FEQT_INCLUDED_SRC_settings_global_UIGlobalSettingsDisplay_h */

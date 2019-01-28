@@ -5,7 +5,7 @@
 #
 
 #
-# Copyright (C) 2007-2017 Oracle Corporation
+# Copyright (C) 2007-2019 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -38,6 +38,7 @@ FILES_VBOXGUEST_NOBIN=" \
     ${PATH_ROOT}/include/iprt/cpuset.h=>include/iprt/cpuset.h \
     ${PATH_ROOT}/include/iprt/ctype.h=>include/iprt/ctype.h \
     ${PATH_ROOT}/include/iprt/err.h=>include/iprt/err.h \
+    ${PATH_ROOT}/include/iprt/errcore.h=>include/iprt/errcore.h \
     ${PATH_ROOT}/include/iprt/errno.h=>include/iprt/errno.h \
     ${PATH_ROOT}/include/iprt/heap.h=>include/iprt/heap.h \
     ${PATH_ROOT}/include/iprt/handletable.h=>include/iprt/handletable.h \
@@ -85,6 +86,7 @@ FILES_VBOXGUEST_NOBIN=" \
     ${PATH_ROOT}/include/VBox/VBoxGuestLib.h=>include/VBox/VBoxGuestLib.h \
     ${PATH_ROOT}/include/VBox/VBoxGuestMangling.h=>include/VBox/VBoxGuestMangling.h \
     ${PATH_ROOT}/include/VBox/version.h=>include/VBox/version.h \
+    ${PATH_ROOT}/include/VBox/HostServices/GuestPropertySvc.h=>include/VBox/HostServices/GuestPropertySvc.h \
     ${PATH_ROOT}/src/VBox/Additions/common/VBoxGuest/VBoxGuest.cpp=>VBoxGuest.c \
     ${PATH_ROOT}/src/VBox/Additions/common/VBoxGuest/VBoxGuest-freebsd.c=>VBoxGuest-freebsd.c \
     ${PATH_ROOT}/src/VBox/Additions/common/VBoxGuest/VBoxGuestInternal.h=>VBoxGuestInternal.h \
@@ -119,15 +121,23 @@ FILES_VBOXGUEST_NOBIN=" \
     ${PATH_ROOT}/src/VBox/Runtime/common/misc/RTAssertMsg2WeakV.cpp=>common/misc/RTAssertMsg2WeakV.c \
     ${PATH_ROOT}/src/VBox/Runtime/common/misc/assert.cpp=>common/misc/assert.c \
     ${PATH_ROOT}/src/VBox/Runtime/common/string/RTStrCat.cpp=>common/string/RTStrCat.c \
+    ${PATH_ROOT}/src/VBox/Runtime/common/string/RTStrCmp.cpp=>common/string/RTStrCmp.c \
     ${PATH_ROOT}/src/VBox/Runtime/common/string/RTStrCopy.cpp=>common/string/RTStrCopy.c \
     ${PATH_ROOT}/src/VBox/Runtime/common/string/RTStrCopyEx.cpp=>common/string/RTStrCopyEx.c \
     ${PATH_ROOT}/src/VBox/Runtime/common/string/RTStrCopyP.cpp=>common/string/RTStrCopyP.c \
+    ${PATH_ROOT}/src/VBox/Runtime/common/string/RTStrICmpAscii.cpp=>common/string/RTStrICmpAscii.c \
+    ${PATH_ROOT}/src/VBox/Runtime/common/string/RTStrNICmpAscii.cpp=>common/string/RTStrNICmpAscii.c \
+    ${PATH_ROOT}/src/VBox/Runtime/common/string/RTStrNCmp.cpp=>common/string/RTStrNCmp.c \
+    ${PATH_ROOT}/src/VBox/Runtime/common/string/RTStrNLen.cpp=>common/string/RTStrNLen.c \
+    ${PATH_ROOT}/src/VBox/Runtime/common/string/stringalloc.cpp=>common/string/stringalloc.c \
     ${PATH_ROOT}/src/VBox/Runtime/common/string/strformat.cpp=>common/string/strformat.c \
+    ${PATH_ROOT}/src/VBox/Runtime/common/string/strformatnum.cpp=>common/string/strformatnum.c \
     ${PATH_ROOT}/src/VBox/Runtime/common/string/strformatrt.cpp=>common/string/strformatrt.c \
     ${PATH_ROOT}/src/VBox/Runtime/common/string/strformattype.cpp=>common/string/strformattype.c \
     ${PATH_ROOT}/src/VBox/Runtime/common/string/strprintf.cpp=>common/string/strprintf.c \
     ${PATH_ROOT}/src/VBox/Runtime/common/string/strtonum.cpp=>common/string/strtonum.c \
     ${PATH_ROOT}/src/VBox/Runtime/common/string/memchr.cpp=>common/string/memchr.c \
+    ${PATH_ROOT}/src/VBox/Runtime/common/string/utf-8.cpp=>common/string/utf-8.c \
     ${PATH_ROOT}/src/VBox/Runtime/common/rand/rand.cpp=>common/rand/rand.c \
     ${PATH_ROOT}/src/VBox/Runtime/common/rand/randadv.cpp=>common/rand/randadv.c \
     ${PATH_ROOT}/src/VBox/Runtime/common/rand/randparkmiller.cpp=>common/rand/randparkmiller.c \

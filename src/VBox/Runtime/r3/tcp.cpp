@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1017,6 +1017,31 @@ static int rtTcpClose(RTSOCKET Sock, const char *pszMsg, bool fTryGracefulShutdo
      * Close the socket handle (drops our reference to it).
      */
     return RTSocketClose(Sock);
+}
+
+
+/**
+ * Creates connected pair of TCP sockets.
+ *
+ * @returns IPRT status code.
+ * @param   phServer            Where to return the "server" side of the pair.
+ * @param   phClient            Where to return the "client" side of the pair.
+ *
+ * @note    There is no server or client side, but we gotta call it something.
+ */
+RTR3DECL(int) RTTcpCreatePair(PRTSOCKET phServer, PRTSOCKET phClient, uint32_t fFlags)
+{
+    /*
+     * Validate input.
+     */
+    AssertPtrReturn(phServer, VERR_INVALID_PARAMETER);
+    AssertPtrReturn(phClient, VERR_INVALID_PARAMETER);
+    AssertReturn(!fFlags, VERR_INVALID_PARAMETER);
+
+    /*
+     * Do the job.
+     */
+    return rtSocketCreateTcpPair(phServer, phClient);
 }
 
 

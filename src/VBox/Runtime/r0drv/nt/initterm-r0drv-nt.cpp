@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -30,7 +30,8 @@
 *********************************************************************************************************************************/
 #include "the-nt-kernel.h"
 #include <iprt/asm-amd64-x86.h>
-#include <iprt/err.h>
+#include <iprt/dbg.h>
+#include <iprt/errcore.h>
 #include <iprt/string.h>
 #include "internal/initterm.h"
 #include "internal-r0drv-nt.h"
@@ -41,6 +42,10 @@
 /*********************************************************************************************************************************
 *   Global Variables                                                                                                             *
 *********************************************************************************************************************************/
+/** ExAllocatePoolWithTag, introduced in W2K. */
+decltype(ExAllocatePoolWithTag)        *g_pfnrtExAllocatePoolWithTag;
+/** ExFreePoolWithTag, introduced in W2K. */
+decltype(ExFreePoolWithTag)            *g_pfnrtExFreePoolWithTag;
 /** ExSetTimerResolution, introduced in W2K. */
 PFNMYEXSETTIMERRESOLUTION               g_pfnrtNtExSetTimerResolution;
 /** KeFlushQueuedDpcs, introduced in XP. */
@@ -83,13 +88,34 @@ PFNKEQUERYLOGICALPROCESSORRELATIONSHIP  g_pfnrtKeQueryLogicalProcessorRelationsh
 PFNKEREGISTERPROCESSORCHANGECALLBACK    g_pfnrtKeRegisterProcessorChangeCallback;
 /** KeDeregisterProcessorChangeCallback - Introducted in Windows 7. */
 PFNKEDEREGISTERPROCESSORCHANGECALLBACK  g_pfnrtKeDeregisterProcessorChangeCallback;
+/** KeSetImportanceDpc - Introducted in NT 3.51. */
+decltype(KeSetImportanceDpc)           *g_pfnrtKeSetImportanceDpc;
+/** KeSetTargetProcessorDpc - Introducted in NT 3.51. */
+decltype(KeSetTargetProcessorDpc)      *g_pfnrtKeSetTargetProcessorDpc;
+/** KeInitializeTimerEx - Introduced in NT 4. */
+decltype(KeInitializeTimerEx)          *g_pfnrtKeInitializeTimerEx;
+/** KeShouldYieldProcessor - Introduced in Windows 10. */
+PFNKESHOULDYIELDPROCESSOR               g_pfnrtKeShouldYieldProcessor;
+/** Pointer to the MmProtectMdlSystemAddress kernel function if it's available.
+ * This API was introduced in XP. */
+decltype(MmProtectMdlSystemAddress)    *g_pfnrtMmProtectMdlSystemAddress;
+/** MmAllocatePagesForMdl - Introduced in Windows 2000. */
+decltype(MmAllocatePagesForMdl)        *g_pfnrtMmAllocatePagesForMdl;
+/** MmFreePagesFromMdl - Introduced in Windows 2000. */
+decltype(MmFreePagesFromMdl)           *g_pfnrtMmFreePagesFromMdl;
+/** MmMapLockedPagesSpecifyCache - Introduced in Windows NT4 SP4. */
+decltype(MmMapLockedPagesSpecifyCache) *g_pfnrtMmMapLockedPagesSpecifyCache;
+/** MmAllocateContiguousMemorySpecifyCache - Introduced in Windows 2000. */
+decltype(MmAllocateContiguousMemorySpecifyCache) *g_pfnrtMmAllocateContiguousMemorySpecifyCache;
+/** MmSecureVirtualMemory - Introduced in NT 3.51.   */
+decltype(MmSecureVirtualMemory)        *g_pfnrtMmSecureVirtualMemory;
+/** MmUnsecureVirtualMemory - Introduced in NT 3.51.   */
+decltype(MmUnsecureVirtualMemory)      *g_pfnrtMmUnsecureVirtualMemory;
 /** RtlGetVersion, introduced in ??. */
 PFNRTRTLGETVERSION                      g_pfnrtRtlGetVersion;
-#ifndef RT_ARCH_AMD64
+#ifdef RT_ARCH_X86
 /** KeQueryInterruptTime - exported/new in Windows 2000. */
 PFNRTKEQUERYINTERRUPTTIME               g_pfnrtKeQueryInterruptTime;
-/** KeQuerySystemTime - exported/new in Windows 2000. */
-PFNRTKEQUERYSYSTEMTIME                  g_pfnrtKeQuerySystemTime;
 #endif
 /** KeQueryInterruptTimePrecise - new in Windows 8. */
 PFNRTKEQUERYINTERRUPTTIMEPRECISE        g_pfnrtKeQueryInterruptTimePrecise;
@@ -104,13 +130,18 @@ uint32_t                                g_cbrtNtPbQuantumEnd;
 uint32_t                                g_offrtNtPbDpcQueueDepth;
 
 /** The combined NT version, see RTNT_MAKE_VERSION. */
-uint32_t                                g_uRtNtVersion;
+uint32_t                                g_uRtNtVersion = RTNT_MAKE_VERSION(4, 0);
 /** The major version number. */
 uint8_t                                 g_uRtNtMajorVer;
 /** The minor version number. */
 uint8_t                                 g_uRtNtMinorVer;
 /** The build number. */
 uint32_t                                g_uRtNtBuildNo;
+
+/** Pointer to the MmHighestUserAddress kernel variable - can be NULL. */
+uintptr_t const                        *g_puRtMmHighestUserAddress;
+/** Pointer to the MmSystemRangeStart kernel variable - can be NULL. */
+uintptr_t const                        *g_puRtMmSystemRangeStart;
 
 
 /**
@@ -254,20 +285,18 @@ DECLHIDDEN(int) rtR0InitNative(void)
     /*
      * Initialize the function pointers.
      */
-#ifdef IPRT_TARGET_NT4
-# define GET_SYSTEM_ROUTINE_EX(a_Prf, a_Name, a_pfnType) do { RT_CONCAT3(g_pfnrt, a_Prf, a_Name) = NULL; } while (0)
-#else
-    UNICODE_STRING RoutineName;
-# define GET_SYSTEM_ROUTINE_EX(a_Prf, a_Name, a_pfnType) \
-    do { \
-        RtlInitUnicodeString(&RoutineName, L#a_Name); \
-        RT_CONCAT3(g_pfnrt, a_Prf, a_Name) = (a_pfnType)MmGetSystemRoutineAddress(&RoutineName); \
-    } while (0)
-#endif
+    RTDBGKRNLINFO hKrnlInfo;
+    int rc = RTR0DbgKrnlInfoOpen(&hKrnlInfo, 0/*fFlags*/);
+    AssertRCReturn(rc, rc);
+
+#define GET_SYSTEM_ROUTINE_EX(a_Prf, a_Name, a_pfnType) \
+    do { RT_CONCAT3(g_pfnrt, a_Prf, a_Name) = (a_pfnType)RTR0DbgKrnlInfoGetSymbol(hKrnlInfo, NULL, #a_Name); } while (0)
 #define GET_SYSTEM_ROUTINE(a_Name)                 GET_SYSTEM_ROUTINE_EX(RT_NOTHING, a_Name, decltype(a_Name) *)
 #define GET_SYSTEM_ROUTINE_PRF(a_Prf,a_Name)       GET_SYSTEM_ROUTINE_EX(a_Prf, a_Name, decltype(a_Name) *)
 #define GET_SYSTEM_ROUTINE_TYPE(a_Name, a_pfnType) GET_SYSTEM_ROUTINE_EX(RT_NOTHING, a_Name, a_pfnType)
 
+    GET_SYSTEM_ROUTINE(ExAllocatePoolWithTag);
+    GET_SYSTEM_ROUTINE(ExFreePoolWithTag);
     GET_SYSTEM_ROUTINE_PRF(Nt,ExSetTimerResolution);
     GET_SYSTEM_ROUTINE_PRF(Nt,KeFlushQueuedDpcs);
     GET_SYSTEM_ROUTINE(KeIpiGenericCall);
@@ -286,22 +315,38 @@ DECLHIDDEN(int) rtR0InitNative(void)
     GET_SYSTEM_ROUTINE(KeQueryLogicalProcessorRelationship);
     GET_SYSTEM_ROUTINE(KeRegisterProcessorChangeCallback);
     GET_SYSTEM_ROUTINE(KeDeregisterProcessorChangeCallback);
+    GET_SYSTEM_ROUTINE(KeSetImportanceDpc);
+    GET_SYSTEM_ROUTINE(KeSetTargetProcessorDpc);
+    GET_SYSTEM_ROUTINE(KeInitializeTimerEx);
+    GET_SYSTEM_ROUTINE_TYPE(KeShouldYieldProcessor, PFNKESHOULDYIELDPROCESSOR);
+    GET_SYSTEM_ROUTINE(MmProtectMdlSystemAddress);
+    GET_SYSTEM_ROUTINE(MmAllocatePagesForMdl);
+    GET_SYSTEM_ROUTINE(MmFreePagesFromMdl);
+    GET_SYSTEM_ROUTINE(MmMapLockedPagesSpecifyCache);
+    GET_SYSTEM_ROUTINE(MmAllocateContiguousMemorySpecifyCache);
+    GET_SYSTEM_ROUTINE(MmSecureVirtualMemory);
+    GET_SYSTEM_ROUTINE(MmUnsecureVirtualMemory);
 
     GET_SYSTEM_ROUTINE_TYPE(RtlGetVersion, PFNRTRTLGETVERSION);
-#ifndef RT_ARCH_AMD64
+#ifdef RT_ARCH_X86
     GET_SYSTEM_ROUTINE(KeQueryInterruptTime);
-    GET_SYSTEM_ROUTINE(KeQuerySystemTime);
 #endif
     GET_SYSTEM_ROUTINE_TYPE(KeQueryInterruptTimePrecise, PFNRTKEQUERYINTERRUPTTIMEPRECISE);
     GET_SYSTEM_ROUTINE_TYPE(KeQuerySystemTimePrecise, PFNRTKEQUERYSYSTEMTIMEPRECISE);
 
-#ifdef IPRT_TARGET_NT4
-    g_pfnrtHalRequestIpiW7Plus = NULL;
-    g_pfnrtHalRequestIpiPreW7 = NULL;
-#else
-    RtlInitUnicodeString(&RoutineName, L"HalRequestIpi");
-    g_pfnrtHalRequestIpiW7Plus = (PFNHALREQUESTIPI_W7PLUS)MmGetSystemRoutineAddress(&RoutineName);
+    g_pfnrtHalRequestIpiW7Plus = (PFNHALREQUESTIPI_W7PLUS)RTR0DbgKrnlInfoGetSymbol(hKrnlInfo, NULL, "HalRequestIpi");
     g_pfnrtHalRequestIpiPreW7 = (PFNHALREQUESTIPI_PRE_W7)g_pfnrtHalRequestIpiW7Plus;
+
+    g_puRtMmHighestUserAddress = (uintptr_t const *)RTR0DbgKrnlInfoGetSymbol(hKrnlInfo, NULL, "MmHighestUserAddress");
+    g_puRtMmSystemRangeStart   = (uintptr_t const *)RTR0DbgKrnlInfoGetSymbol(hKrnlInfo, NULL, "MmSystemRangeStart");
+
+#ifdef RT_ARCH_X86
+    rc = rtR0Nt3InitSymbols(hKrnlInfo);
+    RTR0DbgKrnlInfoRelease(hKrnlInfo);
+    if (RT_FAILURE(rc))
+        return rc;
+#else
+    RTR0DbgKrnlInfoRelease(hKrnlInfo);
 #endif
 
     /*
@@ -443,7 +488,7 @@ DECLHIDDEN(int) rtR0InitNative(void)
      * Initialize multi processor stuff.  This registers a callback, so
      * we call rtR0TermNative to do the deregistration on failure.
      */
-    int rc = rtR0MpNtInit(&OsVerInfo);
+    rc = rtR0MpNtInit(&OsVerInfo);
     if (RT_FAILURE(rc))
     {
         rtR0TermNative();

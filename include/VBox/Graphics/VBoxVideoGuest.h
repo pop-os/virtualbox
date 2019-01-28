@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -28,9 +28,11 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-
-#ifndef ___VBox_Graphics_VBoxVideoGuest_h___
-#define ___VBox_Graphics_VBoxVideoGuest_h___
+#ifndef VBOX_INCLUDED_Graphics_VBoxVideoGuest_h
+#define VBOX_INCLUDED_Graphics_VBoxVideoGuest_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "VBoxVideoIPRT.h"
 #include "HGSMIBase.h"
@@ -125,6 +127,8 @@ DECLHIDDEN(void) VBoxVBVASetupBufferContext(PVBVABUFFERCONTEXT pCtx,
  * @{ */
 
 DECLHIDDEN(uint32_t) VBoxHGSMIGetMonitorCount(PHGSMIGUESTCOMMANDCONTEXT pCtx);
+DECLHIDDEN(bool)     VBoxVGACfgAvailable(void);
+DECLHIDDEN(bool)     VBoxVGACfgQuery(uint16_t u16Id, uint32_t *pu32Value, uint32_t u32DefValue);
 DECLHIDDEN(uint32_t) VBoxVideoGetVRAMSize(void);
 DECLHIDDEN(bool)     VBoxVideoAnyWidthAllowed(void);
 DECLHIDDEN(uint16_t) VBoxHGSMIGetScreenFlags(PHGSMIGUESTCOMMANDCONTEXT pCtx);
@@ -179,5 +183,5 @@ DECLHIDDEN(int) VBoxHGSMIGetModeHints(PHGSMIGUESTCOMMANDCONTEXT pCtx,
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !VBOX_INCLUDED_Graphics_VBoxVideoGuest_h */
 

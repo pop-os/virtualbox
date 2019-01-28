@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___VBoxAboutDlg_h___
-#define ___VBoxAboutDlg_h___
+#ifndef FEQT_INCLUDED_SRC_VBoxAboutDlg_h
+#define FEQT_INCLUDED_SRC_VBoxAboutDlg_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Qt includes: */
 #include <QPixmap>
@@ -24,6 +27,7 @@
 /* GUI includes: */
 #include "QIDialog.h"
 #include "QIWithRetranslateUI.h"
+#include "UILibraryDefs.h"
 
 /* Forward declarations: */
 class QEvent;
@@ -32,38 +36,35 @@ class QVBoxLayout;
 
 /** QIDialog extension
   * used to show the About-VirtualBox dialog. */
-class VBoxAboutDlg : public QIWithRetranslateUI2<QIDialog>
+class SHARED_LIBRARY_STUFF VBoxAboutDlg : public QIWithRetranslateUI2<QIDialog>
 {
     Q_OBJECT;
 
 public:
 
-    /** Constructs dialog passing @a pParent to the QWidget base-class constructor.
-      * @param strVersion is used to specify the version number of VirtualBox. */
+    /** Constructs dialog passing @a pParent to the base-class.
+      * @param  strVersion  Brings the version number of VirtualBox. */
     VBoxAboutDlg(QWidget *pParent, const QString &strVersion);
 
 protected:
 
     /** Handles any Qt @a pEvent. */
-    bool event(QEvent *pEvent);
+    virtual bool event(QEvent *pEvent) /* override */;
 
-    /** Handles Qt paint @a pEvent. */
-    void paintEvent(QPaintEvent *pEvent);
+    /** Handles paint @a pEvent. */
+    virtual void paintEvent(QPaintEvent *pEvent) /* override */;
 
     /** Handles translation event. */
-    void retranslateUi();
+    virtual void retranslateUi() /* override */;
 
 private:
 
-    /** Prepares About-VirtualBox dialog. */
+    /** Prepares all. */
     void prepare();
-
     /** Prepares main-layout. */
     void prepareMainLayout();
-
     /** Prepares label. */
     void prepareLabel();
-
     /** Prepares close-button. */
     void prepareCloseButton();
 
@@ -71,23 +72,20 @@ private:
     QObject *m_pPseudoParent;
 
     /** Holds the About-VirtualBox text. */
-    QString m_strAboutText;
-
+    QString  m_strAboutText;
     /** Holds the VirtualBox version number. */
-    QString m_strVersion;
+    QString  m_strVersion;
 
     /** Holds the About-VirtualBox image. */
-    QPixmap m_pixmap;
-
+    QPixmap  m_pixmap;
     /** Holds the About-VirtualBox dialog size. */
-    QSize   m_size;
+    QSize    m_size;
 
-    /** Holds the instance of label we create for About-VirtualBox text. */
-    QLabel *m_pLabel;
-
-    /** Holds the instance of main-layout we create. */
+    /** Holds About-VirtualBox main-layout instance. */
     QVBoxLayout *m_pMainLayout;
+    /** Holds About-VirtualBox text-label instance. */
+    QLabel      *m_pLabel;
 };
 
-#endif /* !___VBoxAboutDlg_h___ */
+#endif /* !FEQT_INCLUDED_SRC_VBoxAboutDlg_h */
 

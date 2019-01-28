@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -387,8 +387,8 @@ static void vbvaReleaseCmd(VBVADATA *pVBVAData, VBVACMDHDR RT_UNTRUSTED_VOLATILE
 static int vbvaFlushProcess(unsigned uScreenId, PVGASTATE pVGAState, VBVADATA *pVBVAData)
 {
     LOGVBVABUFFER(("uScreenId %d, indexRecordFirst = %d, indexRecordFree = %d, off32Data = %d, off32Free = %d\n",
-                  uScreenId, pVBVAData->indexRecordFirst, pVBVAData->guest.pVBVA->indexRecordFree,
-                  pVBVAData->off32Data, pVBVAData->guest.pVBVA->off32Free));
+                   uScreenId, pVBVAData->indexRecordFirst, pVBVAData->guest.pVBVA->indexRecordFree,
+                   pVBVAData->off32Data, pVBVAData->guest.pVBVA->off32Free));
     struct {
         /* The rectangle that includes all dirty rectangles. */
         int32_t xLeft;
@@ -413,7 +413,7 @@ static int vbvaFlushProcess(unsigned uScreenId, PVGASTATE pVGAState, VBVADATA *p
             return VERR_NOT_SUPPORTED;
         }
 
-        if (cbCmd == uint32_t(~0))
+        if (cbCmd == UINT32_MAX)
         {
             /* No more commands yet in the queue. */
             break;
@@ -443,8 +443,7 @@ static int vbvaFlushProcess(unsigned uScreenId, PVGASTATE pVGAState, VBVADATA *p
 
             /* These are global coords, relative to the primary screen. */
 
-            LOGVBVABUFFER(("cbCmd = %d, x=%d, y=%d, w=%d, h=%d\n",
-                           cbCmd, pHdr->x, pHdr->y, pHdr->w, pHdr->h));
+            LOGVBVABUFFER(("cbCmd = %d, x=%d, y=%d, w=%d, h=%d\n", cbCmd, pHdr->x, pHdr->y, pHdr->w, pHdr->h));
             LogRel3(("%s: update command cbCmd = %d, x=%d, y=%d, w=%d, h=%d\n",
                      __FUNCTION__, cbCmd, pHdr->x, pHdr->y, pHdr->w, pHdr->h));
 
@@ -2663,8 +2662,7 @@ static DECLCALLBACK(int) vbvaChannelHandler(void *pvHandler, uint16_t u16Channel
                 LogRelFlowFunc(("VBVA: ChannelHandler: VBVA_CURSOR_POSITION: fReportPosition=%RTbool, x=%RU32, y=%RU32\n",
                                 RT_BOOL(Report.fReportPosition), Report.x, Report.y));
 
-                //trunkonly: pVGAState->pDrv->pfnVBVAReportCursorPosition(pVGAState->pDrv, RT_BOOL(Report.fReportPosition), Report.x, Report.y);
-                RT_NOREF_PV(Report);
+                pVGAState->pDrv->pfnVBVAReportCursorPosition(pVGAState->pDrv, RT_BOOL(Report.fReportPosition), Report.x, Report.y);
                 pReport->x = pCtx->xCursor;
                 pReport->y = pCtx->yCursor;
                 rc = VINF_SUCCESS;

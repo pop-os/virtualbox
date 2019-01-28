@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,46 +21,43 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
-# define LOG_GROUP LOG_GROUP_GUI
+#define LOG_GROUP LOG_GROUP_GUI
 
 /* Qt includes: */
-# ifdef RT_OS_WINDOWS
-#  include <iprt/win/windows.h> /* QGLWidget drags in Windows.h; -Wall forces us to use wrapper. */
-#  include <iprt/stdint.h>      /* QGLWidget drags in stdint.h; -Wall forces us to use wrapper. */
-# endif
-# include <QGLWidget>
-# include <QFile>
-# include <QTextStream>
+#ifdef RT_OS_WINDOWS
+# include <iprt/win/windows.h> /* QGLWidget drags in Windows.h; -Wall forces us to use wrapper. */
+# include <iprt/stdint.h>      /* QGLWidget drags in stdint.h; -Wall forces us to use wrapper. */
+#endif
+#include <QApplication>
+#include <QGLWidget>
+#include <QFile>
+#include <QTextStream>
 
 /* GUI includes: */
-# include "VBoxFBOverlay.h"
-# include "UIMessageCenter.h"
-# include "UIPopupCenter.h"
-# include "UIExtraDataManager.h"
-# include "VBoxGlobal.h"
+#include "VBoxFBOverlay.h"
+#include "UIDesktopWidgetWatchdog.h"
+#include "UIExtraDataManager.h"
+#include "UIMessageCenter.h"
+#include "UIModalWindowManager.h"
+#include "UIPopupCenter.h"
+#include "VBoxGlobal.h"
 
 /* COM includes: */
-# include "CSession.h"
-# include "CConsole.h"
-# include "CMachine.h"
-# include "CDisplay.h"
+#include "CSession.h"
+#include "CConsole.h"
+#include "CMachine.h"
+#include "CDisplay.h"
 
 /* Other VBox includes: */
-# include <iprt/asm.h>
-# include <iprt/semaphore.h>
-# include <VBox/AssertGuest.h>
+#include <iprt/asm.h>
+#include <iprt/semaphore.h>
+#include <VBox/AssertGuest.h>
 
-# include <VBox/VBoxGL2D.h>
+#include <VBox/VBoxGL2D.h>
 
 #ifdef VBOX_WS_MAC
-# include "VBoxUtils-darwin.h"
-#endif /* VBOX_WS_MAC */
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "VBoxUtils-darwin.h"
+#endif
 
 /* Other VBox includes: */
 #include <iprt/memcache.h>
@@ -69,7 +66,7 @@
 #ifdef VBOX_WITH_VIDEOHWACCEL
 # include <VBoxVideo.h>
 # include <VBox/vmm/ssm.h>
-#endif /* VBOX_WITH_VIDEOHWACCEL */
+#endif
 
 /* Other includes: */
 #include <math.h>
@@ -167,8 +164,6 @@
 *   Global Variables                                                                                                             *
 *********************************************************************************************************************************/
 static VBoxVHWAInfo g_VBoxVHWASupportInfo;
-static bool g_bVBoxVHWAChecked = false;
-static bool g_bVBoxVHWASupported = false;
 
 
 #ifdef DEBUG
@@ -3957,9 +3952,9 @@ void VBoxVHWAImage::resize(const VBoxFBSizeInfo &size)
 //    }
 
     if (remind)
-        popupCenter().remindAboutWrongColorDepth(vboxGlobal().activeMachineWindow(), size.bitsPerPixel(), 32);
+        popupCenter().remindAboutWrongColorDepth(windowManager().mainWindowShown(), size.bitsPerPixel(), 32);
     else
-        popupCenter().forgetAboutWrongColorDepth(vboxGlobal().activeMachineWindow());
+        popupCenter().forgetAboutWrongColorDepth(windowManager().mainWindowShown());
 }
 
 VBoxVHWAColorFormat::VBoxVHWAColorFormat (uint32_t bitsPerPixel, uint32_t r, uint32_t g, uint32_t b)
@@ -4417,20 +4412,18 @@ bool VBoxQGLOverlay::onNotifyUpdate(ULONG uX, ULONG uY, ULONG uW, ULONG uH)
                            (int)ceil((double)rect.height() * yScaleFactor) + 2));
     }
 
-#ifdef VBOX_WS_MAC
-    /* Take the backing-scale-factor into account: */
+    /* Take the device-pixel-ratio into account: */
     if (mSizeInfo.useUnscaledHiDPIOutput())
     {
-        const double dBackingScaleFactor = darwinBackingScaleFactor(mpViewport->window());
-        if (dBackingScaleFactor > 1.0)
+        const double dDevicePixelRatio = gpDesktop->devicePixelRatio(mpViewport->window());
+        if (dDevicePixelRatio > 1.0)
         {
-            rect.moveTo((int)floor((double)rect.x() / dBackingScaleFactor) - 1,
-                        (int)floor((double)rect.y() / dBackingScaleFactor) - 1);
-            rect.setSize(QSize((int)ceil((double)rect.width()  / dBackingScaleFactor) + 2,
-                               (int)ceil((double)rect.height() / dBackingScaleFactor) + 2));
+            rect.moveTo((int)floor((double)rect.x() / dDevicePixelRatio) - 1,
+                        (int)floor((double)rect.y() / dDevicePixelRatio) - 1);
+            rect.setSize(QSize((int)ceil((double)rect.width()  / dDevicePixelRatio) + 2,
+                               (int)ceil((double)rect.height() / dDevicePixelRatio) + 2));
         }
     }
-#endif /* VBOX_WS_MAC */
 
     /* we do not to miss notify updates, because we have to update bg textures for it,
      * so no not check for m_fUnused here,
@@ -4958,31 +4951,6 @@ int VBoxQGLOverlay::vhwaConstruct(struct VBOXVHWACMD_HH_CONSTRUCT *pCmd)
         AssertRC(rc);
     }
     return rc;
-}
-
-/* static */
-bool VBoxQGLOverlay::isAcceleration2DVideoAvailable()
-{
-#ifndef DEBUG_misha
-    if (!g_bVBoxVHWAChecked)
-#endif
-    {
-        g_bVBoxVHWAChecked = true;
-        g_bVBoxVHWASupported = VBoxVHWAInfo::checkVHWASupport();
-    }
-    return g_bVBoxVHWASupported;
-}
-
-/** additional video memory required for the best 2D support performance
- *  total amount of VRAM required is thus calculated as requiredVideoMemory + required2DOffscreenVideoMemory  */
-/* static */
-quint64 VBoxQGLOverlay::required2DOffscreenVideoMemory()
-{
-    /* HDTV == 1920x1080 ~ 2M
-     * for the 4:2:2 formats each pixel is 2Bytes
-     * so each frame may be 4MiB
-     * so for triple-buffering we would need 12 MiB */
-    return _1M * 12;
 }
 
 void VBoxQGLOverlay::processCmd(VBoxVHWACommandElement * pCmd)
@@ -5825,19 +5793,19 @@ VBoxVHWASettings::VBoxVHWASettings ()
 
 void VBoxVHWASettings::init(CSession &session)
 {
-    const QString strMachineID = session.GetMachine().GetId();
+    const QUuid uMachineID = session.GetMachine().GetId();
 
-    mStretchLinearEnabled = gEDataManager->useLinearStretch(strMachineID);
+    mStretchLinearEnabled = gEDataManager->useLinearStretch(uMachineID);
 
     uint32_t aFourccs[VBOXVHWA_NUMFOURCC];
     int num = 0;
-    if (gEDataManager->usePixelFormatAYUV(strMachineID))
+    if (gEDataManager->usePixelFormatAYUV(uMachineID))
         aFourccs[num++] = FOURCC_AYUV;
-    if (gEDataManager->usePixelFormatUYVY(strMachineID))
+    if (gEDataManager->usePixelFormatUYVY(uMachineID))
         aFourccs[num++] = FOURCC_UYVY;
-    if (gEDataManager->usePixelFormatYUY2(strMachineID))
+    if (gEDataManager->usePixelFormatYUY2(uMachineID))
         aFourccs[num++] = FOURCC_YUY2;
-    if (gEDataManager->usePixelFormatYV12(strMachineID))
+    if (gEDataManager->usePixelFormatYV12(uMachineID))
         aFourccs[num++] = FOURCC_YV12;
 
     mFourccEnabledCount = num;

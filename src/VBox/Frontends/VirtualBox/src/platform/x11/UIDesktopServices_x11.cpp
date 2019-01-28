@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,29 +15,24 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* VBox includes */
-# include "UIDesktopServices.h"
+#include "UIDesktopServices.h"
 
 /* Qt includes */
-# include <QCoreApplication>
-# include <QDesktopServices>
-# include <QDir>
-# include <QFile>
-# include <QTextStream>
-# include <QUrl>
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include <QCoreApplication>
+#include <QDesktopServices>
+#include <QDir>
+#include <QFile>
+#include <QTextStream>
+#include <QUrl>
 
 
-bool UIDesktopServices::createMachineShortcut(const QString & /* strSrcFile */, const QString &strDstPath, const QString &strName, const QString &strUuid)
+bool UIDesktopServices::createMachineShortcut(const QString & /* strSrcFile */, const QString &strDstPath, const QString &strName, const QUuid &uUuid)
 {
     QFile link(strDstPath + QDir::separator() + strName + ".desktop");
     if (link.open(QFile::WriteOnly | QFile::Truncate))
     {
+        const QString strVBox = QDir::toNativeSeparators(QCoreApplication::applicationDirPath() + "/" + VBOX_GUI_VMRUNNER_IMAGE);
         QTextStream out(&link);
         out.setCodec("UTF-8");
         /* Create a link which starts VirtualBox with the machine uuid. */
@@ -47,7 +42,7 @@ bool UIDesktopServices::createMachineShortcut(const QString & /* strSrcFile */, 
             << "Name=" << strName << endl
             << "Comment=Starts the VirtualBox machine " << strName << endl
             << "Type=Application" << endl
-            << "Exec=" << QCoreApplication::applicationFilePath() << " --comment \"" << strName << "\" --startvm \"" << strUuid << "\"" << endl
+            << "Exec=" << strVBox << " --comment \"" << strName << "\" --startvm \"" << uUuid.toString() << "\"" << endl
             << "Icon=virtualbox-vbox.png" << endl;
         /* This would be a real file link entry, but then we could also simply
          * use a soft link (on most UNIX fs):

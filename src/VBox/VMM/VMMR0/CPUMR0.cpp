@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -130,8 +130,6 @@ VMMR0_INT_DECL(int) CPUMR0ModuleTerm(void)
 
 
 /**
- *
- *
  * Check the CPUID features of this particular CPU and disable relevant features
  * for the guest which do not exist on this CPU. We have seen systems where the
  * X86_CPUID_FEATURE_ECX_MONITOR feature flag is only set on some host CPUs, see
@@ -785,7 +783,8 @@ static DECLCALLBACK(void) cpumR0MapLocalApicCpuProber(RTCPUID idCpu, void *pvUse
     ASMCpuId(0, &uMaxLeaf, &u32EBX, &u32ECX, &u32EDX);
     if (   (   ASMIsIntelCpuEx(u32EBX, u32ECX, u32EDX)
             || ASMIsAmdCpuEx(u32EBX, u32ECX, u32EDX)
-            || ASMIsViaCentaurCpuEx(u32EBX, u32ECX, u32EDX))
+            || ASMIsViaCentaurCpuEx(u32EBX, u32ECX, u32EDX)
+            || ASMIsShanghaiCpuEx(u32EBX, u32ECX, u32EDX))
         && ASMIsValidStdRange(uMaxLeaf))
     {
         uint32_t uDummy;

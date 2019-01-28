@@ -1,10 +1,10 @@
 /* $Id: QIProcess.h $ */
 /** @file
- * VBox Qt GUI - QIProcess class declaration.
+ * VBox Qt GUI - Qt extensions: QIProcess class declaration.
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,28 +15,33 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __QIProcess_h__
-#define __QIProcess_h__
+#ifndef FEQT_INCLUDED_SRC_extensions_QIProcess_h
+#define FEQT_INCLUDED_SRC_extensions_QIProcess_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Qt includes: */
 #include <QProcess>
 
-/* QProcess reimplementation for VBox GUI needs: */
-class QIProcess : public QProcess
+/* GUI includes: */
+#include "UILibraryDefs.h"
+
+/** QProcess extension for VBox GUI needs. */
+class SHARED_LIBRARY_STUFF QIProcess : public QProcess
 {
     Q_OBJECT;
 
+    /** Constructs our own file-dialog passing @a pParent to the base-class.
+      * Doesn't mean to be used directly, cause this subclass is a bunch of statics. */
+    QIProcess(QObject *pParent = 0);
+
 public:
 
-    /* Static single-shot method to execute some script: */
+    /** Execute certain script specified by @a strProcessName
+      * and wait up to specified @a iTimeout amount of time for responce. */
     static QByteArray singleShot(const QString &strProcessName,
-                                 int iTimeout = 5000 /* wait for data maximum 5 seconds */);
-
-protected:
-
-    /* Constructor: */
-    QIProcess(QObject *pParent = 0);
+                                 int iTimeout = 5000);
 };
 
-#endif /* __QIProcess_h__ */
-
+#endif /* !FEQT_INCLUDED_SRC_extensions_QIProcess_h */

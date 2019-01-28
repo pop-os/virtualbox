@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2018 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -171,8 +171,11 @@
  *                                                                       +----------------------------------+
  */
 
-#ifndef ___VBox_vmm_pdmaudioifs_h
-#define ___VBox_vmm_pdmaudioifs_h
+#ifndef VBOX_INCLUDED_vmm_pdmaudioifs_h
+#define VBOX_INCLUDED_vmm_pdmaudioifs_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/assertcompile.h>
 #include <iprt/circbuf.h>
@@ -643,7 +646,7 @@ typedef struct PDMAUDIOSTREAMCFG
         uint32_t             cfBufferSize;
         /** Pre-buffering size (in audio frames). Frames needed in buffer before the stream becomes active (pre buffering).
          *  The bigger this value is, the more latency for the stream will occur.
-         *  0 if not set / available by the backend. */
+         *  0 if not set / available by the backend. UINT32_MAX if not defined (yet). */
         uint32_t             cfPreBuf;
     } Backend;
 } PDMAUDIOSTREAMCFG;
@@ -1005,9 +1008,12 @@ typedef struct PDMAUDIOSTREAMIN
 #ifdef VBOX_WITH_STATISTICS
     struct
     {
-        STAMCOUNTER BytesElapsed;
-        STAMCOUNTER BytesTotalRead;
-        STAMCOUNTER FramesCaptured;
+        STAMCOUNTER TotalFramesCaptured;
+        STAMCOUNTER AvgFramesCaptured;
+        STAMCOUNTER TotalTimesCaptured;
+        STAMCOUNTER TotalFramesRead;
+        STAMCOUNTER AvgFramesRead;
+        STAMCOUNTER TotalTimesRead;
     } Stats;
 #endif
     struct
@@ -1028,18 +1034,16 @@ typedef struct PDMAUDIOSTREAMOUT
 #ifdef VBOX_WITH_STATISTICS
     struct
     {
-        STAMCOUNTER BytesElapsed;
-        STAMCOUNTER BytesTotalWritten;
-        STAMCOUNTER FramesPlayed;
+        STAMCOUNTER TotalFramesPlayed;
+        STAMCOUNTER AvgFramesPlayed;
+        STAMCOUNTER TotalTimesPlayed;
+        STAMCOUNTER TotalFramesWritten;
+        STAMCOUNTER AvgFramesWritten;
+        STAMCOUNTER TotalTimesWritten;
     } Stats;
 #endif
     struct
     {
-#ifdef DEBUG
-        /** Number of audio frames written since the last playback (transfer)
-         *  to the backend. */
-        uint64_t                cfWrittenSinceLastPlay;
-#endif
         /** File for writing stream writes. */
         PPDMAUDIOFILE           pFileStreamWrite;
         /** File for writing stream playback. */
@@ -1662,5 +1666,5 @@ typedef struct PDMIHOSTAUDIO
 
 /** @} */
 
-#endif /* !___VBox_vmm_pdmaudioifs_h */
+#endif /* !VBOX_INCLUDED_vmm_pdmaudioifs_h */
 

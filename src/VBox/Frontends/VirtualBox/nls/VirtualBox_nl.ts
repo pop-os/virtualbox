@@ -139,6 +139,13 @@
     </message>
 </context>
 <context>
+    <name>QIInputDialog</name>
+    <message>
+        <source>Name:</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>QILabel</name>
     <message>
         <source>&amp;Copy</source>
@@ -216,19 +223,24 @@
     <message>
         <source>%1, %2: %3, %4: %5, %6: %7</source>
         <comment>col.1 text, col.2 name: col.2 text, col.3 name: col.3 text, col.4 name: col.4 text</comment>
-        <translation>%1, %2: %3, %4: %5, %6: %7</translation>
+        <translation type="vanished">%1, %2: %3, %4: %5, %6: %7</translation>
+    </message>
+    <message>
+        <source>%1, %2: %3, %4: %5, %6: %7, %8: %9</source>
+        <comment>col.1 text, col.2 name: col.2 text, col.3 name: col.3 text, col.4 name: col.4 text, col.5 name: col.5 text</comment>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Full</source>
-        <translation type="obsolete">Vol</translation>
+        <translation type="unfinished">Vol</translation>
     </message>
     <message>
         <source>Read-only</source>
-        <translation type="obsolete">Alleen-lezen</translation>
+        <translation type="unfinished">Alleen-lezen</translation>
     </message>
     <message>
         <source>Yes</source>
-        <translation type="obsolete">Ja</translation>
+        <translation type="unfinished">Ja</translation>
     </message>
 </context>
 <context>
@@ -506,11 +518,11 @@
     </message>
     <message>
         <source>&amp;Video Capture</source>
-        <translation>&amp;Videocapture</translation>
+        <translation type="vanished">&amp;Videocapture</translation>
     </message>
     <message>
         <source>&amp;Video Capture Settings...</source>
-        <translation>Instellingen &amp;videocapture...</translation>
+        <translation type="vanished">Instellingen &amp;videocapture...</translation>
     </message>
     <message>
         <source>Popup Menu</source>
@@ -619,7 +631,7 @@
     </message>
     <message>
         <source>S&amp;cale Factor</source>
-        <translation>S&amp;chaalfactor</translation>
+        <translation type="vanished">S&amp;chaalfactor</translation>
     </message>
     <message>
         <source>Send the %1 sequence to the virtual machine</source>
@@ -719,11 +731,11 @@
     </message>
     <message>
         <source>Display virtual machine settings window to configure video capture</source>
-        <translation>Toon virtuele machine instellingenvenster om videocapture in te stellen</translation>
+        <translation type="vanished">Toon virtuele machine instellingenvenster om videocapture in te stellen</translation>
     </message>
     <message>
         <source>Enable guest display video capture</source>
-        <translation>Inschakelen videocapture gastscherm</translation>
+        <translation type="vanished">Inschakelen videocapture gastscherm</translation>
     </message>
     <message>
         <source>Allow remote desktop (RDP) connections to this machine</source>
@@ -793,7 +805,7 @@
     <message>
         <source>%1%</source>
         <comment>scale-factor</comment>
-        <translation>%1%</translation>
+        <translation type="vanished">%1%</translation>
     </message>
     <message>
         <source>Enable</source>
@@ -1021,15 +1033,15 @@
     </message>
     <message>
         <source>&amp;Machine Tools</source>
-        <translation>&amp;Machinegereedschappen</translation>
+        <translation type="vanished">&amp;Machinegereedschappen</translation>
     </message>
     <message>
         <source>Switch to machine tools</source>
-        <translation>Switchen naar machinegereedschappen</translation>
+        <translation type="vanished">Switchen naar machinegereedschappen</translation>
     </message>
     <message>
         <source>&amp;Machine Tools Menu</source>
-        <translation>&amp;Machinegereedschapsmenu</translation>
+        <translation type="vanished">&amp;Machinegereedschapsmenu</translation>
     </message>
     <message>
         <source>Open the machine tools menu</source>
@@ -1054,11 +1066,11 @@
     </message>
     <message>
         <source>&amp;Global Tools</source>
-        <translation>Al&amp;gemene gereedschappen</translation>
+        <translation type="vanished">Al&amp;gemene gereedschappen</translation>
     </message>
     <message>
         <source>Switch to global tools</source>
-        <translation>Switchen naar algemene gereedschappen</translation>
+        <translation type="vanished">Switchen naar algemene gereedschappen</translation>
     </message>
     <message>
         <source>&amp;Global Tools Menu</source>
@@ -1109,176 +1121,679 @@
         <translation>Uit&amp;zetten</translation>
     </message>
     <message>
+        <source>&amp;Log</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open the log menu</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>&amp;Find</source>
-        <translation type="obsolete">&amp;Zoek</translation>
+        <translation type="unfinished">&amp;Zoek</translation>
+    </message>
+    <message>
+        <source>Log Viewer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open pane with searching options</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open Find Pane (%1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Filter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open pane with filtering options</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open Filter Pane (%1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Bookmark</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open pane with bookmarking options</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open Bookmark Pane (%1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Options</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open pane with log viewer options</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open Options Pane (%1)</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>&amp;Refresh</source>
-        <translation type="obsolete">&amp;Verversen</translation>
+        <translation type="unfinished">&amp;Verversen</translation>
+    </message>
+    <message>
+        <source>Refresh selected virtual machine log</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Refresh Virtual Machine Log (%1)</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>&amp;Save...</source>
-        <translation type="obsolete">&amp;Opslaan...</translation>
+        <translation type="unfinished">&amp;Opslaan...</translation>
+    </message>
+    <message>
+        <source>Save selected virtual machine log</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Save Virtual Machine Log (%1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>File Manager</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Host</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Guest</source>
-        <translation type="obsolete">Gast</translation>
+        <translation type="unfinished">Gast</translation>
+    </message>
+    <message>
+        <source>Copy to guest</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy the Selected Object(s) from Host to Guest</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy the selected object(s) from host to guest</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy to host</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy the Selected Object(s) from Guest to Host</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy the selected object(s) from guest to host</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Settings</source>
         <translation type="obsolete">Instellingen</translation>
     </message>
     <message>
+        <source>Log</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Session</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open File Manager Session</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Go one level up to parent folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Go One Level Up to Parent Folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Go Home</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Go to home folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Go to Home Folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Delete</source>
-        <translation type="obsolete">Verwijderen</translation>
+        <translation type="unfinished">Verwijderen</translation>
+    </message>
+    <message>
+        <source>Delete selected file object(s)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delete Selected File Object(s)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Refresh</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Rename</source>
-        <translation type="obsolete">Hernoemen</translation>
+        <translation type="unfinished">Hernoemen</translation>
+    </message>
+    <message>
+        <source>Create New Directory</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy selected file object(s)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy Selected File Object(s)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cut</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cut selected file object(s)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cut Selected File Object(s)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Paste</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Paste copied/cut file object(s)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Paste Copied/Cut File Object(s)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select All</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select all files objects</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select All Files Objects</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Invert Selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Invert the current selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Invert the Current Selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show Properties</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show the properties of currently selected file object(s)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show the Properties of Currently Selected File Object(s)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Cloud Profile Manager...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Display the Cloud Profile Manager window</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Import</source>
-        <translation type="obsolete">Importeren</translation>
+        <translation type="unfinished">Importeren</translation>
     </message>
     <message>
         <source>Export</source>
-        <translation type="obsolete">Exporteren</translation>
+        <translation type="unfinished">Exporteren</translation>
     </message>
     <message>
         <source>&amp;Move...</source>
-        <translation type="obsolete">&amp;Verplaatsen...</translation>
+        <translation type="unfinished">&amp;Verplaatsen...</translation>
+    </message>
+    <message>
+        <source>Move selected virtual machine</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Logs</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open the machine logs pane</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Cloud Profile Manager</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open the Cloud Profile Manager</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Snapshot</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open the snapshot menu</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>&amp;Take...</source>
-        <translation type="obsolete">&amp;Nemen...</translation>
+        <translation type="unfinished">&amp;Nemen...</translation>
+    </message>
+    <message>
+        <source>Snapshot Pane</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Take a snapshot of the current virtual machine state</source>
-        <translation type="obsolete">Maak een snapshot van de huidige staat van de virtuele machine</translation>
+        <translation type="unfinished">Maak een snapshot van de huidige staat van de virtuele machine</translation>
     </message>
     <message>
         <source>Take Snapshot (%1)</source>
-        <translation type="obsolete">Snapshot nemen (%1)</translation>
+        <translation type="unfinished">Snapshot nemen (%1)</translation>
+    </message>
+    <message>
+        <source>&amp;Delete...</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Delete selected snapshot of the virtual machine</source>
-        <translation type="obsolete">Verwijder het geselecteerde snapshot van de virtuele machine</translation>
+        <translation type="unfinished">Verwijder het geselecteerde snapshot van de virtuele machine</translation>
     </message>
     <message>
         <source>Delete Snapshot (%1)</source>
-        <translation type="obsolete">Verwijder snapshot (%1)</translation>
+        <translation type="unfinished">Verwijder snapshot (%1)</translation>
+    </message>
+    <message>
+        <source>&amp;Restore...</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Restore selected snapshot of the virtual machine</source>
-        <translation type="obsolete">Zet het geselecteerde snapshot van de virtuele machine terug</translation>
+        <translation type="unfinished">Zet het geselecteerde snapshot van de virtuele machine terug</translation>
     </message>
     <message>
         <source>Restore Snapshot (%1)</source>
-        <translation type="obsolete">Terugzetten snapshot (%1)</translation>
+        <translation type="unfinished">Terugzetten snapshot (%1)</translation>
+    </message>
+    <message>
+        <source>&amp;Properties</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Open pane with the selected snapshot properties</source>
-        <translation type="obsolete">Open deelvenster met geselecteerde snapshoteigenschappen</translation>
+        <translation type="unfinished">Open deelvenster met geselecteerde snapshoteigenschappen</translation>
     </message>
     <message>
         <source>Open Snapshot Properties (%1)</source>
-        <translation type="obsolete">Openen snapshoteigenschappen (%1)</translation>
+        <translation type="unfinished">Openen snapshoteigenschappen (%1)</translation>
     </message>
     <message>
         <source>&amp;Clone...</source>
-        <translation type="obsolete">&amp;Kloon...</translation>
+        <translation type="unfinished">&amp;Kloon...</translation>
     </message>
     <message>
         <source>Clone Virtual Machine (%1)</source>
-        <translation type="obsolete">Kloon Virtuele Machine (%1)</translation>
+        <translation type="unfinished">Kloon Virtuele Machine (%1)</translation>
     </message>
     <message>
         <source>&amp;Medium</source>
-        <translation type="obsolete">&amp;Medium</translation>
+        <translation type="unfinished">&amp;Medium</translation>
+    </message>
+    <message>
+        <source>Open the medium menu</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Media Manager</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add a disk image file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add a Disk Image File (%1)</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>&amp;Copy...</source>
-        <translation type="obsolete">&amp;Kopiëren...</translation>
+        <translation type="unfinished">&amp;Kopiëren...</translation>
     </message>
     <message>
         <source>Copy selected disk image file</source>
-        <translation type="obsolete">Kopiëren geselecteerd disk-imagebestand</translation>
+        <translation type="unfinished">Kopiëren geselecteerd disk-imagebestand</translation>
     </message>
     <message>
         <source>Copy Disk Image File (%1)</source>
-        <translation type="obsolete">Kopiëren disk-imagebestand (%1)</translation>
+        <translation type="unfinished">Kopiëren disk-imagebestand (%1)</translation>
     </message>
     <message>
         <source>Move selected disk image file</source>
-        <translation type="obsolete">Verplaatsen geselecteerd disk-imagebestand</translation>
+        <translation type="unfinished">Verplaatsen geselecteerd disk-imagebestand</translation>
     </message>
     <message>
         <source>Move Disk Image File (%1)</source>
-        <translation type="obsolete">Verplaatsen disk-imagebestand (%1)</translation>
+        <translation type="unfinished">Verplaatsen disk-imagebestand (%1)</translation>
     </message>
     <message>
         <source>Remove selected disk image file</source>
-        <translation type="obsolete">Verwijderen disk-imagebestand</translation>
+        <translation type="unfinished">Verwijderen disk-imagebestand</translation>
     </message>
     <message>
         <source>Remove Disk Image File (%1)</source>
-        <translation type="obsolete">Verwijderen disk-imagebestand (%1)</translation>
+        <translation type="unfinished">Verwijderen disk-imagebestand (%1)</translation>
     </message>
     <message>
         <source>Re&amp;lease...</source>
-        <translation type="obsolete">Re&amp;lease...</translation>
+        <translation type="unfinished">Re&amp;lease...</translation>
+    </message>
+    <message>
+        <source>Release selected disk image file</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Release Disk Image File (%1)</source>
-        <translation type="obsolete">Vrijgeven disk-imagebestand (%1)</translation>
+        <translation type="unfinished">Vrijgeven disk-imagebestand (%1)</translation>
     </message>
     <message>
         <source>Open pane with selected disk image file properties</source>
-        <translation type="obsolete">Open deelvenster met geselecteerde disk-image-eigenschappen</translation>
+        <translation type="unfinished">Open deelvenster met geselecteerde disk-image-eigenschappen</translation>
     </message>
     <message>
         <source>Open Disk Image File Properties (%1)</source>
-        <translation type="obsolete">Openen disk-imagebestand-eigenschappen(%1)</translation>
+        <translation type="unfinished">Openen disk-imagebestand-eigenschappen(%1)</translation>
+    </message>
+    <message>
+        <source>Re&amp;fresh...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Refresh the list of disk image files</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Refresh Disk Image Files (%1)</source>
-        <translation type="obsolete">Verversen disk-imagebestanden (%1)</translation>
+        <translation type="unfinished">Verversen disk-imagebestanden (%1)</translation>
+    </message>
+    <message>
+        <source>Open the network menu</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Create...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Network Manager</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Create new host-only network</source>
-        <translation type="obsolete">Host-only netwerk aanmaken</translation>
+        <translation type="unfinished">Host-only netwerk aanmaken</translation>
     </message>
     <message>
         <source>Create Host-only Network (%1)</source>
-        <translation type="obsolete">Host-only netwerk aanmaken (%1)</translation>
+        <translation type="unfinished">Host-only netwerk aanmaken (%1)</translation>
     </message>
     <message>
         <source>Remove selected host-only network</source>
-        <translation type="obsolete">Verwijderen geselecteerd host-only-netwerk</translation>
+        <translation type="unfinished">Verwijderen geselecteerd host-only-netwerk</translation>
     </message>
     <message>
         <source>Remove Host-only Network (%1)</source>
-        <translation type="obsolete">Host-only netwerk verwijderen (%1)</translation>
+        <translation type="unfinished">Host-only netwerk verwijderen (%1)</translation>
     </message>
     <message>
         <source>Open pane with selected host-only network properties</source>
-        <translation type="obsolete">Open deelvenster met geselecteerde host-only netwerkeigenschappen</translation>
+        <translation type="unfinished">Open deelvenster met geselecteerde host-only netwerkeigenschappen</translation>
     </message>
     <message>
         <source>Open Host-only Network Properties (%1)</source>
-        <translation type="obsolete">Open Host-only netwerkeigenschappen (%1)</translation>
+        <translation type="unfinished">Open Host-only netwerkeigenschappen (%1)</translation>
     </message>
     <message>
         <source>Refresh the list of host-only networks</source>
-        <translation type="obsolete">Host-only netwerklijst verversen</translation>
+        <translation type="unfinished">Host-only netwerklijst verversen</translation>
     </message>
     <message>
         <source>Refresh Host-only Networks (%1)</source>
-        <translation type="obsolete">Host-only netwerk verversen (%1)</translation>
+        <translation type="unfinished">Host-only netwerk verversen (%1)</translation>
+    </message>
+    <message>
+        <source>&amp;Cloud</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open the cloud menu</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Add Profile...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cloud Profile Manager</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add new cloud profile</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add Cloud Profile (%1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Import Profiles...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Import the list of cloud profiles from external files</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Import Cloud Profiles (%1)</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Remove</source>
-        <translation type="obsolete">Verwijderen</translation>
+        <translation type="unfinished">Verwijderen</translation>
+    </message>
+    <message>
+        <source>&amp;Remove Profile...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove selected cloud profile</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove Cloud Profile (%1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Properties</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Profile &amp;Properties</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open pane with selected cloud profile properties</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open Cloud Profile Properties (%1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Help</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Show Help...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show cloud profile help</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show Cloud Profile Help (%1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>File Manager...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Guest Process Control...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Display the virtual machine guest process control window</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Recording</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Recording Settings...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Display virtual machine settings window to configure video/audio recording</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enable guest video/audio recording</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scale to %1%</source>
+        <comment>scale-factor</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scale to %1% (unscaled output)</source>
+        <comment>scale-factor</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scale to %1% (autoscaled output)</source>
+        <comment>scale-factor</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Options</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open panel with file manager options</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open the file manager</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open the file manager host submenu</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open the file manager guest submenu</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open File Manager Options</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open panel with file manager log</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open File Manager Log</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Operations</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open panel with file manager operations</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open File Manager Operations</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open panel with file manager session</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Go Up</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Display the virtual machine file manager window</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tools</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -1407,11 +1922,11 @@
     </message>
     <message>
         <source>When checked a new unique MAC address will assigned to all configured network cards.</source>
-        <translation>Als dit is ingesteld zal een nieuw, uniek MAC-adres worden toegewezen aan alle geconfigureerde netwerkkaarten.</translation>
+        <translation type="vanished">Als dit is ingesteld zal een nieuw, uniek MAC-adres worden toegewezen aan alle geconfigureerde netwerkkaarten.</translation>
     </message>
     <message>
         <source>&amp;Reinitialize the MAC address of all network cards</source>
-        <translation>He&amp;rinitialiseren MAC-adres van alle netwerkkaarten</translation>
+        <translation type="vanished">He&amp;rinitialiseren MAC-adres van alle netwerkkaarten</translation>
     </message>
     <message>
         <source>Storage Controller (IDE)</source>
@@ -1433,6 +1948,18 @@
         <source>Detailed list of all components of all virtual machines of the current appliance</source>
         <translation>Gedetailleerde lijst van alle componenten van alle virtuele machines van de huidige appliance</translation>
     </message>
+    <message>
+        <source>Settings File</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Base Folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Primary Group</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIApplianceImportEditorWidget</name>
@@ -1444,6 +1971,46 @@
     <message>
         <source>Reading Appliance ...</source>
         <translation>Appliance lezen ...</translation>
+    </message>
+    <message>
+        <source>&amp;Import hard drives as VDI</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>MAC Address &amp;Policy:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Include all network adapter MAC addresses</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Include only NAT network adapter MAC addresses</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Generate new MAC addresses for all network adapters</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Include only NAT network adapter MAC addresses during cloning.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Generate new MAC addresses for all network adapters during cloning.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Additional Options:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When checked, all the hard drives that belong to this appliance will be imported in VDI format.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Include all network adapter MAC addresses during cloning.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -1533,28 +2100,35 @@
     </message>
 </context>
 <context>
+    <name>UIChooserItemGlobal</name>
+    <message>
+        <source>Tools</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>UIChooserItemGroup</name>
     <message>
         <source>Virtual Machine group</source>
-        <translation type="obsolete">Virtuele Machine-groep</translation>
+        <translation type="unfinished">Virtuele Machine-groep</translation>
     </message>
     <message>
         <source>Enter group</source>
-        <translation type="obsolete">Groep binnengaan</translation>
+        <translation type="unfinished">Groep binnengaan</translation>
     </message>
     <message>
         <source>Exit group</source>
-        <translation type="obsolete">Groep verlaten</translation>
+        <translation type="unfinished">Groep verlaten</translation>
     </message>
     <message>
         <source>&lt;b&gt;%1&lt;/b&gt;</source>
         <comment>Group item tool-tip / Group name</comment>
-        <translation type="obsolete">&lt;b&gt;%1&lt;/b&gt;</translation>
+        <translation type="unfinished">&lt;b&gt;%1&lt;/b&gt;</translation>
     </message>
     <message numerus="yes">
         <source>%n group(s)</source>
         <comment>Group item tool-tip / Group info</comment>
-        <translation type="obsolete">
+        <translation type="unfinished">
             <numerusform>%n groep</numerusform>
             <numerusform>%n groepen</numerusform>
         </translation>
@@ -1562,12 +2136,12 @@
     <message>
         <source>&lt;nobr&gt;%1&lt;/nobr&gt;</source>
         <comment>Group item tool-tip / Group info wrapper</comment>
-        <translation type="obsolete">&lt;nobr&gt;%1&lt;/nobr&gt;</translation>
+        <translation type="unfinished">&lt;nobr&gt;%1&lt;/nobr&gt;</translation>
     </message>
     <message numerus="yes">
         <source>%n machine(s)</source>
         <comment>Group item tool-tip / Machine info</comment>
-        <translation type="obsolete">
+        <translation type="unfinished">
             <numerusform>%n machine</numerusform>
             <numerusform>%n machines</numerusform>
         </translation>
@@ -1575,7 +2149,7 @@
     <message numerus="yes">
         <source>(%n running)</source>
         <comment>Group item tool-tip / Running machine info</comment>
-        <translation type="obsolete">
+        <translation type="unfinished">
             <numerusform>(%n draaiend)</numerusform>
             <numerusform>(%n draaiend)</numerusform>
         </translation>
@@ -1583,106 +2157,178 @@
     <message>
         <source>&lt;nobr&gt;%1&lt;/nobr&gt;</source>
         <comment>Group item tool-tip / Machine info wrapper</comment>
-        <translation type="obsolete">&lt;nobr&gt;%1&lt;/nobr&gt;</translation>
+        <translation type="unfinished">&lt;nobr&gt;%1&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;%1 %2&lt;/nobr&gt;</source>
         <comment>Group item tool-tip / Machine info wrapper, including running</comment>
-        <translation type="obsolete">&lt;nobr&gt;%1 %2&lt;/nobr&gt;</translation>
+        <translation type="unfinished">&lt;nobr&gt;%1 %2&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>Collapse group</source>
-        <translation type="obsolete">Groep invouwen</translation>
+        <translation type="unfinished">Groep invouwen</translation>
     </message>
     <message>
         <source>Expand group</source>
-        <translation type="obsolete">Groep uitvouwen</translation>
+        <translation type="unfinished">Groep uitvouwen</translation>
     </message>
 </context>
 <context>
     <name>UIChooserItemMachine</name>
     <message>
         <source>Virtual Machine</source>
-        <translation type="obsolete">Virtual Machine</translation>
+        <translation type="unfinished">Virtual Machine</translation>
     </message>
 </context>
 <context>
     <name>UIChooserModel</name>
     <message>
         <source>New group</source>
-        <translation type="obsolete">Nieuwe groep</translation>
+        <translation type="unfinished">Nieuwe groep</translation>
     </message>
 </context>
 <context>
     <name>UIChooserView</name>
     <message>
         <source>Contains a tree of Virtual Machines and their groups</source>
-        <translation type="obsolete">Boomweergave van Virtuele Machines en hun groep</translation>
+        <translation type="unfinished">Boomweergave van Virtuele Machines en hun groep</translation>
     </message>
 </context>
 <context>
     <name>UICloudProfileDetailsWidget</name>
     <message>
+        <source>Name:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Properties:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Contains cloud profile settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enter a name for the new profile...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enter a name for this profile...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Reset</source>
-        <translation type="obsolete">Reset</translation>
+        <translation type="unfinished">Reset</translation>
+    </message>
+    <message>
+        <source>Reset changes in current profile details</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Reset Changes (%1)</source>
-        <translation type="obsolete">Reset veranderingen (%1)</translation>
+        <translation type="unfinished">Reset veranderingen (%1)</translation>
+    </message>
+    <message>
+        <source>Add</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add a new profile with following name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add Profile (%1)</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Apply</source>
-        <translation type="obsolete">Toepassen</translation>
+        <translation type="unfinished">Toepassen</translation>
+    </message>
+    <message>
+        <source>Apply changes in current profile details</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Apply Changes (%1)</source>
-        <translation type="obsolete">Toepassen veranderingen (%1)</translation>
+        <translation type="unfinished">Toepassen veranderingen (%1)</translation>
     </message>
 </context>
 <context>
     <name>UICloudProfileManager</name>
     <message>
+        <source>Cloud Profile Manager</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Reset</source>
-        <translation type="obsolete">Reset</translation>
+        <translation type="unfinished">Reset</translation>
     </message>
     <message>
         <source>Apply</source>
-        <translation type="obsolete">Toepassen</translation>
+        <translation type="unfinished">Toepassen</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation type="obsolete">Sluiten</translation>
+        <translation type="unfinished">Sluiten</translation>
+    </message>
+    <message>
+        <source>Reset changes in current cloud profile details</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Apply changes in current cloud profile details</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Close dialog without saving</source>
-        <translation type="obsolete">Sluit dialoog af zonder opslaan</translation>
+        <translation type="unfinished">Sluit dialoog af zonder opslaan</translation>
     </message>
     <message>
         <source>Reset Changes (%1)</source>
-        <translation type="obsolete">Reset veranderingen (%1)</translation>
+        <translation type="unfinished">Reset veranderingen (%1)</translation>
     </message>
     <message>
         <source>Apply Changes (%1)</source>
-        <translation type="obsolete">Toepassen veranderingen (%1)</translation>
+        <translation type="unfinished">Toepassen veranderingen (%1)</translation>
     </message>
     <message>
         <source>Close Window (%1)</source>
-        <translation type="obsolete">Afsluiten scherm (%1)</translation>
+        <translation type="unfinished">Afsluiten scherm (%1)</translation>
+    </message>
+    <message>
+        <source>Add Profile</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>UICustomFileSystemModel</name>
     <message>
         <source>Name</source>
-        <translation type="obsolete">Naam</translation>
+        <translation type="unfinished">Naam</translation>
     </message>
     <message>
         <source>Size</source>
-        <translation type="obsolete">Grootte</translation>
+        <translation type="unfinished">Grootte</translation>
+    </message>
+    <message>
+        <source>Change Time</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Owner</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Permissions</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>LocalPath</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Path</source>
-        <translation type="obsolete">Pad</translation>
+        <translation type="unfinished">Pad</translation>
     </message>
 </context>
 <context>
@@ -1690,132 +2336,157 @@
     <message>
         <source>Name</source>
         <comment>details (general)</comment>
-        <translation type="obsolete">Naam</translation>
+        <translation type="unfinished">Naam</translation>
     </message>
     <message>
         <source>Operating System</source>
         <comment>details (general)</comment>
-        <translation type="obsolete">Besturingssysteem</translation>
+        <translation type="unfinished">Besturingssysteem</translation>
+    </message>
+    <message>
+        <source>Settings File Location</source>
+        <comment>details (general)</comment>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Groups</source>
         <comment>details (general)</comment>
-        <translation type="obsolete">Groepen</translation>
+        <translation type="unfinished">Groepen</translation>
     </message>
     <message>
         <source>Information Inaccessible</source>
         <comment>details</comment>
-        <translation type="obsolete">Informatie niet toegankelijk</translation>
+        <translation type="unfinished">Informatie niet toegankelijk</translation>
     </message>
     <message>
         <source>Base Memory</source>
         <comment>details (system)</comment>
-        <translation type="obsolete">Basisgeheugen</translation>
+        <translation type="unfinished">Basisgeheugen</translation>
     </message>
     <message>
         <source>%1 MB</source>
         <comment>details</comment>
-        <translation type="obsolete">%1 MB</translation>
+        <translation type="unfinished">%1 MB</translation>
     </message>
     <message>
         <source>Processors</source>
         <comment>details (system)</comment>
-        <translation type="obsolete">Processoren</translation>
+        <translation type="unfinished">Processoren</translation>
+    </message>
+    <message>
+        <source>Execution Cap</source>
+        <comment>details (system)</comment>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1%</source>
         <comment>details</comment>
-        <translation type="obsolete">%1%</translation>
+        <translation type="unfinished">%1%</translation>
     </message>
     <message>
         <source>Boot Order</source>
         <comment>details (system)</comment>
-        <translation type="obsolete">Opstartvolgorde</translation>
+        <translation type="unfinished">Opstartvolgorde</translation>
     </message>
     <message>
         <source>Chipset Type</source>
         <comment>details (system)</comment>
-        <translation type="obsolete">Chipset-type</translation>
+        <translation type="unfinished">Chipset-type</translation>
     </message>
     <message>
         <source>EFI</source>
         <comment>details (system)</comment>
-        <translation type="obsolete">EFI</translation>
+        <translation type="unfinished">EFI</translation>
     </message>
     <message>
         <source>Enabled</source>
         <comment>details (system/EFI)</comment>
-        <translation type="obsolete">Ingeschakeld</translation>
+        <translation type="unfinished">Ingeschakeld</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details (system/EFI)</comment>
-        <translation type="obsolete">Uitgeschakeld</translation>
+        <translation type="unfinished">Uitgeschakeld</translation>
     </message>
     <message>
         <source>VT-x/AMD-V</source>
         <comment>details (system)</comment>
-        <translation type="obsolete">VT-x/AMD-V</translation>
+        <translation type="unfinished">VT-x/AMD-V</translation>
+    </message>
+    <message>
+        <source>Nested Paging</source>
+        <comment>details (system)</comment>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>PAE/NX</source>
         <comment>details (system)</comment>
-        <translation type="obsolete">PAE/NX</translation>
+        <translation type="unfinished">PAE/NX</translation>
     </message>
     <message>
         <source>Minimal Paravirtualization</source>
         <comment>details (system)</comment>
-        <translation type="obsolete">Minimale paravirtualisatie</translation>
+        <translation type="unfinished">Minimale paravirtualisatie</translation>
     </message>
     <message>
         <source>Hyper-V Paravirtualization</source>
         <comment>details (system)</comment>
-        <translation type="obsolete">Hyper-V paravirtualisatie</translation>
+        <translation type="unfinished">Hyper-V paravirtualisatie</translation>
     </message>
     <message>
         <source>KVM Paravirtualization</source>
         <comment>details (system)</comment>
-        <translation type="obsolete">KVM paravirtualisatie</translation>
+        <translation type="unfinished">KVM paravirtualisatie</translation>
     </message>
     <message>
         <source>Acceleration</source>
         <comment>details (system)</comment>
-        <translation type="obsolete">Acceleratie</translation>
+        <translation type="unfinished">Acceleratie</translation>
     </message>
     <message>
         <source>Video Memory</source>
         <comment>details (display)</comment>
-        <translation type="obsolete">Videogeheugen</translation>
+        <translation type="unfinished">Videogeheugen</translation>
     </message>
     <message>
         <source>Screens</source>
         <comment>details (display)</comment>
-        <translation type="obsolete">Beeldschermen</translation>
+        <translation type="unfinished">Beeldschermen</translation>
     </message>
     <message>
         <source>Scale-factor</source>
         <comment>details (display)</comment>
-        <translation type="obsolete">Schaalfactor</translation>
+        <translation type="unfinished">Schaalfactor</translation>
     </message>
     <message>
         <source>2D Video</source>
         <comment>details (display)</comment>
-        <translation type="obsolete">2D-video</translation>
+        <translation type="unfinished">2D-video</translation>
     </message>
     <message>
         <source>3D</source>
         <comment>details (display)</comment>
-        <translation type="obsolete">3D</translation>
+        <translation type="unfinished">3D</translation>
     </message>
     <message>
         <source>Acceleration</source>
         <comment>details (display)</comment>
-        <translation type="obsolete">Acceleratie</translation>
+        <translation type="unfinished">Acceleratie</translation>
+    </message>
+    <message>
+        <source>Remote Desktop Server Port</source>
+        <comment>details (display/vrde)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remote Desktop Server</source>
+        <comment>details (display/vrde)</comment>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details (display/vrde/VRDE server)</comment>
-        <translation type="obsolete">Uitgeschakeld</translation>
+        <translation type="unfinished">Uitgeschakeld</translation>
     </message>
     <message>
         <source>Video Capture File</source>
@@ -1829,7 +2500,7 @@
     </message>
     <message>
         <source>Frame Size: %1x%2, Frame Rate: %3fps, Bit Rate: %4kbps</source>
-        <translation type="obsolete">Framegrootte: %1x%2, Framerate: %3fps, Bitrate: %4kbps</translation>
+        <translation type="unfinished">Framegrootte: %1x%2, Framerate: %3fps, Bitrate: %4kbps</translation>
     </message>
     <message>
         <source>Video Capture</source>
@@ -1844,207 +2515,227 @@
     <message>
         <source>[Optical Drive]</source>
         <comment>details (storage)</comment>
-        <translation type="obsolete">[Optisch station]</translation>
+        <translation type="unfinished">[Optisch station]</translation>
     </message>
     <message>
         <source>Not Attached</source>
         <comment>details (storage)</comment>
-        <translation type="obsolete">Niet aangesloten</translation>
+        <translation type="unfinished">Niet aangesloten</translation>
     </message>
     <message>
         <source>Host Driver</source>
         <comment>details (audio)</comment>
-        <translation type="obsolete">Hoststuurprogramma</translation>
+        <translation type="unfinished">Hoststuurprogramma</translation>
     </message>
     <message>
         <source>Controller</source>
         <comment>details (audio)</comment>
-        <translation type="obsolete">Controller</translation>
+        <translation type="unfinished">Controller</translation>
     </message>
     <message>
         <source>Audio Output</source>
         <comment>details (audio)</comment>
-        <translation type="obsolete">Audio Output</translation>
+        <translation type="unfinished">Audio Output</translation>
     </message>
     <message>
         <source>Enabled</source>
         <comment>details (audio/output)</comment>
-        <translation type="obsolete">Ingeschakeld</translation>
+        <translation type="unfinished">Ingeschakeld</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details (audio/output)</comment>
-        <translation type="obsolete">Uitgeschakeld</translation>
+        <translation type="unfinished">Uitgeschakeld</translation>
     </message>
     <message>
         <source>Audio Input</source>
         <comment>details (audio)</comment>
-        <translation type="obsolete">Audio Input</translation>
+        <translation type="unfinished">Audio Input</translation>
     </message>
     <message>
         <source>Enabled</source>
         <comment>details (audio/input)</comment>
-        <translation type="obsolete">Ingeschakeld</translation>
+        <translation type="unfinished">Ingeschakeld</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details (audio/input)</comment>
-        <translation type="obsolete">Uitgeschakeld</translation>
+        <translation type="unfinished">Uitgeschakeld</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details (audio)</comment>
-        <translation type="obsolete">Uitgeschakeld</translation>
+        <translation type="unfinished">Uitgeschakeld</translation>
     </message>
     <message>
         <source>Bridged Adapter, %1</source>
         <comment>details (network)</comment>
-        <translation type="obsolete">Bridged adapter, %1</translation>
+        <translation type="unfinished">Bridged adapter, %1</translation>
     </message>
     <message>
         <source>Internal Network, &apos;%1&apos;</source>
         <comment>details (network)</comment>
-        <translation type="obsolete">Intern netwerk, &apos;%1&apos;</translation>
+        <translation type="unfinished">Intern netwerk, &apos;%1&apos;</translation>
     </message>
     <message>
         <source>Host-only Adapter, &apos;%1&apos;</source>
         <comment>details (network)</comment>
-        <translation type="obsolete">Host-only adapter, &apos;%1&apos;</translation>
+        <translation type="unfinished">Host-only adapter, &apos;%1&apos;</translation>
     </message>
     <message>
         <source>Generic Driver, &apos;%1&apos;</source>
         <comment>details (network)</comment>
-        <translation type="obsolete">Generiek stuurprogramma, &apos;%1&apos;</translation>
+        <translation type="unfinished">Generiek stuurprogramma, &apos;%1&apos;</translation>
     </message>
     <message>
         <source>Generic Driver, &apos;%1&apos; { %2 }</source>
         <comment>details (network)</comment>
-        <translation type="obsolete">Generiek stuurprogramma, &apos;%1&apos; { %2 }</translation>
+        <translation type="unfinished">Generiek stuurprogramma, &apos;%1&apos; { %2 }</translation>
     </message>
     <message>
         <source>NAT Network, &apos;%1&apos;</source>
         <comment>details (network)</comment>
-        <translation type="obsolete">NAT-netwerk, &apos;%1&apos;</translation>
+        <translation type="unfinished">NAT-netwerk, &apos;%1&apos;</translation>
     </message>
     <message>
         <source>Adapter %1</source>
         <comment>details (network)</comment>
-        <translation type="obsolete">Adapter %1</translation>
+        <translation type="unfinished">Adapter %1</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details (network/adapter)</comment>
-        <translation type="obsolete">Uitgeschakeld</translation>
+        <translation type="unfinished">Uitgeschakeld</translation>
     </message>
     <message>
         <source>Port %1</source>
         <comment>details (serial)</comment>
-        <translation type="obsolete">Poort %1</translation>
+        <translation type="unfinished">Poort %1</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details (serial)</comment>
-        <translation type="obsolete">Uitgeschakeld</translation>
+        <translation type="unfinished">Uitgeschakeld</translation>
     </message>
     <message>
         <source>USB Controller</source>
         <comment>details (usb)</comment>
-        <translation type="obsolete">USB-controller</translation>
+        <translation type="unfinished">USB-controller</translation>
     </message>
     <message>
         <source>Device Filters</source>
         <comment>details (usb)</comment>
-        <translation type="obsolete">Apparaatfilters</translation>
+        <translation type="unfinished">Apparaatfilters</translation>
     </message>
     <message>
         <source>%1 (%2 active)</source>
         <comment>details (usb)</comment>
-        <translation type="obsolete">%1 (%2 actief)</translation>
+        <translation type="unfinished">%1 (%2 actief)</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details (usb)</comment>
-        <translation type="obsolete">Uitgeschakeld</translation>
+        <translation type="unfinished">Uitgeschakeld</translation>
     </message>
     <message>
         <source>USB Controller Inaccessible</source>
         <comment>details (usb)</comment>
-        <translation type="obsolete">USB-controller niet toegankelijk</translation>
+        <translation type="unfinished">USB-controller niet toegankelijk</translation>
     </message>
     <message>
         <source>Shared Folders</source>
         <comment>details (shared folders)</comment>
-        <translation type="obsolete">Gedeelde mappen</translation>
+        <translation type="unfinished">Gedeelde mappen</translation>
     </message>
     <message>
         <source>None</source>
         <comment>details (shared folders)</comment>
-        <translation type="obsolete">Geen</translation>
+        <translation type="unfinished">Geen</translation>
     </message>
     <message>
         <source>Menu-bar</source>
         <comment>details (user interface)</comment>
-        <translation type="obsolete">Menubalk</translation>
+        <translation type="unfinished">Menubalk</translation>
     </message>
     <message>
         <source>Enabled</source>
         <comment>details (user interface/menu-bar)</comment>
-        <translation type="obsolete">Ingeschakeld</translation>
+        <translation type="unfinished">Ingeschakeld</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details (user interface/menu-bar)</comment>
-        <translation type="obsolete">Uitgeschakeld</translation>
+        <translation type="unfinished">Uitgeschakeld</translation>
     </message>
     <message>
         <source>Status-bar</source>
         <comment>details (user interface)</comment>
-        <translation type="obsolete">Statusbalk</translation>
+        <translation type="unfinished">Statusbalk</translation>
     </message>
     <message>
         <source>Enabled</source>
         <comment>details (user interface/status-bar)</comment>
-        <translation type="obsolete">Ingeschakeld</translation>
+        <translation type="unfinished">Ingeschakeld</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details (user interface/status-bar)</comment>
-        <translation type="obsolete">Uitgeschakeld</translation>
+        <translation type="unfinished">Uitgeschakeld</translation>
     </message>
     <message>
         <source>Mini-toolbar Position</source>
         <comment>details (user interface)</comment>
-        <translation type="obsolete">Positie miniwerkbalk</translation>
+        <translation type="unfinished">Positie miniwerkbalk</translation>
     </message>
     <message>
         <source>Top</source>
         <comment>details (user interface/mini-toolbar position)</comment>
-        <translation type="obsolete">Bovenaan</translation>
+        <translation type="unfinished">Bovenaan</translation>
     </message>
     <message>
         <source>Bottom</source>
         <comment>details (user interface/mini-toolbar position)</comment>
-        <translation type="obsolete">Onderaan</translation>
+        <translation type="unfinished">Onderaan</translation>
     </message>
     <message>
         <source>Mini-toolbar</source>
         <comment>details (user interface)</comment>
-        <translation type="obsolete">Miniwerkbalk</translation>
+        <translation type="unfinished">Miniwerkbalk</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details (user interface/mini-toolbar)</comment>
-        <translation type="obsolete">Uitgeschakeld</translation>
+        <translation type="unfinished">Uitgeschakeld</translation>
     </message>
     <message>
         <source>None</source>
         <comment>details (description)</comment>
-        <translation type="obsolete">Geen</translation>
+        <translation type="unfinished">Geen</translation>
+    </message>
+    <message>
+        <source>Recording File</source>
+        <comment>details (display/recording)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Recording Attributes</source>
+        <comment>details (display/recording)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Recording</source>
+        <comment>details (display/recording)</comment>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details (display/recording)</comment>
-        <translation type="obsolete">Uitgeschakeld</translation>
+        <translation type="unfinished">Uitgeschakeld</translation>
+    </message>
+    <message>
+        <source>Graphics Controller</source>
+        <comment>details (display)</comment>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -2052,28 +2743,28 @@
     <message>
         <source>%1 details</source>
         <comment>like &apos;General details&apos; or &apos;Storage details&apos;</comment>
-        <translation type="obsolete">%1 details</translation>
+        <translation type="unfinished">%1 details</translation>
     </message>
 </context>
 <context>
     <name>UIDetailsPagePrivate</name>
     <message>
         <source>The selected virtual machine is &lt;i&gt;inaccessible&lt;/i&gt;. Please inspect the error message shown below and press the &lt;b&gt;Refresh&lt;/b&gt; button if you want to repeat the accessibility check:</source>
-        <translation>De geselecteerde virtuele machine is &lt;i&gt;niet te benaderen&lt;/i&gt;. Onderzoek de foutboodschap hieronder en druk op de knop &lt;b&gt;Verversen&lt;/b&gt; als u de benaderbaarheidscontrole wilt herhalen:</translation>
+        <translation type="vanished">De geselecteerde virtuele machine is &lt;i&gt;niet te benaderen&lt;/i&gt;. Onderzoek de foutboodschap hieronder en druk op de knop &lt;b&gt;Verversen&lt;/b&gt; als u de benaderbaarheidscontrole wilt herhalen:</translation>
     </message>
 </context>
 <context>
     <name>UIDetailsSet</name>
     <message>
         <source>Contains the details of virtual machine &apos;%1&apos;</source>
-        <translation type="obsolete">Details van virtual machine &apos;%1&apos;</translation>
+        <translation type="unfinished">Details van virtual machine &apos;%1&apos;</translation>
     </message>
 </context>
 <context>
     <name>UIDetailsView</name>
     <message>
         <source>Contains a list of Virtual Machine details</source>
-        <translation type="obsolete">Lijst van Virtuele Machine-details</translation>
+        <translation type="unfinished">Lijst van Virtuele Machine-details</translation>
     </message>
 </context>
 <context>
@@ -2149,7 +2840,7 @@
     <name>UIErrorPane</name>
     <message>
         <source>The selected virtual machine is &lt;i&gt;inaccessible&lt;/i&gt;. Please inspect the error message shown below and press the &lt;b&gt;Refresh&lt;/b&gt; button if you want to repeat the accessibility check:</source>
-        <translation type="obsolete">De geselecteerde virtuele machine is &lt;i&gt;niet te benaderen&lt;/i&gt;. Onderzoek de foutboodschap hieronder en druk op de knop &lt;b&gt;Verversen&lt;/b&gt; als u de benaderbaarheidscontrole wilt herhalen:</translation>
+        <translation type="unfinished">De geselecteerde virtuele machine is &lt;i&gt;niet te benaderen&lt;/i&gt;. Onderzoek de foutboodschap hieronder en druk op de knop &lt;b&gt;Verversen&lt;/b&gt; als u de benaderbaarheidscontrole wilt herhalen:</translation>
     </message>
 </context>
 <context>
@@ -2196,43 +2887,175 @@
 <context>
     <name>UIFDCreationDialog</name>
     <message>
+        <source>Create a Floppy Disk</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>File Path:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Size:</source>
-        <translation type="obsolete">Grootte:</translation>
+        <translation type="unfinished">Grootte:</translation>
+    </message>
+    <message>
+        <source>Format disk as FAT12</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>1.44M</source>
-        <translation type="obsolete">3D {1.44M?}</translation>
+        <translation type="unfinished">3D {1.44M?}</translation>
     </message>
     <message>
         <source>1.2M</source>
-        <translation type="obsolete">3D {1.2M?}</translation>
+        <translation type="unfinished">3D {1.2M?}</translation>
     </message>
     <message>
         <source>720K</source>
-        <translation type="obsolete">3D {720K?}</translation>
+        <translation type="unfinished">3D {720K?}</translation>
     </message>
     <message>
         <source>360K</source>
-        <translation type="obsolete">3D {360K?}</translation>
+        <translation type="unfinished">3D {360K?}</translation>
     </message>
 </context>
 <context>
     <name>UIFileManager</name>
     <message>
+        <source>%1 - File Manager</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Close</source>
-        <translation type="obsolete">Sluiten</translation>
+        <translation type="unfinished">Sluiten</translation>
+    </message>
+    <message>
+        <source>Clear</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation type="obsolete">Annuleren</translation>
+        <translation type="unfinished">Annuleren</translation>
+    </message>
+    <message>
+        <source>Not yet started</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Working</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Paused</source>
-        <translation type="obsolete">Gepauzeerd</translation>
+        <translation type="unfinished">Gepauzeerd</translation>
+    </message>
+    <message>
+        <source>Canceled</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Succeded</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Invalid</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove Selected</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove Finished</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove All</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>List directories on top</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>List directories before files</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ask before delete</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show a confirmation dialog before deleting files and directories</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Human readable sizes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show file/directory sizes in human readable format rather than in bytes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Close the pane</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Password</source>
-        <translation type="obsolete">Wachtwoord</translation>
+        <translation type="unfinished">Wachtwoord</translation>
+    </message>
+    <message>
+        <source>Show Password</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>User name to authenticate session creation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>User Name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Password to authenticate session creation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Create Session</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Close Session</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Total Size</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source> bytes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>File Count</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delete the selected file(s) and/or folder(s)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ask for this confirmation next time</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delete confirmation can be disabled/enabled also from the Options panel.</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Name</source>
@@ -2241,6 +3064,166 @@
     <message>
         <source>Size</source>
         <translation type="obsolete">Grootte</translation>
+    </message>
+    <message>
+        <source>No Guest Session</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unknown</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>File</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Directory</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Symbolic Link</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Guest System</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;Size:&lt;/b&gt; %1 bytes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;Allocated:&lt;/b&gt; %1 bytes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>directory</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>symbolic link</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>character device</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>block device</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>fifo</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>socket</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>whiteout</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>unknown</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>illegal-value</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;Type:&lt;/b&gt; %1&lt;br/&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;INode:&lt;/b&gt; %1&lt;br/&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;Device:&lt;/b&gt; %1&lt;br/&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;Hardlinks:&lt;/b&gt; %1&lt;br/&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;Mode:&lt;/b&gt; %1&lt;br/&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;Attributes:&lt;/b&gt; %1&lt;br/&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;Device ID:&lt;/b&gt; %1&lt;br/&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;Owner:&lt;/b&gt; %1 (%2)&lt;br/&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;Group:&lt;/b&gt; %1 (%2)&lt;br/&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;Birth:&lt;/b&gt; %1&lt;br/&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;Change:&lt;/b&gt; %1&lt;br/&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;Modified:&lt;/b&gt; %1&lt;br/&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;Access:&lt;/b&gt; %1&lt;br/&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;Selected:&lt;/b&gt; %1 files and %2 directories&lt;br/&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;Size (non-recursive):&lt;/b&gt; %1 bytes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Properties</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Host System</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;Name:&lt;/b&gt; %1&lt;br/&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;Created:&lt;/b&gt; %1&lt;br/&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;Owner:&lt;/b&gt; %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show hidden objects</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show hidden files/directories</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -2303,12 +3286,12 @@
     <message>
         <source>&lt;b&gt;%1&lt;/b&gt;</source>
         <comment>Group item tool-tip / Group name</comment>
-        <translation>&lt;b&gt;%1&lt;/b&gt;</translation>
+        <translation type="vanished">&lt;b&gt;%1&lt;/b&gt;</translation>
     </message>
     <message numerus="yes">
         <source>%n group(s)</source>
         <comment>Group item tool-tip / Group info</comment>
-        <translation>
+        <translation type="vanished">
             <numerusform>%n groep</numerusform>
             <numerusform>%n groepen</numerusform>
         </translation>
@@ -2316,12 +3299,12 @@
     <message>
         <source>&lt;nobr&gt;%1&lt;/nobr&gt;</source>
         <comment>Group item tool-tip / Group info wrapper</comment>
-        <translation>&lt;nobr&gt;%1&lt;/nobr&gt;</translation>
+        <translation type="vanished">&lt;nobr&gt;%1&lt;/nobr&gt;</translation>
     </message>
     <message numerus="yes">
         <source>%n machine(s)</source>
         <comment>Group item tool-tip / Machine info</comment>
-        <translation>
+        <translation type="vanished">
             <numerusform>%n machine</numerusform>
             <numerusform>%n machines</numerusform>
         </translation>
@@ -2329,7 +3312,7 @@
     <message numerus="yes">
         <source>(%n running)</source>
         <comment>Group item tool-tip / Running machine info</comment>
-        <translation>
+        <translation type="vanished">
             <numerusform>(%n draaiend)</numerusform>
             <numerusform>(%n draaiend)</numerusform>
         </translation>
@@ -2337,53 +3320,53 @@
     <message>
         <source>&lt;nobr&gt;%1&lt;/nobr&gt;</source>
         <comment>Group item tool-tip / Machine info wrapper</comment>
-        <translation>&lt;nobr&gt;%1&lt;/nobr&gt;</translation>
+        <translation type="vanished">&lt;nobr&gt;%1&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;%1 %2&lt;/nobr&gt;</source>
         <comment>Group item tool-tip / Machine info wrapper, including running</comment>
-        <translation>&lt;nobr&gt;%1 %2&lt;/nobr&gt;</translation>
+        <translation type="vanished">&lt;nobr&gt;%1 %2&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>Collapse group</source>
-        <translation>Groep invouwen</translation>
+        <translation type="vanished">Groep invouwen</translation>
     </message>
     <message>
         <source>Expand group</source>
-        <translation>Groep uitvouwen</translation>
+        <translation type="vanished">Groep uitvouwen</translation>
     </message>
     <message>
         <source>Enter group</source>
-        <translation>Groep binnengaan</translation>
+        <translation type="vanished">Groep binnengaan</translation>
     </message>
     <message>
         <source>Exit group</source>
-        <translation>Groep verlaten</translation>
+        <translation type="vanished">Groep verlaten</translation>
     </message>
     <message>
         <source>Virtual Machine group</source>
-        <translation>Virtuele Machine-groep</translation>
+        <translation type="vanished">Virtuele Machine-groep</translation>
     </message>
 </context>
 <context>
     <name>UIGChooserItemMachine</name>
     <message>
         <source>Virtual Machine</source>
-        <translation>Virtual Machine</translation>
+        <translation type="vanished">Virtual Machine</translation>
     </message>
 </context>
 <context>
     <name>UIGChooserModel</name>
     <message>
         <source>New group</source>
-        <translation>Nieuwe groep</translation>
+        <translation type="vanished">Nieuwe groep</translation>
     </message>
 </context>
 <context>
     <name>UIGChooserView</name>
     <message>
         <source>Contains a tree of Virtual Machines and their groups</source>
-        <translation>Boomweergave van Virtuele Machines en hun groep</translation>
+        <translation type="vanished">Boomweergave van Virtuele Machines en hun groep</translation>
     </message>
 </context>
 <context>
@@ -2391,92 +3374,92 @@
     <message>
         <source>Name</source>
         <comment>details (general)</comment>
-        <translation>Naam</translation>
+        <translation type="vanished">Naam</translation>
     </message>
     <message>
         <source>Groups</source>
         <comment>details (general)</comment>
-        <translation>Groepen</translation>
+        <translation type="vanished">Groepen</translation>
     </message>
     <message>
         <source>%1 MB</source>
         <comment>details</comment>
-        <translation>%1 MB</translation>
+        <translation type="vanished">%1 MB</translation>
     </message>
     <message>
         <source>Processors</source>
         <comment>details (system)</comment>
-        <translation>Processoren</translation>
+        <translation type="vanished">Processoren</translation>
     </message>
     <message>
         <source>%1%</source>
         <comment>details</comment>
-        <translation>%1%</translation>
+        <translation type="vanished">%1%</translation>
     </message>
     <message>
         <source>VT-x/AMD-V</source>
         <comment>details (system)</comment>
-        <translation>VT-x/AMD-V</translation>
+        <translation type="vanished">VT-x/AMD-V</translation>
     </message>
     <message>
         <source>PAE/NX</source>
         <comment>details (system)</comment>
-        <translation>PAE/NX</translation>
+        <translation type="vanished">PAE/NX</translation>
     </message>
     <message>
         <source>Acceleration</source>
         <comment>details (system)</comment>
-        <translation>Acceleratie</translation>
+        <translation type="vanished">Acceleratie</translation>
     </message>
     <message>
         <source>Screens</source>
         <comment>details (display)</comment>
-        <translation>Beeldschermen</translation>
+        <translation type="vanished">Beeldschermen</translation>
     </message>
     <message>
         <source>3D</source>
         <comment>details (display)</comment>
-        <translation>3D</translation>
+        <translation type="vanished">3D</translation>
     </message>
     <message>
         <source>Acceleration</source>
         <comment>details (display)</comment>
-        <translation>Acceleratie</translation>
+        <translation type="vanished">Acceleratie</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details (display/vrde/VRDE server)</comment>
-        <translation>Uitgeschakeld</translation>
+        <translation type="vanished">Uitgeschakeld</translation>
     </message>
     <message>
         <source>Controller</source>
         <comment>details (audio)</comment>
-        <translation>Controller</translation>
+        <translation type="vanished">Controller</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details (audio)</comment>
-        <translation>Uitgeschakeld</translation>
+        <translation type="vanished">Uitgeschakeld</translation>
     </message>
     <message>
         <source>Adapter %1</source>
         <comment>details (network)</comment>
-        <translation>Adapter %1</translation>
+        <translation type="vanished">Adapter %1</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details (network/adapter)</comment>
-        <translation>Uitgeschakeld</translation>
+        <translation type="vanished">Uitgeschakeld</translation>
     </message>
     <message>
         <source>Port %1</source>
         <comment>details (serial)</comment>
-        <translation>Poort %1</translation>
+        <translation type="vanished">Poort %1</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details (serial)</comment>
-        <translation>Uitgeschakeld</translation>
+        <translation type="vanished">Uitgeschakeld</translation>
     </message>
     <message>
         <source>Port %1</source>
@@ -2491,301 +3474,301 @@
     <message>
         <source>%1 (%2 active)</source>
         <comment>details (usb)</comment>
-        <translation>%1 (%2 actief)</translation>
+        <translation type="vanished">%1 (%2 actief)</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details (usb)</comment>
-        <translation>Uitgeschakeld</translation>
+        <translation type="vanished">Uitgeschakeld</translation>
     </message>
     <message>
         <source>None</source>
         <comment>details (shared folders)</comment>
-        <translation>Geen</translation>
+        <translation type="vanished">Geen</translation>
     </message>
     <message>
         <source>None</source>
         <comment>details (description)</comment>
-        <translation>Geen</translation>
+        <translation type="vanished">Geen</translation>
     </message>
     <message>
         <source>Operating System</source>
         <comment>details (general)</comment>
-        <translation>Besturingssysteem</translation>
+        <translation type="vanished">Besturingssysteem</translation>
     </message>
     <message>
         <source>Information Inaccessible</source>
         <comment>details</comment>
-        <translation>Informatie niet toegankelijk</translation>
+        <translation type="vanished">Informatie niet toegankelijk</translation>
     </message>
     <message>
         <source>Base Memory</source>
         <comment>details (system)</comment>
-        <translation>Basisgeheugen</translation>
+        <translation type="vanished">Basisgeheugen</translation>
     </message>
     <message>
         <source>Execution Cap</source>
         <comment>details (system)</comment>
-        <translation>Execution Cap</translation>
+        <translation type="vanished">Execution Cap</translation>
     </message>
     <message>
         <source>Boot Order</source>
         <comment>details (system)</comment>
-        <translation>Opstartvolgorde</translation>
+        <translation type="vanished">Opstartvolgorde</translation>
     </message>
     <message>
         <source>Nested Paging</source>
         <comment>details (system)</comment>
-        <translation>Geneste Paging</translation>
+        <translation type="vanished">Geneste Paging</translation>
     </message>
     <message>
         <source>Video Memory</source>
         <comment>details (display)</comment>
-        <translation>Videogeheugen</translation>
+        <translation type="vanished">Videogeheugen</translation>
     </message>
     <message>
         <source>2D Video</source>
         <comment>details (display)</comment>
-        <translation>2D-video</translation>
+        <translation type="vanished">2D-video</translation>
     </message>
     <message>
         <source>Remote Desktop Server Port</source>
         <comment>details (display/vrde)</comment>
-        <translation>Remote Desktop Serverpoort</translation>
+        <translation type="vanished">Remote Desktop Serverpoort</translation>
     </message>
     <message>
         <source>Remote Desktop Server</source>
         <comment>details (display/vrde)</comment>
-        <translation>Remote Desktop Server</translation>
+        <translation type="vanished">Remote Desktop Server</translation>
     </message>
     <message>
         <source>Not Attached</source>
         <comment>details (storage)</comment>
-        <translation>Niet aangesloten</translation>
+        <translation type="vanished">Niet aangesloten</translation>
     </message>
     <message>
         <source>Host Driver</source>
         <comment>details (audio)</comment>
-        <translation>Hoststuurprogramma</translation>
+        <translation type="vanished">Hoststuurprogramma</translation>
     </message>
     <message>
         <source>Bridged Adapter, %1</source>
         <comment>details (network)</comment>
-        <translation>Bridged adapter, %1</translation>
+        <translation type="vanished">Bridged adapter, %1</translation>
     </message>
     <message>
         <source>Internal Network, &apos;%1&apos;</source>
         <comment>details (network)</comment>
-        <translation>Intern netwerk, &apos;%1&apos;</translation>
+        <translation type="vanished">Intern netwerk, &apos;%1&apos;</translation>
     </message>
     <message>
         <source>Host-only Adapter, &apos;%1&apos;</source>
         <comment>details (network)</comment>
-        <translation>Host-only adapter, &apos;%1&apos;</translation>
+        <translation type="vanished">Host-only adapter, &apos;%1&apos;</translation>
     </message>
     <message>
         <source>Generic Driver, &apos;%1&apos;</source>
         <comment>details (network)</comment>
-        <translation>Generiek stuurprogramma, &apos;%1&apos;</translation>
+        <translation type="vanished">Generiek stuurprogramma, &apos;%1&apos;</translation>
     </message>
     <message>
         <source>Generic Driver, &apos;%1&apos; { %2 }</source>
         <comment>details (network)</comment>
-        <translation>Generiek stuurprogramma, &apos;%1&apos; { %2 }</translation>
+        <translation type="vanished">Generiek stuurprogramma, &apos;%1&apos; { %2 }</translation>
     </message>
     <message>
         <source>Device Filters</source>
         <comment>details (usb)</comment>
-        <translation>Apparaatfilters</translation>
+        <translation type="vanished">Apparaatfilters</translation>
     </message>
     <message>
         <source>USB Controller Inaccessible</source>
         <comment>details (usb)</comment>
-        <translation>USB-controller niet toegankelijk</translation>
+        <translation type="vanished">USB-controller niet toegankelijk</translation>
     </message>
     <message>
         <source>Shared Folders</source>
         <comment>details (shared folders)</comment>
-        <translation>Gedeelde mappen</translation>
+        <translation type="vanished">Gedeelde mappen</translation>
     </message>
     <message>
         <source>Video Capture File</source>
         <comment>details (display/video capture)</comment>
-        <translation>Videocapturebestand</translation>
+        <translation type="vanished">Videocapturebestand</translation>
     </message>
     <message>
         <source>Video Capture Attributes</source>
         <comment>details (display/video capture)</comment>
-        <translation>Videocapture-attributen</translation>
+        <translation type="vanished">Videocapture-attributen</translation>
     </message>
     <message>
         <source>Video Capture</source>
         <comment>details (display/video capture)</comment>
-        <translation>Videocapture</translation>
+        <translation type="vanished">Videocapture</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details (display/video capture)</comment>
-        <translation>Uitgeschakeld</translation>
+        <translation type="vanished">Uitgeschakeld</translation>
     </message>
     <message>
         <source>NAT Network, &apos;%1&apos;</source>
         <comment>details (network)</comment>
-        <translation>NAT-netwerk, &apos;%1&apos;</translation>
+        <translation type="vanished">NAT-netwerk, &apos;%1&apos;</translation>
     </message>
     <message>
         <source>Frame Size: %1x%2, Frame Rate: %3fps, Bit Rate: %4kbps</source>
-        <translation>Framegrootte: %1x%2, Framerate: %3fps, Bitrate: %4kbps</translation>
+        <translation type="vanished">Framegrootte: %1x%2, Framerate: %3fps, Bitrate: %4kbps</translation>
     </message>
     <message>
         <source>Minimal Paravirtualization</source>
         <comment>details (system)</comment>
-        <translation>Minimale paravirtualisatie</translation>
+        <translation type="vanished">Minimale paravirtualisatie</translation>
     </message>
     <message>
         <source>Hyper-V Paravirtualization</source>
         <comment>details (system)</comment>
-        <translation>Hyper-V paravirtualisatie</translation>
+        <translation type="vanished">Hyper-V paravirtualisatie</translation>
     </message>
     <message>
         <source>KVM Paravirtualization</source>
         <comment>details (system)</comment>
-        <translation>KVM paravirtualisatie</translation>
+        <translation type="vanished">KVM paravirtualisatie</translation>
     </message>
     <message>
         <source>[Optical Drive]</source>
         <comment>details (storage)</comment>
-        <translation>[Optisch station]</translation>
+        <translation type="vanished">[Optisch station]</translation>
     </message>
     <message>
         <source>USB Controller</source>
         <comment>details (usb)</comment>
-        <translation>USB-controller</translation>
+        <translation type="vanished">USB-controller</translation>
     </message>
     <message>
         <source>Mini-toolbar Position</source>
         <comment>details (user interface)</comment>
-        <translation>Positie miniwerkbalk</translation>
+        <translation type="vanished">Positie miniwerkbalk</translation>
     </message>
     <message>
         <source>Top</source>
         <comment>details (user interface/mini-toolbar position)</comment>
-        <translation>Bovenaan</translation>
+        <translation type="vanished">Bovenaan</translation>
     </message>
     <message>
         <source>Bottom</source>
         <comment>details (user interface/mini-toolbar position)</comment>
-        <translation>Onderaan</translation>
+        <translation type="vanished">Onderaan</translation>
     </message>
     <message>
         <source>Mini-toolbar</source>
         <comment>details (user interface)</comment>
-        <translation>Miniwerkbalk</translation>
+        <translation type="vanished">Miniwerkbalk</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details (user interface/mini-toolbar)</comment>
-        <translation>Uitgeschakeld</translation>
+        <translation type="vanished">Uitgeschakeld</translation>
     </message>
     <message>
         <source>Scale-factor</source>
         <comment>details (display)</comment>
-        <translation>Schaalfactor</translation>
+        <translation type="vanished">Schaalfactor</translation>
     </message>
     <message>
         <source>Unscaled HiDPI Video Output</source>
         <comment>details (display)</comment>
-        <translation>Ongeschaalde HiDPI Video Output</translation>
+        <translation type="vanished">Ongeschaalde HiDPI Video Output</translation>
     </message>
     <message>
         <source>Enabled</source>
         <comment>details (display/Unscaled HiDPI Video Output)</comment>
-        <translation>Ingeschakeld</translation>
+        <translation type="vanished">Ingeschakeld</translation>
     </message>
     <message>
         <source>Menu-bar</source>
         <comment>details (user interface)</comment>
-        <translation>Menubalk</translation>
+        <translation type="vanished">Menubalk</translation>
     </message>
     <message>
         <source>Enabled</source>
         <comment>details (user interface/menu-bar)</comment>
-        <translation>Ingeschakeld</translation>
+        <translation type="vanished">Ingeschakeld</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details (user interface/menu-bar)</comment>
-        <translation>Uitgeschakeld</translation>
+        <translation type="vanished">Uitgeschakeld</translation>
     </message>
     <message>
         <source>Status-bar</source>
         <comment>details (user interface)</comment>
-        <translation>Statusbalk</translation>
+        <translation type="vanished">Statusbalk</translation>
     </message>
     <message>
         <source>Enabled</source>
         <comment>details (user interface/status-bar)</comment>
-        <translation>Ingeschakeld</translation>
+        <translation type="vanished">Ingeschakeld</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details (user interface/status-bar)</comment>
-        <translation>Uitgeschakeld</translation>
+        <translation type="vanished">Uitgeschakeld</translation>
     </message>
     <message>
         <source>Chipset Type</source>
         <comment>details (system)</comment>
-        <translation>Chipset-type</translation>
+        <translation type="vanished">Chipset-type</translation>
     </message>
     <message>
         <source>Enabled</source>
         <comment>details (system/EFI)</comment>
-        <translation>Ingeschakeld</translation>
+        <translation type="vanished">Ingeschakeld</translation>
     </message>
     <message>
         <source>EFI</source>
         <comment>details (system)</comment>
-        <translation>EFI</translation>
+        <translation type="vanished">EFI</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details (system/EFI)</comment>
-        <translation>Uitgeschakeld</translation>
+        <translation type="vanished">Uitgeschakeld</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details (display/Unscaled HiDPI Video Output)</comment>
-        <translation>Uitgeschakeld</translation>
+        <translation type="vanished">Uitgeschakeld</translation>
     </message>
     <message>
         <source>Audio Output</source>
         <comment>details (audio)</comment>
-        <translation>Audio Output</translation>
+        <translation type="vanished">Audio Output</translation>
     </message>
     <message>
         <source>Enabled</source>
         <comment>details (audio/output)</comment>
-        <translation>Ingeschakeld</translation>
+        <translation type="vanished">Ingeschakeld</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details (audio/output)</comment>
-        <translation>Uitgeschakeld</translation>
+        <translation type="vanished">Uitgeschakeld</translation>
     </message>
     <message>
         <source>Audio Input</source>
         <comment>details (audio)</comment>
-        <translation>Audio Input</translation>
+        <translation type="vanished">Audio Input</translation>
     </message>
     <message>
         <source>Enabled</source>
         <comment>details (audio/input)</comment>
-        <translation>Ingeschakeld</translation>
+        <translation type="vanished">Ingeschakeld</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details (audio/input)</comment>
-        <translation>Uitgeschakeld</translation>
+        <translation type="vanished">Uitgeschakeld</translation>
     </message>
     <message>
         <source>Disabled</source>
@@ -2798,52 +3781,52 @@
     <message>
         <source>%1 details</source>
         <comment>like &apos;General details&apos; or &apos;Storage details&apos;</comment>
-        <translation>%1 details</translation>
+        <translation type="vanished">%1 details</translation>
     </message>
 </context>
 <context>
     <name>UIGDetailsSet</name>
     <message>
         <source>Contains the details of virtual machine &apos;%1&apos;</source>
-        <translation>Details van virtual machine &apos;%1&apos;</translation>
+        <translation type="vanished">Details van virtual machine &apos;%1&apos;</translation>
     </message>
 </context>
 <context>
     <name>UIGDetailsView</name>
     <message>
         <source>Contains a list of Virtual Machine details</source>
-        <translation>Lijst van Virtuele Machine-details</translation>
+        <translation type="vanished">Lijst van Virtuele Machine-details</translation>
     </message>
 </context>
 <context>
     <name>UIGMachinePreview</name>
     <message>
         <source>Every 0.5 s</source>
-        <translation>Elke 0,5 s</translation>
+        <translation type="vanished">Elke 0,5 s</translation>
     </message>
     <message>
         <source>Every 1 s</source>
-        <translation>Elke 1 s</translation>
+        <translation type="vanished">Elke 1 s</translation>
     </message>
     <message>
         <source>Every 2 s</source>
-        <translation>Elke 2 s</translation>
+        <translation type="vanished">Elke 2 s</translation>
     </message>
     <message>
         <source>Every 5 s</source>
-        <translation>Elke 5 s</translation>
+        <translation type="vanished">Elke 5 s</translation>
     </message>
     <message>
         <source>Every 10 s</source>
-        <translation>Elke 10 s</translation>
+        <translation type="vanished">Elke 10 s</translation>
     </message>
     <message>
         <source>Update disabled</source>
-        <translation>Update uitgeschakeld</translation>
+        <translation type="vanished">Update uitgeschakeld</translation>
     </message>
     <message>
         <source>No preview</source>
-        <translation>Geen preview</translation>
+        <translation type="vanished">Geen preview</translation>
     </message>
 </context>
 <context>
@@ -2911,11 +3894,11 @@
     </message>
     <message>
         <source>Scale Factor:</source>
-        <translation type="obsolete">Schaalfactor:</translation>
+        <translation type="unfinished">Schaalfactor:</translation>
     </message>
     <message>
         <source>Controls the guest screen scale factor.</source>
-        <translation type="obsolete">Regelt de gastschermschaalfactor.</translation>
+        <translation type="unfinished">Regelt de gastschermschaalfactor.</translation>
     </message>
 </context>
 <context>
@@ -3040,22 +4023,22 @@
     <message>
         <source> (built-in)</source>
         <comment>Language</comment>
-        <translation> (ingebouwd)</translation>
+        <translation type="vanished"> (ingebouwd)</translation>
     </message>
     <message>
         <source>&lt;unavailable&gt;</source>
         <comment>Language</comment>
-        <translation>&lt;niet beschikbaar&gt;</translation>
+        <translation type="vanished">&lt;niet beschikbaar&gt;</translation>
     </message>
     <message>
         <source>&lt;unknown&gt;</source>
         <comment>Author(s)</comment>
-        <translation>&lt;onbekend&gt;</translation>
+        <translation type="vanished">&lt;onbekend&gt;</translation>
     </message>
     <message>
         <source>Default</source>
         <comment>Language</comment>
-        <translation>Standaard</translation>
+        <translation type="vanished">Standaard</translation>
     </message>
     <message>
         <source>Language:</source>
@@ -3198,67 +4181,67 @@
     </message>
     <message>
         <source>No new name specified for the NAT network previously called &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation>Er is geen nieuwe naam opgegeven voor het NAT-netwerk dat eerst &lt;b&gt;%1&lt;/b&gt; heette.</translation>
+        <translation type="vanished">Er is geen nieuwe naam opgegeven voor het NAT-netwerk dat eerst &lt;b&gt;%1&lt;/b&gt; heette.</translation>
     </message>
     <message>
         <source>No CIDR specified for the NAT network &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation>Geen CIDR opgegeven voor het NAT-netwerk &lt;b&gt;%1&lt;/b&gt;.</translation>
+        <translation type="vanished">Geen CIDR opgegeven voor het NAT-netwerk &lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>No CIDR specified for the NAT network previously called &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation>Geen CIDR opgegeven voor het NAT-netwerk dat eerst &lt;b&gt;%1&lt;/b&gt; heette.</translation>
+        <translation type="vanished">Geen CIDR opgegeven voor het NAT-netwerk dat eerst &lt;b&gt;%1&lt;/b&gt; heette.</translation>
     </message>
     <message>
         <source>Invalid CIDR specified (&lt;i&gt;%1&lt;/i&gt;) for the NAT network &lt;b&gt;%2&lt;/b&gt;.</source>
-        <translation>Ongeldige CIDR opgegeven (&lt;i&gt;%1&lt;/i&gt;) voor het NAT-netwerk &lt;b&gt;%2&lt;/b&gt;.</translation>
+        <translation type="vanished">Ongeldige CIDR opgegeven (&lt;i&gt;%1&lt;/i&gt;) voor het NAT-netwerk &lt;b&gt;%2&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>Invalid CIDR specified (&lt;i&gt;%1&lt;/i&gt;) for the NAT network previously called &lt;b&gt;%2&lt;/b&gt;.</source>
-        <translation>Ongeldige CIDR opgegeven (&lt;i&gt;%1&lt;/i&gt;) voor het NAT-netwerk dat eerst &lt;b&gt;%2&lt;/b&gt; heette.</translation>
+        <translation type="vanished">Ongeldige CIDR opgegeven (&lt;i&gt;%1&lt;/i&gt;) voor het NAT-netwerk dat eerst &lt;b&gt;%2&lt;/b&gt; heette.</translation>
     </message>
     <message>
         <source>Network Name</source>
-        <translation>Netwerknaam</translation>
+        <translation type="vanished">Netwerknaam</translation>
     </message>
     <message>
         <source>[empty]</source>
-        <translation>[leeg]</translation>
+        <translation type="vanished">[leeg]</translation>
     </message>
     <message>
         <source>%1 (renamed from %2)</source>
-        <translation>%1 (heette eerst %2)</translation>
+        <translation type="vanished">%1 (heette eerst %2)</translation>
     </message>
     <message>
         <source>Old Network Name</source>
-        <translation>Oude netwerknaam</translation>
+        <translation type="vanished">Oude netwerknaam</translation>
     </message>
     <message>
         <source>New Network Name</source>
-        <translation>Nieuwe netwerknaam</translation>
+        <translation type="vanished">Nieuwe netwerknaam</translation>
     </message>
     <message>
         <source>Network CIDR</source>
-        <translation>Netwerk CIDR</translation>
+        <translation type="vanished">Netwerk CIDR</translation>
     </message>
     <message>
         <source>Supports DHCP</source>
-        <translation>Ondersteunt DHCP</translation>
+        <translation type="vanished">Ondersteunt DHCP</translation>
     </message>
     <message>
         <source>yes</source>
-        <translation>ja</translation>
+        <translation type="vanished">ja</translation>
     </message>
     <message>
         <source>no</source>
-        <translation>nee</translation>
+        <translation type="vanished">nee</translation>
     </message>
     <message>
         <source>Supports IPv6</source>
-        <translation>Ondersteunt IPv6</translation>
+        <translation type="vanished">Ondersteunt IPv6</translation>
     </message>
     <message>
         <source>Default IPv6 route</source>
-        <translation>Default IPv6-route</translation>
+        <translation type="vanished">Default IPv6-route</translation>
     </message>
     <message>
         <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv4 address.</source>
@@ -3531,27 +4514,27 @@
     <name>UIGlobalSettingsProxy</name>
     <message>
         <source>Ho&amp;st:</source>
-        <translation>Ho&amp;st:</translation>
+        <translation type="vanished">Ho&amp;st:</translation>
     </message>
     <message>
         <source>&amp;Port:</source>
-        <translation>&amp;Poort:</translation>
+        <translation type="vanished">&amp;Poort:</translation>
     </message>
     <message>
         <source>No proxy host is currently specified.</source>
-        <translation>Op dit moment is geen proxy-host opgegeven.</translation>
+        <translation type="vanished">Op dit moment is geen proxy-host opgegeven.</translation>
     </message>
     <message>
         <source>No proxy port is currently specified.</source>
-        <translation>Op dit moment is geen proxy-host opgegeven.</translation>
+        <translation type="vanished">Op dit moment is geen proxy-host opgegeven.</translation>
     </message>
     <message>
         <source>Holds the proxy host.</source>
-        <translation>Bevat de proxyhost.</translation>
+        <translation type="vanished">Bevat de proxyhost.</translation>
     </message>
     <message>
         <source>Holds the proxy port.</source>
-        <translation>Bevat de proxypoort.</translation>
+        <translation type="vanished">Bevat de proxypoort.</translation>
     </message>
     <message>
         <source>When chosen, VirtualBox will try to auto-detect host proxy settings for tasks like downloading Guest Additions from the network or checking for updates.</source>
@@ -3576,6 +4559,26 @@
     <message>
         <source>&amp;Manual Proxy Configuration</source>
         <translation>Hand&amp;matige proxyconfiguratie</translation>
+    </message>
+    <message>
+        <source>&amp;URL:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No proxy URL is currently specified.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Invalid proxy URL is currently specified.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>You have provided a proxy password. Please be aware that the password will be saved in plain text. You may wish to configure a system-wide proxy instead and not store application-specific settings.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Holds the proxy URL. The format is: &lt;table cellspacing=0 style=&apos;white-space:pre&apos;&gt;&lt;tr&gt;&lt;td&gt;[{type}://][{userid}[:{password}]@]{server}[:{port}]&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;http://username:password@proxy.host.com:port&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -3666,10 +4669,36 @@
     </message>
 </context>
 <context>
+    <name>UIGuestControlTreeWidget</name>
+    <message>
+        <source>Close Session</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Terminate Process</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Expand All</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Collapse All</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UIGuestProcessControlDialog</name>
+    <message>
+        <source>%1 - Guest Control</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>UIGuestProcessControlWidget</name>
     <message>
         <source>Close</source>
-        <translation type="obsolete">Sluiten</translation>
+        <translation type="unfinished">Sluiten</translation>
     </message>
 </context>
 <context>
@@ -3922,52 +4951,52 @@
     <message>
         <source>Enable</source>
         <comment>DHCP Server</comment>
-        <translation>Ingeschakelen</translation>
+        <translation type="vanished">Ingeschakelen</translation>
     </message>
     <message>
         <source>Adapter</source>
-        <translation>Adapter</translation>
+        <translation type="vanished">Adapter</translation>
     </message>
     <message>
         <source>Automatically configured</source>
         <comment>interface</comment>
-        <translation>Automatisch geconfigureerd</translation>
+        <translation type="vanished">Automatisch geconfigureerd</translation>
     </message>
     <message>
         <source>Manually configured</source>
         <comment>interface</comment>
-        <translation>Handmatig geconfigureerd</translation>
+        <translation type="vanished">Handmatig geconfigureerd</translation>
     </message>
     <message>
         <source>IPv4 Address</source>
-        <translation>IPv4-adres</translation>
+        <translation type="vanished">IPv4-adres</translation>
     </message>
     <message>
         <source>Not set</source>
         <comment>address</comment>
-        <translation>Niet ingesteld</translation>
+        <translation type="vanished">Niet ingesteld</translation>
     </message>
     <message>
         <source>IPv4 Network Mask</source>
-        <translation>IPv4-netmasker</translation>
+        <translation type="vanished">IPv4-netmasker</translation>
     </message>
     <message>
         <source>Not set</source>
         <comment>mask</comment>
-        <translation>Niet ingesteld</translation>
+        <translation type="vanished">Niet ingesteld</translation>
     </message>
     <message>
         <source>IPv6 Address</source>
-        <translation>IPv6-adres</translation>
+        <translation type="vanished">IPv6-adres</translation>
     </message>
     <message>
         <source>IPv6 Prefix Length</source>
-        <translation>Lengte IPv6-netmasker</translation>
+        <translation type="vanished">Lengte IPv6-netmasker</translation>
     </message>
     <message>
         <source>Not set</source>
         <comment>length</comment>
-        <translation>Niet ingesteld</translation>
+        <translation type="vanished">Niet ingesteld</translation>
     </message>
     <message>
         <source>DHCP Server</source>
@@ -3976,85 +5005,85 @@
     <message>
         <source>Enabled</source>
         <comment>server</comment>
-        <translation>Ingeschakeld</translation>
+        <translation type="vanished">Ingeschakeld</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>server</comment>
-        <translation>Uitgeschakeld</translation>
+        <translation type="vanished">Uitgeschakeld</translation>
     </message>
     <message>
         <source>Address</source>
-        <translation>Adres</translation>
+        <translation type="vanished">Adres</translation>
     </message>
     <message>
         <source>Network Mask</source>
-        <translation>Netwerkmasker</translation>
+        <translation type="vanished">Netwerkmasker</translation>
     </message>
     <message>
         <source>Lower Bound</source>
-        <translation>Laagste adres</translation>
+        <translation type="vanished">Laagste adres</translation>
     </message>
     <message>
         <source>Not set</source>
         <comment>bound</comment>
-        <translation>Niet ingesteld</translation>
+        <translation type="vanished">Niet ingesteld</translation>
     </message>
     <message>
         <source>Upper Bound</source>
-        <translation>Hoogste adres</translation>
+        <translation type="vanished">Hoogste adres</translation>
     </message>
     <message>
         <source>&amp;Network</source>
-        <translation>&amp;Netwerk</translation>
+        <translation type="vanished">&amp;Netwerk</translation>
     </message>
     <message>
         <source>&amp;Create</source>
-        <translation>&amp;Aanmaken</translation>
+        <translation type="vanished">&amp;Aanmaken</translation>
     </message>
     <message>
         <source>Create Host-only Network (%1)</source>
-        <translation>Host-only netwerk aanmaken (%1)</translation>
+        <translation type="vanished">Host-only netwerk aanmaken (%1)</translation>
     </message>
     <message>
         <source>Create new host-only network</source>
-        <translation>Host-only netwerk aanmaken</translation>
+        <translation type="vanished">Host-only netwerk aanmaken</translation>
     </message>
     <message>
         <source>&amp;Remove...</source>
-        <translation>Ve&amp;rwijderen...</translation>
+        <translation type="vanished">Ve&amp;rwijderen...</translation>
     </message>
     <message>
         <source>Remove Host-only Network (%1)</source>
-        <translation>Host-only netwerk verwijderen (%1)</translation>
+        <translation type="vanished">Host-only netwerk verwijderen (%1)</translation>
     </message>
     <message>
         <source>Remove selected host-only network</source>
-        <translation>Verwijderen geselecteerd host-only-netwerk</translation>
+        <translation type="vanished">Verwijderen geselecteerd host-only-netwerk</translation>
     </message>
     <message>
         <source>&amp;Properties...</source>
-        <translation>&amp;Eigenschappen...</translation>
+        <translation type="vanished">&amp;Eigenschappen...</translation>
     </message>
     <message>
         <source>Open Host-only Network Properties (%1)</source>
-        <translation>Open Host-only netwerkeigenschappen (%1)</translation>
+        <translation type="vanished">Open Host-only netwerkeigenschappen (%1)</translation>
     </message>
     <message>
         <source>Open pane with selected host-only network properties</source>
-        <translation>Open deelvenster met geselecteerde host-only netwerkeigenschappen</translation>
+        <translation type="vanished">Open deelvenster met geselecteerde host-only netwerkeigenschappen</translation>
     </message>
     <message>
         <source>&amp;Refresh...</source>
-        <translation>&amp;Verversen...</translation>
+        <translation type="vanished">&amp;Verversen...</translation>
     </message>
     <message>
         <source>Refresh Host-only Networks (%1)</source>
-        <translation>Host-only netwerk verversen (%1)</translation>
+        <translation type="vanished">Host-only netwerk verversen (%1)</translation>
     </message>
     <message>
         <source>Refresh the list of host-only networks</source>
-        <translation>Host-only netwerklijst verversen</translation>
+        <translation type="vanished">Host-only netwerklijst verversen</translation>
     </message>
     <message>
         <source>Name</source>
@@ -4110,11 +5139,11 @@
     </message>
     <message>
         <source>Adding network...</source>
-        <translation type="obsolete">Toevoegen netwerk...</translation>
+        <translation type="unfinished">Toevoegen netwerk...</translation>
     </message>
     <message>
         <source>Removing network...</source>
-        <translation type="obsolete">Verwijderen netwerk...</translation>
+        <translation type="unfinished">Verwijderen netwerk...</translation>
     </message>
 </context>
 <context>
@@ -4125,11 +5154,11 @@
     </message>
     <message>
         <source>Adding network...</source>
-        <translation>Toevoegen netwerk...</translation>
+        <translation type="vanished">Toevoegen netwerk...</translation>
     </message>
     <message>
         <source>Removing network...</source>
-        <translation>Verwijderen netwerk...</translation>
+        <translation type="vanished">Verwijderen netwerk...</translation>
     </message>
 </context>
 <context>
@@ -4156,7 +5185,7 @@
     <message>
         <source>%1: %2</source>
         <comment>scope: description</comment>
-        <translation type="obsolete">%1: %2</translation>
+        <translation type="unfinished">%1: %2</translation>
     </message>
 </context>
 <context>
@@ -4384,12 +5413,12 @@
     <message>
         <source>Video capture disabled</source>
         <comment>Video capture tooltip</comment>
-        <translation>Videocapture uitgeschakeld</translation>
+        <translation type="vanished">Videocapture uitgeschakeld</translation>
     </message>
     <message>
         <source>Video capture file</source>
         <comment>Video capture tooltip</comment>
-        <translation>Videocapture-bestand</translation>
+        <translation type="vanished">Videocapture-bestand</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;Indicates the activity of the additional features:&lt;/nobr&gt;%1</source>
@@ -4450,6 +5479,26 @@
         <source>&lt;nobr&gt;Indicates the activity of the audio device:&lt;/nobr&gt;%1</source>
         <comment>Audio tooltip</comment>
         <translation type="vanished">&lt;nobr&gt;Geeft activiteit van geluidskaart weer:&lt;/nobr&gt;%1</translation>
+    </message>
+    <message>
+        <source>Recording disabled</source>
+        <comment>Recording tooltip</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Video/audio recording file</source>
+        <comment>Recording tooltip</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Audio recording file</source>
+        <comment>Recording tooltip</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Video recording file</source>
+        <comment>Recording tooltip</comment>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -4629,7 +5678,7 @@
     <message>
         <source>VT-x/AMD-V</source>
         <comment>details report</comment>
-        <translation>VT-x/AMD-V</translation>
+        <translation type="vanished">VT-x/AMD-V</translation>
     </message>
     <message>
         <source>Nested Paging</source>
@@ -4659,6 +5708,11 @@
         <source>Remote Desktop Server Port</source>
         <comment>details report (VRDE Server)</comment>
         <translation>Remote Desktop Serverpoort</translation>
+    </message>
+    <message>
+        <source>VM Execution Engine</source>
+        <comment>details report</comment>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -4833,87 +5887,87 @@
     <message>
         <source>Enable</source>
         <comment>DHCP Server</comment>
-        <translation type="obsolete">Ingeschakelen</translation>
+        <translation type="unfinished">Ingeschakelen</translation>
     </message>
     <message>
         <source>Adapter</source>
-        <translation type="obsolete">Adapter</translation>
+        <translation type="unfinished">Adapter</translation>
     </message>
     <message>
         <source>Automatically configured</source>
         <comment>interface</comment>
-        <translation type="obsolete">Automatisch geconfigureerd</translation>
+        <translation type="unfinished">Automatisch geconfigureerd</translation>
     </message>
     <message>
         <source>Manually configured</source>
         <comment>interface</comment>
-        <translation type="obsolete">Handmatig geconfigureerd</translation>
+        <translation type="unfinished">Handmatig geconfigureerd</translation>
     </message>
     <message>
         <source>IPv4 Address</source>
-        <translation type="obsolete">IPv4-adres</translation>
+        <translation type="unfinished">IPv4-adres</translation>
     </message>
     <message>
         <source>Not set</source>
         <comment>address</comment>
-        <translation type="obsolete">Niet ingesteld</translation>
+        <translation type="unfinished">Niet ingesteld</translation>
     </message>
     <message>
         <source>IPv4 Network Mask</source>
-        <translation type="obsolete">IPv4-netmasker</translation>
+        <translation type="unfinished">IPv4-netmasker</translation>
     </message>
     <message>
         <source>Not set</source>
         <comment>mask</comment>
-        <translation type="obsolete">Niet ingesteld</translation>
+        <translation type="unfinished">Niet ingesteld</translation>
     </message>
     <message>
         <source>IPv6 Address</source>
-        <translation type="obsolete">IPv6-adres</translation>
+        <translation type="unfinished">IPv6-adres</translation>
     </message>
     <message>
         <source>IPv6 Prefix Length</source>
-        <translation type="obsolete">Lengte IPv6-netmasker</translation>
+        <translation type="unfinished">Lengte IPv6-netmasker</translation>
     </message>
     <message>
         <source>Not set</source>
         <comment>length</comment>
-        <translation type="obsolete">Niet ingesteld</translation>
+        <translation type="unfinished">Niet ingesteld</translation>
     </message>
     <message>
         <source>DHCP Server</source>
-        <translation type="obsolete">DHCP-server</translation>
+        <translation type="unfinished">DHCP-server</translation>
     </message>
     <message>
         <source>Enabled</source>
         <comment>server</comment>
-        <translation type="obsolete">Ingeschakeld</translation>
+        <translation type="unfinished">Ingeschakeld</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>server</comment>
-        <translation type="obsolete">Uitgeschakeld</translation>
+        <translation type="unfinished">Uitgeschakeld</translation>
     </message>
     <message>
         <source>Address</source>
-        <translation type="obsolete">Adres</translation>
+        <translation type="unfinished">Adres</translation>
     </message>
     <message>
         <source>Network Mask</source>
-        <translation type="obsolete">Netwerkmasker</translation>
+        <translation type="unfinished">Netwerkmasker</translation>
     </message>
     <message>
         <source>Lower Bound</source>
-        <translation type="obsolete">Laagste adres</translation>
+        <translation type="unfinished">Laagste adres</translation>
     </message>
     <message>
         <source>Not set</source>
         <comment>bound</comment>
-        <translation type="obsolete">Niet ingesteld</translation>
+        <translation type="unfinished">Niet ingesteld</translation>
     </message>
     <message>
         <source>Upper Bound</source>
-        <translation type="obsolete">Hoogste adres</translation>
+        <translation type="unfinished">Hoogste adres</translation>
     </message>
 </context>
 <context>
@@ -4930,67 +5984,67 @@
     </message>
     <message>
         <source>Network Name</source>
-        <translation type="obsolete">Netwerknaam</translation>
+        <translation type="unfinished">Netwerknaam</translation>
     </message>
     <message>
         <source>[empty]</source>
-        <translation type="obsolete">[leeg]</translation>
+        <translation type="unfinished">[leeg]</translation>
     </message>
     <message>
         <source>%1 (renamed from %2)</source>
-        <translation type="obsolete">%1 (heette eerst %2)</translation>
+        <translation type="unfinished">%1 (heette eerst %2)</translation>
     </message>
     <message>
         <source>Old Network Name</source>
-        <translation type="obsolete">Oude netwerknaam</translation>
+        <translation type="unfinished">Oude netwerknaam</translation>
     </message>
     <message>
         <source>New Network Name</source>
-        <translation type="obsolete">Nieuwe netwerknaam</translation>
+        <translation type="unfinished">Nieuwe netwerknaam</translation>
     </message>
     <message>
         <source>Network CIDR</source>
-        <translation type="obsolete">Netwerk CIDR</translation>
+        <translation type="unfinished">Netwerk CIDR</translation>
     </message>
     <message>
         <source>Supports DHCP</source>
-        <translation type="obsolete">Ondersteunt DHCP</translation>
+        <translation type="unfinished">Ondersteunt DHCP</translation>
     </message>
     <message>
         <source>yes</source>
-        <translation type="obsolete">ja</translation>
+        <translation type="unfinished">ja</translation>
     </message>
     <message>
         <source>no</source>
-        <translation type="obsolete">nee</translation>
+        <translation type="unfinished">nee</translation>
     </message>
     <message>
         <source>Supports IPv6</source>
-        <translation type="obsolete">Ondersteunt IPv6</translation>
+        <translation type="unfinished">Ondersteunt IPv6</translation>
     </message>
     <message>
         <source>Default IPv6 route</source>
-        <translation type="obsolete">Default IPv6-route</translation>
+        <translation type="unfinished">Default IPv6-route</translation>
     </message>
     <message>
         <source>No new name specified for the NAT network previously called &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="obsolete">Er is geen nieuwe naam opgegeven voor het NAT-netwerk dat eerst &lt;b&gt;%1&lt;/b&gt; heette.</translation>
+        <translation type="unfinished">Er is geen nieuwe naam opgegeven voor het NAT-netwerk dat eerst &lt;b&gt;%1&lt;/b&gt; heette.</translation>
     </message>
     <message>
         <source>No CIDR specified for the NAT network &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="obsolete">Geen CIDR opgegeven voor het NAT-netwerk &lt;b&gt;%1&lt;/b&gt;.</translation>
+        <translation type="unfinished">Geen CIDR opgegeven voor het NAT-netwerk &lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>No CIDR specified for the NAT network previously called &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="obsolete">Geen CIDR opgegeven voor het NAT-netwerk dat eerst &lt;b&gt;%1&lt;/b&gt; heette.</translation>
+        <translation type="unfinished">Geen CIDR opgegeven voor het NAT-netwerk dat eerst &lt;b&gt;%1&lt;/b&gt; heette.</translation>
     </message>
     <message>
         <source>Invalid CIDR specified (&lt;i&gt;%1&lt;/i&gt;) for the NAT network &lt;b&gt;%2&lt;/b&gt;.</source>
-        <translation type="obsolete">Ongeldige CIDR opgegeven (&lt;i&gt;%1&lt;/i&gt;) voor het NAT-netwerk &lt;b&gt;%2&lt;/b&gt;.</translation>
+        <translation type="unfinished">Ongeldige CIDR opgegeven (&lt;i&gt;%1&lt;/i&gt;) voor het NAT-netwerk &lt;b&gt;%2&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>Invalid CIDR specified (&lt;i&gt;%1&lt;/i&gt;) for the NAT network previously called &lt;b&gt;%2&lt;/b&gt;.</source>
-        <translation type="obsolete">Ongeldige CIDR opgegeven (&lt;i&gt;%1&lt;/i&gt;) voor het NAT-netwerk dat eerst &lt;b&gt;%2&lt;/b&gt; heette.</translation>
+        <translation type="unfinished">Ongeldige CIDR opgegeven (&lt;i&gt;%1&lt;/i&gt;) voor het NAT-netwerk dat eerst &lt;b&gt;%2&lt;/b&gt; heette.</translation>
     </message>
 </context>
 <context>
@@ -4998,22 +6052,22 @@
     <message>
         <source> (built-in)</source>
         <comment>Language</comment>
-        <translation type="obsolete"> (ingebouwd)</translation>
+        <translation type="unfinished"> (ingebouwd)</translation>
     </message>
     <message>
         <source>&lt;unavailable&gt;</source>
         <comment>Language</comment>
-        <translation type="obsolete">&lt;niet beschikbaar&gt;</translation>
+        <translation type="unfinished">&lt;niet beschikbaar&gt;</translation>
     </message>
     <message>
         <source>&lt;unknown&gt;</source>
         <comment>Author(s)</comment>
-        <translation type="obsolete">&lt;onbekend&gt;</translation>
+        <translation type="unfinished">&lt;onbekend&gt;</translation>
     </message>
     <message>
         <source>Default</source>
         <comment>Language</comment>
-        <translation type="obsolete">Standaard</translation>
+        <translation type="unfinished">Standaard</translation>
     </message>
 </context>
 <context>
@@ -5034,31 +6088,31 @@
     <name>UIMachinePreview</name>
     <message>
         <source>No preview</source>
-        <translation type="obsolete">Geen preview</translation>
+        <translation type="unfinished">Geen preview</translation>
     </message>
     <message>
         <source>Update disabled</source>
-        <translation type="obsolete">Update uitgeschakeld</translation>
+        <translation type="unfinished">Update uitgeschakeld</translation>
     </message>
     <message>
         <source>Every 0.5 s</source>
-        <translation type="obsolete">Elke 0,5 s</translation>
+        <translation type="unfinished">Elke 0,5 s</translation>
     </message>
     <message>
         <source>Every 1 s</source>
-        <translation type="obsolete">Elke 1 s</translation>
+        <translation type="unfinished">Elke 1 s</translation>
     </message>
     <message>
         <source>Every 2 s</source>
-        <translation type="obsolete">Elke 2 s</translation>
+        <translation type="unfinished">Elke 2 s</translation>
     </message>
     <message>
         <source>Every 5 s</source>
-        <translation type="obsolete">Elke 5 s</translation>
+        <translation type="unfinished">Elke 5 s</translation>
     </message>
     <message>
         <source>Every 10 s</source>
-        <translation type="obsolete">Elke 10 s</translation>
+        <translation type="unfinished">Elke 10 s</translation>
     </message>
 </context>
 <context>
@@ -5180,7 +6234,7 @@
     </message>
     <message>
         <source>Video &amp;Capture</source>
-        <translation>Video&amp;capture</translation>
+        <translation type="vanished">Video&amp;capture</translation>
     </message>
     <message>
         <source>When checked, VirtualBox will record the virtual machine session as a video file.</source>
@@ -5188,7 +6242,7 @@
     </message>
     <message>
         <source>&amp;Enable Video Capture</source>
-        <translation>Videocapture inschak&amp;elen</translation>
+        <translation type="vanished">Videocapture inschak&amp;elen</translation>
     </message>
     <message>
         <source>File &amp;Path:</source>
@@ -5204,7 +6258,7 @@
     </message>
     <message>
         <source>&amp;Quality:</source>
-        <translation>&amp;Kwaliteit:</translation>
+        <translation type="vanished">&amp;Kwaliteit:</translation>
     </message>
     <message>
         <source>&amp;Screens:</source>
@@ -5291,15 +6345,15 @@
     </message>
     <message>
         <source>%</source>
-        <translation>%</translation>
+        <translation type="vanished">%</translation>
     </message>
     <message>
         <source>When checked, guest screen contents will not be scaled up to compensate for high host screen resolutions.</source>
-        <translation>Als dit is ingesteld zal gastscherminhoud niet worden opgeschaald om hoge hostschermresoluties te compenseren.</translation>
+        <translation type="vanished">Als dit is ingesteld zal gastscherminhoud niet worden opgeschaald om hoge hostschermresoluties te compenseren.</translation>
     </message>
     <message>
         <source>Use &amp;Unscaled HiDPI Output</source>
-        <translation>Gebruik ongeschaalde HiDPI Video Outp&amp;ut</translation>
+        <translation type="vanished">Gebruik ongeschaalde HiDPI Video Outp&amp;ut</translation>
     </message>
     <message>
         <source>Acceleration:</source>
@@ -5307,7 +6361,7 @@
     </message>
     <message>
         <source>HiDPI Support:</source>
-        <translation>HiDPI-ondersteuning:</translation>
+        <translation type="vanished">HiDPI-ondersteuning:</translation>
     </message>
     <message>
         <source>Holds the VRDP Server port number. You may specify &lt;tt&gt;0&lt;/tt&gt; (zero), to select port 3389, the standard port for RDP.</source>
@@ -5363,7 +6417,7 @@
     </message>
     <message>
         <source>%1%</source>
-        <translation>%1%</translation>
+        <translation type="vanished">%1%</translation>
     </message>
     <message>
         <source>When checked, enables video recording for screen %1.</source>
@@ -5371,11 +6425,47 @@
     </message>
     <message>
         <source>When checked, VirtualBox will record the audio stream to video file as well.</source>
-        <translation>Als dit is ingesteld zal VirtualBox ook het geluid van de video opnemen.</translation>
+        <translation type="vanished">Als dit is ingesteld zal VirtualBox ook het geluid van de video opnemen.</translation>
     </message>
     <message>
         <source>&amp;Record Audio</source>
-        <translation>&amp;Geluid opnemen</translation>
+        <translation type="vanished">&amp;Geluid opnemen</translation>
+    </message>
+    <message>
+        <source>&amp;Audio Quality:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Graphics Controller:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Selects the graphics adapter type the virtual machine will use.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Re&amp;cording</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Enable Recording</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Recording &amp;Mode:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Selects the recording mode.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Video Quality:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Controls the &lt;b&gt;quality&lt;/b&gt;. Increasing this value will make the audio sound better at the cost of an increased file size.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -5780,11 +6870,11 @@
     </message>
     <message>
         <source>Full</source>
-        <translation>Vol</translation>
+        <translation type="vanished">Vol</translation>
     </message>
     <message>
         <source>Read-only</source>
-        <translation>Alleen-lezen</translation>
+        <translation type="vanished">Alleen-lezen</translation>
     </message>
     <message>
         <source>Lists all shared folders accessible to this machine. Use &apos;net use x: \\vboxsvr\share&apos; to access a shared folder named &lt;i&gt;share&lt;/i&gt; from a DOS-like OS, or &apos;mount -t vboxsf share mount_point&apos; to access it from a Linux OS. This feature requires Guest Additions.</source>
@@ -5808,11 +6898,11 @@
     </message>
     <message>
         <source>Auto-mount</source>
-        <translation>Automatisch koppelen</translation>
+        <translation type="vanished">Automatisch koppelen</translation>
     </message>
     <message>
         <source>Yes</source>
-        <translation>Ja</translation>
+        <translation type="vanished">Ja</translation>
     </message>
     <message>
         <source>Add Shared Folder</source>
@@ -5841,6 +6931,14 @@
     <message>
         <source>Shared &amp;Folders</source>
         <translation>&amp;Gedeelde mappen</translation>
+    </message>
+    <message>
+        <source>Auto Mount</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>At</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -5888,6 +6986,14 @@
     <message>
         <source>When checked, this shared folder will be permanent.</source>
         <translation>Als dit is ingesteld zal deze gedeelde map permanent worden.</translation>
+    </message>
+    <message>
+        <source>Mount point:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Where to automatically mount the folder in the guest.  A drive letter (e.g. &apos;G:&apos;) for Windows and OS/2 guests, path for the others.  If left empty the guest will pick something fitting.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -6298,6 +7404,16 @@
         <source>&amp;Storage Devices</source>
         <translation>Op&amp;slagapparaten</translation>
     </message>
+    <message>
+        <source>Create a new floppy disk...</source>
+        <comment>This is used to create a new floppy disk</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Create ad hoc VISO...</source>
+        <comment>This is used for optical media</comment>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIMachineSettingsSystem</name>
@@ -6513,6 +7629,38 @@
         <source>The hardware virtualization is not currently enabled in the Acceleration section of the System page. This is needed to support more than one virtual processor. It will be enabled automatically if you confirm your changes.</source>
         <translation>Hardwarevirtualisatie is momenteel niet ingeschakeld bij de sectie Acceleratie op pagina Systeem. Dit is echter nodig om meer dan één virtuele processor te kunnen ondersteunen. Inschakelen zal automatisch plaatsvinden op het moment dat u uw keuze voor meer dan één virtuele processor bevestigt.</translation>
     </message>
+    <message>
+        <source>Please consider lowering the number of CPUs assigned to the virtual machine rather than setting the processor execution cap.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Lowering the processor execution cap may result in a decline in performance.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The hardware virtualization is enabled in the Acceleration section of the System page although it is not supported by the host system. It should be disabled in order to start the virtual system.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When checked, the nested hardware virtualization CPU feature will be exposed to the virtual machine.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enable Nested &amp;VT-x/AMD-V</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The hardware virtualization is not currently enabled in the Acceleration section of the System page. This is needed to support nested hardware virtualization. It will be enabled automatically if you confirm your changes.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The nested paging is not currently enabled in the Acceleration section of the System page. This is needed to support nested hardware virtualization. It will be enabled automatically if you confirm your changes.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The hardware virtualization is not currently enabled in the Acceleration section of the System page. This is needed for nested paging support. It will be enabled automatically if you confirm your changes.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIMachineSettingsUSB</name>
@@ -6544,42 +7692,42 @@
     <message>
         <source>&lt;nobr&gt;Vendor ID: %1&lt;/nobr&gt;</source>
         <comment>USB filter tooltip</comment>
-        <translation>&lt;nobr&gt;Leveranciers-ID: %1&lt;/nobr&gt;</translation>
+        <translation type="vanished">&lt;nobr&gt;Leveranciers-ID: %1&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;Product ID: %2&lt;/nobr&gt;</source>
         <comment>USB filter tooltip</comment>
-        <translation>&lt;nobr&gt;Product ID: %2&lt;/nobr&gt;</translation>
+        <translation type="vanished">&lt;nobr&gt;Product ID: %2&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;Revision: %3&lt;/nobr&gt;</source>
         <comment>USB filter tooltip</comment>
-        <translation>&lt;nobr&gt;Revisie: %3&lt;/nobr&gt;</translation>
+        <translation type="vanished">&lt;nobr&gt;Revisie: %3&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;Product: %4&lt;/nobr&gt;</source>
         <comment>USB filter tooltip</comment>
-        <translation>&lt;nobr&gt;Product: %4&lt;/nobr&gt;</translation>
+        <translation type="vanished">&lt;nobr&gt;Product: %4&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;Manufacturer: %5&lt;/nobr&gt;</source>
         <comment>USB filter tooltip</comment>
-        <translation>&lt;nobr&gt;Leverancier: %5&lt;/nobr&gt;</translation>
+        <translation type="vanished">&lt;nobr&gt;Leverancier: %5&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;Serial No.: %1&lt;/nobr&gt;</source>
         <comment>USB filter tooltip</comment>
-        <translation>&lt;nobr&gt;Serienr: %1&lt;/nobr&gt;</translation>
+        <translation type="vanished">&lt;nobr&gt;Serienr: %1&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;Port: %1&lt;/nobr&gt;</source>
         <comment>USB filter tooltip</comment>
-        <translation>&lt;nobr&gt;Poort: %1&lt;/nobr&gt;</translation>
+        <translation type="vanished">&lt;nobr&gt;Poort: %1&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;State: %1&lt;/nobr&gt;</source>
         <comment>USB filter tooltip</comment>
-        <translation>&lt;nobr&gt;Staat: %1&lt;/nobr&gt;</translation>
+        <translation type="vanished">&lt;nobr&gt;Staat: %1&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>USB &amp;1.1 (OHCI) Controller</source>
@@ -6874,52 +8022,57 @@
     <name>UIMediumItem</name>
     <message>
         <source>Current extension (*.%1)</source>
-        <translation type="obsolete">Huidige extensie (*.%1)</translation>
+        <translation type="unfinished">Huidige extensie (*.%1)</translation>
     </message>
     <message>
         <source>Choose the location of this medium</source>
-        <translation type="obsolete">De locatie van dit medium kiezen</translation>
+        <translation type="unfinished">De locatie van dit medium kiezen</translation>
     </message>
     <message>
         <source>Moving medium...</source>
-        <translation type="obsolete">Verplaatsen medium...</translation>
+        <translation type="unfinished">Verplaatsen medium...</translation>
     </message>
     <message>
         <source>%1, %2: %3, %4: %5</source>
         <comment>col.1 text, col.2 name: col.2 text, col.3 name: col.3 text</comment>
-        <translation type="obsolete">%1, %2: %3, %4: %5</translation>
+        <translation type="unfinished">%1, %2: %3, %4: %5</translation>
     </message>
     <message>
         <source>Format:</source>
-        <translation type="obsolete">Formaat:</translation>
+        <translation type="unfinished">Formaat:</translation>
     </message>
     <message>
         <source>Storage details:</source>
-        <translation type="obsolete">Opslagdetails:</translation>
+        <translation type="unfinished">Opslagdetails:</translation>
     </message>
     <message>
         <source>Attached to:</source>
-        <translation type="obsolete">Aangesloten aan:</translation>
+        <translation type="unfinished">Aangesloten aan:</translation>
     </message>
     <message>
         <source>Encrypted with key:</source>
-        <translation type="obsolete">Versleuteld met sleutel:</translation>
+        <translation type="unfinished">Versleuteld met sleutel:</translation>
     </message>
     <message>
         <source>UUID:</source>
-        <translation type="obsolete">UUID:</translation>
+        <translation type="unfinished">UUID:</translation>
     </message>
     <message>
         <source>&lt;i&gt;Not&amp;nbsp;Attached&lt;/i&gt;</source>
-        <translation type="obsolete">&lt;i&gt;Niet&amp;nbsp;aangesloten&lt;/i&gt;</translation>
+        <translation type="unfinished">&lt;i&gt;Niet&amp;nbsp;aangesloten&lt;/i&gt;</translation>
     </message>
     <message>
         <source>&lt;i&gt;Not&amp;nbsp;Encrypted&lt;/i&gt;</source>
-        <translation type="obsolete">&lt;i&gt;Niet&amp;nbsp;Versleuteld&lt;/i&gt;</translation>
+        <translation type="unfinished">&lt;i&gt;Niet&amp;nbsp;Versleuteld&lt;/i&gt;</translation>
+    </message>
+    <message>
+        <source>--</source>
+        <comment>no info</comment>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Removing medium...</source>
-        <translation type="obsolete">Verwijderen medium...</translation>
+        <translation type="unfinished">Verwijderen medium...</translation>
     </message>
 </context>
 <context>
@@ -6934,7 +8087,7 @@
     </message>
     <message>
         <source>Removing medium...</source>
-        <translation>Verwijderen medium...</translation>
+        <translation type="vanished">Verwijderen medium...</translation>
     </message>
     <message>
         <source>&amp;Hard disks</source>
@@ -6943,84 +8096,84 @@
     <message>
         <source>%1, %2: %3, %4: %5</source>
         <comment>col.1 text, col.2 name: col.2 text, col.3 name: col.3 text</comment>
-        <translation>%1, %2: %3, %4: %5</translation>
+        <translation type="vanished">%1, %2: %3, %4: %5</translation>
     </message>
     <message>
         <source>Format:</source>
-        <translation>Formaat:</translation>
+        <translation type="vanished">Formaat:</translation>
     </message>
     <message>
         <source>Storage details:</source>
-        <translation>Opslagdetails:</translation>
+        <translation type="vanished">Opslagdetails:</translation>
     </message>
     <message>
         <source>Attached to:</source>
-        <translation>Aangesloten aan:</translation>
+        <translation type="vanished">Aangesloten aan:</translation>
     </message>
     <message>
         <source>Encrypted with key:</source>
-        <translation>Versleuteld met sleutel:</translation>
+        <translation type="vanished">Versleuteld met sleutel:</translation>
     </message>
     <message>
         <source>UUID:</source>
-        <translation>UUID:</translation>
+        <translation type="vanished">UUID:</translation>
     </message>
     <message>
         <source>&lt;i&gt;Not&amp;nbsp;Attached&lt;/i&gt;</source>
-        <translation>&lt;i&gt;Niet&amp;nbsp;aangesloten&lt;/i&gt;</translation>
+        <translation type="vanished">&lt;i&gt;Niet&amp;nbsp;aangesloten&lt;/i&gt;</translation>
     </message>
     <message>
         <source>&lt;i&gt;Not&amp;nbsp;Encrypted&lt;/i&gt;</source>
-        <translation>&lt;i&gt;Niet&amp;nbsp;Versleuteld&lt;/i&gt;</translation>
+        <translation type="vanished">&lt;i&gt;Niet&amp;nbsp;Versleuteld&lt;/i&gt;</translation>
     </message>
     <message>
         <source>--</source>
         <comment>no info</comment>
-        <translation>--</translation>
+        <translation type="vanished">--</translation>
     </message>
     <message>
         <source>&amp;Medium</source>
-        <translation>&amp;Medium</translation>
+        <translation type="vanished">&amp;Medium</translation>
     </message>
     <message>
         <source>&amp;Copy...</source>
-        <translation>&amp;Kopiëren...</translation>
+        <translation type="vanished">&amp;Kopiëren...</translation>
     </message>
     <message>
         <source>Copy selected disk image file</source>
-        <translation>Kopiëren geselecteerd disk-imagebestand</translation>
+        <translation type="vanished">Kopiëren geselecteerd disk-imagebestand</translation>
     </message>
     <message>
         <source>&amp;Remove...</source>
-        <translation>Ve&amp;rwijderen...</translation>
+        <translation type="vanished">Ve&amp;rwijderen...</translation>
     </message>
     <message>
         <source>Remove selected disk image file</source>
-        <translation>Verwijderen disk-imagebestand</translation>
+        <translation type="vanished">Verwijderen disk-imagebestand</translation>
     </message>
     <message>
         <source>Re&amp;lease...</source>
-        <translation>Re&amp;lease...</translation>
+        <translation type="vanished">Re&amp;lease...</translation>
     </message>
     <message>
         <source>Release selected disk image file by detaching it from machines</source>
-        <translation>Geeft het geselecteerde disk-imagebestand vrij door deze te ontkoppelen van de machines</translation>
+        <translation type="vanished">Geeft het geselecteerde disk-imagebestand vrij door deze te ontkoppelen van de machines</translation>
     </message>
     <message>
         <source>&amp;Properties...</source>
-        <translation>&amp;Eigenschappen...</translation>
+        <translation type="vanished">&amp;Eigenschappen...</translation>
     </message>
     <message>
         <source>Open pane with selected disk image file properties</source>
-        <translation>Open deelvenster met geselecteerde disk-image-eigenschappen</translation>
+        <translation type="vanished">Open deelvenster met geselecteerde disk-image-eigenschappen</translation>
     </message>
     <message>
         <source>Re&amp;fresh</source>
-        <translation>&amp;Verversen</translation>
+        <translation type="vanished">&amp;Verversen</translation>
     </message>
     <message>
         <source>Refresh the list of disk image files</source>
-        <translation>Ververs de lijst met disk-image-bestanden</translation>
+        <translation type="vanished">Ververs de lijst met disk-image-bestanden</translation>
     </message>
     <message>
         <source>Name</source>
@@ -7088,23 +8241,23 @@
     </message>
     <message>
         <source>Copy Disk Image File (%1)</source>
-        <translation>Kopiëren disk-imagebestand (%1)</translation>
+        <translation type="vanished">Kopiëren disk-imagebestand (%1)</translation>
     </message>
     <message>
         <source>Remove Disk Image File (%1)</source>
-        <translation>Verwijderen disk-imagebestand (%1)</translation>
+        <translation type="vanished">Verwijderen disk-imagebestand (%1)</translation>
     </message>
     <message>
         <source>Release Disk Image File (%1)</source>
-        <translation>Vrijgeven disk-imagebestand (%1)</translation>
+        <translation type="vanished">Vrijgeven disk-imagebestand (%1)</translation>
     </message>
     <message>
         <source>Open Disk Image File Properties (%1)</source>
-        <translation>Openen disk-imagebestand-eigenschappen(%1)</translation>
+        <translation type="vanished">Openen disk-imagebestand-eigenschappen(%1)</translation>
     </message>
     <message>
         <source>Refresh Disk Image Files (%1)</source>
-        <translation>Verversen disk-imagebestanden (%1)</translation>
+        <translation type="vanished">Verversen disk-imagebestanden (%1)</translation>
     </message>
     <message>
         <source>Current extension (*.%1)</source>
@@ -7116,15 +8269,19 @@
     </message>
     <message>
         <source>&amp;Move...</source>
-        <translation>&amp;Verplaatsen...</translation>
+        <translation type="vanished">&amp;Verplaatsen...</translation>
     </message>
     <message>
         <source>Move Disk Image File (%1)</source>
-        <translation>Verplaatsen disk-imagebestand (%1)</translation>
+        <translation type="vanished">Verplaatsen disk-imagebestand (%1)</translation>
     </message>
     <message>
         <source>Move selected disk image file</source>
-        <translation>Verplaatsen geselecteerd disk-imagebestand</translation>
+        <translation type="vanished">Verplaatsen geselecteerd disk-imagebestand</translation>
+    </message>
+    <message>
+        <source>Resizing medium...</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Size:</source>
@@ -7178,27 +8335,55 @@
     <name>UIMediumSelector</name>
     <message>
         <source>&amp;Add...</source>
-        <translation type="obsolete">&amp;Toevoegen...</translation>
+        <translation type="unfinished">&amp;Toevoegen...</translation>
+    </message>
+    <message>
+        <source>Add Disk Image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add existing disk image file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Create...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Create Disk Image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Create new disk image file</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>&amp;Refresh</source>
-        <translation type="obsolete">&amp;Verversen</translation>
+        <translation type="unfinished">&amp;Verversen</translation>
     </message>
     <message>
         <source>Refresh Disk Image Files (%1)</source>
-        <translation type="obsolete">Verversen disk-imagebestanden (%1)</translation>
+        <translation type="unfinished">Verversen disk-imagebestanden (%1)</translation>
+    </message>
+    <message>
+        <source>Refresh the list of disk image files</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Choose</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Name</source>
-        <translation type="obsolete">Naam</translation>
+        <translation type="unfinished">Naam</translation>
     </message>
     <message>
         <source>Virtual Size</source>
-        <translation type="obsolete">Virtuele grootte</translation>
+        <translation type="unfinished">Virtuele grootte</translation>
     </message>
     <message>
         <source>Actual Size</source>
-        <translation type="obsolete">Ware grootte</translation>
+        <translation type="unfinished">Ware grootte</translation>
     </message>
 </context>
 <context>
@@ -7260,7 +8445,7 @@
     </message>
     <message>
         <source>Virtual Screen Mapping</source>
-        <translation>Mappen virtueel scherm</translation>
+        <translation type="vanished">Mappen virtueel scherm</translation>
     </message>
     <message>
         <source>Close</source>
@@ -7281,6 +8466,14 @@
     <message>
         <source>Popup menu %1</source>
         <translation>Popup-menu %1</translation>
+    </message>
+    <message>
+        <source>Virtual Screen Remap</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Virtual Screen Rescale</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -8113,11 +9306,11 @@
     </message>
     <message>
         <source>Failed to enable video capturing for the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation>Het is niet gelukt videocapture voor virtuele machine &lt;b&gt;%1&lt;/b&gt; in te schakelen.</translation>
+        <translation type="vanished">Het is niet gelukt videocapture voor virtuele machine &lt;b&gt;%1&lt;/b&gt; in te schakelen.</translation>
     </message>
     <message>
         <source>Failed to disable video capturing for the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation>Het is niet gelukt videocapture voor virtuele machine &lt;b&gt;%1&lt;/b&gt; uit te schakelen.</translation>
+        <translation type="vanished">Het is niet gelukt videocapture voor virtuele machine &lt;b&gt;%1&lt;/b&gt; uit te schakelen.</translation>
     </message>
     <message>
         <source>&lt;p&gt;Could not find the &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt; disk image file.&lt;/p&gt;&lt;p&gt;Do you wish to download this disk image file from the Internet?&lt;/p&gt;</source>
@@ -8471,8 +9664,97 @@
         <translation>&lt;p&gt;Voor de veranderingen die u wilt aanbrengen moet deze schijf worden losgekoppeld van de machines waar het aan gekoppeld zit.&lt;/p&gt;&lt;p&gt;Weet u zeker dat u schijf-imagebestand &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; wilt loskoppelen?&lt;/p&gt;&lt;p&gt;Het betreft de volgende virtuele machine(s): &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</translation>
     </message>
     <message>
+        <source>Unknown option &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;%1&lt;/b&gt; is an option for the VirtualBox VM runner (VirtualBoxVM) application, not the VirtualBox Manager.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You must specify a machine to start, using the command line.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;</source>
+        <comment>There will be a usage text passed as argument.</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;tr&gt;&lt;td&gt;Usage: VirtualBoxVM --startvm &amp;lt;name|UUID&amp;gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;Starts the VirtualBox virtual machine with the given name or unique identifier (UUID).&lt;/td&gt;&lt;/tr&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to move the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to acquire cloud provider manager.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to acquire cloud provider manager parameter.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to find cloud provider with following uuid: &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to acquire cloud provider parameter.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to find cloud profile with following name: &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to create cloud profile.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to save cloud profiles.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to import cloud profiles.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to acquire cloud profile parameter.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to assign cloud profile parameter.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to create cloud client.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to acquire cloud client parameter.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Do you want to remove the cloud profile &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;?&lt;/nobr&gt;&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Do you want to import cloud profiles from external files?&lt;/p&gt;&lt;p&gt;VirtualBox cloud profiles will be overwritten and their data will be lost.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Import</source>
-        <translation type="obsolete">Importeren</translation>
+        <translation type="unfinished">Importeren</translation>
+    </message>
+    <message>
+        <source>Failed to create the hard disk storage &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt; FAT file systems have 4GB file size limit.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to enable recording for the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to disable recording for the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -8509,11 +9791,11 @@
     <name>UINameAndSystemEditor</name>
     <message>
         <source>N&amp;ame:</source>
-        <translation>&amp;Naam:</translation>
+        <translation type="vanished">&amp;Naam:</translation>
     </message>
     <message>
         <source>Holds the name of the virtual machine.</source>
-        <translation>De naam van de virtuele machine.</translation>
+        <translation type="vanished">De naam van de virtuele machine.</translation>
     </message>
     <message>
         <source>&amp;Type:</source>
@@ -8533,7 +9815,15 @@
     </message>
     <message>
         <source>Holds the location of the virtual machine.</source>
-        <translation>De locatie van de virtuele machine.</translation>
+        <translation type="vanished">De locatie van de virtuele machine.</translation>
+    </message>
+    <message>
+        <source>Name:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Machine Folder:</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -8763,8 +10053,24 @@
 <context>
     <name>UIScaleFactorEditor</name>
     <message>
+        <source>Max</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Min</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>All Monitors</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Monitor %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Controls the guest screen scale factor.</source>
-        <translation type="obsolete">Regelt de gastschermschaalfactor.</translation>
+        <translation type="unfinished">Regelt de gastschermschaalfactor.</translation>
     </message>
 </context>
 <context>
@@ -8786,24 +10092,24 @@
     <name>UISelectorWindow</name>
     <message>
         <source>Show Toolbar</source>
-        <translation>Toon werkbalk</translation>
+        <translation type="vanished">Toon werkbalk</translation>
     </message>
     <message>
         <source>Show Statusbar</source>
-        <translation>Toon statusbalk</translation>
+        <translation type="vanished">Toon statusbalk</translation>
     </message>
     <message>
         <source>Select a virtual machine file</source>
-        <translation>Selecteer een virtuele machine bestand</translation>
+        <translation type="vanished">Selecteer een virtuele machine bestand</translation>
     </message>
     <message>
         <source>Virtual machine files (%1)</source>
-        <translation>Bestanden virtuele machine (%1)</translation>
+        <translation type="vanished">Bestanden virtuele machine (%1)</translation>
     </message>
     <message>
         <source>Manager</source>
         <comment>Note: main window title which is pretended by the product name.</comment>
-        <translation>Manager</translation>
+        <translation type="vanished">Manager</translation>
     </message>
     <message>
         <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is  a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
@@ -8811,7 +10117,7 @@
     </message>
     <message>
         <source>Show Toolbar Text</source>
-        <translation>Toon werkbalktekst</translation>
+        <translation type="vanished">Toon werkbalktekst</translation>
     </message>
 </context>
 <context>
@@ -9057,50 +10363,55 @@
     <message>
         <source>Current State (changed)</source>
         <comment>Current State (Modified)</comment>
-        <translation type="obsolete">Huidige staat (gewijzigd)</translation>
+        <translation type="unfinished">Huidige staat (gewijzigd)</translation>
     </message>
     <message>
         <source>Current State</source>
         <comment>Current State (Unmodified)</comment>
-        <translation type="obsolete">Huidige staat (ongewijzigd)</translation>
+        <translation type="unfinished">Huidige staat (ongewijzigd)</translation>
     </message>
     <message>
         <source>The current state differs from the state stored in the current snapshot</source>
-        <translation type="obsolete">De huidige staat verschilt van de staat zoals deze is opgeslagen in het huidige snapshot</translation>
+        <translation type="unfinished">De huidige staat verschilt van de staat zoals deze is opgeslagen in het huidige snapshot</translation>
     </message>
     <message>
         <source>The current state is identical to the state stored in the current snapshot</source>
-        <translation type="obsolete">De huidige staat is gelijk aan de staat zoals deze opgeslagen is in het huidige snapshot</translation>
+        <translation type="unfinished">De huidige staat is gelijk aan de staat zoals deze opgeslagen is in het huidige snapshot</translation>
     </message>
     <message>
         <source>%1 (%2 ago)</source>
         <comment>date time (how long ago)</comment>
-        <translation type="obsolete">%1 (%2 geleden)</translation>
+        <translation type="unfinished">%1 (%2 geleden)</translation>
     </message>
     <message>
         <source>%1 since %2</source>
         <comment>Current State (time or date + time)</comment>
-        <translation type="obsolete">%1 sinds %2</translation>
+        <translation type="unfinished">%1 sinds %2</translation>
     </message>
     <message>
         <source>current</source>
         <comment>snapshot</comment>
-        <translation type="obsolete">huidig</translation>
+        <translation type="unfinished">huidig</translation>
     </message>
     <message>
         <source>online</source>
         <comment>snapshot</comment>
-        <translation type="obsolete">online</translation>
+        <translation type="unfinished">online</translation>
+    </message>
+    <message>
+        <source>offline</source>
+        <comment>snapshot</comment>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Taken at %1</source>
         <comment>Snapshot (time)</comment>
-        <translation type="obsolete">Genomen om %1</translation>
+        <translation type="unfinished">Genomen om %1</translation>
     </message>
     <message>
         <source>Taken on %1</source>
         <comment>Snapshot (date + time)</comment>
-        <translation type="obsolete">Genomen op %1</translation>
+        <translation type="unfinished">Genomen op %1</translation>
     </message>
 </context>
 <context>
@@ -9108,55 +10419,50 @@
     <message>
         <source>Current State (changed)</source>
         <comment>Current State (Modified)</comment>
-        <translation>Huidige staat (gewijzigd)</translation>
+        <translation type="vanished">Huidige staat (gewijzigd)</translation>
     </message>
     <message>
         <source>Current State</source>
         <comment>Current State (Unmodified)</comment>
-        <translation>Huidige staat (ongewijzigd)</translation>
+        <translation type="vanished">Huidige staat (ongewijzigd)</translation>
     </message>
     <message>
         <source>The current state differs from the state stored in the current snapshot</source>
-        <translation>De huidige staat verschilt van de staat zoals deze is opgeslagen in het huidige snapshot</translation>
+        <translation type="vanished">De huidige staat verschilt van de staat zoals deze is opgeslagen in het huidige snapshot</translation>
     </message>
     <message>
         <source>The current state is identical to the state stored in the current snapshot</source>
-        <translation>De huidige staat is gelijk aan de staat zoals deze opgeslagen is in het huidige snapshot</translation>
+        <translation type="vanished">De huidige staat is gelijk aan de staat zoals deze opgeslagen is in het huidige snapshot</translation>
     </message>
     <message>
         <source>%1 (%2 ago)</source>
         <comment>date time (how long ago)</comment>
-        <translation>%1 (%2 geleden)</translation>
+        <translation type="vanished">%1 (%2 geleden)</translation>
     </message>
     <message>
         <source>%1 since %2</source>
         <comment>Current State (time or date + time)</comment>
-        <translation>%1 sinds %2</translation>
+        <translation type="vanished">%1 sinds %2</translation>
     </message>
     <message>
         <source>current</source>
         <comment>snapshot</comment>
-        <translation>huidig</translation>
+        <translation type="vanished">huidig</translation>
     </message>
     <message>
         <source>online</source>
         <comment>snapshot</comment>
-        <translation>online</translation>
-    </message>
-    <message>
-        <source>offline</source>
-        <comment>snapshot</comment>
-        <translation></translation>
+        <translation type="vanished">online</translation>
     </message>
     <message>
         <source>Taken at %1</source>
         <comment>Snapshot (time)</comment>
-        <translation>Genomen om %1</translation>
+        <translation type="vanished">Genomen om %1</translation>
     </message>
     <message>
         <source>Taken on %1</source>
         <comment>Snapshot (date + time)</comment>
-        <translation>Genomen op %1</translation>
+        <translation type="vanished">Genomen op %1</translation>
     </message>
     <message>
         <source>Contains the snapshot tree of the current virtual machine</source>
@@ -9164,63 +10470,63 @@
     </message>
     <message>
         <source>&amp;Take...</source>
-        <translation>&amp;Nemen...</translation>
+        <translation type="vanished">&amp;Nemen...</translation>
     </message>
     <message>
         <source>&amp;Delete</source>
-        <translation>&amp;Verwijderen</translation>
+        <translation type="vanished">&amp;Verwijderen</translation>
     </message>
     <message>
         <source>&amp;Restore</source>
-        <translation>&amp;Terugzetten</translation>
+        <translation type="vanished">&amp;Terugzetten</translation>
     </message>
     <message>
         <source>&amp;Properties...</source>
-        <translation>&amp;Eigenschappen...</translation>
+        <translation type="vanished">&amp;Eigenschappen...</translation>
     </message>
     <message>
         <source>&amp;Clone...</source>
-        <translation>&amp;Kloon...</translation>
+        <translation type="vanished">&amp;Kloon...</translation>
     </message>
     <message>
         <source>Take Snapshot (%1)</source>
-        <translation>Snapshot nemen (%1)</translation>
+        <translation type="vanished">Snapshot nemen (%1)</translation>
     </message>
     <message>
         <source>Delete Snapshot (%1)</source>
-        <translation>Verwijder snapshot (%1)</translation>
+        <translation type="vanished">Verwijder snapshot (%1)</translation>
     </message>
     <message>
         <source>Restore Snapshot (%1)</source>
-        <translation>Terugzetten snapshot (%1)</translation>
+        <translation type="vanished">Terugzetten snapshot (%1)</translation>
     </message>
     <message>
         <source>Open Snapshot Properties (%1)</source>
-        <translation>Openen snapshoteigenschappen (%1)</translation>
+        <translation type="vanished">Openen snapshoteigenschappen (%1)</translation>
     </message>
     <message>
         <source>Clone Virtual Machine (%1)</source>
-        <translation>Kloon Virtuele Machine (%1)</translation>
+        <translation type="vanished">Kloon Virtuele Machine (%1)</translation>
     </message>
     <message>
         <source>Take a snapshot of the current virtual machine state</source>
-        <translation>Maak een snapshot van de huidige staat van de virtuele machine</translation>
+        <translation type="vanished">Maak een snapshot van de huidige staat van de virtuele machine</translation>
     </message>
     <message>
         <source>Delete selected snapshot of the virtual machine</source>
-        <translation>Verwijder het geselecteerde snapshot van de virtuele machine</translation>
+        <translation type="vanished">Verwijder het geselecteerde snapshot van de virtuele machine</translation>
     </message>
     <message>
         <source>Restore selected snapshot of the virtual machine</source>
-        <translation>Zet het geselecteerde snapshot van de virtuele machine terug</translation>
+        <translation type="vanished">Zet het geselecteerde snapshot van de virtuele machine terug</translation>
     </message>
     <message>
         <source>Open pane with the selected snapshot properties</source>
-        <translation>Open deelvenster met geselecteerde snapshoteigenschappen</translation>
+        <translation type="vanished">Open deelvenster met geselecteerde snapshoteigenschappen</translation>
     </message>
     <message>
         <source>Clone selected virtual machine</source>
-        <translation>Kloon de geselecteerde virtuele machine</translation>
+        <translation type="vanished">Kloon de geselecteerde virtuele machine</translation>
     </message>
     <message>
         <source>Name</source>
@@ -9304,46 +10610,73 @@
 <context>
     <name>UIToolsModel</name>
     <message>
+        <source>Welcome</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Media</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Network</source>
-        <translation type="obsolete">Netwerk</translation>
+        <translation type="unfinished">Netwerk</translation>
+    </message>
+    <message>
+        <source>Cloud</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Details</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Snapshots</source>
-        <translation type="obsolete">Snapshots</translation>
+        <translation type="unfinished">Snapshots</translation>
+    </message>
+    <message>
+        <source>Logs</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>UIToolsPaneGlobal</name>
     <message>
         <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;This window represents a set of global tools which are currently opened (or can be opened). They are not related to any particular machine but to the complete VM collection. For a list of currently available tools check the corresponding menu at the right side of the main tool bar located at the top of the window. This list will be extended with new tools in future releases.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for more information and latest news.&lt;/p&gt;</source>
-        <translation>&lt;h3&gt;Welkom bij VirtualBox!&lt;/h3&gt;&lt;p&gt;Dit venster toont een set algemene gereedschappendie momenteel open staan (of geopend kunnen worden). Deze zijn nog niet gebonden aan een bepaalde machine maar aan de complete VM-collectie. Voor een lijst van beschikbare gereedschappen controlere men het overeenkomstig menu aan de rechter kant van de hoofdwerkbalk boven aan het scherm. Deze lijst zal worden uitgebreid in toekomstige uitgaven.&lt;/p&gt;&lt;p&gt;De toets &lt;b&gt;%1&lt;/b&gt; opent een helpscherm. Bezoek &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; voor de laatste informatie en nieuws.&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;h3&gt;Welkom bij VirtualBox!&lt;/h3&gt;&lt;p&gt;Dit venster toont een set algemene gereedschappendie momenteel open staan (of geopend kunnen worden). Deze zijn nog niet gebonden aan een bepaalde machine maar aan de complete VM-collectie. Voor een lijst van beschikbare gereedschappen controlere men het overeenkomstig menu aan de rechter kant van de hoofdwerkbalk boven aan het scherm. Deze lijst zal worden uitgebreid in toekomstige uitgaven.&lt;/p&gt;&lt;p&gt;De toets &lt;b&gt;%1&lt;/b&gt; opent een helpscherm. Bezoek &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; voor de laatste informatie en nieuws.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Tool to observe virtual storage media. Reflects all the chains of &lt;u&gt;virtual disks&lt;/u&gt; you have registered (per each storage type) within your virtual machines and allows for media operations like &lt;u&gt;copy&lt;/u&gt;, &lt;u&gt;remove&lt;/u&gt;, &lt;u&gt;release&lt;/u&gt; (detach it from VMs where it is currently attached to) and observe their properties. Allows to &lt;u&gt;edit&lt;/u&gt; medium attributes like &lt;u&gt;type&lt;/u&gt;, &lt;u&gt;location/name&lt;/u&gt;, &lt;u&gt;description&lt;/u&gt; and &lt;u&gt;size&lt;/u&gt; (for dynamical storages only).</source>
-        <translation>Om virtuele opslagmedia mee te bekijken. Toont alle ketens van &lt;u&gt;virtuele schijven&lt;/u&gt; die u heeft geregistreerd (per opslagtype) binnen de virtuele machines en maakt mediabewerkingen als &lt;u&gt;kopiëren&lt;/u&gt;, &lt;u&gt;verwijderen&lt;/u&gt;, &lt;u&gt;vrijgeven&lt;/u&gt; (afkoppelen van VMs waar het op dat moment aan verbonden was) en het bekijken van hun eigenschappen mogenlijk. Steld in staat media-attributen te &lt;u&gt;bewerken&lt;/u&gt; als &lt;u&gt;type&lt;/u&gt;, &lt;u&gt;locatie/naam&lt;/u&gt;, &lt;u&gt;beschrijving&lt;/u&gt; en &lt;u&gt;grootte&lt;/u&gt; (alleen bij dynamische opslag).</translation>
+        <translation type="vanished">Om virtuele opslagmedia mee te bekijken. Toont alle ketens van &lt;u&gt;virtuele schijven&lt;/u&gt; die u heeft geregistreerd (per opslagtype) binnen de virtuele machines en maakt mediabewerkingen als &lt;u&gt;kopiëren&lt;/u&gt;, &lt;u&gt;verwijderen&lt;/u&gt;, &lt;u&gt;vrijgeven&lt;/u&gt; (afkoppelen van VMs waar het op dat moment aan verbonden was) en het bekijken van hun eigenschappen mogenlijk. Steld in staat media-attributen te &lt;u&gt;bewerken&lt;/u&gt; als &lt;u&gt;type&lt;/u&gt;, &lt;u&gt;locatie/naam&lt;/u&gt;, &lt;u&gt;beschrijving&lt;/u&gt; en &lt;u&gt;grootte&lt;/u&gt; (alleen bij dynamische opslag).</translation>
     </message>
     <message>
         <source>Tool to control host-only network interfaces. Reflects &lt;u&gt;host-only networks&lt;/u&gt;, their DHCP servers and allows for operations on the networks like possibility to &lt;u&gt;create&lt;/u&gt;, &lt;u&gt;remove&lt;/u&gt; and observe their properties. Allows to &lt;u&gt;edit&lt;/u&gt; various &lt;u&gt;attributes&lt;/u&gt; for host-only interface and corresponding DHCP server.</source>
-        <translation>Om host-only-netwerkinterfaces mee te beheren. Toont &lt;u&gt;host-only netwerken&lt;/u&gt;, hun DHCP-servers en staat bewerkingen toe op het netwerk als &lt;u&gt;aanmaken&lt;/u&gt;, &lt;u&gt;verwijderen&lt;/u&gt; en bekijken eigenschappen. Mogelijkheid tot &lt;u&gt;bwerken&lt;/u&gt; van verschillende &lt;u&gt;attributen&lt;/u&gt; voor host-only-interface en corresponderende DHCP-server.</translation>
+        <translation type="vanished">Om host-only-netwerkinterfaces mee te beheren. Toont &lt;u&gt;host-only netwerken&lt;/u&gt;, hun DHCP-servers en staat bewerkingen toe op het netwerk als &lt;u&gt;aanmaken&lt;/u&gt;, &lt;u&gt;verwijderen&lt;/u&gt; en bekijken eigenschappen. Mogelijkheid tot &lt;u&gt;bwerken&lt;/u&gt; van verschillende &lt;u&gt;attributen&lt;/u&gt; voor host-only-interface en corresponderende DHCP-server.</translation>
     </message>
 </context>
 <context>
     <name>UIToolsPaneMachine</name>
     <message>
         <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window lists all virtual machines and virtual machine groups on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for more information and latest news.&lt;/p&gt;</source>
-        <translation>&lt;h3&gt;Welkom bij VirtualBox!&lt;/h3&gt;&lt;p&gt;Het linker deel van dit venster zal straks alle virtuele machines tonen die op uw computer staan. De lijst is nu leeg omdat u nog geen virtuele machines hebt aangemaakt.&lt;/p&gt;&lt;p&gt;Om een nieuwe virtuele machine aan te maken klikt u op de knop &lt;b&gt;Nieuw&lt;/b&gt; in de werkbalk linksboven in het venster.&lt;/p&gt;&lt;p&gt;De toets &lt;b&gt;%1&lt;/b&gt; opent een helpscherm. Bezoek &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; voor de laatste informatie en nieuws.&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;h3&gt;Welkom bij VirtualBox!&lt;/h3&gt;&lt;p&gt;Het linker deel van dit venster zal straks alle virtuele machines tonen die op uw computer staan. De lijst is nu leeg omdat u nog geen virtuele machines hebt aangemaakt.&lt;/p&gt;&lt;p&gt;Om een nieuwe virtuele machine aan te maken klikt u op de knop &lt;b&gt;Nieuw&lt;/b&gt; in de werkbalk linksboven in het venster.&lt;/p&gt;&lt;p&gt;De toets &lt;b&gt;%1&lt;/b&gt; opent een helpscherm. Bezoek &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; voor de laatste informatie en nieuws.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window lists all virtual machines and virtual machine groups on your computer.&lt;/p&gt;&lt;p&gt;The right part of this window represents a set of tools which are currently opened (or can be opened) for the currently chosen machine. For a list of currently available tools check the corresponding menu at the right side of the main tool bar located at the top of the window. This list will be extended with new tools in future releases.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for more information and latest news.&lt;/p&gt;</source>
-        <translation>&lt;h3&gt;Welkom bij VirtualBox!&lt;/h3&gt;&lt;p&gt;Het linker deel van dit venster toont alle virtuele machines en alle virtuele machine-groepen die op uw computer staan. &lt;/p&gt;&lt;p&gt;Het rechter deel van dit venster toont een set gereedschap die momenteel open staan (of open kunnen staan) ten behoeve van de huidig geselecteerde machine. Kijk voor een lijst van momenteel beschikbare gereedschappen naar het corresponderende menu rechts in de hoofdwerkbalk aan de top van het scherm. Deze lijst zal langer worden bij elke nieuwe release.&lt;/p&gt;&lt;p&gt;Klip op &lt;b&gt;%1&lt;/b&gt; voor hulp. Bezoek &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; voor meer informatie en het laatste nieuws.&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;h3&gt;Welkom bij VirtualBox!&lt;/h3&gt;&lt;p&gt;Het linker deel van dit venster toont alle virtuele machines en alle virtuele machine-groepen die op uw computer staan. &lt;/p&gt;&lt;p&gt;Het rechter deel van dit venster toont een set gereedschap die momenteel open staan (of open kunnen staan) ten behoeve van de huidig geselecteerde machine. Kijk voor een lijst van momenteel beschikbare gereedschappen naar het corresponderende menu rechts in de hoofdwerkbalk aan de top van het scherm. Deze lijst zal langer worden bij elke nieuwe release.&lt;/p&gt;&lt;p&gt;Klip op &lt;b&gt;%1&lt;/b&gt; voor hulp. Bezoek &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; voor meer informatie en het laatste nieuws.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Tool to observe virtual machine (VM) details. Reflects groups of &lt;u&gt;properties&lt;/u&gt; for the currently chosen VM and allows basic operations on certain properties (like the machine storage devices).</source>
-        <translation>Om virtuele machine (VM)-details te bekijken. Toont groepen van &lt;u&gt;eigenschappen&lt;/u&gt; voor de geselecteerde VM en staat basisoperaties toe op bepaalde eigenschappen (zoals opslagapparaten van deze VM).</translation>
+        <translation type="vanished">Om virtuele machine (VM)-details te bekijken. Toont groepen van &lt;u&gt;eigenschappen&lt;/u&gt; voor de geselecteerde VM en staat basisoperaties toe op bepaalde eigenschappen (zoals opslagapparaten van deze VM).</translation>
     </message>
     <message>
         <source>Tool to control virtual machine (VM) snapshots. Reflects &lt;u&gt;snapshots&lt;/u&gt; created for the currently selected VM and allows snapshot operations like &lt;u&gt;create&lt;/u&gt;, &lt;u&gt;remove&lt;/u&gt;, &lt;u&gt;restore&lt;/u&gt; (make current) and observe their properties. Allows to &lt;u&gt;edit&lt;/u&gt; snapshot attributes like &lt;u&gt;name&lt;/u&gt; and &lt;u&gt;description&lt;/u&gt;.</source>
-        <translation>Om virtuele machine (VM)-snapshots te bekijken. Toont &lt;u&gt;snapshots&lt;/u&gt; gemaakt voor de geselecteerde VM en staat snapshot-operaties toe als &lt;u&gt;aanmaken&lt;/u&gt;, &lt;u&gt;verwijderen&lt;/u&gt;, &lt;u&gt;terugzetten&lt;/u&gt; (maak huidig) alsmede het bekijken van hun eigenschappen. Maakt mogelijk snapshot attributen te &lt;u&gt;bewerken&lt;/u&gt; als &lt;u&gt;naam&lt;/u&gt; en &lt;u&gt;beschrijving&lt;/u&gt;.</translation>
+        <translation type="vanished">Om virtuele machine (VM)-snapshots te bekijken. Toont &lt;u&gt;snapshots&lt;/u&gt; gemaakt voor de geselecteerde VM en staat snapshot-operaties toe als &lt;u&gt;aanmaken&lt;/u&gt;, &lt;u&gt;verwijderen&lt;/u&gt;, &lt;u&gt;terugzetten&lt;/u&gt; (maak huidig) alsmede het bekijken van hun eigenschappen. Maakt mogelijk snapshot attributen te &lt;u&gt;bewerken&lt;/u&gt; als &lt;u&gt;naam&lt;/u&gt; en &lt;u&gt;beschrijving&lt;/u&gt;.</translation>
+    </message>
+</context>
+<context>
+    <name>UIToolsView</name>
+    <message>
+        <source>Contains a list of VirtualBox tools</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -9361,27 +10694,42 @@
     <message>
         <source>&lt;nobr&gt;Vendor ID: %1&lt;/nobr&gt;</source>
         <comment>USB filter tooltip</comment>
-        <translation type="obsolete">&lt;nobr&gt;Leveranciers-ID: %1&lt;/nobr&gt;</translation>
+        <translation type="unfinished">&lt;nobr&gt;Leveranciers-ID: %1&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;Product ID: %2&lt;/nobr&gt;</source>
+        <comment>USB filter tooltip</comment>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>&lt;nobr&gt;Revision: %3&lt;/nobr&gt;</source>
         <comment>USB filter tooltip</comment>
-        <translation type="obsolete">&lt;nobr&gt;Revisie: %3&lt;/nobr&gt;</translation>
+        <translation type="unfinished">&lt;nobr&gt;Revisie: %3&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;Product: %4&lt;/nobr&gt;</source>
         <comment>USB filter tooltip</comment>
-        <translation type="obsolete">&lt;nobr&gt;Product: %4&lt;/nobr&gt;</translation>
+        <translation type="unfinished">&lt;nobr&gt;Product: %4&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;Manufacturer: %5&lt;/nobr&gt;</source>
+        <comment>USB filter tooltip</comment>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>&lt;nobr&gt;Serial No.: %1&lt;/nobr&gt;</source>
         <comment>USB filter tooltip</comment>
-        <translation type="obsolete">&lt;nobr&gt;Serienr: %1&lt;/nobr&gt;</translation>
+        <translation type="unfinished">&lt;nobr&gt;Serienr: %1&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;Port: %1&lt;/nobr&gt;</source>
         <comment>USB filter tooltip</comment>
-        <translation type="obsolete">&lt;nobr&gt;Poort: %1&lt;/nobr&gt;</translation>
+        <translation type="unfinished">&lt;nobr&gt;Poort: %1&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;State: %1&lt;/nobr&gt;</source>
+        <comment>USB filter tooltip</comment>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -9642,106 +10990,237 @@
     <name>UIVMLogViewer</name>
     <message>
         <source>Close the search panel</source>
-        <translation>Sluit het zoekpaneel</translation>
+        <translation type="vanished">Sluit het zoekpaneel</translation>
     </message>
     <message>
         <source>&amp;Find</source>
-        <translation>&amp;Zoek</translation>
+        <translation type="vanished">&amp;Zoek</translation>
     </message>
     <message>
         <source>Enter a search string here</source>
-        <translation>Geef een zoektekst op</translation>
+        <translation type="vanished">Geef een zoektekst op</translation>
     </message>
     <message>
         <source>&amp;Previous</source>
-        <translation>&amp;Vorige</translation>
+        <translation type="vanished">&amp;Vorige</translation>
     </message>
     <message>
         <source>Search for the previous occurrence of the string</source>
-        <translation>Zoek achteruit naar zoektekst</translation>
+        <translation type="vanished">Zoek achteruit naar zoektekst</translation>
     </message>
     <message>
         <source>&amp;Next</source>
-        <translation>&amp;Volgende</translation>
+        <translation type="vanished">&amp;Volgende</translation>
     </message>
     <message>
         <source>Search for the next occurrence of the string</source>
-        <translation>Zoek vooruit naar zoektekst</translation>
+        <translation type="vanished">Zoek vooruit naar zoektekst</translation>
     </message>
     <message>
         <source>C&amp;ase Sensitive</source>
-        <translation>Onderscheid &amp;Hoofd- en kleine letters</translation>
+        <translation type="vanished">Onderscheid &amp;Hoofd- en kleine letters</translation>
     </message>
     <message>
         <source>Perform case sensitive search (when checked)</source>
-        <translation>Houd rekening met hoofd- en kleine letters (mits aangevinkt)</translation>
+        <translation type="vanished">Houd rekening met hoofd- en kleine letters (mits aangevinkt)</translation>
     </message>
     <message>
         <source>String not found</source>
-        <translation>Gezochte tekst niet gevonden</translation>
+        <translation type="vanished">Gezochte tekst niet gevonden</translation>
     </message>
     <message>
         <source>&lt;p&gt;No log files found. Press the &lt;b&gt;Refresh&lt;/b&gt; button to rescan the log folder &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Geen logbestanden gevonden. Klik op de knop &lt;b&gt;Verversen&lt;/b&gt; om de map &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; met logs opnieuw te scannen.&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;p&gt;Geen logbestanden gevonden. Klik op de knop &lt;b&gt;Verversen&lt;/b&gt; om de map &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; met logs opnieuw te scannen.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Save VirtualBox Log As</source>
-        <translation>Sla VirtualBox-Log op als</translation>
+        <translation type="vanished">Sla VirtualBox-Log op als</translation>
     </message>
     <message>
         <source>%1 - VirtualBox Log Viewer</source>
-        <translation>%1 - VirtualBox-Log Viewer</translation>
+        <translation type="vanished">%1 - VirtualBox-Log Viewer</translation>
     </message>
     <message>
         <source>&amp;Refresh</source>
-        <translation>&amp;Verversen</translation>
+        <translation type="vanished">&amp;Verversen</translation>
     </message>
     <message>
         <source>&amp;Save</source>
-        <translation>&amp;Opslaan</translation>
+        <translation type="vanished">&amp;Opslaan</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>Sluiten</translation>
+        <translation type="vanished">Sluiten</translation>
     </message>
     <message>
         <source>Filter</source>
-        <translation>Filter</translation>
+        <translation type="vanished">Filter</translation>
     </message>
     <message>
         <source>Enter filtering string here</source>
-        <translation>Geef een filtertekst op</translation>
+        <translation type="vanished">Geef een filtertekst op</translation>
     </message>
     <message>
         <source>Fil&amp;ter</source>
-        <translation>Fil&amp;ter</translation>
+        <translation type="vanished">Fil&amp;ter</translation>
+    </message>
+</context>
+<context>
+    <name>UIVMLogViewerDialog</name>
+    <message>
+        <source>%1 - Log Viewer</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>UIVMLogViewerWidget</name>
     <message>
+        <source>Delete the current bookmark</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delete all bookmarks</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Goto the next bookmark</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Goto the previous bookmark</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Goto selected bookmark</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Log Viewer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Close</source>
-        <translation type="obsolete">Sluiten</translation>
+        <translation type="unfinished">Sluiten</translation>
+    </message>
+    <message>
+        <source>Select or enter a term which will be used in filtering the log text</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add the filter term to the set of filter terms</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Showing %1/%2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The filter terms list, select one to remove or click the button on the right side to remove them all</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The type of boolean operator for filter operation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show Line Numbers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When checked, show line numbers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wrap Lines</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When checked, wrap lines</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Font Size</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Log viewer font size</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open a font dialog to select font face for the logviewer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reset options to application defaults</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Close the pane</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Enter a search string here</source>
-        <translation type="obsolete">Geef een zoektekst op</translation>
+        <translation type="unfinished">Geef een zoektekst op</translation>
+    </message>
+    <message>
+        <source>Search for the next occurrence of the string (F3)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Search for the previous occurrence of the string (Shift+F3)</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>C&amp;ase Sensitive</source>
-        <translation type="obsolete">Onderscheid &amp;Hoofd- en kleine letters</translation>
+        <translation type="unfinished">Onderscheid &amp;Hoofd- en kleine letters</translation>
+    </message>
+    <message>
+        <source>When checked, perform case sensitive search</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ma&amp;tch Whole Word</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When checked, search matches only complete words</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Highlight All</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When checked, all occurence of the search text are highlighted</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>String not found</source>
-        <translation type="obsolete">Gezochte tekst niet gevonden</translation>
+        <translation type="unfinished">Gezochte tekst niet gevonden</translation>
+    </message>
+    <message>
+        <source>%1 Matches Found</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Filtered</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bookmark</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Save VirtualBox Log As</source>
-        <translation type="obsolete">Sla VirtualBox-Log op als</translation>
+        <translation type="unfinished">Sla VirtualBox-Log op als</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;&lt;b&gt;No machine&lt;/b&gt; is currently selected or the selected machine is not valid. Please select a Virtual Machine to see its logs</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>&lt;p&gt;No log files found. Press the &lt;b&gt;Refresh&lt;/b&gt; button to rescan the log folder &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Geen logbestanden gevonden. Klik op de knop &lt;b&gt;Verversen&lt;/b&gt; om de map &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; met logs opnieuw te scannen.&lt;/p&gt;</translation>
+        <translation type="unfinished">&lt;p&gt;Geen logbestanden gevonden. Klik op de knop &lt;b&gt;Verversen&lt;/b&gt; om de map &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; met logs opnieuw te scannen.&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
@@ -9749,19 +11228,23 @@
     <message>
         <source>Manager</source>
         <comment>Note: main window title which is prepended by the product name.</comment>
-        <translation type="obsolete">Manager</translation>
+        <translation type="unfinished">Manager</translation>
     </message>
     <message>
         <source>Select a virtual machine file</source>
-        <translation type="obsolete">Selecteer een virtuele machine bestand</translation>
+        <translation type="unfinished">Selecteer een virtuele machine bestand</translation>
     </message>
     <message>
         <source>Virtual machine files (%1)</source>
-        <translation type="obsolete">Bestanden virtuele machine (%1)</translation>
+        <translation type="unfinished">Bestanden virtuele machine (%1)</translation>
+    </message>
+    <message>
+        <source>Select a destination folder to move the selected virtual machine</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Show Toolbar Text</source>
-        <translation type="obsolete">Toon werkbalktekst</translation>
+        <translation type="unfinished">Toon werkbalktekst</translation>
     </message>
 </context>
 <context>
@@ -9774,12 +11257,103 @@
 <context>
     <name>UIVisoCreator</name>
     <message>
+        <source>VISO content</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove selected file objects from VISO</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Name</source>
-        <translation type="obsolete">Naam</translation>
+        <translation type="unfinished">Naam</translation>
     </message>
     <message>
         <source>Size</source>
-        <translation type="obsolete">Grootte</translation>
+        <translation type="unfinished">Grootte</translation>
+    </message>
+    <message>
+        <source>Change Time</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Owner</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Permissions</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Local Path</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>ISO Path</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Options...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show Hidden Objects</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Host file system</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Create a new directory under the current location</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reset ISO content.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rename the selected object</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Configuration...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>VISO Configuration</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Manage VISO Configuration</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Dialog Options</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Manage Dialog Options</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>VISO Name:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add selected file objects to ISO</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Custom VISO options:</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UIWelcomePane</name>
+    <message>
+        <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of application window contains global tools and lists all virtual machines and virtual machine groups on your computer. You can import, add and create new VMs using corresponding toolbar buttons. You can popup a tools of currently selected element using corresponding element button.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for more information and latest news.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -9990,19 +11564,19 @@
     </message>
     <message>
         <source>New machine name</source>
-        <translation>Naam nieuwe machine</translation>
+        <translation type="vanished">Naam nieuwe machine</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please choose a name for the new virtual machine. The new machine will be a clone of the machine &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Kies een naam voor de nieuwe virtuele machine. De nieuwe machine zal een kloon zijn van machine &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;p&gt;Kies een naam voor de nieuwe virtuele machine. De nieuwe machine zal een kloon zijn van machine &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>When checked a new unique MAC address will be assigned to all configured network cards.</source>
-        <translation>Als dit is ingesteld zal een nieuw, uniek MAC-adres aan alle geconfigureerde netwerkkaarten worden toegewezen.</translation>
+        <translation type="vanished">Als dit is ingesteld zal een nieuw, uniek MAC-adres aan alle geconfigureerde netwerkkaarten worden toegewezen.</translation>
     </message>
     <message>
         <source>&amp;Reinitialize the MAC address of all network cards</source>
-        <translation>He&amp;rinitialiseren MAC-adres van alle netwerkkaarten</translation>
+        <translation type="vanished">He&amp;rinitialiseren MAC-adres van alle netwerkkaarten</translation>
     </message>
     <message>
         <source>Clone type</source>
@@ -10056,7 +11630,7 @@
     </message>
     <message>
         <source>New machine &amp;name</source>
-        <translation>&amp;Naam nieuwe machine</translation>
+        <translation type="vanished">&amp;Naam nieuwe machine</translation>
     </message>
     <message>
         <source>&amp;Full Clone</source>
@@ -10069,6 +11643,78 @@
     <message>
         <source>&lt;p&gt;Please choose the type of clone you wish to create.&lt;/p&gt;&lt;p&gt;If you choose &lt;b&gt;Full clone&lt;/b&gt;, an exact copy (including all virtual hard disk files) of the original virtual machine will be created.&lt;/p&gt;&lt;p&gt;If you choose &lt;b&gt;Linked clone&lt;/b&gt;, a new machine will be created, but the virtual hard disk files will be tied to the virtual hard disk files of original machine and you will not be able to move the new virtual machine to a different computer without moving the original as well.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Kies het type kloon dat u wilt aanmaken.&lt;/p&gt;&lt;p&gt;Indien u kiest voor &lt;b&gt;Volle kloon&lt;/b&gt;, wordt er een exacte kopie (inclusief alle virtuele harde schijf bestanden) van de originele virtuele machine aangemaakt.&lt;/p&gt;&lt;p&gt;Indien u kiest voor &lt;b&gt;Gekoppelde kloon&lt;/b&gt;, wordt er een nieuwe machine aangemaakt, maar de virtuele harde schijf bestanden zullen gebonden zijn aan de virtuele harde schijf bestanden van de originele machine. U zult de nieuwe virtuele machine niet naar een andere computer kunnen verplaatsen, zonder dat ook met de originele virtuele machine te doen.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Please choose a name and optionally a folder for the new virtual machine. The new machine will be a clone of the machine &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Name:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Path:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>MAC Address &amp;Policy:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Include all network adapter MAC addresses</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Include only NAT network adapter MAC addresses</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Generate new MAC addresses for all network adapters</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Include only NAT network adapter MAC addresses during cloning.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Generate new MAC addresses for all network adapters during cloning.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Additional Options:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Don&apos;t change the disk names during cloning.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Keep &amp;Disk Names</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Don&apos;t change hardware UUIDs during cloning.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Keep &amp;Hardware UUIDs</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>New machine &amp;name and path</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>New machine name and path</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Include all network adapter MAC addresses during cloning.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Additional options</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -10111,23 +11757,23 @@
     </message>
     <message>
         <source>Please choose where to create the virtual appliance. You can create it on your own computer, on the Sun Cloud service or on an S3 storage server.</source>
-        <translation>Kies waar de virtuele appliance moet worden aangemaakt. U kunt het aanmaken op uw eigen computer, op de Sun Cloud service of op een S3 storage server.</translation>
+        <translation type="vanished">Kies waar de virtuele appliance moet worden aangemaakt. U kunt het aanmaken op uw eigen computer, op de Sun Cloud service of op een S3 storage server.</translation>
     </message>
     <message>
         <source>Create on</source>
-        <translation>Aanmaken op</translation>
+        <translation type="vanished">Aanmaken op</translation>
     </message>
     <message>
         <source>&amp;This computer</source>
-        <translation>&amp;Deze computer</translation>
+        <translation type="vanished">&amp;Deze computer</translation>
     </message>
     <message>
         <source>Sun &amp;Cloud</source>
-        <translation>Sun &amp;Cloud</translation>
+        <translation type="vanished">Sun &amp;Cloud</translation>
     </message>
     <message>
         <source>&amp;Simple Storage System (S3)</source>
-        <translation>&amp;Simple Storage System (S3)</translation>
+        <translation type="vanished">&amp;Simple Storage System (S3)</translation>
     </message>
     <message>
         <source>Appliance</source>
@@ -10135,19 +11781,19 @@
     </message>
     <message>
         <source>&amp;Username:</source>
-        <translation>&amp;Gebruikersnaam:</translation>
+        <translation type="vanished">&amp;Gebruikersnaam:</translation>
     </message>
     <message>
         <source>&amp;Password:</source>
-        <translation>&amp;Wachtwoord:</translation>
+        <translation type="vanished">&amp;Wachtwoord:</translation>
     </message>
     <message>
         <source>&amp;Hostname:</source>
-        <translation>&amp;Hostnaam:</translation>
+        <translation type="vanished">&amp;Hostnaam:</translation>
     </message>
     <message>
         <source>&amp;Bucket:</source>
-        <translation>&amp;Bucket:</translation>
+        <translation type="vanished">&amp;Bucket:</translation>
     </message>
     <message>
         <source>&amp;File:</source>
@@ -10171,7 +11817,7 @@
     </message>
     <message>
         <source>Write &amp;Manifest file</source>
-        <translation>Schrijf &amp;manifestbestand</translation>
+        <translation type="vanished">Schrijf &amp;manifestbestand</translation>
     </message>
     <message>
         <source>This is the descriptive information which will be added to the virtual appliance.  You can change it by double clicking on individual lines.</source>
@@ -10183,19 +11829,19 @@
     </message>
     <message>
         <source>Appliance &amp;settings</source>
-        <translation>In&amp;stellingen Appliance</translation>
+        <translation type="vanished">In&amp;stellingen Appliance</translation>
     </message>
     <message>
         <source>&amp;Destination</source>
-        <translation>&amp;Bestemming</translation>
+        <translation type="vanished">&amp;Bestemming</translation>
     </message>
     <message>
         <source>&amp;Local Filesystem </source>
-        <translation>&amp;Lokaal bestandssysteem</translation>
+        <translation type="vanished">&amp;Lokaal bestandssysteem</translation>
     </message>
     <message>
         <source>Storage settings</source>
-        <translation>Opslaginstellingen</translation>
+        <translation type="vanished">Opslaginstellingen</translation>
     </message>
     <message>
         <source>Please choose a file to export the virtual appliance to</source>
@@ -10227,11 +11873,11 @@
     </message>
     <message>
         <source>&amp;Storage settings</source>
-        <translation>Op&amp;slaginstellingen</translation>
+        <translation type="vanished">Op&amp;slaginstellingen</translation>
     </message>
     <message>
         <source>Oracle Public Cloud Format Archive (%1)</source>
-        <translation>Oracle Public Cloud Format Archive (%1)</translation>
+        <translation type="vanished">Oracle Public Cloud Format Archive (%1)</translation>
     </message>
     <message>
         <source>Open Virtualization Format 0.9</source>
@@ -10247,7 +11893,7 @@
     </message>
     <message>
         <source>Oracle Public Cloud Format 1.0</source>
-        <translation>Oracle Public Cloud Format 1.0</translation>
+        <translation type="vanished">Oracle Public Cloud Format 1.0</translation>
     </message>
     <message>
         <source>Write in new OVF 2.0 format.</source>
@@ -10255,11 +11901,87 @@
     </message>
     <message>
         <source>Write in Oracle Public Cloud 1.0 format.</source>
-        <translation>Schrijven in Oracle Public Cloud 1.0 format.</translation>
+        <translation type="vanished">Schrijven in Oracle Public Cloud 1.0 format.</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Please choose a format to export the virtual appliance to.&lt;/p&gt;&lt;p&gt;The &lt;b&gt;Open Virtualization Format&lt;/b&gt; supports only &lt;b&gt;ovf&lt;/b&gt; or &lt;b&gt;ova&lt;/b&gt; extensions. If you use the &lt;b&gt;ovf&lt;/b&gt; extension, several files will be written separately. If you use the &lt;b&gt;ova&lt;/b&gt; extension, all the files will be combined into one Open Virtualization Format archive.&lt;/p&gt;&lt;p&gt;The &lt;b&gt;Oracle Cloud Infrastructure&lt;/b&gt; format supports exporting to remote cloud servers only. Main virtual disk of each selected machine will be uploaded to remote server.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Choose a file to export the virtual appliance to...</source>
-        <translation type="obsolete">Kies een bestand waarnaar de virtuele appliance moet worden geëxporteerd...</translation>
+        <translation type="unfinished">Kies een bestand waarnaar de virtuele appliance moet worden geëxporteerd...</translation>
+    </message>
+    <message>
+        <source>Export to cloud service provider.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>MAC Address &amp;Policy:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Include all network adapter MAC addresses</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Include only NAT network adapter MAC addresses</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Strip all network adapter MAC addresses</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Include all network adapter MAC addresses in exported appliance archive.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Include only NAT network adapter MAC addresses in exported appliance archive.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Strip all network adapter MAC addresses from exported appliance archive.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Additionally:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Write Manifest file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Include ISO image files in exported VM archive.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Include ISO image files</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Account:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Please choose a filename to export the virtual appliance to. Besides that you can specify a certain amount of options which affects the size and content of resulting archive.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Virtual system settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Virtual &amp;system settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Include ISO image files into exported VM archive.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Please choose one of cloud service accounts you have registered to export virtual machines to. Make sure profile settings reflected in the underlying table are valid. They will be used to establish network connection required to upload your virtual machine files to a remote cloud facility.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -10270,26 +11992,26 @@
     </message>
     <message>
         <source>Please complete the additional fields like the username, password and the bucket, and provide a filename for the OVF target.</source>
-        <translation>Vul aanvullende velden zoals gebruikersnaam, wachtwoord en bucket in. Geef vervolgens een bestandsnaam op voor het OVF doelbestand.</translation>
+        <translation type="vanished">Vul aanvullende velden zoals gebruikersnaam, wachtwoord en bucket in. Geef vervolgens een bestandsnaam op voor het OVF doelbestand.</translation>
     </message>
     <message>
         <source>Please complete the additional fields like the username, password, hostname and the bucket, and provide a filename for the OVF target.</source>
-        <translation>Vul de aanvullende velden zoals gebruikersnaam, wachtwoord, hostnaam en bucket in. Geef vervolgens een bestandsnaam op voor het OVF doelbestand.</translation>
+        <translation type="vanished">Vul de aanvullende velden zoals gebruikersnaam, wachtwoord, hostnaam en bucket in. Geef vervolgens een bestandsnaam op voor het OVF doelbestand.</translation>
     </message>
     <message>
         <source>Choose a file to export the virtual appliance to...</source>
-        <translation>Kies een bestand waarnaar de virtuele appliance moet worden geëxporteerd...</translation>
+        <translation type="vanished">Kies een bestand waarnaar de virtuele appliance moet worden geëxporteerd...</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please choose a filename to export the virtual appliance to.&lt;/p&gt;&lt;p&gt;The &lt;b&gt;Open Virtualization Format&lt;/b&gt; supports only &lt;b&gt;ovf&lt;/b&gt; or &lt;b&gt;ova&lt;/b&gt; extensions. &lt;br&gt;If you use the &lt;b&gt;ovf&lt;/b&gt; extension, several files will be written separately.&lt;br&gt;If you use the &lt;b&gt;ova&lt;/b&gt; extension, all the files will be combined into one Open Virtualization Format archive.&lt;/p&gt;&lt;p&gt;The &lt;b&gt;Oracle Public Cloud Format&lt;/b&gt; supports only the &lt;b&gt;tar.gz&lt;/b&gt; extension.&lt;br&gt;Each virtual disk file will be written separately.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Kies een bestandsnaam om de virtuele appliance naar te exporteren.&lt;/p&gt;&lt;p&gt;De &lt;b&gt;Open Virtualization Format&lt;/b&gt; ondersteunt alleen &lt;b&gt;ovf&lt;/b&gt; of &lt;b&gt;ova&lt;/b&gt;-extensies. &lt;br&gt;Indien u de &lt;b&gt;ovf&lt;/b&gt;-extensie gebruikt zullen verscheidenen bestanden afzonderlijk worden geschreven.&lt;br&gt;Indien u de &lt;b&gt;ova&lt;/b&gt;-extensie gebruikt zullen alle bestanden gecombineerd worden tot één Open Virtualization Format-archief.&lt;/p&gt;&lt;p&gt;De &lt;b&gt;Oracle Public Cloud Format&lt;/b&gt; ondersteund alleen &lt;b&gt;tar.gz&lt;/b&gt;-extensies.&lt;br&gt;Elke virtual disk-bestand zal afzonderlijk worden geschreven.&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;p&gt;Kies een bestandsnaam om de virtuele appliance naar te exporteren.&lt;/p&gt;&lt;p&gt;De &lt;b&gt;Open Virtualization Format&lt;/b&gt; ondersteunt alleen &lt;b&gt;ovf&lt;/b&gt; of &lt;b&gt;ova&lt;/b&gt;-extensies. &lt;br&gt;Indien u de &lt;b&gt;ovf&lt;/b&gt;-extensie gebruikt zullen verscheidenen bestanden afzonderlijk worden geschreven.&lt;br&gt;Indien u de &lt;b&gt;ova&lt;/b&gt;-extensie gebruikt zullen alle bestanden gecombineerd worden tot één Open Virtualization Format-archief.&lt;/p&gt;&lt;p&gt;De &lt;b&gt;Oracle Public Cloud Format&lt;/b&gt; ondersteund alleen &lt;b&gt;tar.gz&lt;/b&gt;-extensies.&lt;br&gt;Elke virtual disk-bestand zal afzonderlijk worden geschreven.&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
     <name>UIWizardExportAppPageExpert</name>
     <message>
         <source>Choose a file to export the virtual appliance to...</source>
-        <translation>Kies een bestand waarnaar de virtuele appliance moet worden geëxporteerd...</translation>
+        <translation type="vanished">Kies een bestand waarnaar de virtuele appliance moet worden geëxporteerd...</translation>
     </message>
 </context>
 <context>
@@ -10386,6 +12108,10 @@
     <message>
         <source>Unverified self signed signature by %1!</source>
         <translation>Niet-geverifieerde &apos;self-signed&apos;-signatuur door %1!</translation>
+    </message>
+    <message>
+        <source>You can modify the base folder which will host all the virtual machines. Home folders can also be individually (per virtual machine) modified.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -10487,7 +12213,7 @@
     </message>
     <message>
         <source>Please choose a descriptive name for the new virtual machine and select the type of operating system you intend to install on it. The name you choose will be used throughout VirtualBox to identify this machine.</source>
-        <translation>Kies een herkenbare naam voor de nieuwe virtuele machine en selecteer het type besturingssysteem dat u er op wilt installeren. De naam die u kiest zal binnen VirtualBox gebruikt worden om deze machine te identificeren.</translation>
+        <translation type="vanished">Kies een herkenbare naam voor de nieuwe virtuele machine en selecteer het type besturingssysteem dat u er op wilt installeren. De naam die u kiest zal binnen VirtualBox gebruikt worden om deze machine te identificeren.</translation>
     </message>
     <message>
         <source>Memory size</source>
@@ -10532,6 +12258,10 @@
     <message>
         <source>&amp;Memory size</source>
         <translation>Ge&amp;heugengrootte</translation>
+    </message>
+    <message>
+        <source>Please choose a descriptive name and destination folder for the new virtual machine and select the type of operating system you intend to install on it. The name you choose will be used throughout VirtualBox to identify this machine.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -10958,7 +12688,7 @@
     <message>
         <source>VT-x/AMD-V</source>
         <comment>details report</comment>
-        <translation>VT-x/AMD-V</translation>
+        <translation type="vanished">VT-x/AMD-V</translation>
     </message>
     <message>
         <source>PAE/NX</source>
@@ -11234,7 +12964,7 @@
     <message>
         <source>Processor(s)</source>
         <comment>details report</comment>
-        <translation>Processoren</translation>
+        <translation type="vanished">Processoren</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;%1&lt;/nobr&gt;</source>
@@ -11842,27 +13572,27 @@
     </message>
     <message>
         <source>VDI (VirtualBox Disk Image)</source>
-        <translation>VDI (VirtualBox Disk Image)</translation>
+        <translation type="vanished">VDI (VirtualBox Disk Image)</translation>
     </message>
     <message>
         <source>VMDK (Virtual Machine Disk)</source>
-        <translation>VMDK (Virtual Machine Disk)</translation>
+        <translation type="vanished">VMDK (Virtual Machine Disk)</translation>
     </message>
     <message>
         <source>VHD (Virtual Hard Disk)</source>
-        <translation>VHD (Virtual Hard Disk)</translation>
+        <translation type="vanished">VHD (Virtual Hard Disk)</translation>
     </message>
     <message>
         <source>HDD (Parallels Hard Disk)</source>
-        <translation>HDD (Parallels Hard Disk)</translation>
+        <translation type="vanished">HDD (Parallels Hard Disk)</translation>
     </message>
     <message>
         <source>QED (QEMU enhanced disk)</source>
-        <translation>QED (QEMU enhanced disk)</translation>
+        <translation type="vanished">QED (QEMU enhanced disk)</translation>
     </message>
     <message>
         <source>QCOW (QEMU Copy-On-Write)</source>
-        <translation>QCOW (QEMU Copy-On-Write)</translation>
+        <translation type="vanished">QCOW (QEMU Copy-On-Write)</translation>
     </message>
     <message>
         <source>Unrestricted Execution</source>
@@ -12202,7 +13932,7 @@
     <message>
         <source>Video Capture</source>
         <comment>IndicatorType</comment>
-        <translation>Videocapture</translation>
+        <translation type="vanished">Videocapture</translation>
     </message>
     <message>
         <source>Features</source>
@@ -12230,41 +13960,107 @@
         <translation>Audio</translation>
     </message>
     <message>
+        <source>not set</source>
+        <comment>details report (execution engine)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Execution engine</source>
+        <comment>details report</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Processors</source>
         <comment>details report</comment>
-        <translation type="obsolete">Processoren</translation>
+        <translation type="unfinished">Processoren</translation>
     </message>
     <message>
         <source>Name</source>
-        <translation type="obsolete">Naam</translation>
+        <translation type="unfinished">Naam</translation>
+    </message>
+    <message>
+        <source>OS</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Location</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Groups</source>
-        <translation type="obsolete">Groepen</translation>
+        <translation type="unfinished">Groepen</translation>
     </message>
     <message>
         <source>RAM</source>
-        <translation type="obsolete">RAM</translation>
+        <translation type="unfinished">RAM</translation>
+    </message>
+    <message>
+        <source>CPU Count</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>CPU Execution Cap</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Boot Order</source>
-        <translation type="obsolete">Opstartvolgorde</translation>
+        <translation type="unfinished">Opstartvolgorde</translation>
     </message>
     <message>
         <source>Chipset Type</source>
-        <translation type="obsolete">Chipset-type</translation>
+        <translation type="unfinished">Chipset-type</translation>
+    </message>
+    <message>
+        <source>Firmware</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Acceleration</source>
-        <translation type="obsolete">Acceleratie</translation>
+        <translation type="unfinished">Acceleratie</translation>
+    </message>
+    <message>
+        <source>VRAM</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Screen Count</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scale Factor</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>VRDE</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Recording</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Hard Disks</source>
-        <translation type="obsolete">Harde schijf</translation>
+        <translation type="unfinished">Harde schijf</translation>
+    </message>
+    <message>
+        <source>Optical Devices</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Floppy Devices</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Driver</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Controller</source>
-        <translation type="obsolete">Controller</translation>
+        <translation type="unfinished">Controller</translation>
+    </message>
+    <message>
+        <source>Input/Output</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Not Attached</source>
@@ -12272,15 +14068,23 @@
     </message>
     <message>
         <source>NAT</source>
-        <translation type="obsolete">NAT</translation>
+        <translation type="unfinished">NAT</translation>
+    </message>
+    <message>
+        <source>Bridget Adapter</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Internal Network</source>
-        <translation type="obsolete">Intern netwerk</translation>
+        <translation type="unfinished">Intern netwerk</translation>
+    </message>
+    <message>
+        <source>Host Only Adapter</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Generic Driver</source>
-        <translation type="obsolete">Generiek stuurprogramma</translation>
+        <translation type="unfinished">Generiek stuurprogramma</translation>
     </message>
     <message>
         <source>Disconnected</source>
@@ -12288,68 +14092,119 @@
     </message>
     <message>
         <source>Host Pipe</source>
-        <translation type="obsolete">Hostpijp</translation>
+        <translation type="unfinished">Hostpijp</translation>
     </message>
     <message>
         <source>Host Device</source>
-        <translation type="obsolete">Hostapparaat</translation>
+        <translation type="unfinished">Hostapparaat</translation>
     </message>
     <message>
         <source>Raw File</source>
-        <translation type="obsolete">Raw bestand</translation>
+        <translation type="unfinished">Raw bestand</translation>
     </message>
     <message>
         <source>TCP</source>
-        <translation type="obsolete">TCP</translation>
+        <translation type="unfinished">TCP</translation>
     </message>
     <message>
         <source>Device Filters</source>
-        <translation type="obsolete">Apparaatfilters</translation>
+        <translation type="unfinished">Apparaatfilters</translation>
+    </message>
+    <message>
+        <source>Menu Bar</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Status Bar</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Mini Toolbar</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Recording</source>
+        <comment>IndicatorType</comment>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>VDI (VirtualBox Disk Image)</source>
         <comment>UIMediumFormat</comment>
-        <translation type="obsolete">VDI (VirtualBox Disk Image)</translation>
+        <translation type="unfinished">VDI (VirtualBox Disk Image)</translation>
     </message>
     <message>
         <source>VMDK (Virtual Machine Disk)</source>
         <comment>UIMediumFormat</comment>
-        <translation type="obsolete">VMDK (Virtual Machine Disk)</translation>
+        <translation type="unfinished">VMDK (Virtual Machine Disk)</translation>
     </message>
     <message>
         <source>VHD (Virtual Hard Disk)</source>
         <comment>UIMediumFormat</comment>
-        <translation type="obsolete">VHD (Virtual Hard Disk)</translation>
+        <translation type="unfinished">VHD (Virtual Hard Disk)</translation>
     </message>
     <message>
         <source>HDD (Parallels Hard Disk)</source>
         <comment>UIMediumFormat</comment>
-        <translation type="obsolete">HDD (Parallels Hard Disk)</translation>
+        <translation type="unfinished">HDD (Parallels Hard Disk)</translation>
     </message>
     <message>
         <source>QED (QEMU enhanced disk)</source>
         <comment>UIMediumFormat</comment>
-        <translation type="obsolete">QED (QEMU enhanced disk)</translation>
+        <translation type="unfinished">QED (QEMU enhanced disk)</translation>
     </message>
     <message>
         <source>QCOW (QEMU Copy-On-Write)</source>
         <comment>UIMediumFormat</comment>
-        <translation type="obsolete">QCOW (QEMU Copy-On-Write)</translation>
+        <translation type="unfinished">QCOW (QEMU Copy-On-Write)</translation>
     </message>
     <message>
         <source>None</source>
         <comment>GraphicsControllerType</comment>
-        <translation type="obsolete">Geen</translation>
+        <translation type="unfinished">Geen</translation>
+    </message>
+    <message>
+        <source>VBoxVGA</source>
+        <comment>GraphicsControllerType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>VMSVGA</source>
+        <comment>GraphicsControllerType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>VBoxSVGA</source>
+        <comment>GraphicsControllerType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Graphics Controller</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Video/Audio</source>
+        <comment>UISettingsDefs::RecordingMode</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Video Only</source>
+        <comment>UISettingsDefs::RecordingMode</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Audio Only</source>
+        <comment>UISettingsDefs::RecordingMode</comment>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Not Attached</source>
         <comment>network adapter</comment>
-        <translation type="obsolete">Niet aangesloten</translation>
+        <translation type="unfinished">Niet aangesloten</translation>
     </message>
     <message>
         <source>Disconnected</source>
         <comment>serial port</comment>
-        <translation type="obsolete">Niet verbonden</translation>
+        <translation type="unfinished">Niet verbonden</translation>
     </message>
 </context>
 <context>

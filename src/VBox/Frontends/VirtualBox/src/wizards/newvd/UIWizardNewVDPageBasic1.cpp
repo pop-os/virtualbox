@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,25 +15,20 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QVBoxLayout>
-# include <QButtonGroup>
-# include <QRadioButton>
+#include <QVBoxLayout>
+#include <QButtonGroup>
+#include <QRadioButton>
 
 /* GUI includes: */
-# include "UIWizardNewVDPageBasic1.h"
-# include "UIWizardNewVD.h"
-# include "VBoxGlobal.h"
-# include "QIRichTextLabel.h"
+#include "UIConverter.h"
+#include "UIWizardNewVDPageBasic1.h"
+#include "UIWizardNewVD.h"
+#include "VBoxGlobal.h"
+#include "QIRichTextLabel.h"
 
 /* COM includes: */
-# include "CSystemProperties.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "CSystemProperties.h"
 
 
 UIWizardNewVDPage1::UIWizardNewVDPage1()
@@ -140,7 +135,8 @@ UIWizardNewVDPageBasic1::UIWizardNewVDPageBasic1()
     }
 
     /* Setup connections: */
-    connect(m_pFormatButtonGroup, SIGNAL(buttonClicked(QAbstractButton *)), this, SIGNAL(completeChanged()));
+    connect(m_pFormatButtonGroup, static_cast<void(QButtonGroup::*)(QAbstractButton*)>(&QButtonGroup::buttonClicked),
+            this, &UIWizardNewVDPageBasic1::completeChanged);
 
     /* Register classes: */
     qRegisterMetaType<CMediumFormat>();
@@ -161,7 +157,8 @@ void UIWizardNewVDPageBasic1::retranslateUi()
     for (int i = 0; i < buttons.size(); ++i)
     {
         QAbstractButton *pButton = buttons[i];
-        pButton->setText(VBoxGlobal::fullMediumFormatName(m_formatNames[m_pFormatButtonGroup->id(pButton)]));
+        UIMediumFormat enmFormat = gpConverter->fromInternalString<UIMediumFormat>(m_formatNames[m_pFormatButtonGroup->id(pButton)]);
+        pButton->setText(gpConverter->toString(enmFormat));
     }
 }
 

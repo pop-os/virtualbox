@@ -1,10 +1,10 @@
 /* $Id: QIMenu.cpp $ */
 /** @file
- * VBox Qt GUI - QIMenu class implementation.
+ * VBox Qt GUI - Qt extensions: QIMenu class implementation.
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,12 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else
 /* GUI includes: */
-# include "QIMenu.h"
-#endif
+#include "QIMenu.h"
 
 
 QIMenu::QIMenu(QWidget *pParent /* = 0 */)
@@ -33,8 +29,8 @@ void QIMenu::sltHighlightFirstAction()
 #ifdef VBOX_WS_WIN
     /* Windows host requires window-activation: */
     activateWindow();
-#endif /* VBOX_WS_WIN */
+#endif
+
     /* Focus next child: */
     QMenu::focusNextChild();
 }
-

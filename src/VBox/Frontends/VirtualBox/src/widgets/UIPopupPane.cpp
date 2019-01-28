@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2017 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,25 +15,20 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 /* Qt includes: */
-# include <QPainter>
-# include <QTextEdit>
+#include <QPainter>
+#include <QTextEdit>
 
 /* GUI includes: */
-# include "UIPopupPane.h"
-# include "UIPopupPaneMessage.h"
-# include "UIPopupPaneDetails.h"
-# include "UIPopupPaneButtonPane.h"
-# include "UIAnimationFramework.h"
-# include "QIMessageBox.h"
+#include "UIPopupPane.h"
+#include "UIPopupPaneMessage.h"
+#include "UIPopupPaneDetails.h"
+#include "UIPopupPaneButtonPane.h"
+#include "UIAnimationFramework.h"
+#include "QIMessageBox.h"
 
 /* Other VBox includes: */
-# include <iprt/assert.h>
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include <iprt/assert.h>
 
 
 UIPopupPane::UIPopupPane(QWidget *pParent,
@@ -127,7 +122,7 @@ void UIPopupPane::layoutContent()
                           iHeight - m_iLayoutSpacing);
 
     /* Details-pane: */
-    if(m_pDetailsPane->isVisible())
+    if (m_pDetailsPane->isVisible())
     {
         m_pDetailsPane->move(m_iLayoutMargin,
                              iTextPaneYOffset + iTextPaneHeight + m_iLayoutSpacing);
@@ -326,7 +321,7 @@ void UIPopupPane::retranslateToolTips()
     }
 }
 
-bool UIPopupPane::eventFilter(QObject *pWatched, QEvent *pEvent)
+bool UIPopupPane::eventFilter(QObject *pObject, QEvent *pEvent)
 {
     /* Depending on event-type: */
     switch (pEvent->type())
@@ -347,7 +342,7 @@ bool UIPopupPane::eventFilter(QObject *pWatched, QEvent *pEvent)
         case QEvent::Leave:
         {
             /* Unhover pane if hovered but not focused: */
-            if (pWatched == this && m_fHovered && !m_fFocused)
+            if (pObject == this && m_fHovered && !m_fFocused)
             {
                 m_fHovered = false;
                 emit sigHoverLeave();
@@ -413,7 +408,7 @@ void UIPopupPane::showEvent(QShowEvent *pEvent)
     polishEvent(pEvent);
 }
 
-void UIPopupPane::polishEvent(QShowEvent*)
+void UIPopupPane::polishEvent(QShowEvent *)
 {
     /* Focus if marked as 'focused': */
     if (m_fFocused)
@@ -423,7 +418,7 @@ void UIPopupPane::polishEvent(QShowEvent*)
     emit sigToShow();
 }
 
-void UIPopupPane::paintEvent(QPaintEvent*)
+void UIPopupPane::paintEvent(QPaintEvent *)
 {
     /* Compose painting rectangle,
      * Shifts are required for the antialiasing support: */

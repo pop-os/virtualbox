@@ -1,10 +1,10 @@
 /* $Id: QIArrowButtonPress.h $ */
 /** @file
- * VBox Qt GUI - QIArrowButtonPress class declaration.
+ * VBox Qt GUI - Qt extensions: QIArrowButtonPress class declaration.
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,17 +15,21 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___QIArrowButtonPress_h___
-#define ___QIArrowButtonPress_h___
+#ifndef FEQT_INCLUDED_SRC_extensions_QIArrowButtonPress_h
+#define FEQT_INCLUDED_SRC_extensions_QIArrowButtonPress_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* GUI includes: */
 #include "QIRichToolButton.h"
 #include "QIWithRetranslateUI.h"
+#include "UILibraryDefs.h"
 
 /** QIRichToolButton extension
   * representing arrow tool-button with text-label,
   * can be used as back/next buttons in various places. */
-class QIArrowButtonPress : public QIWithRetranslateUI<QIRichToolButton>
+class SHARED_LIBRARY_STUFF QIArrowButtonPress : public QIWithRetranslateUI<QIRichToolButton>
 {
     Q_OBJECT;
 
@@ -34,22 +38,22 @@ public:
     /** Button types. */
     enum ButtonType { ButtonType_Back, ButtonType_Next };
 
-    /** Constructor, passes @a pParent to the QIRichToolButton constructor.
-      * @param buttonType is used to define which type of the button it is. */
-    QIArrowButtonPress(ButtonType buttonType, QWidget *pParent = 0);
+    /** Constructs button passing @a pParent to the base-class.
+      * @param  enmButtonType  Brings which type of the button it is. */
+    QIArrowButtonPress(ButtonType enmButtonType, QWidget *pParent = 0);
 
 protected:
 
-    /** Retranslation routine. */
-    virtual void retranslateUi();
+    /** Handles translation event. */
+    virtual void retranslateUi() /* override */;
 
-    /** Key-press-event handler. */
-    virtual void keyPressEvent(QKeyEvent *pEvent);
+    /** Handles key-press @a pEvent. */
+    virtual void keyPressEvent(QKeyEvent *pEvent) /* override */;
 
 private:
 
     /** Holds the button-type. */
-    ButtonType m_buttonType;
+    ButtonType m_enmButtonType;
 };
 
-#endif /* !___QIArrowButtonPress_h___ */
+#endif /* !FEQT_INCLUDED_SRC_extensions_QIArrowButtonPress_h */

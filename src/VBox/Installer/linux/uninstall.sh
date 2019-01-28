@@ -4,7 +4,7 @@
 # VirtualBox linux uninstallation script
 
 #
-# Copyright (C) 2009-2017 Oracle Corporation
+# Copyright (C) 2009-2019 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -65,6 +65,7 @@ fi
 # Remove symlinks
 rm -f \
   /usr/bin/VirtualBox \
+  /usr/bin/VirtualBoxVM \
   /usr/bin/VBoxManage \
   /usr/bin/VBoxSDL \
   /usr/bin/VBoxVRDP \
@@ -81,6 +82,7 @@ rm -f \
   /usr/bin/VBoxDeleteIf \
   /usr/bin/VBoxTunctl \
   /usr/bin/virtualbox \
+  /usr/bin/virtualboxvm \
   /usr/share/pixmaps/VBox.png \
   /usr/share/pixmaps/virtualbox.png \
   /usr/share/applications/virtualbox.desktop \

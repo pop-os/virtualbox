@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2014-2017 Oracle Corporation
+ * Copyright (C) 2014-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,8 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_vd_filter_backend_h
-#define ___VBox_vd_filter_backend_h
+#ifndef VBOX_INCLUDED_vd_filter_backend_h
+#define VBOX_INCLUDED_vd_filter_backend_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/vd.h>
 #include <VBox/vd-common.h>
@@ -106,4 +109,4 @@ typedef const VDFILTERBACKEND *PCVDFILTERBACKEND;
 /** The current version of the VDFILTERBACKEND structure. */
 #define VD_FLTBACKEND_VERSION                   VD_VERSION_MAKE(0xff02, 1, 0)
 
-#endif
+#endif /* !VBOX_INCLUDED_vd_filter_backend_h */

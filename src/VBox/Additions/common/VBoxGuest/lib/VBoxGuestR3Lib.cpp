@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2017 Oracle Corporation
+ * Copyright (C) 2007-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -58,6 +58,7 @@
 
 #include <iprt/assert.h>
 #include <iprt/asm.h>
+#include <iprt/err.h>
 #include <iprt/file.h>
 #include <iprt/time.h>
 #include <iprt/string.h>
@@ -218,29 +219,44 @@ static int vbglR3Init(const char *pszDeviceName)
      * Darwin is kind of special we need to engage the device via I/O first
      * before we open it via the BSD device node.
      */
+   /* IOKit */
     mach_port_t MasterPort;
     kern_return_t kr = IOMasterPort(MACH_PORT_NULL, &MasterPort);
     if (kr != kIOReturnSuccess)
+    {
+        LogRel(("IOMasterPort -> %d\n", kr));
         return VERR_GENERAL_FAILURE;
+    }
 
     CFDictionaryRef ClassToMatch = IOServiceMatching("org_virtualbox_VBoxGuest");
     if (!ClassToMatch)
+    {
+        LogRel(("IOServiceMatching(\"org_virtualbox_VBoxGuest\") failed.\n"));
         return VERR_GENERAL_FAILURE;
+    }
 
     io_service_t ServiceObject = IOServiceGetMatchingService(kIOMasterPortDefault, ClassToMatch);
     if (!ServiceObject)
+    {
+        LogRel(("IOServiceGetMatchingService returned NULL\n"));
         return VERR_NOT_FOUND;
+    }
 
     io_connect_t uConnection;
     kr = IOServiceOpen(ServiceObject, mach_task_self(), VBOXGUEST_DARWIN_IOSERVICE_COOKIE, &uConnection);
     IOObjectRelease(ServiceObject);
     if (kr != kIOReturnSuccess)
+    {
+        LogRel(("IOServiceOpen returned %d. Driver open failed.\n", kr));
         return VERR_OPEN_FAILED;
+    }
 
+    /* Regular unix FD. */
     RTFILE hFile;
     int rc = RTFileOpen(&hFile, pszDeviceName, RTFILE_O_READWRITE | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
     if (RT_FAILURE(rc))
     {
+        LogRel(("RTFileOpen(%s) returned %Rrc. Driver open failed.\n", pszDeviceName, rc));
         IOServiceClose(uConnection);
         return rc;
     }

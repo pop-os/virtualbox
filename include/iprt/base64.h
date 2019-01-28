@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,8 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___iprt_base64_h
-#define ___iprt_base64_h
+#ifndef IPRT_INCLUDED_base64_h
+#define IPRT_INCLUDED_base64_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/types.h>
 
@@ -42,6 +45,16 @@ RT_C_DECLS_BEGIN
 #else
 # define RTBASE64_EOL_SIZE      (sizeof("\n")   - 1)
 #endif
+
+
+/** @name Flags for RTBase64EncodeEx() and RTBase64EncodedLengthEx().
+ * @{ */
+/** Insert line breaks into encoded string.
+ * The size of the end-of-line marker is that that of the host platform.
+ */
+#define RTBASE64_FLAGS_NO_LINE_BREAKS RT_BIT_32(0)
+/** @} */
+
 
 /**
  * Calculates the decoded data size for a Base64 encoded string.
@@ -120,13 +133,10 @@ RTDECL(int) RTBase64Decode(const char *pszString, void *pvData, size_t cbData, s
 RTDECL(int) RTBase64DecodeEx(const char *pszString, size_t cchStringMax, void *pvData, size_t cbData,
                              size_t *pcbActual, char **ppszEnd);
 
+
 /**
  * Calculates the length of the Base64 encoding of a given number of bytes of
- * data.
- *
- * This will assume line breaks every 64 chars. A RTBase64EncodedLengthEx
- * function can be added if closer control over the output is found to be
- * required.
+ * data produced by RTBase64Encode().
  *
  * @returns The Base64 string length.
  * @param   cbData      The number of bytes to encode.
@@ -134,12 +144,20 @@ RTDECL(int) RTBase64DecodeEx(const char *pszString, size_t cchStringMax, void *p
 RTDECL(size_t) RTBase64EncodedLength(size_t cbData);
 
 /**
+ * Calculates the length of the Base64 encoding of a given number of bytes of
+ * data produced by RTBase64EncodeEx() with the same @a fFlags.
+ *
+ * @returns The Base64 string length.
+ * @param   cbData      The number of bytes to encode.
+ * @param   fFlags      Flags, any combination of the RTBASE64_FLAGS \#defines.
+ */
+RTDECL(size_t) RTBase64EncodedLengthEx(size_t cbData, uint32_t fFlags);
+
+/**
  * Encodes the specifed data into a Base64 string, the caller supplies the
  * output buffer.
  *
- * This will make the same assumptions about line breaks and EOL size as
- * RTBase64EncodedLength() does. A RTBase64EncodeEx function can be added if
- * more strict control over the output formatting is found necessary.
+ * This is equivalent to calling RTBase64EncodeEx() with no flags.
  *
  * @returns IRPT status code.
  * @retval  VERR_BUFFER_OVERFLOW if the output buffer is too small. The buffer
@@ -153,9 +171,27 @@ RTDECL(size_t) RTBase64EncodedLength(size_t cbData);
  */
 RTDECL(int) RTBase64Encode(const void *pvData, size_t cbData, char *pszBuf, size_t cbBuf, size_t *pcchActual);
 
+/**
+ * Encodes the specifed data into a Base64 string, the caller supplies the
+ * output buffer.
+ *
+ * @returns IRPT status code.
+ * @retval  VERR_BUFFER_OVERFLOW if the output buffer is too small. The buffer
+ *          may contain an invalid Base64 string.
+ *
+ * @param   pvData      The data to encode.
+ * @param   cbData      The number of bytes to encode.
+ * @param   fFlags      Flags, any combination of the RTBASE64_FLAGS \#defines.
+ * @param   pszBuf      Where to put the Base64 string.
+ * @param   cbBuf       The size of the output buffer, including the terminator.
+ * @param   pcchActual  The actual number of characters returned.
+ */
+RTDECL(int) RTBase64EncodeEx(const void *pvData, size_t cbData, uint32_t fFlags,
+                             char *pszBuf, size_t cbBuf, size_t *pcchActual);
+
 /** @}  */
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !IPRT_INCLUDED_base64_h */
 

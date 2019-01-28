@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,28 +15,24 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* GUI includes: */
-# include "UIConverter.h"
-# include "UISettingsPage.h"
-# include "QIWidgetValidator.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "UIConverter.h"
+#include "UISettingsPage.h"
+#include "QIWidgetValidator.h"
 
 
-/* Settings page constructor, hidden: */
-UISettingsPage::UISettingsPage(UISettingsPageType pageType)
-    : m_pageType(pageType)
-    , m_configurationAccessLevel(ConfigurationAccessLevel_Null)
+/*********************************************************************************************************************************
+*   Class UISettingsPage implementation.                                                                                         *
+*********************************************************************************************************************************/
+
+UISettingsPage::UISettingsPage()
+    : m_enmConfigurationAccessLevel(ConfigurationAccessLevel_Null)
     , m_cId(-1)
-    , m_fProcessed(false)
-    , m_fFailed(false)
     , m_pFirstWidget(0)
     , m_pValidator(0)
     , m_fIsValidatorBlocked(true)
+    , m_fProcessed(false)
+    , m_fFailed(false)
 {
 }
 
@@ -59,6 +55,12 @@ void UISettingsPage::setValidator(UIPageValidator *pValidator)
     m_pValidator = pValidator;
 }
 
+void UISettingsPage::setConfigurationAccessLevel(ConfigurationAccessLevel enmConfigurationAccessLevel)
+{
+    m_enmConfigurationAccessLevel = enmConfigurationAccessLevel;
+    polishPage();
+}
+
 void UISettingsPage::revalidate()
 {
     /* Revalidate if possible: */
@@ -66,9 +68,12 @@ void UISettingsPage::revalidate()
         m_pValidator->revalidate();
 }
 
-/* Global settings page constructor, hidden: */
+
+/*********************************************************************************************************************************
+*   Class UISettingsPageGlobal implementation.                                                                                   *
+*********************************************************************************************************************************/
+
 UISettingsPageGlobal::UISettingsPageGlobal()
-    : UISettingsPage(UISettingsPageType_Global)
 {
 }
 
@@ -87,21 +92,24 @@ QPixmap UISettingsPageGlobal::warningPixmap() const
     return gpConverter->toWarningPixmap(internalID());
 }
 
-/* Fetch data to m_properties: */
 void UISettingsPageGlobal::fetchData(const QVariant &data)
 {
+    /* Fetch data to m_properties: */
     m_properties = data.value<UISettingsDataGlobal>().m_properties;
 }
 
-/* Upload m_properties to data: */
 void UISettingsPageGlobal::uploadData(QVariant &data) const
 {
+    /* Upload m_properties to data: */
     data = QVariant::fromValue(UISettingsDataGlobal(m_properties));
 }
 
-/* Machine settings page constructor, hidden: */
+
+/*********************************************************************************************************************************
+*   Class UISettingsPageMachine implementation.                                                                                  *
+*********************************************************************************************************************************/
+
 UISettingsPageMachine::UISettingsPageMachine()
-    : UISettingsPage(UISettingsPageType_Machine)
 {
 }
 
@@ -120,16 +128,15 @@ QPixmap UISettingsPageMachine::warningPixmap() const
     return gpConverter->toWarningPixmap(internalID());
 }
 
-/* Fetch data to m_machine & m_console: */
 void UISettingsPageMachine::fetchData(const QVariant &data)
 {
+    /* Fetch data to m_machine & m_console: */
     m_machine = data.value<UISettingsDataMachine>().m_machine;
     m_console = data.value<UISettingsDataMachine>().m_console;
 }
 
-/* Upload m_machine & m_console to data: */
 void UISettingsPageMachine::uploadData(QVariant &data) const
 {
+    /* Upload m_machine & m_console to data: */
     data = QVariant::fromValue(UISettingsDataMachine(m_machine, m_console));
 }
-

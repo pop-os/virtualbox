@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -448,7 +448,8 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
 #endif
                      "                            hostinfo|hostcpuids|hddbackends|hdds|dvds|floppies|\n"
                      "                            usbhost|usbfilters|systemproperties|extpacks|\n"
-                     "                            groups|webcams|screenshotformats\n"
+                     "                            groups|webcams|screenshotformats|cloudproviders|\n"
+                     "                            cloudprofiles\n"
                      "\n", SEP);
 
     if (fCategory & USAGE_SHOWVMINFO)
@@ -476,6 +477,7 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            [--register]\n"
                      "                            [--basefolder <path>]\n"
                      "                            [--uuid <uuid>]\n"
+                     "                            [--default]\n"
                      "\n", SEP);
 
     if (fCategory & USAGE_MODIFYVM)
@@ -516,6 +518,7 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            [--spec-ctrl on|off]\n"
                      "                            [--l1d-flush-on-sched on|off]\n"
                      "                            [--l1d-flush-on-vm-entry on|off]\n"
+                     "                            [--nested-hw-virt on|off]\n"
                      "                            [--cpu-profile \"host|Intel 80[86|286|386]\"]\n"
                      "                            [--cpuid-portability-level <0..3>\n"
                      "                            [--cpuid-set <leaf[:subleaf]> <eax> <ebx> <ecx> <edx>]\n"
@@ -529,7 +532,7 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            [--cpuexecutioncap <1-100>]\n"
                      "                            [--rtcuseutc on|off]\n"
 #ifdef VBOX_WITH_VMSVGA
-                     "                            [--graphicscontroller none|vboxvga|vmsvga]\n"
+                     "                            [--graphicscontroller none|vboxvga|vmsvga|vboxsvga]\n"
 #else
                      "                            [--graphicscontroller none|vboxvga]\n"
 #endif
@@ -606,6 +609,7 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                                             tcpclient <hostname:port>|\n"
                      "                                             file <file>|\n"
                      "                                             <devicename>]\n"
+                     "                            [--uarttype<1-N> 16450|16550A|16750\n"
 #if defined(RT_OS_LINUX) || defined(RT_OS_WINDOWS)
                      "                            [--lpt<1-N> off|<I/O base> <IRQ>]\n"
                      "                            [--lptmode<1-N> <devicename>]\n"
@@ -662,7 +666,8 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            [--audiocodec stac9700|ad1980|stac9221|sb16]\n"
                      "                            [--clipboard disabled|hosttoguest|guesttohost|\n"
                      "                                         bidirectional]\n"
-                     "                            [--draganddrop disabled|hosttoguest]\n");
+                     "                            [--draganddrop disabled|hosttoguest|guesttohost|\n"
+                     "                                         bidirectional]\n");
         RTStrmPrintf(pStrm,
                      "                            [--vrde on|off]\n"
                      "                            [--vrdeextpack default|<name>\n"
@@ -676,7 +681,7 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            [--vrdevideochannel on|off]\n"
                      "                            [--vrdevideochannelquality <percent>]\n");
         RTStrmPrintf(pStrm,
-                     "                            [--usb on|off]\n"
+                     "                            [--usbohci on|off]\n"
                      "                            [--usbehci on|off]\n"
                      "                            [--usbxhci on|off]\n"
                      "                            [--usbrename <oldname> <newname>]\n"
@@ -709,16 +714,16 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            [--autostop-type disabled|savestate|poweroff|\n"
                      "                                             acpishutdown]\n"
 #endif
-#ifdef VBOX_WITH_VIDEOREC
-                     "                            [--videocap on|off]\n"
-                     "                            [--videocapscreens all|<screen ID> [<screen ID> ...]]\n"
-                     "                            [--videocapfile <filename>]\n"
-                     "                            [--videocapres <width> <height>]\n"
-                     "                            [--videocaprate <rate>]\n"
-                     "                            [--videocapfps <fps>]\n"
-                     "                            [--videocapmaxtime <ms>]\n"
-                     "                            [--videocapmaxsize <MB>]\n"
-                     "                            [--videocapopts <key=value> [,<key=value> ...]]\n"
+#ifdef VBOX_WITH_RECORDING
+                     "                            [--recording on|off]\n"
+                     "                            [--recording screens all|<screen ID> [<screen ID> ...]]\n"
+                     "                            [--recording filename <filename>]\n"
+                     "                            [--recording videores <width> <height>]\n"
+                     "                            [--recording videorate <rate>]\n"
+                     "                            [--recording videofps <fps>]\n"
+                     "                            [--recording maxtime <s>]\n"
+                     "                            [--recording maxfilesize <MB>]\n"
+                     "                            [--recording opts <key=value> [,<key=value> ...]]\n"
 #endif
                      "                            [--defaultfrontend default|<name>]\n"
                      "\n");
@@ -730,12 +735,19 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            [--snapshot <uuid>|<name>]\n"
                      "                            [--mode machine|machineandchildren|all]\n"
                      "                            [--options link|keepallmacs|keepnatmacs|\n"
-                     "                                       keepdisknames]\n"
+                     "                                       keepdisknames|keephwuuids]\n"
                      "                            [--name <name>]\n"
                      "                            [--groups <group>, ...]\n"
                      "                            [--basefolder <basefolder>]\n"
                      "                            [--uuid <uuid>]\n"
                      "                            [--register]\n"
+                     "\n", SEP);
+
+    if (fCategory & USAGE_MOVEVM)
+        RTStrmPrintf(pStrm,
+                           "%s movevm %s          <uuid|vmname>\n"
+                     "                            --type basic\n"
+                     "                            [--folder <path>]\n"
                      "\n", SEP);
 
     if (fCategory & USAGE_IMPORTAPPLIANCE)
@@ -755,6 +767,7 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            [--iso]\n"
                      "                            [--options manifest|iso|nomacs|nomacsbutnat]\n"
                      "                            [--vsys <number of virtual system>]\n"
+                     "                                    [--vmname <name>]\n"
                      "                                    [--product <product name>]\n"
                      "                                    [--producturl <product url>]\n"
                      "                                    [--vendor <vendor name>]\n"
@@ -763,6 +776,18 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                                    [--description <description info>]\n"
                      "                                    [--eula <license text>]\n"
                      "                                    [--eulafile <filename>]\n"
+                     "                            [--cloud <number of virtual system>]\n"
+                     "                                    [--vmname <name>]\n"
+                     "                                    [--cloudprofile <cloud profile name>]\n"
+                     "                                    [--cloudshape <shape>]\n"
+                     "                                    [--clouddomain <domain>]\n"
+                     "                                    [--clouddisksize <disk size in GB>]\n"
+                     "                                    [--cloudbucket <bucket name>]\n"
+                     "                                    [--cloudocivcn <OCI vcn id>]\n"
+                     "                                    [--cloudocisubnet <OCI subnet id>]\n"
+                     "                                    [--cloudkeepobject <true/false>]\n"
+                     "                                    [--cloudlaunchinstance <true/false>]\n"
+                     "                                    [--cloudpublicip <true/false>]\n"
                      "\n", SEP);
 
     if (fCategory & USAGE_STARTVM)
@@ -810,7 +835,8 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            audioout on|off |\n"
                      "                            clipboard disabled|hosttoguest|guesttohost|\n"
                      "                                      bidirectional |\n"
-                     "                            draganddrop disabled|hosttoguest |\n"
+                     "                            draganddrop disabled|hosttoguest|guesttohost|\n"
+                     "                                      bidirectional |\n"
                      "                            vrde on|off |\n"
                      "                            vrdeport <port> |\n"
                      "                            vrdeproperty <name=[value]> |\n"
@@ -818,15 +844,18 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            setvideomodehint <xres> <yres> <bpp>\n"
                      "                                            [[<display>] [<enabled:yes|no> |\n"
                      "                                              [<xorigin> <yorigin>]]] |\n"
+                     "                            setscreenlayout <display> on|primary <xorigin> <yorigin> <xres> <yres> <bpp> | off\n"
                      "                            screenshotpng <file> [display] |\n"
-                     "                            videocap on|off |\n"
-                     "                            videocapscreens all|none|<screen>,[<screen>...] |\n"
-                     "                            videocapfile <file>\n"
-                     "                            videocapres <width>x<height>\n"
-                     "                            videocaprate <rate>\n"
-                     "                            videocapfps <fps>\n"
-                     "                            videocapmaxtime <ms>\n"
-                     "                            videocapmaxsize <MB>\n"
+#ifdef VBOX_WITH_RECORDING
+                     "                            recording on|off |\n"
+                     "                            recording screens all|none|<screen>,[<screen>...] |\n"
+                     "                            recording filename <file> |\n"
+                     "                            recording videores <width>x<height> |\n"
+                     "                            recording videorate <rate> |\n"
+                     "                            recording videofps <fps> |\n"
+                     "                            recording maxtime <s> |\n"
+                     "                            recording maxfilesize <MB> |\n"
+#endif /* VBOX_WITH_RECORDING */
                      "                            setcredentials <username>\n"
                      "                                           --passwordfile <file> | <password>\n"
                      "                                           <domain>\n"
@@ -844,6 +873,13 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                                           [--removeonsuspend <yes|no>]\n"
                      "                            removeencpassword <id>\n"
                      "                            removeallencpasswords\n"
+                     "                            changeuartmode<1-N> disconnected|\n"
+                     "                                                server <pipe>|\n"
+                     "                                                client <pipe>|\n"
+                     "                                                tcpserver <port>|\n"
+                     "                                                tcpclient <hostname:port>|\n"
+                     "                                                file <file>|\n"
+                     "                                                <devicename>]\n"
                      "\n", SEP);
     }
 
@@ -950,7 +986,8 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            [--size <megabytes>|--sizebyte <bytes>]\n"
                      "                            [--diffparent <uuid>|<filename>\n"
                      "                            [--format VDI|VMDK|VHD] (default: VDI)\n"
-                     "                            [--variant Standard,Fixed,Split2G,Stream,ESX]\n"
+                     "                            [--variant Standard,Fixed,Split2G,Stream,ESX,\n"
+                     "                                       Formatted]\n"
                      "\n", SEP);
 
     if (fCategory & USAGE_MODIFYMEDIUM)
@@ -962,7 +999,8 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            [--property <name=[value]>]\n"
                      "                            [--compact]\n"
                      "                            [--resize <megabytes>|--resizebyte <bytes>]\n"
-                     "                            [--move <path]\n"
+                     "                            [--move <path>]\n"
+                     "                            [--setlocation <path>]\n"
                      "                            [--description <description string>]"
                      "\n", SEP);
 
@@ -1016,7 +1054,7 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
     if (fCategory & USAGE_GETEXTRADATA)
         RTStrmPrintf(pStrm,
                            "%s getextradata %s    global|<uuid|vmname>\n"
-                     "                            <key>|enumerate\n"
+                     "                            <key>|[enumerate]\n"
                      "\n", SEP);
 
     if (fCategory & USAGE_SETEXTRADATA)
@@ -1037,6 +1075,8 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            loghistorycount <value>\n"
                      "                            defaultfrontend default|<name>\n"
                      "                            logginglevel <log setting>\n"
+                     "                            proxymode system|noproxy|manual\n"
+                     "                            proxyurl <url>\n"
                      "\n", SEP);
 
     if (fCategory & USAGE_USBFILTER_ADD)
@@ -1185,7 +1225,10 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            --netmask <network_mask>\n"
                      "                            --lowerip <lower_ip>\n"
                      "                            --upperip <upper_ip>]\n"
-                     "                            [--enable | --disable]\n\n"
+                     "                            [--enable | --disable]\n"
+                     "                            [--options [--vm <name> --nic <1-N>]\n"
+                     "                             --id <number> [--value <string> | --remove]]\n"
+                     "                             (multiple options allowed after --options)\n\n"
                            "%s dhcpserver %s      remove --netname <network_name> |\n"
 #if defined(VBOX_WITH_NETFLT)
                      "                                   --ifname <hostonly_if_name>\n"

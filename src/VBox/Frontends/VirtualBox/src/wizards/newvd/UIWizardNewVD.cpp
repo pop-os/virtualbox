@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,27 +15,21 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QVariant>
+#include <QVariant>
 
 /* GUI includes: */
-# include "VBoxGlobal.h"
-# include "UIWizardNewVD.h"
-# include "UIWizardNewVDPageBasic1.h"
-# include "UIWizardNewVDPageBasic2.h"
-# include "UIWizardNewVDPageBasic3.h"
-# include "UIWizardNewVDPageExpert.h"
-# include "UIMessageCenter.h"
-# include "UIMedium.h"
+#include "VBoxGlobal.h"
+#include "UIWizardNewVD.h"
+#include "UIWizardNewVDPageBasic1.h"
+#include "UIWizardNewVDPageBasic2.h"
+#include "UIWizardNewVDPageBasic3.h"
+#include "UIWizardNewVDPageExpert.h"
+#include "UIMessageCenter.h"
+#include "UIMedium.h"
 
 /* COM includes: */
-# include "CMediumFormat.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "CMediumFormat.h"
 
 
 UIWizardNewVD::UIWizardNewVD(QWidget *pParent,
@@ -49,10 +43,10 @@ UIWizardNewVD::UIWizardNewVD(QWidget *pParent,
 {
 #ifndef VBOX_WS_MAC
     /* Assign watermark: */
-    assignWatermark(":/vmw_new_harddisk.png");
+    assignWatermark(":/wizard_new_harddisk.png");
 #else /* VBOX_WS_MAC */
     /* Assign background image: */
-    assignBackground(":/vmw_new_harddisk_bg.png");
+    assignBackground(":/wizard_new_harddisk_bg.png");
 #endif /* VBOX_WS_MAC */
 }
 
@@ -109,7 +103,7 @@ bool UIWizardNewVD::createVirtualDisk()
     m_virtualDisk = virtualDisk;
 
     /* Inform VBoxGlobal about it: */
-    vboxGlobal().createMedium(UIMedium(m_virtualDisk, UIMediumType_HardDisk, KMediumState_Created));
+    vboxGlobal().createMedium(UIMedium(m_virtualDisk, UIMediumDeviceType_HardDisk, KMediumState_Created));
 
     return true;
 }
@@ -150,4 +144,3 @@ void UIWizardNewVD::prepare()
     /* Call to base-class: */
     UIWizard::prepare();
 }
-

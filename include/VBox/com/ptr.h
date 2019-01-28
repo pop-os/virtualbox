@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,8 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_com_ptr_h
-#define ___VBox_com_ptr_h
+#ifndef VBOX_INCLUDED_com_ptr_h
+#define VBOX_INCLUDED_com_ptr_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Make sure all the stdint.h macros are included - must come first! */
 #ifndef __STDC_LIMIT_MACROS
@@ -498,5 +501,5 @@ public:
 
 /** @} */
 
-#endif
+#endif /* !VBOX_INCLUDED_com_ptr_h */
 

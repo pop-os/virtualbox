@@ -1,10 +1,10 @@
 /* $Id: QITreeWidget.cpp $ */
 /** @file
- * VBox Qt GUI - VirtualBox Qt extensions: QITreeWidget class implementation.
+ * VBox Qt GUI - Qt extensions: QITreeWidget class implementation.
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,22 +15,16 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QAccessibleWidget>
-# include <QPainter>
-# include <QResizeEvent>
+#include <QAccessibleWidget>
+#include <QPainter>
+#include <QResizeEvent>
 
 /* GUI includes: */
-# include "QITreeWidget.h"
+#include "QITreeWidget.h"
 
 /* Other VBox includes: */
-# include "iprt/assert.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "iprt/assert.h"
 
 
 /** QAccessibleObject extension used as an accessibility interface for QITreeWidgetItem. */
@@ -438,6 +432,11 @@ QITreeWidgetItem *QITreeWidget::childItem(int iIndex) const
     return invisibleRootItem()->child(iIndex) ? QITreeWidgetItem::toItem(invisibleRootItem()->child(iIndex)) : 0;
 }
 
+QModelIndex QITreeWidget::itemIndex(QTreeWidgetItem *pItem)
+{
+    return indexFromItem(pItem);
+}
+
 void QITreeWidget::paintEvent(QPaintEvent *pEvent)
 {
     /* Create item painter: */
@@ -467,4 +466,3 @@ void QITreeWidget::resizeEvent(QResizeEvent *pEvent)
     /* Notify listeners about resizing: */
     emit resized(pEvent->size(), pEvent->oldSize());
 }
-

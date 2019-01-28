@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ____H_EXTPACKMANAGERIMPL
-#define ____H_EXTPACKMANAGERIMPL
+#ifndef MAIN_INCLUDED_ExtPackManagerImpl_h
+#define MAIN_INCLUDED_ExtPackManagerImpl_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "VirtualBoxBase.h"
 #include <VBox/ExtPack/ExtPack.h>
@@ -102,7 +105,7 @@ public:
 
     HRESULT     FinalConstruct();
     void        FinalRelease();
-    HRESULT     initWithDir(VBOXEXTPACKCTX a_enmContext, const char *a_pszName, const char *a_pszDir);
+    HRESULT     initWithDir(VirtualBox *a_pVirtualBox, VBOXEXTPACKCTX a_enmContext, const char *a_pszName, const char *a_pszDir);
     void        uninit();
     RTMEMEF_NEW_AND_DELETE_OPERATORS();
     /** @}  */
@@ -130,6 +133,10 @@ public:
     HRESULT     i_getLibraryName(const char *a_pszModuleName, Utf8Str *a_pstrLibrary);
     bool        i_wantsToBeDefaultVrde(void) const;
     HRESULT     i_refresh(bool *pfCanDelete);
+#ifndef VBOX_COM_INPROC
+    bool        i_areThereCloudProviderUninstallVetos();
+    void        i_notifyCloudProviderManager();
+#endif
     /** @}  */
 
 protected:
@@ -150,6 +157,22 @@ protected:
     static DECLCALLBACK(int)    i_hlpLoadHGCMService(PCVBOXEXTPACKHLP pHlp, VBOXEXTPACK_IF_CS(IConsole) *pConsole, const char *pszServiceLibrary, const char *pszServiceName);
     static DECLCALLBACK(int)    i_hlpLoadVDPlugin(PCVBOXEXTPACKHLP pHlp, VBOXEXTPACK_IF_CS(IVirtualBox) *pVirtualBox, const char *pszPluginLibrary);
     static DECLCALLBACK(int)    i_hlpUnloadVDPlugin(PCVBOXEXTPACKHLP pHlp, VBOXEXTPACK_IF_CS(IVirtualBox) *pVirtualBox, const char *pszPluginLibrary);
+    static DECLCALLBACK(uint32_t) i_hlpCreateProgress(PCVBOXEXTPACKHLP pHlp, VBOXEXTPACK_IF_CS(IUnknown) *pInitiator,
+                                                      const char *pcszDescription, uint32_t cOperations,
+                                                      uint32_t uTotalOperationsWeight, const char *pcszFirstOperationDescription,
+                                                      uint32_t uFirstOperationWeight, VBOXEXTPACK_IF_CS(IProgress) **ppProgressOut);
+    static DECLCALLBACK(uint32_t) i_hlpGetCanceledProgress(PCVBOXEXTPACKHLP pHlp, VBOXEXTPACK_IF_CS(IProgress) *pProgress,
+                                                           bool *pfCanceled);
+    static DECLCALLBACK(uint32_t) i_hlpUpdateProgress(PCVBOXEXTPACKHLP pHlp, VBOXEXTPACK_IF_CS(IProgress) *pProgress,
+                                                      uint32_t uPercent);
+    static DECLCALLBACK(uint32_t) i_hlpNextOperationProgress(PCVBOXEXTPACKHLP pHlp, VBOXEXTPACK_IF_CS(IProgress) *pProgress,
+                                                             const char *pcszNextOperationDescription,
+                                                             uint32_t uNextOperationWeight);
+    static DECLCALLBACK(uint32_t) i_hlpWaitOtherProgress(PCVBOXEXTPACKHLP pHlp, VBOXEXTPACK_IF_CS(IProgress) *pProgress,
+                                                         VBOXEXTPACK_IF_CS(IProgress) *pProgressOther,
+                                                         uint32_t cTimeoutMS);
+    static DECLCALLBACK(uint32_t) i_hlpCompleteProgress(PCVBOXEXTPACKHLP pHlp, VBOXEXTPACK_IF_CS(IProgress) *pProgress,
+                                                        uint32_t uResultCode);
     static DECLCALLBACK(int)    i_hlpReservedN(PCVBOXEXTPACKHLP pHlp);
     /** @}  */
 
@@ -208,6 +231,7 @@ public:
     HRESULT     i_doInstall(ExtPackFile *a_pExtPackFile, bool a_fReplace, Utf8Str const *a_pstrDisplayInfo);
     HRESULT     i_doUninstall(const Utf8Str *a_pstrName, bool a_fForcedRemoval, const Utf8Str *a_pstrDisplayInfo);
     void        i_callAllVirtualBoxReadyHooks(void);
+    HRESULT     i_queryObjects(const com::Utf8Str &aObjUuid, std::vector<ComPtr<IUnknown> > &aObjects, std::vector<com::Utf8Str> *a_pstrExtPackNames);
 #endif
 #ifdef VBOX_COM_INPROC
     void        i_callAllConsoleReadyHooks(IConsole *a_pConsole);
@@ -226,6 +250,7 @@ public:
     HRESULT     i_getDefaultVrdeExtPack(Utf8Str *a_pstrExtPack);
     bool        i_isExtPackUsable(const char *a_pszExtPack);
     void        i_dumpAllToReleaseLog(void);
+    uint64_t    i_getUpdateCounter(void);
     /** @}  */
 
 private:
@@ -261,5 +286,5 @@ private:
     friend class ExtPackUninstallTask;
 };
 
-#endif
+#endif /* !MAIN_INCLUDED_ExtPackManagerImpl_h */
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

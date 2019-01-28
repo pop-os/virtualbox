@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -315,6 +315,16 @@ static uint16_t const g_aISABases[NUM_ISA_BASES] =
 #endif
 /** @}  */
 
+/**
+ * Emulated device types.
+ */
+enum BL_DEVICE_TYPE
+{
+    DEV_BT_958D     = 0,    /* BusLogic BT-958D, PCI. */
+    DEV_BT_545C     = 1,    /* BusLogic BT-545C, ISA. */
+    DEV_AHA_1540B   = 2     /* Adaptec AHA-1540B, ISA. */
+};
+
 /** Pointer to a task state structure. */
 typedef struct BUSLOGICREQ *PBUSLOGICREQ;
 
@@ -339,11 +349,12 @@ typedef struct BUSLOGIC
     bool                            fR0Enabled;
     /** Whether RC is enabled. */
     bool                            fGCEnabled;
-
     /** Base address of the I/O ports. */
     RTIOPORT                        IOPortBase;
+
     /** Base address of the memory mapping. */
     RTGCPHYS                        MMIOBase;
+
     /** Status register - Readonly. */
     volatile uint8_t                regStatus;
     /** Interrupt register - Readonly. */
@@ -386,12 +397,19 @@ typedef struct BUSLOGIC
     bool                            fMbxIs24Bit;
     /** ISA I/O port base (encoded in FW-compatible format). */
     uint8_t                         uISABaseCode;
-    uint8_t                         Alignment00;
+    /** ISA IRQ, non-zero if in ISA mode. */
+    uint8_t                         uIsaIrq;
 
     /** ISA I/O port base (disabled if zero). */
     RTIOPORT                        IOISABase;
     /** Default ISA I/O port base in FW-compatible format. */
     uint8_t                         uDefaultISABaseCode;
+    /** Emulated device type. */
+    uint8_t                         uDevType;
+
+    /** Signature index for Adaptec models. */
+    uint8_t                         uAhaSigIdx;
+    uint8_t                         Alignment[7];
 
     /** Number of mailboxes the guest set up. */
     uint32_t                        cMailbox;
@@ -982,7 +1000,7 @@ typedef struct BUSLOGICREQ
  * Memory buffer callback.
  *
  * @returns nothing.
- * @param   pThis    The LsiLogic controller instance.
+ * @param   pThis    The BusLogic controller instance.
  * @param   GCPhys   The guest physical address of the memory buffer.
  * @param   pSgBuf   The pointer to the host R3 S/G buffer.
  * @param   cbCopy   How many bytes to copy between the two buffers.
@@ -1040,7 +1058,12 @@ static void buslogicSetInterrupt(PBUSLOGIC pBusLogic, bool fSuppressIrq, uint8_t
 
     pBusLogic->regInterrupt |= BL_INTR_INTV;
     if (pBusLogic->fIRQEnabled && !fSuppressIrq)
-        PDMDevHlpPCISetIrq(pBusLogic->CTX_SUFF(pDevIns), 0, 1);
+    {
+        if (!pBusLogic->uIsaIrq)
+            PDMDevHlpPCISetIrq(pBusLogic->CTX_SUFF(pDevIns), 0, 1);
+        else
+            PDMDevHlpISASetIrq(pBusLogic->CTX_SUFF(pDevIns), pBusLogic->uIsaIrq, 1);
+    }
 }
 
 /**
@@ -1055,7 +1078,10 @@ static void buslogicClearInterrupt(PBUSLOGIC pBusLogic)
                  pBusLogic, pBusLogic->regInterrupt, pBusLogic->uPendingIntr));
     pBusLogic->regInterrupt = 0;
     pBusLogic->regStatus &= ~BL_STAT_CMDINV;
-    PDMDevHlpPCISetIrq(pBusLogic->CTX_SUFF(pDevIns), 0, 0);
+    if (!pBusLogic->uIsaIrq)
+        PDMDevHlpPCISetIrq(pBusLogic->CTX_SUFF(pDevIns), 0, 0);
+    else
+        PDMDevHlpISASetIrq(pBusLogic->CTX_SUFF(pDevIns), pBusLogic->uIsaIrq, 0);
     /* If there's another pending interrupt, report it now. */
     if (pBusLogic->uPendingIntr)
     {
@@ -1128,6 +1154,7 @@ static int buslogicR3HwReset(PBUSLOGIC pBusLogic, bool fResetIO)
     pBusLogic->fExtendedLunCCBFormat = false;
     pBusLogic->uMailboxOutgoingPositionCurrent = 0;
     pBusLogic->uMailboxIncomingPositionCurrent = 0;
+    pBusLogic->uAhaSigIdx = 0;
 
     /* Clear any active/pending interrupts. */
     pBusLogic->uPendingIntr = 0;
@@ -1174,6 +1201,23 @@ static void buslogicCommandComplete(PBUSLOGIC pBusLogic, bool fSuppressIrq)
     pBusLogic->iParameter = 0;
 }
 
+/**
+ * Memory write helper to handle PCI/ISA differences.
+ *
+ * @returns nothing.
+ * @param   pThis       Pointer to the BusLogic device instance
+ * @param   GCPhys      Guest physical memory address
+ * @param   pvBuf       Host side buffer address
+ * @param   cbWrite     Number of bytes to write
+ */
+static void blPhysWrite(PBUSLOGIC pThis, RTGCPHYS GCPhys, const void *pvBuf, size_t cbWrite)
+{
+    if (!pThis->uIsaIrq)
+        PDMDevHlpPCIPhysWrite(pThis->CTX_SUFF(pDevIns), GCPhys, pvBuf, cbWrite);
+    else
+        PDMDevHlpPhysWrite(pThis->CTX_SUFF(pDevIns), GCPhys, pvBuf, cbWrite);
+}
+
 #if defined(IN_RING3)
 
 /**
@@ -1199,6 +1243,7 @@ static void buslogicR3InitiateReset(PBUSLOGIC pBusLogic, bool fHardReset)
         pBusLogic->u64ResetTime = PDMDevHlpTMTimeVirtGetNano(pBusLogic->CTX_SUFF(pDevIns));
     }
 }
+
 
 /**
  * Send a mailbox with set status codes to the guest.
@@ -1238,8 +1283,7 @@ static void buslogicR3SendIncomingMailbox(PBUSLOGIC pBusLogic, RTGCPHYS GCPhysAd
         pCCBGuest->c.uHostAdapterStatus = uHostAdapterStatus;
         pCCBGuest->c.uDeviceStatus      = uDeviceStatus;
         /* Rewrite CCB up to the CDB; perhaps more than necessary. */
-        PDMDevHlpPCIPhysWrite(pBusLogic->CTX_SUFF(pDevIns), GCPhysAddrCCB,
-                              pCCBGuest, RT_UOFFSETOF(CCBC, abCDB));
+        blPhysWrite(pBusLogic, GCPhysAddrCCB, pCCBGuest, RT_UOFFSETOF(CCBC, abCDB));
     }
 
 # ifdef RT_STRICT
@@ -1257,13 +1301,12 @@ static void buslogicR3SendIncomingMailbox(PBUSLOGIC pBusLogic, RTGCPHYS GCPhysAd
         Mbx24.uCmdState = MbxIn.u.in.uCompletionCode;
         U32_TO_ADDR(Mbx24.aPhysAddrCCB, MbxIn.u32PhysAddrCCB);
         Log(("24-bit mailbox: completion code=%u, CCB at %RGp\n", Mbx24.uCmdState, (RTGCPHYS)ADDR_TO_U32(Mbx24.aPhysAddrCCB)));
-        PDMDevHlpPCIPhysWrite(pBusLogic->CTX_SUFF(pDevIns), GCPhysAddrMailboxIncoming, &Mbx24, sizeof(Mailbox24));
+        blPhysWrite(pBusLogic, GCPhysAddrMailboxIncoming, &Mbx24, sizeof(Mailbox24));
     }
     else
     {
         Log(("32-bit mailbox: completion code=%u, CCB at %RGp\n", MbxIn.u.in.uCompletionCode, GCPhysAddrCCB));
-        PDMDevHlpPCIPhysWrite(pBusLogic->CTX_SUFF(pDevIns), GCPhysAddrMailboxIncoming,
-                              &MbxIn, sizeof(Mailbox32));
+        blPhysWrite(pBusLogic, GCPhysAddrMailboxIncoming, &MbxIn, sizeof(Mailbox32));
     }
 
     /* Advance to next mailbox position. */
@@ -1506,7 +1549,7 @@ static DECLCALLBACK(void) buslogicR3CopyBufferToGuestWorker(PBUSLOGIC pThis, RTG
         void *pvSeg = RTSgBufGetNextSegment(pSgBuf, &cbSeg);
 
         AssertPtr(pvSeg);
-        PDMDevHlpPCIPhysWrite(pThis->CTX_SUFF(pDevIns), GCPhys, pvSeg, cbSeg);
+        blPhysWrite(pThis, GCPhys, pvSeg, cbSeg);
         GCPhys += cbSeg;
         cbCopy -= cbSeg;
     }
@@ -1634,7 +1677,7 @@ static size_t buslogicR3SgBufWalker(PBUSLOGIC pThis, PBUSLOGICREQ pReq,
  * Copies a data buffer into the S/G buffer set up by the guest.
  *
  * @returns Amount of bytes copied to the guest.
- * @param   pThis          The LsiLogic controller device instance.
+ * @param   pThis          The BusLogic controller device instance.
  * @param   pReq           Request structure.
  * @param   pSgBuf         The S/G buffer to copy from.
  * @param   cbSkip         How many bytes to skip in advance before starting to copy.
@@ -1651,7 +1694,7 @@ static size_t buslogicR3CopySgBufToGuest(PBUSLOGIC pThis, PBUSLOGICREQ pReq, PRT
  * Copies the guest S/G buffer into a host data buffer.
  *
  * @returns Amount of bytes copied from the guest.
- * @param   pThis          The LsiLogic controller device instance.
+ * @param   pThis          The BusLogic controller device instance.
  * @param   pReq           Request structure.
  * @param   pSgBuf         The S/G buffer to copy into.
  * @param   cbSkip         How many bytes to skip in advance before starting to copy.
@@ -1694,7 +1737,7 @@ static void buslogicR3SenseBufferFree(PBUSLOGICREQ pReq, bool fCopy)
     /* Copy the sense buffer into guest memory if requested. */
     if (fCopy && cbSenseBuffer)
     {
-        PPDMDEVINS  pDevIns = pReq->pTargetDevice->CTX_SUFF(pBusLogic)->CTX_SUFF(pDevIns);
+        PBUSLOGIC   pThis = pReq->pTargetDevice->CTX_SUFF(pBusLogic);
         RTGCPHYS    GCPhysAddrSenseBuffer;
 
         /* With 32-bit CCBs, the (optional) sense buffer physical address is provided separately.
@@ -1710,7 +1753,7 @@ static void buslogicR3SenseBufferFree(PBUSLOGICREQ pReq, bool fCopy)
             GCPhysAddrSenseBuffer = pReq->CCBGuest.n.u32PhysAddrSenseData;
 
         Log3(("%s: sense buffer: %.*Rhxs\n", __FUNCTION__, cbSenseBuffer, pReq->pbSenseBuffer));
-        PDMDevHlpPCIPhysWrite(pDevIns, GCPhysAddrSenseBuffer, pReq->pbSenseBuffer, cbSenseBuffer);
+        blPhysWrite(pThis, GCPhysAddrSenseBuffer, pReq->pbSenseBuffer, cbSenseBuffer);
     }
 
     RTMemFree(pReq->pbSenseBuffer);
@@ -1801,8 +1844,16 @@ static int buslogicProcessCommand(PBUSLOGIC pBusLogic)
              * for Adaptec AHA-154x may claim the adapter. The BusLogic drivers will claim
              * the adapter only when the byte is *not* '0' or 'B'.
              */
-            pBusLogic->aReplyBuffer[0] = 'A'; /* Firmware option bytes */
-            pBusLogic->aReplyBuffer[1] = 'A'; /* Special option byte */
+            if (pBusLogic->uDevType == DEV_AHA_1540B)
+            {
+                pBusLogic->aReplyBuffer[0] = 'A'; /* Firmware option bytes */
+                pBusLogic->aReplyBuffer[1] = '0'; /* Special option byte */
+            }
+            else
+            {
+                pBusLogic->aReplyBuffer[0] = 'A'; /* Firmware option bytes */
+                pBusLogic->aReplyBuffer[1] = 'A'; /* Special option byte */
+            }
 
             /* We report version 5.07B. This reply will provide the first two digits. */
             pBusLogic->aReplyBuffer[2] = '5'; /* Major version 5 */
@@ -1812,6 +1863,15 @@ static int buslogicProcessCommand(PBUSLOGIC pBusLogic)
         }
         case BUSLOGICCOMMAND_INQUIRE_FIRMWARE_VERSION_3RD_LETTER:
         {
+            if (pBusLogic->uDevType == DEV_AHA_1540B)
+            {
+                /* Newer ASPI4DOS.SYS versions expect this command to fail. */
+                Log(("Command %#x not valid for this adapter\n", pBusLogic->uOperationCode));
+                pBusLogic->cbReplyParametersLeft = 0;
+                pBusLogic->regStatus |= BL_STAT_CMDINV;
+                break;
+            }
+
             pBusLogic->aReplyBuffer[0] = '7';
             pBusLogic->cbReplyParametersLeft = 1;
             break;
@@ -1868,6 +1928,15 @@ static int buslogicProcessCommand(PBUSLOGIC pBusLogic)
 
         case BUSLOGICCOMMAND_INQUIRE_HOST_ADAPTER_MODEL_NUMBER:
         {
+            /* Not supported on AHA-154x. */
+            if (pBusLogic->uDevType == DEV_AHA_1540B)
+            {
+                Log(("Command %#x not valid for this adapter\n", pBusLogic->uOperationCode));
+                pBusLogic->cbReplyParametersLeft = 0;
+                pBusLogic->regStatus |= BL_STAT_CMDINV;
+                break;
+            }
+
             /* The reply length is set by the guest and is found in the first byte of the command buffer. */
             if (pBusLogic->aCommandBuffer[0] > sizeof(pBusLogic->aReplyBuffer))
             {
@@ -1889,7 +1958,12 @@ static int buslogicProcessCommand(PBUSLOGIC pBusLogic)
         }
         case BUSLOGICCOMMAND_INQUIRE_CONFIGURATION:
         {
-            uint8_t uPciIrq = PCIDevGetInterruptLine(&pBusLogic->dev);
+            uint8_t uIrq;
+
+            if (pBusLogic->uIsaIrq)
+                uIrq = pBusLogic->uIsaIrq;
+            else
+                uIrq = PCIDevGetInterruptLine(&pBusLogic->dev);
 
             pBusLogic->cbReplyParametersLeft = sizeof(ReplyInquireConfiguration);
             PReplyInquireConfiguration pReply = (PReplyInquireConfiguration)pBusLogic->aReplyBuffer;
@@ -1897,11 +1971,14 @@ static int buslogicProcessCommand(PBUSLOGIC pBusLogic)
 
             pReply->uHostAdapterId = 7; /* The controller has always 7 as ID. */
             pReply->fDmaChannel6  = 1;  /* DMA channel 6 is a good default. */
+
             /* The PCI IRQ is not necessarily representable in this structure.
              * If that is the case, the guest likely won't function correctly,
-             * therefore we log a warning.
+             * therefore we log a warning. Note that for ISA configurations, we
+             * can only allow IRQs that can be supported; for PCI, the HBA
+             * has no control over IRQ assignment.
              */
-            switch (uPciIrq)
+            switch (uIrq)
             {
                 case 9:     pReply->fIrqChannel9  = 1; break;
                 case 10:    pReply->fIrqChannel10 = 1; break;
@@ -1910,7 +1987,7 @@ static int buslogicProcessCommand(PBUSLOGIC pBusLogic)
                 case 14:    pReply->fIrqChannel14 = 1; break;
                 case 15:    pReply->fIrqChannel15 = 1; break;
                 default:
-                    LogRel(("Warning: PCI IRQ %d cannot be represented as ISA!\n", uPciIrq));
+                    LogRel(("Warning: PCI IRQ %d cannot be represented as ISA!\n", uIrq));
                     break;
             }
             break;
@@ -1921,6 +1998,13 @@ static int buslogicProcessCommand(PBUSLOGIC pBusLogic)
              * it to fail. If it succeeds, the drivers refuse to load. However, some newer
              * Adaptec 154x models supposedly support it too??
              */
+            if (pBusLogic->uDevType == DEV_AHA_1540B)
+            {
+                Log(("Command %#x not valid for this adapter\n", pBusLogic->uOperationCode));
+                pBusLogic->cbReplyParametersLeft = 0;
+                pBusLogic->regStatus |= BL_STAT_CMDINV;
+                break;
+            }
 
             /* The reply length is set by the guest and is found in the first byte of the command buffer. */
             pBusLogic->cbReplyParametersLeft = pBusLogic->aCommandBuffer[0];
@@ -1949,11 +2033,20 @@ static int buslogicProcessCommand(PBUSLOGIC pBusLogic)
             pReply->fParityCheckingEnabled = true;
             pReply->cMailbox = pBusLogic->cMailbox;
             U32_TO_ADDR(pReply->MailboxAddress, pBusLogic->GCPhysAddrMailboxOutgoingBase);
-            pReply->uSignature = 'B';
-            /* The 'D' signature prevents Adaptec's OS/2 drivers from getting too
-             * friendly with BusLogic hardware and upsetting the HBA state.
+            /* The 'D' signature (actually 'SD' for Storage Dimensions, and 'BD' for BusLogic)
+             * prevents Adaptec's OS/2 drivers from getting too friendly with BusLogic hardware
+             * and upsetting the HBA state.
              */
-            pReply->uCharacterD = 'D';      /* BusLogic model. */
+            if (pBusLogic->uDevType == DEV_AHA_1540B)
+            {
+                pReply->uSignature  = 0;    /* Zeros for Adaptec. */
+                pReply->uCharacterD = 0;
+            }
+            else
+            {
+                pReply->uSignature  = 'B';
+                pReply->uCharacterD = 'D';      /* BusLogic model. */
+            }
             pReply->uHostBusType = 'F';     /* PCI bus. */
             break;
         }
@@ -1997,6 +2090,14 @@ static int buslogicProcessCommand(PBUSLOGIC pBusLogic)
         }
         case BUSLOGICCOMMAND_INITIALIZE_EXTENDED_MAILBOX:
         {
+            if (pBusLogic->uDevType == DEV_AHA_1540B)
+            {
+                Log(("Command %#x not valid for this adapter\n", pBusLogic->uOperationCode));
+                pBusLogic->cbReplyParametersLeft = 0;
+                pBusLogic->regStatus |= BL_STAT_CMDINV;
+                break;
+            }
+
             PRequestInitializeExtendedMailbox pRequest = (PRequestInitializeExtendedMailbox)pBusLogic->aCommandBuffer;
 
             pBusLogic->cbReplyParametersLeft = 0;
@@ -2098,6 +2199,15 @@ static int buslogicProcessCommand(PBUSLOGIC pBusLogic)
         }
         case BUSLOGICCOMMAND_DISABLE_HOST_ADAPTER_INTERRUPT:
         {
+            /* Not supported on AHA-154x HBAs. */
+            if (pBusLogic->uDevType == DEV_AHA_1540B)
+            {
+                Log(("Command %#x not valid for this adapter\n", pBusLogic->uOperationCode));
+                pBusLogic->cbReplyParametersLeft = 0;
+                pBusLogic->regStatus |= BL_STAT_CMDINV;
+                break;
+            }
+
             pBusLogic->cbReplyParametersLeft = 0;
             if (pBusLogic->aCommandBuffer[0] == 0)
                 pBusLogic->fIRQEnabled = false;
@@ -2176,8 +2286,7 @@ static int buslogicProcessCommand(PBUSLOGIC pBusLogic)
             addr.lo  = pBusLogic->aCommandBuffer[2];
             GCPhysFifoBuf = (RTGCPHYS)ADDR_TO_U32(addr);
             Log(("Read busmaster FIFO at: %04X\n", ADDR_TO_U32(addr)));
-            PDMDevHlpPCIPhysWrite(pBusLogic->CTX_SUFF(pDevIns), GCPhysFifoBuf,
-                                  &pBusLogic->LocalRam.u8View[64], 64);
+            blPhysWrite(pBusLogic, GCPhysFifoBuf, &pBusLogic->LocalRam.u8View[64], 64);
             break;
         }
         default:
@@ -2198,6 +2307,15 @@ static int buslogicProcessCommand(PBUSLOGIC pBusLogic)
 
     Log(("uOperationCode=%#x, cbReplyParametersLeft=%d\n", pBusLogic->uOperationCode, pBusLogic->cbReplyParametersLeft));
 
+    /* Fail command if too much parameter data requested. */
+    if ((pBusLogic->cbCommandParametersLeft + pBusLogic->iParameter) > sizeof(pBusLogic->aCommandBuffer))
+    {
+        Log(("Invalid command parameter length (%u)\n", pBusLogic->cbCommandParametersLeft));
+        pBusLogic->cbReplyParametersLeft   = 0;
+        pBusLogic->cbCommandParametersLeft = 0;
+        pBusLogic->regStatus |= BL_STAT_CMDINV;
+    }
+
     /* Set the data in ready bit in the status register in case the command has a reply. */
     if (pBusLogic->cbReplyParametersLeft)
         pBusLogic->regStatus |= BL_STAT_DIRRDY;
@@ -2217,6 +2335,7 @@ static int buslogicProcessCommand(PBUSLOGIC pBusLogic)
  */
 static int buslogicRegisterRead(PBUSLOGIC pBusLogic, unsigned iRegister, uint32_t *pu32)
 {
+    static const char achAhaSig[] = "ADAP";
     int rc = VINF_SUCCESS;
 
     switch (iRegister)
@@ -2286,7 +2405,13 @@ static int buslogicRegisterRead(PBUSLOGIC pBusLogic, unsigned iRegister, uint32_
         }
         case BUSLOGIC_REGISTER_GEOMETRY:
         {
-            *pu32 = pBusLogic->regGeometry;
+            if (pBusLogic->uDevType == DEV_AHA_1540B)
+            {
+                *pu32 = achAhaSig[pBusLogic->uAhaSigIdx];
+                pBusLogic->uAhaSigIdx = (pBusLogic->uAhaSigIdx + 1) & 3;
+            }
+            else
+                *pu32 = pBusLogic->regGeometry;
             break;
         }
         default:
@@ -2394,12 +2519,19 @@ static int buslogicRegisterWrite(PBUSLOGIC pBusLogic, unsigned iRegister, uint8_
                         break;
                     case BUSLOGICCOMMAND_MODIFY_IO_ADDRESS:
                     case BUSLOGICCOMMAND_INQUIRE_EXTENDED_SETUP_INFORMATION:
-                    case BUSLOGICCOMMAND_INQUIRE_SETUP_INFORMATION:
+                    case BUSLOGICCOMMAND_DISABLE_HOST_ADAPTER_INTERRUPT:
                     case BUSLOGICCOMMAND_INQUIRE_HOST_ADAPTER_MODEL_NUMBER:
+                        /* These commands are not on AHA-154x, some Adaptec drivers (ASPI4DOS.SYS) test them. */
+                        if (pBusLogic->uDevType == DEV_AHA_1540B)
+                        {
+                            pBusLogic->cbCommandParametersLeft = 0;
+                            break;
+                        }
+                        RT_FALL_THRU();
+                    case BUSLOGICCOMMAND_INQUIRE_SETUP_INFORMATION:
                     case BUSLOGICCOMMAND_ENABLE_STRICT_ROUND_ROBIN_MODE:
                     case BUSLOGICCOMMAND_SET_CCB_FORMAT:
                     case BUSLOGICCOMMAND_INQUIRE_SYNCHRONOUS_PERIOD:
-                    case BUSLOGICCOMMAND_DISABLE_HOST_ADAPTER_INTERRUPT:
                     case BUSLOGICCOMMAND_ECHO_COMMAND_DATA:
                     case BUSLOGICCOMMAND_ENABLE_OUTGOING_MAILBOX_AVAILABLE_INTERRUPT:
                     case BUSLOGICCOMMAND_SET_PREEMPT_TIME_ON_BUS:
@@ -2421,6 +2553,12 @@ static int buslogicRegisterWrite(PBUSLOGIC pBusLogic, unsigned iRegister, uint8_
                         pBusLogic->cbCommandParametersLeft = sizeof(RequestInitMbx);
                         break;
                     case BUSLOGICCOMMAND_INITIALIZE_EXTENDED_MAILBOX:
+                        /* Some Adaptec drivers (ASPI4DOS.SYS) test this command. */
+                        if (pBusLogic->uDevType == DEV_AHA_1540B)
+                        {
+                            pBusLogic->cbCommandParametersLeft = 0;
+                            break;
+                        }
                         pBusLogic->cbCommandParametersLeft = sizeof(RequestInitializeExtendedMailbox);
                         break;
                     case BUSLOGICCOMMAND_SET_ADAPTER_OPTIONS:
@@ -2475,10 +2613,14 @@ static int buslogicRegisterWrite(PBUSLOGIC pBusLogic, unsigned iRegister, uint8_
          * That is different from Adaptec 154x where those are read only.
          */
         case BUSLOGIC_REGISTER_INTERRUPT:
+            if (pBusLogic->uDevType == DEV_AHA_1540B)
+                break;
             pBusLogic->regInterrupt = uVal;
             break;
 
         case BUSLOGIC_REGISTER_GEOMETRY:
+            if (pBusLogic->uDevType == DEV_AHA_1540B)
+                break;
             pBusLogic->regGeometry = uVal;
             break;
 
@@ -3272,7 +3414,7 @@ static int buslogicR3ProcessMailboxNext(PBUSLOGIC pBusLogic)
     /* We got the mailbox, mark it as free in the guest. */
     uint8_t uActionCode = BUSLOGIC_MAILBOX_OUTGOING_ACTION_FREE;
     unsigned uCodeOffs = pBusLogic->fMbxIs24Bit ? RT_OFFSETOF(Mailbox24, uCmdState) : RT_OFFSETOF(Mailbox32, u.out.uActionCode);
-    PDMDevHlpPCIPhysWrite(pBusLogic->CTX_SUFF(pDevIns), GCPhysAddrMailboxCurrent + uCodeOffs, &uActionCode, sizeof(uActionCode));
+    blPhysWrite(pBusLogic, GCPhysAddrMailboxCurrent + uCodeOffs, &uActionCode, sizeof(uActionCode));
 
     if (MailboxGuest.u.out.uActionCode == BUSLOGIC_MAILBOX_OUTGOING_ACTION_START_COMMAND)
         rc = buslogicR3DeviceSCSIRequestSetup(pBusLogic, (RTGCPHYS)MailboxGuest.u32PhysAddrCCB);
@@ -3697,6 +3839,7 @@ static DECLCALLBACK(int) buslogicR3WorkerWakeUp(PPDMDEVINS pDevIns, PPDMTHREAD p
  */
 static DECLCALLBACK(void) buslogicR3Info(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, const char *pszArgs)
 {
+    static const char *apszModels[] = { "BusLogic BT-958D", "BusLogic BT-545C", "Adaptec AHA-1540B" };
     PBUSLOGIC   pThis = PDMINS_2_DATA(pDevIns, PBUSLOGIC);
     unsigned    i;
     bool        fVerbose = false;
@@ -3706,12 +3849,19 @@ static DECLCALLBACK(void) buslogicR3Info(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp,
         fVerbose = strstr(pszArgs, "verbose") != NULL;
 
     /* Show basic information. */
-    pHlp->pfnPrintf(pHlp,
-                    "%s#%d: PCI I/O=%RTiop ISA I/O=%RTiop MMIO=%RGp IRQ=%u GC=%RTbool R0=%RTbool\n",
+    pHlp->pfnPrintf(pHlp, "%s#%d: %s ",
                     pDevIns->pReg->szName,
                     pDevIns->iInstance,
-                    pThis->IOPortBase, pThis->IOISABase, pThis->MMIOBase,
-                    PCIDevGetInterruptLine(&pThis->dev),
+                    pThis->uDevType >= RT_ELEMENTS(apszModels) ? "Uknown model" : apszModels[pThis->uDevType]);
+    if (pThis->uIsaIrq)
+        pHlp->pfnPrintf(pHlp, "ISA I/O=%RTiop IRQ=%u ",
+                        pThis->IOISABase,
+                        pThis->uIsaIrq);
+    else
+        pHlp->pfnPrintf(pHlp, "PCI I/O=%RTiop ISA I/O=%RTiop MMIO=%RGp IRQ=%u ",
+                        pThis->IOPortBase, pThis->IOISABase, pThis->MMIOBase,
+                        PCIDevGetInterruptLine(&pThis->dev));
+    pHlp->pfnPrintf(pHlp, "GC=%RTbool R0=%RTbool\n",
                     !!pThis->fGCEnabled, !!pThis->fR0Enabled);
 
     /* Print mailbox state. */
@@ -4065,7 +4215,7 @@ static DECLCALLBACK(int) buslogicR3Construct(PPDMDEVINS pDevIns, int iInstance, 
     PBUSLOGIC  pThis = PDMINS_2_DATA(pDevIns, PBUSLOGIC);
     int        rc = VINF_SUCCESS;
     bool       fBootable = true;
-    char       achISACompat[16];
+    char       achCfgStr[16];
     PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
 
     /*
@@ -4098,6 +4248,7 @@ static DECLCALLBACK(int) buslogicR3Construct(PPDMDEVINS pDevIns, int iInstance, 
                               "GCEnabled\0"
                               "R0Enabled\0"
                               "Bootable\0"
+                              "AdapterType\0"
                               "ISACompat\0"))
         return PDMDEV_SET_ERROR(pDevIns, VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES,
                                 N_("BusLogic configuration error: unknown option specified"));
@@ -4119,41 +4270,71 @@ static DECLCALLBACK(int) buslogicR3Construct(PPDMDEVINS pDevIns, int iInstance, 
                                 N_("BusLogic configuration error: failed to read Bootable as boolean"));
     Log(("%s: fBootable=%RTbool\n", __FUNCTION__, fBootable));
 
+    /* Figure out the emulated device type. */
+    rc = CFGMR3QueryStringDef(pCfg, "AdapterType", achCfgStr, sizeof(achCfgStr), "BT-958D");
+    if (RT_FAILURE(rc))
+        return PDMDEV_SET_ERROR(pDevIns, rc,
+                                N_("BusLogic configuration error: failed to read AdapterType as string"));
+    Log(("%s: AdapterType=%s\n", __FUNCTION__, achCfgStr));
+
+    /* Grok the AdapterType setting. */
+    if (!strcmp(achCfgStr, "BT-958D"))          /* Default PCI device, 32-bit and 24-bit addressing. */
+    {
+        pThis->uDevType = DEV_BT_958D;
+        pThis->uDefaultISABaseCode = ISA_BASE_DISABLED;
+    }
+    else if (!strcmp(achCfgStr, "BT-545C"))     /* ISA device, 24-bit addressing only. */
+    {
+        pThis->uDevType = DEV_BT_545C;
+        pThis->uIsaIrq = 11;
+    }
+    else if (!strcmp(achCfgStr, "AHA-1540B"))   /* Competitor ISA device. */
+    {
+        pThis->uDevType = DEV_AHA_1540B;
+        pThis->uIsaIrq = 11;
+    }
+    else
+        return PDMDEV_SET_ERROR(pDevIns, VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES,
+                                N_("BusLogic configuration error: invalid AdapterType setting"));
+
     /* Only the first instance defaults to having the ISA compatibility ports enabled. */
     if (iInstance == 0)
-        rc = CFGMR3QueryStringDef(pCfg, "ISACompat", achISACompat, sizeof(achISACompat), "Alternate");
+        rc = CFGMR3QueryStringDef(pCfg, "ISACompat", achCfgStr, sizeof(achCfgStr), "Alternate");
     else
-        rc = CFGMR3QueryStringDef(pCfg, "ISACompat", achISACompat, sizeof(achISACompat), "Disabled");
+        rc = CFGMR3QueryStringDef(pCfg, "ISACompat", achCfgStr, sizeof(achCfgStr), "Disabled");
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("BusLogic configuration error: failed to read ISACompat as string"));
-    Log(("%s: ISACompat=%s\n", __FUNCTION__, achISACompat));
+    Log(("%s: ISACompat=%s\n", __FUNCTION__, achCfgStr));
 
     /* Grok the ISACompat setting. */
-    if (!strcmp(achISACompat, "Disabled"))
+    if (!strcmp(achCfgStr, "Disabled"))
         pThis->uDefaultISABaseCode = ISA_BASE_DISABLED;
-    else if (!strcmp(achISACompat, "Primary"))
+    else if (!strcmp(achCfgStr, "Primary"))
         pThis->uDefaultISABaseCode = 0;     /* I/O base at 330h. */
-    else if (!strcmp(achISACompat, "Alternate"))
+    else if (!strcmp(achCfgStr, "Alternate"))
         pThis->uDefaultISABaseCode = 1;     /* I/O base at 334h. */
     else
         return PDMDEV_SET_ERROR(pDevIns, VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES,
                                 N_("BusLogic configuration error: invalid ISACompat setting"));
 
     /*
-     * Register the PCI device and its I/O regions.
+     * Register the PCI device and its I/O regions if applicable.
      */
-    rc = PDMDevHlpPCIRegister(pDevIns, &pThis->dev);
-    if (RT_FAILURE(rc))
-        return rc;
+    if (!pThis->uIsaIrq)
+    {
+        rc = PDMDevHlpPCIRegister(pDevIns, &pThis->dev);
+        if (RT_FAILURE(rc))
+            return rc;
 
-    rc = PDMDevHlpPCIIORegionRegister(pDevIns, 0, 32, PCI_ADDRESS_SPACE_IO, buslogicR3MmioMap);
-    if (RT_FAILURE(rc))
-        return rc;
+        rc = PDMDevHlpPCIIORegionRegister(pDevIns, 0, 32, PCI_ADDRESS_SPACE_IO, buslogicR3MmioMap);
+        if (RT_FAILURE(rc))
+            return rc;
 
-    rc = PDMDevHlpPCIIORegionRegister(pDevIns, 1, 32, PCI_ADDRESS_SPACE_MEM, buslogicR3MmioMap);
-    if (RT_FAILURE(rc))
-        return rc;
+        rc = PDMDevHlpPCIIORegionRegister(pDevIns, 1, 32, PCI_ADDRESS_SPACE_MEM, buslogicR3MmioMap);
+        if (RT_FAILURE(rc))
+            return rc;
+    }
 
     if (fBootable)
     {

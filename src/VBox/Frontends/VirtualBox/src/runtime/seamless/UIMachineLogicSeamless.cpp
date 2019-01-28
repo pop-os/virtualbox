@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,32 +15,26 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# ifndef VBOX_WS_MAC
-#  include <QTimer>
-# endif /* !VBOX_WS_MAC */
+#ifndef VBOX_WS_MAC
+# include <QTimer>
+#endif /* !VBOX_WS_MAC */
 
 /* GUI includes: */
-# include "VBoxGlobal.h"
-# include "UIMessageCenter.h"
-# include "UIPopupCenter.h"
-# include "UISession.h"
-# include "UIActionPoolRuntime.h"
-# include "UIMachineLogicSeamless.h"
-# include "UIMachineWindowSeamless.h"
-# include "UIMultiScreenLayout.h"
-# include "UIShortcutPool.h"
-# ifndef VBOX_WS_MAC
-#  include "QIMenu.h"
-# else  /* VBOX_WS_MAC */
-#  include "VBoxUtils.h"
-# endif /* VBOX_WS_MAC */
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "VBoxGlobal.h"
+#include "UIMessageCenter.h"
+#include "UIPopupCenter.h"
+#include "UISession.h"
+#include "UIActionPoolRuntime.h"
+#include "UIMachineLogicSeamless.h"
+#include "UIMachineWindowSeamless.h"
+#include "UIMultiScreenLayout.h"
+#include "UIShortcutPool.h"
+#ifndef VBOX_WS_MAC
+# include "QIMenu.h"
+#else  /* VBOX_WS_MAC */
+# include "VBoxUtils.h"
+#endif /* VBOX_WS_MAC */
 
 
 UIMachineLogicSeamless::UIMachineLogicSeamless(QObject *pParent, UISession *pSession)
@@ -51,13 +45,11 @@ UIMachineLogicSeamless::UIMachineLogicSeamless(QObject *pParent, UISession *pSes
 {
     /* Create multiscreen layout: */
     m_pScreenLayout = new UIMultiScreenLayout(this);
-    actionPool()->toRuntime()->setMultiScreenLayout(m_pScreenLayout);
 }
 
 UIMachineLogicSeamless::~UIMachineLogicSeamless()
 {
     /* Delete multiscreen layout: */
-    actionPool()->toRuntime()->unsetMultiScreenLayout(m_pScreenLayout);
     delete m_pScreenLayout;
 }
 

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,13 +23,17 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_vmm_hm_h
-#define ___VBox_vmm_hm_h
+#ifndef VBOX_INCLUDED_vmm_hm_h
+#define VBOX_INCLUDED_vmm_hm_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/vmm/pgm.h>
 #include <VBox/vmm/cpum.h>
 #include <VBox/vmm/vmm.h>
 #include <VBox/vmm/hm_svm.h>
+#include <VBox/vmm/hm_vmx.h>
 #include <VBox/vmm/trpm.h>
 #include <iprt/mp.h>
 
@@ -45,10 +49,11 @@ RT_C_DECLS_BEGIN
  * Checks whether HM (VT-x/AMD-V) is being used by this VM.
  *
  * @retval  true if used.
- * @retval  false if software virtualization (raw-mode) is used.
+ * @retval  false if software virtualization (raw-mode) or NEM is used.
  *
  * @param   a_pVM       The cross context VM structure.
- * @sa      HMIsEnabledNotMacro, HMR3IsEnabled
+ * @deprecated Please use VM_IS_RAW_MODE_ENABLED, VM_IS_HM_OR_NEM_ENABLED, or
+ *             VM_IS_HM_ENABLED instead.
  * @internal
  */
 #if defined(VBOX_STRICT) && defined(IN_RING3)
@@ -58,38 +63,19 @@ RT_C_DECLS_BEGIN
 #endif
 
 /**
- * Checks whether raw-mode context is required for any purpose.
+ * Checks whether raw-mode context is required for HM purposes
  *
- * @retval  true if required either by raw-mode itself or by HM for doing
- *          switching the cpu to 64-bit mode.
- * @retval  false if not required.
+ * @retval  true if required by HM for doing switching the cpu to 64-bit mode.
+ * @retval  false if not required by HM.
  *
  * @param   a_pVM       The cross context VM structure.
  * @internal
  */
 #if HC_ARCH_BITS == 64
-# define HMIsRawModeCtxNeeded(a_pVM)        (!HMIsEnabled(a_pVM))
+# define HMIsRawModeCtxNeeded(a_pVM)        (false)
 #else
-# define HMIsRawModeCtxNeeded(a_pVM)        (!HMIsEnabled(a_pVM) || (a_pVM)->fHMNeedRawModeCtx)
+# define HMIsRawModeCtxNeeded(a_pVM)        ((a_pVM)->fHMNeedRawModeCtx)
 #endif
-
- /**
- * Check if the current CPU state is valid for emulating IO blocks in the recompiler
- *
- * @returns boolean
- * @param   a_pVCpu     Pointer to the shared virtual CPU structure.
- * @internal
- */
-#define HMCanEmulateIoBlock(a_pVCpu)        (!CPUMIsGuestInPagedProtectedMode(a_pVCpu))
-
- /**
- * Check if the current CPU state is valid for emulating IO blocks in the recompiler
- *
- * @returns boolean
- * @param   a_pCtx      Pointer to the CPU context (within PVM).
- * @internal
- */
-#define HMCanEmulateIoBlockEx(a_pCtx)       (!CPUMIsGuestInPagedProtectedModeEx(a_pCtx))
 
 /**
  * Checks whether we're in the special hardware virtualization context.
@@ -143,50 +129,93 @@ typedef enum HM64ON32OP
 /** @name All-context HM API.
  * @{ */
 VMMDECL(bool)                   HMIsEnabledNotMacro(PVM pVM);
+VMMDECL(bool)                   HMCanExecuteGuest(PVMCPU pVCpu, PCCPUMCTX pCtx);
 VMM_INT_DECL(int)               HMInvalidatePage(PVMCPU pVCpu, RTGCPTR GCVirt);
 VMM_INT_DECL(bool)              HMHasPendingIrq(PVM pVM);
 VMM_INT_DECL(PX86PDPE)          HMGetPaePdpes(PVMCPU pVCpu);
-VMM_INT_DECL(int)               HMAmdIsSubjectToErratum170(uint32_t *pu32Family, uint32_t *pu32Model, uint32_t *pu32Stepping);
 VMM_INT_DECL(bool)              HMSetSingleInstruction(PVM pVM, PVMCPU pVCpu, bool fEnable);
-VMM_INT_DECL(void)              HMHypercallsEnable(PVMCPU pVCpu);
-VMM_INT_DECL(void)              HMHypercallsDisable(PVMCPU pVCpu);
+VMM_INT_DECL(bool)              HMIsSvmActive(PVM pVM);
+VMM_INT_DECL(bool)              HMIsVmxActive(PVM pVM);
+VMM_INT_DECL(const char *)      HMGetVmxDiagDesc(VMXVDIAG enmDiag);
+VMM_INT_DECL(const char *)      HMGetVmxAbortDesc(VMXABORT enmAbort);
+VMM_INT_DECL(const char *)      HMGetVmxVmcsStateDesc(uint8_t fVmcsState);
+VMM_INT_DECL(const char *)      HMGetVmxIdtVectoringInfoTypeDesc(uint8_t uType);
+VMM_INT_DECL(const char *)      HMGetVmxExitIntInfoTypeDesc(uint8_t uType);
+VMM_INT_DECL(const char *)      HMGetVmxEntryIntInfoTypeDesc(uint8_t uType);
+VMM_INT_DECL(const char *)      HMGetVmxExitName(uint32_t uExit);
+VMM_INT_DECL(const char *)      HMGetSvmExitName(uint32_t uExit);
+VMM_INT_DECL(void)              HMDumpHwvirtVmxState(PVMCPU pVCpu);
+VMM_INT_DECL(void)              HMHCChangedPagingMode(PVM pVM, PVMCPU pVCpu, PGMMODE enmShadowMode, PGMMODE enmGuestMode);
+VMM_INT_DECL(void)              HMGetVmxMsrsFromHwvirtMsrs(PCSUPHWVIRTMSRS pMsrs, PVMXMSRS pVmxMsrs);
+VMM_INT_DECL(void)              HMGetSvmMsrsFromHwvirtMsrs(PCSUPHWVIRTMSRS pMsrs, PSVMMSRS pSvmMsrs);
+/** @} */
+
+/** @name All-context VMX helpers.
+ *
+ * These are hardware-assisted VMX functions (used by IEM/REM/CPUM and HM). Helpers
+ * based purely on the Intel VT-x specification (used by IEM/REM and HM) can be
+ * found in CPUM.
+ * @{ */
+VMM_INT_DECL(bool)              HMCanExecuteVmxGuest(PVMCPU pVCpu, PCCPUMCTX pCtx);
 /** @} */
 
 /** @name All-context SVM helpers.
+ *
+ * These are hardware-assisted SVM functions (used by IEM/REM/CPUM and HM). Helpers
+ * based purely on the AMD SVM specification (used by IEM/REM and HM) can be found
+ * in CPUM.
  * @{ */
 VMM_INT_DECL(TRPMEVENT)         HMSvmEventToTrpmEventType(PCSVMEVENT pSvmEvent);
-VMM_INT_DECL(int)               HMSvmGetMsrpmOffsetAndBit(uint32_t idMsr, uint16_t *pbOffMsrpm, uint32_t *puMsrpmBit);
-VMM_INT_DECL(bool)              HMSvmIsIOInterceptActive(void *pvIoBitmap, uint16_t u16Port, SVMIOIOTYPE enmIoType, uint8_t cbReg,
-                                                         uint8_t cAddrSizeBits, uint8_t iEffSeg, bool fRep, bool fStrIo,
-                                                         PSVMIOIOEXITINFO pIoExitInfo);
-VMM_INT_DECL(VBOXSTRICTRC)      HMSvmVmmcall(PVMCPU pVCpu, PCPUMCTX pCtx, bool *pfRipUpdated);
-/** @} */
-
-/** @name Nested hardware virtualization.
- * @{
- */
-#ifdef VBOX_WITH_NESTED_HWVIRT
-VMM_INT_DECL(void)              HMSvmNstGstVmExitNotify(PVMCPU pVCpu, PCPUMCTX pCtx);
-#endif
 /** @} */
 
 #ifndef IN_RC
-VMM_INT_DECL(int)               HMFlushTLB(PVMCPU pVCpu);
-VMM_INT_DECL(int)               HMFlushTLBOnAllVCpus(PVM pVM);
+
+/** @name R0, R3 HM (VMX/SVM agnostic) handlers.
+ * @{ */
+VMM_INT_DECL(int)               HMFlushTlb(PVMCPU pVCpu);
+VMM_INT_DECL(int)               HMFlushTlbOnAllVCpus(PVM pVM);
 VMM_INT_DECL(int)               HMInvalidatePageOnAllVCpus(PVM pVM, RTGCPTR GCVirt);
 VMM_INT_DECL(int)               HMInvalidatePhysPage(PVM pVM, RTGCPHYS GCPhys);
-VMM_INT_DECL(bool)              HMIsNestedPagingActive(PVM pVM);
 VMM_INT_DECL(bool)              HMAreNestedPagingAndFullGuestExecEnabled(PVM pVM);
 VMM_INT_DECL(bool)              HMIsLongModeAllowed(PVM pVM);
-VMM_INT_DECL(bool)              HMAreMsrBitmapsAvailable(PVM pVM);
-VMM_INT_DECL(PGMMODE)           HMGetShwPagingMode(PVM pVM);
+VMM_INT_DECL(bool)              HMIsNestedPagingActive(PVM pVM);
+VMM_INT_DECL(bool)              HMIsMsrBitmapActive(PVM pVM);
+/** @} */
+
+/** @name R0, R3 SVM handlers.
+ * @{ */
+VMM_INT_DECL(bool)              HMIsSvmVGifActive(PVM pVM);
+VMM_INT_DECL(uint64_t)          HMApplySvmNstGstTscOffset(PVMCPU pVCpu, uint64_t uTicks);
+# ifdef VBOX_WITH_NESTED_HWVIRT_SVM
+VMM_INT_DECL(void)              HMNotifySvmNstGstVmexit(PVMCPU pVCpu, PCPUMCTX pCtx);
+# endif
+VMM_INT_DECL(int)               HMIsSubjectToSvmErratum170(uint32_t *pu32Family, uint32_t *pu32Model, uint32_t *pu32Stepping);
+VMM_INT_DECL(int)               HMHCMaybeMovTprSvmHypercall(PVMCPU pVCpu);
+/** @} */
+
 #else /* Nops in RC: */
-# define HMFlushTLB(pVCpu)                              do { } while (0)
-# define HMIsNestedPagingActive(pVM)                    false
-# define HMAreNestedPagingAndFullGuestExecEnabled(pVM)  false
-# define HMIsLongModeAllowed(pVM)                       false
-# define HMAreMsrBitmapsAvailable(pVM)                  false
-# define HMFlushTLBOnAllVCpus(pVM)                      do { } while (0)
+
+/** @name RC HM (VMX/SVM agnostic) handlers.
+ * @{ */
+# define HMFlushTlb(pVCpu)                                            do { } while (0)
+# define HMFlushTlbOnAllVCpus(pVM)                                    do { } while (0)
+# define HMInvalidatePageOnAllVCpus(pVM, GCVirt)                      do { } while (0)
+# define HMInvalidatePhysPage(pVM,  GCVirt)                           do { } while (0)
+# define HMAreNestedPagingAndFullGuestExecEnabled(pVM)                false
+# define HMIsLongModeAllowed(pVM)                                     false
+# define HMIsNestedPagingActive(pVM)                                  false
+# define HMIsMsrBitmapsActive(pVM)                                    false
+/** @} */
+
+/** @name RC SVM handlers.
+ * @{ */
+# define HMIsSvmVGifActive(pVM)                                       false
+# define HMApplySvmNstGstTscOffset(pVCpu, uTicks)                     (uTicks)
+# define HMNotifySvmNstGstVmexit(pVCpu, pCtx)                         do { } while (0)
+# define HMIsSubjectToSvmErratum170(puFamily, puModel, puStepping)    false
+# define HMHCMaybeMovTprSvmHypercall(pVCpu)                           do { } while (0)
+/** @} */
+
 #endif
 
 #ifdef IN_RING0
@@ -203,25 +232,22 @@ VMMR0_INT_DECL(int)             HMR0EnterSwitcher(PVM pVM, VMMSWITCHER enmSwitch
 VMMR0_INT_DECL(void)            HMR0LeaveSwitcher(PVM pVM, bool fVTxDisabled);
 # endif
 
-VMMR0_INT_DECL(void)            HMR0SavePendingIOPortRead(PVMCPU pVCpu, RTGCPTR GCPtrRip, RTGCPTR GCPtrRipNext,
-                                                          unsigned uPort, unsigned uAndVal, unsigned cbSize);
 VMMR0_INT_DECL(int)             HMR0SetupVM(PVM pVM);
 VMMR0_INT_DECL(int)             HMR0RunGuestCode(PVM pVM, PVMCPU pVCpu);
-VMMR0_INT_DECL(int)             HMR0Enter(PVM pVM, PVMCPU pVCpu);
-VMMR0_INT_DECL(int)             HMR0EnterCpu(PVMCPU pVCpu);
+VMMR0_INT_DECL(int)             HMR0Enter(PVMCPU pVCpu);
 VMMR0_INT_DECL(int)             HMR0LeaveCpu(PVMCPU pVCpu);
 VMMR0_INT_DECL(void)            HMR0ThreadCtxCallback(RTTHREADCTXEVENT enmEvent, void *pvUser);
 VMMR0_INT_DECL(void)            HMR0NotifyCpumUnloadedGuestFpuState(PVMCPU VCpu);
 VMMR0_INT_DECL(void)            HMR0NotifyCpumModifiedHostCr0(PVMCPU VCpu);
 VMMR0_INT_DECL(bool)            HMR0SuspendPending(void);
+VMMR0_INT_DECL(int)             HMR0InvalidatePage(PVMCPU pVCpu, RTGCPTR GCVirt);
+VMMR0_INT_DECL(int)             HMR0ImportStateOnDemand(PVMCPU pVCpu, uint64_t fWhat);
 
 # if HC_ARCH_BITS == 32 && defined(VBOX_WITH_64_BITS_GUESTS)
 VMMR0_INT_DECL(int)             HMR0SaveFPUState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx);
 VMMR0_INT_DECL(int)             HMR0SaveDebugState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx);
 VMMR0_INT_DECL(int)             HMR0TestSwitcher3264(PVM pVM);
 # endif
-
-VMMR0_INT_DECL(int)             HMR0EnsureCompleteBasicContext(PVMCPU pVCpu, PCPUMCTX pMixedCtx);
 
 /** @} */
 #endif /* IN_RING0 */
@@ -248,21 +274,14 @@ VMMR3_INT_DECL(int)             HMR3Term(PVM pVM);
 VMMR3_INT_DECL(void)            HMR3Reset(PVM pVM);
 VMMR3_INT_DECL(void)            HMR3ResetCpu(PVMCPU pVCpu);
 VMMR3_INT_DECL(void)            HMR3CheckError(PVM pVM, int iStatusCode);
-VMMR3DECL(bool)                 HMR3CanExecuteGuest(PVM pVM, PCPUMCTX pCtx);
-VMMR3_INT_DECL(void)            HMR3NotifyScheduled(PVMCPU pVCpu);
-VMMR3_INT_DECL(void)            HMR3NotifyEmulated(PVMCPU pVCpu);
 VMMR3_INT_DECL(void)            HMR3NotifyDebugEventChanged(PVM pVM);
 VMMR3_INT_DECL(void)            HMR3NotifyDebugEventChangedPerCpu(PVM pVM, PVMCPU pVCpu);
 VMMR3_INT_DECL(bool)            HMR3IsActive(PVMCPU pVCpu);
-VMMR3_INT_DECL(void)            HMR3PagingModeChanged(PVM pVM, PVMCPU pVCpu, PGMMODE enmShadowMode, PGMMODE enmGuestMode);
-VMMR3_INT_DECL(int)             HMR3EmulateIoBlock(PVM pVM, PCPUMCTX pCtx);
-VMMR3_INT_DECL(VBOXSTRICTRC)    HMR3RestartPendingIOInstr(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx);
 VMMR3_INT_DECL(int)             HMR3EnablePatching(PVM pVM, RTGCPTR pPatchMem, unsigned cbPatchMem);
 VMMR3_INT_DECL(int)             HMR3DisablePatching(PVM pVM, RTGCPTR pPatchMem, unsigned cbPatchMem);
-VMMR3_INT_DECL(int)             HMR3PatchTprInstr(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx);
+VMMR3_INT_DECL(int)             HMR3PatchTprInstr(PVM pVM, PVMCPU pVCpu);
 VMMR3_INT_DECL(bool)            HMR3IsRescheduleRequired(PVM pVM, PCPUMCTX pCtx);
 VMMR3_INT_DECL(bool)            HMR3IsVmxPreemptionTimerUsed(PVM pVM);
-VMMR3_INT_DECL(void)            HMR3InfoSvmVmcbCtrl(PCDBGFINFOHLP pHlp, PCSVMVMCBCTRL pVmcbCtrl, const char *pszPrefix);
 /** @} */
 #endif /* IN_RING3 */
 
@@ -270,5 +289,5 @@ VMMR3_INT_DECL(void)            HMR3InfoSvmVmcbCtrl(PCDBGFINFOHLP pHlp, PCSVMVMC
 RT_C_DECLS_END
 
 
-#endif
+#endif /* !VBOX_INCLUDED_vmm_hm_h */
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -538,7 +538,7 @@ VMMR3DECL(int) PGMR3MappingsFix(PVM pVM, RTGCPTR GCPtrBase, uint32_t cb)
     RT_NOREF(pVM, GCPtrBase, cb);
 #endif /* PGM_WITHOUT_MAPPINGS */
 
-    Assert(HMIsEnabled(pVM));
+    Assert(!VM_IS_RAW_MODE_ENABLED(pVM));
     return VINF_SUCCESS;
 }
 

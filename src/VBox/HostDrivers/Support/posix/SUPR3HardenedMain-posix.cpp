@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017 Oracle Corporation
+ * Copyright (C) 2017-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -215,8 +215,8 @@ DECLASM(bool) supR3HardenedPosixMonitor_VerifyLibrary(const char *pszFilename)
 static void *supR3HardenedMainPosixGetStartBySymbol(const char *pszSymbol, PFNSUPHARDENEDSYMRESOLVE pfnResolve)
 {
 #ifndef RT_OS_SOLARIS
-    return dlsym(RTLD_DEFAULT, pszSymbol);
     RT_NOREF(pfnResolve);
+    return dlsym(RTLD_DEFAULT, pszSymbol);
 
 #else  /* RT_OS_SOLARIS */
     /*
@@ -530,7 +530,7 @@ static int supR3HardenedMainPosixHookOne(const char *pszSymbol, PFNRT pfnHook, P
         return VERR_NO_MEMORY;
 
     /* Assemble the code for resuming the call.*/
-    *ppfnReal = (PFNRT)pbPatchMem;
+    *ppfnReal = (PFNRT)(uintptr_t)pbPatchMem;
 
     /* Go through the instructions to patch and fixup any relative call instructions. */
     uint32_t offInsn = 0;
@@ -682,7 +682,7 @@ RTDECL(void) RTAssertMsg1(const char *pszExpr, unsigned uLine, const char *pszFi
     snprintf(g_szRTAssertMsg1, sizeof(g_szRTAssertMsg1),
              "\n!!Assertion Failed!!\n"
              "Expression: %s\n"
-             "Location  : %s(%d) %s\n",
+             "Location  : %s(%u) %s\n",
              pszExpr, pszFile, uLine, pszFunction);
 }
 

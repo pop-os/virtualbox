@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,7 +24,7 @@
 
 #include <iprt/cpp/utils.h>
 
-#include <VBox/err.h>
+#include <iprt/errcore.h>
 
 #include <VBox/RemoteDesktop/VRDE.h>
 #include <VBox/vrdpusb.h>
@@ -107,10 +107,9 @@ HRESULT RemoteUSBDevice::init(uint32_t u32ClientId, VRDEUSBDEVICEDESC *pDevDesc,
     else
     {
         unconst(mData.portVersion)  = mData.version;
-        unconst(mData.speed) = mData.version == 3
-                             ? (USBConnectionSpeed_T)USBConnectionSpeed_Super
-                             : mData.version == 2 ? (USBConnectionSpeed_T)USBConnectionSpeed_High
-                                                  : (USBConnectionSpeed_T)USBConnectionSpeed_Full;
+        unconst(mData.speed) = mData.version == 3 ? USBConnectionSpeed_Super
+                             : mData.version == 2 ? USBConnectionSpeed_High
+                             :                      USBConnectionSpeed_Full;
     }
 
     mData.state                  = USBDeviceState_Available;

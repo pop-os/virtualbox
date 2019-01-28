@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,14 +23,22 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_hgcm_h
-#define ___VBox_hgcm_h
+#ifndef VBOX_INCLUDED_hgcmsvc_h
+#define VBOX_INCLUDED_hgcmsvc_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/assert.h>
+#include <iprt/stdarg.h>
 #include <iprt/string.h>
 #include <VBox/cdefs.h>
 #include <VBox/types.h>
-#include <VBox/err.h>
+#include <iprt/err.h>
+#ifdef IN_RING3
+# include <VBox/vmm/stam.h>
+# include <VBox/vmm/dbgf.h>
+#endif
 #ifdef VBOX_TEST_HGCM_PARMS
 # include <iprt/test.h>
 #endif
@@ -61,8 +69,16 @@
  * 4.1->4.2 Because the VBOX_HGCM_SVC_PARM_CALLBACK parameter type was added
  * 4.2->5.1 Removed the VBOX_HGCM_SVC_PARM_CALLBACK parameter type, as
  *          this problem is already solved by service extension callbacks
+ * 5.1->6.1 Because pfnCall got a new parameter. Also new helpers. (VBox 6.0)
+ * 6.1->6.2 Because pfnCallComplete starts returning a status code (VBox 6.0).
+ * 6.2->6.3 Because pfnGetRequestor was added (VBox 6.0).
+ * 6.3->6.4 Bacause pfnConnect got an additional parameter (VBox 6.0).
+ * 6.4->6.5 Bacause pfnGetVMMDevSessionId was added pfnLoadState got the version
+ *          parameter (VBox 6.0).
+ * 6.5->7.1 Because pfnNotify was added (VBox 6.0).
+ * 7.1->8.1 Because pfnCancelled & pfnIsCallCancelled were added (VBox 6.0).
  */
-#define VBOX_HGCM_SVC_VERSION_MAJOR (0x0005)
+#define VBOX_HGCM_SVC_VERSION_MAJOR (0x0008)
 #define VBOX_HGCM_SVC_VERSION_MINOR (0x0001)
 #define VBOX_HGCM_SVC_VERSION ((VBOX_HGCM_SVC_VERSION_MAJOR << 16) + VBOX_HGCM_SVC_VERSION_MINOR)
 
@@ -75,15 +91,116 @@ typedef struct VBOXHGCMCALLHANDLE_TYPEDEF *VBOXHGCMCALLHANDLE;
 typedef struct VBOXHGCMSVCHELPERS
 {
     /** The service has processed the Call request. */
-    DECLR3CALLBACKMEMBER(void, pfnCallComplete, (VBOXHGCMCALLHANDLE callHandle, int32_t rc));
+    DECLR3CALLBACKMEMBER(int, pfnCallComplete, (VBOXHGCMCALLHANDLE callHandle, int32_t rc));
 
     void *pvInstance;
 
     /** The service disconnects the client. */
     DECLR3CALLBACKMEMBER(void, pfnDisconnectClient, (void *pvInstance, uint32_t u32ClientID));
+
+    /**
+     * Check if the @a callHandle is for a call restored and re-submitted from saved state.
+     *
+     * @returns true if restored, false if not.
+     * @param   callHandle      The call we're checking up on.
+     */
+    DECLR3CALLBACKMEMBER(bool, pfnIsCallRestored, (VBOXHGCMCALLHANDLE callHandle));
+
+    /**
+     * Check if the @a callHandle is for a cancelled call.
+     *
+     * @returns true if cancelled, false if not.
+     * @param   callHandle      The call we're checking up on.
+     */
+    DECLR3CALLBACKMEMBER(bool, pfnIsCallCancelled, (VBOXHGCMCALLHANDLE callHandle));
+
+    /** Access to STAMR3RegisterV. */
+    DECLR3CALLBACKMEMBER(int, pfnStamRegisterV,(void *pvInstance, void *pvSample, STAMTYPE enmType, STAMVISIBILITY enmVisibility,
+                                                STAMUNIT enmUnit, const char *pszDesc, const char *pszName, va_list va)
+                                                RT_IPRT_FORMAT_ATTR(7, 0));
+    /** Access to STAMR3DeregisterV. */
+    DECLR3CALLBACKMEMBER(int, pfnStamDeregisterV,(void *pvInstance, const char *pszPatFmt, va_list va) RT_IPRT_FORMAT_ATTR(2, 0));
+
+    /** Access to DBGFR3InfoRegisterExternal. */
+    DECLR3CALLBACKMEMBER(int, pfnInfoRegister,(void *pvInstance, const char *pszName, const char *pszDesc,
+                                               PFNDBGFHANDLEREXT pfnHandler, void *pvUser));
+    /** Access to DBGFR3InfoDeregisterExternal. */
+    DECLR3CALLBACKMEMBER(int, pfnInfoDeregister,(void *pvInstance, const char *pszName));
+
+    /**
+     * Retrieves the VMMDevRequestHeader::fRequestor value.
+     *
+     * @returns The field value, VMMDEV_REQUESTOR_LEGACY if not supported by the
+     *          guest, VMMDEV_REQUESTOR_LOWEST if invalid call.
+     * @param   hCall       The call we're checking up on.
+     */
+    DECLR3CALLBACKMEMBER(uint32_t, pfnGetRequestor, (VBOXHGCMCALLHANDLE hCall));
+
+    /**
+     * Retrieves VMMDevState::idSession.
+     *
+     * @returns current VMMDev session ID value.
+     */
+    DECLR3CALLBACKMEMBER(uint64_t, pfnGetVMMDevSessionId, (void *pvInstance));
+
 } VBOXHGCMSVCHELPERS;
 
 typedef VBOXHGCMSVCHELPERS *PVBOXHGCMSVCHELPERS;
+
+#if defined(IN_RING3) || defined(IN_SLICKEDIT)
+
+/** Wrapper around STAMR3RegisterF. */
+DECLINLINE(int) RT_IPRT_FORMAT_ATTR(7, 8)
+HGCMSvcHlpStamRegister(PVBOXHGCMSVCHELPERS pHlp, void *pvSample, STAMTYPE enmType, STAMVISIBILITY enmVisibility,
+                       STAMUNIT enmUnit, const char *pszDesc, const char *pszName, ...)
+{
+    int rc;
+    va_list va;
+    va_start(va, pszName);
+    rc = pHlp->pfnStamRegisterV(pHlp->pvInstance, pvSample, enmType, enmVisibility, enmUnit, pszDesc, pszName, va);
+    va_end(va);
+    return rc;
+}
+
+/** Wrapper around STAMR3RegisterV. */
+DECLINLINE(int) RT_IPRT_FORMAT_ATTR(7, 0)
+HGCMSvcHlpStamRegisterV(PVBOXHGCMSVCHELPERS pHlp, void *pvSample, STAMTYPE enmType, STAMVISIBILITY enmVisibility,
+                        STAMUNIT enmUnit, const char *pszDesc, const char *pszName, va_list va)
+{
+    return pHlp->pfnStamRegisterV(pHlp->pvInstance, pvSample, enmType, enmVisibility, enmUnit, pszDesc, pszName, va);
+}
+
+/** Wrapper around STAMR3DeregisterF. */
+DECLINLINE(int) RT_IPRT_FORMAT_ATTR(2, 3) HGCMSvcHlpStamDeregister(PVBOXHGCMSVCHELPERS pHlp, const char *pszPatFmt, ...)
+{
+    int rc;
+    va_list va;
+    va_start(va, pszPatFmt);
+    rc = pHlp->pfnStamDeregisterV(pHlp->pvInstance, pszPatFmt, va);
+    va_end(va);
+    return rc;
+}
+
+/** Wrapper around STAMR3DeregisterV. */
+DECLINLINE(int) RT_IPRT_FORMAT_ATTR(2, 0) HGCMSvcHlpStamDeregisterV(PVBOXHGCMSVCHELPERS pHlp, const char *pszPatFmt, va_list va)
+{
+    return pHlp->pfnStamDeregisterV(pHlp->pvInstance, pszPatFmt, va);
+}
+
+/** Wrapper around DBGFR3InfoRegisterExternal. */
+DECLINLINE(int) HGCMSvcHlpInfoRegister(PVBOXHGCMSVCHELPERS pHlp, const char *pszName, const char *pszDesc,
+                                       PFNDBGFHANDLEREXT pfnHandler, void *pvUser)
+{
+    return pHlp->pfnInfoRegister(pHlp->pvInstance, pszName, pszDesc, pfnHandler, pvUser);
+}
+
+/** Wrapper around DBGFR3InfoDeregisterExternal. */
+DECLINLINE(int) HGCMSvcHlpInfoDeregister(PVBOXHGCMSVCHELPERS pHlp, const char *pszName)
+{
+    return pHlp->pfnInfoDeregister(pHlp->pvInstance, pszName);
+}
+
+#endif /* IN_RING3 */
 
 
 #define VBOX_HGCM_SVC_PARM_INVALID (0U)
@@ -106,224 +223,221 @@ typedef struct VBOXHGCMSVCPARM
             void *addr;
         } pointer;
     } u;
-#ifdef __cplusplus
-    /** Extract an uint32_t value from an HGCM parameter structure */
-    int getUInt32(uint32_t *u32)
-    {
-        AssertPtrReturn(u32, VERR_INVALID_POINTER);
-        int rc = VINF_SUCCESS;
-        if (type != VBOX_HGCM_SVC_PARM_32BIT)
-            rc = VERR_INVALID_PARAMETER;
-        if (RT_SUCCESS(rc))
-            *u32 = u.uint32;
-        return rc;
-    }
-
-    /** Extract a uint64_t value from an HGCM parameter structure */
-    int getUInt64(uint64_t *u64)
-    {
-        AssertPtrReturn(u64, VERR_INVALID_POINTER);
-        int rc = VINF_SUCCESS;
-        if (type != VBOX_HGCM_SVC_PARM_64BIT)
-            rc = VERR_INVALID_PARAMETER;
-        if (RT_SUCCESS(rc))
-            *u64 = u.uint64;
-        return rc;
-    }
-
-    /** Extract a pointer value from an HGCM parameter structure */
-    int getPointer(void **ppv, uint32_t *pcb)
-    {
-        AssertPtrReturn(ppv, VERR_INVALID_POINTER);
-        AssertPtrReturn(pcb, VERR_INVALID_POINTER);
-        if (type == VBOX_HGCM_SVC_PARM_PTR)
-        {
-            *ppv = u.pointer.addr;
-            *pcb = u.pointer.size;
-            return VINF_SUCCESS;
-        }
-
-        return VERR_INVALID_PARAMETER;
-    }
-
-    /** Extract a constant pointer value from an HGCM parameter structure */
-    int getPointer(const void **ppcv, uint32_t *pcb)
-    {
-        AssertPtrReturn(ppcv, VERR_INVALID_POINTER);
-        AssertPtrReturn(pcb, VERR_INVALID_POINTER);
-        void *pv;
-        int rc = getPointer(&pv, pcb);
-        *ppcv = pv;
-        return rc;
-    }
-
-    /** Extract a pointer value to a non-empty buffer from an HGCM parameter
-     * structure */
-    int getBuffer(void **ppv, uint32_t *pcb)
-    {
-        AssertPtrReturn(ppv, VERR_INVALID_POINTER);
-        AssertPtrReturn(pcb, VERR_INVALID_POINTER);
-        void *pv = NULL;
-        uint32_t cb = 0;
-        int rc = getPointer(&pv, &cb);
-        if (   RT_SUCCESS(rc)
-            && VALID_PTR(pv)
-            && cb > 0)
-        {
-            *ppv = pv;
-            *pcb = cb;
-            return VINF_SUCCESS;
-        }
-
-        return VERR_INVALID_PARAMETER;
-    }
-
-    /** Extract a pointer value to a non-empty constant buffer from an HGCM
-     * parameter structure */
-    int getBuffer(const void **ppcv, uint32_t *pcb)
-    {
-        AssertPtrReturn(ppcv, VERR_INVALID_POINTER);
-        AssertPtrReturn(pcb, VERR_INVALID_POINTER);
-        void *pcv = NULL;
-        int rc = getBuffer(&pcv, pcb);
-        *ppcv = pcv;
-        return rc;
-    }
-
-    /** Extract a string value from an HGCM parameter structure */
-    int getString(char **ppch, uint32_t *pcb)
-    {
-        uint32_t cb = 0;
-        char *pch = NULL;
-        int rc = getBuffer((void **)&pch, &cb);
-        if (RT_FAILURE(rc))
-        {
-            *ppch = NULL;
-            *pcb = 0;
-            return rc;
-        }
-        rc = RTStrValidateEncodingEx(pch, cb,
-                                     RTSTR_VALIDATE_ENCODING_ZERO_TERMINATED);
-        *ppch = pch;
-        *pcb = cb;
-        return rc;
-    }
-
-    /** Extract a constant string value from an HGCM parameter structure */
-    int getString(const char **ppch, uint32_t *pcb)
-    {
-        char *pch = NULL;
-        int rc = getString(&pch, pcb);
-        *ppch = pch;
-        return rc;
-    }
-
-    /** Set a uint32_t value to an HGCM parameter structure */
-    void setUInt32(uint32_t u32)
-    {
-        type = VBOX_HGCM_SVC_PARM_32BIT;
-        u.uint32 = u32;
-    }
-
-    /** Set a uint64_t value to an HGCM parameter structure */
-    void setUInt64(uint64_t u64)
-    {
-        type = VBOX_HGCM_SVC_PARM_64BIT;
-        u.uint64 = u64;
-    }
-
-    /** Set a pointer value to an HGCM parameter structure */
-    void setPointer(void *pv, uint32_t cb)
-    {
-        type = VBOX_HGCM_SVC_PARM_PTR;
-        u.pointer.addr = pv;
-        u.pointer.size = cb;
-    }
-
-    /** Set a const string value to an HGCM parameter structure */
-    void setString(const char *psz)
-    {
-        type = VBOX_HGCM_SVC_PARM_PTR;
-        u.pointer.addr = (void *)psz;
-        u.pointer.size = (uint32_t)strlen(psz) + 1;
-    }
-
-#ifdef ___iprt_cpp_ministring_h
-    /** Set a const string value to an HGCM parameter structure */
-    void setCppString(const RTCString &rString)
-    {
-        type = VBOX_HGCM_SVC_PARM_PTR;
-        u.pointer.addr = (void *)rString.c_str();
-        u.pointer.size = (uint32_t)rString.length() + 1;
-    }
-#endif
-
-#ifdef VBOX_TEST_HGCM_PARMS
-    /** Test the getString member function.  Indirectly tests the getPointer
-     * and getBuffer APIs.
-     * @param  hTest  an running IPRT test
-     * @param  aType  the type that the parameter should be set to before
-     *                calling getString
-     * @param  apcc   the value that the parameter should be set to before
-     *                calling getString, and also the address (!) which we
-     *                expect getString to return.  Stricter than needed of
-     *                course, but I was feeling lazy.
-     * @param  acb    the size that the parameter should be set to before
-     *                calling getString, and also the size which we expect
-     *                getString to return.
-     * @param  rcExp  the expected return value of the call to getString.
-     */
-    void doTestGetString(RTTEST hTest, uint32_t aType, const char *apcc,
-                         uint32_t acb, int rcExp)
-    {
-        /* An RTTest API like this, which would print out an additional line
-         * of context if a test failed, would be nice.  This is because the
-         * line number alone doesn't help much here, given that this is a
-         * subroutine called many times. */
-        /*
-        RTTestContextF(hTest,
-                       ("doTestGetString, aType=%u, apcc=%p, acp=%u, rcExp=%Rrc",
-                        aType, apcc, acp, rcExp));
-         */
-        setPointer((void *)apcc, acb);
-        type = aType;  /* in case we don't want VBOX_HGCM_SVC_PARM_PTR */
-        const char *pcc = NULL;
-        uint32_t cb = 0;
-        int rc = getString(&pcc, &cb);
-        RTTEST_CHECK_RC(hTest, rc, rcExp);
-        if (RT_SUCCESS(rcExp))
-        {
-            RTTEST_CHECK_MSG_RETV(hTest, (pcc == apcc),
-                                  (hTest, "expected %p, got %p", apcc, pcc));
-            RTTEST_CHECK_MSG_RETV(hTest, (cb == acb),
-                                  (hTest, "expected %u, got %u", acb, cb));
-        }
-    }
-
-    /** Run some unit tests on the getString method and indirectly test
-     * getPointer and getBuffer as well. */
-    void testGetString(RTTEST hTest)
-    {
-        RTTestSub(hTest, "HGCM string parameter handling");
-        doTestGetString(hTest, VBOX_HGCM_SVC_PARM_32BIT, "test", 3,
-                        VERR_INVALID_PARAMETER);
-        doTestGetString(hTest, VBOX_HGCM_SVC_PARM_PTR, "test", 5,
-                        VINF_SUCCESS);
-        doTestGetString(hTest, VBOX_HGCM_SVC_PARM_PTR, "test", 3,
-                        VERR_BUFFER_OVERFLOW);
-        doTestGetString(hTest, VBOX_HGCM_SVC_PARM_PTR, "test\xf0", 6,
-                        VERR_INVALID_UTF8_ENCODING);
-        doTestGetString(hTest, VBOX_HGCM_SVC_PARM_PTR, "test", 0,
-                        VERR_INVALID_PARAMETER);
-        doTestGetString(hTest, VBOX_HGCM_SVC_PARM_PTR, (const char *)0x1, 5,
-                        VERR_INVALID_PARAMETER);
-        RTTestSubDone(hTest);
-    }
-#endif
-
-    VBOXHGCMSVCPARM() : type(VBOX_HGCM_SVC_PARM_INVALID) {}
-#endif
 } VBOXHGCMSVCPARM;
+
+/** Extract an uint32_t value from an HGCM parameter structure. */
+DECLINLINE(int) HGCMSvcGetU32(VBOXHGCMSVCPARM *pParm, uint32_t *pu32)
+{
+    int rc = VINF_SUCCESS;
+    AssertPtrReturn(pParm, VERR_INVALID_POINTER);
+    AssertPtrReturn(pParm, VERR_INVALID_POINTER);
+    AssertPtrReturn(pu32, VERR_INVALID_POINTER);
+    if (pParm->type != VBOX_HGCM_SVC_PARM_32BIT)
+        rc = VERR_INVALID_PARAMETER;
+    if (RT_SUCCESS(rc))
+        *pu32 = pParm->u.uint32;
+    return rc;
+}
+
+/** Extract an uint64_t value from an HGCM parameter structure. */
+DECLINLINE(int) HGCMSvcGetU64(VBOXHGCMSVCPARM *pParm, uint64_t *pu64)
+{
+    int rc = VINF_SUCCESS;
+    AssertPtrReturn(pParm, VERR_INVALID_POINTER);
+    AssertPtrReturn(pParm, VERR_INVALID_POINTER);
+    AssertPtrReturn(pu64, VERR_INVALID_POINTER);
+    if (pParm->type != VBOX_HGCM_SVC_PARM_64BIT)
+        rc = VERR_INVALID_PARAMETER;
+    if (RT_SUCCESS(rc))
+        *pu64 = pParm->u.uint64;
+    return rc;
+}
+
+/** Extract an pointer value from an HGCM parameter structure. */
+DECLINLINE(int) HGCMSvcGetPv(VBOXHGCMSVCPARM *pParm, void **ppv, uint32_t *pcb)
+{
+    AssertPtrReturn(pParm, VERR_INVALID_POINTER);
+    AssertPtrReturn(ppv, VERR_INVALID_POINTER);
+    AssertPtrReturn(pcb, VERR_INVALID_POINTER);
+    if (pParm->type == VBOX_HGCM_SVC_PARM_PTR)
+    {
+        *ppv = pParm->u.pointer.addr;
+        *pcb = pParm->u.pointer.size;
+        return VINF_SUCCESS;
+    }
+
+    return VERR_INVALID_PARAMETER;
+}
+
+/** Extract a constant pointer value from an HGCM parameter structure. */
+DECLINLINE(int) HGCMSvcGetPcv(VBOXHGCMSVCPARM *pParm, const void **ppv, uint32_t *pcb)
+{
+    AssertPtrReturn(pParm, VERR_INVALID_POINTER);
+    AssertPtrReturn(ppv, VERR_INVALID_POINTER);
+    AssertPtrReturn(pcb, VERR_INVALID_POINTER);
+    if (pParm->type == VBOX_HGCM_SVC_PARM_PTR)
+    {
+        *ppv = (const void *)pParm->u.pointer.addr;
+        *pcb = pParm->u.pointer.size;
+        return VINF_SUCCESS;
+    }
+
+    return VERR_INVALID_PARAMETER;
+}
+
+/** Extract a valid pointer to a non-empty buffer from an HGCM parameter
+ * structure. */
+DECLINLINE(int) HGCMSvcGetBuf(VBOXHGCMSVCPARM *pParm, void **ppv, uint32_t *pcb)
+{
+    AssertPtrReturn(pParm, VERR_INVALID_POINTER);
+    AssertPtrReturn(ppv, VERR_INVALID_POINTER);
+    AssertPtrReturn(pcb, VERR_INVALID_POINTER);
+    if (   pParm->type == VBOX_HGCM_SVC_PARM_PTR
+        && VALID_PTR(pParm->u.pointer.addr)
+        && pParm->u.pointer.size > 0)
+    {
+        *ppv = pParm->u.pointer.addr;
+        *pcb = pParm->u.pointer.size;
+        return VINF_SUCCESS;
+    }
+
+    return VERR_INVALID_PARAMETER;
+}
+
+/** Extract a valid pointer to a non-empty constant buffer from an HGCM
+ * parameter structure. */
+DECLINLINE(int) HGCMSvcGetCBuf(VBOXHGCMSVCPARM *pParm, const void **ppv, uint32_t *pcb)
+{
+    AssertPtrReturn(pParm, VERR_INVALID_POINTER);
+    AssertPtrReturn(ppv, VERR_INVALID_POINTER);
+    AssertPtrReturn(pcb, VERR_INVALID_POINTER);
+    if (   pParm->type == VBOX_HGCM_SVC_PARM_PTR
+        && VALID_PTR(pParm->u.pointer.addr)
+        && pParm->u.pointer.size > 0)
+    {
+        *ppv = (const void *)pParm->u.pointer.addr;
+        *pcb = pParm->u.pointer.size;
+        return VINF_SUCCESS;
+    }
+
+    return VERR_INVALID_PARAMETER;
+}
+
+/** Extract a string value from an HGCM parameter structure. */
+DECLINLINE(int) HGCMSvcGetStr(VBOXHGCMSVCPARM *pParm, char **ppch, uint32_t *pcb)
+{
+    AssertPtrReturn(pParm, VERR_INVALID_POINTER);
+    AssertPtrReturn(ppch, VERR_INVALID_POINTER);
+    AssertPtrReturn(pcb, VERR_INVALID_POINTER);
+    if (   pParm->type == VBOX_HGCM_SVC_PARM_PTR
+        && VALID_PTR(pParm->u.pointer.addr)
+        && pParm->u.pointer.size > 0)
+    {
+        int rc = RTStrValidateEncodingEx((char *)pParm->u.pointer.addr,
+                                         pParm->u.pointer.size,
+                                         RTSTR_VALIDATE_ENCODING_ZERO_TERMINATED);
+        if (RT_FAILURE(rc))
+            return rc;
+        *ppch = (char *)pParm->u.pointer.addr;
+        *pcb = pParm->u.pointer.size;
+        return VINF_SUCCESS;
+    }
+
+    return VERR_INVALID_PARAMETER;
+}
+
+/** Extract a constant string value from an HGCM parameter structure. */
+DECLINLINE(int) HGCMSvcGetCStr(VBOXHGCMSVCPARM *pParm, const char **ppch, uint32_t *pcb)
+{
+    AssertPtrReturn(pParm, VERR_INVALID_POINTER);
+    AssertPtrReturn(ppch, VERR_INVALID_POINTER);
+    AssertPtrReturn(pcb, VERR_INVALID_POINTER);
+    if (   pParm->type == VBOX_HGCM_SVC_PARM_PTR
+        && VALID_PTR(pParm->u.pointer.addr)
+        && pParm->u.pointer.size > 0)
+    {
+        int rc = RTStrValidateEncodingEx((char *)pParm->u.pointer.addr,
+                                         pParm->u.pointer.size,
+                                         RTSTR_VALIDATE_ENCODING_ZERO_TERMINATED);
+        if (RT_FAILURE(rc))
+            return rc;
+        *ppch = (char *)pParm->u.pointer.addr;
+        *pcb = pParm->u.pointer.size;
+        return VINF_SUCCESS;
+    }
+
+    return VERR_INVALID_PARAMETER;
+}
+
+/** Extract a constant string value from an HGCM parameter structure. */
+DECLINLINE(int) HGCMSvcGetPsz(VBOXHGCMSVCPARM *pParm, const char **ppch, uint32_t *pcb)
+{
+    AssertPtrReturn(pParm, VERR_INVALID_POINTER);
+    AssertPtrReturn(ppch, VERR_INVALID_POINTER);
+    AssertPtrReturn(pcb, VERR_INVALID_POINTER);
+    if (   pParm->type == VBOX_HGCM_SVC_PARM_PTR
+        && VALID_PTR(pParm->u.pointer.addr)
+        && pParm->u.pointer.size > 0)
+    {
+        int rc = RTStrValidateEncodingEx((const char *)pParm->u.pointer.addr,
+                                         pParm->u.pointer.size,
+                                         RTSTR_VALIDATE_ENCODING_ZERO_TERMINATED);
+        if (RT_FAILURE(rc))
+            return rc;
+        *ppch = (const char *)pParm->u.pointer.addr;
+        *pcb = pParm->u.pointer.size;
+        return VINF_SUCCESS;
+    }
+
+    return VERR_INVALID_PARAMETER;
+}
+
+/** Set a uint32_t value to an HGCM parameter structure */
+DECLINLINE(void) HGCMSvcSetU32(VBOXHGCMSVCPARM *pParm, uint32_t u32)
+{
+    AssertPtr(pParm);
+    pParm->type = VBOX_HGCM_SVC_PARM_32BIT;
+    pParm->u.uint32 = u32;
+}
+
+/** Set a uint64_t value to an HGCM parameter structure */
+DECLINLINE(void) HGCMSvcSetU64(VBOXHGCMSVCPARM *pParm, uint64_t u64)
+{
+    AssertPtr(pParm);
+    pParm->type = VBOX_HGCM_SVC_PARM_64BIT;
+    pParm->u.uint64 = u64;
+}
+
+/** Set a pointer value to an HGCM parameter structure */
+DECLINLINE(void) HGCMSvcSetPv(VBOXHGCMSVCPARM *pParm, void *pv, uint32_t cb)
+{
+    AssertPtr(pParm);
+    pParm->type = VBOX_HGCM_SVC_PARM_PTR;
+    pParm->u.pointer.addr = pv;
+    pParm->u.pointer.size = cb;
+}
+
+/** Set a pointer value to an HGCM parameter structure */
+DECLINLINE(void) HGCMSvcSetStr(VBOXHGCMSVCPARM *pParm, const char *psz)
+{
+    AssertPtr(pParm);
+    pParm->type = VBOX_HGCM_SVC_PARM_PTR;
+    pParm->u.pointer.addr = (void *)psz;
+    pParm->u.pointer.size = (uint32_t)strlen(psz) + 1;
+}
+
+#ifdef __cplusplus
+# ifdef IPRT_INCLUDED_cpp_ministring_h
+/** Set a const string value to an HGCM parameter structure */
+DECLINLINE(void) HGCMSvcSetRTCStr(VBOXHGCMSVCPARM *pParm, const RTCString &rString)
+{
+    AssertPtr(pParm);
+    pParm->type = VBOX_HGCM_SVC_PARM_PTR;
+    pParm->u.pointer.addr = (void *)rString.c_str();
+    pParm->u.pointer.size = (uint32_t)rString.length() + 1;
+}
+# endif
+#endif
 
 typedef VBOXHGCMSVCPARM *PVBOXHGCMSVCPARM;
 
@@ -346,15 +460,31 @@ typedef HGCMHOSTFASTCALLCB *PHGCMHOSTFASTCALLCB;
 typedef DECLCALLBACK(int) FNHGCMSVCEXT(void *pvExtension, uint32_t u32Function, void *pvParm, uint32_t cbParms);
 typedef FNHGCMSVCEXT *PFNHGCMSVCEXT;
 
+/**
+ * Notification event.
+ */
+typedef enum HGCMNOTIFYEVENT
+{
+    HGCMNOTIFYEVENT_INVALID = 0,
+    HGCMNOTIFYEVENT_POWER_ON,
+    HGCMNOTIFYEVENT_RESUME,
+    HGCMNOTIFYEVENT_SUSPEND,
+    HGCMNOTIFYEVENT_RESET,
+    HGCMNOTIFYEVENT_POWER_OFF,
+    HGCMNOTIFYEVENT_END,
+    HGCMNOTIFYEVENT_32BIT_HACK = 0x7fffffff
+} HGCMNOTIFYEVENT;
+
+
 /** The Service DLL entry points.
  *
  *  HGCM will call the DLL "VBoxHGCMSvcLoad"
  *  function and the DLL must fill in the VBOXHGCMSVCFNTABLE
  *  with function pointers.
+ *
+ *  @note The structure is used in separately compiled binaries so an explicit
+ *        packing is required.
  */
-
-/* The structure is used in separately compiled binaries so an explicit packing is required. */
-#pragma pack(1) /** @todo r=bird: The pragma pack(1) is not at all required!! */
 typedef struct VBOXHGCMSVCFNTABLE
 {
     /** @name Filled by HGCM
@@ -383,7 +513,7 @@ typedef struct VBOXHGCMSVCFNTABLE
     DECLR3CALLBACKMEMBER(int, pfnUnload, (void *pvService));
 
     /** Inform the service about a client connection. */
-    DECLR3CALLBACKMEMBER(int, pfnConnect, (void *pvService, uint32_t u32ClientID, void *pvClient));
+    DECLR3CALLBACKMEMBER(int, pfnConnect, (void *pvService, uint32_t u32ClientID, void *pvClient, uint32_t fRequestor, bool fRestoring));
 
     /** Inform the service that the client wants to disconnect. */
     DECLR3CALLBACKMEMBER(int, pfnDisconnect, (void *pvService, uint32_t u32ClientID, void *pvClient));
@@ -391,7 +521,17 @@ typedef struct VBOXHGCMSVCFNTABLE
     /** Service entry point.
      *  Return code is passed to pfnCallComplete callback.
      */
-    DECLR3CALLBACKMEMBER(void, pfnCall, (void *pvService, VBOXHGCMCALLHANDLE callHandle, uint32_t u32ClientID, void *pvClient, uint32_t function, uint32_t cParms, VBOXHGCMSVCPARM paParms[]));
+    DECLR3CALLBACKMEMBER(void, pfnCall, (void *pvService, VBOXHGCMCALLHANDLE callHandle, uint32_t u32ClientID, void *pvClient,
+                                         uint32_t function, uint32_t cParms, VBOXHGCMSVCPARM paParms[], uint64_t tsArrival));
+    /** Informs the service that a call was cancelled by the guest (optional).
+     *
+     * This is called for guest calls, connect requests and disconnect requests.
+     * There is unfortunately no way of obtaining the call handle for a guest call
+     * or otherwise identify the request, so that's left to the service to figure
+     * out using VBOXHGCMSVCHELPERS::pfnIsCallCancelled.  Because this is an
+     * asynchronous call, the service may have completed the request already.
+     */
+    DECLR3CALLBACKMEMBER(void, pfnCancelled, (void *pvService, uint32_t idClient, void *pvClient));
 
     /** Host Service entry point meant for privileged features invisible to the guest.
      *  Return code is passed to pfnCallComplete callback.
@@ -402,17 +542,30 @@ typedef struct VBOXHGCMSVCFNTABLE
     DECLR3CALLBACKMEMBER(int, pfnSaveState, (void *pvService, uint32_t u32ClientID, void *pvClient, PSSMHANDLE pSSM));
 
     /** Inform the service about a VM load operation. */
-    DECLR3CALLBACKMEMBER(int, pfnLoadState, (void *pvService, uint32_t u32ClientID, void *pvClient, PSSMHANDLE pSSM));
+    DECLR3CALLBACKMEMBER(int, pfnLoadState, (void *pvService, uint32_t u32ClientID, void *pvClient, PSSMHANDLE pSSM,
+                                             uint32_t uVersion));
 
     /** Register a service extension callback. */
     DECLR3CALLBACKMEMBER(int, pfnRegisterExtension, (void *pvService, PFNHGCMSVCEXT pfnExtension, void *pvExtension));
+
+    /** Notification (VM state). */
+    DECLR3CALLBACKMEMBER(void, pfnNotify, (void *pvService, HGCMNOTIFYEVENT enmEvent));
 
     /** User/instance data pointer for the service. */
     void *pvService;
 
     /** @} */
 } VBOXHGCMSVCFNTABLE;
-#pragma pack()
+
+
+/** @name HGCM saved state
+ * @note Need to be here so we can add saved to service which doesn't have it.
+ * @{ */
+/** HGCM saved state version. */
+#define HGCM_SAVED_STATE_VERSION        3
+/** HGCM saved state version w/o client state indicators. */
+#define HGCM_SAVED_STATE_VERSION_V2     2
+/** @} */
 
 
 /** Service initialization entry point. */
@@ -420,4 +573,5 @@ typedef DECLCALLBACK(int) VBOXHGCMSVCLOAD(VBOXHGCMSVCFNTABLE *ptable);
 typedef VBOXHGCMSVCLOAD *PFNVBOXHGCMSVCLOAD;
 #define VBOX_HGCM_SVCLOAD_NAME "VBoxHGCMSvcLoad"
 
-#endif
+#endif /* !VBOX_INCLUDED_hgcmsvc_h */
+

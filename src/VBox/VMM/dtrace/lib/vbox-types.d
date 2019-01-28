@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2012-2017 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,6 +22,8 @@
  */
 #pragma D depends_on library vbox-arch-types.d
 
+typedef uint64_t                RTGCPHYS;
+typedef uint64_t                RTHCPHYS;
 typedef uint16_t                RTSEL;
 typedef uint32_t                RTRCPTR;
 typedef uintptr_t               RTNATIVETHREAD;
@@ -39,6 +41,9 @@ typedef struct VM              *PVMR0;
 typedef struct SUPDRVSESSION   *PSUPDRVSESSION;
 typedef struct UVM             *PUVM;
 typedef struct CPUMCTXCORE     *PCPUMCTXCORE;
+typedef struct SVMVMCB         *PSVMVMCB;
+typedef uint32_t                VMXVDIAG;
+typedef struct VMXVVMCS        *PVMXVVMCS;
 
 typedef struct VBOXGDTR
 {

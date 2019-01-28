@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -39,6 +39,7 @@
 #include <iprt/initterm.h>
 #include <iprt/assert.h>
 #include <iprt/err.h>
+#include <iprt/ldr.h>
 #include <iprt/log.h>
 #include <iprt/param.h>
 #include <iprt/string.h>
@@ -62,18 +63,91 @@ DECLHIDDEN(RTR3WINLDRPROT)      g_enmWinLdrProt = RTR3WINLDRPROT_NONE;
 DECLHIDDEN(RTWINOSTYPE)         g_enmWinVer = kRTWinOSType_UNKNOWN;
 /** Extended windows version information. */
 DECLHIDDEN(OSVERSIONINFOEXW)    g_WinOsInfoEx;
+
 /** The native kernel32.dll handle. */
-DECLHIDDEN(HMODULE)             g_hModKernel32 = NULL;
-/** The native ntdll.dll handle. */
-DECLHIDDEN(HMODULE)             g_hModNtDll = NULL;
+DECLHIDDEN(HMODULE)                         g_hModKernel32 = NULL;
 /** GetSystemWindowsDirectoryW or GetWindowsDirectoryW (NT4). */
-DECLHIDDEN(PFNGETWINSYSDIR)     g_pfnGetSystemWindowsDirectoryW = NULL;
+DECLHIDDEN(PFNGETWINSYSDIR)                 g_pfnGetSystemWindowsDirectoryW = NULL;
 /** The GetCurrentThreadStackLimits API. */
-static PFNGETCURRENTTHREADSTACKLIMITS g_pfnGetCurrentThreadStackLimits = NULL;
+static PFNGETCURRENTTHREADSTACKLIMITS       g_pfnGetCurrentThreadStackLimits = NULL;
 /** SetUnhandledExceptionFilter. */
-static PFNSETUNHANDLEDEXCEPTIONFILTER g_pfnSetUnhandledExceptionFilter = NULL;
+static PFNSETUNHANDLEDEXCEPTIONFILTER       g_pfnSetUnhandledExceptionFilter = NULL;
 /** The previous unhandled exception filter. */
-static LPTOP_LEVEL_EXCEPTION_FILTER   g_pfnUnhandledXcptFilter = NULL;
+static LPTOP_LEVEL_EXCEPTION_FILTER         g_pfnUnhandledXcptFilter = NULL;
+/** SystemTimeToTzSpecificLocalTime. */
+decltype(SystemTimeToTzSpecificLocalTime)  *g_pfnSystemTimeToTzSpecificLocalTime = NULL;
+
+/** The native ntdll.dll handle. */
+DECLHIDDEN(HMODULE)                         g_hModNtDll = NULL;
+/** NtQueryFullAttributesFile   */
+DECLHIDDEN(PFNNTQUERYFULLATTRIBUTESFILE)    g_pfnNtQueryFullAttributesFile = NULL;
+/** NtDuplicateToken (NT 3.51). */
+DECLHIDDEN(PFNNTDUPLICATETOKEN)             g_pfnNtDuplicateToken = NULL;
+/** NtAlertThread (NT 3.51). */
+decltype(NtAlertThread)                    *g_pfnNtAlertThread = NULL;
+
+/** Either ws2_32.dll (NT4+) or wsock32.dll (NT3.x). */
+DECLHIDDEN(HMODULE)                         g_hModWinSock = NULL;
+/** Set if we're dealing with old winsock.   */
+DECLHIDDEN(bool)                            g_fOldWinSock = false;
+/** WSAStartup   */
+DECLHIDDEN(PFNWSASTARTUP)                   g_pfnWSAStartup = NULL;
+/** WSACleanup */
+DECLHIDDEN(PFNWSACLEANUP)                   g_pfnWSACleanup = NULL;
+/** Pointner to WSAGetLastError (for RTErrVarsSave). */
+DECLHIDDEN(PFNWSAGETLASTERROR)              g_pfnWSAGetLastError = NULL;
+/** Pointner to WSASetLastError (for RTErrVarsRestore). */
+DECLHIDDEN(PFNWSASETLASTERROR)              g_pfnWSASetLastError = NULL;
+/** WSACreateEvent */
+DECLHIDDEN(PFNWSACREATEEVENT)               g_pfnWSACreateEvent = NULL;
+/** WSACloseEvent  */
+DECLHIDDEN(PFNWSACLOSEEVENT)                g_pfnWSACloseEvent = NULL;
+/** WSASetEvent */
+DECLHIDDEN(PFNWSASETEVENT)                  g_pfnWSASetEvent = NULL;
+/** WSAEventSelect   */
+DECLHIDDEN(PFNWSAEVENTSELECT)               g_pfnWSAEventSelect = NULL;
+/** WSAEnumNetworkEvents */
+DECLHIDDEN(PFNWSAENUMNETWORKEVENTS)         g_pfnWSAEnumNetworkEvents = NULL;
+/** WSASend */
+DECLHIDDEN(PFNWSASend)                      g_pfnWSASend = NULL;
+/** socket */
+DECLHIDDEN(PFNWINSOCKSOCKET)                g_pfnsocket = NULL;
+/** closesocket */
+DECLHIDDEN(PFNWINSOCKCLOSESOCKET)           g_pfnclosesocket = NULL;
+/** recv */
+DECLHIDDEN(PFNWINSOCKRECV)                  g_pfnrecv = NULL;
+/** send */
+DECLHIDDEN(PFNWINSOCKSEND)                  g_pfnsend = NULL;
+/** recvfrom */
+DECLHIDDEN(PFNWINSOCKRECVFROM)              g_pfnrecvfrom = NULL;
+/** sendto */
+DECLHIDDEN(PFNWINSOCKSENDTO)                g_pfnsendto = NULL;
+/** bind */
+DECLHIDDEN(PFNWINSOCKBIND)                  g_pfnbind = NULL;
+/** listen  */
+DECLHIDDEN(PFNWINSOCKLISTEN)                g_pfnlisten = NULL;
+/** accept */
+DECLHIDDEN(PFNWINSOCKACCEPT)                g_pfnaccept = NULL;
+/** connect */
+DECLHIDDEN(PFNWINSOCKCONNECT)               g_pfnconnect = NULL;
+/** shutdown */
+DECLHIDDEN(PFNWINSOCKSHUTDOWN)              g_pfnshutdown = NULL;
+/** getsockopt */
+DECLHIDDEN(PFNWINSOCKGETSOCKOPT)            g_pfngetsockopt = NULL;
+/** setsockopt */
+DECLHIDDEN(PFNWINSOCKSETSOCKOPT)            g_pfnsetsockopt = NULL;
+/** ioctlsocket */
+DECLHIDDEN(PFNWINSOCKIOCTLSOCKET)           g_pfnioctlsocket = NULL;
+/** getpeername   */
+DECLHIDDEN(PFNWINSOCKGETPEERNAME)           g_pfngetpeername = NULL;
+/** getsockname */
+DECLHIDDEN(PFNWINSOCKGETSOCKNAME)           g_pfngetsockname = NULL;
+/** __WSAFDIsSet */
+DECLHIDDEN(PFNWINSOCK__WSAFDISSET)          g_pfn__WSAFDIsSet = NULL;
+/** select */
+DECLHIDDEN(PFNWINSOCKSELECT)                g_pfnselect = NULL;
+/** gethostbyname */
+DECLHIDDEN(PFNWINSOCKGETHOSTBYNAME)         g_pfngethostbyname = NULL;
 
 
 /*********************************************************************************************************************************
@@ -151,62 +225,47 @@ static RTWINOSTYPE rtR3InitWinSimplifiedVersion(OSVERSIONINFOEXW const *pOSInfoE
     }
     else if (dwPlatformId == VER_PLATFORM_WIN32_NT)
     {
-        if (        dwMajorVersion == 3
-                 && dwMinorVersion == 51)
-            enmVer = kRTWinOSType_NT351;
-        else if (   dwMajorVersion == 4
-                 && dwMinorVersion == 0)
+        if (dwMajorVersion == 3)
+        {
+            if (     dwMinorVersion < 50)
+                enmVer = kRTWinOSType_NT310;
+            else if (dwMinorVersion == 50)
+                enmVer = kRTWinOSType_NT350;
+            else
+                enmVer = kRTWinOSType_NT351;
+        }
+        else if (dwMajorVersion == 4)
             enmVer = kRTWinOSType_NT4;
-        else if (   dwMajorVersion == 5
-                 && dwMinorVersion == 0)
-            enmVer = kRTWinOSType_2K;
-        else if (   dwMajorVersion == 5
-                 && dwMinorVersion == 1)
-            enmVer = kRTWinOSType_XP;
-        else if (   dwMajorVersion == 5
-                 && dwMinorVersion == 2)
-            enmVer = kRTWinOSType_2003;
-        else if (   dwMajorVersion == 6
-                 && dwMinorVersion == 0)
+        else if (dwMajorVersion == 5)
         {
-            if (bProductType != VER_NT_WORKSTATION)
-                enmVer = kRTWinOSType_2008;
+            if (dwMinorVersion == 0)
+                enmVer = kRTWinOSType_2K;
+            else if (dwMinorVersion == 1)
+                enmVer = kRTWinOSType_XP;
             else
-                enmVer = kRTWinOSType_VISTA;
+                enmVer = kRTWinOSType_2003;
         }
-        else if (   dwMajorVersion == 6
-                 && dwMinorVersion == 1)
+        else if (dwMajorVersion == 6)
         {
-            if (bProductType != VER_NT_WORKSTATION)
-                enmVer = kRTWinOSType_2008R2;
+            if (dwMinorVersion == 0)
+                enmVer = bProductType != VER_NT_WORKSTATION ? kRTWinOSType_2008   : kRTWinOSType_VISTA;
+            else if (dwMinorVersion == 1)
+                enmVer = bProductType != VER_NT_WORKSTATION ? kRTWinOSType_2008R2 : kRTWinOSType_7;
+            else if (dwMinorVersion == 2)
+                enmVer = bProductType != VER_NT_WORKSTATION ? kRTWinOSType_2012   : kRTWinOSType_8;
+            else if (dwMinorVersion == 3)
+                enmVer = bProductType != VER_NT_WORKSTATION ? kRTWinOSType_2012R2 : kRTWinOSType_81;
+            else if (dwMinorVersion == 4)
+                enmVer = bProductType != VER_NT_WORKSTATION ? kRTWinOSType_2016   : kRTWinOSType_10;
             else
-                enmVer = kRTWinOSType_7;
+                enmVer = kRTWinOSType_NT_UNKNOWN;
         }
-        else if (   dwMajorVersion == 6
-                 && dwMinorVersion == 2)
+        else if (dwMajorVersion == 10)
         {
-            if (bProductType != VER_NT_WORKSTATION)
-                enmVer = kRTWinOSType_2012;
+            if (dwMinorVersion == 0)
+                enmVer = bProductType != VER_NT_WORKSTATION ? kRTWinOSType_2016   : kRTWinOSType_10;
             else
-                enmVer = kRTWinOSType_8;
-        }
-        else if (   dwMajorVersion == 6
-                 && dwMinorVersion == 3)
-        {
-            if (bProductType != VER_NT_WORKSTATION)
-                enmVer = kRTWinOSType_2012R2;
-            else
-                enmVer = kRTWinOSType_81;
-        }
-        else if (   (   dwMajorVersion == 6
-                     && dwMinorVersion == 4)
-                 || (   dwMajorVersion == 10
-                     && dwMinorVersion == 0))
-        {
-            if (bProductType != VER_NT_WORKSTATION)
-                enmVer = kRTWinOSType_2016;
-            else
-                enmVer = kRTWinOSType_10;
+                enmVer = kRTWinOSType_NT_UNKNOWN;
         }
         else
             enmVer = kRTWinOSType_NT_UNKNOWN;
@@ -267,6 +326,97 @@ static void rtR3InitWindowsVersion(void)
 
     if (g_WinOsInfoEx.dwOSVersionInfoSize)
         g_enmWinVer = rtR3InitWinSimplifiedVersion(&g_WinOsInfoEx);
+}
+
+
+/**
+ * Resolves the winsock error APIs.
+ */
+static void rtR3InitWinSockApis(void)
+{
+    /*
+     * Try get ws2_32.dll, then try load it, then finally fall back to the old
+     * wsock32.dll.  We use RTLdrLoadSystem to the loading as it has all the fancy
+     * logic for safely doing that.
+     */
+    g_hModWinSock = GetModuleHandleW(L"ws2_32.dll");
+    if (g_hModWinSock == NULL)
+    {
+        RTLDRMOD hLdrMod;
+        int rc = RTLdrLoadSystem("ws2_32.dll", true /*fNoUnload*/, &hLdrMod);
+        if (RT_FAILURE(rc))
+        {
+            rc = RTLdrLoadSystem("wsock32.dll", true /*fNoUnload*/, &hLdrMod);
+            if (RT_FAILURE(rc))
+            {
+                AssertMsgFailed(("rc=%Rrc\n", rc));
+                return;
+            }
+            g_fOldWinSock = true;
+        }
+        g_hModWinSock = (HMODULE)RTLdrGetNativeHandle(hLdrMod);
+        RTLdrClose(hLdrMod);
+    }
+
+    g_pfnWSAStartup           = (decltype(g_pfnWSAStartup))         GetProcAddress(g_hModWinSock, "WSAStartup");
+    g_pfnWSACleanup           = (decltype(g_pfnWSACleanup))         GetProcAddress(g_hModWinSock, "WSACleanup");
+    g_pfnWSAGetLastError      = (decltype(g_pfnWSAGetLastError))    GetProcAddress(g_hModWinSock, "WSAGetLastError");
+    g_pfnWSASetLastError      = (decltype(g_pfnWSASetLastError))    GetProcAddress(g_hModWinSock, "WSASetLastError");
+    g_pfnWSACreateEvent       = (decltype(g_pfnWSACreateEvent))     GetProcAddress(g_hModWinSock, "WSACreateEvent");
+    g_pfnWSACloseEvent        = (decltype(g_pfnWSACloseEvent))      GetProcAddress(g_hModWinSock, "WSACloseEvent");
+    g_pfnWSASetEvent          = (decltype(g_pfnWSASetEvent))        GetProcAddress(g_hModWinSock, "WSASetEvent");
+    g_pfnWSAEventSelect       = (decltype(g_pfnWSAEventSelect))     GetProcAddress(g_hModWinSock, "WSAEventSelect");
+    g_pfnWSAEnumNetworkEvents = (decltype(g_pfnWSAEnumNetworkEvents))GetProcAddress(g_hModWinSock,"WSAEnumNetworkEvents");
+    g_pfnWSASend              = (decltype(g_pfnWSASend))            GetProcAddress(g_hModWinSock, "WSASend");
+    g_pfnsocket               = (decltype(g_pfnsocket))             GetProcAddress(g_hModWinSock, "socket");
+    g_pfnclosesocket          = (decltype(g_pfnclosesocket))        GetProcAddress(g_hModWinSock, "closesocket");
+    g_pfnrecv                 = (decltype(g_pfnrecv))               GetProcAddress(g_hModWinSock, "recv");
+    g_pfnsend                 = (decltype(g_pfnsend))               GetProcAddress(g_hModWinSock, "send");
+    g_pfnrecvfrom             = (decltype(g_pfnrecvfrom))           GetProcAddress(g_hModWinSock, "recvfrom");
+    g_pfnsendto               = (decltype(g_pfnsendto))             GetProcAddress(g_hModWinSock, "sendto");
+    g_pfnbind                 = (decltype(g_pfnbind))               GetProcAddress(g_hModWinSock, "bind");
+    g_pfnlisten               = (decltype(g_pfnlisten))             GetProcAddress(g_hModWinSock, "listen");
+    g_pfnaccept               = (decltype(g_pfnaccept))             GetProcAddress(g_hModWinSock, "accept");
+    g_pfnconnect              = (decltype(g_pfnconnect))            GetProcAddress(g_hModWinSock, "connect");
+    g_pfnshutdown             = (decltype(g_pfnshutdown))           GetProcAddress(g_hModWinSock, "shutdown");
+    g_pfngetsockopt           = (decltype(g_pfngetsockopt))         GetProcAddress(g_hModWinSock, "getsockopt");
+    g_pfnsetsockopt           = (decltype(g_pfnsetsockopt))         GetProcAddress(g_hModWinSock, "setsockopt");
+    g_pfnioctlsocket          = (decltype(g_pfnioctlsocket))        GetProcAddress(g_hModWinSock, "ioctlsocket");
+    g_pfngetpeername          = (decltype(g_pfngetpeername))        GetProcAddress(g_hModWinSock, "getpeername");
+    g_pfngetsockname          = (decltype(g_pfngetsockname))        GetProcAddress(g_hModWinSock, "getsockname");
+    g_pfn__WSAFDIsSet         = (decltype(g_pfn__WSAFDIsSet))       GetProcAddress(g_hModWinSock, "__WSAFDIsSet");
+    g_pfnselect               = (decltype(g_pfnselect))             GetProcAddress(g_hModWinSock, "select");
+    g_pfngethostbyname        = (decltype(g_pfngethostbyname))      GetProcAddress(g_hModWinSock, "gethostbyname");
+
+    Assert(g_pfnWSAStartup);
+    Assert(g_pfnWSACleanup);
+    Assert(g_pfnWSAGetLastError);
+    Assert(g_pfnWSASetLastError);
+    Assert(g_pfnWSACreateEvent       || g_fOldWinSock);
+    Assert(g_pfnWSACloseEvent        || g_fOldWinSock);
+    Assert(g_pfnWSASetEvent          || g_fOldWinSock);
+    Assert(g_pfnWSAEventSelect       || g_fOldWinSock);
+    Assert(g_pfnWSAEnumNetworkEvents || g_fOldWinSock);
+    Assert(g_pfnWSASend              || g_fOldWinSock);
+    Assert(g_pfnsocket);
+    Assert(g_pfnclosesocket);
+    Assert(g_pfnrecv);
+    Assert(g_pfnsend);
+    Assert(g_pfnrecvfrom);
+    Assert(g_pfnsendto);
+    Assert(g_pfnbind);
+    Assert(g_pfnlisten);
+    Assert(g_pfnaccept);
+    Assert(g_pfnconnect);
+    Assert(g_pfnshutdown);
+    Assert(g_pfngetsockopt);
+    Assert(g_pfnsetsockopt);
+    Assert(g_pfnioctlsocket);
+    Assert(g_pfngetpeername);
+    Assert(g_pfngetsockname);
+    Assert(g_pfn__WSAFDIsSet);
+    Assert(g_pfnselect);
+    Assert(g_pfngethostbyname);
 }
 
 
@@ -361,6 +511,19 @@ DECLHIDDEN(int) rtR3InitNativeFirst(uint32_t fFlags)
     g_pfnGetSystemWindowsDirectoryW = (PFNGETWINSYSDIR)GetProcAddress(g_hModKernel32, "GetSystemWindowsDirectoryW");
     if (g_pfnGetSystemWindowsDirectoryW)
         g_pfnGetSystemWindowsDirectoryW = (PFNGETWINSYSDIR)GetProcAddress(g_hModKernel32, "GetWindowsDirectoryW");
+    g_pfnSystemTimeToTzSpecificLocalTime = (decltype(SystemTimeToTzSpecificLocalTime) *)GetProcAddress(g_hModKernel32, "SystemTimeToTzSpecificLocalTime");
+
+    /*
+     * Resolve some ntdll.dll APIs that weren't there in early NT versions.
+     */
+    g_pfnNtQueryFullAttributesFile = (PFNNTQUERYFULLATTRIBUTESFILE)GetProcAddress(g_hModNtDll, "NtQueryFullAttributesFile");
+    g_pfnNtDuplicateToken          = (PFNNTDUPLICATETOKEN)GetProcAddress(         g_hModNtDll, "NtDuplicateToken");
+    g_pfnNtAlertThread             = (decltype(NtAlertThread) *)GetProcAddress(   g_hModNtDll, "NtAlertThread");
+
+    /*
+     * Resolve the winsock error getter and setter so assertions can save those too.
+     */
+    rtR3InitWinSockApis();
 
     return rc;
 }

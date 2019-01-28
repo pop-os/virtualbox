@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,29 +15,43 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___VBoxUtils_darwin_h
-#define ___VBoxUtils_darwin_h
+#ifndef FEQT_INCLUDED_SRC_platform_darwin_VBoxUtils_darwin_h
+#define FEQT_INCLUDED_SRC_platform_darwin_VBoxUtils_darwin_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
-#include <VBox/VBoxCocoa.h>
-#include <ApplicationServices/ApplicationServices.h>
-#undef PVM                              /* Stupid, stupid apple headers (sys/param.h)!!  */
-#include <iprt/cdefs.h> /* for RT_C_DECLS_BEGIN/RT_C_DECLS_END & stuff */
-
+/* Qt includes: */
 #include <QRect>
 
-ADD_COCOA_NATIVE_REF(NSEvent);
-ADD_COCOA_NATIVE_REF(NSImage);
-ADD_COCOA_NATIVE_REF(NSView);
-ADD_COCOA_NATIVE_REF(NSWindow);
-ADD_COCOA_NATIVE_REF(NSButton);
-ADD_COCOA_NATIVE_REF(NSString);
+/* GUI includes: */
+#include "UILibraryDefs.h"
 
+/* Other VBox includes: */
+#include <VBox/VBoxCocoa.h>
+#include <ApplicationServices/ApplicationServices.h>
+#undef PVM // Stupid, stupid apple headers (sys/param.h)!!
+#include <iprt/cdefs.h>
+
+/* External includes: */
+#include <ApplicationServices/ApplicationServices.h>
+
+/* Forward declarations: */
 class QImage;
 class QMainWindow;
 class QMenu;
 class QPixmap;
 class QToolBar;
 class QWidget;
+
+/* Cocoa declarations: */
+ADD_COCOA_NATIVE_REF(NSButton);
+ADD_COCOA_NATIVE_REF(NSEvent);
+ADD_COCOA_NATIVE_REF(NSImage);
+ADD_COCOA_NATIVE_REF(NSString);
+ADD_COCOA_NATIVE_REF(NSView);
+ADD_COCOA_NATIVE_REF(NSWindow);
+
 
 /** Mac OS X: Standard window button types. */
 enum StandardWindowButtonType
@@ -51,6 +65,7 @@ enum StandardWindowButtonType
     StandardWindowButtonType_FullScreen        // Since OS X 10.7
 };
 
+
 RT_C_DECLS_BEGIN
 
 /********************************************************************************
@@ -61,7 +76,7 @@ RT_C_DECLS_BEGIN
 NativeNSWindowRef darwinToNativeWindowImpl(NativeNSViewRef pView);
 NativeNSViewRef darwinToNativeViewImpl(NativeNSWindowRef pWindow);
 NativeNSButtonRef darwinNativeButtonOfWindowImpl(NativeNSWindowRef pWindow, StandardWindowButtonType enmButtonType);
-NativeNSStringRef darwinToNativeString(const char* pcszString);
+SHARED_LIBRARY_STUFF NativeNSStringRef darwinToNativeString(const char* pcszString);
 QString darwinFromNativeString(NativeNSStringRef pString);
 
 /********************************************************************************
@@ -72,10 +87,10 @@ QString darwinFromNativeString(NativeNSStringRef pString);
 void darwinSetShowsToolbarButtonImpl(NativeNSWindowRef pWindow, bool fEnabled);
 void darwinSetShowsResizeIndicatorImpl(NativeNSWindowRef pWindow, bool fEnabled);
 void darwinSetHidesAllTitleButtonsImpl(NativeNSWindowRef pWindow);
-void darwinLabelWindow(NativeNSWindowRef pWindow, NativeNSImageRef pImage, bool fCenter);
+SHARED_LIBRARY_STUFF void darwinLabelWindow(NativeNSWindowRef pWindow, NativeNSImageRef pImage, bool fCenter);
 void darwinSetShowsWindowTransparentImpl(NativeNSWindowRef pWindow, bool fEnabled);
-void darwinSetWindowHasShadow(NativeNSWindowRef pWindow, bool fEnabled);
-void darwinSetMouseCoalescingEnabled(bool fEnabled);
+SHARED_LIBRARY_STUFF void darwinSetWindowHasShadow(NativeNSWindowRef pWindow, bool fEnabled);
+SHARED_LIBRARY_STUFF void darwinSetMouseCoalescingEnabled(bool fEnabled);
 
 void darwintest(NativeNSWindowRef pWindow);
 /********************************************************************************
@@ -90,23 +105,21 @@ void darwinWindowInvalidateShapeImpl(NativeNSWindowRef pWindow);
 void darwinWindowInvalidateShadowImpl(NativeNSWindowRef pWindow);
 int  darwinWindowToolBarHeight(NativeNSWindowRef pWindow);
 bool darwinIsToolbarVisible(NativeNSWindowRef pWindow);
-bool darwinIsWindowMaximized(NativeNSWindowRef pWindow);
+SHARED_LIBRARY_STUFF bool darwinIsWindowMaximized(NativeNSWindowRef pWindow);
 void darwinMinaturizeWindow(NativeNSWindowRef pWindow);
-void darwinEnableFullscreenSupport(NativeNSWindowRef pWindow);
-void darwinEnableTransienceSupport(NativeNSWindowRef pWindow);
-void darwinToggleFullscreenMode(NativeNSWindowRef pWindow);
-void darwinToggleWindowZoom(NativeNSWindowRef pWindow);
-bool darwinIsInFullscreenMode(NativeNSWindowRef pWindow);
-bool darwinIsOnActiveSpace(NativeNSWindowRef pWindow);
-bool darwinScreensHaveSeparateSpaces();
+SHARED_LIBRARY_STUFF void darwinEnableFullscreenSupport(NativeNSWindowRef pWindow);
+SHARED_LIBRARY_STUFF void darwinEnableTransienceSupport(NativeNSWindowRef pWindow);
+SHARED_LIBRARY_STUFF void darwinToggleFullscreenMode(NativeNSWindowRef pWindow);
+SHARED_LIBRARY_STUFF void darwinToggleWindowZoom(NativeNSWindowRef pWindow);
+SHARED_LIBRARY_STUFF bool darwinIsInFullscreenMode(NativeNSWindowRef pWindow);
+SHARED_LIBRARY_STUFF bool darwinIsOnActiveSpace(NativeNSWindowRef pWindow);
+SHARED_LIBRARY_STUFF bool darwinScreensHaveSeparateSpaces();
 
 bool darwinOpenFile(NativeNSStringRef pstrFile);
 
-double darwinBackingScaleFactor(NativeNSWindowRef pWindow);
-
-float darwinSmallFontSize();
-bool darwinSetFrontMostProcess();
-uint64_t darwinGetCurrentProcessId();
+SHARED_LIBRARY_STUFF float darwinSmallFontSize();
+SHARED_LIBRARY_STUFF bool darwinSetFrontMostProcess();
+SHARED_LIBRARY_STUFF uint64_t darwinGetCurrentProcessId();
 
 void darwinInstallResizeDelegate(NativeNSWindowRef pWindow);
 void darwinUninstallResizeDelegate(NativeNSWindowRef pWindow);
@@ -115,13 +128,13 @@ bool darwinUnifiedToolbarEvents(const void *pvCocoaEvent, const void *pvCarbonEv
 bool darwinMouseGrabEvents(const void *pvCocoaEvent, const void *pvCarbonEvent, void *pvUser);
 void darwinCreateContextMenuEvent(void *pvWin, int x, int y);
 
-bool darwinIsApplicationCommand(ConstNativeNSEventRef pEvent);
+SHARED_LIBRARY_STUFF bool darwinIsApplicationCommand(ConstNativeNSEventRef pEvent);
 
 void darwinRetranslateAppMenu();
 
 void darwinSendMouseGrabEvents(QWidget *pWidget, int type, int button, int buttons, int x, int y);
 
-QString darwinResolveAlias(const QString &strFile);
+SHARED_LIBRARY_STUFF QString darwinResolveAlias(const QString &strFile);
 
 RT_C_DECLS_END
 
@@ -196,16 +209,14 @@ NativeNSButtonRef darwinNativeButtonOfWindow(QWidget *pWidget, StandardWindowBut
  * @returns CGContextRef of the QWidget.
  * @param   pWidget      Pointer to the QWidget
  */
-CGImageRef darwinToCGImageRef(const QImage *pImage);
-CGImageRef darwinToCGImageRef(const QPixmap *pPixmap);
-CGImageRef darwinToCGImageRef(const char *pczSource);
+SHARED_LIBRARY_STUFF CGImageRef darwinToCGImageRef(const QImage *pImage);
+SHARED_LIBRARY_STUFF CGImageRef darwinToCGImageRef(const QPixmap *pPixmap);
+SHARED_LIBRARY_STUFF CGImageRef darwinToCGImageRef(const char *pczSource);
 
-NativeNSImageRef darwinToNSImageRef(const CGImageRef pImage);
-NativeNSImageRef darwinToNSImageRef(const QImage *pImage);
-NativeNSImageRef darwinToNSImageRef(const QPixmap *pPixmap);
-NativeNSImageRef darwinToNSImageRef(const char *pczSource);
-
-#ifndef __OBJC__
+SHARED_LIBRARY_STUFF NativeNSImageRef darwinToNSImageRef(const CGImageRef pImage);
+SHARED_LIBRARY_STUFF NativeNSImageRef darwinToNSImageRef(const QImage *pImage);
+SHARED_LIBRARY_STUFF NativeNSImageRef darwinToNSImageRef(const QPixmap *pPixmap);
+SHARED_LIBRARY_STUFF NativeNSImageRef darwinToNSImageRef(const char *pczSource);
 
 #include <QEvent>
 class UIGrabMouseEvent: public QEvent
@@ -248,12 +259,12 @@ private:
  *
  ********************************************************************************/
 void darwinSetShowsToolbarButton(QToolBar *aToolBar, bool fEnabled);
-void darwinLabelWindow(QWidget *pWidget, QPixmap *pPixmap, bool fCenter);
+SHARED_LIBRARY_STUFF void darwinLabelWindow(QWidget *pWidget, QPixmap *pPixmap, bool fCenter);
 void darwinSetShowsResizeIndicator(QWidget *pWidget, bool fEnabled);
-void darwinSetHidesAllTitleButtons(QWidget *pWidget);
+SHARED_LIBRARY_STUFF void darwinSetHidesAllTitleButtons(QWidget *pWidget);
 void darwinSetShowsWindowTransparent(QWidget *pWidget, bool fEnabled);
-void darwinSetWindowHasShadow(QWidget *pWidget, bool fEnabled);
-void darwinDisableIconsInMenus(void);
+SHARED_LIBRARY_STUFF void darwinSetWindowHasShadow(QWidget *pWidget, bool fEnabled);
+SHARED_LIBRARY_STUFF void darwinDisableIconsInMenus(void);
 
 void darwinTest(QWidget *pWidget1, QWidget *pWidget2, int h);
 
@@ -262,23 +273,21 @@ void darwinTest(QWidget *pWidget1, QWidget *pWidget2, int h);
  * Simple helper methods (Qt Wrapper)
  *
  ********************************************************************************/
-void darwinWindowAnimateResize(QWidget *pWidget, const QRect &aTarget);
+SHARED_LIBRARY_STUFF void darwinWindowAnimateResize(QWidget *pWidget, const QRect &aTarget);
 void darwinWindowAnimateResizeNew(QWidget *pWidget, int h, bool fAnimate);
 void darwinWindowInvalidateShape(QWidget *pWidget);
 void darwinWindowInvalidateShadow(QWidget *pWidget);
 int  darwinWindowToolBarHeight(QWidget *pWidget);
 bool darwinIsToolbarVisible(QToolBar *pToolBar);
-bool darwinIsWindowMaximized(QWidget *pWidget);
+SHARED_LIBRARY_STUFF bool darwinIsWindowMaximized(QWidget *pWidget);
 void darwinMinaturizeWindow(QWidget *pWidget);
-void darwinEnableFullscreenSupport(QWidget *pWidget);
-void darwinEnableTransienceSupport(QWidget *pWidget);
-void darwinToggleFullscreenMode(QWidget *pWidget);
-void darwinToggleWindowZoom(QWidget *pWidget);
-bool darwinIsInFullscreenMode(QWidget *pWidget);
-bool darwinIsOnActiveSpace(QWidget *pWidget);
+SHARED_LIBRARY_STUFF void darwinEnableFullscreenSupport(QWidget *pWidget);
+SHARED_LIBRARY_STUFF void darwinEnableTransienceSupport(QWidget *pWidget);
+SHARED_LIBRARY_STUFF void darwinToggleFullscreenMode(QWidget *pWidget);
+SHARED_LIBRARY_STUFF void darwinToggleWindowZoom(QWidget *pWidget);
+SHARED_LIBRARY_STUFF bool darwinIsInFullscreenMode(QWidget *pWidget);
+SHARED_LIBRARY_STUFF bool darwinIsOnActiveSpace(QWidget *pWidget);
 bool darwinOpenFile(const QString &strFile);
-
-double darwinBackingScaleFactor(QWidget *pWidget);
 
 QString darwinSystemLanguage(void);
 QPixmap darwinCreateDragPixmap(const QPixmap& aPixmap, const QString &aText);
@@ -286,15 +295,13 @@ QPixmap darwinCreateDragPixmap(const QPixmap& aPixmap, const QString &aText);
 void darwinInstallResizeDelegate(QWidget *pWidget);
 void darwinUninstallResizeDelegate(QWidget *pWidget);
 
-void darwinRegisterForUnifiedToolbarContextMenuEvents(QMainWindow *pWindow);
-void darwinUnregisterForUnifiedToolbarContextMenuEvents(QMainWindow *pWindow);
+SHARED_LIBRARY_STUFF void darwinRegisterForUnifiedToolbarContextMenuEvents(QMainWindow *pWindow);
+SHARED_LIBRARY_STUFF void darwinUnregisterForUnifiedToolbarContextMenuEvents(QMainWindow *pWindow);
 
-void darwinMouseGrab(QWidget *pWidget);
-void darwinMouseRelease(QWidget *pWidget);
+SHARED_LIBRARY_STUFF void darwinMouseGrab(QWidget *pWidget);
+SHARED_LIBRARY_STUFF void darwinMouseRelease(QWidget *pWidget);
 
-void* darwinCocoaToCarbonEvent(void *pvCocoaEvent);
+SHARED_LIBRARY_STUFF void *darwinCocoaToCarbonEvent(void *pvCocoaEvent);
 
-#endif /* !__OBJC__ */
-
-#endif /* !___VBoxUtils_darwin_h */
+#endif /* !FEQT_INCLUDED_SRC_platform_darwin_VBoxUtils_darwin_h */
 

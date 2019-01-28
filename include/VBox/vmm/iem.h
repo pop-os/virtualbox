@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2011-2017 Oracle Corporation
+ * Copyright (C) 2011-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,11 +23,17 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_vmm_iem_h
-#define ___VBox_vmm_iem_h
+#ifndef VBOX_INCLUDED_vmm_iem_h
+#define VBOX_INCLUDED_vmm_iem_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/types.h>
 #include <VBox/vmm/trpm.h>
+#ifdef VBOX_WITH_NESTED_HWVIRT_VMX
+# include <VBox/vmm/hm_vmx.h>
+#endif
 #include <iprt/assert.h>
 
 
@@ -176,6 +182,80 @@ typedef uint8_t IEMMODE;
 /** @} */
 
 
+/** The CPUMCTX_EXTRN_XXX mask required to be cleared when interpreting anything.
+ * IEM will ASSUME the caller of IEM APIs has ensured these are already present. */
+#define IEM_CPUMCTX_EXTRN_MUST_MASK                (  CPUMCTX_EXTRN_GPRS_MASK \
+                                                    | CPUMCTX_EXTRN_RIP \
+                                                    | CPUMCTX_EXTRN_RFLAGS \
+                                                    | CPUMCTX_EXTRN_SS \
+                                                    | CPUMCTX_EXTRN_CS \
+                                                    | CPUMCTX_EXTRN_CR0 \
+                                                    | CPUMCTX_EXTRN_CR3 \
+                                                    | CPUMCTX_EXTRN_CR4 \
+                                                    | CPUMCTX_EXTRN_APIC_TPR \
+                                                    | CPUMCTX_EXTRN_EFER \
+                                                    | CPUMCTX_EXTRN_DR7 )
+/** The CPUMCTX_EXTRN_XXX mask needed when injecting an exception/interrupt.
+ * IEM will import missing bits, callers are encouraged to make these registers
+ * available prior to injection calls if fetching state anyway.  */
+#define IEM_CPUMCTX_EXTRN_XCPT_MASK                (  IEM_CPUMCTX_EXTRN_MUST_MASK \
+                                                    | CPUMCTX_EXTRN_CR2 \
+                                                    | CPUMCTX_EXTRN_SREG_MASK \
+                                                    | CPUMCTX_EXTRN_TABLE_MASK )
+/** The CPUMCTX_EXTRN_XXX mask required to be cleared when calling any
+ * IEMExecDecoded API not using memory.  IEM will ASSUME the caller of IEM
+ * APIs has ensured these are already present.
+ * @note ASSUMES execution engine has checked for instruction breakpoints
+ *       during decoding. */
+#define IEM_CPUMCTX_EXTRN_EXEC_DECODED_NO_MEM_MASK (  CPUMCTX_EXTRN_RIP \
+                                                    | CPUMCTX_EXTRN_RFLAGS \
+                                                    | CPUMCTX_EXTRN_SS   /* for CPL */ \
+                                                    | CPUMCTX_EXTRN_CS   /* for mode */ \
+                                                    | CPUMCTX_EXTRN_CR0  /* for mode */ \
+                                                    | CPUMCTX_EXTRN_EFER /* for mode */ )
+/** The CPUMCTX_EXTRN_XXX mask required to be cleared when calling any
+ * IEMExecDecoded API using memory.  IEM will ASSUME the caller of IEM
+ * APIs has ensured these are already present.
+ * @note ASSUMES execution engine has checked for instruction breakpoints
+ *       during decoding. */
+#define IEM_CPUMCTX_EXTRN_EXEC_DECODED_MEM_MASK    (  IEM_CPUMCTX_EXTRN_EXEC_DECODED_NO_MEM_MASK \
+                                                    | CPUMCTX_EXTRN_CR3 /* for page tables */ \
+                                                    | CPUMCTX_EXTRN_CR4 /* for mode paging mode */ \
+                                                    | CPUMCTX_EXTRN_DR7 /* for memory breakpoints */ )
+
+#ifdef VBOX_WITH_NESTED_HWVIRT_VMX
+/** @todo NSTVMX: Refine this mask later (probably some MSRs are not required). */
+# define IEM_CPUMCTX_EXTRN_VMX_VMEXIT_MASK         CPUMCTX_EXTRN_ABSOLUTELY_ALL
+# define IEM_CPUMCTX_EXTRN_VMX_VMENTRY_MASK        IEM_CPUMCTX_EXTRN_VMX_VMEXIT_MASK
+#endif
+
+#ifdef VBOX_WITH_NESTED_HWVIRT_SVM
+/** The CPUMCTX_EXTRN_XXX mask needed when calling IEMExecSvmVmexit().
+ * IEM will ASSUME the caller has ensured these are already present. */
+# define IEM_CPUMCTX_EXTRN_SVM_VMEXIT_MASK         (  CPUMCTX_EXTRN_RSP \
+                                                    | CPUMCTX_EXTRN_RAX \
+                                                    | CPUMCTX_EXTRN_RIP \
+                                                    | CPUMCTX_EXTRN_RFLAGS \
+                                                    | CPUMCTX_EXTRN_CS \
+                                                    | CPUMCTX_EXTRN_SS \
+                                                    | CPUMCTX_EXTRN_DS \
+                                                    | CPUMCTX_EXTRN_ES \
+                                                    | CPUMCTX_EXTRN_GDTR \
+                                                    | CPUMCTX_EXTRN_IDTR \
+                                                    | CPUMCTX_EXTRN_CR_MASK \
+                                                    | CPUMCTX_EXTRN_EFER \
+                                                    | CPUMCTX_EXTRN_DR6 \
+                                                    | CPUMCTX_EXTRN_DR7 \
+                                                    | CPUMCTX_EXTRN_OTHER_MSRS \
+                                                    | CPUMCTX_EXTRN_HWVIRT \
+                                                    | CPUMCTX_EXTRN_APIC_TPR \
+                                                    | CPUMCTX_EXTRN_HM_SVM_HWVIRT_VIRQ)
+
+/** The CPUMCTX_EXTRN_XXX mask needed when calling IEMExecDecodedVmrun().
+ *  IEM will ASSUME the caller has ensured these are already present. */
+# define IEM_CPUMCTX_EXTRN_SVM_VMRUN_MASK          IEM_CPUMCTX_EXTRN_SVM_VMEXIT_MASK
+#endif
+
 VMMDECL(VBOXSTRICTRC)       IEMExecOne(PVMCPU pVCpu);
 VMMDECL(VBOXSTRICTRC)       IEMExecOneEx(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, uint32_t *pcbWritten);
 VMMDECL(VBOXSTRICTRC)       IEMExecOneWithPrefetchedByPC(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, uint64_t OpcodeBytesPC,
@@ -187,6 +267,18 @@ VMMDECL(VBOXSTRICTRC)       IEMExecOneBypassWithPrefetchedByPCWritten(PVMCPU pVC
                                                                       const void *pvOpcodeBytes, size_t cbOpcodeBytes,
                                                                       uint32_t *pcbWritten);
 VMMDECL(VBOXSTRICTRC)       IEMExecLots(PVMCPU pVCpu, uint32_t *pcInstructions);
+/** Statistics returned by IEMExecForExits. */
+typedef struct IEMEXECFOREXITSTATS
+{
+    uint32_t cInstructions;
+    uint32_t cExits;
+    uint32_t cMaxExitDistance;
+    uint32_t cReserved;
+} IEMEXECFOREXITSTATS;
+/** Pointer to statistics returned by IEMExecForExits. */
+typedef IEMEXECFOREXITSTATS *PIEMEXECFOREXITSTATS;
+VMMDECL(VBOXSTRICTRC)       IEMExecForExits(PVMCPU pVCpu, uint32_t fWillExit, uint32_t cMinInstructions, uint32_t cMaxInstructions,
+                                            uint32_t cMaxInstructionsWithoutExits, PIEMEXECFOREXITSTATS pStats);
 VMMDECL(VBOXSTRICTRC)       IEMInjectTrpmEvent(PVMCPU pVCpu);
 VMM_INT_DECL(VBOXSTRICTRC)  IEMInjectTrap(PVMCPU pVCpu, uint8_t u8TrapNo, TRPMEVENT enmType, uint16_t uErrCode, RTGCPTR uCr2,
                                           uint8_t cbInstr);
@@ -208,16 +300,27 @@ VMM_INT_DECL(VBOXSTRICTRC)  IEMExecStringIoWrite(PVMCPU pVCpu, uint8_t cbValue, 
                                                  bool fRepPrefix, uint8_t cbInstr, uint8_t iEffSeg, bool fIoChecked);
 VMM_INT_DECL(VBOXSTRICTRC)  IEMExecStringIoRead(PVMCPU pVCpu, uint8_t cbValue, IEMMODE enmAddrMode,
                                                 bool fRepPrefix, uint8_t cbInstr, bool fIoChecked);
-VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedOut(PVMCPU pVCpu, uint8_t cbInstr, uint16_t u16Port, uint8_t cbReg);
-VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedIn(PVMCPU pVCpu, uint8_t cbInstr, uint16_t u16Port, uint8_t cbReg);
+VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedOut(PVMCPU pVCpu, uint8_t cbInstr, uint16_t u16Port, bool fImm, uint8_t cbReg);
+VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedIn(PVMCPU pVCpu, uint8_t cbInstr, uint16_t u16Port, bool fImm, uint8_t cbReg);
 VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedMovCRxWrite(PVMCPU pVCpu, uint8_t cbInstr, uint8_t iCrReg, uint8_t iGReg);
 VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedMovCRxRead(PVMCPU pVCpu, uint8_t cbInstr, uint8_t iGReg, uint8_t iCrReg);
 VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedClts(PVMCPU pVCpu, uint8_t cbInstr);
-VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedLmsw(PVMCPU pVCpu, uint8_t cbInstr, uint16_t uValue);
+VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedLmsw(PVMCPU pVCpu, uint8_t cbInstr, uint16_t uValue, RTGCPTR GCPtrEffDst);
 VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedXsetbv(PVMCPU pVCpu, uint8_t cbInstr);
+VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedWbinvd(PVMCPU pVCpu, uint8_t cbInstr);
+VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedInvd(PVMCPU pVCpu, uint8_t cbInstr);
 VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedInvlpg(PVMCPU pVCpu,  uint8_t cbInstr, RTGCPTR GCPtrPage);
-VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedInvpcid(PVMCPU pVCpu, uint8_t cbInstr, uint8_t uType, RTGCPTR GCPtrInvpcidDesc);
-#ifdef VBOX_WITH_NESTED_HWVIRT
+VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedCpuid(PVMCPU pVCpu, uint8_t cbInstr);
+VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedRdpmc(PVMCPU pVCpu, uint8_t cbInstr);
+VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedRdtsc(PVMCPU pVCpu, uint8_t cbInstr);
+VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedRdtscp(PVMCPU pVCpu, uint8_t cbInstr);
+VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedRdmsr(PVMCPU pVCpu, uint8_t cbInstr);
+VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedWrmsr(PVMCPU pVCpu, uint8_t cbInstr);
+VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedMonitor(PVMCPU pVCpu, uint8_t cbInstr);
+VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedMwait(PVMCPU pVCpu, uint8_t cbInstr);
+VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedHlt(PVMCPU pVCpu, uint8_t cbInstr);
+
+#ifdef VBOX_WITH_NESTED_HWVIRT_SVM
 VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedClgi(PVMCPU pVCpu, uint8_t cbInstr);
 VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedStgi(PVMCPU pVCpu, uint8_t cbInstr);
 VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedVmload(PVMCPU pVCpu, uint8_t cbInstr);
@@ -226,16 +329,26 @@ VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedInvlpga(PVMCPU pVCpu, uint8_t cbInstr)
 VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedVmrun(PVMCPU pVCpu, uint8_t cbInstr);
 VMM_INT_DECL(VBOXSTRICTRC)  IEMExecSvmVmexit(PVMCPU pVCpu, uint64_t uExitCode, uint64_t uExitInfo1, uint64_t uExitInfo2);
 #endif
-/** @}  */
 
-#if defined(IEM_VERIFICATION_MODE) && defined(IN_RING3)
-VMM_INT_DECL(void)   IEMNotifyMMIORead(PVM pVM, RTGCPHYS GCPhys, size_t cbValue);
-VMM_INT_DECL(void)   IEMNotifyMMIOWrite(PVM pVM, RTGCPHYS GCPhys, uint32_t u32Value, size_t cbValue);
-VMM_INT_DECL(void)   IEMNotifyIOPortRead(PVM pVM, RTIOPORT Port, size_t cbValue);
-VMM_INT_DECL(void)   IEMNotifyIOPortWrite(PVM pVM, RTIOPORT Port, uint32_t u32Value, size_t cbValue);
-VMM_INT_DECL(void)   IEMNotifyIOPortReadString(PVM pVM, RTIOPORT Port, void *pvDst, RTGCUINTREG cTransfers, size_t cbValue);
-VMM_INT_DECL(void)   IEMNotifyIOPortWriteString(PVM pVM, RTIOPORT Port, void const *pvSrc, RTGCUINTREG cTransfers, size_t cbValue);
+#ifdef VBOX_WITH_NESTED_HWVIRT_VMX
+VMM_INT_DECL(VBOXSTRICTRC)  IEMExecVmxVirtApicAccessMsr(PVMCPU pVCpu, uint32_t idMsr, uint64_t *pu64Val, bool fWrite);
+VMM_INT_DECL(VBOXSTRICTRC)  IEMExecVmxVmexitApicWrite(PVMCPU pVCpu);
+VMM_INT_DECL(VBOXSTRICTRC)  IEMExecVmxVmexitPreemptTimer(PVMCPU pVCpu);
+VMM_INT_DECL(VBOXSTRICTRC)  IEMExecVmxVmexitExtInt(PVMCPU pVCpu, uint8_t uVector, bool fIntPending);
+VMM_INT_DECL(VBOXSTRICTRC)  IEMExecVmxVmexitStartupIpi(PVMCPU pVCpu, uint8_t uVector);
+VMM_INT_DECL(VBOXSTRICTRC)  IEMExecVmxVmexitInitIpi(PVMCPU pVCpu);
+VMM_INT_DECL(VBOXSTRICTRC)  IEMExecVmxVmexitIntWindow(PVMCPU pVCpu);
+VMM_INT_DECL(VBOXSTRICTRC)  IEMExecVmxVmexitMtf(PVMCPU pVCpu);
+VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedVmread(PVMCPU pVCpu, PCVMXVEXITINFO pExitInfo);
+VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedVmwrite(PVMCPU pVCpu, PCVMXVEXITINFO pExitInfo);
+VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedVmptrld(PVMCPU pVCpu, PCVMXVEXITINFO pExitInfo);
+VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedVmptrst(PVMCPU pVCpu, PCVMXVEXITINFO pExitInfo);
+VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedVmclear(PVMCPU pVCpu, PCVMXVEXITINFO pExitInfo);
+VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedVmlaunchVmresume(PVMCPU pVCpu, uint8_t cbInstr, VMXINSTRID uInstrId);
+VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedVmxon(PVMCPU pVCpu, PCVMXVEXITINFO pExitInfo);
+VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedVmxoff(PVMCPU pVCpu, uint8_t cbInstr);
 #endif
+/** @}  */
 
 
 /** @defgroup grp_iem_r3     The IEM Host Context Ring-3 API.
@@ -251,5 +364,5 @@ VMMR3_INT_DECL(VBOXSTRICTRC) IEMR3ProcessForceFlag(PVM pVM, PVMCPU pVCpu, VBOXST
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !VBOX_INCLUDED_vmm_iem_h */
 

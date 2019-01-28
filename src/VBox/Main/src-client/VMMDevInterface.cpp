@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -58,7 +58,7 @@
 typedef struct DRVMAINVMMDEV
 {
     /** Pointer to the VMMDev object. */
-    VMMDev                      *pVMMDev;
+    VMMDev                     *pVMMDev;
     /** Pointer to the driver instance structure. */
     PPDMDRVINS                  pDrvIns;
     /** Pointer to the VMMDev port interface of the driver/device above us. */
@@ -78,8 +78,8 @@ typedef struct DRVMAINVMMDEV
 // constructor / destructor
 //
 VMMDev::VMMDev(Console *console)
-    : mpDrv(NULL),
-      mParent(console)
+    : mpDrv(NULL)
+    , mParent(console)
 {
     int rc = RTSemEventCreate(&mCredentialsEvent);
     AssertRC(rc);
@@ -94,12 +94,9 @@ VMMDev::VMMDev(Console *console)
 VMMDev::~VMMDev()
 {
 #ifdef VBOX_WITH_HGCM
-    if (hgcmIsActive())
-    {
-        ASMAtomicWriteBool(&m_fHGCMActive, false);
-        HGCMHostShutdown();
-    }
-#endif /* VBOX_WITH_HGCM */
+    if (ASMAtomicCmpXchgBool(&m_fHGCMActive, false, true))
+        HGCMHostShutdown(true /*fUvmIsInvalid*/);
+#endif
     RTSemEventDestroy(mCredentialsEvent);
     if (mpDrv)
         mpDrv->pVMMDev = NULL;
@@ -641,7 +638,7 @@ static DECLCALLBACK(int) iface_hgcmDisconnect(PPDMIHGCMCONNECTOR pInterface, PVB
 }
 
 static DECLCALLBACK(int) iface_hgcmCall(PPDMIHGCMCONNECTOR pInterface, PVBOXHGCMCMD pCmd, uint32_t u32ClientID,
-                                        uint32_t u32Function, uint32_t cParms, PVBOXHGCMSVCPARM paParms)
+                                        uint32_t u32Function, uint32_t cParms, PVBOXHGCMSVCPARM paParms, uint64_t tsArrival)
 {
     Log9(("Enter\n"));
 
@@ -650,7 +647,17 @@ static DECLCALLBACK(int) iface_hgcmCall(PPDMIHGCMCONNECTOR pInterface, PVBOXHGCM
     if (!pDrv->pVMMDev || !pDrv->pVMMDev->hgcmIsActive())
         return VERR_INVALID_STATE;
 
-    return HGCMGuestCall(pDrv->pHGCMPort, pCmd, u32ClientID, u32Function, cParms, paParms);
+    return HGCMGuestCall(pDrv->pHGCMPort, pCmd, u32ClientID, u32Function, cParms, paParms, tsArrival);
+}
+
+static DECLCALLBACK(void) iface_hgcmCancelled(PPDMIHGCMCONNECTOR pInterface, PVBOXHGCMCMD pCmd, uint32_t idClient)
+{
+    Log9(("Enter\n"));
+
+    PDRVMAINVMMDEV pDrv = RT_FROM_MEMBER(pInterface, DRVMAINVMMDEV, HGCMConnector);
+    if (   pDrv->pVMMDev
+        && pDrv->pVMMDev->hgcmIsActive())
+        return HGCMGuestCancelled(pDrv->pHGCMPort, pCmd, idClient);
 }
 
 /**
@@ -682,11 +689,12 @@ static DECLCALLBACK(int) iface_hgcmLoad(PPDMDRVINS pDrvIns, PSSMHANDLE pSSM, uin
     RT_NOREF(pDrvIns);
     LogFlowFunc(("Enter\n"));
 
-    if (uVersion != HGCM_SSM_VERSION)
+    if (   uVersion != HGCM_SAVED_STATE_VERSION
+        && uVersion != HGCM_SAVED_STATE_VERSION_V2)
         return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
     Assert(uPass == SSM_PASS_FINAL); NOREF(uPass);
 
-    return HGCMHostLoadState(pSSM);
+    return HGCMHostLoadState(pSSM, uVersion);
 }
 
 int VMMDev::hgcmLoadService(const char *pszServiceLibrary, const char *pszServiceName)
@@ -694,7 +702,16 @@ int VMMDev::hgcmLoadService(const char *pszServiceLibrary, const char *pszServic
     if (!hgcmIsActive())
         return VERR_INVALID_STATE;
 
-    return HGCMHostLoad(pszServiceLibrary, pszServiceName);
+    /** @todo Construct all the services in the VMMDev::drvConstruct()!! */
+    Assert(   (mpDrv && mpDrv->pHGCMPort)
+           || !strcmp(pszServiceLibrary, "VBoxHostChannel")
+           || !strcmp(pszServiceLibrary, "VBoxSharedClipboard")
+           || !strcmp(pszServiceLibrary, "VBoxDragAndDropSvc")
+           || !strcmp(pszServiceLibrary, "VBoxGuestPropSvc")
+           || !strcmp(pszServiceLibrary, "VBoxSharedCrOpenGL")
+           );
+    Console::SafeVMPtrQuiet ptrVM(mParent);
+    return HGCMHostLoad(pszServiceLibrary, pszServiceName, ptrVM.rawUVM(), mpDrv ? mpDrv->pHGCMPort : NULL);
 }
 
 int VMMDev::hgcmHostCall(const char *pszServiceName, uint32_t u32Function,
@@ -705,10 +722,13 @@ int VMMDev::hgcmHostCall(const char *pszServiceName, uint32_t u32Function,
     return HGCMHostCall(pszServiceName, u32Function, cParms, paParms);
 }
 
-void VMMDev::hgcmShutdown(void)
+/**
+ * Used by Console::i_powerDown to shut down the services before the VM is destroyed.
+ */
+void VMMDev::hgcmShutdown(bool fUvmIsInvalid /*= false*/)
 {
-    ASMAtomicWriteBool(&m_fHGCMActive, false);
-    HGCMHostShutdown();
+    if (ASMAtomicCmpXchgBool(&m_fHGCMActive, false, true))
+        HGCMHostShutdown(fUvmIsInvalid);
 }
 
 # ifdef VBOX_WITH_CRHGSMI
@@ -755,6 +775,50 @@ DECLCALLBACK(void *) VMMDev::drvQueryInterface(PPDMIBASE pInterface, const char 
 }
 
 /**
+ * @interface_method_impl{PDMDRVREG,pfnSuspend}
+ */
+/*static*/ DECLCALLBACK(void) VMMDev::drvSuspend(PPDMDRVINS pDrvIns)
+{
+    RT_NOREF(pDrvIns);
+#ifdef VBOX_WITH_HGCM
+    HGCMBroadcastEvent(HGCMNOTIFYEVENT_SUSPEND);
+#endif
+}
+
+/**
+ * @interface_method_impl{PDMDRVREG,pfnResume}
+ */
+/*static*/ DECLCALLBACK(void) VMMDev::drvResume(PPDMDRVINS pDrvIns)
+{
+    RT_NOREF(pDrvIns);
+#ifdef VBOX_WITH_HGCM
+    HGCMBroadcastEvent(HGCMNOTIFYEVENT_RESUME);
+#endif
+}
+
+/**
+ * @interface_method_impl{PDMDRVREG,pfnPowerOff}
+ */
+/*static*/ DECLCALLBACK(void) VMMDev::drvPowerOff(PPDMDRVINS pDrvIns)
+{
+    RT_NOREF(pDrvIns);
+#ifdef VBOX_WITH_HGCM
+    HGCMBroadcastEvent(HGCMNOTIFYEVENT_POWER_ON);
+#endif
+}
+
+/**
+ * @interface_method_impl{PDMDRVREG,pfnPowerOn}
+ */
+/*static*/ DECLCALLBACK(void) VMMDev::drvPowerOn(PPDMDRVINS pDrvIns)
+{
+    RT_NOREF(pDrvIns);
+#ifdef VBOX_WITH_HGCM
+    HGCMBroadcastEvent(HGCMNOTIFYEVENT_POWER_ON);
+#endif
+}
+
+/**
  * @interface_method_impl{PDMDRVREG,pfnReset}
  */
 DECLCALLBACK(void) VMMDev::drvReset(PPDMDRVINS pDrvIns)
@@ -762,8 +826,8 @@ DECLCALLBACK(void) VMMDev::drvReset(PPDMDRVINS pDrvIns)
     RT_NOREF(pDrvIns);
     LogFlow(("VMMDev::drvReset: iInstance=%d\n", pDrvIns->iInstance));
 #ifdef VBOX_WITH_HGCM
-    HGCMHostReset();
-#endif /* VBOX_WITH_HGCM */
+    HGCMHostReset(false /*fForShutdown*/);
+#endif
 }
 
 /**
@@ -775,12 +839,187 @@ DECLCALLBACK(void) VMMDev::drvDestruct(PPDMDRVINS pDrvIns)
     PDRVMAINVMMDEV pThis = PDMINS_2_DATA(pDrvIns, PDRVMAINVMMDEV);
     LogFlow(("VMMDev::drvDestruct: iInstance=%d\n", pDrvIns->iInstance));
 
-#ifdef VBOX_WITH_HGCM
-    /* HGCM is shut down on the VMMDev destructor. */
-#endif /* VBOX_WITH_HGCM */
     if (pThis->pVMMDev)
+    {
+#ifdef VBOX_WITH_HGCM
+        /* When VM construction goes wrong, we prefer shutting down HGCM here
+           while pUVM is still valid, rather than in ~VMMDev. */
+        if (ASMAtomicCmpXchgBool(&pThis->pVMMDev->m_fHGCMActive, false, true))
+            HGCMHostShutdown();
+#endif
         pThis->pVMMDev->mpDrv = NULL;
+    }
 }
+
+#ifdef VBOX_WITH_GUEST_PROPS
+
+/**
+ * Set an array of guest properties
+ */
+void VMMDev::i_guestPropSetMultiple(void *names, void *values, void *timestamps, void *flags)
+{
+    VBOXHGCMSVCPARM parms[4];
+
+    parms[0].type = VBOX_HGCM_SVC_PARM_PTR;
+    parms[0].u.pointer.addr = names;
+    parms[0].u.pointer.size = 0;  /* We don't actually care. */
+    parms[1].type = VBOX_HGCM_SVC_PARM_PTR;
+    parms[1].u.pointer.addr = values;
+    parms[1].u.pointer.size = 0;  /* We don't actually care. */
+    parms[2].type = VBOX_HGCM_SVC_PARM_PTR;
+    parms[2].u.pointer.addr = timestamps;
+    parms[2].u.pointer.size = 0;  /* We don't actually care. */
+    parms[3].type = VBOX_HGCM_SVC_PARM_PTR;
+    parms[3].u.pointer.addr = flags;
+    parms[3].u.pointer.size = 0;  /* We don't actually care. */
+
+    hgcmHostCall("VBoxGuestPropSvc", GUEST_PROP_FN_HOST_SET_PROPS, 4, &parms[0]);
+}
+
+/**
+ * Set a single guest property
+ */
+void VMMDev::i_guestPropSet(const char *pszName, const char *pszValue, const char *pszFlags)
+{
+    VBOXHGCMSVCPARM parms[4];
+
+    AssertPtrReturnVoid(pszName);
+    AssertPtrReturnVoid(pszValue);
+    AssertPtrReturnVoid(pszFlags);
+    parms[0].type = VBOX_HGCM_SVC_PARM_PTR;
+    parms[0].u.pointer.addr = (void *)pszName;
+    parms[0].u.pointer.size = (uint32_t)strlen(pszName) + 1;
+    parms[1].type = VBOX_HGCM_SVC_PARM_PTR;
+    parms[1].u.pointer.addr = (void *)pszValue;
+    parms[1].u.pointer.size = (uint32_t)strlen(pszValue) + 1;
+    parms[2].type = VBOX_HGCM_SVC_PARM_PTR;
+    parms[2].u.pointer.addr = (void *)pszFlags;
+    parms[2].u.pointer.size = (uint32_t)strlen(pszFlags) + 1;
+    hgcmHostCall("VBoxGuestPropSvc", GUEST_PROP_FN_HOST_SET_PROP, 3, &parms[0]);
+}
+
+/**
+ * Set the global flags value by calling the service
+ * @returns the status returned by the call to the service
+ *
+ * @param   pTable  the service instance handle
+ * @param   eFlags  the flags to set
+ */
+int VMMDev::i_guestPropSetGlobalPropertyFlags(uint32_t fFlags)
+{
+    VBOXHGCMSVCPARM parm;
+    HGCMSvcSetU32(&parm, fFlags);
+    int rc = hgcmHostCall("VBoxGuestPropSvc", GUEST_PROP_FN_HOST_SET_GLOBAL_FLAGS, 1, &parm);
+    if (RT_FAILURE(rc))
+    {
+        char szFlags[GUEST_PROP_MAX_FLAGS_LEN];
+        if (RT_FAILURE(GuestPropWriteFlags(fFlags, szFlags)))
+            Log(("Failed to set the global flags.\n"));
+        else
+            Log(("Failed to set the global flags \"%s\".\n", szFlags));
+    }
+    return rc;
+}
+
+
+/**
+ * Set up the Guest Property service, populate it with properties read from
+ * the machine XML and set a couple of initial properties.
+ */
+int VMMDev::i_guestPropLoadAndConfigure()
+{
+    Assert(mpDrv);
+    ComObjPtr<Console> ptrConsole = this->mParent;
+    AssertReturn(ptrConsole.isNotNull(), VERR_INVALID_POINTER);
+
+    /*
+     * Load the service
+     */
+    int rc = hgcmLoadService("VBoxGuestPropSvc", "VBoxGuestPropSvc");
+    if (RT_FAILURE(rc))
+    {
+        LogRel(("VBoxGuestPropSvc is not available. rc = %Rrc\n", rc));
+        return VINF_SUCCESS; /* That is not a fatal failure. */
+    }
+
+    /*
+     * Pull over the properties from the server.
+     */
+    SafeArray<BSTR>     namesOut;
+    SafeArray<BSTR>     valuesOut;
+    SafeArray<LONG64>   timestampsOut;
+    SafeArray<BSTR>     flagsOut;
+    HRESULT hrc = ptrConsole->i_pullGuestProperties(ComSafeArrayAsOutParam(namesOut),
+                                                    ComSafeArrayAsOutParam(valuesOut),
+                                                    ComSafeArrayAsOutParam(timestampsOut),
+                                                    ComSafeArrayAsOutParam(flagsOut));
+    AssertLogRelMsgReturn(SUCCEEDED(hrc), ("hrc=%Rhrc\n", hrc), VERR_MAIN_CONFIG_CONSTRUCTOR_COM_ERROR);
+    size_t const cProps = namesOut.size();
+    size_t const cAlloc = cProps + 1;
+    AssertLogRelReturn(valuesOut.size()     == cProps, VERR_INTERNAL_ERROR_2);
+    AssertLogRelReturn(timestampsOut.size() == cProps, VERR_INTERNAL_ERROR_3);
+    AssertLogRelReturn(flagsOut.size()      == cProps, VERR_INTERNAL_ERROR_4);
+
+    char    szEmpty[] = "";
+    char  **papszNames      = (char  **)RTMemTmpAllocZ(sizeof(char *) * cAlloc);
+    char  **papszValues     = (char  **)RTMemTmpAllocZ(sizeof(char *) * cAlloc);
+    LONG64 *pai64Timestamps = (LONG64 *)RTMemTmpAllocZ(sizeof(LONG64) * cAlloc);
+    char  **papszFlags      = (char  **)RTMemTmpAllocZ(sizeof(char *) * cAlloc);
+    if (papszNames && papszValues && pai64Timestamps && papszFlags)
+    {
+        for (unsigned i = 0; RT_SUCCESS(rc) && i < cProps; ++i)
+        {
+            AssertPtrBreakStmt(namesOut[i], rc = VERR_INVALID_PARAMETER);
+            rc = RTUtf16ToUtf8(namesOut[i], &papszNames[i]);
+            if (RT_FAILURE(rc))
+                break;
+            if (valuesOut[i])
+                rc = RTUtf16ToUtf8(valuesOut[i], &papszValues[i]);
+            else
+                papszValues[i] = szEmpty;
+            if (RT_FAILURE(rc))
+                break;
+            pai64Timestamps[i] = timestampsOut[i];
+            if (flagsOut[i])
+                rc = RTUtf16ToUtf8(flagsOut[i], &papszFlags[i]);
+            else
+                papszFlags[i] = szEmpty;
+        }
+        if (RT_SUCCESS(rc))
+            i_guestPropSetMultiple((void *)papszNames, (void *)papszValues, (void *)pai64Timestamps, (void *)papszFlags);
+        for (unsigned i = 0; i < cProps; ++i)
+        {
+            RTStrFree(papszNames[i]);
+            if (valuesOut[i])
+                RTStrFree(papszValues[i]);
+            if (flagsOut[i])
+                RTStrFree(papszFlags[i]);
+        }
+    }
+    else
+        rc = VERR_NO_MEMORY;
+    RTMemTmpFree(papszNames);
+    RTMemTmpFree(papszValues);
+    RTMemTmpFree(pai64Timestamps);
+    RTMemTmpFree(papszFlags);
+    AssertRCReturn(rc, rc);
+
+    /*
+     * Register the host notification callback
+     */
+    HGCMSVCEXTHANDLE hDummy;
+    HGCMHostRegisterServiceExtension(&hDummy, "VBoxGuestPropSvc", Console::i_doGuestPropNotification, ptrConsole.m_p);
+
+# ifdef VBOX_WITH_GUEST_PROPS_RDONLY_GUEST
+    rc = i_guestPropSetGlobalPropertyFlags(GUEST_PROP_F_RDONLYGUEST);
+    AssertRCReturn(rc, rc);
+# endif
+
+    Log(("Set VBoxGuestPropSvc property store\n"));
+    return VINF_SUCCESS;
+}
+
+#endif /* VBOX_WITH_GUEST_PROPS */
 
 /**
  * @interface_method_impl{PDMDRVREG,pfnConstruct}
@@ -829,6 +1068,7 @@ DECLCALLBACK(int) VMMDev::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle,
     pThis->HGCMConnector.pfnConnect                   = iface_hgcmConnect;
     pThis->HGCMConnector.pfnDisconnect                = iface_hgcmDisconnect;
     pThis->HGCMConnector.pfnCall                      = iface_hgcmCall;
+    pThis->HGCMConnector.pfnCancelled                 = iface_hgcmCancelled;
 #endif
 
     /*
@@ -857,8 +1097,10 @@ DECLCALLBACK(int) VMMDev::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle,
     pThis->pVMMDev->mpDrv = pThis;
 
 #ifdef VBOX_WITH_HGCM
-    rc = pThis->pVMMDev->hgcmLoadService(VBOXSHAREDFOLDERS_DLL,
-                                         "VBoxSharedFolders");
+    /*
+     * Load & configure the shared folders service.
+     */
+    rc = pThis->pVMMDev->hgcmLoadService(VBOXSHAREDFOLDERS_DLL, "VBoxSharedFolders");
     pThis->pVMMDev->fSharedFolderActive = RT_SUCCESS(rc);
     if (RT_SUCCESS(rc))
     {
@@ -885,7 +1127,41 @@ DECLCALLBACK(int) VMMDev::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle,
     else
         LogRel(("Failed to load Shared Folders service %Rrc\n", rc));
 
-    rc = PDMDrvHlpSSMRegisterEx(pDrvIns, HGCM_SSM_VERSION, 4096 /* bad guess */,
+
+    /*
+     * Load and configure the guest control service.
+     */
+# ifdef VBOX_WITH_GUEST_CONTROL
+    rc = pThis->pVMMDev->hgcmLoadService("VBoxGuestControlSvc", "VBoxGuestControlSvc");
+    if (RT_SUCCESS(rc))
+    {
+        HGCMSVCEXTHANDLE hDummy;
+        rc = HGCMHostRegisterServiceExtension(&hDummy, "VBoxGuestControlSvc",
+                                              &Guest::i_notifyCtrlDispatcher,
+                                              pThis->pVMMDev->mParent->i_getGuest());
+        if (RT_SUCCESS(rc))
+            LogRel(("Guest Control service loaded\n"));
+        else
+            LogRel(("Warning: Cannot register VBoxGuestControlSvc extension! rc=%Rrc\n", rc));
+    }
+    else
+        LogRel(("Warning!: Failed to load the Guest Control Service! %Rrc\n", rc));
+# endif /* VBOX_WITH_GUEST_CONTROL */
+
+
+    /*
+     * Load and configure the guest properties service.
+     */
+# ifdef VBOX_WITH_GUEST_PROPS
+    rc = pThis->pVMMDev->i_guestPropLoadAndConfigure();
+    AssertLogRelRCReturn(rc, rc);
+# endif
+
+
+    /*
+     * The HGCM saved state.
+     */
+    rc = PDMDrvHlpSSMRegisterEx(pDrvIns, HGCM_SAVED_STATE_VERSION, 4096 /* bad guess */,
                                 NULL, NULL, NULL,
                                 NULL, iface_hgcmSave, NULL,
                                 NULL, iface_hgcmLoad, NULL);
@@ -930,19 +1206,19 @@ const PDMDRVREG VMMDev::DrvReg =
     /* pfnIOCtl */
     NULL,
     /* pfnPowerOn */
-    NULL,
+    VMMDev::drvPowerOn,
     /* pfnReset */
     VMMDev::drvReset,
     /* pfnSuspend */
-    NULL,
+    VMMDev::drvSuspend,
     /* pfnResume */
-    NULL,
+    VMMDev::drvResume,
     /* pfnAttach */
     NULL,
     /* pfnDetach */
     NULL,
     /* pfnPowerOff */
-    NULL,
+    VMMDev::drvPowerOff,
     /* pfnSoftReset */
     NULL,
     /* u32EndVersion */

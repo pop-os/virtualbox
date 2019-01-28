@@ -1,10 +1,10 @@
-/* $Id: DevVGA-SVGA3d-shared.cpp $ */
+/* $Id: DevVGA-SVGA3d-shared.cpp 127855 2019-01-01 01:45:53Z bird $ */
 /** @file
  * DevVMWare - VMWare SVGA device
  */
 
 /*
- * Copyright (C) 2013-2017 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,7 +22,7 @@
 #define LOG_GROUP LOG_GROUP_DEV_VMSVGA
 #include <VBox/vmm/pdmdev.h>
 #include <VBox/version.h>
-#include <VBox/err.h>
+#include <iprt/errcore.h>
 #include <VBox/log.h>
 #include <VBox/vmm/pgm.h>
 
@@ -110,7 +110,6 @@ DECLCALLBACK(int) vmsvga3dWindowThread(RTTHREAD hThreadSelf, void *pvUser)
     while (true)
     {
         MSG msg;
-
         if (GetMessage(&msg, 0, 0, 0))
         {
             if (msg.message == WM_VMSVGA3D_EXIT)
@@ -124,40 +123,21 @@ DECLCALLBACK(int) vmsvga3dWindowThread(RTTHREAD hThreadSelf, void *pvUser)
             {
                 continue;
             }
+
             if (msg.message == WM_VMSVGA3D_CREATEWINDOW)
             {
                 HWND          *pHwnd = (HWND *)msg.wParam;
                 LPCREATESTRUCT pCS = (LPCREATESTRUCT) msg.lParam;
 
-#ifdef DEBUG_GFX_WINDOW
-                RECT rectClient;
-
-                rectClient.left     = 0;
-                rectClient.top      = 0;
-                rectClient.right    = pCS->cx;
-                rectClient.bottom   = pCS->cy;
-                AdjustWindowRectEx(&rectClient, WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_VISIBLE | WS_CAPTION, FALSE, WS_EX_NOACTIVATE | WS_EX_NOPARENTNOTIFY | WS_EX_TRANSPARENT);
-                pCS->cx = rectClient.right - rectClient.left;
-                pCS->cy = rectClient.bottom - rectClient.top;
-#endif
                 *pHwnd = CreateWindowEx(pCS->dwExStyle,
                                         VMSVGA3D_WNDCLASSNAME,
                                         pCS->lpszName,
                                         pCS->style,
-#ifdef DEBUG_GFX_WINDOW
-                                        0,
-                                        0,
-#else
                                         pCS->x,
                                         pCS->y,
-#endif
                                         pCS->cx,
                                         pCS->cy,
-#ifdef DEBUG_GFX_WINDOW
-                                        0,
-#else
                                         pCS->hwndParent,
-#endif
                                         pCS->hMenu,
                                         pCS->hInstance,
                                         NULL);
@@ -168,31 +148,10 @@ DECLCALLBACK(int) vmsvga3dWindowThread(RTTHREAD hThreadSelf, void *pvUser)
                 RTSemEventSignal(WndRequestSem);
                 continue;
             }
+
             if (msg.message == WM_VMSVGA3D_DESTROYWINDOW)
             {
                 BOOL fRc = DestroyWindow((HWND)msg.wParam);
-                Assert(fRc); NOREF(fRc);
-                /* Signal to the caller that we're done. */
-                RTSemEventSignal(WndRequestSem);
-                continue;
-            }
-            if (msg.message == WM_VMSVGA3D_RESIZEWINDOW)
-            {
-                HWND hwnd = (HWND)msg.wParam;
-                LPCREATESTRUCT pCS = (LPCREATESTRUCT) msg.lParam;
-
-#ifdef DEBUG_GFX_WINDOW
-                RECT rectClient;
-
-                rectClient.left     = 0;
-                rectClient.top      = 0;
-                rectClient.right    = pCS->cx;
-                rectClient.bottom   = pCS->cy;
-                AdjustWindowRectEx(&rectClient, WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_VISIBLE | WS_CAPTION, FALSE, WS_EX_NOACTIVATE | WS_EX_NOPARENTNOTIFY | WS_EX_TRANSPARENT);
-                pCS->cx = rectClient.right - rectClient.left;
-                pCS->cy = rectClient.bottom - rectClient.top;
-#endif
-                BOOL fRc = SetWindowPos(hwnd, 0, pCS->x, pCS->y, pCS->cx, pCS->cy, SWP_NOZORDER | SWP_NOMOVE);
                 Assert(fRc); NOREF(fRc);
 
                 /* Signal to the caller that we're done. */
@@ -270,6 +229,31 @@ static LONG WINAPI vmsvga3dWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM l
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
 
+int vmsvga3dContextWindowCreate(HINSTANCE hInstance, RTTHREAD pWindowThread, RTSEMEVENT WndRequestSem, HWND *pHwnd)
+{
+    /* Create a context window with minimal 4x4 size. We will never use the swapchain
+     * to present the rendered image. Rendered images from the guest will be copied to
+     * the VMSVGA SCREEN object, which can be either an offscreen render target or
+     * system memory in the guest VRAM.
+     */
+    CREATESTRUCT cs;
+    cs.lpCreateParams   = NULL;
+    cs.hInstance        = hInstance;
+    cs.hMenu            = NULL;
+    cs.hwndParent       = HWND_DESKTOP;
+    cs.cx               = 4;
+    cs.cy               = 4;
+    cs.x                = 0;
+    cs.y                = 0;
+    cs.style            = WS_DISABLED;
+    cs.lpszName         = NULL;
+    cs.lpszClass        = 0;
+    cs.dwExStyle        = WS_EX_NOACTIVATE | WS_EX_NOPARENTNOTIFY;
+
+    int rc = vmsvga3dSendThreadMessage(pWindowThread, WndRequestSem, WM_VMSVGA3D_CREATEWINDOW, (WPARAM)pHwnd, (LPARAM)&cs);
+    return rc;
+}
+
 #endif /* RT_OS_WINDOWS */
 
 
@@ -329,11 +313,11 @@ uint32_t vmsvga3dSurfaceFormatSize(SVGA3dSurfaceFormat format,
         return 2;
 
     case SVGA3D_DXT1:
-    case SVGA3D_DXT2:
         *pcxBlock = 4;
         *pcyBlock = 4;
         return 8;
 
+    case SVGA3D_DXT2:
     case SVGA3D_DXT3:
     case SVGA3D_DXT4:
     case SVGA3D_DXT5:
@@ -368,11 +352,11 @@ uint32_t vmsvga3dSurfaceFormatSize(SVGA3dSurfaceFormat format,
     case SVGA3D_ARGB_S10E5:   /* 16-bit floating-point ARGB */
         *pcxBlock = 1;
         *pcyBlock = 1;
-        return 2;
+        return 8;
     case SVGA3D_ARGB_S23E8:   /* 32-bit floating-point ARGB */
         *pcxBlock = 1;
         *pcyBlock = 1;
-        return 4;
+        return 16;
 
     case SVGA3D_A2R10G10B10:
         *pcxBlock = 1;
@@ -1115,77 +1099,3 @@ const char *vmsvga3dPrimitiveType2String(SVGA3dPrimitiveType PrimitiveType)
 }
 
 #endif /* LOG_ENABLED */
-
-/** Unsigned coordinates in pBox. Clip to [0; pSizeSrc), [0;pSizeDest).
- *
- * @param pSizeSrc  Source surface dimensions.
- * @param pSizeDest Destination surface dimensions.
- * @param pBox      Coordinates to be clipped.
- */
-void vmsvgaClipCopyBox(const SVGA3dSize *pSizeSrc,
-                       const SVGA3dSize *pSizeDest,
-                       SVGA3dCopyBox *pBox)
-{
-    /* Src x, w */
-    if (pBox->srcx > pSizeSrc->width)
-        pBox->srcx = pSizeSrc->width;
-    if (pBox->w > pSizeSrc->width - pBox->srcx)
-        pBox->w = pSizeSrc->width - pBox->srcx;
-
-    /* Src y, h */
-    if (pBox->srcy > pSizeSrc->height)
-        pBox->srcy = pSizeSrc->height;
-    if (pBox->h > pSizeSrc->height - pBox->srcy)
-        pBox->h = pSizeSrc->height - pBox->srcy;
-
-    /* Src z, d */
-    if (pBox->srcz > pSizeSrc->depth)
-        pBox->srcz = pSizeSrc->depth;
-    if (pBox->d > pSizeSrc->depth - pBox->srcz)
-        pBox->d = pSizeSrc->depth - pBox->srcz;
-
-    /* Dest x, w */
-    if (pBox->x > pSizeDest->width)
-        pBox->x = pSizeDest->width;
-    if (pBox->w > pSizeDest->width - pBox->x)
-        pBox->w = pSizeDest->width - pBox->x;
-
-    /* Dest y, h */
-    if (pBox->y > pSizeDest->height)
-        pBox->y = pSizeDest->height;
-    if (pBox->h > pSizeDest->height - pBox->y)
-        pBox->h = pSizeDest->height - pBox->y;
-
-    /* Dest z, d */
-    if (pBox->z > pSizeDest->depth)
-        pBox->z = pSizeDest->depth;
-    if (pBox->d > pSizeDest->depth - pBox->z)
-        pBox->d = pSizeDest->depth - pBox->z;
-}
-
-/** Unsigned coordinates in pBox. Clip to [0; pSize).
- *
- * @param pSize     Source surface dimensions.
- * @param pBox      Coordinates to be clipped.
- */
-void vmsvgaClipBox(const SVGA3dSize *pSize,
-                   SVGA3dBox *pBox)
-{
-    /* x, w */
-    if (pBox->x > pSize->width)
-        pBox->x = pSize->width;
-    if (pBox->w > pSize->width - pBox->x)
-        pBox->w = pSize->width - pBox->x;
-
-    /* y, h */
-    if (pBox->y > pSize->height)
-        pBox->y = pSize->height;
-    if (pBox->h > pSize->height - pBox->y)
-        pBox->h = pSize->height - pBox->y;
-
-    /* z, d */
-    if (pBox->z > pSize->depth)
-        pBox->z = pSize->depth;
-    if (pBox->d > pSize->depth - pBox->z)
-        pBox->d = pSize->depth - pBox->z;
-}

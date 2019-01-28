@@ -1,10 +1,10 @@
 /* $Id: QIGraphicsWidget.cpp $ */
 /** @file
- * VBox Qt GUI - QIGraphicsWidget class definition.
+ * VBox Qt GUI - Qt extensions: QIGraphicsWidget class definition.
  */
 
 /*
- * Copyright (C) 2012-2017 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,14 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* GUI includes: */
-# include "QIGraphicsWidget.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "QIGraphicsWidget.h"
 
 
 QIGraphicsWidget::QIGraphicsWidget(QGraphicsWidget *pParent)
@@ -34,4 +28,3 @@ QSizeF QIGraphicsWidget::minimumSizeHint() const
 {
     return sizeHint(Qt::MinimumSize);
 }
-

@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,8 +16,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ____H_GUESTOSTYPEIMPL
-#define ____H_GUESTOSTYPEIMPL
+#ifndef MAIN_INCLUDED_GuestOSTypeImpl_h
+#define MAIN_INCLUDED_GuestOSTypeImpl_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "Global.h"
 #include "GuestOSTypeWrap.h"
@@ -58,6 +61,7 @@ private:
     HRESULT getRecommendedIOAPIC(BOOL *aRecommendedIOAPIC);
     HRESULT getRecommendedVirtEx(BOOL *aRecommendedVirtEx);
     HRESULT getRecommendedRAM(ULONG *RAMSize);
+    HRESULT getRecommendedGraphicsController(GraphicsControllerType_T *aRecommendedGraphicsController);
     HRESULT getRecommendedVRAM(ULONG *aVRAMSize);
     HRESULT getRecommended2DVideoAcceleration(BOOL *aRecommended2DVideoAcceleration);
     HRESULT getRecommended3DAcceleration(BOOL *aRecommended3DAcceleration);
@@ -90,6 +94,7 @@ private:
     const VBOXOSTYPE mOSType;
     const uint32_t mOSHint;
     const uint32_t mRAMSize;
+    const GraphicsControllerType_T mGraphicsControllerType;
     const uint32_t mVRAMSize;
     const uint64_t mHDDSize;
     const uint32_t mMonitorCount;
@@ -104,5 +109,5 @@ private:
     const AudioCodecType_T mAudioCodecType;
 };
 
-#endif // ____H_GUESTOSTYPEIMPL
+#endif /* !MAIN_INCLUDED_GuestOSTypeImpl_h */
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

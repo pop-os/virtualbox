@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2015-2017 Oracle Corporation
+ * Copyright (C) 2017-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,13 +15,22 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ____H_VIRTUALBOXSDSIMPL
-#define ____H_VIRTUALBOXSDSIMPL
+#ifndef MAIN_INCLUDED_VirtualBoxSDSImpl_h
+#define MAIN_INCLUDED_VirtualBoxSDSImpl_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "VirtualBoxBase.h"
 
+/* Enable the watcher code in debug builds. */
+#ifdef DEBUG
+# define WITH_WATCHER
+#endif
+
 
 class VBoxSDSPerUserData; /* See VirtualBoxSDSImpl.cpp. */
+struct VBoxSDSWatcher;    /* See VirtualBoxSDSImpl.cpp. */
 
 /**
  * The IVirtualBoxSDS implementation.
@@ -50,9 +59,19 @@ private:
     typedef std::map<com::Utf8Str, VBoxSDSPerUserData *> UserDataMap_T;
     /** Per user data map (key is SID string).
      * This is an insert-only map! */
-    UserDataMap_T       m_UserDataMap;
-    /** Lock protecting m_UserDataMap.*/
-    RTCRITSECTRW        m_MapCritSect;
+    UserDataMap_T           m_UserDataMap;
+    /** Number of registered+watched VBoxSVC processes. */
+    uint32_t                m_cVBoxSvcProcesses;
+#ifdef WITH_WATCHER
+    /** Number of watcher threads.   */
+    uint32_t                m_cWatchers;
+    /** Pointer to an array of watcher pointers. */
+    VBoxSDSWatcher        **m_papWatchers;
+    /** Lock protecting m_papWatchers and associated structures. */
+    RTCRITSECT              m_WatcherCritSect;
+#endif
+    /** Lock protecting m_UserDataMap . */
+    RTCRITSECTRW            m_MapCritSect;
 
 public:
     DECLARE_CLASSFACTORY_SINGLETON(VirtualBoxSDS)
@@ -70,13 +89,15 @@ public:
 
 private:
 
-    // IVirtualBoxSDS methods
-    HRESULT RegisterVBoxSVC(IVBoxSVCRegistration *aVBoxSVC, LONG aPid, IUnknown **aExistingVirtualBox);
-    HRESULT DeregisterVBoxSVC(IVBoxSVCRegistration *aVBoxSVC, LONG aPid);
+    /** @name IVirtualBoxSDS methods
+     * @{ */
+    STDMETHOD(RegisterVBoxSVC)(IVBoxSVCRegistration *aVBoxSVC, LONG aPid, IUnknown **aExistingVirtualBox);
+    STDMETHOD(DeregisterVBoxSVC)(IVBoxSVCRegistration *aVBoxSVC, LONG aPid);
+    /** @} */
 
 
-    // Private methods
-
+    /** @name Private methods
+     * @{ */
     /**
      * Gets the client user SID of the
      */
@@ -98,8 +119,22 @@ private:
      * @param   a_rStrUsername  The user name if available.
      */
     VBoxSDSPerUserData *i_lookupOrCreatePerUserData(com::Utf8Str const &a_rStrUserSid, com::Utf8Str const &a_rStrUsername);
+
+#ifdef WITH_WATCHER
+    static DECLCALLBACK(int) i_watcherThreadProc(RTTHREAD hSelf, void *pvUser);
+    bool i_watchIt(VBoxSDSPerUserData *pProcess, HANDLE hProcess, RTPROCESS pid);
+    void i_stopWatching(VBoxSDSPerUserData *pProcess, RTPROCESS pid);
+    void i_shutdownAllWatchers(void);
+
+    void i_decrementClientCount();
+    void i_incrementClientCount();
+#endif
+    /** @} */
 };
 
+#ifdef WITH_WATCHER
+void VBoxSDSNotifyClientCount(uint32_t cClients);
+#endif
 
-#endif // !____H_VIRTUALBOXSDSIMPL
+#endif /* !MAIN_INCLUDED_VirtualBoxSDSImpl_h */
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

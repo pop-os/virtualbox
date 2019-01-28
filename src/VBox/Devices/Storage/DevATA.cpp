@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -46,11 +46,12 @@
 #include <iprt/assert.h>
 #include <iprt/string.h>
 #ifdef IN_RING3
-# include <iprt/uuid.h>
+# include <iprt/mem.h>
+# include <iprt/mp.h>
 # include <iprt/semaphore.h>
 # include <iprt/thread.h>
 # include <iprt/time.h>
-# include <iprt/alloc.h>
+# include <iprt/uuid.h>
 #endif /* IN_RING3 */
 #include <iprt/critsect.h>
 #include <iprt/asm.h>
@@ -285,24 +286,35 @@ typedef struct ATADevState
     /** Pointer to the I/O buffer. */
     RCPTRTYPE(uint8_t *)                pbIOBufferRC;
 
-    RTRCPTR                             Aligmnent1; /**< Align the statistics at an 8-byte boundary. */
-
     /*
      * No data that is part of the saved state after this point!!!!!
      */
 
-    /* Release statistics: number of ATA DMA commands. */
+    /** Counter for number of busy status seen in R3 in a row. */
+    uint8_t                             cBusyStatusHackR3;
+    /** Counter for number of busy status seen in GC/R0 in a row. */
+    uint8_t                             cBusyStatusHackRZ;
+    /** Defines the R3 yield rate by a mask (power of 2 minus one).
+     * Lower is more agressive. */
+    uint8_t                             cBusyStatusHackR3Rate;
+    /** Defines the R0/RC yield rate by a mask (power of 2 minus one).
+     * Lower is more agressive. */
+    uint8_t                             cBusyStatusHackRZRate;
+
+    /** Release statistics: number of ATA DMA commands. */
     STAMCOUNTER                         StatATADMA;
-    /* Release statistics: number of ATA PIO commands. */
+    /** Release statistics: number of ATA PIO commands. */
     STAMCOUNTER                         StatATAPIO;
-    /* Release statistics: number of ATAPI PIO commands. */
+    /** Release statistics: number of ATAPI PIO commands. */
     STAMCOUNTER                         StatATAPIDMA;
-    /* Release statistics: number of ATAPI PIO commands. */
+    /** Release statistics: number of ATAPI PIO commands. */
     STAMCOUNTER                         StatATAPIPIO;
 #ifdef VBOX_INSTRUMENT_DMA_WRITES
-    /* Release statistics: number of DMA sector writes and the time spent. */
+    /** Release statistics: number of DMA sector writes and the time spent. */
     STAMPROFILEADV                      StatInstrVDWrites;
 #endif
+    /** Release statistics: Profiling RTThreadYield calls during status polling. */
+    STAMPROFILEADV                      StatStatusYields;
 
     /** Statistics: number of read operations and the time spent reading. */
     STAMPROFILEADV                      StatReads;
@@ -673,6 +685,8 @@ static bool ataR3WriteSectorsSS(ATADevState *);
 static bool ataR3ExecuteDeviceDiagnosticSS(ATADevState *);
 static bool ataR3TrimSS(ATADevState *);
 static bool ataR3PacketSS(ATADevState *);
+static bool ataR3InitDevParmSS(ATADevState *);
+static bool ataR3RecalibrateSS(ATADevState *);
 static bool atapiR3GetConfigurationSS(ATADevState *);
 static bool atapiR3GetEventStatusNotificationSS(ATADevState *);
 static bool atapiR3IdentifySS(ATADevState *);
@@ -733,6 +747,8 @@ typedef enum ATAFNSS
     ATAFN_SS_EXECUTE_DEVICE_DIAGNOSTIC,
     ATAFN_SS_TRIM,
     ATAFN_SS_PACKET,
+    ATAFN_SS_INITIALIZE_DEVICE_PARAMETERS,
+    ATAFN_SS_RECALIBRATE,
     ATAFN_SS_ATAPI_GET_CONFIGURATION,
     ATAFN_SS_ATAPI_GET_EVENT_STATUS_NOTIFICATION,
     ATAFN_SS_ATAPI_IDENTIFY,
@@ -768,6 +784,8 @@ static const PSourceSinkFunc g_apfnSourceSinkFuncs[ATAFN_SS_MAX] =
     ataR3ExecuteDeviceDiagnosticSS,
     ataR3TrimSS,
     ataR3PacketSS,
+    ataR3InitDevParmSS,
+    ataR3RecalibrateSS,
     atapiR3GetConfigurationSS,
     atapiR3GetEventStatusNotificationSS,
     atapiR3IdentifySS,
@@ -3224,6 +3242,38 @@ static void atapiR3ParseCmdVirtualATAPI(ATADevState *s)
             cbMax = scsiBE2H_U16(pbPacket + 7);
             ataR3StartTransfer(s, RT_MIN(cbMax, 8), PDMMEDIATXDIR_FROM_DEVICE, ATAFN_BT_ATAPI_CMD, ATAFN_SS_ATAPI_GET_EVENT_STATUS_NOTIFICATION, true);
             break;
+        case SCSI_MODE_SENSE_6:
+        {
+            uint8_t uPageControl, uPageCode;
+            cbMax = pbPacket[4];
+            uPageControl = pbPacket[2] >> 6;
+            uPageCode = pbPacket[2] & 0x3f;
+            switch (uPageControl)
+            {
+                case SCSI_PAGECONTROL_CURRENT:
+                    switch (uPageCode)
+                    {
+                        case SCSI_MODEPAGE_ERROR_RECOVERY:
+                            ataR3StartTransfer(s, RT_MIN(cbMax, 16), PDMMEDIATXDIR_FROM_DEVICE, ATAFN_BT_ATAPI_CMD, ATAFN_SS_ATAPI_MODE_SENSE_ERROR_RECOVERY, true);
+                            break;
+                        case SCSI_MODEPAGE_CD_STATUS:
+                            ataR3StartTransfer(s, RT_MIN(cbMax, 40), PDMMEDIATXDIR_FROM_DEVICE, ATAFN_BT_ATAPI_CMD, ATAFN_SS_ATAPI_MODE_SENSE_CD_STATUS, true);
+                            break;
+                        default:
+                            goto error_cmd;
+                    }
+                    break;
+                case SCSI_PAGECONTROL_CHANGEABLE:
+                    goto error_cmd;
+                case SCSI_PAGECONTROL_DEFAULT:
+                    goto error_cmd;
+                default:
+                case SCSI_PAGECONTROL_SAVED:
+                    atapiR3CmdErrorSimple(s, SCSI_SENSE_ILLEGAL_REQUEST, SCSI_ASC_SAVING_PARAMETERS_NOT_SUPPORTED);
+                    break;
+            }
+            break;
+        }
         case SCSI_MODE_SENSE_10:
         {
             uint8_t uPageControl, uPageCode;
@@ -3294,35 +3344,18 @@ static void atapiR3ParseCmdVirtualATAPI(ATADevState *s)
                 cSectors = scsiBE2H_U32(pbPacket + 6);
             iATAPILBA = scsiBE2H_U32(pbPacket + 2);
 
-            /* Check that the sector size is valid. */
-            VDREGIONDATAFORM enmDataForm = VDREGIONDATAFORM_INVALID;
-            int rc = s->pDrvMedia->pfnQueryRegionPropertiesForLba(s->pDrvMedia, iATAPILBA,
-                                                                  NULL, NULL, NULL, &enmDataForm);
-            AssertRC(rc);
-            if (   enmDataForm != VDREGIONDATAFORM_MODE1_2048
-                && enmDataForm != VDREGIONDATAFORM_MODE1_2352
-                && enmDataForm != VDREGIONDATAFORM_MODE2_2336
-                && enmDataForm != VDREGIONDATAFORM_MODE2_2352
-                && enmDataForm != VDREGIONDATAFORM_RAW)
-            {
-                uint8_t abATAPISense[ATAPI_SENSE_SIZE];
-                RT_ZERO(abATAPISense);
-
-                abATAPISense[0] = 0x70 | (1 << 7);
-                abATAPISense[2] = (SCSI_SENSE_ILLEGAL_REQUEST & 0x0f) | SCSI_SENSE_FLAG_ILI;
-                scsiH2BE_U32(&abATAPISense[3], iATAPILBA);
-                abATAPISense[7] = 10;
-                abATAPISense[12] = SCSI_ASC_ILLEGAL_MODE_FOR_THIS_TRACK;
-                atapiR3CmdError(s, &abATAPISense[0], sizeof(abATAPISense));
-                break;
-            }
-
             if (cSectors == 0)
             {
                 atapiR3CmdOK(s);
                 break;
             }
-            if ((uint64_t)iATAPILBA + cSectors > s->cTotalSectors)
+
+            /* Check that the sector size is valid. */
+            VDREGIONDATAFORM enmDataForm = VDREGIONDATAFORM_INVALID;
+            int rc = s->pDrvMedia->pfnQueryRegionPropertiesForLba(s->pDrvMedia, iATAPILBA,
+                                                                  NULL, NULL, NULL, &enmDataForm);
+            if (RT_UNLIKELY(   rc == VERR_NOT_FOUND
+                            || ((uint64_t)iATAPILBA + cSectors > s->cTotalSectors)))
             {
                 /* Rate limited logging, one log line per second. For
                  * guests that insist on reading from places outside the
@@ -3335,6 +3368,23 @@ static void atapiR3ParseCmdVirtualATAPI(ATADevState *s)
                     uLastLogTS = RTTimeMilliTS();
                 }
                 atapiR3CmdErrorSimple(s, SCSI_SENSE_ILLEGAL_REQUEST, SCSI_ASC_LOGICAL_BLOCK_OOR);
+                break;
+            }
+            else if (   enmDataForm != VDREGIONDATAFORM_MODE1_2048
+                     && enmDataForm != VDREGIONDATAFORM_MODE1_2352
+                     && enmDataForm != VDREGIONDATAFORM_MODE2_2336
+                     && enmDataForm != VDREGIONDATAFORM_MODE2_2352
+                     && enmDataForm != VDREGIONDATAFORM_RAW)
+            {
+                uint8_t abATAPISense[ATAPI_SENSE_SIZE];
+                RT_ZERO(abATAPISense);
+
+                abATAPISense[0] = 0x70 | (1 << 7);
+                abATAPISense[2] = (SCSI_SENSE_ILLEGAL_REQUEST & 0x0f) | SCSI_SENSE_FLAG_ILI;
+                scsiH2BE_U32(&abATAPISense[3], iATAPILBA);
+                abATAPISense[7] = 10;
+                abATAPISense[12] = SCSI_ASC_ILLEGAL_MODE_FOR_THIS_TRACK;
+                atapiR3CmdError(s, &abATAPISense[0], sizeof(abATAPISense));
                 break;
             }
             atapiR3ReadSectors(s, iATAPILBA, cSectors, 2048);
@@ -3852,6 +3902,36 @@ static bool ataR3ExecuteDeviceDiagnosticSS(ATADevState *s)
 }
 
 
+static bool ataR3InitDevParmSS(ATADevState *s)
+{
+    PATACONTROLLER pCtl = ATADEVSTATE_2_CONTROLLER(s);
+
+    LogFlowFunc(("\n"));
+    LogRel(("ATA: LUN#%d: INITIALIZE DEVICE PARAMETERS: %u logical sectors, %u heads\n",
+            s->iLUN, s->uATARegNSector, s->uATARegSelect & 0x0f));
+    ataR3LockLeave(pCtl);
+    RTThreadSleep(pCtl->DelayIRQMillies);
+    ataR3LockEnter(pCtl);
+    ataR3CmdOK(s, ATA_STAT_SEEK);
+    ataHCSetIRQ(s);
+    return false;
+}
+
+
+static bool ataR3RecalibrateSS(ATADevState *s)
+{
+    PATACONTROLLER pCtl = ATADEVSTATE_2_CONTROLLER(s);
+
+    LogFlowFunc(("\n"));
+    ataR3LockLeave(pCtl);
+    RTThreadSleep(pCtl->DelayIRQMillies);
+    ataR3LockEnter(pCtl);
+    ataR3CmdOK(s, ATA_STAT_SEEK);
+    ataHCSetIRQ(s);
+    return false;
+}
+
+
 static int ataR3TrimSectors(ATADevState *s, uint64_t u64Sector, uint32_t cSectors,
                             bool *pfRedo)
 {
@@ -3964,10 +4044,12 @@ static void ataR3ParseCmd(ATADevState *s, uint8_t cmd)
         case ATA_RECALIBRATE:
             if (s->fATAPI)
                 goto abort_cmd;
-            RT_FALL_THRU();
+            ataR3StartTransfer(s, 0, PDMMEDIATXDIR_NONE, ATAFN_BT_NULL, ATAFN_SS_RECALIBRATE, false);
+            break;
         case ATA_INITIALIZE_DEVICE_PARAMETERS:
-            ataR3CmdOK(s, ATA_STAT_SEEK);
-            ataHCSetIRQ(s); /* Shortcut, do not use AIO thread. */
+            if (s->fATAPI)
+                goto abort_cmd;
+            ataR3StartTransfer(s, 0, PDMMEDIATXDIR_NONE, ATAFN_BT_NULL, ATAFN_SS_INITIALIZE_DEVICE_PARAMETERS, false);
             break;
         case ATA_SET_MULTIPLE_MODE:
             if (    s->uATARegNSector != 0
@@ -4419,9 +4501,6 @@ static int ataIOPortReadU8(PATACONTROLLER pCtl, uint32_t addr, uint32_t *pu32)
         default:
         case 7: /* primary status */
         {
-            /* Counter for number of busy status seen in GC in a row. */
-            static unsigned cBusy = 0;
-
             if (!s->pDrvMedia)
                 val = 0;
             else
@@ -4438,36 +4517,45 @@ static int ataIOPortReadU8(PATACONTROLLER pCtl, uint32_t addr, uint32_t *pu32)
             if (val & ATA_STAT_BUSY)
             {
 #ifdef IN_RING3
-                cBusy = 0;
+                /* @bugref{1960}: Don't yield all the time, unless it's a reset (can be tricky). */
+                bool fYield = (s->cBusyStatusHackR3++ & s->cBusyStatusHackR3Rate) == 0
+                            || pCtl->fReset;
+
                 ataR3LockLeave(pCtl);
 
-#ifndef RT_OS_WINDOWS
                 /*
-                 * The thread might be stuck in an I/O operation
-                 * due to a high I/O load on the host. (see @bugref{3301})
-                 * To perform the reset successfully
-                 * we interrupt the operation by sending a signal to the thread
-                 * if the thread didn't responded in 10ms.
-                 * This works only on POSIX hosts (Windows has a CancelSynchronousIo function which
-                 * does the same but it was introduced with Vista) but so far
-                 * this hang was only observed on Linux and Mac OS X.
+                 * The thread might be stuck in an I/O operation due to a high I/O
+                 * load on the host (see @bugref{3301}).  To perform the reset
+                 * successfully we interrupt the operation by sending a signal to
+                 * the thread if the thread didn't responded in 10ms.
+                 *
+                 * This works only on POSIX hosts (Windows has a CancelSynchronousIo
+                 * function which does the same but it was introduced with Vista) but
+                 * so far this hang was only observed on Linux and Mac OS X.
                  *
                  * This is a workaround and needs to be solved properly.
                  */
                 if (pCtl->fReset)
                 {
                     uint64_t u64ResetTimeStop = RTTimeMilliTS();
-
-                    if ((u64ResetTimeStop - pCtl->u64ResetTime) >= 10)
+                    if (u64ResetTimeStop - pCtl->u64ResetTime >= 10)
                     {
                         LogRel(("PIIX3 ATA LUN#%d: Async I/O thread probably stuck in operation, interrupting\n", s->iLUN));
                         pCtl->u64ResetTime = u64ResetTimeStop;
+# ifndef RT_OS_WINDOWS /* We've got this API on windows, but it doesn't necessarily interrupt I/O. */
                         RTThreadPoke(pCtl->AsyncIOThread);
+# endif
+                        Assert(fYield);
                     }
                 }
-#endif
 
-                RTThreadYield();
+                if (fYield)
+                {
+                    STAM_REL_PROFILE_ADV_START(&s->StatStatusYields, a);
+                    RTThreadYield();
+                    STAM_REL_PROFILE_ADV_STOP(&s->StatStatusYields, a);
+                }
+                ASMNopPause();
 
                 ataR3LockEnter(pCtl);
 
@@ -4477,15 +4565,18 @@ static int ataIOPortReadU8(PATACONTROLLER pCtl, uint32_t addr, uint32_t *pu32)
                  * to host context for each and every busy status is too costly,
                  * especially on SMP systems where we don't gain much by
                  * yielding the CPU to someone else. */
-                if (++cBusy >= 20)
+                if ((s->cBusyStatusHackRZ++ & s->cBusyStatusHackRZRate) == 1)
                 {
-                    cBusy = 0;
+                    s->cBusyStatusHackR3 = 0; /* Forces a yield. */
                     return VINF_IOM_R3_IOPORT_READ;
                 }
 #endif /* !IN_RING3 */
             }
             else
-                cBusy = 0;
+            {
+                s->cBusyStatusHackRZ = 0;
+                s->cBusyStatusHackR3 = 0;
+            }
             ataUnsetIRQ(s);
             break;
         }
@@ -6465,6 +6556,38 @@ static int ataR3ConfigLun(PPDMDEVINS pDevIns, ATADevState *pIf)
         if (pIf->pDrvMedia->pfnDiscard)
             LogRel(("PIIX3 ATA: LUN#%d: TRIM enabled\n", pIf->iLUN));
     }
+
+    /*
+     * Check if SMP system to adjust the agressiveness of the busy yield hack (@bugref{1960}).
+     *
+     * The hack is an ancient (2006?) one for dealing with UNI CPU systems where EMT
+     * would potentially monopolise the CPU and starve I/O threads.  It causes the EMT to
+     * yield it's timeslice if the guest polls the status register during I/O.  On modern
+     * multicore and multithreaded systems, yielding EMT too often may have adverse
+     * effects (slow grub) so we aim at avoiding repeating the yield there too often.
+     */
+    RTCPUID cCpus = RTMpGetOnlineCount();
+    if (cCpus <= 1)
+    {
+        pIf->cBusyStatusHackR3Rate = 1;
+        pIf->cBusyStatusHackRZRate = 7;
+    }
+    else if (cCpus <= 2)
+    {
+        pIf->cBusyStatusHackR3Rate = 3;
+        pIf->cBusyStatusHackRZRate = 15;
+    }
+    else if (cCpus <= 4)
+    {
+        pIf->cBusyStatusHackR3Rate = 15;
+        pIf->cBusyStatusHackRZRate = 31;
+    }
+    else
+    {
+        pIf->cBusyStatusHackR3Rate = 127;
+        pIf->cBusyStatusHackRZRate = 127;
+    }
+
     return rc;
 }
 
@@ -7535,6 +7658,8 @@ static DECLCALLBACK(int) ataR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFGM
             PDMDevHlpSTAMRegisterF(pDevIns, &pIf->StatFlushes,      STAMTYPE_PROFILE,     STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS_PER_CALL,
                                    "Profiling of the flush operations.",        "/Devices/IDE%d/ATA%d/Unit%d/Flushes", iInstance, i, j);
 #endif
+            PDMDevHlpSTAMRegisterF(pDevIns, &pIf->StatStatusYields, STAMTYPE_PROFILE,     STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS_PER_CALL,
+                                   "Profiling of status polling yields.",        "/Devices/IDE%d/ATA%d/Unit%d/StatusYields", iInstance, i, j);
         }
 #ifdef VBOX_WITH_STATISTICS /** @todo release too. */
         PDMDevHlpSTAMRegisterF(pDevIns, &pThis->aCts[i].StatAsyncOps,     STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,

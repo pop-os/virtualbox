@@ -1,10 +1,10 @@
 /* $Id: QIManagerDialog.h $ */
 /** @file
- * VBox Qt GUI - QIManagerDialog class declaration.
+ * VBox Qt GUI - Qt extensions: QIManagerDialog class declaration.
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,12 +15,18 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___QIManagerDialog_h___
-#define ___QIManagerDialog_h___
+#ifndef FEQT_INCLUDED_SRC_extensions_QIManagerDialog_h
+#define FEQT_INCLUDED_SRC_extensions_QIManagerDialog_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Qt includes: */
 #include <QMainWindow>
 #include <QMap>
+
+/* GUI includes: */
+#include "UILibraryDefs.h"
 
 /* Other VBox includes: */
 #include <iprt/cdefs.h>
@@ -53,8 +59,9 @@ enum ButtonType
 
 
 /** Manager dialog factory insterface. */
-class QIManagerDialogFactory
+class SHARED_LIBRARY_STUFF QIManagerDialogFactory
 {
+
 public:
 
     /** Constructs Manager dialog factory. */
@@ -77,13 +84,16 @@ protected:
 
 
 /** QMainWindow sub-class used as various manager dialogs. */
-class QIManagerDialog : public QMainWindow
+class SHARED_LIBRARY_STUFF QIManagerDialog : public QMainWindow
 {
     Q_OBJECT;
 
 signals:
 
-    /** Notifies listener about dialog should be closed. */
+    /** Notifies listeners about dialog change. */
+    void sigChange();
+
+    /** Notifies listeners about dialog should be closed. */
     void sigClose();
 
 protected:
@@ -95,40 +105,44 @@ protected:
     /** @name Prepare/cleanup cascade.
       * @{ */
         /** Prepares all.
-          * @note Normally you no need to reimplement it. */
+          * @note Normally you don't need to reimplement it. */
         void prepare();
         /** Configures all.
           * @note Injected into prepare(), reimplement to configure all there. */
         virtual void configure() {}
         /** Prepares central-widget.
-          * @note Injected into prepare(), normally you no need to reimplement it. */
+          * @note Injected into prepare(), normally you don't need to reimplement it. */
         void prepareCentralWidget();
         /** Configures central-widget.
           * @note Injected into prepareCentralWidget(), reimplement to configure central-widget there. */
         virtual void configureCentralWidget() {}
         /** Prepares button-box.
-          * @note Injected into prepareCentralWidget(), normally you no need to reimplement it. */
+          * @note Injected into prepareCentralWidget(), normally you don't need to reimplement it. */
         void prepareButtonBox();
         /** Configures button-box.
           * @note Injected into prepareButtonBox(), reimplement to configure button-box there. */
         virtual void configureButtonBox() {}
         /** Prepares menu-bar.
-          * @note Injected into prepare(), normally you no need to reimplement it. */
+          * @note Injected into prepare(), normally you don't need to reimplement it. */
         void prepareMenuBar();
 #ifdef VBOX_WS_MAC
         /** Prepares toolbar.
-          * @note Injected into prepare(), normally you no need to reimplement it. */
+          * @note Injected into prepare(), normally you don't need to reimplement it. */
         void prepareToolBar();
 #endif
         /** Performs final preparations.
           * @note Injected into prepare(), reimplement to postprocess all there. */
         virtual void finalize() {}
+        /** Loads dialog setting such as geometry from extradata. */
+        virtual void loadSettings() {}
 
+        /** Saves dialog setting into extradata. */
+        virtual void saveSettings() const {}
         /** Cleanup menu-bar.
-          * @note Injected into cleanup(), normally you no need to reimplement it. */
+          * @note Injected into cleanup(), normally you don't need to reimplement it. */
         void cleanupMenuBar();
         /** Cleanups all.
-          * @note Normally you no need to reimplement it. */
+          * @note Normally you don't need to reimplement it. */
         void cleanup();
     /** @} */
 
@@ -149,12 +163,22 @@ protected:
         QIDialogButtonBox *buttonBox() { return m_pButtonBox; }
         /** Returns button of passed @a enmType. */
         QPushButton *button(ButtonType enmType) { return m_buttons.value(enmType); }
+        /** Returns center widget. */
+        QWidget* centerWidget() const { return pCenterWidget; }
     /** @} */
 
     /** @name Event-handling stuff.
       * @{ */
         /** Handles close @a pEvent. */
         void closeEvent(QCloseEvent *pEvent);
+    /** @} */
+
+    /** @name Functions related to geometry restoration.
+     * @{ */
+        /** Sets the position and size of the dialog. */
+        void setDialogGeometry(const QRect &geometry);
+        /** Returns whether the window should be maximized when geometry being restored. */
+        virtual bool shouldBeMaximized() const { return false; }
     /** @} */
 
 private:
@@ -194,5 +218,5 @@ private:
     friend class QIManagerDialogFactory;
 };
 
-#endif /* !___QIManagerDialog_h___ */
 
+#endif /* !FEQT_INCLUDED_SRC_extensions_QIManagerDialog_h */

@@ -1,10 +1,10 @@
 /* $Id: VBoxUtils-win.h $ */
 /** @file
- * VBox Qt GUI - Declarations of utility classes and functions for handling Win specific tasks.
+ * VBox Qt GUI - Declarations of utility classes and functions for handling Windows specific tasks.
  */
 
 /*
- * Copyright (C) 2011-2017 Oracle Corporation
+ * Copyright (C) 2011-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,21 +15,26 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___VBoxUtils_WIN_h___
-#define ___VBoxUtils_WIN_h___
+#ifndef FEQT_INCLUDED_SRC_platform_win_VBoxUtils_win_h
+#define FEQT_INCLUDED_SRC_platform_win_VBoxUtils_win_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Qt includes: */
 #include <QRegion>
 
-/* Platform includes: */
+/* GUI includes: */
+#include "UILibraryDefs.h"
+
+/* External includes: */
 #include <iprt/win/windows.h>
 
 /* Namespace for native window sub-system functions: */
 namespace NativeWindowSubsystem
 {
     /* Returns area covered by visible always-on-top (top-most) windows: */
-    const QRegion areaCoveredByTopMostWindows();
+    SHARED_LIBRARY_STUFF const QRegion areaCoveredByTopMostWindows();
 }
 
-#endif
-
+#endif /* !FEQT_INCLUDED_SRC_platform_win_VBoxUtils_win_h */

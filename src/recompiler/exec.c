@@ -48,6 +48,7 @@
 # include <iprt/string.h>
 # include <iprt/param.h>
 # include <VBox/vmm/pgm.h> /* PGM_DYNAMIC_RAM_ALLOC */
+# include <iprt/errcore.h>
 #endif /* VBOX */
 
 #include "cpu.h"

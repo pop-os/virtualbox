@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2017 Oracle Corporation
+ * Copyright (C) 2007-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -4746,6 +4746,7 @@ static bool BS3_NEAR_CODE Bs3Cg1RunSelector(PBS3CG1STATE pThis, PCBS3CG1TESTHDR 
             CASE_PRED(BS3CG1PRED_VENDOR_AMD,   pThis->bCpuVendor == BS3CPUVENDOR_AMD);
             CASE_PRED(BS3CG1PRED_VENDOR_INTEL, pThis->bCpuVendor == BS3CPUVENDOR_INTEL);
             CASE_PRED(BS3CG1PRED_VENDOR_VIA,   pThis->bCpuVendor == BS3CPUVENDOR_VIA);
+            CASE_PRED(BS3CG1PRED_VENDOR_SHANGHAI, pThis->bCpuVendor == BS3CPUVENDOR_SHANGHAI);
 
 #undef CASE_PRED
             default:

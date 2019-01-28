@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __UIWizardNewVDPageBasic3_h__
-#define __UIWizardNewVDPageBasic3_h__
+#ifndef FEQT_INCLUDED_SRC_wizards_newvd_UIWizardNewVDPageBasic3_h
+#define FEQT_INCLUDED_SRC_wizards_newvd_UIWizardNewVDPageBasic3_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* GUI includes: */
 #include "UIWizardPage.h"
@@ -28,8 +31,9 @@ class QIToolButton;
 class QIRichTextLabel;
 class UIMediumSizeEditor;
 
+
 /* 3rd page of the New Virtual Hard Drive wizard (base part): */
-class UIWizardNewVDPage3 : public UIWizardPageBase
+class SHARED_LIBRARY_STUFF UIWizardNewVDPage3 : public UIWizardPageBase
 {
 protected:
 
@@ -43,6 +47,9 @@ protected:
     static QString toFileName(const QString &strName, const QString &strExtension);
     static QString absoluteFilePath(const QString &strFileName, const QString &strDefaultPath);
     static QString defaultExtension(const CMediumFormat &mediumFormatRef);
+
+    /* Checks if the medium file is bigger than what is allowed in FAT file systems. */
+    bool checkFATSizeLimitation() const;
 
     /* Stuff for 'mediumPath' field: */
     QString mediumPath() const;
@@ -64,8 +71,9 @@ protected:
     UIMediumSizeEditor *m_pEditorSize;
 };
 
+
 /* 3rd page of the New Virtual Hard Drive wizard (basic extension): */
-class UIWizardNewVDPageBasic3 : public UIWizardPage, public UIWizardNewVDPage3
+class SHARED_LIBRARY_STUFF UIWizardNewVDPageBasic3 : public UIWizardPage, public UIWizardNewVDPage3
 {
     Q_OBJECT;
     Q_PROPERTY(QString mediumPath READ mediumPath);
@@ -105,5 +113,5 @@ private:
     QIRichTextLabel *m_pSizeLabel;
 };
 
-#endif // __UIWizardNewVDPageBasic3_h__
 
+#endif /* !FEQT_INCLUDED_SRC_wizards_newvd_UIWizardNewVDPageBasic3_h */

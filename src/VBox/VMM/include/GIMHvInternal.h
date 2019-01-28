@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2017 Oracle Corporation
+ * Copyright (C) 2014-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___GIMHvInternal_h
-#define ___GIMHvInternal_h
+#ifndef VMM_INCLUDED_SRC_include_GIMHvInternal_h
+#define VMM_INCLUDED_SRC_include_GIMHvInternal_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/vmm/gim.h>
 #include <VBox/vmm/cpum.h>
@@ -28,31 +31,31 @@
  * @{
  */
 /** Virtual processor runtime MSR available. */
-#define GIM_HV_BASE_FEAT_VP_RUNTIME_MSR           RT_BIT(0)
+#define GIM_HV_BASE_FEAT_VP_RUNTIME_MSR                     RT_BIT(0)
 /** Partition reference counter MSR available. */
-#define GIM_HV_BASE_FEAT_PART_TIME_REF_COUNT_MSR  RT_BIT(1)
+#define GIM_HV_BASE_FEAT_PART_TIME_REF_COUNT_MSR            RT_BIT(1)
 /** Basic Synthetic Interrupt Controller MSRs available. */
-#define GIM_HV_BASE_FEAT_BASIC_SYNIC_MSRS         RT_BIT(2)
+#define GIM_HV_BASE_FEAT_BASIC_SYNIC_MSRS                   RT_BIT(2)
 /** Synthetic Timer MSRs available. */
-#define GIM_HV_BASE_FEAT_STIMER_MSRS              RT_BIT(3)
+#define GIM_HV_BASE_FEAT_STIMER_MSRS                        RT_BIT(3)
 /** APIC access MSRs (EOI, ICR, TPR) available. */
-#define GIM_HV_BASE_FEAT_APIC_ACCESS_MSRS         RT_BIT(4)
+#define GIM_HV_BASE_FEAT_APIC_ACCESS_MSRS                   RT_BIT(4)
 /** Hypercall MSRs available. */
-#define GIM_HV_BASE_FEAT_HYPERCALL_MSRS           RT_BIT(5)
+#define GIM_HV_BASE_FEAT_HYPERCALL_MSRS                     RT_BIT(5)
 /** Access to VCPU index MSR available. */
-#define GIM_HV_BASE_FEAT_VP_ID_MSR                RT_BIT(6)
+#define GIM_HV_BASE_FEAT_VP_ID_MSR                          RT_BIT(6)
 /** Virtual system reset MSR available. */
-#define GIM_HV_BASE_FEAT_VIRT_SYS_RESET_MSR       RT_BIT(7)
+#define GIM_HV_BASE_FEAT_VIRT_SYS_RESET_MSR                 RT_BIT(7)
 /** Statistic pages MSRs available. */
-#define GIM_HV_BASE_FEAT_STAT_PAGES_MSR           RT_BIT(8)
+#define GIM_HV_BASE_FEAT_STAT_PAGES_MSR                     RT_BIT(8)
 /** Paritition reference TSC MSR available. */
-#define GIM_HV_BASE_FEAT_PART_REF_TSC_MSR         RT_BIT(9)
+#define GIM_HV_BASE_FEAT_PART_REF_TSC_MSR                   RT_BIT(9)
 /** Virtual guest idle state MSR available. */
-#define GIM_HV_BASE_FEAT_GUEST_IDLE_STATE_MSR     RT_BIT(10)
+#define GIM_HV_BASE_FEAT_GUEST_IDLE_STATE_MSR               RT_BIT(10)
 /** Timer frequency MSRs (TSC and APIC) available. */
-#define GIM_HV_BASE_FEAT_TIMER_FREQ_MSRS          RT_BIT(11)
+#define GIM_HV_BASE_FEAT_TIMER_FREQ_MSRS                    RT_BIT(11)
 /** Debug MSRs available. */
-#define GIM_HV_BASE_FEAT_DEBUG_MSRS               RT_BIT(12)
+#define GIM_HV_BASE_FEAT_DEBUG_MSRS                         RT_BIT(12)
 /** @}  */
 
 /** @name Hyper-V partition-creation feature identification.
@@ -60,46 +63,54 @@
  * @{
  */
 /** Create partitions. */
-#define GIM_HV_PART_FLAGS_CREATE_PART             RT_BIT(0)
+#define GIM_HV_PART_FLAGS_CREATE_PART                       RT_BIT(0)
 /** Access partition Id. */
-#define GIM_HV_PART_FLAGS_ACCESS_PART_ID          RT_BIT(1)
+#define GIM_HV_PART_FLAGS_ACCESS_PART_ID                    RT_BIT(1)
 /** Access memory pool. */
-#define GIM_HV_PART_FLAGS_ACCESS_MEMORY_POOL      RT_BIT(2)
+#define GIM_HV_PART_FLAGS_ACCESS_MEMORY_POOL                RT_BIT(2)
 /** Adjust message buffers. */
-#define GIM_HV_PART_FLAGS_ADJUST_MSG_BUFFERS      RT_BIT(3)
+#define GIM_HV_PART_FLAGS_ADJUST_MSG_BUFFERS                RT_BIT(3)
 /** Post messages. */
-#define GIM_HV_PART_FLAGS_POST_MSGS               RT_BIT(4)
+#define GIM_HV_PART_FLAGS_POST_MSGS                         RT_BIT(4)
 /** Signal events. */
-#define GIM_HV_PART_FLAGS_SIGNAL_EVENTS           RT_BIT(5)
+#define GIM_HV_PART_FLAGS_SIGNAL_EVENTS                     RT_BIT(5)
 /** Create port. */
-#define GIM_HV_PART_FLAGS_CREATE_PORT             RT_BIT(6)
+#define GIM_HV_PART_FLAGS_CREATE_PORT                       RT_BIT(6)
 /** Connect port. */
-#define GIM_HV_PART_FLAGS_CONNECT_PORT            RT_BIT(7)
+#define GIM_HV_PART_FLAGS_CONNECT_PORT                      RT_BIT(7)
 /** Access statistics. */
-#define GIM_HV_PART_FLAGS_ACCESS_STATS            RT_BIT(8)
+#define GIM_HV_PART_FLAGS_ACCESS_STATS                      RT_BIT(8)
 /** Debugging.*/
-#define GIM_HV_PART_FLAGS_DEBUGGING               RT_BIT(11)
+#define GIM_HV_PART_FLAGS_DEBUGGING                         RT_BIT(11)
 /** CPU management. */
-#define GIM_HV_PART_FLAGS_CPU_MGMT                RT_BIT(12)
+#define GIM_HV_PART_FLAGS_CPU_MGMT                          RT_BIT(12)
 /** CPU profiler. */
-#define GIM_HV_PART_FLAGS_CPU_PROFILER            RT_BIT(13)
+#define GIM_HV_PART_FLAGS_CPU_PROFILER                      RT_BIT(13)
 /** Enable expanded stack walking. */
-#define GIM_HV_PART_FLAGS_EXPANDED_STACK_WALK     RT_BIT(14)
+#define GIM_HV_PART_FLAGS_EXPANDED_STACK_WALK               RT_BIT(14)
+/** Access VSM. */
+#define GIM_HV_PART_FLAGS_ACCESS_VSM                        RT_BIT(16)
+/** Access VP registers. */
+#define GIM_HV_PART_FLAGS_ACCESS_VP_REGS                    RT_BIT(17)
+/** Enable extended hypercalls. */
+#define GIM_HV_PART_FLAGS_EXTENDED_HYPERCALLS               RT_BIT(20)
+/** Start virtual processor. */
+#define GIM_HV_PART_FLAGS_START_VP                          RT_BIT(21)
 /** @}  */
 
 /** @name Hyper-V power management feature identification.
  * @{
  */
 /** Maximum CPU power state C0. */
-#define GIM_HV_PM_MAX_CPU_POWER_STATE_C0          RT_BIT(0)
+#define GIM_HV_PM_MAX_CPU_POWER_STATE_C0                    RT_BIT(0)
 /** Maximum CPU power state C1. */
-#define GIM_HV_PM_MAX_CPU_POWER_STATE_C1          RT_BIT(1)
+#define GIM_HV_PM_MAX_CPU_POWER_STATE_C1                    RT_BIT(1)
 /** Maximum CPU power state C2. */
-#define GIM_HV_PM_MAX_CPU_POWER_STATE_C2          RT_BIT(2)
+#define GIM_HV_PM_MAX_CPU_POWER_STATE_C2                    RT_BIT(2)
 /** Maximum CPU power state C3. */
-#define GIM_HV_PM_MAX_CPU_POWER_STATE_C3          RT_BIT(3)
+#define GIM_HV_PM_MAX_CPU_POWER_STATE_C3                    RT_BIT(3)
 /** HPET is required to enter C3 power state. */
-#define GIM_HV_PM_HPET_REQD_FOR_C3                RT_BIT(4)
+#define GIM_HV_PM_HPET_REQD_FOR_C3                          RT_BIT(4)
 /** @}  */
 
 /** @name Hyper-V miscellaneous feature identification.
@@ -107,33 +118,43 @@
  * @{
  */
 /** MWAIT instruction available. */
-#define GIM_HV_MISC_FEAT_MWAIT                    RT_BIT(0)
+#define GIM_HV_MISC_FEAT_MWAIT                              RT_BIT(0)
 /** Guest debugging support available. */
-#define GIM_HV_MISC_FEAT_GUEST_DEBUGGING          RT_BIT(1)
+#define GIM_HV_MISC_FEAT_GUEST_DEBUGGING                    RT_BIT(1)
 /** Performance monitor support is available. */
-#define GIM_HV_MISC_FEAT_PERF_MON                 RT_BIT(2)
+#define GIM_HV_MISC_FEAT_PERF_MON                           RT_BIT(2)
 /** Support for physical CPU dynamic partitioning events. */
-#define GIM_HV_MISC_FEAT_PCPU_DYN_PART_EVENT      RT_BIT(3)
+#define GIM_HV_MISC_FEAT_PCPU_DYN_PART_EVENT                RT_BIT(3)
 /** Support for passing hypercall input parameter block via XMM registers. */
-#define GIM_HV_MISC_FEAT_XMM_HYPERCALL_INPUT      RT_BIT(4)
+#define GIM_HV_MISC_FEAT_XMM_HYPERCALL_INPUT                RT_BIT(4)
 /** Support for virtual guest idle state. */
-#define GIM_HV_MISC_FEAT_GUEST_IDLE_STATE         RT_BIT(5)
+#define GIM_HV_MISC_FEAT_GUEST_IDLE_STATE                   RT_BIT(5)
 /** Support for hypervisor sleep state. */
-#define GIM_HV_MISC_FEAT_HYPERVISOR_SLEEP_STATE   RT_BIT(6)
+#define GIM_HV_MISC_FEAT_HYPERVISOR_SLEEP_STATE             RT_BIT(6)
 /** Support for querying NUMA distances. */
-#define GIM_HV_MISC_FEAT_QUERY_NUMA_DISTANCE      RT_BIT(7)
+#define GIM_HV_MISC_FEAT_QUERY_NUMA_DISTANCE                RT_BIT(7)
 /** Support for determining timer frequencies. */
-#define GIM_HV_MISC_FEAT_TIMER_FREQ               RT_BIT(8)
+#define GIM_HV_MISC_FEAT_TIMER_FREQ                         RT_BIT(8)
 /** Support for injecting synthetic machine checks. */
-#define GIM_HV_MISC_FEAT_INJECT_SYNMC_XCPT        RT_BIT(9)
+#define GIM_HV_MISC_FEAT_INJECT_SYNMC_XCPT                  RT_BIT(9)
 /** Support for guest crash MSRs. */
-#define GIM_HV_MISC_FEAT_GUEST_CRASH_MSRS         RT_BIT(10)
+#define GIM_HV_MISC_FEAT_GUEST_CRASH_MSRS                   RT_BIT(10)
 /** Support for debug MSRs. */
-#define GIM_HV_MISC_FEAT_DEBUG_MSRS               RT_BIT(11)
+#define GIM_HV_MISC_FEAT_DEBUG_MSRS                         RT_BIT(11)
 /** Npiep1 Available */ /** @todo What the heck is this? */
-#define GIM_HV_MISC_FEAT_NPIEP1                   RT_BIT(12)
+#define GIM_HV_MISC_FEAT_NPIEP1                             RT_BIT(12)
 /** Disable hypervisor available. */
-#define GIM_HV_MISC_FEAT_DISABLE_HYPERVISOR       RT_BIT(13)
+#define GIM_HV_MISC_FEAT_DISABLE_HYPERVISOR                 RT_BIT(13)
+/** Extended GVA ranges for FlushVirtualAddressList available. */
+#define GIM_HV_MISC_FEAT_EXT_GVA_RANGE_FOR_FLUSH_VA_LIST    RT_BIT(14)
+/** Support for returning hypercall output via XMM registers. */
+#define GIM_HV_MISC_FEAT_HYPERCALL_OUTPUT_XMM               RT_BIT(15)
+/** Synthetic interrupt source polling mode available. */
+#define GIM_HV_MISC_FEAT_SINT_POLLING_MODE                  RT_BIT(17)
+/** Hypercall MSR lock available. */
+#define GIM_HV_MISC_FEAT_HYPERCALL_MSR_LOCK                 RT_BIT(18)
+/** Use direct synthetic MSRs. */
+#define GIM_HV_MISC_FEAT_USE_DIRECT_SYNTH_MSRS              RT_BIT(19)
 /** @}  */
 
 /** @name Hyper-V implementation recommendations.
@@ -141,26 +162,36 @@
  * @{
  */
 /** Use hypercall for address space switches rather than MOV CR3. */
-#define GIM_HV_HINT_HYPERCALL_FOR_PROCESS_SWITCH  RT_BIT(0)
+#define GIM_HV_HINT_HYPERCALL_FOR_PROCESS_SWITCH            RT_BIT(0)
 /** Use hypercall for local TLB flushes rather than INVLPG/MOV CR3. */
-#define GIM_HV_HINT_HYPERCALL_FOR_TLB_FLUSH       RT_BIT(1)
+#define GIM_HV_HINT_HYPERCALL_FOR_TLB_FLUSH                 RT_BIT(1)
 /** Use hypercall for inter-CPU TLB flushes rather than IPIs. */
-#define GIM_HV_HINT_HYPERCALL_FOR_TLB_SHOOTDOWN   RT_BIT(2)
+#define GIM_HV_HINT_HYPERCALL_FOR_TLB_SHOOTDOWN             RT_BIT(2)
 /** Use MSRs for APIC access (EOI, ICR, TPR) rather than MMIO. */
-#define GIM_HV_HINT_MSR_FOR_APIC_ACCESS           RT_BIT(3)
+#define GIM_HV_HINT_MSR_FOR_APIC_ACCESS                     RT_BIT(3)
 /** Use hypervisor provided MSR for a system reset. */
-#define GIM_HV_HINT_MSR_FOR_SYS_RESET             RT_BIT(4)
+#define GIM_HV_HINT_MSR_FOR_SYS_RESET                       RT_BIT(4)
 /** Relax timer-related checks (watchdogs/deadman timeouts) that rely on
  *  timely deliver of external interrupts. */
-#define GIM_HV_HINT_RELAX_TIME_CHECKS             RT_BIT(5)
-/** Use DMA remapping. */
-#define GIM_HV_HINT_DMA_REMAPPING                 RT_BIT(6)
-/** Use interrupt remapping. */
-#define GIM_HV_HINT_INTERRUPT_REMAPPING           RT_BIT(7)
-/** Use X2APIC MSRs rather than MMIO. */
-#define GIM_HV_HINT_X2APIC_MSRS                   RT_BIT(8)
-/** Deprecate Auto EOI (end of interrupt). */
-#define GIM_HV_HINT_DEPRECATE_AUTO_EOI            RT_BIT(9)
+#define GIM_HV_HINT_RELAX_TIME_CHECKS                       RT_BIT(5)
+/** Recommend using DMA remapping. */
+#define GIM_HV_HINT_DMA_REMAPPING                           RT_BIT(6)
+/** Recommend using interrupt remapping. */
+#define GIM_HV_HINT_INTERRUPT_REMAPPING                     RT_BIT(7)
+/** Recommend using X2APIC MSRs rather than MMIO. */
+#define GIM_HV_HINT_X2APIC_MSRS                             RT_BIT(8)
+/** Recommend deprecating Auto EOI (end of interrupt). */
+#define GIM_HV_HINT_DEPRECATE_AUTO_EOI                      RT_BIT(9)
+/** Recommend using SyntheticClusterIpi hypercall. */
+#define GIM_HV_HINT_SYNTH_CLUSTER_IPI_HYPERCALL             RT_BIT(10)
+/** Recommend using newer ExProcessMasks interface. */
+#define GIM_HV_HINT_EX_PROC_MASKS_INTERFACE                 RT_BIT(11)
+/** Indicate that Hyper-V is nested within a Hyper-V partition. */
+#define GIM_HV_HINT_NESTED_HYPERV                           RT_BIT(12)
+/** Recommend using INT for MBEC system calls. */
+#define GIM_HV_HINT_INT_FOR_MBEC_SYSCALLS                   RT_BIT(13)
+/** Recommend using enlightened VMCS interfacea and nested enlightenments. */
+#define GIM_HV_HINT_NESTED_ENLIGHTENED_VMCS_INTERFACE       RT_BIT(14)
 /** @}  */
 
 
@@ -169,19 +200,25 @@
  * @{
  */
 /** APIC overlay is used. */
-#define GIM_HV_HOST_FEAT_AVIC                     RT_BIT(0)
+#define GIM_HV_HOST_FEAT_AVIC                               RT_BIT(0)
 /** MSR bitmaps is used. */
-#define GIM_HV_HOST_FEAT_MSR_BITMAP               RT_BIT(1)
+#define GIM_HV_HOST_FEAT_MSR_BITMAP                         RT_BIT(1)
 /** Architectural performance counter supported. */
-#define GIM_HV_HOST_FEAT_PERF_COUNTER             RT_BIT(2)
+#define GIM_HV_HOST_FEAT_PERF_COUNTER                       RT_BIT(2)
 /** Nested paging is used. */
-#define GIM_HV_HOST_FEAT_NESTED_PAGING            RT_BIT(3)
+#define GIM_HV_HOST_FEAT_NESTED_PAGING                      RT_BIT(3)
 /** DMA remapping is used. */
-#define GIM_HV_HOST_FEAT_DMA_REMAPPING            RT_BIT(4)
+#define GIM_HV_HOST_FEAT_DMA_REMAPPING                      RT_BIT(4)
 /** Interrupt remapping is used. */
-#define GIM_HV_HOST_FEAT_INTERRUPT_REMAPPING      RT_BIT(5)
+#define GIM_HV_HOST_FEAT_INTERRUPT_REMAPPING                RT_BIT(5)
 /** Memory patrol scrubber is present. */
-#define GIM_HV_HOST_FEAT_MEM_PATROL_SCRUBBER      RT_BIT(6)
+#define GIM_HV_HOST_FEAT_MEM_PATROL_SCRUBBER                RT_BIT(6)
+/** DMA protection is in use. */
+#define GIM_HV_HOST_FEAT_DMA_PROT_IN_USE                    RT_BIT(7)
+/** HPET is requested. */
+#define GIM_HV_HOST_FEAT_HPET_REQUESTED                     RT_BIT(8)
+/** Synthetic timers are volatile. */
+#define GIM_HV_HOST_FEAT_STIMER_VOLATILE                    RT_BIT(9)
 /** @}  */
 
 
@@ -189,7 +226,7 @@
  * @{
  */
 /** Start of range 0. */
-#define MSR_GIM_HV_RANGE0_START                   UINT32_C(0x40000000)
+#define MSR_GIM_HV_RANGE0_FIRST                   UINT32_C(0x40000000)
 /** Guest OS identification (R/W) */
 #define MSR_GIM_HV_GUEST_OS_ID                    UINT32_C(0x40000000)
 /** Enable hypercall interface (R/W) */
@@ -199,17 +236,17 @@
 /** Reset operation (R/W) */
 #define MSR_GIM_HV_RESET                          UINT32_C(0x40000003)
 /** End of range 0. */
-#define MSR_GIM_HV_RANGE0_END                     MSR_GIM_HV_RESET
+#define MSR_GIM_HV_RANGE0_LAST                    MSR_GIM_HV_RESET
 
 /** Start of range 1. */
-#define MSR_GIM_HV_RANGE1_START                   UINT32_C(0x40000010)
+#define MSR_GIM_HV_RANGE1_FIRST                   UINT32_C(0x40000010)
 /** Virtual processor's (VCPU) runtime (R) */
 #define MSR_GIM_HV_VP_RUNTIME                     UINT32_C(0x40000010)
 /** End of range 1. */
-#define MSR_GIM_HV_RANGE1_END                     MSR_GIM_HV_VP_RUNTIME
+#define MSR_GIM_HV_RANGE1_LAST                    MSR_GIM_HV_VP_RUNTIME
 
 /** Start of range 2. */
-#define MSR_GIM_HV_RANGE2_START                   UINT32_C(0x40000020)
+#define MSR_GIM_HV_RANGE2_FIRST                   UINT32_C(0x40000020)
 /** Per-VM reference counter (R) */
 #define MSR_GIM_HV_TIME_REF_COUNT                 UINT32_C(0x40000020)
 /** Per-VM TSC page (R/W) */
@@ -219,10 +256,10 @@
 /** Frequency of LAPIC in Hz as reported by the hypervisor (R) */
 #define MSR_GIM_HV_APIC_FREQ                      UINT32_C(0x40000023)
 /** End of range 2. */
-#define MSR_GIM_HV_RANGE2_END                     MSR_GIM_HV_APIC_FREQ
+#define MSR_GIM_HV_RANGE2_LAST                    MSR_GIM_HV_APIC_FREQ
 
 /** Start of range 3. */
-#define MSR_GIM_HV_RANGE3_START                   UINT32_C(0x40000070)
+#define MSR_GIM_HV_RANGE3_FIRST                   UINT32_C(0x40000070)
 /** Access to APIC EOI (End-Of-Interrupt) register (W) */
 #define MSR_GIM_HV_EOI                            UINT32_C(0x40000070)
 /** Access to APIC ICR (Interrupt Command) register (R/W) */
@@ -232,10 +269,10 @@
 /** Enables lazy EOI processing (R/W) */
 #define MSR_GIM_HV_APIC_ASSIST_PAGE               UINT32_C(0x40000073)
 /** End of range 3. */
-#define MSR_GIM_HV_RANGE3_END                     MSR_GIM_HV_APIC_ASSIST_PAGE
+#define MSR_GIM_HV_RANGE3_LAST                    MSR_GIM_HV_APIC_ASSIST_PAGE
 
 /** Start of range 4. */
-#define MSR_GIM_HV_RANGE4_START                   UINT32_C(0x40000080)
+#define MSR_GIM_HV_RANGE4_FIRST                   UINT32_C(0x40000080)
 /** Control behaviour of synthetic interrupt controller (R/W) */
 #define MSR_GIM_HV_SCONTROL                       UINT32_C(0x40000080)
 /** Synthetic interrupt controller version (R) */
@@ -247,10 +284,10 @@
 /** End-Of-Message in synthetic interrupt parameter page (W) */
 #define MSR_GIM_HV_EOM                            UINT32_C(0x40000084)
 /** End of range 4. */
-#define MSR_GIM_HV_RANGE4_END                     MSR_GIM_HV_EOM
+#define MSR_GIM_HV_RANGE4_LAST                    MSR_GIM_HV_EOM
 
 /** Start of range 5. */
-#define MSR_GIM_HV_RANGE5_START                   UINT32_C(0x40000090)
+#define MSR_GIM_HV_RANGE5_FIRST                   UINT32_C(0x40000090)
 /** Configures synthetic interrupt source 0 (R/W) */
 #define MSR_GIM_HV_SINT0                          UINT32_C(0x40000090)
 /** Configures synthetic interrupt source 1 (R/W) */
@@ -284,10 +321,10 @@
 /** Configures synthetic interrupt source 15 (R/W) */
 #define MSR_GIM_HV_SINT15                         UINT32_C(0x4000009F)
 /** End of range 5. */
-#define MSR_GIM_HV_RANGE5_END                     MSR_GIM_HV_SINT15
+#define MSR_GIM_HV_RANGE5_LAST                    MSR_GIM_HV_SINT15
 
 /** Start of range 6. */
-#define MSR_GIM_HV_RANGE6_START                   UINT32_C(0x400000B0)
+#define MSR_GIM_HV_RANGE6_FIRST                   UINT32_C(0x400000B0)
 /** Configures register for synthetic timer 0 (R/W) */
 #define MSR_GIM_HV_STIMER0_CONFIG                 UINT32_C(0x400000B0)
 /** Expiration time or period for synthetic timer 0 (R/W) */
@@ -305,10 +342,10 @@
 /** Expiration time or period for synthetic timer 3 (R/W) */
 #define MSR_GIM_HV_STIMER3_COUNT                  UINT32_C(0x400000B7)
 /** End of range 6. */
-#define MSR_GIM_HV_RANGE6_END                     MSR_GIM_HV_STIMER3_COUNT
+#define MSR_GIM_HV_RANGE6_LAST                    MSR_GIM_HV_STIMER3_COUNT
 
 /** Start of range 7. */
-#define MSR_GIM_HV_RANGE7_START                   UINT32_C(0x400000C1)
+#define MSR_GIM_HV_RANGE7_FIRST                   UINT32_C(0x400000C1)
 /** Trigger to transition to power state C1 (R) */
 #define MSR_GIM_HV_POWER_STATE_TRIGGER_C1         UINT32_C(0x400000C1)
 /** Trigger to transition to power state C2 (R) */
@@ -316,10 +353,10 @@
 /** Trigger to transition to power state C3 (R) */
 #define MSR_GIM_HV_POWER_STATE_TRIGGER_C3         UINT32_C(0x400000C3)
 /** End of range 7. */
-#define MSR_GIM_HV_RANGE7_END                     MSR_GIM_HV_POWER_STATE_TRIGGER_C3
+#define MSR_GIM_HV_RANGE7_LAST                    MSR_GIM_HV_POWER_STATE_TRIGGER_C3
 
 /** Start of range 8. */
-#define MSR_GIM_HV_RANGE8_START                   UINT32_C(0x400000D1)
+#define MSR_GIM_HV_RANGE8_FIRST                   UINT32_C(0x400000D1)
 /** Configure the recipe for power state transitions to C1 (R/W) */
 #define MSR_GIM_HV_POWER_STATE_CONFIG_C1          UINT32_C(0x400000D1)
 /** Configure the recipe for power state transitions to C2 (R/W) */
@@ -327,10 +364,10 @@
 /** Configure the recipe for power state transitions to C3 (R/W) */
 #define MSR_GIM_HV_POWER_STATE_CONFIG_C3          UINT32_C(0x400000D3)
 /** End of range 8. */
-#define MSR_GIM_HV_RANGE8_END                     MSR_GIM_HV_POWER_STATE_CONFIG_C3
+#define MSR_GIM_HV_RANGE8_LAST                    MSR_GIM_HV_POWER_STATE_CONFIG_C3
 
 /** Start of range 9. */
-#define MSR_GIM_HV_RANGE9_START                   UINT32_C(0x400000E0)
+#define MSR_GIM_HV_RANGE9_FIRST                   UINT32_C(0x400000E0)
 /** Map the guest's retail partition stats page (R/W) */
 #define MSR_GIM_HV_STATS_PART_RETAIL_PAGE         UINT32_C(0x400000E0)
 /** Map the guest's internal partition stats page (R/W) */
@@ -340,10 +377,10 @@
 /** Map the guest's internal VP stats page (R/W) */
 #define MSR_GIM_HV_STATS_VP_INTERNAL_PAGE         UINT32_C(0x400000E3)
 /** End of range 9. */
-#define MSR_GIM_HV_RANGE9_END                     MSR_GIM_HV_STATS_VP_INTERNAL_PAGE
+#define MSR_GIM_HV_RANGE9_LAST                    MSR_GIM_HV_STATS_VP_INTERNAL_PAGE
 
 /** Start of range 10. */
-#define MSR_GIM_HV_RANGE10_START                  UINT32_C(0x400000F0)
+#define MSR_GIM_HV_RANGE10_FIRST                  UINT32_C(0x400000F0)
 /** Trigger the guest's transition to idle power state (R) */
 #define MSR_GIM_HV_GUEST_IDLE                     UINT32_C(0x400000F0)
 /** Synthetic debug control. */
@@ -357,17 +394,17 @@
 /** Synthetic debug pending buffer. */
 #define MSR_GIM_HV_SYNTH_DEBUG_PENDING_BUFFER     UINT32_C(0x400000F5)
 /** End of range 10. */
-#define MSR_GIM_HV_RANGE10_END                    MSR_GIM_HV_SYNTH_DEBUG_PENDING_BUFFER
+#define MSR_GIM_HV_RANGE10_LAST                   MSR_GIM_HV_SYNTH_DEBUG_PENDING_BUFFER
 
 /** Start of range 11. */
-#define MSR_GIM_HV_RANGE11_START                  UINT32_C(0x400000FF)
+#define MSR_GIM_HV_RANGE11_FIRST                  UINT32_C(0x400000FF)
 /** Undocumented debug options MSR. */
 #define MSR_GIM_HV_DEBUG_OPTIONS_MSR              UINT32_C(0x400000FF)
 /** End of range 11. */
-#define MSR_GIM_HV_RANGE11_END                    MSR_GIM_HV_DEBUG_OPTIONS_MSR
+#define MSR_GIM_HV_RANGE11_LAST                   MSR_GIM_HV_DEBUG_OPTIONS_MSR
 
 /** Start of range 12. */
-#define MSR_GIM_HV_RANGE12_START                  UINT32_C(0x40000100)
+#define MSR_GIM_HV_RANGE12_FIRST                  UINT32_C(0x40000100)
 /** Guest crash MSR 0. */
 #define MSR_GIM_HV_CRASH_P0                       UINT32_C(0x40000100)
 /** Guest crash MSR 1. */
@@ -381,21 +418,21 @@
 /** Guest crash control. */
 #define MSR_GIM_HV_CRASH_CTL                      UINT32_C(0x40000105)
 /** End of range 12. */
-#define MSR_GIM_HV_RANGE12_END                    MSR_GIM_HV_CRASH_CTL
+#define MSR_GIM_HV_RANGE12_LAST                   MSR_GIM_HV_CRASH_CTL
 /** @} */
 
-AssertCompile(MSR_GIM_HV_RANGE0_START  <= MSR_GIM_HV_RANGE0_END);
-AssertCompile(MSR_GIM_HV_RANGE1_START  <= MSR_GIM_HV_RANGE1_END);
-AssertCompile(MSR_GIM_HV_RANGE2_START  <= MSR_GIM_HV_RANGE2_END);
-AssertCompile(MSR_GIM_HV_RANGE3_START  <= MSR_GIM_HV_RANGE3_END);
-AssertCompile(MSR_GIM_HV_RANGE4_START  <= MSR_GIM_HV_RANGE4_END);
-AssertCompile(MSR_GIM_HV_RANGE5_START  <= MSR_GIM_HV_RANGE5_END);
-AssertCompile(MSR_GIM_HV_RANGE6_START  <= MSR_GIM_HV_RANGE6_END);
-AssertCompile(MSR_GIM_HV_RANGE7_START  <= MSR_GIM_HV_RANGE7_END);
-AssertCompile(MSR_GIM_HV_RANGE8_START  <= MSR_GIM_HV_RANGE8_END);
-AssertCompile(MSR_GIM_HV_RANGE9_START  <= MSR_GIM_HV_RANGE9_END);
-AssertCompile(MSR_GIM_HV_RANGE10_START <= MSR_GIM_HV_RANGE10_END);
-AssertCompile(MSR_GIM_HV_RANGE11_START <= MSR_GIM_HV_RANGE11_END);
+AssertCompile(MSR_GIM_HV_RANGE0_FIRST  <= MSR_GIM_HV_RANGE0_LAST);
+AssertCompile(MSR_GIM_HV_RANGE1_FIRST  <= MSR_GIM_HV_RANGE1_LAST);
+AssertCompile(MSR_GIM_HV_RANGE2_FIRST  <= MSR_GIM_HV_RANGE2_LAST);
+AssertCompile(MSR_GIM_HV_RANGE3_FIRST  <= MSR_GIM_HV_RANGE3_LAST);
+AssertCompile(MSR_GIM_HV_RANGE4_FIRST  <= MSR_GIM_HV_RANGE4_LAST);
+AssertCompile(MSR_GIM_HV_RANGE5_FIRST  <= MSR_GIM_HV_RANGE5_LAST);
+AssertCompile(MSR_GIM_HV_RANGE6_FIRST  <= MSR_GIM_HV_RANGE6_LAST);
+AssertCompile(MSR_GIM_HV_RANGE7_FIRST  <= MSR_GIM_HV_RANGE7_LAST);
+AssertCompile(MSR_GIM_HV_RANGE8_FIRST  <= MSR_GIM_HV_RANGE8_LAST);
+AssertCompile(MSR_GIM_HV_RANGE9_FIRST  <= MSR_GIM_HV_RANGE9_LAST);
+AssertCompile(MSR_GIM_HV_RANGE10_FIRST <= MSR_GIM_HV_RANGE10_LAST);
+AssertCompile(MSR_GIM_HV_RANGE11_FIRST <= MSR_GIM_HV_RANGE11_LAST);
 
 /** @name Hyper-V MSR - Reset (MSR_GIM_HV_RESET).
  * @{
@@ -551,6 +588,25 @@ typedef enum GIMHVHYPERCALLPARAM
 #define GIM_HV_HYPERCALL_OP_RETREIVE_DEBUG_DATA   0x6A
 /** Reset debug session. */
 #define GIM_HV_HYPERCALL_OP_RESET_DEBUG_SESSION   0x6B
+/** @} */
+
+/** @name Hyper-V extended hypercall op codes.
+ * @{
+ */
+/** Query extended hypercall capabilities. */
+#define GIM_HV_EXT_HYPERCALL_OP_QUERY_CAP                0x8001
+/** Query guest physical address range that has zero'd filled memory. */
+#define GIM_HV_EXT_HYPERCALL_OP_GET_BOOT_ZEROED_MEM      0x8002
+/** @} */
+
+
+/** @name Hyper-V Extended hypercall - HvExtCallQueryCapabilities.
+ * @{
+ */
+/** Boot time zeroed pages. */
+#define GIM_HV_EXT_HYPERCALL_CAP_ZERO_MEM                       RT_BIT_64(0)
+/** Whether boot time zeroed pages capability is enabled. */
+#define GIM_HV_EXT_HYPERCALL_CAP_IS_ZERO_MEM_ENABLED(a)         RT_BOOL((a) & GIM_HV_EXT_HYPERCALL_CAP_ZERO_MEM)
 /** @} */
 
 
@@ -1001,11 +1057,36 @@ typedef struct GIMHVDEBUGRETRIEVEOUT
 /** Pointer to a HvRetrieveDebugData output struct. */
 typedef GIMHVDEBUGRETRIEVEOUT *PGIMHVDEBUGRETRIEVEOUT;
 AssertCompileSize(GIMHVDEBUGRETRIEVEOUT, 8);
+
+/**
+ * HvExtCallQueryCapabilities hypercall output.
+ */
+typedef struct GIMHVEXTQUERYCAP
+{
+    uint64_t fCapabilities;
+} GIMHVEXTQUERYCAP;
+/** Pointer to a HvExtCallQueryCapabilities output struct. */
+typedef GIMHVEXTQUERYCAP *PGIMHVEXTQUERYCAP;
+AssertCompileSize(GIMHVEXTQUERYCAP, 8);
+
+/**
+ * HvExtCallGetBootZeroedMemory hypercall output.
+ */
+typedef struct GIMHVEXTGETBOOTZEROMEM
+{
+    RTGCPHYS GCPhysStart;
+    uint64_t cPages;
+} GIMHVEXTGETBOOTZEROMEM;
+/** Pointer to a HvExtCallGetBootZeroedMemory output struct. */
+typedef GIMHVEXTGETBOOTZEROMEM *PGIMHVEXTGETBOOTZEROMEM;
+AssertCompileSize(GIMHVEXTGETBOOTZEROMEM, 16);
 /** @} */
 
 
 /** Hyper-V page size.  */
 #define GIM_HV_PAGE_SIZE                          4096
+/** Hyper-V page shift. */
+#define GIM_HV_PAGE_SHIFT                         12
 
 /** Microsoft Hyper-V vendor signature. */
 #define GIM_HV_VENDOR_MICROSOFT                   "Microsoft Hv"
@@ -1260,6 +1341,7 @@ VMMR3_INT_DECL(void)            gimR3HvReset(PVM pVM);
 VMMR3_INT_DECL(PGIMMMIO2REGION) gimR3HvGetMmio2Regions(PVM pVM, uint32_t *pcRegions);
 VMMR3_INT_DECL(int)             gimR3HvSave(PVM pVM, PSSMHANDLE pSSM);
 VMMR3_INT_DECL(int)             gimR3HvLoad(PVM pVM, PSSMHANDLE pSSM);
+VMMR3_INT_DECL(int)             gimR3HvLoadDone(PVM pVM, PSSMHANDLE pSSM);
 VMMR3_INT_DECL(int)             gimR3HvGetDebugSetup(PVM pVM, PGIMDEBUGSETUP pDbgSetup);
 
 VMMR3_INT_DECL(int)             gimR3HvDisableSiefPage(PVMCPU pVCpu);
@@ -1278,6 +1360,9 @@ VMMR3_INT_DECL(int)             gimR3HvHypercallRetrieveDebugData(PVM pVM, int *
 VMMR3_INT_DECL(int)             gimR3HvDebugWrite(PVM pVM, void *pvData, uint32_t cbWrite, uint32_t *pcbWritten, bool fUdpPkt);
 VMMR3_INT_DECL(int)             gimR3HvDebugRead(PVM pVM, void *pvBuf, uint32_t cbBuf, uint32_t cbRead, uint32_t *pcbRead,
                                                  uint32_t cMsTimeout, bool fUdpPkt);
+VMMR3_INT_DECL(int)             gimR3HvHypercallExtQueryCap(PVM pVM, int *prcHv);
+VMMR3_INT_DECL(int)             gimR3HvHypercallExtGetBootZeroedMem(PVM pVM, int *prcHv);
+
 #endif /* IN_RING3 */
 
 VMM_INT_DECL(bool)              gimHvIsParavirtTscEnabled(PVM pVM);
@@ -1285,7 +1370,7 @@ VMM_INT_DECL(bool)              gimHvAreHypercallsEnabled(PVMCPU pVCpu);
 VMM_INT_DECL(bool)              gimHvShouldTrapXcptUD(PVMCPU pVCpu);
 VMM_INT_DECL(VBOXSTRICTRC)      gimHvXcptUD(PVMCPU pVCpu, PCPUMCTX pCtx, PDISCPUSTATE pDis, uint8_t *pcbInstr);
 VMM_INT_DECL(VBOXSTRICTRC)      gimHvHypercall(PVMCPU pVCpu, PCPUMCTX pCtx);
-VMM_INT_DECL(VBOXSTRICTRC)      gimHvExecHypercallInstr(PVMCPU pVCpu, PCPUMCTX pCtx, PDISCPUSTATE pDis);
+VMM_INT_DECL(VBOXSTRICTRC)      gimHvHypercallEx(PVMCPU pVCpu, PCPUMCTX pCtx, unsigned uDisOpcode, uint8_t cbInstr);
 VMM_INT_DECL(VBOXSTRICTRC)      gimHvReadMsr(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t *puValue);
 VMM_INT_DECL(VBOXSTRICTRC)      gimHvWriteMsr(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t uRawValue);
 
@@ -1293,5 +1378,5 @@ VMM_INT_DECL(void)              gimHvStartStimer(PVMCPU pVCpu, PCGIMHVSTIMER pHv
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !VMM_INCLUDED_SRC_include_GIMHvInternal_h */
 

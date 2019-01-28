@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2017 Oracle Corporation
+ * Copyright (C) 2007-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,8 +24,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_vmm_gvmm_h
-#define ___VBox_vmm_gvmm_h
+#ifndef VBOX_INCLUDED_vmm_gvmm_h
+#define VBOX_INCLUDED_vmm_gvmm_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/types.h>
 #include <VBox/sup.h>
@@ -166,10 +169,13 @@ GVMMR0DECL(int)     GVMMR0DestroyVM(PGVM pGVM, PVM pVM);
 GVMMR0DECL(int)     GVMMR0RegisterVCpu(PGVM pGVM, PVM pVM, VMCPUID idCpu);
 GVMMR0DECL(int)     GVMMR0DeregisterVCpu(PGVM pGVM, PVM pVM, VMCPUID idCpu);
 GVMMR0DECL(PGVM)    GVMMR0ByHandle(uint32_t hGVM);
+GVMMR0DECL(PGVM)    GVMMR0FastGetGVMByVM(PVM pVM);
 GVMMR0DECL(int)     GVMMR0ValidateGVMandVM(PGVM pGVM, PVM pVM);
 GVMMR0DECL(int)     GVMMR0ValidateGVMandVMandEMT(PGVM pGVM, PVM pVM, VMCPUID idCpu);
 GVMMR0DECL(PVM)     GVMMR0GetVMByEMT(RTNATIVETHREAD hEMT);
-GVMMR0DECL(int)     GVMMR0SchedHalt(PGVM pGVM, PVM pVM, VMCPUID idCpu, uint64_t u64ExpireGipTime);
+GVMMR0DECL(PGVMCPU) GVMMR0GetGVCpuByEMT(RTNATIVETHREAD hEMT);
+GVMMR0DECL(int)     GVMMR0SchedHalt(PGVM pGVM, PVM pVM, PGVMCPU pGVCpu, uint64_t u64ExpireGipTime);
+GVMMR0DECL(int)     GVMMR0SchedHaltReq(PGVM pGVM, PVM pVM, VMCPUID idCpu, uint64_t u64ExpireGipTime);
 GVMMR0DECL(int)     GVMMR0SchedWakeUp(PGVM pGVM, PVM pVM, VMCPUID idCpu);
 GVMMR0DECL(int)     GVMMR0SchedWakeUpEx(PGVM pGVM, PVM pVM, VMCPUID idCpu, bool fTakeUsedLock);
 GVMMR0DECL(int)     GVMMR0SchedWakeUpNoGVMNoLock(PVM pVM, VMCPUID idCpu);
@@ -267,5 +273,5 @@ GVMMR0DECL(int)     GVMMR0ResetStatisticsReq(PGVM pGVM, PVM pVM, PGVMMRESETSTATI
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !VBOX_INCLUDED_vmm_gvmm_h */
 

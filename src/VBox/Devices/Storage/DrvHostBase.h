@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __HostDrvBase_h__
-#define __HostDrvBase_h__
+#ifndef VBOX_INCLUDED_SRC_Storage_DrvHostBase_h
+#define VBOX_INCLUDED_SRC_Storage_DrvHostBase_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/assert.h>
 #include <iprt/err.h>
@@ -186,4 +189,4 @@ DECLHIDDEN(int) drvHostBaseBufferRelease(PDRVHOSTBASE pThis, PDRVHOSTBASEREQ pRe
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !VBOX_INCLUDED_SRC_Storage_DrvHostBase_h */

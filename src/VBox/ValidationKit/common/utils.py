@@ -6,9 +6,11 @@
 Common Utility Functions.
 """
 
+from __future__ import print_function;
+
 __copyright__ = \
 """
-Copyright (C) 2012-2017 Oracle Corporation
+Copyright (C) 2012-2019 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -27,7 +29,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 118928 $"
+__version__ = "$Revision: 127855 $"
 
 
 # Standard Python imports.
@@ -60,6 +62,35 @@ if sys.version_info[0] >= 3:
     unicode = str;  # pylint: disable=redefined-builtin,invalid-name
     xrange = range; # pylint: disable=redefined-builtin,invalid-name
     long = int;     # pylint: disable=redefined-builtin,invalid-name
+
+
+#
+# Output.
+#
+
+def printOut(sString):
+    """
+    Outputs a string to standard output, dealing with python 2.x encoding stupidity.
+    """
+    sStreamEncoding = sys.stdout.encoding;
+    if sStreamEncoding is None:         # Files, pipes and such on 2.x.  (pylint is confused here)
+        sStreamEncoding = 'US-ASCII';   # pylint: disable=redefined-variable-type
+    if sStreamEncoding == 'UTF-8' or not isinstance(sString, unicode):
+        print(sString);
+    else:
+        print(sString.encode(sStreamEncoding, 'backslashreplace').decode(sStreamEncoding));
+
+def printErr(sString):
+    """
+    Outputs a string to standard error, dealing with python 2.x encoding stupidity.
+    """
+    sStreamEncoding = sys.stderr.encoding;
+    if sStreamEncoding is None:         # Files, pipes and such on 2.x. (pylint is confused here)
+        sStreamEncoding = 'US-ASCII';   # pylint: disable=redefined-variable-type
+    if sStreamEncoding == 'UTF-8' or not isinstance(sString, unicode):
+        print(sString, file = sys.stderr);
+    else:
+        print(sString.encode(sStreamEncoding, 'backslashreplace').decode(sStreamEncoding), file = sys.stderr);
 
 
 #
@@ -103,7 +134,7 @@ def getHostArch():
                 sArch = 'amd64';
             else:
                 try:
-                    sArch = processOutputChecked(['/usr/bin/isainfo', '-n',]);
+                    sArch = str(processOutputChecked(['/usr/bin/isainfo', '-n',]));
                 except:
                     pass;
                 sArch = sArch.strip();
@@ -282,24 +313,30 @@ def openNoInherit(sFile, sMode = 'r'):
     multithreaded programs.
     """
 
-    try:
-        from fcntl import FD_CLOEXEC, F_GETFD, F_SETFD, fcntl; # pylint: disable=F0401
-    except:
-        # On windows, use the 'N' flag introduces in Visual C++ 7.0 or 7.1.
-        if getHostOs() == 'win':
-            offComma = sMode.find(',');
-            if offComma < 0:
-                return open(sFile, sMode + 'N');
-            return open(sFile, sMode[:offComma] + 'N' + sMode[offComma:]);
+    # Python 3.4 and later automatically creates non-inherit handles. See PEP-0446.
+    uPythonVer = (sys.version_info[0] << 16) | (sys.version_info[1] & 0xffff);
+    if uPythonVer >= ((3 << 16) | 4):
+        oFile = open(sFile, sMode);
+    else:
+        try:
+            from fcntl import FD_CLOEXEC, F_GETFD, F_SETFD, fcntl; # pylint: disable=F0401
+        except:
+            # On windows, we can use the 'N' flag introduced in Visual C++ 7.0 or 7.1 with python 2.x.
+            if getHostOs() == 'win':
+                if uPythonVer < (3 << 16):
+                    offComma = sMode.find(',');
+                    if offComma < 0:
+                        return open(sFile, sMode + 'N');
+                    return open(sFile, sMode[:offComma] + 'N' + sMode[offComma:]); # pylint: disable=bad-open-mode
 
-        # Just in case.
-        return open(sFile, sMode);
+            # Just in case.
+            return open(sFile, sMode);
 
-    oFile = open(sFile, sMode)
-    #try:
-    fcntl(oFile, F_SETFD, fcntl(oFile, F_GETFD) | FD_CLOEXEC);
-    #except:
-    #    pass;
+        oFile = open(sFile, sMode);
+        #try:
+        fcntl(oFile, F_SETFD, fcntl(oFile, F_GETFD) | FD_CLOEXEC);
+        #except:
+        #    pass;
     return oFile;
 
 def openNoDenyDeleteNoInherit(sFile, sMode = 'r'):
@@ -312,68 +349,72 @@ def openNoDenyDeleteNoInherit(sFile, sMode = 'r'):
     multithreaded programs.
     """
 
-    try:
-        from fcntl import FD_CLOEXEC, F_GETFD, F_SETFD, fcntl; # pylint: disable=F0401
-    except:
-        if getHostOs() == 'win':
-            # Need to use CreateFile directly to open the file so we can feed it FILE_SHARE_DELETE.
-            fAccess = 0;
-            fDisposition = win32file.OPEN_EXISTING;                                                 # pylint: disable=no-member
-            if 'r' in sMode or '+' in sMode:
-                fAccess |= win32file.GENERIC_READ;                                                  # pylint: disable=no-member
-            if 'a' in sMode:
-                fAccess |= win32file.GENERIC_WRITE;                                                 # pylint: disable=no-member
-                fDisposition = win32file.OPEN_ALWAYS;                                               # pylint: disable=no-member
-            elif 'w' in sMode:
-                fAccess = win32file.GENERIC_WRITE;                                                  # pylint: disable=no-member
-                if '+' in sMode:
-                    fDisposition = win32file.OPEN_ALWAYS;                                           # pylint: disable=no-member
-                    fAccess |= win32file.GENERIC_READ;                                              # pylint: disable=no-member
-                else:
-                    fDisposition = win32file.CREATE_ALWAYS;                                         # pylint: disable=no-member
-            if not fAccess:
-                fAccess |= win32file.GENERIC_READ;                                                  # pylint: disable=no-member
-            fSharing = (win32file.FILE_SHARE_READ | win32file.FILE_SHARE_WRITE                      # pylint: disable=no-member
-                        | win32file.FILE_SHARE_DELETE);                                             # pylint: disable=no-member
-            hFile = win32file.CreateFile(sFile, fAccess, fSharing, None, fDisposition, 0, None);    # pylint: disable=no-member
-            if 'a' in sMode:
-                win32file.SetFilePointer(hFile, 0, win32file.FILE_END);                             # pylint: disable=no-member
-
-            # Turn the NT handle into a CRT file descriptor.
-            hDetachedFile = hFile.Detach();
-            if fAccess == win32file.GENERIC_READ:                                                   # pylint: disable=no-member
-                fOpen = os.O_RDONLY;
-            elif fAccess == win32file.GENERIC_WRITE:                                                # pylint: disable=no-member
-                fOpen = os.O_WRONLY;
+    if getHostOs() == 'win':
+        # Need to use CreateFile directly to open the file so we can feed it FILE_SHARE_DELETE.
+        # pylint: disable=no-member,c-extension-no-member
+        fAccess = 0;
+        fDisposition = win32file.OPEN_EXISTING;
+        if 'r' in sMode or '+' in sMode:
+            fAccess |= win32file.GENERIC_READ;
+        if 'a' in sMode:
+            fAccess |= win32file.GENERIC_WRITE;
+            fDisposition = win32file.OPEN_ALWAYS;
+        elif 'w' in sMode:
+            fAccess = win32file.GENERIC_WRITE;
+            if '+' in sMode:
+                fDisposition = win32file.OPEN_ALWAYS;
+                fAccess |= win32file.GENERIC_READ;
             else:
-                fOpen = os.O_RDWR;
-            if 'a' in sMode:
-                fOpen |= os.O_APPEND;
-            if 'b' in sMode or 't' in sMode:
-                fOpen |= os.O_TEXT;                                                                 # pylint: disable=no-member
-            fdFile = msvcrt.open_osfhandle(hDetachedFile, fOpen);
+                fDisposition = win32file.CREATE_ALWAYS;
+        if not fAccess:
+            fAccess |= win32file.GENERIC_READ;
+        fSharing = (win32file.FILE_SHARE_READ | win32file.FILE_SHARE_WRITE
+                    | win32file.FILE_SHARE_DELETE);
+        hFile = win32file.CreateFile(sFile, fAccess, fSharing, None, fDisposition, 0, None);
+        if 'a' in sMode:
+            win32file.SetFilePointer(hFile, 0, win32file.FILE_END);
 
-            # Tell python to use this handle.
-            return os.fdopen(fdFile, sMode);
+        # Turn the NT handle into a CRT file descriptor.
+        hDetachedFile = hFile.Detach();
+        if fAccess == win32file.GENERIC_READ:
+            fOpen = os.O_RDONLY;
+        elif fAccess == win32file.GENERIC_WRITE:
+            fOpen = os.O_WRONLY;
+        else:
+            fOpen = os.O_RDWR;
+        # pulint: enable=no-member,c-extension-no-member
+        if 'a' in sMode:
+            fOpen |= os.O_APPEND;
+        if 'b' in sMode or 't' in sMode:
+            fOpen |= os.O_TEXT;                                                                 # pylint: disable=no-member
+        fdFile = msvcrt.open_osfhandle(hDetachedFile, fOpen);
 
-        # Just in case.
-        return open(sFile, sMode);
+        # Tell python to use this handle.
+        oFile = os.fdopen(fdFile, sMode);
+    else:
+        oFile = open(sFile, sMode);
 
-    oFile = open(sFile, sMode)
-    #try:
-    fcntl(oFile, F_SETFD, fcntl(oFile, F_GETFD) | FD_CLOEXEC);
-    #except:
-    #    pass;
+        # Python 3.4 and later automatically creates non-inherit handles. See PEP-0446.
+        uPythonVer = (sys.version_info[0] << 16) | (sys.version_info[1] & 0xffff);
+        if uPythonVer < ((3 << 16) | 4):
+            try:
+                from fcntl import FD_CLOEXEC, F_GETFD, F_SETFD, fcntl; # pylint: disable=F0401
+            except:
+                pass;
+            else:
+                fcntl(oFile, F_SETFD, fcntl(oFile, F_GETFD) | FD_CLOEXEC);
     return oFile;
 
-def noxcptReadLink(sPath, sXcptRet):
+def noxcptReadLink(sPath, sXcptRet, sEncoding = 'utf-8'):
     """
     No exceptions os.readlink wrapper.
     """
     try:
         sRet = os.readlink(sPath); # pylint: disable=E1101
     except:
-        sRet = sXcptRet;
+        return sXcptRet;
+    if hasattr(sRet, 'decode'):
+        sRet = sRet.decode(sEncoding, 'ignore');
     return sRet;
 
 def readFile(sFile, sMode = 'rb'):
@@ -385,7 +426,7 @@ def readFile(sFile, sMode = 'rb'):
     oFile.close();
     return sRet;
 
-def noxcptReadFile(sFile, sXcptRet, sMode = 'rb'):
+def noxcptReadFile(sFile, sXcptRet, sMode = 'rb', sEncoding = 'utf-8'):
     """
     No exceptions common.readFile wrapper.
     """
@@ -393,6 +434,8 @@ def noxcptReadFile(sFile, sXcptRet, sMode = 'rb'):
         sRet = readFile(sFile, sMode);
     except:
         sRet = sXcptRet;
+    if sEncoding is not None and hasattr(sRet, 'decode'):
+        sRet = sRet.decode(sEncoding, 'ignore');
     return sRet;
 
 def noxcptRmDir(sDir, oXcptRet = False):
@@ -579,7 +622,19 @@ def processOutputChecked(*aPositionalArgs, **dKeywordArgs):
     """
     Wrapper around subprocess.check_output to deal with its absense in older
     python versions.
+
+    Extra keywords for specifying now output is to be decoded:
+        sEncoding='utf-8
+        fIgnoreEncoding=True/False
     """
+    sEncoding = dKeywordArgs.get('sEncoding');
+    if sEncoding is not None:   del dKeywordArgs['sEncoding'];
+    else:                       sEncoding = 'utf-8';
+
+    fIgnoreEncoding = dKeywordArgs.get('fIgnoreEncoding');
+    if fIgnoreEncoding is not None:   del dKeywordArgs['fIgnoreEncoding'];
+    else:                             fIgnoreEncoding = True;
+
     _processFixPythonInterpreter(aPositionalArgs, dKeywordArgs);
     oProcess = processPopenSafe(stdout=subprocess.PIPE, *aPositionalArgs, **dKeywordArgs);
 
@@ -593,7 +648,9 @@ def processOutputChecked(*aPositionalArgs, **dKeywordArgs):
         print(sOutput);
         raise subprocess.CalledProcessError(iExitCode, asArgs);
 
-    return str(sOutput); # str() make pylint happy.
+    if hasattr(sOutput, 'decode'):
+        sOutput = sOutput.decode(sEncoding, 'ignore' if fIgnoreEncoding else 'strict');
+    return sOutput;
 
 g_fOldSudo = None;
 def _sudoFixArguments(aPositionalArgs, dKeywordArgs, fInitialEnv = True):
@@ -618,7 +675,7 @@ def _sudoFixArguments(aPositionalArgs, dKeywordArgs, fInitialEnv = True):
         global g_fOldSudo;
         if g_fOldSudo is None:
             try:
-                sVersion = processOutputChecked(['sudo', '-V']);
+                sVersion = str(processOutputChecked(['sudo', '-V']));
             except:
                 sVersion = '1.7.0';
             sVersion = sVersion.strip().split('\n')[0];
@@ -690,7 +747,8 @@ def processInterrupt(uPid):
     """
     if sys.platform == 'win32':
         try:
-            win32console.GenerateConsoleCtrlEvent(win32con.CTRL_BREAK_EVENT, uPid);             # pylint: disable=no-member
+            win32console.GenerateConsoleCtrlEvent(win32con.CTRL_BREAK_EVENT, # pylint: disable=no-member,c-extension-no-member
+                                                  uPid);
             fRc = True;
         except:
             fRc = False;
@@ -729,12 +787,14 @@ def processTerminate(uPid):
     fRc = False;
     if sys.platform == 'win32':
         try:
-            hProcess = win32api.OpenProcess(win32con.PROCESS_TERMINATE, False, uPid);           # pylint: disable=no-member
+            hProcess = win32api.OpenProcess(win32con.PROCESS_TERMINATE,     # pylint: disable=no-member,c-extension-no-member
+                                            False, uPid);
         except:
             pass;
         else:
             try:
-                win32process.TerminateProcess(hProcess, 0x40010004); # DBG_TERMINATE_PROCESS    # pylint: disable=no-member
+                win32process.TerminateProcess(hProcess,                     # pylint: disable=no-member,c-extension-no-member
+                                              0x40010004); # DBG_TERMINATE_PROCESS
                 fRc = True;
             except:
                 pass;
@@ -786,8 +846,9 @@ def processExists(uPid):
         fRc = False;
         # We try open the process for waiting since this is generally only forbidden in a very few cases.
         try:
-            hProcess = win32api.OpenProcess(win32con.SYNCHRONIZE, False, uPid);     # pylint: disable=no-member
-        except pywintypes.error as oXcpt:                                           # pylint: disable=no-member
+            hProcess = win32api.OpenProcess(win32con.SYNCHRONIZE,           # pylint: disable=no-member,c-extension-no-member
+                                            False, uPid);
+        except pywintypes.error as oXcpt:                                   # pylint: disable=no-member
             if oXcpt.winerror == winerror.ERROR_ACCESS_DENIED:
                 fRc = True;
         except Exception as oXcpt:
@@ -834,7 +895,7 @@ def processCheckPidAndName(uPid, sName):
             #reporter.logXcpt('uPid=%s sName=%s' % (uPid, sName));
             pass;
     else:
-        if sys.platform in ('linux2', ):
+        if sys.platform in ('linux2', 'linux', 'linux3', 'linux4', 'linux5', 'linux6'):
             asPsCmd = ['/bin/ps',     '-p', '%u' % (uPid,), '-o', 'fname='];
         elif sys.platform in ('sunos5',):
             asPsCmd = ['/usr/bin/ps', '-p', '%u' % (uPid,), '-o', 'fname='];
@@ -1338,18 +1399,18 @@ def formatIntervalSeconds(cSeconds):
     if cSeconds < 60:
         return '%ss' % (cSeconds,);
     if cSeconds < 3600:
-        cMins = cSeconds / 60;
+        cMins = cSeconds // 60;
         cSecs = cSeconds % 60;
         if cSecs == 0:
             return '%sm' % (cMins,);
         return '%sm %ss' % (cMins, cSecs,);
 
     # Generic and a bit slower.
-    cDays     = cSeconds / 86400;
+    cDays     = cSeconds // 86400;
     cSeconds %= 86400;
-    cHours    = cSeconds / 3600;
+    cHours    = cSeconds // 3600;
     cSeconds %= 3600;
-    cMins     = cSeconds / 60;
+    cMins     = cSeconds // 60;
     cSecs     = cSeconds % 60;
     sRet = '';
     if cDays > 0:
@@ -1618,7 +1679,7 @@ def getObjectTypeName(oObject):
     # Python 2.x only: Handle old-style object wrappers.
     if sys.version_info[0] < 3:
         try:
-            from types import InstanceType;
+            from types import InstanceType;     # pylint: disable=no-name-in-module
             if oType == InstanceType:
                 oType = oObject.__class__;
         except:
@@ -1753,15 +1814,23 @@ def isString(oString):
     """
     if sys.version_info[0] >= 3:
         return isinstance(oString, str);
-    return isinstance(oString, basestring);
+    return isinstance(oString, basestring);     # pylint: disable=undefined-variable
 
 
 def hasNonAsciiCharacters(sText):
     """
     Returns True is specified string has non-ASCII characters, False if ASCII only.
     """
-    sTmp = unicode(sText, errors='ignore') if isinstance(sText, str) else sText;
-    return not all(ord(ch) < 128 for ch in sTmp);
+    if isString(sText):
+        for ch in sText:
+            if ord(ch) >= 128:
+                return True;
+    else:
+        # Probably byte array or some such thing.
+        for ch in sText:
+            if ch >= 128 or ch < 0:
+                return True;
+    return False;
 
 
 def chmodPlusX(sFile):
@@ -1825,8 +1894,9 @@ def unpackZipFile(sArchive, sDstDir, fnLog, fnError = None, fnFilter = None):
 ## Set if we've replaced tarfile.copyfileobj with __mytarfilecopyfileobj already.
 g_fTarCopyFileObjOverriddend = False;
 
-def __mytarfilecopyfileobj(src, dst, length = None, exception = OSError):
+def __mytarfilecopyfileobj(src, dst, length = None, exception = OSError, bufsize = None):
     """ tarfile.copyfileobj with different buffer size (16384 is slow on windows). """
+    _ = bufsize;
     if length is None:
         __myshutilcopyfileobj(src, dst, g_cbGoodBufferSize);
     elif length > 0:
@@ -1865,6 +1935,7 @@ def unpackTarFile(sArchive, sDstDir, fnLog, fnError = None, fnFilter = None):
         global g_fTarCopyFileObjOverriddend;
         if g_fTarCopyFileObjOverriddend is False:
             g_fTarCopyFileObjOverriddend = True;
+            #if sys.hexversion < 0x03060000:
             tarfile.copyfileobj = __mytarfilecopyfileobj;
 
     #
@@ -1873,7 +1944,11 @@ def unpackTarFile(sArchive, sDstDir, fnLog, fnError = None, fnFilter = None):
     # Note! We not using 'r:*' because we cannot allow seeking compressed files!
     #       That's how we got a 13 min unpack time for VBoxAll on windows (hardlinked pdb).
     #
-    try: oTarFile = tarfile.open(sArchive, 'r|*', bufsize = g_cbGoodBufferSize);
+    try:
+        if sys.hexversion >= 0x03060000:
+            oTarFile = tarfile.open(sArchive, 'r|*', bufsize = g_cbGoodBufferSize, copybufsize = g_cbGoodBufferSize);
+        else:
+            oTarFile = tarfile.open(sArchive, 'r|*', bufsize = g_cbGoodBufferSize);
     except Exception as oXcpt:
         fnError('Error opening "%s" for unpacking into "%s": %s' % (sArchive, sDstDir, oXcpt,));
         return None;
@@ -2007,10 +2082,14 @@ class BuildCategoryDataTestCase(unittest.TestCase):
     def testHasNonAsciiChars(self):
         self.assertEqual(hasNonAsciiCharacters(''), False);
         self.assertEqual(hasNonAsciiCharacters('asdfgebASDFKJ@#$)(!@#UNASDFKHB*&$%&)@#(!)@(#!(#$&*#$&%*Y@#$IQWN---00;'), False);
+        self.assertEqual(hasNonAsciiCharacters('\x80 '), True);
+        self.assertEqual(hasNonAsciiCharacters('\x79 '), False);
         self.assertEqual(hasNonAsciiCharacters(u'12039889y!@#$%^&*()0-0asjdkfhoiuyweasdfASDFnvV'), False);
         self.assertEqual(hasNonAsciiCharacters(u'\u0079'), False);
         self.assertEqual(hasNonAsciiCharacters(u'\u0080'), True);
         self.assertEqual(hasNonAsciiCharacters(u'\u0081 \u0100'), True);
+        self.assertEqual(hasNonAsciiCharacters(b'\x20\x20\x20'), False);
+        self.assertEqual(hasNonAsciiCharacters(b'\x20\x81\x20'), True);
 
 if __name__ == '__main__':
     unittest.main();

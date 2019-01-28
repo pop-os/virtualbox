@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,8 +24,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___iprt_dbg_h
-#define ___iprt_dbg_h
+#ifndef IPRT_INCLUDED_dbg_h
+#define IPRT_INCLUDED_dbg_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/types.h>
 #include <iprt/stdarg.h>
@@ -33,7 +36,6 @@
 
 RT_C_DECLS_BEGIN
 
-# ifdef IN_RING3
 
 /** @defgroup grp_rt_dbg    RTDbg - Debugging Routines
  * @ingroup grp_rt
@@ -67,13 +69,29 @@ typedef RTDBGSEGIDX const  *PCRTDBGSEGIDX;
  * Flags used when looking up a symbol by address.
  * @{ */
 /** Less or equal address. (default) */
-#define RTDBGSYMADDR_FLAGS_LESS_OR_EQUAL    UINT32_C(0)
+#define RTDBGSYMADDR_FLAGS_LESS_OR_EQUAL        UINT32_C(0)
 /** Greater or equal address.  */
-#define RTDBGSYMADDR_FLAGS_GREATER_OR_EQUAL UINT32_C(1)
+#define RTDBGSYMADDR_FLAGS_GREATER_OR_EQUAL     UINT32_C(1)
+/** Don't consider absolute symbols in deferred modules. */
+#define RTDBGSYMADDR_FLAGS_SKIP_ABS_IN_DEFERRED UINT32_C(2)
+/** Don't search for absolute symbols if it's expensive. */
+#define RTDBGSYMADDR_FLAGS_SKIP_ABS             UINT32_C(4)
 /** Mask of valid flags. */
-#define RTDBGSYMADDR_FLAGS_VALID_MASK       UINT32_C(1)
+#define RTDBGSYMADDR_FLAGS_VALID_MASK           UINT32_C(7)
 /** @} */
 
+/** @name RTDBGSYMBOLADD_F_XXX - Flags for RTDbgModSymbolAdd and RTDbgAsSymbolAdd.
+ * @{ */
+/** Replace existing symbol with same address. */
+#define RTDBGSYMBOLADD_F_REPLACE_SAME_ADDR         UINT32_C(0x00000001)
+/** Replace any existing symbols overlapping the symbol range. */
+#define RTDBGSYMBOLADD_F_REPLACE_ANY               UINT32_C(0x00000002)
+/** Adjust sizes on address conflict.  This applies to the symbol being added
+ * as well as existing symbols. */
+#define RTDBGSYMBOLADD_F_ADJUST_SIZES_ON_CONFLICT  UINT32_C(0x00000004)
+/** Mask of valid flags. */
+#define RTDBGSYMBOLADD_F_VALID_MASK                UINT32_C(0x00000007)
+/** @} */
 
 /** Max length (including '\\0') of a segment name. */
 #define RTDBG_SEGMENT_NAME_LENGTH   (128 - 8 - 8 - 8 - 4 - 4)
@@ -102,6 +120,212 @@ typedef struct RTDBGSEGMENT
 typedef RTDBGSEGMENT *PRTDBGSEGMENT;
 /** Pointer to a const debug module segment. */
 typedef RTDBGSEGMENT const *PCRTDBGSEGMENT;
+
+
+/**
+ * Return type.
+ */
+typedef enum RTDBGRETURNTYPE
+{
+    /** The usual invalid 0 value. */
+    RTDBGRETURNTYPE_INVALID = 0,
+    /** Near 16-bit return. */
+    RTDBGRETURNTYPE_NEAR16,
+    /** Near 32-bit return. */
+    RTDBGRETURNTYPE_NEAR32,
+    /** Near 64-bit return. */
+    RTDBGRETURNTYPE_NEAR64,
+    /** Far 16:16 return. */
+    RTDBGRETURNTYPE_FAR16,
+    /** Far 16:32 return. */
+    RTDBGRETURNTYPE_FAR32,
+    /** Far 16:64 return. */
+    RTDBGRETURNTYPE_FAR64,
+    /** 16-bit iret return (e.g. real or 286 protect mode). */
+    RTDBGRETURNTYPE_IRET16,
+    /** 32-bit iret return. */
+    RTDBGRETURNTYPE_IRET32,
+    /** 32-bit iret return. */
+    RTDBGRETURNTYPE_IRET32_PRIV,
+    /** 32-bit iret return to V86 mode. */
+    RTDBGRETURNTYPE_IRET32_V86,
+    /** @todo 64-bit iret return. */
+    RTDBGRETURNTYPE_IRET64,
+    /** The end of the valid return types. */
+    RTDBGRETURNTYPE_END,
+    /** The usual 32-bit blowup. */
+    RTDBGRETURNTYPE_32BIT_HACK = 0x7fffffff
+} RTDBGRETURNTYPE;
+
+/**
+ * Figures the size of the return state on the stack.
+ *
+ * @returns number of bytes. 0 if invalid parameter.
+ * @param   enmRetType  The type of return.
+ */
+DECLINLINE(unsigned) RTDbgReturnTypeSize(RTDBGRETURNTYPE enmRetType)
+{
+    switch (enmRetType)
+    {
+        case RTDBGRETURNTYPE_NEAR16:         return 2;
+        case RTDBGRETURNTYPE_NEAR32:         return 4;
+        case RTDBGRETURNTYPE_NEAR64:         return 8;
+        case RTDBGRETURNTYPE_FAR16:          return 4;
+        case RTDBGRETURNTYPE_FAR32:          return 4;
+        case RTDBGRETURNTYPE_FAR64:          return 8;
+        case RTDBGRETURNTYPE_IRET16:         return 6;
+        case RTDBGRETURNTYPE_IRET32:         return 4*3;
+        case RTDBGRETURNTYPE_IRET32_PRIV:    return 4*5;
+        case RTDBGRETURNTYPE_IRET32_V86:     return 4*9;
+        case RTDBGRETURNTYPE_IRET64:         return 5*8;
+
+        case RTDBGRETURNTYPE_INVALID:
+        case RTDBGRETURNTYPE_END:
+        case RTDBGRETURNTYPE_32BIT_HACK:
+            break;
+    }
+    return 0;
+}
+
+/**
+ * Check if near return.
+ *
+ * @returns true if near, false if far or iret.
+ * @param   enmRetType  The type of return.
+ */
+DECLINLINE(bool) RTDbgReturnTypeIsNear(RTDBGRETURNTYPE enmRetType)
+{
+    return enmRetType == RTDBGRETURNTYPE_NEAR32
+        || enmRetType == RTDBGRETURNTYPE_NEAR64
+        || enmRetType == RTDBGRETURNTYPE_NEAR16;
+}
+
+
+
+/** Magic value for RTDBGUNWINDSTATE::u32Magic (James Moody). */
+#define RTDBGUNWINDSTATE_MAGIC          UINT32_C(0x19250326)
+/** Magic value for RTDBGUNWINDSTATE::u32Magic after use. */
+#define RTDBGUNWINDSTATE_MAGIC_DEAD     UINT32_C(0x20101209)
+
+/**
+ * Unwind machine state.
+ */
+typedef struct RTDBGUNWINDSTATE
+{
+    /** Structure magic (RTDBGUNWINDSTATE_MAGIC) */
+    uint32_t            u32Magic;
+    /** The state architecture. */
+    RTLDRARCH           enmArch;
+
+    /** The program counter register.
+     * amd64/x86: RIP/EIP/IP
+     * sparc: PC
+     * arm32: PC / R15
+     */
+    uint64_t            uPc;
+
+    /** Return type. */
+    RTDBGRETURNTYPE     enmRetType;
+
+    /** Register state (see enmArch). */
+    union
+    {
+        /** RTLDRARCH_AMD64, RTLDRARCH_X86_32 and RTLDRARCH_X86_16. */
+        struct
+        {
+            /** General purpose registers indexed by X86_GREG_XXX. */
+            uint64_t    auRegs[16];
+            /** The frame address. */
+            RTFAR64     FrameAddr;
+            /** Set if we're in real or virtual 8086 mode. */
+            bool        fRealOrV86;
+            /** The flags register. */
+            uint64_t    uRFlags;
+            /** Trap error code. */
+            uint64_t    uErrCd;
+            /** Segment registers (indexed by X86_SREG_XXX). */
+            uint16_t    auSegs[6];
+
+            /** Bitmap tracking register we've loaded and which content can possibly be trusted. */
+            union
+            {
+                /** For effective clearing of the bits. */
+                uint32_t    fAll;
+                /** Detailed view. */
+                struct
+                {
+                    /** Bitmap indicating whether a GPR was loaded (parallel to auRegs). */
+                    uint16_t    fRegs;
+                    /** Bitmap indicating whether a segment register was loaded (parallel to auSegs). */
+                    uint8_t     fSegs;
+                    /** Set if uPc was loaded. */
+                    RT_GCC_EXTENSION uint8_t     fPc : 1;
+                    /** Set if FrameAddr was loaded. */
+                    RT_GCC_EXTENSION uint8_t     fFrameAddr : 1;
+                    /** Set if uRFlags was loaded. */
+                    RT_GCC_EXTENSION uint8_t     fRFlags : 1;
+                    /** Set if uErrCd was loaded. */
+                    RT_GCC_EXTENSION uint8_t     fErrCd : 1;
+                } s;
+            } Loaded;
+        } x86;
+
+        /** @todo add ARM and others as needed. */
+    } u;
+
+    /**
+     * Stack read callback.
+     *
+     * @returns IPRT status code.
+     * @param   pThis       Pointer to this structure.
+     * @param   uSp         The stack pointer address.
+     * @param   cbToRead    The number of bytes to read.
+     * @param   pvDst       Where to put the bytes we read.
+     */
+    DECLCALLBACKMEMBER(int, pfnReadStack)(struct RTDBGUNWINDSTATE *pThis, RTUINTPTR uSp, size_t cbToRead, void *pvDst);
+    /** User argument (useful for pfnReadStack). */
+    void               *pvUser;
+
+} RTDBGUNWINDSTATE;
+
+/**
+ * Try read a 16-bit value off the stack.
+ *
+ * @returns pfnReadStack result.
+ * @param   pThis           The unwind state.
+ * @param   uSrcAddr        The stack address.
+ * @param   puDst           The read destination.
+ */
+DECLINLINE(int) RTDbgUnwindLoadStackU16(PRTDBGUNWINDSTATE pThis, RTUINTPTR uSrcAddr, uint16_t *puDst)
+{
+    return pThis->pfnReadStack(pThis, uSrcAddr, sizeof(*puDst), puDst);
+}
+
+/**
+ * Try read a 32-bit value off the stack.
+ *
+ * @returns pfnReadStack result.
+ * @param   pThis           The unwind state.
+ * @param   uSrcAddr        The stack address.
+ * @param   puDst           The read destination.
+ */
+DECLINLINE(int) RTDbgUnwindLoadStackU32(PRTDBGUNWINDSTATE pThis, RTUINTPTR uSrcAddr, uint32_t *puDst)
+{
+    return pThis->pfnReadStack(pThis, uSrcAddr, sizeof(*puDst), puDst);
+}
+
+/**
+ * Try read a 64-bit value off the stack.
+ *
+ * @returns pfnReadStack result.
+ * @param   pThis           The unwind state.
+ * @param   uSrcAddr        The stack address.
+ * @param   puDst           The read destination.
+ */
+DECLINLINE(int) RTDbgUnwindLoadStackU64(PRTDBGUNWINDSTATE pThis, RTUINTPTR uSrcAddr, uint64_t *puDst)
+{
+    return pThis->pfnReadStack(pThis, uSrcAddr, sizeof(*puDst), puDst);
+}
 
 
 
@@ -135,6 +359,7 @@ typedef struct RTDBGSYMBOL
 typedef RTDBGSYMBOL *PRTDBGSYMBOL;
 /** Pointer to const debug symbol. */
 typedef const RTDBGSYMBOL *PCRTDBGSYMBOL;
+
 
 /**
  * Allocate a new symbol structure.
@@ -213,6 +438,23 @@ RTDECL(PRTDBGLINE)      RTDbgLineDup(PCRTDBGLINE pLine);
  */
 RTDECL(void)            RTDbgLineFree(PRTDBGLINE pLine);
 
+
+/**
+ * Dump the stack of the current thread into @a pszStack.
+ *
+ * This could be a little slow as it reads image and debug info again for each call.
+ *
+ * @returns Length of string returned in @a pszStack.
+ * @param   pszStack        The output buffer.
+ * @param   cbStack         The size of the output buffer.
+ * @param   fFlags          Future flags, MBZ.
+ *
+ * @remarks Not present on all systems and contexts.
+ */
+RTDECL(size_t)          RTDbgStackDumpSelf(char *pszStack, size_t cbStack, uint32_t fFlags);
+
+
+# ifdef IN_RING3
 
 /** @defgroup grp_rt_dbgcfg     RTDbgCfg - Debugging Configuration
  *
@@ -434,9 +676,9 @@ RTDECL(int) RTDbgCfgSetLogCallback(RTDBGCFG hDbgCfg, PFNRTDBGCFGLOG pfnCallback,
  *          VERR_CALLBACK_RETURN the search will continue till the end of the
  *          list.  These status codes will not necessarily be propagated to the
  *          caller in any consistent manner.
- * @retval  VINF_CALLBACK_RETURN if successuflly opened the file and it's time
+ * @retval  VINF_CALLBACK_RETURN if successfully opened the file and it's time
  *          to return
- * @retval  VERR_CALLBACK_RETURN if we shouldn't stop searching.
+ * @retval  VERR_CALLBACK_RETURN if we should stop searching immediately.
  *
  * @param   hDbgCfg             The debugging configuration handle.
  * @param   pszFilename         The path to the file that should be tried out.
@@ -448,6 +690,9 @@ typedef DECLCALLBACK(int) FNRTDBGCFGOPEN(RTDBGCFG hDbgCfg, const char *pszFilena
 typedef FNRTDBGCFGOPEN *PFNRTDBGCFGOPEN;
 
 
+RTDECL(int) RTDbgCfgOpenEx(RTDBGCFG hDbgCfg, const char *pszFilename, const char *pszCacheSubDir,
+                           const char *pszUuidMappingSubDir, uint32_t fFlags,
+                           PFNRTDBGCFGOPEN pfnCallback, void *pvUser1, void *pvUser2);
 RTDECL(int) RTDbgCfgOpenPeImage(RTDBGCFG hDbgCfg, const char *pszFilename, uint32_t cbImage, uint32_t uTimestamp,
                                 PFNRTDBGCFGOPEN pfnCallback, void *pvUser1, void *pvUser2);
 RTDECL(int) RTDbgCfgOpenPdb70(RTDBGCFG hDbgCfg, const char *pszFilename, PCRTUUID pUuid, uint32_t uAge,
@@ -462,6 +707,28 @@ RTDECL(int) RTDbgCfgOpenDsymBundle(RTDBGCFG hDbgCfg, const char *pszFilename, PC
                                    PFNRTDBGCFGOPEN pfnCallback, void *pvUser1, void *pvUser2);
 RTDECL(int) RTDbgCfgOpenMachOImage(RTDBGCFG hDbgCfg, const char *pszFilename, PCRTUUID pUuid,
                                    PFNRTDBGCFGOPEN pfnCallback, void *pvUser1, void *pvUser2);
+
+/** @name RTDBGCFG_O_XXX - Open flags for RTDbgCfgOpen.
+ * @{ */
+/** The operative system mask.  The values are RT_OPSYS_XXX. */
+#define RTDBGCFG_O_OPSYS_MASK           UINT32_C(0x000000ff)
+/** Same as RTDBGCFG_FLAGS_NO_SYSTEM_PATHS. */
+#define RTDBGCFG_O_NO_SYSTEM_PATHS      RT_BIT_32(25)
+/** The files may be compressed MS styled. */
+#define RTDBGCFG_O_MAYBE_COMPRESSED_MS  RT_BIT_32(26)
+/** Whether to make a recursive search. */
+#define RTDBGCFG_O_RECURSIVE            RT_BIT_32(27)
+/** We're looking for a separate debug file. */
+#define RTDBGCFG_O_EXT_DEBUG_FILE       RT_BIT_32(28)
+/** We're looking for an executable image. */
+#define RTDBGCFG_O_EXECUTABLE_IMAGE     RT_BIT_32(29)
+/** The file search should be done in an case insensitive fashion. */
+#define RTDBGCFG_O_CASE_INSENSITIVE     RT_BIT_32(30)
+/** Use Windbg style symbol servers when encountered in the path. */
+#define RTDBGCFG_O_SYMSRV               RT_BIT_32(31)
+/** Mask of valid flags. */
+#define RTDBGCFG_O_VALID_MASK           UINT32_C(0xfe0000ff)
+/** @} */
 
 
 /** @name Static symbol cache configuration
@@ -487,6 +754,7 @@ RTDECL(int) RTDbgCfgOpenMachOImage(RTDBGCFG hDbgCfg, const char *pszFilename, PC
 #define RTDBG_CACHE_DSYM_FILE_SUFFIX     ".dwarf"
 /** @} */
 
+# endif /* IN_RING3 */
 
 /** @} */
 
@@ -800,7 +1068,7 @@ RTDECL(int) RTDbgAsModuleQueryMapByIndex(RTDBGAS hDbgAs, uint32_t iModule, PRTDB
  * @param   pszSymbol       The symbol name.
  * @param   Addr            The address of the symbol.
  * @param   cb              The size of the symbol.
- * @param   fFlags          Symbol flags.
+ * @param   fFlags          Symbol flags, RTDBGSYMBOLADD_F_XXX.
  * @param   piOrdinal       Where to return the symbol ordinal on success. If
  *                          the interpreter doesn't do ordinals, this will be set to
  *                          UINT32_MAX. Optional
@@ -817,7 +1085,7 @@ RTDECL(int) RTDbgAsSymbolAdd(RTDBGAS hDbgAs, const char *pszSymbol, RTUINTPTR Ad
  *
  * @param   hDbgAs          The address space handle.
  * @param   Addr            The address which closest symbol is requested.
- * @param   fFlags              Symbol search flags, see RTDBGSYMADDR_FLAGS_XXX.
+ * @param   fFlags          Symbol search flags, see RTDBGSYMADDR_FLAGS_XXX.
  * @param   poffDisp        Where to return the distance between the symbol
  *                          and address. Optional.
  * @param   pSymbol         Where to return the symbol info.
@@ -836,7 +1104,7 @@ RTDECL(int) RTDbgAsSymbolByAddr(RTDBGAS hDbgAs, RTUINTPTR Addr, uint32_t fFlags,
  *
  * @param   hDbgAs          The address space handle.
  * @param   Addr            The address which closest symbol is requested.
- * @param   fFlags              Symbol search flags, see RTDBGSYMADDR_FLAGS_XXX.
+ * @param   fFlags          Symbol search flags, see RTDBGSYMADDR_FLAGS_XXX.
  * @param   poffDisp        Where to return the distance between the symbol
  *                          and address. Optional.
  * @param   ppSymInfo       Where to return the pointer to the allocated symbol
@@ -933,6 +1201,7 @@ RTDECL(int) RTDbgAsLineByAddrA(RTDBGAS hDbgAs, RTUINTPTR Addr, PRTINTPTR poffDis
 /** @} */
 
 
+# ifdef IN_RING3
 /** @defgroup grp_rt_dbgmod     RTDbgMod - Debug Module Interpreter
  * @{
  */
@@ -959,8 +1228,8 @@ RTDECL(int)         RTDbgModCreateFromImage(PRTDBGMOD phDbgMod, const char *pszF
                                             RTLDRARCH enmArch, RTDBGCFG hDbgCfg);
 RTDECL(int)         RTDbgModCreateFromMap(PRTDBGMOD phDbgMod, const char *pszFilename, const char *pszName, RTUINTPTR uSubtrahend,
                                           RTDBGCFG hDbgCfg);
-RTDECL(int)         RTDbgModCreateFromPeImage(PRTDBGMOD phDbgMod, const char *pszFilename, const char *pszName, RTLDRMOD hLdrMod,
-                                              uint32_t cbImage, uint32_t uTimeDateStamp, RTDBGCFG hDbgCfg);
+RTDECL(int)         RTDbgModCreateFromPeImage(PRTDBGMOD phDbgMod, const char *pszFilename, const char *pszName,
+                                              PRTLDRMOD phLdrMod, uint32_t cbImage, uint32_t uTimeDateStamp, RTDBGCFG hDbgCfg);
 RTDECL(int)         RTDbgModCreateFromDbg(PRTDBGMOD phDbgMod, const char *pszFilename, const char *pszName, uint32_t cbImage,
                                           uint32_t uTimeDateStamp, RTDBGCFG hDbgCfg);
 RTDECL(int)         RTDbgModCreateFromPdb(PRTDBGMOD phDbgMod, const char *pszFilename, const char *pszName, uint32_t cbImage,
@@ -1084,19 +1353,6 @@ RTDECL(bool)        RTDbgModIsExports(RTDBGMOD hDbgMod);
 RTDECL(RTDBGSEGIDX) RTDbgModRvaToSegOff(RTDBGMOD hDbgMod, RTUINTPTR uRva, PRTUINTPTR poffSeg);
 
 /**
- * Image size when mapped if segments are mapped adjacently.
- *
- * For ELF, PE, and Mach-O images this is (usually) a natural query, for LX and
- * NE and such it's a bit odder and the answer may not make much sense for them.
- *
- * @returns Image mapped size.
- *          RTUINTPTR_MAX is returned if the handle is invalid.
- *
- * @param   hDbgMod         The module handle.
- */
-RTDECL(RTUINTPTR)   RTDbgModImageSize(RTDBGMOD hDbgMod);
-
-/**
  * Gets the module tag value if any.
  *
  * @returns The tag. 0 if hDbgMod is invalid.
@@ -1119,6 +1375,68 @@ RTDECL(uint64_t)    RTDbgModGetTag(RTDBGMOD hDbgMod);
  *                          collisions with other users
  */
 RTDECL(int)         RTDbgModSetTag(RTDBGMOD hDbgMod, uint64_t uTag);
+
+
+/**
+ * Image size when mapped if segments are mapped adjacently.
+ *
+ * For ELF, PE, and Mach-O images this is (usually) a natural query, for LX and
+ * NE and such it's a bit odder and the answer may not make much sense for them.
+ *
+ * @returns Image mapped size.
+ *          RTUINTPTR_MAX is returned if the handle is invalid.
+ *
+ * @param   hDbgMod         The module handle.
+ */
+RTDECL(RTUINTPTR)   RTDbgModImageSize(RTDBGMOD hDbgMod);
+
+/**
+ * Gets the image format.
+ *
+ * @returns Image format.
+ * @retval  RTLDRFMT_INVALID if the handle is invalid or if the format isn't known.
+ * @param   hDbgMod         The debug module handle.
+ * @sa      RTLdrGetFormat
+ */
+RTDECL(RTLDRFMT)    RTDbgModImageGetFormat(RTDBGMOD hDbgMod);
+
+/**
+ * Gets the image architecture.
+ *
+ * @returns Image architecture.
+ * @retval  RTLDRARCH_INVALID if the handle is invalid.
+ * @retval  RTLDRARCH_WHATEVER if unknown.
+ * @param   hDbgMod         The debug module handle.
+ * @sa      RTLdrGetArch
+ */
+RTDECL(RTLDRARCH)   RTDbgModImageGetArch(RTDBGMOD hDbgMod);
+
+/**
+ * Generic method for querying image properties.
+ *
+ * @returns IPRT status code.
+ * @retval  VERR_NOT_SUPPORTED if the property query isn't supported (either all
+ *          or that specific property).  The caller must handle this result.
+ * @retval  VERR_NOT_FOUND the property was not found in the module.  The caller
+ *          must also normally deal with this.
+ * @retval  VERR_INVALID_FUNCTION if the function value is wrong.
+ * @retval  VERR_INVALID_PARAMETER if the fixed buffer size is wrong. Correct
+ *          size in @a *pcbRet.
+ * @retval  VERR_BUFFER_OVERFLOW if the function doesn't have a fixed size
+ *          buffer and the buffer isn't big enough. Correct size in @a *pcbRet.
+ * @retval  VERR_INVALID_HANDLE if the handle is invalid.
+ *
+ * @param   hDbgMod         The debug module handle.
+ * @param   enmProp         The property to query.
+ * @param   pvBuf           Pointer to the input / output buffer.  In most cases
+ *                          it's only used for returning data.
+ * @param   cbBuf           The size of the buffer.
+ * @param   pcbRet          Where to return the amount of data returned.  On
+ *                          buffer size errors, this is set to the correct size.
+ *                          Optional.
+ * @sa      RTLdrQueryPropEx
+ */
+RTDECL(int)         RTDbgModImageQueryProp(RTDBGMOD hDbgMod, RTLDRPROP enmProp, void *pvBuf, size_t cbBuf, size_t *pcbRet);
 
 
 /**
@@ -1233,6 +1551,8 @@ RTDECL(RTUINTPTR)   RTDbgModSegmentRva(RTDBGMOD hDbgMod, RTDBGSEGIDX iSeg);
  *          end of the segment.
  * @retval  VERR_DBG_ADDRESS_WRAP if off+cb wraps around.
  * @retval  VERR_INVALID_PARAMETER if the symbol flags sets undefined bits.
+ * @retval  VERR_DBG_DUPLICATE_SYMBOL
+ * @retval  VERR_DBG_ADDRESS_CONFLICT
  *
  * @param   hDbgMod         The module handle.
  * @param   pszSymbol       The symbol name.
@@ -1240,7 +1560,7 @@ RTDECL(RTUINTPTR)   RTDbgModSegmentRva(RTDBGMOD hDbgMod, RTDBGSEGIDX iSeg);
  * @param   off             The segment offset.
  * @param   cb              The size of the symbol. Can be zero, although this
  *                          may depend somewhat on the debug interpreter.
- * @param   fFlags          Symbol flags. Reserved for the future, MBZ.
+ * @param   fFlags          Symbol flags, RTDBGSYMBOLADD_F_XXX.
  * @param   piOrdinal       Where to return the symbol ordinal on success. If
  *                          the interpreter doesn't do ordinals, this will be set to
  *                          UINT32_MAX. Optional.
@@ -1529,9 +1849,29 @@ RTDECL(int)         RTDbgModLineByAddr(RTDBGMOD hDbgMod, RTDBGSEGIDX iSeg, RTUIN
  *                              RTDbgLineFree.
  */
 RTDECL(int)         RTDbgModLineByAddrA(RTDBGMOD hDbgMod, RTDBGSEGIDX iSeg, RTUINTPTR off, PRTINTPTR poffDisp, PRTDBGLINE *ppLineInfo);
-/** @} */
 
+/**
+ * Try use unwind information to unwind one frame.
+ *
+ * @returns IPRT status code.  Last informational status from stack reader callback.
+ * @retval  VERR_DBG_NO_UNWIND_INFO if the module contains no unwind information.
+ * @retval  VERR_DBG_UNWIND_INFO_NOT_FOUND if no unwind information was found
+ *          for the location given by iSeg:off.
+ *
+ * @param   hDbgMod             The module handle.
+ * @param   iSeg                The segment number of the program counter.
+ * @param   off                 The offset into @a iSeg.  Together with @a iSeg
+ *                              this corresponds to the RTDBGUNWINDSTATE::uPc
+ *                              value pointed to by @a pState.
+ * @param   pState              The unwind state to work.
+ *
+ * @sa      RTLdrUnwindFrame
+ */
+RTDECL(int)         RTDbgModUnwindFrame(RTDBGMOD hDbgMod, RTDBGSEGIDX iSeg, RTUINTPTR off, PRTDBGUNWINDSTATE pState);
+
+/** @} */
 # endif /* IN_RING3 */
+
 
 
 /** @name Kernel Debug Info API
@@ -1620,11 +1960,22 @@ RTR0DECL(int)       RTR0DbgKrnlInfoQueryMember(RTDBGKRNLINFO hKrnlInfo, const ch
  *                          particular, it will be set to NULL when
  *                          VERR_SYMBOL_NOT_FOUND is returned.
  *
- * @sa      RTLdrGetSymbol.
+ * @sa      RTR0DbgKrnlInfoGetSymbol, RTLdrGetSymbol
  */
 RTR0DECL(int)       RTR0DbgKrnlInfoQuerySymbol(RTDBGKRNLINFO hKrnlInfo, const char *pszModule,
                                                const char *pszSymbol, void **ppvSymbol);
 
+/**
+ * Wrapper around RTR0DbgKrnlInfoQuerySymbol that returns the symbol.
+ *
+ * @return  Symbol address if found, NULL if not found or some invalid parameter
+ *          or something.
+ * @param   hKrnlInfo       The kernel info handle.
+ * @param   pszModule       Reserved for future extensions. Pass NULL.
+ * @param   pszSymbol       The C name of the symbol.
+ * @sa      RTR0DbgKrnlInfoQuerySymbol, RTLdrGetSymbol
+ */
+RTR0DECL(void *)    RTR0DbgKrnlInfoGetSymbol(RTDBGKRNLINFO hKrnlInfo, const char *pszModule, const char *pszSymbol);
 
 /**
  * Queries the size (in bytes) of a kernel data type.
@@ -1651,5 +2002,5 @@ RTR0DECL(int)       RTR0DbgKrnlInfoQuerySize(RTDBGKRNLINFO hKrnlInfo, const char
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !IPRT_INCLUDED_dbg_h */
 

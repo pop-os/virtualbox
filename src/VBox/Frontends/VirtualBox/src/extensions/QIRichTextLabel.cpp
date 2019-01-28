@@ -1,10 +1,10 @@
 /* $Id: QIRichTextLabel.cpp $ */
 /** @file
- * VBox Qt GUI - VirtualBox Qt extensions: QIRichTextLabel class implementation.
+ * VBox Qt GUI - Qt extensions: QIRichTextLabel class implementation.
  */
 
 /*
- * Copyright (C) 2012-2017 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,83 +15,80 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+/* Qt includes: */
+#include <QUrl>
+#include <QVBoxLayout>
 
-/* Global includes: */
-# include <QVBoxLayout>
-# include <QUrl>
-
-/* Local includes: */
-# include "QIRichTextLabel.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+/* GUI includes: */
+#include "QIRichTextLabel.h"
 
 
-/* Constructor: */
 QIRichTextLabel::QIRichTextLabel(QWidget *pParent)
     : QWidget(pParent)
-    , m_pTextEdit(new QTextEdit(this))
+    , m_pTextEdit()
     , m_iMinimumTextWidth(0)
 {
-    /* Setup self: */
+    /* Configure self: */
     setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Fixed);
 
-    /* Setup text-edit: */
-    m_pTextEdit->setReadOnly(true);
-    m_pTextEdit->setFocusPolicy(Qt::NoFocus);
-    m_pTextEdit->setFrameShape(QFrame::NoFrame);
-    m_pTextEdit->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    m_pTextEdit->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
-
-    /* Tune text-edit viewport palette: */
-    m_pTextEdit->viewport()->setAutoFillBackground(false);
-    QPalette pal = m_pTextEdit->viewport()->palette();
-    pal.setColor(QPalette::Active,   QPalette::Text, pal.color(QPalette::Active,   QPalette::WindowText));
-    pal.setColor(QPalette::Inactive, QPalette::Text, pal.color(QPalette::Inactive, QPalette::WindowText));
-    pal.setColor(QPalette::Disabled, QPalette::Text, pal.color(QPalette::Disabled, QPalette::WindowText));
-    m_pTextEdit->viewport()->setPalette(pal);
-
-    /* Add into parent: */
+    /* Create main layout: */
     QVBoxLayout *pMainLayout = new QVBoxLayout(this);
-    pMainLayout->setMargin(0);
-    pMainLayout->addWidget(m_pTextEdit);
+    if (pMainLayout)
+    {
+        /* Configure layout: */
+        pMainLayout->setMargin(0);
+
+        /* Create text-edit: */
+        m_pTextEdit = new QTextEdit;
+        if (m_pTextEdit)
+        {
+            /* Configure text-edit: */
+            m_pTextEdit->setReadOnly(true);
+            m_pTextEdit->setFocusPolicy(Qt::NoFocus);
+            m_pTextEdit->setFrameShape(QFrame::NoFrame);
+            m_pTextEdit->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+            m_pTextEdit->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
+
+            /* Tune text-edit viewport palette: */
+            m_pTextEdit->viewport()->setAutoFillBackground(false);
+            QPalette pal = m_pTextEdit->viewport()->palette();
+            pal.setColor(QPalette::Active,   QPalette::Text, pal.color(QPalette::Active,   QPalette::WindowText));
+            pal.setColor(QPalette::Inactive, QPalette::Text, pal.color(QPalette::Inactive, QPalette::WindowText));
+            pal.setColor(QPalette::Disabled, QPalette::Text, pal.color(QPalette::Disabled, QPalette::WindowText));
+            m_pTextEdit->viewport()->setPalette(pal);
+        }
+
+        /* Add into layout: */
+        pMainLayout->addWidget(m_pTextEdit);
+    }
 }
 
-/* Text getter: */
 QString QIRichTextLabel::text() const
 {
     return m_pTextEdit->toHtml();
 }
 
-/* Register image: */
 void QIRichTextLabel::registerImage(const QImage &image, const QString &strName)
 {
-    /* Register passed image in internal text-document: */
     m_pTextEdit->document()->addResource(QTextDocument::ImageResource, QUrl(strName), QVariant(image));
 }
 
-/* Word-wrap mode getter: */
 QTextOption::WrapMode QIRichTextLabel::wordWrapMode() const
 {
     return m_pTextEdit->wordWrapMode();
 }
 
-/* Word-wrap mode setter: */
 void QIRichTextLabel::setWordWrapMode(QTextOption::WrapMode policy)
 {
     m_pTextEdit->setWordWrapMode(policy);
 }
 
-/* API: Event-filter setter: */
 void QIRichTextLabel::installEventFilter(QObject *pFilterObj)
 {
     QWidget::installEventFilter(pFilterObj);
     m_pTextEdit->installEventFilter(pFilterObj);
 }
 
-/* Minimum text-width setter: */
 void QIRichTextLabel::setMinimumTextWidth(int iMinimumTextWidth)
 {
     /* Remember minimum text width: */
@@ -110,7 +107,6 @@ void QIRichTextLabel::setMinimumTextWidth(int iMinimumTextWidth)
     layout()->activate();
 }
 
-/* Text setter: */
 void QIRichTextLabel::setText(const QString &strText)
 {
     /* Set text: */
@@ -126,4 +122,3 @@ void QIRichTextLabel::setText(const QString &strText)
     /* Set minimum text width to corresponding value: */
     setMinimumTextWidth(m_iMinimumTextWidth == 0 ? size.width() : m_iMinimumTextWidth);
 }
-

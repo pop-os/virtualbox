@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -83,12 +83,13 @@ static VBOXSTRICTRC iomRCInterpretIN(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFra
 {
     STAM_COUNTER_INC(&pVM->iom.s.StatInstIn); RT_NOREF_PV(pVM);
     Assert(pCpu->Param2.fUse & (DISUSE_IMMEDIATE8 | DISUSE_REG_GEN16));
-    uint16_t u16Port = pCpu->Param2.fUse & DISUSE_REG_GEN16 ? pRegFrame->dx : (uint16_t)pCpu->Param2.uValue;
+    bool const     fUseReg = RT_BOOL(pCpu->Param2.fUse & DISUSE_REG_GEN16);
+    uint16_t const u16Port = fUseReg ? pRegFrame->dx : (uint16_t)pCpu->Param2.uValue;
 
     Assert(pCpu->Param1.fUse & (DISUSE_REG_GEN32 | DISUSE_REG_GEN16 | DISUSE_REG_GEN8));
     uint8_t cbValue = pCpu->Param1.fUse & DISUSE_REG_GEN32 ? 4 : pCpu->Param1.fUse & DISUSE_REG_GEN16 ? 2 : 1;
 
-    return IEMExecDecodedIn(pVCpu, pCpu->cbInstr, u16Port, cbValue);
+    return IEMExecDecodedIn(pVCpu, pCpu->cbInstr, u16Port, !fUseReg, cbValue);
 }
 
 
@@ -115,12 +116,13 @@ static VBOXSTRICTRC iomRCInterpretOUT(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFr
 {
     STAM_COUNTER_INC(&pVM->iom.s.StatInstOut); RT_NOREF_PV(pVM);
     Assert(pCpu->Param1.fUse & (DISUSE_IMMEDIATE8 | DISUSE_REG_GEN16));
-    uint16_t const u16Port = pCpu->Param1.fUse & DISUSE_REG_GEN16 ? pRegFrame->dx : (uint16_t)pCpu->Param1.uValue;
+    bool const     fUseReg = RT_BOOL(pCpu->Param1.fUse & DISUSE_REG_GEN16);
+    uint16_t const u16Port = fUseReg ? pRegFrame->dx : (uint16_t)pCpu->Param1.uValue;
 
     Assert(pCpu->Param2.fUse & (DISUSE_REG_GEN32 | DISUSE_REG_GEN16 | DISUSE_REG_GEN8));
     uint8_t const cbValue = pCpu->Param2.fUse & DISUSE_REG_GEN32 ? 4 : pCpu->Param2.fUse & DISUSE_REG_GEN16 ? 2 : 1;
 
-    return IEMExecDecodedOut(pVCpu, pCpu->cbInstr, u16Port, cbValue);
+    return IEMExecDecodedOut(pVCpu, pCpu->cbInstr, u16Port, !fUseReg, cbValue);
 }
 
 
@@ -217,17 +219,21 @@ VMMRCDECL(VBOXSTRICTRC) IOMRCIOPortHandler(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE p
     switch (pCpu->pCurInstr->uOpcode)
     {
         case OP_IN:
+            EMHistoryUpdateFlagsAndType(pVCpu, EMEXIT_MAKE_FT(EMEXIT_F_KIND_EM, EMEXITTYPE_IO_PORT_READ));
             return iomRCInterpretIN(pVM, pVCpu, pRegFrame, pCpu);
 
         case OP_OUT:
+            EMHistoryUpdateFlagsAndType(pVCpu, EMEXIT_MAKE_FT(EMEXIT_F_KIND_EM, EMEXITTYPE_IO_PORT_WRITE));
             return iomRCInterpretOUT(pVM, pVCpu, pRegFrame, pCpu);
 
         case OP_INSB:
         case OP_INSWD:
+            EMHistoryUpdateFlagsAndType(pVCpu, EMEXIT_MAKE_FT(EMEXIT_F_KIND_EM, EMEXITTYPE_IO_PORT_STR_READ));
             return iomRCInterpretINS(pVCpu, pCpu);
 
         case OP_OUTSB:
         case OP_OUTSWD:
+            EMHistoryUpdateFlagsAndType(pVCpu, EMEXIT_MAKE_FT(EMEXIT_F_KIND_EM, EMEXITTYPE_IO_PORT_STR_WRITE));
             return iomRCInterpretOUTS(pVCpu, pCpu);
 
         /*

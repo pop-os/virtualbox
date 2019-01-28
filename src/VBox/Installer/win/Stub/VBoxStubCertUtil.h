@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2017 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,6 +15,13 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#pragma once
+#ifndef VBOX_INCLUDED_SRC_Stub_VBoxStubCertUtil_h
+#define VBOX_INCLUDED_SRC_Stub_VBoxStubCertUtil_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 extern bool addCertToStore(DWORD dwDst, const char *pszStoreNm, const unsigned char kpCertBuf[], DWORD cbCertBuf);
+
+#endif /* !VBOX_INCLUDED_SRC_Stub_VBoxStubCertUtil_h */
+

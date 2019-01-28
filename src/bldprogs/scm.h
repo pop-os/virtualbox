@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,9 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-
-#ifndef ___scm_h___
-#define ___scm_h___
+#ifndef VBOX_INCLUDED_SRC_bldprogs_scm_h
+#define VBOX_INCLUDED_SRC_bldprogs_scm_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "scmstream.h"
 
@@ -55,6 +57,7 @@ void ScmSvnTerm(void);
 bool ScmSvnIsDirInWorkingCopy(const char *pszDir);
 bool ScmSvnIsInWorkingCopy(PSCMRWSTATE pState);
 int  ScmSvnQueryProperty(PSCMRWSTATE pState, const char *pszName, char **ppszValue);
+int  ScmSvnQueryParentProperty(PSCMRWSTATE pState, const char *pszName, char **ppszValue);
 int  ScmSvnSetProperty(PSCMRWSTATE pState, const char *pszName, const char *pszValue);
 int  ScmSvnDelProperty(PSCMRWSTATE pState, const char *pszName);
 int  ScmSvnDisplayChanges(PSCMRWSTATE pState);
@@ -148,6 +151,50 @@ typedef FNSCMCOMMENTENUMERATOR *PFNSCMCOMMENTENUMERATOR;
 
 int ScmEnumerateComments(PSCMSTREAM pIn, SCMCOMMENTSTYLE enmCommentStyle, PFNSCMCOMMENTENUMERATOR pfnCallback, void *pvUser);
 
+
+/**
+ * Include directive type.
+ */
+typedef enum SCMINCLUDEDIR
+{
+    kScmIncludeDir_Invalid = 0, /**< Constomary invalid enum value. */
+    kScmIncludeDir_Quoted,      /**< \#include \"filename.h\" */
+    kScmIncludeDir_Bracketed,   /**< \#include \<filename.h\> */
+    kScmIncludeDir_Macro,       /**< \#include MACRO_H */
+    kScmIncludeDir_End          /**< End of valid enum values. */
+} SCMINCLUDEDIR;
+
+SCMINCLUDEDIR ScmMaybeParseCIncludeLine(PSCMRWSTATE pState, const char *pchLine, size_t cchLine,
+                                        const char **ppchFilename, size_t *pcchFilename);
+
+/**
+ * Checks if the given character is a valid C identifier lead character.
+ *
+ * @returns true / false.
+ * @param   ch                  The character to inspect.
+ * @sa      vbcppIsCIdentifierLeadChar
+ */
+DECLINLINE(bool) ScmIsCIdentifierLeadChar(char ch)
+{
+    return RT_C_IS_ALPHA(ch)
+        || ch == '_';
+}
+
+
+/**
+ * Checks if the given character is a valid C identifier character.
+ *
+ * @returns true / false.
+ * @param   ch                  The character to inspect.
+ * @sa      vbcppIsCIdentifierChar
+ */
+DECLINLINE(bool) ScmIsCIdentifierChar(char ch)
+{
+    return RT_C_IS_ALNUM(ch)
+        || ch == '_';
+}
+
+
 /** @} */
 
 
@@ -201,6 +248,7 @@ FNSCMREWRITER rewrite_SvnNoKeywords;
 FNSCMREWRITER rewrite_SvnNoEolStyle;
 FNSCMREWRITER rewrite_SvnBinary;
 FNSCMREWRITER rewrite_SvnKeywords;
+FNSCMREWRITER rewrite_SvnSyncProcess;
 FNSCMREWRITER rewrite_Copyright_CstyleComment;
 FNSCMREWRITER rewrite_Copyright_HashComment;
 FNSCMREWRITER rewrite_Copyright_PythonComment;
@@ -212,6 +260,8 @@ FNSCMREWRITER rewrite_Makefile_kup;
 FNSCMREWRITER rewrite_Makefile_kmk;
 FNSCMREWRITER rewrite_FixFlowerBoxMarkers;
 FNSCMREWRITER rewrite_Fix_C_and_CPP_Todos;
+FNSCMREWRITER rewrite_Fix_Err_H;
+FNSCMREWRITER rewrite_FixHeaderGuards;
 FNSCMREWRITER rewrite_C_and_CPP;
 
 /**
@@ -283,8 +333,24 @@ typedef struct SCMSETTINGSBASE
     /** The minimum number of blank lines we want before flowerbox markers. */
     uint8_t         cMinBlankLinesBeforeFlowerBoxMakers;
 
+    /** Whether to fix C/C++ header guards and \#pragma once directives. */
+    bool            fFixHeaderGuards;
+    /** Whether to include a pragma once statement with the header guard. */
+    bool            fPragmaOnce;
+    /** Whether to fix the \#endif part of a header guard. */
+    bool            fFixHeaderGuardEndif;
+    /** Whether to add a comment on the \#endif part of the header guard. */
+    bool            fEndifGuardComment;
+    /** The guard name prefix.   */
+    char           *pszGuardPrefix;
+    /** Header guards should be normalized using prefix and this directory.
+     * When NULL the guard identifiers found in the header is preserved. */
+    char           *pszGuardRelativeToDir;
+
     /** Whether to fix C/C++ todos. */
     bool            fFixTodos;
+    /** Whether to fix C/C++ err.h/errcore.h usage. */
+    bool            fFixErrH;
 
     /** Update the copyright year. */
     bool            fUpdateCopyrightYear;
@@ -305,6 +371,8 @@ typedef struct SCMSETTINGSBASE
     bool            fSetSvnExecutable;
     /** Set svn:keyword if completely or partially missing. */
     bool            fSetSvnKeywords;
+    /** Skip checking svn:sync-process. */
+    bool            fSkipSvnSyncProcess;
     /** Tab size. */
     uint8_t         cchTab;
     /** Optimal source code width. */
@@ -390,5 +458,5 @@ extern uint32_t g_uYear;
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !VBOX_INCLUDED_SRC_bldprogs_scm_h */
 

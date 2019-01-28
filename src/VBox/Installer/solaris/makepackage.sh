@@ -5,7 +5,7 @@
 #
 
 #
-# Copyright (C) 2007-2017 Oracle Corporation
+# Copyright (C) 2007-2019 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -126,6 +126,7 @@ create_hardlink VBoxBugReport
 create_hardlink VBoxBalloonCtrl
 create_hardlink VBoxTestOGL
 create_hardlink VirtualBox
+create_hardlink VirtualBoxVM
 create_hardlink vbox-img
 create_hardlink VBoxHeadless
 
@@ -185,12 +186,10 @@ dirlist_fixup prototype  '$3 == "var/svc/manifest/application/virtualbox"'      
 # Hardening requires some executables to be marked setuid.
 if test -n "$HARDENED"; then
     $VBOX_AWK 'NF == 6 \
-        && (    $3 == "opt/VirtualBox/amd64/VirtualBox" \
-            ||  $3 == "opt/VirtualBox/amd64/VirtualBox3" \
+        && (    $3 == "opt/VirtualBox/amd64/VirtualBoxVM" \
             ||  $3 == "opt/VirtualBox/amd64/VBoxHeadless" \
             ||  $3 == "opt/VirtualBox/amd64/VBoxSDL" \
             ||  $3 == "opt/VirtualBox/i386/VirtualBox" \
-            ||  $3 == "opt/VirtualBox/i386/VirtualBox3" \
             ||  $3 == "opt/VirtualBox/i386/VBoxHeadless" \
             ||  $3 == "opt/VirtualBox/i386/VBoxSDL" \
             ) \

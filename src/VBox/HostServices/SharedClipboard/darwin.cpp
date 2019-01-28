@@ -1,10 +1,10 @@
 /* $Id: darwin.cpp $ */
 /** @file
- * Shared Clipboard: Mac OS X host.
+ * Shared Clipboard Service - Mac OS X host.
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,6 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
+#define LOG_GROUP LOG_GROUP_SHARED_CLIPBOARD
 #include <VBox/HostServices/VBoxClipboardSvc.h>
 
 #include <iprt/assert.h>
@@ -24,6 +29,10 @@
 #include "VBoxClipboard.h"
 #include "darwin-pasteboard.h"
 
+
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 /** Global clipboard context information */
 struct _VBOXCLIPBOARDCONTEXT
 {
@@ -37,6 +46,10 @@ struct _VBOXCLIPBOARDCONTEXT
     VBOXCLIPBOARDCLIENTDATA *pClient;
 };
 
+
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 /** Only one client is supported. There seems to be no need for more clients. */
 static VBOXCLIPBOARDCONTEXT g_ctx;
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,9 +20,9 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
-#define LOG_GROUP LOG_GROUP_MAIN
+#define LOG_GROUP LOG_GROUP_MAIN_HOST
 
-#include <iprt/err.h>
+#include <iprt/errcore.h>
 #include <list>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
@@ -36,7 +36,7 @@
 
 #include "HostNetworkInterfaceImpl.h"
 #include "netif.h"
-#include "Logging.h"
+#include "LoggingNew.h"
 
 /**
  * Obtain the name of the interface used for default routing.
@@ -45,9 +45,10 @@
  *
  * @returns VBox status code.
  *
- * @param   pszName     The buffer of IFNAMSIZ+1 length where to put the name.
+ * @param   pszName     The buffer where to put the name.
+ * @param   cbName      Size of of the destination buffer.
  */
-static int getDefaultIfaceName(char *pszName)
+static int getDefaultIfaceName(char *pszName, size_t cbName)
 {
     FILE *fp = fopen("/proc/net/route", "r");
     char szBuf[1024];
@@ -71,9 +72,8 @@ static int getDefaultIfaceName(char *pszName)
             if (uAddr == 0 && uMask == 0)
             {
                 fclose(fp);
-                strncpy(pszName, szIfName, 16);
-                pszName[16] = 0;
-                return VINF_SUCCESS;
+                szIfName[sizeof(szIfName) - 1] = '\0';
+                return RTStrCopy(pszName, cbName, szIfName);
             }
         }
         fclose(fp);
@@ -219,11 +219,11 @@ static int getInterfaceInfo(int iSocket, const char *pszName, PNETIFINFO pInfo)
 int NetIfList(std::list <ComObjPtr<HostNetworkInterface> > &list)
 {
     char szDefaultIface[256];
-    int rc = getDefaultIfaceName(szDefaultIface);
+    int rc = getDefaultIfaceName(szDefaultIface, sizeof(szDefaultIface));
     if (RT_FAILURE(rc))
     {
         Log(("NetIfList: Failed to find default interface.\n"));
-        szDefaultIface[0] = 0;
+        szDefaultIface[0] = '\0';
     }
     int sock = socket(AF_INET, SOCK_DGRAM, 0);
     if (sock >= 0)

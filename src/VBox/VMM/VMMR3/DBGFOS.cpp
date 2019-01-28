@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -98,11 +98,11 @@ int dbgfR3OSInit(PUVM pUVM)
 
 
 /**
- * Internal cleanup routine called by DBGFR3Term().
+ * Internal cleanup routine called by DBGFR3Term(), part 1.
  *
  * @param   pUVM    The user mode VM handle.
  */
-void dbgfR3OSTerm(PUVM pUVM)
+void dbgfR3OSTermPart1(PUVM pUVM)
 {
     DBGF_OS_WRITE_LOCK(pUVM);
 
@@ -114,6 +114,22 @@ void dbgfR3OSTerm(PUVM pUVM)
         pUVM->dbgf.s.pCurOS->pReg->pfnTerm(pUVM, pUVM->dbgf.s.pCurOS->abData);
         pUVM->dbgf.s.pCurOS = NULL;
     }
+
+    DBGF_OS_WRITE_UNLOCK(pUVM);
+}
+
+
+/**
+ * Internal cleanup routine called by DBGFR3Term(), part 2.
+ *
+ * @param   pUVM    The user mode VM handle.
+ */
+void dbgfR3OSTermPart2(PUVM pUVM)
+{
+    DBGF_OS_WRITE_LOCK(pUVM);
+
+    /* This shouldn't happen. */
+    AssertStmt(!pUVM->dbgf.s.pCurOS, dbgfR3OSTermPart1(pUVM));
 
     /*
      * Destroy all the instances.
@@ -619,5 +635,27 @@ VMMR3DECL(void *) DBGFR3OSQueryInterface(PUVM pUVM, DBGFOSINTERFACE enmIf)
     void *pvIf = NULL;
     VMR3ReqPriorityCallVoidWaitU(pUVM, VMCPUID_ANY, (PFNRT)dbgfR3OSQueryInterface, 3, pUVM, enmIf, &pvIf);
     return pvIf;
+}
+
+
+
+/**
+ * Internal wrapper for calling DBGFOSREG::pfnStackUnwindAssist.
+ */
+int dbgfR3OSStackUnwindAssist(PUVM pUVM, VMCPUID idCpu, PDBGFSTACKFRAME pFrame, PRTDBGUNWINDSTATE pState,
+                              PCCPUMCTX pInitialCtx, RTDBGAS hAs, uint64_t *puScratch)
+{
+    int rc = VINF_SUCCESS;
+    if (pUVM->dbgf.s.pCurOS)
+    {
+        ASMCompilerBarrier();
+        DBGF_OS_READ_LOCK(pUVM);
+        PDBGFOS pOS = pUVM->dbgf.s.pCurOS;
+        if (pOS)
+            rc = pOS->pReg->pfnStackUnwindAssist(pUVM, pUVM->dbgf.s.pCurOS->abData, idCpu, pFrame,
+                                                 pState, pInitialCtx, hAs, puScratch);
+        DBGF_OS_READ_UNLOCK(pUVM);
+    }
+    return rc;
 }
 

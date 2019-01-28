@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,8 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_vmm_dbgftrace_h
-#define ___VBox_vmm_dbgftrace_h
+#ifndef VBOX_INCLUDED_vmm_dbgftrace_h
+#define VBOX_INCLUDED_vmm_dbgftrace_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/trace.h>
 #include <VBox/types.h>
@@ -73,6 +76,18 @@ VMMDECL(int) DBGFR3TraceConfig(PVM pVM, const char *pszConfig);
 # define DBGFTRACE_U64_TAG2(a_pVM, a_u64, a_pszTag1, a_pszTag2) do { } while (0)
 #endif
 
+#ifdef RT_COMPILER_SUPPORTS_VA_ARGS
+/**
+ * Add a custom string (req. variadict macro support).
+ */
+# ifdef DBGFTRACE_ENABLED
+#  define DBGFTRACE_CUSTOM(a_pVM, ...) \
+     do { RTTraceBufAddMsgF((a_pVM)->CTX_SUFF(hTraceBuf), __VA_ARGS__); } while (0)
+# else
+#  define DBGFTRACE_CUSTOM(a_pVM, ...) do { } while (0)
+# endif
+#endif
+
 /**
  * Records the current source position.
  */
@@ -95,7 +110,7 @@ VMMDECL(int) DBGFR3TraceConfig(PVM pVM, const char *pszConfig);
 /** @} */
 
 
-/** @name Tracing Macors for PDM Devices, Drivers and USB Devices.
+/** @name Tracing Macros for PDM Devices, Drivers and USB Devices.
  * @{
  */
 
@@ -140,4 +155,4 @@ VMMDECL(int) DBGFR3TraceConfig(PVM pVM, const char *pszConfig);
 /** @} */
 RT_C_DECLS_END
 
-#endif
+#endif /* !VBOX_INCLUDED_vmm_dbgftrace_h */

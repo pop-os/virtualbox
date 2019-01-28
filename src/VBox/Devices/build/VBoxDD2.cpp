@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,7 +24,7 @@
 #define LOG_GROUP LOG_GROUP_DEV
 #include <VBox/vmm/pdm.h>
 #include <VBox/version.h>
-#include <VBox/err.h>
+#include <iprt/errcore.h>
 
 #include <VBox/log.h>
 #include <iprt/assert.h>
@@ -61,9 +61,13 @@ extern "C" DECLEXPORT(int) VBoxDevicesRegister(PPDMDEVREGCB pCallbacks, uint32_t
     LogFlow(("VBoxDevicesRegister: u32Version=%#x\n", u32Version));
     AssertReleaseMsg(u32Version == VBOX_VERSION, ("u32Version=%#x VBOX_VERSION=%#x\n", u32Version, VBOX_VERSION));
 
+#ifndef VBOX_WITH_NEW_LPC_DEVICE
     int rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceLPC);
     if (RT_FAILURE(rc))
         return rc;
+#else
+    RT_NOREF(pCallbacks);
+#endif
 
     return VINF_SUCCESS;
 }

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2011-2017 Oracle Corporation
+ * Copyright (C) 2011-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,8 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___iprt_cpp_meta_h
-#define ___iprt_cpp_meta_h
+#ifndef IPRT_INCLUDED_cpp_meta_h
+#define IPRT_INCLUDED_cpp_meta_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/types.h>
 
@@ -108,5 +111,5 @@ struct RTCIfPtr<T*, TrueResult, FalseResult>
 
 /** @} */
 
-#endif /* !___iprt_cpp_meta_h */
+#endif /* !IPRT_INCLUDED_cpp_meta_h */
 

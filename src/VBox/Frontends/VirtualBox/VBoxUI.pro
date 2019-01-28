@@ -6,7 +6,7 @@
 #
 
 #
-# Copyright (C) 2006-2017 Oracle Corporation
+# Copyright (C) 2006-2019 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -21,7 +21,6 @@ TEMPLATE	= app
 LANGUAGE	= C++
 
 FORMS = \
-    src/UIVMLogViewer.ui \
     src/settings/UISettingsDialog.ui \
     src/settings/global/UIGlobalSettingsGeneral.ui \
     src/settings/global/UIGlobalSettingsInput.ui \

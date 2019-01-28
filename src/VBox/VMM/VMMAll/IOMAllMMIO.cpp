@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -61,11 +61,32 @@
 static VBOXSTRICTRC iomMmioRing3WritePending(PVMCPU pVCpu, RTGCPHYS GCPhys, void const *pvBuf, size_t cbBuf, PIOMMMIORANGE pRange)
 {
     Log5(("iomMmioRing3WritePending: %RGp LB %#x\n", GCPhys, cbBuf));
-    AssertReturn(pVCpu->iom.s.PendingMmioWrite.cbValue == 0, VERR_IOM_MMIO_IPE_1);
-    pVCpu->iom.s.PendingMmioWrite.GCPhys  = GCPhys;
-    AssertReturn(cbBuf <= sizeof(pVCpu->iom.s.PendingMmioWrite.abValue), VERR_IOM_MMIO_IPE_2);
-    pVCpu->iom.s.PendingMmioWrite.cbValue = (uint32_t)cbBuf;
-    memcpy(pVCpu->iom.s.PendingMmioWrite.abValue, pvBuf, cbBuf);
+    if (pVCpu->iom.s.PendingMmioWrite.cbValue == 0)
+    {
+        pVCpu->iom.s.PendingMmioWrite.GCPhys  = GCPhys;
+        AssertReturn(cbBuf <= sizeof(pVCpu->iom.s.PendingMmioWrite.abValue), VERR_IOM_MMIO_IPE_2);
+        pVCpu->iom.s.PendingMmioWrite.cbValue = (uint32_t)cbBuf;
+        memcpy(pVCpu->iom.s.PendingMmioWrite.abValue, pvBuf, cbBuf);
+    }
+    else
+    {
+        /*
+         * Join with pending if adjecent.
+         *
+         * This may happen if the stack overflows into MMIO territory and RSP/ESP/SP
+         * isn't aligned. IEM will bounce buffer the access and do one write for each
+         * page.  We get here when the 2nd page part is written.
+         */
+        uint32_t const cbOldValue = pVCpu->iom.s.PendingMmioWrite.cbValue;
+        AssertMsgReturn(GCPhys == pVCpu->iom.s.PendingMmioWrite.GCPhys + cbOldValue,
+                        ("pending %RGp LB %#x; incoming %RGp LB %#x\n",
+                         pVCpu->iom.s.PendingMmioWrite.GCPhys, cbOldValue, GCPhys, cbBuf),
+                        VERR_IOM_MMIO_IPE_1);
+        AssertReturn(cbBuf <= sizeof(pVCpu->iom.s.PendingMmioWrite.abValue) - cbOldValue, VERR_IOM_MMIO_IPE_2);
+        pVCpu->iom.s.PendingMmioWrite.cbValue = cbOldValue + (uint32_t)cbBuf;
+        memcpy(&pVCpu->iom.s.PendingMmioWrite.abValue[cbOldValue], pvBuf, cbBuf);
+    }
+
     VMCPU_FF_SET(pVCpu, VMCPU_FF_IOM);
     RT_NOREF_PV(pRange);
     return VINF_IOM_R3_MMIO_COMMIT_WRITE;
@@ -248,7 +269,7 @@ static VBOXSTRICTRC iomMMIODoComplicatedWrite(PVM pVM, PVMCPU pVCpu, PIOMMMIORAN
                 VMCPU_FF_SET(pVCpu, VMCPU_FF_IOM);
                 if (rc == VINF_SUCCESS)
                     rc = VINF_IOM_R3_MMIO_COMMIT_WRITE;
-                return rc2;
+                return rc;
 #endif
             default:
                 if (RT_FAILURE(rc2))
@@ -784,7 +805,8 @@ PGM_ALL_CB2_DECL(VBOXSTRICTRC) iomMmioHandler(PVM pVM, PVMCPU pVCpu, RTGCPHYS GC
 
         /* Check the return code. */
 #ifdef IN_RING3
-        AssertMsg(rcStrict == VINF_SUCCESS, ("%Rrc - %RGp - %s\n", VBOXSTRICTRC_VAL(rcStrict), GCPhysFault, pRange->pszDesc));
+        AssertMsg(rcStrict == VINF_SUCCESS, ("%Rrc -  Access type %d - %RGp - %s\n",
+                                             VBOXSTRICTRC_VAL(rcStrict), enmAccessType, GCPhysFault, pRange->pszDesc));
 #else
         AssertMsg(   rcStrict == VINF_SUCCESS
                   || rcStrict == (enmAccessType == PGMACCESSTYPE_READ ? VINF_IOM_R3_MMIO_READ :  VINF_IOM_R3_MMIO_WRITE)
@@ -796,10 +818,9 @@ PGM_ALL_CB2_DECL(VBOXSTRICTRC) iomMmioHandler(PVM pVM, PVMCPU pVCpu, RTGCPHYS GC
                   || rcStrict == VINF_EM_OFF
                   || rcStrict == VINF_EM_SUSPEND
                   || rcStrict == VINF_EM_RESET
-                  || rcStrict == VINF_EM_RAW_EMULATE_IO_BLOCK
                   //|| rcStrict == VINF_EM_HALT       /* ?? */
                   //|| rcStrict == VINF_EM_NO_MEMORY  /* ?? */
-                  , ("%Rrc - %RGp - %p\n", VBOXSTRICTRC_VAL(rcStrict), GCPhysFault, pDevIns));
+                  , ("%Rrc - Access type %d - %RGp - %p\n", VBOXSTRICTRC_VAL(rcStrict), enmAccessType, GCPhysFault, pDevIns));
 #endif
 
         iomMmioReleaseRange(pVM, pRange);
@@ -851,9 +872,6 @@ VMMDECL(VBOXSTRICTRC) IOMMMIORead(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys, uint32
         return VINF_IOM_R3_MMIO_WRITE;
 #endif
     AssertRC(VBOXSTRICTRC_VAL(rc));
-#if defined(IEM_VERIFICATION_MODE) && defined(IN_RING3)
-    IEMNotifyMMIORead(pVM, GCPhys, cbValue);
-#endif
 
     /*
      * Lookup the current context range node and statistics.
@@ -984,9 +1002,6 @@ VMMDECL(VBOXSTRICTRC) IOMMMIOWrite(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys, uint3
         return VINF_IOM_R3_MMIO_WRITE;
 #endif
     AssertRC(VBOXSTRICTRC_VAL(rc));
-#if defined(IEM_VERIFICATION_MODE) && defined(IN_RING3)
-    IEMNotifyMMIOWrite(pVM, GCPhys, u32Value, cbValue);
-#endif
 
     /*
      * Lookup the current context range node.
@@ -1089,13 +1104,13 @@ VMMDECL(VBOXSTRICTRC) IOMMMIOWrite(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys, uint3
  */
 VMMDECL(int) IOMMMIOMapMMIO2Page(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS GCPhysRemapped, uint64_t fPageFlags)
 {
-# ifndef IEM_VERIFICATION_MODE_FULL
     /* Currently only called from the VGA device during MMIO. */
     Log(("IOMMMIOMapMMIO2Page %RGp -> %RGp flags=%RX64\n", GCPhys, GCPhysRemapped, fPageFlags));
     AssertReturn(fPageFlags == (X86_PTE_RW | X86_PTE_P), VERR_INVALID_PARAMETER);
     PVMCPU pVCpu = VMMGetCpu(pVM);
 
     /* This currently only works in real mode, protected mode without paging or with nested paging. */
+    /** @todo NEM: MMIO page aliasing. */
     if (    !HMIsEnabled(pVM)       /* useless without VT-x/AMD-V */
         ||  (   CPUMIsGuestInPagedProtectedMode(pVCpu)
              && !HMIsNestedPagingActive(pVM)))
@@ -1132,24 +1147,20 @@ VMMDECL(int) IOMMMIOMapMMIO2Page(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS GCPhysRemapp
      *
      * Note: This is a NOP in the EPT case; we'll just let it fault again to resync the page.
      */
-#  if 0 /* The assertion is wrong for the PGM_SYNC_CLEAR_PGM_POOL and VINF_PGM_HANDLER_ALREADY_ALIASED cases. */
-#   ifdef VBOX_STRICT
+# if 0 /* The assertion is wrong for the PGM_SYNC_CLEAR_PGM_POOL and VINF_PGM_HANDLER_ALREADY_ALIASED cases. */
+#  ifdef VBOX_STRICT
     uint64_t fFlags;
     RTHCPHYS HCPhys;
     rc = PGMShwGetPage(pVCpu, (RTGCPTR)GCPhys, &fFlags, &HCPhys);
     Assert(rc == VERR_PAGE_NOT_PRESENT || rc == VERR_PAGE_TABLE_NOT_PRESENT);
-#   endif
 #  endif
+# endif
     rc = PGMPrefetchPage(pVCpu, (RTGCPTR)GCPhys);
     Assert(rc == VINF_SUCCESS || rc == VERR_PAGE_NOT_PRESENT || rc == VERR_PAGE_TABLE_NOT_PRESENT);
-# else
-    RT_NOREF_PV(pVM); RT_NOREF(GCPhys); RT_NOREF(GCPhysRemapped); RT_NOREF(fPageFlags);
-# endif /* !IEM_VERIFICATION_MODE_FULL */
     return VINF_SUCCESS;
 }
 
 
-# ifndef IEM_VERIFICATION_MODE_FULL
 /**
  * Mapping a HC page in place of an MMIO page for direct access.
  *
@@ -1170,19 +1181,20 @@ VMMDECL(int) IOMMMIOMapMMIOHCPage(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys, RTHCPH
     Log(("IOMMMIOMapMMIOHCPage %RGp -> %RGp flags=%RX64\n", GCPhys, HCPhys, fPageFlags));
 
     AssertReturn(fPageFlags == (X86_PTE_RW | X86_PTE_P), VERR_INVALID_PARAMETER);
+    /** @todo NEM: MMIO page aliasing. */
     Assert(HMIsEnabled(pVM));
 
     /*
      * Lookup the context range node the page belongs to.
      */
-#  ifdef VBOX_STRICT
+# ifdef VBOX_STRICT
     /* Can't lock IOM here due to potential deadlocks in the VGA device; not safe to access. */
     PIOMMMIORANGE pRange = iomMMIOGetRangeUnsafe(pVM, pVCpu, GCPhys);
     AssertMsgReturn(pRange,
             ("Handlers and page tables are out of sync or something! GCPhys=%RGp\n", GCPhys), VERR_IOM_MMIO_RANGE_NOT_FOUND);
     Assert((pRange->GCPhys       & PAGE_OFFSET_MASK) == 0);
     Assert((pRange->Core.KeyLast & PAGE_OFFSET_MASK) == PAGE_OFFSET_MASK);
-#  endif
+# endif
 
     /*
      * Do the aliasing; page align the addresses since PGM is picky.
@@ -1203,7 +1215,6 @@ VMMDECL(int) IOMMMIOMapMMIOHCPage(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys, RTHCPH
     Assert(rc == VINF_SUCCESS || rc == VERR_PAGE_NOT_PRESENT || rc == VERR_PAGE_TABLE_NOT_PRESENT);
     return VINF_SUCCESS;
 }
-# endif /* !IEM_VERIFICATION_MODE_FULL */
 
 
 /**
@@ -1221,6 +1232,7 @@ VMMDECL(int) IOMMMIOResetRegion(PVM pVM, RTGCPHYS GCPhys)
     PVMCPU pVCpu = VMMGetCpu(pVM);
 
     /* This currently only works in real mode, protected mode without paging or with nested paging. */
+    /** @todo NEM: MMIO page aliasing. */
     if (    !HMIsEnabled(pVM)       /* useless without VT-x/AMD-V */
         ||  (   CPUMIsGuestInPagedProtectedMode(pVCpu)
              && !HMIsNestedPagingActive(pVM)))

@@ -6,7 +6,7 @@
 #
 
 #
-# Copyright (C) 2007-2017 Oracle Corporation
+# Copyright (C) 2007-2019 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -220,6 +220,9 @@ ifdef VBOX_GSOAP_INSTALLED
   vboxsoap_CXXFLAGS.win += -wd4702 # soapc-4.cpp(16) : warning C4702: unreachable code
   ifn1of ($(KBUILD_TARGET), win)
    vboxsoap_CXXFLAGS += -Wno-shadow -Wno-parentheses $(VBOX_GCC_Wno-literal-suffix) $(VBOX_GCC_Wno-stringop-overflow) $(VBOX_GCC_Wno-stringop-truncation)
+   ifn1of ($(KBUILD_TYPE), debug) # Save time+memory by using -O0 instead of -O2.
+    vboxsoap_CXXFLAGS += -O0 ## @todo this could be interesting for g++ (not clang++): -fcprop-registers
+   endif
   endif
   vboxsoap_INCS := \
   	$(VBOX_GSOAP_INCS) \
@@ -320,6 +323,11 @@ ifdef VBOX_GSOAP_INSTALLED
 		-DMAC_OS_X_VERSION_MIN_REQUIRED=1040 -DMAC_OS_X_VERSION_MAX_ALLOWED=1040 \
 		$< -o $@
   endif
+
+  # Tweak for systems with too many CPUs compared to memory.
+  ifdef VBOX_WITH_SOAP_NOT_PARALLEL
+   .NOTPARALLEL: $$(vboxsoap_2_OBJS)
+  endif
  endif # !VBOX_ONLY_SDK
 
 
@@ -338,6 +346,9 @@ ifdef VBOX_GSOAP_INSTALLED
  vboxwebsrv_CXXFLAGS.win += -bigobj
  ifn1of ($(KBUILD_TARGET), win)
   vboxwebsrv_CXXFLAGS += -Wno-shadow $(VBOX_GCC_Wno-literal-suffix)
+  ifn1of ($(KBUILD_TYPE), debug) # Save time+memory by using -O1 instead of -O2.
+   vboxwebsrv_CXXFLAGS += -O0
+  endif
  endif
  vboxwebsrv_LIBS += \
 	$(PATH_STAGE_LIB)/vboxsoap$(VBOX_SUFF_LIB) \

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2017 Oracle Corporation
+ * Copyright (C) 2011-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,8 +24,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBoxDrvTool_win_h___
-#define ___VBoxDrvTool_win_h___
+#ifndef VBOX_INCLUDED_SRC_VBoxUSB_win_cmn_VBoxDrvTool_h
+#define VBOX_INCLUDED_SRC_VBoxUSB_win_cmn_VBoxDrvTool_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/cdefs.h>
 #include <iprt/stdint.h>
@@ -96,5 +99,5 @@ VBOXDRVTOOL_DECL(VOID) VBoxDrvToolStrFree(PUNICODE_STRING pStr);
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !VBOX_INCLUDED_SRC_VBoxUSB_win_cmn_VBoxDrvTool_h */
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -657,7 +657,7 @@ VMMR3_INT_DECL(int) IOMR3IOPortRegisterRC(PVM pVM, PPDMDEVINS pDevIns, RTIOPORT 
 {
     LogFlow(("IOMR3IOPortRegisterRC: pDevIns=%p PortStart=%#x cPorts=%#x pvUser=%RRv pfnOutCallback=%RRv pfnInCallback=%RRv pfnOutStrCallback=%RRv pfnInStrCallback=%RRv pszDesc=%s\n",
              pDevIns, PortStart, cPorts, pvUser, pfnOutCallback, pfnInCallback, pfnOutStrCallback, pfnInStrCallback, pszDesc));
-    AssertReturn(!HMIsEnabled(pVM), VERR_IOM_HM_IPE);
+    AssertReturn(VM_IS_RAW_MODE_ENABLED(pVM), VERR_IOM_HM_IPE);
 
     /*
      * Validate input.
@@ -1468,7 +1468,7 @@ IOMR3MmioRegisterRC(PVM pVM, PPDMDEVINS pDevIns, RTGCPHYS GCPhysStart, RTGCPHYS 
 {
     LogFlow(("IOMR3MmioRegisterRC: pDevIns=%p GCPhysStart=%RGp cbRange=%RGp pvUser=%RGv pfnWriteCallback=%#x pfnReadCallback=%#x pfnFillCallback=%#x\n",
              pDevIns, GCPhysStart, cbRange, pvUser, pfnWriteCallback, pfnReadCallback, pfnFillCallback));
-    AssertReturn(!HMIsEnabled(pVM), VERR_IOM_HM_IPE);
+    AssertReturn(VM_IS_RAW_MODE_ENABLED(pVM), VERR_IOM_HM_IPE);
 
     /*
      * Validate input.
@@ -1955,7 +1955,7 @@ VMMR3_INT_DECL(VBOXSTRICTRC) IOMR3ProcessForceFlag(PVM pVM, PVMCPU pVCpu, VBOXST
     if (pVCpu->iom.s.PendingIOPortWrite.cbValue)
     {
         Log5(("IOM: Dispatching pending I/O port write: %#x LB %u -> %RTiop\n", pVCpu->iom.s.PendingIOPortWrite.u32Value,
-              pVCpu->iom.s.PendingMmioWrite.cbValue, pVCpu->iom.s.PendingIOPortWrite.IOPort));
+              pVCpu->iom.s.PendingIOPortWrite.cbValue, pVCpu->iom.s.PendingIOPortWrite.IOPort));
         VBOXSTRICTRC rcStrictCommit = IOMIOPortWrite(pVM, pVCpu, pVCpu->iom.s.PendingIOPortWrite.IOPort,
                                                      pVCpu->iom.s.PendingIOPortWrite.u32Value,
                                                      pVCpu->iom.s.PendingIOPortWrite.cbValue);

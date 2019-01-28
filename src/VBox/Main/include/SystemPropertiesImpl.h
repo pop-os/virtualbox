@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,8 +17,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ____H_SYSTEMPROPERTIESIMPL
-#define ____H_SYSTEMPROPERTIESIMPL
+#ifndef MAIN_INCLUDED_SystemPropertiesImpl_h
+#define MAIN_INCLUDED_SystemPropertiesImpl_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "MediumFormatImpl.h"
 #include "SystemPropertiesWrap.h"
@@ -105,6 +108,10 @@ private:
     HRESULT getDefaultFrontend(com::Utf8Str &aDefaultFrontend);
     HRESULT setDefaultFrontend(const com::Utf8Str &aDefaultFrontend);
     HRESULT getScreenShotFormats(std::vector<BitmapFormat_T> &aScreenShotFormats);
+    HRESULT getProxyMode(ProxyMode_T *pProxyMode);
+    HRESULT setProxyMode(ProxyMode_T aProxyMode);
+    HRESULT getProxyURL(com::Utf8Str &aProxyURL);
+    HRESULT setProxyURL(const com::Utf8Str &aProxyURL);
 
     // wrapped ISystemProperties methods
     HRESULT getMaxNetworkAdapters(ChipsetType_T aChipset,
@@ -152,5 +159,5 @@ private:
     friend class VirtualBox;
 };
 
-#endif // ____H_SYSTEMPROPERTIESIMPL
+#endif /* !MAIN_INCLUDED_SystemPropertiesImpl_h */
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

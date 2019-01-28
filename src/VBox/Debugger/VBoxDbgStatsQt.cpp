@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -35,7 +35,7 @@
 #include <QContextMenuEvent>
 #include <QHeaderView>
 
-#include <VBox/err.h>
+#include <iprt/errcore.h>
 #include <VBox/log.h>
 #include <iprt/string.h>
 #include <iprt/mem.h>
@@ -3156,7 +3156,7 @@ void
 VBoxDbgStats::closeEvent(QCloseEvent *a_pCloseEvt)
 {
     a_pCloseEvt->accept();
-    delete this;
+    delete this; /** @todo This is wrong! We get more events after this one and end up using memory after freeing it in vPolishSizeAndPos().  (Qt3 holdover?) */
 }
 
 

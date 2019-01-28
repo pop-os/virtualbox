@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,11 +23,13 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_vmm_svm_h
-#define ___VBox_vmm_svm_h
+#ifndef VBOX_INCLUDED_vmm_hm_svm_h
+#define VBOX_INCLUDED_vmm_hm_svm_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/types.h>
-#include <VBox/err.h>
 #include <iprt/assert.h>
 #include <iprt/asm.h>
 
@@ -79,12 +81,12 @@
 # define SVM_EXIT_READ_CR7               0x7
 # define SVM_EXIT_READ_CR8               0x8
 # define SVM_EXIT_READ_CR9               0x9
-# define SVM_EXIT_READ_CR10              0xA
-# define SVM_EXIT_READ_CR11              0xB
-# define SVM_EXIT_READ_CR12              0xC
-# define SVM_EXIT_READ_CR13              0xD
-# define SVM_EXIT_READ_CR14              0xE
-# define SVM_EXIT_READ_CR15              0xF
+# define SVM_EXIT_READ_CR10              0xa
+# define SVM_EXIT_READ_CR11              0xb
+# define SVM_EXIT_READ_CR12              0xc
+# define SVM_EXIT_READ_CR13              0xd
+# define SVM_EXIT_READ_CR14              0xe
+# define SVM_EXIT_READ_CR15              0xf
 /** Writes to CR0-CR15. */
 # define SVM_EXIT_WRITE_CR0              0x10
 # define SVM_EXIT_WRITE_CR1              0x11
@@ -96,12 +98,12 @@
 # define SVM_EXIT_WRITE_CR7              0x17
 # define SVM_EXIT_WRITE_CR8              0x18
 # define SVM_EXIT_WRITE_CR9              0x19
-# define SVM_EXIT_WRITE_CR10             0x1A
-# define SVM_EXIT_WRITE_CR11             0x1B
-# define SVM_EXIT_WRITE_CR12             0x1C
-# define SVM_EXIT_WRITE_CR13             0x1D
-# define SVM_EXIT_WRITE_CR14             0x1E
-# define SVM_EXIT_WRITE_CR15             0x1F
+# define SVM_EXIT_WRITE_CR10             0x1a
+# define SVM_EXIT_WRITE_CR11             0x1b
+# define SVM_EXIT_WRITE_CR12             0x1c
+# define SVM_EXIT_WRITE_CR13             0x1d
+# define SVM_EXIT_WRITE_CR14             0x1e
+# define SVM_EXIT_WRITE_CR15             0x1f
 /** Read from DR0-DR15. */
 # define SVM_EXIT_READ_DR0               0x20
 # define SVM_EXIT_READ_DR1               0x21
@@ -113,12 +115,12 @@
 # define SVM_EXIT_READ_DR7               0x27
 # define SVM_EXIT_READ_DR8               0x28
 # define SVM_EXIT_READ_DR9               0x29
-# define SVM_EXIT_READ_DR10              0x2A
-# define SVM_EXIT_READ_DR11              0x2B
-# define SVM_EXIT_READ_DR12              0x2C
-# define SVM_EXIT_READ_DR13              0x2D
-# define SVM_EXIT_READ_DR14              0x2E
-# define SVM_EXIT_READ_DR15              0x2F
+# define SVM_EXIT_READ_DR10              0x2a
+# define SVM_EXIT_READ_DR11              0x2b
+# define SVM_EXIT_READ_DR12              0x2c
+# define SVM_EXIT_READ_DR13              0x2d
+# define SVM_EXIT_READ_DR14              0x2e
+# define SVM_EXIT_READ_DR15              0x2f
 /** Writes to DR0-DR15. */
 # define SVM_EXIT_WRITE_DR0              0x30
 # define SVM_EXIT_WRITE_DR1              0x31
@@ -130,45 +132,67 @@
 # define SVM_EXIT_WRITE_DR7              0x37
 # define SVM_EXIT_WRITE_DR8              0x38
 # define SVM_EXIT_WRITE_DR9              0x39
-# define SVM_EXIT_WRITE_DR10             0x3A
-# define SVM_EXIT_WRITE_DR11             0x3B
-# define SVM_EXIT_WRITE_DR12             0x3C
-# define SVM_EXIT_WRITE_DR13             0x3D
-# define SVM_EXIT_WRITE_DR14             0x3E
-# define SVM_EXIT_WRITE_DR15             0x3F
+# define SVM_EXIT_WRITE_DR10             0x3a
+# define SVM_EXIT_WRITE_DR11             0x3b
+# define SVM_EXIT_WRITE_DR12             0x3c
+# define SVM_EXIT_WRITE_DR13             0x3d
+# define SVM_EXIT_WRITE_DR14             0x3e
+# define SVM_EXIT_WRITE_DR15             0x3f
 /* Exception 0-31. */
-# define SVM_EXIT_EXCEPTION_0            0x40
-# define SVM_EXIT_EXCEPTION_1            0x41
-# define SVM_EXIT_EXCEPTION_2            0x42
-# define SVM_EXIT_EXCEPTION_3            0x43
-# define SVM_EXIT_EXCEPTION_4            0x44
-# define SVM_EXIT_EXCEPTION_5            0x45
-# define SVM_EXIT_EXCEPTION_6            0x46
-# define SVM_EXIT_EXCEPTION_7            0x47
-# define SVM_EXIT_EXCEPTION_8            0x48
-# define SVM_EXIT_EXCEPTION_9            0x49
-# define SVM_EXIT_EXCEPTION_10           0x4A
-# define SVM_EXIT_EXCEPTION_11           0x4B
-# define SVM_EXIT_EXCEPTION_12           0x4C
-# define SVM_EXIT_EXCEPTION_13           0x4D
-# define SVM_EXIT_EXCEPTION_14           0x4E
-# define SVM_EXIT_EXCEPTION_15           0x4F
-# define SVM_EXIT_EXCEPTION_16           0x50
-# define SVM_EXIT_EXCEPTION_17           0x51
-# define SVM_EXIT_EXCEPTION_18           0x52
-# define SVM_EXIT_EXCEPTION_19           0x53
-# define SVM_EXIT_EXCEPTION_20           0x54
-# define SVM_EXIT_EXCEPTION_21           0x55
-# define SVM_EXIT_EXCEPTION_22           0x56
-# define SVM_EXIT_EXCEPTION_23           0x57
-# define SVM_EXIT_EXCEPTION_24           0x58
-# define SVM_EXIT_EXCEPTION_25           0x59
-# define SVM_EXIT_EXCEPTION_26           0x5A
-# define SVM_EXIT_EXCEPTION_27           0x5B
-# define SVM_EXIT_EXCEPTION_28           0x5C
-# define SVM_EXIT_EXCEPTION_29           0x5D
-# define SVM_EXIT_EXCEPTION_30           0x5E
-# define SVM_EXIT_EXCEPTION_31           0x5F
+# define SVM_EXIT_XCPT_0                 0x40
+# define SVM_EXIT_XCPT_1                 0x41
+# define SVM_EXIT_XCPT_2                 0x42
+# define SVM_EXIT_XCPT_3                 0x43
+# define SVM_EXIT_XCPT_4                 0x44
+# define SVM_EXIT_XCPT_5                 0x45
+# define SVM_EXIT_XCPT_6                 0x46
+# define SVM_EXIT_XCPT_7                 0x47
+# define SVM_EXIT_XCPT_8                 0x48
+# define SVM_EXIT_XCPT_9                 0x49
+# define SVM_EXIT_XCPT_10                0x4a
+# define SVM_EXIT_XCPT_11                0x4b
+# define SVM_EXIT_XCPT_12                0x4c
+# define SVM_EXIT_XCPT_13                0x4d
+# define SVM_EXIT_XCPT_14                0x4e
+# define SVM_EXIT_XCPT_15                0x4f
+# define SVM_EXIT_XCPT_16                0x50
+# define SVM_EXIT_XCPT_17                0x51
+# define SVM_EXIT_XCPT_18                0x52
+# define SVM_EXIT_XCPT_19                0x53
+# define SVM_EXIT_XCPT_20                0x54
+# define SVM_EXIT_XCPT_21                0x55
+# define SVM_EXIT_XCPT_22                0x56
+# define SVM_EXIT_XCPT_23                0x57
+# define SVM_EXIT_XCPT_24                0x58
+# define SVM_EXIT_XCPT_25                0x59
+# define SVM_EXIT_XCPT_26                0x5a
+# define SVM_EXIT_XCPT_27                0x5b
+# define SVM_EXIT_XCPT_28                0x5c
+# define SVM_EXIT_XCPT_29                0x5d
+# define SVM_EXIT_XCPT_30                0x5e
+# define SVM_EXIT_XCPT_31                0x5f
+/* Exception (more readable) */
+# define SVM_EXIT_XCPT_DE                SVM_EXIT_XCPT_0
+# define SVM_EXIT_XCPT_DB                SVM_EXIT_XCPT_1
+# define SVM_EXIT_XCPT_NMI               SVM_EXIT_XCPT_2
+# define SVM_EXIT_XCPT_BP                SVM_EXIT_XCPT_3
+# define SVM_EXIT_XCPT_OF                SVM_EXIT_XCPT_4
+# define SVM_EXIT_XCPT_BR                SVM_EXIT_XCPT_5
+# define SVM_EXIT_XCPT_UD                SVM_EXIT_XCPT_6
+# define SVM_EXIT_XCPT_NM                SVM_EXIT_XCPT_7
+# define SVM_EXIT_XCPT_DF                SVM_EXIT_XCPT_8
+# define SVM_EXIT_XCPT_CO_SEG_OVERRUN    SVM_EXIT_XCPT_9
+# define SVM_EXIT_XCPT_TS                SVM_EXIT_XCPT_10
+# define SVM_EXIT_XCPT_NP                SVM_EXIT_XCPT_11
+# define SVM_EXIT_XCPT_SS                SVM_EXIT_XCPT_12
+# define SVM_EXIT_XCPT_GP                SVM_EXIT_XCPT_13
+# define SVM_EXIT_XCPT_PF                SVM_EXIT_XCPT_14
+# define SVM_EXIT_XCPT_MF                SVM_EXIT_XCPT_16
+# define SVM_EXIT_XCPT_AC                SVM_EXIT_XCPT_17
+# define SVM_EXIT_XCPT_MC                SVM_EXIT_XCPT_18
+# define SVM_EXIT_XCPT_XF                SVM_EXIT_XCPT_19
+# define SVM_EXIT_XCPT_VE                SVM_EXIT_XCPT_20
+# define SVM_EXIT_XCPT_SX                SVM_EXIT_XCPT_30
 /** Physical maskable interrupt. */
 # define SVM_EXIT_INTR                   0x60
 /** Non-maskable interrupt. */
@@ -190,17 +214,17 @@
 /** TR read. */
 # define SVM_EXIT_TR_READ                0x69
 /** IDTR write. */
-# define SVM_EXIT_IDTR_WRITE             0x6A
+# define SVM_EXIT_IDTR_WRITE             0x6a
 /** GDTR write. */
-# define SVM_EXIT_GDTR_WRITE             0x6B
+# define SVM_EXIT_GDTR_WRITE             0x6b
 /** LDTR write. */
-# define SVM_EXIT_LDTR_WRITE             0x6C
+# define SVM_EXIT_LDTR_WRITE             0x6c
 /** TR write. */
-# define SVM_EXIT_TR_WRITE               0x6D
+# define SVM_EXIT_TR_WRITE               0x6d
 /** RDTSC instruction. */
-# define SVM_EXIT_RDTSC                  0x6E
+# define SVM_EXIT_RDTSC                  0x6e
 /** RDPMC instruction. */
-# define SVM_EXIT_RDPMC                  0x6F
+# define SVM_EXIT_RDPMC                  0x6f
 /** PUSHF instruction. */
 # define SVM_EXIT_PUSHF                  0x70
 /** POPF instruction. */
@@ -222,17 +246,17 @@
 /** INVLPG instructions. */
 # define SVM_EXIT_INVLPG                 0x79
 /** INVLPGA instruction. */
-# define SVM_EXIT_INVLPGA                0x7A
+# define SVM_EXIT_INVLPGA                0x7a
 /** IN or OUT accessing protected port (the EXITINFO1 field provides more information). */
-# define SVM_EXIT_IOIO                   0x7B
+# define SVM_EXIT_IOIO                   0x7b
 /** RDMSR or WRMSR access to protected MSR. */
-# define SVM_EXIT_MSR                    0x7C
+# define SVM_EXIT_MSR                    0x7c
 /** task switch. */
-# define SVM_EXIT_TASK_SWITCH            0x7D
+# define SVM_EXIT_TASK_SWITCH            0x7d
 /** FP legacy handling enabled, and processor is frozen in an x87/mmx instruction waiting for an interrupt. */
-# define SVM_EXIT_FERR_FREEZE            0x7E
+# define SVM_EXIT_FERR_FREEZE            0x7e
 /** Shutdown. */
-# define SVM_EXIT_SHUTDOWN               0x7F
+# define SVM_EXIT_SHUTDOWN               0x7f
 /** VMRUN instruction. */
 # define SVM_EXIT_VMRUN                  0x80
 /** VMMCALL instruction. */
@@ -254,13 +278,13 @@
 /** WBINVD instruction. */
 # define SVM_EXIT_WBINVD                 0x89
 /** MONITOR instruction. */
-# define SVM_EXIT_MONITOR                0x8A
+# define SVM_EXIT_MONITOR                0x8a
 /** MWAIT instruction. */
-# define SVM_EXIT_MWAIT                  0x8B
+# define SVM_EXIT_MWAIT                  0x8b
 /** MWAIT instruction, when armed. */
-# define SVM_EXIT_MWAIT_ARMED            0x8C
+# define SVM_EXIT_MWAIT_ARMED            0x8c
 /** XSETBV instruction. */
-# define SVM_EXIT_XSETBV                 0x8D
+# define SVM_EXIT_XSETBV                 0x8d
 /** Nested paging: host-level page fault occurred (EXITINFO1 contains fault errorcode; EXITINFO2 contains the guest physical address causing the fault). */
 # define SVM_EXIT_NPF                    0x400
 /** AVIC: Virtual IPI delivery not completed. */
@@ -280,7 +304,7 @@
 /** Set to 1 if the task switch was caused by an IRET; else cleared to 0. */
 #define SVM_EXIT2_TASK_SWITCH_IRET            RT_BIT_64(36)
 /** Set to 1 if the task switch was caused by a far jump; else cleared to 0. */
-#define SVM_EXIT2_TASK_SWITCH_JMP             RT_BIT_64(38)
+#define SVM_EXIT2_TASK_SWITCH_JUMP            RT_BIT_64(38)
 /** Set to 1 if the task switch has an error code; else cleared to 0. */
 #define SVM_EXIT2_TASK_SWITCH_HAS_ERROR_CODE  RT_BIT_64(44)
 /** The value of EFLAGS.RF that would be saved in the outgoing TSS if the task switch were not intercepted. */
@@ -326,7 +350,7 @@
 /** Intercept VINTR (virtual maskable interrupt). */
 #define SVM_CTRL_INTERCEPT_VINTR              RT_BIT_64(4)
 /** Intercept CR0 writes that change bits other than CR0.TS or CR0.MP */
-#define SVM_CTRL_INTERCEPT_CR0_SEL_WRITES     RT_BIT_64(5)
+#define SVM_CTRL_INTERCEPT_CR0_SEL_WRITE      RT_BIT_64(5)
 /** Intercept reads of IDTR. */
 #define SVM_CTRL_INTERCEPT_IDTR_READS         RT_BIT_64(6)
 /** Intercept reads of GDTR. */
@@ -444,24 +468,6 @@
 #define SVM_CTRL_INTERCEPT_CR15_WRITES_TRAP   RT_BIT_64(32 + 31)
 /** @} */
 
-/** @name SVMVMCB.ctrl.u64NestedPaging
- * @{
- */
-#define SVM_NESTED_PAGING_ENABLE              RT_BIT_64(0)
-/** @} */
-
-/** @name SVMVMCB.ctrl.u64IntShadow
- * @{
- */
-#define SVM_INTERRUPT_SHADOW_ACTIVE           RT_BIT_64(0)
-/** @} */
-
-/** @name SVMVMCB.u64LbrVirt
- * @{
- */
-#define SVM_LBR_VIRT_ENABLE                   RT_BIT_64(0)
-/** @} */
-
 /** @name SVMINTCTRL.u3Type
  * @{
  */
@@ -474,7 +480,6 @@
 /** Software interrupt. */
 #define SVM_EVENT_SOFTWARE_INT                4
 /** @} */
-
 
 /** @name SVMVMCB.ctrl.TLBCtrl.n.u8TLBFlush
  * @{
@@ -489,9 +494,8 @@
 #define SVM_TLB_FLUSH_SINGLE_CONTEXT_RETAIN_GLOBALS     7
 /** @} */
 
-
 /**
- * SVM Selector type; includes hidden parts.
+ * SVM selector/segment register type.
  */
 typedef struct
 {
@@ -499,21 +503,30 @@ typedef struct
     uint16_t    u16Attr;
     uint32_t    u32Limit;
     uint64_t    u64Base;        /**< Only lower 32 bits are implemented for CS, DS, ES & SS. */
-} SVMSEL;
-AssertCompileSize(SVMSEL, 16);
+} SVMSELREG;
+AssertCompileSize(SVMSELREG, 16);
+/** Pointer to the SVMSELREG struct. */
+typedef SVMSELREG *PSVMSELREG;
+/** Pointer to a const SVMSELREG struct. */
+typedef const SVMSELREG *PCSVMSELREG;
 
 /**
  * SVM GDTR/IDTR type.
  */
 typedef struct
 {
+    uint16_t    u16Reserved0;
     uint16_t    u16Reserved1;
-    uint16_t    u16Reserved2;
     uint32_t    u32Limit;       /**< Only lower 16 bits are implemented. */
     uint64_t    u64Base;
-} SVMGDTR;
-AssertCompileSize(SVMGDTR, 16);
-typedef SVMGDTR SVMIDTR;
+} SVMXDTR;
+AssertCompileSize(SVMXDTR, 16);
+typedef SVMXDTR SVMIDTR;
+typedef SVMXDTR SVMGDTR;
+/** Pointer to the SVMXDTR struct. */
+typedef SVMXDTR *PSVMXDTR;
+/** Pointer to a const SVMXDTR struct. */
+typedef const SVMXDTR *PCSVMXDTR;
 
 /**
  * SVM Event injection structure (EVENTINJ and EXITINTINFO).
@@ -548,18 +561,24 @@ typedef union
     {
         uint32_t    u8VTPR              : 8;    /* V_TPR */
         uint32_t    u1VIrqPending       : 1;    /* V_IRQ */
-        uint32_t    u7Reserved          : 7;
+        uint32_t    u1VGif              : 1;    /* VGIF */
+        uint32_t    u6Reserved          : 6;
         uint32_t    u4VIntrPrio         : 4;    /* V_INTR_PRIO */
         uint32_t    u1IgnoreTPR         : 1;    /* V_IGN_TPR */
         uint32_t    u3Reserved          : 3;
         uint32_t    u1VIntrMasking      : 1;    /* V_INTR_MASKING */
-        uint32_t    u6Reserved          : 6;
-        uint32_t    u1AvicEnable        : 1;
+        uint32_t    u1VGifEnable        : 1;    /* VGIF enable */
+        uint32_t    u5Reserved          : 5;
+        uint32_t    u1AvicEnable        : 1;    /* AVIC enable */
         uint32_t    u8VIntrVector       : 8;    /* V_INTR_VECTOR */
         uint32_t    u24Reserved         : 24;
     } n;
     uint64_t    u;
 } SVMINTCTRL;
+/** Pointer to an SVMINTCTRL structure. */
+typedef SVMINTCTRL *PSVMINTCTRL;
+/** Pointer to a const SVMINTCTRL structure. */
+typedef const SVMINTCTRL *PCSVMINTCTRL;
 
 /**
  * SVM TLB control structure.
@@ -584,15 +603,15 @@ typedef union
     {
         uint32_t    u1Type              : 1;   /**< Bit 0: 0 = out, 1 = in */
         uint32_t    u1Reserved          : 1;   /**< Bit 1: Reserved */
-        uint32_t    u1STR               : 1;   /**< Bit 2: String I/O (1) or not (0). */
-        uint32_t    u1REP               : 1;   /**< Bit 3: Repeat prefixed string I/O. */
-        uint32_t    u1OP8               : 1;   /**< Bit 4: 8-bit operand. */
-        uint32_t    u1OP16              : 1;   /**< Bit 5: 16-bit operand. */
-        uint32_t    u1OP32              : 1;   /**< Bit 6: 32-bit operand. */
-        uint32_t    u1ADDR16            : 1;   /**< Bit 7: 16-bit address size. */
-        uint32_t    u1ADDR32            : 1;   /**< Bit 8: 32-bit address size. */
-        uint32_t    u1ADDR64            : 1;   /**< Bit 9: 64-bit address size. */
-        uint32_t    u3SEG               : 3;   /**< BITS 12:10: Effective segment number. Added w/ decode assist in APM v3.17. */
+        uint32_t    u1Str               : 1;   /**< Bit 2: String I/O (1) or not (0). */
+        uint32_t    u1Rep               : 1;   /**< Bit 3: Repeat prefixed string I/O. */
+        uint32_t    u1Op8               : 1;   /**< Bit 4: 8-bit operand. */
+        uint32_t    u1Op16              : 1;   /**< Bit 5: 16-bit operand. */
+        uint32_t    u1Op32              : 1;   /**< Bit 6: 32-bit operand. */
+        uint32_t    u1Addr16            : 1;   /**< Bit 7: 16-bit address size. */
+        uint32_t    u1Addr32            : 1;   /**< Bit 8: 32-bit address size. */
+        uint32_t    u1Addr64            : 1;   /**< Bit 9: 64-bit address size. */
+        uint32_t    u3Seg               : 3;   /**< Bits 12:10: Effective segment number. Added w/ decode assist in APM v3.17. */
         uint32_t    u3Reserved          : 3;
         uint32_t    u16Port             : 16;  /**< Bits 31:16: Port number. */
     } n;
@@ -637,19 +656,6 @@ typedef enum
     SVMIOIOTYPE_OUT = SVM_IOIO_WRITE,
     SVMIOIOTYPE_IN  = SVM_IOIO_READ
 } SVMIOIOTYPE;
-/** @}*/
-
-/**
- * SVM nested paging structure.
- */
-typedef union
-{
-    struct
-    {
-        uint32_t    u1NestedPaging      : 1;             /**< enabled/disabled */
-    } n;
-    uint64_t    u;
-} SVMNPCTRL;
 
 /**
  * SVM AVIC.
@@ -658,9 +664,9 @@ typedef union
 {
     struct
     {
-        uint64_t    u12Reserved1        : 12;
-        uint64_t    u40Addr             : 40;
-        uint64_t    u12Reserved2        : 12;
+        RT_GCC_EXTENSION uint64_t u12Reserved0        : 12;
+        RT_GCC_EXTENSION uint64_t u40Addr             : 40;
+        RT_GCC_EXTENSION uint64_t u12Reserved1        : 12;
     } n;
     uint64_t    u;
 } SVMAVIC;
@@ -673,15 +679,63 @@ typedef union
 {
     struct
     {
-        uint64_t    u8LastGuestCoreId   : 8;
-        uint64_t    u4Reserved          : 4;
-        uint64_t    u40Addr             : 40;
-        uint64_t    u12Reserved         : 12;
+        RT_GCC_EXTENSION uint64_t u8LastGuestCoreId   : 8;
+        RT_GCC_EXTENSION uint64_t u4Reserved          : 4;
+        RT_GCC_EXTENSION uint64_t u40Addr             : 40;
+        RT_GCC_EXTENSION uint64_t u12Reserved         : 12;
     } n;
     uint64_t    u;
 } SVMAVICPHYS;
 AssertCompileSize(SVMAVICPHYS, 8);
 
+/**
+ * SVM Nested Paging struct.
+ */
+typedef union
+{
+    struct
+    {
+        uint32_t    u1NestedPaging :  1;
+        uint32_t    u1Sev          :  1;
+        uint32_t    u1SevEs        :  1;
+        uint32_t    u29Reserved    : 29;
+    } n;
+    uint64_t    u;
+} SVMNP;
+AssertCompileSize(SVMNP, 8);
+
+/**
+ * SVM Interrupt shadow struct.
+ */
+typedef union
+{
+    struct
+    {
+        uint32_t    u1IntShadow    :  1;
+        uint32_t    u1GuestIntMask :  1;
+        uint32_t    u30Reserved    : 30;
+    } n;
+    uint64_t    u;
+} SVMINTSHADOW;
+AssertCompileSize(SVMINTSHADOW, 8);
+
+/**
+ * SVM LBR virtualization struct.
+ */
+typedef union
+{
+    struct
+    {
+        uint32_t    u1LbrVirt          :  1;
+        uint32_t    u1VirtVmsaveVmload :  1;
+        uint32_t    u30Reserved        : 30;
+    } n;
+    uint64_t    u;
+} SVMLBRVIRT;
+AssertCompileSize(SVMLBRVIRT, 8);
+
+/** Maximum number of bytes in the Guest-instruction bytes field. */
+#define SVM_CTRL_GUEST_INSTR_BYTES_MAX      15
 
 /**
  * SVM VMCB control area.
@@ -690,71 +744,72 @@ AssertCompileSize(SVMAVICPHYS, 8);
 typedef struct
 {
     /** Offset 0x00 - Intercept reads of CR0-CR15. */
-    uint16_t    u16InterceptRdCRx;
+    uint16_t        u16InterceptRdCRx;
     /** Offset 0x02 - Intercept writes to CR0-CR15. */
-    uint16_t    u16InterceptWrCRx;
+    uint16_t        u16InterceptWrCRx;
     /** Offset 0x04 - Intercept reads of DR0-DR15. */
-    uint16_t    u16InterceptRdDRx;
+    uint16_t        u16InterceptRdDRx;
     /** Offset 0x06 - Intercept writes to DR0-DR15. */
-    uint16_t    u16InterceptWrDRx;
+    uint16_t        u16InterceptWrDRx;
     /** Offset 0x08 - Intercept exception vectors 0-31. */
-    uint32_t    u32InterceptXcpt;
+    uint32_t        u32InterceptXcpt;
     /** Offset 0x0c - Intercept control. */
-    uint64_t    u64InterceptCtrl;
+    uint64_t        u64InterceptCtrl;
     /** Offset 0x14-0x3f - Reserved. */
-    uint8_t     u8Reserved[0x3c - 0x14];
+    uint8_t         u8Reserved0[0x3c - 0x14];
     /** Offset 0x3c - PAUSE filter threshold.  */
-    uint16_t    u16PauseFilterThreshold;
+    uint16_t        u16PauseFilterThreshold;
     /** Offset 0x3e - PAUSE intercept filter count. */
-    uint16_t    u16PauseFilterCount;
+    uint16_t        u16PauseFilterCount;
     /** Offset 0x40 - Physical address of IOPM. */
-    uint64_t    u64IOPMPhysAddr;
+    uint64_t        u64IOPMPhysAddr;
     /** Offset 0x48 - Physical address of MSRPM. */
-    uint64_t    u64MSRPMPhysAddr;
+    uint64_t        u64MSRPMPhysAddr;
     /** Offset 0x50 - TSC Offset. */
-    uint64_t    u64TSCOffset;
+    uint64_t        u64TSCOffset;
     /** Offset 0x58 - TLB control field. */
-    SVMTLBCTRL  TLBCtrl;
+    SVMTLBCTRL      TLBCtrl;
     /** Offset 0x60 - Interrupt control field. */
-    SVMINTCTRL  IntCtrl;
+    SVMINTCTRL      IntCtrl;
     /** Offset 0x68 - Interrupt shadow. */
-    uint64_t    u64IntShadow;
+    SVMINTSHADOW    IntShadow;
     /** Offset 0x70 - Exit code. */
-    uint64_t    u64ExitCode;
+    uint64_t        u64ExitCode;
     /** Offset 0x78 - Exit info 1. */
-    uint64_t    u64ExitInfo1;
+    uint64_t        u64ExitInfo1;
     /** Offset 0x80 - Exit info 2. */
-    uint64_t    u64ExitInfo2;
+    uint64_t        u64ExitInfo2;
     /** Offset 0x88 - Exit Interrupt info. */
-    SVMEVENT    ExitIntInfo;
-    /** Offset 0x90 - Nested Paging. */
-    SVMNPCTRL   NestedPaging;
+    SVMEVENT        ExitIntInfo;
+    /** Offset 0x90 - Nested Paging control. */
+    SVMNP           NestedPagingCtrl;
     /** Offset 0x98 - AVIC APIC BAR.  */
-    SVMAVIC     AvicBar;
+    SVMAVIC         AvicBar;
     /** Offset 0xa0-0xa7 - Reserved. */
-    uint8_t     u8Reserved2[0xA8 - 0xA0];
+    uint8_t         u8Reserved1[0xa8 - 0xa0];
     /** Offset 0xa8 - Event injection. */
-    SVMEVENT    EventInject;
+    SVMEVENT        EventInject;
     /** Offset 0xb0 - Host CR3 for nested paging. */
-    uint64_t    u64NestedPagingCR3;
+    uint64_t        u64NestedPagingCR3;
     /** Offset 0xb8 - LBR Virtualization. */
-    uint64_t    u64LBRVirt;
+    SVMLBRVIRT      LbrVirt;
     /** Offset 0xc0 - VMCB Clean Bits. */
-    uint64_t    u64VmcbCleanBits;
+    uint32_t        u32VmcbCleanBits;
+    uint32_t        u32Reserved0;
     /** Offset 0xc8 - Next sequential instruction pointer. */
-    uint64_t    u64NextRIP;
+    uint64_t        u64NextRIP;
     /** Offset 0xd0 - Number of bytes fetched. */
-    uint8_t     cbInstrFetched;
-    /** Offset 0xd1 - Fetched bytes. */
-    uint8_t     abInstr[15];
+    uint8_t         cbInstrFetched;
+    /** Offset 0xd1 - Guest instruction bytes. */
+    uint8_t         abInstr[SVM_CTRL_GUEST_INSTR_BYTES_MAX];
     /** Offset 0xe0 - AVIC APIC_BACKING_PAGE pointer. */
-    SVMAVIC     AvicBackingPagePtr;
+    SVMAVIC         AvicBackingPagePtr;
     /** Offset 0xe8-0xef - Reserved. */
-    uint8_t     u8Reserved3[0xF0 - 0xE8];
+    uint8_t         u8Reserved2[0xf0 - 0xe8];
     /** Offset 0xf0 - AVIC LOGICAL_TABLE pointer. */
-    SVMAVIC     AvicLogicalTablePtr;
+    SVMAVIC         AvicLogicalTablePtr;
     /** Offset 0xf8 - AVIC PHYSICAL_TABLE pointer. */
-    SVMAVICPHYS AvicPhysicalTablePtr;
+    SVMAVICPHYS     AvicPhysicalTablePtr;
 } SVMVMCBCTRL;
 #pragma pack()
 /** Pointer to the SVMVMCBSTATESAVE structure. */
@@ -768,7 +823,7 @@ AssertCompileMemberOffset(SVMVMCBCTRL, u16InterceptRdDRx,       0x04);
 AssertCompileMemberOffset(SVMVMCBCTRL, u16InterceptWrDRx,       0x06);
 AssertCompileMemberOffset(SVMVMCBCTRL, u32InterceptXcpt,        0x08);
 AssertCompileMemberOffset(SVMVMCBCTRL, u64InterceptCtrl,        0x0c);
-AssertCompileMemberOffset(SVMVMCBCTRL, u8Reserved,              0x14);
+AssertCompileMemberOffset(SVMVMCBCTRL, u8Reserved0,             0x14);
 AssertCompileMemberOffset(SVMVMCBCTRL, u16PauseFilterThreshold, 0x3c);
 AssertCompileMemberOffset(SVMVMCBCTRL, u16PauseFilterCount,     0x3e);
 AssertCompileMemberOffset(SVMVMCBCTRL, u64IOPMPhysAddr,         0x40);
@@ -776,25 +831,26 @@ AssertCompileMemberOffset(SVMVMCBCTRL, u64MSRPMPhysAddr,        0x48);
 AssertCompileMemberOffset(SVMVMCBCTRL, u64TSCOffset,            0x50);
 AssertCompileMemberOffset(SVMVMCBCTRL, TLBCtrl,                 0x58);
 AssertCompileMemberOffset(SVMVMCBCTRL, IntCtrl,                 0x60);
-AssertCompileMemberOffset(SVMVMCBCTRL, u64IntShadow,            0x68);
+AssertCompileMemberOffset(SVMVMCBCTRL, IntShadow,               0x68);
 AssertCompileMemberOffset(SVMVMCBCTRL, u64ExitCode,             0x70);
 AssertCompileMemberOffset(SVMVMCBCTRL, u64ExitInfo1,            0x78);
 AssertCompileMemberOffset(SVMVMCBCTRL, u64ExitInfo2,            0x80);
 AssertCompileMemberOffset(SVMVMCBCTRL, ExitIntInfo,             0x88);
-AssertCompileMemberOffset(SVMVMCBCTRL, NestedPaging,            0x90);
+AssertCompileMemberOffset(SVMVMCBCTRL, NestedPagingCtrl,        0x90);
 AssertCompileMemberOffset(SVMVMCBCTRL, AvicBar,                 0x98);
-AssertCompileMemberOffset(SVMVMCBCTRL, u8Reserved2,             0xa0);
+AssertCompileMemberOffset(SVMVMCBCTRL, u8Reserved1,             0xa0);
 AssertCompileMemberOffset(SVMVMCBCTRL, EventInject,             0xa8);
 AssertCompileMemberOffset(SVMVMCBCTRL, u64NestedPagingCR3,      0xb0);
-AssertCompileMemberOffset(SVMVMCBCTRL, u64LBRVirt,              0xb8);
-AssertCompileMemberOffset(SVMVMCBCTRL, u64VmcbCleanBits,        0xc0);
+AssertCompileMemberOffset(SVMVMCBCTRL, LbrVirt,                 0xb8);
+AssertCompileMemberOffset(SVMVMCBCTRL, u32VmcbCleanBits,        0xc0);
 AssertCompileMemberOffset(SVMVMCBCTRL, u64NextRIP,              0xc8);
 AssertCompileMemberOffset(SVMVMCBCTRL, cbInstrFetched,          0xd0);
 AssertCompileMemberOffset(SVMVMCBCTRL, abInstr,                 0xd1);
 AssertCompileMemberOffset(SVMVMCBCTRL, AvicBackingPagePtr,      0xe0);
-AssertCompileMemberOffset(SVMVMCBCTRL, u8Reserved3,             0xe8);
+AssertCompileMemberOffset(SVMVMCBCTRL, u8Reserved2,             0xe8);
 AssertCompileMemberOffset(SVMVMCBCTRL, AvicLogicalTablePtr,     0xf0);
 AssertCompileMemberOffset(SVMVMCBCTRL, AvicPhysicalTablePtr,    0xf8);
+AssertCompileMemberSize(SVMVMCBCTRL,   abInstr,                 0x0f);
 
 /**
  * SVM VMCB state save area.
@@ -803,35 +859,35 @@ AssertCompileMemberOffset(SVMVMCBCTRL, AvicPhysicalTablePtr,    0xf8);
 typedef struct
 {
     /** Offset 0x400 - Guest ES register + hidden parts. */
-    SVMSEL      ES;
+    SVMSELREG   ES;
     /** Offset 0x410 - Guest CS register + hidden parts. */
-    SVMSEL      CS;
+    SVMSELREG   CS;
     /** Offset 0x420 - Guest SS register + hidden parts. */
-    SVMSEL      SS;
+    SVMSELREG   SS;
     /** Offset 0x430 - Guest DS register + hidden parts. */
-    SVMSEL      DS;
+    SVMSELREG   DS;
     /** Offset 0x440 - Guest FS register + hidden parts. */
-    SVMSEL      FS;
+    SVMSELREG   FS;
     /** Offset 0x450 - Guest GS register + hidden parts. */
-    SVMSEL      GS;
+    SVMSELREG   GS;
     /** Offset 0x460 - Guest GDTR register. */
     SVMGDTR     GDTR;
     /** Offset 0x470 - Guest LDTR register + hidden parts. */
-    SVMSEL      LDTR;
+    SVMSELREG   LDTR;
     /** Offset 0x480 - Guest IDTR register. */
     SVMIDTR     IDTR;
     /** Offset 0x490 - Guest TR register + hidden parts. */
-    SVMSEL      TR;
+    SVMSELREG   TR;
     /** Offset 0x4A0-0x4CA - Reserved. */
-    uint8_t     u8Reserved4[0x4CB - 0x4A0];
+    uint8_t     u8Reserved0[0x4cb - 0x4a0];
     /** Offset 0x4CB - CPL. */
     uint8_t     u8CPL;
     /** Offset 0x4CC-0x4CF - Reserved. */
-    uint8_t     u8Reserved5[0x4D0 - 0x4CC];
+    uint8_t     u8Reserved1[0x4d0 - 0x4cc];
     /** Offset 0x4D0 - EFER. */
     uint64_t    u64EFER;
     /** Offset 0x4D8-0x547 - Reserved. */
-    uint8_t     u8Reserved6[0x548 - 0x4D8];
+    uint8_t     u8Reserved2[0x548 - 0x4d8];
     /** Offset 0x548 - CR4. */
     uint64_t    u64CR4;
     /** Offset 0x550 - CR3. */
@@ -847,11 +903,11 @@ typedef struct
     /** Offset 0x578 - RIP. */
     uint64_t    u64RIP;
     /** Offset 0x580-0x5D7 - Reserved. */
-    uint8_t     u8Reserved7[0x5D8 - 0x580];
+    uint8_t     u8Reserved3[0x5d8 - 0x580];
     /** Offset 0x5D8 - RSP. */
     uint64_t    u64RSP;
     /** Offset 0x5E0-0x5F7 - Reserved. */
-    uint8_t     u8Reserved8[0x5F8 - 0x5E0];
+    uint8_t     u8Reserved4[0x5f8 - 0x5e0];
     /** Offset 0x5F8 - RAX. */
     uint64_t    u64RAX;
     /** Offset 0x600 - STAR. */
@@ -873,9 +929,9 @@ typedef struct
     /** Offset 0x640 - CR2. */
     uint64_t    u64CR2;
     /** Offset 0x648-0x667 - Reserved. */
-    uint8_t     u8Reserved9[0x668 - 0x648];
-    /** Offset 0x668 - G_PAT. */
-    uint64_t    u64GPAT;
+    uint8_t     u8Reserved5[0x668 - 0x648];
+    /** Offset 0x668 - PAT (Page Attribute Table) MSR. */
+    uint64_t    u64PAT;
     /** Offset 0x670 - DBGCTL. */
     uint64_t    u64DBGCTL;
     /** Offset 0x678 - BR_FROM. */
@@ -903,11 +959,11 @@ AssertCompileMemberOffset(SVMVMCBSTATESAVE, GDTR,            0x460 - 0x400);
 AssertCompileMemberOffset(SVMVMCBSTATESAVE, LDTR,            0x470 - 0x400);
 AssertCompileMemberOffset(SVMVMCBSTATESAVE, IDTR,            0x480 - 0x400);
 AssertCompileMemberOffset(SVMVMCBSTATESAVE, TR,              0x490 - 0x400);
-AssertCompileMemberOffset(SVMVMCBSTATESAVE, u8Reserved4,     0x4a0 - 0x400);
+AssertCompileMemberOffset(SVMVMCBSTATESAVE, u8Reserved0,     0x4a0 - 0x400);
 AssertCompileMemberOffset(SVMVMCBSTATESAVE, u8CPL,           0x4cb - 0x400);
-AssertCompileMemberOffset(SVMVMCBSTATESAVE, u8Reserved5,     0x4cc - 0x400);
+AssertCompileMemberOffset(SVMVMCBSTATESAVE, u8Reserved1,     0x4cc - 0x400);
 AssertCompileMemberOffset(SVMVMCBSTATESAVE, u64EFER,         0x4d0 - 0x400);
-AssertCompileMemberOffset(SVMVMCBSTATESAVE, u8Reserved6,     0x4d8 - 0x400);
+AssertCompileMemberOffset(SVMVMCBSTATESAVE, u8Reserved2,     0x4d8 - 0x400);
 AssertCompileMemberOffset(SVMVMCBSTATESAVE, u64CR4,          0x548 - 0x400);
 AssertCompileMemberOffset(SVMVMCBSTATESAVE, u64CR3,          0x550 - 0x400);
 AssertCompileMemberOffset(SVMVMCBSTATESAVE, u64CR0,          0x558 - 0x400);
@@ -915,9 +971,9 @@ AssertCompileMemberOffset(SVMVMCBSTATESAVE, u64DR7,          0x560 - 0x400);
 AssertCompileMemberOffset(SVMVMCBSTATESAVE, u64DR6,          0x568 - 0x400);
 AssertCompileMemberOffset(SVMVMCBSTATESAVE, u64RFlags,       0x570 - 0x400);
 AssertCompileMemberOffset(SVMVMCBSTATESAVE, u64RIP,          0x578 - 0x400);
-AssertCompileMemberOffset(SVMVMCBSTATESAVE, u8Reserved7,     0x580 - 0x400);
+AssertCompileMemberOffset(SVMVMCBSTATESAVE, u8Reserved3,     0x580 - 0x400);
 AssertCompileMemberOffset(SVMVMCBSTATESAVE, u64RSP,          0x5d8 - 0x400);
-AssertCompileMemberOffset(SVMVMCBSTATESAVE, u8Reserved8,     0x5e0 - 0x400);
+AssertCompileMemberOffset(SVMVMCBSTATESAVE, u8Reserved4,     0x5e0 - 0x400);
 AssertCompileMemberOffset(SVMVMCBSTATESAVE, u64RAX,          0x5f8 - 0x400);
 AssertCompileMemberOffset(SVMVMCBSTATESAVE, u64STAR,         0x600 - 0x400);
 AssertCompileMemberOffset(SVMVMCBSTATESAVE, u64LSTAR,        0x608 - 0x400);
@@ -928,8 +984,8 @@ AssertCompileMemberOffset(SVMVMCBSTATESAVE, u64SysEnterCS,   0x628 - 0x400);
 AssertCompileMemberOffset(SVMVMCBSTATESAVE, u64SysEnterESP,  0x630 - 0x400);
 AssertCompileMemberOffset(SVMVMCBSTATESAVE, u64SysEnterEIP,  0x638 - 0x400);
 AssertCompileMemberOffset(SVMVMCBSTATESAVE, u64CR2,          0x640 - 0x400);
-AssertCompileMemberOffset(SVMVMCBSTATESAVE, u8Reserved9,     0x648 - 0x400);
-AssertCompileMemberOffset(SVMVMCBSTATESAVE, u64GPAT,         0x668 - 0x400);
+AssertCompileMemberOffset(SVMVMCBSTATESAVE, u8Reserved5,     0x648 - 0x400);
+AssertCompileMemberOffset(SVMVMCBSTATESAVE, u64PAT,          0x668 - 0x400);
 AssertCompileMemberOffset(SVMVMCBSTATESAVE, u64DBGCTL,       0x670 - 0x400);
 AssertCompileMemberOffset(SVMVMCBSTATESAVE, u64BR_FROM,      0x678 - 0x400);
 AssertCompileMemberOffset(SVMVMCBSTATESAVE, u64BR_TO,        0x680 - 0x400);
@@ -945,11 +1001,11 @@ typedef struct SVMVMCB
     /** Offset 0x00 - Control area. */
     SVMVMCBCTRL ctrl;
     /** Offset 0x100-0x3FF - Reserved. */
-    uint8_t     u8Reserved3[0x400 - 0x100];
+    uint8_t     u8Reserved0[0x400 - 0x100];
     /** Offset 0x400 - State save area. */
     SVMVMCBSTATESAVE guest;
     /** Offset 0x698-0xFFF- Reserved. */
-    uint8_t     u8Reserved10[0x1000 - 0x698];
+    uint8_t     u8Reserved1[0x1000 - 0x698];
 } SVMVMCB;
 #pragma pack()
 /** Pointer to the SVMVMCB structure. */
@@ -957,21 +1013,50 @@ typedef SVMVMCB *PSVMVMCB;
 /** Pointer to a const SVMVMCB structure. */
 typedef const SVMVMCB *PCSVMVMCB;
 AssertCompileMemberOffset(SVMVMCB, ctrl,         0x00);
-AssertCompileMemberOffset(SVMVMCB, u8Reserved3,  0x100);
+AssertCompileMemberOffset(SVMVMCB, u8Reserved0,  0x100);
 AssertCompileMemberOffset(SVMVMCB, guest,        0x400);
-AssertCompileMemberOffset(SVMVMCB, u8Reserved10, 0x698);
+AssertCompileMemberOffset(SVMVMCB, u8Reserved1,  0x698);
 AssertCompileSize(SVMVMCB, 0x1000);
 
-/** SVM nested-guest VMCB cache.
+/**
+ * SVM MSRs.
+ */
+typedef struct SVMMSRS
+{
+    /** HWCR MSR. */
+    uint64_t        u64MsrHwcr;
+    /** Reserved for future. */
+    uint64_t        u64Padding[27];
+} SVMMSRS;
+AssertCompileSizeAlignment(SVMMSRS, 8);
+AssertCompileSize(SVMMSRS, 224);
+/** Pointer to a SVMMSRS struct. */
+typedef SVMMSRS *PSVMMSRS;
+/** Pointer to a const SVMMSRS struct. */
+typedef const SVMMSRS *PCSVMMSRS;
+
+/**
+ * SVM nested-guest VMCB cache.
  *
- *  A state structure for holding information across AMD-V VMRUN/\#VMEXIT
- *  operation during execution of the nested-guest, restored on \#VMEXIT.
+ * Contains VMCB fields from the nested-guest VMCB before they're modified by
+ * SVM R0 code for hardware-assisted SVM execution of a nested-guest.
+ *
+ * A VMCB field needs to be cached when it needs to be modified for execution using
+ * hardware-assisted SVM and any of the following are true:
+ *   - If the original field needs to be inspected during execution of the
+ *     nested-guest or \#VMEXIT processing.
+ *   - If the field is written back to memory on \#VMEXIT by the physical CPU.
+ *
+ * A VMCB field needs to be restored only when the field is written back to
+ * memory on \#VMEXIT by the physical CPU and thus would be visible to the
+ * guest.
+ *
+ * @remarks Please update hmR3InfoSvmNstGstVmcbCache() when changes are made to
+ *          this structure.
  */
 #pragma pack(1)
 typedef struct SVMNESTEDVMCBCACHE
 {
-    /** @name Nested-guest VMCB controls.
-     * @{ */
     /** Cache of CRX read intercepts. */
     uint16_t            u16InterceptRdCRx;
     /** Cache of CRX write intercepts. */
@@ -980,54 +1065,37 @@ typedef struct SVMNESTEDVMCBCACHE
     uint16_t            u16InterceptRdDRx;
     /** Cache of DRX write intercepts. */
     uint16_t            u16InterceptWrDRx;
+
+    /** Cache of the pause-filter threshold. */
+    uint16_t            u16PauseFilterThreshold;
+    /** Cache of the pause-filter count. */
+    uint16_t            u16PauseFilterCount;
+
     /** Cache of exception intercepts. */
     uint32_t            u32InterceptXcpt;
-    /** Alignment. */
-    uint32_t            u32Padding0;
-
     /** Cache of control intercepts. */
     uint64_t            u64InterceptCtrl;
-    /** Cache of IOPM nested-guest physical address. */
-    uint64_t            u64IOPMPhysAddr;
-    /** Cache of MSRPM nested-guest physical address. */
-    uint64_t            u64MSRPMPhysAddr;
-    /** Cache of the VMCB clean bits. */
-    uint64_t            u64VmcbCleanBits;
-    /** Cache of the TLB control. */
-    SVMTLBCTRL          TLBCtrl;
-    /** Cache of the nested-paging control. */
-    SVMNPCTRL           NestedPagingCtrl;
-    /** @} */
 
-    /** @name Nested-guest VMCB guest state.
-     * @{ */
-    /** Cache of CR3. */
-    uint64_t            u64CR3;
-    /** Cache of CR4. */
-    uint64_t            u64CR4;
-    /** Cache of EFER. */
-    uint64_t            u64EFER;
-    /** @} */
+    /** Cache of the TSC offset. */
+    uint64_t            u64TSCOffset;
 
-    /** @name Other miscellaneous state.
-     * @{ */
     /** Cache of V_INTR_MASKING bit. */
     bool                fVIntrMasking;
+    /** Cache of the nested-paging bit. */
+    bool                fNestedPaging;
+    /** Cache of the LBR virtualization bit. */
+    bool                fLbrVirt;
+    /** Whether the VMCB is cached by HM.  */
+    bool                fCacheValid;
     /** Alignment. */
-    bool                afPadding0[7];
-    /** @} */
+    bool                afPadding0[4];
 } SVMNESTEDVMCBCACHE;
 #pragma pack()
 /** Pointer to the SVMNESTEDVMCBCACHE structure. */
 typedef SVMNESTEDVMCBCACHE *PSVMNESTEDVMCBCACHE;
 /** Pointer to a const SVMNESTEDVMCBCACHE structure. */
 typedef const SVMNESTEDVMCBCACHE *PCSVMNESTEDVMCBCACHE;
-/** @} */
 AssertCompileSizeAlignment(SVMNESTEDVMCBCACHE, 8);
-
-#ifdef IN_RING0
-VMMR0DECL(int) SVMR0InvalidatePage(PVM pVM, PVMCPU pVCpu, RTGCPTR GCVirt);
-#endif /* IN_RING0 */
 
 /**
  * Segment attribute conversion between CPU and AMD-V VMCB format.
@@ -1054,12 +1122,12 @@ VMMR0DECL(int) SVMR0InvalidatePage(PVM pVM, PVMCPU pVCpu, RTGCPTR GCVirt);
 #define HMSVM_SEG_REG_COPY_TO_VMCB(a_pCtx, a_pVmcbStateSave, a_REG, a_reg) \
     do \
     { \
-        Assert((a_pCtx)->a_reg.fFlags & CPUMSELREG_FLAGS_VALID);  \
-        Assert((a_pCtx)->a_reg.ValidSel == (a_pCtx)->a_reg.Sel);    \
-        (a_pVmcbStateSave)->a_REG.u16Sel    = (a_pCtx)->a_reg.Sel;      \
-        (a_pVmcbStateSave)->a_REG.u32Limit  = (a_pCtx)->a_reg.u32Limit; \
-        (a_pVmcbStateSave)->a_REG.u64Base   = (a_pCtx)->a_reg.u64Base;  \
-        (a_pVmcbStateSave)->a_REG.u16Attr   = HMSVM_CPU_2_VMCB_SEG_ATTR((a_pCtx)->a_reg.Attr.u); \
+        Assert((a_pCtx)->a_reg.fFlags & CPUMSELREG_FLAGS_VALID);       \
+        Assert((a_pCtx)->a_reg.ValidSel == (a_pCtx)->a_reg.Sel);       \
+        (a_pVmcbStateSave)->a_REG.u16Sel   = (a_pCtx)->a_reg.Sel;      \
+        (a_pVmcbStateSave)->a_REG.u32Limit = (a_pCtx)->a_reg.u32Limit; \
+        (a_pVmcbStateSave)->a_REG.u64Base  = (a_pCtx)->a_reg.u64Base;  \
+        (a_pVmcbStateSave)->a_REG.u16Attr  = HMSVM_CPU_2_VMCB_SEG_ATTR((a_pCtx)->a_reg.Attr.u); \
     } while (0)
 
 /** @def HMSVM_SEG_REG_COPY_TO_VMCB
@@ -1076,17 +1144,50 @@ VMMR0DECL(int) SVMR0InvalidatePage(PVM pVM, PVMCPU pVCpu, RTGCPTR GCVirt);
 #define HMSVM_SEG_REG_COPY_FROM_VMCB(a_pCtx, a_pVmcbStateSave, a_REG, a_reg) \
     do \
     { \
-        (a_pCtx)->a_reg.Sel       = (a_pVmcbStateSave)->a_REG.u16Sel;   \
-        (a_pCtx)->a_reg.ValidSel  = (a_pVmcbStateSave)->a_REG.u16Sel;   \
-        (a_pCtx)->a_reg.fFlags    = CPUMSELREG_FLAGS_VALID;    \
-        (a_pCtx)->a_reg.u32Limit  = (a_pVmcbStateSave)->a_REG.u32Limit; \
-        (a_pCtx)->a_reg.u64Base   = (a_pVmcbStateSave)->a_REG.u64Base;  \
-        (a_pCtx)->a_reg.Attr.u    = HMSVM_VMCB_2_CPU_SEG_ATTR((a_pVmcbStateSave)->a_REG.u16Attr); \
+        (a_pCtx)->a_reg.Sel      = (a_pVmcbStateSave)->a_REG.u16Sel;   \
+        (a_pCtx)->a_reg.ValidSel = (a_pVmcbStateSave)->a_REG.u16Sel;   \
+        (a_pCtx)->a_reg.fFlags   = CPUMSELREG_FLAGS_VALID;             \
+        (a_pCtx)->a_reg.u32Limit = (a_pVmcbStateSave)->a_REG.u32Limit; \
+        (a_pCtx)->a_reg.u64Base  = (a_pVmcbStateSave)->a_REG.u64Base;  \
+        (a_pCtx)->a_reg.Attr.u   = HMSVM_VMCB_2_CPU_SEG_ATTR((a_pVmcbStateSave)->a_REG.u16Attr); \
     } while (0)
+
+
+/** @defgroup grp_hm_svm_c    SVM C Helpers
+ *
+ * These are functions that strictly only implement SVM functionality that is in
+ * accordance to the SVM spec. and thus fit to use by IEM/REM/HM.
+ *
+ * These are not HM all-context API functions, those are to be placed in hm.h.
+ * @{
+ */
+VMM_INT_DECL(int)       HMGetSvmMsrpmOffsetAndBit(uint32_t idMsr, uint16_t *pbOffMsrpm, uint8_t *puMsrpmBit);
+VMM_INT_DECL(bool)      HMIsSvmIoInterceptActive(void *pvIoBitmap, uint16_t u16Port, SVMIOIOTYPE enmIoType, uint8_t cbReg,
+                                                 uint8_t cAddrSizeBits, uint8_t iEffSeg, bool fRep, bool fStrIo,
+                                                 PSVMIOIOEXITINFO pIoExitInfo);
+/** @} */
+
+
+/** @defgroup grp_hm_svm_hwexec    SVM Hardware-assisted execution Helpers
+ *
+ * These functions are only here because the inline functions in cpum.h calls them.
+ * Don't add any more functions here unless there is no other option.
+ * @{
+ */
+VMM_INT_DECL(bool)     HMHasGuestSvmVmcbCached(PVMCPU pVCpu);
+VMM_INT_DECL(bool)     HMIsGuestSvmCtrlInterceptSet(PVMCPU pVCpu, uint64_t fIntercept);
+VMM_INT_DECL(bool)     HMIsGuestSvmReadCRxInterceptSet(PVMCPU pVCpu, uint8_t uCr);
+VMM_INT_DECL(bool)     HMIsGuestSvmWriteCRxInterceptSet(PVMCPU pVCpu, uint8_t uCr);
+VMM_INT_DECL(bool)     HMIsGuestSvmReadDRxInterceptSet(PVMCPU pVCpu, uint8_t uDr);
+VMM_INT_DECL(bool)     HMIsGuestSvmWriteDRxInterceptSet(PVMCPU pVCpu, uint8_t uDr);
+VMM_INT_DECL(bool)     HMIsGuestSvmXcptInterceptSet(PVMCPU pVCpu, uint8_t uVector);
+VMM_INT_DECL(bool)     HMIsGuestSvmVirtIntrMasking(PVMCPU pVCpu);
+VMM_INT_DECL(bool)     HMIsGuestSvmNestedPagingEnabled(PVMCPU pVCpu);
+VMM_INT_DECL(uint16_t) HMGetGuestSvmPauseFilterCount(PVMCPU pVCpu);
 /** @} */
 
 
 /** @} */
 
-#endif
+#endif /* !VBOX_INCLUDED_vmm_hm_svm_h */
 

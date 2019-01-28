@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2017 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -66,7 +66,7 @@ static DECLCALLBACK(int) rtDbgModExportsAddSymbolCallback(RTLDRMOD hLdrMod, cons
     if (Value >= pArgs->uImageBase)
     {
         char szOrdinalNm[48];
-        if (!pszSymbol)
+        if (!pszSymbol || *pszSymbol == '\0')
         {
             RTStrPrintf(szOrdinalNm, sizeof(szOrdinalNm), "Ordinal%u", uSymbol);
             pszSymbol = szOrdinalNm;

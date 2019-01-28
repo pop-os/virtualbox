@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2008-2017 Oracle Corporation
+# Copyright (C) 2008-2019 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -447,6 +447,10 @@ if (   defined(VBOX_WITH_QTGUI) \
     VBoxTestOGL_LIBS += GL
    endif
   endif
+  # Don't let ld strip out explicitly linked libraries even when they are not needed.
+  # This was causing some dynamic library loading problems in case of indirect dependencies
+  # in systems where RUNPATH instead of RPATH is utilized.
+  VBoxTestOGL_LDFLAGS.linux = -Wl,--no-as-needed
   VBoxTestOGL_LDFLAGS.win = /SUBSYSTEM:windows
  endif
 endif

@@ -24,8 +24,11 @@
  * SUCH DAMAGE.
  */
 
-#ifndef ___iprt_formats_elf_amd64_h
-#define ___iprt_formats_elf_amd64_h
+#ifndef IPRT_INCLUDED_formats_elf_amd64_h
+#define IPRT_INCLUDED_formats_elf_amd64_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /*
  * ELF definitions for the AMD64 architecture.
@@ -124,5 +127,5 @@ __ElfType(Auxinfo);
 
 #define R_X86_64_COUNT  24      /* Count of defined relocation types. */
 
-#endif
+#endif /* !IPRT_INCLUDED_formats_elf_amd64_h */
 

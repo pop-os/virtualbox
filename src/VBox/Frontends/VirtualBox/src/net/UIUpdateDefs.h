@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,17 +15,21 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UIUpdateDefs_h___
-#define ___UIUpdateDefs_h___
+#ifndef FEQT_INCLUDED_SRC_net_UIUpdateDefs_h
+#define FEQT_INCLUDED_SRC_net_UIUpdateDefs_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Qt includes: */
 #include <QDate>
 
 /* GUI includes: */
+#include "UILibraryDefs.h"
 #include "UIVersion.h"
 
 
-/* This structure is used to store retranslated reminder values. */
+/** Structure to store retranslated reminder values. */
 struct VBoxUpdateDay
 {
     VBoxUpdateDay(const QString &strVal, const QString &strKey)
@@ -39,12 +43,12 @@ struct VBoxUpdateDay
 typedef QList<VBoxUpdateDay> VBoxUpdateDayList;
 
 
-/* This class is used to encode/decode update data. */
-class VBoxUpdateData
+/** Class used to encode/decode update data. */
+class SHARED_LIBRARY_STUFF VBoxUpdateData
 {
 public:
 
-    /* Period types: */
+    /** Period types. */
     enum PeriodType
     {
         PeriodNever     = -2,
@@ -61,7 +65,7 @@ public:
         Period1Month    =  9
     };
 
-    /* Branch types: */
+    /** Branch types. */
     enum BranchType
     {
         BranchStable     = 0,
@@ -69,38 +73,55 @@ public:
         BranchWithBetas  = 2
     };
 
-    /* Public static helpers: */
+    /** Populates a set of update options. */
     static void populate();
+    /** Returns a list of update options. */
     static QStringList list();
 
-    /* Constructors: */
+    /** Constructs update description on the basis of passed @a strData. */
     VBoxUpdateData(const QString &strData);
-    VBoxUpdateData(PeriodType periodIndex, BranchType branchIndex);
+    /** Constructs update description on the basis of passed @a enmPeriodIndex and @a enmBranchIndex. */
+    VBoxUpdateData(PeriodType enmPeriodIndex, BranchType enmBranchIndex);
 
-    /* Public helpers: */
+    /** Returns whether there is no need to check. */
     bool isNoNeedToCheck() const;
+    /** Returns whether there is really need to check. */
     bool isNeedToCheck() const;
+    /** Returns update data. */
     QString data() const;
+    /** Returns period index. */
     PeriodType periodIndex() const;
+    /** Returns update date. */
     QString date() const;
+    /** Returns branch index. */
     BranchType branchIndex() const;
+    /** Returns period name. */
     QString branchName() const;
+    /** Returns version. */
     UIVersion version() const;
 
 private:
 
-    /* Private helpers: */
+    /** Decodes data. */
     void decode();
+    /** Encodes data. */
     void encode();
 
-    /* Private variables: */
+    /** Holds the populated list of update options. */
     static VBoxUpdateDayList m_dayList;
-    QString m_strData;
-    PeriodType m_periodIndex;
-    QDate m_date;
-    BranchType m_branchIndex;
-    UIVersion m_version;
+
+    /** Holds the update data. */
+    QString     m_strData;
+    /** Holds the update period index. */
+    PeriodType  m_enmPeriodIndex;
+    /** Holds the update date. */
+    QDate       m_date;
+    /** Holds the update branch index. */
+    BranchType  m_enmBranchIndex;
+    /** Holds the update version. */
+    UIVersion   m_version;
 };
 
-#endif /* !___UIUpdateDefs_h___ */
+
+#endif /* !FEQT_INCLUDED_SRC_net_UIUpdateDefs_h */
 

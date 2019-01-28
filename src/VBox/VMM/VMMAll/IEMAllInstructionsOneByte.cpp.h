@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2017 Oracle Corporation
+ * Copyright (C) 2011-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -4264,7 +4264,6 @@ FNIEMOP_DEF_1(iemOp_pop_Ev, uint8_t, bRm)
 #ifndef TST_IEM_CHECK_MC
     /* Calc effective address with modified ESP. */
 /** @todo testcase */
-    PCPUMCTX        pCtx     = IEM_GET_CTX(pVCpu);
     RTGCPTR         GCPtrEff;
     VBOXSTRICTRC    rcStrict;
     switch (pVCpu->iem.s.enmEffOpSize)
@@ -4280,7 +4279,7 @@ FNIEMOP_DEF_1(iemOp_pop_Ev, uint8_t, bRm)
 
     /* Perform the operation - this should be CImpl. */
     RTUINT64U TmpRsp;
-    TmpRsp.u = pCtx->rsp;
+    TmpRsp.u = pVCpu->cpum.GstCtx.rsp;
     switch (pVCpu->iem.s.enmEffOpSize)
     {
         case IEMMODE_16BIT:
@@ -4314,7 +4313,7 @@ FNIEMOP_DEF_1(iemOp_pop_Ev, uint8_t, bRm)
     }
     if (rcStrict == VINF_SUCCESS)
     {
-        pCtx->rsp = TmpRsp.u;
+        pVCpu->cpum.GstCtx.rsp = TmpRsp.u;
         iemRegUpdateRipAndClearRF(pVCpu);
     }
     return rcStrict;
@@ -4455,12 +4454,14 @@ FNIEMOP_DEF(iemOp_nop)
     if (pVCpu->iem.s.fPrefixes & IEM_OP_PRF_LOCK)
     {
         IEMOP_MNEMONIC(pause, "pause");
-#ifdef VBOX_WITH_NESTED_HWVIRT
-        /** @todo Pause filter count and threshold with SVM nested hardware virt. */
-        Assert(!IEM_GET_GUEST_CPU_FEATURES(pVCpu)->fSvmPauseFilter);
-        Assert(!IEM_GET_GUEST_CPU_FEATURES(pVCpu)->fSvmPauseFilterThreshold);
+#ifdef VBOX_WITH_NESTED_HWVIRT_VMX
+        if (IEM_GET_GUEST_CPU_FEATURES(pVCpu)->fVmx)
+            return IEM_MC_DEFER_TO_CIMPL_0(iemCImpl_vmx_pause);
 #endif
-        IEMOP_HLP_SVM_CTRL_INTERCEPT(pVCpu, SVM_CTRL_INTERCEPT_PAUSE, SVM_EXIT_PAUSE, 0, 0);
+#ifdef VBOX_WITH_NESTED_HWVIRT_SVM
+        if (IEM_GET_GUEST_CPU_FEATURES(pVCpu)->fSvm)
+            return IEM_MC_DEFER_TO_CIMPL_0(iemCImpl_svm_pause);
+#endif
     }
     else
         IEMOP_MNEMONIC(nop, "nop");
@@ -4679,6 +4680,7 @@ FNIEMOP_DEF(iemOp_wait)
  */
 FNIEMOP_DEF(iemOp_pushf_Fv)
 {
+    IEMOP_MNEMONIC(pushf_Fv, "pushf Fv");
     IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
     IEMOP_HLP_DEFAULT_64BIT_OP_SIZE();
     return IEM_MC_DEFER_TO_CIMPL_1(iemCImpl_pushf, pVCpu->iem.s.enmEffOpSize);
@@ -4690,6 +4692,7 @@ FNIEMOP_DEF(iemOp_pushf_Fv)
  */
 FNIEMOP_DEF(iemOp_popf_Fv)
 {
+    IEMOP_MNEMONIC(popf_Fv, "popf Fv");
     IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
     IEMOP_HLP_DEFAULT_64BIT_OP_SIZE();
     return IEM_MC_DEFER_TO_CIMPL_1(iemCImpl_popf, pVCpu->iem.s.enmEffOpSize);
@@ -4744,7 +4747,7 @@ FNIEMOP_DEF(iemOp_lahf)
 
 /**
  * Macro used by iemOp_mov_AL_Ob, iemOp_mov_rAX_Ov, iemOp_mov_Ob_AL and
- * iemOp_mov_Ov_rAX to fetch the moffsXX bit of the opcode and fend of lock
+ * iemOp_mov_Ov_rAX to fetch the moffsXX bit of the opcode and fend off lock
  * prefixes.  Will return on failures.
  * @param   a_GCPtrMemOff   The variable to store the offset in.
  */
@@ -4773,8 +4776,9 @@ FNIEMOP_DEF(iemOp_lahf)
 FNIEMOP_DEF(iemOp_mov_AL_Ob)
 {
     /*
-     * Get the offset and fend of lock prefixes.
+     * Get the offset and fend off lock prefixes.
      */
+    IEMOP_MNEMONIC(mov_AL_Ob, "mov AL,Ob");
     RTGCPTR GCPtrMemOff;
     IEMOP_FETCH_MOFFS_XX(GCPtrMemOff);
 
@@ -4797,7 +4801,7 @@ FNIEMOP_DEF(iemOp_mov_AL_Ob)
 FNIEMOP_DEF(iemOp_mov_rAX_Ov)
 {
     /*
-     * Get the offset and fend of lock prefixes.
+     * Get the offset and fend off lock prefixes.
      */
     IEMOP_MNEMONIC(mov_rAX_Ov, "mov rAX,Ov");
     RTGCPTR GCPtrMemOff;
@@ -4846,8 +4850,9 @@ FNIEMOP_DEF(iemOp_mov_rAX_Ov)
 FNIEMOP_DEF(iemOp_mov_Ob_AL)
 {
     /*
-     * Get the offset and fend of lock prefixes.
+     * Get the offset and fend off lock prefixes.
      */
+    IEMOP_MNEMONIC(mov_Ob_AL, "mov Ob,AL");
     RTGCPTR GCPtrMemOff;
     IEMOP_FETCH_MOFFS_XX(GCPtrMemOff);
 
@@ -4870,8 +4875,9 @@ FNIEMOP_DEF(iemOp_mov_Ob_AL)
 FNIEMOP_DEF(iemOp_mov_Ov_rAX)
 {
     /*
-     * Get the offset and fend of lock prefixes.
+     * Get the offset and fend off lock prefixes.
      */
+    IEMOP_MNEMONIC(mov_Ov_rAX, "mov Ov,rAX");
     RTGCPTR GCPtrMemOff;
     IEMOP_FETCH_MOFFS_XX(GCPtrMemOff);
 
@@ -6505,6 +6511,7 @@ FNIEMOP_DEF(iemOp_retf)
  */
 FNIEMOP_DEF(iemOp_int3)
 {
+    IEMOP_MNEMONIC(int3, "int3");
     IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
     return IEM_MC_DEFER_TO_CIMPL_2(iemCImpl_int, X86_XCPT_BP, IEMINT_INT3);
 }
@@ -6515,6 +6522,7 @@ FNIEMOP_DEF(iemOp_int3)
  */
 FNIEMOP_DEF(iemOp_int_Ib)
 {
+    IEMOP_MNEMONIC(int_Ib, "int Ib");
     uint8_t u8Int; IEM_OPCODE_GET_NEXT_U8(&u8Int);
     IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
     return IEM_MC_DEFER_TO_CIMPL_2(iemCImpl_int, u8Int, IEMINT_INTN);
@@ -10394,7 +10402,7 @@ FNIEMOP_DEF(iemOp_in_AL_Ib)
     IEMOP_MNEMONIC(in_AL_Ib, "in AL,Ib");
     uint8_t u8Imm; IEM_OPCODE_GET_NEXT_U8(&u8Imm);
     IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
-    return IEM_MC_DEFER_TO_CIMPL_2(iemCImpl_in, u8Imm, 1);
+    return IEM_MC_DEFER_TO_CIMPL_3(iemCImpl_in, u8Imm, true /* fImm */, 1);
 }
 
 
@@ -10404,7 +10412,7 @@ FNIEMOP_DEF(iemOp_in_eAX_Ib)
     IEMOP_MNEMONIC(in_eAX_Ib, "in eAX,Ib");
     uint8_t u8Imm; IEM_OPCODE_GET_NEXT_U8(&u8Imm);
     IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
-    return IEM_MC_DEFER_TO_CIMPL_2(iemCImpl_in, u8Imm, pVCpu->iem.s.enmEffOpSize == IEMMODE_16BIT ? 2 : 4);
+    return IEM_MC_DEFER_TO_CIMPL_3(iemCImpl_in, u8Imm, true /* fImm */, pVCpu->iem.s.enmEffOpSize == IEMMODE_16BIT ? 2 : 4);
 }
 
 
@@ -10414,7 +10422,7 @@ FNIEMOP_DEF(iemOp_out_Ib_AL)
     IEMOP_MNEMONIC(out_Ib_AL, "out Ib,AL");
     uint8_t u8Imm; IEM_OPCODE_GET_NEXT_U8(&u8Imm);
     IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
-    return IEM_MC_DEFER_TO_CIMPL_2(iemCImpl_out, u8Imm, 1);
+    return IEM_MC_DEFER_TO_CIMPL_3(iemCImpl_out, u8Imm, true /* fImm */, 1);
 }
 
 
@@ -10424,7 +10432,7 @@ FNIEMOP_DEF(iemOp_out_Ib_eAX)
     IEMOP_MNEMONIC(out_Ib_eAX, "out Ib,eAX");
     uint8_t u8Imm; IEM_OPCODE_GET_NEXT_U8(&u8Imm);
     IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
-    return IEM_MC_DEFER_TO_CIMPL_2(iemCImpl_out, u8Imm, pVCpu->iem.s.enmEffOpSize == IEMMODE_16BIT ? 2 : 4);
+    return IEM_MC_DEFER_TO_CIMPL_3(iemCImpl_out, u8Imm, true /* fImm */, pVCpu->iem.s.enmEffOpSize == IEMMODE_16BIT ? 2 : 4);
 }
 
 
@@ -10540,7 +10548,7 @@ FNIEMOP_DEF(iemOp_in_AL_DX)
 
 
 /** Opcode 0xed */
-FNIEMOP_DEF(iemOp_eAX_DX)
+FNIEMOP_DEF(iemOp_in_eAX_DX)
 {
     IEMOP_MNEMONIC(in_eAX_DX, "in  eAX,DX");
     IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
@@ -10634,6 +10642,7 @@ FNIEMOP_DEF(iemOp_repe)
  */
 FNIEMOP_DEF(iemOp_hlt)
 {
+    IEMOP_MNEMONIC(hlt, "hlt");
     IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
     return IEM_MC_DEFER_TO_CIMPL_0(iemCImpl_hlt);
 }
@@ -11797,7 +11806,7 @@ const PFNIEMOP g_apfnOneByteMap[256] =
     /* 0xe0 */  iemOp_loopne_Jb,        iemOp_loope_Jb,         iemOp_loop_Jb,          iemOp_jecxz_Jb,
     /* 0xe4 */  iemOp_in_AL_Ib,         iemOp_in_eAX_Ib,        iemOp_out_Ib_AL,        iemOp_out_Ib_eAX,
     /* 0xe8 */  iemOp_call_Jv,          iemOp_jmp_Jv,           iemOp_jmp_Ap,           iemOp_jmp_Jb,
-    /* 0xec */  iemOp_in_AL_DX,         iemOp_eAX_DX,           iemOp_out_DX_AL,        iemOp_out_DX_eAX,
+    /* 0xec */  iemOp_in_AL_DX,         iemOp_in_eAX_DX,        iemOp_out_DX_AL,        iemOp_out_DX_eAX,
     /* 0xf0 */  iemOp_lock,             iemOp_int1,             iemOp_repne,            iemOp_repe,
     /* 0xf4 */  iemOp_hlt,              iemOp_cmc,              iemOp_Grp3_Eb,          iemOp_Grp3_Ev,
     /* 0xf8 */  iemOp_clc,              iemOp_stc,              iemOp_cli,              iemOp_sti,

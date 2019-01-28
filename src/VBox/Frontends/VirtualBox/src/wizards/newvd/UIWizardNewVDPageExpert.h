@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,10 +15,13 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __UIWizardNewVDPageExpert_h__
-#define __UIWizardNewVDPageExpert_h__
+#ifndef FEQT_INCLUDED_SRC_wizards_newvd_UIWizardNewVDPageExpert_h
+#define FEQT_INCLUDED_SRC_wizards_newvd_UIWizardNewVDPageExpert_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
-/* Local includes: */
+/* GUI includes: */
 #include "UIWizardNewVDPageBasic1.h"
 #include "UIWizardNewVDPageBasic2.h"
 #include "UIWizardNewVDPageBasic3.h"
@@ -27,10 +30,10 @@
 class QGroupBox;
 
 /* Expert page of the New Virtual Hard Drive wizard: */
-class UIWizardNewVDPageExpert : public UIWizardPage,
-                                public UIWizardNewVDPage1,
-                                public UIWizardNewVDPage2,
-                                public UIWizardNewVDPage3
+class SHARED_LIBRARY_STUFF UIWizardNewVDPageExpert : public UIWizardPage,
+                                                     public UIWizardNewVDPage1,
+                                                     public UIWizardNewVDPage2,
+                                                     public UIWizardNewVDPage3
 {
     Q_OBJECT;
     Q_PROPERTY(CMediumFormat mediumFormat READ mediumFormat WRITE setMediumFormat);
@@ -77,5 +80,4 @@ private:
     QGroupBox *m_pSizeCnt;
 };
 
-#endif // __UIWizardNewVDPageExpert_h__
-
+#endif /* !FEQT_INCLUDED_SRC_wizards_newvd_UIWizardNewVDPageExpert_h */

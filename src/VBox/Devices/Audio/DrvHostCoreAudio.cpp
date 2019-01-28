@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2018 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -372,10 +372,8 @@ typedef struct COREAUDIOSTREAM
     RTCRITSECT                  CritSect;
     /** The actual audio queue being used. */
     AudioQueueRef               audioQueue;
-    /** Number of queue audio buffers. */
-    uint16_t                    cAudioBufferRef;
     /** The audio buffers which are used with the above audio queue. */
-    AudioQueueBufferRef        *paAudioBufferRef;
+    AudioQueueBufferRef         audioBuffer[2];
     /** The acquired (final) audio format for this stream. */
     AudioStreamBasicDescription asbdStream;
     /** The audio unit for this stream. */
@@ -1299,26 +1297,14 @@ static DECLCALLBACK(int) coreAudioQueueThread(RTTHREAD hThreadSelf, void *pvUser
     if (err != noErr)
         return VERR_GENERAL_FAILURE; /** @todo Fudge! */
 
-    /* Formerly was 16K total (32 buffers * 512 bytes). */
-    pCAStream->cAudioBufferRef = 32;
-    AssertStmt(pCAStream->cAudioBufferRef, pCAStream->cAudioBufferRef = 1);
-
-    /* Each queue buffer holds a period size (in bytes). */
-    const size_t cbSizePerBuffer = DrvAudioHlpFramesToBytes(pCAStream->pCfg->Backend.cfPeriod, &pCAStream->pCfg->Props);
+    const size_t cbBufSize = DrvAudioHlpFramesToBytes(pCAStream->pCfg->Backend.cfPeriod, &pCAStream->pCfg->Props);
 
     /*
      * Allocate audio buffers.
      */
-    pCAStream->paAudioBufferRef = (AudioQueueBufferRef *)RTMemAlloc(sizeof(AudioQueueBufferRef) * pCAStream->cAudioBufferRef);
-    if (!pCAStream->paAudioBufferRef)
-        return VERR_NO_MEMORY;
-
-    LogRel2(("CoreAudio: Using %RU16 buffers, %zu bytes each (%zu total bytes)\n",
-             pCAStream->cAudioBufferRef, cbSizePerBuffer, pCAStream->cAudioBufferRef * cbSizePerBuffer));
-
-    for (size_t i = 0; i < pCAStream->cAudioBufferRef; i++)
+    for (size_t i = 0; i < RT_ELEMENTS(pCAStream->audioBuffer); i++)
     {
-        err = AudioQueueAllocateBuffer(pCAStream->audioQueue, cbSizePerBuffer, &pCAStream->paAudioBufferRef[i]);
+        err = AudioQueueAllocateBuffer(pCAStream->audioQueue, cbBufSize, &pCAStream->audioBuffer[i]);
         if (err != noErr)
             break;
     }
@@ -1349,22 +1335,13 @@ static DECLCALLBACK(int) coreAudioQueueThread(RTTHREAD hThreadSelf, void *pvUser
         AudioQueueStop(pCAStream->audioQueue, 0);
     }
 
-    for (size_t i = 0; i < pCAStream->cAudioBufferRef; i++)
+    for (size_t i = 0; i < RT_ELEMENTS(pCAStream->audioBuffer); i++)
     {
-        if (pCAStream->paAudioBufferRef[i])
-            AudioQueueFreeBuffer(pCAStream->audioQueue, pCAStream->paAudioBufferRef[i]);
+        if (pCAStream->audioBuffer[i])
+            AudioQueueFreeBuffer(pCAStream->audioQueue, pCAStream->audioBuffer[i]);
     }
 
     AudioQueueDispose(pCAStream->audioQueue, 1);
-
-    if (pCAStream->paAudioBufferRef)
-    {
-        Assert(pCAStream->cAudioBufferRef);
-        pCAStream->cAudioBufferRef = 0;
-
-        RTMemFree(pCAStream->paAudioBufferRef);
-        pCAStream->paAudioBufferRef = NULL;
-    }
 
     LogFunc(("Thread ended for pCAStream=%p, fIn=%RTbool\n", pCAStream, fIn));
     return VINF_SUCCESS;
@@ -1546,9 +1523,9 @@ static int coreAudioStreamInvalidateQueue(PCOREAUDIOSTREAM pCAStream)
 
     Log3Func(("pCAStream=%p\n", pCAStream));
 
-    for (size_t i = 0; i < pCAStream->cAudioBufferRef; i++)
+    for (size_t i = 0; i < RT_ELEMENTS(pCAStream->audioBuffer); i++)
     {
-        AudioQueueBufferRef pBuf = pCAStream->paAudioBufferRef[i];
+        AudioQueueBufferRef pBuf = pCAStream->audioBuffer[i];
 
         if (pCAStream->pCfg->enmDir == PDMAUDIODIR_IN)
         {

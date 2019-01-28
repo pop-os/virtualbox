@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -56,7 +56,7 @@ trpmGuestIDTWriteHandler(PVM pVM, PVMCPU pVCpu, RTGCPTR GCPtr, void *pvPtr, void
     Assert(enmAccessType == PGMACCESSTYPE_WRITE); NOREF(enmAccessType);
     Log(("trpmGuestIDTWriteHandler: write to %RGv size %d\n", GCPtr, cbBuf)); NOREF(GCPtr); NOREF(cbBuf);
     NOREF(pvPtr); NOREF(pvUser); NOREF(pvBuf); NOREF(enmOrigin); NOREF(pvUser); RT_NOREF_PV(pVM);
-    Assert(!HMIsEnabled(pVM));
+    Assert(VM_IS_RAW_MODE_ENABLED(pVM));
 
     /** @todo Check which IDT entry and keep the update cost low in TRPMR3SyncIDT() and CSAMCheckGates(). */
     VMCPU_FF_SET(pVCpu, VMCPU_FF_TRPM_SYNC_IDT);
@@ -468,7 +468,7 @@ VMMDECL(void) TRPMRestoreTrap(PVMCPU pVCpu)
 VMMDECL(int) TRPMForwardTrap(PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t iGate, uint32_t cbInstr,
                              TRPMERRORCODE enmError, TRPMEVENT enmType, int32_t iOrgTrap)
 {
-    AssertReturn(!HMIsEnabled(pVCpu->CTX_SUFF(pVM)), VERR_TRPM_HM_IPE);
+    AssertReturn(VM_IS_RAW_MODE_ENABLED(pVCpu->CTX_SUFF(pVM)), VERR_TRPM_HM_IPE);
 #ifdef TRPM_FORWARD_TRAPS_IN_GC
     PVM pVM = pVCpu->CTX_SUFF(pVM);
     X86EFLAGS eflags;
@@ -542,7 +542,7 @@ VMMDECL(int) TRPMForwardTrap(PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t iGat
         int         rc;
 
         Assert(PATMAreInterruptsEnabledByCtx(pVM, CPUMCTX_FROM_CORE(pRegFrame)));
-        Assert(!VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_SELM_SYNC_GDT | VMCPU_FF_SELM_SYNC_LDT | VMCPU_FF_TRPM_SYNC_IDT | VMCPU_FF_SELM_SYNC_TSS));
+        Assert(!VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_SELM_SYNC_GDT | VMCPU_FF_SELM_SYNC_LDT | VMCPU_FF_TRPM_SYNC_IDT | VMCPU_FF_SELM_SYNC_TSS));
 
         if (GCPtrIDT && iGate * sizeof(VBOXIDTE) >= cbIDT)
             goto failure;
@@ -970,7 +970,7 @@ VMMDECL(int) TRPMRaiseXcptErrCR2(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, X86XCPT en
  */
 VMMDECL(int) trpmClearGuestTrapHandler(PVM pVM, unsigned iTrap)
 {
-    AssertReturn(!HMIsEnabled(pVM), VERR_TRPM_HM_IPE);
+    AssertReturn(VM_IS_RAW_MODE_ENABLED(pVM), VERR_TRPM_HM_IPE);
     AssertMsgReturn(iTrap < RT_ELEMENTS(pVM->trpm.s.aIdt), ("Illegal gate number %d!\n", iTrap), VERR_INVALID_PARAMETER);
 
     if (ASMBitTest(&pVM->trpm.s.au32IdtPatched[0], iTrap))

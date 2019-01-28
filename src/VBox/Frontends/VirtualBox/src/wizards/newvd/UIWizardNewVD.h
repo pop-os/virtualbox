@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __UIWizardNewVD_h__
-#define __UIWizardNewVD_h__
+#ifndef FEQT_INCLUDED_SRC_wizards_newvd_UIWizardNewVD_h
+#define FEQT_INCLUDED_SRC_wizards_newvd_UIWizardNewVD_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* GUI includes: */
 #include "UIWizard.h"
@@ -26,7 +29,7 @@
 #include "CMedium.h"
 
 /* New Virtual Hard Drive wizard: */
-class UIWizardNewVD : public UIWizard
+class SHARED_LIBRARY_STUFF UIWizardNewVD : public UIWizard
 {
     Q_OBJECT;
 
@@ -81,5 +84,4 @@ private:
 
 typedef QPointer<UIWizardNewVD> UISafePointerWizardNewVD;
 
-#endif // __UIWizardNewVD_h__
-
+#endif /* !FEQT_INCLUDED_SRC_wizards_newvd_UIWizardNewVD_h */

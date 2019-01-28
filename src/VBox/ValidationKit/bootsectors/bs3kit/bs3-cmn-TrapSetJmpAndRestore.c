@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2017 Oracle Corporation
+ * Copyright (C) 2007-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -39,7 +39,8 @@ BS3_CMN_DEF(void, Bs3TrapSetJmpAndRestore,(PCBS3REGCTX pCtxRestore, PBS3TRAPFRAM
 #if TMPL_BITS == 32
         g_uBs3TrapEipHint = pCtxRestore->rip.u32;
 #endif
-        Bs3RegCtxRestore(pCtxRestore, 0);
+        Bs3RegCtxRestore(pCtxRestore, BS3REGCTXRESTORE_F_NO_V86_ASSIST);
     }
+    g_fBs3TrapNoV86Assist = false;
 }
 

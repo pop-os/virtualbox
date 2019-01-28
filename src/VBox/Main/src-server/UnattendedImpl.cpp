@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1036,7 +1036,10 @@ HRESULT Unattended::reconfigureVM()
         ComPtr<IGuestOSType> ptrGuestOSType;
         HRESULT hrc = mParent->GetGuestOSType(bstrGuestOsTypeId.raw(), ptrGuestOSType.asOutParam());
         if (SUCCEEDED(hrc))
-            hrc = ptrGuestOSType->COMGETTER(RecommendedDVDStorageBus)(&enmRecommendedStorageBus);
+        {
+            if (!ptrGuestOSType.isNull())
+                hrc = ptrGuestOSType->COMGETTER(RecommendedDVDStorageBus)(&enmRecommendedStorageBus);
+        }
         if (FAILED(hrc))
             return hrc;
     }
@@ -1172,7 +1175,7 @@ HRESULT Unattended::i_innerReconfigureVM(AutoMultiWriteLock2 &rAutoLock, Storage
         hrc = rPtrSessionMachine->SetBootOrder(2, mpInstaller->getBootableDeviceType());
     if (SUCCEEDED(hrc))
         hrc = rPtrSessionMachine->SetBootOrder(3, mpInstaller->getBootableDeviceType() == DeviceType_DVD
-                                                  ? (DeviceType_T)DeviceType_Floppy : (DeviceType_T)DeviceType_DVD);
+                                                  ? DeviceType_Floppy : DeviceType_DVD);
     if (FAILED(hrc))
         return hrc;
 
@@ -2336,7 +2339,8 @@ bool Unattended::i_isGuestOSArchX64(Utf8Str const &rStrGuestOsTypeId)
     if (SUCCEEDED(hrc))
     {
         BOOL fIs64Bit = FALSE;
-        hrc = pGuestOSType->COMGETTER(Is64Bit)(&fIs64Bit);
+        if (!pGuestOSType.isNull())
+            hrc = pGuestOSType->COMGETTER(Is64Bit)(&fIs64Bit);
         if (SUCCEEDED(hrc))
             return fIs64Bit != FALSE;
     }

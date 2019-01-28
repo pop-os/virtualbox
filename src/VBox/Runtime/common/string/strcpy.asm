@@ -4,7 +4,7 @@
 ;
 
 ;
-; Copyright (C) 2006-2017 Oracle Corporation
+; Copyright (C) 2006-2019 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -29,8 +29,8 @@
 BEGINCODE
 
 ;;
-; @param    pszDst   gcc: rdi  msc: rcx  x86:[esp+4]
-; @param    pszSrc   gcc: rsi  msc: rdx  x86:[esp+8]
+; @param    pszDst   gcc: rdi  msc: rcx  x86:[esp+4]  wcall:eax
+; @param    pszSrc   gcc: rsi  msc: rdx  x86:[esp+8]  wcall:edx
 RT_NOCRT_BEGINPROC strcpy
         ; input
 %ifdef RT_ARCH_AMD64
@@ -43,10 +43,14 @@ RT_NOCRT_BEGINPROC strcpy
  %endif
         mov     r8, pszDst
 %else
+ %ifdef ASM_CALL32_WATCOM
+        mov     ecx, eax
+ %else
         mov     ecx, [esp + 4]
         mov     edx, [esp + 8]
-  %define pszDst ecx
-  %define pszSrc edx
+ %endif
+ %define pszDst ecx
+ %define pszSrc edx
         push    pszDst
 %endif
 

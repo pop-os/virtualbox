@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -79,6 +79,7 @@ enum
     MODIFYVM_SPEC_CTRL,
     MODIFYVM_L1D_FLUSH_ON_SCHED,
     MODIFYVM_L1D_FLUSH_ON_VM_ENTRY,
+    MODIFYVM_NESTED_HW_VIRT,
     MODIFYVM_CPUS,
     MODIFYVM_CPUHOTPLUG,
     MODIFYVM_CPU_PROFILE,
@@ -147,6 +148,7 @@ enum
     MODIFYVM_HIDPTR,
     MODIFYVM_HIDKBD,
     MODIFYVM_UARTMODE,
+    MODIFYVM_UARTTYPE,
     MODIFYVM_UART,
 #if defined(RT_OS_LINUX) || defined(RT_OS_WINDOWS)
     MODIFYVM_LPTMODE,
@@ -183,7 +185,7 @@ enum
     MODIFYVM_USBRENAME,
     MODIFYVM_USBXHCI,
     MODIFYVM_USBEHCI,
-    MODIFYVM_USB,
+    MODIFYVM_USBOHCI,
     MODIFYVM_SNAPSHOTFOLDER,
     MODIFYVM_TELEPORTER_ENABLED,
     MODIFYVM_TELEPORTER_PORT,
@@ -213,18 +215,19 @@ enum
 #ifdef VBOX_WITH_USB_CARDREADER
     MODIFYVM_USBCARDREADER,
 #endif
-#ifdef VBOX_WITH_VIDEOREC
-    MODIFYVM_VIDEOCAP,
-    MODIFYVM_VIDEOCAP_SCREENS,
-    MODIFYVM_VIDEOCAP_FILENAME,
-    MODIFYVM_VIDEOCAP_WIDTH,
-    MODIFYVM_VIDEOCAP_HEIGHT,
-    MODIFYVM_VIDEOCAP_RES,
-    MODIFYVM_VIDEOCAP_RATE,
-    MODIFYVM_VIDEOCAP_FPS,
-    MODIFYVM_VIDEOCAP_MAXTIME,
-    MODIFYVM_VIDEOCAP_MAXSIZE,
-    MODIFYVM_VIDEOCAP_OPTIONS,
+#ifdef VBOX_WITH_RECORDING
+    MODIFYVM_RECORDING,
+    MODIFYVM_RECORDING_FEATURES,
+    MODIFYVM_RECORDING_SCREENS,
+    MODIFYVM_RECORDING_FILENAME,
+    MODIFYVM_RECORDING_VIDEO_WIDTH,
+    MODIFYVM_RECORDING_VIDEO_HEIGHT,
+    MODIFYVM_RECORDING_VIDEO_RES,
+    MODIFYVM_RECORDING_VIDEO_RATE,
+    MODIFYVM_RECORDING_VIDEO_FPS,
+    MODIFYVM_RECORDING_MAXTIME,
+    MODIFYVM_RECORDING_MAXSIZE,
+    MODIFYVM_RECORDING_OPTIONS,
 #endif
     MODIFYVM_CHIPSET,
     MODIFYVM_DEFAULTFRONTEND
@@ -264,6 +267,7 @@ static const RTGETOPTDEF g_aModifyVMOptions[] =
     { "--spec-ctrl",                MODIFYVM_SPEC_CTRL,                 RTGETOPT_REQ_BOOL_ONOFF },
     { "--l1d-flush-on-sched",       MODIFYVM_L1D_FLUSH_ON_SCHED,        RTGETOPT_REQ_BOOL_ONOFF },
     { "--l1d-flush-on-vm-entry",    MODIFYVM_L1D_FLUSH_ON_VM_ENTRY,     RTGETOPT_REQ_BOOL_ONOFF },
+    { "--nested-hw-virt",           MODIFYVM_NESTED_HW_VIRT,            RTGETOPT_REQ_BOOL_ONOFF },
     { "--cpuid-set",                MODIFYVM_SETCPUID,                  RTGETOPT_REQ_UINT32_OPTIONAL_PAIR | RTGETOPT_FLAG_HEX },
     { "--cpuid-remove",             MODIFYVM_DELCPUID,                  RTGETOPT_REQ_UINT32_OPTIONAL_PAIR | RTGETOPT_FLAG_HEX },
     { "--cpuidset",                 MODIFYVM_SETCPUID_OLD,              RTGETOPT_REQ_UINT32 | RTGETOPT_FLAG_HEX },
@@ -335,6 +339,7 @@ static const RTGETOPTDEF g_aModifyVMOptions[] =
     { "--mouse",                    MODIFYVM_HIDPTR,                    RTGETOPT_REQ_STRING },
     { "--keyboard",                 MODIFYVM_HIDKBD,                    RTGETOPT_REQ_STRING },
     { "--uartmode",                 MODIFYVM_UARTMODE,                  RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
+    { "--uarttype",                 MODIFYVM_UARTTYPE,                  RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
     { "--uart",                     MODIFYVM_UART,                      RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
 #if defined(RT_OS_LINUX) || defined(RT_OS_WINDOWS)
     { "--lptmode",                  MODIFYVM_LPTMODE,                   RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
@@ -370,7 +375,8 @@ static const RTGETOPTDEF g_aModifyVMOptions[] =
     { "--usbrename",                MODIFYVM_USBRENAME,                 RTGETOPT_REQ_STRING },
     { "--usbxhci",                  MODIFYVM_USBXHCI,                   RTGETOPT_REQ_BOOL_ONOFF },
     { "--usbehci",                  MODIFYVM_USBEHCI,                   RTGETOPT_REQ_BOOL_ONOFF },
-    { "--usb",                      MODIFYVM_USB,                       RTGETOPT_REQ_BOOL_ONOFF },
+    { "--usbohci",                  MODIFYVM_USBOHCI,                   RTGETOPT_REQ_BOOL_ONOFF },
+    { "--usb",                      MODIFYVM_USBOHCI,                   RTGETOPT_REQ_BOOL_ONOFF }, /* deprecated */
     { "--snapshotfolder",           MODIFYVM_SNAPSHOTFOLDER,            RTGETOPT_REQ_STRING },
     { "--teleporter",               MODIFYVM_TELEPORTER_ENABLED,        RTGETOPT_REQ_BOOL_ONOFF },
     { "--teleporterenabled",        MODIFYVM_TELEPORTER_ENABLED,        RTGETOPT_REQ_BOOL_ONOFF }, /* deprecated */
@@ -391,26 +397,18 @@ static const RTGETOPTDEF g_aModifyVMOptions[] =
     { "--faulttolerancepassword",   MODIFYVM_FAULT_TOLERANCE_PASSWORD,  RTGETOPT_REQ_STRING },
     { "--faulttolerancesyncinterval", MODIFYVM_FAULT_TOLERANCE_SYNC_INTERVAL, RTGETOPT_REQ_UINT32 },
     { "--chipset",                  MODIFYVM_CHIPSET,                   RTGETOPT_REQ_STRING },
-#ifdef VBOX_WITH_VIDEOREC
-    { "--videocap",                 MODIFYVM_VIDEOCAP,                  RTGETOPT_REQ_BOOL_ONOFF },
-    { "--vcpenabled",               MODIFYVM_VIDEOCAP,                  RTGETOPT_REQ_BOOL_ONOFF }, /* deprecated */
-    { "--videocapscreens",          MODIFYVM_VIDEOCAP_SCREENS,          RTGETOPT_REQ_STRING },
-    { "--vcpscreens",               MODIFYVM_VIDEOCAP_SCREENS,          RTGETOPT_REQ_STRING }, /* deprecated */
-    { "--videocapfile",             MODIFYVM_VIDEOCAP_FILENAME,         RTGETOPT_REQ_STRING },
-    { "--vcpfile",                  MODIFYVM_VIDEOCAP_FILENAME,         RTGETOPT_REQ_STRING }, /* deprecated */
-    { "--videocapres",              MODIFYVM_VIDEOCAP_RES,              RTGETOPT_REQ_STRING },
-    { "--vcpwidth",                 MODIFYVM_VIDEOCAP_WIDTH,            RTGETOPT_REQ_UINT32 }, /* deprecated */
-    { "--vcpheight",                MODIFYVM_VIDEOCAP_HEIGHT,           RTGETOPT_REQ_UINT32 }, /* deprecated */
-    { "--videocaprate",             MODIFYVM_VIDEOCAP_RATE,             RTGETOPT_REQ_UINT32 },
-    { "--vcprate",                  MODIFYVM_VIDEOCAP_RATE,             RTGETOPT_REQ_UINT32 }, /* deprecated */
-    { "--videocapfps",              MODIFYVM_VIDEOCAP_FPS,              RTGETOPT_REQ_UINT32 },
-    { "--vcpfps",                   MODIFYVM_VIDEOCAP_FPS,              RTGETOPT_REQ_UINT32 }, /* deprecated */
-    { "--videocapmaxtime",          MODIFYVM_VIDEOCAP_MAXTIME,          RTGETOPT_REQ_INT32  },
-    { "--vcpmaxtime",               MODIFYVM_VIDEOCAP_MAXTIME,          RTGETOPT_REQ_INT32  }, /* deprecated */
-    { "--videocapmaxsize",          MODIFYVM_VIDEOCAP_MAXSIZE,          RTGETOPT_REQ_INT32  },
-    { "--vcpmaxsize",               MODIFYVM_VIDEOCAP_MAXSIZE,          RTGETOPT_REQ_INT32  }, /* deprecated */
-    { "--videocapopts",             MODIFYVM_VIDEOCAP_OPTIONS,          RTGETOPT_REQ_STRING },
-    { "--vcpoptions",               MODIFYVM_VIDEOCAP_OPTIONS,          RTGETOPT_REQ_STRING }, /* deprecated */
+#ifdef VBOX_WITH_RECORDING
+    { "--recording",                MODIFYVM_RECORDING,                 RTGETOPT_REQ_BOOL_ONOFF },
+    { "--recordingscreens",         MODIFYVM_RECORDING_SCREENS,         RTGETOPT_REQ_STRING },
+    { "--recordingfile",            MODIFYVM_RECORDING_FILENAME,        RTGETOPT_REQ_STRING },
+    { "--recordingmaxtime",         MODIFYVM_RECORDING_MAXTIME,         RTGETOPT_REQ_INT32  },
+    { "--recordingmaxsize",         MODIFYVM_RECORDING_MAXSIZE,         RTGETOPT_REQ_INT32  },
+    { "--recordingopts",            MODIFYVM_RECORDING_OPTIONS,         RTGETOPT_REQ_STRING },
+    { "--recordingoptions",         MODIFYVM_RECORDING_OPTIONS,         RTGETOPT_REQ_STRING },
+    { "--recordingvideores",        MODIFYVM_RECORDING_VIDEO_RES,       RTGETOPT_REQ_STRING },
+    { "--recordingvideoresolution", MODIFYVM_RECORDING_VIDEO_RES,       RTGETOPT_REQ_STRING },
+    { "--recordingvideorate",       MODIFYVM_RECORDING_VIDEO_RATE,      RTGETOPT_REQ_UINT32 },
+    { "--recordingvideofps",        MODIFYVM_RECORDING_VIDEO_FPS,       RTGETOPT_REQ_UINT32 },
 #endif
     { "--autostart-enabled",        MODIFYVM_AUTOSTART_ENABLED,         RTGETOPT_REQ_BOOL_ONOFF },
     { "--autostart-delay",          MODIFYVM_AUTOSTART_DELAY,           RTGETOPT_REQ_UINT32 },
@@ -470,7 +468,7 @@ void parseGroups(const char *pcszGroups, com::SafeArray<BSTR> *pGroups)
     }
 }
 
-#ifdef VBOX_WITH_VIDEOREC
+#ifdef VBOX_WITH_RECORDING
 static int parseScreens(const char *pcszScreens, com::SafeArray<BOOL> *pScreens)
 {
     while (pcszScreens && *pcszScreens)
@@ -564,18 +562,7 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
             }
             case MODIFYVM_OSTYPE:
             {
-                ComPtr<IGuestOSType> guestOSType;
-                CHECK_ERROR(a->virtualBox, GetGuestOSType(Bstr(ValueUnion.psz).raw(),
-                                                          guestOSType.asOutParam()));
-                if (SUCCEEDED(rc) && guestOSType)
-                {
-                    CHECK_ERROR(sessionMachine, COMSETTER(OSTypeId)(Bstr(ValueUnion.psz).raw()));
-                }
-                else
-                {
-                    errorArgument("Invalid guest OS type '%s'", ValueUnion.psz);
-                    rc = E_FAIL;
-                }
+                CHECK_ERROR(sessionMachine, COMSETTER(OSTypeId)(Bstr(ValueUnion.psz).raw()));
                 break;
             }
 
@@ -822,6 +809,10 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 CHECK_ERROR(sessionMachine, SetCPUProperty(CPUPropertyType_L1DFlushOnVMEntry, ValueUnion.f));
                 break;
 
+            case MODIFYVM_NESTED_HW_VIRT:
+                CHECK_ERROR(sessionMachine, SetCPUProperty(CPUPropertyType_HWVirt, ValueUnion.f));
+                break;
+
             case MODIFYVM_CPUS:
             {
                 CHECK_ERROR(sessionMachine, COMSETTER(CPUCount)(ValueUnion.u32));
@@ -878,6 +869,9 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 else if (   !RTStrICmp(ValueUnion.psz, "vmsvga")
                          || !RTStrICmp(ValueUnion.psz, "vmware"))
                     CHECK_ERROR(sessionMachine, COMSETTER(GraphicsControllerType)(GraphicsControllerType_VMSVGA));
+                else if (   !RTStrICmp(ValueUnion.psz, "vboxsvga")
+                         || !RTStrICmp(ValueUnion.psz, "svga"))
+                    CHECK_ERROR(sessionMachine, COMSETTER(GraphicsControllerType)(GraphicsControllerType_VBoxSVGA));
 #endif
                 else
                 {
@@ -2172,6 +2166,32 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 break;
             }
 
+            case MODIFYVM_UARTTYPE:
+            {
+                ComPtr<ISerialPort> uart;
+
+                CHECK_ERROR_BREAK(sessionMachine, GetSerialPort(GetOptState.uIndex - 1, uart.asOutParam()));
+                ASSERT(uart);
+
+                if (!RTStrICmp(ValueUnion.psz, "16450"))
+                {
+                    CHECK_ERROR(uart, COMSETTER(UartType)(UartType_U16450));
+                }
+                else if (!RTStrICmp(ValueUnion.psz, "16550A"))
+                {
+                    CHECK_ERROR(uart, COMSETTER(UartType)(UartType_U16550A));
+                }
+                else if (!RTStrICmp(ValueUnion.psz, "16750"))
+                {
+                    CHECK_ERROR(uart, COMSETTER(UartType)(UartType_U16750));
+                }
+                else
+                    return errorSyntax(USAGE_MODIFYVM,
+                                       "Invalid argument to '%s'",
+                                       GetOptState.pDef->pszLong);
+                break;
+            }
+
             case MODIFYVM_UART:
             {
                 ComPtr<ISerialPort> uart;
@@ -2733,7 +2753,7 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 break;
             }
 
-            case MODIFYVM_USB:
+            case MODIFYVM_USBOHCI:
             {
                 ULONG cOhciCtrls = 0;
                 rc = sessionMachine->GetUSBControllerCountByType(USBControllerType_OHCI, &cOhciCtrls);
@@ -2919,102 +2939,153 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 }
                 break;
             }
-#ifdef VBOX_WITH_VIDEOREC
-            case MODIFYVM_VIDEOCAP:
+#ifdef VBOX_WITH_RECORDING
+            case MODIFYVM_RECORDING:
+                RT_FALL_THROUGH();
+            case MODIFYVM_RECORDING_SCREENS:
+                RT_FALL_THROUGH();
+            case MODIFYVM_RECORDING_FILENAME:
+                RT_FALL_THROUGH();
+            case MODIFYVM_RECORDING_VIDEO_WIDTH:
+                RT_FALL_THROUGH();
+            case MODIFYVM_RECORDING_VIDEO_HEIGHT:
+                RT_FALL_THROUGH();
+            case MODIFYVM_RECORDING_VIDEO_RES:
+                RT_FALL_THROUGH();
+            case MODIFYVM_RECORDING_VIDEO_RATE:
+                RT_FALL_THROUGH();
+            case MODIFYVM_RECORDING_VIDEO_FPS:
+                RT_FALL_THROUGH();
+            case MODIFYVM_RECORDING_MAXTIME:
+                RT_FALL_THROUGH();
+            case MODIFYVM_RECORDING_MAXSIZE:
+                RT_FALL_THROUGH();
+            case MODIFYVM_RECORDING_OPTIONS:
             {
-                CHECK_ERROR(sessionMachine, COMSETTER(VideoCaptureEnabled)(ValueUnion.f));
-                break;
-            }
-            case MODIFYVM_VIDEOCAP_SCREENS:
-            {
-                ULONG cMonitors = 64;
-                CHECK_ERROR(sessionMachine, COMGETTER(MonitorCount)(&cMonitors));
-                com::SafeArray<BOOL> screens(cMonitors);
-                if (parseScreens(ValueUnion.psz, &screens))
+                ComPtr<IRecordingSettings> recordingSettings;
+                CHECK_ERROR_BREAK(machine, COMGETTER(RecordingSettings)(recordingSettings.asOutParam()));
+                SafeIfaceArray <IRecordingScreenSettings> saRecordingScreenScreens;
+                CHECK_ERROR_BREAK(recordingSettings, COMGETTER(Screens)(ComSafeArrayAsOutParam(saRecordingScreenScreens)));
+
+                switch (c)
                 {
-                    errorArgument("Invalid list of screens specified\n");
-                    rc = E_FAIL;
-                    break;
-                }
-                CHECK_ERROR(sessionMachine, COMSETTER(VideoCaptureScreens)(ComSafeArrayAsInParam(screens)));
-                break;
-            }
-            case MODIFYVM_VIDEOCAP_FILENAME:
-            {
-                Bstr bstr;
-                /* empty string will fall through, leaving bstr empty */
-                if (*ValueUnion.psz)
-                {
-                    char szVCFileAbs[RTPATH_MAX] = "";
-                    int vrc = RTPathAbs(ValueUnion.psz, szVCFileAbs, sizeof(szVCFileAbs));
-                    if (RT_FAILURE(vrc))
+                    case MODIFYVM_RECORDING:
                     {
-                        errorArgument("Cannot convert filename \"%s\" to absolute path\n", ValueUnion.psz);
-                        rc = E_FAIL;
+                        CHECK_ERROR(recordingSettings, COMSETTER(Enabled)(ValueUnion.f));
                         break;
                     }
-                    bstr = szVCFileAbs;
+                    case MODIFYVM_RECORDING_SCREENS:
+                    {
+                        ULONG cMonitors = 64;
+                        CHECK_ERROR(sessionMachine, COMGETTER(MonitorCount)(&cMonitors));
+                        com::SafeArray<BOOL> screens(cMonitors);
+                        if (parseScreens(ValueUnion.psz, &screens))
+                        {
+                            errorArgument("Invalid list of screens specified\n");
+                            rc = E_FAIL;
+                            break;
+                        }
+
+                        if (cMonitors > saRecordingScreenScreens.size()) /* Paranoia. */
+                            cMonitors = (ULONG)saRecordingScreenScreens.size();
+
+                        for (size_t i = 0; i < cMonitors; ++i)
+                            CHECK_ERROR_BREAK(saRecordingScreenScreens[i], COMSETTER(Enabled)(screens[i]));
+                        break;
+                    }
+                    case MODIFYVM_RECORDING_FILENAME:
+                    {
+                        Bstr bstr;
+                        /* empty string will fall through, leaving bstr empty */
+                        if (*ValueUnion.psz)
+                        {
+                            char szVCFileAbs[RTPATH_MAX] = "";
+                            int vrc = RTPathAbs(ValueUnion.psz, szVCFileAbs, sizeof(szVCFileAbs));
+                            if (RT_FAILURE(vrc))
+                            {
+                                errorArgument("Cannot convert filename \"%s\" to absolute path\n", ValueUnion.psz);
+                                rc = E_FAIL;
+                                break;
+                            }
+                            bstr = szVCFileAbs;
+                        }
+
+                        for (size_t i = 0; i < saRecordingScreenScreens.size(); ++i)
+                            CHECK_ERROR(saRecordingScreenScreens[i], COMSETTER(Filename)(bstr.raw()));
+                        break;
+                    }
+                    case MODIFYVM_RECORDING_VIDEO_WIDTH:
+                    {
+                        for (size_t i = 0; i < saRecordingScreenScreens.size(); ++i)
+                            CHECK_ERROR(saRecordingScreenScreens[i], COMSETTER(VideoWidth)(ValueUnion.u32));
+                        break;
+                    }
+                    case MODIFYVM_RECORDING_VIDEO_HEIGHT:
+                    {
+                        for (size_t i = 0; i < saRecordingScreenScreens.size(); ++i)
+                            CHECK_ERROR(saRecordingScreenScreens[i], COMSETTER(VideoHeight)(ValueUnion.u32));
+                        break;
+                    }
+                    case MODIFYVM_RECORDING_VIDEO_RES:
+                    {
+                        uint32_t uWidth = 0;
+                        char *pszNext;
+                        int vrc = RTStrToUInt32Ex(ValueUnion.psz, &pszNext, 0, &uWidth);
+                        if (RT_FAILURE(vrc) || vrc != VWRN_TRAILING_CHARS || !pszNext || *pszNext != 'x')
+                        {
+                            errorArgument("Error parsing video resolution '%s' (expected <width>x<height>)", ValueUnion.psz);
+                            rc = E_FAIL;
+                            break;
+                        }
+                        uint32_t uHeight = 0;
+                        vrc = RTStrToUInt32Ex(pszNext+1, NULL, 0, &uHeight);
+                        if (vrc != VINF_SUCCESS)
+                        {
+                            errorArgument("Error parsing video resolution '%s' (expected <width>x<height>)", ValueUnion.psz);
+                            rc = E_FAIL;
+                            break;
+                        }
+
+                        for (size_t i = 0; i < saRecordingScreenScreens.size(); ++i)
+                        {
+                            CHECK_ERROR(saRecordingScreenScreens[i], COMSETTER(VideoWidth)(uWidth));
+                            CHECK_ERROR(saRecordingScreenScreens[i], COMSETTER(VideoHeight)(uHeight));
+                        }
+                        break;
+                    }
+                    case MODIFYVM_RECORDING_VIDEO_RATE:
+                    {
+                        for (size_t i = 0; i < saRecordingScreenScreens.size(); ++i)
+                            CHECK_ERROR(saRecordingScreenScreens[i], COMSETTER(VideoRate)(ValueUnion.u32));
+                        break;
+                    }
+                    case MODIFYVM_RECORDING_VIDEO_FPS:
+                    {
+                        for (size_t i = 0; i < saRecordingScreenScreens.size(); ++i)
+                            CHECK_ERROR(saRecordingScreenScreens[i], COMSETTER(VideoFPS)(ValueUnion.u32));
+                        break;
+                    }
+                    case MODIFYVM_RECORDING_MAXTIME:
+                    {
+                        for (size_t i = 0; i < saRecordingScreenScreens.size(); ++i)
+                            CHECK_ERROR(saRecordingScreenScreens[i], COMSETTER(MaxTime)(ValueUnion.u32));
+                        break;
+                    }
+                    case MODIFYVM_RECORDING_MAXSIZE:
+                    {
+                        for (size_t i = 0; i < saRecordingScreenScreens.size(); ++i)
+                            CHECK_ERROR(saRecordingScreenScreens[i], COMSETTER(MaxFileSize)(ValueUnion.u32));
+                        break;
+                    }
+                    case MODIFYVM_RECORDING_OPTIONS:
+                    {
+                        Bstr bstr(ValueUnion.psz);
+                        for (size_t i = 0; i < saRecordingScreenScreens.size(); ++i)
+                            CHECK_ERROR(saRecordingScreenScreens[i], COMSETTER(Options)(bstr.raw()));
+                        break;
+                    }
                 }
-                CHECK_ERROR(sessionMachine, COMSETTER(VideoCaptureFile)(bstr.raw()));
-                break;
-            }
-            case MODIFYVM_VIDEOCAP_WIDTH:
-            {
-                CHECK_ERROR(sessionMachine, COMSETTER(VideoCaptureWidth)(ValueUnion.u32));
-                break;
-            }
-            case MODIFYVM_VIDEOCAP_HEIGHT:
-            {
-                CHECK_ERROR(sessionMachine, COMSETTER(VideoCaptureHeight)(ValueUnion.u32));
-                break;
-            }
-            case MODIFYVM_VIDEOCAP_RES:
-            {
-                uint32_t uWidth = 0;
-                char *pszNext;
-                int vrc = RTStrToUInt32Ex(ValueUnion.psz, &pszNext, 0, &uWidth);
-                if (RT_FAILURE(vrc) || vrc != VWRN_TRAILING_CHARS || !pszNext || *pszNext != 'x')
-                {
-                    errorArgument("Error parsing geomtry '%s' (expected <width>x<height>)", ValueUnion.psz);
-                    rc = E_FAIL;
-                    break;
-                }
-                uint32_t uHeight = 0;
-                vrc = RTStrToUInt32Ex(pszNext+1, NULL, 0, &uHeight);
-                if (vrc != VINF_SUCCESS)
-                {
-                    errorArgument("Error parsing geomtry '%s' (expected <width>x<height>)", ValueUnion.psz);
-                    rc = E_FAIL;
-                    break;
-                }
-                CHECK_ERROR(sessionMachine, COMSETTER(VideoCaptureWidth)(uWidth));
-                CHECK_ERROR(sessionMachine, COMSETTER(VideoCaptureHeight)(uHeight));
-                break;
-            }
-            case MODIFYVM_VIDEOCAP_RATE:
-            {
-                CHECK_ERROR(sessionMachine, COMSETTER(VideoCaptureRate)(ValueUnion.u32));
-                break;
-            }
-            case MODIFYVM_VIDEOCAP_FPS:
-            {
-                CHECK_ERROR(sessionMachine, COMSETTER(VideoCaptureFPS)(ValueUnion.u32));
-                break;
-            }
-            case MODIFYVM_VIDEOCAP_MAXTIME:
-            {
-                CHECK_ERROR(sessionMachine, COMSETTER(VideoCaptureMaxTime)(ValueUnion.u32));
-                break;
-            }
-            case MODIFYVM_VIDEOCAP_MAXSIZE:
-            {
-                CHECK_ERROR(sessionMachine, COMSETTER(VideoCaptureMaxFileSize)(ValueUnion.u32));
-                break;
-            }
-            case MODIFYVM_VIDEOCAP_OPTIONS:
-            {
-                Bstr bstr(ValueUnion.psz);
-                CHECK_ERROR(sessionMachine, COMSETTER(VideoCaptureOptions)(bstr.raw()));
+
                 break;
             }
 #endif

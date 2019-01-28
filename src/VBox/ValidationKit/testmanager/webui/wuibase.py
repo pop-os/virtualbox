@@ -7,7 +7,7 @@ Test Manager Web-UI - Base Classes.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2017 Oracle Corporation
+Copyright (C) 2012-2019 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 118412 $"
+__version__ = "$Revision: 127855 $"
 
 
 # Standard python imports.
@@ -41,6 +41,11 @@ from testmanager.core.base        import ModelDataBase, ModelLogicBase, TMExcept
 from testmanager.core.db          import TMDatabaseConnection;
 from testmanager.core.systemlog   import SystemLogLogic, SystemLogData;
 from testmanager.core.useraccount import UserAccountLogic
+
+# Python 3 hacks:
+if sys.version_info[0] >= 3:
+    unicode = str;  # pylint: disable=redefined-builtin,invalid-name
+    long = int;     # pylint: disable=redefined-builtin,invalid-name
 
 
 class WuiException(TMExceptionBase):
@@ -279,7 +284,7 @@ class WuiDispatcherBase(object):
         # Side menu form attributes.
         if self._dSideMenuFormAttrs:
             dReplacements['@@SIDE_MENU_FORM_ATTRS@@'] = ' '.join(['%s="%s"' % (sKey, webutils.escapeAttr(sValue))
-                                                                  for sKey, sValue in self._dSideMenuFormAttrs.iteritems()]);
+                                                                  for sKey, sValue in self._dSideMenuFormAttrs.items()]);
 
         # Special current user handling.
         if self._oCurUser is not None:

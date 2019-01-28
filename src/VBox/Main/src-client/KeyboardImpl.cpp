@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,9 +25,10 @@
 
 #include <VBox/com/array.h>
 #include <VBox/vmm/pdmdrv.h>
+#include <VBox/err.h>
 
-#include <iprt/asm.h>
 #include <iprt/cpp/utils.h>
+
 
 // defines
 ////////////////////////////////////////////////////////////////////////////////
@@ -214,9 +215,9 @@ HRESULT Keyboard::putScancodes(const std::vector<LONG> &aScancodes,
     evDesc.fire(0);
 
     if (RT_FAILURE(vrc))
-        return setError(VBOX_E_IPRT_ERROR,
-                        tr("Could not send all scan codes to the virtual keyboard (%Rrc)"),
-                        vrc);
+        return setErrorBoth(VBOX_E_IPRT_ERROR, vrc,
+                            tr("Could not send all scan codes to the virtual keyboard (%Rrc)"),
+                            vrc);
 
     return S_OK;
 }

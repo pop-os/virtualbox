@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2018 Oracle Corporation
+ * Copyright (C) 2018-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,7 +31,7 @@
 #include <iprt/tracelog.h>
 
 #include <iprt/assert.h>
-#include <iprt/err.h>
+#include <iprt/errcore.h>
 #include <iprt/getopt.h>
 #include <iprt/initterm.h>
 #include <iprt/message.h>
@@ -206,7 +206,7 @@ int main(int argc, char **argv)
                          , RTPathFilename(argv[0]));
                 return RTEXITCODE_SUCCESS;
             case 'V':
-                RTPrintf("$Revision: 123657 $\n");
+                RTPrintf("$Revision: 127855 $\n");
                 return RTEXITCODE_SUCCESS;
 
             case 'i':

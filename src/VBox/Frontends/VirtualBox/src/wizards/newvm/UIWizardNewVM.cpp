@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,28 +15,22 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* GUI includes: */
-# include "VBoxGlobal.h"
-# include "UIWizardNewVM.h"
-# include "UIWizardNewVMPageBasic1.h"
-# include "UIWizardNewVMPageBasic2.h"
-# include "UIWizardNewVMPageBasic3.h"
-# include "UIWizardNewVMPageExpert.h"
-# include "UIMessageCenter.h"
-# include "UIMedium.h"
+#include "VBoxGlobal.h"
+#include "UIWizardNewVM.h"
+#include "UIWizardNewVMPageBasic1.h"
+#include "UIWizardNewVMPageBasic2.h"
+#include "UIWizardNewVMPageBasic3.h"
+#include "UIWizardNewVMPageExpert.h"
+#include "UIMessageCenter.h"
+#include "UIMedium.h"
 
 /* COM includes: */
-# include "CAudioAdapter.h"
-# include "CUSBController.h"
-# include "CUSBDeviceFilters.h"
-# include "CExtPackManager.h"
-# include "CStorageController.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "CAudioAdapter.h"
+#include "CUSBController.h"
+#include "CUSBDeviceFilters.h"
+#include "CExtPackManager.h"
+#include "CStorageController.h"
 
 /* Namespaces: */
 using namespace UIExtraDataDefs;
@@ -54,10 +48,10 @@ UIWizardNewVM::UIWizardNewVM(QWidget *pParent, const QString &strGroup /* = QStr
 {
 #ifndef VBOX_WS_MAC
     /* Assign watermark: */
-    assignWatermark(":/vmw_new_welcome.png");
+    assignWatermark(":/wizard_new_welcome.png");
 #else /* VBOX_WS_MAC */
     /* Assign background image: */
-    assignBackground(":/vmw_new_welcome_bg.png");
+    assignBackground(":/wizard_new_welcome_bg.png");
 #endif /* VBOX_WS_MAC */
     /* Register classes: */
     qRegisterMetaType<CGuestOSType>();
@@ -105,7 +99,7 @@ bool UIWizardNewVM::createVM()
         QVector<QString> groups;
         if (!m_strGroup.isEmpty())
             groups << m_strGroup;
-        m_machine = vbox.CreateMachine(QString() /* no file-path for now */,
+        m_machine = vbox.CreateMachine(field("machineFilePath").toString(),
                                        field("name").toString(),
                                        groups, strTypeId, QString());
         if (!vbox.isOk())
@@ -125,6 +119,9 @@ bool UIWizardNewVM::createVM()
 
     /* RAM size: */
     m_machine.SetMemorySize(field("ram").toInt());
+
+    /* Graphics Controller type: */
+    m_machine.SetGraphicsControllerType(type.GetRecommendedGraphicsController());
 
     /* VRAM size - select maximum between recommended and minimum for fullscreen: */
     m_machine.SetVRAMSize(qMax(type.GetRecommendedVRAM(), (ULONG)(VBoxGlobal::requiredVideoMemory(strTypeId) / _1M)));
@@ -265,35 +262,35 @@ bool UIWizardNewVM::createVM()
     /* Attach default devices: */
     {
         bool success = false;
-        QString strMachineId = m_machine.GetId();
-        CSession session = vboxGlobal().openSession(strMachineId);
+        QUuid uMachineId = m_machine.GetId();
+        CSession session = vboxGlobal().openSession(uMachineId);
         if (!session.isNull())
         {
             CMachine machine = session.GetMachine();
 
-            QString strId = field("virtualDiskId").toString();
+            QUuid uId = field("virtualDiskId").toUuid();
             /* Boot virtual hard drive: */
-            if (!strId.isNull())
+            if (!uId.isNull())
             {
-                UIMedium vmedium = vboxGlobal().medium(strId);
+                UIMedium vmedium = vboxGlobal().medium(uId);
                 CMedium medium = vmedium.medium();              /// @todo r=dj can this be cached somewhere?
                 machine.AttachDevice(strHDName, 0, 0, KDeviceType_HardDisk, medium);
                 if (!machine.isOk())
-                    msgCenter().cannotAttachDevice(machine, UIMediumType_HardDisk, field("virtualDiskLocation").toString(),
+                    msgCenter().cannotAttachDevice(machine, UIMediumDeviceType_HardDisk, field("virtualDiskLocation").toString(),
                                                    StorageSlot(ctrHDBus, 0, 0), this);
             }
 
             /* Attach empty optical drive: */
             machine.AttachDevice(strDVDName, 1, 0, KDeviceType_DVD, CMedium());
             if (!machine.isOk())
-                msgCenter().cannotAttachDevice(machine, UIMediumType_DVD, QString(), StorageSlot(strDVDBus, 1, 0), this);
+                msgCenter().cannotAttachDevice(machine, UIMediumDeviceType_DVD, QString(), StorageSlot(strDVDBus, 1, 0), this);
 
 
             /* Attach an empty floppy drive if recommended */
             if (type.GetRecommendedFloppy()) {
                 machine.AttachDevice(strFloppyName, 0, 0, KDeviceType_Floppy, CMedium());
                 if (!machine.isOk())
-                    msgCenter().cannotAttachDevice(machine, UIMediumType_Floppy, QString(),
+                    msgCenter().cannotAttachDevice(machine, UIMediumDeviceType_Floppy, QString(),
                                                    StorageSlot(KStorageBus_Floppy, 0, 0), this);
             }
 
@@ -396,4 +393,3 @@ QString UIWizardNewVM::getNextControllerName(KStorageBus type)
     }
     return strControllerName;
 }
-

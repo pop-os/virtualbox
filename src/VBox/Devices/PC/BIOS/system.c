@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -70,8 +70,6 @@
 
 #define ACPI_DATA_SIZE    0x00010000L   /** @todo configurable? put elsewhere? */
 
-#define BX_CPU                  3
-
 extern  int pmode_IDT;
 extern  int rmode_IDT;
 
@@ -84,42 +82,47 @@ uint16_t read_ss(void);
  * Quite straightforward.
  */
 
-void pm_stack_save(uint16_t cx, uint16_t es, uint16_t si, uint16_t frame);
+void pm_stack_save(uint16_t cx, uint16_t es, uint16_t si);
 #pragma aux pm_stack_save =     \
     ".386"                      \
     "push   ds"                 \
     "push   eax"                \
-    "xor    eax, eax"           \
+    "xor    ax, ax"             \
     "mov    ds, ax"             \
     "mov    ds:[467h], sp"      \
     "mov    ds:[469h], ss"      \
-    parm [cx] [es] [si] [ax] modify nomemory;
+    parm [cx] [es] [si] modify nomemory;
 
-/* Uses position independent code... because it was too hard to figure
- * out how to code the far call in inline assembler.
+/* Uses position independent code to build a far return... because it was
+ * too hard to figure out how to code the far call in inline assembler.
+ *
+ * NB: It would be lovely to do 'add [sp],N' instead of 'pop ax; add ax,M;
+ * push ax'. Unfortunately the former cannot be encoded, though 'add [esp],N'
+ * can be on 386 and later -- but it may be unwise to assume that the high
+ * bits of ESP are all zero.
  */
 void pm_enter(void);
 #pragma aux pm_enter =              \
     ".386p"                         \
+    "lgdt   fword ptr es:[si+8]"    \
+    "lidt   fword ptr cs:pmode_IDT" \
+    "push   20h"                    \
     "call   pentry"                 \
     "pentry:"                       \
     "pop    ax"                     \
-    "add    ax, 1Bh"                \
-    "push   20h"                    \
+    "add    ax, 0Eh"                \
     "push   ax"                     \
-    "lgdt   fword ptr es:[si+8]"    \
-    "lidt   fword ptr cs:pmode_IDT" \
     "mov    eax, cr0"               \
     "or     al, 1"                  \
     "mov    cr0, eax"               \
     "retf"                          \
     "pm_pm:"                        \
-    "mov    ax, 28h"                \
-    "mov    ss, ax"                 \
     "mov    ax, 10h"                \
     "mov    ds, ax"                 \
-    "mov    ax, 18h"                \
+    "add    al, 08h"                \
     "mov    es, ax"                 \
+    "add    al, 10h"                \
+    "mov    ss, ax"                 \
     modify nomemory;
 
 /* Restore segment limits to real mode compatible values and
@@ -128,15 +131,15 @@ void pm_enter(void);
 void pm_exit(void);
 #pragma aux pm_exit =               \
     ".386p"                         \
-    "call   pexit"                  \
-    "pexit:"                        \
-    "pop    ax"                     \
-    "push   0F000h"                 \
-    "add    ax, 18h"                \
-    "push   ax"                     \
     "mov    ax, 28h"                \
     "mov    ds, ax"                 \
     "mov    es, ax"                 \
+    "push   0F000h"                 \
+    "call   pexit"                  \
+    "pexit:"                        \
+    "pop    ax"                     \
+    "add    ax, 0Eh"                \
+    "push   ax"                     \
     "mov    eax, cr0"               \
     "and    al, 0FEh"               \
     "mov    cr0, eax"               \
@@ -175,29 +178,29 @@ void pm_stack_save(uint16_t cx, uint16_t es, uint16_t si, uint16_t frame);
 
 /* Uses position independent code... because it was too hard to figure
  * out how to code the far call in inline assembler.
- * NB: Trashes MSW bits but the CPU will be reset anyway.
  */
 void pm_enter(void);
 #pragma aux pm_enter =              \
     ".286p"                         \
-    "call   pentry"                 \
-    "pentry:"                       \
-    "pop    di"                     \
-    "add    di, 18h"                \
-    "push   20h"                    \
-    "push   di"                     \
     "lgdt   fword ptr es:[si+8]"    \
     "lidt   fword ptr cs:pmode_IDT" \
+    "push   20h"                    \
+    "call   pentry"                 \
+    "pentry:"                       \
+    "pop    ax"                     \
+    "add    ax, 0Eh"                \
+    "push   ax"                     \
+    "smsw   ax"                     \
     "or     al, 1"                  \
     "lmsw   ax"                     \
     "retf"                          \
     "pm_pm:"                        \
-    "mov    ax, 28h"                \
-    "mov    ss, ax"                 \
     "mov    ax, 10h"                \
     "mov    ds, ax"                 \
-    "mov    ax, 18h"                \
+    "add    al, 08h"                \
     "mov    es, ax"                 \
+    "add    al, 10h"                \
+    "mov    ss, ax"                 \
     modify nomemory;
 
 /* Set up shutdown status and reset the CPU. The POST code
@@ -226,13 +229,14 @@ void pm_stack_restore(void);
 
 #endif
 
+/* NB: CX is set earlier in pm_stack_save */
 void pm_copy(void);
 #pragma aux pm_copy =               \
     "xor    si, si"                 \
     "xor    di, di"                 \
     "cld"                           \
     "rep    movsw"                  \
-    modify [di] nomemory;
+    modify [si di cx] nomemory;
 
 /* The pm_switch has a few crucial differences from pm_enter, hence
  * it is replicated here. Uses LMSW to avoid trashing high word of eax.
@@ -240,24 +244,25 @@ void pm_copy(void);
 void pm_switch(uint16_t reg_si);
 #pragma aux pm_switch =             \
     ".286p"                         \
-    "call   pentry"                 \
-    "pentry:"                       \
-    "pop    di"                     \
-    "add    di, 18h"                \
-    "push   38h"                    \
-    "push   di"                     \
     "lgdt   fword ptr es:[si+08h]"  \
     "lidt   fword ptr es:[si+10h]"  \
-    "mov    ax, 1"                  \
+    "push   38h"                    \
+    "call   pentry"                 \
+    "pentry:"                       \
+    "pop    ax"                     \
+    "add    ax, 0Eh"                \
+    "push   ax"                     \
+    "smsw   ax"                     \
+    "or     al, 1"                  \
     "lmsw   ax"                     \
     "retf"                          \
     "pm_pm:"                        \
-    "mov    ax, 28h"                \
-    "mov    ss, ax"                 \
     "mov    ax, 18h"                \
     "mov    ds, ax"                 \
-    "mov    ax, 20h"                \
+    "add    al, 08h"                \
     "mov    es, ax"                 \
+    "add    al, 08h"                \
+    "mov    ss, ax"                 \
     parm [si] modify nomemory;
 
 /* Return to caller - we do not use IRET because we should not enable
@@ -316,29 +321,6 @@ bx_bool set_enable_a20(bx_bool val)
         outb(0x92, oldval & 0xfd);
 
     return((oldval & 0x02) != 0);
-}
-
-typedef struct {
-    uint32_t    start;
-    uint32_t    xstart;
-    uint32_t    len;
-    uint32_t    xlen;
-    uint32_t    type;
-} mem_range_t;
-
-void set_e820_range(uint16_t ES, uint16_t DI, uint32_t start, uint32_t end,
-                    uint8_t extra_start, uint8_t extra_end, uint16_t type)
-{
-    mem_range_t __far   *range;
-
-    range = ES :> (mem_range_t *)DI;
-    range->start  = start;
-    range->xstart = extra_start;
-    end -= start;
-    extra_end -= extra_start;
-    range->len    = end;
-    range->xlen   = extra_end;
-    range->type   = type;
 }
 
 /// @todo move elsewhere?
@@ -408,7 +390,10 @@ void BIOSCALL int15_function(sys_regs_t r)
         }
         break;
 
-    case 0x41:
+        /* These are here just to avoid warnings being logged. */
+    case 0x22:  /* Locate ROM BASIC (tough when we don't have any.) */
+    case 0x41:  /* PC Convertible, wait for external events. */
+    case 0xC7:  /* PS/2, get memory map. */
         SET_CF();
         SET_AH(UNSUPPORTED_FUNCTION);
         break;
@@ -417,10 +402,10 @@ void BIOSCALL int15_function(sys_regs_t r)
     //       but not handle this as an unknown function (regardless of CPU type).
     case 0x4f:
         /* keyboard intercept */
-#if BX_CPU < 2
-        SET_AH(UNSUPPORTED_FUNCTION);
-#else
+#if VBOX_BIOS_CPU >= 80286
         // nop
+#else
+        SET_AH(UNSUPPORTED_FUNCTION);
 #endif
         SET_CF();
         break;
@@ -467,20 +452,35 @@ void BIOSCALL int15_function(sys_regs_t r)
         break;
         }
 
+    case 0x86:
+        // Wait for CX:DX microseconds. currently using the
+        // refresh request port 0x61 bit4, toggling every 15usec
+        int_enable();
+        timer_wait(((uint32_t)CX << 16) | DX);
+        break;
+
     case 0x88:
         // Get the amount of extended memory (above 1M)
-#if BX_CPU < 2
-        SET_AH(UNSUPPORTED_FUNCTION);
-        SET_CF();
-#else
+#if VBOX_BIOS_CPU >= 80286
         AX = (inb_cmos(0x31) << 8) | inb_cmos(0x30);
 
+#if VBOX_BIOS_CPU >= 80386
         // According to Ralf Brown's interrupt the limit should be 15M,
         // but real machines mostly return max. 63M.
         if(AX > 0xffc0)
             AX = 0xffc0;
+#else
+        // An AT compatible cannot have more than 15M extended memory.
+        // If more is reported, some software (e.g. Windows 3.1) gets
+        // quite upset.
+        if(AX > 0x3c00)
+            AX = 0x3c00;
+#endif
 
         CLEAR_CF();
+#else
+        SET_AH(UNSUPPORTED_FUNCTION);
+        SET_CF();
 #endif
         break;
 
@@ -577,6 +577,31 @@ undecoded:
     }
 }
 
+#if VBOX_BIOS_CPU >= 80386
+
+typedef struct {
+    uint32_t    start;
+    uint32_t    xstart;
+    uint32_t    len;
+    uint32_t    xlen;
+    uint32_t    type;
+} mem_range_t;
+
+void set_e820_range(uint16_t reg_ES, uint16_t reg_DI, uint32_t start, uint32_t end,
+                    uint8_t extra_start, uint8_t extra_end, uint16_t type)
+{
+    mem_range_t __far   *range;
+
+    range = reg_ES :> (mem_range_t *)reg_DI;
+    range->start  = start;
+    range->xstart = extra_start;
+    end -= start;
+    extra_end -= extra_start;
+    range->len    = end;
+    range->xlen   = extra_end;
+    range->type   = type;
+}
+
 void BIOSCALL int15_function32(sys32_regs_t r)
 {
     uint32_t    extended_memory_size=0; // 64bits long
@@ -587,13 +612,6 @@ void BIOSCALL int15_function32(sys32_regs_t r)
     BX_DEBUG_INT15("int15 AX=%04x\n",AX);
 
     switch (GET_AH()) {
-    case 0x86:
-        // Wait for CX:DX microseconds. currently using the
-        // refresh request port 0x61 bit4, toggling every 15usec
-        int_enable();
-        timer_wait(((uint32_t)CX << 16) | DX);
-        break;
-
     case 0xd0:
         if (GET_AL() != 0x4f)
             goto int15_unimplemented;
@@ -829,6 +847,7 @@ void BIOSCALL int15_function32(sys32_regs_t r)
         break;
     }
 }
+#endif  /* VBOX_BIOS_CPU >= 80386 */
 
 #if VBOX_BIOS_CPU >= 80286
 
@@ -857,7 +876,7 @@ void BIOSCALL int15_blkmove(disk_regs_t r)
     // offset   use     initially  comments
     // ==============================================
     // 00..07   Unused  zeros      Null descriptor
-    // 08..0f   GDT     zeros      filled in by BIOS
+    // 08..0f   scratch zeros      work area used by BIOS
     // 10..17   source  ssssssss   source of data
     // 18..1f   dest    dddddddd   destination of data
     // 20..27   CS      zeros      filled in by BIOS
@@ -898,7 +917,14 @@ void BIOSCALL int15_blkmove(disk_regs_t r)
     write_byte(ES, SI+0x28+5, 0x93);     // access
     write_word(ES, SI+0x28+6, 0x0000);   // base 31:24/reserved/limit 19:16
 
+#if VBOX_BIOS_CPU >= 80386
+    /* Not taking the address of the parameter allows the code generator
+     * produce slightly better code for some unknown reason.
+     */
+    pm_stack_save(CX, ES, SI);
+#else
     pm_stack_save(CX, ES, SI, FP_OFF(&r));
+#endif
     pm_enter();
     pm_copy();
     pm_exit();
@@ -912,4 +938,4 @@ void BIOSCALL int15_blkmove(disk_regs_t r)
     SET_AH(0);
     CLEAR_CF();
 }
-#endif
+#endif  /* VBOX_BIOS_CPU >= 80286 */

@@ -7,9 +7,11 @@
 Interface used by the admin to regenerate scheduling queues.
 """
 
+from __future__ import print_function;
+
 __copyright__ = \
 """
-Copyright (C) 2012-2017 Oracle Corporation
+Copyright (C) 2012-2019 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -28,12 +30,12 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 118412 $"
+__version__ = "$Revision: 127855 $"
 
 # Standard python imports
 import sys;
 import os;
-from optparse import OptionParser;
+from optparse import OptionParser;  # pylint: disable=deprecated-module
 
 # Add Test Manager's modules path
 g_ksTestManagerDir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))));
@@ -43,6 +45,8 @@ sys.path.append(g_ksTestManagerDir);
 from testmanager.core.db            import TMDatabaseConnection;
 from testmanager.core.schedulerbase import SchedulerBase;
 from testmanager.core.schedgroup    import SchedGroupLogic;
+
+
 
 class RegenSchedQueues(object): # pylint: disable=R0903
     """
@@ -75,28 +79,28 @@ class RegenSchedQueues(object): # pylint: disable=R0903
         iRc = 0;
         for oGroup in aoGroups:
             if not self.oConfig.fQuiet:
-                print '%s (ID %#d):' % (oGroup.sName, oGroup.idSchedGroup,);
+                print('%s (ID %#d):' % (oGroup.sName, oGroup.idSchedGroup,));
             try:
                 (aoErrors, asMessages) = SchedulerBase.recreateQueue(oDb, self.oConfig.uid, oGroup.idSchedGroup, 2);
             except Exception as oXcpt:
                 oDb.rollback();
-                print '  !!Hit exception processing "%s": %s' % (oGroup.sName, oXcpt,);
+                print('  !!Hit exception processing "%s": %s' % (oGroup.sName, oXcpt,));
             else:
                 if not aoErrors:
                     if not self.oConfig.fQuiet:
-                        print '  Successfully regenerated.';
+                        print('  Successfully regenerated.');
                 else:
                     iRc = 1;
-                    print '  %d errors:' % (len(aoErrors,));
+                    print('  %d errors:' % (len(aoErrors,)));
                     for oError in aoErrors:
                         if oError[1]  is None:
-                            print '  !!%s' % (oError[0],);
+                            print('  !!%s' % (oError[0],));
                         else:
-                            print '  !!%s (%s)' % (oError[0], oError[1]);
+                            print('  !!%s (%s)' % (oError[0], oError[1]));
                 if asMessages and not self.oConfig.fQuiet:
-                    print '  %d messages:' % (len(asMessages),);
+                    print('  %d messages:' % (len(asMessages),));
                     for sMsg in asMessages:
-                        print '  ##%s' % (sMsg,);
+                        print('  ##%s' % (sMsg,));
         return iRc;
 
     @staticmethod

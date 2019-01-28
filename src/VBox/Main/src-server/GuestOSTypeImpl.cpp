@@ -1,11 +1,10 @@
 /* $Id: GuestOSTypeImpl.cpp $ */
 /** @file
- *
  * VirtualBox COM class implementation
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,9 +15,10 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#define LOG_GROUP LOG_GROUP_MAIN_GUESTOSTYPE
 #include "GuestOSTypeImpl.h"
 #include "AutoCaller.h"
-#include "Logging.h"
+#include "LoggingNew.h"
 #include <iprt/cpp/utils.h>
 
 // constructor / destructor
@@ -27,7 +27,9 @@
 GuestOSType::GuestOSType()
     : mOSType(VBOXOSTYPE_Unknown)
     , mOSHint(VBOXOSHINT_NONE)
-    , mRAMSize(0), mVRAMSize(0)
+    , mRAMSize(0)
+    , mGraphicsControllerType(GraphicsControllerType_Null)
+    , mVRAMSize(0)
     , mHDDSize(0), mMonitorCount(0)
     , mNetworkAdapterType(NetworkAdapterType_Am79C973)
     , mNumSerialEnabled(0)
@@ -90,6 +92,7 @@ HRESULT GuestOSType::init(const Global::OSType &ostype)
     unconst(mOSType)                    = ostype.osType;
     unconst(mOSHint)                    = ostype.osHint;
     unconst(mRAMSize)                   = ostype.recommendedRAM;
+    unconst(mGraphicsControllerType)    = ostype.graphicsControllerType;
     unconst(mVRAMSize)                  = ostype.recommendedVRAM;
     unconst(mHDDSize)                   = ostype.recommendedHDD;
     unconst(mNetworkAdapterType)        = ostype.networkAdapterType;
@@ -187,6 +190,15 @@ HRESULT GuestOSType::getRecommendedRAM(ULONG *aRAMSize)
 {
     /* mRAMSize is constant during life time, no need to lock */
     *aRAMSize = mRAMSize;
+
+    return S_OK;
+}
+
+
+HRESULT GuestOSType::getRecommendedGraphicsController(GraphicsControllerType_T *aRecommendedGraphicsController)
+{
+    /* mGraphicsController is constant during life time, no need to lock */
+    *aRecommendedGraphicsController = mGraphicsControllerType;
 
     return S_OK;
 }

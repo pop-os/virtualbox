@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __UIMultiScreenLayout_h__
-#define __UIMultiScreenLayout_h__
+#ifndef FEQT_INCLUDED_SRC_runtime_UIMultiScreenLayout_h
+#define FEQT_INCLUDED_SRC_runtime_UIMultiScreenLayout_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Qt includes: */
 #include <QObject>
@@ -34,8 +37,6 @@ class UIMultiScreenLayout : public QObject
 
 signals:
 
-    /** Notifies about layout update. */
-    void sigScreenLayoutUpdate();
     /** Notifies about layout change. */
     void sigScreenLayoutChange();
 
@@ -65,6 +66,7 @@ private:
     /* Helpers: Prepare stuff: */
     void calculateHostMonitorCount();
     void calculateGuestScreenCount();
+    void prepareConnections();
 
     /* Other helpers: */
     void saveScreenMapping();
@@ -80,5 +82,5 @@ private:
     QList<QMenu*> m_screenMenuList;
 };
 
-#endif /* __UIMultiScreenLayout_h__ */
+#endif /* !FEQT_INCLUDED_SRC_runtime_UIMultiScreenLayout_h */
 

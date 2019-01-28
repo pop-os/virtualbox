@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2018 Oracle Corporation
+ * Copyright (C) 2016-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef DEV_HDA_COMMON_H
-#define DEV_HDA_COMMON_H
+#ifndef VBOX_INCLUDED_SRC_Audio_DevHDACommon_h
+#define VBOX_INCLUDED_SRC_Audio_DevHDACommon_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "AudioMixer.h"
 #include <VBox/log.h> /* LOG_ENABLED */
@@ -95,7 +98,7 @@ AssertCompile(HDA_MAX_SDI <= HDA_MAX_SDO);
  * Note: For handling surround setups (e.g. 5.1 speaker setups) we need
  *       a higher Hz rate, as the device emulation otherwise will come into
  *       timing trouble, making the output (DMA reads) crackling. */
-#define HDA_TIMER_HZ_DEFAULT        200
+#define HDA_TIMER_HZ_DEFAULT        100
 
 /** Default position adjustment (in audio samples).
  *
@@ -553,7 +556,7 @@ typedef struct HDABDLESTATE
 typedef struct HDABDLEDESC
 {
     /** Starting address of the actual buffer. Must be 128-bit aligned. */
-    uint64_t     u64BufAdr;
+    uint64_t     u64BufAddr;
     /** Size of the actual buffer (in bytes). */
     uint32_t     u32BufSize;
     /** Bit 0: Interrupt on completion; the controller will generate
@@ -651,5 +654,5 @@ bool          hdaR3TimerSet(PHDASTATE pThis, PHDASTREAM pStream, uint64_t u64Exp
 #endif /* IN_RING3 */
 /** @} */
 
-#endif /* !DEV_HDA_H_COMMON */
+#endif /* !VBOX_INCLUDED_SRC_Audio_DevHDACommon_h */
 

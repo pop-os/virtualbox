@@ -3,7 +3,7 @@
 ;
 
 ;
-; Copyright (C) 2006-2017 Oracle Corporation
+; Copyright (C) 2006-2019 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -42,30 +42,29 @@
 ; This is part of  the VMCPU structure.
 struc VMCPU
     .fLocalForcedActions    resd 1
+    alignb 8
     .enmState               resd 1
-    .pUVCpu                 RTR3PTR_RES 1
-    .pVMR3                  RTR3PTR_RES 1
-    .pVMR0                  RTR0PTR_RES 1
-    .pVMRC                  RTRCPTR_RES 1
-    .idCpu                  resd 1
-
-    .hNativeThread          RTR0PTR_RES 1
-    .hNativeThreadR0        RTR0PTR_RES 1
     .idHostCpu              resd 1
     .iHostCpuSet            resd 1
-%if HC_ARCH_BITS == 32
-    .abAlignment1           resb 12
-%else
-;    .abAlignment1           resb 0
-%endif
 
     alignb 64
     .iem                    resb 18496
-    .hm                     resb 5824
-    .em                     resb 1408
+
+    alignb 64
+    .idCpu                  resd 1
+    .pVMRC                  RTRCPTR_RES 1
+    .pVMR3                  RTR3PTR_RES 1
+    .pVMR0                  RTR0PTR_RES 1
+    .pUVCpu                 RTR3PTR_RES 1
+    .hNativeThread          RTR0PTR_RES 1
+    .hNativeThreadR0        RTR0PTR_RES 1
+
+    alignb 64
+    .hm                     resb 5888
+    .nem                    resb 512
     .trpm                   resb 128
     .tm                     resb 384
-    .vmm                    resb 704
+    .vmm                    resb 896
     .pdm                    resb 256
     .iom                    resb 512
     .dbgf                   resb 256
@@ -81,6 +80,8 @@ struc VMCPU
     .pgm                    resb 4096
     alignb 4096
     .cpum                   resb 4096
+    alignb 4096
+    .em                     resb 40960
     alignb 4096
 endstruc
 
@@ -102,13 +103,13 @@ struc VM
     .offVMCPU               resd 1
     .pfnVMMRCToHostAsm      resd 1
     .pfnVMMRCToHostAsmNoReturn resd 1
+    .bMainExecutionEngine   resb 1
     .fRecompileUser         resb 1
     .fRecompileSupervisor   resb 1
     .fRawRing1Enabled       resb 1
     .fPATMEnabled           resb 1
     .fCSAMEnabled           resb 1
     .fHMEnabled             resb 1
-    .fHMEnabledFixed        resb 1
     .fHMNeedRawModeCtx      resb 1
     .fFaultTolerantMaster   resb 1
     .fUseLargePages         resb 1
@@ -159,8 +160,9 @@ struc VM
     .pdm                    resb 1920
     .iom                    resb 896
     .em                     resb 256
+    .nem                    resb 128
     .tm                     resb 2496
-    .dbgf                   resb 2368
+    .dbgf                   resb 2432
     .ssm                    resb 128
     .ftm                    resb 512
 %ifdef VBOX_WITH_RAW_MODE
@@ -172,7 +174,7 @@ struc VM
 %endif
     .gim                    resb 448
     .apic                   resb 128
-    .vm                     resb 24
+    .vm                     resb 32
     .cfgm                   resb 8
     alignb 4096
     .aCpus                  resb VMCPU_size

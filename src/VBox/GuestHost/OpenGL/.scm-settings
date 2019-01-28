@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2017 Oracle Corporation
+# Copyright (C) 2017-2019 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -16,7 +16,7 @@
 #
 
 # The basic config here is external copyright, however there are lots of exceptions
-/*.h:                                      --external-copyright --no-convert-tabs --no-strip-trailing-blanks
+/*.h:                                      --external-copyright --no-convert-tabs --no-strip-trailing-blanks --no-fix-header-guards
 /include/cr_blitter.h:                     --no-external-copyright --convert-tabs --strip-trailing-blanks
 /include/cr_compositor.h:                  --no-external-copyright --convert-tabs --strip-trailing-blanks
 /include/cr_dump.h:                        --no-external-copyright --convert-tabs --strip-trailing-blanks

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,23 +15,17 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Global includes: */
-# include <QFileInfo>
-# include <QVBoxLayout>
+#include <QFileInfo>
+#include <QVBoxLayout>
 
 /* Local includes: */
-# include "UIWizardImportAppPageBasic1.h"
-# include "UIWizardImportAppPageBasic2.h"
-# include "UIWizardImportApp.h"
-# include "VBoxGlobal.h"
-# include "UIEmptyFilePathSelector.h"
-# include "QIRichTextLabel.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "UIWizardImportAppPageBasic1.h"
+#include "UIWizardImportAppPageBasic2.h"
+#include "UIWizardImportApp.h"
+#include "VBoxGlobal.h"
+#include "UIEmptyFilePathSelector.h"
+#include "QIRichTextLabel.h"
 
 
 UIWizardImportAppPage1::UIWizardImportAppPage1()
@@ -57,7 +51,7 @@ UIWizardImportAppPageBasic1::UIWizardImportAppPageBasic1()
     }
 
     /* Setup connections: */
-    connect(m_pFileSelector, SIGNAL(pathChanged(const QString&)), this, SIGNAL(completeChanged()));
+    connect(m_pFileSelector, &UIEmptyFilePathSelector::pathChanged, this, &UIWizardImportAppPageBasic1::completeChanged);
 }
 
 void UIWizardImportAppPageBasic1::retranslateUi()

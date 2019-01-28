@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,8 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___iprt_critsect_h
-#define ___iprt_critsect_h
+#ifndef IPRT_INCLUDED_critsect_h
+#define IPRT_INCLUDED_critsect_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/cdefs.h>
 #include <iprt/types.h>
@@ -246,7 +249,7 @@ RTDECL(int) RTCritSectEnterMultiple(size_t cCritSects, PRTCRITSECT *papCritSects
  *
  * @remark  See RTCritSectEnterMultiple().
  */
-RTDECL(int) RTCritSectEnterMultipleDebug(size_t cCritSects, PRTCRITSECT *papCritSects, RTUINTPTR uId, RT_SRC_POS_DECL);
+RTDECL(int) RTCritSectEnterMultipleDebug(size_t cCritSects, PRTCRITSECT *papCritSects, RTHCUINTPTR uId, RT_SRC_POS_DECL);
 
 # endif /* IN_RING3 */
 
@@ -349,7 +352,7 @@ DECLINLINE(int32_t) RTCritSectGetWaiters(PCRTCRITSECT pCritSect)
 
 /* Lock strict build: Remap the three enter calls to the debug versions. */
 #if defined(RT_LOCK_STRICT) && !defined(RTCRITSECT_WITHOUT_REMAPPING) && !defined(RT_WITH_MANGLING)
-# ifdef ___iprt_asm_h
+# ifdef IPRT_INCLUDED_asm_h
 #  define RTCritSectEnter(pCritSect)                        RTCritSectEnterDebug(pCritSect, (uintptr_t)ASMReturnAddress(), RT_SRC_POS)
 #  define RTCritSectTryEnter(pCritSect)                     RTCritSectTryEnterDebug(pCritSect, (uintptr_t)ASMReturnAddress(), RT_SRC_POS)
 #  define RTCritSectEnterMultiple(cCritSects, pCritSect)    RTCritSectEnterMultipleDebug((cCritSects), (pCritSect), (uintptr_t)ASMReturnAddress(), RT_SRC_POS)
@@ -715,7 +718,7 @@ DECLINLINE(bool) RTCritSectRwIsInitialized(PCRTCRITSECTRW pThis)
 
 /* Lock strict build: Remap the three enter calls to the debug versions. */
 #if defined(RT_LOCK_STRICT) && !defined(RTCRITSECTRW_WITHOUT_REMAPPING) && !defined(RT_WITH_MANGLING)
-# ifdef ___iprt_asm_h
+# ifdef IPRT_INCLUDED_asm_h
 #  define RTCritSectRwEnterExcl(pThis)      RTCritSectRwEnterExclDebug(pThis, (uintptr_t)ASMReturnAddress(), RT_SRC_POS)
 #  define RTCritSectRwTryEnterExcl(pThis)   RTCritSectRwTryEnterExclDebug(pThis, (uintptr_t)ASMReturnAddress(), RT_SRC_POS)
 #  define RTCritSectRwEnterShared(pThis)    RTCritSectRwEnterSharedDebug(pThis, (uintptr_t)ASMReturnAddress(), RT_SRC_POS)
@@ -740,5 +743,5 @@ DECLINLINE(bool) RTCritSectRwIsInitialized(PCRTCRITSECTRW pThis)
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !IPRT_INCLUDED_critsect_h */
 
