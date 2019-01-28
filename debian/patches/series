@@ -16,5 +16,3 @@
 37-python-3.7-support.patch
 #java9.patch
 do-not-run-if-not-in-vm.patch
-fix-build-from-bird.patch
-76906.patch
