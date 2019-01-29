@@ -1,7 +1,13 @@
 virtualbox (6.0.4-dfsg-2) unstable; urgency=medium
 
+  [ Gianfranco Costamagna ]
   * Virtualbox 6 is now a amd64 thing only, 32 bit host
     is not supported anymore by upstream
+
+  [ Whoopie ]
+  * use cafe instead of beef, to detect if we are inside a VM to fix
+    copy-paste.
+  * Start VBoxClient too, with the right --vmsvga flag, to fix screen resize
 
  -- Gianfranco Costamagna <locutusofborg@debian.org>  Tue, 29 Jan 2019 10:01:17 +0100
 
