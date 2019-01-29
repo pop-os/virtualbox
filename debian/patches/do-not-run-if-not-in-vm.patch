@@ -15,7 +15,7 @@ Index: virtualbox/src/VBox/Additions/x11/Installer/98vboxadd-xclient
  
 +in_virtual_machine()
 +{
-+	if [ -z "$(lspci -d 80ee:beef)" ]; then
++	if [ -z "$(lspci -d 80ee:cafe)" ]; then
 +	echo "VirtualBox Additions disabled, not in a Virtual Machine" >&2
 +	return 1
 +	fi

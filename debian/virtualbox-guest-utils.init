@@ -18,7 +18,7 @@ test -d /usr/share/doc/virtualbox-guest-utils -a -x /usr/sbin/VBoxService || exi
 
 in_virtual_machine()
 {
-	if [ -z "$(lspci -d 80ee:beef)" ]; then
+	if [ -z "$(lspci -d 80ee:cafe)" ]; then
 		log_warning_msg "VirtualBox Additions disabled, not in a Virtual Machine"
 		return 1
 	fi
