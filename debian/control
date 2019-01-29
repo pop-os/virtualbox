@@ -77,7 +77,7 @@ Vcs-Browser: https://salsa.debian.org/pkg-virtualbox-team/virtualbox
 Vcs-Git: https://salsa.debian.org/pkg-virtualbox-team/virtualbox.git
 
 Package: virtualbox-qt
-Architecture: amd64 i386
+Architecture: amd64
 Depends: virtualbox (= ${binary:Version}), ${misc:Depends}, ${shlibs:Depends}
 Breaks: virtualbox (<< 4.1.6-dfsg-2~)
 Replaces: virtualbox (<< 4.1.6-dfsg-2~)
@@ -89,7 +89,7 @@ Description: x86 virtualization solution - Qt based user interface
  This package provides the Qt based graphical user interface for VirtualBox.
 
 Package: virtualbox
-Architecture: amd64 i386
+Architecture: amd64
 Depends: adduser,
          iproute2,
          procps,

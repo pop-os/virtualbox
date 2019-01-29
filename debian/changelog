@@ -1,3 +1,10 @@
+virtualbox (6.0.4-dfsg-2) unstable; urgency=medium
+
+  * Virtualbox 6 is now a amd64 thing only, 32 bit host
+    is not supported anymore by upstream
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Tue, 29 Jan 2019 10:01:17 +0100
+
 virtualbox (6.0.4-dfsg-1) unstable; urgency=medium
 
   * New upstream version 6.0.4-dfsg
