@@ -1,8 +1,10 @@
-virtualbox (6.0.4-dfsg-3) UNRELEASED; urgency=medium
+virtualbox (6.0.4-dfsg-3) unstable; urgency=medium
 
-  * Thanks again java for changing everything (Closes: #920723)
+  * Switch to java11, that changed everything (Closes: #920723)
+    - add new jaxw dependencies.
+  * Switch from iasl to the new acpica-tools name
 
- -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 30 Jan 2019 15:53:43 +0100
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 30 Jan 2019 17:06:55 +0100
 
 virtualbox (6.0.4-dfsg-2) unstable; urgency=medium
 
