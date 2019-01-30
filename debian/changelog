@@ -1,3 +1,9 @@
+virtualbox (6.0.4-dfsg-3) UNRELEASED; urgency=medium
+
+  * Thanks again java for changing everything (Closes: #920723)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 30 Jan 2019 15:53:43 +0100
+
 virtualbox (6.0.4-dfsg-2) unstable; urgency=medium
 
   [ Gianfranco Costamagna ]
