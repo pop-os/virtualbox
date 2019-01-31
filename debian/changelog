@@ -1,3 +1,10 @@
+virtualbox (6.0.4-dfsg-4) unstable; urgency=medium
+
+  * debian/patches/77040.patch:
+    - save some space in binaries, with upstream patch.
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 31 Jan 2019 11:34:00 +0100
+
 virtualbox (6.0.4-dfsg-3) unstable; urgency=medium
 
   * Switch to java11, that changed everything (Closes: #920723)

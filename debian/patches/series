@@ -16,3 +16,4 @@
 37-python-3.7-support.patch
 do-not-run-if-not-in-vm.patch
 java11.patch
+77040.patch
