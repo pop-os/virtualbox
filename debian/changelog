@@ -1,3 +1,9 @@
+virtualbox (6.0.4-dfsg-5) unstable; urgency=medium
+
+  * Tweak java patch with upstream approach
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 31 Jan 2019 15:42:02 +0100
+
 virtualbox (6.0.4-dfsg-4) unstable; urgency=medium
 
   * debian/patches/77040.patch:

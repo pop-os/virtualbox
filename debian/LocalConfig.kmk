@@ -13,4 +13,3 @@ VBOX_PATH_APP_DOCS = /usr/share/doc/virtualbox
 VBOX_WITH_VBOXBFE :=
 VBOX_PATH_DOCBOOK_DTD := /usr/share/xml/docbook/schema/dtd/4/
 VBOX_WITH_VBOX_IMG = 1
-VBOX_WSIMPORT = /usr/bin/wsimport
