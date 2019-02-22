@@ -1,0 +1,7 @@
+Virtualbox package is in contrib, and upstream refuses to give patches for security bugs.
+Their attitude is to update to the latest version, something not feasible for stable
+releases, specially when the minor releases of a particular major version are not
+published anymore.
+For this reason, virtualbox might not be covered by security.debian.org support,
+nor by stable-proposed-updates in case the maintaining is impossible due to
+lack of upstream support.
