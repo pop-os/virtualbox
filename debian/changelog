@@ -1,3 +1,9 @@
+virtualbox (6.0.4-dfsg-6) unstable; urgency=medium
+
+  * Upstream build fix with kernel 5.0 (LP: #1813071)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Sat, 09 Mar 2019 13:50:34 +0100
+
 virtualbox (6.0.4-dfsg-5) unstable; urgency=medium
 
   * Tweak java patch with upstream approach

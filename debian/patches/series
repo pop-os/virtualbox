@@ -17,3 +17,4 @@
 do-not-run-if-not-in-vm.patch
 77040.patch
 java11-upstream.patch
+77542.patch
