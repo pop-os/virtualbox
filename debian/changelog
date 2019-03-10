@@ -1,3 +1,13 @@
+virtualbox (6.0.4-dfsg-7) unstable; urgency=medium
+
+  * debian/patches/fix-vboxvideo-with-linux-5.0.patch:
+    - add another build (this time for vboxvideo) LP: #1819352
+  *  Add README.Debian.security file, to make users aware
+     of the security issues in the package (this was part of the -6
+     upload)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Sun, 10 Mar 2019 21:26:29 +0100
+
 virtualbox (6.0.4-dfsg-6) unstable; urgency=medium
 
   * Upstream build fix with kernel 5.0 (LP: #1813071)
