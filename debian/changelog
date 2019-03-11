@@ -1,3 +1,10 @@
+virtualbox (6.0.4-dfsg-8) UNRELEASED; urgency=medium
+
+  * Implement DEB_BUILD_OPTIONS=parallel=n handling during build
+    (Closes: #924302)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Mon, 11 Mar 2019 11:49:50 +0100
+
 virtualbox (6.0.4-dfsg-7) unstable; urgency=medium
 
   * debian/patches/fix-vboxvideo-with-linux-5.0.patch:

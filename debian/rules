@@ -16,6 +16,10 @@ uxname:=virtualbox-guest-x11
 INSTALL_PATH:=/usr/lib/virtualbox
 MAKE:=kmk
 
+ifneq (,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
+	NJOBS := -j $(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
+endif
+
 upstreamversion := $(shell dpkg-parsechangelog | sed -n 's/^Version: *\([^-]\+\)-.\+/\1/p')
 
 DIST_NAME := $(shell lsb_release -si)
@@ -56,7 +60,7 @@ override_dh_python3:
 
 override_dh_auto_build:
 	# Building package
-	. out/env.sh && $(MAKE) \
+	. out/env.sh && $(MAKE) $(NJOBS) \
 	    AUTOCFG=$(abspath out/AutoConfig.kmk) \
 	    LOCALCFG=$(abspath debian/LocalConfig.kmk) \
 	    PATH_OUT=$(abspath out) \
