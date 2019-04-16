@@ -1,4 +1,4 @@
-/** $Id: VDScriptChecker.cpp $ */
+/* $Id: VDScriptChecker.cpp $ */
 /** @file
  * VBox HDD container test utility - scripting engine, type and context checker.
  */

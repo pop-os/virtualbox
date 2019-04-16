@@ -1404,7 +1404,7 @@ void Console::i_VRDPClientConnect(uint32_t u32ClientId)
     }
 
     NOREF(u32ClientId);
-    mDisplay->i_VideoAccelVRDP(true);
+    mDisplay->i_VRDPConnectionEvent(true);
 
 #ifdef VBOX_WITH_GUEST_PROPS
     i_guestPropertiesVRDPUpdateActiveClient(u32ClientId);
@@ -1438,7 +1438,7 @@ void Console::i_VRDPClientDisconnect(uint32_t u32ClientId,
                              0);
     }
 
-    mDisplay->i_VideoAccelVRDP(false);
+    mDisplay->i_VRDPConnectionEvent(false);
 
     if (fu32Intercepted & VRDE_CLIENT_INTERCEPT_USB)
     {
@@ -9512,7 +9512,7 @@ HRESULT Console::i_attachToTapInterface(INetworkAdapter *networkAdapter)
         {
             case VERR_ACCESS_DENIED:
                 /* will be handled by our caller */
-                rc = vrc;
+                rc = E_ACCESSDENIED;
                 break;
             default:
                 rc = setErrorBoth(E_FAIL, vrc, tr("Could not set up the host networking device: %Rrc"), vrc);
@@ -9553,7 +9553,7 @@ HRESULT Console::i_attachToTapInterface(INetworkAdapter *networkAdapter)
         {
             case VERR_ACCESS_DENIED:
                 /* will be handled by our caller */
-                rc = vrc;
+                rc = E_ACCESSDENIED;
                 break;
             default:
                 rc = setErrorBoth(E_FAIL, vrc, tr("Failed to open the host network interface %ls"), tapDeviceName.raw());
@@ -10138,49 +10138,6 @@ void Console::i_powerUpThreadTask(VMPowerUpTask *pTask)
                          static_cast<Console *>(pConsole),
                          &pVM, NULL);
         alock.acquire();
-
-#ifdef VBOX_WITH_AUDIO_VRDE
-        /* Attach the VRDE audio driver. */
-        IVRDEServer *pVRDEServer = pConsole->i_getVRDEServer();
-        if (pVRDEServer)
-        {
-            BOOL fVRDEEnabled = FALSE;
-            rc = pVRDEServer->COMGETTER(Enabled)(&fVRDEEnabled);
-            AssertComRCReturnVoid(rc);
-
-            if (   fVRDEEnabled
-                && pConsole->mAudioVRDE)
-                pConsole->mAudioVRDE->doAttachDriverViaEmt(pConsole->mpUVM, &alock);
-        }
-#endif
-
-        /* Enable client connections to the VRDP server. */
-        pConsole->i_consoleVRDPServer()->EnableConnections();
-
-#ifdef VBOX_WITH_RECORDING
-        ComPtr<IRecordingSettings> recordingSettings;
-        rc = pConsole->mMachine->COMGETTER(RecordingSettings)(recordingSettings.asOutParam());
-        AssertComRCReturnVoid(rc);
-
-        BOOL fRecordingEnabled;
-        rc = recordingSettings->COMGETTER(Enabled)(&fRecordingEnabled);
-        AssertComRCReturnVoid(rc);
-
-        if (fRecordingEnabled)
-        {
-            int vrc2 = pConsole->i_recordingEnable(fRecordingEnabled, &alock);
-            if (RT_SUCCESS(vrc2))
-            {
-                fireRecordingChangedEvent(pConsole->mEventSource);
-            }
-            else
-               LogRel(("Recording: Failed with %Rrc on VM power up\n", vrc2));
-
-            /** Note: Do not use vrc here, as starting the video recording isn't critical to
-             *        powering up the VM. */
-        }
-#endif
-
         if (RT_SUCCESS(vrc))
         {
             do
@@ -10240,6 +10197,53 @@ void Console::i_powerUpThreadTask(VMPowerUpTask *pTask)
                     alock.acquire();
                 }
 
+#ifdef VBOX_WITH_AUDIO_VRDE
+                /*
+                 * Attach the VRDE audio driver.
+                 */
+                if (pConsole->i_getVRDEServer())
+                {
+                    BOOL fVRDEEnabled = FALSE;
+                    rc = pConsole->i_getVRDEServer()->COMGETTER(Enabled)(&fVRDEEnabled);
+                    AssertComRCBreak(rc, RT_NOTHING);
+
+                    if (   fVRDEEnabled
+                        && pConsole->mAudioVRDE)
+                        pConsole->mAudioVRDE->doAttachDriverViaEmt(pConsole->mpUVM, &alock);
+                }
+#endif
+
+                /*
+                 * Enable client connections to the VRDP server.
+                 */
+                pConsole->i_consoleVRDPServer()->EnableConnections();
+
+#ifdef VBOX_WITH_RECORDING
+                /*
+                 * Enable recording if configured.
+                 */
+                BOOL fRecordingEnabled = FALSE;
+                {
+                    ComPtr<IRecordingSettings> ptrRecordingSettings;
+                    rc = pConsole->mMachine->COMGETTER(RecordingSettings)(ptrRecordingSettings.asOutParam());
+                    AssertComRCBreak(rc, RT_NOTHING);
+
+                    rc = ptrRecordingSettings->COMGETTER(Enabled)(&fRecordingEnabled);
+                    AssertComRCBreak(rc, RT_NOTHING);
+                }
+                if (fRecordingEnabled)
+                {
+                    vrc = pConsole->i_recordingEnable(fRecordingEnabled, &alock);
+                    if (RT_SUCCESS(vrc))
+                        fireRecordingChangedEvent(pConsole->mEventSource);
+                    else
+                    {
+                        LogRel(("Recording: Failed with %Rrc on VM power up\n", vrc));
+                        vrc = VINF_SUCCESS; /* do not fail with broken recording */
+                    }
+                }
+#endif
+
                 /* release the lock before a lengthy operation */
                 alock.release();
 
@@ -10253,7 +10257,9 @@ void Console::i_powerUpThreadTask(VMPowerUpTask *pTask)
                     break;
                 }
 
-                /* Load saved state? */
+                /*
+                 * Load saved state?
+                 */
                 if (pTask->mSavedStateFile.length())
                 {
                     LogFlowFunc(("Restoring saved state from '%s'...\n", pTask->mSavedStateFile.c_str()));
@@ -10262,7 +10268,6 @@ void Console::i_powerUpThreadTask(VMPowerUpTask *pTask)
                                            pTask->mSavedStateFile.c_str(),
                                            Console::i_stateProgressCallback,
                                            static_cast<IProgress *>(pTask->mProgress));
-
                     if (RT_SUCCESS(vrc))
                     {
                         if (pTask->mStartPaused)

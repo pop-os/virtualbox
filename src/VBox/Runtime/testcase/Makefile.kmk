@@ -69,6 +69,7 @@ PROGRAMS += \
 	tstRTFileGetSize-1 \
 	tstRTFileModeStringToFlags \
 	tstFileLock \
+	tstRTFileOpenEx-1 \
 	tstFork \
 	tstRTFsQueries \
 	tstRTFilesystem \
@@ -362,6 +363,9 @@ tstRTFileGetSize-1_SOURCES = tstRTFileGetSize-1.cpp
 
 tstRTFileModeStringToFlags_TEMPLATE = VBOXR3TSTEXE
 tstRTFileModeStringToFlags_SOURCES = tstRTFileModeStringToFlags.cpp
+
+tstRTFileOpenEx-1_TEMPLATE = VBOXR3TSTEXE
+tstRTFileOpenEx-1_SOURCES = tstRTFileOpenEx-1.cpp
 
 tstFileAppendWin-1_TEMPLATE = VBOXR3TSTEXE
 tstFileAppendWin-1_SOURCES = tstFileAppendWin-1.cpp

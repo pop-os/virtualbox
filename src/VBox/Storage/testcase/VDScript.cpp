@@ -1,4 +1,4 @@
-/** $Id: VDScript.cpp $ */
+/* $Id: VDScript.cpp $ */
 /** @file
  * VBox HDD container test utility - scripting engine.
  */

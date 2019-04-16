@@ -135,7 +135,7 @@ public:
     virtual void i_getFramebufferDimensions(int32_t *px1, int32_t *py1,
                                             int32_t *px2, int32_t *py2) = 0;
     virtual HRESULT i_reportHostCursorCapabilities(uint32_t fCapabilitiesAdded, uint32_t fCapabilitiesRemoved) = 0;
-    virtual HRESULT i_reportHostCursorPosition(int32_t x, int32_t y) = 0;
+    virtual HRESULT i_reportHostCursorPosition(int32_t x, int32_t y, bool fOutOfRange) = 0;
     virtual bool i_isInputMappingSet(void) = 0;
 };
 
@@ -192,7 +192,8 @@ public:
     int  i_handleSetVisibleRegion(uint32_t cRect, PRTRECT pRect);
     int  i_handleQueryVisibleRegion(uint32_t *pcRects, PRTRECT paRects);
 
-    void i_VideoAccelVRDP(bool fEnable);
+    void i_VRDPConnectionEvent(bool fConnect);
+    void i_VideoAccelVRDP(bool fEnable, int c);
 
     /* Legacy video acceleration requests coming from the VGA refresh timer. */
     int  VideoAccelEnableVGA(bool fEnable, VBVAMEMORY *pVbvaMemory);
@@ -200,6 +201,8 @@ public:
     /* Legacy video acceleration requests coming from VMMDev. */
     int  VideoAccelEnableVMMDev(bool fEnable, VBVAMEMORY *pVbvaMemory);
     void VideoAccelFlushVMMDev(void);
+
+    void i_UpdateDeviceCursorCapabilities(void);
 
 #ifdef VBOX_WITH_RECORDING
     int  i_recordingInvalidate(void);
@@ -217,7 +220,7 @@ public:
     virtual void i_getFramebufferDimensions(int32_t *px1, int32_t *py1,
                                             int32_t *px2, int32_t *py2);
     virtual HRESULT i_reportHostCursorCapabilities(uint32_t fCapabilitiesAdded, uint32_t fCapabilitiesRemoved);
-    virtual HRESULT i_reportHostCursorPosition(int32_t x, int32_t y);
+    virtual HRESULT i_reportHostCursorPosition(int32_t x, int32_t y, bool fOutOfRange);
     virtual bool i_isInputMappingSet(void)
     {
         return cxInputMapping != 0 && cyInputMapping != 0;
@@ -379,7 +382,7 @@ private:
 
     static DECLCALLBACK(void)  i_displayVBVAInputMappingUpdate(PPDMIDISPLAYCONNECTOR pInterface, int32_t xOrigin, int32_t yOrigin,
                                                                uint32_t cx, uint32_t cy);
-    static DECLCALLBACK(void)  i_displayVBVAReportCursorPosition(PPDMIDISPLAYCONNECTOR pInterface, bool fData, uint32_t x, uint32_t y);
+    static DECLCALLBACK(void)  i_displayVBVAReportCursorPosition(PPDMIDISPLAYCONNECTOR pInterface, uint32_t fFlags, uint32_t uScreen, uint32_t x, uint32_t y);
 #endif
 
 #if defined(VBOX_WITH_HGCM) && defined(VBOX_WITH_CROGL)
@@ -432,7 +435,8 @@ private:
 
     bool        mfVideoAccelVRDP;
     uint32_t    mfu32SupportedOrders;
-    int32_t volatile mcVideoAccelVRDPRefs;
+    /** Number of currently connected VRDP clients. */
+    int32_t volatile mcVRDPRefs;
 
     /** Accelerate3DEnabled = true && GraphicsControllerType == VBoxVGA. */
     bool        mfIsCr3DEnabled;

@@ -1782,7 +1782,7 @@ static int vmmdevReqHandler_HGCMDisconnect(PVMMDEV pThis, VMMDevRequestHeader *p
 
 
 /**
- * Handles VMMDevReq_HGCMCall.
+ * Handles VMMDevReq_HGCMCall32 and VMMDevReq_HGCMCall64.
  *
  * @returns VBox status code that the guest should see.
  * @param   pThis           The VMMDev instance data.
@@ -2301,6 +2301,7 @@ static int vmmdevReqHandler_GetHostVersion(VMMDevRequestHeader *pReqHdr)
     pReq->features  = VMMDEV_HVF_HGCM_PHYS_PAGE_LIST
                     | VMMDEV_HVF_HGCM_EMBEDDED_BUFFERS
                     | VMMDEV_HVF_HGCM_CONTIGUOUS_PAGE_LIST
+                    | VMMDEV_HVF_HGCM_NO_BOUNCE_PAGE_LIST
                     | VMMDEV_HVF_FAST_IRQ_ACK;
     return VINF_SUCCESS;
 }
@@ -2741,11 +2742,9 @@ static int vmmdevReqDispatcher(PVMMDEV pThis, VMMDevRequestHeader *pReqHdr, RTGC
             break;
 
 # ifdef VBOX_WITH_64_BITS_GUESTS
-        case VMMDevReq_HGCMCall32:
         case VMMDevReq_HGCMCall64:
-# else
-        case VMMDevReq_HGCMCall:
-# endif /* VBOX_WITH_64_BITS_GUESTS */
+# endif
+        case VMMDevReq_HGCMCall32:
             vmmdevReqHdrSetHgcmAsyncExecute(pThis, GCPhysReqHdr, *ppLock);
             pReqHdr->rc = vmmdevReqHandler_HGCMCall(pThis, pReqHdr, GCPhysReqHdr, tsArrival, ppLock);
             Assert(pReqHdr->rc == VINF_HGCM_ASYNC_EXECUTE || RT_FAILURE_NP(pReqHdr->rc));
@@ -4737,6 +4736,8 @@ static DECLCALLBACK(int) vmmdevConstruct(PPDMDEVINS pDevIns, int iInstance, PCFG
                            "Profiling whole HGCM call.",                    "/HGCM/MsgTotal");
     PDMDevHlpSTAMRegisterF(pDevIns, &pThis->StatHgcmLargeCmdAllocs,STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT,
                            "Times the allocation cache could not be used.", "/HGCM/LargeCmdAllocs");
+    PDMDevHlpSTAMRegisterF(pDevIns, &pThis->StatHgcmFailedPageListLocking,STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT,
+                           "Times no-bounce page list locking failed.", "/HGCM/FailedPageListLocking");
 #endif
 
     /*

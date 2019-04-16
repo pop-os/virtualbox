@@ -203,7 +203,7 @@ void UIVisoCreator::prepareObjects()
     m_pHostBrowserMenu = m_pMainMenu->addMenu(tr("Host Browser"));
     m_pVisoContentBrowserMenu = m_pMainMenu->addMenu(tr("VISO Browser"));
 
-    m_pToolBar = new UIToolBar(parentWidget());
+    m_pToolBar = new UIToolBar;
     if (m_pToolBar)
     {
         /* Configure toolbar: */

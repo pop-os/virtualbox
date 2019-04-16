@@ -81,7 +81,7 @@ public:
             {
                 AssertPtrReturn(mFile, E_POINTER);
                 int rc2 = mFile->signalWaitEvent(aType, aEvent);
-                NOREF(rc2);
+                RT_NOREF(rc2);
 #ifdef DEBUG_andy
                 LogFlowFunc(("Signalling events of type=%RU32, file=%p resulted in rc=%Rrc\n",
                              aType, mFile, rc2));
@@ -155,9 +155,11 @@ int GuestFile::init(Console *pConsole, GuestSession *pSession,
     {
         mSession = pSession;
 
+        mData.mOpenInfo    = openInfo;
         mData.mInitialSize = 0;
-        mData.mStatus = FileStatus_Undefined;
-        mData.mOpenInfo = openInfo;
+        mData.mStatus      = FileStatus_Undefined;
+        mData.mLastError   = VINF_SUCCESS;
+        mData.mOffCurrent  = 0;
 
         unconst(mEventSource).createObject();
         HRESULT hr = mEventSource->init();
@@ -294,10 +296,8 @@ HRESULT GuestFile::getOffset(LONG64 *aOffset)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-/** @todo r=bird: Why do you have both a offset and a tell() function?
- * After a ReadAt or WriteAt with a non-current offset, the tell() result will
- * differ from this value, because mOffCurrent is only ever incremented with
- * data read or written.  */
+    /* mData.mOffCurrent gets updated on i_readData[At]() / i_writeData[At]() file notification callbacks.
+     * So no need to take another roundtrip into the guest asking for the current offset (using tell). */
     *aOffset = mData.mOffCurrent;
 
     return S_OK;
@@ -531,16 +531,17 @@ int GuestFile::i_onFileNotify(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLHOST
                 if (RT_FAILURE(rc))
                     break;
 
-                Log3ThisFunc(("cbWritten=%RU32\n", dataCb.u.write.cbWritten));
+                const uint32_t cbWritten = dataCb.u.write.cbWritten;
+
+                Log3ThisFunc(("cbWritten=%RU32\n", cbWritten));
 
                 AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-                mData.mOffCurrent += dataCb.u.write.cbWritten;
+                mData.mOffCurrent += cbWritten;
 
                 alock.release();
 
-                fireGuestFileWriteEvent(mEventSource, mSession, this, mData.mOffCurrent,
-                                        dataCb.u.write.cbWritten);
+                fireGuestFileWriteEvent(mEventSource, mSession, this, mData.mOffCurrent, cbWritten);
             }
             break;
         }
@@ -615,10 +616,9 @@ int GuestFile::i_onGuestDisconnected(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTC
 }
 
 /**
- * Called by IGuestSession right before this file gets removed
- * from the public file list.
+ * @copydoc GuestObject::i_onUnregister
  */
-int GuestFile::i_onRemove(void)
+int GuestFile::i_onUnregister(void)
 {
     LogFlowThisFuncEnter();
 
@@ -637,6 +637,24 @@ int GuestFile::i_onRemove(void)
         mLocalListener.setNull();
         unconst(mEventSource).setNull();
     }
+
+    LogFlowFuncLeaveRC(vrc);
+    return vrc;
+}
+
+/**
+ * @copydoc GuestObject::i_onSessionStatusChange
+ */
+int GuestFile::i_onSessionStatusChange(GuestSessionStatus_T enmSessionStatus)
+{
+    LogFlowThisFuncEnter();
+
+    int vrc = VINF_SUCCESS;
+
+    /* If the session now is in a terminated state, set the file status
+     * to "down", as there is not much else we can do now. */
+    if (GuestSession::i_isTerminated(enmSessionStatus))
+        vrc = i_setFileStatus(FileStatus_Down, 0 /* fileRc, ignored */);
 
     LogFlowFuncLeaveRC(vrc);
     return vrc;

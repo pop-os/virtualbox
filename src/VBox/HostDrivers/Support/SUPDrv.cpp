@@ -480,13 +480,13 @@ PFNRT g_apfnVBoxDrvIPRTDeps[] =
     (PFNRT)RTRandBytes,
     /* VBoxUSB */
     (PFNRT)RTPathStripFilename,
-    (PFNRT)RTHandleTableAlloc,
 #if !defined(RT_OS_FREEBSD)
+    (PFNRT)RTHandleTableAlloc,
     (PFNRT)RTStrPurgeEncoding,
 #endif
     NULL
 };
-#endif  /* RT_OS_DARWIN || RT_OS_SOLARIS || RT_OS_SOLARIS */
+#endif  /* RT_OS_DARWIN || RT_OS_SOLARIS || RT_OS_FREEBSD */
 
 /** Hardware-virtualization MSRs. */
 static SUPHWVIRTMSRS            g_HwvirtMsrs;
@@ -4486,7 +4486,7 @@ SUPR0DECL(int) SUPR0QueryVTCaps(PSUPDRVSESSION pSession, uint32_t *pfCaps)
  *
  * @param   puRevision      Where to store the microcode revision.
  */
-int VBOXCALL supdrvQueryUcodeRev(uint32_t *puRevision)
+static int VBOXCALL supdrvQueryUcodeRev(uint32_t *puRevision)
 {
     int  rc = VERR_UNSUPPORTED_CPU;
     RTTHREADPREEMPTSTATE PreemptState = RTTHREADPREEMPTSTATE_INITIALIZER;
@@ -4602,7 +4602,7 @@ SUPR0DECL(int) SUPR0GetHwvirtMsrs(PSUPHWVIRTMSRS pMsrs, uint32_t fCaps, bool fFo
      * already cached, simply copy the cached MSRs and we're done.
      */
     if (   !fForce
-        && g_fHwvirtMsrsCached)
+        && ASMAtomicReadBool(&g_fHwvirtMsrsCached))
     {
         memcpy(pMsrs, &g_HwvirtMsrs, sizeof(*pMsrs));
         RTThreadPreemptRestore(&PreemptState);
@@ -4657,12 +4657,12 @@ SUPR0DECL(int) SUPR0GetHwvirtMsrs(PSUPHWVIRTMSRS pMsrs, uint32_t fCaps, bool fFo
                 if (fProcCtls2Allowed1 & VMX_PROC_CTLS2_VMFUNC)
                     g_HwvirtMsrs.u.vmx.u64VmFunc = ASMRdMsr(MSR_IA32_VMX_VMFUNC);
             }
-            g_fHwvirtMsrsCached = true;
+            ASMAtomicWriteBool(&g_fHwvirtMsrsCached, true);
         }
         else if (fCaps & SUPVTCAPS_AMD_V)
         {
             g_HwvirtMsrs.u.svm.u64MsrHwcr = ASMRdMsr(MSR_K8_HWCR);
-            g_fHwvirtMsrsCached = true;
+            ASMAtomicWriteBool(&g_fHwvirtMsrsCached, true);
         }
         else
         {

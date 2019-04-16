@@ -3124,7 +3124,7 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
                 HGCMSVCEXTHANDLE hDummy;
                 rc = HGCMHostRegisterServiceExtension(&hDummy, "VBoxDragAndDropSvc",
                                                       &GuestDnD::notifyDnDDispatcher,
-                                                      GuestDnDInst());
+                                                      GUESTDNDINST());
                 if (RT_FAILURE(rc))
                     Log(("Cannot register VBoxDragAndDropSvc extension, rc=%Rrc\n", rc));
                 else
@@ -3822,7 +3822,10 @@ int Console::i_configGraphicsController(PCFGMNODE pDevices,
         {
             InsertConfigInteger(pCfg, "VMSVGAEnabled", true);
             if (enmGraphicsController == GraphicsControllerType_VMSVGA)
+            {
+                InsertConfigInteger(pCfg, "VMSVGAPciBarLayout", true);
                 InsertConfigInteger(pCfg, "VMSVGAPciId", true);
+            }
 #ifdef VBOX_WITH_VMSVGA3D
             InsertConfigInteger(pCfg, "VMSVGA3dEnabled", f3DEnabled);
 #else
@@ -5446,7 +5449,7 @@ int Console::i_configNetwork(const char *pszDevice,
                     {
                         switch (hrc)
                         {
-                            case VERR_ACCESS_DENIED:
+                            case E_ACCESSDENIED:
                                 return VMSetError(VMR3GetVM(mpUVM), VERR_HOSTIF_INIT_FAILED, RT_SRC_POS,  N_(
                                                 "Failed to open '/dev/%s' for read/write access.  Please check the "
                                                 "permissions of that node, and that the net.link.tap.user_open "

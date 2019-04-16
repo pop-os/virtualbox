@@ -109,7 +109,7 @@
     </message>
     <message>
         <source>Make sure the kernel module has been loaded successfully.</source>
-        <translation>Çekirdek parçasının başarılı olarak yüklendiğinden emin olun.</translation>
+        <translation>Çekirdek modülünün başarılı olarak yüklendiğinden emin olun.</translation>
     </message>
     <message>
         <source>VirtualBox - Runtime Error</source>
@@ -129,11 +129,11 @@
     </message>
     <message>
         <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Please try completely uninstalling and reinstalling VirtualBox.</source>
-        <translation>VirtualBox çekirdek parçaları VirtualBox&apos;ın bu sürümüyle uyuşmuyor. VirtualBox&apos;ın kurulumu görünüşe göre başarılı olmadı. Lütfen VirtualBox&apos;ı tamamen kaldırmayı ve yeniden yüklemeyi deneyin.</translation>
+        <translation>VirtualBox çekirdek modülleri VirtualBox&apos;ın bu sürümüyle uyuşmuyor. VirtualBox&apos;ın kurulumu görünüşe göre başarılı olmadı. Lütfen VirtualBox&apos;ı tamamen kaldırmayı ve yeniden yüklemeyi deneyin.</translation>
     </message>
     <message>
         <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
-        <translation type="vanished">VirtualBox çekirdek parçaları VirtualBox&apos;ın bu sürümüyle uyuşmuyor. VirtualBox&apos;ın kurulumu görünüşe göre başarılı olmadı. &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; dosyasını çalıştırmak bunu düzeltebilir. VirtualBox&apos;ın OSE ve PUEL sürümlerini karıştırmadığınızdan emin olun.</translation>
+        <translation type="vanished">VirtualBox çekirdek modülleri VirtualBox&apos;ın bu sürümüyle uyuşmuyor. VirtualBox&apos;ın kurulumu görünüşe göre başarılı olmadı. &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; dosyasını çalıştırmak bunu düzeltebilir. VirtualBox&apos;ın OSE ve PUEL sürümlerini karıştırmadığınızdan emin olun.</translation>
     </message>
     <message>
         <source>This error means that the kernel driver was either not able to allocate enough memory or that some mapping operation failed.</source>
@@ -141,7 +141,7 @@
     </message>
     <message>
         <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
-        <translation type="vanished">VirtualBox Linux çekirdek sürücüsü (vboxdrv) ya yüklenemiyor ya da /dev/vboxdrv ile ilgili izin sorunu var. Lütfen kök olarak &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; dosyasını çalıştırarak çekirdek parçasını yeniden yükleyin. Eğer dağıtımınızda mevcutsa, önce DKMS paketini yüklemelisiniz. Bu paket Linux çekirdek değişikliklerinin izini tutar ve eğer gerekirse vboxdrv çekirdek parçasını yeniden derler.</translation>
+        <translation type="vanished">VirtualBox Linux çekirdek sürücüsü (vboxdrv) ya yüklenmedi ya da /dev/vboxdrv ile ilgili izin sorunu var. Lütfen root kullanıcısı olarak &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; dosyasını çalıştırarak çekirdek modülünü yeniden yükleyin. Eğer dağıtımınızda mevcutsa, önce DKMS paketini yüklemelisiniz. Bu paket Linux çekirdek değişikliklerinin izini tutar ve eğer gerekirse vboxdrv çekirdek modülünü yeniden derler.</translation>
     </message>
     <message>
         <source>Frame Size: %1x%2, Frame Rate: %3fps, Bit Rate: %4kbps</source>
@@ -149,11 +149,19 @@
     </message>
     <message>
         <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root.</source>
-        <translation>VirtualBox Linux çekirdek sürücüsü (vboxdrv) ya yüklenemiyor ya da /dev/vboxdrv ile ilgili izin sorunu var. Lütfen kök olarak &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; dosyasını çalıştırarak çekirdek parçasını yeniden yükleyin.</translation>
+        <translation type="vanished">VirtualBox Linux çekirdek sürücüsü (vboxdrv) ya yüklenmedi ya da /dev/vboxdrv ile ilgili izin sorunu var. Lütfen root kullanıcısı olarak &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; dosyasını çalıştırarak çekirdek modülünü yeniden yükleyin.</translation>
     </message>
     <message>
         <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
-        <translation>VirtualBox çekirdek parçaları VirtualBox&apos;ın bu sürümüyle uyuşmuyor. VirtualBox&apos;ın kurulumu görünüşe göre başarılı olmadı. &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; dosyasını çalıştırmak bunu düzeltebilir. VirtualBox&apos;ın OSE ve PUEL sürümlerini karıştırmadığınızdan emin olun.</translation>
+        <translation type="vanished">VirtualBox çekirdek modülleri VirtualBox&apos;ın bu sürümüyle uyuşmuyor. VirtualBox&apos;ın kurulumu görünüşe göre başarılı olmadı. &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; dosyasını çalıştırmak bunu düzeltebilir. VirtualBox&apos;ın OSE ve PUEL sürümlerini karıştırmadığınızdan emin olun.</translation>
+    </message>
+    <message>
+        <source>The VirtualBox Linux kernel driver is either not loaded or not set up correctly. Please try setting it up again by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root.&lt;br/&gt;&lt;br/&gt;If your system has EFI Secure Boot enabled you may also need to sign the kernel modules (vboxdrv, vboxnetflt, vboxnetadp, vboxpci) before you can load them. Please see your Linux system&apos;s documentation for more information.</source>
+        <translation>VirtualBox Linux çekirdek sürücüsü ya yüklenmedi ya da doğru olarak ayarlanmadı. Lütfen root kullanıcısı olarak &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; dosyasını çalıştırarak bunu ayarlamaya çalışın. Eğer sisteminizde EFI Secure Boot etkinleştirildiyse, çekirdek modüllerini (vboxdrv, vboxnetflt, vboxnetadp, vboxpci) yüklemeden önce ayrıca bunları imzalamanız gerekebilir. Lütfen daha fazla bilgi için Linux sisteminin belgelerine bakın.</translation>
+    </message>
+    <message>
+        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you are not mixing builds of VirtualBox from different sources.</source>
+        <translation>VirtualBox çekirdek modülleri VirtualBox&apos;ın bu sürümüyle uyuşmuyor. VirtualBox&apos;ın kurulumu görünüşe göre başarılı olmadı. &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; dosyasını çalıştırmak bunu düzeltebilir. Farklı kaynaklardan gelen VirtualBox&apos;ın yapımlarını karıştırmadığınızdan emin olun.</translation>
     </message>
 </context>
 <context>
@@ -2389,7 +2397,15 @@
     </message>
     <message>
         <source>Tools</source>
-        <translation type="unfinished">Araçlar</translation>
+        <translation>Araçlar</translation>
+    </message>
+    <message>
+        <source>E&amp;xport to OCI...</source>
+        <translation>OCI&apos;ye &amp;Aktar...</translation>
+    </message>
+    <message>
+        <source>Export selected virtual machine to OCI</source>
+        <translation>Seçilen sanal makineyi OCI&apos;ye aktar</translation>
     </message>
 </context>
 <context>
@@ -4249,7 +4265,7 @@
     </message>
     <message>
         <source>Close the pane</source>
-        <translation>Bölmeyi kapat</translation>
+        <translation type="vanished">Bölmeyi kapat</translation>
     </message>
     <message>
         <source>Password</source>
@@ -12070,6 +12086,21 @@
     </message>
 </context>
 <context>
+    <name>UIMediumSearchWidget</name>
+    <message>
+        <source>Search By Name</source>
+        <translation>İsme Göre Sırala</translation>
+    </message>
+    <message>
+        <source>Search By UUID</source>
+        <translation>UUID&apos;ye Göre Sırala</translation>
+    </message>
+    <message>
+        <source>Select the search type</source>
+        <translation>Arama türünü seçin</translation>
+    </message>
+</context>
+<context>
     <name>UIMediumSelector</name>
     <message>
         <source>&amp;Add...</source>
@@ -12122,6 +12153,18 @@
     <message>
         <source>Actual Size</source>
         <translation>Gerçek Boyut</translation>
+    </message>
+    <message>
+        <source>Medium</source>
+        <translation>Ortam</translation>
+    </message>
+    <message>
+        <source>Expand All</source>
+        <translation>Tümünü Genişlet</translation>
+    </message>
+    <message>
+        <source>Collapse All</source>
+        <translation>Tümünü Daralt</translation>
     </message>
 </context>
 <context>
@@ -16386,15 +16429,15 @@ bu basamağı atlayarak sabit diskleri Sanal Makine Ayarları penceresinden ekle
     </message>
     <message>
         <source>Goto the next bookmark</source>
-        <translation>Sonraki yer imine git</translation>
+        <translation type="vanished">Sonraki yer imine git</translation>
     </message>
     <message>
         <source>Goto the previous bookmark</source>
-        <translation>Önceki yer imine git</translation>
+        <translation type="vanished">Önceki yer imine git</translation>
     </message>
     <message>
         <source>Goto selected bookmark</source>
-        <translation>Seçilen yer imine git</translation>
+        <translation type="vanished">Seçilen yer imine git</translation>
     </message>
     <message>
         <source>Log Viewer</source>
@@ -16458,7 +16501,7 @@ bu basamağı atlayarak sabit diskleri Sanal Makine Ayarları penceresinden ekle
     </message>
     <message>
         <source>Close the pane</source>
-        <translation>Bölmeyi kapat</translation>
+        <translation type="vanished">Bölmeyi kapat</translation>
     </message>
     <message>
         <source>Enter a search string here</source>
@@ -16498,11 +16541,11 @@ bu basamağı atlayarak sabit diskleri Sanal Makine Ayarları penceresinden ekle
     </message>
     <message>
         <source>String not found</source>
-        <translation>Dize bulunamadı</translation>
+        <translation type="vanished">Dize bulunamadı</translation>
     </message>
     <message>
         <source>%1 Matches Found</source>
-        <translation>%1 Eşleşme Bulundu</translation>
+        <translation type="vanished">%1 Eşleşme Bulundu</translation>
     </message>
     <message>
         <source>Filtered</source>
@@ -16523,6 +16566,22 @@ bu basamağı atlayarak sabit diskleri Sanal Makine Ayarları penceresinden ekle
     <message>
         <source>&lt;p&gt;No log files found. Press the &lt;b&gt;Refresh&lt;/b&gt; button to rescan the log folder &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Günlük dosyaları bulunamadı. &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; günlük klasörünü yeniden taramak için &lt;b&gt;Yenile&lt;/b&gt; düğmesine basın.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Go to the next bookmark</source>
+        <translation>Sonraki yer imine git</translation>
+    </message>
+    <message>
+        <source>Go to the previous bookmark</source>
+        <translation>Önceki yer imine git</translation>
+    </message>
+    <message>
+        <source>Go to selected bookmark</source>
+        <translation>Seçilen yer imine git</translation>
+    </message>
+    <message>
+        <source>Matches Found</source>
+        <translation>Eşleşmeler Bulundu</translation>
     </message>
 </context>
 <context>
@@ -16671,47 +16730,87 @@ bu basamağı atlayarak sabit diskleri Sanal Makine Ayarları penceresinden ekle
     </message>
     <message>
         <source>Create a new directory under the current location</source>
-        <translation type="unfinished"></translation>
+        <translation>Şu anki konum altında yeni bir dizin oluştur</translation>
     </message>
     <message>
         <source>Reset ISO content.</source>
-        <translation type="unfinished"></translation>
+        <translation>ISO içeriğini sıfırla.</translation>
     </message>
     <message>
         <source>Rename the selected object</source>
-        <translation type="unfinished"></translation>
+        <translation>Seçilen nesneyi yeniden adlandır</translation>
     </message>
     <message>
         <source>&amp;Configuration...</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Yapılandırma...</translation>
     </message>
     <message>
         <source>VISO Configuration</source>
-        <translation type="unfinished"></translation>
+        <translation>VISO Yapılandırması</translation>
     </message>
     <message>
         <source>Manage VISO Configuration</source>
-        <translation type="unfinished"></translation>
+        <translation>VISO Yapılandırmasını Yönet</translation>
     </message>
     <message>
         <source>Dialog Options</source>
-        <translation type="unfinished"></translation>
+        <translation>İleti Penceresi Seçenekleri</translation>
     </message>
     <message>
         <source>Manage Dialog Options</source>
-        <translation type="unfinished"></translation>
+        <translation>İleti Penceresi Seçeneklerini Yönet</translation>
     </message>
     <message>
         <source>VISO Name:</source>
-        <translation type="unfinished"></translation>
+        <translation>VISO Adı:</translation>
     </message>
     <message>
         <source>Add selected file objects to ISO</source>
-        <translation type="unfinished"></translation>
+        <translation>ISO&apos;ya seçilen dosya nesnelerini ekle</translation>
     </message>
     <message>
         <source>Custom VISO options:</source>
-        <translation type="unfinished"></translation>
+        <translation>Özel VISO seçenekleri:</translation>
+    </message>
+    <message>
+        <source>Close the pane</source>
+        <translation>Bölmeyi kapat</translation>
+    </message>
+    <message>
+        <source>Remove</source>
+        <translation>Kaldır</translation>
+    </message>
+    <message>
+        <source>New Directory</source>
+        <translation>Yeni Dizin</translation>
+    </message>
+    <message>
+        <source>Reset</source>
+        <translation>Sıfırla</translation>
+    </message>
+    <message>
+        <source>VISO Creator</source>
+        <translation>VISO Oluşturucu</translation>
+    </message>
+    <message>
+        <source>VISO</source>
+        <translation>VISO</translation>
+    </message>
+    <message>
+        <source>Host Browser</source>
+        <translation>Anamakine Tarayıcısı</translation>
+    </message>
+    <message>
+        <source>VISO Browser</source>
+        <translation>VISO Tarayıcısı</translation>
+    </message>
+    <message>
+        <source>Remove current option.</source>
+        <translation>Şu anki seçeneği kaldır.</translation>
+    </message>
+    <message>
+        <source>Add</source>
+        <translation>Ekle</translation>
     </message>
 </context>
 <context>
@@ -21166,7 +21265,7 @@ Version %1</source>
     </message>
     <message>
         <source>The value &apos;%1&apos; of the key &apos;%2&apos; doesn&apos;t match the regexp constraint &apos;%3&apos;.</source>
-        <translation type="vanished">&apos;%2&apos; anahtarının &apos;%1&apos; değeri regexp sınırlaması &apos;%3&apos; ile eşleşmiyor.</translation>
+        <translation type="vanished">&apos;%2&apos; anahtarının &apos;%1&apos; değeri düzenli ifade sınırlaması &apos;%3&apos; ile eşleşmiyor.</translation>
     </message>
     <message>
         <source>Cannot delete the key &apos;%1&apos;.</source>

@@ -1258,8 +1258,16 @@ static int32_t crStateSaveClientPointer(CRVertexArrays *pArrays, int32_t index, 
     if (cp->locked)
     {
         CRASSERT(cp->p);
-        rc = SSMR3PutMem(pSSM, cp->p, cp->stride*(pArrays->lockFirst+pArrays->lockCount));
-        AssertRCReturn(rc, rc);
+        if (cp->fRealPtr)
+        {
+            rc = SSMR3PutMem(pSSM, cp->p, cp->stride*(pArrays->lockFirst+pArrays->lockCount));
+            AssertRCReturn(rc, rc);
+        }
+        else
+        {
+            crError("crStateSaveClientPointer: cp=%#p doesn't point to host memory!\n", cp);
+            return VERR_INVALID_STATE;
+        }
     }
 #endif
 
@@ -1288,6 +1296,7 @@ static int32_t crStateLoadClientPointer(CRVertexArrays *pArrays, int32_t index, 
     {
         rc = crStateAllocAndSSMR3GetMem(pSSM, (void**)&cp->p, cp->stride*(pArrays->lockFirst+pArrays->lockCount));
         AssertRCReturn(rc, rc);
+        cp->fRealPtr = 1;
     }
 #endif
 

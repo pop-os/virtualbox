@@ -1,6 +1,5 @@
-/** $Id: VDIoBackendMem.cpp $ */
+/* $Id: VDIoBackendMem.cpp $ */
 /** @file
- *
  * VBox HDD container test utility, async I/O memory backend
  */
 

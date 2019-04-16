@@ -50,11 +50,17 @@ public:
     /** @}  */
 
 public:
-    /** @name Public internal methods.
+    /** @name Implemented virtual methods from GuestObject.
      * @{ */
     int i_callbackDispatcher(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb);
+    int i_onUnregister(void);
+    int i_onSessionStatusChange(GuestSessionStatus_T enmSessionStatus);
+    /** @}  */
+
+public:
+    /** @name Public internal methods.
+     * @{ */
     inline int i_checkPID(uint32_t uPID);
-    int i_onRemove(void);
     int i_readData(uint32_t uHandle, uint32_t uSize, uint32_t uTimeoutMS, void *pvData, size_t cbData, uint32_t *pcbRead, int *pGuestRc);
     int i_startProcess(uint32_t cMsTimeout, int *pGuestRc);
     int i_startProcessInner(uint32_t cMsTimeout, AutoWriteLock &rLock, GuestWaitEvent *pEvent, int *pGuestRc);
@@ -74,7 +80,7 @@ public:
     static bool i_isGuestError(int guestRc);
     static HRESULT i_setErrorExternal(VirtualBoxBase *pInterface, int guestRc);
     static ProcessWaitResult_T i_waitFlagsToResultEx(uint32_t fWaitFlags, ProcessStatus_T oldStatus, ProcessStatus_T newStatus, uint32_t uProcFlags, uint32_t uProtocol);
-    static bool i_waitResultImpliesEx(ProcessWaitResult_T waitResult, ProcessStatus_T procStatus, uint32_t uProcFlags, uint32_t uProtocol);
+    static bool i_waitResultImpliesEx(ProcessWaitResult_T waitResult, ProcessStatus_T procStatus, uint32_t uProtocol);
     /** @}  */
 
 protected:

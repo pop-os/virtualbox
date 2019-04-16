@@ -4,6 +4,31 @@
  */
 
 /*
+ * Contributed by knut st. osmundsen, Andriy Gapon.
+ *
+ * Copyright (C) 2007-2019 Oracle Corporation
+ *
+ * This file is part of VirtualBox Open Source Edition (OSE), as
+ * available from http://www.virtualbox.org. This file is free software;
+ * you can redistribute it and/or modify it under the terms of the GNU
+ * General Public License (GPL) as published by the Free Software
+ * Foundation, in version 2 as it comes in the "COPYING" file of the
+ * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+ * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ *
+ * The contents of this file may alternatively be used under the terms
+ * of the Common Development and Distribution License Version 1.0
+ * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
+ * VirtualBox OSE distribution, in which case the provisions of the
+ * CDDL are applicable instead of those of the GPL.
+ *
+ * You may elect to license modified versions of this file under the
+ * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * --------------------------------------------------------------------
+ *
+ * This code is based on:
+ *
  * Copyright (c) 2007 knut st. osmundsen <bird-src-spam@anduin.net>
  * Copyright (c) 2011 Andriy Gapon <avg@FreeBSD.org>
  *
@@ -162,11 +187,7 @@ DECLHIDDEN(int) rtR0MemObjNativeFree(RTR0MEMOBJ pMem)
         case RTR0MEMOBJTYPE_PHYS:
         case RTR0MEMOBJTYPE_PHYS_NC:
         {
-#if __FreeBSD_version >= 1000030
             VM_OBJECT_WLOCK(pMemFreeBSD->pObject);
-#else
-            VM_OBJECT_LOCK(pMemFreeBSD->pObject);
-#endif
             vm_page_t pPage = vm_page_find_least(pMemFreeBSD->pObject, 0);
 #if __FreeBSD_version < 1000000
             vm_page_lock_queues();
@@ -180,11 +201,7 @@ DECLHIDDEN(int) rtR0MemObjNativeFree(RTR0MEMOBJ pMem)
 #if __FreeBSD_version < 1000000
             vm_page_unlock_queues();
 #endif
-#if __FreeBSD_version >= 1000030
             VM_OBJECT_WUNLOCK(pMemFreeBSD->pObject);
-#else
-            VM_OBJECT_UNLOCK(pMemFreeBSD->pObject);
-#endif
             vm_object_deallocate(pMemFreeBSD->pObject);
             break;
         }
@@ -212,21 +229,18 @@ static vm_page_t rtR0MemObjFreeBSDContigPhysAllocHelper(vm_object_t pObject, vm_
 
     while (cTries <= 1)
     {
-#if __FreeBSD_version >= 1000030
         VM_OBJECT_WLOCK(pObject);
-#else
-        VM_OBJECT_LOCK(pObject);
-#endif
         pPages = vm_page_alloc_contig(pObject, iPIndex, fFlags, cPages, 0,
                                       VmPhysAddrHigh, uAlignment, 0, VM_MEMATTR_DEFAULT);
-#if __FreeBSD_version >= 1000030
         VM_OBJECT_WUNLOCK(pObject);
-#else
-        VM_OBJECT_UNLOCK(pObject);
-#endif
         if (pPages)
             break;
+#if __FreeBSD_version >= 1100092
+        if (!vm_page_reclaim_contig(cTries, cPages, 0, VmPhysAddrHigh, PAGE_SIZE, 0))
+            break;
+#else
         vm_pageout_grow_cache(cTries, 0, VmPhysAddrHigh);
+#endif
         cTries++;
     }
 
@@ -243,11 +257,7 @@ static vm_page_t rtR0MemObjFreeBSDContigPhysAllocHelper(vm_object_t pObject, vm_
 
     if (!pPages)
         return pPages;
-#if __FreeBSD_version >= 1000030
     VM_OBJECT_WLOCK(pObject);
-#else
-    VM_OBJECT_LOCK(pObject);
-#endif
     for (vm_pindex_t iPage = 0; iPage < cPages; iPage++)
     {
         vm_page_t pPage = pPages + iPage;
@@ -259,11 +269,7 @@ static vm_page_t rtR0MemObjFreeBSDContigPhysAllocHelper(vm_object_t pObject, vm_
             atomic_add_int(&cnt.v_wire_count, 1);
         }
     }
-#if __FreeBSD_version >= 1000030
     VM_OBJECT_WUNLOCK(pObject);
-#else
-    VM_OBJECT_UNLOCK(pObject);
-#endif
     return pPages;
 #endif
 }
@@ -287,11 +293,7 @@ static int rtR0MemObjFreeBSDPhysAllocHelper(vm_object_t pObject, u_long cPages,
         if (!pPage)
         {
             /* Free all allocated pages */
-#if __FreeBSD_version >= 1000030
             VM_OBJECT_WLOCK(pObject);
-#else
-            VM_OBJECT_LOCK(pObject);
-#endif
             while (iPage-- > 0)
             {
                 pPage = vm_page_lookup(pObject, iPage);
@@ -305,11 +307,7 @@ static int rtR0MemObjFreeBSDPhysAllocHelper(vm_object_t pObject, u_long cPages,
                 vm_page_unlock_queues();
 #endif
             }
-#if __FreeBSD_version >= 1000030
             VM_OBJECT_WUNLOCK(pObject);
-#else
-            VM_OBJECT_UNLOCK(pObject);
-#endif
             return rcNoMem;
         }
     }
@@ -448,17 +446,9 @@ static int rtR0MemObjFreeBSDAllocPhysPages(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOB
         if (fContiguous)
         {
             Assert(enmType == RTR0MEMOBJTYPE_PHYS);
-#if __FreeBSD_version >= 1000030
             VM_OBJECT_WLOCK(pMemFreeBSD->pObject);
-#else
-            VM_OBJECT_LOCK(pMemFreeBSD->pObject);
-#endif
             pMemFreeBSD->Core.u.Phys.PhysBase = VM_PAGE_TO_PHYS(vm_page_find_least(pMemFreeBSD->pObject, 0));
-#if __FreeBSD_version >= 1000030
             VM_OBJECT_WUNLOCK(pMemFreeBSD->pObject);
-#else
-            VM_OBJECT_UNLOCK(pMemFreeBSD->pObject);
-#endif
             pMemFreeBSD->Core.u.Phys.fAllocated = true;
         }
 
@@ -751,7 +741,7 @@ DECLHIDDEN(int) rtR0MemObjNativeMapUser(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ p
     {
         /** @todo is this needed?. */
         PROC_LOCK(pProc);
-        AddrR3 = round_page((vm_offset_t)pProc->p_vmspace->vm_daddr + lim_max(pProc, RLIMIT_DATA));
+        AddrR3 = round_page((vm_offset_t)pProc->p_vmspace->vm_daddr + MY_LIM_MAX_PROC(pProc, RLIMIT_DATA));
         PROC_UNLOCK(pProc);
     }
     else
@@ -877,17 +867,10 @@ DECLHIDDEN(RTHCPHYS) rtR0MemObjNativeGetPagePhysAddr(PRTR0MEMOBJINTERNAL pMem, s
         case RTR0MEMOBJTYPE_PHYS_NC:
         {
             RTHCPHYS addr;
-#if __FreeBSD_version >= 1000030
+
             VM_OBJECT_WLOCK(pMemFreeBSD->pObject);
-#else
-            VM_OBJECT_LOCK(pMemFreeBSD->pObject);
-#endif
             addr = VM_PAGE_TO_PHYS(vm_page_lookup(pMemFreeBSD->pObject, iPage));
-#if __FreeBSD_version >= 1000030
             VM_OBJECT_WUNLOCK(pMemFreeBSD->pObject);
-#else
-            VM_OBJECT_UNLOCK(pMemFreeBSD->pObject);
-#endif
             return addr;
         }
 

@@ -627,7 +627,6 @@ void UISession::sltMousePointerShapeChange(bool fVisible, bool fAlpha, QPoint ho
 
     /* Notify listeners about mouse capability changed: */
     emit sigMousePointerShapeChange();
-
 }
 
 void UISession::sltMouseCapabilityChange(bool fSupportsAbsolute, bool fSupportsRelative, bool fSupportsMultiTouch, bool fNeedsHostCursor)
@@ -652,6 +651,26 @@ void UISession::sltMouseCapabilityChange(bool fSupportsAbsolute, bool fSupportsR
 
         /* Notify listeners about mouse capability changed: */
         emit sigMouseCapabilityChange();
+    }
+}
+
+void UISession::sltCursorPositionChange(bool fContainsData, unsigned long uX, unsigned long uY)
+{
+    LogRelFlow(("GUI: UISession::sltCursorPositionChange: "
+                "Cursor position valid: %d, Cursor position: %dx%d\n",
+                fContainsData ? "TRUE" : "FALSE", uX, uY));
+
+    /* Check if something had changed: */
+    if (   m_fIsValidCursorPositionPresent != fContainsData
+        || m_cursorPosition.x() != (int)uX
+        || m_cursorPosition.y() != (int)uY)
+    {
+        /* Store new data: */
+        m_fIsValidCursorPositionPresent = fContainsData;
+        m_cursorPosition = QPoint(uX, uY);
+
+        /* Notify listeners about cursor position changed: */
+        emit sigCursorPositionChange();
     }
 }
 
@@ -954,6 +973,7 @@ UISession::UISession(UIMachine *pMachine)
     , m_fIsMouseIntegrated(true)
     , m_fIsValidPointerShapePresent(false)
     , m_fIsHidingHostPointer(true)
+    , m_fIsValidCursorPositionPresent(false)
     , m_enmVMExecutionEngine(KVMExecutionEngine_NotSet)
     /* CPU hardware virtualization features for VM: */
     , m_fIsHWVirtExNestedPagingEnabled(false)
@@ -1115,6 +1135,9 @@ void UISession::prepareConsoleEventHandlers()
 
     connect(gConsoleEvents, SIGNAL(sigMouseCapabilityChange(bool, bool, bool, bool)),
             this, SLOT(sltMouseCapabilityChange(bool, bool, bool, bool)));
+
+    connect(gConsoleEvents, &UIConsoleEventHandler::sigCursorPositionChange,
+            this, &UISession::sltCursorPositionChange);
 
     connect(gConsoleEvents, SIGNAL(sigKeyboardLedsChangeEvent(bool, bool, bool)),
             this, SLOT(sltKeyboardLedsChangeEvent(bool, bool, bool)));
@@ -1623,6 +1646,9 @@ void UISession::setPointerShape(const uchar *pShapeData, bool fHasAlpha,
     const uchar *srcShapePtr = pShapeData + ((andMaskSize + 3) & ~3);
     uint srcShapePtrScan = uWidth * 4;
 
+    /* Remember initial cursor hotspot: */
+    m_cursorHotspot = QPoint(uXHot, uYHot);
+
 #if defined (VBOX_WS_WIN)
 
     /* Create a ARGB image out of the shape data: */
@@ -1644,7 +1670,8 @@ void UISession::setPointerShape(const uchar *pShapeData, bool fHasAlpha,
         for (y = 0; y < uHeight; ++y, pu32SrcShapeScanline += uWidth)
             memcpy(image.scanLine(y), pu32SrcShapeScanline, uWidth * sizeof(uint32_t));
 
-        m_cursor = QCursor(QPixmap::fromImage(image), uXHot, uYHot);
+        m_cursorPixmap = QPixmap::fromImage(image);
+        m_cursor = QCursor(m_cursorPixmap, uXHot, uYHot);
     }
     else
     {
@@ -1733,7 +1760,8 @@ void UISession::setPointerShape(const uchar *pShapeData, bool fHasAlpha,
                 pu32SrcShapeScanline += uWidth;
             }
 
-            m_cursor = QCursor(QBitmap::fromImage(bitmap), QBitmap::fromImage(mask), uXHot, uYHot);
+            m_cursorPixmap = QBitmap::fromImage(bitmap);
+            m_cursor = QCursor(m_cursorPixmap, QBitmap::fromImage(mask), uXHot, uYHot);
         }
         else
         {
@@ -1763,7 +1791,8 @@ void UISession::setPointerShape(const uchar *pShapeData, bool fHasAlpha,
                 pu8SrcAndScanline += (uWidth + 7) / 8;
             }
 
-            m_cursor = QCursor(QPixmap::fromImage(image), uXHot, uYHot);
+            m_cursorPixmap = QPixmap::fromImage(image);
+            m_cursor = QCursor(m_cursorPixmap, uXHot, uYHot);
         }
     }
 
@@ -1787,7 +1816,7 @@ void UISession::setPointerShape(const uchar *pShapeData, bool fHasAlpha,
     }
 
     /* Create cursor-pixmap from the image: */
-    QPixmap cursorPixmap = QPixmap::fromImage(image);
+    m_cursorPixmap = QPixmap::fromImage(image);
 
 # if defined(VBOX_WS_MAC)
     /* Adjust device-pixel-ratio: */
@@ -1801,7 +1830,7 @@ void UISession::setPointerShape(const uchar *pShapeData, bool fHasAlpha,
     {
         uXHot /= dDevicePixelRatio;
         uYHot /= dDevicePixelRatio;
-        cursorPixmap.setDevicePixelRatio(dDevicePixelRatio);
+        m_cursorPixmap.setDevicePixelRatio(dDevicePixelRatio);
     }
 # elif defined(VBOX_WS_X11)
     /* Adjust device-pixel-ratio: */
@@ -1815,13 +1844,13 @@ void UISession::setPointerShape(const uchar *pShapeData, bool fHasAlpha,
     {
         uXHot *= dDevicePixelRatio;
         uYHot *= dDevicePixelRatio;
-        cursorPixmap = cursorPixmap.scaled(cursorPixmap.width() * dDevicePixelRatio, cursorPixmap.height() * dDevicePixelRatio,
-                                           Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+        m_cursorPixmap = m_cursorPixmap.scaled(m_cursorPixmap.width() * dDevicePixelRatio, m_cursorPixmap.height() * dDevicePixelRatio,
+                                               Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
     }
 # endif /* VBOX_WS_X11 */
 
     /* Set the new cursor: */
-    m_cursor = QCursor(cursorPixmap, uXHot, uYHot);
+    m_cursor = QCursor(m_cursorPixmap, uXHot, uYHot);
     m_fIsValidPointerShapePresent = true;
     NOREF(srcShapePtrScan);
 
@@ -1830,6 +1859,9 @@ void UISession::setPointerShape(const uchar *pShapeData, bool fHasAlpha,
 # warning "port me"
 
 #endif
+
+    /* Cache cursor pixmap size: */
+    m_cursorSize = m_cursorPixmap.size();
 }
 
 bool UISession::preprocessInitialization()

@@ -23,10 +23,8 @@
 #include <QPushButton>
 
 /* GUI includes: */
-#include "QIComboBox.h"
 #include "QIDialogButtonBox.h"
 #include "QIFileDialog.h"
-#include "QILineEdit.h"
 #include "QIMessageBox.h"
 #include "QITabWidget.h"
 #include "QIToolButton.h"
@@ -34,6 +32,7 @@
 #include "UIDesktopWidgetWatchdog.h"
 #include "UIExtraDataManager.h"
 #include "UIFDCreationDialog.h"
+#include "UIMediumSearchWidget.h"
 #include "UIMediumSelector.h"
 #include "UIMessageCenter.h"
 #include "UIIconPool.h"
@@ -53,144 +52,6 @@
 # include "UIWindowMenuManager.h"
 #endif /* VBOX_WS_MAC */
 
-/*********************************************************************************************************************************
-*   UIMediumSearchWidget definition.                                                                                         *
-*********************************************************************************************************************************/
-/** QWidget extension providing a simple way to enter a earch term and search type for medium searching
- *  in virtual media manager, medium selection dialog, etc. */
-class UIMediumSearchWidget : public QIWithRetranslateUI<QWidget>
-{
-    Q_OBJECT;
-
-public:
-
-    enum SearchType
-    {
-        SearchByName,
-        SearchByUUID,
-        SearchByMax
-    };
-
-signals:
-
-    void sigPerformSearch();
-    void sigShowNextMatchingItem();
-    void sigShowPreviousMatchingItem();
-
-public:
-
-    UIMediumSearchWidget(QWidget *pParent = 0);
-    SearchType searchType() const;
-    QString searchTerm() const;
-
-protected:
-
-    void retranslateUi() /* override */;
-
-private:
-
-    void              prepareWidgets();
-    QIComboBox       *m_pSearchComboxBox;
-    QLineEdit        *m_pSearchTermLineEdit;
-    QIToolButton     *m_pShowNextMatchButton;
-    QIToolButton     *m_pShowPreviousMatchButton;
-};
-
-
-/*********************************************************************************************************************************
-*   UIMediumSearchWidget implementation.                                                                                         *
-*********************************************************************************************************************************/
-
-UIMediumSearchWidget::UIMediumSearchWidget(QWidget *pParent)
-    :QIWithRetranslateUI<QWidget>(pParent)
-    , m_pSearchComboxBox(0)
-    , m_pSearchTermLineEdit(0)
-    , m_pShowNextMatchButton(0)
-    , m_pShowPreviousMatchButton(0)
-{
-    prepareWidgets();
-}
-
-void UIMediumSearchWidget::prepareWidgets()
-{
-    QHBoxLayout *pLayout = new QHBoxLayout;
-    setLayout(pLayout);
-    pLayout->setContentsMargins(0, 0, 0, 0);
-    pLayout->setSpacing(0);
-
-    m_pSearchComboxBox = new QIComboBox;
-    if (m_pSearchComboxBox)
-    {
-        m_pSearchComboxBox->setEditable(false);
-        m_pSearchComboxBox->insertItem(SearchByName, "Search By Name");
-        m_pSearchComboxBox->insertItem(SearchByUUID, "Search By UUID");
-        pLayout->addWidget(m_pSearchComboxBox);
-
-        connect(m_pSearchComboxBox, static_cast<void(QIComboBox::*)(int)>(&QIComboBox::currentIndexChanged),
-                this, &UIMediumSearchWidget::sigPerformSearch);
-
-    }
-
-    m_pSearchTermLineEdit = new QLineEdit;
-    if (m_pSearchTermLineEdit)
-    {
-        m_pSearchTermLineEdit->setClearButtonEnabled(true);
-        pLayout->addWidget(m_pSearchTermLineEdit);
-        connect(m_pSearchTermLineEdit, &QILineEdit::textChanged,
-                this, &UIMediumSearchWidget::sigPerformSearch);
-    }
-
-    m_pShowPreviousMatchButton = new QIToolButton;
-    if (m_pShowPreviousMatchButton)
-    {
-        m_pShowPreviousMatchButton->setIcon(UIIconPool::iconSet(":/log_viewer_search_backward_16px.png", ":/log_viewer_search_backward_disabled_16px.png"));
-        connect(m_pShowPreviousMatchButton, &QIToolButton::clicked, this, &UIMediumSearchWidget::sigShowPreviousMatchingItem);
-        pLayout->addWidget(m_pShowPreviousMatchButton);
-    }
-    m_pShowNextMatchButton = new QIToolButton;
-    if (m_pShowNextMatchButton)
-    {
-        m_pShowNextMatchButton->setIcon(UIIconPool::iconSet(":/log_viewer_search_forward_16px.png", ":/log_viewer_search_forward_disabled_16px.png"));
-        connect(m_pShowNextMatchButton, &QIToolButton::clicked, this, &UIMediumSearchWidget:: sigShowNextMatchingItem);
-        pLayout->addWidget(m_pShowNextMatchButton);
-    }
-
-    retranslateUi();
-}
-
-UIMediumSearchWidget::SearchType UIMediumSearchWidget::searchType() const
-{
-    if (!m_pSearchComboxBox || m_pSearchComboxBox->currentIndex() >= static_cast<int>(SearchByMax))
-        return SearchByMax;
-    return static_cast<SearchType>(m_pSearchComboxBox->currentIndex());
-}
-
-QString UIMediumSearchWidget::searchTerm() const
-{
-    if (!m_pSearchTermLineEdit)
-        return QString();
-    return m_pSearchTermLineEdit->text();
-}
-
-void UIMediumSearchWidget::retranslateUi()
-{
-    if (m_pSearchComboxBox)
-    {
-        m_pSearchComboxBox->setItemText(SearchByName, UIMediumSelector::tr("Search By Name"));
-        m_pSearchComboxBox->setItemText(SearchByUUID, UIMediumSelector::tr("Search By UUID"));
-        m_pSearchComboxBox->setToolTip(UIMediumSelector::tr("Select the search type"));
-    }
-    if (m_pSearchTermLineEdit)
-        m_pSearchTermLineEdit->setToolTip("Enter the search term and press Return");
-    if (m_pShowPreviousMatchButton)
-        m_pShowPreviousMatchButton->setToolTip("Show the previous item matching the search term");
-    if (m_pShowNextMatchButton)
-        m_pShowNextMatchButton->setToolTip("Show the next item matching the search term");
-}
-
-/*********************************************************************************************************************************
-*   UIMediumSelector implementation.                                                                                         *
-*********************************************************************************************************************************/
 
 UIMediumSelector::UIMediumSelector(UIMediumDeviceType enmMediumType, const QString &machineName /* = QString() */,
                                    const QString &machineSettigFilePath /* = QString() */, QWidget *pParent /* = 0 */)
@@ -381,10 +242,6 @@ void UIMediumSelector::prepareConnections()
     {
         connect(m_pSearchWidget, &UIMediumSearchWidget::sigPerformSearch,
                 this, &UIMediumSelector::sltHandlePerformSearch);
-        connect(m_pSearchWidget, &UIMediumSearchWidget::sigShowNextMatchingItem,
-                this, &UIMediumSelector::sltHandleShowNextMatchingItem);
-        connect(m_pSearchWidget, &UIMediumSearchWidget::sigShowPreviousMatchingItem,
-                this, &UIMediumSelector::sltHandleShowPreviousMatchingItem);
     }
 }
 
@@ -599,26 +456,10 @@ void UIMediumSelector::sltHandleRefresh()
 
 void UIMediumSelector::sltHandlePerformSearch()
 {
-    performMediumSearch();
-}
-
-void UIMediumSelector::sltHandleShowNextMatchingItem()
-{
-    if (m_mathingItemList.isEmpty())
+    //performMediumSearch();
+    if (!m_pSearchWidget)
         return;
-
-    if (++m_iCurrentShownIndex >= m_mathingItemList.size())
-        m_iCurrentShownIndex = 0;
-    scrollToItem(m_mathingItemList[m_iCurrentShownIndex]);
-}
-
-void UIMediumSelector::sltHandleShowPreviousMatchingItem()
-{
-    if (m_mathingItemList.isEmpty())
-        return;
-    if (--m_iCurrentShownIndex < 0)
-        m_iCurrentShownIndex = m_mathingItemList.size() -1;
-    scrollToItem(m_mathingItemList[m_iCurrentShownIndex]);
+    m_pSearchWidget->search(m_pTreeWidget);
 }
 
 void UIMediumSelector::sltHandleTreeContextMenuRequest(const QPoint &point)
@@ -785,7 +626,6 @@ void UIMediumSelector::repopulateTreeWidget()
         m_pTreeWidget->expandItem(m_pNotAttachedSubTreeRoot);
 
     m_pTreeWidget->resizeColumnToContents(0);
-    performMediumSearch();
 }
 
 void UIMediumSelector::saveDefaultForeground()
@@ -837,54 +677,6 @@ UIMediumItem* UIMediumSelector::searchItem(const QTreeWidgetItem *pParent, const
     return 0;
 }
 
-void UIMediumSelector::performMediumSearch()
-{
-    if (!m_pSearchWidget || !m_pTreeWidget)
-        return;
-    /* Unmark all tree items to remove the highltights: */
-    for (int i = 0; i < m_mediumItemList.size(); ++i)
-    {
-        for (int j = 0; j < m_pTreeWidget->columnCount(); ++j)
-        {
-            if (m_mediumItemList[i])
-                m_mediumItemList[i]->setData(j, Qt::ForegroundRole, m_defaultItemForeground);
-        }
-    }
-
-    m_mathingItemList.clear();
-    m_iCurrentShownIndex = 0;
-
-    UIMediumSearchWidget::SearchType searchType =
-        m_pSearchWidget->searchType();
-    if (searchType >= UIMediumSearchWidget::SearchByMax)
-        return;
-    QString strTerm = m_pSearchWidget->searchTerm();
-    if (strTerm.isEmpty())
-        return;
-
-    for (int i = 0; i < m_mediumItemList.size(); ++i)
-    {
-        if (!m_mediumItemList[i])
-            continue;
-        QString strMedium;
-        if (searchType == UIMediumSearchWidget::SearchByName)
-            strMedium = m_mediumItemList[i]->medium().name();
-        else if(searchType == UIMediumSearchWidget::SearchByUUID)
-            strMedium = m_mediumItemList[i]->medium().id().toString();
-        if (strMedium.isEmpty())
-            continue;
-        if (strMedium.contains(strTerm, Qt::CaseInsensitive))
-        {
-            /* mark all the items by setting foregroung color to red: */
-            for (int j = 0; j < m_pTreeWidget->columnCount(); ++j)
-                m_mediumItemList[i]->setData(j, Qt::ForegroundRole, QBrush(QColor(255, 0, 0)));
-            m_mathingItemList.append(m_mediumItemList[i]);
-        }
-    }
-    if (!m_mathingItemList.isEmpty())
-        scrollToItem(m_mathingItemList[0]);
-}
-
 void UIMediumSelector::scrollToItem(UIMediumItem* pItem)
 {
     if (!pItem)
@@ -902,8 +694,4 @@ void UIMediumSelector::scrollToItem(UIMediumItem* pItem)
     pItem->setFont(0, font);
 
     m_pTreeWidget->scrollTo(itemIndex);
-    //m_pTreeWidget->setCurrentIndex(itemIndex);
 }
-
-
-#include "UIMediumSelector.moc"

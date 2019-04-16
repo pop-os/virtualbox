@@ -273,6 +273,13 @@ public:
     virtual void viewportScrolled(int, int) {}
 #endif /* VBOX_WITH_VIDEOHWACCEL */
 
+protected slots:
+
+    /** Handles guest request to change the mouse pointer shape. */
+    void sltMousePointerShapeChange();
+    /** Handles guest request to change the cursor position. */
+    void sltCursorPositionChange();
+
 protected:
 
     /** Prepare connections routine. */
@@ -387,6 +394,9 @@ private:
 #endif /* Q_OS_WIN */
      /** Identifier returned by AttachFramebuffer. Used in DetachFramebuffer. */
      QUuid m_uFramebufferId;
+
+     /** Holds the last cursor rectangle. */
+     QRect  m_cursorRectangle;
 };
 
 
@@ -710,14 +720,16 @@ STDMETHODIMP UIFrameBufferPrivate::COMGETTER(Capabilities)(ComSafeArrayOut(Frame
     com::SafeArray<FramebufferCapabilities_T> caps;
     if (vboxGlobal().isSeparateProcess())
     {
-       caps.resize(1);
+       caps.resize(2);
        caps[0] = FramebufferCapabilities_UpdateImage;
+       caps[1] = FramebufferCapabilities_RenderCursor;
     }
     else
     {
-       caps.resize(2);
+       caps.resize(3);
        caps[0] = FramebufferCapabilities_VHWA;
        caps[1] = FramebufferCapabilities_VisibleRegion;
+       caps[2] = FramebufferCapabilities_RenderCursor;
     }
 
     caps.detachTo(ComSafeArrayOutArg(enmCapabilities));
@@ -763,10 +775,10 @@ STDMETHODIMP UIFrameBufferPrivate::NotifyChange(ULONG uScreenId, ULONG uX, ULONG
 
     /* Widget resize is NOT thread-safe and *probably* never will be,
      * We have to notify machine-view with the async-signal to perform resize operation. */
-    LogRel(("GUI: UIFrameBufferPrivate::NotifyChange: Screen=%lu, Origin=%lux%lu, Size=%lux%lu, Sending to async-handler\n",
-            (unsigned long)uScreenId,
-            (unsigned long)uX, (unsigned long)uY,
-            (unsigned long)uWidth, (unsigned long)uHeight));
+    LogRel2(("GUI: UIFrameBufferPrivate::NotifyChange: Screen=%lu, Origin=%lux%lu, Size=%lux%lu, Sending to async-handler\n",
+             (unsigned long)uScreenId,
+             (unsigned long)uX, (unsigned long)uY,
+             (unsigned long)uWidth, (unsigned long)uHeight));
     emit sigNotifyChange(uWidth, uHeight);
 
     /* Unlock access to frame-buffer: */
@@ -1065,7 +1077,7 @@ STDMETHODIMP UIFrameBufferPrivate::Notify3DEvent(ULONG uType, ComSafeArrayIn(BYT
 
 void UIFrameBufferPrivate::handleNotifyChange(int iWidth, int iHeight)
 {
-    LogRel(("GUI: UIFrameBufferPrivate::handleNotifyChange: Size=%dx%d\n", iWidth, iHeight));
+    LogRel2(("GUI: UIFrameBufferPrivate::handleNotifyChange: Size=%dx%d\n", iWidth, iHeight));
 
     /* Make sure machine-view is assigned: */
     AssertPtrReturnVoid(m_pMachineView);
@@ -1177,8 +1189,8 @@ void UIFrameBufferPrivate::performResize(int iWidth, int iHeight)
     /* If source-bitmap invalid: */
     if (m_sourceBitmap.isNull())
     {
-        LogRel(("GUI: UIFrameBufferPrivate::performResize: Size=%dx%d, "
-                "Using fallback buffer since no source bitmap is provided\n", iWidth, iHeight));
+        LogRel(("GUI: UIFrameBufferPrivate::performResize: Size=%dx%d, Using fallback buffer since no source bitmap is provided\n",
+                iWidth, iHeight));
 
         /* Remember new size came from hint: */
         m_iWidth = iWidth;
@@ -1191,8 +1203,8 @@ void UIFrameBufferPrivate::performResize(int iWidth, int iHeight)
     /* If source-bitmap valid: */
     else
     {
-        LogRel(("GUI: UIFrameBufferPrivate::performResize: Size=%dx%d, "
-                "Directly using source bitmap content\n", iWidth, iHeight));
+        LogRel2(("GUI: UIFrameBufferPrivate::performResize: Size=%dx%d, Directly using source bitmap content\n",
+                 iWidth, iHeight));
 
         /* Acquire source-bitmap attributes: */
         BYTE *pAddress = NULL;
@@ -1287,6 +1299,86 @@ void UIFrameBufferPrivate::performRescale()
 //           scaleFactor(), scaledSize().width(), scaledSize().height());
 }
 
+void UIFrameBufferPrivate::sltMousePointerShapeChange()
+{
+    /* Do we have view and valid cursor position?
+     * Also, please take into account, we are not currently painting
+     * framebuffer cursor if mouse integration is supported and enabled. */
+    if (   m_pMachineView
+        && !m_pMachineView->uisession()->isHidingHostPointer()
+        && m_pMachineView->uisession()->isValidPointerShapePresent()
+        && m_pMachineView->uisession()->isValidCursorPositionPresent()
+        && (   !m_pMachineView->uisession()->isMouseIntegrated()
+            || !m_pMachineView->uisession()->isMouseSupportsAbsolute()))
+    {
+        /* Call for a viewport update using known shape rectangle: */
+        m_pMachineView->viewport()->update(m_cursorRectangle);
+    }
+    /* Don't forget to clear the rectangle in opposite case: */
+    else if (   m_pMachineView
+             && m_cursorRectangle.isValid())
+    {
+        /* Call for a viewport update: */
+        m_pMachineView->viewport()->update(m_cursorRectangle);
+        /* And erase the rectangle after all: */
+        m_cursorRectangle = QRect();
+    }
+}
+
+void UIFrameBufferPrivate::sltCursorPositionChange()
+{
+    /* Do we have view and valid cursor position?
+     * Also, please take into account, we are not currently painting
+     * framebuffer cursor if mouse integration is supported and enabled. */
+    if (   m_pMachineView
+        && !m_pMachineView->uisession()->isHidingHostPointer()
+        && m_pMachineView->uisession()->isValidPointerShapePresent()
+        && m_pMachineView->uisession()->isValidCursorPositionPresent()
+        && (   !m_pMachineView->uisession()->isMouseIntegrated()
+            || !m_pMachineView->uisession()->isMouseSupportsAbsolute()))
+    {
+        /* Acquire cursor hotspot: */
+        QPoint cursorHotspot = m_pMachineView->uisession()->cursorHotspot();
+        /* Apply the scale-factor if necessary: */
+        cursorHotspot /= scaleFactor();
+        /* Take the device-pixel-ratio into account: */
+        if (!useUnscaledHiDPIOutput())
+            cursorHotspot /= devicePixelRatioActual();
+
+        /* Acquire cursor position and size: */
+        QPoint cursorPosition = m_pMachineView->uisession()->cursorPosition() - cursorHotspot;
+        QSize cursorSize = m_pMachineView->uisession()->cursorSize();
+        /* Apply the scale-factor if necessary: */
+        cursorPosition *= scaleFactor();
+        cursorSize *= scaleFactor();
+        /* Take the device-pixel-ratio into account: */
+        if (!useUnscaledHiDPIOutput())
+        {
+            cursorPosition *= devicePixelRatioActual();
+            cursorSize *= devicePixelRatioActual();
+        }
+        cursorPosition /= devicePixelRatio();
+        cursorSize /= devicePixelRatio();
+
+        /* Call for a viewport update, we need to update cumulative
+         * region containing previous and current cursor rectagles. */
+        const QRect cursorRectangle = QRect(cursorPosition, cursorSize);
+        m_pMachineView->viewport()->update(QRegion(m_cursorRectangle) + cursorRectangle);
+
+        /* Remember current cursor rectangle: */
+        m_cursorRectangle = cursorRectangle;
+    }
+    /* Don't forget to clear the rectangle in opposite case: */
+    else if (   m_pMachineView
+             && m_cursorRectangle.isValid())
+    {
+        /* Call for a viewport update: */
+        m_pMachineView->viewport()->update(m_cursorRectangle);
+        /* And erase the rectangle after all: */
+        m_cursorRectangle = QRect();
+    }
+}
+
 void UIFrameBufferPrivate::prepareConnections()
 {
     /* Attach EMT connections: */
@@ -1302,6 +1394,12 @@ void UIFrameBufferPrivate::prepareConnections()
     connect(this, SIGNAL(sigNotifyAbout3DOverlayVisibilityChange(bool)),
             m_pMachineView, SLOT(sltHandle3DOverlayVisibilityChange(bool)),
             Qt::QueuedConnection);
+
+    /* Attach GUI connections: */
+    connect(m_pMachineView->uisession(), &UISession::sigMousePointerShapeChange,
+            this, &UIFrameBufferPrivate::sltMousePointerShapeChange);
+    connect(m_pMachineView->uisession(), &UISession::sigCursorPositionChange,
+            this, &UIFrameBufferPrivate::sltCursorPositionChange);
 }
 
 void UIFrameBufferPrivate::cleanupConnections()
@@ -1315,6 +1413,10 @@ void UIFrameBufferPrivate::cleanupConnections()
                m_pMachineView, SLOT(sltHandleSetVisibleRegion(QRegion)));
     disconnect(this, SIGNAL(sigNotifyAbout3DOverlayVisibilityChange(bool)),
                m_pMachineView, SLOT(sltHandle3DOverlayVisibilityChange(bool)));
+
+    /* Detach GUI connections: */
+    disconnect(m_pMachineView->uisession(), &UISession::sigCursorPositionChange,
+               this, &UIFrameBufferPrivate::sltCursorPositionChange);
 }
 
 void UIFrameBufferPrivate::updateCoordinateSystem()
@@ -1403,6 +1505,25 @@ void UIFrameBufferPrivate::paintDefault(QPaintEvent *pEvent)
         /* Wipe out copied image: */
         delete pSourceImage;
         pSourceImage = 0;
+    }
+
+    /* Paint cursor if it has valid shape and position.
+     * Also, please take into account, we are not currently painting
+     * framebuffer cursor if mouse integration is supported and enabled. */
+    if (   !m_pMachineView->uisession()->isHidingHostPointer()
+        && m_pMachineView->uisession()->isValidPointerShapePresent()
+        && m_pMachineView->uisession()->isValidCursorPositionPresent()
+        && (   !m_pMachineView->uisession()->isMouseIntegrated()
+            || !m_pMachineView->uisession()->isMouseSupportsAbsolute()))
+    {
+        /* Acquire session cursor pixmap: */
+        QPixmap cursorPixmap = m_pMachineView->uisession()->cursorPixmap();
+
+        /* Take the device-pixel-ratio into account: */
+        cursorPixmap.setDevicePixelRatio(devicePixelRatio());
+
+        /* Draw sub-pixmap: */
+        painter.drawPixmap(m_cursorRectangle.topLeft(), cursorPixmap);
     }
 }
 
@@ -1493,6 +1614,25 @@ void UIFrameBufferPrivate::paintSeamless(QPaintEvent *pEvent)
         /* Wipe out copied image: */
         delete pSourceImage;
         pSourceImage = 0;
+    }
+
+    /* Paint cursor if it has valid shape and position.
+     * Also, please take into account, we are not currently painting
+     * framebuffer cursor if mouse integration is supported and enabled. */
+    if (   !m_pMachineView->uisession()->isHidingHostPointer()
+        && m_pMachineView->uisession()->isValidPointerShapePresent()
+        && m_pMachineView->uisession()->isValidCursorPositionPresent()
+        && (   !m_pMachineView->uisession()->isMouseIntegrated()
+            || !m_pMachineView->uisession()->isMouseSupportsAbsolute()))
+    {
+        /* Acquire session cursor pixmap: */
+        QPixmap cursorPixmap = m_pMachineView->uisession()->cursorPixmap();
+
+        /* Take the device-pixel-ratio into account: */
+        cursorPixmap.setDevicePixelRatio(devicePixelRatio());
+
+        /* Draw sub-pixmap: */
+        painter.drawPixmap(m_cursorRectangle.topLeft(), cursorPixmap);
     }
 }
 

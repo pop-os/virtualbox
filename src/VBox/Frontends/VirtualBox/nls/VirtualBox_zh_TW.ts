@@ -26,7 +26,7 @@
     <message>
         <source>Oracle Corporation</source>
         <comment>Comma-separated list of translators</comment>
-        <translation>None</translation>
+        <translation>alan@stable</translation>
     </message>
 </context>
 <context>
@@ -81,11 +81,19 @@
     </message>
     <message>
         <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root.</source>
-        <translation>未載入 VirtualBox Linux 核心驅動程式 (vboxdrv) 或是 /dev/vboxdrv 的權限問題。 請以 root 執行&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;來重新安裝核心模組。</translation>
+        <translation type="vanished">未載入 VirtualBox Linux 核心驅動程式 (vboxdrv) 或是 /dev/vboxdrv 的權限問題。 請以 root 執行&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;來重新安裝核心模組。</translation>
     </message>
     <message>
         <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
-        <translation>VirtualBox 核心模組不符合這個 VirtualBox 的版本。 顯然 VirtualBox 的安裝不成功。 執行&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;應能修正問題。 請確認您未混合 VirtualBox 的 OSE 版本與 PUEL 版本。</translation>
+        <translation type="vanished">VirtualBox 核心模組不符合這個 VirtualBox 的版本。 顯然 VirtualBox 的安裝不成功。 執行&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;應能修正問題。 請確認您未混合 VirtualBox 的 OSE 版本與 PUEL 版本。</translation>
+    </message>
+    <message>
+        <source>The VirtualBox Linux kernel driver is either not loaded or not set up correctly. Please try setting it up again by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root.&lt;br/&gt;&lt;br/&gt;If your system has EFI Secure Boot enabled you may also need to sign the kernel modules (vboxdrv, vboxnetflt, vboxnetadp, vboxpci) before you can load them. Please see your Linux system&apos;s documentation for more information.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you are not mixing builds of VirtualBox from different sources.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -893,10 +901,6 @@
         <translation>關閉選取虛擬機器的電源</translation>
     </message>
     <message>
-        <source>&amp;Machine Tools Menu</source>
-        <translation type="vanished">機器工具功能表(&amp;M)</translation>
-    </message>
-    <message>
         <source>Open the machine tools menu</source>
         <translation>開啟「機器工具功能表」</translation>
     </message>
@@ -1668,7 +1672,15 @@
     </message>
     <message>
         <source>Tools</source>
-        <translation type="unfinished">工具</translation>
+        <translation>工具</translation>
+    </message>
+    <message>
+        <source>E&amp;xport to OCI...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Export selected virtual machine to OCI</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -2164,31 +2176,31 @@
     <name>UICustomFileSystemModel</name>
     <message>
         <source>Name</source>
-        <translation type="unfinished">名稱</translation>
+        <translation>名稱</translation>
     </message>
     <message>
         <source>Size</source>
-        <translation type="unfinished">大小</translation>
+        <translation>大小</translation>
     </message>
     <message>
         <source>Change Time</source>
-        <translation type="unfinished">變更時間</translation>
+        <translation>變更時間</translation>
     </message>
     <message>
         <source>Owner</source>
-        <translation type="unfinished">擁有者</translation>
+        <translation>擁有者</translation>
     </message>
     <message>
         <source>Permissions</source>
-        <translation type="unfinished">權限</translation>
+        <translation>權限</translation>
     </message>
     <message>
         <source>LocalPath</source>
-        <translation type="unfinished"></translation>
+        <translation>本機路徑</translation>
     </message>
     <message>
         <source>Path</source>
-        <translation type="unfinished">路徑</translation>
+        <translation>路徑</translation>
     </message>
 </context>
 <context>
@@ -2832,10 +2844,6 @@
         <translation>以人類可讀的格式而不是以 bytes 為單位顯示檔案/目錄大小</translation>
     </message>
     <message>
-        <source>Close the pane</source>
-        <translation>關閉窗格</translation>
-    </message>
-    <message>
         <source>Password</source>
         <translation>密碼</translation>
     </message>
@@ -2888,26 +2896,6 @@
         <translation>刪除確認也可以從「選項」面板中停用/啟用。</translation>
     </message>
     <message>
-        <source>Name</source>
-        <translation type="vanished">名稱</translation>
-    </message>
-    <message>
-        <source>Size</source>
-        <translation type="vanished">大小</translation>
-    </message>
-    <message>
-        <source>Change Time</source>
-        <translation type="vanished">變更時間</translation>
-    </message>
-    <message>
-        <source>Owner</source>
-        <translation type="vanished">擁有者</translation>
-    </message>
-    <message>
-        <source>Permissions</source>
-        <translation type="vanished">權限</translation>
-    </message>
-    <message>
         <source>No Guest Session</source>
         <translation>沒有客體工作階段</translation>
     </message>
@@ -2926,10 +2914,6 @@
     <message>
         <source>Symbolic Link</source>
         <translation>符號連結</translation>
-    </message>
-    <message>
-        <source>Other</source>
-        <translation type="vanished">其它</translation>
     </message>
     <message>
         <source>Guest System</source>
@@ -3065,11 +3049,11 @@
     </message>
     <message>
         <source>Show hidden objects</source>
-        <translation type="unfinished"></translation>
+        <translation>顯示隱藏的物件</translation>
     </message>
     <message>
         <source>Show hidden files/directories</source>
-        <translation type="unfinished"></translation>
+        <translation>顯示隱藏的檔案/目錄</translation>
     </message>
 </context>
 <context>
@@ -6518,6 +6502,21 @@
     </message>
 </context>
 <context>
+    <name>UIMediumSearchWidget</name>
+    <message>
+        <source>Search By Name</source>
+        <translation>依名稱搜尋</translation>
+    </message>
+    <message>
+        <source>Search By UUID</source>
+        <translation>依 UUID 搜尋</translation>
+    </message>
+    <message>
+        <source>Select the search type</source>
+        <translation>選取搜尋類型</translation>
+    </message>
+</context>
+<context>
     <name>UIMediumSelector</name>
     <message>
         <source>&amp;Add...</source>
@@ -6570,6 +6569,18 @@
     <message>
         <source>Actual Size</source>
         <translation>實際大小</translation>
+    </message>
+    <message>
+        <source>Medium</source>
+        <translation>中</translation>
+    </message>
+    <message>
+        <source>Expand All</source>
+        <translation>全部展開</translation>
+    </message>
+    <message>
+        <source>Collapse All</source>
+        <translation>全部折疊</translation>
     </message>
 </context>
 <context>
@@ -8736,18 +8747,6 @@
         <translation>刪除所有書籤</translation>
     </message>
     <message>
-        <source>Goto the next bookmark</source>
-        <translation>移至下一個書籤</translation>
-    </message>
-    <message>
-        <source>Goto the previous bookmark</source>
-        <translation>移至上一個書籤</translation>
-    </message>
-    <message>
-        <source>Goto selected bookmark</source>
-        <translation>移至選取的書籤</translation>
-    </message>
-    <message>
         <source>Log Viewer</source>
         <translation>日誌檢視器</translation>
     </message>
@@ -8808,10 +8807,6 @@
         <translation>將選項重設為應用程式預設值</translation>
     </message>
     <message>
-        <source>Close the pane</source>
-        <translation>關閉窗格</translation>
-    </message>
-    <message>
         <source>Enter a search string here</source>
         <translation>在此處輸入搜尋字串</translation>
     </message>
@@ -8849,11 +8844,11 @@
     </message>
     <message>
         <source>String not found</source>
-        <translation>找不到字串</translation>
+        <translation type="vanished">找不到字串</translation>
     </message>
     <message>
         <source>%1 Matches Found</source>
-        <translation>找到 %1 項符合</translation>
+        <translation type="vanished">找到 %1 項符合</translation>
     </message>
     <message>
         <source>Filtered</source>
@@ -8874,6 +8869,22 @@
     <message>
         <source>&lt;p&gt;No log files found. Press the &lt;b&gt;Refresh&lt;/b&gt; button to rescan the log folder &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.&lt;/p&gt;</source>
         <translation>&lt;p&gt;找不到日誌檔。 按下 [&lt;b&gt;重新整理&lt;/b&gt;] 按鈕以重新掃描日誌資料夾 &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;。&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Go to the next bookmark</source>
+        <translation>移至下一個書籤</translation>
+    </message>
+    <message>
+        <source>Go to the previous bookmark</source>
+        <translation>移至上一個書籤</translation>
+    </message>
+    <message>
+        <source>Go to selected bookmark</source>
+        <translation>移至選取的書籤</translation>
+    </message>
+    <message>
+        <source>Matches Found</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -8904,102 +8915,142 @@
     <name>UIVisoCreator</name>
     <message>
         <source>VISO content</source>
-        <translation type="unfinished"></translation>
+        <translation>VISO 內容</translation>
     </message>
     <message>
         <source>Remove selected file objects from VISO</source>
-        <translation type="unfinished"></translation>
+        <translation>從 VISO 中刪除選取的檔案物件</translation>
     </message>
     <message>
         <source>Name</source>
-        <translation type="unfinished">名稱</translation>
+        <translation>名稱</translation>
     </message>
     <message>
         <source>Size</source>
-        <translation type="unfinished">大小</translation>
+        <translation>大小</translation>
     </message>
     <message>
         <source>Change Time</source>
-        <translation type="unfinished">變更時間</translation>
+        <translation>變更時間</translation>
     </message>
     <message>
         <source>Owner</source>
-        <translation type="unfinished">擁有者</translation>
+        <translation>擁有者</translation>
     </message>
     <message>
         <source>Permissions</source>
-        <translation type="unfinished">權限</translation>
+        <translation>權限</translation>
     </message>
     <message>
         <source>Local Path</source>
-        <translation type="unfinished"></translation>
+        <translation>本地路徑</translation>
     </message>
     <message>
         <source>ISO Path</source>
-        <translation type="unfinished"></translation>
+        <translation>ISO 路徑</translation>
     </message>
     <message>
         <source>&amp;Options...</source>
-        <translation type="unfinished"></translation>
+        <translation>選項(&amp;O)...</translation>
     </message>
     <message>
         <source>Show Hidden Objects</source>
-        <translation type="unfinished"></translation>
+        <translation>顯示隱藏的物件</translation>
     </message>
     <message>
         <source>Host file system</source>
-        <translation type="unfinished"></translation>
+        <translation>主機檔案系統</translation>
     </message>
     <message>
         <source>Create a new directory under the current location</source>
-        <translation type="unfinished"></translation>
+        <translation>在目前位置下建立新目錄</translation>
     </message>
     <message>
         <source>Reset ISO content.</source>
-        <translation type="unfinished"></translation>
+        <translation>重設 ISO 內容。</translation>
     </message>
     <message>
         <source>Rename the selected object</source>
-        <translation type="unfinished"></translation>
+        <translation>重新命名選取的物件</translation>
     </message>
     <message>
         <source>&amp;Configuration...</source>
-        <translation type="unfinished"></translation>
+        <translation>組態(&amp;C)...</translation>
     </message>
     <message>
         <source>VISO Configuration</source>
-        <translation type="unfinished"></translation>
+        <translation>VISO 組態</translation>
     </message>
     <message>
         <source>Manage VISO Configuration</source>
-        <translation type="unfinished"></translation>
+        <translation>管理 VISO 組態</translation>
     </message>
     <message>
         <source>Dialog Options</source>
-        <translation type="unfinished"></translation>
+        <translation>對話方塊選項</translation>
     </message>
     <message>
         <source>Manage Dialog Options</source>
-        <translation type="unfinished"></translation>
+        <translation>管理對話方塊選項</translation>
     </message>
     <message>
         <source>VISO Name:</source>
-        <translation type="unfinished"></translation>
+        <translation>VISO 名稱:</translation>
     </message>
     <message>
         <source>Add selected file objects to ISO</source>
-        <translation type="unfinished"></translation>
+        <translation>將選取的檔案物件加入到 ISO</translation>
     </message>
     <message>
         <source>Custom VISO options:</source>
-        <translation type="unfinished"></translation>
+        <translation>自訂 VISO 選項:</translation>
+    </message>
+    <message>
+        <source>Close the pane</source>
+        <translation>關閉窗格</translation>
+    </message>
+    <message>
+        <source>Remove</source>
+        <translation>移除</translation>
+    </message>
+    <message>
+        <source>New Directory</source>
+        <translation>新增目錄</translation>
+    </message>
+    <message>
+        <source>Reset</source>
+        <translation>重設</translation>
+    </message>
+    <message>
+        <source>VISO Creator</source>
+        <translation>VISO 建立器</translation>
+    </message>
+    <message>
+        <source>VISO</source>
+        <translation>VISO</translation>
+    </message>
+    <message>
+        <source>Host Browser</source>
+        <translation>主機瀏覽器</translation>
+    </message>
+    <message>
+        <source>VISO Browser</source>
+        <translation>VISO 瀏覽器</translation>
+    </message>
+    <message>
+        <source>Remove current option.</source>
+        <translation>移除目前選項。</translation>
+    </message>
+    <message>
+        <source>Add</source>
+        <translation>加入</translation>
     </message>
 </context>
 <context>
     <name>UIWelcomePane</name>
     <message>
         <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of application window contains global tools and lists all virtual machines and virtual machine groups on your computer. You can import, add and create new VMs using corresponding toolbar buttons. You can popup a tools of currently selected element using corresponding element button.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for more information and latest news.&lt;/p&gt;</source>
-        <translation>&lt;h3&gt;歡迎使用 VirtualBox!&lt;/h3&gt;&lt;p&gt;這個應用程式視窗左部包含全域工具和列出在您電腦的所有虛擬機器及虛擬機器群組。 您可以使用相對應工具列匯入、加入和新建 VM。 能使用相對應元素按鈕快顯目前所選元素的工具。&lt;/p&gt;&lt;p&gt;按下 &lt;b&gt;%1&lt;/b&gt; 鍵可以取得即時說明，或訪問 &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; 取得更多資訊和最新新聞。&lt;/p&gt;</translation>
+        <translation>&lt;h3&gt;歡迎使用 VirtualBox!&lt;/h3&gt;&lt;p&gt;這個應用程式視窗左部包含全域工具和列出在您電腦的所有虛擬機器及虛擬機器群組。 您可以使用相對應工具列按鈕匯入、加入和新建 VM，和使用相對應元素按鈕快顯目前所選元素的工具。&lt;/p&gt;&lt;p&gt;按下 &lt;b&gt;%1&lt;/b&gt; 鍵可以取得即時說明，或訪問 &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; 取得更多資訊和最新新聞。&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
@@ -10967,10 +11018,6 @@
     <message>
         <source>All files (*)</source>
         <translation>所有檔案 (*)</translation>
-    </message>
-    <message>
-        <source>Please select files to be on the VISO</source>
-        <translation type="vanished">請選取要在 VISO 上的檔案</translation>
     </message>
     <message>
         <source>Unknown device</source>

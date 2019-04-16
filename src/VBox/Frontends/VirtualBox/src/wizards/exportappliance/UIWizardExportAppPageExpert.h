@@ -54,7 +54,7 @@ public:
 
     /** Constructs expert basic page.
       * @param  selectedVMNames  Brings the list of selected VM names. */
-    UIWizardExportAppPageExpert(const QStringList &selectedVMNames);
+    UIWizardExportAppPageExpert(const QStringList &selectedVMNames, bool fExportToOCIByDefault);
 
 protected:
 
@@ -89,6 +89,9 @@ private slots:
 
     /** Handles format combo change. */
     void sltHandleFormatComboChange();
+
+    /** Handles change in file-name selector. */
+    void sltHandleFileSelectorChange();
 
     /** Handles change in MAC address policy combo-box. */
     void sltHandleMACAddressPolicyComboChange();

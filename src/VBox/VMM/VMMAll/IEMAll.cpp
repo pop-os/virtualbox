@@ -979,12 +979,15 @@ IEM_STATIC uint64_t         iemSRegBaseFetchU64(PVMCPU pVCpu, uint8_t iSegReg);
 #ifdef VBOX_WITH_NESTED_HWVIRT_VMX
 IEM_STATIC VBOXSTRICTRC     iemVmxVmexitTaskSwitch(PVMCPU pVCpu, IEMTASKSWITCH enmTaskSwitch, RTSEL SelNewTss, uint8_t cbInstr);
 IEM_STATIC VBOXSTRICTRC     iemVmxVmexitEvent(PVMCPU pVCpu, uint8_t uVector, uint32_t fFlags, uint32_t uErrCode, uint64_t uCr2, uint8_t cbInstr);
+IEM_STATIC VBOXSTRICTRC     iemVmxVmexitEventDoubleFault(PVMCPU pVCpu);
 IEM_STATIC VBOXSTRICTRC     iemVmxVmexitTripleFault(PVMCPU pVCpu);
 IEM_STATIC VBOXSTRICTRC     iemVmxVmexitPreemptTimer(PVMCPU pVCpu);
 IEM_STATIC VBOXSTRICTRC     iemVmxVmexitExtInt(PVMCPU pVCpu, uint8_t uVector, bool fIntPending);
+IEM_STATIC VBOXSTRICTRC     iemVmxVmexitNmi(PVMCPU pVCpu);
 IEM_STATIC VBOXSTRICTRC     iemVmxVmexitStartupIpi(PVMCPU pVCpu, uint8_t uVector);
 IEM_STATIC VBOXSTRICTRC     iemVmxVmexitInitIpi(PVMCPU pVCpu);
 IEM_STATIC VBOXSTRICTRC     iemVmxVmexitIntWindow(PVMCPU pVCpu);
+IEM_STATIC VBOXSTRICTRC     iemVmxVmexitNmiWindow(PVMCPU pVCpu);
 IEM_STATIC VBOXSTRICTRC     iemVmxVmexitMtf(PVMCPU pVCpu);
 IEM_STATIC VBOXSTRICTRC     iemVmxVirtApicAccessMem(PVMCPU pVCpu, uint16_t offAccess, size_t cbAccess, void *pvData, uint32_t fAccess);
 IEM_STATIC VBOXSTRICTRC     iemVmxVmexitApicAccess(PVMCPU pVCpu, uint16_t offAccess, uint32_t fAccess);
@@ -1132,7 +1135,7 @@ DECLINLINE(void) iemInitExec(PVMCPU pVCpu, bool fBypassHandlers)
 #endif
 }
 
-#ifdef VBOX_WITH_NESTED_HWVIRT_SVM
+#if defined(VBOX_WITH_NESTED_HWVIRT_SVM) || defined(VBOX_WITH_NESTED_HWVIRT_VMX)
 /**
  * Performs a minimal reinitialization of the execution state.
  *
@@ -4699,7 +4702,8 @@ iemTaskSwitch(PVMCPU          pVCpu,
      */
     uint16_t uExt;
     if (   enmTaskSwitch == IEMTASKSWITCH_INT_XCPT
-        && !(fFlags & IEM_XCPT_FLAGS_T_SOFT_INT))
+        && (   !(fFlags & IEM_XCPT_FLAGS_T_SOFT_INT)
+            ||  (fFlags & IEM_XCPT_FLAGS_ICEBP_INSTR)))
     {
         uExt = 1;
     }
@@ -4865,7 +4869,7 @@ iemRaiseXcptOrIntInProtMode(PVMCPU      pVCpu,
     }
 
     /* Check DPL against CPL if applicable. */
-    if (fFlags & IEM_XCPT_FLAGS_T_SOFT_INT)
+    if ((fFlags & (IEM_XCPT_FLAGS_T_SOFT_INT | IEM_XCPT_FLAGS_ICEBP_INSTR)) == IEM_XCPT_FLAGS_T_SOFT_INT)
     {
         if (pVCpu->iem.s.uCpl > Idte.Gate.u2Dpl)
         {
@@ -4888,7 +4892,8 @@ iemRaiseXcptOrIntInProtMode(PVMCPU      pVCpu,
          * Construct the error code masks based on what caused this task switch.
          * See Intel Instruction reference for INT.
          */
-        uint16_t const uExt     = (fFlags & IEM_XCPT_FLAGS_T_SOFT_INT) ? 0 : 1;
+        uint16_t const uExt     = (    (fFlags & IEM_XCPT_FLAGS_T_SOFT_INT)
+                                   && !(fFlags & IEM_XCPT_FLAGS_ICEBP_INSTR)) ? 0 : 1;
         uint16_t const uSelMask = X86_SEL_MASK_OFF_RPL;
         RTSEL          SelTSS   = Idte.Gate.u16Sel;
 
@@ -5300,7 +5305,7 @@ iemRaiseXcptOrIntInLongMode(PVMCPU      pVCpu,
     }
 
     /* Check DPL against CPL if applicable. */
-    if (fFlags & IEM_XCPT_FLAGS_T_SOFT_INT)
+    if ((fFlags & (IEM_XCPT_FLAGS_T_SOFT_INT | IEM_XCPT_FLAGS_ICEBP_INSTR)) == IEM_XCPT_FLAGS_T_SOFT_INT)
     {
         if (pVCpu->iem.s.uCpl > Idte.Gate.u2Dpl)
         {
@@ -5521,7 +5526,10 @@ iemRaiseXcptOrInt(PVMCPU      pVCpu,
      */
     if (   pVCpu->cpum.GstCtx.eflags.Bits.u1VM
         && pVCpu->cpum.GstCtx.eflags.Bits.u2IOPL != 3
-        && (fFlags & (IEM_XCPT_FLAGS_T_SOFT_INT | IEM_XCPT_FLAGS_BP_INSTR)) == IEM_XCPT_FLAGS_T_SOFT_INT
+        && (fFlags & (  IEM_XCPT_FLAGS_T_SOFT_INT
+                      | IEM_XCPT_FLAGS_BP_INSTR
+                      | IEM_XCPT_FLAGS_ICEBP_INSTR
+                      | IEM_XCPT_FLAGS_OF_INSTR)) == IEM_XCPT_FLAGS_T_SOFT_INT
         && (pVCpu->cpum.GstCtx.cr0 & X86_CR0_PE) )
     {
         Log(("iemRaiseXcptOrInt: V8086 IOPL check failed for int %#x -> #GP(0)\n", u8Vector));
@@ -5535,12 +5543,30 @@ iemRaiseXcptOrInt(PVMCPU      pVCpu,
                       pVCpu->cpum.GstCtx.cs.Sel, pVCpu->cpum.GstCtx.rip, pVCpu->cpum.GstCtx.ss.Sel, pVCpu->cpum.GstCtx.rsp);
 #endif
 
+    /*
+     * Evaluate whether NMI blocking should be in effect.
+     * Normally, NMI blocking is in effect whenever we inject an NMI.
+     */
+    bool fBlockNmi;
+    if (   u8Vector == X86_XCPT_NMI
+        && (fFlags & IEM_XCPT_FLAGS_T_CPU_XCPT))
+        fBlockNmi = true;
+    else
+        fBlockNmi = false;
+
 #ifdef VBOX_WITH_NESTED_HWVIRT_VMX
     if (IEM_VMX_IS_NON_ROOT_MODE(pVCpu))
     {
         VBOXSTRICTRC rcStrict0 = iemVmxVmexitEvent(pVCpu, u8Vector, fFlags, uErr, uCr2, cbInstr);
         if (rcStrict0 != VINF_VMX_INTERCEPT_NOT_ACTIVE)
             return rcStrict0;
+
+        /* If virtual-NMI blocking is in effect for the nested-guest, guest NMIs are not blocked. */
+        if (pVCpu->cpum.GstCtx.hwvirt.vmx.fVirtNmiBlocking)
+        {
+            Assert(CPUMIsGuestVmxPinCtlsSet(pVCpu, &pVCpu->cpum.GstCtx, VMX_PIN_CTLS_VIRT_NMI));
+            fBlockNmi = false;
+        }
     }
 #endif
 
@@ -5566,7 +5592,14 @@ iemRaiseXcptOrInt(PVMCPU      pVCpu,
                 return rcStrict0;
         }
     }
-#endif /* VBOX_WITH_NESTED_HWVIRT_SVM */
+#endif
+
+    /*
+     * Set NMI blocking if necessary.
+     */
+    if (   fBlockNmi
+        && !VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_BLOCK_NMIS))
+        VMCPU_FF_SET(pVCpu, VMCPU_FF_BLOCK_NMIS);
 
     /*
      * Do recursion accounting.
@@ -5603,7 +5636,15 @@ iemRaiseXcptOrInt(PVMCPU      pVCpu,
             fFlags   = IEM_XCPT_FLAGS_T_CPU_XCPT | IEM_XCPT_FLAGS_ERR;
             u8Vector = X86_XCPT_DF;
             uErr     = 0;
-            /** @todo NSTVMX: Do we need to do something here for VMX? */
+#ifdef VBOX_WITH_NESTED_HWVIRT_VMX
+            /* VMX nested-guest #DF intercept needs to be checked here. */
+            if (IEM_VMX_IS_NON_ROOT_MODE(pVCpu))
+            {
+                VBOXSTRICTRC rcStrict0 = iemVmxVmexitEventDoubleFault(pVCpu);
+                if (rcStrict0 != VINF_VMX_INTERCEPT_NOT_ACTIVE)
+                    return rcStrict0;
+            }
+#endif
             /* SVM nested-guest #DF intercepts need to be checked now. See AMD spec. 15.12 "Exception Intercepts". */
             if (IEM_SVM_IS_XCPT_INTERCEPT_SET(pVCpu, X86_XCPT_DF))
                 IEM_SVM_VMEXIT_RET(pVCpu, SVM_EXIT_XCPT_DF, 0 /* uExitInfo1 */, 0 /* uExitInfo2 */);
@@ -14028,7 +14069,7 @@ DECLINLINE(VBOXSTRICTRC) iemExecOneInner(PVMCPU pVCpu, bool fExecuteInhibit, con
             Assert(!VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS));
             Assert(!VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_VMX_MTF));
         }
-        /** Finally, check if the VMX preemption timer has expired. */
+        /* VMX preemption timer takes priority over NMI-window exits. */
         else if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_VMX_PREEMPT_TIMER))
         {
             rcStrict = iemVmxVmexitPreemptTimer(pVCpu);
@@ -14039,6 +14080,12 @@ DECLINLINE(VBOXSTRICTRC) iemExecOneInner(PVMCPU pVCpu, bool fExecuteInhibit, con
                 Assert(!VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS));
                 Assert(!VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_VMX_PREEMPT_TIMER));
             }
+        }
+        /* NMI-window VM-exit. */
+        else if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_VMX_NMI_WINDOW))
+        {
+            rcStrict = iemVmxVmexitNmiWindow(pVCpu);
+            Assert(!VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_VMX_NMI_WINDOW));
         }
     }
 #endif
@@ -14156,7 +14203,7 @@ VMMDECL(VBOXSTRICTRC) IEMExecOne(PVMCPU pVCpu)
 }
 
 
-VMMDECL(VBOXSTRICTRC)       IEMExecOneEx(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, uint32_t *pcbWritten)
+VMMDECL(VBOXSTRICTRC) IEMExecOneEx(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, uint32_t *pcbWritten)
 {
     AssertReturn(CPUMCTX2CORE(IEM_GET_CTX(pVCpu)) == pCtxCore, VERR_IEM_IPE_3);
 
@@ -14178,8 +14225,8 @@ VMMDECL(VBOXSTRICTRC)       IEMExecOneEx(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, ui
 }
 
 
-VMMDECL(VBOXSTRICTRC)       IEMExecOneWithPrefetchedByPC(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, uint64_t OpcodeBytesPC,
-                                                         const void *pvOpcodeBytes, size_t cbOpcodeBytes)
+VMMDECL(VBOXSTRICTRC) IEMExecOneWithPrefetchedByPC(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, uint64_t OpcodeBytesPC,
+                                                   const void *pvOpcodeBytes, size_t cbOpcodeBytes)
 {
     AssertReturn(CPUMCTX2CORE(IEM_GET_CTX(pVCpu)) == pCtxCore, VERR_IEM_IPE_3);
 
@@ -14214,7 +14261,7 @@ VMMDECL(VBOXSTRICTRC)       IEMExecOneWithPrefetchedByPC(PVMCPU pVCpu, PCPUMCTXC
 }
 
 
-VMMDECL(VBOXSTRICTRC)       IEMExecOneBypassEx(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, uint32_t *pcbWritten)
+VMMDECL(VBOXSTRICTRC) IEMExecOneBypassEx(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, uint32_t *pcbWritten)
 {
     AssertReturn(CPUMCTX2CORE(IEM_GET_CTX(pVCpu)) == pCtxCore, VERR_IEM_IPE_3);
 
@@ -14236,8 +14283,8 @@ VMMDECL(VBOXSTRICTRC)       IEMExecOneBypassEx(PVMCPU pVCpu, PCPUMCTXCORE pCtxCo
 }
 
 
-VMMDECL(VBOXSTRICTRC)       IEMExecOneBypassWithPrefetchedByPC(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, uint64_t OpcodeBytesPC,
-                                                               const void *pvOpcodeBytes, size_t cbOpcodeBytes)
+VMMDECL(VBOXSTRICTRC) IEMExecOneBypassWithPrefetchedByPC(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, uint64_t OpcodeBytesPC,
+                                                         const void *pvOpcodeBytes, size_t cbOpcodeBytes)
 {
     AssertReturn(CPUMCTX2CORE(IEM_GET_CTX(pVCpu)) == pCtxCore, VERR_IEM_IPE_3);
 
@@ -14285,9 +14332,9 @@ VMMDECL(VBOXSTRICTRC)       IEMExecOneBypassWithPrefetchedByPC(PVMCPU pVCpu, PCP
  * @param   pcbWritten      Where to return the number of bytes written.
  *                          Optional.
  */
-VMMDECL(VBOXSTRICTRC)       IEMExecOneBypassWithPrefetchedByPCWritten(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, uint64_t OpcodeBytesPC,
-                                                                      const void *pvOpcodeBytes, size_t cbOpcodeBytes,
-                                                                      uint32_t *pcbWritten)
+VMMDECL(VBOXSTRICTRC) IEMExecOneBypassWithPrefetchedByPCWritten(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, uint64_t OpcodeBytesPC,
+                                                                const void *pvOpcodeBytes, size_t cbOpcodeBytes,
+                                                                uint32_t *pcbWritten)
 {
     AssertReturn(CPUMCTX2CORE(IEM_GET_CTX(pVCpu)) == pCtxCore, VERR_IEM_IPE_3);
 
@@ -14335,14 +14382,19 @@ VMMDECL(VBOXSTRICTRC) IEMExecLots(PVMCPU pVCpu, uint32_t *pcInstructions)
      * See if there is an interrupt pending in TRPM, inject it if we can.
      */
     /** @todo Can we centralize this under CPUMCanInjectInterrupt()? */
-#if defined(VBOX_WITH_NESTED_HWVIRT_SVM)
+#if defined(VBOX_WITH_NESTED_HWVIRT_SVM) || defined(VBOX_WITH_NESTED_HWVIRT_VMX)
     bool fIntrEnabled = CPUMGetGuestGif(&pVCpu->cpum.GstCtx);
     if (fIntrEnabled)
     {
-        if (CPUMIsGuestInSvmNestedHwVirtMode(IEM_GET_CTX(pVCpu)))
-            fIntrEnabled = CPUMIsGuestSvmPhysIntrEnabled(pVCpu, IEM_GET_CTX(pVCpu));
-        else
+        if (!CPUMIsGuestInNestedHwvirtMode(IEM_GET_CTX(pVCpu)))
             fIntrEnabled = pVCpu->cpum.GstCtx.eflags.Bits.u1IF;
+        else if (CPUMIsGuestInVmxNonRootMode(IEM_GET_CTX(pVCpu)))
+            fIntrEnabled = CPUMIsGuestVmxPhysIntrEnabled(pVCpu, IEM_GET_CTX(pVCpu));
+        else
+        {
+            Assert(CPUMIsGuestInSvmNestedHwVirtMode(IEM_GET_CTX(pVCpu)));
+            fIntrEnabled = CPUMIsGuestSvmPhysIntrEnabled(pVCpu, IEM_GET_CTX(pVCpu));
+        }
     }
 #else
     bool fIntrEnabled = pVCpu->cpum.GstCtx.eflags.Bits.u1IF;
@@ -14356,8 +14408,16 @@ VMMDECL(VBOXSTRICTRC) IEMExecLots(PVMCPU pVCpu, uint32_t *pcInstructions)
         RTGCUINT    uErrCode;
         RTGCPTR     uCr2;
         int rc2 = TRPMQueryTrapAll(pVCpu, &u8TrapNo, &enmType, &uErrCode, &uCr2, NULL /* pu8InstLen */); AssertRC(rc2);
-        IEMInjectTrap(pVCpu, u8TrapNo, enmType, (uint16_t)uErrCode, uCr2, 0 /* cbInstr */);
+        VBOXSTRICTRC rcStrict = IEMInjectTrap(pVCpu, u8TrapNo, enmType, (uint16_t)uErrCode, uCr2, 0 /* cbInstr */);
         TRPMResetTrap(pVCpu);
+#if defined(VBOX_WITH_NESTED_HWVIRT_SVM) || defined(VBOX_WITH_NESTED_HWVIRT_VMX)
+        /* Injecting an event may cause a VM-exit. */
+        if (   rcStrict != VINF_SUCCESS
+            && rcStrict != VINF_IEM_RAISED_XCPT)
+            return iemExecStatusCodeFiddling(pVCpu, rcStrict);
+#else
+        NOREF(rcStrict);
+#endif
     }
 
     /*
@@ -14439,6 +14499,9 @@ VMMDECL(VBOXSTRICTRC) IEMExecLots(PVMCPU pVCpu, uint32_t *pcInstructions)
         {
             if (pVCpu->iem.s.cActiveMappings > 0)
                 iemMemRollback(pVCpu);
+# if defined(VBOX_WITH_NESTED_HWVIRT_SVM) || defined(VBOX_WITH_NESTED_HWVIRT_VMX)
+            rcStrict = iemExecStatusCodeFiddling(pVCpu, rcStrict);
+# endif
             pVCpu->iem.s.cLongJumps++;
         }
         pVCpu->iem.s.CTX_SUFF(pJmpBuf) = pSavedJmpBuf;
@@ -14455,7 +14518,7 @@ VMMDECL(VBOXSTRICTRC) IEMExecLots(PVMCPU pVCpu, uint32_t *pcInstructions)
         if (pVCpu->iem.s.cActiveMappings > 0)
             iemMemRollback(pVCpu);
 
-#ifdef VBOX_WITH_NESTED_HWVIRT_SVM
+#if defined(VBOX_WITH_NESTED_HWVIRT_SVM) || defined(VBOX_WITH_NESTED_HWVIRT_VMX)
         /*
          * When a nested-guest causes an exception intercept (e.g. #PF) when fetching
          * code as part of instruction execution, we need this to fix-up VINF_SVM_VMEXIT.
@@ -14632,7 +14695,7 @@ VMMDECL(VBOXSTRICTRC) IEMExecForExits(PVMCPU pVCpu, uint32_t fWillExit, uint32_t
         if (pVCpu->iem.s.cActiveMappings > 0)
             iemMemRollback(pVCpu);
 
-#ifdef VBOX_WITH_NESTED_HWVIRT_SVM
+#if defined(VBOX_WITH_NESTED_HWVIRT_SVM) || defined(VBOX_WITH_NESTED_HWVIRT_VMX)
         /*
          * When a nested-guest causes an exception intercept (e.g. #PF) when fetching
          * code as part of instruction execution, we need this to fix-up VINF_SVM_VMEXIT.
@@ -14709,10 +14772,6 @@ VMM_INT_DECL(VBOXSTRICTRC) IEMInjectTrap(PVMCPU pVCpu, uint8_t u8TrapNo, TRPMEVE
                 case X86_XCPT_AC:
                     fFlags |= IEM_XCPT_FLAGS_ERR;
                     break;
-
-                case X86_XCPT_NMI:
-                    VMCPU_FF_SET(pVCpu, VMCPU_FF_BLOCK_NMIS);
-                    break;
             }
             break;
 
@@ -14749,11 +14808,14 @@ VMMDECL(VBOXSTRICTRC) IEMInjectTrpmEvent(PVMCPU pVCpu)
         return rc;
 
     VBOXSTRICTRC rcStrict = IEMInjectTrap(pVCpu, u8TrapNo, enmType, uErrCode, uCr2, cbInstr);
-# ifdef VBOX_WITH_NESTED_HWVIRT_SVM
+#ifdef VBOX_WITH_NESTED_HWVIRT_SVM
     if (rcStrict == VINF_SVM_VMEXIT)
         rcStrict = VINF_SUCCESS;
-# endif
-
+#endif
+#ifdef VBOX_WITH_NESTED_HWVIRT_VMX
+    if (rcStrict == VINF_VMX_VMEXIT)
+        rcStrict = VINF_SUCCESS;
+#endif
     /** @todo Are there any other codes that imply the event was successfully
      *        delivered to the guest? See @bugref{6607}.  */
     if (   rcStrict == VINF_SUCCESS
@@ -15319,7 +15381,7 @@ VMM_INT_DECL(VBOXSTRICTRC) IEMExecDecodedInvlpg(PVMCPU pVCpu, uint8_t cbInstr, R
  *
  * @remarks Not all of the state needs to be synced in, the usual pluss RAX and RCX.
  */
-VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedCpuid(PVMCPU pVCpu, uint8_t cbInstr)
+VMM_INT_DECL(VBOXSTRICTRC) IEMExecDecodedCpuid(PVMCPU pVCpu, uint8_t cbInstr)
 {
     IEMEXEC_ASSERT_INSTR_LEN_RETURN(cbInstr, 2);
     IEM_CTX_ASSERT(pVCpu, IEM_CPUMCTX_EXTRN_EXEC_DECODED_NO_MEM_MASK | CPUMCTX_EXTRN_RAX | CPUMCTX_EXTRN_RCX);
@@ -15412,7 +15474,7 @@ VMM_INT_DECL(VBOXSTRICTRC) IEMExecDecodedRdtscp(PVMCPU pVCpu, uint8_t cbInstr)
  * @remarks Not all of the state needs to be synced in.  Requires RCX and
  *          (currently) all MSRs.
  */
-VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedRdmsr(PVMCPU pVCpu, uint8_t cbInstr)
+VMM_INT_DECL(VBOXSTRICTRC) IEMExecDecodedRdmsr(PVMCPU pVCpu, uint8_t cbInstr)
 {
     IEMEXEC_ASSERT_INSTR_LEN_RETURN(cbInstr, 2);
     IEM_CTX_ASSERT(pVCpu, IEM_CPUMCTX_EXTRN_EXEC_DECODED_NO_MEM_MASK | CPUMCTX_EXTRN_RCX | CPUMCTX_EXTRN_ALL_MSRS);
@@ -15436,7 +15498,7 @@ VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedRdmsr(PVMCPU pVCpu, uint8_t cbInstr)
  * @remarks Not all of the state needs to be synced in.  Requires RCX, RAX, RDX,
  *          and (currently) all MSRs.
  */
-VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedWrmsr(PVMCPU pVCpu, uint8_t cbInstr)
+VMM_INT_DECL(VBOXSTRICTRC) IEMExecDecodedWrmsr(PVMCPU pVCpu, uint8_t cbInstr)
 {
     IEMEXEC_ASSERT_INSTR_LEN_RETURN(cbInstr, 2);
     IEM_CTX_ASSERT(pVCpu, IEM_CPUMCTX_EXTRN_EXEC_DECODED_NO_MEM_MASK
@@ -15711,7 +15773,6 @@ VMM_INT_DECL(VBOXSTRICTRC) IEMExecSvmVmexit(PVMCPU pVCpu, uint64_t uExitCode, ui
  */
 VMM_INT_DECL(VBOXSTRICTRC) IEMExecVmxVirtApicAccessMsr(PVMCPU pVCpu, uint32_t idMsr, uint64_t *pu64Value, bool fWrite)
 {
-    IEM_CTX_ASSERT(pVCpu, IEM_CPUMCTX_EXTRN_EXEC_DECODED_NO_MEM_MASK);
     Assert(pu64Value);
 
     VBOXSTRICTRC rcStrict;
@@ -15745,7 +15806,6 @@ VMM_INT_DECL(VBOXSTRICTRC) IEMExecVmxVirtApicAccessMsr(PVMCPU pVCpu, uint32_t id
 VMM_INT_DECL(VBOXSTRICTRC) IEMExecVmxVirtApicAccessMem(PVMCPU pVCpu, uint16_t offAccess, size_t cbAccess, void *pvData,
                                                        bool fWrite)
 {
-    IEM_CTX_ASSERT(pVCpu, IEM_CPUMCTX_EXTRN_VMX_VMEXIT_MASK);
     Assert(pvData);
 
     /** @todo NSTVMX: Unfortunately, the caller has no idea about instruction fetch
@@ -15769,8 +15829,6 @@ VMM_INT_DECL(VBOXSTRICTRC) IEMExecVmxVirtApicAccessMem(PVMCPU pVCpu, uint16_t of
  */
 VMM_INT_DECL(VBOXSTRICTRC) IEMExecVmxVmexitApicWrite(PVMCPU pVCpu)
 {
-    IEM_CTX_ASSERT(pVCpu, IEM_CPUMCTX_EXTRN_VMX_VMEXIT_MASK);
-
     VBOXSTRICTRC rcStrict = iemVmxApicWriteEmulation(pVCpu);
     if (pVCpu->iem.s.cActiveMappings)
         iemMemRollback(pVCpu);
@@ -15787,7 +15845,6 @@ VMM_INT_DECL(VBOXSTRICTRC) IEMExecVmxVmexitApicWrite(PVMCPU pVCpu)
  */
 VMM_INT_DECL(VBOXSTRICTRC) IEMExecVmxVmexitPreemptTimer(PVMCPU pVCpu)
 {
-    IEM_CTX_ASSERT(pVCpu, IEM_CPUMCTX_EXTRN_VMX_VMEXIT_MASK);
     VBOXSTRICTRC rcStrict = iemVmxVmexitPreemptTimer(pVCpu);
     if (pVCpu->iem.s.cActiveMappings)
         iemMemRollback(pVCpu);
@@ -15808,8 +15865,23 @@ VMM_INT_DECL(VBOXSTRICTRC) IEMExecVmxVmexitPreemptTimer(PVMCPU pVCpu)
  */
 VMM_INT_DECL(VBOXSTRICTRC) IEMExecVmxVmexitExtInt(PVMCPU pVCpu, uint8_t uVector, bool fIntPending)
 {
-    IEM_CTX_ASSERT(pVCpu, IEM_CPUMCTX_EXTRN_VMX_VMEXIT_MASK);
     VBOXSTRICTRC rcStrict = iemVmxVmexitExtInt(pVCpu, uVector, fIntPending);
+    if (pVCpu->iem.s.cActiveMappings)
+        iemMemRollback(pVCpu);
+    return iemExecStatusCodeFiddling(pVCpu, rcStrict);
+}
+
+
+/**
+ * Interface for HM and EM to emulate VM-exit due to NMIs.
+ *
+ * @returns Strict VBox status code.
+ * @param   pVCpu           The cross context virtual CPU structure of the calling EMT.
+ * @thread  EMT(pVCpu)
+ */
+VMM_INT_DECL(VBOXSTRICTRC) IEMExecVmxVmexitNmi(PVMCPU pVCpu)
+{
+    VBOXSTRICTRC rcStrict = iemVmxVmexitNmi(pVCpu);
     if (pVCpu->iem.s.cActiveMappings)
         iemMemRollback(pVCpu);
     return iemExecStatusCodeFiddling(pVCpu, rcStrict);
@@ -15826,7 +15898,6 @@ VMM_INT_DECL(VBOXSTRICTRC) IEMExecVmxVmexitExtInt(PVMCPU pVCpu, uint8_t uVector,
  */
 VMM_INT_DECL(VBOXSTRICTRC) IEMExecVmxVmexitStartupIpi(PVMCPU pVCpu, uint8_t uVector)
 {
-    IEM_CTX_ASSERT(pVCpu, IEM_CPUMCTX_EXTRN_VMX_VMEXIT_MASK);
     VBOXSTRICTRC rcStrict = iemVmxVmexitStartupIpi(pVCpu, uVector);
     if (pVCpu->iem.s.cActiveMappings)
         iemMemRollback(pVCpu);
@@ -15843,7 +15914,6 @@ VMM_INT_DECL(VBOXSTRICTRC) IEMExecVmxVmexitStartupIpi(PVMCPU pVCpu, uint8_t uVec
  */
 VMM_INT_DECL(VBOXSTRICTRC) IEMExecVmxVmexitInitIpi(PVMCPU pVCpu)
 {
-    IEM_CTX_ASSERT(pVCpu, IEM_CPUMCTX_EXTRN_VMX_VMEXIT_MASK);
     VBOXSTRICTRC rcStrict = iemVmxVmexitInitIpi(pVCpu);
     if (pVCpu->iem.s.cActiveMappings)
         iemMemRollback(pVCpu);
@@ -15860,8 +15930,23 @@ VMM_INT_DECL(VBOXSTRICTRC) IEMExecVmxVmexitInitIpi(PVMCPU pVCpu)
  */
 VMM_INT_DECL(VBOXSTRICTRC) IEMExecVmxVmexitIntWindow(PVMCPU pVCpu)
 {
-    IEM_CTX_ASSERT(pVCpu, IEM_CPUMCTX_EXTRN_VMX_VMEXIT_MASK);
     VBOXSTRICTRC rcStrict = iemVmxVmexitIntWindow(pVCpu);
+    if (pVCpu->iem.s.cActiveMappings)
+        iemMemRollback(pVCpu);
+    return iemExecStatusCodeFiddling(pVCpu, rcStrict);
+}
+
+
+/**
+ * Interface for HM and EM to emulate VM-exits for NMI-windows.
+ *
+ * @returns Strict VBox status code.
+ * @param   pVCpu           The cross context virtual CPU structure of the calling EMT.
+ * @thread  EMT(pVCpu)
+ */
+VMM_INT_DECL(VBOXSTRICTRC) IEMExecVmxVmexitNmiWindow(PVMCPU pVCpu)
+{
+    VBOXSTRICTRC rcStrict = iemVmxVmexitNmiWindow(pVCpu);
     if (pVCpu->iem.s.cActiveMappings)
         iemMemRollback(pVCpu);
     return iemExecStatusCodeFiddling(pVCpu, rcStrict);
@@ -15875,9 +15960,8 @@ VMM_INT_DECL(VBOXSTRICTRC) IEMExecVmxVmexitIntWindow(PVMCPU pVCpu)
  * @param   pVCpu           The cross context virtual CPU structure of the calling EMT.
  * @thread  EMT(pVCpu)
  */
-VMM_INT_DECL(VBOXSTRICTRC)  IEMExecVmxVmexitMtf(PVMCPU pVCpu)
+VMM_INT_DECL(VBOXSTRICTRC) IEMExecVmxVmexitMtf(PVMCPU pVCpu)
 {
-    IEM_CTX_ASSERT(pVCpu, IEM_CPUMCTX_EXTRN_VMX_VMEXIT_MASK);
     VBOXSTRICTRC rcStrict = iemVmxVmexitMtf(pVCpu);
     if (pVCpu->iem.s.cActiveMappings)
         iemMemRollback(pVCpu);
@@ -15924,9 +16008,8 @@ VMM_INT_DECL(VBOXSTRICTRC) IEMExecDecodedVmread(PVMCPU pVCpu, PCVMXVEXITINFO pEx
         IEMMODE enmEffAddrMode = (IEMMODE)pExitInfo->InstrInfo.VmreadVmwrite.u3AddrSize;
         rcStrict = iemVmxVmreadMem(pVCpu, cbInstr, iEffSeg, enmEffAddrMode, GCPtrDst, uFieldEnc, pExitInfo);
     }
-    if (pVCpu->iem.s.cActiveMappings)
-        iemMemRollback(pVCpu);
-    return iemExecStatusCodeFiddling(pVCpu, rcStrict);
+    Assert(!pVCpu->iem.s.cActiveMappings);
+    return iemUninitExecAndFiddleStatusAndMaybeReenter(pVCpu, rcStrict);
 }
 
 
@@ -15964,9 +16047,8 @@ VMM_INT_DECL(VBOXSTRICTRC) IEMExecDecodedVmwrite(PVMCPU pVCpu, PCVMXVEXITINFO pE
     uint8_t const  cbInstr   = pExitInfo->cbInstr;
     uint32_t const uFieldEnc = iemGRegFetchU64(pVCpu, pExitInfo->InstrInfo.VmreadVmwrite.iReg2);
     VBOXSTRICTRC rcStrict = iemVmxVmwrite(pVCpu, cbInstr, iEffSeg, enmEffAddrMode, u64Val, uFieldEnc, pExitInfo);
-    if (pVCpu->iem.s.cActiveMappings)
-        iemMemRollback(pVCpu);
-    return iemExecStatusCodeFiddling(pVCpu, rcStrict);
+    Assert(!pVCpu->iem.s.cActiveMappings);
+    return iemUninitExecAndFiddleStatusAndMaybeReenter(pVCpu, rcStrict);
 }
 
 
@@ -15990,9 +16072,8 @@ VMM_INT_DECL(VBOXSTRICTRC) IEMExecDecodedVmptrld(PVMCPU pVCpu, PCVMXVEXITINFO pE
     uint8_t const cbInstr   = pExitInfo->cbInstr;
     RTGCPTR const GCPtrVmcs = pExitInfo->GCPtrEffAddr;
     VBOXSTRICTRC rcStrict = iemVmxVmptrld(pVCpu, cbInstr, iEffSeg, GCPtrVmcs, pExitInfo);
-    if (pVCpu->iem.s.cActiveMappings)
-        iemMemRollback(pVCpu);
-    return iemExecStatusCodeFiddling(pVCpu, rcStrict);
+    Assert(!pVCpu->iem.s.cActiveMappings);
+    return iemUninitExecAndFiddleStatusAndMaybeReenter(pVCpu, rcStrict);
 }
 
 
@@ -16016,9 +16097,8 @@ VMM_INT_DECL(VBOXSTRICTRC) IEMExecDecodedVmptrst(PVMCPU pVCpu, PCVMXVEXITINFO pE
     uint8_t const cbInstr   = pExitInfo->cbInstr;
     RTGCPTR const GCPtrVmcs = pExitInfo->GCPtrEffAddr;
     VBOXSTRICTRC rcStrict = iemVmxVmptrst(pVCpu, cbInstr, iEffSeg, GCPtrVmcs, pExitInfo);
-    if (pVCpu->iem.s.cActiveMappings)
-        iemMemRollback(pVCpu);
-    return iemExecStatusCodeFiddling(pVCpu, rcStrict);
+    Assert(!pVCpu->iem.s.cActiveMappings);
+    return iemUninitExecAndFiddleStatusAndMaybeReenter(pVCpu, rcStrict);
 }
 
 
@@ -16042,9 +16122,8 @@ VMM_INT_DECL(VBOXSTRICTRC) IEMExecDecodedVmclear(PVMCPU pVCpu, PCVMXVEXITINFO pE
     uint8_t const cbInstr   = pExitInfo->cbInstr;
     RTGCPTR const GCPtrVmcs = pExitInfo->GCPtrEffAddr;
     VBOXSTRICTRC rcStrict = iemVmxVmclear(pVCpu, cbInstr, iEffSeg, GCPtrVmcs, pExitInfo);
-    if (pVCpu->iem.s.cActiveMappings)
-        iemMemRollback(pVCpu);
-    return iemExecStatusCodeFiddling(pVCpu, rcStrict);
+    Assert(!pVCpu->iem.s.cActiveMappings);
+    return iemUninitExecAndFiddleStatusAndMaybeReenter(pVCpu, rcStrict);
 }
 
 
@@ -16064,10 +16143,9 @@ VMM_INT_DECL(VBOXSTRICTRC) IEMExecDecodedVmlaunchVmresume(PVMCPU pVCpu, uint8_t 
     IEM_CTX_ASSERT(pVCpu, IEM_CPUMCTX_EXTRN_VMX_VMENTRY_MASK);
 
     iemInitExec(pVCpu, false /*fBypassHandlers*/);
-    VBOXSTRICTRC rcStrict = iemVmxVmlaunchVmresume(pVCpu, cbInstr,  uInstrId);
-    if (pVCpu->iem.s.cActiveMappings)
-        iemMemRollback(pVCpu);
-    return iemExecStatusCodeFiddling(pVCpu, rcStrict);
+    VBOXSTRICTRC rcStrict = iemVmxVmlaunchVmresume(pVCpu, cbInstr, uInstrId);
+    Assert(!pVCpu->iem.s.cActiveMappings);
+    return iemUninitExecAndFiddleStatusAndMaybeReenter(pVCpu, rcStrict);
 }
 
 
@@ -16091,9 +16169,8 @@ VMM_INT_DECL(VBOXSTRICTRC) IEMExecDecodedVmxon(PVMCPU pVCpu, PCVMXVEXITINFO pExi
     uint8_t const cbInstr    = pExitInfo->cbInstr;
     RTGCPTR const GCPtrVmxon = pExitInfo->GCPtrEffAddr;
     VBOXSTRICTRC rcStrict = iemVmxVmxon(pVCpu, cbInstr, iEffSeg, GCPtrVmxon, pExitInfo);
-    if (pVCpu->iem.s.cActiveMappings)
-        iemMemRollback(pVCpu);
-    return iemExecStatusCodeFiddling(pVCpu, rcStrict);
+    Assert(!pVCpu->iem.s.cActiveMappings);
+    return iemUninitExecAndFiddleStatusAndMaybeReenter(pVCpu, rcStrict);
 }
 
 

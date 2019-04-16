@@ -66,7 +66,6 @@ struct GuestCredentials
 };
 
 
-
 /**
  * Wrapper around the RTEnv API, unusable base class.
  *
@@ -223,7 +222,6 @@ public:
         return RTEnvApplyChanges(m_hEnv, rChanges.m_hEnv);
     }
 
-
     /**
      * See RTEnvQueryUtf8Block for details.
      * @returns IPRT status code.
@@ -290,7 +288,6 @@ public:
         }
         return rc;
     }
-
 
     /**
      * Get an environment variable.
@@ -1065,12 +1062,13 @@ class GuestWaitEvent : public GuestWaitEventBase
 
 public:
 
-    GuestWaitEvent(uint32_t uCID);
-    GuestWaitEvent(uint32_t uCID, const GuestEventTypes &lstEvents);
+    GuestWaitEvent(void);
     virtual ~GuestWaitEvent(void);
 
 public:
 
+    int                              Init(uint32_t uCID);
+    int                              Init(uint32_t uCID, const GuestEventTypes &lstEvents);
     int                              Cancel(void);
     const ComPtr<IEvent>             Event(void) { return mEvent; }
     bool                             HasGuestError(void) const { return mRc == VERR_GSTCTL_GUEST_ERROR; }
@@ -1078,10 +1076,6 @@ public:
     int                              SignalExternal(IEvent *pEvent);
     const GuestEventTypes           &Types(void) { return mEventTypes; }
     size_t                           TypeCount(void) { return mEventTypes.size(); }
-
-protected:
-
-    int                              Init(uint32_t uCID);
 
 protected:
 
@@ -1157,6 +1151,7 @@ protected:
  */
 class GuestObject : public GuestBase
 {
+    friend class GuestSession;
 
 public:
 
@@ -1169,7 +1164,19 @@ public:
 
 protected:
 
-    virtual int i_onRemove(void) = 0;
+    /**
+     * Called by IGuestSession when the session status has been changed.
+     *
+     * @returns VBox status code.
+     * @param   enmSessionStatus    New session status.
+     */
+    virtual int i_onSessionStatusChange(GuestSessionStatus_T enmSessionStatus) = 0;
+
+    /**
+     * Called by IGuestSession right before this object gets
+     * unregistered (removed) from the public object list.
+     */
+    virtual int i_onUnregister(void) = 0;
 
     /** Callback dispatcher -- must be implemented by the actual object. */
     virtual int i_callbackDispatcher(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb) = 0;

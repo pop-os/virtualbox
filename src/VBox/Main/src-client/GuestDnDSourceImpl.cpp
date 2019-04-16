@@ -265,10 +265,10 @@ HRESULT GuestDnDSource::dragIsPending(ULONG uScreenId, GuestDnDMIMEList &aFormat
         Msg.setNextUInt32(0); /** @todo ContextID not used yet. */
     Msg.setNextUInt32(uScreenId);
 
-    int rc = GuestDnDInst()->hostCall(Msg.getType(), Msg.getCount(), Msg.getParms());
+    int rc = GUESTDNDINST()->hostCall(Msg.getType(), Msg.getCount(), Msg.getParms());
     if (RT_SUCCESS(rc))
     {
-        GuestDnDResponse *pResp = GuestDnDInst()->response();
+        GuestDnDResponse *pResp = GUESTDNDINST()->response();
         AssertPtr(pResp);
 
         bool fFetchResult = true;
@@ -347,7 +347,7 @@ HRESULT GuestDnDSource::drop(const com::Utf8Str &aFormat, DnDAction_T aAction, C
         return setError(E_INVALIDARG, tr("Another drop operation already is in progress"));
 
     /* Dito. */
-    GuestDnDResponse *pResp = GuestDnDInst()->response();
+    GuestDnDResponse *pResp = GUESTDNDINST()->response();
     AssertPtr(pResp);
 
     HRESULT hr = pResp->resetProgress(m_pGuest);
@@ -845,14 +845,22 @@ int GuestDnDSource::i_onReceiveFileHdr(PRECVDATACTX pCtx, const char *pszPath, u
             if (mDataBase.m_uProtocolVersion >= 2)
                 rc = pObj->SetSize(cbSize);
 
-            /** @todo Unescpae path before printing. */
+            /** @todo Unescape path before printing. */
             LogRel2(("DnD: Transferring guest file '%s' to host (%RU64 bytes, mode 0x%x)\n",
                      pObj->GetDestPathAbs().c_str(), pObj->GetSize(), pObj->GetMode()));
 
             /** @todo Set progress object title to current file being transferred? */
 
-            if (!cbSize) /* 0-byte file? Close again. */
+            if (pObj->IsComplete()) /* 0-byte file? We're done already. */
+            {
+                /** @todo Sanitize path. */
+                LogRel2(("DnD: Transferring guest file '%s' (0 bytes) to host complete\n", pObj->GetDestPathAbs().c_str()));
+
+                pCtx->mURI.processObject(*pObj);
                 pObj->Close();
+
+                objCtx.reset();
+            }
         }
 
     } while (0);
@@ -952,7 +960,7 @@ int GuestDnDSource::i_receiveData(PRECVDATACTX pCtx, RTMSINTERVAL msTimeout)
 {
     AssertPtrReturn(pCtx, VERR_INVALID_POINTER);
 
-    GuestDnD *pInst = GuestDnDInst();
+    GuestDnD *pInst = GUESTDNDINST();
     if (!pInst)
         return VERR_INVALID_POINTER;
 
@@ -1017,7 +1025,7 @@ int GuestDnDSource::i_receiveData(PRECVDATACTX pCtx, RTMSINTERVAL msTimeout)
         Assert(!pCtx->mFmtRecv.isEmpty());
 
         if (!pCtx->mFmtRecv.equals(pCtx->mFmtReq))
-            LogRel3(("DnD: Requested data in format '%s', receiving in intermediate format '%s' now\n",
+            LogRel2(("DnD: Requested data in format '%s', receiving in intermediate format '%s' now\n",
                      pCtx->mFmtReq.c_str(), pCtx->mFmtRecv.c_str()));
 
         /*
@@ -1035,10 +1043,10 @@ int GuestDnDSource::i_receiveData(PRECVDATACTX pCtx, RTMSINTERVAL msTimeout)
     }
     else /* Just inform the user (if verbose release logging is enabled). */
     {
-        LogRel2(("DnD: The guest does not support format '%s':\n", pCtx->mFmtReq.c_str()));
-        LogRel2(("DnD: Guest offered the following formats:\n"));
+        LogRel(("DnD: The guest does not support format '%s':\n", pCtx->mFmtReq.c_str()));
+        LogRel(("DnD: Guest offered the following formats:\n"));
         for (size_t i = 0; i < pCtx->mFmtOffered.size(); i++)
-            LogRel2(("DnD:\tFormat #%zu: %s\n", i, pCtx->mFmtOffered.at(i).c_str()));
+            LogRel(("DnD:\tFormat #%zu: %s\n", i, pCtx->mFmtOffered.at(i).c_str()));
     }
 
     ASMAtomicWriteBool(&pCtx->mIsActive, false);
@@ -1087,7 +1095,7 @@ int GuestDnDSource::i_receiveRawData(PRECVDATACTX pCtx, RTMSINTERVAL msTimeout)
     GuestDnDResponse *pResp = pCtx->mpResp;
     AssertPtr(pCtx->mpResp);
 
-    GuestDnD *pInst = GuestDnDInst();
+    GuestDnD *pInst = GUESTDNDINST();
     if (!pInst)
         return VERR_INVALID_POINTER;
 
@@ -1192,7 +1200,7 @@ int GuestDnDSource::i_receiveURIData(PRECVDATACTX pCtx, RTMSINTERVAL msTimeout)
     GuestDnDResponse *pResp = pCtx->mpResp;
     AssertPtr(pCtx->mpResp);
 
-    GuestDnD *pInst = GuestDnDInst();
+    GuestDnD *pInst = GUESTDNDINST();
     if (!pInst)
         return VERR_INVALID_POINTER;
 
@@ -1230,10 +1238,10 @@ int GuestDnDSource::i_receiveURIData(PRECVDATACTX pCtx, RTMSINTERVAL msTimeout)
     {
         rc = droppedFiles.OpenTemp(0 /* fFlags */);
         if (RT_FAILURE(rc))
+        {
+            LogRel(("DnD: Opening dropped files directory '%s' on the host failed with rc=%Rrc\n", droppedFiles.GetDirAbs(), rc));
             break;
-        LogFlowFunc(("rc=%Rrc, strDropDir=%s\n", rc, droppedFiles.GetDirAbs()));
-        if (RT_FAILURE(rc))
-            break;
+        }
 
         /*
          * Receive the URI list.

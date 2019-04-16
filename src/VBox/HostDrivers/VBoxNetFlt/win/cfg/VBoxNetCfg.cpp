@@ -48,6 +48,7 @@
 #include <iprt/win/netioapi.h>
 #include <iprt/win/iphlpapi.h>
 
+#include <set>
 
 #ifndef Assert   /** @todo r=bird: where would this be defined? */
 //# ifdef DEBUG
@@ -2579,12 +2580,60 @@ static HMODULE loadSystemDll(const char *pszName)
     return LoadLibraryA(szPath);
 }
 
+static bool vboxNetCfgWinDetectStaleConnection(PCWSTR pName)
+{
+    HKEY hkeyConnection, hkeyAdapter, hkeyAdapters;
+    WCHAR wszAdaptersKeyName[] = L"SYSTEM\\CurrentControlSet\\Control\\Network\\{4D36E972-E325-11CE-BFC1-08002BE10318}";
+    WCHAR wszAdapterSubKeyName[MAX_PATH];
+    LSTATUS status = RegOpenKeyEx(HKEY_LOCAL_MACHINE, wszAdaptersKeyName, 0, KEY_ALL_ACCESS, &hkeyAdapters);
+    if (status != ERROR_SUCCESS)
+        return false;
+
+    bool fFailureImminent = false;
+    for (DWORD i = 0; !fFailureImminent; ++i)
+    {
+        DWORD cbName = MAX_PATH;
+        status = RegEnumKeyEx(hkeyAdapters, i, wszAdapterSubKeyName, &cbName, NULL, NULL, NULL, NULL);
+        // if (status == ERROR_NO_MORE_ITEMS)
+        //     break;
+        if (status != ERROR_SUCCESS)
+            break;
+
+        status = RegOpenKeyEx(hkeyAdapters, wszAdapterSubKeyName, 0, KEY_ALL_ACCESS, &hkeyAdapter);
+        if (status == ERROR_SUCCESS)
+        {
+            status = RegOpenKeyEx(hkeyAdapter, L"Connection", 0, KEY_ALL_ACCESS, &hkeyConnection);
+            if (status == ERROR_SUCCESS)
+            {
+                WCHAR wszName[MAX_PATH];
+                cbName = MAX_PATH;
+                status = RegQueryValueEx(hkeyConnection, L"Name", NULL, NULL, (LPBYTE)wszName, &cbName);
+                if (status == ERROR_SUCCESS)
+                    if (wcsicmp(wszName, pName) == 0)
+                        fFailureImminent = true;
+                RegCloseKey(hkeyConnection);
+            }
+            RegCloseKey(hkeyAdapter);
+        }
+    }
+    RegCloseKey(hkeyAdapters);
+
+    return fFailureImminent;
+}
+
 VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinRenameConnection (LPWSTR pGuid, PCWSTR NewName)
 {
     typedef HRESULT (WINAPI *lpHrRenameConnection) (const GUID *, PCWSTR);
     lpHrRenameConnection RenameConnectionFunc = NULL;
     HRESULT status;
 
+    /*
+     * Before attempting to rename the connection, check if there is a stale
+     * connection with the same name. We must return ok, so the rest of
+     * configuration process proceeds normally.
+     */
+    if (vboxNetCfgWinDetectStaleConnection(NewName))
+        return S_OK;
     /* First try the IShellFolder interface, which was unimplemented
      * for the network connections folder before XP. */
     status = rename_shellfolder (pGuid, NewName);
@@ -2880,7 +2929,86 @@ DECLINLINE(bool) vboxNetCfgWinIsNetSetupStopped(SC_HANDLE hService)
     return vboxNetCfgWinGetNetSetupState(hService) == SERVICE_STOPPED;
 }
 
-static HRESULT vboxNetCfgWinCreateHostOnlyNetworkInterface(IN LPCWSTR pInfPath, IN bool bIsInfPathFile,
+typedef struct {
+    BSTR bstrName;
+    GUID *pGuid;
+    HRESULT hr;
+} RENAMING_CONTEXT;
+
+static BOOL vboxNetCfgWinRenameHostOnlyNetworkInterface(IN INetCfg *pNc, IN INetCfgComponent *pNcc, PVOID pContext)
+{
+    RT_NOREF1(pNc);
+    RENAMING_CONTEXT *pParams = (RENAMING_CONTEXT *)pContext;
+
+    GUID guid;
+    pParams->hr = pNcc->GetInstanceGuid(&guid);
+    if ( pParams->hr == S_OK && guid == *pParams->pGuid)
+    {
+        /* Located our component, rename it */
+        pParams->hr = pNcc->SetDisplayName(pParams->bstrName);
+        return FALSE;
+    }
+    return TRUE;
+}
+
+/* We assume the following name matches the device description in vboxnetadp6.inf */
+#define HOSTONLY_ADAPTER_NAME "VirtualBox Host-Only Ethernet Adapter"
+
+/*
+ * Enumerate all host-only adapters collecting their names into a set, then
+ * come up with the next available name by taking the first unoccupied index.
+ */
+static HRESULT vboxNetCfgWinNextAvailableDevName(bstr_t& bstrName)
+{
+    SP_DEVINFO_DATA DeviceInfoData;
+    /* initialize the structure size */
+    DeviceInfoData.cbSize = sizeof (SP_DEVINFO_DATA);
+
+    HDEVINFO DeviceInfoSet = SetupDiGetClassDevs(&GUID_DEVCLASS_NET, NULL, NULL, DIGCF_PRESENT);
+    if (DeviceInfoSet == INVALID_HANDLE_VALUE)
+        return GetLastError();
+
+    DWORD i;
+    std::set<bstr_t> aExistingNames;
+    for (i = 0; SetupDiEnumDeviceInfo(DeviceInfoSet, i, &DeviceInfoData); ++i)
+    {
+        /* Should be more than enough for both our device id and our device name, we do not care about the rest */
+        WCHAR wszDevName[64];
+        if (!SetupDiGetDeviceRegistryProperty(DeviceInfoSet, &DeviceInfoData, SPDRP_HARDWAREID,
+                                              NULL, (PBYTE)wszDevName, sizeof(wszDevName), NULL))
+            continue;
+        /* Ignore everything except our host-only adapters */
+        if (_wcsicmp(wszDevName, DRIVERHWID))
+            continue;
+        if (   SetupDiGetDeviceRegistryProperty(DeviceInfoSet, &DeviceInfoData, SPDRP_FRIENDLYNAME,
+                                                NULL, (PBYTE)wszDevName, sizeof(wszDevName), NULL)
+            || SetupDiGetDeviceRegistryProperty(DeviceInfoSet, &DeviceInfoData, SPDRP_DEVICEDESC,
+                                                NULL, (PBYTE)wszDevName, sizeof(wszDevName), NULL))
+            aExistingNames.insert(bstr_t(wszDevName));
+    }
+    /* Try the name without index first */
+    bstrName = HOSTONLY_ADAPTER_NAME;
+    if (aExistingNames.find(bstrName) != aExistingNames.end())
+    {
+        WCHAR wszSuffix[16];
+        /* Try indexed names until we find unused one */
+        for (i = 2;; ++i)
+        {
+            wsprintf(wszSuffix, L" #%u", i);
+            if (aExistingNames.find(bstrName + wszSuffix) == aExistingNames.end())
+            {
+                bstrName += wszSuffix;
+                break;
+            }
+        }
+    }
+
+    if (DeviceInfoSet)
+        SetupDiDestroyDeviceInfoList(DeviceInfoSet);
+    return S_OK;
+}
+
+static HRESULT vboxNetCfgWinCreateHostOnlyNetworkInterface(IN LPCWSTR pInfPath, IN bool bIsInfPathFile, IN BSTR bstrDesiredName,
                                                            OUT GUID *pGuid, OUT BSTR *lppszName, OUT BSTR *pErrMsg)
 {
     HRESULT hrc = S_OK;
@@ -2895,6 +3023,16 @@ static HRESULT vboxNetCfgWinCreateHostOnlyNetworkInterface(IN LPCWSTR pInfPath, 
     WCHAR DevName[256];
     HKEY hkey = (HKEY)INVALID_HANDLE_VALUE;
     bstr_t bstrError;
+    bstr_t bstrNewInterfaceName;
+
+    if (SysStringLen(bstrDesiredName) != 0)
+        bstrNewInterfaceName = bstrDesiredName;
+    else
+    {
+        hrc = vboxNetCfgWinNextAvailableDevName(bstrNewInterfaceName);
+        if (FAILED(hrc))
+            NonStandardLogFlow(("vboxNetCfgWinNextAvailableDevName failed with 0x%x\n", hrc));
+    }
 
     do
     {
@@ -3253,7 +3391,6 @@ static HRESULT vboxNetCfgWinCreateHostOnlyNetworkInterface(IN LPCWSTR pInfPath, 
         }
 
 
-#ifndef VBOXNETCFG_DELAYEDRENAME
         /*
          * We need to query the device name after we have succeeded in querying its
          * instance ID to avoid similar waiting-and-retrying loop (see @bugref{7973}).
@@ -3285,12 +3422,15 @@ static HRESULT vboxNetCfgWinCreateHostOnlyNetworkInterface(IN LPCWSTR pInfPath, 
                                               err));
             }
         }
-#else /* !VBOXNETCFG_DELAYEDRENAME */
+        /* No need to rename the device if the names match. */
+        if (!wcscmp(bstrNewInterfaceName.GetBSTR(), DevName))
+            bstrNewInterfaceName.Assign(NULL);
+#ifdef VBOXNETCFG_DELAYEDRENAME
         /* Re-use DevName for device instance id retrieval. */
         if (!SetupDiGetDeviceInstanceId(hDeviceInfo, &DeviceInfoData, DevName, RT_ELEMENTS(DevName), &cbSize))
             SetErrBreak (("SetupDiGetDeviceInstanceId failed (0x%08X)",
                           GetLastError()));
-#endif /* !VBOXNETCFG_DELAYEDRENAME */
+#endif /* VBOXNETCFG_DELAYEDRENAME */
     }
     while (0);
 
@@ -3325,7 +3465,71 @@ static HRESULT vboxNetCfgWinCreateHostOnlyNetworkInterface(IN LPCWSTR pInfPath, 
         HRESULT hr;
         INetCfg *pNetCfg = NULL;
         LPWSTR lpszApp = NULL;
+
+        RENAMING_CONTEXT context;
+        context.hr = E_FAIL;
+
+        if (pGuid)
+        {
+            hrc = CLSIDFromString(pWCfgGuidString, (LPCLSID)pGuid);
+            if (FAILED(hrc))
+                NonStandardLogFlow(("CLSIDFromString failed, hrc (0x%x)\n", hrc));
+        }
+
+        hr = VBoxNetCfgWinQueryINetCfg(&pNetCfg, TRUE, L"VirtualBox Host-Only Creation",
+                                       30 * 1000, /* on Vista we often get 6to4svc.dll holding the lock, wait for 30 sec.  */
+                                       /** @todo special handling for 6to4svc.dll ???, i.e. several retrieves */
+                                       &lpszApp);
+        if (hr == S_OK)
+        {
+            if (!!bstrNewInterfaceName)
+            {
+                /* The assigned name does not match the desired one, rename the device */
+                context.bstrName = bstrNewInterfaceName.GetBSTR();
+                context.pGuid = pGuid;
+                hr = vboxNetCfgWinEnumNetCfgComponents(pNetCfg,
+                                                       &GUID_DEVCLASS_NET,
+                                                       vboxNetCfgWinRenameHostOnlyNetworkInterface,
+                                                       &context);
+            }
+            if (SUCCEEDED(hr))
+                hr = vboxNetCfgWinEnumNetCfgComponents(pNetCfg,
+                                                       &GUID_DEVCLASS_NETSERVICE,
+                                                       vboxNetCfgWinAdjustHostOnlyNetworkInterfacePriority,
+                                                       pGuid);
+            if (SUCCEEDED(hr))
+                hr = vboxNetCfgWinEnumNetCfgComponents(pNetCfg,
+                                                       &GUID_DEVCLASS_NETTRANS,
+                                                       vboxNetCfgWinAdjustHostOnlyNetworkInterfacePriority,
+                                                       pGuid);
+            if (SUCCEEDED(hr))
+                hr = vboxNetCfgWinEnumNetCfgComponents(pNetCfg,
+                                                       &GUID_DEVCLASS_NETCLIENT,
+                                                       vboxNetCfgWinAdjustHostOnlyNetworkInterfacePriority,
+                                                       pGuid);
+            if (SUCCEEDED(hr))
+            {
+                hr = pNetCfg->Apply();
+            }
+            else
+                NonStandardLogFlow(("Enumeration failed, hr 0x%x\n", hr));
+            VBoxNetCfgWinReleaseINetCfg(pNetCfg, TRUE);
+        }
+        else if (hr == NETCFG_E_NO_WRITE_LOCK && lpszApp)
+        {
+            NonStandardLogFlow(("Application %ws is holding the lock, failed\n", lpszApp));
+            CoTaskMemFree(lpszApp);
+        }
+        else
+            NonStandardLogFlow(("VBoxNetCfgWinQueryINetCfg failed, hr 0x%x\n", hr));
+
 #ifndef VBOXNETCFG_DELAYEDRENAME
+        if (SUCCEEDED(hr) && SUCCEEDED(context.hr))
+        {
+            /* The device has been successfully renamed, replace the name now. */
+            wcscpy_s(DevName, RT_ELEMENTS(DevName), bstrDesiredName);
+        }
+
         WCHAR ConnectionName[128];
         ULONG cbName = sizeof(ConnectionName);
 
@@ -3342,52 +3546,6 @@ static HRESULT vboxNetCfgWinCreateHostOnlyNetworkInterface(IN LPCWSTR pInfPath, 
                 hrc = HRESULT_FROM_WIN32(ERROR_NOT_ENOUGH_MEMORY);
             }
         }
-
-        if (pGuid)
-        {
-            hrc = CLSIDFromString(pWCfgGuidString, (LPCLSID)pGuid);
-            if (FAILED(hrc))
-                NonStandardLogFlow(("CLSIDFromString failed, hrc (0x%x)\n", hrc));
-        }
-
-        hr = VBoxNetCfgWinQueryINetCfg(&pNetCfg, TRUE, L"VirtualBox Host-Only Creation",
-                                       30 * 1000, /* on Vista we often get 6to4svc.dll holding the lock, wait for 30 sec.  */
-                                       /** @todo special handling for 6to4svc.dll ???, i.e. several retrieves */
-                                       &lpszApp);
-        if (hr == S_OK)
-        {
-            hr = vboxNetCfgWinEnumNetCfgComponents(pNetCfg,
-                                                   &GUID_DEVCLASS_NETSERVICE,
-                                                   vboxNetCfgWinAdjustHostOnlyNetworkInterfacePriority,
-                                                   pGuid);
-            if (SUCCEEDED(hr))
-            {
-                hr = vboxNetCfgWinEnumNetCfgComponents(pNetCfg,
-                                                       &GUID_DEVCLASS_NETTRANS,
-                                                       vboxNetCfgWinAdjustHostOnlyNetworkInterfacePriority,
-                                                       pGuid);
-                if (SUCCEEDED(hr))
-                    hr = vboxNetCfgWinEnumNetCfgComponents(pNetCfg,
-                                                           &GUID_DEVCLASS_NETCLIENT,
-                                                           vboxNetCfgWinAdjustHostOnlyNetworkInterfacePriority,
-                                                           pGuid);
-            }
-
-            if (SUCCEEDED(hr))
-            {
-                hr = pNetCfg->Apply();
-            }
-            else
-                NonStandardLogFlow(("Enumeration failed, hr 0x%x\n", hr));
-            VBoxNetCfgWinReleaseINetCfg(pNetCfg, TRUE);
-        }
-        else if (hr == NETCFG_E_NO_WRITE_LOCK && lpszApp)
-        {
-            NonStandardLogFlow(("Application %ws is holding the lock, failed\n", lpszApp));
-            CoTaskMemFree(lpszApp);
-        }
-        else
-            NonStandardLogFlow(("VBoxNetCfgWinQueryINetCfg failed, hr 0x%x\n", hr));
     }
 
     if (pErrMsg && bstrError.length())
@@ -3396,10 +3554,10 @@ static HRESULT vboxNetCfgWinCreateHostOnlyNetworkInterface(IN LPCWSTR pInfPath, 
     return hrc;
 }
 
-VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinCreateHostOnlyNetworkInterface(IN LPCWSTR pInfPath, IN bool bIsInfPathFile,
+VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinCreateHostOnlyNetworkInterface(IN LPCWSTR pInfPath, IN bool bIsInfPathFile, IN BSTR pwsDesiredName,
                                                                         OUT GUID *pGuid, OUT BSTR *lppszName, OUT BSTR *pErrMsg)
 {
-    HRESULT hrc = vboxNetCfgWinCreateHostOnlyNetworkInterface(pInfPath, bIsInfPathFile, pGuid, lppszName, pErrMsg);
+    HRESULT hrc = vboxNetCfgWinCreateHostOnlyNetworkInterface(pInfPath, bIsInfPathFile, pwsDesiredName, pGuid, lppszName, pErrMsg);
     if (hrc == E_ABORT)
     {
         NonStandardLogFlow(("Timed out while waiting for NetCfgInstanceId, try again immediately...\n"));
@@ -3411,7 +3569,7 @@ VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinCreateHostOnlyNetworkInterface(IN LPCWS
          * with no matching network interface created for our device node.
          * See @bugref{7973} for details.
          */
-        hrc = vboxNetCfgWinCreateHostOnlyNetworkInterface(pInfPath, bIsInfPathFile, pGuid, lppszName, pErrMsg);
+        hrc = vboxNetCfgWinCreateHostOnlyNetworkInterface(pInfPath, bIsInfPathFile, pwsDesiredName, pGuid, lppszName, pErrMsg);
         if (hrc == E_ABORT)
         {
             NonStandardLogFlow(("Timed out again while waiting for NetCfgInstanceId, try again after a while...\n"));
@@ -3434,7 +3592,7 @@ VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinCreateHostOnlyNetworkInterface(IN LPCWS
                     for (int retries = 0; retries < 60 && !vboxNetCfgWinIsNetSetupStopped(hService); ++retries)
                         Sleep(1000);
                     CloseServiceHandle(hService);
-                    hrc = vboxNetCfgWinCreateHostOnlyNetworkInterface(pInfPath, bIsInfPathFile, pGuid, lppszName, pErrMsg);
+                    hrc = vboxNetCfgWinCreateHostOnlyNetworkInterface(pInfPath, bIsInfPathFile, pwsDesiredName, pGuid, lppszName, pErrMsg);
                 }
                 else
                     NonStandardLogFlow(("OpenService failed (0x%x)\n", GetLastError()));

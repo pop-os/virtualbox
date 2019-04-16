@@ -2020,7 +2020,6 @@ DECLINLINE(bool) CPUMIsGuestVmxProcCtls2Set(PVMCPU pVCpu, PCCPUMCTX pCtx, uint32
     return RT_BOOL(pCtx->hwvirt.vmx.CTX_SUFF(pVmcs)->u32ProcCtls2 & uProcCtls2);
 }
 
-
 /**
  * Checks whether one of the given VM-exit controls are set when executing a
  * nested-guest.
@@ -2042,6 +2041,74 @@ DECLINLINE(bool) CPUMIsGuestVmxExitCtlsSet(PVMCPU pVCpu, PCCPUMCTX pCtx, uint32_
     return RT_BOOL(pCtx->hwvirt.vmx.CTX_SUFF(pVmcs)->u32ExitCtls & uExitCtls);
 }
 
+/**
+ * Checks whether one of the given VM-entry controls are set when executing a
+ * nested-guest.
+ *
+ * @returns @c true if set, @c false otherwise.
+ * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
+ * @param   pCtx        Pointer to the context.
+ * @param   uEntryCtls  The VM-entry controls to check.
+ *
+ * @remarks This does not check if all given controls are set if more than one
+ *          control is passed in @a uEntryCtls.
+ */
+DECLINLINE(bool) CPUMIsGuestVmxEntryCtlsSet(PVMCPU pVCpu, PCCPUMCTX pCtx, uint32_t uEntryCtls)
+{
+    RT_NOREF(pVCpu);
+    Assert(pCtx->hwvirt.enmHwvirt == CPUMHWVIRT_VMX);
+    Assert(pCtx->hwvirt.vmx.fInVmxNonRootMode);
+    Assert(pCtx->hwvirt.vmx.CTX_SUFF(pVmcs));
+    return RT_BOOL(pCtx->hwvirt.vmx.CTX_SUFF(pVmcs)->u32EntryCtls & uEntryCtls);
+}
+
+/**
+ * Implements VMSucceed for VMX instruction success.
+ *
+ * @param   pVCpu       The cross context virtual CPU structure.
+ */
+DECLINLINE(void) CPUMSetGuestVmxVmSucceed(PCPUMCTX pCtx)
+{
+    pCtx->eflags.u32 &= ~(X86_EFL_CF | X86_EFL_PF | X86_EFL_AF | X86_EFL_ZF | X86_EFL_SF | X86_EFL_OF);
+}
+
+/**
+ * Implements VMFailInvalid for VMX instruction failure.
+ *
+ * @param   pVCpu       The cross context virtual CPU structure.
+ */
+DECLINLINE(void) CPUMSetGuestVmxVmFailInvalid(PCPUMCTX pCtx)
+{
+    pCtx->eflags.u32 &= ~(X86_EFL_PF | X86_EFL_AF | X86_EFL_ZF | X86_EFL_SF | X86_EFL_OF);
+    pCtx->eflags.u32 |= X86_EFL_CF;
+}
+
+/**
+ * Implements VMFailValid for VMX instruction failure.
+ *
+ * @param   pVCpu       The cross context virtual CPU structure.
+ * @param   enmInsErr   The VM instruction error.
+ */
+DECLINLINE(void) CPUMSetGuestVmxVmFailValid(PCPUMCTX pCtx, VMXINSTRERR enmInsErr)
+{
+    pCtx->eflags.u32 &= ~(X86_EFL_CF | X86_EFL_PF | X86_EFL_AF | X86_EFL_ZF | X86_EFL_SF | X86_EFL_OF);
+    pCtx->eflags.u32 |= X86_EFL_ZF;
+    pCtx->hwvirt.vmx.CTX_SUFF(pVmcs)->u32RoVmInstrError = enmInsErr;
+}
+
+/**
+ * Implements VMFail for VMX instruction failure.
+ *
+ * @param   pVCpu       The cross context virtual CPU structure.
+ * @param   enmInsErr   The VM instruction error.
+ */
+DECLINLINE(void) CPUMSetGuestVmxVmFail(PCPUMCTX pCtx, VMXINSTRERR enmInsErr)
+{
+    if (pCtx->hwvirt.vmx.GCPhysVmcs != NIL_RTGCPHYS)
+        CPUMSetGuestVmxVmFailValid(pCtx, enmInsErr);
+    else
+        CPUMSetGuestVmxVmFailInvalid(pCtx);
+}
 
 /**
  * Returns the guest-physical address of the APIC-access page when executing a
@@ -2219,13 +2286,8 @@ typedef enum CPUMINTERRUPTIBILITY
     CPUMINTERRUPTIBILITY_32BIT_HACK = 0x7fffffff
 } CPUMINTERRUPTIBILITY;
 
-/**
- * Calculates the interruptiblity of the guest.
- *
- * @returns Interruptibility level.
- * @param   pVCpu               The cross context virtual CPU structure.
- */
 VMM_INT_DECL(CPUMINTERRUPTIBILITY) CPUMGetGuestInterruptibility(PVMCPU pVCpu);
+VMM_INT_DECL(bool)                 CPUMIsGuestNmiBlocking(PVMCPU pVCpu);
 
 
 /** @name Typical scalable bus frequency values.

@@ -34,7 +34,7 @@
 
 class Guest;
 class GuestSessionTask;
-class GuestSessionTaskInternalOpen;
+class GuestSessionTaskInternalStart;
 
 
 /**
@@ -187,8 +187,10 @@ protected:
 
     /** @name Directory handling primitives.
      * @{ */
-    int directoryCreate(const com::Utf8Str &strPath, DirectoryCreateFlag_T enmDirecotryCreateFlags, uint32_t uMode,
-                        bool fFollowSymlinks);
+    int directoryCreateOnGuest(const com::Utf8Str &strPath,
+                               DirectoryCreateFlag_T enmDirectoryCreateFlags, uint32_t fMode,
+                               bool fFollowSymlinks, bool fCanExist);
+    int directoryCreateOnHost(const com::Utf8Str &strPath, uint32_t fCreate, uint32_t fMode, bool fCanExist);
     /** @}  */
 
     /** @name File handling primitives.

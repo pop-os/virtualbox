@@ -124,7 +124,7 @@ HRESULT Display::FinalConstruct()
 
     mfVideoAccelVRDP = false;
     mfu32SupportedOrders = 0;
-    mcVideoAccelVRDPRefs = 0;
+    mcVRDPRefs = 0;
 
     mfSeamlessEnabled = false;
     mpRectVisibleRegion = NULL;
@@ -918,8 +918,8 @@ int Display::i_handleDisplayResize(unsigned uScreenId, uint32_t bpp, void *pvVRA
                                    uint32_t cbLine, uint32_t w, uint32_t h, uint16_t flags,
                                    int32_t xOrigin, int32_t yOrigin, bool fVGAResize)
 {
-    LogRel(("Display::handleDisplayResize: uScreenId=%d pvVRAM=%p w=%d h=%d bpp=%d cbLine=0x%X flags=0x%X\n", uScreenId,
-            pvVRAM, w, h, bpp, cbLine, flags));
+    LogRel2(("Display::i_handleDisplayResize: uScreenId=%d pvVRAM=%p w=%d h=%d bpp=%d cbLine=0x%X flags=0x%X\n", uScreenId,
+             pvVRAM, w, h, bpp, cbLine, flags));
 
     /* Caller must not hold the object lock. */
     AssertReturn(!isWriteLockOnCurrentThread(), VERR_INVALID_STATE);
@@ -956,7 +956,11 @@ int Display::i_handleDisplayResize(unsigned uScreenId, uint32_t bpp, void *pvVRA
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     if (uScreenId >= mcMonitors)
+    {
+        LogRel(("Display::i_handleDisplayResize: mcMonitors=%u < uScreenId=%u (pvVRAM=%p w=%u h=%u bpp=%d cbLine=0x%X flags=0x%X)\n",
+                mcMonitors, uScreenId, pvVRAM, w, h, bpp, cbLine, flags));
         return VINF_SUCCESS;
+    }
 
     DISPLAYFBINFO *pFBInfo = &maFramebuffers[uScreenId];
 
@@ -992,6 +996,18 @@ int Display::i_handleDisplayResize(unsigned uScreenId, uint32_t bpp, void *pvVRA
         w = pFBInfo->w;
         h = pFBInfo->h;
     }
+
+    /* Log changes. */
+    if (   pFBInfo->w != w
+        || pFBInfo->h != h
+        || pFBInfo->u32LineSize != cbLine
+        /*|| pFBInfo->pu8FramebufferVRAM != (uint8_t *)pvVRAM - too noisy */
+        || (   !fVGAResize
+            && (   pFBInfo->xOrigin != xOrigin
+                || pFBInfo->yOrigin != yOrigin
+                || pFBInfo->flags != flags)))
+        LogRel(("Display::i_handleDisplayResize: uScreenId=%d pvVRAM=%p w=%d h=%d bpp=%d cbLine=0x%X flags=0x%X origin=%d,%d\n",
+                uScreenId, pvVRAM, w, h, bpp, cbLine, flags, xOrigin, yOrigin));
 
     /* Update the video mode information. */
     pFBInfo->w = w;
@@ -1350,6 +1366,34 @@ void Display::i_getFramebufferDimensions(int32_t *px1, int32_t *py1,
     *py2 = y2;
 }
 
+/** Updates the device's view of the host cursor handling capabilities.
+ *  Calls into mpDrv->pUpPort. */
+void Display::i_UpdateDeviceCursorCapabilities(void)
+{
+    bool fRenderCursor = true;
+    bool fMoveCursor = mcVRDPRefs == 0;
+#ifdef VBOX_WITH_RECORDING
+    RecordingContext *pCtx = mParent->i_recordingGetContext();
+
+    if (   pCtx
+        && pCtx->IsStarted()
+        && pCtx->IsFeatureEnabled(RecordingFeature_Video))
+        fRenderCursor = fMoveCursor = false;
+    else
+#endif /* VBOX_WITH_RECORDING */
+    {
+        for (unsigned uScreenId = 0; uScreenId < mcMonitors; uScreenId++)
+        {
+            DISPLAYFBINFO *pFBInfo = &maFramebuffers[uScreenId];
+            if (!(pFBInfo->u32Caps & FramebufferCapabilities_RenderCursor))
+                fRenderCursor = false;
+            if (!(pFBInfo->u32Caps & FramebufferCapabilities_MoveCursor))
+                fMoveCursor = false;
+        }
+    }
+    mpDrv->pUpPort->pfnReportHostCursorCapabilities(mpDrv->pUpPort, fRenderCursor, fMoveCursor);
+}
+
 HRESULT Display::i_reportHostCursorCapabilities(uint32_t fCapabilitiesAdded, uint32_t fCapabilitiesRemoved)
 {
     /* Do we need this to access mParent?  I presume that the safe VM pointer
@@ -1365,12 +1409,12 @@ HRESULT Display::i_reportHostCursorCapabilities(uint32_t fCapabilitiesAdded, uin
         return S_OK;
     CHECK_CONSOLE_DRV(mpDrv);
     alock.release();  /* Release before calling up for lock order reasons. */
-    mpDrv->pUpPort->pfnReportHostCursorCapabilities(mpDrv->pUpPort, fCapabilitiesAdded, fCapabilitiesRemoved);
     mfHostCursorCapabilities = fHostCursorCapabilities;
+    i_UpdateDeviceCursorCapabilities();
     return S_OK;
 }
 
-HRESULT Display::i_reportHostCursorPosition(int32_t x, int32_t y)
+HRESULT Display::i_reportHostCursorPosition(int32_t x, int32_t y, bool fOutOfRange)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     uint32_t xAdj = (uint32_t)RT_MAX(x - xInputMappingOrigin, 0);
@@ -1383,7 +1427,10 @@ HRESULT Display::i_reportHostCursorPosition(int32_t x, int32_t y)
         return ptrVM.rc();
     CHECK_CONSOLE_DRV(mpDrv);
     alock.release();  /* Release before calling up for lock order reasons. */
-    mpDrv->pUpPort->pfnReportHostCursorPosition(mpDrv->pUpPort, xAdj, yAdj);
+    if (fOutOfRange)
+        mpDrv->pUpPort->pfnReportHostCursorPosition(mpDrv->pUpPort, 0, 0, true);
+    else
+        mpDrv->pUpPort->pfnReportHostCursorPosition(mpDrv->pUpPort, xAdj, yAdj, false);
     return S_OK;
 }
 
@@ -1624,17 +1671,25 @@ void Display::VideoAccelFlushVMMDev(void)
 
 /* Called always by one VRDP server thread. Can be thread-unsafe.
  */
-void Display::i_VideoAccelVRDP(bool fEnable)
+void Display::i_VRDPConnectionEvent(bool fConnect)
 {
-    LogRelFlowFunc(("fEnable = %d\n", fEnable));
+    LogRelFlowFunc(("fConnect = %d\n", fConnect));
 
+    int c = fConnect?
+                ASMAtomicIncS32(&mcVRDPRefs):
+                ASMAtomicDecS32(&mcVRDPRefs);
+
+    i_VideoAccelVRDP(fConnect, c);
+    i_UpdateDeviceCursorCapabilities();
+}
+
+
+void Display::i_VideoAccelVRDP(bool fEnable, int c)
+{
     VIDEOACCEL *pVideoAccel = &mVideoAccelLegacy;
 
-    int c = fEnable?
-                ASMAtomicIncS32(&mcVideoAccelVRDPRefs):
-                ASMAtomicDecS32(&mcVideoAccelVRDPRefs);
-
     Assert (c >= 0);
+    RT_NOREF(fEnable);
 
     /* This can run concurrently with Display videoaccel state change. */
     RTCritSectEnter(&mVideoAccelLock);
@@ -2440,6 +2495,7 @@ void Display::i_recordingScreenChanged(unsigned uScreenId)
 {
     RecordingContext *pCtx = mParent->i_recordingGetContext();
 
+    i_UpdateDeviceCursorCapabilities();
     if (   RT_LIKELY(!maRecordingEnabled[uScreenId])
         || !pCtx || !pCtx->IsStarted())
     {
@@ -4415,6 +4471,7 @@ DECLCALLBACK(int) Display::i_displayVBVAMousePointerShape(PPDMIDISPLAYCONNECTOR 
                                                           const void *pvShape)
 {
     LogFlowFunc(("\n"));
+    LogRel2(("%s: fVisible=%RTbool\n", __PRETTY_FUNCTION__, fVisible));
 
     PDRVMAINDISPLAY pDrv = PDMIDISPLAYCONNECTOR_2_MAINDISPLAY(pInterface);
 
@@ -4453,14 +4510,21 @@ DECLCALLBACK(void) Display::i_displayVBVAInputMappingUpdate(PPDMIDISPLAYCONNECTO
     pThis->i_handleUpdateVBVAInputMapping(xOrigin, yOrigin, cx, cy);
 }
 
-DECLCALLBACK(void) Display::i_displayVBVAReportCursorPosition(PPDMIDISPLAYCONNECTOR pInterface, bool fData, uint32_t x, uint32_t y)
+DECLCALLBACK(void) Display::i_displayVBVAReportCursorPosition(PPDMIDISPLAYCONNECTOR pInterface, uint32_t fFlags, uint32_t aScreenId, uint32_t x, uint32_t y)
 {
     LogFlowFunc(("\n"));
+    LogRel2(("%s: fFlags=%RU32, aScreenId=%RU32, x=%RU32, y=%RU32\n",
+             __PRETTY_FUNCTION__, fFlags, aScreenId, x, y));
 
     PDRVMAINDISPLAY pDrv = PDMIDISPLAYCONNECTOR_2_MAINDISPLAY(pInterface);
     Display *pThis = pDrv->pDisplay;
 
-    fireCursorPositionChangedEvent(pThis->mParent->i_getEventSource(), fData, x, y);
+    if (fFlags & VBVA_CURSOR_SCREEN_RELATIVE)
+    {
+        x += pThis->maFramebuffers[aScreenId].xOrigin;
+        y += pThis->maFramebuffers[aScreenId].yOrigin;
+    }
+    fireCursorPositionChangedEvent(pThis->mParent->i_getEventSource(), RT_BOOL(fFlags & VBVA_CURSOR_VALID_DATA), x, y);
 }
 
 #endif /* VBOX_WITH_HGSMI */

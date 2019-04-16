@@ -16,8 +16,6 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#include "vbsfmount.h"
-
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
@@ -25,8 +23,11 @@
 #include <mntent.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <sys/mount.h>
+
+#include "vbsfmount.h"
 
 
 /** @todo Use defines for return values! */
@@ -43,12 +44,30 @@ int vbsfmount_complete(const char *host_name, const char *mount_point,
     if (!m)
         return 1; /* Could not update mount table (failed to create memstream). */
 
+    if (opts->ttl != -1)
+        fprintf(m, "ttl=%d,", opts->ttl);
+    if (opts->msDirCacheTTL >= 0)
+        fprintf(m, "dcachettl=%d,", opts->msDirCacheTTL);
+    if (opts->msInodeTTL >= 0)
+        fprintf(m, "inodettl=%d,", opts->msInodeTTL);
+    if (opts->cMaxIoPages)
+        fprintf(m, "maxiopages=%u,", opts->cMaxIoPages);
+    if (opts->cbDirBuf)
+        fprintf(m, "dirbuf=%u,", opts->cbDirBuf);
+    switch (opts->enmCacheMode)
+    {
+        default:
+        case kVbsfCacheMode_Default:
+            break;
+        case kVbsfCacheMode_None:       fprintf(m, "cache=none,"); break;
+        case kVbsfCacheMode_Strict:     fprintf(m, "cache=strict,"); break;
+        case kVbsfCacheMode_Read:       fprintf(m, "cache=read,"); break;
+        case kVbsfCacheMode_ReadWrite:  fprintf(m, "cache=readwrite,"); break;
+    }
     if (opts->uid)
         fprintf(m, "uid=%d,", opts->uid);
     if (opts->gid)
         fprintf(m, "gid=%d,", opts->gid);
-    if (opts->ttl)
-        fprintf(m, "ttl=%d,", opts->ttl);
     if (*opts->nls_name)
         fprintf(m, "iocharset=%s,", opts->nls_name);
     if (flags & MS_NOSUID)

@@ -1,6 +1,5 @@
-/** $Id: VDMemDisk.cpp $ */
+/* $Id: VDMemDisk.cpp $ */
 /** @file
- *
  * VBox HDD container test utility, memory disk/file.
  */
 

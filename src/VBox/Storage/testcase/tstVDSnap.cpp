@@ -1,5 +1,5 @@
+/* $Id: tstVDSnap.cpp $ */
 /** @file
- *
  * Snapshot VBox HDD container test utility.
  */
 
