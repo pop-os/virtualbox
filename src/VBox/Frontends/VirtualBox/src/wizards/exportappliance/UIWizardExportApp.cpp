@@ -16,6 +16,7 @@
  */
 
 /* Qt includes: */
+#include <QAbstractButton>
 #include <QFileInfo>
 #include <QVariant>
 
@@ -36,9 +37,12 @@
 #include "CVFSExplorer.h"
 
 
-UIWizardExportApp::UIWizardExportApp(QWidget *pParent, const QStringList &selectedVMNames)
+UIWizardExportApp::UIWizardExportApp(QWidget *pParent,
+                                     const QStringList &selectedVMNames /* = QStringList() */,
+                                     bool fFastTraverToExportOCI /* = false */)
     : UIWizard(pParent, WizardType_ExportAppliance)
     , m_selectedVMNames(selectedVMNames)
+    , m_fFastTraverToExportOCI(fFastTraverToExportOCI)
 {
 #ifndef VBOX_WS_MAC
     /* Assign watermark: */
@@ -207,13 +211,13 @@ void UIWizardExportApp::prepare()
         case WizardMode_Basic:
         {
             setPage(Page1, new UIWizardExportAppPageBasic1(m_selectedVMNames));
-            setPage(Page2, new UIWizardExportAppPageBasic2);
+            setPage(Page2, new UIWizardExportAppPageBasic2(m_fFastTraverToExportOCI));
             setPage(Page3, new UIWizardExportAppPageBasic3);
             break;
         }
         case WizardMode_Expert:
         {
-            setPage(PageExpert, new UIWizardExportAppPageExpert(m_selectedVMNames));
+            setPage(PageExpert, new UIWizardExportAppPageExpert(m_selectedVMNames, m_fFastTraverToExportOCI));
             break;
         }
         default:
@@ -225,6 +229,11 @@ void UIWizardExportApp::prepare()
 
     /* Call to base-class: */
     UIWizard::prepare();
+
+    /* Now, when we are ready, we can
+     * fast traver to page 2 if requested: */
+    if (m_fFastTraverToExportOCI)
+        button(QWizard::NextButton)->click();
 }
 
 bool UIWizardExportApp::exportVMs(CAppliance &comAppliance)

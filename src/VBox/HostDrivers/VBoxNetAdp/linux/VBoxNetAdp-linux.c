@@ -70,8 +70,8 @@
 /*********************************************************************************************************************************
 *   Internal Functions                                                                                                           *
 *********************************************************************************************************************************/
-static int  VBoxNetAdpLinuxInit(void);
-static void VBoxNetAdpLinuxUnload(void);
+static int  __init VBoxNetAdpLinuxInit(void);
+static void __exit VBoxNetAdpLinuxUnload(void);
 
 static int VBoxNetAdpLinuxOpen(struct inode *pInode, struct file *pFilp);
 static int VBoxNetAdpLinuxClose(struct inode *pInode, struct file *pFilp);
@@ -182,7 +182,7 @@ static int vboxNetAdpLinuxXmit(struct sk_buff *pSkb, struct net_device *pNetDev)
     return 0;
 }
 
-struct net_device_stats *vboxNetAdpLinuxGetStats(struct net_device *pNetDev)
+static struct net_device_stats *vboxNetAdpLinuxGetStats(struct net_device *pNetDev)
 {
     PVBOXNETADPPRIV pPriv = netdev_priv(pNetDev);
     return &pPriv->Stats;

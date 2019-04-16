@@ -1,6 +1,5 @@
-/** $Id: VDScriptAst.cpp $ */
+/* $Id: VDScriptAst.cpp $ */
 /** @file
- *
  * VBox HDD container test utility - scripting engine AST node related functions.
  */
 

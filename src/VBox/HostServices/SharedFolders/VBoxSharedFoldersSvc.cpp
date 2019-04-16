@@ -96,6 +96,11 @@ static STAMPROFILE g_StatSymlink;
 static STAMPROFILE g_StatSymlinkFail;
 static STAMPROFILE g_StatSetSymlinks;
 static STAMPROFILE g_StatQueryMapInfo;
+static STAMPROFILE g_StatQueryFeatures;
+static STAMPROFILE g_StatCopyFile;
+static STAMPROFILE g_StatCopyFileFail;
+static STAMPROFILE g_StatCopyFilePart;
+static STAMPROFILE g_StatCopyFilePartFail;
 static STAMPROFILE g_StatWaitForMappingsChanges;
 static STAMPROFILE g_StatWaitForMappingsChangesFail;
 static STAMPROFILE g_StatCancelMappingsChangesWait;
@@ -642,145 +647,111 @@ static DECLCALLBACK(void) svcCall (void *, VBOXHGCMCALLHANDLE callHandle, uint32
 
         }
 
-        /** Read object content. */
+        /* Read object content. */
         case SHFL_FN_READ:
+        {
             pStat     = &g_StatRead;
             pStatFail = &g_StatReadFail;
             Log(("SharedFolders host service: svcCall: SHFL_FN_READ\n"));
-
             /* Verify parameter count and types. */
-            if (cParms != SHFL_CPARMS_READ)
-            {
-                rc = VERR_INVALID_PARAMETER;
-            }
+            ASSERT_GUEST_STMT_BREAK(cParms == SHFL_CPARMS_READ, rc = VERR_WRONG_PARAMETER_COUNT);
+            ASSERT_GUEST_STMT_BREAK(paParms[0].type == VBOX_HGCM_SVC_PARM_32BIT, rc = VERR_WRONG_PARAMETER_TYPE); /* root */
+            ASSERT_GUEST_STMT_BREAK(paParms[1].type == VBOX_HGCM_SVC_PARM_64BIT, rc = VERR_WRONG_PARAMETER_TYPE); /* handle */
+            ASSERT_GUEST_STMT_BREAK(paParms[2].type == VBOX_HGCM_SVC_PARM_64BIT, rc = VERR_WRONG_PARAMETER_TYPE); /* offset */
+            ASSERT_GUEST_STMT_BREAK(paParms[3].type == VBOX_HGCM_SVC_PARM_32BIT, rc = VERR_WRONG_PARAMETER_TYPE); /* count */
+            ASSERT_GUEST_STMT_BREAK(   paParms[4].type == VBOX_HGCM_SVC_PARM_PTR
+                                    || paParms[4].type == VBOX_HGCM_SVC_PARM_PAGES, rc = VERR_WRONG_PARAMETER_TYPE); /* buffer */
+
+            /* Fetch parameters. */
+            SHFLROOT   const idRoot  = (SHFLROOT)paParms[0].u.uint32;
+            SHFLHANDLE const hFile   = paParms[1].u.uint64;
+            uint64_t   const offFile = paParms[2].u.uint64;
+            uint32_t         cbRead  = paParms[3].u.uint32;
+
+            /* Verify parameters values. */
+            ASSERT_GUEST_STMT_BREAK(hFile != SHFL_HANDLE_ROOT, rc = VERR_INVALID_PARAMETER);
+            ASSERT_GUEST_STMT_BREAK(hFile != SHFL_HANDLE_NIL,  rc = VERR_INVALID_HANDLE);
+            if (paParms[4].type == VBOX_HGCM_SVC_PARM_PTR)
+                ASSERT_GUEST_STMT_BREAK(cbRead <= paParms[4].u.pointer.size, rc = VERR_INVALID_HANDLE);
             else
-            if (   paParms[0].type != VBOX_HGCM_SVC_PARM_32BIT   /* root */
-                || paParms[1].type != VBOX_HGCM_SVC_PARM_64BIT   /* handle */
-                || paParms[2].type != VBOX_HGCM_SVC_PARM_64BIT   /* offset */
-                || paParms[3].type != VBOX_HGCM_SVC_PARM_32BIT   /* count */
-                || paParms[4].type != VBOX_HGCM_SVC_PARM_PTR     /* buffer */
-                    )
+                ASSERT_GUEST_STMT_BREAK(cbRead <= paParms[4].u.Pages.cb, rc = VERR_OUT_OF_RANGE);
+
+            /* Execute the function. */
+            if (g_pStatusLed)
             {
-                rc = VERR_INVALID_PARAMETER;
+                Assert(g_pStatusLed->u32Magic == PDMLED_MAGIC);
+                g_pStatusLed->Asserted.s.fReading = g_pStatusLed->Actual.s.fReading = 1;
             }
+
+            if (paParms[4].type == VBOX_HGCM_SVC_PARM_PTR)
+                rc = vbsfRead(pClient, idRoot, hFile, offFile, &cbRead, (uint8_t *)paParms[4].u.pointer.addr);
             else
-            {
-                /* Fetch parameters. */
-                SHFLROOT   root    = (SHFLROOT)paParms[0].u.uint32;
-                SHFLHANDLE Handle  = paParms[1].u.uint64;
-                uint64_t   offset  = paParms[2].u.uint64;
-                uint32_t   count   = paParms[3].u.uint32;
-                uint8_t   *pBuffer = (uint8_t *)paParms[4].u.pointer.addr;
+                rc = vbsfReadPages(pClient, idRoot, hFile, offFile, &cbRead, &paParms[4].u.Pages);
 
-                /* Verify parameters values. */
-                if (   Handle == SHFL_HANDLE_ROOT
-                    || count > paParms[4].u.pointer.size
-                   )
-                {
-                    rc = VERR_INVALID_PARAMETER;
-                }
-                else
-                if (Handle == SHFL_HANDLE_NIL)
-                {
-                    AssertMsgFailed(("Invalid handle!\n"));
-                    rc = VERR_INVALID_HANDLE;
-                }
-                else
-                {
-                    /* Execute the function. */
-                    if (g_pStatusLed)
-                    {
-                        Assert(g_pStatusLed->u32Magic == PDMLED_MAGIC);
-                        g_pStatusLed->Asserted.s.fReading = g_pStatusLed->Actual.s.fReading = 1;
-                    }
+            if (g_pStatusLed)
+                g_pStatusLed->Actual.s.fReading = 0;
 
-                    rc = vbsfRead (pClient, root, Handle, offset, &count, pBuffer);
-                    if (g_pStatusLed)
-                        g_pStatusLed->Actual.s.fReading = 0;
-
-                    if (RT_SUCCESS(rc))
-                    {
-                        /* Update parameters.*/
-                        paParms[3].u.uint32 = count;
-                    }
-                    else
-                    {
-                        paParms[3].u.uint32 = 0;   /* nothing read */
-                    }
-                }
-            }
+            /* Update parameters.*/
+            paParms[3].u.uint32 = RT_SUCCESS(rc) ? cbRead : 0  /* nothing read */;
             break;
+        }
 
-        /** Write new object content. */
+        /* Write new object content. */
         case SHFL_FN_WRITE:
+         {
             pStat     = &g_StatWrite;
             pStatFail = &g_StatWriteFail;
             Log(("SharedFolders host service: svcCall: SHFL_FN_WRITE\n"));
 
             /* Verify parameter count and types. */
-            if (cParms != SHFL_CPARMS_WRITE)
+            ASSERT_GUEST_STMT_BREAK(cParms == SHFL_CPARMS_WRITE, rc = VERR_WRONG_PARAMETER_COUNT);
+            ASSERT_GUEST_STMT_BREAK(paParms[0].type == VBOX_HGCM_SVC_PARM_32BIT, rc = VERR_WRONG_PARAMETER_TYPE); /* root */
+            ASSERT_GUEST_STMT_BREAK(paParms[1].type == VBOX_HGCM_SVC_PARM_64BIT, rc = VERR_WRONG_PARAMETER_TYPE); /* handle */
+            ASSERT_GUEST_STMT_BREAK(paParms[2].type == VBOX_HGCM_SVC_PARM_64BIT, rc = VERR_WRONG_PARAMETER_TYPE); /* offset */
+            ASSERT_GUEST_STMT_BREAK(paParms[3].type == VBOX_HGCM_SVC_PARM_32BIT, rc = VERR_WRONG_PARAMETER_TYPE); /* count */
+            ASSERT_GUEST_STMT_BREAK(   paParms[4].type == VBOX_HGCM_SVC_PARM_PTR
+                                    || paParms[4].type == VBOX_HGCM_SVC_PARM_PAGES, rc = VERR_WRONG_PARAMETER_TYPE); /* buffer */
+            /* Fetch parameters. */
+            SHFLROOT   const idRoot   = (SHFLROOT)paParms[0].u.uint32;
+            SHFLHANDLE const hFile    = paParms[1].u.uint64;
+            uint64_t         offFile  = paParms[2].u.uint64;
+            uint32_t         cbWrite  = paParms[3].u.uint32;
+
+            /* Verify parameters values. */
+            ASSERT_GUEST_STMT_BREAK(hFile != SHFL_HANDLE_ROOT, rc = VERR_INVALID_PARAMETER);
+            ASSERT_GUEST_STMT_BREAK(hFile != SHFL_HANDLE_NIL,  rc = VERR_INVALID_HANDLE);
+            if (paParms[4].type == VBOX_HGCM_SVC_PARM_PTR)
+                ASSERT_GUEST_STMT_BREAK(cbWrite <= paParms[4].u.pointer.size, rc = VERR_INVALID_HANDLE);
+            else
+                ASSERT_GUEST_STMT_BREAK(cbWrite <= paParms[4].u.Pages.cb, rc = VERR_OUT_OF_RANGE);
+
+            /* Execute the function. */
+            if (g_pStatusLed)
             {
-                rc = VERR_INVALID_PARAMETER;
+                Assert(g_pStatusLed->u32Magic == PDMLED_MAGIC);
+                g_pStatusLed->Asserted.s.fWriting = g_pStatusLed->Actual.s.fWriting = 1;
+            }
+
+            if (paParms[4].type == VBOX_HGCM_SVC_PARM_PTR)
+                rc = vbsfWrite(pClient, idRoot, hFile, &offFile, &cbWrite, (uint8_t *)paParms[4].u.pointer.addr);
+            else
+                rc = vbsfWritePages(pClient, idRoot, hFile, &offFile, &cbWrite, &paParms[4].u.Pages);
+
+            if (g_pStatusLed)
+                g_pStatusLed->Actual.s.fWriting = 0;
+
+            /* Update parameters.*/
+            if (RT_SUCCESS(rc))
+            {
+                paParms[3].u.uint32 = cbWrite;
+                paParms[4].u.uint64 = offFile;
             }
             else
-            if (   paParms[0].type != VBOX_HGCM_SVC_PARM_32BIT   /* root */
-                || paParms[1].type != VBOX_HGCM_SVC_PARM_64BIT   /* handle */
-                || paParms[2].type != VBOX_HGCM_SVC_PARM_64BIT   /* offset */
-                || paParms[3].type != VBOX_HGCM_SVC_PARM_32BIT   /* count */
-                || paParms[4].type != VBOX_HGCM_SVC_PARM_PTR     /* buffer */
-                    )
-            {
-                rc = VERR_INVALID_PARAMETER;
-            }
-            else
-            {
-                /* Fetch parameters. */
-                SHFLROOT   root    = (SHFLROOT)paParms[0].u.uint32;
-                SHFLHANDLE Handle  = paParms[1].u.uint64;
-                uint64_t   offset  = paParms[2].u.uint64;
-                uint32_t   count   = paParms[3].u.uint32;
-                uint8_t   *pBuffer = (uint8_t *)paParms[4].u.pointer.addr;
-
-                /* Verify parameters values. */
-                if (   Handle == SHFL_HANDLE_ROOT
-                    || count > paParms[4].u.pointer.size
-                   )
-                {
-                    rc = VERR_INVALID_PARAMETER;
-                }
-                else
-                if (Handle == SHFL_HANDLE_NIL)
-                {
-                    AssertMsgFailed(("Invalid handle!\n"));
-                    rc = VERR_INVALID_HANDLE;
-                }
-                else
-                {
-                    /* Execute the function. */
-                    if (g_pStatusLed)
-                    {
-                        Assert(g_pStatusLed->u32Magic == PDMLED_MAGIC);
-                        g_pStatusLed->Asserted.s.fWriting = g_pStatusLed->Actual.s.fWriting = 1;
-                    }
-
-                    rc = vbsfWrite (pClient, root, Handle, offset, &count, pBuffer);
-                    if (g_pStatusLed)
-                        g_pStatusLed->Actual.s.fWriting = 0;
-
-                    if (RT_SUCCESS(rc))
-                    {
-                        /* Update parameters.*/
-                        paParms[3].u.uint32 = count;
-                    }
-                    else
-                    {
-                        paParms[3].u.uint32 = 0;   /* nothing read */
-                    }
-                }
-            }
+                paParms[3].u.uint32 = 0;
             break;
+        }
 
-        /** Lock/unlock a range in the object. */
+        /* Lock/unlock a range in the object. */
         case SHFL_FN_LOCK:
             pStat     = &g_StatLock;
             pStatFail = &g_StatLockFail;
@@ -868,7 +839,7 @@ static DECLCALLBACK(void) svcCall (void *, VBOXHGCMCALLHANDLE callHandle, uint32
             }
             break;
 
-        /** List object content. */
+        /* List object content. */
         case SHFL_FN_LIST:
         {
             pStat     = &g_StatList;
@@ -1151,7 +1122,7 @@ static DECLCALLBACK(void) svcCall (void *, VBOXHGCMCALLHANDLE callHandle, uint32
             break;
         }
 
-        /** Query/set object information. */
+        /* Query/set object information. */
         case SHFL_FN_INFORMATION:
         {
             pStatFail = pStat = &g_StatInformationFail;
@@ -1234,7 +1205,7 @@ static DECLCALLBACK(void) svcCall (void *, VBOXHGCMCALLHANDLE callHandle, uint32
             break;
         }
 
-        /** Remove or rename object */
+        /* Remove or rename object */
         case SHFL_FN_REMOVE:
         {
             pStat     = &g_StatRemove;
@@ -1515,6 +1486,78 @@ static DECLCALLBACK(void) svcCall (void *, VBOXHGCMCALLHANDLE callHandle, uint32
 
             /* Execute the function: */
             rc = vbsfSetFileSize(pClient, paParms[0].u.uint32, paParms[1].u.uint64, paParms[2].u.uint64);
+            break;
+        }
+
+        case SHFL_FN_QUERY_FEATURES:
+        {
+            pStat = pStatFail = &g_StatQueryFeatures;
+
+            /* Validate input: */
+            ASSERT_GUEST_STMT_BREAK(cParms == SHFL_CPARMS_QUERY_FEATURES, rc = VERR_WRONG_PARAMETER_COUNT);
+            ASSERT_GUEST_STMT_BREAK(paParms[0].type == VBOX_HGCM_SVC_PARM_64BIT, rc = VERR_WRONG_PARAMETER_TYPE); /* f64Features */
+            ASSERT_GUEST_STMT_BREAK(paParms[1].type == VBOX_HGCM_SVC_PARM_32BIT, rc = VERR_WRONG_PARAMETER_TYPE); /* u32LastFunction */
+
+            /* Execute the function: */
+            paParms[0].u.uint64 = SHFL_FEATURE_WRITE_UPDATES_OFFSET;
+            paParms[1].u.uint32 = SHFL_FN_LAST;
+            rc = VINF_SUCCESS;
+            break;
+        }
+
+        case SHFL_FN_COPY_FILE:
+        {
+            pStat     = &g_StatCopyFile;
+            pStatFail = &g_StatCopyFileFail;
+
+            /* Validate input: */
+            ASSERT_GUEST_STMT_BREAK(cParms == SHFL_CPARMS_COPY_FILE, rc = VERR_WRONG_PARAMETER_COUNT);
+            ASSERT_GUEST_STMT_BREAK(paParms[0].type == VBOX_HGCM_SVC_PARM_32BIT, rc = VERR_WRONG_PARAMETER_TYPE); /* i32RootSrc  */
+            ASSERT_GUEST_STMT_BREAK(paParms[1].type == VBOX_HGCM_SVC_PARM_PTR, rc = VERR_WRONG_PARAMETER_TYPE);   /* pStrPathSrc */
+            PCSHFLSTRING pStrPathSrc = (PCSHFLSTRING)paParms[1].u.pointer.addr;
+            ASSERT_GUEST_STMT_BREAK(ShflStringIsValidIn(pStrPathSrc, paParms[1].u.pointer.size,
+                                                        RT_BOOL(pClient->fu32Flags & SHFL_CF_UTF8)),
+                                    rc = VERR_INVALID_PARAMETER);
+            ASSERT_GUEST_STMT_BREAK(paParms[2].type == VBOX_HGCM_SVC_PARM_32BIT, rc = VERR_WRONG_PARAMETER_TYPE); /* i32RootDst  */
+            ASSERT_GUEST_STMT_BREAK(paParms[3].type == VBOX_HGCM_SVC_PARM_PTR, rc = VERR_WRONG_PARAMETER_TYPE);   /* pStrPathDst */
+            PCSHFLSTRING pStrPathDst = (PCSHFLSTRING)paParms[3].u.pointer.addr;
+            ASSERT_GUEST_STMT_BREAK(ShflStringIsValidIn(pStrPathDst, paParms[3].u.pointer.size,
+                                                        RT_BOOL(pClient->fu32Flags & SHFL_CF_UTF8)),
+                                    rc = VERR_INVALID_PARAMETER);
+            ASSERT_GUEST_STMT_BREAK(paParms[4].type == VBOX_HGCM_SVC_PARM_32BIT, rc = VERR_WRONG_PARAMETER_TYPE); /* f32Flags */
+            ASSERT_GUEST_STMT_BREAK(paParms[4].u.uint32 == 0, rc = VERR_INVALID_FLAGS);
+
+            /* Execute the function: */
+            rc = vbsfCopyFile(pClient, paParms[0].u.uint32, pStrPathSrc, paParms[2].u.uint64, pStrPathDst, paParms[3].u.uint32);
+            break;
+        }
+
+
+        case SHFL_FN_COPY_FILE_PART:
+        {
+            pStat     = &g_StatCopyFilePart;
+            pStatFail = &g_StatCopyFilePartFail;
+
+            /* Validate input: */
+            ASSERT_GUEST_STMT_BREAK(cParms == SHFL_CPARMS_COPY_FILE_PART, rc = VERR_WRONG_PARAMETER_COUNT);
+            ASSERT_GUEST_STMT_BREAK(paParms[0].type == VBOX_HGCM_SVC_PARM_32BIT, rc = VERR_WRONG_PARAMETER_TYPE); /* i32RootSrc  */
+            ASSERT_GUEST_STMT_BREAK(paParms[1].type == VBOX_HGCM_SVC_PARM_64BIT, rc = VERR_WRONG_PARAMETER_TYPE); /* u64HandleSrc */
+            ASSERT_GUEST_STMT_BREAK(paParms[2].type == VBOX_HGCM_SVC_PARM_64BIT, rc = VERR_WRONG_PARAMETER_TYPE); /* off64Src */
+            ASSERT_GUEST_STMT_BREAK((int64_t)paParms[2].u.uint64 >= 0, rc = VERR_NEGATIVE_SEEK);
+            ASSERT_GUEST_STMT_BREAK(paParms[3].type == VBOX_HGCM_SVC_PARM_32BIT, rc = VERR_WRONG_PARAMETER_TYPE); /* i32RootDst  */
+            ASSERT_GUEST_STMT_BREAK(paParms[4].type == VBOX_HGCM_SVC_PARM_64BIT, rc = VERR_WRONG_PARAMETER_TYPE); /* u64HandleDst */
+            ASSERT_GUEST_STMT_BREAK(paParms[5].type == VBOX_HGCM_SVC_PARM_64BIT, rc = VERR_WRONG_PARAMETER_TYPE); /* off64Dst */
+            ASSERT_GUEST_STMT_BREAK((int64_t)paParms[5].u.uint64 >= 0, rc = VERR_NEGATIVE_SEEK);
+            ASSERT_GUEST_STMT_BREAK(paParms[6].type == VBOX_HGCM_SVC_PARM_64BIT, rc = VERR_WRONG_PARAMETER_TYPE); /* cb64ToCopy */
+            ASSERT_GUEST_STMT_BREAK(paParms[6].u.uint64 < _1E, rc = VERR_OUT_OF_RANGE);
+            ASSERT_GUEST_STMT_BREAK(paParms[7].type == VBOX_HGCM_SVC_PARM_32BIT, rc = VERR_WRONG_PARAMETER_TYPE); /* f32Flags */
+            ASSERT_GUEST_STMT_BREAK(paParms[7].u.uint32 == 0, rc = VERR_INVALID_FLAGS);
+
+            /* Execute the function: */
+            rc = vbsfCopyFilePart(pClient,
+                                  paParms[0].u.uint32, paParms[1].u.uint64, paParms[2].u.uint64,
+                                  paParms[3].u.uint32, paParms[4].u.uint64, paParms[5].u.uint64,
+                                  &paParms[6].u.uint64, paParms[7].u.uint64);
             break;
         }
 
@@ -1825,6 +1868,11 @@ extern "C" DECLCALLBACK(DECLEXPORT(int)) VBoxHGCMSvcLoad (VBOXHGCMSVCFNTABLE *pt
              HGCMSvcHlpStamRegister(g_pHelpers, &g_StatSymlinkFail,               STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_CALLS, "SHFL_FN_SYMLINK failures",                  "/HGCM/VBoxSharedFolders/FnSymlinkFail");
              HGCMSvcHlpStamRegister(g_pHelpers, &g_StatSetSymlinks,               STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_CALLS, "SHFL_FN_SET_SYMLINKS",                      "/HGCM/VBoxSharedFolders/FnSetSymlink");
              HGCMSvcHlpStamRegister(g_pHelpers, &g_StatQueryMapInfo,              STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_CALLS, "SHFL_FN_QUERY_MAP_INFO",                    "/HGCM/VBoxSharedFolders/FnQueryMapInfo");
+             HGCMSvcHlpStamRegister(g_pHelpers, &g_StatQueryFeatures,             STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_CALLS, "SHFL_FN_QUERY_FEATURES",                    "/HGCM/VBoxSharedFolders/FnQueryFeatures");
+             HGCMSvcHlpStamRegister(g_pHelpers, &g_StatCopyFile,                  STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_CALLS, "SHFL_FN_COPY_FILE successes",               "/HGCM/VBoxSharedFolders/FnCopyFile");
+             HGCMSvcHlpStamRegister(g_pHelpers, &g_StatCopyFileFail,              STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_CALLS, "SHFL_FN_COPY_FILE failures",                "/HGCM/VBoxSharedFolders/FnCopyFileFail");
+             HGCMSvcHlpStamRegister(g_pHelpers, &g_StatCopyFilePart,              STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_CALLS, "SHFL_FN_COPY_FILE_PART successes",          "/HGCM/VBoxSharedFolders/FnCopyFilePart");
+             HGCMSvcHlpStamRegister(g_pHelpers, &g_StatCopyFilePartFail,          STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_CALLS, "SHFL_FN_COPY_FILE_PART failures",           "/HGCM/VBoxSharedFolders/FnCopyFilePartFail");
              HGCMSvcHlpStamRegister(g_pHelpers, &g_StatWaitForMappingsChanges,    STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_CALLS, "SHFL_FN_WAIT_FOR_MAPPINGS_CHANGES successes", "/HGCM/VBoxSharedFolders/FnWaitForMappingsChanges");
              HGCMSvcHlpStamRegister(g_pHelpers, &g_StatWaitForMappingsChangesFail,STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_CALLS, "SHFL_FN_WAIT_FOR_MAPPINGS_CHANGES failures","/HGCM/VBoxSharedFolders/FnWaitForMappingsChangesFail");
              HGCMSvcHlpStamRegister(g_pHelpers, &g_StatCancelMappingsChangesWait, STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_CALLS, "SHFL_FN_CANCEL_MAPPINGS_CHANGES_WAITS",     "/HGCM/VBoxSharedFolders/FnCancelMappingsChangesWaits");

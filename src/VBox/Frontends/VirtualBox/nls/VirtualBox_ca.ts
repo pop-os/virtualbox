@@ -81,11 +81,19 @@
     </message>
     <message>
         <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root.</source>
-        <translation>El controlador VirtualBox (vboxdrv) del nucli de Linux no s&apos;ha carregat o hi ha un problema de permisos amb /dev/vboxdrv. Torneu a instal·lar el mòdul del nucli executant &lt;br/&gt;&lt;br/&gt;&lt;font color=blue&gt;&apos;/sbin/sboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;com a superusuari root.</translation>
+        <translation type="vanished">El controlador VirtualBox (vboxdrv) del nucli de Linux no s&apos;ha carregat o hi ha un problema de permisos amb /dev/vboxdrv. Torneu a instal·lar el mòdul del nucli executant &lt;br/&gt;&lt;br/&gt;&lt;font color=blue&gt;&apos;/sbin/sboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;com a superusuari root.</translation>
     </message>
     <message>
         <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
-        <translation>Els mòduls de nucli del Virtualbox no coincideixen amb aquesta versió del Virtualbox. La instal·lació del VirtualBox aparentment no ha estat correcta. Si executeu &lt;br/&gt;&lt;br/&gt;&lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;podríeu corregir-ho. Assegureu-vos que no barrejar les versions OSE i PUEL del VirtualBox.</translation>
+        <translation type="vanished">Els mòduls de nucli del Virtualbox no coincideixen amb aquesta versió del Virtualbox. La instal·lació del VirtualBox aparentment no ha estat correcta. Si executeu &lt;br/&gt;&lt;br/&gt;&lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;podríeu corregir-ho. Assegureu-vos que no barrejar les versions OSE i PUEL del VirtualBox.</translation>
+    </message>
+    <message>
+        <source>The VirtualBox Linux kernel driver is either not loaded or not set up correctly. Please try setting it up again by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root.&lt;br/&gt;&lt;br/&gt;If your system has EFI Secure Boot enabled you may also need to sign the kernel modules (vboxdrv, vboxnetflt, vboxnetadp, vboxpci) before you can load them. Please see your Linux system&apos;s documentation for more information.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you are not mixing builds of VirtualBox from different sources.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -1670,6 +1678,14 @@
         <source>Tools</source>
         <translation type="unfinished">Eines</translation>
     </message>
+    <message>
+        <source>E&amp;xport to OCI...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Export selected virtual machine to OCI</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIAddDiskEncryptionPasswordDialog</name>
@@ -2838,7 +2854,7 @@
     </message>
     <message>
         <source>Close the pane</source>
-        <translation>Tanca el panell</translation>
+        <translation type="vanished">Tanca el panell</translation>
     </message>
     <message>
         <source>Password</source>
@@ -6523,6 +6539,21 @@
     </message>
 </context>
 <context>
+    <name>UIMediumSearchWidget</name>
+    <message>
+        <source>Search By Name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Search By UUID</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select the search type</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>UIMediumSelector</name>
     <message>
         <source>&amp;Add...</source>
@@ -6575,6 +6606,18 @@
     <message>
         <source>Actual Size</source>
         <translation>Mida real</translation>
+    </message>
+    <message>
+        <source>Medium</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Expand All</source>
+        <translation type="unfinished">Expandir-ho tot</translation>
+    </message>
+    <message>
+        <source>Collapse All</source>
+        <translation type="unfinished">Reduir tot</translation>
     </message>
 </context>
 <context>
@@ -8744,15 +8787,15 @@
     </message>
     <message>
         <source>Goto the next bookmark</source>
-        <translation>Vés al següent marcador</translation>
+        <translation type="vanished">Vés al següent marcador</translation>
     </message>
     <message>
         <source>Goto the previous bookmark</source>
-        <translation>Vés al marcador anterior</translation>
+        <translation type="vanished">Vés al marcador anterior</translation>
     </message>
     <message>
         <source>Goto selected bookmark</source>
-        <translation>Vés al marcador seleccionat</translation>
+        <translation type="vanished">Vés al marcador seleccionat</translation>
     </message>
     <message>
         <source>Log Viewer</source>
@@ -8816,7 +8859,7 @@
     </message>
     <message>
         <source>Close the pane</source>
-        <translation>Tanca el panell</translation>
+        <translation type="vanished">Tanca el panell</translation>
     </message>
     <message>
         <source>Enter a search string here</source>
@@ -8856,11 +8899,11 @@
     </message>
     <message>
         <source>String not found</source>
-        <translation>No s&apos;ha trobat la cadena</translation>
+        <translation type="vanished">No s&apos;ha trobat la cadena</translation>
     </message>
     <message>
         <source>%1 Matches Found</source>
-        <translation>S&apos;han trobat %1 coincidències</translation>
+        <translation type="vanished">S&apos;han trobat %1 coincidències</translation>
     </message>
     <message>
         <source>Filtered</source>
@@ -8881,6 +8924,22 @@
     <message>
         <source>&lt;p&gt;No log files found. Press the &lt;b&gt;Refresh&lt;/b&gt; button to rescan the log folder &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.&lt;/p&gt;</source>
         <translation>&lt;p&gt;No s&apos;ha trobat cap fitxer de registre. Premeu el botó &lt;b&gt;Actualitza&lt;/b&gt; per tornar a escanejar la carpeta de registre &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Go to the next bookmark</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Go to the previous bookmark</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Go to selected bookmark</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Matches Found</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -9000,6 +9059,46 @@
     <message>
         <source>Custom VISO options:</source>
         <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Close the pane</source>
+        <translation type="unfinished">Tanca el panell</translation>
+    </message>
+    <message>
+        <source>Remove</source>
+        <translation type="unfinished">Elimina</translation>
+    </message>
+    <message>
+        <source>New Directory</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reset</source>
+        <translation type="unfinished">Reinicialitza</translation>
+    </message>
+    <message>
+        <source>VISO Creator</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>VISO</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Host Browser</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>VISO Browser</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove current option.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add</source>
+        <translation type="unfinished">Afegeix</translation>
     </message>
 </context>
 <context>

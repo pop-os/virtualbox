@@ -2817,15 +2817,15 @@
       <desc>
         Sets associated global extra data.
 
-        If you pass @c null or empty string as a key @a value, the given @a key
-        will be deleted.
+        If you pass @c null or an empty string as a key @a value, the given
+        @a key will be deleted.
 
         <note>
-          Key must contain only printable ASCII characters.
+          Key must contain printable (non-control) UTF-8 characters only.
         </note>
         <note>
           Before performing the actual data change, this method will ask all
-          registered event listener using the
+          registered event listeners using the
           <link to="IExtraDataCanChangeEvent"/>
           notification for a permission. If one of the listeners refuses the
           new value, the change will not be performed.
@@ -7296,11 +7296,11 @@ and "VAR" for unsetting. -->
         @a key will be deleted.
 
         <note>
-          Key must contain only printable ASCII characters.
+         Key must contain printable (non-control) UTF-8 characters only.
         </note>
         <note>
           Before performing the actual data change, this method will ask all
-          registered listeners using the
+          registered event listeners using the
           <link to="IExtraDataCanChangeEvent"/>
           notification for a permission. If one of the listeners refuses the
           new value, the change will not be performed.
@@ -12485,7 +12485,8 @@ and "VAR" for unsetting. -->
       </desc>
       <param name="sources" type="wstring" dir="in" safearray="yes">
         <desc>Paths to directories and/or files on the guest side that should be
-          copied to the host. Guest path style.</desc>
+          copied to the host. If the path ends with a path delimiter, only
+          the directory's content is being copied. Guest path style.</desc>
       </param>
       <param name="filters" type="wstring" dir="in" safearray="yes">
         <desc>Array of source filters. This uses the
@@ -12540,7 +12541,8 @@ and "VAR" for unsetting. -->
       </desc>
       <param name="sources" type="wstring" dir="in" safearray="yes">
         <desc>Paths to directories and/or files on the host side that should be
-          copied to the guest. Host path style.</desc>
+          copied to the guest. If the path ends with a path delimiter, only
+          the directory's content is being copied. Host path style.</desc>
       </param>
       <param name="filters" type="wstring" dir="in" safearray="yes">
         <desc>Array of source filters. This uses the
@@ -17697,7 +17699,11 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
         Positions the mouse pointer using absolute x and y coordinates.
         These coordinates are expressed in pixels and
         start from <tt>[1,1]</tt> which corresponds to the top left
-        corner of the virtual display.
+        corner of the virtual display.  The values <tt>[-1,-1]</tt> and
+        <tt>[0x7fffffff,0x7fffffff]</tt> have special meanings as
+        respectively "no data" (to signal that the host wishes to report
+        absolute pointer data in future) and "out of range" (the host
+        pointer is outside of all guest windows).
 
         <result name="E_ACCESSDENIED">
           Console not powered up.
@@ -17877,6 +17883,21 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
     <const name="VisibleRegion" value="0x04">
       <desc>
         Supports visible region. If set, then IFramebuffer::setVisibleRegion can be called.
+      </desc>
+    </const>
+
+    <const name="RenderCursor" value="0x08">
+      <desc>
+        This framebuffer implementation can render a pointer cursor itself.  Unless the
+        MoveCursor capability is also set the cursor will always be rendered at the
+        location of (and usually using) the host pointer.
+      </desc>
+    </const>
+
+    <const name="MoveCursor" value="0x10">
+      <desc>
+        Supports rendering a pointer cursor anywhere within the guest screen.  Implies
+        RenderCursor.
       </desc>
     </const>
   </enum>
@@ -25444,7 +25465,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
     <desc>The guest reports cursor position data.</desc>
 
     <attribute name="hasData" readonly="yes" type="boolean">
-      <desc>Event contains valid data (alternative: notification of support)</desc>
+      <desc>Event contains valid data.  If not set, switch back to using the host cursor.</desc>
     </attribute>
     <attribute name="x" readonly="yes" type="unsigned long">
       <desc>Reported X position</desc>

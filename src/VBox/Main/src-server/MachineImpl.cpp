@@ -1946,7 +1946,8 @@ HRESULT Machine::getBIOSSettings(ComPtr<IBIOSSettings> &aBIOSSettings)
 
 HRESULT Machine::getRecordingSettings(ComPtr<IRecordingSettings> &aRecordingSettings)
 {
-    /* mRecordingSettings is constant during life time, no need to lock */
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
     aRecordingSettings = mRecordingSettings;
 
     return S_OK;
@@ -2244,7 +2245,7 @@ HRESULT Machine::removeCPUIDLeaf(ULONG aIdx, ULONG aSubIdx)
     /*
      * Do the removal.
      */
-    bool fModified = false;
+    bool fModified = mHWData.isBackedUp();
     for (settings::CpuIdLeafsList::iterator it = mHWData->mCpuIdLeafList.begin(); it != mHWData->mCpuIdLeafList.end(); )
     {
         settings::CpuIdLeaf &rLeaf= *it;
@@ -2257,8 +2258,14 @@ HRESULT Machine::removeCPUIDLeaf(ULONG aIdx, ULONG aSubIdx)
                 fModified = true;
                 i_setModified(IsModified_MachineData);
                 mHWData.backup();
+                // Start from the beginning, since mHWData.backup() creates
+                // a new list, causing iterator mixup. This makes sure that
+                // the settings are not unnecessarily marked as modified,
+                // at the price of extra list walking.
+                it = mHWData->mCpuIdLeafList.begin();
             }
-            it = mHWData->mCpuIdLeafList.erase(it);
+            else
+                it = mHWData->mCpuIdLeafList.erase(it);
         }
         else
             ++it;
@@ -4830,14 +4837,14 @@ HRESULT Machine::getExtraData(const com::Utf8Str &aKey,
    */
 HRESULT Machine::setExtraData(const com::Utf8Str &aKey, const com::Utf8Str &aValue)
 {
-    /* Because non-ASCII characters in aKey have caused problems in the settings
+    /* Because control characters in aKey have caused problems in the settings
      * they are rejected unless the key should be deleted. */
     if (!aValue.isEmpty())
     {
         for (size_t i = 0; i < aKey.length(); ++i)
         {
             char ch = aKey[i];
-            if (!RTLocCIsPrint(ch))
+            if (RTLocCIsCntrl(ch))
                 return E_INVALIDARG;
         }
     }

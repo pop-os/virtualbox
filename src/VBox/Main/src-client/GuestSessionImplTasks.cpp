@@ -176,6 +176,11 @@ int GuestSessionTask::setProgressSuccess(void)
     if (   SUCCEEDED(mProgress->COMGETTER(Completed(&fCompleted)))
         && !fCompleted)
     {
+#ifdef VBOX_STRICT
+        ULONG uCurOp; mProgress->COMGETTER(Operation(&uCurOp));
+        ULONG cOps;   mProgress->COMGETTER(OperationCount(&cOps));
+        AssertMsg(uCurOp + 1 /* Zero-based */ == cOps, ("Not all operations done yet (%u/%u)\n", uCurOp + 1, cOps));
+#endif
         HRESULT hr = mProgress->i_notifyComplete(S_OK);
         if (FAILED(hr))
             return VERR_COM_UNEXPECTED; /** @todo Find a better rc. */
@@ -215,20 +220,27 @@ HRESULT GuestSessionTask::setProgressErrorMsg(HRESULT hr, const Utf8Str &strMsg)
  * @return VBox status code. VERR_ALREADY_EXISTS if directory on the guest already exists.
  * @param  strPath                  Absolute path to directory on the guest (guest style path) to create.
  * @param  enmDirectoryCreateFlags  Directory creation flags.
- * @param  uMode                    Directory mode to use for creation.
+ * @param  fMode                    Directory mode to use for creation.
  * @param  fFollowSymlinks          Whether to follow symlinks on the guest or not.
+ * @param  fCanExist                Whether the directory to create is allowed to exist already.
  */
-int GuestSessionTask::directoryCreate(const com::Utf8Str &strPath,
-                                      DirectoryCreateFlag_T enmDirectoryCreateFlags, uint32_t uMode, bool fFollowSymlinks)
+int GuestSessionTask::directoryCreateOnGuest(const com::Utf8Str &strPath,
+                                             DirectoryCreateFlag_T enmDirectoryCreateFlags, uint32_t fMode,
+                                             bool fFollowSymlinks, bool fCanExist)
 {
-    LogFlowFunc(("strPath=%s, fFlags=0x%x, uMode=%RU32, fFollowSymlinks=%RTbool\n",
-                 strPath.c_str(), enmDirectoryCreateFlags, uMode, fFollowSymlinks));
+    LogFlowFunc(("strPath=%s, enmDirectoryCreateFlags=0x%x, fMode=%RU32, fFollowSymlinks=%RTbool, fCanExist=%RTbool\n",
+                 strPath.c_str(), enmDirectoryCreateFlags, fMode, fFollowSymlinks, fCanExist));
 
     GuestFsObjData objData; int rcGuest;
     int rc = mSession->i_directoryQueryInfo(strPath, fFollowSymlinks, objData, &rcGuest);
     if (RT_SUCCESS(rc))
     {
-        return VERR_ALREADY_EXISTS;
+        if (!fCanExist)
+        {
+            setProgressErrorMsg(VBOX_E_IPRT_ERROR,
+                                Utf8StrFmt(GuestSession::tr("Guest directory \"%s\" already exists"), strPath.c_str()));
+            return VERR_ALREADY_EXISTS;
+        }
     }
     else
     {
@@ -240,7 +252,7 @@ int GuestSessionTask::directoryCreate(const com::Utf8Str &strPath,
                 {
                     case VERR_FILE_NOT_FOUND:
                     case VERR_PATH_NOT_FOUND:
-                        rc = mSession->i_directoryCreate(strPath.c_str(), uMode, enmDirectoryCreateFlags, &rcGuest);
+                        rc = mSession->i_directoryCreate(strPath.c_str(), fMode, enmDirectoryCreateFlags, &rcGuest);
                         break;
                     default:
                         break;
@@ -262,6 +274,42 @@ int GuestSessionTask::directoryCreate(const com::Utf8Str &strPath,
         else
             setProgressErrorMsg(VBOX_E_IPRT_ERROR,
                                 Utf8StrFmt(GuestSession::tr("Error creating directory on the guest: %Rrc"), strPath.c_str(), rc));
+    }
+
+    LogFlowFuncLeaveRC(rc);
+    return rc;
+}
+
+/**
+ * Creates a directory on the host.
+ *
+ * @return VBox status code. VERR_ALREADY_EXISTS if directory on the guest already exists.
+ * @param  strPath                  Absolute path to directory on the host (host style path) to create.
+ * @param  fCreate                  Directory creation flags.
+ * @param  fMode                    Directory mode to use for creation.
+ * @param  fCanExist                Whether the directory to create is allowed to exist already.
+ */
+int GuestSessionTask::directoryCreateOnHost(const com::Utf8Str &strPath, uint32_t fCreate, uint32_t fMode, bool fCanExist)
+{
+    LogFlowFunc(("strPath=%s, fCreate=0x%x, fMode=%RU32, fCanExist=%RTbool\n", strPath.c_str(), fCreate, fMode, fCanExist));
+
+    int rc = RTDirCreate(strPath.c_str(), fMode, fCreate);
+    if (RT_FAILURE(rc))
+    {
+        if (rc == VERR_ALREADY_EXISTS)
+        {
+            if (!fCanExist)
+            {
+                setProgressErrorMsg(VBOX_E_IPRT_ERROR,
+                                    Utf8StrFmt(GuestSession::tr("Host directory \"%s\" already exists"), strPath.c_str()));
+            }
+            else
+                rc = VINF_SUCCESS;
+        }
+        else
+            setProgressErrorMsg(VBOX_E_IPRT_ERROR,
+                                Utf8StrFmt(GuestSession::tr("Could not create host directory \"%s\": %Rrc"),
+                                           strPath.c_str(), rc));
     }
 
     LogFlowFuncLeaveRC(rc);
@@ -1472,8 +1520,7 @@ HRESULT GuestSessionTaskCopyFrom::Init(const Utf8Str &strTaskDesc)
 
         Utf8Str strFirstOp = mDest + mVecLists[0]->mVecEntries[0]->strPath;
         hr = pProgress->init(static_cast<IGuestSession*>(mSession), Bstr(mDesc).raw(),
-                             TRUE /* aCancelable */, cOperations + 1 /* Number of operations */,
-                             Bstr(strFirstOp).raw());
+                             TRUE /* aCancelable */, cOperations + 1 /* Number of operations */, Bstr(strFirstOp).raw());
     }
     else /* If no operations have been defined, go with an "empty" progress object when will be used for error handling. */
         hr = pProgress->init(static_cast<IGuestSession*>(mSession), Bstr(mDesc).raw(),
@@ -1505,19 +1552,22 @@ int GuestSessionTaskCopyFrom::Run(void)
         AssertPtr(pList);
 
         const bool     fCopyIntoExisting = pList->mSourceSpec.Type.Dir.fCopyFlags & DirectoryCopyFlag_CopyIntoExisting;
+        const bool     fFollowSymlinks   = true; /** @todo */
         const uint32_t fDirMode          = 0700; /** @todo Play safe by default; implement ACLs. */
+              uint32_t fDirCreate        = 0;
+
+        if (!fFollowSymlinks)
+            fDirCreate |= RTDIRCREATE_FLAGS_NO_SYMLINKS;
 
         LogFlowFunc(("List: srcRootAbs=%s, dstRootAbs=%s\n", pList->mSrcRootAbs.c_str(), pList->mDstRootAbs.c_str()));
 
         /* Create the root directory. */
-        if (pList->mSourceSpec.enmType == FsObjType_Directory)
+        if (   pList->mSourceSpec.enmType == FsObjType_Directory
+            && pList->mSourceSpec.fDryRun == false)
         {
-            rc = RTDirCreate(pList->mDstRootAbs.c_str(), fDirMode, 0 /* fCreate */);
-            if (   rc == VWRN_ALREADY_EXISTS
-                && !fCopyIntoExisting)
-            {
+            rc = directoryCreateOnHost(pList->mDstRootAbs, fDirCreate, fDirMode, fCopyIntoExisting);
+            if (RT_FAILURE(rc))
                 break;
-            }
         }
 
         FsEntries::const_iterator itEntry = pList->mVecEntries.begin();
@@ -1537,29 +1587,14 @@ int GuestSessionTaskCopyFrom::Run(void)
                     strDstAbs.findReplace('\\', '/');
             }
 
+            mProgress->SetNextOperation(Bstr(strSrcAbs).raw(), 1);
+
             switch (pEntry->fMode & RTFS_TYPE_MASK)
             {
                 case RTFS_TYPE_DIRECTORY:
                     LogFlowFunc(("Directory '%s': %s -> %s\n", pEntry->strPath.c_str(), strSrcAbs.c_str(), strDstAbs.c_str()));
                     if (!pList->mSourceSpec.fDryRun)
-                    {
-                        rc = RTDirCreate(strDstAbs.c_str(), fDirMode, 0 /* fCreate */);
-                        if (rc == VERR_ALREADY_EXISTS)
-                        {
-                            if (!fCopyIntoExisting)
-                            {
-                                setProgressErrorMsg(VBOX_E_IPRT_ERROR,
-                                                    Utf8StrFmt(GuestSession::tr("Destination directory \"%s\" already exists"),
-                                                               strDstAbs.c_str()));
-                                break;
-                            }
-
-                            rc = VINF_SUCCESS;
-                        }
-
-                        if (RT_FAILURE(rc))
-                            break;
-                    }
+                        rc = directoryCreateOnHost(strDstAbs, fDirCreate, fDirMode, fCopyIntoExisting);
                     break;
 
                 case RTFS_TYPE_FILE:
@@ -1576,8 +1611,6 @@ int GuestSessionTaskCopyFrom::Run(void)
 
             if (RT_FAILURE(rc))
                 break;
-
-            mProgress->SetNextOperation(Bstr(strSrcAbs).raw(), 1);
 
             ++itEntry;
         }
@@ -1725,11 +1758,9 @@ HRESULT GuestSessionTaskCopyTo::Init(const Utf8Str &strTaskDesc)
         Assert(mVecLists.size());
         Assert(mVecLists[0]->mVecEntries.size());
 
-        Utf8Str strFirstOp = mDest + mVecLists[0]->mVecEntries[0]->strPath;
-
         hr = pProgress->init(static_cast<IGuestSession*>(mSession), Bstr(mDesc).raw(),
                              TRUE /* aCancelable */, cOperations + 1 /* Number of operations */,
-                             Bstr(strFirstOp).raw());
+                             Bstr(mDesc).raw());
     }
     else /* If no operations have been defined, go with an "empty" progress object when will be used for error handling. */
         hr = pProgress->init(static_cast<IGuestSession*>(mSession), Bstr(mDesc).raw(),
@@ -1772,12 +1803,12 @@ int GuestSessionTaskCopyTo::Run(void)
             fCopyIntoExisting = pList->mSourceSpec.Type.Dir.fCopyFlags & DirectoryCopyFlag_CopyIntoExisting;
             fFollowSymlinks   = pList->mSourceSpec.Type.Dir.fFollowSymlinks;
 
-            rc = directoryCreate(pList->mDstRootAbs.c_str(), DirectoryCreateFlag_None, fDirMode,
-                                 pList->mSourceSpec.Type.Dir.fFollowSymlinks);
-            if (   rc == VWRN_ALREADY_EXISTS
-                && !fCopyIntoExisting)
+            if (pList->mSourceSpec.fDryRun == false)
             {
-                break;
+                rc = directoryCreateOnGuest(pList->mDstRootAbs, DirectoryCreateFlag_None, fDirMode,
+                                            fFollowSymlinks, fCopyIntoExisting);
+                if (RT_FAILURE(rc))
+                    break;
             }
         }
         else if (pList->mSourceSpec.enmType == FsObjType_File)
@@ -1802,27 +1833,18 @@ int GuestSessionTaskCopyTo::Run(void)
                 strDstAbs += pEntry->strPath;
             }
 
+            mProgress->SetNextOperation(Bstr(strSrcAbs).raw(), 1);
+
             switch (pEntry->fMode & RTFS_TYPE_MASK)
             {
                 case RTFS_TYPE_DIRECTORY:
                     LogFlowFunc(("Directory '%s': %s -> %s\n", pEntry->strPath.c_str(), strSrcAbs.c_str(), strDstAbs.c_str()));
                     if (!pList->mSourceSpec.fDryRun)
                     {
-                        rc = directoryCreate(strDstAbs.c_str(), DirectoryCreateFlag_None, fDirMode, fFollowSymlinks);
+                        rc = directoryCreateOnGuest(strDstAbs, DirectoryCreateFlag_None, fDirMode,
+                                                    fFollowSymlinks, fCopyIntoExisting);
                         if (RT_FAILURE(rc))
-                        {
-                            if (rc == VERR_ALREADY_EXISTS)
-                            {
-                                if (!fCopyIntoExisting)
-                                {
-                                    setProgressErrorMsg(VBOX_E_IPRT_ERROR,
-                                                        Utf8StrFmt(GuestSession::tr("Destination directory '%s' already exists"),
-                                                                   strDstAbs.c_str()));
-                                }
-                                else /* Copy into destination directory. */
-                                    rc = VINF_SUCCESS;
-                            }
-                        }
+                            break;
                     }
                     break;
 
@@ -1840,8 +1862,6 @@ int GuestSessionTaskCopyTo::Run(void)
 
             if (RT_FAILURE(rc))
                 break;
-
-            mProgress->SetNextOperation(Bstr(strSrcAbs).raw(), 1);
 
             ++itEntry;
         }

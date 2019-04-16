@@ -716,14 +716,14 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
 #endif
 #ifdef VBOX_WITH_RECORDING
                      "                            [--recording on|off]\n"
-                     "                            [--recording screens all|<screen ID> [<screen ID> ...]]\n"
-                     "                            [--recording filename <filename>]\n"
-                     "                            [--recording videores <width> <height>]\n"
-                     "                            [--recording videorate <rate>]\n"
-                     "                            [--recording videofps <fps>]\n"
-                     "                            [--recording maxtime <s>]\n"
-                     "                            [--recording maxfilesize <MB>]\n"
-                     "                            [--recording opts <key=value> [,<key=value> ...]]\n"
+                     "                            [--recordingscreens all|<screen ID> [<screen ID> ...]]\n"
+                     "                            [--recordingfile <filename>]\n"
+                     "                            [--recordingvideores <width> <height>]\n"
+                     "                            [--recordingvideorate <rate>]\n"
+                     "                            [--recordingvideofps <fps>]\n"
+                     "                            [--recordingmaxtime <s>]\n"
+                     "                            [--recordingmaxsize <MB>]\n"
+                     "                            [--recordingopts <key=value> [,<key=value> ...]]\n"
 #endif
                      "                            [--defaultfrontend default|<name>]\n"
                      "\n");

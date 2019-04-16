@@ -327,6 +327,7 @@ static const char * const g_apszVmxVDiagDesc[] =
     VMXV_DIAG_DESC(kVmxVDiag_Vmentry_ProcCtls2Allowed1        , "ProcCtls2Allowed1"         ),
     VMXV_DIAG_DESC(kVmxVDiag_Vmentry_ProcCtls2Disallowed0     , "ProcCtls2Disallowed0"      ),
     VMXV_DIAG_DESC(kVmxVDiag_Vmentry_PtrInvalid               , "PtrInvalid"                ),
+    VMXV_DIAG_DESC(kVmxVDiag_Vmentry_PtrShadowVmcs            , "PtrShadowVmcs"             ),
     VMXV_DIAG_DESC(kVmxVDiag_Vmentry_RealOrV86Mode            , "RealOrV86Mode"             ),
     VMXV_DIAG_DESC(kVmxVDiag_Vmentry_SavePreemptTimer         , "SavePreemptTimer"          ),
     VMXV_DIAG_DESC(kVmxVDiag_Vmentry_TprThresholdRsvd         , "TprThresholdRsvd"          ),
@@ -411,9 +412,9 @@ VMM_INT_DECL(const char *) HMGetVmxVmcsStateDesc(uint8_t fVmcsState)
 {
     switch (fVmcsState)
     {
-        case VMX_V_VMCS_STATE_CLEAR:        return "Clear";
-        case VMX_V_VMCS_STATE_LAUNCHED:     return "Launched";
-        default:                            return "Unknown";
+        case VMX_V_VMCS_LAUNCH_STATE_CLEAR:     return "Clear";
+        case VMX_V_VMCS_LAUNCH_STATE_LAUNCHED:  return "Launched";
+        default:                                return "Unknown";
     }
 }
 
@@ -671,7 +672,7 @@ VMM_INT_DECL(bool) HMCanExecuteVmxGuest(PVMCPU pVCpu, PCCPUMCTX pCtx)
                 /*
                  * In V86 mode (VT-x or not), the CPU enforces real-mode compatible selector
                  * bases, limits, and attributes, i.e. limit must be 64K, base must be selector * 16,
-                 * and attrributes must be 0x9b for code and 0x93 for code segments.
+                 * and attributes must be 0x9b for code and 0x93 for code segments.
                  * If this is not true, we cannot execute real mode as V86 and have to fall
                  * back to emulation.
                  */
@@ -716,29 +717,65 @@ VMM_INT_DECL(bool) HMCanExecuteVmxGuest(PVMCPU pVCpu, PCCPUMCTX pCtx)
                  */
                 if (pVCpu->hm.s.vmx.fWasInRealMode)
                 {
-                    /** @todo If guest is in V86 mode, these checks should be different! */
-                    if ((pCtx->cs.Sel & X86_SEL_RPL) != (pCtx->ss.Sel & X86_SEL_RPL))
+                    if (!CPUMIsGuestInV86ModeEx(pCtx))
                     {
-                        STAM_COUNTER_INC(&pVCpu->hm.s.StatVmxCheckBadRpl);
-                        return false;
+                        /* The guest switched to protected mode, check if the state is suitable for VT-x. */
+                        if ((pCtx->cs.Sel & X86_SEL_RPL) != (pCtx->ss.Sel & X86_SEL_RPL))
+                        {
+                            STAM_COUNTER_INC(&pVCpu->hm.s.StatVmxCheckBadRpl);
+                            return false;
+                        }
+                        if (   !hmVmxIsCodeSelectorOk(&pCtx->cs, pCtx->ss.Attr.n.u2Dpl)
+                            || !hmVmxIsDataSelectorOk(&pCtx->ds)
+                            || !hmVmxIsDataSelectorOk(&pCtx->es)
+                            || !hmVmxIsDataSelectorOk(&pCtx->fs)
+                            || !hmVmxIsDataSelectorOk(&pCtx->gs)
+                            || !hmVmxIsStackSelectorOk(&pCtx->ss))
+                        {
+                            STAM_COUNTER_INC(&pVCpu->hm.s.StatVmxCheckBadSel);
+                            return false;
+                        }
                     }
-                    if (   !hmVmxIsCodeSelectorOk(&pCtx->cs, pCtx->ss.Attr.n.u2Dpl)
-                        || !hmVmxIsDataSelectorOk(&pCtx->ds)
-                        || !hmVmxIsDataSelectorOk(&pCtx->es)
-                        || !hmVmxIsDataSelectorOk(&pCtx->fs)
-                        || !hmVmxIsDataSelectorOk(&pCtx->gs)
-                        || !hmVmxIsStackSelectorOk(&pCtx->ss))
+                    else
                     {
-                        STAM_COUNTER_INC(&pVCpu->hm.s.StatVmxCheckBadSel);
-                        return false;
+                        /* The guest switched to V86 mode, check if the state is suitable for VT-x. */
+                        if (   pCtx->cs.Sel != (pCtx->cs.u64Base >> 4)
+                            || pCtx->ds.Sel != (pCtx->ds.u64Base >> 4)
+                            || pCtx->es.Sel != (pCtx->es.u64Base >> 4)
+                            || pCtx->ss.Sel != (pCtx->ss.u64Base >> 4)
+                            || pCtx->fs.Sel != (pCtx->fs.u64Base >> 4)
+                            || pCtx->gs.Sel != (pCtx->gs.u64Base >> 4))
+                        {
+                            STAM_COUNTER_INC(&pVCpu->hm.s.StatVmxCheckBadV86SelBase);
+                            return false;
+                        }
+                        if (   (pCtx->cs.u32Limit != 0xffff)
+                            || (pCtx->ds.u32Limit != 0xffff)
+                            || (pCtx->es.u32Limit != 0xffff)
+                            || (pCtx->ss.u32Limit != 0xffff)
+                            || (pCtx->fs.u32Limit != 0xffff)
+                            || (pCtx->gs.u32Limit != 0xffff))
+                        {
+                            STAM_COUNTER_INC(&pVCpu->hm.s.StatVmxCheckBadV86SelLimit);
+                            return false;
+                        }
+                        if (   (pCtx->cs.Attr.u != 0xf3)
+                            || (pCtx->ds.Attr.u != 0xf3)
+                            || (pCtx->es.Attr.u != 0xf3)
+                            || (pCtx->ss.Attr.u != 0xf3)
+                            || (pCtx->fs.Attr.u != 0xf3)
+                            || (pCtx->gs.Attr.u != 0xf3))
+                        {
+                            STAM_COUNTER_INC(&pVCpu->hm.s.StatVmxCheckBadV86SelAttr);
+                            return false;
+                        }
                     }
                 }
             }
         }
         else
         {
-            if (   !CPUMIsGuestInLongModeEx(pCtx)
-                && !pVM->hm.s.vmx.fUnrestrictedGuest)
+            if (!CPUMIsGuestInLongModeEx(pCtx))
             {
                 if (   !pVM->hm.s.fNestedPaging        /* Requires a fake PD for real *and* protected mode without paging - stored in the VMM device heap */
                     ||  CPUMIsGuestInRealModeEx(pCtx)) /* Requires a fake TSS for real mode - stored in the VMM device heap */

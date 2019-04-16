@@ -88,11 +88,11 @@
         <translation>មិន​ស្គាល់​កំហុស​ %2 អំឡុង​ពេល​ដែលការ​ចាប់​ផ្តើមពេលវេលា​រត់​</translation>
     </message>
     <message>
-        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root.</source>
+        <source>The VirtualBox Linux kernel driver is either not loaded or not set up correctly. Please try setting it up again by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root.&lt;br/&gt;&lt;br/&gt;If your system has EFI Secure Boot enabled you may also need to sign the kernel modules (vboxdrv, vboxnetflt, vboxnetadp, vboxpci) before you can load them. Please see your Linux system&apos;s documentation for more information.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
+        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you are not mixing builds of VirtualBox from different sources.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -1929,6 +1929,14 @@
         <source>Tools</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>E&amp;xport to OCI...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Export selected virtual machine to OCI</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIAddDiskEncryptionPasswordDialog</name>
@@ -3739,10 +3747,6 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Show file/directory sizes in human readable format rather than in bytes</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Close the pane</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -9412,6 +9416,21 @@ network adapter name</comment>
     </message>
 </context>
 <context>
+    <name>UIMediumSearchWidget</name>
+    <message>
+        <source>Search By Name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Search By UUID</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select the search type</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>UIMediumSelector</name>
     <message>
         <source>&amp;Add...</source>
@@ -9464,6 +9483,18 @@ network adapter name</comment>
     <message>
         <source>Actual Size</source>
         <translation type="unfinished">ទំហំ​ពិតប្រាកដ</translation>
+    </message>
+    <message>
+        <source>Medium</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Expand All</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Collapse All</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -13007,18 +13038,6 @@ You may wish to translate this more like &quot;Time remaining: %1&quot;</comment
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Goto the next bookmark</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Goto the previous bookmark</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Goto selected bookmark</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Log Viewer</source>
         <translation type="unfinished">កម្មវិធី​មើល​កំណត់​ហេតុ</translation>
     </message>
@@ -13079,10 +13098,6 @@ You may wish to translate this more like &quot;Time remaining: %1&quot;</comment
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Close the pane</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Enter a search string here</source>
         <translation type="unfinished">បញ្ចូល​ខ្សែអក្សរ​ស្វែងរក​នៅ​ទីនេះ</translation>
     </message>
@@ -13120,11 +13135,7 @@ You may wish to translate this more like &quot;Time remaining: %1&quot;</comment
     </message>
     <message>
         <source>String not found</source>
-        <translation type="unfinished">រក​មិនឃើញ​ខ្សែអក្សរ</translation>
-    </message>
-    <message>
-        <source>%1 Matches Found</source>
-        <translation type="unfinished"></translation>
+        <translation type="obsolete">រក​មិនឃើញ​ខ្សែអក្សរ</translation>
     </message>
     <message>
         <source>Filtered</source>
@@ -13145,6 +13156,22 @@ You may wish to translate this more like &quot;Time remaining: %1&quot;</comment
     <message>
         <source>&lt;p&gt;No log files found. Press the &lt;b&gt;Refresh&lt;/b&gt; button to rescan the log folder &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.&lt;/p&gt;</source>
         <translation type="unfinished">&lt;p&gt;រក​មិនឃើញ​កំណត់ហេតុទេ&#xa0;។ ចុច​ប៊ូតុង &lt;b&gt;ធ្វើ​ឲ្យ​ស្រស់&lt;/b&gt; ដើម្បី​វិភាគ​ថត​កំណត់ហេតុ​ម្ដង​ទៀត &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;&#xa0;។&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Go to the next bookmark</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Go to the previous bookmark</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Go to selected bookmark</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Matches Found</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -13263,6 +13290,46 @@ You may wish to translate this more like &quot;Time remaining: %1&quot;</comment
     </message>
     <message>
         <source>Custom VISO options:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Close the pane</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove</source>
+        <translation type="unfinished">យកចេញ</translation>
+    </message>
+    <message>
+        <source>New Directory</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reset</source>
+        <translation type="unfinished">កំណត់​ឡើង​វិញ</translation>
+    </message>
+    <message>
+        <source>VISO Creator</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>VISO</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Host Browser</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>VISO Browser</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove current option.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

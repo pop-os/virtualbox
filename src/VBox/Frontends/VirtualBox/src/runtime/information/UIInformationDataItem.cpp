@@ -284,6 +284,11 @@ QVariant UIInformationDataStorage::data(const QModelIndex &index, int role) cons
 
         case Qt::UserRole + 1:
         {
+
+            /* This is needed at least for some vm to show correct storage info. For the manager UI enumeration has been done already: */
+            if (vboxGlobal().uiType() == VBoxGlobal::UIType_RuntimeUI)
+                vboxGlobal().startMediumEnumeration();
+
             UITextTable p_text;
 
             /* Iterate over the all machine controllers: */
@@ -1187,4 +1192,3 @@ void UIInformationDataStorageStatistics::sltProcessStatistics()
     QModelIndex index = m_pModel->index(1,0);
     m_pModel->updateData(index);
 }
-

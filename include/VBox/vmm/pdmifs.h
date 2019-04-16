@@ -689,31 +689,37 @@ typedef struct PDMIDISPLAYPORT
     /**
      * Send the guest a notification about host cursor capabilities changes.
      *
-     * @param   pInterface            Pointer to this interface.
-     * @param   fCapabilitiesAdded    New supported capabilities.
-     * @param   fCapabilitiesRemoved  No longer supported capabilities.
+     * @param   pInterface             Pointer to this interface.
+     * @param   fSupportsRenderCursor  Whether the host can draw the guest cursor
+     *                                 using the host one provided the location matches.
+     * @param   fSupportsMoveCursor    Whether the host can draw the guest cursor
+     *                                 itself at any position.  Implies RenderCursor.
      * @thread  Any.
      */
-    DECLR3CALLBACKMEMBER(void, pfnReportHostCursorCapabilities, (PPDMIDISPLAYPORT pInterface, uint32_t fCapabilitiesAdded,
-                                                                 uint32_t fCapabilitiesRemoved));
+    DECLR3CALLBACKMEMBER(void, pfnReportHostCursorCapabilities, (PPDMIDISPLAYPORT pInterface, bool fSupportsRenderCursor, bool fSupportsMoveCursor));
 
     /**
      * Tell the graphics device about the host cursor position.
      *
-     * @param   pInterface  Pointer to this interface.
-     * @param   x           X offset into the cursor range.
-     * @param   y           Y offset into the cursor range.
+     * @param   pInterface   Pointer to this interface.
+     * @param   x            X offset into the cursor range.
+     * @param   y            Y offset into the cursor range.
+     * @param   fOutOfRange  The host pointer is out of all guest windows, so
+     *                       X and Y do not currently have meaningful value.
      * @thread  Any.
      */
-    DECLR3CALLBACKMEMBER(void, pfnReportHostCursorPosition, (PPDMIDISPLAYPORT pInterface, uint32_t x, uint32_t y));
+    DECLR3CALLBACKMEMBER(void, pfnReportHostCursorPosition, (PPDMIDISPLAYPORT pInterface, uint32_t x, uint32_t y, bool fOutOfRange));
 } PDMIDISPLAYPORT;
 /** PDMIDISPLAYPORT interface ID. */
-#ifdef VBOX_WITH_VMSVGA
-#define PDMIDISPLAYPORT_IID                     "9672e2b0-1aef-4c4d-9108-864cdb28333f"
-#else
-#define PDMIDISPLAYPORT_IID                     "323f3412-8903-4564-b04c-cbfe0d2d1596"
-#endif
+#define PDMIDISPLAYPORT_IID                     "471b0520-338c-11e9-bb84-6ff2c956da45"
 
+/** @name Flags for PDMIDISPLAYCONNECTOR::pfnVBVAReportCursorPosition.
+ * @{ */
+/** Is the data in the report valid? */
+#define VBVA_CURSOR_VALID_DATA                              RT_BIT(0)
+/** Is the cursor position reported relative to a particular guest screen? */
+#define VBVA_CURSOR_SCREEN_RELATIVE                         RT_BIT(1)
+/** @} */
 
 /** Pointer to a 2D graphics acceleration command. */
 typedef struct VBOXVHWACMD VBOXVHWACMD;
@@ -994,11 +1000,8 @@ typedef struct PDMIDISPLAYCONNECTOR
      * @param   fAlpha              Flag whether alpha channel is being passed.
      * @param   xHot                Pointer hot spot x coordinate.
      * @param   yHot                Pointer hot spot y coordinate.
-     * @param   x                   Pointer new x coordinate on screen.
-     * @param   y                   Pointer new y coordinate on screen.
      * @param   cx                  Pointer width in pixels.
      * @param   cy                  Pointer height in pixels.
-     * @param   cbScanline          Size of one scanline in bytes.
      * @param   pvShape             New shape buffer.
      * @thread  The emulation thread.
      */
@@ -1048,16 +1051,16 @@ typedef struct PDMIDISPLAYCONNECTOR
      * The guest is reporting the requested location of the host pointer.
      *
      * @param   pInterface  Pointer to this interface.
-     * @param   fData       Does this report contain valid X and Y data or is
-     *                      it only reporting interface support?
+     * @param   fFlags      VBVA_CURSOR_*
+     * @param   uScreenId   The screen to which X and Y are relative if VBVA_CURSOR_SCREEN_RELATIVE is set.
      * @param   x           Cursor X offset.
      * @param   y           Cursor Y offset.
      * @thread  The emulation thread.
      */
-    DECLR3CALLBACKMEMBER(void, pfnVBVAReportCursorPosition,(PPDMIDISPLAYCONNECTOR pInterface, bool fData, uint32_t x, uint32_t y));
+    DECLR3CALLBACKMEMBER(void, pfnVBVAReportCursorPosition,(PPDMIDISPLAYCONNECTOR pInterface, uint32_t fFlags, uint32_t uScreen, uint32_t x, uint32_t y));
 } PDMIDISPLAYCONNECTOR;
 /** PDMIDISPLAYCONNECTOR interface ID. */
-#define PDMIDISPLAYCONNECTOR_IID                "e648dac6-c918-11e7-8be6-a317e6b79645"
+#define PDMIDISPLAYCONNECTOR_IID                "f2a4c9fc-2613-11e9-bc48-bf934e641fc0"
 
 
 /** Pointer to a secret key interface. */

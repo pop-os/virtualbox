@@ -2777,6 +2777,43 @@ VMM_INT_DECL(CPUMINTERRUPTIBILITY) CPUMGetGuestInterruptibility(PVMCPU pVCpu)
 
 
 /**
+ * Gets whether the guest (or nested-guest) is currently blocking delivery of NMIs.
+ *
+ * @returns @c true if NMIs are blocked, @c false otherwise.
+ * @param   pVCpu       The cross context virtual CPU structure.
+ */
+VMM_INT_DECL(bool) CPUMIsGuestNmiBlocking(PVMCPU pVCpu)
+{
+#ifndef IN_RC
+    /*
+     * Return the state of guest-NMI blocking in any of the following cases:
+     *   - We're not executing a nested-guest.
+     *   - We're executing an SVM nested-guest[1].
+     *   - We're executing a VMX nested-guest without virtual-NMIs enabled.
+     *
+     * [1] -- SVM does not support virtual-NMIs or virtual-NMI blocking.
+     *        SVM hypervisors must track NMI blocking themselves by intercepting
+     *        the IRET instruction after injection of an NMI.
+     */
+    PCCPUMCTX pCtx = &pVCpu->cpum.s.Guest;
+    if (   !CPUMIsGuestInNestedHwvirtMode(pCtx)
+        ||  CPUMIsGuestInSvmNestedHwVirtMode(pCtx)
+        || !CPUMIsGuestVmxPinCtlsSet(pVCpu, pCtx, VMX_PIN_CTLS_VIRT_NMI))
+        return VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_BLOCK_NMIS);
+
+    /*
+     * Return the state of virtual-NMI blocking, if we are executing a
+     * VMX nested-guest with virtual-NMIs enabled.
+     */
+    Assert(CPUMIsGuestVmxPinCtlsSet(pVCpu, pCtx, VMX_PIN_CTLS_VIRT_NMI));
+    return pCtx->hwvirt.vmx.fVirtNmiBlocking;
+#else
+    return VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_BLOCK_NMIS);
+#endif
+}
+
+
+/**
  * Checks whether the VMX nested-guest is in a state to receive physical (APIC)
  * interrupts.
  *
@@ -2873,6 +2910,7 @@ VMM_INT_DECL(bool) CPUMIsGuestSvmVirtIntrEnabled(PVMCPU pVCpu, PCCPUMCTX pCtx)
     RT_NOREF2(pVCpu, pCtx);
     AssertReleaseFailedReturn(false);
 #else
+    RT_NOREF(pVCpu);
     Assert(CPUMIsGuestInSvmNestedHwVirtMode(pCtx));
 
     PCSVMVMCBCTRL pVmcbCtrl    = &pCtx->hwvirt.svm.CTX_SUFF(pVmcb)->ctrl;
@@ -2882,13 +2920,7 @@ VMM_INT_DECL(bool) CPUMIsGuestSvmVirtIntrEnabled(PVMCPU pVCpu, PCCPUMCTX pCtx)
         &&  pVmcbIntCtrl->n.u4VIntrPrio <= pVmcbIntCtrl->n.u8VTPR)
         return false;
 
-    X86EFLAGS fEFlags;
-    if (CPUMIsGuestSvmVirtIntrMasking(pVCpu, pCtx))
-        fEFlags.u = pCtx->eflags.u;
-    else
-        fEFlags.u = pCtx->hwvirt.svm.HostState.rflags.u;
-
-    return fEFlags.Bits.u1IF;
+    return RT_BOOL(pCtx->eflags.u & X86_EFL_IF);
 #endif
 }
 

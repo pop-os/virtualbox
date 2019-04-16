@@ -3842,17 +3842,39 @@ IEM_CIMPL_DEF_1(iemCImpl_iret_64bit, IEMMODE, enmEffOpSize)
  */
 IEM_CIMPL_DEF_1(iemCImpl_iret, IEMMODE, enmEffOpSize)
 {
-    bool const fBlockingNmi = VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_BLOCK_NMIS);
+    bool fBlockingNmi = VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_BLOCK_NMIS);
 
 #ifdef VBOX_WITH_NESTED_HWVIRT_VMX
-    /*
-     * Record whether NMIs (or virtual-NMIs) were unblocked by execution of this
-     * IRET instruction. We need to provide this information as part of some VM-exits.
-     *
-     * See Intel spec. 27.2.2 "Information for VM Exits Due to Vectored Events".
-     */
     if (IEM_VMX_IS_NON_ROOT_MODE(pVCpu))
-        pVCpu->cpum.GstCtx.hwvirt.vmx.fNmiUnblockingIret = fBlockingNmi;
+    {
+        /*
+         * Record whether NMI (or virtual-NMI) blocking is in effect during the execution
+         * of this IRET instruction. We need to provide this information as part of some
+         * VM-exits.
+         *
+         * See Intel spec. 27.2.2 "Information for VM Exits Due to Vectored Events".
+         */
+        if (IEM_VMX_IS_PINCTLS_SET(pVCpu, VMX_PIN_CTLS_VIRT_NMI))
+            pVCpu->cpum.GstCtx.hwvirt.vmx.fNmiUnblockingIret = pVCpu->cpum.GstCtx.hwvirt.vmx.fVirtNmiBlocking;
+        else
+            pVCpu->cpum.GstCtx.hwvirt.vmx.fNmiUnblockingIret = fBlockingNmi;
+
+        /*
+         * If "NMI exiting" is set, IRET does not affect blocking of NMIs.
+         * See Intel Spec. 25.3 "Changes To Instruction Behavior In VMX Non-root Operation".
+         */
+        if (IEM_VMX_IS_PINCTLS_SET(pVCpu, VMX_PIN_CTLS_NMI_EXIT))
+        {
+            fBlockingNmi = false;
+
+            /* Signal a pending NMI-window VM-exit before executing the next instruction. */
+            if (!VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_VMX_NMI_WINDOW))
+                VMCPU_FF_SET(pVCpu, VMCPU_FF_VMX_NMI_WINDOW);
+        }
+
+        /* Clear virtual-NMI blocking, if any, before causing any further exceptions. */
+        pVCpu->cpum.GstCtx.hwvirt.vmx.fVirtNmiBlocking = false;
+    }
 #endif
 
     /*
@@ -5994,7 +6016,7 @@ IEM_CIMPL_DEF_2(iemCImpl_mov_Cd_Rd, uint8_t, iCrReg, uint8_t, iGReg)
             case 8: rcStrict = iemVmxVmexitInstrMovToCr8(pVCpu, iGReg, cbInstr);                        break;
         }
         if (rcStrict != VINF_VMX_INTERCEPT_NOT_ACTIVE)
-                return rcStrict;
+            return rcStrict;
     }
 #endif
 
@@ -6568,7 +6590,7 @@ IEM_CIMPL_DEF_0(iemCImpl_rdtsc)
      * Do the job.
      */
     uint64_t uTicks = TMCpuTickGet(pVCpu);
-#ifdef VBOX_WITH_NESTED_HWVIRT_SVM
+#if defined(VBOX_WITH_NESTED_HWVIRT_SVM) || defined(VBOX_WITH_NESTED_HWVIRT_VMX)
     uTicks = CPUMApplyNestedGuestTscOffset(pVCpu, uTicks);
 #endif
     pVCpu->cpum.GstCtx.rax = RT_LO_U32(uTicks);
@@ -6625,7 +6647,7 @@ IEM_CIMPL_DEF_0(iemCImpl_rdtscp)
         pVCpu->cpum.GstCtx.rcx &= UINT32_C(0xffffffff);
 
         uint64_t uTicks = TMCpuTickGet(pVCpu);
-#ifdef VBOX_WITH_NESTED_HWVIRT_SVM
+#if defined(VBOX_WITH_NESTED_HWVIRT_SVM) || defined(VBOX_WITH_NESTED_HWVIRT_VMX)
         uTicks = CPUMApplyNestedGuestTscOffset(pVCpu, uTicks);
 #endif
         pVCpu->cpum.GstCtx.rax = RT_LO_U32(uTicks);

@@ -96,7 +96,11 @@ int NetIfList(std::list <ComObjPtr<HostNetworkInterface> > &list);
 int NetIfEnableStaticIpConfig(VirtualBox *pVBox, HostNetworkInterface * pIf, ULONG aOldIp, ULONG aNewIp, ULONG aMask);
 int NetIfEnableStaticIpConfigV6(VirtualBox *pVBox, HostNetworkInterface * pIf, IN_BSTR aOldIPV6Address, IN_BSTR aIPV6Address, ULONG aIPV6MaskPrefixLength);
 int NetIfEnableDynamicIpConfig(VirtualBox *pVBox, HostNetworkInterface * pIf);
+#if defined(RT_OS_WINDOWS)
+int NetIfCreateHostOnlyNetworkInterface(VirtualBox *pVBox, IHostNetworkInterface **aHostNetworkInterface, IProgress **aProgress, IN_BSTR bstrName = NULL);
+#else /* !defined(RT_OS_WINDOWS) */
 int NetIfCreateHostOnlyNetworkInterface(VirtualBox *pVBox, IHostNetworkInterface **aHostNetworkInterface, IProgress **aProgress, const char *pszName = NULL);
+#endif /* !defined(RT_OS_WINDOWS) */
 int NetIfRemoveHostOnlyNetworkInterface(VirtualBox *pVBox, IN_GUID aId, IProgress **aProgress);
 int NetIfGetConfig(HostNetworkInterface * pIf, NETIFINFO *);
 int NetIfGetConfigByName(PNETIFINFO pInfo);

@@ -368,10 +368,12 @@ protected:
     uint64_t          cbProcessed;
 };
 
-/** Initial state. */
+/** Initial object context state / no state set. */
 #define DND_OBJCTX_STATE_NONE           0
-/** The header was received/sent. */
+/** The header was received / sent. */
 #define DND_OBJCTX_STATE_HAS_HDR        RT_BIT(0)
+/** Validation mask for object context state. */
+#define DND_OBJCTX_STATE_VALID_MASK     UINT32_C(0x00000001)
 
 /**
  * Structure for keeping a DnDURIObject context around.
@@ -434,6 +436,7 @@ public:
 
     bool isValid(void) const { return (pObjURI != NULL); }
 
+    /** Returns the current state. */
     uint32_t getState(void) const { return fState; }
 
     void reset(void)
@@ -443,7 +446,7 @@ public:
         destroy();
 
         fIntermediate = false;
-        fState        = 0;
+        fState        = DND_OBJCTX_STATE_NONE;
     }
 
     void setObj(DnDURIObject *pObj)
@@ -455,9 +458,15 @@ public:
         pObjURI = pObj;
     }
 
+    /**
+     * Sets the new state.
+     *
+     * @returns The new state, if set.
+     * @param   fStateNew       New state to set.
+     */
     uint32_t setState(uint32_t fStateNew)
     {
-        /** @todo Add validation. */
+        AssertReturn(!(fStateNew & ~DND_OBJCTX_STATE_VALID_MASK), fState /* Return old state */);
         fState = fStateNew;
         return fState;
     }
@@ -1121,11 +1130,8 @@ private:
     static GuestDnD           *s_pInstance;
 };
 
-/** Access to the GuestDnD's singleton instance.
- * @todo r=bird: Please add a 'Get' or something to this as it currently looks
- *       like a class instantiation rather than a getter.  Alternatively, use
- *       UPPER_CASE like the coding guideline suggest for macros. */
-#define GuestDnDInst() GuestDnD::getInstance()
+/** Access to the GuestDnD's singleton instance. */
+#define GUESTDNDINST() GuestDnD::getInstance()
 
 /** List of pointers to guest DnD Messages. */
 typedef std::list<GuestDnDMsg *> GuestDnDMsgList;

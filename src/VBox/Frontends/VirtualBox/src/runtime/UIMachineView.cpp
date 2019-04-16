@@ -296,7 +296,13 @@ void UIMachineView::sltPerformGuestResize(const QSize &toSize)
 
     /* Record the hint to extra data, needed for guests using VMSVGA: */
     /* This should be done before the actual hint is sent in case the guest overrides it. */
-    storeGuestSizeHint(size);
+    /* Do not send a hint if nothing has changed to prevent the guest being notified about its own changes. */
+    if (   !isFullscreenOrSeamless()
+        && uisession()->isGuestSupportsGraphics()
+        && (   (int)m_pFrameBuffer->width() != size.width()
+            || (int)m_pFrameBuffer->height() != size.height()
+            || uisession()->isScreenVisible(screenId()) != uisession()->isScreenVisibleHostDesires(screenId())))
+        storeGuestSizeHint(size);
 
     /* If auto-mount of guest-screens (auto-pilot) enabled: */
     if (gEDataManager->autoMountGuestScreensEnabled(vboxGlobal().managedVMUuid()))
@@ -331,8 +337,8 @@ void UIMachineView::sltPerformGuestResize(const QSize &toSize)
 
 void UIMachineView::sltHandleNotifyChange(int iWidth, int iHeight)
 {
-    LogRel(("GUI: UIMachineView::sltHandleNotifyChange: Screen=%d, Size=%dx%d\n",
-            (unsigned long)m_uScreenId, iWidth, iHeight));
+    LogRel2(("GUI: UIMachineView::sltHandleNotifyChange: Screen=%d, Size=%dx%d\n",
+             (unsigned long)m_uScreenId, iWidth, iHeight));
 
     /* Some situations require frame-buffer resize-events to be ignored at all,
      * leaving machine-window, machine-view and frame-buffer sizes preserved: */
@@ -1028,9 +1034,8 @@ QSize UIMachineView::guestScreenSizeHint() const
 void UIMachineView::storeGuestSizeHint(const QSize &sizeHint)
 {
     /* Save guest-screen size-hint: */
-    LogRel(("GUI: UIMachineView::storeGuestSizeHint: "
-            "Storing guest-screen size-hint for screen %d as %dx%d\n",
-            (int)screenId(), sizeHint.width(), sizeHint.height()));
+    LogRel2(("GUI: UIMachineView::storeGuestSizeHint: Storing guest-screen size-hint for screen %d as %dx%d\n",
+             (int)screenId(), sizeHint.width(), sizeHint.height()));
     gEDataManager->setLastGuestScreenSizeHint(m_uScreenId, sizeHint, vboxGlobal().managedVMUuid());
 }
 

@@ -280,12 +280,6 @@ void GuestProcess::uninit(void)
 
     LogFlowThisFunc(("mExe=%s, PID=%RU32\n", mData.mProcess.mExecutable.c_str(), mData.mPID));
 
-    /* Terminate process if not already done yet. */
-    int rcGuest = VINF_SUCCESS;
-    int vrc = i_terminateProcess(30 * 1000, &rcGuest); /** @todo Make timeouts configurable. */
-    /* Note: Don't return here yet; first uninit all other stuff in
-     *       case of failure. */
-
     if (mData.mpSessionBaseEnv)
     {
         mData.mpSessionBaseEnv->releaseConst();
@@ -294,8 +288,7 @@ void GuestProcess::uninit(void)
 
     baseUninit();
 
-    LogFlowThisFunc(("Returning rc=%Rrc, rcGuest=%Rrc\n", vrc, rcGuest));
-    RT_NOREF_PV(vrc);
+    LogFlowFuncLeave();
 }
 
 // implementation of public getters/setters for attributes
@@ -534,11 +527,7 @@ Utf8Str GuestProcess::i_guestErrorToString(int rcGuest)
             strError += Utf8StrFmt(tr("The execution operation was canceled"));
             break;
 
-        case VERR_PERMISSION_DENIED: /** @todo r=bird: This is probably completely and utterly misleading. VERR_AUTHENTICATION_FAILURE could have this message. */
-            strError += Utf8StrFmt(tr("Invalid user/password credentials"));
-            break;
-
-        case VERR_GSTCTL_MAX_OBJECTS_REACHED:
+        case VERR_GSTCTL_MAX_CID_OBJECTS_REACHED:
             strError += Utf8StrFmt(tr("Maximum number of concurrent guest processes has been reached"));
             break;
 
@@ -821,10 +810,9 @@ int GuestProcess::i_onProcessOutput(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCT
 }
 
 /**
- * Called by IGuestSession right before this process gets
- * removed from the public process list.
+ * @copydoc GuestObject::i_onUnregister
  */
-int GuestProcess::i_onRemove(void)
+int GuestProcess::i_onUnregister(void)
 {
     LogFlowThisFuncEnter();
 
@@ -842,6 +830,28 @@ int GuestProcess::i_onRemove(void)
 
         mLocalListener.setNull();
         unconst(mEventSource).setNull();
+    }
+
+    LogFlowFuncLeaveRC(vrc);
+    return vrc;
+}
+
+/**
+ * @copydoc GuestObject::i_onSessionStatusChange
+ */
+int GuestProcess::i_onSessionStatusChange(GuestSessionStatus_T enmSessionStatus)
+{
+    LogFlowThisFuncEnter();
+
+    int vrc = VINF_SUCCESS;
+
+    /* If the session now is in a terminated state, set the process status
+     * to "down", as there is not much else we can do now. */
+    if (GuestSession::i_isTerminated(enmSessionStatus))
+    {
+        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+        vrc = i_setProcessStatus(ProcessStatus_Down, 0 /* rc, ignored */);
     }
 
     LogFlowFuncLeaveRC(vrc);
@@ -1644,13 +1654,10 @@ int GuestProcess::i_waitForStatusChange(GuestWaitEvent *pEvent, uint32_t uTimeou
 }
 
 /* static */
-bool GuestProcess::i_waitResultImpliesEx(ProcessWaitResult_T waitResult,
-                                         ProcessStatus_T procStatus, uint32_t uProcFlags,
-                                         uint32_t uProtocol)
+bool GuestProcess::i_waitResultImpliesEx(ProcessWaitResult_T waitResult, ProcessStatus_T procStatus, uint32_t uProtocol)
 {
-    /** @todo r=bird: If you subscribe to HN, which the 'u' in 'uProcFlags'
-     *        indicates, you should actually be using 'fProc'! */
-    RT_NOREF(uProtocol, uProcFlags);
+    RT_NOREF(uProtocol);
+
     bool fImplies;
 
     switch (waitResult)
@@ -2545,6 +2552,22 @@ int GuestProcessTool::exitCodeToRc(const char *pszTool, int32_t iExitCode)
         switch (iExitCode)
         {
             case RTEXITCODE_FAILURE: return VERR_CANT_CREATE;
+            default:                 break;
+        }
+    }
+    else if (!RTStrICmp(pszTool, VBOXSERVICE_TOOL_MKTEMP))
+    {
+        switch (iExitCode)
+        {
+            case RTEXITCODE_FAILURE: return VERR_CANT_CREATE;
+            default:                 break;
+        }
+    }
+    else if (!RTStrICmp(pszTool, VBOXSERVICE_TOOL_RM))
+    {
+        switch (iExitCode)
+        {
+            case RTEXITCODE_FAILURE: return VERR_ACCESS_DENIED;
             default:                 break;
         }
     }

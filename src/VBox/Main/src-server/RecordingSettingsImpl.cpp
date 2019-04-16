@@ -42,9 +42,9 @@ struct RecordingSettings::Data
         : pMachine(NULL)
     { }
 
-    Machine * const              pMachine;
-    ComObjPtr<RecordingSettings> pPeer;
-    RecordScreenSettingsMap      mapScreenObj;
+    Machine * const                    pMachine;
+    const ComObjPtr<RecordingSettings> pPeer;
+    RecordScreenSettingsMap            mapScreenObj;
 
     // use the XML settings structure in the members for simplicity
     Backupable<settings::RecordingSettings> bd;
@@ -64,7 +64,7 @@ void RecordingSettings::FinalRelease()
 }
 
 /**
- * Initializes the audio adapter object.
+ * Initializes the recording settings object.
  *
  * @returns COM result indicator
  */
@@ -99,13 +99,15 @@ HRESULT RecordingSettings::init(Machine *aParent)
  *
  *  @note This object must be destroyed before the original object
  *  it shares data with is destroyed.
+ *
+ *  @note Locks @a aThat object for reading.
  */
-HRESULT RecordingSettings::init(Machine *aParent, RecordingSettings *that)
+HRESULT RecordingSettings::init(Machine *aParent, RecordingSettings *aThat)
 {
     LogFlowThisFuncEnter();
-    LogFlowThisFunc(("aParent: %p, that: %p\n", aParent, that));
+    LogFlowThisFunc(("aParent: %p, aThat: %p\n", aParent, aThat));
 
-    ComAssertRet(aParent && that, E_INVALIDARG);
+    ComAssertRet(aParent && aThat, E_INVALIDARG);
 
     /* Enclose the state transition NotReady->InInit->Ready */
     AutoInitSpan autoInitSpan(this);
@@ -114,12 +116,15 @@ HRESULT RecordingSettings::init(Machine *aParent, RecordingSettings *that)
     m = new Data();
 
     unconst(m->pMachine) = aParent;
-    m->pPeer = that;
+    unconst(m->pPeer)    = aThat;
 
-    AutoWriteLock thatlock(that COMMA_LOCKVAL_SRC_POS);
+    AutoCaller thatCaller(aThat);
+    AssertComRCReturnRC(thatCaller.rc());
 
-    m->bd.share(that->m->bd);
-    m->mapScreenObj = that->m->mapScreenObj;
+    AutoReadLock thatlock(aThat COMMA_LOCKVAL_SRC_POS);
+
+    m->bd.share(aThat->m->bd);
+    m->mapScreenObj = aThat->m->mapScreenObj;
 
     autoInitSpan.setSucceeded();
 
@@ -131,13 +136,15 @@ HRESULT RecordingSettings::init(Machine *aParent, RecordingSettings *that)
  *  Initializes the guest object given another guest object
  *  (a kind of copy constructor). This object makes a private copy of data
  *  of the original object passed as an argument.
+ *
+ *  @note Locks @a aThat object for reading.
  */
-HRESULT RecordingSettings::initCopy(Machine *aParent, RecordingSettings *that)
+HRESULT RecordingSettings::initCopy(Machine *aParent, RecordingSettings *aThat)
 {
     LogFlowThisFuncEnter();
-    LogFlowThisFunc(("aParent: %p, that: %p\n", aParent, that));
+    LogFlowThisFunc(("aParent: %p, aThat: %p\n", aParent, aThat));
 
-    ComAssertRet(aParent && that, E_INVALIDARG);
+    ComAssertRet(aParent && aThat, E_INVALIDARG);
 
     /* Enclose the state transition NotReady->InInit->Ready */
     AutoInitSpan autoInitSpan(this);
@@ -148,10 +155,10 @@ HRESULT RecordingSettings::initCopy(Machine *aParent, RecordingSettings *that)
     unconst(m->pMachine) = aParent;
     // mPeer is left null
 
-    AutoWriteLock thatlock(that COMMA_LOCKVAL_SRC_POS);
+    AutoReadLock thatlock(aThat COMMA_LOCKVAL_SRC_POS);
 
-    m->bd.attachCopy(that->m->bd);
-    m->mapScreenObj = that->m->mapScreenObj;
+    m->bd.attachCopy(aThat->m->bd);
+    m->mapScreenObj = aThat->m->mapScreenObj;
 
     autoInitSpan.setSucceeded();
 
@@ -200,7 +207,9 @@ HRESULT RecordingSettings::getEnabled(BOOL *enabled)
 
 HRESULT RecordingSettings::setEnabled(BOOL enable)
 {
-    LogFlowThisFuncEnter();
+    /* the machine needs to be mutable */
+    AutoMutableOrSavedOrRunningStateDependency adep(m->pMachine);
+    if (FAILED(adep.rc())) return adep.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -214,6 +223,7 @@ HRESULT RecordingSettings::setEnabled(BOOL enable)
         m->bd->fEnabled = fEnabled;
 
         alock.release();
+
         rc = m->pMachine->i_onRecordingChange(enable);
         if (FAILED(rc))
         {
@@ -230,6 +240,10 @@ HRESULT RecordingSettings::setEnabled(BOOL enable)
         {
             AutoWriteLock mlock(m->pMachine COMMA_LOCKVAL_SRC_POS);  // mParent is const, needs no locking
             m->pMachine->i_setModified(Machine::IsModified_Recording);
+
+            /* Make sure to release the mutable dependency lock from above before
+             * actually saving the settings. */
+            adep.release();
 
             /** Save settings if online - @todo why is this required? -- @bugref{6818} */
             if (Global::IsOnline(m->pMachine->i_getMachineState()))
@@ -377,7 +391,7 @@ int RecordingSettings::i_destroyAllScreenObj(RecordScreenSettingsMap &screenSett
     LogFlowThisFuncEnter();
 
     RecordScreenSettingsMap::iterator itScreen = screenSettingsMap.begin();
-    if (itScreen != screenSettingsMap.end())
+    while (itScreen != screenSettingsMap.end())
     {
         /* Make sure to consume the pointer before the one of the
          * iterator gets released. */
@@ -390,6 +404,7 @@ int RecordingSettings::i_destroyAllScreenObj(RecordScreenSettingsMap &screenSett
         itScreen = screenSettingsMap.begin();
     }
 
+    Assert(screenSettingsMap.size() == 0);
     return VINF_SUCCESS;
 }
 
@@ -490,6 +505,10 @@ HRESULT RecordingSettings::i_saveSettings(settings::RecordingSettings &data)
 
 void RecordingSettings::i_rollback()
 {
+    /* sanity */
+    AutoCaller autoCaller(this);
+    AssertComRCReturnVoid(autoCaller.rc());
+
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
     m->bd.rollback();
 }
@@ -514,7 +533,6 @@ void RecordingSettings::i_commit()
         if (m->pPeer)
         {
             /* attach new data to the peer and reshare it */
-            AutoWriteLock peerlock(m->pPeer COMMA_LOCKVAL_SRC_POS);
             m->pPeer->m->bd.attach(m->bd);
         }
     }
@@ -550,6 +568,12 @@ void RecordingSettings::i_applyDefaults(void)
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     /* Initialize default capturing settings here. */
+    m->bd->fEnabled = false;
+
+    /* First, do a reset so that all internal screen settings objects are destroyed. */
+    i_reset();
+    /* Second, sync (again) to configured machine displays to (re-)create screen settings objects. */
+    i_syncToMachineDisplays();
 }
 
 /**

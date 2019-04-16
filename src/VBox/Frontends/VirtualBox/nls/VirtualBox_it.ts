@@ -157,11 +157,19 @@
     </message>
     <message>
         <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root.</source>
-        <translation>Il driver del kernel Linux di VirtualBox (vboxdrv) non è stato caricato o c&apos;è un problema di permessi su /dev/vboxdrv. Reinstalla il modulo del kernel eseguendo&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;come root.</translation>
+        <translation type="vanished">Il driver del kernel Linux di VirtualBox (vboxdrv) non è stato caricato o c&apos;è un problema di permessi su /dev/vboxdrv. Reinstalla il modulo del kernel eseguendo&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;come root.</translation>
     </message>
     <message>
         <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
-        <translation>I moduli del kernel non corrispondono a questa versione di VirtualBox. L&apos;installazione di VirtualBox sembra non essere riuscita. L&apos;esecuzione di&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;potrebbe risolvere il problema. Assicurati di non mischiare la versione OSE con la versione PUEL di VirtualBox.</translation>
+        <translation type="vanished">I moduli del kernel non corrispondono a questa versione di VirtualBox. L&apos;installazione di VirtualBox sembra non essere riuscita. L&apos;esecuzione di&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;potrebbe risolvere il problema. Assicurati di non mischiare la versione OSE con la versione PUEL di VirtualBox.</translation>
+    </message>
+    <message>
+        <source>The VirtualBox Linux kernel driver is either not loaded or not set up correctly. Please try setting it up again by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root.&lt;br/&gt;&lt;br/&gt;If your system has EFI Secure Boot enabled you may also need to sign the kernel modules (vboxdrv, vboxnetflt, vboxnetadp, vboxpci) before you can load them. Please see your Linux system&apos;s documentation for more information.</source>
+        <translation>Il driver del kernel Linux di VirtualBox non è stato caricato o non è stato installato correttamente. Prova a installarlo nuovamente eseguendo&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;come root. Se il tuo sistema ha abilitato il Secure Boot EFI, dovresti inoltre firmare i moduli del kernel (vboxdrv, vboxnetflt, vboxnetadp, vboxpci) prima di caricarli. Le ggi la documentazione del tuo sistema Linux per ulteriori informazioni.</translation>
+    </message>
+    <message>
+        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you are not mixing builds of VirtualBox from different sources.</source>
+        <translation>I moduli del kernel di VirtualBox non corrispondono a questa versione di VirtualBox. L&apos;installazione di VirtualBox sembra non essere riuscita. L&apos;esecuzione di&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;potrebbe correggere il problema. Assicurati di non mischiare versioni diverse di VirtualBox.</translation>
     </message>
 </context>
 <context>
@@ -2585,7 +2593,15 @@
     </message>
     <message>
         <source>Tools</source>
-        <translation type="unfinished">Strumenti</translation>
+        <translation>Strumenti</translation>
+    </message>
+    <message>
+        <source>E&amp;xport to OCI...</source>
+        <translation>E&amp;sporta in OCI...</translation>
+    </message>
+    <message>
+        <source>Export selected virtual machine to OCI</source>
+        <translation>Esporta la macchina virtuale selezionata in OCI</translation>
     </message>
 </context>
 <context>
@@ -3331,31 +3347,31 @@
     <name>UICustomFileSystemModel</name>
     <message>
         <source>Name</source>
-        <translation type="unfinished">Nome</translation>
+        <translation>Nome</translation>
     </message>
     <message>
         <source>Size</source>
-        <translation type="unfinished">Dimensione</translation>
+        <translation>Dimensione</translation>
     </message>
     <message>
         <source>Change Time</source>
-        <translation type="unfinished">Cambia orario</translation>
+        <translation>Orario di modifica</translation>
     </message>
     <message>
         <source>Owner</source>
-        <translation type="unfinished">Proprietario</translation>
+        <translation>Proprietario</translation>
     </message>
     <message>
         <source>Permissions</source>
-        <translation type="unfinished">Permessi</translation>
+        <translation>Permessi</translation>
     </message>
     <message>
         <source>LocalPath</source>
-        <translation type="unfinished"></translation>
+        <translation>Percorso locale</translation>
     </message>
     <message>
         <source>Path</source>
-        <translation type="unfinished">Percorso</translation>
+        <translation>Percorso</translation>
     </message>
 </context>
 <context>
@@ -4977,7 +4993,7 @@
     </message>
     <message>
         <source>Close the pane</source>
-        <translation>Chiudi il pannello</translation>
+        <translation type="vanished">Chiudi il pannello</translation>
     </message>
     <message>
         <source>Password</source>
@@ -5209,11 +5225,11 @@
     </message>
     <message>
         <source>Show hidden objects</source>
-        <translation type="unfinished"></translation>
+        <translation>Mostra oggetti nascosti</translation>
     </message>
     <message>
         <source>Show hidden files/directories</source>
-        <translation type="unfinished"></translation>
+        <translation>Mostra cartelle/file nascosti</translation>
     </message>
 </context>
 <context>
@@ -13397,6 +13413,21 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
+    <name>UIMediumSearchWidget</name>
+    <message>
+        <source>Search By Name</source>
+        <translation>Cerca per nome</translation>
+    </message>
+    <message>
+        <source>Search By UUID</source>
+        <translation>Cerca per UUID</translation>
+    </message>
+    <message>
+        <source>Select the search type</source>
+        <translation>Seleziona il tipo di ricerca</translation>
+    </message>
+</context>
+<context>
     <name>UIMediumSelector</name>
     <message>
         <source>&amp;Add...</source>
@@ -13449,6 +13480,18 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Actual Size</source>
         <translation>Dimensione effettiva</translation>
+    </message>
+    <message>
+        <source>Medium</source>
+        <translation>Supporto</translation>
+    </message>
+    <message>
+        <source>Expand All</source>
+        <translation>Espandi tutto</translation>
+    </message>
+    <message>
+        <source>Collapse All</source>
+        <translation>Contrai tutto</translation>
     </message>
 </context>
 <context>
@@ -18338,15 +18381,15 @@ questo passo e collegare hard disk più tardi tramite Impostazioni della MV.&lt;
     </message>
     <message>
         <source>Goto the next bookmark</source>
-        <translation>Vai al segnalibro successivo</translation>
+        <translation type="vanished">Vai al segnalibro successivo</translation>
     </message>
     <message>
         <source>Goto the previous bookmark</source>
-        <translation>Vai al segnalibro precedente</translation>
+        <translation type="vanished">Vai al segnalibro precedente</translation>
     </message>
     <message>
         <source>Goto selected bookmark</source>
-        <translation>Vai al segnalibro selezionato</translation>
+        <translation type="vanished">Vai al segnalibro selezionato</translation>
     </message>
     <message>
         <source>Log Viewer</source>
@@ -18410,7 +18453,7 @@ questo passo e collegare hard disk più tardi tramite Impostazioni della MV.&lt;
     </message>
     <message>
         <source>Close the pane</source>
-        <translation>Chiudi il pannello</translation>
+        <translation type="vanished">Chiudi il pannello</translation>
     </message>
     <message>
         <source>Enter a search string here</source>
@@ -18450,11 +18493,11 @@ questo passo e collegare hard disk più tardi tramite Impostazioni della MV.&lt;
     </message>
     <message>
         <source>String not found</source>
-        <translation>Stringa non trovata</translation>
+        <translation type="vanished">Stringa non trovata</translation>
     </message>
     <message>
         <source>%1 Matches Found</source>
-        <translation>%1 corrispondenze trovate</translation>
+        <translation type="vanished">%1 corrispondenze trovate</translation>
     </message>
     <message>
         <source>Filtered</source>
@@ -18475,6 +18518,22 @@ questo passo e collegare hard disk più tardi tramite Impostazioni della MV.&lt;
     <message>
         <source>&lt;p&gt;No log files found. Press the &lt;b&gt;Refresh&lt;/b&gt; button to rescan the log folder &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Nessun file di log trovato. Premi il pulsante &lt;b&gt;Aggiorna&lt;/b&gt; per analizzare nuovamente la cartella dei log &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Go to the next bookmark</source>
+        <translation>Vai al segnalibro successivo</translation>
+    </message>
+    <message>
+        <source>Go to the previous bookmark</source>
+        <translation>Vai al segnalibro precedente</translation>
+    </message>
+    <message>
+        <source>Go to selected bookmark</source>
+        <translation>Vai al segnalibro selezionato</translation>
+    </message>
+    <message>
+        <source>Matches Found</source>
+        <translation>Corrispondenze trovate</translation>
     </message>
 </context>
 <context>
@@ -18543,95 +18602,135 @@ questo passo e collegare hard disk più tardi tramite Impostazioni della MV.&lt;
     <name>UIVisoCreator</name>
     <message>
         <source>VISO content</source>
-        <translation type="unfinished"></translation>
+        <translation>Contenuti VISO</translation>
     </message>
     <message>
         <source>Remove selected file objects from VISO</source>
-        <translation type="unfinished"></translation>
+        <translation>Rimuovi file selezionati da VISO</translation>
     </message>
     <message>
         <source>Name</source>
-        <translation type="unfinished">Nome</translation>
+        <translation>Nome</translation>
     </message>
     <message>
         <source>Size</source>
-        <translation type="unfinished">Dimensione</translation>
+        <translation>Dimensione</translation>
     </message>
     <message>
         <source>Change Time</source>
-        <translation type="unfinished">Cambia orario</translation>
+        <translation>Orario di modifica</translation>
     </message>
     <message>
         <source>Owner</source>
-        <translation type="unfinished">Proprietario</translation>
+        <translation>Proprietario</translation>
     </message>
     <message>
         <source>Permissions</source>
-        <translation type="unfinished">Permessi</translation>
+        <translation>Permessi</translation>
     </message>
     <message>
         <source>Local Path</source>
-        <translation type="unfinished"></translation>
+        <translation>Percorso locale</translation>
     </message>
     <message>
         <source>ISO Path</source>
-        <translation type="unfinished"></translation>
+        <translation>Percorso ISO</translation>
     </message>
     <message>
         <source>&amp;Options...</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Opzioni...</translation>
     </message>
     <message>
         <source>Show Hidden Objects</source>
-        <translation type="unfinished"></translation>
+        <translation>Mostra oggetti nascosti</translation>
     </message>
     <message>
         <source>Host file system</source>
-        <translation type="unfinished"></translation>
+        <translation>File system host</translation>
     </message>
     <message>
         <source>Create a new directory under the current location</source>
-        <translation type="unfinished"></translation>
+        <translation>Crea una nuova cartella sotto la posizione attuale</translation>
     </message>
     <message>
         <source>Reset ISO content.</source>
-        <translation type="unfinished"></translation>
+        <translation>Ripristina contenuto ISO.</translation>
     </message>
     <message>
         <source>Rename the selected object</source>
-        <translation type="unfinished"></translation>
+        <translation>Rinomina l&apos;oggetto selezionato</translation>
     </message>
     <message>
         <source>&amp;Configuration...</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Configurazione...</translation>
     </message>
     <message>
         <source>VISO Configuration</source>
-        <translation type="unfinished"></translation>
+        <translation>Configurazione VISO</translation>
     </message>
     <message>
         <source>Manage VISO Configuration</source>
-        <translation type="unfinished"></translation>
+        <translation>Gestisci configurazione VISO</translation>
     </message>
     <message>
         <source>Dialog Options</source>
-        <translation type="unfinished"></translation>
+        <translation>Opzioni finestra</translation>
     </message>
     <message>
         <source>Manage Dialog Options</source>
-        <translation type="unfinished"></translation>
+        <translation>Gestisci opzioni finestra</translation>
     </message>
     <message>
         <source>VISO Name:</source>
-        <translation type="unfinished"></translation>
+        <translation>Nome VISO:</translation>
     </message>
     <message>
         <source>Add selected file objects to ISO</source>
-        <translation type="unfinished"></translation>
+        <translation>Aggiungi file selezionati a ISO</translation>
+    </message>
+    <message>
+        <source>Close the pane</source>
+        <translation>Chiudi il pannello</translation>
+    </message>
+    <message>
+        <source>Remove</source>
+        <translation>Rimuovi</translation>
+    </message>
+    <message>
+        <source>New Directory</source>
+        <translation>Nuova cartella</translation>
+    </message>
+    <message>
+        <source>Reset</source>
+        <translation>Ripristina</translation>
+    </message>
+    <message>
+        <source>VISO Creator</source>
+        <translation>Generatore VISO</translation>
+    </message>
+    <message>
+        <source>VISO</source>
+        <translation>VISO</translation>
+    </message>
+    <message>
+        <source>Host Browser</source>
+        <translation>Navigatore host</translation>
+    </message>
+    <message>
+        <source>VISO Browser</source>
+        <translation>Navigatore VISO</translation>
     </message>
     <message>
         <source>Custom VISO options:</source>
-        <translation type="unfinished"></translation>
+        <translation>Opzioni personalizzate VISO:</translation>
+    </message>
+    <message>
+        <source>Remove current option.</source>
+        <translation>Rimuovi l&apos;opzione corrente.</translation>
+    </message>
+    <message>
+        <source>Add</source>
+        <translation>Aggiungi</translation>
     </message>
 </context>
 <context>

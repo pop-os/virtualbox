@@ -75,6 +75,25 @@ static unsigned g_cVerbose = 0;
 static bool     g_f16BitWatcomC = false;
 
 
+/*
+ * Minimal assertion support.
+ */
+
+RTDECL(bool) RTAssertShouldPanic(void)
+{
+    return true;
+}
+
+
+RTDECL(void) RTAssertMsg1Weak(const char *pszExpr, unsigned uLine, const char *pszFile, const char *pszFunction)
+{
+    fprintf(stderr,
+            "VBoxBs3ObjConverter: assertion failed in %s (%s:%u)!\n"
+            "VBoxBs3ObjConverter: %s\n",
+            pszFunction, pszFile, uLine, pszExpr);
+}
+
+
 /**
  * Opens a file for binary reading or writing.
  *
@@ -5472,7 +5491,7 @@ int main(int argc, char **argv)
                         break;
 
                     case 'V':
-                        printf("%s\n", "$Revision: 127855 $");
+                        printf("%s\n", "$Revision: 129721 $");
                         return 0;
 
                     case '?':

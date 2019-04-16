@@ -29,7 +29,9 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #ifdef IN_RING0
-# define IPRT_NT_MAP_TO_ZW
+# ifndef IPRT_NT_MAP_TO_ZW
+#  define IPRT_NT_MAP_TO_ZW
+# endif
 # include <iprt/nt/nt.h>
 # include <ntimage.h>
 #else
@@ -299,7 +301,7 @@ static DECLCALLBACK(RTFOFF) supHardNtViRdrTell(PRTLDRREADER pReader)
 
 
 /** @copydoc RTLDRREADER::pfnSize */
-static DECLCALLBACK(RTFOFF) supHardNtViRdrSize(PRTLDRREADER pReader)
+static DECLCALLBACK(uint64_t) supHardNtViRdrSize(PRTLDRREADER pReader)
 {
     PSUPHNTVIRDR pNtViRdr = (PSUPHNTVIRDR)pReader;
     Assert(pNtViRdr->Core.uMagic == RTLDRREADER_MAGIC);
@@ -437,7 +439,7 @@ DECLHIDDEN(int) supHardNtViRdrCreate(HANDLE hFile, PCRTUTF16 pwszName, uint32_t 
     pNtViRdr->hFile           = hFile;
     pNtViRdr->hEvent          = hEvent;
     pNtViRdr->off             = 0;
-    pNtViRdr->cbFile          = StdInfo.EndOfFile.QuadPart;
+    pNtViRdr->cbFile          = (uint64_t)StdInfo.EndOfFile.QuadPart;
     pNtViRdr->fFlags          = fFlags;
     *ppNtViRdr = pNtViRdr;
     return VINF_SUCCESS;
@@ -1081,7 +1083,12 @@ static DECLCALLBACK(int) supHardNtViCallback(RTLDRMOD hLdrMod, RTLDRSIGNATURETYP
         if (!RTCrX509Certificate_MatchIssuerAndSerialNumber(&g_BuildX509Cert,
                                                             &pSignerInfo->IssuerAndSerialNumber.Name,
                                                             &pSignerInfo->IssuerAndSerialNumber.SerialNumber))
-            return RTErrInfoSet(pErrInfo, VERR_SUP_VP_NOT_SIGNED_WITH_BUILD_CERT, "Not signed with the build certificate.");
+            return RTErrInfoSetF(pErrInfo, VERR_SUP_VP_NOT_SIGNED_WITH_BUILD_CERT,
+                                 "Not signed with the build certificate (serial %.*Rhxs, expected %.*Rhxs)",
+                                 pSignerInfo->IssuerAndSerialNumber.SerialNumber.Asn1Core.cb,
+                                 pSignerInfo->IssuerAndSerialNumber.SerialNumber.Asn1Core.uData.pv,
+                                 g_BuildX509Cert.TbsCertificate.SerialNumber.Asn1Core.cb,
+                                 g_BuildX509Cert.TbsCertificate.SerialNumber.Asn1Core.uData.pv);
     }
 
     /*

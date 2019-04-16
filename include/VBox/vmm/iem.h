@@ -224,9 +224,8 @@ typedef uint8_t IEMMODE;
                                                     | CPUMCTX_EXTRN_DR7 /* for memory breakpoints */ )
 
 #ifdef VBOX_WITH_NESTED_HWVIRT_VMX
-/** @todo NSTVMX: Refine this mask later (probably some MSRs are not required). */
-# define IEM_CPUMCTX_EXTRN_VMX_VMEXIT_MASK         CPUMCTX_EXTRN_ABSOLUTELY_ALL
-# define IEM_CPUMCTX_EXTRN_VMX_VMENTRY_MASK        IEM_CPUMCTX_EXTRN_VMX_VMEXIT_MASK
+# define IEM_CPUMCTX_EXTRN_VMX_VMENTRY_MASK        (  IEM_CPUMCTX_EXTRN_EXEC_DECODED_NO_MEM_MASK \
+                                                    | CPUMCTX_EXTRN_HWVIRT )
 #endif
 
 #ifdef VBOX_WITH_NESTED_HWVIRT_SVM
@@ -335,9 +334,11 @@ VMM_INT_DECL(VBOXSTRICTRC)  IEMExecVmxVirtApicAccessMsr(PVMCPU pVCpu, uint32_t i
 VMM_INT_DECL(VBOXSTRICTRC)  IEMExecVmxVmexitApicWrite(PVMCPU pVCpu);
 VMM_INT_DECL(VBOXSTRICTRC)  IEMExecVmxVmexitPreemptTimer(PVMCPU pVCpu);
 VMM_INT_DECL(VBOXSTRICTRC)  IEMExecVmxVmexitExtInt(PVMCPU pVCpu, uint8_t uVector, bool fIntPending);
+VMM_INT_DECL(VBOXSTRICTRC)  IEMExecVmxVmexitNmi(PVMCPU pVCpu);
 VMM_INT_DECL(VBOXSTRICTRC)  IEMExecVmxVmexitStartupIpi(PVMCPU pVCpu, uint8_t uVector);
 VMM_INT_DECL(VBOXSTRICTRC)  IEMExecVmxVmexitInitIpi(PVMCPU pVCpu);
 VMM_INT_DECL(VBOXSTRICTRC)  IEMExecVmxVmexitIntWindow(PVMCPU pVCpu);
+VMM_INT_DECL(VBOXSTRICTRC)  IEMExecVmxVmexitNmiWindow(PVMCPU pVCpu);
 VMM_INT_DECL(VBOXSTRICTRC)  IEMExecVmxVmexitMtf(PVMCPU pVCpu);
 VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedVmread(PVMCPU pVCpu, PCVMXVEXITINFO pExitInfo);
 VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedVmwrite(PVMCPU pVCpu, PCVMXVEXITINFO pExitInfo);

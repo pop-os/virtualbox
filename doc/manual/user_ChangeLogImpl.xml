@@ -35,6 +35,197 @@ technical terms if no non-technical ones are clear enough.
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
 
   <sect1>
+    <title>Version 6.0.6 (2019-04-17)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>Virtualization core: nested AMD virtualization fixes</para>
+      </listitem>
+
+      <listitem>
+        <para>User interface: fixed copying directories in file manager</para>
+      </listitem>
+
+      <listitem>
+        <para>User interface: fixed operation progress in file manager when
+          copying content</para>
+      </listitem>
+
+      <listitem>
+        <para>User interface: fixed operation progress when deleting
+           snapshots</para>
+      </listitem>
+
+      <listitem>
+        <para>User interface: fixed unattended installation of recent
+           Ubuntu guests</para>
+      </listitem>
+
+      <listitem>
+        <para>User interface: various additional improvements</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed loading saved states for LsiLogic devices (6.0.0
+          regression; bug #18263)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed fixed reading certain QCOW2 images and support
+          version 3 of the format readonly</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: Improved IDE PCI emulation to allow NetWare IDE drivers to
+           use bus-mastering</para>
+      </listitem>
+
+      <listitem>
+        <para>Graphics: Improved VMSVGA support to work with old X servers
+           which previously showed only a badly scrambled screen</para>
+      </listitem>
+
+      <listitem>
+        <para>Graphics: fixed invisible mouse cursor with VMSVGA emulation
+           and without mouse integration (bug #18239)</para>
+      </listitem>
+
+      <listitem>
+        <para>Graphics: make EFI work with VMSVGA emulation (bug #18282)</para>
+      </listitem>
+
+      <listitem>
+        <para>Graphics: remember last guest screen size VMSVGA emulation</para>
+      </listitem>
+
+      <listitem>
+        <para>Graphics: fix RDP to guests using VMSVGA emulation</para>
+      </listitem>
+
+      <listitem>
+        <para>Graphics: various additional VMSVGA emulation fixes</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: implemented audio device enumeration for the DirectSound
+          backend</para>
+      </listitem>
+
+      <listitem>
+        <para>Network: fixed unwanted padding bytes in Windows host adaptor
+           network packets (bug #18202 and bug #18355)</para>
+      </listitem>
+
+      <listitem>
+        <para>Serial: fixed possible crash on Windows when using a host device
+          (6.0.0 regression; bug #18319)</para>
+      </listitem>
+
+      <listitem>
+        <para>Serial: fixed loopback handling in the emulation causing garbage to
+          be sent during boot with Linux guests (6.0.0 regression; bug #18319)</para>
+      </listitem>
+
+      <listitem>
+        <para>Shared folders: fixed duplicate folders after restoring a saved
+          state (bug #18373 and other)
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>Drag and drop: fixed copying files from guest host (bug #18305)</para>
+      </listitem>
+
+      <listitem>
+        <para>Recording: fixed modifying settings via VBoxManage (bug #18494)</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: crash fix (bug #18341)</para>
+      </listitem>
+
+      <listitem>
+        <para>Fixed hangs during failed virtual machine start-up</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows host: fix unwanted wake-ups from standby (bug #18549)
+           </para>
+      </listitem>
+
+      <listitem>
+        <para>Windows host: disallow Pause as a host key (bug #18482)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux host and guest: support Linux 5.0 and 5.1, thank you
+           Valdis Kletnieks (see also bug #18515)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux host: support kernel 4.4.169 (bug #18315)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux host: fix logging when building Linux kernel modules
+           (bug #18226)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux host: clarified building Linux host drivers with secure
+           boot (bug #18312)</para>
+      </listitem>
+
+      <listitem>
+        <para>FreeBSD host: compilation fixes</para>
+      </listitem>
+
+      <listitem>
+        <para>Installers: reduced size of packages</para>
+      </listitem>
+
+      <listitem>
+        <para>Web services: work with Java 11</para>
+      </listitem>
+
+      <listitem>
+        <para>LibreSSL compilation fix, thank you Stefan Strogin</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows guests: fixed running applications which use complex
+          display topologies with WDDM driver, fixed Skype for Business
+          hangs (bug #17092)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows guests: fixed an occasional guest crash with WDDM driver
+          and VBoxSVGA adapter (bug #18369)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows guests: shared folder file creation detection issue (bug #9276)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux guests: shared folder performance and reliability
+           improvements and missing features (bugs #17360, #819)</para>
+      </listitem>
+
+      <listitem>
+        <para>OS/2 guests: shared folder fixes (bug #18376 and bug #18379)
+           </para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
+
     <title>Version 6.0.4 (2019-01-28)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
@@ -59,6 +250,11 @@ technical terms if no non-technical ones are clear enough.
 
       <listitem>
         <para>User interface: various small fixes and improvements</para>
+      </listitem>
+
+      <listitem>
+        <para>User interface: fix incorrect restoring of main window
+           position (bug #18367)</para>
       </listitem>
 
       <listitem>
