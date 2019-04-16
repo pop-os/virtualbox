@@ -1,9 +1,17 @@
-virtualbox (6.0.4-dfsg-8) UNRELEASED; urgency=medium
+virtualbox (6.0.6-dfsg-1) unstable; urgency=medium
 
   * Implement DEB_BUILD_OPTIONS=parallel=n handling during build
     (Closes: #924302)
+  * New upstream version 6.0.6-dfsg
+  * Patch refresh
+  * drop upstream patches:
+    - debian/patches/77040.patch
+    - debian/patches/77542.patch
+    - debian/patches/java11-upstream.patch
+  * Drop Ubuntu patch, now differently part of upstream code:
+    - debian/patches/fix-vboxvideo-with-linux-5.0.patch
 
- -- Gianfranco Costamagna <locutusofborg@debian.org>  Mon, 11 Mar 2019 11:49:50 +0100
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 17 Apr 2019 00:08:12 +0200
 
 virtualbox (6.0.4-dfsg-7) unstable; urgency=medium
 
