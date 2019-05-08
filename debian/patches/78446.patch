@@ -1,0 +1,106 @@
+Index: virtualbox/src/VBox/Additions/linux/Makefile
+===================================================================
+--- virtualbox.orig/src/VBox/Additions/linux/Makefile
++++ virtualbox/src/VBox/Additions/linux/Makefile
+@@ -14,14 +14,14 @@
+ # hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ #
+ 
+-ifneq ($(KBUILD_EXTMOD),)
++ifneq ($(KERNELRELEASE),)
+ 
+-# Building from kBuild (make -C <kernel_directory> M=`pwd`).
+-# KBUILD_EXTMOD is set to $(M) in this case.
++# Building from kBuild (make -C <kernel_directory> M=`pwd`)
++# or inside a kernel source tree.
+ 
+ obj-m = vboxguest/ vboxsf/ vboxvideo/
+ 
+-else # ! KBUILD_EXTMOD
++else # ! KERNELRELEASE
+ 
+ KBUILD_VERBOSE =
+  ifeq ($(KBUILD_VERBOSE),)
+@@ -107,4 +107,4 @@
+ 
+ .PHONY: vboxguest vboxsf vboxvideo all install clean check load
+ 
+-endif # ! KBUILD_EXTMOD
++endif # ! KERNELRELEASE
+Index: virtualbox/src/VBox/HostDrivers/linux/Makefile
+===================================================================
+--- virtualbox.orig/src/VBox/HostDrivers/linux/Makefile
++++ virtualbox/src/VBox/HostDrivers/linux/Makefile
+@@ -23,25 +23,25 @@
+ # terms and conditions of either the GPL or the CDDL or both.
+ #
+ 
+-ifneq ($(KBUILD_EXTMOD),)
++ifneq ($(KERNELRELEASE),)
+ 
+-# Building from kBuild (make -C <kernel_directory> M=`pwd`).
+-# KBUILD_EXTMOD is set to $(M) in this case.
++# Building from kBuild (make -C <kernel_directory> M=`pwd`),
++# or inside a kernel source tree.
+ 
+ obj-m = vboxdrv/
+-ifneq ($(wildcard $(KBUILD_EXTMOD)/vboxnetflt/Makefile),)
++ifneq ($(wildcard $(CURDIR)/vboxnetflt/Makefile),)
+  obj-m += vboxnetflt/
+ endif
+-ifneq ($(wildcard $(KBUILD_EXTMOD)/vboxnetadp/Makefile),)
++ifneq ($(wildcard $(CURDIR)/vboxnetadp/Makefile),)
+  obj-m += vboxnetadp/
+ endif
+-ifneq ($(wildcard $(KBUILD_EXTMOD)/vboxpci/Makefile),)
++ifneq ($(wildcard $(CURDIR)/vboxpci/Makefile),)
+  obj-m += vboxpci/
+ endif
+ 
+-else # ! KBUILD_EXTMOD
++else # ! KERNELRELEASE
+ 
+-# convenience Makefile without KBUILD_EXTMOD
++# convenience Makefile without KERNELRELEASE
+ 
+ KBUILD_VERBOSE ?=
+ KERN_VER ?= $(shell uname -r)
+@@ -146,4 +146,4 @@
+ 		fi; \
+ 	done
+ 
+-endif # ! KBUILD_EXTMOD
++endif # ! KERNELRELEASE
+Index: virtualbox/src/VBox/Installer/linux/Makefile-header.gmk
+===================================================================
+--- virtualbox.orig/src/VBox/Installer/linux/Makefile-header.gmk
++++ virtualbox/src/VBox/Installer/linux/Makefile-header.gmk
+@@ -188,20 +188,6 @@
+ INSTALL_MOD_DIR ?= misc
+ MODULE_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KERN_VER)/$(INSTALL_MOD_DIR)
+ 
+-#
+-# The KBUILD_EXTMOD variable is used by 2.6.6 and later when build external
+-# modules (see https://lwn.net/Articles/79984/).  It will be set to SUBDIRS
+-# or M by the linux kernel makefile.  We fake it here for older kernels.
+-#
+-## @todo Drop this KBUILD_EXTMOD glue once it has been removed from all our makefiles (see sharedfolders).
+-ifndef CURDIR # for make < v3.79
+- CURDIR := $(shell pwd)
+-endif
+-ifndef KBUILD_EXTMOD
+- KBUILD_EXTMOD := $(CURDIR)
+-endif
+-
+-
+ # For VBOX_GCC_CHECK_CC
+ VBOX_CLOSEPAR := )
+ VBOX_DOLLAR   := $$
+@@ -239,7 +225,6 @@
+ $(warning dbg: KERN_INCL        = $(KERN_INCL))
+ $(warning dbg: KERN_VERSION     = $(KERN_VERSION))
+ $(warning dbg: MODULE_DIR       = $(MODULE_DIR))
+-$(warning dbg: KBUILD_EXTMOD    = $(KBUILD_EXTMOD))
+ $(warning dbg: VBOX_MODULE_SRC_DIR = $(VBOX_MODULE_SRC_DIR))
+  endif
+ endif

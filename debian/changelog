@@ -1,3 +1,9 @@
+virtualbox (6.0.6-dfsg-2) unstable; urgency=medium
+
+  * Cherry-pick two upstream fixes for guest kernel modules
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 08 May 2019 15:09:14 +0200
+
 virtualbox (6.0.6-dfsg-1) unstable; urgency=medium
 
   * Implement DEB_BUILD_OPTIONS=parallel=n handling during build
