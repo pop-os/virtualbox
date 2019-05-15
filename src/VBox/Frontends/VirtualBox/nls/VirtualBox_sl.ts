@@ -2064,11 +2064,12 @@
         <location line="+41"/>
         <location line="+41"/>
         <location line="+41"/>
+        <location line="+42"/>
         <source>Cloud Profile Manager</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location line="-163"/>
+        <location line="-205"/>
         <source>Add new cloud profile</source>
         <translation type="unfinished"></translation>
     </message>
@@ -2134,6 +2135,26 @@
     </message>
     <message>
         <location line="+37"/>
+        <source>Try</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>&amp;Try Oracle Cloud for Free...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>Try Oracle cloud for free</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Try Oracle Cloud for Free</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+38"/>
         <source>Help</source>
         <translation type="unfinished"></translation>
     </message>
@@ -2153,7 +2174,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location line="-1730"/>
+        <location line="-1772"/>
         <source>Sort group of first selected virtual machine alphabetically</source>
         <translation>Razvrsti skupino prvo izbranega navideznega računalnika po abecedi</translation>
     </message>
@@ -2868,7 +2889,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location line="+597"/>
+        <location line="+606"/>
         <source>Cloud Profile Manager</source>
         <translation type="unfinished"></translation>
     </message>
@@ -12040,7 +12061,7 @@
 <context>
     <name>UINetworkReplyPrivate</name>
     <message>
-        <location filename="../src/net/UINetworkReply.cpp" line="+954"/>
+        <location filename="../src/net/UINetworkReply.cpp" line="+969"/>
         <source>Host not found</source>
         <translation>Gostitelj ni bil najden</translation>
     </message>
@@ -12104,7 +12125,7 @@
 <context>
     <name>UINetworkReplyPrivateThread</name>
     <message>
-        <location line="-578"/>
+        <location line="-593"/>
         <source>During proxy configuration</source>
         <translation>Med nastavitvijo posredniškega strežnika</translation>
     </message>
@@ -14763,7 +14784,7 @@
     </message>
     <message>
         <location filename="../src/wizards/newvd/UIWizardNewVDPageBasic2.cpp" line="+136"/>
-        <location filename="../src/wizards/newvd/UIWizardNewVDPageExpert.cpp" line="+230"/>
+        <location filename="../src/wizards/newvd/UIWizardNewVDPageExpert.cpp" line="+245"/>
         <source>&amp;Dynamically allocated</source>
         <translation>&amp;Dinamično dodeljeno</translation>
     </message>
@@ -14784,7 +14805,7 @@
         <translation type="vanished">&lt;nobr&gt;%1 (%2 B)&lt;/nobr&gt;</translation>
     </message>
     <message>
-        <location filename="../src/wizards/newvd/UIWizardNewVDPageBasic3.cpp" line="+250"/>
+        <location filename="../src/wizards/newvd/UIWizardNewVDPageBasic3.cpp" line="+259"/>
         <source>File location and size</source>
         <translation>Mesto in velikost datoteke</translation>
     </message>
@@ -17083,7 +17104,7 @@
         <translation>Osnovni trdi disk je posredno priklopljen z uporabo naslednjega razlikovalnega trdega diska:</translation>
     </message>
     <message>
-        <location filename="../src/wizards/newvd/UIWizardNewVDPageBasic3.cpp" line="-160"/>
+        <location filename="../src/wizards/newvd/UIWizardNewVDPageBasic3.cpp" line="-169"/>
         <source>Please choose a location for new virtual hard disk file</source>
         <translation>Izberite mesto nove datoteke navideznega trdega diska</translation>
     </message>

@@ -35,6 +35,71 @@ technical terms if no non-technical ones are clear enough.
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
 
   <sect1>
+    <title>Version 6.0.8 (2019-05-13)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>Core: fix saved state resume failures (bugs #18265 and #18331)</para>
+      </listitem>
+
+      <listitem>
+        <para>User interface: show full file location in New Medium window.</para>
+      </listitem>
+
+      <listitem>
+        <para>User interface: fix mouse click pass-through problems in multi-screen
+           virtual machines (6.0.6 regression, bug #18567)</para>
+      </listitem>
+
+      <listitem>
+        <para>Graphics: fixed a crash when powering off a VM without graphics
+          controller (bug #18570)</para>
+      </listitem>
+
+      <listitem>
+        <para>API: partial fix for dealing with VM config conflicting with
+          other VMs related to medium UUIDs, now correctly flags VM as
+          inaccessible (bug #17908)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: Support paths longer than 4096 characters on
+           in shared folders</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: fix kernel module build breakage in non-default build
+           set-ups (bug #18620, thank you Ambroz Bizjak)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: fix kernel module build breakage in debug build
+           set-ups (bug #18621, thank you Ambroz Bizjak)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows guests: notice file size increases in shared folders
+           which were missed in certain cases</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux guests: make shared folders work with Linux 3.16.35</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux guests: fix incorrectly read-only shared folders (bug
+           #18345)</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
+
     <title>Version 6.0.6 (2019-04-17)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
@@ -63,6 +128,11 @@ technical terms if no non-technical ones are clear enough.
       <listitem>
         <para>User interface: fixed unattended installation of recent
            Ubuntu guests</para>
+      </listitem>
+
+      <listitem>
+        <para>User interface: new virtual disk sector sizes should be
+           divisible by 512 (bug #18177)</para>
       </listitem>
 
       <listitem>
@@ -99,11 +169,13 @@ technical terms if no non-technical ones are clear enough.
       </listitem>
 
       <listitem>
-        <para>Graphics: remember last guest screen size VMSVGA emulation</para>
+        <para>Graphics: remember last guest screen size VMSVGA emulation
+           (bug #18408)</para>
       </listitem>
 
       <listitem>
-        <para>Graphics: fix RDP to guests using VMSVGA emulation</para>
+        <para>Graphics: fix RDP to guests using VMSVGA emulation
+           (bug #18518)</para>
       </listitem>
 
       <listitem>
@@ -132,7 +204,12 @@ technical terms if no non-technical ones are clear enough.
 
       <listitem>
         <para>Shared folders: fixed duplicate folders after restoring a saved
-          state (bug #18373 and other)
+          state (bug #18373)
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>Shared folders: fixed hangs inside guest (bug #18151)
         </para>
       </listitem>
 
@@ -145,6 +222,11 @@ technical terms if no non-technical ones are clear enough.
       </listitem>
 
       <listitem>
+        <para>Fixed invalid Extra Data characters making machines
+           inaccessible</para>
+      </listitem>
+
+      <listitem>
         <para>VBoxManage: crash fix (bug #18341)</para>
       </listitem>
 
@@ -153,7 +235,8 @@ technical terms if no non-technical ones are clear enough.
       </listitem>
 
       <listitem>
-        <para>Windows host: fix unwanted wake-ups from standby (bug #18549)
+        <para>Windows host: fix unwanted wake-ups from standby,
+           thank you Daniel Karsubka (bug #18549)
            </para>
       </listitem>
 
@@ -212,13 +295,19 @@ technical terms if no non-technical ones are clear enough.
       </listitem>
 
       <listitem>
+        <para>Windows guests: fixed "mismatched pool allocation/free" error with
+           checked builds of Windows and ReactOS (bug #18187, thank you
+           Adam Stachowicz)</para>
+      </listitem>
+
+      <listitem>
         <para>Linux guests: shared folder performance and reliability
            improvements and missing features (bugs #17360, #819)</para>
       </listitem>
 
       <listitem>
-        <para>OS/2 guests: shared folder fixes (bug #18376 and bug #18379)
-           </para>
+        <para>Solaris guests: fix an error message from VBoxClient
+           (bug #18428)</para>
       </listitem>
 
     </itemizedlist>

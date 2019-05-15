@@ -518,6 +518,8 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            [--spec-ctrl on|off]\n"
                      "                            [--l1d-flush-on-sched on|off]\n"
                      "                            [--l1d-flush-on-vm-entry on|off]\n"
+                     "                            [--mds-clear-on-sched on|off]\n"
+                     "                            [--mds-clear-on-vm-entry on|off]\n"
                      "                            [--nested-hw-virt on|off]\n"
                      "                            [--cpu-profile \"host|Intel 80[86|286|386]\"]\n"
                      "                            [--cpuid-portability-level <0..3>\n"

@@ -1,4 +1,4 @@
-/* $Rev: 129921 $ */
+/* $Rev: 130196 $ */
 /** @file
  * VBoxDrv - The VirtualBox Support Driver - Linux specifics.
  */
@@ -426,10 +426,8 @@ static int vboxdrvLinuxCreateCommon(struct inode *pInode, struct file *pFilp, bo
     int                 rc;
     PSUPDRVSESSION      pSession;
     Log(("VBoxDrvLinuxCreate: pFilp=%p pid=%d/%d %s\n", pFilp, RTProcSelf(), current->pid, current->comm));
-    printk("test1\n");
 
 #ifdef VBOX_WITH_HARDENING
-    printk("test2\n");
     /*
      * Only root is allowed to access the unrestricted device, enforce it!
      */

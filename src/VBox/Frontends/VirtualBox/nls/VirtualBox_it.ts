@@ -2603,6 +2603,22 @@
         <source>Export selected virtual machine to OCI</source>
         <translation>Esporta la macchina virtuale selezionata in OCI</translation>
     </message>
+    <message>
+        <source>Try</source>
+        <translation>Prova</translation>
+    </message>
+    <message>
+        <source>&amp;Try Oracle Cloud for Free...</source>
+        <translation>&amp;Prova grautitamente Oracle Cloud...</translation>
+    </message>
+    <message>
+        <source>Try Oracle cloud for free</source>
+        <translation>Prova grautitamente Oracle Cloud</translation>
+    </message>
+    <message>
+        <source>Try Oracle Cloud for Free</source>
+        <translation>Prova grautitamente Oracle Cloud</translation>
+    </message>
 </context>
 <context>
     <name>UIActionPoolRuntime</name>

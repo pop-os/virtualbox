@@ -70,7 +70,7 @@ VBGLSFCLIENT g_SfClient;
 uint32_t     g_fHostFeatures = 0;
 /** Last valid shared folders function number. */
 uint32_t     g_uSfLastFunction = SHFL_FN_SET_FILE_SIZE;
-/** Shared folders features. */
+/** Shared folders features (SHFL_FEATURE_XXX). */
 uint64_t     g_fSfFeatures = 0;
 
 /** Protects all the vbsf_inode_info::HandleList lists. */
@@ -210,6 +210,7 @@ static int vbsf_super_info_alloc_and_map_it(struct vbsf_mount_info_new *info, st
     struct vbsf_super_info *pSuperInfo;
 
     TRACE();
+    *sf_gp = NULL; /* (old gcc maybe used initialized) */
 
     /*
      * Validate info.

@@ -197,6 +197,8 @@ Machine::HWData::HWData()
     mSpecCtrlByHost = false;
     mL1DFlushOnSched = true;
     mL1DFlushOnVMEntry = false;
+    mMDSClearOnSched = true;
+    mMDSClearOnVMEntry = false;
     mNestedHWVirt = false;
     mHPETEnabled = false;
     mCpuExecutionCap = 100; /* Maximum CPU execution cap by default. */
@@ -2035,6 +2037,14 @@ HRESULT Machine::getCPUProperty(CPUPropertyType_T aProperty, BOOL *aValue)
             *aValue = mHWData->mL1DFlushOnVMEntry;
             break;
 
+        case CPUPropertyType_MDSClearOnEMTScheduling:
+            *aValue = mHWData->mMDSClearOnSched;
+            break;
+
+        case CPUPropertyType_MDSClearOnVMEntry:
+            *aValue = mHWData->mMDSClearOnVMEntry;
+            break;
+
         default:
             return E_INVALIDARG;
     }
@@ -2124,6 +2134,18 @@ HRESULT Machine::setCPUProperty(CPUPropertyType_T aProperty, BOOL aValue)
             i_setModified(IsModified_MachineData);
             mHWData.backup();
             mHWData->mL1DFlushOnVMEntry = !!aValue;
+            break;
+
+        case CPUPropertyType_MDSClearOnEMTScheduling:
+            i_setModified(IsModified_MachineData);
+            mHWData.backup();
+            mHWData->mMDSClearOnSched = !!aValue;
+            break;
+
+        case CPUPropertyType_MDSClearOnVMEntry:
+            i_setModified(IsModified_MachineData);
+            mHWData.backup();
+            mHWData->mMDSClearOnVMEntry = !!aValue;
             break;
 
         default:
@@ -7260,10 +7282,11 @@ int Machine::i_calculateFullPath(const Utf8Str &strPath, Utf8Str &aResult)
     Utf8Str strSettingsDir = mData->m_strConfigFileFull;
 
     strSettingsDir.stripFilename();
-    char folder[RTPATH_MAX];
-    int vrc = RTPathAbsEx(strSettingsDir.c_str(), strPath.c_str(), folder, sizeof(folder));
+    char szFolder[RTPATH_MAX];
+    size_t cbFolder = sizeof(szFolder);
+    int vrc = RTPathAbsEx(strSettingsDir.c_str(), strPath.c_str(), RTPATH_STR_F_STYLE_HOST, szFolder, &cbFolder);
     if (RT_SUCCESS(vrc))
-        aResult = folder;
+        aResult = szFolder;
 
     return vrc;
 }
@@ -8862,6 +8885,8 @@ HRESULT Machine::i_loadHardware(const Guid *puuidRegistry,
         mHWData->mSpecCtrlByHost              = data.fSpecCtrlByHost;
         mHWData->mL1DFlushOnSched             = data.fL1DFlushOnSched;
         mHWData->mL1DFlushOnVMEntry           = data.fL1DFlushOnVMEntry;
+        mHWData->mMDSClearOnSched             = data.fMDSClearOnSched;
+        mHWData->mMDSClearOnVMEntry           = data.fMDSClearOnVMEntry;
         mHWData->mNestedHWVirt                = data.fNestedHWVirt;
         mHWData->mCPUCount                    = data.cCPUs;
         mHWData->mCPUHotPlugEnabled           = data.fCpuHotPlug;
@@ -9912,6 +9937,10 @@ HRESULT Machine::i_saveSettings(bool *pfNeedsGlobalSaveSettings,
     AssertReturn(!i_isSnapshotMachine(),
                  E_FAIL);
 
+    if (!mData->mAccessible)
+        return setError(VBOX_E_INVALID_VM_STATE,
+                        tr("The machine is not accessible, so cannot save settings"));
+
     HRESULT rc = S_OK;
     bool fNeedsWrite = false;
 
@@ -10185,6 +10214,8 @@ HRESULT Machine::i_saveHardware(settings::Hardware &data, settings::Debugging *p
         data.fSpecCtrlByHost        = !!mHWData->mSpecCtrlByHost;
         data.fL1DFlushOnSched       = !!mHWData->mL1DFlushOnSched;
         data.fL1DFlushOnVMEntry     = !!mHWData->mL1DFlushOnVMEntry;
+        data.fMDSClearOnSched       = !!mHWData->mMDSClearOnSched;
+        data.fMDSClearOnVMEntry     = !!mHWData->mMDSClearOnVMEntry;
         data.fNestedHWVirt          = !!mHWData->mNestedHWVirt;
         data.cCPUs                  = mHWData->mCPUCount;
         data.fCpuHotPlug            = !!mHWData->mCPUHotPlugEnabled;

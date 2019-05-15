@@ -777,6 +777,10 @@ HRESULT VirtualBox::initMedia(const Guid &uuidRegistry,
         if (FAILED(rc)) return rc;
 
         rc = i_registerMedium(pHardDisk, &pHardDisk, treeLock);
+        // Avoid trouble with lock/refcount, before returning or not.
+        treeLock.release();
+        pHardDisk.setNull();
+        treeLock.acquire();
         if (FAILED(rc)) return rc;
     }
 
@@ -798,6 +802,10 @@ HRESULT VirtualBox::initMedia(const Guid &uuidRegistry,
         if (FAILED(rc)) return rc;
 
         rc = i_registerMedium(pImage, &pImage, treeLock);
+        // Avoid trouble with lock/refcount, before returning or not.
+        treeLock.release();
+        pImage.setNull();
+        treeLock.acquire();
         if (FAILED(rc)) return rc;
     }
 
@@ -819,6 +827,10 @@ HRESULT VirtualBox::initMedia(const Guid &uuidRegistry,
         if (FAILED(rc)) return rc;
 
         rc = i_registerMedium(pImage, &pImage, treeLock);
+        // Avoid trouble with lock/refcount, before returning or not.
+        treeLock.release();
+        pImage.setNull();
+        treeLock.acquire();
         if (FAILED(rc)) return rc;
     }
 
@@ -4012,15 +4024,17 @@ int VirtualBox::i_calculateFullPath(const Utf8Str &strPath, Utf8Str &aResult)
     AutoCaller autoCaller(this);
     AssertComRCReturn(autoCaller.rc(), VERR_GENERAL_FAILURE);
 
-    /* no need to lock since mHomeDir is const */
+    /* no need to lock since strHomeDir is const */
 
-    char folder[RTPATH_MAX];
+    char szFolder[RTPATH_MAX];
+    size_t cbFolder = sizeof(szFolder);
     int vrc = RTPathAbsEx(m->strHomeDir.c_str(),
                           strPath.c_str(),
-                          folder,
-                          sizeof(folder));
+                          RTPATH_STR_F_STYLE_HOST,
+                          szFolder,
+                          &cbFolder);
     if (RT_SUCCESS(vrc))
-        aResult = folder;
+        aResult = szFolder;
 
     return vrc;
 }
@@ -4930,7 +4944,7 @@ void VirtualBox::i_markRegistryModified(const Guid &uuid)
         if (SUCCEEDED(rc))
         {
             AutoCaller machineCaller(pMachine);
-            if (SUCCEEDED(machineCaller.rc()))
+            if (SUCCEEDED(machineCaller.rc()) && pMachine->i_isAccessible())
                 ASMAtomicIncU64(&pMachine->uRegistryNeedsSaving);
         }
     }

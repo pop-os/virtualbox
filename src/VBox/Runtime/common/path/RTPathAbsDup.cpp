@@ -30,9 +30,6 @@
 *********************************************************************************************************************************/
 #include "internal/iprt.h"
 #include <iprt/path.h>
-#include <iprt/errcore.h>
-#include <iprt/param.h>
-#include <iprt/string.h>
 
 
 /**
@@ -44,10 +41,6 @@
  */
 RTDECL(char *) RTPathAbsDup(const char *pszPath)
 {
-    char szPath[RTPATH_MAX];
-    int rc = RTPathAbs(pszPath, szPath, sizeof(szPath));
-    if (RT_SUCCESS(rc))
-        return RTStrDup(szPath);
-    return NULL;
+    return RTPathAbsExDup(NULL, pszPath, RTPATH_STR_F_STYLE_HOST);
 }
 
