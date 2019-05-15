@@ -36,7 +36,7 @@ out/bin/src/vboxdrv/math /usr/src/modules/virtualbox
 out/bin/src/vboxdrv/VBox /usr/src/modules/virtualbox
 out/bin/src/vboxdrv/include/iprt/nocrt /usr/src/modules/virtualbox/include/iprt
 
-debian/control debian/changelog debian/copyright debian/compat /usr/src/modules/virtualbox/debian
+debian/control debian/changelog debian/copyright /usr/src/modules/virtualbox/debian
 debian/virtualbox-source.files/control.modules.in /usr/src/modules/virtualbox/debian
 debian/virtualbox-source.files/postinst.modules.in /usr/src/modules/virtualbox/debian
 debian/virtualbox-source.files/udev /usr/src/modules/virtualbox/debian

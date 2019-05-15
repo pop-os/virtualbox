@@ -5,7 +5,7 @@ Maintainer: Debian Virtualbox Team <team+debian-virtualbox@tracker.debian.org>
 Uploaders: Ritesh Raj Sarraf <rrs@debian.org>,
            Gianfranco Costamagna <locutusofborg@debian.org>
 Build-Depends: bzip2,
-               debhelper (>= 10),
+               debhelper-compat (= 12),
                default-jdk,
                jaxws,
                dh-python,
@@ -144,7 +144,7 @@ Section: contrib/kernel
 Architecture: all
 Depends: build-essential,
          bzip2,
-         debhelper (>= 10),
+         debhelper-compat (= 12),
          kbuild,
          module-assistant,
          ${misc:Depends}
@@ -182,7 +182,7 @@ Section: contrib/kernel
 Architecture: all
 Depends: build-essential,
          bzip2,
-         debhelper (>= 10),
+         debhelper-compat (= 12),
          kbuild,
          module-assistant,
          ${misc:Depends}

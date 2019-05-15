@@ -7,4 +7,4 @@ out/bin/additions/src/vboxvideo/* /usr/src/modules/virtualbox-guest/vboxvideo
 debian/virtualbox-guest-source.files/Makefile /usr/src/modules/virtualbox-guest
 debian/virtualbox-guest-source.files/control.modules.in /usr/src/modules/virtualbox-guest/debian
 debian/virtualbox-guest-source.files/rules /usr/src/modules/virtualbox-guest/debian
-debian/control debian/changelog debian/copyright debian/compat /usr/src/modules/virtualbox-guest/debian
+debian/control debian/changelog debian/copyright /usr/src/modules/virtualbox-guest/debian

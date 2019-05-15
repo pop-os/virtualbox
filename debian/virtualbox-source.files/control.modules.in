@@ -4,7 +4,7 @@ Priority: optional
 Maintainer: Debian Virtualbox Team <team+debian-virtualbox@tracker.debian.org>
 Uploaders: Ritesh Raj Sarraf <rrs@debian.org>,
            Gianfranco Costamagna <locutusofborg@debian.org>
-Build-Depends: debhelper (>= 10), kbuild
+Build-Depends: debhelper-compat (= 12), kbuild
 Standards-Version: 4.3.0
 Homepage: https://www.virtualbox.org
 Vcs-Browser: https://salsa.debian.org/pkg-virtualbox-team/virtualbox

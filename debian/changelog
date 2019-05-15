@@ -1,3 +1,9 @@
+virtualbox (6.0.8-dfsg-2) unstable; urgency=medium
+
+  * Bump compat level to 12
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 15 May 2019 10:18:23 +0200
+
 virtualbox (6.0.8-dfsg-1) unstable; urgency=medium
 
   * New upstream version 6.0.8-dfsg
