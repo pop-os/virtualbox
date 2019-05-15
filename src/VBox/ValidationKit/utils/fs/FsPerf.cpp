@@ -87,6 +87,17 @@
 /*********************************************************************************************************************************
 *   Defined Constants And Macros                                                                                                 *
 *********************************************************************************************************************************/
+/** Used for cutting the the -d parameter value short and avoid a number of buffer overflow checks.  */
+#define FSPERF_MAX_NEEDED_PATH  224
+/** The max path used by this code.
+ * It greatly exceeds the RTPATH_MAX so we can push the limits on windows.  */
+#define FSPERF_MAX_PATH         (_32K)
+
+/** EOF marker character used by the master/slave comms.  */
+#define FSPERF_EOF              0x1a
+/** EOF marker character used by the master/slave comms, string version.  */
+#define FSPERF_EOF_STR          "\x1a"
+
 /** @def FSPERF_TEST_SENDFILE
  * Whether to enable the sendfile() tests. */
 #if defined(RT_OS_LINUX) || defined(RT_OS_DARWIN)
@@ -314,6 +325,8 @@ enum
     kCmdOpt_AddBlockSize,
     kCmdOpt_Copy,
     kCmdOpt_NoCopy,
+    kCmdOpt_Remote,
+    kCmdOpt_NoRemote,
 
     kCmdOpt_ShowDuration,
     kCmdOpt_NoShowDuration,
@@ -335,6 +348,9 @@ enum
 static const RTGETOPTDEF g_aCmdOptions[] =
 {
     { "--dir",              'd', RTGETOPT_REQ_STRING  },
+    { "--relative-dir",     'r', RTGETOPT_REQ_NOTHING },
+    { "--comms-dir",        'c', RTGETOPT_REQ_STRING  },
+    { "--comms-slave",      'C', RTGETOPT_REQ_NOTHING },
     { "--seconds",          's', RTGETOPT_REQ_UINT32  },
     { "--milliseconds",     'm', RTGETOPT_REQ_UINT64  },
 
@@ -404,6 +420,8 @@ static const RTGETOPTDEF g_aCmdOptions[] =
     { "--add-block-size",   kCmdOpt_AddBlockSize,   RTGETOPT_REQ_UINT32 },
     { "--copy",             kCmdOpt_Copy,           RTGETOPT_REQ_NOTHING },
     { "--no-copy",          kCmdOpt_NoCopy,         RTGETOPT_REQ_NOTHING },
+    { "--remote",           kCmdOpt_Remote,         RTGETOPT_REQ_NOTHING },
+    { "--no-remote",        kCmdOpt_NoRemote,       RTGETOPT_REQ_NOTHING },
 
     { "--show-duration",        kCmdOpt_ShowDuration,       RTGETOPT_REQ_NOTHING },
     { "--no-show-duration",     kCmdOpt_NoShowDuration,     RTGETOPT_REQ_NOTHING },
@@ -461,6 +479,7 @@ static bool         g_fSeek      = true;
 static bool         g_fFSync     = true;
 static bool         g_fMMap      = true;
 static bool         g_fCopy      = true;
+static bool         g_fRemote    = true;
 /** @} */
 
 /** The length of each test run. */
@@ -489,6 +508,8 @@ static uint64_t     g_cbIoFile                  = _512M;
 /** Whether to be less strict with non-cache file handle. */
 static bool         g_fIgnoreNoCache            = false;
 
+/** Set if g_szDir and friends are path relative to CWD rather than absolute. */
+static bool         g_fRelativeDir              = false;
 /** The length of g_szDir. */
 static size_t       g_cchDir;
 /** The length of g_szEmptyDir. */
@@ -496,15 +517,25 @@ static size_t       g_cchEmptyDir;
 /** The length of g_szDeepDir. */
 static size_t       g_cchDeepDir;
 
-/** The test directory (absolute).  This will always have a trailing slash. */
-static char         g_szDir[RTPATH_MAX];
-/** The test directory (absolute), 2nd copy for use with InDir2().  */
-static char         g_szDir2[RTPATH_MAX];
-/** The empty test directory (absolute). This will always have a trailing slash. */
-static char         g_szEmptyDir[RTPATH_MAX];
-/** The deep test directory (absolute). This will always have a trailing slash. */
-static char         g_szDeepDir[RTPATH_MAX];
+/** The length of g_szCommsDir. */
+static size_t       g_cchCommsDir;
+/** The length of g_szCommsSubDir. */
+static size_t       g_cchCommsSubDir;
 
+/** The test directory (absolute).  This will always have a trailing slash. */
+static char         g_szDir[FSPERF_MAX_PATH];
+/** The test directory (absolute), 2nd copy for use with InDir2().  */
+static char         g_szDir2[FSPERF_MAX_PATH];
+/** The empty test directory (absolute). This will always have a trailing slash. */
+static char         g_szEmptyDir[FSPERF_MAX_PATH];
+/** The deep test directory (absolute). This will always have a trailing slash. */
+static char         g_szDeepDir[FSPERF_MAX_PATH + _1K];
+
+/** The communcations directory.  This will always have a trailing slash. */
+static char         g_szCommsDir[FSPERF_MAX_PATH];
+/** The communcations subdirectory used for the actual communication.  This will
+ * always have a trailing slash. */
+static char         g_szCommsSubDir[FSPERF_MAX_PATH];
 
 /**
  * Yield the CPU and stuff before starting a test run.
@@ -608,6 +639,1109 @@ DECLINLINE(char *) InDeepDir(const char *pszAppend, size_t cchAppend)
     return &g_szDeepDir[0];
 }
 
+
+
+/*********************************************************************************************************************************
+*   Slave FsPerf Instance Interaction.                                                                                           *
+*********************************************************************************************************************************/
+
+/**
+ * Construct a path relative to the comms directory.
+ *
+ * @returns g_szCommsDir.
+ * @param   pszAppend           What to append.
+ * @param   cchAppend           How much to append.
+ */
+DECLINLINE(char *) InCommsDir(const char *pszAppend, size_t cchAppend)
+{
+    Assert(g_szCommsDir[g_cchCommsDir - 1] == RTPATH_SLASH);
+    memcpy(&g_szCommsDir[g_cchCommsDir], pszAppend, cchAppend);
+    g_szCommsDir[g_cchCommsDir + cchAppend] = '\0';
+    return &g_szCommsDir[0];
+}
+
+
+/**
+ * Construct a path relative to the comms sub-directory.
+ *
+ * @returns g_szCommsSubDir.
+ * @param   pszAppend           What to append.
+ * @param   cchAppend           How much to append.
+ */
+DECLINLINE(char *) InCommsSubDir(const char *pszAppend, size_t cchAppend)
+{
+    Assert(g_szCommsSubDir[g_cchCommsSubDir - 1] == RTPATH_SLASH);
+    memcpy(&g_szCommsSubDir[g_cchCommsSubDir], pszAppend, cchAppend);
+    g_szCommsSubDir[g_cchCommsSubDir + cchAppend] = '\0';
+    return &g_szCommsSubDir[0];
+}
+
+
+/**
+ * Creates a file under g_szCommsDir with the given content.
+ *
+ * Will modify g_szCommsDir to contain the given filename.
+ *
+ * @returns IPRT status code (fully bitched).
+ * @param   pszFilename         The filename.
+ * @param   cchFilename         The length of the filename.
+ * @param   pszContent          The file content.
+ * @param   cchContent          The length of the file content.
+ */
+static int FsPerfCommsWriteFile(const char *pszFilename, size_t cchFilename, const char *pszContent, size_t cchContent)
+{
+    RTFILE hFile;
+    int rc = RTFileOpen(&hFile, InCommsDir(pszFilename, cchFilename),
+                        RTFILE_O_WRITE | RTFILE_O_DENY_NONE | RTFILE_O_CREATE_REPLACE);
+    if (RT_SUCCESS(rc))
+    {
+        rc = RTFileWrite(hFile, pszContent, cchContent, NULL);
+        if (RT_FAILURE(rc))
+            RTMsgError("Error writing %#zx bytes to '%s': %Rrc", cchContent, g_szCommsDir, rc);
+
+        int rc2 = RTFileClose(hFile);
+        if (RT_FAILURE(rc2))
+        {
+            RTMsgError("Error closing to '%s': %Rrc", g_szCommsDir, rc);
+            rc = rc2;
+        }
+        if (RT_SUCCESS(rc) && g_uVerbosity >= 3)
+            RTMsgInfo("comms: wrote '%s'\n", g_szCommsDir);
+        if (RT_FAILURE(rc))
+            RTFileDelete(g_szCommsDir);
+    }
+    else
+        RTMsgError("Failed to create '%s': %Rrc", g_szCommsDir, rc);
+    return rc;
+}
+
+
+/**
+ * Creates a file under g_szCommsDir with the given content, then renames it
+ * into g_szCommsSubDir.
+ *
+ * Will modify g_szCommsSubDir to contain the final filename and g_szCommsDir to
+ * hold the temporary one.
+ *
+ * @returns IPRT status code (fully bitched).
+ * @param   pszFilename         The filename.
+ * @param   cchFilename         The length of the filename.
+ * @param   pszContent          The file content.
+ * @param   cchContent          The length of the file content.
+ */
+static int FsPerfCommsWriteFileAndRename(const char *pszFilename, size_t cchFilename, const char *pszContent, size_t cchContent)
+{
+    int rc = FsPerfCommsWriteFile(pszFilename, cchFilename, pszContent, cchContent);
+    if (RT_SUCCESS(rc))
+    {
+        rc = RTFileRename(g_szCommsDir, InCommsSubDir(pszFilename, cchFilename), RTPATHRENAME_FLAGS_REPLACE);
+        if (RT_SUCCESS(rc) && g_uVerbosity >= 3)
+            RTMsgInfo("comms: placed '%s'\n", g_szCommsSubDir);
+        if (RT_FAILURE(rc))
+        {
+            RTMsgError("Error renaming '%s' to '%s': %Rrc", g_szCommsDir, g_szCommsSubDir, rc);
+            RTFileDelete(g_szCommsDir);
+        }
+    }
+    return rc;
+}
+
+
+/**
+ * Reads the given file from the comms subdir, ensuring that it is terminated by
+ * an EOF (0x1a) character.
+ *
+ * @returns IPRT status code.
+ * @retval  VERR_TRY_AGAIN if the file is incomplete.
+ * @retval  VERR_FILE_TOO_BIG if the file is considered too big.
+ * @retval  VERR_FILE_NOT_FOUND if not found.
+ *
+ * @param   iSeqNo        The sequence number.
+ * @param   pszSuffix     The filename suffix.
+ * @param   ppszContent   Where to return the content.
+ */
+static int FsPerfCommsReadFile(uint32_t iSeqNo, const char *pszSuffix, char **ppszContent)
+{
+    *ppszContent = NULL;
+
+    RTStrPrintf(&g_szCommsSubDir[g_cchCommsSubDir], sizeof(g_szCommsSubDir) - g_cchCommsSubDir, "%u%s", iSeqNo, pszSuffix);
+    RTFILE hFile;
+    int rc = RTFileOpen(&hFile, g_szCommsSubDir, RTFILE_O_READ | RTFILE_O_DENY_NONE | RTFILE_O_OPEN);
+    if (RT_SUCCESS(rc))
+    {
+        size_t cbUsed  = 0;
+        size_t cbAlloc = 1024;
+        char  *pszBuf  = (char *)RTMemAllocZ(cbAlloc);
+        for (;;)
+        {
+            /* Do buffer resizing. */
+            size_t cbMaxRead = cbAlloc - cbUsed - 1;
+            if (cbMaxRead < 8)
+            {
+                if (cbAlloc < _1M)
+                {
+                    cbAlloc *= 2;
+                    void *pvRealloced = RTMemRealloc(pszBuf, cbAlloc);
+                    if (!pvRealloced)
+                    {
+                        rc = VERR_NO_MEMORY;
+                        break;
+                    }
+                    pszBuf = (char *)pvRealloced;
+                    RT_BZERO(&pszBuf[cbAlloc / 2], cbAlloc);
+                    cbMaxRead = cbAlloc - cbUsed - 1;
+                }
+                else
+                {
+                    RTMsgError("File '%s' is too big - giving up at 1MB", g_szCommsSubDir);
+                    rc = VERR_FILE_TOO_BIG;
+                    break;
+                }
+            }
+
+            /* Do the reading. */
+            size_t cbActual = 0;
+            rc = RTFileRead(hFile, &pszBuf[cbUsed], cbMaxRead, &cbActual);
+            if (RT_SUCCESS(rc))
+                cbUsed += cbActual;
+            else
+            {
+                RTMsgError("Failed to read '%s': %Rrc", g_szCommsSubDir, rc);
+                break;
+            }
+
+            /* EOF? */
+            if (cbActual < cbMaxRead)
+                break;
+        }
+
+        RTFileClose(hFile);
+
+        /*
+         * Check if the file ends with the EOF marker.
+         */
+        if (   RT_SUCCESS(rc)
+            && (   cbUsed == 0
+                || pszBuf[cbUsed - 1] != FSPERF_EOF))
+            rc = VERR_TRY_AGAIN;
+
+        /*
+         * Return or free the content we've read.
+         */
+        if (RT_SUCCESS(rc))
+            *ppszContent = pszBuf;
+        else
+            RTMemFree(pszBuf);
+    }
+    else if (rc != VERR_FILE_NOT_FOUND && rc != VERR_SHARING_VIOLATION)
+        RTMsgError("Failed to open '%s': %Rrc", g_szCommsSubDir, rc);
+    return rc;
+}
+
+
+/**
+ * FsPerfCommsReadFile + renaming from the comms subdir to the comms dir.
+ *
+ * g_szCommsSubDir holds the original filename and g_szCommsDir the final
+ * filename on success.
+ */
+static int FsPerfCommsReadFileAndRename(uint32_t iSeqNo, const char *pszSuffix, const char *pszRenameSuffix, char **ppszContent)
+{
+    RTStrPrintf(&g_szCommsDir[g_cchCommsDir], sizeof(g_szCommsDir) - g_cchCommsDir, "%u%s", iSeqNo, pszRenameSuffix);
+    int rc = FsPerfCommsReadFile(iSeqNo, pszSuffix, ppszContent);
+    if (RT_SUCCESS(rc))
+    {
+        rc = RTFileRename(g_szCommsSubDir, g_szCommsDir, RTPATHRENAME_FLAGS_REPLACE);
+        if (RT_FAILURE(rc))
+        {
+            RTMsgError("Error renaming '%s' to '%s': %Rrc", g_szCommsSubDir, g_szCommsDir, rc);
+            RTMemFree(*ppszContent);
+            *ppszContent = NULL;
+        }
+    }
+    return rc;
+}
+
+
+/** The comms master sequence number.   */
+static uint32_t g_iSeqNoMaster = 0;
+
+
+/**
+ * Sends a script to the remote comms slave.
+ *
+ * @returns IPRT status code giving the scripts execution status.
+ * @param   pszScript           The script.
+ */
+static int FsPerfCommsSend(const char *pszScript)
+{
+    /*
+     * Make sure the script is correctly terminated with an EOF control character.
+     */
+    size_t const cchScript = strlen(pszScript);
+    AssertReturn(cchScript > 0 && pszScript[cchScript - 1] == FSPERF_EOF, VERR_INVALID_PARAMETER);
+
+    /*
+     * Make sure the comms slave is running.
+     */
+    if (!RTFileExists(InCommsDir(RT_STR_TUPLE("slave.pid"))))
+        return VERR_PIPE_NOT_CONNECTED;
+
+    /*
+     * Format all the names we might want to check for.
+     */
+    char         szSendNm[32];
+    size_t const cchSendNm = RTStrPrintf(szSendNm, sizeof(szSendNm), "%u-order.send", g_iSeqNoMaster);
+
+    char         szAckNm[64];
+    size_t const cchAckNm  = RTStrPrintf(szAckNm, sizeof(szAckNm),   "%u-order.ack", g_iSeqNoMaster);
+
+    /*
+     * Produce the script file and submit it.
+     */
+    int rc = FsPerfCommsWriteFileAndRename(szSendNm, cchSendNm, pszScript, cchScript);
+    if (RT_SUCCESS(rc))
+    {
+        g_iSeqNoMaster++;
+
+        /*
+         * Wait for the result.
+         */
+        uint64_t const msTimeout = RT_MS_1MIN / 2;
+        uint64_t msStart         = RTTimeMilliTS();
+        uint32_t msSleepX4       = 4;
+        for (;;)
+        {
+            /* Try read the result file: */
+            char *pszContent = NULL;
+            rc = FsPerfCommsReadFile(g_iSeqNoMaster - 1, "-order.done", &pszContent);
+            if (RT_SUCCESS(rc))
+            {
+                /* Split the result content into status code and error text: */
+                char *pszErrorText = strchr(pszContent, '\n');
+                if (pszErrorText)
+                {
+                    *pszErrorText = '\0';
+                    pszErrorText++;
+                }
+                else
+                {
+                    char *pszEnd = strchr(pszContent, '\0');
+                    Assert(pszEnd[-1] == FSPERF_EOF);
+                    pszEnd[-1] = '\0';
+                }
+
+                /* Parse the status code: */
+                int32_t rcRemote = VERR_GENERAL_FAILURE;
+                rc = RTStrToInt32Full(pszContent, 0,  &rcRemote);
+                if (rc != VINF_SUCCESS)
+                {
+                    RTTestIFailed("FsPerfCommsSend: Failed to convert status code '%s'", pszContent);
+                    rcRemote = VERR_GENERAL_FAILURE;
+                }
+
+                /* Display or return the text? */
+                if (RT_SUCCESS(rc) && g_uVerbosity >= 2)
+                    RTMsgInfo("comms: order #%u: %Rrc%s%s\n",
+                              g_iSeqNoMaster - 1, rcRemote, *pszErrorText ? " - " : "", pszErrorText);
+
+                RTMemFree(pszContent);
+                return rcRemote;
+            }
+
+            if (rc == VERR_TRY_AGAIN)
+                msSleepX4 = 4;
+
+            /* Check for timeout. */
+            if (RTTimeMilliTS() - msStart > msTimeout)
+            {
+                if (RT_SUCCESS(rc) && g_uVerbosity >= 2)
+                    RTMsgInfo("comms: timed out waiting for order #%u'\n", g_iSeqNoMaster - 1);
+
+                rc = RTFileDelete(InCommsSubDir(szSendNm, cchSendNm));
+                if (RT_SUCCESS(rc))
+                {
+                    g_iSeqNoMaster--;
+                    rc = VERR_TIMEOUT;
+                }
+                else if (RTFileExists(InCommsDir(szAckNm, cchAckNm)))
+                    rc = VERR_PIPE_BUSY;
+                else
+                    rc = VERR_PIPE_IO_ERROR;
+                break;
+            }
+
+            /* Sleep a little while. */
+            msSleepX4++;
+            RTThreadSleep(msSleepX4 / 4);
+        }
+    }
+    return rc;
+}
+
+
+/**
+ * Shuts down the comms slave if it exists.
+ */
+static void FsPerfCommsShutdownSlave(void)
+{
+    static bool s_fAlreadyShutdown = false;
+    if (g_szCommsDir[0] != '\0' && !s_fAlreadyShutdown)
+    {
+        s_fAlreadyShutdown = true;
+        FsPerfCommsSend("exit" FSPERF_EOF_STR);
+
+        g_szCommsDir[g_cchCommsDir] = '\0';
+        int rc = RTDirRemoveRecursive(g_szCommsDir, RTDIRRMREC_F_CONTENT_AND_DIR | (g_fRelativeDir ? RTDIRRMREC_F_NO_ABS_PATH : 0));
+        if (RT_FAILURE(rc))
+            RTTestFailed(g_hTest, "RTDirRemoveRecursive(%s,) -> %Rrc\n", g_szCommsDir, rc);
+    }
+}
+
+
+
+/*********************************************************************************************************************************
+*   Comms Slave                                                                                                                  *
+*********************************************************************************************************************************/
+
+typedef struct FSPERFCOMMSSLAVESTATE
+{
+    uint32_t        iSeqNo;
+    bool            fTerminate;
+    RTEXITCODE      rcExit;
+    RTFILE          ahFiles[8];
+    char           *apszFilenames[8];
+
+    /** The current command. */
+    const char     *pszCommand;
+    /** The current line number. */
+    uint32_t        iLineNo;
+    /** The current line content. */
+    const char     *pszLine;
+    /** Where to return extra error info text. */
+    RTERRINFOSTATIC ErrInfo;
+} FSPERFCOMMSSLAVESTATE;
+
+
+static void FsPerfSlaveStateInit(FSPERFCOMMSSLAVESTATE *pState)
+{
+    pState->iSeqNo     = 0;
+    pState->fTerminate = false;
+    pState->rcExit     = RTEXITCODE_SUCCESS;
+    unsigned i = RT_ELEMENTS(pState->ahFiles);
+    while (i-- > 0)
+    {
+        pState->ahFiles[i]       = NIL_RTFILE;
+        pState->apszFilenames[i] = NULL;
+    }
+    RTErrInfoInitStatic(&pState->ErrInfo);
+}
+
+
+static void FsPerfSlaveStateCleanup(FSPERFCOMMSSLAVESTATE *pState)
+{
+    unsigned i = RT_ELEMENTS(pState->ahFiles);
+    while (i-- > 0)
+    {
+        if (pState->ahFiles[i] != NIL_RTFILE)
+        {
+            RTFileClose(pState->ahFiles[i]);
+            pState->ahFiles[i] = NIL_RTFILE;
+        }
+        if (pState->apszFilenames[i] != NULL)
+        {
+            RTStrFree(pState->apszFilenames[i]);
+            pState->apszFilenames[i] = NULL;
+        }
+    }
+}
+
+
+/** Helper reporting a error. */
+static int FsPerfSlaveError(FSPERFCOMMSSLAVESTATE *pState, int rc, const char *pszError, ...)
+{
+    va_list va;
+    va_start(va, pszError);
+    RTErrInfoSetF(&pState->ErrInfo.Core, VERR_PARSE_ERROR, "line %u: %s: error: %N",
+                  pState->iLineNo, pState->pszCommand, pszError, &va);
+    va_end(va);
+    return rc;
+}
+
+
+/** Helper reporting a syntax error. */
+static int FsPerfSlaveSyntax(FSPERFCOMMSSLAVESTATE *pState, const char *pszError, ...)
+{
+    va_list va;
+    va_start(va, pszError);
+    RTErrInfoSetF(&pState->ErrInfo.Core, VERR_PARSE_ERROR, "line %u: %s: syntax error: %N",
+                  pState->iLineNo, pState->pszCommand, pszError, &va);
+    va_end(va);
+    return VERR_PARSE_ERROR;
+}
+
+
+/** Helper for parsing an unsigned 64-bit integer argument. */
+static int FsPerfSlaveParseU64(FSPERFCOMMSSLAVESTATE *pState, const char *pszArg, const char *pszName,
+                               unsigned uBase, uint64_t uMin, uint64_t uLast, uint64_t *puValue)
+{
+    *puValue = uMin;
+    uint64_t uValue;
+    int rc = RTStrToUInt64Full(pszArg, uBase, &uValue);
+    if (RT_FAILURE(rc))
+        return FsPerfSlaveSyntax(pState, "invalid %s: %s (RTStrToUInt64Full -> %Rrc)", pszName, pszArg, rc);
+    if (uValue < uMin || uValue > uLast)
+        return FsPerfSlaveSyntax(pState, "%s is out of range: %u, valid range %u..%u", pszName, uValue, uMin, uLast);
+    *puValue = uValue;
+    return VINF_SUCCESS;
+}
+
+
+/** Helper for parsing an unsigned 32-bit integer argument. */
+static int FsPerfSlaveParseU32(FSPERFCOMMSSLAVESTATE *pState, const char *pszArg, const char *pszName,
+                               unsigned uBase, uint32_t uMin, uint32_t uLast, uint32_t *puValue)
+{
+    *puValue = uMin;
+    uint32_t uValue;
+    int rc = RTStrToUInt32Full(pszArg, uBase, &uValue);
+    if (RT_FAILURE(rc))
+        return FsPerfSlaveSyntax(pState, "invalid %s: %s (RTStrToUInt32Full -> %Rrc)", pszName, pszArg, rc);
+    if (uValue < uMin || uValue > uLast)
+        return FsPerfSlaveSyntax(pState, "%s is out of range: %u, valid range %u..%u", pszName, uValue, uMin, uLast);
+    *puValue = uValue;
+    return VINF_SUCCESS;
+}
+
+
+/** Helper for parsing a file handle index argument.   */
+static int FsPerfSlaveParseFileIdx(FSPERFCOMMSSLAVESTATE *pState, const char *pszArg, uint32_t *pidxFile)
+{
+    return FsPerfSlaveParseU32(pState, pszArg, "file index", 0, 0, RT_ELEMENTS(pState->ahFiles) - 1, pidxFile);
+}
+
+
+/**
+ * 'open {idxFile} {filename} {access} {disposition} [sharing] [mode]'
+ */
+static int FsPerfSlaveHandleOpen(FSPERFCOMMSSLAVESTATE *pState, char **papszArgs, int cArgs)
+{
+    /*
+     * Parse parameters.
+     */
+    if (cArgs > 1 + 6 || cArgs < 1 + 4)
+        return FsPerfSlaveSyntax(pState, "takes four to six arguments, not %u", cArgs);
+
+    uint32_t idxFile;
+    int rc = FsPerfSlaveParseFileIdx(pState, papszArgs[1], &idxFile);
+    if (RT_FAILURE(rc))
+        return rc;
+
+    const char *pszFilename = papszArgs[2];
+
+    uint64_t fOpen = 0;
+    rc = RTFileModeToFlagsEx(papszArgs[3], papszArgs[4], papszArgs[5], &fOpen);
+    if (RT_FAILURE(rc))
+        return FsPerfSlaveSyntax(pState, "failed to parse access (%s), disposition (%s) and sharing (%s): %Rrc",
+                                 papszArgs[3], papszArgs[4], papszArgs[5] ? papszArgs[5] : "", rc);
+
+    uint32_t uMode = 0660;
+    if (cArgs >= 1 + 6)
+    {
+        rc = FsPerfSlaveParseU32(pState, papszArgs[6], "mode", 8, 0, 0777, &uMode);
+        if (RT_FAILURE(rc))
+            return rc;
+        fOpen |= uMode << RTFILE_O_CREATE_MODE_SHIFT;
+    }
+
+    /*
+     * Is there already a file assigned to the file handle index?
+     */
+    if (pState->ahFiles[idxFile] != NIL_RTFILE)
+        return FsPerfSlaveError(pState, VERR_RESOURCE_BUSY, "handle #%u is already in use for '%s'",
+                                idxFile, pState->apszFilenames[idxFile]);
+
+    /*
+     * Check the filename length.
+     */
+    size_t const cchFilename = strlen(pszFilename);
+    if (g_cchDir + cchFilename >= sizeof(g_szDir))
+        return FsPerfSlaveError(pState, VERR_FILENAME_TOO_LONG, "'%.*s%s'", g_cchDir, g_szDir, pszFilename);
+
+    /*
+     * Duplicate the name and execute the command.
+     */
+    char *pszDup = RTStrDup(pszFilename);
+    if (!pszDup)
+        return FsPerfSlaveError(pState, VERR_NO_STR_MEMORY, "out of memory");
+
+    RTFILE hFile = NIL_RTFILE;
+    rc = RTFileOpen(&hFile, InDir(pszFilename, cchFilename), fOpen);
+    if (RT_SUCCESS(rc))
+    {
+        pState->ahFiles[idxFile]       = hFile;
+        pState->apszFilenames[idxFile] = pszDup;
+    }
+    else
+    {
+        RTStrFree(pszDup);
+        rc = FsPerfSlaveError(pState, rc, "%s: %Rrc", pszFilename, rc);
+    }
+    return rc;
+}
+
+
+/**
+ * 'close {idxFile}'
+ */
+static int FsPerfSlaveHandleClose(FSPERFCOMMSSLAVESTATE *pState, char **papszArgs, int cArgs)
+{
+    /*
+     * Parse parameters.
+     */
+    if (cArgs > 1 + 1)
+        return FsPerfSlaveSyntax(pState, "takes exactly one argument, not %u", cArgs);
+
+    uint32_t idxFile;
+    int rc = FsPerfSlaveParseFileIdx(pState, papszArgs[1], &idxFile);
+    if (RT_SUCCESS(rc))
+    {
+        /*
+         * Do it.
+         */
+        rc = RTFileClose(pState->ahFiles[idxFile]);
+        if (RT_SUCCESS(rc))
+        {
+            pState->ahFiles[idxFile] = NIL_RTFILE;
+            RTStrFree(pState->apszFilenames[idxFile]);
+            pState->apszFilenames[idxFile] = NULL;
+        }
+    }
+    return rc;
+}
+
+/** @name Patterns for 'writepattern'
+ * @{ */
+static uint8_t const g_abPattern0[]  = { 0xf0 };
+static uint8_t const g_abPattern1[]  = { 0xf1 };
+static uint8_t const g_abPattern2[]  = { 0xf2 };
+static uint8_t const g_abPattern3[]  = { 0xf3 };
+static uint8_t const g_abPattern4[]  = { 0xf4 };
+static uint8_t const g_abPattern5[]  = { 0xf5 };
+static uint8_t const g_abPattern6[]  = { 0xf6 };
+static uint8_t const g_abPattern7[]  = { 0xf7 };
+static uint8_t const g_abPattern8[]  = { 0xf8 };
+static uint8_t const g_abPattern9[]  = { 0xf9 };
+static uint8_t const g_abPattern10[] = { 0x1f, 0x4e, 0x99, 0xec, 0x71, 0x71, 0x48, 0x0f, 0xa7, 0x5c, 0xb4, 0x5a, 0x1f, 0xc7, 0xd0, 0x93 };
+static struct
+{
+    uint8_t const  *pb;
+    uint32_t        cb;
+} const g_aPatterns[] =
+{
+    { g_abPattern0,  sizeof(g_abPattern0) },
+    { g_abPattern1,  sizeof(g_abPattern1) },
+    { g_abPattern2,  sizeof(g_abPattern2) },
+    { g_abPattern3,  sizeof(g_abPattern3) },
+    { g_abPattern4,  sizeof(g_abPattern4) },
+    { g_abPattern5,  sizeof(g_abPattern5) },
+    { g_abPattern6,  sizeof(g_abPattern6) },
+    { g_abPattern7,  sizeof(g_abPattern7) },
+    { g_abPattern8,  sizeof(g_abPattern8) },
+    { g_abPattern9,  sizeof(g_abPattern9) },
+    { g_abPattern10, sizeof(g_abPattern10) },
+};
+/** @} */
+
+/**
+ * 'writepattern {idxFile} {offFile} {idxPattern} {cbToWrite}'
+ */
+static int FsPerfSlaveHandleWritePattern(FSPERFCOMMSSLAVESTATE *pState, char **papszArgs, int cArgs)
+{
+    /*
+     * Parse parameters.
+     */
+    if (cArgs > 1 + 4)
+        return FsPerfSlaveSyntax(pState, "takes exactly four arguments, not %u", cArgs);
+
+    uint32_t idxFile;
+    int rc = FsPerfSlaveParseFileIdx(pState, papszArgs[1], &idxFile);
+    if (RT_FAILURE(rc))
+        return rc;
+
+    uint64_t offFile;
+    rc = FsPerfSlaveParseU64(pState, papszArgs[2], "file offset", 0, 0, UINT64_MAX / 4, &offFile);
+    if (RT_FAILURE(rc))
+        return rc;
+
+    uint32_t idxPattern;
+    rc = FsPerfSlaveParseU32(pState, papszArgs[3], "pattern index", 0, 0, RT_ELEMENTS(g_aPatterns) - 1, &idxPattern);
+    if (RT_FAILURE(rc))
+        return rc;
+
+    uint64_t cbToWrite;
+    rc = FsPerfSlaveParseU64(pState, papszArgs[4], "number of bytes to write", 0, 0, _1G, &cbToWrite);
+    if (RT_FAILURE(rc))
+        return rc;
+
+    if (pState->ahFiles[idxFile] == NIL_RTFILE)
+        return FsPerfSlaveError(pState, VERR_INVALID_HANDLE, "no open file at index #%u", idxFile);
+
+    /*
+     * Allocate a suitable buffer.
+     */
+    size_t   cbBuf = cbToWrite >= _2M ? _2M : RT_ALIGN_Z((size_t)cbToWrite, 512);
+    uint8_t *pbBuf = (uint8_t *)RTMemTmpAlloc(cbBuf);
+    if (!pbBuf)
+    {
+        cbBuf = _4K;
+        pbBuf = (uint8_t *)RTMemTmpAlloc(cbBuf);
+        if (!pbBuf)
+            return FsPerfSlaveError(pState, VERR_NO_TMP_MEMORY, "failed to allocate 4KB for buffers");
+    }
+
+    /*
+     * Fill 1 byte patterns before we start looping.
+     */
+    if (g_aPatterns[idxPattern].cb == 1)
+        memset(pbBuf, g_aPatterns[idxPattern].pb[0], cbBuf);
+
+    /*
+     * The write loop.
+     */
+    uint32_t offPattern = 0;
+    while (cbToWrite > 0)
+    {
+        /*
+         * Fill the buffer if multi-byte pattern (single byte patterns are handled before the loop):
+         */
+        if (g_aPatterns[idxPattern].cb > 1)
+        {
+            uint32_t const        cbSrc = g_aPatterns[idxPattern].cb;
+            uint8_t const * const pbSrc = g_aPatterns[idxPattern].pb;
+            size_t                cbDst = cbBuf;
+            uint8_t              *pbDst = pbBuf;
+
+            /* first iteration, potential partial pattern. */
+            if (offPattern >= cbSrc)
+                offPattern = 0;
+            size_t cbThis1 = RT_MIN(g_aPatterns[idxPattern].cb - offPattern, cbToWrite);
+            memcpy(pbDst, &pbSrc[offPattern], cbThis1);
+            cbDst -= cbThis1;
+            if (cbDst > 0)
+            {
+                pbDst += cbThis1;
+                offPattern = 0;
+
+                /* full patterns */
+                while (cbDst >= cbSrc)
+                {
+                    memcpy(pbDst, pbSrc, cbSrc);
+                    pbDst += cbSrc;
+                    cbDst -= cbSrc;
+                }
+
+                /* partial final copy */
+                if (cbDst > 0)
+                {
+                    memcpy(pbDst, pbSrc, cbDst);
+                    offPattern = (uint32_t)cbDst;
+                }
+            }
+        }
+
+        /*
+         * Write.
+         */
+        size_t const cbThisWrite = (size_t)RT_MIN(cbToWrite, cbBuf);
+        rc = RTFileWriteAt(pState->ahFiles[idxFile], offFile, pbBuf, cbThisWrite, NULL);
+        if (RT_FAILURE(rc))
+        {
+            FsPerfSlaveError(pState, rc, "error writing %#zx bytes at %#RX64: %Rrc (file: %s)",
+                             cbThisWrite, offFile, rc, pState->apszFilenames[idxFile]);
+            break;
+        }
+
+        offFile   += cbThisWrite;
+        cbToWrite -= cbThisWrite;
+    }
+
+    RTMemTmpFree(pbBuf);
+    return rc;
+}
+
+
+/**
+ * 'truncate {idxFile} {cbFile}'
+ */
+static int FsPerfSlaveHandleTruncate(FSPERFCOMMSSLAVESTATE *pState, char **papszArgs, int cArgs)
+{
+    /*
+     * Parse parameters.
+     */
+    if (cArgs != 1 + 2)
+        return FsPerfSlaveSyntax(pState, "takes exactly two arguments, not %u", cArgs);
+
+    uint32_t idxFile;
+    int rc = FsPerfSlaveParseFileIdx(pState, papszArgs[1], &idxFile);
+    if (RT_FAILURE(rc))
+        return rc;
+
+    uint64_t cbFile;
+    rc = FsPerfSlaveParseU64(pState, papszArgs[2], "new file size", 0, 0, UINT64_MAX / 4, &cbFile);
+    if (RT_FAILURE(rc))
+        return rc;
+
+    if (pState->ahFiles[idxFile] == NIL_RTFILE)
+        return FsPerfSlaveError(pState, VERR_INVALID_HANDLE, "no open file at index #%u", idxFile);
+
+    /*
+     * Execute.
+     */
+    rc = RTFileSetSize(pState->ahFiles[idxFile], cbFile);
+    if (RT_FAILURE(rc))
+        return FsPerfSlaveError(pState, rc, "failed to set file size to %#RX64: %Rrc (file: %s)",
+                                cbFile, rc, pState->apszFilenames[idxFile]);
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * 'futimes {idxFile} {modified|0} [access|0] [change|0] [birth|0]'
+ */
+static int FsPerfSlaveHandleFUTimes(FSPERFCOMMSSLAVESTATE *pState, char **papszArgs, int cArgs)
+{
+    /*
+     * Parse parameters.
+     */
+    if (cArgs < 1 + 2 || cArgs > 1 + 5)
+        return FsPerfSlaveSyntax(pState, "takes between two and five arguments, not %u", cArgs);
+
+    uint32_t idxFile;
+    int rc = FsPerfSlaveParseFileIdx(pState, papszArgs[1], &idxFile);
+    if (RT_FAILURE(rc))
+        return rc;
+
+    uint64_t nsModifiedTime;
+    rc = FsPerfSlaveParseU64(pState, papszArgs[2], "modified time", 0, 0, UINT64_MAX, &nsModifiedTime);
+    if (RT_FAILURE(rc))
+        return rc;
+
+    uint64_t nsAccessTime = 0;
+    if (cArgs >= 1 + 3)
+    {
+        rc = FsPerfSlaveParseU64(pState, papszArgs[3], "access time", 0, 0, UINT64_MAX, &nsAccessTime);
+        if (RT_FAILURE(rc))
+            return rc;
+    }
+
+    uint64_t nsChangeTime = 0;
+    if (cArgs >= 1 + 4)
+    {
+        rc = FsPerfSlaveParseU64(pState, papszArgs[4], "change time", 0, 0, UINT64_MAX, &nsChangeTime);
+        if (RT_FAILURE(rc))
+            return rc;
+    }
+
+    uint64_t nsBirthTime = 0;
+    if (cArgs >= 1 + 5)
+    {
+        rc = FsPerfSlaveParseU64(pState, papszArgs[4], "birth time", 0, 0, UINT64_MAX, &nsBirthTime);
+        if (RT_FAILURE(rc))
+            return rc;
+    }
+
+    if (pState->ahFiles[idxFile] == NIL_RTFILE)
+        return FsPerfSlaveError(pState, VERR_INVALID_HANDLE, "no open file at index #%u", idxFile);
+
+    /*
+     * Execute.
+     */
+    RTTIMESPEC ModifiedTime;
+    RTTIMESPEC AccessTime;
+    RTTIMESPEC ChangeTime;
+    RTTIMESPEC BirthTime;
+    rc = RTFileSetTimes(pState->ahFiles[idxFile],
+                        nsAccessTime   ? RTTimeSpecSetNano(&AccessTime, nsAccessTime) : NULL,
+                        nsModifiedTime ? RTTimeSpecSetNano(&ModifiedTime, nsModifiedTime) : NULL,
+                        nsChangeTime   ? RTTimeSpecSetNano(&ChangeTime, nsChangeTime) : NULL,
+                        nsBirthTime    ? RTTimeSpecSetNano(&BirthTime, nsBirthTime) : NULL);
+    if (RT_FAILURE(rc))
+        return FsPerfSlaveError(pState, rc, "failed to set file times to %RI64, %RI64, %RI64, %RI64: %Rrc (file: %s)",
+                                nsModifiedTime, nsAccessTime, nsChangeTime, nsBirthTime, rc, pState->apszFilenames[idxFile]);
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * 'fchmod {idxFile} {cbFile}'
+ */
+static int FsPerfSlaveHandleFChMod(FSPERFCOMMSSLAVESTATE *pState, char **papszArgs, int cArgs)
+{
+    /*
+     * Parse parameters.
+     */
+    if (cArgs != 1 + 2)
+        return FsPerfSlaveSyntax(pState, "takes exactly two arguments, not %u", cArgs);
+
+    uint32_t idxFile;
+    int rc = FsPerfSlaveParseFileIdx(pState, papszArgs[1], &idxFile);
+    if (RT_FAILURE(rc))
+        return rc;
+
+    uint32_t fAttribs;
+    rc = FsPerfSlaveParseU32(pState, papszArgs[2], "new file attributes", 0, 0, UINT32_MAX, &fAttribs);
+    if (RT_FAILURE(rc))
+        return rc;
+
+    if (pState->ahFiles[idxFile] == NIL_RTFILE)
+        return FsPerfSlaveError(pState, VERR_INVALID_HANDLE, "no open file at index #%u", idxFile);
+
+    /*
+     * Execute.
+     */
+    rc = RTFileSetMode(pState->ahFiles[idxFile], fAttribs);
+    if (RT_FAILURE(rc))
+        return FsPerfSlaveError(pState, rc, "failed to set file mode to %#RX32: %Rrc (file: %s)",
+                                fAttribs, rc, pState->apszFilenames[idxFile]);
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * 'reset'
+ */
+static int FsPerfSlaveHandleReset(FSPERFCOMMSSLAVESTATE *pState, char **papszArgs, int cArgs)
+{
+    /*
+     * Parse parameters.
+     */
+    if (cArgs > 1)
+        return FsPerfSlaveSyntax(pState, "takes zero arguments, not %u", cArgs);
+    RT_NOREF(papszArgs);
+
+    /*
+     * Execute the command.
+     */
+    FsPerfSlaveStateCleanup(pState);
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * 'exit [exitcode]'
+ */
+static int FsPerfSlaveHandleExit(FSPERFCOMMSSLAVESTATE *pState, char **papszArgs, int cArgs)
+{
+    /*
+     * Parse parameters.
+     */
+    if (cArgs > 1 + 1)
+        return FsPerfSlaveSyntax(pState, "takes zero or one argument, not %u", cArgs);
+
+    if (cArgs >= 1 + 1)
+    {
+        uint32_t uExitCode;
+        int rc = FsPerfSlaveParseU32(pState, papszArgs[1], "exit code", 0, 0, 127, &uExitCode);
+        if (RT_FAILURE(rc))
+            return rc;
+
+        /*
+         * Execute the command.
+         */
+        pState->rcExit = (RTEXITCODE)uExitCode;
+    }
+    pState->fTerminate = true;
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Executes a script line.
+ */
+static int FsPerfSlaveExecuteLine(FSPERFCOMMSSLAVESTATE *pState, char *pszLine)
+{
+    /*
+     * Parse the command line using bourne shell quoting style.
+     */
+    char **papszArgs;
+    int    cArgs;
+    int rc = RTGetOptArgvFromString(&papszArgs, &cArgs, pszLine, RTGETOPTARGV_CNV_QUOTE_BOURNE_SH, NULL);
+    if (RT_FAILURE(rc))
+        return RTErrInfoSetF(&pState->ErrInfo.Core, rc, "Failed to parse line %u: %s", pState->iLineNo, pszLine);
+    if (cArgs <= 0)
+    {
+        RTGetOptArgvFree(papszArgs);
+        return RTErrInfoSetF(&pState->ErrInfo.Core, rc, "No command found on line %u: %s", pState->iLineNo, pszLine);
+    }
+
+    /*
+     * Execute the command.
+     */
+    static const struct
+    {
+        const char *pszCmd;
+        size_t      cchCmd;
+        int (*pfnHandler)(FSPERFCOMMSSLAVESTATE *pState, char **papszArgs, int cArgs);
+    } s_aHandlers[] =
+    {
+        { RT_STR_TUPLE("open"),         FsPerfSlaveHandleOpen },
+        { RT_STR_TUPLE("close"),        FsPerfSlaveHandleClose },
+        { RT_STR_TUPLE("writepattern"), FsPerfSlaveHandleWritePattern },
+        { RT_STR_TUPLE("truncate"),     FsPerfSlaveHandleTruncate },
+        { RT_STR_TUPLE("futimes"),      FsPerfSlaveHandleFUTimes},
+        { RT_STR_TUPLE("fchmod"),       FsPerfSlaveHandleFChMod },
+        { RT_STR_TUPLE("reset"),        FsPerfSlaveHandleReset },
+        { RT_STR_TUPLE("exit"),         FsPerfSlaveHandleExit },
+    };
+    const char * const pszCmd = papszArgs[0];
+    size_t       const cchCmd = strlen(pszCmd);
+    for (size_t i = 0; i < RT_ELEMENTS(s_aHandlers); i++)
+        if (   s_aHandlers[i].cchCmd == cchCmd
+            && memcmp(pszCmd, s_aHandlers[i].pszCmd, cchCmd) == 0)
+        {
+            pState->pszCommand = s_aHandlers[i].pszCmd;
+            rc = s_aHandlers[i].pfnHandler(pState, papszArgs, cArgs);
+            RTGetOptArgvFree(papszArgs);
+            return rc;
+        }
+
+    rc = RTErrInfoSetF(&pState->ErrInfo.Core, VERR_NOT_FOUND, "Command on line %u not found: %s", pState->iLineNo, pszLine);
+    RTGetOptArgvFree(papszArgs);
+    return rc;
+}
+
+
+/**
+ * Executes a script.
+ */
+static int FsPerfSlaveExecuteScript(FSPERFCOMMSSLAVESTATE *pState, char *pszContent)
+{
+    /*
+     * Validate the encoding.
+     */
+    int rc = RTStrValidateEncoding(pszContent);
+    if (RT_FAILURE(rc))
+        return RTErrInfoSetF(&pState->ErrInfo.Core, rc, "Invalid UTF-8 encoding");
+
+    /*
+     * Work the script content line by line.
+     */
+    pState->iLineNo = 0;
+    while (*pszContent != FSPERF_EOF && *pszContent != '\0')
+    {
+        pState->iLineNo++;
+
+        /* Figure the current line and move pszContent ahead: */
+        char *pszLine = RTStrStripL(pszContent);
+        char *pszEol  = strchr(pszLine, '\n');
+        if (pszEol)
+            pszContent = pszEol + 1;
+        else
+        {
+            pszEol = strchr(pszLine, FSPERF_EOF);
+            AssertStmt(pszEol, pszEol = strchr(pszLine, '\0'));
+            pszContent = pszEol;
+        }
+
+        /* Terminate and strip it: */
+        *pszEol = '\0';
+        pszLine = RTStrStrip(pszLine);
+
+        /* Skip empty lines and comment lines: */
+        if (*pszLine == '\0' || *pszLine == '#')
+            continue;
+
+        /* Execute the line: */
+        pState->pszLine = pszLine;
+        rc = FsPerfSlaveExecuteLine(pState, pszLine);
+        if (RT_FAILURE(rc))
+            break;
+    }
+    return rc;
+}
+
+
+/**
+ * Communication slave.
+ *
+ * @returns exit code.
+ */
+static int FsPerfCommsSlave(void)
+{
+    /*
+     * Make sure we've got a directory and create it and it's subdir.
+     */
+    if (g_cchCommsDir == 0)
+        return RTMsgError("no communcation directory was specified (-C)");
+
+    int rc = RTDirCreateFullPath(g_szCommsSubDir, 0775);
+    if (RT_FAILURE(rc))
+        return RTMsgError("Failed to create '%s': %Rrc", g_szCommsSubDir, rc);
+
+    /*
+     * Signal that we're here.
+     */
+    char szTmp[_4K];
+    rc = FsPerfCommsWriteFile(RT_STR_TUPLE("slave.pid"), szTmp, RTStrPrintf(szTmp, sizeof(szTmp),
+                                                                            "%u" FSPERF_EOF_STR, RTProcSelf()));
+    if (RT_FAILURE(rc))
+        return RTEXITCODE_FAILURE;
+
+    /*
+     * Processing loop.
+     */
+    FSPERFCOMMSSLAVESTATE State;
+    FsPerfSlaveStateInit(&State);
+    uint32_t msSleep = 1;
+    while (!State.fTerminate)
+    {
+        /*
+         * Try read the next command script.
+         */
+        char *pszContent = NULL;
+        rc = FsPerfCommsReadFileAndRename(State.iSeqNo, "-order.send", "-order.ack", &pszContent);
+        if (RT_SUCCESS(rc))
+        {
+            /*
+             * Execute it.
+             */
+            RTErrInfoInitStatic(&State.ErrInfo);
+            rc = FsPerfSlaveExecuteScript(&State, pszContent);
+
+            /*
+             * Write the result.
+             */
+            char   szResult[64];
+            size_t cchResult = RTStrPrintf(szResult, sizeof(szResult), "%u-order.done", State.iSeqNo);
+            size_t cchTmp    = RTStrPrintf(szTmp, sizeof(szTmp), "%d\n%s" FSPERF_EOF_STR,
+                                           rc, RTErrInfoIsSet(&State.ErrInfo.Core) ? State.ErrInfo.Core.pszMsg : "");
+            FsPerfCommsWriteFileAndRename(szResult, cchResult, szTmp, cchTmp);
+            State.iSeqNo++;
+
+            msSleep = 1;
+        }
+
+        /*
+         * Wait a little and check again.
+         */
+        RTThreadSleep(msSleep);
+        if (msSleep < 128)
+            msSleep++;
+    }
+
+    /*
+     * Remove the we're here indicator and quit.
+     */
+    RTFileDelete(InCommsDir(RT_STR_TUPLE("slave.pid")));
+    FsPerfSlaveStateCleanup(&State);
+    return State.rcExit;
+}
+
+
+
+/*********************************************************************************************************************************
+*   Tests                                                                                                                        *
+*********************************************************************************************************************************/
 
 /**
  * Prepares the test area.
@@ -740,7 +1874,7 @@ void fsPerfManyFiles(void)
     PFSPERFNAMEENTRY pCur;
     RTListForEach(&g_ManyTreeHead, pCur, FSPERFNAMEENTRY, Entry)
     {
-        char szPath[RTPATH_MAX];
+        char szPath[FSPERF_MAX_PATH];
         memcpy(szPath, pCur->szName, pCur->cchName);
         for (uint32_t i = 0; i < g_cManyTreeFilesPerDir; i++)
         {
@@ -935,7 +2069,7 @@ void fsPerfOpen(void)
     PROFILE_FN(fsPerfOpenExistingOnceWriteonly(g_szDeepDir), g_nsTestRun, "RTFileOpen/Close/deep/writeonly");
 
     /* Manytree: */
-    char szPath[RTPATH_MAX];
+    char szPath[FSPERF_MAX_PATH];
     PROFILE_MANYTREE_FN(szPath, fsPerfOpenExistingOnceReadonly(szPath), 1, g_nsTestRun, "RTFileOpen/Close/manytree/readonly");
 }
 
@@ -1045,7 +2179,7 @@ void fsPerfStat(void)
                "RTPathQueryInfoEx/deep/UNIX");
 
     /* Manytree: */
-    char szPath[RTPATH_MAX];
+    char szPath[FSPERF_MAX_PATH];
     PROFILE_MANYTREE_FN(szPath, RTPathQueryInfoEx(szPath, &ObjInfo, RTFSOBJATTRADD_NOTHING, RTPATH_F_ON_LINK),
                         1, g_nsTestRun, "RTPathQueryInfoEx/manytree/NOTHING");
     PROFILE_MANYTREE_FN(szPath, RTPathQueryInfoEx(szPath, &ObjInfo, RTFSOBJATTRADD_UNIX, RTPATH_F_ON_LINK),
@@ -1086,7 +2220,7 @@ void fsPerfChmod(void)
     RTPathSetMode(g_szDeepDir, ObjInfo.Attr.fMode);
 
     /* Manytree: */
-    char szPath[RTPATH_MAX];
+    char szPath[FSPERF_MAX_PATH];
     PROFILE_MANYTREE_FN(szPath, RTPathSetMode(szPath, iIteration & 1 ? fOddMode : fEvenMode), 1, g_nsTestRun,
                         "RTPathSetMode/manytree");
     DO_MANYTREE_FN(szPath, RTPathSetMode(szPath, ObjInfo.Attr.fMode));
@@ -1150,7 +2284,7 @@ void fsPerfUtimes(void)
                g_nsTestRun, "RTPathSetTimesEx/deep");
 
     /* Manytree: */
-    char szPath[RTPATH_MAX];
+    char szPath[FSPERF_MAX_PATH];
     PROFILE_MANYTREE_FN(szPath, RTPathSetTimesEx(szPath, iIteration & 1 ? &Time1 : &Time2, iIteration & 1 ? &Time2 : &Time1,
                                                  NULL, NULL, RTPATH_F_ON_LINK),
                         1, g_nsTestRun, "RTPathSetTimesEx/manytree");
@@ -1159,7 +2293,7 @@ void fsPerfUtimes(void)
 
 DECL_FORCE_INLINE(int) fsPerfRenameMany(const char *pszFile, uint32_t iIteration)
 {
-    char szRenamed[RTPATH_MAX];
+    char szRenamed[FSPERF_MAX_PATH];
     strcat(strcpy(szRenamed, pszFile), "-renamed");
     if (!(iIteration & 1))
         return RTPathRename(pszFile, szRenamed, 0);
@@ -1170,7 +2304,7 @@ DECL_FORCE_INLINE(int) fsPerfRenameMany(const char *pszFile, uint32_t iIteration
 void fsPerfRename(void)
 {
     RTTestISub("rename");
-    char szPath[RTPATH_MAX];
+    char szPath[FSPERF_MAX_PATH];
 
 /** @todo rename directories too!   */
 /** @todo check overwriting files and directoris (empty ones should work on
@@ -1211,10 +2345,22 @@ void fsPerfRename(void)
 }
 
 
+/**
+ * Wrapper around RTDirOpen/RTDirOpenFiltered which takes g_fRelativeDir into
+ * account.
+ */
+DECL_FORCE_INLINE(int) fsPerfOpenDirWrap(PRTDIR phDir, const char *pszPath)
+{
+    if (!g_fRelativeDir)
+        return RTDirOpen(phDir, pszPath);
+    return RTDirOpenFiltered(phDir, pszPath, RTDIRFILTER_NONE, RTDIR_F_NO_ABS_PATH);
+}
+
+
 DECL_FORCE_INLINE(int) fsPerfOpenClose(const char *pszDir)
 {
     RTDIR hDir;
-    RTTESTI_CHECK_RC_RET(RTDirOpen(&hDir, pszDir), VINF_SUCCESS, rcCheck);
+    RTTESTI_CHECK_RC_RET(fsPerfOpenDirWrap(&hDir, pszDir), VINF_SUCCESS, rcCheck);
     RTTESTI_CHECK_RC(RTDirClose(hDir), VINF_SUCCESS);
     return VINF_SUCCESS;
 }
@@ -1228,15 +2374,15 @@ void vsPerfDirOpen(void)
     /*
      * Non-existing files.
      */
-    RTTESTI_CHECK_RC(RTDirOpen(&hDir, InEmptyDir(RT_STR_TUPLE("no-such-file"))), VERR_FILE_NOT_FOUND);
-    RTTESTI_CHECK_RC(RTDirOpen(&hDir, InEmptyDir(RT_STR_TUPLE("no-such-dir" RTPATH_SLASH_STR "no-such-file"))), FSPERF_VERR_PATH_NOT_FOUND);
-    RTTESTI_CHECK_RC(RTDirOpen(&hDir, InDir(RT_STR_TUPLE("known-file" RTPATH_SLASH_STR "no-such-file"))), VERR_PATH_NOT_FOUND);
+    RTTESTI_CHECK_RC(fsPerfOpenDirWrap(&hDir, InEmptyDir(RT_STR_TUPLE("no-such-file"))), VERR_FILE_NOT_FOUND);
+    RTTESTI_CHECK_RC(fsPerfOpenDirWrap(&hDir, InEmptyDir(RT_STR_TUPLE("no-such-dir" RTPATH_SLASH_STR "no-such-file"))), FSPERF_VERR_PATH_NOT_FOUND);
+    RTTESTI_CHECK_RC(fsPerfOpenDirWrap(&hDir, InDir(RT_STR_TUPLE("known-file" RTPATH_SLASH_STR "no-such-file"))), VERR_PATH_NOT_FOUND);
 
     /*
      * Check that open + close works.
      */
     g_szEmptyDir[g_cchEmptyDir] = '\0';
-    RTTESTI_CHECK_RC_RETV(RTDirOpen(&hDir, g_szEmptyDir), VINF_SUCCESS);
+    RTTESTI_CHECK_RC_RETV(fsPerfOpenDirWrap(&hDir, g_szEmptyDir), VINF_SUCCESS);
     RTTESTI_CHECK_RC(RTDirClose(hDir), VINF_SUCCESS);
 
 
@@ -1257,7 +2403,7 @@ DECL_FORCE_INLINE(int) fsPerfEnumEmpty(void)
 {
     RTDIR hDir;
     g_szEmptyDir[g_cchEmptyDir] = '\0';
-    RTTESTI_CHECK_RC_RET(RTDirOpen(&hDir, g_szEmptyDir), VINF_SUCCESS, rcCheck);
+    RTTESTI_CHECK_RC_RET(fsPerfOpenDirWrap(&hDir, g_szEmptyDir), VINF_SUCCESS, rcCheck);
 
     RTDIRENTRY Entry;
     RTTESTI_CHECK_RC(RTDirRead(hDir, &Entry, NULL), VINF_SUCCESS);
@@ -1272,7 +2418,7 @@ DECL_FORCE_INLINE(int) fsPerfEnumEmpty(void)
 DECL_FORCE_INLINE(int) fsPerfEnumManyFiles(void)
 {
     RTDIR hDir;
-    RTTESTI_CHECK_RC_RET(RTDirOpen(&hDir, InDir(RT_STR_TUPLE("manyfiles"))), VINF_SUCCESS, rcCheck);
+    RTTESTI_CHECK_RC_RET(fsPerfOpenDirWrap(&hDir, InDir(RT_STR_TUPLE("manyfiles"))), VINF_SUCCESS, rcCheck);
     uint32_t cLeft = g_cManyFiles + 2;
     for (;;)
     {
@@ -1300,7 +2446,7 @@ void vsPerfDirEnum(void)
      * The empty directory.
      */
     g_szEmptyDir[g_cchEmptyDir] = '\0';
-    RTTESTI_CHECK_RC_RETV(RTDirOpen(&hDir, g_szEmptyDir), VINF_SUCCESS);
+    RTTESTI_CHECK_RC_RETV(fsPerfOpenDirWrap(&hDir, g_szEmptyDir), VINF_SUCCESS);
 
     uint32_t   fDots = 0;
     RTDIRENTRY Entry;
@@ -1330,7 +2476,7 @@ void vsPerfDirEnum(void)
             ASMBitSet(pvBitmap, i);
 
         uint32_t cFiles = 0;
-        RTTESTI_CHECK_RC_RETV(RTDirOpen(&hDir, InDir(RT_STR_TUPLE("manyfiles"))), VINF_SUCCESS);
+        RTTESTI_CHECK_RC_RETV(fsPerfOpenDirWrap(&hDir, InDir(RT_STR_TUPLE("manyfiles"))), VINF_SUCCESS);
         for (;;)
         {
             int rc = RTDirRead(hDir, &Entry, NULL);
@@ -1394,18 +2540,21 @@ void fsPerfMkRmDir(void)
 
     /* Non-existing directories: */
     RTTESTI_CHECK_RC(RTDirRemove(InEmptyDir(RT_STR_TUPLE("no-such-dir"))), VERR_FILE_NOT_FOUND);
+    RTTESTI_CHECK_RC(RTDirRemove(InEmptyDir(RT_STR_TUPLE("no-such-dir" RTPATH_SLASH_STR))), VERR_FILE_NOT_FOUND);
     RTTESTI_CHECK_RC(RTDirRemove(InEmptyDir(RT_STR_TUPLE("no-such-dir" RTPATH_SLASH_STR "no-such-file"))), FSPERF_VERR_PATH_NOT_FOUND);
+    RTTESTI_CHECK_RC(RTDirRemove(InEmptyDir(RT_STR_TUPLE("no-such-dir" RTPATH_SLASH_STR "no-such-file"  RTPATH_SLASH_STR))), FSPERF_VERR_PATH_NOT_FOUND);
     RTTESTI_CHECK_RC(RTDirRemove(InDir(RT_STR_TUPLE("known-file" RTPATH_SLASH_STR "no-such-file"))), VERR_PATH_NOT_FOUND);
+    RTTESTI_CHECK_RC(RTDirRemove(InDir(RT_STR_TUPLE("known-file" RTPATH_SLASH_STR "no-such-file"  RTPATH_SLASH_STR))), VERR_PATH_NOT_FOUND);
+
     RTTESTI_CHECK_RC(RTDirCreate(InEmptyDir(RT_STR_TUPLE("no-such-dir" RTPATH_SLASH_STR "no-such-file")), 0755, 0), FSPERF_VERR_PATH_NOT_FOUND);
     RTTESTI_CHECK_RC(RTDirCreate(InDir(RT_STR_TUPLE("known-file" RTPATH_SLASH_STR "no-such-file")), 0755, 0), VERR_PATH_NOT_FOUND);
-
-    /** @todo check what happens if non-final path component isn't a directory. unix
-     *        should return ENOTDIR and IPRT translates that to VERR_PATH_NOT_FOUND.
-     *        Curious what happens on windows. */
 
     /* Already existing directories and files: */
     RTTESTI_CHECK_RC(RTDirCreate(InEmptyDir(RT_STR_TUPLE(".")), 0755, 0), VERR_ALREADY_EXISTS);
     RTTESTI_CHECK_RC(RTDirCreate(InEmptyDir(RT_STR_TUPLE("..")), 0755, 0), VERR_ALREADY_EXISTS);
+
+    RTTESTI_CHECK_RC(RTDirRemove(InDir(RT_STR_TUPLE("known-file"))), VERR_NOT_A_DIRECTORY);
+    RTTESTI_CHECK_RC(RTDirRemove(InDir(RT_STR_TUPLE("known-file" RTPATH_SLASH_STR))), VERR_NOT_A_DIRECTORY);
 
     /* Remove directory with subdirectories: */
 #if defined(RT_OS_WINDOWS) || defined(RT_OS_OS2)
@@ -1416,8 +2565,8 @@ void fsPerfMkRmDir(void)
 #if defined(RT_OS_WINDOWS) || defined(RT_OS_OS2)
     int rc = RTDirRemove(InDir(RT_STR_TUPLE("..")));
 # ifdef RT_OS_WINDOWS
-    if (rc != VERR_DIR_NOT_EMPTY /*ntfs root*/ && rc != VERR_SHARING_VIOLATION /*ntfs weird*/)
-        RTTestIFailed("RTDirRemove(%s) -> %Rrc, expected VERR_DIR_NOT_EMPTY or VERR_SHARING_VIOLATION",  g_szDir, rc);
+    if (rc != VERR_DIR_NOT_EMPTY /*ntfs root*/ && rc != VERR_SHARING_VIOLATION /*ntfs weird*/ && rc != VERR_ACCESS_DENIED /*fat32 root*/)
+        RTTestIFailed("RTDirRemove(%s) -> %Rrc, expected VERR_DIR_NOT_EMPTY, VERR_SHARING_VIOLATION or VERR_ACCESS_DENIED",  g_szDir, rc);
 # else
     if (rc != VERR_DIR_NOT_EMPTY && rc != VERR_RESOURCE_BUSY /*IPRT/kLIBC fun*/)
         RTTestIFailed("RTDirRemove(%s) -> %Rrc, expected VERR_DIR_NOT_EMPTY or VERR_RESOURCE_BUSY",  g_szDir, rc);
@@ -1524,8 +2673,18 @@ void fsPerfRm(void)
 
     /* Non-existing files. */
     RTTESTI_CHECK_RC(RTFileDelete(InEmptyDir(RT_STR_TUPLE("no-such-file"))), VERR_FILE_NOT_FOUND);
+    RTTESTI_CHECK_RC(RTFileDelete(InEmptyDir(RT_STR_TUPLE("no-such-file" RTPATH_SLASH_STR))), VERR_FILE_NOT_FOUND);
     RTTESTI_CHECK_RC(RTFileDelete(InEmptyDir(RT_STR_TUPLE("no-such-dir" RTPATH_SLASH_STR "no-such-file"))), FSPERF_VERR_PATH_NOT_FOUND);
+    RTTESTI_CHECK_RC(RTFileDelete(InEmptyDir(RT_STR_TUPLE("no-such-dir" RTPATH_SLASH_STR "no-such-file" RTPATH_SLASH_STR))), FSPERF_VERR_PATH_NOT_FOUND);
     RTTESTI_CHECK_RC(RTFileDelete(InDir(RT_STR_TUPLE("known-file" RTPATH_SLASH_STR "no-such-file"))), VERR_PATH_NOT_FOUND);
+    RTTESTI_CHECK_RC(RTFileDelete(InDir(RT_STR_TUPLE("known-file" RTPATH_SLASH_STR "no-such-file" RTPATH_SLASH_STR))), VERR_PATH_NOT_FOUND);
+
+    /* Existing file but specified as if it was a directory: */
+#if defined(RT_OS_WINDOWS)
+    RTTESTI_CHECK_RC(RTFileDelete(InDir(RT_STR_TUPLE("known-file" RTPATH_SLASH_STR ))), VERR_INVALID_NAME);
+#else
+    RTTESTI_CHECK_RC(RTFileDelete(InDir(RT_STR_TUPLE("known-file" RTPATH_SLASH_STR))), VERR_NOT_A_FILE); //??
+#endif
 
     /* Directories: */
 #if defined(RT_OS_WINDOWS)
@@ -1588,7 +2747,7 @@ void fsPerfRm(void)
          * Ditto for the manytree.
          */
         {
-            char szPath[RTPATH_MAX];
+            char szPath[FSPERF_MAX_PATH];
             uint64_t const nsStart = RTTimeNanoTS();
             DO_MANYTREE_FN(szPath, RTTESTI_CHECK_RC_RETV(RTFileDelete(szPath), VINF_SUCCESS));
             uint64_t const cNsElapsed = RTTimeNanoTS() - nsStart;
@@ -2848,7 +4007,7 @@ void fsPerfRead(RTFILE hFile1, RTFILE hFileNoCache, uint64_t cbFile)
 
             RTTESTI_CHECK_RC(RTFileRead(hFile1, pbBuf, cbMaxRead, NULL), VERR_EOF);
 
-            /* Repeat using native APIs in case IPRT or other layers hid status codes: */
+            /* Repeat using native APIs in case IPRT or other layers hide status codes: */
 #if defined(RT_OS_OS2) || defined(RT_OS_WINDOWS)
             RTTESTI_CHECK_RC(RTFileSeek(hFile1, cbFile - off, RTFILE_SEEK_BEGIN, NULL), VINF_SUCCESS);
 # ifdef RT_OS_OS2
@@ -2857,14 +4016,24 @@ void fsPerfRead(RTFILE hFile1, RTFILE hFileNoCache, uint64_t cbFile)
             RTTESTI_CHECK_MSG(orc == NO_ERROR, ("orc=%u, expected 0\n", orc));
             RTTESTI_CHECK_MSG(cbActual2 == off, ("%#x vs %#x\n", cbActual2, off));
 # else
-            IO_STATUS_BLOCK Ios = RTNT_IO_STATUS_BLOCK_INITIALIZER;
+            IO_STATUS_BLOCK const IosVirgin = RTNT_IO_STATUS_BLOCK_INITIALIZER;
+            IO_STATUS_BLOCK       Ios       = RTNT_IO_STATUS_BLOCK_INITIALIZER;
             NTSTATUS rcNt = NtReadFile((HANDLE)RTFileToNative(hFile1), NULL /*hEvent*/, NULL /*ApcRoutine*/, NULL /*ApcContext*/,
                                        &Ios, pbBuf, (ULONG)cbMaxRead, NULL /*poffFile*/, NULL /*Key*/);
             if (off == 0)
+            {
                 RTTESTI_CHECK_MSG(rcNt == STATUS_END_OF_FILE, ("rcNt=%#x, expected %#x\n", rcNt, STATUS_END_OF_FILE));
+                RTTESTI_CHECK_MSG(Ios.Status == IosVirgin.Status /*slow?*/ || Ios.Status == STATUS_END_OF_FILE /*fastio?*/,
+                                  ("%#x vs %x/%#x; off=%#x\n", Ios.Status, IosVirgin.Status, STATUS_END_OF_FILE, off));
+                RTTESTI_CHECK_MSG(Ios.Information == IosVirgin.Information /*slow*/ || Ios.Information == 0 /*fastio?*/,
+                                  ("%#zx vs %zx/0; off=%#x\n", Ios.Information, IosVirgin.Information, off));
+            }
             else
+            {
                 RTTESTI_CHECK_MSG(rcNt == STATUS_SUCCESS, ("rcNt=%#x, expected 0 (off=%#x cbMaxRead=%#zx)\n", rcNt, off, cbMaxRead));
-            RTTESTI_CHECK_MSG(Ios.Information == off, ("%#zx vs %#x\n", Ios.Information, off));
+                RTTESTI_CHECK_MSG(Ios.Status == STATUS_SUCCESS, ("%#x; off=%#x\n", Ios.Status, off));
+                RTTESTI_CHECK_MSG(Ios.Information == off, ("%#zx vs %#x\n", Ios.Information, off));
+            }
 # endif
 
 # ifdef RT_OS_OS2
@@ -2907,10 +4076,30 @@ void fsPerfRead(RTFILE hFile1, RTFILE hFileNoCache, uint64_t cbFile)
             RTTESTI_CHECK_MSG(orc == NO_ERROR, ("orc=%u, expected 0\n", orc));
             RTTESTI_CHECK_MSG(cbActual2 == 0, ("%#x vs %#x\n", cbActual2, off));
 # else
-            IO_STATUS_BLOCK Ios = RTNT_IO_STATUS_BLOCK_INITIALIZER;
+            IO_STATUS_BLOCK const IosVirgin = RTNT_IO_STATUS_BLOCK_INITIALIZER;
+            IO_STATUS_BLOCK       Ios       = RTNT_IO_STATUS_BLOCK_INITIALIZER;
             NTSTATUS rcNt = NtReadFile((HANDLE)RTFileToNative(hFile1), NULL /*hEvent*/, NULL /*ApcRoutine*/, NULL /*ApcContext*/,
                                        &Ios, pbBuf, (ULONG)cbMaxRead, NULL /*poffFile*/, NULL /*Key*/);
             RTTESTI_CHECK_MSG(rcNt == STATUS_END_OF_FILE, ("rcNt=%#x, expected %#x\n", rcNt, STATUS_END_OF_FILE));
+            RTTESTI_CHECK_MSG(Ios.Status == IosVirgin.Status /*slow?*/ || Ios.Status == STATUS_END_OF_FILE /*fastio?*/,
+                              ("%#x vs %x/%#x; off=%#x\n", Ios.Status, IosVirgin.Status, STATUS_END_OF_FILE, off));
+            RTTESTI_CHECK_MSG(Ios.Information == IosVirgin.Information /*slow*/ || Ios.Information == 0 /*fastio?*/,
+                              ("%#zx vs %zx/0; off=%#x\n", Ios.Information, IosVirgin.Information, off));
+
+            /* Need to work with sector size on uncached, but might be worth it for non-fastio path. */
+            uint32_t cbSector = 0x1000;
+            uint32_t off2     = off * cbSector + (cbFile & (cbSector - 1) ? cbSector - (cbFile & (cbSector - 1)) : 0);
+            RTTESTI_CHECK_RC(RTFileSeek(hFileNoCache, cbFile + off2, RTFILE_SEEK_BEGIN, NULL), VINF_SUCCESS);
+            size_t const cbMaxRead2 = RT_ALIGN_Z(cbMaxRead, cbSector);
+            RTNT_IO_STATUS_BLOCK_REINIT(&Ios);
+            rcNt = NtReadFile((HANDLE)RTFileToNative(hFileNoCache), NULL /*hEvent*/, NULL /*ApcRoutine*/, NULL /*ApcContext*/,
+                              &Ios, pbBuf, (ULONG)cbMaxRead2, NULL /*poffFile*/, NULL /*Key*/);
+            RTTESTI_CHECK_MSG(rcNt == STATUS_END_OF_FILE,
+                              ("rcNt=%#x, expected %#x; off2=%x cbMaxRead2=%#x\n", rcNt, STATUS_END_OF_FILE, off2, cbMaxRead2));
+            RTTESTI_CHECK_MSG(Ios.Status == IosVirgin.Status /*slow?*/,
+                              ("%#x vs %x; off2=%#x cbMaxRead2=%#x\n", Ios.Status, IosVirgin.Status, off2, cbMaxRead2));
+            RTTESTI_CHECK_MSG(Ios.Information == IosVirgin.Information /*slow*/,
+                              ("%#zx vs %zx; off2=%#x cbMaxRead2=%#x\n", Ios.Information, IosVirgin.Information, off2, cbMaxRead2));
 # endif
 #endif
         }
@@ -2960,11 +4149,14 @@ void fsPerfRead(RTFILE hFile1, RTFILE hFileNoCache, uint64_t cbFile)
     RTTESTI_CHECK(Ios.Status == STATUS_SUCCESS);
     RTTESTI_CHECK(Ios.Information == 0);
 
+    IO_STATUS_BLOCK const IosVirgin = RTNT_IO_STATUS_BLOCK_INITIALIZER;
     RTNT_IO_STATUS_BLOCK_REINIT(&Ios);
     rcNt = NtReadFile((HANDLE)RTFileToNative(hFile1), NULL, NULL, NULL, &Ios, pbBuf, 1, NULL, NULL);
     RTTESTI_CHECK_MSG(rcNt == STATUS_END_OF_FILE, ("rcNt=%#x", rcNt));
-    RTTESTI_CHECK(Ios.Status == STATUS_END_OF_FILE);
-    RTTESTI_CHECK(Ios.Information == 0);
+    RTTESTI_CHECK_MSG(Ios.Status == IosVirgin.Status /*slow?*/ || Ios.Status == STATUS_END_OF_FILE /*fastio?*/,
+                      ("%#x vs %x/%#x\n", Ios.Status, IosVirgin.Status, STATUS_END_OF_FILE));
+    RTTESTI_CHECK_MSG(Ios.Information == IosVirgin.Information /*slow*/ || Ios.Information == 0 /*fastio?*/,
+                      ("%#zx vs %zx/0\n", Ios.Information, IosVirgin.Information));
 # else
     ssize_t cbRead = read((int)RTFileToNative(hFile1), pbBuf, 0);
     RTTESTI_CHECK(cbRead == 0);
@@ -3775,7 +4967,7 @@ void fsPerfMMap(RTFILE hFile1, RTFILE hFileNoCache, uint64_t cbFile)
     {
         /* Create a new file, 256 KB in size, and fill it with random bytes.
            Try uncached access if we can to force the page-in to do actual reads. */
-        char szFile2[RTPATH_MAX + 32];
+        char szFile2[FSPERF_MAX_PATH + 32];
         memcpy(szFile2, g_szDir, g_cchDir);
         RTStrPrintf(&szFile2[g_cchDir], sizeof(szFile2) - g_cchDir, "mmap-%u.noh", i);
         RTFILE hFile2 = NIL_RTFILE;
@@ -4278,12 +5470,140 @@ static void fsPerfCopy(void)
 }
 
 
+static void fsPerfRemote(void)
+{
+    RTTestISub("remote");
+    uint8_t abBuf[16384];
+
+
+    /*
+     * Create a file on the remote end and check that we can immediately see it.
+     */
+    RTTESTI_CHECK_RC_RETV(FsPerfCommsSend("reset\n"
+                                          "open         0 'file30' 'w' 'ca'\n"
+                                          "writepattern 0 0 0 4096" FSPERF_EOF_STR), VINF_SUCCESS);
+
+    RTFILEACTION enmActuallyTaken = RTFILEACTION_END;
+    RTFILE       hFile0 = NIL_RTFILE;
+    RTTESTI_CHECK_RC(RTFileOpenEx(InDir(RT_STR_TUPLE("file30")), RTFILE_O_READWRITE | RTFILE_O_OPEN | RTFILE_O_DENY_NONE,
+                                  &hFile0, &enmActuallyTaken), VINF_SUCCESS);
+    RTTESTI_CHECK(enmActuallyTaken == RTFILEACTION_OPENED);
+    RTTESTI_CHECK_RC(RTFileRead(hFile0, abBuf, 4096, NULL), VINF_SUCCESS);
+    AssertCompile(RT_ELEMENTS(g_abPattern0) == 1);
+    RTTESTI_CHECK(ASMMemIsAllU8(abBuf, 4096, g_abPattern0[0]));
+    RTTESTI_CHECK_RC(RTFileRead(hFile0, abBuf, 1, NULL), VERR_EOF);
+
+    /*
+     * Append a little to it on the host and see that we can read it.
+     */
+    RTTESTI_CHECK_RC(FsPerfCommsSend("writepattern 0 4096 1 1024" FSPERF_EOF_STR), VINF_SUCCESS);
+    AssertCompile(RT_ELEMENTS(g_abPattern1) == 1);
+    RTTESTI_CHECK_RC(RTFileRead(hFile0, abBuf, 1024, NULL), VINF_SUCCESS);
+    RTTESTI_CHECK(ASMMemIsAllU8(abBuf, 1024, g_abPattern1[0]));
+    RTTESTI_CHECK_RC(RTFileRead(hFile0, abBuf, 1, NULL), VERR_EOF);
+
+    /*
+     * Have the host truncate the file.
+     */
+    RTTESTI_CHECK_RC(FsPerfCommsSend("truncate 0 1024" FSPERF_EOF_STR), VINF_SUCCESS);
+    RTTESTI_CHECK_RC(RTFileRead(hFile0, abBuf, 1, NULL), VERR_EOF);
+    RTTESTI_CHECK_RC(RTFileSeek(hFile0, 0, RTFILE_SEEK_BEGIN, NULL), VINF_SUCCESS);
+    RTTESTI_CHECK_RC(RTFileRead(hFile0, abBuf, 1024, NULL), VINF_SUCCESS);
+    AssertCompile(RT_ELEMENTS(g_abPattern0) == 1);
+    RTTESTI_CHECK(ASMMemIsAllU8(abBuf, 4096, g_abPattern0[0]));
+    RTTESTI_CHECK_RC(RTFileRead(hFile0, abBuf, 1, NULL), VERR_EOF);
+
+    /*
+     * Write a bunch of stuff to the file here, then truncate it to a given size,
+     * then have the host add more, finally test that we can successfully chop off
+     * what the host added by reissuing the same truncate call as before (issue of
+     * RDBSS using cached size to noop out set-eof-to-same-size).
+     */
+    memset(abBuf, 0xe9, sizeof(abBuf));
+    RTTESTI_CHECK_RC(RTFileSeek(hFile0, 0, RTFILE_SEEK_BEGIN, NULL), VINF_SUCCESS);
+    RTTESTI_CHECK_RC(RTFileWrite(hFile0, abBuf, 16384, NULL), VINF_SUCCESS);
+    RTTESTI_CHECK_RC(RTFileSetSize(hFile0, 8000), VINF_SUCCESS);
+    RTTESTI_CHECK_RC(FsPerfCommsSend("writepattern 0 8000 0 1000" FSPERF_EOF_STR), VINF_SUCCESS);
+    RTTESTI_CHECK_RC(RTFileSetSize(hFile0, 8000), VINF_SUCCESS);
+    uint64_t cbFile = 0;
+    RTTESTI_CHECK_RC(RTFileGetSize(hFile0, &cbFile), VINF_SUCCESS);
+    RTTESTI_CHECK_MSG(cbFile == 8000, ("cbFile=%u\n", cbFile));
+    RTTESTI_CHECK_RC(RTFileRead(hFile0, abBuf, 1, NULL), VERR_EOF);
+
+    /* Same, but using RTFileRead to find out and RTFileWrite to define the size. */
+    RTTESTI_CHECK_RC(RTFileSeek(hFile0, 0, RTFILE_SEEK_BEGIN, NULL), VINF_SUCCESS);
+    RTTESTI_CHECK_RC(RTFileSetSize(hFile0, 0), VINF_SUCCESS);
+    RTTESTI_CHECK_RC(RTFileWrite(hFile0, abBuf, 5000, NULL), VINF_SUCCESS);
+    RTTESTI_CHECK_RC(FsPerfCommsSend("writepattern 0 5000 0 1000" FSPERF_EOF_STR), VINF_SUCCESS);
+    RTTESTI_CHECK_RC(RTFileSetSize(hFile0, 5000), VINF_SUCCESS);
+    RTTESTI_CHECK_RC(RTFileRead(hFile0, abBuf, 1, NULL), VERR_EOF);
+    RTTESTI_CHECK_RC(RTFileGetSize(hFile0, &cbFile), VINF_SUCCESS);
+    RTTESTI_CHECK_MSG(cbFile == 5000, ("cbFile=%u\n", cbFile));
+
+    /* Same, but host truncates rather than adding stuff. */
+    RTTESTI_CHECK_RC(RTFileSeek(hFile0, 0, RTFILE_SEEK_BEGIN, NULL), VINF_SUCCESS);
+    RTTESTI_CHECK_RC(RTFileWrite(hFile0, abBuf, 16384, NULL), VINF_SUCCESS);
+    RTTESTI_CHECK_RC(RTFileSetSize(hFile0, 10000), VINF_SUCCESS);
+    RTTESTI_CHECK_RC(FsPerfCommsSend("truncate 0 4000" FSPERF_EOF_STR), VINF_SUCCESS);
+    RTTESTI_CHECK_RC(RTFileGetSize(hFile0, &cbFile), VINF_SUCCESS);
+    RTTESTI_CHECK_MSG(cbFile == 4000, ("cbFile=%u\n", cbFile));
+    RTTESTI_CHECK_RC(RTFileRead(hFile0, abBuf, 1, NULL), VERR_EOF);
+
+    /*
+     * Test noticing remote size changes when opening a file.  Need to keep hFile0
+     * open here so we're sure to have an inode/FCB for the file in question.
+     */
+    memset(abBuf, 0xe7, sizeof(abBuf));
+    RTTESTI_CHECK_RC(RTFileSeek(hFile0, 0, RTFILE_SEEK_BEGIN, NULL), VINF_SUCCESS);
+    RTTESTI_CHECK_RC(RTFileSetSize(hFile0, 0), VINF_SUCCESS);
+    RTTESTI_CHECK_RC(RTFileWrite(hFile0, abBuf, 12288, NULL), VINF_SUCCESS);
+    RTTESTI_CHECK_RC(RTFileSetSize(hFile0, 12288), VINF_SUCCESS);
+
+    RTTESTI_CHECK_RC(FsPerfCommsSend("writepattern 0 12288 2 4096" FSPERF_EOF_STR), VINF_SUCCESS);
+
+    enmActuallyTaken = RTFILEACTION_END;
+    RTFILE hFile1 = NIL_RTFILE;
+    RTTESTI_CHECK_RC(RTFileOpenEx(InDir(RT_STR_TUPLE("file30")), RTFILE_O_READWRITE | RTFILE_O_OPEN | RTFILE_O_DENY_NONE,
+                                  &hFile1, &enmActuallyTaken), VINF_SUCCESS);
+    RTTESTI_CHECK(enmActuallyTaken == RTFILEACTION_OPENED);
+    AssertCompile(sizeof(abBuf) >= 16384);
+    RTTESTI_CHECK_RC(RTFileRead(hFile1, abBuf, 16384, NULL), VINF_SUCCESS);
+    RTTESTI_CHECK(ASMMemIsAllU8(abBuf, 12288, 0xe7));
+    AssertCompile(RT_ELEMENTS(g_abPattern2) == 1);
+    RTTESTI_CHECK(ASMMemIsAllU8(&abBuf[12288], 4096, g_abPattern2[0]));
+    RTTESTI_CHECK_RC(RTFileRead(hFile1, abBuf, 1, NULL), VERR_EOF);
+    RTTESTI_CHECK_RC(RTFileClose(hFile1), VINF_SUCCESS);
+
+    /* Same, but remote end truncates the file:  */
+    memset(abBuf, 0xe6, sizeof(abBuf));
+    RTTESTI_CHECK_RC(RTFileSeek(hFile0, 0, RTFILE_SEEK_BEGIN, NULL), VINF_SUCCESS);
+    RTTESTI_CHECK_RC(RTFileSetSize(hFile0, 0), VINF_SUCCESS);
+    RTTESTI_CHECK_RC(RTFileWrite(hFile0, abBuf, 12288, NULL), VINF_SUCCESS);
+    RTTESTI_CHECK_RC(RTFileSetSize(hFile0, 12288), VINF_SUCCESS);
+
+    RTTESTI_CHECK_RC(FsPerfCommsSend("truncate 0 7500" FSPERF_EOF_STR), VINF_SUCCESS);
+
+    enmActuallyTaken = RTFILEACTION_END;
+    hFile1 = NIL_RTFILE;
+    RTTESTI_CHECK_RC(RTFileOpenEx(InDir(RT_STR_TUPLE("file30")), RTFILE_O_READWRITE | RTFILE_O_OPEN | RTFILE_O_DENY_NONE,
+                                  &hFile1, &enmActuallyTaken), VINF_SUCCESS);
+    RTTESTI_CHECK(enmActuallyTaken == RTFILEACTION_OPENED);
+    RTTESTI_CHECK_RC(RTFileRead(hFile1, abBuf, 7500, NULL), VINF_SUCCESS);
+    RTTESTI_CHECK(ASMMemIsAllU8(abBuf, 7500, 0xe6));
+    RTTESTI_CHECK_RC(RTFileRead(hFile1, abBuf, 1, NULL), VERR_EOF);
+    RTTESTI_CHECK_RC(RTFileClose(hFile1), VINF_SUCCESS);
+
+    RTTESTI_CHECK_RC(RTFileClose(hFile0), VINF_SUCCESS);
+}
+
+
+
 /**
  * Display the usage to @a pStrm.
  */
 static void Usage(PRTSTREAM pStrm)
 {
-    char szExec[RTPATH_MAX];
+    char szExec[FSPERF_MAX_PATH];
     RTStrmPrintf(pStrm, "usage: %s <-d <testdir>> [options]\n",
                  RTPathFilename(RTProcGetExecutablePath(szExec, sizeof(szExec))));
     RTStrmPrintf(pStrm, "\n");
@@ -4296,6 +5616,7 @@ static void Usage(PRTSTREAM pStrm)
         switch (g_aCmdOptions[i].iShort)
         {
             case 'd':                           pszHelp = "The directory to use for testing.            default: CWD/fstestdir"; break;
+            case 'r':                           pszHelp = "Don't abspath test dir (good for deep dirs). default: disabled"; break;
             case 'e':                           pszHelp = "Enables all tests.                           default: -e"; break;
             case 'z':                           pszHelp = "Disables all tests.                          default: -e"; break;
             case 's':                           pszHelp = "Set benchmark duration in seconds.           default: 10 sec"; break;
@@ -4368,19 +5689,11 @@ int main(int argc, char *argv[])
     /*
      * Default values.
      */
-    rc = RTPathGetCurrent(g_szDir, sizeof(g_szDir) / 2);
-    if (RT_SUCCESS(rc))
-        rc = RTPathAppend(g_szDir, sizeof(g_szDir) / 2, "fstestdir-");
-    if (RT_SUCCESS(rc))
-    {
-        g_cchDir = strlen(g_szDir);
-        g_cchDir += RTStrPrintf(&g_szDir[g_cchDir], sizeof(g_szDir) - g_cchDir, "%u" RTPATH_SLASH_STR, RTProcSelf());
-    }
-    else
-    {
-        RTTestFailed(g_hTest, "RTPathGetCurrent (or RTPathAppend) failed: %Rrc\n", rc);
-        return RTTestSummaryAndDestroy(g_hTest);
-    }
+    char szDefaultDir[32];
+    const char *pszDir = szDefaultDir;
+    RTStrPrintf(szDefaultDir, sizeof(szDefaultDir), "fstestdir-%u" RTPATH_SLASH_STR, RTProcSelf());
+
+    bool fCommsSlave = false;
 
     RTGETOPTUNION ValueUnion;
     RTGETOPTSTATE GetState;
@@ -4389,16 +5702,39 @@ int main(int argc, char *argv[])
     {
         switch (rc)
         {
-            case 'd':
-                rc = RTPathAbs(ValueUnion.psz, g_szDir, sizeof(g_szDir) / 2);
-                if (RT_SUCCESS(rc))
+            case 'c':
+                if (!g_fRelativeDir)
+                    rc = RTPathAbs(ValueUnion.psz, g_szCommsDir, sizeof(g_szCommsDir) - 128);
+                else
+                    rc = RTStrCopy(g_szCommsDir, sizeof(g_szCommsDir) - 128, ValueUnion.psz);
+                if (RT_FAILURE(rc))
                 {
-                    RTPathEnsureTrailingSeparator(g_szDir, sizeof(g_szDir));
-                    g_cchDir = strlen(g_szDir);
-                    break;
+                    RTTestFailed(g_hTest, "%s(%s) failed: %Rrc\n", g_fRelativeDir ? "RTStrCopy" : "RTAbsPath", pszDir, rc);
+                    return RTTestSummaryAndDestroy(g_hTest);
                 }
-                RTTestFailed(g_hTest, "RTPathAbs(%s) failed: %Rrc\n", ValueUnion.psz, rc);
-                return RTTestSummaryAndDestroy(g_hTest);
+                RTPathEnsureTrailingSeparator(g_szCommsDir, sizeof(g_szCommsDir));
+                g_cchCommsDir = strlen(g_szCommsDir);
+
+                rc = RTPathJoin(g_szCommsSubDir, sizeof(g_szCommsSubDir) - 128, g_szCommsDir, "comms" RTPATH_SLASH_STR);
+                if (RT_FAILURE(rc))
+                {
+                    RTTestFailed(g_hTest, "RTPathJoin(%s,,'comms/') failed: %Rrc\n", g_szCommsDir, rc);
+                    return RTTestSummaryAndDestroy(g_hTest);
+                }
+                g_cchCommsSubDir = strlen(g_szCommsSubDir);
+                break;
+
+            case 'C':
+                fCommsSlave = true;
+                break;
+
+            case 'd':
+                pszDir = ValueUnion.psz;
+                break;
+
+            case 'r':
+                g_fRelativeDir = true;
+                break;
 
             case 's':
                 if (ValueUnion.u32 == 0)
@@ -4444,6 +5780,7 @@ int main(int argc, char *argv[])
                 g_fFSync     = true;
                 g_fMMap      = true;
                 g_fCopy      = true;
+                g_fRemote    = true;
                 break;
 
             case 'z':
@@ -4476,6 +5813,7 @@ int main(int argc, char *argv[])
                 g_fFSync     = false;
                 g_fMMap      = false;
                 g_fCopy      = false;
+                g_fRemote    = false;
                 break;
 
 #define CASE_OPT(a_Stem) \
@@ -4510,6 +5848,7 @@ int main(int argc, char *argv[])
             CASE_OPT(MMap);
             CASE_OPT(IgnoreNoCache);
             CASE_OPT(Copy);
+            CASE_OPT(Remote);
 
             CASE_OPT(ShowDuration);
             CASE_OPT(ShowIterations);
@@ -4600,7 +5939,7 @@ int main(int argc, char *argv[])
 
             case 'V':
             {
-                char szRev[] = "$Revision: 129707 $";
+                char szRev[] = "$Revision: 130485 $";
                 szRev[RT_ELEMENTS(szRev) - 2] = '\0';
                 RTPrintf(RTStrStrip(strchr(szRev, ':') + 1));
                 return RTEXITCODE_SUCCESS;
@@ -4609,6 +5948,31 @@ int main(int argc, char *argv[])
             default:
                 return RTGetOptPrintError(rc, &ValueUnion);
         }
+    }
+
+    /*
+     * Populate g_szDir.
+     */
+    if (!g_fRelativeDir)
+        rc = RTPathAbs(pszDir, g_szDir, sizeof(g_szDir) - FSPERF_MAX_NEEDED_PATH);
+    else
+        rc = RTStrCopy(g_szDir, sizeof(g_szDir) - FSPERF_MAX_NEEDED_PATH, pszDir);
+    if (RT_FAILURE(rc))
+    {
+        RTTestFailed(g_hTest, "%s(%s) failed: %Rrc\n", g_fRelativeDir ? "RTStrCopy" : "RTAbsPath", pszDir, rc);
+        return RTTestSummaryAndDestroy(g_hTest);
+    }
+    RTPathEnsureTrailingSeparator(g_szDir, sizeof(g_szDir));
+    g_cchDir = strlen(g_szDir);
+
+    /*
+     * If communication slave, go do that and be done.
+     */
+    if (fCommsSlave)
+    {
+        if (pszDir == szDefaultDir)
+            return RTMsgErrorExit(RTEXITCODE_SYNTAX, "The slave must have a working directory specified (-d)!");
+        return FsPerfCommsSlave();
     }
 
     /*
@@ -4672,11 +6036,17 @@ int main(int argc, char *argv[])
                     fsPerfIo();
                 if (g_fCopy)
                     fsPerfCopy();
+                if (g_fRemote && g_szCommsDir[0] != '\0')
+                    fsPerfRemote();
             }
 
-            /* Cleanup: */
+            /*
+             * Cleanup:
+             */
+            FsPerfCommsShutdownSlave();
+
             g_szDir[g_cchDir] = '\0';
-            rc = RTDirRemoveRecursive(g_szDir, RTDIRRMREC_F_CONTENT_AND_DIR);
+            rc = RTDirRemoveRecursive(g_szDir, RTDIRRMREC_F_CONTENT_AND_DIR | (g_fRelativeDir ? RTDIRRMREC_F_NO_ABS_PATH : 0));
             if (RT_FAILURE(rc))
                 RTTestFailed(g_hTest, "RTDirRemoveRecursive(%s,) -> %Rrc\n", g_szDir, rc);
         }
@@ -4685,6 +6055,8 @@ int main(int argc, char *argv[])
     }
     else
         RTTestFailed(g_hTest, "Test directory already exists: %s\n", g_szDir);
+
+    FsPerfCommsShutdownSlave();
 
     return RTTestSummaryAndDestroy(g_hTest);
 }

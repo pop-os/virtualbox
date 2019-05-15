@@ -1966,6 +1966,22 @@
         <source>Export selected virtual machine to OCI</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Try</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Try Oracle Cloud for Free...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Try Oracle cloud for free</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Try Oracle Cloud for Free</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIAddDiskEncryptionPasswordDialog</name>

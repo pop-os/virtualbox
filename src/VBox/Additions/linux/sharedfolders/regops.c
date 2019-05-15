@@ -298,7 +298,7 @@ void vbsf_iov_iter_revert(struct vbsf_iov_iter *iter, size_t cbRewind)
 }
 
 #endif /* 2.6.19 <= linux < 3.16.0 */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0) && LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0) && LINUX_VERSION_CODE < KERNEL_VERSION(3, 16, 35)
 
 /** This is for implementing cMaxPage on 3.16 which doesn't have it. */
 static ssize_t vbsf_iov_iter_get_pages_3_16(struct iov_iter *iter, struct page **papPages,
@@ -317,7 +317,7 @@ static ssize_t vbsf_iov_iter_get_pages_3_16(struct iov_iter *iter, struct page *
 # define iov_iter_get_pages(a_pIter, a_papPages, a_cbMax, a_cMaxPages, a_poffPg0) \
     vbsf_iov_iter_get_pages_3_16(a_pIter, a_papPages, a_cbMax, a_cMaxPages, a_poffPg0)
 
-#endif /* 3.16.x */
+#endif /* 3.16.0-3.16.34 */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 19) && LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0)
 
 static size_t copy_from_iter(uint8_t *pbDst, size_t cbToCopy, struct iov_iter *pSrcIter)
@@ -1309,7 +1309,7 @@ DECLINLINE(void) vbsf_get_page(struct page *pPage)
 
 
 /** Companion to vbsf_lock_user_pages(). */
-DECLINLINE(void) vbsf_unlock_user_pages(struct page **papPages, size_t cPages, bool fSetDirty, bool fLockPgHack)
+static void vbsf_unlock_user_pages(struct page **papPages, size_t cPages, bool fSetDirty, bool fLockPgHack)
 {
     /* We don't mark kernel pages dirty: */
     if (fLockPgHack)
@@ -1885,11 +1885,15 @@ static ssize_t vbsf_reg_write_locking(struct file *file, const char /*__user*/ *
                 vbsf_unlock_user_pages(papPages, cPages, false /*fSetDirty*/, fLockPgHack);
 
                 cbRet   += cbActual;
-                offFile += cbActual;
                 buf      = (uint8_t *)buf + cbActual;
                 size    -= cbActual;
+
+                offFile += cbActual;
+                if ((file->f_flags & O_APPEND) && (g_fSfFeatures & SHFL_FEATURE_WRITE_UPDATES_OFFSET))
+                    offFile = pReq->Parms.off64Write.u.value64;
                 if (offFile > i_size_read(inode))
                     i_size_write(inode, offFile);
+
                 sf_i->force_restat = 1; /* mtime (and size) may have changed */
 
                 /*
@@ -1959,8 +1963,6 @@ static ssize_t vbsf_reg_write(struct file *file, const char *buf, size_t size, l
     AssertReturn(S_ISREG(inode->i_mode), -EINVAL);
 
     pos = *off;
-    /** @todo This should be handled by the host, it returning the new file
-     *        offset when appending.  We may have an outdated i_size value here! */
     if (file->f_flags & O_APPEND)
         pos = i_size_read(inode);
 
@@ -2010,6 +2012,8 @@ static ssize_t vbsf_reg_write(struct file *file, const char *buf, size_t size, l
                     vbsf_reg_write_sync_page_cache(mapping, pos, (uint32_t)cbRet, pReq->abData,
                                                    NULL /*papSrcPages*/, 0 /*offSrcPage0*/, 0 /*cSrcPages*/);
                     pos += cbRet;
+                    if ((file->f_flags & O_APPEND) && (g_fSfFeatures & SHFL_FEATURE_WRITE_UPDATES_OFFSET))
+                        pos = pReq->Parms.off64Write.u.value64;
                     *off = pos;
                     if (pos > i_size_read(inode))
                         i_size_write(inode, pos);
@@ -2652,8 +2656,8 @@ static ssize_t vbsf_reg_aio_read(struct kiocb *kio, const struct iovec *iov, uns
  * locking.
  */
 static ssize_t vbsf_reg_write_iter_locking(struct kiocb *kio, struct iov_iter *iter, size_t cbToWrite, loff_t offFile,
-                                           struct vbsf_super_info *pSuperInfo, struct vbsf_reg_info *sf_r,
-                                           struct inode *inode, struct vbsf_inode_info *sf_i, struct address_space *mapping)
+                                           struct vbsf_super_info *pSuperInfo, struct vbsf_reg_info *sf_r, struct inode *inode,
+                                           struct vbsf_inode_info *sf_i, struct address_space *mapping, bool fAppend)
 {
     /*
      * Estimate how many pages we may possible submit in a single request so
@@ -2719,11 +2723,15 @@ static ssize_t vbsf_reg_write_iter_locking(struct kiocb *kio, struct iov_iter *i
                 vbsf_iter_unlock_pages(iter, papPages, cPages, false /*fSetDirty*/);
 
                 cbRet      += cbActual;
-                offFile    += cbActual;
-                kio->ki_pos = offFile;
                 cbToWrite  -= cbActual;
+
+                offFile    += cbActual;
+                if (fAppend && (g_fSfFeatures & SHFL_FEATURE_WRITE_UPDATES_OFFSET))
+                    offFile = pReq->Parms.off64Write.u.value64;
+                kio->ki_pos = offFile;
                 if (offFile > i_size_read(inode))
                     i_size_write(inode, offFile);
+
                 sf_i->force_restat = 1; /* mtime (and size) may have changed */
 
                 /*
@@ -2802,21 +2810,21 @@ static ssize_t vbsf_reg_aio_write(struct kiocb *kio, const struct iovec *iov, un
 # if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)
     loff_t                  offFile    = kio->ki_pos;
 # endif
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
+    bool const              fAppend    = RT_BOOL(kio->ki_flags & IOCB_APPEND);
+# else
+    bool const              fAppend    = RT_BOOL(kio->ki_filp->f_flags & O_APPEND);
+# endif
+
 
     SFLOGFLOW(("vbsf_reg_write_iter: inode=%p file=%p size=%#zx off=%#llx type=%#x\n",
                inode, kio->ki_filp, cbToWrite, offFile, iter->type));
     AssertReturn(S_ISREG(inode->i_mode), -EINVAL);
 
     /*
-     * Enforce APPEND flag.
+     * Enforce APPEND flag (more later).
      */
-    /** @todo This should be handled by the host, it returning the new file
-     *        offset when appending.  We may have an outdated i_size value here! */
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
-    if (kio->ki_flags & IOCB_APPEND)
-# else
-    if (kio->ki_filp->f_flags & O_APPEND)
-# endif
+    if (fAppend)
         kio->ki_pos = offFile = i_size_read(inode);
 
     /*
@@ -2870,9 +2878,14 @@ static ssize_t vbsf_reg_aio_write(struct kiocb *kio, const struct iovec *iov, un
                         AssertStmt(cbRet <= (ssize_t)cbToWrite, cbRet = cbToWrite);
                         vbsf_reg_write_sync_page_cache(mapping, offFile, (uint32_t)cbRet, pReq->abData,
                                                        NULL /*papSrcPages*/, 0 /*offSrcPage0*/, 0 /*cSrcPages*/);
-                        kio->ki_pos = offFile += cbRet;
+
+                        offFile += cbRet;
+                        if (fAppend && (g_fSfFeatures & SHFL_FEATURE_WRITE_UPDATES_OFFSET))
+                            offFile = pReq->Parms.off64Write.u.value64;
+                        kio->ki_pos = offFile;
                         if (offFile > i_size_read(inode))
                             i_size_write(inode, offFile);
+
 # if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
                         if ((size_t)cbRet < cbToWrite)
                             iov_iter_revert(iter, cbToWrite - cbRet);
@@ -2893,7 +2906,7 @@ static ssize_t vbsf_reg_aio_write(struct kiocb *kio, const struct iovec *iov, un
     /*
      * Otherwise do the page locking thing.
      */
-    return vbsf_reg_write_iter_locking(kio, iter, cbToWrite, offFile, pSuperInfo, sf_r, inode, sf_i, mapping);
+    return vbsf_reg_write_iter_locking(kio, iter, cbToWrite, offFile, pSuperInfo, sf_r, inode, sf_i, mapping, fAppend);
 }
 
 #endif /* >= 2.6.19 */
@@ -3055,18 +3068,22 @@ static int vbsf_reg_open(struct inode *inode, struct file *file)
 
     if (pReq->CreateParms.Handle != SHFL_HANDLE_NIL) {
         vbsf_dentry_chain_increase_ttl(dentry);
+        vbsf_update_inode(inode, sf_i, &pReq->CreateParms.Info, pSuperInfo, false /*fInodeLocked*/, 0 /*fSetAttrs*/);
         rc_linux = 0;
     } else {
         switch (pReq->CreateParms.Result) {
             case SHFL_PATH_NOT_FOUND:
+                vbsf_dentry_invalidate_ttl(dentry);
                 rc_linux = -ENOENT;
                 break;
             case SHFL_FILE_NOT_FOUND:
+                vbsf_dentry_invalidate_ttl(dentry);
                 /** @todo sf_dentry_increase_parent_ttl(file->f_dentry); if we can trust it.  */
                 rc_linux = -ENOENT;
                 break;
             case SHFL_FILE_EXISTS:
                 vbsf_dentry_chain_increase_ttl(dentry);
+                vbsf_update_inode(inode, sf_i, &pReq->CreateParms.Info, pSuperInfo, false /*fInodeLocked*/, 0 /*fSetAttrs*/);
                 rc_linux = -EEXIST;
                 break;
             default:
@@ -3076,10 +3093,6 @@ static int vbsf_reg_open(struct inode *inode, struct file *file)
         }
     }
 
-/** @todo update the inode here, pReq carries the latest stats!  Very helpful
- *        for detecting host side changes. */
-
-    sf_i->force_restat = 1; /** @todo Why?!? */
     sf_r->Handle.hHost = pReq->CreateParms.Handle;
     file->private_data = sf_r;
     vbsf_handle_append(sf_i, &sf_r->Handle);

@@ -2191,11 +2191,12 @@
         <location line="+41"/>
         <location line="+41"/>
         <location line="+41"/>
+        <location line="+42"/>
         <source>Cloud Profile Manager</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location line="-163"/>
+        <location line="-205"/>
         <source>Add new cloud profile</source>
         <translation type="unfinished"></translation>
     </message>
@@ -2261,6 +2262,26 @@
     </message>
     <message>
         <location line="+37"/>
+        <source>Try</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>&amp;Try Oracle Cloud for Free...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>Try Oracle cloud for free</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Try Oracle Cloud for Free</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+38"/>
         <source>Help</source>
         <translation type="unfinished"></translation>
     </message>
@@ -2300,7 +2321,7 @@
         <translation type="obsolete">Erakutsi VirtualBox Makina Adiera agiria Agiri Kudeatzailean</translation>
     </message>
     <message>
-        <location line="-1985"/>
+        <location line="-2027"/>
         <source>&amp;New...</source>
         <translation>&amp;Berria...</translation>
     </message>
@@ -3189,7 +3210,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location line="+597"/>
+        <location line="+606"/>
         <source>Cloud Profile Manager</source>
         <translation type="unfinished"></translation>
     </message>
@@ -13683,7 +13704,7 @@
 <context>
     <name>UINetworkReplyPrivate</name>
     <message>
-        <location filename="../src/net/UINetworkReply.cpp" line="+954"/>
+        <location filename="../src/net/UINetworkReply.cpp" line="+969"/>
         <source>Host not found</source>
         <translation>Hostalaria ez da aurkitu</translation>
     </message>
@@ -13747,7 +13768,7 @@
 <context>
     <name>UINetworkReplyPrivateThread</name>
     <message>
-        <location line="-587"/>
+        <location line="-602"/>
         <source>During proxy configuration</source>
         <translation>Proxy itxurapenean zehar</translation>
     </message>
@@ -16478,7 +16499,7 @@
     </message>
     <message>
         <location filename="../src/wizards/newvd/UIWizardNewVDPageBasic2.cpp" line="+122"/>
-        <location filename="../src/wizards/newvd/UIWizardNewVDPageExpert.cpp" line="+229"/>
+        <location filename="../src/wizards/newvd/UIWizardNewVDPageExpert.cpp" line="+244"/>
         <source>Storage on physical hard disk</source>
         <translation>Biltegiratu diska gogor fisikoan</translation>
     </message>
@@ -16525,7 +16546,7 @@
         <translation type="vanished">&lt;nobr&gt;%1 %2&lt;/nobr&gt;</translation>
     </message>
     <message>
-        <location filename="../src/wizards/newvd/UIWizardNewVDPageBasic3.cpp" line="+250"/>
+        <location filename="../src/wizards/newvd/UIWizardNewVDPageBasic3.cpp" line="+259"/>
         <source>File location and size</source>
         <translation>Agiri kokalekua eta neurria</translation>
     </message>
@@ -19142,7 +19163,7 @@
         <translation type="obsolete">Mesedez hautatu diska gogor birtual agiri berriarentzako kokaleku bat</translation>
     </message>
     <message>
-        <location filename="../src/wizards/newvd/UIWizardNewVDPageBasic3.cpp" line="-160"/>
+        <location filename="../src/wizards/newvd/UIWizardNewVDPageBasic3.cpp" line="-169"/>
         <source>Please choose a location for new virtual hard disk file</source>
         <translation>Mesedez hautatu diska gogor birtual agiri berriarentzako kokaleku bat</translation>
     </message>

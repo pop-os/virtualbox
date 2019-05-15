@@ -165,11 +165,11 @@
     </message>
     <message>
         <source>The VirtualBox Linux kernel driver is either not loaded or not set up correctly. Please try setting it up again by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root.&lt;br/&gt;&lt;br/&gt;If your system has EFI Secure Boot enabled you may also need to sign the kernel modules (vboxdrv, vboxnetflt, vboxnetadp, vboxpci) before you can load them. Please see your Linux system&apos;s documentation for more information.</source>
-        <translation type="unfinished"></translation>
+        <translation>VirtualBoxのLinuxカーネルドライバーは読み込まれていないか、セットアップが正しく行われていません。&lt;br/&gt;&lt;br/&gt;root権限&lt;br/&gt;&lt;br/&gt;で&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;を実行し、セットアップを再度行ってください。システムでEFIセキュアブートが有効になっている場合は、カーネルモジュール(vboxdrv, vboxnetflt, vboxnetadp, vboxpci)に署名しなくてはなりません。詳細な情報を取得するため、Linuxシステムのドキュメントをご覧ください。</translation>
     </message>
     <message>
         <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you are not mixing builds of VirtualBox from different sources.</source>
-        <translation type="unfinished"></translation>
+        <translation>VirtualBox の現在のカーネルモジュールがこのバージョンの VirtualBox と適合していません。VirtualBoxのインストールに失敗しています。 &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; を実行すれば修正できるでしょう。ソースが異なるVirtualBoxのビルドを同じ環境にインストールしないでください。</translation>
     </message>
 </context>
 <context>
@@ -2413,11 +2413,27 @@
     </message>
     <message>
         <source>E&amp;xport to OCI...</source>
-        <translation type="unfinished"></translation>
+        <translation>OCIにエクスポート(&amp;X)...</translation>
     </message>
     <message>
         <source>Export selected virtual machine to OCI</source>
-        <translation type="unfinished"></translation>
+        <translation>選択した仮想マシンをOCIにエクスポートします</translation>
+    </message>
+    <message>
+        <source>Try</source>
+        <translation>試す</translation>
+    </message>
+    <message>
+        <source>&amp;Try Oracle Cloud for Free...</source>
+        <translation>Oracle Cloudを無料で試す(&amp;T)...</translation>
+    </message>
+    <message>
+        <source>Try Oracle cloud for free</source>
+        <translation>Oracle Cloudを無料で試す</translation>
+    </message>
+    <message>
+        <source>Try Oracle Cloud for Free</source>
+        <translation>Oracle Cloudを無料で試す</translation>
     </message>
 </context>
 <context>
@@ -12511,15 +12527,15 @@ p, li { white-space: pre-wrap; }
     <name>UIMediumSearchWidget</name>
     <message>
         <source>Search By Name</source>
-        <translation type="unfinished"></translation>
+        <translation>名前で検索</translation>
     </message>
     <message>
         <source>Search By UUID</source>
-        <translation type="unfinished"></translation>
+        <translation>UUIDで検索</translation>
     </message>
     <message>
         <source>Select the search type</source>
-        <translation type="unfinished"></translation>
+        <translation>検索タイプを選択</translation>
     </message>
 </context>
 <context>
@@ -12578,15 +12594,15 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Medium</source>
-        <translation type="unfinished"></translation>
+        <translation>メディア</translation>
     </message>
     <message>
         <source>Expand All</source>
-        <translation type="unfinished">すべて開く</translation>
+        <translation>グループを広げる</translation>
     </message>
     <message>
         <source>Collapse All</source>
-        <translation type="unfinished">すべてたたむ</translation>
+        <translation>すべてたたむ</translation>
     </message>
 </context>
 <context>
@@ -17338,19 +17354,19 @@ step and attach hard disks later using the VM Settings dialog.&lt;/p&gt;</source
     </message>
     <message>
         <source>Go to the next bookmark</source>
-        <translation type="unfinished"></translation>
+        <translation>次のブックマークに移動</translation>
     </message>
     <message>
         <source>Go to the previous bookmark</source>
-        <translation type="unfinished"></translation>
+        <translation>前のブックマークに移動</translation>
     </message>
     <message>
         <source>Go to selected bookmark</source>
-        <translation type="unfinished"></translation>
+        <translation>選択したブックマークに移動</translation>
     </message>
     <message>
         <source>Matches Found</source>
-        <translation type="unfinished"></translation>
+        <translation>マッチしました</translation>
     </message>
 </context>
 <context>
@@ -17507,47 +17523,47 @@ step and attach hard disks later using the VM Settings dialog.&lt;/p&gt;</source
     </message>
     <message>
         <source>Close the pane</source>
-        <translation type="unfinished">ペインを閉じる</translation>
+        <translation>ペインを閉じる</translation>
     </message>
     <message>
         <source>Remove</source>
-        <translation type="unfinished">除去</translation>
+        <translation>除去</translation>
     </message>
     <message>
         <source>New Directory</source>
-        <translation type="unfinished"></translation>
+        <translation>新規ディレクトリ</translation>
     </message>
     <message>
         <source>Reset</source>
-        <translation type="unfinished">リセット</translation>
+        <translation>リセット</translation>
     </message>
     <message>
         <source>VISO Creator</source>
-        <translation type="unfinished"></translation>
+        <translation>VISOクリエイター</translation>
     </message>
     <message>
         <source>VISO</source>
-        <translation type="unfinished"></translation>
+        <translation>VISO</translation>
     </message>
     <message>
         <source>Host Browser</source>
-        <translation type="unfinished"></translation>
+        <translation>ホストブラウザー</translation>
     </message>
     <message>
         <source>VISO Browser</source>
-        <translation type="unfinished"></translation>
+        <translation>VISOブラウザー</translation>
     </message>
     <message>
         <source>Custom VISO options:</source>
-        <translation type="unfinished"></translation>
+        <translation>カスタムVISOオプション:</translation>
     </message>
     <message>
         <source>Remove current option.</source>
-        <translation type="unfinished"></translation>
+        <translation>現在のオプションを削除します。</translation>
     </message>
     <message>
         <source>Add</source>
-        <translation type="unfinished">追加</translation>
+        <translation>追加</translation>
     </message>
 </context>
 <context>
@@ -18353,7 +18369,7 @@ step and attach hard disks later using the VM Settings dialog.&lt;/p&gt;</source
     </message>
     <message>
         <source>&lt;p&gt;VirtualBox currently supports importing appliances saved in the Open Virtualization Format (OVF). To continue, select the file to import below.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;VirtualBoxは今のところOpen Virtualizasion Format (OVF)で保存された仮想アプライアンスのインポートだけをサポートしています。継続するには、下のインポートしたいファイルを選択してください。&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;VirtualBoxは今のところOpen Virtualizasion Format (OVF)で保存された仮想アプライアンスのインポートだけをサポートしています。継続するには、下欄でインポートするファイルを選択してください。&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Choose a virtual appliance file to import...</source>

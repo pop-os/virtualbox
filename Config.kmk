@@ -4072,17 +4072,26 @@ if1of ($(KBUILD_TARGET), os2 win) # Not required on solaris.
 endif
 
 SDK_VBOX_OPENSSL      = Only for VBoxRT and/or statically linked programs.
-SDK_VBOX_OPENSSL_VBOX_DEFAULT_INCS := $(PATH_OUT)/obj/crypto-1.1.0-headers/include
+SDK_VBOX_OPENSSL_VBOX_DEFAULT_INCS := $(PATH_OUT)/obj/crypto-1.1.1-headers/include
 SDK_VBOX_OPENSSL_INCS ?= $(SDK_VBOX_OPENSSL_VBOX_DEFAULT_INCS)
 SDK_VBOX_OPENSSL_ORDERDEPS ?= $(crypto-headers_1_TARGET)
+if  !defined(VBOX_ONLY_SDK) \
+ && (!defined(VBOX_ONLY_ADDITIONS) || !defined(VBOX_ONLY_ADDITIONS_WITHOUT_RTISOMAKER)) \
+ && (!defined(VBOX_ONLY_EXTPACKS) || defined(VBOX_NEED_EXTPACK_OPENSSL) || !defined(VBOX_ONLY_EXTPACKS_USE_IMPLIBS)) \
+ && ("$(SDK_VBOX_OPENSSL_INCS)" == "$(SDK_VBOX_OPENSSL_VBOX_DEFAULT_INCS)" || defined(VBOX_NEED_EXTPACK_OPENSSL))
+ SDK_VBOX_OPENSSL_DEPS ?= $(SDK_VBOX_OPENSSL_INCS)/openssl/openssl-mangling.h
+endif
 SDK_VBOX_OPENSSL_LIBS ?= \
 	$(PATH_STAGE_LIB)/VBox-libssl$(VBOX_SUFF_LIB) \
 	$(PATH_STAGE_LIB)/VBox-libcrypto$(VBOX_SUFF_LIB)
 
 SDK_VBOX_OPENSSL-x86      = Only for VBoxRT and/or statically linked programs.
-SDK_VBOX_OPENSSL-x86_VBOX_DEFAULT_INCS := $(PATH_OUT)/obj/crypto-1.1.0-headers/include
+SDK_VBOX_OPENSSL-x86_VBOX_DEFAULT_INCS := $(PATH_OUT)/obj/crypto-1.1.1-headers/include
 SDK_VBOX_OPENSSL-x86_INCS ?= $(SDK_VBOX_OPENSSL_VBOX_DEFAULT_INCS)
 SDK_VBOX_OPENSSL-x86_ORDERDEPS ?= $(crypto-headers_1_TARGET)
+if ("$(SDK_VBOX_OPENSSL_INCS)" == "$(SDK_VBOX_OPENSSL_VBOX_DEFAULT_INCS)" || defined(VBOX_NEED_EXTPACK_OPENSSL))
+ SDK_VBOX_OPENSSL-x86_DEPS ?= $(SDK_VBOX_OPENSSL_INCS)/openssl/openssl-mangling.h
+endif
 SDK_VBOX_OPENSSL-x86_LIBS ?= \
 	$(PATH_STAGE_LIB)/VBox-libssl-x86$(VBOX_SUFF_LIB) \
 	$(PATH_STAGE_LIB)/VBox-libcrypto-x86$(VBOX_SUFF_LIB)
@@ -7683,7 +7692,7 @@ endif
 SVN                    ?= svn$(HOSTSUFF_EXE)
 VBOX_SVN_REV_KMK        = $(PATH_OUT)/revision.kmk
 ifndef VBOX_SVN_REV
- VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 129722 $  )
+ VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 130347 $  )
  VBOX_SVN_DEP          := $(firstword $(wildcard $(PATH_ROOT)/.svn/wc.db $(abspath $(PATH_ROOT)/../.svn/wc.db) $(abspath $(PATH_ROOT)/../../.svn/wc.db) $(PATH_ROOT)/.svn/entries))
  ifeq ($(which $(SVN)),)
   VBOX_SVN_DEP         :=

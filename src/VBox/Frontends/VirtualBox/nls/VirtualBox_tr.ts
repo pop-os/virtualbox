@@ -2407,6 +2407,22 @@
         <source>Export selected virtual machine to OCI</source>
         <translation>Seçilen sanal makineyi OCI&apos;ye aktar</translation>
     </message>
+    <message>
+        <source>Try</source>
+        <translation>Dene</translation>
+    </message>
+    <message>
+        <source>&amp;Try Oracle Cloud for Free...</source>
+        <translation>Oracle Bulut&apos;u Ücretsiz &amp;Dene...</translation>
+    </message>
+    <message>
+        <source>Try Oracle cloud for free</source>
+        <translation>Oracle bulut&apos;u ücretsiz dene</translation>
+    </message>
+    <message>
+        <source>Try Oracle Cloud for Free</source>
+        <translation>Oracle Bulut&apos;u Ücretsiz Dene</translation>
+    </message>
 </context>
 <context>
     <name>UIActionPoolRuntime</name>

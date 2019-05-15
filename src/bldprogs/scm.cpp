@@ -1104,7 +1104,7 @@ static int scmSettingsBaseHandleOpt(PSCMSETTINGSBASE pSettings, int rc, PRTGETOP
                     char *pszDir = RTStrDupN(pchDir, cchDir);
                     if (pszDir)
                     {
-                        pSettings->pszGuardRelativeToDir = RTPathAbsExDup(pszDir, pValueUnion->psz);
+                        pSettings->pszGuardRelativeToDir = RTPathAbsExDup(pszDir, pValueUnion->psz, RTPATH_STR_F_STYLE_HOST);
                         RTStrFree(pszDir);
                         if (pSettings->pszGuardRelativeToDir)
                             return VINF_SUCCESS;
@@ -2959,7 +2959,7 @@ int main(int argc, char **argv)
             case 'V':
             {
                 /* The following is assuming that svn does it's job here. */
-                static const char s_szRev[] = "$Revision: 127890 $";
+                static const char s_szRev[] = "$Revision: 130485 $";
                 const char *psz = RTStrStripL(strchr(s_szRev, ' '));
                 RTPrintf("r%.*s\n", strchr(psz, ' ') - psz, psz);
                 return 0;
