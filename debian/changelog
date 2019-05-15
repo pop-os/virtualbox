@@ -1,3 +1,10 @@
+virtualbox (6.0.8-dfsg-1) unstable; urgency=medium
+
+  * New upstream version 6.0.8-dfsg
+  * Patch refresh, drop upstream patches: 78446 78447
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 15 May 2019 10:15:16 +0200
+
 virtualbox (6.0.6-dfsg-2) unstable; urgency=medium
 
   * Cherry-pick two upstream fixes for guest kernel modules
