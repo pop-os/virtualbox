@@ -1,5 +1,5 @@
 Description: Remove check for invalid characters in the build path since we have fixed
- kBuild to handle those pathes starting from version 1:0.1.98svn2318-7.
+ kBuild to handle those paths starting from version 1:0.1.98svn2318-7.
 Author: Felix Geyer <fgeyer@debian.org>
 
 Index: virtualbox/configure
