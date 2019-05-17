@@ -1,3 +1,10 @@
+virtualbox (6.0.8-dfsg-3) unstable; urgency=medium
+
+  [ YOSHINO Yoshihito <yy.y.ja.jp@gmail.com> ]
+  * Use dh_prep for vbox-*-source packages, fixing compat level 12 failure.
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 17 May 2019 16:39:21 +0200
+
 virtualbox (6.0.8-dfsg-2) unstable; urgency=medium
 
   * Bump compat level to 12

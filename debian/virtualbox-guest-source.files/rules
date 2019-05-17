@@ -48,7 +48,7 @@ clean:
 
 binary-modules: prep-deb-files
 	dh_testroot
-	dh_clean -k
+	dh_prep
 	# Build the modules
 	$(MAKE) -C $(KSRC) M=$(CURDIR)
 	# Install the modules
@@ -65,6 +65,6 @@ binary-modules: prep-deb-files
 	dh_gencontrol -- -v$(VERSION)
 	dh_md5sums
 	dh_builddeb --destdir=$(DEB_DESTDIR)
-	dh_clean -k
+	dh_prep
 
 .PHONY: build clean binary-arch binary-indep binary install binary-modules kdist kdist_configure kdist_image kdist_clean
