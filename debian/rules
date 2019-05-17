@@ -21,7 +21,7 @@ ifneq (,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
 endif
 
 include /usr/share/dpkg/default.mk
-VERSION ?= $(DEB_VERSION_UPSTREAM)
+VERSION ?= $(shell echo $(DEB_VERSION_UPSTREAM) |cut -f 1 -d "-")
 
 DIST_NAME := $(shell lsb_release -si)
 DIST_RELEASE := $(DIST_NAME)/$(shell lsb_release -sc)
