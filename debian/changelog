@@ -505,7 +505,7 @@ virtualbox (5.2.0-dfsg-5) unstable; urgency=low
 
 virtualbox (5.2.0-dfsg-4) unstable; urgency=medium
 
-  * 69524.patch: fixup the kernel 4.14 fix 
+  * 69524.patch: fixup the kernel 4.14 fix
 
  -- Gianfranco Costamagna <locutusofborg@debian.org>  Tue, 07 Nov 2017 10:53:52 +0100
 
@@ -1367,7 +1367,7 @@ virtualbox (4.3.2-dfsg-1) unstable; urgency=low
   * [9bbe020] Don't ship .debug files, when we already are stripping dwarf
     symbols from its libraries
   * Fix VBox network interface error on Linux 3.11
-    - Add 38-linux-3.11-vboxnet.patch 
+    - Add 38-linux-3.11-vboxnet.patch
   * [8e73a12] Imported Upstream version 4.3.2-dfsg
   * [9b2bc93] Fix VBox network interface error on Linux 3.11
   * [516aa9a] Refresh patches and drop patch 37 and 38 for linux 3.11
@@ -2112,7 +2112,7 @@ virtualbox-ose (3.0.6-dfsg-1) unstable; urgency=low
   * Drop 11-gcc-4.3.dpatch (not needed anymore)
 
   [ Michael Meskes ]
-  * Made debug package depend on normal package. 
+  * Made debug package depend on normal package.
 
  -- Michael Meskes <meskes@debian.org>  Fri, 11 Sep 2009 14:10:04 +0200
 
@@ -2240,7 +2240,7 @@ virtualbox-ose (2.2.0-dfsg-1) unstable; urgency=low
   * Documented problem with kernel 2.6.29, closes: #518739
   * Documented missing format attribute, closes: #517454
   * Added patch to disable checking for updates, closes: #516551
-  * Added patch to tell about missing vboxnetflt module, closes: #516819 
+  * Added patch to tell about missing vboxnetflt module, closes: #516819
   * Bumped Standards-Version to 3.8.1
 
  -- Michael Meskes <meskes@debian.org>  Fri, 10 Apr 2009 11:16:49 +0200
@@ -2301,7 +2301,7 @@ virtualbox-ose (2.1.0-dfsg-1) experimental; urgency=low
 
 virtualbox-ose (2.0.6-dfsg-1) experimental; urgency=low
 
-  * New upstream version. Closes: #497840  
+  * New upstream version. Closes: #497840
   * Do not warn user about losing snapshots anymore, this is supposed to be a
     thing of the past. Closes: #500101
   * Made guest utils init script more verbose if module was not loadable.
@@ -2334,7 +2334,7 @@ virtualbox-ose (1.6.6-dfsg-1) unstable; urgency=low
   * Removed patch 05-vboxadd-udev which was applied upstream.
   * Removed absolute paths in maintainer scripts.
   * Override lintian error in RDP subdir because the client is not build anyway.
- 
+
   [ Patrick Winnertz ]
   * New upstream version fixes compilation error of -modules with kernelversion
     2.6.27 (Closes: #499623)
