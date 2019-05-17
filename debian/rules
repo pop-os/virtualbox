@@ -20,7 +20,8 @@ ifneq (,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
 	NJOBS := -j $(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
 endif
 
-upstreamversion := $(shell dpkg-parsechangelog | sed -n 's/^Version: *\([^-]\+\)-.\+/\1/p')
+include /usr/share/dpkg/default.mk
+VERSION ?= $(DEB_VERSION_UPSTREAM)
 
 DIST_NAME := $(shell lsb_release -si)
 DIST_RELEASE := $(DIST_NAME)/$(shell lsb_release -sc)
@@ -91,11 +92,11 @@ override_dh_auto_install:
 	    cd out/bin/sdk/installer && \
 	    python3 ./vboxapisetup.py install --root $(CURDIR)/debian/$(sname)
 
-	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(pdkms).links.in > debian/$(pdkms).links
+	sed -e 's/CVERSION/$(VERSION)/g' < debian/$(pdkms).links.in > debian/$(pdkms).links
 
 	# Build install files for the dkms'ified sources
-	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(pdkms).install.in > debian/$(pdkms).install
-	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(gdkms).install.in > debian/$(gdkms).install
+	sed -e 's/CVERSION/$(VERSION)/g' < debian/$(pdkms).install.in > debian/$(pdkms).install
+	sed -e 's/CVERSION/$(VERSION)/g' < debian/$(gdkms).install.in > debian/$(gdkms).install
 
 	echo "xserver:Depends=$(SERVER_DEPENDS)" >> debian/$(uxname).substvars
 
@@ -197,7 +198,7 @@ endif
 	dh_systemd_enable -p$(uname) debian/$(uname).service
 
 override_dh_dkms:
-	dh_dkms -V $(upstreamversion)
+	dh_dkms -V $(VERSION)
 
 override_dh_strip:
 ifneq (,$(filter $(sname), $(shell dh_listpackages)))

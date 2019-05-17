@@ -2,6 +2,14 @@ virtualbox (6.0.8-dfsg-3) unstable; urgency=medium
 
   [ YOSHINO Yoshihito <yy.y.ja.jp@gmail.com> ]
   * Use dh_prep for vbox-*-source packages, fixing compat level 12 failure.
+    (Closes: #929055)
+
+  [ Gianfranco Costamagna ]
+  * Move lintian-overrides location
+  * Drop trailing changelogs
+  * Drop old dh-systemd dependency
+  * Patch refresh, fix typo
+  * Drop parsechangelog call in rules file
 
  -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 17 May 2019 16:39:21 +0200
 
