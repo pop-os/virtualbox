@@ -1,0 +1,48 @@
+Description: cherry-pick commit https://github.com/torvalds/linux/commit/c8613fc6293b0f8c1d303c991338d085cf4d9f12 from kernel to vbox codebase
+Author: Gianfranco Costamagna <locutusofborg@debian.org>
+
+Forwarded: irc
+Last-Update: 2019-05-22
+
+--- virtualbox-6.0.8-dfsg.orig/src/VBox/Additions/linux/drm/vbox_fb.c
++++ virtualbox-6.0.8-dfsg/src/VBox/Additions/linux/drm/vbox_fb.c
+@@ -312,14 +312,18 @@ static int vboxfb_create(struct drm_fb_h
+ 	if (IS_ERR(info))
+ 		return -PTR_ERR(info);
+ 
++#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0)
+ 	info->par = fbdev;
++#endif
+ 
+ 	fbdev->size = size;
+ 
+ 	fb = &fbdev->afb.base;
+ 	fbdev->helper.fb = fb;
+ 
++#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0)
+ 	strcpy(info->fix.id, "vboxdrmfb");
++#endif
+ 
+ 	/*
+ 	 * The last flag forces a mode set on VT switches even if the kernel
+@@ -334,14 +338,19 @@ static int vboxfb_create(struct drm_fb_h
+ 	 */
+ 	info->apertures->ranges[0].base = pci_resource_start(dev->pdev, 0);
+ 	info->apertures->ranges[0].size = pci_resource_len(dev->pdev, 0);
+-
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0)
++	drm_fb_helper_fill_info(info, helper, sizes);
++#else
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0) || defined(RHEL_75)
+ 	drm_fb_helper_fill_fix(info, fb->pitches[0], fb->format->depth);
+ #else
+ 	drm_fb_helper_fill_fix(info, fb->pitches[0], fb->depth);
+ #endif
++
++#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0)
+ 	drm_fb_helper_fill_var(info, &fbdev->helper, sizes->fb_width,
+ 			       sizes->fb_height);
++#endif
+ 
+ 	info->screen_base = bo->kmap.virtual;
+ 	info->screen_size = size;
