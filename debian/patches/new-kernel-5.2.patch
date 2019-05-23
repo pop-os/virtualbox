@@ -4,9 +4,11 @@ Author: Gianfranco Costamagna <locutusofborg@debian.org>
 Forwarded: irc
 Last-Update: 2019-05-22
 
---- virtualbox-6.0.8-dfsg.orig/src/VBox/Additions/linux/drm/vbox_fb.c
-+++ virtualbox-6.0.8-dfsg/src/VBox/Additions/linux/drm/vbox_fb.c
-@@ -312,14 +312,18 @@ static int vboxfb_create(struct drm_fb_h
+Index: virtualbox/src/VBox/Additions/linux/drm/vbox_fb.c
+===================================================================
+--- virtualbox.orig/src/VBox/Additions/linux/drm/vbox_fb.c
++++ virtualbox/src/VBox/Additions/linux/drm/vbox_fb.c
+@@ -312,14 +312,18 @@
  	if (IS_ERR(info))
  		return -PTR_ERR(info);
  
@@ -25,7 +27,7 @@ Last-Update: 2019-05-22
  
  	/*
  	 * The last flag forces a mode set on VT switches even if the kernel
-@@ -334,14 +338,20 @@ static int vboxfb_create(struct drm_fb_h
+@@ -334,14 +338,20 @@
  	 */
  	info->apertures->ranges[0].base = pci_resource_start(dev->pdev, 0);
  	info->apertures->ranges[0].size = pci_resource_len(dev->pdev, 0);
@@ -47,3 +49,19 @@ Last-Update: 2019-05-22
  
  	info->screen_base = bo->kmap.virtual;
  	info->screen_size = size;
+Index: virtualbox/src/VBox/Additions/linux/drm/vbox_ttm.c
+===================================================================
+--- virtualbox.orig/src/VBox/Additions/linux/drm/vbox_ttm.c
++++ virtualbox/src/VBox/Additions/linux/drm/vbox_ttm.c
+@@ -307,7 +307,10 @@
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 15, 0) || defined(RHEL_71)
+ 				 dev->anon_inode->i_mapping,
+ #endif
+-				 DRM_FILE_PAGE_OFFSET, true);
++#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0)
++				 DRM_FILE_PAGE_OFFSET,
++#endif
++				 true);
+ 	if (ret) {
+ 		DRM_ERROR("Error initialising bo driver; %d\n", ret);
+ #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0)
