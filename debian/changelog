@@ -1,3 +1,9 @@
+virtualbox (6.0.8-dfsg-6) unstable; urgency=medium
+
+  * Refresh previous patch (Closes: #929413, Closes: #929399)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 23 May 2019 09:34:03 +0200
+
 virtualbox (6.0.8-dfsg-5) unstable; urgency=medium
 
   * Add patch to fix build failure with kernel 5.2

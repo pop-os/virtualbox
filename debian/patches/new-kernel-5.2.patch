@@ -25,7 +25,7 @@ Last-Update: 2019-05-22
  
  	/*
  	 * The last flag forces a mode set on VT switches even if the kernel
-@@ -334,14 +338,19 @@ static int vboxfb_create(struct drm_fb_h
+@@ -334,14 +338,20 @@ static int vboxfb_create(struct drm_fb_h
  	 */
  	info->apertures->ranges[0].base = pci_resource_start(dev->pdev, 0);
  	info->apertures->ranges[0].size = pci_resource_len(dev->pdev, 0);
@@ -38,6 +38,7 @@ Last-Update: 2019-05-22
  #else
  	drm_fb_helper_fill_fix(info, fb->pitches[0], fb->depth);
  #endif
++#endif
 +
 +#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0)
  	drm_fb_helper_fill_var(info, &fbdev->helper, sizes->fb_width,
