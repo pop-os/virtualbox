@@ -1,3 +1,9 @@
+virtualbox (6.0.10-dfsg-1) UNRELEASED; urgency=medium
+
+  * New upstream release (Closes: #929074)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 21 Jun 2019 14:34:16 +0200
+
 virtualbox (6.0.8-dfsg-7) unstable; urgency=medium
 
   * Fix another chunk for kernel 5.2
