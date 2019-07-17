@@ -1317,14 +1317,15 @@ ProcessWaitResult_T GuestProcess::i_waitFlagsToResultEx(uint32_t fWaitFlags,
 
                 case ProcessStatus_Started:
                     /* Only wait for process start. */
-                    if (fWaitFlags == ProcessWaitForFlag_Start)
+                    if (fWaitFlags & ProcessWaitForFlag_Start)
                         waitResult = ProcessWaitResult_Start;
                     break;
 
                 default:
                     AssertMsgFailed(("Unhandled old status %RU32 before new status 'started'\n",
                                      oldStatus));
-                    waitResult = ProcessWaitResult_Start;
+                    if (fWaitFlags & ProcessWaitForFlag_Start)
+                        waitResult = ProcessWaitResult_Start;
                     break;
             }
             break;
@@ -1382,7 +1383,7 @@ ProcessWaitResult_T GuestProcess::i_waitFlagsToResult(uint32_t fWaitFlags)
 {
     AssertPtr(mSession);
     return GuestProcess::i_waitFlagsToResultEx(fWaitFlags,
-                                               mData.mStatus /* curStatus */, mData.mStatus /* newStatus */,
+                                               mData.mStatus /* oldStatus */, mData.mStatus /* newStatus */,
                                                mData.mProcess.mFlags, mSession->i_getProtocolVersion());
 }
 

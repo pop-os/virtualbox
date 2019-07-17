@@ -120,6 +120,86 @@ static PVBOXSERVICECTRLFILE vgsvcGstCtrlSessionFileGetLocked(const PVBOXSERVICEC
 }
 
 
+/**
+ * Recursion worker for vgsvcGstCtrlSessionHandleDirRemove.
+ * Only (recursively) removes directory structures which are not empty. Will fail if not empty.
+ *
+ * @returns IPRT status code.
+ * @param   pszDir              The directory buffer, RTPATH_MAX in length.
+ *                              Contains the abs path to the directory to
+ *                              recurse into. Trailing slash.
+ * @param   cchDir              The length of the directory we're recursing into,
+ *                              including the trailing slash.
+ * @param   pDirEntry           The dir entry buffer.  (Shared to save stack.)
+ */
+static int vgsvcGstCtrlSessionHandleDirRemoveSub(char *pszDir, size_t cchDir, PRTDIRENTRY pDirEntry)
+{
+    RTDIR hDir;
+    int rc = RTDirOpen(&hDir, pszDir);
+    if (RT_FAILURE(rc))
+    {
+        /* Ignore non-existing directories like RTDirRemoveRecursive does: */
+        if (rc == VERR_FILE_NOT_FOUND || rc == VERR_PATH_NOT_FOUND)
+            return VINF_SUCCESS;
+        return rc;
+    }
+
+    for (;;)
+    {
+        rc = RTDirRead(hDir, pDirEntry, NULL);
+        if (RT_FAILURE(rc))
+        {
+            if (rc == VERR_NO_MORE_FILES)
+                rc = VINF_SUCCESS;
+            break;
+        }
+
+        if (!RTDirEntryIsStdDotLink(pDirEntry))
+        {
+            /* Construct the full name of the entry. */
+            if (cchDir + pDirEntry->cbName + 1 /* dir slash */ < RTPATH_MAX)
+                memcpy(&pszDir[cchDir], pDirEntry->szName, pDirEntry->cbName + 1);
+            else
+            {
+                rc = VERR_FILENAME_TOO_LONG;
+                break;
+            }
+
+            /* Make sure we've got the entry type. */
+            if (pDirEntry->enmType == RTDIRENTRYTYPE_UNKNOWN)
+                RTDirQueryUnknownType(pszDir, false /*fFollowSymlinks*/, &pDirEntry->enmType);
+
+            /* Recurse into subdirs and remove them: */
+            if (pDirEntry->enmType == RTDIRENTRYTYPE_DIRECTORY)
+            {
+                size_t cchSubDir    = cchDir + pDirEntry->cbName;
+                pszDir[cchSubDir++] = RTPATH_SLASH;
+                pszDir[cchSubDir]   = '\0';
+                rc = vgsvcGstCtrlSessionHandleDirRemoveSub(pszDir, cchSubDir, pDirEntry);
+                if (RT_SUCCESS(rc))
+                {
+                    pszDir[cchSubDir] = '\0';
+                    rc = RTDirRemove(pszDir);
+                    if (RT_FAILURE(rc))
+                        break;
+                }
+                else
+                    break;
+            }
+            /* Not a subdirectory - fail: */
+            else
+            {
+                rc = VERR_DIR_NOT_EMPTY;
+                break;
+            }
+        }
+    }
+
+    RTDirClose(hDir);
+    return rc;
+}
+
+
 static int vgsvcGstCtrlSessionHandleDirRemove(PVBOXSERVICECTRLSESSION pSession, PVBGLR3GUESTCTRLCMDCTX pHostCtx)
 {
     AssertPtrReturn(pSession, VERR_INVALID_POINTER);
@@ -140,10 +220,18 @@ static int vgsvcGstCtrlSessionHandleDirRemove(PVBOXSERVICECTRLSESSION pSession, 
         {
             if (fFlags & DIRREMOVEREC_FLAG_RECURSIVE)
             {
-                uint32_t fFlagsRemRec = RTDIRRMREC_F_CONTENT_AND_DIR; /* Set default. */
-                if (fFlags & DIRREMOVEREC_FLAG_CONTENT_ONLY)
-                    fFlagsRemRec |= RTDIRRMREC_F_CONTENT_ONLY;
-                rc = RTDirRemoveRecursive(szDir, fFlagsRemRec);
+                if (fFlags & (DIRREMOVEREC_FLAG_CONTENT_AND_DIR | DIRREMOVEREC_FLAG_CONTENT_ONLY))
+                {
+                    uint32_t fFlagsRemRec = fFlags & DIRREMOVEREC_FLAG_CONTENT_AND_DIR
+                                          ? RTDIRRMREC_F_CONTENT_AND_DIR : RTDIRRMREC_F_CONTENT_ONLY;
+                    rc = RTDirRemoveRecursive(szDir, fFlagsRemRec);
+                }
+                else /* Only remove empty directory structures. Will fail if non-empty. */
+                {
+                    RTDIRENTRY DirEntry;
+                    RTPathEnsureTrailingSeparator(szDir, sizeof(szDir));
+                    rc = vgsvcGstCtrlSessionHandleDirRemoveSub(szDir, strlen(szDir), &DirEntry);
+                }
                 VGSvcVerbose(4, "[Dir %s]: rmdir /s (%#x) -> rc=%Rrc\n", szDir, fFlags, rc);
             }
             else
@@ -226,9 +314,10 @@ static int vgsvcGstCtrlSessionHandleFileOpen(PVBOXSERVICECTRLSESSION pSession, P
  */
                 uint64_t fFlags;
                 rc = RTFileModeToFlagsEx(szAccess, szDisposition, NULL /* pszSharing, not used yet */, &fFlags);
-                VGSvcVerbose(4, "[File %s] Opening with fFlags=0x%x, rc=%Rrc\n", pFile->szName, fFlags, rc);
+                VGSvcVerbose(4, "[File %s] Opening with fFlags=%#RX64 -> rc=%Rrc\n", pFile->szName, fFlags, rc);
                 if (RT_SUCCESS(rc))
                 {
+                    fFlags |= (uCreationMode << RTFILE_O_CREATE_MODE_SHIFT) & RTFILE_O_CREATE_MODE_MASK;
                     rc = RTFileOpen(&pFile->hFile, pFile->szName, fFlags);
                     if (RT_SUCCESS(rc))
                     {
@@ -243,6 +332,7 @@ static int vgsvcGstCtrlSessionHandleFileOpen(PVBOXSERVICECTRLSESSION pSession, P
                              */
                             uHandle = VBOX_GUESTCTRL_CONTEXTID_GET_OBJECT(pHostCtx->uContextID);
                             pFile->uHandle = uHandle;
+                            pFile->fOpen   = fFlags;
                             RTListAppend(&pSession->lstFiles, &pFile->Node);
                             VGSvcVerbose(2, "[File %s] Opened (ID=%RU32)\n", pFile->szName, pFile->uHandle);
                         }
@@ -357,7 +447,8 @@ static int vgsvcGstCtrlSessionHandleFileRead(const PVBOXSERVICECTRLSESSION pSess
          * If the request is larger than our scratch buffer, try grow it - just
          * ignore failure as the host better respect our buffer limits.
          */
-        size_t cbRead = 0;
+        uint32_t offNew = 0;
+        size_t   cbRead = 0;
         PVBOXSERVICECTRLFILE pFile = vgsvcGstCtrlSessionFileGetLocked(pSession, uHandle);
         if (pFile)
         {
@@ -365,7 +456,8 @@ static int vgsvcGstCtrlSessionHandleFileRead(const PVBOXSERVICECTRLSESSION pSess
                  vgsvcGstCtrlSessionGrowScratchBuf(ppvScratchBuf, pcbScratchBuf, cbToRead);
 
             rc = RTFileRead(pFile->hFile, *ppvScratchBuf, RT_MIN(cbToRead, *pcbScratchBuf), &cbRead);
-            VGSvcVerbose(5, "[File %s] Read %zu/%RU32 bytes, rc=%Rrc\n", pFile->szName, cbRead, cbToRead, rc);
+            offNew = (int64_t)RTFileTell(pFile->hFile);
+            VGSvcVerbose(5, "[File %s] Read %zu/%RU32 bytes, rc=%Rrc, offNew=%RI64\n", pFile->szName, cbRead, cbToRead, rc, offNew);
         }
         else
         {
@@ -376,7 +468,11 @@ static int vgsvcGstCtrlSessionHandleFileRead(const PVBOXSERVICECTRLSESSION pSess
         /*
          * Report result and data back to the host.
          */
-        int rc2 = VbglR3GuestCtrlFileCbRead(pHostCtx, rc, *ppvScratchBuf, (uint32_t)cbRead);
+        int rc2;
+        if (g_fControlHostFeatures0 & VBOX_GUESTCTRL_HF_0_NOTIFY_RDWR_OFFSET)
+            rc2 = VbglR3GuestCtrlFileCbReadOffset(pHostCtx, rc, *ppvScratchBuf, (uint32_t)cbRead, offNew);
+        else
+            rc2 = VbglR3GuestCtrlFileCbRead(pHostCtx, rc, *ppvScratchBuf, (uint32_t)cbRead);
         if (RT_FAILURE(rc2))
         {
             VGSvcError("Failed to report file read status, rc=%Rrc\n", rc2);
@@ -414,7 +510,8 @@ static int vgsvcGstCtrlSessionHandleFileReadAt(const PVBOXSERVICECTRLSESSION pSe
          * If the request is larger than our scratch buffer, try grow it - just
          * ignore failure as the host better respect our buffer limits.
          */
-        size_t cbRead = 0;
+        int64_t offNew = 0;
+        size_t  cbRead = 0;
         PVBOXSERVICECTRLFILE pFile = vgsvcGstCtrlSessionFileGetLocked(pSession, uHandle);
         if (pFile)
         {
@@ -422,7 +519,14 @@ static int vgsvcGstCtrlSessionHandleFileReadAt(const PVBOXSERVICECTRLSESSION pSe
                  vgsvcGstCtrlSessionGrowScratchBuf(ppvScratchBuf, pcbScratchBuf, cbToRead);
 
             rc = RTFileReadAt(pFile->hFile, (RTFOFF)offReadAt, *ppvScratchBuf, RT_MIN(cbToRead, *pcbScratchBuf), &cbRead);
-            VGSvcVerbose(5, "[File %s] Read %zu bytes @ %RU64, rc=%Rrc\n", pFile->szName, cbRead, offReadAt, rc);
+            if (RT_SUCCESS(rc))
+            {
+                offNew = offReadAt + cbRead;
+                RTFileSeek(pFile->hFile, offNew, RTFILE_SEEK_BEGIN, NULL); /* RTFileReadAt does not always change position. */
+            }
+            else
+                offNew = (int64_t)RTFileTell(pFile->hFile);
+            VGSvcVerbose(5, "[File %s] Read %zu bytes @ %RU64, rc=%Rrc, offNew=%RI64\n", pFile->szName, cbRead, offReadAt, rc, offNew);
         }
         else
         {
@@ -433,7 +537,11 @@ static int vgsvcGstCtrlSessionHandleFileReadAt(const PVBOXSERVICECTRLSESSION pSe
         /*
          * Report result and data back to the host.
          */
-        int rc2 = VbglR3GuestCtrlFileCbRead(pHostCtx, rc, *ppvScratchBuf, (uint32_t)cbRead);
+        int rc2;
+        if (g_fControlHostFeatures0 & VBOX_GUESTCTRL_HF_0_NOTIFY_RDWR_OFFSET)
+            rc2 = VbglR3GuestCtrlFileCbReadOffset(pHostCtx, rc, *ppvScratchBuf, (uint32_t)cbRead, offNew);
+        else
+            rc2 = VbglR3GuestCtrlFileCbRead(pHostCtx, rc, *ppvScratchBuf, (uint32_t)cbRead);
         if (RT_FAILURE(rc2))
         {
             VGSvcError("Failed to report file read at status, rc=%Rrc\n", rc2);
@@ -470,13 +578,15 @@ static int vgsvcGstCtrlSessionHandleFileWrite(const PVBOXSERVICECTRLSESSION pSes
         /*
          * Locate the file and do the writing.
          */
-        size_t cbWritten = 0;
+        int64_t offNew    = 0;
+        size_t  cbWritten = 0;
         PVBOXSERVICECTRLFILE pFile = vgsvcGstCtrlSessionFileGetLocked(pSession, uHandle);
         if (pFile)
         {
             rc = RTFileWrite(pFile->hFile, *ppvScratchBuf, RT_MIN(cbToWrite, *pcbScratchBuf), &cbWritten);
-            VGSvcVerbose(5, "[File %s] Writing %p LB %RU32 =>  %Rrc, cbWritten=%zu\n",
-                         pFile->szName, *ppvScratchBuf, RT_MIN(cbToWrite, *pcbScratchBuf), rc, cbWritten);
+            offNew = (int64_t)RTFileTell(pFile->hFile);
+            VGSvcVerbose(5, "[File %s] Writing %p LB %RU32 =>  %Rrc, cbWritten=%zu, offNew=%RI64\n",
+                         pFile->szName, *ppvScratchBuf, RT_MIN(cbToWrite, *pcbScratchBuf), rc, cbWritten, offNew);
         }
         else
         {
@@ -487,7 +597,11 @@ static int vgsvcGstCtrlSessionHandleFileWrite(const PVBOXSERVICECTRLSESSION pSes
         /*
          * Report result back to host.
          */
-        int rc2 = VbglR3GuestCtrlFileCbWrite(pHostCtx, rc, (uint32_t)cbWritten);
+        int rc2;
+        if (g_fControlHostFeatures0 & VBOX_GUESTCTRL_HF_0_NOTIFY_RDWR_OFFSET)
+            rc2 = VbglR3GuestCtrlFileCbWriteOffset(pHostCtx, rc, (uint32_t)cbWritten, offNew);
+        else
+            rc2 = VbglR3GuestCtrlFileCbWrite(pHostCtx, rc, (uint32_t)cbWritten);
         if (RT_FAILURE(rc2))
         {
             VGSvcError("Failed to report file write status, rc=%Rrc\n", rc2);
@@ -525,13 +639,26 @@ static int vgsvcGstCtrlSessionHandleFileWriteAt(const PVBOXSERVICECTRLSESSION pS
         /*
          * Locate the file and do the writing.
          */
-        size_t cbWritten = 0;
+        int64_t offNew    = 0;
+        size_t  cbWritten = 0;
         PVBOXSERVICECTRLFILE pFile = vgsvcGstCtrlSessionFileGetLocked(pSession, uHandle);
         if (pFile)
         {
             rc = RTFileWriteAt(pFile->hFile, (RTFOFF)offWriteAt, *ppvScratchBuf, RT_MIN(cbToWrite, *pcbScratchBuf), &cbWritten);
-            VGSvcVerbose(5, "[File %s] Writing %p LB %RU32 @ %RU64 =>  %Rrc, cbWritten=%zu\n",
-                         pFile->szName, *ppvScratchBuf, RT_MIN(cbToWrite, *pcbScratchBuf), offWriteAt, rc, cbWritten);
+            if (RT_SUCCESS(rc))
+            {
+                offNew = offWriteAt + cbWritten;
+
+                /* RTFileWriteAt does not always change position: */
+                if (!(pFile->fOpen & RTFILE_O_APPEND))
+                    RTFileSeek(pFile->hFile, offNew, RTFILE_SEEK_BEGIN, NULL);
+                else
+                    RTFileSeek(pFile->hFile, 0, RTFILE_SEEK_END, (uint64_t *)&offNew);
+            }
+            else
+                offNew = (int64_t)RTFileTell(pFile->hFile);
+            VGSvcVerbose(5, "[File %s] Writing %p LB %RU32 @ %RU64 =>  %Rrc, cbWritten=%zu, offNew=%RI64\n",
+                         pFile->szName, *ppvScratchBuf, RT_MIN(cbToWrite, *pcbScratchBuf), offWriteAt, rc, cbWritten, offNew);
         }
         else
         {
@@ -542,7 +669,11 @@ static int vgsvcGstCtrlSessionHandleFileWriteAt(const PVBOXSERVICECTRLSESSION pS
         /*
          * Report result back to host.
          */
-        int rc2 = VbglR3GuestCtrlFileCbWrite(pHostCtx, rc, (uint32_t)cbWritten);
+        int rc2;
+        if (g_fControlHostFeatures0 & VBOX_GUESTCTRL_HF_0_NOTIFY_RDWR_OFFSET)
+            rc2 = VbglR3GuestCtrlFileCbWriteOffset(pHostCtx, rc, (uint32_t)cbWritten, offNew);
+        else
+            rc2 = VbglR3GuestCtrlFileCbWrite(pHostCtx, rc, (uint32_t)cbWritten);
         if (RT_FAILURE(rc2))
         {
             VGSvcError("Failed to report file write status, rc=%Rrc\n", rc2);
@@ -581,7 +712,7 @@ static int vgsvcGstCtrlSessionHandleFileSeek(const PVBOXSERVICECTRLSESSION pSess
         static const uint8_t s_abMethods[GUEST_FILE_SEEKTYPE_END + 1] =
         {
             UINT8_MAX, RTFILE_SEEK_BEGIN, UINT8_MAX, UINT8_MAX, RTFILE_SEEK_CURRENT,
-            UINT8_MAX, UINT8_MAX, UINT8_MAX, GUEST_FILE_SEEKTYPE_END
+            UINT8_MAX, UINT8_MAX, UINT8_MAX, RTFILE_SEEK_END
         };
         if (   uSeekMethod < RT_ELEMENTS(s_abMethods)
             && s_abMethods[uSeekMethod] != UINT8_MAX)
@@ -660,6 +791,55 @@ static int vgsvcGstCtrlSessionHandleFileTell(const PVBOXSERVICECTRLSESSION pSess
          * Report result back to host.
          */
         int rc2 = VbglR3GuestCtrlFileCbTell(pHostCtx, rc, offCurrent);
+        if (RT_FAILURE(rc2))
+        {
+            VGSvcError("Failed to report file tell status, rc=%Rrc\n", rc2);
+            if (RT_SUCCESS(rc))
+                rc = rc2;
+        }
+    }
+    else
+    {
+        VGSvcError("Error fetching parameters for file tell operation: %Rrc\n", rc);
+        VbglR3GuestCtrlMsgSkip(pHostCtx->uClientID, rc, UINT32_MAX);
+    }
+    return rc;
+}
+
+
+static int vgsvcGstCtrlSessionHandleFileSetSize(const PVBOXSERVICECTRLSESSION pSession, PVBGLR3GUESTCTRLCMDCTX pHostCtx)
+{
+    AssertPtrReturn(pSession, VERR_INVALID_POINTER);
+    AssertPtrReturn(pHostCtx, VERR_INVALID_POINTER);
+
+    /*
+     * Retrieve the request.
+     */
+    uint32_t uHandle = 0;
+    uint64_t cbNew = 0;
+    int rc = VbglR3GuestCtrlFileGetSetSize(pHostCtx, &uHandle, &cbNew);
+    if (RT_SUCCESS(rc))
+    {
+        /*
+         * Locate the file and ask for the current position.
+         */
+        PVBOXSERVICECTRLFILE pFile = vgsvcGstCtrlSessionFileGetLocked(pSession, uHandle);
+        if (pFile)
+        {
+            rc = RTFileSetSize(pFile->hFile, cbNew);
+            VGSvcVerbose(5, "[File %s]: Changing size to %RU64 (%#RX64), rc=%Rrc\n", pFile->szName, cbNew, cbNew, rc);
+        }
+        else
+        {
+            VGSvcError("File %u (%#x) not found!\n", uHandle, uHandle);
+            cbNew = UINT64_MAX;
+            rc = VERR_NOT_FOUND;
+        }
+
+        /*
+         * Report result back to host.
+         */
+        int rc2 = VbglR3GuestCtrlFileCbSetSize(pHostCtx, rc, cbNew);
         if (RT_FAILURE(rc2))
         {
             VGSvcError("Failed to report file tell status, rc=%Rrc\n", rc2);
@@ -1199,6 +1379,11 @@ int VGSvcGstCtrlSessionHandler(PVBOXSERVICECTRLSESSION pSession, uint32_t uMsg, 
                 rc = vgsvcGstCtrlSessionHandleFileTell(pSession, pHostCtx);
             break;
 
+        case HOST_MSG_FILE_SET_SIZE:
+            if (fImpersonated)
+                rc = vgsvcGstCtrlSessionHandleFileSetSize(pSession, pHostCtx);
+            break;
+
         case HOST_MSG_PATH_RENAME:
             if (fImpersonated)
                 rc = vgsvcGstCtrlSessionHandlePathRename(pSession, pHostCtx);
@@ -1513,6 +1698,7 @@ static RTEXITCODE vgsvcGstCtrlSessionSpawnWorker(PVBOXSERVICECTRLSESSION pSessio
         return VGSvcError("Error connecting to guest control service, rc=%Rrc\n", rc);
     g_fControlSupportsOptimizations = VbglR3GuestCtrlSupportsOptimizations(idClient);
     g_idControlSvcClient            = idClient;
+    VbglR3GuestCtrlQueryFeatures(idClient, &g_fControlHostFeatures0);
 
     rc = vgsvcGstCtrlSessionReadKeyAndAccept(idClient, pSession->StartupInfo.uSessionID);
     if (RT_SUCCESS(rc))

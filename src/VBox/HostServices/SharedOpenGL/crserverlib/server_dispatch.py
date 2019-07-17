@@ -36,7 +36,10 @@ for func_name in apiutil.AllSpecials( sys.argv[1]+"/../state_tracker/state" ):
         print('#if defined(CR_%s)' % wrap)
     print('void SERVER_DISPATCH_APIENTRY crServerDispatch%s(%s)' % ( func_name, apiutil.MakeDeclarationStringForDispatcher( params ) ))
     print('{')
-    print('\tcrState%s(%s);' % (func_name, apiutil.MakeCallStringForDispatcher( params ) ))
+    if len(params) == 0:
+        print('\tcrState%s(&cr_server.StateTracker);' % (func_name))
+    else:
+        print('\tcrState%s(&cr_server.StateTracker, %s);' % (func_name, apiutil.MakeCallStringForDispatcher( params ) ))
     print('\tcr_server.head_spu->dispatch_table.%s(%s);' % (func_name, apiutil.MakeCallStringForDispatcher( params ) ))
     print('}')
     if wrap:
@@ -109,7 +112,7 @@ for func_name in keys:
         print('\t%s' % (condition))
         print('\t{')
         print('\t\tcr_server.head_spu->dispatch_table.%s(%s);' % (func_name, apiutil.MakeCallStringForDispatcher(params) ))
-        print("\t\tcr_server.current.c.%s.%s%s = cr_unpackData;" % (name,type,array))
+        print("\t\tcr_server.current.c.%s.%s%s = cr_server.pUnpackerState->pbUnpackData;" % (name,type,array))
         print('\t}')
         print('}\n')
 

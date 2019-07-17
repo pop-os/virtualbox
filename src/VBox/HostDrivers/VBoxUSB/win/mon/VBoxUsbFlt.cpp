@@ -46,30 +46,6 @@
 #include <VBox/usblib.h>
 #include <devguid.h>
 
-/*
- * Note: Must match the VID & PID in the USB driver .inf file!!
- */
-/*
-  BusQueryDeviceID USB\Vid_80EE&Pid_CAFE
-  BusQueryInstanceID 2
-  BusQueryHardwareIDs USB\Vid_80EE&Pid_CAFE&Rev_0100
-  BusQueryHardwareIDs USB\Vid_80EE&Pid_CAFE
-  BusQueryCompatibleIDs USB\Class_ff&SubClass_00&Prot_00
-  BusQueryCompatibleIDs USB\Class_ff&SubClass_00
-  BusQueryCompatibleIDs USB\Class_ff
-*/
-
-#define szBusQueryDeviceId                  L"USB\\Vid_80EE&Pid_CAFE"
-#define szBusQueryHardwareIDs               L"USB\\Vid_80EE&Pid_CAFE&Rev_0100\0USB\\Vid_80EE&Pid_CAFE\0\0"
-#define szBusQueryCompatibleIDs             L"USB\\Class_ff&SubClass_00&Prot_00\0USB\\Class_ff&SubClass_00\0USB\\Class_ff\0\0"
-
-#define szDeviceTextDescription             L"VirtualBox USB"
-
-/* Possible USB bus driver names. */
-static LPWSTR lpszStandardControllerName[1] =
-{
-    L"\\Driver\\usbhub",
-};
 
 /*
  * state transitions:
@@ -174,6 +150,9 @@ typedef struct VBOXUSBFLTGLOBALS
     /* devices known to misbehave */
     LIST_ENTRY BlackDeviceList;
     VBOXUSBFLT_LOCK Lock;
+    /** Flag whether to force replugging a device we can't query descirptors from.
+     * Short term workaround for @bugref{9479}. */
+    ULONG           dwForceReplugWhenDevPopulateFails;
 } VBOXUSBFLTGLOBALS, *PVBOXUSBFLTGLOBALS;
 static VBOXUSBFLTGLOBALS g_VBoxUsbFltGlobals;
 
@@ -419,6 +398,69 @@ static bool vboxUsbFltDevStateIsFiltered(PVBOXUSBFLT_DEVICE pDevice)
     return pDevice->enmState >= VBOXUSBFLT_DEVSTATE_CAPTURING;
 }
 
+static uint16_t vboxUsbParseHexNumU16(WCHAR **ppStr)
+{
+    WCHAR       *pStr = *ppStr;
+    WCHAR       wc;
+    uint16_t    num = 0;
+    unsigned    u;
+
+    for (int i = 0; i < 4; ++i)
+    {
+        if (!*pStr)     /* Just in case the string is too short. */
+            break;
+
+        wc = *pStr;
+        u = wc >= 'A' ? wc - 'A' + 10 : wc - '0';   /* Hex digit to number. */
+        num |= u << (12 - 4 * i);
+        pStr++;
+    }
+    *ppStr = pStr;
+
+    return num;
+}
+
+static bool vboxUsbParseHardwareID(WCHAR *pchIdStr, uint16_t *pVid, uint16_t *pPid, uint16_t *pRev)
+{
+#define VID_PREFIX  L"USB\\VID_"
+#define PID_PREFIX  L"&PID_"
+#define REV_PREFIX  L"&REV_"
+
+    *pVid = *pPid = *pRev = 0xFFFF;
+
+    /* The Hardware ID is in the format USB\VID_xxxx&PID_xxxx&REV_xxxx, with 'xxxx'
+     * being 16-bit hexadecimal numbers. The string is coming from the
+     * Windows PnP manager so OEMs should have no opportunity to mess it up.
+     */
+
+    if (wcsncmp(pchIdStr, VID_PREFIX, wcslen(VID_PREFIX)))
+        return false;
+    /* Point to the start of the vendor ID number and parse it. */
+    pchIdStr += wcslen(VID_PREFIX);
+    *pVid = vboxUsbParseHexNumU16(&pchIdStr);
+
+    if (wcsncmp(pchIdStr, PID_PREFIX, wcslen(PID_PREFIX)))
+        return false;
+    /* Point to the start of the product ID number and parse it. */
+    pchIdStr += wcslen(PID_PREFIX);
+    *pPid = vboxUsbParseHexNumU16(&pchIdStr);
+
+    /* The revision might not be there; the Windows documentation is not
+     * entirely clear if it will be always present for USB devices or not.
+     * If it's not there, still consider this a success. */
+    if (wcsncmp(pchIdStr, REV_PREFIX, wcslen(REV_PREFIX)))
+        return true;
+
+    /* Point to the start of the revision number and parse it. */
+    pchIdStr += wcslen(REV_PREFIX);
+    *pRev = vboxUsbParseHexNumU16(&pchIdStr);
+
+    return true;
+#undef VID_PREFIX
+#undef PID_PREFIX
+#undef REV_PREFIX
+}
+
 #define VBOXUSBMON_POPULATE_REQUEST_TIMEOUT_MS 10000
 
 static NTSTATUS vboxUsbFltDevPopulate(PVBOXUSBFLT_DEVICE pDevice, PDEVICE_OBJECT pDo /*, BOOLEAN bPopulateNonFilterProps*/)
@@ -442,8 +484,42 @@ static NTSTATUS vboxUsbFltDevPopulate(PVBOXUSBFLT_DEVICE pDevice, PDEVICE_OBJECT
         Status = VBoxUsbToolGetDescriptor(pDo, pDevDr, sizeof(*pDevDr), USB_DEVICE_DESCRIPTOR_TYPE, 0, 0, VBOXUSBMON_POPULATE_REQUEST_TIMEOUT_MS);
         if (!NT_SUCCESS(Status))
         {
-            WARN(("getting device descriptor failed, Status (0x%x)", Status));
-            break;
+            WCHAR       wchPropBuf[256];
+            ULONG       ulResultLen;
+            bool        rc;
+            uint16_t    vid, pid, rev;
+
+            WARN(("getting device descriptor failed, Status (0x%x); falling back to IoGetDeviceProperty", Status));
+
+            /* Try falling back to IoGetDeviceProperty. */
+            Status = IoGetDeviceProperty(pDo, DevicePropertyHardwareID, sizeof(wchPropBuf), wchPropBuf, &ulResultLen);
+            if (!NT_SUCCESS(Status))
+            {
+                /* This just isn't our day. We have no idea what the device is. */
+                WARN(("IoGetDeviceProperty failed, Status (0x%x)", Status));
+                break;
+            }
+            rc = vboxUsbParseHardwareID(wchPropBuf, &vid, &pid, &rev);
+            if (!rc)
+            {
+                /* This *really* should not happen. */
+                WARN(("Failed to parse Hardware ID"));
+                break;
+            }
+
+            LOG(("Parsed HardwareID: vid=%04X, pid=%04X, rev=%04X", vid, pid, rev));
+            if (vid == 0xFFFF || pid == 0xFFFF)
+                break;
+
+            LOG(("Successfully fell back to IoGetDeviceProperty result"));
+            /* The vendor/product ID is what matters. */
+            pDevDr->idVendor  = vid;
+            pDevDr->idProduct = pid;
+            pDevDr->bcdDevice = rev;
+            /* The rest we don't really know. */
+            pDevDr->bDeviceClass    = 0;
+            pDevDr->bDeviceSubClass = 0;
+            pDevDr->bDeviceProtocol = 0;
         }
 
         if (vboxUsbFltBlDevMatchLocked(pDevDr->idVendor, pDevDr->idProduct, pDevDr->bcdDevice))
@@ -829,6 +905,16 @@ static DECLCALLBACK(BOOLEAN) vboxUsbFltFilterCheckWalker(PFILE_OBJECT pFile, PDE
             else
             {
                 WARN(("vboxUsbFltDevPopulate for PDO 0x%p failed with Status 0x%x", pDevObj, Status));
+                if (   Status == STATUS_CANCELLED
+                    && g_VBoxUsbFltGlobals.dwForceReplugWhenDevPopulateFails)
+                {
+                    /*
+                     * This can happen if the device got suspended and is in D3 state where we can't query any strings.
+                     * There is no known way to set the power state of the device, especially if there is no driver attached yet.
+                     * The sledgehammer approach is to just replug the device to force it out of suspend, see bugref @{9479}.
+                     */
+                    continue;
+                }
             }
 
             LOG(("Matching: This device should NOT be filtered"));
@@ -1380,6 +1466,22 @@ void VBoxUsbFltProxyStopped(HVBOXUSBFLTDEV hDev)
     vboxUsbFltDevRelease(pDevice);
 }
 
+
+static NTSTATUS vboxUsbFltRegKeyQuery(PWSTR ValueName, ULONG ValueType, PVOID ValueData, ULONG ValueLength, PVOID Context, PVOID EntryContext)
+{
+    NTSTATUS Status = STATUS_SUCCESS;
+
+    RT_NOREF(ValueName, Context);
+    if (   ValueType == REG_DWORD
+        && ValueLength == sizeof(ULONG))
+        *(ULONG *)EntryContext = *(ULONG *)ValueData;
+    else
+        Status = STATUS_OBJECT_TYPE_MISMATCH;
+
+    return Status;
+}
+
+
 NTSTATUS VBoxUsbFltInit()
 {
     int rc = VBoxUSBFilterInit();
@@ -1395,6 +1497,28 @@ NTSTATUS VBoxUsbFltInit()
     InitializeListHead(&g_VBoxUsbFltGlobals.BlackDeviceList);
     vboxUsbFltBlDevPopulateWithKnownLocked();
     VBOXUSBFLT_LOCK_INIT();
+
+    /*
+     * Check whether the setting to force replugging USB devices when
+     * querying string descriptors fail is set in the registry,
+     * see @bugref{9479}.
+     */
+    RTL_QUERY_REGISTRY_TABLE aParams[] =
+    {
+        {vboxUsbFltRegKeyQuery, 0, L"ForceReplugWhenDevPopulateFails", &g_VBoxUsbFltGlobals.dwForceReplugWhenDevPopulateFails, REG_DWORD, &g_VBoxUsbFltGlobals.dwForceReplugWhenDevPopulateFails, sizeof(ULONG) },
+        {                 NULL, 0,                               NULL,                                                   NULL,         0,                                                     0,             0 }
+    };
+    UNICODE_STRING UnicodePath = RTL_CONSTANT_STRING(L"\\VBoxUSB");
+
+    NTSTATUS Status = RtlQueryRegistryValues(RTL_REGISTRY_CONTROL, UnicodePath.Buffer, &aParams[0], NULL, NULL);
+    if (Status == STATUS_SUCCESS)
+    {
+        if (g_VBoxUsbFltGlobals.dwForceReplugWhenDevPopulateFails)
+            LOG(("Forcing replug of USB devices where querying the descriptors fail\n"));
+    }
+    else
+        LOG(("RtlQueryRegistryValues() -> %#x, assuming defaults\n", Status));
+
     return STATUS_SUCCESS;
 }
 

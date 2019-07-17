@@ -99,6 +99,8 @@ DECLVBGL(void) VbglR0SfDisconnect(PVBGLSFCLIENT pClient)
 
 #if !defined(RT_OS_LINUX)
 
+# ifndef RT_OS_WINDOWS
+
 DECLVBGL(int) VbglR0SfSetUtf8(PVBGLSFCLIENT pClient)
 {
     int rc;
@@ -109,6 +111,8 @@ DECLVBGL(int) VbglR0SfSetUtf8(PVBGLSFCLIENT pClient)
 /*    Log(("VBOXSF: VbglR0SfSetUtf8: VbglR0HGCMCall rc = %#x, result = %#x\n", rc, data.callInfo.Hdr.rc)); */
     return rc;
 }
+
+# endif /* !RT_OS_WINDOWS */
 
 /** @name       Deprecated VBGL shared folder helpers.
  *
@@ -217,6 +221,8 @@ DECLVBGL(int) VbglR0SfUnmapFolder(PVBGLSFCLIENT pClient, PVBGLSFMAP pMap)
     return rc;
 }
 
+# if !defined(RT_OS_WINDOWS)
+
 DECLVBGL(int) VbglR0SfCreate(PVBGLSFCLIENT pClient, PVBGLSFMAP pMap, PSHFLSTRING pParsedPath, PSHFLCREATEPARMS pCreateParms)
 {
     /** @todo copy buffers to physical or mapped memory. */
@@ -258,6 +264,7 @@ DECLVBGL(int) VbglR0SfClose(PVBGLSFCLIENT pClient, PVBGLSFMAP pMap, SHFLHANDLE H
 /*    Log(("VBOXSF: VbglR0SfClose: VbglR0HGCMCall rc = %#x, result = %#x\n", rc, data.callInfo.Hdr.rc)); */
     return rc;
 }
+
 
 DECLVBGL(int) VbglR0SfRemove(PVBGLSFCLIENT pClient, PVBGLSFMAP pMap, PSHFLSTRING pParsedPath, uint32_t flags)
 {
@@ -511,6 +518,8 @@ DECLVBGL(int) VbglR0SfWritePageList(PVBGLSFCLIENT pClient, PVBGLSFMAP pMap, SHFL
     return rc;
 }
 
+# endif /* !RT_OS_WINDOWS */
+
 DECLVBGL(int) VbglR0SfFlush(PVBGLSFCLIENT pClient, PVBGLSFMAP pMap, SHFLHANDLE hFile)
 {
     int rc;
@@ -574,6 +583,8 @@ DECLVBGL(int) VbglR0SfDirInfo(
     return rc;
 }
 
+# ifndef RT_OS_WINDOWS
+
 DECLVBGL(int) VbglR0SfFsInfo(PVBGLSFCLIENT pClient, PVBGLSFMAP pMap, SHFLHANDLE hFile,
                              uint32_t flags, uint32_t *pcbBuffer, PSHFLDIRINFO pBuffer)
 {
@@ -605,6 +616,8 @@ DECLVBGL(int) VbglR0SfFsInfo(PVBGLSFCLIENT pClient, PVBGLSFMAP pMap, SHFLHANDLE 
     return rc;
 }
 
+# endif /* !RT_OS_WINDOWS */
+
 DECLVBGL(int) VbglR0SfLock(PVBGLSFCLIENT pClient, PVBGLSFMAP pMap, SHFLHANDLE hFile,
                            uint64_t offset, uint64_t cbSize, uint32_t fLock)
 {
@@ -630,6 +643,8 @@ DECLVBGL(int) VbglR0SfLock(PVBGLSFCLIENT pClient, PVBGLSFMAP pMap, SHFLHANDLE hF
 /*    Log(("VBOXSF: VbglR0SfLock: VbglR0HGCMCall rc = %#x, result = %#x\n", rc, data.callInfo.Hdr.rc)); */
     return rc;
 }
+
+# ifndef RT_OS_WINDOWS
 
 DECLVBGL(int) VbglR0SfReadLink(PVBGLSFCLIENT pClient, PVBGLSFMAP pMap, PSHFLSTRING pParsedPath, uint32_t cbBuffer, uint8_t *pBuffer)
 {
@@ -692,6 +707,8 @@ DECLVBGL(int) VbglR0SfSetSymlinks(PVBGLSFCLIENT pClient)
 /*    Log(("VBOXSF: VbglR0SfSetSymlinks: VbglR0HGCMCall rc = %#x, result = %#x\n", rc, data.callInfo.Hdr.rc)); */
     return rc;
 }
+
+# endif /* !RT_OS_WINDOWS */
 
 #endif /* !RT_OS_LINUX */
 

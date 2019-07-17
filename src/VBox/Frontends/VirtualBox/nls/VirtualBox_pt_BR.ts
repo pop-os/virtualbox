@@ -161,11 +161,11 @@
     </message>
     <message>
         <source>The VirtualBox Linux kernel driver is either not loaded or not set up correctly. Please try setting it up again by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root.&lt;br/&gt;&lt;br/&gt;If your system has EFI Secure Boot enabled you may also need to sign the kernel modules (vboxdrv, vboxnetflt, vboxnetadp, vboxpci) before you can load them. Please see your Linux system&apos;s documentation for more information.</source>
-        <translation type="unfinished"></translation>
+        <translation>O driver de kernel Linux do VirtualBox não foi carregado ou não foi configurado corretamente,. Tente configurá-lo novamente executando o comando&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;como root.&lt;br/&gt;&lt;br/&gt;Caso seu sistema possua EFI Secure Boot habilitado, você também precisa assinar os módulos de kernel (vboxdrv, vboxnetflt, vboxnetadp, vboxpci) antes de poder carregá-los. Leia a documentação do seu sistema Linux para maiores informaçòes.</translation>
     </message>
     <message>
         <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you are not mixing builds of VirtualBox from different sources.</source>
-        <translation type="unfinished"></translation>
+        <translation>Os módulos de kernel do VirtualBox não coincidem com esta versão do VirtualBox. A instalação do VirtualBox não foi bem-sucedida. Tente executar&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;para corrigir isto. Certifique-se de que não esteja misturando componentes do VirtualBox de fontes diferentes.</translation>
     </message>
 </context>
 <context>
@@ -2490,27 +2490,27 @@
     </message>
     <message>
         <source>E&amp;xport to OCI...</source>
-        <translation type="unfinished"></translation>
+        <translation>E&amp;xportar para OCI...</translation>
     </message>
     <message>
         <source>Export selected virtual machine to OCI</source>
-        <translation type="unfinished"></translation>
+        <translation>Exportar a máquina virtual selecionada para OCI</translation>
     </message>
     <message>
         <source>Try</source>
-        <translation type="unfinished"></translation>
+        <translation>Testar</translation>
     </message>
     <message>
         <source>&amp;Try Oracle Cloud for Free...</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Testar o Oracle Cloud de graça...</translation>
     </message>
     <message>
         <source>Try Oracle cloud for free</source>
-        <translation type="unfinished"></translation>
+        <translation>Testar o Oracle Cloud de graça</translation>
     </message>
     <message>
         <source>Try Oracle Cloud for Free</source>
-        <translation type="unfinished"></translation>
+        <translation>Testar o Oracle Cloud de Graça</translation>
     </message>
 </context>
 <context>
@@ -9711,7 +9711,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Scale Factor:</source>
-        <translation>Fator de E&amp;scalonamento:</translation>
+        <translation>Fator de Escalonamento:</translation>
     </message>
     <message>
         <source>Controls the guest screen scale factor.</source>
@@ -12932,15 +12932,15 @@ p, li { white-space: pre-wrap; }
     <name>UIMediumSearchWidget</name>
     <message>
         <source>Search By Name</source>
-        <translation type="unfinished"></translation>
+        <translation>Buscar por Nome</translation>
     </message>
     <message>
         <source>Search By UUID</source>
-        <translation type="unfinished"></translation>
+        <translation>Buscar por UUID</translation>
     </message>
     <message>
         <source>Select the search type</source>
-        <translation type="unfinished"></translation>
+        <translation>Seleciona o tipo de busca</translation>
     </message>
 </context>
 <context>
@@ -12999,15 +12999,15 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Medium</source>
-        <translation type="unfinished"></translation>
+        <translation>Mídia</translation>
     </message>
     <message>
         <source>Expand All</source>
-        <translation type="unfinished">Expandir Todos</translation>
+        <translation>Expandir Todos</translation>
     </message>
     <message>
         <source>Collapse All</source>
-        <translation type="unfinished">Compactar Todos</translation>
+        <translation>Compactar Todos</translation>
     </message>
 </context>
 <context>
@@ -18082,7 +18082,7 @@ utilizando o diálogo de Configurações da MV.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>The filter terms list, select one to remove or click the button on the right side to remove them all</source>
-        <translation>Selecione um critério de filtragem na lista para remover ou clique no botão do lado direito para remover todos.</translation>
+        <translation>Selecione um critério de filtragem na lista para remover ou clique no botão do lado direito para remover todos</translation>
     </message>
     <message>
         <source>The type of boolean operator for filter operation</source>
@@ -18190,19 +18190,19 @@ utilizando o diálogo de Configurações da MV.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Go to the next bookmark</source>
-        <translation type="unfinished"></translation>
+        <translation>Ir para o próximo marcador</translation>
     </message>
     <message>
         <source>Go to the previous bookmark</source>
-        <translation type="unfinished"></translation>
+        <translation>Ir para o marcador anterior</translation>
     </message>
     <message>
         <source>Go to selected bookmark</source>
-        <translation type="unfinished"></translation>
+        <translation>Ir para o marcador selecionado</translation>
     </message>
     <message>
         <source>Matches Found</source>
-        <translation type="unfinished"></translation>
+        <translation>Ocorências Encontradas</translation>
     </message>
 </context>
 <context>
@@ -18359,47 +18359,47 @@ utilizando o diálogo de Configurações da MV.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Close the pane</source>
-        <translation type="unfinished">Fechar o painel</translation>
+        <translation>Fechar o painel</translation>
     </message>
     <message>
         <source>Remove</source>
-        <translation type="unfinished">Remover</translation>
+        <translation>Remover</translation>
     </message>
     <message>
         <source>New Directory</source>
-        <translation type="unfinished"></translation>
+        <translation>Novo Diretório</translation>
     </message>
     <message>
         <source>Reset</source>
-        <translation type="unfinished"></translation>
+        <translation>Desfazer</translation>
     </message>
     <message>
         <source>VISO Creator</source>
-        <translation type="unfinished"></translation>
+        <translation>Criador de VISO</translation>
     </message>
     <message>
         <source>VISO</source>
-        <translation type="unfinished"></translation>
+        <translation>VISO</translation>
     </message>
     <message>
         <source>Host Browser</source>
-        <translation type="unfinished"></translation>
+        <translation>Navegador de Hospedeiro</translation>
     </message>
     <message>
         <source>VISO Browser</source>
-        <translation type="unfinished"></translation>
+        <translation>Navegador de VISO</translation>
     </message>
     <message>
         <source>Custom VISO options:</source>
-        <translation type="unfinished"></translation>
+        <translation>Opções de VISO customizada:</translation>
     </message>
     <message>
         <source>Remove current option.</source>
-        <translation type="unfinished"></translation>
+        <translation>Remover opção atual.</translation>
     </message>
     <message>
         <source>Add</source>
-        <translation type="unfinished">Acrescentar</translation>
+        <translation>Acrescentar</translation>
     </message>
 </context>
 <context>

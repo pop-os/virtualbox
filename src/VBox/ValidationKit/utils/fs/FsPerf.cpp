@@ -272,6 +272,12 @@ enum
     kCmdOpt_NoOpen,
     kCmdOpt_FStat,
     kCmdOpt_NoFStat,
+#ifdef RT_OS_WINDOWS
+    kCmdOpt_NtQueryInfoFile,
+    kCmdOpt_NoNtQueryInfoFile,
+    kCmdOpt_NtQueryVolInfoFile,
+    kCmdOpt_NoNtQueryVolInfoFile,
+#endif
     kCmdOpt_FChMod,
     kCmdOpt_NoFChMod,
     kCmdOpt_FUtimes,
@@ -318,6 +324,9 @@ enum
     kCmdOpt_NoFSync,
     kCmdOpt_MMap,
     kCmdOpt_NoMMap,
+    kCmdOpt_MMapCoherency,
+    kCmdOpt_NoMMapCoherency,
+    kCmdOpt_MMapPlacement,
     kCmdOpt_IgnoreNoCache,
     kCmdOpt_NoIgnoreNoCache,
     kCmdOpt_IoFileSize,
@@ -337,6 +346,8 @@ enum
     kCmdOpt_ManyTreeSubdirsPerDir,
     kCmdOpt_ManyTreeDepth,
 
+    kCmdOpt_MaxBufferSize,
+
     kCmdOpt_End
 };
 
@@ -347,91 +358,101 @@ enum
 /** Command line parameters */
 static const RTGETOPTDEF g_aCmdOptions[] =
 {
-    { "--dir",              'd', RTGETOPT_REQ_STRING  },
-    { "--relative-dir",     'r', RTGETOPT_REQ_NOTHING },
-    { "--comms-dir",        'c', RTGETOPT_REQ_STRING  },
-    { "--comms-slave",      'C', RTGETOPT_REQ_NOTHING },
-    { "--seconds",          's', RTGETOPT_REQ_UINT32  },
-    { "--milliseconds",     'm', RTGETOPT_REQ_UINT64  },
+    { "--dir",                      'd',                            RTGETOPT_REQ_STRING  },
+    { "--relative-dir",             'r',                            RTGETOPT_REQ_NOTHING },
+    { "--comms-dir",                'c',                            RTGETOPT_REQ_STRING  },
+    { "--comms-slave",              'C',                            RTGETOPT_REQ_NOTHING },
+    { "--seconds",                  's',                            RTGETOPT_REQ_UINT32  },
+    { "--milliseconds",             'm',                            RTGETOPT_REQ_UINT64  },
 
-    { "--enable-all",       'e', RTGETOPT_REQ_NOTHING },
-    { "--disable-all",      'z', RTGETOPT_REQ_NOTHING },
+    { "--enable-all",               'e',                            RTGETOPT_REQ_NOTHING },
+    { "--disable-all",              'z',                            RTGETOPT_REQ_NOTHING },
 
-    { "--many-files",       kCmdOpt_ManyFiles,              RTGETOPT_REQ_UINT32 },
-    { "--no-many-files",    kCmdOpt_NoManyFiles,            RTGETOPT_REQ_NOTHING },
-    { "--files-per-dir",    kCmdOpt_ManyTreeFilesPerDir,    RTGETOPT_REQ_UINT32 },
-    { "--subdirs-per-dir",  kCmdOpt_ManyTreeSubdirsPerDir,  RTGETOPT_REQ_UINT32 },
-    { "--tree-depth",       kCmdOpt_ManyTreeDepth,          RTGETOPT_REQ_UINT32 },
+    { "--many-files",               kCmdOpt_ManyFiles,              RTGETOPT_REQ_UINT32 },
+    { "--no-many-files",            kCmdOpt_NoManyFiles,            RTGETOPT_REQ_NOTHING },
+    { "--files-per-dir",            kCmdOpt_ManyTreeFilesPerDir,    RTGETOPT_REQ_UINT32 },
+    { "--subdirs-per-dir",          kCmdOpt_ManyTreeSubdirsPerDir,  RTGETOPT_REQ_UINT32 },
+    { "--tree-depth",               kCmdOpt_ManyTreeDepth,          RTGETOPT_REQ_UINT32 },
+    { "--max-buffer-size",          kCmdOpt_MaxBufferSize,          RTGETOPT_REQ_UINT32 },
+    { "--mmap-placement",           kCmdOpt_MMapPlacement,          RTGETOPT_REQ_STRING },
 
-    { "--open",             kCmdOpt_Open,           RTGETOPT_REQ_NOTHING },
-    { "--no-open",          kCmdOpt_NoOpen,         RTGETOPT_REQ_NOTHING },
-    { "--fstat",            kCmdOpt_FStat,          RTGETOPT_REQ_NOTHING },
-    { "--no-fstat",         kCmdOpt_NoFStat,        RTGETOPT_REQ_NOTHING },
-    { "--fchmod",           kCmdOpt_FChMod,         RTGETOPT_REQ_NOTHING },
-    { "--no-fchmod",        kCmdOpt_NoFChMod,       RTGETOPT_REQ_NOTHING },
-    { "--futimes",          kCmdOpt_FUtimes,        RTGETOPT_REQ_NOTHING },
-    { "--no-futimes",       kCmdOpt_NoFUtimes,      RTGETOPT_REQ_NOTHING },
-    { "--stat",             kCmdOpt_Stat,           RTGETOPT_REQ_NOTHING },
-    { "--no-stat",          kCmdOpt_NoStat,         RTGETOPT_REQ_NOTHING },
-    { "--chmod",            kCmdOpt_ChMod,          RTGETOPT_REQ_NOTHING },
-    { "--no-chmod",         kCmdOpt_NoChMod,        RTGETOPT_REQ_NOTHING },
-    { "--utimes",           kCmdOpt_Utimes,         RTGETOPT_REQ_NOTHING },
-    { "--no-utimes",        kCmdOpt_NoUtimes,       RTGETOPT_REQ_NOTHING },
-    { "--rename",           kCmdOpt_Rename,         RTGETOPT_REQ_NOTHING },
-    { "--no-rename",        kCmdOpt_NoRename,       RTGETOPT_REQ_NOTHING },
-    { "--dir-open",         kCmdOpt_DirOpen,        RTGETOPT_REQ_NOTHING },
-    { "--no-dir-open",      kCmdOpt_NoDirOpen,      RTGETOPT_REQ_NOTHING },
-    { "--dir-enum",         kCmdOpt_DirEnum,        RTGETOPT_REQ_NOTHING },
-    { "--no-dir-enum",      kCmdOpt_NoDirEnum,      RTGETOPT_REQ_NOTHING },
-    { "--mk-rm-dir",        kCmdOpt_MkRmDir,        RTGETOPT_REQ_NOTHING },
-    { "--no-mk-rm-dir",     kCmdOpt_NoMkRmDir,      RTGETOPT_REQ_NOTHING },
-    { "--stat-vfs",         kCmdOpt_StatVfs,        RTGETOPT_REQ_NOTHING },
-    { "--no-stat-vfs",      kCmdOpt_NoStatVfs,      RTGETOPT_REQ_NOTHING },
-    { "--rm",               kCmdOpt_Rm,             RTGETOPT_REQ_NOTHING },
-    { "--no-rm",            kCmdOpt_NoRm,           RTGETOPT_REQ_NOTHING },
-    { "--chsize",           kCmdOpt_ChSize,         RTGETOPT_REQ_NOTHING },
-    { "--no-chsize",        kCmdOpt_NoChSize,       RTGETOPT_REQ_NOTHING },
-    { "--read-tests",       kCmdOpt_ReadTests,      RTGETOPT_REQ_NOTHING },
-    { "--no-read-tests",    kCmdOpt_NoReadTests,    RTGETOPT_REQ_NOTHING },
-    { "--read-perf",        kCmdOpt_ReadPerf,       RTGETOPT_REQ_NOTHING },
-    { "--no-read-perf",     kCmdOpt_NoReadPerf,     RTGETOPT_REQ_NOTHING },
+    { "--open",                     kCmdOpt_Open,                   RTGETOPT_REQ_NOTHING },
+    { "--no-open",                  kCmdOpt_NoOpen,                 RTGETOPT_REQ_NOTHING },
+    { "--fstat",                    kCmdOpt_FStat,                  RTGETOPT_REQ_NOTHING },
+    { "--no-fstat",                 kCmdOpt_NoFStat,                RTGETOPT_REQ_NOTHING },
+#ifdef RT_OS_WINDOWS
+    { "--nt-query-info-file",       kCmdOpt_NtQueryInfoFile,        RTGETOPT_REQ_NOTHING },
+    { "--no-nt-query-info-file",    kCmdOpt_NoNtQueryInfoFile,      RTGETOPT_REQ_NOTHING },
+    { "--nt-query-vol-info-file",   kCmdOpt_NtQueryVolInfoFile,     RTGETOPT_REQ_NOTHING },
+    { "--no-nt-query-vol-info-file",kCmdOpt_NoNtQueryVolInfoFile,   RTGETOPT_REQ_NOTHING },
+#endif
+    { "--fchmod",                   kCmdOpt_FChMod,                 RTGETOPT_REQ_NOTHING },
+    { "--no-fchmod",                kCmdOpt_NoFChMod,               RTGETOPT_REQ_NOTHING },
+    { "--futimes",                  kCmdOpt_FUtimes,                RTGETOPT_REQ_NOTHING },
+    { "--no-futimes",               kCmdOpt_NoFUtimes,              RTGETOPT_REQ_NOTHING },
+    { "--stat",                     kCmdOpt_Stat,                   RTGETOPT_REQ_NOTHING },
+    { "--no-stat",                  kCmdOpt_NoStat,                 RTGETOPT_REQ_NOTHING },
+    { "--chmod",                    kCmdOpt_ChMod,                  RTGETOPT_REQ_NOTHING },
+    { "--no-chmod",                 kCmdOpt_NoChMod,                RTGETOPT_REQ_NOTHING },
+    { "--utimes",                   kCmdOpt_Utimes,                 RTGETOPT_REQ_NOTHING },
+    { "--no-utimes",                kCmdOpt_NoUtimes,               RTGETOPT_REQ_NOTHING },
+    { "--rename",                   kCmdOpt_Rename,                 RTGETOPT_REQ_NOTHING },
+    { "--no-rename",                kCmdOpt_NoRename,               RTGETOPT_REQ_NOTHING },
+    { "--dir-open",                 kCmdOpt_DirOpen,                RTGETOPT_REQ_NOTHING },
+    { "--no-dir-open",              kCmdOpt_NoDirOpen,              RTGETOPT_REQ_NOTHING },
+    { "--dir-enum",                 kCmdOpt_DirEnum,                RTGETOPT_REQ_NOTHING },
+    { "--no-dir-enum",              kCmdOpt_NoDirEnum,              RTGETOPT_REQ_NOTHING },
+    { "--mk-rm-dir",                kCmdOpt_MkRmDir,                RTGETOPT_REQ_NOTHING },
+    { "--no-mk-rm-dir",             kCmdOpt_NoMkRmDir,              RTGETOPT_REQ_NOTHING },
+    { "--stat-vfs",                 kCmdOpt_StatVfs,                RTGETOPT_REQ_NOTHING },
+    { "--no-stat-vfs",              kCmdOpt_NoStatVfs,              RTGETOPT_REQ_NOTHING },
+    { "--rm",                       kCmdOpt_Rm,                     RTGETOPT_REQ_NOTHING },
+    { "--no-rm",                    kCmdOpt_NoRm,                   RTGETOPT_REQ_NOTHING },
+    { "--chsize",                   kCmdOpt_ChSize,                 RTGETOPT_REQ_NOTHING },
+    { "--no-chsize",                kCmdOpt_NoChSize,               RTGETOPT_REQ_NOTHING },
+    { "--read-tests",               kCmdOpt_ReadTests,              RTGETOPT_REQ_NOTHING },
+    { "--no-read-tests",            kCmdOpt_NoReadTests,            RTGETOPT_REQ_NOTHING },
+    { "--read-perf",                kCmdOpt_ReadPerf,               RTGETOPT_REQ_NOTHING },
+    { "--no-read-perf",             kCmdOpt_NoReadPerf,             RTGETOPT_REQ_NOTHING },
 #ifdef FSPERF_TEST_SENDFILE
-    { "--sendfile",         kCmdOpt_SendFile,       RTGETOPT_REQ_NOTHING },
-    { "--no-sendfile",      kCmdOpt_NoSendFile,     RTGETOPT_REQ_NOTHING },
+    { "--sendfile",                 kCmdOpt_SendFile,               RTGETOPT_REQ_NOTHING },
+    { "--no-sendfile",              kCmdOpt_NoSendFile,             RTGETOPT_REQ_NOTHING },
 #endif
 #ifdef RT_OS_LINUX
-    { "--splice",           kCmdOpt_Splice,         RTGETOPT_REQ_NOTHING },
-    { "--no-splice",        kCmdOpt_NoSplice,       RTGETOPT_REQ_NOTHING },
+    { "--splice",                   kCmdOpt_Splice,                 RTGETOPT_REQ_NOTHING },
+    { "--no-splice",                kCmdOpt_NoSplice,               RTGETOPT_REQ_NOTHING },
 #endif
-    { "--write-tests",      kCmdOpt_WriteTests,     RTGETOPT_REQ_NOTHING },
-    { "--no-write-tests",   kCmdOpt_NoWriteTests,   RTGETOPT_REQ_NOTHING },
-    { "--write-perf",       kCmdOpt_WritePerf,      RTGETOPT_REQ_NOTHING },
-    { "--no-write-perf",    kCmdOpt_NoWritePerf,    RTGETOPT_REQ_NOTHING },
-    { "--seek",             kCmdOpt_Seek,           RTGETOPT_REQ_NOTHING },
-    { "--no-seek",          kCmdOpt_NoSeek,         RTGETOPT_REQ_NOTHING },
-    { "--fsync",            kCmdOpt_FSync,          RTGETOPT_REQ_NOTHING },
-    { "--no-fsync",         kCmdOpt_NoFSync,        RTGETOPT_REQ_NOTHING },
-    { "--mmap",             kCmdOpt_MMap,           RTGETOPT_REQ_NOTHING },
-    { "--no-mmap",          kCmdOpt_NoMMap,         RTGETOPT_REQ_NOTHING },
-    { "--ignore-no-cache",  kCmdOpt_IgnoreNoCache,  RTGETOPT_REQ_NOTHING },
-    { "--no-ignore-no-cache",  kCmdOpt_NoIgnoreNoCache,  RTGETOPT_REQ_NOTHING },
-    { "--io-file-size",     kCmdOpt_IoFileSize,     RTGETOPT_REQ_UINT64 },
-    { "--set-block-size",   kCmdOpt_SetBlockSize,   RTGETOPT_REQ_UINT32 },
-    { "--add-block-size",   kCmdOpt_AddBlockSize,   RTGETOPT_REQ_UINT32 },
-    { "--copy",             kCmdOpt_Copy,           RTGETOPT_REQ_NOTHING },
-    { "--no-copy",          kCmdOpt_NoCopy,         RTGETOPT_REQ_NOTHING },
-    { "--remote",           kCmdOpt_Remote,         RTGETOPT_REQ_NOTHING },
-    { "--no-remote",        kCmdOpt_NoRemote,       RTGETOPT_REQ_NOTHING },
+    { "--write-tests",              kCmdOpt_WriteTests,             RTGETOPT_REQ_NOTHING },
+    { "--no-write-tests",           kCmdOpt_NoWriteTests,           RTGETOPT_REQ_NOTHING },
+    { "--write-perf",               kCmdOpt_WritePerf,              RTGETOPT_REQ_NOTHING },
+    { "--no-write-perf",            kCmdOpt_NoWritePerf,            RTGETOPT_REQ_NOTHING },
+    { "--seek",                     kCmdOpt_Seek,                   RTGETOPT_REQ_NOTHING },
+    { "--no-seek",                  kCmdOpt_NoSeek,                 RTGETOPT_REQ_NOTHING },
+    { "--fsync",                    kCmdOpt_FSync,                  RTGETOPT_REQ_NOTHING },
+    { "--no-fsync",                 kCmdOpt_NoFSync,                RTGETOPT_REQ_NOTHING },
+    { "--mmap",                     kCmdOpt_MMap,                   RTGETOPT_REQ_NOTHING },
+    { "--no-mmap",                  kCmdOpt_NoMMap,                 RTGETOPT_REQ_NOTHING },
+    { "--mmap-coherency",           kCmdOpt_MMapCoherency,          RTGETOPT_REQ_NOTHING },
+    { "--no-mmap-coherency",        kCmdOpt_NoMMapCoherency,        RTGETOPT_REQ_NOTHING },
+    { "--ignore-no-cache",          kCmdOpt_IgnoreNoCache,          RTGETOPT_REQ_NOTHING },
+    { "--no-ignore-no-cache",       kCmdOpt_NoIgnoreNoCache,        RTGETOPT_REQ_NOTHING },
+    { "--io-file-size",             kCmdOpt_IoFileSize,             RTGETOPT_REQ_UINT64 },
+    { "--set-block-size",           kCmdOpt_SetBlockSize,           RTGETOPT_REQ_UINT32 },
+    { "--add-block-size",           kCmdOpt_AddBlockSize,           RTGETOPT_REQ_UINT32 },
+    { "--copy",                     kCmdOpt_Copy,                   RTGETOPT_REQ_NOTHING },
+    { "--no-copy",                  kCmdOpt_NoCopy,                 RTGETOPT_REQ_NOTHING },
+    { "--remote",                   kCmdOpt_Remote,                 RTGETOPT_REQ_NOTHING },
+    { "--no-remote",                kCmdOpt_NoRemote,               RTGETOPT_REQ_NOTHING },
 
-    { "--show-duration",        kCmdOpt_ShowDuration,       RTGETOPT_REQ_NOTHING },
-    { "--no-show-duration",     kCmdOpt_NoShowDuration,     RTGETOPT_REQ_NOTHING },
-    { "--show-iterations",      kCmdOpt_ShowIterations,     RTGETOPT_REQ_NOTHING },
-    { "--no-show-iterations",   kCmdOpt_NoShowIterations,   RTGETOPT_REQ_NOTHING },
+    { "--show-duration",            kCmdOpt_ShowDuration,           RTGETOPT_REQ_NOTHING },
+    { "--no-show-duration",         kCmdOpt_NoShowDuration,         RTGETOPT_REQ_NOTHING },
+    { "--show-iterations",          kCmdOpt_ShowIterations,         RTGETOPT_REQ_NOTHING },
+    { "--no-show-iterations",       kCmdOpt_NoShowIterations,       RTGETOPT_REQ_NOTHING },
 
-    { "--quiet",                'q', RTGETOPT_REQ_NOTHING },
-    { "--verbose",              'v', RTGETOPT_REQ_NOTHING },
-    { "--version",              'V', RTGETOPT_REQ_NOTHING },
-    { "--help",                 'h', RTGETOPT_REQ_NOTHING } /* for Usage() */
+    { "--quiet",                    'q',                            RTGETOPT_REQ_NOTHING },
+    { "--verbose",                  'v',                            RTGETOPT_REQ_NOTHING },
+    { "--version",                  'V',                            RTGETOPT_REQ_NOTHING },
+    { "--help",                     'h',                            RTGETOPT_REQ_NOTHING } /* for Usage() */
 };
 
 /** The test handle. */
@@ -447,39 +468,54 @@ static bool         g_fShowDuration = false;
 static bool         g_fShowIterations = false;
 /** Verbosity level. */
 static uint32_t     g_uVerbosity = 0;
+/** Max buffer size, UINT32_MAX for unlimited.
+ * This is for making sure we don't run into the MDL limit on windows, which
+ * a bit less than 64 MiB. */
+#if defined(RT_OS_WINDOWS)
+static uint32_t     g_cbMaxBuffer = _32M;
+#else
+static uint32_t     g_cbMaxBuffer = UINT32_MAX;
+#endif
+/** When to place the mmap test. */
+static int          g_iMMapPlacement = 0;
 
 /** @name Selected subtest
  * @{ */
-static bool         g_fManyFiles = true;
-static bool         g_fOpen      = true;
-static bool         g_fFStat     = true;
-static bool         g_fFChMod    = true;
-static bool         g_fFUtimes   = true;
-static bool         g_fStat      = true;
-static bool         g_fChMod     = true;
-static bool         g_fUtimes    = true;
-static bool         g_fRename    = true;
-static bool         g_fDirOpen   = true;
-static bool         g_fDirEnum   = true;
-static bool         g_fMkRmDir   = true;
-static bool         g_fStatVfs   = true;
-static bool         g_fRm        = true;
-static bool         g_fChSize    = true;
-static bool         g_fReadTests = true;
-static bool         g_fReadPerf  = true;
+static bool         g_fManyFiles            = true;
+static bool         g_fOpen                 = true;
+static bool         g_fFStat                = true;
+#ifdef RT_OS_WINDOWS
+static bool         g_fNtQueryInfoFile      = true;
+static bool         g_fNtQueryVolInfoFile   = true;
+#endif
+static bool         g_fFChMod               = true;
+static bool         g_fFUtimes              = true;
+static bool         g_fStat                 = true;
+static bool         g_fChMod                = true;
+static bool         g_fUtimes               = true;
+static bool         g_fRename               = true;
+static bool         g_fDirOpen              = true;
+static bool         g_fDirEnum              = true;
+static bool         g_fMkRmDir              = true;
+static bool         g_fStatVfs              = true;
+static bool         g_fRm                   = true;
+static bool         g_fChSize               = true;
+static bool         g_fReadTests            = true;
+static bool         g_fReadPerf             = true;
 #ifdef FSPERF_TEST_SENDFILE
-static bool         g_fSendFile  = true;
+static bool         g_fSendFile             = true;
 #endif
 #ifdef RT_OS_LINUX
-static bool         g_fSplice    = true;
+static bool         g_fSplice               = true;
 #endif
-static bool         g_fWriteTests= true;
-static bool         g_fWritePerf = true;
-static bool         g_fSeek      = true;
-static bool         g_fFSync     = true;
-static bool         g_fMMap      = true;
-static bool         g_fCopy      = true;
-static bool         g_fRemote    = true;
+static bool         g_fWriteTests           = true;
+static bool         g_fWritePerf            = true;
+static bool         g_fSeek                 = true;
+static bool         g_fFSync                = true;
+static bool         g_fMMap                 = true;
+static bool         g_fMMapCoherency        = true;
+static bool         g_fCopy                 = true;
+static bool         g_fRemote               = true;
 /** @} */
 
 /** The length of each test run. */
@@ -1289,8 +1325,9 @@ static int FsPerfSlaveHandleWritePattern(FSPERFCOMMSSLAVESTATE *pState, char **p
     /*
      * Allocate a suitable buffer.
      */
-    size_t   cbBuf = cbToWrite >= _2M ? _2M : RT_ALIGN_Z((size_t)cbToWrite, 512);
-    uint8_t *pbBuf = (uint8_t *)RTMemTmpAlloc(cbBuf);
+    size_t   cbMaxBuf = RT_MIN(_2M, g_cbMaxBuffer);
+    size_t   cbBuf    = cbToWrite >= cbMaxBuf ? cbMaxBuf : RT_ALIGN_Z((size_t)cbToWrite, 512);
+    uint8_t *pbBuf    = (uint8_t *)RTMemTmpAlloc(cbBuf);
     if (!pbBuf)
     {
         cbBuf = _4K;
@@ -2087,6 +2124,591 @@ void fsPerfFStat(void)
     RTTESTI_CHECK_RC(RTFileClose(hFile1), VINF_SUCCESS);
 }
 
+#ifdef RT_OS_WINDOWS
+/**
+ * Nt(Query|Set|QueryDir)Information(File|) information class info.
+ */
+static const struct
+{
+    const char *pszName;
+    int         enmValue;
+    bool        fQuery;
+    bool        fSet;
+    bool        fQueryDir;
+    uint8_t     cbMin;
+} g_aNtQueryInfoFileClasses[] =
+{
+#define E(a_enmValue, a_fQuery, a_fSet, a_fQueryDir, a_cbMin) \
+        { #a_enmValue, a_enmValue, a_fQuery, a_fSet, a_fQueryDir, a_cbMin }
+    { "invalid0", 0, false, false, false, 0 },
+    E(FileDirectoryInformation,                      false, false, true,  sizeof(FILE_DIRECTORY_INFORMATION)),                   // 0x00, 0x00, 0x48
+    E(FileFullDirectoryInformation,                  false, false, true,  sizeof(FILE_FULL_DIR_INFORMATION)),                    // 0x00, 0x00, 0x48
+    E(FileBothDirectoryInformation,                  false, false, true,  sizeof(FILE_BOTH_DIR_INFORMATION)),                    // 0x00, 0x00, 0x60
+    E(FileBasicInformation,                          true,  true,  false, sizeof(FILE_BASIC_INFORMATION)),
+    E(FileStandardInformation,                       true,  false, false, sizeof(FILE_STANDARD_INFORMATION)),
+    E(FileInternalInformation,                       true,  false, false, sizeof(FILE_INTERNAL_INFORMATION)),
+    E(FileEaInformation,                             true,  false, false, sizeof(FILE_EA_INFORMATION)),
+    E(FileAccessInformation,                         true,  false, false, sizeof(FILE_ACCESS_INFORMATION)),
+    E(FileNameInformation,                           true,  false, false, sizeof(FILE_NAME_INFORMATION)),
+    E(FileRenameInformation,                         false, true,  false, sizeof(FILE_RENAME_INFORMATION)),
+    E(FileLinkInformation,                           false, true,  false, sizeof(FILE_LINK_INFORMATION)),
+    E(FileNamesInformation,                          false, false, true,  sizeof(FILE_NAMES_INFORMATION)),                       // 0x00, 0x00, 0x10
+    E(FileDispositionInformation,                    false, true,  false, sizeof(FILE_DISPOSITION_INFORMATION)),                 // 0x00, 0x01,
+    E(FilePositionInformation,                       true,  true,  false, sizeof(FILE_POSITION_INFORMATION)),                    // 0x08, 0x08,
+    E(FileFullEaInformation,                         false, false, false, sizeof(FILE_FULL_EA_INFORMATION)),                     // 0x00, 0x00,
+    E(FileModeInformation,                           true,  true,  false, sizeof(FILE_MODE_INFORMATION)),                        // 0x04, 0x04,
+    E(FileAlignmentInformation,                      true,  false, false, sizeof(FILE_ALIGNMENT_INFORMATION)),                   // 0x04, 0x00,
+    E(FileAllInformation,                            true,  false, false, sizeof(FILE_ALL_INFORMATION)),                         // 0x68, 0x00,
+    E(FileAllocationInformation,                     false, true,  false, sizeof(FILE_ALLOCATION_INFORMATION)),                  // 0x00, 0x08,
+    E(FileEndOfFileInformation,                      false, true,  false, sizeof(FILE_END_OF_FILE_INFORMATION)),                 // 0x00, 0x08,
+    E(FileAlternateNameInformation,                  true,  false, false, sizeof(FILE_NAME_INFORMATION)),                        // 0x08, 0x00,
+    E(FileStreamInformation,                         true,  false, false, sizeof(FILE_STREAM_INFORMATION)),                      // 0x20, 0x00,
+    E(FilePipeInformation,                           true,  true,  false, sizeof(FILE_PIPE_INFORMATION)),                        // 0x08, 0x08,
+    E(FilePipeLocalInformation,                      true,  false, false, sizeof(FILE_PIPE_LOCAL_INFORMATION)),                  // 0x28, 0x00,
+    E(FilePipeRemoteInformation,                     true,  true,  false, sizeof(FILE_PIPE_REMOTE_INFORMATION)),                 // 0x10, 0x10,
+    E(FileMailslotQueryInformation,                  true,  false, false, sizeof(FILE_MAILSLOT_QUERY_INFORMATION)),              // 0x18, 0x00,
+    E(FileMailslotSetInformation,                    false, true,  false, sizeof(FILE_MAILSLOT_SET_INFORMATION)),                // 0x00, 0x08,
+    E(FileCompressionInformation,                    true,  false, false, sizeof(FILE_COMPRESSION_INFORMATION)),                 // 0x10, 0x00,
+    E(FileObjectIdInformation,                       true,  true,  true,  sizeof(FILE_OBJECTID_INFORMATION)),                    // 0x48, 0x48,
+    E(FileCompletionInformation,                     false, true,  false, sizeof(FILE_COMPLETION_INFORMATION)),                  // 0x00, 0x10,
+    E(FileMoveClusterInformation,                    false, true,  false, sizeof(FILE_MOVE_CLUSTER_INFORMATION)),                // 0x00, 0x18,
+    E(FileQuotaInformation,                          true,  true,  true,  sizeof(FILE_QUOTA_INFORMATION)),                       // 0x38, 0x38, 0x38
+    E(FileReparsePointInformation,                   true,  false, true,  sizeof(FILE_REPARSE_POINT_INFORMATION)),               // 0x10, 0x00, 0x10
+    E(FileNetworkOpenInformation,                    true,  false, false, sizeof(FILE_NETWORK_OPEN_INFORMATION)),                // 0x38, 0x00,
+    E(FileAttributeTagInformation,                   true,  false, false, sizeof(FILE_ATTRIBUTE_TAG_INFORMATION)),               // 0x08, 0x00,
+    E(FileTrackingInformation,                       false, true,  false, sizeof(FILE_TRACKING_INFORMATION)),                    // 0x00, 0x10,
+    E(FileIdBothDirectoryInformation,                false, false, true,  sizeof(FILE_ID_BOTH_DIR_INFORMATION)),                 // 0x00, 0x00, 0x70
+    E(FileIdFullDirectoryInformation,                false, false, true,  sizeof(FILE_ID_FULL_DIR_INFORMATION)),                 // 0x00, 0x00, 0x58
+    E(FileValidDataLengthInformation,                false, true,  false, sizeof(FILE_VALID_DATA_LENGTH_INFORMATION)),           // 0x00, 0x08,
+    E(FileShortNameInformation,                      false, true,  false, sizeof(FILE_NAME_INFORMATION)),                        // 0x00, 0x08,
+    E(FileIoCompletionNotificationInformation,       true,  true,  false, sizeof(FILE_IO_COMPLETION_NOTIFICATION_INFORMATION)),  // 0x04, 0x04,
+    E(FileIoStatusBlockRangeInformation,             false, true,  false, sizeof(IO_STATUS_BLOCK) /*?*/),                        // 0x00, 0x10,
+    E(FileIoPriorityHintInformation,                 true,  true,  false, sizeof(FILE_IO_PRIORITY_HINT_INFORMATION)),            // 0x04, 0x04,
+    E(FileSfioReserveInformation,                    true,  true,  false, sizeof(FILE_SFIO_RESERVE_INFORMATION)),                // 0x14, 0x14,
+    E(FileSfioVolumeInformation,                     true,  false, false, sizeof(FILE_SFIO_VOLUME_INFORMATION)),                 // 0x0C, 0x00,
+    E(FileHardLinkInformation,                       true,  false, false, sizeof(FILE_LINKS_INFORMATION)),                       // 0x20, 0x00,
+    E(FileProcessIdsUsingFileInformation,            true,  false, false, sizeof(FILE_PROCESS_IDS_USING_FILE_INFORMATION)),      // 0x10, 0x00,
+    E(FileNormalizedNameInformation,                 true,  false, false, sizeof(FILE_NAME_INFORMATION)),                        // 0x08, 0x00,
+    E(FileNetworkPhysicalNameInformation,            true,  false, false, sizeof(FILE_NETWORK_PHYSICAL_NAME_INFORMATION)),       // 0x08, 0x00,
+    E(FileIdGlobalTxDirectoryInformation,            false, false, true,  sizeof(FILE_ID_GLOBAL_TX_DIR_INFORMATION)),            // 0x00, 0x00, 0x60
+    E(FileIsRemoteDeviceInformation,                 true,  false, false, sizeof(FILE_IS_REMOTE_DEVICE_INFORMATION)),            // 0x01, 0x00,
+    E(FileUnusedInformation,                         false, false, false, 0),                                                    // 0x00, 0x00,
+    E(FileNumaNodeInformation,                       true,  false, false, sizeof(FILE_NUMA_NODE_INFORMATION)),                   // 0x02, 0x00,
+    E(FileStandardLinkInformation,                   true,  false, false, sizeof(FILE_STANDARD_LINK_INFORMATION)),               // 0x0C, 0x00,
+    E(FileRemoteProtocolInformation,                 true,  false, false, sizeof(FILE_REMOTE_PROTOCOL_INFORMATION)),             // 0x74, 0x00,
+    E(FileRenameInformationBypassAccessCheck,        false, false, false, 0 /*kernel mode only*/),                               // 0x00, 0x00,
+    E(FileLinkInformationBypassAccessCheck,          false, false, false, 0 /*kernel mode only*/),                               // 0x00, 0x00,
+    E(FileVolumeNameInformation,                     true,  false, false, sizeof(FILE_VOLUME_NAME_INFORMATION)),                 // 0x08, 0x00,
+    E(FileIdInformation,                             true,  false, false, sizeof(FILE_ID_INFORMATION)),                          // 0x18, 0x00,
+    E(FileIdExtdDirectoryInformation,                false, false, true,  sizeof(FILE_ID_EXTD_DIR_INFORMATION)),                 // 0x00, 0x00, 0x60
+    E(FileReplaceCompletionInformation,              false, true,  false, sizeof(FILE_COMPLETION_INFORMATION)),                  // 0x00, 0x10,
+    E(FileHardLinkFullIdInformation,                 true,  false, false, sizeof(FILE_LINK_ENTRY_FULL_ID_INFORMATION)),          // 0x24, 0x00,
+    E(FileIdExtdBothDirectoryInformation,            false, false, true,  sizeof(FILE_ID_EXTD_BOTH_DIR_INFORMATION)),            // 0x00, 0x00, 0x78
+    E(FileDispositionInformationEx,                  false, true,  false, sizeof(FILE_DISPOSITION_INFORMATION_EX)),              // 0x00, 0x04,
+    E(FileRenameInformationEx,                       false, true,  false, sizeof(FILE_RENAME_INFORMATION)),                      // 0x00, 0x18,
+    E(FileRenameInformationExBypassAccessCheck,      false, false, false, 0 /*kernel mode only*/),                               // 0x00, 0x00,
+    E(FileDesiredStorageClassInformation,            true,  true,  false, sizeof(FILE_DESIRED_STORAGE_CLASS_INFORMATION)),       // 0x08, 0x08,
+    E(FileStatInformation,                           true,  false, false, sizeof(FILE_STAT_INFORMATION)),                        // 0x48, 0x00,
+    E(FileMemoryPartitionInformation,                false, true,  false, 0x10),                                                 // 0x00, 0x10,
+    E(FileStatLxInformation,                         true,  false, false, sizeof(FILE_STAT_LX_INFORMATION)),                     // 0x60, 0x00,
+    E(FileCaseSensitiveInformation,                  true,  true,  false, sizeof(FILE_CASE_SENSITIVE_INFORMATION)),              // 0x04, 0x04,
+    E(FileLinkInformationEx,                         false, true,  false, sizeof(FILE_LINK_INFORMATION)),                        // 0x00, 0x18,
+    E(FileLinkInformationExBypassAccessCheck,        false, false, false, 0 /*kernel mode only*/),                               // 0x00, 0x00,
+    E(FileStorageReserveIdInformation,               true,  true,  false, 0x04),                                                 // 0x04, 0x04,
+    E(FileCaseSensitiveInformationForceAccessCheck,  true,  true,  false, sizeof(FILE_CASE_SENSITIVE_INFORMATION)),              // 0x04, 0x04,
+#undef E
+};
+
+void fsPerfNtQueryInfoFileWorker(HANDLE hNtFile1, uint32_t fType)
+{
+    char const chType = fType == RTFS_TYPE_DIRECTORY ? 'd' : 'r';
+
+    /** @todo may run out of buffer for really long paths? */
+    union
+    {
+        uint8_t                                     ab[4096];
+        FILE_ACCESS_INFORMATION                     Access;
+        FILE_ALIGNMENT_INFORMATION                  Align;
+        FILE_ALL_INFORMATION                        All;
+        FILE_ALLOCATION_INFORMATION                 Alloc;
+        FILE_ATTRIBUTE_TAG_INFORMATION              AttribTag;
+        FILE_BASIC_INFORMATION                      Basic;
+        FILE_BOTH_DIR_INFORMATION                   BothDir;
+        FILE_CASE_SENSITIVE_INFORMATION             CaseSensitivity;
+        FILE_COMPLETION_INFORMATION                 Completion;
+        FILE_COMPRESSION_INFORMATION                Compression;
+        FILE_DESIRED_STORAGE_CLASS_INFORMATION      StorageClass;
+        FILE_DIRECTORY_INFORMATION                  Dir;
+        FILE_DISPOSITION_INFORMATION                Disp;
+        FILE_DISPOSITION_INFORMATION_EX             DispEx;
+        FILE_EA_INFORMATION                         Ea;
+        FILE_END_OF_FILE_INFORMATION                EndOfFile;
+        FILE_FULL_DIR_INFORMATION                   FullDir;
+        FILE_FULL_EA_INFORMATION                    FullEa;
+        FILE_ID_BOTH_DIR_INFORMATION                IdBothDir;
+        FILE_ID_EXTD_BOTH_DIR_INFORMATION           ExtIdBothDir;
+        FILE_ID_EXTD_DIR_INFORMATION                ExtIdDir;
+        FILE_ID_FULL_DIR_INFORMATION                IdFullDir;
+        FILE_ID_GLOBAL_TX_DIR_INFORMATION           IdGlobalTx;
+        FILE_ID_INFORMATION                         IdInfo;
+        FILE_INTERNAL_INFORMATION                   Internal;
+        FILE_IO_COMPLETION_NOTIFICATION_INFORMATION IoCompletion;
+        FILE_IO_PRIORITY_HINT_INFORMATION           IoPrioHint;
+        FILE_IS_REMOTE_DEVICE_INFORMATION           IsRemoteDev;
+        FILE_LINK_ENTRY_FULL_ID_INFORMATION         LinkFullId;
+        FILE_LINK_INFORMATION                       Link;
+        FILE_MAILSLOT_QUERY_INFORMATION             MailslotQuery;
+        FILE_MAILSLOT_SET_INFORMATION               MailslotSet;
+        FILE_MODE_INFORMATION                       Mode;
+        FILE_MOVE_CLUSTER_INFORMATION               MoveCluster;
+        FILE_NAME_INFORMATION                       Name;
+        FILE_NAMES_INFORMATION                      Names;
+        FILE_NETWORK_OPEN_INFORMATION               NetOpen;
+        FILE_NUMA_NODE_INFORMATION                  Numa;
+        FILE_OBJECTID_INFORMATION                   ObjId;
+        FILE_PIPE_INFORMATION                       Pipe;
+        FILE_PIPE_LOCAL_INFORMATION                 PipeLocal;
+        FILE_PIPE_REMOTE_INFORMATION                PipeRemote;
+        FILE_POSITION_INFORMATION                   Pos;
+        FILE_PROCESS_IDS_USING_FILE_INFORMATION     Pids;
+        FILE_QUOTA_INFORMATION                      Quota;
+        FILE_REMOTE_PROTOCOL_INFORMATION            RemoteProt;
+        FILE_RENAME_INFORMATION                     Rename;
+        FILE_REPARSE_POINT_INFORMATION              Reparse;
+        FILE_SFIO_RESERVE_INFORMATION               SfiRes;
+        FILE_SFIO_VOLUME_INFORMATION                SfioVol;
+        FILE_STANDARD_INFORMATION                   Std;
+        FILE_STANDARD_LINK_INFORMATION              StdLink;
+        FILE_STAT_INFORMATION                       Stat;
+        FILE_STAT_LX_INFORMATION                    StatLx;
+        FILE_STREAM_INFORMATION                     Stream;
+        FILE_TRACKING_INFORMATION                   Tracking;
+        FILE_VALID_DATA_LENGTH_INFORMATION          ValidDataLen;
+        FILE_VOLUME_NAME_INFORMATION                VolName;
+    } uBuf;
+
+    IO_STATUS_BLOCK const VirginIos = RTNT_IO_STATUS_BLOCK_INITIALIZER;
+    for (unsigned i = 0; i < RT_ELEMENTS(g_aNtQueryInfoFileClasses); i++)
+    {
+        FILE_INFORMATION_CLASS const enmClass = (FILE_INFORMATION_CLASS)g_aNtQueryInfoFileClasses[i].enmValue;
+        const char * const           pszClass = g_aNtQueryInfoFileClasses[i].pszName;
+
+        memset(&uBuf, 0xff, sizeof(uBuf));
+        IO_STATUS_BLOCK Ios = RTNT_IO_STATUS_BLOCK_INITIALIZER;
+        ULONG           cbBuf = sizeof(uBuf);
+        NTSTATUS rcNt = NtQueryInformationFile(hNtFile1, &Ios, &uBuf, cbBuf, enmClass);
+        if (NT_SUCCESS(rcNt))
+        {
+            if (Ios.Status == VirginIos.Status || Ios.Information == VirginIos.Information)
+                RTTestIFailed("%s/%#x: I/O status block was not modified: %#x %#zx", pszClass, cbBuf, Ios.Status, Ios.Information);
+            else if (!g_aNtQueryInfoFileClasses[i].fQuery)
+                RTTestIFailed("%s/%#x: This isn't supposed to be queriable! (rcNt=%#x)", pszClass, cbBuf, rcNt);
+            else
+            {
+                ULONG const cbActualMin = enmClass != FileStorageReserveIdInformation ? Ios.Information : 4; /* weird */
+
+                switch (enmClass)
+                {
+                    case FileNameInformation:
+                    case FileAlternateNameInformation:
+                    case FileShortNameInformation:
+                    case FileNormalizedNameInformation:
+                    case FileNetworkPhysicalNameInformation:
+                        if (   RT_UOFFSETOF_DYN(FILE_NAME_INFORMATION, FileName[uBuf.Name.FileNameLength / sizeof(WCHAR)])
+                            != cbActualMin)
+                            RTTestIFailed("%s/%#x: Wrong FileNameLength=%#x vs cbActual=%#x",
+                                          pszClass, cbActualMin, uBuf.Name.FileNameLength, cbActualMin);
+                        if (uBuf.Name.FileName[uBuf.Name.FileNameLength  / sizeof(WCHAR) - 1] == '\0')
+                            RTTestIFailed("%s/%#x: Zero terminated name!", pszClass, cbActualMin);
+                        if (g_uVerbosity > 1)
+                            RTTestIPrintf(RTTESTLVL_ALWAYS, "%+34s/%#x: FileNameLength=%#x FileName='%.*ls'\n",
+                                          pszClass, cbActualMin, uBuf.Name.FileNameLength,
+                                          uBuf.Name.FileNameLength  / sizeof(WCHAR), uBuf.Name.FileName);
+                        break;
+
+                    case FileVolumeNameInformation:
+                        if (RT_UOFFSETOF_DYN(FILE_VOLUME_NAME_INFORMATION,
+                                             DeviceName[uBuf.VolName.DeviceNameLength / sizeof(WCHAR)]) != cbActualMin)
+                            RTTestIFailed("%s/%#x: Wrong DeviceNameLength=%#x vs cbActual=%#x",
+                                          pszClass, cbActualMin, uBuf.VolName.DeviceNameLength, cbActualMin);
+                        if (uBuf.VolName.DeviceName[uBuf.VolName.DeviceNameLength  / sizeof(WCHAR) - 1] == '\0')
+                            RTTestIFailed("%s/%#x: Zero terminated name!", pszClass, cbActualMin);
+                        if (g_uVerbosity > 1)
+                            RTTestIPrintf(RTTESTLVL_ALWAYS, "%+34s/%#x: DeviceNameLength=%#x DeviceName='%.*ls'\n",
+                                          pszClass, cbActualMin, uBuf.VolName.DeviceNameLength,
+                                          uBuf.VolName.DeviceNameLength / sizeof(WCHAR), uBuf.VolName.DeviceName);
+                        break;
+                    default:
+                        break;
+                }
+
+                ULONG const cbMin       = g_aNtQueryInfoFileClasses[i].cbMin;
+                ULONG const cbMax       = RT_MIN(cbActualMin + 64, sizeof(uBuf));
+                for (cbBuf = 0; cbBuf < cbMax; cbBuf++)
+                {
+                    memset(&uBuf, 0xfe, sizeof(uBuf));
+                    RTNT_IO_STATUS_BLOCK_REINIT(&Ios);
+                    rcNt = NtQueryInformationFile(hNtFile1, &Ios, &uBuf, cbBuf, enmClass);
+                    if (!ASMMemIsAllU8(&uBuf.ab[cbBuf], sizeof(uBuf) - cbBuf, 0xfe))
+                        RTTestIFailed("%s/%#x: Touched memory beyond end of buffer (rcNt=%#x)", pszClass, cbBuf, rcNt);
+                    if (cbBuf < cbMin)
+                    {
+                        if (rcNt != STATUS_INFO_LENGTH_MISMATCH)
+                            RTTestIFailed("%s/%#x: %#x, expected STATUS_INFO_LENGTH_MISMATCH", pszClass, cbBuf, rcNt);
+                        if (Ios.Status != VirginIos.Status || Ios.Information != VirginIos.Information)
+                            RTTestIFailed("%s/%#x: I/O status block was modified (STATUS_INFO_LENGTH_MISMATCH): %#x %#zx",
+                                          pszClass, cbBuf, Ios.Status, Ios.Information);
+                    }
+                    else if (cbBuf < cbActualMin)
+                    {
+                        if (   rcNt != STATUS_BUFFER_OVERFLOW
+                            /* RDR2/w10 returns success if the buffer can hold exactly the share name: */
+                            && !(   rcNt == STATUS_SUCCESS
+                                 && enmClass == FileNetworkPhysicalNameInformation)
+                            )
+                            RTTestIFailed("%s/%#x: %#x, expected STATUS_BUFFER_OVERFLOW", pszClass, cbBuf, rcNt);
+                        /** @todo check name and length fields   */
+                    }
+                    else
+                    {
+                        if (   !ASMMemIsAllU8(&uBuf.ab[cbActualMin], sizeof(uBuf) - cbActualMin, 0xfe)
+                            && enmClass != FileStorageReserveIdInformation /* NTFS bug? */ )
+                            RTTestIFailed("%s/%#x: Touched memory beyond returned length (cbActualMin=%#x, rcNt=%#x)",
+                                          pszClass, cbBuf, cbActualMin, rcNt);
+
+                    }
+                }
+            }
+        }
+        else
+        {
+            if (!g_aNtQueryInfoFileClasses[i].fQuery)
+            {
+                if (rcNt != STATUS_INVALID_INFO_CLASS)
+                    RTTestIFailed("%s/%#x/%c: %#x, expected STATUS_INVALID_INFO_CLASS", pszClass, cbBuf, chType, rcNt);
+            }
+            else if (   rcNt != STATUS_INVALID_INFO_CLASS
+                     && rcNt != STATUS_INVALID_PARAMETER
+                     && !(rcNt == STATUS_OBJECT_NAME_NOT_FOUND && enmClass == FileAlternateNameInformation)
+                     && !(   rcNt == STATUS_ACCESS_DENIED
+                          && (   enmClass == FileIoPriorityHintInformation
+                              || enmClass == FileSfioReserveInformation
+                              || enmClass == FileStatLxInformation))
+                     && !(rcNt == STATUS_NO_SUCH_DEVICE && enmClass == FileNumaNodeInformation)
+                     && !(    rcNt == STATUS_NOT_SUPPORTED /* RDR2/W10-17763 */
+                          &&  (   enmClass == FileMailslotQueryInformation
+                               || enmClass == FileObjectIdInformation
+                               || enmClass == FileReparsePointInformation
+                               || enmClass == FileSfioVolumeInformation
+                               || enmClass == FileHardLinkInformation
+                               || enmClass == FileStandardLinkInformation
+                               || enmClass == FileHardLinkFullIdInformation
+                               || enmClass == FileDesiredStorageClassInformation
+                               || enmClass == FileStatInformation
+                               || enmClass == FileCaseSensitiveInformation
+                               || enmClass == FileStorageReserveIdInformation
+                               || enmClass == FileCaseSensitiveInformationForceAccessCheck)
+                               || (   fType == RTFS_TYPE_DIRECTORY
+                                   && (enmClass == FileSfioReserveInformation || enmClass == FileStatLxInformation)))
+                     && !(rcNt == STATUS_INVALID_DEVICE_REQUEST && fType == RTFS_TYPE_FILE)
+                    )
+                RTTestIFailed("%s/%#x/%c: %#x", pszClass, cbBuf, chType, rcNt);
+            if (   (Ios.Status != VirginIos.Status || Ios.Information != VirginIos.Information)
+                && !(   fType == RTFS_TYPE_DIRECTORY /* NTFS/W10-17763 */
+                    && Ios.Status == rcNt && Ios.Information == 0) )
+                RTTestIFailed("%s/%#x/%c: I/O status block was modified: %#x %#zx",
+                              pszClass, cbBuf, chType, Ios.Status, Ios.Information);
+            if (!ASMMemIsAllU8(&uBuf, sizeof(uBuf), 0xff))
+                RTTestIFailed("%s/%#x/%c: Buffer was touched in failure case!", pszClass, cbBuf, chType);
+        }
+    }
+}
+
+void fsPerfNtQueryInfoFile(void)
+{
+    RTTestISub("NtQueryInformationFile");
+
+    /* On a regular file: */
+    RTFILE hFile1;
+    RTTESTI_CHECK_RC_RETV(RTFileOpen(&hFile1, InDir(RT_STR_TUPLE("file2qif")),
+                                     RTFILE_O_CREATE_REPLACE | RTFILE_O_DENY_NONE | RTFILE_O_READWRITE), VINF_SUCCESS);
+    fsPerfNtQueryInfoFileWorker((HANDLE)RTFileToNative(hFile1), RTFS_TYPE_FILE);
+    RTTESTI_CHECK_RC(RTFileClose(hFile1), VINF_SUCCESS);
+
+    /* On a directory: */
+    HANDLE hDir1 = INVALID_HANDLE_VALUE;
+    RTTESTI_CHECK_RC_RETV(RTNtPathOpenDir(InDir(RT_STR_TUPLE("")), GENERIC_READ | SYNCHRONIZE | FILE_SYNCHRONOUS_IO_NONALERT,
+                                          FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE,
+                                          FILE_OPEN, 0, &hDir1, NULL), VINF_SUCCESS);
+    fsPerfNtQueryInfoFileWorker(hDir1, RTFS_TYPE_DIRECTORY);
+    RTTESTI_CHECK(CloseHandle(hDir1) == TRUE);
+}
+
+
+/**
+ * Nt(Query|Set)VolumeInformationFile) information class info.
+ */
+static const struct
+{
+    const char *pszName;
+    int         enmValue;
+    bool        fQuery;
+    bool        fSet;
+    uint8_t     cbMin;
+} g_aNtQueryVolInfoFileClasses[] =
+{
+#define E(a_enmValue, a_fQuery, a_fSet, a_cbMin) \
+        { #a_enmValue, a_enmValue, a_fQuery, a_fSet, a_cbMin }
+    { "invalid0", 0, false, false, 0 },
+    E(FileFsVolumeInformation,                      1, 0, sizeof(FILE_FS_VOLUME_INFORMATION)),
+    E(FileFsLabelInformation,                       0, 1, sizeof(FILE_FS_LABEL_INFORMATION)),
+    E(FileFsSizeInformation,                        1, 0, sizeof(FILE_FS_SIZE_INFORMATION)),
+    E(FileFsDeviceInformation,                      1, 0, sizeof(FILE_FS_DEVICE_INFORMATION)),
+    E(FileFsAttributeInformation,                   1, 0, sizeof(FILE_FS_ATTRIBUTE_INFORMATION)),
+    E(FileFsControlInformation,                     1, 1, sizeof(FILE_FS_CONTROL_INFORMATION)),
+    E(FileFsFullSizeInformation,                    1, 0, sizeof(FILE_FS_FULL_SIZE_INFORMATION)),
+    E(FileFsObjectIdInformation,                    1, 1, sizeof(FILE_FS_OBJECTID_INFORMATION)),
+    E(FileFsDriverPathInformation,                  1, 0, sizeof(FILE_FS_DRIVER_PATH_INFORMATION)),
+    E(FileFsVolumeFlagsInformation,                 1, 1, sizeof(FILE_FS_VOLUME_FLAGS_INFORMATION)),
+    E(FileFsSectorSizeInformation,                  1, 0, sizeof(FILE_FS_SECTOR_SIZE_INFORMATION)),
+    E(FileFsDataCopyInformation,                    1, 0, sizeof(FILE_FS_DATA_COPY_INFORMATION)),
+    E(FileFsMetadataSizeInformation,                1, 0, sizeof(FILE_FS_METADATA_SIZE_INFORMATION)),
+    E(FileFsFullSizeInformationEx,                  1, 0, sizeof(FILE_FS_FULL_SIZE_INFORMATION_EX)),
+#undef E
+};
+
+void fsPerfNtQueryVolInfoFileWorker(HANDLE hNtFile1, uint32_t fType)
+{
+    char const chType = fType == RTFS_TYPE_DIRECTORY ? 'd' : 'r';
+    union
+    {
+        uint8_t                                     ab[4096];
+        FILE_FS_VOLUME_INFORMATION                  Vol;
+        FILE_FS_LABEL_INFORMATION                   Label;
+        FILE_FS_SIZE_INFORMATION                    Size;
+        FILE_FS_DEVICE_INFORMATION                  Dev;
+        FILE_FS_ATTRIBUTE_INFORMATION               Attrib;
+        FILE_FS_CONTROL_INFORMATION                 Ctrl;
+        FILE_FS_FULL_SIZE_INFORMATION               FullSize;
+        FILE_FS_OBJECTID_INFORMATION                ObjId;
+        FILE_FS_DRIVER_PATH_INFORMATION             DrvPath;
+        FILE_FS_VOLUME_FLAGS_INFORMATION            VolFlags;
+        FILE_FS_SECTOR_SIZE_INFORMATION             SectorSize;
+        FILE_FS_DATA_COPY_INFORMATION               DataCopy;
+        FILE_FS_METADATA_SIZE_INFORMATION           Metadata;
+        FILE_FS_FULL_SIZE_INFORMATION_EX            FullSizeEx;
+    } uBuf;
+
+    IO_STATUS_BLOCK const VirginIos = RTNT_IO_STATUS_BLOCK_INITIALIZER;
+    for (unsigned i = 0; i < RT_ELEMENTS(g_aNtQueryVolInfoFileClasses); i++)
+    {
+        FS_INFORMATION_CLASS const enmClass = (FS_INFORMATION_CLASS)g_aNtQueryVolInfoFileClasses[i].enmValue;
+        const char * const         pszClass = g_aNtQueryVolInfoFileClasses[i].pszName;
+
+        memset(&uBuf, 0xff, sizeof(uBuf));
+        IO_STATUS_BLOCK Ios = RTNT_IO_STATUS_BLOCK_INITIALIZER;
+        ULONG           cbBuf = sizeof(uBuf);
+        NTSTATUS rcNt = NtQueryVolumeInformationFile(hNtFile1, &Ios, &uBuf, cbBuf, enmClass);
+        if (g_uVerbosity > 3)
+            RTTestIPrintf(RTTESTLVL_ALWAYS, "%+34s/%#04x/%c: rcNt=%#x Ios.Status=%#x Info=%#zx\n",
+                          pszClass, cbBuf, chType, rcNt, Ios.Status, Ios.Information);
+        if (NT_SUCCESS(rcNt))
+        {
+            if (Ios.Status == VirginIos.Status || Ios.Information == VirginIos.Information)
+                RTTestIFailed("%s/%#x/%c: I/O status block was not modified: %#x %#zx",
+                              pszClass, cbBuf, chType, Ios.Status, Ios.Information);
+            else if (!g_aNtQueryVolInfoFileClasses[i].fQuery)
+                RTTestIFailed("%s/%#x/%c: This isn't supposed to be queriable! (rcNt=%#x)", pszClass, cbBuf, chType, rcNt);
+            else
+            {
+                ULONG const cbActualMin = Ios.Information;
+                ULONG      *pcbName = NULL;
+                ULONG       offName = 0;
+
+                switch (enmClass)
+                {
+                    case FileFsVolumeInformation:
+                        pcbName = &uBuf.Vol.VolumeLabelLength;
+                        offName = RT_UOFFSETOF(FILE_FS_VOLUME_INFORMATION, VolumeLabel);
+                        if (RT_UOFFSETOF_DYN(FILE_FS_VOLUME_INFORMATION,
+                                             VolumeLabel[uBuf.Vol.VolumeLabelLength / sizeof(WCHAR)]) != cbActualMin)
+                            RTTestIFailed("%s/%#x/%c: Wrong VolumeLabelLength=%#x vs cbActual=%#x",
+                                          pszClass, cbActualMin, chType, uBuf.Vol.VolumeLabelLength, cbActualMin);
+                        if (uBuf.Vol.VolumeLabel[uBuf.Vol.VolumeLabelLength  / sizeof(WCHAR) - 1] == '\0')
+                            RTTestIFailed("%s/%#x/%c: Zero terminated name!", pszClass, cbActualMin, chType);
+                        if (g_uVerbosity > 1)
+                            RTTestIPrintf(RTTESTLVL_ALWAYS, "%+34s/%#04x/%c: VolumeLabelLength=%#x VolumeLabel='%.*ls'\n",
+                                          pszClass, cbActualMin, chType, uBuf.Vol.VolumeLabelLength,
+                                          uBuf.Vol.VolumeLabelLength / sizeof(WCHAR), uBuf.Vol.VolumeLabel);
+                        break;
+
+                    case FileFsAttributeInformation:
+                        pcbName = &uBuf.Attrib.FileSystemNameLength;
+                        offName = RT_UOFFSETOF(FILE_FS_ATTRIBUTE_INFORMATION, FileSystemName);
+                        if (RT_UOFFSETOF_DYN(FILE_FS_ATTRIBUTE_INFORMATION,
+                                             FileSystemName[uBuf.Attrib.FileSystemNameLength / sizeof(WCHAR)]) != cbActualMin)
+                            RTTestIFailed("%s/%#x/%c: Wrong FileSystemNameLength=%#x vs cbActual=%#x",
+                                          pszClass, cbActualMin, chType, uBuf.Attrib.FileSystemNameLength, cbActualMin);
+                        if (uBuf.Attrib.FileSystemName[uBuf.Attrib.FileSystemNameLength  / sizeof(WCHAR) - 1] == '\0')
+                            RTTestIFailed("%s/%#x/%c: Zero terminated name!", pszClass, cbActualMin, chType);
+                        if (g_uVerbosity > 1)
+                            RTTestIPrintf(RTTESTLVL_ALWAYS, "%+34s/%#04x/%c: FileSystemNameLength=%#x FileSystemName='%.*ls' Attribs=%#x MaxCompName=%#x\n",
+                                          pszClass, cbActualMin, chType, uBuf.Attrib.FileSystemNameLength,
+                                          uBuf.Attrib.FileSystemNameLength / sizeof(WCHAR), uBuf.Attrib.FileSystemName,
+                                          uBuf.Attrib.FileSystemAttributes, uBuf.Attrib.MaximumComponentNameLength);
+                        break;
+
+                    case FileFsDriverPathInformation:
+                        pcbName = &uBuf.DrvPath.DriverNameLength;
+                        offName = RT_UOFFSETOF(FILE_FS_DRIVER_PATH_INFORMATION, DriverName);
+                        if (RT_UOFFSETOF_DYN(FILE_FS_DRIVER_PATH_INFORMATION,
+                                             DriverName[uBuf.DrvPath.DriverNameLength / sizeof(WCHAR)]) != cbActualMin)
+                            RTTestIFailed("%s/%#x/%c: Wrong DriverNameLength=%#x vs cbActual=%#x",
+                                          pszClass, cbActualMin, chType, uBuf.DrvPath.DriverNameLength, cbActualMin);
+                        if (uBuf.DrvPath.DriverName[uBuf.DrvPath.DriverNameLength  / sizeof(WCHAR) - 1] == '\0')
+                            RTTestIFailed("%s/%#x/%c: Zero terminated name!", pszClass, cbActualMin, chType);
+                        if (g_uVerbosity > 1)
+                            RTTestIPrintf(RTTESTLVL_ALWAYS, "%+34s/%#04x/%c: DriverNameLength=%#x DriverName='%.*ls'\n",
+                                          pszClass, cbActualMin, chType, uBuf.DrvPath.DriverNameLength,
+                                          uBuf.DrvPath.DriverNameLength / sizeof(WCHAR), uBuf.DrvPath.DriverName);
+                        break;
+
+                    case FileFsSectorSizeInformation:
+                        if (g_uVerbosity > 1)
+                            RTTestIPrintf(RTTESTLVL_ALWAYS, "%+34s/%#04x/%c: Flags=%#x log=%#x atomic=%#x perf=%#x eff=%#x offSec=%#x offPart=%#x\n",
+                                          pszClass, cbActualMin, chType, uBuf.SectorSize.Flags,
+                                          uBuf.SectorSize.LogicalBytesPerSector,
+                                          uBuf.SectorSize.PhysicalBytesPerSectorForAtomicity,
+                                          uBuf.SectorSize.PhysicalBytesPerSectorForPerformance,
+                                          uBuf.SectorSize.FileSystemEffectivePhysicalBytesPerSectorForAtomicity,
+                                          uBuf.SectorSize.ByteOffsetForSectorAlignment,
+                                          uBuf.SectorSize.ByteOffsetForPartitionAlignment);
+                        break;
+
+                    default:
+                        if (g_uVerbosity > 2)
+                            RTTestIPrintf(RTTESTLVL_ALWAYS, "%+34s/%#04x/%c:\n", pszClass, cbActualMin, chType);
+                        break;
+                }
+                ULONG const cbName = pcbName ? *pcbName : 0;
+                uint8_t     abNameCopy[4096];
+                RT_ZERO(abNameCopy);
+                if (pcbName)
+                    memcpy(abNameCopy, &uBuf.ab[offName], cbName);
+
+                ULONG const cbMin  = g_aNtQueryVolInfoFileClasses[i].cbMin;
+                ULONG const cbMax  = RT_MIN(cbActualMin + 64, sizeof(uBuf));
+                for (cbBuf = 0; cbBuf < cbMax; cbBuf++)
+                {
+                    memset(&uBuf, 0xfe, sizeof(uBuf));
+                    RTNT_IO_STATUS_BLOCK_REINIT(&Ios);
+                    rcNt = NtQueryVolumeInformationFile(hNtFile1, &Ios, &uBuf, cbBuf, enmClass);
+                    if (!ASMMemIsAllU8(&uBuf.ab[cbBuf], sizeof(uBuf) - cbBuf, 0xfe))
+                        RTTestIFailed("%s/%#x/%c: Touched memory beyond end of buffer (rcNt=%#x)", pszClass, cbBuf, chType, rcNt);
+                    if (cbBuf < cbMin)
+                    {
+                        if (rcNt != STATUS_INFO_LENGTH_MISMATCH)
+                            RTTestIFailed("%s/%#x/%c: %#x, expected STATUS_INFO_LENGTH_MISMATCH", pszClass, cbBuf, chType, rcNt);
+                        if (Ios.Status != VirginIos.Status || Ios.Information != VirginIos.Information)
+                            RTTestIFailed("%s/%#x/%c: I/O status block was modified (STATUS_INFO_LENGTH_MISMATCH): %#x %#zx",
+                                          pszClass, cbBuf, chType, Ios.Status, Ios.Information);
+                    }
+                    else if (cbBuf < cbActualMin)
+                    {
+                        if (rcNt != STATUS_BUFFER_OVERFLOW)
+                            RTTestIFailed("%s/%#x/%c: %#x, expected STATUS_BUFFER_OVERFLOW", pszClass, cbBuf, chType, rcNt);
+                        if (pcbName)
+                        {
+                            size_t const cbNameAlt = offName < cbBuf ? cbBuf - offName : 0;
+                            if (   *pcbName != cbName
+                                && !(   *pcbName == cbNameAlt
+                                     && (enmClass == FileFsAttributeInformation /*NTFS,FAT*/)))
+                                RTTestIFailed("%s/%#x/%c: Wrong name length: %#x, expected %#x (or %#x)",
+                                              pszClass, cbBuf, chType, *pcbName, cbName, cbNameAlt);
+                            if (memcmp(abNameCopy, &uBuf.ab[offName], cbNameAlt) != 0)
+                                RTTestIFailed("%s/%#x/%c: Wrong partial name: %.*Rhxs",
+                                              pszClass, cbBuf, chType, cbNameAlt, &uBuf.ab[offName]);
+                        }
+                        if (Ios.Information != cbBuf)
+                            RTTestIFailed("%s/%#x/%c: Ios.Information = %#x, expected %#x",
+                                          pszClass, cbBuf, chType, Ios.Information, cbBuf);
+                    }
+                    else
+                    {
+                        if (   !ASMMemIsAllU8(&uBuf.ab[cbActualMin], sizeof(uBuf) - cbActualMin, 0xfe)
+                            && enmClass != FileStorageReserveIdInformation /* NTFS bug? */ )
+                            RTTestIFailed("%s/%#x/%c: Touched memory beyond returned length (cbActualMin=%#x, rcNt=%#x)",
+                                          pszClass, cbBuf, chType, cbActualMin, rcNt);
+                        if (pcbName && *pcbName != cbName)
+                            RTTestIFailed("%s/%#x/%c: Wrong name length: %#x, expected %#x",
+                                          pszClass, cbBuf, chType, *pcbName, cbName);
+                        if (pcbName && memcmp(abNameCopy, &uBuf.ab[offName], cbName) != 0)
+                            RTTestIFailed("%s/%#x/%c: Wrong name: %.*Rhxs",
+                                          pszClass, cbBuf, chType, cbName, &uBuf.ab[offName]);
+                    }
+                }
+            }
+        }
+        else
+        {
+            if (!g_aNtQueryVolInfoFileClasses[i].fQuery)
+            {
+                if (rcNt != STATUS_INVALID_INFO_CLASS)
+                    RTTestIFailed("%s/%#x/%c: %#x, expected STATUS_INVALID_INFO_CLASS", pszClass, cbBuf, chType, rcNt);
+            }
+            else if (   rcNt != STATUS_INVALID_INFO_CLASS
+                     && rcNt != STATUS_INVALID_PARAMETER
+                     && !(rcNt == STATUS_ACCESS_DENIED && enmClass == FileFsControlInformation /* RDR2/W10 */)
+                     && !(rcNt == STATUS_OBJECT_NAME_NOT_FOUND && enmClass == FileFsObjectIdInformation /* RDR2/W10 */)
+                    )
+                RTTestIFailed("%s/%#x/%c: %#x", pszClass, cbBuf, chType, rcNt);
+            if (   (Ios.Status != VirginIos.Status || Ios.Information != VirginIos.Information)
+                && !(   Ios.Status == 0 && Ios.Information == 0
+                     && fType == RTFS_TYPE_DIRECTORY
+                     && (   enmClass == FileFsObjectIdInformation      /* RDR2+NTFS on W10 */
+                         || enmClass == FileFsControlInformation       /* RDR2 on W10 */
+                         || enmClass == FileFsVolumeFlagsInformation   /* RDR2+NTFS on W10 */
+                         || enmClass == FileFsDataCopyInformation      /* RDR2 on W10 */
+                         || enmClass == FileFsMetadataSizeInformation  /* RDR2+NTFS on W10 */
+                         || enmClass == FileFsFullSizeInformationEx    /* RDR2 on W10 */
+                         ) )
+               )
+                RTTestIFailed("%s/%#x/%c: I/O status block was modified: %#x %#zx (rcNt=%#x)",
+                              pszClass, cbBuf, chType, Ios.Status, Ios.Information, rcNt);
+            if (!ASMMemIsAllU8(&uBuf, sizeof(uBuf), 0xff))
+                RTTestIFailed("%s/%#x/%c: Buffer was touched in failure case!", pszClass, cbBuf, chType);
+        }
+    }
+    RT_NOREF(fType);
+}
+
+void fsPerfNtQueryVolInfoFile(void)
+{
+    RTTestISub("NtQueryVolumeInformationFile");
+
+    /* On a regular file: */
+    RTFILE hFile1;
+    RTTESTI_CHECK_RC_RETV(RTFileOpen(&hFile1, InDir(RT_STR_TUPLE("file2qvif")),
+                                     RTFILE_O_CREATE_REPLACE | RTFILE_O_DENY_NONE | RTFILE_O_READWRITE), VINF_SUCCESS);
+    fsPerfNtQueryVolInfoFileWorker((HANDLE)RTFileToNative(hFile1), RTFS_TYPE_FILE);
+    RTTESTI_CHECK_RC(RTFileClose(hFile1), VINF_SUCCESS);
+
+    /* On a directory: */
+    HANDLE hDir1 = INVALID_HANDLE_VALUE;
+    RTTESTI_CHECK_RC_RETV(RTNtPathOpenDir(InDir(RT_STR_TUPLE("")), GENERIC_READ | SYNCHRONIZE | FILE_SYNCHRONOUS_IO_NONALERT,
+                                          FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE,
+                                          FILE_OPEN, 0, &hDir1, NULL), VINF_SUCCESS);
+    fsPerfNtQueryVolInfoFileWorker(hDir1, RTFS_TYPE_DIRECTORY);
+    RTTESTI_CHECK(CloseHandle(hDir1) == TRUE);
+
+    /* On a regular file opened for reading: */
+    RTTESTI_CHECK_RC_RETV(RTFileOpen(&hFile1, InDir(RT_STR_TUPLE("file2qvif")),
+                                     RTFILE_O_OPEN | RTFILE_O_DENY_NONE | RTFILE_O_READ), VINF_SUCCESS);
+    fsPerfNtQueryVolInfoFileWorker((HANDLE)RTFileToNative(hFile1), RTFS_TYPE_FILE);
+    RTTESTI_CHECK_RC(RTFileClose(hFile1), VINF_SUCCESS);
+}
+
+#endif /* RT_OS_WINDOWS */
 
 void fsPerfFChMod(void)
 {
@@ -2842,6 +3464,32 @@ void fsPerfChSize(void)
 }
 
 
+int fsPerfIoPrepFileWorker(RTFILE hFile1, uint64_t cbFile, uint8_t *pbBuf, size_t cbBuf)
+{
+    /*
+     * Fill the file with 0xf6 and insert offset markers with 1KB intervals.
+     */
+    RTTESTI_CHECK_RC_RET(RTFileSeek(hFile1, 0, RTFILE_SEEK_BEGIN, NULL), VINF_SUCCESS, rcCheck);
+    memset(pbBuf, 0xf6, cbBuf);
+    uint64_t cbLeft = cbFile;
+    uint64_t off = 0;
+    while (cbLeft > 0)
+    {
+        Assert(!(off   & (_1K - 1)));
+        Assert(!(cbBuf & (_1K - 1)));
+        for (size_t offBuf = 0; offBuf < cbBuf; offBuf += _1K, off += _1K)
+            *(uint64_t *)&pbBuf[offBuf] = off;
+
+        size_t cbToWrite = cbBuf;
+        if (cbToWrite > cbLeft)
+            cbToWrite = (size_t)cbLeft;
+
+        RTTESTI_CHECK_RC_RET(RTFileWrite(hFile1, pbBuf, cbToWrite, NULL), VINF_SUCCESS, rcCheck);
+        cbLeft -= cbToWrite;
+    }
+    return VINF_SUCCESS;
+}
+
 int fsPerfIoPrepFile(RTFILE hFile1, uint64_t cbFile, uint8_t **ppbFree)
 {
     /*
@@ -2855,7 +3503,7 @@ int fsPerfIoPrepFile(RTFILE hFile1, uint64_t cbFile, uint8_t **ppbFree)
      * Check that the space we searched across actually is zero filled.
      */
     RTTESTI_CHECK_RC_RET(RTFileSeek(hFile1, 0, RTFILE_SEEK_BEGIN, NULL), VINF_SUCCESS, rcCheck);
-    size_t   cbBuf = _1M;
+    size_t   cbBuf = RT_MIN(_1M, g_cbMaxBuffer);
     uint8_t *pbBuf = *ppbFree = (uint8_t *)RTMemAlloc(cbBuf);
     RTTESTI_CHECK_RET(pbBuf != NULL, VERR_NO_MEMORY);
     uint64_t cbLeft = cbFile;
@@ -2875,29 +3523,23 @@ int fsPerfIoPrepFile(RTFILE hFile1, uint64_t cbFile, uint8_t **ppbFree)
     /*
      * Fill the file with 0xf6 and insert offset markers with 1KB intervals.
      */
-    RTTESTI_CHECK_RC_RET(RTFileSeek(hFile1, 0, RTFILE_SEEK_BEGIN, NULL), VINF_SUCCESS, rcCheck);
-    memset(pbBuf, 0xf6, cbBuf);
-    cbLeft = cbFile;
-    uint64_t off = 0;
-    while (cbLeft > 0)
-    {
-        Assert(!(off   & (_1K - 1)));
-        Assert(!(cbBuf & (_1K - 1)));
-        for (size_t offBuf = 0; offBuf < cbBuf; offBuf += _1K, off += _1K)
-            *(uint64_t *)&pbBuf[offBuf] = off;
-
-        size_t cbToWrite = cbBuf;
-        if (cbToWrite > cbLeft)
-            cbToWrite = (size_t)cbLeft;
-
-        RTTESTI_CHECK_RC_RET(RTFileWrite(hFile1, pbBuf, cbToWrite, NULL), VINF_SUCCESS, rcCheck);
-
-        cbLeft -= cbToWrite;
-    }
-
-    return VINF_SUCCESS;
+    return fsPerfIoPrepFileWorker(hFile1, cbFile, pbBuf, cbBuf);
 }
 
+/**
+ * Used in relation to the mmap test when in non-default position.
+ */
+int fsPerfReinitFile(RTFILE hFile1, uint64_t cbFile)
+{
+    size_t   cbBuf = RT_MIN(_1M, g_cbMaxBuffer);
+    uint8_t *pbBuf = (uint8_t *)RTMemAlloc(cbBuf);
+    RTTESTI_CHECK_RET(pbBuf != NULL, VERR_NO_MEMORY);
+
+    int rc = fsPerfIoPrepFileWorker(hFile1, cbFile, pbBuf, cbBuf);
+
+    RTMemFree(pbBuf);
+    return rc;
+}
 
 /**
  * Checks the content read from the file fsPerfIoPrepFile() prepared.
@@ -3251,7 +3893,7 @@ static void fsPerfSendFile(RTFILE hFile1, uint64_t cbFile)
      * Allocate a buffer.
      */
     FSPERFSENDFILEARGS Args;
-    Args.cbBuf = RT_MIN(cbFileMax, _16M);
+    Args.cbBuf = RT_MIN(RT_MIN(cbFileMax, _16M), g_cbMaxBuffer);
     Args.pbBuf = (uint8_t *)RTMemAlloc(Args.cbBuf);
     while (!Args.pbBuf)
     {
@@ -3508,7 +4150,7 @@ static void fsPerfSpliceToPipe(RTFILE hFile1, uint64_t cbFile)
      * Allocate a buffer.
      */
     FSPERFSPLICEARGS Args;
-    Args.cbBuf = RT_MIN(cbFileMax, _16M);
+    Args.cbBuf = RT_MIN(RT_MIN(cbFileMax, _16M), g_cbMaxBuffer);
     Args.pbBuf = (uint8_t *)RTMemAlloc(Args.cbBuf);
     while (!Args.pbBuf)
     {
@@ -3732,7 +4374,7 @@ static void fsPerfSpliceToFile(RTFILE hFile1, uint64_t cbFile)
      * Allocate a buffer.
      */
     FSPERFSPLICEARGS Args;
-    Args.cbBuf = RT_MIN(cbFileMax, _16M);
+    Args.cbBuf = RT_MIN(RT_MIN(cbFileMax, _16M), g_cbMaxBuffer);
     Args.pbBuf = (uint8_t *)RTMemAlloc(Args.cbBuf);
     while (!Args.pbBuf)
     {
@@ -3925,8 +4567,9 @@ void fsPerfRead(RTFILE hFile1, RTFILE hFileNoCache, uint64_t cbFile)
     /*
      * Allocate a big buffer we can play around with.  Min size is 1MB.
      */
-    size_t   cbBuf = cbFile < _64M ? (size_t)cbFile : _64M;
-    uint8_t *pbBuf = (uint8_t *)RTMemPageAlloc(cbBuf);
+    size_t   cbMaxBuf = RT_MIN(_64M, g_cbMaxBuffer);
+    size_t   cbBuf    = cbFile < cbMaxBuf ? (size_t)cbFile : cbMaxBuf;
+    uint8_t *pbBuf    = (uint8_t *)RTMemPageAlloc(cbBuf);
     while (!pbBuf)
     {
         cbBuf /= 2;
@@ -4416,8 +5059,9 @@ void fsPerfWrite(RTFILE hFile1, RTFILE hFileNoCache, RTFILE hFileWriteThru, uint
     /*
      * Allocate a big buffer we can play around with.  Min size is 1MB.
      */
-    size_t   cbBuf = cbFile < _64M ? (size_t)cbFile : _64M;
-    uint8_t *pbBuf = (uint8_t *)RTMemPageAlloc(cbBuf);
+    size_t   cbMaxBuf = RT_MIN(_64M, g_cbMaxBuffer);
+    size_t   cbBuf    = cbFile < cbMaxBuf ? (size_t)cbFile : cbMaxBuf;
+    uint8_t *pbBuf    = (uint8_t *)RTMemPageAlloc(cbBuf);
     while (!pbBuf)
     {
         cbBuf /= 2;
@@ -4814,7 +5458,7 @@ void fsPerfMMap(RTFILE hFile1, RTFILE hFileNoCache, uint64_t cbFile)
             /* Write stuff to the first two megabytes.  In the COW case, we'll detect
                corruption of shared data during content checking of the RW iterations. */
             fsPerfFillWriteBuf(0, pbMapping, _2M, 0xf7);
-            if (enmState == kMMap_ReadWrite)
+            if (enmState == kMMap_ReadWrite && g_fMMapCoherency)
             {
                 /* For RW we can try read back from the file handle and check if we get
                    a match there first.  */
@@ -4829,10 +5473,13 @@ void fsPerfMMap(RTFILE hFile1, RTFILE hFileNoCache, uint64_t cbFile)
 # else
                 RTTESTI_CHECK(msync(pbMapping, _2M, MS_SYNC) == 0);
 # endif
+            }
 
-                /*
-                 * Time modifying and flushing a few different number of pages.
-                 */
+            /*
+             * Time modifying and flushing a few different number of pages.
+             */
+            if (enmState == kMMap_ReadWrite)
+            {
                 static size_t const s_acbFlush[] = { PAGE_SIZE, PAGE_SIZE * 2, PAGE_SIZE * 3, PAGE_SIZE * 8, PAGE_SIZE * 16, _2M };
                 for (unsigned iFlushSize = 0 ; iFlushSize < RT_ELEMENTS(s_acbFlush); iFlushSize++)
                 {
@@ -4853,7 +5500,7 @@ void fsPerfMMap(RTFILE hFile1, RTFILE hFileNoCache, uint64_t cbFile)
                      */
                     if (!g_fIgnoreNoCache || hFileNoCache != NIL_RTFILE)
                     {
-                        size_t   cbBuf = _2M;
+                        size_t   cbBuf = RT_MIN(_2M, g_cbMaxBuffer);
                         uint8_t *pbBuf = (uint8_t *)RTMemPageAlloc(cbBuf);
                         if (!pbBuf)
                         {
@@ -4907,9 +5554,10 @@ void fsPerfMMap(RTFILE hFile1, RTFILE hFileNoCache, uint64_t cbFile)
          * These should ideally be immediately visible in the mapping, at least
          * when not performed thru an no-cache handle.
          */
-        if (enmState == kMMap_ReadOnly || enmState == kMMap_ReadWrite)
+        if (   (enmState == kMMap_ReadOnly || enmState == kMMap_ReadWrite)
+            && g_fMMapCoherency)
         {
-            size_t   cbBuf = RT_MIN(_2M, cbMapping / 2);
+            size_t   cbBuf = RT_MIN(RT_MIN(_2M, cbMapping / 2), g_cbMaxBuffer);
             uint8_t *pbBuf = (uint8_t *)RTMemPageAlloc(cbBuf);
             if (!pbBuf)
             {
@@ -5139,6 +5787,12 @@ void fsPerfIo(void)
         if (g_fSeek)
             fsPerfIoSeek(hFile1, cbFile);
 
+        if (g_fMMap && g_iMMapPlacement < 0)
+        {
+            fsPerfMMap(hFile1, hFileNoCache, cbFile);
+            fsPerfReinitFile(hFile1, cbFile);
+        }
+
         if (g_fReadTests)
             fsPerfRead(hFile1, hFileNoCache, cbFile);
         if (g_fReadPerf)
@@ -5152,7 +5806,7 @@ void fsPerfIo(void)
         if (g_fSplice)
             fsPerfSpliceToPipe(hFile1, cbFile);
 #endif
-        if (g_fMMap)
+        if (g_fMMap && g_iMMapPlacement == 0)
             fsPerfMMap(hFile1, hFileNoCache, cbFile);
 
         /* This is destructive to the file content. */
@@ -5167,6 +5821,12 @@ void fsPerfIo(void)
 #endif
         if (g_fFSync)
             fsPerfFSync(hFile1, cbFile);
+
+        if (g_fMMap && g_iMMapPlacement > 0)
+        {
+            fsPerfReinitFile(hFile1, cbFile);
+            fsPerfMMap(hFile1, hFileNoCache, cbFile);
+        }
     }
 
     RTTESTI_CHECK_RC(RTFileSetSize(hFile1, 0), VINF_SUCCESS);
@@ -5634,6 +6294,12 @@ static void Usage(PRTSTREAM pStrm)
             case kCmdOpt_ManyTreeFilesPerDir:   pszHelp = "Count of files per directory in test tree.   default: 640"; break;
             case kCmdOpt_ManyTreeSubdirsPerDir: pszHelp = "Count of subdirs per directory in test tree. default: 16"; break;
             case kCmdOpt_ManyTreeDepth:         pszHelp = "Depth of test tree (not counting root).      default: 1"; break;
+#if defined(RT_OS_WINDOWS)
+            case kCmdOpt_MaxBufferSize:         pszHelp = "For avoiding the MDL limit on windows.       default: 32MiB"; break;
+#else
+            case kCmdOpt_MaxBufferSize:         pszHelp = "For avoiding the MDL limit on windows.       default: 0"; break;
+#endif
+            case kCmdOpt_MMapPlacement:         pszHelp = "When to do mmap testing (caching effects): first, between (default), last "; break;
             case kCmdOpt_IgnoreNoCache:         pszHelp = "Ignore error wrt no-cache handle.            default: --no-ignore-no-cache"; break;
             case kCmdOpt_NoIgnoreNoCache:       pszHelp = "Do not ignore error wrt no-cache handle.     default: --no-ignore-no-cache"; break;
             case kCmdOpt_IoFileSize:            pszHelp = "Size of file used for I/O tests.             default: 512 MB"; break;
@@ -5751,69 +6417,79 @@ int main(int argc, char *argv[])
                 break;
 
             case 'e':
-                g_fManyFiles = true;
-                g_fOpen      = true;
-                g_fFStat     = true;
-                g_fFChMod    = true;
-                g_fFUtimes   = true;
-                g_fStat      = true;
-                g_fChMod     = true;
-                g_fUtimes    = true;
-                g_fRename    = true;
-                g_fDirOpen   = true;
-                g_fDirEnum   = true;
-                g_fMkRmDir   = true;
-                g_fStatVfs   = true;
-                g_fRm        = true;
-                g_fChSize    = true;
-                g_fReadTests = true;
-                g_fReadPerf  = true;
+                g_fManyFiles            = true;
+                g_fOpen                 = true;
+                g_fFStat                = true;
+#ifdef RT_OS_WINDOWS
+                g_fNtQueryInfoFile      = true;
+                g_fNtQueryVolInfoFile   = true;
+#endif
+                g_fFChMod               = true;
+                g_fFUtimes              = true;
+                g_fStat                 = true;
+                g_fChMod                = true;
+                g_fUtimes               = true;
+                g_fRename               = true;
+                g_fDirOpen              = true;
+                g_fDirEnum              = true;
+                g_fMkRmDir              = true;
+                g_fStatVfs              = true;
+                g_fRm                   = true;
+                g_fChSize               = true;
+                g_fReadTests            = true;
+                g_fReadPerf             = true;
 #ifdef FSPERF_TEST_SENDFILE
-                g_fSendFile  = true;
+                g_fSendFile             = true;
 #endif
 #ifdef RT_OS_LINUX
-                g_fSplice    = true;
+                g_fSplice               = true;
 #endif
-                g_fWriteTests= true;
-                g_fWritePerf = true;
-                g_fSeek      = true;
-                g_fFSync     = true;
-                g_fMMap      = true;
-                g_fCopy      = true;
-                g_fRemote    = true;
+                g_fWriteTests           = true;
+                g_fWritePerf            = true;
+                g_fSeek                 = true;
+                g_fFSync                = true;
+                g_fMMap                 = true;
+                g_fMMapCoherency        = true;
+                g_fCopy                 = true;
+                g_fRemote               = true;
                 break;
 
             case 'z':
-                g_fManyFiles = false;
-                g_fOpen      = false;
-                g_fFStat     = false;
-                g_fFChMod    = false;
-                g_fFUtimes   = false;
-                g_fStat      = false;
-                g_fChMod     = false;
-                g_fUtimes    = false;
-                g_fRename    = false;
-                g_fDirOpen   = false;
-                g_fDirEnum   = false;
-                g_fMkRmDir   = false;
-                g_fStatVfs   = false;
-                g_fRm        = false;
-                g_fChSize    = false;
-                g_fReadTests = false;
-                g_fReadPerf  = false;
+                g_fManyFiles            = false;
+                g_fOpen                 = false;
+                g_fFStat                = false;
+#ifdef RT_OS_WINDOWS
+                g_fNtQueryInfoFile      = false;
+                g_fNtQueryVolInfoFile   = false;
+#endif
+                g_fFChMod               = false;
+                g_fFUtimes              = false;
+                g_fStat                 = false;
+                g_fChMod                = false;
+                g_fUtimes               = false;
+                g_fRename               = false;
+                g_fDirOpen              = false;
+                g_fDirEnum              = false;
+                g_fMkRmDir              = false;
+                g_fStatVfs              = false;
+                g_fRm                   = false;
+                g_fChSize               = false;
+                g_fReadTests            = false;
+                g_fReadPerf             = false;
 #ifdef FSPERF_TEST_SENDFILE
-                g_fSendFile  = false;
+                g_fSendFile             = false;
 #endif
 #ifdef RT_OS_LINUX
-                g_fSplice    = false;
+                g_fSplice               = false;
 #endif
-                g_fWriteTests= false;
-                g_fWritePerf = false;
-                g_fSeek      = false;
-                g_fFSync     = false;
-                g_fMMap      = false;
-                g_fCopy      = false;
-                g_fRemote    = false;
+                g_fWriteTests           = false;
+                g_fWritePerf            = false;
+                g_fSeek                 = false;
+                g_fFSync                = false;
+                g_fMMap                 = false;
+                g_fMMapCoherency        = false;
+                g_fCopy                 = false;
+                g_fRemote               = false;
                 break;
 
 #define CASE_OPT(a_Stem) \
@@ -5821,6 +6497,10 @@ int main(int argc, char *argv[])
             case RT_CONCAT(kCmdOpt_No,a_Stem): RT_CONCAT(g_f,a_Stem) = false; break
             CASE_OPT(Open);
             CASE_OPT(FStat);
+#ifdef RT_OS_WINDOWS
+            CASE_OPT(NtQueryInfoFile);
+            CASE_OPT(NtQueryVolInfoFile);
+#endif
             CASE_OPT(FChMod);
             CASE_OPT(FUtimes);
             CASE_OPT(Stat);
@@ -5846,6 +6526,7 @@ int main(int argc, char *argv[])
             CASE_OPT(Seek);
             CASE_OPT(FSync);
             CASE_OPT(MMap);
+            CASE_OPT(MMapCoherency);
             CASE_OPT(IgnoreNoCache);
             CASE_OPT(Copy);
             CASE_OPT(Remote);
@@ -5893,6 +6574,18 @@ int main(int argc, char *argv[])
                 RTTestFailed(g_hTest, "Out of range --tree-depth value: %u (%#x)\n", ValueUnion.u32, ValueUnion.u32);
                 return RTTestSummaryAndDestroy(g_hTest);
 
+            case kCmdOpt_MaxBufferSize:
+                if (ValueUnion.u32 >= 4096)
+                    g_cbMaxBuffer = ValueUnion.u32;
+                else if (ValueUnion.u32 == 0)
+                    g_cbMaxBuffer = UINT32_MAX;
+                else
+                {
+                    RTTestFailed(g_hTest, "max buffer size is less than 4KB: %#x\n", ValueUnion.u32);
+                    return RTTestSummaryAndDestroy(g_hTest);
+                }
+                break;
+
             case kCmdOpt_IoFileSize:
                 if (ValueUnion.u64 == 0)
                     g_cbIoFile = _512M;
@@ -5925,6 +6618,23 @@ int main(int argc, char *argv[])
                 }
                 return RTTestSummaryAndDestroy(g_hTest);
 
+            case kCmdOpt_MMapPlacement:
+                if (strcmp(ValueUnion.psz, "first") == 0)
+                    g_iMMapPlacement = -1;
+                else if (   strcmp(ValueUnion.psz, "between") == 0
+                         || strcmp(ValueUnion.psz, "default") == 0)
+                    g_iMMapPlacement = 0;
+                else if (strcmp(ValueUnion.psz, "last") == 0)
+                    g_iMMapPlacement = 1;
+                else
+                {
+                    RTTestFailed(g_hTest,
+                                 "Invalid --mmap-placment directive '%s'! Expected 'first', 'last', 'between' or 'default'.\n",
+                                 ValueUnion.psz);
+                    return RTTestSummaryAndDestroy(g_hTest);
+                }
+                break;
+
             case 'q':
                 g_uVerbosity = 0;
                 break;
@@ -5939,7 +6649,7 @@ int main(int argc, char *argv[])
 
             case 'V':
             {
-                char szRev[] = "$Revision: 130485 $";
+                char szRev[] = "$Revision: 130769 $";
                 szRev[RT_ELEMENTS(szRev) - 2] = '\0';
                 RTPrintf(RTStrStrip(strchr(szRev, ':') + 1));
                 return RTEXITCODE_SUCCESS;
@@ -6001,6 +6711,12 @@ int main(int argc, char *argv[])
                     fsPerfOpen();
                 if (g_fFStat)
                     fsPerfFStat();
+#ifdef RT_OS_WINDOWS
+                if (g_fNtQueryInfoFile)
+                    fsPerfNtQueryInfoFile();
+                if (g_fNtQueryVolInfoFile)
+                    fsPerfNtQueryVolInfoFile();
+#endif
                 if (g_fFChMod)
                     fsPerfFChMod();
                 if (g_fFUtimes)

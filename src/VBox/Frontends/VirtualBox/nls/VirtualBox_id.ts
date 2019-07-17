@@ -153,11 +153,11 @@
     </message>
     <message>
         <source>The VirtualBox Linux kernel driver is either not loaded or not set up correctly. Please try setting it up again by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root.&lt;br/&gt;&lt;br/&gt;If your system has EFI Secure Boot enabled you may also need to sign the kernel modules (vboxdrv, vboxnetflt, vboxnetadp, vboxpci) before you can load them. Please see your Linux system&apos;s documentation for more information.</source>
-        <translation type="unfinished"></translation>
+        <translation>Driver VirtualBox untuk kernel Linux tidak dimuat atau tidak disiapkan dengan benar. Silakan coba siapkan ulang modul dengan menjalankan&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;sebagai root. Bila EFI Secure Boot difungsikan, Anda mungkin juga perlu menandatangani modul-modul kernel tersebut (vboxdrv, vboxnetflt, vboxnetadp, vboxpci) sebelum Anda dapat memuat mereka. Harap lihat dokumentasi sistem Linux Anda untuk informasi lebih lanjut.</translation>
     </message>
     <message>
         <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you are not mixing builds of VirtualBox from different sources.</source>
-        <translation type="unfinished"></translation>
+        <translation>Modul kernel VirtualBox tidak cocok dengan versi VirtualBox ini. Instalasi VirtualBox sepertinya tak sukses. Menjalankan &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;mungkin memperbaiki hal ini. Pastikan bahwa Anda tak mencampur build VirtualBox dari sumber-sumber yang berbeda.</translation>
     </message>
 </context>
 <context>
@@ -1672,7 +1672,7 @@
     </message>
     <message>
         <source>Save selected virtual machine log</source>
-        <translation>Simpan mesin virtual yang dipilih</translation>
+        <translation>Simpan log mesin virtual yang dipilih</translation>
     </message>
     <message>
         <source>Save Virtual Machine Log (%1)</source>
@@ -1776,7 +1776,7 @@
     </message>
     <message>
         <source>Copy selected file object(s)</source>
-        <translation>Salin objek berkas yang dipilih</translation>
+        <translation>Salin objek-objek berkas yang dipilih</translation>
     </message>
     <message>
         <source>Copy Selected File Object(s)</source>
@@ -1788,7 +1788,7 @@
     </message>
     <message>
         <source>Cut selected file object(s)</source>
-        <translation>Potong objek berkas yang dipilih</translation>
+        <translation>Potong objek-objek berkas yang dipilih</translation>
     </message>
     <message>
         <source>Cut Selected File Object(s)</source>
@@ -1800,11 +1800,11 @@
     </message>
     <message>
         <source>Paste copied/cut file object(s)</source>
-        <translation>Tempel objek berkas yang disalin/dipotong</translation>
+        <translation>Tempel objek-objek berkas yang disalin/dipotong</translation>
     </message>
     <message>
         <source>Paste Copied/Cut File Object(s)</source>
-        <translation>Tempel Objek Berkas yang Disalin/dipotong</translation>
+        <translation>Tempel Objek Berkas yang Disalin/Dipotong</translation>
     </message>
     <message>
         <source>Select All</source>
@@ -1836,7 +1836,7 @@
     </message>
     <message>
         <source>Show the properties of currently selected file object(s)</source>
-        <translation>Tampilkan properti dari objek berkas yang saat ini dipilih</translation>
+        <translation>Tampilkan properti dari objek-objek berkas yang saat ini dipilih</translation>
     </message>
     <message>
         <source>Show the Properties of Currently Selected File Object(s)</source>
@@ -1908,7 +1908,7 @@
     </message>
     <message>
         <source>&amp;Delete...</source>
-        <translation>&amp;Hapus</translation>
+        <translation>&amp;Hapus...</translation>
     </message>
     <message>
         <source>Delete selected snapshot of the virtual machine</source>
@@ -2100,7 +2100,7 @@
     </message>
     <message>
         <source>&amp;Import Profiles...</source>
-        <translation>&amp;Impro Profil...</translation>
+        <translation>&amp;Impor Profil...</translation>
     </message>
     <message>
         <source>Import the list of cloud profiles from external files</source>
@@ -2263,27 +2263,27 @@
     </message>
     <message>
         <source>E&amp;xport to OCI...</source>
-        <translation type="unfinished"></translation>
+        <translation>E&amp;kspor ke OCI...</translation>
     </message>
     <message>
         <source>Export selected virtual machine to OCI</source>
-        <translation type="unfinished"></translation>
+        <translation>Ekspor mesin virtual yang dipilih ke OCI</translation>
     </message>
     <message>
         <source>Try</source>
-        <translation type="unfinished"></translation>
+        <translation>Coba</translation>
     </message>
     <message>
         <source>&amp;Try Oracle Cloud for Free...</source>
-        <translation type="unfinished"></translation>
+        <translation>Coba Oracle Cloud Gra&amp;tis...</translation>
     </message>
     <message>
         <source>Try Oracle cloud for free</source>
-        <translation type="unfinished"></translation>
+        <translation>Coba Oracle cloud gratis</translation>
     </message>
     <message>
         <source>Try Oracle Cloud for Free</source>
-        <translation type="unfinished"></translation>
+        <translation>Coba Oracle Cloud Gratis</translation>
     </message>
 </context>
 <context>
@@ -3977,7 +3977,7 @@
     <name>UIErrorPane</name>
     <message>
         <source>The selected virtual machine is &lt;i&gt;inaccessible&lt;/i&gt;. Please inspect the error message shown below and press the &lt;b&gt;Refresh&lt;/b&gt; button if you want to repeat the accessibility check:</source>
-        <translation>Mesin virtual yang dipilih &lt;i&gt;tidak dapat diakses&lt;/i&gt;. Harap periksa pesan kesalahan yang ditampilkan di bawa dan tekan tombol &lt;b&gt;Segarkan&lt;/b&gt; bila Anda ingin mengulang pemeriksaan ketersediaan.</translation>
+        <translation>Mesin virtual yang dipilih &lt;i&gt;tidak dapat diakses&lt;/i&gt;. Harap periksa pesan kesalahan yang ditampilkan di bawah dan tekan tombol &lt;b&gt;Segarkan&lt;/b&gt; bila Anda ingin mengulang pemeriksaan ketersediaan:</translation>
     </message>
 </context>
 <context>
@@ -4279,11 +4279,11 @@
     </message>
     <message>
         <source>Human readable sizes</source>
-        <translation>Ukuran yang dapat dibaca manusia</translation>
+        <translation>Ukuran yang mudah dibaca manusia</translation>
     </message>
     <message>
         <source>Show file/directory sizes in human readable format rather than in bytes</source>
-        <translation>Tampilkan ukuran berkas/direktori dalam format yang dapat dibaca manusia alih-alih byte</translation>
+        <translation>Tampilkan ukuran berkas/direktori dalam format yang mudah dibaca manusia, bukan byte</translation>
     </message>
     <message>
         <source>Close the pane</source>
@@ -10760,7 +10760,7 @@
     </message>
     <message>
         <source>Please consider lowering the number of CPUs assigned to the virtual machine rather than setting the processor execution cap.</source>
-        <translation>Harap pertimbangkan untuk menurunkan cacah CPU yang ditugaskan ke mesin virtual daripada menata batas eksekusi prosesor.</translation>
+        <translation>Harap pertimbangkan untuk mengurangi cacah CPU yang ditugaskan ke mesin virtual daripada menata batas eksekusi prosesor.</translation>
     </message>
     <message>
         <source>Lowering the processor execution cap may result in a decline in performance.</source>
@@ -11579,15 +11579,15 @@
     <name>UIMediumSearchWidget</name>
     <message>
         <source>Search By Name</source>
-        <translation type="unfinished"></translation>
+        <translation>Cari Berdasarkan Nama</translation>
     </message>
     <message>
         <source>Search By UUID</source>
-        <translation type="unfinished"></translation>
+        <translation>Cari Berdasarkan UUID</translation>
     </message>
     <message>
         <source>Select the search type</source>
-        <translation type="unfinished"></translation>
+        <translation>Pilih tipe pencarian</translation>
     </message>
 </context>
 <context>
@@ -11646,15 +11646,15 @@
     </message>
     <message>
         <source>Medium</source>
-        <translation type="unfinished"></translation>
+        <translation>Medium</translation>
     </message>
     <message>
         <source>Expand All</source>
-        <translation type="unfinished">Kembangkan Semua</translation>
+        <translation>Kembangkan Semua</translation>
     </message>
     <message>
         <source>Collapse All</source>
-        <translation type="unfinished">Kuncupkan Semua</translation>
+        <translation>Kuncupkan Semua</translation>
     </message>
 </context>
 <context>
@@ -16088,19 +16088,19 @@ langkah ini dan memasang hard disk pada waktu lain menggunakan dialog Setting Me
     </message>
     <message>
         <source>Go to the next bookmark</source>
-        <translation type="unfinished"></translation>
+        <translation>Pergi ke markah selanjutnya</translation>
     </message>
     <message>
         <source>Go to the previous bookmark</source>
-        <translation type="unfinished"></translation>
+        <translation>Pergi ke markah sebelumnya</translation>
     </message>
     <message>
         <source>Go to selected bookmark</source>
-        <translation type="unfinished"></translation>
+        <translation>Pergi ke markah yang dipilih</translation>
     </message>
     <message>
         <source>Matches Found</source>
-        <translation type="unfinished"></translation>
+        <translation>Kecocokan Ditemukan</translation>
     </message>
 </context>
 <context>
@@ -16257,47 +16257,47 @@ langkah ini dan memasang hard disk pada waktu lain menggunakan dialog Setting Me
     </message>
     <message>
         <source>Close the pane</source>
-        <translation type="unfinished">Tutup panel</translation>
+        <translation>Tutup panel</translation>
     </message>
     <message>
         <source>Remove</source>
-        <translation type="unfinished">Hapus</translation>
+        <translation>Hapus</translation>
     </message>
     <message>
         <source>New Directory</source>
-        <translation type="unfinished"></translation>
+        <translation>Direktori Baru</translation>
     </message>
     <message>
         <source>Reset</source>
-        <translation type="unfinished">Reset</translation>
+        <translation>Reset</translation>
     </message>
     <message>
         <source>VISO Creator</source>
-        <translation type="unfinished"></translation>
+        <translation>Pembuat VISO</translation>
     </message>
     <message>
         <source>VISO</source>
-        <translation type="unfinished"></translation>
+        <translation>VISO</translation>
     </message>
     <message>
         <source>Host Browser</source>
-        <translation type="unfinished"></translation>
+        <translation>Peramban Host</translation>
     </message>
     <message>
         <source>VISO Browser</source>
-        <translation type="unfinished"></translation>
+        <translation>Peramban VISO</translation>
     </message>
     <message>
         <source>Custom VISO options:</source>
-        <translation type="unfinished"></translation>
+        <translation>Opsi VISO ubahan:</translation>
     </message>
     <message>
         <source>Remove current option.</source>
-        <translation type="unfinished"></translation>
+        <translation>Hapus opsi saat ini.</translation>
     </message>
     <message>
         <source>Add</source>
-        <translation type="unfinished">Tambah</translation>
+        <translation>Tambah</translation>
     </message>
 </context>
 <context>
@@ -16707,11 +16707,11 @@ langkah ini dan memasang hard disk pada waktu lain menggunakan dialog Setting Me
     </message>
     <message>
         <source>Include only NAT network adapter MAC addresses during cloning.</source>
-        <translation>Hanya sertakan alamat MAC kartu jaringan NAT selama kloning.</translation>
+        <translation>Hanya sertakan alamat MAC kartu jaringan NAT selama pembuatan klon.</translation>
     </message>
     <message>
         <source>Generate new MAC addresses for all network adapters during cloning.</source>
-        <translation>Buat alamat MAC baru untuk semua kartu jaringan selama kloning.</translation>
+        <translation>Buat alamat MAC baru untuk semua kartu jaringan selama pembuatan klon.</translation>
     </message>
     <message>
         <source>Additional Options:</source>
@@ -16743,7 +16743,7 @@ langkah ini dan memasang hard disk pada waktu lain menggunakan dialog Setting Me
     </message>
     <message>
         <source>Include all network adapter MAC addresses during cloning.</source>
-        <translation>Sertakan semua alamat MAC kartu jaringan selama kloning.</translation>
+        <translation>Sertakan semua alamat MAC kartu jaringan selama pembuatan klon.</translation>
     </message>
     <message>
         <source>Additional options</source>

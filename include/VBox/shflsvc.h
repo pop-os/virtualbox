@@ -151,8 +151,13 @@
  * This function is tailored for Windows guests.
  * @since VBox 6.0.8  */
 #define SHFL_FN_CLOSE_AND_REMOVE    (28)
+/** Set the host error code style.
+ * This is for more efficiently getting the correct error status when the host
+ * and guest OS types differs and it won't happen naturally.
+ * @since VBox 6.0.10  */
+#define SHFL_FN_SET_ERROR_STYLE     (29)
 /** The last function number. */
-#define SHFL_FN_LAST                SHFL_FN_CLOSE_AND_REMOVE
+#define SHFL_FN_LAST                SHFL_FN_SET_ERROR_STYLE
 /** @} */
 
 
@@ -1789,13 +1794,13 @@ typedef struct _VBoxSFRemove
  */
 /** SHFL_FN_CLOSE_AND_REMOVE parameters. */
 typedef struct VBoxSFParmCloseAndRemove
-#ifdef __cplusplus
-    : public VBoxSFParmRemove
-#endif
 {
-#ifndef __cplusplus
-    VBoxSFParmRemove      Core;
-#endif
+    /** value32, in: SHFLROOT of the mapping the path is relative to. */
+    HGCMFunctionParameter id32Root;
+    /** pointer, in: Points to SHFLSTRING buffer. */
+    HGCMFunctionParameter pStrPath;
+    /** value32, in: SHFL_REMOVE_XXX */
+    HGCMFunctionParameter f32Flags;
     /** value64, in: SHFLHANDLE to the object to be removed & close, optional. */
     HGCMFunctionParameter u64Handle;
 } VBoxSFParmCloseAndRemove;
@@ -2046,7 +2051,7 @@ typedef struct VBoxSFParmCopyFile
 /** @name SHFL_FN_COPY_FILE_PART
  * @{ */
 /** SHFL_FN_COPY_FILE_PART parameters. */
-typedef struct VBoxSFParmCopyFilePar
+typedef struct VBoxSFParmCopyFilePart
 {
     /** value32, in: SHFLROOT of the mapping the source handle belongs to. */
     HGCMFunctionParameter id32RootSrc;
@@ -2071,6 +2076,36 @@ typedef struct VBoxSFParmCopyFilePar
 #define SHFL_CPARMS_COPY_FILE_PART (8)
 /** @} */
 
+
+/** @name SHFL_FN_SET_ERROR_STYLE
+ * @{ */
+/** The defined error styles. */
+typedef enum SHFLERRORSTYLE
+{
+    kShflErrorStyle_Invalid = 0,
+    kShflErrorStyle_Windows,
+    kShflErrorStyle_Linux,
+    kShflErrorStyle_End,
+    kShflErrorStyle_32BitHack = 0x7fffffff
+} SHFLERRORSTYLE;
+/** The native error style. */
+#if defined(RT_OS_WINDOWS) || defined(RT_OS_OS2)
+# define SHFLERRORSTYLE_NATIVE      kShflErrorStyle_Windows
+#else
+# define SHFLERRORSTYLE_NATIVE      kShflErrorStyle_Linux
+#endif
+
+/** SHFL_FN_SET_ERROR_STYLE parameters. */
+typedef struct VBoxSFParmSetErrorStyle
+{
+    /** value32, in: The style, SHFLERRORSTYLE. */
+    HGCMFunctionParameter u32Style;
+    /** value32, in: Reserved for the future, must be zero. */
+    HGCMFunctionParameter u32Reserved;
+} VBoxSFParmSetErrorStyle;
+/** Number of parameters for SHFL_FN_SET_ERROR_STYLE. */
+#define SHFL_CPARMS_SET_ERROR_STYLE (2)
+/** @} */
 
 
 /** @name SHFL_FN_ADD_MAPPING
