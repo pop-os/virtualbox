@@ -1,8 +1,10 @@
-virtualbox (6.0.10-dfsg-1) UNRELEASED; urgency=medium
+virtualbox (6.0.10-dfsg-1) unstable; urgency=medium
 
   * New upstream release (Closes: #929074)
+  * Drop kernel patch
+  * Bump std-version to 4.4.0, no changes required
 
- -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 21 Jun 2019 14:34:16 +0200
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 17 Jul 2019 12:10:52 +0200
 
 virtualbox (6.0.8-dfsg-7) unstable; urgency=medium
 
