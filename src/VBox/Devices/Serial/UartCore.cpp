@@ -1487,6 +1487,8 @@ static DECLCALLBACK(void) uartR3TxUnconnectedTimer(PPDMDEVINS pDevIns, PTMTIMER 
             UART_REG_SET(pThis->uRegLsr, UART_REG_LSR_DR);
             uartIrqUpdate(pThis);
         }
+        else
+            ASMAtomicSubU32(&pThis->cbAvailRdr, 1);
     }
     if (cbRead == 1)
         TMTimerSetRelative(pThis->CTX_SUFF(pTimerTxUnconnected), pThis->cSymbolXferTicks, NULL);
@@ -1765,6 +1767,7 @@ DECLHIDDEN(void) uartR3Relocate(PUARTCORE pThis, RTGCINTPTR offDelta)
     pThis->pDevInsRC              = PDMDEVINS_2_RCPTR(pThis->pDevInsR3);
     pThis->pTimerRcvFifoTimeoutRC = TMTimerRCPtr(pThis->pTimerRcvFifoTimeoutR3);
     pThis->pTimerTxUnconnectedRC  = TMTimerRCPtr(pThis->pTimerTxUnconnectedR3);
+    pThis->pfnUartIrqReqRC       += offDelta;
 }
 
 

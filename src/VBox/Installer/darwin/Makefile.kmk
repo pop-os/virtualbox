@@ -240,7 +240,7 @@ $(VBOX_PATH_PACK_TMP)/DiskImage/VirtualBox.pkg: \
 		$(if $(VBOX_MACOSX_INSTALLER_SIGN),--sign "$(VBOX_MACOSX_INSTALLER_SIGN)",) \
 		$@
 ifdef VBOX_SIGNING_MODE
- ifdef VBOX_WITH_CORP_CODE_SIGNING
+ if $(intersects darwin all 1,$(VBOX_WITH_CORP_CODE_SIGNING))
 	@# Sign the created pkg.
 	$(call VBOX_SIGN_PKG_FN,$@,org.VirtualBox.mpkg.virtualbox)
  endif
@@ -332,7 +332,7 @@ endif
 		$(if $(VBOX_MACOSX_INSTALLER_SIGN),--sign "$(VBOX_MACOSX_INSTALLER_SIGN)",) \
 		$@
 ifdef VBOX_SIGNING_MODE
- ifdef VBOX_WITH_CORP_CODE_SIGNING
+ if $(intersects darwin all 1,$(VBOX_WITH_CORP_CODE_SIGNING))
 	@# Sign the created pkg.
 	$(call VBOX_SIGN_PKG_FN,$@,org.virtualbox.pkg.vboxkexts)
  endif
@@ -390,15 +390,7 @@ if defined(VBOX_WITH_VRDP) && !defined(VBOX_WITH_EXTPACK_PUEL)
 endif
 ifdef VBOX_WITH_CROGL
  VBOX_DI_VBAPP_DYLIBS += \
- 	MacOS/VBoxOGLhostcrutil.dylib \
- 	MacOS/VBoxOGLhosterrorspu.dylib \
- 	MacOS/VBoxOGLrenderspu.dylib \
  	MacOS/VBoxSharedCrOpenGL.dylib
-
- ifdef VBOX_WITH_CR_DISPLAY_LISTS
-  VBOX_DI_VBAPP_DYLIBS += \
- 	MacOS/VBoxOGLexpandospu.dylib
- endif
 endif
 ifdef VBOX_WITH_DEBUGGER_GUI
  VBOX_DI_VBAPP_DYLIBS += \
@@ -813,7 +805,7 @@ endif
 		$(if $(VBOX_MACOSX_INSTALLER_SIGN),--sign "$(VBOX_MACOSX_INSTALLER_SIGN)",) \
 		$@
 ifdef VBOX_SIGNING_MODE
- ifdef VBOX_WITH_CORP_CODE_SIGNING
+ if $(intersects darwin all 1,$(VBOX_WITH_CORP_CODE_SIGNING))
 	@# Sign the created pkg.
 	$(call VBOX_SIGN_PKG_FN,$@,org.virtualbox.pkg.virtualbox)
  endif
@@ -900,7 +892,7 @@ endif
 		$(if $(VBOX_MACOSX_INSTALLER_SIGN),--sign "$(VBOX_MACOSX_INSTALLER_SIGN)",) \
 		$@
 ifdef VBOX_SIGNING_MODE
- ifdef VBOX_WITH_CORP_CODE_SIGNING
+ if $(intersects darwin all 1,$(VBOX_WITH_CORP_CODE_SIGNING))
 	@# Sign the created pkg.
 	$(call VBOX_SIGN_PKG_FN,$@,org.virtualbox.pkg.virtualboxcli)
  endif

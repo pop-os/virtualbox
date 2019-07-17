@@ -14018,6 +14018,13 @@ and "VAR" for unsetting. -->
 
         The <link to="IFile::seek"/> is used to change this attribute without
         transfering any file data like read and write does.
+
+        <note> This will not always be correct with older guest additions
+        (version 5.2.30 and earlier, as well as versions 6.0.0 thru 6.0.8)
+        after a calling <link to="IFile::readAt"/> or <link to="IFile::writeAt"/>,
+        or after calling <link to="IFile::write"/> on a file in append mode.
+        The correct file offset can be obtained using <link to="IFile::seek"/>.</note>
+
       </desc>
     </attribute>
     <attribute name="status" type="FileStatus" readonly="yes">
@@ -14079,9 +14086,7 @@ and "VAR" for unsetting. -->
       <desc>
         Reads data from this file.
 
-        <result name="E_NOTIMPL">
-          The method is not implemented yet.
-        </result>
+        The file current position (<link to="IFile::offset"/>) is updated on success.
       </desc>
       <param name="toRead" type="unsigned long" dir="in">
         <desc>Number of bytes to read.</desc>
@@ -14101,9 +14106,7 @@ and "VAR" for unsetting. -->
       <desc>
         Reads data from an offset of this file.
 
-        <result name="E_NOTIMPL">
-          The method is not implemented yet.
-        </result>
+        The file current position (<link to="IFile::offset"/>) is updated on success.
       </desc>
       <param name="offset" type="long long" dir="in">
         <desc>Offset in bytes to start reading.</desc>
@@ -14166,10 +14169,6 @@ and "VAR" for unsetting. -->
     <method name="setSize">
       <desc>
         Changes the file size.
-
-        <result name="E_NOTIMPL">
-          The method is not implemented yet.
-        </result>
       </desc>
       <param name="size" type="long long" dir="in">
         <desc>The new file size.</desc>
@@ -14179,6 +14178,8 @@ and "VAR" for unsetting. -->
     <method name="write">
       <desc>
         Writes bytes to this file.
+
+        The file current position (<link to="IFile::offset"/>) is updated on success.
       </desc>
       <param name="data" type="octet" dir="in" safearray="yes">
         <desc>
@@ -14201,12 +14202,13 @@ and "VAR" for unsetting. -->
       <desc>
         Writes bytes at a certain offset to this file.
 
-        <result name="E_NOTIMPL">
-          The method is not implemented yet.
-        </result>
+        The file current position (<link to="IFile::offset"/>) is updated on success.
       </desc>
       <param name="offset" type="long long" dir="in">
-        <desc>Offset in bytes to start writing.</desc>
+        <desc>Offset in bytes to start writing.  If the file was opened with the
+        <link to="IFile::accessMode"/> set to <link to="FileAccessMode_AppendOnly"/>
+        or <link to="FileAccessMode_AppendRead"/>, the offset is ignored and the
+        write always goes to the end of the file.</desc>
       </param>
       <param name="data" type="octet" dir="in" safearray="yes">
         <desc>
@@ -23404,8 +23406,19 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
         See <link to="ICursorPositionChangedEvent">ICursorPositionChangedEvent</link>.
       </desc>
     </const>
-    <!-- Last event marker -->
-    <const name="Last" value="101">
+    <const name="OnGuestAdditionsStatusChanged" value="101">
+      <desc>
+        See <link to="IGuestAdditionsStatusChangedEvent">IGuestAdditionsStatusChangedEvent</link>.
+      </desc>
+    </const>
+    <const name="OnGuestFileSizeChanged" value="102">
+      <desc>
+        See <link to="IGuestFileSizeChangedEvent">IGuestFileSizeChangedEvent</link>.
+      </desc>
+    </const>
+    <!-- End event marker -->
+    <!-- @todo rename to 'End' as it is exclusive (we use 'last' to be inclusive). -->
+    <const name="Last" value="103">
       <desc>
         Must be last event, used for iterations and structures relying on numerical event values.
       </desc>
@@ -24675,10 +24688,22 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
     wsmap="managed" autogen="VBoxEvent" id="OnGuestFileOffsetChanged"
     >
     <desc>
-      Notification when a guest file changed its current offset.
+      Notification when a guest file changed its current offset via <link to="IFile::seek" />.
     </desc>
 
     <attribute name="midlDoesNotLikeEmptyInterfaces" readonly="yes" type="boolean"/>
+  </interface>
+
+  <interface
+    name="IGuestFileSizeChangedEvent" extends="IGuestFileEvent"
+    uuid="d78374e9-486e-472f-481b-969746af2480"
+    wsmap="managed" autogen="VBoxEvent" id="OnGuestFileSizeChanged"
+    >
+    <desc>
+      Notification when a guest file changed its size via <link to="IFile::setSize" />.
+    </desc>
+
+    <attribute name="newSize" readonly="yes" type="long long"/>
   </interface>
 
   <interface
@@ -25489,6 +25514,26 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
     </attribute>
     <attribute name="y" readonly="yes" type="unsigned long">
       <desc>Reported Y position</desc>
+    </attribute>
+  </interface>
+
+  <interface
+    name="IGuestAdditionsStatusChangedEvent" extends="IEvent"
+    uuid="fd1a34ad-0b74-4e2b-ed0f-46222de8a883"
+    wsmap="managed" autogen="VBoxEvent" id="OnGuestAdditionsStatusChanged">
+    <desc>The guest addition status changed.</desc>
+
+    <attribute name="facility" type="AdditionsFacilityType" dir="in">
+      <desc>Facility this event relates to.</desc>
+    </attribute>
+    <attribute name="status" type="AdditionsFacilityStatus" readonly="yes">
+      <desc>The new facility status.</desc>
+    </attribute>
+    <attribute name="runLevel" type="AdditionsRunLevelType" readonly="yes">
+      <desc>The new run level.</desc>
+    </attribute>
+    <attribute name="timestamp" type="long long" readonly="yes">
+      <desc>The millisecond timestamp associated with the event.</desc>
     </attribute>
   </interface>
 

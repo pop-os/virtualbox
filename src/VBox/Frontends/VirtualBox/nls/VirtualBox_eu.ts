@@ -9923,7 +9923,7 @@
         <translation>Gehitu Diska Gogorra</translation>
     </message>
     <message>
-        <location line="+357"/>
+        <location line="+359"/>
         <source>Optical &amp;Drive:</source>
         <translation>Diska &amp;Optikoak:</translation>
     </message>
@@ -9967,7 +9967,7 @@
         <translation type="obsolete">Gehitu Diskete Gailua</translation>
     </message>
     <message>
-        <location line="-541"/>
+        <location line="-543"/>
         <source>Remove Attachment</source>
         <translation>Kendu Eranskina</translation>
     </message>
@@ -9988,7 +9988,7 @@
         <translation type="obsolete">Biltegi Zuhaitzean nabarmenduriko eranskina kentzen du.</translation>
     </message>
     <message>
-        <location line="+348"/>
+        <location line="+350"/>
         <source>Hard &amp;Disk:</source>
         <translation>&amp;Diska Gogorra:</translation>
     </message>
@@ -10027,7 +10027,7 @@
         <translation type="obsolete">Biltegi Zuhaitzean orain hautaturiko biltegi kontrolatzailearen izena aldatzen du.</translation>
     </message>
     <message>
-        <location filename="../src/settings/machine/UIMachineSettingsStorage.cpp" line="-370"/>
+        <location filename="../src/settings/machine/UIMachineSettingsStorage.cpp" line="-372"/>
         <source>Lists all storage controllers for this machine and the virtual images and host drives attached to them.</source>
         <translation>Makina honentzako biltegiratze kontrolatzeaile guztiak eta berari erantsitako irudi birtual eta hostalari gidagailu guztiak zerrendatzen ditu.</translation>
     </message>
@@ -10223,7 +10223,7 @@
         <translation>Hautaturiko biltegiratze eranspena kentzen du.</translation>
     </message>
     <message>
-        <location line="+345"/>
+        <location line="+347"/>
         <source>Choose or create a virtual hard disk file. The virtual machine will see the data in the file as the contents of the virtual hard disk.</source>
         <translation>Hautatu edo sortu diska gogor birtual agiri bat. Makina birtualak agiriko datuak diska gogor birtualeko eduki bezala ikusiko ditu.</translation>
     </message>
@@ -10331,7 +10331,7 @@
         <translation type="obsolete">ez da diska gogorrik hautatu &lt;i&gt;%1&lt;/i&gt;-rako.</translation>
     </message>
     <message>
-        <location filename="../src/settings/machine/UIMachineSettingsStorage.cpp" line="-422"/>
+        <location filename="../src/settings/machine/UIMachineSettingsStorage.cpp" line="-424"/>
         <source>at most one supported</source>
         <comment>controller</comment>
         <translation>gehienez sostengatuetako bat</translation>

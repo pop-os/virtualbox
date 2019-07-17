@@ -1770,8 +1770,8 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> pVirtualBox,
                 RTPrintf(" (Driver: %s, Controller: %s, Codec: %s)", pszDrv, pszCtrl, pszCodec);
             RTPrintf("\n");
         }
-        SHOW_BOOLEAN_PROP(AudioAdapter, EnabledIn,  "audio_in",  "Audio playback:");
-        SHOW_BOOLEAN_PROP(AudioAdapter, EnabledOut, "audio_out", "Audio capture:");
+        SHOW_BOOLEAN_PROP(AudioAdapter, EnabledOut,  "audio_out",  "Audio playback:");
+        SHOW_BOOLEAN_PROP(AudioAdapter, EnabledIn, "audio_in", "Audio capture:");
     }
 
     /* Shared clipboard */

@@ -189,12 +189,12 @@ RuntimeWin64ASM_SOURCES = \
 	win/amd64/ASMGetCS.asm \
 	win/amd64/ASMGetDS.asm \
 	win/amd64/ASMGetES.asm \
-	win/amd64/ASMGetFlags.asm \
+	common/asm/ASMGetFlags.asm \
 	win/amd64/ASMGetFS.asm \
 	win/amd64/ASMGetGS.asm \
 	win/amd64/ASMGetSS.asm \
 	win/amd64/ASMProbeReadByte.asm \
-	win/amd64/ASMSetFlags.asm \
+	common/asm/ASMSetFlags.asm \
 	win/amd64/ASMGetDR0.asm \
 	win/amd64/ASMGetDR1.asm \
 	win/amd64/ASMGetDR2.asm \
@@ -528,6 +528,7 @@ RuntimeR3_SOURCES       = \
 	common/path/RTPathJoin.cpp \
 	common/path/RTPathJoinA.cpp \
 	common/path/RTPathJoinEx.cpp \
+	common/path/RTPathParentLength.cpp \
 	common/path/RTPathParse.cpp \
 	common/path/RTPathParsedReassemble.cpp \
 	common/path/RTPathParseSimple.cpp \
@@ -569,6 +570,7 @@ RuntimeR3_SOURCES       = \
 	common/string/RTStrStr.cpp \
 	common/string/RTUtf16Copy.cpp \
 	common/string/RTUtf16CopyAscii.cpp \
+	common/string/RTUtf16CopyEx.cpp \
 	common/string/RTUtf16Cat.cpp \
 	common/string/RTUtf16CatAscii.cpp \
 	common/string/RTUtf16Chr.cpp \
@@ -2180,8 +2182,6 @@ ifdef RTALLOC_REPLACE_MALLOC
 VBoxRT_LIBS                   += \
 	$(PATH_STAGE_LIB)/DisasmR3$(VBOX_SUFF_LIB)
 endif
-VBoxRT_LIBS.linux              = \
-	crypt
 VBoxRT_LIBS.darwin             = \
 	iconv
 VBoxRT_LIBS.freebsd            = \
@@ -2325,8 +2325,6 @@ endif
 ifdef IPRT_WITH_LZO
  VBoxRT-x86_LIBS                  += lzo2
 endif
-VBoxRT-x86_LIBS.linux              = \
-	crypt
 VBoxRT-x86_LIBS.darwin             = \
 	iconv
 VBoxRT-x86_LIBS.freebsd            = \
@@ -2907,6 +2905,7 @@ RuntimeR0Drv_SOURCES.win = \
 	common/string/RTStrPrintHexBytes.cpp \
 	common/string/RTUtf16Copy.cpp \
 	common/string/RTUtf16CopyAscii.cpp \
+	common/string/RTUtf16CopyEx.cpp \
 	common/string/RTUtf16Cat.cpp \
 	common/string/RTUtf16CatAscii.cpp \
 	common/string/RTUtf16End.cpp \

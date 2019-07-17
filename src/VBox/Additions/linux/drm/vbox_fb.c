@@ -335,13 +335,17 @@ static int vboxfb_create(struct drm_fb_helper *helper,
 	info->apertures->ranges[0].base = pci_resource_start(dev->pdev, 0);
 	info->apertures->ranges[0].size = pci_resource_len(dev->pdev, 0);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0) || defined(RHEL_75)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0)
+	drm_fb_helper_fill_info(info, &fbdev->helper, sizes);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0) || defined(RHEL_75)
 	drm_fb_helper_fill_fix(info, fb->pitches[0], fb->format->depth);
 #else
 	drm_fb_helper_fill_fix(info, fb->pitches[0], fb->depth);
 #endif
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0)
 	drm_fb_helper_fill_var(info, &fbdev->helper, sizes->fb_width,
 			       sizes->fb_height);
+#endif
 
 	info->screen_base = bo->kmap.virtual;
 	info->screen_size = size;
@@ -416,7 +420,7 @@ int vbox_fbdev_init(struct drm_device *dev)
 	vbox->fbdev = fbdev;
 	spin_lock_init(&fbdev->dirty_lock);
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0) && !defined(RHEL_73)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0) && !defined(RHEL_72)
 	fbdev->helper.funcs = &vbox_fb_helper_funcs;
 #else
 	drm_fb_helper_prepare(dev, &fbdev->helper, &vbox_fb_helper_funcs);

@@ -35,6 +35,114 @@ technical terms if no non-technical ones are clear enough.
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
 
   <sect1>
+    <title>Version 6.0.10 (2019-07-16)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>User interface: fix issue inputing controller names (bug #11579)</para>
+      </listitem>
+
+      <listitem>
+        <para>User interface: fix resize problems with recent Linux hosts
+          (bug #18677)</para>
+      </listitem>
+
+      <listitem>
+        <para>Serial: fixed guru meditation when raw mode is enabled
+          (bug #18632)</para>
+      </listitem>
+
+      <listitem>
+        <para>Serial: fixed possible VM crash under certain circumstances</para>
+      </listitem>
+
+      <listitem>
+        <para>USB: Fixed "unrecoverable error" problems in OHCI emulation (bug
+           #18593, 6.0.6 regression)</para>
+      </listitem>
+
+      <listitem>
+        <para>USB: improve captured device identification</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: fix reversed reporting of audio input and output
+          (thank you Socratis Kalogrianitis)</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: fix controlling recording for running machine
+          (bug #18723)</para>
+      </listitem>
+
+      <listitem>
+        <para>Guest control service: various fixes</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: fix problems copying files from shared folders
+          (bug #18569)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: kernel module build fixes for various kernels
+           (bug #18316)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: support UEFI secure boot driver signing on Ubuntu and
+           Debian hosts (bug #11577)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: fix focus grabbing problems with recent Qt versions
+           (builds from source only; thank you Fabian Vogt (SUSE) and Larry Finger;
+           bug #18745)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows guests: many shared folders fixes</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows guests: fix other services failing if seamless mode was
+           not available</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux guests: kernel module build fixes for various kernels
+           (bugs #18677 and #18697; fixes by Larry Finger and Gianfranco
+           Costamagna)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux guests: do not try to load old versions of libcrypt on
+           recent guests in Guest Additions tools (bug #18682)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux guests: udev rules for guest kernel modules did not always
+           take effect in time</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux guests/VMSVGA: do not forget the guest screen size after
+           a guest reboot</para>
+      </listitem>
+
+      <listitem>
+        <para>OS/2 guests: various shared folder fixes</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
+
     <title>Version 6.0.8 (2019-05-13)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
@@ -306,6 +414,11 @@ technical terms if no non-technical ones are clear enough.
       </listitem>
 
       <listitem>
+        <para>Linux guests: fixed a NULL pointer dereference in vboxvideo
+           (bug #18443)</para>
+      </listitem>
+
+      <listitem>
         <para>Solaris guests: fix an error message from VBoxClient
            (bug #18428)</para>
       </listitem>
@@ -499,6 +612,13 @@ technical terms if no non-technical ones are clear enough.
         <para>
           Implemented support for exporting a virtual machine to Oracle
           Cloud Infrastructure
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>
+          Virtualization core: support for nested hardware-virtualization
+          on AMD CPUs
         </para>
       </listitem>
 

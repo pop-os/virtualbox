@@ -10,10 +10,6 @@
 #include "state_internals.h"
 #include "cr_mem.h"
 
-#if !defined(IN_GUEST)
-#include "cr_unpack.h"
-#endif
-
 void
 crStateOcclusionInit(CRContext *ctx)
 {
@@ -47,9 +43,9 @@ NewQueryObject(GLenum target, GLuint id)
 
 
 void STATE_APIENTRY
-crStateDeleteQueriesARB(GLsizei n, const GLuint *ids)
+crStateDeleteQueriesARB(PCRStateTracker pState, GLsizei n, const GLuint *ids)
 {
-	CRContext *g = GetCurrentContext();
+	CRContext *g = GetCurrentContext(pState);
 	CROcclusionState *o = &(g->occlusion);
 	/*CRStateBits *sb = GetCurrentBits();*/
 	/*CROcclusionBits *bb = &(sb->occlusion);*/
@@ -58,25 +54,10 @@ crStateDeleteQueriesARB(GLsizei n, const GLuint *ids)
 	FLUSH();
 
 	if (g->current.inBeginEnd) {
-		crStateError(__LINE__, __FILE__, GL_INVALID_OPERATION,
+		crStateError(pState, __LINE__, __FILE__, GL_INVALID_OPERATION,
 								 "glDeleteQueriesARB called in Begin/End");
 		return;
 	}
-
-    if (n <= 0 || n >= (GLsizei)(INT32_MAX / sizeof(GLuint)))
-    {
-        crStateError(__LINE__, __FILE__, GL_INVALID_OPERATION,
-                     "glDeleteQueriesARB: parameter 'n' is out of range");
-        return;
-    }
-
-#if !defined(IN_GUEST)
-    if (!DATA_POINTER_CHECK(n * sizeof(GLuint)))
-    {
-        crError("glDeleteQueriesARB: parameter 'n' is out of range");
-        return;
-    }
-#endif
 
     for (i = 0; i < n; i++) {
 		if (ids[i]) {
@@ -91,22 +72,22 @@ crStateDeleteQueriesARB(GLsizei n, const GLuint *ids)
 
 
 void STATE_APIENTRY
-crStateGenQueriesARB(GLsizei n, GLuint * queries)
+crStateGenQueriesARB(PCRStateTracker pState, GLsizei n, GLuint * queries)
 {
-	CRContext *g = GetCurrentContext();
+	CRContext *g = GetCurrentContext(pState);
 	CROcclusionState *o = &(g->occlusion);
 	GLint start;
 
 	FLUSH();
 
 	if (g->current.inBeginEnd) {
-		crStateError(__LINE__, __FILE__, GL_INVALID_OPERATION,
+		crStateError(pState, __LINE__, __FILE__, GL_INVALID_OPERATION,
 								 "glGenQueriesARB called in Begin/End");
 		return;
 	}
 
 	if (n < 0) {
-		crStateError(__LINE__, __FILE__, GL_INVALID_VALUE,
+		crStateError(pState, __LINE__, __FILE__, GL_INVALID_VALUE,
 								 "glGenQueriesARB(n < 0)");
 		return;
 	}
@@ -118,21 +99,21 @@ crStateGenQueriesARB(GLsizei n, GLuint * queries)
 			queries[i] = (GLuint) (start + i);
 	}
 	else {
-		crStateError(__LINE__, __FILE__, GL_OUT_OF_MEMORY, "glGenQueriesARB");
+		crStateError(pState, __LINE__, __FILE__, GL_OUT_OF_MEMORY, "glGenQueriesARB");
 	}
 }
 
 
 GLboolean STATE_APIENTRY
-crStateIsQueryARB(GLuint id)
+crStateIsQueryARB(PCRStateTracker pState, GLuint id)
 {
-	CRContext *g = GetCurrentContext();
+	CRContext *g = GetCurrentContext(pState);
 	CROcclusionState *o = &(g->occlusion);
 
 	FLUSH();
 
 	if (g->current.inBeginEnd) {
-		crStateError(__LINE__, __FILE__, GL_INVALID_OPERATION,
+		crStateError(pState, __LINE__, __FILE__, GL_INVALID_OPERATION,
 								 "glIsQueryARB called in begin/end");
 		return GL_FALSE;
 	}
@@ -145,16 +126,16 @@ crStateIsQueryARB(GLuint id)
 
 
 void STATE_APIENTRY
-crStateGetQueryivARB(GLenum target, GLenum pname, GLint *params)
+crStateGetQueryivARB(PCRStateTracker pState, GLenum target, GLenum pname, GLint *params)
 {
-	CRContext *g = GetCurrentContext();
+	CRContext *g = GetCurrentContext(pState);
 	CROcclusionState *o = &(g->occlusion);
 	(void)target;
 
 	FLUSH();
 
 	if (g->current.inBeginEnd) {
-		crStateError(__LINE__, __FILE__, GL_INVALID_OPERATION,
+		crStateError(pState, __LINE__, __FILE__, GL_INVALID_OPERATION,
 								 "glGetGetQueryivARB called in begin/end");
 		return;
 	}
@@ -167,7 +148,7 @@ crStateGetQueryivARB(GLenum target, GLenum pname, GLint *params)
 		 *params = o->currentQueryObject;
 		 break;
 	default:
-		crStateError(__LINE__, __FILE__, GL_INVALID_ENUM,
+		crStateError(pState, __LINE__, __FILE__, GL_INVALID_ENUM,
 								 "glGetGetQueryivARB(pname)");
 		return;
 	}
@@ -175,23 +156,23 @@ crStateGetQueryivARB(GLenum target, GLenum pname, GLint *params)
 
 
 void STATE_APIENTRY
-crStateGetQueryObjectivARB(GLuint id, GLenum pname, GLint *params)
+crStateGetQueryObjectivARB(PCRStateTracker pState, GLuint id, GLenum pname, GLint *params)
 {
-	CRContext *g = GetCurrentContext();
+	CRContext *g = GetCurrentContext(pState);
 	CROcclusionState *o = &(g->occlusion);
 	CROcclusionObject *q;
 
 	FLUSH();
 
 	if (g->current.inBeginEnd) {
-		crStateError(__LINE__, __FILE__, GL_INVALID_OPERATION,
+		crStateError(pState, __LINE__, __FILE__, GL_INVALID_OPERATION,
 								 "glGetGetQueryObjectivARB called in begin/end");
 		return;
 	}
 
 	q = (CROcclusionObject *) crHashtableSearch(o->objects, id);
 	if (!q || q->active) {
-		crStateError(__LINE__, __FILE__, GL_INVALID_OPERATION,
+		crStateError(pState, __LINE__, __FILE__, GL_INVALID_OPERATION,
 								"glGetQueryObjectivARB");
 		return;
 	}
@@ -204,7 +185,7 @@ crStateGetQueryObjectivARB(GLuint id, GLenum pname, GLint *params)
 		*params = GL_TRUE;
 		break;
 	default:
-		crStateError(__LINE__, __FILE__, GL_INVALID_ENUM,
+		crStateError(pState, __LINE__, __FILE__, GL_INVALID_ENUM,
 								 "glGetQueryObjectivARB(pname)");
 		return;
    }
@@ -212,23 +193,23 @@ crStateGetQueryObjectivARB(GLuint id, GLenum pname, GLint *params)
 
 
 void STATE_APIENTRY
-crStateGetQueryObjectuivARB(GLuint id, GLenum pname, GLuint *params)
+crStateGetQueryObjectuivARB(PCRStateTracker pState, GLuint id, GLenum pname, GLuint *params)
 {
-	CRContext *g = GetCurrentContext();
+	CRContext *g = GetCurrentContext(pState);
 	CROcclusionState *o = &(g->occlusion);
 	CROcclusionObject *q;
 
 	FLUSH();
 
 	if (g->current.inBeginEnd) {
-		crStateError(__LINE__, __FILE__, GL_INVALID_OPERATION,
+		crStateError(pState, __LINE__, __FILE__, GL_INVALID_OPERATION,
 								 "glGetGetQueryObjectuivARB called in begin/end");
 		return;
 	}
 
 	q = (CROcclusionObject *) crHashtableSearch(o->objects, id);
 	if (!q || q->active) {
-		crStateError(__LINE__, __FILE__, GL_INVALID_OPERATION,
+		crStateError(pState, __LINE__, __FILE__, GL_INVALID_OPERATION,
 								"glGetQueryObjectuivARB");
 		return;
 	}
@@ -242,7 +223,7 @@ crStateGetQueryObjectuivARB(GLuint id, GLenum pname, GLuint *params)
 		*params = GL_TRUE;
 		break;
 	default:
-		crStateError(__LINE__, __FILE__, GL_INVALID_ENUM,
+		crStateError(pState, __LINE__, __FILE__, GL_INVALID_ENUM,
 								 "glGetQueryObjectuivARB(pname)");
 		return;
    }
@@ -250,41 +231,41 @@ crStateGetQueryObjectuivARB(GLuint id, GLenum pname, GLuint *params)
 
 
 void STATE_APIENTRY
-crStateBeginQueryARB(GLenum target, GLuint id)
+crStateBeginQueryARB(PCRStateTracker pState, GLenum target, GLuint id)
 {
-	CRContext *g = GetCurrentContext();
+	CRContext *g = GetCurrentContext(pState);
 	CROcclusionState *o = &(g->occlusion);
 	CROcclusionObject *q;
 
 	FLUSH();
 
 	if (g->current.inBeginEnd) {
-		crStateError(__LINE__, __FILE__, GL_INVALID_OPERATION,
+		crStateError(pState, __LINE__, __FILE__, GL_INVALID_OPERATION,
 								 "glGetGetQueryObjectuivARB called in begin/end");
 		return;
 	}
 
 	if (target != GL_SAMPLES_PASSED_ARB) {
-		crStateError(__LINE__, __FILE__, GL_INVALID_ENUM,
+		crStateError(pState, __LINE__, __FILE__, GL_INVALID_ENUM,
 								 "glBeginQueryARB(target)");
 		return;
 	}
 
 	if (o->currentQueryObject) {
-		crStateError(__LINE__, __FILE__, GL_INVALID_OPERATION,
+		crStateError(pState, __LINE__, __FILE__, GL_INVALID_OPERATION,
 								 "glBeginQueryARB(target)");
 		return;
 	}
 
 	q = (CROcclusionObject *) crHashtableSearch(o->objects, id);
 	if (q && q->active) {
-		crStateError(__LINE__, __FILE__, GL_INVALID_OPERATION, "glBeginQueryARB");
+		crStateError(pState, __LINE__, __FILE__, GL_INVALID_OPERATION, "glBeginQueryARB");
 		return;
 	}
 	else if (!q) {
 		q = NewQueryObject(target, id);
 		if (!q) {
-			crStateError(__LINE__, __FILE__, GL_OUT_OF_MEMORY, "glBeginQueryARB");
+			crStateError(pState, __LINE__, __FILE__, GL_OUT_OF_MEMORY, "glBeginQueryARB");
 			return;
 		}
 		crHashtableAdd(o->objects, id, q);
@@ -299,28 +280,28 @@ crStateBeginQueryARB(GLenum target, GLuint id)
 
 
 void STATE_APIENTRY
-crStateEndQueryARB(GLenum target)
+crStateEndQueryARB(PCRStateTracker pState, GLenum target)
 {
-	CRContext *g = GetCurrentContext();
+	CRContext *g = GetCurrentContext(pState);
 	CROcclusionState *o = &(g->occlusion);
 	CROcclusionObject *q;
 
 	FLUSH();
 
 	if (g->current.inBeginEnd) {
-		crStateError(__LINE__, __FILE__, GL_INVALID_OPERATION,
+		crStateError(pState, __LINE__, __FILE__, GL_INVALID_OPERATION,
 								 "glGetGetQueryObjectuivARB called in begin/end");
 		return;
 	}
 
 	if (target != GL_SAMPLES_PASSED_ARB) {
-		crStateError(__LINE__, __FILE__, GL_INVALID_ENUM, "glEndQueryARB(target)");
+		crStateError(pState, __LINE__, __FILE__, GL_INVALID_ENUM, "glEndQueryARB(target)");
 		return;
 	}
 
 	q = (CROcclusionObject *) crHashtableSearch(o->objects, o->currentQueryObject);
 	if (!q || !q->active) {
-		crStateError(__LINE__, __FILE__, GL_INVALID_OPERATION,
+		crStateError(pState, __LINE__, __FILE__, GL_INVALID_OPERATION,
 								 "glEndQueryARB with glBeginQueryARB");
 		return;
 	}

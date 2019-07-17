@@ -145,27 +145,17 @@ static void crFbImgFromDimPtrBGRA(void *pvVram, uint32_t width, uint32_t height,
 
 static int8_t crFbImgFromDimOffVramBGRA(VBOXCMDVBVAOFFSET offVRAM, uint32_t width, uint32_t height, CR_BLITTER_IMG *pImg)
 {
-    uint32_t cbBuff;
-
-    if (width == 0 || height == 0)
+    if (offVRAM >= g_cbVRam)
     {
-        WARN(("invalid param"));
+        WARN(("offVRAM invalid"));
         return -1;
     }
 
-    cbBuff = width * height * 4;
-    // Check if overflow happened
-    if (cbBuff / width != height * 4)
+    uint32_t const cbAvailVRAM = g_cbVRam - offVRAM;
+    uint32_t const cAvailScanlines = width ? cbAvailVRAM / (width * 4) : height;
+    if (height > cAvailScanlines)
     {
-        WARN(("invalid param"));
-        return -1;
-    }
-
-    if (offVRAM >= g_cbVRam
-            || UINT32_MAX - cbBuff <= offVRAM
-            || offVRAM + cbBuff >= g_cbVRam)
-    {
-        WARN(("invalid param"));
+        WARN(("Not enough space in VRAM"));
         return -1;
     }
 
@@ -221,11 +211,10 @@ static int crFbBltGetContentsScaledDirect(HCR_FRAMEBUFFER hFb, const RTRECTSIZE 
     int32_t dstWidth = pDstRect->xRight - pDstRect->xLeft;
     int32_t dstHeight = pDstRect->yBottom - pDstRect->yTop;
 
-    RTPOINT DstPoint = {pDstRect->xLeft, pDstRect->yTop};
     float strX = ((float)dstWidth) / srcWidth;
     float strY = ((float)dstHeight) / srcHeight;
     bool fScale = (dstWidth != srcWidth || dstHeight != srcHeight);
-    Assert(fScale);
+    Assert(fScale); RT_NOREF(fScale);
 
     /* 'List' contains the destination rectangles to be updated (in pDst coords). */
     VBoxVrListInit(&List);
@@ -471,6 +460,8 @@ static int crFbBltGetContentsScaledCPU(HCR_FRAMEBUFFER hFb, const RTRECTSIZE *pS
     RTMemFree(Img.pvData);
 
     return rc;
+#else
+    RT_NOREF(hFb, pSrcRectSize, pDstRect, cRects, pRects, pImg);
 #endif
 }
 
@@ -681,8 +672,6 @@ int CrFbBltGetContentsEx(HCR_FRAMEBUFFER hFb, const RTRECTSIZE *pSrcRectSize, co
 
 static void crFbBltPutContentsFbVram(HCR_FRAMEBUFFER hFb, const RTPOINT *pPos, uint32_t cRects, const RTRECT *pRects, CR_BLITTER_IMG *pSrc)
 {
-    const RTRECT *pCompRect = CrVrScrCompositorRectGet(&hFb->Compositor);
-
     CR_BLITTER_IMG FbImg;
 
     crFbImgFromFb(hFb, &FbImg);
@@ -757,7 +746,6 @@ static int crFbRegionsIsIntersectRects(HCR_FRAMEBUFFER hFb, uint32_t cRects, con
         return rc;
     }
 
-    bool fRegChanged = false;
     for (uint32_t i = 0; i < cCompRects; ++i)
     {
         const RTRECT *pCompRect = &pCompRects[i];
@@ -976,9 +964,7 @@ DECLCALLBACK(void) crFbTexRelease(CR_TEXDATA *pTex)
         crHashtableDelete(g_CrPresenter.pFbTexMap, pTobj->id, NULL);
 
         crStateReleaseTexture(cr_server.MainContextInfo.pContext, pTobj);
-
-
-        crStateGlobalSharedRelease();
+        crStateGlobalSharedRelease(&cr_server.StateTracker);
     }
 
     crFbTexFree(pFbTex);
@@ -1027,7 +1013,7 @@ static CR_FBTEX* crFbTexAcquire(GLuint idTexture)
         return pFbTex;
     }
 
-    CRSharedState *pShared = crStateGlobalSharedAcquire();
+    CRSharedState *pShared = crStateGlobalSharedAcquire(&cr_server.StateTracker);
     if (!pShared)
     {
         WARN(("pShared is null!"));
@@ -1038,17 +1024,17 @@ static CR_FBTEX* crFbTexAcquire(GLuint idTexture)
     if (!pTobj)
     {
         LOG(("pTobj is null!"));
-        crStateGlobalSharedRelease();
+        crStateGlobalSharedRelease(&cr_server.StateTracker);
         return NULL;
     }
 
     Assert(pTobj->id == idTexture);
 
-    GLuint hwid = crStateGetTextureObjHWID(pTobj);
+    GLuint hwid = crStateGetTextureObjHWID(&cr_server.StateTracker, pTobj);
     if (!hwid)
     {
         WARN(("hwId is null!"));
-        crStateGlobalSharedRelease();
+        crStateGlobalSharedRelease(&cr_server.StateTracker);
         return NULL;
     }
 
@@ -1062,7 +1048,7 @@ static CR_FBTEX* crFbTexAcquire(GLuint idTexture)
     if (!pFbTex)
     {
         WARN(("crFbTexCreate failed!"));
-        crStateGlobalSharedRelease();
+        crStateGlobalSharedRelease(&cr_server.StateTracker);
         return NULL;
     }
 
@@ -1267,6 +1253,7 @@ int CrFbEntryCreateForTexId(CR_FRAMEBUFFER *pFb, GLuint idTexture, uint32_t fFla
 
 void CrFbEntryAddRef(CR_FRAMEBUFFER *pFb, HCR_FRAMEBUFFER_ENTRY hEntry)
 {
+    RT_NOREF(pFb);
     ++hEntry->cRefs;
 }
 
@@ -1432,8 +1419,7 @@ int CrFbEntryRegionsSet(CR_FRAMEBUFFER *pFb, HCR_FRAMEBUFFER_ENTRY hEntry, const
         return VERR_INVALID_STATE;
     }
 
-    bool fChanged = 0;
-    VBOXVR_SCR_COMPOSITOR_ENTRY *pReplacedScrEntry = NULL;
+    bool fChanged = false;
     VBOXVR_SCR_COMPOSITOR_ENTRY *pNewEntry;
     bool fEntryWasInList;
 
@@ -1867,6 +1853,8 @@ static int crPMgrCheckInitWindowDisplays(uint32_t idScreen)
             return rc;
         }
     }
+#else
+    RT_NOREF(idScreen);
 #endif
     return VINF_SUCCESS;
 }
@@ -2080,7 +2068,7 @@ static int crPMgrFbDisconnectTarget(HCR_FRAMEBUFFER hFb, uint32_t i)
     uint32_t idFb = CrFbGetScreenInfo(hFb)->u32ViewIndex;
     CR_FB_INFO *pFbInfo = &g_CrPresenter.aFbInfos[idFb];
     CR_FBDISPLAY_INFO *pDpInfo = &g_CrPresenter.aDisplayInfos[i];
-    if (pDpInfo->iFb != idFb)
+    if (pDpInfo->iFb != (int32_t)idFb)
     {
         WARN(("target not connected"));
         Assert(!ASMBitTest(pFbInfo->aTargetMap, i));
@@ -2303,7 +2291,7 @@ static int crPMgrFbConnectTarget(HCR_FRAMEBUFFER hFb, uint32_t i)
     uint32_t idFb = CrFbGetScreenInfo(hFb)->u32ViewIndex;
     CR_FB_INFO *pFbInfo = &g_CrPresenter.aFbInfos[idFb];
     CR_FBDISPLAY_INFO *pDpInfo = &g_CrPresenter.aDisplayInfos[i];
-    if (pDpInfo->iFb == idFb)
+    if (pDpInfo->iFb == (int32_t)idFb)
     {
         WARN(("target not connected"));
         Assert(ASMBitTest(pFbInfo->aTargetMap, i));
@@ -2908,7 +2896,7 @@ int CrPMgrSaveState(PSSMHANDLE pSSM)
         CR_FRAMEBUFFER *hFb = CrPMgrFbGetEnabled(i);
         if (hFb)
         {
-            Assert(hFb->ScreenInfo.u32ViewIndex == i);
+            Assert(hFb->ScreenInfo.u32ViewIndex == (uint32_t)i);
             rc = SSMR3PutU32(pSSM, hFb->ScreenInfo.u32ViewIndex);
             AssertRCReturn(rc, rc);
 
@@ -2953,6 +2941,8 @@ int CrPMgrSaveState(PSSMHANDLE pSSM)
 
 int CrFbEntryLoadState(CR_FRAMEBUFFER *pFb, PSSMHANDLE pSSM, uint32_t version)
 {
+    RT_NOREF(version);
+
     uint32_t texture;
     int  rc = SSMR3GetU32(pSSM, &texture);
     AssertRCReturn(rc, rc);
@@ -2972,10 +2962,6 @@ int CrFbEntryLoadState(CR_FRAMEBUFFER *pFb, PSSMHANDLE pSSM, uint32_t version)
     }
 
     Assert(hEntry);
-
-    const struct VBOXVR_SCR_COMPOSITOR_ENTRY *pEntry = CrFbEntryGetCompositorEntry(hEntry);
-    CR_TEXDATA *pTexData = CrVrScrCompositorEntryTexGet(pEntry);
-    CR_FBTEX *pFbTex = PCR_FBTEX_FROM_TEX(pTexData);
 
     RTPOINT Point;
     rc = SSMR3GetS32(pSSM, &Point.x);

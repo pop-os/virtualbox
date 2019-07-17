@@ -2399,7 +2399,7 @@ static int hmR0VmxSetupProcCtls2(PVMCPU pVCpu)
         fVal |= VMX_PROC_CTLS2_RDTSCP;
 
     /* Enable Pause-Loop exiting. */
-    if (   pVM->hm.s.vmx.Msrs.ProcCtls2.n.allowed1 & VMX_PROC_CTLS2_PAUSE_LOOP_EXIT
+    if (   (pVM->hm.s.vmx.Msrs.ProcCtls2.n.allowed1 & VMX_PROC_CTLS2_PAUSE_LOOP_EXIT)
         && pVM->hm.s.vmx.cPleGapTicks
         && pVM->hm.s.vmx.cPleWindowTicks)
     {
@@ -6197,13 +6197,13 @@ static VBOXSTRICTRC hmR0VmxCheckExitDueToVmxInstr(PVMCPU pVCpu, uint32_t uExitRe
  */
 static VBOXSTRICTRC hmR0VmxCheckExitDueToEventDelivery(PVMCPU pVCpu, PVMXTRANSIENT pVmxTransient)
 {
-    uint32_t const uExitVector = VMX_EXIT_INT_INFO_VECTOR(pVmxTransient->uExitIntInfo);
+    VBOXSTRICTRC rcStrict = VINF_SUCCESS;
 
     int rc2 = hmR0VmxReadIdtVectoringInfoVmcs(pVmxTransient);
     rc2    |= hmR0VmxReadExitIntInfoVmcs(pVmxTransient);
     AssertRCReturn(rc2, rc2);
 
-    VBOXSTRICTRC rcStrict = VINF_SUCCESS;
+    uint32_t const uExitVector = VMX_EXIT_INT_INFO_VECTOR(pVmxTransient->uExitIntInfo);
     if (VMX_IDT_VECTORING_INFO_IS_VALID(pVmxTransient->uIdtVectoringInfo))
     {
         uint32_t const uIdtVectorType = VMX_IDT_VECTORING_INFO_TYPE(pVmxTransient->uIdtVectoringInfo);
@@ -12219,9 +12219,15 @@ HMVMX_EXIT_DECL hmR0VmxExitWrmsr(PVMCPU pVCpu, PVMXTRANSIENT pVmxTransient)
 HMVMX_EXIT_DECL hmR0VmxExitPause(PVMCPU pVCpu, PVMXTRANSIENT pVmxTransient)
 {
     HMVMX_VALIDATE_EXIT_HANDLER_PARAMS(pVCpu, pVmxTransient);
+
     /** @todo The guest has likely hit a contended spinlock. We might want to
      *        poke a schedule different guest VCPU. */
-    return VINF_EM_RAW_INTERRUPT;
+    int rc = hmR0VmxAdvanceGuestRip(pVCpu, pVmxTransient);
+    if (RT_SUCCESS(rc))
+        return VINF_EM_RAW_INTERRUPT;
+
+    AssertMsgFailed(("hmR0VmxExitPause: Failed to increment RIP. rc=%Rrc\n", rc));
+    return rc;
 }
 
 

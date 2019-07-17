@@ -8647,7 +8647,7 @@
         <translation>Odstrani priklop</translation>
     </message>
     <message>
-        <location line="+348"/>
+        <location line="+350"/>
         <source>Hard &amp;Disk:</source>
         <translation>&amp;Trdi disk:</translation>
     </message>
@@ -8743,7 +8743,7 @@
         <translation>Uporabi predpomnilnik I/O gostitelja</translation>
     </message>
     <message>
-        <location filename="../src/settings/machine/UIMachineSettingsStorage.cpp" line="-357"/>
+        <location filename="../src/settings/machine/UIMachineSettingsStorage.cpp" line="-359"/>
         <source>Add SAS Controller</source>
         <translation>Dodaj krmilnik SAS</translation>
     </message>
@@ -8758,7 +8758,7 @@
         <translation>Pogon gostitelja</translation>
     </message>
     <message>
-        <location line="+1796"/>
+        <location line="+1798"/>
         <source>Choose or create a virtual hard disk file. The virtual machine will see the data in the file as the contents of the virtual hard disk.</source>
         <translation>Izberite ali ustvarite datoteko navideznega trdega diska. Navidezni računalnik bo podatke v datoteki videl kot vsebino navideznega trdega diska.</translation>
     </message>
@@ -8805,7 +8805,7 @@
         <translation>Podrobnosti:</translation>
     </message>
     <message>
-        <location filename="../src/settings/machine/UIMachineSettingsStorage.cpp" line="-422"/>
+        <location filename="../src/settings/machine/UIMachineSettingsStorage.cpp" line="-424"/>
         <source>at most one supported</source>
         <comment>controller</comment>
         <translation>Podprt je največ en</translation>
@@ -8881,7 +8881,7 @@
         <translation>Dodaj disketni pogon</translation>
     </message>
     <message>
-        <location line="+355"/>
+        <location line="+357"/>
         <source>Optical &amp;Drive:</source>
         <translation>&amp;Optični pogon:</translation>
     </message>
@@ -8896,7 +8896,7 @@
         <translation>Šifrirano s ključem:</translation>
     </message>
     <message>
-        <location filename="../src/settings/machine/UIMachineSettingsStorage.cpp" line="-378"/>
+        <location filename="../src/settings/machine/UIMachineSettingsStorage.cpp" line="-380"/>
         <source>Lists all storage controllers for this machine and the virtual images and host drives attached to them.</source>
         <translation>Navede vse krmilnike pomnilniških naprav za ta računalnik, in na njega priklopljene navidezne odtise in pogone gostitelja.</translation>
     </message>
@@ -8977,7 +8977,7 @@
         <translation>Odstrani izbran priklop pomnilniške naprave.</translation>
     </message>
     <message>
-        <location line="+508"/>
+        <location line="+510"/>
         <source>Create New Hard Disk...</source>
         <translation>Ustvari nov trdi disk …</translation>
     </message>

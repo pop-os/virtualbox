@@ -30,8 +30,24 @@
 *********************************************************************************************************************************/
 #define LOG_GROUP RTLOGGROUP_PROCESS
 #include <iprt/cdefs.h>
+#ifdef RT_OS_LINUX
+# define IPRT_WITH_DYNAMIC_CRYPT_R
+#endif
+#if (defined(RT_OS_LINUX) || defined(RT_OS_OS2)) && !defined(_GNU_SOURCE)
+# define _GNU_SOURCE
+#endif
 
-#include <unistd.h>
+#ifdef RT_OS_OS2
+# define crypt   unistd_crypt
+# define setkey  unistd_setkey
+# define encrypt unistd_encrypt
+# include <unistd.h>
+# undef  crypt
+# undef  setkey
+# undef  encrypt
+#else
+# include <unistd.h>
+#endif
 #include <stdlib.h>
 #include <errno.h>
 #include <sys/types.h>
@@ -41,8 +57,10 @@
 #include <signal.h>
 #include <grp.h>
 #include <pwd.h>
-#if defined(RT_OS_LINUX) || defined(RT_OS_SOLARIS)
+#if defined(RT_OS_LINUX) || defined(RT_OS_OS2) || defined(RT_OS_SOLARIS)
 # include <crypt.h>
+#endif
+#if defined(RT_OS_LINUX) || defined(RT_OS_SOLARIS)
 # include <shadow.h>
 #endif
 
@@ -92,6 +110,9 @@
 #include <iprt/env.h>
 #include <iprt/err.h>
 #include <iprt/file.h>
+#ifdef IPRT_WITH_DYNAMIC_CRYPT_R
+# include <iprt/ldr.h>
+#endif
 #include <iprt/log.h>
 #include <iprt/path.h>
 #include <iprt/pipe.h>
@@ -162,6 +183,39 @@ static int rtPamConv(int cMessages, const struct pam_message **papMessages, stru
     return PAM_SUCCESS;
 }
 #endif /* RT_OS_DARWIN */
+
+
+#ifdef IPRT_WITH_DYNAMIC_CRYPT_R
+/** Pointer to crypt_r(). */
+typedef char *(*PFNCRYPTR)(const char *, const char *, struct crypt_data *);
+
+/**
+ * Wrapper for resolving and calling crypt_r dynamcially.
+ *
+ * The reason for this is that fedora 30+ wants to use libxcrypt rather than the
+ * glibc libcrypt.  The two libraries has different crypt_data sizes and layout,
+ * so we allocate a 256KB data block to be on the safe size (caller does this).
+ */
+static char *rtProcDynamicCryptR(const char *pszKey, const char *pszSalt, struct crypt_data *pData)
+{
+    static PFNCRYPTR volatile s_pfnCryptR = NULL;
+    PFNCRYPTR pfnCryptR = s_pfnCryptR;
+    if (pfnCryptR)
+        return pfnCryptR(pszKey, pszSalt, pData);
+
+    pfnCryptR = (PFNCRYPTR)(uintptr_t)RTLdrGetSystemSymbolEx("libcrypt.so", "crypt_r", RTLDRLOAD_FLAGS_SO_VER_RANGE(1, 6));
+    if (!pfnCryptR)
+        pfnCryptR = (PFNCRYPTR)(uintptr_t)RTLdrGetSystemSymbolEx("libxcrypt.so", "crypt_r", RTLDRLOAD_FLAGS_SO_VER_RANGE(1, 32));
+    if (pfnCryptR)
+    {
+        s_pfnCryptR = pfnCryptR;
+        return pfnCryptR(pszKey, pszSalt, pData);
+    }
+
+    LogRel(("IPRT/RTProc: Unable to locate crypt_r!\n"));
+    return NULL;
+}
+#endif /* IPRT_WITH_DYNAMIC_CRYPT_R */
 
 
 /**
@@ -264,68 +318,90 @@ static int rtCheckCredentials(const char *pszUser, const char *pszPasswd, gid_t 
         Log(("rtCheckCredentials: Loading libpam.dylib failed\n"));
     return VERR_AUTHENTICATION_FAILURE;
 
-#elif defined(RT_OS_LINUX)
-    struct passwd *pw;
-
-    pw = getpwnam(pszUser);
-    if (!pw)
-        return VERR_AUTHENTICATION_FAILURE;
-
-    if (!pszPasswd)
-        pszPasswd = "";
-
-    struct spwd *spwd;
-    /* works only if /etc/shadow is accessible */
-    spwd = getspnam(pszUser);
-    if (spwd)
-        pw->pw_passwd = spwd->sp_pwdp;
-
-    /* Default fCorrect=true if no password specified. In that case, pw->pw_passwd
-     * must be NULL (no password set for this user). Fail if a password is specified
-     * but the user does not have one assigned. */
-    int fCorrect = !pszPasswd || !*pszPasswd;
-    if (pw->pw_passwd && *pw->pw_passwd)
-    {
-        struct crypt_data *data = (struct crypt_data*)RTMemTmpAllocZ(sizeof(*data));
-        /* be reentrant */
-        char *pszEncPasswd = crypt_r(pszPasswd, pw->pw_passwd, data);
-        fCorrect = pszEncPasswd && !strcmp(pszEncPasswd, pw->pw_passwd);
-        RTMemTmpFree(data);
-    }
-    if (!fCorrect)
-        return VERR_AUTHENTICATION_FAILURE;
-
-    *pGid = pw->pw_gid;
-    *pUid = pw->pw_uid;
-    return VINF_SUCCESS;
-
-#elif defined(RT_OS_SOLARIS)
-    struct passwd *ppw, pw;
-    char szBuf[1024];
-
-    if (getpwnam_r(pszUser, &pw, szBuf, sizeof(szBuf), &ppw) != 0 || ppw == NULL)
-        return VERR_AUTHENTICATION_FAILURE;
-
-    if (!pszPasswd)
-        pszPasswd = "";
-
-    struct spwd spwd;
-    char szPwdBuf[1024];
-    /* works only if /etc/shadow is accessible */
-    if (getspnam_r(pszUser, &spwd, szPwdBuf, sizeof(szPwdBuf)) != NULL)
-        ppw->pw_passwd = spwd.sp_pwdp;
-
-    char *pszEncPasswd = crypt(pszPasswd, ppw->pw_passwd);
-    if (strcmp(pszEncPasswd, ppw->pw_passwd))
-        return VERR_AUTHENTICATION_FAILURE;
-
-    *pGid = ppw->pw_gid;
-    *pUid = ppw->pw_uid;
-    return VINF_SUCCESS;
-
 #else
-    NOREF(pszUser); NOREF(pszPasswd); NOREF(pGid); NOREF(pUid);
-    return VERR_AUTHENTICATION_FAILURE;
+    /*
+     * Lookup the user in /etc/passwd first.
+     *
+     * Note! On FreeBSD and OS/2 the root user will open /etc/shadow here, so
+     *       the getspnam_r step is not necessary.
+     */
+    struct passwd  Pwd;
+    char           szBuf[_4K];
+    struct passwd *pPwd = NULL;
+    if (getpwnam_r(pszUser, &Pwd, szBuf, sizeof(szBuf), &pPwd) != 0)
+        return VERR_AUTHENTICATION_FAILURE;
+    if (pPwd == NULL)
+        return VERR_AUTHENTICATION_FAILURE;
+
+# if defined(RT_OS_LINUX) || defined(RT_OS_SOLARIS)
+    /*
+     * Ditto for /etc/shadow and replace pw_passwd from above if we can access it:
+     */
+    struct spwd  ShwPwd;
+    char         szBuf2[_4K];
+#  if defined(RT_OS_LINUX)
+    struct spwd *pShwPwd = NULL;
+    if (getspnam_r(pszUser, &ShwPwd, szBuf2, sizeof(szBuf2), &pShwPwd) != 0)
+        pShwPwd = NULL;
+#  else
+    struct spwd *pShwPwd = getspnam_r(pszUser, &ShwPwd, szBuf2, sizeof(szBuf2));
+#  endif
+    if (pShwPwd != NULL)
+        pPwd->pw_passwd = pShwPwd->sp_pwdp;
+# endif
+
+    /*
+     * Encrypt the passed in password and see if it matches.
+     */
+# if !defined(RT_OS_LINUX)
+    int rc;
+# else
+    /* Default fCorrect=true if no password specified. In that case, pPwd->pw_passwd
+       must be NULL (no password set for this user). Fail if a password is specified
+       but the user does not have one assigned. */
+    int rc = !pszPasswd || !*pszPasswd ? VINF_SUCCESS : VERR_AUTHENTICATION_FAILURE;
+    if (pPwd->pw_passwd && *pPwd->pw_passwd)
+# endif
+    {
+# if defined(RT_OS_LINUX) || defined(RT_OS_OS2)
+#  ifdef IPRT_WITH_DYNAMIC_CRYPT_R
+        size_t const       cbCryptData = RT_MAX(sizeof(struct crypt_data) * 2, _256K);
+#  else
+        size_t const       cbCryptData = sizeof(struct crypt_data);
+#  endif
+        struct crypt_data *pCryptData  = (struct crypt_data *)RTMemTmpAllocZ(cbCryptData);
+        if (pCryptData)
+        {
+#  ifdef IPRT_WITH_DYNAMIC_CRYPT_R
+            char *pszEncPasswd = rtProcDynamicCryptR(pszPasswd, pPwd->pw_passwd, pCryptData);
+#  else
+            char *pszEncPasswd = crypt_r(pszPasswd, pPwd->pw_passwd, pCryptData);
+#  endif
+            rc = pszEncPasswd && !strcmp(pszEncPasswd, pPwd->pw_passwd) ? VINF_SUCCESS : VERR_AUTHENTICATION_FAILURE;
+            RTMemWipeThoroughly(pCryptData, cbCryptData, 3);
+            RTMemTmpFree(pCryptData);
+        }
+        else
+            rc = VERR_NO_TMP_MEMORY;
+# else
+        char *pszEncPasswd = crypt(pszPasswd, pPwd->pw_passwd);
+        rc = strcmp(pszEncPasswd, pPwd->pw_passwd) == 0 ? VINF_SUCCESS : VERR_AUTHENTICATION_FAILURE;
+# endif
+    }
+
+    /*
+     * Return GID and UID on success.  Always wipe stack buffers.
+     */
+    if (RT_SUCCESS(rc))
+    {
+        *pGid = pPwd->pw_gid;
+        *pUid = pPwd->pw_uid;
+    }
+    RTMemWipeThoroughly(szBuf, sizeof(szBuf), 3);
+# if defined(RT_OS_LINUX) || defined(RT_OS_SOLARIS)
+    RTMemWipeThoroughly(szBuf2, sizeof(szBuf2), 3);
+# endif
+    return rc;
 #endif
 }
 
