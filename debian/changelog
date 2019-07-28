@@ -1,3 +1,11 @@
+virtualbox (6.0.10-dfsg-2) unstable; urgency=medium
+
+  * debian/patches/kernel-5.3.patch
+    - upstream proposed build fix for kernle 5.3 LP: #1837895
+  * Build depend on libgsoap-dev too (Closes: #933246)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Sun, 28 Jul 2019 13:25:15 +0200
+
 virtualbox (6.0.10-dfsg-1) unstable; urgency=medium
 
   * New upstream release (Closes: #929074)
