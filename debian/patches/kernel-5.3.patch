@@ -5,6 +5,34 @@ Index: virtualbox/src/VBox/HostDrivers/VBoxNetFlt/linux/VBoxNetFlt-linux.c
 ===================================================================
 --- virtualbox.orig/src/VBox/HostDrivers/VBoxNetFlt/linux/VBoxNetFlt-linux.c
 +++ virtualbox/src/VBox/HostDrivers/VBoxNetFlt/linux/VBoxNetFlt-linux.c
+@@ -924,8 +924,13 @@
+     for (i = 0; i < skb_shinfo(pBuf)->nr_frags; i++)
+     {
+         skb_frag_t *pFrag = &skb_shinfo(pBuf)->frags[i];
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 3, 0)
++        pSG->aSegs[iSeg].cb = pFrag->bv_len;
++        pSG->aSegs[iSeg].pv = VBOX_SKB_KMAP_FRAG(pFrag) + pFrag->bv_offset;
++#else
+         pSG->aSegs[iSeg].cb = pFrag->size;
+         pSG->aSegs[iSeg].pv = VBOX_SKB_KMAP_FRAG(pFrag) + pFrag->page_offset;
++#endif
+         Log6((" %p", pSG->aSegs[iSeg].pv));
+         pSG->aSegs[iSeg++].Phys = NIL_RTHCPHYS;
+         Assert(iSeg <= pSG->cSegsAlloc);
+@@ -940,8 +945,13 @@
+         for (i = 0; i < skb_shinfo(pFragBuf)->nr_frags; i++)
+         {
+             skb_frag_t *pFrag = &skb_shinfo(pFragBuf)->frags[i];
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 3, 0)
++            pSG->aSegs[iSeg].cb = pFrag->bv_len;
++            pSG->aSegs[iSeg].pv = VBOX_SKB_KMAP_FRAG(pFrag) + pFrag->bv_offset;
++#else
+             pSG->aSegs[iSeg].cb = pFrag->size;
+             pSG->aSegs[iSeg].pv = VBOX_SKB_KMAP_FRAG(pFrag) + pFrag->page_offset;
++#endif
+             Log6((" %p", pSG->aSegs[iSeg].pv));
+             pSG->aSegs[iSeg++].Phys = NIL_RTHCPHYS;
+             Assert(iSeg <= pSG->cSegsAlloc);
 @@ -2123,7 +2123,10 @@
  #endif
      if (in_dev != NULL)
