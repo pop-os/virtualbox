@@ -1,3 +1,10 @@
+virtualbox (6.0.10-dfsg-4) unstable; urgency=medium
+
+  * Refresh patch, the skb_frag_t struct is scheduled for kernel 5.4
+    (Closes: #934010)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Tue, 06 Aug 2019 11:15:30 +0200
+
 virtualbox (6.0.10-dfsg-3) unstable; urgency=medium
 
   * Refresh kernel 5.3.patch with new fixes
