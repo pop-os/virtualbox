@@ -128,9 +128,9 @@ ifeq ($(DIST_NAME),Ubuntu)
 endif
 
 override_dh_link:
-	dh_link
-	dh_link -p$(uxname) --ignore debian/$(uxname).links \
+	dh_link -p$(uxname) \
 	    /usr/lib/VBoxOGL.so $(shell pkg-config --variable dridriverdir dri)/vboxvideo_dri.so
+	dh_link --remaining-packages
 
 override_dh_fixperms:
 	dh_fixperms
