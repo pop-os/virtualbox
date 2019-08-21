@@ -1,3 +1,12 @@
+virtualbox (6.0.10-dfsg-5) unstable; urgency=medium
+
+  * Add patch to fix build on newer kernels, thanks Ben Hutchings for the help!
+    Closes: #934483
+  * Stop using dh_link in the wrong way, thanks Nicolas Boulenguez <nicolas@debian.org> for the help!
+    Closes: #935309
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 21 Aug 2019 18:12:14 +0200
+
 virtualbox (6.0.10-dfsg-4) unstable; urgency=medium
 
   * Refresh patch, the skb_frag_t struct is scheduled for kernel 5.4
