@@ -170,7 +170,7 @@ void UILineNumberArea::mouseMoveEvent(QMouseEvent *pEvent)
 {
     if (m_pTextEdit)
         m_pTextEdit->setMouseCursorLine(m_pTextEdit->lineNumberForPos(pEvent->pos()));
-    repaint();
+    update();
 }
 
 void UILineNumberArea::mousePressEvent(QMouseEvent *pEvent)
@@ -238,7 +238,7 @@ void UIVMLogViewerTextEdit::setSearchResultOverlayShowHide(bool fShow)
         return;
     m_fShowSearchResultOverlay = fShow;
     if (viewport())
-        viewport()->repaint();
+        viewport()->update();
 }
 
 void UIVMLogViewerTextEdit::setSearchMatchCount(int iMatchCount)
@@ -247,7 +247,7 @@ void UIVMLogViewerTextEdit::setSearchMatchCount(int iMatchCount)
         return;
     m_iMatchCount = iMatchCount;
     if (m_fShowSearchResultOverlay && viewport())
-        viewport()->repaint();
+        viewport()->update();
 }
 
 int UIVMLogViewerTextEdit::lineNumberAreaWidth()
@@ -363,7 +363,7 @@ void UIVMLogViewerTextEdit::mouseMoveEvent(QMouseEvent *pEvent)
 {
     setMouseCursorLine(lineNumberForPos(pEvent->pos()));
     if (m_pLineNumberArea)
-        m_pLineNumberArea->repaint();
+        m_pLineNumberArea->update();
     QPlainTextEdit::mouseMoveEvent(pEvent);
 }
 
@@ -437,7 +437,7 @@ void UIVMLogViewerTextEdit::sltHandleUpdateRequest(const QRect &rect, int dy)
         sltUpdateLineNumberAreaWidth(0);
 
     if (viewport())
-        viewport()->repaint();
+        viewport()->update();
 
 }
 
@@ -488,7 +488,7 @@ int UIVMLogViewerTextEdit::visibleLineCount()
 void UIVMLogViewerTextEdit::setBookmarkLineSet(const QSet<int>& lineSet)
 {
     m_bookmarkLineSet = lineSet;
-    repaint();
+    update();
 }
 
 int  UIVMLogViewerTextEdit::lineNumberForPos(const QPoint &position)
@@ -529,7 +529,7 @@ void UIVMLogViewerTextEdit::setShownTextIsFiltered(bool warning)
         return;
     m_bShownTextIsFiltered = warning;
     if (viewport())
-        viewport()->repaint();
+        viewport()->update();
 }
 
 void UIVMLogViewerTextEdit::setShowLineNumbers(bool bShowLineNumbers)

@@ -1594,7 +1594,7 @@ int32_t crStateSaveContext(CRContext *pContext, PSSMHANDLE pSSM)
         ui32 = crHashtableNumElements(pContext->shared->textureTable);
         rc = SSMR3PutU32(pSSM, ui32);
         AssertRCReturn(rc, rc);
-        crHashtableWalk(pContext->shared->textureTable, crStateSaveSharedTextureCB, pSSM);
+        crHashtableWalk(pContext->shared->textureTable, crStateSaveSharedTextureCB, &Args);
 
 #ifdef CR_STATE_NO_TEXTURE_IMAGE_STORE
         /* Restore previous texture bindings via diff_api */
@@ -1787,11 +1787,11 @@ int32_t crStateSaveContext(CRContext *pContext, PSSMHANDLE pSSM)
     ui32 = crHashtableNumElements(pContext->glsl.shaders);
     rc = SSMR3PutU32(pSSM, ui32);
     AssertRCReturn(rc, rc);
-    crHashtableWalk(pContext->glsl.shaders, crStateSaveGLSLShaderCB, pSSM);
+    crHashtableWalk(pContext->glsl.shaders, crStateSaveGLSLShaderCB, &Args);
     ui32 = crHashtableNumElements(pContext->glsl.programs);
     rc = SSMR3PutU32(pSSM, ui32);
     AssertRCReturn(rc, rc);
-    crHashtableWalk(pContext->glsl.programs, crStateSaveGLSLProgramCB, pSSM);
+    crHashtableWalk(pContext->glsl.programs, crStateSaveGLSLProgramCB, &Args);
     rc = SSMR3PutU32(pSSM, pContext->glsl.activeProgram?pContext->glsl.activeProgram->id:0);
     AssertRCReturn(rc, rc);
 #endif
@@ -1916,6 +1916,8 @@ int32_t crStateLoadContext(CRContext *pContext, CRHashTable * pCtxTable, PFNCRST
     if (!pTmpContext)
         return VERR_NO_MEMORY;
 
+    pTmpContext->pStateTracker = pState;
+    pTmpContext->bufferobject.pStateTracker = pState;
     CRASSERT(VBoxTlsRefIsFunctional(pContext));
 
     if (u32Version <= SHCROGL_SSM_VERSION_WITH_INVALID_ERROR_STATE)
@@ -2033,6 +2035,9 @@ int32_t crStateLoadContext(CRContext *pContext, CRHashTable * pCtxTable, PFNCRST
         rc = SSMR3GetMem(pSSM, pTmpContext, sizeof (*pTmpContext));
         AssertRCReturn(rc, rc);
     }
+
+    pTmpContext->pStateTracker = pState; /* Set to a valid pointer again. */
+    pTmpContext->bufferobject.pStateTracker = pState;
 
     /* preserve the error to restore it at the end of context creation,
      * it should not normally change, but just in case it it changed */

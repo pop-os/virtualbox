@@ -375,6 +375,7 @@ static const RTGETOPTDEF g_aCmdOptions[] =
     { "--tree-depth",               kCmdOpt_ManyTreeDepth,          RTGETOPT_REQ_UINT32 },
     { "--max-buffer-size",          kCmdOpt_MaxBufferSize,          RTGETOPT_REQ_UINT32 },
     { "--mmap-placement",           kCmdOpt_MMapPlacement,          RTGETOPT_REQ_STRING },
+    /// @todo { "--timestamp-style",           kCmdOpt_TimestampStyle,          RTGETOPT_REQ_STRING },
 
     { "--open",                     kCmdOpt_Open,                   RTGETOPT_REQ_NOTHING },
     { "--no-open",                  kCmdOpt_NoOpen,                 RTGETOPT_REQ_NOTHING },
@@ -1804,7 +1805,12 @@ static int fsPrepTestArea(void)
         static char const s_szSub[] = "d" RTPATH_SLASH_STR;
         memcpy(&g_szDeepDir[g_cchDeepDir], s_szSub, sizeof(s_szSub));
         g_cchDeepDir += sizeof(s_szSub) - 1;
-        RTTESTI_CHECK_RC_RET( RTDirCreate(g_szDeepDir, 0755, 0), VINF_SUCCESS, rcCheck);
+        int rc = RTDirCreate(g_szDeepDir, 0755, 0);
+        if (RT_FAILURE(rc))
+        {
+            RTTestIFailed("RTDirCreate(g_szDeepDir=%s) -> %Rrc\n", g_szDeepDir, rc);
+            return rc;
+        }
     } while (g_cchDeepDir < 176);
     RTTestIPrintf(RTTESTLVL_ALWAYS, "Deep  dir: %s\n", g_szDeepDir);
 
@@ -2384,7 +2390,9 @@ void fsPerfNtQueryInfoFileWorker(HANDLE hNtFile1, uint32_t fType)
         {
             if (!g_aNtQueryInfoFileClasses[i].fQuery)
             {
-                if (rcNt != STATUS_INVALID_INFO_CLASS)
+                if (   rcNt != STATUS_INVALID_INFO_CLASS
+                    && (   rcNt != STATUS_INVALID_PARAMETER /* w7rtm-32 result */
+                        || enmClass != FileUnusedInformation))
                     RTTestIFailed("%s/%#x/%c: %#x, expected STATUS_INVALID_INFO_CLASS", pszClass, cbBuf, chType, rcNt);
             }
             else if (   rcNt != STATUS_INVALID_INFO_CLASS
@@ -2414,8 +2422,9 @@ void fsPerfNtQueryInfoFileWorker(HANDLE hNtFile1, uint32_t fType)
                     )
                 RTTestIFailed("%s/%#x/%c: %#x", pszClass, cbBuf, chType, rcNt);
             if (   (Ios.Status != VirginIos.Status || Ios.Information != VirginIos.Information)
-                && !(   fType == RTFS_TYPE_DIRECTORY /* NTFS/W10-17763 */
-                    && Ios.Status == rcNt && Ios.Information == 0) )
+                && !(fType == RTFS_TYPE_DIRECTORY && Ios.Status == rcNt && Ios.Information == 0) /* NTFS/W10-17763 */
+                && !(   enmClass == FileUnusedInformation
+                     && Ios.Status == rcNt && Ios.Information == sizeof(uBuf)) /* NTFS/VBoxSF/w7rtm */ )
                 RTTestIFailed("%s/%#x/%c: I/O status block was modified: %#x %#zx",
                               pszClass, cbBuf, chType, Ios.Status, Ios.Information);
             if (!ASMMemIsAllU8(&uBuf, sizeof(uBuf), 0xff))
@@ -3305,7 +3314,7 @@ void fsPerfRm(void)
 #if defined(RT_OS_WINDOWS)
     RTTESTI_CHECK_RC(RTFileDelete(InDir(RT_STR_TUPLE("known-file" RTPATH_SLASH_STR ))), VERR_INVALID_NAME);
 #else
-    RTTESTI_CHECK_RC(RTFileDelete(InDir(RT_STR_TUPLE("known-file" RTPATH_SLASH_STR))), VERR_NOT_A_FILE); //??
+    RTTESTI_CHECK_RC(RTFileDelete(InDir(RT_STR_TUPLE("known-file" RTPATH_SLASH_STR))), VERR_PATH_NOT_FOUND);
 #endif
 
     /* Directories: */
@@ -6649,7 +6658,7 @@ int main(int argc, char *argv[])
 
             case 'V':
             {
-                char szRev[] = "$Revision: 130769 $";
+                char szRev[] = "$Revision: 132480 $";
                 szRev[RT_ELEMENTS(szRev) - 2] = '\0';
                 RTPrintf(RTStrStrip(strchr(szRev, ':') + 1));
                 return RTEXITCODE_SUCCESS;
