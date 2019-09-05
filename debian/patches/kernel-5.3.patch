@@ -1,6 +1,3 @@
-## Description: add some description
-## Origin/Author: add some origin or author
-## Bug: bug URL
 Index: virtualbox/src/VBox/HostDrivers/VBoxNetFlt/linux/VBoxNetFlt-linux.c
 ===================================================================
 --- virtualbox.orig/src/VBox/HostDrivers/VBoxNetFlt/linux/VBoxNetFlt-linux.c
