@@ -1,3 +1,10 @@
+virtualbox (6.0.12-dfsg-1) unstable; urgency=medium
+
+  * New upstream version 6.0.12-dfsg
+  * Patch refresh, add support for Python3.8 too
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 05 Sep 2019 09:11:42 +0200
+
 virtualbox (6.0.10-dfsg-5) unstable; urgency=medium
 
   * Add patch to fix build on newer kernels, thanks Ben Hutchings for the help!
