@@ -126,11 +126,12 @@ int rtDirNativeOpen(PRTDIRINTERNAL pDir, uintptr_t hRelativeDir, void *pvNativeR
             && !pDir->fDirSlash)
             fOptions |= FILE_OPEN_REPARSE_POINT;
 
+        ACCESS_MASK fDesiredAccess = FILE_LIST_DIRECTORY | FILE_READ_ATTRIBUTES | FILE_TRAVERSE | SYNCHRONIZE;
         for (;;)
         {
             if (pvNativeRelative == NULL)
                 rc = RTNtPathOpenDir(pDir->pszPath,
-                                     FILE_LIST_DIRECTORY | FILE_READ_ATTRIBUTES | FILE_TRAVERSE | SYNCHRONIZE,
+                                     fDesiredAccess,
                                      FILE_SHARE_READ | FILE_SHARE_WRITE,
                                      fOptions,
                                      OBJ_CASE_INSENSITIVE,
@@ -144,7 +145,7 @@ int rtDirNativeOpen(PRTDIRINTERNAL pDir, uintptr_t hRelativeDir, void *pvNativeR
             else
                 rc = RTNtPathOpenDirEx((HANDLE)hRelativeDir,
                                        (struct _UNICODE_STRING *)pvNativeRelative,
-                                       FILE_LIST_DIRECTORY | FILE_READ_ATTRIBUTES | FILE_TRAVERSE | SYNCHRONIZE,
+                                       fDesiredAccess,
                                        FILE_SHARE_READ | FILE_SHARE_WRITE,
                                        fOptions,
                                        OBJ_CASE_INSENSITIVE,
@@ -155,6 +156,12 @@ int rtDirNativeOpen(PRTDIRINTERNAL pDir, uintptr_t hRelativeDir, void *pvNativeR
                                        NULL
 #endif
                                        );
+            if (   rc == VERR_ACCESS_DENIED             /* Seen with c:\windows\system32\com\dmp on w7 & w10 (admin mode). */
+                && (fDesiredAccess & FILE_TRAVERSE))
+            {
+                fDesiredAccess &= ~FILE_TRAVERSE;
+                continue;
+            }
             if (   !(fOptions & FILE_OPEN_REPARSE_POINT)
                 || (rc != VINF_SUCCESS && rc != VERR_INVALID_PARAMETER) )
                 break;
@@ -813,7 +820,7 @@ RTDECL(int) RTDirReadEx(RTDIR hDir, PRTDIRENTRYEX pDirEntry, size_t *pcbDirEntry
         RTTimeSpecSetNtTime(&pDirEntry->Info.ChangeTime,        pBoth->ChangeTime.QuadPart);
 
         pDirEntry->Info.Attr.fMode  = rtFsModeFromDos((pBoth->FileAttributes << RTFS_DOS_SHIFT) & RTFS_DOS_MASK_NT,
-                                                       pszName, cchName, pBoth->EaSize);
+                                                       pszName, cchName, pBoth->EaSize, 0);
     }
 #ifdef IPRT_WITH_NT_PATH_PASSTHRU
     else

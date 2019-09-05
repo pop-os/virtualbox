@@ -35,6 +35,91 @@ technical terms if no non-technical ones are clear enough.
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
 
   <sect1>
+    <title>Version 6.0.12 (2019-09-03)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>OCI export: handle empty disk image correctly</para>
+      </listitem>
+
+      <listitem>
+        <para>API: fix potential crash when using the medium I/O functionality</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: fixed documentation of VBoxManage modifyvm uarttype
+          documentation (bug #18759)</para>
+      </listitem>
+
+      <listitem>
+        <para>Network: scrub inbound TCP URG pointer, working around incorrect
+          OOB handling</para>
+      </listitem>
+
+      <listitem>
+        <para>USB: Improved identification of power-saved devices on Windows hosts</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: in the AC97 work around buggy guest drivers which reprogram
+          the sampling rate, breaking audio in and/or audio out</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows host: fixed crashes on startup with software trying to
+          inject code into a VM process</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux host and guest: fix kernel module build for SLES 12 SP4 kernel</para>
+      </listitem>
+
+      <listitem>
+        <para>3D: fixed state saving and loading when the VBoxVGA graphics
+          adapter is used with 3D enabled (bug #18802, 6.0.10 regression)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows guests: fixed mouse cursor visibility updating</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows guests: fixed graphics corruption in Windows 10 search menu
+          with VBoxSVGA adapter</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows guests: fixed dwm.exe crashes related to the WDDM driver for
+          VBoxSVGA adapter when the VM has lots of RAM</para>
+      </listitem>
+
+      <listitem>
+        <para>MacOS Guest Additions fail to start in 6.0.10 (bug #18793)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows guests: fixed crashes when using shared folders (bug #18766)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux guests: unprivileged users unable to create files inside
+          shared folders (bug #18737)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux guests: improve compatibility of vboxvideo.ko kernel module
+          build logic (bug #18869)</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
+
     <title>Version 6.0.10 (2019-07-16)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
@@ -132,6 +217,11 @@ technical terms if no non-technical ones are clear enough.
       <listitem>
         <para>Linux guests/VMSVGA: do not forget the guest screen size after
            a guest reboot</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux guests: Kernel panic in Debian 9 guest at shut down with
+           shared folders (bug #18667)</para>
       </listitem>
 
       <listitem>

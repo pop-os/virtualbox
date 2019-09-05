@@ -1527,7 +1527,7 @@ static void crStateGLSLCreateProgramCB(unsigned long key, void *data1, void *dat
     pProgram->pUniforms = NULL;
     pProgram->cUniforms = 0;
 
-    crHashtableWalk(pProgram->activeState.attachedShaders, crStateDetachShaderCB, pProgram);
+    crHashtableWalk(pProgram->activeState.attachedShaders, crStateDetachShaderCB, &Args);
     crHashtableWalk(pProgram->currentState.attachedShaders, crStateAttachShaderCB, &Args);
 }
 
