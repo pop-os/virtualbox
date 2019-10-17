@@ -35,6 +35,84 @@ technical terms if no non-technical ones are clear enough.
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
 
   <sect1>
+    <title>Version 6.0.x (2019-xx-xx)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>Virtualization core: fixed an invalid-guest state guru meditation
+          in some rare circumstances on Intel hosts</para>
+      </listitem>
+
+      <listitem>
+        <para>Virtualization core: some fixes for systems with lots of
+          processors</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: relaxed VRM / VRA (variable rate audio) bit checks to
+          provide more compatibility for guests running ALSA setups with the
+          AC'97 emulation</para>
+      </listitem>
+
+      <listitem>
+        <para>USB: made device capturing for passthrough more accurate and
+          reliable on Windows host</para>
+      </listitem>
+
+      <listitem>
+        <para>Network: fixed potential issue with interrupt signalling for
+          network adapters in UEFI guests</para>
+      </listitem>
+
+      <listitem>
+        <para>3D: fixed flicker and redraw issues when using VBoxSVGA or
+          VMSVGA graphics adapter (bugs #18562, #18956)</para>
+      </listitem>
+
+      <listitem>
+        <para>3D: fixed crash with some applications when using VBoxSVGA or
+          VMSVGA graphics adapter (bug #18638)</para>
+      </listitem>
+
+      <listitem>
+        <para>macOS host: fix crash of GUI VM process which showed up
+          frequently with 10.15 Catalina (bug #18990)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux host: support Linux 5.3, thank you Larry Finger
+          (see also bug #18911)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux host: improve python version detection during rpm
+          package creation, can change package dependencies and fix some
+          installation problems</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux guests: calls to aio_read(3) and aio_write(3) may fail
+          inside shared folders (bug #18805)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux guests: fix problem with shared folder unmounting in
+          service script, thank you Denis Ryndine (bug #18853)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux guests: VBox 6.0.10 GAs fail to compile on Red
+          Hat/CentOS/Oracle Linux 7.7 and Red Hat 8.1 Beta (bug #18917)</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 6.0.12 (2019-09-03)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
@@ -52,7 +130,7 @@ technical terms if no non-technical ones are clear enough.
 
       <listitem>
         <para>VBoxManage: fixed documentation of VBoxManage modifyvm uarttype
-          documentation (bug #18759)</para>
+          (bug #18759)</para>
       </listitem>
 
       <listitem>

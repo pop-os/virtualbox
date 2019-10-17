@@ -114,12 +114,21 @@ DECLINLINE(const void *) crUnpackAccessChk(PCCrUnpackerState pState, size_t cbAc
     } \
     while (0)
 
+#define CHECK_ARRAY_SIZE_STATIC_UPDATE(a_pState, a_offAccessLast, a_cElements, a_cbType) \
+    do \
+    { \
+        AssertReturnVoidStmt((size_t)(a_cElements) < (size_t)(UINT32_MAX / 4 / (a_cbType)), \
+                             (a_pState)->rcUnpack = VERR_OUT_OF_RANGE); \
+        CHECK_BUFFER_SIZE_STATIC_UPDATE(a_pState, a_offAccessLast + (a_cElements) * (a_cbType)); \
+    } while (0)
+
 #define CHECK_BUFFER_SIZE_STATIC_UPDATE_LAST(a_pState, a_offAccessLast, a_Type) CHECK_BUFFER_SIZE_STATIC_UPDATE(a_pState, (a_offAccessLast) + sizeof( a_Type ))
 
 #define CHECK_ARRAY_SIZE_FROM_PTR_UPDATE_LAST(a_pState, a_pArrayStart, a_cElements, a_Type) \
-    CHECK_BUFFER_SIZE_STATIC_UPDATE(a_pState, ((const uint8_t *)a_pArrayStart - (a_pState)->pbUnpackData) + (a_cElements) * sizeof(a_Type))
+    CHECK_ARRAY_SIZE_STATIC_UPDATE(a_pState, ((const uint8_t *)a_pArrayStart - (a_pState)->pbUnpackData), a_cElements, sizeof(a_Type))
+
 #define CHECK_ARRAY_SIZE_FROM_PTR_UPDATE_SZ_LAST(a_pState, a_pArrayStart, a_cElements, a_cbType) \
-    CHECK_BUFFER_SIZE_STATIC_UPDATE(a_pState, ((const uint8_t *)a_pArrayStart - (a_pState)->pbUnpackData) + (a_cElements) * (a_cbType))
+    CHECK_ARRAY_SIZE_STATIC_UPDATE(a_pState, ((const uint8_t *)a_pArrayStart - (a_pState)->pbUnpackData), a_cElements, a_cbType)
 
 
 DECLINLINE(size_t) crUnpackAcccessChkStrUpdate(PCrUnpackerState pState, const char *psz, size_t *pcbVerified)

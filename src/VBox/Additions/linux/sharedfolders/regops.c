@@ -347,7 +347,7 @@ static size_t copy_from_iter(uint8_t *pbDst, size_t cbToCopy, struct iov_iter *p
                     cbThisCopy = cbToCopy;
                 if (pSrcIter->type & ITER_KVEC)
                     memcpy(pbDst, (void *)pSrcIter->iov->iov_base + pSrcIter->iov_offset, cbThisCopy);
-                else if (!copy_from_user(pbDst, pSrcIter->iov->iov_base + pSrcIter->iov_offset, cbThisCopy))
+                else if (copy_from_user(pbDst, pSrcIter->iov->iov_base + pSrcIter->iov_offset, cbThisCopy) != 0)
                     break;
                 pbDst    += cbThisCopy;
                 cbToCopy -= cbThisCopy;
@@ -386,7 +386,7 @@ static size_t copy_to_iter(uint8_t const *pbSrc, size_t cbToCopy, struct iov_ite
                     cbThisCopy = cbToCopy;
                 if (pDstIter->type & ITER_KVEC)
                     memcpy((void *)pDstIter->iov->iov_base + pDstIter->iov_offset, pbSrc, cbThisCopy);
-                else if (!copy_to_user(pDstIter->iov->iov_base + pDstIter->iov_offset, pbSrc, cbThisCopy)) {
+                else if (copy_to_user(pDstIter->iov->iov_base + pDstIter->iov_offset, pbSrc, cbThisCopy) != 0) {
                     break;
                 }
                 pbSrc    += cbThisCopy;
@@ -1408,7 +1408,7 @@ static int vbsf_lock_user_pages_failed_check_kernel(uintptr_t uPtrFrom, size_t c
     /*
      * Check that this is valid user memory that is actually in the kernel range.
      */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0) || defined(RHEL_81)
     if (   access_ok((void *)uPtrFrom, cPages << PAGE_SHIFT)
         && uPtrFrom >= USER_DS.seg)
 #else

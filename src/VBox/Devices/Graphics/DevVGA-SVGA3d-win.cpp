@@ -1307,6 +1307,10 @@ static int vmsvga3dSurfaceTrackUsage(PVMSVGA3DSTATE pState, PVMSVGA3DCONTEXT pCo
     /* Release the previous query object. */
     D3D_RELEASE(pSurface->pQuery);
 
+    /* Use the context where the texture has been created. */
+    int rc = vmsvga3dContextFromCid(pState, pSurface->idAssociatedContext, &pContext);
+    AssertRCReturn(rc, rc);
+
     HRESULT hr = pContext->pDevice->CreateQuery(D3DQUERYTYPE_EVENT, &pSurface->pQuery);
     AssertMsgReturn(hr == D3D_OK, ("vmsvga3dSurfaceTrackUsage: CreateQuery failed with %x\n", hr), VERR_INTERNAL_ERROR);
 
@@ -2442,7 +2446,7 @@ int vmsvga3dBackSurfaceDMACopyBox(PVGASTATE pThis, PVMSVGA3DSTATE pState, PVMSVG
                                1); /* Buffers are 1-dimensional */
         AssertRC(rc);
 
-        Log4(("Buffer first line:\n%.*Rhxd\n", cbWidth, (uint8_t *)pMipLevel->pSurfaceData + offHst));
+        Log4(("Buffer content (updated at [0x%x;0x%x):\n%.*Rhxd\n", offHst, offHst + cbWidth, pMipLevel->cbSurface, pMipLevel->pSurfaceData));
 
         /* Do not bother to copy the data to the D3D resource now. vmsvga3dDrawPrimitives will do that.
          * The SVGA driver may use the same surface for both index and vertex data.
@@ -4719,15 +4723,13 @@ int vmsvga3dSetLightEnabled(PVGASTATE pThis, uint32_t cid, uint32_t index, uint3
     AssertReturn(pState, VERR_NO_MEMORY);
 
     Log(("vmsvga3dSetLightEnabled %x %d -> %d\n", cid, index, enabled));
+    AssertReturn(index < SVGA3D_MAX_LIGHTS, VERR_INVALID_PARAMETER);
 
     int rc = vmsvga3dContextFromCid(pState, cid, &pContext);
     AssertRCReturn(rc, rc);
 
     /* Store for vm state save/restore */
-    if (index < SVGA3D_MAX_LIGHTS)
-        pContext->state.aLightData[index].fEnabled = !!enabled;
-    else
-        AssertFailed();
+    pContext->state.aLightData[index].fEnabled = !!enabled;
 
     hr = pContext->pDevice->LightEnable(index, (BOOL)enabled);
     AssertMsgReturn(hr == D3D_OK, ("LightEnable failed with %x\n", hr), VERR_INTERNAL_ERROR);
