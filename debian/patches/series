@@ -15,5 +15,4 @@
 36-fix-vnc-version-string.patch
 37-python-3.7-support.patch
 do-not-run-if-not-in-vm.patch
-kernel-5.3.patch
 drm-ttm-build-fix.patch
