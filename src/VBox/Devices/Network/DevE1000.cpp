@@ -1637,6 +1637,14 @@ static void e1kWakeupReceive(PPDMDEVINS pDevIns)
 static void e1kHardReset(PE1KSTATE pThis)
 {
     E1kLog(("%s Hard reset triggered\n", pThis->szPrf));
+    /* No interrupts should survive device reset, see @bugref(9556). */
+    if (pThis->fIntRaised)
+    {
+        /* Lower(0) INTA(0) */
+        PDMDevHlpPCISetIrq(pThis->CTX_SUFF(pDevIns), 0, 0);
+        pThis->fIntRaised = false;
+        E1kLog(("%s e1kHardReset: Lowered IRQ: ICR=%08x\n", pThis->szPrf, ICR));
+    }
     memset(pThis->auRegs,        0, sizeof(pThis->auRegs));
     memset(pThis->aRecAddr.au32, 0, sizeof(pThis->aRecAddr.au32));
 #ifdef E1K_INIT_RA0
@@ -2426,7 +2434,8 @@ static int e1kHandleRxPacket(PE1KSTATE pThis, const void *pvBuf, size_t cb, E1KR
         E1kLog3(("%s Added FCS (cb=%u)\n", pThis->szPrf, cb));
     }
     /* Compute checksum of complete packet */
-    uint16_t checksum = e1kCSum16(rxPacket + GET_BITS(RXCSUM, PCSS), cb);
+    size_t cbCSumStart = RT_MIN(GET_BITS(RXCSUM, PCSS), cb);
+    uint16_t checksum = e1kCSum16(rxPacket + cbCSumStart, cb - cbCSumStart);
     e1kRxChecksumOffload(pThis, rxPacket, cb, &status);
 
     /* Update stats */
@@ -4240,7 +4249,7 @@ static int e1kFallbackAddSegment(PE1KSTATE pThis, RTGCPHYS PhysAddr, uint16_t u1
 
     E1kLog3(("%s e1kFallbackAddSegment: Length=%x, remaining payload=%x, header=%x, send=%RTbool\n",
              pThis->szPrf, u16Len, pThis->u32PayRemain, pThis->u16HdrRemain, fSend));
-    Assert(pThis->u32PayRemain + pThis->u16HdrRemain > 0);
+    AssertReturn(pThis->u32PayRemain + pThis->u16HdrRemain > 0, VINF_SUCCESS);
 
     if (pThis->u16TxPktLen + u16Len <= sizeof(pThis->aTxPacketFallback))
         PDMDevHlpPhysRead(pThis->CTX_SUFF(pDevIns), PhysAddr,
@@ -4279,7 +4288,10 @@ static int e1kFallbackAddSegment(PE1KSTATE pThis, RTGCPHYS PhysAddr, uint16_t u1
         }
     }
 
-    pThis->u32PayRemain -= u16Len;
+    if (u16Len > pThis->u32PayRemain)
+        pThis->u32PayRemain = 0;
+    else
+        pThis->u32PayRemain -= u16Len;
 
     if (fSend)
     {
@@ -4447,6 +4459,9 @@ static int e1kFallbackAddToFrame(PE1KSTATE pThis, E1KTXDESC *pDesc, bool fOnWork
 #endif
 
     uint16_t u16MaxPktLen = pThis->contextTSE.dw3.u8HDRLEN + pThis->contextTSE.dw3.u16MSS;
+    /* We cannot produce empty packets, ignore all TX descriptors (see @bugref{9571}) */
+    if (u16MaxPktLen == 0)
+        return VINF_SUCCESS;
 
     /*
      * Carve out segments.

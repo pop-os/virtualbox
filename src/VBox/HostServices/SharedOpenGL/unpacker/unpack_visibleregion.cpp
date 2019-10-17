@@ -29,9 +29,9 @@ void crUnpackExtendWindowVisibleRegion(PCrUnpackerState pState)
     GLint cRects = READ_DATA(pState, 12, GLint );
     GLvoid *pRects = DATA_POINTER(pState, 16, GLvoid );
 
-    if (cRects <= 0 || cRects >= INT32_MAX / sizeof(GLint) / 8)
+    if (cRects < 0 || cRects >= INT32_MAX / sizeof(GLint) / 8)
     {
-        crError("crUnpackExtendWindowVisibleRegion: parameter 'cRects' is out of range");
+        crError("crUnpackExtendWindowVisibleRegion: parameter cRects = %d, out of range", cRects);
         return;
     }
 

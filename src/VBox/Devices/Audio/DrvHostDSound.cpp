@@ -745,7 +745,7 @@ static HRESULT directSoundPlayOpen(PDRVHOSTDSOUND pThis, PDSOUNDSTREAM pStreamDS
          */
         pStreamDS->cbBufSize = bc.dwBufferBytes;
 
-        rc = RTCircBufCreate(&pStreamDS->pCircBuf, pStreamDS->cbBufSize) * 2; /* Use "double buffering" */
+        rc = RTCircBufCreate(&pStreamDS->pCircBuf, pStreamDS->cbBufSize * 2 /* Use "double buffering" */);
         AssertRC(rc);
 
         pThis->pDSStrmOut = pStreamDS;
@@ -1224,9 +1224,11 @@ static int dsoundCaptureTransfer(PDRVHOSTDSOUND pThis, PDSOUNDSTREAM pStreamDS)
 
     uint32_t cbFree = (uint32_t)RTCircBufFree(pCircBuf);
     if (   !cbFree
-        || pStreamDS->In.cOverruns < 32) /** @todo Make this configurable. */
+        && pStreamDS->In.cOverruns < 32) /** @todo Make this configurable. */
     {
-        DSLOG(("DSound: Warning: Capture buffer full, skipping to record data (%RU32 bytes)\n", cbUsed));
+        DSLOG(("DSound: Warning: Internal buffer full (size is %zu bytes), skipping to record data (overflow #%RU32)\n",
+               RTCircBufSize(pCircBuf), pStreamDS->In.cOverruns));
+        DSLOG(("DSound: Warning: DSound capture buffer currently uses %RU32/%RU32 bytes\n", cbUsed, pStreamDS->cbBufSize));
         pStreamDS->In.cOverruns++;
     }
 
@@ -1489,7 +1491,7 @@ static HRESULT directSoundCaptureOpen(PDRVHOSTDSOUND pThis, PDSOUNDSTREAM pStrea
         pStreamDS->In.offReadPos = 0;
         pStreamDS->cbBufSize     = bc.dwBufferBytes;
 
-        rc = RTCircBufCreate(&pStreamDS->pCircBuf, pStreamDS->cbBufSize) * 2; /* Use "double buffering". */
+        rc = RTCircBufCreate(&pStreamDS->pCircBuf, pStreamDS->cbBufSize * 2 /* Use "double buffering" */);
         AssertRC(rc);
 
         pThis->pDSStrmIn = pStreamDS;

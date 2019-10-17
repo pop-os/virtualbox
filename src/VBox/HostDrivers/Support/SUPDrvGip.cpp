@@ -1875,10 +1875,15 @@ int VBOXCALL supdrvGipCreate(PSUPDRVDEVEXT pDevExt)
     cbGipCpuGroups = 0;
 #endif
     cbGip = RT_UOFFSETOF_DYN(SUPGLOBALINFOPAGE, aCPUs[cCpus]) + cbGipCpuGroups;
+    if (cbGip > _64K)
+    {
+        SUPR0Printf("VBoxDrv: GIP too big: %#zx bytes, max 64KiB; cCpus=%u - upgrade to 6.1\n", cbGip, cCpus);
+        return VERR_TOO_MANY_CPUS;
+    }
     rc = RTR0MemObjAllocCont(&pDevExt->GipMemObj, cbGip, false /*fExecutable*/);
     if (RT_FAILURE(rc))
     {
-        OSDBGPRINT(("supdrvGipCreate: failed to allocate the GIP page. rc=%d\n", rc));
+        OSDBGPRINT(("supdrvGipCreate: failed to allocate the GIP pages. rc=%d cbGip=%#zx\n", rc, cbGip));
         return rc;
     }
     pGip = (PSUPGLOBALINFOPAGE)RTR0MemObjAddress(pDevExt->GipMemObj); AssertPtr(pGip);
