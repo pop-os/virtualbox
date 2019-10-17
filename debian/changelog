@@ -1,3 +1,10 @@
+virtualbox (6.0.14-dfsg-1) unstable; urgency=medium
+
+  * New upstream version 6.0.14-dfsg
+  * drop kernel patch: upstream
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 17 Oct 2019 09:24:16 +0200
+
 virtualbox (6.0.12-dfsg-1) unstable; urgency=medium
 
   * New upstream version 6.0.12-dfsg
