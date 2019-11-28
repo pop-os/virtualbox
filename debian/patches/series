@@ -17,3 +17,4 @@
 do-not-run-if-not-in-vm.patch
 drm-ttm-build-fix.patch
 016-linux-5-4.patch
+acpica-unix-20191018.patch
