@@ -1,7 +1,11 @@
-Index: virtualbox/include/iprt/cdefs.h
-===================================================================
---- virtualbox.orig/include/iprt/cdefs.h
-+++ virtualbox/include/iprt/cdefs.h
+Origin: https://git.archlinux.org/svntogit/community.git/plain/trunk/016-linux-5-4.patch?h=packages/virtualbox&id=9640ba42a7c30757e00d15409b6d718f15a85d92
+https://www.virtualbox.org/changeset/81586/vbox
+https://www.virtualbox.org/changeset/81587/vbox
+https://www.virtualbox.org/changeset/81649/vbox
+
+diff -u -r VirtualBox-6.0.14/include/iprt/cdefs.h VirtualBox-6.0.14-5.4/include/iprt/cdefs.h
+--- VirtualBox-6.0.14/include/iprt/cdefs.h	2019-10-10 18:25:42.000000000 +0000
++++ VirtualBox-6.0.14-5.4/include/iprt/cdefs.h	2019-11-26 10:08:56.314644140 +0000
 @@ -1166,7 +1166,7 @@
   * Tell the compiler that we're falling through to the next case in a switch.
   * @sa RT_FALL_THRU  */
@@ -11,10 +15,9 @@ Index: virtualbox/include/iprt/cdefs.h
  #else
  # define RT_FALL_THROUGH()      (void)0
  #endif
-Index: virtualbox/src/VBox/Additions/linux/drm/vbox_drv.c
-===================================================================
---- virtualbox.orig/src/VBox/Additions/linux/drm/vbox_drv.c
-+++ virtualbox/src/VBox/Additions/linux/drm/vbox_drv.c
+diff -u -r VirtualBox-6.0.14/src/VBox/Additions/linux/drm/vbox_drv.c VirtualBox-6.0.14-5.4/src/VBox/Additions/linux/drm/vbox_drv.c
+--- VirtualBox-6.0.14/src/VBox/Additions/linux/drm/vbox_drv.c	2019-10-10 18:28:09.000000000 +0000
++++ VirtualBox-6.0.14-5.4/src/VBox/Additions/linux/drm/vbox_drv.c	2019-11-26 10:08:56.324644270 +0000
 @@ -270,12 +270,16 @@
  }
  
@@ -34,10 +37,9 @@ Index: virtualbox/src/VBox/Additions/linux/drm/vbox_drv.c
  	.dev_priv_size = 0,
  
  	.load = vbox_driver_load,
-Index: virtualbox/src/VBox/Additions/linux/drm/vbox_main.c
-===================================================================
---- virtualbox.orig/src/VBox/Additions/linux/drm/vbox_main.c
-+++ virtualbox/src/VBox/Additions/linux/drm/vbox_main.c
+diff -u -r VirtualBox-6.0.14/src/VBox/Additions/linux/drm/vbox_main.c VirtualBox-6.0.14-5.4/src/VBox/Additions/linux/drm/vbox_main.c
+--- VirtualBox-6.0.14/src/VBox/Additions/linux/drm/vbox_main.c	2019-10-10 18:28:09.000000000 +0000
++++ VirtualBox-6.0.14-5.4/src/VBox/Additions/linux/drm/vbox_main.c	2019-11-26 10:08:56.324644270 +0000
 @@ -616,11 +616,13 @@
  
  static inline u64 vbox_bo_mmap_offset(struct vbox_bo *bo)
@@ -54,10 +56,9 @@ Index: virtualbox/src/VBox/Additions/linux/drm/vbox_main.c
  }
  
  int
-Index: virtualbox/src/VBox/HostDrivers/VBoxNetFlt/linux/VBoxNetFlt-linux.c
-===================================================================
---- virtualbox.orig/src/VBox/HostDrivers/VBoxNetFlt/linux/VBoxNetFlt-linux.c
-+++ virtualbox/src/VBox/HostDrivers/VBoxNetFlt/linux/VBoxNetFlt-linux.c
+diff -u -r VirtualBox-6.0.14/src/VBox/HostDrivers/VBoxNetFlt/linux/VBoxNetFlt-linux.c VirtualBox-6.0.14-5.4/src/VBox/HostDrivers/VBoxNetFlt/linux/VBoxNetFlt-linux.c
+--- VirtualBox-6.0.14/src/VBox/HostDrivers/VBoxNetFlt/linux/VBoxNetFlt-linux.c	2019-10-10 18:35:33.000000000 +0000
++++ VirtualBox-6.0.14-5.4/src/VBox/HostDrivers/VBoxNetFlt/linux/VBoxNetFlt-linux.c	2019-11-26 10:08:56.321310893 +0000
 @@ -924,8 +924,13 @@
      for (i = 0; i < skb_shinfo(pBuf)->nr_frags; i++)
      {
@@ -86,10 +87,9 @@ Index: virtualbox/src/VBox/HostDrivers/VBoxNetFlt/linux/VBoxNetFlt-linux.c
              Log6((" %p", pSG->aSegs[iSeg].pv));
              pSG->aSegs[iSeg++].Phys = NIL_RTHCPHYS;
              Assert(iSeg <= pSG->cSegsAlloc);
-Index: virtualbox/src/VBox/Runtime/common/fs/ntfsvfs.cpp
-===================================================================
---- virtualbox.orig/src/VBox/Runtime/common/fs/ntfsvfs.cpp
-+++ virtualbox/src/VBox/Runtime/common/fs/ntfsvfs.cpp
+diff -u -r VirtualBox-6.0.14/src/VBox/Runtime/common/fs/ntfsvfs.cpp VirtualBox-6.0.14-5.4/src/VBox/Runtime/common/fs/ntfsvfs.cpp
+--- VirtualBox-6.0.14/src/VBox/Runtime/common/fs/ntfsvfs.cpp	2019-10-10 18:36:03.000000000 +0000
++++ VirtualBox-6.0.14-5.4/src/VBox/Runtime/common/fs/ntfsvfs.cpp	2019-11-26 10:08:56.317977517 +0000
 @@ -1052,7 +1052,7 @@
                      case 4: cClustersInRun |= (uint32_t)pbPairs[offPairs + 3] << 24; RT_FALL_THRU();
                      case 3: cClustersInRun |= (uint32_t)pbPairs[offPairs + 2] << 16; RT_FALL_THRU();
