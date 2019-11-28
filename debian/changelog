@@ -1,3 +1,11 @@
+virtualbox (6.0.14-dfsg-3) unstable; urgency=medium
+
+  * Fix build with new gsoap (Closes: #945548)
+  * Drop 81649 and take the archlinux version, that contains also rev 81586 and
+    81587 (LP: #1848594)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 28 Nov 2019 11:52:52 +0100
+
 virtualbox (6.0.14-dfsg-2) unstable; urgency=medium
 
   * debian/patches/81649.patch:
