@@ -1,3 +1,9 @@
+virtualbox (6.0.14-dfsg-4) unstable; urgency=medium
+
+  * Fixup previous upload
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Tue, 03 Dec 2019 22:17:14 +0100
+
 virtualbox (6.0.14-dfsg-3) unstable; urgency=medium
 
   * Fix build with new gsoap (Closes: #945548)
