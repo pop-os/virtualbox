@@ -5,7 +5,7 @@ Index: virtualbox/src/VBox/VMM/VMMR3/VM.cpp
 ===================================================================
 --- virtualbox.orig/src/VBox/VMM/VMMR3/VM.cpp
 +++ virtualbox/src/VBox/VMM/VMMR3/VM.cpp
-@@ -271,12 +271,8 @@ VMMR3DECL(int)   VMR3Create(uint32_t cCpus, PCVMM2USERMETHODS pVmm2UserMethods,
+@@ -261,12 +261,8 @@
  
  #ifdef RT_OS_LINUX
                  case VERR_SUPDRV_COMPONENT_NOT_FOUND:
@@ -20,7 +20,7 @@ Index: virtualbox/src/VBox/VMM/VMMR3/VM.cpp
                      break;
  #endif
  
-@@ -339,12 +335,8 @@ VMMR3DECL(int)   VMR3Create(uint32_t cCpus, PCVMM2USERMETHODS pVmm2UserMethods,
+@@ -329,12 +325,8 @@
              {
                  case VERR_VM_DRIVER_LOAD_ERROR:
  #ifdef RT_OS_LINUX
@@ -35,7 +35,7 @@ Index: virtualbox/src/VBox/VMM/VMMR3/VM.cpp
  #else
                      pszError = N_("VirtualBox kernel driver not loaded");
  #endif
-@@ -383,12 +375,8 @@ VMMR3DECL(int)   VMR3Create(uint32_t cCpus, PCVMM2USERMETHODS pVmm2UserMethods,
+@@ -373,12 +365,8 @@
                  case VERR_INVALID_HANDLE: /** @todo track down and fix this error. */
                  case VERR_VM_DRIVER_NOT_INSTALLED:
  #ifdef RT_OS_LINUX
@@ -54,7 +54,7 @@ Index: virtualbox/src/VBox/Frontends/VirtualBox/src/main.cpp
 ===================================================================
 --- virtualbox.orig/src/VBox/Frontends/VirtualBox/src/main.cpp
 +++ virtualbox/src/VBox/Frontends/VirtualBox/src/main.cpp
-@@ -87,8 +87,9 @@ QString g_QStrHintLinuxNoMemory = QApplication::tr(
+@@ -87,8 +87,9 @@
  
  QString g_QStrHintLinuxNoDriver = QApplication::tr(
      "The VirtualBox Linux kernel driver is either not loaded or not set "
@@ -66,7 +66,7 @@ Index: virtualbox/src/VBox/Frontends/VirtualBox/src/main.cpp
      "as root.<br/><br/>"
      "If your system has EFI Secure Boot enabled you may also need to sign "
      "the kernel modules (vboxdrv, vboxnetflt, vboxnetadp, vboxpci) before "
-@@ -107,7 +108,7 @@ QString g_QStrHintLinuxWrongDriverVersion = QApplication::tr(
+@@ -107,7 +108,7 @@
      "The VirtualBox kernel modules do not match this version of "
      "VirtualBox. The installation of VirtualBox was apparently not "
      "successful. Executing<br/><br/>"

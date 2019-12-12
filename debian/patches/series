@@ -13,8 +13,4 @@
 32-disable-guest-version-check.patch
 35-libvdeplug-soname.patch
 36-fix-vnc-version-string.patch
-37-python-3.7-support.patch
-do-not-run-if-not-in-vm.patch
-drm-ttm-build-fix.patch
-016-linux-5-4.patch
-acpica-unix-20191018.patch
+37-do-not-run-if-not-in-vm.patch
