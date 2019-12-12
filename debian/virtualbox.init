@@ -97,20 +97,6 @@ start()
 		fi
 	fi
 	
-	if ! running vboxpci; then
-		if ! modprobe vboxpci > /dev/null 2>&1; then
-			if ! find /lib/modules/`uname -r` -name "vboxpci\.*" 2>/dev/null|grep -q vboxpci; then
-				log_failure_msg "No suitable vboxpci module for running kernel found"
-			else
-				log_failure_msg "modprobe vboxpci failed. Please use 'dmesg' to find out why"
-			fi
-			log_end_msg 1
-			return 1
-		else
-			log_progress_msg "vboxpci"
-		fi
-	fi
-	
 	log_end_msg 0
 }
 
