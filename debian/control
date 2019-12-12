@@ -72,7 +72,7 @@ Build-Depends: bzip2,
                yasm,
                zlib1g-dev
 X-Python-Version: >= 2.5
-Standards-Version: 4.4.0
+Standards-Version: 4.4.1
 Homepage: https://www.virtualbox.org
 Vcs-Browser: https://salsa.debian.org/pkg-virtualbox-team/virtualbox
 Vcs-Git: https://salsa.debian.org/pkg-virtualbox-team/virtualbox.git
@@ -114,6 +114,7 @@ Conflicts: virtualbox-2.0,
            virtualbox-5.1,
            virtualbox-5.2,
            virtualbox-6.0,
+           virtualbox-6.1,
 Description: x86 virtualization solution - base binaries
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
