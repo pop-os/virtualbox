@@ -127,11 +127,6 @@ ifeq ($(DIST_NAME),Ubuntu)
 	    debian/$(gdkms)/usr/share/apport/package-hooks/$(gdkms).py
 endif
 
-override_dh_link:
-	dh_link -p$(uxname) \
-	    /usr/lib/VBoxOGL.so $(shell pkg-config --variable dridriverdir dri)/vboxvideo_dri.so
-	dh_link --remaining-packages
-
 override_dh_fixperms:
 	dh_fixperms
 
@@ -142,7 +137,6 @@ ifneq (,$(filter $(sname), $(shell dh_listpackages)))
 	chmod +s debian/$(sname)$(INSTALL_PATH)/VBoxNetNAT;
 	chmod +s debian/$(sname)$(INSTALL_PATH)/VBoxNetDHCP;
 	chmod +s debian/$(sname)$(INSTALL_PATH)/VBoxNetAdpCtl;
-	chmod 644 debian/$(sname)$(INSTALL_PATH)/*.rc;
 	chmod 644 debian/$(sname)$(INSTALL_PATH)/*.r0;
 
 	chmod 644 debian/$(sname)$(INSTALL_PATH)/sdk/bindings/xpcom/python/xpcom/*.py;
@@ -206,7 +200,7 @@ ifneq (,$(filter $(sname), $(shell dh_listpackages)))
 
 	# strip files not handled by dh_strip
 ifeq (,$(filter nostrip,$(DEB_BUILD_OPTIONS)))
-	set -e && for file in debian/$(sname)/usr/lib/virtualbox/*.rc debian/$(sname)/usr/lib/virtualbox/*.r0; do \
+	set -e && for file in debian/$(sname)/usr/lib/virtualbox/*.r0; do \
 	    strip --strip-debug --remove-section=.comment --remove-section=.note $${file}; \
 	done
 endif

@@ -1,7 +1,6 @@
 virtualbox: shlib-with-non-pic-code usr/lib/virtualbox/VBoxDD.so
 virtualbox: shlib-with-non-pic-code usr/lib/virtualbox/VBoxDD2.so
 virtualbox: shlib-with-non-pic-code usr/lib/virtualbox/VBoxDDU.so
-virtualbox: shlib-with-non-pic-code usr/lib/virtualbox/VBoxREM.so
 virtualbox: shlib-with-non-pic-code usr/lib/virtualbox/VBoxRT.so
 virtualbox: shlib-with-non-pic-code usr/lib/virtualbox/VBoxVMM.so
 virtualbox: shlib-with-non-pic-code usr/lib/virtualbox/components/VBoxC.so

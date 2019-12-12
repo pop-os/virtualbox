@@ -1,3 +1,21 @@
+virtualbox (6.1.0-dfsg-1) UNRELEASED; urgency=medium
+
+  * New upstream version 6.1.0-dfsg
+  * Patch refresh, drop patches now upstream:
+    - 37-python-3.7-support.patch
+    - drm-ttm-build-fix.patch
+    - 016-linux-5-4.patch
+    - acpica-unix-20191018.patch
+  * Update VBox.sh with new tools
+  * Bump std-version to 4.4.1
+  * Conflict with official virtualbox-6.1 package
+  * Remove gl/ogl files, dropped upstream.
+  * Update vboxweb to work with the systemv upstream init script
+  * Drop vboxpci kernel module, removed upstream
+  * Drop VBoxREM.so file
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 12 Dec 2019 19:20:17 +0100
+
 virtualbox (6.0.14-dfsg-4) unstable; urgency=medium
 
   * Fixup previous upload

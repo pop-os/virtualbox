@@ -2,9 +2,7 @@ debian/virtualbox.files/*.sh /usr/share/virtualbox
 
 out/bin/components /usr/lib/virtualbox
 out/bin/ExtensionPacks /usr/lib/virtualbox
-out/bin/VBoxREM.so /usr/lib/virtualbox
 out/bin/VBox*.so /usr/lib/virtualbox
-out/bin/VBox*.rc /usr/lib/virtualbox
 out/bin/VBox*.r0 /usr/lib/virtualbox
 out/bin/VBoxAutostart /usr/lib/virtualbox
 out/bin/VBoxBalloonCtrl /usr/lib/virtualbox
@@ -30,6 +28,7 @@ out/bin/vboxwebsrv /usr/lib/virtualbox
 out/bin/vbox-img /usr/lib/virtualbox
 out/bin/webtest /usr/lib/virtualbox
 out/bin/libvboxjxpcom.so /usr/lib/virtualbox
+out/bin/vboxweb-service.sh /usr/lib/virtualbox
 
 out/bin/sdk/bindings/xpcom/java /usr/lib/virtualbox/sdk/bindings/xpcom
 out/bin/sdk/bindings/xpcom/python /usr/lib/virtualbox/sdk/bindings/xpcom

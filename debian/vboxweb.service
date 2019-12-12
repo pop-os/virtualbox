@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 Type=forking
-ExecStart=/usr/bin/vboxwebsrv --pidfile /run/vboxweb.pid  --background
+ExecStart=/usr/lib/virtualbox/vboxweb-service.sh start
 PIDFile=/run/vboxweb.pid
 
 [Install]
