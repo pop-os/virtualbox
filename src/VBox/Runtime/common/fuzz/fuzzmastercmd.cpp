@@ -36,6 +36,7 @@
 #include <iprt/base64.h>
 #include <iprt/buildconfig.h>
 #include <iprt/ctype.h>
+#include <iprt/env.h>
 #include <iprt/err.h>
 #include <iprt/file.h>
 #include <iprt/getopt.h>
@@ -49,6 +50,7 @@
 #include <iprt/string.h>
 #include <iprt/tcp.h>
 #include <iprt/thread.h>
+#include <iprt/time.h>
 #include <iprt/vfs.h>
 #include <iprt/zip.h>
 
@@ -64,10 +66,16 @@ typedef struct RTFUZZRUN
     char                        *pszId;
     /** Number of processes. */
     uint32_t                    cProcs;
+    /** Target recorder flags. */
+    uint32_t                    fTgtRecFlags;
     /** The fuzzing observer state handle. */
     RTFUZZOBS                   hFuzzObs;
     /** Flag whether fuzzing was started. */
     bool                        fStarted;
+    /** Time when this run was created. */
+    RTTIME                      TimeCreated;
+    /** Millisecond timestamp when the run was created. */
+    uint64_t                    tsCreatedMs;
 } RTFUZZRUN;
 /** Pointer to a running fuzzer state. */
 typedef RTFUZZRUN *PRTFUZZRUN;
@@ -412,6 +420,158 @@ static int rtFuzzCmdMasterFuzzRunProcessArgCfg(PRTFUZZRUN pFuzzRun, RTJSONVAL hJ
 
 
 /**
+ * Processes process environment related configs for the given fuzzing run.
+ *
+ * @returns IPRT status code.
+ * @param   pFuzzRun            The fuzzing run.
+ * @param   hJsonRoot           The root node of the JSON request.
+ * @param   pErrInfo            Where to store the error information on failure, optional.
+ */
+static int rtFuzzCmdMasterFuzzRunProcessEnvironment(PRTFUZZRUN pFuzzRun, RTJSONVAL hJsonRoot, PRTERRINFO pErrInfo)
+{
+    RTJSONVAL hJsonValEnv;
+    int rc = RTJsonValueQueryByName(hJsonRoot, "Env", &hJsonValEnv);
+    if (RT_SUCCESS(rc))
+    {
+        bool fReplaceEnv = false; /* false means to append everything to the default block. */
+
+        rc = RTJsonValueQueryBooleanByName(hJsonRoot, "EnvReplace", &fReplaceEnv);
+        if (   RT_SUCCESS(rc)
+            || rc == VERR_NOT_FOUND)
+        {
+            RTJSONIT hEnvIt;
+            RTENV hEnv = NULL;
+
+            if (fReplaceEnv)
+                rc = RTEnvCreate(&hEnv);
+            else
+                rc = RTEnvClone(&hEnv, RTENV_DEFAULT);
+
+            if (RT_SUCCESS(rc))
+            {
+                rc = RTJsonIteratorBeginArray(hJsonValEnv, &hEnvIt);
+                if (RT_SUCCESS(rc))
+                {
+                    do
+                    {
+                        RTJSONVAL hVal;
+                        rc = RTJsonIteratorQueryValue(hEnvIt, &hVal, NULL);
+                        if (RT_SUCCESS(rc))
+                        {
+                            const char *pszVar = RTJsonValueGetString(hVal);
+                            if (RT_LIKELY(pszVar))
+                                rc = RTEnvPutEx(hEnv, pszVar);
+                            RTJsonValueRelease(hVal);
+                        }
+                        rc = RTJsonIteratorNext(hEnvIt);
+                    } while (RT_SUCCESS(rc));
+
+                    if (   rc == VERR_JSON_IS_EMPTY
+                        || rc == VERR_JSON_ITERATOR_END)
+                        rc = VINF_SUCCESS;
+                    else
+                        rc = rtFuzzCmdMasterErrorRc(pErrInfo, rc, "JSON request malformed: Failed to parse environment");
+
+                    RTJsonIteratorFree(hEnvIt);
+                }
+                else if (rc == VERR_JSON_IS_EMPTY)
+                    rc = VINF_SUCCESS;
+                else
+                    rc = rtFuzzCmdMasterErrorRc(pErrInfo, rc, "JSON request malformed: \"Environment\" is not an array");
+
+                if (RT_SUCCESS(rc))
+                {
+                    rc = RTFuzzObsSetTestBinaryEnv(pFuzzRun->hFuzzObs, hEnv);
+                    AssertRC(rc);
+                }
+                else if (hEnv)
+                    RTEnvDestroy(hEnv);
+            }
+            else
+                rc = rtFuzzCmdMasterErrorRc(pErrInfo, rc, "JSON request malformed: Failed to create environment block");
+        }
+        else
+            rc = rtFuzzCmdMasterErrorRc(pErrInfo, rc, "JSON request malformed: Failed to query \"EnvReplace\"");
+
+        RTJsonValueRelease(hJsonValEnv);
+    }
+    else if (rc == VERR_NOT_FOUND)
+        rc = VINF_SUCCESS; /* Just keep using the default environment. */
+    else
+        rc = rtFuzzCmdMasterErrorRc(pErrInfo, rc, "JSON request malformed: Failed to query the \"Environment\"");
+
+    return rc;
+}
+
+
+/**
+ * Processes process environment related configs for the given fuzzing run.
+ *
+ * @returns IPRT status code.
+ * @param   pFuzzRun            The fuzzing run.
+ * @param   hJsonRoot           The root node of the JSON request.
+ * @param   pErrInfo            Where to store the error information on failure, optional.
+ */
+static int rtFuzzCmdMasterFuzzRunProcessSanitizers(PRTFUZZRUN pFuzzRun, RTJSONVAL hJsonRoot, PRTERRINFO pErrInfo)
+{
+    RTJSONVAL hJsonValSan;
+    int rc = RTJsonValueQueryByName(hJsonRoot, "Sanitizers", &hJsonValSan);
+    if (RT_SUCCESS(rc))
+    {
+        uint32_t fSanitizers = 0;
+        RTJSONIT hSanIt;
+        rc = RTJsonIteratorBeginArray(hJsonValSan, &hSanIt);
+        if (RT_SUCCESS(rc))
+        {
+            do
+            {
+                RTJSONVAL hVal;
+                rc = RTJsonIteratorQueryValue(hSanIt, &hVal, NULL);
+                if (RT_SUCCESS(rc))
+                {
+                    const char *pszSan = RTJsonValueGetString(hVal);
+                    if (!RTStrICmp(pszSan, "Asan"))
+                        fSanitizers |= RTFUZZOBS_SANITIZER_F_ASAN;
+                    else if (!RTStrICmp(pszSan, "SanCov"))
+                        fSanitizers |= RTFUZZOBS_SANITIZER_F_SANCOV;
+                    else
+                        rc = rtFuzzCmdMasterErrorRc(pErrInfo, VERR_NOT_FOUND, "JSON request malformed: The sanitizer '%s' is not known", pszSan);
+                    RTJsonValueRelease(hVal);
+                }
+                rc = RTJsonIteratorNext(hSanIt);
+            } while (RT_SUCCESS(rc));
+
+            if (   rc == VERR_JSON_IS_EMPTY
+                || rc == VERR_JSON_ITERATOR_END)
+                rc = VINF_SUCCESS;
+            else
+                rc = rtFuzzCmdMasterErrorRc(pErrInfo, rc, "JSON request malformed: Failed to parse sanitizers");
+
+            RTJsonIteratorFree(hSanIt);
+        }
+        else if (rc == VERR_JSON_IS_EMPTY)
+            rc = VINF_SUCCESS;
+        else
+            rc = rtFuzzCmdMasterErrorRc(pErrInfo, rc, "JSON request malformed: \"Sanitizers\" is not an array");
+
+        if (RT_SUCCESS(rc))
+        {
+            rc = RTFuzzObsSetTestBinarySanitizers(pFuzzRun->hFuzzObs, fSanitizers);
+            AssertRC(rc);
+        }
+
+        RTJsonValueRelease(hJsonValSan);
+    }
+    else if (rc == VERR_NOT_FOUND)
+        rc = VINF_SUCCESS; /* Just keep using the defaults. */
+    else
+        rc = rtFuzzCmdMasterErrorRc(pErrInfo, rc, "JSON request malformed: Failed to query the \"Sanitizers\"");
+
+    return rc;
+}
+
+
+/**
  * Processes the given seed and adds it to the input corpus.
  *
  * @returns IPRT status code.
@@ -613,6 +773,133 @@ static int rtFuzzCmdMasterFuzzRunProcessMiscCfg(PRTFUZZRUN pFuzzRun, RTJSONVAL h
 
     if (RT_SUCCESS(rc))
         rc = rtFuzzCmdMasterFuzzRunProcessCfgU32Def(&pFuzzRun->cProcs, "FuzzingProcs", hJsonRoot, 0, pErrInfo);
+    if (RT_SUCCESS(rc))
+    {
+        uint32_t msTimeoutMax = 0;
+        rc = rtFuzzCmdMasterFuzzRunProcessCfgU32Def(&msTimeoutMax, "TimeoutMax", hJsonRoot, 1000, pErrInfo);
+        if (RT_SUCCESS(rc))
+            rc = RTFuzzObsSetTestBinaryTimeout(pFuzzRun->hFuzzObs, msTimeoutMax);
+    }
+
+    return rc;
+}
+
+
+/**
+ * Processes target recording related configs for the given fuzzing run.
+ *
+ * @returns IPRT status code.
+ * @param   pFuzzRun            The fuzzing run.
+ * @param   hJsonRoot           The root node of the JSON request.
+ * @param   pErrInfo            Where to store the error information on failure, optional.
+ */
+static int rtFuzzCmdMasterFuzzRunProcessTgtRecFlags(PRTFUZZRUN pFuzzRun, RTJSONVAL hJsonRoot, PRTERRINFO pErrInfo)
+{
+    RTJSONVAL hJsonValTgt;
+    int rc = RTJsonValueQueryByName(hJsonRoot, "TgtRec", &hJsonValTgt);
+    if (RT_SUCCESS(rc))
+    {
+        uint32_t fTgtRecFlags = 0;
+        RTJSONIT hTgtIt;
+        rc = RTJsonIteratorBeginArray(hJsonValTgt, &hTgtIt);
+        if (RT_SUCCESS(rc))
+        {
+            do
+            {
+                RTJSONVAL hVal;
+                rc = RTJsonIteratorQueryValue(hTgtIt, &hVal, NULL);
+                if (RT_SUCCESS(rc))
+                {
+                    const char *pszTgtRec = RTJsonValueGetString(hVal);
+                    if (!RTStrICmp(pszTgtRec, "StdOut"))
+                        fTgtRecFlags |= RTFUZZTGT_REC_STATE_F_STDOUT;
+                    else if (!RTStrICmp(pszTgtRec, "StdErr"))
+                        fTgtRecFlags |= RTFUZZTGT_REC_STATE_F_STDERR;
+                    else if (!RTStrICmp(pszTgtRec, "ProcSts"))
+                        fTgtRecFlags |= RTFUZZTGT_REC_STATE_F_PROCSTATUS;
+                    else if (!RTStrICmp(pszTgtRec, "SanCov"))
+                        fTgtRecFlags |= RTFUZZTGT_REC_STATE_F_SANCOV;
+                    else
+                        rc = rtFuzzCmdMasterErrorRc(pErrInfo, VERR_NOT_FOUND, "JSON request malformed: The recording flags '%s' is not known", pszTgtRec);
+                    RTJsonValueRelease(hVal);
+                }
+                rc = RTJsonIteratorNext(hTgtIt);
+            } while (RT_SUCCESS(rc));
+
+            if (   rc == VERR_JSON_IS_EMPTY
+                || rc == VERR_JSON_ITERATOR_END)
+                rc = VINF_SUCCESS;
+            else
+                rc = rtFuzzCmdMasterErrorRc(pErrInfo, rc, "JSON request malformed: Failed to parse target recording flags");
+
+            RTJsonIteratorFree(hTgtIt);
+        }
+        else if (rc == VERR_JSON_IS_EMPTY)
+            rc = VINF_SUCCESS;
+        else
+            rc = rtFuzzCmdMasterErrorRc(pErrInfo, rc, "JSON request malformed: \"TgtRec\" is not an array");
+
+        pFuzzRun->fTgtRecFlags = fTgtRecFlags;
+
+        RTJsonValueRelease(hJsonValTgt);
+    }
+    else if (rc == VERR_NOT_FOUND)
+    {
+        pFuzzRun->fTgtRecFlags = RTFUZZTGT_REC_STATE_F_PROCSTATUS;
+        rc = VINF_SUCCESS; /* Just keep using the defaults. */
+    }
+    else
+        rc = rtFuzzCmdMasterErrorRc(pErrInfo, rc, "JSON request malformed: Failed to query \"TgtRec\"");
+
+    return rc;
+}
+
+
+/**
+ * Sets up the directories for the given fuzzing run.
+ *
+ * @returns IPRT status code.
+ * @param   pThis               The fuzzing master command state.
+ * @param   pFuzzRun            The fuzzing run to setup the directories for.
+ * @param   pErrInfo            Where to store the error information on failure, optional.
+ */
+static int rtFuzzCmdMasterFuzzRunSetupDirectories(PRTFUZZCMDMASTER pThis, PRTFUZZRUN pFuzzRun, PRTERRINFO pErrInfo)
+{
+    /* Create temp directories. */
+    char szTmpDir[RTPATH_MAX];
+    int rc = RTPathJoin(&szTmpDir[0], sizeof(szTmpDir), pThis->pszTmpDir, pFuzzRun->pszId);
+    AssertRC(rc);
+    rc = RTDirCreate(szTmpDir, 0700,   RTDIRCREATE_FLAGS_NOT_CONTENT_INDEXED_SET
+                                     | RTDIRCREATE_FLAGS_NOT_CONTENT_INDEXED_NOT_CRITICAL);
+    if (rc == VERR_ALREADY_EXISTS)
+    {
+        /* Clear the directory. */
+        rc = RTDirRemoveRecursive(szTmpDir, RTDIRRMREC_F_CONTENT_ONLY);
+    }
+
+    if (RT_SUCCESS(rc))
+    {
+        rc = RTFuzzObsSetTmpDirectory(pFuzzRun->hFuzzObs, szTmpDir);
+        if (RT_SUCCESS(rc))
+        {
+            rc = RTPathJoin(&szTmpDir[0], sizeof(szTmpDir), pThis->pszResultsDir, pFuzzRun->pszId);
+            AssertRC(rc);
+            rc = RTDirCreate(szTmpDir, 0700,   RTDIRCREATE_FLAGS_NOT_CONTENT_INDEXED_SET
+                                             | RTDIRCREATE_FLAGS_NOT_CONTENT_INDEXED_NOT_CRITICAL);
+            if (RT_SUCCESS(rc) || rc == VERR_ALREADY_EXISTS)
+            {
+                rc = RTFuzzObsSetResultDirectory(pFuzzRun->hFuzzObs, szTmpDir);
+                if (RT_FAILURE(rc))
+                    rc = rtFuzzCmdMasterErrorRc(pErrInfo, rc, "Request error: Failed to set results directory to %s", szTmpDir);
+            }
+            else
+                rc = rtFuzzCmdMasterErrorRc(pErrInfo, rc, "Request error: Failed to create results directory %s", szTmpDir);
+        }
+        else
+            rc = rtFuzzCmdMasterErrorRc(pErrInfo, rc, "Request error: Failed to set temporary directory to %s", szTmpDir);
+    }
+    else
+        rc = rtFuzzCmdMasterErrorRc(pErrInfo, rc, "Request error: Failed to create temporary directory %s", szTmpDir);
 
     return rc;
 }
@@ -636,57 +923,42 @@ static int rtFuzzCmdMasterCreateFuzzRunWithId(PRTFUZZCMDMASTER pThis, const char
         pFuzzRun->pszId = RTStrDup(pszId);
         if (RT_LIKELY(pFuzzRun->pszId))
         {
-            rc = RTFuzzObsCreate(&pFuzzRun->hFuzzObs);
+            rc = rtFuzzCmdMasterFuzzRunProcessTgtRecFlags(pFuzzRun, hJsonRoot, pErrInfo);
             if (RT_SUCCESS(rc))
             {
-                rc = rtFuzzCmdMasterFuzzRunProcessBinaryCfg(pFuzzRun, hJsonRoot, pErrInfo);
-                if (RT_SUCCESS(rc))
-                    rc = rtFuzzCmdMasterFuzzRunProcessArgCfg(pFuzzRun, hJsonRoot, pErrInfo);
-                if (RT_SUCCESS(rc))
-                    rc = rtFuzzCmdMasterFuzzRunProcessInputSeeds(pFuzzRun, hJsonRoot, pErrInfo);
-                if (RT_SUCCESS(rc))
-                    rc = rtFuzzCmdMasterFuzzRunProcessMiscCfg(pFuzzRun, hJsonRoot, pErrInfo);
+                rc = RTFuzzObsCreate(&pFuzzRun->hFuzzObs, RTFUZZCTXTYPE_BLOB, pFuzzRun->fTgtRecFlags);
                 if (RT_SUCCESS(rc))
                 {
-                    /* Create temp directories. */
-                    char szTmpDir[RTPATH_MAX];
-                    rc = RTPathJoin(&szTmpDir[0], sizeof(szTmpDir), pThis->pszTmpDir, pFuzzRun->pszId);
-                    AssertRC(rc);
-                    rc = RTDirCreate(szTmpDir, 0700,   RTDIRCREATE_FLAGS_NOT_CONTENT_INDEXED_SET
-                                                     | RTDIRCREATE_FLAGS_NOT_CONTENT_INDEXED_NOT_CRITICAL);
+                    rc = rtFuzzCmdMasterFuzzRunProcessBinaryCfg(pFuzzRun, hJsonRoot, pErrInfo);
+                    if (RT_SUCCESS(rc))
+                        rc = rtFuzzCmdMasterFuzzRunProcessArgCfg(pFuzzRun, hJsonRoot, pErrInfo);
+                    if (RT_SUCCESS(rc))
+                        rc = rtFuzzCmdMasterFuzzRunProcessEnvironment(pFuzzRun, hJsonRoot, pErrInfo);
+                    if (RT_SUCCESS(rc))
+                        rc = rtFuzzCmdMasterFuzzRunProcessInputSeeds(pFuzzRun, hJsonRoot, pErrInfo);
+                    if (RT_SUCCESS(rc))
+                        rc = rtFuzzCmdMasterFuzzRunProcessMiscCfg(pFuzzRun, hJsonRoot, pErrInfo);
+                    if (RT_SUCCESS(rc))
+                        rc = rtFuzzCmdMasterFuzzRunProcessSanitizers(pFuzzRun, hJsonRoot, pErrInfo);
+                    if (RT_SUCCESS(rc))
+                        rc = rtFuzzCmdMasterFuzzRunSetupDirectories(pThis, pFuzzRun, pErrInfo);
+
                     if (RT_SUCCESS(rc))
                     {
-                        rc = RTFuzzObsSetTmpDirectory(pFuzzRun->hFuzzObs, szTmpDir);
+                        /* Start fuzzing. */
+                        RTListAppend(&pThis->LstFuzzed, &pFuzzRun->NdFuzzed);
+                        rc = RTFuzzObsExecStart(pFuzzRun->hFuzzObs, pFuzzRun->cProcs);
                         if (RT_SUCCESS(rc))
                         {
-                            rc = RTPathJoin(&szTmpDir[0], sizeof(szTmpDir), pThis->pszResultsDir, pFuzzRun->pszId);
-                            AssertRC(rc);
-                            rc = RTDirCreate(szTmpDir, 0700,   RTDIRCREATE_FLAGS_NOT_CONTENT_INDEXED_SET
-                                                             | RTDIRCREATE_FLAGS_NOT_CONTENT_INDEXED_NOT_CRITICAL);
-                            if (RT_SUCCESS(rc))
-                            {
-                                rc = RTFuzzObsSetResultDirectory(pFuzzRun->hFuzzObs, szTmpDir);
-                                if (RT_SUCCESS(rc))
-                                {
-                                    /* Start fuzzing. */
-                                    RTListAppend(&pThis->LstFuzzed, &pFuzzRun->NdFuzzed);
-                                    rc = RTFuzzObsExecStart(pFuzzRun->hFuzzObs, pFuzzRun->cProcs);
-                                    if (RT_SUCCESS(rc))
-                                        pFuzzRun->fStarted = true;
-                                    else
-                                        rc = rtFuzzCmdMasterErrorRc(pErrInfo, rc, "Request error: Failed to start fuzzing with %Rrc", rc);
-                                }
-                                else
-                                    rc = rtFuzzCmdMasterErrorRc(pErrInfo, rc, "Request error: Failed to set results directory to %s", szTmpDir);
-                            }
-                            else
-                                rc = rtFuzzCmdMasterErrorRc(pErrInfo, rc, "Request error: Failed to create results directory %s", szTmpDir);
+                            RTTIMESPEC TimeSpec;
+                            RTTimeNow(&TimeSpec);
+                            RTTimeLocalExplode(&pFuzzRun->TimeCreated, &TimeSpec);
+                            pFuzzRun->tsCreatedMs = RTTimeMilliTS();
+                            pFuzzRun->fStarted = true;
                         }
                         else
-                            rc = rtFuzzCmdMasterErrorRc(pErrInfo, rc, "Request error: Failed to set temporary directory to %s", szTmpDir);
+                            rc = rtFuzzCmdMasterErrorRc(pErrInfo, rc, "Request error: Failed to start fuzzing with %Rrc", rc);
                     }
-                    else
-                        rc = rtFuzzCmdMasterErrorRc(pErrInfo, rc, "Request error: Failed to create temporary directory %s", szTmpDir);
                 }
             }
         }
@@ -885,7 +1157,7 @@ static int rtFuzzCmdMasterProcessJsonReqSaveState(PRTFUZZCMDMASTER pThis, RTJSON
 
             void *pvState = NULL;
             size_t cbState = 0;
-            rc = RTFuzzCtxStateExport(hFuzzCtx, &pvState, &cbState);
+            rc = RTFuzzCtxStateExportToMem(hFuzzCtx, &pvState, &cbState);
             if (RT_SUCCESS(rc))
             {
                 /* Encode to base64. */
@@ -945,6 +1217,82 @@ static int rtFuzzCmdMasterProcessJsonReqSaveState(PRTFUZZCMDMASTER pThis, RTJSON
 
 
 /**
+ * Queries the statistics for the given fuzzing run and adds the result to the response.
+ *
+ * @returns IPRT static code.
+ * @param   pThis               The fuzzing master command state.
+ * @param   pFuzzRun            The fuzzing run.
+ * @param   pszIndent           Indentation to use.
+ * @param   fLast               Flags whether this is the last element in the list.
+ * @param   pErrInfo            Where to store the error information on failure, optional.
+ */
+static int rtFuzzCmdMasterProcessQueryRunStats(PRTFUZZCMDMASTER pThis, PRTFUZZRUN pFuzzRun,
+                                               const char *pszIndent, bool fLast, PRTERRINFO pErrInfo)
+{
+    RTFUZZOBSSTATS ObsStats;
+    RTFUZZCTXSTATS CtxStats;
+    RTFUZZCTX hFuzzCtx;
+    RT_ZERO(ObsStats); RT_ZERO(CtxStats);
+
+    int rc = RTFuzzObsQueryCtx(pFuzzRun->hFuzzObs, &hFuzzCtx);
+    if (RT_SUCCESS(rc))
+    {
+        rc = RTFuzzCtxQueryStats(hFuzzCtx, &CtxStats);
+        RTFuzzCtxRelease(hFuzzCtx);
+    }
+
+    if (RT_SUCCESS(rc))
+        rc = RTFuzzObsQueryStats(pFuzzRun->hFuzzObs, &ObsStats);
+    if (RT_SUCCESS(rc))
+    {
+        const char s_szStatsFmt[] = "%s{ \n"
+                                    "%s    \"Id\":                 \"%s\"\n"
+                                    "%s    \"TimeCreated\":        \"%s\"\n"
+                                    "%s    \"UptimeSec\":          %llu\n"
+                                    "%s    \"FuzzedInputsPerSec\": %u\n"
+                                    "%s    \"FuzzedInputs\":       %u\n"
+                                    "%s    \"FuzzedInputsHang\":   %u\n"
+                                    "%s    \"FuzzedInputsCrash\":  %u\n"
+                                    "%s    \"MemoryUsage\":        %zu\n"
+                                    "%s    \"CorpusSize\":         %llu\n"
+                                    "%s}%s\n";
+        char aszTime[_1K]; RT_ZERO(aszTime);
+        char aszStats[_4K]; RT_ZERO(aszStats);
+
+        if (RTTimeToString(&pFuzzRun->TimeCreated, aszTime, sizeof(aszTime)))
+        {
+            ssize_t cchStats = RTStrPrintf2(&aszStats[0], sizeof(aszStats),
+                                            s_szStatsFmt, pszIndent,
+                                            pszIndent, pFuzzRun->pszId,
+                                            pszIndent, aszTime,
+                                            pszIndent, (RTTimeMilliTS() - pFuzzRun->tsCreatedMs) / RT_MS_1SEC_64,
+                                            pszIndent, ObsStats.cFuzzedInputsPerSec,
+                                            pszIndent, ObsStats.cFuzzedInputs,
+                                            pszIndent, ObsStats.cFuzzedInputsHang,
+                                            pszIndent, ObsStats.cFuzzedInputsCrash,
+                                            pszIndent, CtxStats.cbMemory,
+                                            pszIndent, CtxStats.cMutations,
+                                            pszIndent, fLast ? "" : ",");
+            if (RT_LIKELY(cchStats > 0))
+            {
+                rc = RTStrAAppend(&pThis->pszResponse, &aszStats[0]);
+                if (RT_FAILURE(rc))
+                    rc = rtFuzzCmdMasterErrorRc(pErrInfo, rc, "Request error: Failed to build statistics response", rc);
+            }
+            else
+                rc = rtFuzzCmdMasterErrorRc(pErrInfo, VERR_BUFFER_OVERFLOW, "Request error: Response data buffer overflow");
+        }
+        else
+            rc = rtFuzzCmdMasterErrorRc(pErrInfo, VERR_BUFFER_OVERFLOW, "Request error: Buffer overflow conerting time to string");
+    }
+    else
+        rc = rtFuzzCmdMasterErrorRc(pErrInfo, rc, "Request error: Failed to query fuzzing statistics with %Rrc", rc);
+
+    return rc;
+}
+
+
+/**
  * Processes the "QueryStats" request.
  *
  * @returns IPRT status code.
@@ -954,26 +1302,37 @@ static int rtFuzzCmdMasterProcessJsonReqSaveState(PRTFUZZCMDMASTER pThis, RTJSON
  */
 static int rtFuzzCmdMasterProcessJsonReqQueryStats(PRTFUZZCMDMASTER pThis, RTJSONVAL hJsonRoot, PRTERRINFO pErrInfo)
 {
-    PRTFUZZRUN pFuzzRun;
-    int rc = rtFuzzCmdMasterQueryFuzzRunFromJson(pThis, hJsonRoot, "Id", pErrInfo, &pFuzzRun);
+    RTJSONVAL hJsonValId;
+    int rc = RTJsonValueQueryByName(hJsonRoot, "Id", &hJsonValId);
     if (RT_SUCCESS(rc))
     {
-        RTFUZZOBSSTATS Stats;
-        rc = RTFuzzObsQueryStats(pFuzzRun->hFuzzObs, &Stats);
+        RTJsonValueRelease(hJsonValId);
+        PRTFUZZRUN pFuzzRun;
+        rc = rtFuzzCmdMasterQueryFuzzRunFromJson(pThis, hJsonRoot, "Id", pErrInfo, &pFuzzRun);
+        if (RT_SUCCESS(rc))
+            rc = rtFuzzCmdMasterProcessQueryRunStats(pThis, pFuzzRun, "    ",
+                                                     true /*fLast*/, pErrInfo);
+    }
+    else if (rc == VERR_NOT_FOUND)
+    {
+        /* Id is not there, so collect statistics of all running jobs. */
+        rc = RTStrAAppend(&pThis->pszResponse, "    [\n");
         if (RT_SUCCESS(rc))
         {
-            const char s_szStats[] = "{ \"FuzzedInputsPerSec\": %u\n"
-                                     "  \"FuzzedInputs\":       %u\n"
-                                     "  \"FuzzedInputsHang\":   %u\n"
-                                     "  \"FuzzedInputsCrash\":   %u\n}";
-            pThis->pszResponse = RTStrAPrintf2(s_szStats, Stats.cFuzzedInputsPerSec,
-                                               Stats.cFuzzedInputs, Stats.cFuzzedInputsHang, Stats.cFuzzedInputsCrash);
-            if (RT_UNLIKELY(!pThis->pszResponse))
-                rc = rtFuzzCmdMasterErrorRc(pErrInfo, VERR_BUFFER_OVERFLOW, "Request error: Response data buffer overflow", rc);
+            PRTFUZZRUN pRun = NULL;
+            RTListForEach(&pThis->LstFuzzed, pRun, RTFUZZRUN, NdFuzzed)
+            {
+                bool fLast = RTListNodeIsLast(&pThis->LstFuzzed, &pRun->NdFuzzed);
+                rc = rtFuzzCmdMasterProcessQueryRunStats(pThis, pRun, "        ", fLast, pErrInfo);
+                if (RT_FAILURE(rc))
+                    break;
+            }
+            if (RT_SUCCESS(rc))
+                rc = RTStrAAppend(&pThis->pszResponse, "    ]\n");
         }
-        else
-            rc = rtFuzzCmdMasterErrorRc(pErrInfo, rc, "Request error: Failed to query fuzzing statistics with %Rrc", rc);
     }
+    else
+        rc = rtFuzzCmdMasterErrorRc(pErrInfo, rc, "JSON request malformed: Couldn't get \"Id\" value");
 
     return rc;
 }
@@ -1139,7 +1498,8 @@ static DECLCALLBACK(int) rtFuzzCmdMasterTcpServe(RTSOCKET hSocket, void *pvUser)
         {
             size_t cbThisRead = cbReqMax - cbReq;
             int rc = RTTcpRead(hSocket, pbCur, cbThisRead, &cbThisRead);
-            if (RT_SUCCESS(rc))
+            if (   RT_SUCCESS(rc)
+                && cbThisRead)
             {
                 cbReq += cbThisRead;
 

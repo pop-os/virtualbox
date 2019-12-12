@@ -16,16 +16,15 @@
  */
 
 /* Qt includes: */
-#include <QGraphicsScene>
 #include <QGraphicsSceneMouseEvent>
 #include <QGraphicsView>
 #include <QPainter>
 #include <QStyleOptionGraphicsItem>
 
 /* GUI includes: */
-#include "VBoxGlobal.h"
 #include "UIChooserItemGlobal.h"
 #include "UIChooserModel.h"
+#include "UIChooserNodeGlobal.h"
 #include "UIIconPool.h"
 #include "UIVirtualBoxManager.h"
 
@@ -33,9 +32,8 @@
 #include "iprt/cpp/utils.h"
 
 
-UIChooserItemGlobal::UIChooserItemGlobal(UIChooserItem *pParent,
-                                         int iPosition /* = -1 */)
-    : UIChooserItem(pParent, pParent->isTemporary(), 0, 100)
+UIChooserItemGlobal::UIChooserItemGlobal(UIChooserItem *pParent, UIChooserNodeGlobal *pNode)
+    : UIChooserItem(pParent, pNode, 0, 100)
     , m_iDefaultLightnessMin(0)
     , m_iDefaultLightnessMax(0)
     , m_iHoverLightnessMin(0)
@@ -46,98 +44,56 @@ UIChooserItemGlobal::UIChooserItemGlobal(UIChooserItem *pParent,
     , m_iMaximumNameWidth(0)
     , m_iHeightHint(0)
 {
-    /* Prepare: */
     prepare();
-
-    /* Add item to the parent: */
-    AssertMsg(parentItem(), ("No parent set for global-item!"));
-    parentItem()->addItem(this, iPosition);
-    setZValue(parentItem()->zValue() + 1);
-
-    /* Configure connections: */
-    connect(gpManager, &UIVirtualBoxManager::sigWindowRemapped,
-            this, &UIChooserItemGlobal::sltHandleWindowRemapped);
-
-    /* Init: */
-    updatePixmaps();
-
-    /* Apply language settings: */
-    retranslateUi();
-}
-
-UIChooserItemGlobal::UIChooserItemGlobal(UIChooserItem *pParent,
-                                         UIChooserItemGlobal * ,
-                                         int iPosition /* = -1 */)
-    : UIChooserItem(pParent, pParent->isTemporary(), 0, 100)
-    , m_iDefaultLightnessMin(0)
-    , m_iDefaultLightnessMax(0)
-    , m_iHoverLightnessMin(0)
-    , m_iHoverLightnessMax(0)
-    , m_iHighlightLightnessMin(0)
-    , m_iHighlightLightnessMax(0)
-    , m_iMinimumNameWidth(0)
-    , m_iMaximumNameWidth(0)
-{
-    /* Prepare: */
-    prepare();
-
-    /* Add item to the parent: */
-    AssertMsg(parentItem(), ("No parent set for global-item!"));
-    parentItem()->addItem(this, iPosition);
-    setZValue(parentItem()->zValue() + 1);
-
-    /* Configure connections: */
-    connect(gpManager, &UIVirtualBoxManager::sigWindowRemapped,
-            this, &UIChooserItemGlobal::sltHandleWindowRemapped);
-
-    /* Init: */
-    updatePixmaps();
-
-    /* Apply language settings: */
-    retranslateUi();
 }
 
 UIChooserItemGlobal::~UIChooserItemGlobal()
 {
-    /* If that item is focused: */
-    if (model()->focusItem() == this)
-    {
-        /* Unset the focus: */
-        model()->setFocusItem(0);
-    }
-    /* If that item is in selection list: */
-    if (model()->currentItems().contains(this))
-    {
-        /* Remove item from the selection list: */
-        model()->removeFromCurrentItems(this);
-    }
-    /* If that item is in navigation list: */
-    if (model()->navigationList().contains(this))
-    {
-        /* Remove item from the navigation list: */
-        model()->removeFromNavigationList(this);
-    }
-
-    /* Remove item from the parent: */
-    AssertMsg(parentItem(), ("No parent set for global-item!"));
-    parentItem()->removeItem(this);
+    cleanup();
 }
 
-bool UIChooserItemGlobal::isToolsButtonArea(const QPoint &position, int iMarginMultiplier /* = 1 */) const
+bool UIChooserItemGlobal::isToolButtonArea(const QPoint &position, int iMarginMultiplier /* = 1 */) const
 {
     const int iFullWidth = geometry().width();
     const int iFullHeight = geometry().height();
-    const int iMargin = data(GlobalItemData_Margin).toInt();
+    const int iMarginHR = data(GlobalItemData_MarginHR).toInt();
     const int iButtonMargin = data(GlobalItemData_ButtonMargin).toInt();
-    const int iToolsPixmapX = iFullWidth - iMargin - 1 - m_toolsPixmap.width() / m_toolsPixmap.devicePixelRatio();
-    const int iToolsPixmapY = (iFullHeight - m_toolsPixmap.height() / m_toolsPixmap.devicePixelRatio()) / 2;
-    QRect rect = QRect(iToolsPixmapX,
-                       iToolsPixmapY,
-                       m_toolsPixmap.width() / m_toolsPixmap.devicePixelRatio(),
-                       m_toolsPixmap.height() / m_toolsPixmap.devicePixelRatio());
+    const int iToolPixmapX = iFullWidth - iMarginHR - 1
+                           - m_toolPixmap.width() / m_toolPixmap.devicePixelRatio();
+    const int iToolPixmapY = (iFullHeight - m_toolPixmap.height() / m_toolPixmap.devicePixelRatio()) / 2;
+    QRect rect = QRect(iToolPixmapX,
+                       iToolPixmapY,
+                       m_toolPixmap.width() / m_toolPixmap.devicePixelRatio(),
+                       m_toolPixmap.height() / m_toolPixmap.devicePixelRatio());
     rect.adjust(-iMarginMultiplier * iButtonMargin, -iMarginMultiplier * iButtonMargin,
                  iMarginMultiplier * iButtonMargin,  iMarginMultiplier * iButtonMargin);
     return rect.contains(position);
+}
+
+bool UIChooserItemGlobal::isPinButtonArea(const QPoint &position, int iMarginMultiplier /* = 1 */) const
+{
+    const int iFullWidth = geometry().width();
+    const int iFullHeight = geometry().height();
+    const int iMarginHR = data(GlobalItemData_MarginHR).toInt();
+    const int iSpacing = data(GlobalItemData_Spacing).toInt();
+    const int iButtonMargin = data(GlobalItemData_ButtonMargin).toInt();
+    const int iPinPixmapX = iFullWidth - iMarginHR - 1
+                          - m_toolPixmap.width() / m_toolPixmap.devicePixelRatio()
+                          - iSpacing
+                          - m_pinPixmap.width() / m_pinPixmap.devicePixelRatio();
+    const int iPinPixmapY = (iFullHeight - m_pinPixmap.height() / m_pinPixmap.devicePixelRatio()) / 2;
+    QRect rect = QRect(iPinPixmapX,
+                       iPinPixmapY,
+                       m_pinPixmap.width() / m_pinPixmap.devicePixelRatio(),
+                       m_pinPixmap.height() / m_pinPixmap.devicePixelRatio());
+    rect.adjust(-iMarginMultiplier * iButtonMargin, -iMarginMultiplier * iButtonMargin,
+                 iMarginMultiplier * iButtonMargin,  iMarginMultiplier * iButtonMargin);
+    return rect.contains(position);
+}
+
+int UIChooserItemGlobal::heightHint() const
+{
+    return m_iHeightHint;
 }
 
 void UIChooserItemGlobal::setHeightHint(int iHint)
@@ -152,16 +108,6 @@ void UIChooserItemGlobal::setHeightHint(int iHint)
 
 void UIChooserItemGlobal::retranslateUi()
 {
-    /* Update description: */
-    m_strName = tr("Tools");
-    m_strDescription = m_strName;
-
-    /* Update linked values: */
-    updateMinimumNameWidth();
-    updateVisibleName();
-
-    /* Update tool-tip: */
-    updateToolTip();
 }
 
 void UIChooserItemGlobal::showEvent(QShowEvent *pEvent)
@@ -210,49 +156,37 @@ void UIChooserItemGlobal::paint(QPainter *pPainter, const QStyleOptionGraphicsIt
     paintGlobalInfo(pPainter, rectangle);
 }
 
+void UIChooserItemGlobal::setFavorite(bool fFavorite)
+{
+    /* Call to base-class: */
+    UIChooserItem::setFavorite(fFavorite);
+
+    /* Update pin-pixmap: */
+    updatePinPixmap();
+}
+
 void UIChooserItemGlobal::startEditing()
 {
     AssertMsgFailed(("Global graphics item do NOT support editing yet!"));
 }
 
+void UIChooserItemGlobal::updateItem()
+{
+    /* Update this global-item: */
+    updatePixmaps();
+    updateMinimumNameWidth();
+    updateVisibleName();
+    updateToolTip();
+    update();
+
+    /* Update parent group-item: */
+    parentItem()->updateToolTip();
+    parentItem()->update();
+}
+
 void UIChooserItemGlobal::updateToolTip()
 {
-//    setToolTip(toolTipText());
-}
-
-QString UIChooserItemGlobal::name() const
-{
-    return m_strName;
-}
-
-QString UIChooserItemGlobal::description() const
-{
-    return m_strDescription;
-}
-
-QString UIChooserItemGlobal::fullName() const
-{
-    return m_strName;
-}
-
-QString UIChooserItemGlobal::definition() const
-{
-    return QString("n=%1").arg("GLOBAL");
-}
-
-void UIChooserItemGlobal::addItem(UIChooserItem *, int)
-{
-    AssertMsgFailed(("Global graphics item do NOT support children!"));
-}
-
-void UIChooserItemGlobal::removeItem(UIChooserItem *)
-{
-    AssertMsgFailed(("Global graphics item do NOT support children!"));
-}
-
-void UIChooserItemGlobal::setItems(const QList<UIChooserItem*> &, UIChooserItemType)
-{
-    AssertMsgFailed(("Global graphics item do NOT support children!"));
+    // Nothing for now..
 }
 
 QList<UIChooserItem*> UIChooserItemGlobal::items(UIChooserItemType) const
@@ -260,30 +194,14 @@ QList<UIChooserItem*> UIChooserItemGlobal::items(UIChooserItemType) const
     AssertMsgFailedReturn(("Global graphics item do NOT support children!"), QList<UIChooserItem*>());
 }
 
-bool UIChooserItemGlobal::hasItems(UIChooserItemType) const
-{
-    AssertMsgFailedReturn(("Global graphics item do NOT support children!"), false);
-}
-
-void UIChooserItemGlobal::clearItems(UIChooserItemType)
+void UIChooserItemGlobal::addItem(UIChooserItem *, bool, int)
 {
     AssertMsgFailed(("Global graphics item do NOT support children!"));
 }
 
-void UIChooserItemGlobal::updateAllItems(const QUuid &)
+void UIChooserItemGlobal::removeItem(UIChooserItem *)
 {
-    /* Update this global-item: */
-    updatePixmaps();
-    updateToolTip();
-
-    /* Update parent group-item: */
-    parentItem()->updateToolTip();
-    parentItem()->update();
-}
-
-void UIChooserItemGlobal::removeAllItems(const QUuid &)
-{
-    // Just do nothing ..
+    AssertMsgFailed(("Global graphics item do NOT support children!"));
 }
 
 UIChooserItem *UIChooserItemGlobal::searchForItem(const QString &, int iItemSearchFlags)
@@ -301,42 +219,31 @@ UIChooserItem *UIChooserItemGlobal::firstMachineItem()
     return 0;
 }
 
-void UIChooserItemGlobal::sortItems()
-{
-    AssertMsgFailed(("Global graphics item do NOT support children!"));
-}
-
 void UIChooserItemGlobal::updateLayout()
 {
     // Just do nothing ..
 }
 
-QSizeF UIChooserItemGlobal::sizeHint(Qt::SizeHint which, const QSizeF &constraint /* = QSizeF() */) const
-{
-    /* If Qt::MinimumSize requested: */
-    if (which == Qt::MinimumSize)
-        return QSizeF(minimumWidthHint(), minimumHeightHint());
-    /* Else call to base-class: */
-    return UIChooserItem::sizeHint(which, constraint);
-}
-
 int UIChooserItemGlobal::minimumWidthHint() const
 {
     /* Prepare variables: */
-    const int iMargin = data(GlobalItemData_Margin).toInt();
+    const int iMarginHL = data(GlobalItemData_MarginHL).toInt();
+    const int iMarginHR = data(GlobalItemData_MarginHR).toInt();
     const int iSpacing = data(GlobalItemData_Spacing).toInt();
 
     /* Calculating proposed width: */
     int iProposedWidth = 0;
 
     /* Two margins: */
-    iProposedWidth += 2 * iMargin;
+    iProposedWidth += iMarginHL + iMarginHR;
     /* And global-item content width: */
     iProposedWidth += (m_pixmapSize.width() +
                        iSpacing +
                        m_iMinimumNameWidth +
                        iSpacing +
-                       m_toolsPixmapSize.width());
+                       m_toolPixmapSize.width() +
+                       iSpacing +
+                       m_pinPixmapSize.width());
 
     /* Return result: */
     return iProposedWidth;
@@ -345,14 +252,15 @@ int UIChooserItemGlobal::minimumWidthHint() const
 int UIChooserItemGlobal::minimumHeightHint() const
 {
     /* Prepare variables: */
-    const int iMargin = data(GlobalItemData_Margin).toInt();
+    const int iMarginV = data(GlobalItemData_MarginV).toInt();
 
     /* Calculating proposed height: */
     int iProposedHeight = 0;
 
     /* Global-item content height: */
     int iContentHeight = qMax(m_pixmapSize.height(), m_visibleNameSize.height());
-    iContentHeight = qMax(iContentHeight, m_toolsPixmapSize.height());
+    iContentHeight = qMax(iContentHeight, m_toolPixmapSize.height());
+    iContentHeight = qMax(iContentHeight, m_pinPixmapSize.height());
 
     /* If we have height hint: */
     if (m_iHeightHint)
@@ -364,7 +272,7 @@ int UIChooserItemGlobal::minimumHeightHint() const
     else
     {
         /* Two margins: */
-        iProposedHeight += 2 * iMargin;
+        iProposedHeight += 2 * iMarginV;
         /* And content height: */
         iProposedHeight += iContentHeight;
     }
@@ -373,18 +281,27 @@ int UIChooserItemGlobal::minimumHeightHint() const
     return iProposedHeight;
 }
 
+QSizeF UIChooserItemGlobal::sizeHint(Qt::SizeHint which, const QSizeF &constraint /* = QSizeF() */) const
+{
+    /* If Qt::MinimumSize requested: */
+    if (which == Qt::MinimumSize)
+        return QSizeF(minimumWidthHint(), minimumHeightHint());
+    /* Else call to base-class: */
+    return UIChooserItem::sizeHint(which, constraint);
+}
+
 QPixmap UIChooserItemGlobal::toPixmap()
 {
     AssertFailedReturn(QPixmap());
 }
 
-bool UIChooserItemGlobal::isDropAllowed(QGraphicsSceneDragDropEvent *, DragToken) const
+bool UIChooserItemGlobal::isDropAllowed(QGraphicsSceneDragDropEvent *, UIChooserItemDragToken) const
 {
     /* No drops at all: */
     return false;
 }
 
-void UIChooserItemGlobal::processDrop(QGraphicsSceneDragDropEvent *, UIChooserItem *, DragToken)
+void UIChooserItemGlobal::processDrop(QGraphicsSceneDragDropEvent *, UIChooserItem *, UIChooserItemDragToken)
 {
     /* Nothing to process: */
 }
@@ -431,6 +348,46 @@ void UIChooserItemGlobal::prepare()
     /* Sizes: */
     m_iMinimumNameWidth = 0;
     m_iMaximumNameWidth = 0;
+
+    /* Add item to the parent: */
+    AssertPtrReturnVoid(parentItem());
+    parentItem()->addItem(this, isFavorite(), position());
+
+    /* Configure connections: */
+    connect(gpManager, &UIVirtualBoxManager::sigWindowRemapped,
+            this, &UIChooserItemGlobal::sltHandleWindowRemapped);
+
+    /* Init: */
+    updatePixmaps();
+
+    /* Apply language settings: */
+    retranslateUi();
+}
+
+void UIChooserItemGlobal::cleanup()
+{
+    /* If that item is current: */
+    if (model()->currentItem() == this)
+    {
+        /* Unset current-item: */
+        model()->setCurrentItem(0);
+    }
+    /* If that item is in selection list: */
+    if (model()->selectedItems().contains(this))
+    {
+        /* Remove item from the selection list: */
+        model()->removeFromSelectedItems(this);
+    }
+    /* If that item is in navigation list: */
+    if (model()->navigationItems().contains(this))
+    {
+        /* Remove item from the navigation list: */
+        model()->removeFromNavigationItems(this);
+    }
+
+    /* Remove item from the parent: */
+    AssertPtrReturnVoid(parentItem());
+    parentItem()->removeItem(this);
 }
 
 QVariant UIChooserItemGlobal::data(int iKey) const
@@ -439,7 +396,9 @@ QVariant UIChooserItemGlobal::data(int iKey) const
     switch (iKey)
     {
         /* Layout hints: */
-        case GlobalItemData_Margin:       return QApplication::style()->pixelMetric(QStyle::PM_SmallIconSize) / 3 * 2;
+        case GlobalItemData_MarginHL:     return QApplication::style()->pixelMetric(QStyle::PM_SmallIconSize);
+        case GlobalItemData_MarginHR:     return QApplication::style()->pixelMetric(QStyle::PM_SmallIconSize) / 4 * 5;
+        case GlobalItemData_MarginV:      return QApplication::style()->pixelMetric(QStyle::PM_SmallIconSize) / 4 * 3;
         case GlobalItemData_Spacing:      return QApplication::style()->pixelMetric(QStyle::PM_SmallIconSize) / 2;
         case GlobalItemData_ButtonMargin: return QApplication::style()->pixelMetric(QStyle::PM_SmallIconSize) / 4;
 
@@ -453,8 +412,10 @@ void UIChooserItemGlobal::updatePixmaps()
 {
     /* Update pixmap: */
     updatePixmap();
-    /* Update tools-pixmap: */
-    updateToolsPixmap();
+    /* Update tool-pixmap: */
+    updateToolPixmap();
+    /* Update pin-pixmap: */
+    updatePinPixmap();
 }
 
 void UIChooserItemGlobal::updatePixmap()
@@ -481,24 +442,46 @@ void UIChooserItemGlobal::updatePixmap()
     }
 }
 
-void UIChooserItemGlobal::updateToolsPixmap()
+void UIChooserItemGlobal::updateToolPixmap()
 {
     /* Determine icon metric: */
     const int iIconMetric = QApplication::style()->pixelMetric(QStyle::PM_LargeIconSize) * .75;
-    /* Create new tools-pixmap and tools-pixmap size: */
-    const QIcon toolsIcon = UIIconPool::iconSet(":/tools_menu_24px.png");
-    AssertReturnVoid(!toolsIcon.isNull());
-    const QSize toolsPixmapSize = QSize(iIconMetric, iIconMetric);
-    const QPixmap toolsPixmap = toolsIcon.pixmap(gpManager->windowHandle(), toolsPixmapSize);
+    /* Create new tool-pixmap and tool-pixmap size: */
+    const QIcon toolIcon = UIIconPool::iconSet(":/tools_menu_24px.png");
+    AssertReturnVoid(!toolIcon.isNull());
+    const QSize toolPixmapSize = QSize(iIconMetric, iIconMetric);
+    const QPixmap toolPixmap = toolIcon.pixmap(gpManager->windowHandle(), toolPixmapSize);
     /* Update linked values: */
-    if (m_toolsPixmapSize != toolsPixmapSize)
+    if (m_toolPixmapSize != toolPixmapSize)
     {
-        m_toolsPixmapSize = toolsPixmapSize;
+        m_toolPixmapSize = toolPixmapSize;
         updateGeometry();
     }
-    if (m_toolsPixmap.toImage() != toolsPixmap.toImage())
+    if (m_toolPixmap.toImage() != toolPixmap.toImage())
     {
-        m_toolsPixmap = toolsPixmap;
+        m_toolPixmap = toolPixmap;
+        update();
+    }
+}
+
+void UIChooserItemGlobal::updatePinPixmap()
+{
+    /* Determine icon metric: */
+    const int iIconMetric = QApplication::style()->pixelMetric(QStyle::PM_LargeIconSize) * .75;
+    /* Create new tool-pixmap and tool-pixmap size: */
+    const QIcon pinIcon = UIIconPool::iconSet(isFavorite() ? ":/favorite_pressed_24px.png" : ":/favorite_24px.png");
+    AssertReturnVoid(!pinIcon.isNull());
+    const QSize pinPixmapSize = QSize(iIconMetric, iIconMetric);
+    const QPixmap pinPixmap = pinIcon.pixmap(gpManager->windowHandle(), pinPixmapSize);
+    /* Update linked values: */
+    if (m_pinPixmapSize != pinPixmapSize)
+    {
+        m_pinPixmapSize = pinPixmapSize;
+        updateGeometry();
+    }
+    if (m_pinPixmap.toImage() != pinPixmap.toImage())
+    {
+        m_pinPixmap = pinPixmap;
         update();
     }
 }
@@ -508,7 +491,7 @@ void UIChooserItemGlobal::updateMinimumNameWidth()
     /* Calculate new minimum name width: */
     QPaintDevice *pPaintDevice = model()->paintDevice();
     const QFontMetrics fm(m_nameFont, pPaintDevice);
-    const int iMinimumNameWidth = fm.width(compressText(m_nameFont, pPaintDevice, m_strName, textWidth(m_nameFont, pPaintDevice, 15)));
+    const int iMinimumNameWidth = fm.width(compressText(m_nameFont, pPaintDevice, name(), textWidth(m_nameFont, pPaintDevice, 15)));
 
     /* Is there something changed? */
     if (m_iMinimumNameWidth == iMinimumNameWidth)
@@ -522,15 +505,16 @@ void UIChooserItemGlobal::updateMinimumNameWidth()
 void UIChooserItemGlobal::updateMaximumNameWidth()
 {
     /* Prepare variables: */
-    const int iMargin = data(GlobalItemData_Margin).toInt();
+    const int iMarginHL = data(GlobalItemData_MarginHL).toInt();
+    const int iMarginHR = data(GlobalItemData_MarginHR).toInt();
     const int iSpacing = data(GlobalItemData_Spacing).toInt();
 
     /* Calculate new maximum name width: */
     int iMaximumNameWidth = (int)geometry().width();
-    iMaximumNameWidth -= iMargin; /* left margin */
+    iMaximumNameWidth -= iMarginHL; /* left margin */
     iMaximumNameWidth -= m_pixmapSize.width(); /* pixmap width */
     iMaximumNameWidth -= iSpacing; /* spacing between pixmap and name */
-    iMaximumNameWidth -= iMargin; /* right margin */
+    iMaximumNameWidth -= iMarginHR; /* right margin */
 
     /* Is there something changed? */
     if (m_iMaximumNameWidth == iMaximumNameWidth)
@@ -547,7 +531,7 @@ void UIChooserItemGlobal::updateVisibleName()
     QPaintDevice *pPaintDevice = model()->paintDevice();
 
     /* Calculate new visible name and name-size: */
-    const QString strVisibleName = compressText(m_nameFont, pPaintDevice, m_strName, m_iMaximumNameWidth);
+    const QString strVisibleName = compressText(m_nameFont, pPaintDevice, name(), m_iMaximumNameWidth);
     const QSize visibleNameSize = textSize(m_nameFont, pPaintDevice, strVisibleName);
 
     /* Update linked values: */
@@ -571,8 +555,8 @@ void UIChooserItemGlobal::paintBackground(QPainter *pPainter, const QRect &recta
     /* Prepare color: */
     const QPalette pal = palette();
 
-    /* Selection background: */
-    if (model()->currentItems().contains(unconst(this)))
+    /* Selected-item background: */
+    if (model()->selectedItems().contains(unconst(this)))
     {
         /* Prepare color: */
         const QColor backgroundColor = pal.color(QPalette::Active, QPalette::Highlight);
@@ -593,7 +577,7 @@ void UIChooserItemGlobal::paintBackground(QPainter *pPainter, const QRect &recta
             animationColor1.setAlpha(30);
 #endif
             animationColor2.setAlpha(0);
-            /* Draw hovering animated gradient: */
+            /* Draw hovered-item animated gradient: */
             QRect animatedRect = rectangle;
             animatedRect.setWidth(animatedRect.height());
             const int iLength = 2 * animatedRect.width() + rectangle.width();
@@ -608,7 +592,7 @@ void UIChooserItemGlobal::paintBackground(QPainter *pPainter, const QRect &recta
             pPainter->fillRect(rectangle, bgAnimatedGrad);
         }
     }
-    /* Hovering background: */
+    /* Hovered-item background: */
     else if (isHovered())
     {
         /* Prepare color: */
@@ -628,7 +612,7 @@ void UIChooserItemGlobal::paintBackground(QPainter *pPainter, const QRect &recta
         animationColor1.setAlpha(50);
 #endif
         animationColor2.setAlpha(0);
-        /* Draw hovering animated gradient: */
+        /* Draw hovered-item animated gradient: */
         QRect animatedRect = rectangle;
         animatedRect.setWidth(animatedRect.height());
         const int iLength = 2 * animatedRect.width() + rectangle.width();
@@ -667,8 +651,8 @@ void UIChooserItemGlobal::paintBackground(QPainter *pPainter, const QRect &recta
 
 void UIChooserItemGlobal::paintFrame(QPainter *pPainter, const QRect &rectangle) const
 {
-    /* Only chosen and/or hovered item should have a frame: */
-    if (!model()->currentItems().contains(unconst(this)) && !isHovered())
+    /* Only selected and/or hovered item should have a frame: */
+    if (!model()->selectedItems().contains(unconst(this)) && !isHovered())
         return;
 
     /* Save painter: */
@@ -678,10 +662,10 @@ void UIChooserItemGlobal::paintFrame(QPainter *pPainter, const QRect &rectangle)
     const QPalette pal = palette();
     QColor strokeColor;
 
-    /* Selection frame: */
-    if (model()->currentItems().contains(unconst(this)))
+    /* Selected-item frame: */
+    if (model()->selectedItems().contains(unconst(this)))
         strokeColor = pal.color(QPalette::Active, QPalette::Highlight).lighter(m_iHighlightLightnessMin - 40);
-    /* Hovering frame: */
+    /* Hovered-item frame: */
     else if (isHovered())
         strokeColor = pal.color(QPalette::Active, QPalette::Highlight).lighter(m_iHoverLightnessMin - 50);
     /* Default frame: */
@@ -707,12 +691,13 @@ void UIChooserItemGlobal::paintGlobalInfo(QPainter *pPainter, const QRect &recta
     /* Prepare variables: */
     const int iFullWidth = rectangle.width();
     const int iFullHeight = rectangle.height();
-    const int iMargin = data(GlobalItemData_Margin).toInt();
+    const int iMarginHL = data(GlobalItemData_MarginHL).toInt();
+    const int iMarginHR = data(GlobalItemData_MarginHR).toInt();
     const int iSpacing = data(GlobalItemData_Spacing).toInt();
     const int iButtonMargin = data(GlobalItemData_ButtonMargin).toInt();
 
-    /* Selected item foreground: */
-    if (model()->currentItems().contains(unconst(this)))
+    /* Selected-item foreground: */
+    if (model()->selectedItems().contains(unconst(this)))
     {
         const QPalette pal = palette();
         pPainter->setPen(pal.color(QPalette::HighlightedText));
@@ -731,7 +716,7 @@ void UIChooserItemGlobal::paintGlobalInfo(QPainter *pPainter, const QRect &recta
     }
 
     /* Calculate indents: */
-    int iLeftColumnIndent = iMargin;
+    int iLeftColumnIndent = iMarginHL;
 
     /* Paint left column: */
     {
@@ -773,31 +758,31 @@ void UIChooserItemGlobal::paintGlobalInfo(QPainter *pPainter, const QRect &recta
     }
 
     /* Calculate indents: */
-    int iRightColumnIndent = iFullWidth - iMargin - 1 - m_toolsPixmap.width() / m_toolsPixmap.devicePixelRatio();
+    QGraphicsView *pView = model()->scene()->views().first();
+    const QPointF sceneCursorPosition = pView->mapToScene(pView->mapFromGlobal(QCursor::pos()));
+    const QPoint itemCursorPosition = mapFromScene(sceneCursorPosition).toPoint();
+    int iRightColumnIndent = iFullWidth - iMarginHR - 1 - m_toolPixmap.width() / m_toolPixmap.devicePixelRatio();
 
     /* Paint right column: */
-    if (   model()->currentItem() == this
+    if (   model()->firstSelectedItem() == this
         || isHovered())
     {
         /* Prepare variables: */
-        int iToolsPixmapX = iRightColumnIndent;
-        int iToolsPixmapY = (iFullHeight - m_toolsPixmap.height() / m_toolsPixmap.devicePixelRatio()) / 2;
-        QRect buttonRectangle = QRect(iToolsPixmapX,
-                                      iToolsPixmapY,
-                                      m_toolsPixmap.width() / m_toolsPixmap.devicePixelRatio(),
-                                      m_toolsPixmap.height() / m_toolsPixmap.devicePixelRatio());
-        buttonRectangle.adjust(- iButtonMargin, -iButtonMargin, iButtonMargin, iButtonMargin);
-        QGraphicsView *pView = model()->scene()->views().first();
-        const QPointF sceneCursorPosition = pView->mapToScene(pView->mapFromGlobal(QCursor::pos()));
-        const QPoint itemCursorPosition = mapFromScene(sceneCursorPosition).toPoint();
+        const int iToolPixmapX = iRightColumnIndent;
+        const int iToolPixmapY = (iFullHeight - m_toolPixmap.height() / m_toolPixmap.devicePixelRatio()) / 2;
+        QRect toolButtonRectangle = QRect(iToolPixmapX,
+                                          iToolPixmapY,
+                                          m_toolPixmap.width() / m_toolPixmap.devicePixelRatio(),
+                                          m_toolPixmap.height() / m_toolPixmap.devicePixelRatio());
+        toolButtonRectangle.adjust(- iButtonMargin, -iButtonMargin, iButtonMargin, iButtonMargin);
 
-        /* Paint flat button: */
+        /* Paint tool button: */
         if (   isHovered()
-            && isToolsButtonArea(itemCursorPosition, 4))
+            && isToolButtonArea(itemCursorPosition, 4))
             paintFlatButton(/* Painter: */
                             pPainter,
                             /* Button rectangle: */
-                            buttonRectangle,
+                            toolButtonRectangle,
                             /* Cursor position: */
                             itemCursorPosition);
 
@@ -805,8 +790,43 @@ void UIChooserItemGlobal::paintGlobalInfo(QPainter *pPainter, const QRect &recta
         paintPixmap(/* Painter: */
                     pPainter,
                     /* Point to paint in: */
-                    QPoint(iToolsPixmapX, iToolsPixmapY),
+                    QPoint(iToolPixmapX, iToolPixmapY),
                     /* Pixmap to paint: */
-                    m_toolsPixmap);
+                    m_toolPixmap);
+    }
+
+    /* Calculate indents: */
+    iRightColumnIndent = iRightColumnIndent - m_toolPixmap.width() / m_toolPixmap.devicePixelRatio() - iSpacing;
+
+    /* Paint right column: */
+    if (   model()->firstSelectedItem() == this
+        || isHovered())
+    {
+        /* Prepare variables: */
+        const int iPinPixmapX = iRightColumnIndent;
+        const int iPinPixmapY = (iFullHeight - m_pinPixmap.height() / m_pinPixmap.devicePixelRatio()) / 2;
+        QRect pinButtonRectangle = QRect(iPinPixmapX,
+                                         iPinPixmapY,
+                                         m_pinPixmap.width() / m_pinPixmap.devicePixelRatio(),
+                                         m_pinPixmap.height() / m_pinPixmap.devicePixelRatio());
+        pinButtonRectangle.adjust(- iButtonMargin, -iButtonMargin, iButtonMargin, iButtonMargin);
+
+        /* Paint pin button: */
+        if (   isHovered()
+            && isPinButtonArea(itemCursorPosition, 4))
+            paintFlatButton(/* Painter: */
+                            pPainter,
+                            /* Button rectangle: */
+                            pinButtonRectangle,
+                            /* Cursor position: */
+                            itemCursorPosition);
+
+        /* Paint pixmap: */
+        paintPixmap(/* Painter: */
+                    pPainter,
+                    /* Point to paint in: */
+                    QPoint(iPinPixmapX, iPinPixmapY),
+                    /* Pixmap to paint: */
+                    m_pinPixmap);
     }
 }

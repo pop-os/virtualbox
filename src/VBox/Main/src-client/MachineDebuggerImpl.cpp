@@ -30,8 +30,6 @@
 #include "AutoCaller.h"
 
 #include <VBox/vmm/em.h>
-#include <VBox/vmm/patm.h>
-#include <VBox/vmm/csam.h>
 #include <VBox/vmm/uvm.h>
 #include <VBox/vmm/tm.h>
 #include <VBox/vmm/hm.h>
@@ -298,16 +296,7 @@ HRESULT MachineDebugger::setExecuteAllInIEM(BOOL aExecuteAllInIEM)
  */
 HRESULT MachineDebugger::getPATMEnabled(BOOL *aPATMEnabled)
 {
-#ifdef VBOX_WITH_RAW_MODE
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    Console::SafeVMPtrQuiet ptrVM(mParent);
-    if (ptrVM.isOk())
-        *aPATMEnabled = PATMR3IsEnabled(ptrVM.rawUVM());
-    else
-#endif
-        *aPATMEnabled = false;
-
+    *aPATMEnabled = false;
     return S_OK;
 }
 
@@ -321,28 +310,8 @@ HRESULT MachineDebugger::setPATMEnabled(BOOL aPATMEnabled)
 {
     LogFlowThisFunc(("enable=%d\n", aPATMEnabled));
 
-#ifdef VBOX_WITH_RAW_MODE
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    if (i_queueSettings())
-    {
-        // queue the request
-        mPatmEnabledQueued = aPATMEnabled;
-        return S_OK;
-    }
-
-    Console::SafeVMPtr ptrVM(mParent);
-    if (FAILED(ptrVM.rc()))
-        return ptrVM.rc();
-
-    int vrc = PATMR3AllowPatching(ptrVM.rawUVM(), RT_BOOL(aPATMEnabled));
-    if (RT_FAILURE(vrc))
-        return setErrorBoth(VBOX_E_VM_ERROR, vrc, tr("PATMR3AllowPatching returned %Rrc"), vrc);
-
-#else  /* !VBOX_WITH_RAW_MODE */
     if (aPATMEnabled)
         return setErrorBoth(VBOX_E_VM_ERROR, VERR_RAW_MODE_NOT_SUPPORTED, tr("PATM not present"), VERR_NOT_SUPPORTED);
-#endif /* !VBOX_WITH_RAW_MODE */
     return S_OK;
 }
 
@@ -354,17 +323,7 @@ HRESULT MachineDebugger::setPATMEnabled(BOOL aPATMEnabled)
  */
 HRESULT MachineDebugger::getCSAMEnabled(BOOL *aCSAMEnabled)
 {
-#ifdef VBOX_WITH_RAW_MODE
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    Console::SafeVMPtrQuiet ptrVM(mParent);
-
-    if (ptrVM.isOk())
-        *aCSAMEnabled = CSAMR3IsEnabled(ptrVM.rawUVM());
-    else
-#endif /* VBOX_WITH_RAW_MODE */
-        *aCSAMEnabled = false;
-
+    *aCSAMEnabled = false;
     return S_OK;
 }
 
@@ -378,28 +337,8 @@ HRESULT MachineDebugger::setCSAMEnabled(BOOL aCSAMEnabled)
 {
     LogFlowThisFunc(("enable=%d\n", aCSAMEnabled));
 
-#ifdef VBOX_WITH_RAW_MODE
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    if (i_queueSettings())
-    {
-        // queue the request
-        mCsamEnabledQueued = aCSAMEnabled;
-        return S_OK;
-    }
-
-    Console::SafeVMPtr ptrVM(mParent);
-    if (FAILED(ptrVM.rc()))
-        return ptrVM.rc();
-
-    int vrc = CSAMR3SetScanningEnabled(ptrVM.rawUVM(), aCSAMEnabled != FALSE);
-    if (RT_FAILURE(vrc))
-        return setErrorBoth(VBOX_E_VM_ERROR, vrc, tr("CSAMR3SetScanningEnabled returned %Rrc"), vrc);
-
-#else  /* !VBOX_WITH_RAW_MODE */
     if (aCSAMEnabled)
         return setErrorBoth(VBOX_E_VM_ERROR, VERR_RAW_MODE_NOT_SUPPORTED, tr("CASM not present"));
-#endif /* !VBOX_WITH_RAW_MODE */
     return S_OK;
 }
 
@@ -949,12 +888,13 @@ static DECLCALLBACK(void) MachineDebuggerInfoPrintf(PCDBGFINFOHLP pHlp, const ch
  */
 static void MachineDebuggerInfoInit(PMACHINEDEBUGGERINOFHLP pHlp)
 {
-    pHlp->Core.pfnPrintf    = MachineDebuggerInfoPrintf;
-    pHlp->Core.pfnPrintfV   = MachineDebuggerInfoPrintfV;
-    pHlp->pszBuf            = NULL;
-    pHlp->cbBuf             = 0;
-    pHlp->offBuf            = 0;
-    pHlp->fOutOfMemory      = false;
+    pHlp->Core.pfnPrintf        = MachineDebuggerInfoPrintf;
+    pHlp->Core.pfnPrintfV       = MachineDebuggerInfoPrintfV;
+    pHlp->Core.pfnGetOptError   = DBGFR3InfoGenricGetOptError;
+    pHlp->pszBuf                = NULL;
+    pHlp->cbBuf                 = 0;
+    pHlp->offBuf                = 0;
+    pHlp->fOutOfMemory          = false;
 }
 
 /**
@@ -1438,8 +1378,7 @@ HRESULT MachineDebugger::dumpGuestStack(ULONG aCpuId, com::Utf8Str &aStack)
         {
             VMSTATE enmVmState = VMR3GetStateU(ptrVM.rawUVM());
             if (   enmVmState == VMSTATE_RUNNING
-                || enmVmState == VMSTATE_RUNNING_LS
-                || enmVmState == VMSTATE_RUNNING_FT)
+                || enmVmState == VMSTATE_RUNNING_LS)
             {
                 alock.release();
                 vrc = VMR3Suspend(ptrVM.rawUVM(), VMSUSPENDREASON_USER);
@@ -1602,7 +1541,6 @@ HRESULT MachineDebugger::dumpStats(const com::Utf8Str &aPattern)
 HRESULT MachineDebugger::getStats(const com::Utf8Str &aPattern, BOOL aWithDescriptions, com::Utf8Str &aStats)
 {
     Console::SafeVMPtrQuiet ptrVM(mParent);
-
     if (!ptrVM.isOk())
         return setError(VBOX_E_INVALID_VM_STATE, "Machine is not running");
 
@@ -1620,6 +1558,36 @@ HRESULT MachineDebugger::getStats(const com::Utf8Str &aPattern, BOOL aWithDescri
     STAMR3SnapshotFree(ptrVM.rawUVM(), pszSnapshot);
 
     return S_OK;
+}
+
+
+/** Wrapper around TMR3GetCpuLoadPercents. */
+HRESULT MachineDebugger::getCPULoad(ULONG aCpuId, ULONG *aPctExecuting, ULONG *aPctHalted, ULONG *aPctOther, LONG64 *aMsInterval)
+{
+    HRESULT hrc;
+    Console::SafeVMPtrQuiet ptrVM(mParent);
+    if (ptrVM.isOk())
+    {
+        uint8_t uPctExecuting = 0;
+        uint8_t uPctHalted    = 0;
+        uint8_t uPctOther     = 0;
+        uint64_t msInterval   = 0;
+        int vrc = TMR3GetCpuLoadPercents(ptrVM.rawUVM(), aCpuId >= UINT32_MAX / 2 ? VMCPUID_ALL : aCpuId,
+                                         &msInterval, &uPctExecuting, &uPctHalted, &uPctOther);
+        if (RT_SUCCESS(vrc))
+        {
+            *aPctExecuting = uPctExecuting;
+            *aPctHalted    = uPctHalted;
+            *aPctOther     = uPctOther;
+            *aMsInterval   = msInterval;
+            hrc = S_OK;
+        }
+        else
+            hrc = setErrorVrc(vrc);
+    }
+    else
+        hrc = setError(VBOX_E_INVALID_VM_STATE, "Machine is not running");
+    return hrc;
 }
 
 

@@ -24,7 +24,7 @@
 /* GUI includes: */
 #include "QIDialogButtonBox.h"
 #include "QIManagerDialog.h"
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #include "UIDesktopWidgetWatchdog.h"
 #ifdef VBOX_WS_MAC
 # include "UIToolBar.h"
@@ -55,7 +55,7 @@ void QIManagerDialogFactory::cleanup(QIManagerDialog *&pDialog)
 *********************************************************************************************************************************/
 
 QIManagerDialog::QIManagerDialog(QWidget *pCenterWidget)
-    : pCenterWidget(pCenterWidget)
+    : m_pCenterWidget(pCenterWidget)
     , m_fCloseEmitted(false)
     , m_pWidget(0)
     , m_pWidgetMenu(0)
@@ -73,7 +73,7 @@ void QIManagerDialog::prepare()
 
     /* Invent initial size: */
     QSize proposedSize;
-    const int iHostScreen = gpDesktop->screenNumber(pCenterWidget);
+    const int iHostScreen = gpDesktop->screenNumber(m_pCenterWidget);
     if (iHostScreen >= 0 && iHostScreen < gpDesktop->screenCount())
     {
         /* On the basis of current host-screen geometry if possible: */
@@ -103,7 +103,7 @@ void QIManagerDialog::prepare()
     finalize();
 
     /* Center according requested widget: */
-    VBoxGlobal::centerWidget(this, pCenterWidget, false);
+    UICommon::centerWidget(this, m_pCenterWidget, false);
 
     /* Load the dialog's settings from extradata */
     loadSettings();
@@ -229,20 +229,4 @@ void QIManagerDialog::closeEvent(QCloseEvent *pEvent)
         m_fCloseEmitted = true;
         emit sigClose();
     }
-}
-
-void QIManagerDialog::setDialogGeometry(const QRect &geometry)
-{
-#ifdef VBOX_WS_MAC
-    /* Use the old approach for OSX: */
-    move(geometry.topLeft());
-    resize(geometry.size());
-#else /* VBOX_WS_MAC */
-    /* Use the new approach for Windows/X11: */
-    VBoxGlobal::setTopLevelGeometry(this, geometry);
-#endif /* !VBOX_WS_MAC */
-
-    /* Maximize (if necessary): */
-    if (shouldBeMaximized())
-        showMaximized();
 }

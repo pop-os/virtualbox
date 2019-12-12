@@ -21,47 +21,78 @@
 # pragma once
 #endif
 
-/* Local includes: */
+/* GUI includes: */
 #include "UIWizardImportAppPageBasic1.h"
 #include "UIWizardImportAppPageBasic2.h"
 
 /* Forward declarations: */
 class QGroupBox;
 
-/* Expert page of the Import Appliance wizard: */
+/** UIWizardPage extension for UIWizardImportAppPage1 and UIWizardImportAppPage2. */
 class UIWizardImportAppPageExpert : public UIWizardPage,
                                     public UIWizardImportAppPage1,
                                     public UIWizardImportAppPage2
 {
     Q_OBJECT;
+    Q_PROPERTY(QString source READ source WRITE setSource);
+    Q_PROPERTY(bool isSourceCloudOne READ isSourceCloudOne);
+    Q_PROPERTY(CCloudProfile profile READ profile);
+    Q_PROPERTY(CAppliance appliance READ appliance);
+    Q_PROPERTY(CVirtualSystemDescriptionForm vsdForm READ vsdForm);
+    Q_PROPERTY(QString machineId READ machineId);
     Q_PROPERTY(ImportAppliancePointer applianceWidget READ applianceWidget);
 
 public:
 
-    /* Constructor: */
-    UIWizardImportAppPageExpert(const QString &strFileName);
+    /** Constructs expert page.
+      * @param  strFileName  Brings appliance file name. */
+    UIWizardImportAppPageExpert(bool fImportFromOCIByDefault, const QString &strFileName);
+
+protected:
+
+    /** Allows to access 'field()' from base part. */
+    virtual QVariant fieldImp(const QString &strFieldName) const /* override */ { return UIWizardPage::field(strFieldName); }
+
+    /** Handle any Qt @a pEvent. */
+    virtual bool event(QEvent *pEvent) /* override */;
+
+    /** Handles translation event. */
+    virtual void retranslateUi() /* override */;
+
+    /** Performs page initialization. */
+    virtual void initializePage() /* override */;
+
+    /** Returns whether page is complete. */
+    virtual bool isComplete() const /* override */;
+
+    /** Performs page validation. */
+    virtual bool validatePage() /* override */;
+
+    /** Updates page appearance. */
+    virtual void updatePageAppearance() /* override */;
 
 private slots:
 
-    /* File-path change handler: */
+    /** Handles import source change. */
+    void sltHandleSourceChange();
+
+    /** Handles file-path change. */
     void sltFilePathChangeHandler();
+
+    /** Handles change in account combo-box. */
+    void sltHandleAccountComboChange();
+    /** Handles account tool-button click. */
+    void sltHandleAccountButtonClick();
+
+    /** Handles change in instance list. */
+    void sltHandleInstanceListChange();
 
 private:
 
-    /* Translate stuff: */
-    void retranslateUi();
-
-    /* Prepare stuff: */
-    void initializePage();
-
-    /* Validation stuff: */
-    bool isComplete() const;
-    bool validatePage();
-
-    /* Widgets: */
-    QGroupBox *m_pApplianceCnt;
+    /** Holds the source container instance. */
+    QGroupBox *m_pCntSource;
+    /** Holds the settings container instance. */
     QGroupBox *m_pSettingsCnt;
 };
 
 #endif /* !FEQT_INCLUDED_SRC_wizards_importappliance_UIWizardImportAppPageExpert_h */
-

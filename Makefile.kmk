@@ -23,7 +23,8 @@ include $(KBUILD_PATH)/subheader.kmk
 #
 ifndef VBOX_ONLY_ROOT_MAKEFILE
  if  (defined(VBOX_WITH_DOCS) || defined(VBOX_WITH_MAIN)) \
-  && (!defined(VBOX_ONLY_BUILD) || defined(VBOX_ONLY_DOCS) || defined(VBOX_ONLY_SDK))
+  && (!defined(VBOX_ONLY_BUILD) || defined(VBOX_ONLY_DOCS) || defined(VBOX_ONLY_SDK)) \
+  && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SUPPORTED_HOST_ARCHS))" != ""
   include $(PATH_SUB_CURRENT)/doc/manual/Makefile.kmk
  endif
  include $(PATH_SUB_CURRENT)/src/Makefile.kmk
@@ -477,11 +478,13 @@ else  # !VBOX_ONLY_DOCS
 #
  ifdef VBOX_WITH_ALL_DOXYGEN_TARGETS
 docs: docs.Core
+ else
+docs:
  endif
 endif # !VBOX_ONLY_DOCS
 
 #
-# The core (VMM+REM+Devices+Main) documentation.
+# The core (VMM+Devices+Main) documentation.
 #
 # This includes so much because we wish to have the complete CFGM
 # and GCFGM lists.
@@ -704,7 +707,7 @@ VBOX_CORE_DOXYFILE_INPUT_DIRS = \
 	src/VBox/Additions/x11/vboxmouse/xorg71 \
 	src/VBox/Additions/x11/vboxvideo \
 	src/VBox/NetworkServices \
-	src/VBox/NetworkServices/DHCP \
+	src/VBox/NetworkServices/Dhcpd \
 	src/VBox/NetworkServices/NAT \
 	src/VBox/NetworkServices/NetLib \
 	src/VBox/Storage \
@@ -759,7 +762,6 @@ VBOX_CORE_DOXYFILE_INPUT_FIRST =\
 	$(PATH_ROOT)/include/VBox/vmm/pgm.h \
 	$(PATH_ROOT)/include/VBox/vmm/selm.h \
 	$(PATH_ROOT)/include/VBox/vmm/trpm.h \
-	$(PATH_ROOT)/include/VBox/vmm/patm.h \
 	$(PATH_ROOT)/include/VBox/vmm/dbgf.h \
 	$(PATH_ROOT)/include/VBox/vmm/stam.h \
 	$(PATH_ROOT)/include/VBox/vmm/em.h \
@@ -774,12 +776,10 @@ VBOX_CORE_DOXYFILE_INPUT_FIRST =\
 	$(PATH_ROOT)/include/VBox/vmm/pdmnetifs.h \
 	$(PATH_ROOT)/include/VBox/vmm/pdmserialifs.h \
 	$(PATH_ROOT)/include/VBox/vmm/pdmstorageifs.h \
-	$(PATH_ROOT)/include/VBox/vmm/rem.h \
 	$(PATH_ROOT)/include/VBox/vmm/iom.h \
 	$(PATH_ROOT)/include/VBox/vmm/cfgm.h \
 	$(PATH_ROOT)/include/VBox/vmm/gim.h \
 	$(PATH_ROOT)/include/VBox/vmm/tm.h \
-	$(PATH_ROOT)/include/VBox/vmm/csam.h \
 	$(PATH_ROOT)/include/VBox/vmm/ssm.h \
 	\
 	$(PATH_ROOT)/src/VBox/VMM/include/CFGMInternal.h \
@@ -794,9 +794,6 @@ VBOX_CORE_DOXYFILE_INPUT_FIRST =\
 	$(PATH_ROOT)/src/VBox/VMM/include/PDMInternal.h \
 	$(PATH_ROOT)/src/VBox/VMM/include/PGMInternal.h \
 	$(PATH_ROOT)/src/VBox/VMM/include/GIMInternal.h \
-	$(PATH_ROOT)/src/VBox/VMM/include/CSAMInternal.h \
-	$(PATH_ROOT)/src/VBox/VMM/include/PATMInternal.h \
-	$(PATH_ROOT)/src/VBox/VMM/include/REMInternal.h \
 	$(PATH_ROOT)/src/VBox/VMM/include/SELMInternal.h \
 	$(PATH_ROOT)/src/VBox/VMM/include/SSMInternal.h \
 	$(PATH_ROOT)/src/VBox/VMM/include/STAMInternal.h \
@@ -828,7 +825,8 @@ VBOX_CORE_DOXYFILE_INPUT_FIRST =\
 	$(PATH_ROOT)/include/VBox/param.h \
 	$(PATH_ROOT)/include/VBox/version.h \
        \
-	$(PATH_ROOT)/include/VBox/com/com.h
+	$(PATH_ROOT)/include/VBox/com/com.h \
+	$(PATH_ROOT)/include/VBox/com/utils.h
 
 VBOX_CORE_DOXYFILE_INPUT := \
 	$(filter-out %.cpp.h, $(sort $(wildcard $(addsuffix /*.h, $(VBOX_CORE_DOXYFILE_INPUT_DIRS)))) ) \
@@ -837,11 +835,6 @@ VBOX_CORE_DOXYFILE_INPUT := \
 VBOX_CORE_DOXYFILE_INPUT := \
 	$(VBOX_CORE_DOXYFILE_INPUT_FIRST) \
 	$(sort $(filter-out $(VBOX_CORE_DOXYFILE_INPUT_FIRST), $(VBOX_CORE_DOXYFILE_INPUT)))
-
-# And some some additional stuff.
-VBOX_CORE_DOXYFILE_INPUT += \
-	$(PATH_ROOT)/src/recompiler/VBoxRecompiler.c \
-	$(PATH_ROOT)/src/recompiler/VBoxREMWrapper.cpp
 
 includedep $(VBOX_CORE_DOXYFILE_OUTPUT)/Doxyfile.Core.dep
 
@@ -1398,15 +1391,17 @@ additions-packing:
 extpacks-fetch:
 	+ $(KMK) -C tools fetch VBOX_ONLY_EXTPACKS=1
 	+ $(KMK) -C tools fetch KBUILD_TARGET_ARCH=amd64 KBUILD_TARGET=darwin  BUILD_TARGET_ARCH=amd64 BUILD_TARGET=darwin   VBOX_ONLY_EXTPACKS=1
-	+ $(KMK) -C tools fetch KBUILD_TARGET_ARCH=x86   KBUILD_TARGET=darwin  BUILD_TARGET_ARCH=x86   BUILD_TARGET=darwin   VBOX_ONLY_EXTPACKS=1
 #	+ $(KMK) -C tools fetch KBUILD_TARGET_ARCH=amd64 KBUILD_TARGET=freebsd BUILD_TARGET_ARCH=amd64 BUILD_TARGET=freebsd  VBOX_ONLY_EXTPACKS=1
-#	+ $(KMK) -C tools fetch KBUILD_TARGET_ARCH=x86   KBUILD_TARGET=freebsd BUILD_TARGET_ARCH=x86   BUILD_TARGET=freebsd  VBOX_ONLY_EXTPACKS=1
 	+ $(KMK) -C tools fetch KBUILD_TARGET_ARCH=amd64 KBUILD_TARGET=linux   BUILD_TARGET_ARCH=amd64 BUILD_TARGET=linux    VBOX_ONLY_EXTPACKS=1
-	+ $(KMK) -C tools fetch KBUILD_TARGET_ARCH=x86   KBUILD_TARGET=linux   BUILD_TARGET_ARCH=x86   BUILD_TARGET=linux    VBOX_ONLY_EXTPACKS=1
-#	+ $(KMK) -C tools fetch KBUILD_TARGET_ARCH=x86   KBUILD_TARGET=os2     BUILD_TARGET_ARCH=x86   BUILD_TARGET=os2      VBOX_ONLY_EXTPACKS=1
 	+ $(KMK) -C tools fetch KBUILD_TARGET_ARCH=amd64 KBUILD_TARGET=solaris BUILD_TARGET_ARCH=amd64 BUILD_TARGET=solaris  VBOX_ONLY_EXTPACKS=1
 	+ $(KMK) -C tools fetch KBUILD_TARGET_ARCH=amd64 KBUILD_TARGET=win     BUILD_TARGET_ARCH=amd64 BUILD_TARGET=win	     VBOX_ONLY_EXTPACKS=1
+if1of (x86, $(VBOX_SUPPORTED_HOST_ARCHS))
+	+ $(KMK) -C tools fetch KBUILD_TARGET_ARCH=x86   KBUILD_TARGET=darwin  BUILD_TARGET_ARCH=x86   BUILD_TARGET=darwin   VBOX_ONLY_EXTPACKS=1
+#	+ $(KMK) -C tools fetch KBUILD_TARGET_ARCH=x86   KBUILD_TARGET=freebsd BUILD_TARGET_ARCH=x86   BUILD_TARGET=freebsd  VBOX_ONLY_EXTPACKS=1
+	+ $(KMK) -C tools fetch KBUILD_TARGET_ARCH=x86   KBUILD_TARGET=linux   BUILD_TARGET_ARCH=x86   BUILD_TARGET=linux    VBOX_ONLY_EXTPACKS=1
+#	+ $(KMK) -C tools fetch KBUILD_TARGET_ARCH=x86   KBUILD_TARGET=os2     BUILD_TARGET_ARCH=x86   BUILD_TARGET=os2      VBOX_ONLY_EXTPACKS=1
 	+ $(KMK) -C tools fetch KBUILD_TARGET_ARCH=x86   KBUILD_TARGET=win     BUILD_TARGET_ARCH=x86   BUILD_TARGET=win	     VBOX_ONLY_EXTPACKS=1
+endif
 
 
 extpacks-build: \
@@ -1451,12 +1446,16 @@ else
 endif
 
 extpacks-build-win.x86:
-ifeq ($(KBUILD_TARGET),win)
+if1of (x86, $(VBOX_SUPPORTED_HOST_ARCHS))
+ ifeq ($(KBUILD_TARGET),win)
 	+ $(TIME) -- $(KMK) $(VBOX_EXTPACKS_BUILD.x86) all $(VBOX_EXTPACKS_HOST_BUILD_TWEAK)
-else
+ else
 	$(call VBOX_BLD_VM_MSG_BEGIN,Windows/x86 extension packs)
 	$(TIME) -- $(VBOX_SSH) vbox@$(VBOX_BLD_VM_WIN_X86_IP) 'cd e:/$(VBOX_EXTPACKS_BUILD_SUBDIRNAME) && tools/env.sh kmk $(VBOX_EXTPACKS_BUILD.x86) all '
 	$(call VBOX_BLD_VM_MSG_END__,Windows/x86 extension packs)
+ endif
+else
+	@$(ECHO) "nothing to do for unsupported host $@"
 endif
 
 ifeq ($(KBUILD_TARGET),solaris)
@@ -1494,7 +1493,11 @@ extpacks-build-linux.amd64:   $(VBOX_EXTPACKS_BUILD_WIN_HOST_FIRST)
 	+ $(TIME) -- $(KMK) $(VBOX_EXTPACKS_BUILD.amd64) all $(VBOX_EXTPACKS_HOST_BUILD_TWEAK)
 
 extpacks-build-linux.x86:   $(VBOX_EXTPACKS_BUILD_WIN_HOST_FIRST)
+ if1of (x86, $(VBOX_SUPPORTED_HOST_ARCHS))
 	+ $(TIME) -- $(KMK) $(VBOX_EXTPACKS_BUILD.x86) all $(VBOX_EXTPACKS_HOST_BUILD_TWEAK)
+ else
+	@$(ECHO) "nothing to do for unsupported host $@"
+ endif
 
 extpacks-build-linux: extpacks-build-linux.x86 extpacks-build-linux.amd64
 else
@@ -1506,12 +1509,16 @@ extpacks-build-linux.build-it: extpacks-build-linux.rsync-into-vm
 	$(call VBOX_BLD_VM_MSG_BEGIN,Linux/amd64 extension packs)
 	$(TIME) -- $(VBOX_SSH) vbox@$(VBOX_BLD_VM_LNX_IP)         'dchroot -c debian-4.0-amd64 "cd /mnt/tinderbox/$(VBOX_EXTPACKS_BUILD_SUBDIRNAME) && tools/env.sh --no-wine kmk $(VBOX_EXTPACKS_BUILD.amd64) all " '
 	$(call VBOX_BLD_VM_MSG_END__,Linux/amd64 extension packs)
+ if1of (x86, $(VBOX_SUPPORTED_HOST_ARCHS))
 	$(call VBOX_BLD_VM_MSG_BEGIN,Linux/x86 extension packs)
 	$(TIME) -- $(VBOX_SSH) vbox@$(VBOX_BLD_VM_LNX_IP) 'linux32 dchroot -c debian-4.0-i386  "cd /mnt/tinderbox/$(VBOX_EXTPACKS_BUILD_SUBDIRNAME) && tools/env.sh --no-wine kmk $(VBOX_EXTPACKS_BUILD.x86)   all " '
 	$(call VBOX_BLD_VM_MSG_END__,Linux/x86 extension packs)
+ endif
 
 extpacks-build-linux.rsync-out-of-vm: extpacks-build-linux.build-it
+ if1of (x86, $(VBOX_SUPPORTED_HOST_ARCHS))
 	$(TIME) -- $(VBOX_RSYNC) -a --delete $(VBOX_BLD_VM_LNX_IP):/mnt/tinderbox/$(VBOX_EXTPACKS_BUILD_SUBDIRNAME)/out/linux.x86 out/
+ endif
 	$(TIME) -- $(VBOX_RSYNC) -a --delete $(VBOX_BLD_VM_LNX_IP):/mnt/tinderbox/$(VBOX_EXTPACKS_BUILD_SUBDIRNAME)/out/linux.amd64 out/
 
 #.NOTPARALLEL: extpacks-build-linux.rsync-into-vm
@@ -1550,10 +1557,14 @@ else
 endif
 
 extpacks-packing:
-	+ $(KMK) VBOX_ONLY_EXTPACKS=1 \
-		VBOX_WITH_EXTPACK_OS_ARCHS="darwin.amd64 linux.amd64 linux.x86 solaris.amd64 win.amd64 win.x86" \
-		packing
-# +++ freebsd.amd64 freebsd.x86 os2.x86 ^^^
+if1of (x86, $(VBOX_SUPPORTED_HOST_ARCHS))
+	+ $(KMK) VBOX_WITH_EXTPACK_OS_ARCHS="darwin.amd64 linux.amd64 linux.x86 solaris.amd64 win.amd64 win.x86" \
+		VBOX_ONLY_EXTPACKS=1 packing
+else
+	+ $(KMK) VBOX_WITH_EXTPACK_OS_ARCHS="darwin.amd64 linux.amd64 solaris.amd64 win.amd64" \
+		VBOX_ONLY_EXTPACKS=1 packing
+endif
+# +++ freebsd.amd64 ^^^
 
 .PHONY: \
 	extpacks-build-win.x86 \
@@ -1984,7 +1995,6 @@ quick: \
 	VBoxC \
 	VBoxSVC \
 	$(if-expr defined(VBOX_WITH_RAW_MODE),VMMRC VBoxDDRC VBoxDD2RC,) \
-	$(if-expr defined(VBOX_WITH_REM),VBoxREM,) \
 	$(if-expr defined(VBOX_WITH_MIDL_PROXY_STUB) && "$(KBUILD_TARGET)" == "win",VBoxProxyStub,) \
 	$(if-expr defined(VBOX_WITH_SDS),VBoxSDS,) \
 	$(if-expr defined(VBOX_WITH_QTGUI),VirtualBox,)

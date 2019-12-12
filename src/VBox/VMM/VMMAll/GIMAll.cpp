@@ -23,7 +23,7 @@
 #include <VBox/vmm/gim.h>
 #include <VBox/vmm/em.h>    /* For EMInterpretDisasCurrent */
 #include "GIMInternal.h"
-#include <VBox/vmm/vm.h>
+#include <VBox/vmm/vmcc.h>
 
 #include <VBox/dis.h>       /* For DISCPUSTATE */
 #include <VBox/err.h>
@@ -61,12 +61,43 @@ VMMDECL(GIMPROVIDERID) GIMGetProvider(PVM pVM)
 
 
 /**
+ * Returns the array of MMIO2 regions that are expected to be registered and
+ * later mapped into the guest-physical address space for the GIM provider
+ * configured for the VM.
+ *
+ * @returns Pointer to an array of GIM MMIO2 regions, may return NULL.
+ * @param   pVM         The cross context VM structure.
+ * @param   pcRegions   Where to store the number of items in the array.
+ *
+ * @remarks The caller does not own and therefore must -NOT- try to free the
+ *          returned pointer.
+ */
+VMMDECL(PGIMMMIO2REGION) GIMGetMmio2Regions(PVMCC pVM, uint32_t *pcRegions)
+{
+    Assert(pVM);
+    Assert(pcRegions);
+
+    *pcRegions = 0;
+    switch (pVM->gim.s.enmProviderId)
+    {
+        case GIMPROVIDERID_HYPERV:
+            return gimHvGetMmio2Regions(pVM, pcRegions);
+
+        default:
+            break;
+    }
+
+    return NULL;
+}
+
+
+/**
  * Returns whether the guest has configured and enabled calls to the hypervisor.
  *
  * @returns true if hypercalls are enabled and usable, false otherwise.
  * @param   pVCpu           The cross context virtual CPU structure.
  */
-VMM_INT_DECL(bool) GIMAreHypercallsEnabled(PVMCPU pVCpu)
+VMM_INT_DECL(bool) GIMAreHypercallsEnabled(PVMCPUCC pVCpu)
 {
     PVM pVM = pVCpu->CTX_SUFF(pVM);
     if (!GIMIsEnabled(pVM))
@@ -75,7 +106,7 @@ VMM_INT_DECL(bool) GIMAreHypercallsEnabled(PVMCPU pVCpu)
     switch (pVM->gim.s.enmProviderId)
     {
         case GIMPROVIDERID_HYPERV:
-            return gimHvAreHypercallsEnabled(pVCpu);
+            return gimHvAreHypercallsEnabled(pVM);
 
         case GIMPROVIDERID_KVM:
             return gimKvmAreHypercallsEnabled(pVCpu);
@@ -109,9 +140,9 @@ VMM_INT_DECL(bool) GIMAreHypercallsEnabled(PVMCPU pVCpu)
  * @remarks The caller of this function needs to advance RIP as required.
  * @thread  EMT.
  */
-VMM_INT_DECL(VBOXSTRICTRC) GIMHypercall(PVMCPU pVCpu, PCPUMCTX pCtx)
+VMM_INT_DECL(VBOXSTRICTRC) GIMHypercall(PVMCPUCC pVCpu, PCPUMCTX pCtx)
 {
-    PVM pVM = pVCpu->CTX_SUFF(pVM);
+    PVMCC pVM = pVCpu->CTX_SUFF(pVM);
     VMCPU_ASSERT_EMT(pVCpu);
 
     if (RT_UNLIKELY(!GIMIsEnabled(pVM)))
@@ -160,9 +191,9 @@ VMM_INT_DECL(VBOXSTRICTRC) GIMHypercall(PVMCPU pVCpu, PCPUMCTX pCtx)
  * @remarks The caller of this function needs to advance RIP as required.
  * @thread  EMT.
  */
-VMM_INT_DECL(VBOXSTRICTRC) GIMHypercallEx(PVMCPU pVCpu, PCPUMCTX pCtx, unsigned uDisOpcode, uint8_t cbInstr)
+VMM_INT_DECL(VBOXSTRICTRC) GIMHypercallEx(PVMCPUCC pVCpu, PCPUMCTX pCtx, unsigned uDisOpcode, uint8_t cbInstr)
 {
-    PVM pVM = pVCpu->CTX_SUFF(pVM);
+    PVMCC pVM = pVCpu->CTX_SUFF(pVM);
     VMCPU_ASSERT_EMT(pVCpu);
 
     if (RT_UNLIKELY(!GIMIsEnabled(pVM)))
@@ -195,9 +226,9 @@ VMM_INT_DECL(VBOXSTRICTRC) GIMHypercallEx(PVMCPU pVCpu, PCPUMCTX pCtx, unsigned 
  *          handle VMCALL/VMMCALL instructions to call into GIM when
  *          required. See @bugref{7270#c168}.
  */
-VMM_INT_DECL(VBOXSTRICTRC) GIMExecHypercallInstr(PVMCPU pVCpu, PCPUMCTX pCtx, uint8_t *pcbInstr)
+VMM_INT_DECL(VBOXSTRICTRC) GIMExecHypercallInstr(PVMCPUCC pVCpu, PCPUMCTX pCtx, uint8_t *pcbInstr)
 {
-    PVM pVM = pVCpu->CTX_SUFF(pVM);
+    PVMCC pVM = pVCpu->CTX_SUFF(pVM);
     VMCPU_ASSERT_EMT(pVCpu);
 
     if (RT_UNLIKELY(!GIMIsEnabled(pVM)))
@@ -239,7 +270,7 @@ VMM_INT_DECL(VBOXSTRICTRC) GIMExecHypercallInstr(PVMCPU pVCpu, PCPUMCTX pCtx, ui
  * @returns true if enabled and usable, false otherwise.
  * @param   pVM         The cross context VM structure.
  */
-VMM_INT_DECL(bool) GIMIsParavirtTscEnabled(PVM pVM)
+VMM_INT_DECL(bool) GIMIsParavirtTscEnabled(PVMCC pVM)
 {
     switch (pVM->gim.s.enmProviderId)
     {
@@ -268,7 +299,7 @@ VMM_INT_DECL(bool) GIMIsParavirtTscEnabled(PVM pVM)
  * @returns true if needed, false otherwise.
  * @param   pVCpu       The cross context virtual CPU structure.
  */
-VMM_INT_DECL(bool) GIMShouldTrapXcptUD(PVMCPU pVCpu)
+VMM_INT_DECL(bool) GIMShouldTrapXcptUD(PVMCPUCC pVCpu)
 {
     PVM pVM = pVCpu->CTX_SUFF(pVM);
     if (!GIMIsEnabled(pVM))
@@ -277,7 +308,7 @@ VMM_INT_DECL(bool) GIMShouldTrapXcptUD(PVMCPU pVCpu)
     switch (pVM->gim.s.enmProviderId)
     {
         case GIMPROVIDERID_KVM:
-            return gimKvmShouldTrapXcptUD(pVCpu);
+            return gimKvmShouldTrapXcptUD(pVM);
 
         case GIMPROVIDERID_HYPERV:
             return gimHvShouldTrapXcptUD(pVCpu);
@@ -312,16 +343,16 @@ VMM_INT_DECL(bool) GIMShouldTrapXcptUD(PVMCPU pVCpu)
  *
  * @thread  EMT(pVCpu).
  */
-VMM_INT_DECL(VBOXSTRICTRC) GIMXcptUD(PVMCPU pVCpu, PCPUMCTX pCtx, PDISCPUSTATE pDis, uint8_t *pcbInstr)
+VMM_INT_DECL(VBOXSTRICTRC) GIMXcptUD(PVMCPUCC pVCpu, PCPUMCTX pCtx, PDISCPUSTATE pDis, uint8_t *pcbInstr)
 {
-    PVM pVM = pVCpu->CTX_SUFF(pVM);
+    PVMCC pVM = pVCpu->CTX_SUFF(pVM);
     Assert(GIMIsEnabled(pVM));
     Assert(pDis || pcbInstr);
 
     switch (pVM->gim.s.enmProviderId)
     {
         case GIMPROVIDERID_KVM:
-            return gimKvmXcptUD(pVCpu, pCtx, pDis, pcbInstr);
+            return gimKvmXcptUD(pVM, pVCpu, pCtx, pDis, pcbInstr);
 
         case GIMPROVIDERID_HYPERV:
             return gimHvXcptUD(pVCpu, pCtx, pDis, pcbInstr);
@@ -344,10 +375,10 @@ VMM_INT_DECL(VBOXSTRICTRC) GIMXcptUD(PVMCPU pVCpu, PCPUMCTX pCtx, PDISCPUSTATE p
  * @param   pRange      The range this MSR belongs to.
  * @param   puValue     Where to store the MSR value read.
  */
-VMM_INT_DECL(VBOXSTRICTRC) GIMReadMsr(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t *puValue)
+VMM_INT_DECL(VBOXSTRICTRC) GIMReadMsr(PVMCPUCC pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t *puValue)
 {
     Assert(pVCpu);
-    PVM pVM = pVCpu->CTX_SUFF(pVM);
+    PVMCC pVM = pVCpu->CTX_SUFF(pVM);
     Assert(GIMIsEnabled(pVM));
     VMCPU_ASSERT_EMT(pVCpu);
 
@@ -379,12 +410,12 @@ VMM_INT_DECL(VBOXSTRICTRC) GIMReadMsr(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRAN
  * @param   uValue      The value to set, ignored bits masked.
  * @param   uRawValue   The raw value with the ignored bits not masked.
  */
-VMM_INT_DECL(VBOXSTRICTRC) GIMWriteMsr(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t uValue, uint64_t uRawValue)
+VMM_INT_DECL(VBOXSTRICTRC) GIMWriteMsr(PVMCPUCC pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t uValue, uint64_t uRawValue)
 {
     AssertPtr(pVCpu);
     NOREF(uValue);
 
-    PVM pVM = pVCpu->CTX_SUFF(pVM);
+    PVMCC pVM = pVCpu->CTX_SUFF(pVM);
     Assert(GIMIsEnabled(pVM));
     VMCPU_ASSERT_EMT(pVCpu);
 
@@ -424,6 +455,7 @@ VMM_INT_DECL(int) GIMQueryHypercallOpcodeBytes(PVM pVM, void *pvBuf, size_t cbBu
     switch (enmHostCpu)
     {
         case CPUMCPUVENDOR_AMD:
+        case CPUMCPUVENDOR_HYGON:
         {
             if (puDisOpcode)
                 *puDisOpcode = OP_VMMCALL;

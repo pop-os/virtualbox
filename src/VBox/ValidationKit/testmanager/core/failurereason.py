@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 131247 $"
 
 
 # Standard Python imports.
@@ -142,7 +142,7 @@ class FailureReasonDataEx(FailureReasonData):
         return self;
 
 
-class FailureReasonLogic(ModelLogicBase): # pylint: disable=R0903
+class FailureReasonLogic(ModelLogicBase): # pylint: disable=too-few-public-methods
     """
     Failure Reason logic.
     """
@@ -275,7 +275,7 @@ class FailureReasonLogic(ModelLogicBase): # pylint: disable=R0903
         return [(-1, sFirstEntry, '')] + aoRows;
 
 
-    def fetchForChangeLog(self, idFailureReason, iStart, cMaxRows, tsNow): # pylint: disable=R0914
+    def fetchForChangeLog(self, idFailureReason, iStart, cMaxRows, tsNow): # pylint: disable=too-many-locals
         """
         Fetches change log entries for a failure reason.
 

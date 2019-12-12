@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # $Id: regen_sched_queues.py $
-# pylint: disable=C0301
+# pylint: disable=line-too-long
 
 """
 Interface used by the admin to regenerate scheduling queues.
@@ -30,7 +30,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 131247 $"
 
 # Standard python imports
 import sys;
@@ -48,7 +48,7 @@ from testmanager.core.schedgroup    import SchedGroupLogic;
 
 
 
-class RegenSchedQueues(object): # pylint: disable=R0903
+class RegenSchedQueues(object): # pylint: disable=too-few-public-methods
     """
     Regenerates all the scheduling queues.
     """

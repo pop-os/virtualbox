@@ -22,7 +22,7 @@
 
 /* GUI includes: */
 #include "QIFileDialog.h"
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #include "UIDownloaderExtensionPack.h"
 #include "UIMessageCenter.h"
 #include "UIModalWindowManager.h"
@@ -51,7 +51,7 @@ UIDownloaderExtensionPack::UIDownloaderExtensionPack()
         s_pInstance = this;
 
     /* Get version number and adjust it for test and trunk builds. The server only has official releases. */
-    const QString strVersion = UIVersion(vboxGlobal().vboxVersionStringNormalized()).effectiveReleasedVersion().toString();
+    const QString strVersion = UIVersion(uiCommon().vboxVersionStringNormalized()).effectiveReleasedVersion().toString();
 
     /* Prepare source/target: */
     const QString strUnderscoredName = QString(GUI_ExtPackName).replace(' ', '_');
@@ -59,7 +59,7 @@ UIDownloaderExtensionPack::UIDownloaderExtensionPack()
     const QString strSourcePath = QString("https://download.virtualbox.org/virtualbox/%1/").arg(strVersion);
     const QString strSource = strSourcePath + strSourceName;
     const QString strPathSHA256SumsFile = QString("https://www.virtualbox.org/download/hashes/%1/SHA256SUMS").arg(strVersion);
-    const QString strTarget = QDir(vboxGlobal().homeFolder()).absoluteFilePath(strSourceName);
+    const QString strTarget = QDir(uiCommon().homeFolder()).absoluteFilePath(strSourceName);
 
     /* Set source/target: */
     setSource(strSource);
@@ -148,14 +148,24 @@ void UIDownloaderExtensionPack::handleVerifiedObject(UINetworkReply *pReply)
     /* Serialize that buffer into the file: */
     while (true)
     {
-        /* Try to open file for writing: */
+        /* Make sure the file already exists.  If we reached
+         * this place, it's already written and checked. */
         QFile file(target());
-        if (file.open(QIODevice::WriteOnly))
+        bool fSuccess = false;
+        /* Check step. Try to open file for reading first. */
+        if (file.open(QIODevice::ReadOnly))
+            fSuccess = true;
+        /* Failsafe step. Try to open file for writing otherwise. */
+        if (!fSuccess && file.open(QIODevice::WriteOnly))
         {
             /* Write buffer into the file: */
             file.write(m_receivedData);
             file.close();
-
+            fSuccess = true;
+        }
+        /* If the file already exists or was just written: */
+        if (fSuccess)
+        {
             /* Warn the listener about extension-pack was downloaded: */
             emit sigDownloadFinished(source().toString(), target(), strCalculatedSumm);
             break;

@@ -78,7 +78,7 @@ int vboxscsiInitialize(PVBOXSCSI pVBoxSCSI)
 /**
  * Reads a register value.
  *
- * @returns VBox status code.
+ * @retval  VINF_SUCCESS
  * @param   pVBoxSCSI    Pointer to the SCSI state.
  * @param   iRegister    Index of the register to read.
  * @param   pu32Value    Where to store the content of the register.
@@ -144,8 +144,9 @@ int vboxscsiReadRegister(PVBOXSCSI pVBoxSCSI, uint8_t iRegister, uint32_t *pu32V
 /**
  * Writes to a register.
  *
- * @returns VBox status code.
+ * @retval  VINF_SUCCESS on success.
  * @retval  VERR_MORE_DATA if a command is ready to be sent to the SCSI driver.
+ *
  * @param   pVBoxSCSI    Pointer to the SCSI state.
  * @param   iRegister    Index of the register to write to.
  * @param   uVal         Value to write.
@@ -349,6 +350,9 @@ size_t vboxscsiCopyFromBuf(PVBOXSCSI pVBoxSCSI, PRTSGBUF pSgBuf, size_t cbSkip, 
     return RTSgBufCopyFromBuf(pSgBuf, pvBuf, cbCopy);
 }
 
+/**
+ * @retval VINF_SUCCESS
+ */
 int vboxscsiReadString(PPDMDEVINS pDevIns, PVBOXSCSI pVBoxSCSI, uint8_t iRegister,
                        uint8_t *pbDst, uint32_t *pcTransfers, unsigned cb)
 {
@@ -374,7 +378,6 @@ int vboxscsiReadString(PPDMDEVINS pDevIns, PVBOXSCSI pVBoxSCSI, uint8_t iRegiste
     /*
      * Also ignore attempts to read more data than is available.
      */
-    int rc = VINF_SUCCESS;
     uint32_t cbTransfer = *pcTransfers * cb;
     if (pVBoxSCSI->cbBufLeft > 0)
     {
@@ -404,9 +407,13 @@ int vboxscsiReadString(PPDMDEVINS pDevIns, PVBOXSCSI pVBoxSCSI, uint8_t iRegiste
     }
     *pcTransfers = 0;
 
-    return rc;
+    return VINF_SUCCESS;
 }
 
+/**
+ * @retval VINF_SUCCESS
+ * @retval VERR_MORE_DATA
+ */
 int vboxscsiWriteString(PPDMDEVINS pDevIns, PVBOXSCSI pVBoxSCSI, uint8_t iRegister,
                         uint8_t const *pbSrc, uint32_t *pcTransfers, unsigned cb)
 {
@@ -463,7 +470,7 @@ void vboxscsiSetRequestRedo(PVBOXSCSI pVBoxSCSI)
     }
 }
 
-DECLHIDDEN(int) vboxscsiR3LoadExec(PVBOXSCSI pVBoxSCSI, PSSMHANDLE pSSM)
+DECLHIDDEN(int) vboxscsiR3LoadExec(PCPDMDEVHLPR3 pHlp, PVBOXSCSI pVBoxSCSI, PSSMHANDLE pSSM)
 {
     SSMR3GetU8  (pSSM, &pVBoxSCSI->regIdentify);
     SSMR3GetU8  (pSSM, &pVBoxSCSI->uTargetDevice);
@@ -490,8 +497,8 @@ DECLHIDDEN(int) vboxscsiR3LoadExec(PVBOXSCSI pVBoxSCSI, PSSMHANDLE pSSM)
     SSMR3GetU8  (pSSM, &pVBoxSCSI->iCDB);
     SSMR3GetU32 (pSSM, &pVBoxSCSI->cbBufLeft);
     SSMR3GetU32 (pSSM, &pVBoxSCSI->iBuf);
-    SSMR3GetBool(pSSM, (bool *)&pVBoxSCSI->fBusy);
-    SSMR3GetU8  (pSSM, (uint8_t *)&pVBoxSCSI->enmState);
+    SSMR3GetBoolV(pSSM, &pVBoxSCSI->fBusy);
+    PDMDEVHLP_SSM_GET_ENUM8_RET(pHlp, pSSM, pVBoxSCSI->enmState, VBOXSCSISTATE);
 
     /*
      * Old saved states only save the size of the buffer left to read/write.
@@ -512,8 +519,9 @@ DECLHIDDEN(int) vboxscsiR3LoadExec(PVBOXSCSI pVBoxSCSI, PSSMHANDLE pSSM)
     return VINF_SUCCESS;
 }
 
-DECLHIDDEN(int) vboxscsiR3SaveExec(PVBOXSCSI pVBoxSCSI, PSSMHANDLE pSSM)
+DECLHIDDEN(int) vboxscsiR3SaveExec(PCPDMDEVHLPR3 pHlp, PVBOXSCSI pVBoxSCSI, PSSMHANDLE pSSM)
 {
+    RT_NOREF(pHlp);
     SSMR3PutU8    (pSSM, pVBoxSCSI->regIdentify);
     SSMR3PutU8    (pSSM, pVBoxSCSI->uTargetDevice);
     SSMR3PutU8    (pSSM, pVBoxSCSI->uTxDir);

@@ -33,7 +33,7 @@ Foundation, in version 2 as it comes in the "COPYING" file of the
 VirtualBox OSE distribution. VirtualBox OSE is distributed in the
 hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
 """
-__version__ = "$Revision: 129735 $"
+__version__ = "$Revision: 134761 $"
 
 
 import gc
@@ -267,7 +267,8 @@ def startVm(ctx, mach, vmtype):
     vbox = ctx['vb']
     perf = ctx['perf']
     session = ctx['global'].getSessionObject()
-    progress = mach.launchVMProcess(session, vmtype, "")
+    asEnv = []
+    progress = mach.launchVMProcess(session, vmtype, asEnv)
     if progressBar(ctx, progress, 100) and int(progress.resultCode) == 0:
         # we ignore exceptions to allow starting VM even if
         # perf collector cannot be started
@@ -974,8 +975,8 @@ def infoCmd(ctx, args):
     print()
     print("  CPUs [CPUCount]: %d" % (mach.CPUCount))
     print("  RAM [memorySize]: %dM" % (mach.memorySize))
-    print("  VRAM [VRAMSize]: %dM" % (mach.VRAMSize))
-    print("  Monitors [monitorCount]: %d" % (mach.monitorCount))
+    print("  VRAM [VRAMSize]: %dM" % (mach.graphicsAdapter.VRAMSize))
+    print("  Monitors [monitorCount]: %d" % (mach.graphicsAdapter.monitorCount))
     print("  Chipset [chipsetType]: %s (%s)" % (asEnumElem(ctx, "ChipsetType", mach.chipsetType), mach.chipsetType))
     print()
     print("  Clipboard mode [clipboardMode]: %s (%s)" % (asEnumElem(ctx, "ClipboardMode", mach.clipboardMode), mach.clipboardMode))
@@ -994,8 +995,8 @@ def infoCmd(ctx, args):
     hwVirtNestedPaging = mach.getHWVirtExProperty(ctx['const'].HWVirtExPropertyType_NestedPaging)
     print("  Nested paging [guest win machine.setHWVirtExProperty(ctx[\\'const\\'].HWVirtExPropertyType_NestedPaging, value)]: " + asState(hwVirtNestedPaging))
 
-    print("  Hardware 3d acceleration [accelerate3DEnabled]: " + asState(mach.accelerate3DEnabled))
-    print("  Hardware 2d video acceleration [accelerate2DVideoEnabled]: " + asState(mach.accelerate2DVideoEnabled))
+    print("  Hardware 3d acceleration [accelerate3DEnabled]: " + asState(mach.graphicsAdapter.accelerate3DEnabled))
+    print("  Hardware 2d video acceleration [accelerate2DVideoEnabled]: " + asState(mach.graphicsAdapter.accelerate2DVideoEnabled))
 
     print("  Use universal time [RTCUseUTC]: %s" % (asState(mach.RTCUseUTC)))
     print("  HPET [HPETEnabled]: %s" % (asState(mach.HPETEnabled)))
@@ -1646,7 +1647,8 @@ def monitorVBoxCmd(ctx, args):
 
 def getAdapterType(ctx, natype):
     if (natype == ctx['global'].constants.NetworkAdapterType_Am79C970A or
-        natype == ctx['global'].constants.NetworkAdapterType_Am79C973):
+        natype == ctx['global'].constants.NetworkAdapterType_Am79C973 or
+        natype == ctx['global'].constants.NetworkAdapterType_Am79C960):
         return "pcnet"
     elif (natype == ctx['global'].constants.NetworkAdapterType_I82540EM or
           natype == ctx['global'].constants.NetworkAdapterType_I82545EM or

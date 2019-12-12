@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 131204 $"
 
 
 # Standard Python imports.
@@ -102,6 +102,7 @@ class tdExoticOrAncient1(vbox.TestDriver):
         self.logVmInfo(oVM);
         if oTestVm.fGrouping & self.oTestVmManager.kfGrpNoTxs:
             sResult = self.runVmAndMonitorComRawFile(oTestVm.sVmName, oTestVm.sCom1RawFile);
+            ## @todo sResult = self.runVmAndMonitorComRawFile(oTestVm.sVmName, oTestVm.getCom1RawFile());
             return sResult == 'PASSED';
         oSession, _ = self.startVmAndConnectToTxsViaTcp(oTestVm.sVmName, fCdWait = True);
         if oSession is not None:

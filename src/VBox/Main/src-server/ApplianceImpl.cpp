@@ -170,9 +170,22 @@ static struct
                                                                                                 // CIM 64-bit type for this
     { ovf::CIMOSType_CIMOS_CentOS,                               VBOXOSTYPE_RedHat },
     { ovf::CIMOSType_CIMOS_CentOS_64,                            VBOXOSTYPE_RedHat_x64 },
-    { ovf::CIMOSType_CIMOS_OracleEnterpriseLinux,                VBOXOSTYPE_Oracle },
-    { ovf::CIMOSType_CIMOS_OracleEnterpriseLinux_64,             VBOXOSTYPE_Oracle_x64 },
-    { ovf::CIMOSType_CIMOS_eComStation,                          VBOXOSTYPE_ECS }
+    { ovf::CIMOSType_CIMOS_OracleLinux,                          VBOXOSTYPE_Oracle },
+    { ovf::CIMOSType_CIMOS_OracleLinux_64,                       VBOXOSTYPE_Oracle_x64 },
+    { ovf::CIMOSType_CIMOS_eComStation,                          VBOXOSTYPE_ECS },
+
+    { ovf::CIMOSType_CIMOS_WindowsServer2011,                    VBOXOSTYPE_Win2k8_x64 },       // no 1:1 match on the VBox side
+    { ovf::CIMOSType_CIMOS_WindowsServer2012,                    VBOXOSTYPE_Win2k12_x64 },
+    { ovf::CIMOSType_CIMOS_Windows8,                             VBOXOSTYPE_Win8 },
+    { ovf::CIMOSType_CIMOS_Windows8_64,                          VBOXOSTYPE_Win8_x64 },
+    { ovf::CIMOSType_CIMOS_WindowsServer2012R2,                  VBOXOSTYPE_Win2k12_x64 },
+    { ovf::CIMOSType_CIMOS_Windows8_1,                           VBOXOSTYPE_Win81 },
+    { ovf::CIMOSType_CIMOS_Windows8_1_64,                        VBOXOSTYPE_Win81_x64 },
+    { ovf::CIMOSType_CIMOS_WindowsServer2016,                    VBOXOSTYPE_Win2k16_x64 },
+    { ovf::CIMOSType_CIMOS_Windows10,                            VBOXOSTYPE_Win10 },
+    { ovf::CIMOSType_CIMOS_Windows10_64,                         VBOXOSTYPE_Win10_x64 },
+    { ovf::CIMOSType_CIMOS_Windows10_64,                         VBOXOSTYPE_Win10_x64 },
+    { ovf::CIMOSType_CIMOS_WindowsServer2016,                    VBOXOSTYPE_Win2k19_x64 },      // no CIM type for this yet
 
     // there are no CIM types for these, so these turn to "other" on export:
     //      VBOXOSTYPE_OpenBSD
@@ -198,6 +211,10 @@ static const osTypePattern g_aOsTypesPattern[] =
     {"Windows 2003",  VBOXOSTYPE_Win2k3},
     {"Windows Vista", VBOXOSTYPE_WinVista},
     {"Windows 2008",  VBOXOSTYPE_Win2k8},
+    {"Windows 7",     VBOXOSTYPE_Win7},
+    {"Windows 8.1",   VBOXOSTYPE_Win81},
+    {"Windows 8",     VBOXOSTYPE_Win8},
+    {"Windows 10",    VBOXOSTYPE_Win10},
     {"SUSE",          VBOXOSTYPE_OpenSUSE},
     {"Novell",        VBOXOSTYPE_OpenSUSE},
     {"Red Hat",       VBOXOSTYPE_RedHat},
@@ -227,6 +244,13 @@ static const osTypePattern g_aOsTypesPattern64[] =
     {"Windows 2003",  VBOXOSTYPE_Win2k3_x64},
     {"Windows Vista", VBOXOSTYPE_WinVista_x64},
     {"Windows 2008",  VBOXOSTYPE_Win2k8_x64},
+    {"Windows 7",     VBOXOSTYPE_Win7_x64},
+    {"Windows 8.1",   VBOXOSTYPE_Win81_x64},
+    {"Windows 8",     VBOXOSTYPE_Win8_x64},
+    {"Windows 2012",  VBOXOSTYPE_Win2k12_x64},
+    {"Windows 10",    VBOXOSTYPE_Win10_x64},
+    {"Windows 2016",  VBOXOSTYPE_Win2k16_x64},
+    {"Windows 2019",  VBOXOSTYPE_Win2k19_x64},
     {"SUSE",          VBOXOSTYPE_OpenSUSE_x64},
     {"Novell",        VBOXOSTYPE_OpenSUSE_x64},
     {"Red Hat",       VBOXOSTYPE_RedHat_x64},
@@ -328,6 +352,7 @@ Utf8Str convertNetworkAttachmentTypeToString(NetworkAttachmentType_T type)
         case NetworkAttachmentType_Generic: strType = "Generic"; break;
         case NetworkAttachmentType_NATNetwork: strType = "NATNetwork"; break;
         case NetworkAttachmentType_Null: strType = "Null"; break;
+        case NetworkAttachmentType_Cloud: strType = "Cloud"; break;
 #ifdef VBOX_WITH_XPCOM_CPP_ENUM_HACK
         case NetworkAttachmentType_32BitHack: AssertFailedBreak(); /* (compiler warnings) */
 #endif
@@ -471,9 +496,6 @@ HRESULT Appliance::getPath(com::Utf8Str &aPath)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (!i_isApplianceIdle())
-        return E_ACCESSDENIED;
-
     aPath = m->locInfo.strPath;
 
     return S_OK;
@@ -487,8 +509,6 @@ HRESULT Appliance::getDisks(std::vector<com::Utf8Str> &aDisks)
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     aDisks.resize(0);
-    if (!i_isApplianceIdle())
-        return E_ACCESSDENIED;
 
     if (m->pReader) // OVFReader instantiated?
     {
@@ -536,9 +556,6 @@ HRESULT Appliance::getCertificate(ComPtr<ICertificate> &aCertificateInfo)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (!i_isApplianceIdle())
-        return E_ACCESSDENIED;
-
     /* Can be NULL at this point, queryInterfaceto handles that. */
     m->ptrCertificateInfo.queryInterfaceTo(aCertificateInfo.asOutParam());
     return S_OK;
@@ -550,9 +567,6 @@ HRESULT Appliance::getCertificate(ComPtr<ICertificate> &aCertificateInfo)
 HRESULT Appliance::getVirtualSystemDescriptions(std::vector<ComPtr<IVirtualSystemDescription> > &aVirtualSystemDescriptions)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    if (!i_isApplianceIdle())
-        return E_ACCESSDENIED;
 
     aVirtualSystemDescriptions.resize(m->virtualSystemDescriptions.size());
     std::list< ComObjPtr<VirtualSystemDescription> > vsds(m->virtualSystemDescriptions);
@@ -570,9 +584,6 @@ HRESULT Appliance::getVirtualSystemDescriptions(std::vector<ComPtr<IVirtualSyste
 HRESULT Appliance::getMachines(std::vector<com::Utf8Str> &aMachines)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    if (!i_isApplianceIdle())
-        return E_ACCESSDENIED;
 
     aMachines.resize(m->llGuidsMachinesCreated.size());
     size_t i = 0;
@@ -610,6 +621,63 @@ HRESULT Appliance::createVFSExplorer(const com::Utf8Str &aURI, ComPtr<IVFSExplor
     if (SUCCEEDED(rc))
         /* Return explorer to the caller */
         explorer.queryInterfaceTo(aExplorer.asOutParam());
+
+    return rc;
+}
+
+
+/**
+ * Public method implementation.
+ * Add the "aRequested" numbers of new empty objects of VSD into the list
+ * "virtualSystemDescriptions".
+ * The parameter "aCreated" keeps the actual number of the added objects.
+ * In case of exception all added objects are removed from the list.
+ */
+HRESULT Appliance::createVirtualSystemDescriptions(ULONG aRequested, ULONG *aCreated)
+{
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    HRESULT rc = S_OK;
+    uint32_t lQuantity = aRequested;
+    uint32_t i=0;
+
+    if (lQuantity < 1)
+        return setError(E_FAIL, tr("The number of VirtualSystemDescription objects must be at least 1 or more."));
+    try
+    {
+        for (; i<lQuantity; ++i)
+        {
+            ComObjPtr<VirtualSystemDescription> opVSD;
+            rc = opVSD.createObject();
+            if (SUCCEEDED(rc))
+            {
+                rc = opVSD->init();
+                if (SUCCEEDED(rc))
+                    m->virtualSystemDescriptions.push_back(opVSD);
+                else
+                    break;
+            }
+            else
+                break;
+        }
+
+        if (i<lQuantity)
+            LogRel(("Number of created VirtualSystemDescription objects is less than requested"
+                    "(Requested %d, Created %d)",lQuantity, i));
+
+        *aCreated = i;
+    }
+    catch (HRESULT aRC)
+    {
+        for (; i>0; --i)
+        {
+            if (!m->virtualSystemDescriptions.empty())
+                m->virtualSystemDescriptions.pop_back();
+            else
+                break;
+        }
+        rc = aRC;
+    }
 
     return rc;
 }
@@ -886,9 +954,9 @@ RTVFSIOSTREAM Appliance::i_manifestSetupDigestCalculationForGivenIoStream(RTVFSI
  */
 bool Appliance::i_isApplianceIdle()
 {
-    if (m->state == Data::ApplianceImporting)
+    if (m->state == ApplianceImporting)
         setError(VBOX_E_INVALID_OBJECT_STATE, tr("The appliance is busy importing files"));
-    else if (m->state == Data::ApplianceExporting)
+    else if (m->state == ApplianceExporting)
         setError(VBOX_E_INVALID_OBJECT_STATE, tr("The appliance is busy exporting files"));
     else
         return true;
@@ -961,18 +1029,25 @@ HRESULT Appliance::i_setUpProgress(ComObjPtr<Progress> &pProgress,
     HRESULT rc;
 
     /* Create the progress object */
-    pProgress.createObject();
+    try
+    {
+        rc = pProgress.createObject();
+        if (FAILED(rc))
+            return rc;
+    }
+    catch (std::bad_alloc &)
+    {
+        return E_OUTOFMEMORY;
+    }
 
     // compute the disks weight (this sets ulTotalDisksMB and cDisks in the instance data)
     i_disksWeight();
 
     m->ulWeightForManifestOperation = 0;
 
-    ULONG cOperations;
+    ULONG cOperations = 1               // one for XML setup
+                      + m->cDisks;      // plus one per disk
     ULONG ulTotalOperationsWeight;
-
-    cOperations =   1               // one for XML setup
-                  + m->cDisks;      // plus one per disk
     if (m->ulTotalDisksMB)
     {
         m->ulWeightForXmlOperation = (ULONG)((double)m->ulTotalDisksMB * 1 / 100);    // use 1% of the progress for the XML
@@ -1006,7 +1081,7 @@ HRESULT Appliance::i_setUpProgress(ComObjPtr<Progress> &pProgress,
         }
         case ImportS3:
         {
-            cOperations += 1 + 1;     // another one for the manifest file & another one for the import
+            cOperations += 1 + 1;       // another one for the manifest file & another one for the import
             ulTotalOperationsWeight = m->ulTotalDisksMB;
             if (!m->ulTotalDisksMB)
                 // no disks to export:
@@ -1023,7 +1098,7 @@ HRESULT Appliance::i_setUpProgress(ComObjPtr<Progress> &pProgress,
         }
         case WriteS3:
         {
-            cOperations += 1 + 1;     // another one for the mf & another one for temporary creation
+            cOperations += 1 + 1;       // another one for the mf & another one for temporary creation
 
             if (m->ulTotalDisksMB)
             {
@@ -1046,22 +1121,19 @@ HRESULT Appliance::i_setUpProgress(ComObjPtr<Progress> &pProgress,
             break;
         }
         case ExportCloud:
-            cOperations = 1 + 9;//7
-            ulTotalOperationsWeight = 100*cOperations;
-            m->ulWeightForXmlOperation = 100;
+        case ImportCloud:
             break;
     }
     Log(("Setting up progress object: ulTotalMB = %d, cDisks = %d, => cOperations = %d, ulTotalOperationsWeight = %d, m->ulWeightForXmlOperation = %d\n",
          m->ulTotalDisksMB, m->cDisks, cOperations, ulTotalOperationsWeight, m->ulWeightForXmlOperation));
 
-    rc = pProgress->init(mVirtualBox, static_cast<IAppliance*>(this),
-                         Bstr(strDescription).raw(),
-                         TRUE /* aCancelable */,
-                         cOperations, // ULONG cOperations,
-                         ulTotalOperationsWeight, // ULONG ulTotalOperationsWeight,
-                         Bstr(strDescription).raw(), // CBSTR bstrFirstOperationDescription,
-                         m->ulWeightForXmlOperation); // ULONG ulFirstOperationWeight,
-    return rc;
+    return pProgress->init(mVirtualBox, static_cast<IAppliance*>(this),
+                           strDescription,
+                           TRUE /* aCancelable */,
+                           cOperations, // ULONG cOperations,
+                           ulTotalOperationsWeight, // ULONG ulTotalOperationsWeight,
+                           strDescription, // CBSTR bstrFirstOperationDescription,
+                           m->ulWeightForXmlOperation); // ULONG ulFirstOperationWeight,
 }
 
 void Appliance::i_addWarning(const char* aWarning, ...)
@@ -1282,7 +1354,7 @@ DECLCALLBACK(int) Appliance::TaskOPC::updateProgress(unsigned uPercent, void *pv
  * @thread  pTask       The task.
  */
 /* static */
-void Appliance::i_exportCloudThreadTask(TaskCloud *pTask)
+void Appliance::i_importOrExportCloudThreadTask(TaskCloud *pTask)
 {
     LogFlowFuncEnter();
     AssertReturnVoid(pTask);
@@ -1293,14 +1365,24 @@ void Appliance::i_exportCloudThreadTask(TaskCloud *pTask)
     switch (pTask->taskType)
     {
         case TaskCloud::Export:
-            pTask->rc = pAppliance->i_writeFSCloud(pTask);
+            pAppliance->i_setApplianceState(ApplianceExporting);
+            pTask->rc = pAppliance->i_exportCloudImpl(pTask);
             break;
-
+        case TaskCloud::Import:
+            pAppliance->i_setApplianceState(ApplianceImporting);
+            pTask->rc = pAppliance->i_importCloudImpl(pTask);
+            break;
+        case TaskCloud::ReadData:
+            pAppliance->i_setApplianceState(ApplianceImporting);
+            pTask->rc = pAppliance->i_gettingCloudData(pTask);
+            break;
         default:
             AssertFailed();
             pTask->rc = E_FAIL;
             break;
     }
+
+    pAppliance->i_setApplianceState(ApplianceIdle);
 
     if (!pTask->pProgress.isNull())
         pTask->pProgress->i_notifyComplete(pTask->rc);
@@ -1353,27 +1435,27 @@ void i_parseURI(Utf8Str strUri, LocationInfo &locInfo)
         throw E_NOTIMPL;
 
     /* Not necessary on a file based URI */
-    if (locInfo.storageType != VFSType_File)
-    {
-        size_t uppos = strUri.find("@"); /* username:password combo */
-        if (uppos != Utf8Str::npos)
-        {
-            locInfo.strUsername = strUri.substr(0, uppos);
-            strUri = strUri.substr(uppos + 1);
-            size_t upos = locInfo.strUsername.find(":");
-            if (upos != Utf8Str::npos)
-            {
-                locInfo.strPassword = locInfo.strUsername.substr(upos + 1);
-                locInfo.strUsername = locInfo.strUsername.substr(0, upos);
-            }
-        }
-        size_t hpos = strUri.find("/"); /* hostname part */
-        if (hpos != Utf8Str::npos)
-        {
-            locInfo.strHostname = strUri.substr(0, hpos);
-            strUri = strUri.substr(hpos);
-        }
-    }
+//  if (locInfo.storageType != VFSType_File)
+//  {
+//      size_t uppos = strUri.find("@"); /* username:password combo */
+//      if (uppos != Utf8Str::npos)
+//      {
+//          locInfo.strUsername = strUri.substr(0, uppos);
+//          strUri = strUri.substr(uppos + 1);
+//          size_t upos = locInfo.strUsername.find(":");
+//          if (upos != Utf8Str::npos)
+//          {
+//              locInfo.strPassword = locInfo.strUsername.substr(upos + 1);
+//              locInfo.strUsername = locInfo.strUsername.substr(0, upos);
+//          }
+//      }
+//      size_t hpos = strUri.find("/"); /* hostname part */
+//      if (hpos != Utf8Str::npos)
+//      {
+//          locInfo.strHostname = strUri.substr(0, hpos);
+//          strUri = strUri.substr(hpos);
+//      }
+//  }
 
     locInfo.strPath = strUri;
 }

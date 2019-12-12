@@ -101,7 +101,7 @@ static void drmConnect(struct DRMCONTEXT *pContext)
     RTFILE hDevice;
 
     if (pContext->hDevice != NIL_RTFILE)
-        VBClFatalError(("%s called with bad argument\n", __func__));
+        VBClLogFatalError("%s called with bad argument\n", __func__);
     /* Try to open the SVGA DRM device. */
     for (i = 0; i < 128; ++i)
     {
@@ -120,7 +120,7 @@ static void drmConnect(struct DRMCONTEXT *pContext)
         else
             rc = RTStrPrintf(szPath, sizeof(szPath), "/dev/dri/controlD%u", i / 2 + 64);
         if (RT_FAILURE(rc))
-            VBClFatalError(("RTStrPrintf of device path failed, rc=%Rrc\n", rc));
+            VBClLogFatalError("RTStrPrintf of device path failed, rc=%Rrc\n", rc);
         rc = RTFileOpen(&hDevice, szPath, RTFILE_O_READWRITE | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
         if (RT_FAILURE(rc))
             continue;
@@ -157,13 +157,18 @@ static void drmSendHints(struct DRMCONTEXT *pContext, struct DRMVMWRECT *paRects
     struct DRMVMWUPDATELAYOUT ioctlLayout;
 
     if (pContext->hDevice == NIL_RTFILE)
-        VBClFatalError(("%s bad device argument.\n", __func__));
+        VBClLogFatalError("%s bad device argument\n", __func__);
     ioctlLayout.cOutputs = cHeads;
     ioctlLayout.ptrRects = (uint64_t)paRects;
     rc = RTFileIoCtl(pContext->hDevice, DRM_IOCTL_VMW_UPDATE_LAYOUT,
                      &ioctlLayout, sizeof(ioctlLayout), NULL);
     if (RT_FAILURE(rc) && rc != VERR_INVALID_PARAMETER)
-        VBClFatalError(("Failure updating layout, rc=%Rrc\n", rc));
+        VBClLogFatalError("Failure updating layout, rc=%Rrc\n", rc);
+}
+
+static const char *getName()
+{
+    return "Display SVGA";
 }
 
 static const char *getPidFilePath()
@@ -187,18 +192,14 @@ static int run(struct VBCLSERVICE **ppInterface, bool fDaemonised)
     drmConnect(&drmContext);
     if (drmContext.hDevice == NIL_RTFILE)
         return VINF_SUCCESS;
-    /* Initialise the guest library. */
-    rc = VbglR3InitUser();
-    if (RT_FAILURE(rc))
-        VBClFatalError(("Failed to connect to the VirtualBox kernel service, rc=%Rrc\n", rc));
     rc = VbglR3CtlFilterMask(VMMDEV_EVENT_DISPLAY_CHANGE_REQUEST, 0);
     if (RT_FAILURE(rc))
-        VBClFatalError(("Failed to request display change events, rc=%Rrc\n", rc));
+        VBClLogFatalError("Failed to request display change events, rc=%Rrc\n", rc);
     rc = VbglR3AcquireGuestCaps(VMMDEV_GUEST_SUPPORTS_GRAPHICS, 0, false);
     if (rc == VERR_RESOURCE_BUSY)  /* Someone else has already acquired it. */
         return VINF_SUCCESS;
     if (RT_FAILURE(rc))
-        VBClFatalError(("Failed to register resizing support, rc=%Rrc\n", rc));
+        VBClLogFatalError("Failed to register resizing support, rc=%Rrc\n", rc);
     for (;;)
     {
         uint32_t events;
@@ -210,9 +211,9 @@ static int run(struct VBCLSERVICE **ppInterface, bool fDaemonised)
         rc = VbglR3GetDisplayChangeRequestMulti(VMW_MAX_HEADS, &cDisplaysOut, aDisplays, fAck);
         fAck = true;
         if (RT_FAILURE(rc))
-            VBClFatalError(("Failed to get display change request, rc=%Rrc\n", rc));
+            VBClLogFatalError("Failed to get display change request, rc=%Rrc\n", rc);
         if (cDisplaysOut > VMW_MAX_HEADS)
-            VBClFatalError(("Display change request contained, rc=%Rrc\n", rc));
+            VBClLogFatalError("Display change request contained, rc=%Rrc\n", rc);
         for (i = 0, cHeads = 0; i < cDisplaysOut && i < VMW_MAX_HEADS; ++i)
         {
             if (!(aDisplays[i].fDisplayFlags & VMMDEV_DISPLAY_DISABLED))
@@ -236,12 +237,13 @@ static int run(struct VBCLSERVICE **ppInterface, bool fDaemonised)
         drmSendHints(&drmContext, aRects, cHeads);
         rc = VbglR3WaitEvent(VMMDEV_EVENT_DISPLAY_CHANGE_REQUEST, RT_INDEFINITE_WAIT, &events);
         if (RT_FAILURE(rc))
-            VBClFatalError(("Failure waiting for event, rc=%Rrc\n", rc));
+            VBClLogFatalError("Failure waiting for event, rc=%Rrc\n", rc);
     }
 }
 
 static struct VBCLSERVICE interface =
 {
+    getName,
     getPidFilePath,
     VBClServiceDefaultHandler, /* Init */
     run,

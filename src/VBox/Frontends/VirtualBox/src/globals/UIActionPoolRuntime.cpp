@@ -16,7 +16,7 @@
  */
 
 /* GUI includes: */
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #include "UIActionPoolRuntime.h"
 #include "UIConverter.h"
 #include "UIDesktopWidgetWatchdog.h"
@@ -272,57 +272,6 @@ protected:
         setStatusTip(QApplication::translate("UIActionPool", "Display the virtual machine file manager window"));
     }
 };
-
-/** Simple action extension, used as 'Show Guest Process Control Dialog' action class. */
-class UIActionSimpleRuntimeShowGuestProcessControlDialog : public UIActionSimple
-{
-    Q_OBJECT;
-
-public:
-
-    /** Constructs action passing @a pParent to the base-class. */
-    UIActionSimpleRuntimeShowGuestProcessControlDialog(UIActionPool *pParent)
-        : UIActionSimple(pParent, ":/session_info_16px.png", ":/session_info_disabled_16px.png", true)
-    {}
-
-protected:
-
-    /** Returns action extra-data ID. */
-    virtual int extraDataID() const /* override */
-    {
-        return UIExtraDataMetaDefs::RuntimeMenuMachineActionType_GuestProcessControlDialog;
-    }
-    /** Returns action extra-data key. */
-    virtual QString extraDataKey() const /* override */
-    {
-        return gpConverter->toInternalString(UIExtraDataMetaDefs::RuntimeMenuMachineActionType_GuestProcessControlDialog);
-    }
-    /** Returns whether action is allowed. */
-    virtual bool isAllowed() const /* override */
-    {
-        return actionPool()->toRuntime()->isAllowedInMenuMachine(UIExtraDataMetaDefs::RuntimeMenuMachineActionType_GuestProcessControlDialog);
-    }
-
-    /** Returns shortcut extra-data ID. */
-    virtual QString shortcutExtraDataID() const /* override */
-    {
-        return QString("GuestProcessControlDialog");
-    }
-
-    /** Returns default shortcut. */
-    virtual QKeySequence defaultShortcut(UIActionPoolType) const /* override */
-    {
-        return QKeySequence();
-    }
-
-    /** Handles translation event. */
-    virtual void retranslateUi() /* override */
-    {
-        setName(QApplication::translate("UIActionPool", "Guest Process Control..."));
-        setStatusTip(QApplication::translate("UIActionPool", "Display the virtual machine guest process control window"));
-    }
-};
-
 
 /** Toggle action extension, used as 'Pause' action class. */
 class UIActionToggleRuntimePause : public UIActionToggle
@@ -1591,6 +1540,50 @@ protected:
     {
         setName(QApplication::translate("UIActionPool", "&Keyboard Settings..."));
         setStatusTip(QApplication::translate("UIActionPool", "Display global preferences window to configure keyboard shortcuts"));
+    }
+};
+
+/** Simple action extension, used as 'Show Soft Keyboard' action class. */
+class UIActionSimpleRuntimeShowSoftKeyboard : public UIActionSimple
+{
+    Q_OBJECT;
+
+public:
+
+    /** Constructs action passing @a pParent to the base-class. */
+    UIActionSimpleRuntimeShowSoftKeyboard(UIActionPool *pParent)
+        : UIActionSimple(pParent, UIIconPool::iconSet(":/soft_keyboard_16px.png"), true)
+    {}
+
+protected:
+
+    /** Returns action extra-data ID. */
+    virtual int extraDataID() const /* override */
+    {
+        return UIExtraDataMetaDefs::RuntimeMenuInputActionType_SoftKeyboard;
+    }
+    /** Returns action extra-data key. */
+    virtual QString extraDataKey() const /* override */
+    {
+        return gpConverter->toInternalString(UIExtraDataMetaDefs::RuntimeMenuInputActionType_SoftKeyboard);
+    }
+    /** Returns whether action is allowed. */
+    virtual bool isAllowed() const /* override */
+    {
+        return actionPool()->toRuntime()->isAllowedInMenuInput(UIExtraDataMetaDefs::RuntimeMenuInputActionType_SoftKeyboard);
+    }
+
+    /** Returns shortcut extra-data ID. */
+    virtual QString shortcutExtraDataID() const /* override */
+    {
+        return QString("SoftKeyboard");
+    }
+
+    /** Handles translation event. */
+    virtual void retranslateUi() /* override */
+    {
+        setName(QApplication::translate("UIActionPool", "&Soft Keyboard..."));
+        setStatusTip(QApplication::translate("UIActionPool", "Display soft keyboard"));
     }
 };
 
@@ -2951,6 +2944,49 @@ protected:
         setName(QApplication::translate("UIActionPool", "Show &Log...", "debug action"));
     }
 };
+
+/** Simple action extension, used as 'Guest Control Terminal' action class. */
+class UIActionSimpleRuntimeGuestControlConsole : public UIActionSimple
+{
+    Q_OBJECT;
+
+public:
+
+    /** Constructs action passing @a pParent to the base-class. */
+    UIActionSimpleRuntimeGuestControlConsole(UIActionPool *pParent)
+        : UIActionSimple(pParent, true)
+    {}
+
+protected:
+
+    /** Returns action extra-data ID. */
+    virtual int extraDataID() const /* override */
+    {
+        return UIExtraDataMetaDefs::RuntimeMenuDebuggerActionType_GuestControlConsole;
+    }
+    /** Returns action extra-data key. */
+    virtual QString extraDataKey() const /* override */
+    {
+        return gpConverter->toInternalString(UIExtraDataMetaDefs::RuntimeMenuDebuggerActionType_GuestControlConsole);
+    }
+    /** Returns whether action is allowed. */
+    virtual bool isAllowed() const /* override */
+    {
+        return actionPool()->toRuntime()->isAllowedInMenuDebug(UIExtraDataMetaDefs::RuntimeMenuDebuggerActionType_GuestControlConsole);
+    }
+
+    /** Returns shortcut extra-data ID. */
+    virtual QString shortcutExtraDataID() const /* override */
+    {
+        return QString("GuestControlConsole");
+    }
+
+    /** Handles translation event. */
+    virtual void retranslateUi() /* override */
+    {
+        setName(QApplication::translate("UIActionPool", "Guest Control Terminal...", "debug action"));
+    }
+};
 #endif /* VBOX_WITH_DEBUGGER_GUI */
 
 #ifdef VBOX_WS_MAC
@@ -3204,7 +3240,7 @@ void UIActionPoolRuntime::setRestrictionForMenuDebugger(UIActionRestrictionLevel
 void UIActionPoolRuntime::sltHandleConfigurationChange(const QUuid &uMachineID)
 {
     /* Skip unrelated machine IDs: */
-    if (vboxGlobal().managedVMUuid() != uMachineID)
+    if (uiCommon().managedVMUuid() != uMachineID)
         return;
 
     /* Update configuration: */
@@ -3306,7 +3342,7 @@ void UIActionPoolRuntime::sltHandleActionTriggerViewScreenRescale(QAction *pActi
     /* Change scale-factor directly: */
     const double dScaleFactor = pAction->property("Requested Scale Factor").toDouble();
     const int iGuestScreenIndex = pAction->property("Guest Screen Index").toInt();
-    gEDataManager->setScaleFactor(dScaleFactor, vboxGlobal().managedVMUuid(), iGuestScreenIndex);
+    gEDataManager->setScaleFactor(dScaleFactor, uiCommon().managedVMUuid(), iGuestScreenIndex);
 }
 
 void UIActionPoolRuntime::preparePool()
@@ -3317,7 +3353,6 @@ void UIActionPoolRuntime::preparePool()
     m_pool[UIActionIndexRT_M_Machine_S_TakeSnapshot] = new UIActionSimpleRuntimePerformTakeSnapshot(this);
     m_pool[UIActionIndexRT_M_Machine_S_ShowInformation] = new UIActionSimpleRuntimeShowInformationDialog(this);
     m_pool[UIActionIndexRT_M_Machine_S_ShowFileManager] = new UIActionSimpleRuntimeShowFileManagerDialog(this);
-    m_pool[UIActionIndexRT_M_Machine_S_ShowGuestProcessControl] = new UIActionSimpleRuntimeShowGuestProcessControlDialog(this);
     m_pool[UIActionIndexRT_M_Machine_T_Pause] = new UIActionToggleRuntimePause(this);
     m_pool[UIActionIndexRT_M_Machine_S_Reset] = new UIActionSimpleRuntimePerformReset(this);
     m_pool[UIActionIndexRT_M_Machine_S_Detach] = new UIActionSimpleRuntimePerformDetach(this);
@@ -3354,6 +3389,7 @@ void UIActionPoolRuntime::preparePool()
     m_pool[UIActionIndexRT_M_Input] = new UIActionMenuRuntimeInput(this);
     m_pool[UIActionIndexRT_M_Input_M_Keyboard] = new UIActionMenuRuntimeKeyboard(this);
     m_pool[UIActionIndexRT_M_Input_M_Keyboard_S_Settings] = new UIActionSimpleRuntimeShowKeyboardSettings(this);
+    m_pool[UIActionIndexRT_M_Input_M_Keyboard_S_SoftKeyboard] = new UIActionSimpleRuntimeShowSoftKeyboard(this);
     m_pool[UIActionIndexRT_M_Input_M_Keyboard_S_TypeCAD] = new UIActionSimpleRuntimePerformTypeCAD(this);
 #ifdef VBOX_WS_X11
     m_pool[UIActionIndexRT_M_Input_M_Keyboard_S_TypeCABS] = new UIActionSimpleRuntimePerformTypeCABS(this);
@@ -3393,6 +3429,7 @@ void UIActionPoolRuntime::preparePool()
     m_pool[UIActionIndexRT_M_Debug_S_ShowCommandLine] = new UIActionSimpleRuntimeShowCommandLine(this);
     m_pool[UIActionIndexRT_M_Debug_T_Logging] = new UIActionToggleRuntimeLogging(this);
     m_pool[UIActionIndexRT_M_Debug_S_ShowLogDialog] = new UIActionSimpleRuntimeShowLogs(this);
+    m_pool[UIActionIndexRT_M_Debug_S_GuestControlConsole] = new UIActionSimpleRuntimeGuestControlConsole(this);
 #endif /* VBOX_WITH_DEBUGGER_GUI */
 
 #ifdef VBOX_WS_MAC
@@ -3431,10 +3468,12 @@ void UIActionPoolRuntime::preparePool()
 void UIActionPoolRuntime::prepareConnections()
 {
     /* Prepare connections: */
-    connect(gShortcutPool, SIGNAL(sigSelectorShortcutsReloaded()), this, SLOT(sltApplyShortcuts()));
-    connect(gShortcutPool, SIGNAL(sigMachineShortcutsReloaded()), this, SLOT(sltApplyShortcuts()));
-    connect(gEDataManager, SIGNAL(sigMenuBarConfigurationChange(const QUuid &)),
-            this, SLOT(sltHandleConfigurationChange(const QUuid &)));
+    connect(gShortcutPool, &UIShortcutPool::sigSelectorShortcutsReloaded,
+            this, &UIActionPoolRuntime::sltApplyShortcuts);
+    connect(gShortcutPool, &UIShortcutPool::sigMachineShortcutsReloaded,
+            this, &UIActionPoolRuntime::sltApplyShortcuts);
+    connect(gEDataManager, &UIExtraDataManager::sigMenuBarConfigurationChange,
+            this, &UIActionPoolRuntime::sltHandleConfigurationChange);
 
     /* Call to base-class: */
     UIActionPool::prepareConnections();
@@ -3443,7 +3482,7 @@ void UIActionPoolRuntime::prepareConnections()
 void UIActionPoolRuntime::updateConfiguration()
 {
     /* Get machine ID: */
-    const QUuid uMachineID = vboxGlobal().managedVMUuid();
+    const QUuid uMachineID = uiCommon().managedVMUuid();
     if (uMachineID.isNull())
         return;
 
@@ -3486,6 +3525,8 @@ void UIActionPoolRuntime::updateConfiguration()
             (m_restrictedActionsMenuView[UIActionRestrictionLevel_Base] | UIExtraDataMetaDefs::RuntimeMenuViewActionType_RecordingSettings);
         m_restrictedActionsMenuInput[UIActionRestrictionLevel_Base] = (UIExtraDataMetaDefs::RuntimeMenuInputActionType)
             (m_restrictedActionsMenuInput[UIActionRestrictionLevel_Base] | UIExtraDataMetaDefs::RuntimeMenuInputActionType_KeyboardSettings);
+        m_restrictedActionsMenuInput[UIActionRestrictionLevel_Base] = (UIExtraDataMetaDefs::RuntimeMenuInputActionType)
+            (m_restrictedActionsMenuInput[UIActionRestrictionLevel_Base] | UIExtraDataMetaDefs::RuntimeMenuInputActionType_SoftKeyboard);
         m_restrictedActionsMenuDevices[UIActionRestrictionLevel_Base] = (UIExtraDataMetaDefs::RuntimeMenuDevicesActionType)
             (m_restrictedActionsMenuDevices[UIActionRestrictionLevel_Base] | UIExtraDataMetaDefs::RuntimeMenuDevicesActionType_HardDrivesSettings);
         m_restrictedActionsMenuDevices[UIActionRestrictionLevel_Base] = (UIExtraDataMetaDefs::RuntimeMenuDevicesActionType)
@@ -3505,8 +3546,8 @@ void UIActionPoolRuntime::updateConfiguration()
     }
 
     /* Recache extension-pack related action restrictions: */
-#if VBOX_WITH_EXTPACK
-    CExtPack extPack = vboxGlobal().virtualBox().GetExtensionPackManager().Find(GUI_ExtPackName);
+#ifdef VBOX_WITH_EXTPACK
+    CExtPack extPack = uiCommon().virtualBox().GetExtensionPackManager().Find(GUI_ExtPackName);
 #else
     CExtPack extPack;
 #endif
@@ -3519,7 +3560,7 @@ void UIActionPoolRuntime::updateConfiguration()
 
     /* Recache close related action restrictions: */
     MachineCloseAction restrictedCloseActions = gEDataManager->restrictedMachineCloseActions(uMachineID);
-    bool fAllCloseActionsRestricted =    (!vboxGlobal().isSeparateProcess() || (restrictedCloseActions & MachineCloseAction_Detach))
+    bool fAllCloseActionsRestricted =    (!uiCommon().isSeparateProcess() || (restrictedCloseActions & MachineCloseAction_Detach))
                                       && (restrictedCloseActions & MachineCloseAction_SaveState)
                                       && (restrictedCloseActions & MachineCloseAction_Shutdown)
                                       && (restrictedCloseActions & MachineCloseAction_PowerOff);
@@ -3579,7 +3620,7 @@ void UIActionPoolRuntime::updateMenus()
 
 #ifdef VBOX_WITH_DEBUGGER_GUI
     /* 'Debug' menu: */
-    addMenu(m_mainMenus, action(UIActionIndexRT_M_Debug), vboxGlobal().isDebuggerEnabled());
+    addMenu(m_mainMenus, action(UIActionIndexRT_M_Debug), uiCommon().isDebuggerEnabled());
     updateMenuDebug();
 #endif
 
@@ -3626,9 +3667,7 @@ void UIActionPoolRuntime::updateMenuMachine()
     /* 'Information Dialog' action: */
     fSeparator = addAction(pMenu, action(UIActionIndexRT_M_Machine_S_ShowInformation)) || fSeparator;
     fSeparator = addAction(pMenu, action(UIActionIndexRT_M_Machine_S_ShowFileManager)) || fSeparator;
-#ifdef VBOX_GUI_WITH_GUEST_CONTROL_UI
-    fSeparator = addAction(pMenu, action(UIActionIndexRT_M_Machine_S_ShowGuestProcessControl)) || fSeparator;
-#endif
+
     /* Separator: */
     if (fSeparator)
     {
@@ -3734,7 +3773,7 @@ void UIActionPoolRuntime::updateMenuView()
                                                                  ":/virtual_screen_disabled_16px.png"),
                                              QApplication::translate("UIMultiScreenLayout", "Virtual Screen %1").arg(iGuestScreenIndex + 1));
             pSubMenu->setProperty("Guest Screen Index", iGuestScreenIndex);
-            connect(pSubMenu, SIGNAL(aboutToShow()), this, SLOT(sltPrepareMenuViewScreen()));
+            connect(pSubMenu, &QMenu::aboutToShow, this, &UIActionPoolRuntime::sltPrepareMenuViewScreen);
         }
     }
 
@@ -3777,7 +3816,7 @@ void UIActionPoolRuntime::updateMenuViewPopup()
                                                                  ":/virtual_screen_disabled_16px.png"),
                                              QApplication::translate("UIMultiScreenLayout", "Virtual Screen %1").arg(iGuestScreenIndex + 1));
             pSubMenu->setProperty("Guest Screen Index", iGuestScreenIndex);
-            connect(pSubMenu, SIGNAL(aboutToShow()), this, SLOT(sltPrepareMenuViewScreen()));
+            connect(pSubMenu, &QMenu::aboutToShow, this, &UIActionPoolRuntime::sltPrepareMenuViewScreen);
         }
     }
 
@@ -3971,7 +4010,7 @@ void UIActionPoolRuntime::updateMenuViewRescale(QMenu *pMenu)
 
     /* Get corresponding screen index and scale-factor: */
     const int iGuestScreenIndex = pMenu->property("Guest Screen Index").toInt();
-    const double dCurrentScaleFactor = gEDataManager->scaleFactor(vboxGlobal().managedVMUuid(), iGuestScreenIndex);
+    const double dCurrentScaleFactor = gEDataManager->scaleFactor(uiCommon().managedVMUuid(), iGuestScreenIndex);
 
     /* Create exclusive 'rescale' action-group: */
     QActionGroup *pActionGroup = new QActionGroup(pMenu);
@@ -4092,7 +4131,8 @@ void UIActionPoolRuntime::updateMenuInputKeyboard()
 
     /* 'Keyboard Settings' action: */
     fSeparator = addAction(pMenu, action(UIActionIndexRT_M_Input_M_Keyboard_S_Settings)) || fSeparator;
-
+    /* 'Soft Keyboard' action: */
+    fSeparator = addAction(pMenu, action(UIActionIndexRT_M_Input_M_Keyboard_S_SoftKeyboard)) || fSeparator;
     /* Separator: */
     if (fSeparator)
     {
@@ -4307,6 +4347,8 @@ void UIActionPoolRuntime::updateMenuDebug()
     addAction(pMenu, action(UIActionIndexRT_M_Debug_T_Logging));
     /* 'Log Dialog' action: */
     addAction(pMenu, action(UIActionIndexRT_M_Debug_S_ShowLogDialog));
+    /* 'Guest Control Terminal' action: */
+    addAction(pMenu, action(UIActionIndexRT_M_Debug_S_GuestControlConsole));
 
     /* Mark menu as valid: */
     m_invalidations.remove(UIActionIndexRT_M_Debug);

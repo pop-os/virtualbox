@@ -279,13 +279,18 @@ UIPrepareStep::UIPrepareStep(QObject *pParent, QObject *pBuildObject, const QUui
     , m_uStepId(uStepId)
     , m_iStepNumber(iStepNumber)
 {
-    /* Prepare connections (old style, polymorph): */
-    connect(pBuildObject, SIGNAL(sigBuildDone()),
-            this, SLOT(sltStepDone()),
+    /* Prepare connections: */
+    connect(qobject_cast<UIDetailsItem*>(pBuildObject), &UIDetailsItem::sigBuildDone,
+            this, &UIPrepareStep::sltStepDone,
             Qt::QueuedConnection);
-    connect(this, SIGNAL(sigStepDone(QUuid, int)),
-            pParent, SLOT(sltBuildStep(QUuid, int)),
-            Qt::QueuedConnection);
+
+    UIDetailsItem *pDetailsItem = qobject_cast<UIDetailsItem*>(pParent);
+    AssertPtrReturnVoid(pDetailsItem);
+    {
+        connect(this, &UIPrepareStep::sigStepDone,
+                pDetailsItem, &UIDetailsItem::sltBuildStep,
+                Qt::QueuedConnection);
+    }
 }
 
 void UIPrepareStep::sltStepDone()

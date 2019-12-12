@@ -25,12 +25,11 @@
 #include <VBox/vmm/apic.h>
 #include <VBox/vmm/gim.h>
 #include <VBox/vmm/iem.h>
-#include <VBox/vmm/vm.h>
+#include <VBox/vmm/vmcc.h>
 
 #include <VBox/err.h>
 
 
-#ifndef IN_RC
 
 /**
  * Emulates a simple MOV TPR (CR8) instruction.
@@ -47,10 +46,10 @@
  * @retval VERR_NOT_FOUND if no patch record for this RIP could be found.
  * @retval VERR_SVM_UNEXPECTED_PATCH_TYPE if the found patch type is invalid.
  *
+ * @param   pVM                 The cross context VM structure.
  * @param   pVCpu               The cross context virtual CPU structure.
- * @param   pCtx                Pointer to the guest-CPU context.
  */
-VMM_INT_DECL(int) hmEmulateSvmMovTpr(PVMCPU pVCpu)
+VMM_INT_DECL(int) hmEmulateSvmMovTpr(PVMCC pVM, PVMCPUCC pVCpu)
 {
     PCPUMCTX pCtx = &pVCpu->cpum.GstCtx;
     Log4(("Emulated VMMCall TPR access replacement at RIP=%RGv\n", pCtx->rip));
@@ -60,7 +59,6 @@ VMM_INT_DECL(int) hmEmulateSvmMovTpr(PVMCPU pVCpu)
      * and the new RIP may be a patched instruction which needs emulation as well.
      */
     bool fPatchFound = false;
-    PVM  pVM = pVCpu->CTX_SUFF(pVM);
     for (;;)
     {
         PHMTPRPATCH pPatch = (PHMTPRPATCH)RTAvloU32Get(&pVM->hm.s.PatchTree, (AVLOU32KEY)pCtx->eip);
@@ -119,7 +117,7 @@ VMM_INT_DECL(int) hmEmulateSvmMovTpr(PVMCPU pVCpu)
     return fPatchFound ? VINF_SUCCESS : VERR_NOT_FOUND;
 }
 
-# ifdef VBOX_WITH_NESTED_HWVIRT_SVM
+#ifdef VBOX_WITH_NESTED_HWVIRT_SVM
 /**
  * Notification callback for when a \#VMEXIT happens outside SVM R0 code (e.g.
  * in IEM).
@@ -129,7 +127,7 @@ VMM_INT_DECL(int) hmEmulateSvmMovTpr(PVMCPU pVCpu)
  *
  * @sa      hmR0SvmVmRunCacheVmcb.
  */
-VMM_INT_DECL(void) HMNotifySvmNstGstVmexit(PVMCPU pVCpu, PCPUMCTX pCtx)
+VMM_INT_DECL(void) HMNotifySvmNstGstVmexit(PVMCPUCC pVCpu, PCPUMCTX pCtx)
 {
     PSVMNESTEDVMCBCACHE pVmcbNstGstCache = &pVCpu->hm.s.svm.NstGstVmcbCache;
     if (pVmcbNstGstCache->fCacheValid)
@@ -167,11 +165,10 @@ VMM_INT_DECL(void) HMNotifySvmNstGstVmexit(PVMCPU pVCpu, PCPUMCTX pCtx)
      * to the guest VMCB after the #VMEXIT.
      */
     CPUMImportGuestStateOnDemand(pVCpu, CPUMCTX_EXTRN_ALL);
-    AssertMsg(!(pVCpu->cpum.GstCtx.fExtrn & CPUMCTX_EXTRN_ALL),
-              ("fExtrn=%#RX64 fExtrnMbz=%#RX64\n", pVCpu->cpum.GstCtx.fExtrn, CPUMCTX_EXTRN_ALL));
+    CPUM_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_ALL);
     ASMAtomicUoOrU64(&pVCpu->hm.s.fCtxChanged, HM_CHANGED_ALL_GUEST);
 }
-# endif
+#endif
 
 /**
  * Checks if the Virtual GIF (Global Interrupt Flag) feature is supported and
@@ -183,38 +180,11 @@ VMM_INT_DECL(void) HMNotifySvmNstGstVmexit(PVMCPU pVCpu, PCPUMCTX pCtx)
  * @remarks This value returned by this functions is expected by the callers not
  *          to change throughout the lifetime of the VM.
  */
-VMM_INT_DECL(bool) HMIsSvmVGifActive(PVM pVM)
+VMM_INT_DECL(bool) HMIsSvmVGifActive(PCVM pVM)
 {
     bool const fVGif    = RT_BOOL(pVM->hm.s.svm.u32Features & X86_CPUID_SVM_FEATURE_EDX_VGIF);
     bool const fUseVGif = fVGif && pVM->hm.s.svm.fVGif;
     return fVGif && fUseVGif;
-}
-
-
-/**
- * Applies the TSC offset of an SVM nested-guest if any and returns the new TSC
- * value for the nested-guest.
- *
- * @returns The TSC offset after applying any nested-guest TSC offset.
- * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
- * @param   uTicks      The guest TSC.
- *
- * @remarks This function looks at the VMCB cache rather than directly at the
- *          nested-guest VMCB. The latter may have been modified for executing
- *          using hardware-assisted SVM.
- *
- * @note    If you make any changes to this function, please check if
- *          hmR0SvmNstGstUndoTscOffset() needs adjusting.
- *
- * @sa      CPUMApplyNestedGuestTscOffset(), hmR0SvmNstGstUndoTscOffset().
- */
-VMM_INT_DECL(uint64_t) HMApplySvmNstGstTscOffset(PVMCPU pVCpu, uint64_t uTicks)
-{
-    PCCPUMCTX pCtx = &pVCpu->cpum.GstCtx;
-    Assert(CPUMIsGuestInSvmNestedHwVirtMode(pCtx)); RT_NOREF(pCtx);
-    PCSVMNESTEDVMCBCACHE pVmcbNstGstCache = &pVCpu->hm.s.svm.NstGstVmcbCache;
-    Assert(pVmcbNstGstCache->fCacheValid);
-    return uTicks + pVmcbNstGstCache->u64TSCOffset;
 }
 
 
@@ -226,14 +196,14 @@ VMM_INT_DECL(uint64_t) HMApplySvmNstGstTscOffset(PVMCPU pVCpu, uint64_t uTicks)
  * @retval  VERR_NOT_FOUND if hypercall was _not_ handled.
  * @retval  VERR_SVM_UNEXPECTED_PATCH_TYPE on IPE.
  *
+ * @param   pVM                 The cross context VM structure.
  * @param   pVCpu               The cross context virtual CPU structure.
  */
-VMM_INT_DECL(int) HMHCMaybeMovTprSvmHypercall(PVMCPU pVCpu)
+VMM_INT_DECL(int) HMHCMaybeMovTprSvmHypercall(PVMCC pVM, PVMCPUCC pVCpu)
 {
-    PVM pVM = pVCpu->CTX_SUFF(pVM);
     if (pVM->hm.s.fTprPatchingAllowed)
     {
-        int rc = hmEmulateSvmMovTpr(pVCpu);
+        int rc = hmEmulateSvmMovTpr(pVM, pVCpu);
         if (RT_SUCCESS(rc))
             return VINF_SUCCESS;
         return rc;
@@ -295,137 +265,6 @@ VMM_INT_DECL(int) HMIsSubjectToSvmErratum170(uint32_t *pu32Family, uint32_t *pu3
     return fErratumApplies;
 }
 
-#endif /* !IN_RC */
-
-/**
- * Gets the MSR permission bitmap byte and bit offset for the specified MSR.
- *
- * @returns VBox status code.
- * @param   idMsr       The MSR being requested.
- * @param   pbOffMsrpm  Where to store the byte offset in the MSR permission
- *                      bitmap for @a idMsr.
- * @param   puMsrpmBit  Where to store the bit offset starting at the byte
- *                      returned in @a pbOffMsrpm.
- */
-VMM_INT_DECL(int) HMGetSvmMsrpmOffsetAndBit(uint32_t idMsr, uint16_t *pbOffMsrpm, uint8_t *puMsrpmBit)
-{
-    Assert(pbOffMsrpm);
-    Assert(puMsrpmBit);
-
-    /*
-     * MSRPM Layout:
-     * Byte offset          MSR range
-     * 0x000  - 0x7ff       0x00000000 - 0x00001fff
-     * 0x800  - 0xfff       0xc0000000 - 0xc0001fff
-     * 0x1000 - 0x17ff      0xc0010000 - 0xc0011fff
-     * 0x1800 - 0x1fff              Reserved
-     *
-     * Each MSR is represented by 2 permission bits (read and write).
-     */
-    if (idMsr <= 0x00001fff)
-    {
-        /* Pentium-compatible MSRs. */
-        uint32_t const bitoffMsr = idMsr << 1;
-        *pbOffMsrpm = bitoffMsr >> 3;
-        *puMsrpmBit = bitoffMsr & 7;
-        return VINF_SUCCESS;
-    }
-
-    if (   idMsr >= 0xc0000000
-        && idMsr <= 0xc0001fff)
-    {
-        /* AMD Sixth Generation x86 Processor MSRs. */
-        uint32_t const bitoffMsr = (idMsr - 0xc0000000) << 1;
-        *pbOffMsrpm = 0x800 + (bitoffMsr >> 3);
-        *puMsrpmBit = bitoffMsr & 7;
-        return VINF_SUCCESS;
-    }
-
-    if (   idMsr >= 0xc0010000
-        && idMsr <= 0xc0011fff)
-    {
-        /* AMD Seventh and Eighth Generation Processor MSRs. */
-        uint32_t const bitoffMsr = (idMsr - 0xc0010000) << 1;
-        *pbOffMsrpm = 0x1000 + (bitoffMsr >> 3);
-        *puMsrpmBit = bitoffMsr & 7;
-        return VINF_SUCCESS;
-    }
-
-    *pbOffMsrpm = 0;
-    *puMsrpmBit = 0;
-    return VERR_OUT_OF_RANGE;
-}
-
-
-/**
- * Determines whether an IOIO intercept is active for the nested-guest or not.
- *
- * @param   pvIoBitmap      Pointer to the nested-guest IO bitmap.
- * @param   u16Port         The IO port being accessed.
- * @param   enmIoType       The type of IO access.
- * @param   cbReg           The IO operand size in bytes.
- * @param   cAddrSizeBits   The address size bits (for 16, 32 or 64).
- * @param   iEffSeg         The effective segment number.
- * @param   fRep            Whether this is a repeating IO instruction (REP prefix).
- * @param   fStrIo          Whether this is a string IO instruction.
- * @param   pIoExitInfo     Pointer to the SVMIOIOEXITINFO struct to be filled.
- *                          Optional, can be NULL.
- */
-VMM_INT_DECL(bool) HMIsSvmIoInterceptActive(void *pvIoBitmap, uint16_t u16Port, SVMIOIOTYPE enmIoType, uint8_t cbReg,
-                                            uint8_t cAddrSizeBits, uint8_t iEffSeg, bool fRep, bool fStrIo,
-                                            PSVMIOIOEXITINFO pIoExitInfo)
-{
-    Assert(cAddrSizeBits == 16 || cAddrSizeBits == 32 || cAddrSizeBits == 64);
-    Assert(cbReg == 1 || cbReg == 2 || cbReg == 4 || cbReg == 8);
-
-    /*
-     * The IOPM layout:
-     * Each bit represents one 8-bit port. That makes a total of 0..65535 bits or
-     * two 4K pages.
-     *
-     * For IO instructions that access more than a single byte, the permission bits
-     * for all bytes are checked; if any bit is set to 1, the IO access is intercepted.
-     *
-     * Since it's possible to do a 32-bit IO access at port 65534 (accessing 4 bytes),
-     * we need 3 extra bits beyond the second 4K page.
-     */
-    static const uint16_t s_auSizeMasks[] = { 0, 1, 3, 0, 0xf, 0, 0, 0 };
-
-    uint16_t const offIopm   = u16Port >> 3;
-    uint16_t const fSizeMask = s_auSizeMasks[(cAddrSizeBits >> SVM_IOIO_OP_SIZE_SHIFT) & 7];
-    uint8_t  const cShift    = u16Port - (offIopm << 3);
-    uint16_t const fIopmMask = (1 << cShift) | (fSizeMask << cShift);
-
-    uint8_t const *pbIopm = (uint8_t *)pvIoBitmap;
-    Assert(pbIopm);
-    pbIopm += offIopm;
-    uint16_t const u16Iopm = *(uint16_t *)pbIopm;
-    if (u16Iopm & fIopmMask)
-    {
-        if (pIoExitInfo)
-        {
-            static const uint32_t s_auIoOpSize[] =
-            { SVM_IOIO_32_BIT_OP, SVM_IOIO_8_BIT_OP, SVM_IOIO_16_BIT_OP, 0, SVM_IOIO_32_BIT_OP, 0, 0, 0 };
-
-            static const uint32_t s_auIoAddrSize[] =
-            { 0, SVM_IOIO_16_BIT_ADDR, SVM_IOIO_32_BIT_ADDR, 0, SVM_IOIO_64_BIT_ADDR, 0, 0, 0 };
-
-            pIoExitInfo->u         = s_auIoOpSize[cbReg & 7];
-            pIoExitInfo->u        |= s_auIoAddrSize[(cAddrSizeBits >> 4) & 7];
-            pIoExitInfo->n.u1Str   = fStrIo;
-            pIoExitInfo->n.u1Rep   = fRep;
-            pIoExitInfo->n.u3Seg   = iEffSeg & 7;
-            pIoExitInfo->n.u1Type  = enmIoType;
-            pIoExitInfo->n.u16Port = u16Port;
-        }
-        return true;
-    }
-
-    /** @todo remove later (for debugging as VirtualBox always traps all IO
-     *        intercepts). */
-    AssertMsgFailed(("CPUMSvmIsIOInterceptActive: We expect an IO intercept here!\n"));
-    return false;
-}
 
 
 /**
@@ -462,156 +301,221 @@ VMM_INT_DECL(TRPMEVENT) HMSvmEventToTrpmEventType(PCSVMEVENT pEvent, uint8_t uVe
 
 
 /**
- * Returns whether HM has cached the nested-guest VMCB.
+ * Gets the SVM nested-guest control intercepts if cached by HM.
  *
- * If the VMCB is cached by HM, it means HM may have potentially modified the
- * VMCB for execution using hardware-assisted SVM.
- *
- * @returns true if HM has cached the nested-guest VMCB, false otherwise.
- * @param   pVCpu   The cross context virtual CPU structure of the calling EMT.
+ * @returns @c true on success, @c false otherwise.
+ * @param   pVCpu           The cross context virtual CPU structure of the calling
+ *                          EMT.
+ * @param   pu64Intercepts  Where to store the control intercepts. Only updated when
+ *                          @c true is returned.
  */
-VMM_INT_DECL(bool) HMHasGuestSvmVmcbCached(PVMCPU pVCpu)
+VMM_INT_DECL(bool) HMGetGuestSvmCtrlIntercepts(PCVMCPU pVCpu, uint64_t *pu64Intercepts)
 {
+    Assert(pu64Intercepts);
     PCSVMNESTEDVMCBCACHE pVmcbNstGstCache = &pVCpu->hm.s.svm.NstGstVmcbCache;
-    return pVmcbNstGstCache->fCacheValid;
+    if (pVmcbNstGstCache->fCacheValid)
+    {
+        *pu64Intercepts = pVmcbNstGstCache->u64InterceptCtrl;
+        return true;
+    }
+    return false;
 }
 
 
 /**
- * Checks if the nested-guest VMCB has the specified ctrl/instruction intercept
- * active.
+ * Gets the SVM nested-guest CRx-read intercepts if cached by HM.
  *
- * @returns @c true if in intercept is set, @c false otherwise.
- * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
- * @param   fIntercept  The SVM control/instruction intercept, see
- *                      SVM_CTRL_INTERCEPT_*.
+ * @returns @c true on success, @c false otherwise.
+ * @param   pVCpu           The cross context virtual CPU structure of the calling
+ *                          EMT.
+ * @param   pu16Intercepts  Where to store the CRx-read intercepts. Only updated
+ *                          when @c true is returned.
  */
-VMM_INT_DECL(bool) HMIsGuestSvmCtrlInterceptSet(PVMCPU pVCpu, uint64_t fIntercept)
+VMM_INT_DECL(bool) HMGetGuestSvmReadCRxIntercepts(PCVMCPU pVCpu, uint16_t *pu16Intercepts)
 {
-    Assert(HMHasGuestSvmVmcbCached(pVCpu));
+    Assert(pu16Intercepts);
     PCSVMNESTEDVMCBCACHE pVmcbNstGstCache = &pVCpu->hm.s.svm.NstGstVmcbCache;
-    return RT_BOOL(pVmcbNstGstCache->u64InterceptCtrl & fIntercept);
+    if (pVmcbNstGstCache->fCacheValid)
+    {
+        *pu16Intercepts = pVmcbNstGstCache->u16InterceptRdCRx;
+        return true;
+    }
+    return false;
 }
 
 
 /**
- * Checks if the nested-guest VMCB has the specified CR read intercept active.
+ * Gets the SVM nested-guest CRx-write intercepts if cached by HM.
  *
- * @returns @c true if in intercept is set, @c false otherwise.
- * @param   pVCpu   The cross context virtual CPU structure of the calling EMT.
- * @param   uCr     The CR register number (0 to 15).
+ * @returns @c true on success, @c false otherwise.
+ * @param   pVCpu           The cross context virtual CPU structure of the calling
+ *                          EMT.
+ * @param   pu16Intercepts  Where to store the CRx-write intercepts. Only updated
+ *                          when @c true is returned.
  */
-VMM_INT_DECL(bool) HMIsGuestSvmReadCRxInterceptSet(PVMCPU pVCpu, uint8_t uCr)
+VMM_INT_DECL(bool) HMGetGuestSvmWriteCRxIntercepts(PCVMCPU pVCpu, uint16_t *pu16Intercepts)
 {
-    Assert(uCr < 16);
-    Assert(HMHasGuestSvmVmcbCached(pVCpu));
+    Assert(pu16Intercepts);
     PCSVMNESTEDVMCBCACHE pVmcbNstGstCache = &pVCpu->hm.s.svm.NstGstVmcbCache;
-    return RT_BOOL(pVmcbNstGstCache->u16InterceptRdCRx & (1 << uCr));
+    if (pVmcbNstGstCache->fCacheValid)
+    {
+        *pu16Intercepts = pVmcbNstGstCache->u16InterceptWrCRx;
+        return true;
+    }
+    return false;
 }
 
 
 /**
- * Checks if the nested-guest VMCB has the specified CR write intercept active.
+ * Gets the SVM nested-guest DRx-read intercepts if cached by HM.
  *
- * @returns @c true if in intercept is set, @c false otherwise.
- * @param   pVCpu   The cross context virtual CPU structure of the calling EMT.
- * @param   uCr     The CR register number (0 to 15).
+ * @returns @c true on success, @c false otherwise.
+ * @param   pVCpu           The cross context virtual CPU structure of the calling
+ *                          EMT.
+ * @param   pu16Intercepts  Where to store the DRx-read intercepts. Only updated
+ *                          when @c true is returned.
  */
-VMM_INT_DECL(bool) HMIsGuestSvmWriteCRxInterceptSet(PVMCPU pVCpu, uint8_t uCr)
+VMM_INT_DECL(bool) HMGetGuestSvmReadDRxIntercepts(PCVMCPU pVCpu, uint16_t *pu16Intercepts)
 {
-    Assert(uCr < 16);
-    Assert(HMHasGuestSvmVmcbCached(pVCpu));
+    Assert(pu16Intercepts);
     PCSVMNESTEDVMCBCACHE pVmcbNstGstCache = &pVCpu->hm.s.svm.NstGstVmcbCache;
-    return RT_BOOL(pVmcbNstGstCache->u16InterceptWrCRx & (1 << uCr));
+    if (pVmcbNstGstCache->fCacheValid)
+    {
+        *pu16Intercepts = pVmcbNstGstCache->u16InterceptRdDRx;
+        return true;
+    }
+    return false;
 }
 
 
 /**
- * Checks if the nested-guest VMCB has the specified DR read intercept active.
+ * Gets the SVM nested-guest DRx-write intercepts if cached by HM.
  *
- * @returns @c true if in intercept is set, @c false otherwise.
- * @param   pVCpu   The cross context virtual CPU structure of the calling EMT.
- * @param   uDr     The DR register number (0 to 15).
+ * @returns @c true on success, @c false otherwise.
+ * @param   pVCpu           The cross context virtual CPU structure of the calling
+ *                          EMT.
+ * @param   pu16Intercepts  Where to store the DRx-write intercepts. Only updated
+ *                          when @c true is returned.
  */
-VMM_INT_DECL(bool) HMIsGuestSvmReadDRxInterceptSet(PVMCPU pVCpu, uint8_t uDr)
+VMM_INT_DECL(bool) HMGetGuestSvmWriteDRxIntercepts(PCVMCPU pVCpu, uint16_t *pu16Intercepts)
 {
-    Assert(uDr < 16);
-    Assert(HMHasGuestSvmVmcbCached(pVCpu));
+    Assert(pu16Intercepts);
     PCSVMNESTEDVMCBCACHE pVmcbNstGstCache = &pVCpu->hm.s.svm.NstGstVmcbCache;
-    return RT_BOOL(pVmcbNstGstCache->u16InterceptRdDRx & (1 << uDr));
+    if (pVmcbNstGstCache->fCacheValid)
+    {
+        *pu16Intercepts = pVmcbNstGstCache->u16InterceptWrDRx;
+        return true;
+    }
+    return false;
 }
 
 
 /**
- * Checks if the nested-guest VMCB has the specified DR write intercept active.
+ * Gets the SVM nested-guest exception intercepts if cached by HM.
  *
- * @returns @c true if in intercept is set, @c false otherwise.
- * @param   pVCpu   The cross context virtual CPU structure of the calling EMT.
- * @param   uDr     The DR register number (0 to 15).
+ * @returns @c true on success, @c false otherwise.
+ * @param   pVCpu           The cross context virtual CPU structure of the calling
+ *                          EMT.
+ * @param   pu32Intercepts  Where to store the exception intercepts. Only updated
+ *                          when @c true is returned.
  */
-VMM_INT_DECL(bool) HMIsGuestSvmWriteDRxInterceptSet(PVMCPU pVCpu, uint8_t uDr)
+VMM_INT_DECL(bool) HMGetGuestSvmXcptIntercepts(PCVMCPU pVCpu, uint32_t *pu32Intercepts)
 {
-    Assert(uDr < 16);
-    Assert(HMHasGuestSvmVmcbCached(pVCpu));
+    Assert(pu32Intercepts);
     PCSVMNESTEDVMCBCACHE pVmcbNstGstCache = &pVCpu->hm.s.svm.NstGstVmcbCache;
-    return RT_BOOL(pVmcbNstGstCache->u16InterceptWrDRx & (1 << uDr));
-}
-
-
-/**
- * Checks if the nested-guest VMCB has the specified exception intercept active.
- *
- * @returns true if in intercept is active, false otherwise.
- * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
- * @param   uVector     The exception / interrupt vector.
- */
-VMM_INT_DECL(bool) HMIsGuestSvmXcptInterceptSet(PVMCPU pVCpu, uint8_t uVector)
-{
-    Assert(uVector < 32);
-    Assert(HMHasGuestSvmVmcbCached(pVCpu));
-    PCSVMNESTEDVMCBCACHE pVmcbNstGstCache = &pVCpu->hm.s.svm.NstGstVmcbCache;
-    return RT_BOOL(pVmcbNstGstCache->u32InterceptXcpt & (1 << uVector));
+    if (pVmcbNstGstCache->fCacheValid)
+    {
+        *pu32Intercepts = pVmcbNstGstCache->u32InterceptXcpt;
+        return true;
+    }
+    return false;
 }
 
 
 /**
  * Checks if the nested-guest VMCB has virtual-interrupts masking enabled.
  *
- * @returns true if virtual-interrupts are masked, @c false otherwise.
- * @param   pVCpu   The cross context virtual CPU structure of the calling EMT.
+ * @returns @c true on success, @c false otherwise.
+ * @param   pVCpu           The cross context virtual CPU structure of the calling
+ *                          EMT.
+ * @param   pfVIntrMasking  Where to store the virtual-interrupt masking bit.
+ *                          Updated only when @c true is returned.
  */
-VMM_INT_DECL(bool) HMIsGuestSvmVirtIntrMasking(PVMCPU pVCpu)
+VMM_INT_DECL(bool) HMGetGuestSvmVirtIntrMasking(PCVMCPU pVCpu, bool *pfVIntrMasking)
 {
-    Assert(HMHasGuestSvmVmcbCached(pVCpu));
+    Assert(pfVIntrMasking);
     PCSVMNESTEDVMCBCACHE pVmcbNstGstCache = &pVCpu->hm.s.svm.NstGstVmcbCache;
-    return pVmcbNstGstCache->fVIntrMasking;
+    if (pVmcbNstGstCache->fCacheValid)
+    {
+        *pfVIntrMasking = pVmcbNstGstCache->fVIntrMasking;
+        return true;
+    }
+    return false;
 }
 
 
 /**
- * Checks if the nested-guest VMCB has nested-paging enabled.
+ * Gets the SVM nested-guest nested-paging bit if cached by HM.
  *
- * @returns true if nested-paging is enabled, @c false otherwise.
- * @param   pVCpu   The cross context virtual CPU structure of the calling EMT.
+ * @returns @c true on success, @c false otherwise.
+ * @param   pVCpu               The cross context virtual CPU structure of the
+ *                              calling EMT.
+ * @param   pfNestedPaging      Where to store the nested-paging bit. Updated only
+ *                              when @c true is returned.
  */
-VMM_INT_DECL(bool) HMIsGuestSvmNestedPagingEnabled(PVMCPU pVCpu)
+VMM_INT_DECL(bool) HMGetGuestSvmNestedPaging(PCVMCPU pVCpu, bool *pfNestedPaging)
 {
-    Assert(HMHasGuestSvmVmcbCached(pVCpu));
+    Assert(pfNestedPaging);
     PCSVMNESTEDVMCBCACHE pVmcbNstGstCache = &pVCpu->hm.s.svm.NstGstVmcbCache;
-    return pVmcbNstGstCache->fNestedPaging;
+    if (pVmcbNstGstCache->fCacheValid)
+    {
+        *pfNestedPaging = pVmcbNstGstCache->fNestedPaging;
+        return true;
+    }
+    return false;
 }
 
 
 /**
  * Returns the nested-guest VMCB pause-filter count.
  *
- * @returns The pause-filter count.
- * @param   pVCpu   The cross context virtual CPU structure of the calling EMT.
+ * @returns @c true on success, @c false otherwise.
+ * @param   pVCpu                   The cross context virtual CPU structure of the
+ *                                  calling EMT.
+ * @param   pu16PauseFilterCount    Where to store the pause-filter count. Only
+ *                                  updated @c true is returned.
  */
-VMM_INT_DECL(uint16_t) HMGetGuestSvmPauseFilterCount(PVMCPU pVCpu)
+VMM_INT_DECL(bool) HMGetGuestSvmPauseFilterCount(PCVMCPU pVCpu, uint16_t *pu16PauseFilterCount)
 {
-    Assert(HMHasGuestSvmVmcbCached(pVCpu));
+    Assert(pu16PauseFilterCount);
     PCSVMNESTEDVMCBCACHE pVmcbNstGstCache = &pVCpu->hm.s.svm.NstGstVmcbCache;
-    return pVmcbNstGstCache->u16PauseFilterCount;
+    if (pVmcbNstGstCache->fCacheValid)
+    {
+        *pu16PauseFilterCount = pVmcbNstGstCache->u16PauseFilterCount;
+        return true;
+    }
+    return false;
+}
+
+
+/**
+ * Returns the SVM nested-guest TSC offset if cached by HM.
+ *
+ * @returns The TSC offset after applying any nested-guest TSC offset.
+ * @param   pVCpu           The cross context virtual CPU structure of the calling
+ *                          EMT.
+ * @param   pu64TscOffset   Where to store the TSC offset. Only updated when @c
+ *                          true is returned.
+ */
+VMM_INT_DECL(bool) HMGetGuestSvmTscOffset(PCVMCPU pVCpu, uint64_t *pu64TscOffset)
+{
+    Assert(pu64TscOffset);
+    PCSVMNESTEDVMCBCACHE pVmcbNstGstCache = &pVCpu->hm.s.svm.NstGstVmcbCache;
+    if (pVmcbNstGstCache->fCacheValid)
+    {
+        *pu64TscOffset = pVmcbNstGstCache->u64TSCOffset;
+        return true;
+    }
+    return false;
 }
 

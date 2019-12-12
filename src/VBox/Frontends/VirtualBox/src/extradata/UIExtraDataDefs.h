@@ -45,6 +45,9 @@ namespace UIExtraDataDefs
       * @{ */
         /** Holds event handling type. */
         SHARED_LIBRARY_STUFF extern const char *GUI_EventHandlingType;
+
+        /** Holds restricted dialogs. */
+        SHARED_LIBRARY_STUFF extern const char *GUI_RestrictedDialogs;
     /** @} */
 
     /** @name Messaging
@@ -135,14 +138,24 @@ namespace UIExtraDataDefs
         SHARED_LIBRARY_STUFF extern const char *GUI_RecentFolderCD;
         /** Holds recent folder for floppy-disks. */
         SHARED_LIBRARY_STUFF extern const char *GUI_RecentFolderFD;
-        /** Holds recent folder for VISO creation content. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_RecentFolderVISOContent;
         /** Holds the list of recently used hard-drives. */
         SHARED_LIBRARY_STUFF extern const char *GUI_RecentListHD;
         /** Holds the list of recently used optical-disks. */
         SHARED_LIBRARY_STUFF extern const char *GUI_RecentListCD;
         /** Holds the list of recently used floppy-disks. */
         SHARED_LIBRARY_STUFF extern const char *GUI_RecentListFD;
+    /** @} */
+
+    /** @name Settings: Network
+      * @{ */
+        /** Holds the list of restricted network attachment types. */
+        SHARED_LIBRARY_STUFF extern const char *GUI_RestrictedNetworkAttachmentTypes;
+    /** @} */
+
+    /** @name VISO Creator
+      * @{ */
+        /** Holds recent folder for VISO creation content. */
+        SHARED_LIBRARY_STUFF extern const char *GUI_VISOCreator_RecentFolder;
     /** @} */
 
     /** @name VirtualBox Manager
@@ -190,6 +203,8 @@ namespace UIExtraDataDefs
       * @{ */
         /** Holds whether Virtual Media Manager details expanded. */
         SHARED_LIBRARY_STUFF extern const char *GUI_VirtualMediaManager_Details_Expanded;
+        /** Holds whether Virtual Media Manager search widget expanded. */
+        SHARED_LIBRARY_STUFF extern const char *GUI_VirtualMediaManager_Search_Widget_Expanded;
     /** @} */
 
     /** @name Host Network Manager
@@ -354,9 +369,7 @@ namespace UIExtraDataDefs
     /** @name Virtual Machine: Information dialog
       * @{ */
         /** Holds information-window geometry. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_InformationWindowGeometry;
-        /** Holds information-window elements. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_InformationWindowElements;
+        SHARED_LIBRARY_STUFF extern const char *GUI_SessionInformationDialogGeometry;
     /** @} */
 
     /** @name Guest Control UI related data
@@ -365,6 +378,18 @@ namespace UIExtraDataDefs
         extern const char *GUI_GuestControl_FileManagerVisiblePanels;
         extern const char *GUI_GuestControl_ProcessControlSplitterHints;
         extern const char *GUI_GuestControl_ProcessControlDialogGeometry;
+    /** @} */
+
+    /** @name Soft Keyboard related data
+      * @{ */
+        extern const char *GUI_SoftKeyboard_DialogGeometry;
+        extern const char *GUI_SoftKeyboard_ColorTheme;
+        extern const char *GUI_SoftKeyboard_SelectedColorTheme;
+        extern const char *GUI_SoftKeyboard_SelectedLayout;
+        extern const char *GUI_SoftKeyboard_Options;
+        extern const char *GUI_SoftKeyboard_HideNumPad;
+        extern const char *GUI_SoftKeyboard_HideOSMenuKeys;
+        extern const char *GUI_SoftKeyboard_HideMultimediaKeys;
     /** @} */
 
     /** @name File Manager options
@@ -413,7 +438,6 @@ namespace UIExtraDataDefs
         SHARED_LIBRARY_STUFF extern const char *GUI_GuestControl_LogViewerVisiblePanels;
     /** @} */
 
-
     /** @name Old key support stuff.
       * @{ */
         /** Prepares obsolete keys map. */
@@ -446,6 +470,15 @@ class SHARED_LIBRARY_STUFF UIExtraDataMetaDefs : public QObject
 #endif
 
 public:
+
+    /** Common UI: Dialog types. */
+    enum DialogType
+    {
+        DialogType_Invalid     = 0,
+        DialogType_VISOCreator = RT_BIT(0),
+        DialogType_All         = 0xFFFF
+    };
+    Q_ENUM(DialogType);
 
     /** Common UI: Menu types. */
     enum MenuType
@@ -554,17 +587,18 @@ public:
         RuntimeMenuInputActionType_Invalid            = 0,
         RuntimeMenuInputActionType_Keyboard           = RT_BIT(0),
         RuntimeMenuInputActionType_KeyboardSettings   = RT_BIT(1),
-        RuntimeMenuInputActionType_TypeCAD            = RT_BIT(2),
+        RuntimeMenuInputActionType_SoftKeyboard       = RT_BIT(2),
+        RuntimeMenuInputActionType_TypeCAD            = RT_BIT(3),
 #ifdef VBOX_WS_X11
-        RuntimeMenuInputActionType_TypeCABS           = RT_BIT(3),
+        RuntimeMenuInputActionType_TypeCABS           = RT_BIT(4),
 #endif
-        RuntimeMenuInputActionType_TypeCtrlBreak      = RT_BIT(4),
-        RuntimeMenuInputActionType_TypeInsert         = RT_BIT(5),
-        RuntimeMenuInputActionType_TypePrintScreen    = RT_BIT(6),
-        RuntimeMenuInputActionType_TypeAltPrintScreen = RT_BIT(7),
-        RuntimeMenuInputActionType_Mouse              = RT_BIT(8),
-        RuntimeMenuInputActionType_MouseIntegration   = RT_BIT(9),
-        RuntimeMenuInputActionType_TypeHostKeyCombo   = RT_BIT(10),
+        RuntimeMenuInputActionType_TypeCtrlBreak      = RT_BIT(5),
+        RuntimeMenuInputActionType_TypeInsert         = RT_BIT(6),
+        RuntimeMenuInputActionType_TypePrintScreen    = RT_BIT(7),
+        RuntimeMenuInputActionType_TypeAltPrintScreen = RT_BIT(8),
+        RuntimeMenuInputActionType_Mouse              = RT_BIT(9),
+        RuntimeMenuInputActionType_MouseIntegration   = RT_BIT(10),
+        RuntimeMenuInputActionType_TypeHostKeyCombo   = RT_BIT(11),
         RuntimeMenuInputActionType_All                = 0xFFFF
     };
 
@@ -597,12 +631,13 @@ public:
     /** Runtime UI: Menu "Debugger": Action types. */
     enum RuntimeMenuDebuggerActionType
     {
-        RuntimeMenuDebuggerActionType_Invalid     = 0,
-        RuntimeMenuDebuggerActionType_Statistics  = RT_BIT(0),
-        RuntimeMenuDebuggerActionType_CommandLine = RT_BIT(1),
-        RuntimeMenuDebuggerActionType_Logging     = RT_BIT(2),
-        RuntimeMenuDebuggerActionType_LogDialog   = RT_BIT(3),
-        RuntimeMenuDebuggerActionType_All         = 0xFFFF
+        RuntimeMenuDebuggerActionType_Invalid              = 0,
+        RuntimeMenuDebuggerActionType_Statistics           = RT_BIT(0),
+        RuntimeMenuDebuggerActionType_CommandLine          = RT_BIT(1),
+        RuntimeMenuDebuggerActionType_Logging              = RT_BIT(2),
+        RuntimeMenuDebuggerActionType_LogDialog            = RT_BIT(3),
+        RuntimeMenuDebuggerActionType_GuestControlConsole  = RT_BIT(4),
+        RuntimeMenuDebuggerActionType_All                  = 0xFFFF
     };
 #endif /* VBOX_WITH_DEBUGGER_GUI */
 
@@ -626,7 +661,7 @@ public:
         DetailsElementOptionTypeGeneral_OS       = RT_BIT(1),
         DetailsElementOptionTypeGeneral_Location = RT_BIT(2),
         DetailsElementOptionTypeGeneral_Groups   = RT_BIT(3),
-        DetailsElementOptionTypeGeneral_Default  = 0xFFFF
+        DetailsElementOptionTypeGeneral_Default  = 0xFFFB
     };
     Q_ENUM(DetailsElementOptionTypeGeneral);
 
@@ -692,6 +727,10 @@ public:
         DetailsElementOptionTypeNetwork_InternalNetwork = RT_BIT(3),
         DetailsElementOptionTypeNetwork_HostOnlyAdapter = RT_BIT(4),
         DetailsElementOptionTypeNetwork_GenericDriver   = RT_BIT(5),
+        DetailsElementOptionTypeNetwork_NATNetwork      = RT_BIT(6),
+#ifdef VBOX_WITH_CLOUD_NET
+        DetailsElementOptionTypeNetwork_CloudNetwork    = RT_BIT(7),
+#endif /* VBOX_WITH_CLOUD_NET */
         DetailsElementOptionTypeNetwork_Default         = 0xFFFF
     };
     Q_ENUM(DetailsElementOptionTypeNetwork);
@@ -816,6 +855,7 @@ enum WizardType
     WizardType_CloneVM,
     WizardType_ExportAppliance,
     WizardType_ImportAppliance,
+    WizardType_NewCloudVM,
     WizardType_FirstRun,
     WizardType_NewVD,
     WizardType_CloneVD
@@ -979,6 +1019,7 @@ enum ScalingOptimizationType
 /** Runtime UI: Mini-toolbar alignment. */
 enum MiniToolbarAlignment
 {
+    MiniToolbarAlignment_Disabled,
     MiniToolbarAlignment_Bottom,
     MiniToolbarAlignment_Top
 };

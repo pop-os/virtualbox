@@ -105,11 +105,10 @@ uint8_t pci_write_cfgw(uint16_t op, uint16_t bus_dev_fn, uint16_t reg, uint16_t 
 uint8_t pci_write_cfgd(uint16_t op, uint16_t bus_dev_fn, uint16_t reg, uint32_t val);
 # pragma aux pci_write_cfgd = \
     ".386"                  \
-    "xchg   cx, dx"         \
     "shl    ecx, 16"        \
     "mov    cx, dx"         \
     "int    0x1a"           \
-    parm [ax] [bx] [di] [dx cx];
+    parm [ax] [bx] [di] [cx dx];
 #endif
 
 
@@ -127,6 +126,27 @@ uint16_t pci_find_classcode(uint32_t dev_class)
 {
 #if VBOX_BIOS_CPU >= 80386
     return pci_find_class((PCIBIOS_ID << 8) | PCIBIOS_FIND_CLASS_CODE, dev_class, 0);
+#else
+    return UINT16_C(0xffff);
+#endif
+}
+
+/**
+ * Returns the bus/device/function of a PCI device with
+ * the given base and sub-class code, ignoring the programming interface
+ * code.
+ *
+ * @returns bus/device/fn in a 16-bit integer where
+ *          where the upper byte contains the bus number
+ *          and lower one the device and function number.
+ *          0xffff if no device was found.
+ * @param   dev_class   The PCI class code to search for.
+ */
+uint16_t pci_find_class_noif(uint16_t dev_class)
+{
+#if VBOX_BIOS_CPU >= 80386
+    /* Internal call, not an interrupt service! */
+    return pci16_find_device(dev_class, 0 /*index*/, 1 /*search class*/, 1 /*ignore prog if*/);
 #else
     return UINT16_C(0xffff);
 #endif
@@ -173,7 +193,6 @@ void pci_write_config_word(uint8_t bus, uint8_t dev_fn, uint8_t reg, uint16_t va
     pci_write_cfgw((PCIBIOS_ID << 8) | PCIBIOS_WRITE_CONFIG_WORD, (bus << 8) | dev_fn, reg, val);
 }
 
-#if 0 /* Disabled to save space because they are not needed. Might become useful in the future. */
 void pci_write_config_byte(uint8_t bus, uint8_t dev_fn, uint8_t reg, uint8_t val)
 {
     pci_write_cfgb((PCIBIOS_ID << 8) | PCIBIOS_WRITE_CONFIG_BYTE, (bus << 8) | dev_fn, reg, val);
@@ -181,6 +200,11 @@ void pci_write_config_byte(uint8_t bus, uint8_t dev_fn, uint8_t reg, uint8_t val
 
 void pci_write_config_dword(uint8_t bus, uint8_t dev_fn, uint8_t reg, uint32_t val)
 {
+#if VBOX_BIOS_CPU >= 80386
     pci_write_cfgd((PCIBIOS_ID << 8) | PCIBIOS_WRITE_CONFIG_DWORD, (bus << 8) | dev_fn, reg, val);
+#else
+    pci_write_cfgw((PCIBIOS_ID << 8) | PCIBIOS_WRITE_CONFIG_WORD, (bus << 8) | dev_fn, reg, val & 0xffff);
+    pci_write_cfgw((PCIBIOS_ID << 8) | PCIBIOS_WRITE_CONFIG_WORD, (bus << 8) | dev_fn, reg + 2, val >> 16);
+#endif
 }
-#endif /* 0 */
+

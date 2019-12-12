@@ -19,7 +19,7 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
-#include <VBox/com/com.h>
+#include <VBox/com/utils.h>
 
 #include <iprt/buildconfig.h>
 #include <iprt/param.h>
@@ -84,6 +84,24 @@ static DECLCALLBACK(void) vboxHeaderFooter(PRTLOGGER pReleaseLogger, RTLOGPHASE 
             if (RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW)
                 pfnLog(pReleaseLogger, "DMI Product Version: %s\n", szTmp);
 
+            RTSYSFWTYPE enmType;
+            vrc = RTSystemQueryFirmwareType(&enmType);
+            if (RT_SUCCESS(vrc))
+            {
+                pfnLog(pReleaseLogger, "Firmware type: %s\n", RTSystemFirmwareTypeName(enmType));
+                if (enmType == RTSYSFWTYPE_UEFI)
+                {
+                     bool fValue;
+                     vrc = RTSystemQueryFirmwareBoolean(RTSYSFWBOOL_SECURE_BOOT, &fValue);
+                     if (RT_SUCCESS(vrc))
+                         pfnLog(pReleaseLogger, "Secure Boot: %s\n", fValue ? "Enabled" : "Disabled");
+                     else
+                         pfnLog(pReleaseLogger, "Secure Boot: %Rrc\n", vrc);
+                }
+            }
+            else
+                pfnLog(pReleaseLogger, "Firmware type: failed - %Rrc\n", vrc);
+
             uint64_t cbHostRam = 0, cbHostRamAvail = 0;
             vrc = RTSystemQueryTotalRam(&cbHostRam);
             if (RT_SUCCESS(vrc))
@@ -118,6 +136,7 @@ static DECLCALLBACK(void) vboxHeaderFooter(PRTLOGGER pReleaseLogger, RTLOGPHASE 
             RTLogSetBuffering(pReleaseLogger, fOldBuffered);
             break;
         }
+
         case RTLOGPHASE_PREROTATE:
             pfnLog(pReleaseLogger, "Log rotated - Log started %s\n", szTmp);
             break;

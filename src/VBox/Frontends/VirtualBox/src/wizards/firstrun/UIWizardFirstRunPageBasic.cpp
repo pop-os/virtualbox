@@ -22,7 +22,7 @@
 /* GUI includes: */
 #include "QIRichTextLabel.h"
 #include "QIToolButton.h"
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #include "UIIconPool.h"
 #include "UIMediaComboBox.h"
 #include "UIMedium.h"
@@ -39,7 +39,8 @@ UIWizardFirstRunPage::UIWizardFirstRunPage(bool fBootHardDiskWasSet)
 void UIWizardFirstRunPage::onOpenMediumWithFileOpenDialog()
 {
     /* Get opened vboxMedium id: */
-    QUuid uMediumId = vboxGlobal().openMediumWithFileOpenDialog(m_pMediaSelector->type(), thisImp());
+    QUuid uMediumId;
+    uiCommon().openMediumSelectorDialog(thisImp(), UIMediumDeviceType_DVD, uMediumId, "", "", "", true);
     /* Update medium-combo if necessary: */
     if (!uMediumId.isNull())
         m_pMediaSelector->setCurrentItem(uMediumId);
@@ -132,7 +133,7 @@ void UIWizardFirstRunPageBasic::initializePage()
 bool UIWizardFirstRunPageBasic::isComplete() const
 {
     /* Make sure valid medium chosen: */
-    return !vboxGlobal().medium(id()).isNull();
+    return !uiCommon().medium(id()).isNull();
 }
 
 bool UIWizardFirstRunPageBasic::validatePage()
@@ -158,4 +159,3 @@ QString UIWizardFirstRunPageBasic::source() const
 {
     return m_pMediaSelector->currentText();
 }
-

@@ -26,7 +26,7 @@
 #include <VBox/vmm/nem.h>
 #include <iprt/asm-amd64-x86.h> /* for SUPGetCpuHzFromGIP */
 #include "TMInternal.h"
-#include <VBox/vmm/vm.h>
+#include <VBox/vmm/vmcc.h>
 #include <VBox/sup.h>
 
 #include <VBox/param.h>
@@ -42,7 +42,7 @@
  * @param   pVM             The cross context VM structure.
  * @param   fCheckTimers    Whether to check timers.
  */
-DECLINLINE(uint64_t) tmCpuTickGetRawVirtual(PVM pVM, bool fCheckTimers)
+DECLINLINE(uint64_t) tmCpuTickGetRawVirtual(PVMCC pVM, bool fCheckTimers)
 {
     uint64_t u64;
     if (fCheckTimers)
@@ -74,7 +74,7 @@ uint64_t tmR3CpuTickGetRawVirtualNoCheck(PVM pVM)
  * @param   pVCpu       The cross context virtual CPU structure.
  * @internal
  */
-int tmCpuTickResume(PVM pVM, PVMCPU pVCpu)
+int tmCpuTickResume(PVMCC pVM, PVMCPUCC pVCpu)
 {
     if (!pVCpu->tm.s.fTSCTicking)
     {
@@ -113,7 +113,7 @@ int tmCpuTickResume(PVM pVM, PVMCPU pVCpu)
  * @param   pVM     The cross context VM structure.
  * @param   pVCpu   The cross context virtual CPU structure.
  */
-int tmCpuTickResumeLocked(PVM pVM, PVMCPU pVCpu)
+int tmCpuTickResumeLocked(PVMCC pVM, PVMCPUCC pVCpu)
 {
     if (!pVCpu->tm.s.fTSCTicking)
     {
@@ -141,13 +141,9 @@ int tmCpuTickResumeLocked(PVM pVM, PVMCPU pVCpu)
                     break;
                 case TMTSCMODE_NATIVE_API:
                 {
-#ifndef IN_RC
                     int rc = NEMHCResumeCpuTickOnAll(pVM, pVCpu, pVM->tm.s.u64LastPausedTSC);
                     AssertRCReturn(rc, rc);
                     pVCpu->tm.s.offTSCRawSrc = offTSCRawSrcOld = 0;
-#else
-                    AssertFailedReturn(VERR_INTERNAL_ERROR_2);
-#endif
                     break;
                 }
                 default:
@@ -174,7 +170,7 @@ int tmCpuTickResumeLocked(PVM pVM, PVMCPU pVCpu)
  * @param   pVCpu       The cross context virtual CPU structure.
  * @internal
  */
-int tmCpuTickPause(PVMCPU pVCpu)
+int tmCpuTickPause(PVMCPUCC pVCpu)
 {
     if (pVCpu->tm.s.fTSCTicking)
     {
@@ -195,7 +191,7 @@ int tmCpuTickPause(PVMCPU pVCpu)
  * @param   pVCpu       The cross context virtual CPU structure.
  * @internal
  */
-int tmCpuTickPauseLocked(PVM pVM, PVMCPU pVCpu)
+int tmCpuTickPauseLocked(PVMCC pVM, PVMCPUCC pVCpu)
 {
     if (pVCpu->tm.s.fTSCTicking)
     {
@@ -268,7 +264,7 @@ DECLINLINE(void) tmCpuTickRecordOffsettedTscRefusal(PVM pVM, PVMCPU pVCpu)
  * @thread  EMT(pVCpu).
  * @see     TMCpuTickGetDeadlineAndTscOffset().
  */
-VMM_INT_DECL(bool) TMCpuTickCanUseRealTSC(PVM pVM, PVMCPU pVCpu, uint64_t *poffRealTsc, bool *pfParavirtTsc)
+VMM_INT_DECL(bool) TMCpuTickCanUseRealTSC(PVMCC pVM, PVMCPUCC pVCpu, uint64_t *poffRealTsc, bool *pfParavirtTsc)
 {
     Assert(pVCpu->tm.s.fTSCTicking || DBGFIsStepping(pVCpu));
 
@@ -380,7 +376,7 @@ DECLINLINE(uint64_t) tmCpuCalcTicksToDeadline(PVMCPU pVCpu, uint64_t cNsToDeadli
  * @thread  EMT(pVCpu).
  * @see     TMCpuTickCanUseRealTSC().
  */
-VMM_INT_DECL(uint64_t) TMCpuTickGetDeadlineAndTscOffset(PVM pVM, PVMCPU pVCpu, uint64_t *poffRealTsc,
+VMM_INT_DECL(uint64_t) TMCpuTickGetDeadlineAndTscOffset(PVMCC pVM, PVMCPUCC pVCpu, uint64_t *poffRealTsc,
                                                         bool *pfOffsettedTsc, bool *pfParavirtTsc)
 {
     Assert(pVCpu->tm.s.fTSCTicking || DBGFIsStepping(pVCpu));
@@ -437,13 +433,13 @@ VMM_INT_DECL(uint64_t) TMCpuTickGetDeadlineAndTscOffset(PVM pVM, PVMCPU pVCpu, u
  * @param   pVCpu           The cross context virtual CPU structure.
  * @param   fCheckTimers    Whether to check timers.
  */
-DECLINLINE(uint64_t) tmCpuTickGetInternal(PVMCPU pVCpu, bool fCheckTimers)
+DECLINLINE(uint64_t) tmCpuTickGetInternal(PVMCPUCC pVCpu, bool fCheckTimers)
 {
     uint64_t u64;
 
     if (RT_LIKELY(pVCpu->tm.s.fTSCTicking))
     {
-        PVM pVM = pVCpu->CTX_SUFF(pVM);
+        PVMCC pVM = pVCpu->CTX_SUFF(pVM);
         switch (pVM->tm.s.enmTSCMode)
         {
             case TMTSCMODE_REAL_TSC_OFFSET:
@@ -453,7 +449,6 @@ DECLINLINE(uint64_t) tmCpuTickGetInternal(PVMCPU pVCpu, bool fCheckTimers)
             case TMTSCMODE_DYNAMIC:
                 u64 = tmCpuTickGetRawVirtual(pVM, fCheckTimers);
                 break;
-#ifndef IN_RC
             case TMTSCMODE_NATIVE_API:
             {
                 u64 = 0;
@@ -461,7 +456,6 @@ DECLINLINE(uint64_t) tmCpuTickGetInternal(PVMCPU pVCpu, bool fCheckTimers)
                 AssertLogRelRCReturn(rcNem, SUPReadTsc());
                 break;
             }
-#endif
             default:
                 AssertFailedBreakStmt(u64 = SUPReadTsc());
         }
@@ -489,7 +483,7 @@ DECLINLINE(uint64_t) tmCpuTickGetInternal(PVMCPU pVCpu, bool fCheckTimers)
  * @returns Gets the CPU tsc.
  * @param   pVCpu       The cross context virtual CPU structure.
  */
-VMMDECL(uint64_t) TMCpuTickGet(PVMCPU pVCpu)
+VMMDECL(uint64_t) TMCpuTickGet(PVMCPUCC pVCpu)
 {
     return tmCpuTickGetInternal(pVCpu, true /* fCheckTimers */);
 }
@@ -501,7 +495,7 @@ VMMDECL(uint64_t) TMCpuTickGet(PVMCPU pVCpu)
  * @returns Gets the CPU tsc.
  * @param   pVCpu       The cross context virtual CPU structure.
  */
-VMM_INT_DECL(uint64_t) TMCpuTickGetNoCheck(PVMCPU pVCpu)
+VMM_INT_DECL(uint64_t) TMCpuTickGetNoCheck(PVMCPUCC pVCpu)
 {
     return tmCpuTickGetInternal(pVCpu, false /* fCheckTimers */);
 }
@@ -517,7 +511,7 @@ VMM_INT_DECL(uint64_t) TMCpuTickGetNoCheck(PVMCPU pVCpu)
  *
  * @thread  EMT which TSC is to be set.
  */
-VMM_INT_DECL(int) TMCpuTickSet(PVM pVM, PVMCPU pVCpu, uint64_t u64Tick)
+VMM_INT_DECL(int) TMCpuTickSet(PVMCC pVM, PVMCPUCC pVCpu, uint64_t u64Tick)
 {
     VMCPU_ASSERT_EMT(pVCpu);
     STAM_COUNTER_INC(&pVM->tm.s.StatTSCSet);
@@ -547,7 +541,7 @@ VMM_INT_DECL(int) TMCpuTickSet(PVM pVM, PVMCPU pVCpu, uint64_t u64Tick)
  *
  * @thread  EMT which TSC is to be set.
  */
-VMM_INT_DECL(int) TMCpuTickSetLastSeen(PVMCPU pVCpu, uint64_t u64LastSeenTick)
+VMM_INT_DECL(int) TMCpuTickSetLastSeen(PVMCPUCC pVCpu, uint64_t u64LastSeenTick)
 {
     VMCPU_ASSERT_EMT(pVCpu);
 
@@ -565,7 +559,7 @@ VMM_INT_DECL(int) TMCpuTickSetLastSeen(PVMCPU pVCpu, uint64_t u64LastSeenTick)
  *
  * @thread  EMT(pVCpu).
  */
-VMM_INT_DECL(uint64_t) TMCpuTickGetLastSeen(PVMCPU pVCpu)
+VMM_INT_DECL(uint64_t) TMCpuTickGetLastSeen(PVMCPUCC pVCpu)
 {
     VMCPU_ASSERT_EMT(pVCpu);
 
@@ -579,7 +573,7 @@ VMM_INT_DECL(uint64_t) TMCpuTickGetLastSeen(PVMCPU pVCpu)
  * @returns Number of ticks per second.
  * @param   pVM     The cross context VM structure.
  */
-VMMDECL(uint64_t) TMCpuTicksPerSecond(PVM pVM)
+VMMDECL(uint64_t) TMCpuTicksPerSecond(PVMCC pVM)
 {
     if (   pVM->tm.s.enmTSCMode == TMTSCMODE_REAL_TSC_OFFSET
         && g_pSUPGlobalInfoPage->u32Mode != SUPGIPMODE_INVARIANT_TSC)
@@ -604,7 +598,7 @@ VMMDECL(uint64_t) TMCpuTicksPerSecond(PVM pVM)
  * @returns true if ticking, false otherwise.
  * @param   pVCpu           The cross context virtual CPU structure.
  */
-VMM_INT_DECL(bool) TMCpuTickIsTicking(PVMCPU pVCpu)
+VMM_INT_DECL(bool) TMCpuTickIsTicking(PVMCPUCC pVCpu)
 {
     return pVCpu->tm.s.fTSCTicking;
 }

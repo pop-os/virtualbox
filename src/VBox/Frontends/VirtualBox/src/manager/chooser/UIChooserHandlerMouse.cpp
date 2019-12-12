@@ -71,14 +71,19 @@ bool UIChooserHandlerMouse::handleMousePress(QGraphicsSceneMouseEvent *pEvent) c
                 else if (UIChooserItemGlobal *pGlobalItem = qgraphicsitem_cast<UIChooserItemGlobal*>(pItemUnderMouse))
                 {
                     const QPoint itemCursorPos = pGlobalItem->mapFromScene(scenePos).toPoint();
-                    if (   pGlobalItem->isToolsButtonArea(itemCursorPos)
-                        && (   model()->currentItem() == pGlobalItem
+                    if (   pGlobalItem->isToolButtonArea(itemCursorPos)
+                        && (   model()->firstSelectedItem() == pGlobalItem
                             || pGlobalItem->isHovered()))
                     {
                         model()->handleToolButtonClick(pGlobalItem);
-                        if (model()->currentItem() != pGlobalItem)
+                        if (model()->firstSelectedItem() != pGlobalItem)
                             pClickedItem = pGlobalItem;
                     }
+                    else
+                    if (   pGlobalItem->isPinButtonArea(itemCursorPos)
+                        && (   model()->firstSelectedItem() == pGlobalItem
+                            || pGlobalItem->isHovered()))
+                        model()->handlePinButtonClick(pGlobalItem);
                     else
                         pClickedItem = pGlobalItem;
                 }
@@ -86,12 +91,12 @@ bool UIChooserHandlerMouse::handleMousePress(QGraphicsSceneMouseEvent *pEvent) c
                 else if (UIChooserItemMachine *pMachineItem = qgraphicsitem_cast<UIChooserItemMachine*>(pItemUnderMouse))
                 {
                     const QPoint itemCursorPos = pMachineItem->mapFromScene(scenePos).toPoint();
-                    if (   pMachineItem->isToolsButtonArea(itemCursorPos)
-                        && (   model()->currentItem() == pMachineItem
+                    if (   pMachineItem->isToolButtonArea(itemCursorPos)
+                        && (   model()->firstSelectedItem() == pMachineItem
                             || pMachineItem->isHovered()))
                     {
                         model()->handleToolButtonClick(pMachineItem);
-                        if (model()->currentItem() != pMachineItem)
+                        if (model()->firstSelectedItem() != pMachineItem)
                             pClickedItem = pMachineItem;
                     }
                     else
@@ -104,39 +109,39 @@ bool UIChooserHandlerMouse::handleMousePress(QGraphicsSceneMouseEvent *pEvent) c
                     if (pEvent->modifiers() == Qt::ShiftModifier)
                     {
                         /* Calculate positions: */
-                        UIChooserItem *pFirstItem = model()->currentItem();
-                        int iFirstPosition = model()->navigationList().indexOf(pFirstItem);
-                        int iClickedPosition = model()->navigationList().indexOf(pClickedItem);
+                        UIChooserItem *pFirstItem = model()->firstSelectedItem();
+                        int iFirstPosition = model()->navigationItems().indexOf(pFirstItem);
+                        int iClickedPosition = model()->navigationItems().indexOf(pClickedItem);
                         /* Populate list of items from 'first' to 'clicked': */
                         QList<UIChooserItem*> items;
                         if (iFirstPosition <= iClickedPosition)
                             for (int i = iFirstPosition; i <= iClickedPosition; ++i)
-                                items << model()->navigationList().at(i);
+                                items << model()->navigationItems().at(i);
                         else
                             for (int i = iFirstPosition; i >= iClickedPosition; --i)
-                                items << model()->navigationList().at(i);
-                        /* Set that list as current: */
-                        model()->setCurrentItems(items);
-                        /* Move focus to clicked item: */
-                        model()->setFocusItem(pClickedItem);
+                                items << model()->navigationItems().at(i);
+                        /* Make that list selected: */
+                        model()->setSelectedItems(items);
+                        /* Make clicked item current one: */
+                        model()->setCurrentItem(pClickedItem);
                     }
                     /* Was 'control' modifier pressed? */
                     else if (pEvent->modifiers() == Qt::ControlModifier)
                     {
                         /* Invert selection state for clicked item: */
-                        if (model()->currentItems().contains(pClickedItem))
-                            model()->removeFromCurrentItems(pClickedItem);
+                        if (model()->selectedItems().contains(pClickedItem))
+                            model()->removeFromSelectedItems(pClickedItem);
                         else
-                            model()->addToCurrentItems(pClickedItem);
-                        /* Move focus to clicked item: */
-                        model()->setFocusItem(pClickedItem);
+                            model()->addToSelectedItems(pClickedItem);
+                        /* Make clicked item current one: */
+                        model()->setCurrentItem(pClickedItem);
                         model()->makeSureSomeItemIsSelected();
                     }
                     /* Was no modifiers pressed? */
                     else if (pEvent->modifiers() == Qt::NoModifier)
                     {
-                        /* Make clicked item the current one: */
-                        model()->setCurrentItem(pClickedItem);
+                        /* Make clicked item the only selected one: */
+                        model()->setSelectedItem(pClickedItem);
                     }
                 }
                 break;
@@ -159,8 +164,8 @@ bool UIChooserHandlerMouse::handleMousePress(QGraphicsSceneMouseEvent *pEvent) c
                 if (pClickedItem && !pClickedItem->isRoot())
                 {
                     /* Select clicked item if not selected yet: */
-                    if (!model()->currentItems().contains(pClickedItem))
-                        model()->setCurrentItem(pClickedItem);
+                    if (!model()->selectedItems().contains(pClickedItem))
+                        model()->setSelectedItem(pClickedItem);
                 }
                 break;
             }
@@ -193,41 +198,14 @@ bool UIChooserHandlerMouse::handleMouseDoubleClick(QGraphicsSceneMouseEvent *pEv
                 /* Was that a group item? */
                 if (UIChooserItemGroup *pGroupItem = qgraphicsitem_cast<UIChooserItemGroup*>(pItemUnderMouse))
                 {
-                    /* Prepare variables: */
-                    int iGroupItemWidth = pGroupItem->geometry().toRect().width();
-                    int iMouseDoubleClickX = pEvent->scenePos().toPoint().x();
-                    /* If it was a root: */
-                    if (pGroupItem->isRoot())
+                    /* If it was not root: */
+                    if (!pGroupItem->isRoot())
                     {
-                        /* Do not allow for unhovered root: */
-                        if (!pGroupItem->isHovered())
-                            return false;
-                        /* Unindent root if possible: */
-                        if (model()->root() != model()->mainRoot())
-                        {
-                            pGroupItem->setHovered(false);
-                            model()->unindentRoot();
-                        }
-                    }
-                    /* If it was a simple group item: */
-                    else
-                    {
-                        /* If click was at left part: */
-                        if (iMouseDoubleClickX < iGroupItemWidth / 2)
-                        {
-                            /* Toggle it: */
-                            if (pGroupItem->isClosed())
-                                pGroupItem->open();
-                            else if (pGroupItem->isOpened())
-                                pGroupItem->close();
-                        }
-                        /* If click was at right part: */
-                        else
-                        {
-                            /* Indent root with group item: */
-                            pGroupItem->setHovered(false);
-                            model()->indentRoot(pGroupItem);
-                        }
+                        /* Toggle it: */
+                        if (pGroupItem->isClosed())
+                            pGroupItem->open();
+                        else if (pGroupItem->isOpened())
+                            pGroupItem->close();
                     }
                     /* Filter that event out: */
                     return true;

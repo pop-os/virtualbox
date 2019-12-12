@@ -48,15 +48,15 @@
 *********************************************************************************************************************************/
 #ifdef IN_RING3
 /** Locks the device state, ring-3 only.  */
-# define DEVACPI_LOCK_R3(a_pThis) \
+# define DEVACPI_LOCK_R3(a_pDevIns, a_pThis) \
     do { \
-        int rcLock = PDMCritSectEnter(&(a_pThis)->CritSect, VERR_IGNORED); \
+        int rcLock = PDMDevHlpCritSectEnter((a_pDevIns), &(a_pThis)->CritSect, VERR_IGNORED); \
         AssertRC(rcLock); \
     } while (0)
 #endif
 /** Unlocks the device state (all contexts). */
-#define DEVACPI_UNLOCK(a_pThis) \
-    do { PDMCritSectLeave(&(a_pThis)->CritSect); } while (0)
+#define DEVACPI_UNLOCK(a_pDevIns, a_pThis) \
+    do { PDMDevHlpCritSectLeave((a_pDevIns), &(a_pThis)->CritSect); } while (0)
 
 
 #define DEBUG_HEX       0x3000
@@ -194,7 +194,8 @@ enum
     SYSTEM_INFO_INDEX_PARALLEL1_IOBASE  = 28,
     SYSTEM_INFO_INDEX_PARALLEL1_IRQ     = 29,
     SYSTEM_INFO_INDEX_PREF64_MEMORY_MAX = 30,
-    SYSTEM_INFO_INDEX_END               = 31,
+    SYSTEM_INFO_INDEX_NVME_ADDRESS      = 31, /**< First NVMe controller PCI address, or 0 */
+    SYSTEM_INFO_INDEX_END               = 32,
     SYSTEM_INFO_INDEX_INVALID           = 0x80,
     SYSTEM_INFO_INDEX_VALID             = 0x200
 };
@@ -280,11 +281,10 @@ enum
 *   Structures and Typedefs                                                                                                      *
 *********************************************************************************************************************************/
 /**
- * The ACPI device state.
+ * The shared ACPI device state.
  */
-typedef struct ACPIState
+typedef struct ACPISTATE
 {
-    PDMPCIDEV           dev;
     /** Critical section protecting the ACPI state. */
     PDMCRITSECT         CritSect;
 
@@ -293,11 +293,10 @@ typedef struct ACPIState
     uint16_t            pm1a_ctl;
     /** Number of logical CPUs in guest */
     uint16_t            cCpus;
-    uint64_t            u64PmTimerInitial;
-    PTMTIMERR3          pPmTimerR3;
-    PTMTIMERR0          pPmTimerR0;
-    PTMTIMERRC          pPmTimerRC;
 
+    uint64_t            u64PmTimerInitial;
+    /** The PM timer. */
+    TMTIMERHANDLE       hPmTimer;
     /* PM Timer last calculated value */
     uint32_t            uPmTimerVal;
     uint32_t            Alignment0;
@@ -309,6 +308,7 @@ typedef struct ACPIState
     uint32_t            au8BatteryInfo[13];
 
     uint32_t            uSystemInfoIndex;
+    uint32_t            u32Alignment0;
     uint64_t            u64RamSize;
     /** Offset of the 64-bit prefetchable memory window. */
     uint64_t            u64PciPref64Min;
@@ -346,14 +346,10 @@ typedef struct ACPIState
     RTIOPORT            uPmIoPortBase;
     /** I/O port address of SMBus device. */
     RTIOPORT            uSMBusIoPortBase;
-    /** Flag whether the GC part of the device is enabled. */
-    bool                fGCEnabled;
-    /** Flag whether the R0 part of the device is enabled. */
-    bool                fR0Enabled;
-    /** Array of flags of attached CPUs */
-    VMCPUSET            CpuSetAttached;
     /** Which CPU to check for the locked status. */
     uint32_t            idCpuLockCheck;
+    /** Array of flags of attached CPUs */
+    VMCPUSET            CpuSetAttached;
     /** Mask of locked CPUs (used by the guest). */
     VMCPUSET            CpuSetLocked;
     /** The CPU event type. */
@@ -366,10 +362,13 @@ typedef struct ACPIState
     bool                fUseMcfg;
     /** if the 64-bit prefetchable memory window is shown to the guest */
     bool                fPciPref64Enabled;
+    bool                afAlignment1;
     /** Primary NIC PCI address. */
     uint32_t            u32NicPciAddress;
-    /** Primary audio card PCI address. */
+    /** HD Audio PCI address. */
     uint32_t            u32AudioPciAddress;
+    /** Primary NVMe controller PCI address. */
+    uint32_t            u32NvmePciAddress;
     /** Flag whether S1 power state is enabled. */
     bool                fS1Enabled;
     /** Flag whether S4 power state is enabled. */
@@ -382,8 +381,6 @@ typedef struct ACPIState
     uint32_t            u32IocPciAddress;
     /** PCI address of the host bus controller device. */
     uint32_t            u32HbcPciAddress;
-
-    uint32_t            Alignment1;
 
     /** Physical address of PCI config space MMIO region */
     uint64_t            u64PciConfigMMioAddress;
@@ -408,37 +405,15 @@ typedef struct ACPIState
 
     /** @name Parallel port config bits
      * @{ */
-    /** Parallel 0 IRQ number */
-    uint8_t             uParallel0Irq;
-    /** Parallel 1 IRQ number */
-    uint8_t             uParallel1Irq;
     /** Parallel 0 IO port base */
     RTIOPORT            uParallel0IoPortBase;
     /** Parallel 1 IO port base */
     RTIOPORT            uParallel1IoPortBase;
+    /** Parallel 0 IRQ number */
+    uint8_t             uParallel0Irq;
+    /** Parallel 1 IRQ number */
+    uint8_t             uParallel1Irq;
     /** @} */
-
-    uint32_t            Alignment2;
-
-    /** ACPI port base interface. */
-    PDMIBASE            IBase;
-    /** ACPI port interface. */
-    PDMIACPIPORT        IACPIPort;
-    /** Pointer to the device instance. */
-    PPDMDEVINSR3        pDevInsR3;
-    PPDMDEVINSR0        pDevInsR0;
-    PPDMDEVINSRC        pDevInsRC;
-
-    uint32_t            Alignment3;
-    /** Pointer to the driver base interface. */
-    R3PTRTYPE(PPDMIBASE) pDrvBase;
-    /** Pointer to the driver connector interface. */
-    R3PTRTYPE(PPDMIACPICONNECTOR) pDrv;
-
-    /** Pointer to default PCI config read function. */
-    R3PTRTYPE(PFNPCICONFIGREAD)   pfnAcpiPciConfigRead;
-    /** Pointer to default PCI config write function. */
-    R3PTRTYPE(PFNPCICONFIGWRITE)  pfnAcpiPciConfigWrite;
 
     /** Number of custom ACPI tables */
     uint8_t             cCustTbls;
@@ -446,18 +421,13 @@ typedef struct ACPIState
     uint8_t             au8OemId[6];
     /** ACPI Crator ID */
     uint8_t             au8CreatorId[4];
+    uint8_t             abAlignment2[3];
     /** ACPI Crator Rev */
     uint32_t            u32CreatorRev;
     /** ACPI custom OEM Tab ID */
     uint8_t             au8OemTabId[8];
     /** ACPI custom OEM Rev */
     uint32_t            u32OemRevision;
-    uint32_t            Alignment4;
-
-    /** Custom ACPI tables binary data. */
-    R3PTRTYPE(uint8_t *) apu8CustBin[MAX_CUST_TABLES];
-    /** The size of the custom table binary. */
-    uint64_t            acbCustBin[MAX_CUST_TABLES];
 
     /** SMBus Host Status Register */
     uint8_t             u8SMBusHstSts;
@@ -475,23 +445,88 @@ typedef struct ACPIState
     uint8_t             u8SMBusHstDat1;
     /** SMBus Slave Control Register */
     uint8_t             u8SMBusSlvCnt;
-    /** SMBus Shadow Command Register */
-    uint8_t             u8SMBusShdwCmd;
     /** SMBus Slave Event Register */
     uint16_t            u16SMBusSlvEvt;
     /** SMBus Slave Data Register */
     uint16_t            u16SMBusSlvDat;
-    /** SMBus Host Block Data Buffer */
-    uint8_t             au8SMBusBlkDat[32];
+    /** SMBus Shadow Command Register */
+    uint8_t             u8SMBusShdwCmd;
     /** SMBus Host Block Index */
     uint8_t             u8SMBusBlkIdx;
+    uint8_t             abAlignment3[2];
+    /** SMBus Host Block Data Buffer */
+    uint8_t             au8SMBusBlkDat[32];
 
     /** @todo DEBUGGING */
     uint32_t            uPmTimeOld;
     uint32_t            uPmTimeA;
     uint32_t            uPmTimeB;
     uint32_t            Alignment5;
-} ACPIState;
+
+    /** @name PM1a, PM timer and GPE0 I/O ports - mapped/unmapped as a group.
+     *  @{ */
+    IOMIOPORTHANDLE     hIoPortPm1aEn;
+    IOMIOPORTHANDLE     hIoPortPm1aSts;
+    IOMIOPORTHANDLE     hIoPortPm1aCtl;
+    IOMIOPORTHANDLE     hIoPortPmTimer;
+    IOMIOPORTHANDLE     hIoPortGpe0En;
+    IOMIOPORTHANDLE     hIoPortGpe0Sts;
+    /** @} */
+
+    /** SMBus I/O ports (mapped/unmapped). */
+    IOMIOPORTHANDLE     hIoPortSMBus;
+
+    /** @name Fixed I/O ports
+     * @{ */
+    /** ACPI SMI I/O port. */
+    IOMIOPORTHANDLE     hIoPortSmi;
+    /** ACPI Debug hex I/O port. */
+    IOMIOPORTHANDLE     hIoPortDebugHex;
+    /** ACPI Debug char I/O port. */
+    IOMIOPORTHANDLE     hIoPortDebugChar;
+    /** ACPI Battery status index I/O port. */
+    IOMIOPORTHANDLE     hIoPortBatteryIndex;
+    /** ACPI Battery status data I/O port. */
+    IOMIOPORTHANDLE     hIoPortBatteryData;
+    /** ACPI system info index I/O port. */
+    IOMIOPORTHANDLE     hIoPortSysInfoIndex;
+    /** ACPI system info data I/O port. */
+    IOMIOPORTHANDLE     hIoPortSysInfoData;
+    /** ACPI Reset I/O port. */
+    IOMIOPORTHANDLE     hIoPortReset;
+    /** @} */
+
+} ACPISTATE;
+/** Pointer to the shared ACPI device state. */
+typedef ACPISTATE *PACPISTATE;
+
+
+/**
+ * The ring-3 ACPI device state.
+ */
+typedef struct ACPISTATER3
+{
+    /** ACPI port base interface. */
+    PDMIBASE            IBase;
+    /** ACPI port interface. */
+    PDMIACPIPORT        IACPIPort;
+    /** Pointer to the device instance so we can get our bearings from
+     *  interface functions. */
+    PPDMDEVINSR3        pDevIns;
+
+    /** Pointer to the driver base interface. */
+    R3PTRTYPE(PPDMIBASE) pDrvBase;
+    /** Pointer to the driver connector interface. */
+    R3PTRTYPE(PPDMIACPICONNECTOR) pDrv;
+
+    /** Custom ACPI tables binary data. */
+    R3PTRTYPE(uint8_t *) apu8CustBin[MAX_CUST_TABLES];
+    /** The size of the custom table binary. */
+    uint64_t            acbCustBin[MAX_CUST_TABLES];
+} ACPISTATER3;
+/** Pointer to the ring-3 ACPI device state. */
+typedef ACPISTATER3 *PACPISTATER3;
+
 
 #pragma pack(1)
 
@@ -778,41 +813,39 @@ AssertCompileSize(ACPITBLCUST, 512);
 /*********************************************************************************************************************************
 *   Internal Functions                                                                                                           *
 *********************************************************************************************************************************/
-RT_C_DECLS_BEGIN
-PDMBOTHCBDECL(int) acpiPMTmrRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb);
-RT_C_DECLS_END
 #ifdef IN_RING3
-static int acpiR3PlantTables(ACPIState *pThis);
+static int acpiR3PlantTables(PPDMDEVINS pDevIns, PACPISTATE pThis, PACPISTATER3 pThisCC);
 #endif
 
 /* SCI, usually IRQ9 */
-DECLINLINE(void) acpiSetIrq(ACPIState *pThis, int level)
+DECLINLINE(void) acpiSetIrq(PPDMDEVINS pDevIns, int level)
 {
-    PDMDevHlpPCISetIrq(pThis->CTX_SUFF(pDevIns), 0, level);
+    PDMDevHlpPCISetIrq(pDevIns, 0, level);
 }
 
-DECLINLINE(bool) pm1a_level(ACPIState *pThis)
+DECLINLINE(bool) pm1a_level(PACPISTATE pThis)
 {
     return    (pThis->pm1a_ctl & SCI_EN)
            && (pThis->pm1a_en & pThis->pm1a_sts & ~(RSR_EN | IGN_EN));
 }
 
-DECLINLINE(bool) gpe0_level(ACPIState *pThis)
+DECLINLINE(bool) gpe0_level(PACPISTATE pThis)
 {
     return !!(pThis->gpe0_en & pThis->gpe0_sts);
 }
 
-DECLINLINE(bool) smbus_level(ACPIState *pThis)
+DECLINLINE(bool) smbus_level(PPDMDEVINS pDevIns, PACPISTATE pThis)
 {
+    PPDMPCIDEV pPciDev = pDevIns->apPciDevs[0];
     return    (pThis->u8SMBusHstCnt & SMBHSTCNT_INTEREN)
-           && (pThis->dev.abConfig[SMBHSTCFG] & SMBHSTCFG_SMB_HST_EN)
-           && (pThis->dev.abConfig[SMBHSTCFG] & SMBHSTCFG_INTRSEL) == SMBHSTCFG_INTRSEL_IRQ9 << SMBHSTCFG_INTRSEL_SHIFT
+           && (pPciDev->abConfig[SMBHSTCFG] & SMBHSTCFG_SMB_HST_EN)
+           && (pPciDev->abConfig[SMBHSTCFG] & SMBHSTCFG_INTRSEL) == SMBHSTCFG_INTRSEL_IRQ9 << SMBHSTCFG_INTRSEL_SHIFT
            && (pThis->u8SMBusHstSts & SMBHSTSTS_INT_MASK);
 }
 
-DECLINLINE(bool) acpiSCILevel(ACPIState *pThis)
+DECLINLINE(bool) acpiSCILevel(PPDMDEVINS pDevIns, PACPISTATE pThis)
 {
-    return pm1a_level(pThis) || gpe0_level(pThis) || smbus_level(pThis);
+    return pm1a_level(pThis) || gpe0_level(pThis) || smbus_level(pDevIns, pThis);
 }
 
 /**
@@ -823,23 +856,24 @@ DECLINLINE(bool) acpiSCILevel(ACPIState *pThis)
  *
  * Caller must hold the state lock.
  *
- * @param   pThis       The ACPI instance.
+ * @param   pDevIns     The PDM device instance.
+ * @param   pThis       The ACPI shared instance data.
  * @param   sts         The new PM1a.STS value.
  * @param   en          The new PM1a.EN value.
  */
-static void apicUpdatePm1a(ACPIState *pThis, uint32_t sts, uint32_t en)
+static void acpiUpdatePm1a(PPDMDEVINS pDevIns, PACPISTATE pThis, uint32_t sts, uint32_t en)
 {
-    Assert(PDMCritSectIsOwner(&pThis->CritSect));
+    Assert(PDMDevHlpCritSectIsOwner(pDevIns, &pThis->CritSect));
 
-    const bool old_level = acpiSCILevel(pThis);
+    const bool old_level = acpiSCILevel(pDevIns, pThis);
     pThis->pm1a_en = en;
     pThis->pm1a_sts = sts;
-    const bool new_level = acpiSCILevel(pThis);
+    const bool new_level = acpiSCILevel(pDevIns, pThis);
 
     LogFunc(("old=%x new=%x\n", old_level, new_level));
 
     if (new_level != old_level)
-        acpiSetIrq(pThis, new_level);
+        acpiSetIrq(pDevIns, new_level);
 }
 
 #ifdef IN_RING3
@@ -850,68 +884,69 @@ static void apicUpdatePm1a(ACPIState *pThis, uint32_t sts, uint32_t en)
  *
  * Caller must hold the state lock.
  *
- * @param   pThis       The ACPI instance.
+ * @param   pDevIns     The PDM device instance.
+ * @param   pThis       The ACPI shared instance data.
  * @param   sts         The new GPE0.STS value.
  * @param   en          The new GPE0.EN value.
  */
-static void apicR3UpdateGpe0(ACPIState *pThis, uint32_t sts, uint32_t en)
+static void apicR3UpdateGpe0(PPDMDEVINS pDevIns, PACPISTATE pThis, uint32_t sts, uint32_t en)
 {
-    Assert(PDMCritSectIsOwner(&pThis->CritSect));
+    Assert(PDMDevHlpCritSectIsOwner(pDevIns, &pThis->CritSect));
 
-    const bool old_level = acpiSCILevel(pThis);
+    const bool old_level = acpiSCILevel(pDevIns, pThis);
     pThis->gpe0_en  = en;
     pThis->gpe0_sts = sts;
-    const bool new_level = acpiSCILevel(pThis);
+    const bool new_level = acpiSCILevel(pDevIns, pThis);
 
     LogFunc(("old=%x new=%x\n", old_level, new_level));
 
     if (new_level != old_level)
-        acpiSetIrq(pThis, new_level);
+        acpiSetIrq(pDevIns, new_level);
 }
 
 /**
  * Used by acpiR3PM1aCtlWrite to power off the VM.
  *
- * @param   pThis   The ACPI instance.
+ * @param   pDevIns     The device instance.
  * @returns Strict VBox status code.
  */
-static int acpiR3DoPowerOff(ACPIState *pThis)
+static VBOXSTRICTRC acpiR3DoPowerOff(PPDMDEVINS pDevIns)
 {
-    int rc = PDMDevHlpVMPowerOff(pThis->pDevInsR3);
-    if (RT_FAILURE(rc))
-        AssertMsgFailed(("Could not power down the VM. rc = %Rrc\n", rc));
+    VBOXSTRICTRC rc = PDMDevHlpVMPowerOff(pDevIns);
+    AssertRC(VBOXSTRICTRC_VAL(rc));
     return rc;
 }
 
 /**
  * Used by acpiR3PM1aCtlWrite to put the VM to sleep.
  *
- * @param   pThis   The ACPI instance.
+ * @param   pDevIns     The device instance.
+ * @param   pThis   The ACPI shared instance data.
  * @returns Strict VBox status code.
  */
-static int acpiR3DoSleep(ACPIState *pThis)
+static VBOXSTRICTRC acpiR3DoSleep(PPDMDEVINS pDevIns, PACPISTATE pThis)
 {
     /* We must set WAK_STS on resume (includes restore) so the guest knows that
        we've woken up and can continue executing code.  The guest is probably
        reading the PMSTS register in a loop to check this. */
-    int rc;
+    VBOXSTRICTRC rc;
     pThis->fSetWakeupOnResume = true;
     if (pThis->fSuspendToSavedState)
     {
-        rc = PDMDevHlpVMSuspendSaveAndPowerOff(pThis->pDevInsR3);
+        rc = PDMDevHlpVMSuspendSaveAndPowerOff(pDevIns);
         if (rc != VERR_NOT_SUPPORTED)
-            AssertRC(rc);
+            AssertRC(VBOXSTRICTRC_VAL(rc));
         else
         {
             LogRel(("ACPI: PDMDevHlpVMSuspendSaveAndPowerOff is not supported, falling back to suspend-only\n"));
-            rc = PDMDevHlpVMSuspend(pThis->pDevInsR3);
-            AssertRC(rc);
+            rc = PDMDevHlpVMSuspend(pDevIns);
+            AssertRC(VBOXSTRICTRC_VAL(rc));
         }
     }
     else
     {
-        rc = PDMDevHlpVMSuspend(pThis->pDevInsR3);
-        AssertRC(rc);
+        rc = PDMDevHlpVMSuspend(pDevIns);
+        AssertRC(VBOXSTRICTRC_VAL(rc));
     }
     return rc;
 }
@@ -922,14 +957,16 @@ static int acpiR3DoSleep(ACPIState *pThis)
  */
 static DECLCALLBACK(int) acpiR3Port_PowerButtonPress(PPDMIACPIPORT pInterface)
 {
-    ACPIState *pThis = RT_FROM_MEMBER(pInterface, ACPIState, IACPIPort);
-    DEVACPI_LOCK_R3(pThis);
+    PACPISTATER3 pThisCC = RT_FROM_MEMBER(pInterface, ACPISTATER3, IACPIPort);
+    PPDMDEVINS   pDevIns = pThisCC->pDevIns;
+    PACPISTATE   pThis   = PDMDEVINS_2_DATA(pDevIns, PACPISTATE);
+    DEVACPI_LOCK_R3(pDevIns, pThis);
 
     Log(("acpiR3Port_PowerButtonPress: handled=%d status=%x\n", pThis->fPowerButtonHandled, pThis->pm1a_sts));
     pThis->fPowerButtonHandled = false;
-    apicUpdatePm1a(pThis, pThis->pm1a_sts | PWRBTN_STS, pThis->pm1a_en);
+    acpiUpdatePm1a(pDevIns, pThis, pThis->pm1a_sts | PWRBTN_STS, pThis->pm1a_en);
 
-    DEVACPI_UNLOCK(pThis);
+    DEVACPI_UNLOCK(pDevIns, pThis);
     return VINF_SUCCESS;
 }
 
@@ -938,12 +975,14 @@ static DECLCALLBACK(int) acpiR3Port_PowerButtonPress(PPDMIACPIPORT pInterface)
  */
 static DECLCALLBACK(int) acpiR3Port_GetPowerButtonHandled(PPDMIACPIPORT pInterface, bool *pfHandled)
 {
-    ACPIState *pThis = RT_FROM_MEMBER(pInterface, ACPIState, IACPIPort);
-    DEVACPI_LOCK_R3(pThis);
+    PACPISTATER3 pThisCC = RT_FROM_MEMBER(pInterface, ACPISTATER3, IACPIPort);
+    PPDMDEVINS   pDevIns = pThisCC->pDevIns;
+    PACPISTATE   pThis   = PDMDEVINS_2_DATA(pDevIns, PACPISTATE);
+    DEVACPI_LOCK_R3(pDevIns, pThis);
 
     *pfHandled = pThis->fPowerButtonHandled;
 
-    DEVACPI_UNLOCK(pThis);
+    DEVACPI_UNLOCK(pDevIns, pThis);
     return VINF_SUCCESS;
 }
 
@@ -953,12 +992,14 @@ static DECLCALLBACK(int) acpiR3Port_GetPowerButtonHandled(PPDMIACPIPORT pInterfa
  */
 static DECLCALLBACK(int) acpiR3Port_GetGuestEnteredACPIMode(PPDMIACPIPORT pInterface, bool *pfEntered)
 {
-    ACPIState *pThis = RT_FROM_MEMBER(pInterface, ACPIState, IACPIPort);
-    DEVACPI_LOCK_R3(pThis);
+    PACPISTATER3 pThisCC = RT_FROM_MEMBER(pInterface, ACPISTATER3, IACPIPort);
+    PPDMDEVINS   pDevIns = pThisCC->pDevIns;
+    PACPISTATE   pThis   = PDMDEVINS_2_DATA(pDevIns, PACPISTATE);
+    DEVACPI_LOCK_R3(pDevIns, pThis);
 
     *pfEntered = (pThis->pm1a_ctl & SCI_EN) != 0;
 
-    DEVACPI_UNLOCK(pThis);
+    DEVACPI_UNLOCK(pDevIns, pThis);
     return VINF_SUCCESS;
 }
 
@@ -967,12 +1008,14 @@ static DECLCALLBACK(int) acpiR3Port_GetGuestEnteredACPIMode(PPDMIACPIPORT pInter
  */
 static DECLCALLBACK(int) acpiR3Port_GetCpuStatus(PPDMIACPIPORT pInterface, unsigned uCpu, bool *pfLocked)
 {
-    ACPIState *pThis = RT_FROM_MEMBER(pInterface, ACPIState, IACPIPort);
-    DEVACPI_LOCK_R3(pThis);
+    PACPISTATER3 pThisCC = RT_FROM_MEMBER(pInterface, ACPISTATER3, IACPIPort);
+    PPDMDEVINS   pDevIns = pThisCC->pDevIns;
+    PACPISTATE   pThis   = PDMDEVINS_2_DATA(pDevIns, PACPISTATE);
+    DEVACPI_LOCK_R3(pDevIns, pThis);
 
     *pfLocked = VMCPUSET_IS_PRESENT(&pThis->CpuSetLocked, uCpu);
 
-    DEVACPI_UNLOCK(pThis);
+    DEVACPI_UNLOCK(pDevIns, pThis);
     return VINF_SUCCESS;
 }
 
@@ -984,12 +1027,14 @@ static DECLCALLBACK(int) acpiR3Port_GetCpuStatus(PPDMIACPIPORT pInterface, unsig
  */
 static DECLCALLBACK(int) acpiR3Port_SleepButtonPress(PPDMIACPIPORT pInterface)
 {
-    ACPIState *pThis = RT_FROM_MEMBER(pInterface, ACPIState, IACPIPort);
-    DEVACPI_LOCK_R3(pThis);
+    PACPISTATER3 pThisCC = RT_FROM_MEMBER(pInterface, ACPISTATER3, IACPIPort);
+    PPDMDEVINS   pDevIns = pThisCC->pDevIns;
+    PACPISTATE   pThis   = PDMDEVINS_2_DATA(pDevIns, PACPISTATE);
+    DEVACPI_LOCK_R3(pDevIns, pThis);
 
-    apicUpdatePm1a(pThis, pThis->pm1a_sts | SLPBTN_STS, pThis->pm1a_en);
+    acpiUpdatePm1a(pDevIns, pThis, pThis->pm1a_sts | SLPBTN_STS, pThis->pm1a_en);
 
-    DEVACPI_UNLOCK(pThis);
+    DEVACPI_UNLOCK(pDevIns, pThis);
     return VINF_SUCCESS;
 }
 
@@ -1002,12 +1047,14 @@ static DECLCALLBACK(int) acpiR3Port_SleepButtonPress(PPDMIACPIPORT pInterface)
  */
 static DECLCALLBACK(int) acpiR3Port_MonitorHotPlugEvent(PPDMIACPIPORT pInterface)
 {
-    ACPIState *pThis = RT_FROM_MEMBER(pInterface, ACPIState, IACPIPort);
-    DEVACPI_LOCK_R3(pThis);
+    PACPISTATER3 pThisCC = RT_FROM_MEMBER(pInterface, ACPISTATER3, IACPIPort);
+    PPDMDEVINS   pDevIns = pThisCC->pDevIns;
+    PACPISTATE   pThis   = PDMDEVINS_2_DATA(pDevIns, PACPISTATE);
+    DEVACPI_LOCK_R3(pDevIns, pThis);
 
-    apicR3UpdateGpe0(pThis, pThis->gpe0_sts | 0x4, pThis->gpe0_en);
+    apicR3UpdateGpe0(pDevIns, pThis, pThis->gpe0_sts | 0x4, pThis->gpe0_en);
 
-    DEVACPI_UNLOCK(pThis);
+    DEVACPI_UNLOCK(pDevIns, pThis);
     return VINF_SUCCESS;
 }
 
@@ -1020,12 +1067,14 @@ static DECLCALLBACK(int) acpiR3Port_MonitorHotPlugEvent(PPDMIACPIPORT pInterface
  */
 static DECLCALLBACK(int) acpiR3Port_BatteryStatusChangeEvent(PPDMIACPIPORT pInterface)
 {
-    ACPIState *pThis = RT_FROM_MEMBER(pInterface, ACPIState, IACPIPort);
-    DEVACPI_LOCK_R3(pThis);
+    PACPISTATER3 pThisCC = RT_FROM_MEMBER(pInterface, ACPISTATER3, IACPIPort);
+    PPDMDEVINS   pDevIns = pThisCC->pDevIns;
+    PACPISTATE   pThis   = PDMDEVINS_2_DATA(pDevIns, PACPISTATE);
+    DEVACPI_LOCK_R3(pDevIns, pThis);
 
-    apicR3UpdateGpe0(pThis, pThis->gpe0_sts | 0x1, pThis->gpe0_en);
+    apicR3UpdateGpe0(pDevIns, pThis, pThis->gpe0_sts | 0x1, pThis->gpe0_en);
 
-    DEVACPI_UNLOCK(pThis);
+    DEVACPI_UNLOCK(pDevIns, pThis);
     return VINF_SUCCESS;
 }
 
@@ -1035,42 +1084,43 @@ static DECLCALLBACK(int) acpiR3Port_BatteryStatusChangeEvent(PPDMIACPIPORT pInte
  * The caller is expected to either hold the clock lock or to have made sure
  * the VM is resetting or loading state.
  *
- * @param   pThis               The ACPI instance.
- * @param   uNow                The current time.
+ * @param   pDevIns     The device instance.
+ * @param   pThis       The ACPI shared instance data.
+ * @param   uNow        The current time.
  */
-static void acpiR3PmTimerReset(ACPIState *pThis, uint64_t uNow)
+static void acpiR3PmTimerReset(PPDMDEVINS pDevIns, PACPISTATE pThis, uint64_t uNow)
 {
-    uint64_t uTimerFreq = TMTimerGetFreq(pThis->CTX_SUFF(pPmTimer));
+    uint64_t uTimerFreq = PDMDevHlpTimerGetFreq(pDevIns, pThis->hPmTimer);
     uint32_t uPmTmrCyclesToRollover = TMR_VAL_MSB - (pThis->uPmTimerVal & (TMR_VAL_MSB - 1));
     uint64_t uInterval  = ASMMultU64ByU32DivByU32(uPmTmrCyclesToRollover, uTimerFreq, PM_TMR_FREQ);
-    TMTimerSet(pThis->pPmTimerR3, uNow + uInterval + 1);
+    PDMDevHlpTimerSet(pDevIns, pThis->hPmTimer, uNow + uInterval + 1);
     Log(("acpi: uInterval = %RU64\n", uInterval));
 }
 
 #endif /* IN_RING3 */
 
 /**
-  * Used by acpiR3PMTimer & acpiPmTmrRead to update TMR_VAL and update TMR_STS
-  *
-  * The caller is expected to either hold the clock lock or to have made sure
-  * the VM is resetting or loading state.
-  *
-  * @param   pThis              The ACPI instance
-  * @param   u64Now             The current time
-  */
-
-static void acpiPmTimerUpdate(ACPIState *pThis, uint64_t u64Now)
+ * Used by acpiR3PMTimer & acpiPmTmrRead to update TMR_VAL and update TMR_STS
+ *
+ * The caller is expected to either hold the clock lock or to have made sure
+ * the VM is resetting or loading state.
+ *
+ * @param   pDevIns     The PDM device instance.
+ * @param   pThis       The ACPI instance
+ * @param   u64Now      The current time
+ */
+static void acpiPmTimerUpdate(PPDMDEVINS pDevIns, PACPISTATE pThis, uint64_t u64Now)
 {
     uint32_t msb = pThis->uPmTimerVal & TMR_VAL_MSB;
     uint64_t u64Elapsed = u64Now - pThis->u64PmTimerInitial;
-    Assert(TMTimerIsLockOwner(pThis->CTX_SUFF(pPmTimer)));
+    Assert(PDMDevHlpTimerIsLockOwner(pDevIns, pThis->hPmTimer));
 
-    pThis->uPmTimerVal = ASMMultU64ByU32DivByU32(u64Elapsed, PM_TMR_FREQ, TMTimerGetFreq(pThis->CTX_SUFF(pPmTimer))) & TMR_VAL_MASK;
+    pThis->uPmTimerVal = ASMMultU64ByU32DivByU32(u64Elapsed, PM_TMR_FREQ,
+                                                 PDMDevHlpTimerGetFreq(pDevIns, pThis->hPmTimer))
+                       & TMR_VAL_MASK;
 
     if ( (pThis->uPmTimerVal & TMR_VAL_MSB) != msb)
-    {
-        apicUpdatePm1a(pThis, pThis->pm1a_sts | TMR_STS, pThis->pm1a_en);
-    }
+        acpiUpdatePm1a(pDevIns, pThis, pThis->pm1a_sts | TMR_STS, pThis->pm1a_en);
 }
 
 #ifdef IN_RING3
@@ -1080,19 +1130,19 @@ static void acpiPmTimerUpdate(ACPIState *pThis, uint64_t u64Now)
  */
 static DECLCALLBACK(void) acpiR3PmTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
-    ACPIState *pThis = (ACPIState *)pvUser;
-    Assert(TMTimerIsLockOwner(pTimer));
-    NOREF(pDevIns);
+    PACPISTATE pThis = PDMDEVINS_2_DATA(pDevIns, PACPISTATE);
+    Assert(PDMDevHlpTimerIsLockOwner(pDevIns, pThis->hPmTimer));
+    RT_NOREF(pTimer, pvUser);
 
-    DEVACPI_LOCK_R3(pThis);
+    DEVACPI_LOCK_R3(pDevIns, pThis);
     Log(("acpi: pm timer sts %#x (%d), en %#x (%d)\n",
          pThis->pm1a_sts, (pThis->pm1a_sts & TMR_STS) != 0,
          pThis->pm1a_en, (pThis->pm1a_en & TMR_EN) != 0));
-    uint64_t u64Now = TMTimerGet(pTimer);
-    acpiPmTimerUpdate(pThis, u64Now);
-    DEVACPI_UNLOCK(pThis);
+    uint64_t u64Now = PDMDevHlpTimerGet(pDevIns, pThis->hPmTimer);
+    acpiPmTimerUpdate(pDevIns, pThis, u64Now);
+    DEVACPI_UNLOCK(pDevIns, pThis);
 
-    acpiR3PmTimerReset(pThis, u64Now);
+    acpiR3PmTimerReset(pDevIns, pThis, u64Now);
 }
 
 /**
@@ -1100,9 +1150,10 @@ static DECLCALLBACK(void) acpiR3PmTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, voi
  * acpiR3LoadState.
  *
  * @returns VINF_SUCCESS.
- * @param   pThis           The ACPI instance.
+ * @param   pThis           The ACPI shared instance data.
+ * @param   pThisCC         The ACPI instance data for ring-3.
  */
-static int acpiR3FetchBatteryStatus(ACPIState *pThis)
+static int acpiR3FetchBatteryStatus(PACPISTATE pThis, PACPISTATER3 pThisCC)
 {
     uint32_t           *p = pThis->au8BatteryInfo;
     bool               fPresent;              /* battery present? */
@@ -1111,10 +1162,10 @@ static int acpiR3FetchBatteryStatus(ACPIState *pThis)
     uint32_t           hostPresentRate;       /* 0..1000 */
     int                rc;
 
-    if (!pThis->pDrv)
+    if (!pThisCC->pDrv)
         return VINF_SUCCESS;
-    rc = pThis->pDrv->pfnQueryBatteryStatus(pThis->pDrv, &fPresent, &hostRemainingCapacity,
-                                            &hostBatteryState, &hostPresentRate);
+    rc = pThisCC->pDrv->pfnQueryBatteryStatus(pThisCC->pDrv, &fPresent, &hostRemainingCapacity,
+                                              &hostBatteryState, &hostPresentRate);
     AssertRC(rc);
 
     /* default values */
@@ -1138,9 +1189,9 @@ static int acpiR3FetchBatteryStatus(ACPIState *pThis)
  * acpiR3LoadState.
  *
  * @returns VINF_SUCCESS.
- * @param   pThis           The ACPI instance.
+ * @param   pThis           The ACPI shared instance data.
  */
-static int acpiR3FetchBatteryInfo(ACPIState *pThis)
+static int acpiR3FetchBatteryInfo(PACPISTATE pThis)
 {
     uint32_t *p = pThis->au8BatteryInfo;
 
@@ -1161,9 +1212,9 @@ static int acpiR3FetchBatteryInfo(ACPIState *pThis)
  * The _STA method - used by acpiR3BatDataRead to implement BAT_DEVICE_STATUS.
  *
  * @returns status mask or 0.
- * @param   pThis           The ACPI instance.
+ * @param   pThisCC         The ACPI instance data for ring-3.
  */
-static uint32_t acpiR3GetBatteryDeviceStatus(ACPIState *pThis)
+static uint32_t acpiR3GetBatteryDeviceStatus(PACPISTATER3 pThisCC)
 {
     bool               fPresent;              /* battery present? */
     PDMACPIBATCAPACITY hostRemainingCapacity; /* 0..100 */
@@ -1171,50 +1222,51 @@ static uint32_t acpiR3GetBatteryDeviceStatus(ACPIState *pThis)
     uint32_t           hostPresentRate;       /* 0..1000 */
     int                rc;
 
-    if (!pThis->pDrv)
+    if (!pThisCC->pDrv)
         return 0;
-    rc = pThis->pDrv->pfnQueryBatteryStatus(pThis->pDrv, &fPresent, &hostRemainingCapacity,
-                                            &hostBatteryState, &hostPresentRate);
+    rc = pThisCC->pDrv->pfnQueryBatteryStatus(pThisCC->pDrv, &fPresent, &hostRemainingCapacity,
+                                              &hostBatteryState, &hostPresentRate);
     AssertRC(rc);
 
     return fPresent
-        ?   STA_DEVICE_PRESENT_MASK                     /* present */
-          | STA_DEVICE_ENABLED_MASK                     /* enabled and decodes its resources */
-          | STA_DEVICE_SHOW_IN_UI_MASK                  /* should be shown in UI */
-          | STA_DEVICE_FUNCTIONING_PROPERLY_MASK        /* functioning properly */
-          | STA_BATTERY_PRESENT_MASK                    /* battery is present */
-        : 0;                                            /* device not present */
+         ?   STA_DEVICE_PRESENT_MASK                     /* present */
+           | STA_DEVICE_ENABLED_MASK                     /* enabled and decodes its resources */
+           | STA_DEVICE_SHOW_IN_UI_MASK                  /* should be shown in UI */
+           | STA_DEVICE_FUNCTIONING_PROPERLY_MASK        /* functioning properly */
+           | STA_BATTERY_PRESENT_MASK                    /* battery is present */
+         : 0;                                            /* device not present */
 }
 
 /**
  * Used by acpiR3BatDataRead to implement BAT_POWER_SOURCE.
  *
  * @returns status.
- * @param   pThis           The ACPI instance.
+ * @param   pThisCC         The ACPI instance data for ring-3.
  */
-static uint32_t acpiR3GetPowerSource(ACPIState *pThis)
+static uint32_t acpiR3GetPowerSource(PACPISTATER3 pThisCC)
 {
     /* query the current power source from the host driver */
-    if (!pThis->pDrv)
+    if (!pThisCC->pDrv)
         return AC_ONLINE;
 
     PDMACPIPOWERSOURCE ps;
-    int rc = pThis->pDrv->pfnQueryPowerSource(pThis->pDrv, &ps);
+    int rc = pThisCC->pDrv->pfnQueryPowerSource(pThisCC->pDrv, &ps);
     AssertRC(rc);
     return ps == PDM_ACPI_POWER_SOURCE_BATTERY ? AC_OFFLINE : AC_ONLINE;
 }
 
 /**
- * @callback_method_impl{FNIOMIOPORTOUT, Battery status index}
+ * @callback_method_impl{FNIOMIOPORTNEWOUT, Battery status index}
  */
-PDMBOTHCBDECL(int) acpiR3BatIndexWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
+static DECLCALLBACK(VBOXSTRICTRC) acpiR3BatIndexWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT offPort, uint32_t u32, unsigned cb)
 {
+    RT_NOREF(pvUser, offPort);
     Log(("acpiR3BatIndexWrite: %#x (%#x)\n", u32, u32 >> 2));
     if (cb != 4)
-        return PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "cb=%d Port=%u u32=%#x\n", cb, Port, u32);
+        return PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "cb=%d offPort=%u u32=%#x\n", cb, offPort, u32);
 
-    ACPIState *pThis = (ACPIState *)pvUser;
-    DEVACPI_LOCK_R3(pThis);
+    PACPISTATE pThis = PDMDEVINS_2_DATA(pDevIns, PACPISTATE);
+    DEVACPI_LOCK_R3(pDevIns, pThis);
 
     u32 >>= pThis->u8IndexShift;
     /* see comment at the declaration of u8IndexShift */
@@ -1226,26 +1278,28 @@ PDMBOTHCBDECL(int) acpiR3BatIndexWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPOR
     Assert(u32 < BAT_INDEX_LAST);
     pThis->uBatteryIndex = u32;
 
-    DEVACPI_UNLOCK(pThis);
+    DEVACPI_UNLOCK(pDevIns, pThis);
     return VINF_SUCCESS;
 }
 
 /**
- * @callback_method_impl{FNIOMIOPORTIN, Battery status data}
+ * @callback_method_impl{FNIOMIOPORTNEWIN, Battery status data}
  */
-PDMBOTHCBDECL(int) acpiR3BatDataRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb)
+static DECLCALLBACK(VBOXSTRICTRC)  acpiR3BatDataRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT offPort, uint32_t *pu32, unsigned cb)
 {
+    RT_NOREF(pvUser, offPort);
     if (cb != 4)
         return VERR_IOM_IOPORT_UNUSED;
 
-    ACPIState *pThis = (ACPIState *)pvUser;
-    DEVACPI_LOCK_R3(pThis);
+    PACPISTATE   pThis   = PDMDEVINS_2_DATA(pDevIns, PACPISTATE);
+    PACPISTATER3 pThisCC = PDMDEVINS_2_DATA_CC(pDevIns, PACPISTATER3);
+    DEVACPI_LOCK_R3(pDevIns, pThis);
 
-    int rc = VINF_SUCCESS;
+    VBOXSTRICTRC rc = VINF_SUCCESS;
     switch (pThis->uBatteryIndex)
     {
         case BAT_STATUS_STATE:
-            acpiR3FetchBatteryStatus(pThis);
+            acpiR3FetchBatteryStatus(pThis, pThisCC);
             RT_FALL_THRU();
         case BAT_STATUS_PRESENT_RATE:
         case BAT_STATUS_REMAINING_CAPACITY:
@@ -1268,34 +1322,35 @@ PDMBOTHCBDECL(int) acpiR3BatDataRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT 
             break;
 
         case BAT_DEVICE_STATUS:
-            *pu32 = acpiR3GetBatteryDeviceStatus(pThis);
+            *pu32 = acpiR3GetBatteryDeviceStatus(pThisCC);
             break;
 
         case BAT_POWER_SOURCE:
-            *pu32 = acpiR3GetPowerSource(pThis);
+            *pu32 = acpiR3GetPowerSource(pThisCC);
             break;
 
         default:
-            rc = PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "cb=%d Port=%u idx=%u\n", cb, Port, pThis->uBatteryIndex);
+            rc = PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "cb=%d offPort=%u idx=%u\n", cb, offPort, pThis->uBatteryIndex);
             *pu32 = UINT32_MAX;
             break;
     }
 
-    DEVACPI_UNLOCK(pThis);
+    DEVACPI_UNLOCK(pDevIns, pThis);
     return rc;
 }
 
 /**
- * @callback_method_impl{FNIOMIOPORTOUT, System info index}
+ * @callback_method_impl{FNIOMIOPORTNEWOUT, System info index}
  */
-PDMBOTHCBDECL(int) acpiR3SysInfoIndexWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
+static DECLCALLBACK(VBOXSTRICTRC)  acpiR3SysInfoIndexWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT offPort, uint32_t u32, unsigned cb)
 {
+    RT_NOREF(pvUser, offPort);
     Log(("acpiR3SysInfoIndexWrite: %#x (%#x)\n", u32, u32 >> 2));
     if (cb != 4)
-        return PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "cb=%d Port=%u u32=%#x\n", cb, Port, u32);
+        return PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "cb=%d offPort=%u u32=%#x\n", cb, offPort, u32);
 
-    ACPIState *pThis = (ACPIState *)pvUser;
-    DEVACPI_LOCK_R3(pThis);
+    PACPISTATE pThis = PDMDEVINS_2_DATA(pDevIns, PACPISTATE);
+    DEVACPI_LOCK_R3(pDevIns, pThis);
 
     if (u32 == SYSTEM_INFO_INDEX_VALID || u32 == SYSTEM_INFO_INDEX_INVALID)
         pThis->uSystemInfoIndex = u32;
@@ -1313,22 +1368,23 @@ PDMBOTHCBDECL(int) acpiR3SysInfoIndexWrite(PPDMDEVINS pDevIns, void *pvUser, RTI
         pThis->uSystemInfoIndex = u32;
     }
 
-    DEVACPI_UNLOCK(pThis);
+    DEVACPI_UNLOCK(pDevIns, pThis);
     return VINF_SUCCESS;
 }
 
 /**
- * @callback_method_impl{FNIOMIOPORTIN, System info data}
+ * @callback_method_impl{FNIOMIOPORTNEWIN, System info data}
  */
-PDMBOTHCBDECL(int) acpiR3SysInfoDataRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb)
+static DECLCALLBACK(VBOXSTRICTRC) acpiR3SysInfoDataRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT offPort, uint32_t *pu32, unsigned cb)
 {
+    RT_NOREF(pvUser, offPort);
     if (cb != 4)
         return VERR_IOM_IOPORT_UNUSED;
 
-    ACPIState *pThis = (ACPIState *)pvUser;
-    DEVACPI_LOCK_R3(pThis);
+    PACPISTATE pThis = PDMDEVINS_2_DATA(pDevIns, PACPISTATE);
+    DEVACPI_LOCK_R3(pDevIns, pThis);
 
-    int rc = VINF_SUCCESS;
+    VBOXSTRICTRC rc = VINF_SUCCESS;
     uint32_t const uSystemInfoIndex = pThis->uSystemInfoIndex;
     switch (uSystemInfoIndex)
     {
@@ -1385,6 +1441,10 @@ PDMBOTHCBDECL(int) acpiR3SysInfoDataRead(PPDMDEVINS pDevIns, void *pvUser, RTIOP
             *pu32 = pThis->u32AudioPciAddress;
             break;
 
+        case SYSTEM_INFO_INDEX_NVME_ADDRESS:
+            *pu32 = pThis->u32NvmePciAddress;
+            break;
+
         case SYSTEM_INFO_INDEX_POWER_STATES:
             *pu32 = RT_BIT(0) | RT_BIT(5);  /* S1 and S5 always exposed */
             if (pThis->fS1Enabled)          /* Optionally expose S1 and S4 */
@@ -1393,7 +1453,7 @@ PDMBOTHCBDECL(int) acpiR3SysInfoDataRead(PPDMDEVINS pDevIns, void *pvUser, RTIOP
                 *pu32 |= RT_BIT(4);
             break;
 
-       case SYSTEM_INFO_INDEX_IOC_ADDRESS:
+        case SYSTEM_INFO_INDEX_IOC_ADDRESS:
             *pu32 = pThis->u32IocPciAddress;
             break;
 
@@ -1504,28 +1564,29 @@ PDMBOTHCBDECL(int) acpiR3SysInfoDataRead(PPDMDEVINS pDevIns, void *pvUser, RTIOP
 
         default:
             *pu32 = UINT32_MAX;
-            rc = PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "cb=%d Port=%u idx=%u\n", cb, Port, pThis->uBatteryIndex);
+            rc = PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "cb=%d offPort=%u idx=%u\n", cb, offPort, pThis->uBatteryIndex);
             break;
     }
 
-    DEVACPI_UNLOCK(pThis);
-    Log(("acpiR3SysInfoDataRead: idx=%d val=%#x (%u) rc=%Rrc\n", uSystemInfoIndex, *pu32, *pu32, rc));
+    DEVACPI_UNLOCK(pDevIns, pThis);
+    Log(("acpiR3SysInfoDataRead: idx=%d val=%#x (%u) rc=%Rrc\n", uSystemInfoIndex, *pu32, *pu32, VBOXSTRICTRC_VAL(rc)));
     return rc;
 }
 
 /**
- * @callback_method_impl{FNIOMIOPORTOUT, System info data}
+ * @callback_method_impl{FNIOMIOPORTNEWOUT, System info data}
  */
-PDMBOTHCBDECL(int) acpiR3SysInfoDataWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
+static DECLCALLBACK(VBOXSTRICTRC) acpiR3SysInfoDataWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT offPort, uint32_t u32, unsigned cb)
 {
-    ACPIState *pThis = (ACPIState *)pvUser;
+    RT_NOREF(pvUser, offPort);
+    PACPISTATE pThis = PDMDEVINS_2_DATA(pDevIns, PACPISTATE);
     if (cb != 4)
-        return PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "cb=%d Port=%u u32=%#x idx=%u\n", cb, Port, u32, pThis->uSystemInfoIndex);
+        return PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "cb=%d offPort=%u u32=%#x idx=%u\n", cb, offPort, u32, pThis->uSystemInfoIndex);
 
-    DEVACPI_LOCK_R3(pThis);
-    Log(("addr=%#x cb=%d u32=%#x si=%#x\n", Port, cb, u32, pThis->uSystemInfoIndex));
+    DEVACPI_LOCK_R3(pDevIns, pThis);
+    Log(("addr=%#x cb=%d u32=%#x si=%#x\n", offPort, cb, u32, pThis->uSystemInfoIndex));
 
-    int rc = VINF_SUCCESS;
+    VBOXSTRICTRC rc = VINF_SUCCESS;
     switch (pThis->uSystemInfoIndex)
     {
         case SYSTEM_INFO_INDEX_INVALID:
@@ -1550,133 +1611,138 @@ PDMBOTHCBDECL(int) acpiR3SysInfoDataWrite(PPDMDEVINS pDevIns, void *pvUser, RTIO
             break;
 
         default:
-            rc = PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "cb=%d Port=%u u32=%#x idx=%u\n", cb, Port, u32, pThis->uSystemInfoIndex);
+            rc = PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "cb=%d offPort=%u u32=%#x idx=%u\n", cb, offPort, u32, pThis->uSystemInfoIndex);
             break;
     }
 
-    DEVACPI_UNLOCK(pThis);
+    DEVACPI_UNLOCK(pDevIns, pThis);
     return rc;
 }
 
 /**
- * @callback_method_impl{FNIOMIOPORTIN, PM1a Enable}
+ * @callback_method_impl{FNIOMIOPORTNEWIN, PM1a Enable}
  */
-PDMBOTHCBDECL(int) acpiR3Pm1aEnRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb)
+static DECLCALLBACK(VBOXSTRICTRC) acpiR3Pm1aEnRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT offPort, uint32_t *pu32, unsigned cb)
 {
-    NOREF(pDevIns); NOREF(Port);
+    RT_NOREF(offPort, pvUser);
     if (cb != 2)
         return VERR_IOM_IOPORT_UNUSED;
 
-    ACPIState *pThis = (ACPIState *)pvUser;
-    DEVACPI_LOCK_R3(pThis);
+    PACPISTATE pThis = PDMDEVINS_2_DATA(pDevIns, PACPISTATE);
+    DEVACPI_LOCK_R3(pDevIns, pThis);
 
     *pu32 = pThis->pm1a_en;
 
-    DEVACPI_UNLOCK(pThis);
+    DEVACPI_UNLOCK(pDevIns, pThis);
     Log(("acpiR3Pm1aEnRead -> %#x\n", *pu32));
     return VINF_SUCCESS;
 }
 
 /**
- * @callback_method_impl{FNIOMIOPORTOUT, PM1a Enable}
+ * @callback_method_impl{FNIOMIOPORTNEWOUT, PM1a Enable}
  */
-PDMBOTHCBDECL(int) acpiR3PM1aEnWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
+static DECLCALLBACK(VBOXSTRICTRC) acpiR3PM1aEnWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT offPort, uint32_t u32, unsigned cb)
 {
+    RT_NOREF(offPort, pvUser);
     if (cb != 2 && cb != 4)
-        return PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "cb=%d Port=%u u32=%#x\n", cb, Port, u32);
+        return PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "cb=%d offPort=%u u32=%#x\n", cb, offPort, u32);
 
-    ACPIState *pThis = (ACPIState *)pvUser;
-    DEVACPI_LOCK_R3(pThis);
+    PACPISTATE pThis = PDMDEVINS_2_DATA(pDevIns, PACPISTATE);
+    DEVACPI_LOCK_R3(pDevIns, pThis);
 
     Log(("acpiR3PM1aEnWrite: %#x (%#x)\n", u32, u32 & ~(RSR_EN | IGN_EN) & 0xffff));
     u32 &= ~(RSR_EN | IGN_EN);
     u32 &= 0xffff;
-    apicUpdatePm1a(pThis, pThis->pm1a_sts, u32);
+    acpiUpdatePm1a(pDevIns, pThis, pThis->pm1a_sts, u32);
 
-    DEVACPI_UNLOCK(pThis);
+    DEVACPI_UNLOCK(pDevIns, pThis);
     return VINF_SUCCESS;
 }
 
 /**
- * @callback_method_impl{FNIOMIOPORTIN, PM1a Status}
+ * @callback_method_impl{FNIOMIOPORTNEWIN, PM1a Status}
  */
-PDMBOTHCBDECL(int) acpiR3Pm1aStsRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb)
+static DECLCALLBACK(VBOXSTRICTRC) acpiR3Pm1aStsRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT offPort, uint32_t *pu32, unsigned cb)
 {
+    RT_NOREF(offPort, pvUser);
     if (cb != 2)
     {
-        int rc = PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "cb=%d Port=%u\n", cb, Port);
+        int rc = PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "cb=%d offPort=%u\n", cb, offPort);
         return rc == VINF_SUCCESS ? VERR_IOM_IOPORT_UNUSED : rc;
     }
 
-    ACPIState *pThis = (ACPIState *)pvUser;
-    DEVACPI_LOCK_R3(pThis);
+    PACPISTATE pThis = PDMDEVINS_2_DATA(pDevIns, PACPISTATE);
+    DEVACPI_LOCK_R3(pDevIns, pThis);
 
     *pu32 = pThis->pm1a_sts;
 
-    DEVACPI_UNLOCK(pThis);
+    DEVACPI_UNLOCK(pDevIns, pThis);
     Log(("acpiR3Pm1aStsRead: %#x\n", *pu32));
     return VINF_SUCCESS;
 }
 
 /**
- * @callback_method_impl{FNIOMIOPORTOUT, PM1a Status}
+ * @callback_method_impl{FNIOMIOPORTNEWOUT, PM1a Status}
  */
-PDMBOTHCBDECL(int) acpiR3PM1aStsWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
+static DECLCALLBACK(VBOXSTRICTRC) acpiR3PM1aStsWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT offPort, uint32_t u32, unsigned cb)
 {
+    RT_NOREF(offPort, pvUser);
     if (cb != 2 && cb != 4)
-        return PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "cb=%d Port=%u u32=%#x\n", cb, Port, u32);
+        return PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "cb=%d offPort=%u u32=%#x\n", cb, offPort, u32);
 
-    ACPIState *pThis = (ACPIState *)pvUser;
-    DEVACPI_LOCK_R3(pThis);
+    PACPISTATE pThis = PDMDEVINS_2_DATA(pDevIns, PACPISTATE);
+    DEVACPI_LOCK_R3(pDevIns, pThis);
 
     Log(("acpiR3PM1aStsWrite: %#x (%#x)\n", u32, u32 & ~(RSR_STS | IGN_STS) & 0xffff));
     u32 &= 0xffff;
     if (u32 & PWRBTN_STS)
         pThis->fPowerButtonHandled = true; /* Remember that the guest handled the last power button event */
     u32 = pThis->pm1a_sts & ~(u32 & ~(RSR_STS | IGN_STS));
-    apicUpdatePm1a(pThis, u32, pThis->pm1a_en);
+    acpiUpdatePm1a(pDevIns, pThis, u32, pThis->pm1a_en);
 
-    DEVACPI_UNLOCK(pThis);
+    DEVACPI_UNLOCK(pDevIns, pThis);
     return VINF_SUCCESS;
 }
 
 /**
- * @callback_method_impl{FNIOMIOPORTIN, PM1a Control}
+ * @callback_method_impl{FNIOMIOPORTNEWIN, PM1a Control}
  */
-PDMBOTHCBDECL(int) acpiR3Pm1aCtlRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb)
+static DECLCALLBACK(VBOXSTRICTRC) acpiR3Pm1aCtlRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT offPort, uint32_t *pu32, unsigned cb)
 {
+    RT_NOREF(offPort, pvUser);
     if (cb != 2)
     {
-        int rc = PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "cb=%d Port=%u\n", cb, Port);
+        int rc = PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "cb=%d offPort=%u\n", cb, offPort);
         return rc == VINF_SUCCESS ? VERR_IOM_IOPORT_UNUSED : rc;
     }
 
-    ACPIState *pThis = (ACPIState *)pvUser;
-    DEVACPI_LOCK_R3(pThis);
+    PACPISTATE pThis = PDMDEVINS_2_DATA(pDevIns, PACPISTATE);
+    DEVACPI_LOCK_R3(pDevIns, pThis);
 
     *pu32 = pThis->pm1a_ctl;
 
-    DEVACPI_UNLOCK(pThis);
+    DEVACPI_UNLOCK(pDevIns, pThis);
     Log(("acpiR3Pm1aCtlRead: %#x\n", *pu32));
     return VINF_SUCCESS;
 }
 
 /**
- * @callback_method_impl{FNIOMIOPORTOUT, PM1a Control}
+ * @callback_method_impl{FNIOMIOPORTNEWOUT, PM1a Control}
  */
-PDMBOTHCBDECL(int) acpiR3PM1aCtlWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
+static DECLCALLBACK(VBOXSTRICTRC) acpiR3PM1aCtlWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT offPort, uint32_t u32, unsigned cb)
 {
+    RT_NOREF(offPort, pvUser);
     if (cb != 2 && cb != 4)
-        return PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "cb=%d Port=%u u32=%#x\n", cb, Port, u32);
+        return PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "cb=%d offPort=%u u32=%#x\n", cb, offPort, u32);
 
-    ACPIState *pThis = (ACPIState *)pvUser;
-    DEVACPI_LOCK_R3(pThis);
+    PACPISTATE pThis = PDMDEVINS_2_DATA(pDevIns, PACPISTATE);
+    DEVACPI_LOCK_R3(pDevIns, pThis);
 
     Log(("acpiR3PM1aCtlWrite: %#x (%#x)\n", u32, u32 & ~(RSR_CNT | IGN_CNT) & 0xffff));
     u32 &= 0xffff;
     pThis->pm1a_ctl = u32 & ~(RSR_CNT | IGN_CNT);
 
-    int rc = VINF_SUCCESS;
+    VBOXSTRICTRC rc = VINF_SUCCESS;
     uint32_t const uSleepState = (pThis->pm1a_ctl >> SLP_TYPx_SHIFT) & SLP_TYPx_MASK;
     if (uSleepState != pThis->uSleepState)
     {
@@ -1690,7 +1756,7 @@ PDMBOTHCBDECL(int) acpiR3PM1aCtlWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT
                 if (pThis->fS1Enabled)
                 {
                     LogRel(("ACPI: Entering S1 power state (powered-on suspend)\n"));
-                    rc = acpiR3DoSleep(pThis);
+                    rc = acpiR3DoSleep(pDevIns, pThis);
                     break;
                 }
                 LogRel(("ACPI: Ignoring guest attempt to enter S1 power state (powered-on suspend)!\n"));
@@ -1700,7 +1766,7 @@ PDMBOTHCBDECL(int) acpiR3PM1aCtlWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT
                 if (pThis->fS4Enabled)
                 {
                     LogRel(("ACPI: Entering S4 power state (suspend to disk)\n"));
-                    rc = acpiR3DoPowerOff(pThis);/* Same behavior as S5 */
+                    rc = acpiR3DoPowerOff(pDevIns);/* Same behavior as S5 */
                     break;
                 }
                 LogRel(("ACPI: Ignoring guest attempt to enter S4 power state (suspend to disk)!\n"));
@@ -1708,7 +1774,7 @@ PDMBOTHCBDECL(int) acpiR3PM1aCtlWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT
 
             case 0x05:                  /* S5 */
                 LogRel(("ACPI: Entering S5 power state (power down)\n"));
-                rc = acpiR3DoPowerOff(pThis);
+                rc = acpiR3DoPowerOff(pDevIns);
                 break;
 
             default:
@@ -1717,171 +1783,157 @@ PDMBOTHCBDECL(int) acpiR3PM1aCtlWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT
         }
     }
 
-    DEVACPI_UNLOCK(pThis);
-    Log(("acpiR3PM1aCtlWrite: rc=%Rrc\n", rc));
+    DEVACPI_UNLOCK(pDevIns, pThis);
+    Log(("acpiR3PM1aCtlWrite: rc=%Rrc\n", VBOXSTRICTRC_VAL(rc)));
     return rc;
 }
 
 #endif /* IN_RING3 */
 
 /**
- * @callback_method_impl{FNIOMIOPORTIN, PMTMR}
+ * @callback_method_impl{FNIOMIOPORTNEWIN, PMTMR}
  *
- * @remarks Only I/O port currently implemented in all contexts.
+ * @remarks The only I/O port currently implemented in all contexts.
  */
-PDMBOTHCBDECL(int) acpiPMTmrRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb)
+static DECLCALLBACK(VBOXSTRICTRC) acpiPMTmrRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT offPort, uint32_t *pu32, unsigned cb)
 {
+    RT_NOREF(offPort, pvUser);
     if (cb != 4)
         return VERR_IOM_IOPORT_UNUSED;
-
-    ACPIState *pThis = PDMINS_2_DATA(pDevIns, ACPIState *);
 
     /*
      * We use the clock lock to serialize access to u64PmTimerInitial and to
      * make sure we get a reliable time from the clock
      * as well as and to prevent uPmTimerVal from being updated during read.
      */
-
-    int rc = TMTimerLock(pThis->CTX_SUFF(pPmTimer), VINF_IOM_R3_IOPORT_READ);
-    if (rc != VINF_SUCCESS)
-        return rc;
-
-    rc = PDMCritSectEnter(&pThis->CritSect, VINF_IOM_R3_IOPORT_READ);
-    if (rc != VINF_SUCCESS)
+    PACPISTATE pThis = PDMDEVINS_2_DATA(pDevIns, PACPISTATE);
+    VBOXSTRICTRC rc = PDMDevHlpTimerLockClock2(pDevIns, pThis->hPmTimer, &pThis->CritSect, VINF_IOM_R3_IOPORT_READ);
+    if (rc == VINF_SUCCESS)
     {
-        TMTimerUnlock(pThis->CTX_SUFF(pPmTimer));
-        return rc;
-    }
+        uint64_t u64Now = PDMDevHlpTimerGet(pDevIns, pThis->hPmTimer);
+        acpiPmTimerUpdate(pDevIns, pThis, u64Now);
+        *pu32 = pThis->uPmTimerVal;
 
-    uint64_t u64Now = TMTimerGet(pThis->CTX_SUFF(pPmTimer));
-    acpiPmTimerUpdate(pThis, u64Now);
-    *pu32 = pThis->uPmTimerVal;
+        PDMDevHlpTimerUnlockClock2(pDevIns, pThis->hPmTimer, &pThis->CritSect);
 
-    DEVACPI_UNLOCK(pThis);
-    TMTimerUnlock(pThis->CTX_SUFF(pPmTimer));
-
-    DBGFTRACE_PDM_U64_TAG(pDevIns, u64Now, "acpi");
-    Log(("acpi: acpiPMTmrRead -> %#x\n", *pu32));
+        DBGFTRACE_PDM_U64_TAG(pDevIns, u64Now, "acpi");
+        Log(("acpi: acpiPMTmrRead -> %#x\n", *pu32));
 
 #if 0
-    /** @todo temporary: sanity check against running backwards */
-    uint32_t uOld = ASMAtomicXchgU32(&pThis->uPmTimeOld, *pu32);
-    if (*pu32 - uOld >= 0x10000000)
-    {
-#if defined(IN_RING0)
-        pThis->uPmTimeA = uOld;
-        pThis->uPmTimeB = *pu32;
-        return VERR_TM_TIMER_BAD_CLOCK;
-#elif defined(IN_RING3)
-        AssertReleaseMsgFailed(("acpiPMTmrRead: old=%08RX32, current=%08RX32\n", uOld, *pu32));
+        /** @todo temporary: sanity check against running backwards */
+        uint32_t uOld = ASMAtomicXchgU32(&pThis->uPmTimeOld, *pu32);
+        if (*pu32 - uOld >= 0x10000000)
+        {
+# if defined(IN_RING0)
+            pThis->uPmTimeA = uOld;
+            pThis->uPmTimeB = *pu32;
+            return VERR_TM_TIMER_BAD_CLOCK;
+# elif defined(IN_RING3)
+            AssertReleaseMsgFailed(("acpiPMTmrRead: old=%08RX32, current=%08RX32\n", uOld, *pu32));
+# endif
+        }
 #endif
     }
-#endif
-
-    NOREF(pvUser); NOREF(Port);
     return rc;
 }
 
 #ifdef IN_RING3
 
-static DECLCALLBACK(void) acpiR3Info(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, const char *pszArgs)
-{
-    RT_NOREF(pszArgs);
-    ACPIState *pThis = PDMINS_2_DATA(pDevIns, ACPIState *);
-    pHlp->pfnPrintf(pHlp,
-                    "timer: old=%08RX32, current=%08RX32\n", pThis->uPmTimeA, pThis->uPmTimeB);
-}
-
 /**
- * @callback_method_impl{FNIOMIOPORTIN, GPE0 Status}
+ * @callback_method_impl{FNIOMIOPORTNEWIN, GPE0 Status}
  */
-PDMBOTHCBDECL(int) acpiR3Gpe0StsRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb)
+static DECLCALLBACK(VBOXSTRICTRC) acpiR3Gpe0StsRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT offPort, uint32_t *pu32, unsigned cb)
 {
+    RT_NOREF(offPort, pvUser);
     if (cb != 1)
     {
-        int rc = PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "cb=%d Port=%u\n", cb, Port);
+        int rc = PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "cb=%d offPort=%u\n", cb, offPort);
         return rc == VINF_SUCCESS ? VERR_IOM_IOPORT_UNUSED : rc;
     }
 
-    ACPIState *pThis = (ACPIState *)pvUser;
-    DEVACPI_LOCK_R3(pThis);
+    PACPISTATE pThis = PDMDEVINS_2_DATA(pDevIns, PACPISTATE);
+    DEVACPI_LOCK_R3(pDevIns, pThis);
 
     *pu32 = pThis->gpe0_sts & 0xff;
 
-    DEVACPI_UNLOCK(pThis);
+    DEVACPI_UNLOCK(pDevIns, pThis);
     Log(("acpiR3Gpe0StsRead: %#x\n", *pu32));
     return VINF_SUCCESS;
 }
 
 /**
- * @callback_method_impl{FNIOMIOPORTOUT, GPE0 Status}
+ * @callback_method_impl{FNIOMIOPORTNEWOUT, GPE0 Status}
  */
-PDMBOTHCBDECL(int) acpiR3Gpe0StsWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
+static DECLCALLBACK(VBOXSTRICTRC) acpiR3Gpe0StsWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT offPort, uint32_t u32, unsigned cb)
 {
+    RT_NOREF(offPort, pvUser);
     if (cb != 1)
-        return PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "cb=%d Port=%u u32=%#x\n", cb, Port, u32);
+        return PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "cb=%d offPort=%u u32=%#x\n", cb, offPort, u32);
 
-    ACPIState *pThis = (ACPIState *)pvUser;
-    DEVACPI_LOCK_R3(pThis);
+    PACPISTATE pThis = PDMDEVINS_2_DATA(pDevIns, PACPISTATE);
+    DEVACPI_LOCK_R3(pDevIns, pThis);
 
     Log(("acpiR3Gpe0StsWrite: %#x (%#x)\n", u32, pThis->gpe0_sts & ~u32));
     u32 = pThis->gpe0_sts & ~u32;
-    apicR3UpdateGpe0(pThis, u32, pThis->gpe0_en);
+    apicR3UpdateGpe0(pDevIns, pThis, u32, pThis->gpe0_en);
 
-    DEVACPI_UNLOCK(pThis);
+    DEVACPI_UNLOCK(pDevIns, pThis);
     return VINF_SUCCESS;
 }
 
 /**
- * @callback_method_impl{FNIOMIOPORTIN, GPE0 Enable}
+ * @callback_method_impl{FNIOMIOPORTNEWIN, GPE0 Enable}
  */
-PDMBOTHCBDECL(int) acpiR3Gpe0EnRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb)
+static DECLCALLBACK(VBOXSTRICTRC) acpiR3Gpe0EnRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT offPort, uint32_t *pu32, unsigned cb)
 {
+    RT_NOREF(offPort, pvUser);
     if (cb != 1)
     {
-        int rc = PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "cb=%d Port=%u\n", cb, Port);
+        int rc = PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "cb=%d offPort=%u\n", cb, offPort);
         return rc == VINF_SUCCESS ? VERR_IOM_IOPORT_UNUSED : rc;
     }
 
-    ACPIState *pThis = (ACPIState *)pvUser;
-    DEVACPI_LOCK_R3(pThis);
+    PACPISTATE pThis = PDMDEVINS_2_DATA(pDevIns, PACPISTATE);
+    DEVACPI_LOCK_R3(pDevIns, pThis);
 
     *pu32 = pThis->gpe0_en & 0xff;
 
-    DEVACPI_UNLOCK(pThis);
+    DEVACPI_UNLOCK(pDevIns, pThis);
     Log(("acpiR3Gpe0EnRead: %#x\n", *pu32));
     return VINF_SUCCESS;
 }
 
 /**
- * @callback_method_impl{FNIOMIOPORTOUT, GPE0 Enable}
+ * @callback_method_impl{FNIOMIOPORTNEWOUT, GPE0 Enable}
  */
-PDMBOTHCBDECL(int) acpiR3Gpe0EnWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
+static DECLCALLBACK(VBOXSTRICTRC) acpiR3Gpe0EnWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT offPort, uint32_t u32, unsigned cb)
 {
+    RT_NOREF(offPort, pvUser);
     if (cb != 1)
-        return PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "cb=%d Port=%u u32=%#x\n", cb, Port, u32);
+        return PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "cb=%d offPort=%u u32=%#x\n", cb, offPort, u32);
 
-    ACPIState *pThis = (ACPIState *)pvUser;
-    DEVACPI_LOCK_R3(pThis);
+    PACPISTATE pThis = PDMDEVINS_2_DATA(pDevIns, PACPISTATE);
+    DEVACPI_LOCK_R3(pDevIns, pThis);
 
     Log(("acpiR3Gpe0EnWrite: %#x\n", u32));
-    apicR3UpdateGpe0(pThis, pThis->gpe0_sts, u32);
+    apicR3UpdateGpe0(pDevIns, pThis, pThis->gpe0_sts, u32);
 
-    DEVACPI_UNLOCK(pThis);
+    DEVACPI_UNLOCK(pDevIns, pThis);
     return VINF_SUCCESS;
 }
 
 /**
- * @callback_method_impl{FNIOMIOPORTOUT, SMI_CMD}
+ * @callback_method_impl{FNIOMIOPORTNEWOUT, SMI_CMD}
  */
-PDMBOTHCBDECL(int) acpiR3SmiWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
+static DECLCALLBACK(VBOXSTRICTRC) acpiR3SmiWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT offPort, uint32_t u32, unsigned cb)
 {
+    RT_NOREF(offPort, pvUser);
     Log(("acpiR3SmiWrite %#x\n", u32));
     if (cb != 1)
-        return PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "cb=%d Port=%u u32=%#x\n", cb, Port, u32);
+        return PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "cb=%d offPort=%u u32=%#x\n", cb, offPort, u32);
 
-    ACPIState *pThis = (ACPIState *)pvUser;
-    DEVACPI_LOCK_R3(pThis);
+    PACPISTATE pThis = PDMDEVINS_2_DATA(pDevIns, PACPISTATE);
+    DEVACPI_LOCK_R3(pDevIns, pThis);
 
     if (u32 == ACPI_ENABLE)
         pThis->pm1a_ctl |= SCI_EN;
@@ -1890,29 +1942,33 @@ PDMBOTHCBDECL(int) acpiR3SmiWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Por
     else
         Log(("acpiR3SmiWrite: %#x <- unknown value\n", u32));
 
-    DEVACPI_UNLOCK(pThis);
+    DEVACPI_UNLOCK(pDevIns, pThis);
     return VINF_SUCCESS;
 }
 
 /**
- * @{FNIOMIOPORTOUT, ACPI_RESET_BLK}
+ * @callback_method_impl{FNIOMIOPORTNEWOUT, ACPI_RESET_BLK}
  */
-PDMBOTHCBDECL(int) acpiR3ResetWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
+static DECLCALLBACK(VBOXSTRICTRC) acpiR3ResetWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT offPort, uint32_t u32, unsigned cb)
 {
+    RT_NOREF(offPort, pvUser);
     Log(("acpiR3ResetWrite: %#x\n", u32));
     NOREF(pvUser);
     if (cb != 1)
-        return PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "cb=%d Port=%u u32=%#x\n", cb, Port, u32);
+        return PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "cb=%d offPort=%u u32=%#x\n", cb, offPort, u32);
 
     /* No state locking required. */
-    int rc = VINF_SUCCESS;
+    VBOXSTRICTRC rc;
     if (u32 == ACPI_RESET_REG_VAL)
     {
         LogRel(("ACPI: Reset initiated by ACPI\n"));
         rc = PDMDevHlpVMReset(pDevIns, PDMVMRESET_F_ACPI);
     }
     else
+    {
         Log(("acpiR3ResetWrite: %#x <- unknown value\n", u32));
+        rc = VINF_SUCCESS;
+    }
 
     return rc;
 }
@@ -1920,9 +1976,9 @@ PDMBOTHCBDECL(int) acpiR3ResetWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT P
 # ifdef DEBUG_ACPI
 
 /**
- * @callback_method_impl{FNIOMIOPORTOUT, Debug hex value logger}
+ * @callback_method_impl{FNIOMIOPORTNEWOUT, Debug hex value logger}
  */
-PDMBOTHCBDECL(int) acpiR3DhexWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
+static DECLCALLBACK(VBOXSTRICTRC) acpiR3DebugHexWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT offPort, uint32_t u32, unsigned cb)
 {
     NOREF(pvUser);
     switch (cb)
@@ -1937,15 +1993,15 @@ PDMBOTHCBDECL(int) acpiR3DhexWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Po
             Log(("%#10x\n", u32));
             break;
         default:
-            return PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "cb=%d Port=%u u32=%#x\n", cb, Port, u32);
+            return PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "cb=%d offPort=%u u32=%#x\n", cb, offPort, u32);
     }
     return VINF_SUCCESS;
 }
 
 /**
- * @callback_method_impl{FNIOMIOPORTOUT, Debug char logger}
+ * @callback_method_impl{FNIOMIOPORTNEWOUT, Debug char logger}
  */
-PDMBOTHCBDECL(int) acpiR3DchrWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
+static DECLCALLBACK(VBOXSTRICTRC) acpiR3DebugCharWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT offPort, uint32_t u32, unsigned cb)
 {
     NOREF(pvUser);
     switch (cb)
@@ -1954,7 +2010,7 @@ PDMBOTHCBDECL(int) acpiR3DchrWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Po
             Log(("%c", u32 & 0xff));
             break;
         default:
-            return PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "cb=%d Port=%u u32=%#x\n", cb, Port, u32);
+            return PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "cb=%d offPort=%u u32=%#x\n", cb, offPort, u32);
     }
     return VINF_SUCCESS;
 }
@@ -1962,26 +2018,39 @@ PDMBOTHCBDECL(int) acpiR3DchrWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Po
 # endif /* DEBUG_ACPI */
 
 /**
+ * @callback_method_impl{FNDBGFHANDLERDEV}
+ */
+static DECLCALLBACK(void) acpiR3Info(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, const char *pszArgs)
+{
+    RT_NOREF(pszArgs);
+    PACPISTATE pThis = PDMDEVINS_2_DATA(pDevIns, PACPISTATE);
+    pHlp->pfnPrintf(pHlp,
+                    "timer: old=%08RX32, current=%08RX32\n", pThis->uPmTimeA, pThis->uPmTimeB);
+}
+
+/**
  * Called by acpiR3Reset and acpiR3Construct to set up the PM PCI config space.
  *
- * @param   pThis               The ACPI instance.
+ * @param   pDevIns     The PDM device instance.
+ * @param   pThis       The ACPI shared instance data.
  */
-static void acpiR3PmPCIBIOSFake(ACPIState *pThis)
+static void acpiR3PmPCIBIOSFake(PPDMDEVINS pDevIns, PACPISTATE pThis)
 {
-    pThis->dev.abConfig[PMBA  ] = pThis->uPmIoPortBase | 1; /* PMBA, PM base address, bit 0 marks it as IO range */
-    pThis->dev.abConfig[PMBA+1] = pThis->uPmIoPortBase >> 8;
-    pThis->dev.abConfig[PMBA+2] = 0x00;
-    pThis->dev.abConfig[PMBA+3] = 0x00;
+    PPDMPCIDEV pPciDev = pDevIns->apPciDevs[0];
+    pPciDev->abConfig[PMBA    ] = pThis->uPmIoPortBase | 1; /* PMBA, PM base address, bit 0 marks it as IO range */
+    pPciDev->abConfig[PMBA + 1] = pThis->uPmIoPortBase >> 8;
+    pPciDev->abConfig[PMBA + 2] = 0x00;
+    pPciDev->abConfig[PMBA + 3] = 0x00;
 }
 
 /**
  * Used to calculate the value of a PM I/O port.
  *
  * @returns The actual I/O port value.
- * @param   pThis               The ACPI instance.
+ * @param   pThis               The ACPI shared instance data.
  * @param   offset              The offset into the I/O space, or -1 if invalid.
  */
-static RTIOPORT acpiR3CalcPmPort(ACPIState *pThis, int32_t offset)
+static RTIOPORT acpiR3CalcPmPort(PACPISTATE pThis, int32_t offset)
 {
     Assert(pThis->uPmIoPortBase != 0);
 
@@ -1992,84 +2061,60 @@ static RTIOPORT acpiR3CalcPmPort(ACPIState *pThis, int32_t offset)
 }
 
 /**
- * Called by acpiR3LoadState and acpiR3UpdatePmHandlers to register the PM1a, PM
+ * Called by acpiR3LoadState and acpiR3UpdatePmHandlers to map the PM1a, PM
  * timer and GPE0 I/O ports.
  *
  * @returns VBox status code.
- * @param   pThis           The ACPI instance.
+ * @param   pDevIns         The device instance.
+ * @param   pThis           The ACPI shared instance data.
  */
-static int acpiR3RegisterPmHandlers(ACPIState *pThis)
+static int acpiR3MapPmIoPorts(PPDMDEVINS pDevIns, PACPISTATE pThis)
 {
     if (pThis->uPmIoPortBase == 0)
         return VINF_SUCCESS;
 
-#define R(offset, cnt, writer, reader, description) \
-    do { \
-        int rc = PDMDevHlpIOPortRegister(pThis->pDevInsR3, acpiR3CalcPmPort(pThis, offset), cnt, pThis, writer, reader, \
-                                         NULL, NULL, description); \
-        if (RT_FAILURE(rc)) \
-            return rc; \
-    } while (0)
-#define L       (GPE0_BLK_LEN / 2)
-
-    R(PM1a_EVT_OFFSET+2, 1, acpiR3PM1aEnWrite,       acpiR3Pm1aEnRead,      "ACPI PM1a Enable");
-    R(PM1a_EVT_OFFSET,   1, acpiR3PM1aStsWrite,      acpiR3Pm1aStsRead,     "ACPI PM1a Status");
-    R(PM1a_CTL_OFFSET,   1, acpiR3PM1aCtlWrite,      acpiR3Pm1aCtlRead,     "ACPI PM1a Control");
-    R(PM_TMR_OFFSET,     1, NULL,                    acpiPMTmrRead,         "ACPI PM Timer");
-    R(GPE0_OFFSET + L,   L, acpiR3Gpe0EnWrite,       acpiR3Gpe0EnRead,      "ACPI GPE0 Enable");
-    R(GPE0_OFFSET,       L, acpiR3Gpe0StsWrite,      acpiR3Gpe0StsRead,     "ACPI GPE0 Status");
-#undef L
-#undef R
-
-    /* register RC stuff */
-    if (pThis->fGCEnabled)
-    {
-        int rc = PDMDevHlpIOPortRegisterRC(pThis->pDevInsR3, acpiR3CalcPmPort(pThis, PM_TMR_OFFSET),
-                                           1, 0, NULL, "acpiPMTmrRead",
-                                           NULL, NULL, "ACPI PM Timer");
-        AssertRCReturn(rc, rc);
-    }
-
-    /* register R0 stuff */
-    if (pThis->fR0Enabled)
-    {
-        int rc = PDMDevHlpIOPortRegisterR0(pThis->pDevInsR3, acpiR3CalcPmPort(pThis, PM_TMR_OFFSET),
-                                           1, 0, NULL, "acpiPMTmrRead",
-                                           NULL, NULL, "ACPI PM Timer");
-        AssertRCReturn(rc, rc);
-    }
+    int rc;
+    rc = PDMDevHlpIoPortMap(pDevIns, pThis->hIoPortPm1aSts, acpiR3CalcPmPort(pThis, PM1a_EVT_OFFSET));
+    AssertRCReturn(rc, rc);
+    rc = PDMDevHlpIoPortMap(pDevIns, pThis->hIoPortPm1aEn,  acpiR3CalcPmPort(pThis, PM1a_EVT_OFFSET + 2));
+    AssertRCReturn(rc, rc);
+    rc = PDMDevHlpIoPortMap(pDevIns, pThis->hIoPortPm1aCtl, acpiR3CalcPmPort(pThis, PM1a_CTL_OFFSET));
+    AssertRCReturn(rc, rc);
+    rc = PDMDevHlpIoPortMap(pDevIns, pThis->hIoPortPmTimer, acpiR3CalcPmPort(pThis, PM_TMR_OFFSET));
+    AssertRCReturn(rc, rc);
+    rc = PDMDevHlpIoPortMap(pDevIns, pThis->hIoPortGpe0Sts, acpiR3CalcPmPort(pThis, GPE0_OFFSET));
+    AssertRCReturn(rc, rc);
+    rc = PDMDevHlpIoPortMap(pDevIns, pThis->hIoPortGpe0En,  acpiR3CalcPmPort(pThis, GPE0_OFFSET + GPE0_BLK_LEN / 2));
 
     return VINF_SUCCESS;
 }
 
 /**
- * Called by acpiR3LoadState and acpiR3UpdatePmHandlers to unregister the PM1a, PM
+ * Called by acpiR3LoadState and acpiR3UpdatePmHandlers to unmap the PM1a, PM
  * timer and GPE0 I/O ports.
  *
  * @returns VBox status code.
- * @param   pThis           The ACPI instance.
+ * @param   pDevIns     The device instance.
+ * @param   pThis       The ACPI shared instance data.
  */
-static int acpiR3UnregisterPmHandlers(ACPIState *pThis)
+static int acpiR3UnmapPmIoPorts(PPDMDEVINS pDevIns, PACPISTATE pThis)
 {
-    if (pThis->uPmIoPortBase == 0)
-        return VINF_SUCCESS;
-
-#define U(offset, cnt) \
-    do { \
-        int rc = PDMDevHlpIOPortDeregister(pThis->pDevInsR3, acpiR3CalcPmPort(pThis, offset), cnt); \
-        AssertRCReturn(rc, rc); \
-    } while (0)
-#define L       (GPE0_BLK_LEN / 2)
-
-    U(PM1a_EVT_OFFSET+2, 1);
-    U(PM1a_EVT_OFFSET,   1);
-    U(PM1a_CTL_OFFSET,   1);
-    U(PM_TMR_OFFSET,     1);
-    U(GPE0_OFFSET + L,   L);
-    U(GPE0_OFFSET,       L);
-#undef L
-#undef U
-
+    if (pThis->uPmIoPortBase != 0)
+    {
+        int rc;
+        rc = PDMDevHlpIoPortUnmap(pDevIns, pThis->hIoPortPm1aSts);
+        AssertRCReturn(rc, rc);
+        rc = PDMDevHlpIoPortUnmap(pDevIns, pThis->hIoPortPm1aEn);
+        AssertRCReturn(rc, rc);
+        rc = PDMDevHlpIoPortUnmap(pDevIns, pThis->hIoPortPm1aCtl);
+        AssertRCReturn(rc, rc);
+        rc = PDMDevHlpIoPortUnmap(pDevIns, pThis->hIoPortPmTimer);
+        AssertRCReturn(rc, rc);
+        rc = PDMDevHlpIoPortUnmap(pDevIns, pThis->hIoPortGpe0Sts);
+        AssertRCReturn(rc, rc);
+        rc = PDMDevHlpIoPortUnmap(pDevIns, pThis->hIoPortGpe0En);
+        AssertRCReturn(rc, rc);
+    }
     return VINF_SUCCESS;
 }
 
@@ -2079,26 +2124,28 @@ static int acpiR3UnregisterPmHandlers(ACPIState *pThis)
  *
  * @returns VBox status code.
  *
- * @param   pThis           The ACPI instance.
+ * @param   pDevIns         The device instance.
+ * @param   pThis           The ACPI shared instance data.
+ * @param   pThisCC         The ACPI instance data for ring-3.
  * @param   NewIoPortBase   The new base address of the I/O ports.
  */
-static int acpiR3UpdatePmHandlers(ACPIState *pThis, RTIOPORT NewIoPortBase)
+static int acpiR3UpdatePmHandlers(PPDMDEVINS pDevIns, PACPISTATE pThis, PACPISTATER3 pThisCC, RTIOPORT NewIoPortBase)
 {
     Log(("acpi: rebasing PM 0x%x -> 0x%x\n", pThis->uPmIoPortBase, NewIoPortBase));
     if (NewIoPortBase != pThis->uPmIoPortBase)
     {
-        int rc = acpiR3UnregisterPmHandlers(pThis);
+        int rc = acpiR3UnmapPmIoPorts(pDevIns, pThis);
         if (RT_FAILURE(rc))
             return rc;
 
         pThis->uPmIoPortBase = NewIoPortBase;
 
-        rc = acpiR3RegisterPmHandlers(pThis);
+        rc = acpiR3MapPmIoPorts(pDevIns, pThis);
         if (RT_FAILURE(rc))
             return rc;
 
         /* We have to update FADT table acccording to the new base */
-        rc = acpiR3PlantTables(pThis);
+        rc = acpiR3PlantTables(pDevIns, pThis, pThisCC);
         AssertRC(rc);
         if (RT_FAILURE(rc))
             return rc;
@@ -2108,19 +2155,20 @@ static int acpiR3UpdatePmHandlers(ACPIState *pThis, RTIOPORT NewIoPortBase)
 }
 
 /**
- * @callback_method_impl{FNIOMIOPORTOUT, SMBus}
+ * @callback_method_impl{FNIOMIOPORTNEWOUT, SMBus}
  */
-PDMBOTHCBDECL(int) acpiR3SMBusWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
+static DECLCALLBACK(VBOXSTRICTRC) acpiR3SMBusWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT offPort, uint32_t u32, unsigned cb)
 {
-    ACPIState *pThis = (ACPIState *)pvUser;
+    RT_NOREF(pvUser);
+    PACPISTATE pThis = PDMDEVINS_2_DATA(pDevIns, PACPISTATE);
 
-    LogFunc(("Port=%#x u32=%#x cb=%u\n", Port, u32, cb));
-    uint8_t off = Port & 0x000f;
+    LogFunc(("offPort=%#x u32=%#x cb=%u\n", offPort, u32, cb));
+    uint8_t off = offPort & 0x000f;
     if (   (cb != 1 && off <= SMBSHDWCMD_OFF)
         || (cb != 2 && (off == SMBSLVEVT_OFF || off == SMBSLVDAT_OFF)))
-        return PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "cb=%d Port=%u u32=%#x\n", cb, Port, u32);
+        return PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "cb=%d offPort=%u u32=%#x\n", cb, offPort, u32);
 
-    DEVACPI_LOCK_R3(pThis);
+    DEVACPI_LOCK_R3(pDevIns, pThis);
     switch (off)
     {
         case SMBHSTSTS_OFF:
@@ -2133,9 +2181,9 @@ PDMBOTHCBDECL(int) acpiR3SMBusWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT P
             break;
         case SMBHSTCNT_OFF:
         {
-            Assert(PDMCritSectIsOwner(&pThis->CritSect));
+            Assert(PDMDevHlpCritSectIsOwner(pDevIns, &pThis->CritSect));
 
-            const bool old_level = acpiSCILevel(pThis);
+            const bool old_level = acpiSCILevel(pDevIns, pThis);
             pThis->u8SMBusHstCnt = u32 & SMBHSTCNT_WRITE_MASK;
             if (u32 & SMBHSTCNT_START)
             {
@@ -2147,14 +2195,14 @@ PDMBOTHCBDECL(int) acpiR3SMBusWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT P
                 /* Kill */
                 pThis->u8SMBusHstSts |= SMBHSTSTS_FAILED | SMBHSTSTS_INTER;
             }
-            const bool new_level = acpiSCILevel(pThis);
+            const bool new_level = acpiSCILevel(pDevIns, pThis);
 
             LogFunc(("old=%x new=%x\n", old_level, new_level));
 
             /* This handles only SCI/IRQ9. SMI# makes not much sense today and
              * needs to be implemented later if it ever becomes relevant. */
             if (new_level != old_level)
-                acpiSetIrq(pThis, new_level);
+                acpiSetIrq(pDevIns, new_level);
             break;
         }
         case SMBHSTCMD_OFF:
@@ -2191,26 +2239,26 @@ PDMBOTHCBDECL(int) acpiR3SMBusWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT P
             ;
     }
 
-    DEVACPI_UNLOCK(pThis);
+    DEVACPI_UNLOCK(pDevIns, pThis);
     return VINF_SUCCESS;
 }
 
 /**
- * @callback_method_impl{FNIOMIOPORTIN, SMBus}
+ * @callback_method_impl{FNIOMIOPORTNEWIN, SMBus}
  */
-PDMBOTHCBDECL(int) acpiR3SMBusRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb)
+static DECLCALLBACK(VBOXSTRICTRC)  acpiR3SMBusRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT offPort, uint32_t *pu32, unsigned cb)
 {
-    RT_NOREF1(pDevIns);
-    ACPIState *pThis = (ACPIState *)pvUser;
+    RT_NOREF(pvUser);
+    PACPISTATE pThis = PDMDEVINS_2_DATA(pDevIns, PACPISTATE);
 
-    int rc = VINF_SUCCESS;
-    LogFunc(("Port=%#x cb=%u\n", Port, cb));
-    uint8_t off = Port & 0x000f;
+    VBOXSTRICTRC rc = VINF_SUCCESS;
+    LogFunc(("offPort=%#x cb=%u\n", offPort, cb));
+    uint8_t const off = offPort & 0x000f;
     if (   (cb != 1 && off <= SMBSHDWCMD_OFF)
         || (cb != 2 && (off == SMBSLVEVT_OFF || off == SMBSLVDAT_OFF)))
         return VERR_IOM_IOPORT_UNUSED;
 
-    DEVACPI_LOCK_R3(pThis);
+    DEVACPI_LOCK_R3(pDevIns, pThis);
     switch (off)
     {
         case SMBHSTSTS_OFF:
@@ -2256,36 +2304,38 @@ PDMBOTHCBDECL(int) acpiR3SMBusRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Po
             /* caught by the sanity check above */
             rc = VERR_IOM_IOPORT_UNUSED;
     }
+    DEVACPI_UNLOCK(pDevIns, pThis);
 
-    DEVACPI_UNLOCK(pThis);
-    LogFunc(("Port=%#x u32=%#x cb=%u rc=%Rrc\n", Port, *pu32, cb, rc));
+    LogFunc(("offPort=%#x u32=%#x cb=%u rc=%Rrc\n", offPort, *pu32, cb, VBOXSTRICTRC_VAL(rc)));
     return rc;
 }
 
 /**
  * Called by acpiR3Reset and acpiR3Construct to set up the SMBus PCI config space.
  *
- * @param   pThis           The ACPI instance.
+ * @param   pDevIns     The PDM device instance.
+ * @param   pThis       The ACPI shared instance data.
  */
-static void acpiR3SMBusPCIBIOSFake(ACPIState *pThis)
+static void acpiR3SMBusPCIBIOSFake(PPDMDEVINS pDevIns, PACPISTATE pThis)
 {
-    pThis->dev.abConfig[SMBBA  ] = pThis->uSMBusIoPortBase | 1; /* SMBBA, SMBus base address, bit 0 marks it as IO range */
-    pThis->dev.abConfig[SMBBA+1] = pThis->uSMBusIoPortBase >> 8;
-    pThis->dev.abConfig[SMBBA+2] = 0x00;
-    pThis->dev.abConfig[SMBBA+3] = 0x00;
-    pThis->dev.abConfig[SMBHSTCFG] = SMBHSTCFG_INTRSEL_IRQ9 << SMBHSTCFG_INTRSEL_SHIFT | SMBHSTCFG_SMB_HST_EN; /* SMBHSTCFG */
-    pThis->dev.abConfig[SMBSLVC] = 0x00; /* SMBSLVC */
-    pThis->dev.abConfig[SMBSHDW1] = 0x00; /* SMBSHDW1 */
-    pThis->dev.abConfig[SMBSHDW2] = 0x00; /* SMBSHDW2 */
-    pThis->dev.abConfig[SMBREV] = 0x00; /* SMBREV */
+    PPDMPCIDEV pPciDev = pDevIns->apPciDevs[0];
+    pPciDev->abConfig[SMBBA  ] = pThis->uSMBusIoPortBase | 1; /* SMBBA, SMBus base address, bit 0 marks it as IO range */
+    pPciDev->abConfig[SMBBA+1] = pThis->uSMBusIoPortBase >> 8;
+    pPciDev->abConfig[SMBBA+2] = 0x00;
+    pPciDev->abConfig[SMBBA+3] = 0x00;
+    pPciDev->abConfig[SMBHSTCFG] = SMBHSTCFG_INTRSEL_IRQ9 << SMBHSTCFG_INTRSEL_SHIFT | SMBHSTCFG_SMB_HST_EN; /* SMBHSTCFG */
+    pPciDev->abConfig[SMBSLVC] = 0x00; /* SMBSLVC */
+    pPciDev->abConfig[SMBSHDW1] = 0x00; /* SMBSHDW1 */
+    pPciDev->abConfig[SMBSHDW2] = 0x00; /* SMBSHDW2 */
+    pPciDev->abConfig[SMBREV] = 0x00; /* SMBREV */
 }
 
 /**
  * Called by acpiR3LoadState, acpiR3Reset and acpiR3Construct to reset the SMBus device register state.
  *
- * @param   pThis           The ACPI instance.
+ * @param   pThis           The ACPI shared instance data.
  */
-static void acpiR3SMBusResetDevice(ACPIState *pThis)
+static void acpiR3SMBusResetDevice(PACPISTATE pThis)
 {
     pThis->u8SMBusHstSts = 0x00;
     pThis->u8SMBusSlvSts = 0x00;
@@ -2303,39 +2353,36 @@ static void acpiR3SMBusResetDevice(ACPIState *pThis)
 }
 
 /**
- * Called by acpiR3LoadState and acpiR3UpdateSMBusHandlers to register the SMBus ports.
+ * Called by acpiR3LoadState and acpiR3UpdateSMBusHandlers to map the SMBus ports.
  *
  * @returns VBox status code.
- * @param   pThis           The ACPI instance.
+ * @param   pDevIns     The device instance.
+ * @param   pThis       The ACPI shared instance data.
  */
-static int acpiR3RegisterSMBusHandlers(ACPIState *pThis)
+static int acpiR3MapSMBusIoPorts(PPDMDEVINS pDevIns, PACPISTATE pThis)
 {
-    int   rc = VINF_SUCCESS;
-
-    if (pThis->uSMBusIoPortBase == 0)
-        return VINF_SUCCESS;
-
-    rc = PDMDevHlpIOPortRegister(pThis->pDevInsR3, pThis->uSMBusIoPortBase, 16, pThis, acpiR3SMBusWrite, acpiR3SMBusRead, NULL, NULL, "SMBus");
-    if (RT_FAILURE(rc))
-        return rc;
-
+    if (pThis->uSMBusIoPortBase != 0)
+    {
+        int rc = PDMDevHlpIoPortMap(pDevIns, pThis->hIoPortSMBus, pThis->uSMBusIoPortBase);
+        AssertRCReturn(rc, rc);
+    }
     return VINF_SUCCESS;
 }
 
 /**
- * Called by acpiR3LoadState and acpiR3UpdateSMBusHandlers to unregister the SMBus ports.
+ * Called by acpiR3LoadState and acpiR3UpdateSMBusHandlers to unmap the SMBus ports.
  *
  * @returns VBox status code.
- * @param   pThis           The ACPI instance.
+ * @param   pDevIns     The device instance.
+ * @param   pThis       The ACPI shared instance data.
  */
-static int acpiR3UnregisterSMBusHandlers(ACPIState *pThis)
+static int acpiR3UnmapSMBusPorts(PPDMDEVINS pDevIns, PACPISTATE pThis)
 {
-    if (pThis->uSMBusIoPortBase == 0)
-        return VINF_SUCCESS;
-
-    int rc = PDMDevHlpIOPortDeregister(pThis->pDevInsR3, pThis->uSMBusIoPortBase, 16);
-    AssertRCReturn(rc, rc);
-
+    if (pThis->uSMBusIoPortBase != 0)
+    {
+        int rc = PDMDevHlpIoPortUnmap(pDevIns, pThis->hIoPortSMBus);
+        AssertRCReturn(rc, rc);
+    }
     return VINF_SUCCESS;
 }
 
@@ -2345,23 +2392,22 @@ static int acpiR3UnregisterSMBusHandlers(ACPIState *pThis)
  *
  * @returns VBox status code.
  *
- * @param   pThis           The ACPI instance.
+ * @param   pDevIns         The device instance.
+ * @param   pThis           The ACPI shared instance data.
  * @param   NewIoPortBase   The new base address of the I/O ports.
  */
-static int acpiR3UpdateSMBusHandlers(ACPIState *pThis, RTIOPORT NewIoPortBase)
+static int acpiR3UpdateSMBusHandlers(PPDMDEVINS pDevIns, PACPISTATE pThis, RTIOPORT NewIoPortBase)
 {
     Log(("acpi: rebasing SMBus 0x%x -> 0x%x\n", pThis->uSMBusIoPortBase, NewIoPortBase));
     if (NewIoPortBase != pThis->uSMBusIoPortBase)
     {
-        int rc = acpiR3UnregisterSMBusHandlers(pThis);
-        if (RT_FAILURE(rc))
-            return rc;
+        int rc = acpiR3UnmapSMBusPorts(pDevIns, pThis);
+        AssertRCReturn(rc, rc);
 
         pThis->uSMBusIoPortBase = NewIoPortBase;
 
-        rc = acpiR3RegisterSMBusHandlers(pThis);
-        if (RT_FAILURE(rc))
-            return rc;
+        rc = acpiR3MapSMBusIoPorts(pDevIns, pThis);
+        AssertRCReturn(rc, rc);
 
 #if 0 /* is there an FADT table entry for the SMBus base? */
         /* We have to update FADT table acccording to the new base */
@@ -2381,18 +2427,18 @@ static int acpiR3UpdateSMBusHandlers(ACPIState *pThis, RTIOPORT NewIoPortBase)
  */
 static const SSMFIELD g_AcpiSavedStateFields4[] =
 {
-    SSMFIELD_ENTRY(ACPIState, pm1a_en),
-    SSMFIELD_ENTRY(ACPIState, pm1a_sts),
-    SSMFIELD_ENTRY(ACPIState, pm1a_ctl),
-    SSMFIELD_ENTRY(ACPIState, u64PmTimerInitial),
-    SSMFIELD_ENTRY(ACPIState, gpe0_en),
-    SSMFIELD_ENTRY(ACPIState, gpe0_sts),
-    SSMFIELD_ENTRY(ACPIState, uBatteryIndex),
-    SSMFIELD_ENTRY(ACPIState, uSystemInfoIndex),
-    SSMFIELD_ENTRY(ACPIState, u64RamSize),
-    SSMFIELD_ENTRY(ACPIState, u8IndexShift),
-    SSMFIELD_ENTRY(ACPIState, u8UseIOApic),
-    SSMFIELD_ENTRY(ACPIState, uSleepState),
+    SSMFIELD_ENTRY(ACPISTATE, pm1a_en),
+    SSMFIELD_ENTRY(ACPISTATE, pm1a_sts),
+    SSMFIELD_ENTRY(ACPISTATE, pm1a_ctl),
+    SSMFIELD_ENTRY(ACPISTATE, u64PmTimerInitial),
+    SSMFIELD_ENTRY(ACPISTATE, gpe0_en),
+    SSMFIELD_ENTRY(ACPISTATE, gpe0_sts),
+    SSMFIELD_ENTRY(ACPISTATE, uBatteryIndex),
+    SSMFIELD_ENTRY(ACPISTATE, uSystemInfoIndex),
+    SSMFIELD_ENTRY(ACPISTATE, u64RamSize),
+    SSMFIELD_ENTRY(ACPISTATE, u8IndexShift),
+    SSMFIELD_ENTRY(ACPISTATE, u8UseIOApic),
+    SSMFIELD_ENTRY(ACPISTATE, uSleepState),
     SSMFIELD_ENTRY_TERM()
 };
 
@@ -2401,17 +2447,17 @@ static const SSMFIELD g_AcpiSavedStateFields4[] =
  */
 static const SSMFIELD g_AcpiSavedStateFields5[] =
 {
-    SSMFIELD_ENTRY(ACPIState, pm1a_en),
-    SSMFIELD_ENTRY(ACPIState, pm1a_sts),
-    SSMFIELD_ENTRY(ACPIState, pm1a_ctl),
-    SSMFIELD_ENTRY(ACPIState, u64PmTimerInitial),
-    SSMFIELD_ENTRY(ACPIState, gpe0_en),
-    SSMFIELD_ENTRY(ACPIState, gpe0_sts),
-    SSMFIELD_ENTRY(ACPIState, uBatteryIndex),
-    SSMFIELD_ENTRY(ACPIState, uSystemInfoIndex),
-    SSMFIELD_ENTRY(ACPIState, uSleepState),
-    SSMFIELD_ENTRY(ACPIState, u8IndexShift),
-    SSMFIELD_ENTRY(ACPIState, uPmIoPortBase),
+    SSMFIELD_ENTRY(ACPISTATE, pm1a_en),
+    SSMFIELD_ENTRY(ACPISTATE, pm1a_sts),
+    SSMFIELD_ENTRY(ACPISTATE, pm1a_ctl),
+    SSMFIELD_ENTRY(ACPISTATE, u64PmTimerInitial),
+    SSMFIELD_ENTRY(ACPISTATE, gpe0_en),
+    SSMFIELD_ENTRY(ACPISTATE, gpe0_sts),
+    SSMFIELD_ENTRY(ACPISTATE, uBatteryIndex),
+    SSMFIELD_ENTRY(ACPISTATE, uSystemInfoIndex),
+    SSMFIELD_ENTRY(ACPISTATE, uSleepState),
+    SSMFIELD_ENTRY(ACPISTATE, u8IndexShift),
+    SSMFIELD_ENTRY(ACPISTATE, uPmIoPortBase),
     SSMFIELD_ENTRY_TERM()
 };
 
@@ -2420,18 +2466,18 @@ static const SSMFIELD g_AcpiSavedStateFields5[] =
  */
 static const SSMFIELD g_AcpiSavedStateFields6[] =
 {
-    SSMFIELD_ENTRY(ACPIState, pm1a_en),
-    SSMFIELD_ENTRY(ACPIState, pm1a_sts),
-    SSMFIELD_ENTRY(ACPIState, pm1a_ctl),
-    SSMFIELD_ENTRY(ACPIState, u64PmTimerInitial),
-    SSMFIELD_ENTRY(ACPIState, gpe0_en),
-    SSMFIELD_ENTRY(ACPIState, gpe0_sts),
-    SSMFIELD_ENTRY(ACPIState, uBatteryIndex),
-    SSMFIELD_ENTRY(ACPIState, uSystemInfoIndex),
-    SSMFIELD_ENTRY(ACPIState, uSleepState),
-    SSMFIELD_ENTRY(ACPIState, u8IndexShift),
-    SSMFIELD_ENTRY(ACPIState, uPmIoPortBase),
-    SSMFIELD_ENTRY(ACPIState, fSuspendToSavedState),
+    SSMFIELD_ENTRY(ACPISTATE, pm1a_en),
+    SSMFIELD_ENTRY(ACPISTATE, pm1a_sts),
+    SSMFIELD_ENTRY(ACPISTATE, pm1a_ctl),
+    SSMFIELD_ENTRY(ACPISTATE, u64PmTimerInitial),
+    SSMFIELD_ENTRY(ACPISTATE, gpe0_en),
+    SSMFIELD_ENTRY(ACPISTATE, gpe0_sts),
+    SSMFIELD_ENTRY(ACPISTATE, uBatteryIndex),
+    SSMFIELD_ENTRY(ACPISTATE, uSystemInfoIndex),
+    SSMFIELD_ENTRY(ACPISTATE, uSleepState),
+    SSMFIELD_ENTRY(ACPISTATE, u8IndexShift),
+    SSMFIELD_ENTRY(ACPISTATE, uPmIoPortBase),
+    SSMFIELD_ENTRY(ACPISTATE, fSuspendToSavedState),
     SSMFIELD_ENTRY_TERM()
 };
 
@@ -2440,19 +2486,19 @@ static const SSMFIELD g_AcpiSavedStateFields6[] =
  */
 static const SSMFIELD g_AcpiSavedStateFields7[] =
 {
-    SSMFIELD_ENTRY(ACPIState, pm1a_en),
-    SSMFIELD_ENTRY(ACPIState, pm1a_sts),
-    SSMFIELD_ENTRY(ACPIState, pm1a_ctl),
-    SSMFIELD_ENTRY(ACPIState, u64PmTimerInitial),
-    SSMFIELD_ENTRY(ACPIState, uPmTimerVal),
-    SSMFIELD_ENTRY(ACPIState, gpe0_en),
-    SSMFIELD_ENTRY(ACPIState, gpe0_sts),
-    SSMFIELD_ENTRY(ACPIState, uBatteryIndex),
-    SSMFIELD_ENTRY(ACPIState, uSystemInfoIndex),
-    SSMFIELD_ENTRY(ACPIState, uSleepState),
-    SSMFIELD_ENTRY(ACPIState, u8IndexShift),
-    SSMFIELD_ENTRY(ACPIState, uPmIoPortBase),
-    SSMFIELD_ENTRY(ACPIState, fSuspendToSavedState),
+    SSMFIELD_ENTRY(ACPISTATE, pm1a_en),
+    SSMFIELD_ENTRY(ACPISTATE, pm1a_sts),
+    SSMFIELD_ENTRY(ACPISTATE, pm1a_ctl),
+    SSMFIELD_ENTRY(ACPISTATE, u64PmTimerInitial),
+    SSMFIELD_ENTRY(ACPISTATE, uPmTimerVal),
+    SSMFIELD_ENTRY(ACPISTATE, gpe0_en),
+    SSMFIELD_ENTRY(ACPISTATE, gpe0_sts),
+    SSMFIELD_ENTRY(ACPISTATE, uBatteryIndex),
+    SSMFIELD_ENTRY(ACPISTATE, uSystemInfoIndex),
+    SSMFIELD_ENTRY(ACPISTATE, uSleepState),
+    SSMFIELD_ENTRY(ACPISTATE, u8IndexShift),
+    SSMFIELD_ENTRY(ACPISTATE, uPmIoPortBase),
+    SSMFIELD_ENTRY(ACPISTATE, fSuspendToSavedState),
     SSMFIELD_ENTRY_TERM()
 };
 
@@ -2461,33 +2507,33 @@ static const SSMFIELD g_AcpiSavedStateFields7[] =
  */
 static const SSMFIELD g_AcpiSavedStateFields8[] =
 {
-    SSMFIELD_ENTRY(ACPIState, pm1a_en),
-    SSMFIELD_ENTRY(ACPIState, pm1a_sts),
-    SSMFIELD_ENTRY(ACPIState, pm1a_ctl),
-    SSMFIELD_ENTRY(ACPIState, u64PmTimerInitial),
-    SSMFIELD_ENTRY(ACPIState, uPmTimerVal),
-    SSMFIELD_ENTRY(ACPIState, gpe0_en),
-    SSMFIELD_ENTRY(ACPIState, gpe0_sts),
-    SSMFIELD_ENTRY(ACPIState, uBatteryIndex),
-    SSMFIELD_ENTRY(ACPIState, uSystemInfoIndex),
-    SSMFIELD_ENTRY(ACPIState, uSleepState),
-    SSMFIELD_ENTRY(ACPIState, u8IndexShift),
-    SSMFIELD_ENTRY(ACPIState, uPmIoPortBase),
-    SSMFIELD_ENTRY(ACPIState, fSuspendToSavedState),
-    SSMFIELD_ENTRY(ACPIState, uSMBusIoPortBase),
-    SSMFIELD_ENTRY(ACPIState, u8SMBusHstSts),
-    SSMFIELD_ENTRY(ACPIState, u8SMBusSlvSts),
-    SSMFIELD_ENTRY(ACPIState, u8SMBusHstCnt),
-    SSMFIELD_ENTRY(ACPIState, u8SMBusHstCmd),
-    SSMFIELD_ENTRY(ACPIState, u8SMBusHstAdd),
-    SSMFIELD_ENTRY(ACPIState, u8SMBusHstDat0),
-    SSMFIELD_ENTRY(ACPIState, u8SMBusHstDat1),
-    SSMFIELD_ENTRY(ACPIState, u8SMBusSlvCnt),
-    SSMFIELD_ENTRY(ACPIState, u8SMBusShdwCmd),
-    SSMFIELD_ENTRY(ACPIState, u16SMBusSlvEvt),
-    SSMFIELD_ENTRY(ACPIState, u16SMBusSlvDat),
-    SSMFIELD_ENTRY(ACPIState, au8SMBusBlkDat),
-    SSMFIELD_ENTRY(ACPIState, u8SMBusBlkIdx),
+    SSMFIELD_ENTRY(ACPISTATE, pm1a_en),
+    SSMFIELD_ENTRY(ACPISTATE, pm1a_sts),
+    SSMFIELD_ENTRY(ACPISTATE, pm1a_ctl),
+    SSMFIELD_ENTRY(ACPISTATE, u64PmTimerInitial),
+    SSMFIELD_ENTRY(ACPISTATE, uPmTimerVal),
+    SSMFIELD_ENTRY(ACPISTATE, gpe0_en),
+    SSMFIELD_ENTRY(ACPISTATE, gpe0_sts),
+    SSMFIELD_ENTRY(ACPISTATE, uBatteryIndex),
+    SSMFIELD_ENTRY(ACPISTATE, uSystemInfoIndex),
+    SSMFIELD_ENTRY(ACPISTATE, uSleepState),
+    SSMFIELD_ENTRY(ACPISTATE, u8IndexShift),
+    SSMFIELD_ENTRY(ACPISTATE, uPmIoPortBase),
+    SSMFIELD_ENTRY(ACPISTATE, fSuspendToSavedState),
+    SSMFIELD_ENTRY(ACPISTATE, uSMBusIoPortBase),
+    SSMFIELD_ENTRY(ACPISTATE, u8SMBusHstSts),
+    SSMFIELD_ENTRY(ACPISTATE, u8SMBusSlvSts),
+    SSMFIELD_ENTRY(ACPISTATE, u8SMBusHstCnt),
+    SSMFIELD_ENTRY(ACPISTATE, u8SMBusHstCmd),
+    SSMFIELD_ENTRY(ACPISTATE, u8SMBusHstAdd),
+    SSMFIELD_ENTRY(ACPISTATE, u8SMBusHstDat0),
+    SSMFIELD_ENTRY(ACPISTATE, u8SMBusHstDat1),
+    SSMFIELD_ENTRY(ACPISTATE, u8SMBusSlvCnt),
+    SSMFIELD_ENTRY(ACPISTATE, u8SMBusShdwCmd),
+    SSMFIELD_ENTRY(ACPISTATE, u16SMBusSlvEvt),
+    SSMFIELD_ENTRY(ACPISTATE, u16SMBusSlvDat),
+    SSMFIELD_ENTRY(ACPISTATE, au8SMBusBlkDat),
+    SSMFIELD_ENTRY(ACPISTATE, u8SMBusBlkIdx),
     SSMFIELD_ENTRY_TERM()
 };
 
@@ -2496,8 +2542,9 @@ static const SSMFIELD g_AcpiSavedStateFields8[] =
  */
 static DECLCALLBACK(int) acpiR3SaveState(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {
-    ACPIState *pThis = PDMINS_2_DATA(pDevIns, ACPIState *);
-    return SSMR3PutStruct(pSSM, pThis, &g_AcpiSavedStateFields8[0]);
+    PACPISTATE      pThis = PDMDEVINS_2_DATA(pDevIns, PACPISTATE);
+    PCPDMDEVHLPR3   pHlp  = pDevIns->pHlpR3;
+    return pHlp->pfnSSMPutStruct(pSSM, pThis, &g_AcpiSavedStateFields8[0]);
 }
 
 /**
@@ -2505,42 +2552,42 @@ static DECLCALLBACK(int) acpiR3SaveState(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
  */
 static DECLCALLBACK(int) acpiR3LoadState(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
 {
-    ACPIState *pThis = PDMINS_2_DATA(pDevIns, ACPIState *);
+    PACPISTATE      pThis   = PDMDEVINS_2_DATA(pDevIns, PACPISTATE);
+    PACPISTATER3    pThisCC = PDMDEVINS_2_DATA_CC(pDevIns, PACPISTATER3);
+    PCPDMDEVHLPR3   pHlp    = pDevIns->pHlpR3;
     Assert(uPass == SSM_PASS_FINAL); NOREF(uPass);
 
     /*
-     * Unregister PM handlers, will register with actual base after state
+     * Unmap PM I/O ports, will remap it with the actual base after state
      * successfully loaded.
      */
-    int rc = acpiR3UnregisterPmHandlers(pThis);
-    if (RT_FAILURE(rc))
-        return rc;
+    int rc = acpiR3UnmapPmIoPorts(pDevIns, pThis);
+    AssertRCReturn(rc, rc);
 
     /*
      * Unregister SMBus handlers, will register with actual base after state
      * successfully loaded.
      */
-    rc = acpiR3UnregisterSMBusHandlers(pThis);
-    if (RT_FAILURE(rc))
-        return rc;
+    rc = acpiR3UnmapSMBusPorts(pDevIns, pThis);
+    AssertRCReturn(rc, rc);
     acpiR3SMBusResetDevice(pThis);
 
     switch (uVersion)
     {
         case 4:
-            rc = SSMR3GetStruct(pSSM, pThis, &g_AcpiSavedStateFields4[0]);
+            rc = pHlp->pfnSSMGetStruct(pSSM, pThis, &g_AcpiSavedStateFields4[0]);
             break;
         case 5:
-            rc = SSMR3GetStruct(pSSM, pThis, &g_AcpiSavedStateFields5[0]);
+            rc = pHlp->pfnSSMGetStruct(pSSM, pThis, &g_AcpiSavedStateFields5[0]);
             break;
         case 6:
-            rc = SSMR3GetStruct(pSSM, pThis, &g_AcpiSavedStateFields6[0]);
+            rc = pHlp->pfnSSMGetStruct(pSSM, pThis, &g_AcpiSavedStateFields6[0]);
             break;
         case 7:
-            rc = SSMR3GetStruct(pSSM, pThis, &g_AcpiSavedStateFields7[0]);
+            rc = pHlp->pfnSSMGetStruct(pSSM, pThis, &g_AcpiSavedStateFields7[0]);
             break;
         case 8:
-            rc = SSMR3GetStruct(pSSM, pThis, &g_AcpiSavedStateFields8[0]);
+            rc = pHlp->pfnSSMGetStruct(pSSM, pThis, &g_AcpiSavedStateFields8[0]);
             break;
         default:
             rc = VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
@@ -2550,28 +2597,23 @@ static DECLCALLBACK(int) acpiR3LoadState(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, ui
     {
         AssertLogRelMsgReturn(pThis->u8SMBusBlkIdx < RT_ELEMENTS(pThis->au8SMBusBlkDat),
                               ("%#x\n", pThis->u8SMBusBlkIdx), VERR_SSM_LOAD_CONFIG_MISMATCH);
-        rc = acpiR3RegisterPmHandlers(pThis);
-        if (RT_FAILURE(rc))
-            return rc;
-        rc = acpiR3RegisterSMBusHandlers(pThis);
-        if (RT_FAILURE(rc))
-            return rc;
-        rc = acpiR3FetchBatteryStatus(pThis);
-        if (RT_FAILURE(rc))
-            return rc;
+        rc = acpiR3MapPmIoPorts(pDevIns, pThis);
+        AssertRCReturn(rc, rc);
+        rc = acpiR3MapSMBusIoPorts(pDevIns, pThis);
+        AssertRCReturn(rc, rc);
+        rc = acpiR3FetchBatteryStatus(pThis, pThisCC);
+        AssertRCReturn(rc, rc);
         rc = acpiR3FetchBatteryInfo(pThis);
-        if (RT_FAILURE(rc))
-            return rc;
-        TMTimerLock(pThis->pPmTimerR3, VERR_IGNORED);
-        DEVACPI_LOCK_R3(pThis);
-        uint64_t u64Now = TMTimerGet(pThis->pPmTimerR3);
-        /* The interrupt may be incorrectly re-generated
-         * if the state is restored from versions < 7
-         */
-        acpiPmTimerUpdate(pThis, u64Now);
-        acpiR3PmTimerReset(pThis, u64Now);
-        DEVACPI_UNLOCK(pThis);
-        TMTimerUnlock(pThis->pPmTimerR3);
+        AssertRCReturn(rc, rc);
+
+        PDMDevHlpTimerLockClock(pDevIns, pThis->hPmTimer, VERR_IGNORED);
+        DEVACPI_LOCK_R3(pDevIns, pThis);
+        uint64_t u64Now = PDMDevHlpTimerGet(pDevIns, pThis->hPmTimer);
+        /* The interrupt may be incorrectly re-generated if the state is restored from versions < 7. */
+        acpiPmTimerUpdate(pDevIns, pThis, u64Now);
+        acpiR3PmTimerReset(pDevIns, pThis, u64Now);
+        DEVACPI_UNLOCK(pDevIns, pThis);
+        PDMDevHlpTimerUnlockClock(pDevIns, pThis->hPmTimer);
     }
     return rc;
 }
@@ -2581,9 +2623,9 @@ static DECLCALLBACK(int) acpiR3LoadState(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, ui
  */
 static DECLCALLBACK(void *) acpiR3QueryInterface(PPDMIBASE pInterface, const char *pszIID)
 {
-    ACPIState *pThis = RT_FROM_MEMBER(pInterface, ACPIState, IBase);
-    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pThis->IBase);
-    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIACPIPORT, &pThis->IACPIPort);
+    PACPISTATER3 pThisCC = RT_FROM_MEMBER(pInterface, ACPISTATER3, IBase);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pThisCC->IBase);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIACPIPORT, &pThisCC->IACPIPort);
     return NULL;
 }
 
@@ -2608,7 +2650,7 @@ static uint8_t acpiR3Checksum(const void * const pvSrc, size_t cbData)
 /**
  * Prepare a ACPI table header.
  */
-static void acpiR3PrepareHeader(ACPIState *pThis, ACPITBLHEADER *header,
+static void acpiR3PrepareHeader(PACPISTATE pThis, ACPITBLHEADER *header,
                                 const char au8Signature[4],
                                 uint32_t u32Length, uint8_t u8Revision)
 {
@@ -2640,32 +2682,31 @@ static void acpiR3WriteGenericAddr(ACPIGENADDR *g, uint8_t u8AddressSpaceId,
 /**
  * Wrapper around PDMDevHlpPhysWrite used when planting ACPI tables.
  */
-DECLINLINE(void) acpiR3PhysCopy(ACPIState *pThis, RTGCPHYS32 GCPhys32Dst, const void *pvSrc, size_t cbToCopy)
+DECLINLINE(void) acpiR3PhysCopy(PPDMDEVINS pDevIns, RTGCPHYS32 GCPhys32Dst, const void *pvSrc, size_t cbToCopy)
 {
-    PDMDevHlpPhysWrite(pThis->pDevInsR3, GCPhys32Dst, pvSrc, cbToCopy);
+    PDMDevHlpPhysWrite(pDevIns, GCPhys32Dst, pvSrc, cbToCopy);
 }
 
 /**
  * Plant the Differentiated System Description Table (DSDT).
  */
-static void acpiR3SetupDsdt(ACPIState *pThis, RTGCPHYS32 GCPhys32, void *pvPtr, size_t cbDsdt)
+static void acpiR3SetupDsdt(PPDMDEVINS pDevIns, RTGCPHYS32 GCPhys32, void const *pvSrc, size_t cbDsdt)
 {
-    acpiR3PhysCopy(pThis, GCPhys32, pvPtr, cbDsdt);
+    acpiR3PhysCopy(pDevIns, GCPhys32, pvSrc, cbDsdt);
 }
 
 /**
- * Plan the Secondary System Description Table (SSDT).
+ * Plant the Secondary System Description Table (SSDT).
  */
-static void acpiR3SetupSsdt(ACPIState *pThis, RTGCPHYS32 addr,
-                            void* pPtr, size_t uSsdtLen)
+static void acpiR3SetupSsdt(PPDMDEVINS pDevIns, RTGCPHYS32 addr, void const *pvSrc, size_t uSsdtLen)
 {
-    acpiR3PhysCopy(pThis, addr, pPtr, uSsdtLen);
+    acpiR3PhysCopy(pDevIns, addr, pvSrc, uSsdtLen);
 }
 
 /**
  * Plant the Firmware ACPI Control Structure (FACS).
  */
-static void acpiR3SetupFacs(ACPIState *pThis, RTGCPHYS32 addr)
+static void acpiR3SetupFacs(PPDMDEVINS pDevIns, RTGCPHYS32 addr)
 {
     ACPITBLFACS facs;
 
@@ -2679,13 +2720,13 @@ static void acpiR3SetupFacs(ACPIState *pThis, RTGCPHYS32 addr)
     facs.u64X_FWVector        = RT_H2LE_U64(0);
     facs.u8Version            = 1;
 
-    acpiR3PhysCopy(pThis, addr, (const uint8_t *)&facs, sizeof(facs));
+    acpiR3PhysCopy(pDevIns, addr, (const uint8_t *)&facs, sizeof(facs));
 }
 
 /**
  * Plant the Fixed ACPI Description Table (FADT aka FACP).
  */
-static void acpiR3SetupFadt(ACPIState *pThis, RTGCPHYS32 GCPhysAcpi1, RTGCPHYS32 GCPhysAcpi2,
+static void acpiR3SetupFadt(PPDMDEVINS pDevIns, PACPISTATE pThis, RTGCPHYS32 GCPhysAcpi1, RTGCPHYS32 GCPhysAcpi2,
                             RTGCPHYS32 GCPhysFacs, RTGCPHYS GCPhysDsdt)
 {
     ACPITBLFADT fadt;
@@ -2752,14 +2793,14 @@ static void acpiR3SetupFadt(ACPIState *pThis, RTGCPHYS32 GCPhysAcpi1, RTGCPHYS32
     acpiR3WriteGenericAddr(&fadt.X_GPE0BLK,    1, 16, 0, 1, acpiR3CalcPmPort(pThis, GPE0_OFFSET));
     acpiR3WriteGenericAddr(&fadt.X_GPE1BLK,    0,  0, 0, 0, acpiR3CalcPmPort(pThis, GPE1_OFFSET));
     fadt.header.u8Checksum    = acpiR3Checksum(&fadt, sizeof(fadt));
-    acpiR3PhysCopy(pThis, GCPhysAcpi2, &fadt, sizeof(fadt));
+    acpiR3PhysCopy(pDevIns, GCPhysAcpi2, &fadt, sizeof(fadt));
 
     /* Now the ACPI 1.0 version. */
     fadt.header.u32Length     = ACPITBLFADT_VERSION1_SIZE;
     fadt.u8IntModel           = INT_MODEL_DUAL_PIC;
     fadt.header.u8Checksum    = 0;  /* Must be zeroed before recalculating checksum! */
     fadt.header.u8Checksum    = acpiR3Checksum(&fadt, ACPITBLFADT_VERSION1_SIZE);
-    acpiR3PhysCopy(pThis, GCPhysAcpi1, &fadt, ACPITBLFADT_VERSION1_SIZE);
+    acpiR3PhysCopy(pDevIns, GCPhysAcpi1, &fadt, ACPITBLFADT_VERSION1_SIZE);
 }
 
 /**
@@ -2769,14 +2810,14 @@ static void acpiR3SetupFadt(ACPIState *pThis, RTGCPHYS32 GCPhysAcpi1, RTGCPHYS32
  * vs 64 bits addresses for description headers. RSDT is for ACPI 1.0. XSDT for
  * ACPI 2.0 and up.
  */
-static int acpiR3SetupRsdt(ACPIState *pThis, RTGCPHYS32 addr, unsigned int nb_entries, uint32_t *addrs)
+static int acpiR3SetupRsdt(PPDMDEVINS pDevIns, PACPISTATE pThis, RTGCPHYS32 addr, unsigned int nb_entries, uint32_t *addrs)
 {
     ACPITBLRSDT *rsdt;
     const size_t size = sizeof(ACPITBLHEADER) + nb_entries * sizeof(rsdt->u32Entry[0]);
 
     rsdt = (ACPITBLRSDT*)RTMemAllocZ(size);
     if (!rsdt)
-        return PDMDEV_SET_ERROR(pThis->pDevInsR3, VERR_NO_TMP_MEMORY, N_("Cannot allocate RSDT"));
+        return PDMDEV_SET_ERROR(pDevIns, VERR_NO_TMP_MEMORY, N_("Cannot allocate RSDT"));
 
     acpiR3PrepareHeader(pThis, &rsdt->header, "RSDT", (uint32_t)size, 1);
     for (unsigned int i = 0; i < nb_entries; ++i)
@@ -2785,7 +2826,7 @@ static int acpiR3SetupRsdt(ACPIState *pThis, RTGCPHYS32 addr, unsigned int nb_en
         Log(("Setup RSDT: [%d] = %x\n", i, rsdt->u32Entry[i]));
     }
     rsdt->header.u8Checksum = acpiR3Checksum(rsdt, size);
-    acpiR3PhysCopy(pThis, addr, rsdt, size);
+    acpiR3PhysCopy(pDevIns, addr, rsdt, size);
     RTMemFree(rsdt);
     return VINF_SUCCESS;
 }
@@ -2793,16 +2834,15 @@ static int acpiR3SetupRsdt(ACPIState *pThis, RTGCPHYS32 addr, unsigned int nb_en
 /**
  * Plant the Extended System Description Table.
  */
-static int acpiR3SetupXsdt(ACPIState *pThis, RTGCPHYS32 addr, unsigned int nb_entries, uint32_t *addrs)
+static int acpiR3SetupXsdt(PPDMDEVINS pDevIns, PACPISTATE pThis, RTGCPHYS32 addr, unsigned int nb_entries, uint32_t *addrs)
 {
     ACPITBLXSDT *xsdt;
-    const size_t size = sizeof(ACPITBLHEADER) + nb_entries * sizeof(xsdt->u64Entry[0]);
-
-    xsdt = (ACPITBLXSDT*)RTMemAllocZ(size);
+    const size_t cbXsdt = sizeof(ACPITBLHEADER) + nb_entries * sizeof(xsdt->u64Entry[0]);
+    xsdt = (ACPITBLXSDT *)RTMemAllocZ(cbXsdt);
     if (!xsdt)
         return VERR_NO_TMP_MEMORY;
 
-    acpiR3PrepareHeader(pThis, &xsdt->header, "XSDT", (uint32_t)size, 1 /* according to ACPI 3.0 specs */);
+    acpiR3PrepareHeader(pThis, &xsdt->header, "XSDT", (uint32_t)cbXsdt, 1 /* according to ACPI 3.0 specs */);
 
     if (pThis->cCustTbls > 0)
         memcpy(xsdt->header.au8OemTabId, pThis->au8OemTabId, 8);
@@ -2812,8 +2852,9 @@ static int acpiR3SetupXsdt(ACPIState *pThis, RTGCPHYS32 addr, unsigned int nb_en
         xsdt->u64Entry[i] = RT_H2LE_U64((uint64_t)addrs[i]);
         Log(("Setup XSDT: [%d] = %RX64\n", i, xsdt->u64Entry[i]));
     }
-    xsdt->header.u8Checksum = acpiR3Checksum(xsdt, size);
-    acpiR3PhysCopy(pThis, addr, xsdt, size);
+    xsdt->header.u8Checksum = acpiR3Checksum(xsdt, cbXsdt);
+    acpiR3PhysCopy(pDevIns, addr, xsdt, cbXsdt);
+
     RTMemFree(xsdt);
     return VINF_SUCCESS;
 }
@@ -2821,7 +2862,7 @@ static int acpiR3SetupXsdt(ACPIState *pThis, RTGCPHYS32 addr, unsigned int nb_en
 /**
  * Plant the Root System Description Pointer (RSDP).
  */
-static void acpiR3SetupRsdp(ACPIState *pThis, ACPITBLRSDP *rsdp, RTGCPHYS32 GCPhysRsdt, RTGCPHYS GCPhysXsdt)
+static void acpiR3SetupRsdp(PACPISTATE pThis, ACPITBLRSDP *rsdp, RTGCPHYS32 GCPhysRsdt, RTGCPHYS GCPhysXsdt)
 {
     memset(rsdp, 0, sizeof(*rsdp));
 
@@ -2931,7 +2972,7 @@ public:
     /**
      * Size of MADT for given ACPI config, useful to compute layout.
      */
-    static uint32_t sizeFor(ACPIState *pThis, uint32_t cIsos)
+    static uint32_t sizeFor(PACPISTATE pThis, uint32_t cIsos)
     {
         return AcpiTableMadt(pThis->cCpus, cIsos).size();
     }
@@ -2962,7 +3003,7 @@ public:
  *
  * @todo    All hardcoded, should set this up based on the actual VM config!!!!!
  */
-static void acpiR3SetupMadt(ACPIState *pThis, RTGCPHYS32 addr)
+static void acpiR3SetupMadt(PPDMDEVINS pDevIns, PACPISTATE pThis, RTGCPHYS32 addr)
 {
     uint16_t cpus = pThis->cCpus;
     AcpiTableMadt madt(cpus, NUMBER_OF_IRQ_SOURCE_OVERRIDES);
@@ -3027,13 +3068,13 @@ static void acpiR3SetupMadt(ACPIState *pThis, RTGCPHYS32 addr)
     Assert(NUMBER_OF_IRQ_SOURCE_OVERRIDES == 2);
 
     madt.header_addr()->u8Checksum = acpiR3Checksum(madt.data(), madt.size());
-    acpiR3PhysCopy(pThis, addr, madt.data(), madt.size());
+    acpiR3PhysCopy(pDevIns, addr, madt.data(), madt.size());
 }
 
 /**
  * Plant the High Performance Event Timer (HPET) descriptor.
  */
-static void acpiR3SetupHpet(ACPIState *pThis, RTGCPHYS32 addr)
+static void acpiR3SetupHpet(PPDMDEVINS pDevIns, PACPISTATE pThis, RTGCPHYS32 addr)
 {
     ACPITBLHPET hpet;
 
@@ -3055,7 +3096,7 @@ static void acpiR3SetupHpet(ACPIState *pThis, RTGCPHYS32 addr)
 
     hpet.aHeader.u8Checksum = acpiR3Checksum(&hpet, sizeof(hpet));
 
-    acpiR3PhysCopy(pThis, addr, (const uint8_t *)&hpet, sizeof(hpet));
+    acpiR3PhysCopy(pDevIns, addr, (const uint8_t *)&hpet, sizeof(hpet));
 }
 
 
@@ -3063,10 +3104,11 @@ static void acpiR3SetupHpet(ACPIState *pThis, RTGCPHYS32 addr)
  * Used by acpiR3PlantTables to plant a MMCONFIG PCI config space access (MCFG)
  * descriptor.
  *
- * @param   pThis       The ACPI instance.
+ * @param   pDevIns     The device instance.
+ * @param   pThis       The ACPI shared instance data.
  * @param   GCPhysDst   Where to plant it.
  */
-static void acpiR3SetupMcfg(ACPIState *pThis, RTGCPHYS32 GCPhysDst)
+static void acpiR3SetupMcfg(PPDMDEVINS pDevIns, PACPISTATE pThis, RTGCPHYS32 GCPhysDst)
 {
     struct
     {
@@ -3086,7 +3128,7 @@ static void acpiR3SetupMcfg(ACPIState *pThis, RTGCPHYS32 GCPhysDst)
 
     tbl.hdr.aHeader.u8Checksum = acpiR3Checksum(&tbl, sizeof(tbl));
 
-    acpiR3PhysCopy(pThis, GCPhysDst, (const uint8_t *)&tbl, sizeof(tbl));
+    acpiR3PhysCopy(pDevIns, GCPhysDst, (const uint8_t *)&tbl, sizeof(tbl));
 }
 
 /**
@@ -3117,7 +3159,7 @@ static int acpiR3ReadCustomTable(PPDMDEVINS pDevIns, uint8_t **ppu8CustBin, uint
                         RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_WRITE);
     if (RT_SUCCESS(rc))
     {
-        rc = RTFileGetSize(FileCUSTBin, pcbCustBin);
+        rc = RTFileQuerySize(FileCUSTBin, pcbCustBin);
         if (RT_SUCCESS(rc))
         {
             /* The following checks should be in sync the AssertReleaseMsg's below. */
@@ -3152,7 +3194,7 @@ static int acpiR3ReadCustomTable(PPDMDEVINS pDevIns, uint8_t **ppu8CustBin, uint
 /**
  * Create the ACPI tables in guest memory.
  */
-static int acpiR3PlantTables(ACPIState *pThis)
+static int acpiR3PlantTables(PPDMDEVINS pDevIns, PACPISTATE pThis, PACPISTATER3 pThisCC)
 {
     int        rc;
     RTGCPHYS32 GCPhysCur, GCPhysRsdt, GCPhysXsdt, GCPhysFadtAcpi1, GCPhysFadtAcpi2, GCPhysFacs, GCPhysDsdt;
@@ -3201,7 +3243,7 @@ static int acpiR3PlantTables(ACPIState *pThis)
      * Calculate the sizes for the low region and for the 64-bit prefetchable memory.
      * The latter starts never below 4G.
      */
-    PVM pVM                    = PDMDevHlpGetVM(pThis->pDevInsR3);
+    PVM pVM                    = PDMDevHlpGetVM(pDevIns);
     uint32_t        cbBelow4GB = MMR3PhysGetRamSizeBelow4GB(pVM);
     uint64_t const  cbAbove4GB = MMR3PhysGetRamSizeAbove4GB(pVM);
 
@@ -3264,12 +3306,12 @@ static int acpiR3PlantTables(ACPIState *pThis)
     for (uint8_t i = 0; i < pThis->cCustTbls; i++)
     {
         aGCPhysCust[i] = GCPhysCur;
-        GCPhysCur = RT_ALIGN_32(GCPhysCur + pThis->acbCustBin[i], 16);
+        GCPhysCur = RT_ALIGN_32(GCPhysCur + pThisCC->acbCustBin[i], 16);
     }
 
     void  *pvSsdtCode = NULL;
     size_t cbSsdt = 0;
-    rc = acpiPrepareSsdt(pThis->pDevInsR3, &pvSsdtCode, &cbSsdt);
+    rc = acpiPrepareSsdt(pDevIns, &pvSsdtCode, &cbSsdt);
     if (RT_FAILURE(rc))
         return rc;
 
@@ -3280,14 +3322,14 @@ static int acpiR3PlantTables(ACPIState *pThis)
 
     void  *pvDsdtCode = NULL;
     size_t cbDsdt = 0;
-    rc = acpiPrepareDsdt(pThis->pDevInsR3, &pvDsdtCode, &cbDsdt);
+    rc = acpiPrepareDsdt(pDevIns, &pvDsdtCode, &cbDsdt);
     if (RT_FAILURE(rc))
         return rc;
 
     GCPhysCur = RT_ALIGN_32(GCPhysCur + cbDsdt, 16);
 
     if (GCPhysCur > 0x10000)
-        return PDMDEV_SET_ERROR(pThis->pDevInsR3, VERR_TOO_MUCH_DATA,
+        return PDMDEV_SET_ERROR(pDevIns, VERR_TOO_MUCH_DATA,
                                 N_("Error: ACPI tables bigger than 64KB"));
 
     Log(("RSDP 0x%08X\n", apicR3FindRsdpSpace()));
@@ -3307,74 +3349,75 @@ static int acpiR3PlantTables(ACPIState *pThis)
     Log(("\n"));
 
     acpiR3SetupRsdp(pThis, (ACPITBLRSDP *)pThis->au8RSDPPage, GCPhysRsdt + addend, GCPhysXsdt + addend);
-    acpiR3SetupDsdt(pThis, GCPhysDsdt + addend, pvDsdtCode, cbDsdt);
-    acpiCleanupDsdt(pThis->pDevInsR3, pvDsdtCode);
-    acpiR3SetupFacs(pThis, GCPhysFacs + addend);
-    acpiR3SetupFadt(pThis, GCPhysFadtAcpi1 + addend, GCPhysFadtAcpi2 + addend, GCPhysFacs + addend, GCPhysDsdt + addend);
+    acpiR3SetupDsdt(pDevIns, GCPhysDsdt + addend, pvDsdtCode, cbDsdt);
+    acpiCleanupDsdt(pDevIns, pvDsdtCode);
+    acpiR3SetupFacs(pDevIns, GCPhysFacs + addend);
+    acpiR3SetupFadt(pDevIns, pThis, GCPhysFadtAcpi1 + addend, GCPhysFadtAcpi2 + addend, GCPhysFacs + addend, GCPhysDsdt + addend);
 
     aGCPhysRsdt[0] = GCPhysFadtAcpi1 + addend;
     aGCPhysXsdt[0] = GCPhysFadtAcpi2 + addend;
     if (pThis->u8UseIOApic)
     {
-        acpiR3SetupMadt(pThis, GCPhysApic + addend);
+        acpiR3SetupMadt(pDevIns, pThis, GCPhysApic + addend);
         aGCPhysRsdt[iMadt] = GCPhysApic + addend;
         aGCPhysXsdt[iMadt] = GCPhysApic + addend;
     }
     if (pThis->fUseHpet)
     {
-        acpiR3SetupHpet(pThis, GCPhysHpet + addend);
+        acpiR3SetupHpet(pDevIns, pThis, GCPhysHpet + addend);
         aGCPhysRsdt[iHpet] = GCPhysHpet + addend;
         aGCPhysXsdt[iHpet] = GCPhysHpet + addend;
     }
     if (pThis->fUseMcfg)
     {
-        acpiR3SetupMcfg(pThis, GCPhysMcfg + addend);
+        acpiR3SetupMcfg(pDevIns, pThis, GCPhysMcfg + addend);
         aGCPhysRsdt[iMcfg] = GCPhysMcfg + addend;
         aGCPhysXsdt[iMcfg] = GCPhysMcfg + addend;
     }
     for (uint8_t i = 0; i < pThis->cCustTbls; i++)
     {
         Assert(i < MAX_CUST_TABLES);
-        acpiR3PhysCopy(pThis, aGCPhysCust[i] + addend, pThis->apu8CustBin[i], pThis->acbCustBin[i]);
+        acpiR3PhysCopy(pDevIns, aGCPhysCust[i] + addend, pThisCC->apu8CustBin[i], pThisCC->acbCustBin[i]);
         aGCPhysRsdt[iCust + i] = aGCPhysCust[i] + addend;
         aGCPhysXsdt[iCust + i] = aGCPhysCust[i] + addend;
-        uint8_t* pSig = pThis->apu8CustBin[i];
+        uint8_t* pSig = pThisCC->apu8CustBin[i];
         LogRel(("ACPI: Planted custom table '%c%c%c%c' at 0x%08X\n",
                pSig[0], pSig[1], pSig[2], pSig[3], aGCPhysCust[i] + addend));
     }
 
-    acpiR3SetupSsdt(pThis, GCPhysSsdt + addend, pvSsdtCode, cbSsdt);
-    acpiCleanupSsdt(pThis->pDevInsR3, pvSsdtCode);
+    acpiR3SetupSsdt(pDevIns, GCPhysSsdt + addend, pvSsdtCode, cbSsdt);
+    acpiCleanupSsdt(pDevIns, pvSsdtCode);
     aGCPhysRsdt[iSsdt] = GCPhysSsdt + addend;
     aGCPhysXsdt[iSsdt] = GCPhysSsdt + addend;
 
-    rc = acpiR3SetupRsdt(pThis, GCPhysRsdt + addend, cAddr, aGCPhysRsdt);
+    rc = acpiR3SetupRsdt(pDevIns, pThis, GCPhysRsdt + addend, cAddr, aGCPhysRsdt);
     if (RT_FAILURE(rc))
         return rc;
-    return acpiR3SetupXsdt(pThis, GCPhysXsdt + addend, cAddr, aGCPhysXsdt);
+    return acpiR3SetupXsdt(pDevIns, pThis, GCPhysXsdt + addend, cAddr, aGCPhysXsdt);
 }
 
 /**
  * @callback_method_impl{FNPCICONFIGREAD}
  */
-static DECLCALLBACK(uint32_t) acpiR3PciConfigRead(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t uAddress, unsigned cb)
+static DECLCALLBACK(VBOXSTRICTRC) acpiR3PciConfigRead(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev,
+                                                      uint32_t uAddress, unsigned cb, uint32_t *pu32Value)
 {
-    ACPIState *pThis   = PDMINS_2_DATA(pDevIns, ACPIState *);
-
-    Log2(("acpi: PCI config read: 0x%x (%d)\n", uAddress, cb));
-    return pThis->pfnAcpiPciConfigRead(pDevIns, pPciDev, uAddress, cb);
+    VBOXSTRICTRC rcStrict = PDMDevHlpPCIConfigRead(pDevIns, pPciDev, uAddress, cb, pu32Value);
+    Log2(("acpi: PCI config read: %#x (%d) -> %#x %Rrc\n", uAddress, cb, *pu32Value, VBOXSTRICTRC_VAL(rcStrict)));
+    return rcStrict;
 }
 
 /**
  * @callback_method_impl{FNPCICONFIGWRITE}
  */
-static DECLCALLBACK(VBOXSTRICTRC) acpiR3PciConfigWrite(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t uAddress,
-                                                       uint32_t u32Value, unsigned cb)
+static DECLCALLBACK(VBOXSTRICTRC) acpiR3PciConfigWrite(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev,
+                                                       uint32_t uAddress, unsigned cb, uint32_t u32Value)
 {
-    ACPIState *pThis = PDMINS_2_DATA(pDevIns, ACPIState *);
+    PACPISTATE      pThis   = PDMDEVINS_2_DATA(pDevIns, PACPISTATE);
+    PACPISTATER3    pThisCC = PDMDEVINS_2_DATA_CC(pDevIns, PACPISTATER3);
 
     Log2(("acpi: PCI config write: 0x%x -> 0x%x (%d)\n", u32Value, uAddress, cb));
-    DEVACPI_LOCK_R3(pThis);
+    DEVACPI_LOCK_R3(pDevIns, pThis);
 
     if (uAddress == VBOX_PCI_INTERRUPT_LINE)
     {
@@ -3382,7 +3425,7 @@ static DECLCALLBACK(VBOXSTRICTRC) acpiR3PciConfigWrite(PPDMDEVINS pDevIns, PPDMP
         u32Value = SCI_INT;
     }
 
-    VBOXSTRICTRC rcBase = pThis->pfnAcpiPciConfigWrite(pDevIns, pPciDev, uAddress, u32Value, cb);
+    VBOXSTRICTRC rcStrict = PDMDevHlpPCIConfigWrite(pDevIns, pPciDev, uAddress, cb, u32Value);
 
     /* Assume that the base address is only changed when the corresponding
      * hardware functionality is disabled. The IO region is mapped when the
@@ -3394,11 +3437,11 @@ static DECLCALLBACK(VBOXSTRICTRC) acpiR3PciConfigWrite(PPDMDEVINS pDevIns, PPDMP
         /* Check Power Management IO Space Enable (PMIOSE) bit */
         if (pPciDev->abConfig[PMREGMISC] & 0x01)
         {
-            NewIoPortBase = (RTIOPORT)PCIDevGetDWord(pPciDev, PMBA);
+            NewIoPortBase = (RTIOPORT)PDMPciDevGetDWord(pPciDev, PMBA);
             NewIoPortBase &= 0xffc0;
         }
 
-        int rc = acpiR3UpdatePmHandlers(pThis, NewIoPortBase);
+        int rc = acpiR3UpdatePmHandlers(pDevIns, pThis, pThisCC, NewIoPortBase);
         AssertRC(rc);
     }
 
@@ -3408,16 +3451,16 @@ static DECLCALLBACK(VBOXSTRICTRC) acpiR3PciConfigWrite(PPDMDEVINS pDevIns, PPDMP
         /* Check SMBus Controller Host Interface Enable (SMB_HST_EN) bit */
         if (pPciDev->abConfig[SMBHSTCFG] & SMBHSTCFG_SMB_HST_EN)
         {
-            NewIoPortBase = (RTIOPORT)PCIDevGetDWord(pPciDev, SMBBA);
+            NewIoPortBase = (RTIOPORT)PDMPciDevGetDWord(pPciDev, SMBBA);
             NewIoPortBase &= 0xfff0;
         }
 
-        int rc = acpiR3UpdateSMBusHandlers(pThis, NewIoPortBase);
+        int rc = acpiR3UpdateSMBusHandlers(pDevIns, pThis, NewIoPortBase);
         AssertRC(rc);
     }
 
-    DEVACPI_UNLOCK(pThis);
-    return rcBase;
+    DEVACPI_UNLOCK(pDevIns, pThis);
+    return rcStrict;
 }
 
 /**
@@ -3432,7 +3475,8 @@ static DECLCALLBACK(VBOXSTRICTRC) acpiR3PciConfigWrite(PPDMDEVINS pDevIns, PPDMP
  */
 static DECLCALLBACK(int) acpiR3Attach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t fFlags)
 {
-    ACPIState *pThis = PDMINS_2_DATA(pDevIns, ACPIState *);
+    PACPISTATE      pThis   = PDMDEVINS_2_DATA(pDevIns, PACPISTATE);
+    PACPISTATER3    pThisCC = PDMDEVINS_2_DATA_CC(pDevIns, PACPISTATER3);
     LogFlow(("acpiAttach: pDevIns=%p iLUN=%u fFlags=%#x\n", pDevIns, iLUN, fFlags));
 
     AssertMsgReturn(!(fFlags & PDM_TACH_FLAGS_NOT_HOT_PLUG),
@@ -3442,11 +3486,11 @@ static DECLCALLBACK(int) acpiR3Attach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_
 
     /* Check if it was already attached */
     int rc = VINF_SUCCESS;
-    DEVACPI_LOCK_R3(pThis);
+    DEVACPI_LOCK_R3(pDevIns, pThis);
     if (!VMCPUSET_IS_PRESENT(&pThis->CpuSetAttached, iLUN))
     {
         PPDMIBASE IBaseTmp;
-        rc = PDMDevHlpDriverAttach(pDevIns, iLUN, &pThis->IBase, &IBaseTmp, "ACPI CPU");
+        rc = PDMDevHlpDriverAttach(pDevIns, iLUN, &pThisCC->IBase, &IBaseTmp, "ACPI CPU");
         if (RT_SUCCESS(rc))
         {
             /* Enable the CPU */
@@ -3461,10 +3505,10 @@ static DECLCALLBACK(int) acpiR3Attach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_
             pThis->u32CpuEvent     = iLUN;
 
             /* Notify the guest */
-            apicR3UpdateGpe0(pThis, pThis->gpe0_sts | 0x2, pThis->gpe0_en);
+            apicR3UpdateGpe0(pDevIns, pThis, pThis->gpe0_sts | 0x2, pThis->gpe0_en);
         }
     }
-    DEVACPI_UNLOCK(pThis);
+    DEVACPI_UNLOCK(pDevIns, pThis);
     return rc;
 }
 
@@ -3477,7 +3521,7 @@ static DECLCALLBACK(int) acpiR3Attach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_
  */
 static DECLCALLBACK(void) acpiR3Detach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t fFlags)
 {
-    ACPIState *pThis = PDMINS_2_DATA(pDevIns, ACPIState *);
+    PACPISTATE pThis = PDMDEVINS_2_DATA(pDevIns, PACPISTATE);
 
     LogFlow(("acpiDetach: pDevIns=%p iLUN=%u fFlags=%#x\n", pDevIns, iLUN, fFlags));
 
@@ -3485,7 +3529,7 @@ static DECLCALLBACK(void) acpiR3Detach(PPDMDEVINS pDevIns, unsigned iLUN, uint32
                         ("Hot-plug flag is not set\n"));
 
     /* Check if it was already detached */
-    DEVACPI_LOCK_R3(pThis);
+    DEVACPI_LOCK_R3(pDevIns, pThis);
     if (VMCPUSET_IS_PRESENT(&pThis->CpuSetAttached, iLUN))
     {
         if (!VMCPUSET_IS_PRESENT(&pThis->CpuSetLocked, iLUN))
@@ -3496,12 +3540,12 @@ static DECLCALLBACK(void) acpiR3Detach(PPDMDEVINS pDevIns, unsigned iLUN, uint32
             pThis->u32CpuEvent     = iLUN;
 
             /* Notify the guest */
-            apicR3UpdateGpe0(pThis, pThis->gpe0_sts | 0x2, pThis->gpe0_en);
+            apicR3UpdateGpe0(pDevIns, pThis, pThis->gpe0_sts | 0x2, pThis->gpe0_en);
         }
         else
             AssertMsgFailed(("CPU is still locked by the guest\n"));
     }
-    DEVACPI_UNLOCK(pThis);
+    DEVACPI_UNLOCK(pDevIns, pThis);
 }
 
 /**
@@ -3509,7 +3553,7 @@ static DECLCALLBACK(void) acpiR3Detach(PPDMDEVINS pDevIns, unsigned iLUN, uint32
  */
 static DECLCALLBACK(void) acpiR3Resume(PPDMDEVINS pDevIns)
 {
-    ACPIState *pThis = PDMINS_2_DATA(pDevIns, ACPIState *);
+    PACPISTATE pThis = PDMDEVINS_2_DATA(pDevIns, PACPISTATE);
     if (pThis->fSetWakeupOnResume)
     {
         Log(("acpiResume: setting WAK_STS\n"));
@@ -3523,9 +3567,10 @@ static DECLCALLBACK(void) acpiR3Resume(PPDMDEVINS pDevIns)
  */
 static DECLCALLBACK(void) acpiR3MemSetup(PPDMDEVINS pDevIns, PDMDEVMEMSETUPCTX enmCtx)
 {
-    RT_NOREF1(enmCtx);
-    ACPIState *pThis = PDMINS_2_DATA(pDevIns, ACPIState *);
-    acpiR3PlantTables(pThis);
+    RT_NOREF(enmCtx);
+    PACPISTATE      pThis = PDMDEVINS_2_DATA(pDevIns, PACPISTATE);
+    PACPISTATER3    pThisCC = PDMDEVINS_2_DATA_CC(pDevIns, PACPISTATER3);
+    acpiR3PlantTables(pDevIns, pThis, pThisCC);
 }
 
 /**
@@ -3533,48 +3578,38 @@ static DECLCALLBACK(void) acpiR3MemSetup(PPDMDEVINS pDevIns, PDMDEVMEMSETUPCTX e
  */
 static DECLCALLBACK(void) acpiR3Reset(PPDMDEVINS pDevIns)
 {
-    ACPIState *pThis = PDMINS_2_DATA(pDevIns, ACPIState *);
+    PACPISTATE      pThis   = PDMDEVINS_2_DATA(pDevIns, PACPISTATE);
+    PACPISTATER3    pThisCC = PDMDEVINS_2_DATA_CC(pDevIns, PACPISTATER3);
 
     /* Play safe: make sure that the IRQ isn't stuck after a reset. */
-    acpiSetIrq(pThis, 0);
+    acpiSetIrq(pDevIns, 0);
 
-    TMTimerLock(pThis->pPmTimerR3, VERR_IGNORED);
+    PDMDevHlpTimerLockClock(pDevIns, pThis->hPmTimer, VERR_IGNORED);
     pThis->pm1a_en           = 0;
     pThis->pm1a_sts          = 0;
     pThis->pm1a_ctl          = 0;
-    pThis->u64PmTimerInitial = TMTimerGet(pThis->pPmTimerR3);
+    pThis->u64PmTimerInitial = PDMDevHlpTimerGet(pDevIns, pThis->hPmTimer);
     pThis->uPmTimerVal       = 0;
-    acpiR3PmTimerReset(pThis, pThis->u64PmTimerInitial);
+    acpiR3PmTimerReset(pDevIns, pThis, pThis->u64PmTimerInitial);
     pThis->uPmTimeOld        = pThis->uPmTimerVal;
     pThis->uBatteryIndex     = 0;
     pThis->uSystemInfoIndex  = 0;
     pThis->gpe0_en           = 0;
     pThis->gpe0_sts          = 0;
     pThis->uSleepState       = 0;
-    TMTimerUnlock(pThis->pPmTimerR3);
+    PDMDevHlpTimerUnlockClock(pDevIns, pThis->hPmTimer);
 
     /* Real device behavior is resetting only the PM controller state,
      * but we're additionally doing the job of the BIOS. */
-    acpiR3UpdatePmHandlers(pThis, PM_PORT_BASE);
-    acpiR3PmPCIBIOSFake(pThis);
+    acpiR3UpdatePmHandlers(pDevIns, pThis, pThisCC, PM_PORT_BASE);
+    acpiR3PmPCIBIOSFake(pDevIns, pThis);
 
     /* Reset SMBus base and PCI config space in addition to the SMBus controller
      * state. Real device behavior is only the SMBus controller state reset,
      * but we're additionally doing the job of the BIOS. */
-    acpiR3UpdateSMBusHandlers(pThis, SMB_PORT_BASE);
-    acpiR3SMBusPCIBIOSFake(pThis);
+    acpiR3UpdateSMBusHandlers(pDevIns, pThis, SMB_PORT_BASE);
+    acpiR3SMBusPCIBIOSFake(pDevIns, pThis);
     acpiR3SMBusResetDevice(pThis);
-}
-
-/**
- * @interface_method_impl{PDMDEVREG,pfnRelocate}
- */
-static DECLCALLBACK(void) acpiR3Relocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta)
-{
-    ACPIState *pThis = PDMINS_2_DATA(pDevIns, ACPIState *);
-    pThis->pDevInsRC = PDMDEVINS_2_RCPTR(pDevIns);
-    pThis->pPmTimerRC = TMTimerRCPtr(pThis->pPmTimerR3);
-    NOREF(offDelta);
 }
 
 /**
@@ -3583,13 +3618,15 @@ static DECLCALLBACK(void) acpiR3Relocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta
 static DECLCALLBACK(int) acpiR3Destruct(PPDMDEVINS pDevIns)
 {
     PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
-    ACPIState *pThis = PDMINS_2_DATA(pDevIns, ACPIState *);
+    PACPISTATE      pThis = PDMDEVINS_2_DATA(pDevIns, PACPISTATE);
+    PACPISTATER3    pThisCC = PDMDEVINS_2_DATA_CC(pDevIns, PACPISTATER3);
+
     for (uint8_t i = 0; i < pThis->cCustTbls; i++)
     {
-        if (pThis->apu8CustBin[i])
+        if (pThisCC->apu8CustBin[i])
         {
-            PDMDevHlpMMHeapFree(pDevIns, pThis->apu8CustBin[i]);
-            pThis->apu8CustBin[i] = NULL;
+            PDMDevHlpMMHeapFree(pDevIns, pThisCC->apu8CustBin[i]);
+            pThisCC->apu8CustBin[i] = NULL;
         }
     }
     return VINF_SUCCESS;
@@ -3601,16 +3638,16 @@ static DECLCALLBACK(int) acpiR3Destruct(PPDMDEVINS pDevIns)
 static DECLCALLBACK(int) acpiR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
 {
     PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
-    ACPIState *pThis = PDMINS_2_DATA(pDevIns, ACPIState *);
+    PACPISTATE      pThis   = PDMDEVINS_2_DATA(pDevIns, PACPISTATE);
+    PACPISTATER3    pThisCC = PDMDEVINS_2_DATA_CC(pDevIns, PACPISTATER3);
+    PCPDMDEVHLPR3   pHlp    = pDevIns->pHlpR3;
 
     /*
      * Init data and set defaults.
      */
     /** @todo move more of the code up! */
 
-    pThis->pDevInsR3 = pDevIns;
-    pThis->pDevInsR0 = PDMDEVINS_2_R0PTR(pDevIns);
-    pThis->pDevInsRC = PDMDEVINS_2_RCPTR(pDevIns);
+    pThisCC->pDevIns       = pDevIns;
     VMCPUSET_EMPTY(&pThis->CpuSetAttached);
     VMCPUSET_EMPTY(&pThis->CpuSetLocked);
     pThis->idCpuLockCheck  = UINT32_C(0xffffffff);
@@ -3622,15 +3659,15 @@ static DECLCALLBACK(int) acpiR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
     VMCPUSET_ADD(&pThis->CpuSetLocked, 0);
 
     /* IBase */
-    pThis->IBase.pfnQueryInterface               = acpiR3QueryInterface;
+    pThisCC->IBase.pfnQueryInterface               = acpiR3QueryInterface;
     /* IACPIPort */
-    pThis->IACPIPort.pfnSleepButtonPress         = acpiR3Port_SleepButtonPress;
-    pThis->IACPIPort.pfnPowerButtonPress         = acpiR3Port_PowerButtonPress;
-    pThis->IACPIPort.pfnGetPowerButtonHandled    = acpiR3Port_GetPowerButtonHandled;
-    pThis->IACPIPort.pfnGetGuestEnteredACPIMode  = acpiR3Port_GetGuestEnteredACPIMode;
-    pThis->IACPIPort.pfnGetCpuStatus             = acpiR3Port_GetCpuStatus;
-    pThis->IACPIPort.pfnMonitorHotPlugEvent      = acpiR3Port_MonitorHotPlugEvent;
-    pThis->IACPIPort.pfnBatteryStatusChangeEvent = acpiR3Port_BatteryStatusChangeEvent;
+    pThisCC->IACPIPort.pfnSleepButtonPress         = acpiR3Port_SleepButtonPress;
+    pThisCC->IACPIPort.pfnPowerButtonPress         = acpiR3Port_PowerButtonPress;
+    pThisCC->IACPIPort.pfnGetPowerButtonHandled    = acpiR3Port_GetPowerButtonHandled;
+    pThisCC->IACPIPort.pfnGetGuestEnteredACPIMode  = acpiR3Port_GetGuestEnteredACPIMode;
+    pThisCC->IACPIPort.pfnGetCpuStatus             = acpiR3Port_GetCpuStatus;
+    pThisCC->IACPIPort.pfnMonitorHotPlugEvent      = acpiR3Port_MonitorHotPlugEvent;
+    pThisCC->IACPIPort.pfnBatteryStatusChangeEvent = acpiR3Port_BatteryStatusChangeEvent;
 
     /*
      * Set the default critical section to NOP (related to the PM timer).
@@ -3644,243 +3681,204 @@ static DECLCALLBACK(int) acpiR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
     /*
      * Validate and read the configuration.
      */
-    if (!CFGMR3AreValuesValid(pCfg,
-                              "IOAPIC\0"
-                              "NumCPUs\0"
-                              "GCEnabled\0"
-                              "R0Enabled\0"
-                              "HpetEnabled\0"
-                              "McfgEnabled\0"
-                              "McfgBase\0"
-                              "McfgLength\0"
-                              "PciPref64Enabled\0"
-                              "PciPref64LimitGB\0"
-                              "SmcEnabled\0"
-                              "FdcEnabled\0"
-                              "ShowRtc\0"
-                              "ShowCpu\0"
-                              "NicPciAddress\0"
-                              "AudioPciAddress\0"
-                              "IocPciAddress\0"
-                              "HostBusPciAddress\0"
-                              "EnableSuspendToDisk\0"
-                              "PowerS1Enabled\0"
-                              "PowerS4Enabled\0"
-                              "CpuHotPlug\0"
-                              "AmlFilePath\0"
-                              "Serial0IoPortBase\0"
-                              "Serial1IoPortBase\0"
-                              "Serial2IoPortBase\0"
-                              "Serial3IoPortBase\0"
-                              "Serial0Irq\0"
-                              "Serial1Irq\0"
-                              "Serial2Irq\0"
-                              "Serial3Irq\0"
-                              "AcpiOemId\0"
-                              "AcpiCreatorId\0"
-                              "AcpiCreatorRev\0"
-                              "CustomTable\0"
-                              "CustomTable0\0"
-                              "CustomTable1\0"
-                              "CustomTable2\0"
-                              "CustomTable3\0"
-                              "Parallel0IoPortBase\0"
-                              "Parallel1IoPortBase\0"
-                              "Parallel0Irq\0"
-                              "Parallel1Irq\0"
-                              ))
-        return PDMDEV_SET_ERROR(pDevIns, VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES,
-                                N_("Configuration error: Invalid config key for ACPI device"));
+    PDMDEV_VALIDATE_CONFIG_RETURN(pDevIns,
+                                  "IOAPIC"
+                                  "|NumCPUs"
+                                  "|HpetEnabled"
+                                  "|McfgEnabled"
+                                  "|McfgBase"
+                                  "|McfgLength"
+                                  "|PciPref64Enabled"
+                                  "|PciPref64LimitGB"
+                                  "|SmcEnabled"
+                                  "|FdcEnabled"
+                                  "|ShowRtc"
+                                  "|ShowCpu"
+                                  "|NicPciAddress"
+                                  "|AudioPciAddress"
+                                  "|NvmePciAddress"
+                                  "|IocPciAddress"
+                                  "|HostBusPciAddress"
+                                  "|EnableSuspendToDisk"
+                                  "|PowerS1Enabled"
+                                  "|PowerS4Enabled"
+                                  "|CpuHotPlug"
+                                  "|AmlFilePath"
+                                  "|Serial0IoPortBase"
+                                  "|Serial1IoPortBase"
+                                  "|Serial2IoPortBase"
+                                  "|Serial3IoPortBase"
+                                  "|Serial0Irq"
+                                  "|Serial1Irq"
+                                  "|Serial2Irq"
+                                  "|Serial3Irq"
+                                  "|AcpiOemId"
+                                  "|AcpiCreatorId"
+                                  "|AcpiCreatorRev"
+                                  "|CustomTable"
+                                  "|CustomTable0"
+                                  "|CustomTable1"
+                                  "|CustomTable2"
+                                  "|CustomTable3"
+                                  "|Parallel0IoPortBase"
+                                  "|Parallel1IoPortBase"
+                                  "|Parallel0Irq"
+                                  "|Parallel1Irq"
+                                  , "");
 
     /* query whether we are supposed to present an IOAPIC */
-    rc = CFGMR3QueryU8Def(pCfg, "IOAPIC", &pThis->u8UseIOApic, 1);
+    rc = pHlp->pfnCFGMQueryU8Def(pCfg, "IOAPIC", &pThis->u8UseIOApic, 1);
     if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("Configuration error: Failed to read \"IOAPIC\""));
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"IOAPIC\""));
 
-    rc = CFGMR3QueryU16Def(pCfg, "NumCPUs", &pThis->cCpus, 1);
+    rc = pHlp->pfnCFGMQueryU16Def(pCfg, "NumCPUs", &pThis->cCpus, 1);
     if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("Configuration error: Querying \"NumCPUs\" as integer failed"));
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Querying \"NumCPUs\" as integer failed"));
 
     /* query whether we are supposed to present an FDC controller */
-    rc = CFGMR3QueryBoolDef(pCfg, "FdcEnabled", &pThis->fUseFdc, true);
+    rc = pHlp->pfnCFGMQueryBoolDef(pCfg, "FdcEnabled", &pThis->fUseFdc, true);
     if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("Configuration error: Failed to read \"FdcEnabled\""));
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"FdcEnabled\""));
 
     /* query whether we are supposed to present HPET */
-    rc = CFGMR3QueryBoolDef(pCfg, "HpetEnabled", &pThis->fUseHpet, false);
+    rc = pHlp->pfnCFGMQueryBoolDef(pCfg, "HpetEnabled", &pThis->fUseHpet, false);
     if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("Configuration error: Failed to read \"HpetEnabled\""));
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"HpetEnabled\""));
     /* query MCFG configuration */
-    rc = CFGMR3QueryU64Def(pCfg, "McfgBase", &pThis->u64PciConfigMMioAddress, 0);
+    rc = pHlp->pfnCFGMQueryU64Def(pCfg, "McfgBase", &pThis->u64PciConfigMMioAddress, 0);
     if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("Configuration error: Failed to read \"McfgBase\""));
-    rc = CFGMR3QueryU64Def(pCfg, "McfgLength", &pThis->u64PciConfigMMioLength, 0);
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"McfgBase\""));
+    rc = pHlp->pfnCFGMQueryU64Def(pCfg, "McfgLength", &pThis->u64PciConfigMMioLength, 0);
     if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("Configuration error: Failed to read \"McfgLength\""));
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"McfgLength\""));
     pThis->fUseMcfg = (pThis->u64PciConfigMMioAddress != 0) && (pThis->u64PciConfigMMioLength != 0);
 
     /* query whether we are supposed to set up the 64-bit prefetchable memory window */
-    rc = CFGMR3QueryBoolDef(pCfg, "PciPref64Enabled", &pThis->fPciPref64Enabled, false);
+    rc = pHlp->pfnCFGMQueryBoolDef(pCfg, "PciPref64Enabled", &pThis->fPciPref64Enabled, false);
     if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("Configuration error: Failed to read \"PciPref64Enabled\""));
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"PciPref64Enabled\""));
 
     /* query the limit of the the 64-bit prefetchable memory window */
     uint64_t u64PciPref64MaxGB;
-    rc = CFGMR3QueryU64Def(pCfg, "PciPref64LimitGB", &u64PciPref64MaxGB, 64);
+    rc = pHlp->pfnCFGMQueryU64Def(pCfg, "PciPref64LimitGB", &u64PciPref64MaxGB, 64);
     if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("Configuration error: Failed to read \"PciPref64LimitGB\""));
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"PciPref64LimitGB\""));
     pThis->u64PciPref64Max = _1G64 * u64PciPref64MaxGB;
 
     /* query whether we are supposed to present SMC */
-    rc = CFGMR3QueryBoolDef(pCfg, "SmcEnabled", &pThis->fUseSmc, false);
+    rc = pHlp->pfnCFGMQueryBoolDef(pCfg, "SmcEnabled", &pThis->fUseSmc, false);
     if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("Configuration error: Failed to read \"SmcEnabled\""));
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"SmcEnabled\""));
 
     /* query whether we are supposed to present RTC object */
-    rc = CFGMR3QueryBoolDef(pCfg, "ShowRtc", &pThis->fShowRtc, false);
+    rc = pHlp->pfnCFGMQueryBoolDef(pCfg, "ShowRtc", &pThis->fShowRtc, false);
     if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("Configuration error: Failed to read \"ShowRtc\""));
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"ShowRtc\""));
 
     /* query whether we are supposed to present CPU objects */
-    rc = CFGMR3QueryBoolDef(pCfg, "ShowCpu", &pThis->fShowCpu, false);
+    rc = pHlp->pfnCFGMQueryBoolDef(pCfg, "ShowCpu", &pThis->fShowCpu, false);
     if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("Configuration error: Failed to read \"ShowCpu\""));
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"ShowCpu\""));
 
-    /* query primary NIC PCI address */
-    rc = CFGMR3QueryU32Def(pCfg, "NicPciAddress", &pThis->u32NicPciAddress, 0);
+    /* query primary NIC PCI address (GIGE) */
+    rc = pHlp->pfnCFGMQueryU32Def(pCfg, "NicPciAddress", &pThis->u32NicPciAddress, 0);
     if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("Configuration error: Failed to read \"NicPciAddress\""));
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"NicPciAddress\""));
 
-    /* query primary NIC PCI address */
-    rc = CFGMR3QueryU32Def(pCfg, "AudioPciAddress", &pThis->u32AudioPciAddress, 0);
+    /* query HD Audio PCI address (HDAA) */
+    rc = pHlp->pfnCFGMQueryU32Def(pCfg, "AudioPciAddress", &pThis->u32AudioPciAddress, 0);
     if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("Configuration error: Failed to read \"AudioPciAddress\""));
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"AudioPciAddress\""));
+
+    /* query NVMe PCI address (NVMA) */
+    rc = pHlp->pfnCFGMQueryU32Def(pCfg, "NvmePciAddress", &pThis->u32NvmePciAddress, 0);
+    if (RT_FAILURE(rc))
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"NvmePciAddress\""));
 
     /* query IO controller (southbridge) PCI address */
-    rc = CFGMR3QueryU32Def(pCfg, "IocPciAddress", &pThis->u32IocPciAddress, 0);
+    rc = pHlp->pfnCFGMQueryU32Def(pCfg, "IocPciAddress", &pThis->u32IocPciAddress, 0);
     if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("Configuration error: Failed to read \"IocPciAddress\""));
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"IocPciAddress\""));
 
     /* query host bus controller PCI address */
-    rc = CFGMR3QueryU32Def(pCfg, "HostBusPciAddress", &pThis->u32HbcPciAddress, 0);
+    rc = pHlp->pfnCFGMQueryU32Def(pCfg, "HostBusPciAddress", &pThis->u32HbcPciAddress, 0);
     if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("Configuration error: Failed to read \"HostBusPciAddress\""));
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"HostBusPciAddress\""));
 
     /* query whether S1 power state should be exposed */
-    rc = CFGMR3QueryBoolDef(pCfg, "PowerS1Enabled", &pThis->fS1Enabled, false);
+    rc = pHlp->pfnCFGMQueryBoolDef(pCfg, "PowerS1Enabled", &pThis->fS1Enabled, false);
     if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("Configuration error: Failed to read \"PowerS1Enabled\""));
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"PowerS1Enabled\""));
 
     /* query whether S4 power state should be exposed */
-    rc = CFGMR3QueryBoolDef(pCfg, "PowerS4Enabled", &pThis->fS4Enabled, false);
+    rc = pHlp->pfnCFGMQueryBoolDef(pCfg, "PowerS4Enabled", &pThis->fS4Enabled, false);
     if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("Configuration error: Failed to read \"PowerS4Enabled\""));
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"PowerS4Enabled\""));
 
     /* query whether S1 power state should save the VM state */
-    rc = CFGMR3QueryBoolDef(pCfg, "EnableSuspendToDisk", &pThis->fSuspendToSavedState, false);
+    rc = pHlp->pfnCFGMQueryBoolDef(pCfg, "EnableSuspendToDisk", &pThis->fSuspendToSavedState, false);
     if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("Configuration error: Failed to read \"EnableSuspendToDisk\""));
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"EnableSuspendToDisk\""));
 
     /* query whether we are allow CPU hot plugging */
-    rc = CFGMR3QueryBoolDef(pCfg, "CpuHotPlug", &pThis->fCpuHotPlug, false);
+    rc = pHlp->pfnCFGMQueryBoolDef(pCfg, "CpuHotPlug", &pThis->fCpuHotPlug, false);
     if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("Configuration error: Failed to read \"CpuHotPlug\""));
-
-    rc = CFGMR3QueryBoolDef(pCfg, "GCEnabled", &pThis->fGCEnabled, true);
-    if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("Configuration error: Failed to read \"GCEnabled\""));
-
-    rc = CFGMR3QueryBoolDef(pCfg, "R0Enabled", &pThis->fR0Enabled, true);
-    if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("configuration error: failed to read \"R0Enabled\""));
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"CpuHotPlug\""));
 
     /* query serial info */
-    rc = CFGMR3QueryU8Def(pCfg, "Serial0Irq", &pThis->uSerial0Irq, 4);
+    rc = pHlp->pfnCFGMQueryU8Def(pCfg, "Serial0Irq", &pThis->uSerial0Irq, 4);
     if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("Configuration error: Failed to read \"Serial0Irq\""));
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"Serial0Irq\""));
 
-    rc = CFGMR3QueryU16Def(pCfg, "Serial0IoPortBase", &pThis->uSerial0IoPortBase, 0x3f8);
+    rc = pHlp->pfnCFGMQueryU16Def(pCfg, "Serial0IoPortBase", &pThis->uSerial0IoPortBase, 0x3f8);
     if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("Configuration error: Failed to read \"Serial0IoPortBase\""));
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"Serial0IoPortBase\""));
 
     /* Serial 1 is enabled, get config data */
-    rc = CFGMR3QueryU8Def(pCfg, "Serial1Irq", &pThis->uSerial1Irq, 3);
+    rc = pHlp->pfnCFGMQueryU8Def(pCfg, "Serial1Irq", &pThis->uSerial1Irq, 3);
     if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("Configuration error: Failed to read \"Serial1Irq\""));
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"Serial1Irq\""));
 
-    rc = CFGMR3QueryU16Def(pCfg, "Serial1IoPortBase", &pThis->uSerial1IoPortBase, 0x2f8);
+    rc = pHlp->pfnCFGMQueryU16Def(pCfg, "Serial1IoPortBase", &pThis->uSerial1IoPortBase, 0x2f8);
     if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("Configuration error: Failed to read \"Serial1IoPortBase\""));
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"Serial1IoPortBase\""));
 
     /* Read serial port 2 settings; disabled if CFGM keys do not exist. */
-    rc = CFGMR3QueryU8Def(pCfg, "Serial2Irq", &pThis->uSerial2Irq, 0);
+    rc = pHlp->pfnCFGMQueryU8Def(pCfg, "Serial2Irq", &pThis->uSerial2Irq, 0);
     if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("Configuration error: Failed to read \"Serial2Irq\""));
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"Serial2Irq\""));
 
-    rc = CFGMR3QueryU16Def(pCfg, "Serial2IoPortBase", &pThis->uSerial2IoPortBase, 0);
+    rc = pHlp->pfnCFGMQueryU16Def(pCfg, "Serial2IoPortBase", &pThis->uSerial2IoPortBase, 0);
     if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("Configuration error: Failed to read \"Serial2IoPortBase\""));
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"Serial2IoPortBase\""));
 
     /* Read serial port 3 settings; disabled if CFGM keys do not exist. */
-    rc = CFGMR3QueryU8Def(pCfg, "Serial3Irq", &pThis->uSerial3Irq, 0);
+    rc = pHlp->pfnCFGMQueryU8Def(pCfg, "Serial3Irq", &pThis->uSerial3Irq, 0);
     if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("Configuration error: Failed to read \"Serial3Irq\""));
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"Serial3Irq\""));
 
-    rc = CFGMR3QueryU16Def(pCfg, "Serial3IoPortBase", &pThis->uSerial3IoPortBase, 0);
+    rc = pHlp->pfnCFGMQueryU16Def(pCfg, "Serial3IoPortBase", &pThis->uSerial3IoPortBase, 0);
     if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("Configuration error: Failed to read \"Serial3IoPortBase\""));
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"Serial3IoPortBase\""));
     /*
      * Query settings for both parallel ports, if the CFGM keys don't exist pretend that
      * the corresponding parallel port is not enabled.
      */
-    rc = CFGMR3QueryU8Def(pCfg, "Parallel0Irq", &pThis->uParallel0Irq, 0);
+    rc = pHlp->pfnCFGMQueryU8Def(pCfg, "Parallel0Irq", &pThis->uParallel0Irq, 0);
     if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("Configuration error: Failed to read \"Parallel0Irq\""));
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"Parallel0Irq\""));
 
-    rc = CFGMR3QueryU16Def(pCfg, "Parallel0IoPortBase", &pThis->uParallel0IoPortBase, 0);
+    rc = pHlp->pfnCFGMQueryU16Def(pCfg, "Parallel0IoPortBase", &pThis->uParallel0IoPortBase, 0);
     if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("Configuration error: Failed to read \"Parallel0IoPortBase\""));
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"Parallel0IoPortBase\""));
 
-    rc = CFGMR3QueryU8Def(pCfg, "Parallel1Irq", &pThis->uParallel1Irq, 0);
+    rc = pHlp->pfnCFGMQueryU8Def(pCfg, "Parallel1Irq", &pThis->uParallel1Irq, 0);
     if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("Configuration error: Failed to read \"Parallel1Irq\""));
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"Parallel1Irq\""));
 
-    rc = CFGMR3QueryU16Def(pCfg, "Parallel1IoPortBase", &pThis->uParallel1IoPortBase, 0);
+    rc = pHlp->pfnCFGMQueryU16Def(pCfg, "Parallel1IoPortBase", &pThis->uParallel1IoPortBase, 0);
     if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("Configuration error: Failed to read \"Parallel1IoPortBase\""));
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"Parallel1IoPortBase\""));
 
     /* Try to attach the other CPUs */
     for (unsigned i = 1; i < pThis->cCpus; i++)
@@ -3888,7 +3886,7 @@ static DECLCALLBACK(int) acpiR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
         if (pThis->fCpuHotPlug)
         {
             PPDMIBASE IBaseTmp;
-            rc = PDMDevHlpDriverAttach(pDevIns, i, &pThis->IBase, &IBaseTmp, "ACPI CPU");
+            rc = PDMDevHlpDriverAttach(pDevIns, i, &pThisCC->IBase, &IBaseTmp, "ACPI CPU");
 
             if (RT_SUCCESS(rc))
             {
@@ -3909,113 +3907,86 @@ static DECLCALLBACK(int) acpiR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
         }
     }
 
-    char *pszOemId = NULL;
-    rc = CFGMR3QueryStringAllocDef(pCfg, "AcpiOemId", &pszOemId, "VBOX  ");
+    char szOemId[16];
+    rc = pHlp->pfnCFGMQueryStringDef(pCfg, "AcpiOemId", szOemId, sizeof(szOemId), "VBOX  ");
     if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("Configuration error: Querying \"AcpiOemId\" as string failed"));
-    size_t cbOemId = strlen(pszOemId);
-    if (cbOemId > 6)
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("Configuration error: \"AcpiOemId\" must contain not more than 6 characters"));
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Querying \"AcpiOemId\" as string failed"));
+    size_t cchOemId = strlen(szOemId);
+    if (cchOemId > 6)
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: \"AcpiOemId\" must contain not more than 6 characters"));
     memset(pThis->au8OemId, ' ', sizeof(pThis->au8OemId));
-    memcpy(pThis->au8OemId, pszOemId, cbOemId);
-    MMR3HeapFree(pszOemId);
+    memcpy(pThis->au8OemId, szOemId, cchOemId);
 
-    char *pszCreatorId = NULL;
-    rc = CFGMR3QueryStringAllocDef(pCfg, "AcpiCreatorId", &pszCreatorId, "ASL ");
+    char szCreatorId[16];
+    rc = pHlp->pfnCFGMQueryStringDef(pCfg, "AcpiCreatorId", szCreatorId, sizeof(szCreatorId), "ASL ");
     if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("Configuration error: Querying \"AcpiCreatorId\" as string failed"));
-    size_t cbCreatorId = strlen(pszCreatorId);
-    if (cbCreatorId > 4)
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("Configuration error: \"AcpiCreatorId\" must contain not more than 4 characters"));
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Querying \"AcpiCreatorId\" as string failed"));
+    size_t cchCreatorId = strlen(szCreatorId);
+    if (cchCreatorId > 4)
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: \"AcpiCreatorId\" must contain not more than 4 characters"));
     memset(pThis->au8CreatorId, ' ', sizeof(pThis->au8CreatorId));
-    memcpy(pThis->au8CreatorId, pszCreatorId, cbCreatorId);
-    MMR3HeapFree(pszCreatorId);
+    memcpy(pThis->au8CreatorId, szCreatorId, cchCreatorId);
 
-    rc = CFGMR3QueryU32Def(pCfg, "AcpiCreatorRev", &pThis->u32CreatorRev, RT_H2LE_U32(0x61));
+    rc = pHlp->pfnCFGMQueryU32Def(pCfg, "AcpiCreatorRev", &pThis->u32CreatorRev, RT_H2LE_U32(0x61));
     if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("Configuration error: Querying \"AcpiCreatorRev\" as integer failed"));
-    pThis->u32OemRevision         = RT_H2LE_U32(0x1);
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Querying \"AcpiCreatorRev\" as integer failed"));
+
+    pThis->u32OemRevision = RT_H2LE_U32(0x1);
 
     /*
      * Load custom ACPI tables.
      */
-    char *pszCustBinFile;
-
-    /* Maintain legacy behavior for CustomTable config key.
-     * If present, use it as alias for CustomTable1. */
-    rc = CFGMR3QueryStringAlloc(pCfg, "CustomTable", &pszCustBinFile);
-    if (rc != VERR_CFGM_VALUE_NOT_FOUND)
-    {
-        if (RT_FAILURE(rc))
-            return PDMDEV_SET_ERROR(pDevIns, rc,
-                                    N_("Configuration error: Querying \"CustomTable\" as a string failed"));
-        if (!*pszCustBinFile)
-        {
-            MMR3HeapFree(pszCustBinFile);
-            pszCustBinFile = NULL;
-        }
-        else if (pszCustBinFile)
-        {
-            /* Try creating CustomTable0 using legacy value. */
-            rc = CFGMR3InsertString(pCfg, "CustomTable0", pszCustBinFile);
-            if (rc == VERR_CFGM_LEAF_EXISTS)
-                LogRel(("ACPI: Warning: \"CustomTable\" configuration"
-                        " setting ignored as \"CustomTable0\" setting exists.\n"));
-            MMR3HeapFree(pszCustBinFile);
-        }
-    }
-
-    /* Total space available for custom ACPI tables
-     * @todo define as appropriate, remove as a magic number, and document
-     *       limitation in product manual */
+    /* Total space available for custom ACPI tables */
+    /** @todo define as appropriate, remove as a magic number, and document
+     *        limitation in product manual */
     uint32_t cbBufAvail = 3072;
     pThis->cCustTbls = 0;
 
-    const char* custTblConfigKeys[] = {"CustomTable0", "CustomTable1", "CustomTable2", "CustomTable3"};
-    for (unsigned i = 0; i < RT_ELEMENTS(custTblConfigKeys); ++i)
+    static const char *s_apszCustTblConfigKeys[] = {"CustomTable0", "CustomTable1", "CustomTable2", "CustomTable3"};
+    AssertCompile(RT_ELEMENTS(s_apszCustTblConfigKeys) <= RT_ELEMENTS(pThisCC->apu8CustBin));
+    for (unsigned i = 0; i < RT_ELEMENTS(s_apszCustTblConfigKeys); ++i)
     {
-        const char* pszConfigKey = custTblConfigKeys[i];
+        const char *pszConfigKey = s_apszCustTblConfigKeys[i];
 
         /*
          * Get the custom table binary file name.
          */
-        rc = CFGMR3QueryStringAlloc(pCfg, pszConfigKey, &pszCustBinFile);
+        char *pszCustBinFile = NULL;
+        rc = pHlp->pfnCFGMQueryStringAlloc(pCfg, pszConfigKey, &pszCustBinFile);
+        if (rc == VERR_CFGM_VALUE_NOT_FOUND && i == 0)
+            rc = pHlp->pfnCFGMQueryStringAlloc(pCfg, "CustomTable", &pszCustBinFile); /* legacy */
         if (rc == VERR_CFGM_VALUE_NOT_FOUND)
         {
-            pszCustBinFile = NULL;
             rc = VINF_SUCCESS;
+            pszCustBinFile = NULL;
         }
         else if (RT_FAILURE(rc))
             return PDMDEV_SET_ERROR(pDevIns, rc,
                                     N_("Configuration error: Querying \"CustomTableN\" as a string failed"));
         else if (!*pszCustBinFile)
         {
-            MMR3HeapFree(pszCustBinFile);
+            PDMDevHlpMMHeapFree(pDevIns, pszCustBinFile);
             pszCustBinFile = NULL;
         }
+
         /*
          * Determine the custom table binary size, open specified file in the process.
          */
         if (pszCustBinFile)
         {
-            uint32_t tblIdx = pThis->cCustTbls;
-            rc = acpiR3ReadCustomTable(pDevIns, &(pThis->apu8CustBin[tblIdx]),
-                                       &(pThis->acbCustBin[tblIdx]), pszCustBinFile, cbBufAvail);
+            uint32_t idxCust = pThis->cCustTbls;
+            rc = acpiR3ReadCustomTable(pDevIns, &pThisCC->apu8CustBin[idxCust],
+                                       &pThisCC->acbCustBin[idxCust], pszCustBinFile, cbBufAvail);
             LogRel(("ACPI: Reading custom ACPI table(%u) from file '%s' (%d bytes)\n",
-                    tblIdx, pszCustBinFile, pThis->acbCustBin[tblIdx]));
-            MMR3HeapFree(pszCustBinFile);
+                    idxCust, pszCustBinFile, pThisCC->acbCustBin[idxCust]));
+            PDMDevHlpMMHeapFree(pDevIns, pszCustBinFile);
             if (RT_FAILURE(rc))
                 return PDMDEV_SET_ERROR(pDevIns, rc, N_("Error reading custom ACPI table."));
-            cbBufAvail -= pThis->acbCustBin[tblIdx];
+            cbBufAvail -= pThisCC->acbCustBin[idxCust];
 
-            /* Update custom OEM attributes based on custom table
-             * @todo: is it intended for custom tables to overwrite user provided values above? */
-            ACPITBLHEADER *pTblHdr = (ACPITBLHEADER*)pThis->apu8CustBin[tblIdx];
+            /* Update custom OEM attributes based on custom table */
+            /** @todo is it intended for custom tables to overwrite user provided values above? */
+            ACPITBLHEADER *pTblHdr = (ACPITBLHEADER*)pThisCC->apu8CustBin[idxCust];
             memcpy(&pThis->au8OemId[0], &pTblHdr->au8OemId[0], 6);
             memcpy(&pThis->au8OemTabId[0], &pTblHdr->au8OemTabId[0], 8);
             pThis->u32OemRevision = pTblHdr->u32OemRevision;
@@ -4048,125 +4019,148 @@ static DECLCALLBACK(int) acpiR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
      *        twice, so the lazy bird is taking the quick way out for now. */
     RTGCPHYS32 GCPhysRsdp = apicR3FindRsdpSpace();
     if (!GCPhysRsdp)
-        return PDMDEV_SET_ERROR(pDevIns, VERR_NO_MEMORY,
-                                N_("Can not find space for RSDP. ACPI is disabled"));
+        return PDMDEV_SET_ERROR(pDevIns, VERR_NO_MEMORY, N_("Can not find space for RSDP. ACPI is disabled"));
 
-    rc = acpiR3PlantTables(pThis);
-    if (RT_FAILURE(rc))
-        return rc;
+    rc = acpiR3PlantTables(pDevIns, pThis, pThisCC);
+    AssertRCReturn(rc, rc);
 
     rc = PDMDevHlpROMRegister(pDevIns, GCPhysRsdp, 0x1000, pThis->au8RSDPPage, 0x1000,
                               PGMPHYS_ROM_FLAGS_PERMANENT_BINARY, "ACPI RSDP");
-    if (RT_FAILURE(rc))
-        return rc;
+    AssertRCReturn(rc, rc);
 
     /*
-     * Register I/O ports.
+     * Create the PM I/O ports.  These can be unmapped and remapped.
      */
-    rc = acpiR3RegisterPmHandlers(pThis);
-    if (RT_FAILURE(rc))
-        return rc;
+    rc = PDMDevHlpIoPortCreateIsa(pDevIns,               1 /*cPorts*/,  acpiR3PM1aStsWrite, acpiR3Pm1aStsRead,  NULL /*pvUser*/,
+                                  "ACPI PM1a Status",  NULL /*paExtDesc*/, &pThis->hIoPortPm1aSts);
+    AssertRCReturn(rc, rc);
+    rc = PDMDevHlpIoPortCreateIsa(pDevIns,               1 /*cPorts*/,  acpiR3PM1aEnWrite,  acpiR3Pm1aEnRead,   NULL /*pvUser*/,
+                                  "ACPI PM1a Enable",  NULL /*paExtDesc*/, &pThis->hIoPortPm1aEn);
+    AssertRCReturn(rc, rc);
+    rc = PDMDevHlpIoPortCreateIsa(pDevIns,               1 /*cPorts*/,  acpiR3PM1aCtlWrite, acpiR3Pm1aCtlRead,  NULL /*pvUser*/,
+                                  "ACPI PM1a Control", NULL /*paExtDesc*/, &pThis->hIoPortPm1aCtl);
+    AssertRCReturn(rc, rc);
+    rc = PDMDevHlpIoPortCreateIsa(pDevIns,               1 /*cPorts*/,  NULL,               acpiPMTmrRead,      NULL /*pvUser*/,
+                                  "ACPI PM Timer",     NULL /*paExtDesc*/, &pThis->hIoPortPmTimer);
+    AssertRCReturn(rc, rc);
+    rc = PDMDevHlpIoPortCreateIsa(pDevIns, GPE0_BLK_LEN / 2 /*cPorts*/, acpiR3Gpe0StsWrite, acpiR3Gpe0StsRead,  NULL /*pvUser*/,
+                                  "ACPI GPE0 Status",  NULL /*paExtDesc*/, &pThis->hIoPortGpe0Sts);
+    AssertRCReturn(rc, rc);
+    rc = PDMDevHlpIoPortCreateIsa(pDevIns, GPE0_BLK_LEN / 2 /*cPorts*/, acpiR3Gpe0EnWrite,  acpiR3Gpe0EnRead,   NULL /*pvUser*/,
+                                  "ACPI GPE0 Enable",  NULL /*paExtDesc*/, &pThis->hIoPortGpe0En);
+    AssertRCReturn(rc, rc);
+    rc = acpiR3MapPmIoPorts(pDevIns, pThis);
+    AssertRCReturn(rc, rc);
 
-    rc = acpiR3RegisterSMBusHandlers(pThis);
-    if (RT_FAILURE(rc))
-        return rc;
+    /*
+     * Create the System Management Bus I/O ports.  These can be unmapped and remapped.
+     */
+    rc = PDMDevHlpIoPortCreateIsa(pDevIns, 16, acpiR3SMBusWrite, acpiR3SMBusRead, NULL /*pvUser*/,
+                                  "SMBus", NULL /*paExtDesc*/, &pThis->hIoPortSMBus);
+    AssertRCReturn(rc, rc);
+    rc = acpiR3MapSMBusIoPorts(pDevIns, pThis);
+    AssertRCReturn(rc, rc);
 
-#define R(addr, cnt, writer, reader, description)       \
-    do { \
-        rc = PDMDevHlpIOPortRegister(pDevIns, addr, cnt, pThis, writer, reader, \
-                                      NULL, NULL, description); \
-        if (RT_FAILURE(rc)) \
-            return rc; \
-    } while (0)
-    R(SMI_CMD,        1, acpiR3SmiWrite,          NULL,                "ACPI SMI");
+    /*
+     * Create and map the fixed I/O ports.
+     */
+    rc = PDMDevHlpIoPortCreateAndMap(pDevIns, SMI_CMD,          1, acpiR3SmiWrite, NULL,
+                                     "ACPI SMI",                    NULL /*paExtDesc*/, &pThis->hIoPortSmi);
+    AssertRCReturn(rc, rc);
 #ifdef DEBUG_ACPI
-    R(DEBUG_HEX,      1, acpiR3DhexWrite,         NULL,                "ACPI Debug hex");
-    R(DEBUG_CHR,      1, acpiR3DchrWrite,         NULL,                "ACPI Debug char");
+    rc = PDMDevHlpIoPortCreateAndMap(pDevIns, DEBUG_HEX,        1, acpiR3DebugHexWrite, NULL,
+                                     "ACPI Debug hex",              NULL /*paExtDesc*/, &pThis->hIoPortDebugHex);
+    AssertRCReturn(rc, rc);
+    rc = PDMDevHlpIoPortCreateAndMap(pDevIns, DEBUG_CHR,        1, acpiR3DebugCharWrite, NULL,
+                                     "ACPI Debug char",             NULL /*paExtDesc*/, &pThis->hIoPortDebugChar);
+    AssertRCReturn(rc, rc);
 #endif
-    R(BAT_INDEX,      1, acpiR3BatIndexWrite,     NULL,                "ACPI Battery status index");
-    R(BAT_DATA,       1, NULL,                  acpiR3BatDataRead,     "ACPI Battery status data");
-    R(SYSI_INDEX,     1, acpiR3SysInfoIndexWrite, NULL,                "ACPI system info index");
-    R(SYSI_DATA,      1, acpiR3SysInfoDataWrite,  acpiR3SysInfoDataRead, "ACPI system info data");
-    R(ACPI_RESET_BLK, 1, acpiR3ResetWrite,        NULL,                "ACPI Reset");
-#undef R
+    rc = PDMDevHlpIoPortCreateAndMap(pDevIns, BAT_INDEX,        1, acpiR3BatIndexWrite, NULL,
+                                     "ACPI Battery status index",   NULL /*paExtDesc*/, &pThis->hIoPortBatteryIndex);
+    AssertRCReturn(rc, rc);
+    rc = PDMDevHlpIoPortCreateAndMap(pDevIns, BAT_DATA,         1, NULL, acpiR3BatDataRead,
+                                     "ACPI Battery status data",    NULL /*paExtDesc*/, &pThis->hIoPortBatteryData);
+    AssertRCReturn(rc, rc);
+    rc = PDMDevHlpIoPortCreateAndMap(pDevIns, SYSI_INDEX,       1, acpiR3SysInfoIndexWrite, NULL,
+                                     "ACPI system info index",      NULL /*paExtDesc*/, &pThis->hIoPortSysInfoIndex);
+    AssertRCReturn(rc, rc);
+    rc = PDMDevHlpIoPortCreateAndMap(pDevIns, SYSI_DATA,        1, acpiR3SysInfoDataWrite, acpiR3SysInfoDataRead,
+                                     "ACPI system info data",       NULL /*paExtDesc*/, &pThis->hIoPortSysInfoData);
+    AssertRCReturn(rc, rc);
+    rc = PDMDevHlpIoPortCreateAndMap(pDevIns, ACPI_RESET_BLK,   1, acpiR3ResetWrite, NULL,
+                                     "ACPI Reset",                  NULL /*paExtDesc*/, &pThis->hIoPortReset);
+    AssertRCReturn(rc, rc);
 
     /*
      * Create the PM timer.
      */
-    PTMTIMER pTimer;
-    rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL_SYNC, acpiR3PmTimer, &pThis->dev,
-                                TMTIMER_FLAGS_NO_CRIT_SECT, "ACPI PM Timer", &pTimer);
+    rc = PDMDevHlpTimerCreate(pDevIns, TMCLOCK_VIRTUAL_SYNC, acpiR3PmTimer, NULL /*pvUser*/,
+                              TMTIMER_FLAGS_NO_CRIT_SECT, "ACPI PM Timer", &pThis->hPmTimer);
     AssertRCReturn(rc, rc);
-    pThis->pPmTimerR3 = pTimer;
-    pThis->pPmTimerR0 = TMTimerR0Ptr(pTimer);
-    pThis->pPmTimerRC = TMTimerRCPtr(pTimer);
 
-    rc = TMTimerLock(pTimer, VERR_IGNORED);
-    AssertRCReturn(rc, rc);
-    pThis->u64PmTimerInitial = TMTimerGet(pTimer);
-    acpiR3PmTimerReset(pThis, pThis->u64PmTimerInitial);
-    TMTimerUnlock(pTimer);
+    PDMDevHlpTimerLockClock(pDevIns, pThis->hPmTimer, VERR_IGNORED);
+    pThis->u64PmTimerInitial = PDMDevHlpTimerGet(pDevIns, pThis->hPmTimer);
+    acpiR3PmTimerReset(pDevIns, pThis, pThis->u64PmTimerInitial);
+    PDMDevHlpTimerUnlockClock(pDevIns, pThis->hPmTimer);
 
     /*
      * Set up the PCI device.
      */
-    PCIDevSetVendorId(&pThis->dev, 0x8086); /* Intel */
-    PCIDevSetDeviceId(&pThis->dev, 0x7113); /* 82371AB */
+    PPDMPCIDEV pPciDev = pDevIns->apPciDevs[0];
+    PDMPCIDEV_ASSERT_VALID(pDevIns, pPciDev);
+
+    PDMPciDevSetVendorId(pPciDev,      0x8086); /* Intel */
+    PDMPciDevSetDeviceId(pPciDev,      0x7113); /* 82371AB */
 
     /* See p. 50 of PIIX4 manual */
-    PCIDevSetCommand(&pThis->dev, PCI_COMMAND_IOACCESS);
-    PCIDevSetStatus(&pThis->dev, 0x0280);
+    PDMPciDevSetCommand(pPciDev,       PCI_COMMAND_IOACCESS);
+    PDMPciDevSetStatus(pPciDev,        0x0280);
 
-    PCIDevSetRevisionId(&pThis->dev, 0x08);
+    PDMPciDevSetRevisionId(pPciDev,    0x08);
 
-    PCIDevSetClassProg(&pThis->dev, 0x00);
-    PCIDevSetClassSub(&pThis->dev, 0x80);
-    PCIDevSetClassBase(&pThis->dev, 0x06);
+    PDMPciDevSetClassProg(pPciDev,     0x00);
+    PDMPciDevSetClassSub(pPciDev,      0x80);
+    PDMPciDevSetClassBase(pPciDev,     0x06);
 
-    PCIDevSetHeaderType(&pThis->dev, 0x80);
+    PDMPciDevSetHeaderType(pPciDev,    0x80);
 
-    PCIDevSetBIST(&pThis->dev, 0x00);
+    PDMPciDevSetBIST(pPciDev,          0x00);
 
-    PCIDevSetInterruptLine(&pThis->dev, SCI_INT);
-    PCIDevSetInterruptPin (&pThis->dev, 0x01);
+    PDMPciDevSetInterruptLine(pPciDev, SCI_INT);
+    PDMPciDevSetInterruptPin(pPciDev,  0x01);
 
     Assert((pThis->uPmIoPortBase & 0x003f) == 0);
-    acpiR3PmPCIBIOSFake(pThis);
+    acpiR3PmPCIBIOSFake(pDevIns, pThis);
 
     Assert((pThis->uSMBusIoPortBase & 0x000f) == 0);
-    acpiR3SMBusPCIBIOSFake(pThis);
+    acpiR3SMBusPCIBIOSFake(pDevIns, pThis);
     acpiR3SMBusResetDevice(pThis);
 
-    rc = PDMDevHlpPCIRegister(pDevIns, &pThis->dev);
-    if (RT_FAILURE(rc))
-        return rc;
+    rc = PDMDevHlpPCIRegister(pDevIns, pPciDev);
+    AssertRCReturn(rc, rc);
 
-    PDMDevHlpPCISetConfigCallbacks(pDevIns, &pThis->dev,
-                                   acpiR3PciConfigRead,  &pThis->pfnAcpiPciConfigRead,
-                                   acpiR3PciConfigWrite, &pThis->pfnAcpiPciConfigWrite);
+    rc = PDMDevHlpPCIInterceptConfigAccesses(pDevIns, pPciDev, acpiR3PciConfigRead, acpiR3PciConfigWrite);
+    AssertRCReturn(rc, rc);
 
     /*
      * Register the saved state.
      */
     rc = PDMDevHlpSSMRegister(pDevIns, 8, sizeof(*pThis), acpiR3SaveState, acpiR3LoadState);
-    if (RT_FAILURE(rc))
-        return rc;
+    AssertRCReturn(rc, rc);
 
    /*
     * Get the corresponding connector interface
     */
-   rc = PDMDevHlpDriverAttach(pDevIns, 0, &pThis->IBase, &pThis->pDrvBase, "ACPI Driver Port");
+   rc = PDMDevHlpDriverAttach(pDevIns, 0, &pThisCC->IBase, &pThisCC->pDrvBase, "ACPI Driver Port");
    if (RT_SUCCESS(rc))
    {
-       pThis->pDrv = PDMIBASE_QUERY_INTERFACE(pThis->pDrvBase, PDMIACPICONNECTOR);
-       if (!pThis->pDrv)
-           return PDMDEV_SET_ERROR(pDevIns, VERR_PDM_MISSING_INTERFACE,
-                                   N_("LUN #0 doesn't have an ACPI connector interface"));
+       pThisCC->pDrv = PDMIBASE_QUERY_INTERFACE(pThisCC->pDrvBase, PDMIACPICONNECTOR);
+       if (!pThisCC->pDrv)
+           return PDMDEV_SET_ERROR(pDevIns, VERR_PDM_MISSING_INTERFACE, N_("LUN #0 doesn't have an ACPI connector interface"));
    }
    else if (rc == VERR_PDM_NO_ATTACHED_DRIVER)
    {
-       Log(("acpi: %s/%d: warning: no driver attached to LUN #0!\n",
-            pDevIns->pReg->szName, pDevIns->iInstance));
+       Log(("acpi: %s/%d: warning: no driver attached to LUN #0!\n", pDevIns->pReg->szName, pDevIns->iInstance));
        rc = VINF_SUCCESS;
    }
    else
@@ -4177,60 +4171,99 @@ static DECLCALLBACK(int) acpiR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
     return rc;
 }
 
+#else  /* !IN_RING3 */
+
+/**
+ * @callback_method_impl{PDMDEVREGR0,pfnConstruct}
+ */
+static DECLCALLBACK(int) acpiRZConstruct(PPDMDEVINS pDevIns)
+{
+    PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
+    PACPISTATE pThis = PDMDEVINS_2_DATA(pDevIns, PACPISTATE);
+
+    int rc = PDMDevHlpSetDeviceCritSect(pDevIns, PDMDevHlpCritSectGetNop(pDevIns));
+    AssertRCReturn(rc, rc);
+
+    /* Only the PM timer read port is handled directly in ring-0/raw-mode. */
+    rc = PDMDevHlpIoPortSetUpContext(pDevIns, pThis->hIoPortPmTimer, NULL, acpiPMTmrRead, NULL);
+    AssertRCReturn(rc, rc);
+
+    return VINF_SUCCESS;
+}
+
+#endif /* !IN_RING3 */
+
 /**
  * The device registration structure.
  */
 const PDMDEVREG g_DeviceACPI =
 {
-    /* u32Version */
-    PDM_DEVREG_VERSION,
-    /* szName */
-    "acpi",
-    /* szRCMod */
-    "VBoxDDRC.rc",
-    /* szR0Mod */
-    "VBoxDDR0.r0",
-    /* pszDescription */
-    "Advanced Configuration and Power Interface",
-    /* fFlags */
-    PDM_DEVREG_FLAGS_DEFAULT_BITS | PDM_DEVREG_FLAGS_RC | PDM_DEVREG_FLAGS_R0,
-    /* fClass */
-    PDM_DEVREG_CLASS_ACPI,
-    /* cMaxInstances */
-    ~0U,
-    /* cbInstance */
-    sizeof(ACPIState),
-    /* pfnConstruct */
-    acpiR3Construct,
-    /* pfnDestruct */
-    acpiR3Destruct,
-    /* pfnRelocate */
-    acpiR3Relocate,
-    /* pfnMemSetup */
-    acpiR3MemSetup,
-    /* pfnPowerOn */
-    NULL,
-    /* pfnReset */
-    acpiR3Reset,
-    /* pfnSuspend */
-    NULL,
-    /* pfnResume */
-    acpiR3Resume,
-    /* pfnAttach */
-    acpiR3Attach,
-    /* pfnDetach */
-    acpiR3Detach,
-    /* pfnQueryInterface. */
-    NULL,
-    /* pfnInitComplete */
-    NULL,
-    /* pfnPowerOff */
-    NULL,
-    /* pfnSoftReset */
-    NULL,
-    /* u32VersionEnd */
-    PDM_DEVREG_VERSION
+    /* .u32Version = */             PDM_DEVREG_VERSION,
+    /* .uReserved0 = */             0,
+    /* .szName = */                 "acpi",
+    /* .fFlags = */                 PDM_DEVREG_FLAGS_DEFAULT_BITS | PDM_DEVREG_FLAGS_RZ | PDM_DEVREG_FLAGS_NEW_STYLE,
+    /* .fClass = */                 PDM_DEVREG_CLASS_ACPI,
+    /* .cMaxInstances = */          ~0U,
+    /* .uSharedVersion = */         42,
+    /* .cbInstanceShared = */       sizeof(ACPISTATE),
+    /* .cbInstanceCC = */           CTX_EXPR(sizeof(ACPISTATER3), 0, 0),
+    /* .cbInstanceRC = */           0,
+    /* .cMaxPciDevices = */         1,
+    /* .cMaxMsixVectors = */        0,
+    /* .pszDescription = */         "Advanced Configuration and Power Interface",
+#if defined(IN_RING3)
+    /* .pszRCMod = */               "VBoxDDRC.rc",
+    /* .pszR0Mod = */               "VBoxDDR0.r0",
+    /* .pfnConstruct = */           acpiR3Construct,
+    /* .pfnDestruct = */            acpiR3Destruct,
+    /* .pfnRelocate = */            NULL,
+    /* .pfnMemSetup = */            acpiR3MemSetup,
+    /* .pfnPowerOn = */             NULL,
+    /* .pfnReset = */               acpiR3Reset,
+    /* .pfnSuspend = */             NULL,
+    /* .pfnResume = */              acpiR3Resume,
+    /* .pfnAttach = */              acpiR3Attach,
+    /* .pfnDetach = */              acpiR3Detach,
+    /* .pfnQueryInterface = */      NULL,
+    /* .pfnInitComplete = */        NULL,
+    /* .pfnPowerOff = */            NULL,
+    /* .pfnSoftReset = */           NULL,
+    /* .pfnReserved0 = */           NULL,
+    /* .pfnReserved1 = */           NULL,
+    /* .pfnReserved2 = */           NULL,
+    /* .pfnReserved3 = */           NULL,
+    /* .pfnReserved4 = */           NULL,
+    /* .pfnReserved5 = */           NULL,
+    /* .pfnReserved6 = */           NULL,
+    /* .pfnReserved7 = */           NULL,
+#elif defined(IN_RING0)
+    /* .pfnEarlyConstruct = */      NULL,
+    /* .pfnConstruct = */           acpiRZConstruct,
+    /* .pfnDestruct = */            NULL,
+    /* .pfnFinalDestruct = */       NULL,
+    /* .pfnRequest = */             NULL,
+    /* .pfnReserved0 = */           NULL,
+    /* .pfnReserved1 = */           NULL,
+    /* .pfnReserved2 = */           NULL,
+    /* .pfnReserved3 = */           NULL,
+    /* .pfnReserved4 = */           NULL,
+    /* .pfnReserved5 = */           NULL,
+    /* .pfnReserved6 = */           NULL,
+    /* .pfnReserved7 = */           NULL,
+#elif defined(IN_RC)
+    /* .pfnConstruct = */           acpiRZConstruct,
+    /* .pfnReserved0 = */           NULL,
+    /* .pfnReserved1 = */           NULL,
+    /* .pfnReserved2 = */           NULL,
+    /* .pfnReserved3 = */           NULL,
+    /* .pfnReserved4 = */           NULL,
+    /* .pfnReserved5 = */           NULL,
+    /* .pfnReserved6 = */           NULL,
+    /* .pfnReserved7 = */           NULL,
+#else
+# error "Not in IN_RING3, IN_RING0 or IN_RC!"
+#endif
+    /* .u32VersionEnd = */          PDM_DEVREG_VERSION
 };
 
-#endif /* IN_RING3 */
 #endif /* !VBOX_DEVICE_STRUCT_TESTCASE */

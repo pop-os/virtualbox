@@ -1,14 +1,8 @@
 /** @file
   Locate handle functions
 
-Copyright (c) 2006 - 2014, Intel Corporation. All rights reserved.<BR>
-This program and the accompanying materials
-are licensed and made available under the terms and conditions of the BSD License
-which accompanies this distribution.  The full text of the license may be found at
-http://opensource.org/licenses/bsd-license.php
-
-THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
-WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
+Copyright (c) 2006 - 2018, Intel Corporation. All rights reserved.<BR>
+SPDX-License-Identifier: BSD-2-Clause-Patent
 
 **/
 
@@ -405,6 +399,83 @@ CoreGetNextLocateByProtocol (
 }
 
 
+#ifdef VBOX
+/**
+ * This works around several issues with device paths created by macOS AppleACPIPlatform.kext.
+ *
+ * See @bugref{6930} comment 84 and following for an in depth explanation.
+ */
+BOOLEAN
+EFIAPI
+vboxDevicePathCompareMacOsHacks(IN EFI_DEVICE_PATH_PROTOCOL *LocateDevicePath,
+                                IN EFI_DEVICE_PATH_PROTOCOL *HandleDevicePath,
+                                UINTN Size)
+{
+    EFI_DEVICE_PATH_PROTOCOL *AlteredDevicePath = NULL;
+    EFI_DEVICE_PATH_PROTOCOL *TmpDevicePath = LocateDevicePath;
+
+    /* First check whether the device path to be located contains a NVMe or SATA node where we have to employ the hacks. */
+    while (!IsDevicePathEnd(TmpDevicePath)) {
+        if (IsDevicePathEndInstance(TmpDevicePath)) {
+          //
+          // If DevicePath is a multi-instance device path,
+          // the function will operate on the first instance
+          //
+          break;
+        }
+
+        if (   DevicePathType(TmpDevicePath) == MESSAGING_DEVICE_PATH
+            && DevicePathSubType(TmpDevicePath) == MSG_SASEX_DP)
+        {
+            /*
+             * macOS uses the SasEx path sub type for NVMe entries (the node is actually an
+             * NVMe one). So we alter the device path to contain a proper NVMe sub type for
+             * matching against the devices device path.
+             */
+            AlteredDevicePath = DuplicateDevicePath(LocateDevicePath);
+            if (AlteredDevicePath != NULL)
+            {
+                UINTN offNode = (UINTN)TmpDevicePath - (UINTN)LocateDevicePath;
+                EFI_DEVICE_PATH_PROTOCOL *NvmeNode = (EFI_DEVICE_PATH_PROTOCOL *)((UINTN)AlteredDevicePath + offNode);
+
+                NvmeNode->SubType = MSG_NVME_NAMESPACE_DP;
+            }
+            break;
+        }
+        else if (   DevicePathType(TmpDevicePath) == MESSAGING_DEVICE_PATH
+                 && DevicePathSubType(TmpDevicePath) == MSG_SATA_DP)
+        {
+            /*
+             * macOS uses a 0 port multiplier number for devices directly attached
+             * to the HBA while it should be 0xffff according to the UEFI spec.
+             * We alter this here and try to match against the devices device path.
+             */
+            AlteredDevicePath = DuplicateDevicePath(LocateDevicePath);
+            if (AlteredDevicePath != NULL)
+            {
+                UINTN offNode = (UINTN)TmpDevicePath - (UINTN)LocateDevicePath;
+                SATA_DEVICE_PATH *SataNode = (SATA_DEVICE_PATH *)((UINTN)AlteredDevicePath + offNode);
+
+                SataNode->PortMultiplierPortNumber = 0xffff;
+            }
+            break;
+        }
+
+        TmpDevicePath = NextDevicePathNode(TmpDevicePath);
+    }
+
+    if (AlteredDevicePath != NULL)
+    {
+        BOOLEAN fMatch = CompareMem(AlteredDevicePath, HandleDevicePath, Size) == 0;
+        FreePool(AlteredDevicePath);
+        return fMatch;
+    }
+
+    return FALSE;
+}
+#endif
+
+
 /**
   Locates the handle to a device on the device path that supports the specified protocol.
 
@@ -490,7 +561,13 @@ CoreLocateDevicePath (
     //
     Size = GetDevicePathSize (TmpDevicePath) - sizeof(EFI_DEVICE_PATH_PROTOCOL);
     ASSERT (Size >= 0);
+#ifndef VBOX
     if ((Size <= SourceSize) && CompareMem (SourcePath, TmpDevicePath, (UINTN) Size) == 0) {
+#else
+    if (   (Size <= SourceSize)
+        && (   CompareMem (SourcePath, TmpDevicePath, (UINTN) Size) == 0
+            || vboxDevicePathCompareMacOsHacks(SourcePath, TmpDevicePath, (UINTN)Size))) {
+#endif
       //
       // If the size is equal to the best match, then we
       // have a duplicate device path for 2 different device
@@ -560,12 +637,8 @@ CoreLocateProtocol (
   PROTOCOL_NOTIFY         *ProtNotify;
   IHANDLE                 *Handle;
 
-  if (Interface == NULL) {
+  if ((Interface == NULL) || (Protocol == NULL)) {
     return EFI_INVALID_PARAMETER;
-  }
-
-  if (Protocol == NULL) {
-    return EFI_NOT_FOUND;
   }
 
   *Interface = NULL;
@@ -581,7 +654,10 @@ CoreLocateProtocol (
   //
   // Lock the protocol database
   //
-  CoreAcquireProtocolLock ();
+  Status = CoreAcquireLockOrFail (&gProtocolDatabaseLock);
+  if (EFI_ERROR (Status)) {
+    return EFI_NOT_FOUND;
+  }
 
   mEfiLocateHandleRequest += 1;
 
@@ -637,7 +713,7 @@ Done:
   @retval EFI_NOT_FOUND          No handles match the search.
   @retval EFI_OUT_OF_RESOURCES   There is not enough pool memory to store the
                                  matching results.
-  @retval EFI_INVALID_PARAMETER  One or more paramters are not valid.
+  @retval EFI_INVALID_PARAMETER  One or more parameters are not valid.
 
 **/
 EFI_STATUS

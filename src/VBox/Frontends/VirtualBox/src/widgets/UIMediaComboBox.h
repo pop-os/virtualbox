@@ -26,7 +26,7 @@
 #include <QString>
 
 /* GUI includes: */
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #include "UILibraryDefs.h"
 
 /** QComboBox subclass representing a list of registered media. */
@@ -72,7 +72,7 @@ protected slots:
     /** Habdles medium-deleted signal for medium with @a uMediumId. */
     void sltHandleMediumDeleted(const QUuid &uMediumId);
 
-    /** Handles medium enumeration start. */
+    /** Handles medium-enumeration start. */
     void sltHandleMediumEnumerationStart();
 
     /** Handles combo activation for item with certain @a iIndex. */

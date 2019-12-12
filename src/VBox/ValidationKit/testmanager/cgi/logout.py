@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 131252 $"
 
 
 # Standard python imports.
@@ -49,7 +49,7 @@ def main():
 
     oSrvGlue = WebServerGlueCgi(g_ksValidationKitDir, fHtmlOutput = True)
     sUser = oSrvGlue.getLoginName()
-    if sUser != oSrvGlue.ksUnknownUser and sUser != 'logout':
+    if sUser not in (oSrvGlue.ksUnknownUser, 'logout'):
         oSrvGlue.write('<p>Broken apache config!\n'
                        'The logout.py script should be configured with .htaccess-logout and require user logout!</p>')
     else:

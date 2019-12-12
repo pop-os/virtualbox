@@ -26,7 +26,7 @@
 #include "ApplianceWrap.h"
 #include "MediumFormatImpl.h"
 
-/* Todo: This file needs massive cleanup. Split IAppliance in a public and
+/** @todo This file needs massive cleanup. Split IAppliance in a public and
  * private classes. */
 #include <iprt/tar.h>
 #include "ovfreader.h"
@@ -110,7 +110,7 @@ private:
     HRESULT getMediumIdsForPasswordId(const com::Utf8Str &aPasswordId, std::vector<com::Guid> &aIdentifiers);
     HRESULT addPasswords(const std::vector<com::Utf8Str> &aIdentifiers,
                          const std::vector<com::Utf8Str> &aPasswords);
-
+    HRESULT createVirtualSystemDescriptions(ULONG aRequested, ULONG *aCreated);
     /** weak VirtualBox parent */
     VirtualBox* const mVirtualBox;
 
@@ -122,8 +122,10 @@ private:
     struct Data;            // opaque, defined in ApplianceImpl.cpp
     Data *m;
 
-    enum SetUpProgressMode { ImportFile, ImportS3, WriteFile, WriteS3, ExportCloud };
+    enum SetUpProgressMode { ImportFile, ImportS3, WriteFile, WriteS3, ExportCloud, ImportCloud };
 
+    enum ApplianceState { ApplianceIdle, ApplianceImporting, ApplianceExporting };
+    void i_setApplianceState(const ApplianceState &state);
     /** @name General stuff
      * @{
      */
@@ -141,7 +143,7 @@ private:
 
     static void i_importOrExportThreadTask(TaskOVF *pTask);
     static void i_exportOPCThreadTask(TaskOPC *pTask);
-    static void i_exportCloudThreadTask(TaskCloud *pTask);
+    static void i_importOrExportCloudThreadTask(TaskCloud *pTask);
 
     HRESULT i_initBackendNames();
 
@@ -160,7 +162,7 @@ private:
     /** @name Read stuff
      * @{
      */
-    void    i_readImpl(const LocationInfo &aLocInfo, ComObjPtr<Progress> &aProgress);
+    HRESULT i_readImpl(const LocationInfo &aLocInfo, ComObjPtr<Progress> &aProgress);
 
     HRESULT i_readFS(TaskOVF *pTask);
     HRESULT i_readFSOVF(TaskOVF *pTask);
@@ -169,10 +171,12 @@ private:
     HRESULT i_readManifestFile(TaskOVF *pTask, RTVFSIOSTREAM hIosMf, const char *pszSubFileNm);
     HRESULT i_readSignatureFile(TaskOVF *pTask, RTVFSIOSTREAM hIosCert, const char *pszSubFileNm);
     HRESULT i_readTailProcessing(TaskOVF *pTask);
+    HRESULT i_gettingCloudData(TaskCloud *pTask);
+
     /** @}  */
 
     /** @name Import stuff
-     * @}
+     * @{
      */
     HRESULT i_importImpl(const LocationInfo &aLocInfo, ComObjPtr<Progress> &aProgress);
 
@@ -213,6 +217,7 @@ private:
                              const char *pszManifestEntry);
     void    i_importDecompressFile(ImportStack &stack, Utf8Str const &rstrSrcPath, Utf8Str const &rstrDstPath,
                                    const char *pszManifestEntry);
+    HRESULT i_importCloudImpl(TaskCloud *pTask);
     /** @} */
 
     /** @name Write stuff
@@ -226,7 +231,7 @@ private:
     HRESULT i_writeFSOVF(TaskOVF *pTask, AutoWriteLockBase& writeLock);
     HRESULT i_writeFSOVA(TaskOVF *pTask, AutoWriteLockBase& writeLock);
     HRESULT i_writeFSOPC(TaskOPC *pTask);
-    HRESULT i_writeFSCloud(TaskCloud *pTask);
+    HRESULT i_exportCloudImpl(TaskCloud *pTask);
     HRESULT i_writeFSImpl(TaskOVF *pTask, AutoWriteLockBase &writeLock, RTVFSFSSTREAM hVfsFssDst);
     HRESULT i_writeBufferToFile(RTVFSFSSTREAM hVfsFssDst, const char *pszFilename, const void *pvContent, size_t cbContent);
 

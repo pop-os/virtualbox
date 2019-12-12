@@ -45,7 +45,7 @@
  * commands (fifo).
  *
  * @returns VBox status code (currently ignored).
- * @param   pThis               The VGA device instance data.
+ * @param   pThisCC             The VGA/VMSVGA state for ring-3.
  * @param   sid                 The ID of the surface to (re-)define.
  * @param   surfaceFlags        .
  * @param   format              .
@@ -55,15 +55,15 @@
  * @param   cMipLevels          .
  * @param   paMipLevelSizes     .
  */
-int vmsvga3dSurfaceDefine(PVGASTATE pThis, uint32_t sid, uint32_t surfaceFlags, SVGA3dSurfaceFormat format,
+int vmsvga3dSurfaceDefine(PVGASTATECC pThisCC, uint32_t sid, uint32_t surfaceFlags, SVGA3dSurfaceFormat format,
                           SVGA3dSurfaceFace face[SVGA3D_MAX_SURFACE_FACES], uint32_t multisampleCount,
                           SVGA3dTextureFilter autogenFilter, uint32_t cMipLevels, SVGA3dSize *paMipLevelSizes)
 {
     PVMSVGA3DSURFACE pSurface;
-    PVMSVGA3DSTATE   pState = pThis->svga.p3dState;
+    PVMSVGA3DSTATE   pState = pThisCC->svga.p3dState;
     AssertReturn(pState, VERR_NO_MEMORY);
 
-    Log(("vmsvga3dSurfaceDefine: sid=%x surfaceFlags=%x format=%s (%x) multiSampleCount=%d autogenFilter=%d, cMipLevels=%d size=(%d,%d,%d)\n",
+    Log(("vmsvga3dSurfaceDefine: sid=%u surfaceFlags=%x format=%s (%x) multiSampleCount=%d autogenFilter=%d, cMipLevels=%d size=(%d,%d,%d)\n",
          sid, surfaceFlags, vmsvgaLookupEnum((int)format, &g_SVGA3dSurfaceFormat2String), format, multisampleCount, autogenFilter,
          cMipLevels, paMipLevelSizes->width, paMipLevelSizes->height, paMipLevelSizes->depth));
 
@@ -118,7 +118,7 @@ int vmsvga3dSurfaceDefine(PVGASTATE pThis, uint32_t sid, uint32_t surfaceFlags, 
 
     /* If one already exists with this id, then destroy it now. */
     if (pSurface->id != SVGA3D_INVALID_ID)
-        vmsvga3dSurfaceDestroy(pThis, sid);
+        vmsvga3dSurfaceDestroy(pThisCC, sid);
 
     RT_ZERO(*pSurface);
     pSurface->id                    = sid;
@@ -217,18 +217,19 @@ int vmsvga3dSurfaceDefine(PVGASTATE pThis, uint32_t sid, uint32_t surfaceFlags, 
     Assert(autogenFilter != SVGA3D_TEX_FILTER_FLATCUBIC);
     Assert(autogenFilter != SVGA3D_TEX_FILTER_GAUSSIANCUBIC);
     pSurface->cMipmapLevels     = cMipLevels;
-    pSurface->pMipmapLevels     = (PVMSVGA3DMIPMAPLEVEL)RTMemAllocZ(cMipLevels * sizeof(VMSVGA3DMIPMAPLEVEL));
-    AssertReturn(pSurface->pMipmapLevels, VERR_NO_MEMORY);
+    pSurface->paMipmapLevels    = (PVMSVGA3DMIPMAPLEVEL)RTMemAllocZ(cMipLevels * sizeof(VMSVGA3DMIPMAPLEVEL));
+    AssertReturn(pSurface->paMipmapLevels, VERR_NO_MEMORY);
 
     for (uint32_t i=0; i < cMipLevels; i++)
-        pSurface->pMipmapLevels[i].mipmapSize = paMipLevelSizes[i];
+        pSurface->paMipmapLevels[i].mipmapSize = paMipLevelSizes[i];
 
     pSurface->cbBlock = vmsvga3dSurfaceFormatSize(format, &pSurface->cxBlock, &pSurface->cyBlock);
     AssertReturn(pSurface->cbBlock, VERR_INVALID_PARAMETER);
 
 #ifdef VMSVGA3D_DIRECT3D
     /* Translate the format and usage flags to D3D. */
-    pSurface->formatD3D         = vmsvga3dSurfaceFormat2D3D(format);
+    pSurface->d3dfmtRequested   = vmsvga3dSurfaceFormat2D3D(format);
+    pSurface->formatD3D         = D3D9GetActualFormat(pState, pSurface->d3dfmtRequested);
     pSurface->multiSampleTypeD3D= vmsvga3dMultipeSampleCount2D3D(multisampleCount);
     pSurface->fUsageD3D         = 0;
     if (surfaceFlags & SVGA3D_SURFACE_HINT_DYNAMIC)
@@ -244,7 +245,10 @@ int vmsvga3dSurfaceDefine(PVGASTATE pThis, uint32_t sid, uint32_t surfaceFlags, 
     pSurface->enmD3DResType = VMSVGA3D_D3DRESTYPE_NONE;
     /* pSurface->u.pSurface = NULL; */
     /* pSurface->bounce.pTexture = NULL; */
+    /* pSurface->emulated.pTexture = NULL; */
 #else
+    /* pSurface->fEmulated = false; */
+    /* pSurface->idEmulated = OPENGL_INVALID_ID; */
     vmsvga3dSurfaceFormat2OGL(pSurface, format);
 #endif
 
@@ -263,7 +267,7 @@ int vmsvga3dSurfaceDefine(PVGASTATE pThis, uint32_t sid, uint32_t surfaceFlags, 
     uint32_t cbMemRemaining = SVGA3D_MAX_SURFACE_MEM_SIZE; /* Do not allow more than this for a surface. */
     for (uint32_t i = 0; i < cMipLevels; ++i)
     {
-        PVMSVGA3DMIPMAPLEVEL pMipmapLevel = &pSurface->pMipmapLevels[i];
+        PVMSVGA3DMIPMAPLEVEL pMipmapLevel = &pSurface->paMipmapLevels[i];
         LogFunc(("[%d] face %d mip level %d (%d,%d,%d) cbBlock=0x%x block %dx%d\n",
                  i, i / pSurface->faces[0].numMipLevels, i % pSurface->faces[0].numMipLevels,
                  pMipmapLevel->mipmapSize.width, pMipmapLevel->mipmapSize.height, pMipmapLevel->mipmapSize.depth,
@@ -309,6 +313,7 @@ int vmsvga3dSurfaceDefine(PVGASTATE pThis, uint32_t sid, uint32_t surfaceFlags, 
 
         pMipmapLevel->cBlocksX       = cBlocksX;
         pMipmapLevel->cBlocksY       = cBlocksY;
+        pMipmapLevel->cBlocks        = cBlocksX * cBlocksY * pMipmapLevel->mipmapSize.depth;
         pMipmapLevel->cbSurfacePitch = cbSurfacePitch;
         pMipmapLevel->cbSurfacePlane = cbSurfacePlane;
         pMipmapLevel->cbSurface      = cbSurface;
@@ -325,19 +330,19 @@ int vmsvga3dSurfaceDefine(PVGASTATE pThis, uint32_t sid, uint32_t surfaceFlags, 
  * Implements the SVGA_3D_CMD_SURFACE_DESTROY command (fifo).
  *
  * @returns VBox status code (currently ignored).
- * @param   pThis               The VGA device instance data.
- * @param   sid                 The ID of the surface to destroy.
+ * @param   pThisCC         The VGA/VMSVGA state for ring-3.
+ * @param   sid             The ID of the surface to destroy.
  */
-int vmsvga3dSurfaceDestroy(PVGASTATE pThis, uint32_t sid)
+int vmsvga3dSurfaceDestroy(PVGASTATECC pThisCC, uint32_t sid)
 {
-    PVMSVGA3DSTATE pState = pThis->svga.p3dState;
+    PVMSVGA3DSTATE pState = pThisCC->svga.p3dState;
     AssertReturn(pState, VERR_NO_MEMORY);
 
     PVMSVGA3DSURFACE pSurface;
     int rc = vmsvga3dSurfaceFromSid(pState, sid, &pSurface);
     AssertRCReturn(rc, rc);
 
-    LogFunc(("sid=%x\n", sid));
+    LogFunc(("sid=%u\n", sid));
 
     /* Check all contexts if this surface is used as a render target or active texture. */
     for (uint32_t cid = 0; cid < pState->cContexts; cid++)
@@ -356,11 +361,11 @@ int vmsvga3dSurfaceDestroy(PVGASTATE pThis, uint32_t sid)
 
     vmsvga3dBackSurfaceDestroy(pState, pSurface);
 
-    if (pSurface->pMipmapLevels)
+    if (pSurface->paMipmapLevels)
     {
         for (uint32_t i = 0; i < pSurface->cMipmapLevels; ++i)
-            RTMemFree(pSurface->pMipmapLevels[i].pSurfaceData);
-        RTMemFree(pSurface->pMipmapLevels);
+            RTMemFree(pSurface->paMipmapLevels[i].pSurfaceData);
+        RTMemFree(pSurface->paMipmapLevels);
     }
 
     memset(pSurface, 0, sizeof(*pSurface));
@@ -374,17 +379,18 @@ int vmsvga3dSurfaceDestroy(PVGASTATE pThis, uint32_t sid)
  * Implements the SVGA_3D_CMD_SURFACE_STRETCHBLT command (fifo).
  *
  * @returns VBox status code (currently ignored).
- * @param   pThis               The VGA device instance data.
+ * @param   pThis               The shared VGA/VMSVGA state.
+ * @param   pThisCC             The VGA/VMSVGA state for ring-3.
  * @param   pDstSfcImg
  * @param   pDstBox
  * @param   pSrcSfcImg
  * @param   pSrcBox
  * @param   enmMode
  */
-int vmsvga3dSurfaceStretchBlt(PVGASTATE pThis, SVGA3dSurfaceImageId const *pDstSfcImg, SVGA3dBox const *pDstBox,
+int vmsvga3dSurfaceStretchBlt(PVGASTATE pThis, PVGASTATECC pThisCC, SVGA3dSurfaceImageId const *pDstSfcImg, SVGA3dBox const *pDstBox,
                               SVGA3dSurfaceImageId const *pSrcSfcImg, SVGA3dBox const *pSrcBox, SVGA3dStretchBltMode enmMode)
 {
-    PVMSVGA3DSTATE pState = pThis->svga.p3dState;
+    PVMSVGA3DSTATE pState = pThisCC->svga.p3dState;
     AssertReturn(pState, VERR_NO_MEMORY);
 
     int rc;
@@ -407,13 +413,13 @@ int vmsvga3dSurfaceStretchBlt(PVGASTATE pThis, SVGA3dSurfaceImageId const *pDstS
 
     PVMSVGA3DCONTEXT pContext;
 #ifdef VMSVGA3D_OPENGL
-    LogFunc(("src sid=%x (%d,%d)(%d,%d) dest sid=%x (%d,%d)(%d,%d) mode=%x\n",
+    LogFunc(("src sid=%u (%d,%d)(%d,%d) dest sid=%u (%d,%d)(%d,%d) mode=%x\n",
          sidSrc, pSrcBox->x, pSrcBox->y, pSrcBox->x + pSrcBox->w, pSrcBox->y + pSrcBox->h,
          sidDst, pDstBox->x, pDstBox->y, pDstBox->x + pDstBox->w, pDstBox->y + pDstBox->h, enmMode));
     pContext = &pState->SharedCtx;
     VMSVGA3D_SET_CURRENT_CONTEXT(pState, pContext);
 #else
-    LogFunc(("src sid=%x cid=%x (%d,%d)(%d,%d) dest sid=%x cid=%x (%d,%d)(%d,%d) mode=%x\n",
+    LogFunc(("src sid=%u cid=%u (%d,%d)(%d,%d) dest sid=%u cid=%u (%d,%d)(%d,%d) mode=%x\n",
          sidSrc, pSrcSurface->idAssociatedContext, pSrcBox->x, pSrcBox->y, pSrcBox->x + pSrcBox->w, pSrcBox->y + pSrcBox->h,
          sidDst, pDstSurface->idAssociatedContext, pDstBox->x, pDstBox->y, pDstBox->x + pDstBox->w, pDstBox->y + pDstBox->h, enmMode));
 
@@ -431,7 +437,7 @@ int vmsvga3dSurfaceStretchBlt(PVGASTATE pThis, SVGA3dSurfaceImageId const *pDstS
     if (!VMSVGA3DSURFACE_HAS_HW_SURFACE(pSrcSurface))
     {
         /* Unknown surface type; turn it into a texture, which can be used for other purposes too. */
-        LogFunc(("unknown src sid=%x type=%d format=%d -> create texture\n", sidSrc, pSrcSurface->surfaceFlags, pSrcSurface->format));
+        LogFunc(("unknown src sid=%u type=%d format=%d -> create texture\n", sidSrc, pSrcSurface->surfaceFlags, pSrcSurface->format));
         rc = vmsvga3dBackCreateTexture(pState, pContext, pContext->id, pSrcSurface);
         AssertRCReturn(rc, rc);
     }
@@ -439,7 +445,7 @@ int vmsvga3dSurfaceStretchBlt(PVGASTATE pThis, SVGA3dSurfaceImageId const *pDstS
     if (!VMSVGA3DSURFACE_HAS_HW_SURFACE(pDstSurface))
     {
         /* Unknown surface type; turn it into a texture, which can be used for other purposes too. */
-        LogFunc(("unknown dest sid=%x type=%d format=%d -> create texture\n", sidDst, pDstSurface->surfaceFlags, pDstSurface->format));
+        LogFunc(("unknown dest sid=%u type=%d format=%d -> create texture\n", sidDst, pDstSurface->surfaceFlags, pDstSurface->format));
         rc = vmsvga3dBackCreateTexture(pState, pContext, pContext->id, pDstSurface);
         AssertRCReturn(rc, rc);
     }
@@ -454,8 +460,8 @@ int vmsvga3dSurfaceStretchBlt(PVGASTATE pThis, SVGA3dSurfaceImageId const *pDstS
 
     SVGA3dBox clipSrcBox = *pSrcBox;
     SVGA3dBox clipDstBox = *pDstBox;
-    vmsvgaClipBox(&pSrcMipmapLevel->mipmapSize, &clipSrcBox);
-    vmsvgaClipBox(&pDstMipmapLevel->mipmapSize, &clipDstBox);
+    vmsvgaR3ClipBox(&pSrcMipmapLevel->mipmapSize, &clipSrcBox);
+    vmsvgaR3ClipBox(&pDstMipmapLevel->mipmapSize, &clipDstBox);
 
     return vmsvga3dBackSurfaceStretchBlt(pThis, pState,
                                          pDstSurface, pDstSfcImg->face, pDstSfcImg->mipmap, &clipDstBox,
@@ -467,24 +473,25 @@ int vmsvga3dSurfaceStretchBlt(PVGASTATE pThis, SVGA3dSurfaceImageId const *pDstS
  * Implements the SVGA_3D_CMD_SURFACE_DMA command (fifo).
  *
  * @returns VBox status code (currently ignored).
- * @param   pThis               The VGA device instance data.
+ * @param   pThis               The shared VGA/VMSVGA instance data.
+ * @param   pThisCC             The VGA/VMSVGA state for ring-3.
  * @param   guest               .
  * @param   host                .
  * @param   transfer            .
  * @param   cCopyBoxes          .
  * @param   paBoxes             .
  */
-int vmsvga3dSurfaceDMA(PVGASTATE pThis, SVGA3dGuestImage guest, SVGA3dSurfaceImageId host, SVGA3dTransferType transfer,
-                       uint32_t cCopyBoxes, SVGA3dCopyBox *paBoxes)
+int vmsvga3dSurfaceDMA(PVGASTATE pThis, PVGASTATECC pThisCC, SVGA3dGuestImage guest, SVGA3dSurfaceImageId host,
+                       SVGA3dTransferType transfer, uint32_t cCopyBoxes, SVGA3dCopyBox *paBoxes)
 {
-    PVMSVGA3DSTATE pState = pThis->svga.p3dState;
+    PVMSVGA3DSTATE pState = pThisCC->svga.p3dState;
     AssertReturn(pState, VERR_NO_MEMORY);
 
     PVMSVGA3DSURFACE pSurface;
     int rc = vmsvga3dSurfaceFromSid(pState, host.sid, &pSurface);
     AssertRCReturn(rc, rc);
 
-    LogFunc(("%sguestptr gmr=%x offset=%x pitch=%x host sid=%x face=%d mipmap=%d transfer=%s cCopyBoxes=%d\n",
+    LogFunc(("%sguestptr gmr=%x offset=%x pitch=%x host sid=%u face=%d mipmap=%d transfer=%s cCopyBoxes=%d\n",
              (pSurface->surfaceFlags & SVGA3D_SURFACE_HINT_TEXTURE) ? "TEXTURE " : "",
              guest.ptr.gmrId, guest.ptr.offset, guest.pitch,
              host.sid, host.face, host.mipmap, (transfer == SVGA3D_WRITE_HOST_VRAM) ? "READ" : "WRITE", cCopyBoxes));
@@ -506,7 +513,7 @@ int vmsvga3dSurfaceDMA(PVGASTATE pThis, SVGA3dGuestImage guest, SVGA3dSurfaceIma
     {
 #ifdef VMSVGA3D_DIRECT3D
         /* Flush the drawing pipeline for this surface as it could be used in a shared context. */
-        vmsvga3dSurfaceFlush(pThis, pSurface);
+        vmsvga3dSurfaceFlush(pSurface);
 
 #else /* VMSVGA3D_OPENGL */
         pContext = &pState->SharedCtx;
@@ -534,7 +541,7 @@ int vmsvga3dSurfaceDMA(PVGASTATE pThis, SVGA3dGuestImage guest, SVGA3dSurfaceIma
         hostBox.w = paBoxes[i].w;
         hostBox.h = paBoxes[i].h;
         hostBox.d = paBoxes[i].d;
-        vmsvgaClipBox(&pMipLevel->mipmapSize, &hostBox);
+        vmsvgaR3ClipBox(&pMipLevel->mipmapSize, &hostBox);
 
         if (   !hostBox.w
             || !hostBox.h
@@ -546,7 +553,7 @@ int vmsvga3dSurfaceDMA(PVGASTATE pThis, SVGA3dGuestImage guest, SVGA3dSurfaceIma
         RT_UNTRUSTED_VALIDATED_FENCE();
 
         /* Adjust the guest, i.e. "src", point.
-         * Do not try to verify them here because vmsvgaGMRTransfer takes care of this.
+         * Do not try to verify them here because vmsvgaR3GmrTransfer takes care of this.
          */
         uint32_t const srcx = paBoxes[i].srcx + (hostBox.x - paBoxes[i].x);
         uint32_t const srcy = paBoxes[i].srcy + (hostBox.y - paBoxes[i].y);
@@ -595,13 +602,13 @@ int vmsvga3dSurfaceDMA(PVGASTATE pThis, SVGA3dGuestImage guest, SVGA3dSurfaceIma
         }
         else
         {
-            /* vmsvgaGMRTransfer will verify the value, just check it is sane. */
+            /* vmsvgaR3GmrTransfer will verify the value, just check it is sane. */
             AssertReturn(cbGuestPitch <= SVGA3D_MAX_SURFACE_MEM_SIZE, VERR_INVALID_PARAMETER);
             RT_UNTRUSTED_VALIDATED_FENCE();
         }
 
         /* srcx, srcy and srcz values are used to calculate the guest offset.
-         * The offset will be verified by vmsvgaGMRTransfer, so just check for overflows here.
+         * The offset will be verified by vmsvgaR3GmrTransfer, so just check for overflows here.
          */
         AssertReturn(srcz < UINT32_MAX / pMipLevel->mipmapSize.height / cbGuestPitch, VERR_INVALID_PARAMETER);
         AssertReturn(u32GuestBlockY < UINT32_MAX / cbGuestPitch, VERR_INVALID_PARAMETER);
@@ -623,17 +630,18 @@ int vmsvga3dSurfaceDMA(PVGASTATE pThis, SVGA3dGuestImage guest, SVGA3dSurfaceIma
 
             for (uint32_t z = 0; z < hostBox.d; ++z)
             {
-                rc = vmsvgaGMRTransfer(pThis,
-                                       transfer,
-                                       (uint8_t *)pMipLevel->pSurfaceData,
-                                       pMipLevel->cbSurface,
-                                       uHostOffset,
-                                       (int32_t)pMipLevel->cbSurfacePitch,
-                                       guest.ptr,
-                                       (uint32_t)uGuestOffset,
-                                       cbGuestPitch,
-                                       cBlocksX * pSurface->cbBlock,
-                                       cBlocksY);
+                rc = vmsvgaR3GmrTransfer(pThis,
+                                         pThisCC,
+                                         transfer,
+                                         (uint8_t *)pMipLevel->pSurfaceData,
+                                         pMipLevel->cbSurface,
+                                         uHostOffset,
+                                         (int32_t)pMipLevel->cbSurfacePitch,
+                                         guest.ptr,
+                                         (uint32_t)uGuestOffset,
+                                         cbGuestPitch,
+                                         cBlocksX * pSurface->cbBlock,
+                                         cBlocksY);
                 AssertRC(rc);
 
                 Log4(("first line [z=%d]:\n%.*Rhxd\n",
@@ -656,7 +664,7 @@ int vmsvga3dSurfaceDMA(PVGASTATE pThis, SVGA3dGuestImage guest, SVGA3dSurfaceIma
             clipBox.srcx = srcx;
             clipBox.srcy = srcy;
             clipBox.srcz = srcz;
-            rc = vmsvga3dBackSurfaceDMACopyBox(pThis, pState, pSurface, pMipLevel, host.face, host.mipmap,
+            rc = vmsvga3dBackSurfaceDMACopyBox(pThis, pThisCC, pState, pSurface, pMipLevel, host.face, host.mipmap,
                                                guest.ptr, cbGuestPitch, transfer,
                                                &clipBox, pContext, rc, i);
             AssertRC(rc);
@@ -672,26 +680,27 @@ int vmsvga3dSurfaceDMA(PVGASTATE pThis, SVGA3dGuestImage guest, SVGA3dSurfaceIma
     return rc;
 }
 
-static int vmsvga3dQueryWriteResult(PVGASTATE pThis, SVGAGuestPtr guestResult, SVGA3dQueryState enmState, uint32_t u32Result)
+static int vmsvga3dQueryWriteResult(PVGASTATE pThis, PVGASTATECC pThisCC, SVGAGuestPtr guestResult,
+                                    SVGA3dQueryState enmState, uint32_t u32Result)
 {
     SVGA3dQueryResult queryResult;
     queryResult.totalSize = sizeof(queryResult);    /* Set by guest before query is ended. */
     queryResult.state = enmState;                   /* Set by host or guest. See SVGA3dQueryState. */
     queryResult.result32 = u32Result;
 
-    int rc = vmsvgaGMRTransfer(pThis, SVGA3D_READ_HOST_VRAM,
-                               (uint8_t *)&queryResult, sizeof(queryResult), 0, sizeof(queryResult),
-                               guestResult, 0, sizeof(queryResult), sizeof(queryResult), 1);
+    int rc = vmsvgaR3GmrTransfer(pThis, pThisCC, SVGA3D_READ_HOST_VRAM,
+                                 (uint8_t *)&queryResult, sizeof(queryResult), 0, sizeof(queryResult),
+                                 guestResult, 0, sizeof(queryResult), sizeof(queryResult), 1);
     AssertRC(rc);
     return rc;
 }
 
-int vmsvga3dQueryBegin(PVGASTATE pThis, uint32_t cid, SVGA3dQueryType type)
+int vmsvga3dQueryBegin(PVGASTATECC pThisCC, uint32_t cid, SVGA3dQueryType type)
 {
-    PVMSVGA3DSTATE pState = pThis->svga.p3dState;
+    PVMSVGA3DSTATE pState = pThisCC->svga.p3dState;
     AssertReturn(pState, VERR_NO_MEMORY);
 
-    LogFunc(("cid=%x type=%d\n", cid, type));
+    LogFunc(("cid=%u type=%d\n", cid, type));
 
     PVMSVGA3DCONTEXT pContext;
     int rc = vmsvga3dContextFromCid(pState, cid, &pContext);
@@ -720,13 +729,13 @@ int vmsvga3dQueryBegin(PVGASTATE pThis, uint32_t cid, SVGA3dQueryType type)
     AssertFailedReturn(VERR_NOT_IMPLEMENTED);
 }
 
-int vmsvga3dQueryEnd(PVGASTATE pThis, uint32_t cid, SVGA3dQueryType type, SVGAGuestPtr guestResult)
+int vmsvga3dQueryEnd(PVGASTATECC pThisCC, uint32_t cid, SVGA3dQueryType type, SVGAGuestPtr guestResult)
 {
     RT_NOREF(guestResult);
-    PVMSVGA3DSTATE pState = pThis->svga.p3dState;
+    PVMSVGA3DSTATE pState = pThisCC->svga.p3dState;
     AssertReturn(pState, VERR_NO_MEMORY);
 
-    LogFunc(("cid=%x type=%d guestResult %d:0x%x\n", cid, type, guestResult.gmrId, guestResult.offset));
+    LogFunc(("cid=%u type=%d guestResult %d:0x%x\n", cid, type, guestResult.gmrId, guestResult.offset));
 
     PVMSVGA3DCONTEXT pContext;
     int rc = vmsvga3dContextFromCid(pState, cid, &pContext);
@@ -751,12 +760,12 @@ int vmsvga3dQueryEnd(PVGASTATE pThis, uint32_t cid, SVGA3dQueryType type, SVGAGu
     AssertFailedReturn(VERR_NOT_IMPLEMENTED);
 }
 
-int vmsvga3dQueryWait(PVGASTATE pThis, uint32_t cid, SVGA3dQueryType type, SVGAGuestPtr guestResult)
+int vmsvga3dQueryWait(PVGASTATE pThis, PVGASTATECC pThisCC, uint32_t cid, SVGA3dQueryType type, SVGAGuestPtr guestResult)
 {
-    PVMSVGA3DSTATE pState = pThis->svga.p3dState;
+    PVMSVGA3DSTATE pState = pThisCC->svga.p3dState;
     AssertReturn(pState, VERR_NO_MEMORY);
 
-    LogFunc(("cid=%x type=%d guestResult GMR%d:0x%x\n", cid, type, guestResult.gmrId, guestResult.offset));
+    LogFunc(("cid=%u type=%d guestResult GMR%d:0x%x\n", cid, type, guestResult.gmrId, guestResult.offset));
 
     PVMSVGA3DCONTEXT pContext;
     int rc = vmsvga3dContextFromCid(pState, cid, &pContext);
@@ -784,7 +793,7 @@ int vmsvga3dQueryWait(PVGASTATE pThis, uint32_t cid, SVGA3dQueryType type, SVGAG
             if (RT_SUCCESS(rc))
             {
                 /* Return data to the guest. */
-                vmsvga3dQueryWriteResult(pThis, guestResult, SVGA3D_QUERYSTATE_SUCCEEDED, p->u32QueryResult);
+                vmsvga3dQueryWriteResult(pThis, pThisCC, guestResult, SVGA3D_QUERYSTATE_SUCCEEDED, p->u32QueryResult);
                 return VINF_SUCCESS;
             }
         }
@@ -800,14 +809,15 @@ int vmsvga3dQueryWait(PVGASTATE pThis, uint32_t cid, SVGA3dQueryType type, SVGAG
         rc = VERR_NOT_IMPLEMENTED;
     }
 
-    vmsvga3dQueryWriteResult(pThis, guestResult, SVGA3D_QUERYSTATE_FAILED, 0);
+    vmsvga3dQueryWriteResult(pThis, pThisCC, guestResult, SVGA3D_QUERYSTATE_FAILED, 0);
     AssertFailedReturn(rc);
 }
 
-int vmsvga3dSurfaceBlitToScreen(PVGASTATE pThis, uint32_t idDstScreen, SVGASignedRect destRect, SVGA3dSurfaceImageId src, SVGASignedRect srcRect, uint32_t cRects, SVGASignedRect *pRect)
+int vmsvga3dSurfaceBlitToScreen(PVGASTATE pThis, PVGASTATECC pThisCC, uint32_t idDstScreen, SVGASignedRect destRect,
+                                SVGA3dSurfaceImageId src, SVGASignedRect srcRect, uint32_t cRects, SVGASignedRect *pRect)
 {
     /* Requires SVGA_FIFO_CAP_SCREEN_OBJECT support */
-    LogFunc(("dest=%d (%d,%d)(%d,%d) sid=%x (face=%d, mipmap=%d) (%d,%d)(%d,%d) cRects=%d\n",
+    LogFunc(("dest=%d (%d,%d)(%d,%d) sid=%u (face=%d, mipmap=%d) (%d,%d)(%d,%d) cRects=%d\n",
              idDstScreen, destRect.left, destRect.top, destRect.right, destRect.bottom, src.sid, src.face, src.mipmap,
              srcRect.left, srcRect.top, srcRect.right, srcRect.bottom, cRects));
     for (uint32_t i = 0; i < cRects; i++)
@@ -815,7 +825,7 @@ int vmsvga3dSurfaceBlitToScreen(PVGASTATE pThis, uint32_t idDstScreen, SVGASigne
         LogFunc(("clipping rect %d (%d,%d)(%d,%d)\n", i, pRect[i].left, pRect[i].top, pRect[i].right, pRect[i].bottom));
     }
 
-    VMSVGASCREENOBJECT *pScreen = vmsvgaGetScreenObject(pThis, idDstScreen);
+    VMSVGASCREENOBJECT *pScreen = vmsvgaR3GetScreenObject(pThisCC, idDstScreen);
     AssertReturn(pScreen, VERR_INTERNAL_ERROR);
 
     AssertReturn(src.mipmap == 0 && src.face == 0, VERR_INVALID_PARAMETER);
@@ -854,11 +864,11 @@ int vmsvga3dSurfaceBlitToScreen(PVGASTATE pThis, uint32_t idDstScreen, SVGASigne
         box.srcx    = destRect.left;
         box.srcy    = destRect.top;
 
-        int rc = vmsvga3dSurfaceDMA(pThis, dest, src, SVGA3D_READ_HOST_VRAM, 1, &box);
+        int rc = vmsvga3dSurfaceDMA(pThis, pThisCC, dest, src, SVGA3D_READ_HOST_VRAM, 1, &box);
         AssertRCReturn(rc, rc);
 
         /* Update the guest image, which is at box.src. */
-        vmsvgaUpdateScreen(pThis, pScreen, box.srcx, box.srcy, box.w, box.h);
+        vmsvgaR3UpdateScreen(pThisCC, pScreen, box.srcx, box.srcy, box.w, box.h);
     }
     else
     {
@@ -879,21 +889,21 @@ int vmsvga3dSurfaceBlitToScreen(PVGASTATE pThis, uint32_t idDstScreen, SVGASigne
             box.srcx = destRect.left + pRect[i].left;
             box.srcy = destRect.top  + pRect[i].top;
 
-            int rc = vmsvga3dSurfaceDMA(pThis, dest, src, SVGA3D_READ_HOST_VRAM, 1, &box);
+            int rc = vmsvga3dSurfaceDMA(pThis, pThisCC, dest, src, SVGA3D_READ_HOST_VRAM, 1, &box);
             AssertRCReturn(rc, rc);
 
             /* Update the guest image, which is at box.src. */
-            vmsvgaUpdateScreen(pThis, pScreen, box.srcx, box.srcy, box.w, box.h);
+            vmsvgaR3UpdateScreen(pThisCC, pScreen, box.srcx, box.srcy, box.w, box.h);
         }
     }
 
     return VINF_SUCCESS;
 }
 
-int vmsvga3dCommandPresent(PVGASTATE pThis, uint32_t sid, uint32_t cRects, SVGA3dCopyRect *pRect)
+int vmsvga3dCommandPresent(PVGASTATE pThis, PVGASTATECC pThisCC, uint32_t sid, uint32_t cRects, SVGA3dCopyRect *pRect)
 {
     /* Deprecated according to svga3d_reg.h. */
-    PVMSVGA3DSTATE pState = pThis->svga.p3dState;
+    PVMSVGA3DSTATE pState = pThisCC->svga.p3dState;
     AssertReturn(pState, VERR_NO_MEMORY);
 
     PVMSVGA3DSURFACE pSurface;
@@ -901,7 +911,7 @@ int vmsvga3dCommandPresent(PVGASTATE pThis, uint32_t sid, uint32_t cRects, SVGA3
     AssertRCReturn(rc, rc);
 
     /** @todo Detect screen from coords? Or split rect to screens? */
-    VMSVGASCREENOBJECT *pScreen = vmsvgaGetScreenObject(pThis, 0);
+    VMSVGASCREENOBJECT *pScreen = vmsvgaR3GetScreenObject(pThisCC, 0);
     AssertReturn(pScreen, VERR_INTERNAL_ERROR);
 
     /* If there are no recangles specified, just grab a screenful. */
@@ -944,7 +954,7 @@ int vmsvga3dCommandPresent(PVGASTATE pThis, uint32_t sid, uint32_t cRects, SVGA3
         srcRect.bottom = pRect[i].srcy + pRect[i].h;
 
         /* Entire rect. */
-        rc = vmsvga3dSurfaceBlitToScreen(pThis, idDstScreen, destRect, src, srcRect, 0, NULL);
+        rc = vmsvga3dSurfaceBlitToScreen(pThis, pThisCC, idDstScreen, destRect, src, srcRect, 0, NULL);
         AssertRCReturn(rc, rc);
     }
 

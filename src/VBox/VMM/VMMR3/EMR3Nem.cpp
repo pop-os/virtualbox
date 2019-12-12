@@ -23,7 +23,6 @@
 #define VMCPU_INCL_CPUM_GST_CTX
 #include <VBox/vmm/em.h>
 #include <VBox/vmm/vmm.h>
-#include <VBox/vmm/csam.h>
 #include <VBox/vmm/selm.h>
 #include <VBox/vmm/trpm.h>
 #include <VBox/vmm/iem.h>
@@ -31,9 +30,6 @@
 #include <VBox/vmm/nem.h>
 #include <VBox/vmm/dbgf.h>
 #include <VBox/vmm/pgm.h>
-#ifdef VBOX_WITH_REM
-# include <VBox/vmm/rem.h>
-#endif
 #include <VBox/vmm/tm.h>
 #include <VBox/vmm/mm.h>
 #include <VBox/vmm/ssm.h>
@@ -205,25 +201,7 @@ static int emR3NemExecuteInstructionWorker(PVM pVM, PVMCPU pVCpu, int rcRC)
 
     STAM_PROFILE_STOP(&pVCpu->em.s.StatIEMEmu, a);
 
-    if (   rcStrict == VERR_IEM_ASPECT_NOT_IMPLEMENTED
-        || rcStrict == VERR_IEM_INSTR_NOT_IMPLEMENTED)
-    {
-#ifdef VBOX_WITH_REM
-        STAM_PROFILE_START(&pVCpu->em.s.StatREMEmu, b);
-        CPUM_IMPORT_EXTRN_RET(pVCpu, ~CPUMCTX_EXTRN_KEEPER_MASK);
-        EMRemLock(pVM);
-        /* Flush the recompiler TLB if the VCPU has changed. */
-        if (pVM->em.s.idLastRemCpu != pVCpu->idCpu)
-            CPUMSetChangedFlags(pVCpu, CPUM_CHANGED_ALL);
-        pVM->em.s.idLastRemCpu = pVCpu->idCpu;
-
-        rcStrict = REMR3EmulateInstruction(pVM, pVCpu);
-        EMRemUnlock(pVM);
-        STAM_PROFILE_STOP(&pVCpu->em.s.StatREMEmu, b);
-#else  /* !VBOX_WITH_REM */
-        NOREF(pVM);
-#endif /* !VBOX_WITH_REM */
-    }
+    NOREF(pVM);
     return VBOXSTRICTRC_TODO(rcStrict);
 }
 
@@ -300,10 +278,6 @@ static int emR3NemExecuteIOInstruction(PVM pVM, PVMCPU pVCpu)
  */
 static int emR3NemForcedActions(PVM pVM, PVMCPU pVCpu)
 {
-#ifdef VBOX_WITH_RAW_MODE
-    Assert(!VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_SELM_SYNC_TSS | VMCPU_FF_SELM_SYNC_GDT | VMCPU_FF_SELM_SYNC_LDT));
-#endif
-
     /*
      * Sync page directory should not happen in NEM mode.
      */

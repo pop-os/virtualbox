@@ -41,11 +41,10 @@ static void pgmR3MapClearPDEs(PVM pVM, PPGMMAPPING pMap, unsigned iOldPDE);
 static void pgmR3MapSetPDEs(PVM pVM, PPGMMAPPING pMap, unsigned iNewPDE);
 static int  pgmR3MapIntermediateCheckOne(PVM pVM, uintptr_t uAddress, unsigned cPages, PX86PT pPTDefault, PX86PTPAE pPTPaeDefault);
 static void pgmR3MapIntermediateDoOne(PVM pVM, uintptr_t uAddress, RTHCPHYS HCPhys, unsigned cPages, PX86PT pPTDefault, PX86PTPAE pPTPaeDefault);
-#else
-# define pgmR3MapClearPDEs(pVM, pMap, iNewPDE) do { } while (0)
-# define pgmR3MapSetPDEs(pVM, pMap, iNewPDE)   do { } while (0)
 #endif
 
+
+#ifndef PGM_WITHOUT_MAPPINGS
 
 /**
  * Creates a page table based mapping in GC.
@@ -206,7 +205,7 @@ VMMR3DECL(int) PGMR3MapPT(PVM pVM, RTGCPTR GCPtr, uint32_t cb, uint32_t fFlags, 
 
     for (VMCPUID i = 0; i < pVM->cCpus; i++)
     {
-        PVMCPU pVCpu = &pVM->aCpus[i];
+        PVMCPU pVCpu = pVM->apCpusR3[i];
         VMCPU_FF_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3);
     }
     return VINF_SUCCESS;
@@ -265,7 +264,7 @@ VMMR3DECL(int)  PGMR3UnmapPT(PVM pVM, RTGCPTR GCPtr)
 
             for (VMCPUID i = 0; i < pVM->cCpus; i++)
             {
-                PVMCPU pVCpu = &pVM->aCpus[i];
+                PVMCPU pVCpu = pVM->apCpusR3[i];
                 VMCPU_FF_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3);
             }
             return VINF_SUCCESS;
@@ -477,6 +476,8 @@ VMMR3DECL(int) PGMR3FinalizeMappings(PVM pVM)
     return VINF_SUCCESS;
 }
 
+#endif /* !PGM_WITHOUT_MAPPINGS */
+
 
 /**
  * Gets the size of the current guest mappings if they were to be
@@ -523,7 +524,7 @@ VMMR3DECL(int) PGMR3MappingsFix(PVM pVM, RTGCPTR GCPtrBase, uint32_t cb)
          * Only applies to VCPU 0 as we don't support SMP guests with raw mode.
          */
         Assert(pVM->cCpus == 1);
-        PVMCPU pVCpu = &pVM->aCpus[0];
+        PVMCPU pVCpu = pVM->apCpusR3[0];
 
         /*
          * Before we do anything we'll do a forced PD sync to try make sure any
@@ -595,7 +596,7 @@ int pgmR3MappingsFixInternal(PVM pVM, RTGCPTR GCPtrBase, uint32_t cb)
     /*
      * In PAE / PAE mode, make sure we don't cross page directories.
      */
-    PVMCPU pVCpu = &pVM->aCpus[0];
+    PVMCPU pVCpu = pVM->apCpusR3[0];
     if (    (   pVCpu->pgm.s.enmGuestMode  == PGMMODE_PAE
              || pVCpu->pgm.s.enmGuestMode  == PGMMODE_PAE_NX)
         &&  (   pVCpu->pgm.s.enmShadowMode == PGMMODE_PAE
@@ -679,11 +680,11 @@ int pgmR3MappingsFixInternal(PVM pVM, RTGCPTR GCPtrBase, uint32_t cb)
     for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
     {
         pVM->aCpus[idCpu].pgm.s.fSyncFlags &= ~PGM_SYNC_MONITOR_CR3;
-        VMCPU_FF_SET(&pVM->aCpus[idCpu], VMCPU_FF_PGM_SYNC_CR3);
+        VMCPU_FF_SET(pVM->apCpusR3[idCpu], VMCPU_FF_PGM_SYNC_CR3);
     }
     return VINF_SUCCESS;
 }
-#endif /*!PGM_WITHOUT_MAPPINGS*/
+#endif /* !PGM_WITHOUT_MAPPINGS */
 
 
 /**
@@ -713,11 +714,12 @@ VMMR3DECL(int) PGMR3MappingsUnfix(PVM pVM)
 
         if (fResyncCR3)
             for (VMCPUID i = 0; i < pVM->cCpus; i++)
-                VMCPU_FF_SET(&pVM->aCpus[i], VMCPU_FF_PGM_SYNC_CR3);
+                VMCPU_FF_SET(pVM->apCpusR3[i], VMCPU_FF_PGM_SYNC_CR3);
     }
     return VINF_SUCCESS;
 }
 
+#ifndef PGM_WITHOUT_MAPPINGS
 
 /**
  * Checks if the mappings needs re-fixing after a restore.
@@ -731,7 +733,6 @@ VMMR3DECL(bool) PGMR3MappingsNeedReFixing(PVM pVM)
     return pVM->pgm.s.fMappingsFixedRestored;
 }
 
-#ifndef PGM_WITHOUT_MAPPINGS
 
 /**
  * Map pages into the intermediate context (switcher code).
@@ -991,9 +992,9 @@ static void pgmR3MapClearPDEs(PVM pVM, PPGMMAPPING pMap, unsigned iOldPDE)
 static void pgmR3MapSetPDEs(PVM pVM, PPGMMAPPING pMap, unsigned iNewPDE)
 {
     PPGM   pPGM  = &pVM->pgm.s;
-#ifdef VBOX_STRICT
+# ifdef VBOX_STRICT
     PVMCPU pVCpu = VMMGetCpu(pVM);
-#endif
+# endif
     pgmLock(pVM);                           /* to avoid assertions */
 
     Assert(!pgmMapAreMappingsEnabled(pVM) || PGMGetGuestMode(pVCpu) <= PGMMODE_PAE_NX);
@@ -1228,7 +1229,7 @@ int pgmR3SyncPTResolveConflict(PVM pVM, PPGMMAPPING pMapping, PX86PD pPDSrc, RTG
     }
 
     STAM_PROFILE_STOP(&pVM->pgm.s.CTX_SUFF(pStats)->StatR3ResolveConflict, a);
-#ifdef DEBUG_bird
+# ifdef DEBUG_bird
     /*
      * Ended up here frequently recently with an NT4.0 VM (using SMP kernel).
      *
@@ -1247,7 +1248,7 @@ int pgmR3SyncPTResolveConflict(PVM pVM, PPGMMAPPING pMapping, PX86PD pPDSrc, RTG
      * Normal PD: CR3=00030000; Problematic identity mapped PD: CR3=0x5fa000.
      */
     DBGFSTOP(pVM);
-#endif
+# endif
     AssertMsgFailed(("Failed to relocate page table mapping '%s' from %#x! (cPTs=%d)\n", pMapping->pszDesc, GCPtrOldMapping, cPTs));
     return VERR_PGM_NO_HYPERVISOR_ADDRESS;
 }
@@ -1340,7 +1341,6 @@ int pgmR3SyncPTResolveConflictPAE(PVM pVM, PPGMMAPPING pMapping, RTGCPTR GCPtrOl
     return VERR_PGM_NO_HYPERVISOR_ADDRESS;
 }
 
-#endif /* !PGM_WITHOUT_MAPPINGS */
 
 /**
  * Read memory from the guest mappings.
@@ -1467,4 +1467,6 @@ DECLCALLBACK(void) pgmR3MapInfo(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs
         }
     }
 }
+
+#endif /* !PGM_WITHOUT_MAPPINGS */
 

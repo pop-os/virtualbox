@@ -22,6 +22,7 @@
 #endif
 
 /* Qt includes: */
+#include <QGraphicsEffect>
 #include <QMimeData>
 #include <QRectF>
 #include <QString>
@@ -30,6 +31,7 @@
 /* GUI includes: */
 #include "QIGraphicsWidget.h"
 #include "QIWithRetranslateUI.h"
+#include "UIChooserDefs.h"
 
 /* Other VBox includes: */
 #include <iprt/cdefs.h>
@@ -45,34 +47,21 @@ class UIChooserItemGroup;
 class UIChooserItemGlobal;
 class UIChooserItemMachine;
 class UIChooserModel;
+class UIChooserNode;
 
-
-/** UIChooserItem types. */
-enum UIChooserItemType
+/** A simple QGraphicsEffect extension to mark disabled UIChooserItems. Applies blur and gray scale filters. */
+class UIChooserDisabledItemEffect : public QGraphicsEffect
 {
-    UIChooserItemType_Any     = QGraphicsItem::UserType,
-    UIChooserItemType_Group,
-    UIChooserItemType_Global,
-    UIChooserItemType_Machine
-};
+    Q_OBJECT;
 
+public:
 
-/** UIChooserItem search flags. */
-enum UIChooserItemSearchFlag
-{
-    UIChooserItemSearchFlag_Machine   = RT_BIT(0),
-    UIChooserItemSearchFlag_Global    = RT_BIT(1),
-    UIChooserItemSearchFlag_Group     = RT_BIT(2),
-    UIChooserItemSearchFlag_ExactName = RT_BIT(3)
-};
+    UIChooserDisabledItemEffect(int iBlurRadius, QObject *pParent = 0);
 
+protected:
 
-/** Drag token placement types. */
-enum DragToken
-{
-    DragToken_Off,
-    DragToken_Up,
-    DragToken_Down
+    virtual void draw(QPainter *painter);
+    int m_iBlurRadius;
 };
 
 
@@ -93,29 +82,21 @@ signals:
         void sigHoverLeave();
     /** @} */
 
-    /** @name Layout stuff.
-      * @{ */
-        /** Notifies listeners about @a iMinimumWidthHint change. */
-        void sigMinimumWidthHintChanged(int iMinimumWidthHint);
-        /** Notifies listeners about @a iMinimumHeightHint change. */
-        void sigMinimumHeightHintChanged(int iMinimumHeightHint);
-    /** @} */
-
 public:
 
     /** Constructs item passing @a pParent to the base-class.
-      * @param  fTemporary     Brings whether this item created for temporary needs.
+      * @param  pNode          Brings the node this item is built for.
       * @param  iDefaultValue  Brings default value for hovering animation.
       * @param  iHoveredValue  Brings hovered value for hovering animation. */
-    UIChooserItem(UIChooserItem *pParent, bool fTemporary,
+    UIChooserItem(UIChooserItem *pParent, UIChooserNode *pNode,
                   int iDefaultValue = 100, int iHoveredValue = 90);
 
     /** @name Item stuff.
       * @{ */
-        /** Returns parent  reference. */
+        /** Returns parent reference. */
         UIChooserItem *parentItem() const {  return m_pParent; }
-        /** Returns whether item is temporary. */
-        bool isTemporary() const { return m_fTemporary; }
+        /** Returns node reference. */
+        UIChooserNode *node() const { return m_pNode; }
 
         /** Casts item to group one. */
         UIChooserItemGroup *toGroupItem();
@@ -129,77 +110,67 @@ public:
         /** Returns action-pool reference. */
         UIActionPool *actionPool() const;
 
-        /** Returns a level of item. */
-        int level() const;
-        /** Defines a @a iLevel of item. */
-        void setLevel(int iLevel);
+        /** Returns whether item is root. */
+        bool isRoot() const;
 
-        /** Shows item. */
-        virtual void show();
-        /** Hides item. */
-        virtual void hide();
+        /** Returns item name. */
+        QString name() const;
+        /** Returns item full-name. */
+        QString fullName() const;
+        /** Returns item description. */
+        QString description() const;
+        /** Returns item definition. */
+        QString definition() const;
+
+        /** Returns whether item is favorite. */
+        bool isFavorite() const;
+        /** Defines whether item is @a fFavorite. */
+        virtual void setFavorite(bool fFavorite);
+
+        /** Returns item position. */
+        int position() const;
+
+        /** Returns whether item is hovered. */
+        bool isHovered() const;
+        /** Defines whether item is @a fHovered. */
+        void setHovered(bool fHovered);
 
         /** Starts item editing. */
         virtual void startEditing() = 0;
 
+        /** Updates item. */
+        virtual void updateItem() = 0;
         /** Updates item tool-tip. */
         virtual void updateToolTip() = 0;
 
-        /** Returns item name. */
-        virtual QString name() const = 0;
-        /** Returns item description. */
-        virtual QString description() const = 0;
-        /** Returns item full-name. */
-        virtual QString fullName() const = 0;
-        /** Returns item definition. */
-        virtual QString definition() const = 0;
-
-        /** Defines whether item is @a fRoot. */
-        void setRoot(bool fRoot);
-        /** Returns whether item is root. */
-        bool isRoot() const;
-
-        /** Defines whether item is @a fHovered. */
-        void setHovered(bool fHovered);
-        /** Returns whether item is hovered. */
-        bool isHovered() const;
+        /** Installs event-filter for @a pSource object.
+          * @note  Base-class implementation does nothing. */
+        virtual void installEventFilterHelper(QObject *pSource) { Q_UNUSED(pSource); }
+        /** Enables the visual effect for disabled item. */
+        void disableEnableItem(bool fDisabled);
     /** @} */
 
     /** @name Children stuff.
       * @{ */
-        /** Adds child @a pItem to certain @a iPosition. */
-        virtual void addItem(UIChooserItem *pItem, int iPosition) = 0;
-        /** Removes child @a pItem. */
-        virtual void removeItem(UIChooserItem *pItem) = 0;
-
-        /** Replaces children @a items of certain @a enmType. */
-        virtual void setItems(const QList<UIChooserItem*> &items, UIChooserItemType enmType) = 0;
         /** Returns children items of certain @a enmType. */
         virtual QList<UIChooserItem*> items(UIChooserItemType enmType = UIChooserItemType_Any) const = 0;
-        /** Returns whether there are children items of certain @a enmType. */
-        virtual bool hasItems(UIChooserItemType enmType = UIChooserItemType_Any) const = 0;
-        /** Clears children items of certain @a enmType. */
-        virtual void clearItems(UIChooserItemType enmType = UIChooserItemType_Any) = 0;
 
-        /** Updates all children items with specified @a uId. */
-        virtual void updateAllItems(const QUuid &uId) = 0;
-        /** Removes all children items with specified @a uId. */
-        virtual void removeAllItems(const QUuid &uId) = 0;
+        /** Adds possible @a fFavorite child @a pItem to certain @a iPosition. */
+        virtual void addItem(UIChooserItem *pItem, bool fFavorite, int iPosition) = 0;
+        /** Removes child @a pItem. */
+        virtual void removeItem(UIChooserItem *pItem) = 0;
 
         /** Searches for a first child item answering to specified @a strSearchTag and @a iItemSearchFlags. */
         virtual UIChooserItem *searchForItem(const QString &strSearchTag, int iItemSearchFlags) = 0;
 
         /** Searches for a first machine child item. */
         virtual UIChooserItem *firstMachineItem() = 0;
-
-        /** Sorts children items. */
-        virtual void sortItems() = 0;
     /** @} */
 
     /** @name Layout stuff.
       * @{ */
         /** Updates geometry. */
-        void updateGeometry();
+        virtual void updateGeometry() /* override */;
 
         /** Updates layout. */
         virtual void updateLayout() = 0;
@@ -221,19 +192,19 @@ public:
         /** Returns whether item drop is allowed.
           * @param  pEvent    Brings information about drop event.
           * @param  enmPlace  Brings the place of drag token to the drop moment. */
-        virtual bool isDropAllowed(QGraphicsSceneDragDropEvent *pEvent, DragToken enmPlace = DragToken_Off) const = 0;
+        virtual bool isDropAllowed(QGraphicsSceneDragDropEvent *pEvent, UIChooserItemDragToken enmPlace = UIChooserItemDragToken_Off) const = 0;
         /** Processes item drop.
           * @param  pEvent    Brings information about drop event.
           * @param  pFromWho  Brings the item according to which we choose drop position.
           * @param  enmPlace  Brings the place of drag token to the drop moment (according to item mentioned above). */
-        virtual void processDrop(QGraphicsSceneDragDropEvent *pEvent, UIChooserItem *pFromWho = 0, DragToken enmPlace = DragToken_Off) = 0;
+        virtual void processDrop(QGraphicsSceneDragDropEvent *pEvent, UIChooserItem *pFromWho = 0, UIChooserItemDragToken enmPlace = UIChooserItemDragToken_Off) = 0;
         /** Reset drag token. */
         virtual void resetDragToken() = 0;
 
-        /** Defines drag token @a enmPlace. */
-        void setDragTokenPlace(DragToken enmPlace);
         /** Returns drag token place. */
-        DragToken dragTokenPlace() const;
+        UIChooserItemDragToken dragTokenPlace() const;
+        /** Defines drag token @a enmPlace. */
+        void setDragTokenPlace(UIChooserItemDragToken enmPlace);
     /** @} */
 
 protected:
@@ -260,31 +231,28 @@ protected:
 
     /** @name Item stuff.
       * @{ */
-        /** Handles root status change. */
-        virtual void handleRootStatusChange();
-
-        /** Defines item's default animation @a iValue. */
-        void setDefaultValue(int iValue) { m_iDefaultValue = iValue; update(); }
         /** Returns item's default animation value. */
         int defaultValue() const { return m_iDefaultValue; }
+        /** Defines item's default animation @a iValue. */
+        void setDefaultValue(int iValue) { m_iDefaultValue = iValue; update(); }
 
-        /** Defines item's hovered animation @a iValue. */
-        void setHoveredValue(int iValue) { m_iHoveredValue = iValue; update(); }
         /** Returns item's hovered animation value. */
         int hoveredValue() const { return m_iHoveredValue; }
+        /** Defines item's hovered animation @a iValue. */
+        void setHoveredValue(int iValue) { m_iHoveredValue = iValue; update(); }
 
-        /** Defines item's animated @a iValue. */
-        void setAnimatedValue(int iValue) { m_iAnimatedValue = iValue; update(); }
         /** Returns item's animated value. */
         int animatedValue() const { return m_iAnimatedValue; }
+        /** Defines item's animated @a iValue. */
+        void setAnimatedValue(int iValue) { m_iAnimatedValue = iValue; update(); }
     /** @} */
 
     /** @name Layout stuff.
       * @{ */
+        /** Returns previous geometry. */
+        QRectF previousGeometry() const { return m_previousGeometry; }
         /** Defines previous @a geometry. */
         void setPreviousGeometry(const QRectF &geometry) { m_previousGeometry = geometry; }
-        /** Returns previous geometry. */
-        const QRectF &previousGeometry() const { return m_previousGeometry; }
 
         /** Returns @a strText size calculated on the basis of certain @a font and @a pPaintDevice. */
         static QSize textSize(const QFont &font, QPaintDevice *pPaintDevice, const QString &strText);
@@ -329,13 +297,8 @@ private:
       * @{ */
         /** Holds the item's parent item. */
         UIChooserItem *m_pParent;
-        /** Holds whether item is temporary. */
-        bool           m_fTemporary;
-
-        /** Holds whether item is root. */
-        bool  m_fRoot;
-        /** Holds the item level according to root. */
-        int   m_iLevel;
+        /** Holds the node this item is built for. */
+        UIChooserNode *m_pNode;
 
         /** Holds whether item is hovered. */
         bool                m_fHovered;
@@ -353,23 +316,20 @@ private:
         int                 m_iHoveredValue;
         /** Holds the animated value. */
         int                 m_iAnimatedValue;
+        /** Holds the pointer to blur effect instance. */
+        UIChooserDisabledItemEffect *m_pDisabledEffect;
     /** @} */
 
     /** @name Layout stuff.
       * @{ */
         /** Holds previous geometry. */
         QRectF  m_previousGeometry;
-
-        /** Holds previous minimum width hint. */
-        int  m_iPreviousMinimumWidthHint;
-        /** Holds previous minimum height hint. */
-        int  m_iPreviousMinimumHeightHint;
     /** @} */
 
     /** @name Navigation stuff.
       * @{ */
         /** Holds drag token place. */
-        DragToken  m_enmDragTokenPlace;
+        UIChooserItemDragToken  m_enmDragTokenPlace;
 
         /** Holds drag token darkness. */
         int  m_iDragTokenDarkness;

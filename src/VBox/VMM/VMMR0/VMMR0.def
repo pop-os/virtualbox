@@ -19,6 +19,7 @@ EXPORTS
     ; data
 
     ; code
+    GIMGetMmio2Regions
     PDMCritSectEnter
     PDMCritSectEnterDebug
     PDMCritSectIsOwner
@@ -36,8 +37,10 @@ EXPORTS
     PGMPhysReadGCPtr
     PGMPhysWriteGCPtr
     PGMPhysSimpleDirtyWriteGCPtr
-    IOMMMIOResetRegion
-    IOMMMIOMapMMIO2Page
+    PDMR0DeviceRegisterModule
+    PDMR0DeviceDeregisterModule
+    IOMMmioResetRegion
+    IOMMmioMapMmio2Page
     RTLogDefaultInstance
     RTLogDefaultInstanceEx
     RTLogRelGetDefaultInstance

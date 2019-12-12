@@ -22,7 +22,8 @@
 #define LOG_GROUP LOG_GROUP_HM
 #define VMCPU_INCL_CPUM_GST_CTX
 #include "HMInternal.h"
-#include <VBox/vmm/vm.h>
+#include <VBox/vmm/hmvmxinline.h>
+#include <VBox/vmm/vmcc.h>
 #include <VBox/vmm/pdmapi.h>
 #include <iprt/errcore.h>
 
@@ -130,6 +131,17 @@ static const char * const g_apszVmxVDiagDesc[] =
     VMXV_DIAG_DESC(kVmxVDiag_Vmread_PtrMap                    , "PtrMap"                    ),
     VMXV_DIAG_DESC(kVmxVDiag_Vmread_RealOrV86Mode             , "RealOrV86Mode"             ),
     VMXV_DIAG_DESC(kVmxVDiag_Vmread_VmxRoot                   , "VmxRoot"                   ),
+    /* INVVPID. */
+    VMXV_DIAG_DESC(kVmxVDiag_Invvpid_Cpl                      , "Cpl"                       ),
+    VMXV_DIAG_DESC(kVmxVDiag_Invvpid_DescRsvd                 , "DescRsvd"                  ),
+    VMXV_DIAG_DESC(kVmxVDiag_Invvpid_LongModeCS               , "LongModeCS"                ),
+    VMXV_DIAG_DESC(kVmxVDiag_Invvpid_RealOrV86Mode            , "RealOrV86Mode"             ),
+    VMXV_DIAG_DESC(kVmxVDiag_Invvpid_TypeInvalid              , "TypeInvalid"               ),
+    VMXV_DIAG_DESC(kVmxVDiag_Invvpid_Type0InvalidAddr         , "Type0InvalidAddr"          ),
+    VMXV_DIAG_DESC(kVmxVDiag_Invvpid_Type0InvalidVpid         , "Type0InvalidVpid"          ),
+    VMXV_DIAG_DESC(kVmxVDiag_Invvpid_Type1InvalidVpid         , "Type1InvalidVpid"          ),
+    VMXV_DIAG_DESC(kVmxVDiag_Invvpid_Type3InvalidVpid         , "Type3InvalidVpid"          ),
+    VMXV_DIAG_DESC(kVmxVDiag_Invvpid_VmxRoot                  , "VmxRoot"                   ),
     /* VMLAUNCH/VMRESUME. */
     VMXV_DIAG_DESC(kVmxVDiag_Vmentry_AddrApicAccess           , "AddrApicAccess"            ),
     VMXV_DIAG_DESC(kVmxVDiag_Vmentry_AddrApicAccessEqVirtApic , "AddrApicAccessEqVirtApic"  ),
@@ -312,6 +324,8 @@ static const char * const g_apszVmxVDiagDesc[] =
     VMXV_DIAG_DESC(kVmxVDiag_Vmentry_HostSegBase              , "HostSegBase"               ),
     VMXV_DIAG_DESC(kVmxVDiag_Vmentry_HostSs                   , "HostSs"                    ),
     VMXV_DIAG_DESC(kVmxVDiag_Vmentry_HostSysenterEspEip       , "HostSysenterEspEip"        ),
+    VMXV_DIAG_DESC(kVmxVDiag_Vmentry_IoBitmapAPtrReadPhys     , "IoBitmapAPtrReadPhys"      ),
+    VMXV_DIAG_DESC(kVmxVDiag_Vmentry_IoBitmapBPtrReadPhys     , "IoBitmapBPtrReadPhys"      ),
     VMXV_DIAG_DESC(kVmxVDiag_Vmentry_LongModeCS               , "LongModeCS"                ),
     VMXV_DIAG_DESC(kVmxVDiag_Vmentry_MsrBitmapPtrReadPhys     , "MsrBitmapPtrReadPhys"      ),
     VMXV_DIAG_DESC(kVmxVDiag_Vmentry_MsrLoad                  , "MsrLoad"                   ),
@@ -355,9 +369,11 @@ static const char * const g_apszVmxVDiagDesc[] =
     VMXV_DIAG_DESC(kVmxVDiag_Vmexit_MsrLoadRsvd               , "MsrLoadRsvd"               ),
     VMXV_DIAG_DESC(kVmxVDiag_Vmexit_MsrStore                  , "MsrStore"                  ),
     VMXV_DIAG_DESC(kVmxVDiag_Vmexit_MsrStoreCount             , "MsrStoreCount"             ),
+    VMXV_DIAG_DESC(kVmxVDiag_Vmexit_MsrStorePtrReadPhys       , "MsrStorePtrReadPhys"       ),
     VMXV_DIAG_DESC(kVmxVDiag_Vmexit_MsrStorePtrWritePhys      , "MsrStorePtrWritePhys"      ),
     VMXV_DIAG_DESC(kVmxVDiag_Vmexit_MsrStoreRing3             , "MsrStoreRing3"             ),
-    VMXV_DIAG_DESC(kVmxVDiag_Vmexit_MsrStoreRsvd              , "MsrStoreRsvd"              )
+    VMXV_DIAG_DESC(kVmxVDiag_Vmexit_MsrStoreRsvd              , "MsrStoreRsvd"              ),
+    VMXV_DIAG_DESC(kVmxVDiag_Vmexit_VirtApicPagePtrWritePhys  , "VirtApicPagePtrWritePhys"  )
     /* kVmxVDiag_End */
 };
 AssertCompile(RT_ELEMENTS(g_apszVmxVDiagDesc) == kVmxVDiag_End);
@@ -374,117 +390,6 @@ VMM_INT_DECL(const char *) HMGetVmxDiagDesc(VMXVDIAG enmDiag)
 {
     if (RT_LIKELY((unsigned)enmDiag < RT_ELEMENTS(g_apszVmxVDiagDesc)))
         return g_apszVmxVDiagDesc[enmDiag];
-    return "Unknown/invalid";
-}
-
-
-/**
- * Gets the description for a VMX abort reason.
- *
- * @returns The descriptive string.
- * @param   enmAbort    The VMX abort reason.
- */
-VMM_INT_DECL(const char *) HMGetVmxAbortDesc(VMXABORT enmAbort)
-{
-    switch (enmAbort)
-    {
-        case VMXABORT_NONE:                     return "VMXABORT_NONE";
-        case VMXABORT_SAVE_GUEST_MSRS:          return "VMXABORT_SAVE_GUEST_MSRS";
-        case VMXBOART_HOST_PDPTE:               return "VMXBOART_HOST_PDPTE";
-        case VMXABORT_CURRENT_VMCS_CORRUPT:     return "VMXABORT_CURRENT_VMCS_CORRUPT";
-        case VMXABORT_LOAD_HOST_MSR:            return "VMXABORT_LOAD_HOST_MSR";
-        case VMXABORT_MACHINE_CHECK_XCPT:       return "VMXABORT_MACHINE_CHECK_XCPT";
-        case VMXABORT_HOST_NOT_IN_LONG_MODE:    return "VMXABORT_HOST_NOT_IN_LONG_MODE";
-        default:
-            break;
-    }
-    return "Unknown/invalid";
-}
-
-
-/**
- * Gets the description for a virtual VMCS state.
- *
- * @returns The descriptive string.
- * @param   fVmcsState      The virtual-VMCS state.
- */
-VMM_INT_DECL(const char *) HMGetVmxVmcsStateDesc(uint8_t fVmcsState)
-{
-    switch (fVmcsState)
-    {
-        case VMX_V_VMCS_LAUNCH_STATE_CLEAR:     return "Clear";
-        case VMX_V_VMCS_LAUNCH_STATE_LAUNCHED:  return "Launched";
-        default:                                return "Unknown";
-    }
-}
-
-
-/**
- * Gets the description for a VM-entry interruption information event type.
- *
- * @returns The descriptive string.
- * @param   uType    The event type.
- */
-VMM_INT_DECL(const char *) HMGetVmxEntryIntInfoTypeDesc(uint8_t uType)
-{
-    switch (uType)
-    {
-        case VMX_ENTRY_INT_INFO_TYPE_EXT_INT:       return "External Interrupt";
-        case VMX_ENTRY_INT_INFO_TYPE_NMI:           return "NMI";
-        case VMX_ENTRY_INT_INFO_TYPE_HW_XCPT:       return "Hardware Exception";
-        case VMX_ENTRY_INT_INFO_TYPE_SW_INT:        return "Software Interrupt";
-        case VMX_ENTRY_INT_INFO_TYPE_PRIV_SW_XCPT:  return "Priv. Software Exception";
-        case VMX_ENTRY_INT_INFO_TYPE_SW_XCPT:       return "Software Exception";
-        case VMX_ENTRY_INT_INFO_TYPE_OTHER_EVENT:   return "Other Event";
-        default:
-            break;
-    }
-    return "Unknown/invalid";
-}
-
-
-/**
- * Gets the description for a VM-exit interruption information event type.
- *
- * @returns The descriptive string.
- * @param   uType    The event type.
- */
-VMM_INT_DECL(const char *) HMGetVmxExitIntInfoTypeDesc(uint8_t uType)
-{
-    switch (uType)
-    {
-        case VMX_EXIT_INT_INFO_TYPE_EXT_INT:       return "External Interrupt";
-        case VMX_EXIT_INT_INFO_TYPE_NMI:           return "NMI";
-        case VMX_EXIT_INT_INFO_TYPE_HW_XCPT:       return "Hardware Exception";
-        case VMX_EXIT_INT_INFO_TYPE_SW_INT:        return "Software Interrupt";
-        case VMX_EXIT_INT_INFO_TYPE_PRIV_SW_XCPT:  return "Priv. Software Exception";
-        case VMX_EXIT_INT_INFO_TYPE_SW_XCPT:       return "Software Exception";
-        default:
-            break;
-    }
-    return "Unknown/invalid";
-}
-
-
-/**
- * Gets the description for an IDT-vectoring information event type.
- *
- * @returns The descriptive string.
- * @param   uType    The event type.
- */
-VMM_INT_DECL(const char *) HMGetVmxIdtVectoringInfoTypeDesc(uint8_t uType)
-{
-    switch (uType)
-    {
-        case VMX_IDT_VECTORING_INFO_TYPE_EXT_INT:       return "External Interrupt";
-        case VMX_IDT_VECTORING_INFO_TYPE_NMI:           return "NMI";
-        case VMX_IDT_VECTORING_INFO_TYPE_HW_XCPT:       return "Hardware Exception";
-        case VMX_IDT_VECTORING_INFO_TYPE_SW_INT:        return "Software Interrupt";
-        case VMX_IDT_VECTORING_INFO_TYPE_PRIV_SW_XCPT:  return "Priv. Software Exception";
-        case VMX_IDT_VECTORING_INFO_TYPE_SW_XCPT:       return "Software Exception";
-        default:
-            break;
-    }
     return "Unknown/invalid";
 }
 
@@ -512,9 +417,11 @@ static bool hmVmxIsCodeSelectorOk(PCCPUMSELREG pSel, unsigned uStackDpl)
                     ("%#x\n", pSel->Attr.u),
                     false);
 
-    /* For conforming segments, CS.DPL must be <= SS.DPL, while CS.DPL
-       must equal SS.DPL for non-confroming segments.
-       Note! This is also a hard requirement like above. */
+    /*
+     * For conforming segments, CS.DPL must be <= SS.DPL, while CS.DPL must equal
+     * SS.DPL for non-confroming segments.
+     * Note! This is also a hard requirement like above.
+     */
     AssertMsgReturn(  pSel->Attr.n.u4Type & X86_SEL_TYPE_CONF
                     ? pSel->Attr.n.u2Dpl <= uStackDpl
                     : pSel->Attr.n.u2Dpl == uStackDpl,
@@ -638,9 +545,54 @@ static bool hmVmxIsStackSelectorOk(PCCPUMSELREG pSel)
 
 
 /**
+ * Checks if the CPU is subject to the "VMX-Preemption Timer Does Not Count Down at
+ * the Rate Specified" erratum.
+ *
+ * Errata names and related steppings:
+ *      - BA86   - D0.
+ *      - AAX65  - C2.
+ *      - AAU65  - C2, K0.
+ *      - AAO95  - B1.
+ *      - AAT59  - C2.
+ *      - AAK139 - D0.
+ *      - AAM126 - C0, C1, D0.
+ *      - AAN92  - B1.
+ *      - AAJ124 - C0, D0.
+ *      - AAP86  - B1.
+ *
+ * Steppings: B1, C0, C1, C2, D0, K0.
+ *
+ * @returns @c true if subject to it, @c false if not.
+ */
+VMM_INT_DECL(bool) HMIsSubjectToVmxPreemptTimerErratum(void)
+{
+    uint32_t u = ASMCpuId_EAX(1);
+    u &= ~(RT_BIT_32(14) | RT_BIT_32(15) | RT_BIT_32(28) | RT_BIT_32(29) | RT_BIT_32(30) | RT_BIT_32(31));
+    if (   u == 0x000206E6 /* 323344.pdf - BA86   - D0 - Xeon Processor 7500 Series */
+        || u == 0x00020652 /* 323056.pdf - AAX65  - C2 - Xeon Processor L3406 */
+                           /* 322814.pdf - AAT59  - C2 - CoreTM i7-600, i5-500, i5-400 and i3-300 Mobile Processor Series */
+                           /* 322911.pdf - AAU65  - C2 - CoreTM i5-600, i3-500 Desktop Processor Series and Intel Pentium Processor G6950 */
+        || u == 0x00020655 /* 322911.pdf - AAU65  - K0 - CoreTM i5-600, i3-500 Desktop Processor Series and Intel Pentium Processor G6950 */
+        || u == 0x000106E5 /* 322373.pdf - AAO95  - B1 - Xeon Processor 3400 Series */
+                           /* 322166.pdf - AAN92  - B1 - CoreTM i7-800 and i5-700 Desktop Processor Series */
+                           /* 320767.pdf - AAP86  - B1 - Core i7-900 Mobile Processor Extreme Edition Series, Intel Core i7-800 and i7-700 Mobile Processor Series */
+        || u == 0x000106A0 /* 321333.pdf - AAM126 - C0 - Xeon Processor 3500 Series Specification */
+        || u == 0x000106A1 /* 321333.pdf - AAM126 - C1 - Xeon Processor 3500 Series Specification */
+        || u == 0x000106A4 /* 320836.pdf - AAJ124 - C0 - Core i7-900 Desktop Processor Extreme Edition Series and Intel Core i7-900 Desktop Processor Series */
+        || u == 0x000106A5 /* 321333.pdf - AAM126 - D0 - Xeon Processor 3500 Series Specification */
+                           /* 321324.pdf - AAK139 - D0 - Xeon Processor 5500 Series Specification */
+                           /* 320836.pdf - AAJ124 - D0 - Core i7-900 Desktop Processor Extreme Edition Series and Intel Core i7-900 Desktop Processor Series */
+        )
+        return true;
+    return false;
+}
+
+
+/**
  * Checks if the guest is in a suitable state for hardware-assisted VMX execution.
  *
  * @returns @c true if it is suitable, @c false otherwise.
+ * @param   pVM     The cross context VM structure.
  * @param   pVCpu   The cross context virtual CPU structure.
  * @param   pCtx    Pointer to the guest CPU context.
  *
@@ -649,9 +601,8 @@ static bool hmVmxIsStackSelectorOk(PCCPUMSELREG pSel)
  *          Secondly, if additional checks are added that require more of the CPU
  *          state, make sure REM (which supplies a partial state) is updated.
  */
-VMM_INT_DECL(bool) HMCanExecuteVmxGuest(PVMCPU pVCpu, PCCPUMCTX pCtx)
+VMM_INT_DECL(bool) HMCanExecuteVmxGuest(PVMCC pVM, PVMCPUCC pVCpu, PCCPUMCTX pCtx)
 {
-    PVM pVM = pVCpu->CTX_SUFF(pVM);
     Assert(HMIsEnabled(pVM));
     Assert(   ( pVM->hm.s.vmx.fUnrestrictedGuest && !pVM->hm.s.vmx.pRealModeTSS)
            || (!pVM->hm.s.vmx.fUnrestrictedGuest && pVM->hm.s.vmx.pRealModeTSS));
@@ -715,7 +666,8 @@ VMM_INT_DECL(bool) HMCanExecuteVmxGuest(PVMCPU pVCpu, PCCPUMCTX pCtx)
                  * handle the CPU state right after a switch from real to protected mode
                  * (all sorts of RPL & DPL assumptions).
                  */
-                if (pVCpu->hm.s.vmx.fWasInRealMode)
+                PCVMXVMCSINFO pVmcsInfo = hmGetVmxActiveVmcsInfo(pVCpu);
+                if (pVmcsInfo->fWasInRealMode)
                 {
                     if (!CPUMIsGuestInV86ModeEx(pCtx))
                     {
@@ -749,22 +701,22 @@ VMM_INT_DECL(bool) HMCanExecuteVmxGuest(PVMCPU pVCpu, PCCPUMCTX pCtx)
                             STAM_COUNTER_INC(&pVCpu->hm.s.StatVmxCheckBadV86SelBase);
                             return false;
                         }
-                        if (   (pCtx->cs.u32Limit != 0xffff)
-                            || (pCtx->ds.u32Limit != 0xffff)
-                            || (pCtx->es.u32Limit != 0xffff)
-                            || (pCtx->ss.u32Limit != 0xffff)
-                            || (pCtx->fs.u32Limit != 0xffff)
-                            || (pCtx->gs.u32Limit != 0xffff))
+                        if (   pCtx->cs.u32Limit != 0xffff
+                            || pCtx->ds.u32Limit != 0xffff
+                            || pCtx->es.u32Limit != 0xffff
+                            || pCtx->ss.u32Limit != 0xffff
+                            || pCtx->fs.u32Limit != 0xffff
+                            || pCtx->gs.u32Limit != 0xffff)
                         {
                             STAM_COUNTER_INC(&pVCpu->hm.s.StatVmxCheckBadV86SelLimit);
                             return false;
                         }
-                        if (   (pCtx->cs.Attr.u != 0xf3)
-                            || (pCtx->ds.Attr.u != 0xf3)
-                            || (pCtx->es.Attr.u != 0xf3)
-                            || (pCtx->ss.Attr.u != 0xf3)
-                            || (pCtx->fs.Attr.u != 0xf3)
-                            || (pCtx->gs.Attr.u != 0xf3))
+                        if (   pCtx->cs.Attr.u != 0xf3
+                            || pCtx->ds.Attr.u != 0xf3
+                            || pCtx->es.Attr.u != 0xf3
+                            || pCtx->ss.Attr.u != 0xf3
+                            || pCtx->fs.Attr.u != 0xf3
+                            || pCtx->gs.Attr.u != 0xf3)
                         {
                             STAM_COUNTER_INC(&pVCpu->hm.s.StatVmxCheckBadV86SelAttr);
                             return false;
@@ -857,141 +809,30 @@ VMM_INT_DECL(bool) HMCanExecuteVmxGuest(PVMCPU pVCpu, PCCPUMCTX pCtx)
 
 
 /**
- * Gets the permission bits for the specified MSR in the specified MSR bitmap.
- *
- * @returns VBox status code.
- * @param   pvMsrBitmap     Pointer to the MSR bitmap.
- * @param   idMsr           The MSR.
- * @param   penmRead        Where to store the read permissions. Optional, can be
- *                          NULL.
- * @param   penmWrite       Where to store the write permissions. Optional, can be
- *                          NULL.
- */
-VMM_INT_DECL(int) HMGetVmxMsrPermission(void const *pvMsrBitmap, uint32_t idMsr, PVMXMSREXITREAD penmRead,
-                                        PVMXMSREXITWRITE penmWrite)
-{
-    AssertPtrReturn(pvMsrBitmap, VERR_INVALID_PARAMETER);
-
-    int32_t iBit;
-    uint8_t const *pbMsrBitmap = (uint8_t *)pvMsrBitmap;
-
-    /*
-     * MSR Layout:
-     *   Byte index            MSR range            Interpreted as
-     * 0x000 - 0x3ff    0x00000000 - 0x00001fff    Low MSR read bits.
-     * 0x400 - 0x7ff    0xc0000000 - 0xc0001fff    High MSR read bits.
-     * 0x800 - 0xbff    0x00000000 - 0x00001fff    Low MSR write bits.
-     * 0xc00 - 0xfff    0xc0000000 - 0xc0001fff    High MSR write bits.
-     *
-     * A bit corresponding to an MSR within the above range causes a VM-exit
-     * if the bit is 1 on executions of RDMSR/WRMSR.
-     *
-     * If an MSR falls out of the MSR range, it always cause a VM-exit.
-     *
-     * See Intel spec. 24.6.9 "MSR-Bitmap Address".
-     */
-    if (idMsr <= 0x00001fff)
-        iBit = idMsr;
-    else if (   idMsr >= 0xc0000000
-             && idMsr <= 0xc0001fff)
-    {
-        iBit = (idMsr - 0xc0000000);
-        pbMsrBitmap += 0x400;
-    }
-    else
-    {
-        if (penmRead)
-            *penmRead = VMXMSREXIT_INTERCEPT_READ;
-        if (penmWrite)
-            *penmWrite = VMXMSREXIT_INTERCEPT_WRITE;
-        Log(("CPUMVmxGetMsrPermission: Warning! Out of range MSR %#RX32\n", idMsr));
-        return VINF_SUCCESS;
-    }
-
-    /* Validate the MSR bit position. */
-    Assert(iBit <= 0x1fff);
-
-    /* Get the MSR read permissions. */
-    if (penmRead)
-    {
-        if (ASMBitTest(pbMsrBitmap, iBit))
-            *penmRead = VMXMSREXIT_INTERCEPT_READ;
-        else
-            *penmRead = VMXMSREXIT_PASSTHRU_READ;
-    }
-
-    /* Get the MSR write permissions. */
-    if (penmWrite)
-    {
-        if (ASMBitTest(pbMsrBitmap + 0x800, iBit))
-            *penmWrite = VMXMSREXIT_INTERCEPT_WRITE;
-        else
-            *penmWrite = VMXMSREXIT_PASSTHRU_WRITE;
-    }
-
-    return VINF_SUCCESS;
-}
-
-
-/**
- * Gets the permission bits for the specified I/O port from the given I/O bitmaps.
- *
- * @returns @c true if the I/O port access must cause a VM-exit, @c false otherwise.
- * @param   pvIoBitmapA     Pointer to I/O bitmap A.
- * @param   pvIoBitmapB     Pointer to I/O bitmap B.
- * @param   uPort           The I/O port being accessed.
- * @param   cbAccess        The size of the I/O access in bytes (1, 2 or 4 bytes).
- */
-VMM_INT_DECL(bool) HMGetVmxIoBitmapPermission(void const *pvIoBitmapA, void const *pvIoBitmapB, uint16_t uPort,
-                                                uint8_t cbAccess)
-{
-    Assert(cbAccess == 1 || cbAccess == 2 || cbAccess == 4);
-
-    /*
-     * If the I/O port access wraps around the 16-bit port I/O space,
-     * we must cause a VM-exit.
-     *
-     * See Intel spec. 25.1.3 "Instructions That Cause VM Exits Conditionally".
-     */
-    /** @todo r=ramshankar: Reading 1, 2, 4 bytes at ports 0xffff, 0xfffe and 0xfffc
-     *        respectively are valid and do not constitute a wrap around from what I
-     *        understand. Verify this later. */
-    uint32_t const uPortLast = uPort + cbAccess;
-    if (uPortLast > 0x10000)
-        return true;
-
-    /* Read the appropriate bit from the corresponding IO bitmap. */
-    void const *pvIoBitmap = uPort < 0x8000 ? pvIoBitmapA : pvIoBitmapB;
-    return ASMBitTest(pvIoBitmap, uPort);
-}
-
-
-/**
  * Dumps the virtual VMCS state to the release log.
  *
  * @param   pVCpu   The cross context virtual CPU structure.
  */
 VMM_INT_DECL(void) HMDumpHwvirtVmxState(PVMCPU pVCpu)
 {
-#ifndef IN_RC
     /* The string width of -4 used in the macros below to cover 'LDTR', 'GDTR', 'IDTR. */
-# define HMVMX_DUMP_HOST_XDTR(a_pVmcs, a_Seg, a_SegName, a_pszPrefix) \
+#define HMVMX_DUMP_HOST_XDTR(a_pVmcs, a_Seg, a_SegName, a_pszPrefix) \
     do { \
         LogRel(("  %s%-4s                       = {base=%016RX64}\n", \
             (a_pszPrefix), (a_SegName), (a_pVmcs)->u64Host##a_Seg##Base.u)); \
     } while (0)
-# define HMVMX_DUMP_HOST_FS_GS_TR(a_pVmcs, a_Seg, a_SegName, a_pszPrefix) \
+#define HMVMX_DUMP_HOST_FS_GS_TR(a_pVmcs, a_Seg, a_SegName, a_pszPrefix) \
     do { \
         LogRel(("  %s%-4s                       = {%04x base=%016RX64}\n", \
                 (a_pszPrefix), (a_SegName), (a_pVmcs)->Host##a_Seg, (a_pVmcs)->u64Host##a_Seg##Base.u)); \
     } while (0)
-# define HMVMX_DUMP_GUEST_SEGREG(a_pVmcs, a_Seg, a_SegName, a_pszPrefix) \
+#define HMVMX_DUMP_GUEST_SEGREG(a_pVmcs, a_Seg, a_SegName, a_pszPrefix) \
     do { \
         LogRel(("  %s%-4s                       = {%04x base=%016RX64 limit=%08x flags=%04x}\n", \
                 (a_pszPrefix), (a_SegName), (a_pVmcs)->Guest##a_Seg, (a_pVmcs)->u64Guest##a_Seg##Base.u, \
                 (a_pVmcs)->u32Guest##a_Seg##Limit, (a_pVmcs)->u32Guest##a_Seg##Attr)); \
     } while (0)
-# define HMVMX_DUMP_GUEST_XDTR(a_pVmcs, a_Seg, a_SegName, a_pszPrefix) \
+#define HMVMX_DUMP_GUEST_XDTR(a_pVmcs, a_Seg, a_SegName, a_pszPrefix) \
     do { \
         LogRel(("  %s%-4s                       = {base=%016RX64 limit=%08x}\n", \
                 (a_pszPrefix), (a_SegName), (a_pVmcs)->u64Guest##a_Seg##Base.u, (a_pVmcs)->u32Guest##a_Seg##Limit)); \
@@ -1008,7 +849,8 @@ VMM_INT_DECL(void) HMDumpHwvirtVmxState(PVMCPU pVCpu)
     LogRel(("GCPhysVmcs                 = %#RGp\n",     pCtx->hwvirt.vmx.GCPhysVmcs));
     LogRel(("GCPhysShadowVmcs           = %#RGp\n",     pCtx->hwvirt.vmx.GCPhysShadowVmcs));
     LogRel(("enmDiag                    = %u (%s)\n",   pCtx->hwvirt.vmx.enmDiag, HMGetVmxDiagDesc(pCtx->hwvirt.vmx.enmDiag)));
-    LogRel(("enmAbort                   = %u (%s)\n",   pCtx->hwvirt.vmx.enmAbort, HMGetVmxAbortDesc(pCtx->hwvirt.vmx.enmAbort)));
+    LogRel(("uDiagAux                   = %#RX64\n",    pCtx->hwvirt.vmx.uDiagAux));
+    LogRel(("enmAbort                   = %u (%s)\n",   pCtx->hwvirt.vmx.enmAbort, VMXGetAbortDesc(pCtx->hwvirt.vmx.enmAbort)));
     LogRel(("uAbortAux                  = %u (%#x)\n",  pCtx->hwvirt.vmx.uAbortAux, pCtx->hwvirt.vmx.uAbortAux));
     LogRel(("fInVmxRootMode             = %RTbool\n",   pCtx->hwvirt.vmx.fInVmxRootMode));
     LogRel(("fInVmxNonRootMode          = %RTbool\n",   pCtx->hwvirt.vmx.fInVmxNonRootMode));
@@ -1016,8 +858,9 @@ VMM_INT_DECL(void) HMDumpHwvirtVmxState(PVMCPU pVCpu)
     LogRel(("fNmiUnblockingIret         = %RTbool\n",   pCtx->hwvirt.vmx.fNmiUnblockingIret));
     LogRel(("uFirstPauseLoopTick        = %RX64\n",     pCtx->hwvirt.vmx.uFirstPauseLoopTick));
     LogRel(("uPrevPauseTick             = %RX64\n",     pCtx->hwvirt.vmx.uPrevPauseTick));
-    LogRel(("uVmentryTick               = %RX64\n",     pCtx->hwvirt.vmx.uVmentryTick));
+    LogRel(("uEntryTick                 = %RX64\n",     pCtx->hwvirt.vmx.uEntryTick));
     LogRel(("offVirtApicWrite           = %#RX16\n",    pCtx->hwvirt.vmx.offVirtApicWrite));
+    LogRel(("fVirtNmiBlocking           = %RTbool\n",   pCtx->hwvirt.vmx.fVirtNmiBlocking));
     LogRel(("VMCS cache:\n"));
 
     const char *pszPrefix = "  ";
@@ -1025,8 +868,8 @@ VMM_INT_DECL(void) HMDumpHwvirtVmxState(PVMCPU pVCpu)
     {
         LogRel(("%sHeader:\n", pszPrefix));
         LogRel(("  %sVMCS revision id           = %#RX32\n",      pszPrefix, pVmcs->u32VmcsRevId));
-        LogRel(("  %sVMX-abort id               = %#RX32 (%s)\n", pszPrefix, pVmcs->enmVmxAbort, HMGetVmxAbortDesc(pVmcs->enmVmxAbort)));
-        LogRel(("  %sVMCS state                 = %#x (%s)\n",    pszPrefix, pVmcs->fVmcsState, HMGetVmxVmcsStateDesc(pVmcs->fVmcsState)));
+        LogRel(("  %sVMX-abort id               = %#RX32 (%s)\n", pszPrefix, pVmcs->enmVmxAbort, VMXGetAbortDesc(pVmcs->enmVmxAbort)));
+        LogRel(("  %sVMCS state                 = %#x (%s)\n",    pszPrefix, pVmcs->fVmcsState, VMXGetVmcsStateDesc(pVmcs->fVmcsState)));
     }
 
     /* Control fields. */
@@ -1038,11 +881,11 @@ VMM_INT_DECL(void) HMDumpHwvirtVmxState(PVMCPU pVCpu)
         LogRel(("  %sEPTP index                 = %#RX16\n",   pszPrefix, pVmcs->u16EptpIndex));
 
         /* 32-bit. */
-        LogRel(("  %sPinCtls                    = %#RX32\n",   pszPrefix, pVmcs->u32PinCtls));
-        LogRel(("  %sProcCtls                   = %#RX32\n",   pszPrefix, pVmcs->u32ProcCtls));
-        LogRel(("  %sProcCtls2                  = %#RX32\n",   pszPrefix, pVmcs->u32ProcCtls2));
-        LogRel(("  %sExitCtls                   = %#RX32\n",   pszPrefix, pVmcs->u32ExitCtls));
-        LogRel(("  %sEntryCtls                  = %#RX32\n",   pszPrefix, pVmcs->u32EntryCtls));
+        LogRel(("  %sPin ctls                   = %#RX32\n",   pszPrefix, pVmcs->u32PinCtls));
+        LogRel(("  %sProcessor ctls             = %#RX32\n",   pszPrefix, pVmcs->u32ProcCtls));
+        LogRel(("  %sSecondary processor ctls   = %#RX32\n",   pszPrefix, pVmcs->u32ProcCtls2));
+        LogRel(("  %sVM-exit ctls               = %#RX32\n",   pszPrefix, pVmcs->u32ExitCtls));
+        LogRel(("  %sVM-entry ctls              = %#RX32\n",   pszPrefix, pVmcs->u32EntryCtls));
         LogRel(("  %sException bitmap           = %#RX32\n",   pszPrefix, pVmcs->u32XcptBitmap));
         LogRel(("  %sPage-fault mask            = %#RX32\n",   pszPrefix, pVmcs->u32XcptPFMask));
         LogRel(("  %sPage-fault match           = %#RX32\n",   pszPrefix, pVmcs->u32XcptPFMatch));
@@ -1055,13 +898,13 @@ VMM_INT_DECL(void) HMDumpHwvirtVmxState(PVMCPU pVCpu)
             uint32_t const fInfo = pVmcs->u32EntryIntInfo;
             uint8_t  const uType = VMX_ENTRY_INT_INFO_TYPE(fInfo);
             LogRel(("    %sValid                      = %RTbool\n",  pszPrefix, VMX_ENTRY_INT_INFO_IS_VALID(fInfo)));
-            LogRel(("    %sType                       = %#x (%s)\n", pszPrefix, uType, HMGetVmxEntryIntInfoTypeDesc(uType)));
+            LogRel(("    %sType                       = %#x (%s)\n", pszPrefix, uType, VMXGetEntryIntInfoTypeDesc(uType)));
             LogRel(("    %sVector                     = %#x\n",      pszPrefix, VMX_ENTRY_INT_INFO_VECTOR(fInfo)));
             LogRel(("    %sNMI-unblocking-IRET        = %RTbool\n",  pszPrefix, VMX_ENTRY_INT_INFO_IS_NMI_UNBLOCK_IRET(fInfo)));
             LogRel(("    %sError-code valid           = %RTbool\n",  pszPrefix, VMX_ENTRY_INT_INFO_IS_ERROR_CODE_VALID(fInfo)));
         }
         LogRel(("  %sVM-entry xcpt error-code   = %#RX32\n",   pszPrefix, pVmcs->u32EntryXcptErrCode));
-        LogRel(("  %sVM-entry instruction len   = %u bytes\n", pszPrefix, pVmcs->u32EntryInstrLen));
+        LogRel(("  %sVM-entry instr length      = %u byte(s)\n", pszPrefix, pVmcs->u32EntryInstrLen));
         LogRel(("  %sTPR threshold              = %#RX32\n",   pszPrefix, pVmcs->u32TprThreshold));
         LogRel(("  %sPLE gap                    = %#RX32\n",   pszPrefix, pVmcs->u32PleGap));
         LogRel(("  %sPLE window                 = %#RX32\n",   pszPrefix, pVmcs->u32PleWindow));
@@ -1090,7 +933,8 @@ VMM_INT_DECL(void) HMDumpHwvirtVmxState(PVMCPU pVCpu)
         LogRel(("  %sVMWRITE-bitmap addr        = %#RX64\n",   pszPrefix, pVmcs->u64AddrVmwriteBitmap.u));
         LogRel(("  %sVirt-Xcpt info addr        = %#RX64\n",   pszPrefix, pVmcs->u64AddrXcptVeInfo.u));
         LogRel(("  %sXSS-bitmap                 = %#RX64\n",   pszPrefix, pVmcs->u64XssBitmap.u));
-        LogRel(("  %sENCLS-exiting bitmap addr  = %#RX64\n",   pszPrefix, pVmcs->u64AddrEnclsBitmap.u));
+        LogRel(("  %sENCLS-exiting bitmap       = %#RX64\n",   pszPrefix, pVmcs->u64EnclsBitmap.u));
+        LogRel(("  %sSPPT pointer               = %#RX64\n",   pszPrefix, pVmcs->u64SpptPtr.u));
         LogRel(("  %sTSC multiplier             = %#RX64\n",   pszPrefix, pVmcs->u64TscMultiplier.u));
 
         /* Natural width. */
@@ -1140,6 +984,7 @@ VMM_INT_DECL(void) HMDumpHwvirtVmxState(PVMCPU pVCpu)
         LogRel(("  %sPDPTE 2                    = %#RX64\n",   pszPrefix, pVmcs->u64GuestPdpte2.u));
         LogRel(("  %sPDPTE 3                    = %#RX64\n",   pszPrefix, pVmcs->u64GuestPdpte3.u));
         LogRel(("  %sBNDCFGS                    = %#RX64\n",   pszPrefix, pVmcs->u64GuestBndcfgsMsr.u));
+        LogRel(("  %sRTIT_CTL                   = %#RX64\n",   pszPrefix, pVmcs->u64GuestRtitCtlMsr.u));
 
         /* Natural width. */
         LogRel(("  %scr0                        = %#RX64\n",   pszPrefix, pVmcs->u64GuestCr0.u));
@@ -1149,7 +994,7 @@ VMM_INT_DECL(void) HMDumpHwvirtVmxState(PVMCPU pVCpu)
         LogRel(("  %srsp                        = %#RX64\n",   pszPrefix, pVmcs->u64GuestRsp.u));
         LogRel(("  %srip                        = %#RX64\n",   pszPrefix, pVmcs->u64GuestRip.u));
         LogRel(("  %srflags                     = %#RX64\n",   pszPrefix, pVmcs->u64GuestRFlags.u));
-        LogRel(("  %sPending debug xcpts        = %#RX64\n",   pszPrefix, pVmcs->u64GuestPendingDbgXcpt.u));
+        LogRel(("  %sPending debug xcpts        = %#RX64\n",   pszPrefix, pVmcs->u64GuestPendingDbgXcpts.u));
         LogRel(("  %sSysEnter ESP               = %#RX64\n",   pszPrefix, pVmcs->u64GuestSysenterEsp.u));
         LogRel(("  %sSysEnter EIP               = %#RX64\n",   pszPrefix, pVmcs->u64GuestSysenterEip.u));
     }
@@ -1203,7 +1048,7 @@ VMM_INT_DECL(void) HMDumpHwvirtVmxState(PVMCPU pVCpu)
             uint32_t const fInfo = pVmcs->u32RoExitIntInfo;
             uint8_t  const uType = VMX_EXIT_INT_INFO_TYPE(fInfo);
             LogRel(("    %sValid                      = %RTbool\n",  pszPrefix, VMX_EXIT_INT_INFO_IS_VALID(fInfo)));
-            LogRel(("    %sType                       = %#x (%s)\n", pszPrefix, uType, HMGetVmxExitIntInfoTypeDesc(uType)));
+            LogRel(("    %sType                       = %#x (%s)\n", pszPrefix, uType, VMXGetExitIntInfoTypeDesc(uType)));
             LogRel(("    %sVector                     = %#x\n",      pszPrefix, VMX_EXIT_INT_INFO_VECTOR(fInfo)));
             LogRel(("    %sNMI-unblocking-IRET        = %RTbool\n",  pszPrefix, VMX_EXIT_INT_INFO_IS_NMI_UNBLOCK_IRET(fInfo)));
             LogRel(("    %sError-code valid           = %RTbool\n",  pszPrefix, VMX_EXIT_INT_INFO_IS_ERROR_CODE_VALID(fInfo)));
@@ -1214,7 +1059,7 @@ VMM_INT_DECL(void) HMDumpHwvirtVmxState(PVMCPU pVCpu)
             uint32_t const fInfo = pVmcs->u32RoIdtVectoringInfo;
             uint8_t  const uType = VMX_IDT_VECTORING_INFO_TYPE(fInfo);
             LogRel(("    %sValid                      = %RTbool\n",  pszPrefix, VMX_IDT_VECTORING_INFO_IS_VALID(fInfo)));
-            LogRel(("    %sType                       = %#x (%s)\n", pszPrefix, uType, HMGetVmxIdtVectoringInfoTypeDesc(uType)));
+            LogRel(("    %sType                       = %#x (%s)\n", pszPrefix, uType, VMXGetIdtVectoringInfoTypeDesc(uType)));
             LogRel(("    %sVector                     = %#x\n",      pszPrefix, VMX_IDT_VECTORING_INFO_VECTOR(fInfo)));
             LogRel(("    %sError-code valid           = %RTbool\n",  pszPrefix, VMX_IDT_VECTORING_INFO_IS_ERROR_CODE_VALID(fInfo)));
         }
@@ -1233,12 +1078,238 @@ VMM_INT_DECL(void) HMDumpHwvirtVmxState(PVMCPU pVCpu)
         LogRel(("  %sGuest-linear addr          = %#RX64\n",   pszPrefix, pVmcs->u64RoGuestLinearAddr.u));
     }
 
-# undef HMVMX_DUMP_HOST_XDTR
-# undef HMVMX_DUMP_HOST_FS_GS_TR
-# undef HMVMX_DUMP_GUEST_SEGREG
-# undef HMVMX_DUMP_GUEST_XDTR
-#else
-    NOREF(pVCpu);
-#endif /* !IN_RC */
+#undef HMVMX_DUMP_HOST_XDTR
+#undef HMVMX_DUMP_HOST_FS_GS_TR
+#undef HMVMX_DUMP_GUEST_SEGREG
+#undef HMVMX_DUMP_GUEST_XDTR
 }
+
+
+/**
+ * Gets the active (in use) VMCS info. object for the specified VCPU.
+ *
+ * This is either the guest or nested-guest VMCS info. and need not necessarily
+ * pertain to the "current" VMCS (in the VMX definition of the term). For instance,
+ * if the VM-entry failed due to an invalid-guest state, we may have "cleared" the
+ * current VMCS while returning to ring-3. However, the VMCS info. object for that
+ * VMCS would still be active and returned here so that we could dump the VMCS
+ * fields to ring-3 for diagnostics. This function is thus only used to
+ * distinguish between the nested-guest or guest VMCS.
+ *
+ * @returns The active VMCS information.
+ * @param   pVCpu   The cross context virtual CPU structure.
+ *
+ * @thread  EMT.
+ * @remarks This function may be called with preemption or interrupts disabled!
+ */
+VMM_INT_DECL(PVMXVMCSINFO) hmGetVmxActiveVmcsInfo(PVMCPU pVCpu)
+{
+    if (!pVCpu->hm.s.vmx.fSwitchedToNstGstVmcs)
+        return &pVCpu->hm.s.vmx.VmcsInfo;
+    return &pVCpu->hm.s.vmx.VmcsInfoNstGst;
+}
+
+
+/**
+ * Converts a VMX event type into an appropriate TRPM event type.
+ *
+ * @returns TRPM event.
+ * @param   uIntInfo    The VMX event.
+ */
+VMM_INT_DECL(TRPMEVENT) HMVmxEventTypeToTrpmEventType(uint32_t uIntInfo)
+{
+    Assert(VMX_IDT_VECTORING_INFO_IS_VALID(uIntInfo));
+
+    TRPMEVENT enmTrapType;
+    uint8_t const uType   = VMX_IDT_VECTORING_INFO_TYPE(uIntInfo);
+    uint8_t const uVector = VMX_IDT_VECTORING_INFO_VECTOR(uIntInfo);
+
+    switch (uType)
+    {
+        case VMX_IDT_VECTORING_INFO_TYPE_EXT_INT:
+           enmTrapType = TRPM_HARDWARE_INT;
+           break;
+
+        case VMX_IDT_VECTORING_INFO_TYPE_NMI:
+        case VMX_IDT_VECTORING_INFO_TYPE_HW_XCPT:
+            enmTrapType = TRPM_TRAP;
+            break;
+
+        case VMX_IDT_VECTORING_INFO_TYPE_PRIV_SW_XCPT:  /* INT1 (ICEBP). */
+            Assert(uVector == X86_XCPT_DB); NOREF(uVector);
+            enmTrapType = TRPM_SOFTWARE_INT;
+            break;
+
+        case VMX_IDT_VECTORING_INFO_TYPE_SW_XCPT:       /* INT3 (#BP) and INTO (#OF) */
+            Assert(uVector == X86_XCPT_BP || uVector == X86_XCPT_OF); NOREF(uVector);
+            enmTrapType = TRPM_SOFTWARE_INT;
+            break;
+
+        case VMX_IDT_VECTORING_INFO_TYPE_SW_INT:
+            enmTrapType = TRPM_SOFTWARE_INT;
+            break;
+
+        default:
+            AssertMsgFailed(("Invalid trap type %#x\n", uType));
+            enmTrapType = TRPM_32BIT_HACK;
+            break;
+    }
+
+    return enmTrapType;
+}
+
+
+/**
+ * Converts a TRPM event type into an appropriate VMX event type.
+ *
+ * @returns VMX event type mask.
+ * @param   uVector         The event vector.
+ * @param   enmTrpmEvent    The TRPM event.
+ * @param   fIcebp          Whether the \#DB vector is caused by an INT1/ICEBP
+ *                          instruction.
+ */
+VMM_INT_DECL(uint32_t) HMTrpmEventTypeToVmxEventType(uint8_t uVector, TRPMEVENT enmTrpmEvent, bool fIcebp)
+{
+    uint32_t uIntInfoType = 0;
+    if (enmTrpmEvent == TRPM_TRAP)
+    {
+        Assert(!fIcebp);
+        switch (uVector)
+        {
+            case X86_XCPT_NMI:
+                uIntInfoType |= (VMX_IDT_VECTORING_INFO_TYPE_NMI << VMX_IDT_VECTORING_INFO_TYPE_SHIFT);
+                break;
+
+            case X86_XCPT_BP:
+            case X86_XCPT_OF:
+                uIntInfoType |= (VMX_IDT_VECTORING_INFO_TYPE_SW_XCPT << VMX_IDT_VECTORING_INFO_TYPE_SHIFT);
+                break;
+
+            case X86_XCPT_PF:
+            case X86_XCPT_DF:
+            case X86_XCPT_TS:
+            case X86_XCPT_NP:
+            case X86_XCPT_SS:
+            case X86_XCPT_GP:
+            case X86_XCPT_AC:
+                uIntInfoType |= VMX_IDT_VECTORING_INFO_ERROR_CODE_VALID;
+                RT_FALL_THRU();
+            default:
+                uIntInfoType |= (VMX_IDT_VECTORING_INFO_TYPE_HW_XCPT << VMX_IDT_VECTORING_INFO_TYPE_SHIFT);
+                break;
+        }
+    }
+    else if (enmTrpmEvent == TRPM_HARDWARE_INT)
+    {
+        Assert(!fIcebp);
+        uIntInfoType |= (VMX_IDT_VECTORING_INFO_TYPE_EXT_INT << VMX_IDT_VECTORING_INFO_TYPE_SHIFT);
+    }
+    else if (enmTrpmEvent == TRPM_SOFTWARE_INT)
+    {
+        switch (uVector)
+        {
+            case X86_XCPT_BP:
+            case X86_XCPT_OF:
+                uIntInfoType |= (VMX_IDT_VECTORING_INFO_TYPE_SW_XCPT << VMX_IDT_VECTORING_INFO_TYPE_SHIFT);
+                break;
+
+            case X86_XCPT_DB:
+            {
+                if (fIcebp)
+                {
+                    uIntInfoType |= (VMX_IDT_VECTORING_INFO_TYPE_PRIV_SW_XCPT << VMX_IDT_VECTORING_INFO_TYPE_SHIFT);
+                    break;
+                }
+                RT_FALL_THRU();
+            }
+            default:
+                uIntInfoType |= (VMX_IDT_VECTORING_INFO_TYPE_SW_INT << VMX_IDT_VECTORING_INFO_TYPE_SHIFT);
+                break;
+        }
+    }
+    else
+        AssertMsgFailed(("Invalid TRPM event type %d\n", enmTrpmEvent));
+    return uIntInfoType;
+}
+
+
+#ifdef VBOX_WITH_NESTED_HWVIRT_VMX
+/**
+ * Notification callback for when a VM-exit happens outside VMX R0 code (e.g. in
+ * IEM).
+ *
+ * @param   pVCpu   The cross context virtual CPU structure.
+ *
+ * @remarks Can be called from ring-0 as well as ring-3.
+ */
+VMM_INT_DECL(void) HMNotifyVmxNstGstVmexit(PVMCPU pVCpu)
+{
+    LogFlowFunc(("\n"));
+
+    /*
+     * Transitions to ring-3 flag a full CPU-state change except if we transition to ring-3
+     * in response to a physical CPU interrupt as no changes to the guest-CPU state are
+     * expected (see VINF_EM_RAW_INTERRUPT handling in hmR0VmxExitToRing3).
+     *
+     * However, with nested-guests, the state -can- change on trips to ring-3 for we might
+     * try to inject a nested-guest physical interrupt and cause a VMX_EXIT_EXT_INT VM-exit
+     * for the nested-guest from ring-3.
+     *
+     * Signalling reload of just the guest-CPU state that changed with the VM-exit is -not-
+     * sufficient since HM also needs to reload state related to VM-entry/VM-exit controls
+     * etc. So signal reloading of the entire state. It does not seem worth making this any
+     * more fine grained at the moment.
+     */
+    CPUM_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_ALL);
+    ASMAtomicUoOrU64(&pVCpu->hm.s.fCtxChanged, HM_CHANGED_ALL_GUEST);
+
+    /*
+     * Make sure we need to merge the guest VMCS controls with the nested-guest
+     * VMCS controls on the next nested-guest VM-entry.
+     */
+    pVCpu->hm.s.vmx.fMergedNstGstCtls = false;
+
+    /*
+     * Flush the TLB before entering the outer guest execution (mainly required since the
+     * APIC-access guest-physical address would have changed and probably more things in
+     * the future).
+     */
+    pVCpu->hm.s.vmx.fSwitchedNstGstFlushTlb = true;
+
+    /** @todo Handle releasing of the page-mapping lock later. */
+#if 0
+    if (pVCpu->hm.s.vmx.fVirtApicPageLocked)
+    {
+        PGMPhysReleasePageMappingLock(pVCpu->CTX_SUFF(pVM), &pVCpu->hm.s.vmx.PgMapLockVirtApic);
+        pVCpu->hm.s.vmx.fVirtApicPageLocked = false;
+    }
+#endif
+}
+
+
+/**
+ * Notification callback for when the nested hypervisor's current VMCS is loaded or
+ * changed outside VMX R0 code (e.g. in IEM).
+ *
+ * This need -not- be called for modifications to the nested hypervisor's current
+ * VMCS when the guest is in VMX non-root mode as VMCS shadowing is not applicable
+ * there.
+ *
+ * @param   pVCpu   The cross context virtual CPU structure.
+ *
+ * @remarks Can be called from ring-0 as well as ring-3.
+ */
+VMM_INT_DECL(void) HMNotifyVmxNstGstCurrentVmcsChanged(PVMCPU pVCpu)
+{
+    CPUM_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_HWVIRT);
+    ASMAtomicUoOrU64(&pVCpu->hm.s.fCtxChanged, CPUMCTX_EXTRN_HWVIRT);
+
+    /*
+     * Make sure we need to copy the nested hypervisor's current VMCS into the shadow VMCS
+     * on the next guest VM-entry.
+     */
+    pVCpu->hm.s.vmx.fCopiedNstGstToShadowVmcs = false;
+}
+
+#endif /* VBOX_WITH_NESTED_HWVIRT_VMX */
 

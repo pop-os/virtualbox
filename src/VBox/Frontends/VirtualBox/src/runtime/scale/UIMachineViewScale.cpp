@@ -20,7 +20,7 @@
 #include <QTimer>
 
 /* GUI includes */
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #include "UISession.h"
 #include "UIMachineLogic.h"
 #include "UIMachineWindow.h"
@@ -32,6 +32,7 @@
 /* COM includes: */
 #include "CConsole.h"
 #include "CDisplay.h"
+#include "CGraphicsAdapter.h"
 
 /* Other VBox includes: */
 #include "VBox/log.h"
@@ -70,7 +71,7 @@ void UIMachineViewScale::sltPerformGuestScale()
     if (scaledSize.isValid())
     {
         /* Propagate scale-factor to 3D service if necessary: */
-        if (machine().GetAccelerate3DEnabled() && vboxGlobal().is3DAvailable())
+        if (machine().GetGraphicsAdapter().GetAccelerate3DEnabled() && uiCommon().is3DAvailable())
         {
             double xScaleFactor = (double)scaledSize.width()  / frameBuffer()->width();
             double yScaleFactor = (double)scaledSize.height() / frameBuffer()->height();
@@ -129,7 +130,7 @@ void UIMachineViewScale::applyMachineViewScaleFactor()
     if (scaledSize.isValid())
     {
         /* Propagate scale-factor to 3D service if necessary: */
-        if (machine().GetAccelerate3DEnabled() && vboxGlobal().is3DAvailable())
+        if (machine().GetGraphicsAdapter().GetAccelerate3DEnabled() && uiCommon().is3DAvailable())
         {
             double xScaleFactor = (double)scaledSize.width()  / frameBuffer()->width();
             double yScaleFactor = (double)scaledSize.height() / frameBuffer()->height();
@@ -152,7 +153,7 @@ void UIMachineViewScale::applyMachineViewScaleFactor()
     /* Take unscaled HiDPI output mode into account: */
     frameBuffer()->setUseUnscaledHiDPIOutput(fUseUnscaledHiDPIOutput);
     /* Propagate unscaled-hidpi-output feature to 3D service if necessary: */
-    if (machine().GetAccelerate3DEnabled() && vboxGlobal().is3DAvailable())
+    if (machine().GetGraphicsAdapter().GetAccelerate3DEnabled() && uiCommon().is3DAvailable())
         display().NotifyHiDPIOutputPolicyChange(fUseUnscaledHiDPIOutput);
 
     /* Perform frame-buffer rescaling: */
@@ -176,7 +177,7 @@ void UIMachineViewScale::resendSizeHint()
     uisession()->setScreenVisibleHostDesires(screenId(), guestScreenVisibilityStatus());
     display().SetVideoModeHint(screenId(),
                                guestScreenVisibilityStatus(),
-                               false, 0, 0, sizeHint.width(), sizeHint.height(), 0);
+                               false, 0, 0, sizeHint.width(), sizeHint.height(), 0, true);
 }
 
 QSize UIMachineViewScale::sizeHint() const

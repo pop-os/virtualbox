@@ -21,6 +21,7 @@
 
 /* General: */
 const char *UIExtraDataDefs::GUI_EventHandlingType = "GUI/EventHandlingType";
+const char *UIExtraDataDefs::GUI_RestrictedDialogs = "GUI/RestrictedDialogs";
 
 
 /* Messaging: */
@@ -72,11 +73,15 @@ const char *UIExtraDataDefs::GUI_ProxySettings = "GUI/ProxySettings";
 const char *UIExtraDataDefs::GUI_RecentFolderHD = "GUI/RecentFolderHD";
 const char *UIExtraDataDefs::GUI_RecentFolderCD = "GUI/RecentFolderCD";
 const char *UIExtraDataDefs::GUI_RecentFolderFD = "GUI/RecentFolderFD";
-const char *UIExtraDataDefs::GUI_RecentFolderVISOContent = "GUI/RecentFolderVISOContent";
 const char *UIExtraDataDefs::GUI_RecentListHD = "GUI/RecentListHD";
 const char *UIExtraDataDefs::GUI_RecentListCD = "GUI/RecentListCD";
 const char *UIExtraDataDefs::GUI_RecentListFD = "GUI/RecentListFD";
 
+/* Settings: Network: */
+const char *UIExtraDataDefs::GUI_RestrictedNetworkAttachmentTypes = "GUI/RestrictedNetworkAttachmentTypes";
+
+/* VISO Creator: */
+const char *UIExtraDataDefs::GUI_VISOCreator_RecentFolder   = "GUI/VISOCreator/RecentFolder";
 
 /* VirtualBox Manager: */
 const char *UIExtraDataDefs::GUI_LastSelectorWindowPosition = "GUI/LastWindowPosition";
@@ -99,6 +104,7 @@ const char *UIExtraDataDefs::GUI_SnapshotManager_Details_Expanded = "GUI/Snapsho
 
 /* Virtual Media Manager: */
 const char *UIExtraDataDefs::GUI_VirtualMediaManager_Details_Expanded = "GUI/VirtualMediaManager/Details/Expanded";
+const char *UIExtraDataDefs::GUI_VirtualMediaManager_Search_Widget_Expanded = "GUI/VirtualMediaManager/SearchWidget/Expanded";
 
 /* Host Network Manager: */
 const char *UIExtraDataDefs::GUI_HostNetworkManager_Details_Expanded = "GUI/HostNetworkManager/Details/Expanded";
@@ -187,15 +193,24 @@ const char *UIExtraDataDefs::GUI_HidLedsSync = "GUI/HidLedsSync";
 const char *UIExtraDataDefs::GUI_ScaleFactor = "GUI/ScaleFactor";
 const char *UIExtraDataDefs::GUI_Scaling_Optimization = "GUI/Scaling/Optimization";
 
-/* Virtual Machine: Information dialog: */
-const char *UIExtraDataDefs::GUI_InformationWindowGeometry = "GUI/InformationWindowGeometry";
-const char *UIExtraDataDefs::GUI_InformationWindowElements = "GUI/InformationWindowElements";
+/* Virtual Machine: Session Information Dialog: */
+const char *UIExtraDataDefs::GUI_SessionInformationDialogGeometry = "GUI/SessionInformationDialogGeometry";
 
 /* Guest control UI: */
 const char *UIExtraDataDefs::GUI_GuestControl_FileManagerDialogGeometry = "GUI/GuestControl/FileManagerDialogGeometry";
 const char *UIExtraDataDefs::GUI_GuestControl_FileManagerVisiblePanels = "GUI/GuestControl/FileManagerVisiblePanels";
 const char *UIExtraDataDefs::GUI_GuestControl_ProcessControlSplitterHints = "GUI/GuestControl/ProcessControlSplitterHints";
 const char *UIExtraDataDefs::GUI_GuestControl_ProcessControlDialogGeometry = "GUI/GuestControl/ProcessControlDialogGeometry";
+
+/* Soft Keyboard: */
+const char *UIExtraDataDefs::GUI_SoftKeyboard_DialogGeometry = "GUI/SoftKeyboardDialogGeometry";
+const char *UIExtraDataDefs::GUI_SoftKeyboard_ColorTheme  = "GUI/SoftKeyboardColorTheme";
+const char *UIExtraDataDefs::GUI_SoftKeyboard_SelectedColorTheme  = "GUI/SoftKeyboardSelectedColorTheme";
+const char *UIExtraDataDefs::GUI_SoftKeyboard_SelectedLayout  = "GUI/SoftKeyboardSelectedLayout";
+const char *UIExtraDataDefs::GUI_SoftKeyboard_Options  = "GUI/SoftKeyboardOptions";
+const char *UIExtraDataDefs::GUI_SoftKeyboard_HideNumPad = "GUI/SoftKeyboardHideNumPad";
+const char *UIExtraDataDefs::GUI_SoftKeyboard_HideOSMenuKeys = "GUI/SoftKeyboardHideOSMenuKeys";
+const char *UIExtraDataDefs::GUI_SoftKeyboard_HideMultimediaKeys = "GUI/SoftKeyboardHideMultimediaKeys";
 
 /* File Manager options: */
 const char *UIExtraDataDefs::GUI_GuestControl_FileManagerOptions = "GUI/GuestControl/FileManagerOptions";
@@ -223,7 +238,6 @@ const char *UIExtraDataDefs::GUI_LogViewerWrapLinesEnabled = "WrapLines";
 const char *UIExtraDataDefs::GUI_LogViewerShowLineNumbersDisabled = "showLineNumbersDisabled";
 const char *UIExtraDataDefs::GUI_LogViewerNoFontStyleName = "noFontStyleName";
 const char *UIExtraDataDefs::GUI_GuestControl_LogViewerVisiblePanels = "GUI/LogViewerVisiblePanels";
-
 
 /* Obsolete keys: */
 QMap<QString, QString> UIExtraDataDefs::prepareObsoleteKeysMap()

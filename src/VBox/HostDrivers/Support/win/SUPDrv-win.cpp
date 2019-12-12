@@ -1761,13 +1761,15 @@ int VBOXCALL supdrvOSInitGipGroupTable(PSUPDRVDEVEXT pDevExt, PSUPGLOBALINFOPAGE
     PSUPGIPCPUGROUP pGroup = (PSUPGIPCPUGROUP)&pGip->aCPUs[pGip->cCpus];
     for (uint32_t idxGroup = 0; idxGroup < cGroups; idxGroup++)
     {
-        uint32_t cActive  = 0;
-        uint32_t cMax     = RTMpGetCpuGroupCounts(idxGroup, &cActive);
-        uint32_t cbNeeded = RT_UOFFSETOF_DYN(SUPGIPCPUGROUP, aiCpuSetIdxs[cMax]);
+        uint32_t        cActive  = 0;
+        uint32_t  const cMax     = RTMpGetCpuGroupCounts(idxGroup, &cActive);
+        uint32_t  const cbNeeded = RT_UOFFSETOF_DYN(SUPGIPCPUGROUP, aiCpuSetIdxs[cMax]);
+        uintptr_t const offGroup = (uintptr_t)pGroup - (uintptr_t)pGip;
         AssertReturn(cbNeeded <= cbGipCpuGroups, VERR_INTERNAL_ERROR_3);
         AssertReturn(cActive <= cMax, VERR_INTERNAL_ERROR_4);
+        AssertReturn(offGroup == (uint32_t)offGroup, VERR_INTERNAL_ERROR_5);
 
-        pGip->aoffCpuGroup[idxGroup] = (uint16_t)((uintptr_t)pGroup - (uintptr_t)pGip);
+        pGip->aoffCpuGroup[idxGroup] = offGroup;
         pGroup->cMembers    = cActive;
         pGroup->cMaxMembers = cMax;
         for (uint32_t idxMember = 0; idxMember < cMax; idxMember++)
@@ -1812,16 +1814,18 @@ void VBOXCALL supdrvOSGipInitGroupBitsForCpu(PSUPDRVDEVEXT pDevExt, PSUPGLOBALIN
      * Update the group info.  Just do this wholesale for now (doesn't scale well).
      */
     for (uint32_t idxGroup = 0; idxGroup < pGip->cPossibleCpuGroups; idxGroup++)
-        if (pGip->aoffCpuGroup[idxGroup] != UINT16_MAX)
+    {
+        uint32_t offGroup = pGip->aoffCpuGroup[idxGroup];
+        if (offGroup != UINT32_MAX)
         {
-            PSUPGIPCPUGROUP pGroup = (PSUPGIPCPUGROUP)((uintptr_t)pGip + pGip->aoffCpuGroup[idxGroup]);
+            PSUPGIPCPUGROUP pGroup   = (PSUPGIPCPUGROUP)((uintptr_t)pGip + offGroup);
+            uint32_t        cActive  = 0;
+            uint32_t        cMax     = RTMpGetCpuGroupCounts(idxGroup, &cActive);
 
-            uint32_t cActive  = 0;
-            uint32_t cMax     = RTMpGetCpuGroupCounts(idxGroup, &cActive);
             AssertStmt(cMax == pGroup->cMaxMembers, cMax = pGroup->cMaxMembers);
             AssertStmt(cActive <= cMax, cActive = cMax);
             if (pGroup->cMembers != cActive)
-                pGroup->cMembers = cActive;
+                ASMAtomicWriteU16(&pGroup->cMembers, cActive);
 
             for (uint32_t idxMember = 0; idxMember < cMax; idxMember++)
             {
@@ -1830,9 +1834,10 @@ void VBOXCALL supdrvOSGipInitGroupBitsForCpu(PSUPDRVDEVEXT pDevExt, PSUPGLOBALIN
                           ("%d vs %d for %u.%u\n", idxCpuSet, pGip->cPossibleCpus, idxGroup, idxMember));
 
                 if (pGroup->aiCpuSetIdxs[idxMember] != idxCpuSet)
-                    pGroup->aiCpuSetIdxs[idxMember] = idxCpuSet;
+                    ASMAtomicWriteS16(&pGroup->aiCpuSetIdxs[idxMember], idxCpuSet);
             }
         }
+    }
 }
 
 
@@ -1894,71 +1899,6 @@ bool VBOXCALL  supdrvOSAreTscDeltasInSync(void)
     /* If IPRT didn't find KeIpiGenericCall we pretend windows(, the firmware,
        or whoever) always configures TSCs perfectly. */
     return !RTMpOnPairIsConcurrentExecSupported();
-}
-
-
-/**
- * Checks whether we're allowed by Hyper-V to modify CR4.
- */
-int  VBOXCALL supdrvOSGetRawModeUsability(void)
-{
-    int rc = VINF_SUCCESS;
-
-#ifdef RT_ARCH_AMD64
-    /*
-     * Broadwell running W10 17083.100:
-     *        CR4: 0x170678
-     *  Evil mask: 0x170638
-     *      X86_CR4_SMEP        - evil
-     *      X86_CR4_FSGSBASE    - evil
-     *      X86_CR4_PCIDE       - evil
-     *      X86_CR4_OSXSAVE     - evil
-     *      X86_CR4_OSFXSR      - evil
-     *      X86_CR4_OSXMMEEXCPT - evil
-     *      X86_CR4_PSE         - evil
-     *      X86_CR4_PAE         - evil
-     *      X86_CR4_MCE         - okay
-     *      X86_CR4_DE          - evil
-     */
-    if (ASMHasCpuId())
-    {
-        uint32_t cStd = ASMCpuId_EAX(0);
-        if (ASMIsValidStdRange(cStd))
-        {
-            uint32_t uIgn         = 0;
-            uint32_t fEdxFeatures = 0;
-            uint32_t fEcxFeatures = 0;
-            ASMCpuIdExSlow(1, 0, 0, 0, &uIgn, &uIgn, &fEcxFeatures, &fEdxFeatures);
-            if (fEcxFeatures & X86_CPUID_FEATURE_ECX_HVP)
-            {
-                RTCCUINTREG  const fOldFlags    = ASMIntDisableFlags();
-                RTCCUINTXREG const fCr4         = ASMGetCR4();
-
-                RTCCUINTXREG const fSafeToClear = X86_CR4_TSD      | X86_CR4_DE     | X86_CR4_PGE  | X86_CR4_PCE
-                                                | X86_CR4_FSGSBASE | X86_CR4_PCIDE  | X86_CR4_SMEP | X86_CR4_SMAP
-                                                | X86_CR4_OSXSAVE  | X86_CR4_OSFXSR | X86_CR4_OSXMMEEXCPT;
-                RTCCUINTXREG       fLoadCr4     = fCr4 & ~fSafeToClear;
-                RTCCUINTXREG const fCleared     = fCr4 & fSafeToClear;
-                if (!(fCleared & X86_CR4_TSD) && (fEdxFeatures & X86_CPUID_FEATURE_EDX_TSC))
-                    fLoadCr4 |= X86_CR4_TSD;
-                if (!(fCleared & X86_CR4_PGE) && (fEdxFeatures & X86_CPUID_FEATURE_EDX_PGE))
-                    fLoadCr4 |= X86_CR4_PGE;
-                __try
-                {
-                    ASMSetCR4(fLoadCr4);
-                }
-                __except(EXCEPTION_EXECUTE_HANDLER)
-                {
-                    rc = VERR_SUPDRV_NO_RAW_MODE_HYPER_V_ROOT;
-                }
-                if (RT_SUCCESS(rc))
-                    ASMSetCR4(fCr4);
-                ASMSetFlags(fOldFlags);
-            }
-        }
-    }
-#endif
-    return rc;
 }
 
 
@@ -2747,12 +2687,6 @@ static NTSTATUS     VBoxDrvNtErr2NtStatus(int rc)
 }
 
 
-/**
- * Alternative version of SUPR0Printf for Windows.
- *
- * @returns 0.
- * @param   pszFormat   The format string.
- */
 SUPR0DECL(int) SUPR0Printf(const char *pszFormat, ...)
 {
     va_list va;

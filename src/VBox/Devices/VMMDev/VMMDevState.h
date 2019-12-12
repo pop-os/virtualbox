@@ -118,223 +118,133 @@ typedef VMMDEVFACILITYSTATUSENTRY *PVMMDEVFACILITYSTATUSENTRY;
 /**
  * State structure for the VMM device.
  */
-typedef struct VMMDevState
+typedef struct VMMDEV
 {
-    /** The PCI device structure. */
-    PDMPCIDEV           PciDev;
     /** The critical section for this device.
      * @remarks We use this rather than the default one, it's simpler with all
      *          the driver interfaces where we have to waste time digging out the
      *          PDMDEVINS structure. */
     PDMCRITSECT         CritSect;
 
-    /** hypervisor address space size */
-    uint32_t hypervisorSize;
-
     /** mouse capabilities of host and guest */
-    uint32_t mouseCapabilities;
-    /** absolute mouse position in pixels */
-    int32_t mouseXAbs;
-    int32_t mouseYAbs;
+    uint32_t            fMouseCapabilities;
+    /** @name Absolute mouse position in pixels
+     * @{ */
+    int32_t             xMouseAbs;
+    int32_t             yMouseAbs;
+    /** @} */
     /** Does the guest currently want the host pointer to be shown? */
-    uint32_t fHostCursorRequested;
+    uint32_t            fHostCursorRequested;
 
-//#if HC_ARCH_BITS == 32
-//    /** Alignment padding. */
-//    uint32_t u32Alignment0;
-//#endif
-
-    /** Pointer to device instance - RC pointer. */
-    PPDMDEVINSRC pDevInsRC;
-    /** Pointer to device instance - R3 poitner. */
-    PPDMDEVINSR3 pDevInsR3;
-    /** Pointer to device instance - R0 pointer. */
-    PPDMDEVINSR0 pDevInsR0;
-
-    /** LUN\#0 + Status: VMMDev port base interface. */
-    PDMIBASE IBase;
-    /** LUN\#0: VMMDev port interface. */
-    PDMIVMMDEVPORT IPort;
-#ifdef VBOX_WITH_HGCM
-    /** LUN\#0: HGCM port interface. */
-    PDMIHGCMPORT IHGCMPort;
-//# if HC_ARCH_BITS == 32
-//    RTR3PTR      R3PtrAlignment1;
-//# endif
-#endif
-    /** Pointer to base interface of the driver. */
-    R3PTRTYPE(PPDMIBASE) pDrvBase;
-    /** VMMDev connector interface */
-    R3PTRTYPE(PPDMIVMMDEVCONNECTOR) pDrv;
-#ifdef VBOX_WITH_HGCM
-    /** HGCM connector interface */
-    R3PTRTYPE(PPDMIHGCMCONNECTOR) pHGCMDrv;
-#endif
     /** message buffer for backdoor logging. */
-    char szMsg[512];
+    char                szMsg[512];
     /** message buffer index. */
-    uint32_t iMsg;
+    uint32_t            offMsg;
     /** Alignment padding. */
-    uint32_t u32Alignment2;
+    uint32_t            u32Alignment2;
 
     /** Statistics counter for slow IRQ ACK. */
-    STAMCOUNTER StatSlowIrqAck;
+    STAMCOUNTER         StatSlowIrqAck;
     /** Statistics counter for fast IRQ ACK - R3. */
-    STAMCOUNTER StatFastIrqAckR3;
+    STAMCOUNTER         StatFastIrqAckR3;
     /** Statistics counter for fast IRQ ACK - R0 / RC. */
-    STAMCOUNTER StatFastIrqAckRZ;
-    /** IRQ number assigned to the device */
-    uint32_t irq;
-    /** Current host side event flags */
-    uint32_t u32HostEventFlags;
-    /** Mask of events guest is interested in.
+    STAMCOUNTER         StatFastIrqAckRZ;
+    /** Current host side event flags - VMMDEV_EVENT_XXX. */
+    uint32_t            fHostEventFlags;
+    /** Mask of events guest is interested in - VMMDEV_EVENT_XXX.
      * @note The HGCM events are enabled automatically by the VMMDev device when
      *       guest issues HGCM commands. */
-    uint32_t u32GuestFilterMask;
-    /** Delayed mask of guest events */
-    uint32_t u32NewGuestFilterMask;
-    /** Flag whether u32NewGuestFilterMask is valid */
-    bool fNewGuestFilterMask;
+    uint32_t            fGuestFilterMask;
+    /** Delayed mask of guest events - VMMDEV_EVENT_XXX. */
+    uint32_t            fNewGuestFilterMask;
+    /** Flag whether fNewGuestFilterMask is valid */
+    bool                fNewGuestFilterMaskValid;
     /** Alignment padding. */
-    bool afAlignment3[3];
-
-    /** GC physical address of VMMDev RAM area */
-    RTGCPHYS32                  GCPhysVMMDevRAM;
-    /** R3 pointer to VMMDev RAM area */
-    R3PTRTYPE(VMMDevMemory *)   pVMMDevRAMR3;
-    /** R0 pointer to VMMDev RAM area - first page only, could be NULL! */
-    R0PTRTYPE(VMMDevMemory *)   pVMMDevRAMR0;
-    /** R0 pointer to VMMDev RAM area - first page only, could be NULL! */
-    RCPTRTYPE(VMMDevMemory *)   pVMMDevRAMRC;
-#if HC_ARCH_BITS != 32
-    RTRCPTR                     RCPtrAlignment3b;
-#endif
-
-    /** R3 pointer to VMMDev Heap RAM area. */
-    R3PTRTYPE(VMMDevMemory *) pVMMDevHeapR3;
-    /** GC physical address of VMMDev Heap RAM area */
-    RTGCPHYS32 GCPhysVMMDevHeap;
+    bool                afAlignment3[3];
 
     /** Information reported by guest via VMMDevReportGuestInfo generic request.
      * Until this information is reported the VMMDev refuses any other requests.
      */
-    VBoxGuestInfo guestInfo;
+    VBoxGuestInfo       guestInfo;
     /** Information report \#2, chewed a little. */
     struct
     {
-        uint32_t uFullVersion; /**< non-zero if info is present. */
-        uint32_t uRevision;
-        uint32_t fFeatures;
-        char     szName[128];
-    } guestInfo2;
+        uint32_t            uFullVersion; /**< non-zero if info is present. */
+        uint32_t            uRevision;
+        uint32_t            fFeatures;
+        char                szName[128];
+    }                   guestInfo2;
 
     /** Array of guest facility statuses. */
-    VMMDEVFACILITYSTATUSENTRY   aFacilityStatuses[32];
+    VMMDEVFACILITYSTATUSENTRY aFacilityStatuses[32];
     /** The number of valid entries in the facility status array. */
-    uint32_t                    cFacilityStatuses;
+    uint32_t            cFacilityStatuses;
 
-    /** Information reported by guest via VMMDevReportGuestCapabilities. */
-    uint32_t      guestCaps;
+    /** Information reported by guest via VMMDevReportGuestCapabilities - VMMDEV_GUEST_SUPPORTS_XXX. */
+    uint32_t            fGuestCaps;
 
     /** "Additions are Ok" indicator, set to true after processing VMMDevReportGuestInfo,
      * if additions version is compatible. This flag is here to avoid repeated comparing
      * of the version in guestInfo.
      */
-    uint32_t fu32AdditionsOk;
+    uint32_t            fu32AdditionsOk;
 
     /** Video acceleration status set by guest. */
-    uint32_t u32VideoAccelEnabled;
+    uint32_t            u32VideoAccelEnabled;
 
-    DISPLAYCHANGEDATA displayChangeData;
+    DISPLAYCHANGEDATA   displayChangeData;
 
-    /** Pointer to the credentials. */
-    R3PTRTYPE(VMMDEVCREDS *) pCredentials;
-
-#if HC_ARCH_BITS == 32
-    uint32_t uAlignment4;
-#endif
-
-    /* memory balloon change request */
-    uint32_t    cMbMemoryBalloon;
+    /** memory balloon change request */
+    uint32_t            cMbMemoryBalloon;
     /** The last balloon size queried by the guest additions. */
-    uint32_t    cMbMemoryBalloonLast;
+    uint32_t            cMbMemoryBalloonLast;
 
-    /* guest ram size */
-    uint64_t    cbGuestRAM;
+    /** guest ram size */
+    uint64_t            cbGuestRAM;
 
-    /* unique session id; the id will be different after each start, reset or restore of the VM. */
-    uint64_t    idSession;
+    /** unique session id; the id will be different after each start, reset or restore of the VM. */
+    uint64_t            idSession;
 
-    /* statistics interval change request */
-    uint32_t    u32StatIntervalSize, u32LastStatIntervalSize;
+    /** Statistics interval in seconds.  */
+    uint32_t            cSecsStatInterval;
+    /** The statistics interval last returned to the guest. */
+    uint32_t            cSecsLastStatInterval;
 
-    /* seamless mode change request */
-    bool fLastSeamlessEnabled, fSeamlessEnabled;
-    bool afAlignment5[1];
+    /** Whether seamless is enabled or not. */
+    bool                fSeamlessEnabled;
+    /** The last fSeamlessEnabled state returned to the guest. */
+    bool                fLastSeamlessEnabled;
+    bool                afAlignment5[1];
 
-    bool fVRDPEnabled;
-    uint32_t uVRDPExperienceLevel;
+    bool                fVRDPEnabled;
+    uint32_t            uVRDPExperienceLevel;
 
 #ifdef VMMDEV_WITH_ALT_TIMESYNC
-    uint64_t hostTime;
-    bool fTimesyncBackdoorLo;
-    bool afAlignment6[2];
+    uint64_t            msLatchedHostTime;
+    bool                fTimesyncBackdoorLo;
+    bool                afAlignment6[1];
 #else
-    bool afAlignment6[1+2];
+    bool                afAlignment6[2];
 #endif
+
+    /** Set if guest should be allowed to trigger state save and power off.  */
+    bool                fAllowGuestToSaveState;
     /** Set if GetHostTime should fail.
      * Loaded from the GetHostTimeDisabled configuration value. */
-    bool fGetHostTimeDisabled;
-
+    bool                fGetHostTimeDisabled;
     /** Set if backdoor logging should be disabled (output will be ignored then) */
-    bool fBackdoorLogDisabled;
-
+    bool                fBackdoorLogDisabled;
     /** Don't clear credentials */
-    bool fKeepCredentials;
-
+    bool                fKeepCredentials;
     /** Heap enabled. */
-    bool fHeapEnabled;
+    bool                fHeapEnabled;
 
     /** Guest Core Dumping enabled. */
-    bool fGuestCoreDumpEnabled;
-
+    bool                fGuestCoreDumpEnabled;
     /** Guest Core Dump location. */
-    char szGuestCoreDumpDir[RTPATH_MAX];
-
+    char                szGuestCoreDumpDir[RTPATH_MAX];
     /** Number of additional cores to keep around. */
-    uint32_t cGuestCoreDumps;
-
-#ifdef VBOX_WITH_HGCM
-    /** List of pending HGCM requests (VBOXHGCMCMD). */
-    RTLISTANCHORR3 listHGCMCmd;
-    /** Critical section to protect the list. */
-    RTCRITSECT critsectHGCMCmdList;
-    /** Whether the HGCM events are already automatically enabled. */
-    uint32_t u32HGCMEnabled;
-    /** Saved state version of restored commands. */
-    uint32_t u32SSMVersion;
-    RTMEMCACHE  hHgcmCmdCache;
-    STAMPROFILE StatHgcmCmdArrival;
-    STAMPROFILE StatHgcmCmdCompletion;
-    STAMPROFILE StatHgcmCmdTotal;
-    STAMCOUNTER StatHgcmLargeCmdAllocs;
-    STAMCOUNTER StatHgcmFailedPageListLocking;
-#endif /* VBOX_WITH_HGCM */
-    STAMCOUNTER StatReqBufAllocs;
-
-    /** Per CPU request 4K sized buffers, allocated as needed. */
-    R3PTRTYPE(VMMDevRequestHeader *) apReqBufs[VMM_MAX_CPU_COUNT];
-
-    /** Status LUN: Shared folders LED */
-    struct
-    {
-        /** The LED. */
-        PDMLED                              Led;
-        /** The LED ports. */
-        PDMILEDPORTS                        ILeds;
-        /** Partner of ILeds. */
-        R3PTRTYPE(PPDMILEDCONNECTORS)       pLedsConnector;
-    } SharedFolders;
+    uint32_t            cGuestCoreDumps;
 
     /** FLag whether CPU hotplug events are monitored */
     bool                fCpuHotPlugEventsEnabled;
@@ -349,14 +259,12 @@ typedef struct VMMDevState
 
     uint32_t            StatMemBalloonChunks;
 
-    /** Set if RC/R0 is enabled. */
-    bool                fRZEnabled;
     /** Set if testing is enabled. */
     bool                fTestingEnabled;
     /** Set if testing the MMIO testing range is enabled. */
     bool                fTestingMMIO;
     /** Alignment padding. */
-    bool                afPadding9[HC_ARCH_BITS == 32 ? 1 : 5];
+    bool                afPadding9[HC_ARCH_BITS == 32 ? 2 : 6];
 #ifndef VBOX_WITHOUT_TESTING_FEATURES
     /** The high timestamp value. */
     uint32_t            u32TestingHighTimestamp;
@@ -394,10 +302,11 @@ typedef struct VMMDevState
          *  VMMDEV_TESTING_MMIO_OFF_READBACK_R3). */
         uint8_t         abReadBack[VMMDEV_TESTING_READBACK_SIZE];
     } TestingData;
-    /** The XML output file name (can be a named pipe, doesn't matter to us). */
-    R3PTRTYPE(char *)       pszTestingXmlOutput;
-    /** Testing instance for dealing with the output. */
-    RTTEST                  hTestingTest;
+
+    /** Handle for the I/O ports used by the testing component. */
+    IOMIOPORTHANDLE     hIoPortTesting;
+    /** Handle for the MMIO region used by the testing component. */
+    IOMMMIOHANDLE       hMmioTesting;
 #endif /* !VBOX_WITHOUT_TESTING_FEATURES */
 
     /** @name Heartbeat
@@ -417,11 +326,23 @@ typedef struct VMMDevState
      * conclude the guest is doing a Dixie Flatline (Neuromancer) impression. */
     uint64_t            cNsHeartbeatTimeout;
     /** Timer for signalling a flatlined guest. */
-    PTMTIMERR3          pFlatlinedTimer;
+    TMTIMERHANDLE       hFlatlinedTimer;
     /** @} */
-} VMMDevState;
-typedef VMMDevState VMMDEV;
-/** Pointer to the VMM device state. */
+
+    /** Handle for the backdoor logging I/O port. */
+    IOMIOPORTHANDLE     hIoPortBackdoorLog;
+    /** Handle for the alternative timesync I/O port. */
+    IOMIOPORTHANDLE     hIoPortAltTimesync;
+    /** Handle for the VMM request I/O port (PCI region \#0). */
+    IOMIOPORTHANDLE     hIoPortReq;
+    /** Handle for the fast VMM request I/O port (PCI region \#0). */
+    IOMIOPORTHANDLE     hIoPortFast;
+    /** Handle for the VMMDev RAM (PCI region \#1). */
+    PGMMMIO2HANDLE      hMmio2VMMDevRAM;
+    /** Handle for the VMMDev Heap (PCI region \#2). */
+    PGMMMIO2HANDLE      hMmio2Heap;
+} VMMDEV;
+/** Pointer to the shared VMM device state. */
 typedef VMMDEV *PVMMDEV;
 AssertCompileMemberAlignment(VMMDEV, CritSect, 8);
 AssertCompileMemberAlignment(VMMDEV, StatSlowIrqAck, 8);
@@ -433,8 +354,117 @@ AssertCompileMemberAlignment(VMMDEV, TestingData.Value.u64Value, 8);
 #endif
 
 
-void VMMDevNotifyGuest(VMMDEV *pVMMDevState, uint32_t u32EventMask);
-void VMMDevCtlSetGuestFilterMask(VMMDEV *pVMMDevState, uint32_t u32OrMask, uint32_t u32NotMask);
+/**
+ * State structure for the VMM device, ring-3 edition.
+ */
+typedef struct VMMDEVR3
+{
+    /** LUN\#0 + Status: VMMDev port base interface. */
+    PDMIBASE                        IBase;
+    /** LUN\#0: VMMDev port interface. */
+    PDMIVMMDEVPORT                  IPort;
+#ifdef VBOX_WITH_HGCM
+    /** LUN\#0: HGCM port interface. */
+    PDMIHGCMPORT                    IHGCMPort;
+    /** HGCM connector interface */
+    R3PTRTYPE(PPDMIHGCMCONNECTOR)   pHGCMDrv;
+#endif
+    /** Pointer to base interface of the driver. */
+    R3PTRTYPE(PPDMIBASE)            pDrvBase;
+    /** VMMDev connector interface */
+    R3PTRTYPE(PPDMIVMMDEVCONNECTOR) pDrv;
+    /** Pointer to the device instance.
+     * @note Only for interface methods to get their bearings. */
+    PPDMDEVINSR3                    pDevIns;
+
+    /** R3 pointer to VMMDev RAM area */
+    R3PTRTYPE(VMMDevMemory *)       pVMMDevRAMR3;
+
+    /** R3 pointer to VMMDev Heap RAM area. */
+    R3PTRTYPE(VMMDevMemory *)       pVMMDevHeapR3;
+
+    /** Pointer to the credentials. */
+    R3PTRTYPE(VMMDEVCREDS *)        pCredentials;
+    /** Set if pCredentials is using the RTMemSafer allocator, clear if heap. */
+    bool                            fSaferCredentials;
+    bool                            afAlignment[7];
+
+#ifdef VBOX_WITH_HGCM
+    /** Critical section to protect the list. */
+    RTCRITSECT                      critsectHGCMCmdList;
+    /** List of pending HGCM requests (VBOXHGCMCMD). */
+    RTLISTANCHORR3                  listHGCMCmd;
+    /** Whether the HGCM events are already automatically enabled. */
+    uint32_t                        u32HGCMEnabled;
+    /** Saved state version of restored commands. */
+    uint32_t                        uSavedStateVersion;
+    RTMEMCACHE                      hHgcmCmdCache;
+    STAMPROFILE                     StatHgcmCmdArrival;
+    STAMPROFILE                     StatHgcmCmdCompletion;
+    STAMPROFILE                     StatHgcmCmdTotal;
+    STAMCOUNTER                     StatHgcmLargeCmdAllocs;
+    STAMCOUNTER                     StatHgcmFailedPageListLocking;
+#endif /* VBOX_WITH_HGCM */
+    STAMCOUNTER                     StatReqBufAllocs;
+    /** Per CPU request 4K sized buffers, allocated as needed. */
+    R3PTRTYPE(VMMDevRequestHeader *) apReqBufs[VMM_MAX_CPU_COUNT];
+
+    /** Status LUN: Shared folders LED */
+    struct
+    {
+        /** The LED. */
+        PDMLED                          Led;
+        /** The LED ports. */
+        PDMILEDPORTS                    ILeds;
+        /** Partner of ILeds. */
+        R3PTRTYPE(PPDMILEDCONNECTORS)   pLedsConnector;
+    } SharedFolders;
+
+#ifndef VBOX_WITHOUT_TESTING_FEATURES
+    /** The XML output file name (can be a named pipe, doesn't matter to us). */
+    R3PTRTYPE(char *)               pszTestingXmlOutput;
+    /** Testing instance for dealing with the output. */
+    RTTEST                          hTestingTest;
+#endif
+} VMMDEVR3;
+/** Pointer to the ring-3 VMM device state. */
+typedef VMMDEVR3 *PVMMDEVR3;
+
+
+/**
+ * State structure for the VMM device, ring-0 edition.
+ */
+typedef struct VMMDEVR0
+{
+    /** R0 pointer to VMMDev RAM area - first page only, could be NULL! */
+    R0PTRTYPE(VMMDevMemory *)   pVMMDevRAMR0;
+} VMMDEVR0;
+/** Pointer to the ring-0 VMM device state. */
+typedef VMMDEVR0 *PVMMDEVR0;
+
+
+/**
+ * State structure for the VMM device, raw-mode edition.
+ */
+typedef struct VMMDEVRC
+{
+    /** R0 pointer to VMMDev RAM area - first page only, could be NULL! */
+    RCPTRTYPE(VMMDevMemory *)   pVMMDevRAMRC;
+} VMMDEVRC;
+/** Pointer to the raw-mode VMM device state. */
+typedef VMMDEVRC *PVMMDEVRC;
+
+
+/** @typedef VMMDEVCC
+ * The VMMDEV device data for the current context. */
+typedef CTX_SUFF(VMMDEV) VMMDEVCC;
+/** @typedef PVMMDEVCC
+ * Pointer to the VMMDEV device for the current context. */
+typedef CTX_SUFF(PVMMDEV) PVMMDEVCC;
+
+
+void VMMDevNotifyGuest(PPDMDEVINS pDevIns, PVMMDEV pThis, PVMMDEVCC pThisCC, uint32_t fAddEvents);
+void VMMDevCtlSetGuestFilterMask(PPDMDEVINS pDevIns, PVMMDEV pThis, PVMMDEVCC pThisCC, uint32_t fOrMask, uint32_t fNotMask);
 
 
 /** The saved state version. */

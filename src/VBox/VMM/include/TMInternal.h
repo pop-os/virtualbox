@@ -185,7 +185,7 @@ typedef struct TMTIMER
     /** Pointer to the VM the timer belongs to - R3 Ptr. */
     PVMR3                   pVMR3;
     /** Pointer to the VM the timer belongs to - R0 Ptr. */
-    PVMR0                   pVMR0;
+    R0PTRTYPE(PVMCC)        pVMR0;
     /** Pointer to the VM the timer belongs to - RC Ptr. */
     PVMRC                   pVMRC;
     /** The timer frequency hint.  This is 0 if not hint was given. */
@@ -204,6 +204,14 @@ typedef struct TMTIMER
     R3PTRTYPE(const char *) pszDesc;
 #if HC_ARCH_BITS == 32
     uint32_t                padding0; /**< pad structure to multiple of 8 bytes. */
+#endif
+#ifdef VBOX_WITH_STATISTICS
+    STAMPROFILE             StatTimer;
+    STAMPROFILE             StatCritSectEnter;
+    STAMCOUNTER             StatGet;
+    STAMCOUNTER             StatSetAbsolute;
+    STAMCOUNTER             StatSetRelative;
+    STAMCOUNTER             StatStop;
 #endif
 } TMTIMER;
 AssertCompileMemberSize(TMTIMER, enmState, sizeof(uint32_t));
@@ -304,7 +312,11 @@ typedef struct TMCPULOADSTATE
     /** The percent of the period spent on other things. */
     uint8_t                 cPctOther;
     /** Explicit alignment padding */
-    uint8_t                 au8Alignment[5];
+    uint8_t                 au8Alignment[1];
+    /** Index into aHistory of the current entry. */
+    uint16_t volatile       idxHistory;
+    /** Number of valid history entries before idxHistory. */
+    uint16_t volatile       cHistoryEntries;
 
     /** Previous cNsTotal value. */
     uint64_t                cNsPrevTotal;
@@ -312,6 +324,15 @@ typedef struct TMCPULOADSTATE
     uint64_t                cNsPrevExecuting;
     /** Previous cNsHalted value. */
     uint64_t                cNsPrevHalted;
+    /** Data for the last 30 min (given an interval of 1 second). */
+    struct
+    {
+        uint8_t             cPctExecuting;
+        /** The percent of the period spent halted. */
+        uint8_t             cPctHalted;
+        /** The percent of the period spent on other things. */
+        uint8_t             cPctOther;
+    }                       aHistory[30*60];
 } TMCPULOADSTATE;
 AssertCompileSizeAlignment(TMCPULOADSTATE, 8);
 AssertCompileMemberAlignment(TMCPULOADSTATE, cNsPrevTotal, 8);
@@ -770,13 +791,13 @@ void                    tmTimerQueuesSanityChecks(PVM pVM, const char *pszWhere)
 #endif
 
 uint64_t                tmR3CpuTickGetRawVirtualNoCheck(PVM pVM);
-int                     tmCpuTickPause(PVMCPU pVCpu);
-int                     tmCpuTickPauseLocked(PVM pVM, PVMCPU pVCpu);
-int                     tmCpuTickResume(PVM pVM, PVMCPU pVCpu);
-int                     tmCpuTickResumeLocked(PVM pVM, PVMCPU pVCpu);
+int                     tmCpuTickPause(PVMCPUCC pVCpu);
+int                     tmCpuTickPauseLocked(PVMCC pVM, PVMCPUCC pVCpu);
+int                     tmCpuTickResume(PVMCC pVM, PVMCPUCC pVCpu);
+int                     tmCpuTickResumeLocked(PVMCC pVM, PVMCPUCC pVCpu);
 
-int                     tmVirtualPauseLocked(PVM pVM);
-int                     tmVirtualResumeLocked(PVM pVM);
+int                     tmVirtualPauseLocked(PVMCC pVM);
+int                     tmVirtualResumeLocked(PVMCC pVM);
 DECLCALLBACK(DECLEXPORT(void))      tmVirtualNanoTSBad(PRTTIMENANOTSDATA pData, uint64_t u64NanoTS,
                                                        uint64_t u64DeltaPrev, uint64_t u64PrevNanoTS);
 DECLCALLBACK(DECLEXPORT(uint64_t))  tmVirtualNanoTSRediscover(PRTTIMENANOTSDATA pData);

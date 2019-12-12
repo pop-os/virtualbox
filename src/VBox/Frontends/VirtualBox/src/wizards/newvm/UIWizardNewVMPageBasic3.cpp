@@ -27,6 +27,7 @@
 #include "UIIconPool.h"
 #include "UIMediaComboBox.h"
 #include "UIMedium.h"
+#include "UIMediumSelector.h"
 #include "UIMessageCenter.h"
 #include "UIWizardNewVD.h"
 #include "UIWizardNewVM.h"
@@ -61,10 +62,16 @@ void UIWizardNewVMPage3::updateVirtualDiskSource()
 void UIWizardNewVMPage3::getWithFileOpenDialog()
 {
     /* Get opened medium id: */
-    QUuid uMediumId = vboxGlobal().openMediumSelectorDialog(thisImp(), UIMediumDeviceType_HardDisk,
-                                                            fieldImp("machineBaseName").toString(),
-                                                            fieldImp("machineFolder").toString());
-    if (!uMediumId.isNull())
+    QUuid uMediumId;
+
+    int returnCode = uiCommon().openMediumSelectorDialog(thisImp(), UIMediumDeviceType_HardDisk,
+                                                           uMediumId,
+                                                           fieldImp("machineFolder").toString(),
+                                                           fieldImp("machineBaseName").toString(),
+                                                           fieldImp("type").value<CGuestOSType>().GetId(),
+                                                           false /* don't show/enable the create action: */);
+
+    if (returnCode == static_cast<int>(UIMediumSelector::ReturnCode_Accepted) && !uMediumId.isNull())
     {
         /* Update medium-combo if necessary: */
         m_pDiskSelector->setCurrentItem(uMediumId);
@@ -104,7 +111,6 @@ void UIWizardNewVMPage3::ensureNewVirtualDiskDeleted()
         return;
 
     /* Remember virtual-disk attributes: */
-    QUuid uMediumID = m_virtualDisk.GetId();
     QString strLocation = m_virtualDisk.GetLocation();
     /* Prepare delete storage progress: */
     CProgress progress = m_virtualDisk.DeleteStorage();
@@ -117,9 +123,6 @@ void UIWizardNewVMPage3::ensureNewVirtualDiskDeleted()
     }
     else
         msgCenter().cannotDeleteHardDiskStorage(m_virtualDisk, strLocation, thisImp());
-
-    /* Inform VBoxGlobal about it: */
-    vboxGlobal().deleteMedium(uMediumID);
 
     /* Detach virtual-disk anyway: */
     m_virtualDisk.detach();
@@ -205,7 +208,7 @@ void UIWizardNewVMPageBasic3::retranslateUi()
 
     /* Translate widgets: */
     QString strRecommendedHDD = field("type").value<CGuestOSType>().isNull() ? QString() :
-                                VBoxGlobal::formatSize(field("type").value<CGuestOSType>().GetRecommendedHDD());
+                                UICommon::formatSize(field("type").value<CGuestOSType>().GetRecommendedHDD());
     m_pLabel->setText(UIWizardNewVM::tr("<p>If you wish you can add a virtual hard disk to the new machine. "
                                         "You can either create a new hard disk file or select one from the list "
                                         "or from another location using the folder icon.</p>"
@@ -252,7 +255,7 @@ bool UIWizardNewVMPageBasic3::isComplete() const
     /* Make sure 'virtualDisk' field feats the rules: */
     return m_pDiskSkip->isChecked() ||
            !m_pDiskPresent->isChecked() ||
-           !vboxGlobal().medium(m_pDiskSelector->id()).isNull();
+           !uiCommon().medium(m_pDiskSelector->id()).isNull();
 }
 
 bool UIWizardNewVMPageBasic3::validatePage()

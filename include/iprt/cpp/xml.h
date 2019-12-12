@@ -442,7 +442,7 @@ public:
      * @returns true / false  */
     bool isAttribute() const
     {
-        return m_Type == IsElement;
+        return m_Type == IsAttribute;
     }
 
     int getLineNumber() const;
@@ -503,7 +503,8 @@ protected:
     const char *m_pcszName;            ///< element or attribute name, points either into pLibNode or pLibAttr;
                                        ///< NULL if this is a content node
 
-    /** Child list entry of this node. (List head m_pParent->m_children.) */
+    /** Child list entry of this node. (List head m_pParent->m_children or
+     *  m_pParent->m_attribute depending on the type.) */
     RTLISTNODE      m_listEntry;
     /** Pointer to the parent list anchor.
      * This allows us to use m_listEntry both for children and attributes. */
@@ -576,8 +577,8 @@ public:
      *  optionally namespace.
      *
      * @returns Pointer to the child string value, NULL if not found or no value.
-     * @param   pcszPath        The attribute name.  Slashes can be used to make a
-     *                          simple path to any decendant.
+     * @param   pcszPath        Path to the child element.  Slashes can be used to
+     *                          make a simple path to any decendant.
      * @param   pcszNamespace   The namespace to match, NULL (default) match any
      *                          namespace.  When using a path, this matches all
      *                          elements along the way.
@@ -589,8 +590,8 @@ public:
      *  returning its value.
      *
      * @returns Pointer to the child string value, NULL if not found or no value.
-     * @param   pcszPath        The attribute name.  Slashes can be used to make a
-     *                          simple path to any decendant.
+     * @param   pcszPath        Path to the child element.  Slashes can be used to
+     *                          make a simple path to any decendant.
      * @param   pcszNamespace   The namespace to match, NULL (default) match any
      *                          namespace.  When using a path, this matches all
      *                          elements along the way.
@@ -625,12 +626,37 @@ public:
         return NULL;
     }
 
+    /** Combines findChildElementNS and findAttributeValue.
+     *
+     * @returns Pointer to attribute string value, NULL if either the element or
+     *          the attribute was not found.
+     * @param   pcszChild           The child element name.
+     * @param   pcszAttribute       The attribute name.
+     * @param   pcszChildNamespace  The namespace to match @a pcszChild with, NULL
+     *                              (default) match any namespace.
+     * @param   pcszAttributeNamespace  The namespace prefix to apply to the
+     *                              attribute, NULL (default) match any namespace.
+     * @see     findChildElementNS and findAttributeValue
+     * @note    The findChildElementAttributeValueP() method would do the same thing
+     *          given the same inputs, but it would be slightly slower, thus the
+     *          separate method.
+                                                                                    */
+    const char *findChildElementAttributeValue(const char *pcszChild, const char *pcszAttribute,
+                                               const char *pcszChildNamespace = NULL,
+                                               const char *pcszAttributeNamespace = NULL) const
+    {
+        const ElementNode *pElem = findChildElementNS(pcszChildNamespace, pcszChild);
+        if (pElem)
+            return pElem->findAttributeValue(pcszAttribute, pcszAttributeNamespace);
+        return NULL;
+    }
+
     /** Combines findChildElementP and findAttributeValue.
      *
      * @returns Pointer to attribute string value, NULL if either the element or
      *          the attribute was not found.
-     * @param   pcszPath            The attribute name.  Slashes can be used to make a
-     *                              simple path to any decendant.
+     * @param   pcszPath            Path to the child element.  Slashes can be used
+     *                              to make a simple path to any decendant.
      * @param   pcszAttribute       The attribute name.
      * @param   pcszPathNamespace   The namespace to match @a pcszPath with, NULL
      *                              (default) match any namespace.  When using a
@@ -749,6 +775,24 @@ public:
     const ElementNode *findNextSibilingElement(const char *pcszName, const char *pcszNamespace = NULL) const;
     /** @} */
 
+    /** @name Attribute enumeration
+     * @{ */
+
+    /** Get the first attribute node.
+     * @returns Pointer to the first child node, NULL if no attributes. */
+    const AttributeNode *getFirstAttribute() const
+    {
+        return RTListGetFirstCpp(&m_attributes, const AttributeNode, m_listEntry);
+    }
+
+    /** Get the last attribute node.
+     * @returns Pointer to the last child node, NULL if no attributes. */
+    const AttributeNode *getLastAttribute() const
+    {
+        return RTListGetLastCpp(&m_attributes, const AttributeNode, m_listEntry);
+    }
+
+    /** @} */
 
     const AttributeNode *findAttribute(const char *pcszMatch, const char *pcszNamespace = NULL) const;
     /** Find the first attribute with the given name, returning its value string.
@@ -829,7 +873,7 @@ public:
     bool getElementValue(bool     *pfValue) const;
     /** @} */
 
-    /** @name Convenience findChildElementAttributeValueP and getElementValue.
+    /** @name Convenience findChildElementValueP and getElementValue.
      * @{ */
     bool getChildElementValueP(const char *pcszPath, int32_t  *piValue, const char *pcszNamespace = NULL) const
     {
@@ -859,7 +903,7 @@ public:
 
     /** @} */
 
-    /** @name Convenience findChildElementAttributeValueP and getElementValue with a
+    /** @name Convenience findChildElementValueP and getElementValue with a
      *        default value being return if the child element isn't present.
      *
      * @remarks These will return false on conversion errors.

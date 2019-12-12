@@ -33,7 +33,7 @@
 #include "UIProgressDialog.h"
 #include "UIProgressEventHandler.h"
 #include "UISpecialControls.h"
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #ifdef VBOX_WS_MAC
 # include "VBoxUtils-darwin.h"
 #endif
@@ -68,6 +68,7 @@ UIProgressDialog::UIProgressDialog(CProgress &comProgress,
     , m_pLabelEta(0)
     , m_cOperations(m_comProgress.GetOperationCount())
     , m_uCurrentOperation(m_comProgress.GetOperation() + 1)
+    , m_uCurrentOperationWeight(m_comProgress.GetOperationWeight())
     , m_fCancelEnabled(false)
     , m_fEnded(false)
     , m_pEventHandler(0)
@@ -315,7 +316,14 @@ void UIProgressDialog::prepareWidgets()
                 AssertPtrReturnVoid(m_pProgressBar);
                 {
                     /* Configure progress-bar: */
-                    m_pProgressBar->setMaximum(100);
+                    // WORKAROUND:
+                    // Based on agreement implemented in r131088 and r131090,
+                    // if progress has just one operation with weight equal to 1,
+                    // we should make it "infinite" by setting maximum to minimum.
+                    if (m_uCurrentOperation == 1 && m_uCurrentOperationWeight == 1)
+                        m_pProgressBar->setMaximum(0);
+                    else
+                        m_pProgressBar->setMaximum(100);
                     m_pProgressBar->setValue(0);
 
                     /* Add into layout: */
@@ -330,7 +338,7 @@ void UIProgressDialog::prepareWidgets()
                     m_fCancelEnabled = m_comProgress.GetCancelable();
                     m_pButtonCancel->setEnabled(m_fCancelEnabled);
                     m_pButtonCancel->setFocusPolicy(Qt::ClickFocus);
-                    connect(m_pButtonCancel, SIGNAL(clicked()), this, SLOT(sltCancelOperation()));
+                    connect(m_pButtonCancel, &UIMiniCancelButton::clicked, this, &UIProgressDialog::sltCancelOperation);
 
                     /* Add into layout: */
                     pProgressLayout->addWidget(m_pButtonCancel, 0, Qt::AlignVCenter);
@@ -415,10 +423,10 @@ void UIProgressDialog::updateProgressState()
         iDays     = iHours   / 24;
         iHours   -= iDays    * 24;
 
-        const QString strDays = VBoxGlobal::daysToString(iDays);
-        const QString strHours = VBoxGlobal::hoursToString(iHours);
-        const QString strMinutes = VBoxGlobal::minutesToString(iMinutes);
-        const QString strSeconds = VBoxGlobal::secondsToString(iSeconds);
+        const QString strDays = UICommon::daysToString(iDays);
+        const QString strHours = UICommon::hoursToString(iHours);
+        const QString strMinutes = UICommon::minutesToString(iMinutes);
+        const QString strSeconds = UICommon::secondsToString(iSeconds);
 
         const QString strTwoComp = tr("%1, %2 remaining", "You may wish to translate this more like \"Time remaining: %1, %2\"");
         const QString strOneComp = tr("%1 remaining", "You may wish to translate this more like \"Time remaining: %1\"");
@@ -457,6 +465,7 @@ void UIProgressDialog::updateProgressState()
         if (uNewOp != m_uCurrentOperation)
         {
             m_uCurrentOperation = uNewOp;
+            m_uCurrentOperationWeight = m_comProgress.GetOperationWeight();
             m_pLabelDescription->setText(QString(m_spcszOpDescTpl)
                                        .arg(m_comProgress.GetOperationDescription())
                                        .arg(m_uCurrentOperation).arg(m_cOperations));

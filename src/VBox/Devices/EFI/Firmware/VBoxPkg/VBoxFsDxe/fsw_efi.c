@@ -136,6 +136,10 @@ EFI_STATUS fsw_efi_dnode_fill_FileInfo(IN FSW_VOLUME_DATA *Volume,
                                        IN OUT UINTN *BufferSize,
                                        OUT VOID *Buffer);
 
+#if defined(VBOX) && (FSTYPE == hfs)
+extern fsw_status_t fsw_hfs_get_blessed_file(void *vol, struct fsw_string *path);
+#endif
+
 /**
  * Interface structure for the EFI Driver Binding protocol.
  */
@@ -229,9 +233,6 @@ EFI_STATUS EFIAPI fsw_efi_DriverBinding_Supported(IN EFI_DRIVER_BINDING_PROTOCOL
     // we check for both DiskIO and BlockIO protocols
 
     // first, open DiskIO
-    VBoxLogFlowFuncEnter();
-    VBoxLogFlowFuncMarkDP(RemainingDevicePath);
-
     Status = BS->OpenProtocol(ControllerHandle,
                               &PROTO_NAME(DiskIoProtocol),
                               (VOID **) &DiskIo,
@@ -240,7 +241,6 @@ EFI_STATUS EFIAPI fsw_efi_DriverBinding_Supported(IN EFI_DRIVER_BINDING_PROTOCOL
                               EFI_OPEN_PROTOCOL_GET_PROTOCOL);
     if (EFI_ERROR(Status))
     {
-        VBoxLogFlowFuncLeaveRC(Status);
         return Status;
     }
 
@@ -257,7 +257,6 @@ EFI_STATUS EFIAPI fsw_efi_DriverBinding_Supported(IN EFI_DRIVER_BINDING_PROTOCOL
                               This->DriverBindingHandle,
                               ControllerHandle,
                               EFI_OPEN_PROTOCOL_TEST_PROTOCOL);
-    VBoxLogFlowFuncLeaveRC(Status);
     return Status;
 }
 
@@ -267,7 +266,6 @@ static EFI_STATUS fsw_efi_ReMount(IN FSW_VOLUME_DATA *pVolume,
                                        EFI_BLOCK_IO       *pBlockIo)
 {
     EFI_STATUS Status;
-    VBoxLogFlowFuncEnter();
     pVolume->Signature       = FSW_VOLUME_DATA_SIGNATURE;
     pVolume->Handle          = ControllerHandle;
     pVolume->DiskIo          = pDiskIo;
@@ -279,7 +277,6 @@ static EFI_STATUS fsw_efi_ReMount(IN FSW_VOLUME_DATA *pVolume,
                                           &FSW_FSTYPE_TABLE_NAME(FSTYPE), &pVolume->vol),
                                 pVolume);
 
-    VBoxLogFlowFuncMarkRC(Status);
     if (!EFI_ERROR(Status)) {
         // register the SimpleFileSystem protocol
         pVolume->FileSystem.Revision     = EFI_FILE_IO_INTERFACE_REVISION;
@@ -292,7 +289,6 @@ static EFI_STATUS fsw_efi_ReMount(IN FSW_VOLUME_DATA *pVolume,
             Print(L"Fsw ERROR: InstallMultipleProtocolInterfaces returned %x\n", Status);
 #endif
     }
-    VBoxLogFlowFuncLeaveRC(Status);
     return Status;
 }
 
@@ -318,7 +314,6 @@ EFI_STATUS EFIAPI fsw_efi_DriverBinding_Start(IN EFI_DRIVER_BINDING_PROTOCOL  *T
     EFI_DISK_IO         *DiskIo;
     FSW_VOLUME_DATA     *Volume;
 
-    VBoxLogFlowFuncEnter();
     // open consumed protocols
     Status = BS->OpenProtocol(ControllerHandle,
                               &PROTO_NAME(BlockIoProtocol),
@@ -327,7 +322,6 @@ EFI_STATUS EFIAPI fsw_efi_DriverBinding_Start(IN EFI_DRIVER_BINDING_PROTOCOL  *T
                               ControllerHandle,
                               EFI_OPEN_PROTOCOL_GET_PROTOCOL);   // NOTE: we only want to look at the MediaId
     if (EFI_ERROR(Status)) {
-        VBoxLogFlowFuncLeaveRC(Status);
         return Status;
     }
 
@@ -338,7 +332,6 @@ EFI_STATUS EFIAPI fsw_efi_DriverBinding_Start(IN EFI_DRIVER_BINDING_PROTOCOL  *T
                               ControllerHandle,
                               EFI_OPEN_PROTOCOL_BY_DRIVER);
     if (EFI_ERROR(Status)) {
-        VBoxLogFlowFuncLeaveRC(Status);
         return Status;
     }
 
@@ -363,7 +356,6 @@ EFI_STATUS EFIAPI fsw_efi_DriverBinding_Start(IN EFI_DRIVER_BINDING_PROTOCOL  *T
                               ControllerHandle);
     }
 
-    VBoxLogFlowFuncLeaveRC(Status);
     return Status;
 }
 
@@ -944,7 +936,7 @@ EFI_STATUS fsw_efi_dnode_getinfo(IN FSW_FILE_DATA *File,
 
         Status = fsw_efi_dnode_fill_FileInfo(Volume, File->shand.dnode, BufferSize, Buffer);
 
-    } else if (CompareGuid(InformationType, &GUID_NAME(FileSystemInfo)) == 0) {
+    } else if (CompareGuid(InformationType, &GUID_NAME(FileSystemInfo))) {
 #if DEBUG_LEVEL
         Print(L"fsw_efi_dnode_getinfo: FILE_SYSTEM_INFO\n");
 #endif
@@ -993,6 +985,34 @@ EFI_STATUS fsw_efi_dnode_getinfo(IN FSW_FILE_DATA *File,
         // prepare for return
         *BufferSize = RequiredSize;
         Status = EFI_SUCCESS;
+
+#ifdef VBOX
+    } else if (CompareGuid(InformationType, &gVBoxFsBlessedFileInfoGuid)) {
+
+# if FSTYPE == hfs
+        struct fsw_string StrBlessedFile;
+
+        fsw_status_t rc = fsw_hfs_get_blessed_file(Volume->vol, &StrBlessedFile);
+        if (!rc)
+        {
+            // check buffer size
+            RequiredSize = SIZE_OF_VBOX_FS_BLESSED_FILE + fsw_efi_strsize(&StrBlessedFile);
+            if (*BufferSize < RequiredSize) {
+                *BufferSize = RequiredSize;
+                return EFI_BUFFER_TOO_SMALL;
+            }
+
+            // copy volume label
+            fsw_efi_strcpy(((VBOX_FS_BLESSED_FILE *)Buffer)->BlessedFile, &StrBlessedFile);
+
+            // prepare for return
+            *BufferSize = RequiredSize;
+            Status = EFI_SUCCESS;
+        }
+        else
+# endif
+            Status = EFI_UNSUPPORTED;
+#endif
 
     } else {
         Status = EFI_UNSUPPORTED;

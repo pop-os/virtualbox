@@ -48,19 +48,19 @@ class UIFileOperationProgressWidget : public QIWithRetranslateUI<QFrame>
 
     Q_OBJECT;
 
-public:
-
-    UIFileOperationProgressWidget(const CProgress &comProgress, QWidget *pParent = 0);
-    ~UIFileOperationProgressWidget();
-    bool isCompleted() const;
-    bool isCanceled() const;
-
 signals:
 
     void sigProgressComplete(QUuid progressId);
     void sigProgressFail(QString strErrorString, FileManagerLogType eLogType);
     void sigFocusIn(QWidget *pWidget);
     void sigFocusOut(QWidget *pWidget);
+
+public:
+
+    UIFileOperationProgressWidget(const CProgress &comProgress, QWidget *pParent = 0);
+    ~UIFileOperationProgressWidget();
+    bool isCompleted() const;
+    bool isCanceled() const;
 
 protected:
 
@@ -85,8 +85,8 @@ private:
         OperationStatus_Failed,
         OperationStatus_Invalid,
         OperationStatus_Max
-
     };
+
     void prepare();
     void prepareWidgets();
     void prepareEventHandler();
@@ -99,7 +99,7 @@ private:
     QProgressBar           *m_pProgressBar;
     QIToolButton           *m_pCancelButton;
     QILabel                *m_pStatusLabel;
-    QILabel                *m_pPercentageLabel;
+    QILabel                *m_pOperationDescriptionLabel;
 };
 
 
@@ -116,7 +116,7 @@ UIFileOperationProgressWidget::UIFileOperationProgressWidget(const CProgress &co
     , m_pProgressBar(0)
     , m_pCancelButton(0)
     , m_pStatusLabel(0)
-    , m_pPercentageLabel(0)
+    , m_pOperationDescriptionLabel(0)
 {
     prepare();
     setFocusPolicy(Qt::ClickFocus);
@@ -201,14 +201,20 @@ void UIFileOperationProgressWidget::prepareWidgets()
         return;
     //m_pMainLayout->setSpacing(0);
 
+    m_pOperationDescriptionLabel = new QILabel;
+    if (m_pOperationDescriptionLabel)
+    {
+        m_pOperationDescriptionLabel->setContextMenuPolicy(Qt::NoContextMenu);
+        m_pMainLayout->addWidget(m_pOperationDescriptionLabel, 0, 0, 1, 3);
+    }
+
     m_pProgressBar = new QProgressBar;
     if (m_pProgressBar)
     {
         m_pProgressBar->setMinimum(0);
         m_pProgressBar->setMaximum(100);
-        /* Hide the QProgressBar's text since in MacOS it never shows: */
-        m_pProgressBar->setTextVisible(false);
-        m_pMainLayout->addWidget(m_pProgressBar, 0, 0, 1, 2);
+        m_pProgressBar->setTextVisible(true);
+        m_pMainLayout->addWidget(m_pProgressBar, 1, 0, 1, 2);
     }
 
     m_pCancelButton = new QIToolButton;
@@ -218,21 +224,14 @@ void UIFileOperationProgressWidget::prepareWidgets()
         connect(m_pCancelButton, &QIToolButton::clicked, this, &UIFileOperationProgressWidget::sltCancelProgress);
         if (!m_comProgress.isNull() && !m_comProgress.GetCancelable())
             m_pCancelButton->setEnabled(false);
-        m_pMainLayout->addWidget(m_pCancelButton, 0, 2, 1, 1);
+        m_pMainLayout->addWidget(m_pCancelButton, 1, 2, 1, 1);
     }
 
     m_pStatusLabel = new QILabel;
     if (m_pStatusLabel)
     {
         m_pStatusLabel->setContextMenuPolicy(Qt::NoContextMenu);
-        m_pMainLayout->addWidget(m_pStatusLabel, 0, 3, 1, 1);
-    }
-
-    m_pPercentageLabel = new QILabel;
-    if (m_pPercentageLabel)
-    {
-        m_pPercentageLabel->setContextMenuPolicy(Qt::NoContextMenu);
-        m_pMainLayout->addWidget(m_pPercentageLabel, 1, 0, 1, 4);
+        m_pMainLayout->addWidget(m_pStatusLabel, 1, 3, 1, 1);
     }
 
     setLayout(m_pMainLayout);
@@ -261,10 +260,11 @@ void UIFileOperationProgressWidget::cleanupEventHandler()
 void UIFileOperationProgressWidget::sltHandleProgressPercentageChange(const QUuid &uProgressId, const int iPercent)
 {
     Q_UNUSED(uProgressId);
-    Q_UNUSED(iPercent);
     m_pProgressBar->setValue(iPercent);
-    if (m_pPercentageLabel)
-        m_pPercentageLabel->setText(QString("%1%").arg(QString::number(iPercent)));
+
+    if (m_pOperationDescriptionLabel)
+        m_pOperationDescriptionLabel->setText(m_comProgress.GetDescription());
+
 }
 
 void UIFileOperationProgressWidget::sltHandleProgressComplete(const QUuid &uProgressId)
@@ -350,6 +350,9 @@ void UIFileManagerOperationsPanel::prepareWidgets()
     if (!mainLayout())
         return;
 
+    QPalette mPalette = palette();
+    mPalette.setColor(QPalette::Window, qApp->palette().color(QPalette::Light));
+    setPalette(mPalette);
 
     m_pScrollArea = new QScrollArea;
     m_pContainerWidget = new QWidget;

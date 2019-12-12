@@ -30,9 +30,13 @@
 
 /* COM includes: */
 #include "COMEnums.h"
+#include "CAppliance.h"
+#include "CCloudClient.h"
 #include "CCloudProfile.h"
 #include "CCloudProvider.h"
 #include "CCloudProviderManager.h"
+#include "CVirtualSystemDescription.h"
+#include "CVirtualSystemDescriptionForm.h"
 
 /* Forward declarations: */
 class QCheckBox;
@@ -40,6 +44,7 @@ class QComboBox;
 class QGridLayout;
 class QLabel;
 class QLineEdit;
+class QRadioButton;
 class QStackedWidget;
 class QTableWidget;
 class QIRichTextLabel;
@@ -47,15 +52,15 @@ class QIToolButton;
 class UIEmptyFilePathSelector;
 
 
-/** MAC address policies. */
-enum MACAddressPolicy
+/** MAC address export policies. */
+enum MACAddressExportPolicy
 {
-    MACAddressPolicy_KeepAllMACs,
-    MACAddressPolicy_StripAllNonNATMACs,
-    MACAddressPolicy_StripAllMACs,
-    MACAddressPolicy_MAX
+    MACAddressExportPolicy_KeepAllMACs,
+    MACAddressExportPolicy_StripAllNonNATMACs,
+    MACAddressExportPolicy_StripAllMACs,
+    MACAddressExportPolicy_MAX
 };
-Q_DECLARE_METATYPE(MACAddressPolicy);
+Q_DECLARE_METATYPE(MACAddressExportPolicy);
 
 /** Format combo data fields. */
 enum
@@ -71,6 +76,16 @@ enum
 {
     AccountData_ProfileName = Qt::UserRole + 1
 };
+
+/** Cloud export option modes. */
+enum CloudExportMode
+{
+    CloudExportMode_Invalid,
+    CloudExportMode_AskThenExport,
+    CloudExportMode_ExportThenAsk,
+    CloudExportMode_DoNotAsk
+};
+Q_DECLARE_METATYPE(CloudExportMode);
 
 
 /** UIWizardPageBase extension for 2nd page of the Export Appliance wizard. */
@@ -89,19 +104,8 @@ protected:
     void populateAccounts();
     /** Populates account properties. */
     void populateAccountProperties();
-    /** Populates cloud client parameters. */
-    void populateCloudClientParameters();
-
-    /** Parses JSON @a document. */
-    static AbstractVSDParameterList parseJsonDocument(const QJsonDocument &document);
-    /** Parses JSON bool @a field. */
-    static bool parseJsonFieldBool(const QString &strFieldName, const QJsonValue &field);
-    /** Parses JSON double @a field. */
-    static double parseJsonFieldDouble(const QString &strFieldName, const QJsonValue &field);
-    /** Parses JSON string @a field. */
-    static QString parseJsonFieldString(const QString &strFieldName, const QJsonValue &field);
-    /** Parses JSON array @a field. */
-    static QIStringPairList parseJsonFieldArray(const QString &strFieldName, const QJsonValue &field);
+    /** Populates form properties. */
+    void populateFormProperties();
 
     /** Updates page appearance. */
     virtual void updatePageAppearance();
@@ -119,8 +123,8 @@ protected:
 
     /** Updates format combo tool-tips. */
     void updateFormatComboToolTip();
-    /** Updates MAC address policy combo tool-tips. */
-    void updateMACAddressPolicyComboToolTip();
+    /** Updates MAC address export policy combo tool-tips. */
+    void updateMACAddressExportPolicyComboToolTip();
     /** Updates account property table tool-tips. */
     void updateAccountPropertyTableToolTips();
     /** Adjusts account property table. */
@@ -138,10 +142,10 @@ protected:
     /** Returns path. */
     QString path() const;
 
-    /** Defines @a enmMACAddressPolicy. */
-    void setMACAddressPolicy(MACAddressPolicy enmMACAddressPolicy);
-    /** Returns MAC address policy. */
-    MACAddressPolicy macAddressPolicy() const;
+    /** Defines @a enmMACAddressExportPolicy. */
+    void setMACAddressExportPolicy(MACAddressExportPolicy enmMACAddressExportPolicy);
+    /** Returns MAC address export policy. */
+    MACAddressExportPolicy macAddressExportPolicy() const;
 
     /** Defines whether manifest @a fSelected. */
     void setManifestSelected(bool fChecked);
@@ -161,22 +165,34 @@ protected:
     QString providerShortName() const;
     /** Returns profile name. */
     QString profileName() const;
-    /** Returns Cloud Profile object. */
-    CCloudProfile profile() const;
-    /** Returns Cloud Client parameters. */
-    AbstractVSDParameterList cloudClientParameters() const;
+    /** Returns Appliance object. */
+    CAppliance appliance() const;
+    /** Returns Cloud Client object. */
+    CCloudClient client() const;
+    /** Returns Virtual System Description object. */
+    CVirtualSystemDescription vsd() const;
+    /** Returns Virtual System Description Export Form object. */
+    CVirtualSystemDescriptionForm vsdExportForm() const;
+    /** Returns cloud export mode. */
+    CloudExportMode cloudExportMode() const;
 
     /** Holds whether default format should be Export to OCI. */
     bool  m_fExportToOCIByDefault;
 
     /** Holds the Cloud Provider Manager reference. */
-    CCloudProviderManager     m_comCloudProviderManager;
+    CCloudProviderManager          m_comCloudProviderManager;
     /** Holds the Cloud Provider object reference. */
-    CCloudProvider            m_comCloudProvider;
+    CCloudProvider                 m_comCloudProvider;
     /** Holds the Cloud Profile object reference. */
-    CCloudProfile             m_comCloudProfile;
-    /** Holds the cloud client parameters. */
-    AbstractVSDParameterList  m_cloudClientParameters;
+    CCloudProfile                  m_comCloudProfile;
+    /** Holds the Appliance object reference. */
+    CAppliance                     m_comAppliance;
+    /** Holds the Cloud Client object reference. */
+    CCloudClient                   m_comClient;
+    /** Holds the Virtual System Description object reference. */
+    CVirtualSystemDescription      m_comVSD;
+    /** Holds the Virtual System Description Export Form object reference. */
+    CVirtualSystemDescriptionForm  m_comVSDExportForm;
 
     /** Holds the default appliance name. */
     QString  m_strDefaultApplianceName;
@@ -202,7 +218,7 @@ protected:
     QStackedWidget *m_pSettingsWidget;
 
     /** Holds the file selector label instance. */
-    QLabel    *m_pFileSelectorLabel;
+    QLabel                  *m_pFileSelectorLabel;
     /** Holds the file selector instance. */
     UIEmptyFilePathSelector *m_pFileSelector;
 
@@ -218,14 +234,23 @@ protected:
     /** Holds the include ISOs check-box instance. */
     QCheckBox *m_pIncludeISOsCheckbox;
 
-    /** Holds the account combo-box label instance. */
-    QLabel       *m_pAccountComboBoxLabel;
+    /** Holds the account label instance. */
+    QLabel       *m_pAccountLabel;
     /** Holds the account combo-box instance. */
     QComboBox    *m_pAccountComboBox;
     /** Holds the account management tool-button instance. */
     QIToolButton *m_pAccountToolButton;
     /** Holds the account property table instance. */
     QTableWidget *m_pAccountPropertyTable;
+
+    /** Holds the machine label instance. */
+    QLabel       *m_pMachineLabel;
+    /** Holds the export then ask radio button instance. */
+    QRadioButton *m_pRadioExportThenAsk;
+    /** Holds the ask then export radio button instance. */
+    QRadioButton *m_pRadioAskThenExport;
+    /** Holds the don't ask radio button instance. */
+    QRadioButton *m_pRadioDoNotAsk;
 };
 
 
@@ -236,13 +261,15 @@ class UIWizardExportAppPageBasic2 : public UIWizardPage, public UIWizardExportAp
     Q_PROPERTY(QString format READ format WRITE setFormat);
     Q_PROPERTY(bool isFormatCloudOne READ isFormatCloudOne);
     Q_PROPERTY(QString path READ path WRITE setPath);
-    Q_PROPERTY(MACAddressPolicy macAddressPolicy READ macAddressPolicy WRITE setMACAddressPolicy);
+    Q_PROPERTY(MACAddressExportPolicy macAddressExportPolicy READ macAddressExportPolicy WRITE setMACAddressExportPolicy);
     Q_PROPERTY(bool manifestSelected READ isManifestSelected WRITE setManifestSelected);
     Q_PROPERTY(bool includeISOsSelected READ isIncludeISOsSelected WRITE setIncludeISOsSelected);
     Q_PROPERTY(QString providerShortName READ providerShortName);
-    Q_PROPERTY(QString profileName READ profileName);
-    Q_PROPERTY(CCloudProfile profile READ profile);
-    Q_PROPERTY(AbstractVSDParameterList cloudClientParameters READ cloudClientParameters);
+    Q_PROPERTY(CAppliance appliance READ appliance);
+    Q_PROPERTY(CCloudClient client READ client);
+    Q_PROPERTY(CVirtualSystemDescription vsd READ vsd);
+    Q_PROPERTY(CVirtualSystemDescriptionForm vsdExportForm READ vsdExportForm);
+    Q_PROPERTY(CloudExportMode cloudExportMode READ cloudExportMode);
 
 public:
 
@@ -254,6 +281,10 @@ protected:
     /** Handle any Qt @a pEvent. */
     virtual bool event(QEvent *pEvent) /* override */;
 
+    /** Allows access wizard from base part. */
+    UIWizard *wizardImp() const { return UIWizardPage::wizard(); }
+    /** Allows access page from base part. */
+    UIWizardPage* thisImp() { return this; }
     /** Allows access wizard-field from base part. */
     QVariant fieldImp(const QString &strFieldName) const { return UIWizardPage::field(strFieldName); }
 
@@ -280,8 +311,8 @@ private slots:
     /** Handles change in file-name selector. */
     void sltHandleFileSelectorChange();
 
-    /** Handles change in MAC address policy combo-box. */
-    void sltHandleMACAddressPolicyComboChange();
+    /** Handles change in MAC address export policy combo-box. */
+    void sltHandleMACAddressExportPolicyComboChange();
 
     /** Handles change in account combo-box. */
     void sltHandleAccountComboChange();

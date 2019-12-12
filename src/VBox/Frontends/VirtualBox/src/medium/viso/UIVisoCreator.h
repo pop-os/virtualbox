@@ -21,11 +21,6 @@
 # pragma once
 #endif
 
-
-
-/* Qt includes: */
-
-
 /* Qt includes: */
 #include <QModelIndex>
 
@@ -34,12 +29,9 @@
 #include "QIWithRetranslateUI.h"
 
 /* Forward declarations: */
-class QItemSelection;
 class QMenu;
-class QSplitter;
-class QVBoxLayout;
+class QGridLayout;
 class QIDialogButtonBox;
-class UIActionPool;
 class UIDialogPanel;
 class UIToolBar;
 class UIVisoHostBrowser;
@@ -47,6 +39,9 @@ class UIVisoContentBrowser;
 class UIVisoCreatorOptionsPanel;
 class UIVisoConfigurationPanel;
 
+/** A QIMainDialog extension. It hosts two UIVisoBrowserBase extensions, one for host and one
+  * for VISO file system. It has the main menu, main toolbar, and a vertical toolbar and corresponding
+  * actions. */
 class UIVisoCreator : public QIWithRetranslateUI<QIMainDialog>
 {
     Q_OBJECT;
@@ -54,13 +49,14 @@ class UIVisoCreator : public QIWithRetranslateUI<QIMainDialog>
 public:
 
     UIVisoCreator(QWidget *pParent = 0, const QString& strMachineName = QString());
-    ~UIVisoCreator();
-    QStringList entryList() const;
-    const QString &visoName() const;
+    /** Returns the content of the .viso file. Each element of the list corresponds to a line in the .viso file. */
+    QStringList       entryList() const;
+    const QString     &visoName() const;
+    /** Returns custom ISO options (if any). */
     const QStringList &customOptions() const;
     /** Returns the current path that the host browser is listing. */
     QString currentPath() const;
-    void setCurrentPath(const QString &strPath);
+    void    setCurrentPath(const QString &strPath);
 
 #ifdef VBOX_WS_MAC
     /** Returns the toolbar. */
@@ -69,7 +65,7 @@ public:
 
 protected:
 
-    void retranslateUi();
+    virtual void retranslateUi() /* override */;
 
 private slots:
 
@@ -79,8 +75,13 @@ private slots:
     void sltHandleCustomVisoOptionsChanged(const QStringList &customVisoOptions);
     void sltHandleShowHiddenObjectsChange(bool fShow);
     void sltHandleHidePanel(UIDialogPanel *pPanel);
+    void sltHandleBrowserTreeViewVisibilityChanged(bool fVisible);
+    void sltHandleHostBrowserTableSelectionChanged(bool fIsSelectionEmpty);
+    void sltHandleContentBrowserTableSelectionChanged(bool fIsSelectionEmpty);
+    void sltHandleShowContextMenu(const QWidget *pContextMenuRequester, const QPoint &point);
 
 private:
+
     struct VisoOptions
     {
         VisoOptions()
@@ -97,35 +98,52 @@ private:
         bool m_fShowHiddenObjects;
     };
 
-    void prepareObjects();
+    void prepareWidgets();
     void prepareConnections();
     void prepareActions();
+    /** Creates and configures the vertical toolbar. Should be called after prepareActions() */
+    void prepareVerticalToolBar();
+    /* Populates the main menu and toolbard with already created actions.
+     * Leave out the vertical toolbar which is handled in prepareVerticalToolBar. */
+    void populateMenuMainToolbar();
     /** Set the root index of the m_pTableModel to the current index of m_pTreeModel. */
     void setTableRootIndex(QModelIndex index = QModelIndex() );
     void setTreeCurrentIndex(QModelIndex index = QModelIndex() );
     void hidePanel(UIDialogPanel *panel);
     void showPanel(UIDialogPanel *panel);
     /** Makes sure escape key is assigned to only a single widget. This is done by checking
-        several things in the following order:
-        - when there are no more panels visible assign it to the parent dialog
-        - grab it from the dialog as soon as a panel becomes visible again
-        - assign it to the most recently "unhidden" panel */
+      *  several things in the following order:
+      *  - when (drop-down) tree views of browser panes are visible esc. key used to close those. thus it is taken from the dialog and panels
+      *  - when there are no more panels visible assign it to the parent dialog
+      *  - grab it from the dialog as soon as a panel becomes visible again
+      *  - assign it to the most recently "unhidden" panel */
     void manageEscapeShortCut();
 
-    QVBoxLayout          *m_pMainLayout;
-    QSplitter            *m_pVerticalSplitter;
+    /** @name Main toolbar (and main menu) actions
+      * @{ */
+        QAction         *m_pActionConfiguration;
+        QAction         *m_pActionOptions;
+    /** @} */
+
+    /** @name These actions are addded to vertical toolbar, context menus, and the main menu.
+      * @{ */
+        QAction              *m_pAddAction;
+        QAction              *m_pRemoveAction;
+        QAction              *m_pNewDirectoryAction;
+        QAction              *m_pRenameAction;
+        QAction              *m_pResetAction;
+    /** @} */
+
+    QGridLayout          *m_pMainLayout;
     UIVisoHostBrowser    *m_pHostBrowser;
     UIVisoContentBrowser *m_pVisoBrowser;
     QIDialogButtonBox    *m_pButtonBox;
     UIToolBar            *m_pToolBar;
-    QAction              *m_pActionConfiguration;
-    QAction              *m_pActionOptions;
+    UIToolBar            *m_pVerticalToolBar;
     VisoOptions           m_visoOptions;
     BrowserOptions        m_browserOptions;
     QWidget              *m_pCentralWidget;
     QMenu                *m_pMainMenu;
-    QMenu                *m_pHostBrowserMenu;
-    QMenu                *m_pVisoContentBrowserMenu;
     QString               m_strMachineName;
     UIVisoCreatorOptionsPanel *m_pCreatorOptionsPanel;
     UIVisoConfigurationPanel  *m_pConfigurationPanel;

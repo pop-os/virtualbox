@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # $Id: txsclient.py $
-# pylint: disable=C0302
+# pylint: disable=too-many-lines
 
 """
 Test eXecution Service Client.
@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 131970 $"
 
 # Standard Python imports.
 import array;
@@ -120,11 +120,17 @@ def isValidOpcodeEncoding(sOpcode):
 
 def u32ToByteArray(u32):
     """Encodes the u32 value as a little endian byte (B) array."""
-    return array.array('B', \
-                       (  u32              % 256, \
-                         (u32 // 256)      % 256, \
-                         (u32 // 65536)    % 256, \
+    return array.array('B',
+                       (  u32              % 256,
+                         (u32 // 256)      % 256,
+                         (u32 // 65536)    % 256,
                          (u32 // 16777216) % 256) );
+
+def escapeString(sString):
+    """
+    Does $ escaping of the string so TXS doesn't try do variable expansion.
+    """
+    return sString.replace('$', '$$');
 
 
 
@@ -290,7 +296,7 @@ class TransportBase(object):
             abHdr = self.abReadAheadHdr;
             self.abReadAheadHdr = array.array('B');
         else:
-            abHdr = self.recvBytes(16, cMsTimeout, fNoDataOk);
+            abHdr = self.recvBytes(16, cMsTimeout, fNoDataOk); # (virtual method) # pylint: disable=assignment-from-none
             if abHdr is None:
                 return (None, None, None);
         if len(abHdr) != 16:
@@ -319,7 +325,7 @@ class TransportBase(object):
                 cbPadding = 16 - (cbMsg % 16);
             else:
                 cbPadding = 0;
-            abPayload = self.recvBytes(cbMsg - 16 + cbPadding, cMsTimeout, False);
+            abPayload = self.recvBytes(cbMsg - 16 + cbPadding, cMsTimeout, False); # pylint: disable=assignment-from-none
             if abPayload is None:
                 self.abReadAheadHdr = abHdr;
                 if not fNoDataOk    :
@@ -364,7 +370,7 @@ class TransportBase(object):
                         for ch in sUtf8:
                             abPayload.append(ord(ch))
                     abPayload.append(0);
-                elif isinstance(o, long):
+                elif isinstance(o, (long, int)):
                     if o < 0 or o > 0xffffffff:
                         reporter.fatal('sendMsg: uint32_t payload is out of range: %s' % (hex(o)));
                         return None;
@@ -385,14 +391,14 @@ class Session(TdTaskBase):
     A Test eXecution Service (TXS) client session.
     """
 
-    def __init__(self, oTransport, cMsTimeout, cMsIdleFudge, fTryConnect = False):
+    def __init__(self, oTransport, cMsTimeout, cMsIdleFudge, fTryConnect = False, fnProcessEvents = None):
         """
         Construct a TXS session.
 
         This starts by connecting to the TXS and will enter the signalled state
         when connected or the timeout has been reached.
         """
-        TdTaskBase.__init__(self, utils.getCallerName());
+        TdTaskBase.__init__(self, utils.getCallerName(), fnProcessEvents);
         self.oTransport     = oTransport;
         self.sStatus        = "";
         self.cMsTimeout     = 0;
@@ -548,7 +554,7 @@ class Session(TdTaskBase):
         cMsLeft = self.cMsTimeout - cMsElapsed;
         if cMsLeft <= cMsMin:
             return cMsMin;
-        if cMsLeft > cMsMax and cMsMax > 0:
+        if cMsLeft > cMsMax > 0:
             return cMsMax
         return cMsLeft;
 
@@ -636,7 +642,7 @@ class Session(TdTaskBase):
 
         rc = self.waitForTask(self.cMsTimeout + 5000);
         if rc is False:
-            reporter.maybeErrXcpt(self.fErr, 'asyncToSync: waitForTask failed...');
+            reporter.maybeErr(self.fErr, 'asyncToSync: waitForTask failed...');
             self.cancelTask();
             #reporter.log2('asyncToSync(%s): returns False (#2)' % (fnAsync, rc));
             return False;
@@ -718,10 +724,10 @@ class Session(TdTaskBase):
 
     #
     # Process task
-    # pylint: disable=C0111
+    # pylint: disable=missing-docstring
     #
 
-    def taskExecEx(self, sExecName, fFlags, asArgs, asAddEnv, oStdIn, oStdOut, oStdErr, oTestPipe, sAsUser): # pylint: disable=R0913,R0914,R0915,C0301
+    def taskExecEx(self, sExecName, fFlags, asArgs, asAddEnv, oStdIn, oStdOut, oStdErr, oTestPipe, sAsUser): # pylint: disable=too-many-arguments,too-many-locals,too-many-statements,line-too-long
         # Construct the payload.
         aoPayload = [long(fFlags), '%s' % (sExecName), long(len(asArgs))];
         for sArg in asArgs:
@@ -763,11 +769,11 @@ class Session(TdTaskBase):
                         rc = None;
                         break;
                     if sInput:
-                        oStdIn.uTxsClientCrc32 = zlib.crc32(sInput, oStdIn.uTxsClientCrc32);
                         # Convert to a byte array before handing it of to sendMsg or the string
                         # will get some zero termination added breaking the CRC (and injecting
                         # unwanted bytes).
-                        abInput = array.array('B', sInput);
+                        abInput = array.array('B', sInput.encode('utf-8'));
+                        oStdIn.uTxsClientCrc32 = zlib.crc32(abInput, oStdIn.uTxsClientCrc32);
                         rc = self.sendMsg('STDIN', (long(oStdIn.uTxsClientCrc32 & 0xffffffff), abInput));
                         if rc is not True:
                             sFailure = 'sendMsg failure';
@@ -843,7 +849,7 @@ class Session(TdTaskBase):
                     reporter.log('taskExecEx: Standard input is ignored... why?');
                     del oStdIn.uTxsClientCrc32;
                     oStdIn = '/dev/null';
-                elif  (sOpcode == 'STDINMEM' or sOpcode == 'STDINBAD' or sOpcode == 'STDINCRC')\
+                elif  sOpcode in ('STDINMEM', 'STDINBAD', 'STDINCRC',)\
                   and msPendingInputReply is not None:
                     # TXS STDIN error, abort.
                     # TODO: STDINMEM - consider undoing the previous stdin read and try resubmitt it.
@@ -917,9 +923,9 @@ class Session(TdTaskBase):
         # Cleanup.
         for o in (oStdIn, oStdOut, oStdErr, oTestPipe):
             if o is not None and not utils.isString(o):
-                del o.uTxsClientCrc32;      # pylint: disable=E1103
+                del o.uTxsClientCrc32;      # pylint: disable=maybe-no-member
                 # Make sure all files are closed
-                o.close();                  # pylint: disable=E1103
+                o.close();                  # pylint: disable=maybe-no-member
         reporter.log('taskExecEx: returns %s' % (rc));
         return rc;
 
@@ -1004,9 +1010,17 @@ class Session(TdTaskBase):
             rc = self.recvAckLogged('RMTREE');
         return rc;
 
-    #def "CHMOD   "
-    #def "CHOWN   "
-    #def "CHGRP   "
+    def taskChMod(self, sRemotePath, fMode):
+        rc = self.sendMsg('CHMOD', (int(fMode), sRemotePath,));
+        if rc is True:
+            rc = self.recvAckLogged('CHMOD');
+        return rc;
+
+    def taskChOwn(self, sRemotePath, idUser, idGroup):
+        rc = self.sendMsg('CHOWN', (int(idUser), int(idGroup), sRemotePath,));
+        if rc is True:
+            rc = self.recvAckLogged('CHOWN');
+        return rc;
 
     def taskIsDir(self, sRemoteDir):
         rc = self.sendMsg('ISDIR', (sRemoteDir,));
@@ -1030,7 +1044,7 @@ class Session(TdTaskBase):
     #def "LSTAT   "
     #def "LIST    "
 
-    def taskUploadFile(self, sLocalFile, sRemoteFile):
+    def taskUploadFile(self, sLocalFile, sRemoteFile, fMode, fFallbackOkay):
         #
         # Open the local file (make sure it exist before bothering TXS) and
         # tell TXS that we want to upload a file.
@@ -1042,15 +1056,15 @@ class Session(TdTaskBase):
             return False;
 
         # Common cause with taskUploadStr
-        rc = self.taskUploadCommon(oLocalFile, sRemoteFile);
+        rc = self.taskUploadCommon(oLocalFile, sRemoteFile, fMode, fFallbackOkay);
 
         # Cleanup.
         oLocalFile.close();
         return rc;
 
-    def taskUploadString(self, sContent, sRemoteFile):
+    def taskUploadString(self, sContent, sRemoteFile, fMode, fFallbackOkay):
         # Wrap sContent in a file like class.
-        class InStringFile(object): # pylint: disable=R0903
+        class InStringFile(object): # pylint: disable=too-few-public-methods
             def __init__(self, sContent):
                 self.sContent = sContent;
                 self.off      = 0;
@@ -1067,14 +1081,35 @@ class Session(TdTaskBase):
                 return sRet;
 
         oLocalString = InStringFile(sContent);
-        return self.taskUploadCommon(oLocalString, sRemoteFile);
+        return self.taskUploadCommon(oLocalString, sRemoteFile, fMode, fFallbackOkay);
 
-    def taskUploadCommon(self, oLocalFile, sRemoteFile):
+    def taskUploadCommon(self, oLocalFile, sRemoteFile, fMode, fFallbackOkay):
         """Common worker used by taskUploadFile and taskUploadString."""
+        #
         # Command + ACK.
-        rc = self.sendMsg('PUT FILE', (sRemoteFile,));
-        if rc is True:
-            rc = self.recvAckLogged('PUT FILE');
+        #
+        # Only used the new PUT2FILE command if we've got a non-zero mode mask.
+        # Fall back on the old command if the new one is not known by the TXS.
+        #
+        if fMode == 0:
+            rc = self.sendMsg('PUT FILE', (sRemoteFile,));
+            if rc is True:
+                rc = self.recvAckLogged('PUT FILE');
+        else:
+            rc = self.sendMsg('PUT2FILE', (fMode, sRemoteFile));
+            if rc is True:
+                rc = self.recvAck();
+                if rc is False:
+                    reporter.maybeErr(self.fErr, 'recvAckLogged: PUT2FILE transport error');
+                elif rc is not True:
+                    if rc[0] == 'UNKNOWN' and fFallbackOkay:
+                        # Fallback:
+                        rc = self.sendMsg('PUT FILE', (sRemoteFile,));
+                        if rc is True:
+                            rc = self.recvAckLogged('PUT FILE');
+                    else:
+                        reporter.maybeErr(self.fErr, 'recvAckLogged: PUT2FILE response was %s: %s' % (rc[0], rc[1],));
+                        rc = False;
         if rc is True:
             #
             # Push data packets until eof.
@@ -1147,7 +1182,7 @@ class Session(TdTaskBase):
 
     def taskDownloadString(self, sRemoteFile, sEncoding = 'utf-8', fIgnoreEncodingErrors = True):
         # Wrap sContent in a file like class.
-        class OutStringFile(object): # pylint: disable=R0903
+        class OutStringFile(object): # pylint: disable=too-few-public-methods
             def __init__(self):
                 self.asContent = [];
 
@@ -1183,7 +1218,7 @@ class Session(TdTaskBase):
 
                 # Validate.
                 sOpcode = sOpcode.rstrip();
-                if sOpcode != 'DATA' and sOpcode != 'DATA EOF':
+                if sOpcode not in ('DATA', 'DATA EOF',):
                     reporter.maybeErr(self.fErr, 'taskDownload got a error reply: opcode="%s" details="%s"'
                                       % (sOpcode, getSZ(abPayload, 0, "None")));
                     rc = False;
@@ -1231,7 +1266,7 @@ class Session(TdTaskBase):
             rc = self.recvAckLogged('UNPKFILE');
         return rc;
 
-    # pylint: enable=C0111
+    # pylint: enable=missing-docstring
 
 
     #
@@ -1309,7 +1344,7 @@ class Session(TdTaskBase):
     # Public methods - execution.
     #
 
-    def asyncExecEx(self, sExecName, asArgs = (), asAddEnv = (), # pylint: disable=R0913
+    def asyncExecEx(self, sExecName, asArgs = (), asAddEnv = (), # pylint: disable=too-many-arguments
                     oStdIn = None, oStdOut = None, oStdErr = None, oTestPipe = None,
                     sAsUser = "", cMsTimeout = 3600000, fIgnoreErrors = False):
         """
@@ -1338,7 +1373,7 @@ class Session(TdTaskBase):
                               (sExecName, long(0), asArgs, asAddEnv, oStdIn,
                                oStdOut, oStdErr, oTestPipe, sAsUser));
 
-    def syncExecEx(self, sExecName, asArgs = (), asAddEnv = (), # pylint: disable=R0913
+    def syncExecEx(self, sExecName, asArgs = (), asAddEnv = (), # pylint: disable=too-many-arguments
                    oStdIn = '/dev/null', oStdOut = '/dev/null',
                    oStdErr = '/dev/null', oTestPipe = '/dev/null',
                    sAsUser = '', cMsTimeout = 3600000, fIgnoreErrors = False):
@@ -1515,9 +1550,33 @@ class Session(TdTaskBase):
         """Synchronous version."""
         return self.asyncToSync(self.asyncRmTree, sRemoteTree, cMsTimeout, fIgnoreErrors);
 
-    #def "CHMOD   "
-    #def "CHOWN   "
-    #def "CHGRP   "
+    def asyncChMod(self, sRemotePath, fMode, cMsTimeout = 30000, fIgnoreErrors = False):
+        """
+        Initiates a chmod task.
+
+        Returns True on success, False on failure (logged).
+
+        The task returns True on success, False on failure (logged).
+        """
+        return self.startTask(cMsTimeout, fIgnoreErrors, "chMod", self.taskChMod, (sRemotePath, fMode));
+
+    def syncChMod(self, sRemotePath, fMode, cMsTimeout = 30000, fIgnoreErrors = False):
+        """Synchronous version."""
+        return self.asyncToSync(self.asyncChMod, sRemotePath, fMode, cMsTimeout, fIgnoreErrors);
+
+    def asyncChOwn(self, sRemotePath, idUser, idGroup, cMsTimeout = 30000, fIgnoreErrors = False):
+        """
+        Initiates a chown task.
+
+        Returns True on success, False on failure (logged).
+
+        The task returns True on success, False on failure (logged).
+        """
+        return self.startTask(cMsTimeout, fIgnoreErrors, "chOwn", self.taskChOwn, (sRemotePath, idUser, idGroup));
+
+    def syncChOwn(self, sRemotePath, idUser, idGroup, cMsTimeout = 30000, fIgnoreErrors = False):
+        """Synchronous version."""
+        return self.asyncToSync(self.asyncChMod, sRemotePath, idUser, idGroup, cMsTimeout, fIgnoreErrors);
 
     def asyncIsDir(self, sRemoteDir, cMsTimeout = 30000, fIgnoreErrors = False):
         """
@@ -1568,7 +1627,8 @@ class Session(TdTaskBase):
     #def "LSTAT   "
     #def "LIST    "
 
-    def asyncUploadFile(self, sLocalFile, sRemoteFile, cMsTimeout = 30000, fIgnoreErrors = False):
+    def asyncUploadFile(self, sLocalFile, sRemoteFile,
+                        fMode = 0, fFallbackOkay = True, cMsTimeout = 30000, fIgnoreErrors = False):
         """
         Initiates a download query task.
 
@@ -1576,13 +1636,15 @@ class Session(TdTaskBase):
 
         The task returns True on success, False on failure (logged).
         """
-        return self.startTask(cMsTimeout, fIgnoreErrors, "upload", self.taskUploadFile, (sLocalFile, sRemoteFile));
+        return self.startTask(cMsTimeout, fIgnoreErrors, "upload",
+                              self.taskUploadFile, (sLocalFile, sRemoteFile, fMode, fFallbackOkay));
 
-    def syncUploadFile(self, sLocalFile, sRemoteFile, cMsTimeout = 30000, fIgnoreErrors = False):
+    def syncUploadFile(self, sLocalFile, sRemoteFile, fMode = 0, fFallbackOkay = True, cMsTimeout = 30000, fIgnoreErrors = False):
         """Synchronous version."""
-        return self.asyncToSync(self.asyncUploadFile, sLocalFile, sRemoteFile, cMsTimeout, fIgnoreErrors);
+        return self.asyncToSync(self.asyncUploadFile, sLocalFile, sRemoteFile, fMode, fFallbackOkay, cMsTimeout, fIgnoreErrors);
 
-    def asyncUploadString(self, sContent, sRemoteFile, cMsTimeout = 30000, fIgnoreErrors = False):
+    def asyncUploadString(self, sContent, sRemoteFile,
+                          fMode = 0, fFallbackOkay = True, cMsTimeout = 30000, fIgnoreErrors = False):
         """
         Initiates a upload string task.
 
@@ -1590,11 +1652,12 @@ class Session(TdTaskBase):
 
         The task returns True on success, False on failure (logged).
         """
-        return self.startTask(cMsTimeout, fIgnoreErrors, "uploadString", self.taskUploadString, (sContent, sRemoteFile));
+        return self.startTask(cMsTimeout, fIgnoreErrors, "uploadString",
+                              self.taskUploadString, (sContent, sRemoteFile, fMode, fFallbackOkay));
 
-    def syncUploadString(self, sContent, sRemoteFile, cMsTimeout = 30000, fIgnoreErrors = False):
+    def syncUploadString(self, sContent, sRemoteFile, fMode = 0, fFallbackOkay = True, cMsTimeout = 30000, fIgnoreErrors = False):
         """Synchronous version."""
-        return self.asyncToSync(self.asyncUploadString, sContent, sRemoteFile, cMsTimeout, fIgnoreErrors);
+        return self.asyncToSync(self.asyncUploadString, sContent, sRemoteFile, fMode, fFallbackOkay, cMsTimeout, fIgnoreErrors);
 
     def asyncDownloadFile(self, sRemoteFile, sLocalFile, cMsTimeout = 30000, fIgnoreErrors = False):
         """
@@ -1636,7 +1699,7 @@ class Session(TdTaskBase):
 
         The task returns True on success, False on failure (logged).
         """
-        return self.startTask(cMsTimeout, fIgnoreErrors, "unpackFile", self.taskUnpackFile, \
+        return self.startTask(cMsTimeout, fIgnoreErrors, "unpackFile", self.taskUnpackFile,
                               (sRemoteFile, sRemoteDir));
 
     def syncUnpackFile(self, sRemoteFile, sRemoteDir, cMsTimeout = 30000, fIgnoreErrors = False):
@@ -1859,12 +1922,7 @@ class TransportTcp(TransportBase):
 
             if rc is True:
                 pass;
-            elif  iRc == errno.ECONNREFUSED \
-               or iRc == errno.EHOSTUNREACH \
-               or iRc == errno.EINTR \
-               or iRc == errno.ENETDOWN \
-               or iRc == errno.ENETUNREACH \
-               or iRc == errno.ETIMEDOUT:
+            elif iRc in (errno.ECONNREFUSED, errno.EHOSTUNREACH, errno.EINTR, errno.ENETDOWN, errno.ENETUNREACH, errno.ETIMEDOUT):
                 rc = False; # try again.
             else:
                 if iRc != errno.EBADF  or  not self.fConnectCanceled:
@@ -1894,7 +1952,7 @@ class TransportTcp(TransportBase):
         oWakeupR = None;
         oWakeupW = None;
         if hasattr(socket, 'socketpair'):
-            try:    (oWakeupR, oWakeupW) = socket.socketpair();         # pylint: disable=E1101
+            try:    (oWakeupR, oWakeupW) = socket.socketpair();         # pylint: disable=no-member
             except: reporter.logXcpt('socket.socketpair() failed');
 
         # Update the state.
@@ -2108,22 +2166,25 @@ class TransportTcp(TransportBase):
         return True;
 
 
-def openTcpSession(cMsTimeout, sHostname, uPort = None, fReversedSetup = False, cMsIdleFudge = 0):
+def openTcpSession(cMsTimeout, sHostname, uPort = None, fReversedSetup = False, cMsIdleFudge = 0, fnProcessEvents = None):
     """
     Opens a connection to a Test Execution Service via TCP, given its name.
+
+    The optional fnProcessEvents callback should be set to vbox.processPendingEvents
+    or similar.
     """
-    reporter.log2('openTcpSession(%s, %s, %s, %s, %s)' % \
+    reporter.log2('openTcpSession(%s, %s, %s, %s, %s)' %
                   (cMsTimeout, sHostname, uPort, fReversedSetup, cMsIdleFudge));
     try:
         oTransport = TransportTcp(sHostname, uPort, fReversedSetup);
-        oSession = Session(oTransport, cMsTimeout, cMsIdleFudge);
+        oSession = Session(oTransport, cMsTimeout, cMsIdleFudge, fnProcessEvents = fnProcessEvents);
     except:
         reporter.errorXcpt(None, 15);
         return None;
     return oSession;
 
 
-def tryOpenTcpSession(cMsTimeout, sHostname, uPort = None, fReversedSetup = False, cMsIdleFudge = 0):
+def tryOpenTcpSession(cMsTimeout, sHostname, uPort = None, fReversedSetup = False, cMsIdleFudge = 0, fnProcessEvents = None):
     """
     Tries to open a connection to a Test Execution Service via TCP, given its name.
 
@@ -2132,7 +2193,7 @@ def tryOpenTcpSession(cMsTimeout, sHostname, uPort = None, fReversedSetup = Fals
     """
     try:
         oTransport = TransportTcp(sHostname, uPort, fReversedSetup);
-        oSession = Session(oTransport, cMsTimeout, cMsIdleFudge, fTryConnect = True);
+        oSession = Session(oTransport, cMsTimeout, cMsIdleFudge, fTryConnect = True, fnProcessEvents = fnProcessEvents);
     except:
         reporter.errorXcpt(None, 15);
         return None;

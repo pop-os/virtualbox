@@ -867,10 +867,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Open the log menu</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>&amp;Find</source>
         <translation type="unfinished">&amp;Нађи</translation>
     </message>
@@ -883,19 +879,11 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Open Find Pane (%1)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>&amp;Filter</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Open pane with filtering options</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Open Filter Pane (%1)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -907,19 +895,11 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Open Bookmark Pane (%1)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>&amp;Options</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Open pane with log viewer options</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Open Options Pane (%1)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -931,19 +911,11 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Refresh Virtual Machine Log (%1)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>&amp;Save...</source>
         <translation type="unfinished">Сачувај...</translation>
     </message>
     <message>
         <source>Save selected virtual machine log</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Save Virtual Machine Log (%1)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -963,19 +935,11 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Copy the Selected Object(s) from Host to Guest</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Copy the selected object(s) from host to guest</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Copy to host</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Copy the Selected Object(s) from Guest to Host</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -995,15 +959,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Open File Manager Session</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Go one level up to parent folder</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Go One Level Up to Parent Folder</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1027,10 +983,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Delete Selected File Object(s)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Refresh</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1051,19 +1003,11 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Copy Selected File Object(s)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Cut</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Cut selected file object(s)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Cut Selected File Object(s)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1075,19 +1019,11 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Paste Copied/Cut File Object(s)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Select All</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Select all files objects</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Select All Files Objects</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1099,19 +1035,11 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Invert the Current Selection</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Show Properties</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Show the properties of currently selected file object(s)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Show the Properties of Currently Selected File Object(s)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1369,10 +1297,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Open the machine tools menu</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>&amp;Details</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1398,10 +1322,6 @@
     </message>
     <message>
         <source>&amp;Global Tools Menu</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Open the global tools menu</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1433,10 +1353,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Open the snapshot menu</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>&amp;Take...</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1449,19 +1365,11 @@
         <translation type="unfinished">Узнми снимак статуса актуелне машине</translation>
     </message>
     <message>
-        <source>Take Snapshot (%1)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>&amp;Delete...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Delete selected snapshot of the virtual machine</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Delete Snapshot (%1)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1473,10 +1381,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Restore Snapshot (%1)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>&amp;Properties</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1485,23 +1389,11 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Open Snapshot Properties (%1)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>&amp;Clone...</source>
         <translation type="unfinished">Клонирај...</translation>
     </message>
     <message>
-        <source>Clone Virtual Machine (%1)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>&amp;Medium</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Open the medium menu</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1509,59 +1401,11 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Add a disk image file</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Add a Disk Image File (%1)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>&amp;Copy...</source>
         <translation type="unfinished">Копирај...</translation>
     </message>
     <message>
-        <source>Copy selected disk image file</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Copy Disk Image File (%1)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Move selected disk image file</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Move Disk Image File (%1)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Remove selected disk image file</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Remove Disk Image File (%1)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Re&amp;lease...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Release selected disk image file</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Release Disk Image File (%1)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Open pane with selected disk image file properties</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Open Disk Image File Properties (%1)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1570,18 +1414,10 @@
     </message>
     <message>
         <source>Refresh the list of disk image files</source>
-        <translation type="unfinished">Освежи списак медија</translation>
-    </message>
-    <message>
-        <source>Refresh Disk Image Files (%1)</source>
-        <translation type="unfinished"></translation>
+        <translation type="obsolete">Освежи списак медија</translation>
     </message>
     <message>
         <source>&amp;Network</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Open the network menu</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1597,15 +1433,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Create Host-only Network (%1)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Remove selected host-only network</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Remove Host-only Network (%1)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1613,23 +1441,11 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Open Host-only Network Properties (%1)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Refresh the list of host-only networks</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Refresh Host-only Networks (%1)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>&amp;Cloud</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Open the cloud menu</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1649,19 +1465,11 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Add Cloud Profile (%1)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>&amp;Import Profiles...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Import the list of cloud profiles from external files</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Import Cloud Profiles (%1)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1677,10 +1485,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Remove Cloud Profile (%1)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Properties</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1690,10 +1494,6 @@
     </message>
     <message>
         <source>Open pane with selected cloud profile properties</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Open Cloud Profile Properties (%1)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1709,10 +1509,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Show Cloud Profile Help (%1)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Take Sn&amp;apshot...</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1722,14 +1518,6 @@
     </message>
     <message>
         <source>File Manager...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Guest Process Control...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Display the virtual machine guest process control window</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2007,27 +1795,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Open the file manager</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Open the file manager host submenu</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Open the file manager guest submenu</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Open File Manager Options</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Open panel with file manager log</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Open File Manager Log</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2036,10 +1804,6 @@
     </message>
     <message>
         <source>Open panel with file manager operations</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Open File Manager Operations</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2080,6 +1844,267 @@
     </message>
     <message>
         <source>Try Oracle Cloud for Free</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Display Global Preferences</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open Find Pane</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open Filter Pane</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open Bookmark Pane</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open Options Pane</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Refresh Virtual Machine Log</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Save Virtual Machine Log</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy from Host to Guest</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy from Guest to Host</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open Log Pane</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open Operations Pane</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open Session Pane</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Go One Level Up</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delete Selected Object(s)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Refresh Contents</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rename selected file object</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rename Selected Object</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy Selected Object(s)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cut Selected Object(s)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Paste Copied/Cut Object(s)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select All Objects</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Invert Current Selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show Properties of Current Object(s)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;New Cloud VM...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Create new cloud virtual machine</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>E&amp;xport Locally...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Export selected virtual machine locally</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>S&amp;earch</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Search virtual machines with respect to a search term</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Take Snapshot</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delete Snapshot</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Restore Snapshot</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open Snapshot Properties</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clone Virtual Machine</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add a disk image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add Disk Image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Create a new disk image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Create Disk Image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy selected disk image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy Disk Image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Move selected disk image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Move Disk Image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove selected disk image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove Disk Image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Release selected disk image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Release Disk Image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open pane with selected disk image properties</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open Disk Image Properties</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Search</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open the disk image search pane</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open Disk Image Search Pane</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Refresh the list of disk images</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Refresh Disk Images</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Create Host-only Network</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove Host-only Network</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open Host-only Network Properties</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Refresh Host-only Networks</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add Cloud Profile</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Import Cloud Profiles</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove Cloud Profile</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open Cloud Profile Properties</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show Cloud Profile Help</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Soft Keyboard...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Display soft keyboard</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Guest Control Terminal...</source>
+        <comment>debug action</comment>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -2329,6 +2354,10 @@
         <source>Include all network adapter MAC addresses during cloning.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>&amp;Machine Base Folder:</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIApplianceModelItem</name>
@@ -2417,26 +2446,58 @@
     </message>
 </context>
 <context>
-    <name>UIChooserItemGlobal</name>
+    <name>UIAudioControllerEditor</name>
     <message>
-        <source>Tools</source>
+        <source>Audio &amp;Controller:</source>
+        <translation type="unfinished">Аудио контролер:</translation>
+    </message>
+</context>
+<context>
+    <name>UIAudioHostDriverEditor</name>
+    <message>
+        <source>Host Audio &amp;Driver:</source>
+        <translation type="unfinished">Хост аудио драјвер:</translation>
+    </message>
+</context>
+<context>
+    <name>UIBaseMemoryEditor</name>
+    <message>
+        <source>Base &amp;Memory:</source>
+        <translation type="unfinished">Базна меморија:</translation>
+    </message>
+    <message>
+        <source>%1 MB</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>MB</source>
+        <translation type="unfinished">МБ</translation>
+    </message>
+</context>
+<context>
+    <name>UIBootOrderEditor</name>
+    <message>
+        <source>&amp;Boot Order:</source>
+        <translation type="unfinished">Ред бута:</translation>
+    </message>
+    <message>
+        <source>Move Up</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Move Down</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UIChooserAbstractModel</name>
+    <message>
+        <source>New group</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>UIChooserItemGroup</name>
-    <message>
-        <source>Virtual Machine group</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Enter group</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Exit group</source>
-        <translation type="unfinished"></translation>
-    </message>
     <message>
         <source>&lt;b&gt;%1&lt;/b&gt;</source>
         <comment>Group item tool-tip / Group name</comment>
@@ -2494,16 +2555,42 @@
     </message>
 </context>
 <context>
-    <name>UIChooserItemMachine</name>
+    <name>UIChooserNodeGlobal</name>
+    <message>
+        <source>Tools</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UIChooserNodeGroup</name>
+    <message>
+        <source>Virtual Machine group</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UIChooserNodeMachine</name>
     <message>
         <source>Virtual Machine</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
-    <name>UIChooserModel</name>
+    <name>UIChooserSearchWidget</name>
     <message>
-        <source>New group</source>
+        <source>Navigate to the next item among the search results</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Navigate to the previous item among the search results</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enter a search term to be used during virtual machine search</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Close the search widget</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -2753,6 +2840,1612 @@
     </message>
 </context>
 <context>
+    <name>UICommon</name>
+    <message>
+        <source>MB</source>
+        <comment>size suffix MBytes=1024 KBytes</comment>
+        <translation type="unfinished">МБ</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;%1 MB&lt;/nobr&gt;</source>
+        <comment>details report</comment>
+        <translation type="unfinished">&lt;nobr&gt;%1 МБ&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details report (3D Acceleration)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (3D Acceleration)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>not set</source>
+        <comment>details report (execution engine)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Active</source>
+        <comment>details report (Nested Paging)</comment>
+        <translation type="unfinished">Активно</translation>
+    </message>
+    <message>
+        <source>Inactive</source>
+        <comment>details report (Nested Paging)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Active</source>
+        <comment>details report (Unrestricted Execution)</comment>
+        <translation type="unfinished">Активно</translation>
+    </message>
+    <message>
+        <source>Inactive</source>
+        <comment>details report (Unrestricted Execution)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Execution engine</source>
+        <comment>details report</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Nested Paging</source>
+        <translation type="unfinished">Подметнуто записивање</translation>
+    </message>
+    <message>
+        <source>Unrestricted Execution</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Execution Cap</source>
+        <comment>details report</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Paravirtualization Interface</source>
+        <comment>details report</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Processors</source>
+        <comment>details report</comment>
+        <translation type="unfinished">Процесори</translation>
+    </message>
+    <message>
+        <source>Powered Off</source>
+        <comment>MachineState</comment>
+        <translation type="unfinished">Угашено</translation>
+    </message>
+    <message>
+        <source>Saved</source>
+        <comment>MachineState</comment>
+        <translation type="unfinished">Сачувано</translation>
+    </message>
+    <message>
+        <source>Aborted</source>
+        <comment>MachineState</comment>
+        <translation type="unfinished">Анулирано</translation>
+    </message>
+    <message>
+        <source>Teleported</source>
+        <comment>MachineState</comment>
+        <translation type="unfinished">Teleported</translation>
+    </message>
+    <message>
+        <source>Running</source>
+        <comment>MachineState</comment>
+        <translation type="unfinished">Ради</translation>
+    </message>
+    <message>
+        <source>Paused</source>
+        <comment>MachineState</comment>
+        <translation type="unfinished">Паузирано</translation>
+    </message>
+    <message>
+        <source>Guru Meditation</source>
+        <comment>MachineState</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Teleporting</source>
+        <comment>MachineState</comment>
+        <translation type="unfinished">Телепортација</translation>
+    </message>
+    <message>
+        <source>Taking Snapshot</source>
+        <comment>MachineState</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Taking Online Snapshot</source>
+        <comment>MachineState</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Taking Live Snapshot</source>
+        <comment>MachineState</comment>
+        <translation type="unfinished">Узимање уживу слику</translation>
+    </message>
+    <message>
+        <source>Starting</source>
+        <comment>MachineState</comment>
+        <translation type="unfinished">Покретање</translation>
+    </message>
+    <message>
+        <source>Stopping</source>
+        <comment>MachineState</comment>
+        <translation type="unfinished">Заустављање</translation>
+    </message>
+    <message>
+        <source>Saving</source>
+        <comment>MachineState</comment>
+        <translation type="unfinished">Сачувавање</translation>
+    </message>
+    <message>
+        <source>Restoring</source>
+        <comment>MachineState</comment>
+        <translation type="unfinished">Рестаурирање</translation>
+    </message>
+    <message>
+        <source>Teleporting Paused VM</source>
+        <comment>MachineState</comment>
+        <translation type="unfinished">Телепортација паузиране VM</translation>
+    </message>
+    <message>
+        <source>Deleting Snapshot</source>
+        <comment>MachineState</comment>
+        <translation type="unfinished">Брисање слике</translation>
+    </message>
+    <message>
+        <source>Restoring Snapshot</source>
+        <comment>MachineState</comment>
+        <translation type="unfinished">Врачање слике</translation>
+    </message>
+    <message>
+        <source>Setting Up</source>
+        <comment>MachineState</comment>
+        <translation type="unfinished">Подешавање</translation>
+    </message>
+    <message>
+        <source>Unlocked</source>
+        <comment>SessionState</comment>
+        <translation type="unfinished">Деблокирано</translation>
+    </message>
+    <message>
+        <source>Locked</source>
+        <comment>SessionState</comment>
+        <translation type="unfinished">Блокирано</translation>
+    </message>
+    <message>
+        <source>Spawning</source>
+        <comment>SessionState</comment>
+        <translation type="unfinished">Генерисање</translation>
+    </message>
+    <message>
+        <source>Unlocking</source>
+        <comment>SessionState</comment>
+        <translation type="unfinished">Деблокирање</translation>
+    </message>
+    <message>
+        <source>None</source>
+        <comment>ParavirtProvider</comment>
+        <translation type="unfinished">Ништа</translation>
+    </message>
+    <message>
+        <source>Default</source>
+        <comment>ParavirtProvider</comment>
+        <translation type="unfinished">Иницијално</translation>
+    </message>
+    <message>
+        <source>Legacy</source>
+        <comment>ParavirtProvider</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Minimal</source>
+        <comment>ParavirtProvider</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hyper-V</source>
+        <comment>ParavirtProvider</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>KVM</source>
+        <comment>ParavirtProvider</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>None</source>
+        <comment>DeviceType</comment>
+        <translation type="unfinished">Ништа</translation>
+    </message>
+    <message>
+        <source>Floppy</source>
+        <comment>DeviceType</comment>
+        <translation type="unfinished">Флопи</translation>
+    </message>
+    <message>
+        <source>Optical</source>
+        <comment>DeviceType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hard Disk</source>
+        <comment>DeviceType</comment>
+        <translation type="unfinished">Тврди диск</translation>
+    </message>
+    <message>
+        <source>Network</source>
+        <comment>DeviceType</comment>
+        <translation type="unfinished">Мрежа</translation>
+    </message>
+    <message>
+        <source>USB</source>
+        <comment>DeviceType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shared Folder</source>
+        <comment>DeviceType</comment>
+        <translation type="unfinished">Дељена фасцикла</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>ClipboardType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Host To Guest</source>
+        <comment>ClipboardType</comment>
+        <translation type="unfinished">Хост на гост</translation>
+    </message>
+    <message>
+        <source>Guest To Host</source>
+        <comment>ClipboardType</comment>
+        <translation type="unfinished">Гост на хост</translation>
+    </message>
+    <message>
+        <source>Bidirectional</source>
+        <comment>ClipboardType</comment>
+        <translation type="unfinished">Двосмерно</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>DragAndDropType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Host To Guest</source>
+        <comment>DragAndDropType</comment>
+        <translation type="unfinished">Хост на гост</translation>
+    </message>
+    <message>
+        <source>Guest To Host</source>
+        <comment>DragAndDropType</comment>
+        <translation type="unfinished">Гост на хост</translation>
+    </message>
+    <message>
+        <source>Bidirectional</source>
+        <comment>DragAndDropType</comment>
+        <translation type="unfinished">Двосмерно</translation>
+    </message>
+    <message>
+        <source>PS/2 Mouse</source>
+        <comment>PointingHIDType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>USB Mouse</source>
+        <comment>PointingHIDType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>USB Tablet</source>
+        <comment>PointingHIDType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>PS/2 and USB Mouse</source>
+        <comment>PointingHIDType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>USB Multi-Touch Tablet</source>
+        <comment>PointingHIDType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>None</source>
+        <comment>GraphicsControllerType</comment>
+        <translation type="unfinished">Ништа</translation>
+    </message>
+    <message>
+        <source>VBoxVGA</source>
+        <comment>GraphicsControllerType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>VMSVGA</source>
+        <comment>GraphicsControllerType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>VBoxSVGA</source>
+        <comment>GraphicsControllerType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Normal</source>
+        <comment>MediumType</comment>
+        <translation type="unfinished">Нормално</translation>
+    </message>
+    <message>
+        <source>Immutable</source>
+        <comment>MediumType</comment>
+        <translation type="unfinished">Непроменљив</translation>
+    </message>
+    <message>
+        <source>Writethrough</source>
+        <comment>MediumType</comment>
+        <translation type="unfinished">ПишиКроз</translation>
+    </message>
+    <message>
+        <source>Shareable</source>
+        <comment>MediumType</comment>
+        <translation type="unfinished">Дељиво</translation>
+    </message>
+    <message>
+        <source>Readonly</source>
+        <comment>MediumType</comment>
+        <translation type="unfinished">СамоЧитљиво</translation>
+    </message>
+    <message>
+        <source>Multi-attach</source>
+        <comment>MediumType</comment>
+        <translation type="unfinished">Више-прикачка</translation>
+    </message>
+    <message>
+        <source>Dynamically allocated storage</source>
+        <comment>MediumVariant</comment>
+        <translation type="unfinished">Динамично додељено стовариште</translation>
+    </message>
+    <message>
+        <source>New dynamically allocated storage</source>
+        <comment>MediumVariant</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Dynamically allocated differencing storage</source>
+        <comment>MediumVariant</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fixed size storage</source>
+        <comment>MediumVariant</comment>
+        <translation type="unfinished">Фиксна величина</translation>
+    </message>
+    <message>
+        <source>Dynamically allocated storage split into files of less than 2GB</source>
+        <comment>MediumVariant</comment>
+        <translation type="unfinished">Динамично дедељење подељено у датотеке мање од 2ГБ</translation>
+    </message>
+    <message>
+        <source>Dynamically allocated differencing storage split into files of less than 2GB</source>
+        <comment>MediumVariant</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fixed size storage split into files of less than 2GB</source>
+        <comment>MediumVariant</comment>
+        <translation type="unfinished">Фиксна величина подељено у датотеке мање од 2ГБ</translation>
+    </message>
+    <message>
+        <source>Dynamically allocated compressed storage</source>
+        <comment>MediumVariant</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Dynamically allocated differencing compressed storage</source>
+        <comment>MediumVariant</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fixed size ESX storage</source>
+        <comment>MediumVariant</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fixed size storage on raw disk</source>
+        <comment>MediumVariant</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Not attached</source>
+        <comment>NetworkAttachmentType</comment>
+        <translation type="unfinished">Није прикачено</translation>
+    </message>
+    <message>
+        <source>NAT</source>
+        <comment>NetworkAttachmentType</comment>
+        <translation type="unfinished">NAT</translation>
+    </message>
+    <message>
+        <source>Bridged Adapter</source>
+        <comment>NetworkAttachmentType</comment>
+        <translation type="unfinished">Мост адаптер</translation>
+    </message>
+    <message>
+        <source>Internal Network</source>
+        <comment>NetworkAttachmentType</comment>
+        <translation type="unfinished">Интерна мрежа</translation>
+    </message>
+    <message>
+        <source>Host-only Adapter</source>
+        <comment>NetworkAttachmentType</comment>
+        <translation type="unfinished">Само хост адаптер</translation>
+    </message>
+    <message>
+        <source>Generic Driver</source>
+        <comment>NetworkAttachmentType</comment>
+        <translation type="unfinished">Општи драјвер</translation>
+    </message>
+    <message>
+        <source>NAT Network</source>
+        <comment>NetworkAttachmentType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cloud Network</source>
+        <comment>NetworkAttachmentType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>PCnet-PCI II (Am79C970A)</source>
+        <comment>NetworkAdapterType</comment>
+        <translation type="unfinished">PCnet-PCI II (Am79C970A)</translation>
+    </message>
+    <message>
+        <source>PCnet-FAST III (Am79C973)</source>
+        <comment>NetworkAdapterType</comment>
+        <translation type="unfinished">PCnet-FAST III (Am79C973)</translation>
+    </message>
+    <message>
+        <source>Intel PRO/1000 MT Desktop (82540EM)</source>
+        <comment>NetworkAdapterType</comment>
+        <translation type="unfinished">Intel PRO/1000 MT Desktop (82540EM)</translation>
+    </message>
+    <message>
+        <source>Intel PRO/1000 T Server (82543GC)</source>
+        <comment>NetworkAdapterType</comment>
+        <translation type="unfinished">Intel PRO/1000 T Server (82543GC)</translation>
+    </message>
+    <message>
+        <source>Intel PRO/1000 MT Server (82545EM)</source>
+        <comment>NetworkAdapterType</comment>
+        <translation type="unfinished">Intel PRO/1000 MT Server (82545EM)</translation>
+    </message>
+    <message>
+        <source>Paravirtualized Network (virtio-net)</source>
+        <comment>NetworkAdapterType</comment>
+        <translation type="unfinished">Paravirtualized мрежа (virtio-net)</translation>
+    </message>
+    <message>
+        <source>Deny</source>
+        <comment>NetworkAdapterPromiscModePolicy</comment>
+        <translation type="unfinished">Одбиј</translation>
+    </message>
+    <message>
+        <source>Allow VMs</source>
+        <comment>NetworkAdapterPromiscModePolicy</comment>
+        <translation type="unfinished">Дозволи VM</translation>
+    </message>
+    <message>
+        <source>Allow All</source>
+        <comment>NetworkAdapterPromiscModePolicy</comment>
+        <translation type="unfinished">Дозволи све</translation>
+    </message>
+    <message>
+        <source>Disconnected</source>
+        <comment>PortMode</comment>
+        <translation type="unfinished">Прекинута веза</translation>
+    </message>
+    <message>
+        <source>Host Pipe</source>
+        <comment>PortMode</comment>
+        <translation type="unfinished">Хост туба</translation>
+    </message>
+    <message>
+        <source>Host Device</source>
+        <comment>PortMode</comment>
+        <translation type="unfinished">Хост уређај</translation>
+    </message>
+    <message>
+        <source>Raw File</source>
+        <comment>PortMode</comment>
+        <translation type="unfinished">Raw датотека</translation>
+    </message>
+    <message>
+        <source>TCP</source>
+        <comment>PortMode</comment>
+        <translation type="unfinished">TCP</translation>
+    </message>
+    <message>
+        <source>OHCI</source>
+        <comment>USBControllerType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>EHCI</source>
+        <comment>USBControllerType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>xHCI</source>
+        <comment>USBControllerType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Not supported</source>
+        <comment>USBDeviceState</comment>
+        <translation type="unfinished">Није подржано</translation>
+    </message>
+    <message>
+        <source>Unavailable</source>
+        <comment>USBDeviceState</comment>
+        <translation type="unfinished">Недоступно</translation>
+    </message>
+    <message>
+        <source>Busy</source>
+        <comment>USBDeviceState</comment>
+        <translation type="unfinished">Заузет</translation>
+    </message>
+    <message>
+        <source>Available</source>
+        <comment>USBDeviceState</comment>
+        <translation type="unfinished">Доступно</translation>
+    </message>
+    <message>
+        <source>Held</source>
+        <comment>USBDeviceState</comment>
+        <translation type="unfinished">Задржено</translation>
+    </message>
+    <message>
+        <source>Captured</source>
+        <comment>USBDeviceState</comment>
+        <translation type="unfinished">Снимљено</translation>
+    </message>
+    <message>
+        <source>Ignore</source>
+        <comment>USBDeviceFilterAction</comment>
+        <translation type="unfinished">Игнориши</translation>
+    </message>
+    <message>
+        <source>Hold</source>
+        <comment>USBDeviceFilterAction</comment>
+        <translation type="unfinished">Сачувај</translation>
+    </message>
+    <message>
+        <source>Null Audio Driver</source>
+        <comment>AudioDriverType</comment>
+        <translation type="unfinished">Без аудио драјвера</translation>
+    </message>
+    <message>
+        <source>Windows Multimedia</source>
+        <comment>AudioDriverType</comment>
+        <translation type="unfinished">Windows Multimedia</translation>
+    </message>
+    <message>
+        <source>OSS Audio Driver</source>
+        <comment>AudioDriverType</comment>
+        <translation type="unfinished">OSS Audio Driver</translation>
+    </message>
+    <message>
+        <source>ALSA Audio Driver</source>
+        <comment>AudioDriverType</comment>
+        <translation type="unfinished">ALSA Audio Driver</translation>
+    </message>
+    <message>
+        <source>Windows DirectSound</source>
+        <comment>AudioDriverType</comment>
+        <translation type="unfinished">Windows DirectSound</translation>
+    </message>
+    <message>
+        <source>CoreAudio</source>
+        <comment>AudioDriverType</comment>
+        <translation type="unfinished">CoreAudio</translation>
+    </message>
+    <message>
+        <source>PulseAudio</source>
+        <comment>AudioDriverType</comment>
+        <translation type="unfinished">PulseAudio</translation>
+    </message>
+    <message>
+        <source>Solaris Audio</source>
+        <comment>AudioDriverType</comment>
+        <translation type="unfinished">Solaris Audio</translation>
+    </message>
+    <message>
+        <source>ICH AC97</source>
+        <comment>AudioControllerType</comment>
+        <translation type="unfinished">ICH AC97</translation>
+    </message>
+    <message>
+        <source>SoundBlaster 16</source>
+        <comment>AudioControllerType</comment>
+        <translation type="unfinished">SoundBlaster 16</translation>
+    </message>
+    <message>
+        <source>Intel HD Audio</source>
+        <comment>AudioControllerType</comment>
+        <translation type="unfinished">Intel HD аудио</translation>
+    </message>
+    <message>
+        <source>Null</source>
+        <comment>AuthType</comment>
+        <translation type="unfinished">Празно</translation>
+    </message>
+    <message>
+        <source>External</source>
+        <comment>AuthType</comment>
+        <translation type="unfinished">Спољно</translation>
+    </message>
+    <message>
+        <source>Guest</source>
+        <comment>AuthType</comment>
+        <translation type="unfinished">Гост</translation>
+    </message>
+    <message>
+        <source>IDE</source>
+        <comment>StorageBus</comment>
+        <translation type="unfinished">IDE</translation>
+    </message>
+    <message>
+        <source>SATA</source>
+        <comment>StorageBus</comment>
+        <translation type="unfinished">SATA</translation>
+    </message>
+    <message>
+        <source>SCSI</source>
+        <comment>StorageBus</comment>
+        <translation type="unfinished">SCSI</translation>
+    </message>
+    <message>
+        <source>Floppy</source>
+        <comment>StorageBus</comment>
+        <translation type="unfinished">Флопи</translation>
+    </message>
+    <message>
+        <source>SAS</source>
+        <comment>StorageBus</comment>
+        <translation type="unfinished">SAS</translation>
+    </message>
+    <message>
+        <source>USB</source>
+        <comment>StorageBus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>PCIe</source>
+        <comment>StorageBus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>virtio-scsi</source>
+        <comment>StorageBus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>LsiLogic</source>
+        <comment>StorageControllerType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>BusLogic</source>
+        <comment>StorageControllerType</comment>
+        <translation type="unfinished">BusLogic</translation>
+    </message>
+    <message>
+        <source>AHCI</source>
+        <comment>StorageControllerType</comment>
+        <translation type="unfinished">AHCI</translation>
+    </message>
+    <message>
+        <source>PIIX3</source>
+        <comment>StorageControllerType</comment>
+        <translation type="unfinished">PIIX3</translation>
+    </message>
+    <message>
+        <source>PIIX4</source>
+        <comment>StorageControllerType</comment>
+        <translation type="unfinished">PIIX4</translation>
+    </message>
+    <message>
+        <source>ICH6</source>
+        <comment>StorageControllerType</comment>
+        <translation type="unfinished">ICH6</translation>
+    </message>
+    <message>
+        <source>I82078</source>
+        <comment>StorageControllerType</comment>
+        <translation type="unfinished">I82078</translation>
+    </message>
+    <message>
+        <source>LsiLogic SAS</source>
+        <comment>StorageControllerType</comment>
+        <translation type="unfinished">LsiLogic SAS</translation>
+    </message>
+    <message>
+        <source>USB</source>
+        <comment>StorageControllerType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>NVMe</source>
+        <comment>StorageControllerType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>virtio-scsi</source>
+        <comment>StorageControllerType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>PIIX3</source>
+        <comment>ChipsetType</comment>
+        <translation type="unfinished">PIIX3</translation>
+    </message>
+    <message>
+        <source>ICH9</source>
+        <comment>ChipsetType</comment>
+        <translation type="unfinished">ICH9</translation>
+    </message>
+    <message>
+        <source>UDP</source>
+        <comment>NATProtocol</comment>
+        <translation type="unfinished">UDP</translation>
+    </message>
+    <message>
+        <source>TCP</source>
+        <comment>NATProtocol</comment>
+        <translation type="unfinished">TCP</translation>
+    </message>
+    <message>
+        <source>Undefined</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Starting</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished">Покретање</translation>
+    </message>
+    <message>
+        <source>Started</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Terminating</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Terminated</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>TimedOutKilled</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>TimedOutAbnormally</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Down</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Undefined</source>
+        <comment>ProcessStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Starting</source>
+        <comment>ProcessStatus</comment>
+        <translation type="unfinished">Покретање</translation>
+    </message>
+    <message>
+        <source>Started</source>
+        <comment>ProcessStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Paused</source>
+        <comment>ProcessStatus</comment>
+        <translation type="unfinished">Паузирано</translation>
+    </message>
+    <message>
+        <source>Terminating</source>
+        <comment>ProcessStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>TerminatedNormally</source>
+        <comment>ProcessStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>TerminatedSignal</source>
+        <comment>ProcessStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>TerminatedAbnormally</source>
+        <comment>ProcessStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>TimedOutKilled</source>
+        <comment>ProcessStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>TimedOutAbnormally</source>
+        <comment>ProcessStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Down</source>
+        <comment>ProcessStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error</source>
+        <comment>ProcessStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>B</source>
+        <comment>size suffix Bytes</comment>
+        <translation type="unfinished">Б</translation>
+    </message>
+    <message>
+        <source>KB</source>
+        <comment>size suffix KBytes=1024 Bytes</comment>
+        <translation type="unfinished">КБ</translation>
+    </message>
+    <message>
+        <source>GB</source>
+        <comment>size suffix GBytes=1024 MBytes</comment>
+        <translation type="unfinished">ГБ</translation>
+    </message>
+    <message>
+        <source>TB</source>
+        <comment>size suffix TBytes=1024 GBytes</comment>
+        <translation type="unfinished">ТБ</translation>
+    </message>
+    <message>
+        <source>PB</source>
+        <comment>size suffix PBytes=1024 TBytes</comment>
+        <translation type="unfinished">ПБ</translation>
+    </message>
+    <message>
+        <source>IDE Primary Master</source>
+        <comment>StorageSlot</comment>
+        <translation type="unfinished">IDE примарно главно</translation>
+    </message>
+    <message>
+        <source>IDE Primary Slave</source>
+        <comment>StorageSlot</comment>
+        <translation type="unfinished">IDE примарно роб</translation>
+    </message>
+    <message>
+        <source>IDE Secondary Master</source>
+        <comment>StorageSlot</comment>
+        <translation type="unfinished">IDE други главни</translation>
+    </message>
+    <message>
+        <source>IDE Secondary Slave</source>
+        <comment>StorageSlot</comment>
+        <translation type="unfinished">IDE други роб</translation>
+    </message>
+    <message>
+        <source>SATA Port %1</source>
+        <comment>StorageSlot</comment>
+        <translation type="unfinished">SATA порт %1</translation>
+    </message>
+    <message>
+        <source>SCSI Port %1</source>
+        <comment>StorageSlot</comment>
+        <translation type="unfinished">SCSI порт %1</translation>
+    </message>
+    <message>
+        <source>SAS Port %1</source>
+        <comment>StorageSlot</comment>
+        <translation type="unfinished">SAS порт %1</translation>
+    </message>
+    <message>
+        <source>Floppy Device %1</source>
+        <comment>StorageSlot</comment>
+        <translation type="unfinished">Флопи уређај %1</translation>
+    </message>
+    <message>
+        <source>USB Port %1</source>
+        <comment>StorageSlot</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>NVMe Port %1</source>
+        <comment>StorageSlot</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>virtio-scsi Port %1</source>
+        <comment>StorageSlot</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <translation type="unfinished">Име</translation>
+    </message>
+    <message>
+        <source>OS</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Location</source>
+        <translation type="unfinished">Смештај</translation>
+    </message>
+    <message>
+        <source>Groups</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>RAM</source>
+        <translation type="unfinished">РАМ</translation>
+    </message>
+    <message>
+        <source>CPU Count</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>CPU Execution Cap</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Boot Order</source>
+        <translation type="unfinished">Ред бута</translation>
+    </message>
+    <message>
+        <source>Chipset Type</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Firmware</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Acceleration</source>
+        <translation type="unfinished">Убрзање</translation>
+    </message>
+    <message>
+        <source>VRAM</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Screen Count</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scale Factor</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Graphics Controller</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>VRDE</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Recording</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hard Disks</source>
+        <translation type="unfinished">Хард дискови</translation>
+    </message>
+    <message>
+        <source>Optical Devices</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Floppy Devices</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Driver</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Controller</source>
+        <translation type="unfinished">Контролер</translation>
+    </message>
+    <message>
+        <source>Input/Output</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Not Attached</source>
+        <comment>network adapter</comment>
+        <translation type="unfinished">Није привезано</translation>
+    </message>
+    <message>
+        <source>NAT</source>
+        <translation type="unfinished">NAT</translation>
+    </message>
+    <message>
+        <source>Bridget Adapter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Internal Network</source>
+        <translation type="unfinished">Интерна мрежа</translation>
+    </message>
+    <message>
+        <source>Host Only Adapter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Generic Driver</source>
+        <translation type="unfinished">Општи драјвер</translation>
+    </message>
+    <message>
+        <source>NAT Network</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disconnected</source>
+        <comment>serial port</comment>
+        <translation type="unfinished">Прекинута веза</translation>
+    </message>
+    <message>
+        <source>Host Pipe</source>
+        <translation type="unfinished">Хост туба</translation>
+    </message>
+    <message>
+        <source>Host Device</source>
+        <translation type="unfinished">Хост уређај</translation>
+    </message>
+    <message>
+        <source>Raw File</source>
+        <translation type="unfinished">Raw датотека</translation>
+    </message>
+    <message>
+        <source>TCP</source>
+        <translation type="unfinished">TCP</translation>
+    </message>
+    <message>
+        <source>Device Filters</source>
+        <translation type="unfinished">Филтери уређаја</translation>
+    </message>
+    <message>
+        <source>Menu Bar</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Status Bar</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Mini Toolbar</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>General</source>
+        <comment>DetailsElementType</comment>
+        <translation type="unfinished">Опште</translation>
+    </message>
+    <message>
+        <source>Preview</source>
+        <comment>DetailsElementType</comment>
+        <translation type="unfinished">Преглед</translation>
+    </message>
+    <message>
+        <source>System</source>
+        <comment>DetailsElementType</comment>
+        <translation type="unfinished">Систем</translation>
+    </message>
+    <message>
+        <source>Display</source>
+        <comment>DetailsElementType</comment>
+        <translation type="unfinished">Дисплеј</translation>
+    </message>
+    <message>
+        <source>Storage</source>
+        <comment>DetailsElementType</comment>
+        <translation type="unfinished">Стовариште</translation>
+    </message>
+    <message>
+        <source>Audio</source>
+        <comment>DetailsElementType</comment>
+        <translation type="unfinished">Аудио</translation>
+    </message>
+    <message>
+        <source>Network</source>
+        <comment>DetailsElementType</comment>
+        <translation type="unfinished">Мрежа</translation>
+    </message>
+    <message>
+        <source>Serial ports</source>
+        <comment>DetailsElementType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>USB</source>
+        <comment>DetailsElementType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shared folders</source>
+        <comment>DetailsElementType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>User interface</source>
+        <comment>DetailsElementType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Description</source>
+        <comment>DetailsElementType</comment>
+        <translation type="unfinished">Опис</translation>
+    </message>
+    <message>
+        <source>Hard Disks</source>
+        <comment>IndicatorType</comment>
+        <translation type="unfinished">Хард дискови</translation>
+    </message>
+    <message>
+        <source>Optical Disks</source>
+        <comment>IndicatorType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Floppy Disks</source>
+        <comment>IndicatorType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Audio</source>
+        <comment>IndicatorType</comment>
+        <translation type="unfinished">Аудио</translation>
+    </message>
+    <message>
+        <source>Network</source>
+        <comment>IndicatorType</comment>
+        <translation type="unfinished">Мрежа</translation>
+    </message>
+    <message>
+        <source>USB</source>
+        <comment>IndicatorType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shared Folders</source>
+        <comment>IndicatorType</comment>
+        <translation type="unfinished">Дељене фасцикле</translation>
+    </message>
+    <message>
+        <source>Display</source>
+        <comment>IndicatorType</comment>
+        <translation type="unfinished">Дисплеј</translation>
+    </message>
+    <message>
+        <source>Recording</source>
+        <comment>IndicatorType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Features</source>
+        <comment>IndicatorType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Mouse</source>
+        <comment>IndicatorType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Keyboard</source>
+        <comment>IndicatorType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>General</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Опште</translation>
+    </message>
+    <message>
+        <source>Preview</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Преглед</translation>
+    </message>
+    <message>
+        <source>System</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Систем</translation>
+    </message>
+    <message>
+        <source>Display</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Дисплеј</translation>
+    </message>
+    <message>
+        <source>Storage</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Стовариште</translation>
+    </message>
+    <message>
+        <source>Audio</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Аудио</translation>
+    </message>
+    <message>
+        <source>Network</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Мрежа</translation>
+    </message>
+    <message>
+        <source>Serial ports</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>USB</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shared folders</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>User interface</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Description</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished">Опис</translation>
+    </message>
+    <message>
+        <source>Runtime attributes</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Storage statistics</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Network statistics</source>
+        <comment>InformationElementType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>VDI (VirtualBox Disk Image)</source>
+        <comment>UIMediumFormat</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>VMDK (Virtual Machine Disk)</source>
+        <comment>UIMediumFormat</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>VHD (Virtual Hard Disk)</source>
+        <comment>UIMediumFormat</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>HDD (Parallels Hard Disk)</source>
+        <comment>UIMediumFormat</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>QED (QEMU enhanced disk)</source>
+        <comment>UIMediumFormat</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>QCOW (QEMU Copy-On-Write)</source>
+        <comment>UIMediumFormat</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Video/Audio</source>
+        <comment>UISettingsDefs::RecordingMode</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Video Only</source>
+        <comment>UISettingsDefs::RecordingMode</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Audio Only</source>
+        <comment>UISettingsDefs::RecordingMode</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>%n year(s)</source>
+        <translation type="unfinished">
+            <numerusform>%n годиа</numerusform>
+            <numerusform>%n године</numerusform>
+            <numerusform>%n година</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n month(s)</source>
+        <translation type="unfinished">
+            <numerusform>%n месец</numerusform>
+            <numerusform>%n месеца</numerusform>
+            <numerusform>%n месеца</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n day(s)</source>
+        <translation type="unfinished">
+            <numerusform>%n дан</numerusform>
+            <numerusform>%n дана</numerusform>
+            <numerusform>%n дана</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n hour(s)</source>
+        <translation type="unfinished">
+            <numerusform>%n сат</numerusform>
+            <numerusform>%n сата</numerusform>
+            <numerusform>%n сата</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n minute(s)</source>
+        <translation type="unfinished">
+            <numerusform>%n минут</numerusform>
+            <numerusform>%n минута</numerusform>
+            <numerusform>%n минута</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n second(s)</source>
+        <translation type="unfinished">
+            <numerusform>%n секунд</numerusform>
+            <numerusform>%n секунда</numerusform>
+            <numerusform>%n секунда</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Please choose a virtual hard disk file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>All virtual hard disk files (%1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Please choose a virtual optical disk file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>All virtual optical disk files (%1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Please choose a virtual floppy disk file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>All virtual floppy disk files (%1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>All files (*)</source>
+        <translation type="unfinished">Све датотеке (*)</translation>
+    </message>
+    <message>
+        <source>Unknown device</source>
+        <comment>USB device details</comment>
+        <translation type="unfinished">Непознат уређај</translation>
+    </message>
+    <message>
+        <source>Unknown device %1:%2</source>
+        <comment>USB device details</comment>
+        <translation type="unfinished">Непознат уређај %1:%2</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;Vendor ID: %1&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Product ID: %2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Revision: %3&lt;/nobr&gt;</source>
+        <comment>USB device tooltip</comment>
+        <translation type="unfinished">&lt;nobr&gt;Произвођач: %1&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Производ: %2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Ревизија: %3&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;br&gt;&lt;nobr&gt;Serial No. %1&lt;/nobr&gt;</source>
+        <comment>USB device tooltip</comment>
+        <translation type="unfinished">&lt;br&gt;&lt;nobr&gt;Сериал. %1&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;br&gt;&lt;nobr&gt;State: %1&lt;/nobr&gt;</source>
+        <comment>USB device tooltip</comment>
+        <translation type="unfinished">&lt;br&gt;&lt;nobr&gt;Статус: %1&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;Vendor ID: %1&lt;/nobr&gt;</source>
+        <comment>USB filter tooltip</comment>
+        <translation type="unfinished">&lt;nobr&gt; Продавач: %1&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;Product ID: %2&lt;/nobr&gt;</source>
+        <comment>USB filter tooltip</comment>
+        <translation type="unfinished">&lt;nobr&gt;Производ: %2&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;Revision: %3&lt;/nobr&gt;</source>
+        <comment>USB filter tooltip</comment>
+        <translation type="unfinished">&lt;nobr&gt;Ревизија: %3&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;Product: %4&lt;/nobr&gt;</source>
+        <comment>USB filter tooltip</comment>
+        <translation type="unfinished">&lt;nobr&gt;Производ: %4&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;Manufacturer: %5&lt;/nobr&gt;</source>
+        <comment>USB filter tooltip</comment>
+        <translation type="unfinished">&lt;nobr&gt;Произвођач: %5&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;Serial No.: %1&lt;/nobr&gt;</source>
+        <comment>USB filter tooltip</comment>
+        <translation type="unfinished">&lt;nobr&gt;Серијал: %1&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;Port: %1&lt;/nobr&gt;</source>
+        <comment>USB filter tooltip</comment>
+        <translation type="unfinished">&lt;nobr&gt;Порт: %1&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;State: %1&lt;/nobr&gt;</source>
+        <comment>USB filter tooltip</comment>
+        <translation type="unfinished">&lt;nobr&gt;Статус: %1&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>User-defined</source>
+        <comment>serial port</comment>
+        <translation type="unfinished">Прилагођено</translation>
+    </message>
+    <message>
+        <source>Inaccessible</source>
+        <comment>medium</comment>
+        <translation type="unfinished">Недоступно</translation>
+    </message>
+    <message>
+        <source>Empty</source>
+        <comment>medium</comment>
+        <translation type="unfinished">Празно</translation>
+    </message>
+    <message>
+        <source>Host Drive &apos;%1&apos;</source>
+        <comment>medium</comment>
+        <translation type="unfinished">Хост драјв &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>Host Drive %1 (%2)</source>
+        <comment>medium</comment>
+        <translation type="unfinished">Хост драјв %1 (%2)</translation>
+    </message>
+    <message>
+        <source>&lt;p style=white-space:pre&gt;Type (Format):  %1 (%2)&lt;/p&gt;</source>
+        <comment>medium</comment>
+        <translation type="unfinished">&lt;p style=white-space:pre&gt;Тип (Формат):  %1 (%2)&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Attached to:  %1&lt;/p&gt;</source>
+        <comment>image</comment>
+        <translation type="unfinished">&lt;p&gt;Прикачено на:  %1&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;i&gt;Not Attached&lt;/i&gt;</source>
+        <comment>image</comment>
+        <translation type="unfinished">&lt;i&gt;Није прикачено&lt;/i&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;i&gt;Checking accessibility...&lt;/i&gt;</source>
+        <comment>medium</comment>
+        <translation type="unfinished">&lt;i&gt;Провера доступност...&lt;/i&gt;</translation>
+    </message>
+    <message>
+        <source>Failed to check accessibility of disk image files.</source>
+        <comment>medium</comment>
+        <translation type="unfinished">Погрешна провера доступност медија.</translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;No disk image file selected&lt;/b&gt;</source>
+        <comment>medium</comment>
+        <translation type="unfinished">&lt;b&gt;Медијум није одабран&lt;/b&gt;</translation>
+    </message>
+    <message>
+        <source>You can also change this while the machine is running.</source>
+        <translation type="unfinished">Можете исто ово променити док машина ради.</translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;No disk image files available&lt;/b&gt;</source>
+        <comment>medium</comment>
+        <translation type="unfinished">&lt;b&gt;Медиј није доступан&lt;/b&gt;</translation>
+    </message>
+    <message>
+        <source>You can create or add disk image files in the virtual machine settings.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Attaching this hard disk will be performed indirectly using a newly created differencing hard disk.</source>
+        <comment>medium</comment>
+        <translation type="unfinished">Привезивање овог хард диска ће бити индиректан користечи новог креираног различитог хард диска.</translation>
+    </message>
+    <message>
+        <source>Encrypted</source>
+        <comment>medium</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Checking...</source>
+        <comment>medium</comment>
+        <translation type="unfinished">Провера...</translation>
+    </message>
+    <message>
+        <source>Some of the files in this hard disk chain are inaccessible. Please use the Virtual Medium Manager to inspect these files.</source>
+        <comment>medium</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This base hard disk is indirectly attached using the following differencing hard disk:</source>
+        <comment>medium</comment>
+        <translation type="unfinished">Овај базни хард диск је индиректно прикачен са овим различитим диском:</translation>
+    </message>
+    <message>
+        <source>Differencing</source>
+        <comment>MediumType</comment>
+        <translation type="unfinished">Разликавање</translation>
+    </message>
+    <message>
+        <source>Adapter %1</source>
+        <translation type="unfinished">Адаптер %1</translation>
+    </message>
+    <message>
+        <source>Please choose a location for new virtual hard disk file</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>UICustomFileSystemModel</name>
     <message>
         <source>Name</source>
@@ -2781,6 +4474,10 @@
     <message>
         <source>Path</source>
         <translation type="unfinished">Путања</translation>
+    </message>
+    <message>
+        <source>NewDirectory</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -3182,6 +4879,25 @@
     <message>
         <source>Graphics Controller</source>
         <comment>details (display)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>USB 1.1 (OHCI) Controller</source>
+        <comment>details (usb)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>USB 2.0 (OHCI + EHCI) Controller</source>
+        <comment>details (usb)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>USB 3.0 (xHCI) Controller</source>
+        <comment>details (usb)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 MB</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -4164,10 +5880,6 @@ p, li { white-space: pre-wrap; }
 <context>
     <name>UIFDCreationDialog</name>
     <message>
-        <source>Create a Floppy Disk</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>File Path:</source>
         <translation type="unfinished"></translation>
     </message>
@@ -4194,6 +5906,10 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>360K</source>
         <translation type="unfinished">3D {360K?}</translation>
+    </message>
+    <message>
+        <source>Floppy Disk Creator</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -4339,10 +6055,6 @@ p, li { white-space: pre-wrap; }
         <translation type="obsolete">Величина</translation>
     </message>
     <message>
-        <source>No Guest Session</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Unknown</source>
         <translation type="unfinished"></translation>
     </message>
@@ -4356,10 +6068,6 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Symbolic Link</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Guest System</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -4475,10 +6183,6 @@ p, li { white-space: pre-wrap; }
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Host System</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>&lt;b&gt;Name:&lt;/b&gt; %1&lt;br/&gt;</source>
         <translation type="unfinished"></translation>
     </message>
@@ -4496,6 +6200,20 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Show hidden files/directories</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Guest File System</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Host File System</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No Guest Session
+Please use the Session Panel to start 
+a guest session</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -4762,6 +6480,25 @@ p, li { white-space: pre-wrap; }
         <source>Source</source>
         <comment>summary</comment>
         <translation type="obsolete">Извор</translation>
+    </message>
+</context>
+<context>
+    <name>UIFormEditorWidget</name>
+    <message>
+        <source>Edit...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Assign value...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <translation type="unfinished">Име</translation>
+    </message>
+    <message>
+        <source>Value</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -6091,6 +7828,13 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
+    <name>UIGraphicsControllerEditor</name>
+    <message>
+        <source>&amp;Graphics Controller:</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>UIGraphicsTextPane</name>
     <message>
         <source>%1: %2</source>
@@ -6124,10 +7868,6 @@ p, li { white-space: pre-wrap; }
 <context>
     <name>UIGuestControlTreeWidget</name>
     <message>
-        <source>Close Session</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Terminate Process</source>
         <translation type="unfinished"></translation>
     </message>
@@ -6139,6 +7879,18 @@ p, li { white-space: pre-wrap; }
         <source>Collapse All</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Terminate Session</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove All Terminated Sessions/Processes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Properties</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIGuestProcessControlDialog</name>
@@ -6146,12 +7898,66 @@ p, li { white-space: pre-wrap; }
         <source>%1 - Guest Control</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Close</source>
+        <translation type="unfinished">Затвори</translation>
+    </message>
 </context>
 <context>
     <name>UIGuestProcessControlWidget</name>
     <message>
         <source>Close</source>
-        <translation type="unfinished">Затвори</translation>
+        <translation type="obsolete">Затвори</translation>
+    </message>
+    <message>
+        <source>Session/Process ID</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Session Name/Process Command</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Session/Process Status</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UIGuestProcessTreeItem</name>
+    <message>
+        <source>Process Name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Process Id</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Process Status</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Executable Path</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Arguments</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UIGuestSessionTreeItem</name>
+    <message>
+        <source>Session Name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Session Id</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Session Status</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -7015,12 +8821,12 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Host Driver</source>
         <comment>details report (audio)</comment>
-        <translation type="unfinished">Хост драјвер</translation>
+        <translation type="obsolete">Хост драјвер</translation>
     </message>
     <message>
         <source>Controller</source>
         <comment>details report (audio)</comment>
-        <translation type="unfinished">Контролер</translation>
+        <translation type="obsolete">Контролер</translation>
     </message>
 </context>
 <context>
@@ -7033,57 +8839,32 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Video Memory</source>
         <comment>details report</comment>
-        <translation type="unfinished">Видео меморија</translation>
+        <translation type="obsolete">Видео меморија</translation>
     </message>
     <message>
         <source>Screens</source>
         <comment>details report</comment>
-        <translation type="unfinished">Екрани</translation>
+        <translation type="obsolete">Екрани</translation>
     </message>
     <message>
         <source>3D Acceleration</source>
         <comment>details report</comment>
-        <translation type="unfinished">3Д убрзавање</translation>
+        <translation type="obsolete">3Д убрзавање</translation>
     </message>
     <message>
         <source>2D Video Acceleration</source>
         <comment>details report</comment>
-        <translation type="unfinished">2D видео акселератор</translation>
+        <translation type="obsolete">2D видео акселератор</translation>
     </message>
     <message>
         <source>Remote Desktop Server Port</source>
         <comment>details report (VRDE Server)</comment>
-        <translation type="unfinished">Порт сервера удаљеног бироа</translation>
+        <translation type="obsolete">Порт сервера удаљеног бироа</translation>
     </message>
     <message>
         <source>Remote Desktop Server</source>
         <comment>details report (VRDE Server)</comment>
-        <translation type="unfinished">Сервер удаљеног бироа</translation>
-    </message>
-    <message>
-        <source>Enabled</source>
-        <comment>details report (3D Acceleration)</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Disabled</source>
-        <comment>details report (3D Acceleration)</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Enabled</source>
-        <comment>details report (2D Video Acceleration)</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Disabled</source>
-        <comment>details report (2D Video Acceleration)</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Disabled</source>
-        <comment>details report (VRDE Server)</comment>
-        <translation type="unfinished"></translation>
+        <translation type="obsolete">Сервер удаљеног бироа</translation>
     </message>
 </context>
 <context>
@@ -7096,12 +8877,12 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Name</source>
         <comment>details report</comment>
-        <translation type="unfinished">Име</translation>
+        <translation type="obsolete">Име</translation>
     </message>
     <message>
         <source>OS Type</source>
         <comment>details report</comment>
-        <translation type="unfinished">Тип ОЅ-а</translation>
+        <translation type="obsolete">Тип ОЅ-а</translation>
     </message>
 </context>
 <context>
@@ -7113,43 +8894,38 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Bridged adapter, %1</source>
         <comment>details report (network)</comment>
-        <translation type="unfinished">Мост адаптер, %1</translation>
+        <translation type="obsolete">Мост адаптер, %1</translation>
     </message>
     <message>
         <source>Internal network, &apos;%1&apos;</source>
         <comment>details report (network)</comment>
-        <translation type="unfinished">Интерна мрежа, %1</translation>
+        <translation type="obsolete">Интерна мрежа, %1</translation>
     </message>
     <message>
         <source>Host-only adapter, &apos;%1&apos;</source>
         <comment>details report (network)</comment>
-        <translation type="unfinished">Само хост адаптер, &apos;%1&apos;</translation>
+        <translation type="obsolete">Само хост адаптер, &apos;%1&apos;</translation>
     </message>
     <message>
         <source>Generic, &apos;%1&apos;</source>
         <comment>details report (network)</comment>
-        <translation type="unfinished">Опште, &apos;%1&apos;</translation>
+        <translation type="obsolete">Опште, &apos;%1&apos;</translation>
     </message>
     <message>
         <source>Adapter %1</source>
         <comment>details report (network)</comment>
-        <translation type="unfinished">Адаптер %1</translation>
-    </message>
-    <message>
-        <source>NAT network, &apos;%1&apos;</source>
-        <comment>details report (network)</comment>
-        <translation type="unfinished"></translation>
+        <translation type="obsolete">Адаптер %1</translation>
     </message>
 </context>
 <context>
     <name>UIInformationDataNetworkStatistics</name>
     <message>
         <source>Data Transmitted</source>
-        <translation type="unfinished">Пренешено</translation>
+        <translation type="obsolete">Пренешено</translation>
     </message>
     <message>
         <source>Data Received</source>
-        <translation type="unfinished">Примљено</translation>
+        <translation type="obsolete">Примљено</translation>
     </message>
     <message>
         <source>Network Statistics</source>
@@ -7180,21 +8956,21 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Not Detected</source>
         <comment>guest additions</comment>
-        <translation type="unfinished">Ненађено</translation>
+        <translation type="obsolete">Ненађено</translation>
     </message>
     <message>
         <source>Not Detected</source>
         <comment>guest os type</comment>
-        <translation type="unfinished">Ненађено</translation>
+        <translation type="obsolete">Ненађено</translation>
     </message>
     <message>
         <source>Not Available</source>
         <comment>details report (VRDE server port)</comment>
-        <translation type="unfinished">Недоступно</translation>
+        <translation type="obsolete">Недоступно</translation>
     </message>
     <message>
         <source>Screen Resolution</source>
-        <translation type="unfinished">Резолуција екрана</translation>
+        <translation type="obsolete">Резолуција екрана</translation>
     </message>
     <message>
         <source>VT-x/AMD-V</source>
@@ -7204,48 +8980,21 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Nested Paging</source>
         <comment>details report</comment>
-        <translation type="unfinished">Подметнуто записивање</translation>
+        <translation type="obsolete">Подметнуто записивање</translation>
     </message>
     <message>
         <source>Guest Additions</source>
-        <translation type="unfinished">Додатци госта</translation>
+        <translation type="obsolete">Додатци госта</translation>
     </message>
     <message>
         <source>Guest OS Type</source>
         <comment>details report</comment>
-        <translation type="unfinished">Тип ОС госта</translation>
+        <translation type="obsolete">Тип ОС госта</translation>
     </message>
     <message>
         <source>Remote Desktop Server Port</source>
         <comment>details report (VRDE Server)</comment>
-        <translation type="unfinished">Порт сервера удаљеног бироа</translation>
-    </message>
-    <message>
-        <source>VM Uptime</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Clipboard Mode</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Drag and Drop Mode</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>VM Execution Engine</source>
-        <comment>details report</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Unrestricted Execution</source>
-        <comment>details report</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Paravirtualization Interface</source>
-        <comment>details report</comment>
-        <translation type="unfinished"></translation>
+        <translation type="obsolete">Порт сервера удаљеног бироа</translation>
     </message>
 </context>
 <context>
@@ -7257,7 +9006,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Port %1</source>
         <comment>details report (serial ports)</comment>
-        <translation type="unfinished">Порт %1</translation>
+        <translation type="obsolete">Порт %1</translation>
     </message>
 </context>
 <context>
@@ -7270,7 +9019,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Shared Folders</source>
         <comment>details report (shared folders)</comment>
-        <translation type="unfinished">Дељене фасцикле</translation>
+        <translation type="obsolete">Дељене фасцикле</translation>
     </message>
 </context>
 <context>
@@ -7279,37 +9028,29 @@ p, li { white-space: pre-wrap; }
         <source>Storage</source>
         <translation type="obsolete">Стовариште</translation>
     </message>
-    <message>
-        <source>(Optical Drive)</source>
-        <translation type="unfinished"></translation>
-    </message>
 </context>
 <context>
     <name>UIInformationDataStorageStatistics</name>
     <message>
         <source>DMA Transfers</source>
-        <translation type="unfinished">DMA трансфери</translation>
+        <translation type="obsolete">DMA трансфери</translation>
     </message>
     <message>
         <source>PIO Transfers</source>
-        <translation type="unfinished">PIO трансфери</translation>
+        <translation type="obsolete">PIO трансфери</translation>
     </message>
     <message>
         <source>Data Read</source>
-        <translation type="unfinished">Читано</translation>
+        <translation type="obsolete">Читано</translation>
     </message>
     <message>
         <source>Data Written</source>
-        <translation type="unfinished">Писано</translation>
+        <translation type="obsolete">Писано</translation>
     </message>
     <message>
         <source>Storage Statistics</source>
         <comment>details report</comment>
         <translation type="obsolete">Статистике стоваришта</translation>
-    </message>
-    <message>
-        <source>Requests</source>
-        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -7322,102 +9063,42 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Base Memory</source>
         <comment>details report</comment>
-        <translation type="unfinished">Основна меморија</translation>
+        <translation type="obsolete">Основна меморија</translation>
     </message>
     <message>
         <source>Processor(s)</source>
         <comment>details report</comment>
-        <translation type="unfinished">Процесор(и)</translation>
+        <translation type="obsolete">Процесор(и)</translation>
     </message>
     <message>
         <source>Boot Order</source>
         <comment>details report</comment>
-        <translation type="unfinished">Ред бута</translation>
+        <translation type="obsolete">Ред бута</translation>
     </message>
     <message>
         <source>ACPI</source>
         <comment>details report</comment>
-        <translation type="unfinished">ACPI</translation>
+        <translation type="obsolete">ACPI</translation>
     </message>
     <message>
         <source>I/O APIC</source>
         <comment>details report</comment>
-        <translation type="unfinished">I/O APIC</translation>
+        <translation type="obsolete">I/O APIC</translation>
     </message>
     <message>
         <source>PAE/NX</source>
         <comment>details report</comment>
-        <translation type="unfinished">PAE/NX</translation>
+        <translation type="obsolete">PAE/NX</translation>
     </message>
     <message>
         <source>VT-x/AMD-V</source>
         <comment>details report</comment>
-        <translation type="unfinished">VT-x/AMD-V</translation>
+        <translation type="obsolete">VT-x/AMD-V</translation>
     </message>
     <message>
         <source>Nested Paging</source>
         <comment>details report</comment>
-        <translation type="unfinished">Подметнуто записивање</translation>
-    </message>
-    <message>
-        <source>Enabled</source>
-        <comment>details report (ACPI)</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Disabled</source>
-        <comment>details report (ACPI)</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Enabled</source>
-        <comment>details report (I/O APIC)</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Disabled</source>
-        <comment>details report (I/O APIC)</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Enabled</source>
-        <comment>details report (PAE/NX)</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Disabled</source>
-        <comment>details report (PAE/NX)</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Execution Cap</source>
-        <comment>details report</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Enabled</source>
-        <comment>details report (VT-x/AMD-V)</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Disabled</source>
-        <comment>details report (VT-x/AMD-V)</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Enabled</source>
-        <comment>details report (Nested Paging)</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Disabled</source>
-        <comment>details report (Nested Paging)</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Paravirtualization Interface</source>
-        <comment>details report</comment>
-        <translation type="unfinished"></translation>
+        <translation type="obsolete">Подметнуто записивање</translation>
     </message>
 </context>
 <context>
@@ -7425,17 +9106,12 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Device Filters</source>
         <comment>details report (USB)</comment>
-        <translation type="unfinished">Филтери уређаја</translation>
+        <translation type="obsolete">Филтери уређаја</translation>
     </message>
     <message>
         <source>%1 (%2 active)</source>
         <comment>details report (USB)</comment>
-        <translation type="unfinished">%1 (%2 активно)</translation>
-    </message>
-    <message>
-        <source>Disabled</source>
-        <comment>details report (USB)</comment>
-        <translation type="unfinished"></translation>
+        <translation type="obsolete">%1 (%2 активно)</translation>
     </message>
 </context>
 <context>
@@ -7786,7 +9462,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>MB</source>
-        <translation>МБ</translation>
+        <translation type="vanished">МБ</translation>
     </message>
     <message>
         <source>Extended Features:</source>
@@ -8001,10 +9677,6 @@ p, li { white-space: pre-wrap; }
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>%1 MB</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>fps</source>
         <translation type="unfinished"></translation>
     </message>
@@ -8077,6 +9749,14 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Controls the &lt;b&gt;quality&lt;/b&gt;. Increasing this value will make the audio sound better at the cost of an increased file size.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The virtual machine is configured to use 3D acceleration. This will work only if you pick a different graphics controller (%1). Either disable 3D acceleration or switch to required graphics controller type. The latter will be done automatically if you confirm your changes.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The virtual machine is configured to use a graphics controller other than the recommended one (%1). Please consider switching unless you have a reason to keep the currently selected graphics controller.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -8561,7 +10241,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Not selected</source>
         <comment>network adapter name</comment>
-        <translation>Није одабрано</translation>
+        <translation type="vanished">Није одабрано</translation>
     </message>
     <message>
         <source>Open additional options dialog for current attachment type.</source>
@@ -8621,19 +10301,19 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Selects the network adapter on the host system that traffic to and from this network card will go through.</source>
-        <translation>Одаберите мрежни адаптер са хоста са којег ће саобраћај да иде кроз.</translation>
+        <translation type="vanished">Одаберите мрежни адаптер са хоста са којег ће саобраћај да иде кроз.</translation>
     </message>
     <message>
         <source>Holds the name of the internal network that this network card will be connected to. You can create a new internal network by choosing a name which is not used by any other network cards in this virtual machine or others.</source>
-        <translation>Унети име интерне мреже у којој ће ова картица да буде привезана. Можете да креирате нову интерну мрежу тако што одаберете име које није коришћено од било које мрежне картице у овој машини или друге.</translation>
+        <translation type="vanished">Унети име интерне мреже у којој ће ова картица да буде привезана. Можете да креирате нову интерну мрежу тако што одаберете име које није коришћено од било које мрежне картице у овој машини или друге.</translation>
     </message>
     <message>
         <source>Selects the virtual network adapter on the host system that traffic to and from this network card will go through. You can create and remove adapters using the global network settings in the virtual machine manager window.</source>
-        <translation>Одаберите виртуални мрежни адаптер са хоста са којег ће саобраћај да иде кроз. Можете да креирате/уклоните адаптере преко општа подешавања мреже из менаџера виртуалне машине.</translation>
+        <translation type="vanished">Одаберите виртуални мрежни адаптер са хоста са којег ће саобраћај да иде кроз. Можете да креирате/уклоните адаптере преко општа подешавања мреже из менаџера виртуалне машине.</translation>
     </message>
     <message>
         <source>Selects the driver to be used with this network card.</source>
-        <translation>Одабрати драјвер за коришћење са овом катицом.</translation>
+        <translation type="vanished">Одабрати драјвер за коришћење са овом катицом.</translation>
     </message>
     <message>
         <source>Selects how this virtual adapter is attached to the real network of the Host OS.</source>
@@ -8684,7 +10364,7 @@ p, li { white-space: pre-wrap; }
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Holds the name of the NAT network that this network card will be connected to. You can create and remove networks using the global network settings in the virtual machine manager window.</source>
+        <source>No cloud network name is currently specified.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -9257,19 +10937,19 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Add IDE Controller</source>
-        <translation>Додај IDE контролер</translation>
+        <translation type="vanished">Додај IDE контролер</translation>
     </message>
     <message>
         <source>Add SATA Controller</source>
-        <translation>Додај SATA контролер</translation>
+        <translation type="vanished">Додај SATA контролер</translation>
     </message>
     <message>
         <source>Add SCSI Controller</source>
-        <translation>Додај SCSI контролер</translation>
+        <translation type="vanished">Додај SCSI контролер</translation>
     </message>
     <message>
         <source>Add Floppy Controller</source>
-        <translation>Додај флопи контролер</translation>
+        <translation type="vanished">Додај флопи контролер</translation>
     </message>
     <message>
         <source>Remove Controller</source>
@@ -9281,7 +10961,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Add Hard Disk</source>
-        <translation>Додај хард диск</translation>
+        <translation type="vanished">Додај хард диск</translation>
     </message>
     <message>
         <source>Add CD/DVD Device</source>
@@ -9441,7 +11121,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Add SAS Controller</source>
-        <translation>Додај SAS контролер</translation>
+        <translation type="vanished">Додај SAS контролер</translation>
     </message>
     <message>
         <source>SAS Controller</source>
@@ -9607,21 +11287,6 @@ p, li { white-space: pre-wrap; }
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Choose disk image...</source>
-        <comment>This is used for hard disks, optical media and floppies</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Create a new floppy disk...</source>
-        <comment>This is used to create a new floppy disk</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Create ad hoc VISO...</source>
-        <comment>This is used for optical media</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>&lt;nobr&gt;Expands/Collapses&amp;nbsp;item.&lt;/nobr&gt;</source>
         <translation type="unfinished"></translation>
     </message>
@@ -9658,22 +11323,6 @@ p, li { white-space: pre-wrap; }
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Add USB Controller</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Add NVMe Controller</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Add Optical Drive</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Add Floppy Drive</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Adds new storage controller.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -9698,23 +11347,89 @@ p, li { white-space: pre-wrap; }
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Create New Hard Disk...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Choose Virtual Hard Disk File...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Choose Virtual Optical Disk File...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Remove Disk from Virtual Drive</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Choose Virtual Floppy Disk File...</source>
+        <source>Choose/Create a disk image...</source>
+        <comment>This is used for hard disks, optical media and floppies</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Choose a disk file...</source>
+        <comment>This is used for selecting an existing disk file</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>PIIX3 (IDE)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>PIIX4 (Default IDE)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>ICH6 (IDE)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>AHCI (SATA)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>LsiLogic (Default SCSI)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>BusLogic (SCSI)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>LsiLogic SAS (SAS)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>I82078 (Floppy)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>USB</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>NVMe (PCIe)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>virtio-scsi</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hard Disk</source>
+        <translation type="unfinished">Тврди диск</translation>
+    </message>
+    <message>
+        <source>Optical Drive</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Floppy Drive</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Choose/Create a Virtual Hard Disk...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Choose a disk file...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Choose/Create a Virtual Optical Disk...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Choose/Create a Virtual Floppy Disk...</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -9772,7 +11487,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>MB</source>
-        <translation>МБ</translation>
+        <translation type="vanished">МБ</translation>
     </message>
     <message>
         <source>&amp;Boot Order:</source>
@@ -9788,7 +11503,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Moves the selected boot device down.</source>
-        <translation>Премести бут уређај на доле.</translation>
+        <translation type="vanished">Премести бут уређај на доле.</translation>
     </message>
     <message>
         <source>Move Up (Ctrl-Up)</source>
@@ -9796,7 +11511,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Moves the selected boot device up.</source>
-        <translation>Премести бут уређај на горе.</translation>
+        <translation type="vanished">Премести бут уређај на горе.</translation>
     </message>
     <message>
         <source>Extended Features:</source>
@@ -10014,10 +11729,6 @@ p, li { white-space: pre-wrap; }
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>%1 MB</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>%1 CPU</source>
         <comment>%1 is 1 for now</comment>
         <translation type="unfinished"></translation>
@@ -10184,14 +11895,6 @@ p, li { white-space: pre-wrap; }
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>When chosen, enables the virtual USB EHCI controller of this machine. The USB EHCI controller provides USB 2.0 support.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>USB &amp;2.0 (EHCI) Controller</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>When chosen, enables the virtual USB xHCI controller of this machine. The USB xHCI controller provides USB 3.0 support.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -10249,6 +11952,14 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Moves selected USB filter down.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When chosen, enables the virtual USB OHCI and EHCI controllers of this machine. Together they provide USB 2.0 support.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>USB &amp;2.0 (OHCI + EHCI) Controller</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -10789,6 +12500,30 @@ p, li { white-space: pre-wrap; }
         <source>Collapse All</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Cancel</source>
+        <translation type="unfinished">Поништи</translation>
+    </message>
+    <message>
+        <source>Leave Empty</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Optical Disk Selector</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Floppy Disk Selector</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hard Disk Selector</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Virtual Medium Selector</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIMediumSizeEditor</name>
@@ -11055,7 +12790,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;p&gt;The virtual machine execution may run into an error condition as described below. We suggest that you take an appropriate action to avert the error.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Покретање машине може да доведе до грешке објашнене испод. Препоручујемо да да урадите нешто да се овај проблем не догоди више.&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;p&gt;Покретање машине може да доведе до грешке објашнене испод. Препоручујемо да да урадите нешто да се овај проблем не догоди више.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Result&amp;nbsp;Code: </source>
@@ -11856,7 +13591,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;p&gt;You are about to add a virtual hard disk to controller &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Would you like to create a new, empty file to hold the disk contents or select an existing one?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Спремате се да додате контролер &lt;b&gt;%1&lt;/b&gt; виртуалног диска.&lt;/p&gt;&lt;p&gt;Да ли желите да креирате нову датотеку која задржава садржај диска или да одаберете постојећу?&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;p&gt;Спремате се да додате контролер &lt;b&gt;%1&lt;/b&gt; виртуалног диска.&lt;/p&gt;&lt;p&gt;Да ли желите да креирате нову датотеку која задржава садржај диска или да одаберете постојећу?&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Create &amp;new disk</source>
@@ -11884,7 +13619,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;p&gt;You are about to add a new floppy drive to controller &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Would you like to choose a virtual floppy disk to put in the drive or to leave it empty for now?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Спремате се да креирате нов контролер &lt;b&gt;%1&lt;/b&gt; за флопи драјв.&lt;/p&gt;&lt;p&gt;Да ли да одаберете виртуалну флопи слику да се убаци унутра или да се остави празно за сада?&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;p&gt;Спремате се да креирате нов контролер &lt;b&gt;%1&lt;/b&gt; за флопи драјв.&lt;/p&gt;&lt;p&gt;Да ли да одаберете виртуалну флопи слику да се убаци унутра или да се остави празно за сада?&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Failed to detach the hard disk (&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;) from the slot &lt;i&gt;%2&lt;/i&gt; of the machine &lt;b&gt;%3&lt;/b&gt;.</source>
@@ -12144,19 +13879,19 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Create &amp;new disk</source>
-        <translation type="unfinished">Креирај нов диск</translation>
+        <translation type="obsolete">Креирај нов диск</translation>
     </message>
     <message>
         <source>&amp;Choose existing disk</source>
-        <translation type="unfinished">Одабери постојећи диск</translation>
+        <translation type="obsolete">Одабери постојећи диск</translation>
     </message>
     <message>
         <source>Leave &amp;empty</source>
-        <translation type="unfinished">Остави празно</translation>
+        <translation type="obsolete">Остави празно</translation>
     </message>
     <message>
         <source>&amp;Choose disk</source>
-        <translation type="unfinished">Одабери диск</translation>
+        <translation type="obsolete">Одабери диск</translation>
     </message>
     <message numerus="yes">
         <source>&lt;p&gt;The %n following virtual machine(s) are currently in a saved state: &lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;If you continue the runtime state of the exported machine(s) will be discarded. The other machine(s) will not be changed.&lt;/p&gt;</source>
@@ -12387,10 +14122,6 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;p&gt;Do you want to remove the NAT network &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;?&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;If this network is in use by one or more virtual machine network adapters these adapters will no longer be usable until you correct their settings by either choosing a different network name or a different adapter attachment type.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;You are about to add a new optical drive to controller &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Would you like to choose a virtual optical disk to put in the drive or to leave it empty for now?&lt;/p&gt;</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -12761,6 +14492,74 @@ p, li { white-space: pre-wrap; }
         <source>&lt;p&gt;Could not insert the &lt;b&gt;%1&lt;/b&gt; disk image file into the virtual machine &lt;b&gt;%2&lt;/b&gt;, as the machine has no optical drives. Please add a drive using the storage page of the virtual machine settings window.&lt;/p&gt;</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Failed to acquire machine parameter.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;This controller has optical devices attached.  You have requested storage bus change to type which doesn&apos;t support optical devices.&lt;/p&gt;&lt;p&gt;If you proceed optical devices will be removed.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;This controller has devices attached.  You have requested storage bus change to type which supports smaller amount of attached devices.&lt;/p&gt;&lt;p&gt;If you proceed excessive devices will be removed.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to change the attribute of the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to change graphics adapter attribute.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to change audio adapter attribute.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to change network adapter attribute.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to open the medium with following ID: &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to acquire attachment parameter.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to acquire medium attribute.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to create cloud machine.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to assign form value.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Cannot create a virtual appliance.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Cannot create a virtual system description.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Cannot add a virtual system description value.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Cannot acquire a virtual system description property.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The virtual machine execution ran into a non-fatal problem as described below. We suggest that you take appropriate action to prevent the problem from recurring.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIMiniProcessWidgetAdditions</name>
@@ -12880,6 +14679,46 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Machine Folder:</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UINetworkAttachmentEditor</name>
+    <message>
+        <source>&amp;Attached to:</source>
+        <translation type="unfinished">Прикључен на:</translation>
+    </message>
+    <message>
+        <source>&amp;Name:</source>
+        <translation type="unfinished">Име:</translation>
+    </message>
+    <message>
+        <source>Not selected</source>
+        <comment>network adapter name</comment>
+        <translation type="unfinished">Није одабрано</translation>
+    </message>
+    <message>
+        <source>Selects the network adapter on the host system that traffic to and from this network card will go through.</source>
+        <translation type="unfinished">Одаберите мрежни адаптер са хоста са којег ће саобраћај да иде кроз.</translation>
+    </message>
+    <message>
+        <source>Holds the name of the internal network that this network card will be connected to. You can create a new internal network by choosing a name which is not used by any other network cards in this virtual machine or others.</source>
+        <translation type="unfinished">Унети име интерне мреже у којој ће ова картица да буде привезана. Можете да креирате нову интерну мрежу тако што одаберете име које није коришћено од било које мрежне картице у овој машини или друге.</translation>
+    </message>
+    <message>
+        <source>Selects the virtual network adapter on the host system that traffic to and from this network card will go through. You can create and remove adapters using the global network settings in the virtual machine manager window.</source>
+        <translation type="unfinished">Одаберите виртуални мрежни адаптер са хоста са којег ће саобраћај да иде кроз. Можете да креирате/уклоните адаптере преко општа подешавања мреже из менаџера виртуалне машине.</translation>
+    </message>
+    <message>
+        <source>Selects the driver to be used with this network card.</source>
+        <translation type="unfinished">Одабрати драјвер за коришћење са овом катицом.</translation>
+    </message>
+    <message>
+        <source>Holds the name of the NAT network that this network card will be connected to. You can create and remove networks using the global network settings in the virtual machine manager window.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(experimental) Holds the name of the cloud network that this network card will be connected to. You can add and remove cloud networks using the global network settings in the virtual machine manager window.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -14308,6 +16147,290 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
+    <name>UISoftKeyboard</name>
+    <message>
+        <source>Layout Editor</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Return Back to Layout List</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Back to Layout List</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Physical Layout</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>English Name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Name of the Layout in English</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Native Language Name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Name of the Layout in the native Language</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scan Code</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The scan code the key produces. Not editable</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Position</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The physical position of the key. Not editable</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Base</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shift</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>AltGr</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>ShiftAltGr</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Captions</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Selected Key</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Use the selected layout</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Edit the selected layout</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delete the selected layout</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy the selected layout</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Save the selected layout into File</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Layout List</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Close the layout list</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Web browser go back</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Web browser go the home page</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Web browser go forward</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Web browser reload the current page</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Web browser stop loading the page</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Web browser search</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Jump back to previous media track</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Jump to next media track</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Stop playing</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Play or pause playing</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Start email application</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Start calculator</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show &apos;My Computer&apos;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show Media folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Mute</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Volume up</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Volume down</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error! Could not create folder under</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Provide a file name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The file will be saved under:
+</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source> is an invalid file name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source> is saved</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy</source>
+        <translation type="unfinished">Копирај</translation>
+    </message>
+    <message>
+        <source>This will delete the keyboard layout file as well. Proceed?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The file </source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source> has been deleted</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Deleting the file </source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source> has failed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Settings</source>
+        <translation type="unfinished">Параметри</translation>
+    </message>
+    <message>
+        <source>Reset the keyboard and release all keys</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Click to change the color.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This color theme is not editable.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Keyboard Settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hide NumPad</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hide OS/Menu Keys</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hide Multimedia Keys</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Color Themes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Button Background Color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Button Font Color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Button Hover Color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Button Edit Color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pressed Button Font Color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Soft Keyboard</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Following layouts are edited/copied but not saved:&lt;/p&gt;%1&lt;p&gt;Closing this dialog will cause loosing the changes. Proceed?&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Layout</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>UIStatusBarEditorWidget</name>
     <message>
         <source>Close</source>
@@ -14715,6 +16838,218 @@ p, li { white-space: pre-wrap; }
         <source>&amp;Runtime Information</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>General</source>
+        <translation type="unfinished">Опште</translation>
+    </message>
+    <message>
+        <source>System</source>
+        <translation type="unfinished">Систем</translation>
+    </message>
+    <message>
+        <source>Display</source>
+        <translation type="unfinished">Дисплеј</translation>
+    </message>
+    <message>
+        <source>Storage</source>
+        <translation type="unfinished">Стовариште</translation>
+    </message>
+    <message>
+        <source>Audio</source>
+        <translation type="unfinished">Аудио</translation>
+    </message>
+    <message>
+        <source>Network</source>
+        <translation type="unfinished">Мрежа</translation>
+    </message>
+    <message>
+        <source>Serial Ports</source>
+        <translation type="unfinished">Серијски портови</translation>
+    </message>
+    <message>
+        <source>USB</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shared Folders</source>
+        <translation type="unfinished">Дељене фасцикле</translation>
+    </message>
+    <message>
+        <source>Performance &amp;Monitor</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Guest Control &amp;Session Information</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No guest additions! This metric requires guest additions to work properly.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reset</source>
+        <translation type="unfinished">Рисет</translation>
+    </message>
+    <message>
+        <source>Show Pie Chart</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Draw Area Chart</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Seconds</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>CPU Load</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Guest Load</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>VMM Load</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>RAM Usage</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Total</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Free</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Used</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Network Rate</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Receive Rate</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Transmit Rate</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Total Received</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Total Transmitted</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disk IO Rate</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Write Rate</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Read Rate</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Total Written</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Total Read</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>VM Exits</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Current</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Runtime Attributes</source>
+        <translation type="unfinished">Атрибути рада</translation>
+    </message>
+    <message>
+        <source>Screen Resolution</source>
+        <translation type="unfinished">Резолуција екрана</translation>
+    </message>
+    <message>
+        <source>turned off</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>VM Uptime</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clipboard Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Drag and Drop Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>VM Execution Engine</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Nested Paging</source>
+        <translation type="unfinished">Подметнуто записивање</translation>
+    </message>
+    <message>
+        <source>Unrestricted Execution</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Paravirtualization Interface</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Active</source>
+        <translation type="unfinished">Активно</translation>
+    </message>
+    <message>
+        <source>Inactive</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Not Available</source>
+        <translation type="unfinished">Недоступно</translation>
+    </message>
+    <message>
+        <source>Guest Additions</source>
+        <translation type="unfinished">Додатци госта</translation>
+    </message>
+    <message>
+        <source>Guest OS Type</source>
+        <translation type="unfinished">Тип ОС госта</translation>
+    </message>
+    <message>
+        <source>Remote Desktop Server Port</source>
+        <translation type="unfinished">Порт сервера удаљеног бироа</translation>
+    </message>
+    <message>
+        <source>not set</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Not Detected</source>
+        <translation type="unfinished">Ненађено</translation>
+    </message>
 </context>
 <context>
     <name>UIVMListView</name>
@@ -14981,10 +17316,6 @@ p, li { white-space: pre-wrap; }
         <source>Go to selected bookmark</source>
         <translation type="unfinished"></translation>
     </message>
-    <message>
-        <source>Matches Found</source>
-        <translation type="unfinished"></translation>
-    </message>
 </context>
 <context>
     <name>UIVMPreviewWindow</name>
@@ -15018,6 +17349,21 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
+    <name>UIVideoMemoryEditor</name>
+    <message>
+        <source>Video &amp;Memory:</source>
+        <translation type="unfinished">Меморија видеа:</translation>
+    </message>
+    <message>
+        <source>%1 MB</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>MB</source>
+        <translation type="unfinished">МБ</translation>
+    </message>
+</context>
+<context>
     <name>UIVirtualBoxManager</name>
     <message>
         <source>Manager</source>
@@ -15043,10 +17389,6 @@ p, li { white-space: pre-wrap; }
 </context>
 <context>
     <name>UIVisoCreator</name>
-    <message>
-        <source>VISO content</source>
-        <translation type="unfinished"></translation>
-    </message>
     <message>
         <source>Remove selected file objects from VISO</source>
         <translation type="unfinished"></translation>
@@ -15088,15 +17430,7 @@ p, li { white-space: pre-wrap; }
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Host file system</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Create a new directory under the current location</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Reset ISO content.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -15128,10 +17462,6 @@ p, li { white-space: pre-wrap; }
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Add selected file objects to ISO</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Custom VISO options:</source>
         <translation type="unfinished"></translation>
     </message>
@@ -15160,19 +17490,23 @@ p, li { white-space: pre-wrap; }
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Host Browser</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>VISO Browser</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Remove current option.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Add</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Click to show/hide the tree view</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add selected file objects to VISO</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reset VISO content.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -15234,18 +17568,6 @@ p, li { white-space: pre-wrap; }
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Disk image to copy</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Please select the virtual disk image file that you would like to copy if it is not already selected. You can either choose one from the list or use the folder icon beside the list to select one.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Choose a virtual disk image file to copy...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Disk image file type</source>
         <translation type="unfinished"></translation>
     </message>
@@ -15289,10 +17611,6 @@ p, li { white-space: pre-wrap; }
         <source>%1_copy</source>
         <comment>copied virtual disk image name</comment>
         <translation type="unfinished">%1_копија</translation>
-    </message>
-    <message>
-        <source>Disk image to &amp;copy</source>
-        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>&amp;New disk image to create</source>
@@ -15672,6 +17990,30 @@ p, li { white-space: pre-wrap; }
         <source>&lt;p&gt;Please choose one of cloud service accounts you have registered to export virtual machines to. Make sure profile settings reflected in the underlying table are valid. They will be used to establish network connection required to upload your virtual machine files to a remote cloud facility.&lt;/p&gt;</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Acquire export form...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Machine Creation:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ask me about it &amp;after exporting disk as custom image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ask me about it &amp;before exporting disk as custom image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Do &amp;not ask me about it, leave custom image for future usage</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This is the descriptive information which will be used to determine settings for a cloud storage your VM being exported to.  You can change it by double clicking on individual lines.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIWizardFirstRun</name>
@@ -15708,10 +18050,6 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Appliance to import</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;VirtualBox currently supports importing appliances saved in the Open Virtualization Format (OVF). To continue, select the file to import below.&lt;/p&gt;</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -15771,7 +18109,144 @@ p, li { white-space: pre-wrap; }
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>You can modify the base folder which will host all the virtual machines. Home folders can also be individually (per virtual machine) modified.</source>
+        <source>Importing Appliance ...</source>
+        <translation type="unfinished">Увоз средства...</translation>
+    </message>
+    <message>
+        <source>Acquire cloud instances...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Read appliance...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Acquire import form...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Please choose the source to import appliance from.  This can be a local file system to import OVF archive or one of known  cloud service providers to import cloud VM from.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Local File System</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Import from local file system.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Import from cloud service provider.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;File:</source>
+        <translation type="unfinished">Датотека:</translation>
+    </message>
+    <message>
+        <source>&amp;Account:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Machines:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Please choose one of cloud service accounts you have registered to import virtual machine from.  Corresponding machines list will be updated.  To continue, select one of machines to import below.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Please choose a file to import the virtual appliance from.  VirtualBox currently supports importing appliances saved in the Open Virtualization Format (OVF).  To continue, select the file to import below.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>These are the the suggested settings of the cloud VM import procedure, they are influencing the resulting local VM instance. You can change many of the properties shown by double-clicking on the items and disable others using the check boxes below.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Source</source>
+        <translation type="unfinished">Извор</translation>
+    </message>
+    <message>
+        <source>Settings</source>
+        <translation type="unfinished">Параметри</translation>
+    </message>
+</context>
+<context>
+    <name>UIWizardImportAppPageBasic1</name>
+    <message>
+        <source>&amp;Source:</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UIWizardNewCloudVM</name>
+    <message>
+        <source>Acquire launch form...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Create Cloud Machine ...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Create Cloud Virtual Machine</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Create</source>
+        <translation type="unfinished">Креирај</translation>
+    </message>
+    <message>
+        <source>Acquire cloud images...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Destination to create</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Please choose the destination to create cloud virtual machine in.  This can be one of known cloud service providers below.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Create VM for cloud service provider.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Please choose one of cloud service accounts you have registered to create virtual machine for.  Existing custom images list will be updated.  To continue, select one of custom images to create virtual machine on the basis of it.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Account:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Images:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cloud Virtual Machine settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>These are the the suggested settings of the cloud VM creation procedure, they are influencing the resulting cloud VM instance.  You can change many of the properties shown by double-clicking on the items and disable others using the check boxes below.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Destination</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Settings</source>
+        <translation type="unfinished">Параметри</translation>
+    </message>
+</context>
+<context>
+    <name>UIWizardNewCloudVMPageBasic1</name>
+    <message>
+        <source>&amp;Destination:</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -16658,22 +19133,22 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Unknown device %1:%2</source>
         <comment>USB device details</comment>
-        <translation>Непознат уређај %1:%2</translation>
+        <translation type="vanished">Непознат уређај %1:%2</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;Vendor ID: %1&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Product ID: %2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Revision: %3&lt;/nobr&gt;</source>
         <comment>USB device tooltip</comment>
-        <translation>&lt;nobr&gt;Произвођач: %1&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Производ: %2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Ревизија: %3&lt;/nobr&gt;</translation>
+        <translation type="vanished">&lt;nobr&gt;Произвођач: %1&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Производ: %2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Ревизија: %3&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;Serial No. %1&lt;/nobr&gt;</source>
         <comment>USB device tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;Сериал. %1&lt;/nobr&gt;</translation>
+        <translation type="vanished">&lt;br&gt;&lt;nobr&gt;Сериал. %1&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;State: %1&lt;/nobr&gt;</source>
         <comment>USB device tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;Статус: %1&lt;/nobr&gt;</translation>
+        <translation type="vanished">&lt;br&gt;&lt;nobr&gt;Статус: %1&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>Name</source>
@@ -16808,7 +19283,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Adapter %1</source>
         <comment>details report (network)</comment>
-        <translation>Адаптер %1</translation>
+        <translation type="vanished">Адаптер %1</translation>
     </message>
     <message>
         <source>Disabled</source>
@@ -16862,47 +19337,47 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Powered Off</source>
         <comment>MachineState</comment>
-        <translation>Угашено</translation>
+        <translation type="vanished">Угашено</translation>
     </message>
     <message>
         <source>Saved</source>
         <comment>MachineState</comment>
-        <translation>Сачувано</translation>
+        <translation type="vanished">Сачувано</translation>
     </message>
     <message>
         <source>Aborted</source>
         <comment>MachineState</comment>
-        <translation>Анулирано</translation>
+        <translation type="vanished">Анулирано</translation>
     </message>
     <message>
         <source>Running</source>
         <comment>MachineState</comment>
-        <translation>Ради</translation>
+        <translation type="vanished">Ради</translation>
     </message>
     <message>
         <source>Paused</source>
         <comment>MachineState</comment>
-        <translation>Паузирано</translation>
+        <translation type="vanished">Паузирано</translation>
     </message>
     <message>
         <source>Starting</source>
         <comment>MachineState</comment>
-        <translation>Покретање</translation>
+        <translation type="vanished">Покретање</translation>
     </message>
     <message>
         <source>Stopping</source>
         <comment>MachineState</comment>
-        <translation>Заустављање</translation>
+        <translation type="vanished">Заустављање</translation>
     </message>
     <message>
         <source>Saving</source>
         <comment>MachineState</comment>
-        <translation>Сачувавање</translation>
+        <translation type="vanished">Сачувавање</translation>
     </message>
     <message>
         <source>Restoring</source>
         <comment>MachineState</comment>
-        <translation>Рестаурирање</translation>
+        <translation type="vanished">Рестаурирање</translation>
     </message>
     <message>
         <source>Discarding</source>
@@ -16922,7 +19397,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Spawning</source>
         <comment>SessionState</comment>
-        <translation>Генерисање</translation>
+        <translation type="vanished">Генерисање</translation>
     </message>
     <message>
         <source>Closing</source>
@@ -16932,12 +19407,12 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>None</source>
         <comment>DeviceType</comment>
-        <translation>Ништа</translation>
+        <translation type="vanished">Ништа</translation>
     </message>
     <message>
         <source>Floppy</source>
         <comment>DeviceType</comment>
-        <translation>Флопи</translation>
+        <translation type="vanished">Флопи</translation>
     </message>
     <message>
         <source>CD/DVD</source>
@@ -16947,12 +19422,12 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Hard Disk</source>
         <comment>DeviceType</comment>
-        <translation>Тврди диск</translation>
+        <translation type="vanished">Тврди диск</translation>
     </message>
     <message>
         <source>Network</source>
         <comment>DeviceType</comment>
-        <translation>Мрежа</translation>
+        <translation type="vanished">Мрежа</translation>
     </message>
     <message>
         <source>Normal</source>
@@ -16997,42 +19472,42 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Null Audio Driver</source>
         <comment>AudioDriverType</comment>
-        <translation>Без аудио драјвера</translation>
+        <translation type="vanished">Без аудио драјвера</translation>
     </message>
     <message>
         <source>Windows Multimedia</source>
         <comment>AudioDriverType</comment>
-        <translation>Windows Multimedia</translation>
+        <translation type="vanished">Windows Multimedia</translation>
     </message>
     <message>
         <source>OSS Audio Driver</source>
         <comment>AudioDriverType</comment>
-        <translation>OSS Audio Driver</translation>
+        <translation type="vanished">OSS Audio Driver</translation>
     </message>
     <message>
         <source>ALSA Audio Driver</source>
         <comment>AudioDriverType</comment>
-        <translation>ALSA Audio Driver</translation>
+        <translation type="vanished">ALSA Audio Driver</translation>
     </message>
     <message>
         <source>Windows DirectSound</source>
         <comment>AudioDriverType</comment>
-        <translation>Windows DirectSound</translation>
+        <translation type="vanished">Windows DirectSound</translation>
     </message>
     <message>
         <source>CoreAudio</source>
         <comment>AudioDriverType</comment>
-        <translation>CoreAudio</translation>
+        <translation type="vanished">CoreAudio</translation>
     </message>
     <message>
         <source>Not attached</source>
         <comment>NetworkAttachmentType</comment>
-        <translation>Није прикачено</translation>
+        <translation type="vanished">Није прикачено</translation>
     </message>
     <message>
         <source>NAT</source>
         <comment>NetworkAttachmentType</comment>
-        <translation>NAT</translation>
+        <translation type="vanished">NAT</translation>
     </message>
     <message>
         <source>Host Interface</source>
@@ -17042,57 +19517,57 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Internal Network</source>
         <comment>NetworkAttachmentType</comment>
-        <translation>Интерна мрежа</translation>
+        <translation type="vanished">Интерна мрежа</translation>
     </message>
     <message>
         <source>Not supported</source>
         <comment>USBDeviceState</comment>
-        <translation>Није подржано</translation>
+        <translation type="vanished">Није подржано</translation>
     </message>
     <message>
         <source>Unavailable</source>
         <comment>USBDeviceState</comment>
-        <translation>Недоступно</translation>
+        <translation type="vanished">Недоступно</translation>
     </message>
     <message>
         <source>Busy</source>
         <comment>USBDeviceState</comment>
-        <translation>Заузет</translation>
+        <translation type="vanished">Заузет</translation>
     </message>
     <message>
         <source>Available</source>
         <comment>USBDeviceState</comment>
-        <translation>Доступно</translation>
+        <translation type="vanished">Доступно</translation>
     </message>
     <message>
         <source>Held</source>
         <comment>USBDeviceState</comment>
-        <translation>Задржено</translation>
+        <translation type="vanished">Задржено</translation>
     </message>
     <message>
         <source>Captured</source>
         <comment>USBDeviceState</comment>
-        <translation>Снимљено</translation>
+        <translation type="vanished">Снимљено</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>ClipboardType</comment>
-        <translation>Онемогућено</translation>
+        <translation type="vanished">Онемогућено</translation>
     </message>
     <message>
         <source>Host To Guest</source>
         <comment>ClipboardType</comment>
-        <translation>Хост на гост</translation>
+        <translation type="vanished">Хост на гост</translation>
     </message>
     <message>
         <source>Guest To Host</source>
         <comment>ClipboardType</comment>
-        <translation>Гост на хост</translation>
+        <translation type="vanished">Гост на хост</translation>
     </message>
     <message>
         <source>Bidirectional</source>
         <comment>ClipboardType</comment>
-        <translation>Двосмерно</translation>
+        <translation type="vanished">Двосмерно</translation>
     </message>
     <message>
         <source>Select a directory</source>
@@ -17150,22 +19625,22 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Disconnected</source>
         <comment>PortMode</comment>
-        <translation>Прекинута веза</translation>
+        <translation type="vanished">Прекинута веза</translation>
     </message>
     <message>
         <source>Host Pipe</source>
         <comment>PortMode</comment>
-        <translation>Хост туба</translation>
+        <translation type="vanished">Хост туба</translation>
     </message>
     <message>
         <source>Host Device</source>
         <comment>PortMode</comment>
-        <translation>Хост уређај</translation>
+        <translation type="vanished">Хост уређај</translation>
     </message>
     <message>
         <source>User-defined</source>
         <comment>serial port</comment>
-        <translation>Прилагођено</translation>
+        <translation type="vanished">Прилагођено</translation>
     </message>
     <message>
         <source>VT-x/AMD-V</source>
@@ -17225,22 +19700,22 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>USB</source>
         <comment>DeviceType</comment>
-        <translation>USB</translation>
+        <translation type="vanished">USB</translation>
     </message>
     <message>
         <source>Shared Folder</source>
         <comment>DeviceType</comment>
-        <translation>Дељена фасцикла</translation>
+        <translation type="vanished">Дељена фасцикла</translation>
     </message>
     <message>
         <source>IDE</source>
         <comment>StorageBus</comment>
-        <translation>IDE</translation>
+        <translation type="vanished">IDE</translation>
     </message>
     <message>
         <source>SATA</source>
         <comment>StorageBus</comment>
-        <translation>SATA</translation>
+        <translation type="vanished">SATA</translation>
     </message>
     <message>
         <source>Primary</source>
@@ -17270,37 +19745,37 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Solaris Audio</source>
         <comment>AudioDriverType</comment>
-        <translation>Solaris Audio</translation>
+        <translation type="vanished">Solaris Audio</translation>
     </message>
     <message>
         <source>PulseAudio</source>
         <comment>AudioDriverType</comment>
-        <translation>PulseAudio</translation>
+        <translation type="vanished">PulseAudio</translation>
     </message>
     <message>
         <source>ICH AC97</source>
         <comment>AudioControllerType</comment>
-        <translation>ICH AC97</translation>
+        <translation type="vanished">ICH AC97</translation>
     </message>
     <message>
         <source>SoundBlaster 16</source>
         <comment>AudioControllerType</comment>
-        <translation>SoundBlaster 16</translation>
+        <translation type="vanished">SoundBlaster 16</translation>
     </message>
     <message>
         <source>PCnet-PCI II (Am79C970A)</source>
         <comment>NetworkAdapterType</comment>
-        <translation>PCnet-PCI II (Am79C970A)</translation>
+        <translation type="vanished">PCnet-PCI II (Am79C970A)</translation>
     </message>
     <message>
         <source>PCnet-FAST III (Am79C973)</source>
         <comment>NetworkAdapterType</comment>
-        <translation>PCnet-FAST III (Am79C973)</translation>
+        <translation type="vanished">PCnet-FAST III (Am79C973)</translation>
     </message>
     <message>
         <source>Intel PRO/1000 MT Desktop (82540EM)</source>
         <comment>NetworkAdapterType</comment>
-        <translation>Intel PRO/1000 MT Desktop (82540EM)</translation>
+        <translation type="vanished">Intel PRO/1000 MT Desktop (82540EM)</translation>
     </message>
     <message>
         <source>PIIX3</source>
@@ -17315,47 +19790,47 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Intel PRO/1000 T Server (82543GC)</source>
         <comment>NetworkAdapterType</comment>
-        <translation>Intel PRO/1000 T Server (82543GC)</translation>
+        <translation type="vanished">Intel PRO/1000 T Server (82543GC)</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;Vendor ID: %1&lt;/nobr&gt;</source>
         <comment>USB filter tooltip</comment>
-        <translation>&lt;nobr&gt; Продавач: %1&lt;/nobr&gt;</translation>
+        <translation type="vanished">&lt;nobr&gt; Продавач: %1&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;Product ID: %2&lt;/nobr&gt;</source>
         <comment>USB filter tooltip</comment>
-        <translation>&lt;nobr&gt;Производ: %2&lt;/nobr&gt;</translation>
+        <translation type="vanished">&lt;nobr&gt;Производ: %2&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;Revision: %3&lt;/nobr&gt;</source>
         <comment>USB filter tooltip</comment>
-        <translation>&lt;nobr&gt;Ревизија: %3&lt;/nobr&gt;</translation>
+        <translation type="vanished">&lt;nobr&gt;Ревизија: %3&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;Product: %4&lt;/nobr&gt;</source>
         <comment>USB filter tooltip</comment>
-        <translation>&lt;nobr&gt;Производ: %4&lt;/nobr&gt;</translation>
+        <translation type="vanished">&lt;nobr&gt;Производ: %4&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;Manufacturer: %5&lt;/nobr&gt;</source>
         <comment>USB filter tooltip</comment>
-        <translation>&lt;nobr&gt;Произвођач: %5&lt;/nobr&gt;</translation>
+        <translation type="vanished">&lt;nobr&gt;Произвођач: %5&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;Serial No.: %1&lt;/nobr&gt;</source>
         <comment>USB filter tooltip</comment>
-        <translation>&lt;nobr&gt;Серијал: %1&lt;/nobr&gt;</translation>
+        <translation type="vanished">&lt;nobr&gt;Серијал: %1&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;Port: %1&lt;/nobr&gt;</source>
         <comment>USB filter tooltip</comment>
-        <translation>&lt;nobr&gt;Порт: %1&lt;/nobr&gt;</translation>
+        <translation type="vanished">&lt;nobr&gt;Порт: %1&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;State: %1&lt;/nobr&gt;</source>
         <comment>USB filter tooltip</comment>
-        <translation>&lt;nobr&gt;Статус: %1&lt;/nobr&gt;</translation>
+        <translation type="vanished">&lt;nobr&gt;Статус: %1&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>host interface, %1</source>
@@ -17405,12 +19880,12 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Checking...</source>
         <comment>medium</comment>
-        <translation>Провера...</translation>
+        <translation type="vanished">Провера...</translation>
     </message>
     <message>
         <source>Inaccessible</source>
         <comment>medium</comment>
-        <translation>Недоступно</translation>
+        <translation type="vanished">Недоступно</translation>
     </message>
     <message>
         <source>&lt;hr&gt;Some of the files in this hard disk chain are inaccessible. Please use the Virtual Media Manager in &lt;b&gt;Show Differencing Hard Disks&lt;/b&gt; mode to inspect these files.</source>
@@ -17428,17 +19903,17 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Enabled</source>
         <comment>details report (3D Acceleration)</comment>
-        <translation>Упаљено</translation>
+        <translation type="vanished">Упаљено</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details report (3D Acceleration)</comment>
-        <translation>Угашено</translation>
+        <translation type="vanished">Угашено</translation>
     </message>
     <message>
         <source>Setting Up</source>
         <comment>MachineState</comment>
-        <translation>Подешавање</translation>
+        <translation type="vanished">Подешавање</translation>
     </message>
     <message>
         <source>Differencing</source>
@@ -17468,37 +19943,37 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>SCSI</source>
         <comment>StorageBus</comment>
-        <translation>SCSI</translation>
+        <translation type="vanished">SCSI</translation>
     </message>
     <message>
         <source>PIIX3</source>
         <comment>StorageControllerType</comment>
-        <translation>PIIX3</translation>
+        <translation type="vanished">PIIX3</translation>
     </message>
     <message>
         <source>PIIX4</source>
         <comment>StorageControllerType</comment>
-        <translation>PIIX4</translation>
+        <translation type="vanished">PIIX4</translation>
     </message>
     <message>
         <source>ICH6</source>
         <comment>StorageControllerType</comment>
-        <translation>ICH6</translation>
+        <translation type="vanished">ICH6</translation>
     </message>
     <message>
         <source>AHCI</source>
         <comment>StorageControllerType</comment>
-        <translation>AHCI</translation>
+        <translation type="vanished">AHCI</translation>
     </message>
     <message>
         <source>Lsilogic</source>
         <comment>StorageControllerType</comment>
-        <translation>Lsilogic</translation>
+        <translation type="vanished">Lsilogic</translation>
     </message>
     <message>
         <source>BusLogic</source>
         <comment>StorageControllerType</comment>
-        <translation>BusLogic</translation>
+        <translation type="vanished">BusLogic</translation>
     </message>
     <message>
         <source>Bridged adapter, %1</source>
@@ -17513,22 +19988,22 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Intel PRO/1000 MT Server (82545EM)</source>
         <comment>NetworkAdapterType</comment>
-        <translation>Intel PRO/1000 MT Server (82545EM)</translation>
+        <translation type="vanished">Intel PRO/1000 MT Server (82545EM)</translation>
     </message>
     <message>
         <source>Bridged Adapter</source>
         <comment>NetworkAttachmentType</comment>
-        <translation>Мост адаптер</translation>
+        <translation type="vanished">Мост адаптер</translation>
     </message>
     <message>
         <source>Host-only Adapter</source>
         <comment>NetworkAttachmentType</comment>
-        <translation>Само хост адаптер</translation>
+        <translation type="vanished">Само хост адаптер</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;%1 MB&lt;/nobr&gt;</source>
         <comment>details report</comment>
-        <translation>&lt;nobr&gt;%1 МБ&lt;/nobr&gt;</translation>
+        <translation type="vanished">&lt;nobr&gt;%1 МБ&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>Processor(s)</source>
@@ -17568,7 +20043,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Raw File</source>
         <comment>PortMode</comment>
-        <translation>Raw датотека</translation>
+        <translation type="vanished">Raw датотека</translation>
     </message>
     <message>
         <source>Enabled</source>
@@ -17598,37 +20073,37 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Teleported</source>
         <comment>MachineState</comment>
-        <translation>Teleported</translation>
+        <translation type="vanished">Teleported</translation>
     </message>
     <message>
         <source>Teleporting</source>
         <comment>MachineState</comment>
-        <translation>Телепортација</translation>
+        <translation type="vanished">Телепортација</translation>
     </message>
     <message>
         <source>Taking Live Snapshot</source>
         <comment>MachineState</comment>
-        <translation>Узимање уживу слику</translation>
+        <translation type="vanished">Узимање уживу слику</translation>
     </message>
     <message>
         <source>Teleporting Paused VM</source>
         <comment>MachineState</comment>
-        <translation>Телепортација паузиране VM</translation>
+        <translation type="vanished">Телепортација паузиране VM</translation>
     </message>
     <message>
         <source>Restoring Snapshot</source>
         <comment>MachineState</comment>
-        <translation>Врачање слике</translation>
+        <translation type="vanished">Врачање слике</translation>
     </message>
     <message>
         <source>Deleting Snapshot</source>
         <comment>MachineState</comment>
-        <translation>Брисање слике</translation>
+        <translation type="vanished">Брисање слике</translation>
     </message>
     <message>
         <source>Floppy</source>
         <comment>StorageBus</comment>
-        <translation>Флопи</translation>
+        <translation type="vanished">Флопи</translation>
     </message>
     <message>
         <source>Device %1</source>
@@ -17673,66 +20148,66 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Paravirtualized Network (virtio-net)</source>
         <comment>NetworkAdapterType</comment>
-        <translation>Paravirtualized мрежа (virtio-net)</translation>
+        <translation type="vanished">Paravirtualized мрежа (virtio-net)</translation>
     </message>
     <message>
         <source>I82078</source>
         <comment>StorageControllerType</comment>
-        <translation>I82078</translation>
+        <translation type="vanished">I82078</translation>
     </message>
     <message>
         <source>Empty</source>
         <comment>medium</comment>
-        <translation>Празно</translation>
+        <translation type="vanished">Празно</translation>
     </message>
     <message>
         <source>Host Drive &apos;%1&apos;</source>
         <comment>medium</comment>
-        <translation>Хост драјв &apos;%1&apos;</translation>
+        <translation type="vanished">Хост драјв &apos;%1&apos;</translation>
     </message>
     <message>
         <source>Host Drive %1 (%2)</source>
         <comment>medium</comment>
-        <translation>Хост драјв %1 (%2)</translation>
+        <translation type="vanished">Хост драјв %1 (%2)</translation>
     </message>
     <message>
         <source>&lt;p style=white-space:pre&gt;Type (Format):  %1 (%2)&lt;/p&gt;</source>
         <comment>medium</comment>
-        <translation>&lt;p style=white-space:pre&gt;Тип (Формат):  %1 (%2)&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;p style=white-space:pre&gt;Тип (Формат):  %1 (%2)&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Attached to:  %1&lt;/p&gt;</source>
         <comment>image</comment>
-        <translation>&lt;p&gt;Прикачено на:  %1&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;p&gt;Прикачено на:  %1&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;i&gt;Not Attached&lt;/i&gt;</source>
         <comment>image</comment>
-        <translation>&lt;i&gt;Није прикачено&lt;/i&gt;</translation>
+        <translation type="vanished">&lt;i&gt;Није прикачено&lt;/i&gt;</translation>
     </message>
     <message>
         <source>&lt;i&gt;Checking accessibility...&lt;/i&gt;</source>
         <comment>medium</comment>
-        <translation>&lt;i&gt;Провера доступност...&lt;/i&gt;</translation>
+        <translation type="vanished">&lt;i&gt;Провера доступност...&lt;/i&gt;</translation>
     </message>
     <message>
         <source>Failed to check accessibility of disk image files.</source>
         <comment>medium</comment>
-        <translation>Погрешна провера доступност медија.</translation>
+        <translation type="vanished">Погрешна провера доступност медија.</translation>
     </message>
     <message>
         <source>&lt;b&gt;No disk image file selected&lt;/b&gt;</source>
         <comment>medium</comment>
-        <translation>&lt;b&gt;Медијум није одабран&lt;/b&gt;</translation>
+        <translation type="vanished">&lt;b&gt;Медијум није одабран&lt;/b&gt;</translation>
     </message>
     <message>
         <source>You can also change this while the machine is running.</source>
-        <translation>Можете исто ово променити док машина ради.</translation>
+        <translation type="vanished">Можете исто ово променити док машина ради.</translation>
     </message>
     <message>
         <source>&lt;b&gt;No disk image files available&lt;/b&gt;</source>
         <comment>medium</comment>
-        <translation>&lt;b&gt;Медиј није доступан&lt;/b&gt;</translation>
+        <translation type="vanished">&lt;b&gt;Медиј није доступан&lt;/b&gt;</translation>
     </message>
     <message>
         <source>You can create disk image files using the virtual media manager.</source>
@@ -17741,7 +20216,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Attaching this hard disk will be performed indirectly using a newly created differencing hard disk.</source>
         <comment>medium</comment>
-        <translation>Привезивање овог хард диска ће бити индиректан користечи новог креираног различитог хард диска.</translation>
+        <translation type="vanished">Привезивање овог хард диска ће бити индиректан користечи новог креираног различитог хард диска.</translation>
     </message>
     <message>
         <source>Some of the files in this hard disk chain are inaccessible. Please use the Virtual Media Manager in &lt;b&gt;Show Differencing Hard Disks&lt;/b&gt; mode to inspect these files.</source>
@@ -17751,11 +20226,11 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>This base hard disk is indirectly attached using the following differencing hard disk:</source>
         <comment>medium</comment>
-        <translation>Овај базни хард диск је индиректно прикачен са овим различитим диском:</translation>
+        <translation type="vanished">Овај базни хард диск је индиректно прикачен са овим различитим диском:</translation>
     </message>
     <message numerus="yes">
         <source>%n year(s)</source>
-        <translation>
+        <translation type="vanished">
             <numerusform>%n годиа</numerusform>
             <numerusform>%n године</numerusform>
             <numerusform>%n година</numerusform>
@@ -17763,7 +20238,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message numerus="yes">
         <source>%n month(s)</source>
-        <translation>
+        <translation type="vanished">
             <numerusform>%n месец</numerusform>
             <numerusform>%n месеца</numerusform>
             <numerusform>%n месеца</numerusform>
@@ -17771,7 +20246,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message numerus="yes">
         <source>%n day(s)</source>
-        <translation>
+        <translation type="vanished">
             <numerusform>%n дан</numerusform>
             <numerusform>%n дана</numerusform>
             <numerusform>%n дана</numerusform>
@@ -17779,7 +20254,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message numerus="yes">
         <source>%n hour(s)</source>
-        <translation>
+        <translation type="vanished">
             <numerusform>%n сат</numerusform>
             <numerusform>%n сата</numerusform>
             <numerusform>%n сата</numerusform>
@@ -17787,7 +20262,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message numerus="yes">
         <source>%n minute(s)</source>
-        <translation>
+        <translation type="vanished">
             <numerusform>%n минут</numerusform>
             <numerusform>%n минута</numerusform>
             <numerusform>%n минута</numerusform>
@@ -17795,7 +20270,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message numerus="yes">
         <source>%n second(s)</source>
-        <translation>
+        <translation type="vanished">
             <numerusform>%n секунд</numerusform>
             <numerusform>%n секунда</numerusform>
             <numerusform>%n секунда</numerusform>
@@ -17813,42 +20288,42 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>SAS</source>
         <comment>StorageBus</comment>
-        <translation>SAS</translation>
+        <translation type="vanished">SAS</translation>
     </message>
     <message>
         <source>LsiLogic SAS</source>
         <comment>StorageControllerType</comment>
-        <translation>LsiLogic SAS</translation>
+        <translation type="vanished">LsiLogic SAS</translation>
     </message>
     <message>
         <source>B</source>
         <comment>size suffix Bytes</comment>
-        <translation>Б</translation>
+        <translation type="vanished">Б</translation>
     </message>
     <message>
         <source>KB</source>
         <comment>size suffix KBytes=1024 Bytes</comment>
-        <translation>КБ</translation>
+        <translation type="vanished">КБ</translation>
     </message>
     <message>
         <source>MB</source>
         <comment>size suffix MBytes=1024 KBytes</comment>
-        <translation>МБ</translation>
+        <translation type="vanished">МБ</translation>
     </message>
     <message>
         <source>GB</source>
         <comment>size suffix GBytes=1024 MBytes</comment>
-        <translation>ГБ</translation>
+        <translation type="vanished">ГБ</translation>
     </message>
     <message>
         <source>TB</source>
         <comment>size suffix TBytes=1024 GBytes</comment>
-        <translation>ТБ</translation>
+        <translation type="vanished">ТБ</translation>
     </message>
     <message>
         <source>PB</source>
         <comment>size suffix PBytes=1024 TBytes</comment>
-        <translation>ПБ</translation>
+        <translation type="vanished">ПБ</translation>
     </message>
     <message>
         <source>Enabled</source>
@@ -17862,7 +20337,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Nested Paging</source>
-        <translation>Подметнуто записивање</translation>
+        <translation type="vanished">Подметнуто записивање</translation>
     </message>
     <message>
         <source>Shareable</source>
@@ -17872,7 +20347,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Unknown device</source>
         <comment>USB device details</comment>
-        <translation>Непознат уређај</translation>
+        <translation type="vanished">Непознат уређај</translation>
     </message>
     <message>
         <source>SAS Port %1</source>
@@ -17924,47 +20399,47 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>All files (*)</source>
-        <translation>Све датотеке (*)</translation>
+        <translation type="vanished">Све датотеке (*)</translation>
     </message>
     <message>
         <source>Fault Tolerant Syncing</source>
         <comment>MachineState</comment>
-        <translation>Грешка толерантне синхронизације</translation>
+        <translation type="vanished">Грешка толерантне синхронизације</translation>
     </message>
     <message>
         <source>Unlocked</source>
         <comment>SessionState</comment>
-        <translation>Деблокирано</translation>
+        <translation type="vanished">Деблокирано</translation>
     </message>
     <message>
         <source>Locked</source>
         <comment>SessionState</comment>
-        <translation>Блокирано</translation>
+        <translation type="vanished">Блокирано</translation>
     </message>
     <message>
         <source>Unlocking</source>
         <comment>SessionState</comment>
-        <translation>Деблокирање</translation>
+        <translation type="vanished">Деблокирање</translation>
     </message>
     <message>
         <source>Null</source>
         <comment>AuthType</comment>
-        <translation>Празно</translation>
+        <translation type="vanished">Празно</translation>
     </message>
     <message>
         <source>External</source>
         <comment>AuthType</comment>
-        <translation>Спољно</translation>
+        <translation type="vanished">Спољно</translation>
     </message>
     <message>
         <source>Guest</source>
         <comment>AuthType</comment>
-        <translation>Гост</translation>
+        <translation type="vanished">Гост</translation>
     </message>
     <message>
         <source>Intel HD Audio</source>
         <comment>AudioControllerType</comment>
-        <translation>Intel HD аудио</translation>
+        <translation type="vanished">Intel HD аудио</translation>
     </message>
     <message>
         <source>UDP</source>
@@ -17979,12 +20454,12 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>PIIX3</source>
         <comment>ChipsetType</comment>
-        <translation>PIIX3</translation>
+        <translation type="vanished">PIIX3</translation>
     </message>
     <message>
         <source>ICH9</source>
         <comment>ChipsetType</comment>
-        <translation>ICH9</translation>
+        <translation type="vanished">ICH9</translation>
     </message>
     <message>
         <source>and</source>
@@ -18024,7 +20499,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Execution Cap</source>
         <comment>details report</comment>
-        <translation>Постотак рада</translation>
+        <translation type="vanished">Постотак рада</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;%1%&lt;/nobr&gt;</source>
@@ -18039,7 +20514,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Generic Driver</source>
         <comment>NetworkAttachmentType</comment>
-        <translation>Општи драјвер</translation>
+        <translation type="vanished">Општи драјвер</translation>
     </message>
     <message>
         <source>Deny</source>
@@ -18058,574 +20533,320 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Adapter %1</source>
-        <translation>Адаптер %1</translation>
+        <translation type="vanished">Адаптер %1</translation>
     </message>
     <message>
         <source>Host To Guest</source>
         <comment>DragAndDropType</comment>
-        <translation type="unfinished">Хост на гост</translation>
+        <translation type="obsolete">Хост на гост</translation>
     </message>
     <message>
         <source>Guest To Host</source>
         <comment>DragAndDropType</comment>
-        <translation type="unfinished">Гост на хост</translation>
+        <translation type="obsolete">Гост на хост</translation>
     </message>
     <message>
         <source>Bidirectional</source>
         <comment>DragAndDropType</comment>
-        <translation type="unfinished">Двосмерно</translation>
+        <translation type="obsolete">Двосмерно</translation>
     </message>
     <message>
         <source>Normal</source>
         <comment>MediumType</comment>
-        <translation type="unfinished">Нормално</translation>
+        <translation type="obsolete">Нормално</translation>
     </message>
     <message>
         <source>Immutable</source>
         <comment>MediumType</comment>
-        <translation type="unfinished">Непроменљив</translation>
+        <translation type="obsolete">Непроменљив</translation>
     </message>
     <message>
         <source>Writethrough</source>
         <comment>MediumType</comment>
-        <translation type="unfinished">ПишиКроз</translation>
+        <translation type="obsolete">ПишиКроз</translation>
     </message>
     <message>
         <source>Shareable</source>
         <comment>MediumType</comment>
-        <translation type="unfinished">Дељиво</translation>
+        <translation type="obsolete">Дељиво</translation>
     </message>
     <message>
         <source>Readonly</source>
         <comment>MediumType</comment>
-        <translation type="unfinished">СамоЧитљиво</translation>
+        <translation type="obsolete">СамоЧитљиво</translation>
     </message>
     <message>
         <source>Multi-attach</source>
         <comment>MediumType</comment>
-        <translation type="unfinished">Више-прикачка</translation>
+        <translation type="obsolete">Више-прикачка</translation>
     </message>
     <message>
         <source>Dynamically allocated storage</source>
         <comment>MediumVariant</comment>
-        <translation type="unfinished">Динамично додељено стовариште</translation>
+        <translation type="obsolete">Динамично додељено стовариште</translation>
     </message>
     <message>
         <source>Fixed size storage</source>
         <comment>MediumVariant</comment>
-        <translation type="unfinished">Фиксна величина</translation>
+        <translation type="obsolete">Фиксна величина</translation>
     </message>
     <message>
         <source>Dynamically allocated storage split into files of less than 2GB</source>
         <comment>MediumVariant</comment>
-        <translation type="unfinished">Динамично дедељење подељено у датотеке мање од 2ГБ</translation>
+        <translation type="obsolete">Динамично дедељење подељено у датотеке мање од 2ГБ</translation>
     </message>
     <message>
         <source>Fixed size storage split into files of less than 2GB</source>
         <comment>MediumVariant</comment>
-        <translation type="unfinished">Фиксна величина подељено у датотеке мање од 2ГБ</translation>
+        <translation type="obsolete">Фиксна величина подељено у датотеке мање од 2ГБ</translation>
     </message>
     <message>
         <source>Deny</source>
         <comment>NetworkAdapterPromiscModePolicy</comment>
-        <translation type="unfinished">Одбиј</translation>
+        <translation type="obsolete">Одбиј</translation>
     </message>
     <message>
         <source>Allow VMs</source>
         <comment>NetworkAdapterPromiscModePolicy</comment>
-        <translation type="unfinished">Дозволи VM</translation>
+        <translation type="obsolete">Дозволи VM</translation>
     </message>
     <message>
         <source>Allow All</source>
         <comment>NetworkAdapterPromiscModePolicy</comment>
-        <translation type="unfinished">Дозволи све</translation>
+        <translation type="obsolete">Дозволи све</translation>
     </message>
     <message>
         <source>Ignore</source>
         <comment>USBDeviceFilterAction</comment>
-        <translation type="unfinished">Игнориши</translation>
+        <translation type="obsolete">Игнориши</translation>
     </message>
     <message>
         <source>Hold</source>
         <comment>USBDeviceFilterAction</comment>
-        <translation type="unfinished">Сачувај</translation>
+        <translation type="obsolete">Сачувај</translation>
     </message>
     <message>
         <source>UDP</source>
         <comment>NATProtocol</comment>
-        <translation type="unfinished">UDP</translation>
+        <translation type="obsolete">UDP</translation>
     </message>
     <message>
         <source>TCP</source>
         <comment>NATProtocol</comment>
-        <translation type="unfinished">TCP</translation>
+        <translation type="obsolete">TCP</translation>
     </message>
     <message>
         <source>IDE Primary Master</source>
         <comment>StorageSlot</comment>
-        <translation type="unfinished">IDE примарно главно</translation>
+        <translation type="obsolete">IDE примарно главно</translation>
     </message>
     <message>
         <source>IDE Primary Slave</source>
         <comment>StorageSlot</comment>
-        <translation type="unfinished">IDE примарно роб</translation>
+        <translation type="obsolete">IDE примарно роб</translation>
     </message>
     <message>
         <source>IDE Secondary Master</source>
         <comment>StorageSlot</comment>
-        <translation type="unfinished">IDE други главни</translation>
+        <translation type="obsolete">IDE други главни</translation>
     </message>
     <message>
         <source>IDE Secondary Slave</source>
         <comment>StorageSlot</comment>
-        <translation type="unfinished">IDE други роб</translation>
+        <translation type="obsolete">IDE други роб</translation>
     </message>
     <message>
         <source>SATA Port %1</source>
         <comment>StorageSlot</comment>
-        <translation type="unfinished">SATA порт %1</translation>
+        <translation type="obsolete">SATA порт %1</translation>
     </message>
     <message>
         <source>SCSI Port %1</source>
         <comment>StorageSlot</comment>
-        <translation type="unfinished">SCSI порт %1</translation>
+        <translation type="obsolete">SCSI порт %1</translation>
     </message>
     <message>
         <source>SAS Port %1</source>
         <comment>StorageSlot</comment>
-        <translation type="unfinished">SAS порт %1</translation>
+        <translation type="obsolete">SAS порт %1</translation>
     </message>
     <message>
         <source>Floppy Device %1</source>
         <comment>StorageSlot</comment>
-        <translation type="unfinished">Флопи уређај %1</translation>
+        <translation type="obsolete">Флопи уређај %1</translation>
     </message>
     <message>
         <source>General</source>
         <comment>DetailsElementType</comment>
-        <translation type="unfinished">Опште</translation>
+        <translation type="obsolete">Опште</translation>
     </message>
     <message>
         <source>Preview</source>
         <comment>DetailsElementType</comment>
-        <translation type="unfinished">Преглед</translation>
+        <translation type="obsolete">Преглед</translation>
     </message>
     <message>
         <source>System</source>
         <comment>DetailsElementType</comment>
-        <translation type="unfinished">Систем</translation>
+        <translation type="obsolete">Систем</translation>
     </message>
     <message>
         <source>Display</source>
         <comment>DetailsElementType</comment>
-        <translation type="unfinished">Дисплеј</translation>
+        <translation type="obsolete">Дисплеј</translation>
     </message>
     <message>
         <source>Storage</source>
         <comment>DetailsElementType</comment>
-        <translation type="unfinished">Стовариште</translation>
+        <translation type="obsolete">Стовариште</translation>
     </message>
     <message>
         <source>Audio</source>
         <comment>DetailsElementType</comment>
-        <translation type="unfinished">Аудио</translation>
+        <translation type="obsolete">Аудио</translation>
     </message>
     <message>
         <source>Network</source>
         <comment>DetailsElementType</comment>
-        <translation type="unfinished">Мрежа</translation>
+        <translation type="obsolete">Мрежа</translation>
     </message>
     <message>
         <source>Description</source>
         <comment>DetailsElementType</comment>
-        <translation type="unfinished">Опис</translation>
+        <translation type="obsolete">Опис</translation>
     </message>
     <message>
         <source>Active</source>
         <comment>details report (VT-x/AMD-V)</comment>
-        <translation type="unfinished">Активно</translation>
+        <translation type="obsolete">Активно</translation>
     </message>
     <message>
         <source>Active</source>
         <comment>details report (Nested Paging)</comment>
-        <translation type="unfinished">Активно</translation>
+        <translation type="obsolete">Активно</translation>
     </message>
     <message>
         <source>Active</source>
         <comment>details report (Unrestricted Execution)</comment>
-        <translation type="unfinished">Активно</translation>
+        <translation type="obsolete">Активно</translation>
     </message>
     <message>
         <source>None</source>
         <comment>ParavirtProvider</comment>
-        <translation type="unfinished">Ништа</translation>
+        <translation type="obsolete">Ништа</translation>
     </message>
     <message>
         <source>Default</source>
         <comment>ParavirtProvider</comment>
-        <translation type="unfinished">Иницијално</translation>
+        <translation type="obsolete">Иницијално</translation>
     </message>
     <message>
         <source>TCP</source>
         <comment>PortMode</comment>
-        <translation type="unfinished">TCP</translation>
+        <translation type="obsolete">TCP</translation>
     </message>
     <message>
         <source>General</source>
         <comment>InformationElementType</comment>
-        <translation type="unfinished">Опште</translation>
+        <translation type="obsolete">Опште</translation>
     </message>
     <message>
         <source>Preview</source>
         <comment>InformationElementType</comment>
-        <translation type="unfinished">Преглед</translation>
+        <translation type="obsolete">Преглед</translation>
     </message>
     <message>
         <source>System</source>
         <comment>InformationElementType</comment>
-        <translation type="unfinished">Систем</translation>
+        <translation type="obsolete">Систем</translation>
     </message>
     <message>
         <source>Display</source>
         <comment>InformationElementType</comment>
-        <translation type="unfinished">Дисплеј</translation>
+        <translation type="obsolete">Дисплеј</translation>
     </message>
     <message>
         <source>Storage</source>
         <comment>InformationElementType</comment>
-        <translation type="unfinished">Стовариште</translation>
+        <translation type="obsolete">Стовариште</translation>
     </message>
     <message>
         <source>Audio</source>
         <comment>InformationElementType</comment>
-        <translation type="unfinished">Аудио</translation>
+        <translation type="obsolete">Аудио</translation>
     </message>
     <message>
         <source>Network</source>
         <comment>InformationElementType</comment>
-        <translation type="unfinished">Мрежа</translation>
+        <translation type="obsolete">Мрежа</translation>
     </message>
     <message>
         <source>Description</source>
         <comment>InformationElementType</comment>
-        <translation type="unfinished">Опис</translation>
+        <translation type="obsolete">Опис</translation>
     </message>
     <message>
         <source>Hard Disks</source>
         <comment>IndicatorType</comment>
-        <translation type="unfinished">Хард дискови</translation>
+        <translation type="obsolete">Хард дискови</translation>
     </message>
     <message>
         <source>Network</source>
         <comment>IndicatorType</comment>
-        <translation type="unfinished">Мрежа</translation>
+        <translation type="obsolete">Мрежа</translation>
     </message>
     <message>
         <source>Shared Folders</source>
         <comment>IndicatorType</comment>
-        <translation type="unfinished">Дељене фасцикле</translation>
+        <translation type="obsolete">Дељене фасцикле</translation>
     </message>
     <message>
         <source>Display</source>
         <comment>IndicatorType</comment>
-        <translation type="unfinished">Дисплеј</translation>
+        <translation type="obsolete">Дисплеј</translation>
     </message>
     <message>
         <source>Differencing</source>
         <comment>MediumType</comment>
-        <translation type="unfinished">Разликавање</translation>
+        <translation type="obsolete">Разликавање</translation>
     </message>
     <message>
         <source>Audio</source>
         <comment>IndicatorType</comment>
-        <translation type="unfinished">Аудио</translation>
-    </message>
-    <message>
-        <source>not set</source>
-        <comment>details report (execution engine)</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Inactive</source>
-        <comment>details report (Nested Paging)</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Inactive</source>
-        <comment>details report (Unrestricted Execution)</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Execution engine</source>
-        <comment>details report</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Unrestricted Execution</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Paravirtualization Interface</source>
-        <comment>details report</comment>
-        <translation type="unfinished"></translation>
+        <translation type="obsolete">Аудио</translation>
     </message>
     <message>
         <source>Processors</source>
         <comment>details report</comment>
-        <translation type="unfinished">Процесори</translation>
-    </message>
-    <message>
-        <source>off</source>
-        <comment>guest monitor status</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Inactive</source>
-        <comment>details report (VT-x/AMD-V)</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Guru Meditation</source>
-        <comment>MachineState</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Taking Snapshot</source>
-        <comment>MachineState</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Taking Online Snapshot</source>
-        <comment>MachineState</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Legacy</source>
-        <comment>ParavirtProvider</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Minimal</source>
-        <comment>ParavirtProvider</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Hyper-V</source>
-        <comment>ParavirtProvider</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>KVM</source>
-        <comment>ParavirtProvider</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Optical</source>
-        <comment>DeviceType</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Disabled</source>
-        <comment>DragAndDropType</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>PS/2 Mouse</source>
-        <comment>PointingHIDType</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>USB Mouse</source>
-        <comment>PointingHIDType</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>USB Tablet</source>
-        <comment>PointingHIDType</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>PS/2 and USB Mouse</source>
-        <comment>PointingHIDType</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>USB Multi-Touch Tablet</source>
-        <comment>PointingHIDType</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>New dynamically allocated storage</source>
-        <comment>MediumVariant</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Dynamically allocated differencing storage</source>
-        <comment>MediumVariant</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Dynamically allocated differencing storage split into files of less than 2GB</source>
-        <comment>MediumVariant</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Dynamically allocated compressed storage</source>
-        <comment>MediumVariant</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Dynamically allocated differencing compressed storage</source>
-        <comment>MediumVariant</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Fixed size ESX storage</source>
-        <comment>MediumVariant</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Fixed size storage on raw disk</source>
-        <comment>MediumVariant</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>NAT Network</source>
-        <comment>NetworkAttachmentType</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>OHCI</source>
-        <comment>USBControllerType</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>EHCI</source>
-        <comment>USBControllerType</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>xHCI</source>
-        <comment>USBControllerType</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>USB</source>
-        <comment>StorageBus</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>PCIe</source>
-        <comment>StorageBus</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>USB</source>
-        <comment>StorageControllerType</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>NVMe</source>
-        <comment>StorageControllerType</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>USB Port %1</source>
-        <comment>StorageSlot</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>NVMe Port %1</source>
-        <comment>StorageSlot</comment>
-        <translation type="unfinished"></translation>
+        <translation type="obsolete">Процесори</translation>
     </message>
     <message>
         <source>Name</source>
-        <translation type="unfinished">Име</translation>
-    </message>
-    <message>
-        <source>OS</source>
-        <translation type="unfinished"></translation>
+        <translation type="obsolete">Име</translation>
     </message>
     <message>
         <source>Location</source>
-        <translation type="unfinished">Смештај</translation>
-    </message>
-    <message>
-        <source>Groups</source>
-        <translation type="unfinished"></translation>
+        <translation type="obsolete">Смештај</translation>
     </message>
     <message>
         <source>RAM</source>
-        <translation type="unfinished">РАМ</translation>
-    </message>
-    <message>
-        <source>CPU Count</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>CPU Execution Cap</source>
-        <translation type="unfinished"></translation>
+        <translation type="obsolete">РАМ</translation>
     </message>
     <message>
         <source>Boot Order</source>
-        <translation type="unfinished">Ред бута</translation>
-    </message>
-    <message>
-        <source>Chipset Type</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Firmware</source>
-        <translation type="unfinished"></translation>
+        <translation type="obsolete">Ред бута</translation>
     </message>
     <message>
         <source>Acceleration</source>
-        <translation type="unfinished">Убрзање</translation>
-    </message>
-    <message>
-        <source>VRAM</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Screen Count</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Scale Factor</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>VRDE</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Recording</source>
-        <translation type="unfinished"></translation>
+        <translation type="obsolete">Убрзање</translation>
     </message>
     <message>
         <source>Hard Disks</source>
-        <translation type="unfinished">Хард дискови</translation>
-    </message>
-    <message>
-        <source>Optical Devices</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Floppy Devices</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Driver</source>
-        <translation type="unfinished"></translation>
+        <translation type="obsolete">Хард дискови</translation>
     </message>
     <message>
         <source>Controller</source>
-        <translation type="unfinished">Контролер</translation>
-    </message>
-    <message>
-        <source>Input/Output</source>
-        <translation type="unfinished"></translation>
+        <translation type="obsolete">Контролер</translation>
     </message>
     <message>
         <source>Not Attached</source>
@@ -18633,23 +20854,15 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>NAT</source>
-        <translation type="unfinished">NAT</translation>
-    </message>
-    <message>
-        <source>Bridget Adapter</source>
-        <translation type="unfinished"></translation>
+        <translation type="obsolete">NAT</translation>
     </message>
     <message>
         <source>Internal Network</source>
-        <translation type="unfinished">Интерна мрежа</translation>
-    </message>
-    <message>
-        <source>Host Only Adapter</source>
-        <translation type="unfinished"></translation>
+        <translation type="obsolete">Интерна мрежа</translation>
     </message>
     <message>
         <source>Generic Driver</source>
-        <translation type="unfinished">Општи драјвер</translation>
+        <translation type="obsolete">Општи драјвер</translation>
     </message>
     <message>
         <source>Disconnected</source>
@@ -18657,246 +20870,38 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Host Pipe</source>
-        <translation type="unfinished">Хост туба</translation>
+        <translation type="obsolete">Хост туба</translation>
     </message>
     <message>
         <source>Host Device</source>
-        <translation type="unfinished">Хост уређај</translation>
+        <translation type="obsolete">Хост уређај</translation>
     </message>
     <message>
         <source>Raw File</source>
-        <translation type="unfinished">Raw датотека</translation>
+        <translation type="obsolete">Raw датотека</translation>
     </message>
     <message>
         <source>TCP</source>
-        <translation type="unfinished">TCP</translation>
+        <translation type="obsolete">TCP</translation>
     </message>
     <message>
         <source>Device Filters</source>
-        <translation type="unfinished">Филтери уређаја</translation>
-    </message>
-    <message>
-        <source>Menu Bar</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Status Bar</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Mini Toolbar</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Serial ports</source>
-        <comment>DetailsElementType</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>USB</source>
-        <comment>DetailsElementType</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Shared folders</source>
-        <comment>DetailsElementType</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>User interface</source>
-        <comment>DetailsElementType</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Optical Disks</source>
-        <comment>IndicatorType</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Floppy Disks</source>
-        <comment>IndicatorType</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>USB</source>
-        <comment>IndicatorType</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Recording</source>
-        <comment>IndicatorType</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Features</source>
-        <comment>IndicatorType</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Mouse</source>
-        <comment>IndicatorType</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Keyboard</source>
-        <comment>IndicatorType</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Serial ports</source>
-        <comment>InformationElementType</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>USB</source>
-        <comment>InformationElementType</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Shared folders</source>
-        <comment>InformationElementType</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>User interface</source>
-        <comment>InformationElementType</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Runtime attributes</source>
-        <comment>InformationElementType</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Storage statistics</source>
-        <comment>InformationElementType</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Network statistics</source>
-        <comment>InformationElementType</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>VDI (VirtualBox Disk Image)</source>
-        <comment>UIMediumFormat</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>VMDK (Virtual Machine Disk)</source>
-        <comment>UIMediumFormat</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>VHD (Virtual Hard Disk)</source>
-        <comment>UIMediumFormat</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>HDD (Parallels Hard Disk)</source>
-        <comment>UIMediumFormat</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>QED (QEMU enhanced disk)</source>
-        <comment>UIMediumFormat</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>QCOW (QEMU Copy-On-Write)</source>
-        <comment>UIMediumFormat</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Please choose a virtual hard disk file</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>All virtual hard disk files (%1)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Please choose a virtual optical disk file</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>All virtual optical disk files (%1)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Please choose a virtual floppy disk file</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>All virtual floppy disk files (%1)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>You can create or add disk image files in the virtual machine settings.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Encrypted</source>
-        <comment>medium</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Some of the files in this hard disk chain are inaccessible. Please use the Virtual Medium Manager to inspect these files.</source>
-        <comment>medium</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Please choose a location for new virtual hard disk file</source>
-        <translation type="unfinished"></translation>
+        <translation type="obsolete">Филтери уређаја</translation>
     </message>
     <message>
         <source>None</source>
         <comment>GraphicsControllerType</comment>
-        <translation type="unfinished">Ништа</translation>
-    </message>
-    <message>
-        <source>VBoxVGA</source>
-        <comment>GraphicsControllerType</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>VMSVGA</source>
-        <comment>GraphicsControllerType</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>VBoxSVGA</source>
-        <comment>GraphicsControllerType</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Graphics Controller</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Video/Audio</source>
-        <comment>UISettingsDefs::RecordingMode</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Video Only</source>
-        <comment>UISettingsDefs::RecordingMode</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Audio Only</source>
-        <comment>UISettingsDefs::RecordingMode</comment>
-        <translation type="unfinished"></translation>
+        <translation type="obsolete">Ништа</translation>
     </message>
     <message>
         <source>Not Attached</source>
         <comment>network adapter</comment>
-        <translation type="unfinished">Није привезано</translation>
+        <translation type="obsolete">Није привезано</translation>
     </message>
     <message>
         <source>Disconnected</source>
         <comment>serial port</comment>
-        <translation type="unfinished">Прекинута веза</translation>
+        <translation type="obsolete">Прекинута веза</translation>
     </message>
 </context>
 <context>

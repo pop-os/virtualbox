@@ -1216,6 +1216,9 @@ VMMR3DECL(uint32_t)     SSMR3HandleVersion(PSSMHANDLE pSSM);
 VMMR3DECL(const char *) SSMR3HandleHostOSAndArch(PSSMHANDLE pSSM);
 VMMR3_INT_DECL(int)     SSMR3HandleSetGCPtrSize(PSSMHANDLE pSSM, unsigned cbGCPtr);
 VMMR3DECL(void)         SSMR3HandleReportLivePercent(PSSMHANDLE pSSM, unsigned uPercent);
+#ifdef DEBUG
+VMMR3DECL(uint64_t)     SSMR3HandleTellInUnit(PSSMHANDLE pSSM);
+#endif
 VMMR3DECL(int)          SSMR3Cancel(PUVM pUVM);
 
 
@@ -1259,23 +1262,37 @@ VMMR3DECL(int) SSMR3PutStrZ(PSSMHANDLE pSSM, const char *psz);
 VMMR3DECL(int) SSMR3GetStruct(PSSMHANDLE pSSM, void *pvStruct, PCSSMFIELD paFields);
 VMMR3DECL(int) SSMR3GetStructEx(PSSMHANDLE pSSM, void *pvStruct, size_t cbStruct, uint32_t fFlags, PCSSMFIELD paFields, void *pvUser);
 VMMR3DECL(int) SSMR3GetBool(PSSMHANDLE pSSM, bool *pfBool);
+VMMR3DECL(int) SSMR3GetBoolV(PSSMHANDLE pSSM, bool volatile *pfBool);
 VMMR3DECL(int) SSMR3GetU8(PSSMHANDLE pSSM, uint8_t *pu8);
+VMMR3DECL(int) SSMR3GetU8V(PSSMHANDLE pSSM, uint8_t volatile *pu8);
 VMMR3DECL(int) SSMR3GetS8(PSSMHANDLE pSSM, int8_t *pi8);
+VMMR3DECL(int) SSMR3GetS8V(PSSMHANDLE pSSM, int8_t volatile *pi8);
 VMMR3DECL(int) SSMR3GetU16(PSSMHANDLE pSSM, uint16_t *pu16);
+VMMR3DECL(int) SSMR3GetU16V(PSSMHANDLE pSSM, uint16_t volatile *pu16);
 VMMR3DECL(int) SSMR3GetS16(PSSMHANDLE pSSM, int16_t *pi16);
+VMMR3DECL(int) SSMR3GetS16V(PSSMHANDLE pSSM, int16_t volatile *pi16);
 VMMR3DECL(int) SSMR3GetU32(PSSMHANDLE pSSM, uint32_t *pu32);
+VMMR3DECL(int) SSMR3GetU32V(PSSMHANDLE pSSM, uint32_t volatile *pu32);
 VMMR3DECL(int) SSMR3GetS32(PSSMHANDLE pSSM, int32_t *pi32);
+VMMR3DECL(int) SSMR3GetS32V(PSSMHANDLE pSSM, int32_t volatile *pi32);
 VMMR3DECL(int) SSMR3GetU64(PSSMHANDLE pSSM, uint64_t *pu64);
+VMMR3DECL(int) SSMR3GetU64V(PSSMHANDLE pSSM, uint64_t volatile *pu64);
 VMMR3DECL(int) SSMR3GetS64(PSSMHANDLE pSSM, int64_t *pi64);
+VMMR3DECL(int) SSMR3GetS64V(PSSMHANDLE pSSM, int64_t volatile *pi64);
 VMMR3DECL(int) SSMR3GetU128(PSSMHANDLE pSSM, uint128_t *pu128);
+VMMR3DECL(int) SSMR3GetU128V(PSSMHANDLE pSSM, uint128_t volatile *pu128);
 VMMR3DECL(int) SSMR3GetS128(PSSMHANDLE pSSM, int128_t *pi128);
+VMMR3DECL(int) SSMR3GetS128V(PSSMHANDLE pSSM, int128_t volatile *pi128);
+VMMR3DECL(int) SSMR3GetGCPhys32(PSSMHANDLE pSSM, PRTGCPHYS32 pGCPhys);
+VMMR3DECL(int) SSMR3GetGCPhys32V(PSSMHANDLE pSSM, RTGCPHYS32 volatile *pGCPhys);
+VMMR3DECL(int) SSMR3GetGCPhys64(PSSMHANDLE pSSM, PRTGCPHYS64 pGCPhys);
+VMMR3DECL(int) SSMR3GetGCPhys64V(PSSMHANDLE pSSM, RTGCPHYS64 volatile *pGCPhys);
+VMMR3DECL(int) SSMR3GetGCPhys(PSSMHANDLE pSSM, PRTGCPHYS pGCPhys);
+VMMR3DECL(int) SSMR3GetGCPhysV(PSSMHANDLE pSSM, RTGCPHYS volatile *pGCPhys);
 VMMR3DECL(int) SSMR3GetUInt(PSSMHANDLE pSSM, PRTUINT pu);
 VMMR3DECL(int) SSMR3GetSInt(PSSMHANDLE pSSM, PRTINT pi);
 VMMR3DECL(int) SSMR3GetGCUInt(PSSMHANDLE pSSM, PRTGCUINT pu);
 VMMR3DECL(int) SSMR3GetGCUIntReg(PSSMHANDLE pSSM, PRTGCUINTREG pu);
-VMMR3DECL(int) SSMR3GetGCPhys32(PSSMHANDLE pSSM, PRTGCPHYS32 pGCPhys);
-VMMR3DECL(int) SSMR3GetGCPhys64(PSSMHANDLE pSSM, PRTGCPHYS64 pGCPhys);
-VMMR3DECL(int) SSMR3GetGCPhys(PSSMHANDLE pSSM, PRTGCPHYS pGCPhys);
 VMMR3DECL(int) SSMR3GetGCPtr(PSSMHANDLE pSSM, PRTGCPTR pGCPtr);
 VMMR3DECL(int) SSMR3GetGCUIntPtr(PSSMHANDLE pSSM, PRTGCUINTPTR pGCPtr);
 VMMR3DECL(int) SSMR3GetRCPtr(PSSMHANDLE pSSM, PRTRCPTR pRCPtr);
@@ -1290,6 +1307,17 @@ VMMR3DECL(int) SSMR3SkipToEndOfUnit(PSSMHANDLE pSSM);
 VMMR3DECL(int) SSMR3SetLoadError(PSSMHANDLE pSSM, int rc, RT_SRC_POS_DECL, const char *pszFormat, ...) RT_IPRT_FORMAT_ATTR(6, 7);
 VMMR3DECL(int) SSMR3SetLoadErrorV(PSSMHANDLE pSSM, int rc, RT_SRC_POS_DECL, const char *pszFormat, va_list va) RT_IPRT_FORMAT_ATTR(6, 0);
 VMMR3DECL(int) SSMR3SetCfgError(PSSMHANDLE pSSM, RT_SRC_POS_DECL, const char *pszFormat, ...) RT_IPRT_FORMAT_ATTR(5, 6);
+VMMR3DECL(int) SSMR3SetCfgErrorV(PSSMHANDLE pSSM, RT_SRC_POS_DECL, const char *pszFormat, va_list va) RT_IPRT_FORMAT_ATTR(5, 0);
+
+/** Wrapper around SSMR3GetU32 for simplifying getting enum values saved as uint32_t. */
+# define SSM_GET_ENUM32_RET(a_pSSM, a_enmDst, a_EnumType) \
+    do { \
+        uint32_t u32GetEnumTmp = 0; \
+        int rcGetEnum32Tmp = SSMR3GetU32((a_pSSM), &u32GetEnumTmp); \
+        AssertRCReturn(rcGetEnum32Tmp, rcGetEnum32Tmp); \
+        (a_enmDst) = (a_EnumType)u32GetEnumTmp; \
+        AssertCompile(sizeof(a_EnumType) == sizeof(u32GetEnumTmp)); \
+    } while (0)
 
 /** @} */
 

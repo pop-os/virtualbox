@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 131252 $"
 
 
 # Standard python imports.
@@ -44,7 +44,7 @@ class WebServerGlueException(Exception):
     """
     For exceptions raised by glue code.
     """
-    pass;
+    pass;                               # pylint: disable=unnecessary-pass
 
 
 class WebServerGlueBase(object):
@@ -152,7 +152,7 @@ class WebServerGlueBase(object):
         Gets the hirarchical base path (relative to server) from the request URL.
         Note! This includes both a leading an trailing slash.
         """
-        sPath = self.getUrlPath();
+        sPath = self.getUrlPath();      # virtual method # pylint: disable=assignment-from-no-return
         iLastSlash = sPath.rfind('/');
         if iLastSlash >= 0:
             sPath = sPath[:iLastSlash];

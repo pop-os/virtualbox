@@ -30,17 +30,19 @@
 #include "QILabel.h"
 #include "QIMessageBox.h"
 #include "QITabWidget.h"
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #include "UIActionPoolManager.h"
 #include "UIExtraDataManager.h"
 #include "UIMediumDetailsWidget.h"
 #include "UIMediumItem.h"
 #include "UIMediumManager.h"
+#include "UIMediumSearchWidget.h"
 #include "UIWizardCloneVD.h"
 #include "UIMessageCenter.h"
 #include "UIToolBar.h"
 #include "UIIconPool.h"
 #include "UIMedium.h"
+#include "UIVirtualBoxEventHandler.h"
 
 /* COM includes: */
 #include "COMEnums.h"
@@ -160,6 +162,7 @@ UIMediumManagerWidget::UIMediumManagerWidget(EmbedTo enmEmbedding, UIActionPool 
     , m_pDetailsWidget(0)
     , m_pToolBar(0)
     , m_pProgressBar(0)
+    , m_pSearchWidget(0)
 {
     /* Prepare: */
     prepare();
@@ -264,29 +267,12 @@ void UIMediumManagerWidget::sltApplyMediumDetailsChanges()
     UIDataMedium newData = m_pDetailsWidget->data();
 
     /* Search for corresponding medium: */
-    CMedium comMedium = vboxGlobal().medium(pMediumItem->id()).medium();
+    CMedium comMedium = uiCommon().medium(pMediumItem->id()).medium();
 
     /* Try to assign new medium type: */
     if (   comMedium.isOk()
-        && newData.m_options.m_enmType != oldData.m_options.m_enmType)
-    {
-        /* Check if we need to release medium first: */
-        bool fDo = true;
-        if (   pMediumItem->machineIds().size() > 1
-            || (   (   newData.m_options.m_enmType == KMediumType_Immutable
-                    || newData.m_options.m_enmType == KMediumType_MultiAttach)
-                && pMediumItem->machineIds().size() > 0))
-            fDo = pMediumItem->release(true);
-
-        if (fDo)
-        {
-            comMedium.SetType(newData.m_options.m_enmType);
-
-            /* Show error message if necessary: */
-            if (!comMedium.isOk())
-                msgCenter().cannotChangeMediumType(comMedium, oldData.m_options.m_enmType, newData.m_options.m_enmType, this);
-        }
-    }
+        && newData.m_options.m_enmMediumType != oldData.m_options.m_enmMediumType)
+        pMediumItem->changeMediumType(oldData.m_options.m_enmMediumType, newData.m_options.m_enmMediumType);
 
     /* Try to assign new medium location: */
     if (   comMedium.isOk()
@@ -304,7 +290,7 @@ void UIMediumManagerWidget::sltApplyMediumDetailsChanges()
         else
         {
             /* Show move storage progress: */
-            msgCenter().showModalProgressDialog(comProgress, UIMediumManager::tr("Moving medium..."),
+            msgCenter().showModalProgressDialog(comProgress, UIMediumManager::tr("Moving medium ..."),
                                                 ":/progress_media_move_90px.png", this);
 
             /* Show error message if necessary: */
@@ -327,21 +313,21 @@ void UIMediumManagerWidget::sltApplyMediumDetailsChanges()
         if (!comMedium.isOk())
             msgCenter().cannotResizeHardDiskStorage(comMedium,
                                                     oldData.m_options.m_strLocation,
-                                                    vboxGlobal().formatSize(oldData.m_options.m_uLogicalSize),
-                                                    vboxGlobal().formatSize(newData.m_options.m_uLogicalSize),
+                                                    uiCommon().formatSize(oldData.m_options.m_uLogicalSize),
+                                                    uiCommon().formatSize(newData.m_options.m_uLogicalSize),
                                                     this);
         else
         {
             /* Show resize storage progress: */
-            msgCenter().showModalProgressDialog(comProgress, UIMediumManager::tr("Resizing medium..."),
+            msgCenter().showModalProgressDialog(comProgress, UIMediumManager::tr("Resizing medium ..."),
                                                 ":/progress_media_resize_90px.png", this);
 
             /* Show error message if necessary: */
             if (!comProgress.isOk() || comProgress.GetResultCode() != 0)
                 msgCenter().cannotResizeHardDiskStorage(comProgress,
                                                         oldData.m_options.m_strLocation,
-                                                        vboxGlobal().formatSize(oldData.m_options.m_uLogicalSize),
-                                                        vboxGlobal().formatSize(newData.m_options.m_uLogicalSize),
+                                                        uiCommon().formatSize(oldData.m_options.m_uLogicalSize),
+                                                        uiCommon().formatSize(newData.m_options.m_uLogicalSize),
                                                         this);
         }
     }
@@ -369,7 +355,7 @@ void UIMediumManagerWidget::sltApplyMediumDetailsChanges()
 void UIMediumManagerWidget::sltHandleMediumCreated(const QUuid &uMediumID)
 {
     /* Search for corresponding medium: */
-    UIMedium medium = vboxGlobal().medium(uMediumID);
+    UIMedium medium = uiCommon().medium(uMediumID);
 
     /* Ignore non-interesting media: */
     if (medium.isNull() || medium.isHostDrive())
@@ -392,7 +378,7 @@ void UIMediumManagerWidget::sltHandleMediumCreated(const QUuid &uMediumID)
      * 2. if there is no currently medium-item selected
      * we have to choose newly added medium-item as current one: */
     if (   !m_fPreventChangeCurrentItem
-        && (   !vboxGlobal().isMediumEnumerationInProgress()
+        && (   !uiCommon().isMediumEnumerationInProgress()
             || !mediumItem(medium.type())))
         setCurrentItem(treeWidget(medium.type()), pMediumItem);
 }
@@ -416,7 +402,7 @@ void UIMediumManagerWidget::sltHandleMediumEnumerationStart()
     /* Reset and show progress-bar: */
     if (m_pProgressBar)
     {
-        m_pProgressBar->setMaximum(vboxGlobal().mediumIDs().size());
+        m_pProgressBar->setMaximum(uiCommon().mediumIDs().size());
         m_pProgressBar->setValue(0);
         m_pProgressBar->show();
     }
@@ -445,7 +431,7 @@ void UIMediumManagerWidget::sltHandleMediumEnumerationStart()
 void UIMediumManagerWidget::sltHandleMediumEnumerated(const QUuid &uMediumID)
 {
     /* Search for corresponding medium: */
-    UIMedium medium = vboxGlobal().medium(uMediumID);
+    UIMedium medium = uiCommon().medium(uMediumID);
 
     /* Ignore non-interesting media: */
     if (medium.isNull() || medium.isHostDrive())
@@ -483,10 +469,30 @@ void UIMediumManagerWidget::sltHandleMediumEnumerationFinish()
     refetchCurrentChosenMediumItem();
 }
 
+void UIMediumManagerWidget::sltHandleMachineStateChange(const QUuid &uId, const KMachineState state)
+{
+    UIMediumItem *pCurrentItem = currentMediumItem();
+    if (!pCurrentItem)
+        return;
+    /* If this machine is not using the current medium then we don't care about its state: */
+    if (!pCurrentItem->isMediumAttachedTo(uId))
+        return;
+    bool fMediumIsModifiable = true;
+    if (state != KMachineState_Aborted && state != KMachineState_PoweredOff)
+        fMediumIsModifiable = false;
+    m_pDetailsWidget->enableDisableMediumModificationWidgets(fMediumIsModifiable);
+}
+
 void UIMediumManagerWidget::sltAddMedium()
 {
-    QString strDefaultMachineFolder = vboxGlobal().virtualBox().GetSystemProperties().GetDefaultMachineFolder();
-    vboxGlobal().openMediumWithFileOpenDialog(currentMediumType(), this, strDefaultMachineFolder);
+    QString strDefaultMachineFolder = uiCommon().virtualBox().GetSystemProperties().GetDefaultMachineFolder();
+    uiCommon().openMediumWithFileOpenDialog(currentMediumType(), this,
+                                              strDefaultMachineFolder, true /* use most recent medium folder */);
+}
+
+void UIMediumManagerWidget::sltCreateMedium()
+{
+    uiCommon().openMediumCreatorDialog(this, currentMediumType());
 }
 
 void UIMediumManagerWidget::sltCopyMedium()
@@ -561,10 +567,19 @@ void UIMediumManagerWidget::sltToggleMediumDetailsVisibility(bool fVisible)
     emit sigMediumDetailsVisibilityChanged(fVisible);
 }
 
+void UIMediumManagerWidget::sltToggleMediumSearchVisibility(bool fVisible)
+{
+    /* Save the setting: */
+    gEDataManager->setVirtualMediaManagerSearchWidgetExpanded(fVisible);
+    /* Toggle medium details visibility: */
+    if (m_pSearchWidget)
+        m_pSearchWidget->setVisible(fVisible);
+}
+
 void UIMediumManagerWidget::sltRefreshAll()
 {
-    /* Start medium-enumeration: */
-    vboxGlobal().startMediumEnumeration();
+    /* Restart full medium-enumeration: */
+    uiCommon().enumerateMedia();
 }
 
 void UIMediumManagerWidget::sltHandleCurrentTabChanged()
@@ -587,6 +602,7 @@ void UIMediumManagerWidget::sltHandleCurrentTabChanged()
         m_pDetailsWidget->setCurrentType(currentMediumType());
     /* Re-fetch currently chosen medium-item: */
     refetchCurrentChosenMediumItem();
+    sltHandlePerformSearch();
 }
 
 void UIMediumManagerWidget::sltHandleCurrentItemChanged()
@@ -618,11 +634,14 @@ void UIMediumManagerWidget::sltHandleContextMenuRequest(const QPoint &position)
         menu.addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Move));
         menu.addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Remove));
         menu.addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Release));
+        menu.addAction(m_pActionPool->action(UIActionIndexST_M_Medium_T_Search));
         menu.addAction(m_pActionPool->action(UIActionIndexST_M_Medium_T_Details));
     }
     else
     {
         menu.addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Add));
+        menu.addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Create));
+        menu.addAction(m_pActionPool->action(UIActionIndexST_M_Medium_T_Search));
         menu.addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Refresh));
     }
     /* And show it: */
@@ -654,6 +673,11 @@ void UIMediumManagerWidget::sltPerformTablesAdjustment()
     }
 }
 
+void UIMediumManagerWidget::sltHandlePerformSearch()
+{
+    performSearch(true);
+}
+
 void UIMediumManagerWidget::prepare()
 {
     /* Prepare connections: */
@@ -669,35 +693,39 @@ void UIMediumManagerWidget::prepare()
     /* Apply language settings: */
     retranslateUi();
 
-    /* Start medium-enumeration (if necessary): */
-    if (!vboxGlobal().isMediumEnumerationInProgress())
-        vboxGlobal().startMediumEnumeration();
+    /* Start full medium-enumeration (if necessary): */
+    if (!uiCommon().isFullMediumEnumerationRequested())
+        uiCommon().enumerateMedia();
     /* Emulate medium-enumeration otherwise: */
     else
     {
-        /* Start medium-enumeration: */
+        /* Emulate medium-enumeration start: */
         sltHandleMediumEnumerationStart();
 
-        /* Finish medium-enumeration (if necessary): */
-        if (!vboxGlobal().isMediumEnumerationInProgress())
+        /* Emulate medium-enumeration finish (if necessary): */
+        if (!uiCommon().isMediumEnumerationInProgress())
             sltHandleMediumEnumerationFinish();
     }
 }
 
 void UIMediumManagerWidget::prepareConnections()
 {
+    /* Listen to vm state changed event so that we can disable/enable widgets related to the current medium if neds be: */
+    connect(gVBoxEvents, &UIVirtualBoxEventHandler::sigMachineStateChange,
+            this, &UIMediumManagerWidget::sltHandleMachineStateChange);
+
     /* Configure medium-processing connections: */
-    connect(&vboxGlobal(), &VBoxGlobal::sigMediumCreated,
+    connect(&uiCommon(), &UICommon::sigMediumCreated,
             this, &UIMediumManagerWidget::sltHandleMediumCreated);
-    connect(&vboxGlobal(), &VBoxGlobal::sigMediumDeleted,
+    connect(&uiCommon(), &UICommon::sigMediumDeleted,
             this, &UIMediumManagerWidget::sltHandleMediumDeleted);
 
     /* Configure medium-enumeration connections: */
-    connect(&vboxGlobal(), &VBoxGlobal::sigMediumEnumerationStarted,
+    connect(&uiCommon(), &UICommon::sigMediumEnumerationStarted,
             this, &UIMediumManagerWidget::sltHandleMediumEnumerationStart);
-    connect(&vboxGlobal(), &VBoxGlobal::sigMediumEnumerated,
+    connect(&uiCommon(), &UICommon::sigMediumEnumerated,
             this, &UIMediumManagerWidget::sltHandleMediumEnumerated);
-    connect(&vboxGlobal(), &VBoxGlobal::sigMediumEnumerationFinished,
+    connect(&uiCommon(), &UICommon::sigMediumEnumerationFinished,
             this, &UIMediumManagerWidget::sltHandleMediumEnumerationFinish);
 }
 
@@ -705,16 +733,20 @@ void UIMediumManagerWidget::prepareActions()
 {
     /* First of all, add actions which has smaller shortcut scope: */
     addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Add));
+    addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Create));
     addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Copy));
     addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Move));
     addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Remove));
     addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Release));
+    addAction(m_pActionPool->action(UIActionIndexST_M_Medium_T_Search));
     addAction(m_pActionPool->action(UIActionIndexST_M_Medium_T_Details));
     addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Refresh));
 
     /* Connect actions: */
     connect(m_pActionPool->action(UIActionIndexST_M_Medium_S_Add), &QAction::triggered,
             this, &UIMediumManagerWidget::sltAddMedium);
+    connect(m_pActionPool->action(UIActionIndexST_M_Medium_S_Create), &QAction::triggered,
+            this, &UIMediumManagerWidget::sltCreateMedium);
     connect(m_pActionPool->action(UIActionIndexST_M_Medium_S_Copy), &QAction::triggered,
             this, &UIMediumManagerWidget::sltCopyMedium);
     connect(m_pActionPool->action(UIActionIndexST_M_Medium_S_Move), &QAction::triggered,
@@ -725,6 +757,8 @@ void UIMediumManagerWidget::prepareActions()
             this, &UIMediumManagerWidget::sltReleaseMedium);
     connect(m_pActionPool->action(UIActionIndexST_M_Medium_T_Details), &QAction::toggled,
             this, &UIMediumManagerWidget::sltToggleMediumDetailsVisibility);
+    connect(m_pActionPool->action(UIActionIndexST_M_Medium_T_Search), &QAction::toggled,
+            this, &UIMediumManagerWidget::sltToggleMediumSearchVisibility);
     connect(m_pActionPool->action(UIActionIndexST_M_Medium_S_Refresh), &QAction::triggered,
             this, &UIMediumManagerWidget::sltRefreshAll);
 
@@ -751,6 +785,8 @@ void UIMediumManagerWidget::prepareWidgets()
             prepareToolBar();
         /* Prepare tab-widget: */
         prepareTabWidget();
+        /* Prepare search-widget: */
+        prepareSearchWidget();
         /* Prepare details-widget: */
         prepareDetailsWidget();
     }
@@ -769,11 +805,13 @@ void UIMediumManagerWidget::prepareToolBar()
 
         /* Add toolbar actions: */
         m_pToolBar->addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Add));
+        m_pToolBar->addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Create));
         m_pToolBar->addSeparator();
         m_pToolBar->addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Copy));
         m_pToolBar->addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Move));
         m_pToolBar->addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Remove));
         m_pToolBar->addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Release));
+        m_pToolBar->addAction(m_pActionPool->action(UIActionIndexST_M_Medium_T_Search));
         m_pToolBar->addAction(m_pActionPool->action(UIActionIndexST_M_Medium_T_Details));
         m_pToolBar->addSeparator();
         m_pToolBar->addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Refresh));
@@ -900,11 +938,31 @@ void UIMediumManagerWidget::prepareDetailsWidget()
     }
 }
 
+void UIMediumManagerWidget::prepareSearchWidget()
+{
+    m_pSearchWidget = new UIMediumSearchWidget(this);
+    AssertPtrReturnVoid(m_pSearchWidget);
+    {
+        m_pSearchWidget->setVisible(false);
+        m_pSearchWidget->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Fixed);
+        connect(m_pSearchWidget, &UIMediumSearchWidget::sigPerformSearch,
+                this, &UIMediumManagerWidget::sltHandlePerformSearch);
+
+        /* Add into layout: */
+        layout()->addWidget(m_pSearchWidget);
+    }
+
+}
+
 void UIMediumManagerWidget::loadSettings()
 {
     /* Details action/widget: */
     m_pActionPool->action(UIActionIndexST_M_Medium_T_Details)->setChecked(gEDataManager->virtualMediaManagerDetailsExpanded());
     sltToggleMediumDetailsVisibility(m_pActionPool->action(UIActionIndexST_M_Medium_T_Details)->isChecked());
+
+    /* Search action/widget: */
+    m_pActionPool->action(UIActionIndexST_M_Medium_T_Search)->setChecked(gEDataManager->virtualMediaManagerSearchWidgetExpanded());
+    sltToggleMediumSearchVisibility(m_pActionPool->action(UIActionIndexST_M_Medium_T_Search)->isChecked());
 }
 
 void UIMediumManagerWidget::repopulateTreeWidgets()
@@ -939,7 +997,7 @@ void UIMediumManagerWidget::repopulateTreeWidgets()
 
     /* Create medium-items (do not change current one): */
     m_fPreventChangeCurrentItem = true;
-    foreach (const QUuid &uMediumID, vboxGlobal().mediumIDs())
+    foreach (const QUuid &uMediumID, uiCommon().mediumIDs())
         sltHandleMediumCreated(uMediumID);
     m_fPreventChangeCurrentItem = false;
 
@@ -953,6 +1011,8 @@ void UIMediumManagerWidget::repopulateTreeWidgets()
     if (pTreeWidgetFD && !mediumItem(UIMediumDeviceType_Floppy))
         if (QTreeWidgetItem *pItem = pTreeWidgetFD->topLevelItem(0))
             setCurrentItem(pTreeWidgetFD, pItem);
+
+    sltHandlePerformSearch();
 }
 
 void UIMediumManagerWidget::refetchCurrentMediumItem(UIMediumDeviceType type)
@@ -975,7 +1035,11 @@ void UIMediumManagerWidget::refetchCurrentMediumItem(UIMediumDeviceType type)
 
     /* Update details-widget: */
     if (m_pDetailsWidget)
+    {
         m_pDetailsWidget->setData(pMediumItem ? *pMediumItem : UIDataMedium(type));
+        if (pMediumItem && currentMediumItem())
+            m_pDetailsWidget->enableDisableMediumModificationWidgets(currentMediumItem()->isMediumModifiable());
+    }
 }
 
 void UIMediumManagerWidget::refetchCurrentChosenMediumItem()
@@ -996,7 +1060,7 @@ void UIMediumManagerWidget::updateActions()
     UIMediumItem *pMediumItem = currentMediumItem();
 
     /* Calculate actions accessibility: */
-    bool fNotInEnumeration = !vboxGlobal().isMediumEnumerationInProgress();
+    bool fNotInEnumeration = !uiCommon().isMediumEnumerationInProgress();
 
     /* Apply actions accessibility: */
     bool fActionEnabledCopy = fNotInEnumeration && pMediumItem && checkMediumFor(pMediumItem, Action_Copy);
@@ -1017,6 +1081,7 @@ void UIMediumManagerWidget::updateActionIcons()
     if (enmCurrentMediumType != UIMediumDeviceType_Invalid)
     {
         m_pActionPool->action(UIActionIndexST_M_Medium_S_Add)->setState((int)enmCurrentMediumType);
+        m_pActionPool->action(UIActionIndexST_M_Medium_S_Create)->setState((int)enmCurrentMediumType);
         m_pActionPool->action(UIActionIndexST_M_Medium_S_Copy)->setState((int)enmCurrentMediumType);
         m_pActionPool->action(UIActionIndexST_M_Medium_S_Move)->setState((int)enmCurrentMediumType);
         m_pActionPool->action(UIActionIndexST_M_Medium_S_Remove)->setState((int)enmCurrentMediumType);
@@ -1064,7 +1129,7 @@ void UIMediumManagerWidget::updateTabIcons(UIMediumItem *pMediumItem, Action act
             *pfInaccessible = true;
 
             if (m_pTabWidget)
-                m_pTabWidget->setTabIcon(tabIndex(mediumType), vboxGlobal().warningIcon());
+                m_pTabWidget->setTabIcon(tabIndex(mediumType), uiCommon().warningIcon());
 
             break;
         }
@@ -1101,7 +1166,7 @@ void UIMediumManagerWidget::updateTabIcons(UIMediumItem *pMediumItem, Action act
             if (m_pTabWidget)
             {
                 if (*pfInaccessible)
-                    m_pTabWidget->setTabIcon(tabIndex(mediumType), vboxGlobal().warningIcon());
+                    m_pTabWidget->setTabIcon(tabIndex(mediumType), uiCommon().warningIcon());
                 else
                     m_pTabWidget->setTabIcon(tabIndex(mediumType), *pIcon);
             }
@@ -1195,6 +1260,9 @@ UIMediumItem* UIMediumManagerWidget::createMediumItem(const UIMedium &medium)
     /* Update tab-icons: */
     updateTabIcons(pMediumItem, Action_Add);
 
+    /* Reperform the medium search (don't jump to the found element): */
+    performSearch(false);
+
     /* Re-fetch medium-item if it is current one created: */
     if (pMediumItem == mediumItem(type))
         refetchCurrentMediumItem(type);
@@ -1227,7 +1295,7 @@ UIMediumItem* UIMediumManagerWidget::createHardDiskItem(const UIMedium &medium)
                 if (!pParentMediumItem)
                 {
                     /* Make sure corresponding parent medium is already cached! */
-                    UIMedium parentMedium = vboxGlobal().medium(medium.parentID());
+                    UIMedium parentMedium = uiCommon().medium(medium.parentID());
                     if (parentMedium.isNull())
                         AssertMsgFailed(("Parent medium with ID={%s} was not found!\n", medium.parentID().toString().toUtf8().constData()));
                     /* Try to create parent medium-item: */
@@ -1283,6 +1351,15 @@ void UIMediumManagerWidget::updateMediumItem(const UIMedium &medium)
     /* Re-fetch medium-item if it is current one updated: */
     if (pMediumItem == mediumItem(type))
         refetchCurrentMediumItem(type);
+
+    /* Update all the children recursively as well: */
+    foreach(const QUuid &uMediumId, uiCommon().mediumIDs())
+    {
+        UIMedium guiMedium = uiCommon().medium(uMediumId);
+        if (   !guiMedium.isNull()
+            && guiMedium.parentID() == medium.id())
+            updateMediumItem(guiMedium);
+    }
 }
 
 void UIMediumManagerWidget::deleteMediumItem(const QUuid &uMediumID)
@@ -1312,6 +1389,9 @@ void UIMediumManagerWidget::deleteMediumItem(const QUuid &uMediumID)
     /* Delete medium-item: */
     delete pMediumItem;
     LogRel2(("UIMediumManager: Medium-item with ID={%s} deleted.\n", uMediumID.toString().toUtf8().constData()));
+
+    /* Reperform the medium search (don't jump to the found element): */
+    performSearch(false);
 
     /* If there is no current medium-item now selected
      * we have to choose first-available medium-item as current one: */
@@ -1408,6 +1488,17 @@ void UIMediumManagerWidget::setCurrentItem(QITreeWidget *pTreeWidget, QTreeWidge
     refetchCurrentChosenMediumItem();
 }
 
+void UIMediumManagerWidget::performSearch(bool fSelectNext)
+{
+    if (!m_pSearchWidget || !m_pTabWidget)
+        return;
+
+    QITreeWidget *pTreeWidget = treeWidget(static_cast<UIMediumDeviceType>(m_pTabWidget->currentIndex()));
+    if (!pTreeWidget)
+        return;
+    m_pSearchWidget->search(pTreeWidget, fSelectNext);
+}
+
 /* static */
 int UIMediumManagerWidget::tabIndex(UIMediumDeviceType type)
 {
@@ -1484,8 +1575,7 @@ bool UIMediumManagerWidget::checkMediumFor(UIMediumItem *pItem, Action action)
         }
         case Action_Copy:
         {
-            /* False for children: */
-            return pItem->medium().parentID() == UIMedium::nullID();
+            return true;
         }
         case Action_Remove:
         {
@@ -1529,7 +1619,7 @@ void UIMediumManagerFactory::create(QIManagerDialog *&pDialog, QWidget *pCenterW
 
 
 /*********************************************************************************************************************************
-*   Class UIMediumManagerFactory implementation.                                                                                 *
+*   Class UIMediumManager implementation.                                                                                        *
 *********************************************************************************************************************************/
 
 UIMediumManager::UIMediumManager(QWidget *pCenterWidget, UIActionPool *pActionPool)

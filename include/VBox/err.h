@@ -97,6 +97,8 @@
 #define VERR_INCONSISTENT_VM_HANDLE         (-1024)
 /** The VM has been restored. */
 #define VERR_VM_RESTORED                    (-1025)
+/** The requested feature is not supported by NEM. */
+#define VERR_NOT_SUP_BY_NEM                 (-1026)
 /** @} */
 
 
@@ -1161,6 +1163,24 @@
 #define VERR_IOM_HM_IPE                     (-2637)
 /** Internal processing error while merging status codes. */
 #define VERR_IOM_FF_STATUS_IPE              (-2638)
+
+/** Too many I/O port registrations. */
+#define VERR_IOM_TOO_MANY_IOPORT_REGISTRATIONS  (-2650)
+/** Invalid I/O port handle. */
+#define VERR_IOM_INVALID_IOPORT_HANDLE          (-2651)
+/** I/O ports are already mapped. */
+#define VERR_IOM_IOPORTS_ALREADY_MAPPED         (-2652)
+/** I/O ports are not mapped. */
+#define VERR_IOM_IOPORTS_NOT_MAPPED             (-2653)
+
+/** Too many MMIO registrations. */
+#define VERR_IOM_TOO_MANY_MMIO_REGISTRATIONS    (-2660)
+/** Invalid MMIO handle. */
+#define VERR_IOM_INVALID_MMIO_HANDLE            (-2661)
+/** MMIO region is already mapped. */
+#define VERR_IOM_MMIO_REGION_ALREADY_MAPPED     (-2662)
+/** MMIO region is not mapped. */
+#define VERR_IOM_MMIO_REGION_NOT_MAPPED         (-2663)
 /** @} */
 
 
@@ -1420,7 +1440,7 @@
  * If you have upgraded VirtualBox recently, please make sure you have
  * terminated all VMs and upgraded any extension packs.  If this error
  * persists, try re-installing VirtualBox. */
-#define VERR_PDM_DEVHLPR3_VERSION_MISMATCH          (-2871)
+#define VERR_PDM_DEVHLP_VERSION_MISMATCH            (-2871)
 /** The USB device instance structure version has changed.
  *
  * If you have upgraded VirtualBox recently, please make sure you have
@@ -1507,6 +1527,9 @@
 #define VINF_PDM_MEDIAEX_IOREQ_IN_PROGRESS          2898
 /** The I/O request is in an invalid state for this operation. */
 #define VERR_PDM_MEDIAEX_IOREQ_INVALID_STATE        (-2899)
+
+/** Returned by PCI config space callbacks to indicate taking default action. */
+#define VINF_PDM_PCI_DO_DEFAULT                     (7200)
 /** @} */
 
 
@@ -1536,8 +1559,6 @@
 /** @name Network Address Translation Driver (DrvNAT) Status Codes
  * @{
  */
-/** Failed to find the DNS configured for this machine. */
-#define VINF_NAT_DNS                                3000
 /** Failed to convert the specified Guest IP to a binary IP address.
  * Malformed input. */
 #define VERR_NAT_REDIR_GUEST_IP                     (-3001)
@@ -2345,7 +2366,7 @@
 /** @} */
 
 
-/** @name PCI Passtrhough Status Codes
+/** @name PCI Bus & Passthrough Status Codes
  * @{
  */
 /** RamPreAlloc not set.
@@ -2357,6 +2378,10 @@
 /** Nested paging not active.
  * PCI passthrough currently works only if nested paging is active. */
 #define VERR_PCI_PASSTHROUGH_NO_NESTED_PAGING       (-5102)
+
+/** Special return code from a PCI I/O region mapping handler that tells the BUS
+ * that it has done the mapping already. */
+#define VINF_PCI_MAPPING_DONE                       5150
 /** @} */
 
 
@@ -2913,6 +2938,23 @@
  *  This e.g. can happen when submitting more video frames than
  *  the current FPS setting allows. */
 #define VERR_RECORDING_THROTTLED                    (-6907)
+/** @} */
+
+/** @name Shared Clipboard Status Codes
+ * @{
+ */
+/** Maximum of concurrent clipboard transfers has been reached. */
+#define VERR_SHCLPB_MAX_TRANSFERS_REACHED           (-7100)
+/** Maximum number of Shared Clipboard objects has been reached. */
+#define VERR_SHCLPB_MAX_OBJECTS_REACHED             (-7101)
+/** Maximum number of Shared Clipboard lists has been reached. */
+#define VERR_SHCLPB_MAX_LISTS_REACHED               (-7102)
+/** A Shared Clipboard list handle is invalid. */
+#define VERR_SHCLPB_LIST_HANDLE_INVALID             (-7103)
+/** A Shared Clipboard objects handle is invalid. */
+#define VERR_SHCLPB_OBJ_HANDLE_INVALID              (-7104)
+/** A Shared Clipboard transfer ID is invalid. */
+#define VERR_SHCLPB_TRANSFER_ID_NOT_FOUND           (-7105)
 /** @} */
 /* SED-END */
 

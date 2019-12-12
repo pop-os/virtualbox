@@ -133,10 +133,6 @@ typedef SOLARISDVD *PSOLARISDVD;
 # include "darwin/iokit.h"
 #endif
 
-#ifdef VBOX_WITH_CROGL
-#include <VBox/VBoxOGL.h>
-#endif /* VBOX_WITH_CROGL */
-
 #include <iprt/asm-amd64-x86.h>
 #include <iprt/string.h>
 #include <iprt/mp.h>
@@ -350,7 +346,8 @@ HRESULT Host::init(VirtualBox *aParent)
                 }
             }
             /* AMD-V */
-            else if (ASMIsAmdCpuEx(uVendorEBX, uVendorECX, uVendorEDX))
+            else if (   ASMIsAmdCpuEx(uVendorEBX, uVendorECX, uVendorEDX)
+                     || ASMIsHygonCpuEx(uVendorEBX, uVendorECX, uVendorEDX))
             {
                 if (   (fExtFeaturesEcx & X86_CPUID_AMD_FEATURE_ECX_SVM)
                     && (fFeaturesEdx    & X86_CPUID_FEATURE_EDX_MSR)
@@ -377,40 +374,8 @@ HRESULT Host::init(VirtualBox *aParent)
     /* Check with SUPDrv if VT-x and AMD-V are really supported (may fail). */
     if (m->fVTSupported)
     {
-        int rc = SUPR3InitEx(false /*fUnrestricted*/, NULL);
-        if (RT_SUCCESS(rc))
-        {
-            uint32_t fVTCaps;
-            rc = SUPR3QueryVTCaps(&fVTCaps);
-            if (RT_SUCCESS(rc))
-            {
-                Assert(fVTCaps & (SUPVTCAPS_AMD_V | SUPVTCAPS_VT_X));
-                if (fVTCaps & SUPVTCAPS_NESTED_PAGING)
-                    m->fNestedPagingSupported = true;
-                else
-                    Assert(m->fNestedPagingSupported == false);
-                if (   (fVTCaps & SUPVTCAPS_AMD_V)
-                    || (fVTCaps & SUPVTCAPS_VTX_UNRESTRICTED_GUEST))
-                    m->fUnrestrictedGuestSupported = true;
-                else
-                    Assert(m->fUnrestrictedGuestSupported == false);
-                /** @todo r=klaus put accurate condition here and update it as
-                 * the feature becomes available with VT-x. */
-                if (   (fVTCaps & SUPVTCAPS_AMD_V)
-                    && m->fNestedPagingSupported)
-                    m->fNestedHWVirtSupported = true;
-            }
-            else
-            {
-                LogRel(("SUPR0QueryVTCaps -> %Rrc\n", rc));
-                m->fVTSupported = m->fNestedPagingSupported = m->fUnrestrictedGuestSupported
-                    = m->fNestedHWVirtSupported = false;
-            }
-            rc = SUPR3Term(false);
-            AssertRC(rc);
-        }
-        else
-            m->fRecheckVTSupported = true; /* Try again later when the driver is loaded. */
+        m->fRecheckVTSupported = true; /* Try again later when the driver is loaded; cleared by i_updateProcessorFeatures on success. */
+        i_updateProcessorFeatures();
     }
 
     /* Check for NEM in root paritition (hyper-V / windows). */
@@ -420,7 +385,7 @@ HRESULT Host::init(VirtualBox *aParent)
         m->fRecheckVTSupported = false;
     }
 
-#ifdef VBOX_WITH_CROGL
+#ifdef VBOX_WITH_3D_ACCELERATION
     /* Test for 3D hardware acceleration support later when (if ever) need. */
     m->f3DAccelerationSupported = -1;
 #else
@@ -1009,10 +974,7 @@ HRESULT Host::getUSBDevices(std::vector<ComPtr<IHostUSBDevice> > &aUSBDevices)
     /* Note: The GUI depends on this method returning E_NOTIMPL with no
      * extended error info to indicate that USB is simply not available
      * (w/o treating it as a failure), for example, as in OSE. */
-    NOREF(aUSBDevices);
-# ifndef RT_OS_WINDOWS
-    NOREF(aUSBDevices);
-# endif
+    RT_NOREF(aUSBDevices);
     ReturnComNotImplemented();
 #endif
 }
@@ -1066,10 +1028,7 @@ HRESULT Host::getUSBDeviceFilters(std::vector<ComPtr<IHostUSBDeviceFilter> > &aU
     /* Note: The GUI depends on this method returning E_NOTIMPL with no
      * extended error info to indicate that USB is simply not available
      * (w/o treating it as a failure), for example, as in OSE. */
-    NOREF(aUSBDeviceFilters);
-# ifndef RT_OS_WINDOWS
-    NOREF(aUSBDeviceFilters);
-# endif
+    RT_NOREF(aUSBDeviceFilters);
     ReturnComNotImplemented();
 #endif
 }
@@ -1172,6 +1131,44 @@ HRESULT Host::getProcessorDescription(ULONG aCpuId, com::Utf8Str &aDescription)
 }
 
 /**
+ * Updates fVTSupported, fNestedPagingSupported, fUnrestrictedGuestSupported and
+ * fNestedHWVirtSupported with info from SUPR3QueryVTCaps().
+ *
+ * This is repeated till we successfully open the support driver, in case it
+ * is loaded after VBoxSVC starts.
+ */
+void Host::i_updateProcessorFeatures()
+{
+    /* Perhaps the driver is available now... */
+    int rc = SUPR3InitEx(false /*fUnrestricted*/, NULL);
+    if (RT_SUCCESS(rc))
+    {
+        uint32_t fVTCaps;
+        rc = SUPR3QueryVTCaps(&fVTCaps);
+        AssertRC(rc);
+
+        SUPR3Term(false);
+
+        AutoWriteLock wlock(this COMMA_LOCKVAL_SRC_POS);
+        if (RT_FAILURE(rc))
+        {
+            LogRel(("SUPR0QueryVTCaps -> %Rrc\n", rc));
+            fVTCaps = 0;
+        }
+        m->fVTSupported                = (fVTCaps & (SUPVTCAPS_AMD_V | SUPVTCAPS_VT_X)) != 0;
+        m->fNestedPagingSupported      = (fVTCaps & SUPVTCAPS_NESTED_PAGING) != 0;
+        m->fUnrestrictedGuestSupported = (fVTCaps & (SUPVTCAPS_AMD_V | SUPVTCAPS_VTX_UNRESTRICTED_GUEST)) != 0;
+        m->fNestedHWVirtSupported      =     (fVTCaps & (SUPVTCAPS_AMD_V | SUPVTCAPS_NESTED_PAGING))
+                                          ==            (SUPVTCAPS_AMD_V | SUPVTCAPS_NESTED_PAGING)
+                                      ||     (fVTCaps & (  SUPVTCAPS_VT_X | SUPVTCAPS_NESTED_PAGING
+                                                         | SUPVTCAPS_VTX_UNRESTRICTED_GUEST | SUPVTCAPS_VTX_VMCS_SHADOWING))
+                                          ==            (  SUPVTCAPS_VT_X | SUPVTCAPS_NESTED_PAGING
+                                                         | SUPVTCAPS_VTX_UNRESTRICTED_GUEST | SUPVTCAPS_VTX_VMCS_SHADOWING);
+        m->fRecheckVTSupported = false; /* No need to try again, we cached everything. */
+    }
+}
+
+/**
  * Returns whether a host processor feature is supported or not
  *
  * @returns COM status code
@@ -1209,44 +1206,7 @@ HRESULT Host::getProcessorFeature(ProcessorFeature_T aFeature, BOOL *aSupported)
            )
         {
             alock.release();
-
-            /* Perhaps the driver is available now... */
-            int rc = SUPR3InitEx(false /*fUnrestricted*/, NULL);
-            if (RT_SUCCESS(rc))
-            {
-                uint32_t fVTCaps;
-                rc = SUPR3QueryVTCaps(&fVTCaps);
-
-                AutoWriteLock wlock(this COMMA_LOCKVAL_SRC_POS);
-                if (RT_SUCCESS(rc))
-                {
-                    Assert(fVTCaps & (SUPVTCAPS_AMD_V | SUPVTCAPS_VT_X));
-                    if (fVTCaps & SUPVTCAPS_NESTED_PAGING)
-                        m->fNestedPagingSupported = true;
-                    else
-                        Assert(m->fNestedPagingSupported == false);
-                    if (   (fVTCaps & SUPVTCAPS_AMD_V)
-                        || (fVTCaps & SUPVTCAPS_VTX_UNRESTRICTED_GUEST))
-                        m->fUnrestrictedGuestSupported = true;
-                    else
-                        Assert(m->fUnrestrictedGuestSupported == false);
-                    /** @todo r=klaus put accurate condition here and update it as
-                     * the feature becomes available with VT-x. */
-                    if (   (fVTCaps & SUPVTCAPS_AMD_V)
-                        && m->fNestedPagingSupported)
-                        m->fNestedHWVirtSupported = true;
-                }
-                else
-                {
-                    LogRel(("SUPR0QueryVTCaps -> %Rrc\n", rc));
-                    m->fVTSupported = m->fNestedPagingSupported = m->fUnrestrictedGuestSupported
-                        = m->fNestedHWVirtSupported = false;
-                }
-                rc = SUPR3Term(false);
-                AssertRC(rc);
-                m->fRecheckVTSupported = false; /* No need to try again, we cached everything. */
-            }
-
+            i_updateProcessorFeatures();
             alock.acquire();
         }
 
@@ -1433,7 +1393,7 @@ HRESULT Host::getAcceleration3DAvailable(BOOL *aSupported)
     {
         alock.release();
 
-#ifdef VBOX_WITH_CROGL
+#ifdef VBOX_WITH_3D_ACCELERATION
         bool fSupported = VBoxOglIs3DAccelerationSupported();
 #else
         bool fSupported = false; /* shoudn't get here, but just in case. */
@@ -1538,7 +1498,7 @@ HRESULT Host::removeHostOnlyNetworkInterface(const com::Guid &aId,
         ComAssertComRCRet(rc, rc);
     }
 
-    int r = NetIfRemoveHostOnlyNetworkInterface(m->pParent, Guid(aId).ref(), aProgress.asOutParam());
+    int r = NetIfRemoveHostOnlyNetworkInterface(m->pParent, aId, aProgress.asOutParam());
     if (RT_SUCCESS(r))
     {
         /* Drop configuration parameters for removed interface */
@@ -1580,8 +1540,7 @@ HRESULT Host::createUSBDeviceFilter(const com::Utf8Str &aName,
     /* Note: The GUI depends on this method returning E_NOTIMPL with no
      * extended error info to indicate that USB is simply not available
      * (w/o treating it as a failure), for example, as in OSE. */
-    NOREF(aName);
-    NOREF(aFilter);
+    RT_NOREF(aName, aFilter);
     ReturnComNotImplemented();
 #endif
 }
@@ -1641,8 +1600,7 @@ HRESULT Host::insertUSBDeviceFilter(ULONG aPosition,
     /* Note: The GUI depends on this method returning E_NOTIMPL with no
      * extended error info to indicate that USB is simply not available
      * (w/o treating it as a failure), for example, as in OSE. */
-    NOREF(aPosition);
-    NOREF(aFilter);
+    RT_NOREF(aPosition, aFilter);
     ReturnComNotImplemented();
 #endif
 }
@@ -1695,7 +1653,7 @@ HRESULT Host::removeUSBDeviceFilter(ULONG aPosition)
     /* Note: The GUI depends on this method returning E_NOTIMPL with no
      * extended error info to indicate that USB is simply not available
      * (w/o treating it as a failure), for example, as in OSE. */
-    NOREF(aPosition);
+    RT_NOREF(aPosition);
     ReturnComNotImplemented();
 #endif
 }
@@ -1884,8 +1842,7 @@ HRESULT Host::findUSBDeviceByAddress(const com::Utf8Str &aName,
                          aName.c_str());
 
 #else   /* !VBOX_WITH_USB */
-    NOREF(aName);
-    NOREF(aDevice);
+    RT_NOREF(aName, aDevice);
     return E_NOTIMPL;
 #endif  /* !VBOX_WITH_USB */
 }
@@ -1919,8 +1876,7 @@ HRESULT Host::findUSBDeviceById(const com::Guid &aId,
                          aId.raw());
 
 #else   /* !VBOX_WITH_USB */
-    NOREF(aId);
-    NOREF(aDevice);
+    RT_NOREF(aId, aDevice);
     return E_NOTIMPL;
 #endif  /* !VBOX_WITH_USB */
 }
@@ -1962,6 +1918,7 @@ HRESULT Host::addUSBDeviceSource(const com::Utf8Str &aBackend, const com::Utf8St
     /* The USB proxy service will do the locking. */
     return m->pUSBProxyService->addUSBDeviceSource(aBackend, aId, aAddress, aPropertyNames, aPropertyValues);
 #else
+    RT_NOREF(aBackend, aId, aAddress, aPropertyNames, aPropertyValues);
     ReturnComNotImplemented();
 #endif
 }
@@ -1972,9 +1929,18 @@ HRESULT Host::removeUSBDeviceSource(const com::Utf8Str &aId)
     /* The USB proxy service will do the locking. */
     return m->pUSBProxyService->removeUSBDeviceSource(aId);
 #else
+    RT_NOREF(aId);
     ReturnComNotImplemented();
 #endif
 }
+
+
+HRESULT Host::getUpdate(ComPtr<IHostUpdate> &aUpdate)
+{
+    RT_NOREF(aUpdate);
+    ReturnComNotImplemented();
+}
+
 
 // public methods only for internal purposes
 ////////////////////////////////////////////////////////////////////////////////
@@ -2013,7 +1979,7 @@ HRESULT Host::i_loadSettings(const settings::Host &data)
 
     rc = m->pUSBProxyService->i_loadSettings(data.llUSBDeviceSources);
 #else
-    NOREF(data);
+    RT_NOREF(data);
 #endif /* VBOX_WITH_USB */
     return rc;
 }
@@ -2042,7 +2008,7 @@ HRESULT Host::i_saveSettings(settings::Host &data)
 
     return m->pUSBProxyService->i_saveSettings(data.llUSBDeviceSources);
 #else
-    NOREF(data);
+    RT_NOREF(data);
     return S_OK;
 #endif /* VBOX_WITH_USB */
 
@@ -2425,7 +2391,7 @@ HRESULT Host::i_buildFloppyDrivesList(MediaList &list)
                     list.push_back(hostFloppyDriveObj);
             }
 #else
-    NOREF(list);
+    RT_NOREF(list);
     /* PORTME */
 #endif
     }

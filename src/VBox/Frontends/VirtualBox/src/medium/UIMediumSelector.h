@@ -50,16 +50,31 @@ signals:
 
 public:
 
-    UIMediumSelector(UIMediumDeviceType enmMediumType, const QString &machineName = QString(),
-                     const QString &machineSettigFilePath = QString(), QWidget *pParent = 0);
+    UIMediumSelector(UIMediumDeviceType enmMediumType, const QString &machineName,
+                     const QString &machineSettingsFilePath, const QString &strMachineGuestOSTypeId,
+                     const QUuid &uMachineID, QWidget *pParent);
+    /** Disables/enables the create action and controls its visibility. */
+    void         setEnableCreateAction(bool fEnable);
     QList<QUuid> selectedMediumIds() const;
+
+    enum ReturnCode
+    {
+        ReturnCode_Rejected = 0,
+        ReturnCode_Accepted,
+        ReturnCode_LeftEmpty,
+        ReturnCode_Max
+    };
 
 protected:
 
     void showEvent(QShowEvent *pEvent);
 
+
 private slots:
 
+    void sltButtonLeaveEmpty();
+    void sltButtonCancel();
+    void sltButtonChoose();
     void sltAddMedium();
     void sltCreateMedium();
     void sltHandleItemSelectionChanged();
@@ -88,6 +103,7 @@ private slots:
             void configure();
             void prepareWidgets();
             void prepareActions();
+            void prepareMenuAndToolBar();
             void prepareConnections();
         /** Perform final preparations. */
         void finalize();
@@ -95,7 +111,7 @@ private slots:
 
     void          repopulateTreeWidget();
     /** Disable/enable 'ok' button on the basis of having a selected item */
-    void          updateOkButton();
+    void          updateChooseButton();
     UIMediumItem* addTreeItem(const UIMedium &medium, QITreeWidgetItem *pParent);
     void          restoreSelection(const QList<QUuid> &selectedMediums, QVector<UIMediumItem*> &mediumList);
     /** Recursively create the hard disk hierarchy under the tree widget */
@@ -105,11 +121,15 @@ private slots:
     void          saveDefaultForeground();
     void          selectMedium(const QUuid &uMediumID);
     void          scrollToItem(UIMediumItem* pItem);
+    void          setTitle();
     QWidget              *m_pCentralWidget;
     QVBoxLayout          *m_pMainLayout;
     QITreeWidget         *m_pTreeWidget;
     UIMediumDeviceType    m_enmMediumType;
     QIDialogButtonBox    *m_pButtonBox;
+    QPushButton          *m_pCancelButton;
+    QPushButton          *m_pChooseButton;
+    QPushButton          *m_pLeaveEmptyButton;
     QMenu                *m_pMainMenu;
     UIToolBar            *m_pToolBar;
     QAction              *m_pActionAdd;
@@ -128,8 +148,10 @@ private slots:
     /** Index of the currently shown (scrolled) item in the m_mathingItemList. */
     int                   m_iCurrentShownIndex;
     QBrush                m_defaultItemForeground;
-    QString               m_strMachineSettingsFilePath;
+    QString               m_strMachineFolder;
     QString               m_strMachineName;
+    QString               m_strMachineGuestOSTypeId;
+    QUuid                 m_uMachineID;
 };
 
 #endif /* !FEQT_INCLUDED_SRC_medium_UIMediumSelector_h */

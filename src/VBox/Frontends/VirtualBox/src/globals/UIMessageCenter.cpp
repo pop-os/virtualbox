@@ -27,7 +27,7 @@
 
 /* GUI includes: */
 #include "QIMessageBox.h"
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #include "UIConverter.h"
 #include "UIMessageCenter.h"
 #include "UIProgressDialog.h"
@@ -52,17 +52,24 @@
 #endif
 
 /* COM includes: */
+#include "CAudioAdapter.h"
+#include "CBooleanFormValue.h"
+#include "CChoiceFormValue.h"
 #include "CCloudClient.h"
 #include "CCloudProfile.h"
 #include "CCloudProvider.h"
 #include "CCloudProviderManager.h"
-#include "CNATNetwork.h"
 #include "CDHCPServer.h"
+#include "CGraphicsAdapter.h"
 #include "CNATEngine.h"
+#include "CNATNetwork.h"
+#include "CNetworkAdapter.h"
+#include "CRangedIntegerFormValue.h"
 #include "CSerialPort.h"
 #include "CSharedFolder.h"
 #include "CSnapshot.h"
 #include "CStorageController.h"
+#include "CStringFormValue.h"
 #include "CConsole.h"
 #include "CMachine.h"
 #include "CSystemProperties.h"
@@ -74,6 +81,8 @@
 #include "CExtPackFile.h"
 #include "CHostNetworkInterface.h"
 #include "CVFSExplorer.h"
+#include "CVirtualSystemDescription.h"
+#include "CVirtualSystemDescriptionForm.h"
 #ifdef VBOX_WITH_DRAG_AND_DROP
 # include "CGuest.h"
 # include "CDnDSource.h"
@@ -586,6 +595,13 @@ void UIMessageCenter::warnAboutInvalidEncryptionPassword(const QString &strPassw
              .arg(strPasswordId));
 }
 
+void UIMessageCenter::cannotAcquireMachineParameter(const CMachine &comMachine, QWidget *pParent /* = 0 */) const
+{
+    /* Show the error: */
+    error(pParent, MessageType_Error,
+          tr("Failed to acquire machine parameter."), UIErrorString::formatErrorInfo(comMachine));
+}
+
 void UIMessageCenter::cannotOpenMachine(const CVirtualBox &vbox, const QString &strMachinePath) const
 {
     error(0, MessageType_Error,
@@ -682,7 +698,7 @@ int UIMessageCenter::confirmMachineRemoval(const QList<CMachine> &machines) cons
         {
             /* Compose machine name: */
             QFileInfo fi(machine.GetSettingsFilePath());
-            strMachineName = VBoxGlobal::hasAllowedExtension(fi.completeSuffix(), VBoxFileExts) ? fi.completeBaseName() : fi.fileName();
+            strMachineName = UICommon::hasAllowedExtension(fi.completeSuffix(), VBoxFileExts) ? fi.completeBaseName() : fi.fileName();
             /* Increment inacessible machine count: */
             ++cInacessibleMachineCount;
         }
@@ -1101,38 +1117,6 @@ bool UIMessageCenter::confirmSettingsReloading(QWidget *pParent /* = 0*/) const
                           tr("Reload settings"), tr("Keep changes"));
 }
 
-int UIMessageCenter::confirmHardDiskAttachmentCreation(const QString &strControllerName, QWidget *pParent /* = 0*/) const
-{
-    return questionTrinary(pParent, MessageType_Question,
-                           tr("<p>You are about to add a virtual hard disk to controller <b>%1</b>.</p>"
-                              "<p>Would you like to create a new, empty file to hold the disk contents or select an existing one?</p>")
-                              .arg(strControllerName),
-                           0 /* auto-confirm id */,
-                           tr("Create &new disk"), tr("&Choose existing disk"));
-}
-
-int UIMessageCenter::confirmOpticalAttachmentCreation(const QString &strControllerName, QWidget *pParent /* = 0*/) const
-{
-    return questionTrinary(pParent, MessageType_Question,
-                           tr("<p>You are about to add a new optical drive to controller <b>%1</b>.</p>"
-                              "<p>Would you like to choose a virtual optical disk to put in the drive "
-                              "or to leave it empty for now?</p>")
-                              .arg(strControllerName),
-                           0 /* auto-confirm id */,
-                           tr("Leave &empty"), tr("&Choose disk"));
-}
-
-int UIMessageCenter::confirmFloppyAttachmentCreation(const QString &strControllerName, QWidget *pParent /* = 0*/) const
-{
-    return questionTrinary(pParent, MessageType_Question,
-                           tr("<p>You are about to add a new floppy drive to controller <b>%1</b>.</p>"
-                              "<p>Would you like to choose a virtual floppy disk to put in the drive "
-                              "or to leave it empty for now?</p>")
-                              .arg(strControllerName),
-                           0 /* auto-confirm id */,
-                           tr("Leave &empty"), tr("&Choose disk"));
-}
-
 int UIMessageCenter::confirmRemovingOfLastDVDDevice(QWidget *pParent /* = 0*/) const
 {
     return questionBinary(pParent, MessageType_Info,
@@ -1143,6 +1127,22 @@ int UIMessageCenter::confirmRemovingOfLastDVDDevice(QWidget *pParent /* = 0*/) c
                           tr("&Remove", "medium") /* ok button text */,
                           QString() /* cancel button text */,
                           false /* ok button by default? */);
+}
+
+bool UIMessageCenter::confirmStorageBusChangeWithOpticalRemoval(QWidget *pParent /* = 0 */) const
+{
+    return questionBinary(pParent, MessageType_Question,
+                          tr("<p>This controller has optical devices attached.  You have requested storage bus "
+                             "change to type which doesn't support optical devices.</p><p>If you proceed optical "
+                             "devices will be removed.</p>"));
+}
+
+bool UIMessageCenter::confirmStorageBusChangeWithExcessiveRemoval(QWidget *pParent /* = 0 */) const
+{
+    return questionBinary(pParent, MessageType_Question,
+                          tr("<p>This controller has devices attached.  You have requested storage bus change to "
+                             "type which supports smaller amount of attached devices.</p><p>If you proceed "
+                             "excessive devices will be removed.</p>"));
 }
 
 void UIMessageCenter::cannotAttachDevice(const CMachine &machine, UIMediumDeviceType enmType,
@@ -1228,12 +1228,41 @@ bool UIMessageCenter::confirmCancelingPortForwardingDialog(QWidget *pParent /* =
                           false /* ok button by default? */);
 }
 
+void UIMessageCenter::cannotChangeMachineAttribute(const CMachine &comMachine, QWidget *pParent /* = 0 */) const
+{
+    error(pParent, MessageType_Error,
+          tr("Failed to change the attribute of the virtual machine <b>%1</b>.")
+             .arg(comMachine.GetName()),
+          UIErrorString::formatErrorInfo(comMachine));
+}
+
 void UIMessageCenter::cannotSaveMachineSettings(const CMachine &machine, QWidget *pParent /* = 0*/) const
 {
     error(pParent, MessageType_Error,
           tr("Failed to save the settings of the virtual machine <b>%1</b> to <b><nobr>%2</nobr></b>.")
              .arg(machine.GetName(), CMachine(machine).GetSettingsFilePath()),
           UIErrorString::formatErrorInfo(machine));
+}
+
+void UIMessageCenter::cannotChangeGraphicsAdapterAttribute(const CGraphicsAdapter &comAdapter, QWidget *pParent /* = 0 */) const
+{
+    error(pParent, MessageType_Error,
+          tr("Failed to change graphics adapter attribute."),
+          UIErrorString::formatErrorInfo(comAdapter));
+}
+
+void UIMessageCenter::cannotChangeAudioAdapterAttribute(const CAudioAdapter &comAdapter, QWidget *pParent /* = 0 */) const
+{
+    error(pParent, MessageType_Error,
+          tr("Failed to change audio adapter attribute."),
+          UIErrorString::formatErrorInfo(comAdapter));
+}
+
+void UIMessageCenter::cannotChangeNetworkAdapterAttribute(const CNetworkAdapter &comAdapter, QWidget *pParent /* = 0 */) const
+{
+    error(pParent, MessageType_Error,
+          tr("Failed to change network adapter attribute."),
+          UIErrorString::formatErrorInfo(comAdapter));
 }
 
 void UIMessageCenter::cannotChangeMediumType(const CMedium &medium, KMediumType oldMediumType, KMediumType newMediumType, QWidget *pParent /* = 0*/) const
@@ -1272,7 +1301,7 @@ bool UIMessageCenter::confirmMediumRelease(const UIMedium &medium, bool fInduced
 {
     /* Prepare the usage: */
     QStringList usage;
-    CVirtualBox vbox = vboxGlobal().virtualBox();
+    CVirtualBox vbox = uiCommon().virtualBox();
     foreach (const QUuid &uMachineID, medium.curStateMachineIds())
     {
         CMachine machine = vbox.FindMachine(uMachineID.toString());
@@ -1486,11 +1515,32 @@ bool UIMessageCenter::cannotRemountMedium(const CMachine &machine, const UIMediu
     return false;
 }
 
-void UIMessageCenter::cannotOpenMedium(const CVirtualBox &vbox, UIMediumDeviceType, const QString &strLocation, QWidget *pParent /* = 0*/) const
+void UIMessageCenter::cannotOpenMedium(const CVirtualBox &comVBox, const QString &strLocation, QWidget *pParent /* = 0 */) const
 {
     /* Show the error: */
     error(pParent, MessageType_Error,
-          tr("Failed to open the disk image file <nobr><b>%1</b></nobr>.").arg(strLocation), UIErrorString::formatErrorInfo(vbox));
+          tr("Failed to open the disk image file <nobr><b>%1</b></nobr>.").arg(strLocation), UIErrorString::formatErrorInfo(comVBox));
+}
+
+void UIMessageCenter::cannotOpenKnownMedium(const CVirtualBox &comVBox, const QUuid &uMediumId, QWidget *pParent /* = 0 */) const
+{
+    /* Show the error: */
+    error(pParent, MessageType_Error,
+          tr("Failed to open the medium with following ID: <nobr><b>%1</b></nobr>.").arg(uMediumId.toString()), UIErrorString::formatErrorInfo(comVBox));
+}
+
+void UIMessageCenter::cannotAcquireAttachmentParameter(const CMediumAttachment &comAttachment, QWidget *pParent /* = 0 */) const
+{
+    /* Show the error: */
+    error(pParent, MessageType_Error,
+          tr("Failed to acquire attachment parameter."), UIErrorString::formatErrorInfo(comAttachment));
+}
+
+void UIMessageCenter::cannotAcquireMediumAttribute(const CMedium &comMedium, QWidget *pParent /* = 0 */) const
+{
+    /* Show the error: */
+    error(pParent, MessageType_Error,
+          tr("Failed to acquire medium attribute."), UIErrorString::formatErrorInfo(comMedium));
 }
 
 void UIMessageCenter::cannotCloseMedium(const UIMedium &medium, const COMResult &rc, QWidget *pParent /* = 0*/) const
@@ -1684,11 +1734,32 @@ void UIMessageCenter::cannotCreateCloudClient(const CCloudProfile &comProfile, Q
           UIErrorString::formatErrorInfo(comProfile));
 }
 
+void UIMessageCenter::cannotCreateCloudMachine(const CCloudClient &comClient, QWidget *pParent /* = 0 */) const
+{
+    error(pParent, MessageType_Error,
+          tr("Failed to create cloud machine."),
+          UIErrorString::formatErrorInfo(comClient));
+}
+
+void UIMessageCenter::cannotCreateCloudMachine(const CProgress &comProgress, QWidget *pParent /* = 0 */) const
+{
+    error(pParent, MessageType_Error,
+          tr("Failed to create cloud machine."),
+          UIErrorString::formatErrorInfo(comProgress));
+}
+
 void UIMessageCenter::cannotAcquireCloudClientParameter(const CCloudClient &comClient, QWidget *pParent /* = 0 */) const
 {
     error(pParent, MessageType_Error,
           tr("Failed to acquire cloud client parameter."),
           UIErrorString::formatErrorInfo(comClient));
+}
+
+void UIMessageCenter::cannotAcquireCloudClientParameter(const CProgress &comProgress, QWidget *pParent /* = 0 */) const
+{
+    error(pParent, MessageType_Error,
+          tr("Failed to acquire cloud client parameter."),
+          UIErrorString::formatErrorInfo(comProgress));
 }
 
 bool UIMessageCenter::confirmCloudProfileRemoval(const QString &strName, QWidget *pParent /* = 0 */) const
@@ -1711,6 +1782,41 @@ bool UIMessageCenter::confirmCloudProfilesImport(QWidget *pParent /* = 0 */) con
                           tr("Import") /* ok button text */,
                           QString() /* cancel button text */,
                           false /* ok button by default? */);
+}
+
+void UIMessageCenter::cannotAssignFormValue(const CBooleanFormValue &comValue, QWidget *pParent /* = 0 */) const
+{
+    error(pParent, MessageType_Error,
+          tr("Failed to assign form value."),
+          UIErrorString::formatErrorInfo(comValue));
+}
+
+void UIMessageCenter::cannotAssignFormValue(const CStringFormValue &comValue, QWidget *pParent /* = 0 */) const
+{
+    error(pParent, MessageType_Error,
+          tr("Failed to assign form value."),
+          UIErrorString::formatErrorInfo(comValue));
+}
+
+void UIMessageCenter::cannotAssignFormValue(const CChoiceFormValue &comValue, QWidget *pParent /* = 0 */) const
+{
+    error(pParent, MessageType_Error,
+          tr("Failed to assign form value."),
+          UIErrorString::formatErrorInfo(comValue));
+}
+
+void UIMessageCenter::cannotAssignFormValue(const CRangedIntegerFormValue &comValue, QWidget *pParent /* = 0 */) const
+{
+    error(pParent, MessageType_Error,
+          tr("Failed to assign form value."),
+          UIErrorString::formatErrorInfo(comValue));
+}
+
+void UIMessageCenter::cannotAssignFormValue(const CProgress &comProgress, QWidget *pParent /* = 0 */) const
+{
+    error(pParent, MessageType_Error,
+          tr("Failed to assign form value."),
+          UIErrorString::formatErrorInfo(comProgress));
 }
 
 bool UIMessageCenter::confirmHardDisklessMachine(QWidget *pParent /* = 0*/) const
@@ -1845,6 +1951,38 @@ void UIMessageCenter::cannotCreateMachineFolder(const QString &strFolderName, QW
           tr("<p>Cannot create the machine folder <b>%1</b> in the parent folder <nobr><b>%2</b>.</nobr></p>"
              "<p>Please check that the parent really exists and that you have permissions to create the machine folder.</p>")
              .arg(fi.fileName()).arg(fi.absolutePath()));
+}
+
+void UIMessageCenter::cannotCreateAppliance(const CVirtualBox &comVBox, QWidget *pParent /* = 0 */) const
+{
+    error(pParent, MessageType_Critical, tr("<p>Cannot create a virtual appliance.</p>"),
+          UIErrorString::formatErrorInfo(comVBox));
+}
+
+void UIMessageCenter::cannotCreateVirtualSystemDescription(const CAppliance &comAppliance, QWidget *pParent /* = 0 */) const
+{
+    error(pParent, MessageType_Critical, tr("<p>Cannot create a virtual system description.</p>"),
+          UIErrorString::formatErrorInfo(comAppliance));
+}
+
+void UIMessageCenter::cannotAcquireVirtualSystemDescription(const CAppliance &comAppliance, QWidget *pParent /* = 0 */) const
+{
+    error(pParent, MessageType_Critical, tr("<p>Cannot create a virtual system description.</p>"),
+          UIErrorString::formatErrorInfo(comAppliance));
+}
+
+void UIMessageCenter::cannotAddVirtualSystemDescriptionValue(const CVirtualSystemDescription &comDescription,
+                                                             QWidget *pParent /* = 0 */) const
+{
+    error(pParent, MessageType_Critical, tr("<p>Cannot add a virtual system description value.</p>"),
+          UIErrorString::formatErrorInfo(comDescription));
+}
+
+void UIMessageCenter::cannotAcquireVirtualSystemDescriptionFormProperty(const CVirtualSystemDescriptionForm &comForm,
+                                                                        QWidget *pParent /* = 0 */) const
+{
+    error(pParent, MessageType_Critical, tr("<p>Cannot acquire a virtual system description property.</p>"),
+          UIErrorString::formatErrorInfo(comForm));
 }
 
 void UIMessageCenter::cannotImportAppliance(CAppliance &appliance, QWidget *pParent /* = 0*/) const
@@ -2006,7 +2144,7 @@ void UIMessageCenter::showRuntimeError(const CConsole &console, bool fFatal, con
     /* Format error-details: */
     QString formatted("<!--EOM-->");
     if (!strErrorMsg.isEmpty())
-        formatted.prepend(QString("<p>%1.</p>").arg(vboxGlobal().emphasize(strErrorMsg)));
+        formatted.prepend(QString("<p>%1.</p>").arg(uiCommon().emphasize(strErrorMsg)));
     if (!strErrorId.isEmpty())
         formatted += QString("<table bgcolor=#EEEEEE border=0 cellspacing=5 "
                              "cellpadding=0 width=100%>"
@@ -2037,9 +2175,13 @@ void UIMessageCenter::showRuntimeError(const CConsole &console, bool fFatal, con
     }
     else
     {
+        /** @todo r=bird: This is a very annoying message as it refers to invisible text
+         * below.  User have to expand "Details" to see what actually went wrong.
+         * Probably a good idea to check strErrorId and see if we can come up with better
+         * messages here, at least for common stuff like DvdOrFloppyImageInaccesssible... */
         error(0, enmType,
-              tr("<p>The virtual machine execution may run into an error condition as described below. "
-                 "We suggest that you take an appropriate action to avert the error.</p>"),
+              tr("<p>The virtual machine execution ran into a non-fatal problem as described below. "
+                 "We suggest that you take appropriate action to prevent the problem from recurring.</p>"),
               formatted, autoConfimId.data());
     }
 
@@ -2230,7 +2372,7 @@ bool UIMessageCenter::cannotEnterFullscreenMode(ULONG /* uWidth */, ULONG /* uHe
                           tr("<p>Could not switch the guest display to full-screen mode due to insufficient guest video memory.</p>"
                              "<p>You should configure the virtual machine to have at least <b>%1</b> of video memory.</p>"
                              "<p>Press <b>Ignore</b> to switch to full-screen mode anyway or press <b>Cancel</b> to cancel the operation.</p>")
-                             .arg(VBoxGlobal::formatSize(uMinVRAM)),
+                             .arg(UICommon::formatSize(uMinVRAM)),
                           0 /* auto-confirm id */,
                           tr("Ignore"));
 }
@@ -2242,7 +2384,7 @@ void UIMessageCenter::cannotEnterSeamlessMode(ULONG /* uWidth */, ULONG /* uHeig
              "video memory.</p>"
              "<p>You should configure the virtual machine to have at "
              "least <b>%1</b> of video memory.</p>")
-             .arg(VBoxGlobal::formatSize(uMinVRAM)));
+             .arg(UICommon::formatSize(uMinVRAM)));
 }
 
 bool UIMessageCenter::cannotSwitchScreenInFullscreen(quint64 uMinVRAM) const
@@ -2251,7 +2393,7 @@ bool UIMessageCenter::cannotSwitchScreenInFullscreen(quint64 uMinVRAM) const
                           tr("<p>Could not change the guest screen to this host screen due to insufficient guest video memory.</p>"
                              "<p>You should configure the virtual machine to have at least <b>%1</b> of video memory.</p>"
                              "<p>Press <b>Ignore</b> to switch the screen anyway or press <b>Cancel</b> to cancel the operation.</p>")
-                             .arg(VBoxGlobal::formatSize(uMinVRAM)),
+                             .arg(UICommon::formatSize(uMinVRAM)),
                           0 /* auto-confirm id */,
                           tr("Ignore"));
 }
@@ -2263,7 +2405,7 @@ void UIMessageCenter::cannotSwitchScreenInSeamless(quint64 uMinVRAM) const
              "due to insufficient guest video memory.</p>"
              "<p>You should configure the virtual machine to have at "
              "least <b>%1</b> of video memory.</p>")
-             .arg(VBoxGlobal::formatSize(uMinVRAM)));
+             .arg(UICommon::formatSize(uMinVRAM)));
 }
 
 void UIMessageCenter::cannotAddDiskEncryptionPassword(const CConsole &console)
@@ -2318,7 +2460,7 @@ bool UIMessageCenter::confirmDownloadGuestAdditions(const QString &strUrl, qulon
     return questionBinary(windowManager().networkManagerOrMainWindowShown(), MessageType_Question,
                           tr("<p>Are you sure you want to download the <b>VirtualBox Guest Additions</b> disk image file "
                              "from <nobr><a href=\"%1\">%1</a></nobr> (size %2 bytes)?</p>")
-                             .arg(strUrl, QLocale(VBoxGlobal::languageId()).toString(uSize)),
+                             .arg(strUrl, QLocale(UICommon::languageId()).toString(uSize)),
                           0 /* auto-confirm id */,
                           tr("Download"));
 }
@@ -2379,7 +2521,7 @@ bool UIMessageCenter::confirmDownloadUserManual(const QString &strURL, qulonglon
     return questionBinary(windowManager().networkManagerOrMainWindowShown(), MessageType_Question,
                           tr("<p>Are you sure you want to download the <b>VirtualBox User Manual</b> "
                              "from <nobr><a href=\"%1\">%1</a></nobr> (size %2 bytes)?</p>")
-                             .arg(strURL, QLocale(VBoxGlobal::languageId()).toString(uSize)),
+                             .arg(strURL, QLocale(UICommon::languageId()).toString(uSize)),
                           0 /* auto-confirm id */,
                           tr("Download"));
 }
@@ -2418,7 +2560,7 @@ bool UIMessageCenter::confirmDownloadExtensionPack(const QString &strExtPackName
     return questionBinary(windowManager().networkManagerOrMainWindowShown(), MessageType_Question,
                           tr("<p>Are you sure you want to download the <b><nobr>%1</nobr></b> "
                              "from <nobr><a href=\"%2\">%2</a></nobr> (size %3 bytes)?</p>")
-                             .arg(strExtPackName, strURL, QLocale(VBoxGlobal::languageId()).toString(uSize)),
+                             .arg(strExtPackName, strURL, QLocale(UICommon::languageId()).toString(uSize)),
                           0 /* auto-confirm id */,
                           tr("Download"));
 }
@@ -2721,33 +2863,33 @@ bool UIMessageCenter::confirmOverridingFilesIfExists(const QVector<QString> &str
 
 void UIMessageCenter::sltShowHelpWebDialog()
 {
-    vboxGlobal().openURL("https://www.virtualbox.org");
+    uiCommon().openURL("https://www.virtualbox.org");
 }
 
 void UIMessageCenter::sltShowBugTracker()
 {
-    vboxGlobal().openURL("https://www.virtualbox.org/wiki/Bugtracker");
+    uiCommon().openURL("https://www.virtualbox.org/wiki/Bugtracker");
 }
 
 void UIMessageCenter::sltShowForums()
 {
-    vboxGlobal().openURL("https://forums.virtualbox.org/");
+    uiCommon().openURL("https://forums.virtualbox.org/");
 }
 
 void UIMessageCenter::sltShowOracle()
 {
-    vboxGlobal().openURL("http://www.oracle.com/us/technologies/virtualization/virtualbox/overview/index.html");
+    uiCommon().openURL("http://www.oracle.com/us/technologies/virtualization/virtualbox/overview/index.html");
 }
 
 void UIMessageCenter::sltShowHelpAboutDialog()
 {
-    CVirtualBox vbox = vboxGlobal().virtualBox();
+    CVirtualBox vbox = uiCommon().virtualBox();
     QString strFullVersion;
-    if (vboxGlobal().brandingIsActive())
+    if (uiCommon().brandingIsActive())
     {
         strFullVersion = QString("%1 r%2 - %3").arg(vbox.GetVersion())
                                                .arg(vbox.GetRevision())
-                                               .arg(vboxGlobal().brandingGetKey("Name"));
+                                               .arg(uiCommon().brandingGetKey("Name"));
     }
     else
     {
@@ -2763,12 +2905,12 @@ void UIMessageCenter::sltShowHelpHelpDialog()
 {
 #ifndef VBOX_OSE
     /* For non-OSE version we just open it: */
-    sltShowUserManual(vboxGlobal().helpFile());
+    sltShowUserManual(uiCommon().helpFile());
 #else /* #ifndef VBOX_OSE */
     /* For OSE version we have to check if it present first: */
-    QString strUserManualFileName1 = vboxGlobal().helpFile();
+    QString strUserManualFileName1 = uiCommon().helpFile();
     QString strShortFileName = QFileInfo(strUserManualFileName1).fileName();
-    QString strUserManualFileName2 = QDir(vboxGlobal().homeFolder()).absoluteFilePath(strShortFileName);
+    QString strUserManualFileName2 = QDir(uiCommon().homeFolder()).absoluteFilePath(strShortFileName);
     /* Show if user manual already present: */
     if (QFile::exists(strUserManualFileName1))
         sltShowUserManual(strUserManualFileName1);
@@ -2811,10 +2953,10 @@ void UIMessageCenter::sltShowUserManual(const QString &strLocation)
     AssertRC(rc);
     QProcess::startDetached(QString(szViewerPath) + "/kchmviewer", QStringList(strLocation));
 # else /* #ifndef VBOX_OSE */
-    vboxGlobal().openURL("file://" + strLocation);
+    uiCommon().openURL("file://" + strLocation);
 # endif /* #ifdef VBOX_OSE */
 #elif defined (VBOX_WS_MAC)
-    vboxGlobal().openURL("file://" + strLocation);
+    uiCommon().openURL("file://" + strLocation);
 #endif
 }
 
@@ -2900,8 +3042,8 @@ int UIMessageCenter::showMessageBox(QWidget *pParent, MessageType enmType,
     QStringList confirmedMessageList;
     if (!strAutoConfirmId.isEmpty())
     {
-        const QUuid uID = vboxGlobal().uiType() == VBoxGlobal::UIType_RuntimeUI
-                        ? vboxGlobal().managedVMUuid()
+        const QUuid uID = uiCommon().uiType() == UICommon::UIType_RuntimeUI
+                        ? uiCommon().managedVMUuid()
                         : UIExtraDataManager::GlobalID;
         confirmedMessageList = gEDataManager->suppressedMessages(uID);
         if (   confirmedMessageList.contains(strAutoConfirmId)

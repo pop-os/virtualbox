@@ -30,8 +30,9 @@
 #include "UIDetailsModel.h"
 #include "UIDetailsGroup.h"
 #include "UIDetailsElement.h"
+#include "UIDetailsView.h"
 #include "UIExtraDataManager.h"
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 
 
 /*********************************************************************************************************************************
@@ -54,16 +55,26 @@ UIDetailsModel::~UIDetailsModel()
     cleanup();
 }
 
+void UIDetailsModel::init()
+{
+    /* Install root as event-filter for scene view,
+     * we need QEvent::Scroll events from it: */
+    root()->installEventFilterHelper(view());
+}
+
 QGraphicsScene *UIDetailsModel::scene() const
 {
     return m_pScene;
 }
 
+UIDetailsView *UIDetailsModel::view() const
+{
+    return scene() && !scene()->views().isEmpty() ? qobject_cast<UIDetailsView*>(scene()->views().first()) : 0;
+}
+
 QGraphicsView *UIDetailsModel::paintDevice() const
 {
-    if (m_pScene && !m_pScene->views().isEmpty())
-        return m_pScene->views().first();
-    return 0;
+    return scene() && !scene()->views().isEmpty() ? scene()->views().first() : 0;
 }
 
 QGraphicsItem *UIDetailsModel::itemAt(const QPointF &position) const
@@ -184,11 +195,6 @@ void UIDetailsModel::sltHandleViewResize()
     updateLayout();
 }
 
-void UIDetailsModel::sltHandleSlidingStarted()
-{
-    m_pRoot->stopBuildingGroup();
-}
-
 void UIDetailsModel::sltHandleToggleStarted()
 {
     m_pRoot->stopBuildingGroup();
@@ -231,8 +237,8 @@ void UIDetailsModel::sltToggleElements(DetailsElementType type, bool fToggled)
 
     /* Prepare/configure animation callback: */
     m_pAnimationCallback = new UIDetailsElementAnimationCallback(this, type, fToggled);
-    connect(m_pAnimationCallback, SIGNAL(sigAllAnimationFinished(DetailsElementType, bool)),
-            this, SLOT(sltToggleAnimationFinished(DetailsElementType, bool)), Qt::QueuedConnection);
+    connect(m_pAnimationCallback, &UIDetailsElementAnimationCallback::sigAllAnimationFinished,
+            this, &UIDetailsModel::sltToggleAnimationFinished, Qt::QueuedConnection);
     /* For each the set of the group: */
     foreach (UIDetailsItem *pSetItem, m_pRoot->items())
     {

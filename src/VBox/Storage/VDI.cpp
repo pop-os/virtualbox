@@ -39,6 +39,14 @@
 #define SET_ENDIAN_U32(conv, u32) (conv == VDIECONV_H2F ? RT_H2LE_U32(u32) : RT_LE2H_U32(u32))
 #define SET_ENDIAN_U64(conv, u64) (conv == VDIECONV_H2F ? RT_H2LE_U64(u64) : RT_LE2H_U64(u64))
 
+static const char *vdiAllocationBlockSize = "1048576";
+
+static const VDCONFIGINFO vdiConfigInfo[] =
+{
+    { "AllocationBlockSize",            vdiAllocationBlockSize,           VDCFGVALUETYPE_INTEGER,      VD_CFGKEY_CREATEONLY },
+    { NULL,                             NULL,                             VDCFGVALUETYPE_INTEGER,      0 }
+};
+
 
 /*********************************************************************************************************************************
 *   Static Variables                                                                                                             *
@@ -176,6 +184,7 @@ static void vdiConvHeaderEndianessV1p(VDIECONV enmConv, PVDIHEADER1PLUS pHdrConv
     pHdrConv->uuidParentModify = pHdr->uuidParentModify;
     vdiConvGeometryEndianess(enmConv, &pHdrConv->LCHSGeometry, &pHdr->LCHSGeometry);
 }
+
 
 /**
  * Internal: Set the appropriate endianess on all the Blocks pointed.
@@ -531,7 +540,8 @@ static void vdiSetupImageDesc(PVDIIMAGEDESC pImage)
     pImage->uBlockMask         = getImageBlockSize(&pImage->Header) - 1;
     pImage->uShiftOffset2Index = getPowerOfTwo(getImageBlockSize(&pImage->Header));
     pImage->offStartBlockData  = getImageExtraBlockSize(&pImage->Header);
-    pImage->cbTotalBlockData   =   pImage->offStartBlockData
+    pImage->cbAllocationBlock  = getImageBlockSize(&pImage->Header);
+    pImage->cbTotalBlockData   = pImage->offStartBlockData
                                  + getImageBlockSize(&pImage->Header);
 }
 
@@ -539,22 +549,23 @@ static void vdiSetupImageDesc(PVDIIMAGEDESC pImage)
  * Sets up the complete image state from the given parameters.
  *
  * @returns VBox status code.
- * @param   pImage          The VDI image descriptor.
- * @param   uImageFlags     Image flags.
- * @param   pszComment      The comment for the image (optional).
- * @param   cbSize          Size of the resulting image in bytes.
- * @param   cbDataAlign     Data alignment in bytes.
- * @param   pPCHSGeometry   Physical CHS geometry for the image.
- * @param   pLCHSGeometry   Logical CHS geometry for the image.
+ * @param   pImage            The VDI image descriptor.
+ * @param   uImageFlags       Image flags.
+ * @param   pszComment        The comment for the image (optional).
+ * @param   cbSize            Size of the resulting image in bytes.
+ * @param   cbAllocationBlock Size of blocks allocated
+ * @param   cbDataAlign       Data alignment in bytes.
+ * @param   pPCHSGeometry     Physical CHS geometry for the image.
+ * @param   pLCHSGeometry     Logical CHS geometry for the image.
  */
 static int vdiSetupImageState(PVDIIMAGEDESC pImage, unsigned uImageFlags, const char *pszComment,
-                              uint64_t cbSize, uint32_t cbDataAlign, PCVDGEOMETRY pPCHSGeometry,
+                              uint64_t cbSize, uint32_t cbAllocationBlock, uint32_t cbDataAlign, PCVDGEOMETRY pPCHSGeometry,
                               PCVDGEOMETRY pLCHSGeometry)
 {
     int rc = VINF_SUCCESS;
 
     vdiInitPreHeader(&pImage->PreHeader);
-    vdiInitHeader(&pImage->Header, uImageFlags, pszComment, cbSize, VDI_IMAGE_DEFAULT_BLOCK_SIZE, 0,
+    vdiInitHeader(&pImage->Header, uImageFlags, pszComment, cbSize, cbAllocationBlock, 0,
                   cbDataAlign);
     /* Save PCHS geometry. Not much work, and makes the flow of information
      * quite a bit clearer - relying on the higher level isn't obvious. */
@@ -695,7 +706,6 @@ static int vdiCreateImage(PVDIIMAGEDESC pImage, uint64_t cbSize,
 {
     int rc = VINF_SUCCESS;
     uint32_t cbDataAlign = VDI_DATA_ALIGN;
-
     AssertPtr(pPCHSGeometry);
     AssertPtr(pLCHSGeometry);
 
@@ -709,6 +719,17 @@ static int vdiCreateImage(PVDIIMAGEDESC pImage, uint64_t cbSize,
         rc = vdIfError(pImage->pIfError, VERR_VD_VDI_COMMENT_TOO_LONG, RT_SRC_POS,
                        N_("VDI: comment is too long for '%s'"), pImage->pszFilename);
 
+    PVDINTERFACECONFIG pImgCfg = VDIfConfigGet(pImage->pVDIfsImage);
+    if (pImgCfg)
+    {
+        rc = VDCFGQueryU32Def(pImgCfg, "AllocationBlockSize",
+                &pImage->cbAllocationBlock, VDI_IMAGE_DEFAULT_BLOCK_SIZE);
+        if (RT_FAILURE(rc))
+            rc = vdIfError(pImage->pIfError, rc, RT_SRC_POS,
+                           N_("VDI: Getting AllocationBlockSize for '%s' failed (%Rrc)"), pImage->pszFilename, rc);
+    } else
+        pImage->cbAllocationBlock = VDI_IMAGE_DEFAULT_BLOCK_SIZE;
+
     if (pIfCfg)
     {
         rc = VDCFGQueryU32Def(pIfCfg, "DataAlignment", &cbDataAlign, VDI_DATA_ALIGN);
@@ -719,8 +740,10 @@ static int vdiCreateImage(PVDIIMAGEDESC pImage, uint64_t cbSize,
 
     if (RT_SUCCESS(rc))
     {
-        rc = vdiSetupImageState(pImage, uImageFlags, pszComment, cbSize, cbDataAlign,
-                                pPCHSGeometry, pLCHSGeometry);
+
+        rc = vdiSetupImageState(pImage, uImageFlags, pszComment, cbSize,
+                pImage->cbAllocationBlock, cbDataAlign, pPCHSGeometry, pLCHSGeometry);
+
         if (RT_SUCCESS(rc))
         {
             /* Use specified image uuid */
@@ -992,6 +1015,16 @@ static int vdiOpenImage(PVDIIMAGEDESC pImage, unsigned uOpenFlags)
         pRegion->cbData               = 512;
         pRegion->cbMetadata           = 0;
         pRegion->cRegionBlocksOrBytes = getImageDiskSize(&pImage->Header);
+        if (uOpenFlags & VD_OPEN_FLAGS_INFO)
+        {
+            PVDINTERFACECONFIG pImgCfg = VDIfConfigGet(pImage->pVDIfsImage);
+            if (pImgCfg)
+            {
+                rc = VDCFGUpdateU64(pImgCfg, true, "AllocationBlockSize", pImage->cbAllocationBlock);
+                if (RT_FAILURE(rc))
+                    return rc;
+            }
+        }
     }
     else
         vdiFreeImage(pImage, false);
@@ -1377,8 +1410,9 @@ static DECLCALLBACK(int) vdiBlockAllocUpdate(void *pBackendData, PVDIOCTX pIoCtx
 
 /** @copydoc VDIMAGEBACKEND::pfnProbe */
 static DECLCALLBACK(int) vdiProbe(const char *pszFilename, PVDINTERFACE pVDIfsDisk,
-                                  PVDINTERFACE pVDIfsImage, VDTYPE *penmType)
+                                  PVDINTERFACE pVDIfsImage, VDTYPE enmDesiredType, VDTYPE *penmType)
 {
+    RT_NOREF(enmDesiredType);
     LogFlowFunc(("pszFilename=\"%s\"\n", pszFilename));
     int rc = VINF_SUCCESS;
 
@@ -1483,7 +1517,6 @@ static DECLCALLBACK(int) vdiCreate(const char *pszFilename, uint64_t cbSize,
     {
         PVDINTERFACEPROGRESS pIfProgress = VDIfProgressGet(pVDIfsOperation);
         PVDINTERFACECONFIG pIfCfg = VDIfConfigGet(pVDIfsOperation);
-
         pImage->pszFilename = pszFilename;
         pImage->pStorage = NULL;
         pImage->paBlocks = NULL;
@@ -3131,7 +3164,7 @@ const VDIMAGEBACKEND g_VDIBackend =
     /* paFileExtensions */
     s_aVdiFileExtensions,
     /* paConfigInfo */
-    NULL,
+    vdiConfigInfo,
     /* pfnProbe */
     vdiProbe,
     /* pfnOpen */

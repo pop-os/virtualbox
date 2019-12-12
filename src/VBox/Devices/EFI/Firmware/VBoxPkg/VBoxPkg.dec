@@ -38,17 +38,18 @@
         gEfiAcpiDescriptionGuid       = {0x3c699197, 0x093c, 0x4c69, {0xb0, 0x6b, 0x12, 0x8a, 0xe3, 0x48, 0x1d, 0xc9 }}
 #        gEfiFlashMapHobGuid           = { 0xb091e7d2, 0x5a0, 0x4198, {0x94, 0xf0, 0x74, 0xb7, 0xb8, 0xc5, 0x54, 0x59 }}
         gVBoxVgaPkgTokenSpaceGuid = { 0xa3a8ce56, 0x4a07, 0x441f, {0xa3, 0xf5, 0x6f, 0x53, 0xdb, 0x9c, 0xb7, 0xd8}}
+        gVBoxFsBlessedFileInfoGuid = { 0xcc49fefd, 0x41b7, 0x473f, {0x98, 0x23, 0x0e, 0x8e, 0xbf, 0x35, 0x67, 0x7d } }
 
 #
 # Various types of Platform Configuration Database (PCD) items.
 #
 [PcdsFixedAtBuild.common]
-        gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageVariableBase|0|UINT32|0x00001000
-        gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageVariableSize|0|UINT32|0x00001001
-        gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageFtwWorkingBase|0|UINT32|0x00001002
-        gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageFtwWorkingSize|0|UINT32|0x00001003
-        gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageFtwSpareBase|0|UINT32|0x00001004
-        gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageFtwSpareSize|0|UINT32|0x00001005
+#        gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageVariableBase|0|UINT32|0x00001000
+#        gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageVariableSize|0|UINT32|0x00001001
+#        gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageFtwWorkingBase|0|UINT32|0x00001002
+#        gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageFtwWorkingSize|0|UINT32|0x00001003
+#        gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageFtwSpareBase|0|UINT32|0x00001004
+#        gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageFtwSpareSize|0|UINT32|0x00001005
         gVBoxVgaPkgTokenSpaceGuid.PcdDriverSupportedEfiVersion|0x0002000a|UINT32|0x00010003
 
 ## XXX - boot mode - gEfiNt32PkgTokenSpaceGuid.PcdWinNtBootMode|1|UINT32|0x00001006

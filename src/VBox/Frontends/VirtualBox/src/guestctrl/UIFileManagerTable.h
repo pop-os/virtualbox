@@ -45,12 +45,14 @@ class QILabel;
 class QILineEdit;
 class QGridLayout;
 class QSortFilterProxyModel;
+class QStackedWidget;
 class QTextEdit;
 class QVBoxLayout;
 class UIActionPool;
 class UICustomFileSystemItem;
 class UICustomFileSystemModel;
 class UICustomFileSystemProxyModel;
+class UIFileManagerNavigationWidget;
 class UIGuestControlFileView;
 class UIToolBar;
 
@@ -103,7 +105,6 @@ private:
     bool     m_fOkToContinue;
 };
 
-
 /** A QIDialog child to display properties of a file object */
 class UIPropertiesDialog : public QIDialog
 {
@@ -122,7 +123,6 @@ private:
     QTextEdit   *m_pInfoEdit;
     QString      m_strProperty;
 };
-
 
 /** This class serves a base class for file table. Currently a guest version
  *  and a host version are derived from this base. Each of these children
@@ -208,6 +208,7 @@ protected:
     /** For non-windows system does nothing and for windows systems populates m_driveLetterList with
      *  drive letters */
     virtual void     determineDriveLetters() = 0;
+    virtual void     determinePathSeparator() = 0;
     virtual void     prepareToolbar() = 0;
     virtual void     createFileViewContextMenu(const QWidget *pWidget, const QPoint &point) = 0;
     virtual bool     event(QEvent *pEvent) /* override */;
@@ -233,6 +234,7 @@ protected:
     CGuestFsObjInfo  guestFsObjectInfo(const QString& path, CGuestSession &comGuestSession) const;
     void             setSelectionDependentActionsEnabled(bool fIsEnabled);
     UICustomFileSystemItem*   rootItem();
+    void             setPathSeparator(const QChar &separator);
 
     QILabel                 *m_pLocationLabel;
     UIPropertiesDialog      *m_pPropertiesDialog;
@@ -253,12 +255,12 @@ private slots:
 
     void sltCreateFileViewContextMenu(const QPoint &point);
     void sltSelectionChanged(const QItemSelection & selected, const QItemSelection & deselected);
-    void sltLocationComboCurrentChange(const QString &strLocation);
     void sltSearchTextChanged(const QString &strText);
     /** m_pModel signals when an tree item is renamed. we try to apply this rename to the file system.
      *  if the file system rename fails we restore the old name of the item. See the comment of
      *  sltRename() for more details. */
     void sltHandleItemRenameAttempt(UICustomFileSystemItem *pItem, QString strOldName, QString strNewName);
+    void sltHandleNavigationWidgetPathChange(const QString& strPath);
 
 private:
 
@@ -268,8 +270,6 @@ private:
     void             deleteByIndex(const QModelIndex &itemIndex);
     /** Returns the UICustomFileSystemItem for path / which is a direct (and single) child of m_pRootItem */
     UICustomFileSystemItem *getStartDirectoryItem();
-    /** Shows a modal dialog with a line edit for user to enter a new directory name and return the entered string*/
-    QString         getNewDirectoryName();
     void            deSelectUpDirectoryItem();
     void            setSelectionForAll(QItemSelectionModel::SelectionFlags flags);
     void            setSelection(const QModelIndex &indexInProxyModel);
@@ -285,15 +285,22 @@ private:
     /** Checks if delete confirmation dialog is shown and users choice. Returns true
      *  if deletion can continue */
     bool            checkIfDeleteOK();
+    /** Marks/umarks the search line edit to signal that there are no matches for the current search.
+      * uses m_searchLineUnmarkColor and m_searchLineMarkColor. */
+    void            markUnmarkSearchLineEdit(bool fMark);
 
-    UICustomFileSystemModel      *m_pModel;
-    UIGuestControlFileView       *m_pView;
-    UICustomFileSystemProxyModel *m_pProxyModel;
+    UICustomFileSystemModel       *m_pModel;
+    UIGuestControlFileView        *m_pView;
+    UICustomFileSystemProxyModel  *m_pProxyModel;
+    /** Contains m_pBreadCrumbsWidget and m_pLocationComboBox. */
+    UIFileManagerNavigationWidget *m_pNavigationWidget;
 
     QGridLayout     *m_pMainLayout;
-    QComboBox       *m_pLocationComboBox;
     QILineEdit      *m_pSearchLineEdit;
+    QColor           m_searchLineUnmarkColor;
+    QColor           m_searchLineMarkColor;
     QILabel         *m_pWarningLabel;
+    QChar            m_pathSeparator;
 
     friend class     UICustomFileSystemModel;
 };

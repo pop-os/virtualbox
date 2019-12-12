@@ -223,7 +223,7 @@ private:
     PFNVRDPCLIPBOARDEXTCALLBACK mpfnClipboardCallback;
 
     static DECLCALLBACK(int) ClipboardCallback (void *pvCallback, uint32_t u32ClientId, uint32_t u32Function, uint32_t u32Format, const void *pvData, uint32_t cbData);
-    static DECLCALLBACK(int) ClipboardServiceExtension (void *pvExtension, uint32_t u32Function, void *pvParm, uint32_t cbParms);
+    static DECLCALLBACK(int) ClipboardServiceExtension(void *pvExtension, uint32_t u32Function, void *pvParms, uint32_t cbParms);
 
 #ifdef VBOX_WITH_USB
     RemoteUSBBackend *usbBackendFindByUUID (const Guid *pGuid);
@@ -258,6 +258,7 @@ private:
 
     int32_t volatile mcClients;
 
+#if 0 /** @todo Chromium got removed (see @bugref{9529}) and this is not available for VMSVGA yet. */
     static DECLCALLBACK(void) H3DORBegin(const void *pvContext, void **ppvInstance,
                                          const char *pszFormat);
     static DECLCALLBACK(void) H3DORGeometry(void *pvInstance,
@@ -269,6 +270,7 @@ private:
     static DECLCALLBACK(void) H3DOREnd(void *pvInstance);
     static DECLCALLBACK(int)  H3DORContextProperty(const void *pvContext, uint32_t index,
                                                    void *pvBuffer, uint32_t cbBuffer, uint32_t *pcbOut);
+#endif
 
     void remote3DRedirect(bool fEnable);
 

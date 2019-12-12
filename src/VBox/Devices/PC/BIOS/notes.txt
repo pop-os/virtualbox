@@ -53,6 +53,13 @@
   physical ATA disk geometry; for that reason, disks smaller than ~500MB are
   easiest to use. Otherwise a "large" BIOS disk option would be required.
 
+- Older NetWare IDE disk drivers (IDE.DSK from 1993, likely older as well)
+  fall into the same category. If FDPT contains logical geometry, NetWare
+  malfunctions. NetWare 3.x/4.x is unusual in that it boots from a DOS
+  partition using BIOS, and only later switches to its own disk drivers.
+  NetWare reportedly understands FDPT cylinder values over 1024, but requires
+  physical disk geometry in the FDPT (only up to 16 heads).
+
 - Some really old OSes (Xenix circa 1986-7) do not understand the EBDA idea
   and clear the memory. For those, the FDPT must be in the BIOS ROM area, or
   the OS will destroy it (even when it's at 0:300 in the IVT).
@@ -70,12 +77,16 @@
 
 - PC DOS 6.x/7.x QCONFIG is a rare user of INT 16h fn 0Ah (read keyboard ID).
 
-- DOS POWER.EXE uses the real mode APM interface, OS/2 APM.SYS uses the 16-bit
-  protected mode APM interface, and Windows 9x uses the 32-bit protected mode
-  APM interface.
+- DOS POWER.EXE uses the real mode APM interface, Windows 3.1 POWER.DRV and
+  OS/2 APM.SYS use the 16-bit protected mode APM interface, and Windows 9x
+  uses the 32-bit protected mode APM interface.
 
 - Windows 98 is one of the few APM 1.2 users; Windows 95 uses APM 1.1, while
   newer systems prefer ACPI.
+
+- Windows 3.1 Standard mode violates the APM specifications and calls into
+  APM with CPL=3, causing the HLT instruction to fault if used. 386 Enhanced
+  mode Windows 3.1 calls into APM with CPL=3.
 
 - QNX4 calls 16-bit protected-mode PCI BIOS in an environment where ESP is
   16-bit but SS is a 32-bit stack segment. In such environments, using the

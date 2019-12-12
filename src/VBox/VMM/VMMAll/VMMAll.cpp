@@ -22,7 +22,10 @@
 #define LOG_GROUP LOG_GROUP_VMM
 #include <VBox/vmm/vmm.h>
 #include "VMMInternal.h"
-#include <VBox/vmm/vm.h>
+#include <VBox/vmm/vmcc.h>
+#ifdef IN_RING0
+# include <VBox/vmm/gvm.h>
+#endif
 #include <VBox/vmm/hm.h>
 #include <VBox/vmm/vmcpuset.h>
 #include <VBox/param.h>
@@ -159,7 +162,6 @@ int vmmInitFormatTypes(void)
 }
 
 
-#ifndef IN_RC
 /**
  * Counterpart to vmmInitFormatTypes, called by VMMR3Term and VMMR0Term.
  */
@@ -167,22 +169,6 @@ void vmmTermFormatTypes(void)
 {
     if (ASMAtomicDecU32(&g_cFormatTypeUsers) == 0)
         RTStrFormatTypeDeregister("vmcpuset");
-}
-#endif
-
-
-/**
- * Gets the bottom of the hypervisor stack - RC Ptr.
- *
- * (The returned address is not actually writable, only after it's decremented
- * by a push/ret/whatever does it become writable.)
- *
- * @returns bottom of the stack.
- * @param   pVCpu       The cross context virtual CPU structure.
- */
-VMM_INT_DECL(RTRCPTR) VMMGetStackRC(PVMCPU pVCpu)
-{
-    return (RTRCPTR)pVCpu->vmm.s.pbEMTStackBottomRC;
 }
 
 
@@ -194,7 +180,7 @@ VMM_INT_DECL(RTRCPTR) VMMGetStackRC(PVMCPU pVCpu)
  * @param   pVM         The cross context VM structure.
  * @internal
  */
-VMMDECL(VMCPUID) VMMGetCpuId(PVM pVM)
+VMMDECL(VMCPUID) VMMGetCpuId(PVMCC pVM)
 {
 #if defined(IN_RING3)
     return VMR3GetVMCPUId(pVM);
@@ -202,6 +188,7 @@ VMMDECL(VMCPUID) VMMGetCpuId(PVM pVM)
 #elif defined(IN_RING0)
     if (pVM->cCpus == 1)
         return 0;
+    VMCPUID const cCpus = pVM->cCpus;
 
     /* Search first by host cpu id (most common case)
      * and then by native thread id (page fusion case).
@@ -214,10 +201,9 @@ VMMDECL(VMCPUID) VMMGetCpuId(PVM pVM)
         RTCPUID idHostCpu = RTMpCpuId();
 
         /** @todo optimize for large number of VCPUs when that becomes more common. */
-        for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
+        for (VMCPUID idCpu = 0; idCpu < cCpus; idCpu++)
         {
-            PVMCPU pVCpu = &pVM->aCpus[idCpu];
-
+            PVMCPUCC pVCpu = VMCC_GET_CPU(pVM, idCpu);
             if (pVCpu->idHostCpu == idHostCpu)
                 return pVCpu->idCpu;
         }
@@ -227,10 +213,9 @@ VMMDECL(VMCPUID) VMMGetCpuId(PVM pVM)
     RTNATIVETHREAD hThread = RTThreadNativeSelf();
 
     /** @todo optimize for large number of VCPUs when that becomes more common. */
-    for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
+    for (VMCPUID idCpu = 0; idCpu < cCpus; idCpu++)
     {
-        PVMCPU pVCpu = &pVM->aCpus[idCpu];
-
+        PVMCPUCC pVCpu = VMCC_GET_CPU(pVM, idCpu);
         if (pVCpu->hNativeThreadR0 == hThread)
             return pVCpu->idCpu;
     }
@@ -251,18 +236,19 @@ VMMDECL(VMCPUID) VMMGetCpuId(PVM pVM)
  * @param   pVM         The cross context VM structure.
  * @internal
  */
-VMMDECL(PVMCPU) VMMGetCpu(PVM pVM)
+VMMDECL(PVMCPUCC) VMMGetCpu(PVMCC pVM)
 {
 #ifdef IN_RING3
     VMCPUID idCpu = VMR3GetVMCPUId(pVM);
     if (idCpu == NIL_VMCPUID)
         return NULL;
     Assert(idCpu < pVM->cCpus);
-    return &pVM->aCpus[idCpu];
+    return VMCC_GET_CPU(pVM, idCpu);
 
 #elif defined(IN_RING0)
+    VMCPUID const cCpus = pVM->cCpus;
     if (pVM->cCpus == 1)
-        return &pVM->aCpus[0];
+        return VMCC_GET_CPU_0(pVM);
 
     /*
      * Search first by host cpu id (most common case)
@@ -276,10 +262,9 @@ VMMDECL(PVMCPU) VMMGetCpu(PVM pVM)
         RTCPUID idHostCpu = RTMpCpuId();
 
         /** @todo optimize for large number of VCPUs when that becomes more common. */
-        for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
+        for (VMCPUID idCpu = 0; idCpu < cCpus; idCpu++)
         {
-            PVMCPU pVCpu = &pVM->aCpus[idCpu];
-
+            PVMCPUCC pVCpu = VMCC_GET_CPU(pVM, idCpu);
             if (pVCpu->idHostCpu == idHostCpu)
                 return pVCpu;
         }
@@ -290,17 +275,17 @@ VMMDECL(PVMCPU) VMMGetCpu(PVM pVM)
 
     /** @todo optimize for large number of VCPUs when that becomes more common.
      * Use a map like GIP does that's indexed by the host CPU index.  */
-    for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
+    for (VMCPUID idCpu = 0; idCpu < cCpus; idCpu++)
     {
-        PVMCPU pVCpu = &pVM->aCpus[idCpu];
-
+        PVMCPUCC pVCpu = VMCC_GET_CPU(pVM, idCpu);
         if (pVCpu->hNativeThreadR0 == hThread)
             return pVCpu;
     }
     return NULL;
 
 #else /* RC: Always EMT(0) */
-    return &pVM->aCpus[0];
+    RT_NOREF(pVM);
+    return &g_VCpu0;
 #endif /* IN_RING0 */
 }
 
@@ -312,10 +297,10 @@ VMMDECL(PVMCPU) VMMGetCpu(PVM pVM)
  * @param   pVM         The cross context VM structure.
  * @internal
  */
-VMMDECL(PVMCPU) VMMGetCpu0(PVM pVM)
+VMMDECL(PVMCPUCC) VMMGetCpu0(PVMCC pVM)
 {
     Assert(pVM->cCpus == 1);
-    return &pVM->aCpus[0];
+    return VMCC_GET_CPU_0(pVM);
 }
 
 
@@ -328,10 +313,10 @@ VMMDECL(PVMCPU) VMMGetCpu0(PVM pVM)
  * @param   idCpu       The ID of the virtual CPU.
  * @internal
  */
-VMMDECL(PVMCPU) VMMGetCpuById(PVM pVM, RTCPUID idCpu)
+VMMDECL(PVMCPUCC) VMMGetCpuById(PVMCC pVM, RTCPUID idCpu)
 {
     AssertReturn(idCpu < pVM->cCpus, NULL);
-    return &pVM->aCpus[idCpu];
+    return VMCC_GET_CPU(pVM, idCpu);
 }
 
 
@@ -346,18 +331,6 @@ VMMDECL(PVMCPU) VMMGetCpuById(PVM pVM, RTCPUID idCpu)
 VMM_INT_DECL(uint32_t) VMMGetSvnRev(void)
 {
     return VBOX_SVN_REV;
-}
-
-
-/**
- * Queries the current switcher
- *
- * @returns active switcher
- * @param   pVM             The cross context VM structure.
- */
-VMM_INT_DECL(VMMSWITCHER) VMMGetSwitcher(PVM pVM)
-{
-    return pVM->vmm.s.enmSwitcher;
 }
 
 

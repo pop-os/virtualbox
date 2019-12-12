@@ -31,6 +31,7 @@
 
 #include "VBox/log.h"
 #include "VBox/HostServices/VBoxClipboardSvc.h"
+#include "VBox/GuestHost/SharedClipboard.h"
 #include "VBox/GuestHost/clipboard-helper.h"
 
 
@@ -126,12 +127,12 @@ int queryNewPasteboardFormats(PasteboardRef pPasteboard, uint32_t *pfFormats, bo
                     UTTypeConformsTo(flavorType, kUTTypeUTF16PlainText))
                 {
                     Log(("Unicode flavor detected.\n"));
-                    *pfFormats |= VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT;
+                    *pfFormats |= VBOX_SHCL_FMT_UNICODETEXT;
                 }
                 else if (UTTypeConformsTo(flavorType, kUTTypeBMP))
                 {
                     Log(("BMP flavor detected.\n"));
-                    *pfFormats |= VBOX_SHARED_CLIPBOARD_FMT_BITMAP;
+                    *pfFormats |= VBOX_SHCL_FMT_BITMAP;
                 }
             }
             CFRelease(flavorTypeArray);
@@ -175,7 +176,7 @@ int readFromPasteboard(PasteboardRef pPasteboard, uint32_t fFormat, void *pv, ui
     if (!(err = PasteboardGetItemIdentifier(pPasteboard, 1, &itemID)))
     {
         /* The guest request unicode */
-        if (fFormat & VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT)
+        if (fFormat & VBOX_SHCL_FMT_UNICODETEXT)
         {
             CFDataRef outData;
             PRTUTF16 pwszTmp = NULL;
@@ -206,7 +207,7 @@ int readFromPasteboard(PasteboardRef pPasteboard, uint32_t fFormat, void *pv, ui
                 /* Check how much longer will the converted text will be. */
                 size_t cwSrc = RTUtf16Len(pwszTmp);
                 size_t cwDest;
-                rc = vboxClipboardUtf16GetWinSize(pwszTmp, cwSrc, &cwDest);
+                rc = ShClUtf16GetWinSize(pwszTmp, cwSrc, &cwDest);
                 if (RT_FAILURE(rc))
                 {
                     RTUtf16Free(pwszTmp);
@@ -220,7 +221,7 @@ int readFromPasteboard(PasteboardRef pPasteboard, uint32_t fFormat, void *pv, ui
                 /* Do not copy data if the dst buffer is not big enough. */
                 if (*pcbActual <= cb)
                 {
-                    rc = vboxClipboardUtf16LinToWin(pwszTmp, RTUtf16Len(pwszTmp), static_cast <PRTUTF16>(pv), cb / 2);
+                    rc = ShClUtf16LinToWin(pwszTmp, RTUtf16Len(pwszTmp), static_cast <PRTUTF16>(pv), cb / 2);
                     if (RT_FAILURE(rc))
                     {
                         RTUtf16Free(pwszTmp);
@@ -236,7 +237,7 @@ int readFromPasteboard(PasteboardRef pPasteboard, uint32_t fFormat, void *pv, ui
             }
         }
         /* The guest request BITMAP */
-        else if (fFormat & VBOX_SHARED_CLIPBOARD_FMT_BITMAP)
+        else if (fFormat & VBOX_SHCL_FMT_BITMAP)
         {
             CFDataRef outData;
             const void *pTmp = NULL;
@@ -252,7 +253,7 @@ int readFromPasteboard(PasteboardRef pPasteboard, uint32_t fFormat, void *pv, ui
             {
                 const void *pDib;
                 size_t cbDibSize;
-                rc = vboxClipboardBmpGetDib(pTmp, cbTmpSize, &pDib, &cbDibSize);
+                rc = ShClBmpGetDib(pTmp, cbTmpSize, &pDib, &cbDibSize);
                 if (RT_FAILURE(rc))
                 {
                     rc = VERR_NOT_SUPPORTED;
@@ -303,13 +304,13 @@ int writeToPasteboard(PasteboardRef pPasteboard, void *pv, uint32_t cb, uint32_t
 
     int rc = VERR_NOT_SUPPORTED;
     /* Handle the unicode text */
-    if (fFormat & VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT)
+    if (fFormat & VBOX_SHCL_FMT_UNICODETEXT)
     {
         PRTUTF16 pwszSrcText = static_cast <PRTUTF16>(pv);
         size_t cwSrc = cb / 2;
         size_t cwDest = 0;
         /* How long will the converted text be? */
-        rc = vboxClipboardUtf16GetLinSize(pwszSrcText, cwSrc, &cwDest);
+        rc = ShClUtf16GetLinSize(pwszSrcText, cwSrc, &cwDest);
         if (RT_FAILURE(rc))
         {
             Log(("writeToPasteboard: clipboard conversion failed.  vboxClipboardUtf16GetLinSize returned %Rrc.  Abandoning.\n", rc));
@@ -329,7 +330,7 @@ int writeToPasteboard(PasteboardRef pPasteboard, void *pv, uint32_t cb, uint32_t
             return VERR_NO_MEMORY;
         }
         /* Convert the EOL */
-        rc = vboxClipboardUtf16WinToLin(pwszSrcText, cwSrc, pwszDestText, cwDest);
+        rc = ShClUtf16WinToLin(pwszSrcText, cwSrc, pwszDestText, cwDest);
         if (RT_FAILURE(rc))
         {
             Log(("writeToPasteboard: clipboard conversion failed.  vboxClipboardUtf16WinToLin() returned %Rrc.  Abandoning.\n", rc));
@@ -370,7 +371,7 @@ int writeToPasteboard(PasteboardRef pPasteboard, void *pv, uint32_t cb, uint32_t
         rc = VINF_SUCCESS;
     }
     /* Handle the bitmap */
-    else if (fFormat & VBOX_SHARED_CLIPBOARD_FMT_BITMAP)
+    else if (fFormat & VBOX_SHCL_FMT_BITMAP)
     {
         /* Create a full BMP from it */
         void *pBmp;
@@ -379,7 +380,7 @@ int writeToPasteboard(PasteboardRef pPasteboard, void *pv, uint32_t cb, uint32_t
         /* Item id is 1. Nothing special here. */
         PasteboardItemID itemId = (PasteboardItemID)1;
 
-        rc = vboxClipboardDibToBmp(pv, cb, &pBmp, &cbBmpSize);
+        rc = ShClDibToBmp(pv, cb, &pBmp, &cbBmpSize);
         if (RT_SUCCESS(rc))
         {
             /* Create a CData object which we could pass to the pasteboard */

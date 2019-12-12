@@ -1630,7 +1630,7 @@ static int hdaCodecToAudVolume(PHDACODEC pThis, PCODECNODE pNode, AMPLIFIER *pAm
     LogRel2(("HDA: Setting volume for mixer control '%s' to %RU8/%RU8 (%s)\n",
              DrvAudioHlpAudMixerCtlToStr(enmMixerCtl), lVol, rVol, RT_BOOL(iMute) ? "Muted" : "Unmuted"));
 
-    return pThis->pfnCbMixerSetVolume(pThis->pHDAState, enmMixerCtl, &Vol);
+    return pThis->pfnCbMixerSetVolume(pThis->pDevIns, enmMixerCtl, &Vol);
 }
 
 DECLINLINE(void) hdaCodecSetRegister(uint32_t *pu32Reg, uint32_t u32Cmd, uint8_t u8Offset, uint32_t mask)
@@ -2411,17 +2411,17 @@ static DECLCALLBACK(int) vrbProcSetStreamId(PHDACODEC pThis, uint32_t cmd, uint6
             /** @todo Check if non-interleaved streams need a different channel / SDn? */
 
             /* Propagate to the controller. */
-            pThis->pfnCbMixerControl(pThis->pHDAState, PDMAUDIOMIXERCTL_FRONT,      uSD, uChannel);
+            pThis->pfnCbMixerControl(pThis->pDevIns, PDMAUDIOMIXERCTL_FRONT,      uSD, uChannel);
 #ifdef VBOX_WITH_AUDIO_HDA_51_SURROUND
-            pThis->pfnCbMixerControl(pThis->pHDAState, PDMAUDIOMIXERCTL_CENTER_LFE, uSD, uChannel);
-            pThis->pfnCbMixerControl(pThis->pHDAState, PDMAUDIOMIXERCTL_REAR,       uSD, uChannel);
+            pThis->pfnCbMixerControl(pThis->pDevIns, PDMAUDIOMIXERCTL_CENTER_LFE, uSD, uChannel);
+            pThis->pfnCbMixerControl(pThis->pDevIns, PDMAUDIOMIXERCTL_REAR,       uSD, uChannel);
 #endif
         }
         else if (enmDir == PDMAUDIODIR_IN)
         {
-            pThis->pfnCbMixerControl(pThis->pHDAState, PDMAUDIOMIXERCTL_LINE_IN,    uSD, uChannel);
+            pThis->pfnCbMixerControl(pThis->pDevIns, PDMAUDIOMIXERCTL_LINE_IN,    uSD, uChannel);
 #ifdef VBOX_WITH_AUDIO_HDA_MIC_IN
-            pThis->pfnCbMixerControl(pThis->pHDAState, PDMAUDIOMIXERCTL_MIC_IN,     uSD, uChannel);
+            pThis->pfnCbMixerControl(pThis->pDevIns, PDMAUDIOMIXERCTL_MIC_IN,     uSD, uChannel);
 #endif
         }
     }
@@ -2711,6 +2711,7 @@ static DECLCALLBACK(int) vrbProcSetSDISelect(PHDACODEC pThis, uint32_t cmd, uint
 /**
  * HDA codec verb map.
  * @todo Any reason not to use binary search here?
+ *      bird: because you'd need to sort the entries first...
  */
 static const CODECVERB g_aCodecVerbs[] =
 {
@@ -2766,8 +2767,11 @@ static const CODECVERB g_aCodecVerbs[] =
     /** @todo Implement 0x7e7: IDT Set GPIO (STAC922x only). */
 };
 
-#ifdef DEBUG
-typedef struct CODECDBGINFO
+
+/**
+ * CODEC debug info item printing state.
+ */
+typedef struct CODECDEBUG
 {
     /** DBGF info helpers. */
     PCDBGFINFOHLP pHlp;
@@ -2775,46 +2779,38 @@ typedef struct CODECDBGINFO
     uint8_t uLevel;
     /** Pointer to codec state. */
     PHDACODEC pThis;
+} CODECDEBUG;
+/** Pointer to the debug info item printing state for the codec. */
+typedef CODECDEBUG *PCODECDEBUG;
 
-} CODECDBGINFO, *PCODECDBGINFO;
+#define CODECDBG_INDENT         pInfo->uLevel++;
+#define CODECDBG_UNINDENT       if (pInfo->uLevel) pInfo->uLevel--;
 
-#define CODECDBG_INDENT   pInfo->uLevel++;
-#define CODECDBG_UNINDENT if (pInfo->uLevel) pInfo->uLevel--;
+#define CODECDBG_PRINT(...)     pInfo->pHlp->pfnPrintf(pInfo->pHlp, __VA_ARGS__)
+#define CODECDBG_PRINTI(...)    codecDbgPrintf(pInfo, __VA_ARGS__)
 
-#define CODECDBG_PRINT(...)  pInfo->pHlp->pfnPrintf(pInfo->pHlp, __VA_ARGS__)
-#define CODECDBG_PRINTI(...) codecDbgPrintf(pInfo, __VA_ARGS__)
-
-static void codecDbgPrintfIndentV(PCODECDBGINFO pInfo, uint16_t uIndent, const char *pszFormat, va_list va)
-{
-    char *pszValueFormat;
-    if (RTStrAPrintfV(&pszValueFormat, pszFormat, va))
-    {
-        pInfo->pHlp->pfnPrintf(pInfo->pHlp, "%*s%s", uIndent, "", pszValueFormat);
-        RTStrFree(pszValueFormat);
-    }
-}
-
-static void codecDbgPrintf(PCODECDBGINFO pInfo, const char *pszFormat, ...)
+/** Wrapper around DBGFINFOHLP::pfnPrintf that adds identation. */
+static void codecDbgPrintf(PCODECDEBUG pInfo, const char *pszFormat, ...)
 {
     va_list va;
     va_start(va, pszFormat);
-    codecDbgPrintfIndentV(pInfo, pInfo->uLevel * 4, pszFormat, va);
+    pInfo->pHlp->pfnPrintf(pInfo->pHlp, "%*s%N", pInfo->uLevel * 4, "", pszFormat, &va);
     va_end(va);
 }
 
-/* Power state */
-static void codecDbgPrintNodeRegF05(PCODECDBGINFO pInfo, uint32_t u32Reg)
+/** Power state */
+static void codecDbgPrintNodeRegF05(PCODECDEBUG pInfo, uint32_t u32Reg)
 {
     codecDbgPrintf(pInfo, "Power (F05): fReset=%RTbool, fStopOk=%RTbool, Set=%RU8, Act=%RU8\n",
                    CODEC_F05_IS_RESET(u32Reg), CODEC_F05_IS_STOPOK(u32Reg), CODEC_F05_SET(u32Reg), CODEC_F05_ACT(u32Reg));
 }
 
-static void codecDbgPrintNodeRegA(PCODECDBGINFO pInfo, uint32_t u32Reg)
+static void codecDbgPrintNodeRegA(PCODECDEBUG pInfo, uint32_t u32Reg)
 {
     codecDbgPrintf(pInfo, "RegA: %x\n", u32Reg);
 }
 
-static void codecDbgPrintNodeRegF00(PCODECDBGINFO pInfo, uint32_t *paReg00)
+static void codecDbgPrintNodeRegF00(PCODECDEBUG pInfo, uint32_t *paReg00)
 {
     codecDbgPrintf(pInfo, "Parameters (F00):\n");
 
@@ -2839,25 +2835,25 @@ static void codecDbgPrintNodeRegF00(PCODECDBGINFO pInfo, uint32_t *paReg00)
     CODECDBG_UNINDENT
 }
 
-static void codecDbgPrintNodeAmp(PCODECDBGINFO pInfo, uint32_t *paReg, uint8_t uIdx, uint8_t uDir)
+static void codecDbgPrintNodeAmp(PCODECDEBUG pInfo, uint32_t *paReg, uint8_t uIdx, uint8_t uDir)
 {
-#define CODECDBG_AMP(reg, chan) \
-    codecDbgPrintf(pInfo, "Amp %RU8 %s %s: In=%RTbool, Out=%RTbool, Left=%RTbool, Right=%RTbool, Idx=%RU8, fMute=%RTbool, uGain=%RU8\n", \
-                   uIdx, chan, uDir == AMPLIFIER_IN ? "In" : "Out", \
-                   RT_BOOL(CODEC_SET_AMP_IS_IN_DIRECTION(reg)), RT_BOOL(CODEC_SET_AMP_IS_OUT_DIRECTION(reg)), \
-                   RT_BOOL(CODEC_SET_AMP_IS_LEFT_SIDE(reg)), RT_BOOL(CODEC_SET_AMP_IS_RIGHT_SIDE(reg)), \
-                   CODEC_SET_AMP_INDEX(reg), RT_BOOL(CODEC_SET_AMP_MUTE(reg)), CODEC_SET_AMP_GAIN(reg));
+# define CODECDBG_AMP(reg, chan) \
+        codecDbgPrintf(pInfo, "Amp %RU8 %s %s: In=%RTbool, Out=%RTbool, Left=%RTbool, Right=%RTbool, Idx=%RU8, fMute=%RTbool, uGain=%RU8\n", \
+                       uIdx, chan, uDir == AMPLIFIER_IN ? "In" : "Out", \
+                       RT_BOOL(CODEC_SET_AMP_IS_IN_DIRECTION(reg)), RT_BOOL(CODEC_SET_AMP_IS_OUT_DIRECTION(reg)), \
+                       RT_BOOL(CODEC_SET_AMP_IS_LEFT_SIDE(reg)), RT_BOOL(CODEC_SET_AMP_IS_RIGHT_SIDE(reg)), \
+                       CODEC_SET_AMP_INDEX(reg), RT_BOOL(CODEC_SET_AMP_MUTE(reg)), CODEC_SET_AMP_GAIN(reg))
 
     uint32_t regAmp = AMPLIFIER_REGISTER(paReg, uDir, AMPLIFIER_LEFT, uIdx);
     CODECDBG_AMP(regAmp, "Left");
     regAmp = AMPLIFIER_REGISTER(paReg, uDir, AMPLIFIER_RIGHT, uIdx);
     CODECDBG_AMP(regAmp, "Right");
 
-#undef CODECDBG_AMP
+# undef CODECDBG_AMP
 }
 
-#if 0 /* unused */
-static void codecDbgPrintNodeConnections(PCODECDBGINFO pInfo, PCODECNODE pNode)
+# if 0 /* unused */
+static void codecDbgPrintNodeConnections(PCODECDEBUG pInfo, PCODECNODE pNode)
 {
     if (pNode->node.au32F00_param[0xE] == 0) /* Directly connected to HDA link. */
     {
@@ -2865,9 +2861,9 @@ static void codecDbgPrintNodeConnections(PCODECDBGINFO pInfo, PCODECNODE pNode)
          return;
     }
 }
-#endif
+# endif
 
-static void codecDbgPrintNode(PCODECDBGINFO pInfo, PCODECNODE pNode, bool fRecursive)
+static void codecDbgPrintNode(PCODECDEBUG pInfo, PCODECNODE pNode, bool fRecursive)
 {
     codecDbgPrintf(pInfo, "Node 0x%02x (%02RU8): ", pNode->node.uID, pNode->node.uID);
 
@@ -2926,49 +2922,33 @@ static void codecDbgPrintNode(PCODECDBGINFO pInfo, PCODECNODE pNode, bool fRecur
         CODECDBG_UNINDENT
     }
     else if (hdaCodecIsPcbeepNode(pInfo->pThis, pNode->node.uID))
-    {
         CODECDBG_PRINT("PC BEEP\n");
-    }
     else if (hdaCodecIsSpdifOutNode(pInfo->pThis, pNode->node.uID))
-    {
         CODECDBG_PRINT("SPDIF OUT\n");
-    }
     else if (hdaCodecIsSpdifInNode(pInfo->pThis, pNode->node.uID))
-    {
         CODECDBG_PRINT("SPDIF IN\n");
-    }
     else if (hdaCodecIsDigInPinNode(pInfo->pThis, pNode->node.uID))
-    {
         CODECDBG_PRINT("DIGITAL IN PIN\n");
-    }
     else if (hdaCodecIsDigOutPinNode(pInfo->pThis, pNode->node.uID))
-    {
         CODECDBG_PRINT("DIGITAL OUT PIN\n");
-    }
     else if (hdaCodecIsCdNode(pInfo->pThis, pNode->node.uID))
-    {
         CODECDBG_PRINT("CD\n");
-    }
     else if (hdaCodecIsVolKnobNode(pInfo->pThis, pNode->node.uID))
-    {
         CODECDBG_PRINT("VOLUME KNOB\n");
-    }
     else if (hdaCodecIsReservedNode(pInfo->pThis, pNode->node.uID))
-    {
         CODECDBG_PRINT("RESERVED\n");
-    }
     else
         CODECDBG_PRINT("UNKNOWN TYPE 0x%x\n", pNode->node.uID);
 
     if (fRecursive)
     {
-#define CODECDBG_PRINT_CONLIST_ENTRY(_aNode, _aEntry)                              \
-        if (cCnt >= _aEntry)                                                       \
-        {                                                                          \
-            const uint8_t uID = RT_BYTE##_aEntry(_aNode->node.au32F02_param[0x0]); \
-            if (pNode->node.uID == uID)                                             \
-                codecDbgPrintNode(pInfo, _aNode, false /* fRecursive */);          \
-        }
+# define CODECDBG_PRINT_CONLIST_ENTRY(_aNode, _aEntry) \
+            if (cCnt >= _aEntry) \
+            { \
+                const uint8_t uID = RT_BYTE##_aEntry(_aNode->node.au32F02_param[0x0]); \
+                if (pNode->node.uID == uID) \
+                    codecDbgPrintNode(pInfo, _aNode, false /* fRecursive */); \
+            }
 
         /* Slow recursion, but this is debug stuff anyway. */
         for (uint8_t i = 0; i < pInfo->pThis->cTotalNodes; i++)
@@ -2989,7 +2969,7 @@ static void codecDbgPrintNode(PCODECDBGINFO pInfo, PCODECNODE pNode, bool fRecur
             CODECDBG_UNINDENT
         }
 
-#undef CODECDBG_PRINT_CONLIST_ENTRY
+# undef CODECDBG_PRINT_CONLIST_ENTRY
    }
 }
 
@@ -2998,12 +2978,12 @@ static DECLCALLBACK(void) codecDbgListNodes(PHDACODEC pThis, PCDBGFINFOHLP pHlp,
     RT_NOREF(pszArgs);
     pHlp->pfnPrintf(pHlp, "HDA LINK / INPUTS\n");
 
-    CODECDBGINFO dbgInfo;
+    CODECDEBUG dbgInfo;
     dbgInfo.pHlp   = pHlp;
     dbgInfo.pThis  = pThis;
     dbgInfo.uLevel = 0;
 
-    PCODECDBGINFO pInfo = &dbgInfo;
+    PCODECDEBUG pInfo = &dbgInfo;
 
     CODECDBG_INDENT
         for (uint8_t i = 0; i < pThis->cTotalNodes; i++)
@@ -3017,16 +2997,20 @@ static DECLCALLBACK(void) codecDbgListNodes(PHDACODEC pThis, PCDBGFINFOHLP pHlp,
     CODECDBG_UNINDENT
 }
 
+#ifdef DEBUG
+
 static DECLCALLBACK(void) codecDbgSelector(PHDACODEC pThis, PCDBGFINFOHLP pHlp, const char *pszArgs)
 {
     RT_NOREF(pThis, pHlp, pszArgs);
 }
-#endif
+
+#endif /* DEBUG */
 
 static DECLCALLBACK(int) codecLookup(PHDACODEC pThis, uint32_t cmd, uint64_t *puResp)
 {
     AssertPtrReturn(pThis,  VERR_INVALID_POINTER);
     AssertPtrReturn(puResp, VERR_INVALID_POINTER);
+    STAM_COUNTER_INC(&pThis->StatLookups);
 
     if (CODEC_CAD(cmd) != pThis->id)
     {
@@ -3080,16 +3064,14 @@ int hdaCodecAddStream(PHDACODEC pThis, PDMAUDIOMIXERCTL enmMixerCtl, PPDMAUDIOST
         case PDMAUDIOMIXERCTL_CENTER_LFE:
         case PDMAUDIOMIXERCTL_REAR:
 #endif
-        {
             break;
-        }
+
         case PDMAUDIOMIXERCTL_LINE_IN:
 #ifdef VBOX_WITH_AUDIO_HDA_MIC_IN
         case PDMAUDIOMIXERCTL_MIC_IN:
 #endif
-        {
             break;
-        }
+
         default:
             AssertMsgFailed(("Mixer control %d not implemented\n", enmMixerCtl));
             rc = VERR_NOT_IMPLEMENTED;
@@ -3097,7 +3079,7 @@ int hdaCodecAddStream(PHDACODEC pThis, PDMAUDIOMIXERCTL enmMixerCtl, PPDMAUDIOST
     }
 
     if (RT_SUCCESS(rc))
-        rc = pThis->pfnCbMixerAddStream(pThis->pHDAState, enmMixerCtl, pCfg);
+        rc = pThis->pfnCbMixerAddStream(pThis->pDevIns, enmMixerCtl, pCfg);
 
     LogFlowFuncLeaveRC(rc);
     return rc;
@@ -3107,109 +3089,87 @@ int hdaCodecRemoveStream(PHDACODEC pThis, PDMAUDIOMIXERCTL enmMixerCtl)
 {
     AssertPtrReturn(pThis, VERR_INVALID_POINTER);
 
-    int rc = pThis->pfnCbMixerRemoveStream(pThis->pHDAState, enmMixerCtl);
+    int rc = pThis->pfnCbMixerRemoveStream(pThis->pDevIns, enmMixerCtl);
 
     LogFlowFuncLeaveRC(rc);
     return rc;
 }
 
-int hdaCodecSaveState(PHDACODEC pThis, PSSMHANDLE pSSM)
+int hdaCodecSaveState(PPDMDEVINS pDevIns, PHDACODEC pThis, PSSMHANDLE pSSM)
 {
+    PCPDMDEVHLPR3 pHlp = pDevIns->pHlpR3;
     AssertLogRelMsgReturn(pThis->cTotalNodes == STAC9221_NUM_NODES, ("cTotalNodes=%#x, should be 0x1c", pThis->cTotalNodes),
                           VERR_INTERNAL_ERROR);
-    SSMR3PutU32(pSSM, pThis->cTotalNodes);
+    pHlp->pfnSSMPutU32(pSSM, pThis->cTotalNodes);
     for (unsigned idxNode = 0; idxNode < pThis->cTotalNodes; ++idxNode)
-        SSMR3PutStructEx(pSSM, &pThis->paNodes[idxNode].SavedState, sizeof(pThis->paNodes[idxNode].SavedState),
-                         0 /*fFlags*/, g_aCodecNodeFields, NULL /*pvUser*/);
+        pHlp->pfnSSMPutStructEx(pSSM, &pThis->paNodes[idxNode].SavedState, sizeof(pThis->paNodes[idxNode].SavedState),
+                                0 /*fFlags*/, g_aCodecNodeFields, NULL /*pvUser*/);
     return VINF_SUCCESS;
 }
 
-int hdaCodecLoadState(PHDACODEC pThis, PSSMHANDLE pSSM, uint32_t uVersion)
+int hdaCodecLoadState(PPDMDEVINS pDevIns, PHDACODEC pThis, PSSMHANDLE pSSM, uint32_t uVersion)
 {
-    int rc = VINF_SUCCESS;
-
+    PCPDMDEVHLPR3 pHlp = pDevIns->pHlpR3;
     PCSSMFIELD pFields = NULL;
     uint32_t   fFlags  = 0;
-    switch (uVersion)
+    if (uVersion >= HDA_SAVED_STATE_VERSION_4)
     {
-        case HDA_SSM_VERSION_1:
-            AssertReturn(pThis->cTotalNodes == 0x1c, VERR_INTERNAL_ERROR);
-            pFields = g_aCodecNodeFieldsV1;
-            fFlags  = SSMSTRUCT_FLAGS_MEM_BAND_AID_RELAXED;
-            break;
-
-        case HDA_SSM_VERSION_2:
-        case HDA_SSM_VERSION_3:
-            AssertReturn(pThis->cTotalNodes == 0x1c, VERR_INTERNAL_ERROR);
-            pFields = g_aCodecNodeFields;
-            fFlags  = SSMSTRUCT_FLAGS_MEM_BAND_AID_RELAXED;
-            break;
-
         /* Since version 4 a flexible node count is supported. */
-        case HDA_SSM_VERSION_4:
-        case HDA_SSM_VERSION_5:
-        case HDA_SSM_VERSION:
-        {
-            uint32_t cNodes;
-            int rc2 = SSMR3GetU32(pSSM, &cNodes);
-            AssertRCReturn(rc2, rc2);
-            if (cNodes != 0x1c)
-                return VERR_SSM_DATA_UNIT_FORMAT_CHANGED;
-            AssertReturn(pThis->cTotalNodes == 0x1c, VERR_INTERNAL_ERROR);
+        uint32_t cNodes;
+        int rc2 = pHlp->pfnSSMGetU32(pSSM, &cNodes);
+        AssertRCReturn(rc2, rc2);
+        AssertReturn(cNodes == 0x1c, VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
+        AssertReturn(pThis->cTotalNodes == 0x1c, VERR_INTERNAL_ERROR);
 
-            pFields = g_aCodecNodeFields;
-            fFlags  = 0;
-            break;
-        }
-
-        default:
-            rc = VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
-            break;
+        pFields = g_aCodecNodeFields;
+        fFlags  = 0;
     }
-
-    if (RT_SUCCESS(rc))
+    else if (uVersion >= HDA_SAVED_STATE_VERSION_2)
     {
-        for (unsigned idxNode = 0; idxNode < pThis->cTotalNodes; ++idxNode)
-        {
-            uint8_t idOld = pThis->paNodes[idxNode].SavedState.Core.uID;
-            int rc2 = SSMR3GetStructEx(pSSM, &pThis->paNodes[idxNode].SavedState,
-                                       sizeof(pThis->paNodes[idxNode].SavedState),
-                                       fFlags, pFields, NULL);
-            if (RT_SUCCESS(rc))
-                rc = rc2;
+        AssertReturn(pThis->cTotalNodes == 0x1c, VERR_INTERNAL_ERROR);
+        pFields = g_aCodecNodeFields;
+        fFlags  = SSMSTRUCT_FLAGS_MEM_BAND_AID_RELAXED;
+    }
+    else if (uVersion >= HDA_SAVED_STATE_VERSION_1)
+    {
+        AssertReturn(pThis->cTotalNodes == 0x1c, VERR_INTERNAL_ERROR);
+        pFields = g_aCodecNodeFieldsV1;
+        fFlags  = SSMSTRUCT_FLAGS_MEM_BAND_AID_RELAXED;
+    }
+    else
+        AssertFailedReturn(VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION);
 
-            if (RT_FAILURE(rc))
-                break;
-
-            AssertLogRelMsgReturn(idOld == pThis->paNodes[idxNode].SavedState.Core.uID,
-                                  ("loaded %#x, expected %#x\n", pThis->paNodes[idxNode].SavedState.Core.uID, idOld),
-                                  VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
-        }
-
-        if (RT_SUCCESS(rc))
-        {
-            /*
-             * Update stuff after changing the state.
-             */
-            PCODECNODE pNode;
-            if (hdaCodecIsDacNode(pThis, pThis->u8DacLineOut))
-            {
-                pNode = &pThis->paNodes[pThis->u8DacLineOut];
-                hdaCodecToAudVolume(pThis, pNode, &pNode->dac.B_params, PDMAUDIOMIXERCTL_FRONT);
-            }
-            else if (hdaCodecIsSpdifOutNode(pThis, pThis->u8DacLineOut))
-            {
-                pNode = &pThis->paNodes[pThis->u8DacLineOut];
-                hdaCodecToAudVolume(pThis, pNode, &pNode->spdifout.B_params, PDMAUDIOMIXERCTL_FRONT);
-            }
-
-            pNode = &pThis->paNodes[pThis->u8AdcVolsLineIn];
-            hdaCodecToAudVolume(pThis, pNode, &pNode->adcvol.B_params, PDMAUDIOMIXERCTL_LINE_IN);
-        }
+    for (unsigned idxNode = 0; idxNode < pThis->cTotalNodes; ++idxNode)
+    {
+        uint8_t idOld = pThis->paNodes[idxNode].SavedState.Core.uID;
+        int rc = pHlp->pfnSSMGetStructEx(pSSM, &pThis->paNodes[idxNode].SavedState, sizeof(pThis->paNodes[idxNode].SavedState),
+                                         fFlags, pFields, NULL);
+        AssertRCReturn(rc, rc);
+        AssertLogRelMsgReturn(idOld == pThis->paNodes[idxNode].SavedState.Core.uID,
+                              ("loaded %#x, expected %#x\n", pThis->paNodes[idxNode].SavedState.Core.uID, idOld),
+                              VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
     }
 
-    LogFlowFuncLeaveRC(rc);
-    return rc;
+    /*
+     * Update stuff after changing the state.
+     */
+    PCODECNODE pNode;
+    if (hdaCodecIsDacNode(pThis, pThis->u8DacLineOut))
+    {
+        pNode = &pThis->paNodes[pThis->u8DacLineOut];
+        hdaCodecToAudVolume(pThis, pNode, &pNode->dac.B_params, PDMAUDIOMIXERCTL_FRONT);
+    }
+    else if (hdaCodecIsSpdifOutNode(pThis, pThis->u8DacLineOut))
+    {
+        pNode = &pThis->paNodes[pThis->u8DacLineOut];
+        hdaCodecToAudVolume(pThis, pNode, &pNode->spdifout.B_params, PDMAUDIOMIXERCTL_FRONT);
+    }
+
+    pNode = &pThis->paNodes[pThis->u8AdcVolsLineIn];
+    hdaCodecToAudVolume(pThis, pNode, &pNode->adcvol.B_params, PDMAUDIOMIXERCTL_LINE_IN);
+
+    LogFlowFuncLeaveRC(VINF_SUCCESS);
+    return VINF_SUCCESS;
 }
 
 /**
@@ -3270,8 +3230,8 @@ int hdaCodecConstruct(PPDMDEVINS pDevIns, PHDACODEC pThis,
 
 #ifdef DEBUG
     pThis->pfnDbgSelector  = codecDbgSelector;
-    pThis->pfnDbgListNodes = codecDbgListNodes;
 #endif
+    pThis->pfnDbgListNodes = codecDbgListNodes;
     pThis->pfnLookup       = codecLookup;
 
     int rc = stac9220Construct(pThis);
@@ -3297,6 +3257,13 @@ int hdaCodecConstruct(PPDMDEVINS pDevIns, PHDACODEC pThis,
     hdaCodecToAudVolume(pThis, pNode, &pNode->adcvol.B_params, PDMAUDIOMIXERCTL_LINE_IN);
 #ifdef VBOX_WITH_AUDIO_HDA_MIC_IN
 # error "Implement mic-in support!"
+#endif
+
+    /*
+     * Statistics
+     */
+#ifdef VBOX_WITH_STATISTICS
+    PDMDevHlpSTAMRegister(pDevIns, &pThis->StatLookups, STAMTYPE_COUNTER, "Codec/Lookups", STAMUNIT_OCCURENCES, "Number of codecLookup calls");
 #endif
 
     LogFlowFuncLeaveRC(rc);

@@ -41,18 +41,20 @@ class UIWizardExportAppPageExpert : public UIWizardPage,
     Q_PROPERTY(QString format READ format WRITE setFormat);
     Q_PROPERTY(bool isFormatCloudOne READ isFormatCloudOne);
     Q_PROPERTY(QString path READ path WRITE setPath);
-    Q_PROPERTY(MACAddressPolicy macAddressPolicy READ macAddressPolicy WRITE setMACAddressPolicy);
+    Q_PROPERTY(MACAddressExportPolicy macAddressExportPolicy READ macAddressExportPolicy WRITE setMACAddressExportPolicy);
     Q_PROPERTY(bool manifestSelected READ isManifestSelected WRITE setManifestSelected);
     Q_PROPERTY(bool includeISOsSelected READ isIncludeISOsSelected WRITE setIncludeISOsSelected);
     Q_PROPERTY(QString providerShortName READ providerShortName);
-    Q_PROPERTY(QString profileName READ profileName);
-    Q_PROPERTY(CCloudProfile profile READ profile);
-    Q_PROPERTY(AbstractVSDParameterList cloudClientParameters READ cloudClientParameters);
+    Q_PROPERTY(CAppliance appliance READ appliance);
+    Q_PROPERTY(CCloudClient client READ client);
+    Q_PROPERTY(CVirtualSystemDescription vsd READ vsd);
+    Q_PROPERTY(CVirtualSystemDescriptionForm vsdExportForm READ vsdExportForm);
+    Q_PROPERTY(CloudExportMode cloudExportMode READ cloudExportMode);
     Q_PROPERTY(ExportAppliancePointer applianceWidget READ applianceWidget);
 
 public:
 
-    /** Constructs expert basic page.
+    /** Constructs expert page.
       * @param  selectedVMNames  Brings the list of selected VM names. */
     UIWizardExportAppPageExpert(const QStringList &selectedVMNames, bool fExportToOCIByDefault);
 
@@ -62,7 +64,7 @@ protected:
     virtual bool event(QEvent *pEvent) /* override */;
 
     /** Allows access wizard from base part. */
-    UIWizard* wizardImp() { return UIWizardPage::wizard(); }
+    UIWizard *wizardImp() const { return UIWizardPage::wizard(); }
     /** Allows access page from base part. */
     UIWizardPage* thisImp() { return this; }
     /** Allows access wizard-field from base part. */
@@ -93,8 +95,8 @@ private slots:
     /** Handles change in file-name selector. */
     void sltHandleFileSelectorChange();
 
-    /** Handles change in MAC address policy combo-box. */
-    void sltHandleMACAddressPolicyComboChange();
+    /** Handles change in MAC address export policy combo-box. */
+    void sltHandleMACAddressExportPolicyComboChange();
 
     /** Handles change in account combo-box. */
     void sltHandleAccountComboChange();
@@ -103,6 +105,9 @@ private slots:
     void sltHandleAccountButtonClick();
 
 private:
+
+    /** Holds whether starting page was polished. */
+    bool  m_fPolished;
 
     /** Holds the VM selector container instance. */
     QGroupBox *m_pSelectorCnt;

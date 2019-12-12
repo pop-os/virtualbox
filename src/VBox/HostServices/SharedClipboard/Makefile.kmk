@@ -22,32 +22,48 @@ include $(KBUILD_PATH)/subheader.kmk
 include $(PATH_SUB_CURRENT)/testcase/Makefile.kmk
 
 #
-# The shared folder service DLL.
+# The Shared Clipboard service DLL.
 #
 DLLS += VBoxSharedClipboard
 VBoxSharedClipboard_TEMPLATE  = VBOXR3
-VBoxSharedClipboard_DEFS      = VBOX_WITH_HGCM
+VBoxSharedClipboard_DEFS      = \
+	VBOX_WITH_HGCM \
+	$(if $(VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS),VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS,)
 VBoxSharedClipboard_INCS.win  = \
 	$(VBOX_PATH_SDK)
 
 VBoxSharedClipboard_SOURCES = \
-	VBoxSharedClipboardSvc.cpp
+	VBoxSharedClipboardSvc.cpp \
+	$(PATH_ROOT)/src/VBox/HostServices/common/message.cpp \
+	$(PATH_ROOT)/src/VBox/GuestHost/SharedClipboard/clipboard-common.cpp
 VBoxSharedClipboard_SOURCES.win = \
-	VBoxClipboard-win.cpp \
+	VBoxSharedClipboardSvc-win.cpp \
+	$(PATH_ROOT)/src/VBox/GuestHost/SharedClipboard/clipboard-win.cpp \
 	VBoxSharedClipboardSvc.rc
 VBoxSharedClipboard_SOURCES.darwin = \
-	darwin.cpp \
-	$(PATH_ROOT)/src/VBox/GuestHost/SharedClipboard/clipboard-helper.cpp \
+	VBoxSharedClipboardSvc-darwin.cpp \
 	darwin-pasteboard.cpp
+ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
+ VBoxSharedClipboard_DEFS    += VBOX_WITH_SHARED_CLIPBOARD_HOST
+ VBoxSharedClipboard_SOURCES += \
+	VBoxSharedClipboardSvc-transfers.cpp \
+	VBoxSharedClipboardSvc-utils.cpp \
+	$(PATH_ROOT)/src/VBox/GuestHost/SharedClipboard/ClipboardArea.cpp \
+	$(PATH_ROOT)/src/VBox/GuestHost/SharedClipboard/ClipboardPath.cpp \
+	$(PATH_ROOT)/src/VBox/GuestHost/SharedClipboard/clipboard-transfers.cpp
+ VBoxSharedClipboard_SOURCES.win += \
+	$(PATH_ROOT)/src/VBox/GuestHost/SharedClipboard/ClipboardDataObjectImpl-win.cpp \
+	$(PATH_ROOT)/src/VBox/GuestHost/SharedClipboard/ClipboardEnumFormatEtcImpl-win.cpp \
+	$(PATH_ROOT)/src/VBox/GuestHost/SharedClipboard/ClipboardStreamImpl-win.cpp
+endif
 if1of ($(KBUILD_TARGET), linux solaris freebsd) ## @todo X11
  ifndef VBOX_HEADLESS
   VBoxSharedClipboard_SOURCES += \
-  	$(PATH_ROOT)/src/VBox/GuestHost/SharedClipboard/clipboard-helper.cpp \
-  	$(PATH_ROOT)/src/VBox/GuestHost/SharedClipboard/x11-clipboard.cpp \
-  	x11-clipboard.cpp
+	$(PATH_ROOT)/src/VBox/GuestHost/SharedClipboard/clipboard-x11.cpp \
+	VBoxSharedClipboardSvc-x11.cpp
  else
   VBoxSharedClipboard_SOURCES += \
-  	x11-stub.cpp
+	VBoxSharedClipboardSvc-x11-stubs.cpp
  endif
 endif
 
@@ -68,7 +84,8 @@ endif
 VBoxSharedClipboard_LDFLAGS.darwin = \
 	-framework ApplicationServices -install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VBoxSharedClipboard.dylib
 
-if defined(VBOX_WITH_TESTCASES) && !defined(VBOX_ONLY_ADDITIONS) && !defined(VBOX_ONLY_SDK)
+if 0 ## Disabled for now; needs to be adapted to the new protocol first.
+ if defined(VBOX_WITH_TESTCASES) && !defined(VBOX_ONLY_ADDITIONS) && !defined(VBOX_ONLY_SDK)
  if1of ($(KBUILD_TARGET), freebsd linux netbsd openbsd solaris)
  #
  # Set this in LocalConfig.kmk if you are working on the X11 clipboard service
@@ -78,14 +95,15 @@ if defined(VBOX_WITH_TESTCASES) && !defined(VBOX_ONLY_ADDITIONS) && !defined(VBO
  TESTING += $(tstClipboardX11-2_0_OUTDIR)/tstClipboardX11-2.run
  tstClipboardX11-2_TEMPLATE = VBOXR3TSTEXE
  tstClipboardX11-2_DEFS     = VBOX_WITH_HGCM TESTCASE
- tstClipboardX11-2_SOURCES  = x11-clipboard.cpp
+ tstClipboardX11-2_SOURCES  = VBoxSharedClipboardSvc-x11.cpp
  tstClipboardX11-2_LIBS     = $(LIB_RUNTIME)
  tstClipboardX11-2_CLEANS   = $(tstClipboardX11-2_0_OUTDIR)/tstClipboardX11-2.run
 
 $$(tstClipboardX11-2_0_OUTDIR)/tstClipboardX11-2.run: $$(tstClipboardX11-2_1_STAGE_TARGET)
 	export VBOX_LOG_DEST=nofile; $(tstClipboardX11-2_1_STAGE_TARGET) quiet
 	$(QUIET)$(APPEND) -t "$@" "done"
- endif # 1of ($(KBUILD_TARGET),freebsd linux netbsd openbsd solaris)
+  endif # 1of ($(KBUILD_TARGET),freebsd linux netbsd openbsd solaris)
+ endif
 endif
 
 include $(FILE_KBUILD_SUB_FOOTER)

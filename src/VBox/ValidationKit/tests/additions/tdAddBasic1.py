@@ -27,12 +27,12 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
-
+__version__ = "$Revision: 131247 $"
 
 # Standard Python imports.
 import os;
 import sys;
+import uuid;
 
 # Only the main script needs to modify the path.
 try:    __file__
@@ -46,12 +46,13 @@ from testdriver import base;
 from testdriver import vbox;
 from testdriver import vboxcon;
 
-# Sub test driver imports.
+# Sub-test driver imports.
 sys.path.append(os.path.dirname(os.path.abspath(__file__))); # For sub-test drivers.
 from tdAddGuestCtrl import SubTstDrvAddGuestCtrl;
+from tdAddSharedFolders1 import SubTstDrvAddSharedFolders1;
 
 
-class tdAddBasic1(vbox.TestDriver):                                         # pylint: disable=R0902
+class tdAddBasic1(vbox.TestDriver):                                         # pylint: disable=too-many-instance-attributes
     """
     Additions Basics #1.
     """
@@ -62,11 +63,12 @@ class tdAddBasic1(vbox.TestDriver):                                         # py
     def __init__(self):
         vbox.TestDriver.__init__(self);
         self.oTestVmSet = self.oTestVmManager.getSmokeVmSet('nat');
-        self.asTestsDef = ['guestprops', 'stdguestprops', 'guestcontrol'];
+        self.asTestsDef = ['install', 'guestprops', 'stdguestprops', 'guestcontrol', 'sharedfolders'];
         self.asTests    = self.asTestsDef;
         self.asRsrcs    = None
 
         self.addSubTestDriver(SubTstDrvAddGuestCtrl(self));
+        self.addSubTestDriver(SubTstDrvAddSharedFolders1(self));
 
     #
     # Overridden methods.
@@ -81,15 +83,15 @@ class tdAddBasic1(vbox.TestDriver):                                         # py
         reporter.log('      Same as --virt-modes hwvirt --cpu-counts 1.');
         return rc;
 
-    def parseOption(self, asArgs, iArg):                                        # pylint: disable=R0912,R0915
+    def parseOption(self, asArgs, iArg):                                  # pylint: disable=too-many-branches,too-many-statements
         if asArgs[iArg] == '--tests':
             iArg += 1;
             if iArg >= len(asArgs): raise base.InvalidOption('The "--tests" takes a colon separated list of tests');
             self.asTests = asArgs[iArg].split(':');
             for s in self.asTests:
                 if s not in self.asTestsDef:
-                    raise base.InvalidOption('The "--tests" value "%s" is not valid; valid values are: %s' \
-                        % (s, ' '.join(self.asTestsDef)));
+                    raise base.InvalidOption('The "--tests" value "%s" is not valid; valid values are: %s'
+                                             % (s, ' '.join(self.asTestsDef),));
 
         elif asArgs[iArg] == '--quick':
             self.parseOption(['--virt-modes', 'hwvirt'], 0);
@@ -113,6 +115,25 @@ class tdAddBasic1(vbox.TestDriver):                                         # py
 
         eNic0AttachType = vboxcon.NetworkAttachmentType_NAT;
         sGaIso = self.getGuestAdditionsIso();
+
+        # On 6.0 we merge the GAs with the ValidationKit so we can get at FsPerf.
+        # Note! Not possible to do a dboule import as both images an '/OS2' dir.
+        #       So, using same dir as with unattended VISOs for the valkit.
+        if self.fpApiVer >= 6.0 and 'sharedfolders' in self.asTests:
+            sGaViso = os.path.join(self.sScratchPath, 'AdditionsAndValKit.viso');
+            ## @todo encode as bash cmd line:
+            sVisoContent = '--iprt-iso-maker-file-marker-bourne-sh %s ' \
+                           '--import-iso \'%s\' ' \
+                           '--push-iso \'%s\' ' \
+                           '/vboxvalidationkit=/ ' \
+                           '--pop ' \
+                          % (uuid.uuid4(), sGaIso, self.sVBoxValidationKitIso);
+            reporter.log2('Using VISO combining GAs and ValKit "%s": %s' % (sGaViso, sVisoContent));
+            oGaViso = open(sGaViso, 'w');
+            oGaViso.write(sVisoContent);
+            oGaViso.close();
+            sGaIso = sGaViso;
+
         return self.oTestVmSet.actionConfig(self, eNic0AttachType = eNic0AttachType, sDvdImage = sGaIso);
 
     def actionExecute(self):
@@ -132,27 +153,39 @@ class tdAddBasic1(vbox.TestDriver):                                         # py
         """
         fRc = False;
 
+        if oTestVm.isWindows():
+            sFileCdWait = 'VBoxWindowsAdditions.exe';
+        elif oTestVm.isLinux():
+            sFileCdWait = 'VBoxLinuxAdditions.run';
+
         self.logVmInfo(oVM);
-        oSession, oTxsSession = self.startVmAndConnectToTxsViaTcp(oTestVm.sVmName, fCdWait = True, \
-                                                                  sFileCdWait = 'AUTORUN.INF');
+        oSession, oTxsSession = self.startVmAndConnectToTxsViaTcp(oTestVm.sVmName, fCdWait = True, sFileCdWait = sFileCdWait);
         if oSession is not None:
             self.addTask(oTxsSession);
             # Do the testing.
+            fSkip = 'install' not in self.asTests;
             reporter.testStart('Install');
-            fRc, oTxsSession = self.testInstallAdditions(oSession, oTxsSession, oTestVm);
-            reporter.testDone();
-            fSkip = not fRc;
+            if not fSkip:
+                fRc, oTxsSession = self.testInstallAdditions(oSession, oTxsSession, oTestVm);
+            reporter.testDone(fSkip);
 
+            fSkip = 'guestprops' not in self.asTests;
             reporter.testStart('Guest Properties');
             if not fSkip:
                 fRc = self.testGuestProperties(oSession, oTxsSession, oTestVm) and fRc;
             reporter.testDone(fSkip);
 
+            fSkip = 'guestcontrol' not in self.asTests;
             reporter.testStart('Guest Control');
             if not fSkip:
-                (fRc2, oTxsSession) = self.aoSubTstDrvs[0].testIt(oTestVm, oSession, oTxsSession);
-                fRc = fRc2 and fRc;
+                fRc, oTxsSession = self.aoSubTstDrvs[0].testIt(oTestVm, oSession, oTxsSession);
             reporter.testDone(fSkip);
+
+            fSkip = 'sharedfolders' not in self.asTests and self.fpApiVer >= 6.0;
+            reporter.testStart('Shared Folders');
+            if not fSkip:
+                fRc, oTxsSession = self.aoSubTstDrvs[1].testIt(oTestVm, oSession, oTxsSession);
+            reporter.testDone(fSkip or fRc is None);
 
             ## @todo Save and restore test.
 
@@ -171,9 +204,11 @@ class tdAddBasic1(vbox.TestDriver):                                         # py
         """
         if oTestVm.isWindows():
             (fRc, oTxsSession) = self.testWindowsInstallAdditions(oSession, oTxsSession, oTestVm);
+        elif oTestVm.isLinux():
+            (fRc, oTxsSession) = self.testLinuxInstallAdditions(oSession, oTxsSession, oTestVm);
         else:
-            reporter.error('Guest Additions installation not implemented for %s yet! (%s)' % \
-                           (oTestVm.sKind, oTestVm.sVmName));
+            reporter.error('Guest Additions installation not implemented for %s yet! (%s)' %
+                           (oTestVm.sKind, oTestVm.sVmName,));
             fRc = False;
 
         #
@@ -213,41 +248,48 @@ class tdAddBasic1(vbox.TestDriver):                                         # py
         Installs the Windows guest additions using the test execution service.
         Since this involves rebooting the guest, we will have to create a new TXS session.
         """
-        asLogFile = [];
 
-        fHaveSetupApiDevLog = False;
+        #
+        # Install the public signing key.
+        #
+        if oTestVm.sKind not in ('WindowsNT4', 'Windows2000', 'WindowsXP', 'Windows2003'):
+            self.txsRunTest(oTxsSession, 'VBoxCertUtil.exe', 1 * 60 * 1000, '${CDROM}/cert/VBoxCertUtil.exe',
+                            ('${CDROM}/cert/VBoxCertUtil.exe', 'add-trusted-publisher', '${CDROM}/cert/vbox-sha1.cer'));
+            self.txsRunTest(oTxsSession, 'VBoxCertUtil.exe', 1 * 60 * 1000, '${CDROM}/cert/VBoxCertUtil.exe',
+                            ('${CDROM}/cert/VBoxCertUtil.exe', 'add-trusted-publisher', '${CDROM}/cert/vbox-sha256.cer'));
 
+        #
         # Delete relevant log files.
+        #
+        # Note! On some guests the files in question still can be locked by the OS, so ignore
+        #       deletion errors from the guest side (e.g. sharing violations) and just continue.
+        #
+        asLogFiles = [];
+        fHaveSetupApiDevLog = False;
         if oTestVm.sKind in ('WindowsNT4',):
             sWinDir = 'C:/WinNT/';
         else:
             sWinDir = 'C:/Windows/';
-            asLogFile = [sWinDir+'setupapi.log', sWinDir+'setupact.log', sWinDir+'setuperr.log'];
+            asLogFiles = [sWinDir + 'setupapi.log', sWinDir + 'setupact.log', sWinDir + 'setuperr.log'];
 
             # Apply The SetupAPI logging level so that we also get the (most verbose) setupapi.dev.log file.
             ## @todo !!! HACK ALERT !!! Add the value directly into the testing source image. Later.
-            fHaveSetupApiDevLog = self.txsRunTest(oTxsSession, 'Enabling setupapi.dev.log', 30 * 1000, \
-                'c:\\Windows\\System32\\reg.exe', ('c:\\Windows\\System32\\reg.exe', \
-                'add', '"HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Setup"', '/v', 'LogLevel', '/t', 'REG_DWORD', \
-                '/d', '0xFF'));
+            fHaveSetupApiDevLog = self.txsRunTest(oTxsSession, 'Enabling setupapi.dev.log', 30 * 1000,
+                                                  'c:\\Windows\\System32\\reg.exe',
+                                                  ('c:\\Windows\\System32\\reg.exe', 'add',
+                                                   '"HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Setup"',
+                                                   '/v', 'LogLevel', '/t', 'REG_DWORD', '/d', '0xFF'));
 
-        # On some guests the files in question still can be locked by the OS, so ignore deletion
-        # errors from the guest side (e.g. sharing violations) and just continue.
-        for sFile in asLogFile:
+        for sFile in asLogFiles:
             self.txsRmFile(oSession, oTxsSession, sFile, 10 * 1000, fIgnoreErrors = True);
-
-        # Install the public signing key.
-        if oTestVm.sKind not in ('WindowsNT4', 'Windows2000', 'WindowsXP', 'Windows2003'):
-            ## TODO
-            pass;
 
         #
         # The actual install.
         # Enable installing the optional auto-logon modules (VBoxGINA/VBoxCredProv) + (Direct)3D support.
         # Also tell the installer to produce the appropriate log files.
         #
-        fRc = self.txsRunTest(oTxsSession, 'VBoxWindowsAdditions.exe', 5 * 60 * 1000, \
-            '${CDROM}/VBoxWindowsAdditions.exe', ('${CDROM}/VBoxWindowsAdditions.exe', '/S', '/l', '/with_autologon'));
+        fRc = self.txsRunTest(oTxsSession, 'VBoxWindowsAdditions.exe', 5 * 60 * 1000, '${CDROM}/VBoxWindowsAdditions.exe',
+                              ('${CDROM}/VBoxWindowsAdditions.exe', '/S', '/l', '/with_autologon'));
         ## @todo For testing the installation (D)3D stuff ('/with_d3d') we need to boot up in safe mode.
 
         #
@@ -260,21 +302,79 @@ class tdAddBasic1(vbox.TestDriver):                                         # py
                 # Add the Windows Guest Additions installer files to the files we want to download
                 # from the guest.
                 sGuestAddsDir = 'C:/Program Files/Oracle/VirtualBox Guest Additions/';
-                asLogFile.append(sGuestAddsDir + 'install.log');
+                asLogFiles.append(sGuestAddsDir + 'install.log');
                 # Note: There won't be a install_ui.log because of the silent installation.
-                asLogFile.append(sGuestAddsDir + 'install_drivers.log');
-                asLogFile.append('C:/Windows/setupapi.log');
+                asLogFiles.append(sGuestAddsDir + 'install_drivers.log');
+                asLogFiles.append('C:/Windows/setupapi.log');
 
                 # Note: setupapi.dev.log only is available since Windows 2000.
                 if fHaveSetupApiDevLog:
-                    asLogFile.append('C:/Windows/setupapi.dev.log');
+                    asLogFiles.append('C:/Windows/setupapi.dev.log');
 
                 #
                 # Download log files.
                 # Ignore errors as all files above might not be present (or in different locations)
                 # on different Windows guests.
                 #
-                self.txsDownloadFiles(oSession, oTxsSession, asLogFile, fIgnoreErrors = True);
+                self.txsDownloadFiles(oSession, oTxsSession, asLogFiles, fIgnoreErrors = True);
+
+        return (fRc, oTxsSession);
+
+    def testLinuxInstallAdditions(self, oSession, oTxsSession, oTestVm):
+        oSession = oSession;
+        oTestVm = oTestVm;
+
+        fRc = False;
+
+        # Install Kernel headers, which are required for actually installing the Linux Additions.
+        if oTestVm.sKind.startswith('Debian') \
+        or oTestVm.sKind.startswith('Ubuntu'):
+            fRc = self.txsRunTest(oTxsSession, 'Installing Kernel headers', 5 * 60 *1000,
+                                  '/usr/bin/apt-get', ('/usr/bin/apt-get', 'install', '-y', 'linux-headers-generic'));
+            if not fRc:
+                reporter.error('Error installing Kernel headers');
+            fRc = self.txsRunTest(oTxsSession, 'Installing Guest Additions depdendencies', 5 * 60 *1000, \
+                                  '/usr/bin/apt-get', ('/usr/bin/apt-get', 'install', '-y', 'build-essential', 'perl'));
+            if not fRc:
+                reporter.error('Error installing additional installer dependencies');
+        elif oTestVm.sKind.startswith('OL') \
+        or   oTestVm.sKind.startswith('Oracle') \
+        or   oTestVm.sKind.startswith('RHEL') \
+        or   oTestVm.sKind.startswith('Redhat') \
+        or   oTestVm.sKind.startswith('Cent'):
+            fRc = self.txsRunTest(oTxsSession, 'Installing Kernel headers', 5 * 60 *1000,
+                                  '/usr/bin/yum', ('/usr/bin/yum', '-y', 'install', 'kernel-headers'));
+            if not fRc:
+                reporter.error('Error installing Kernel headers');
+            fRc = self.txsRunTest(oTxsSession, 'Installing Guest Additions depdendencies', 5 * 60 *1000, \
+                                  '/usr/bin/yum', ('/usr/bin/yum', '-y', 'install', \
+                                                   'make', 'automake', 'gcc', 'kernel-devel', 'dkms', 'bzip2', 'perl'));
+            if not fRc:
+                reporter.error('Error installing additional installer dependencies');
+        else:
+            reporter.error('Installing Linux Additions for kind "%s" is not supported yet' % oTestVm.sKind);
+            return (False, oTxsSession);
+
+        if fRc:
+            #
+            # The actual install.
+            # Also tell the installer to produce the appropriate log files.
+            #
+            fRc = self.txsRunTest(oTxsSession, 'VBoxLinuxAdditions.run', 5 * 60 * 1000,
+                '/bin/sh', ('/bin/sh', '${CDROM}/VBoxLinuxAdditions.run'));
+            if not fRc:
+                reporter.error('Installing Linux Additions failed (see log file for details)');
+
+            #
+            # Download log files.
+            # Ignore errors as all files above might not be present for whatever reason.
+            #
+            asLogFile = [];
+            asLogFile.append('/var/log/vboxadd-install.log');
+            self.txsDownloadFiles(oSession, oTxsSession, asLogFile, fIgnoreErrors = True);
+
+        if fRc:
+            (fRc, oTxsSession) = self.txsRebootAndReconnectViaTcp(oSession, oTxsSession, cMsTimeout = 3 * 60000);
 
         return (fRc, oTxsSession);
 
@@ -337,4 +437,3 @@ class tdAddBasic1(vbox.TestDriver):                                         # py
 
 if __name__ == '__main__':
     sys.exit(tdAddBasic1().main(sys.argv));
-

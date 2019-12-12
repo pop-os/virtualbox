@@ -55,7 +55,6 @@ static DECLCALLBACK(int) devSampleDestruct(PPDMDEVINS pDevIns)
 
 static DECLCALLBACK(int) devSampleConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
 {
-
     /*
      * Check that the device instance and device helper structures are compatible.
      */
@@ -65,7 +64,7 @@ static DECLCALLBACK(int) devSampleConstruct(PPDMDEVINS pDevIns, int iInstance, P
     /*
      * Initialize the instance data so that the destructor won't mess up.
      */
-    PVBOXSAMPLEDEVICE pThis = PDMINS_2_DATA(pDevIns, PVBOXSAMPLEDEVICE);
+    PVBOXSAMPLEDEVICE pThis = PDMDEVINS_2_DATA(pDevIns, PVBOXSAMPLEDEVICE);
     pThis->Whatever = 0;
 
     /*
@@ -88,54 +87,72 @@ static DECLCALLBACK(int) devSampleConstruct(PPDMDEVINS pDevIns, int iInstance, P
  */
 static const PDMDEVREG g_DeviceSample =
 {
-    /* u32Version */
-    PDM_DEVREG_VERSION,
-    /* szName */
-    "sample",
-    /* szRCMod */
-    "",
-    /* szR0Mod */
-    "",
-    /* pszDescription */
-    "VBox Sample Device.",
-    /* fFlags */
-    PDM_DEVREG_FLAGS_DEFAULT_BITS,
-    /* fClass */
-    PDM_DEVREG_CLASS_MISC,
-    /* cMaxInstances */
-    1,
-    /* cbInstance */
-    sizeof(VBOXSAMPLEDEVICE),
-    /* pfnConstruct */
-    devSampleConstruct,
-    /* pfnDestruct */
-    devSampleDestruct,
-    /* pfnRelocate */
-    NULL,
-    /* pfnMemSetup */
-    NULL,
-    /* pfnPowerOn */
-    NULL,
-    /* pfnReset */
-    NULL,
-    /* pfnSuspend */
-    NULL,
-    /* pfnResume */
-    NULL,
-    /* pfnAttach */
-    NULL,
-    /* pfnDetach */
-    NULL,
-    /* pfnQueryInterface */
-    NULL,
-    /* pfnInitComplete */
-    NULL,
-    /* pfnPowerOff */
-    NULL,
-    /* pfnSoftReset */
-    NULL,
-    /* u32VersionEnd */
-    PDM_DEVREG_VERSION
+    /* .u32Version = */             PDM_DEVREG_VERSION,
+    /* .uReserved0 = */             0,
+    /* .szName = */                 "sample",
+    /* .fFlags = */                 PDM_DEVREG_FLAGS_DEFAULT_BITS | PDM_DEVREG_FLAGS_NEW_STYLE,
+    /* .fClass = */                 PDM_DEVREG_CLASS_MISC,
+    /* .cMaxInstances = */          1,
+    /* .uSharedVersion = */         42,
+    /* .cbInstanceShared = */       sizeof(VBOXSAMPLEDEVICE),
+    /* .cbInstanceCC = */           0,
+    /* .cbInstanceRC = */           0,
+    /* .cMaxPciDevices = */         0,
+    /* .cMaxMsixVectors = */        0,
+    /* .pszDescription = */         "VBox Sample Device.",
+#if defined(IN_RING3)
+    /* .pszRCMod = */               "",
+    /* .pszR0Mod = */               "",
+    /* .pfnConstruct = */           devSampleConstruct,
+    /* .pfnDestruct = */            devSampleDestruct,
+    /* .pfnRelocate = */            NULL,
+    /* .pfnMemSetup = */            NULL,
+    /* .pfnPowerOn = */             NULL,
+    /* .pfnReset = */               NULL,
+    /* .pfnSuspend = */             NULL,
+    /* .pfnResume = */              NULL,
+    /* .pfnAttach = */              NULL,
+    /* .pfnDetach = */              NULL,
+    /* .pfnQueryInterface = */      NULL,
+    /* .pfnInitComplete = */        NULL,
+    /* .pfnPowerOff = */            NULL,
+    /* .pfnSoftReset = */           NULL,
+    /* .pfnReserved0 = */           NULL,
+    /* .pfnReserved1 = */           NULL,
+    /* .pfnReserved2 = */           NULL,
+    /* .pfnReserved3 = */           NULL,
+    /* .pfnReserved4 = */           NULL,
+    /* .pfnReserved5 = */           NULL,
+    /* .pfnReserved6 = */           NULL,
+    /* .pfnReserved7 = */           NULL,
+#elif defined(IN_RING0)
+    /* .pfnEarlyConstruct = */      NULL,
+    /* .pfnConstruct = */           NULL,
+    /* .pfnDestruct = */            NULL,
+    /* .pfnFinalDestruct = */       NULL,
+    /* .pfnRequest = */             NULL,
+    /* .pfnReserved0 = */           NULL,
+    /* .pfnReserved1 = */           NULL,
+    /* .pfnReserved2 = */           NULL,
+    /* .pfnReserved3 = */           NULL,
+    /* .pfnReserved4 = */           NULL,
+    /* .pfnReserved5 = */           NULL,
+    /* .pfnReserved6 = */           NULL,
+    /* .pfnReserved7 = */           NULL,
+#elif defined(IN_RC)
+    /* .pfnConstruct = */           NULL,
+    /* .pfnReserved0 = */           NULL,
+    /* .pfnReserved1 = */           NULL,
+    /* .pfnReserved2 = */           NULL,
+    /* .pfnReserved3 = */           NULL,
+    /* .pfnReserved4 = */           NULL,
+    /* .pfnReserved5 = */           NULL,
+    /* .pfnReserved6 = */           NULL,
+    /* .pfnReserved7 = */           NULL,
+#else
+# error "Not in IN_RING3, IN_RING0 or IN_RC!"
+#endif
+    /* .u32VersionEnd = */          PDM_DEVREG_VERSION
 };
 
 

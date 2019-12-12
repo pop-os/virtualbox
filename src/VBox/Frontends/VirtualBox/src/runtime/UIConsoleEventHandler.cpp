@@ -18,14 +18,16 @@
 /* GUI includes: */
 #include "UIConsoleEventHandler.h"
 #include "UIMainEventListener.h"
+#include "UIMousePointerShapeData.h"
 #include "UIExtraDataManager.h"
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #include "UISession.h"
 #ifdef VBOX_WS_MAC
 # include "VBoxUtils.h"
 #endif
 
 /* COM includes: */
+#include "COMEnums.h"
 #include "CEventListener.h"
 #include "CEventSource.h"
 #include "CConsole.h"
@@ -39,8 +41,8 @@ class UIConsoleEventHandlerProxy : public QObject
 
 signals:
 
-    /** Notifies about mouse pointer become @a fVisible and his shape changed to @a fAlpha, @a hotCorner, @a size and @a shape. */
-    void sigMousePointerShapeChange(bool fVisible, bool fAlpha, QPoint hotCorner, QSize size, QVector<uint8_t> shape);
+    /** Notifies about mouse pointer @a shapeData change. */
+    void sigMousePointerShapeChange(const UIMousePointerShapeData &shapeData);
     /** Notifies about mouse capability change to @a fSupportsAbsolute, @a fSupportsRelative, @a fSupportsMultiTouch and @a fNeedsHostCursor. */
     void sigMouseCapabilityChange(bool fSupportsAbsolute, bool fSupportsRelative, bool fSupportsMultiTouch, bool fNeedsHostCursor);
     /** Notifies about guest request to change the cursor position to @a uX * @a uY.
@@ -80,6 +82,10 @@ signals:
 #endif /* RT_OS_DARWIN */
     /** Notifies about audio adapter state change. */
     void sigAudioAdapterChange();
+    /** Notifies clipboard mode change. */
+    void sigClipboardModeChange(KClipboardMode enmMode);
+    /** Notifies drag and drop mode change. */
+    void sigDnDModeChange(KDnDMode enmMode);
 
 public:
 
@@ -194,7 +200,9 @@ void UIConsoleEventHandlerProxy::prepareListener()
         << KVBoxEventType_OnRuntimeError
         << KVBoxEventType_OnCanShowWindow
         << KVBoxEventType_OnShowWindow
-        << KVBoxEventType_OnAudioAdapterChanged;
+        << KVBoxEventType_OnAudioAdapterChanged
+        << KVBoxEventType_OnClipboardModeChanged
+        << KVBoxEventType_OnDnDModeChanged;
 
     /* Register event listener for console event source: */
     comEventSourceConsole.RegisterListener(m_comEventListener, eventTypes,
@@ -212,65 +220,71 @@ void UIConsoleEventHandlerProxy::prepareListener()
 void UIConsoleEventHandlerProxy::prepareConnections()
 {
     /* Create direct (sync) connections for signals of main listener: */
-    connect(m_pQtListener->getWrapped(), SIGNAL(sigMousePointerShapeChange(bool, bool, QPoint, QSize, QVector<uint8_t>)),
-            this, SIGNAL(sigMousePointerShapeChange(bool, bool, QPoint, QSize, QVector<uint8_t>)),
+    connect(m_pQtListener->getWrapped(), &UIMainEventListener::sigMousePointerShapeChange,
+        this, &UIConsoleEventHandlerProxy::sigMousePointerShapeChange,
             Qt::DirectConnection);
-    connect(m_pQtListener->getWrapped(), SIGNAL(sigMouseCapabilityChange(bool, bool, bool, bool)),
-            this, SIGNAL(sigMouseCapabilityChange(bool, bool, bool, bool)),
+    connect(m_pQtListener->getWrapped(), &UIMainEventListener::sigMouseCapabilityChange,
+           this, &UIConsoleEventHandlerProxy::sigMouseCapabilityChange,
             Qt::DirectConnection);
-    connect(m_pQtListener->getWrapped(), SIGNAL(sigCursorPositionChange(bool, unsigned long, unsigned long)),
-            this, SIGNAL(sigCursorPositionChange(bool, unsigned long, unsigned long)),
+    connect(m_pQtListener->getWrapped(), &UIMainEventListener::sigCursorPositionChange,
+           this, &UIConsoleEventHandlerProxy::sigCursorPositionChange,
             Qt::DirectConnection);
-    connect(m_pQtListener->getWrapped(), SIGNAL(sigKeyboardLedsChangeEvent(bool, bool, bool)),
-            this, SIGNAL(sigKeyboardLedsChangeEvent(bool, bool, bool)),
+    connect(m_pQtListener->getWrapped(), &UIMainEventListener::sigKeyboardLedsChangeEvent,
+            this, &UIConsoleEventHandlerProxy::sigKeyboardLedsChangeEvent,
             Qt::DirectConnection);
-    connect(m_pQtListener->getWrapped(), SIGNAL(sigStateChange(KMachineState)),
-            this, SIGNAL(sigStateChange(KMachineState)),
+    connect(m_pQtListener->getWrapped(), &UIMainEventListener::sigStateChange,
+        this, &UIConsoleEventHandlerProxy::sigStateChange,
             Qt::DirectConnection);
-    connect(m_pQtListener->getWrapped(), SIGNAL(sigAdditionsChange()),
-            this, SIGNAL(sigAdditionsChange()),
+    connect(m_pQtListener->getWrapped(), &UIMainEventListener::sigAdditionsChange,
+            this, &UIConsoleEventHandlerProxy::sigAdditionsChange,
             Qt::DirectConnection);
-    connect(m_pQtListener->getWrapped(), SIGNAL(sigNetworkAdapterChange(CNetworkAdapter)),
-            this, SIGNAL(sigNetworkAdapterChange(CNetworkAdapter)),
+    connect(m_pQtListener->getWrapped(), &UIMainEventListener::sigNetworkAdapterChange,
+            this, &UIConsoleEventHandlerProxy::sigNetworkAdapterChange,
             Qt::DirectConnection);
-    connect(m_pQtListener->getWrapped(), SIGNAL(sigStorageDeviceChange(CMediumAttachment, bool, bool)),
-            this, SIGNAL(sigStorageDeviceChange(CMediumAttachment, bool, bool)),
+    connect(m_pQtListener->getWrapped(), &UIMainEventListener::sigStorageDeviceChange,
+            this, &UIConsoleEventHandlerProxy::sigStorageDeviceChange,
             Qt::DirectConnection);
-    connect(m_pQtListener->getWrapped(), SIGNAL(sigMediumChange(CMediumAttachment)),
-            this, SIGNAL(sigMediumChange(CMediumAttachment)),
+    connect(m_pQtListener->getWrapped(), &UIMainEventListener::sigMediumChange,
+            this, &UIConsoleEventHandlerProxy::sigMediumChange,
             Qt::DirectConnection);
-    connect(m_pQtListener->getWrapped(), SIGNAL(sigVRDEChange()),
-            this, SIGNAL(sigVRDEChange()),
+    connect(m_pQtListener->getWrapped(), &UIMainEventListener::sigVRDEChange,
+            this, &UIConsoleEventHandlerProxy::sigVRDEChange,
             Qt::DirectConnection);
-    connect(m_pQtListener->getWrapped(), SIGNAL(sigRecordingChange()),
-            this, SIGNAL(sigRecordingChange()),
+    connect(m_pQtListener->getWrapped(), &UIMainEventListener::sigRecordingChange,
+            this, &UIConsoleEventHandlerProxy::sigRecordingChange,
             Qt::DirectConnection);
-    connect(m_pQtListener->getWrapped(), SIGNAL(sigUSBControllerChange()),
-            this, SIGNAL(sigUSBControllerChange()),
+    connect(m_pQtListener->getWrapped(), &UIMainEventListener::sigUSBControllerChange,
+            this, &UIConsoleEventHandlerProxy::sigUSBControllerChange,
             Qt::DirectConnection);
-    connect(m_pQtListener->getWrapped(), SIGNAL(sigUSBDeviceStateChange(CUSBDevice, bool, CVirtualBoxErrorInfo)),
-            this, SIGNAL(sigUSBDeviceStateChange(CUSBDevice, bool, CVirtualBoxErrorInfo)),
+    connect(m_pQtListener->getWrapped(), &UIMainEventListener::sigUSBDeviceStateChange,
+            this, &UIConsoleEventHandlerProxy::sigUSBDeviceStateChange,
             Qt::DirectConnection);
-    connect(m_pQtListener->getWrapped(), SIGNAL(sigSharedFolderChange()),
-            this, SIGNAL(sigSharedFolderChange()),
+    connect(m_pQtListener->getWrapped(), &UIMainEventListener::sigSharedFolderChange,
+            this, &UIConsoleEventHandlerProxy::sigSharedFolderChange,
             Qt::DirectConnection);
-    connect(m_pQtListener->getWrapped(), SIGNAL(sigCPUExecutionCapChange()),
-            this, SIGNAL(sigCPUExecutionCapChange()),
+    connect(m_pQtListener->getWrapped(), &UIMainEventListener::sigCPUExecutionCapChange,
+            this, &UIConsoleEventHandlerProxy::sigCPUExecutionCapChange,
             Qt::DirectConnection);
-    connect(m_pQtListener->getWrapped(), SIGNAL(sigGuestMonitorChange(KGuestMonitorChangedEventType, ulong, QRect)),
-            this, SIGNAL(sigGuestMonitorChange(KGuestMonitorChangedEventType, ulong, QRect)),
+    connect(m_pQtListener->getWrapped(), &UIMainEventListener::sigGuestMonitorChange,
+            this, &UIConsoleEventHandlerProxy::sigGuestMonitorChange,
             Qt::DirectConnection);
-    connect(m_pQtListener->getWrapped(), SIGNAL(sigRuntimeError(bool, QString, QString)),
-            this, SIGNAL(sigRuntimeError(bool, QString, QString)),
+    connect(m_pQtListener->getWrapped(), &UIMainEventListener::sigRuntimeError,
+            this, &UIConsoleEventHandlerProxy::sigRuntimeError,
             Qt::DirectConnection);
-    connect(m_pQtListener->getWrapped(), SIGNAL(sigCanShowWindow(bool &, QString &)),
-            this, SLOT(sltCanShowWindow(bool &, QString &)),
+    connect(m_pQtListener->getWrapped(), &UIMainEventListener::sigCanShowWindow,
+            this, &UIConsoleEventHandlerProxy::sltCanShowWindow,
             Qt::DirectConnection);
-    connect(m_pQtListener->getWrapped(), SIGNAL(sigShowWindow(qint64 &)),
-            this, SLOT(sltShowWindow(qint64 &)),
+    connect(m_pQtListener->getWrapped(), &UIMainEventListener::sigShowWindow,
+            this, &UIConsoleEventHandlerProxy::sltShowWindow,
             Qt::DirectConnection);
-    connect(m_pQtListener->getWrapped(), SIGNAL(sigAudioAdapterChange()),
-            this, SIGNAL(sigAudioAdapterChange()),
+    connect(m_pQtListener->getWrapped(), &UIMainEventListener::sigAudioAdapterChange,
+            this, &UIConsoleEventHandlerProxy::sigAudioAdapterChange,
+            Qt::DirectConnection);
+   connect(m_pQtListener->getWrapped(), &UIMainEventListener::sigClipboardModeChange,
+            this, &UIConsoleEventHandlerProxy::sigClipboardModeChange,
+            Qt::DirectConnection);
+   connect(m_pQtListener->getWrapped(), &UIMainEventListener::sigDnDModeChange,
+            this, &UIConsoleEventHandlerProxy::sigDnDModeChange,
             Qt::DirectConnection);
 }
 
@@ -374,66 +388,71 @@ void UIConsoleEventHandler::prepare()
 void UIConsoleEventHandler::prepareConnections()
 {
     /* Create queued (async) connections for signals of event proxy object: */
-    connect(m_pProxy, SIGNAL(sigMousePointerShapeChange(bool, bool, QPoint, QSize, QVector<uint8_t>)),
-            this, SIGNAL(sigMousePointerShapeChange(bool, bool, QPoint, QSize, QVector<uint8_t>)),
+    connect(m_pProxy, &UIConsoleEventHandlerProxy::sigMousePointerShapeChange,
+            this, &UIConsoleEventHandler::sigMousePointerShapeChange,
             Qt::QueuedConnection);
-    connect(m_pProxy, SIGNAL(sigMouseCapabilityChange(bool, bool, bool, bool)),
-            this, SIGNAL(sigMouseCapabilityChange(bool, bool, bool, bool)),
+    connect(m_pProxy, &UIConsoleEventHandlerProxy::sigMouseCapabilityChange,
+            this, &UIConsoleEventHandler::sigMouseCapabilityChange,
             Qt::QueuedConnection);
-    connect(m_pProxy, SIGNAL(sigCursorPositionChange(bool, unsigned long, unsigned long)),
-            this, SIGNAL(sigCursorPositionChange(bool, unsigned long, unsigned long)),
+    connect(m_pProxy, &UIConsoleEventHandlerProxy::sigCursorPositionChange,
+            this, &UIConsoleEventHandler::sigCursorPositionChange,
             Qt::QueuedConnection);
-    connect(m_pProxy, SIGNAL(sigKeyboardLedsChangeEvent(bool, bool, bool)),
-            this, SIGNAL(sigKeyboardLedsChangeEvent(bool, bool, bool)),
+    connect(m_pProxy, &UIConsoleEventHandlerProxy::sigKeyboardLedsChangeEvent,
+            this, &UIConsoleEventHandler::sigKeyboardLedsChangeEvent,
             Qt::QueuedConnection);
-    connect(m_pProxy, SIGNAL(sigStateChange(KMachineState)),
-            this, SIGNAL(sigStateChange(KMachineState)),
+    connect(m_pProxy, &UIConsoleEventHandlerProxy::sigStateChange,
+        this, &UIConsoleEventHandler::sigStateChange,
             Qt::QueuedConnection);
-    connect(m_pProxy, SIGNAL(sigAdditionsChange()),
-            this, SIGNAL(sigAdditionsChange()),
+    connect(m_pProxy, &UIConsoleEventHandlerProxy::sigAdditionsChange,
+            this, &UIConsoleEventHandler::sigAdditionsChange,
             Qt::QueuedConnection);
-    connect(m_pProxy, SIGNAL(sigNetworkAdapterChange(CNetworkAdapter)),
-            this, SIGNAL(sigNetworkAdapterChange(CNetworkAdapter)),
+    connect(m_pProxy, &UIConsoleEventHandlerProxy::sigNetworkAdapterChange,
+            this, &UIConsoleEventHandler::sigNetworkAdapterChange,
             Qt::QueuedConnection);
-    connect(m_pProxy, SIGNAL(sigStorageDeviceChange(CMediumAttachment, bool, bool)),
-            this, SIGNAL(sigStorageDeviceChange(CMediumAttachment, bool, bool)),
+    connect(m_pProxy, &UIConsoleEventHandlerProxy::sigStorageDeviceChange,
+        this, &UIConsoleEventHandler::sigStorageDeviceChange,
             Qt::QueuedConnection);
-    connect(m_pProxy, SIGNAL(sigMediumChange(CMediumAttachment)),
-            this, SIGNAL(sigMediumChange(CMediumAttachment)),
+    connect(m_pProxy, &UIConsoleEventHandlerProxy::sigMediumChange,
+            this, &UIConsoleEventHandler::sigMediumChange,
             Qt::QueuedConnection);
-    connect(m_pProxy, SIGNAL(sigVRDEChange()),
-            this, SIGNAL(sigVRDEChange()),
+    connect(m_pProxy, &UIConsoleEventHandlerProxy::sigVRDEChange,
+            this, &UIConsoleEventHandler::sigVRDEChange,
             Qt::QueuedConnection);
-    connect(m_pProxy, SIGNAL(sigRecordingChange()),
-            this, SIGNAL(sigRecordingChange()),
+    connect(m_pProxy, &UIConsoleEventHandlerProxy::sigRecordingChange,
+            this, &UIConsoleEventHandler::sigRecordingChange,
             Qt::QueuedConnection);
-    connect(m_pProxy, SIGNAL(sigUSBControllerChange()),
-            this, SIGNAL(sigUSBControllerChange()),
+    connect(m_pProxy, &UIConsoleEventHandlerProxy::sigUSBControllerChange,
+            this, &UIConsoleEventHandler::sigUSBControllerChange,
             Qt::QueuedConnection);
-    connect(m_pProxy, SIGNAL(sigUSBDeviceStateChange(CUSBDevice, bool, CVirtualBoxErrorInfo)),
-            this, SIGNAL(sigUSBDeviceStateChange(CUSBDevice, bool, CVirtualBoxErrorInfo)),
+    connect(m_pProxy, &UIConsoleEventHandlerProxy::sigUSBDeviceStateChange,
+            this, &UIConsoleEventHandler::sigUSBDeviceStateChange,
             Qt::QueuedConnection);
-    connect(m_pProxy, SIGNAL(sigSharedFolderChange()),
-            this, SIGNAL(sigSharedFolderChange()),
+    connect(m_pProxy, &UIConsoleEventHandlerProxy::sigSharedFolderChange,
+            this, &UIConsoleEventHandler::sigSharedFolderChange,
             Qt::QueuedConnection);
-    connect(m_pProxy, SIGNAL(sigCPUExecutionCapChange()),
-            this, SIGNAL(sigCPUExecutionCapChange()),
+    connect(m_pProxy, &UIConsoleEventHandlerProxy::sigCPUExecutionCapChange,
+            this, &UIConsoleEventHandler::sigCPUExecutionCapChange,
             Qt::QueuedConnection);
-    connect(m_pProxy, SIGNAL(sigGuestMonitorChange(KGuestMonitorChangedEventType, ulong, QRect)),
-            this, SIGNAL(sigGuestMonitorChange(KGuestMonitorChangedEventType, ulong, QRect)),
+    connect(m_pProxy, &UIConsoleEventHandlerProxy::sigGuestMonitorChange,
+            this, &UIConsoleEventHandler::sigGuestMonitorChange,
             Qt::QueuedConnection);
-    connect(m_pProxy, SIGNAL(sigRuntimeError(bool, QString, QString)),
-            this, SIGNAL(sigRuntimeError(bool, QString, QString)),
+    connect(m_pProxy, &UIConsoleEventHandlerProxy::sigRuntimeError,
+            this, &UIConsoleEventHandler::sigRuntimeError,
             Qt::QueuedConnection);
 #ifdef RT_OS_DARWIN
-    connect(m_pProxy, SIGNAL(sigShowWindow(qint64 &)),
-            this, SIGNAL(sigShowWindow(qint64 &)),
+    connect(m_pProxy, &UIConsoleEventHandlerProxy::sigShowWindow,
+            this, &UIConsoleEventHandler::sigShowWindow,
             Qt::QueuedConnection);
 #endif /* RT_OS_DARWIN */
-    connect(m_pProxy, SIGNAL(sigAudioAdapterChange()),
-            this, SIGNAL(sigAudioAdapterChange()),
+    connect(m_pProxy, &UIConsoleEventHandlerProxy::sigAudioAdapterChange,
+            this, &UIConsoleEventHandler::sigAudioAdapterChange,
+            Qt::QueuedConnection);
+    connect(m_pProxy, &UIConsoleEventHandlerProxy::sigClipboardModeChange,
+            this, &UIConsoleEventHandler::sigClipboardModeChange,
+            Qt::QueuedConnection);
+    connect(m_pProxy, &UIConsoleEventHandlerProxy::sigDnDModeChange,
+            this, &UIConsoleEventHandler::sigDnDModeChange,
             Qt::QueuedConnection);
 }
 
 #include "UIConsoleEventHandler.moc"
-

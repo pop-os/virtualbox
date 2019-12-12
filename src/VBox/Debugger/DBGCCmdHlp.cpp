@@ -1304,8 +1304,9 @@ static DECLCALLBACK(PCDBGFINFOHLP) dbgcHlpGetDbgfOutputHlp(PDBGCCMDHLP pCmdHlp)
     /* Lazy init */
     if (!pDbgc->DbgfOutputHlp.pfnPrintf)
     {
-        pDbgc->DbgfOutputHlp.pfnPrintf  = dbgcHlpGetDbgfOutputHlp_Printf;
-        pDbgc->DbgfOutputHlp.pfnPrintfV = dbgcHlpGetDbgfOutputHlp_PrintfV;
+        pDbgc->DbgfOutputHlp.pfnPrintf      = dbgcHlpGetDbgfOutputHlp_Printf;
+        pDbgc->DbgfOutputHlp.pfnPrintfV     = dbgcHlpGetDbgfOutputHlp_PrintfV;
+        pDbgc->DbgfOutputHlp.pfnGetOptError = DBGFR3InfoGenricGetOptError;
     }
 
     return &pDbgc->DbgfOutputHlp;
@@ -1329,19 +1330,14 @@ static DECLCALLBACK(CPUMMODE) dbgcHlpGetCpuMode(PDBGCCMDHLP pCmdHlp)
 {
     PDBGC    pDbgc   = DBGC_CMDHLP2DBGC(pCmdHlp);
     CPUMMODE enmMode = CPUMMODE_INVALID;
-    if (pDbgc->fRegCtxGuest)
-    {
-        if (pDbgc->pUVM)
-            enmMode = DBGFR3CpuGetMode(pDbgc->pUVM, DBGCCmdHlpGetCurrentCpu(pCmdHlp));
-        if (enmMode == CPUMMODE_INVALID)
+    if (pDbgc->pUVM)
+        enmMode = DBGFR3CpuGetMode(pDbgc->pUVM, DBGCCmdHlpGetCurrentCpu(pCmdHlp));
+    if (enmMode == CPUMMODE_INVALID)
 #if HC_ARCH_BITS == 64
-            enmMode = CPUMMODE_LONG;
+        enmMode = CPUMMODE_LONG;
 #else
-            enmMode = CPUMMODE_PROTECTED;
-#endif
-    }
-    else
         enmMode = CPUMMODE_PROTECTED;
+#endif
     return enmMode;
 }
 

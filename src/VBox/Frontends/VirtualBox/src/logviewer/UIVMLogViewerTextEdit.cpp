@@ -192,12 +192,24 @@ UIVMLogViewerTextEdit::UIVMLogViewerTextEdit(QWidget* parent /* = 0 */)
     , m_bShowLineNumbers(true)
     , m_bWrapLines(true)
     , m_bHasContextMenu(false)
-    , m_fShowSearchResultOverlay(0)
-    , m_iMatchCount(0)
+{
+    configure();
+    prepare();
+}
+
+void UIVMLogViewerTextEdit::configure()
 {
     setMouseTracking(true);
-    //setStyleSheet("background-color: rgba(240, 240, 240, 75%) ");
-    prepare();
+
+    /* Prepare modified standard palette: */
+    QPalette pal = style() ? style()->standardPalette() : palette(); // fallback if no style exist.
+    pal.setColor(QPalette::Inactive, QPalette::Highlight, pal.color(QPalette::Active, QPalette::Highlight));
+    pal.setColor(QPalette::Inactive, QPalette::HighlightedText, pal.color(QPalette::Active, QPalette::HighlightedText));
+    setPalette(pal);
+
+    /* Configure this' wrap mode: */
+    setWrapLines(false);
+    setReadOnly(true);
 }
 
 void UIVMLogViewerTextEdit::prepare()
@@ -219,10 +231,6 @@ void UIVMLogViewerTextEdit::prepareWidgets()
     QScrollBar *pHorizontalScrollBar = horizontalScrollBar();
     if (pHorizontalScrollBar)
         pHorizontalScrollBar->setStyleSheet(horizontalScrollBarStyle);
-
-    /* Configure this' wrap mode: */
-    setWrapLines(false);
-    setReadOnly(true);
 }
 
 void UIVMLogViewerTextEdit::setCurrentFont(QFont font)
@@ -230,24 +238,6 @@ void UIVMLogViewerTextEdit::setCurrentFont(QFont font)
     setFont(font);
     if (m_pLineNumberArea)
         m_pLineNumberArea->setFont(font);
-}
-
-void UIVMLogViewerTextEdit::setSearchResultOverlayShowHide(bool fShow)
-{
-    if (m_fShowSearchResultOverlay == fShow)
-        return;
-    m_fShowSearchResultOverlay = fShow;
-    if (viewport())
-        viewport()->update();
-}
-
-void UIVMLogViewerTextEdit::setSearchMatchCount(int iMatchCount)
-{
-    if (m_iMatchCount == iMatchCount)
-        return;
-    m_iMatchCount = iMatchCount;
-    if (m_fShowSearchResultOverlay && viewport())
-        viewport()->update();
 }
 
 int UIVMLogViewerTextEdit::lineNumberAreaWidth()
@@ -375,52 +365,6 @@ void UIVMLogViewerTextEdit::leaveEvent(QEvent * pEvent)
     update();
 }
 
-void UIVMLogViewerTextEdit::paintEvent(QPaintEvent *pEvent)
-{
-    QIWithRetranslateUI<QPlainTextEdit>::paintEvent(pEvent);
-
-    /** Draw an overlay with text in it to show the number of search matches: */
-    if (viewport() && (m_fShowSearchResultOverlay || m_bShownTextIsFiltered))
-    {
-        QPainter painter(viewport());
-        QColor rectColor = viewport()->palette().color(QPalette::Active, QPalette::Dark);
-        double fontScale = 1.5;
-        rectColor.setAlpha(200);
-
-        QString strText;
-        if (m_fShowSearchResultOverlay)
-            strText = QString("%1 %2").arg(QString::number(m_iMatchCount)).arg(UIVMLogViewerWidget::tr("Matches Found"));
-        if (m_bShownTextIsFiltered)
-        {
-            if (!strText.isEmpty())
-                strText.append(" / ");
-            strText.append(UIVMLogViewerWidget::tr("Filtered"));
-        }
-        /** Space between the text and rectangle border. */
-        QSize textMargin(5, 5);
-        /** Space between the rectangle and viewport edges. */
-        QSize rectMargin(2, 2);
-
-        QSize rectSize(fontScale * QApplication::fontMetrics().width(strText) + textMargin.width(),
-                       fontScale * QApplication::fontMetrics().height() + textMargin.height());
-        QPoint topLeft(viewport()->rect().width() - rectSize.width() - rectMargin.width(),
-                       viewport()->rect().height() - rectSize.height() - rectMargin.height());
-        painter.fillRect(topLeft.x(),topLeft.y(), rectSize.width(), rectSize.height(), rectColor);
-
-
-        QFont pfont = QApplication::font();
-        QColor fontColor(QPalette::WindowText);
-        painter.setPen(fontColor);
-        if (pfont.pixelSize() != -1)
-            pfont.setPixelSize(fontScale * pfont.pixelSize());
-        else
-            pfont.setPointSize(fontScale * pfont.pointSize());
-        painter.setFont(pfont);
-
-        painter.drawText(QRect(topLeft, rectSize), Qt::AlignCenter | Qt::AlignVCenter, strText);
-    }
-}
-
 void UIVMLogViewerTextEdit::sltUpdateLineNumberAreaWidth(int /* newBlockCount */)
 {
     setViewportMargins(lineNumberAreaWidth(), 0, 0, 0);
@@ -438,7 +382,6 @@ void UIVMLogViewerTextEdit::sltHandleUpdateRequest(const QRect &rect, int dy)
 
     if (viewport())
         viewport()->update();
-
 }
 
 void UIVMLogViewerTextEdit::sltBookmark()

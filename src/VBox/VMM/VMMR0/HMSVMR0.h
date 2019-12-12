@@ -38,23 +38,19 @@ RT_C_DECLS_BEGIN
 
 VMMR0DECL(int)          SVMR0GlobalInit(void);
 VMMR0DECL(void)         SVMR0GlobalTerm(void);
-VMMR0DECL(int)          SVMR0Enter(PVMCPU pVCpu);
-VMMR0DECL(void)         SVMR0ThreadCtxCallback(RTTHREADCTXEVENT enmEvent, PVMCPU pVCpu, bool fGlobalInit);
-VMMR0DECL(int)          SVMR0EnableCpu(PHMPHYSCPU pHostCpu, PVM pVM, void *pvPageCpu, RTHCPHYS HCPhysCpuPage,
+VMMR0DECL(int)          SVMR0Enter(PVMCPUCC pVCpu);
+VMMR0DECL(void)         SVMR0ThreadCtxCallback(RTTHREADCTXEVENT enmEvent, PVMCPUCC pVCpu, bool fGlobalInit);
+VMMR0DECL(int)          SVMR0CallRing3Callback(PVMCPUCC pVCpu, VMMCALLRING3 enmOperation);
+VMMR0DECL(int)          SVMR0EnableCpu(PHMPHYSCPU pHostCpu, PVMCC pVM, void *pvPageCpu, RTHCPHYS HCPhysCpuPage,
                                        bool fEnabledBySystem, PCSUPHWVIRTMSRS pHwvirtMsrs);
-VMMR0DECL(int)          SVMR0DisableCpu(void *pvPageCpu, RTHCPHYS pPageCpuPhys);
-VMMR0DECL(int)          SVMR0InitVM(PVM pVM);
-VMMR0DECL(int)          SVMR0TermVM(PVM pVM);
-VMMR0DECL(int)          SVMR0SetupVM(PVM pVM);
-VMMR0DECL(VBOXSTRICTRC) SVMR0RunGuestCode(PVMCPU pVCpu);
-VMMR0DECL(int)          SVMR0ExportHostState(PVMCPU pVCpu);
-VMMR0DECL(int)          SVMR0ImportStateOnDemand(PVMCPU pVCpu, uint64_t fWhat);
-VMMR0DECL(int)          SVMR0InvalidatePage(PVMCPU pVCpu, RTGCPTR GCVirt);
-
-#if HC_ARCH_BITS == 32 && defined(VBOX_WITH_64_BITS_GUESTS)
-DECLASM(int)            SVMR0VMSwitcherRun64(RTHCPHYS pVMCBHostPhys, RTHCPHYS pVMCBPhys, PCPUMCTX pCtx, PVM pVM, PVMCPU pVCpu);
-VMMR0DECL(int)          SVMR0Execute64BitsHandler(PVMCPU pVCpu, HM64ON32OP enmOp, uint32_t cbParam, uint32_t *paParam);
-#endif /* HC_ARCH_BITS == 32 && defined(VBOX_WITH_64_BITS_GUESTS) */
+VMMR0DECL(int)          SVMR0DisableCpu(PHMPHYSCPU pHostCpu, void *pvPageCpu, RTHCPHYS pPageCpuPhys);
+VMMR0DECL(int)          SVMR0InitVM(PVMCC pVM);
+VMMR0DECL(int)          SVMR0TermVM(PVMCC pVM);
+VMMR0DECL(int)          SVMR0SetupVM(PVMCC pVM);
+VMMR0DECL(VBOXSTRICTRC) SVMR0RunGuestCode(PVMCPUCC pVCpu);
+VMMR0DECL(int)          SVMR0ExportHostState(PVMCPUCC pVCpu);
+VMMR0DECL(int)          SVMR0ImportStateOnDemand(PVMCPUCC pVCpu, uint64_t fWhat);
+VMMR0DECL(int)          SVMR0InvalidatePage(PVMCPUCC pVCpu, RTGCPTR GCVirt);
 
 /**
  * Prepares for and executes VMRUN (32-bit guests).
@@ -66,7 +62,7 @@ VMMR0DECL(int)          SVMR0Execute64BitsHandler(PVMCPU pVCpu, HM64ON32OP enmOp
  * @param   pVM             The cross context VM structure. (Not used.)
  * @param   pVCpu           The cross context virtual CPU structure. (Not used.)
  */
-DECLASM(int) SVMR0VMRun(RTHCPHYS pVMCBHostPhys, RTHCPHYS pVMCBPhys, PCPUMCTX pCtx, PVM pVM, PVMCPU pVCpu);
+DECLASM(int) SVMR0VMRun(RTHCPHYS pVMCBHostPhys, RTHCPHYS pVMCBPhys, PCPUMCTX pCtx, PVMCC pVM, PVMCPUCC pVCpu);
 
 
 /**
@@ -79,7 +75,7 @@ DECLASM(int) SVMR0VMRun(RTHCPHYS pVMCBHostPhys, RTHCPHYS pVMCBPhys, PCPUMCTX pCt
  * @param   pVM             The cross context VM structure. (Not used.)
  * @param   pVCpu           The cross context virtual CPU structure. (Not used.)
  */
-DECLASM(int) SVMR0VMRun64(RTHCPHYS pVMCBHostPhys, RTHCPHYS pVMCBPhys, PCPUMCTX pCtx, PVM pVM, PVMCPU pVCpu);
+DECLASM(int) SVMR0VMRun64(RTHCPHYS pVMCBHostPhys, RTHCPHYS pVMCBPhys, PCPUMCTX pCtx, PVMCC pVM, PVMCPUCC pVCpu);
 
 /**
  * Executes INVLPGA.

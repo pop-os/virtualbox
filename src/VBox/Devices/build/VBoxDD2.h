@@ -44,6 +44,12 @@ extern DECLEXPORT(const unsigned)       g_cbVgaBiosBinary8086;
 extern DECLEXPORT(const unsigned char)  g_abNetBiosBinary[];
 extern DECLEXPORT(const unsigned)       g_cbNetBiosBinary;
 # endif
+# ifdef VBOX_WITH_EFI_IN_DD2
+extern DECLEXPORT(const unsigned char)  g_abEfiFirmware32[];
+extern DECLEXPORT(const unsigned)       g_cbEfiFirmware32;
+extern DECLEXPORT(const unsigned char)  g_abEfiFirmware64[];
+extern DECLEXPORT(const unsigned)       g_cbEfiFirmware64;
+# endif
 #else  /* !IN_VBOXDD2 */
 extern DECLIMPORT(const unsigned char)  g_abPcBiosBinary386[];
 extern DECLIMPORT(const unsigned)       g_cbPcBiosBinary386;
@@ -61,6 +67,12 @@ extern DECLIMPORT(const unsigned)       g_cbVgaBiosBinary8086;
 extern DECLIMPORT(const unsigned char)  g_abNetBiosBinary[];
 extern DECLIMPORT(const unsigned)       g_cbNetBiosBinary;
 # endif
+# ifdef VBOX_WITH_EFI_IN_DD2
+extern DECLIMPORT(const unsigned char)  g_abEfiFirmware32[];
+extern DECLIMPORT(const unsigned)       g_cbEfiFirmware32;
+extern DECLIMPORT(const unsigned char)  g_abEfiFirmware64[];
+extern DECLIMPORT(const unsigned)       g_cbEfiFirmware64;
+# endif
 #endif /* !IN_VBOXDD2 */
 
 #ifndef VBOX_WITH_NEW_LPC_DEVICE
@@ -70,4 +82,3 @@ extern const PDMDEVREG g_DeviceLPC;
 RT_C_DECLS_END
 
 #endif /* !VBOX_INCLUDED_SRC_build_VBoxDD2_h */
-

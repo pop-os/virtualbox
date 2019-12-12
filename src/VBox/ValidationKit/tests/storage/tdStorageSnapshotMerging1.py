@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 131735 $"
 
 
 # Standard Python imports.
@@ -49,21 +49,6 @@ from testdriver import vboxcon;
 from testdriver import vboxwrappers;
 
 
-def _ControllerTypeToName(eControllerType):
-    """ Translate a controller type to a name. """
-    if eControllerType == vboxcon.StorageControllerType_PIIX3 or eControllerType == vboxcon.StorageControllerType_PIIX4:
-        sType = "IDE Controller";
-    elif eControllerType == vboxcon.StorageControllerType_IntelAhci:
-        sType = "SATA Controller";
-    elif eControllerType == vboxcon.StorageControllerType_LsiLogicSas:
-        sType = "SAS Controller";
-    elif eControllerType == vboxcon.StorageControllerType_LsiLogic or eControllerType == vboxcon.StorageControllerType_BusLogic:
-        sType = "SCSI Controller";
-    else:
-        sType = "Storage Controller";
-    return sType;
-
-
 def crc32_of_file(filepath):
     fileobj = open(filepath,'rb');
     current = 0;
@@ -78,7 +63,7 @@ def crc32_of_file(filepath):
     return current % 2**32;
 
 
-class tdStorageSnapshot(vbox.TestDriver):                                      # pylint: disable=R0902
+class tdStorageSnapshot(vbox.TestDriver):                                      # pylint: disable=too-many-instance-attributes
     """
     Storage benchmark.
     """
@@ -88,7 +73,7 @@ class tdStorageSnapshot(vbox.TestDriver):                                      #
         self.oGuestToGuestVM   = None;
         self.oGuestToGuestSess = None;
         self.oGuestToGuestTxs  = None;
-        self.asStorageCtrlsDef = ['AHCI', 'IDE', 'LsiLogicSAS', 'LsiLogic', 'BusLogic'];
+        self.asStorageCtrlsDef = ['AHCI'];
         self.asStorageCtrls    = self.asStorageCtrlsDef;
         #self.asDiskFormatsDef  = ['VDI', 'VMDK', 'VHD', 'QED', 'Parallels', 'QCOW', 'iSCSI'];
         self.asDiskFormatsDef  = ['VDI', 'VMDK', 'VHD'];
@@ -108,7 +93,7 @@ class tdStorageSnapshot(vbox.TestDriver):                                      #
         reporter.log('      Default: %s' % (':'.join(self.asDiskFormats)));
         return rc;
 
-    def parseOption(self, asArgs, iArg):                                        # pylint: disable=R0912,R0915
+    def parseOption(self, asArgs, iArg):                                        # pylint: disable=too-many-branches,too-many-statements
         if asArgs[iArg] == '--storage-ctrls':
             iArg += 1;
             if iArg >= len(asArgs):
@@ -156,14 +141,13 @@ class tdStorageSnapshot(vbox.TestDriver):                                      #
 
         try:
             oProgressCom = oMedium.resize(cbNewSize);
-            oProgress = vboxwrappers.ProgressWrapper(oProgressCom, self.oVBoxMgr, self.oVBox.oTstDrv,
-                                                     'Resize medium %s' % (oMedium.name));
-            oProgress.wait(cMsTimeout = 60 * 1000);
-            oProgress.logResult();
         except:
             reporter.logXcpt('IMedium::resize failed on %s' % (oMedium.name));
             return False;
-
+        oProgress = vboxwrappers.ProgressWrapper(oProgressCom, self.oVBoxMgr, self.oVBox.oTstDrv,
+                                                 'Resize medium %s' % (oMedium.name));
+        oProgress.wait(cMsTimeout = 15*60*1000); # 15 min
+        oProgress.logResult();
         return True;
 
     def getMedium(self, oVM, sController):
@@ -183,7 +167,11 @@ class tdStorageSnapshot(vbox.TestDriver):                                      #
         oVM = oSnapshot.machine;
         oMedium = self.getMedium(oVM, sController);
 
-        for oChildMedium in oMedium.children:
+        aoMediumChildren = self.oVBoxMgr.getArray(oMedium, 'children')
+        if aoMediumChildren is None or not aoMediumChildren:
+            return None;
+
+        for oChildMedium in aoMediumChildren:
             for uSnapshotId in oChildMedium.getSnapshotIds(oVM.id):
                 if uSnapshotId == oVM.id:
                     return oChildMedium;
@@ -233,14 +221,13 @@ class tdStorageSnapshot(vbox.TestDriver):                                      #
         """
         try:
             oProgressCom = oSrcHd.cloneTo(oTgtHd, (vboxcon.MediumVariant_Standard, ), None);
-            oProgress = vboxwrappers.ProgressWrapper(oProgressCom, self.oVBoxMgr, self.oVBox.oTstDrv,
-                                                     'clone base disk %s to %s' % (oSrcHd.name, oTgtHd.name));
-            oProgress.wait(cMsTimeout = 60 * 1000);
-            oProgress.logResult();
         except:
             reporter.errorXcpt('failed to clone medium %s to %s' % (oSrcHd.name, oTgtHd.name));
             return False;
-
+        oProgress = vboxwrappers.ProgressWrapper(oProgressCom, self.oVBoxMgr, self.oVBox.oTstDrv,
+                                                 'clone base disk %s to %s' % (oSrcHd.name, oTgtHd.name));
+        oProgress.wait(cMsTimeout = 15*60*1000); # 15 min
+        oProgress.logResult();
         return True;
 
     def deleteVM(self, oVM):
@@ -252,14 +239,16 @@ class tdStorageSnapshot(vbox.TestDriver):                                      #
         if self.fpApiVer >= 4.0:
             try:
                 if self.fpApiVer >= 4.3:
-                    oProgress = oVM.deleteConfig([]);
+                    oProgressCom = oVM.deleteConfig([]);
                 else:
-                    oProgress = oVM.delete(None);
-                self.waitOnProgress(oProgress);
-
+                    oProgressCom = oVM.delete(None);
             except:
                 reporter.logXcpt();
-
+            else:
+                oProgress = vboxwrappers.ProgressWrapper(oProgressCom, self.oVBoxMgr, self.oVBox.oTstDrv,
+                                                 'Delete VM %s' % (oVM.name));
+                oProgress.wait(cMsTimeout = 15*60*1000); # 15 min
+                oProgress.logResult();
         else:
             try:    oVM.deleteSettings();
             except: reporter.logXcpt();
@@ -308,7 +297,7 @@ class tdStorageSnapshot(vbox.TestDriver):                                      #
         if oVM is None:
             return False;
 
-        sController = _ControllerTypeToName(eStorageController);
+        sController = self.controllerTypeToName(eStorageController);
 
         # Reconfigure the VM
         oSession = self.openSession(oVM);
@@ -319,7 +308,8 @@ class tdStorageSnapshot(vbox.TestDriver):                                      #
         fRc = True;
         sFile = 't-base' + sExt;
         sHddPath = os.path.join(self.oVBox.oTstDrv.sScratchPath, sFile);
-        oHd = oSession.createBaseHd(sHddPath, sFmt=oDskFmt.id, cb=oOrigBaseHd.logicalSize);
+        oHd = oSession.createBaseHd(sHddPath, sFmt=oDskFmt.id, cb=oOrigBaseHd.logicalSize,
+                                    cMsTimeout = 15 * 60 * 1000); # 15 min
         #if oSession.createBaseHd can't create disk because it exists, oHd will point to some stub object anyway
         fRc = fRc and oHd is not None and (oHd.logicalSize == oOrigBaseHd.logicalSize);
         fRc = fRc and self.cloneMedium(oOrigBaseHd, oHd);
@@ -347,7 +337,8 @@ class tdStorageSnapshot(vbox.TestDriver):                                      #
                     sResFilePath = os.path.join(self.oVBox.oTstDrv.sScratchPath, 't_res.vmdk');
                     sResFilePathRaw = os.path.join(self.oVBox.oTstDrv.sScratchPath, 't_res-flat.vmdk');
                     oResHd = oSession.createBaseHd(sResFilePath, sFmt='VMDK', cb=oOrigWithDiffHd.logicalSize,
-                                                   tMediumVariant = (vboxcon.MediumVariant_Fixed, ));
+                                                   tMediumVariant = (vboxcon.MediumVariant_Fixed, ),
+                                                   cMsTimeout = 15 * 60 * 1000); # 15 min
                     fRc = oResHd is not None;
                     fRc = fRc and self.cloneMedium(oHd, oResHd);
 
@@ -385,7 +376,7 @@ class tdStorageSnapshot(vbox.TestDriver):                                      #
         reporter.testStart(sVmName);
 
         aoDskFmts = self.oVBoxMgr.getArray(self.oVBox.systemProperties, 'mediumFormats')
-        if aoDskFmts is None or len(aoDskFmts) < 1:
+        if aoDskFmts is None or not aoDskFmts:
             return False;
 
         fRc = True;

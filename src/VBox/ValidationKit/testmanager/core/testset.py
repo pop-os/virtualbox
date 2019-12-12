@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 131247 $"
 
 
 # Standard python imports.
@@ -536,7 +536,7 @@ class TestSetLogic(ModelLogicBase):
         self._oDb.maybeCommit(fCommit);
         return True;
 
-    def createFile(self, oTestSet, sName, sMime, sKind, sDesc, cbFile, fCommit = False): # pylint: disable=R0914
+    def createFile(self, oTestSet, sName, sMime, sKind, sDesc, cbFile, fCommit = False): # pylint: disable=too-many-locals
         """
         Creates a file and associating with the current test result record in
         the test set.
@@ -710,7 +710,7 @@ class TestSetLogic(ModelLogicBase):
             aoRet.append(TestSetData().initFromDbRow(aoRow));
         return aoRet;
 
-    def isTestBoxExecutingToRapidly(self, idTestBox):
+    def isTestBoxExecutingToRapidly(self, idTestBox): ## s/To/Too/
         """
         Checks whether the specified test box is executing tests too rapidly.
 
@@ -824,7 +824,7 @@ class TestSetLogic(ModelLogicBase):
 # Unit testing.
 #
 
-# pylint: disable=C0111
+# pylint: disable=missing-docstring
 class TestSetDataTestCase(ModelDataBaseTestCase):
     def setUp(self):
         self.aoSamples = [TestSetData(),];

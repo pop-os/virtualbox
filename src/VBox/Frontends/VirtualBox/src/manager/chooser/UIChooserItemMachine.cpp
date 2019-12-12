@@ -16,37 +16,27 @@
  */
 
 /* Qt includes: */
-#include <QGraphicsScene>
-#include <QGraphicsSceneMouseEvent>
+#include <QGraphicsSceneDragDropEvent>
 #include <QGraphicsView>
 #include <QPainter>
 #include <QStyleOptionGraphicsItem>
 #include <QWindow>
 
 /* GUI includes: */
-#include "VBoxGlobal.h"
 #include "UIChooserItemGroup.h"
 #include "UIChooserItemMachine.h"
 #include "UIChooserModel.h"
-#include "UIActionPoolManager.h"
+#include "UIChooserNodeGroup.h"
+#include "UIChooserNodeMachine.h"
 #include "UIIconPool.h"
-#include "UIImageTools.h"
 #include "UIVirtualBoxManager.h"
-
-/* COM includes: */
-#include "COMEnums.h"
-#include "CMachine.h"
 
 /* Other VBox includes: */
 #include "iprt/cpp/utils.h"
 
 
-UIChooserItemMachine::UIChooserItemMachine(UIChooserItem *pParent,
-                                           const CMachine &machine,
-                                           int iPosition /* = -1 */)
-    : UIChooserItem(pParent, pParent->isTemporary(), 0, 100)
-    , UIVirtualMachineItem(machine)
-    , m_iPosition(iPosition)
+UIChooserItemMachine::UIChooserItemMachine(UIChooserItem *pParent, UIChooserNodeMachine *pNode)
+    : UIChooserItem(pParent, pNode, 0, 100)
     , m_iDefaultLightnessMin(0)
     , m_iDefaultLightnessMax(0)
     , m_iHoverLightnessMin(0)
@@ -59,84 +49,50 @@ UIChooserItemMachine::UIChooserItemMachine(UIChooserItem *pParent,
     , m_iMinimumSnapshotNameWidth(0)
     , m_iMaximumSnapshotNameWidth(0)
 {
-    /* Prepare: */
-    prepare();
-}
-
-UIChooserItemMachine::UIChooserItemMachine(UIChooserItem *pParent,
-                                           UIChooserItemMachine *pCopyFrom,
-                                           int iPosition /* = -1 */)
-    : UIChooserItem(pParent, pParent->isTemporary(), 0, 100)
-    , UIVirtualMachineItem(pCopyFrom->machine())
-    , m_iPosition(iPosition)
-    , m_iDefaultLightnessMin(0)
-    , m_iDefaultLightnessMax(0)
-    , m_iHoverLightnessMin(0)
-    , m_iHoverLightnessMax(0)
-    , m_iHighlightLightnessMin(0)
-    , m_iHighlightLightnessMax(0)
-    , m_iFirstRowMaximumWidth(0)
-    , m_iMinimumNameWidth(0)
-    , m_iMaximumNameWidth(0)
-    , m_iMinimumSnapshotNameWidth(0)
-    , m_iMaximumSnapshotNameWidth(0)
-{
-    /* Prepare: */
     prepare();
 }
 
 UIChooserItemMachine::~UIChooserItemMachine()
 {
-    /* If that item is focused: */
-    if (model()->focusItem() == this)
-    {
-        /* Unset the focus: */
-        model()->setFocusItem(0);
-    }
-    /* If that item is in selection list: */
-    if (model()->currentItems().contains(this))
-    {
-        /* Remove item from the selection list: */
-        model()->removeFromCurrentItems(this);
-    }
-    /* If that item is in navigation list: */
-    if (model()->navigationList().contains(this))
-    {
-        /* Remove item from the navigation list: */
-        model()->removeFromNavigationList(this);
-    }
-
-    /* Remove item from the parent: */
-    AssertMsg(parentItem(), ("No parent set for machine-item!"));
-    parentItem()->removeItem(this);
+    cleanup();
 }
 
-QString UIChooserItemMachine::name() const
+QUuid UIChooserItemMachine::id() const
 {
-    return UIVirtualMachineItem::name();
+    return node()->toMachineNode()->id();
+}
+
+bool UIChooserItemMachine::accessible() const
+{
+    return node()->toMachineNode()->accessible();
+}
+
+void UIChooserItemMachine::recache()
+{
+    node()->toMachineNode()->recache();
 }
 
 bool UIChooserItemMachine::isLockedMachine() const
 {
-    KMachineState state = machineState();
-    return state != KMachineState_PoweredOff &&
-           state != KMachineState_Saved &&
-           state != KMachineState_Teleported &&
-           state != KMachineState_Aborted;
+    const KMachineState enmState = node()->toMachineNode()->machineState();
+    return enmState != KMachineState_PoweredOff &&
+           enmState != KMachineState_Saved &&
+           enmState != KMachineState_Teleported &&
+           enmState != KMachineState_Aborted;
 }
 
-bool UIChooserItemMachine::isToolsButtonArea(const QPoint &position, int iMarginMultiplier /* = 1 */) const
+bool UIChooserItemMachine::isToolButtonArea(const QPoint &position, int iMarginMultiplier /* = 1 */) const
 {
     const int iFullWidth = geometry().width();
     const int iFullHeight = geometry().height();
-    const int iMargin = data(MachineItemData_Margin).toInt();
+    const int iMarginHR = data(MachineItemData_MarginHR).toInt();
     const int iButtonMargin = data(MachineItemData_ButtonMargin).toInt();
-    const int iToolsPixmapX = iFullWidth - iMargin - 1 - m_toolsPixmap.width() / m_toolsPixmap.devicePixelRatio();
-    const int iToolsPixmapY = (iFullHeight - m_toolsPixmap.height() / m_toolsPixmap.devicePixelRatio()) / 2;
-    QRect rect = QRect(iToolsPixmapX,
-                       iToolsPixmapY,
-                       m_toolsPixmap.width() / m_toolsPixmap.devicePixelRatio(),
-                       m_toolsPixmap.height() / m_toolsPixmap.devicePixelRatio());
+    const int iToolPixmapX = iFullWidth - iMarginHR - 1 - m_toolPixmap.width() / m_toolPixmap.devicePixelRatio();
+    const int iToolPixmapY = (iFullHeight - m_toolPixmap.height() / m_toolPixmap.devicePixelRatio()) / 2;
+    QRect rect = QRect(iToolPixmapX,
+                       iToolPixmapY,
+                       m_toolPixmap.width() / m_toolPixmap.devicePixelRatio(),
+                       m_toolPixmap.height() / m_toolPixmap.devicePixelRatio());
     rect.adjust(-iMarginMultiplier * iButtonMargin, -iMarginMultiplier * iButtonMargin,
                  iMarginMultiplier * iButtonMargin,  iMarginMultiplier * iButtonMargin);
     return rect.contains(position);
@@ -188,14 +144,6 @@ void UIChooserItemMachine::enumerateMachineItems(const QList<UIChooserItem*> &il
 
 void UIChooserItemMachine::retranslateUi()
 {
-    /* Update description: */
-    m_strDescription = tr("Virtual Machine");
-
-    /* Update state text: */
-    updateStateText();
-
-    /* Update machine tool-tip: */
-    updateToolTip();
 }
 
 void UIChooserItemMachine::showEvent(QShowEvent *pEvent)
@@ -204,7 +152,7 @@ void UIChooserItemMachine::showEvent(QShowEvent *pEvent)
     UIChooserItem::showEvent(pEvent);
 
     /* Recache and update pixmaps: */
-    recachePixmap();
+    node()->toMachineNode()->recachePixmap();
     updatePixmaps();
 }
 
@@ -251,45 +199,26 @@ void UIChooserItemMachine::startEditing()
     AssertMsgFailed(("Machine graphics item do NOT support editing yet!"));
 }
 
+void UIChooserItemMachine::updateItem()
+{
+    /* Update this machine-item: */
+    updatePixmaps();
+    updateMinimumNameWidth();
+    updateVisibleName();
+    updateMinimumSnapshotNameWidth();
+    updateVisibleSnapshotName();
+    updateStateTextSize();
+    updateToolTip();
+    update();
+
+    /* Update parent group-item: */
+    parentItem()->updateToolTip();
+    parentItem()->update();
+}
+
 void UIChooserItemMachine::updateToolTip()
 {
-    setToolTip(toolTipText());
-}
-
-QString UIChooserItemMachine::description() const
-{
-    return m_strDescription;
-}
-
-QString UIChooserItemMachine::fullName() const
-{
-    /* Get full parent name, append with '/' if not yet appended: */
-    AssertMsg(parentItem(), ("Incorrect parent set!"));
-    QString strFullParentName = parentItem()->fullName();
-    if (!strFullParentName.endsWith('/'))
-        strFullParentName.append('/');
-    /* Return full item name based on parent prefix: */
-    return strFullParentName + name();
-}
-
-QString UIChooserItemMachine::definition() const
-{
-    return QString("m=%1").arg(name());
-}
-
-void UIChooserItemMachine::addItem(UIChooserItem*, int)
-{
-    AssertMsgFailed(("Machine graphics item do NOT support children!"));
-}
-
-void UIChooserItemMachine::removeItem(UIChooserItem*)
-{
-    AssertMsgFailed(("Machine graphics item do NOT support children!"));
-}
-
-void UIChooserItemMachine::setItems(const QList<UIChooserItem*>&, UIChooserItemType)
-{
-    AssertMsgFailed(("Machine graphics item do NOT support children!"));
+    setToolTip(node()->toMachineNode()->toolTipText());
 }
 
 QList<UIChooserItem*> UIChooserItemMachine::items(UIChooserItemType) const
@@ -298,51 +227,14 @@ QList<UIChooserItem*> UIChooserItemMachine::items(UIChooserItemType) const
     return QList<UIChooserItem*>();
 }
 
-bool UIChooserItemMachine::hasItems(UIChooserItemType) const
-{
-    AssertMsgFailed(("Machine graphics item do NOT support children!"));
-    return false;
-}
-
-void UIChooserItemMachine::clearItems(UIChooserItemType)
+void UIChooserItemMachine::addItem(UIChooserItem*, bool, int)
 {
     AssertMsgFailed(("Machine graphics item do NOT support children!"));
 }
 
-void UIChooserItemMachine::updateAllItems(const QUuid &uId)
+void UIChooserItemMachine::removeItem(UIChooserItem*)
 {
-    /* Skip other ids: */
-    if (id() != QUuid(uId))
-        return;
-
-    /* Update this machine-item: */
-    recache();
-    updatePixmaps();
-    updateName();
-    updateSnapshotName();
-    updateStateText();
-    updateToolTip();
-
-    /* Update parent group-item: */
-    parentItem()->updateToolTip();
-    parentItem()->update();
-}
-
-void UIChooserItemMachine::removeAllItems(const QUuid &uId)
-{
-    /* Skip wrong id: */
-    if (id() != QUuid(uId))
-        return;
-
-    /* Exclude itself from the current items: */
-    if (model()->currentItems().contains(this))
-        model()->removeFromCurrentItems(this);
-    /* Move the focus item to the first available current after that: */
-    if (model()->focusItem() == this && !model()->currentItems().isEmpty())
-        model()->setFocusItem(model()->currentItems().first());
-
-    /* Remove item: */
-    delete this;
+    AssertMsgFailed(("Machine graphics item do NOT support children!"));
 }
 
 UIChooserItem* UIChooserItemMachine::searchForItem(const QString &strSearchTag, int iItemSearchFlags)
@@ -375,11 +267,6 @@ UIChooserItem *UIChooserItemMachine::firstMachineItem()
     return this;
 }
 
-void UIChooserItemMachine::sortItems()
-{
-    AssertMsgFailed(("Machine graphics item do NOT support children!"));
-}
-
 void UIChooserItemMachine::updateLayout()
 {
     // Just do nothing ..
@@ -388,20 +275,20 @@ void UIChooserItemMachine::updateLayout()
 int UIChooserItemMachine::minimumWidthHint() const
 {
     /* Prepare variables: */
-    const int iMargin = data(MachineItemData_Margin).toInt();
+    const int iMarginHL = data(MachineItemData_MarginHL).toInt();
+    const int iMarginHR = data(MachineItemData_MarginHR).toInt();
     const int iMajorSpacing = data(MachineItemData_MajorSpacing).toInt();
     const int iMinorSpacing = data(MachineItemData_MinorSpacing).toInt();
-    const int iParentIndent = data(MachineItemData_ParentIndent).toInt();
     const int iButtonMargin = data(MachineItemData_ButtonMargin).toInt();
 
     /* Calculating proposed width: */
     int iProposedWidth = 0;
 
     /* Two margins: */
-    iProposedWidth += 2 * iMargin + iParentIndent * level();
+    iProposedWidth += iMarginHL + iMarginHR;
     /* And machine-item content to take into account: */
     int iTopLineWidth = m_iMinimumNameWidth;
-    if (!m_strSnapshotName.isEmpty())
+    if (!node()->toMachineNode()->snapshotName().isEmpty())
         iTopLineWidth += (iMinorSpacing +
                           m_iMinimumSnapshotNameWidth);
     int iBottomLineWidth = m_statePixmapSize.width() +
@@ -412,7 +299,7 @@ int UIChooserItemMachine::minimumWidthHint() const
                             iMajorSpacing +
                             iMiddleColumnWidth +
                             iMajorSpacing +
-                            m_toolsPixmapSize.width() + 2 * iButtonMargin;
+                            m_toolPixmapSize.width() + 2 * iButtonMargin;
     iProposedWidth += iMachineItemWidth;
 
     /* Return result: */
@@ -422,7 +309,7 @@ int UIChooserItemMachine::minimumWidthHint() const
 int UIChooserItemMachine::minimumHeightHint() const
 {
     /* Prepare variables: */
-    const int iMargin = data(MachineItemData_Margin).toInt();
+    const int iMarginV = data(MachineItemData_MarginV).toInt();
     const int iMachineItemTextSpacing = data(MachineItemData_TextSpacing).toInt();
     const int iButtonMargin = data(MachineItemData_ButtonMargin).toInt();
 
@@ -430,7 +317,7 @@ int UIChooserItemMachine::minimumHeightHint() const
     int iProposedHeight = 0;
 
     /* Two margins: */
-    iProposedHeight += 2 * iMargin;
+    iProposedHeight += 2 * iMarginV;
     /* And machine-item content to take into account: */
     int iTopLineHeight = qMax(m_visibleNameSize.height(), m_visibleSnapshotNameSize.height());
     int iBottomLineHeight = qMax(m_statePixmapSize.height(), m_stateTextSize.height());
@@ -438,7 +325,7 @@ int UIChooserItemMachine::minimumHeightHint() const
                               iMachineItemTextSpacing +
                               iBottomLineHeight;
     QList<int> heights;
-    heights << m_pixmapSize.height() << iMiddleColumnHeight << m_toolsPixmapSize.height() + 2 * iButtonMargin;
+    heights << m_pixmapSize.height() << iMiddleColumnHeight << m_toolPixmapSize.height() + 2 * iButtonMargin;
     int iMaxHeight = 0;
     foreach (int iHeight, heights)
         iMaxHeight = qMax(iMaxHeight, iHeight);
@@ -471,7 +358,7 @@ QPixmap UIChooserItemMachine::toPixmap()
     return pixmap;
 }
 
-bool UIChooserItemMachine::isDropAllowed(QGraphicsSceneDragDropEvent *pEvent, DragToken where) const
+bool UIChooserItemMachine::isDropAllowed(QGraphicsSceneDragDropEvent *pEvent, UIChooserItemDragToken where) const
 {
     /* No drops while saving groups: */
     if (model()->isGroupSavingInProgress())
@@ -482,7 +369,7 @@ bool UIChooserItemMachine::isDropAllowed(QGraphicsSceneDragDropEvent *pEvent, Dr
     /* Get mime: */
     const QMimeData *pMimeData = pEvent->mimeData();
     /* If drag token is shown, its up to parent to decide: */
-    if (where != DragToken_Off)
+    if (where != UIChooserItemDragToken_Off)
         return parentItem()->isDropAllowed(pEvent);
     /* Else we should make sure machine is accessible: */
     if (!accessible())
@@ -504,12 +391,12 @@ bool UIChooserItemMachine::isDropAllowed(QGraphicsSceneDragDropEvent *pEvent, Dr
     return false;
 }
 
-void UIChooserItemMachine::processDrop(QGraphicsSceneDragDropEvent *pEvent, UIChooserItem *pFromWho, DragToken where)
+void UIChooserItemMachine::processDrop(QGraphicsSceneDragDropEvent *pEvent, UIChooserItem *pFromWho, UIChooserItemDragToken where)
 {
     /* Get mime: */
     const QMimeData *pMime = pEvent->mimeData();
     /* Make sure this handler called by this item (not by children): */
-    AssertMsg(!pFromWho && where == DragToken_Off, ("Machine graphics item do NOT support children!"));
+    AssertMsg(!pFromWho && where == UIChooserItemDragToken_Off, ("Machine graphics item do NOT support children!"));
     Q_UNUSED(pFromWho);
     Q_UNUSED(where);
     if (pMime->hasFormat(UIChooserItemMachine::className()))
@@ -525,29 +412,38 @@ void UIChooserItemMachine::processDrop(QGraphicsSceneDragDropEvent *pEvent, UICh
                 /* Get passed item: */
                 const UIChooserItemMimeData *pCastedMime = qobject_cast<const UIChooserItemMimeData*>(pMime);
                 AssertMsg(pCastedMime, ("Can't cast passed mime-data to UIChooserItemMimeData!"));
-                UIChooserItem *pItem = pCastedMime->item();
+                UIChooserNode *pNode = pCastedMime->item()->node();
 
-                /* Group passed item with current item into the new group: */
-                UIChooserItemGroup *pNewGroupItem = new UIChooserItemGroup(parentItem(),
-                                                                             UIChooserModel::uniqueGroupName(parentItem()),
-                                                                             true);
-                new UIChooserItemMachine(pNewGroupItem, this);
-                new UIChooserItemMachine(pNewGroupItem, pItem->toMachineItem());
+                /* Group passed item with current-item into the new group: */
+                UIChooserNodeGroup *pNewGroupNode = new UIChooserNodeGroup(parentItem()->node(),
+                                                                           false /* favorite */,
+                                                                           parentItem()->node()->nodes().size(),
+                                                                           UIChooserModel::uniqueGroupName(parentItem()->node()),
+                                                                           true /* true */);
+                UIChooserItemGroup *pNewGroupItem = new UIChooserItemGroup(parentItem(), pNewGroupNode);
+                UIChooserNodeMachine *pNewMachineNode1 = new UIChooserNodeMachine(pNewGroupNode,
+                                                                                  node()->toMachineNode(),
+                                                                                  pNewGroupNode->nodes().size());
+                new UIChooserItemMachine(pNewGroupItem, pNewMachineNode1);
+                UIChooserNodeMachine *pNewMachineNode2 = new UIChooserNodeMachine(pNewGroupNode,
+                                                                                  pNode->toMachineNode(),
+                                                                                  pNewGroupNode->nodes().size());
+                new UIChooserItemMachine(pNewGroupItem, pNewMachineNode2);
 
                 /* If proposed action is 'move': */
                 if (pEvent->proposedAction() == Qt::MoveAction)
                 {
-                    /* Delete passed item: */
-                    delete pItem;
+                    /* Delete passed node: */
+                    delete pNode;
                 }
-                /* Delete this item: */
-                delete this;
+                /* Delete this node: */
+                delete node();
 
                 /* Update model: */
-                pModel->cleanupGroupTree();
-                pModel->updateNavigation();
+                pModel->wipeOutEmptyGroups();
+                pModel->updateNavigationItemList();
                 pModel->updateLayout();
-                pModel->setCurrentItem(pNewGroupItem);
+                pModel->setSelectedItem(pNewGroupItem);
                 pModel->saveGroupSettings();
                 break;
             }
@@ -560,9 +456,9 @@ void UIChooserItemMachine::processDrop(QGraphicsSceneDragDropEvent *pEvent, UICh
 void UIChooserItemMachine::resetDragToken()
 {
     /* Reset drag token for this item: */
-    if (dragTokenPlace() != DragToken_Off)
+    if (dragTokenPlace() != UIChooserItemDragToken_Off)
     {
-        setDragTokenPlace(DragToken_Off);
+        setDragTokenPlace(UIChooserItemDragToken_Off);
         update();
     }
 }
@@ -575,7 +471,7 @@ QMimeData* UIChooserItemMachine::createMimeData()
 void UIChooserItemMachine::sltHandleWindowRemapped()
 {
     /* Recache and update pixmaps: */
-    recachePixmap();
+    node()->toMachineNode()->recachePixmap();
     updatePixmaps();
 }
 
@@ -612,9 +508,8 @@ void UIChooserItemMachine::prepare()
     m_iMaximumSnapshotNameWidth = 0;
 
     /* Add item to the parent: */
-    AssertMsg(parentItem(), ("No parent set for machine-item!"));
-    parentItem()->addItem(this, m_iPosition);
-    setZValue(parentItem()->zValue() + 1);
+    AssertPtrReturnVoid(parentItem());
+    parentItem()->addItem(this, isFavorite(), position());
 
     /* Configure connections: */
     connect(gpManager, &UIVirtualBoxManager::sigWindowRemapped,
@@ -627,12 +522,36 @@ void UIChooserItemMachine::prepare()
             this, &UIChooserItemMachine::sltUpdateFirstRowMaximumWidth);
 
     /* Init: */
-    updatePixmaps();
-    updateName();
-    updateSnapshotName();
+    updateItem();
 
     /* Apply language settings: */
     retranslateUi();
+}
+
+void UIChooserItemMachine::cleanup()
+{
+    /* If that item is current: */
+    if (model()->currentItem() == this)
+    {
+        /* Unset current-item: */
+        model()->setCurrentItem(0);
+    }
+    /* If that item is in selection list: */
+    if (model()->selectedItems().contains(this))
+    {
+        /* Remove item from the selection list: */
+        model()->removeFromSelectedItems(this);
+    }
+    /* If that item is in navigation list: */
+    if (model()->navigationItems().contains(this))
+    {
+        /* Remove item from the navigation list: */
+        model()->removeFromNavigationItems(this);
+    }
+
+    /* Remove item from the parent: */
+    AssertPtrReturnVoid(parentItem());
+    parentItem()->removeItem(this);
 }
 
 QVariant UIChooserItemMachine::data(int iKey) const
@@ -641,18 +560,13 @@ QVariant UIChooserItemMachine::data(int iKey) const
     switch (iKey)
     {
         /* Layout hints: */
-        case MachineItemData_Margin:       return QApplication::style()->pixelMetric(QStyle::PM_SmallIconSize) / 3 * 2;
+        case MachineItemData_MarginHL:     return QApplication::style()->pixelMetric(QStyle::PM_SmallIconSize);
+        case MachineItemData_MarginHR:     return QApplication::style()->pixelMetric(QStyle::PM_SmallIconSize) / 4 * 5;
+        case MachineItemData_MarginV:      return QApplication::style()->pixelMetric(QStyle::PM_SmallIconSize) / 4 * 3;
         case MachineItemData_MajorSpacing: return QApplication::style()->pixelMetric(QStyle::PM_SmallIconSize) / 2;
         case MachineItemData_MinorSpacing: return QApplication::style()->pixelMetric(QStyle::PM_SmallIconSize) / 4;
         case MachineItemData_TextSpacing:  return 0;
-        case MachineItemData_ParentIndent: return QApplication::style()->pixelMetric(QStyle::PM_SmallIconSize) / 3;
         case MachineItemData_ButtonMargin: return QApplication::style()->pixelMetric(QStyle::PM_SmallIconSize) / 4;
-
-        /* Pixmaps: */
-        case MachineItemData_SettingsButtonPixmap: return UIIconPool::iconSet(":/vm_settings_16px.png");
-        case MachineItemData_StartButtonPixmap: return UIIconPool::iconSet(":/vm_start_16px.png");
-        case MachineItemData_PauseButtonPixmap: return UIIconPool::iconSet(":/vm_pause_16px.png");
-        case MachineItemData_CloseButtonPixmap: return UIIconPool::iconSet(":/exit_16px.png");
 
         /* Default: */
         default: break;
@@ -666,15 +580,15 @@ void UIChooserItemMachine::updatePixmaps()
     updatePixmap();
     /* Update state-pixmap: */
     updateStatePixmap();
-    /* Update tools-pixmap: */
-    updateToolsPixmap();
+    /* Update tool-pixmap: */
+    updateToolPixmap();
 }
 
 void UIChooserItemMachine::updatePixmap()
 {
     /* Get new pixmap and pixmap-size: */
     QSize pixmapSize;
-    QPixmap pixmap = osPixmap(&pixmapSize);
+    QPixmap pixmap = node()->toMachineNode()->osPixmap(&pixmapSize);
     /* Update linked values: */
     if (m_pixmapSize != pixmapSize)
     {
@@ -694,7 +608,7 @@ void UIChooserItemMachine::updateStatePixmap()
     /* Determine icon metric: */
     const int iIconMetric = QApplication::style()->pixelMetric(QStyle::PM_SmallIconSize);
     /* Get new state-pixmap and state-pixmap size: */
-    const QIcon stateIcon = machineStateIcon();
+    const QIcon stateIcon = node()->toMachineNode()->machineStateIcon();
     AssertReturnVoid(!stateIcon.isNull());
     const QSize statePixmapSize = QSize(iIconMetric, iIconMetric);
     const QPixmap statePixmap = stateIcon.pixmap(gpManager->windowHandle(), statePixmapSize);
@@ -711,79 +625,48 @@ void UIChooserItemMachine::updateStatePixmap()
     }
 }
 
-void UIChooserItemMachine::updateToolsPixmap()
+void UIChooserItemMachine::updateToolPixmap()
 {
     /* Determine icon metric: */
     const int iIconMetric = QApplication::style()->pixelMetric(QStyle::PM_LargeIconSize) * .75;
-    /* Create new tools-pixmap and tools-pixmap size: */
-    const QIcon toolsIcon = UIIconPool::iconSet(":/tools_menu_24px.png");
-    AssertReturnVoid(!toolsIcon.isNull());
-    const QSize toolsPixmapSize = QSize(iIconMetric, iIconMetric);
-    const QPixmap toolsPixmap = toolsIcon.pixmap(gpManager->windowHandle(), toolsPixmapSize);
+    /* Create new tool-pixmap and tool-pixmap size: */
+    const QIcon toolIcon = UIIconPool::iconSet(":/tools_menu_24px.png");
+    AssertReturnVoid(!toolIcon.isNull());
+    const QSize toolPixmapSize = QSize(iIconMetric, iIconMetric);
+    const QPixmap toolPixmap = toolIcon.pixmap(gpManager->windowHandle(), toolPixmapSize);
     /* Update linked values: */
-    if (m_toolsPixmapSize != toolsPixmapSize)
+    if (m_toolPixmapSize != toolPixmapSize)
     {
-        m_toolsPixmapSize = toolsPixmapSize;
+        m_toolPixmapSize = toolPixmapSize;
         updateGeometry();
     }
-    if (m_toolsPixmap.toImage() != toolsPixmap.toImage())
+    if (m_toolPixmap.toImage() != toolPixmap.toImage())
     {
-        m_toolsPixmap = toolsPixmap;
+        m_toolPixmap = toolPixmap;
         update();
     }
-}
-
-void UIChooserItemMachine::updateName()
-{
-    /* Get new name: */
-    QString strName = name();
-
-    /* Is there something changed? */
-    if (m_strName == strName)
-        return;
-
-    /* Update linked values: */
-    m_strName = strName;
-    updateMinimumNameWidth();
-    updateVisibleName();
-}
-
-void UIChooserItemMachine::updateSnapshotName()
-{
-    /* Get new snapshot-name: */
-    QString strSnapshotName = snapshotName();
-
-    /* Is there something changed? */
-    if (m_strSnapshotName == strSnapshotName)
-        return;
-
-    /* Update linked values: */
-    m_strSnapshotName = strSnapshotName;
-    updateMinimumSnapshotNameWidth();
-    updateVisibleSnapshotName();
 }
 
 void UIChooserItemMachine::updateFirstRowMaximumWidth()
 {
     /* Prepare variables: */
-    const int iMargin = data(MachineItemData_Margin).toInt();
+    const int iMarginHL = data(MachineItemData_MarginHL).toInt();
+    const int iMarginHR = data(MachineItemData_MarginHR).toInt();
     const int iMajorSpacing = data(MachineItemData_MajorSpacing).toInt();
-    const int iParentIndent = data(MachineItemData_ParentIndent).toInt();
     const int iButtonMargin = data(MachineItemData_ButtonMargin).toInt();
 
     /* Calculate new maximum width for the first row: */
     int iFirstRowMaximumWidth = (int)geometry().width();
-    iFirstRowMaximumWidth -= iParentIndent * level();
-    iFirstRowMaximumWidth -= iMargin; /* left margin */
+    iFirstRowMaximumWidth -= iMarginHL; /* left margin */
     iFirstRowMaximumWidth -= m_pixmapSize.width(); /* left pixmap width */
     iFirstRowMaximumWidth -= iMajorSpacing; /* spacing between left pixmap and name(s) */
-    if (   model()->currentItem() == this
+    if (   model()->firstSelectedItem() == this
         || isHovered())
     {
         iFirstRowMaximumWidth -= iMajorSpacing; /* spacing between name(s) and right pixmap */
-        iFirstRowMaximumWidth -= m_toolsPixmapSize.width() + 2 * iButtonMargin; /* right pixmap width */
+        iFirstRowMaximumWidth -= m_toolPixmapSize.width() + 2 * iButtonMargin; /* right pixmap width */
     }
-    iFirstRowMaximumWidth -= iMargin; /* right margin */
+    iFirstRowMaximumWidth -= iMarginHR; /* right margin */
 
     /* Is there something changed? */
     if (m_iFirstRowMaximumWidth == iFirstRowMaximumWidth)
@@ -800,7 +683,7 @@ void UIChooserItemMachine::updateMinimumNameWidth()
     /* Calculate new minimum name width: */
     QPaintDevice *pPaintDevice = model()->paintDevice();
     QFontMetrics fm(m_nameFont, pPaintDevice);
-    int iMinimumNameWidth = fm.width(compressText(m_nameFont, pPaintDevice, m_strName, textWidth(m_nameFont, pPaintDevice, 15)));
+    int iMinimumNameWidth = fm.width(compressText(m_nameFont, pPaintDevice, name(), textWidth(m_nameFont, pPaintDevice, 15)));
 
     /* Is there something changed? */
     if (m_iMinimumNameWidth == iMinimumNameWidth)
@@ -816,11 +699,11 @@ void UIChooserItemMachine::updateMinimumSnapshotNameWidth()
     /* Calculate new minimum snapshot-name width: */
     int iMinimumSnapshotNameWidth = 0;
     /* Is there any snapshot exists? */
-    if (!m_strSnapshotName.isEmpty())
+    if (!node()->toMachineNode()->snapshotName().isEmpty())
     {
         QFontMetrics fm(m_snapshotNameFont, model()->paintDevice());
         int iBracketWidth = fm.width("()"); /* bracket width */
-        int iActualTextWidth = fm.width(m_strSnapshotName); /* snapshot-name width */
+        int iActualTextWidth = fm.width(node()->toMachineNode()->snapshotName()); /* snapshot-name width */
         int iMinimumTextWidth = fm.width("..."); /* ellipsis width */
         iMinimumSnapshotNameWidth = iBracketWidth + qMin(iActualTextWidth, iMinimumTextWidth);
     }
@@ -881,7 +764,7 @@ void UIChooserItemMachine::updateVisibleName()
     QPaintDevice *pPaintDevice = model()->paintDevice();
 
     /* Calculate new visible name and name-size: */
-    QString strVisibleName = compressText(m_nameFont, pPaintDevice, m_strName, m_iMaximumNameWidth);
+    QString strVisibleName = compressText(m_nameFont, pPaintDevice, name(), m_iMaximumNameWidth);
     QSize visibleNameSize = textSize(m_nameFont, pPaintDevice, strVisibleName);
 
     /* Update linked values: */
@@ -905,7 +788,7 @@ void UIChooserItemMachine::updateVisibleSnapshotName()
 
     /* Calculate new visible snapshot-name: */
     int iBracketWidth = QFontMetrics(m_snapshotNameFont, pPaintDevice).width("()");
-    QString strVisibleSnapshotName = compressText(m_snapshotNameFont, pPaintDevice, m_strSnapshotName,
+    QString strVisibleSnapshotName = compressText(m_snapshotNameFont, pPaintDevice, node()->toMachineNode()->snapshotName(),
                                                   m_iMaximumSnapshotNameWidth - iBracketWidth);
     strVisibleSnapshotName = QString("(%1)").arg(strVisibleSnapshotName);
     QSize visibleSnapshotNameSize = textSize(m_snapshotNameFont, pPaintDevice, strVisibleSnapshotName);
@@ -923,22 +806,16 @@ void UIChooserItemMachine::updateVisibleSnapshotName()
     }
 }
 
-void UIChooserItemMachine::updateStateText()
+void UIChooserItemMachine::updateStateTextSize()
 {
     /* Get new state-text and state-text size: */
-    QString strStateText = machineStateName();
-    QSize stateTextSize = textSize(m_stateTextFont, model()->paintDevice(), m_strStateText);
+    const QSize stateTextSize = textSize(m_stateTextFont, model()->paintDevice(), node()->toMachineNode()->machineStateName());
 
     /* Update linked values: */
     if (m_stateTextSize != stateTextSize)
     {
         m_stateTextSize = stateTextSize;
         updateGeometry();
-    }
-    if (m_strStateText != strStateText)
-    {
-        m_strStateText = strStateText;
-        update();
     }
 }
 
@@ -950,8 +827,8 @@ void UIChooserItemMachine::paintBackground(QPainter *pPainter, const QRect &rect
     /* Prepare color: */
     const QPalette pal = palette();
 
-    /* Selection background: */
-    if (model()->currentItems().contains(unconst(this)))
+    /* Selected-item background: */
+    if (model()->selectedItems().contains(unconst(this)))
     {
         /* Prepare color: */
         QColor backgroundColor = pal.color(QPalette::Active, QPalette::Highlight);
@@ -972,7 +849,7 @@ void UIChooserItemMachine::paintBackground(QPainter *pPainter, const QRect &rect
             animationColor1.setAlpha(30);
 #endif
             animationColor2.setAlpha(0);
-            /* Draw hovering animated gradient: */
+            /* Draw hovered-item animated gradient: */
             QRect animatedRect = rectangle;
             animatedRect.setWidth(animatedRect.height());
             const int iLength = 2 * animatedRect.width() + rectangle.width();
@@ -987,7 +864,7 @@ void UIChooserItemMachine::paintBackground(QPainter *pPainter, const QRect &rect
             pPainter->fillRect(rectangle, bgAnimatedGrad);
         }
     }
-    /* Hovering background: */
+    /* Hovered-item background: */
     else if (isHovered())
     {
         /* Prepare color: */
@@ -1007,7 +884,7 @@ void UIChooserItemMachine::paintBackground(QPainter *pPainter, const QRect &rect
         animationColor1.setAlpha(50);
 #endif
         animationColor2.setAlpha(0);
-        /* Draw hovering animated gradient: */
+        /* Draw hovered-item animated gradient: */
         QRect animatedRect = rectangle;
         animatedRect.setWidth(animatedRect.height());
         const int iLength = 2 * animatedRect.width() + rectangle.width();
@@ -1034,7 +911,7 @@ void UIChooserItemMachine::paintBackground(QPainter *pPainter, const QRect &rect
     }
 
     /* Paint drag token UP? */
-    if (dragTokenPlace() != DragToken_Off)
+    if (dragTokenPlace() != UIChooserItemDragToken_Off)
     {
         /* Window color: */
         QColor color1;
@@ -1042,10 +919,10 @@ void UIChooserItemMachine::paintBackground(QPainter *pPainter, const QRect &rect
 
         QLinearGradient dragTokenGradient;
         QRect dragTokenRect = rectangle;
-        if (dragTokenPlace() == DragToken_Up)
+        if (dragTokenPlace() == UIChooserItemDragToken_Up)
         {
-            /* Selection background: */
-            if (model()->currentItems().contains(unconst(this)))
+            /* Selected-item background: */
+            if (model()->selectedItems().contains(unconst(this)))
             {
                 QColor backgroundColor = pal.color(QPalette::Active, QPalette::Highlight);
                 color1 = backgroundColor.lighter(m_iHighlightLightnessMax);
@@ -1063,10 +940,10 @@ void UIChooserItemMachine::paintBackground(QPainter *pPainter, const QRect &rect
             dragTokenGradient.setStart(dragTokenRect.bottomLeft());
             dragTokenGradient.setFinalStop(dragTokenRect.topLeft());
         }
-        else if (dragTokenPlace() == DragToken_Down)
+        else if (dragTokenPlace() == UIChooserItemDragToken_Down)
         {
-            /* Selection background: */
-            if (model()->currentItems().contains(unconst(this)))
+            /* Selected-item background: */
+            if (model()->selectedItems().contains(unconst(this)))
             {
                 QColor backgroundColor = pal.color(QPalette::Active, QPalette::Highlight);
                 color1 = backgroundColor.lighter(m_iHighlightLightnessMin);
@@ -1102,10 +979,10 @@ void UIChooserItemMachine::paintFrame(QPainter *pPainter, const QRect &rectangle
     const QPalette pal = palette();
     QColor strokeColor;
 
-    /* Selection frame: */
-    if (model()->currentItems().contains(unconst(this)))
+    /* Selected-item frame: */
+    if (model()->selectedItems().contains(unconst(this)))
         strokeColor = pal.color(QPalette::Active, QPalette::Highlight).lighter(m_iHighlightLightnessMin - 40);
-    /* Hovering frame: */
+    /* Hovered-item frame: */
     else if (isHovered())
         strokeColor = pal.color(QPalette::Active, QPalette::Highlight).lighter(m_iHoverLightnessMin - 50);
     /* Default frame: */
@@ -1118,9 +995,9 @@ void UIChooserItemMachine::paintFrame(QPainter *pPainter, const QRect &rectangle
     pPainter->setPen(pen);
 
     /* Draw borders: */
-    if (dragTokenPlace() != DragToken_Up)
+    if (dragTokenPlace() != UIChooserItemDragToken_Up)
         pPainter->drawLine(rectangle.topLeft(),    rectangle.topRight()    + QPoint(1, 0));
-    if (dragTokenPlace() != DragToken_Down)
+    if (dragTokenPlace() != UIChooserItemDragToken_Down)
         pPainter->drawLine(rectangle.bottomLeft(), rectangle.bottomRight() + QPoint(1, 0));
     pPainter->drawLine(rectangle.topLeft(),    rectangle.bottomLeft());
 
@@ -1133,21 +1010,15 @@ void UIChooserItemMachine::paintMachineInfo(QPainter *pPainter, const QRect &rec
     /* Prepare variables: */
     const int iFullWidth = rectangle.width();
     const int iFullHeight = rectangle.height();
-    const int iMargin = data(MachineItemData_Margin).toInt();
+    const int iMarginHL = data(MachineItemData_MarginHL).toInt();
+    const int iMarginHR = data(MachineItemData_MarginHR).toInt();
     const int iMajorSpacing = data(MachineItemData_MajorSpacing).toInt();
     const int iMinorSpacing = data(MachineItemData_MinorSpacing).toInt();
     const int iMachineItemTextSpacing = data(MachineItemData_TextSpacing).toInt();
-    const int iParentIndent = data(MachineItemData_ParentIndent).toInt();
     const int iButtonMargin = data(MachineItemData_ButtonMargin).toInt();
 
-    /* Selected item foreground: */
-    if (model()->currentItems().contains(unconst(this)))
-    {
-        QPalette pal = palette();
-        pPainter->setPen(pal.color(QPalette::HighlightedText));
-    }
-    /* Hovered item foreground: */
-    else if (isHovered())
+    /* Selected or hovered item foreground: */
+    if (model()->selectedItems().contains(unconst(this)) || isHovered())
     {
         /* Prepare color: */
         QPalette pal = palette();
@@ -1160,7 +1031,7 @@ void UIChooserItemMachine::paintMachineInfo(QPainter *pPainter, const QRect &rec
     }
 
     /* Calculate indents: */
-    int iLeftColumnIndent = iMargin + iParentIndent * level();
+    int iLeftColumnIndent = iMarginHL;
 
     /* Paint left column: */
     {
@@ -1215,7 +1086,7 @@ void UIChooserItemMachine::paintMachineInfo(QPainter *pPainter, const QRect &rec
                                       iMinorSpacing;
 
             /* Paint middle element: */
-            if (!snapshotName().isEmpty())
+            if (!node()->toMachineNode()->snapshotName().isEmpty())
             {
                 /* Prepare variables: */
                 int iSnapshotNameX = iSnapshotNameIndent;
@@ -1273,37 +1144,37 @@ void UIChooserItemMachine::paintMachineInfo(QPainter *pPainter, const QRect &rec
                           /* Paint device: */
                           model()->paintDevice(),
                           /* Text to paint: */
-                          m_strStateText);
+                          node()->toMachineNode()->machineStateName());
             }
         }
     }
 
     /* Calculate indents: */
-    int iRightColumnIndent = iFullWidth - iMargin - 1 - m_toolsPixmap.width() / m_toolsPixmap.devicePixelRatio();
+    QGraphicsView *pView = model()->scene()->views().first();
+    const QPointF sceneCursorPosition = pView->mapToScene(pView->mapFromGlobal(QCursor::pos()));
+    const QPoint itemCursorPosition = mapFromScene(sceneCursorPosition).toPoint();
+    int iRightColumnIndent = iFullWidth - iMarginHR - 1 - m_toolPixmap.width() / m_toolPixmap.devicePixelRatio();
 
     /* Paint right column: */
-    if (   model()->currentItem() == this
+    if (   model()->firstSelectedItem() == this
         || isHovered())
     {
         /* Prepare variables: */
-        int iToolsPixmapX = iRightColumnIndent;
-        int iToolsPixmapY = (iFullHeight - m_toolsPixmap.height() / m_toolsPixmap.devicePixelRatio()) / 2;
-        QRect buttonRectangle = QRect(iToolsPixmapX,
-                                      iToolsPixmapY,
-                                      m_toolsPixmap.width() / m_toolsPixmap.devicePixelRatio(),
-                                      m_toolsPixmap.height() / m_toolsPixmap.devicePixelRatio());
-        buttonRectangle.adjust(- iButtonMargin, -iButtonMargin, iButtonMargin, iButtonMargin);
-        QGraphicsView *pView = model()->scene()->views().first();
-        const QPointF sceneCursorPosition = pView->mapToScene(pView->mapFromGlobal(QCursor::pos()));
-        const QPoint itemCursorPosition = mapFromScene(sceneCursorPosition).toPoint();
+        const int iToolPixmapX = iRightColumnIndent;
+        const int iToolPixmapY = (iFullHeight - m_toolPixmap.height() / m_toolPixmap.devicePixelRatio()) / 2;
+        QRect toolButtonRectangle = QRect(iToolPixmapX,
+                                          iToolPixmapY,
+                                          m_toolPixmap.width() / m_toolPixmap.devicePixelRatio(),
+                                          m_toolPixmap.height() / m_toolPixmap.devicePixelRatio());
+        toolButtonRectangle.adjust(- iButtonMargin, -iButtonMargin, iButtonMargin, iButtonMargin);
 
-        /* Paint flat button: */
+        /* Paint tool button: */
         if (   isHovered()
-            && isToolsButtonArea(itemCursorPosition, 4))
+            && isToolButtonArea(itemCursorPosition, 4))
             paintFlatButton(/* Painter: */
                             pPainter,
                             /* Button rectangle: */
-                            buttonRectangle,
+                            toolButtonRectangle,
                             /* Cursor position: */
                             itemCursorPosition);
 
@@ -1311,9 +1182,9 @@ void UIChooserItemMachine::paintMachineInfo(QPainter *pPainter, const QRect &rec
         paintPixmap(/* Painter: */
                     pPainter,
                     /* Point to paint in: */
-                    QPoint(iToolsPixmapX, iToolsPixmapY),
+                    QPoint(iToolPixmapX, iToolPixmapY),
                     /* Pixmap to paint: */
-                    m_toolsPixmap);
+                    m_toolPixmap);
     }
 }
 

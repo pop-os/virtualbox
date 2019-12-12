@@ -22,39 +22,23 @@
 #endif
 
 #include "DHCPServerWrap.h"
+#include <map>
 
 namespace settings
 {
     struct DHCPServer;
     struct DhcpOptValue;
-    typedef std::map<DhcpOpt_T, DhcpOptValue> DhcpOptionMap;
+    typedef std::map<DHCPOption_T, DhcpOptValue> DhcpOptionMap;
 }
 
-
-#ifdef VBOX_WITH_HOSTNETIF_API
-struct NETIFINFO;
-#endif
-
-#ifdef RT_OS_WINDOWS
-# define DHCP_EXECUTABLE_NAME "VBoxNetDHCP.exe"
-#else
-# define DHCP_EXECUTABLE_NAME "VBoxNetDHCP"
-#endif
-
-class DHCPServerRunner: public NetworkServiceRunner
-{
-public:
-    DHCPServerRunner():NetworkServiceRunner(DHCP_EXECUTABLE_NAME){}
-    virtual ~DHCPServerRunner(){};
-
-    static const std::string kDsrKeyGateway;
-    static const std::string kDsrKeyLowerIp;
-    static const std::string kDsrKeyUpperIp;
-    static const std::string kDsrKeyConfig;
-    static const std::string kDsrKeyComment;
-};
+class DHCPConfig;
+class DHCPIndividualConfig;
 
 /**
+ * A DHCP server for internal host-only & NAT networks.
+ *
+ * Old notes:
+ *
  *  for server configuration needs, it's perhaps better to use (VM,slot) pair
  *  (vm-name, slot) <----> (MAC)
  *
@@ -66,79 +50,71 @@ public:
  *  XML: serialization of dependecy (DHCP options) - (VM,slot) shouldn't be done via MAC in
  *  the middle.
  */
-
-class ATL_NO_VTABLE DHCPServer :
-    public DHCPServerWrap
+class ATL_NO_VTABLE DHCPServer
+    : public DHCPServerWrap
 {
 public:
-
+    /** @name Constructors and destructors
+     * @{ */
     DECLARE_EMPTY_CTOR_DTOR(DHCPServer)
-
     HRESULT FinalConstruct();
-    void FinalRelease();
+    void    FinalRelease();
 
-    HRESULT init(VirtualBox *aVirtualBox,
-                 const com::Utf8Str &aName);
-    HRESULT init(VirtualBox *aVirtualBox,
-                 const settings::DHCPServer &data);
-    void uninit();
+    HRESULT init(VirtualBox *aVirtualBox, const com::Utf8Str &aName);
+    HRESULT init(VirtualBox *aVirtualBox, const settings::DHCPServer &data);
+    void    uninit();
+    /** @} */
 
-    // Public internal methids.
+    /** @name Public internal methods.
+     * @{ */
     HRESULT i_saveSettings(settings::DHCPServer &data);
-    settings::DhcpOptionMap &i_findOptMapByVmNameSlot(const com::Utf8Str &aVmName,
-                                                      LONG Slot);
+    HRESULT i_removeConfig(DHCPConfig *pConfig, DHCPConfigScope_T enmScope);
+    /** @} */
 
 private:
-    HRESULT encodeOption(com::Utf8Str &aEncoded,
-                         uint32_t aOptCode, const settings::DhcpOptValue &aOptValue);
-    int addOption(settings::DhcpOptionMap &aMap,
-                  DhcpOpt_T aOption, const com::Utf8Str &aValue);
+    /** @name IDHCPServer Properties
+     * @{ */
+    HRESULT getEventSource(ComPtr<IEventSource> &aEventSource) RT_OVERRIDE;
+    HRESULT getEnabled(BOOL *aEnabled) RT_OVERRIDE;
+    HRESULT setEnabled(BOOL aEnabled) RT_OVERRIDE;
+    HRESULT getIPAddress(com::Utf8Str &aIPAddress) RT_OVERRIDE;
+    HRESULT getNetworkMask(com::Utf8Str &aNetworkMask) RT_OVERRIDE;
+    HRESULT getNetworkName(com::Utf8Str &aName) RT_OVERRIDE;
+    HRESULT getLowerIP(com::Utf8Str &aIPAddress) RT_OVERRIDE;
+    HRESULT getUpperIP(com::Utf8Str &aIPAddress) RT_OVERRIDE;
+    HRESULT setConfiguration(const com::Utf8Str &aIPAddress, const com::Utf8Str &aNetworkMask,
+                             const com::Utf8Str &aFromIPAddress, const com::Utf8Str &aToIPAddress) RT_OVERRIDE;
+    HRESULT getGlobalConfig(ComPtr<IDHCPGlobalConfig> &aGlobalConfig) RT_OVERRIDE;
+    HRESULT getGroupConfigs(std::vector<ComPtr<IDHCPGroupConfig> > &aGroupConfigs) RT_OVERRIDE;
+    HRESULT getIndividualConfigs(std::vector<ComPtr<IDHCPIndividualConfig> > &aIndividualConfigs) ;
+    /** @} */
 
-    // wrapped IDHCPServer properties
-    HRESULT getEventSource(ComPtr<IEventSource> &aEventSource);
-    HRESULT getEnabled(BOOL *aEnabled);
-    HRESULT setEnabled(BOOL aEnabled);
-    HRESULT getIPAddress(com::Utf8Str &aIPAddress);
-    HRESULT getNetworkMask(com::Utf8Str &aNetworkMask);
-    HRESULT getNetworkName(com::Utf8Str &aName);
-    HRESULT getLowerIP(com::Utf8Str &aIPAddress);
-    HRESULT getUpperIP(com::Utf8Str &aIPAddress);
-    HRESULT getGlobalOptions(std::vector<com::Utf8Str> &aGlobalOptions);
-    HRESULT getVmConfigs(std::vector<com::Utf8Str> &aVmConfigs);
-    HRESULT getMacOptions(const com::Utf8Str &aMAC, std::vector<com::Utf8Str> &aValues);
-    HRESULT setConfiguration(const com::Utf8Str &aIPAddress,
-                             const com::Utf8Str &aNetworkMask,
-                             const com::Utf8Str &aFromIPAddress,
-                             const com::Utf8Str &aToIPAddress);
-    HRESULT getVmSlotOptions(const com::Utf8Str &aVmName,
-                             LONG aSlot,
-                             std::vector<com::Utf8Str> &aValues);
+    /** @name IDHCPServer Methods
+     * @{ */
+    HRESULT start(const com::Utf8Str &aTrunkName, const com::Utf8Str &aTrunkType) RT_OVERRIDE;
+    HRESULT stop() RT_OVERRIDE;
+    HRESULT restart() RT_OVERRIDE;
+    HRESULT findLeaseByMAC(const com::Utf8Str &aMac, LONG aType, com::Utf8Str &aAddress, com::Utf8Str &aState,
+                           LONG64 *aIssued, LONG64 *aExpire) RT_OVERRIDE;
+    HRESULT getConfig(DHCPConfigScope_T aScope, const com::Utf8Str &aName, ULONG aSlot, BOOL aMayAdd,
+                      ComPtr<IDHCPConfig> &aConfig) RT_OVERRIDE;
+    /** @} */
 
-    // Wrapped IDHCPServer Methods
-    HRESULT addGlobalOption(DhcpOpt_T aOption,
-                            const com::Utf8Str &aValue);
-    HRESULT removeGlobalOption(DhcpOpt_T aOption);
-    HRESULT removeGlobalOptions();
-    HRESULT addVmSlotOption(const com::Utf8Str &aVmName,
-                            LONG aSlot,
-                            DhcpOpt_T aOption,
-                            const com::Utf8Str &aValue);
-    HRESULT removeVmSlotOption(const com::Utf8Str &aVmName,
-                               LONG aSlot,
-                               DhcpOpt_T aOption);
-    HRESULT removeVmSlotOptions(const com::Utf8Str &aVmName,
-                                LONG aSlot);
-    HRESULT start(const com::Utf8Str &aNetworkName,
-                  const com::Utf8Str &aTrunkName,
-                  const com::Utf8Str &aTrunkType);
-    HRESULT stop();
-    HRESULT restart();
+    /** @name Helpers
+     * @{  */
+    HRESULT i_doSaveSettings();
+    HRESULT i_calcLeasesConfigAndLogFilenames(const com::Utf8Str &aNetwork) RT_NOEXCEPT;
+    HRESULT i_writeDhcpdConfig(const char *pszFilename, uint32_t uMACAddressVersion) RT_NOEXCEPT;
 
+    HRESULT i_vmNameToIdAndValidateSlot(const com::Utf8Str &aVmName, LONG aSlot, com::Guid &idMachine);
+    HRESULT i_vmNameAndSlotToConfig(const com::Utf8Str &a_strVmName, LONG a_uSlot, bool a_fCreateIfNeeded,
+                                    ComObjPtr<DHCPIndividualConfig> &a_rPtrConfig);
+    /** @} */
+
+    /** Private data */
     struct Data;
+    /** Private data. */
     Data *m;
-    /** weak VirtualBox parent */
-    VirtualBox *const mVirtualBox;
-    const Utf8Str mName;
 };
 
 #endif /* !MAIN_INCLUDED_DHCPServerImpl_h */

@@ -1022,7 +1022,7 @@ int GuestBase::registerWaitEventEx(uint32_t uSessionID, uint32_t uObjectID, cons
             }
             if (RT_SUCCESS(rc))
             {
-                Assert(cInserts > 0);
+                Assert(cInserts > 0 || lstEvents.size() == 0);
                 RT_NOREF(cInserts);
 
                 /*
@@ -1264,6 +1264,9 @@ int GuestBase::unregisterWaitEvent(GuestWaitEvent *pWaitEvt)
  * Waits for an already registered guest wait event.
  *
  * @return  VBox status code.
+ * @retval  VERR_GSTCTL_GUEST_ERROR may be returned, call GuestResult() to get
+ *          the actual result.
+ *
  * @param   pWaitEvt                Pointer to event to wait for.
  * @param   msTimeout               Timeout (in ms) for waiting.
  * @param   pType                   Event type of following IEvent. Optional.
@@ -1476,6 +1479,9 @@ int GuestWaitEventBase::SignalInternal(int rc, int rcGuest,
  * wait was successufl (e.g. was being triggered), otherwise an error will be returned.
  *
  * @returns VBox status code.
+ * @retval  VERR_GSTCTL_GUEST_ERROR may be returned, call GuestResult() to get
+ *          the actual result.
+ *
  * @param   msTimeout           Timeout (in ms) to wait.
  *                              Specifiy 0 to wait indefinitely.
  */

@@ -30,7 +30,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 128281 $"
+__version__ = "$Revision: 133237 $"
 
 
 # Standard Python imports.
@@ -155,8 +155,11 @@ class VBoxInstallerTestDriver(TestDriverBase):
         Install VBox and pass on the configure request to the sub testdriver.
         """
         fRc = self._installVBox();
-        if fRc is None: self._persistentVarSet(self.ksVar_Skipped, 'true');
-        else:           self._persistentVarUnset(self.ksVar_Skipped);
+        if fRc is None:
+            self._persistentVarSet(self.ksVar_Skipped, 'true');
+            self.fBadTestbox = True;
+        else:
+            self._persistentVarUnset(self.ksVar_Skipped);
 
         ## @todo vbox.py still has bugs preventing us from invoking it seperately with each action.
         if fRc is True and 'execute' not in self.asActions and 'all' not in self.asActions:
@@ -305,9 +308,9 @@ class VBoxInstallerTestDriver(TestDriverBase):
                 if sBase is None:
                     continue;
                 sBase = sBase.lower();
-                if sBase in [ 'vboxsvc', 'virtualbox', 'virtualboxvm', 'vboxheadless', 'vboxmanage', 'vboxsdl', 'vboxwebsrv',
-                              'vboxautostart', 'vboxballoonctrl', 'vboxbfe', 'vboxextpackhelperapp', 'vboxnetdhcp',
-                              'vboxnetadpctl', 'vboxtestogl', 'vboxtunctl', 'vboxvmmpreload', 'vboxxpcomipcd', 'vmCreator', ]:
+                if sBase in [ 'vboxsvc', 'vboxsds', 'virtualbox', 'virtualboxvm', 'vboxheadless', 'vboxmanage', 'vboxsdl',
+                              'vboxwebsrv', 'vboxautostart', 'vboxballoonctrl', 'vboxbfe', 'vboxextpackhelperapp', 'vboxnetdhcp',
+                              'vboxnetnat', 'vboxnetadpctl', 'vboxtestogl', 'vboxtunctl', 'vboxvmmpreload', 'vboxxpcomipcd', ]:
                     aoTodo.append(oProcess);
                 if sBase.startswith('virtualbox-') and sBase.endswith('-multiarch.exe'):
                     aoTodo.append(oProcess);
@@ -350,7 +353,7 @@ class VBoxInstallerTestDriver(TestDriverBase):
         reporter.log('Exit code: %s (%s)' % (iRc, asArgs));
         if fMaySkip and iRc == rtexitcode.RTEXITCODE_SKIPPED:
             return None;
-        return iRc is 0;
+        return iRc == 0;
 
     def _sudoExecuteSync(self, asArgs):
         """
@@ -367,7 +370,7 @@ class VBoxInstallerTestDriver(TestDriverBase):
             reporter.errorXcpt();
             return (False, 0);
         reporter.log('Exit code [sudo]: %s (%s)' % (iRc, asArgs));
-        return (iRc is 0, iRc);
+        return (iRc == 0, iRc);
 
     def _executeSubDriver(self, asActions, fMaySkip = True):
         """
@@ -439,6 +442,8 @@ class VBoxInstallerTestDriver(TestDriverBase):
             reporter.error('Unsupported host "%s".' % (sHost,));
         if fRc is False:
             reporter.testFailure('Installation error.');
+        elif fRc is not True:
+            reporter.log('Seems installation was skipped. Old version lurking behind? Not the fault of this build/test run!');
 
         #
         # Install the extension pack.
@@ -455,7 +460,7 @@ class VBoxInstallerTestDriver(TestDriverBase):
         except:
             reporter.logXcpt('Unable to get disk free space. Ignored. Continuing.');
 
-        reporter.testDone();
+        reporter.testDone(fRc is None);
         return fRc;
 
     def _uninstallVBox(self, fIgnoreError = False):
@@ -468,7 +473,7 @@ class VBoxInstallerTestDriver(TestDriverBase):
         if   sHost == 'darwin':     fRc = self._uninstallVBoxOnDarwin();
         elif sHost == 'linux':      fRc = self._uninstallVBoxOnLinux();
         elif sHost == 'solaris':    fRc = self._uninstallVBoxOnSolaris(True);
-        elif sHost == 'win':        fRc = self._uninstallVBoxOnWindows(True);
+        elif sHost == 'win':        fRc = self._uninstallVBoxOnWindows('uninstall');
         else:
             reporter.error('Unsupported host "%s".' % (sHost,));
         if fRc is False and not fIgnoreError:
@@ -762,7 +767,7 @@ class VBoxInstallerTestDriver(TestDriverBase):
         # TEMPORARY HACK - END
 
         # Uninstall any previous vbox version first.
-        fRc = self._uninstallVBoxOnWindows(True);
+        fRc = self._uninstallVBoxOnWindows('install');
         if fRc is not True:
             return None; # There shouldn't be anything to uninstall, and if there is, it's not our fault.
 
@@ -772,16 +777,17 @@ class VBoxInstallerTestDriver(TestDriverBase):
         sVBoxInstallPath = os.environ.get('VBOX_INSTALL_PATH', None);
         if sVBoxInstallPath is not None:
             asArgs.extend(['INSTALLDIR="%s"' % (sVBoxInstallPath,)]);
+
         fRc2, iRc = self._sudoExecuteSync(asArgs);
         if fRc2 is False:
             if iRc == 3010: # ERROR_SUCCESS_REBOOT_REQUIRED
-                reporter.log('Note: Installer required a reboot to complete installation');
-                # Optional, don't fail.
+                reporter.error('Installer required a reboot to complete installation (ERROR_SUCCESS_REBOOT_REQUIRED)');
             else:
-                fRc = False;
+                reporter.error('Installer failed, exit code: %s' % (iRc,));
+            fRc = False;
+
         sLogFile = os.path.join(tempfile.gettempdir(), 'VirtualBox', 'VBoxInstallLog.txt');
-        if      sLogFile is not None \
-            and os.path.isfile(sLogFile):
+        if os.path.isfile(sLogFile):
             reporter.addLogFile(sLogFile, 'log/installer', "Verbose MSI installation log file");
         self._waitForTestManagerConnectivity(30);
         return fRc;
@@ -829,12 +835,13 @@ class VBoxInstallerTestDriver(TestDriverBase):
                 cKilled += 1;
         return cKilled;
 
-    def _uninstallVBoxOnWindows(self, fIgnoreServices = False):
+    def _uninstallVBoxOnWindows(self, sMode):
         """
         Uninstalls VBox on Windows, all installations we find to be on the safe side...
         """
+        assert sMode in ['install', 'uninstall',];
 
-        import win32com.client; # pylint: disable=F0401
+        import win32com.client; # pylint: disable=import-error
         win32com.client.gencache.EnsureModule('{000C1092-0000-0000-C000-000000000046}', 1033, 1, 0);
         oInstaller = win32com.client.Dispatch('WindowsInstaller.Installer',
                                               resultCLSID = '{000C1090-0000-0000-C000-000000000046}')
@@ -907,21 +914,60 @@ class VBoxInstallerTestDriver(TestDriverBase):
                                                '/L*v', '%s' % (sLogFile), ]);
             if fRc2 is False:
                 if iRc == 3010: # ERROR_SUCCESS_REBOOT_REQUIRED
-                    reporter.log('Note: Uninstaller required a reboot to complete uninstallation');
-                    reporter.addLogFile(sLogFile, 'log/uninstaller_reboot', "Verbose MSI uninstallation log file (reboot required)");
-                    # Optional, don't fail.
+                    reporter.error('Uninstaller required a reboot to complete uninstallation');
                 else:
-                    fRc = False;
+                    reporter.error('Uninstaller failed, exit code: %s' % (iRc,));
+                fRc = False;
 
         self._waitForTestManagerConnectivity(30);
+
+        # Upload the log on failure.  Do it early if the extra cleanups below causes trouble.
         if fRc is False and os.path.isfile(sLogFile):
             reporter.addLogFile(sLogFile, 'log/uninstaller', "Verbose MSI uninstallation log file");
+            sLogFile = None;
 
         # Log driver service states (should ls \Driver\VBox* and \Device\VBox*).
-        for sService in self.kasWindowsServices:
-            fRc2, _ = self._sudoExecuteSync(['sc.exe', 'query', sService]);
-            if fIgnoreServices is False and fRc2 is True:
-                fRc = False
+        fHadLeftovers = False;
+        asLeftovers = [];
+        for sService in reversed(self.kasWindowsServices):
+            cTries = 0;
+            while True:
+                fRc2, _ = self._sudoExecuteSync(['sc.exe', 'query', sService]);
+                if not fRc2:
+                    break;
+                fHadLeftovers = True;
+
+                cTries += 1;
+                if cTries > 3:
+                    asLeftovers.append(sService,);
+                    break;
+
+                # Get the status output.
+                try:
+                    sOutput = utils.sudoProcessOutputChecked(['sc.exe', 'query', sService]);
+                except:
+                    reporter.logXcpt();
+                else:
+                    if re.search(r'STATE\s+:\s*1\s*STOPPED', sOutput) is None:
+                        reporter.log('Trying to stop %s...' % (sService,));
+                        fRc2, _ = self._sudoExecuteSync(['sc.exe', 'stop', sService]);
+                        time.sleep(1); # fudge
+
+                    reporter.log('Trying to delete %s...' % (sService,));
+                    self._sudoExecuteSync(['sc.exe', 'delete', sService]);
+
+                time.sleep(1); # fudge
+
+        if asLeftovers:
+            reporter.log('Warning! Leftover VBox drivers: %s' % (', '.join(asLeftovers),));
+            fRc = False;
+
+        if fHadLeftovers:
+            self._waitForTestManagerConnectivity(30);
+
+        # Upload the log if we have any leftovers and didn't upload it already.
+        if sLogFile is not None and (fRc is False or fHadLeftovers) and os.path.isfile(sLogFile):
+            reporter.addLogFile(sLogFile, 'log/uninstaller', "Verbose MSI uninstallation log file");
 
         return fRc;
 
@@ -940,7 +986,7 @@ class VBoxInstallerTestDriver(TestDriverBase):
                 os.path.join(sProgFiles, 'OracleVM', 'VirtualBox'),
                 os.path.join(sProgFiles, 'Sun', 'VirtualBox'),
             ];
-        elif sHost == 'linux' or sHost == 'solaris':
+        elif sHost in ('linux', 'solaris',):
             asLocs = [ '/opt/VirtualBox', '/opt/VirtualBox-3.2', '/opt/VirtualBox-3.1', '/opt/VirtualBox-3.0'];
         elif sHost == 'darwin':
             asLocs = [ '/Applications/VirtualBox.app/Contents/MacOS' ];

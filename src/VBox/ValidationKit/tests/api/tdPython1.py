@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 131227 $"
 
 
 # Standard Python imports.
@@ -53,7 +53,7 @@ class SubTstDrvPython1(base.SubTestDriverBase):
     """
 
     def __init__(self, oTstDrv):
-        base.SubTestDriverBase.__init__(self, 'python-binding', oTstDrv)
+        base.SubTestDriverBase.__init__(self, oTstDrv, 'python-binding', 'Python bindings');
 
     def testIt(self):
         """

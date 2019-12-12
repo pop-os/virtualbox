@@ -26,7 +26,7 @@
 #include "UIIconPool.h"
 #include "UIMediumItem.h"
 #include "UIMessageCenter.h"
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 
 /* COM includes: */
 #include "CMachine.h"
@@ -94,7 +94,7 @@ bool UIMediumItem::move()
         else
         {
             /* Show move storage progress: */
-            msgCenter().showModalProgressDialog(comProgress, tr("Moving medium..."),
+            msgCenter().showModalProgressDialog(comProgress, tr("Moving medium ..."),
                                                 ":/progress_media_move_90px.png", treeWidget());
 
             /* Show error message if necessary: */
@@ -168,9 +168,80 @@ void UIMediumItem::setMedium(const UIMedium &guiMedium)
 bool UIMediumItem::operator<(const QTreeWidgetItem &other) const
 {
     int iColumn = treeWidget()->sortColumn();
-    ULONG64 uThisValue = vboxGlobal().parseSize(      text(iColumn));
-    ULONG64 uThatValue = vboxGlobal().parseSize(other.text(iColumn));
+    ULONG64 uThisValue = uiCommon().parseSize(      text(iColumn));
+    ULONG64 uThatValue = uiCommon().parseSize(other.text(iColumn));
     return uThisValue && uThatValue ? uThisValue < uThatValue : QTreeWidgetItem::operator<(other);
+}
+
+bool UIMediumItem::isMediumModifiable() const
+{
+    if (medium().isNull())
+        return false;
+    if (m_enmDeviceType == UIMediumDeviceType_DVD || m_enmDeviceType == UIMediumDeviceType_Floppy)
+        return false;
+    foreach (const QUuid &uMachineId, medium().curStateMachineIds())
+    {
+        CMachine comMachine = uiCommon().virtualBox().FindMachine(uMachineId.toString());
+        if (comMachine.isNull())
+            continue;
+        if (comMachine.GetState() != KMachineState_PoweredOff &&
+            comMachine.GetState() != KMachineState_Aborted)
+            return false;
+    }
+    return true;
+}
+
+bool UIMediumItem::isMediumAttachedTo(QUuid uId)
+{
+   if (medium().isNull())
+        return false;
+   return medium().curStateMachineIds().contains(uId);
+}
+
+bool UIMediumItem::changeMediumType(KMediumType enmOldType, KMediumType enmNewType)
+{
+    QList<AttachmentCache> attachmentCacheList;
+    /* Cache the list of vms the medium is attached to. We will need this for the re-attachment: */
+    foreach (const QUuid &uMachineId, medium().curStateMachineIds())
+    {
+        const CMachine &comMachine = uiCommon().virtualBox().FindMachine(uMachineId.toString());
+        if (comMachine.isNull())
+            continue;
+        CMediumAttachmentVector attachments = comMachine.GetMediumAttachments();
+        foreach (const CMediumAttachment &attachment, attachments)
+        {
+            const CMedium& comMedium = attachment.GetMedium();
+            if (comMedium.isNull() || comMedium.GetId() != id())
+                continue;
+            AttachmentCache attachmentCache;
+            attachmentCache.m_uMachineId = uMachineId;
+            attachmentCache.m_strControllerName = attachment.GetController();
+            attachmentCache.m_port = attachment.GetPort();
+            attachmentCache.m_device = attachment.GetDevice();
+            attachmentCacheList << attachmentCache;
+        }
+    }
+
+    /* Detach the medium from all the vms it is already attached to: */
+    if (!release(true))
+        return false;
+
+    /* Search for corresponding medium: */
+    CMedium comMedium = uiCommon().medium(id()).medium();
+
+    /* Attempt to change medium type: */
+    comMedium.SetType(enmNewType);
+    bool fSuccess = true;
+    /* Show error message if necessary: */
+    if (!comMedium.isOk() && parentTree())
+    {
+        msgCenter().cannotChangeMediumType(comMedium, enmOldType, enmNewType, treeWidget());
+        fSuccess = false;
+    }
+    /* Reattach the medium to all the vms it was previously attached: */
+    foreach (const AttachmentCache &attachmentCache, attachmentCacheList)
+        attachTo(attachmentCache);
+    return fSuccess;
 }
 
 QString UIMediumItem::defaultText() const
@@ -196,17 +267,17 @@ void UIMediumItem::refresh()
     /* Gather medium data: */
     m_fValid =    !m_guiMedium.isNull()
                && m_guiMedium.state() != KMediumState_Inaccessible;
-    m_enmType = m_guiMedium.type();
+    m_enmDeviceType = m_guiMedium.type();
     m_enmVariant = m_guiMedium.mediumVariant();
     m_fHasChildren = m_guiMedium.hasChildren();
     /* Gather medium options data: */
-    m_options.m_enmType = m_guiMedium.mediumType();
+    m_options.m_enmMediumType = m_guiMedium.mediumType();
     m_options.m_strLocation = m_guiMedium.location();
     m_options.m_uLogicalSize = m_guiMedium.logicalSizeInBytes();
     m_options.m_strDescription = m_guiMedium.description();
     /* Gather medium details data: */
     m_details.m_aFields.clear();
-    switch (m_enmType)
+    switch (m_enmDeviceType)
     {
         case UIMediumDeviceType_HardDisk:
         {
@@ -248,7 +319,7 @@ void UIMediumItem::refresh()
 bool UIMediumItem::releaseFrom(const QUuid &uMachineId)
 {
     /* Open session: */
-    CSession session = vboxGlobal().openSession(uMachineId);
+    CSession session = uiCommon().openSession(uMachineId);
     if (session.isNull())
         return false;
 
@@ -262,6 +333,41 @@ bool UIMediumItem::releaseFrom(const QUuid &uMachineId)
     if (releaseFrom(machine))
     {
         /* Save machine settings: */
+        machine.SaveSettings();
+        if (!machine.isOk())
+            msgCenter().cannotSaveMachineSettings(machine, treeWidget());
+        else
+            fSuccess = true;
+    }
+
+    /* Close session: */
+    session.UnlockMachine();
+
+    /* Return result: */
+    return fSuccess;
+}
+
+bool UIMediumItem::attachTo(const AttachmentCache &attachmentCache)
+{
+    CMedium comMedium = medium().medium();
+
+    if (comMedium.isNull())
+        return false;
+
+    /* Open session: */
+    CSession session = uiCommon().openSession(attachmentCache.m_uMachineId);
+    if (session.isNull())
+        return false;
+
+    /* Get machine: */
+    CMachine machine = session.GetMachine();
+
+    bool fSuccess = false;
+    machine.AttachDevice(attachmentCache.m_strControllerName, attachmentCache.m_port,
+                         attachmentCache.m_device, comMedium.GetDeviceType(), comMedium);
+
+    if (machine.isOk())
+    {
         machine.SaveSettings();
         if (!machine.isOk())
             msgCenter().cannotSaveMachineSettings(machine, treeWidget());
@@ -316,7 +422,6 @@ bool UIMediumItemHD::remove()
 
     /* Remember some of hard-disk attributes: */
     CMedium hardDisk = medium().medium();
-    QUuid uMediumID = id();
 
     /* Propose to remove medium storage: */
     if (!maybeRemoveStorage())
@@ -329,9 +434,6 @@ bool UIMediumItemHD::remove()
         msgCenter().cannotCloseMedium(medium(), hardDisk, treeWidget());
         return false;
     }
-
-    /* Remove UIMedium finally: */
-    vboxGlobal().deleteMedium(uMediumID);
 
     /* True by default: */
     return true;
@@ -407,7 +509,7 @@ bool UIMediumItemHD::maybeRemoveStorage()
             return false;
         }
         /* Show delete storage progress: */
-        msgCenter().showModalProgressDialog(progress, UIMediumItem::tr("Removing medium..."),
+        msgCenter().showModalProgressDialog(progress, UIMediumItem::tr("Removing medium ..."),
                                             ":/progress_media_delete_90px.png", treeWidget());
         if (!progress.isOk() || progress.GetResultCode() != 0)
         {
@@ -443,7 +545,6 @@ bool UIMediumItemCD::remove()
 
     /* Remember some of optical-disk attributes: */
     CMedium image = medium().medium();
-    QUuid uMediumID = id();
 
     /* Close optical-disk: */
     image.Close();
@@ -452,9 +553,6 @@ bool UIMediumItemCD::remove()
         msgCenter().cannotCloseMedium(medium(), image, treeWidget());
         return false;
     }
-
-    /* Remove UIMedium finally: */
-    vboxGlobal().deleteMedium(uMediumID);
 
     /* True by default: */
     return true;
@@ -514,7 +612,6 @@ bool UIMediumItemFD::remove()
 
     /* Remember some of floppy-disk attributes: */
     CMedium image = medium().medium();
-    QUuid uMediumID = id();
 
     /* Close floppy-disk: */
     image.Close();
@@ -523,9 +620,6 @@ bool UIMediumItemFD::remove()
         msgCenter().cannotCloseMedium(medium(), image, treeWidget());
         return false;
     }
-
-    /* Remove UIMedium finally: */
-    vboxGlobal().deleteMedium(uMediumID);
 
     /* True by default: */
     return true;

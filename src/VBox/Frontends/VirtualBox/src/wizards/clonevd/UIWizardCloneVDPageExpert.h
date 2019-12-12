@@ -25,7 +25,6 @@
 #include "UIWizardCloneVDPageBasic1.h"
 #include "UIWizardCloneVDPageBasic2.h"
 #include "UIWizardCloneVDPageBasic3.h"
-#include "UIWizardCloneVDPageBasic4.h"
 
 /* Forward declarations: */
 class QGroupBox;
@@ -35,11 +34,9 @@ class QGroupBox;
 class UIWizardCloneVDPageExpert : public UIWizardPage,
                                   public UIWizardCloneVDPage1,
                                   public UIWizardCloneVDPage2,
-                                  public UIWizardCloneVDPage3,
-                                  public UIWizardCloneVDPage4
+                                  public UIWizardCloneVDPage3
 {
     Q_OBJECT;
-    Q_PROPERTY(CMedium sourceVirtualDisk READ sourceVirtualDisk WRITE setSourceVirtualDisk);
     Q_PROPERTY(CMediumFormat mediumFormat READ mediumFormat WRITE setMediumFormat);
     Q_PROPERTY(qulonglong mediumVariant READ mediumVariant WRITE setMediumVariant);
     Q_PROPERTY(QString mediumPath READ mediumPath);
@@ -50,23 +47,18 @@ public:
     /** Constructs basic page.
       * @param  comSourceVirtualDisk  Brings the initial source disk to make copy from.
       * @param  enmDeviceType         Brings the device type to limit format to. */
-    UIWizardCloneVDPageExpert(const CMedium &comSourceVirtualDisk, KDeviceType enmDeviceType);
+    UIWizardCloneVDPageExpert(KDeviceType enmDeviceType);
 
 protected:
 
     /** Allows to access 'wizard()' from base part. */
-    UIWizard* wizardImp() { return wizard(); }
+    UIWizard *wizardImp() const { return wizard(); }
     /** Allows to access 'this' from base part. */
     UIWizardPage* thisImp() { return this; }
     /** Allows to access 'field()' from base part. */
     QVariant fieldImp(const QString &strFieldName) const { return UIWizardPage::field(strFieldName); }
 
 private slots:
-
-    /** Handles source disk change. */
-    void sltHandleSourceDiskChange();
-    /** Handles command to open source disk. */
-    void sltHandleOpenSourceDiskClick();
 
     /** Handles medium format change. */
     void sltMediumFormatChanged();
@@ -88,8 +80,9 @@ private:
     /** Returns whether the page is valid. */
     virtual bool validatePage() /* override */;
 
-    /** Holds the source disk container instance. */
-    QGroupBox *m_pSourceDiskCnt;
+    /** Sets the target disk name and location. */
+    void setTargetLocation();
+
     /** Holds the format container instance. */
     QGroupBox *m_pFormatCnt;
     /** Holds the variant container instance. */
@@ -99,4 +92,3 @@ private:
 };
 
 #endif /* !FEQT_INCLUDED_SRC_wizards_clonevd_UIWizardCloneVDPageExpert_h */
-

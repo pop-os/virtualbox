@@ -105,7 +105,12 @@ public:
     }
     uint32_t    i_getAdditionsRevision(void) { return mData.mAdditionsRevision; }
     uint32_t    i_getAdditionsVersion(void) { return mData.mAdditionsVersionFull; }
-    VBOXOSTYPE  i_getGuestOSType(void) { return mData.mOSType; }
+    VBOXOSTYPE  i_getGuestOSType(void) const { return mData.mOSType; }
+    /** Checks if the guest OS type is part of the windows NT family.  */
+    bool        i_isGuestInWindowsNtFamily(void) const
+    {
+        return mData.mOSType < VBOXOSTYPE_OS2 && mData.mOSType >= VBOXOSTYPE_WinNT;
+    }
 #ifdef VBOX_WITH_GUEST_CONTROL
     int         i_dispatchToSession(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb);
     int         i_sessionRemove(uint32_t uSessionID);
@@ -219,7 +224,7 @@ private:
     } mData;
 
     ULONG                           mMemoryBalloonSize;
-    ULONG                           mStatUpdateInterval;
+    ULONG                           mStatUpdateInterval; /**< In seconds. */
     uint64_t                        mNetStatRx;
     uint64_t                        mNetStatTx;
     uint64_t                        mNetStatLastTs;

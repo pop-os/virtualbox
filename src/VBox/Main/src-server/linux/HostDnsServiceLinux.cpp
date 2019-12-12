@@ -89,13 +89,25 @@ struct InotifyEventWithName
 
 HostDnsServiceLinux::~HostDnsServiceLinux()
 {
-    monitorThreadShutdown();
 }
 
-
-int HostDnsServiceLinux::monitorWorker()
+HRESULT HostDnsServiceLinux::init(HostDnsMonitorProxy *pProxy)
 {
+    return HostDnsServiceResolvConf::init(pProxy, "/etc/resolv.conf");
+}
 
+int HostDnsServiceLinux::monitorThreadShutdown(RTMSINTERVAL uTimeoutMs)
+{
+    RT_NOREF(uTimeoutMs);
+
+    send(g_DnsMonitorStop[0], "", 1, 0);
+
+    /** @todo r=andy Do we have to wait for something here? Can this fail? */
+    return VINF_SUCCESS;
+}
+
+int HostDnsServiceLinux::monitorThreadProc(void)
+{
     AutoNotify a;
 
     int rc = socketpair(AF_LOCAL, SOCK_DGRAM, 0, g_DnsMonitorStop);
@@ -113,7 +125,7 @@ int HostDnsServiceLinux::monitorWorker()
     polls[1].fd = g_DnsMonitorStop[1];
     polls[1].events = POLLIN;
 
-    monitorThreadInitializationDone();
+    onMonitorThreadInitDone();
 
     int wd[2];
     wd[0] = wd[1] = -1;
@@ -150,7 +162,7 @@ int HostDnsServiceLinux::monitorWorker()
         {
             RT_ZERO(combo);
             ssize_t r = read(polls[0].fd, static_cast<void *>(&combo), sizeof(combo));
-            NOREF(r);
+            RT_NOREF(r);
 
             if (combo.e.wd == wd[0])
             {
@@ -228,8 +240,3 @@ int HostDnsServiceLinux::monitorWorker()
     }
 }
 
-
-void HostDnsServiceLinux::monitorThreadShutdown()
-{
-    send(g_DnsMonitorStop[0], "", 1, 0);
-}

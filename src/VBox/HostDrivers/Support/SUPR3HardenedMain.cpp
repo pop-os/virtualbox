@@ -458,13 +458,15 @@
 /*********************************************************************************************************************************
 *   Defined Constants And Macros                                                                                                 *
 *********************************************************************************************************************************/
-/** @def SUP_HARDENED_SUID
- * Whether we're employing set-user-ID-on-execute in the hardening.
- */
+/* This mess is temporary after eliminating a define duplicated in SUPLibInternal.h. */
 #if !defined(RT_OS_OS2) && !defined(RT_OS_WINDOWS) && !defined(RT_OS_L4)
-# define SUP_HARDENED_SUID
+# ifndef SUP_HARDENED_SUID
+#  error "SUP_HARDENED_SUID is NOT defined?!?"
+# endif
 #else
-# undef  SUP_HARDENED_SUID
+# ifdef SUP_HARDENED_SUID
+#  error "SUP_HARDENED_SUID is defined?!?"
+# endif
 #endif
 
 /** @def SUP_HARDENED_SYM
@@ -1857,7 +1859,8 @@ DECLHIDDEN(void) supR3HardenedMainOpenDevice(void)
 /**
  * Grabs extra non-root capabilities / privileges that we might require.
  *
- * This is currently only used for being able to do ICMP from the NAT engine.
+ * This is currently only used for being able to do ICMP from the NAT engine
+ * and for being able to raise thread scheduling priority
  *
  * @note We still have root privileges at the time of this call.
  */
@@ -1866,13 +1869,14 @@ static void supR3HardenedMainGrabCapabilites(void)
 # if defined(RT_OS_LINUX)
     /*
      * We are about to drop all our privileges. Remove all capabilities but
-     * keep the cap_net_raw capability for ICMP sockets for the NAT stack.
+     * keep the cap_net_raw capability for ICMP sockets for the NAT stack,
+     * also keep cap_sys_nice capability for priority tweaking.
      */
     if (g_uCaps != 0)
     {
 #  ifdef USE_LIB_PCAP
         /* XXX cap_net_bind_service */
-        if (!cap_set_proc(cap_from_text("all-eip cap_net_raw+ep")))
+        if (!cap_set_proc(cap_from_text("all-eip cap_net_raw+ep cap_sys_nice+ep")))
             prctl(PR_SET_KEEPCAPS, 1 /*keep=*/, 0, 0, 0);
         prctl(PR_SET_DUMPABLE, 1 /*dump*/, 0, 0, 0);
 #  else
@@ -1974,6 +1978,16 @@ static void supR3GrabOptions(void)
         if (   pszOpt
             && memcmp(pszOpt, "0", sizeof("0")) != 0)
             g_uCaps |= CAP_TO_MASK(CAP_NET_BIND_SERVICE);
+
+        /*
+         * CAP_SYS_NICE.
+         * Default: enabled.
+         * Can be disabled with 'export VBOX_HARD_CAP_SYS_NICE=0'.
+         */
+        pszOpt = getenv("VBOX_HARD_CAP_SYS_NICE");
+        if (   !pszOpt
+            || memcmp(pszOpt, "0", sizeof("0")) != 0)
+            g_uCaps |= CAP_TO_MASK(CAP_SYS_NICE);
     }
 # endif
 }
@@ -2046,14 +2060,14 @@ static void supR3HardenedMainDropPrivileges(void)
 
 # if RT_OS_LINUX
     /*
-     * Re-enable the cap_net_raw capability which was disabled during setresuid.
+     * Re-enable the cap_net_raw and cap_sys_nice capabilities which were disabled during setresuid.
      */
     if (g_uCaps != 0)
     {
 #  ifdef USE_LIB_PCAP
         /** @todo Warn if that does not work? */
         /* XXX cap_net_bind_service */
-        cap_set_proc(cap_from_text("cap_net_raw+ep"));
+        cap_set_proc(cap_from_text("cap_net_raw+ep cap_sys_nice+ep"));
 #  else
         cap_user_header_t hdr = (cap_user_header_t)alloca(sizeof(*hdr));
         cap_user_data_t   cap = (cap_user_data_t)alloca(2 /* _LINUX_CAPABILITY_U32S_3 */ * sizeof(*cap));

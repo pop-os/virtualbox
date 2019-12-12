@@ -831,10 +831,26 @@ DECLHIDDEN(size_t) rtstrFormatRt(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, co
                      * Hex stuff.
                      */
                     case 'x':
+                    case 'X':
                     {
                         uint8_t *pu8 = va_arg(*pArgs, uint8_t *);
+                        uint64_t uMemAddr;
+                        int      cchMemAddrWidth;
+
                         if (cchPrecision < 0)
                             cchPrecision = 16;
+
+                        if (ch == 'x')
+                        {
+                            uMemAddr = (uintptr_t)pu8;
+                            cchMemAddrWidth = sizeof(pu8) * 2;
+                        }
+                        else
+                        {
+                            uMemAddr = va_arg(*pArgs, uint64_t);
+                            cchMemAddrWidth = uMemAddr > UINT32_MAX || uMemAddr + cchPrecision > UINT32_MAX ? 16 : 8;
+                        }
+
                         if (pu8)
                         {
                             switch (*(*ppszFormat)++)
@@ -853,8 +869,8 @@ DECLHIDDEN(size_t) rtstrFormatRt(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, co
                                     while (off < cchPrecision)
                                     {
                                         int i;
-                                        cch += RTStrFormat(pfnOutput, pvArgOutput, NULL, 0,
-                                                           "%s%0*p %04x:", off ? "\n" : "", sizeof(pu8) * 2, (uintptr_t)pu8, off);
+                                        cch += RTStrFormat(pfnOutput, pvArgOutput, NULL, 0, "%s%0*llx/%04x:",
+                                                           off ? "\n" : "", cchMemAddrWidth, uMemAddr + off, off);
                                         for (i = 0; i < cchWidth && off + i < cchPrecision ; i++)
                                             cch += RTStrFormat(pfnOutput, pvArgOutput, NULL, 0,
                                                                off + i < cchPrecision ? !(i & 7) && i ? "-%02x" : " %02x" : "   ",
@@ -903,14 +919,13 @@ DECLHIDDEN(size_t) rtstrFormatRt(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, co
                                         {
                                             if (cDuplicates > 0)
                                             {
-                                                cch += RTStrFormat(pfnOutput, pvArgOutput, NULL, 0,
-                                                                   "\n%.*s ****  <ditto x %u>",
-                                                                   sizeof(pu8) * 2, "****************", cDuplicates);
+                                                cch += RTStrFormat(pfnOutput, pvArgOutput, NULL, 0, "\n%.*s ****  <ditto x %u>",
+                                                                   cchMemAddrWidth, "****************", cDuplicates);
                                                 cDuplicates = 0;
                                             }
 
-                                            cch += RTStrFormat(pfnOutput, pvArgOutput, NULL, 0,
-                                                               "%s%0*p %04x:", off ? "\n" : "", sizeof(pu8) * 2, (uintptr_t)pu8, off);
+                                            cch += RTStrFormat(pfnOutput, pvArgOutput, NULL, 0, "%s%0*llx/%04x:",
+                                                               off ? "\n" : "", cchMemAddrWidth, uMemAddr + off, off);
                                             for (i = 0; i < cchWidth && off + i < cchPrecision ; i++)
                                                 cch += RTStrFormat(pfnOutput, pvArgOutput, NULL, 0,
                                                                      off + i < cchPrecision ? !(i & 7) && i
@@ -944,7 +959,11 @@ DECLHIDDEN(size_t) rtstrFormatRt(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, co
                                 {
                                     if (cchPrecision-- > 0)
                                     {
-                                        cch = RTStrFormat(pfnOutput, pvArgOutput, NULL, 0, "%02x", *pu8++);
+                                        if (ch == 'x')
+                                            cch = RTStrFormat(pfnOutput, pvArgOutput, NULL, 0, "%02x", *pu8++);
+                                        else
+                                            cch = RTStrFormat(pfnOutput, pvArgOutput, NULL, 0, "%0*llx: %02x",
+                                                              cchMemAddrWidth, uMemAddr, *pu8++);
                                         for (; cchPrecision > 0; cchPrecision--, pu8++)
                                             cch += RTStrFormat(pfnOutput, pvArgOutput, NULL, 0, " %02x", *pu8);
                                         return cch;
@@ -988,6 +1007,9 @@ DECLHIDDEN(size_t) rtstrFormatRt(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, co
                     }
 #endif /* IN_RING3 */
 
+                    /*
+                     * Human readable sizes.
+                     */
                     case 'c':
                     case 'u':
                     {
@@ -996,21 +1018,18 @@ DECLHIDDEN(size_t) rtstrFormatRt(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, co
                         uint64_t    uValue;
                         uint64_t    uFraction = 0;
                         const char *pszPrefix = NULL;
-                        unsigned    cchFixedPart;
                         char        ch2 = *(*ppszFormat)++;
-                        AssertMsgReturn(ch2 == 'b' || ch2 == 'i', ("invalid type '%.10s'!\n", pszFormatOrg), 0);
+                        AssertMsgReturn(ch2 == 'b' || ch2 == 'B' || ch2 == 'i', ("invalid type '%.10s'!\n", pszFormatOrg), 0);
                         uValue = va_arg(*pArgs, uint64_t);
 
                         if (!(fFlags & RTSTR_F_PRECISION))
-                            cchPrecision = 1;
+                            cchPrecision = 1; /** @todo default to flexible decimal point. */
                         else if (cchPrecision > 3)
                             cchPrecision = 3;
                         else if (cchPrecision < 0)
                             cchPrecision = 0;
 
-                        cchFixedPart = cchPrecision + (cchPrecision != 0) + (ch == 'c');
-
-                        if (ch2 == 'b')
+                        if (ch2 == 'b' || ch2 == 'B')
                         {
                             static const struct
                             {
@@ -1039,7 +1058,6 @@ DECLHIDDEN(size_t) rtstrFormatRt(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, co
                                     }
                                     uValue  >>= s_aUnits[i].cShift;
                                     pszPrefix = s_aUnits[i].pszPrefix;
-                                    cchFixedPart += 2;
                                     break;
                                 }
                         }
@@ -1074,7 +1092,6 @@ DECLHIDDEN(size_t) rtstrFormatRt(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, co
                                         uFraction  /= s_aUnits[i].cbFactor;
                                     }
                                     pszPrefix = s_aUnits[i].pszPrefix;
-                                    cchFixedPart += 1;
                                     break;
                                 }
                         }
@@ -1088,10 +1105,14 @@ DECLHIDDEN(size_t) rtstrFormatRt(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, co
                                 cchBuf += RTStrFormatU64(&szBuf[cchBuf], sizeof(szBuf) - cchBuf, uFraction, 10, cchPrecision, 0,
                                                          RTSTR_F_ZEROPAD | RTSTR_F_WIDTH);
                             }
+                            if (fFlags & RTSTR_F_BLANK)
+                                szBuf[cchBuf++] = ' ';
                             szBuf[cchBuf++] = *pszPrefix++;
-                            if (*pszPrefix)
+                            if (*pszPrefix && ch2 != 'B')
                                 szBuf[cchBuf++] = *pszPrefix;
                         }
+                        else if (fFlags & RTSTR_F_BLANK)
+                            szBuf[cchBuf++] = ' ';
                         if (ch == 'c')
                             szBuf[cchBuf++] = 'B';
                         szBuf[cchBuf] = '\0';

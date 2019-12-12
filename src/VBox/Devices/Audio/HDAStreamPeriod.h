@@ -27,35 +27,38 @@
 #endif
 #include <VBox/log.h> /* LOG_ENABLED */
 
-struct HDASTREAM;
-typedef HDASTREAM *PHDASTREAM;
 
 #ifdef LOG_ENABLED
 /**
- * Structure for debug information of an HDA stream's period.
+ * Debug stuff for a HDA stream's period.
  */
-typedef struct HDASTREAMPERIODDBGINFO
+typedef struct HDASTREAMPERIODDEBUG
 {
     /** Host start time (in ns) of the period. */
     uint64_t                tsStartNs;
-} HDASTREAMPERIODDBGINFO, *PHDASTREAMPERIODDBGINFO;
+} HDASTREAMPERIODDEBUG;
 #endif
 
 /** No flags set. */
-#define HDASTREAMPERIOD_FLAG_NONE    0
+#define HDASTREAMPERIOD_F_NONE      0
 /** The stream period has been initialized and is in a valid state. */
-#define HDASTREAMPERIOD_FLAG_VALID   RT_BIT(0)
+#define HDASTREAMPERIOD_F_VALID     RT_BIT(0)
 /** The stream period is active. */
-#define HDASTREAMPERIOD_FLAG_ACTIVE  RT_BIT(1)
+#define HDASTREAMPERIOD_F_ACTIVE    RT_BIT(1)
 
 /**
- * Structure for keeping an HDA stream's (time) period.
+ * HDA stream's time period.
+ *
  * This is needed in order to keep track of stream timing and interrupt delivery.
  */
 typedef struct HDASTREAMPERIOD
 {
-    /** Critical section for serializing access. */
+#ifdef HDA_STREAM_PERIOD_WITH_LOCKING
+    /** Critical section for serializing access.
+     * @todo r=bird: This is not needed.  The stream lock is held the two places
+     *       this critsect is entered. */
     RTCRITSECT              CritSect;
+#endif
     /** Associated HDA stream descriptor (SD) number. */
     uint8_t                 u8SD;
     /** The period's status flags. */
@@ -74,12 +77,12 @@ typedef struct HDASTREAMPERIOD
     /** Delay (in wall clock counts) for tweaking the period timing. Optional. */
     int64_t                 i64DelayWalClk;
     /** Number of audio frames to transfer for this period. */
-    uint32_t                framesToTransfer;
+    uint32_t                cFramesToTransfer;
     /** Number of audio frames already transfered. */
-    uint32_t                framesTransferred;
+    uint32_t                cFramesTransferred;
 #ifdef LOG_ENABLED
-    /** Debugging information. */
-    HDASTREAMPERIODDBGINFO  Dbg;
+    /** Debugging state. */
+    HDASTREAMPERIODDEBUG    Dbg;
 #endif
 } HDASTREAMPERIOD;
 AssertCompileSizeAlignment(HDASTREAMPERIOD, 8);
@@ -95,7 +98,7 @@ int      hdaR3StreamPeriodBegin(PHDASTREAMPERIOD pPeriod, uint64_t u64WalClk);
 void     hdaR3StreamPeriodEnd(PHDASTREAMPERIOD pPeriod);
 void     hdaR3StreamPeriodPause(PHDASTREAMPERIOD pPeriod);
 void     hdaR3StreamPeriodResume(PHDASTREAMPERIOD pPeriod);
-bool     hdaR3StreamPeriodLock(PHDASTREAMPERIOD pPeriod);
+int      hdaR3StreamPeriodLock(PHDASTREAMPERIOD pPeriod);
 void     hdaR3StreamPeriodUnlock(PHDASTREAMPERIOD pPeriod);
 uint64_t hdaR3StreamPeriodFramesToWalClk(PHDASTREAMPERIOD pPeriod, uint32_t uFrames);
 uint64_t hdaR3StreamPeriodGetAbsEndWalClk(PHDASTREAMPERIOD pPeriod);

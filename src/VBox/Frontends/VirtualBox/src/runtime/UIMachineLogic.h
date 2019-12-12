@@ -39,6 +39,7 @@ class UIMouseHandler;
 class UIMachineWindow;
 class UIMachineView;
 class UIDockIconPreview;
+class UISoftKeyboard;
 class CSession;
 class CMachine;
 class CConsole;
@@ -264,6 +265,8 @@ private slots:
 
     /* "Machine" menu functionality: */
     void sltShowKeyboardSettings();
+    void sltShowSoftKeyboard();
+    void sltSoftKeyboardClosed();
     void sltToggleMouseIntegration(bool fEnabled);
     void sltTypeCAD();
 #ifdef VBOX_WS_X11
@@ -278,8 +281,6 @@ private slots:
     void sltShowInformationDialog();
     void sltShowFileManagerDialog();
     void sltCloseFileManagerDialog();
-    void sltShowGuestProcessControlDialog();
-    void sltCloseGuestProcessControlDialog();
     void sltReset();
     void sltPause(bool fOn);
     void sltDetach();
@@ -298,6 +299,7 @@ private slots:
     void sltToggleVRDE(bool fEnabled);
 
     /* "Device" menu functionality: */
+    void sltOpenVMSettingsDialogDefault();
     void sltOpenVMSettingsDialog(const QString &strCategory = QString(), const QString &strControl = QString());
     void sltOpenStorageSettingsDialog();
     void sltToggleAudioOutput(bool fEnabled);
@@ -321,6 +323,8 @@ private slots:
     void sltShowLogDialog();
     /** Handles close signal from the log viewer dialog. */
     void sltCloseLogViewerWindow();
+    void sltShowGuestControlConsoleDialog();
+    void sltCloseGuestControlConsoleDialog();
 #endif /* VBOX_WITH_DEBUGGER_GUI */
 
 #ifdef RT_OS_DARWIN /* Something is *really* broken in regards of the moc here */
@@ -435,6 +439,7 @@ private:
     QIManagerDialog *m_pLogViewerDialog;
     QIManagerDialog *m_pFileManagerDialog;
     QIManagerDialog *m_pProcessControlDialog;
+    UISoftKeyboard  *m_pSoftKeyboardDialog;
 
     /* Friend classes: */
     friend class UIMachineWindow;

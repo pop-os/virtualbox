@@ -22,7 +22,7 @@
 
 /* GUI includes: */
 #include "QIFileDialog.h"
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #include "UIDownloaderUserManual.h"
 #include "UIMessageCenter.h"
 #include "UIModalWindowManager.h"
@@ -48,10 +48,10 @@ UIDownloaderUserManual::UIDownloaderUserManual()
         s_pInstance = this;
 
     /* Get version number and adjust it for test and trunk builds. The server only has official releases. */
-    const QString strVersion = UIVersion(vboxGlobal().vboxVersionStringNormalized()).effectiveReleasedVersion().toString();
+    const QString strVersion = UIVersion(uiCommon().vboxVersionStringNormalized()).effectiveReleasedVersion().toString();
 
     /* Compose User Manual filename: */
-    QString strUserManualFullFileName = vboxGlobal().helpFile();
+    QString strUserManualFullFileName = uiCommon().helpFile();
     QString strUserManualShortFileName = QFileInfo(strUserManualFullFileName).fileName();
 
     /* Add sources: */
@@ -61,7 +61,7 @@ UIDownloaderUserManual::UIDownloaderUserManual()
     addSource(strSource2);
 
     /* Set target: */
-    QString strUserManualDestination = QDir(vboxGlobal().homeFolder()).absoluteFilePath(strUserManualShortFileName);
+    QString strUserManualDestination = QDir(uiCommon().homeFolder()).absoluteFilePath(strUserManualShortFileName);
     setTarget(strUserManualDestination);
 }
 
@@ -89,14 +89,24 @@ void UIDownloaderUserManual::handleDownloadedObject(UINetworkReply *pReply)
     /* Serialize that buffer into the file: */
     while (true)
     {
-        /* Try to open file for writing: */
+        /* Make sure the file already exists.  If we reached
+         * this place, it's already written and checked. */
         QFile file(target());
-        if (file.open(QIODevice::WriteOnly))
+        bool fSuccess = false;
+        /* Check step. Try to open file for reading first. */
+        if (file.open(QIODevice::ReadOnly))
+            fSuccess = true;
+        /* Failsafe step. Try to open file for writing otherwise. */
+        if (!fSuccess && file.open(QIODevice::WriteOnly))
         {
             /* Write buffer into the file: */
             file.write(receivedData);
             file.close();
-
+            fSuccess = true;
+        }
+        /* If the file already exists or was just written: */
+        if (fSuccess)
+        {
             /* Warn the user about user-manual loaded and saved: */
             msgCenter().warnAboutUserManualDownloaded(source().toString(), QDir::toNativeSeparators(target()));
             /* Warn the listener about user-manual was downloaded: */

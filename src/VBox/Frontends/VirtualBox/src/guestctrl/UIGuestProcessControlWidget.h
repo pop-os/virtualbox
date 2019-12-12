@@ -38,7 +38,6 @@
 class QITreeWidget;
 class QVBoxLayout;
 class QSplitter;
-class UIActionPool;
 class UIGuestControlConsole;
 class UIGuestControlInterface;
 class UIGuestSessionsEventHandler;
@@ -53,9 +52,11 @@ class UIGuestProcessControlWidget : public QIWithRetranslateUI<QWidget>
 
 public:
 
-    UIGuestProcessControlWidget(EmbedTo enmEmbedding, UIActionPool *pActionPool,
-                                const CGuest &comGuest, QWidget *pParent, bool fShowToolbar = false);
+    UIGuestProcessControlWidget(EmbedTo enmEmbedding, const CGuest &comGuest, QWidget *pParent,
+                                QString strMachineName = QString(), bool fShowToolbar = false);
     ~UIGuestProcessControlWidget();
+    /** When true we delete the corresponding tree item as soon as the guest session/process is unregistered. */
+    static const bool           m_fDeleteAfterUnregister;
 
 protected:
 
@@ -64,15 +65,11 @@ protected:
 private slots:
 
     void sltGuestSessionsUpdated();
-    void sltConsoleCommandEntered(const QString &strCommand);
-    void sltConsoleOutputReceived(const QString &strOutput);
-
     void sltGuestSessionRegistered(CGuestSession guestSession);
     void sltGuestSessionUnregistered(CGuestSession guestSession);
-    void sltGuestControlErrorText(QString strError);
-
     void sltTreeItemUpdated();
     void sltCloseSessionOrProcess();
+    void sltShowProperties();
 
 private:
 
@@ -91,10 +88,7 @@ private:
     QVBoxLayout              *m_pMainLayout;
     QSplitter                *m_pSplitter;
     UIGuestControlTreeWidget *m_pTreeWidget;
-    UIGuestControlConsole    *m_pConsole;
-    UIGuestControlInterface  *m_pControlInterface;
     const EmbedTo             m_enmEmbedding;
-    UIActionPool             *m_pActionPool;
     UIToolBar                *m_pToolBar;
 
     /** Holds the Qt event listener instance. */
@@ -102,6 +96,7 @@ private:
     /** Holds the COM event listener instance. */
     CEventListener m_comEventListener;
     const bool     m_fShowToolbar;
+    QString        m_strMachineName;
 };
 
 #endif /* !FEQT_INCLUDED_SRC_guestctrl_UIGuestProcessControlWidget_h */

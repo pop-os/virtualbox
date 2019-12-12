@@ -54,12 +54,6 @@ struct HostDnsServiceResolvConf::Data
     std::string resolvConfFilename;
 };
 
-const std::string& HostDnsServiceResolvConf::resolvConf() const
-{
-    return m->resolvConfFilename;
-}
-
-
 HostDnsServiceResolvConf::~HostDnsServiceResolvConf()
 {
     if (m)
@@ -69,19 +63,34 @@ HostDnsServiceResolvConf::~HostDnsServiceResolvConf()
     }
 }
 
-HRESULT HostDnsServiceResolvConf::init(HostDnsMonitorProxy *proxy, const char *aResolvConfFileName)
+HRESULT HostDnsServiceResolvConf::init(HostDnsMonitorProxy *pProxy, const char *aResolvConfFileName)
 {
+    HRESULT hr = HostDnsServiceBase::init(pProxy);
+    AssertComRCReturn(hr, hr);
+
     m = new Data(aResolvConfFileName);
+    AssertPtrReturn(m, E_OUTOFMEMORY);
 
-    HostDnsMonitor::init(proxy);
-
-    readResolvConf();
-
-    return S_OK;
+    return readResolvConf();
 }
 
+void HostDnsServiceResolvConf::uninit(void)
+{
+    if (m)
+    {
+        delete m;
+        m = NULL;
+    }
 
-HRESULT HostDnsServiceResolvConf::readResolvConf()
+    HostDnsServiceBase::uninit();
+}
+
+const std::string& HostDnsServiceResolvConf::getResolvConf(void) const
+{
+    return m->resolvConfFilename;
+}
+
+HRESULT HostDnsServiceResolvConf::readResolvConf(void)
 {
     struct rcp_state st;
 

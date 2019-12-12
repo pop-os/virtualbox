@@ -28,7 +28,7 @@
 #include "UINetworkManager.h"
 #include "UIExtraDataManager.h"
 #ifndef VBOX_GUI_IN_TST_SSL_CERT_DOWNLOADS
-# include "VBoxGlobal.h"
+# include "UICommon.h"
 # include "VBoxUtils.h"
 # include "CSystemProperties.h"
 #endif
@@ -64,7 +64,7 @@ signals:
 public:
 
     /** Constructs network-reply thread of the passed @a type for the passed @a url and @a requestHeaders. */
-    UINetworkReplyPrivateThread(UINetworkRequestType type, const QUrl &url, const UserDictionary &requestHeaders);
+    UINetworkReplyPrivateThread(UINetworkRequestType type, const QUrl &url, const QString &strTarget, const UserDictionary &requestHeaders);
 
     /** @name APIs
      * @{ */
@@ -183,6 +183,8 @@ private:
     const UINetworkRequestType m_type;
     /** Holds the request url. */
     const QUrl m_url;
+    /** Holds the request target. */
+    const QString m_strTarget;
     /** Holds the request headers. */
     const UserDictionary m_requestHeaders;
 
@@ -235,7 +237,7 @@ signals:
 public:
 
     /** Constructs network-reply private data of the passed @a type for the passed @a url and @a requestHeaders. */
-    UINetworkReplyPrivate(UINetworkRequestType type, const QUrl &url, const UserDictionary &requestHeaders);
+    UINetworkReplyPrivate(UINetworkRequestType type, const QUrl &url, const QString &strTarget, const UserDictionary &requestHeaders);
     /** Destructs reply private data. */
     ~UINetworkReplyPrivate();
 
@@ -332,9 +334,13 @@ const RTCRCERTWANTED UINetworkReplyPrivateThread::s_aCerts[] =
 /* static */
 const QString UINetworkReplyPrivateThread::s_strCertificateFileName = QString("vbox-ssl-cacertificate.crt");
 
-UINetworkReplyPrivateThread::UINetworkReplyPrivateThread(UINetworkRequestType type, const QUrl &url, const UserDictionary &requestHeaders)
+UINetworkReplyPrivateThread::UINetworkReplyPrivateThread(UINetworkRequestType type,
+                                                         const QUrl &url,
+                                                         const QString &strTarget,
+                                                         const UserDictionary &requestHeaders)
     : m_type(type)
     , m_url(url)
+    , m_strTarget(strTarget)
     , m_requestHeaders(requestHeaders)
     , m_hHttp(NIL_RTHTTP)
     , m_iError(VINF_SUCCESS)
@@ -377,7 +383,7 @@ int UINetworkReplyPrivateThread::applyProxyRules()
 #ifndef VBOX_GUI_IN_TST_SSL_CERT_DOWNLOADS
     /* If the specific proxy settings are enabled, we'll use them
      * unless user disabled that functionality manually. */
-    const CSystemProperties comProperties = vboxGlobal().virtualBox().GetSystemProperties();
+    const CSystemProperties comProperties = uiCommon().virtualBox().GetSystemProperties();
     const KProxyMode enmProxyMode = comProperties.GetProxyMode();
     AssertReturn(comProperties.isOk(), VERR_INTERNAL_ERROR_3);
     switch (enmProxyMode)
@@ -551,14 +557,31 @@ int UINetworkReplyPrivateThread::performMainRequest()
         }
         case UINetworkRequestType_GET:
         {
-            /* Perform blocking HTTP GET request: */
-            void   *pvResponse = 0;
-            size_t  cbResponse = 0;
-            rc = RTHttpGetBinary(m_hHttp, m_url.toString().toUtf8().constData(), &pvResponse, &cbResponse);
-            if (RT_SUCCESS(rc))
+            /* Perform blocking HTTP GET request.
+             * Keep in mind that if the target parameter is provided,
+             * we are trying to download contents to file directly,
+             * otherwise it will be downloaded to memory and it's
+             * customer responsibility to save it afterwards. */
+            if (m_strTarget.isEmpty())
             {
-                m_reply = QByteArray((char*)pvResponse, (int)cbResponse);
-                RTHttpFreeResponse(pvResponse);
+                void   *pvResponse = 0;
+                size_t  cbResponse = 0;
+                rc = RTHttpGetBinary(m_hHttp, m_url.toString().toUtf8().constData(), &pvResponse, &cbResponse);
+                if (RT_SUCCESS(rc))
+                {
+                    m_reply = QByteArray((char*)pvResponse, (int)cbResponse);
+                    RTHttpFreeResponse(pvResponse);
+                }
+            }
+            else
+            {
+                rc = RTHttpGetFile(m_hHttp, m_url.toString().toUtf8().constData(), m_strTarget.toUtf8().constData());
+                if (RT_SUCCESS(rc))
+                {
+                    QFile file(m_strTarget);
+                    if (file.open(QIODevice::ReadOnly))
+                        m_reply = file.readAll();
+                }
             }
 
             break;
@@ -573,9 +596,6 @@ int UINetworkReplyPrivateThread::performMainRequest()
 
 void UINetworkReplyPrivateThread::run()
 {
-    /* Init: */
-    RTR3InitExeNoArguments(RTR3INIT_FLAGS_SUPLIB); /** @todo r=bird: WTF? */
-
     /* Create HTTP client: */
     m_iError = RTHttpCreate(&m_hHttp);
     if (RT_SUCCESS(m_iError))
@@ -626,7 +646,7 @@ void UINetworkReplyPrivateThread::handleProgressChange(uint64_t cbDownloadTotal,
 QString UINetworkReplyPrivateThread::fullCertificateFileName()
 {
 #ifndef VBOX_GUI_IN_TST_SSL_CERT_DOWNLOADS
-    const QDir homeDir(QDir::toNativeSeparators(vboxGlobal().homeFolder()));
+    const QDir homeDir(QDir::toNativeSeparators(uiCommon().homeFolder()));
     return QDir::toNativeSeparators(homeDir.absoluteFilePath(s_strCertificateFileName));
 #else /* VBOX_GUI_IN_TST_SSL_CERT_DOWNLOADS */
     return QString("/not/such/agency/non-existing-file.cer");
@@ -933,7 +953,7 @@ DECLCALLBACK(void) UINetworkReplyPrivateThread::handleProgressChange(RTHTTP hHtt
 *   Class UINetworkReplyPrivate implementation.                                                                                  *
 *********************************************************************************************************************************/
 
-UINetworkReplyPrivate::UINetworkReplyPrivate(UINetworkRequestType type, const QUrl &url, const UserDictionary &requestHeaders)
+UINetworkReplyPrivate::UINetworkReplyPrivate(UINetworkRequestType type, const QUrl &url, const QString &strTarget, const UserDictionary &requestHeaders)
     : m_error(UINetworkReply::NoError)
     , m_pThread(0)
 {
@@ -941,7 +961,7 @@ UINetworkReplyPrivate::UINetworkReplyPrivate(UINetworkRequestType type, const QU
     m_strErrorTemplate = tr("%1: %2", "Context description: Error description");
 
     /* Create and run reply thread: */
-    m_pThread = new UINetworkReplyPrivateThread(type, url, requestHeaders);
+    m_pThread = new UINetworkReplyPrivateThread(type, url, strTarget, requestHeaders);
     connect(m_pThread, &UINetworkReplyPrivateThread::sigDownloadProgress,
             this, &UINetworkReplyPrivate::downloadProgress, Qt::QueuedConnection);
     connect(m_pThread, &UINetworkReplyPrivateThread::finished,
@@ -1009,8 +1029,8 @@ void UINetworkReplyPrivate::sltFinished()
 *   Class UINetworkReply implementation.                                                                                         *
 *********************************************************************************************************************************/
 
-UINetworkReply::UINetworkReply(UINetworkRequestType type, const QUrl &url, const UserDictionary &requestHeaders)
-    : m_pReply(new UINetworkReplyPrivate(type, url, requestHeaders))
+UINetworkReply::UINetworkReply(UINetworkRequestType type, const QUrl &url, const QString &strTarget, const UserDictionary &requestHeaders)
+    : m_pReply(new UINetworkReplyPrivate(type, url, strTarget, requestHeaders))
 {
     /* Prepare network-reply object connections: */
     connect(m_pReply, &UINetworkReplyPrivate::downloadProgress, this, &UINetworkReply::downloadProgress);

@@ -19,12 +19,12 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
-#define LOG_GROUP LOG_GROUP_PDM//_CRITSECT
+#define LOG_GROUP LOG_GROUP_PDM_CRITSECT
 #include "PDMInternal.h"
 #include <VBox/vmm/pdmcritsect.h>
 #include <VBox/vmm/mm.h>
 #include <VBox/vmm/vmm.h>
-#include <VBox/vmm/vm.h>
+#include <VBox/vmm/vmcc.h>
 #include <VBox/err.h>
 #include <VBox/vmm/hm.h>
 
@@ -76,8 +76,8 @@ DECL_FORCE_INLINE(RTNATIVETHREAD) pdmCritSectGetNativeSelf(PCPDMCRITSECT pCritSe
 #else
     AssertMsgReturn(pCritSect->s.Core.u32Magic == RTCRITSECT_MAGIC, ("%RX32\n", pCritSect->s.Core.u32Magic),
                     NIL_RTNATIVETHREAD);
-    PVM             pVM         = pCritSect->s.CTX_SUFF(pVM); AssertPtr(pVM);
-    PVMCPU          pVCpu       = VMMGetCpu(pVM);             AssertPtr(pVCpu);
+    PVMCC           pVM         = pCritSect->s.CTX_SUFF(pVM); AssertPtr(pVM);
+    PVMCPUCC        pVCpu       = VMMGetCpu(pVM);             AssertPtr(pVCpu);
     RTNATIVETHREAD  hNativeSelf = pVCpu->hNativeThread;       Assert(hNativeSelf != NIL_RTNATIVETHREAD);
 #endif
     return hNativeSelf;
@@ -200,8 +200,8 @@ static int pdmR3R0CritSectEnterContended(PPDMCRITSECT pCritSect, RTNATIVETHREAD 
            Note! We've incremented cLockers already and cannot safely decrement
                  it without creating a race with PDMCritSectLeave, resulting in
                  spurious wakeups. */
-        PVM     pVM   = pCritSect->s.CTX_SUFF(pVM); AssertPtr(pVM);
-        PVMCPU  pVCpu = VMMGetCpu(pVM);             AssertPtr(pVCpu);
+        PVMCC     pVM   = pCritSect->s.CTX_SUFF(pVM); AssertPtr(pVM);
+        PVMCPUCC  pVCpu = VMMGetCpu(pVM);             AssertPtr(pVCpu);
         rc = VMMRZCallRing3(pVM, pVCpu, VMMCALLRING3_VM_R0_PREEMPT, NULL);
         AssertRC(rc);
 # endif
@@ -312,8 +312,8 @@ DECL_FORCE_INLINE(int) pdmCritSectEnter(PPDMCRITSECT pCritSect, int rcBusy, PCRT
         else
         {
             STAM_REL_COUNTER_ADD(&pCritSect->s.StatContentionRZLock, 1000000000);
-            PVM     pVM   = pCritSect->s.CTX_SUFF(pVM);
-            PVMCPU  pVCpu = VMMGetCpu(pVM);
+            PVMCC     pVM   = pCritSect->s.CTX_SUFF(pVM);
+            PVMCPUCC  pVCpu = VMMGetCpu(pVM);
             HMR0Leave(pVM, pVCpu);
             RTThreadPreemptRestore(NIL_RTTHREAD, XXX);
 
@@ -341,8 +341,8 @@ DECL_FORCE_INLINE(int) pdmCritSectEnter(PPDMCRITSECT pCritSect, int rcBusy, PCRT
      */
     if (rcBusy == VINF_SUCCESS)
     {
-        PVM     pVM   = pCritSect->s.CTX_SUFF(pVM); AssertPtr(pVM);
-        PVMCPU  pVCpu = VMMGetCpu(pVM);             AssertPtr(pVCpu);
+        PVMCC     pVM   = pCritSect->s.CTX_SUFF(pVM); AssertPtr(pVM);
+        PVMCPUCC  pVCpu = VMMGetCpu(pVM);             AssertPtr(pVCpu);
         return VMMRZCallRing3(pVM, pVCpu, VMMCALLRING3_PDM_CRIT_SECT_ENTER, MMHyperCCToR3(pVM, pCritSect));
     }
 
@@ -694,8 +694,8 @@ VMMDECL(int) PDMCritSectLeave(PPDMCRITSECT pCritSect)
         /*
          * Queue the request.
          */
-        PVM         pVM   = pCritSect->s.CTX_SUFF(pVM);     AssertPtr(pVM);
-        PVMCPU      pVCpu = VMMGetCpu(pVM);                 AssertPtr(pVCpu);
+        PVMCC       pVM   = pCritSect->s.CTX_SUFF(pVM);     AssertPtr(pVM);
+        PVMCPUCC    pVCpu = VMMGetCpu(pVM);                 AssertPtr(pVCpu);
         uint32_t    i     = pVCpu->pdm.s.cQueuedCritSectLeaves++;
         LogFlow(("PDMCritSectLeave: [%d]=%p => R3\n", i, pCritSect));
         AssertFatal(i < RT_ELEMENTS(pVCpu->pdm.s.apQueuedCritSectLeaves));
@@ -756,8 +756,8 @@ VMMDECL(bool) PDMCritSectIsOwner(PCPDMCRITSECT pCritSect)
 #ifdef IN_RING3
     return RTCritSectIsOwner(&pCritSect->s.Core);
 #else
-    PVM     pVM   = pCritSect->s.CTX_SUFF(pVM); AssertPtr(pVM);
-    PVMCPU  pVCpu = VMMGetCpu(pVM);             AssertPtr(pVCpu);
+    PVMCC     pVM   = pCritSect->s.CTX_SUFF(pVM); AssertPtr(pVM);
+    PVMCPUCC  pVCpu = VMMGetCpu(pVM);             AssertPtr(pVCpu);
     if (pCritSect->s.Core.NativeThreadOwner != pVCpu->hNativeThread)
         return false;
     return (pCritSect->s.Core.fFlags & PDMCRITSECT_FLAGS_PENDING_UNLOCK) == 0
@@ -774,13 +774,13 @@ VMMDECL(bool) PDMCritSectIsOwner(PCPDMCRITSECT pCritSect)
  * @param   pCritSect   The critical section.
  * @param   pVCpu       The cross context virtual CPU structure.
  */
-VMMDECL(bool) PDMCritSectIsOwnerEx(PCPDMCRITSECT pCritSect, PVMCPU pVCpu)
+VMMDECL(bool) PDMCritSectIsOwnerEx(PCPDMCRITSECT pCritSect, PVMCPUCC pVCpu)
 {
 #ifdef IN_RING3
     NOREF(pVCpu);
     return RTCritSectIsOwner(&pCritSect->s.Core);
 #else
-    Assert(&pVCpu->CTX_SUFF(pVM)->aCpus[pVCpu->idCpu] == pVCpu);
+    Assert(VMCC_GET_CPU(pVCpu->CTX_SUFF(pVM), pVCpu->idCpu) == pVCpu);
     if (pCritSect->s.Core.NativeThreadOwner != pVCpu->hNativeThread)
         return false;
     return (pCritSect->s.Core.fFlags & PDMCRITSECT_FLAGS_PENDING_UNLOCK) == 0

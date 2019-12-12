@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 131252 $"
 
 
 # Validation Kit imports.
@@ -52,12 +52,12 @@ class BuildBlacklistData(ModelDataBase):
     ksParam_iFirstRevision  = 'BuildBlacklist_iFirstRevision'
     ksParam_iLastRevision   = 'BuildBlacklist_iLastRevision'
 
-    kasAllowNullAttributes    = [ 'idBlacklisting',
-                                  'tsEffective',
-                                  'tsExpire',
-                                  'uidAuthor',
-                                  'asTypes',
-                                  'asOsArches' ];
+    kasAllowNullAttributes  = [ 'idBlacklisting',
+                                'tsEffective',
+                                'tsExpire',
+                                'uidAuthor',
+                                'asTypes',
+                                'asOsArches' ];
 
     def __init__(self):
         ModelDataBase.__init__(self);
@@ -118,7 +118,7 @@ class BuildBlacklistData(ModelDataBase):
         return self.initFromDbRow(aoRow);
 
 
-class BuildBlacklistLogic(ModelLogicBase): # pylint: disable=R0903
+class BuildBlacklistLogic(ModelLogicBase): # pylint: disable=too-few-public-methods
     """
     Build Back List logic.
     """

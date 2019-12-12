@@ -1430,7 +1430,9 @@ static DECLCALLBACK(int) usbMsdLoadExec(PPDMUSBINS pUsbIns, PSSMHANDLE pSSM, uin
             AssertReturn(pReq, VERR_NO_MEMORY);
             pThis->pReq = pReq;
 
+            AssertCompile(sizeof(pReq->enmState) == sizeof(uint32_t));
             SSMR3GetU32(pSSM, (uint32_t *)&pReq->enmState);
+
             uint32_t cbBuf = 0;
             rc = SSMR3GetU32(pSSM, &cbBuf);
             AssertRCReturn(rc, rc);
@@ -1560,8 +1562,8 @@ static int usbMsdSubmitScsiCommand(PUSBMSD pThis, PUSBMSDREQ pReq, const char *p
                                         : PDMMEDIAEXIOREQSCSITXDIR_FROM_DEVICE;
 
     return pThis->Lun0.pIMediaEx->pfnIoReqSendScsiCmd(pThis->Lun0.pIMediaEx, pReq->hIoReq, pReq->Cbw.bCBWLun,
-                                                      &pReq->Cbw.CBWCB[0], pReq->Cbw.bCBWCBLength, enmTxDir,
-                                                      pReq->Cbw.dCBWDataTransferLength, NULL, 0,
+                                                      &pReq->Cbw.CBWCB[0], pReq->Cbw.bCBWCBLength, enmTxDir, NULL,
+                                                      pReq->Cbw.dCBWDataTransferLength, NULL, 0, NULL,
                                                       &pReq->iScsiReqStatus, 20 * RT_MS_1SEC);
 }
 
@@ -2196,7 +2198,7 @@ static DECLCALLBACK(bool) usbMsdIsAsyncResetDone(PPDMUSBINS pUsbIns)
 }
 
 /**
- * @interface_method_impl{PDMDEVREG,pfnReset}
+ * @interface_method_impl{PDMUSBREG,pfnVMReset}
  */
 static DECLCALLBACK(void) usbMsdVMReset(PPDMUSBINS pUsbIns)
 {

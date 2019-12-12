@@ -865,7 +865,7 @@ typedef enum GIMHVHYPERCALLPARAM
 #define GIM_HV_DEBUG_PURGE_INCOMING_DATA          RT_BIT_32(0)
 /** Guest requests purging of outgoing debug data. */
 #define GIM_HV_DEBUG_PURGE_OUTGOING_DATA          RT_BIT_32(1)
-/** @}*/
+/** @} */
 
 
 /** @name VMBus.
@@ -881,7 +881,7 @@ typedef enum GIMHVHYPERCALLPARAM
 
 /** @name SynIC.
  *  Synthetic Interrupt Controller definitions.
- */
+ * @{ */
 /** SynIC version register. */
 #define GIM_HV_SVERSION                           1
 /** Number of synthetic interrupt sources (warning, fixed in saved-states!). */
@@ -1197,15 +1197,12 @@ typedef struct GIMHV
      * @{ */
     /** Per-VM R0 Spinlock for protecting EMT writes to the TSC page. */
     RTSPINLOCK                  hSpinlockR0;
-#if HC_ARCH_BITS == 32
-    uint32_t                    u32Alignment1;
-#endif
     /** The TSC frequency (in HZ) reported to the guest. */
     uint64_t                    cTscTicksPerSecond;
     /** @} */
 
-    /** @name Hypercalls. */
-    /* @{ */
+    /** @name Hypercalls.
+     * @{ */
     /** Guest address of the hypercall input parameter page. */
     RTGCPHYS                    GCPhysHypercallIn;
     /** Guest address of the hypercall output parameter page. */
@@ -1269,10 +1266,6 @@ typedef struct GIMHVSTIMER
     PTMTIMERR0                  pTimerR0;
     /** Synthetic timer object - R3 ptr. */
     PTMTIMERR3                  pTimerR3;
-    /** Synthetic timer object - RC ptr. */
-    PTMTIMERRC                  pTimerRC;
-    /** RC alignment padding. */
-    RTRCPTR                     uAlignment0;
     /** Virtual CPU ID this timer belongs to (for reverse mapping). */
     VMCPUID                     idCpu;
     /** The index of this timer in the auStimers array (for reverse mapping). */
@@ -1327,9 +1320,9 @@ typedef GIMHVCPU const *PCGIMHVCPU;
 RT_C_DECLS_BEGIN
 
 #ifdef IN_RING0
-VMMR0_INT_DECL(int)             gimR0HvInitVM(PVM pVM);
-VMMR0_INT_DECL(int)             gimR0HvTermVM(PVM pVM);
-VMMR0_INT_DECL(int)             gimR0HvUpdateParavirtTsc(PVM pVM, uint64_t u64Offset);
+VMMR0_INT_DECL(int)             gimR0HvInitVM(PVMCC pVM);
+VMMR0_INT_DECL(int)             gimR0HvTermVM(PVMCC pVM);
+VMMR0_INT_DECL(int)             gimR0HvUpdateParavirtTsc(PVMCC pVM, uint64_t u64Offset);
 #endif /* IN_RING0 */
 
 #ifdef IN_RING3
@@ -1338,7 +1331,6 @@ VMMR3_INT_DECL(int)             gimR3HvInitCompleted(PVM pVM);
 VMMR3_INT_DECL(int)             gimR3HvTerm(PVM pVM);
 VMMR3_INT_DECL(void)            gimR3HvRelocate(PVM pVM, RTGCINTPTR offDelta);
 VMMR3_INT_DECL(void)            gimR3HvReset(PVM pVM);
-VMMR3_INT_DECL(PGIMMMIO2REGION) gimR3HvGetMmio2Regions(PVM pVM, uint32_t *pcRegions);
 VMMR3_INT_DECL(int)             gimR3HvSave(PVM pVM, PSSMHANDLE pSSM);
 VMMR3_INT_DECL(int)             gimR3HvLoad(PVM pVM, PSSMHANDLE pSSM);
 VMMR3_INT_DECL(int)             gimR3HvLoadDone(PVM pVM, PSSMHANDLE pSSM);
@@ -1365,16 +1357,17 @@ VMMR3_INT_DECL(int)             gimR3HvHypercallExtGetBootZeroedMem(PVM pVM, int
 
 #endif /* IN_RING3 */
 
+VMM_INT_DECL(PGIMMMIO2REGION)   gimHvGetMmio2Regions(PVM pVM, uint32_t *pcRegions);
 VMM_INT_DECL(bool)              gimHvIsParavirtTscEnabled(PVM pVM);
-VMM_INT_DECL(bool)              gimHvAreHypercallsEnabled(PVMCPU pVCpu);
+VMM_INT_DECL(bool)              gimHvAreHypercallsEnabled(PCVM pVM);
 VMM_INT_DECL(bool)              gimHvShouldTrapXcptUD(PVMCPU pVCpu);
-VMM_INT_DECL(VBOXSTRICTRC)      gimHvXcptUD(PVMCPU pVCpu, PCPUMCTX pCtx, PDISCPUSTATE pDis, uint8_t *pcbInstr);
-VMM_INT_DECL(VBOXSTRICTRC)      gimHvHypercall(PVMCPU pVCpu, PCPUMCTX pCtx);
-VMM_INT_DECL(VBOXSTRICTRC)      gimHvHypercallEx(PVMCPU pVCpu, PCPUMCTX pCtx, unsigned uDisOpcode, uint8_t cbInstr);
-VMM_INT_DECL(VBOXSTRICTRC)      gimHvReadMsr(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t *puValue);
-VMM_INT_DECL(VBOXSTRICTRC)      gimHvWriteMsr(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t uRawValue);
+VMM_INT_DECL(VBOXSTRICTRC)      gimHvXcptUD(PVMCPUCC pVCpu, PCPUMCTX pCtx, PDISCPUSTATE pDis, uint8_t *pcbInstr);
+VMM_INT_DECL(VBOXSTRICTRC)      gimHvHypercall(PVMCPUCC pVCpu, PCPUMCTX pCtx);
+VMM_INT_DECL(VBOXSTRICTRC)      gimHvHypercallEx(PVMCPUCC pVCpu, PCPUMCTX pCtx, unsigned uDisOpcode, uint8_t cbInstr);
+VMM_INT_DECL(VBOXSTRICTRC)      gimHvReadMsr(PVMCPUCC pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t *puValue);
+VMM_INT_DECL(VBOXSTRICTRC)      gimHvWriteMsr(PVMCPUCC pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t uRawValue);
 
-VMM_INT_DECL(void)              gimHvStartStimer(PVMCPU pVCpu, PCGIMHVSTIMER pHvStimer);
+VMM_INT_DECL(void)              gimHvStartStimer(PVMCPUCC pVCpu, PCGIMHVSTIMER pHvStimer);
 
 RT_C_DECLS_END
 

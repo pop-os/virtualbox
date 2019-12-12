@@ -482,6 +482,18 @@ VMMR3DECL(CPUMMICROARCH) CPUMR3CpuIdDetermineMicroarchEx(CPUMCPUVENDOR enmVendor
         return kCpumMicroarch_Cyrix_Unknown;
     }
 
+    if (enmVendor == CPUMCPUVENDOR_HYGON)
+    {
+        switch (bFamily)
+        {
+            case 0x18:
+                return kCpumMicroarch_Hygon_Dhyana;
+            default:
+                break;
+        }
+        return kCpumMicroarch_Hygon_Unknown;
+    }
+
     return kCpumMicroarch_Unknown;
 }
 
@@ -597,6 +609,9 @@ VMMR3DECL(const char *) CPUMR3MicroarchName(CPUMMICROARCH enmMicroarch)
 
         CASE_RET_STR(kCpumMicroarch_AMD_Unknown);
 
+        CASE_RET_STR(kCpumMicroarch_Hygon_Dhyana);
+        CASE_RET_STR(kCpumMicroarch_Hygon_Unknown);
+
         CASE_RET_STR(kCpumMicroarch_Centaur_C6);
         CASE_RET_STR(kCpumMicroarch_Centaur_C2);
         CASE_RET_STR(kCpumMicroarch_Centaur_C3);
@@ -641,10 +656,11 @@ VMMR3DECL(const char *) CPUMR3MicroarchName(CPUMMICROARCH enmMicroarch)
         case kCpumMicroarch_AMD_16h_End:
         case kCpumMicroarch_AMD_Zen_End:
         case kCpumMicroarch_AMD_End:
+        case kCpumMicroarch_Hygon_End:
         case kCpumMicroarch_VIA_End:
+        case kCpumMicroarch_Shanghai_End:
         case kCpumMicroarch_Cyrix_End:
         case kCpumMicroarch_NEC_End:
-        case kCpumMicroarch_Shanghai_End:
         case kCpumMicroarch_32BitHack:
             break;
         /* no default! */
@@ -779,16 +795,11 @@ static PCPUMCPUIDLEAF cpumR3CpuIdEnsureSpace(PVM pVM, PCPUMCPUIDLEAF *ppaLeaves,
         size_t cbNew = (cLeaves + 1) * sizeof(**ppaLeaves);
         int rc = MMR3HyperRealloc(pVM, *ppaLeaves, cb, 32, MM_TAG_CPUM_CPUID, cbNew, (void **)ppaLeaves);
         if (RT_SUCCESS(rc))
-        {
-            /* Update the R0 and RC pointers. */
             pVM->cpum.s.GuestInfo.paCpuIdLeavesR0 = MMHyperR3ToR0(pVM, *ppaLeaves);
-            pVM->cpum.s.GuestInfo.paCpuIdLeavesRC = MMHyperR3ToRC(pVM, *ppaLeaves);
-        }
         else
         {
             *ppaLeaves = NULL;
             pVM->cpum.s.GuestInfo.paCpuIdLeavesR0 = NIL_RTR0PTR;
-            pVM->cpum.s.GuestInfo.paCpuIdLeavesRC = NIL_RTRCPTR;
             LogRel(("CPUM: cpumR3CpuIdEnsureSpace: MMR3HyperRealloc failed. rc=%Rrc\n", rc));
         }
 #endif
@@ -1318,7 +1329,8 @@ VMMR3DECL(int) CPUMR3CpuIdCollectLeaves(PCPUMCPUIDLEAF *ppaLeaves, uint32_t *pcL
                          && (   uEax
                              || uEbx
                              || uEdx
-                             || ASMIsAmdCpuEx((*ppaLeaves)[0].uEbx, (*ppaLeaves)[0].uEcx, (*ppaLeaves)[0].uEdx)) )
+                             || ASMIsAmdCpuEx((*ppaLeaves)[0].uEbx, (*ppaLeaves)[0].uEcx, (*ppaLeaves)[0].uEdx)
+                             || ASMIsHygonCpuEx((*ppaLeaves)[0].uEbx, (*ppaLeaves)[0].uEcx, (*ppaLeaves)[0].uEdx)) )
                     fFlags |= CPUMCPUIDLEAF_F_CONTAINS_APIC_ID;
 
                 /* The APIC bit is per-VCpu and needs flagging. */
@@ -1326,7 +1338,8 @@ VMMR3DECL(int) CPUMR3CpuIdCollectLeaves(PCPUMCPUIDLEAF *ppaLeaves, uint32_t *pcL
                     fFlags |= CPUMCPUIDLEAF_F_CONTAINS_APIC;
                 else if (   uLeaf == UINT32_C(0x80000001)
                          && (   (uEdx & X86_CPUID_AMD_FEATURE_EDX_APIC)
-                             || ASMIsAmdCpuEx((*ppaLeaves)[0].uEbx, (*ppaLeaves)[0].uEcx, (*ppaLeaves)[0].uEdx)) )
+                             || ASMIsAmdCpuEx((*ppaLeaves)[0].uEbx, (*ppaLeaves)[0].uEcx, (*ppaLeaves)[0].uEdx)
+                             || ASMIsHygonCpuEx((*ppaLeaves)[0].uEbx, (*ppaLeaves)[0].uEcx, (*ppaLeaves)[0].uEdx)) )
                     fFlags |= CPUMCPUIDLEAF_F_CONTAINS_APIC;
 
                 /* Check three times here to reduce the chance of CPU migration
@@ -1637,6 +1650,9 @@ VMMR3DECL(CPUMCPUVENDOR) CPUMR3CpuIdDetectVendorEx(uint32_t uEAX, uint32_t uEBX,
             && uEDX == UINT32_C(0x736E4978))
             return CPUMCPUVENDOR_CYRIX;
 
+        if (ASMIsHygonCpuEx(uEBX, uECX, uEDX))
+            return CPUMCPUVENDOR_HYGON;
+
         /* "Geode by NSC", example: family 5, model 9.  */
 
         /** @todo detect the other buggers... */
@@ -1664,6 +1680,7 @@ VMMR3DECL(const char *) CPUMR3CpuVendorName(CPUMCPUVENDOR enmVendor)
         case CPUMCPUVENDOR_VIA:         return "VIA";
         case CPUMCPUVENDOR_CYRIX:       return "CYRIX";
         case CPUMCPUVENDOR_SHANGHAI:    return "SHANGHAI";
+        case CPUMCPUVENDOR_HYGON:       return "HYGON";
         case CPUMCPUVENDOR_UNKNOWN:     return "UNKNOWN";
 
         case CPUMCPUVENDOR_INVALID:
@@ -1927,11 +1944,12 @@ int cpumR3CpuIdExplodeFeatures(PCCPUMCPUIDLEAF paLeaves, uint32_t cLeaves, PCCPU
                                                              | X86_CPUID_AMD_FEATURE_EDX_3DNOW));
         }
 
-        /* VMX (VMXON, VMCS region and related data structures') physical address width (depends on long-mode). */
+        /* VMX (VMXON, VMCS region and related data structures) physical address width (depends on long-mode). */
         pFeatures->cVmxMaxPhysAddrWidth = pFeatures->fLongMode ? pFeatures->cMaxPhysAddrWidth : 32;
 
         if (   pExtLeaf
-            && pFeatures->enmCpuVendor == CPUMCPUVENDOR_AMD)
+            && (   pFeatures->enmCpuVendor == CPUMCPUVENDOR_AMD
+                || pFeatures->enmCpuVendor == CPUMCPUVENDOR_HYGON))
         {
             /* AMD features. */
             pFeatures->fMsr            |= RT_BOOL(pExtLeaf->uEdx & X86_CPUID_AMD_FEATURE_EDX_MSR);
@@ -1964,6 +1982,7 @@ int cpumR3CpuIdExplodeFeatures(PCCPUMCPUIDLEAF paLeaves, uint32_t cLeaves, PCCPU
                 pFeatures->fSvmAvic                 = RT_BOOL(pSvmLeaf->uEdx & X86_CPUID_SVM_FEATURE_EDX_AVIC);
                 pFeatures->fSvmVirtVmsaveVmload     = RT_BOOL(pSvmLeaf->uEdx & X86_CPUID_SVM_FEATURE_EDX_VIRT_VMSAVE_VMLOAD);
                 pFeatures->fSvmVGif                 = RT_BOOL(pSvmLeaf->uEdx & X86_CPUID_SVM_FEATURE_EDX_VGIF);
+                pFeatures->fSvmGmet                 = RT_BOOL(pSvmLeaf->uEdx & X86_CPUID_SVM_FEATURE_EDX_GMET);
                 pFeatures->uSvmMaxAsid              = pSvmLeaf->uEbx;
             }
         }
@@ -1973,8 +1992,9 @@ int cpumR3CpuIdExplodeFeatures(PCCPUMCPUIDLEAF paLeaves, uint32_t cLeaves, PCCPU
          */
         pFeatures->fLeakyFxSR = pExtLeaf
                              && (pExtLeaf->uEdx & X86_CPUID_AMD_FEATURE_EDX_FFXSR)
-                             && pFeatures->enmCpuVendor == CPUMCPUVENDOR_AMD
-                             && pFeatures->uFamily >= 6 /* K7 and up */;
+                             && (   (   pFeatures->enmCpuVendor == CPUMCPUVENDOR_AMD
+                                     && pFeatures->uFamily >= 6 /* K7 and up */)
+                                 || pFeatures->enmCpuVendor == CPUMCPUVENDOR_HYGON);
 
         /*
          * Max extended (/FPU) state.
@@ -2025,7 +2045,7 @@ int cpumR3CpuIdExplodeFeatures(PCCPUMCPUIDLEAF paLeaves, uint32_t cLeaves, PCCPU
  *
  *
  */
-#ifdef VBOX_IN_VMM
+#ifndef IN_VBOX_CPU_REPORT
 
 
 /**
@@ -2034,8 +2054,7 @@ int cpumR3CpuIdExplodeFeatures(PCCPUMCPUIDLEAF paLeaves, uint32_t cLeaves, PCCPU
  * This ignores the fSubLeafMask.
  *
  * @returns Pointer to the matching leaf, or NULL if not found.
- * @param   paLeaves            The CPUID leaves to search.  This is sorted.
- * @param   cLeaves             The number of leaves in the array.
+ * @param   pCpum               The CPUM instance data.
  * @param   uLeaf               The leaf to locate.
  * @param   uSubLeaf            The subleaf to locate.
  */
@@ -2337,9 +2356,7 @@ static int cpumR3CpuIdInstallAndExplodeLeaves(PVM pVM, PCPUM pCpum, PCPUMCPUIDLE
     AssertLogRelRCReturn(rc, rc);
     pCpum->GuestInfo.cCpuIdLeaves = cLeaves;
     pCpum->GuestInfo.paCpuIdLeavesR0 = MMHyperR3ToR0(pVM, pCpum->GuestInfo.paCpuIdLeavesR3);
-    pCpum->GuestInfo.paCpuIdLeavesRC = MMHyperR3ToRC(pVM, pCpum->GuestInfo.paCpuIdLeavesR3);
     Assert(MMHyperR0ToR3(pVM, pCpum->GuestInfo.paCpuIdLeavesR0) == (void *)pCpum->GuestInfo.paCpuIdLeavesR3);
-    Assert(MMHyperRCToR3(pVM, pCpum->GuestInfo.paCpuIdLeavesRC) == (void *)pCpum->GuestInfo.paCpuIdLeavesR3);
 
     /*
      * Update the default CPUID leaf if necessary.
@@ -2421,9 +2438,10 @@ static int cpumR3CpuIdInstallAndExplodeLeaves(PVM pVM, PCPUM pCpum, PCPUMCPUIDLE
     /*
      * Configure XSAVE offsets according to the CPUID info and set the feature flags.
      */
-    memset(&pVM->aCpus[0].cpum.s.Guest.aoffXState[0], 0xff, sizeof(pVM->aCpus[0].cpum.s.Guest.aoffXState));
-    pVM->aCpus[0].cpum.s.Guest.aoffXState[XSAVE_C_X87_BIT] = 0;
-    pVM->aCpus[0].cpum.s.Guest.aoffXState[XSAVE_C_SSE_BIT] = 0;
+    PVMCPU pVCpu0 = pVM->apCpusR3[0];
+    memset(&pVCpu0->cpum.s.Guest.aoffXState[0], 0xff, sizeof(pVCpu0->cpum.s.Guest.aoffXState));
+    pVCpu0->cpum.s.Guest.aoffXState[XSAVE_C_X87_BIT] = 0;
+    pVCpu0->cpum.s.Guest.aoffXState[XSAVE_C_SSE_BIT] = 0;
     for (uint32_t iComponent = XSAVE_C_SSE_BIT + 1; iComponent < 63; iComponent++)
         if (pCpum->fXStateGuestMask & RT_BIT_64(iComponent))
         {
@@ -2438,17 +2456,14 @@ static int cpumR3CpuIdInstallAndExplodeLeaves(PVM pVM, PCPUM pCpum, PCPUMCPUIDLE
                                   ("iComponent=%#x eax=%#x ebx=%#x cbMax=%#x\n", iComponent, pSubLeaf->uEax, pSubLeaf->uEbx,
                                    pCpum->GuestFeatures.cbMaxExtendedState),
                                   VERR_CPUM_IPE_1);
-            pVM->aCpus[0].cpum.s.Guest.aoffXState[iComponent] = pSubLeaf->uEbx;
+            pVCpu0->cpum.s.Guest.aoffXState[iComponent] = pSubLeaf->uEbx;
         }
-    memset(&pVM->aCpus[0].cpum.s.Hyper.aoffXState[0], 0xff, sizeof(pVM->aCpus[0].cpum.s.Hyper.aoffXState));
 
     /* Copy the CPU #0  data to the other CPUs. */
-    for (VMCPUID iCpu = 1; iCpu < pVM->cCpus; iCpu++)
+    for (VMCPUID idCpu = 1; idCpu < pVM->cCpus; idCpu++)
     {
-        memcpy(&pVM->aCpus[iCpu].cpum.s.Guest.aoffXState[0], &pVM->aCpus[0].cpum.s.Guest.aoffXState[0],
-               sizeof(pVM->aCpus[iCpu].cpum.s.Guest.aoffXState));
-        memcpy(&pVM->aCpus[iCpu].cpum.s.Hyper.aoffXState[0], &pVM->aCpus[0].cpum.s.Hyper.aoffXState[0],
-               sizeof(pVM->aCpus[iCpu].cpum.s.Hyper.aoffXState));
+        PVMCPU pVCpu = pVM->apCpusR3[idCpu];
+        memcpy(&pVCpu->cpum.s.Guest.aoffXState[0], &pVCpu0->cpum.s.Guest.aoffXState[0], sizeof(pVCpu0->cpum.s.Guest.aoffXState));
     }
 
     return VINF_SUCCESS;
@@ -2947,7 +2962,10 @@ static int cpumR3CpuIdSanitize(PVM pVM, PCPUM pCpum, PCPUMCPUIDCONFIG pConfig)
     /* Mask out the VME capability on certain CPUs, unless overridden by fForceVme.
      * VME bug was fixed in AGESA 1.0.0.6, microcode patch level 8001126.
      */
-    if ( (pVM->cpum.s.GuestFeatures.enmMicroarch == kCpumMicroarch_AMD_Zen_Ryzen)
+    if (   (   pVM->cpum.s.GuestFeatures.enmMicroarch == kCpumMicroarch_AMD_Zen_Ryzen
+            /** @todo The following ASSUMES that Hygon uses the same version numbering
+             * as AMD and that they shipped buggy firmware. */
+            || pVM->cpum.s.GuestFeatures.enmMicroarch == kCpumMicroarch_Hygon_Dhyana)
         && uMicrocodeRev < 0x8001126
         && !pConfig->fForceVme)
     {
@@ -3074,7 +3092,8 @@ static int cpumR3CpuIdSanitize(PVM pVM, PCPUM pCpum, PCPUMCPUIDCONFIG pConfig)
                                ;
 #ifdef VBOX_WITH_MULTI_CORE
         if (   pVM->cCpus > 1
-            && pCpum->GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_AMD)
+            && (   pCpum->GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_AMD
+                || pCpum->GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_HYGON))
             pExtFeatureLeaf->uEcx |= X86_CPUID_AMD_FEATURE_ECX_CMPL; /* CmpLegacy */
 #endif
 
@@ -3668,7 +3687,8 @@ static int cpumR3CpuIdSanitize(PVM pVM, PCPUM pCpum, PCPUMCPUIDCONFIG pConfig)
     while ((pCurLeaf = cpumR3CpuIdGetExactLeaf(pCpum, UINT32_C(0x80000007), uSubLeaf)) != NULL)
     {
         pCurLeaf->uEax = pCurLeaf->uEbx = pCurLeaf->uEcx = 0;
-        if (pCpum->GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_AMD)
+        if (   pCpum->GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_AMD
+            || pCpum->GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_HYGON)
         {
             /*
              * Older 64-bit linux kernels blindly assume that the AMD performance counters work
@@ -3723,7 +3743,8 @@ static int cpumR3CpuIdSanitize(PVM pVM, PCPUM pCpum, PCPUMCPUIDCONFIG pConfig)
         pCurLeaf->uEcx = 0;
 #ifdef VBOX_WITH_MULTI_CORE
         if (   pVM->cCpus > 1
-            && pCpum->GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_AMD)
+            && (   pCpum->GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_AMD
+                || pCpum->GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_HYGON))
             pCurLeaf->uEcx |= (pVM->cCpus - 1) & UINT32_C(0xff);
 #endif
         uSubLeaf++;
@@ -3740,26 +3761,42 @@ static int cpumR3CpuIdSanitize(PVM pVM, PCPUM pCpum, PCPUMCPUIDCONFIG pConfig)
      *        ECX - Reserved.
      *        EDX - SVM Feature identification.
      */
-    pExtFeatureLeaf = cpumR3CpuIdGetExactLeaf(pCpum, UINT32_C(0x80000001), 0);
-    if (   pExtFeatureLeaf
-        && (pExtFeatureLeaf->uEcx & X86_CPUID_AMD_FEATURE_ECX_SVM)
-        && pCpum->GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_AMD)
+    if (   pCpum->GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_AMD
+        || pCpum->GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_HYGON)
     {
-        PCPUMCPUIDLEAF pSvmFeatureLeaf = cpumR3CpuIdGetExactLeaf(pCpum, 0x8000000a, 0);
-        if (pSvmFeatureLeaf)
+        pExtFeatureLeaf = cpumR3CpuIdGetExactLeaf(pCpum, UINT32_C(0x80000001), 0);
+        if (   pExtFeatureLeaf
+            && (pExtFeatureLeaf->uEcx & X86_CPUID_AMD_FEATURE_ECX_SVM))
         {
-            pSvmFeatureLeaf->uEax  = 0x1;
-            pSvmFeatureLeaf->uEbx  = 0x8000;                                        /** @todo figure out virtual NASID. */
-            pSvmFeatureLeaf->uEcx  = 0;
-            pSvmFeatureLeaf->uEdx &= (  X86_CPUID_SVM_FEATURE_EDX_NRIP_SAVE         /** @todo Support other SVM features */
-                                      | X86_CPUID_SVM_FEATURE_EDX_FLUSH_BY_ASID
-                                      | X86_CPUID_SVM_FEATURE_EDX_DECODE_ASSISTS);
+            PCPUMCPUIDLEAF pSvmFeatureLeaf = cpumR3CpuIdGetExactLeaf(pCpum, 0x8000000a, 0);
+            if (pSvmFeatureLeaf)
+            {
+                pSvmFeatureLeaf->uEax  = 0x1;
+                pSvmFeatureLeaf->uEbx  = 0x8000;                                        /** @todo figure out virtual NASID. */
+                pSvmFeatureLeaf->uEcx  = 0;
+                pSvmFeatureLeaf->uEdx &= (  X86_CPUID_SVM_FEATURE_EDX_NRIP_SAVE         /** @todo Support other SVM features */
+                                          | X86_CPUID_SVM_FEATURE_EDX_FLUSH_BY_ASID
+                                          | X86_CPUID_SVM_FEATURE_EDX_DECODE_ASSISTS);
+            }
+            else
+            {
+                /* Should never happen. */
+                LogRel(("CPUM: Warning! Expected CPUID leaf 0x8000000a not present! SVM features not exposed to the guest\n"));
+                cpumR3CpuIdZeroLeaf(pCpum, UINT32_C(0x8000000a));
+            }
         }
         else
         {
-            LogRel(("CPUM: Warning! Expected CPUID leaf 0x8000000a not present! SVM features not exposed to the guest\n"));
+            /* If SVM is not supported, this is reserved, zero out. */
             cpumR3CpuIdZeroLeaf(pCpum, UINT32_C(0x8000000a));
         }
+    }
+    else
+    {
+        /* Cpuid 0x8000000a: Reserved on Intel.
+         * We zero this since we don't know what it may have been used for.
+         */
+        cpumR3CpuIdZeroLeaf(pCpum, UINT32_C(0x8000000a));
     }
 
     /* Cpuid 0x8000000b thru 0x80000018: Reserved
@@ -3836,6 +3873,7 @@ static int cpumR3CpuIdSanitize(PVM pVM, PCPUM pCpum, PCPUMCPUIDCONFIG pConfig)
         else
         {
             Assert(pCpum->GuestFeatures.enmCpuVendor != CPUMCPUVENDOR_AMD);
+            Assert(pCpum->GuestFeatures.enmCpuVendor != CPUMCPUVENDOR_HYGON);
             pCurLeaf->uEbx = 0; /* Reserved. */
             pCurLeaf->uEcx = 0; /* Reserved. */
         }
@@ -4113,14 +4151,16 @@ static int cpumR3CpuIdReadConfig(PVM pVM, PCPUMCPUIDCONFIG pConfig, PCFGMNODE pC
     rc = CFGMR3QueryU32Def(pCpumCfg, "MaxCentaurLeaf", &pConfig->uMaxCentaurLeaf, UINT32_C(0xc0000004));
     AssertLogRelRCReturn(rc, rc);
 
-    bool fQueryNestedHwvirt = false;
+    bool fQueryNestedHwvirt = false
 #ifdef VBOX_WITH_NESTED_HWVIRT_SVM
-    fQueryNestedHwvirt |= RT_BOOL(pVM->cpum.s.HostFeatures.enmCpuVendor == CPUMCPUVENDOR_AMD);
+                           || pVM->cpum.s.HostFeatures.enmCpuVendor == CPUMCPUVENDOR_AMD
+                           || pVM->cpum.s.HostFeatures.enmCpuVendor == CPUMCPUVENDOR_HYGON
 #endif
 #ifdef VBOX_WITH_NESTED_HWVIRT_VMX
-    fQueryNestedHwvirt |= RT_BOOL(   pVM->cpum.s.HostFeatures.enmCpuVendor == CPUMCPUVENDOR_INTEL
-                                  || pVM->cpum.s.HostFeatures.enmCpuVendor == CPUMCPUVENDOR_VIA);
+                           || pVM->cpum.s.HostFeatures.enmCpuVendor == CPUMCPUVENDOR_INTEL
+                           || pVM->cpum.s.HostFeatures.enmCpuVendor == CPUMCPUVENDOR_VIA
 #endif
+                           ;
     if (fQueryNestedHwvirt)
     {
         /** @cfgm{/CPUM/NestedHWVirt, bool, false}
@@ -4143,12 +4183,14 @@ static int cpumR3CpuIdReadConfig(PVM pVM, PCPUMCPUIDCONFIG pConfig, PCFGMNODE pC
             pConfig->fNestedHWVirt = false;
         }
 
-#if HC_ARCH_BITS == 32
-        /* We don't support nested hardware virtualization on 32-bit hosts. */
-        if (pConfig->fNestedHWVirt)
-            return VMSetError(pVM, VERR_CPUM_INVALID_HWVIRT_CONFIG, RT_SRC_POS,
-                              "Cannot enable nested VT-x/AMD-V on a 32-bit host\n");
-#endif
+        /** @cfgm{/CPUM/NestedVmxPreemptTimer, bool, true}
+         * Whether to expose the VMX-preemption timer feature to the guest (if also
+         * supported by the host hardware). The default is true, and when disabled will
+         * prevent exposing the VMX-preemption timer feature to the guest even if the host
+         * supports it.
+         */
+        rc = CFGMR3QueryBoolDef(pCpumCfg, "NestedVmxPreemptTimer", &pVM->cpum.s.fNestedVmxPreemptTimer, true);
+        AssertLogRelRCReturn(rc, rc);
     }
 
     /*
@@ -4222,12 +4264,7 @@ static int cpumR3CpuIdReadConfig(PVM pVM, PCPUMCPUIDCONFIG pConfig, PCFGMNODE pC
 
     bool const fMayHaveXSave = fNestedPagingAndFullGuestExec
                             && pVM->cpum.s.HostFeatures.fXSaveRstor
-                            && pVM->cpum.s.HostFeatures.fOpSysXSaveRstor
-#if HC_ARCH_BITS == 32 /* Seems this may be broken when doing 64-bit on 32-bit, just disable it for now. */
-                            && (   !HMIsLongModeAllowed(pVM)
-                                || NEMHCIsLongModeAllowed(pVM))
-#endif
-                            ;
+                            && pVM->cpum.s.HostFeatures.fOpSysXSaveRstor;
     uint64_t const fXStateHostMask = pVM->cpum.s.fXStateHostMask;
 
     /** @cfgm{/CPUM/IsaExts/XSAVE, boolean, depends}
@@ -4416,8 +4453,11 @@ int cpumR3InitCpuIdAndMsrs(PVM pVM, PCCPUMMSRS pHostMsrs)
      * Set the fCpuIdApicFeatureVisible flags so the APIC can assume visibility
      * on construction and manage everything from here on.
      */
-    for (VMCPUID iCpu = 0; iCpu < pVM->cCpus; iCpu++)
-        pVM->aCpus[iCpu].cpum.s.fCpuIdApicFeatureVisible = true;
+    for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
+    {
+        PVMCPU pVCpu = pVM->apCpusR3[idCpu];
+        pVCpu->cpum.s.fCpuIdApicFeatureVisible = true;
+    }
 
     /*
      * Read the configuration.
@@ -4536,7 +4576,6 @@ int cpumR3InitCpuIdAndMsrs(PVM pVM, PCCPUMMSRS pHostMsrs)
         AssertLogRelRCReturn(rc2, rc2);
 
         pCpum->GuestInfo.paMsrRangesR0 = MMHyperR3ToR0(pVM, pCpum->GuestInfo.paMsrRangesR3);
-        pCpum->GuestInfo.paMsrRangesRC = MMHyperR3ToRC(pVM, pCpum->GuestInfo.paMsrRangesR3);
 
         /*
          * Finally, initialize guest VMX MSRs.
@@ -4554,14 +4593,14 @@ int cpumR3InitCpuIdAndMsrs(PVM pVM, PCCPUMMSRS pHostMsrs)
             PCVMXMSRS pVmxMsrs = &GuestMsrs.hwvirt.vmx;
             for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
             {
-                PVMCPU pVCpu = &pVM->aCpus[idCpu];
+                PVMCPU pVCpu = pVM->apCpusR3[idCpu];
                 memcpy(&pVCpu->cpum.s.Guest.hwvirt.vmx.Msrs, pVmxMsrs, sizeof(*pVmxMsrs));
             }
         }
 
         /*
          * Some more configuration that we're applying at the end of everything
-         * via the CPUMSetGuestCpuIdFeature API.
+         * via the CPUMR3SetGuestCpuIdFeature API.
          */
 
         /* Check if PAE was explicitely enabled by the user. */
@@ -4693,16 +4732,8 @@ VMMR3_INT_DECL(void) CPUMR3SetGuestCpuIdFeature(PVM pVM, CPUMCPUIDFEATURE enmFea
             if (   !pLeaf
                 || !pVM->cpum.s.HostFeatures.fSysCall)
             {
-#if HC_ARCH_BITS == 32
-                /* X86_CPUID_EXT_FEATURE_EDX_SYSCALL not set it seems in 32-bit
-                   mode by Intel, even when the cpu is capable of doing so in
-                   64-bit mode.  Long mode requires syscall support. */
-                if (!pVM->cpum.s.HostFeatures.fLongMode)
-#endif
-                {
-                    LogRel(("CPUM: WARNING! Can't turn on SYSCALL/SYSRET when the host doesn't support it!\n"));
-                    return;
-                }
+                LogRel(("CPUM: WARNING! Can't turn on SYSCALL/SYSRET when the host doesn't support it!\n"));
+                return;
             }
 
             /* Valid for both Intel and AMD CPUs, although only in 64 bits mode for Intel. */
@@ -4728,7 +4759,8 @@ VMMR3_INT_DECL(void) CPUMR3SetGuestCpuIdFeature(PVM pVM, CPUMCPUIDFEATURE enmFea
 
             pLeaf = cpumCpuIdGetLeaf(pVM, UINT32_C(0x80000001));
             if (    pLeaf
-                &&  pVM->cpum.s.GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_AMD)
+                &&  (   pVM->cpum.s.GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_AMD
+                     || pVM->cpum.s.GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_HYGON))
                 pVM->cpum.s.aGuestCpuIdPatmExt[1].uEdx = pLeaf->uEdx |= X86_CPUID_AMD_FEATURE_EDX_PAE;
 
             pVM->cpum.s.GuestFeatures.fPae = 1;
@@ -4751,6 +4783,13 @@ VMMR3_INT_DECL(void) CPUMR3SetGuestCpuIdFeature(PVM pVM, CPUMCPUIDFEATURE enmFea
             /* Valid for both Intel and AMD. */
             pVM->cpum.s.aGuestCpuIdPatmExt[1].uEdx = pLeaf->uEdx |= X86_CPUID_EXT_FEATURE_EDX_LONG_MODE;
             pVM->cpum.s.GuestFeatures.fLongMode = 1;
+            pVM->cpum.s.GuestFeatures.cVmxMaxPhysAddrWidth = pVM->cpum.s.GuestFeatures.cMaxPhysAddrWidth;
+            if (pVM->cpum.s.GuestFeatures.fVmx)
+                for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
+                {
+                    PVMCPU pVCpu = pVM->apCpusR3[idCpu];
+                    pVCpu->cpum.s.Guest.hwvirt.vmx.Msrs.u64Basic &= ~VMX_BASIC_PHYSADDR_WIDTH_32BIT;
+                }
             LogRel(("CPUM: SetGuestCpuIdFeature: Enabled LONG MODE\n"));
             break;
 
@@ -4805,7 +4844,8 @@ VMMR3_INT_DECL(void) CPUMR3SetGuestCpuIdFeature(PVM pVM, CPUMCPUIDFEATURE enmFea
 
             pLeaf = cpumCpuIdGetLeaf(pVM, UINT32_C(0x80000001));
             if (   pLeaf
-                && pVM->cpum.s.GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_AMD)
+                && (   pVM->cpum.s.GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_AMD
+                    || pVM->cpum.s.GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_HYGON))
                 pVM->cpum.s.aGuestCpuIdPatmExt[1].uEdx = pLeaf->uEdx |= X86_CPUID_AMD_FEATURE_EDX_PAT;
 
             pVM->cpum.s.GuestFeatures.fPat = 1;
@@ -4945,7 +4985,8 @@ VMMR3_INT_DECL(void) CPUMR3SetGuestCpuIdFeature(PVM pVM, CPUMCPUIDFEATURE enmFea
 
                 LogRel(("CPUM: SetGuestCpuIdFeature: Enabled Speculation Control.\n"));
             }
-            else if (pVM->cpum.s.GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_AMD)
+            else if (   pVM->cpum.s.GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_AMD
+                     || pVM->cpum.s.GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_HYGON)
             {
                 /* The precise details of AMD's implementation are not yet clear. */
             }
@@ -4957,9 +4998,9 @@ VMMR3_INT_DECL(void) CPUMR3SetGuestCpuIdFeature(PVM pVM, CPUMCPUIDFEATURE enmFea
     }
 
     /** @todo can probably kill this as this API is now init time only... */
-    for (VMCPUID i = 0; i < pVM->cCpus; i++)
+    for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
     {
-        PVMCPU pVCpu = &pVM->aCpus[i];
+        PVMCPU pVCpu = pVM->apCpusR3[idCpu];
         pVCpu->cpum.s.fChanged |= CPUM_CHANGED_CPUID;
     }
 }
@@ -5044,7 +5085,8 @@ VMMR3_INT_DECL(void) CPUMR3ClearGuestCpuIdFeature(PVM pVM, CPUMCPUIDFEATURE enmF
 
             pLeaf = cpumCpuIdGetLeaf(pVM, UINT32_C(0x80000001));
             if (   pLeaf
-                && pVM->cpum.s.GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_AMD)
+                && (   pVM->cpum.s.GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_AMD
+                    || pVM->cpum.s.GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_HYGON))
                 pVM->cpum.s.aGuestCpuIdPatmExt[1].uEdx = pLeaf->uEdx &= ~X86_CPUID_AMD_FEATURE_EDX_PAE;
 
             pVM->cpum.s.GuestFeatures.fPae = 0;
@@ -5058,7 +5100,8 @@ VMMR3_INT_DECL(void) CPUMR3ClearGuestCpuIdFeature(PVM pVM, CPUMCPUIDFEATURE enmF
 
             pLeaf = cpumCpuIdGetLeaf(pVM, UINT32_C(0x80000001));
             if (   pLeaf
-                && pVM->cpum.s.GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_AMD)
+                && (   pVM->cpum.s.GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_AMD
+                    || pVM->cpum.s.GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_HYGON))
                 pVM->cpum.s.aGuestCpuIdPatmExt[1].uEdx = pLeaf->uEdx &= ~X86_CPUID_AMD_FEATURE_EDX_PAT;
 
             pVM->cpum.s.GuestFeatures.fPat = 0;
@@ -5070,6 +5113,13 @@ VMMR3_INT_DECL(void) CPUMR3ClearGuestCpuIdFeature(PVM pVM, CPUMCPUIDFEATURE enmF
             if (pLeaf)
                 pVM->cpum.s.aGuestCpuIdPatmExt[1].uEdx = pLeaf->uEdx &= ~X86_CPUID_EXT_FEATURE_EDX_LONG_MODE;
             pVM->cpum.s.GuestFeatures.fLongMode = 0;
+            pVM->cpum.s.GuestFeatures.cVmxMaxPhysAddrWidth = 32;
+            if (pVM->cpum.s.GuestFeatures.fVmx)
+                for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
+                {
+                    PVMCPU pVCpu = pVM->apCpusR3[idCpu];
+                    pVCpu->cpum.s.Guest.hwvirt.vmx.Msrs.u64Basic |= VMX_BASIC_PHYSADDR_WIDTH_32BIT;
+                }
             break;
 
         case CPUMCPUIDFEATURE_LAHF:
@@ -5115,9 +5165,9 @@ VMMR3_INT_DECL(void) CPUMR3ClearGuestCpuIdFeature(PVM pVM, CPUMCPUIDFEATURE enmF
             break;
     }
 
-    for (VMCPUID i = 0; i < pVM->cCpus; i++)
+    for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
     {
-        PVMCPU pVCpu = &pVM->aCpus[i];
+        PVMCPU pVCpu = pVM->apCpusR3[idCpu];
         pVCpu->cpum.s.fChanged |= CPUM_CHANGED_CPUID;
     }
 }
@@ -5569,228 +5619,6 @@ int cpumR3LoadCpuIdInner(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, PCPUMCPUID
     } while (0)
 #define CPUID_GST_FEATURE2_IGN(reg, ExtBit, StdBit) do { } while (0)
 
-    /*
-     * For raw-mode we'll require that the CPUs are very similar since we don't
-     * intercept CPUID instructions for user mode applications.
-     */
-    if (VM_IS_RAW_MODE_ENABLED(pVM))
-    {
-        /* CPUID(0) */
-        CPUID_CHECK_RET(   aHostRawStd[0].uEbx == aRawStd[0].uEbx
-                        && aHostRawStd[0].uEcx == aRawStd[0].uEcx
-                        && aHostRawStd[0].uEdx == aRawStd[0].uEdx,
-                        (N_("CPU vendor mismatch: host='%.4s%.4s%.4s' saved='%.4s%.4s%.4s'"),
-                         &aHostRawStd[0].uEbx, &aHostRawStd[0].uEdx, &aHostRawStd[0].uEcx,
-                         &aRawStd[0].uEbx, &aRawStd[0].uEdx, &aRawStd[0].uEcx));
-        CPUID_CHECK2_WRN("Std CPUID max leaf",   aHostRawStd[0].uEax, aRawStd[0].uEax);
-        CPUID_CHECK2_WRN("Reserved bits 15:14", (aHostRawExt[1].uEax >> 14) & 3, (aRawExt[1].uEax >> 14) & 3);
-        CPUID_CHECK2_WRN("Reserved bits 31:28",  aHostRawExt[1].uEax >> 28,       aRawExt[1].uEax >> 28);
-
-        bool const fIntel = ASMIsIntelCpuEx(aRawStd[0].uEbx, aRawStd[0].uEcx, aRawStd[0].uEdx);
-
-        /* CPUID(1).eax */
-        CPUID_CHECK2_RET("CPU family",          ASMGetCpuFamily(aHostRawStd[1].uEax),        ASMGetCpuFamily(aRawStd[1].uEax));
-        CPUID_CHECK2_RET("CPU model",           ASMGetCpuModel(aHostRawStd[1].uEax, fIntel), ASMGetCpuModel(aRawStd[1].uEax, fIntel));
-        CPUID_CHECK2_WRN("CPU type",            (aHostRawStd[1].uEax >> 12) & 3,             (aRawStd[1].uEax >> 12) & 3 );
-
-        /* CPUID(1).ebx - completely ignore CPU count and APIC ID. */
-        CPUID_CHECK2_RET("CPU brand ID",         aHostRawStd[1].uEbx & 0xff,                 aRawStd[1].uEbx & 0xff);
-        CPUID_CHECK2_WRN("CLFLUSH chunk count", (aHostRawStd[1].uEbx >> 8) & 0xff,           (aRawStd[1].uEbx >> 8) & 0xff);
-
-        /* CPUID(1).ecx */
-        CPUID_RAW_FEATURE_RET(Std, uEcx, X86_CPUID_FEATURE_ECX_SSE3);
-        CPUID_RAW_FEATURE_RET(Std, uEcx, X86_CPUID_FEATURE_ECX_PCLMUL);
-        CPUID_RAW_FEATURE_IGN(Std, uEcx, X86_CPUID_FEATURE_ECX_DTES64);
-        CPUID_RAW_FEATURE_RET(Std, uEcx, X86_CPUID_FEATURE_ECX_MONITOR);
-        CPUID_RAW_FEATURE_RET(Std, uEcx, X86_CPUID_FEATURE_ECX_CPLDS);
-        CPUID_RAW_FEATURE_IGN(Std, uEcx, X86_CPUID_FEATURE_ECX_VMX);
-        CPUID_RAW_FEATURE_IGN(Std, uEcx, X86_CPUID_FEATURE_ECX_SMX);
-        CPUID_RAW_FEATURE_IGN(Std, uEcx, X86_CPUID_FEATURE_ECX_EST);
-        CPUID_RAW_FEATURE_IGN(Std, uEcx, X86_CPUID_FEATURE_ECX_TM2);
-        CPUID_RAW_FEATURE_RET(Std, uEcx, X86_CPUID_FEATURE_ECX_SSSE3);
-        CPUID_RAW_FEATURE_IGN(Std, uEcx, X86_CPUID_FEATURE_ECX_CNTXID);
-        CPUID_RAW_FEATURE_RET(Std, uEcx, RT_BIT_32(11) /*reserved*/ );
-        CPUID_RAW_FEATURE_RET(Std, uEcx, X86_CPUID_FEATURE_ECX_FMA);
-        CPUID_RAW_FEATURE_RET(Std, uEcx, X86_CPUID_FEATURE_ECX_CX16);
-        CPUID_RAW_FEATURE_IGN(Std, uEcx, X86_CPUID_FEATURE_ECX_TPRUPDATE);
-        CPUID_RAW_FEATURE_IGN(Std, uEcx, X86_CPUID_FEATURE_ECX_PDCM);
-        CPUID_RAW_FEATURE_RET(Std, uEcx, RT_BIT_32(16) /*reserved*/);
-        CPUID_RAW_FEATURE_RET(Std, uEcx, X86_CPUID_FEATURE_ECX_PCID);
-        CPUID_RAW_FEATURE_IGN(Std, uEcx, X86_CPUID_FEATURE_ECX_DCA);
-        CPUID_RAW_FEATURE_RET(Std, uEcx, X86_CPUID_FEATURE_ECX_SSE4_1);
-        CPUID_RAW_FEATURE_RET(Std, uEcx, X86_CPUID_FEATURE_ECX_SSE4_2);
-        CPUID_RAW_FEATURE_IGN(Std, uEcx, X86_CPUID_FEATURE_ECX_X2APIC);
-        CPUID_RAW_FEATURE_RET(Std, uEcx, X86_CPUID_FEATURE_ECX_MOVBE);
-        CPUID_RAW_FEATURE_RET(Std, uEcx, X86_CPUID_FEATURE_ECX_POPCNT);
-        CPUID_RAW_FEATURE_IGN(Std, uEcx, X86_CPUID_FEATURE_ECX_TSCDEADL);
-        CPUID_RAW_FEATURE_RET(Std, uEcx, X86_CPUID_FEATURE_ECX_AES);
-        CPUID_RAW_FEATURE_RET(Std, uEcx, X86_CPUID_FEATURE_ECX_XSAVE);
-        CPUID_RAW_FEATURE_RET(Std, uEcx, X86_CPUID_FEATURE_ECX_OSXSAVE);
-        CPUID_RAW_FEATURE_RET(Std, uEcx, X86_CPUID_FEATURE_ECX_AVX);
-        CPUID_RAW_FEATURE_RET(Std, uEcx, X86_CPUID_FEATURE_ECX_F16C);
-        CPUID_RAW_FEATURE_RET(Std, uEcx, X86_CPUID_FEATURE_ECX_RDRAND);
-        CPUID_RAW_FEATURE_RET(Std, uEcx, X86_CPUID_FEATURE_ECX_HVP);
-
-        /* CPUID(1).edx */
-        CPUID_RAW_FEATURE_RET(Std, uEdx, X86_CPUID_FEATURE_EDX_FPU);
-        CPUID_RAW_FEATURE_RET(Std, uEdx, X86_CPUID_FEATURE_EDX_VME);
-        CPUID_RAW_FEATURE_RET(Std, uEdx, X86_CPUID_FEATURE_EDX_DE);
-        CPUID_RAW_FEATURE_IGN(Std, uEdx, X86_CPUID_FEATURE_EDX_PSE);
-        CPUID_RAW_FEATURE_RET(Std, uEdx, X86_CPUID_FEATURE_EDX_TSC);
-        CPUID_RAW_FEATURE_RET(Std, uEdx, X86_CPUID_FEATURE_EDX_MSR);
-        CPUID_RAW_FEATURE_IGN(Std, uEdx, X86_CPUID_FEATURE_EDX_PAE);
-        CPUID_RAW_FEATURE_IGN(Std, uEdx, X86_CPUID_FEATURE_EDX_MCE);
-        CPUID_RAW_FEATURE_RET(Std, uEdx, X86_CPUID_FEATURE_EDX_CX8);
-        CPUID_RAW_FEATURE_IGN(Std, uEdx, X86_CPUID_FEATURE_EDX_APIC);
-        CPUID_RAW_FEATURE_RET(Std, uEdx, RT_BIT_32(10) /*reserved*/);
-        CPUID_RAW_FEATURE_IGN(Std, uEdx, X86_CPUID_FEATURE_EDX_SEP);
-        CPUID_RAW_FEATURE_IGN(Std, uEdx, X86_CPUID_FEATURE_EDX_MTRR);
-        CPUID_RAW_FEATURE_IGN(Std, uEdx, X86_CPUID_FEATURE_EDX_PGE);
-        CPUID_RAW_FEATURE_IGN(Std, uEdx, X86_CPUID_FEATURE_EDX_MCA);
-        CPUID_RAW_FEATURE_RET(Std, uEdx, X86_CPUID_FEATURE_EDX_CMOV);
-        CPUID_RAW_FEATURE_IGN(Std, uEdx, X86_CPUID_FEATURE_EDX_PAT);
-        CPUID_RAW_FEATURE_IGN(Std, uEdx, X86_CPUID_FEATURE_EDX_PSE36);
-        CPUID_RAW_FEATURE_IGN(Std, uEdx, X86_CPUID_FEATURE_EDX_PSN);
-        CPUID_RAW_FEATURE_RET(Std, uEdx, X86_CPUID_FEATURE_EDX_CLFSH);
-        CPUID_RAW_FEATURE_RET(Std, uEdx, RT_BIT_32(20) /*reserved*/);
-        CPUID_RAW_FEATURE_IGN(Std, uEdx, X86_CPUID_FEATURE_EDX_DS);
-        CPUID_RAW_FEATURE_IGN(Std, uEdx, X86_CPUID_FEATURE_EDX_ACPI);
-        CPUID_RAW_FEATURE_RET(Std, uEdx, X86_CPUID_FEATURE_EDX_MMX);
-        CPUID_RAW_FEATURE_RET(Std, uEdx, X86_CPUID_FEATURE_EDX_FXSR);
-        CPUID_RAW_FEATURE_RET(Std, uEdx, X86_CPUID_FEATURE_EDX_SSE);
-        CPUID_RAW_FEATURE_RET(Std, uEdx, X86_CPUID_FEATURE_EDX_SSE2);
-        CPUID_RAW_FEATURE_IGN(Std, uEdx, X86_CPUID_FEATURE_EDX_SS);
-        CPUID_RAW_FEATURE_IGN(Std, uEdx, X86_CPUID_FEATURE_EDX_HTT);
-        CPUID_RAW_FEATURE_IGN(Std, uEdx, X86_CPUID_FEATURE_EDX_TM);
-        CPUID_RAW_FEATURE_RET(Std, uEdx, RT_BIT_32(30) /*JMPE/IA64*/);
-        CPUID_RAW_FEATURE_IGN(Std, uEdx, X86_CPUID_FEATURE_EDX_PBE);
-
-        /* CPUID(2) - config, mostly about caches. ignore. */
-        /* CPUID(3) - processor serial number. ignore. */
-        /* CPUID(4) - config, cache and topology - takes ECX as input. ignore. */
-        /* CPUID(5) - mwait/monitor config. ignore. */
-        /* CPUID(6) - power management. ignore. */
-        /* CPUID(7) - ???. ignore. */
-        /* CPUID(8) - ???. ignore. */
-        /* CPUID(9) - DCA. ignore for now. */
-        /* CPUID(a) - PeMo info. ignore for now. */
-        /* CPUID(b) - topology info - takes ECX as input. ignore. */
-
-        /* CPUID(d) - XCR0 stuff - takes ECX as input. We only warn about the main level (ECX=0) for now. */
-        CPUID_CHECK_WRN(   aRawStd[0].uEax     <  UINT32_C(0x0000000d)
-                        || aHostRawStd[0].uEax >= UINT32_C(0x0000000d),
-                        ("CPUM: Standard leaf D was present on saved state host, not present on current.\n"));
-        if (   aRawStd[0].uEax     >= UINT32_C(0x0000000d)
-            && aHostRawStd[0].uEax >= UINT32_C(0x0000000d))
-        {
-            CPUID_CHECK2_WRN("Valid low XCR0 bits",             aHostRawStd[0xd].uEax, aRawStd[0xd].uEax);
-            CPUID_CHECK2_WRN("Valid high XCR0 bits",            aHostRawStd[0xd].uEdx, aRawStd[0xd].uEdx);
-            CPUID_CHECK2_WRN("Current XSAVE/XRSTOR area size",  aHostRawStd[0xd].uEbx, aRawStd[0xd].uEbx);
-/** @todo XSAVE: Stricter XSAVE feature checks for raw-mode. */
-            CPUID_CHECK2_WRN("Max XSAVE/XRSTOR area size",      aHostRawStd[0xd].uEcx, aRawStd[0xd].uEcx);
-        }
-
-        /* CPUID(0x80000000) - same as CPUID(0) except for eax.
-           Note! Intel have/is marking many of the fields here as reserved. We
-                 will verify them as if it's an AMD CPU. */
-        CPUID_CHECK_RET(   (aHostRawExt[0].uEax >= UINT32_C(0x80000001) && aHostRawExt[0].uEax <= UINT32_C(0x8000007f))
-                        || !(aRawExt[0].uEax    >= UINT32_C(0x80000001) && aRawExt[0].uEax     <= UINT32_C(0x8000007f)),
-                        (N_("Extended leaves was present on saved state host, but is missing on the current\n")));
-        if (aRawExt[0].uEax >= UINT32_C(0x80000001) && aRawExt[0].uEax     <= UINT32_C(0x8000007f))
-        {
-            CPUID_CHECK_RET(   aHostRawExt[0].uEbx == aRawExt[0].uEbx
-                            && aHostRawExt[0].uEcx == aRawExt[0].uEcx
-                            && aHostRawExt[0].uEdx == aRawExt[0].uEdx,
-                            (N_("CPU vendor mismatch: host='%.4s%.4s%.4s' saved='%.4s%.4s%.4s'"),
-                             &aHostRawExt[0].uEbx, &aHostRawExt[0].uEdx, &aHostRawExt[0].uEcx,
-                             &aRawExt[0].uEbx,     &aRawExt[0].uEdx,     &aRawExt[0].uEcx));
-            CPUID_CHECK2_WRN("Ext CPUID max leaf",   aHostRawExt[0].uEax, aRawExt[0].uEax);
-
-            /* CPUID(0x80000001).eax - same as CPUID(0).eax. */
-            CPUID_CHECK2_RET("CPU family",          ASMGetCpuFamily(aHostRawExt[1].uEax),        ASMGetCpuFamily(aRawExt[1].uEax));
-            CPUID_CHECK2_RET("CPU model",           ASMGetCpuModel(aHostRawExt[1].uEax, fIntel), ASMGetCpuModel(aRawExt[1].uEax, fIntel));
-            CPUID_CHECK2_WRN("CPU type",            (aHostRawExt[1].uEax >> 12) & 3, (aRawExt[1].uEax >> 12) & 3 );
-            CPUID_CHECK2_WRN("Reserved bits 15:14", (aHostRawExt[1].uEax >> 14) & 3, (aRawExt[1].uEax >> 14) & 3 );
-            CPUID_CHECK2_WRN("Reserved bits 31:28",  aHostRawExt[1].uEax >> 28, aRawExt[1].uEax >> 28);
-
-            /* CPUID(0x80000001).ebx - Brand ID (maybe), just warn if things differs. */
-            CPUID_CHECK2_WRN("CPU BrandID",          aHostRawExt[1].uEbx & 0xffff, aRawExt[1].uEbx & 0xffff);
-            CPUID_CHECK2_WRN("Reserved bits 16:27", (aHostRawExt[1].uEbx >> 16) & 0xfff, (aRawExt[1].uEbx >> 16) & 0xfff);
-            CPUID_CHECK2_WRN("PkgType",             (aHostRawExt[1].uEbx >> 28) &   0xf, (aRawExt[1].uEbx >> 28) &   0xf);
-
-            /* CPUID(0x80000001).ecx */
-            CPUID_RAW_FEATURE_IGN(Ext, uEcx, X86_CPUID_EXT_FEATURE_ECX_LAHF_SAHF);
-            CPUID_RAW_FEATURE_IGN(Ext, uEcx, X86_CPUID_AMD_FEATURE_ECX_CMPL);
-            CPUID_RAW_FEATURE_IGN(Ext, uEcx, X86_CPUID_AMD_FEATURE_ECX_SVM);
-            CPUID_RAW_FEATURE_IGN(Ext, uEcx, X86_CPUID_AMD_FEATURE_ECX_EXT_APIC);
-            CPUID_RAW_FEATURE_IGN(Ext, uEcx, X86_CPUID_AMD_FEATURE_ECX_CR8L);
-            CPUID_RAW_FEATURE_WRN(Ext, uEcx, X86_CPUID_AMD_FEATURE_ECX_ABM);
-            CPUID_RAW_FEATURE_WRN(Ext, uEcx, X86_CPUID_AMD_FEATURE_ECX_SSE4A);
-            CPUID_RAW_FEATURE_WRN(Ext, uEcx, X86_CPUID_AMD_FEATURE_ECX_MISALNSSE);
-            CPUID_RAW_FEATURE_WRN(Ext, uEcx, X86_CPUID_AMD_FEATURE_ECX_3DNOWPRF);
-            CPUID_RAW_FEATURE_WRN(Ext, uEcx, X86_CPUID_AMD_FEATURE_ECX_OSVW);
-            CPUID_RAW_FEATURE_IGN(Ext, uEcx, X86_CPUID_AMD_FEATURE_ECX_IBS);
-            CPUID_RAW_FEATURE_WRN(Ext, uEcx, X86_CPUID_AMD_FEATURE_ECX_XOP);
-            CPUID_RAW_FEATURE_IGN(Ext, uEcx, X86_CPUID_AMD_FEATURE_ECX_SKINIT);
-            CPUID_RAW_FEATURE_IGN(Ext, uEcx, X86_CPUID_AMD_FEATURE_ECX_WDT);
-            CPUID_RAW_FEATURE_WRN(Ext, uEcx, RT_BIT_32(14));
-            CPUID_RAW_FEATURE_WRN(Ext, uEcx, RT_BIT_32(15));
-            CPUID_RAW_FEATURE_WRN(Ext, uEcx, RT_BIT_32(16));
-            CPUID_RAW_FEATURE_WRN(Ext, uEcx, RT_BIT_32(17));
-            CPUID_RAW_FEATURE_WRN(Ext, uEcx, RT_BIT_32(18));
-            CPUID_RAW_FEATURE_WRN(Ext, uEcx, RT_BIT_32(19));
-            CPUID_RAW_FEATURE_WRN(Ext, uEcx, RT_BIT_32(20));
-            CPUID_RAW_FEATURE_WRN(Ext, uEcx, RT_BIT_32(21));
-            CPUID_RAW_FEATURE_WRN(Ext, uEcx, RT_BIT_32(22));
-            CPUID_RAW_FEATURE_WRN(Ext, uEcx, RT_BIT_32(23));
-            CPUID_RAW_FEATURE_WRN(Ext, uEcx, RT_BIT_32(24));
-            CPUID_RAW_FEATURE_WRN(Ext, uEcx, RT_BIT_32(25));
-            CPUID_RAW_FEATURE_WRN(Ext, uEcx, RT_BIT_32(26));
-            CPUID_RAW_FEATURE_WRN(Ext, uEcx, RT_BIT_32(27));
-            CPUID_RAW_FEATURE_WRN(Ext, uEcx, RT_BIT_32(28));
-            CPUID_RAW_FEATURE_WRN(Ext, uEcx, RT_BIT_32(29));
-            CPUID_RAW_FEATURE_WRN(Ext, uEcx, RT_BIT_32(30));
-            CPUID_RAW_FEATURE_WRN(Ext, uEcx, RT_BIT_32(31));
-
-            /* CPUID(0x80000001).edx */
-            CPUID_RAW_FEATURE_RET(Ext, uEdx, X86_CPUID_AMD_FEATURE_EDX_FPU);
-            CPUID_RAW_FEATURE_RET(Ext, uEdx, X86_CPUID_AMD_FEATURE_EDX_VME);
-            CPUID_RAW_FEATURE_RET(Ext, uEdx, X86_CPUID_AMD_FEATURE_EDX_DE);
-            CPUID_RAW_FEATURE_RET(Ext, uEdx, X86_CPUID_AMD_FEATURE_EDX_PSE);
-            CPUID_RAW_FEATURE_RET(Ext, uEdx, X86_CPUID_AMD_FEATURE_EDX_TSC);
-            CPUID_RAW_FEATURE_RET(Ext, uEdx, X86_CPUID_AMD_FEATURE_EDX_MSR);
-            CPUID_RAW_FEATURE_IGN(Ext, uEdx, X86_CPUID_AMD_FEATURE_EDX_PAE);
-            CPUID_RAW_FEATURE_IGN(Ext, uEdx, X86_CPUID_AMD_FEATURE_EDX_MCE);
-            CPUID_RAW_FEATURE_RET(Ext, uEdx, X86_CPUID_AMD_FEATURE_EDX_CX8);
-            CPUID_RAW_FEATURE_IGN(Ext, uEdx, X86_CPUID_AMD_FEATURE_EDX_APIC);
-            CPUID_RAW_FEATURE_IGN(Ext, uEdx, RT_BIT_32(10) /*reserved*/);
-            CPUID_RAW_FEATURE_IGN(Ext, uEdx, X86_CPUID_EXT_FEATURE_EDX_SEP);
-            CPUID_RAW_FEATURE_IGN(Ext, uEdx, X86_CPUID_AMD_FEATURE_EDX_MTRR);
-            CPUID_RAW_FEATURE_IGN(Ext, uEdx, X86_CPUID_AMD_FEATURE_EDX_PGE);
-            CPUID_RAW_FEATURE_IGN(Ext, uEdx, X86_CPUID_AMD_FEATURE_EDX_MCA);
-            CPUID_RAW_FEATURE_RET(Ext, uEdx, X86_CPUID_AMD_FEATURE_EDX_CMOV);
-            CPUID_RAW_FEATURE_IGN(Ext, uEdx, X86_CPUID_AMD_FEATURE_EDX_PAT);
-            CPUID_RAW_FEATURE_IGN(Ext, uEdx, X86_CPUID_AMD_FEATURE_EDX_PSE36);
-            CPUID_RAW_FEATURE_IGN(Ext, uEdx, RT_BIT_32(18) /*reserved*/);
-            CPUID_RAW_FEATURE_IGN(Ext, uEdx, RT_BIT_32(19) /*reserved*/);
-            CPUID_RAW_FEATURE_IGN(Ext, uEdx, X86_CPUID_EXT_FEATURE_EDX_NX);
-            CPUID_RAW_FEATURE_IGN(Ext, uEdx, RT_BIT_32(21) /*reserved*/);
-            CPUID_RAW_FEATURE_IGN(Ext, uEdx, X86_CPUID_AMD_FEATURE_EDX_AXMMX);
-            CPUID_RAW_FEATURE_RET(Ext, uEdx, X86_CPUID_AMD_FEATURE_EDX_MMX);
-            CPUID_RAW_FEATURE_RET(Ext, uEdx, X86_CPUID_AMD_FEATURE_EDX_FXSR);
-            CPUID_RAW_FEATURE_RET(Ext, uEdx, X86_CPUID_AMD_FEATURE_EDX_FFXSR);
-            CPUID_RAW_FEATURE_IGN(Ext, uEdx, X86_CPUID_EXT_FEATURE_EDX_PAGE1GB);
-            CPUID_RAW_FEATURE_IGN(Ext, uEdx, X86_CPUID_EXT_FEATURE_EDX_RDTSCP);
-            CPUID_RAW_FEATURE_IGN(Ext, uEdx, RT_BIT_32(28) /*reserved*/);
-            CPUID_RAW_FEATURE_IGN(Ext, uEdx, X86_CPUID_EXT_FEATURE_EDX_LONG_MODE);
-            CPUID_RAW_FEATURE_RET(Ext, uEdx, X86_CPUID_AMD_FEATURE_EDX_3DNOW_EX);
-            CPUID_RAW_FEATURE_RET(Ext, uEdx, X86_CPUID_AMD_FEATURE_EDX_3DNOW);
-
-            /** @todo verify the rest as well. */
-        }
-    }
-
-
 
     /*
      * Verify that we can support the features already exposed to the guest on
@@ -5882,8 +5710,10 @@ int cpumR3LoadCpuIdInner(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, PCPUMCPUID
     if (cpumR3CpuIdGetLeafLegacy(paLeaves, cLeaves, UINT32_C(0x80000001), 0, &aGuestCpuIdExt[1]))
     {
         /** @todo deal with no 0x80000001 on the host. */
-        bool const fHostAmd  = ASMIsAmdCpuEx(aHostRawStd[0].uEbx, aHostRawStd[0].uEcx, aHostRawStd[0].uEdx);
-        bool const fGuestAmd = ASMIsAmdCpuEx(aGuestCpuIdExt[0].uEbx, aGuestCpuIdExt[0].uEcx, aGuestCpuIdExt[0].uEdx);
+        bool const fHostAmd  = ASMIsAmdCpuEx(aHostRawStd[0].uEbx, aHostRawStd[0].uEcx, aHostRawStd[0].uEdx)
+                            || ASMIsHygonCpuEx(aHostRawStd[0].uEbx, aHostRawStd[0].uEcx, aHostRawStd[0].uEdx);
+        bool const fGuestAmd = ASMIsAmdCpuEx(aGuestCpuIdExt[0].uEbx, aGuestCpuIdExt[0].uEcx, aGuestCpuIdExt[0].uEdx)
+                            || ASMIsHygonCpuEx(aGuestCpuIdExt[0].uEbx, aGuestCpuIdExt[0].uEcx, aGuestCpuIdExt[0].uEdx);
 
         /* CPUID(0x80000001).ecx */
         CPUID_GST_FEATURE_WRN(Ext, uEcx, X86_CPUID_EXT_FEATURE_ECX_LAHF_SAHF);   // -> EMU
@@ -6077,7 +5907,6 @@ int cpumR3LoadCpuIdInner(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, PCPUMCPUID
     MMHyperFree(pVM, pVM->cpum.s.GuestInfo.paCpuIdLeavesR3);
     pVM->cpum.s.GuestInfo.paCpuIdLeavesR3 = NULL;
     pVM->cpum.s.GuestInfo.paCpuIdLeavesR0 = NIL_RTR0PTR;
-    pVM->cpum.s.GuestInfo.paCpuIdLeavesRC = NIL_RTRCPTR;
     pVM->cpum.s.GuestInfo.DefCpuId = GuestDefCpuId;
     rc = cpumR3CpuIdInstallAndExplodeLeaves(pVM, &pVM->cpum.s, paLeaves, cLeaves, pMsrs);
     AssertLogRelRCReturn(rc, rc);
@@ -6425,6 +6254,8 @@ static DBGFREGSUBFIELD const g_aLeaf7Sub0EdxSubFields[] =
     DBGFREGSUBFIELD_RO("STIBP\0"        "Supports IA32_SPEC_CTRL.STIBP",                27, 1, 0),
     DBGFREGSUBFIELD_RO("FLUSH_CMD\0"    "Supports IA32_FLUSH_CMD",                      28, 1, 0),
     DBGFREGSUBFIELD_RO("ARCHCAP\0"      "Supports IA32_ARCH_CAP",                       29, 1, 0),
+    DBGFREGSUBFIELD_RO("CORECAP\0"      "Supports IA32_CORE_CAP",                       30, 1, 0),
+    DBGFREGSUBFIELD_RO("SSBD\0"         "Supports IA32_SPEC_CTRL.SSBD",                 31, 1, 0),
     DBGFREGSUBFIELD_TERMINATOR()
 };
 
@@ -6514,6 +6345,8 @@ static DBGFREGSUBFIELD const g_aExtLeaf1EcxSubFields[] =
     DBGFREGSUBFIELD_RO("PRFEXTNB\0"     "NB Performance Counter Extensions support",    24, 1, 0),
     DBGFREGSUBFIELD_RO("DATABPEXT\0"    "Data-access Breakpoint Extension",             26, 1, 0),
     DBGFREGSUBFIELD_RO("PERFTSC\0"      "Performance Time Stamp Counter",               27, 1, 0),
+    DBGFREGSUBFIELD_RO("PCX_L2I\0"      "L2I/L3 Performance Counter Extensions",        28, 1, 0),
+    DBGFREGSUBFIELD_RO("MWAITX\0"       "MWAITX and MONITORX instructions",             29, 1, 0),
     DBGFREGSUBFIELD_TERMINATOR()
 };
 
@@ -6533,6 +6366,7 @@ static DBGFREGSUBFIELD const g_aExtLeafAEdxSubFields[] =
     DBGFREGSUBFIELD_RO("AVIC\0"           "Advanced Virtual Interrupt Controller",      13, 1, 0),
     DBGFREGSUBFIELD_RO("VMSAVEVirt\0"     "VMSAVE and VMLOAD Virtualization",           15, 1, 0),
     DBGFREGSUBFIELD_RO("VGIF\0"           "Virtual Global-Interrupt Flag",              16, 1, 0),
+    DBGFREGSUBFIELD_RO("GMET\0"           "Guest Mode Execute Trap Extension",          17, 1, 0),
     DBGFREGSUBFIELD_TERMINATOR()
 };
 
@@ -6562,6 +6396,8 @@ static DBGFREGSUBFIELD const g_aExtLeaf8EbxSubFields[] =
     DBGFREGSUBFIELD_RO("CLZERO\0"       "Clear zero instruction (cacheline)",            0, 1, 0),
     DBGFREGSUBFIELD_RO("IRPerf\0"       "Instructions retired count support",            1, 1, 0),
     DBGFREGSUBFIELD_RO("XSaveErPtr\0"   "Save/restore error pointers (FXSAVE/RSTOR*)",   2, 1, 0),
+    DBGFREGSUBFIELD_RO("RDPRU\0"        "RDPRU instruction",                             4, 1, 0),
+    DBGFREGSUBFIELD_RO("MCOMMIT\0"      "MCOMMIT instruction",                           8, 1, 0),
     DBGFREGSUBFIELD_RO("IBPB\0"         "Supports the IBPB command in IA32_PRED_CMD",   12, 1, 0),
     DBGFREGSUBFIELD_TERMINATOR()
 };
@@ -7388,127 +7224,5 @@ DECLCALLBACK(void) cpumR3CpuIdInfo(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszA
     pCurLeaf = cpumR3CpuIdInfoRawRange(pHlp, paLeaves, cLeaves, pCurLeaf, UINT32_C(0xffffffff), "Unknown CPUID Leaves");
 }
 
-
-
-
-
-/*
- *
- *
- * PATM interfaces.
- * PATM interfaces.
- * PATM interfaces.
- *
- *
- */
-
-
-# if defined(VBOX_WITH_RAW_MODE) || defined(DOXYGEN_RUNNING)
-/** @name Patchmanager CPUID legacy table APIs
- * @{
- */
-
-/**
- * Gets a pointer to the default CPUID leaf.
- *
- * @returns Raw-mode pointer to the default CPUID leaf (read-only).
- * @param   pVM         The cross context VM structure.
- * @remark  Intended for PATM only.
- */
-VMMR3_INT_DECL(RCPTRTYPE(PCCPUMCPUID)) CPUMR3GetGuestCpuIdPatmDefRCPtr(PVM pVM)
-{
-    return (RCPTRTYPE(PCCPUMCPUID))VM_RC_ADDR(pVM, &pVM->cpum.s.GuestInfo.DefCpuId);
-}
-
-
-/**
- * Gets a number of standard CPUID leaves (PATM only).
- *
- * @returns Number of leaves.
- * @param   pVM         The cross context VM structure.
- * @remark  Intended for PATM - legacy, don't use in new code.
- */
-VMMR3_INT_DECL(uint32_t) CPUMR3GetGuestCpuIdPatmStdMax(PVM pVM)
-{
-    RT_NOREF_PV(pVM);
-    return RT_ELEMENTS(pVM->cpum.s.aGuestCpuIdPatmStd);
-}
-
-
-/**
- * Gets a number of extended CPUID leaves (PATM only).
- *
- * @returns Number of leaves.
- * @param   pVM         The cross context VM structure.
- * @remark  Intended for PATM - legacy, don't use in new code.
- */
-VMMR3_INT_DECL(uint32_t) CPUMR3GetGuestCpuIdPatmExtMax(PVM pVM)
-{
-    RT_NOREF_PV(pVM);
-    return RT_ELEMENTS(pVM->cpum.s.aGuestCpuIdPatmExt);
-}
-
-
-/**
- * Gets a number of centaur CPUID leaves.
- *
- * @returns Number of leaves.
- * @param   pVM         The cross context VM structure.
- * @remark  Intended for PATM - legacy, don't use in new code.
- */
-VMMR3_INT_DECL(uint32_t) CPUMR3GetGuestCpuIdPatmCentaurMax(PVM pVM)
-{
-    RT_NOREF_PV(pVM);
-    return RT_ELEMENTS(pVM->cpum.s.aGuestCpuIdPatmCentaur);
-}
-
-
-/**
- * Gets a pointer to the array of standard CPUID leaves.
- *
- * CPUMR3GetGuestCpuIdStdMax() give the size of the array.
- *
- * @returns Raw-mode pointer to the standard CPUID leaves (read-only).
- * @param   pVM         The cross context VM structure.
- * @remark  Intended for PATM - legacy, don't use in new code.
- */
-VMMR3_INT_DECL(RCPTRTYPE(PCCPUMCPUID)) CPUMR3GetGuestCpuIdPatmStdRCPtr(PVM pVM)
-{
-    return RCPTRTYPE(PCCPUMCPUID)VM_RC_ADDR(pVM, &pVM->cpum.s.aGuestCpuIdPatmStd[0]);
-}
-
-
-/**
- * Gets a pointer to the array of extended CPUID leaves.
- *
- * CPUMGetGuestCpuIdExtMax() give the size of the array.
- *
- * @returns Raw-mode pointer to the extended CPUID leaves (read-only).
- * @param   pVM         The cross context VM structure.
- * @remark  Intended for PATM - legacy, don't use in new code.
- */
-VMMR3_INT_DECL(RCPTRTYPE(PCCPUMCPUID)) CPUMR3GetGuestCpuIdPatmExtRCPtr(PVM pVM)
-{
-    return (RCPTRTYPE(PCCPUMCPUID))VM_RC_ADDR(pVM, &pVM->cpum.s.aGuestCpuIdPatmExt[0]);
-}
-
-
-/**
- * Gets a pointer to the array of centaur CPUID leaves.
- *
- * CPUMGetGuestCpuIdCentaurMax() give the size of the array.
- *
- * @returns Raw-mode pointer to the centaur CPUID leaves (read-only).
- * @param   pVM         The cross context VM structure.
- * @remark  Intended for PATM - legacy, don't use in new code.
- */
-VMMR3_INT_DECL(RCPTRTYPE(PCCPUMCPUID)) CPUMR3GetGuestCpuIdPatmCentaurRCPtr(PVM pVM)
-{
-    return (RCPTRTYPE(PCCPUMCPUID))VM_RC_ADDR(pVM, &pVM->cpum.s.aGuestCpuIdPatmCentaur[0]);
-}
-
-/** @} */
-# endif /* VBOX_WITH_RAW_MODE || DOXYGEN_RUNNING */
-
-#endif /* VBOX_IN_VMM */
+#endif /* !IN_VBOX_CPU_REPORT */
 

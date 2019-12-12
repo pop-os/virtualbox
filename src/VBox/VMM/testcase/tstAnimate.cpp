@@ -25,9 +25,6 @@
 #include <VBox/vmm/cfgm.h>
 #include <VBox/vmm/em.h>
 #include <VBox/vmm/pgm.h>
-#ifdef VBOX_WITH_REM
-# include <VBox/vmm/rem.h>
-#endif
 #include <VBox/vmm/ssm.h>
 #include <VBox/vmm/dbgf.h>
 #include <VBox/err.h>
@@ -196,7 +193,7 @@ static DECLCALLBACK(int) scriptRun(PVM pVM, RTFILE File)
 {
     RTPrintf("info: running script...\n");
     uint64_t cb;
-    int rc = RTFileGetSize(File, &cb);
+    int rc = RTFileQuerySize(File, &cb);
     if (RT_SUCCESS(rc))
     {
         if (cb == 0)
@@ -803,7 +800,7 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
     {
         if (FileRawMem != NIL_RTFILE)
         {
-            rc = RTFileGetSize(FileRawMem, &cbMem);
+            rc = RTFileQuerySize(FileRawMem, &cbMem);
             AssertReleaseRC(rc);
             cbMem -= offRawMem;
             cbMem &= ~(PAGE_SIZE - 1);
@@ -872,11 +869,7 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                      */
                     RTPrintf("info: powering on the VM...\n");
                     RTLogGroupSettings(NULL, "+REM_DISAS.e.l.f");
-#ifdef VBOX_WITH_REM
-                    rc = REMR3DisasEnableStepping(pVM, true);
-#else
-                    rc = VERR_NOT_IMPLEMENTED; /** @todo need some EM single-step indicator */
-#endif
+                    rc = VERR_NOT_IMPLEMENTED; /** @todo need some EM single-step indicator (was REMR3DisasEnableStepping) */
                     if (RT_SUCCESS(rc))
                     {
                         rc = EMR3SetExecutionPolicy(pUVM, EMEXECPOLICY_RECOMPILE_RING0, true); AssertReleaseRC(rc);

@@ -25,15 +25,11 @@
 #include "QIWithRetranslateUI.h"
 
 /* Forward declarations: */
-class QAction;
 class QTreeWidgetItem;
-class QLineEdit;
 class QIComboBox;
-class QIDialogButtonBox;
 class QIToolButton;
 class QITreeWidget;
-class UIMediumItem;
-
+class UISearchLineEdit;
 
 /** QWidget extension providing a simple way to enter a earch term and search type for medium searching
  *  in virtual media manager, medium selection dialog, etc. */
@@ -59,7 +55,9 @@ public:
     UIMediumSearchWidget(QWidget *pParent = 0);
     SearchType searchType() const;
     QString searchTerm() const;
-    void    search(QITreeWidget* pTreeWidget);
+    /** Performs the search on the items of the @p pTreeWidget. If @p is true
+      * then the next marched item is selected. */
+    void    search(QITreeWidget* pTreeWidget, bool fGotoNext = true);
 
  protected:
 
@@ -74,18 +72,23 @@ public:
 private:
 
     void    prepareWidgets();
+    /** Marks/unmarks the items of @p itemList depending on @p fMark. */
     void    markUnmarkItems(QList<QTreeWidgetItem*> &itemList, bool fMark);
     void    setUnderlineItemText(QTreeWidgetItem* pItem, bool fUnderline);
     /** Increases (or decreases if @p fNext is false) the m_iScrollToIndex and
      *  takes care of the necessary decoration changes to mark the current item. */
     void    goToNextPrevious(bool fNext);
+    /** Updates the feedback text of th line edit that shows # of matches. */
+    void    updateSearchLineEdit(int iMatchCount, int iScrollToIndex);
+
     QIComboBox       *m_pSearchComboxBox;
-    QLineEdit        *m_pSearchTermLineEdit;
+    UISearchLineEdit *m_pSearchTermLineEdit;
     QIToolButton     *m_pShowNextMatchButton;
     QIToolButton     *m_pShowPreviousMatchButton;
 
     QList<QTreeWidgetItem*> m_matchedItemList;
     QITreeWidget           *m_pTreeWidget;
+    /** The index to the matched item (in m_matchedItemList) which is currently selected/scrolled to. */
     int                     m_iScrollToIndex;
 };
 

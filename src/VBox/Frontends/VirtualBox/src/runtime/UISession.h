@@ -31,6 +31,7 @@
 /* GUI includes: */
 #include "UIExtraDataDefs.h"
 #include "UIMediumDefs.h"
+#include "UIMousePointerShapeData.h"
 
 /* COM includes: */
 #include "COMEnums.h"
@@ -133,10 +134,10 @@ public:
     WId mainMachineWindowId() const;
     UIMachineWindow *activeMachineWindow() const;
 
-    /** Returns currently cached mouse cursor. */
-    QCursor cursor() const { return m_cursor; }
-    /** Returns currently cached mouse cursor pixmap. */
-    QPixmap cursorPixmap() const { return m_cursorPixmap; }
+    /** Returns currently cached mouse cursor shape pixmap. */
+    QPixmap cursorShapePixmap() const { return m_cursorShapePixmap; }
+    /** Returns currently cached mouse cursor mask pixmap. */
+    QPixmap cursorMaskPixmap() const { return m_cursorMaskPixmap; }
     /** Returns currently cached mouse cursor size. */
     QSize cursorSize() const { return m_cursorSize; }
     /** Returns currently cached mouse cursor hotspot. */
@@ -297,7 +298,7 @@ public:
     QList<int> listOfVisibleWindows() const;
 
     /** Returns a vector of media attached to the machine. */
-    CMediumVector getMachineMedia() const;
+    CMediumVector machineMedia() const;
 
 signals:
 
@@ -335,6 +336,8 @@ signals:
     void sigCPUExecutionCapChange();
     void sigGuestMonitorChange(KGuestMonitorChangedEventType changeType, ulong uScreenId, QRect screenGeo);
     void sigAudioAdapterChange();
+    void sigClipboardModeChange(KClipboardMode enmMode);
+    void sigDnDModeChange(KDnDMode enmMode);
 
     /** Notifies about host-screen count change. */
     void sigHostScreenCountChange();
@@ -370,8 +373,8 @@ private slots:
 #endif /* RT_OS_DARWIN */
 
     /* Console events slots */
-    /** Handles signal about mouse pointer become @a fVisible and his shape changed to @a fAlpha, @a hotCorner, @a size and @a shape. */
-    void sltMousePointerShapeChange(bool fVisible, bool fAlpha, QPoint hotCorner, QSize size, QVector<uint8_t> shape);
+    /** Handles signal about mouse pointer @a shapeData change. */
+    void sltMousePointerShapeChange(const UIMousePointerShapeData &shapeData);
     /** Handles signal about mouse capability change to @a fSupportsAbsolute, @a fSupportsRelative, @a fSupportsMultiTouch and @a fNeedsHostCursor. */
     void sltMouseCapabilityChange(bool fSupportsAbsolute, bool fSupportsRelative, bool fSupportsMultiTouch, bool fNeedsHostCursor);
     /** Handles signal about guest request to change the cursor position to @a uX * @a uY.
@@ -387,6 +390,10 @@ private slots:
     void sltHandleStorageDeviceChange(const CMediumAttachment &attachment, bool fRemoved, bool fSilent);
     /** Handles audio adapter change. */
     void sltAudioAdapterChange();
+    /** Handles clip board mode change. */
+    void sltClipboardModeChange(KClipboardMode enmMode);
+    /** Handles drag and drop mode change. */
+    void sltDnDModeChange(KDnDMode enmMode);
 
     /* Handlers: Display reconfiguration stuff: */
 #ifdef RT_OS_DARWIN
@@ -436,8 +443,10 @@ private:
     void updateMenu();
 #endif /* VBOX_WS_MAC */
 
+    /** Updates mouse pointer shape. */
+    void updateMousePointerShape();
+
     /* Common helpers: */
-    void setPointerShape(const uchar *pShapeData, bool fHasAlpha, uint uXHot, uint uYHot, uint uWidth, uint uHeight);
     bool preprocessInitialization();
     bool mountAdHocImage(KDeviceType enmDeviceType, UIMediumDeviceType enmMediumType, const QString &strMediumName);
     bool postprocessInitialization();
@@ -498,10 +507,10 @@ private:
     KMachineState m_machineStatePrevious;
     KMachineState m_machineState;
 
-    /** Holds cached mouse cursor. */
-    QCursor  m_cursor;
-    /** Holds cached mouse cursor pixmap. */
-    QPixmap  m_cursorPixmap;
+    /** Holds cached mouse cursor shape pixmap. */
+    QPixmap  m_cursorShapePixmap;
+    /** Holds cached mouse cursor mask pixmap. */
+    QPixmap  m_cursorMaskPixmap;
     /** Holds cached mouse cursor size. */
     QSize    m_cursorSize;
     /** Holds cached mouse cursor hotspot. */
@@ -582,6 +591,8 @@ private:
     bool m_fIsHidingHostPointer : 1;
     /** Holds whether the @a m_cursorPosition is valid and could be used by the GUI now. */
     bool m_fIsValidCursorPositionPresent : 1;
+    /** Holds the mouse pointer shape data. */
+    UIMousePointerShapeData  m_shapeData;
 
     /** Copy of IMachineDebugger::ExecutionEngine */
     KVMExecutionEngine m_enmVMExecutionEngine;

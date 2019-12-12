@@ -19,17 +19,13 @@
 #include <QDrag>
 #include <QGraphicsScene>
 #include <QGraphicsSceneContextMenuEvent>
-#include <QGraphicsSceneMouseEvent>
 #include <QGraphicsView>
-#include <QPropertyAnimation>
 #include <QScrollBar>
-#include <QRegExp>
 #include <QTimer>
-#include <QParallelAnimationGroup>
 
 /* GUI includes: */
 #include "QIMessageBox.h"
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #include "UIActionPoolManager.h"
 #include "UIChooser.h"
 #include "UIChooserHandlerMouse.h"
@@ -38,32 +34,27 @@
 #include "UIChooserItemGlobal.h"
 #include "UIChooserItemMachine.h"
 #include "UIChooserModel.h"
-#include "UIExtraDataDefs.h"
+#include "UIChooserNode.h"
+#include "UIChooserNodeGroup.h"
+#include "UIChooserNodeGlobal.h"
+#include "UIChooserNodeMachine.h"
+#include "UIChooserView.h"
 #include "UIExtraDataManager.h"
 #include "UIMessageCenter.h"
 #include "UIModalWindowManager.h"
 #include "UIVirtualBoxManagerWidget.h"
-#include "UIVirtualBoxEventHandler.h"
 #include "UIWizardNewVM.h"
 
 /* COM includes: */
 #include "CExtPack.h"
 #include "CExtPackManager.h"
-#include "CMachine.h"
-#include "CMedium.h"
-#include "CVirtualBox.h"
-
 
 /* Type defs: */
 typedef QSet<QString> UIStringSet;
 
 
-/*********************************************************************************************************************************
-*   Class UIChooserModel implementation.                                                                                         *
-*********************************************************************************************************************************/
-
 UIChooserModel:: UIChooserModel(UIChooser *pParent)
-    : QObject(pParent)
+    : UIChooserAbstractModel(pParent)
     , m_pChooser(pParent)
     , m_pScene(0)
     , m_pMouseHandler(0)
@@ -71,54 +62,42 @@ UIChooserModel:: UIChooserModel(UIChooser *pParent)
     , m_pContextMenuGlobal(0)
     , m_pContextMenuGroup(0)
     , m_pContextMenuMachine(0)
-    , m_fSliding(false)
-    , m_pLeftRoot(0)
-    , m_pRightRoot(0)
-    , m_pAfterSlidingFocus(0)
+    , m_iCurrentSearchResultIndex(-1)
     , m_iScrollingTokenSize(30)
     , m_fIsScrollingInProgress(false)
-    , m_pLookupTimer(0)
-    , m_iGlobalItemHeightHint(-1)
 {
-    /* Prepare: */
     prepare();
 }
 
 UIChooserModel::~UIChooserModel()
 {
-    /* Cleanup: */
     cleanup();
 }
 
 void UIChooserModel::init()
 {
-    /* Load group tree: */
-    loadGroupTree();
+    /* Call to base-class: */
+    UIChooserAbstractModel::init();
 
-    /* Update navigation: */
-    updateNavigation();
-
-    /* Update layout: */
+    /* Build tree for main root: */
+    buildTreeForMainRoot();
+    updateNavigationItemList();
     updateLayout();
 
-    /* Load last selected item: */
+    /* Load last selected-item: */
     loadLastSelectedItem();
 }
 
 void UIChooserModel::deinit()
 {
-    /* Save last selected item: */
+    /* Save last selected-item: */
     saveLastSelectedItem();
 
-    /* Currently we are not saving group descriptors
-     * (which reflecting group toggle-state) on-the-fly,
-     * so, for now we are additionally save group orders
-     * when exiting application: */
-    saveGroupOrders();
+    /* Clear list of selected-items: */
+    clearSelectedItems();
 
-    /* Make sure all saving steps complete: */
-    makeSureGroupDefinitionsSaveIsFinished();
-    makeSureGroupOrdersSaveIsFinished();
+    /* Call to base-class: */
+    UIChooserAbstractModel::deinit();
 }
 
 UIChooser *UIChooserModel::chooser() const
@@ -128,7 +107,7 @@ UIChooser *UIChooserModel::chooser() const
 
 UIActionPool *UIChooserModel::actionPool() const
 {
-    return chooser()->actionPool();
+    return chooser() ? chooser()->actionPool() : 0;
 }
 
 QGraphicsScene *UIChooserModel::scene() const
@@ -136,16 +115,19 @@ QGraphicsScene *UIChooserModel::scene() const
     return m_pScene;
 }
 
+UIChooserView *UIChooserModel::view() const
+{
+    return scene() && !scene()->views().isEmpty() ? qobject_cast<UIChooserView*>(scene()->views().first()) : 0;
+}
+
 QPaintDevice *UIChooserModel::paintDevice() const
 {
-    if (scene() && !scene()->views().isEmpty())
-        return scene()->views().first();
-    return 0;
+    return scene() && !scene()->views().isEmpty() ? scene()->views().first() : 0;
 }
 
 QGraphicsItem *UIChooserModel::itemAt(const QPointF &position, const QTransform &deviceTransform /* = QTransform() */) const
 {
-    return scene()->itemAt(position, deviceTransform);
+    return scene() ? scene()->itemAt(position, deviceTransform) : 0;
 }
 
 void UIChooserModel::handleToolButtonClick(UIChooserItem *pItem)
@@ -153,67 +135,78 @@ void UIChooserModel::handleToolButtonClick(UIChooserItem *pItem)
     switch (pItem->type())
     {
         case UIChooserItemType_Global:
-            emit sigToolMenuRequested(UIToolClass_Global, pItem->geometry().topRight().toPoint());
+            emit sigToolMenuRequested(UIToolClass_Global, pItem->mapToScene(QPointF(pItem->size().width(), 0)).toPoint());
             break;
-        case UIChooserItemType_Group:
         case UIChooserItemType_Machine:
-            emit sigToolMenuRequested(UIToolClass_Machine, pItem->geometry().topRight().toPoint());
+            emit sigToolMenuRequested(UIToolClass_Machine, pItem->mapToScene(QPointF(pItem->size().width(), 0)).toPoint());
             break;
         default:
             break;
     }
 }
 
-void UIChooserModel::setCurrentItems(const QList<UIChooserItem*> &items)
+void UIChooserModel::handlePinButtonClick(UIChooserItem *pItem)
+{
+    switch (pItem->type())
+    {
+        case UIChooserItemType_Global:
+            pItem->setFavorite(!pItem->isFavorite());
+            break;
+        default:
+            break;
+    }
+}
+
+void UIChooserModel::setSelectedItems(const QList<UIChooserItem*> &items)
 {
     /* Is there something changed? */
-    if (m_currentItems == items)
+    if (m_selectedItems == items)
         return;
 
-    /* Remember old current-item list: */
-    const QList<UIChooserItem*> oldCurrentItems = m_currentItems;
+    /* Remember old selected-item list: */
+    const QList<UIChooserItem*> oldCurrentItems = m_selectedItems;
 
-    /* Clear current current-item list: */
-    m_currentItems.clear();
+    /* Clear current selected-item list: */
+    m_selectedItems.clear();
 
     /* Iterate over all the passed items: */
     foreach (UIChooserItem *pItem, items)
     {
-        /* Add item to current list if navigation list contains it: */
-        if (pItem && navigationList().contains(pItem))
-            m_currentItems << pItem;
+        /* Add item to current selected-item list if navigation list contains it: */
+        if (pItem && navigationItems().contains(pItem))
+            m_selectedItems << pItem;
         else
             AssertMsgFailed(("Passed item is not in navigation list!"));
     }
 
     /* Is there something really changed? */
-    if (oldCurrentItems == m_currentItems)
+    if (oldCurrentItems == m_selectedItems)
         return;
 
     /* Update all the old items (they are no longer selected): */
     foreach (UIChooserItem *pItem, oldCurrentItems)
         pItem->update();
     /* Update all the new items (they are selected now): */
-    foreach (UIChooserItem *pItem, m_currentItems)
+    foreach (UIChooserItem *pItem, m_selectedItems)
         pItem->update();
 
     /* Notify about selection changes: */
     emit sigSelectionChanged();
 }
 
-void UIChooserModel::setCurrentItem(UIChooserItem *pItem)
+void UIChooserModel::setSelectedItem(UIChooserItem *pItem)
 {
     /* Call for wrapper above: */
     QList<UIChooserItem*> items;
     if (pItem)
         items << pItem;
-    setCurrentItems(items);
+    setSelectedItems(items);
 
-    /* Move focus to current-item: */
-    setFocusItem(currentItem());
+    /* Make selected-item current one as well: */
+    setCurrentItem(firstSelectedItem());
 }
 
-void UIChooserModel::setCurrentItem(const QString &strDefinition)
+void UIChooserModel::setSelectedItem(const QString &strDefinition)
 {
     /* Ignore if empty definition passed: */
     if (strDefinition.isEmpty())
@@ -227,123 +220,123 @@ void UIChooserModel::setCurrentItem(const QString &strDefinition)
     if (strItemType == "g")
     {
         /* Search for group-item with passed descriptor (name): */
-        pItem = mainRoot()->searchForItem(strItemDescriptor,
-                                          UIChooserItemSearchFlag_Group |
-                                          UIChooserItemSearchFlag_ExactName);
+        pItem = root()->searchForItem(strItemDescriptor,
+                                      UIChooserItemSearchFlag_Group |
+                                      UIChooserItemSearchFlag_ExactName);
     }
     /* Its a machine-item definition? */
     else if (strItemType == "m")
     {
         /* Check if machine-item with passed descriptor (name or id) registered: */
-        CMachine comMachine = vboxGlobal().virtualBox().FindMachine(strItemDescriptor);
+        CMachine comMachine = uiCommon().virtualBox().FindMachine(strItemDescriptor);
         if (!comMachine.isNull())
         {
             /* Search for machine-item with required name: */
-            pItem = mainRoot()->searchForItem(comMachine.GetName(),
-                                              UIChooserItemSearchFlag_Machine |
-                                              UIChooserItemSearchFlag_ExactName);
+            pItem = root()->searchForItem(comMachine.GetName(),
+                                          UIChooserItemSearchFlag_Machine |
+                                          UIChooserItemSearchFlag_ExactName);
         }
     }
 
     /* Make sure found item is in navigation list: */
-    if (!pItem || !navigationList().contains(pItem))
+    if (!pItem || !navigationItems().contains(pItem))
         return;
 
     /* Call for wrapper above: */
-    setCurrentItem(pItem);
+    setSelectedItem(pItem);
 }
 
-void UIChooserModel::unsetCurrentItems()
+void UIChooserModel::clearSelectedItems()
 {
     /* Call for wrapper above: */
-    setCurrentItem(0);
+    setSelectedItem(0);
 }
 
-void UIChooserModel::addToCurrentItems(UIChooserItem *pItem)
+void UIChooserModel::addToSelectedItems(UIChooserItem *pItem)
 {
     /* Call for wrapper above: */
-    setCurrentItems(QList<UIChooserItem*>(m_currentItems) << pItem);
+    setSelectedItems(QList<UIChooserItem*>(m_selectedItems) << pItem);
 }
 
-void UIChooserModel::removeFromCurrentItems(UIChooserItem *pItem)
+void UIChooserModel::removeFromSelectedItems(UIChooserItem *pItem)
 {
     /* Prepare filtered list: */
-    QList<UIChooserItem*> list(m_currentItems);
+    QList<UIChooserItem*> list(m_selectedItems);
     list.removeAll(pItem);
     /* Call for wrapper above: */
-    setCurrentItems(list);
+    setSelectedItems(list);
 }
 
-UIChooserItem *UIChooserModel::currentItem() const
+UIChooserItem *UIChooserModel::firstSelectedItem() const
 {
-    /* Return first of current items, if any: */
-    return currentItems().isEmpty() ? 0 : currentItems().first();
+    /* Return first of selected-items, if any: */
+    return selectedItems().isEmpty() ? 0 : selectedItems().first();
 }
 
-const QList<UIChooserItem*> &UIChooserModel::currentItems() const
+const QList<UIChooserItem*> &UIChooserModel::selectedItems() const
 {
-    return m_currentItems;
+    return m_selectedItems;
 }
 
-UIVirtualMachineItem *UIChooserModel::currentMachineItem() const
+UIVirtualMachineItem *UIChooserModel::firstSelectedMachineItem() const
 {
-    /* Return first machine-item of the current-item: */
-    return   currentItem() && currentItem()->firstMachineItem()
-           ? currentItem()->firstMachineItem()->toMachineItem()
+    /* Return first machine-item of the selected-item: */
+    return   firstSelectedItem() && firstSelectedItem()->firstMachineItem() && firstSelectedItem()->firstMachineItem()->node()
+           ? firstSelectedItem()->firstMachineItem()->node()->toMachineNode()
            : 0;
 }
 
-QList<UIVirtualMachineItem*> UIChooserModel::currentMachineItems() const
+QList<UIVirtualMachineItem*> UIChooserModel::selectedMachineItems() const
 {
-    /* Gather list of current unique machine-items: */
+    /* Gather list of selected unique machine-items: */
     QList<UIChooserItemMachine*> currentMachineItemList;
-    UIChooserItemMachine::enumerateMachineItems(currentItems(), currentMachineItemList,
+    UIChooserItemMachine::enumerateMachineItems(selectedItems(), currentMachineItemList,
                                                 UIChooserItemMachineEnumerationFlag_Unique);
 
     /* Reintegrate machine-items into valid format: */
     QList<UIVirtualMachineItem*> currentMachineList;
     foreach (UIChooserItemMachine *pItem, currentMachineItemList)
-        currentMachineList << pItem;
+        currentMachineList << pItem->node()->toMachineNode();
     return currentMachineList;
 }
 
 bool UIChooserModel::isGroupItemSelected() const
 {
-    return currentItem() && currentItem()->type() == UIChooserItemType_Group;
+    return firstSelectedItem() && firstSelectedItem()->type() == UIChooserItemType_Group;
 }
 
 bool UIChooserModel::isGlobalItemSelected() const
 {
-    return currentItem() && currentItem()->type() == UIChooserItemType_Global;
+    return firstSelectedItem() && firstSelectedItem()->type() == UIChooserItemType_Global;
 }
 
 bool UIChooserModel::isMachineItemSelected() const
 {
-    return currentItem() && currentItem()->type() == UIChooserItemType_Machine;
+    return firstSelectedItem() && firstSelectedItem()->type() == UIChooserItemType_Machine;
 }
 
 bool UIChooserModel::isSingleGroupSelected() const
 {
-    return    currentItems().size() == 1
-           && currentItem()->type() == UIChooserItemType_Group;
+    return    selectedItems().size() == 1
+           && firstSelectedItem()->type() == UIChooserItemType_Group;
 }
 
 bool UIChooserModel::isAllItemsOfOneGroupSelected() const
 {
     /* Make sure at least one item selected: */
-    if (currentItems().isEmpty())
+    if (selectedItems().isEmpty())
         return false;
 
     /* Determine the parent group of the first item: */
-    UIChooserItem *pFirstParent = currentItem()->parentItem();
+    UIChooserItem *pFirstParent = firstSelectedItem()->parentItem();
 
     /* Make sure this parent is not main root-item: */
-    if (pFirstParent == mainRoot())
+    if (pFirstParent == root())
         return false;
 
-    /* Enumerate current-item set: */
+    /* Enumerate selected-item set: */
     QSet<UIChooserItem*> currentItemSet;
-    foreach (UIChooserItem *pCurrentItem, currentItems())
+    foreach (UIChooserItem *pCurrentItem, selectedItems())
         currentItemSet << pCurrentItem;
 
     /* Enumerate first parent children set: */
@@ -357,28 +350,28 @@ bool UIChooserModel::isAllItemsOfOneGroupSelected() const
 
 UIChooserItem *UIChooserModel::findClosestUnselectedItem() const
 {
-    /* Take the focus item (if any) as a starting point
-     * and find the closest non-selected item. */
-    UIChooserItem *pItem = focusItem();
+    /* Take the current-item (if any) as a starting point
+     * and find the closest non-selected-item. */
+    UIChooserItem *pItem = currentItem();
     if (!pItem)
-        pItem = currentItem();
+        pItem = firstSelectedItem();
     if (pItem)
     {
-        int idxBefore = navigationList().indexOf(pItem) - 1;
+        int idxBefore = navigationItems().indexOf(pItem) - 1;
         int idxAfter  = idxBefore + 2;
-        while (idxBefore >= 0 || idxAfter < navigationList().size())
+        while (idxBefore >= 0 || idxAfter < navigationItems().size())
         {
             if (idxBefore >= 0)
             {
-                pItem = navigationList().at(idxBefore);
-                if (!currentItems().contains(pItem))
+                pItem = navigationItems().at(idxBefore);
+                if (!selectedItems().contains(pItem) && pItem->type() == UIChooserItemType_Machine)
                     return pItem;
                 --idxBefore;
             }
-            if (idxAfter < navigationList().size())
+            if (idxAfter < navigationItems().size())
             {
-                pItem = navigationList().at(idxAfter);
-                if (!currentItems().contains(pItem))
+                pItem = navigationItems().at(idxAfter);
+                if (!selectedItems().contains(pItem) && pItem->type() == UIChooserItemType_Machine)
                     return pItem;
                 ++idxAfter;
             }
@@ -389,163 +382,136 @@ UIChooserItem *UIChooserModel::findClosestUnselectedItem() const
 
 void UIChooserModel::makeSureSomeItemIsSelected()
 {
-    /* Make sure selection item list is never empty
-     * if at least one item (for example 'focus') present: */
-    if (!currentItem() && focusItem())
-        setCurrentItem(focusItem());
+    /* Make sure selection list is never empty if at
+     * least one item (for example 'current') present: */
+    if (!firstSelectedItem() && currentItem())
+        setSelectedItem(currentItem());
 }
 
-void UIChooserModel::setFocusItem(UIChooserItem *pItem)
+void UIChooserModel::setCurrentItem(UIChooserItem *pItem)
 {
     /* Make sure real focus unset: */
     clearRealFocus();
 
     /* Is there something changed? */
-    if (m_pFocusItem == pItem)
+    if (m_pCurrentItem == pItem)
         return;
 
-    /* Remember old focus-item: */
-    UIChooserItem *pOldFocusItem = m_pFocusItem;
+    /* Remember old current-item: */
+    UIChooserItem *pOldCurrentItem = m_pCurrentItem;
 
-    /* Set new focus-item: */
-    m_pFocusItem = pItem;
+    /* Set new current-item: */
+    m_pCurrentItem = pItem;
 
-    /* Disconnect old focus-item (if any): */
-    if (pOldFocusItem)
-        disconnect(pOldFocusItem, SIGNAL(destroyed(QObject*)), this, SLOT(sltFocusItemDestroyed()));
-    /* Connect new focus-item (if any): */
-    if (m_pFocusItem)
-        connect(m_pFocusItem, SIGNAL(destroyed(QObject*)), this, SLOT(sltFocusItemDestroyed()));
+    /* Disconnect old current-item (if any): */
+    if (pOldCurrentItem)
+        disconnect(pOldCurrentItem, &UIChooserItem::destroyed, this, &UIChooserModel::sltCurrentItemDestroyed);
+    /* Connect new current-item (if any): */
+    if (m_pCurrentItem)
+        connect(m_pCurrentItem.data(), &UIChooserItem::destroyed, this, &UIChooserModel::sltCurrentItemDestroyed);
 
-    /* Notify listeners about focus change: */
-    emit sigFocusChanged();
+    /* If dialog is visible and item exists => make it visible as well: */
+    if (view() && view()->window() && root())
+        if (view()->window()->isVisible() && pItem)
+            root()->toGroupItem()->makeSureItemIsVisible(pItem);
 }
 
-UIChooserItem *UIChooserModel::focusItem() const
+UIChooserItem *UIChooserModel::currentItem() const
 {
-    return m_pFocusItem;
+    return m_pCurrentItem;
 }
 
-const QList<UIChooserItem*> &UIChooserModel::navigationList() const
+const QList<UIChooserItem*> &UIChooserModel::navigationItems() const
 {
-    return m_navigationList;
+    return m_navigationItems;
 }
 
-void UIChooserModel::removeFromNavigationList(UIChooserItem *pItem)
+void UIChooserModel::removeFromNavigationItems(UIChooserItem *pItem)
 {
     AssertMsg(pItem, ("Passed item is invalid!"));
-    m_navigationList.removeAll(pItem);
+    m_navigationItems.removeAll(pItem);
 }
 
-void UIChooserModel::updateNavigation()
+void UIChooserModel::updateNavigationItemList()
 {
-    m_navigationList.clear();
-    m_navigationList = createNavigationList(root());
+    m_navigationItems.clear();
+    m_navigationItems = createNavigationItemList(root());
 }
 
-UIChooserItem *UIChooserModel::mainRoot() const
+void UIChooserModel::performSearch(const QString &strSearchTerm, int iItemSearchFlags)
 {
-    return m_rootStack.first();
+    /* Call to base-class: */
+    UIChooserAbstractModel::performSearch(strSearchTerm, iItemSearchFlags);
+
+    /* Select 1st found item: */
+    selectSearchResult(true);
+}
+
+QList<UIChooserNode*> UIChooserModel::resetSearch()
+{
+    /* Reset search result index: */
+    m_iCurrentSearchResultIndex = -1;
+
+    /* Call to base-class: */
+    return UIChooserAbstractModel::resetSearch();
+}
+
+void UIChooserModel::selectSearchResult(bool fIsNext)
+{
+    /* If nothing was found: */
+    if (searchResult().isEmpty())
+    {
+        /* Reset search result index: */
+        m_iCurrentSearchResultIndex = -1;
+    }
+    /* If something was found: */
+    else
+    {
+        /* Advance index forward: */
+        if (fIsNext)
+        {
+            if (++m_iCurrentSearchResultIndex >= searchResult().size())
+                m_iCurrentSearchResultIndex = 0;
+        }
+        /* Advance index backward: */
+        else
+        {
+            if (--m_iCurrentSearchResultIndex < 0)
+                m_iCurrentSearchResultIndex = searchResult().size() - 1;
+        }
+
+        /* If found item exists: */
+        if (searchResult().at(m_iCurrentSearchResultIndex))
+        {
+            /* Select curresponding found item, make sure it's visible, scroll if necessary: */
+            UIChooserItem *pItem = searchResult().at(m_iCurrentSearchResultIndex)->item();
+            if (pItem)
+            {
+                pItem->makeSureItsVisible();
+                setSelectedItem(pItem);
+            }
+        }
+    }
+
+    /* Update the search widget's match count(s): */
+    if (view())
+        view()->setSearchResultsCount(searchResult().size(), m_iCurrentSearchResultIndex);
+}
+
+void UIChooserModel::setSearchWidgetVisible(bool fVisible)
+{
+    if (view())
+        view()->setSearchWidgetVisible(fVisible);
 }
 
 UIChooserItem *UIChooserModel::root() const
 {
-    return m_rootStack.last();
-}
-
-void UIChooserModel::indentRoot(UIChooserItem *pNewRootItem)
-{
-    /* Do nothing if sliding already: */
-    if (m_fSliding)
-        return;
-
-    /* We are sliding: */
-    m_fSliding = true;
-    emit sigSlidingStarted();
-
-    /* Hiding root: */
-    root()->hide();
-
-    /* Create left root: */
-    bool fLeftRootIsMain = root() == mainRoot();
-    m_pLeftRoot = new UIChooserItemGroup(scene(), root()->toGroupItem(), fLeftRootIsMain);
-    m_pLeftRoot->setPos(0, 0);
-    m_pLeftRoot->resize(root()->geometry().size());
-    if (fLeftRootIsMain)
-    {
-        foreach (UIChooserItem *pItem, m_pLeftRoot->items(UIChooserItemType_Global))
-            pItem->toGlobalItem()->setHeightHint(m_iGlobalItemHeightHint);
-    }
-
-    /* Create right root: */
-    m_pRightRoot = new UIChooserItemGroup(scene(), pNewRootItem->toGroupItem(), false);
-    m_pRightRoot->setPos(root()->geometry().width(), 0);
-    m_pRightRoot->resize(root()->geometry().size());
-    m_pRightRoot->setLevel(pNewRootItem->level() + 1);
-
-    /* Indent root: */
-    root()->setRoot(false);
-    m_rootStack << pNewRootItem;
-    root()->setRoot(true);
-    m_pAfterSlidingFocus = root()->items().first();
-
-    /* Slide root: */
-    slideRoot(true);
-}
-
-void UIChooserModel::unindentRoot()
-{
-    /* Do nothing if sliding already: */
-    if (m_fSliding)
-        return;
-
-    /* We are sliding: */
-    m_fSliding = true;
-    emit sigSlidingStarted();
-
-    /* Hiding root: */
-    root()->hide();
-    root()->setRoot(false);
-
-    /* Create left root: */
-    bool fLeftRootIsMain = m_rootStack.at(m_rootStack.size() - 2) == mainRoot();
-    m_pLeftRoot = new UIChooserItemGroup(scene(), m_rootStack.at(m_rootStack.size() - 2)->toGroupItem(), fLeftRootIsMain);
-    m_pLeftRoot->setPos(- root()->geometry().width(), 0);
-    m_pLeftRoot->resize(root()->geometry().size());
-    if (fLeftRootIsMain)
-    {
-        foreach (UIChooserItem *pItem, m_pLeftRoot->items(UIChooserItemType_Global))
-            pItem->toGlobalItem()->setHeightHint(m_iGlobalItemHeightHint);
-    }
-
-    /* Create right root: */
-    m_pRightRoot = new UIChooserItemGroup(scene(), root()->toGroupItem(), false);
-    m_pRightRoot->setPos(0, 0);
-    m_pRightRoot->resize(root()->geometry().size());
-    m_pRightRoot->setLevel(root()->level());
-
-    /* Unindent root: */
-    m_pAfterSlidingFocus = root();
-    m_rootStack.removeLast();
-    root()->setRoot(true);
-
-    /* Slide root: */
-    slideRoot(false);
-}
-
-bool UIChooserModel::isSlidingInProgress() const
-{
-    return m_fSliding;
+    return m_pRoot.data();
 }
 
 void UIChooserModel::startEditingGroupItemName()
 {
     sltEditGroupName();
-}
-
-void UIChooserModel::cleanupGroupTree()
-{
-    cleanupGroupTree(mainRoot());
 }
 
 void UIChooserModel::activateMachineItem()
@@ -560,120 +526,31 @@ void UIChooserModel::setCurrentDragObject(QDrag *pDragObject)
 
     /* Remember new drag-object: */
     m_pCurrentDragObject = pDragObject;
-    connect(m_pCurrentDragObject, SIGNAL(destroyed(QObject*)), this, SLOT(sltCurrentDragObjectDestroyed()));
+    connect(m_pCurrentDragObject.data(), &QDrag::destroyed,
+            this, &UIChooserModel::sltCurrentDragObjectDestroyed);
 }
 
-void UIChooserModel::lookFor(const QString &strLookupSymbol)
+void UIChooserModel::lookFor(const QString &strLookupText)
 {
-    /* Restart timer to reset lookup-string: */
-    m_pLookupTimer->start();
-
-    /* Prepare item: */
-    UIChooserItem *pItem = 0;
-
-    /* We are starting to look from the current position: */
-    int iCurrentIndex = navigationList().indexOf(currentItem());
-
-    /* Are we looking for the 1. same symbol or for the 2. composed word? */
-    const QString strLookupString = m_strLookupString.isEmpty() || m_strLookupString == strLookupSymbol ?
-                                    strLookupSymbol : m_strLookupString + strLookupSymbol;
-    /* Are we looking from the 1. subsequent position or from the 2. same one? */
-    const int     iFirstIndex     = m_strLookupString.isEmpty() || m_strLookupString == strLookupSymbol ?
-                                    iCurrentIndex + 1 : iCurrentIndex;
-
-    /* If first position feats the bounds: */
-    if (iFirstIndex < navigationList().size())
+    if (view())
     {
-        /* We have to look starting from the first position: */
-        for (int iIndex = iFirstIndex; iIndex < navigationList().size(); ++iIndex)
-        {
-            UIChooserItem *pIteratedItem = navigationList().at(iIndex);
-            if (pIteratedItem->name().startsWith(strLookupString, Qt::CaseInsensitive))
-            {
-                pItem = pIteratedItem;
-                break;
-            }
-        }
+        view()->setSearchWidgetVisible(true);
+        view()->appendToSearchString(strLookupText);
     }
-
-    /* If the item was not found: */
-    if (!pItem && iFirstIndex > 0)
-    {
-        /* We have to try to look from the beginning of the list: */
-        for (int iIndex = 0; iIndex < iFirstIndex; ++iIndex)
-        {
-            UIChooserItem *pIteratedItem = navigationList().at(iIndex);
-            if (pIteratedItem->name().startsWith(strLookupString, Qt::CaseInsensitive))
-            {
-                pItem = pIteratedItem;
-                break;
-            }
-        }
-    }
-
-    /* If that item was found: */
-    if (pItem)
-    {
-        /* Choose it: */
-        pItem->makeSureItsVisible();
-        setCurrentItem(pItem);
-        /* Append lookup symbol: */
-        if (m_strLookupString != strLookupSymbol)
-            m_strLookupString += strLookupSymbol;
-    }
-}
-
-bool UIChooserModel::isLookupInProgress() const
-{
-    return m_pLookupTimer->isActive();
-}
-
-/* static */
-QString UIChooserModel::uniqueGroupName(UIChooserItem *pRoot)
-{
-    /* Enumerate all the group names: */
-    QStringList groupNames;
-    foreach (UIChooserItem *pItem, pRoot->items(UIChooserItemType_Group))
-        groupNames << pItem->name();
-
-    /* Prepare reg-exp: */
-    const QString strMinimumName = tr("New group");
-    const QString strShortTemplate = strMinimumName;
-    const QString strFullTemplate = strShortTemplate + QString(" (\\d+)");
-    const QRegExp shortRegExp(strShortTemplate);
-    const QRegExp fullRegExp(strFullTemplate);
-
-    /* Search for the maximum index: */
-    int iMinimumPossibleNumber = 0;
-    foreach (const QString &strName, groupNames)
-    {
-        if (shortRegExp.exactMatch(strName))
-            iMinimumPossibleNumber = qMax(iMinimumPossibleNumber, 2);
-        else if (fullRegExp.exactMatch(strName))
-            iMinimumPossibleNumber = qMax(iMinimumPossibleNumber, fullRegExp.cap(1).toInt() + 1);
-    }
-
-    /* Prepare result: */
-    QString strResult = strMinimumName;
-    if (iMinimumPossibleNumber)
-        strResult += " " + QString::number(iMinimumPossibleNumber);
-    return strResult;
 }
 
 void UIChooserModel::updateLayout()
 {
-    /* No layout updates while sliding: */
-    if (m_fSliding)
+    if (!view() || !root())
         return;
 
     /* Initialize variables: */
-    const int iSceneMargin = data(ChooserModelData_Margin).toInt();
-    const QSize viewportSize = scene()->views()[0]->viewport()->size();
-    const int iViewportWidth = viewportSize.width() - 2 * iSceneMargin;
-    const int iViewportHeight = viewportSize.height() - 2 * iSceneMargin;
+    const QSize viewportSize = view()->size();
+    const int iViewportWidth = viewportSize.width();
+    const int iViewportHeight = viewportSize.height();
 
     /* Set root-item position: */
-    root()->setPos(iSceneMargin, iSceneMargin);
+    root()->setPos(0, 0);
     /* Set root-item size: */
     root()->resize(iViewportWidth, iViewportHeight);
     /* Relayout root-item: */
@@ -684,11 +561,8 @@ void UIChooserModel::updateLayout()
 
 void UIChooserModel::setGlobalItemHeightHint(int iHint)
 {
-    /* Remember new hint: */
-    m_iGlobalItemHeightHint = iHint;
-
     /* Walk thrugh all the items of navigation list: */
-    foreach (UIChooserItem *pItem, navigationList())
+    foreach (UIChooserItem *pItem, navigationItems())
     {
         /* And for each global item: */
         if (pItem->type() == UIChooserItemType_Global)
@@ -696,26 +570,18 @@ void UIChooserModel::setGlobalItemHeightHint(int iHint)
             /* Apply the height hint we have: */
             UIChooserItemGlobal *pGlobalItem = pItem->toGlobalItem();
             if (pGlobalItem)
-                pGlobalItem->setHeightHint(m_iGlobalItemHeightHint);
+                pGlobalItem->setHeightHint(iHint);
         }
     }
-}
-
-void UIChooserModel::saveGroupSettings()
-{
-    emit sigGroupSavingStarted();
-}
-
-bool UIChooserModel::isGroupSavingInProgress() const
-{
-    return    UIThreadGroupDefinitionSave::instance()
-           || UIThreadGroupOrderSave::instance();
 }
 
 void UIChooserModel::sltHandleViewResized()
 {
     /* Relayout: */
     updateLayout();
+
+    /* Make current item visible asynchronously: */
+    QMetaObject::invokeMethod(this, "sltMakeSureCurrentItemVisible", Qt::QueuedConnection);
 }
 
 bool UIChooserModel::eventFilter(QObject *pWatched, QEvent *pEvent)
@@ -759,123 +625,91 @@ bool UIChooserModel::eventFilter(QObject *pWatched, QEvent *pEvent)
     return QObject::eventFilter(pWatched, pEvent);
 }
 
-void UIChooserModel::sltMachineStateChanged(const QUuid &uId, const KMachineState)
-{
-    /* Update machine-items with passed id: */
-    mainRoot()->updateAllItems(uId);
-}
-
-void UIChooserModel::sltMachineDataChanged(const QUuid &uId)
-{
-    /* Update machine-items with passed id: */
-    mainRoot()->updateAllItems(uId);
-}
-
 void UIChooserModel::sltMachineRegistered(const QUuid &uId, const bool fRegistered)
 {
-    /* New VM registered? */
-    if (fRegistered)
-    {
-        /* Search for corresponding machine: */
-        CMachine comMachine = vboxGlobal().virtualBox().FindMachine(uId.toString());
-        /* Should we show this machine? */
-        if (gEDataManager->showMachineInSelectorChooser(uId))
-        {
-            /* Add new machine-item: */
-            addMachineIntoTheTree(comMachine, true);
-            /* And update model: */
-            updateNavigation();
-            updateLayout();
-            /* Change current-item only if VM was created from the GUI side: */
-            if (uId == m_uLastCreatedMachineId)
-            {
-                setCurrentItem(mainRoot()->searchForItem(comMachine.GetName(),
-                                                         UIChooserItemSearchFlag_Machine |
-                                                         UIChooserItemSearchFlag_ExactName));
-            }
-        }
-    }
+    /* Call to base-class: */
+    UIChooserAbstractModel::sltMachineRegistered(uId, fRegistered);
+
     /* Existing VM unregistered? */
-    else
+    if (!fRegistered)
     {
-        /* Remove machine-items with passed id: */
-        mainRoot()->removeAllItems(uId.toString());
-        /* Update model: */
-        cleanupGroupTree();
-        updateNavigation();
+        /* Update tree for main root: */
+        updateNavigationItemList();
         updateLayout();
+
+        /* Make sure selected-item present, if possible: */
+        if (!firstSelectedItem() && !navigationItems().isEmpty())
+        {
+            setSelectedItem(navigationItems().first());
+            emit sigSelectionInvalidated();
+        }
         /* Make sure current-item present, if possible: */
-        if (!currentItem() && !navigationList().isEmpty())
-            setCurrentItem(navigationList().first());
-        /* Make sure focus-item present, if possible: */
-        else if (!focusItem() && currentItem())
-            setFocusItem(currentItem());
-        /* Notify about current-item change: */
+        else if (!currentItem() && firstSelectedItem())
+            setCurrentItem(firstSelectedItem());
+        /* Notify about selected-item change: */
         emit sigSelectionChanged();
     }
-}
-
-void UIChooserModel::sltSessionStateChanged(const QUuid &uId, const KSessionState)
-{
-    /* Update machine-items with passed id: */
-    mainRoot()->updateAllItems(uId);
-}
-
-void UIChooserModel::sltSnapshotChanged(const QUuid &uId, const QUuid &)
-{
-    /* Update machine-items with passed id: */
-    mainRoot()->updateAllItems(uId);
-}
-
-void UIChooserModel::sltFocusItemDestroyed()
-{
-    AssertMsgFailed(("Focus item destroyed!"));
-}
-
-void UIChooserModel::sltLeftRootSlidingProgress()
-{
-    /* Update left root: */
-    m_pLeftRoot->updateGeometry();
-    m_pLeftRoot->updateLayout();
-}
-
-void UIChooserModel::sltRightRootSlidingProgress()
-{
-    /* Update right root: */
-    m_pRightRoot->updateGeometry();
-    m_pRightRoot->updateLayout();
-}
-
-void UIChooserModel::sltSlidingComplete()
-{
-    /* Delete temporary roots: */
-    delete m_pLeftRoot;
-    m_pLeftRoot = 0;
-    delete m_pRightRoot;
-    m_pRightRoot = 0;
-
-    /* We are no more sliding: */
-    m_fSliding = false;
-
-    /* Update root geometry: */
-    root()->updateGeometry();
-
-    /* Update model: */
-    cleanupGroupTree();
-    updateNavigation();
-    updateLayout();
-    if (m_pAfterSlidingFocus)
+    /* New VM registered? */
+    else
     {
-        setCurrentItem(m_pAfterSlidingFocus);
-        m_pAfterSlidingFocus = 0;
+        /* Should we show this VM? */
+        if (gEDataManager->showMachineInVirtualBoxManagerChooser(uId))
+        {
+            /* Rebuild tree for main root: */
+            buildTreeForMainRoot();
+            updateNavigationItemList();
+            updateLayout();
+
+            /* Select newly added item: */
+            CMachine comMachine = uiCommon().virtualBox().FindMachine(uId.toString());
+            setSelectedItem(root()->searchForItem(comMachine.GetName(),
+                                                 UIChooserItemSearchFlag_Machine |
+                                                 UIChooserItemSearchFlag_ExactName));
+        }
+    }
+}
+
+void UIChooserModel::sltReloadMachine(const QUuid &uId)
+{
+    /* Call to base-class: */
+    UIChooserAbstractModel::sltReloadMachine(uId);
+
+    /* Show machine if we should: */
+    if (gEDataManager->showMachineInVirtualBoxManagerChooser(uId))
+    {
+        /* Rebuild tree for main root: */
+        buildTreeForMainRoot();
+        updateNavigationItemList();
+        updateLayout();
+
+        /* Select newly added item: */
+        CMachine comMachine = uiCommon().virtualBox().FindMachine(uId.toString());
+        setSelectedItem(root()->searchForItem(comMachine.GetName(),
+                                             UIChooserItemSearchFlag_Machine |
+                                             UIChooserItemSearchFlag_ExactName));
     }
     else
     {
-        if (!navigationList().isEmpty())
-            setCurrentItem(navigationList().first());
-        else
-            unsetCurrentItems();
+        /* Make sure at least one item selected after that: */
+        if (!firstSelectedItem() && !navigationItems().isEmpty())
+        {
+            setSelectedItem(navigationItems().first());
+            emit sigSelectionInvalidated();
+        }
     }
+
+    /* Notify listeners about selection change: */
+    emit sigSelectionChanged();
+}
+
+void UIChooserModel::sltMakeSureCurrentItemVisible()
+{
+    root()->toGroupItem()->makeSureItemIsVisible(currentItem());
+}
+
+void UIChooserModel::sltCurrentItemDestroyed()
+{
+    AssertMsgFailed(("Current-item destroyed!"));
 }
 
 void UIChooserModel::sltEditGroupName()
@@ -883,13 +717,12 @@ void UIChooserModel::sltEditGroupName()
     /* Check if action is enabled: */
     if (!actionPool()->action(UIActionIndexST_M_Group_S_Rename)->isEnabled())
         return;
-
     /* Only for single selected group: */
     if (!isSingleGroupSelected())
         return;
 
     /* Start editing group name: */
-    currentItem()->startEditing();
+    firstSelectedItem()->startEditing();
 }
 
 void UIChooserModel::sltSortGroup()
@@ -897,13 +730,17 @@ void UIChooserModel::sltSortGroup()
     /* Check if action is enabled: */
     if (!actionPool()->action(UIActionIndexST_M_Group_S_Sort)->isEnabled())
         return;
-
     /* Only for single selected group: */
     if (!isSingleGroupSelected())
         return;
 
-    /* Sorting group: */
-    currentItem()->sortItems();
+    /* Sort nodes: */
+    firstSelectedItem()->node()->sortNodes();
+
+    /* Rebuild tree for main root: */
+    buildTreeForMainRoot();
+    updateNavigationItemList();
+    updateLayout();
 }
 
 void UIChooserModel::sltUngroupSelectedGroup()
@@ -912,38 +749,40 @@ void UIChooserModel::sltUngroupSelectedGroup()
     if (!actionPool()->action(UIActionIndexST_M_Group_S_Remove)->isEnabled())
         return;
 
-    /* Make sure focus item is of group type! */
-    AssertMsg(focusItem()->type() == UIChooserItemType_Group, ("This is not group-item!"));
+    /* Make sure current-item is of group type! */
+    AssertMsg(currentItem()->type() == UIChooserItemType_Group, ("This is not group-item!"));
 
     /* Check if we have collisions with our siblings: */
-    UIChooserItem *pFocusItem = focusItem();
-    UIChooserItem *pParentItem = pFocusItem->parentItem();
-    QList<UIChooserItem*> siblings = pParentItem->items();
-    QList<UIChooserItem*> toBeRenamed;
-    QList<UIChooserItem*> toBeRemoved;
-    foreach (UIChooserItem *pItem, pFocusItem->items())
+    UIChooserItem *pCurrentItem = currentItem();
+    UIChooserNode *pCurrentNode = pCurrentItem->node();
+    UIChooserItem *pParentItem = pCurrentItem->parentItem();
+    UIChooserNode *pParentNode = pParentItem->node();
+    QList<UIChooserNode*> siblings = pParentNode->nodes();
+    QList<UIChooserNode*> toBeRenamed;
+    QList<UIChooserNode*> toBeRemoved;
+    foreach (UIChooserNode *pNode, pCurrentNode->nodes())
     {
-        QString strItemName = pItem->name();
-        UIChooserItem *pCollisionSibling = 0;
-        foreach (UIChooserItem *pSibling, siblings)
-            if (pSibling != pFocusItem && pSibling->name() == strItemName)
+        QString strItemName = pNode->name();
+        UIChooserNode *pCollisionSibling = 0;
+        foreach (UIChooserNode *pSibling, siblings)
+            if (pSibling != pCurrentNode && pSibling->name() == strItemName)
                 pCollisionSibling = pSibling;
         if (pCollisionSibling)
         {
-            if (pItem->type() == UIChooserItemType_Machine)
+            if (pNode->type() == UIChooserItemType_Machine)
             {
                 if (pCollisionSibling->type() == UIChooserItemType_Machine)
-                    toBeRemoved << pItem;
+                    toBeRemoved << pNode;
                 else if (pCollisionSibling->type() == UIChooserItemType_Group)
                 {
-                    msgCenter().cannotResolveCollisionAutomatically(strItemName, pParentItem->name());
+                    msgCenter().cannotResolveCollisionAutomatically(strItemName, pParentNode->name());
                     return;
                 }
             }
-            else if (pItem->type() == UIChooserItemType_Group)
+            else if (pNode->type() == UIChooserItemType_Group)
             {
-                if (msgCenter().confirmAutomaticCollisionResolve(strItemName, pParentItem->name()))
-                    toBeRenamed << pItem;
+                if (msgCenter().confirmAutomaticCollisionResolve(strItemName, pParentNode->name()))
+                    toBeRenamed << pNode;
                 else
                     return;
             }
@@ -951,34 +790,54 @@ void UIChooserModel::sltUngroupSelectedGroup()
     }
 
     /* Copy all the children into our parent: */
-    foreach (UIChooserItem *pItem, pFocusItem->items())
+    QList<UIChooserItem*> copiedItems;
+    foreach (UIChooserNode *pNode, pCurrentNode->nodes())
     {
-        if (toBeRemoved.contains(pItem))
+        if (toBeRemoved.contains(pNode))
             continue;
-        switch (pItem->type())
+        switch (pNode->type())
         {
             case UIChooserItemType_Group:
             {
-                UIChooserItemGroup *pGroupItem = new UIChooserItemGroup(pParentItem, pItem->toGroupItem());
-                if (toBeRenamed.contains(pItem))
-                    pGroupItem->setName(uniqueGroupName(pParentItem));
+                UIChooserNodeGroup *pGroupNode = new UIChooserNodeGroup(pParentNode,
+                                                                        pNode->toGroupNode(),
+                                                                        pParentNode->nodes().size());
+                UIChooserItemGroup *pGroupItem = new UIChooserItemGroup(pParentItem, pGroupNode);
+                if (toBeRenamed.contains(pNode))
+                    pGroupNode->setName(uniqueGroupName(pParentNode));
+                copiedItems << pGroupItem;
                 break;
             }
             case UIChooserItemType_Machine:
             {
-                new UIChooserItemMachine(pParentItem, pItem->toMachineItem());
+                UIChooserNodeMachine *pMachineNode = new UIChooserNodeMachine(pParentNode,
+                                                                              pNode->toMachineNode(),
+                                                                              pParentNode->nodes().size());
+                UIChooserItemMachine *pMachineItem = new UIChooserItemMachine(pParentItem, pMachineNode);
+                copiedItems << pMachineItem;
                 break;
             }
+            default:
+                break;
         }
     }
 
-    /* Delete focus group: */
-    delete focusItem();
+    /* Delete current group: */
+    delete pCurrentNode;
 
     /* And update model: */
-    updateNavigation();
+    updateNavigationItemList();
     updateLayout();
-    setCurrentItem(navigationList().first());
+    if (!copiedItems.isEmpty())
+    {
+        setSelectedItems(copiedItems);
+        setCurrentItem(firstSelectedItem());
+    }
+    else
+    {
+        setSelectedItem(navigationItems().first());
+        emit sigSelectionInvalidated();
+    }
     saveGroupSettings();
 }
 
@@ -988,12 +847,12 @@ void UIChooserModel::sltCreateNewMachine()
     if (!actionPool()->action(UIActionIndexST_M_Machine_S_New)->isEnabled())
         return;
 
-    /* Choose the parent: */
+    /* Select the parent: */
     UIChooserItem *pGroup = 0;
     if (isSingleGroupSelected())
-        pGroup = currentItem();
-    else if (!currentItems().isEmpty())
-        pGroup = currentItem()->parentItem();
+        pGroup = firstSelectedItem();
+    else if (!selectedItems().isEmpty())
+        pGroup = firstSelectedItem()->parentItem();
     QString strGroupName;
     if (pGroup)
         strGroupName = pGroup->fullName();
@@ -1009,11 +868,8 @@ void UIChooserModel::sltCreateNewMachine()
     windowManager().registerNewParent(pWizard, pWizardParent);
     pWizard->prepare();
 
-    /* Execute wizard and store created VM Id
-     * on success for current-item handling: */
-    if (pWizard->exec() == QDialog::Accepted)
-        m_uLastCreatedMachineId = pWizard->createdMachineId();
-
+    /* Execute wizard: */
+    pWizard->exec();
     if (pWizard)
         delete pWizard;
 
@@ -1029,13 +885,18 @@ void UIChooserModel::sltGroupSelectedMachines()
     if (!actionPool()->action(UIActionIndexST_M_Machine_S_AddGroup)->isEnabled())
         return;
 
-    /* Create new group in the current root: */
-    UIChooserItemGroup *pNewGroupItem = new UIChooserItemGroup(root(), uniqueGroupName(root()), true);
-    /* Enumerate all the currently chosen items: */
+    /* Create new group node in the current root: */
+    UIChooserNodeGroup *pNewGroupNode = new UIChooserNodeGroup(invisibleRoot(),
+                                                               false /* favorite */,
+                                                               invisibleRoot()->nodes().size() /* position */,
+                                                               uniqueGroupName(invisibleRoot()),
+                                                               true /* opened */);
+    UIChooserItemGroup *pNewGroupItem = new UIChooserItemGroup(root(), pNewGroupNode);
+
+    /* Enumerate all the currently selected-items: */
     QStringList busyGroupNames;
     QStringList busyMachineNames;
-    QList<UIChooserItem*> selectedItems = currentItems();
-    foreach (UIChooserItem *pItem, selectedItems)
+    foreach (UIChooserItem *pItem, selectedItems())
     {
         /* For each of known types: */
         switch (pItem->type())
@@ -1048,8 +909,11 @@ void UIChooserModel::sltGroupSelectedMachines()
                 /* Add name to busy: */
                 busyGroupNames << pItem->name();
                 /* Copy or move group-item: */
-                new UIChooserItemGroup(pNewGroupItem, pItem->toGroupItem());
-                delete pItem;
+                UIChooserNodeGroup *pNewGroupSubNode = new UIChooserNodeGroup(pNewGroupNode,
+                                                                              pItem->node()->toGroupNode(),
+                                                                              pNewGroupNode->nodes().size());
+                new UIChooserItemGroup(pNewGroupItem, pNewGroupSubNode);
+                delete pItem->node();
                 break;
             }
             case UIChooserItemType_Machine:
@@ -1060,43 +924,22 @@ void UIChooserModel::sltGroupSelectedMachines()
                 /* Add name to busy: */
                 busyMachineNames << pItem->name();
                 /* Copy or move machine-item: */
-                new UIChooserItemMachine(pNewGroupItem, pItem->toMachineItem());
-                delete pItem;
+                UIChooserNodeMachine *pNewMachineSubNode = new UIChooserNodeMachine(pNewGroupNode,
+                                                                                    pItem->node()->toMachineNode(),
+                                                                                    pNewGroupNode->nodes().size());
+                new UIChooserItemMachine(pNewGroupItem, pNewMachineSubNode);
+                delete pItem->node();
                 break;
             }
         }
     }
 
     /* Update model: */
-    cleanupGroupTree();
-    updateNavigation();
+    wipeOutEmptyGroups();
+    updateNavigationItemList();
     updateLayout();
-    setCurrentItem(pNewGroupItem);
+    setSelectedItem(pNewGroupItem);
     saveGroupSettings();
-}
-
-void UIChooserModel::sltReloadMachine(const QUuid &uId)
-{
-    /* Remove all the items first: */
-    mainRoot()->removeAllItems(uId);
-    /* Wipe out empty groups: */
-    cleanupGroupTree();
-
-    /* Show machine if we should: */
-    CMachine comMachine = vboxGlobal().virtualBox().FindMachine(uId.toString());
-    if (gEDataManager->showMachineInSelectorChooser(uId))
-        addMachineIntoTheTree(comMachine);
-
-    /* And update model: */
-    updateNavigation();
-    updateLayout();
-
-    /* Make sure at least one item selected after that: */
-    if (!currentItem() && !navigationList().isEmpty())
-        setCurrentItem(navigationList().first());
-
-    /* Notify listeners about selection change: */
-    emit sigSelectionChanged();
 }
 
 void UIChooserModel::sltSortParentGroup()
@@ -1106,11 +949,16 @@ void UIChooserModel::sltSortParentGroup()
         return;
 
     /* Only if some item selected: */
-    if (!currentItem())
+    if (!firstSelectedItem())
         return;
 
-    /* Sorting parent group: */
-    currentItem()->parentItem()->sortItems();
+    /* Sort nodes: */
+    firstSelectedItem()->parentItem()->node()->sortNodes();
+
+    /* Rebuild tree for main root: */
+    buildTreeForMainRoot();
+    updateNavigationItemList();
+    updateLayout();
 }
 
 void UIChooserModel::sltPerformRefreshAction()
@@ -1121,9 +969,9 @@ void UIChooserModel::sltPerformRefreshAction()
 
     /* Gather list of current unique inaccessible machine-items: */
     QList<UIChooserItemMachine*> inaccessibleMachineItemList;
-    UIChooserItemMachine::enumerateMachineItems(currentItems(), inaccessibleMachineItemList,
-                                                 UIChooserItemMachineEnumerationFlag_Unique |
-                                                 UIChooserItemMachineEnumerationFlag_Inaccessible);
+    UIChooserItemMachine::enumerateMachineItems(selectedItems(), inaccessibleMachineItemList,
+                                                UIChooserItemMachineEnumerationFlag_Unique |
+                                                UIChooserItemMachineEnumerationFlag_Inaccessible);
 
     /* For each machine-item: */
     UIChooserItem *pSelectedItem = 0;
@@ -1135,14 +983,14 @@ void UIChooserModel::sltPerformRefreshAction()
         if (pItem->accessible())
         {
             /* Machine name: */
-            QString strMachineName = pItem->name();
+            const QString strMachineName = ((UIChooserItem*)pItem)->name();
             /* We should reload this machine: */
             sltReloadMachine(pItem->id());
             /* Select first of reloaded items: */
             if (!pSelectedItem)
-                pSelectedItem = mainRoot()->searchForItem(strMachineName,
-                                                          UIChooserItemSearchFlag_Machine |
-                                                          UIChooserItemSearchFlag_ExactName);
+                pSelectedItem = root()->searchForItem(strMachineName,
+                                                      UIChooserItemSearchFlag_Machine |
+                                                      UIChooserItemSearchFlag_ExactName);
         }
     }
 
@@ -1150,7 +998,7 @@ void UIChooserModel::sltPerformRefreshAction()
     if (pSelectedItem)
     {
         pSelectedItem->makeSureItsVisible();
-        setCurrentItem(pSelectedItem);
+        setSelectedItem(pSelectedItem);
     }
 }
 
@@ -1162,10 +1010,10 @@ void UIChooserModel::sltRemoveSelectedMachine()
 
     /* Enumerate all the selected machine-items: */
     QList<UIChooserItemMachine*> selectedMachineItemList;
-    UIChooserItemMachine::enumerateMachineItems(currentItems(), selectedMachineItemList);
+    UIChooserItemMachine::enumerateMachineItems(selectedItems(), selectedMachineItemList);
     /* Enumerate all the existing machine-items: */
     QList<UIChooserItemMachine*> existingMachineItemList;
-    UIChooserItemMachine::enumerateMachineItems(mainRoot()->items(), existingMachineItemList);
+    UIChooserItemMachine::enumerateMachineItems(root()->items(), existingMachineItemList);
 
     /* Prepare arrays: */
     QMap<QUuid, bool> verdicts;
@@ -1199,7 +1047,7 @@ void UIChooserModel::sltRemoveSelectedMachine()
                 ++iExistingCopyCount;
         /* If selected copy count equal to existing copy count,
          * we will propose ro unregister machine fully else
-         * we will just propose to remove selected items: */
+         * we will just propose to remove selected-items: */
         bool fVerdict = iSelectedCopyCount == iExistingCopyCount;
         verdicts.insert(uId, fVerdict);
         if (fVerdict)
@@ -1218,6 +1066,9 @@ void UIChooserModel::sltRemoveSelectedMachine()
 
 void UIChooserModel::sltStartScrolling()
 {
+    /* Make sure view exists: */
+    AssertPtrReturnVoid(view());
+
     /* Should we scroll? */
     if (!m_fIsScrollingInProgress)
         return;
@@ -1225,39 +1076,31 @@ void UIChooserModel::sltStartScrolling()
     /* Reset scrolling progress: */
     m_fIsScrollingInProgress = false;
 
-    /* Get view/scrollbar: */
-    QGraphicsView *pView = scene()->views()[0];
-    QScrollBar *pVerticalScrollBar = pView->verticalScrollBar();
-
     /* Convert mouse position to view co-ordinates: */
-    const QPoint mousePos = pView->mapFromGlobal(QCursor::pos());
+    const QPoint mousePos = view()->mapFromGlobal(QCursor::pos());
     /* Mouse position is at the top of view? */
     if (mousePos.y() < m_iScrollingTokenSize && mousePos.y() > 0)
     {
         int iValue = mousePos.y();
-        if (!iValue) iValue = 1;
-        int iDelta = m_iScrollingTokenSize / iValue;
-        if (pVerticalScrollBar->value() > pVerticalScrollBar->minimum())
-        {
-            /* Backward scrolling: */
-            pVerticalScrollBar->setValue(pVerticalScrollBar->value() - 2 * iDelta);
-            m_fIsScrollingInProgress = true;
-            QTimer::singleShot(10, this, SLOT(sltStartScrolling()));
-        }
+        if (!iValue)
+            iValue = 1;
+        const int iDelta = m_iScrollingTokenSize / iValue;
+        /* Backward scrolling: */
+        root()->toGroupItem()->scrollBy(- 2 * iDelta);
+        m_fIsScrollingInProgress = true;
+        QTimer::singleShot(10, this, SLOT(sltStartScrolling()));
     }
     /* Mouse position is at the bottom of view? */
-    else if (mousePos.y() > pView->height() - m_iScrollingTokenSize && mousePos.y() < pView->height())
+    else if (mousePos.y() > view()->height() - m_iScrollingTokenSize && mousePos.y() < view()->height())
     {
-        int iValue = pView->height() - mousePos.y();
-        if (!iValue) iValue = 1;
-        int iDelta = m_iScrollingTokenSize / iValue;
-        if (pVerticalScrollBar->value() < pVerticalScrollBar->maximum())
-        {
-            /* Forward scrolling: */
-            pVerticalScrollBar->setValue(pVerticalScrollBar->value() + 2 * iDelta);
-            m_fIsScrollingInProgress = true;
-            QTimer::singleShot(10, this, SLOT(sltStartScrolling()));
-        }
+        int iValue = view()->height() - mousePos.y();
+        if (!iValue)
+            iValue = 1;
+        const int iDelta = m_iScrollingTokenSize / iValue;
+        /* Forward scrolling: */
+        root()->toGroupItem()->scrollBy(2 * iDelta);
+        m_fIsScrollingInProgress = true;
+        QTimer::singleShot(10, this, SLOT(sltStartScrolling()));
     }
 }
 
@@ -1266,48 +1109,17 @@ void UIChooserModel::sltCurrentDragObjectDestroyed()
     root()->resetDragToken();
 }
 
-void UIChooserModel::sltEraseLookupTimer()
+void UIChooserModel::sltShowHideSearchWidget()
 {
-    m_pLookupTimer->stop();
-    m_strLookupString = QString();
-}
-
-void UIChooserModel::sltGroupSavingStart()
-{
-    saveGroupDefinitions();
-    saveGroupOrders();
-}
-
-void UIChooserModel::sltGroupDefinitionsSaveComplete()
-{
-    makeSureGroupDefinitionsSaveIsFinished();
-    emit sigGroupSavingStateChanged();
-}
-
-void UIChooserModel::sltGroupOrdersSaveComplete()
-{
-    makeSureGroupOrdersSaveIsFinished();
-    emit sigGroupSavingStateChanged();
+    if (view())
+        setSearchWidgetVisible(!view()->isSearchWidgetVisible());
 }
 
 void UIChooserModel::prepare()
 {
-    /* Prepare scene: */
     prepareScene();
-
-    /* Prepare root: */
-    prepareRoot();
-
-    /* Prepare lookup: */
-    prepareLookup();
-
-    /* Prepare context-menu: */
     prepareContextMenu();
-
-    /* Prepare handlers: */
     prepareHandlers();
-
-    /* Prepare connections: */
     prepareConnections();
 }
 
@@ -1318,22 +1130,6 @@ void UIChooserModel::prepareScene()
         m_pScene->installEventFilter(this);
 }
 
-void UIChooserModel::prepareRoot()
-{
-    m_rootStack << new UIChooserItemGroup(scene());
-}
-
-void UIChooserModel::prepareLookup()
-{
-    m_pLookupTimer = new QTimer(this);
-    if (m_pLookupTimer)
-    {
-        m_pLookupTimer->setInterval(1000);
-        m_pLookupTimer->setSingleShot(true);
-        connect(m_pLookupTimer, SIGNAL(timeout()), this, SLOT(sltEraseLookupTimer()));
-    }
-}
-
 void UIChooserModel::prepareContextMenu()
 {
     /* Context menu for global(s): */
@@ -1341,7 +1137,7 @@ void UIChooserModel::prepareContextMenu()
     if (m_pContextMenuGlobal)
     {
         /* Check if Ext Pack is ready, some of actions my depend on it: */
-        CExtPack extPack = vboxGlobal().virtualBox().GetExtensionPackManager().Find(GUI_ExtPackName);
+        CExtPack extPack = uiCommon().virtualBox().GetExtensionPackManager().Find(GUI_ExtPackName);
         const bool fExtPackAccessible = !extPack.isNull() && extPack.GetUsable();
 
 #ifdef VBOX_WS_MAC
@@ -1351,6 +1147,7 @@ void UIChooserModel::prepareContextMenu()
         m_pContextMenuGlobal->addSeparator();
         m_pContextMenuGlobal->addAction(actionPool()->action(UIActionIndexST_M_File_S_ImportAppliance));
         m_pContextMenuGlobal->addAction(actionPool()->action(UIActionIndexST_M_File_S_ExportAppliance));
+        m_pContextMenuGlobal->addAction(actionPool()->action(UIActionIndexST_M_File_S_NewCloudVM));
 # ifdef VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
         m_pContextMenuGlobal->addAction(actionPool()->action(UIActionIndexST_M_File_S_ShowExtraDataManager));
 # endif
@@ -1365,6 +1162,7 @@ void UIChooserModel::prepareContextMenu()
         m_pContextMenuGlobal->addSeparator();
         m_pContextMenuGlobal->addAction(actionPool()->action(UIActionIndexST_M_File_S_ImportAppliance));
         m_pContextMenuGlobal->addAction(actionPool()->action(UIActionIndexST_M_File_S_ExportAppliance));
+        m_pContextMenuGlobal->addAction(actionPool()->action(UIActionIndexST_M_File_S_NewCloudVM));
         m_pContextMenuGlobal->addSeparator();
 # ifdef VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
         m_pContextMenuGlobal->addAction(actionPool()->action(UIActionIndexST_M_File_S_ShowExtraDataManager));
@@ -1430,6 +1228,7 @@ void UIChooserModel::prepareContextMenu()
         m_pContextMenuMachine->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_CreateShortcut));
         m_pContextMenuMachine->addSeparator();
         m_pContextMenuMachine->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_SortParent));
+        m_pContextMenuMachine->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_Search));
     }
 }
 
@@ -1441,76 +1240,73 @@ void UIChooserModel::prepareHandlers()
 
 void UIChooserModel::prepareConnections()
 {
-    /* Setup parent connections: */
-    connect(this, SIGNAL(sigSelectionChanged()),
-            parent(), SIGNAL(sigSelectionChanged()));
-    connect(this, SIGNAL(sigSlidingStarted()),
-            parent(), SIGNAL(sigSlidingStarted()));
-    connect(this, SIGNAL(sigToggleStarted()),
-            parent(), SIGNAL(sigToggleStarted()));
-    connect(this, SIGNAL(sigToggleFinished()),
-            parent(), SIGNAL(sigToggleFinished()));
-    connect(this, SIGNAL(sigGroupSavingStateChanged()),
-            parent(), SIGNAL(sigGroupSavingStateChanged()));
-
-    /* Setup global connections: */
-    connect(gVBoxEvents, SIGNAL(sigMachineStateChange(QUuid, KMachineState)),
-            this, SLOT(sltMachineStateChanged(QUuid, KMachineState)));
-    connect(gVBoxEvents, SIGNAL(sigMachineDataChange(QUuid)),
-            this, SLOT(sltMachineDataChanged(QUuid)));
-    connect(gVBoxEvents, SIGNAL(sigMachineRegistered(QUuid, bool)),
-            this, SLOT(sltMachineRegistered(QUuid, bool)));
-    connect(gVBoxEvents, SIGNAL(sigSessionStateChange(QUuid, KSessionState)),
-            this, SLOT(sltSessionStateChanged(QUuid, KSessionState)));
-    connect(gVBoxEvents, SIGNAL(sigSnapshotTake(QUuid, QUuid)),
-            this, SLOT(sltSnapshotChanged(QUuid, QUuid)));
-    connect(gVBoxEvents, SIGNAL(sigSnapshotDelete(QUuid, QUuid)),
-            this, SLOT(sltSnapshotChanged(QUuid, QUuid)));
-    connect(gVBoxEvents, SIGNAL(sigSnapshotChange(QUuid, QUuid)),
-            this, SLOT(sltSnapshotChanged(QUuid, QUuid)));
-    connect(gVBoxEvents, SIGNAL(sigSnapshotRestore(QUuid, QUuid)),
-            this, SLOT(sltSnapshotChanged(QUuid, QUuid)));
+    UIChooser* pChooser = qobject_cast<UIChooser*>(parent());
+    AssertPtrReturnVoid(pChooser);
+    {
+        /* Setup parent connections: */
+        connect(this, &UIChooserModel::sigSelectionChanged,
+                pChooser, &UIChooser::sigSelectionChanged);
+        connect(this, &UIChooserModel::sigSelectionInvalidated,
+                pChooser, &UIChooser::sigSelectionInvalidated);
+        connect(this, &UIChooserModel::sigToggleStarted,
+                pChooser, &UIChooser::sigToggleStarted);
+        connect(this, &UIChooserModel::sigToggleFinished,
+                pChooser, &UIChooser::sigToggleFinished);
+    }
 
     /* Setup action connections: */
-    connect(actionPool()->action(UIActionIndexST_M_Welcome_S_New), SIGNAL(triggered()),
-            this, SLOT(sltCreateNewMachine()));
-    connect(actionPool()->action(UIActionIndexST_M_Group_S_New), SIGNAL(triggered()),
-            this, SLOT(sltCreateNewMachine()));
-    connect(actionPool()->action(UIActionIndexST_M_Machine_S_New), SIGNAL(triggered()),
-            this, SLOT(sltCreateNewMachine()));
-    connect(actionPool()->action(UIActionIndexST_M_Group_S_Rename), SIGNAL(triggered()),
-            this, SLOT(sltEditGroupName()));
-    connect(actionPool()->action(UIActionIndexST_M_Group_S_Remove), SIGNAL(triggered()),
-            this, SLOT(sltUngroupSelectedGroup()));
-    connect(actionPool()->action(UIActionIndexST_M_Machine_S_Remove), SIGNAL(triggered()),
-            this, SLOT(sltRemoveSelectedMachine()));
-    connect(actionPool()->action(UIActionIndexST_M_Machine_S_AddGroup), SIGNAL(triggered()),
-            this, SLOT(sltGroupSelectedMachines()));
-    connect(actionPool()->action(UIActionIndexST_M_Group_S_Refresh), SIGNAL(triggered()),
-            this, SLOT(sltPerformRefreshAction()));
-    connect(actionPool()->action(UIActionIndexST_M_Machine_S_Refresh), SIGNAL(triggered()),
-            this, SLOT(sltPerformRefreshAction()));
-    connect(actionPool()->action(UIActionIndexST_M_Machine_S_SortParent), SIGNAL(triggered()),
-            this, SLOT(sltSortParentGroup()));
-    connect(actionPool()->action(UIActionIndexST_M_Group_S_Sort), SIGNAL(triggered()),
-            this, SLOT(sltSortGroup()));
-
-    /* Setup group saving connections: */
-    connect(this, SIGNAL(sigGroupSavingStarted()), this, SLOT(sltGroupSavingStart()), Qt::QueuedConnection);
+    connect(actionPool()->action(UIActionIndexST_M_Welcome_S_New), &UIAction::triggered,
+            this, &UIChooserModel::sltCreateNewMachine);
+    connect(actionPool()->action(UIActionIndexST_M_Group_S_New), &UIAction::triggered,
+            this, &UIChooserModel::sltCreateNewMachine);
+    connect(actionPool()->action(UIActionIndexST_M_Machine_S_New), &UIAction::triggered,
+            this, &UIChooserModel::sltCreateNewMachine);
+    connect(actionPool()->action(UIActionIndexST_M_Group_S_Rename), &UIAction::triggered,
+            this, &UIChooserModel::sltEditGroupName);
+    connect(actionPool()->action(UIActionIndexST_M_Group_S_Remove), &UIAction::triggered,
+            this, &UIChooserModel::sltUngroupSelectedGroup);
+    connect(actionPool()->action(UIActionIndexST_M_Machine_S_Remove), &UIAction::triggered,
+            this, &UIChooserModel::sltRemoveSelectedMachine);
+    connect(actionPool()->action(UIActionIndexST_M_Machine_S_AddGroup), &UIAction::triggered,
+            this, &UIChooserModel::sltGroupSelectedMachines);
+    connect(actionPool()->action(UIActionIndexST_M_Group_S_Refresh), &UIAction::triggered,
+            this, &UIChooserModel::sltPerformRefreshAction);
+    connect(actionPool()->action(UIActionIndexST_M_Machine_S_Refresh), &UIAction::triggered,
+            this, &UIChooserModel::sltPerformRefreshAction);
+    connect(actionPool()->action(UIActionIndexST_M_Machine_S_SortParent), &UIAction::triggered,
+            this, &UIChooserModel::sltSortParentGroup);
+    connect(actionPool()->action(UIActionIndexST_M_Group_S_Sort), &UIAction::triggered,
+            this, &UIChooserModel::sltSortGroup);
+    connect(actionPool()->action(UIActionIndexST_M_Machine_S_Search), &UIAction::triggered,
+            this, &UIChooserModel::sltShowHideSearchWidget);
 }
 
 void UIChooserModel::loadLastSelectedItem()
 {
-    /* Load last selected item (choose first if unable to load): */
-    setCurrentItem(gEDataManager->selectorWindowLastItemChosen());
-    if (!currentItem() && !navigationList().isEmpty())
-        setCurrentItem(navigationList().first());
+    /* Load last selected-item (choose first if unable to load): */
+    setSelectedItem(gEDataManager->selectorWindowLastItemChosen());
+    if (!firstSelectedItem() && !navigationItems().isEmpty())
+    {
+        setSelectedItem(navigationItems().first());
+        emit sigSelectionInvalidated();
+    }
 }
 
 void UIChooserModel::saveLastSelectedItem()
 {
-    /* Save last selected item: */
-    gEDataManager->setSelectorWindowLastItemChosen(currentItem() ? currentItem()->definition() : QString());
+    /* Save last selected-item: */
+    gEDataManager->setSelectorWindowLastItemChosen(firstSelectedItem() ? firstSelectedItem()->definition() : QString());
+}
+
+void UIChooserModel::cleanupConnections()
+{
+    /* Disconnect selection-changed & selection-invalidated signal prematurelly.
+     * Keep in mind, we are using static_cast instead of qobject_cast here to be
+     * sure connection is disconnected even if parent is self-destroyed. */
+    disconnect(this, &UIChooserModel::sigSelectionChanged,
+               static_cast<UIChooser*>(parent()), &UIChooser::sigSelectionChanged);
+    disconnect(this, &UIChooserModel::sigSelectionInvalidated,
+               static_cast<UIChooser*>(parent()), &UIChooser::sigSelectionInvalidated);
 }
 
 void UIChooserModel::cleanupHandlers()
@@ -1531,18 +1327,6 @@ void UIChooserModel::cleanupContextMenu()
     m_pContextMenuMachine = 0;
 }
 
-void UIChooserModel::cleanupLookup()
-{
-    delete m_pLookupTimer;
-    m_pLookupTimer = 0;
-}
-
-void UIChooserModel::cleanupRoot()
-{
-    delete mainRoot();
-    m_rootStack.clear();
-}
-
 void UIChooserModel::cleanupScene()
 {
     delete m_pScene;
@@ -1551,30 +1335,10 @@ void UIChooserModel::cleanupScene()
 
 void UIChooserModel::cleanup()
 {
-    /* Cleanup handlers: */
+    cleanupConnections();
     cleanupHandlers();
-
-    /* Prepare context-menu: */
     cleanupContextMenu();
-
-    /* Cleanup lookup: */
-    cleanupLookup();
-
-    /* Cleanup root: */
-    cleanupRoot();
-
-    /* Cleanup scene: */
     cleanupScene();
-}
-
-QVariant UIChooserModel::data(int iKey) const
-{
-    switch (iKey)
-    {
-        case ChooserModelData_Margin: return 0;
-        default: break;
-    }
-    return QVariant();
 }
 
 bool UIChooserModel::processContextMenuEvent(QGraphicsSceneContextMenuEvent *pEvent)
@@ -1604,7 +1368,7 @@ bool UIChooserModel::processContextMenuEvent(QGraphicsSceneContextMenuEvent *pEv
                         if (pGroupItem->isRoot())
                             return false;
                         /* Is this group-item only the one selected? */
-                        if (currentItems().contains(pGroupItem) && currentItems().size() == 1)
+                        if (selectedItems().contains(pGroupItem) && selectedItems().size() == 1)
                         {
                             /* Group context menu in that case: */
                             popupContextMenu(UIGraphicsSelectorContextMenuType_Group, pEvent->screenPos());
@@ -1626,8 +1390,8 @@ bool UIChooserModel::processContextMenuEvent(QGraphicsSceneContextMenuEvent *pEv
         }
         case QGraphicsSceneContextMenuEvent::Keyboard:
         {
-            /* Get first selected item: */
-            if (UIChooserItem *pItem = currentItem())
+            /* Get first selected-item: */
+            if (UIChooserItem *pItem = firstSelectedItem())
             {
                 /* If this item of known type? */
                 switch (pItem->type())
@@ -1641,7 +1405,7 @@ bool UIChooserModel::processContextMenuEvent(QGraphicsSceneContextMenuEvent *pEv
                     case UIChooserItemType_Group:
                     {
                         /* Is this group-item only the one selected? */
-                        if (currentItems().size() == 1)
+                        if (selectedItems().size() == 1)
                         {
                             /* Group context menu in that case: */
                             popupContextMenu(UIGraphicsSelectorContextMenuType_Group, pEvent->screenPos());
@@ -1700,7 +1464,7 @@ void UIChooserModel::clearRealFocus()
     scene()->setFocusItem(0);
 }
 
-QList<UIChooserItem*> UIChooserModel::createNavigationList(UIChooserItem *pItem)
+QList<UIChooserItem*> UIChooserModel::createNavigationItemList(UIChooserItem *pItem)
 {
     /* Prepare navigation list: */
     QList<UIChooserItem*> navigationItems;
@@ -1713,7 +1477,7 @@ QList<UIChooserItem*> UIChooserModel::createNavigationList(UIChooserItem *pItem)
     {
         navigationItems << pGroupItem;
         if (pGroupItem->toGroupItem()->isOpened())
-            navigationItems << createNavigationList(pGroupItem);
+            navigationItems << createNavigationItemList(pGroupItem);
     }
     /* Iterate over all the machine-items: */
     foreach (UIChooserItem *pMachineItem, pItem->items(UIChooserItemType_Machine))
@@ -1723,284 +1487,18 @@ QList<UIChooserItem*> UIChooserModel::createNavigationList(UIChooserItem *pItem)
     return navigationItems;
 }
 
-void UIChooserModel::slideRoot(bool fForward)
+void UIChooserModel::buildTreeForMainRoot()
 {
-    /* Animation group: */
-    QParallelAnimationGroup *pAnimation = new QParallelAnimationGroup(this);
-    connect(pAnimation, SIGNAL(finished()), this, SLOT(sltSlidingComplete()), Qt::QueuedConnection);
+    /* Cleanup previous tree if exists: */
+    delete m_pRoot;
+    m_pRoot = 0;
 
-    /* Left root animation: */
-    {
-        QPropertyAnimation *pLeftAnimation = new QPropertyAnimation(m_pLeftRoot, "geometry", this);
-        connect(pLeftAnimation, SIGNAL(valueChanged(const QVariant&)), this, SLOT(sltLeftRootSlidingProgress()));
-        QRectF startGeo = m_pLeftRoot->geometry();
-        QRectF endGeo = fForward ? startGeo.translated(- startGeo.width(), 0) :
-                                   startGeo.translated(startGeo.width(), 0);
-        pLeftAnimation->setEasingCurve(QEasingCurve::InCubic);
-        pLeftAnimation->setDuration(500);
-        pLeftAnimation->setStartValue(startGeo);
-        pLeftAnimation->setEndValue(endGeo);
-        pAnimation->addAnimation(pLeftAnimation);
-    }
+    /* Build whole tree for invisible root item: */
+    m_pRoot = new UIChooserItemGroup(scene(), invisibleRoot()->toGroupNode());
 
-    /* Right root animation: */
-    {
-        QPropertyAnimation *pRightAnimation = new QPropertyAnimation(m_pRightRoot, "geometry", this);
-        connect(pRightAnimation, SIGNAL(valueChanged(const QVariant&)), this, SLOT(sltRightRootSlidingProgress()));
-        QRectF startGeo = m_pRightRoot->geometry();
-        QRectF endGeo = fForward ? startGeo.translated(- startGeo.width(), 0) :
-                                   startGeo.translated(startGeo.width(), 0);
-        pRightAnimation->setEasingCurve(QEasingCurve::InCubic);
-        pRightAnimation->setDuration(500);
-        pRightAnimation->setStartValue(startGeo);
-        pRightAnimation->setEndValue(endGeo);
-        pAnimation->addAnimation(pRightAnimation);
-    }
-
-    /* Start animation: */
-    pAnimation->start();
-}
-
-void UIChooserModel::loadGroupTree()
-{
-    /* Create Global item: */
-    createGlobalItem(mainRoot());
-
-    /* Add all the approved machines we have into the group-tree: */
-    LogRelFlow(("UIChooserModel: Loading VMs...\n"));
-    foreach (CMachine machine, vboxGlobal().virtualBox().GetMachines())
-    {
-        const QUuid uMachineID = machine.GetId();
-        if (!uMachineID.isNull() && gEDataManager->showMachineInSelectorChooser(uMachineID))
-            addMachineIntoTheTree(machine);
-    }
-    LogRelFlow(("UIChooserModel: VMs loaded.\n"));
-}
-
-void UIChooserModel::addMachineIntoTheTree(const CMachine &machine, bool fMakeItVisible /* = false */)
-{
-    /* Make sure passed VM is not NULL: */
-    if (machine.isNull())
-        LogRelFlow(("UIChooserModel: ERROR: Passed VM is NULL!\n"));
-    AssertReturnVoid(!machine.isNull());
-
-    /* Which VM we are loading: */
-    LogRelFlow(("UIChooserModel: Loading VM with ID={%s}...\n", toOldStyleUuid(machine.GetId()).toUtf8().constData()));
-    /* Is that machine accessible? */
-    if (machine.GetAccessible())
-    {
-        /* VM is accessible: */
-        const QString strName = machine.GetName();
-        LogRelFlow(("UIChooserModel:  VM {%s} is accessible.\n", strName.toUtf8().constData()));
-        /* Which groups passed machine attached to? */
-        const QVector<QString> groups = machine.GetGroups();
-        const QStringList groupList = groups.toList();
-        const QString strGroups = groupList.join(", ");
-        LogRelFlow(("UIChooserModel:  VM {%s} has groups: {%s}.\n", strName.toUtf8().constData(),
-                                                                     strGroups.toUtf8().constData()));
-        foreach (QString strGroup, groups)
-        {
-            /* Remove last '/' if any: */
-            if (strGroup.right(1) == "/")
-                strGroup.truncate(strGroup.size() - 1);
-            /* Create machine-item with found group-item as parent: */
-            LogRelFlow(("UIChooserModel:   Creating item for VM {%s} in group {%s}.\n", strName.toUtf8().constData(),
-                                                                                         strGroup.toUtf8().constData()));
-            createMachineItem(machine, getGroupItem(strGroup, mainRoot(), fMakeItVisible));
-        }
-        /* Update group definitions: */
-        m_groups[toOldStyleUuid(machine.GetId())] = groupList;
-    }
-    /* Inaccessible machine: */
-    else
-    {
-        /* VM is accessible: */
-        LogRelFlow(("UIChooserModel:  VM {%s} is inaccessible.\n", toOldStyleUuid(machine.GetId()).toUtf8().constData()));
-        /* Create machine-item with main-root group-item as parent: */
-        createMachineItem(machine, mainRoot());
-    }
-}
-
-void UIChooserModel::cleanupGroupTree(UIChooserItem *pParent)
-{
-    /* Cleanup all the group-items recursively first: */
-    foreach (UIChooserItem *pItem, pParent->items(UIChooserItemType_Group))
-        cleanupGroupTree(pItem);
-    /* If parent has no items: */
-    if (!pParent->hasItems())
-    {
-        /* Cleanup if that is non-root item: */
-        if (!pParent->isRoot())
-            delete pParent;
-        /* Unindent if that is root item: */
-        else if (root() != mainRoot())
-            unindentRoot();
-    }
-}
-
-UIChooserItem *UIChooserModel::getGroupItem(const QString &strName, UIChooserItem *pParentItem, bool fAllGroupsOpened)
-{
-    /* Check passed stuff: */
-    if (pParentItem->name() == strName)
-        return pParentItem;
-
-    /* Prepare variables: */
-    const QString strFirstSubName = strName.section('/', 0, 0);
-    const QString strFirstSuffix = strName.section('/', 1, -1);
-    const QString strSecondSubName = strFirstSuffix.section('/', 0, 0);
-    const QString strSecondSuffix = strFirstSuffix.section('/', 1, -1);
-
-    /* Passed group name equal to first sub-name: */
-    if (pParentItem->name() == strFirstSubName)
-    {
-        /* Make sure first-suffix is NOT empty: */
-        AssertMsg(!strFirstSuffix.isEmpty(), ("Invalid group name!"));
-        /* Trying to get group-item among our children: */
-        foreach (UIChooserItem *pGroupItem, pParentItem->items(UIChooserItemType_Group))
-        {
-            if (pGroupItem->name() == strSecondSubName)
-            {
-                UIChooserItem *pFoundItem = getGroupItem(strFirstSuffix, pGroupItem, fAllGroupsOpened);
-                if (UIChooserItemGroup *pFoundGroupItem = pFoundItem->toGroupItem())
-                    if (fAllGroupsOpened && pFoundGroupItem->isClosed())
-                        pFoundGroupItem->open(false);
-                return pFoundItem;
-            }
-        }
-    }
-
-    /* Found nothing? Creating: */
-    UIChooserItemGroup *pNewGroupItem =
-            new UIChooserItemGroup(/* Parent item and desired group name: */
-                                    pParentItem, strSecondSubName,
-                                    /* Should be new group opened when created? */
-                                    fAllGroupsOpened || shouldBeGroupOpened(pParentItem, strSecondSubName),
-                                    /* Which position new group-item should be placed in? */
-                                    getDesiredPosition(pParentItem, UIChooserItemType_Group, strSecondSubName));
-    return strSecondSuffix.isEmpty() ? pNewGroupItem : getGroupItem(strFirstSuffix, pNewGroupItem, fAllGroupsOpened);
-}
-
-bool UIChooserModel::shouldBeGroupOpened(UIChooserItem *pParentItem, const QString &strName)
-{
-    /* Read group definitions: */
-    const QStringList definitions = gEDataManager->selectorWindowGroupsDefinitions(pParentItem->fullName());
-    /* Return 'false' if no definitions found: */
-    if (definitions.isEmpty())
-        return false;
-
-    /* Prepare required group definition reg-exp: */
-    const QString strDefinitionTemplate = QString("g(\\S)*=%1").arg(strName);
-    const QRegExp definitionRegExp(strDefinitionTemplate);
-    /* For each the group definition: */
-    foreach (const QString &strDefinition, definitions)
-    {
-        /* Check if this is required definition: */
-        if (definitionRegExp.indexIn(strDefinition) == 0)
-        {
-            /* Get group descriptor: */
-            const QString strDescriptor(definitionRegExp.cap(1));
-            if (strDescriptor.contains('o'))
-                return true;
-        }
-    }
-
-    /* Return 'false' by default: */
-    return false;
-}
-
-int UIChooserModel::getDesiredPosition(UIChooserItem *pParentItem, UIChooserItemType type, const QString &strName)
-{
-    /* End of list (by default)? */
-    int iNewItemDesiredPosition = -1;
-    /* Which position should be new item placed by definitions: */
-    int iNewItemDefinitionPosition = positionFromDefinitions(pParentItem, type, strName);
-    /* If some position wanted: */
-    if (iNewItemDefinitionPosition != -1)
-    {
-        /* Start of list if some definition present: */
-        iNewItemDesiredPosition = 0;
-        /* We have to check all the existing item positions: */
-        QList<UIChooserItem*> items = pParentItem->items(type);
-        for (int i = items.size() - 1; i >= 0; --i)
-        {
-            /* Get current item: */
-            UIChooserItem *pItem = items[i];
-            /* Which position should be current item placed by definitions? */
-            QString strDefinitionName = pItem->type() == UIChooserItemType_Group ? pItem->name() :
-                                        pItem->type() == UIChooserItemType_Machine ? toOldStyleUuid(pItem->toMachineItem()->id()) :
-                                        QString();
-            AssertMsg(!strDefinitionName.isEmpty(), ("Wrong definition name!"));
-            int iItemDefinitionPosition = positionFromDefinitions(pParentItem, type, strDefinitionName);
-            /* If some position wanted: */
-            if (iItemDefinitionPosition != -1)
-            {
-                AssertMsg(iItemDefinitionPosition != iNewItemDefinitionPosition, ("Incorrect definitions!"));
-                if (iItemDefinitionPosition < iNewItemDefinitionPosition)
-                {
-                    iNewItemDesiredPosition = i + 1;
-                    break;
-                }
-            }
-        }
-    }
-    /* Return desired item position: */
-    return iNewItemDesiredPosition;
-}
-
-int UIChooserModel::positionFromDefinitions(UIChooserItem *pParentItem, UIChooserItemType type, const QString &strName)
-{
-    /* Read group definitions: */
-    const QStringList definitions = gEDataManager->selectorWindowGroupsDefinitions(pParentItem->fullName());
-    /* Return 'false' if no definitions found: */
-    if (definitions.isEmpty())
-        return -1;
-
-    /* Prepare definition reg-exp: */
-    QString strDefinitionTemplateShort;
-    QString strDefinitionTemplateFull;
-    switch (type)
-    {
-        case UIChooserItemType_Group:
-            strDefinitionTemplateShort = QString("^g(\\S)*=");
-            strDefinitionTemplateFull = QString("^g(\\S)*=%1$").arg(strName);
-            break;
-        case UIChooserItemType_Machine:
-            strDefinitionTemplateShort = QString("^m=");
-            strDefinitionTemplateFull = QString("^m=%1$").arg(strName);
-            break;
-        default: return -1;
-    }
-    QRegExp definitionRegExpShort(strDefinitionTemplateShort);
-    QRegExp definitionRegExpFull(strDefinitionTemplateFull);
-
-    /* For each the definition: */
-    int iDefinitionIndex = -1;
-    foreach (const QString &strDefinition, definitions)
-    {
-        /* Check if this definition is of required type: */
-        if (definitionRegExpShort.indexIn(strDefinition) == 0)
-        {
-            ++iDefinitionIndex;
-            /* Check if this definition is exactly what we need: */
-            if (definitionRegExpFull.indexIn(strDefinition) == 0)
-                return iDefinitionIndex;
-        }
-    }
-
-    /* Return result: */
-    return -1;
-}
-
-void UIChooserModel::createMachineItem(const CMachine &machine, UIChooserItem *pParentItem)
-{
-    /* Create machine-item: */
-    new UIChooserItemMachine(pParentItem, machine, getDesiredPosition(pParentItem, UIChooserItemType_Machine, toOldStyleUuid(machine.GetId())));
-}
-
-void UIChooserModel::createGlobalItem(UIChooserItem *pParentItem)
-{
-    /* Create global-item: */
-    new UIChooserItemGlobal(pParentItem, 0);
+    /* Install root as event-filter for scene view,
+     * we need QEvent::Scroll events from it: */
+    root()->installEventFilterHelper(view());
 }
 
 void UIChooserModel::removeItems(const QList<UIChooserItem*> &itemsToRemove)
@@ -2012,18 +1510,21 @@ void UIChooserModel::removeItems(const QList<UIChooserItem*> &itemsToRemove)
     if (!msgCenter().confirmMachineItemRemoval(names))
         return;
 
-    /* Remove all the passed items: */
+    /* Remove all the passed nodes: */
     foreach (UIChooserItem *pItem, itemsToRemove)
-        delete pItem;
+        delete pItem->node();
 
     /* And update model: */
-    cleanupGroupTree();
-    updateNavigation();
+    wipeOutEmptyGroups();
+    updateNavigationItemList();
     updateLayout();
-    if (!navigationList().isEmpty())
-        setCurrentItem(navigationList().first());
+    if (!navigationItems().isEmpty())
+    {
+        setSelectedItem(navigationItems().first());
+        emit sigSelectionInvalidated();
+    }
     else
-        unsetCurrentItems();
+        clearSelectedItems();
     saveGroupSettings();
 }
 
@@ -2031,7 +1532,7 @@ void UIChooserModel::unregisterMachines(const QList<QUuid> &ids)
 {
     /* Populate machine list: */
     QList<CMachine> machines;
-    CVirtualBox vbox = vboxGlobal().virtualBox();
+    CVirtualBox vbox = uiCommon().virtualBox();
     foreach (const QUuid &uId, ids)
     {
         CMachine machine = vbox.FindMachine(uId.toString());
@@ -2045,9 +1546,9 @@ void UIChooserModel::unregisterMachines(const QList<QUuid> &ids)
         return;
 
     /* Change selection to some close by item: */
-    setCurrentItem(findClosestUnselectedItem());
+    setSelectedItem(findClosestUnselectedItem());
 
-    /* For every selected item: */
+    /* For every selected-item: */
     for (int iMachineIndex = 0; iMachineIndex < machines.size(); ++iMachineIndex)
     {
         /* Get iterated machine: */
@@ -2097,17 +1598,17 @@ void UIChooserModel::unregisterMachines(const QList<QUuid> &ids)
 
 bool UIChooserModel::processDragMoveEvent(QGraphicsSceneDragDropEvent *pEvent)
 {
+    /* Make sure view exists: */
+    AssertPtrReturn(view(), false);
+
     /* Do we scrolling already? */
     if (m_fIsScrollingInProgress)
         return false;
 
-    /* Get view: */
-    QGraphicsView *pView = scene()->views()[0];
-
     /* Check scroll-area: */
-    const QPoint eventPoint = pView->mapFromGlobal(pEvent->screenPos());
-    if ((eventPoint.y() < m_iScrollingTokenSize) ||
-        (eventPoint.y() > pView->height() - m_iScrollingTokenSize))
+    const QPoint eventPoint = view()->mapFromGlobal(pEvent->screenPos());
+    if (   (eventPoint.y() < m_iScrollingTokenSize)
+        || (eventPoint.y() > view()->height() - m_iScrollingTokenSize))
     {
         /* Set scrolling in progress: */
         m_fIsScrollingInProgress = true;
@@ -2130,294 +1631,4 @@ bool UIChooserModel::processDragLeaveEvent(QGraphicsSceneDragDropEvent *pEvent)
 
     /* Pass event: */
     return false;
-}
-
-void UIChooserModel::saveGroupDefinitions()
-{
-    /* Make sure there is no group save activity: */
-    if (UIThreadGroupDefinitionSave::instance())
-        return;
-
-    /* Prepare full group map: */
-    QMap<QString, QStringList> groups;
-    gatherGroupDefinitions(groups, mainRoot());
-
-    /* Save information in other thread: */
-    UIThreadGroupDefinitionSave::prepare();
-    emit sigGroupSavingStateChanged();
-    connect(UIThreadGroupDefinitionSave::instance(), SIGNAL(sigReload(QUuid)),
-            this, SLOT(sltReloadMachine(QUuid)));
-    UIThreadGroupDefinitionSave::instance()->configure(this, m_groups, groups);
-    UIThreadGroupDefinitionSave::instance()->start();
-    m_groups = groups;
-}
-
-void UIChooserModel::saveGroupOrders()
-{
-    /* Make sure there is no group save activity: */
-    if (UIThreadGroupOrderSave::instance())
-        return;
-
-    /* Prepare full group map: */
-    QMap<QString, QStringList> groups;
-    gatherGroupOrders(groups, mainRoot());
-
-    /* Save information in other thread: */
-    UIThreadGroupOrderSave::prepare();
-    emit sigGroupSavingStateChanged();
-    UIThreadGroupOrderSave::instance()->configure(this, groups);
-    UIThreadGroupOrderSave::instance()->start();
-}
-
-void UIChooserModel::gatherGroupDefinitions(QMap<QString, QStringList> &definitions,
-                                            UIChooserItem *pParentGroup)
-{
-    /* Iterate over all the machine-items: */
-    foreach (UIChooserItem *pItem, pParentGroup->items(UIChooserItemType_Machine))
-        if (UIChooserItemMachine *pMachineItem = pItem->toMachineItem())
-            if (pMachineItem->accessible())
-                definitions[toOldStyleUuid(pMachineItem->id())] << pParentGroup->fullName();
-    /* Iterate over all the group-items: */
-    foreach (UIChooserItem *pItem, pParentGroup->items(UIChooserItemType_Group))
-        gatherGroupDefinitions(definitions, pItem);
-}
-
-void UIChooserModel::gatherGroupOrders(QMap<QString, QStringList> &orders,
-                                       UIChooserItem *pParentItem)
-{
-    /* Prepare extra-data key for current group: */
-    const QString strExtraDataKey = pParentItem->fullName();
-    /* Iterate over all the group-items: */
-    foreach (UIChooserItem *pItem, pParentItem->items(UIChooserItemType_Group))
-    {
-        QString strGroupDescriptor(pItem->toGroupItem()->isOpened() ? "go" : "gc");
-        orders[strExtraDataKey] << QString("%1=%2").arg(strGroupDescriptor, pItem->name());
-        gatherGroupOrders(orders, pItem);
-    }
-    /* Iterate over all the machine-items: */
-    foreach (UIChooserItem *pItem, pParentItem->items(UIChooserItemType_Machine))
-        orders[strExtraDataKey] << QString("m=%1").arg(toOldStyleUuid(pItem->toMachineItem()->id()));
-}
-
-void UIChooserModel::makeSureGroupDefinitionsSaveIsFinished()
-{
-    /* Cleanup if necessary: */
-    if (UIThreadGroupDefinitionSave::instance())
-        UIThreadGroupDefinitionSave::cleanup();
-}
-
-void UIChooserModel::makeSureGroupOrdersSaveIsFinished()
-{
-    /* Cleanup if necessary: */
-    if (UIThreadGroupOrderSave::instance())
-        UIThreadGroupOrderSave::cleanup();
-}
-
-/* static */
-QString UIChooserModel::toOldStyleUuid(const QUuid &uId)
-{
-    return uId.toString().remove(QRegExp("[{}]"));
-}
-
-
-/*********************************************************************************************************************************
-*   Class UIThreadGroupDefinitionSave implementation.                                                                            *
-*********************************************************************************************************************************/
-
-/* static */
-UIThreadGroupDefinitionSave *UIThreadGroupDefinitionSave::s_pInstance = 0;
-
-/* static */
-UIThreadGroupDefinitionSave *UIThreadGroupDefinitionSave::instance()
-{
-    return s_pInstance;
-}
-
-/* static */
-void UIThreadGroupDefinitionSave::prepare()
-{
-    /* Make sure instance not prepared: */
-    if (s_pInstance)
-        return;
-
-    /* Crate instance: */
-    new UIThreadGroupDefinitionSave;
-}
-
-/* static */
-void UIThreadGroupDefinitionSave::cleanup()
-{
-    /* Make sure instance prepared: */
-    if (!s_pInstance)
-        return;
-
-    /* Crate instance: */
-    delete s_pInstance;
-}
-
-void UIThreadGroupDefinitionSave::configure(QObject *pParent,
-                                            const QMap<QString, QStringList> &oldLists,
-                                            const QMap<QString, QStringList> &newLists)
-{
-    m_oldLists = oldLists;
-    m_newLists = newLists;
-    connect(this, SIGNAL(sigComplete()), pParent, SLOT(sltGroupDefinitionsSaveComplete()));
-}
-
-UIThreadGroupDefinitionSave::UIThreadGroupDefinitionSave()
-{
-    /* Assign instance: */
-    s_pInstance = this;
-}
-
-UIThreadGroupDefinitionSave::~UIThreadGroupDefinitionSave()
-{
-    /* Wait: */
-    wait();
-
-    /* Erase instance: */
-    s_pInstance = 0;
-}
-
-void UIThreadGroupDefinitionSave::run()
-{
-    /* COM prepare: */
-    COMBase::InitializeCOM(false);
-
-    /* For every particular machine ID: */
-    foreach (const QString &strId, m_newLists.keys())
-    {
-        /* Get new group list/set: */
-        const QStringList &newGroupList = m_newLists.value(strId);
-        const UIStringSet &newGroupSet = UIStringSet::fromList(newGroupList);
-        /* Get old group list/set: */
-        const QStringList &oldGroupList = m_oldLists.value(strId);
-        const UIStringSet &oldGroupSet = UIStringSet::fromList(oldGroupList);
-        /* Make sure group set changed: */
-        if (newGroupSet == oldGroupSet)
-            continue;
-
-        /* The next steps are subsequent.
-         * Every of them is mandatory in order to continue
-         * with common cleanup in case of failure.
-         * We have to simulate a try-catch block. */
-        CSession session;
-        CMachine machine;
-        do
-        {
-            /* 1. Open session: */
-            session = vboxGlobal().openSession(QUuid(strId));
-            if (session.isNull())
-                break;
-
-            /* 2. Get session machine: */
-            machine = session.GetMachine();
-            if (machine.isNull())
-                break;
-
-            /* 3. Set new groups: */
-            machine.SetGroups(newGroupList.toVector());
-            if (!machine.isOk())
-            {
-                msgCenter().cannotSetGroups(machine);
-                break;
-            }
-
-            /* 4. Save settings: */
-            machine.SaveSettings();
-            if (!machine.isOk())
-            {
-                msgCenter().cannotSaveMachineSettings(machine);
-                break;
-            }
-        } while (0);
-
-        /* Cleanup if necessary: */
-        if (machine.isNull() || !machine.isOk())
-            emit sigReload(QUuid(strId));
-        if (!session.isNull())
-            session.UnlockMachine();
-    }
-
-    /* Notify listeners about completeness: */
-    emit sigComplete();
-
-    /* COM cleanup: */
-    COMBase::CleanupCOM();
-}
-
-
-/*********************************************************************************************************************************
-*   Class UIThreadGroupOrderSave implementation.                                                                                 *
-*********************************************************************************************************************************/
-
-/* static */
-UIThreadGroupOrderSave *UIThreadGroupOrderSave::s_pInstance = 0;
-
-/* static */
-UIThreadGroupOrderSave *UIThreadGroupOrderSave::instance()
-{
-    return s_pInstance;
-}
-
-/* static */
-void UIThreadGroupOrderSave::prepare()
-{
-    /* Make sure instance not prepared: */
-    if (s_pInstance)
-        return;
-
-    /* Crate instance: */
-    new UIThreadGroupOrderSave;
-}
-
-/* static */
-void UIThreadGroupOrderSave::cleanup()
-{
-    /* Make sure instance prepared: */
-    if (!s_pInstance)
-        return;
-
-    /* Crate instance: */
-    delete s_pInstance;
-}
-
-void UIThreadGroupOrderSave::configure(QObject *pParent,
-                                       const QMap<QString, QStringList> &groups)
-{
-    m_groups = groups;
-    connect(this, SIGNAL(sigComplete()), pParent, SLOT(sltGroupOrdersSaveComplete()));
-}
-
-UIThreadGroupOrderSave::UIThreadGroupOrderSave()
-{
-    /* Assign instance: */
-    s_pInstance = this;
-}
-
-UIThreadGroupOrderSave::~UIThreadGroupOrderSave()
-{
-    /* Wait: */
-    wait();
-
-    /* Erase instance: */
-    s_pInstance = 0;
-}
-
-void UIThreadGroupOrderSave::run()
-{
-    /* COM prepare: */
-    COMBase::InitializeCOM(false);
-
-    /* Clear all the extra-data records related to group definitions: */
-    gEDataManager->clearSelectorWindowGroupsDefinitions();
-    /* For every particular group definition: */
-    foreach (const QString &strId, m_groups.keys())
-        gEDataManager->setSelectorWindowGroupsDefinitions(strId, m_groups[strId]);
-
-    /* Notify listeners about completeness: */
-    emit sigComplete();
-
-    /* COM cleanup: */
-    COMBase::CleanupCOM();
 }

@@ -26,7 +26,7 @@
 
 /* GUI includes: */
 #include "QIFileDialog.h"
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #include "UILineTextEdit.h"
 
 
@@ -48,12 +48,12 @@ UITextEditor::UITextEditor(QWidget *pParent /* = NULL */)
     m_pButtonBox->addButton(m_pOpenButton, QDialogButtonBox::ActionRole);
     pMainLayout->addWidget(m_pButtonBox);
     /* Connect the buttons so that they are useful */
-    connect(m_pButtonBox, SIGNAL(accepted()),
-            this, SLOT(accept()));
-    connect(m_pButtonBox, SIGNAL(rejected()),
-            this, SLOT(reject()));
-    connect(m_pOpenButton, SIGNAL(clicked()),
-            this, SLOT(open()));
+    connect(m_pButtonBox, &QDialogButtonBox::accepted,
+            this, &UITextEditor::accept);
+    connect(m_pButtonBox, &QDialogButtonBox::rejected,
+            this, &UITextEditor::reject);
+    connect(m_pOpenButton, &QPushButton::clicked,
+            this, &UITextEditor::open);
 
     /* Applying language settings */
     retranslateUi();
@@ -78,7 +78,7 @@ void UITextEditor::retranslateUi()
 
 void UITextEditor::open()
 {
-    QString fileName = QIFileDialog::getOpenFileName(vboxGlobal().documentsPath(), tr("Text (*.txt);;All (*.*)"), this, tr("Select a file to open..."));
+    QString fileName = QIFileDialog::getOpenFileName(uiCommon().documentsPath(), tr("Text (*.txt);;All (*.*)"), this, tr("Select a file to open..."));
     if (!fileName.isEmpty())
     {
         QFile file(fileName);
@@ -97,8 +97,8 @@ void UITextEditor::open()
 UILineTextEdit::UILineTextEdit(QWidget *pParent /* = NULL */)
   : QIWithRetranslateUI<QPushButton>(pParent)
 {
-    connect(this, SIGNAL(clicked()),
-            this, SLOT(edit()));
+    connect(this, &UILineTextEdit::clicked,
+            this, &UILineTextEdit::edit);
 
     /* Don't interpret the Enter Key. */
     setAutoDefault(false);
@@ -124,4 +124,3 @@ void UILineTextEdit::edit()
         emit sigFinished(this);
     }
 }
-

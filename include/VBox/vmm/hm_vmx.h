@@ -33,26 +33,6 @@
 #include <iprt/x86.h>
 #include <iprt/assertcompile.h>
 
-/* In Visual C++ versions prior to 2012, the vmx intrinsics are only available
-   when targeting AMD64. */
-#if RT_INLINE_ASM_USES_INTRIN >= 16 && defined(RT_ARCH_AMD64)
-# pragma warning(push)
-# pragma warning(disable:4668) /* Several incorrect __cplusplus uses. */
-# pragma warning(disable:4255) /* Incorrect __slwpcb prototype. */
-# include <intrin.h>
-# pragma warning(pop)
-/* We always want them as intrinsics, no functions. */
-# pragma intrinsic(__vmx_on)
-# pragma intrinsic(__vmx_off)
-# pragma intrinsic(__vmx_vmclear)
-# pragma intrinsic(__vmx_vmptrld)
-# pragma intrinsic(__vmx_vmread)
-# pragma intrinsic(__vmx_vmwrite)
-# define VMX_USE_MSC_INTRINSICS 1
-#else
-# define VMX_USE_MSC_INTRINSICS 0
-#endif
-
 
 /** @defgroup grp_hm_vmx    VMX Types and Definitions
  * @ingroup grp_hm
@@ -150,6 +130,8 @@ AssertCompileSizeAlignment(VMXRESTOREHOST, 8);
 #define VMX_UFC_EPT_INVEPT_UNAVAILABLE                          13
 /** EPT requires page-walk length of 4. */
 #define VMX_UFC_EPT_PAGE_WALK_LENGTH_UNSUPPORTED                14
+/** VMX VMWRITE all feature exposed to the guest but not supported on host. */
+#define VMX_UFC_GST_HOST_VMWRITE_ALL                            15
 /** @} */
 
 /** @name VMX HM-error codes for VERR_VMX_VMCS_FIELD_CACHE_INVALID.
@@ -212,7 +194,7 @@ AssertCompileSizeAlignment(VMXRESTOREHOST, 8);
 #define VMX_IGS_EFER_LMA_LME_MISMATCH                           515
 /** CS.Attr.P bit invalid. */
 #define VMX_IGS_CS_ATTR_P_INVALID                               516
-/** CS.Attr reserved bits not set to 0.  */
+/** CS.Attr reserved bits not set to 0. */
 #define VMX_IGS_CS_ATTR_RESERVED                                517
 /** CS.Attr.G bit invalid. */
 #define VMX_IGS_CS_ATTR_G_INVALID                               518
@@ -428,6 +410,10 @@ AssertCompileSizeAlignment(VMXRESTOREHOST, 8);
 #define VMX_IGS_CS_ATTR_DPL_INVALID                             621
 /** PAE PDPTE reserved bits not set to 0. */
 #define VMX_IGS_PAE_PDPTE_RESERVED                              623
+/** VMCS link pointer does not point to a shadow VMCS. */
+#define VMX_IGS_VMCS_LINK_PTR_NOT_SHADOW                        624
+/** VMCS link pointer to a shadow VMCS with invalid VMCS revision identifer. */
+#define VMX_IGS_VMCS_LINK_PTR_SHADOW_VMCS_ID_INVALID            625
 /** @} */
 
 /** @name VMX VMCS-Read cache indices.
@@ -465,6 +451,8 @@ AssertCompileSizeAlignment(VMXRESTOREHOST, 8);
 
 /**
  * EPT Page Directory Pointer Entry. Bit view.
+ * In accordance with the VT-x spec.
+ *
  * @todo uint64_t isn't safe for bitfields (gcc pedantic warnings, and IIRC,
  *       this did cause trouble with one compiler/version).
  */
@@ -496,6 +484,7 @@ AssertCompileSize(EPTPML4EBITS, 8);
 
 /**
  * EPT PML4E.
+ * In accordance with the VT-x spec.
  */
 typedef union EPTPML4E
 {
@@ -516,6 +505,7 @@ typedef const EPTPML4E *PCEPTPML4E;
 
 /**
  * EPT PML4 Table.
+ * In accordance with the VT-x spec.
  */
 typedef struct EPTPML4
 {
@@ -529,6 +519,7 @@ typedef const EPTPML4 *PCEPTPML4;
 
 /**
  * EPT Page Directory Pointer Entry. Bit view.
+ * In accordance with the VT-x spec.
  */
 typedef struct EPTPDPTEBITS
 {
@@ -558,6 +549,7 @@ AssertCompileSize(EPTPDPTEBITS, 8);
 
 /**
  * EPT Page Directory Pointer.
+ * In accordance with the VT-x spec.
  */
 typedef union EPTPDPTE
 {
@@ -578,6 +570,7 @@ typedef const EPTPDPTE *PCEPTPDPTE;
 
 /**
  * EPT Page Directory Pointer Table.
+ * In accordance with the VT-x spec.
  */
 typedef struct EPTPDPT
 {
@@ -591,6 +584,7 @@ typedef const EPTPDPT *PCEPTPDPT;
 
 /**
  * EPT Page Directory Table Entry. Bit view.
+ * In accordance with the VT-x spec.
  */
 typedef struct EPTPDEBITS
 {
@@ -622,6 +616,7 @@ AssertCompileSize(EPTPDEBITS, 8);
 
 /**
  * EPT 2MB Page Directory Table Entry. Bit view.
+ * In accordance with the VT-x spec.
  */
 typedef struct EPTPDE2MBITS
 {
@@ -653,6 +648,7 @@ AssertCompileSize(EPTPDE2MBITS, 8);
 
 /**
  * EPT Page Directory Table Entry.
+ * In accordance with the VT-x spec.
  */
 typedef union EPTPDE
 {
@@ -675,6 +671,7 @@ typedef const EPTPDE *PCEPTPDE;
 
 /**
  * EPT Page Directory Table.
+ * In accordance with the VT-x spec.
  */
 typedef struct EPTPD
 {
@@ -688,6 +685,7 @@ typedef const EPTPD *PCEPTPD;
 
 /**
  * EPT Page Table Entry. Bit view.
+ * In accordance with the VT-x spec.
  */
 typedef struct EPTPTEBITS
 {
@@ -724,6 +722,7 @@ AssertCompileSize(EPTPTEBITS, 8);
 
 /**
  * EPT Page Table Entry.
+ * In accordance with the VT-x spec.
  */
 typedef union EPTPTE
 {
@@ -744,6 +743,7 @@ typedef const EPTPTE *PCEPTPTE;
 
 /**
  * EPT Page Table.
+ * In accordance with the VT-x spec.
  */
 typedef struct EPTPT
 {
@@ -759,7 +759,7 @@ typedef const EPTPT *PCEPTPT;
 
 /**
  * VMX VPID flush types.
- * @note Valid enum members are in accordance to the VT-x spec.
+ * Valid enum members are in accordance with the VT-x spec.
  */
 typedef enum
 {
@@ -780,7 +780,7 @@ AssertCompileSize(VMXTLBFLUSHVPID, 4);
 
 /**
  * VMX EPT flush types.
- * @note Valid enums values are in accordance to the VT-x spec.
+ * @note Valid enums values are in accordance with the VT-x spec.
  */
 typedef enum
 {
@@ -788,7 +788,7 @@ typedef enum
     VMXTLBFLUSHEPT_SINGLE_CONTEXT              = 1,
     /* Invalidate all contexts (all EPTs) */
     VMXTLBFLUSHEPT_ALL_CONTEXTS                = 2,
-    /** Unsupported by VirtualBox.   */
+    /** Unsupported by VirtualBox. */
     VMXTLBFLUSHEPT_NOT_SUPPORTED               = 0xbad0,
     /** Unsupported by CPU. */
     VMXTLBFLUSHEPT_NONE                        = 0xbad1
@@ -797,7 +797,7 @@ AssertCompileSize(VMXTLBFLUSHEPT, 4);
 
 /**
  * VMX Posted Interrupt Descriptor.
- * In accordance to the VT-x spec.
+ * In accordance with the VT-x spec.
  */
 typedef struct VMXPOSTEDINTRDESC
 {
@@ -815,6 +815,7 @@ typedef const VMXPOSTEDINTRDESC *PCVMXPOSTEDINTRDESC;
 
 /**
  * VMX VMCS revision identifier.
+ * In accordance with the VT-x spec.
  */
 typedef union
 {
@@ -836,6 +837,7 @@ typedef const VMXVMCSREVID *PCVMXVMCSREVID;
 
 /**
  * VMX VM-exit instruction information.
+ * In accordance with the VT-x spec.
  */
 typedef union
 {
@@ -854,6 +856,7 @@ typedef union
         uint32_t    uReserved2  : 14;
     } StrIo;
 
+    /** INVEPT, INVPCID, INVVPID information. */
     struct
     {
         /** Scaling; 0=no scaling, 1=scale-by-2, 2=scale-by-4, 3=scale-by-8. */
@@ -913,7 +916,7 @@ typedef union
         uint32_t    u3AddrSize      : 3;
         /** Always cleared to 0. */
         uint32_t    u1Cleared0      : 1;
-        /** Operand size; 0=16-bit, 1=32-bit, undefined for 64-bit.  */
+        /** Operand size; 0=16-bit, 1=32-bit, undefined for 64-bit. */
         uint32_t    uOperandSize    : 1;
         uint32_t    u3Undef0        : 3;
         /** The segment register (X86_SREG_XXX). */
@@ -967,11 +970,12 @@ typedef union
         /** Destination register (X86_GREG_XXX). */
         uint32_t    iReg1           : 4;
         uint32_t    u4Undef0        : 4;
-        /** Operand size; 0=16-bit, 1=32-bit, 2=64-bit, 3=unused.  */
+        /** Operand size; 0=16-bit, 1=32-bit, 2=64-bit, 3=unused. */
         uint32_t    u2OperandSize   : 2;
         uint32_t    u19Def0         : 20;
     } RdrandRdseed;
 
+    /** VMREAD, VMWRITE information. */
     struct
     {
         /** Scaling; 0=no scaling, 1=scale-by-2, 2=scale-by-4, 3=scale-by-8. */
@@ -983,7 +987,7 @@ typedef union
         uint32_t    u3AddrSize      : 3;
         /** Memory or register operand. */
         uint32_t    fIsRegOperand   : 1;
-        /** Operand size; 0=16-bit, 1=32-bit, 2=64-bit, 3=unused.  */
+        /** Operand size; 0=16-bit, 1=32-bit, 2=64-bit, 3=unused. */
         uint32_t    u4Undef0        : 4;
         /** The segment register (X86_SREG_XXX). */
         uint32_t    iSegReg         : 3;
@@ -1014,7 +1018,7 @@ typedef union
         uint32_t    u3AddrSize      : 3;
         /** Memory/Register - Always cleared to 0 to indicate memory operand. */
         uint32_t    fIsRegOperand   : 1;
-        /** Operand size; 0=16-bit, 1=32-bit, 2=64-bit, 3=unused.  */
+        /** Operand size; 0=16-bit, 1=32-bit, 2=64-bit, 3=unused. */
         uint32_t    uOperandSize    : 2;
         uint32_t    u2Undef0        : 2;
         /** The segment register (X86_SREG_XXX). */
@@ -1038,7 +1042,7 @@ typedef VMXEXITINSTRINFO *PVMXEXITINSTRINFO;
 typedef const VMXEXITINSTRINFO *PCVMXEXITINSTRINFO;
 
 
-/** @name VM-entry failure reported in VM-exit qualification.
+/** @name VM-entry failure reported in Exit qualification.
  * See Intel spec. 26.7 "VM-entry failures during or after loading guest-state".
  * @{
  */
@@ -1054,35 +1058,39 @@ typedef const VMXEXITINSTRINFO *PCVMXEXITINSTRINFO;
 #define VMX_ENTRY_FAIL_QUAL_VMCS_LINK_PTR                       (4)
 /** @} */
 
-/**
- * VMX MSR-bitmap read permissions.
- */
-typedef enum VMXMSREXITREAD
-{
-    /** Reading this MSR causes a VM-exit. */
-    VMXMSREXIT_INTERCEPT_READ = 1,
-    /** Reading this MSR doesn't cause a VM-exit. */
-    VMXMSREXIT_PASSTHRU_READ
-} VMXMSREXITREAD;
-/** Pointer to MSR-bitmap read permissions. */
-typedef VMXMSREXITREAD* PVMXMSREXITREAD;
+
+/** @name VMXMSRPM_XXX - VMX MSR-bitmap permissions.
+ * These are -not- specified by Intel but used internally by VirtualBox.
+ * @{ */
+/** Guest software reads of this MSR must not cause a VM-exit. */
+#define VMXMSRPM_ALLOW_RD                                       RT_BIT(0)
+/** Guest software reads of this MSR must cause a VM-exit. */
+#define VMXMSRPM_EXIT_RD                                        RT_BIT(1)
+/** Guest software writes to this MSR must not cause a VM-exit. */
+#define VMXMSRPM_ALLOW_WR                                       RT_BIT(2)
+/** Guest software writes to this MSR must cause a VM-exit. */
+#define VMXMSRPM_EXIT_WR                                        RT_BIT(3)
+/** Guest software reads or writes of this MSR must not cause a VM-exit. */
+#define VMXMSRPM_ALLOW_RD_WR                                    (VMXMSRPM_ALLOW_RD | VMXMSRPM_ALLOW_WR)
+/** Guest software reads or writes of this MSR must cause a VM-exit. */
+#define VMXMSRPM_EXIT_RD_WR                                     (VMXMSRPM_EXIT_RD  | VMXMSRPM_EXIT_WR)
+/** Mask of valid MSR read permissions. */
+#define VMXMSRPM_RD_MASK                                        (VMXMSRPM_ALLOW_RD | VMXMSRPM_EXIT_RD)
+/** Mask of valid MSR write permissions. */
+#define VMXMSRPM_WR_MASK                                        (VMXMSRPM_ALLOW_WR | VMXMSRPM_EXIT_WR)
+/** Mask of valid MSR permissions. */
+#define VMXMSRPM_MASK                                           (VMXMSRPM_RD_MASK  | VMXMSRPM_WR_MASK)
+/** */
+/** Gets whether the MSR permission is valid or not. */
+#define VMXMSRPM_IS_FLAG_VALID(a_Msrpm)                         (    (a_Msrpm) != 0 \
+                                                                 && ((a_Msrpm) & ~VMXMSRPM_MASK) == 0 \
+                                                                 && ((a_Msrpm) & VMXMSRPM_RD_MASK) != VMXMSRPM_RD_MASK \
+                                                                 && ((a_Msrpm) & VMXMSRPM_WR_MASK) != VMXMSRPM_WR_MASK)
+/** @} */
 
 /**
- * VMX MSR-bitmap write permissions.
- */
-typedef enum VMXMSREXITWRITE
-{
-    /** Writing to this MSR causes a VM-exit. */
-    VMXMSREXIT_INTERCEPT_WRITE = 3,
-    /** Writing to this MSR does not cause a VM-exit. */
-    VMXMSREXIT_PASSTHRU_WRITE
-} VMXMSREXITWRITE;
-/** Pointer to MSR-bitmap write permissions. */
-typedef VMXMSREXITWRITE* PVMXMSREXITWRITE;
-
-/**
- * VMX MSR autoload/store element.
- * In accordance to the VT-x spec.
+ * VMX MSR autoload/store slot.
+ * In accordance with the VT-x spec.
  */
 typedef struct VMXAUTOMSR
 {
@@ -1119,6 +1127,7 @@ typedef const VMXTLBFLUSHTYPE *PCVMXTLBFLUSHTYPE;
 
 /**
  * VMX controls MSR.
+ * In accordance with the VT-x spec.
  */
 typedef union
 {
@@ -1324,18 +1333,27 @@ typedef const VMXMSRS *PCVMXMSRS;
 #define VMX_EXIT_RDSEED                                         61
 /** 62 - Page-modification log full. */
 #define VMX_EXIT_PML_FULL                                       62
-/** 63 - XSAVES - Guest software attempted to executed XSAVES and exiting was
+/** 63 - XSAVES. Guest software attempted to execute XSAVES and exiting was
  * enabled (XSAVES/XRSTORS was enabled too, of course). */
 #define VMX_EXIT_XSAVES                                         63
-/** 63 - XRSTORS - Guest software attempted to executed XRSTORS and exiting
+/** 64 - XRSTORS. Guest software attempted to execute XRSTORS and exiting
  * was enabled (XSAVES/XRSTORS was enabled too, of course). */
 #define VMX_EXIT_XRSTORS                                        64
+/** 66 - SPP-related event. Attempt to determine an access' sub-page write
+ *  permission encountered an SPP miss or misconfiguration. */
+#define VMX_EXIT_SPP_EVENT                                      66
+/* 67 - UMWAIT. Guest software attempted to execute UMWAIT and exiting was enabled. */
+#define VMX_EXIT_UMWAIT                                         67
+/** 68 - TPAUSE. Guest software attempted to execute TPAUSE and exiting was
+ *  enabled. */
+#define VMX_EXIT_TPAUSE                                         68
 /** The maximum exit value (inclusive). */
-#define VMX_EXIT_MAX                                            (VMX_EXIT_XRSTORS)
+#define VMX_EXIT_MAX                                            (VMX_EXIT_TPAUSE)
 /** @} */
 
 
 /** @name VM Instruction Errors.
+ * In accordance with the VT-x spec.
  * See Intel spec. "30.4 VM Instruction Error Numbers"
  * @{
  */
@@ -1398,8 +1416,10 @@ typedef enum
 
 
 /** @name VMX abort reasons.
+ * In accordance with the VT-x spec.
  * See Intel spec. "27.7 VMX Aborts".
- * Update HMGetVmxAbortDesc() if new reasons are added. @{
+ * Update HMGetVmxAbortDesc() if new reasons are added.
+ * @{
  */
 typedef enum
 {
@@ -1431,8 +1451,11 @@ AssertCompileSize(VMXABORT, 4);
 #define VMX_BASIC_MEM_TYPE_UC                                   0
 /** VMCS (and related regions) memory type - Write back. */
 #define VMX_BASIC_MEM_TYPE_WB                                   6
+/** Width of physical addresses used for VMCS and associated memory regions
+ *  (1=32-bit, 0=processor's physical address width). */
+#define VMX_BASIC_PHYSADDR_WIDTH_32BIT                          RT_BIT_64(48)
 
-/** Bit fields for MSR_IA32_VMX_BASIC.  */
+/** Bit fields for MSR_IA32_VMX_BASIC. */
 /** VMCS revision identifier used by the processor. */
 #define VMX_BF_BASIC_VMCS_ID_SHIFT                              0
 #define VMX_BF_BASIC_VMCS_ID_MASK                               UINT64_C(0x000000007fffffff)
@@ -1462,17 +1485,19 @@ AssertCompileSize(VMXABORT, 4);
  *  bits in VMX control MSRs. */
 #define VMX_BF_BASIC_TRUE_CTLS_SHIFT                            55
 #define VMX_BF_BASIC_TRUE_CTLS_MASK                             UINT64_C(0x0080000000000000)
-/** Bits 56:63 are reserved and RAZ. */
-#define VMX_BF_BASIC_RSVD_56_63_SHIFT                           56
-#define VMX_BF_BASIC_RSVD_56_63_MASK                            UINT64_C(0xff00000000000000)
+/** Whether VM-entry can delivery error code for all hardware exception vectors. */
+#define VMX_BF_BASIC_XCPT_ERRCODE_SHIFT                         56
+#define VMX_BF_BASIC_XCPT_ERRCODE_MASK                          UINT64_C(0x0100000000000000)
+/** Bits 57:63 are reserved and RAZ. */
+#define VMX_BF_BASIC_RSVD_56_63_SHIFT                           57
+#define VMX_BF_BASIC_RSVD_56_63_MASK                            UINT64_C(0xfe00000000000000)
 RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_BASIC_, UINT64_C(0), UINT64_MAX,
                             (VMCS_ID, RSVD_32, VMCS_SIZE, RSVD_45_47, PHYSADDR_WIDTH, DUAL_MON, VMCS_MEM_TYPE,
-                             VMCS_INS_OUTS, TRUE_CTLS, RSVD_56_63));
+                             VMCS_INS_OUTS, TRUE_CTLS, XCPT_ERRCODE, RSVD_56_63));
 /** @} */
 
 
 /** @name VMX MSR - Miscellaneous data.
- * Bit fields for MSR_IA32_VMX_MISC.
  * @{
  */
 /** Whether VM-exit stores EFER.LMA into the "IA32e mode guest" field. */
@@ -1489,6 +1514,8 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_BASIC_, UINT64_C(0), UINT64_MAX,
 #define VMX_MISC_MAX_MSRS(a_MiscMsr)                            (512 * (RT_BF_GET((a_MiscMsr), VMX_BF_MISC_MAX_MSRS) + 1))
 /** Maximum CR3-target count supported by the CPU. */
 #define VMX_MISC_CR3_TARGET_COUNT(a_MiscMsr)                    (((a) >> 16) & 0xff)
+
+/** Bit fields for MSR_IA32_VMX_MISC. */
 /** Relationship between the preemption timer and tsc. */
 #define VMX_BF_MISC_PREEMPT_TIMER_TSC_SHIFT                     0
 #define VMX_BF_MISC_PREEMPT_TIMER_TSC_MASK                      UINT64_C(0x000000000000001f)
@@ -1501,7 +1528,7 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_BASIC_, UINT64_C(0), UINT64_MAX,
 /** Bits 9:13 is reserved and RAZ. */
 #define VMX_BF_MISC_RSVD_9_13_SHIFT                             9
 #define VMX_BF_MISC_RSVD_9_13_MASK                              UINT64_C(0x0000000000003e00)
-/** Whether Intel PT (Processor Trace) can be used in VMX operation.  */
+/** Whether Intel PT (Processor Trace) can be used in VMX operation. */
 #define VMX_BF_MISC_INTEL_PT_SHIFT                              14
 #define VMX_BF_MISC_INTEL_PT_MASK                               UINT64_C(0x0000000000004000)
 /** Whether RDMSR can be used to read IA32_SMBASE MSR in SMM. */
@@ -1540,13 +1567,13 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_MISC_, UINT64_C(0), UINT64_MAX,
  * Bit fields for MSR_IA32_VMX_VMCS_ENUM.
  * @{
  */
-/** Bit 0 is reserved and RAZ.  */
+/** Bit 0 is reserved and RAZ. */
 #define VMX_BF_VMCS_ENUM_RSVD_0_SHIFT                           0
 #define VMX_BF_VMCS_ENUM_RSVD_0_MASK                            UINT64_C(0x0000000000000001)
 /** Highest index value used in VMCS field encoding. */
 #define VMX_BF_VMCS_ENUM_HIGHEST_IDX_SHIFT                      1
 #define VMX_BF_VMCS_ENUM_HIGHEST_IDX_MASK                       UINT64_C(0x00000000000003fe)
-/** Bit 10:63 is reserved and RAZ.  */
+/** Bit 10:63 is reserved and RAZ. */
 #define VMX_BF_VMCS_ENUM_RSVD_10_63_SHIFT                       10
 #define VMX_BF_VMCS_ENUM_RSVD_10_63_MASK                        UINT64_C(0xfffffffffffffc00)
 RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_VMCS_ENUM_, UINT64_C(0), UINT64_MAX,
@@ -1572,21 +1599,101 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_VMFUNC_, UINT64_C(0), UINT64_MAX,
 /** @name VMX MSR - EPT/VPID capabilities.
  * @{
  */
+/** Supports execute-only translations by EPT. */
 #define MSR_IA32_VMX_EPT_VPID_CAP_RWX_X_ONLY                    RT_BIT_64(0)
+/** Supports page-walk length of 4. */
 #define MSR_IA32_VMX_EPT_VPID_CAP_PAGE_WALK_LENGTH_4            RT_BIT_64(6)
+/** Supports page-walk length of 5. */
+#define MSR_IA32_VMX_EPT_VPID_CAP_PAGE_WALK_LENGTH_5            RT_BIT_64(7)
+/** Supports EPT paging-structure memory type to be uncacheable. */
 #define MSR_IA32_VMX_EPT_VPID_CAP_EMT_UC                        RT_BIT_64(8)
+/** Supports EPT paging structure memory type to be write-back. */
 #define MSR_IA32_VMX_EPT_VPID_CAP_EMT_WB                        RT_BIT_64(14)
+/** Supports EPT PDE to map a 2 MB page. */
 #define MSR_IA32_VMX_EPT_VPID_CAP_PDE_2M                        RT_BIT_64(16)
+/** Supports EPT PDPTE to map a 1 GB page. */
 #define MSR_IA32_VMX_EPT_VPID_CAP_PDPTE_1G                      RT_BIT_64(17)
+/** Supports INVEPT instruction. */
 #define MSR_IA32_VMX_EPT_VPID_CAP_INVEPT                        RT_BIT_64(20)
+/** Supports accessed and dirty flags for EPT. */
 #define MSR_IA32_VMX_EPT_VPID_CAP_EPT_ACCESS_DIRTY              RT_BIT_64(21)
+/** Supports advanced VM-exit info. for EPT violations. */
+#define MSR_IA32_VMX_EPT_VPID_CAP_ADVEXITINFO_EPT               RT_BIT_64(22)
+/** Supports supervisor shadow-stack control. */
+#define MSR_IA32_VMX_EPT_VPID_CAP_SSS                           RT_BIT_64(23)
+/** Supports single-context INVEPT type. */
 #define MSR_IA32_VMX_EPT_VPID_CAP_INVEPT_SINGLE_CONTEXT         RT_BIT_64(25)
+/** Supports all-context INVEPT type. */
 #define MSR_IA32_VMX_EPT_VPID_CAP_INVEPT_ALL_CONTEXTS           RT_BIT_64(26)
+/** Supports INVVPID instruction. */
 #define MSR_IA32_VMX_EPT_VPID_CAP_INVVPID                       RT_BIT_64(32)
+/** Supports individual-address INVVPID type. */
 #define MSR_IA32_VMX_EPT_VPID_CAP_INVVPID_INDIV_ADDR            RT_BIT_64(40)
+/** Supports single-context INVVPID type. */
 #define MSR_IA32_VMX_EPT_VPID_CAP_INVVPID_SINGLE_CONTEXT        RT_BIT_64(41)
+/** Supports all-context INVVPID type. */
 #define MSR_IA32_VMX_EPT_VPID_CAP_INVVPID_ALL_CONTEXTS          RT_BIT_64(42)
+/** Supports singe-context-retaining-globals INVVPID type. */
 #define MSR_IA32_VMX_EPT_VPID_CAP_INVVPID_SINGLE_CONTEXT_RETAIN_GLOBALS  RT_BIT_64(43)
+
+/** Bit fields for MSR_IA32_VMX_EPT_VPID_CAP. */
+#define VMX_BF_EPT_VPID_CAP_RWX_X_ONLY_SHIFT                    0
+#define VMX_BF_EPT_VPID_CAP_RWX_X_ONLY_MASK                     UINT64_C(0x0000000000000001)
+#define VMX_BF_EPT_VPID_CAP_RSVD_1_5_SHIFT                      1
+#define VMX_BF_EPT_VPID_CAP_RSVD_1_5_MASK                       UINT64_C(0x000000000000003e)
+#define VMX_BF_EPT_VPID_CAP_PAGE_WALK_LENGTH_4_SHIFT            6
+#define VMX_BF_EPT_VPID_CAP_PAGE_WALK_LENGTH_4_MASK             UINT64_C(0x0000000000000040)
+#define VMX_BF_EPT_VPID_CAP_RSVD_7_SHIFT                        7
+#define VMX_BF_EPT_VPID_CAP_RSVD_7_MASK                         UINT64_C(0x0000000000000080)
+#define VMX_BF_EPT_VPID_CAP_EMT_UC_SHIFT                        8
+#define VMX_BF_EPT_VPID_CAP_EMT_UC_MASK                         UINT64_C(0x0000000000000100)
+#define VMX_BF_EPT_VPID_CAP_RSVD_9_13_SHIFT                     9
+#define VMX_BF_EPT_VPID_CAP_RSVD_9_13_MASK                      UINT64_C(0x0000000000003e00)
+#define VMX_BF_EPT_VPID_CAP_EMT_WB_SHIFT                        14
+#define VMX_BF_EPT_VPID_CAP_EMT_WB_MASK                         UINT64_C(0x0000000000004000)
+#define VMX_BF_EPT_VPID_CAP_RSVD_15_SHIFT                       15
+#define VMX_BF_EPT_VPID_CAP_RSVD_15_MASK                        UINT64_C(0x0000000000008000)
+#define VMX_BF_EPT_VPID_CAP_PDE_2M_SHIFT                        16
+#define VMX_BF_EPT_VPID_CAP_PDE_2M_MASK                         UINT64_C(0x0000000000010000)
+#define VMX_BF_EPT_VPID_CAP_PDPTE_1G_SHIFT                      17
+#define VMX_BF_EPT_VPID_CAP_PDPTE_1G_MASK                       UINT64_C(0x0000000000020000)
+#define VMX_BF_EPT_VPID_CAP_RSVD_18_19_SHIFT                    18
+#define VMX_BF_EPT_VPID_CAP_RSVD_18_19_MASK                     UINT64_C(0x00000000000c0000)
+#define VMX_BF_EPT_VPID_CAP_INVEPT_SHIFT                        20
+#define VMX_BF_EPT_VPID_CAP_INVEPT_MASK                         UINT64_C(0x0000000000100000)
+#define VMX_BF_EPT_VPID_CAP_EPT_ACCESS_DIRTY_SHIFT              21
+#define VMX_BF_EPT_VPID_CAP_EPT_ACCESS_DIRTY_MASK               UINT64_C(0x0000000000200000)
+#define VMX_BF_EPT_VPID_CAP_ADVEXITINFO_EPT_SHIFT               22
+#define VMX_BF_EPT_VPID_CAP_ADVEXITINFO_EPT_MASK                UINT64_C(0x0000000000400000)
+#define VMX_BF_EPT_VPID_CAP_SSS_SHIFT                           23
+#define VMX_BF_EPT_VPID_CAP_SSS_MASK                            UINT64_C(0x0000000000800000)
+#define VMX_BF_EPT_VPID_CAP_RSVD_24_SHIFT                       24
+#define VMX_BF_EPT_VPID_CAP_RSVD_24_MASK                        UINT64_C(0x0000000001000000)
+#define VMX_BF_EPT_VPID_CAP_INVEPT_SINGLE_CTX_SHIFT             25
+#define VMX_BF_EPT_VPID_CAP_INVEPT_SINGLE_CTX_MASK              UINT64_C(0x0000000002000000)
+#define VMX_BF_EPT_VPID_CAP_INVEPT_ALL_CTX_SHIFT                26
+#define VMX_BF_EPT_VPID_CAP_INVEPT_ALL_CTX_MASK                 UINT64_C(0x0000000004000000)
+#define VMX_BF_EPT_VPID_CAP_RSVD_27_31_SHIFT                    27
+#define VMX_BF_EPT_VPID_CAP_RSVD_27_31_MASK                     UINT64_C(0x00000000f8000000)
+#define VMX_BF_EPT_VPID_CAP_INVVPID_SHIFT                       32
+#define VMX_BF_EPT_VPID_CAP_INVVPID_MASK                        UINT64_C(0x0000000100000000)
+#define VMX_BF_EPT_VPID_CAP_RSVD_33_39_SHIFT                    33
+#define VMX_BF_EPT_VPID_CAP_RSVD_33_39_MASK                     UINT64_C(0x000000fe00000000)
+#define VMX_BF_EPT_VPID_CAP_INVVPID_INDIV_ADDR_SHIFT            40
+#define VMX_BF_EPT_VPID_CAP_INVVPID_INDIV_ADDR_MASK             UINT64_C(0x0000010000000000)
+#define VMX_BF_EPT_VPID_CAP_INVVPID_SINGLE_CTX_SHIFT            41
+#define VMX_BF_EPT_VPID_CAP_INVVPID_SINGLE_CTX_MASK             UINT64_C(0x0000020000000000)
+#define VMX_BF_EPT_VPID_CAP_INVVPID_ALL_CTX_SHIFT               42
+#define VMX_BF_EPT_VPID_CAP_INVVPID_ALL_CTX_MASK                UINT64_C(0x0000040000000000)
+#define VMX_BF_EPT_VPID_CAP_INVVPID_SINGLE_CTX_RETAIN_GLOBALS_SHIFT 43
+#define VMX_BF_EPT_VPID_CAP_INVVPID_SINGLE_CTX_RETAIN_GLOBALS_MASK  UINT64_C(0x0000080000000000)
+#define VMX_BF_EPT_VPID_CAP_RSVD_44_63_SHIFT                    44
+#define VMX_BF_EPT_VPID_CAP_RSVD_44_63_MASK                     UINT64_C(0xfffff00000000000)
+RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_EPT_VPID_CAP_, UINT64_C(0), UINT64_MAX,
+                            (RWX_X_ONLY, RSVD_1_5, PAGE_WALK_LENGTH_4, RSVD_7, EMT_UC, RSVD_9_13, EMT_WB, RSVD_15, PDE_2M,
+                             PDPTE_1G, RSVD_18_19, INVEPT, EPT_ACCESS_DIRTY, ADVEXITINFO_EPT, SSS, RSVD_24, INVEPT_SINGLE_CTX,
+                             INVEPT_ALL_CTX, RSVD_27_31, INVVPID, RSVD_33_39, INVVPID_INDIV_ADDR, INVVPID_SINGLE_CTX,
+                             INVVPID_ALL_CTX, INVVPID_SINGLE_CTX_RETAIN_GLOBALS, RSVD_44_63));
 /** @} */
 
 
@@ -1607,12 +1714,19 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_VMFUNC_, UINT64_C(0), UINT64_MAX,
 /** @} */
 
 
-/** @name VMCS field encoding: 16-bit guest fields.
+/** @name VMCS fields and encoding.
+ *
+ *  When adding a new field:
+ *    - Always add it to g_aVmcsFields.
+ *    - Consider if it needs to be added to VMXVVMCS.
  * @{
  */
+/** 16-bit control fields.  */
 #define VMX_VMCS16_VPID                                         0x0000
 #define VMX_VMCS16_POSTED_INT_NOTIFY_VECTOR                     0x0002
 #define VMX_VMCS16_EPTP_INDEX                                   0x0004
+
+/** 16-bit guest-state fields.  */
 #define VMX_VMCS16_GUEST_ES_SEL                                 0x0800
 #define VMX_VMCS16_GUEST_CS_SEL                                 0x0802
 #define VMX_VMCS16_GUEST_SS_SEL                                 0x0804
@@ -1623,12 +1737,8 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_VMFUNC_, UINT64_C(0), UINT64_MAX,
 #define VMX_VMCS16_GUEST_TR_SEL                                 0x080e
 #define VMX_VMCS16_GUEST_INTR_STATUS                            0x0810
 #define VMX_VMCS16_GUEST_PML_INDEX                              0x0812
-/** @} */
 
-
-/** @name VMCS field encoding: 16-bits host fields.
- * @{
- */
+/** 16-bits host-state fields.  */
 #define VMX_VMCS16_HOST_ES_SEL                                  0x0c00
 #define VMX_VMCS16_HOST_CS_SEL                                  0x0c02
 #define VMX_VMCS16_HOST_SS_SEL                                  0x0c04
@@ -1636,12 +1746,8 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_VMFUNC_, UINT64_C(0), UINT64_MAX,
 #define VMX_VMCS16_HOST_FS_SEL                                  0x0c08
 #define VMX_VMCS16_HOST_GS_SEL                                  0x0c0a
 #define VMX_VMCS16_HOST_TR_SEL                                  0x0c0c
-/** @} */
 
-
-/** @name VMCS field encoding: 64-bit control fields.
- * @{
- */
+/** 64-bit control fields. */
 #define VMX_VMCS64_CTRL_IO_BITMAP_A_FULL                        0x2000
 #define VMX_VMCS64_CTRL_IO_BITMAP_A_HIGH                        0x2001
 #define VMX_VMCS64_CTRL_IO_BITMAP_B_FULL                        0x2002
@@ -1692,20 +1798,12 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_VMFUNC_, UINT64_C(0), UINT64_MAX,
 #define VMX_VMCS64_CTRL_ENCLS_EXITING_BITMAP_HIGH               0x202f
 #define VMX_VMCS64_CTRL_TSC_MULTIPLIER_FULL                     0x2032
 #define VMX_VMCS64_CTRL_TSC_MULTIPLIER_HIGH                     0x2033
-/** @} */
 
-
-/** @name VMCS field encoding: 64-bit read-only data fields.
- * @{
- */
+/** 64-bit read-only data fields.  */
 #define VMX_VMCS64_RO_GUEST_PHYS_ADDR_FULL                      0x2400
 #define VMX_VMCS64_RO_GUEST_PHYS_ADDR_HIGH                      0x2401
-/** @} */
 
-
-/** @name VMCS field encoding: 64-bit guest fields.
- * @{
- */
+/** 64-bit guest-state fields.  */
 #define VMX_VMCS64_GUEST_VMCS_LINK_PTR_FULL                     0x2800
 #define VMX_VMCS64_GUEST_VMCS_LINK_PTR_HIGH                     0x2801
 #define VMX_VMCS64_GUEST_DEBUGCTL_FULL                          0x2802
@@ -1726,24 +1824,16 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_VMFUNC_, UINT64_C(0), UINT64_MAX,
 #define VMX_VMCS64_GUEST_PDPTE3_HIGH                            0x2811
 #define VMX_VMCS64_GUEST_BNDCFGS_FULL                           0x2812
 #define VMX_VMCS64_GUEST_BNDCFGS_HIGH                           0x2813
-/** @} */
 
-
-/** @name VMCS field encoding: 64-bit host fields.
- * @{
- */
+/** 64-bit host-state fields.  */
 #define VMX_VMCS64_HOST_PAT_FULL                                0x2c00
 #define VMX_VMCS64_HOST_PAT_HIGH                                0x2c01
 #define VMX_VMCS64_HOST_EFER_FULL                               0x2c02
 #define VMX_VMCS64_HOST_EFER_HIGH                               0x2c03
 #define VMX_VMCS64_HOST_PERF_GLOBAL_CTRL_FULL                   0x2c04
 #define VMX_VMCS64_HOST_PERF_GLOBAL_CTRL_HIGH                   0x2c05
-/** @} */
 
-
-/** @name VMCS field encoding: 32-bit control fields.
- * @{
- */
+/** 32-bit control fields.  */
 #define VMX_VMCS32_CTRL_PIN_EXEC                                0x4000
 #define VMX_VMCS32_CTRL_PROC_EXEC                               0x4002
 #define VMX_VMCS32_CTRL_EXCEPTION_BITMAP                        0x4004
@@ -1762,12 +1852,8 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_VMFUNC_, UINT64_C(0), UINT64_MAX,
 #define VMX_VMCS32_CTRL_PROC_EXEC2                              0x401e
 #define VMX_VMCS32_CTRL_PLE_GAP                                 0x4020
 #define VMX_VMCS32_CTRL_PLE_WINDOW                              0x4022
-/** @} */
 
-
-/** @name VMCS field encoding: 32-bits read-only fields.
- * @{
- */
+/** 32-bits read-only fields. */
 #define VMX_VMCS32_RO_VM_INSTR_ERROR                            0x4400
 #define VMX_VMCS32_RO_EXIT_REASON                               0x4402
 #define VMX_VMCS32_RO_EXIT_INTERRUPTION_INFO                    0x4404
@@ -1776,12 +1862,8 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_VMFUNC_, UINT64_C(0), UINT64_MAX,
 #define VMX_VMCS32_RO_IDT_VECTORING_ERROR_CODE                  0x440a
 #define VMX_VMCS32_RO_EXIT_INSTR_LENGTH                         0x440c
 #define VMX_VMCS32_RO_EXIT_INSTR_INFO                           0x440e
-/** @} */
 
-
-/** @name VMCS field encoding: 32-bit guest-state fields.
- * @{
- */
+/** 32-bit guest-state fields. */
 #define VMX_VMCS32_GUEST_ES_LIMIT                               0x4800
 #define VMX_VMCS32_GUEST_CS_LIMIT                               0x4802
 #define VMX_VMCS32_GUEST_SS_LIMIT                               0x4804
@@ -1805,19 +1887,11 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_VMFUNC_, UINT64_C(0), UINT64_MAX,
 #define VMX_VMCS32_GUEST_SMBASE                                 0x4828
 #define VMX_VMCS32_GUEST_SYSENTER_CS                            0x482a
 #define VMX_VMCS32_PREEMPT_TIMER_VALUE                          0x482e
-/** @} */
 
-
-/** @name VMCS field encoding: 32-bit host-state fields.
- * @{
- */
+/** 32-bit host-state fields. */
 #define VMX_VMCS32_HOST_SYSENTER_CS                             0x4C00
-/** @} */
 
-
-/** @name Natural width control fields.
- * @{
- */
+/** Natural-width control fields.  */
 #define VMX_VMCS_CTRL_CR0_MASK                                  0x6000
 #define VMX_VMCS_CTRL_CR4_MASK                                  0x6002
 #define VMX_VMCS_CTRL_CR0_READ_SHADOW                           0x6004
@@ -1826,24 +1900,16 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_VMFUNC_, UINT64_C(0), UINT64_MAX,
 #define VMX_VMCS_CTRL_CR3_TARGET_VAL1                           0x600a
 #define VMX_VMCS_CTRL_CR3_TARGET_VAL2                           0x600c
 #define VMX_VMCS_CTRL_CR3_TARGET_VAL3                           0x600e
-/** @} */
 
-
-/** @name Natural width read-only data fields.
- * @{
- */
+/** Natural-width read-only data fields. */
 #define VMX_VMCS_RO_EXIT_QUALIFICATION                          0x6400
 #define VMX_VMCS_RO_IO_RCX                                      0x6402
-#define VMX_VMCS_RO_IO_RSX                                      0x6404
+#define VMX_VMCS_RO_IO_RSI                                      0x6404
 #define VMX_VMCS_RO_IO_RDI                                      0x6406
 #define VMX_VMCS_RO_IO_RIP                                      0x6408
 #define VMX_VMCS_RO_GUEST_LINEAR_ADDR                           0x640a
-/** @} */
 
-
-/** @name VMCS field encoding: Natural width guest-state fields.
- * @{
- */
+/** Natural-width guest-state fields. */
 #define VMX_VMCS_GUEST_CR0                                      0x6800
 #define VMX_VMCS_GUEST_CR3                                      0x6802
 #define VMX_VMCS_GUEST_CR4                                      0x6804
@@ -1864,12 +1930,8 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_VMFUNC_, UINT64_C(0), UINT64_MAX,
 #define VMX_VMCS_GUEST_PENDING_DEBUG_XCPTS                      0x6822
 #define VMX_VMCS_GUEST_SYSENTER_ESP                             0x6824
 #define VMX_VMCS_GUEST_SYSENTER_EIP                             0x6826
-/** @} */
 
-
-/** @name VMCS field encoding: Natural width host-state fields.
- * @{
- */
+/** Natural-width host-state fields. */
 #define VMX_VMCS_HOST_CR0                                       0x6c00
 #define VMX_VMCS_HOST_CR3                                       0x6c02
 #define VMX_VMCS_HOST_CR4                                       0x6c04
@@ -1882,22 +1944,76 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_VMFUNC_, UINT64_C(0), UINT64_MAX,
 #define VMX_VMCS_HOST_SYSENTER_EIP                              0x6c12
 #define VMX_VMCS_HOST_RSP                                       0x6c14
 #define VMX_VMCS_HOST_RIP                                       0x6c16
-/** @} */
 
+/**
+ * VMCS field.
+ * In accordance with the VT-x spec.
+ */
+typedef union
+{
+    struct
+    {
+        /** The access type; 0=full, 1=high of 64-bit fields. */
+        uint32_t    fAccessType  : 1;
+        /** The index. */
+        uint32_t    u8Index      : 8;
+        /** The type; 0=control, 1=VM-exit info, 2=guest-state, 3=host-state. */
+        uint32_t    u2Type       : 2;
+        /** Reserved (MBZ). */
+        uint32_t    u1Reserved0  : 1;
+        /** The width; 0=16-bit, 1=64-bit, 2=32-bit, 3=natural-width. */
+        uint32_t    u2Width      : 2;
+        /** Reserved (MBZ). */
+        uint32_t    u18Reserved0 : 18;
+    } n;
 
-/** @name VMCS field encoding: Access.
- * @{ */
+    /* The unsigned integer view. */
+    uint32_t    u;
+} VMXVMCSFIELD;
+AssertCompileSize(VMXVMCSFIELD, 4);
+/** Pointer to a VMCS field. */
+typedef VMXVMCSFIELD *PVMXVMCSFIELD;
+/** Pointer to a const VMCS field. */
+typedef const VMXVMCSFIELD *PCVMXVMCSFIELD;
+
+/** VMCS field: Mask of reserved bits (bits 63:15 MBZ), bit 12 is not included! */
+#define VMX_VMCSFIELD_RSVD_MASK                                 UINT64_C(0xffffffffffff8000)
+
+/** Bits fields for a VMCS field. */
+#define VMX_BF_VMCSFIELD_ACCESS_TYPE_SHIFT                      0
+#define VMX_BF_VMCSFIELD_ACCESS_TYPE_MASK                       UINT32_C(0x00000001)
+#define VMX_BF_VMCSFIELD_INDEX_SHIFT                            1
+#define VMX_BF_VMCSFIELD_INDEX_MASK                             UINT32_C(0x000003fe)
+#define VMX_BF_VMCSFIELD_TYPE_SHIFT                             10
+#define VMX_BF_VMCSFIELD_TYPE_MASK                              UINT32_C(0x00000c00)
+#define VMX_BF_VMCSFIELD_RSVD_12_SHIFT                          12
+#define VMX_BF_VMCSFIELD_RSVD_12_MASK                           UINT32_C(0x00001000)
+#define VMX_BF_VMCSFIELD_WIDTH_SHIFT                            13
+#define VMX_BF_VMCSFIELD_WIDTH_MASK                             UINT32_C(0x00006000)
+#define VMX_BF_VMCSFIELD_RSVD_15_31_SHIFT                       15
+#define VMX_BF_VMCSFIELD_RSVD_15_31_MASK                        UINT32_C(0xffff8000)
+RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_VMCSFIELD_, UINT32_C(0), UINT32_MAX,
+                            (ACCESS_TYPE, INDEX, TYPE, RSVD_12, WIDTH, RSVD_15_31));
+
+/**
+ * VMCS field encoding: Access type.
+ * In accordance with the VT-x spec.
+ */
 typedef enum
 {
     VMXVMCSFIELDACCESS_FULL = 0,
     VMXVMCSFIELDACCESS_HIGH
 } VMXVMCSFIELDACCESS;
 AssertCompileSize(VMXVMCSFIELDACCESS, 4);
-/** @} */
+/** VMCS field encoding type: Full. */
+#define VMX_VMCSFIELD_ACCESS_FULL                               0
+/** VMCS field encoding type: High. */
+#define VMX_VMCSFIELD_ACCESS_HIGH                               1
 
-
-/** @name VMCS field encoding: Type.
- * @{ */
+/**
+ * VMCS field encoding: Type.
+ * In accordance with the VT-x spec.
+ */
 typedef enum
 {
     VMXVMCSFIELDTYPE_CONTROL = 0,
@@ -1906,11 +2022,19 @@ typedef enum
     VMXVMCSFIELDTYPE_HOST_STATE
 } VMXVMCSFIELDTYPE;
 AssertCompileSize(VMXVMCSFIELDTYPE, 4);
-/** @} */
+/** VMCS field encoding type: Control. */
+#define VMX_VMCSFIELD_TYPE_CONTROL                              0
+/** VMCS field encoding type: VM-exit information / read-only fields. */
+#define VMX_VMCSFIELD_TYPE_VMEXIT_INFO                          1
+/** VMCS field encoding type: Guest-state. */
+#define VMX_VMCSFIELD_TYPE_GUEST_STATE                          2
+/** VMCS field encoding type: Host-state. */
+#define VMX_VMCSFIELD_TYPE_HOST_STATE                           3
 
-
-/** @name VMCS field encoding: Width.
- * @{ */
+/**
+ * VMCS field encoding: Width.
+ * In accordance with the VT-x spec.
+ */
 typedef enum
 {
     VMXVMCSFIELDWIDTH_16BIT = 0,
@@ -1919,7 +2043,16 @@ typedef enum
     VMXVMCSFIELDWIDTH_NATURAL
 } VMXVMCSFIELDWIDTH;
 AssertCompileSize(VMXVMCSFIELDWIDTH, 4);
+/** VMCS field encoding width: 16-bit. */
+#define VMX_VMCSFIELD_WIDTH_16BIT                               0
+/** VMCS field encoding width: 64-bit. */
+#define VMX_VMCSFIELD_WIDTH_64BIT                               1
+/** VMCS field encoding width: 32-bit. */
+#define VMX_VMCSFIELD_WIDTH_32BIT                               2
+/** VMCS field encoding width: Natural width. */
+#define VMX_VMCSFIELD_WIDTH_NATURAL                             3
 /** @} */
+
 
 /** @name VM-entry instruction length.
  * @{ */
@@ -1931,13 +2064,23 @@ AssertCompileSize(VMXVMCSFIELDWIDTH, 4);
 
 /** @name VM-entry register masks.
  * @{ */
-/** CR0 bits ignored on VM-entry (ET, NW, CD and reserved bits bits 6:15, bit 17,
- *  bits 19:28). */
-#define VMX_ENTRY_CR0_IGNORE_MASK                               UINT64_C(0x7ffaffd0)
-/** DR7 bits set here are always cleared on VM-entry (bit 12, bits 14:15). */
-#define VMX_ENTRY_DR7_MBZ_MASK                                  UINT64_C(0xd000)
-/** DR7 bits set here are always set on VM-entry (bit 10). */
-#define VMX_ENTRY_DR7_MB1_MASK                                  UINT64_C(0x400)
+/** CR0 bits ignored on VM-entry while loading guest CR0 (ET, CD, NW, bits 6:15,
+ *  bit 17 and bits 19:28). */
+#define VMX_ENTRY_GUEST_CR0_IGNORE_MASK                         UINT64_C(0x7ffaffd0)
+/** DR7 bits set here are always cleared on VM-entry while loading guest DR7 (bit
+ *  12, bits 14:15). */
+#define VMX_ENTRY_GUEST_DR7_MBZ_MASK                            UINT64_C(0xd000)
+/** DR7 bits set here are always set on VM-entry while loading guest DR7 (bit
+ *  10). */
+#define VMX_ENTRY_GUEST_DR7_MB1_MASK                            UINT64_C(0x400)
+/** @} */
+
+
+/** @name VM-exit register masks.
+ * @{ */
+/** CR0 bits ignored on VM-exit while loading host CR0 (ET, CD, NW, bits 6:15,
+ *  bit 17, bits 19:28 and bits 32:63). */
+#define VMX_EXIT_HOST_CR0_IGNORE_MASK                           UINT64_C(0xffffffff7ffaffd0)
 /** @} */
 
 
@@ -2137,11 +2280,23 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_PROC_CTLS_, UINT32_C(0), UINT32_MAX,
 /** Controls whether EPT-violations may cause \#VE instead of exits. */
 #define VMX_PROC_CTLS2_EPT_VE                                   RT_BIT(18)
 /** Conceal VMX non-root operation from Intel processor trace (PT). */
-#define VMX_PROC_CTLS2_CONCEAL_FROM_PT                          RT_BIT(19)
+#define VMX_PROC_CTLS2_CONCEAL_VMX_FROM_PT                      RT_BIT(19)
 /** Enables XSAVES/XRSTORS instructions. */
 #define VMX_PROC_CTLS2_XSAVES_XRSTORS                           RT_BIT(20)
+/** Enables supervisor/user mode based EPT execute permission for linear
+ *  addresses. */
+#define VMX_PROC_CTLS2_MODE_BASED_EPT_PERM                      RT_BIT(22)
+/** Enables EPT permissions to be specified at granularity of 128 bytes. */
+#define VMX_PROC_CTLS2_SPPTP_EPT                                RT_BIT(23)
+/** Intel PT output addresses are treated as guest-physical addresses and
+ *  translated using EPT. */
+#define VMX_PROC_CTLS2_PT_EPT                                   RT_BIT(24)
 /** Use TSC scaling. */
 #define VMX_PROC_CTLS2_TSC_SCALING                              RT_BIT(25)
+/** Enables TPAUSE, UMONITOR and UMWAIT instructions. */
+#define VMX_PROC_CTLS2_USER_WAIT_PAUSE                          RT_BIT(26)
+/** Enables consulting ENCLV-exiting bitmap when executing ENCLV. */
+#define VMX_PROC_CTLS2_ENCLV_EXIT                               RT_BIT(28)
 
 /** Bit fields for MSR_IA32_VMX_PROCBASED_CTLS2 and Secondary processor-based
  *  VM-execution controls field in the VMCS. */
@@ -2183,21 +2338,35 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_PROC_CTLS_, UINT32_C(0), UINT32_MAX,
 #define VMX_BF_PROC_CTLS2_PML_MASK                              UINT32_C(0x00020000)
 #define VMX_BF_PROC_CTLS2_EPT_VE_SHIFT                          18
 #define VMX_BF_PROC_CTLS2_EPT_VE_MASK                           UINT32_C(0x00040000)
-#define VMX_BF_PROC_CTLS2_CONCEAL_FROM_PT_SHIFT                 19
-#define VMX_BF_PROC_CTLS2_CONCEAL_FROM_PT_MASK                  UINT32_C(0x00080000)
+#define VMX_BF_PROC_CTLS2_CONCEAL_VMX_FROM_PT_SHIFT             19
+#define VMX_BF_PROC_CTLS2_CONCEAL_VMX_FROM_PT_MASK              UINT32_C(0x00080000)
 #define VMX_BF_PROC_CTLS2_XSAVES_XRSTORS_SHIFT                  20
 #define VMX_BF_PROC_CTLS2_XSAVES_XRSTORS_MASK                   UINT32_C(0x00100000)
-#define VMX_BF_PROC_CTLS2_UNDEF_21_24_SHIFT                     21
-#define VMX_BF_PROC_CTLS2_UNDEF_21_24_MASK                      UINT32_C(0x01e00000)
+#define VMX_BF_PROC_CTLS2_UNDEF_21_SHIFT                        21
+#define VMX_BF_PROC_CTLS2_UNDEF_21_MASK                         UINT32_C(0x00200000)
+#define VMX_BF_PROC_CTLS2_MODE_BASED_EPT_PERM_SHIFT             22
+#define VMX_BF_PROC_CTLS2_MODE_BASED_EPT_PERM_MASK              UINT32_C(0x00400000)
+#define VMX_BF_PROC_CTLS2_SPPTP_EPT_SHIFT                       23
+#define VMX_BF_PROC_CTLS2_SPPTP_EPT_MASK                        UINT32_C(0x00800000)
+#define VMX_BF_PROC_CTLS2_PT_EPT_SHIFT                          24
+#define VMX_BF_PROC_CTLS2_PT_EPT_MASK                           UINT32_C(0x01000000)
 #define VMX_BF_PROC_CTLS2_TSC_SCALING_SHIFT                     25
 #define VMX_BF_PROC_CTLS2_TSC_SCALING_MASK                      UINT32_C(0x02000000)
-#define VMX_BF_PROC_CTLS2_UNDEF_26_31_SHIFT                     26
-#define VMX_BF_PROC_CTLS2_UNDEF_26_31_MASK                      UINT32_C(0xfc000000)
+#define VMX_BF_PROC_CTLS2_USER_WAIT_PAUSE_SHIFT                 26
+#define VMX_BF_PROC_CTLS2_USER_WAIT_PAUSE_MASK                  UINT32_C(0x04000000)
+#define VMX_BF_PROC_CTLS2_UNDEF_27_SHIFT                        27
+#define VMX_BF_PROC_CTLS2_UNDEF_27_MASK                         UINT32_C(0x08000000)
+#define VMX_BF_PROC_CTLS2_ENCLV_EXIT_SHIFT                      28
+#define VMX_BF_PROC_CTLS2_ENCLV_EXIT_MASK                       UINT32_C(0x10000000)
+#define VMX_BF_PROC_CTLS2_UNDEF_29_31_SHIFT                     29
+#define VMX_BF_PROC_CTLS2_UNDEF_29_31_MASK                      UINT32_C(0xe0000000)
+
 RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_PROC_CTLS2_, UINT32_C(0), UINT32_MAX,
                             (VIRT_APIC_ACCESS, EPT, DESC_TABLE_EXIT, RDTSCP, VIRT_X2APIC_MODE, VPID, WBINVD_EXIT,
                              UNRESTRICTED_GUEST, APIC_REG_VIRT, VIRT_INT_DELIVERY, PAUSE_LOOP_EXIT, RDRAND_EXIT, INVPCID, VMFUNC,
-                             VMCS_SHADOWING, ENCLS_EXIT, RDSEED_EXIT, PML, EPT_VE, CONCEAL_FROM_PT, XSAVES_XRSTORS, UNDEF_21_24,
-                             TSC_SCALING, UNDEF_26_31));
+                             VMCS_SHADOWING, ENCLS_EXIT, RDSEED_EXIT, PML, EPT_VE, CONCEAL_VMX_FROM_PT, XSAVES_XRSTORS, UNDEF_21,
+                             MODE_BASED_EPT_PERM, SPPTP_EPT, PT_EPT, TSC_SCALING, USER_WAIT_PAUSE, UNDEF_27, ENCLV_EXIT,
+                             UNDEF_29_31));
 /** @} */
 
 
@@ -2222,7 +2391,11 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_PROC_CTLS2_, UINT32_C(0), UINT32_MAX,
 /** Whether the guest IA32_BNDCFGS MSR is loaded on VM-entry. */
 #define VMX_ENTRY_CTLS_LOAD_BNDCFGS_MSR                         RT_BIT(16)
 /** Whether to conceal VMX from Intel PT (Processor Trace). */
-#define VMX_ENTRY_CTLS_CONCEAL_VMX_PT                           RT_BIT(17)
+#define VMX_ENTRY_CTLS_CONCEAL_VMX_FROM_PT                      RT_BIT(17)
+/** Whether the guest IA32_RTIT MSR is loaded on VM-entry. */
+#define VMX_ENTRY_CTLS_LOAD_RTIT_CTL_MSR                        RT_BIT(18)
+/** Whether the guest CET-related MSRs and SPP are loaded on VM-entry. */
+#define VMX_ENTRY_CTLS_LOAD_CET_STATE                           RT_BIT(20)
 /** Default1 class when true-capability MSRs are not supported. */
 #define VMX_ENTRY_CTLS_DEFAULT1                                 UINT32_C(0x000011ff)
 
@@ -2250,13 +2423,16 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_PROC_CTLS2_, UINT32_C(0), UINT32_MAX,
 #define VMX_BF_ENTRY_CTLS_LOAD_EFER_MSR_MASK                    UINT32_C(0x00008000)
 #define VMX_BF_ENTRY_CTLS_LOAD_BNDCFGS_MSR_SHIFT                16
 #define VMX_BF_ENTRY_CTLS_LOAD_BNDCFGS_MSR_MASK                 UINT32_C(0x00010000)
-#define VMX_BF_ENTRY_CTLS_CONCEAL_VMX_PT_SHIFT                  17
-#define VMX_BF_ENTRY_CTLS_CONCEAL_VMX_PT_MASK                   UINT32_C(0x00020000)
-#define VMX_BF_ENTRY_CTLS_UNDEF_18_31_SHIFT                     18
-#define VMX_BF_ENTRY_CTLS_UNDEF_18_31_MASK                      UINT32_C(0xfffc0000)
+#define VMX_BF_ENTRY_CTLS_CONCEAL_VMX_FROM_PT_SHIFT             17
+#define VMX_BF_ENTRY_CTLS_CONCEAL_VMX_FROM_PT_MASK              UINT32_C(0x00020000)
+#define VMX_BF_ENTRY_CTLS_LOAD_RTIT_CTL_MSR_SHIFT               18
+#define VMX_BF_ENTRY_CTLS_LOAD_RTIT_CTL_MSR_MASK                UINT32_C(0x00040000)
+#define VMX_BF_ENTRY_CTLS_UNDEF_19_31_SHIFT                     19
+#define VMX_BF_ENTRY_CTLS_UNDEF_19_31_MASK                      UINT32_C(0xfff80000)
 RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_ENTRY_CTLS_, UINT32_C(0), UINT32_MAX,
                             (UNDEF_0_1, LOAD_DEBUG, UNDEF_3_8, IA32E_MODE_GUEST, ENTRY_SMM, DEACTIVATE_DUAL_MON, UNDEF_12,
-                             LOAD_PERF_MSR, LOAD_PAT_MSR, LOAD_EFER_MSR, LOAD_BNDCFGS_MSR, CONCEAL_VMX_PT, UNDEF_18_31));
+                             LOAD_PERF_MSR, LOAD_PAT_MSR, LOAD_EFER_MSR, LOAD_BNDCFGS_MSR, CONCEAL_VMX_FROM_PT,
+                             LOAD_RTIT_CTL_MSR, UNDEF_19_31));
 /** @} */
 
 
@@ -2284,7 +2460,13 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_ENTRY_CTLS_, UINT32_C(0), UINT32_MAX,
 #define VMX_EXIT_CTLS_SAVE_PREEMPT_TIMER                        RT_BIT(22)
 /** Whether IA32_BNDCFGS MSR is cleared on VM-exit. */
 #define VMX_EXIT_CTLS_CLEAR_BNDCFGS_MSR                         RT_BIT(23)
-/** Default1 class when true-capability MSRs are not supported.  */
+/** Whether to conceal VMX from Intel PT. */
+#define VMX_EXIT_CTLS_CONCEAL_VMX_FROM_PT                       RT_BIT(24)
+/** Whether IA32_RTIT_CTL MSR is cleared on VM-exit. */
+#define VMX_EXIT_CTLS_CLEAR_RTIT_CTL_MSR                        RT_BIT(25)
+/** Whether CET-related MSRs and SPP are loaded on VM-exit. */
+#define VMX_EXIT_CTLS_LOAD_CET_STATE                            RT_BIT(28)
+/** Default1 class when true-capability MSRs are not supported. */
 #define VMX_EXIT_CTLS_DEFAULT1                                  UINT32_C(0x00036dff)
 
 /** Bit fields for MSR_IA32_VMX_EXIT_CTLS and VM-exit controls field in the
@@ -2317,12 +2499,18 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_ENTRY_CTLS_, UINT32_C(0), UINT32_MAX,
 #define VMX_BF_EXIT_CTLS_LOAD_EFER_MSR_MASK                     UINT32_C(0x00200000)
 #define VMX_BF_EXIT_CTLS_SAVE_PREEMPT_TIMER_SHIFT               22
 #define VMX_BF_EXIT_CTLS_SAVE_PREEMPT_TIMER_MASK                UINT32_C(0x00400000)
-#define VMX_BF_EXIT_CTLS_UNDEF_23_31_SHIFT                      23
-#define VMX_BF_EXIT_CTLS_UNDEF_23_31_MASK                       UINT32_C(0xff800000)
+#define VMX_BF_EXIT_CTLS_CLEAR_BNDCFGS_MSR_SHIFT                23
+#define VMX_BF_EXIT_CTLS_CLEAR_BNDCFGS_MSR_MASK                 UINT32_C(0x00800000)
+#define VMX_BF_EXIT_CTLS_CONCEAL_VMX_FROM_PT_SHIFT              24
+#define VMX_BF_EXIT_CTLS_CONCEAL_VMX_FROM_PT_MASK               UINT32_C(0x01000000)
+#define VMX_BF_EXIT_CTLS_CLEAR_RTIT_CTL_MSR_SHIFT               25
+#define VMX_BF_EXIT_CTLS_CLEAR_RTIT_CTL_MSR_MASK                UINT32_C(0x02000000)
+#define VMX_BF_EXIT_CTLS_UNDEF_26_31_SHIFT                      26
+#define VMX_BF_EXIT_CTLS_UNDEF_26_31_MASK                       UINT32_C(0xfc000000)
 RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_EXIT_CTLS_, UINT32_C(0), UINT32_MAX,
                             (UNDEF_0_1, SAVE_DEBUG, UNDEF_3_8, HOST_ADDR_SPACE_SIZE, UNDEF_10_11, LOAD_PERF_MSR, UNDEF_13_14,
                              ACK_EXT_INT, UNDEF_16_17, SAVE_PAT_MSR, LOAD_PAT_MSR, SAVE_EFER_MSR, LOAD_EFER_MSR,
-                             SAVE_PREEMPT_TIMER, UNDEF_23_31));
+                             SAVE_PREEMPT_TIMER, CLEAR_BNDCFGS_MSR, CONCEAL_VMX_FROM_PT, CLEAR_RTIT_CTL_MSR, UNDEF_26_31));
 /** @} */
 
 
@@ -2380,6 +2568,26 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_EXIT_REASON_, UINT32_C(0), UINT32_MAX,
 /** Construct a VM-entry interruption information field from an IDT-vectoring
  *  information field (same except that bit 12 is reserved). */
 #define VMX_ENTRY_INT_INFO_FROM_EXIT_IDT_INFO(a)                ((a) & ~RT_BIT(12))
+/** If the VM-entry interruption information field indicates a page-fault. */
+#define VMX_ENTRY_INT_INFO_IS_XCPT_PF(a)                        (((a) & (  VMX_BF_ENTRY_INT_INFO_VALID_MASK \
+                                                                         | VMX_BF_ENTRY_INT_INFO_TYPE_MASK \
+                                                                         | VMX_BF_ENTRY_INT_INFO_VECTOR_MASK)) \
+                                                                     == (  RT_BF_MAKE(VMX_BF_ENTRY_INT_INFO_VALID,  1) \
+                                                                         | RT_BF_MAKE(VMX_BF_ENTRY_INT_INFO_TYPE,   VMX_ENTRY_INT_INFO_TYPE_HW_XCPT) \
+                                                                         | RT_BF_MAKE(VMX_BF_ENTRY_INT_INFO_VECTOR, X86_XCPT_PF)))
+/** If the VM-entry interruption information field indicates an external
+ *  interrupt. */
+#define VMX_ENTRY_INT_INFO_IS_EXT_INT(a)                        (((a) & (  VMX_BF_ENTRY_INT_INFO_VALID_MASK \
+                                                                         | VMX_BF_ENTRY_INT_INFO_TYPE_MASK)) \
+                                                                     == (  RT_BF_MAKE(VMX_BF_ENTRY_INT_INFO_VALID, 1) \
+                                                                         | RT_BF_MAKE(VMX_BF_ENTRY_INT_INFO_TYPE,  VMX_ENTRY_INT_INFO_TYPE_EXT_INT)))
+/** If the VM-entry interruption information field indicates an NMI. */
+#define VMX_ENTRY_INT_INFO_IS_XCPT_NMI(a)                       (((a) & (  VMX_BF_ENTRY_INT_INFO_VALID_MASK \
+                                                                         | VMX_BF_ENTRY_INT_INFO_TYPE_MASK \
+                                                                         | VMX_BF_ENTRY_INT_INFO_VECTOR_MASK)) \
+                                                                     == (  RT_BF_MAKE(VMX_BF_ENTRY_INT_INFO_VALID,  1) \
+                                                                         | RT_BF_MAKE(VMX_BF_ENTRY_INT_INFO_TYPE,   VMX_ENTRY_INT_INFO_TYPE_NMI) \
+                                                                         | RT_BF_MAKE(VMX_BF_ENTRY_INT_INFO_VECTOR, X86_XCPT_NMI)))
 
 /** Bit fields for VM-entry interruption information. */
 /** The VM-entry interruption vector. */
@@ -2388,18 +2596,19 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_EXIT_REASON_, UINT32_C(0), UINT32_MAX,
 /** The VM-entry interruption type (see VMX_ENTRY_INT_INFO_TYPE_XXX). */
 #define VMX_BF_ENTRY_INT_INFO_TYPE_SHIFT                        8
 #define VMX_BF_ENTRY_INT_INFO_TYPE_MASK                         UINT32_C(0x00000700)
-/** Whether this event has an error code.   */
+/** Whether this event has an error code. */
 #define VMX_BF_ENTRY_INT_INFO_ERR_CODE_VALID_SHIFT              11
 #define VMX_BF_ENTRY_INT_INFO_ERR_CODE_VALID_MASK               UINT32_C(0x00000800)
 /** Bits 12:30 are reserved and MBZ. */
 #define VMX_BF_ENTRY_INT_INFO_RSVD_12_30_SHIFT                  12
 #define VMX_BF_ENTRY_INT_INFO_RSVD_12_30_MASK                   UINT32_C(0x7ffff000)
-/** Whether this VM-entry interruption info is valid.  */
+/** Whether this VM-entry interruption info is valid. */
 #define VMX_BF_ENTRY_INT_INFO_VALID_SHIFT                       31
 #define VMX_BF_ENTRY_INT_INFO_VALID_MASK                        UINT32_C(0x80000000)
 RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_ENTRY_INT_INFO_, UINT32_C(0), UINT32_MAX,
                             (VECTOR, TYPE, ERR_CODE_VALID, RSVD_12_30, VALID));
 /** @} */
+
 
 /** @name VM-entry exception error code.
  * @{ */
@@ -2445,6 +2654,29 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_ENTRY_INT_INFO_, UINT32_C(0), UINT32_MAX,
 #define VMX_EXIT_INT_INFO_IS_NMI_UNBLOCK_IRET(a)                (((a) >> 12) & 1)
 #define VMX_EXIT_INT_INFO_VALID                                 RT_BIT(31)
 #define VMX_EXIT_INT_INFO_IS_VALID(a)                           (((a) >> 31) & 1)
+
+/** If the VM-exit interruption information field indicates an page-fault. */
+#define VMX_EXIT_INT_INFO_IS_XCPT_PF(a)                         (((a) & (  VMX_BF_EXIT_INT_INFO_VALID_MASK \
+                                                                         | VMX_BF_EXIT_INT_INFO_TYPE_MASK \
+                                                                         | VMX_BF_EXIT_INT_INFO_VECTOR_MASK)) \
+                                                                     == (  RT_BF_MAKE(VMX_BF_EXIT_INT_INFO_VALID,  1) \
+                                                                         | RT_BF_MAKE(VMX_BF_EXIT_INT_INFO_TYPE,   VMX_EXIT_INT_INFO_TYPE_HW_XCPT) \
+                                                                         | RT_BF_MAKE(VMX_BF_EXIT_INT_INFO_VECTOR, X86_XCPT_PF)))
+/** If the VM-exit interruption information field indicates an double-fault. */
+#define VMX_EXIT_INT_INFO_IS_XCPT_DF(a)                         (((a) & (  VMX_BF_EXIT_INT_INFO_VALID_MASK \
+                                                                         | VMX_BF_EXIT_INT_INFO_TYPE_MASK \
+                                                                         | VMX_BF_EXIT_INT_INFO_VECTOR_MASK)) \
+                                                                     == (  RT_BF_MAKE(VMX_BF_EXIT_INT_INFO_VALID,  1) \
+                                                                         | RT_BF_MAKE(VMX_BF_EXIT_INT_INFO_TYPE,   VMX_EXIT_INT_INFO_TYPE_HW_XCPT) \
+                                                                         | RT_BF_MAKE(VMX_BF_EXIT_INT_INFO_VECTOR, X86_XCPT_DF)))
+/** If the VM-exit interruption information field indicates an NMI. */
+#define VMX_EXIT_INT_INFO_IS_XCPT_NMI(a)                        (((a) & (  VMX_BF_EXIT_INT_INFO_VALID_MASK \
+                                                                         | VMX_BF_EXIT_INT_INFO_TYPE_MASK \
+                                                                         | VMX_BF_EXIT_INT_INFO_VECTOR_MASK)) \
+                                                                     == (  RT_BF_MAKE(VMX_BF_EXIT_INT_INFO_VALID,  1) \
+                                                                         | RT_BF_MAKE(VMX_BF_EXIT_INT_INFO_TYPE,   VMX_EXIT_INT_INFO_TYPE_NMI) \
+                                                                         | RT_BF_MAKE(VMX_BF_EXIT_INT_INFO_VECTOR, X86_XCPT_NMI)))
+
 
 /** Bit fields for VM-exit interruption infomration. */
 /** The VM-exit interruption vector. */
@@ -2494,10 +2726,10 @@ typedef uint32_t VMXINSTRID;
 /** Whether the instruction's primary operand in the Mod R/M byte (bits 0:3) is a
  *  read or write. */
 #define VMXINSTRID_MODRM_PRIMARY_OP_W                           RT_BIT_32(30)
-/** Gets whether the instruction ID is valid or not.  */
+/** Gets whether the instruction ID is valid or not. */
 #define VMXINSTRID_IS_VALID(a)                                  (((a) >> 31) & 1)
 #define VMXINSTRID_IS_MODRM_PRIMARY_OP_W(a)                     (((a) >> 30) & 1)
-/** Gets the instruction ID.  */
+/** Gets the instruction ID. */
 #define VMXINSTRID_GET_ID(a)                                    ((a) & ~(VMXINSTRID_VALID | VMXINSTRID_MODRM_PRIMARY_OP_W))
 /** No instruction ID info. */
 #define VMXINSTRID_NONE                                         0
@@ -2532,13 +2764,31 @@ typedef uint32_t VMXINSTRID;
  * @{
  */
 #define VMX_IDT_VECTORING_INFO_VECTOR(a)                        ((a) & 0xff)
+#define VMX_IDT_VECTORING_INFO_TYPE_SHIFT                       8
 #define VMX_IDT_VECTORING_INFO_TYPE(a)                          (((a) >> 8) & 7)
+#define VMX_IDT_VECTORING_INFO_ERROR_CODE_VALID                 RT_BIT(11)
 #define VMX_IDT_VECTORING_INFO_IS_ERROR_CODE_VALID(a)           (((a) >> 11) & 1)
 #define VMX_IDT_VECTORING_INFO_IS_VALID(a)                      (((a) >> 31) & 1)
+#define VMX_IDT_VECTORING_INFO_VALID                            RT_BIT(31)
 
 /** Construct an IDT-vectoring information field from an VM-entry interruption
  *  information field (same except that bit 12 is reserved). */
-#define VMX_EXIT_IDT_INFO_FROM_ENTRY_INT_INFO(a)                ((a) & ~RT_BIT(12))
+#define VMX_IDT_VECTORING_INFO_FROM_ENTRY_INT_INFO(a)           ((a) & ~RT_BIT(12))
+/** If the IDT-vectoring information field indicates a page-fault. */
+#define VMX_IDT_VECTORING_INFO_IS_XCPT_PF(a)                    (((a) & (  VMX_BF_IDT_VECTORING_INFO_VALID_MASK \
+                                                                         | VMX_BF_IDT_VECTORING_INFO_TYPE_MASK \
+                                                                         | VMX_BF_IDT_VECTORING_INFO_VECTOR_MASK)) \
+                                                                     == (  RT_BF_MAKE(VMX_BF_IDT_VECTORING_INFO_VALID,  1) \
+                                                                         | RT_BF_MAKE(VMX_BF_IDT_VECTORING_INFO_TYPE,   VMX_IDT_VECTORING_INFO_TYPE_HW_XCPT) \
+                                                                         | RT_BF_MAKE(VMX_BF_IDT_VECTORING_INFO_VECTOR, X86_XCPT_PF)))
+/** If the IDT-vectoring information field indicates an NMI. */
+#define VMX_IDT_VECTORING_INFO_IS_XCPT_NMI(a)                   (((a) & (  VMX_BF_IDT_VECTORING_INFO_VALID_MASK \
+                                                                         | VMX_BF_IDT_VECTORING_INFO_TYPE_MASK \
+                                                                         | VMX_BF_IDT_VECTORING_INFO_VECTOR_MASK)) \
+                                                                     == (  RT_BF_MAKE(VMX_BF_IDT_VECTORING_INFO_VALID,  1) \
+                                                                         | RT_BF_MAKE(VMX_BF_IDT_VECTORING_INFO_TYPE,   VMX_IDT_VECTORING_INFO_TYPE_NMI) \
+                                                                         | RT_BF_MAKE(VMX_BF_IDT_VECTORING_INFO_VECTOR, X86_XCPT_NMI)))
+
 
 /** Bit fields for IDT-vectoring information. */
 /** The IDT-vectoring info vector. */
@@ -2711,8 +2961,8 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_EXIT_QUAL_DRX_, UINT64_C(0), UINT64_MAX,
 #define VMX_EXIT_QUAL_CRX_REGISTER(a)                           ((a) & 0xf)
 /** 4-5:   Access type. */
 #define VMX_EXIT_QUAL_CRX_ACCESS(a)                             (((a) >> 4) & 3)
-/** 6:     LMSW operand type */
-#define VMX_EXIT_QUAL_CRX_LMSW_OP(a)                            (((a) >> 6) & 1)
+/** 6:     LMSW operand type memory (1 for memory, 0 for register). */
+#define VMX_EXIT_QUAL_CRX_LMSW_OP_MEM(a)                        (((a) >> 6) & 1)
 /** 7:     Reserved; cleared to 0. */
 #define VMX_EXIT_QUAL_CRX_RES1(a)                               (((a) >> 7) & 1)
 /** 8-11:  General purpose register number (0 for CLTS & LMSW). */
@@ -2804,14 +3054,16 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_EXIT_QUAL_TASK_SWITCH_, UINT64_C(0), UINT64_M
  *  0 - violation caused by page walk or access/dirty bit updates
  */
 #define VMX_EXIT_QUAL_EPT_TRANSLATED_ACCESS                     RT_BIT(8)
+/** NMI unblocking due to IRET. */
+#define VMX_EXIT_QUAL_EPT_IS_NMI_UNBLOCK_IRET(a)                (((a) >> 12) & 1)
 /** @} */
 
 
 /** @name Exit qualification for I/O instructions.
  * @{
  */
-/** 0-2:   IO operation width. */
-#define VMX_EXIT_QUAL_IO_WIDTH(a)                               ((a) & 7)
+/** 0-2:   IO operation size 0(=1 byte), 1(=2 bytes) and 3(=4 bytes). */
+#define VMX_EXIT_QUAL_IO_SIZE(a)                                ((a) & 7)
 /** 3:     IO operation direction. */
 #define VMX_EXIT_QUAL_IO_DIRECTION(a)                           (((a) >> 3) & 1)
 /** 4:     String IO operation (INS / OUTS). */
@@ -2902,6 +3154,7 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_EXIT_QUAL_APIC_ACCESS_, UINT64_C(0), UINT64_M
 
 /**
  * APIC-access type.
+ * In accordance with the VT-x spec.
  */
 typedef enum
 {
@@ -2927,7 +3180,7 @@ AssertCompileSize(VMXAPICACCESS, 4);
 #define VMX_BF_XDTR_INSINFO_UNDEF_2_6_SHIFT                     2
 #define VMX_BF_XDTR_INSINFO_UNDEF_2_6_MASK                      UINT32_C(0x0000007c)
 /** Address size, only 0(=16), 1(=32) and 2(=64) are defined.
- * @remarks anyone's guess why this is a 3 bit field...  */
+ * @remarks anyone's guess why this is a 3 bit field... */
 #define VMX_BF_XDTR_INSINFO_ADDR_SIZE_SHIFT                     7
 #define VMX_BF_XDTR_INSINFO_ADDR_SIZE_MASK                      UINT32_C(0x00000380)
 /** Bit 10 is defined as zero. */
@@ -2986,7 +3239,7 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_XDTR_INSINFO_, UINT32_C(0), UINT32_MAX,
 #define VMX_BF_YYTR_INSINFO_REG1_SHIFT                          3
 #define VMX_BF_YYTR_INSINFO_REG1_MASK                           UINT32_C(0x00000078)
 /** Address size, only 0(=16), 1(=32) and 2(=64) are defined.
- * @remarks anyone's guess why this is a 3 bit field...  */
+ * @remarks anyone's guess why this is a 3 bit field... */
 #define VMX_BF_YYTR_INSINFO_ADDR_SIZE_SHIFT                     7
 #define VMX_BF_YYTR_INSINFO_ADDR_SIZE_MASK                      UINT32_C(0x00000380)
 /** Is VMX_YYTR_INSINFO_REG1_XXX valid (=1) or not (=0). */
@@ -3044,7 +3297,7 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_YYTR_INSINFO_, UINT32_C(0), UINT32_MAX,
 #define VMX_VMCS_GUEST_PENDING_DEBUG_XCPT_EN_BP                 RT_BIT_64(12)
 /** A debug exception would have been triggered by single-step execution mode. */
 #define VMX_VMCS_GUEST_PENDING_DEBUG_XCPT_BS                    RT_BIT_64(14)
-/** A debug exception occurred inside an RTM region.   */
+/** A debug exception occurred inside an RTM region. */
 #define VMX_VMCS_GUEST_PENDING_DEBUG_RTM                        RT_BIT_64(16)
 /** Mask of valid bits. */
 #define VMX_VMCS_GUEST_PENDING_DEBUG_VALID_MASK                 (  VMX_VMCS_GUEST_PENDING_DEBUG_XCPT_BP0 \
@@ -3085,79 +3338,6 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_VMCS_PENDING_DBG_XCPT_, UINT64_C(0), UINT64_M
 /** @} */
 
 
-/** @name VMCS field encoding.
- * @{ */
-typedef union
-{
-    struct
-    {
-        /** The access type; 0=full, 1=high of 64-bit fields. */
-        uint32_t    fAccessType  : 1;
-        /** The index. */
-        uint32_t    u8Index      : 8;
-        /** The type; 0=control, 1=VM-exit info, 2=guest-state, 3=host-state.  */
-        uint32_t    u2Type       : 2;
-        /** Reserved (MBZ). */
-        uint32_t    u1Reserved0  : 1;
-        /** The width; 0=16-bit, 1=64-bit, 2=32-bit, 3=natural-width. */
-        uint32_t    u2Width      : 2;
-        /** Reserved (MBZ). */
-        uint32_t    u18Reserved0 : 18;
-    } n;
-    /* The unsigned integer view. */
-    uint32_t    u;
-} VMXVMCSFIELDENC;
-AssertCompileSize(VMXVMCSFIELDENC, 4);
-/** Pointer to a VMCS field encoding. */
-typedef VMXVMCSFIELDENC *PVMXVMCSFIELDENC;
-/** Pointer to a const VMCS field encoding. */
-typedef const VMXVMCSFIELDENC *PCVMXVMCSFIELDENC;
-
-/** VMCS field encoding type: Full. */
-#define VMX_VMCS_ENC_ACCESS_TYPE_FULL                           0
-/** VMCS field encoding type: High. */
-#define VMX_VMCS_ENC_ACCESS_TYPE_HIGH                           1
-
-/** VMCS field encoding type: Control. */
-#define VMX_VMCS_ENC_TYPE_CONTROL                               0
-/** VMCS field encoding type: VM-exit information / read-only fields. */
-#define VMX_VMCS_ENC_TYPE_VMEXIT_INFO                           1
-/** VMCS field encoding type: Guest-state. */
-#define VMX_VMCS_ENC_TYPE_GUEST_STATE                           2
-/** VMCS field encoding type: Host-state. */
-#define VMX_VMCS_ENC_TYPE_HOST_STATE                            3
-
-/** VMCS field encoding width: 16-bit. */
-#define VMX_VMCS_ENC_WIDTH_16BIT                                0
-/** VMCS field encoding width: 64-bit. */
-#define VMX_VMCS_ENC_WIDTH_64BIT                                1
-/** VMCS field encoding width: 32-bit. */
-#define VMX_VMCS_ENC_WIDTH_32BIT                                2
-/** VMCS field encoding width: Natural width. */
-#define VMX_VMCS_ENC_WIDTH_NATURAL                              3
-
-/** VMCS field encoding: Mask of reserved bits (bits 63:15 MBZ), bit 12 is
- *  not included! */
-#define VMX_VMCS_ENC_RSVD_MASK                                  UINT64_C(0xffffffffffff8000)
-
-/** Bits fields for VMCS field encoding. */
-#define VMX_BF_VMCS_ENC_ACCESS_TYPE_SHIFT                       0
-#define VMX_BF_VMCS_ENC_ACCESS_TYPE_MASK                        UINT32_C(0x00000001)
-#define VMX_BF_VMCS_ENC_INDEX_SHIFT                             1
-#define VMX_BF_VMCS_ENC_INDEX_MASK                              UINT32_C(0x000003fe)
-#define VMX_BF_VMCS_ENC_TYPE_SHIFT                              10
-#define VMX_BF_VMCS_ENC_TYPE_MASK                               UINT32_C(0x00000c00)
-#define VMX_BF_VMCS_ENC_RSVD_12_SHIFT                           12
-#define VMX_BF_VMCS_ENC_RSVD_12_MASK                            UINT32_C(0x00001000)
-#define VMX_BF_VMCS_ENC_WIDTH_SHIFT                             13
-#define VMX_BF_VMCS_ENC_WIDTH_MASK                              UINT32_C(0x00006000)
-#define VMX_BF_VMCS_ENC_RSVD_15_31_SHIFT                        15
-#define VMX_BF_VMCS_ENC_RSVD_15_31_MASK                         UINT32_C(0xffff8000)
-RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_VMCS_ENC_, UINT32_C(0), UINT32_MAX,
-                            (ACCESS_TYPE, INDEX, TYPE, RSVD_12, WIDTH, RSVD_15_31));
-/** @} */
-
-
 /** @defgroup grp_hm_vmx_virt    VMX virtualization.
  * @{
  */
@@ -3186,6 +3366,11 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_VMCS_ENC_, UINT32_C(0), UINT32_MAX,
 #define VMX_V_VMCS_LAUNCH_STATE_CURRENT                         RT_BIT(2)
 /** VMCS launch state launched. */
 #define VMX_V_VMCS_LAUNCH_STATE_LAUNCHED                        RT_BIT(3)
+/** The mask of valid VMCS launch states. */
+#define VMX_V_VMCS_LAUNCH_STATE_MASK                            (  VMX_V_VMCS_LAUNCH_STATE_CLEAR \
+                                                                 | VMX_V_VMCS_LAUNCH_STATE_ACTIVE \
+                                                                 | VMX_V_VMCS_LAUNCH_STATE_CURRENT \
+                                                                 | VMX_V_VMCS_LAUNCH_STATE_LAUNCHED)
 /** @} */
 
 /** CR0 bits set here must always be set when in VMX operation. */
@@ -3196,7 +3381,7 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_VMCS_ENC_, UINT32_C(0), UINT32_MAX,
 #define VMX_V_CR4_FIXED0                                        (X86_CR4_VMXE)
 
 /** Virtual VMCS revision ID. Bump this arbitarily chosen identifier if incompatible
- *  changes to the layout of VMXVVMCS is done.  Bit 31 MBZ.  */
+ *  changes to the layout of VMXVVMCS is done. Bit 31 MBZ. */
 #define VMX_V_VMCS_REVISION_ID                                  UINT32_C(0x40000001)
 AssertCompile(!(VMX_V_VMCS_REVISION_ID & RT_BIT(31)));
 
@@ -3206,7 +3391,12 @@ AssertCompile(!(VMX_V_VMCS_REVISION_ID & RT_BIT(31)));
 /** The size of the virtual VMCS region (in pages). */
 #define VMX_V_VMCS_PAGES                                        1
 
-/** The size of the Virtual-APIC page (in bytes).  */
+/** The size of the virtual shadow VMCS region. */
+#define VMX_V_SHADOW_VMCS_SIZE                                  VMX_V_VMCS_SIZE
+/** The size of the virtual shadow VMCS region (in pages). */
+#define VMX_V_SHADOW_VMCS_PAGES                                 VMX_V_VMCS_PAGES
+
+/** The size of the Virtual-APIC page (in bytes). */
 #define VMX_V_VIRT_APIC_SIZE                                    X86_PAGE_4K_SIZE
 /** The size of the Virtual-APIC page (in pages). */
 #define VMX_V_VIRT_APIC_PAGES                                   1
@@ -3244,10 +3434,10 @@ AssertCompile(RT_ALIGN_Z(VMX_V_AUTOMSR_AREA_SIZE, X86_PAGE_4K_SIZE) == VMX_V_AUT
 #define VMX_V_AUTOMSR_AREA_PAGES                                ((VMX_V_AUTOMSR_AREA_SIZE) >> X86_PAGE_4K_SHIFT)
 
 /** The highest index value used for supported virtual VMCS field encoding. */
-#define VMX_V_VMCS_MAX_INDEX                                    RT_BF_GET(VMX_VMCS64_CTRL_TSC_MULTIPLIER_HIGH, VMX_BF_VMCS_ENC_INDEX)
+#define VMX_V_VMCS_MAX_INDEX                                    RT_BF_GET(VMX_VMCS64_CTRL_TSC_MULTIPLIER_HIGH, VMX_BF_VMCSFIELD_INDEX)
 
 /**
- * Virtual VM-Exit information.
+ * Virtual VM-exit information.
  *
  * This is a convenience structure that bundles some VM-exit information related
  * fields together.
@@ -3263,12 +3453,14 @@ typedef struct
     /** The VM-exit instruction ID. */
     VMXINSTRID              uInstrId;
 
-    /** The VM-exit qualification field. */
+    /** The Exit qualification field. */
     uint64_t                u64Qual;
-    /** The guest-linear address field. */
+    /** The Guest-linear address field. */
     uint64_t                u64GuestLinearAddr;
-    /** The guest-physical address field. */
+    /** The Guest-physical address field. */
     uint64_t                u64GuestPhysAddr;
+    /** The guest pending-debug exceptions. */
+    uint64_t                u64GuestPendingDbgXcpts;
     /** The effective guest-linear address if @a InstrInfo indicates a memory-based
      *  instruction VM-exit. */
     RTGCPTR                 GCPtrEffAddr;
@@ -3280,14 +3472,45 @@ typedef const VMXVEXITINFO *PCVMXVEXITINFO;
 AssertCompileMemberAlignment(VMXVEXITINFO, u64Qual, 8);
 
 /**
+ * Virtual VM-exit information for events.
+ *
+ * This is a convenience structure that bundles some event-based VM-exit information
+ * related fields together that are not included in VMXVEXITINFO.
+ *
+ * This is kept as a separate structure and not included in VMXVEXITINFO, to make it
+ * easier to distinguish that IEM VM-exit handlers will set one or more of the
+ * following fields in the virtual VMCS. Including it in the VMXVEXITINFO will not
+ * make it ovbious which fields may get set (or cleared).
+ */
+typedef struct
+{
+    /** VM-exit interruption information. */
+    uint32_t                uExitIntInfo;
+    /** VM-exit interruption error code. */
+    uint32_t                uExitIntErrCode;
+    /** IDT-vectoring information. */
+    uint32_t                uIdtVectoringInfo;
+    /** IDT-vectoring error code. */
+    uint32_t                uIdtVectoringErrCode;
+} VMXVEXITEVENTINFO;
+/** Pointer to the VMXVEXITINFO2 struct. */
+typedef VMXVEXITEVENTINFO *PVMXVEXITEVENTINFO;
+/** Pointer to a const VMXVEXITINFO2 struct. */
+typedef const VMXVEXITEVENTINFO *PCVMXVEXITEVENTINFO;
+
+/**
  * Virtual VMCS.
- * This is our custom format and merged into the actual VMCS (/shadow) when we
- * execute nested-guest code using hardware-assisted VMX.
  *
- * The first 8 bytes are as per Intel spec. 24.2 "Format of the VMCS Region".
+ * This is our custom format. Relevant fields from this VMCS will be merged into the
+ * actual/shadow VMCS when we execute nested-guest code using hardware-assisted
+ * VMX.
  *
- * The offset and size of the VMCS state field (fVmcsState) is also fixed (not by
- * Intel but for our own requirements) as we use it to offset into guest memory.
+ * The first 8 bytes must be in accordance with the Intel VT-x spec.
+ * See Intel spec. 24.2 "Format of the VMCS Region".
+ *
+ * The offset and size of the VMCS state field (@a fVmcsState) is also fixed (not by
+ * the Intel spec. but for our own requirements) as we use it to offset into guest
+ * memory.
  *
  * Although the guest is supposed to access the VMCS only through the execution of
  * VMX instructions (VMREAD, VMWRITE etc.), since the VMCS may reside in guest
@@ -3298,426 +3521,246 @@ AssertCompileMemberAlignment(VMXVEXITINFO, u64Qual, 8);
  * We always treat natural-width fields as 64-bit in our implementation since
  * it's easier, allows for teleporation in the future and does not affect guest
  * software.
+ *
+ * Note! Any fields that are added or modified here, make sure to update the
+ *       corresponding fields in IEM (g_aoffVmcsMap), the corresponding saved
+ *       state structure in CPUM (g_aVmxHwvirtVmcs) and bump the SSM version.
  */
 #pragma pack(1)
 typedef struct
 {
-    /** 0x0 - VMX VMCS revision identifier.  */
-    VMXVMCSREVID    u32VmcsRevId;
-    /** 0x4 - VMX-abort indicator. */
-    VMXABORT        enmVmxAbort;
-    /** 0x8 - VMCS launch state, see VMX_V_VMCS_LAUNCH_STATE_XXX. */
-    uint8_t         fVmcsState;
-    /** 0x9 - Reserved for future. */
-    uint8_t         au8Padding0[3];
-    /** 0xc - Reserved for future. */
-    uint32_t        au32Reserved0[7];
-
-    /** @name 16-bit control fields.
-     * @{ */
-    /** 0x28 - Virtual processor ID. */
-    uint16_t        u16Vpid;
-    /** 0x2a - Posted interrupt notify vector. */
-    uint16_t        u16PostIntNotifyVector;
-    /** 0x2c - EPTP index. */
-    uint16_t        u16EptpIndex;
-    /** 0x2e - Reserved for future. */
-    uint16_t        au16Reserved0[8];
+    /** @name Header.
+     * @{
+     */
+    VMXVMCSREVID    u32VmcsRevId;                /**< 0x000 - VMX VMCS revision identifier. */
+    VMXABORT        enmVmxAbort;                 /**< 0x004 - VMX-abort indicator. */
+    uint8_t         fVmcsState;                  /**< 0x008 - VMCS launch state, see VMX_V_VMCS_LAUNCH_STATE_XXX. */
+    uint8_t         au8Padding0[3];              /**< 0x009 - Reserved for future. */
+    uint32_t        au32Reserved0[12];           /**< 0x00c - Reserved for future. */
     /** @} */
 
-    /** @name 16-bit Guest-state fields.
-     * Order of [ES..GS] is important, must match X86_SREG_XXX.
+    /** @name Read-only fields.
      * @{ */
-    /** 0x3e - Guest ES selector. */
-    RTSEL           GuestEs;
-    /** 0x40 - Guest ES selector. */
-    RTSEL           GuestCs;
-    /** 0x42 - Guest ES selector. */
-    RTSEL           GuestSs;
-    /** 0x44 - Guest ES selector. */
-    RTSEL           GuestDs;
-    /** 0x46 - Guest ES selector. */
-    RTSEL           GuestFs;
-    /** 0x48 - Guest ES selector. */
-    RTSEL           GuestGs;
-    /** 0x4a - Guest LDTR selector. */
-    RTSEL           GuestLdtr;
-    /** 0x4c - Guest TR selector. */
-    RTSEL           GuestTr;
-    /** 0x4e - Guest interrupt status (virtual-interrupt delivery). */
-    uint16_t        u16GuestIntStatus;
-    /** 0x50 - PML index. */
-    uint16_t        u16PmlIndex;
-    /** 0x52 - Reserved for future. */
-    uint16_t        au16Reserved1[8];
+    /** 16-bit fields. */
+    uint16_t        u16Reserved0[14];            /**< 0x03c - Reserved for future. */
+
+    /** 32-bit fields. */
+    uint32_t        u32RoVmInstrError;           /**< 0x058 - VM-instruction error. */
+    uint32_t        u32RoExitReason;             /**< 0x05c - VM-exit reason. */
+    uint32_t        u32RoExitIntInfo;            /**< 0x060 - VM-exit interruption information. */
+    uint32_t        u32RoExitIntErrCode;         /**< 0x064 - VM-exit interruption error code. */
+    uint32_t        u32RoIdtVectoringInfo;       /**< 0x068 - IDT-vectoring information. */
+    uint32_t        u32RoIdtVectoringErrCode;    /**< 0x06c - IDT-vectoring error code. */
+    uint32_t        u32RoExitInstrLen;           /**< 0x070 - VM-exit instruction length. */
+    uint32_t        u32RoExitInstrInfo;          /**< 0x074 - VM-exit instruction information. */
+    uint32_t        au32RoReserved2[16];         /**< 0x078 - Reserved for future. */
+
+    /** 64-bit fields. */
+    RTUINT64U       u64RoGuestPhysAddr;          /**< 0x0b8 - Guest-physical address. */
+    RTUINT64U       au64Reserved1[8];            /**< 0x0c0 - Reserved for future. */
+
+    /** Natural-width fields. */
+    RTUINT64U       u64RoExitQual;               /**< 0x100 - Exit qualification. */
+    RTUINT64U       u64RoIoRcx;                  /**< 0x108 - I/O RCX. */
+    RTUINT64U       u64RoIoRsi;                  /**< 0x110 - I/O RSI. */
+    RTUINT64U       u64RoIoRdi;                  /**< 0x118 - I/O RDI. */
+    RTUINT64U       u64RoIoRip;                  /**< 0x120 - I/O RIP. */
+    RTUINT64U       u64RoGuestLinearAddr;        /**< 0x128 - Guest-linear address. */
+    RTUINT64U       au64Reserved5[16];           /**< 0x130 - Reserved for future. */
     /** @} */
 
-    /** @name 16-bit Host-state fields.
+    /** @name Control fields.
      * @{ */
-    /** 0x62 - Host ES selector. */
-    RTSEL           HostEs;
-    /** 0x64 - Host CS selector. */
-    RTSEL           HostCs;
-    /** 0x66 - Host SS selector. */
-    RTSEL           HostSs;
-    /** 0x68 - Host DS selector. */
-    RTSEL           HostDs;
-    /** 0x6a - Host FS selector. */
-    RTSEL           HostFs;
-    /** 0x6c - Host GS selector. */
-    RTSEL           HostGs;
-    /** 0x6e - Host TR selector. */
-    RTSEL           HostTr;
-    /** 0x70 - Reserved for future. */
-    uint16_t        au16Reserved2[10];
+    /** 16-bit fields. */
+    uint16_t        u16Vpid;                     /**< 0x1b0 - Virtual processor ID. */
+    uint16_t        u16PostIntNotifyVector;      /**< 0x1b2 - Posted interrupt notify vector. */
+    uint16_t        u16EptpIndex;                /**< 0x1b4 - EPTP index. */
+    uint16_t        au16Reserved0[13];           /**< 0x1b6 - Reserved for future. */
+
+    /** 32-bit fields. */
+    uint32_t        u32PinCtls;                  /**< 0x1d0 - Pin-based VM-execution controls. */
+    uint32_t        u32ProcCtls;                 /**< 0x1d4 - Processor-based VM-execution controls. */
+    uint32_t        u32XcptBitmap;               /**< 0x1d8 - Exception bitmap. */
+    uint32_t        u32XcptPFMask;               /**< 0x1dc - Page-fault exception error mask. */
+    uint32_t        u32XcptPFMatch;              /**< 0x1e0 - Page-fault exception error match. */
+    uint32_t        u32Cr3TargetCount;           /**< 0x1e4 - CR3-target count. */
+    uint32_t        u32ExitCtls;                 /**< 0x1e8 - VM-exit controls. */
+    uint32_t        u32ExitMsrStoreCount;        /**< 0x1ec - VM-exit MSR store count. */
+    uint32_t        u32ExitMsrLoadCount;         /**< 0x1f0 - VM-exit MSR load count. */
+    uint32_t        u32EntryCtls;                /**< 0x1f4 - VM-entry controls. */
+    uint32_t        u32EntryMsrLoadCount;        /**< 0x1f8 - VM-entry MSR load count. */
+    uint32_t        u32EntryIntInfo;             /**< 0x1fc - VM-entry interruption information. */
+    uint32_t        u32EntryXcptErrCode;         /**< 0x200 - VM-entry exception error code. */
+    uint32_t        u32EntryInstrLen;            /**< 0x204 - VM-entry instruction length. */
+    uint32_t        u32TprThreshold;             /**< 0x208 - TPR-threshold. */
+    uint32_t        u32ProcCtls2;                /**< 0x20c - Secondary-processor based VM-execution controls. */
+    uint32_t        u32PleGap;                   /**< 0x210 - Pause-loop exiting Gap. */
+    uint32_t        u32PleWindow;                /**< 0x214 - Pause-loop exiting Window. */
+    uint32_t        au32Reserved1[16];           /**< 0x218 - Reserved for future. */
+
+    /** 64-bit fields. */
+    RTUINT64U       u64AddrIoBitmapA;            /**< 0x258 - I/O bitmap A address. */
+    RTUINT64U       u64AddrIoBitmapB;            /**< 0x260 - I/O bitmap B address. */
+    RTUINT64U       u64AddrMsrBitmap;            /**< 0x268 - MSR bitmap address. */
+    RTUINT64U       u64AddrExitMsrStore;         /**< 0x270 - VM-exit MSR-store area address. */
+    RTUINT64U       u64AddrExitMsrLoad;          /**< 0x278 - VM-exit MSR-load area address. */
+    RTUINT64U       u64AddrEntryMsrLoad;         /**< 0x280 - VM-entry MSR-load area address. */
+    RTUINT64U       u64ExecVmcsPtr;              /**< 0x288 - Executive-VMCS pointer. */
+    RTUINT64U       u64AddrPml;                  /**< 0x290 - PML address. */
+    RTUINT64U       u64TscOffset;                /**< 0x298 - TSC offset. */
+    RTUINT64U       u64AddrVirtApic;             /**< 0x2a0 - Virtual-APIC address. */
+    RTUINT64U       u64AddrApicAccess;           /**< 0x2a8 - APIC-access address. */
+    RTUINT64U       u64AddrPostedIntDesc;        /**< 0x2b0 - Posted-interrupt descriptor address. */
+    RTUINT64U       u64VmFuncCtls;               /**< 0x2b8 - VM-functions control. */
+    RTUINT64U       u64EptpPtr;                  /**< 0x2c0 - EPTP pointer. */
+    RTUINT64U       u64EoiExitBitmap0;           /**< 0x2c8 - EOI-exit bitmap 0. */
+    RTUINT64U       u64EoiExitBitmap1;           /**< 0x2d0 - EOI-exit bitmap 1. */
+    RTUINT64U       u64EoiExitBitmap2;           /**< 0x2d8 - EOI-exit bitmap 2. */
+    RTUINT64U       u64EoiExitBitmap3;           /**< 0x2e0 - EOI-exit bitmap 3. */
+    RTUINT64U       u64AddrEptpList;             /**< 0x2e8 - EPTP-list address. */
+    RTUINT64U       u64AddrVmreadBitmap;         /**< 0x2f0 - VMREAD-bitmap address. */
+    RTUINT64U       u64AddrVmwriteBitmap;        /**< 0x2f8 - VMWRITE-bitmap address. */
+    RTUINT64U       u64AddrXcptVeInfo;           /**< 0x300 - Virtualization-exception information address. */
+    RTUINT64U       u64XssBitmap;                /**< 0x308 - XSS-exiting bitmap. */
+    RTUINT64U       u64EnclsBitmap;              /**< 0x310 - ENCLS-exiting bitmap address. */
+    RTUINT64U       u64SpptPtr;                  /**< 0x318 - Sub-page-permission-table pointer. */
+    RTUINT64U       u64TscMultiplier;            /**< 0x320 - TSC multiplier. */
+    RTUINT64U       au64Reserved0[15];           /**< 0x328 - Reserved for future. */
+
+    /** Natural-width fields. */
+    RTUINT64U       u64Cr0Mask;                  /**< 0x3a0 - CR0 guest/host Mask. */
+    RTUINT64U       u64Cr4Mask;                  /**< 0x3a8 - CR4 guest/host Mask. */
+    RTUINT64U       u64Cr0ReadShadow;            /**< 0x3b0 - CR0 read shadow. */
+    RTUINT64U       u64Cr4ReadShadow;            /**< 0x3b8 - CR4 read shadow. */
+    RTUINT64U       u64Cr3Target0;               /**< 0x3c0 - CR3-target value 0. */
+    RTUINT64U       u64Cr3Target1;               /**< 0x3c8 - CR3-target value 1. */
+    RTUINT64U       u64Cr3Target2;               /**< 0x3d0 - CR3-target value 2. */
+    RTUINT64U       u64Cr3Target3;               /**< 0x3d8 - CR3-target value 3. */
+    RTUINT64U       au64Reserved4[32];           /**< 0x3e0 - Reserved for future. */
     /** @} */
 
-    /** @name 32-bit Control fields.
+    /** @name Host-state fields.
      * @{ */
-    /** 0x84 - Pin-based VM-execution controls. */
-    uint32_t        u32PinCtls;
-    /** 0x88 - Processor-based VM-execution controls. */
-    uint32_t        u32ProcCtls;
-    /** 0x8c - Exception bitmap. */
-    uint32_t        u32XcptBitmap;
-    /** 0x90 - Page-fault exception error mask. */
-    uint32_t        u32XcptPFMask;
-    /** 0x94 - Page-fault exception error match. */
-    uint32_t        u32XcptPFMatch;
-    /** 0x98 - CR3-target count. */
-    uint32_t        u32Cr3TargetCount;
-    /** 0x9c - VM-exit controls. */
-    uint32_t        u32ExitCtls;
-    /** 0xa0 - VM-exit MSR store count. */
-    uint32_t        u32ExitMsrStoreCount;
-    /** 0xa4 - VM-exit MSR load count. */
-    uint32_t        u32ExitMsrLoadCount;
-    /** 0xa8 - VM-entry controls. */
-    uint32_t        u32EntryCtls;
-    /** 0xac - VM-entry MSR load count. */
-    uint32_t        u32EntryMsrLoadCount;
-    /** 0xb0 - VM-entry interruption information. */
-    uint32_t        u32EntryIntInfo;
-    /** 0xb4 - VM-entry exception error code. */
-    uint32_t        u32EntryXcptErrCode;
-    /** 0xb8 - VM-entry instruction length. */
-    uint32_t        u32EntryInstrLen;
-    /** 0xbc - TPR-threshold. */
-    uint32_t        u32TprThreshold;
-    /** 0xc0 - Secondary-processor based VM-execution controls. */
-    uint32_t        u32ProcCtls2;
-    /** 0xc4 - Pause-loop exiting Gap. */
-    uint32_t        u32PleGap;
-    /** 0xc8 - Pause-loop exiting Window. */
-    uint32_t        u32PleWindow;
-    /** 0xcc - Reserved for future. */
-    uint32_t        au32Reserved1[8];
+    /** 16-bit fields. */
+    /* Order of [Es..Gs] fields below must match [X86_SREG_ES..X86_SREG_GS]. */
+    RTSEL           HostEs;                      /**< 0x4e0 - Host ES selector. */
+    RTSEL           HostCs;                      /**< 0x4e2 - Host CS selector. */
+    RTSEL           HostSs;                      /**< 0x4e4 - Host SS selector. */
+    RTSEL           HostDs;                      /**< 0x4e6 - Host DS selector. */
+    RTSEL           HostFs;                      /**< 0x4e8 - Host FS selector. */
+    RTSEL           HostGs;                      /**< 0x4ea - Host GS selector. */
+    RTSEL           HostTr;                      /**< 0x4ec - Host TR selector. */
+    uint16_t        au16Reserved2[13];           /**< 0x4ee - Reserved for future. */
+
+    /** 32-bit fields. */
+    uint32_t        u32HostSysenterCs;           /**< 0x508 - Host SYSENTER CS. */
+    uint32_t        au32Reserved4[11];           /**< 0x50c - Reserved for future. */
+
+    /** 64-bit fields. */
+    RTUINT64U       u64HostPatMsr;               /**< 0x538 - Host PAT MSR. */
+    RTUINT64U       u64HostEferMsr;              /**< 0x540 - Host EFER MSR. */
+    RTUINT64U       u64HostPerfGlobalCtlMsr;     /**< 0x548 - Host global performance-control MSR. */
+    RTUINT64U       au64Reserved3[16];           /**< 0x550 - Reserved for future. */
+
+    /** Natural-width fields. */
+    RTUINT64U       u64HostCr0;                  /**< 0x5d0 - Host CR0. */
+    RTUINT64U       u64HostCr3;                  /**< 0x5d8 - Host CR3. */
+    RTUINT64U       u64HostCr4;                  /**< 0x5e0 - Host CR4. */
+    RTUINT64U       u64HostFsBase;               /**< 0x5e8 - Host FS base. */
+    RTUINT64U       u64HostGsBase;               /**< 0x5f0 - Host GS base. */
+    RTUINT64U       u64HostTrBase;               /**< 0x5f8 - Host TR base. */
+    RTUINT64U       u64HostGdtrBase;             /**< 0x600 - Host GDTR base. */
+    RTUINT64U       u64HostIdtrBase;             /**< 0x608 - Host IDTR base. */
+    RTUINT64U       u64HostSysenterEsp;          /**< 0x610 - Host SYSENTER ESP base. */
+    RTUINT64U       u64HostSysenterEip;          /**< 0x618 - Host SYSENTER ESP base. */
+    RTUINT64U       u64HostRsp;                  /**< 0x620 - Host RSP. */
+    RTUINT64U       u64HostRip;                  /**< 0x628 - Host RIP. */
+    RTUINT64U       au64Reserved7[32];           /**< 0x630 - Reserved for future. */
     /** @} */
 
-    /** @name 32-bit Read-only Data fields.
+    /** @name Guest-state fields.
      * @{ */
-    /** 0xec - VM-instruction error.  */
-    uint32_t        u32RoVmInstrError;
-    /** 0xf0 - VM-exit reason. */
-    uint32_t        u32RoExitReason;
-    /** 0xf4 - VM-exit interruption information. */
-    uint32_t        u32RoExitIntInfo;
-    /** 0xf8 - VM-exit interruption error code. */
-    uint32_t        u32RoExitIntErrCode;
-    /** 0xfc - IDT-vectoring information. */
-    uint32_t        u32RoIdtVectoringInfo;
-    /** 0x100 - IDT-vectoring error code. */
-    uint32_t        u32RoIdtVectoringErrCode;
-    /** 0x104 - VM-exit instruction length. */
-    uint32_t        u32RoExitInstrLen;
-    /** 0x108 - VM-exit instruction information. */
-    uint32_t        u32RoExitInstrInfo;
-    /** 0x10c - Reserved for future. */
-    uint32_t        au32RoReserved2[8];
+    /** 16-bit fields. */
+    /* Order of [Es..Gs] fields below must match [X86_SREG_ES..X86_SREG_GS]. */
+    RTSEL           GuestEs;                     /**< 0x730 - Guest ES selector. */
+    RTSEL           GuestCs;                     /**< 0x732 - Guest ES selector. */
+    RTSEL           GuestSs;                     /**< 0x734 - Guest ES selector. */
+    RTSEL           GuestDs;                     /**< 0x736 - Guest ES selector. */
+    RTSEL           GuestFs;                     /**< 0x738 - Guest ES selector. */
+    RTSEL           GuestGs;                     /**< 0x73a - Guest ES selector. */
+    RTSEL           GuestLdtr;                   /**< 0x73c - Guest LDTR selector. */
+    RTSEL           GuestTr;                     /**< 0x73e - Guest TR selector. */
+    uint16_t        u16GuestIntStatus;           /**< 0x740 - Guest interrupt status (virtual-interrupt delivery). */
+    uint16_t        u16PmlIndex;                 /**< 0x742 - PML index. */
+    uint16_t        au16Reserved1[14];           /**< 0x744 - Reserved for future. */
+
+    /** 32-bit fields. */
+    /* Order of [Es..Gs] fields below must match [X86_SREG_ES..X86_SREG_GS]. */
+    uint32_t        u32GuestEsLimit;             /**< 0x760 - Guest ES limit. */
+    uint32_t        u32GuestCsLimit;             /**< 0x764 - Guest CS limit. */
+    uint32_t        u32GuestSsLimit;             /**< 0x768 - Guest SS limit. */
+    uint32_t        u32GuestDsLimit;             /**< 0x76c - Guest DS limit. */
+    uint32_t        u32GuestFsLimit;             /**< 0x770 - Guest FS limit. */
+    uint32_t        u32GuestGsLimit;             /**< 0x774 - Guest GS limit. */
+    uint32_t        u32GuestLdtrLimit;           /**< 0x778 - Guest LDTR limit. */
+    uint32_t        u32GuestTrLimit;             /**< 0x77c - Guest TR limit. */
+    uint32_t        u32GuestGdtrLimit;           /**< 0x780 - Guest GDTR limit. */
+    uint32_t        u32GuestIdtrLimit;           /**< 0x784 - Guest IDTR limit. */
+    uint32_t        u32GuestEsAttr;              /**< 0x788 - Guest ES attributes. */
+    uint32_t        u32GuestCsAttr;              /**< 0x78c - Guest CS attributes. */
+    uint32_t        u32GuestSsAttr;              /**< 0x790 - Guest SS attributes. */
+    uint32_t        u32GuestDsAttr;              /**< 0x794 - Guest DS attributes. */
+    uint32_t        u32GuestFsAttr;              /**< 0x798 - Guest FS attributes. */
+    uint32_t        u32GuestGsAttr;              /**< 0x79c - Guest GS attributes. */
+    uint32_t        u32GuestLdtrAttr;            /**< 0x7a0 - Guest LDTR attributes. */
+    uint32_t        u32GuestTrAttr;              /**< 0x7a4 - Guest TR attributes. */
+    uint32_t        u32GuestIntrState;           /**< 0x7a8 - Guest interruptibility state. */
+    uint32_t        u32GuestActivityState;       /**< 0x7ac - Guest activity state. */
+    uint32_t        u32GuestSmBase;              /**< 0x7b0 - Guest SMBASE. */
+    uint32_t        u32GuestSysenterCS;          /**< 0x7b4 - Guest SYSENTER CS. */
+    uint32_t        u32PreemptTimer;             /**< 0x7b8 - Preemption timer value. */
+    uint32_t        au32Reserved3[11];           /**< 0x7bc - Reserved for future. */
+
+    /** 64-bit fields. */
+    RTUINT64U       u64VmcsLinkPtr;              /**< 0x7e8 - VMCS link pointer. */
+    RTUINT64U       u64GuestDebugCtlMsr;         /**< 0x7f0 - Guest debug-control MSR. */
+    RTUINT64U       u64GuestPatMsr;              /**< 0x7f8 - Guest PAT MSR. */
+    RTUINT64U       u64GuestEferMsr;             /**< 0x800 - Guest EFER MSR. */
+    RTUINT64U       u64GuestPerfGlobalCtlMsr;    /**< 0x808 - Guest global performance-control MSR. */
+    RTUINT64U       u64GuestPdpte0;              /**< 0x810 - Guest PDPTE 0. */
+    RTUINT64U       u64GuestPdpte1;              /**< 0x818 - Guest PDPTE 0. */
+    RTUINT64U       u64GuestPdpte2;              /**< 0x820 - Guest PDPTE 1. */
+    RTUINT64U       u64GuestPdpte3;              /**< 0x828 - Guest PDPTE 2. */
+    RTUINT64U       u64GuestBndcfgsMsr;          /**< 0x830 - Guest Bounds config MPX MSR (Intel Memory Protection Extensions). */
+    RTUINT64U       u64GuestRtitCtlMsr;          /**< 0x838 - Guest RTIT control MSR (Intel Real Time Instruction Trace). */
+    RTUINT64U       au64Reserved2[32];           /**< 0x840 - Reserved for future. */
+
+    /** Natural-width fields. */
+    RTUINT64U       u64GuestCr0;                 /**< 0x940 - Guest CR0. */
+    RTUINT64U       u64GuestCr3;                 /**< 0x948 - Guest CR3. */
+    RTUINT64U       u64GuestCr4;                 /**< 0x950 - Guest CR4. */
+    RTUINT64U       u64GuestEsBase;              /**< 0x958 - Guest ES base. */
+    RTUINT64U       u64GuestCsBase;              /**< 0x960 - Guest CS base. */
+    RTUINT64U       u64GuestSsBase;              /**< 0x968 - Guest SS base. */
+    RTUINT64U       u64GuestDsBase;              /**< 0x970 - Guest DS base. */
+    RTUINT64U       u64GuestFsBase;              /**< 0x978 - Guest FS base. */
+    RTUINT64U       u64GuestGsBase;              /**< 0x980 - Guest GS base. */
+    RTUINT64U       u64GuestLdtrBase;            /**< 0x988 - Guest LDTR base. */
+    RTUINT64U       u64GuestTrBase;              /**< 0x990 - Guest TR base. */
+    RTUINT64U       u64GuestGdtrBase;            /**< 0x998 - Guest GDTR base. */
+    RTUINT64U       u64GuestIdtrBase;            /**< 0x9a0 - Guest IDTR base. */
+    RTUINT64U       u64GuestDr7;                 /**< 0x9a8 - Guest DR7. */
+    RTUINT64U       u64GuestRsp;                 /**< 0x9b0 - Guest RSP. */
+    RTUINT64U       u64GuestRip;                 /**< 0x9b8 - Guest RIP. */
+    RTUINT64U       u64GuestRFlags;              /**< 0x9c0 - Guest RFLAGS. */
+    RTUINT64U       u64GuestPendingDbgXcpts;     /**< 0x9c8 - Guest pending debug exceptions. */
+    RTUINT64U       u64GuestSysenterEsp;         /**< 0x9d0 - Guest SYSENTER ESP. */
+    RTUINT64U       u64GuestSysenterEip;         /**< 0x9d8 - Guest SYSENTER EIP. */
+    RTUINT64U       au64Reserved6[32];           /**< 0x9e0 - Reserved for future. */
     /** @} */
 
-    /** @name 32-bit Guest-state fields.
-     * Order of [ES..GS] limit and attributes are important, must match X86_SREG_XXX.
-     * @{ */
-    /** 0x12c - Guest ES limit. */
-    uint32_t        u32GuestEsLimit;
-    /** 0x130 - Guest CS limit. */
-    uint32_t        u32GuestCsLimit;
-    /** 0x134 - Guest SS limit. */
-    uint32_t        u32GuestSsLimit;
-    /** 0x138 - Guest DS limit. */
-    uint32_t        u32GuestDsLimit;
-    /** 0x13c - Guest FS limit. */
-    uint32_t        u32GuestFsLimit;
-    /** 0x140 - Guest GS limit. */
-    uint32_t        u32GuestGsLimit;
-    /** 0x144 - Guest LDTR limit. */
-    uint32_t        u32GuestLdtrLimit;
-    /** 0x148 - Guest TR limit. */
-    uint32_t        u32GuestTrLimit;
-    /** 0x14c - Guest GDTR limit. */
-    uint32_t        u32GuestGdtrLimit;
-    /** 0x150 - Guest IDTR limit. */
-    uint32_t        u32GuestIdtrLimit;
-    /** 0x154 - Guest ES attributes. */
-    uint32_t        u32GuestEsAttr;
-    /** 0x158 - Guest CS attributes. */
-    uint32_t        u32GuestCsAttr;
-    /** 0x15c - Guest SS attributes. */
-    uint32_t        u32GuestSsAttr;
-    /** 0x160 - Guest DS attributes. */
-    uint32_t        u32GuestDsAttr;
-    /** 0x164 - Guest FS attributes. */
-    uint32_t        u32GuestFsAttr;
-    /** 0x168 - Guest GS attributes. */
-    uint32_t        u32GuestGsAttr;
-    /** 0x16c - Guest LDTR attributes. */
-    uint32_t        u32GuestLdtrAttr;
-    /** 0x170 - Guest TR attributes. */
-    uint32_t        u32GuestTrAttr;
-    /** 0x174 - Guest interruptibility state. */
-    uint32_t        u32GuestIntrState;
-    /** 0x178 - Guest activity state. */
-    uint32_t        u32GuestActivityState;
-    /** 0x17c - Guest SMBASE. */
-    uint32_t        u32GuestSmBase;
-    /** 0x180 - Guest SYSENTER CS. */
-    uint32_t        u32GuestSysenterCS;
-    /** 0x184 - Preemption timer value. */
-    uint32_t        u32PreemptTimer;
-    /** 0x188 - Reserved for future. */
-    uint32_t        au32Reserved3[8];
-    /** @} */
-
-    /** @name 32-bit Host-state fields.
-     * @{ */
-    /** 0x1a8 - Host SYSENTER CS. */
-    uint32_t        u32HostSysenterCs;
-    /** 0x1ac - Reserved for future. */
-    uint32_t        au32Reserved4[11];
-    /** @} */
-
-    /** @name 64-bit Control fields.
-     * @{ */
-    /** 0x1d8 - I/O bitmap A address. */
-    RTUINT64U       u64AddrIoBitmapA;
-    /** 0x1e0 - I/O bitmap B address. */
-    RTUINT64U       u64AddrIoBitmapB;
-    /** 0x1e8 - MSR bitmap address. */
-    RTUINT64U       u64AddrMsrBitmap;
-    /** 0x1f0 - VM-exit MSR-store area address. */
-    RTUINT64U       u64AddrExitMsrStore;
-    /** 0x1f8 - VM-exit MSR-load area address. */
-    RTUINT64U       u64AddrExitMsrLoad;
-    /** 0x200 - VM-entry MSR-load area address. */
-    RTUINT64U       u64AddrEntryMsrLoad;
-    /** 0x208 - Executive-VMCS pointer. */
-    RTUINT64U       u64ExecVmcsPtr;
-    /** 0x210 - PML address. */
-    RTUINT64U       u64AddrPml;
-    /** 0x218 - TSC offset. */
-    RTUINT64U       u64TscOffset;
-    /** 0x220 - Virtual-APIC address. */
-    RTUINT64U       u64AddrVirtApic;
-    /** 0x228 - APIC-access address. */
-    RTUINT64U       u64AddrApicAccess;
-    /** 0x230 - Posted-interrupt descriptor address.  */
-    RTUINT64U       u64AddrPostedIntDesc;
-    /** 0x238 - VM-functions control.  */
-    RTUINT64U       u64VmFuncCtls;
-    /** 0x240 - EPTP pointer.  */
-    RTUINT64U       u64EptpPtr;
-    /** 0x248 - EOI-exit bitmap 0.  */
-    RTUINT64U       u64EoiExitBitmap0;
-    /** 0x250 - EOI-exit bitmap 1.  */
-    RTUINT64U       u64EoiExitBitmap1;
-    /** 0x258 - EOI-exit bitmap 2.  */
-    RTUINT64U       u64EoiExitBitmap2;
-    /** 0x260 - EOI-exit bitmap 3.  */
-    RTUINT64U       u64EoiExitBitmap3;
-    /** 0x268 - EPTP-list address.  */
-    RTUINT64U       u64AddrEptpList;
-    /** 0x270 - VMREAD-bitmap address.  */
-    RTUINT64U       u64AddrVmreadBitmap;
-    /** 0x278 - VMWRITE-bitmap address.  */
-    RTUINT64U       u64AddrVmwriteBitmap;
-    /** 0x280 - Virtualization-exception information address.  */
-    RTUINT64U       u64AddrXcptVeInfo;
-    /** 0x288 - XSS-exiting bitmap.  */
-    RTUINT64U       u64XssBitmap;
-    /** 0x290 - ENCLS-exiting bitmap address.  */
-    RTUINT64U       u64AddrEnclsBitmap;
-    /** 0x298 - TSC multiplier.  */
-    RTUINT64U       u64TscMultiplier;
-    /** 0x2a0 - Reserved for future. */
-    RTUINT64U       au64Reserved0[16];
-    /** @} */
-
-    /** @name 64-bit Read-only Data fields.
-     * @{ */
-    /** 0x320 - Guest-physical address. */
-    RTUINT64U       u64RoGuestPhysAddr;
-    /** 0x328 - Reserved for future. */
-    RTUINT64U       au64Reserved1[8];
-    /** @} */
-
-    /** @name 64-bit Guest-state fields.
-     * @{ */
-    /** 0x368 - VMCS link pointer. */
-    RTUINT64U       u64VmcsLinkPtr;
-    /** 0x370 - Guest debug-control MSR. */
-    RTUINT64U       u64GuestDebugCtlMsr;
-    /** 0x378 - Guest PAT MSR. */
-    RTUINT64U       u64GuestPatMsr;
-    /** 0x380 - Guest EFER MSR. */
-    RTUINT64U       u64GuestEferMsr;
-    /** 0x388 - Guest global performance-control MSR. */
-    RTUINT64U       u64GuestPerfGlobalCtlMsr;
-    /** 0x390 - Guest PDPTE 0. */
-    RTUINT64U       u64GuestPdpte0;
-    /** 0x398 - Guest PDPTE 0. */
-    RTUINT64U       u64GuestPdpte1;
-    /** 0x3a0 - Guest PDPTE 1. */
-    RTUINT64U       u64GuestPdpte2;
-    /** 0x3a8 - Guest PDPTE 2. */
-    RTUINT64U       u64GuestPdpte3;
-    /** 0x3b0 - Guest Bounds-config MSR (Intel MPX - Memory Protection Extensions). */
-    RTUINT64U       u64GuestBndcfgsMsr;
-    /** 0x3b8 - Reserved for future. */
-    RTUINT64U       au64Reserved2[16];
-    /** @} */
-
-    /** @name 64-bit Host-state Fields.
-     * @{ */
-    /** 0x438 - Host PAT MSR. */
-    RTUINT64U       u64HostPatMsr;
-    /** 0x440 - Host EFER MSR. */
-    RTUINT64U       u64HostEferMsr;
-    /** 0x448 - Host global performance-control MSR. */
-    RTUINT64U       u64HostPerfGlobalCtlMsr;
-    /** 0x450 - Reserved for future. */
-    RTUINT64U       au64Reserved3[16];
-    /** @} */
-
-    /** @name Natural-width Control fields.
-     * @{ */
-    /** 0x4d0 - CR0 guest/host Mask. */
-    RTUINT64U       u64Cr0Mask;
-    /** 0x4d8 - CR4 guest/host Mask. */
-    RTUINT64U       u64Cr4Mask;
-    /** 0x4e0 - CR0 read shadow. */
-    RTUINT64U       u64Cr0ReadShadow;
-    /** 0x4e8 - CR4 read shadow. */
-    RTUINT64U       u64Cr4ReadShadow;
-    /** 0x4f0 - CR3-target value 0. */
-    RTUINT64U       u64Cr3Target0;
-    /** 0x4f8 - CR3-target value 1. */
-    RTUINT64U       u64Cr3Target1;
-    /** 0x500 - CR3-target value 2. */
-    RTUINT64U       u64Cr3Target2;
-    /** 0x508 - CR3-target value 3. */
-    RTUINT64U       u64Cr3Target3;
-    /** 0x510 - Reserved for future. */
-    RTUINT64U       au64Reserved4[32];
-    /** @} */
-
-    /** @name Natural-width Read-only Data fields.
-     * @{ */
-    /** 0x610 - Exit qualification. */
-    RTUINT64U       u64RoExitQual;
-    /** 0x618 - I/O RCX. */
-    RTUINT64U       u64RoIoRcx;
-    /** 0x620 - I/O RSI. */
-    RTUINT64U       u64RoIoRsi;
-    /** 0x628 - I/O RDI. */
-    RTUINT64U       u64RoIoRdi;
-    /** 0x630 - I/O RIP. */
-    RTUINT64U       u64RoIoRip;
-    /** 0x638 - Guest-linear address. */
-    RTUINT64U       u64RoGuestLinearAddr;
-    /** 0x640 - Reserved for future. */
-    RTUINT64U       au64Reserved5[16];
-    /** @} */
-
-    /** @name Natural-width Guest-state Fields.
-     * Order of [ES..GS] base is important, must match X86_SREG_XXX.
-     * @{ */
-    /** 0x6c0 - Guest CR0. */
-    RTUINT64U       u64GuestCr0;
-    /** 0x6c8 - Guest CR3. */
-    RTUINT64U       u64GuestCr3;
-    /** 0x6d0 - Guest CR4. */
-    RTUINT64U       u64GuestCr4;
-    /** 0x6d8 - Guest ES base. */
-    RTUINT64U       u64GuestEsBase;
-    /** 0x6e0 - Guest CS base. */
-    RTUINT64U       u64GuestCsBase;
-    /** 0x6e8 - Guest SS base. */
-    RTUINT64U       u64GuestSsBase;
-    /** 0x6f0 - Guest DS base. */
-    RTUINT64U       u64GuestDsBase;
-    /** 0x6f8 - Guest FS base. */
-    RTUINT64U       u64GuestFsBase;
-    /** 0x700 - Guest GS base. */
-    RTUINT64U       u64GuestGsBase;
-    /** 0x708 - Guest LDTR base. */
-    RTUINT64U       u64GuestLdtrBase;
-    /** 0x710 - Guest TR base. */
-    RTUINT64U       u64GuestTrBase;
-    /** 0x718 - Guest GDTR base.  */
-    RTUINT64U       u64GuestGdtrBase;
-    /** 0x720 - Guest IDTR base.  */
-    RTUINT64U       u64GuestIdtrBase;
-    /** 0x728 - Guest DR7.  */
-    RTUINT64U       u64GuestDr7;
-    /** 0x730 - Guest RSP.  */
-    RTUINT64U       u64GuestRsp;
-    /** 0x738 - Guest RIP.  */
-    RTUINT64U       u64GuestRip;
-    /** 0x740 - Guest RFLAGS.  */
-    RTUINT64U       u64GuestRFlags;
-    /** 0x748 - Guest pending debug exception.  */
-    RTUINT64U       u64GuestPendingDbgXcpt;
-    /** 0x750 - Guest SYSENTER ESP.  */
-    RTUINT64U       u64GuestSysenterEsp;
-    /** 0x758 - Guest SYSENTER EIP.  */
-    RTUINT64U       u64GuestSysenterEip;
-    /** 0x760 - Reserved for future. */
-    RTUINT64U       au64Reserved6[32];
-    /** @} */
-
-    /** @name Natural-width Host-state fields.
-     * @{ */
-    /** 0x860 - Host CR0. */
-    RTUINT64U       u64HostCr0;
-    /** 0x868 - Host CR3. */
-    RTUINT64U       u64HostCr3;
-    /** 0x870 - Host CR4. */
-    RTUINT64U       u64HostCr4;
-    /** 0x878 - Host FS base. */
-    RTUINT64U       u64HostFsBase;
-    /** 0x880 - Host GS base. */
-    RTUINT64U       u64HostGsBase;
-    /** 0x888 - Host TR base. */
-    RTUINT64U       u64HostTrBase;
-    /** 0x890 - Host GDTR base. */
-    RTUINT64U       u64HostGdtrBase;
-    /** 0x898 - Host IDTR base. */
-    RTUINT64U       u64HostIdtrBase;
-    /** 0x8a0 - Host SYSENTER ESP base. */
-    RTUINT64U       u64HostSysenterEsp;
-    /** 0x8a8 - Host SYSENTER ESP base. */
-    RTUINT64U       u64HostSysenterEip;
-    /** 0x8b0 - Host RSP. */
-    RTUINT64U       u64HostRsp;
-    /** 0x8b8 - Host RIP. */
-    RTUINT64U       u64HostRip;
-    /** 0x8c0 - Reserved for future. */
-    RTUINT64U       au64Reserved7[32];
-    /** @} */
-
-    /** 0x9c0 - Padding. */
-    uint8_t         abPadding[X86_PAGE_4K_SIZE - 0x9c0];
+    /** 0xae0 - Padding / reserved for future use. */
+    uint8_t         abPadding[X86_PAGE_4K_SIZE - 0xae0];
 } VMXVVMCS;
 #pragma pack()
 /** Pointer to the VMXVVMCS struct. */
@@ -3728,21 +3771,21 @@ AssertCompileSize(VMXVVMCS, X86_PAGE_4K_SIZE);
 AssertCompileMemberSize(VMXVVMCS, fVmcsState, sizeof(uint8_t));
 AssertCompileMemberOffset(VMXVVMCS, enmVmxAbort,        0x004);
 AssertCompileMemberOffset(VMXVVMCS, fVmcsState,         0x008);
-AssertCompileMemberOffset(VMXVVMCS, u16Vpid,            0x028);
-AssertCompileMemberOffset(VMXVVMCS, GuestEs,            0x03e);
-AssertCompileMemberOffset(VMXVVMCS, HostEs,             0x062);
-AssertCompileMemberOffset(VMXVVMCS, u32PinCtls,         0x084);
-AssertCompileMemberOffset(VMXVVMCS, u32RoVmInstrError,  0x0ec);
-AssertCompileMemberOffset(VMXVVMCS, u32GuestEsLimit,    0x12c);
-AssertCompileMemberOffset(VMXVVMCS, u32HostSysenterCs,  0x1a8);
-AssertCompileMemberOffset(VMXVVMCS, u64AddrIoBitmapA,   0x1d8);
-AssertCompileMemberOffset(VMXVVMCS, u64RoGuestPhysAddr, 0x320);
-AssertCompileMemberOffset(VMXVVMCS, u64VmcsLinkPtr,     0x368);
-AssertCompileMemberOffset(VMXVVMCS, u64HostPatMsr,      0x438);
-AssertCompileMemberOffset(VMXVVMCS, u64Cr0Mask,         0x4d0);
-AssertCompileMemberOffset(VMXVVMCS, u64RoExitQual,      0x610);
-AssertCompileMemberOffset(VMXVVMCS, u64GuestCr0,        0x6c0);
-AssertCompileMemberOffset(VMXVVMCS, u64HostCr0,         0x860);
+AssertCompileMemberOffset(VMXVVMCS, u32RoVmInstrError,  0x058);
+AssertCompileMemberOffset(VMXVVMCS, u64RoGuestPhysAddr, 0x0b8);
+AssertCompileMemberOffset(VMXVVMCS, u64RoExitQual,      0x100);
+AssertCompileMemberOffset(VMXVVMCS, u16Vpid,            0x1b0);
+AssertCompileMemberOffset(VMXVVMCS, u32PinCtls,         0x1d0);
+AssertCompileMemberOffset(VMXVVMCS, u64AddrIoBitmapA,   0x258);
+AssertCompileMemberOffset(VMXVVMCS, u64Cr0Mask,         0x3a0);
+AssertCompileMemberOffset(VMXVVMCS, HostEs,             0x4e0);
+AssertCompileMemberOffset(VMXVVMCS, u32HostSysenterCs,  0x508);
+AssertCompileMemberOffset(VMXVVMCS, u64HostPatMsr,      0x538);
+AssertCompileMemberOffset(VMXVVMCS, u64HostCr0,         0x5d0);
+AssertCompileMemberOffset(VMXVVMCS, GuestEs,            0x730);
+AssertCompileMemberOffset(VMXVVMCS, u32GuestEsLimit,    0x760);
+AssertCompileMemberOffset(VMXVVMCS, u64VmcsLinkPtr,     0x7e8);
+AssertCompileMemberOffset(VMXVVMCS, u64GuestCr0,        0x940);
 
 /**
  * Virtual VMX-instruction and VM-exit diagnostics.
@@ -3853,6 +3896,17 @@ typedef enum
     kVmxVDiag_Vmread_PtrMap,
     kVmxVDiag_Vmread_RealOrV86Mode,
     kVmxVDiag_Vmread_VmxRoot,
+    /* INVVPID. */
+    kVmxVDiag_Invvpid_Cpl,
+    kVmxVDiag_Invvpid_DescRsvd,
+    kVmxVDiag_Invvpid_LongModeCS,
+    kVmxVDiag_Invvpid_RealOrV86Mode,
+    kVmxVDiag_Invvpid_TypeInvalid,
+    kVmxVDiag_Invvpid_Type0InvalidAddr,
+    kVmxVDiag_Invvpid_Type0InvalidVpid,
+    kVmxVDiag_Invvpid_Type1InvalidVpid,
+    kVmxVDiag_Invvpid_Type3InvalidVpid,
+    kVmxVDiag_Invvpid_VmxRoot,
     /* VMLAUNCH/VMRESUME. */
     kVmxVDiag_Vmentry_AddrApicAccess,
     kVmxVDiag_Vmentry_AddrApicAccessEqVirtApic,
@@ -4035,6 +4089,8 @@ typedef enum
     kVmxVDiag_Vmentry_HostSegBase,
     kVmxVDiag_Vmentry_HostSs,
     kVmxVDiag_Vmentry_HostSysenterEspEip,
+    kVmxVDiag_Vmentry_IoBitmapAPtrReadPhys,
+    kVmxVDiag_Vmentry_IoBitmapBPtrReadPhys,
     kVmxVDiag_Vmentry_LongModeCS,
     kVmxVDiag_Vmentry_MsrBitmapPtrReadPhys,
     kVmxVDiag_Vmentry_MsrLoad,
@@ -4078,31 +4134,17 @@ typedef enum
     kVmxVDiag_Vmexit_MsrLoadRsvd,
     kVmxVDiag_Vmexit_MsrStore,
     kVmxVDiag_Vmexit_MsrStoreCount,
+    kVmxVDiag_Vmexit_MsrStorePtrReadPhys,
     kVmxVDiag_Vmexit_MsrStorePtrWritePhys,
     kVmxVDiag_Vmexit_MsrStoreRing3,
     kVmxVDiag_Vmexit_MsrStoreRsvd,
+    kVmxVDiag_Vmexit_VirtApicPagePtrWritePhys,
     /* Last member for determining array index limit. */
     kVmxVDiag_End
 } VMXVDIAG;
 AssertCompileSize(VMXVDIAG, 4);
 
 /** @} */
-
-
-/** @defgroup grp_hm_vmx_c    VMX C Helpers
- *
- * These are functions that strictly only implement VT-x functionality that is in
- * accordance to the VT-X spec. and thus fit to use by IEM/REM/HM.
- *
- * These are not HM all-context API functions, those are to be placed in hm.h.
- * @{
- */
-VMM_INT_DECL(int)   HMGetVmxMsrPermission(void const *pvMsrBitmap, uint32_t idMsr, PVMXMSREXITREAD penmRead,
-                                          PVMXMSREXITWRITE penmWrite);
-VMM_INT_DECL(bool)  HMGetVmxIoBitmapPermission(void const *pvIoBitmapA, void const *pvIoBitmapB, uint16_t uPort,
-                                               uint8_t cbAccess);
-/** @} */
-
 
 /** @} */
 

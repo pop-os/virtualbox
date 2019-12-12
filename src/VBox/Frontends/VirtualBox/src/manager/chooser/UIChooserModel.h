@@ -22,34 +22,22 @@
 #endif
 
 /* Qt includes: */
-#include <QMap>
-#include <QObject>
 #include <QPointer>
-#include <QThread>
-#include <QTransform>
-#include <QUuid>
 
 /* GUI includes: */
-#include "UIChooserItem.h"
+#include "UIChooserAbstractModel.h"
 #include "UIExtraDataDefs.h"
-
-/* COM includes: */
-#include "COMEnums.h"
 
 /* Forward declaration: */
 class QDrag;
-class QGraphicsItem;
-class QGraphicsScene;
-class QGraphicsSceneContextMenuEvent;
-class QMenu;
-class QPaintDevice;
-class QTimer;
 class UIActionPool;
 class UIChooser;
 class UIChooserHandlerMouse;
 class UIChooserHandlerKeyboard;
+class UIChooserItem;
+class UIChooserNode;
+class UIChooserView;
 class UIVirtualMachineItem;
-class CMachine;
 
 
 /** Context-menu types. */
@@ -61,8 +49,10 @@ enum UIGraphicsSelectorContextMenuType
 };
 
 
-/** QObject extension used as VM Chooser-pane model: */
-class UIChooserModel : public QObject
+/** UIChooserAbstractModel extension used as VM Chooser-pane model.
+  * This class is used to operate on tree of visible tree items
+  * representing VMs and their groups. */
+class UIChooserModel : public UIChooserAbstractModel
 {
     Q_OBJECT;
 
@@ -78,11 +68,8 @@ signals:
       * @{ */
         /** Notifies about selection changed. */
         void sigSelectionChanged();
-        /** Notifies about focus changed. */
-        void sigFocusChanged();
-
-        /** Notifies about root sliding started. */
-        void sigSlidingStarted();
+        /** Notifies about selection invalidated. */
+        void sigSelectionInvalidated();
 
         /** Notifies about group toggling started. */
         void sigToggleStarted();
@@ -94,16 +81,6 @@ signals:
       * @{ */
         /** Notifies about root item minimum width @a iHint changed. */
         void sigRootItemMinimumWidthHintChanged(int iHint);
-        /** Notifies about root item minimum height @a iHint changed. */
-        void sigRootItemMinimumHeightHintChanged(int iHint);
-    /** @} */
-
-    /** @name Group saving stuff.
-      * @{ */
-        /** Notifies about group saving started. */
-        void sigGroupSavingStarted();
-        /** Notifies about group saving state changed. */
-        void sigGroupSavingStateChanged();
     /** @} */
 
 public:
@@ -116,9 +93,9 @@ public:
     /** @name General stuff.
       * @{ */
         /** Inits model. */
-        void init();
+        virtual void init() /* override */;
         /** Deinits model. */
-        void deinit();
+        virtual void deinit() /* override */;
 
         /** Returns the Chooser reference. */
         UIChooser *chooser() const;
@@ -126,6 +103,8 @@ public:
         UIActionPool *actionPool() const;
         /** Returns the scene reference. */
         QGraphicsScene *scene() const;
+        /** Returns the reference of the first view of the scene(). */
+        UIChooserView *view() const;
         /** Returns the paint device reference. */
         QPaintDevice *paintDevice() const;
 
@@ -134,33 +113,35 @@ public:
 
         /** Handles tool button click for certain @a pItem. */
         void handleToolButtonClick(UIChooserItem *pItem);
+        /** Handles pin button click for certain @a pItem. */
+        void handlePinButtonClick(UIChooserItem *pItem);
     /** @} */
 
     /** @name Selection stuff.
       * @{ */
-        /** Sets a list of current @a items. */
-        void setCurrentItems(const QList<UIChooserItem*> &items);
-        /** Defines current @a pItem. */
-        void setCurrentItem(UIChooserItem *pItem);
-        /** Defines current item by @a definition. */
-        void setCurrentItem(const QString &strDefinition);
-        /** Unsets all current items. */
-        void unsetCurrentItems();
+        /** Sets a list of selected @a items. */
+        void setSelectedItems(const QList<UIChooserItem*> &items);
+        /** Defines selected @a pItem. */
+        void setSelectedItem(UIChooserItem *pItem);
+        /** Defines selected-item by @a definition. */
+        void setSelectedItem(const QString &strDefinition);
+        /** Clear selected-items list. */
+        void clearSelectedItems();
 
-        /** Adds @a pItem to list of current. */
-        void addToCurrentItems(UIChooserItem *pItem);
-        /** Removes @a pItem from list of current. */
-        void removeFromCurrentItems(UIChooserItem *pItem);
+        /** Adds @a pItem to list of selected. */
+        void addToSelectedItems(UIChooserItem *pItem);
+        /** Removes @a pItem from list of selected. */
+        void removeFromSelectedItems(UIChooserItem *pItem);
 
-        /** Returns current item. */
-        UIChooserItem *currentItem() const;
-        /** Returns a list of current items. */
-        const QList<UIChooserItem*> &currentItems() const;
+        /** Returns first selected-item. */
+        UIChooserItem *firstSelectedItem() const;
+        /** Returns a list of selected-items. */
+        const QList<UIChooserItem*> &selectedItems() const;
 
-        /** Returns current machine item. */
-        UIVirtualMachineItem *currentMachineItem() const;
-        /** Returns a list of current machine items. */
-        QList<UIVirtualMachineItem*> currentMachineItems() const;
+        /** Returns first selected machine item. */
+        UIVirtualMachineItem *firstSelectedMachineItem() const;
+        /** Returns a list of selected machine items. */
+        QList<UIVirtualMachineItem*> selectedMachineItems() const;
 
         /** Returns whether group item is selected. */
         bool isGroupItemSelected() const;
@@ -174,47 +155,49 @@ public:
         /** Returns whether all machine items of one group is selected. */
         bool isAllItemsOfOneGroupSelected() const;
 
-        /** Finds closest non-selected item. */
+        /** Finds closest non-selected-item. */
         UIChooserItem *findClosestUnselectedItem() const;
 
         /** Makes sure some item is selected. */
         void makeSureSomeItemIsSelected();
 
-        /** Defines focus @a pItem. */
-        void setFocusItem(UIChooserItem *pItem);
-        /** Returns focus item. */
-        UIChooserItem *focusItem() const;
+        /** Defines current @a pItem. */
+        void setCurrentItem(UIChooserItem *pItem);
+        /** Returns current-item. */
+        UIChooserItem *currentItem() const;
     /** @} */
 
     /** @name Navigation stuff.
       * @{ */
-        /** Returns navigation item list. */
-        const QList<UIChooserItem*> &navigationList() const;
+        /** Returns a list of navigation-items. */
+        const QList<UIChooserItem*> &navigationItems() const;
         /** Removes @a pItem from navigation list. */
-        void removeFromNavigationList(UIChooserItem *pItem);
+        void removeFromNavigationItems(UIChooserItem *pItem);
         /** Updates navigation list. */
-        void updateNavigation();
+        void updateNavigationItemList();
+    /** @} */
+
+    /** @name Search stuff.
+      * @{ */
+        /** Performs a search starting from the m_pInvisibleRootNode. */
+        virtual void performSearch(const QString &strSearchTerm, int iItemSearchFlags) /* override */;
+        /** Cleans the search result data members and disables item's visual effects.
+          * Also returns a list of all nodes which may be utilized by the calling code. */
+        virtual QList<UIChooserNode*> resetSearch() /* override */;
+
+        /** Selects next/prev (wrt. @a fIsNext) search result. */
+        void selectSearchResult(bool fIsNext);
+        /** Shows/hides machine search widget. */
+        void setSearchWidgetVisible(bool fVisible);
     /** @} */
 
     /** @name Children stuff.
       * @{ */
-        /** Holds the main root instance. */
-        UIChooserItem *mainRoot() const;
-        /** Holds the current root reference. */
+        /** Returns the root instance. */
         UIChooserItem *root() const;
-
-        /** Indents stack of root items with @a pNewRootItem. */
-        void indentRoot(UIChooserItem *pNewRootItem);
-        /** Unindents stack of root items flushing top-most. */
-        void unindentRoot();
-        /** Returns whether root indenting/unindenting is in progress. */
-        bool isSlidingInProgress() const;
 
         /** Starts editing group name. */
         void startEditingGroupItemName();
-
-        /** Cleanups group tree. */
-        void cleanupGroupTree();
 
         /** Activates machine item. */
         void activateMachineItem();
@@ -222,13 +205,8 @@ public:
         /** Defines current @a pDragObject. */
         void setCurrentDragObject(QDrag *pDragObject);
 
-        /** Looks for item with certain @a strLookupSymbol. */
-        void lookFor(const QString &strLookupSymbol);
-        /** Returns whether looking is in progress. */
-        bool isLookupInProgress() const;
-
-        /** Generates unique group name traversing recursively starting from @a pRoot. */
-        static QString uniqueGroupName(UIChooserItem *pRoot);
+        /** Looks for item with certain @a strLookupText. */
+        void lookFor(const QString &strLookupText);
     /** @} */
 
     /** @name Layout stuff.
@@ -238,14 +216,6 @@ public:
 
         /** Defines global item height @a iHint. */
         void setGlobalItemHeightHint(int iHint);
-    /** @} */
-
-    /** @name Group saving stuff.
-      * @{ */
-        /** Commands to save group settings. */
-        void saveGroupSettings();
-        /** Returns whether group saving is in progress. */
-        bool isGroupSavingInProgress() const;
     /** @} */
 
 public slots:
@@ -264,37 +234,33 @@ protected:
         virtual bool eventFilter(QObject *pObject, QEvent *pEvent) /* override */;
     /** @} */
 
-private slots:
+protected slots:
 
     /** @name Main event handling stuff.
       * @{ */
-        /** Handles machine @a enmState change for machine with certain @a uId. */
-        void sltMachineStateChanged(const QUuid &uId, const KMachineState enmState);
-        /** Handles machine data change for machine with certain @a uId. */
-        void sltMachineDataChanged(const QUuid &uId);
         /** Handles machine registering/unregistering for machine with certain @a uId. */
-        void sltMachineRegistered(const QUuid &uId, const bool fRegistered);
-        /** Handles session @a enmState change for machine with certain @a uId. */
-        void sltSessionStateChanged(const QUuid &uId, const KSessionState enmState);
-        /** Handles snapshot change for machine/snapshot with certain @a uId / @a uSnapshotId. */
-        void sltSnapshotChanged(const QUuid &uId, const QUuid &uSnapshotId);
-    /** @} */
-
-    /** @name Selection stuff.
-      * @{ */
-        /** Handles focus item destruction. */
-        void sltFocusItemDestroyed();
+        virtual void sltMachineRegistered(const QUuid &uId, const bool fRegistered) /* override */;
     /** @} */
 
     /** @name Children stuff.
       * @{ */
-        /** Handles left root sliding progress. */
-        void sltLeftRootSlidingProgress();
-        /** Handles right root sliding progress. */
-        void sltRightRootSlidingProgress();
-        /** Handles sliding progress complete. */
-        void sltSlidingComplete();
+        /** Handles reload machine with certain @a uId request. */
+        virtual void sltReloadMachine(const QUuid &uId) /* override */;
+    /** @} */
 
+private slots:
+
+    /** @name Selection stuff.
+      * @{ */
+        /** Makes sure current item is visible. */
+        void sltMakeSureCurrentItemVisible();
+
+        /** Handles current-item destruction. */
+        void sltCurrentItemDestroyed();
+    /** @} */
+
+    /** @name Children stuff.
+      * @{ */
         /** Handles group rename request. */
         void sltEditGroupName();
         /** Handles group sort request. */
@@ -306,8 +272,6 @@ private slots:
         void sltCreateNewMachine();
         /** Handles group selected machines request. */
         void sltGroupSelectedMachines();
-        /** Handles reload machine with certain @a uId request. */
-        void sltReloadMachine(const QUuid &uId);
         /** Handles sort parent group request. */
         void sltSortParentGroup();
         /** Handles refresh request. */
@@ -320,28 +284,11 @@ private slots:
         /** Handles D&D object destruction. */
         void sltCurrentDragObjectDestroyed();
 
-        /** Handles request to erase lookup timer. */
-        void sltEraseLookupTimer();
-    /** @} */
-
-    /** @name Group saving stuff.
-      * @{ */
-        /** Handles request to start group saving. */
-        void sltGroupSavingStart();
-        /** Handles group definition saving complete. */
-        void sltGroupDefinitionsSaveComplete();
-        /** Handles group order saving complete. */
-        void sltGroupOrdersSaveComplete();
+        /** Handles machine search widget show/hide request. */
+        void sltShowHideSearchWidget();
     /** @} */
 
 private:
-
-    /** Data field types. */
-    enum ChooserModelData
-    {
-        /* Layout margin: */
-        ChooserModelData_Margin
-    };
 
     /** @name Prepare/Cleanup cascade.
       * @{ */
@@ -349,29 +296,23 @@ private:
         void prepare();
         /** Prepares scene. */
         void prepareScene();
-        /** Prepares root. */
-        void prepareRoot();
-        /** Prepares lookup. */
-        void prepareLookup();
         /** Prepares context-menu. */
         void prepareContextMenu();
         /** Prepares handlers. */
         void prepareHandlers();
         /** Prepares connections. */
         void prepareConnections();
-        /** Loads last selected items. */
+        /** Loads last selected-items. */
         void loadLastSelectedItem();
 
-        /** Saves last selected items. */
+        /** Saves last selected-items. */
         void saveLastSelectedItem();
         /** Cleanups connections. */
+        void cleanupConnections();
+        /** Cleanups handlers. */
         void cleanupHandlers();
         /** Cleanups context-menu. */
         void cleanupContextMenu();
-        /** Cleanups lookup. */
-        void cleanupLookup();
-        /** Cleanups root. */
-        void cleanupRoot();
         /** Cleanups scene. */
         void cleanupScene();
         /** Cleanups all. */
@@ -380,9 +321,6 @@ private:
 
     /** @name General stuff.
       * @{ */
-        /** Returns abstractly stored data value for certain @a iKey. */
-        QVariant data(int iKey) const;
-
         /** Handles context-menu @a pEvent. */
         bool processContextMenuEvent(QGraphicsSceneContextMenuEvent *pEvent);
         /** Popups context-menu of certain @a enmType in specified @a point. */
@@ -398,38 +336,13 @@ private:
     /** @name Navigation stuff.
       * @{ */
         /** Creates navigation list for passed root @a pItem. */
-        QList<UIChooserItem*> createNavigationList(UIChooserItem *pItem);
+        QList<UIChooserItem*> createNavigationItemList(UIChooserItem *pItem);
     /** @} */
 
     /** @name Children stuff.
       * @{ */
-        /** Performs root sliding, @a fForward if specified. */
-        void slideRoot(bool fForward);
-
-        /** Loads group tree. */
-        void loadGroupTree();
-        /** Adds machine item based on certain @a comMachine and optionally @a fMakeItVisible. */
-        void addMachineIntoTheTree(const CMachine &comMachine, bool fMakeItVisible = false);
-        /** Cleanups group tree starting from the passed @a pParentItem. */
-        void cleanupGroupTree(UIChooserItem *pParentItem);
-
-        /** Acquires group item, creates one if necessary.
-          * @param  strName           Brings the name of group we looking for.
-          * @param  pParentItem       Brings the parent we starting to look for a group from.
-          * @param  fAllGroupsOpened  Brings whether we should open all the groups till the required one. */
-        UIChooserItem *getGroupItem(const QString &strName, UIChooserItem *pParentItem, bool fAllGroupsOpened);
-        /** Returns whether group with certain @a strName should be opened, searching starting from the passed @a pParentItem. */
-        bool shouldBeGroupOpened(UIChooserItem *pParentItem, const QString &strName);
-
-        /** Acquires desired position for an child of @a pParentItem with specified @a enmType and @a strName. */
-        int getDesiredPosition(UIChooserItem *pParentItem, UIChooserItemType enmType, const QString &strName);
-        /** Acquires saved position for an child of @a pParentItem with specified @a enmType and @a strName. */
-        int positionFromDefinitions(UIChooserItem *pParentItem, UIChooserItemType enmType, const QString &strName);
-
-        /** Creates machine item based on certain @a comMachine as a child of specified @a pParentItem. */
-        void createMachineItem(const CMachine &comMachine, UIChooserItem *pParentItem);
-        /** Creates global item as a child of specified @a pParentItem. */
-        void createGlobalItem(UIChooserItem *pParentItem);
+        /** Build tree for main root. */
+        void buildTreeForMainRoot();
 
         /** Removes machine @a items. */
         void removeItems(const QList<UIChooserItem*> &items);
@@ -440,28 +353,6 @@ private:
         bool processDragMoveEvent(QGraphicsSceneDragDropEvent *pEvent);
         /** Processes drag leave @a pEvent. */
         bool processDragLeaveEvent(QGraphicsSceneDragDropEvent *pEvent);
-    /** @} */
-
-    /** @name Group saving stuff.
-      * @{ */
-        /** Saves group definitions. */
-        void saveGroupDefinitions();
-        /** Saves group orders. */
-        void saveGroupOrders();
-
-        /** Gathers group @a definitions of @a pParentGroup. */
-        void gatherGroupDefinitions(QMap<QString, QStringList> &definitions, UIChooserItem *pParentGroup);
-        /** Gathers group @a orders of @a pParentGroup. */
-        void gatherGroupOrders(QMap<QString, QStringList> &orders, UIChooserItem *pParentItem);
-
-        /** Makes sure group definitions saving is finished. */
-        void makeSureGroupDefinitionsSaveIsFinished();
-        /** Makes sure group orders saving is finished. */
-        void makeSureGroupOrdersSaveIsFinished();
-
-        /** Returns QString representation for passed @a uId, wiping out {} symbols.
-          * @note  Required for backward compatibility after QString=>QUuid change. */
-        static QString toOldStyleUuid(const QUuid &uId);
     /** @} */
 
     /** @name General stuff.
@@ -487,26 +378,25 @@ private:
 
     /** @name Selection stuff.
       * @{ */
-        /** Holds the focus item reference. */
-        QPointer<UIChooserItem>  m_pFocusItem;
+        /** Holds the current-item reference. */
+        QPointer<UIChooserItem>  m_pCurrentItem;
+    /** @} */
+
+    /** @name Search stuff.
+      * @{ */
+        /** Stores the index (within the m_searchResults) of the currently selected found item. */
+        int  m_iCurrentSearchResultIndex;
     /** @} */
 
     /** @name Children stuff.
       * @{ */
-        /** Holds the root stack. */
-        QList<UIChooserItem*>    m_rootStack;
-        /** Holds whether root sliding is in progress. */
-        bool                     m_fSliding;
-        /** Holds left temporary root instance. */
-        UIChooserItem           *m_pLeftRoot;
-        /** Holds right temporary root instance. */
-        UIChooserItem           *m_pRightRoot;
-        /** Holds the item whish should be ficused after sliding. */
-        QPointer<UIChooserItem>  m_pAfterSlidingFocus;
+        /** Holds the root instance. */
+        QPointer<UIChooserItem>  m_pRoot;
 
-        /** Holds the navigation list. */
-        QList<UIChooserItem*>  m_navigationList;
-        QList<UIChooserItem*>  m_currentItems;
+        /** Holds the navigation-items. */
+        QList<UIChooserItem*>  m_navigationItems;
+        /** Holds the selected-items. */
+        QList<UIChooserItem*>  m_selectedItems;
 
         /** Holds the current drag object instance. */
         QPointer<QDrag>  m_pCurrentDragObject;
@@ -514,115 +404,7 @@ private:
         int              m_iScrollingTokenSize;
         /** Holds whether drag scrolling is in progress. */
         bool             m_fIsScrollingInProgress;
-
-        /** Holds the item lookup timer instance. */
-        QTimer  *m_pLookupTimer;
-        /** Holds the item lookup string. */
-        QString  m_strLookupString;
-
-        /** Holds the Id of last VM created from the GUI side. */
-        QUuid  m_uLastCreatedMachineId;
-
-        /** Holds the global item height hint. */
-        int  m_iGlobalItemHeightHint;
     /** @} */
-
-    /** @name Group saving stuff.
-      * @{ */
-        /** Holds the consolidated map of group definitions/orders. */
-        QMap<QString, QStringList>  m_groups;
-    /** @} */
-};
-
-
-/** QThread subclass allowing to save group definitions asynchronously. */
-class UIThreadGroupDefinitionSave : public QThread
-{
-    Q_OBJECT;
-
-signals:
-
-    /** Notifies about machine with certain @a uId to be reloaded. */
-    void sigReload(const QUuid &uId);
-
-    /** Notifies about task is complete. */
-    void sigComplete();
-
-public:
-
-    /** Returns group saving thread instance. */
-    static UIThreadGroupDefinitionSave* instance();
-    /** Prepares group saving thread instance. */
-    static void prepare();
-    /** Cleanups group saving thread instance. */
-    static void cleanup();
-
-    /** Configures @a groups saving thread with corresponding @a pListener.
-      * @param  oldLists  Brings the old definition list to be compared.
-      * @param  newLists  Brings the new definition list to be saved. */
-    void configure(QObject *pParent,
-                   const QMap<QString, QStringList> &oldLists,
-                   const QMap<QString, QStringList> &newLists);
-
-protected:
-
-    /** Constructs group saving thread. */
-    UIThreadGroupDefinitionSave();
-    /** Destructs group saving thread. */
-    virtual ~UIThreadGroupDefinitionSave() /* override */;
-
-    /** Contains a thread task to be executed. */
-    void run();
-
-    /** Holds the singleton instance. */
-    static UIThreadGroupDefinitionSave *s_pInstance;
-
-    /** Holds the map of group definitions to be compared. */
-    QMap<QString, QStringList> m_oldLists;
-    /** Holds the map of group definitions to be saved. */
-    QMap<QString, QStringList> m_newLists;
-};
-
-
-/** QThread subclass allowing to save group order asynchronously. */
-class UIThreadGroupOrderSave : public QThread
-{
-    Q_OBJECT;
-
-signals:
-
-    /** Notifies about task is complete. */
-    void sigComplete();
-
-public:
-
-    /** Returns group saving thread instance. */
-    static UIThreadGroupOrderSave *instance();
-    /** Prepares group saving thread instance. */
-    static void prepare();
-    /** Cleanups group saving thread instance. */
-    static void cleanup();
-
-    /** Configures group saving thread with corresponding @a pListener.
-      * @param  groups  Brings the groups to be saved. */
-    void configure(QObject *pListener,
-                   const QMap<QString, QStringList> &groups);
-
-protected:
-
-    /** Constructs group saving thread. */
-    UIThreadGroupOrderSave();
-    /** Destructs group saving thread. */
-    virtual ~UIThreadGroupOrderSave() /* override */;
-
-    /** Contains a thread task to be executed. */
-    virtual void run() /* override */;
-
-    /** Holds the singleton instance. */
-    static UIThreadGroupOrderSave *s_pInstance;
-
-    /** Holds the map of groups to be saved. */
-    QMap<QString, QStringList>  m_groups;
 };
 
 

@@ -22,28 +22,30 @@
 #define LOG_GROUP LOG_GROUP_DEV_GIM
 #include <VBox/vmm/pdmdev.h>
 #include <VBox/vmm/gim.h>
-#include <VBox/vmm/vm.h>
 
 #include "VBoxDD.h"
 #include <iprt/alloc.h>
 #include <iprt/semaphore.h>
 #include <iprt/uuid.h>
 
+
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 #define GIMDEV_DEBUG_LUN                998
 
+
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 /**
  * GIM device.
  */
 typedef struct GIMDEV
 {
-    /** Pointer to the device instance - R3 Ptr. */
-    PPDMDEVINSR3                    pDevInsR3;
-    /** Pointer to the device instance - R0 Ptr. */
-    PPDMDEVINSR0                    pDevInsR0;
-    /** Pointer to the device instance - RC Ptr. */
-    PPDMDEVINSRC                    pDevInsRC;
-    /** Alignment. */
-    RTRCPTR                         Alignment0;
+    /** Pointer to the device instance.
+     * @note Only for getting our bearings when arriving in an interface method. */
+    PPDMDEVINSR3                    pDevIns;
 
     /** LUN\#998: The debug interface. */
     PDMIBASE                        IDbgBase;
@@ -55,6 +57,7 @@ typedef struct GIMDEV
     RTTHREAD                        hDbgRecvThread;
     /** Flag to indicate shutdown of the debug receive thread. */
     bool volatile                   fDbgRecvThreadShutdown;
+    bool                            afAlignment1[ARCH_BITS / 8 - 1];
     /** The debug setup parameters. */
     GIMDEBUGSETUP                   DbgSetup;
     /** The debug transfer struct. */
@@ -94,7 +97,7 @@ static DECLCALLBACK(int) gimDevR3DbgRecvThread(RTTHREAD hThreadSelf, void *pvUse
     AssertReturn(pDevIns, VERR_INVALID_PARAMETER);
     PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
 
-    PGIMDEV pThis = PDMINS_2_DATA(pDevIns, PGIMDEV);
+    PGIMDEV pThis = PDMDEVINS_2_DATA(pDevIns, PGIMDEV);
     AssertReturn(pThis, VERR_INVALID_POINTER);
     AssertReturn(pThis->DbgSetup.cbDbgRecvBuf, VERR_INTERNAL_ERROR);
     AssertReturn(pThis->Dbg.hDbgRecvThreadSem != NIL_RTSEMEVENTMULTI, VERR_INTERNAL_ERROR_2);
@@ -189,6 +192,54 @@ static DECLCALLBACK(void) gimdevR3Relocate(PPDMDEVINS pDevIns, RTGCINTPTR offDel
 {
     NOREF(pDevIns);
     NOREF(offDelta);
+#ifdef VBOX_WITH_RAW_MODE_KEEP
+# error relocate pvPageRC
+#endif
+}
+
+
+/**
+ * @interface_method_impl{PDMDEVREG,pfnDestruct}
+ */
+static DECLCALLBACK(int) gimdevR3Destruct(PPDMDEVINS pDevIns)
+{
+    PDMDEV_CHECK_VERSIONS_RETURN_QUIET(pDevIns);
+    PGIMDEV  pThis    = PDMDEVINS_2_DATA(pDevIns, PGIMDEV);
+
+    /*
+     * Signal and wait for the debug thread to terminate.
+     */
+    if (pThis->hDbgRecvThread != NIL_RTTHREAD)
+    {
+        pThis->fDbgRecvThreadShutdown = true;
+        if (pThis->Dbg.hDbgRecvThreadSem != NIL_RTSEMEVENT)
+            RTSemEventMultiSignal(pThis->Dbg.hDbgRecvThreadSem);
+
+        int rc = RTThreadWait(pThis->hDbgRecvThread, 20000, NULL /*prc*/);
+        if (RT_SUCCESS(rc))
+            pThis->hDbgRecvThread = NIL_RTTHREAD;
+        else
+        {
+            LogRel(("GIMDev: Debug thread did not terminate, rc=%Rrc!\n", rc));
+            return VERR_RESOURCE_BUSY;
+        }
+    }
+
+    /*
+     * Now clean up the semaphore & buffer now that the thread is gone.
+     */
+    if (pThis->Dbg.hDbgRecvThreadSem != NIL_RTSEMEVENT)
+    {
+        RTSemEventMultiDestroy(pThis->Dbg.hDbgRecvThreadSem);
+        pThis->Dbg.hDbgRecvThreadSem = NIL_RTSEMEVENTMULTI;
+    }
+    if (pThis->Dbg.pvDbgRecvBuf)
+    {
+        RTMemFree(pThis->Dbg.pvDbgRecvBuf);
+        pThis->Dbg.pvDbgRecvBuf = NULL;
+    }
+
+    return VINF_SUCCESS;
 }
 
 
@@ -198,21 +249,22 @@ static DECLCALLBACK(void) gimdevR3Relocate(PPDMDEVINS pDevIns, RTGCINTPTR offDel
 static DECLCALLBACK(int) gimdevR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
 {
     PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
+    PGIMDEV pThis = PDMDEVINS_2_DATA(pDevIns, PGIMDEV);
     RT_NOREF2(iInstance, pCfg);
+
     Assert(iInstance == 0);
-    PGIMDEV pThis = PDMINS_2_DATA(pDevIns, PGIMDEV);
 
     /*
      * Initialize relevant state bits.
      */
-    pThis->pDevInsR3  = pDevIns;
-    pThis->pDevInsR0  = PDMDEVINS_2_R0PTR(pDevIns);
-    pThis->pDevInsRC  = PDMDEVINS_2_RCPTR(pDevIns);
+    pThis->pDevIns                  = pDevIns;
+    pThis->hDbgRecvThread           = NIL_RTTHREAD;
+    pThis->Dbg.hDbgRecvThreadSem    = NIL_RTSEMEVENT;
 
     /*
      * Get debug setup requirements from GIM.
      */
-    PVM pVM = PDMDevHlpGetVM(pDevIns);
+    PVMCC pVM = PDMDevHlpGetVM(pDevIns);
     int rc = GIMR3GetDebugSetup(pVM, &pThis->DbgSetup);
     if (   RT_SUCCESS(rc)
         && pThis->DbgSetup.cbDbgRecvBuf > 0)
@@ -263,25 +315,21 @@ static DECLCALLBACK(int) gimdevR3Construct(PPDMDEVINS pDevIns, int iInstance, PC
         pThis->Dbg.fDbgRecvBufRead  = false;
 
         /*
-         * Create the sempahore and the debug receive thread itself.
+         * Create the semaphore and the debug receive thread itself.
          */
         rc = RTSemEventMultiCreate(&pThis->Dbg.hDbgRecvThreadSem);
-        if (RT_SUCCESS(rc))
+        AssertRCReturn(rc, rc);
+        rc = RTThreadCreate(&pThis->hDbgRecvThread, gimDevR3DbgRecvThread, pDevIns, 0 /*cbStack*/, RTTHREADTYPE_IO,
+                            RTTHREADFLAGS_WAITABLE, "GIMDebugRecv");
+        if (RT_FAILURE(rc))
         {
-            rc = RTThreadCreate(&pThis->hDbgRecvThread, gimDevR3DbgRecvThread, pDevIns, 0 /*cbStack*/, RTTHREADTYPE_IO,
-                                RTTHREADFLAGS_WAITABLE, "GIMDebugRecv");
-            if (RT_FAILURE(rc))
-            {
-                RTSemEventMultiDestroy(pThis->Dbg.hDbgRecvThreadSem);
-                pThis->Dbg.hDbgRecvThreadSem = NIL_RTSEMEVENTMULTI;
+            RTSemEventMultiDestroy(pThis->Dbg.hDbgRecvThreadSem);
+            pThis->Dbg.hDbgRecvThreadSem = NIL_RTSEMEVENTMULTI;
 
-                RTMemFree(pThis->Dbg.pvDbgRecvBuf);
-                pThis->Dbg.pvDbgRecvBuf = NULL;
-                return rc;
-            }
-        }
-        else
+            RTMemFree(pThis->Dbg.pvDbgRecvBuf);
+            pThis->Dbg.pvDbgRecvBuf = NULL;
             return rc;
+        }
     }
 
     /*
@@ -290,54 +338,34 @@ static DECLCALLBACK(int) gimdevR3Construct(PPDMDEVINS pDevIns, int iInstance, PC
     GIMR3GimDeviceRegister(pVM, pDevIns, pThis->DbgSetup.cbDbgRecvBuf ? &pThis->Dbg : NULL);
 
     /*
-     * Get the MMIO2 regions from the GIM provider.
+     * Get the MMIO2 regions from the GIM provider and make the registrations.
      */
-    uint32_t cRegions = 0;
-    PGIMMMIO2REGION pRegionsR3 = GIMR3GetMmio2Regions(pVM, &cRegions);
+/** @todo r=bird: consider ditching this as GIM doesn't actually make use of it */
+    uint32_t        cRegions  = 0;
+    PGIMMMIO2REGION paRegions = GIMGetMmio2Regions(pVM, &cRegions);
     if (   cRegions
-        && pRegionsR3)
+        && paRegions)
     {
-        /*
-         * Register the MMIO2 regions.
-         */
-        PGIMMMIO2REGION pCur = pRegionsR3;
-        for (uint32_t i = 0; i < cRegions; i++, pCur++)
+        for (uint32_t i = 0; i < cRegions; i++)
         {
-            Assert(!pCur->fRegistered);
-            rc = PDMDevHlpMMIO2Register(pDevIns, NULL, pCur->iRegion, pCur->cbRegion, 0 /* fFlags */, &pCur->pvPageR3,
-                                        pCur->szDescription);
-            if (RT_FAILURE(rc))
-                return rc;
-
+            PGIMMMIO2REGION pCur = &paRegions[i];
+            Assert(pCur->iRegion < 8);
+            rc = PDMDevHlpMmio2Create(pDevIns, NULL, pCur->iRegion << 16, pCur->cbRegion, 0 /* fFlags */, pCur->szDescription,
+                                      &pCur->pvPageR3, &pCur->hMmio2);
+            AssertLogRelMsgRCReturn(rc, ("rc=%Rrc iRegion=%u cbRegion=%#x %s\n",
+                                         rc, pCur->iRegion, pCur->cbRegion, pCur->szDescription),
+                                    rc);
             pCur->fRegistered = true;
-
-#if defined(VBOX_WITH_2X_4GB_ADDR_SPACE)
-            RTR0PTR pR0Mapping = 0;
-            rc = PDMDevHlpMMIO2MapKernel(pDevIns, NULL, pCur->iRegion, 0 /* off */, pCur->cbRegion, pCur->szDescription,
-                                         &pR0Mapping);
-            AssertLogRelMsgRCReturn(rc, ("PDMDevHlpMapMMIO2IntoR0(%#x,) -> %Rrc\n", pCur->cbRegion, rc), rc);
-            pCur->pvPageR0 = pR0Mapping;
-#else
-            pCur->pvPageR0 = (RTR0PTR)pCur->pvPageR3;
-#endif
-
-            /*
-             * Map into RC if required.
-             */
-            if (pCur->fRCMapping)
-            {
-                RTRCPTR pRCMapping = 0;
-                rc = PDMDevHlpMMHyperMapMMIO2(pDevIns, NULL, pCur->iRegion, 0 /* off */, pCur->cbRegion, pCur->szDescription,
-                                              &pRCMapping);
-                AssertLogRelMsgRCReturn(rc, ("PDMDevHlpMMHyperMapMMIO2(%#x,) -> %Rrc\n", pCur->cbRegion, rc), rc);
-                pCur->pvPageRC = pRCMapping;
-            }
-            else
-                pCur->pvPageRC = NIL_RTRCPTR;
+            pCur->pvPageR0 = NIL_RTR0PTR;
+# ifdef VBOX_WITH_RAW_MODE_KEEP
+            pCur->pvPageRC = NIL_RTRCPTR;
+# endif
 
             LogRel(("GIMDev: Registered %s\n", pCur->szDescription));
         }
     }
+    else
+        Assert(cRegions == 0);
 
     /** @todo Register SSM: PDMDevHlpSSMRegister(). */
     /** @todo Register statistics: STAM_REG(). */
@@ -347,115 +375,117 @@ static DECLCALLBACK(int) gimdevR3Construct(PPDMDEVINS pDevIns, int iInstance, PC
 }
 
 
-/**
- * @interface_method_impl{PDMDEVREG,pfnDestruct}
- */
-static DECLCALLBACK(int) gimdevR3Destruct(PPDMDEVINS pDevIns)
-{
-    PGIMDEV  pThis    = PDMINS_2_DATA(pDevIns, PGIMDEV);
-    PVM      pVM      = PDMDevHlpGetVM(pDevIns);
-    uint32_t cRegions = 0;
+#else  /* !IN_RING3 */
 
-    PGIMMMIO2REGION pCur = GIMR3GetMmio2Regions(pVM, &cRegions);
-    for (uint32_t i = 0; i < cRegions; i++, pCur++)
-    {
-        int rc = PDMDevHlpMMIOExDeregister(pDevIns, NULL, pCur->iRegion);
-        if (RT_FAILURE(rc))
-            return rc;
-    }
+/**
+ * @callback_method_impl{PDMDEVREGR0,pfnConstruct}
+ */
+static DECLCALLBACK(int) gimdevRZConstruct(PPDMDEVINS pDevIns)
+{
+    PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
+    //PGIMDEV pThis = PDMDEVINS_2_DATA(pDevIns, PGIMDEV);
 
     /*
-     * Signal and wait for the debug thread to terminate.
+     * Map the MMIO2 regions into the context.
      */
-    if (pThis->hDbgRecvThread != NIL_RTTHREAD)
+/** @todo r=bird: consider ditching this as GIM doesn't actually make use of it */
+    PVMCC           pVM       = PDMDevHlpGetVM(pDevIns);
+    uint32_t        cRegions  = 0;
+    PGIMMMIO2REGION paRegions = GIMGetMmio2Regions(pVM, &cRegions);
+    if (   cRegions
+        && paRegions)
     {
-        pThis->fDbgRecvThreadShutdown = true;
-        if (pThis->Dbg.hDbgRecvThreadSem != NIL_RTSEMEVENT)
-            RTSemEventMultiSignal(pThis->Dbg.hDbgRecvThreadSem);
-
-        int rc = RTThreadWait(pThis->hDbgRecvThread, 20000, NULL /*prc*/);
-        if (RT_SUCCESS(rc))
-            pThis->hDbgRecvThread = NIL_RTTHREAD;
-        else
+        for (uint32_t i = 0; i < cRegions; i++)
         {
-            LogRel(("GIMDev: Debug thread did not terminate, rc=%Rrc!\n", rc));
-            return VERR_RESOURCE_BUSY;
+            PGIMMMIO2REGION pCur = &paRegions[i];
+            int rc = PDMDevHlpMmio2SetUpContext(pDevIns, pCur->hMmio2, 0,  0, &pCur->CTX_SUFF(pvPage));
+            AssertLogRelMsgRCReturn(rc, ("rc=%Rrc iRegion=%u cbRegion=%#x %s\n",
+                                         rc, pCur->iRegion, pCur->cbRegion, pCur->szDescription),
+                                    rc);
+            Assert(pCur->fRegistered);
         }
     }
-
-    /*
-     * Now clean up the semaphore & buffer now that the thread is gone.
-     */
-    if (pThis->Dbg.hDbgRecvThreadSem != NIL_RTSEMEVENT)
-    {
-        RTSemEventMultiDestroy(pThis->Dbg.hDbgRecvThreadSem);
-        pThis->Dbg.hDbgRecvThreadSem = NIL_RTSEMEVENTMULTI;
-    }
-    if (pThis->Dbg.pvDbgRecvBuf)
-    {
-        RTMemFree(pThis->Dbg.pvDbgRecvBuf);
-        pThis->Dbg.pvDbgRecvBuf = NULL;
-    }
+    else
+        Assert(cRegions == 0);
 
     return VINF_SUCCESS;
 }
 
+#endif /* !IN_RING3 */
 
 /**
  * The device registration structure.
  */
 const PDMDEVREG g_DeviceGIMDev =
 {
-    /* u32Version */
-    PDM_DEVREG_VERSION,
-    /* szName */
-    "GIMDev",
-    /* szRCMod */
-    "VBoxDDRC.rc",
-    /* szR0Mod */
-    "VBoxDDR0.r0",
-    /* pszDescription */
-    "VirtualBox GIM Device",
-    /* fFlags */
-    PDM_DEVREG_FLAGS_DEFAULT_BITS | PDM_DEVREG_FLAGS_R0 | PDM_DEVREG_FLAGS_RC,
-    /* fClass */
-    PDM_DEVREG_CLASS_MISC,
-    /* cMaxInstances */
-    1,
-    /* cbInstance */
-    sizeof(GIMDEV),
-    /* pfnConstruct */
-    gimdevR3Construct,
-    /* pfnDestruct */
-    gimdevR3Destruct,
-    /* pfnRelocate */
-    gimdevR3Relocate,
-    /* pfnMemSetup */
-    NULL,
-    /* pfnPowerOn */
-    NULL,
-    /* pfnReset */
-    gimdevR3Reset,
-    /* pfnSuspend */
-    NULL,
-    /* pfnResume */
-    NULL,
-    /* pfnAttach */
-    NULL,
-    /* pfnDetach */
-    NULL,
-    /* pfnQueryInterface. */
-    NULL,
-    /* pfnInitComplete */
-    NULL,
-    /* pfnPowerOff */
-    NULL,
-    /* pfnSoftReset */
-    NULL,
-    /* u32VersionEnd */
-    PDM_DEVREG_VERSION
+    /* .u32Version = */             PDM_DEVREG_VERSION,
+    /* .uReserved0 = */             0,
+    /* .szName = */                 "GIMDev",
+    /* .fFlags = */                 PDM_DEVREG_FLAGS_DEFAULT_BITS | PDM_DEVREG_FLAGS_RZ | PDM_DEVREG_FLAGS_REQUIRE_R0
+                                    | PDM_DEVREG_FLAGS_NEW_STYLE,
+    /* .fClass = */                 PDM_DEVREG_CLASS_MISC,
+    /* .cMaxInstances = */          1,
+    /* .uSharedVersion = */         42,
+    /* .cbInstanceShared = */       sizeof(GIMDEV),
+    /* .cbInstanceCC = */           0,
+    /* .cbInstanceRC = */           0,
+    /* .cMaxPciDevices = */         0,
+    /* .cMaxMsixVectors = */        0,
+    /* .pszDescription = */         "VirtualBox GIM Device",
+#if defined(IN_RING3)
+    /* .pszRCMod = */               "VBoxDDRC.rc",
+    /* .pszR0Mod = */               "VBoxDDR0.r0",
+    /* .pfnConstruct = */           gimdevR3Construct,
+    /* .pfnDestruct = */            gimdevR3Destruct,
+    /* .pfnRelocate = */            gimdevR3Relocate,
+    /* .pfnMemSetup = */            NULL,
+    /* .pfnPowerOn = */             NULL,
+    /* .pfnReset = */               gimdevR3Reset,
+    /* .pfnSuspend = */             NULL,
+    /* .pfnResume = */              NULL,
+    /* .pfnAttach = */              NULL,
+    /* .pfnDetach = */              NULL,
+    /* .pfnQueryInterface = */      NULL,
+    /* .pfnInitComplete = */        NULL,
+    /* .pfnPowerOff = */            NULL,
+    /* .pfnSoftReset = */           NULL,
+    /* .pfnReserved0 = */           NULL,
+    /* .pfnReserved1 = */           NULL,
+    /* .pfnReserved2 = */           NULL,
+    /* .pfnReserved3 = */           NULL,
+    /* .pfnReserved4 = */           NULL,
+    /* .pfnReserved5 = */           NULL,
+    /* .pfnReserved6 = */           NULL,
+    /* .pfnReserved7 = */           NULL,
+#elif defined(IN_RING0)
+    /* .pfnEarlyConstruct = */      NULL,
+    /* .pfnConstruct = */           gimdevRZConstruct,
+    /* .pfnDestruct = */            NULL,
+    /* .pfnFinalDestruct = */       NULL,
+    /* .pfnRequest = */             NULL,
+    /* .pfnReserved0 = */           NULL,
+    /* .pfnReserved1 = */           NULL,
+    /* .pfnReserved2 = */           NULL,
+    /* .pfnReserved3 = */           NULL,
+    /* .pfnReserved4 = */           NULL,
+    /* .pfnReserved5 = */           NULL,
+    /* .pfnReserved6 = */           NULL,
+    /* .pfnReserved7 = */           NULL,
+#elif defined(IN_RC)
+    /* .pfnConstruct = */           gimdevRZConstruct,
+    /* .pfnReserved0 = */           NULL,
+    /* .pfnReserved1 = */           NULL,
+    /* .pfnReserved2 = */           NULL,
+    /* .pfnReserved3 = */           NULL,
+    /* .pfnReserved4 = */           NULL,
+    /* .pfnReserved5 = */           NULL,
+    /* .pfnReserved6 = */           NULL,
+    /* .pfnReserved7 = */           NULL,
+#else
+# error "Not in IN_RING3, IN_RING0 or IN_RC!"
+#endif
+    /* .u32VersionEnd = */          PDM_DEVREG_VERSION
 };
-#endif /* IN_RING3 */
 
 #endif  /* VBOX_DEVICE_STRUCT_TESTCASE */
 

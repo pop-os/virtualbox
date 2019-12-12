@@ -103,6 +103,13 @@ public:
 
     /** Returns whether <i>this</i> item is less than @a other one. */
     bool operator<(const QTreeWidgetItem &other) const;
+    /** Returns whether the medium can be modified. For
+      * simplicity's sake this returns false if one of the attached vms is not
+      * in PoweredOff or Aborted state. */
+    bool isMediumModifiable() const;
+    /** Returns true if the medium is attached to the vm with @p uId. */
+    bool isMediumAttachedTo(QUuid uId);
+    bool changeMediumType(KMediumType enmOldType, KMediumType enmNewType);
 
 protected:
 
@@ -113,12 +120,23 @@ protected:
     virtual QString defaultText() const /* override */;
 
 private:
+    /** A simple struct used to save some parameters of machine device attachment.
+      * Used for re-attaching the medium to vms after a medium type change. */
+    struct AttachmentCache
+    {
+        QString m_strControllerName;
+        QUuid   m_uMachineId;
+        LONG    m_port;
+        LONG    m_device;
+    };
 
     /** Refreshes item information such as icon, text and tool-tip. */
     void refresh();
 
     /** Releases UIMedium wrapped by <i>this</i> item from virtual machine with @a uMachineId. */
     bool releaseFrom(const QUuid &uMachineId);
+    /** Is called by detaching the medium and modifiying it to restore the attachement. */
+    bool attachTo(const AttachmentCache &attachmentCache);
 
     /** Formats field text. */
     static QString formatFieldText(const QString &strText, bool fCompact = true, const QString &strElipsis = "middle");

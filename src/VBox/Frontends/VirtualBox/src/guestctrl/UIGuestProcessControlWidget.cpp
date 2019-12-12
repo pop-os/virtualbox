@@ -22,21 +22,46 @@
 #include <QVBoxLayout>
 
 /* GUI includes: */
-#include "QITreeWidget.h"
-#include "UIActionPool.h"
+#include "QIDialog.h"
+#include "QIDialogButtonBox.h"
 #include "UIExtraDataManager.h"
 #include "UIGuestControlConsole.h"
 #include "UIGuestControlInterface.h"
 #include "UIGuestControlTreeItem.h"
 #include "UIGuestProcessControlWidget.h"
 #include "UIToolBar.h"
+#include "UIIconPool.h"
 #include "UIVMInformationDialog.h"
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 
 /* COM includes: */
 #include "CGuest.h"
 #include "CEventSource.h"
 
+const bool UIGuestProcessControlWidget::m_fDeleteAfterUnregister = false;
+
+/** A QIDialog child to display properties of a guest session on process. */
+class UISessionProcessPropertiesDialog : public QIDialog
+{
+
+    Q_OBJECT;
+
+public:
+
+    UISessionProcessPropertiesDialog(QWidget *pParent = 0, Qt::WindowFlags flags = 0);
+    void setPropertyText(const QString &strProperty);
+
+private:
+
+    QVBoxLayout *m_pMainLayout;
+    QTextEdit   *m_pInfoEdit;
+    QString      m_strProperty;
+};
+
+
+/*********************************************************************************************************************************
+*   UIGuestControlTreeWidget definition.                                                                                         *
+*********************************************************************************************************************************/
 
 class UIGuestControlTreeWidget : public QITreeWidget
 {
@@ -46,134 +71,237 @@ class UIGuestControlTreeWidget : public QITreeWidget
 signals:
 
     void sigCloseSessionOrProcess();
+    void sigShowProperties();
 
 public:
 
-    UIGuestControlTreeWidget(QWidget *pParent = 0)
-        :QITreeWidget(pParent)
-    {
-        setSelectionMode(QAbstractItemView::SingleSelection);
-    }
-
-    UIGuestControlTreeItem *selectedItem()
-    {
-        QList<QTreeWidgetItem*> selectedList = selectedItems();
-        if (selectedList.isEmpty())
-            return 0;
-        UIGuestControlTreeItem *item =
-            dynamic_cast<UIGuestControlTreeItem*>(selectedList[0]);
-        /* Return the firstof the selected items */
-        return item;
-    }
+    UIGuestControlTreeWidget(QWidget *pParent = 0);
+    UIGuestControlTreeItem *selectedItem();
 
 protected:
 
-    void contextMenuEvent(QContextMenuEvent *pEvent) /* override */
-    {
-        QMenu *menu = new QMenu(this);
-        QList<QTreeWidgetItem *> selectedList = selectedItems();
-
-        UIGuestSessionTreeItem *sessionTreeItem = 0;
-        if (!selectedList.isEmpty())
-            sessionTreeItem = dynamic_cast<UIGuestSessionTreeItem*>(selectedList[0]);
-        QAction *pSessionCloseAction = 0;
-
-        /* Create a guest session related context menu */
-        if (sessionTreeItem)
-        {
-            pSessionCloseAction = menu->addAction(tr("Close Session"));
-            if (pSessionCloseAction)
-                connect(pSessionCloseAction, &QAction::triggered,
-                        this, &UIGuestControlTreeWidget::sigCloseSessionOrProcess);
-        }
-        UIGuestProcessTreeItem *processTreeItem = 0;
-        if (!selectedList.isEmpty())
-            processTreeItem = dynamic_cast<UIGuestProcessTreeItem*>(selectedList[0]);
-        QAction *pProcessTerminateAction = 0;
-        if (processTreeItem)
-        {
-            pProcessTerminateAction = menu->addAction(tr("Terminate Process"));
-            if (pProcessTerminateAction)
-                connect(pProcessTerminateAction, &QAction::triggered,
-                        this, &UIGuestControlTreeWidget::sigCloseSessionOrProcess);
-        }
-        if (pProcessTerminateAction || pSessionCloseAction)
-            menu->addSeparator();
-        // Add actions to expand/collapse all tree items
-        QAction *pExpandAllAction = menu->addAction(tr("Expand All"));
-        if (pExpandAllAction)
-            connect(pExpandAllAction, &QAction::triggered,
-                    this, &UIGuestControlTreeWidget::sltExpandAll);
-        QAction *pCollapseAllAction = menu->addAction(tr("Collapse All"));
-        if (pCollapseAllAction)
-            connect(pCollapseAllAction, &QAction::triggered,
-                    this, &UIGuestControlTreeWidget::sltCollapseAll);
-
-        menu->exec(pEvent->globalPos());
-
-        if (pSessionCloseAction)
-            disconnect(pSessionCloseAction, &QAction::triggered,
-                       this, &UIGuestControlTreeWidget::sigCloseSessionOrProcess);
-        if (pProcessTerminateAction)
-            disconnect(pProcessTerminateAction, &QAction::triggered,
-                       this, &UIGuestControlTreeWidget::sigCloseSessionOrProcess);
-
-        if (pExpandAllAction)
-            disconnect(pExpandAllAction, &QAction::triggered,
-                    this, &UIGuestControlTreeWidget::sltExpandAll);
-
-        if (pCollapseAllAction)
-            disconnect(pCollapseAllAction, &QAction::triggered,
-                    this, &UIGuestControlTreeWidget::sltCollapseAll);
-
-        delete menu;
-    }
+    void contextMenuEvent(QContextMenuEvent *pEvent) /* override */;
 
 private slots:
 
-    void sltExpandAll()
-    {
-        expandCollapseAll(true);
-    }
+    void sltExpandAll();
+    void sltCollapseAll();
+    void sltRemoveAllTerminateSessionsProcesses();
 
-    void sltCollapseAll()
-    {
-        expandCollapseAll(false);
-    }
+private:
 
-    void expandCollapseAll(bool bFlag)
+    void expandCollapseAll(bool bFlag);
+};
+
+
+/*********************************************************************************************************************************
+*   UISessionProcessPropertiesDialog implementation.                                                                             *
+*********************************************************************************************************************************/
+
+UISessionProcessPropertiesDialog::UISessionProcessPropertiesDialog(QWidget *pParent /* = 0 */, Qt::WindowFlags flags /*= 0 */)
+    :QIDialog(pParent, flags)
+    , m_pMainLayout(new QVBoxLayout)
+    , m_pInfoEdit(new QTextEdit)
+{
+    setLayout(m_pMainLayout);
+
+    if (m_pMainLayout)
+        m_pMainLayout->addWidget(m_pInfoEdit);
+    if (m_pInfoEdit)
     {
-        for (int i = 0; i < topLevelItemCount(); ++i)
+        m_pInfoEdit->setReadOnly(true);
+        m_pInfoEdit->setFrameStyle(QFrame::NoFrame);
+    }
+    QIDialogButtonBox *pButtonBox =
+        new QIDialogButtonBox(QDialogButtonBox::Ok, Qt::Horizontal, this);
+    m_pMainLayout->addWidget(pButtonBox);
+    connect(pButtonBox, &QIDialogButtonBox::accepted, this, &UISessionProcessPropertiesDialog::accept);
+}
+
+void  UISessionProcessPropertiesDialog::setPropertyText(const QString &strProperty)
+{
+    if (!m_pInfoEdit)
+        return;
+    m_strProperty = strProperty;
+    m_pInfoEdit->setHtml(strProperty);
+}
+
+
+/*********************************************************************************************************************************
+*   UIGuestControlTreeWidget implementation.                                                                                     *
+*********************************************************************************************************************************/
+
+UIGuestControlTreeWidget::UIGuestControlTreeWidget(QWidget *pParent /* = 0 */)
+    :QITreeWidget(pParent)
+{
+    setSelectionMode(QAbstractItemView::SingleSelection);
+    setAlternatingRowColors(true);
+}
+
+UIGuestControlTreeItem *UIGuestControlTreeWidget::selectedItem()
+{
+    QList<QTreeWidgetItem*> selectedList = selectedItems();
+    if (selectedList.isEmpty())
+        return 0;
+    UIGuestControlTreeItem *item =
+        dynamic_cast<UIGuestControlTreeItem*>(selectedList[0]);
+    /* Return the firstof the selected items */
+    return item;
+}
+
+void UIGuestControlTreeWidget::contextMenuEvent(QContextMenuEvent *pEvent) /* override */
+{
+    QMenu menu(this);
+    QList<QTreeWidgetItem *> selectedList = selectedItems();
+
+    UIGuestSessionTreeItem *sessionTreeItem = 0;
+    if (!selectedList.isEmpty())
+        sessionTreeItem = dynamic_cast<UIGuestSessionTreeItem*>(selectedList[0]);
+    QAction *pSessionCloseAction = 0;
+    bool fHasAnyItems = topLevelItemCount() != 0;
+    /* Create a guest session related context menu */
+    if (sessionTreeItem)
+    {
+        pSessionCloseAction = menu.addAction(tr("Terminate Session"));
+        if (pSessionCloseAction)
+            connect(pSessionCloseAction, &QAction::triggered,
+                    this, &UIGuestControlTreeWidget::sigCloseSessionOrProcess);
+    }
+    UIGuestProcessTreeItem *processTreeItem = 0;
+    if (!selectedList.isEmpty())
+        processTreeItem = dynamic_cast<UIGuestProcessTreeItem*>(selectedList[0]);
+    QAction *pProcessTerminateAction = 0;
+    if (processTreeItem)
+    {
+        pProcessTerminateAction = menu.addAction(tr("Terminate Process"));
+        if (pProcessTerminateAction)
         {
-            if (!topLevelItem(i))
-                break;
-            topLevelItem(i)->setExpanded(bFlag);
-            for (int j = 0; j < topLevelItem(i)->childCount(); ++j)
+            connect(pProcessTerminateAction, &QAction::triggered,
+                    this, &UIGuestControlTreeWidget::sigCloseSessionOrProcess);
+            pProcessTerminateAction->setIcon(UIIconPool::iconSet(":/file_manager_delete_16px.png"));
+        }
+    }
+    if (pProcessTerminateAction || pSessionCloseAction)
+        menu.addSeparator();
+
+    QAction *pRemoveAllTerminated = menu.addAction(tr("Remove All Terminated Sessions/Processes"));
+    if (pRemoveAllTerminated)
+    {
+
+        pRemoveAllTerminated->setEnabled(fHasAnyItems);
+        pRemoveAllTerminated->setIcon(UIIconPool::iconSet(":/state_aborted_16px.png"));
+
+        connect(pRemoveAllTerminated, &QAction::triggered,
+                this, &UIGuestControlTreeWidget::sltRemoveAllTerminateSessionsProcesses);
+    }
+
+    // Add actions to expand/collapse all tree items
+    QAction *pExpandAllAction = menu.addAction(tr("Expand All"));
+    if (pExpandAllAction)
+    {
+        pExpandAllAction->setIcon(UIIconPool::iconSet(":/expand_all_16px.png"));
+        connect(pExpandAllAction, &QAction::triggered,
+                this, &UIGuestControlTreeWidget::sltExpandAll);
+    }
+
+    QAction *pCollapseAllAction = menu.addAction(tr("Collapse All"));
+    if (pCollapseAllAction)
+    {
+        pCollapseAllAction->setIcon(UIIconPool::iconSet(":/collapse_all_16px.png"));
+        connect(pCollapseAllAction, &QAction::triggered,
+                this, &UIGuestControlTreeWidget::sltCollapseAll);
+    }
+    menu.addSeparator();
+    QAction *pShowPropertiesAction = menu.addAction(tr("Properties"));
+    if (pShowPropertiesAction)
+    {
+        pShowPropertiesAction->setIcon(UIIconPool::iconSet(":/file_manager_properties_16px.png"));
+        pShowPropertiesAction->setEnabled(fHasAnyItems);
+        connect(pShowPropertiesAction, &QAction::triggered,
+                this, &UIGuestControlTreeWidget::sigShowProperties);
+    }
+
+    menu.exec(pEvent->globalPos());
+}
+
+void UIGuestControlTreeWidget::sltExpandAll()
+{
+    expandCollapseAll(true);
+}
+
+void UIGuestControlTreeWidget::sltCollapseAll()
+{
+    expandCollapseAll(false);
+}
+
+void UIGuestControlTreeWidget::sltRemoveAllTerminateSessionsProcesses()
+{
+    for (int i = 0; i < topLevelItemCount(); ++i)
+    {
+        if (!topLevelItem(i))
+            break;
+        UIGuestSessionTreeItem *pSessionItem = dynamic_cast<UIGuestSessionTreeItem*>(topLevelItem(i));
+
+        if (!pSessionItem)
+            continue;
+
+        if (pSessionItem->status() != KGuestSessionStatus_Starting &&
+            pSessionItem->status() != KGuestSessionStatus_Started)
+        {
+            delete pSessionItem;
+            continue;
+        }
+
+        for (int j = 0; j < topLevelItem(i)->childCount(); ++j)
+        {
+            UIGuestProcessTreeItem *pProcessItem = dynamic_cast<UIGuestProcessTreeItem*>(topLevelItem(i)->child(j));
+
+            if (pProcessItem)
             {
-                if (topLevelItem(i)->child(j))
-                {
-                    topLevelItem(i)->child(j)->setExpanded(bFlag);
-                }
+                if (pProcessItem->status() != KProcessStatus_Starting &&
+                    pProcessItem->status() != KProcessStatus_Started)
+                    delete pProcessItem;
             }
         }
     }
 
-};
+}
 
-UIGuestProcessControlWidget::UIGuestProcessControlWidget(EmbedTo enmEmbedding, UIActionPool *pActionPool,
-                                                         const CGuest &comGuest, QWidget *pParent, bool fShowToolbar /* = false */)
+void UIGuestControlTreeWidget::expandCollapseAll(bool bFlag)
+{
+    for (int i = 0; i < topLevelItemCount(); ++i)
+    {
+        if (!topLevelItem(i))
+            break;
+        topLevelItem(i)->setExpanded(bFlag);
+        for (int j = 0; j < topLevelItem(i)->childCount(); ++j)
+        {
+            if (topLevelItem(i)->child(j))
+            {
+                topLevelItem(i)->child(j)->setExpanded(bFlag);
+            }
+        }
+    }
+}
+
+
+/*********************************************************************************************************************************
+*   UIGuestProcessControlWidget implementation.                                                                                  *
+*********************************************************************************************************************************/
+
+UIGuestProcessControlWidget::UIGuestProcessControlWidget(EmbedTo enmEmbedding, const CGuest &comGuest,
+                                                         QWidget *pParent, QString strMachineName /* = QString()*/,
+                                                         bool fShowToolbar /* = false */)
     :QIWithRetranslateUI<QWidget>(pParent)
     , m_comGuest(comGuest)
     , m_pMainLayout(0)
     , m_pSplitter(0)
     , m_pTreeWidget(0)
-    , m_pConsole(0)
-    , m_pControlInterface(0)
     , m_enmEmbedding(enmEmbedding)
-    , m_pActionPool(pActionPool)
     , m_pToolBar(0)
     , m_pQtListener(0)
     , m_fShowToolbar(fShowToolbar)
+    , m_strMachineName(strMachineName)
 {
     prepareListener();
     prepareObjects();
@@ -181,22 +309,28 @@ UIGuestProcessControlWidget::UIGuestProcessControlWidget(EmbedTo enmEmbedding, U
     prepareToolBar();
     initGuestSessionTree();
     loadSettings();
+    retranslateUi();
 }
 
 UIGuestProcessControlWidget::~UIGuestProcessControlWidget()
 {
     saveSettings();
+    cleanupListener();
 }
 
 void UIGuestProcessControlWidget::retranslateUi()
 {
+    if (m_pTreeWidget)
+    {
+        QStringList labels;
+        labels << tr("Session/Process ID") << tr("Session Name/Process Command") << tr("Session/Process Status");
+        m_pTreeWidget->setHeaderLabels(labels);
+    }
 }
 
 
 void UIGuestProcessControlWidget::prepareObjects()
 {
-    m_pControlInterface = new UIGuestControlInterface(this, m_comGuest);
-
     /* Create layout: */
     m_pMainLayout = new QVBoxLayout(this);
     if (!m_pMainLayout)
@@ -221,16 +355,6 @@ void UIGuestProcessControlWidget::prepareObjects()
     {
         m_pSplitter->addWidget(m_pTreeWidget);
         m_pTreeWidget->setColumnCount(3);
-        QStringList labels;
-        labels << "" << "" << "";
-
-        m_pTreeWidget->setHeaderLabels(labels);
-    }
-    m_pConsole = new UIGuestControlConsole;
-    if (m_pConsole)
-    {
-        m_pSplitter->addWidget(m_pConsole);
-        setFocusProxy(m_pConsole);
     }
 
     m_pSplitter->setStretchFactor(0, 2);
@@ -252,14 +376,14 @@ void UIGuestProcessControlWidget::updateTreeWidget()
 void UIGuestProcessControlWidget::prepareConnections()
 {
     qRegisterMetaType<QVector<int> >();
-    connect(m_pControlInterface, &UIGuestControlInterface::sigOutputString,
-            this, &UIGuestProcessControlWidget::sltConsoleOutputReceived);
-    connect(m_pConsole, &UIGuestControlConsole::commandEntered,
-            this, &UIGuestProcessControlWidget::sltConsoleCommandEntered);
 
     if (m_pTreeWidget)
+    {
         connect(m_pTreeWidget, &UIGuestControlTreeWidget::sigCloseSessionOrProcess,
                 this, &UIGuestProcessControlWidget::sltCloseSessionOrProcess);
+        connect(m_pTreeWidget, &UIGuestControlTreeWidget::sigShowProperties,
+                this, &UIGuestProcessControlWidget::sltShowProperties);
+    }
 
     if (m_pQtListener)
     {
@@ -273,22 +397,6 @@ void UIGuestProcessControlWidget::prepareConnections()
 void UIGuestProcessControlWidget::sltGuestSessionsUpdated()
 {
     updateTreeWidget();
-}
-
-void UIGuestProcessControlWidget::sltConsoleCommandEntered(const QString &strCommand)
-{
-    if (m_pControlInterface)
-    {
-        m_pControlInterface->putCommand(strCommand);
-    }
-}
-
-void UIGuestProcessControlWidget::sltConsoleOutputReceived(const QString &strOutput)
-{
-    if (m_pConsole)
-    {
-        m_pConsole->putOutput(strOutput);
-    }
 }
 
 void UIGuestProcessControlWidget::sltCloseSessionOrProcess()
@@ -318,6 +426,26 @@ void UIGuestProcessControlWidget::sltCloseSessionOrProcess()
     if (!guestSession.isOk())
         return;
     guestSession.Close();
+}
+
+void UIGuestProcessControlWidget::sltShowProperties()
+{
+    UIGuestControlTreeItem *pItem = m_pTreeWidget->selectedItem();
+    if (!pItem)
+        return;
+
+    UISessionProcessPropertiesDialog *pPropertiesDialog = new UISessionProcessPropertiesDialog(this);
+    if (!m_strMachineName.isEmpty())
+    {
+        pPropertiesDialog->setWindowTitle(m_strMachineName);
+    }
+    if (!pPropertiesDialog)
+        return;
+
+    pPropertiesDialog->setPropertyText(pItem->propertyString());
+    pPropertiesDialog->exec();
+
+    delete pPropertiesDialog;
 }
 
 void UIGuestProcessControlWidget::prepareListener()
@@ -400,7 +528,7 @@ void UIGuestProcessControlWidget::cleanupListener()
     }
 
     /* Make sure VBoxSVC is available: */
-    if (!vboxGlobal().isVBoxSVCAvailable())
+    if (!uiCommon().isVBoxSVCAvailable())
         return;
 
     /* Get CProgress event source: */
@@ -424,16 +552,6 @@ void UIGuestProcessControlWidget::addGuestSession(CGuestSession guestSession)
     UIGuestSessionTreeItem* sessionTreeItem = new UIGuestSessionTreeItem(m_pTreeWidget, guestSession);
     connect(sessionTreeItem, &UIGuestSessionTreeItem::sigGuessSessionUpdated,
             this, &UIGuestProcessControlWidget::sltTreeItemUpdated);
-    connect(sessionTreeItem, &UIGuestSessionTreeItem::sigGuestSessionErrorText,
-            this, &UIGuestProcessControlWidget::sltGuestControlErrorText);
-}
-
-void UIGuestProcessControlWidget::sltGuestControlErrorText(QString strError)
-{
-    if (m_pConsole)
-    {
-        m_pConsole->putOutput(strError);
-    }
 }
 
 void UIGuestProcessControlWidget::sltTreeItemUpdated()
@@ -451,7 +569,6 @@ void UIGuestProcessControlWidget::sltGuestSessionUnregistered(CGuestSession gues
 
     UIGuestSessionTreeItem *selectedItem = NULL;
 
-
     for (int i = 0; i < m_pTreeWidget->topLevelItemCount(); ++i)
     {
         QTreeWidgetItem *item = m_pTreeWidget->topLevelItem( i );
@@ -463,7 +580,8 @@ void UIGuestProcessControlWidget::sltGuestSessionUnregistered(CGuestSession gues
             break;
         }
     }
-    delete selectedItem;
+    if (m_fDeleteAfterUnregister)
+        delete selectedItem;
 }
 
 void UIGuestProcessControlWidget::saveSettings()

@@ -353,6 +353,9 @@ DECLINLINE(uint32_t) VDOpenFlagsToFileOpenFlags(unsigned fOpenFlags, bool fCreat
 /** Expert config key. Not showing it by default in the GUI is is probably
  * a good idea, as the average user won't understand it easily. */
 #define VD_CFGKEY_EXPERT            RT_BIT(1)
+/** Key only need at media creation, not to be retained in registry.
+ *  Should not be exposed in the GUI */
+#define VD_CFGKEY_CREATEONLY        RT_BIT(2)
 /** @}*/
 
 
@@ -588,12 +591,14 @@ VBOXDDU_DECL(int) VDDestroy(PVDISK pDisk);
  * @param   pVDIfsDisk      Pointer to the per-disk VD interface list.
  * @param   pVDIfsImage     Pointer to the per-image VD interface list.
  * @param   pszFilename     Name of the image file for which the backend is queried.
+ * @param   enmDesiredType  The desired image type, VDTYPE_INVALID if anything goes.
  * @param   ppszFormat      Receives pointer of the UTF-8 string which contains the format name.
  *                          The returned pointer must be freed using RTStrFree().
  * @param   penmType        Where to store the type of the image.
  */
 VBOXDDU_DECL(int) VDGetFormat(PVDINTERFACE pVDIfsDisk, PVDINTERFACE pVDIfsImage,
-                              const char *pszFilename, char **ppszFormat, VDTYPE *penmType);
+                              const char *pszFilename, VDTYPE enmDesiredType,
+                              char **ppszFormat, VDTYPE *penmType);
 
 /**
  * Opens an image file.
@@ -1393,6 +1398,36 @@ VBOXDDU_DECL(int) VDRepair(PVDINTERFACE pVDIfsDisk, PVDINTERFACE pVDIfsImage,
 VBOXDDU_DECL(int) VDCreateVfsFileFromDisk(PVDISK pDisk, uint32_t fFlags,
                                           PRTVFSFILE phVfsFile);
 
+
+
+/** @defgroup grp_vd_ifs_def    Default implementations for certain VD interfaces.
+ * @{
+ */
+/** Internal per interface instance data. */
+typedef struct VDIFINSTINT *VDIFINST;
+/** Pointer to the per instance interface data. */
+typedef VDIFINST *PVDIFINST;
+
+/**
+ * Creates a new VD TCP/IP interface instance and adds it to the given interface list.
+ *
+ * @returns VBox status code.
+ * @param   phTcpNetInst        Where to store the TCP/IP interface handle on success.
+ * @param   ppVdIfs             Pointer to the VD interface list.
+ */
+VBOXDDU_DECL(int) VDIfTcpNetInstDefaultCreate(PVDIFINST phTcpNetInst, PVDINTERFACE *ppVdIfs);
+
+/**
+ * Destroys the given VD TCP/IP interface instance.
+ *
+ * @returns nothing.
+ * @param   hTcpNetInst         The TCP/IP interface instance handle.
+ */
+VBOXDDU_DECL(void) VDIfTcpNetInstDefaultDestroy(VDIFINST hTcpNetInst);
+/** @} */
+
+
+
 /** @defgroup grp_vd_ioiter     I/O iterator
  * @{
  */
@@ -1607,8 +1642,8 @@ VBOXDDU_DECL(int) VDIoBufMgrCreate(PVDIOBUFMGR phIoBufMgr, size_t cbMax, uint32_
  */
 VBOXDDU_DECL(int) VDIoBufMgrDestroy(VDIOBUFMGR hIoBufMgr);
 
-/**-
- * Allocate a new I/O buffer.
+/**
+ * Allocate a new I/O buffer handle.
  *
  * @returns VBox status code.
  * @param   hIoBufMgr       The I/O buffer manager to use.

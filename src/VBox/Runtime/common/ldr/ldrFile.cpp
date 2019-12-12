@@ -185,12 +185,22 @@ static DECLCALLBACK(int) rtldrFileDestroy(PRTLDRREADER pReader)
 {
     int rc = VINF_SUCCESS;
     PRTLDRREADERFILE pFileReader = (PRTLDRREADERFILE)pReader;
+
+    Assert(!pFileReader->cMappings);
+
     if (pFileReader->hFile != NIL_RTFILE)
     {
         rc = RTFileClose(pFileReader->hFile);
         AssertRC(rc);
         pFileReader->hFile = NIL_RTFILE;
     }
+
+    if (pFileReader->pvMapping)
+    {
+        RTMemFree(pFileReader->pvMapping);
+        pFileReader->pvMapping = NULL;
+    }
+
     RTMemFree(pFileReader);
     return rc;
 }
@@ -214,7 +224,7 @@ static int rtldrFileCreate(PRTLDRREADER *ppReader, const char *pszFilename)
         rc = RTFileOpen(&pFileReader->hFile, pszFilename, RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_WRITE);
         if (RT_SUCCESS(rc))
         {
-            rc = RTFileGetSize(pFileReader->hFile, &pFileReader->cbFile);
+            rc = RTFileQuerySize(pFileReader->hFile, &pFileReader->cbFile);
             if (RT_SUCCESS(rc))
             {
                 pFileReader->Core.uMagic     = RTLDRREADER_MAGIC;

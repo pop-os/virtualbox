@@ -234,7 +234,7 @@ struct StaticIpConfig
 
 struct StaticIpV6Config
 {
-    BSTR           IPV6Address;
+    char *         IPV6Address;
     ULONG          IPV6NetMaskLength;
 };
 
@@ -242,13 +242,20 @@ class NetworkInterfaceHelperClientData : public ThreadVoidData
 {
 public:
     NetworkInterfaceHelperClientData(){};
-    ~NetworkInterfaceHelperClientData(){};
+    ~NetworkInterfaceHelperClientData()
+    {
+        if (msgCode == SVCHlpMsg::EnableStaticIpConfigV6 && u.StaticIPV6.IPV6Address)
+        {
+            RTStrFree(u.StaticIPV6.IPV6Address);
+            u.StaticIPV6.IPV6Address = NULL;
+        }
+    };
 
     SVCHlpMsg::Code msgCode;
     /* for SVCHlpMsg::CreateHostOnlyNetworkInterface */
     Bstr name;
     ComObjPtr<HostNetworkInterface> iface;
-    ComObjPtr<VirtualBox> vBox;
+    ComObjPtr<VirtualBox> ptrVBox;
     /* for SVCHlpMsg::RemoveHostOnlyNetworkInterface */
     Guid guid;
 
@@ -325,7 +332,7 @@ static HRESULT netIfNetworkInterfaceHelperClient(SVCHlpClient *aClient,
                         rc = d->iface->init(Bstr(name), Bstr(name), guid, HostNetworkInterfaceType_HostOnly);
                         if (SUCCEEDED(rc))
                         {
-                            rc = d->iface->i_setVirtualBox(d->vBox);
+                            rc = d->iface->i_setVirtualBox(d->ptrVBox);
                             if (SUCCEEDED(rc))
                             {
                                 rc = d->iface->updateConfig();
@@ -537,7 +544,7 @@ static HRESULT netIfNetworkInterfaceHelperClient(SVCHlpClient *aClient,
             if (RT_FAILURE(vrc)) break;
             vrc = aClient->write(d->guid);
             if (RT_FAILURE(vrc)) break;
-            vrc = aClient->write(Utf8Str(d->u.StaticIPV6.IPV6Address));
+            vrc = aClient->write(d->u.StaticIPV6.IPV6Address);
             if (RT_FAILURE(vrc)) break;
             vrc = aClient->write(d->u.StaticIPV6.IPV6NetMaskLength);
             if (RT_FAILURE(vrc)) break;
@@ -1172,7 +1179,7 @@ int NetIfCreateHostOnlyNetworkInterface(VirtualBox *pVirtualBox,
             d->msgCode = SVCHlpMsg::CreateHostOnlyNetworkInterface;
             d->name = aName;
             d->iface = iface;
-            d->vBox = pVirtualBox;
+            d->ptrVBox = pVirtualBox;
 
             rc = pVirtualBox->i_startSVCHelperClient(IsUACEnabled() == TRUE /* aPrivileged */,
                                                      netIfNetworkInterfaceHelperClient,
@@ -1187,7 +1194,7 @@ int NetIfCreateHostOnlyNetworkInterface(VirtualBox *pVirtualBox,
 #endif
 }
 
-int NetIfRemoveHostOnlyNetworkInterface(VirtualBox *pVirtualBox, IN_GUID aId,
+int NetIfRemoveHostOnlyNetworkInterface(VirtualBox *pVirtualBox, const Guid &aId,
                                         IProgress **aProgress)
 {
 #ifndef VBOX_WITH_NETFLT
@@ -1227,7 +1234,7 @@ int NetIfRemoveHostOnlyNetworkInterface(VirtualBox *pVirtualBox, IN_GUID aId,
 #endif
 }
 
-int NetIfEnableStaticIpConfig(VirtualBox *vBox, HostNetworkInterface * pIf, ULONG aOldIp, ULONG ip, ULONG mask)
+int NetIfEnableStaticIpConfig(VirtualBox *pVBox, HostNetworkInterface * pIf, ULONG aOldIp, ULONG ip, ULONG mask)
 {
     RT_NOREF(aOldIp);
 #ifndef VBOX_WITH_NETFLT
@@ -1237,18 +1244,18 @@ int NetIfEnableStaticIpConfig(VirtualBox *vBox, HostNetworkInterface * pIf, ULON
     HRESULT rc = pIf->COMGETTER(Id)(guid.asOutParam());
     if (SUCCEEDED(rc))
     {
-//        ComPtr<VirtualBox> vBox;
-//        rc = pIf->getVirtualBox(vBox.asOutParam());
+//        ComPtr<VirtualBox> pVBox;
+//        rc = pIf->getVirtualBox(pVBox.asOutParam());
 //        if (SUCCEEDED(rc))
         {
             /* create a progress object */
             ComObjPtr<Progress> progress;
             progress.createObject();
 //            ComPtr<IHost> host;
-//            HRESULT rc = vBox->COMGETTER(Host)(host.asOutParam());
+//            HRESULT rc = pVBox->COMGETTER(Host)(host.asOutParam());
 //            if (SUCCEEDED(rc))
             {
-                rc = progress->init(vBox, (IHostNetworkInterface*)pIf,
+                rc = progress->init(pVBox, (IHostNetworkInterface*)pIf,
                                     Bstr("Enabling Dynamic Ip Configuration").raw(),
                                     FALSE /* aCancelable */);
                 if (SUCCEEDED(rc))
@@ -1265,10 +1272,10 @@ int NetIfEnableStaticIpConfig(VirtualBox *vBox, HostNetworkInterface * pIf, ULON
                     d->u.StaticIP.IPAddress = ip;
                     d->u.StaticIP.IPNetMask = mask;
 
-                    rc = vBox->i_startSVCHelperClient(IsUACEnabled() == TRUE /* aPrivileged */,
-                                                      netIfNetworkInterfaceHelperClient,
-                                                      static_cast<void *>(d),
-                                                      progress);
+                    rc = pVBox->i_startSVCHelperClient(IsUACEnabled() == TRUE /* aPrivileged */,
+                                                       netIfNetworkInterfaceHelperClient,
+                                                       static_cast<void *>(d),
+                                                       progress);
                     /* d is now owned by netIfNetworkInterfaceHelperClient(), no need to delete one here */
 
                     if (SUCCEEDED(rc))
@@ -1284,8 +1291,8 @@ int NetIfEnableStaticIpConfig(VirtualBox *vBox, HostNetworkInterface * pIf, ULON
 #endif
 }
 
-int NetIfEnableStaticIpConfigV6(VirtualBox *vBox, HostNetworkInterface * pIf, IN_BSTR aOldIPV6Address,
-                                IN_BSTR aIPV6Address, ULONG aIPV6MaskPrefixLength)
+int NetIfEnableStaticIpConfigV6(VirtualBox *pVBox, HostNetworkInterface * pIf, const Utf8Str &aOldIPV6Address,
+                                const Utf8Str &aIPV6Address, ULONG aIPV6MaskPrefixLength)
 {
     RT_NOREF(aOldIPV6Address);
 #ifndef VBOX_WITH_NETFLT
@@ -1295,18 +1302,18 @@ int NetIfEnableStaticIpConfigV6(VirtualBox *vBox, HostNetworkInterface * pIf, IN
     HRESULT rc = pIf->COMGETTER(Id)(guid.asOutParam());
     if (SUCCEEDED(rc))
     {
-//        ComPtr<VirtualBox> vBox;
-//        rc = pIf->getVirtualBox(vBox.asOutParam());
+//        ComPtr<VirtualBox> pVBox;
+//        rc = pIf->getVirtualBox(pVBox.asOutParam());
 //        if (SUCCEEDED(rc))
         {
             /* create a progress object */
             ComObjPtr<Progress> progress;
             progress.createObject();
 //            ComPtr<IHost> host;
-//            HRESULT rc = vBox->COMGETTER(Host)(host.asOutParam());
+//            HRESULT rc = pVBox->COMGETTER(Host)(host.asOutParam());
 //            if (SUCCEEDED(rc))
             {
-                rc = progress->init(vBox, (IHostNetworkInterface*)pIf,
+                rc = progress->init(pVBox, (IHostNetworkInterface*)pIf,
                                     Bstr("Enabling Dynamic Ip Configuration").raw(),
                                     FALSE /* aCancelable */);
                 if (SUCCEEDED(rc))
@@ -1320,13 +1327,13 @@ int NetIfEnableStaticIpConfigV6(VirtualBox *vBox, HostNetworkInterface * pIf, IN
                     d->msgCode = SVCHlpMsg::EnableStaticIpConfigV6;
                     d->guid = guid;
                     d->iface = pIf;
-                    d->u.StaticIPV6.IPV6Address = aIPV6Address;
+                    d->u.StaticIPV6.IPV6Address = RTStrDup(aIPV6Address.c_str());
                     d->u.StaticIPV6.IPV6NetMaskLength = aIPV6MaskPrefixLength;
 
-                    rc = vBox->i_startSVCHelperClient(IsUACEnabled() == TRUE /* aPrivileged */,
-                                                      netIfNetworkInterfaceHelperClient,
-                                                      static_cast<void *>(d),
-                                                      progress);
+                    rc = pVBox->i_startSVCHelperClient(IsUACEnabled() == TRUE /* aPrivileged */,
+                                                       netIfNetworkInterfaceHelperClient,
+                                                       static_cast<void *>(d),
+                                                       progress);
                     /* d is now owned by netIfNetworkInterfaceHelperClient(), no need to delete one here */
 
                     if (SUCCEEDED(rc))
@@ -1342,7 +1349,7 @@ int NetIfEnableStaticIpConfigV6(VirtualBox *vBox, HostNetworkInterface * pIf, IN
 #endif
 }
 
-int NetIfEnableDynamicIpConfig(VirtualBox *vBox, HostNetworkInterface * pIf)
+int NetIfEnableDynamicIpConfig(VirtualBox *pVBox, HostNetworkInterface * pIf)
 {
 #ifndef VBOX_WITH_NETFLT
     return VERR_NOT_IMPLEMENTED;
@@ -1352,18 +1359,18 @@ int NetIfEnableDynamicIpConfig(VirtualBox *vBox, HostNetworkInterface * pIf)
     rc = pIf->COMGETTER(Id)(guid.asOutParam());
     if (SUCCEEDED(rc))
     {
-//        ComPtr<VirtualBox> vBox;
-//        rc = pIf->getVirtualBox(vBox.asOutParam());
+//        ComPtr<VirtualBox> pVBox;
+//        rc = pIf->getVirtualBox(pVBox.asOutParam());
 //        if (SUCCEEDED(rc))
         {
             /* create a progress object */
             ComObjPtr<Progress> progress;
             progress.createObject();
 //            ComPtr<IHost> host;
-//            HRESULT rc = vBox->COMGETTER(Host)(host.asOutParam());
+//            HRESULT rc = pVBox->COMGETTER(Host)(host.asOutParam());
 //            if (SUCCEEDED(rc))
             {
-                rc = progress->init(vBox, (IHostNetworkInterface*)pIf,
+                rc = progress->init(pVBox, (IHostNetworkInterface*)pIf,
                                     Bstr("Enabling Dynamic Ip Configuration").raw(),
                                     FALSE /* aCancelable */);
                 if (SUCCEEDED(rc))
@@ -1378,10 +1385,10 @@ int NetIfEnableDynamicIpConfig(VirtualBox *vBox, HostNetworkInterface * pIf)
                     d->guid = guid;
                     d->iface = pIf;
 
-                    rc = vBox->i_startSVCHelperClient(IsUACEnabled() == TRUE /* aPrivileged */,
-                                                      netIfNetworkInterfaceHelperClient,
-                                                      static_cast<void *>(d),
-                                                      progress);
+                    rc = pVBox->i_startSVCHelperClient(IsUACEnabled() == TRUE /* aPrivileged */,
+                                                       netIfNetworkInterfaceHelperClient,
+                                                       static_cast<void *>(d),
+                                                       progress);
                     /* d is now owned by netIfNetworkInterfaceHelperClient(), no need to delete one here */
 
                     if (SUCCEEDED(rc))
@@ -1397,7 +1404,7 @@ int NetIfEnableDynamicIpConfig(VirtualBox *vBox, HostNetworkInterface * pIf)
 #endif
 }
 
-int NetIfDhcpRediscover(VirtualBox *vBox, HostNetworkInterface * pIf)
+int NetIfDhcpRediscover(VirtualBox *pVBox, HostNetworkInterface * pIf)
 {
 #ifndef VBOX_WITH_NETFLT
     return VERR_NOT_IMPLEMENTED;
@@ -1407,18 +1414,18 @@ int NetIfDhcpRediscover(VirtualBox *vBox, HostNetworkInterface * pIf)
     rc = pIf->COMGETTER(Id)(guid.asOutParam());
     if (SUCCEEDED(rc))
     {
-//        ComPtr<VirtualBox> vBox;
-//        rc = pIf->getVirtualBox(vBox.asOutParam());
+//        ComPtr<VirtualBox> pVBox;
+//        rc = pIf->getVirtualBox(pVBox.asOutParam());
 //        if (SUCCEEDED(rc))
         {
             /* create a progress object */
             ComObjPtr<Progress> progress;
             progress.createObject();
 //            ComPtr<IHost> host;
-//            HRESULT rc = vBox->COMGETTER(Host)(host.asOutParam());
+//            HRESULT rc = pVBox->COMGETTER(Host)(host.asOutParam());
 //            if (SUCCEEDED(rc))
             {
-                rc = progress->init(vBox, (IHostNetworkInterface*)pIf,
+                rc = progress->init(pVBox, (IHostNetworkInterface*)pIf,
                                     Bstr("Enabling Dynamic Ip Configuration").raw(),
                                     FALSE /* aCancelable */);
                 if (SUCCEEDED(rc))
@@ -1433,10 +1440,10 @@ int NetIfDhcpRediscover(VirtualBox *vBox, HostNetworkInterface * pIf)
                     d->guid = guid;
                     d->iface = pIf;
 
-                    rc = vBox->i_startSVCHelperClient(IsUACEnabled() == TRUE /* aPrivileged */,
-                                                      netIfNetworkInterfaceHelperClient,
-                                                      static_cast<void *>(d),
-                                                      progress);
+                    rc = pVBox->i_startSVCHelperClient(IsUACEnabled() == TRUE /* aPrivileged */,
+                                                       netIfNetworkInterfaceHelperClient,
+                                                       static_cast<void *>(d),
+                                                       progress);
                     /* d is now owned by netIfNetworkInterfaceHelperClient(), no need to delete one here */
 
                     if (SUCCEEDED(rc))

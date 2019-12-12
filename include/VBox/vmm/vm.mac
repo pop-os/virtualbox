@@ -27,6 +27,7 @@
 %define ___VBox_vmm_vm_mac
 
 %include "VBox/vmm/stam.mac"
+%include "VBox/param.mac"
 
 ;/** This action forces the VM to service check and pending interrups on the APIC. */
 %define VMCPU_FF_INTERRUPT_APIC            (1 << 0)
@@ -51,19 +52,19 @@ struc VMCPU
     .iem                    resb 18496
 
     alignb 64
-    .idCpu                  resd 1
-    .pVMRC                  RTRCPTR_RES 1
     .pVMR3                  RTR3PTR_RES 1
-    .pVMR0                  RTR0PTR_RES 1
+    .pVCpuR0ForVtg          RTR0PTR_RES 1
+    .pVMRC                  resq 1
     .pUVCpu                 RTR3PTR_RES 1
     .hNativeThread          RTR0PTR_RES 1
     .hNativeThreadR0        RTR0PTR_RES 1
+    .idCpu                  resd 1
 
     alignb 64
     .hm                     resb 5888
     .nem                    resb 512
     .trpm                   resb 128
-    .tm                     resb 384
+    .tm                     resb 5760
     .vmm                    resb 896
     .pdm                    resb 256
     .iom                    resb 512
@@ -94,90 +95,54 @@ struc VM
     .pSession               RTR0PTR_RES 1
     .pUVM                   RTR3PTR_RES 1
     .pVMR3                  RTR3PTR_RES 1
-    .pVMR0                  RTR0PTR_RES 1
-    .pVMRC                  RTRCPTR_RES 1
+    .pVMR0ForCall           RTR0PTR_RES 1
+    .pVMRC                  resq 1
+%ifdef IN_RING0
+    .hSelfUnsafe            resd 1
+    .cCpusUnsafe            resd 1
+%else
     .hSelf                  resd 1
     .cCpus                  resd 1
+%endif
     .uCpuExecutionCap       resd 1
     .cbSelf                 resd 1
-    .offVMCPU               resd 1
-    .pfnVMMRCToHostAsm      resd 1
-    .pfnVMMRCToHostAsmNoReturn resd 1
+    .cbVCpu                 resd 1
+    .uStructVersion         resd 1
     .bMainExecutionEngine   resb 1
-    .fRecompileUser         resb 1
-    .fRecompileSupervisor   resb 1
-    .fRawRing1Enabled       resb 1
-    .fPATMEnabled           resb 1
-    .fCSAMEnabled           resb 1
     .fHMEnabled             resb 1
-    .fHMNeedRawModeCtx      resb 1
-    .fFaultTolerantMaster   resb 1
     .fUseLargePages         resb 1
 
-    .uPadding1              resb 2
+    .uPadding1              resb 5
 
-    .hTraceBufRC            RTRCPTR_RES 1
     .hTraceBufR3            RTR3PTR_RES 1
     .hTraceBufR0            RTR0PTR_RES 1
-
-    alignb 8
-
-    .StatTotalQemuToGC      resb STAMPROFILEADV_size
-    .StatTotalGCToQemu      resb STAMPROFILEADV_size
-    .StatTotalInGC          resb STAMPROFILEADV_size
-    .StatTotalInQemu        resb STAMPROFILEADV_size
-    .StatSwitcherToGC       resb STAMPROFILEADV_size
-    .StatSwitcherToHC       resb STAMPROFILEADV_size
-    .StatSwitcherSaveRegs   resb STAMPROFILEADV_size
-    .StatSwitcherSysEnter   resb STAMPROFILEADV_size
-    .StatSwitcherDebug      resb STAMPROFILEADV_size
-    .StatSwitcherCR0        resb STAMPROFILEADV_size
-    .StatSwitcherCR4        resb STAMPROFILEADV_size
-    .StatSwitcherJmpCR3     resb STAMPROFILEADV_size
-    .StatSwitcherRstrRegs   resb STAMPROFILEADV_size
-    .StatSwitcherLgdt       resb STAMPROFILEADV_size
-    .StatSwitcherLidt       resb STAMPROFILEADV_size
-    .StatSwitcherLldt       resb STAMPROFILEADV_size
-    .StatSwitcherTSS        resb STAMPROFILEADV_size
-
-%ifndef HC_ARCH_BITS
- %error "Missing HC_ARCH_BITS"
-%endif
-%if HC_ARCH_BITS == 32
-    .abAlignment3           resb 16
-%else
-;    .abAlignment3           resb 16
-%endif
 
     alignb 64
     .cpum                   resb 1536
     .vmm                    resb 1600
-    .pgm                    resb (4096*2+6080)
+    .pgm                    resb 21120
     .hm                     resb 5440
     .trpm                   resb 5248
     .selm                   resb 768
     .mm                     resb 192
-    .pdm                    resb 1920
-    .iom                    resb 896
+    .pdm                    resb 7808
+    .iom                    resb 1152
     .em                     resb 256
     .nem                    resb 128
-    .tm                     resb 2496
+    .tm                     resb 7872
     .dbgf                   resb 2432
     .ssm                    resb 128
-    .ftm                    resb 512
-%ifdef VBOX_WITH_RAW_MODE
-    .patm                   resb 768
-    .csam                   resb 1088
-%endif
-%ifdef VBOX_WITH_REM
-    .rem                    resb 0x11100
-%endif
     .gim                    resb 448
     .apic                   resb 128
     .vm                     resb 32
     .cfgm                   resb 8
+
+    .abAlignment2           resb 664 + 256 - RTR0PTR_CB * VMM_MAX_CPU_COUNT
+
+    alignb RTR0PTR_CB * VMM_MAX_CPU_COUNT ; ASSUMES VMM_MAX_CPU_COUNT is a power of two.
+    .apCpusR3               RTR3PTR_RES VMM_MAX_CPU_COUNT
     alignb 4096
-    .aCpus                  resb VMCPU_size
+
 endstruc
 
 

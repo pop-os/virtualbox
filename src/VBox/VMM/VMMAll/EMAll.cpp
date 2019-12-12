@@ -23,7 +23,6 @@
 #include <VBox/vmm/em.h>
 #include <VBox/vmm/mm.h>
 #include <VBox/vmm/selm.h>
-#include <VBox/vmm/patm.h>
 #include <VBox/vmm/pgm.h>
 #include <VBox/vmm/iem.h>
 #include <VBox/vmm/iom.h>
@@ -32,7 +31,7 @@
 #include <VBox/vmm/vmm.h>
 #include <VBox/vmm/stam.h>
 #include "EMInternal.h"
-#include <VBox/vmm/vm.h>
+#include <VBox/vmm/vmcc.h>
 #include <VBox/param.h>
 #include <VBox/err.h>
 #include <VBox/dis.h>
@@ -307,7 +306,7 @@ VMM_INT_DECL(bool) EMShouldContinueAfterHalt(PVMCPU pVCpu, PCPUMCTX pCtx)
  *                          same as the caller.
  * @thread  EMT
  */
-VMM_INT_DECL(int) EMUnhaltAndWakeUp(PVM pVM, PVMCPU pVCpuDst)
+VMM_INT_DECL(int) EMUnhaltAndWakeUp(PVMCC pVM, PVMCPUCC pVCpuDst)
 {
     /*
      * Flag the current(/next) HLT to unhalt immediately.
@@ -326,7 +325,7 @@ VMM_INT_DECL(int) EMUnhaltAndWakeUp(PVM pVM, PVMCPU pVCpuDst)
     AssertRC(rc);
 
 #elif defined(IN_RING3)
-    int rc = SUPR3CallVMMR0(pVM->pVMR0, pVCpuDst->idCpu, VMMR0_DO_GVMM_SCHED_WAKE_UP, NULL /* pvArg */);
+    int rc = SUPR3CallVMMR0(VMCC_GET_VMR0_FOR_CALL(pVM), pVCpuDst->idCpu, VMMR0_DO_GVMM_SCHED_WAKE_UP, NULL /* pvArg */);
     AssertRC(rc);
 
 #else
@@ -425,7 +424,6 @@ DECL_FORCE_INLINE(void) emHistoryExecSetContinueExitRecIdx(PVMCPU pVCpu, VBOXSTR
 #endif /* !IN_RING3 */
 }
 
-#ifndef IN_RC
 
 /**
  * Execute using history.
@@ -442,7 +440,7 @@ DECL_FORCE_INLINE(void) emHistoryExecSetContinueExitRecIdx(PVMCPU pVCpu, VBOXSTR
  *                          or update call.
  * @param   fWillExit       Flags indicating to IEM what will cause exits, TBD.
  */
-VMM_INT_DECL(VBOXSTRICTRC) EMHistoryExec(PVMCPU pVCpu, PCEMEXITREC pExitRec, uint32_t fWillExit)
+VMM_INT_DECL(VBOXSTRICTRC) EMHistoryExec(PVMCPUCC pVCpu, PCEMEXITREC pExitRec, uint32_t fWillExit)
 {
     Assert(pExitRec);
     VMCPU_ASSERT_EMT(pVCpu);
@@ -740,7 +738,6 @@ static PCEMEXITREC emHistoryAddOrUpdateRecord(PVMCPU pVCpu, uint64_t uFlagsAndTy
     }
 }
 
-#endif /* !IN_RC */
 
 /**
  * Adds an exit to the history for this CPU.
@@ -754,7 +751,7 @@ static PCEMEXITREC emHistoryAddOrUpdateRecord(PVMCPU pVCpu, uint64_t uFlagsAndTy
  * @param   uTimestamp      The TSC value for the exit, 0 if not available.
  * @thread  EMT(pVCpu)
  */
-VMM_INT_DECL(PCEMEXITREC) EMHistoryAddExit(PVMCPU pVCpu, uint32_t uFlagsAndType, uint64_t uFlatPC, uint64_t uTimestamp)
+VMM_INT_DECL(PCEMEXITREC) EMHistoryAddExit(PVMCPUCC pVCpu, uint32_t uFlagsAndType, uint64_t uFlatPC, uint64_t uTimestamp)
 {
     VMCPU_ASSERT_EMT(pVCpu);
 
@@ -769,49 +766,21 @@ VMM_INT_DECL(PCEMEXITREC) EMHistoryAddExit(PVMCPU pVCpu, uint32_t uFlagsAndType,
     pHistEntry->uFlagsAndType = uFlagsAndType;
     pHistEntry->idxSlot       = UINT32_MAX;
 
-#ifndef IN_RC
     /*
      * If common exit type, we will insert/update the exit into the exit record hash table.
      */
     if (   (uFlagsAndType & (EMEXIT_F_KIND_MASK | EMEXIT_F_CS_EIP | EMEXIT_F_UNFLATTENED_PC)) == EMEXIT_F_KIND_EM
-# ifdef IN_RING0
+#ifdef IN_RING0
         && pVCpu->em.s.fExitOptimizationEnabledR0
         && ( !(uFlagsAndType & EMEXIT_F_HM) || pVCpu->em.s.fExitOptimizationEnabledR0PreemptDisabled)
-# else
+#else
         && pVCpu->em.s.fExitOptimizationEnabled
-# endif
+#endif
         && uFlatPC != UINT64_MAX
        )
         return emHistoryAddOrUpdateRecord(pVCpu, uFlagsAndType, uFlatPC, pHistEntry, uExitNo);
-#endif
     return NULL;
 }
-
-
-#ifdef IN_RC
-/**
- * Special raw-mode interface for adding an exit to the history.
- *
- * Currently this is only for recording, not optimizing, so no return value.  If
- * we start seriously caring about raw-mode again, we may extend it.
- *
- * @param   pVCpu           The cross context virtual CPU structure.
- * @param   uFlagsAndType   Combined flags and type (see EMEXIT_MAKE_FLAGS_AND_TYPE).
- * @param   uCs             The CS.
- * @param   uEip            The EIP.
- * @param   uTimestamp      The TSC value for the exit, 0 if not available.
- * @thread  EMT(0)
- */
-VMMRC_INT_DECL(void) EMRCHistoryAddExitCsEip(PVMCPU pVCpu, uint32_t uFlagsAndType, uint16_t uCs, uint32_t uEip, uint64_t uTimestamp)
-{
-    AssertCompile(RT_ELEMENTS(pVCpu->em.s.aExitHistory) == 256);
-    PEMEXITENTRY pHistEntry = &pVCpu->em.s.aExitHistory[(uintptr_t)(pVCpu->em.s.iNextExit++) & 0xff];
-    pHistEntry->uFlatPC       = ((uint64_t)uCs << 32) |  uEip;
-    pHistEntry->uTimestamp    = uTimestamp;
-    pHistEntry->uFlagsAndType = uFlagsAndType | EMEXIT_F_CS_EIP;
-    pHistEntry->idxSlot       = UINT32_MAX;
-}
-#endif
 
 
 #ifdef IN_RING0
@@ -846,7 +815,7 @@ VMMR0_INT_DECL(void) EMR0HistoryUpdatePC(PVMCPU pVCpu, uint64_t uFlatPC, bool fF
  * @param   uFlagsAndType   Combined flags and type (see EMEXIT_MAKE_FLAGS_AND_TYPE).
  * @thread  EMT(pVCpu)
  */
-VMM_INT_DECL(PCEMEXITREC) EMHistoryUpdateFlagsAndType(PVMCPU pVCpu, uint32_t uFlagsAndType)
+VMM_INT_DECL(PCEMEXITREC) EMHistoryUpdateFlagsAndType(PVMCPUCC pVCpu, uint32_t uFlagsAndType)
 {
     VMCPU_ASSERT_EMT(pVCpu);
 
@@ -858,21 +827,19 @@ VMM_INT_DECL(PCEMEXITREC) EMHistoryUpdateFlagsAndType(PVMCPU pVCpu, uint32_t uFl
     PEMEXITENTRY pHistEntry = &pVCpu->em.s.aExitHistory[(uintptr_t)uExitNo & 0xff];
     pHistEntry->uFlagsAndType = uFlagsAndType | (pHistEntry->uFlagsAndType & (EMEXIT_F_CS_EIP | EMEXIT_F_UNFLATTENED_PC));
 
-#ifndef IN_RC
     /*
      * If common exit type, we will insert/update the exit into the exit record hash table.
      */
     if (   (uFlagsAndType & (EMEXIT_F_KIND_MASK | EMEXIT_F_CS_EIP | EMEXIT_F_UNFLATTENED_PC)) == EMEXIT_F_KIND_EM
-# ifdef IN_RING0
+#ifdef IN_RING0
         && pVCpu->em.s.fExitOptimizationEnabledR0
         && ( !(uFlagsAndType & EMEXIT_F_HM) || pVCpu->em.s.fExitOptimizationEnabledR0PreemptDisabled)
-# else
+#else
         && pVCpu->em.s.fExitOptimizationEnabled
-# endif
+#endif
         && pHistEntry->uFlatPC != UINT64_MAX
        )
         return emHistoryAddOrUpdateRecord(pVCpu, uFlagsAndType, pHistEntry->uFlatPC, pHistEntry, uExitNo);
-#endif
     return NULL;
 }
 
@@ -889,7 +856,7 @@ VMM_INT_DECL(PCEMEXITREC) EMHistoryUpdateFlagsAndType(PVMCPU pVCpu, uint32_t uFl
  * @param   uFlatPC         The flattened program counter (RIP).
  * @thread  EMT(pVCpu)
  */
-VMM_INT_DECL(PCEMEXITREC) EMHistoryUpdateFlagsAndTypeAndPC(PVMCPU pVCpu, uint32_t uFlagsAndType, uint64_t uFlatPC)
+VMM_INT_DECL(PCEMEXITREC) EMHistoryUpdateFlagsAndTypeAndPC(PVMCPUCC pVCpu, uint32_t uFlagsAndType, uint64_t uFlatPC)
 {
     VMCPU_ASSERT_EMT(pVCpu);
     Assert(uFlatPC != UINT64_MAX);
@@ -903,100 +870,19 @@ VMM_INT_DECL(PCEMEXITREC) EMHistoryUpdateFlagsAndTypeAndPC(PVMCPU pVCpu, uint32_
     pHistEntry->uFlagsAndType = uFlagsAndType;
     pHistEntry->uFlatPC       = uFlatPC;
 
-#ifndef IN_RC
     /*
      * If common exit type, we will insert/update the exit into the exit record hash table.
      */
     if (   (uFlagsAndType & (EMEXIT_F_KIND_MASK | EMEXIT_F_CS_EIP | EMEXIT_F_UNFLATTENED_PC)) == EMEXIT_F_KIND_EM
-# ifdef IN_RING0
+#ifdef IN_RING0
         && pVCpu->em.s.fExitOptimizationEnabledR0
         && ( !(uFlagsAndType & EMEXIT_F_HM) || pVCpu->em.s.fExitOptimizationEnabledR0PreemptDisabled)
-# else
+#else
         && pVCpu->em.s.fExitOptimizationEnabled
-# endif
+#endif
        )
         return emHistoryAddOrUpdateRecord(pVCpu, uFlagsAndType, uFlatPC, pHistEntry, uExitNo);
-#endif
     return NULL;
-}
-
-
-/**
- * Locks REM execution to a single VCPU.
- *
- * @param   pVM         The cross context VM structure.
- */
-VMMDECL(void) EMRemLock(PVM pVM)
-{
-#ifdef VBOX_WITH_REM
-    if (!PDMCritSectIsInitialized(&pVM->em.s.CritSectREM))
-        return;     /* early init */
-
-    Assert(!PGMIsLockOwner(pVM));
-    Assert(!IOMIsLockWriteOwner(pVM));
-    int rc = PDMCritSectEnter(&pVM->em.s.CritSectREM, VERR_SEM_BUSY);
-    AssertRCSuccess(rc);
-#else
-    RT_NOREF(pVM);
-#endif
-}
-
-
-/**
- * Unlocks REM execution
- *
- * @param   pVM         The cross context VM structure.
- */
-VMMDECL(void) EMRemUnlock(PVM pVM)
-{
-#ifdef VBOX_WITH_REM
-    if (!PDMCritSectIsInitialized(&pVM->em.s.CritSectREM))
-        return;     /* early init */
-
-    PDMCritSectLeave(&pVM->em.s.CritSectREM);
-#else
-    RT_NOREF(pVM);
-#endif
-}
-
-
-/**
- * Check if this VCPU currently owns the REM lock.
- *
- * @returns bool owner/not owner
- * @param   pVM         The cross context VM structure.
- */
-VMMDECL(bool) EMRemIsLockOwner(PVM pVM)
-{
-#ifdef VBOX_WITH_REM
-    if (!PDMCritSectIsInitialized(&pVM->em.s.CritSectREM))
-        return true;   /* early init */
-
-    return PDMCritSectIsOwner(&pVM->em.s.CritSectREM);
-#else
-    RT_NOREF(pVM);
-    return true;
-#endif
-}
-
-
-/**
- * Try to acquire the REM lock.
- *
- * @returns VBox status code
- * @param   pVM         The cross context VM structure.
- */
-VMM_INT_DECL(int) EMRemTryLock(PVM pVM)
-{
-#ifdef VBOX_WITH_REM
-    if (!PDMCritSectIsInitialized(&pVM->em.s.CritSectREM))
-        return VINF_SUCCESS; /* early init */
-
-    return PDMCritSectTryEnter(&pVM->em.s.CritSectREM);
-#else
-    RT_NOREF(pVM);
-    return VINF_SUCCESS;
-#endif
 }
 
 
@@ -1005,12 +891,8 @@ VMM_INT_DECL(int) EMRemTryLock(PVM pVM)
  */
 static DECLCALLBACK(int) emReadBytes(PDISCPUSTATE pDis, uint8_t offInstr, uint8_t cbMinRead, uint8_t cbMaxRead)
 {
-    PVMCPU      pVCpu    = (PVMCPU)pDis->pvUser;
-#if defined(VBOX_WITH_RAW_MODE) && (defined(IN_RC) || defined(IN_RING3))
-    PVM         pVM      = pVCpu->CTX_SUFF(pVM);
-#endif
+    PVMCPUCC    pVCpu    = (PVMCPUCC)pDis->pvUser;
     RTUINTPTR   uSrcAddr = pDis->uInstrAddr + offInstr;
-    int         rc;
 
     /*
      * Figure how much we can or must read.
@@ -1021,61 +903,26 @@ static DECLCALLBACK(int) emReadBytes(PDISCPUSTATE pDis, uint8_t offInstr, uint8_
     else if (cbToRead < cbMinRead)
         cbToRead = cbMinRead;
 
-#if defined(VBOX_WITH_RAW_MODE) && (defined(IN_RC) || defined(IN_RING3))
-    /*
-     * We might be called upon to interpret an instruction in a patch.
-     */
-    if (PATMIsPatchGCAddr(pVM, uSrcAddr))
+    int rc = PGMPhysSimpleReadGCPtr(pVCpu, &pDis->abInstr[offInstr], uSrcAddr, cbToRead);
+    if (RT_FAILURE(rc))
     {
-# ifdef IN_RC
-        memcpy(&pDis->abInstr[offInstr], (void *)(uintptr_t)uSrcAddr, cbToRead);
-# else
-        memcpy(&pDis->abInstr[offInstr], PATMR3GCPtrToHCPtr(pVM, uSrcAddr), cbToRead);
-# endif
-        rc = VINF_SUCCESS;
-    }
-    else
-#endif
-    {
-# ifdef IN_RC
-        /*
-         * Try access it thru the shadow page tables first. Fall back on the
-         * slower PGM method if it fails because the TLB or page table was
-         * modified recently.
-         */
-        rc = MMGCRamRead(pVCpu->pVMRC, &pDis->abInstr[offInstr], (void *)(uintptr_t)uSrcAddr, cbToRead);
-        if (rc == VERR_ACCESS_DENIED && cbToRead > cbMinRead)
+        if (cbToRead > cbMinRead)
         {
             cbToRead = cbMinRead;
-            rc = MMGCRamRead(pVCpu->pVMRC, &pDis->abInstr[offInstr], (void *)(uintptr_t)uSrcAddr, cbToRead);
-        }
-        if (rc == VERR_ACCESS_DENIED)
-#endif
-        {
             rc = PGMPhysSimpleReadGCPtr(pVCpu, &pDis->abInstr[offInstr], uSrcAddr, cbToRead);
-            if (RT_FAILURE(rc))
+        }
+        if (RT_FAILURE(rc))
+        {
+            /*
+             * If we fail to find the page via the guest's page tables
+             * we invalidate the page in the host TLB (pertaining to
+             * the guest in the NestedPaging case). See @bugref{6043}.
+             */
+            if (rc == VERR_PAGE_TABLE_NOT_PRESENT || rc == VERR_PAGE_NOT_PRESENT)
             {
-                if (cbToRead > cbMinRead)
-                {
-                    cbToRead = cbMinRead;
-                    rc = PGMPhysSimpleReadGCPtr(pVCpu, &pDis->abInstr[offInstr], uSrcAddr, cbToRead);
-                }
-                if (RT_FAILURE(rc))
-                {
-#ifndef IN_RC
-                    /*
-                     * If we fail to find the page via the guest's page tables
-                     * we invalidate the page in the host TLB (pertaining to
-                     * the guest in the NestedPaging case). See @bugref{6043}.
-                     */
-                    if (rc == VERR_PAGE_TABLE_NOT_PRESENT || rc == VERR_PAGE_NOT_PRESENT)
-                    {
-                        HMInvalidatePage(pVCpu, uSrcAddr);
-                        if (((uSrcAddr + cbToRead - 1) >> PAGE_SHIFT) !=  (uSrcAddr >> PAGE_SHIFT))
-                            HMInvalidatePage(pVCpu, uSrcAddr + cbToRead - 1);
-                    }
-#endif
-                }
+                HMInvalidatePage(pVCpu, uSrcAddr);
+                if (((uSrcAddr + cbToRead - 1) >> PAGE_SHIFT) !=  (uSrcAddr >> PAGE_SHIFT))
+                    HMInvalidatePage(pVCpu, uSrcAddr + cbToRead - 1);
             }
         }
     }
@@ -1083,7 +930,6 @@ static DECLCALLBACK(int) emReadBytes(PDISCPUSTATE pDis, uint8_t offInstr, uint8_
     pDis->cbCachedInstr = offInstr + (uint8_t)cbToRead;
     return rc;
 }
-
 
 
 /**
@@ -1097,7 +943,7 @@ static DECLCALLBACK(int) emReadBytes(PDISCPUSTATE pDis, uint8_t offInstr, uint8_
  * @param   pDis            Where to return the parsed instruction info.
  * @param   pcbInstr        Where to return the instruction size. (optional)
  */
-VMM_INT_DECL(int) EMInterpretDisasCurrent(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, unsigned *pcbInstr)
+VMM_INT_DECL(int) EMInterpretDisasCurrent(PVMCC pVM, PVMCPUCC pVCpu, PDISCPUSTATE pDis, unsigned *pcbInstr)
 {
     PCPUMCTXCORE pCtxCore = CPUMCTX2CORE(CPUMQueryGuestCtxPtr(pVCpu));
     RTGCPTR GCPtrInstr;
@@ -1132,7 +978,7 @@ VMM_INT_DECL(int) EMInterpretDisasCurrent(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pD
  * @param   pDis            Where to return the parsed instruction info.
  * @param   pcbInstr        Where to return the instruction size. (optional)
  */
-VMM_INT_DECL(int) EMInterpretDisasOneEx(PVM pVM, PVMCPU pVCpu, RTGCUINTPTR GCPtrInstr, PCCPUMCTXCORE pCtxCore,
+VMM_INT_DECL(int) EMInterpretDisasOneEx(PVMCC pVM, PVMCPUCC pVCpu, RTGCUINTPTR GCPtrInstr, PCCPUMCTXCORE pCtxCore,
                                         PDISCPUSTATE pDis, unsigned *pcbInstr)
 {
     NOREF(pVM);
@@ -1165,7 +1011,7 @@ VMM_INT_DECL(int) EMInterpretDisasOneEx(PVM pVM, PVMCPU pVCpu, RTGCUINTPTR GCPtr
  *          Architecture System Developers Manual, Vol 3, 5.5) so we don't need
  *          to worry about e.g. invalid modrm combinations (!)
  */
-VMM_INT_DECL(VBOXSTRICTRC) EMInterpretInstruction(PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault)
+VMM_INT_DECL(VBOXSTRICTRC) EMInterpretInstruction(PVMCPUCC pVCpu, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault)
 {
     Assert(pRegFrame == CPUMGetGuestCtxCore(pVCpu));
     LogFlow(("EMInterpretInstruction %RGv fault %RGv\n", (RTGCPTR)pRegFrame->rip, pvFault));
@@ -1200,7 +1046,7 @@ VMM_INT_DECL(VBOXSTRICTRC) EMInterpretInstruction(PVMCPU pVCpu, PCPUMCTXCORE pRe
  *          Architecture System Developers Manual, Vol 3, 5.5) so we don't need
  *          to worry about e.g. invalid modrm combinations (!)
  */
-VMM_INT_DECL(VBOXSTRICTRC) EMInterpretInstructionEx(PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, uint32_t *pcbWritten)
+VMM_INT_DECL(VBOXSTRICTRC) EMInterpretInstructionEx(PVMCPUCC pVCpu, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, uint32_t *pcbWritten)
 {
     LogFlow(("EMInterpretInstructionEx %RGv fault %RGv\n", (RTGCPTR)pRegFrame->rip, pvFault));
     Assert(pRegFrame == CPUMGetGuestCtxCore(pVCpu));
@@ -1243,7 +1089,7 @@ VMM_INT_DECL(VBOXSTRICTRC) EMInterpretInstructionEx(PVMCPU pVCpu, PCPUMCTXCORE p
  * @todo    At this time we do NOT check if the instruction overwrites vital information.
  *          Make sure this can't happen!! (will add some assertions/checks later)
  */
-VMM_INT_DECL(VBOXSTRICTRC) EMInterpretInstructionDisasState(PVMCPU pVCpu, PDISCPUSTATE pDis, PCPUMCTXCORE pRegFrame,
+VMM_INT_DECL(VBOXSTRICTRC) EMInterpretInstructionDisasState(PVMCPUCC pVCpu, PDISCPUSTATE pDis, PCPUMCTXCORE pRegFrame,
                                                             RTGCPTR pvFault, EMCODETYPE enmCodeType)
 {
     LogFlow(("EMInterpretInstructionDisasState %RGv fault %RGv\n", (RTGCPTR)pRegFrame->rip, pvFault));
@@ -1261,74 +1107,6 @@ VMM_INT_DECL(VBOXSTRICTRC) EMInterpretInstructionDisasState(PVMCPU pVCpu, PDISCP
     return rc;
 }
 
-#ifdef IN_RC
-
-DECLINLINE(int) emRCStackRead(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, void *pvDst, RTGCPTR GCPtrSrc, uint32_t cb)
-{
-    int rc = MMGCRamRead(pVM, pvDst, (void *)(uintptr_t)GCPtrSrc, cb);
-    if (RT_LIKELY(rc != VERR_ACCESS_DENIED))
-        return rc;
-    return PGMPhysInterpretedReadNoHandlers(pVCpu, pCtxCore, pvDst, GCPtrSrc, cb, /*fMayTrap*/ false);
-}
-
-
-/**
- * Interpret IRET (currently only to V86 code) - PATM only.
- *
- * @returns VBox status code.
- * @param   pVM         The cross context VM structure.
- * @param   pVCpu       The cross context virtual CPU structure.
- * @param   pRegFrame   The register frame.
- *
- */
-VMM_INT_DECL(int) EMInterpretIretV86ForPatm(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame)
-{
-    RTGCUINTPTR pIretStack = (RTGCUINTPTR)pRegFrame->esp;
-    RTGCUINTPTR eip, cs, esp, ss, eflags, ds, es, fs, gs, uMask;
-    int         rc;
-
-    Assert(pRegFrame == CPUMGetGuestCtxCore(pVCpu));
-    Assert(!CPUMIsGuestIn64BitCode(pVCpu));
-    /** @todo Rainy day: Test what happens when VERR_EM_INTERPRETER is returned by
-     *        this function.  Fear that it may guru on us, thus not converted to
-     *        IEM. */
-
-    rc  = emRCStackRead(pVM, pVCpu, pRegFrame, &eip,      (RTGCPTR)pIretStack      , 4);
-    rc |= emRCStackRead(pVM, pVCpu, pRegFrame, &cs,       (RTGCPTR)(pIretStack + 4), 4);
-    rc |= emRCStackRead(pVM, pVCpu, pRegFrame, &eflags,   (RTGCPTR)(pIretStack + 8), 4);
-    AssertRCReturn(rc, VERR_EM_INTERPRETER);
-    AssertReturn(eflags & X86_EFL_VM, VERR_EM_INTERPRETER);
-
-    rc |= emRCStackRead(pVM, pVCpu, pRegFrame, &esp,      (RTGCPTR)(pIretStack + 12), 4);
-    rc |= emRCStackRead(pVM, pVCpu, pRegFrame, &ss,       (RTGCPTR)(pIretStack + 16), 4);
-    rc |= emRCStackRead(pVM, pVCpu, pRegFrame, &es,       (RTGCPTR)(pIretStack + 20), 4);
-    rc |= emRCStackRead(pVM, pVCpu, pRegFrame, &ds,       (RTGCPTR)(pIretStack + 24), 4);
-    rc |= emRCStackRead(pVM, pVCpu, pRegFrame, &fs,       (RTGCPTR)(pIretStack + 28), 4);
-    rc |= emRCStackRead(pVM, pVCpu, pRegFrame, &gs,       (RTGCPTR)(pIretStack + 32), 4);
-    AssertRCReturn(rc, VERR_EM_INTERPRETER);
-
-    pRegFrame->eip    = eip & 0xffff;
-    pRegFrame->cs.Sel = cs;
-
-    /* Mask away all reserved bits */
-    uMask = X86_EFL_CF | X86_EFL_PF | X86_EFL_AF | X86_EFL_ZF | X86_EFL_SF | X86_EFL_TF | X86_EFL_IF | X86_EFL_DF | X86_EFL_OF | X86_EFL_IOPL | X86_EFL_NT | X86_EFL_RF | X86_EFL_VM | X86_EFL_AC | X86_EFL_VIF | X86_EFL_VIP | X86_EFL_ID;
-    eflags &= uMask;
-
-    CPUMRawSetEFlags(pVCpu, eflags);
-    Assert((pRegFrame->eflags.u32 & (X86_EFL_IF|X86_EFL_IOPL)) == X86_EFL_IF);
-
-    pRegFrame->esp      = esp;
-    pRegFrame->ss.Sel   = ss;
-    pRegFrame->ds.Sel   = ds;
-    pRegFrame->es.Sel   = es;
-    pRegFrame->fs.Sel   = fs;
-    pRegFrame->gs.Sel   = gs;
-
-    return VINF_SUCCESS;
-}
-
-
-#endif /* IN_RC */
 
 
 
@@ -1376,74 +1154,6 @@ VMM_INT_DECL(int) EMInterpretRdpmc(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame
 }
 
 
-/**
- * MWAIT Emulation.
- */
-VMM_INT_DECL(VBOXSTRICTRC) EMInterpretMWait(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame)
-{
-    Assert(pRegFrame == CPUMGetGuestCtxCore(pVCpu));
-    uint32_t u32Dummy, u32ExtFeatures, cpl, u32MWaitFeatures;
-    NOREF(pVM);
-
-    /* Get the current privilege level. */
-    cpl = CPUMGetGuestCPL(pVCpu);
-    if (cpl != 0)
-        return VERR_EM_INTERPRETER; /* supervisor only */
-
-    CPUMGetGuestCpuId(pVCpu, 1, 0, &u32Dummy, &u32Dummy, &u32ExtFeatures, &u32Dummy);
-    if (!(u32ExtFeatures & X86_CPUID_FEATURE_ECX_MONITOR))
-        return VERR_EM_INTERPRETER; /* not supported */
-
-    /*
-     * CPUID.05H.ECX[0] defines support for power management extensions (eax)
-     * CPUID.05H.ECX[1] defines support for interrupts as break events for mwait even when IF=0
-     */
-    CPUMGetGuestCpuId(pVCpu, 5, 0, &u32Dummy, &u32Dummy, &u32MWaitFeatures, &u32Dummy);
-    if (pRegFrame->ecx > 1)
-    {
-        Log(("EMInterpretMWait: unexpected ecx value %x -> recompiler\n", pRegFrame->ecx));
-        return VERR_EM_INTERPRETER; /* illegal value. */
-    }
-
-    if (pRegFrame->ecx && !(u32MWaitFeatures & X86_CPUID_MWAIT_ECX_BREAKIRQIF0))
-    {
-        Log(("EMInterpretMWait: unsupported X86_CPUID_MWAIT_ECX_BREAKIRQIF0 -> recompiler\n"));
-        return VERR_EM_INTERPRETER; /* illegal value. */
-    }
-
-    return EMMonitorWaitPerform(pVCpu, pRegFrame->rax, pRegFrame->rcx);
-}
-
-
-/**
- * MONITOR Emulation.
- */
-VMM_INT_DECL(int) EMInterpretMonitor(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame)
-{
-    uint32_t u32Dummy, u32ExtFeatures, cpl;
-    Assert(pRegFrame == CPUMGetGuestCtxCore(pVCpu));
-    NOREF(pVM);
-
-    if (pRegFrame->ecx != 0)
-    {
-        Log(("emInterpretMonitor: unexpected ecx=%x -> recompiler!!\n", pRegFrame->ecx));
-        return VERR_EM_INTERPRETER; /* illegal value. */
-    }
-
-    /* Get the current privilege level. */
-    cpl = CPUMGetGuestCPL(pVCpu);
-    if (cpl != 0)
-        return VERR_EM_INTERPRETER; /* supervisor only */
-
-    CPUMGetGuestCpuId(pVCpu, 1, 0, &u32Dummy, &u32Dummy, &u32ExtFeatures, &u32Dummy);
-    if (!(u32ExtFeatures & X86_CPUID_FEATURE_ECX_MONITOR))
-        return VERR_EM_INTERPRETER; /* not supported */
-
-    EMMonitorWaitPrepare(pVCpu, pRegFrame->rax, pRegFrame->rcx, pRegFrame->rdx, NIL_RTGCPHYS);
-    return VINF_SUCCESS;
-}
-
-
 /* VT-x only: */
 
 /**
@@ -1457,7 +1167,7 @@ VMM_INT_DECL(int) EMInterpretMonitor(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFra
  * @param   SrcRegGen   General purpose register index (USE_REG_E**))
  *
  */
-VMM_INT_DECL(int) EMInterpretDRxWrite(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t DestRegDrx, uint32_t SrcRegGen)
+VMM_INT_DECL(int) EMInterpretDRxWrite(PVMCC pVM, PVMCPUCC pVCpu, PCPUMCTXCORE pRegFrame, uint32_t DestRegDrx, uint32_t SrcRegGen)
 {
     Assert(pRegFrame == CPUMGetGuestCtxCore(pVCpu));
     uint64_t uNewDrX;

@@ -22,10 +22,11 @@
 #include "UIExtraDataManager.h"
 #include "UIMachineSettingsDisplay.h"
 #include "UIErrorString.h"
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #include "VBox2DHelpers.h"
 
 /* COM includes: */
+#include "CGraphicsAdapter.h"
 #include "CRecordingSettings.h"
 #include "CRecordingScreenSettings.h"
 #include "CExtPack.h"
@@ -44,11 +45,13 @@ struct UIDataSettingsMachineDisplay
     UIDataSettingsMachineDisplay()
         : m_iCurrentVRAM(0)
         , m_cGuestScreenCount(0)
-        , m_f3dAccelerationEnabled(false)
-#ifdef VBOX_WITH_VIDEOHWACCEL
-        , m_f2dAccelerationEnabled(false)
-#endif /* VBOX_WITH_VIDEOHWACCEL */
         , m_graphicsControllerType(KGraphicsControllerType_Null)
+#ifdef VBOX_WITH_3D_ACCELERATION
+        , m_f3dAccelerationEnabled(false)
+#endif
+#ifdef VBOX_WITH_VIDEOHWACCEL
+        , m_f2dVideoAccelerationEnabled(false)
+#endif
         , m_fRemoteDisplayServerSupported(false)
         , m_fRemoteDisplayServerEnabled(false)
         , m_strRemoteDisplayPort(QString())
@@ -72,11 +75,13 @@ struct UIDataSettingsMachineDisplay
                && (m_iCurrentVRAM == other.m_iCurrentVRAM)
                && (m_cGuestScreenCount == other.m_cGuestScreenCount)
                && (m_scaleFactors == other.m_scaleFactors)
-               && (m_f3dAccelerationEnabled == other.m_f3dAccelerationEnabled)
-#ifdef VBOX_WITH_VIDEOHWACCEL
-               && (m_f2dAccelerationEnabled == other.m_f2dAccelerationEnabled)
-#endif /* VBOX_WITH_VIDEOHWACCEL */
                && (m_graphicsControllerType == other.m_graphicsControllerType)
+#ifdef VBOX_WITH_3D_ACCELERATION
+               && (m_f3dAccelerationEnabled == other.m_f3dAccelerationEnabled)
+#endif
+#ifdef VBOX_WITH_VIDEOHWACCEL
+               && (m_f2dVideoAccelerationEnabled == other.m_f2dVideoAccelerationEnabled)
+#endif
                && (m_fRemoteDisplayServerSupported == other.m_fRemoteDisplayServerSupported)
                && (m_fRemoteDisplayServerEnabled == other.m_fRemoteDisplayServerEnabled)
                && (m_strRemoteDisplayPort == other.m_strRemoteDisplayPort)
@@ -236,14 +241,16 @@ struct UIDataSettingsMachineDisplay
     int                      m_cGuestScreenCount;
     /** Holds the guest screen scale-factor. */
     QList<double>            m_scaleFactors;
-    /** Holds whether the 3D acceleration is enabled. */
-    bool                     m_f3dAccelerationEnabled;
-#ifdef VBOX_WITH_VIDEOHWACCEL
-    /** Holds whether the 2D video acceleration is enabled. */
-    bool                     m_f2dAccelerationEnabled;
-#endif /* VBOX_WITH_VIDEOHWACCEL */
     /** Holds the graphics controller type. */
     KGraphicsControllerType  m_graphicsControllerType;
+#ifdef VBOX_WITH_3D_ACCELERATION
+    /** Holds whether the 3D acceleration is enabled. */
+    bool                     m_f3dAccelerationEnabled;
+#endif
+#ifdef VBOX_WITH_VIDEOHWACCEL
+    /** Holds whether the 2D video acceleration is enabled. */
+    bool                     m_f2dVideoAccelerationEnabled;
+#endif
     /** Holds whether the remote display server is supported. */
     bool                     m_fRemoteDisplayServerSupported;
     /** Holds whether the remote display server is enabled. */
@@ -279,16 +286,14 @@ struct UIDataSettingsMachineDisplay
 
 
 UIMachineSettingsDisplay::UIMachineSettingsDisplay()
-    : m_iMinVRAM(0)
-    , m_iMaxVRAM(0)
-    , m_iMaxVRAMVisible(0)
-    , m_iInitialVRAM(0)
+    : m_comGuestOSType(CGuestOSType())
+#ifdef VBOX_WITH_3D_ACCELERATION
+    , m_fWddmModeSupported(false)
+#endif
 #ifdef VBOX_WITH_VIDEOHWACCEL
     , m_f2DVideoAccelerationSupported(false)
-#endif /* VBOX_WITH_VIDEOHWACCEL */
-#ifdef VBOX_WITH_CRHGSMI
-    , m_fWddmModeSupported(false)
-#endif /* VBOX_WITH_CRHGSMI */
+#endif
+    , m_enmGraphicsControllerTypeRecommended(KGraphicsControllerType_Null)
     , m_pCache(0)
 {
     /* Prepare: */
@@ -303,30 +308,39 @@ UIMachineSettingsDisplay::~UIMachineSettingsDisplay()
 
 void UIMachineSettingsDisplay::setGuestOSType(CGuestOSType comGuestOSType)
 {
-    /* Check if guest os type changed: */
+    /* Check if guest OS type changed: */
     if (m_comGuestOSType == comGuestOSType)
         return;
 
-    /* Remember new guest os type: */
+    /* Remember new guest OS type: */
     m_comGuestOSType = comGuestOSType;
+    m_pVideoMemoryEditor->setGuestOSType(m_comGuestOSType);
 
+#ifdef VBOX_WITH_3D_ACCELERATION
+    /* Check if WDDM mode supported by the guest OS type: */
+    const QString strGuestOSTypeId = m_comGuestOSType.isNotNull() ? m_comGuestOSType.GetId() : QString();
+    m_fWddmModeSupported = UICommon::isWddmCompatibleOsType(strGuestOSTypeId);
+    m_pVideoMemoryEditor->set3DAccelerationSupported(m_fWddmModeSupported);
+#endif
 #ifdef VBOX_WITH_VIDEOHWACCEL
     /* Check if 2D video acceleration supported by the guest OS type: */
     const QString strGuestOSTypeFamily = m_comGuestOSType.isNotNull() ? m_comGuestOSType.GetFamilyId() : QString();
     m_f2DVideoAccelerationSupported = strGuestOSTypeFamily == "Windows";
+    m_pVideoMemoryEditor->set2DVideoAccelerationSupported(m_f2DVideoAccelerationSupported);
 #endif
-#ifdef VBOX_WITH_CRHGSMI
-    /* Check if WDDM mode supported by the guest OS type: */
-    const QString strGuestOSTypeId = m_comGuestOSType.isNotNull() ? m_comGuestOSType.GetId() : QString();
-    m_fWddmModeSupported = VBoxGlobal::isWddmCompatibleOsType(strGuestOSTypeId);
-#endif
-
-    /* Recheck video RAM requirement: */
-    checkVRAMRequirements();
+    /* Acquire recommended graphics controller type: */
+    m_enmGraphicsControllerTypeRecommended = m_comGuestOSType.GetRecommendedGraphicsController();
 
     /* Revalidate: */
     revalidate();
 }
+
+#ifdef VBOX_WITH_3D_ACCELERATION
+bool UIMachineSettingsDisplay::isAcceleration3DSelected() const
+{
+    return m_pCheckbox3D->isChecked();
+}
+#endif /* VBOX_WITH_3D_ACCELERATION */
 
 #ifdef VBOX_WITH_VIDEOHWACCEL
 bool UIMachineSettingsDisplay::isAcceleration2DVideoSelected() const
@@ -334,6 +348,18 @@ bool UIMachineSettingsDisplay::isAcceleration2DVideoSelected() const
     return m_pCheckbox2DVideo->isChecked();
 }
 #endif /* VBOX_WITH_VIDEOHWACCEL */
+
+KGraphicsControllerType UIMachineSettingsDisplay::graphicsControllerTypeRecommended() const
+{
+    return   m_pGraphicsControllerEditor->supportedValues().contains(m_enmGraphicsControllerTypeRecommended)
+           ? m_enmGraphicsControllerTypeRecommended
+           : graphicsControllerTypeCurrent();
+}
+
+KGraphicsControllerType UIMachineSettingsDisplay::graphicsControllerTypeCurrent() const
+{
+    return m_pGraphicsControllerEditor->value();
+}
 
 bool UIMachineSettingsDisplay::changed() const
 {
@@ -351,15 +377,23 @@ void UIMachineSettingsDisplay::loadToCacheFrom(QVariant &data)
     /* Prepare old display data: */
     UIDataSettingsMachineDisplay oldDisplayData;
 
-    /* Gather old 'Screen' data: */
-    oldDisplayData.m_iCurrentVRAM = m_machine.GetVRAMSize();
-    oldDisplayData.m_cGuestScreenCount = m_machine.GetMonitorCount();
-    oldDisplayData.m_scaleFactors = gEDataManager->scaleFactors(m_machine.GetId());
-    oldDisplayData.m_f3dAccelerationEnabled = m_machine.GetAccelerate3DEnabled();
-#ifdef VBOX_WITH_VIDEOHWACCEL
-    oldDisplayData.m_f2dAccelerationEnabled = m_machine.GetAccelerate2DVideoEnabled();
+    /* Check whether graphics adapter is valid: */
+    const CGraphicsAdapter &comGraphics = m_machine.GetGraphicsAdapter();
+    if (!comGraphics.isNull())
+    {
+        /* Gather old 'Screen' data: */
+        oldDisplayData.m_iCurrentVRAM = comGraphics.GetVRAMSize();
+        oldDisplayData.m_cGuestScreenCount = comGraphics.GetMonitorCount();
+        oldDisplayData.m_scaleFactors = gEDataManager->scaleFactors(m_machine.GetId());
+        oldDisplayData.m_graphicsControllerType = comGraphics.GetGraphicsControllerType();
+#ifdef VBOX_WITH_3D_ACCELERATION
+        oldDisplayData.m_f3dAccelerationEnabled = comGraphics.GetAccelerate3DEnabled();
 #endif
-    oldDisplayData.m_graphicsControllerType = m_machine.GetGraphicsControllerType();
+#ifdef VBOX_WITH_VIDEOHWACCEL
+        oldDisplayData.m_f2dVideoAccelerationEnabled = comGraphics.GetAccelerate2DVideoEnabled();
+#endif
+    }
+
     /* Check whether remote display server is valid: */
     const CVRDEServer &vrdeServer = m_machine.GetVRDEServer();
     oldDisplayData.m_fRemoteDisplayServerSupported = !vrdeServer.isNull();
@@ -400,9 +434,6 @@ void UIMachineSettingsDisplay::loadToCacheFrom(QVariant &data)
             oldDisplayData.m_vecRecordingScreens[iScreenIndex] = recordingScreenSettings.GetEnabled();
     }
 
-    /* Gather other old display data: */
-    m_iInitialVRAM = RT_MIN(oldDisplayData.m_iCurrentVRAM, m_iMaxVRAM);
-
     /* Cache old display data: */
     m_pCache->cacheInitialData(oldDisplayData);
 
@@ -419,13 +450,24 @@ void UIMachineSettingsDisplay::getFromCache()
     m_pEditorVideoScreenCount->setValue(oldDisplayData.m_cGuestScreenCount);
     m_pScaleFactorEditor->setScaleFactors(oldDisplayData.m_scaleFactors);
     m_pScaleFactorEditor->setMonitorCount(oldDisplayData.m_cGuestScreenCount);
+    m_pGraphicsControllerEditor->setValue(oldDisplayData.m_graphicsControllerType);
+#ifdef VBOX_WITH_3D_ACCELERATION
     m_pCheckbox3D->setChecked(oldDisplayData.m_f3dAccelerationEnabled);
-#ifdef VBOX_WITH_VIDEOHWACCEL
-    m_pCheckbox2DVideo->setChecked(oldDisplayData.m_f2dAccelerationEnabled);
 #endif
-    m_pComboGraphicsControllerType->setCurrentIndex(m_pComboGraphicsControllerType->findText(gpConverter->toString(oldDisplayData.m_graphicsControllerType)));
-    // Should be the last one for this tab:
-    m_pEditorVideoMemorySize->setValue(oldDisplayData.m_iCurrentVRAM);
+#ifdef VBOX_WITH_VIDEOHWACCEL
+    m_pCheckbox2DVideo->setChecked(oldDisplayData.m_f2dVideoAccelerationEnabled);
+#endif
+    /* Push required value to m_pVideoMemoryEditor: */
+    sltHandleGuestScreenCountEditorChange();
+    sltHandleGraphicsControllerComboChange();
+#ifdef VBOX_WITH_3D_ACCELERATION
+    sltHandle3DAccelerationCheckboxChange();
+#endif
+#ifdef VBOX_WITH_VIDEOHWACCEL
+    sltHandle2DVideoAccelerationCheckboxChange();
+#endif
+    // Should be the last one for this tab, since it depends on some of others:
+    m_pVideoMemoryEditor->setValue(oldDisplayData.m_iCurrentVRAM);
 
     /* If remote display server is supported: */
     if (oldDisplayData.m_fRemoteDisplayServerSupported)
@@ -475,14 +517,16 @@ void UIMachineSettingsDisplay::putToCache()
     UIDataSettingsMachineDisplay newDisplayData;
 
     /* Gather new 'Screen' data: */
-    newDisplayData.m_iCurrentVRAM = m_pEditorVideoMemorySize->value();
+    newDisplayData.m_iCurrentVRAM = m_pVideoMemoryEditor->value();
     newDisplayData.m_cGuestScreenCount = m_pEditorVideoScreenCount->value();
     newDisplayData.m_scaleFactors = m_pScaleFactorEditor->scaleFactors();
+    newDisplayData.m_graphicsControllerType = m_pGraphicsControllerEditor->value();
+#ifdef VBOX_WITH_3D_ACCELERATION
     newDisplayData.m_f3dAccelerationEnabled = m_pCheckbox3D->isChecked();
-#ifdef VBOX_WITH_VIDEOHWACCEL
-    newDisplayData.m_f2dAccelerationEnabled = m_pCheckbox2DVideo->isChecked();
 #endif
-    newDisplayData.m_graphicsControllerType = gpConverter->fromString<KGraphicsControllerType>(m_pComboGraphicsControllerType->currentText());
+#ifdef VBOX_WITH_VIDEOHWACCEL
+    newDisplayData.m_f2dVideoAccelerationEnabled = m_pCheckbox2DVideo->isChecked();
+#endif
     /* If remote display server is supported: */
     newDisplayData.m_fRemoteDisplayServerSupported = m_pCache->base().m_fRemoteDisplayServerSupported;
     if (newDisplayData.m_fRemoteDisplayServerSupported)
@@ -552,9 +596,6 @@ void UIMachineSettingsDisplay::saveFromCacheTo(QVariant &data)
 
 bool UIMachineSettingsDisplay::validate(QList<UIValidationMessage> &messages)
 {
-    /* Check if video RAM requirement changed first: */
-    checkVRAMRequirements();
-
     /* Pass by default: */
     bool fPass = true;
 
@@ -562,56 +603,58 @@ bool UIMachineSettingsDisplay::validate(QList<UIValidationMessage> &messages)
     {
         /* Prepare message: */
         UIValidationMessage message;
-        message.first = VBoxGlobal::removeAccelMark(m_pTabWidget->tabText(0));
-
-        /* 3D acceleration test: */
-        if (m_pCheckbox3D->isChecked() && !vboxGlobal().is3DAvailable())
-        {
-            message.second << tr("The virtual machine is set up to use hardware graphics acceleration. "
-                                 "However the host system does not currently provide this, "
-                                 "so you will not be able to start the machine.");
-        }
+        message.first = UICommon::removeAccelMark(m_pTabWidget->tabText(0));
 
         /* Video RAM amount test: */
         if (shouldWeWarnAboutLowVRAM() && !m_comGuestOSType.isNull())
         {
-            quint64 uNeedBytes = VBoxGlobal::requiredVideoMemory(m_comGuestOSType.GetId(), m_pEditorVideoScreenCount->value());
+            quint64 uNeedBytes = UICommon::requiredVideoMemory(m_comGuestOSType.GetId(), m_pEditorVideoScreenCount->value());
 
             /* Basic video RAM amount test: */
-            if ((quint64)m_pEditorVideoMemorySize->value() * _1M < uNeedBytes)
+            if ((quint64)m_pVideoMemoryEditor->value() * _1M < uNeedBytes)
             {
                 message.second << tr("The virtual machine is currently assigned less than <b>%1</b> of video memory "
                                      "which is the minimum amount required to switch to full-screen or seamless mode.")
-                                     .arg(vboxGlobal().formatSize(uNeedBytes, 0, FormatSize_RoundUp));
+                                     .arg(uiCommon().formatSize(uNeedBytes, 0, FormatSize_RoundUp));
             }
+#ifdef VBOX_WITH_3D_ACCELERATION
+            /* 3D acceleration video RAM amount test: */
+            else if (m_pCheckbox3D->isChecked() && m_fWddmModeSupported)
+            {
+                uNeedBytes = qMax(uNeedBytes, (quint64) 128 * _1M);
+                if ((quint64)m_pVideoMemoryEditor->value() * _1M < uNeedBytes)
+                {
+                    message.second << tr("The virtual machine is set up to use hardware graphics acceleration "
+                                         "and the operating system hint is set to Windows Vista or later. "
+                                         "For best performance you should set the machine's video memory to at least <b>%1</b>.")
+                                         .arg(uiCommon().formatSize(uNeedBytes, 0, FormatSize_RoundUp));
+                }
+            }
+#endif /* VBOX_WITH_3D_ACCELERATION */
 #ifdef VBOX_WITH_VIDEOHWACCEL
             /* 2D acceleration video RAM amount test: */
             else if (m_pCheckbox2DVideo->isChecked() && m_f2DVideoAccelerationSupported)
             {
                 uNeedBytes += VBox2DHelpers::required2DOffscreenVideoMemory();
-                if ((quint64)m_pEditorVideoMemorySize->value() * _1M < uNeedBytes)
+                if ((quint64)m_pVideoMemoryEditor->value() * _1M < uNeedBytes)
                 {
                     message.second << tr("The virtual machine is currently assigned less than <b>%1</b> of video memory "
                                          "which is the minimum amount required for High Definition Video to be played efficiently.")
-                                         .arg(vboxGlobal().formatSize(uNeedBytes, 0, FormatSize_RoundUp));
+                                         .arg(uiCommon().formatSize(uNeedBytes, 0, FormatSize_RoundUp));
                 }
             }
 #endif /* VBOX_WITH_VIDEOHWACCEL */
-#ifdef VBOX_WITH_CRHGSMI
-            /* 3D acceleration video RAM amount test: */
-            else if (m_pCheckbox3D->isChecked() && m_fWddmModeSupported)
-            {
-                uNeedBytes = qMax(uNeedBytes, (quint64) 128 * _1M);
-                if ((quint64)m_pEditorVideoMemorySize->value() * _1M < uNeedBytes)
-                {
-                    message.second << tr("The virtual machine is set up to use hardware graphics acceleration "
-                                         "and the operating system hint is set to Windows Vista or later. "
-                                         "For best performance you should set the machine's video memory to at least <b>%1</b>.")
-                                         .arg(vboxGlobal().formatSize(uNeedBytes, 0, FormatSize_RoundUp));
-                }
-            }
-#endif /* VBOX_WITH_CRHGSMI */
         }
+
+#ifdef VBOX_WITH_3D_ACCELERATION
+        /* 3D acceleration test: */
+        if (m_pCheckbox3D->isChecked() && !uiCommon().is3DAvailable())
+        {
+            message.second << tr("The virtual machine is set up to use hardware graphics acceleration. "
+                                 "However the host system does not currently provide this, "
+                                 "so you will not be able to start the machine.");
+        }
+#endif /* VBOX_WITH_3D_ACCELERATION */
 
 #ifdef VBOX_WITH_VIDEOHWACCEL
         /* 2D video acceleration is available for Windows guests only: */
@@ -622,6 +665,27 @@ bool UIMachineSettingsDisplay::validate(QList<UIValidationMessage> &messages)
         }
 #endif /* VBOX_WITH_VIDEOHWACCEL */
 
+        /* Graphics controller type test: */
+        if (!m_comGuestOSType.isNull())
+        {
+            if (graphicsControllerTypeCurrent() != graphicsControllerTypeRecommended())
+            {
+#ifdef VBOX_WITH_3D_ACCELERATION
+                if (m_pCheckbox3D->isChecked())
+                    message.second << tr("The virtual machine is configured to use 3D acceleration. This will work only if you "
+                                         "pick a different graphics controller (%1). Either disable 3D acceleration or switch "
+                                         "to required graphics controller type. The latter will be done automatically if you "
+                                         "confirm your changes.")
+                                         .arg(gpConverter->toString(m_enmGraphicsControllerTypeRecommended));
+                else
+#endif /* VBOX_WITH_3D_ACCELERATION */
+                    message.second << tr("The virtual machine is configured to use a graphics controller other than the "
+                                         "recommended one (%1). Please consider switching unless you have a reason to keep the "
+                                         "currently selected graphics controller.")
+                                         .arg(gpConverter->toString(m_enmGraphicsControllerTypeRecommended));
+            }
+        }
+
         /* Serialize message: */
         if (!message.second.isEmpty())
             messages << message;
@@ -631,11 +695,11 @@ bool UIMachineSettingsDisplay::validate(QList<UIValidationMessage> &messages)
     {
         /* Prepare message: */
         UIValidationMessage message;
-        message.first = VBoxGlobal::removeAccelMark(m_pTabWidget->tabText(1));
+        message.first = UICommon::removeAccelMark(m_pTabWidget->tabText(1));
 
 #ifdef VBOX_WITH_EXTPACK
         /* VRDE Extension Pack presence test: */
-        CExtPack extPack = vboxGlobal().virtualBox().GetExtensionPackManager().Find(GUI_ExtPackName);
+        CExtPack extPack = uiCommon().virtualBox().GetExtensionPackManager().Find(GUI_ExtPackName);
         if (m_pCheckboxRemoteDisplay->isChecked() && (extPack.isNull() || !extPack.GetUsable()))
         {
             message.second << tr("Remote Display is currently enabled for this virtual machine. "
@@ -673,17 +737,11 @@ void UIMachineSettingsDisplay::setOrderAfter(QWidget *pWidget)
 {
     /* Screen tab-order: */
     setTabOrder(pWidget, m_pTabWidget->focusProxy());
-    setTabOrder(m_pTabWidget->focusProxy(), m_pSliderVideoMemorySize);
-    setTabOrder(m_pSliderVideoMemorySize, m_pEditorVideoMemorySize);
-    setTabOrder(m_pEditorVideoMemorySize, m_pSliderVideoScreenCount);
+    setTabOrder(m_pTabWidget->focusProxy(), m_pVideoMemoryEditor);
+    setTabOrder(m_pVideoMemoryEditor, m_pSliderVideoScreenCount);
     setTabOrder(m_pSliderVideoScreenCount, m_pEditorVideoScreenCount);
-#ifdef VBOX_WITH_VIDEOHWACCEL
-    setTabOrder(m_pCheckbox3D, m_pCheckbox2DVideo);
-    setTabOrder(m_pCheckbox2DVideo, m_pComboGraphicsControllerType);
-#else /* VBOX_WITH_VIDEOHWACCEL */
-    setTabOrder(m_pCheckbox3D, m_pComboGraphicsControllerType);
-#endif /* !VBOX_WITH_VIDEOHWACCEL */
-    setTabOrder(m_pComboGraphicsControllerType, m_pCheckboxRemoteDisplay);
+    setTabOrder(m_pEditorVideoScreenCount, m_pScaleFactorEditor);
+    setTabOrder(m_pScaleFactorEditor, m_pGraphicsControllerEditor);
 
     /* Remote Display tab-order: */
     setTabOrder(m_pCheckboxRemoteDisplay, m_pEditorRemoteDisplayPort);
@@ -709,16 +767,9 @@ void UIMachineSettingsDisplay::retranslateUi()
     Ui::UIMachineSettingsDisplay::retranslateUi(this);
 
     /* Screen stuff: */
-    CSystemProperties sys = vboxGlobal().virtualBox().GetSystemProperties();
-    m_pEditorVideoMemorySize->setSuffix(QString(" %1").arg(tr("MB")));
-    m_pLabelVideoMemorySizeMin->setText(tr("%1 MB").arg(m_iMinVRAM));
-    m_pLabelVideoMemorySizeMax->setText(tr("%1 MB").arg(m_iMaxVRAMVisible));
+    CSystemProperties sys = uiCommon().virtualBox().GetSystemProperties();
     m_pLabelVideoScreenCountMin->setText(QString::number(1));
     m_pLabelVideoScreenCountMax->setText(QString::number(qMin(sys.GetMaxGuestMonitors(), (ULONG)8)));
-    m_pComboGraphicsControllerType->setItemText(0, gpConverter->toString(KGraphicsControllerType_Null));
-    m_pComboGraphicsControllerType->setItemText(1, gpConverter->toString(KGraphicsControllerType_VBoxVGA));
-    m_pComboGraphicsControllerType->setItemText(2, gpConverter->toString(KGraphicsControllerType_VMSVGA));
-    m_pComboGraphicsControllerType->setItemText(3, gpConverter->toString(KGraphicsControllerType_VBoxSVGA));
 
     /* Remote Display stuff: */
     m_pComboRemoteDisplayAuthMethod->setItemText(0, gpConverter->toString(KAuthType_Null));
@@ -751,25 +802,27 @@ void UIMachineSettingsDisplay::polishPage()
     const UIDataSettingsMachineDisplay &oldDisplayData = m_pCache->base();
 
     /* Polish 'Screen' availability: */
-    m_pLabelVideoMemorySize->setEnabled(isMachineOffline());
-    m_pSliderVideoMemorySize->setEnabled(isMachineOffline());
-    m_pLabelVideoMemorySizeMin->setEnabled(isMachineOffline());
-    m_pLabelVideoMemorySizeMax->setEnabled(isMachineOffline());
-    m_pEditorVideoMemorySize->setEnabled(isMachineOffline());
+    m_pVideoMemoryLabel->setEnabled(isMachineOffline());
+    m_pVideoMemoryEditor->setEnabled(isMachineOffline());
     m_pLabelVideoScreenCount->setEnabled(isMachineOffline());
     m_pSliderVideoScreenCount->setEnabled(isMachineOffline());
     m_pLabelVideoScreenCountMin->setEnabled(isMachineOffline());
     m_pLabelVideoScreenCountMax->setEnabled(isMachineOffline());
     m_pEditorVideoScreenCount->setEnabled(isMachineOffline());
     m_pScaleFactorEditor->setEnabled(isMachineInValidMode());
+    m_pGraphicsControllerLabel->setEnabled(isMachineOffline());
+    m_pGraphicsControllerEditor->setEnabled(isMachineOffline());
     m_pLabelVideoOptions->setEnabled(isMachineOffline());
+#ifdef VBOX_WITH_3D_ACCELERATION
     m_pCheckbox3D->setEnabled(isMachineOffline());
+#else
+    m_pCheckbox3D->hide();
+#endif
 #ifdef VBOX_WITH_VIDEOHWACCEL
     m_pCheckbox2DVideo->setEnabled(isMachineOffline() && VBox2DHelpers::isAcceleration2DVideoAvailable());
-#else /* !VBOX_WITH_VIDEOHWACCEL */
+#else
     m_pCheckbox2DVideo->hide();
-#endif /* !VBOX_WITH_VIDEOHWACCEL */
-    m_pComboGraphicsControllerType->setEnabled(isMachineOffline());
+#endif
 
     /* Polish 'Remote Display' availability: */
     m_pTabWidget->setTabEnabled(1, oldDisplayData.m_fRemoteDisplayServerSupported);
@@ -783,28 +836,6 @@ void UIMachineSettingsDisplay::polishPage()
     sltHandleRecordingCheckboxToggle();
 }
 
-void UIMachineSettingsDisplay::sltHandleVideoMemorySizeSliderChange()
-{
-    /* Apply proposed memory-size: */
-    m_pEditorVideoMemorySize->blockSignals(true);
-    m_pEditorVideoMemorySize->setValue(m_pSliderVideoMemorySize->value());
-    m_pEditorVideoMemorySize->blockSignals(false);
-
-    /* Revalidate: */
-    revalidate();
-}
-
-void UIMachineSettingsDisplay::sltHandleVideoMemorySizeEditorChange()
-{
-    /* Apply proposed memory-size: */
-    m_pSliderVideoMemorySize->blockSignals(true);
-    m_pSliderVideoMemorySize->setValue(m_pEditorVideoMemorySize->value());
-    m_pSliderVideoMemorySize->blockSignals(false);
-
-    /* Revalidate: */
-    revalidate();
-}
-
 void UIMachineSettingsDisplay::sltHandleGuestScreenCountSliderChange()
 {
     /* Apply proposed screen-count: */
@@ -813,7 +844,7 @@ void UIMachineSettingsDisplay::sltHandleGuestScreenCountSliderChange()
     m_pEditorVideoScreenCount->blockSignals(false);
 
     /* Update Video RAM requirements: */
-    checkVRAMRequirements();
+    m_pVideoMemoryEditor->setGuestScreenCount(m_pSliderVideoScreenCount->value());
 
     /* Update recording tab screen count: */
     updateGuestScreenCount();
@@ -830,7 +861,7 @@ void UIMachineSettingsDisplay::sltHandleGuestScreenCountEditorChange()
     m_pSliderVideoScreenCount->blockSignals(false);
 
     /* Update Video RAM requirements: */
-    checkVRAMRequirements();
+    m_pVideoMemoryEditor->setGuestScreenCount(m_pEditorVideoScreenCount->value());
 
     /* Update recording tab screen count: */
     updateGuestScreenCount();
@@ -838,6 +869,37 @@ void UIMachineSettingsDisplay::sltHandleGuestScreenCountEditorChange()
     /* Revalidate: */
     revalidate();
 }
+
+void UIMachineSettingsDisplay::sltHandleGraphicsControllerComboChange()
+{
+    /* Update Video RAM requirements: */
+    m_pVideoMemoryEditor->setGraphicsControllerType(m_pGraphicsControllerEditor->value());
+
+    /* Revalidate: */
+    revalidate();
+}
+
+#ifdef VBOX_WITH_3D_ACCELERATION
+void UIMachineSettingsDisplay::sltHandle3DAccelerationCheckboxChange()
+{
+    /* Update Video RAM requirements: */
+    m_pVideoMemoryEditor->set3DAccelerationEnabled(m_pCheckbox3D->isChecked());
+
+    /* Revalidate: */
+    revalidate();
+}
+#endif /* VBOX_WITH_3D_ACCELERATION */
+
+#ifdef VBOX_WITH_VIDEOHWACCEL
+void UIMachineSettingsDisplay::sltHandle2DVideoAccelerationCheckboxChange()
+{
+    /* Update Video RAM requirements: */
+    m_pVideoMemoryEditor->set2DVideoAccelerationEnabled(m_pCheckbox2DVideo->isChecked());
+
+    /* Revalidate: */
+    revalidate();
+}
+#endif /* VBOX_WITH_VIDEOHWACCEL */
 
 void UIMachineSettingsDisplay::sltHandleRecordingCheckboxToggle()
 {
@@ -964,33 +1026,16 @@ void UIMachineSettingsDisplay::prepare()
 void UIMachineSettingsDisplay::prepareTabScreen()
 {
     /* Prepare common variables: */
-    const CSystemProperties sys = vboxGlobal().virtualBox().GetSystemProperties();
-    m_iMinVRAM = sys.GetMinGuestVRAM();
-    m_iMaxVRAM = sys.GetMaxGuestVRAM();
-    m_iMaxVRAMVisible = m_iMaxVRAM;
+    const CSystemProperties sys = uiCommon().virtualBox().GetSystemProperties();
 
     /* Tab and it's layout created in the .ui file. */
     {
-        /* Memory-size slider created in the .ui file. */
-        AssertPtrReturnVoid(m_pSliderVideoMemorySize);
+        /* Video-memory label and editor created in the .ui file. */
+        AssertPtrReturnVoid(m_pVideoMemoryLabel);
+        AssertPtrReturnVoid(m_pVideoMemoryEditor);
         {
-            /* Configure slider: */
-            m_pSliderVideoMemorySize->setMinimum(m_iMinVRAM);
-            m_pSliderVideoMemorySize->setMaximum(m_iMaxVRAMVisible);
-            m_pSliderVideoMemorySize->setPageStep(calculatePageStep(m_iMaxVRAMVisible));
-            m_pSliderVideoMemorySize->setSingleStep(m_pSliderVideoMemorySize->pageStep() / 4);
-            m_pSliderVideoMemorySize->setTickInterval(m_pSliderVideoMemorySize->pageStep());
-            m_pSliderVideoMemorySize->setSnappingEnabled(true);
-            m_pSliderVideoMemorySize->setErrorHint(0, 1);
-        }
-
-        /* Memory-size editor created in the .ui file. */
-        AssertPtrReturnVoid(m_pEditorVideoMemorySize);
-        {
-            /* Configure editor: */
-            vboxGlobal().setMinimumWidthAccordingSymbolCount(m_pEditorVideoMemorySize, 7);
-            m_pEditorVideoMemorySize->setMinimum(m_iMinVRAM);
-            m_pEditorVideoMemorySize->setMaximum(m_iMaxVRAMVisible);
+            /* Configure label & editor: */
+            m_pVideoMemoryLabel->setBuddy(m_pVideoMemoryEditor->focusProxy());
         }
 
         /* Screen-count slider created in the .ui file. */
@@ -1019,21 +1064,11 @@ void UIMachineSettingsDisplay::prepareTabScreen()
             m_pEditorVideoScreenCount->setMaximum(cMaxGuestScreens);
         }
 
-        /* Scale-factor editor created in the .ui file. */
-        AssertPtrReturnVoid(m_pScaleFactorEditor);
+        /* Graphics controller label & editor created in the .ui file. */
+        AssertPtrReturnVoid(m_pGraphicsControllerEditor);
         {
-            /* Configure editor: */
-            m_pScaleFactorEditor->setSpinBoxWidthHint(m_pEditorVideoMemorySize->minimumWidth());
-        }
-
-        /* Graphics controller combo-box created in the .ui file. */
-        AssertPtrReturnVoid(m_pComboGraphicsControllerType);
-        {
-            /* Configure combo-box: */
-            m_pComboGraphicsControllerType->insertItem(0, ""); /* KGraphicsControllerType_Null */
-            m_pComboGraphicsControllerType->insertItem(1, ""); /* KGraphicsControllerType_VBoxVGA */
-            m_pComboGraphicsControllerType->insertItem(2, ""); /* KGraphicsControllerType_VMSVGA */
-            m_pComboGraphicsControllerType->insertItem(3, ""); /* KGraphicsControllerType_VBoxSVGA */
+            /* Configure label & editor: */
+            m_pGraphicsControllerLabel->setBuddy(m_pGraphicsControllerEditor->focusProxy());
         }
     }
 }
@@ -1120,7 +1155,7 @@ void UIMachineSettingsDisplay::prepareTabRecording()
         AssertPtrReturnVoid(m_pEditorVideoCaptureWidth);
         {
             /* Configure editor: */
-            vboxGlobal().setMinimumWidthAccordingSymbolCount(m_pEditorVideoCaptureWidth, 5);
+            uiCommon().setMinimumWidthAccordingSymbolCount(m_pEditorVideoCaptureWidth, 5);
             m_pEditorVideoCaptureWidth->setMinimum(16);
             m_pEditorVideoCaptureWidth->setMaximum(2880);
         }
@@ -1129,7 +1164,7 @@ void UIMachineSettingsDisplay::prepareTabRecording()
         AssertPtrReturnVoid(m_pEditorVideoCaptureHeight);
         {
             /* Configure editor: */
-            vboxGlobal().setMinimumWidthAccordingSymbolCount(m_pEditorVideoCaptureHeight, 5);
+            uiCommon().setMinimumWidthAccordingSymbolCount(m_pEditorVideoCaptureHeight, 5);
             m_pEditorVideoCaptureHeight->setMinimum(16);
             m_pEditorVideoCaptureHeight->setMaximum(1800);
         }
@@ -1152,7 +1187,7 @@ void UIMachineSettingsDisplay::prepareTabRecording()
         AssertPtrReturnVoid(m_pEditorVideoCaptureFrameRate);
         {
             /* Configure editor: */
-            vboxGlobal().setMinimumWidthAccordingSymbolCount(m_pEditorVideoCaptureFrameRate, 3);
+            uiCommon().setMinimumWidthAccordingSymbolCount(m_pEditorVideoCaptureFrameRate, 3);
             m_pEditorVideoCaptureFrameRate->setMinimum(1);
             m_pEditorVideoCaptureFrameRate->setMaximum(30);
         }
@@ -1179,7 +1214,7 @@ void UIMachineSettingsDisplay::prepareTabRecording()
         AssertPtrReturnVoid(m_pEditorVideoCaptureBitRate);
         {
             /* Configure editor: */
-            vboxGlobal().setMinimumWidthAccordingSymbolCount(m_pEditorVideoCaptureBitRate, 5);
+            uiCommon().setMinimumWidthAccordingSymbolCount(m_pEditorVideoCaptureBitRate, 5);
             m_pEditorVideoCaptureBitRate->setMinimum(VIDEO_CAPTURE_BIT_RATE_MIN);
             m_pEditorVideoCaptureBitRate->setMaximum(VIDEO_CAPTURE_BIT_RATE_MAX);
         }
@@ -1203,30 +1238,45 @@ void UIMachineSettingsDisplay::prepareTabRecording()
 void UIMachineSettingsDisplay::prepareConnections()
 {
     /* Configure 'Screen' connections: */
-    connect(m_pSliderVideoMemorySize, SIGNAL(valueChanged(int)), this, SLOT(sltHandleVideoMemorySizeSliderChange()));
-    connect(m_pEditorVideoMemorySize, SIGNAL(valueChanged(int)), this, SLOT(sltHandleVideoMemorySizeEditorChange()));
-    connect(m_pSliderVideoScreenCount, SIGNAL(valueChanged(int)), this, SLOT(sltHandleGuestScreenCountSliderChange()));
-    connect(m_pEditorVideoScreenCount, SIGNAL(valueChanged(int)), this, SLOT(sltHandleGuestScreenCountEditorChange()));
-
-    connect(m_pCheckbox3D, SIGNAL(stateChanged(int)), this, SLOT(revalidate()));
+    connect(m_pVideoMemoryEditor, &UIVideoMemoryEditor::sigValidChanged,
+            this, &UIMachineSettingsDisplay::revalidate);
+    connect(m_pSliderVideoScreenCount, &QIAdvancedSlider::valueChanged,
+            this, &UIMachineSettingsDisplay::sltHandleGuestScreenCountSliderChange);
+    connect(m_pEditorVideoScreenCount, static_cast<void(QSpinBox::*)(int)>(&QSpinBox::valueChanged),
+            this, &UIMachineSettingsDisplay::sltHandleGuestScreenCountEditorChange);
+    connect(m_pGraphicsControllerEditor, &UIGraphicsControllerEditor::sigValueChanged,
+            this, &UIMachineSettingsDisplay::sltHandleGraphicsControllerComboChange);
+#ifdef VBOX_WITH_3D_ACCELERATION
+    connect(m_pCheckbox3D, &QCheckBox::stateChanged,
+            this, &UIMachineSettingsDisplay::sltHandle3DAccelerationCheckboxChange);
+#endif
 #ifdef VBOX_WITH_VIDEOHWACCEL
-    connect(m_pCheckbox2DVideo, SIGNAL(stateChanged(int)), this, SLOT(revalidate()));
+    connect(m_pCheckbox2DVideo, &QCheckBox::stateChanged,
+            this, &UIMachineSettingsDisplay::sltHandle2DVideoAccelerationCheckboxChange);
 #endif
 
     /* Configure 'Remote Display' connections: */
-    connect(m_pCheckboxRemoteDisplay, SIGNAL(toggled(bool)), this, SLOT(revalidate()));
-    connect(m_pEditorRemoteDisplayPort, SIGNAL(textChanged(const QString &)), this, SLOT(revalidate()));
-    connect(m_pEditorRemoteDisplayTimeout, SIGNAL(textChanged(const QString &)), this, SLOT(revalidate()));
+    connect(m_pCheckboxRemoteDisplay, &QCheckBox::toggled, this, &UIMachineSettingsDisplay::revalidate);
+    connect(m_pEditorRemoteDisplayPort, &QLineEdit::textChanged, this, &UIMachineSettingsDisplay::revalidate);
+    connect(m_pEditorRemoteDisplayTimeout, &QLineEdit::textChanged, this, &UIMachineSettingsDisplay::revalidate);
 
     /* Configure 'Recording' connections: */
-    connect(m_pCheckboxVideoCapture, SIGNAL(toggled(bool)), this, SLOT(sltHandleRecordingCheckboxToggle()));
-    connect(m_pComboVideoCaptureSize, SIGNAL(currentIndexChanged(int)), this, SLOT(sltHandleRecordingVideoFrameSizeComboboxChange()));
-    connect(m_pEditorVideoCaptureWidth, SIGNAL(valueChanged(int)), this, SLOT(sltHandleRecordingVideoFrameWidthEditorChange()));
-    connect(m_pEditorVideoCaptureHeight, SIGNAL(valueChanged(int)), this, SLOT(sltHandleRecordingVideoFrameHeightEditorChange()));
-    connect(m_pSliderVideoCaptureFrameRate, SIGNAL(valueChanged(int)), this, SLOT(sltHandleRecordingVideoFrameRateSliderChange()));
-    connect(m_pEditorVideoCaptureFrameRate, SIGNAL(valueChanged(int)), this, SLOT(sltHandleRecordingVideoFrameRateEditorChange()));
-    connect(m_pSliderVideoCaptureQuality, SIGNAL(valueChanged(int)), this, SLOT(sltHandleRecordingVideoQualitySliderChange()));
-    connect(m_pEditorVideoCaptureBitRate, SIGNAL(valueChanged(int)), this, SLOT(sltHandleRecordingVideoBitRateEditorChange()));
+    connect(m_pCheckboxVideoCapture, &QCheckBox::toggled,
+            this, &UIMachineSettingsDisplay::sltHandleRecordingCheckboxToggle);
+    connect(m_pComboVideoCaptureSize, static_cast<void(QComboBox::*)(int)>(&QComboBox:: currentIndexChanged),
+            this, &UIMachineSettingsDisplay::sltHandleRecordingVideoFrameSizeComboboxChange);
+    connect(m_pEditorVideoCaptureWidth, static_cast<void(QSpinBox::*)(int)>(&QSpinBox::valueChanged),
+            this, &UIMachineSettingsDisplay::sltHandleRecordingVideoFrameWidthEditorChange);
+    connect(m_pEditorVideoCaptureHeight, static_cast<void(QSpinBox::*)(int)>(&QSpinBox::valueChanged),
+            this, &UIMachineSettingsDisplay::sltHandleRecordingVideoFrameHeightEditorChange);
+    connect(m_pSliderVideoCaptureFrameRate, &QIAdvancedSlider::valueChanged,
+            this, &UIMachineSettingsDisplay::sltHandleRecordingVideoFrameRateSliderChange);
+    connect(m_pEditorVideoCaptureFrameRate, static_cast<void(QSpinBox::*)(int)>(&QSpinBox::valueChanged),
+            this, &UIMachineSettingsDisplay::sltHandleRecordingVideoFrameRateEditorChange);
+    connect(m_pSliderVideoCaptureQuality, &QIAdvancedSlider::valueChanged,
+            this, &UIMachineSettingsDisplay::sltHandleRecordingVideoQualitySliderChange);
+    connect(m_pEditorVideoCaptureBitRate, static_cast<void(QSpinBox::*)(int)>(&QSpinBox::valueChanged),
+            this, &UIMachineSettingsDisplay::sltHandleRecordingVideoBitRateEditorChange);
 
     connect(m_pComboBoxCaptureMode, static_cast<void(QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
                 this, &UIMachineSettingsDisplay::sltHandleRecordingComboBoxChange);
@@ -1239,56 +1289,6 @@ void UIMachineSettingsDisplay::cleanup()
     m_pCache = 0;
 }
 
-void UIMachineSettingsDisplay::checkVRAMRequirements()
-{
-    /* Make sure guest OS type is set: */
-    if (m_comGuestOSType.isNull())
-        return;
-
-    /* Get monitors count and base video memory requirements: */
-    const int cGuestScreenCount = m_pEditorVideoScreenCount->value();
-    quint64 uNeedMBytes = VBoxGlobal::requiredVideoMemory(m_comGuestOSType.GetId(), cGuestScreenCount) / _1M;
-
-    /* Initial value: */
-    m_iMaxVRAMVisible = cGuestScreenCount * 32;
-
-    /* No more than m_iMaxVRAM: */
-    if (m_iMaxVRAMVisible > m_iMaxVRAM)
-        m_iMaxVRAMVisible = m_iMaxVRAM;
-
-    /* No less than 128MB (if possible): */
-    if (m_iMaxVRAMVisible < 128 && m_iMaxVRAM >= 128)
-        m_iMaxVRAMVisible = 128;
-
-    /* No less than initial VRAM size (wtf?): */
-    if (m_iMaxVRAMVisible < m_iInitialVRAM)
-        m_iMaxVRAMVisible = m_iInitialVRAM;
-
-#ifdef VBOX_WITH_VIDEOHWACCEL
-    if (m_pCheckbox2DVideo->isChecked() && m_f2DVideoAccelerationSupported)
-    {
-        uNeedMBytes += VBox2DHelpers::required2DOffscreenVideoMemory() / _1M;
-    }
-#endif
-
-#ifdef VBOX_WITH_CRHGSMI
-    if (m_pCheckbox3D->isChecked() && m_fWddmModeSupported)
-    {
-        uNeedMBytes = qMax(uNeedMBytes, (quint64) 128);
-        /* No less than 256MB (if possible): */
-        if (m_iMaxVRAMVisible < 256 && m_iMaxVRAM >= 256)
-            m_iMaxVRAMVisible = 256;
-    }
-#endif
-
-    m_pEditorVideoMemorySize->setMaximum(m_iMaxVRAMVisible);
-    m_pSliderVideoMemorySize->setMaximum(m_iMaxVRAMVisible);
-    m_pSliderVideoMemorySize->setPageStep(calculatePageStep(m_iMaxVRAMVisible));
-    m_pSliderVideoMemorySize->setWarningHint(1, qMin((int)uNeedMBytes, m_iMaxVRAMVisible));
-    m_pSliderVideoMemorySize->setOptimalHint(qMin((int)uNeedMBytes, m_iMaxVRAMVisible), m_iMaxVRAMVisible);
-    m_pLabelVideoMemorySizeMax->setText(tr("%1 MB").arg(m_iMaxVRAMVisible));
-}
-
 bool UIMachineSettingsDisplay::shouldWeWarnAboutLowVRAM()
 {
     bool fResult = true;
@@ -1299,22 +1299,6 @@ bool UIMachineSettingsDisplay::shouldWeWarnAboutLowVRAM()
         fResult = false;
 
     return fResult;
-}
-
-/* static */
-int UIMachineSettingsDisplay::calculatePageStep(int iMax)
-{
-    /* Reasonable max. number of page steps is 32. */
-    uint uPage = ((uint)iMax + 31) / 32;
-    /* Make it a power of 2: */
-    uint uP = uPage, p2 = 0x1;
-    while ((uP >>= 1))
-        p2 <<= 1;
-    if (uPage != p2)
-        p2 <<= 1;
-    if (p2 < 4)
-        p2 = 4;
-    return (int)p2;
 }
 
 void UIMachineSettingsDisplay::lookForCorrespondingFrameSizePreset()
@@ -1407,55 +1391,65 @@ bool UIMachineSettingsDisplay::saveScreenData()
         /* Get new display data from the cache: */
         const UIDataSettingsMachineDisplay &newDisplayData = m_pCache->data();
 
-        /* Save video RAM size: */
-        if (fSuccess && isMachineOffline() && newDisplayData.m_iCurrentVRAM != oldDisplayData.m_iCurrentVRAM)
-        {
-            m_machine.SetVRAMSize(newDisplayData.m_iCurrentVRAM);
-            fSuccess = m_machine.isOk();
-        }
-        /* Save guest screen count: */
-        if (fSuccess && isMachineOffline() && newDisplayData.m_cGuestScreenCount != oldDisplayData.m_cGuestScreenCount)
-        {
-            m_machine.SetMonitorCount(newDisplayData.m_cGuestScreenCount);
-            fSuccess = m_machine.isOk();
-        }
-        /* Save whether 3D acceleration is enabled: */
-        if (fSuccess && isMachineOffline() && newDisplayData.m_f3dAccelerationEnabled != oldDisplayData.m_f3dAccelerationEnabled)
-        {
-            m_machine.SetAccelerate3DEnabled(newDisplayData.m_f3dAccelerationEnabled);
-            fSuccess = m_machine.isOk();
-        }
-#ifdef VBOX_WITH_VIDEOHWACCEL
-        /* Save whether 2D video acceleration is enabled: */
-        if (fSuccess && isMachineOffline() && newDisplayData.m_f2dAccelerationEnabled != oldDisplayData.m_f2dAccelerationEnabled)
-        {
-            m_machine.SetAccelerate2DVideoEnabled(newDisplayData.m_f2dAccelerationEnabled);
-            fSuccess = m_machine.isOk();
-        }
-#endif
-        /* Save the Graphics Controller Type: */
-        if (fSuccess && isMachineOffline() && newDisplayData.m_graphicsControllerType != oldDisplayData.m_graphicsControllerType)
-        {
-            m_machine.SetGraphicsControllerType(newDisplayData.m_graphicsControllerType);
-            fSuccess = m_machine.isOk();
-        }
-
-        /* Get machine ID for further activities: */
-        QUuid uMachineId;
-        if (fSuccess)
-        {
-            uMachineId = m_machine.GetId();
-            fSuccess = m_machine.isOk();
-        }
+        /* Get graphics adapter for further activities: */
+        CGraphicsAdapter comGraphics = m_machine.GetGraphicsAdapter();
+        fSuccess = m_machine.isOk() && comGraphics.isNotNull();
 
         /* Show error message if necessary: */
         if (!fSuccess)
             notifyOperationProgressError(UIErrorString::formatErrorInfo(m_machine));
-
-        /* Save guest-screen scale-factor: */
-        if (fSuccess && newDisplayData.m_scaleFactors != oldDisplayData.m_scaleFactors)
+        else
         {
-            gEDataManager->setScaleFactors(newDisplayData.m_scaleFactors, uMachineId);
+            /* Save video RAM size: */
+            if (fSuccess && isMachineOffline() && newDisplayData.m_iCurrentVRAM != oldDisplayData.m_iCurrentVRAM)
+            {
+                comGraphics.SetVRAMSize(newDisplayData.m_iCurrentVRAM);
+                fSuccess = comGraphics.isOk();
+            }
+            /* Save guest screen count: */
+            if (fSuccess && isMachineOffline() && newDisplayData.m_cGuestScreenCount != oldDisplayData.m_cGuestScreenCount)
+            {
+                comGraphics.SetMonitorCount(newDisplayData.m_cGuestScreenCount);
+                fSuccess = comGraphics.isOk();
+            }
+            /* Save the Graphics Controller Type: */
+            if (fSuccess && isMachineOffline() && newDisplayData.m_graphicsControllerType != oldDisplayData.m_graphicsControllerType)
+            {
+                comGraphics.SetGraphicsControllerType(newDisplayData.m_graphicsControllerType);
+                fSuccess = comGraphics.isOk();
+            }
+#ifdef VBOX_WITH_3D_ACCELERATION
+            /* Save whether 3D acceleration is enabled: */
+            if (fSuccess && isMachineOffline() && newDisplayData.m_f3dAccelerationEnabled != oldDisplayData.m_f3dAccelerationEnabled)
+            {
+                comGraphics.SetAccelerate3DEnabled(newDisplayData.m_f3dAccelerationEnabled);
+                fSuccess = comGraphics.isOk();
+            }
+#endif
+#ifdef VBOX_WITH_VIDEOHWACCEL
+            /* Save whether 2D video acceleration is enabled: */
+            if (fSuccess && isMachineOffline() && newDisplayData.m_f2dVideoAccelerationEnabled != oldDisplayData.m_f2dVideoAccelerationEnabled)
+            {
+                comGraphics.SetAccelerate2DVideoEnabled(newDisplayData.m_f2dVideoAccelerationEnabled);
+                fSuccess = comGraphics.isOk();
+            }
+#endif
+
+            /* Get machine ID for further activities: */
+            QUuid uMachineId;
+            if (fSuccess)
+            {
+                uMachineId = m_machine.GetId();
+                fSuccess = m_machine.isOk();
+            }
+
+            /* Show error message if necessary: */
+            if (!fSuccess)
+                notifyOperationProgressError(UIErrorString::formatErrorInfo(m_machine));
+
+            /* Save guest-screen scale-factor: */
+            if (fSuccess && newDisplayData.m_scaleFactors != oldDisplayData.m_scaleFactors)
+                /* fSuccess = */ gEDataManager->setScaleFactors(newDisplayData.m_scaleFactors, uMachineId);
         }
     }
     /* Return result: */

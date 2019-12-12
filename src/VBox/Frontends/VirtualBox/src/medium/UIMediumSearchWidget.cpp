@@ -18,23 +18,26 @@
 /* Qt includes: */
 #include <QLineEdit>
 #include <QPushButton>
-#include <QVBoxLayout>
+#include <QPainter>
+#include <QHBoxLayout>
 
 /* GUI includes: */
 #include "QIComboBox.h"
-#include "QIDialogButtonBox.h"
 #include "QIToolButton.h"
 #include "QITreeWidget.h"
-#include "UIFDCreationDialog.h"
 #include "UIIconPool.h"
 #include "UIMediumItem.h"
 #include "UIMediumSearchWidget.h"
-#include "UIToolBar.h"
+#include "UISearchLineEdit.h"
 
 #ifdef VBOX_WS_MAC
 # include "UIWindowMenuManager.h"
 #endif /* VBOX_WS_MAC */
 
+
+/*********************************************************************************************************************************
+*   FilterByNameUUID definition/implementation.                                                                                  *
+*********************************************************************************************************************************/
 
 class FilterByNameUUID : public QITreeWidgetItemFilter
 {
@@ -55,9 +58,11 @@ public:
         UIMediumItem *pMediumItem = dynamic_cast<UIMediumItem*>(pItem);
         if (!pMediumItem)
             return false;
-        if (m_enmSearchType == UIMediumSearchWidget::SearchByUUID && !pMediumItem->id().toString().contains(m_strSearchTerm))
+        if (m_enmSearchType == UIMediumSearchWidget::SearchByUUID &&
+            !pMediumItem->id().toString().contains(m_strSearchTerm, Qt::CaseInsensitive))
             return false;
-        if (m_enmSearchType == UIMediumSearchWidget::SearchByName && !pMediumItem->name().contains(m_strSearchTerm))
+        if (m_enmSearchType == UIMediumSearchWidget::SearchByName &&
+            !pMediumItem->name().contains(m_strSearchTerm, Qt::CaseInsensitive))
             return false;
         return true;
     }
@@ -68,6 +73,11 @@ private:
     QString m_strSearchTerm;
 };
 
+
+/*********************************************************************************************************************************
+*   UIMediumSearchWidget implementation      .                                                                                   *
+*********************************************************************************************************************************/
+
 UIMediumSearchWidget::UIMediumSearchWidget(QWidget *pParent)
     :QIWithRetranslateUI<QWidget>(pParent)
     , m_pSearchComboxBox(0)
@@ -75,7 +85,7 @@ UIMediumSearchWidget::UIMediumSearchWidget(QWidget *pParent)
     , m_pShowNextMatchButton(0)
     , m_pShowPreviousMatchButton(0)
     , m_pTreeWidget(0)
-    , m_iScrollToIndex(0)
+    , m_iScrollToIndex(-1)
 {
     prepareWidgets();
 }
@@ -100,10 +110,10 @@ void UIMediumSearchWidget::prepareWidgets()
 
     }
 
-    m_pSearchTermLineEdit = new QLineEdit;
+    m_pSearchTermLineEdit = new UISearchLineEdit;
     if (m_pSearchTermLineEdit)
     {
-        m_pSearchTermLineEdit->setClearButtonEnabled(true);
+        m_pSearchTermLineEdit->setClearButtonEnabled(false);
         pLayout->addWidget(m_pSearchTermLineEdit);
         connect(m_pSearchTermLineEdit, &QLineEdit::textChanged,
                 this, &UIMediumSearchWidget::sigPerformSearch);
@@ -141,7 +151,7 @@ QString UIMediumSearchWidget::searchTerm() const
     return m_pSearchTermLineEdit->text();
 }
 
-void UIMediumSearchWidget::search(QITreeWidget* pTreeWidget)
+void UIMediumSearchWidget::search(QITreeWidget* pTreeWidget, bool fGotoNext /* = true */)
 {
     if (!pTreeWidget)
         return;
@@ -155,8 +165,12 @@ void UIMediumSearchWidget::search(QITreeWidget* pTreeWidget)
     if (!m_matchedItemList.isEmpty())
     {
         m_iScrollToIndex = -1;
-        goToNextPrevious(true);
+        if (fGotoNext)
+            goToNextPrevious(true);
     }
+    else
+        m_iScrollToIndex = -1;
+    updateSearchLineEdit(m_matchedItemList.size(), m_iScrollToIndex);
 }
 
 void UIMediumSearchWidget::retranslateUi()
@@ -229,17 +243,23 @@ void UIMediumSearchWidget::goToNextPrevious(bool fNext)
 
     setUnderlineItemText(m_matchedItemList[m_iScrollToIndex], true);
     m_pTreeWidget->scrollTo(m_pTreeWidget->itemIndex(m_matchedItemList[m_iScrollToIndex]), QAbstractItemView::PositionAtCenter);
-
+    updateSearchLineEdit(m_matchedItemList.size(), m_iScrollToIndex);
 }
 
 void UIMediumSearchWidget::sltShowNextMatchingItem()
 {
-    if (m_matchedItemList.isEmpty())
-        return;
     goToNextPrevious(true);
 }
 
 void UIMediumSearchWidget::sltShowPreviousMatchingItem()
 {
     goToNextPrevious(false);
+}
+
+void UIMediumSearchWidget::updateSearchLineEdit(int iMatchCount, int iScrollToIndex)
+{
+    if (!m_pSearchTermLineEdit)
+        return;
+    m_pSearchTermLineEdit->setMatchCount(iMatchCount);
+    m_pSearchTermLineEdit->setScroolToIndex(iScrollToIndex);
 }

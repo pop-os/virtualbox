@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 131247 $"
 
 
 # Standard python imports.
@@ -811,7 +811,7 @@ class WuiAdmin(WuiDispatcherBase):
         return self._actionGenericDoDelOld(GlobalResourceLogic, GlobalResourceData.ksParam_idGlobalRsrc,
                                            self.ksActionGlobalRsrcShowAll);
 
-    def _actionGlobalRsrcShowAddEdit(self, sAction): # pylint: disable=C0103
+    def _actionGlobalRsrcShowAddEdit(self, sAction): # pylint: disable=invalid-name
         """Show Global Resource creation or edit dialog"""
         from testmanager.core.globalresource           import GlobalResourceLogic, GlobalResourceData;
         from testmanager.webui.wuiadminglobalrsrc      import WuiGlobalResource;

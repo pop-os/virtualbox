@@ -91,7 +91,7 @@ VMMR3_INT_DECL(int) GIMR3Init(PVM pVM)
      * Assert alignment and sizes.
      */
     AssertCompile(sizeof(pVM->gim.s) <= sizeof(pVM->gim.padding));
-    AssertCompile(sizeof(pVM->aCpus[0].gim.s) <= sizeof(pVM->aCpus[0].gim.padding));
+    AssertCompile(sizeof(pVM->apCpusR3[0]->gim.s) <= sizeof(pVM->apCpusR3[0]->gim.padding));
 
     /*
      * Initialize members.
@@ -227,9 +227,10 @@ static DECLCALLBACK(int) gimR3Save(PVM pVM, PSSMHANDLE pSSM)
 #if 0
     /* Save per-CPU data. */
     SSMR3PutU32(pSSM, pVM->cCpus);
-    for (VMCPUID i = 0; i < pVM->cCpus; i++)
+    for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
     {
-        rc = SSMR3PutXYZ(pSSM, pVM->aCpus[i].gim.s.XYZ);
+        PVMCPU pVCpu = pVM->apCpusR3[idCpu];
+        rc = SSMR3PutXYZ(pSSM, pVCpu->gim.s.XYZ);
     }
 #endif
 
@@ -275,9 +276,10 @@ static DECLCALLBACK(int) gimR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, 
     int rc;
 #if 0
     /* Load per-CPU data. */
-    for (VMCPUID i = 0; i < pVM->cCpus; i++)
+    for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
     {
-        rc = SSMR3PutXYZ(pSSM, pVM->aCpus[i].gim.s.XYZ);
+        PVMCPU pVCpu = pVM->apCpusR3[idCpu];
+        rc = SSMR3PutXYZ(pSSM, pVCpu->gim.s.XYZ);
     }
 #endif
 
@@ -287,8 +289,9 @@ static DECLCALLBACK(int) gimR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, 
     uint32_t uProviderId;
     uint32_t uProviderVersion;
 
-    rc = SSMR3GetU32(pSSM, &uProviderId);           AssertRCReturn(rc, rc);
-    rc = SSMR3GetU32(pSSM, &uProviderVersion);      AssertRCReturn(rc, rc);
+    SSMR3GetU32(pSSM, &uProviderId);
+    rc = SSMR3GetU32(pSSM, &uProviderVersion);
+    AssertRCReturn(rc, rc);
 
     if ((GIMPROVIDERID)uProviderId != pVM->gim.s.enmProviderId)
         return SSMR3SetCfgError(pSSM, RT_SRC_POS, N_("Saved GIM provider %u differs from the configured one (%u)."),
@@ -461,7 +464,7 @@ VMMR3DECL(int) GIMR3GetDebugSetup(PVM pVM, PGIMDEBUGSETUP pDbgSetup)
  * @param   pcbRead             The size of the read buffer as well as where to store
  *                              the number of bytes read.
  * @param   pfnReadComplete     Callback when the buffer has been read and
- *                              before signaling reading of the next buffer.
+ *                              before signalling reading of the next buffer.
  *                              Optional, can be NULL.
  * @thread  EMT.
  */
@@ -522,37 +525,6 @@ VMMR3_INT_DECL(int) gimR3DebugWrite(PVM pVM, void *pvWrite, size_t *pcbWrite)
         }
     }
     return VERR_GIM_NO_DEBUG_CONNECTION;
-}
-
-
-/**
- * Returns the array of MMIO2 regions that are expected to be registered and
- * later mapped into the guest-physical address space for the GIM provider
- * configured for the VM.
- *
- * @returns Pointer to an array of GIM MMIO2 regions, may return NULL.
- * @param   pVM         The cross context VM structure.
- * @param   pcRegions   Where to store the number of items in the array.
- *
- * @remarks The caller does not own and therefore must -NOT- try to free the
- *          returned pointer.
- */
-VMMR3DECL(PGIMMMIO2REGION) GIMR3GetMmio2Regions(PVM pVM, uint32_t *pcRegions)
-{
-    Assert(pVM);
-    Assert(pcRegions);
-
-    *pcRegions = 0;
-    switch (pVM->gim.s.enmProviderId)
-    {
-        case GIMPROVIDERID_HYPERV:
-            return gimR3HvGetMmio2Regions(pVM, pcRegions);
-
-        default:
-            break;
-    }
-
-    return NULL;
 }
 
 #if 0 /* ??? */

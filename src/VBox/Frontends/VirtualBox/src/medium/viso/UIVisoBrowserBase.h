@@ -31,24 +31,27 @@
 /* Forward declarations: */
 class QItemSelection;
 class QGridLayout;
-class QLabel;
-class QMenu;
-class QSplitter;
-class QVBoxLayout;
-class QTableView;
 class QTreeView;
-class UIToolBar;
+class UILocationSelector;
 
+/** An abstract QWidget extension hosting a tree and table view. */
 class UIVisoBrowserBase : public QIWithRetranslateUI<QWidget>
 {
     Q_OBJECT;
 
+signals:
+
+    void sigTreeViewVisibilityChanged(bool fVisible);
+    void sigCreateFileTableViewContextMenu(QWidget *pMenuRequester, const QPoint &point);
+
 public:
-    /** @p pMenu is the pointer to the menu related to this browser widget.
-     *  any member actions will be added to this menu. */
-    UIVisoBrowserBase(QWidget *pParent = 0, QMenu *pMenu = 0);
+
+    UIVisoBrowserBase(QWidget *pParent = 0);
     ~UIVisoBrowserBase();
     virtual void showHideHiddenObjects(bool bShow) = 0;
+    /* Returns true if tree view is currently visible: */
+    bool isTreeViewVisible() const;
+    void hideTreeView();
 
 public slots:
 
@@ -58,30 +61,34 @@ protected:
 
     void prepareObjects();
     void prepareConnections();
+    void updateLocationSelectorText(const QString &strText);
 
     virtual void tableViewItemDoubleClick(const QModelIndex &index) = 0;
     virtual void treeSelectionChanged(const QModelIndex &selectedTreeIndex) = 0;
     virtual void setTableRootIndex(QModelIndex index = QModelIndex()) = 0;
     virtual void setTreeCurrentIndex(QModelIndex index = QModelIndex()) = 0;
 
+    virtual void resizeEvent(QResizeEvent *pEvent) /* override */;
+    virtual bool eventFilter(QObject *pObj, QEvent *pEvent) /* override */;
+    virtual void keyPressEvent(QKeyEvent *pEvent) /* override */;
 
     QTreeView          *m_pTreeView;
-    QLabel             *m_pTitleLabel;
-    QWidget            *m_pRightContainerWidget;
-    QGridLayout        *m_pRightContainerLayout;
-    UIToolBar          *m_pVerticalToolBar;
-    QMenu              *m_pMenu;
-private:
-    QGridLayout    *m_pMainLayout;
-    QSplitter      *m_pHorizontalSplitter;
+    QGridLayout        *m_pMainLayout;
+
+protected slots:
+
+    void sltFileTableViewContextMenu(const QPoint &point);
 
 private slots:
 
     void sltHandleTreeSelectionChanged(const QItemSelection &selected, const QItemSelection &deselected);
     void sltHandleTreeItemClicked(const QModelIndex &modelIndex);
+    void sltExpandCollapseTreeView();
 
 private:
 
+    void updateTreeViewGeometry(bool fShow);
+    UILocationSelector    *m_pLocationSelector;
 };
 
 #endif /* !FEQT_INCLUDED_SRC_medium_viso_UIVisoBrowserBase_h */

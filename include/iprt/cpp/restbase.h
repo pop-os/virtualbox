@@ -153,6 +153,9 @@ public:
     RTCRestObjectBase(RTCRestObjectBase const &a_rThat) RT_NOEXCEPT;
     virtual ~RTCRestObjectBase();
 
+    /** Copy assignment operator. */
+    RTCRestObjectBase &operator=(RTCRestObjectBase const &a_rThat) RT_NOEXCEPT;
+
     /**
      * Create a copy of this object.
      *
@@ -890,6 +893,13 @@ public:
     virtual RTCRestObjectBase *baseClone() const RT_NOEXCEPT RT_OVERRIDE
     {
         return cloneWorker(new (std::nothrow) RTCRestStringEnum());
+    }
+
+    /** Copy assignment operator. */
+    RTCRestStringEnum &operator=(RTCRestStringEnum const &a_rThat) RT_NOEXCEPT
+    {
+        RTCRestStringEnumBase::operator=(a_rThat);
+        return *this;
     }
 
     /**

@@ -198,7 +198,7 @@ static DECLCALLBACK(void) emR3InfoExitHistory(PVM pVM, PCDBGFINFOHLP pHlp, const
      */
     PVMCPU   pVCpu    = VMMGetCpu(pVM);
     if (!pVCpu)
-        pVCpu = &pVM->aCpus[0];
+        pVCpu = pVM->apCpusR3[0];
     bool     fReverse = true;
     uint32_t cLeft    = RT_ELEMENTS(pVCpu->em.s.aExitHistory);
 

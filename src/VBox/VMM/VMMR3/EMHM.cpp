@@ -23,16 +23,12 @@
 #define VMCPU_INCL_CPUM_GST_CTX
 #include <VBox/vmm/em.h>
 #include <VBox/vmm/vmm.h>
-#include <VBox/vmm/csam.h>
 #include <VBox/vmm/selm.h>
 #include <VBox/vmm/trpm.h>
 #include <VBox/vmm/iem.h>
 #include <VBox/vmm/iom.h>
 #include <VBox/vmm/dbgf.h>
 #include <VBox/vmm/pgm.h>
-#ifdef VBOX_WITH_REM
-# include <VBox/vmm/rem.h>
-#endif
 #include <VBox/vmm/tm.h>
 #include <VBox/vmm/mm.h>
 #include <VBox/vmm/ssm.h>
@@ -86,7 +82,7 @@ VMMR3_INT_DECL(VBOXSTRICTRC) EMR3HmSingleInstruction(PVM pVM, PVMCPU pVCpu, uint
 {
     Assert(!(fFlags & ~EM_ONE_INS_FLAGS_MASK));
 
-    if (!HMCanExecuteGuest(pVCpu, &pVCpu->cpum.GstCtx))
+    if (!HMCanExecuteGuest(pVM, pVCpu, &pVCpu->cpum.GstCtx))
         return VINF_EM_RESCHEDULE;
 
     uint64_t const uOldRip = pVCpu->cpum.GstCtx.rip;
@@ -166,7 +162,7 @@ static int emR3HmExecuteInstructionWorker(PVM pVM, PVMCPU pVCpu, int rcRC, const
 static int emR3HmExecuteInstructionWorker(PVM pVM, PVMCPU pVCpu, int rcRC)
 #endif
 {
-    NOREF(rcRC);
+    RT_NOREF(rcRC, pVM);
 
 #ifdef LOG_ENABLED
     /*
@@ -200,25 +196,6 @@ static int emR3HmExecuteInstructionWorker(PVM pVM, PVMCPU pVCpu, int rcRC)
         LogFlow(("emR3HmExecuteInstruction: %Rrc (EMHistoryExec)\n", VBOXSTRICTRC_VAL(rcStrict)));
     }
     STAM_PROFILE_STOP(&pVCpu->em.s.StatIEMEmu, a);
-
-    if (   rcStrict == VERR_IEM_ASPECT_NOT_IMPLEMENTED
-        || rcStrict == VERR_IEM_INSTR_NOT_IMPLEMENTED)
-    {
-#ifdef VBOX_WITH_REM
-        STAM_PROFILE_START(&pVCpu->em.s.StatREMEmu, b);
-        EMRemLock(pVM);
-        /* Flush the recompiler TLB if the VCPU has changed. */
-        if (pVM->em.s.idLastRemCpu != pVCpu->idCpu)
-            CPUMSetChangedFlags(pVCpu, CPUM_CHANGED_ALL);
-        pVM->em.s.idLastRemCpu = pVCpu->idCpu;
-
-        rcStrict = REMR3EmulateInstruction(pVM, pVCpu);
-        EMRemUnlock(pVM);
-        STAM_PROFILE_STOP(&pVCpu->em.s.StatREMEmu, b);
-#else  /* !VBOX_WITH_REM */
-        NOREF(pVM);
-#endif /* !VBOX_WITH_REM */
-    }
 
     return VBOXSTRICTRC_TODO(rcStrict);
 }
@@ -309,10 +286,6 @@ static int emR3HmForcedActions(PVM pVM, PVMCPU pVCpu)
         if (RT_FAILURE(rc))
             return rc;
 
-#ifdef VBOX_WITH_RAW_MODE
-        Assert(!VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_SELM_SYNC_GDT | VMCPU_FF_SELM_SYNC_LDT));
-#endif
-
         /* Prefetch pages for EIP and ESP. */
         /** @todo This is rather expensive. Should investigate if it really helps at all. */
         /** @todo this should be skipped! */
@@ -332,9 +305,6 @@ static int emR3HmForcedActions(PVM pVM, PVMCPU pVCpu)
                 return rc;
         }
         /** @todo maybe prefetch the supervisor stack page as well */
-#ifdef VBOX_WITH_RAW_MODE
-        Assert(!VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_SELM_SYNC_GDT | VMCPU_FF_SELM_SYNC_LDT));
-#endif
     }
 
     /*
@@ -401,9 +371,6 @@ int emR3HmExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone)
         /*
          * Process high priority pre-execution raw-mode FFs.
          */
-#ifdef VBOX_WITH_RAW_MODE
-        Assert(!VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_SELM_SYNC_TSS | VMCPU_FF_SELM_SYNC_GDT | VMCPU_FF_SELM_SYNC_LDT));
-#endif
         if (    VM_FF_IS_ANY_SET(pVM, VM_FF_HIGH_PRIORITY_PRE_RAW_MASK)
             ||  VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_HIGH_PRIORITY_PRE_RAW_MASK))
         {

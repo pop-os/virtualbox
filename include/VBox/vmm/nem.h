@@ -88,38 +88,38 @@ VMMR3_INT_DECL(void) NEMR3NotifySetA20(PVMCPU pVCpu, bool fEnabled);
 
 /** @defgroup grp_nem_r0    The NEM ring-0 Context API
  * @{  */
-VMMR0_INT_DECL(int)  NEMR0InitVM(PGVM pGVM, PVM pVM);
-VMMR0_INT_DECL(int)  NEMR0InitVMPart2(PGVM pGVM, PVM pVM);
+VMMR0_INT_DECL(int)  NEMR0InitVM(PGVM pGVM);
+VMMR0_INT_DECL(int)  NEMR0InitVMPart2(PGVM pGVM);
 VMMR0_INT_DECL(void) NEMR0CleanupVM(PGVM pGVM);
-VMMR0_INT_DECL(int)  NEMR0MapPages(PGVM pGVM, PVM pVM, VMCPUID idCpu);
-VMMR0_INT_DECL(int)  NEMR0UnmapPages(PGVM pGVM, PVM pVM, VMCPUID idCpu);
-VMMR0_INT_DECL(int)  NEMR0ExportState(PGVM pGVM, PVM pVM, VMCPUID idCpu);
-VMMR0_INT_DECL(int)  NEMR0ImportState(PGVM pGVM, PVM pVM, VMCPUID idCpu, uint64_t fWhat);
-VMMR0_INT_DECL(int)  NEMR0QueryCpuTick(PGVM pGVM, PVM pVM, VMCPUID idCpu);
-VMMR0_INT_DECL(int)  NEMR0ResumeCpuTickOnAll(PGVM pGVM, PVM pVM, VMCPUID idCpu, uint64_t uPausedTscValue);
+VMMR0_INT_DECL(int)  NEMR0MapPages(PGVM pGVM, VMCPUID idCpu);
+VMMR0_INT_DECL(int)  NEMR0UnmapPages(PGVM pGVM, VMCPUID idCpu);
+VMMR0_INT_DECL(int)  NEMR0ExportState(PGVM pGVM, VMCPUID idCpu);
+VMMR0_INT_DECL(int)  NEMR0ImportState(PGVM pGVM, VMCPUID idCpu, uint64_t fWhat);
+VMMR0_INT_DECL(int)  NEMR0QueryCpuTick(PGVM pGVM, VMCPUID idCpu);
+VMMR0_INT_DECL(int)  NEMR0ResumeCpuTickOnAll(PGVM pGVM, VMCPUID idCpu, uint64_t uPausedTscValue);
 VMMR0_INT_DECL(VBOXSTRICTRC) NEMR0RunGuestCode(PGVM pGVM, VMCPUID idCpu);
-VMMR0_INT_DECL(int)  NEMR0UpdateStatistics(PGVM pGVM, PVM pVM, VMCPUID idCpu);
-VMMR0_INT_DECL(int)  NEMR0DoExperiment(PGVM pGVM, PVM pVM, VMCPUID idCpu, uint64_t u64Arg);
+VMMR0_INT_DECL(int)  NEMR0UpdateStatistics(PGVM pGVM, VMCPUID idCpu);
+VMMR0_INT_DECL(int)  NEMR0DoExperiment(PGVM pGVM, VMCPUID idCpu, uint64_t u64Arg);
 /** @} */
 
 
 /** @defgroup grp_nem_hc    The NEM Host Context API
  * @{
  */
-VMM_INT_DECL(bool) NEMHCIsLongModeAllowed(PVM pVM);
-VMM_INT_DECL(int)  NEMImportStateOnDemand(PVMCPU pVCpu, uint64_t fWhat);
+VMM_INT_DECL(bool) NEMHCIsLongModeAllowed(PVMCC pVM);
+VMM_INT_DECL(int)  NEMImportStateOnDemand(PVMCPUCC pVCpu, uint64_t fWhat);
 
-VMM_INT_DECL(void) NEMHCNotifyHandlerPhysicalRegister(PVM pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhys, RTGCPHYS cb);
-VMM_INT_DECL(void) NEMHCNotifyHandlerPhysicalDeregister(PVM pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhys, RTGCPHYS cb,
+VMM_INT_DECL(void) NEMHCNotifyHandlerPhysicalRegister(PVMCC pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhys, RTGCPHYS cb);
+VMM_INT_DECL(void) NEMHCNotifyHandlerPhysicalDeregister(PVMCC pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhys, RTGCPHYS cb,
                                                         int fRestoreAsRAM, bool fRestoreAsRAM2);
-VMM_INT_DECL(void) NEMHCNotifyHandlerPhysicalModify(PVM pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhysOld,
+VMM_INT_DECL(void) NEMHCNotifyHandlerPhysicalModify(PVMCC pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhysOld,
                                                     RTGCPHYS GCPhysNew, RTGCPHYS cb, bool fRestoreAsRAM);
 
-VMM_INT_DECL(int)  NEMHCNotifyPhysPageAllocated(PVM pVM, RTGCPHYS GCPhys, RTHCPHYS HCPhys, uint32_t fPageProt,
+VMM_INT_DECL(int)  NEMHCNotifyPhysPageAllocated(PVMCC pVM, RTGCPHYS GCPhys, RTHCPHYS HCPhys, uint32_t fPageProt,
                                                 PGMPAGETYPE enmType, uint8_t *pu2State);
-VMM_INT_DECL(void) NEMHCNotifyPhysPageProtChanged(PVM pVM, RTGCPHYS GCPhys, RTHCPHYS HCPhys, uint32_t fPageProt,
+VMM_INT_DECL(void) NEMHCNotifyPhysPageProtChanged(PVMCC pVM, RTGCPHYS GCPhys, RTHCPHYS HCPhys, uint32_t fPageProt,
                                                   PGMPAGETYPE enmType, uint8_t *pu2State);
-VMM_INT_DECL(void) NEMHCNotifyPhysPageChanged(PVM pVM, RTGCPHYS GCPhys, RTHCPHYS HCPhysPrev, RTHCPHYS HCPhysNew,
+VMM_INT_DECL(void) NEMHCNotifyPhysPageChanged(PVMCC pVM, RTGCPHYS GCPhys, RTHCPHYS HCPhysPrev, RTHCPHYS HCPhysNew,
                                               uint32_t fPageProt, PGMPAGETYPE enmType, uint8_t *pu2State);
 /** @name NEM_PAGE_PROT_XXX - Page protection
  * @{ */
@@ -129,8 +129,8 @@ VMM_INT_DECL(void) NEMHCNotifyPhysPageChanged(PVM pVM, RTGCPHYS GCPhys, RTHCPHYS
 #define NEM_PAGE_PROT_WRITE     RT_BIT(2)       /**< write access. */
 /** @} */
 
-VMM_INT_DECL(int) NEMHCQueryCpuTick(PVMCPU pVCpu, uint64_t *pcTicks, uint32_t *puAux);
-VMM_INT_DECL(int) NEMHCResumeCpuTickOnAll(PVM pVM, PVMCPU pVCpu, uint64_t uPausedTscValue);
+VMM_INT_DECL(int) NEMHCQueryCpuTick(PVMCPUCC pVCpu, uint64_t *pcTicks, uint32_t *puAux);
+VMM_INT_DECL(int) NEMHCResumeCpuTickOnAll(PVMCC pVM, PVMCPUCC pVCpu, uint64_t uPausedTscValue);
 
 /** @} */
 

@@ -26,11 +26,12 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 131297 $"
 
 
 from common import constants;
 from common import utils;
 from common import netutils;
+from common import pathutils;
 from common import webutils;
 

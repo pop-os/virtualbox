@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 131247 $"
 
 
 # Standard python imports.
@@ -104,7 +104,7 @@ class VcsRevisionData(ModelDataBase):
         return self;
 
 
-class VcsRevisionLogic(ModelLogicBase): # pylint: disable=R0903
+class VcsRevisionLogic(ModelLogicBase): # pylint: disable=too-few-public-methods
     """
     VCS revisions database logic.
     """
@@ -233,7 +233,7 @@ class VcsRevisionLogic(ModelLogicBase): # pylint: disable=R0903
 # Unit testing.
 #
 
-# pylint: disable=C0111
+# pylint: disable=missing-docstring
 class VcsRevisionDataTestCase(ModelDataBaseTestCase):
     def setUp(self):
         self.aoSamples = [VcsRevisionData(),];

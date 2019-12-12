@@ -16,7 +16,7 @@
  */
 
 #include <VBox/err.h>
-#include <VBox/vmm/vm.h>
+#include <VBox/vmm/vmapi.h>
 #include <iprt/string.h>
 
 
@@ -117,6 +117,9 @@ VMMR3DECL(int) DBGFR3Info(PUVM pUVM, const char *pszName, const char *pszArgs, P
 VMMR3DECL(int) DBGFR3InfoEx(PUVM pUVM, VMCPUID idCpu, const char *pszName, const char *pszArgs, PCDBGFINFOHLP pHlp)
 {
     return VERR_INTERNAL_ERROR;
+}
+VMMR3DECL(void) DBGFR3InfoGenricGetOptError(PCDBGFINFOHLP pHlp, int rc, union RTGETOPTUNION *pValueUnion, struct RTGETOPTSTATE *pState)
+{
 }
 VMMR3DECL(bool) DBGFR3IsHalted(PUVM pUVM)
 {
@@ -603,17 +606,17 @@ VMMR3DECL(int) CFGMR3QueryStringDef(PCFGMNODE pNode, const char *pszName, char *
 
 #include <VBox/vmm/cpum.h>
 
-VMMDECL(uint64_t) CPUMGetGuestCR3(PVMCPU pVCpu)
+VMMDECL(uint64_t) CPUMGetGuestCR3(PCVMCPU pVCpu)
 {
     return 0;
 }
 
-VMMDECL(uint64_t) CPUMGetGuestCR4(PVMCPU pVCpu)
+VMMDECL(uint64_t) CPUMGetGuestCR4(PCVMCPU pVCpu)
 {
     return 0;
 }
 
-VMMDECL(RTSEL) CPUMGetGuestCS(PVMCPU pVCpu)
+VMMDECL(RTSEL) CPUMGetGuestCS(PCVMCPU pVCpu)
 {
     return 0;
 }
@@ -623,17 +626,17 @@ VMMDECL(PCCPUMCTXCORE) CPUMGetGuestCtxCore(PVMCPU pVCpu)
     return NULL;
 }
 
-VMMDECL(uint32_t) CPUMGetGuestEIP(PVMCPU pVCpu)
+VMMDECL(uint32_t) CPUMGetGuestEIP(PCVMCPU pVCpu)
 {
     return 0;
 }
 
-VMMDECL(uint64_t) CPUMGetGuestRIP(PVMCPU pVCpu)
+VMMDECL(uint64_t) CPUMGetGuestRIP(PCVMCPU pVCpu)
 {
     return 0;
 }
 
-VMMDECL(RTGCPTR) CPUMGetGuestIDTR(PVMCPU pVCpu, uint16_t *pcbLimit)
+VMMDECL(RTGCPTR) CPUMGetGuestIDTR(PCVMCPU pVCpu, uint16_t *pcbLimit)
 {
     return 0;
 }
@@ -641,16 +644,6 @@ VMMDECL(RTGCPTR) CPUMGetGuestIDTR(PVMCPU pVCpu, uint16_t *pcbLimit)
 VMMDECL(CPUMMODE) CPUMGetGuestMode(PVMCPU pVCpu)
 {
     return CPUMMODE_INVALID;
-}
-
-VMMDECL(RTSEL) CPUMGetHyperCS(PVMCPU pVCpu)
-{
-    return 0xfff8;
-}
-
-VMMDECL(uint32_t) CPUMGetHyperEIP(PVMCPU pVCpu)
-{
-    return 0;
 }
 
 VMMDECL(PCPUMCTX) CPUMQueryGuestCtxPtr(PVMCPU pVCpu)
@@ -663,7 +656,7 @@ VMMDECL(bool) CPUMIsGuestIn64BitCode(PVMCPU pVCpu)
     return false;
 }
 
-VMMDECL(uint32_t) CPUMGetGuestEFlags(PVMCPU pVCpu)
+VMMDECL(uint32_t) CPUMGetGuestEFlags(PCVMCPU pVCpu)
 {
     return 2;
 }

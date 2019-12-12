@@ -1052,7 +1052,7 @@ static int rtFsNtfsAttr_ParseExtents(PRTFSNTFSATTR pAttrib, PRTFSNTFSEXTENTS pEx
                     case 4: cClustersInRun |= (uint32_t)pbPairs[offPairs + 3] << 24; RT_FALL_THRU();
                     case 3: cClustersInRun |= (uint32_t)pbPairs[offPairs + 2] << 16; RT_FALL_THRU();
                     case 2: cClustersInRun |= (uint16_t)pbPairs[offPairs + 1] <<  8; RT_FALL_THRU();
-                    case 1: cClustersInRun |= (uint16_t)pbPairs[offPairs + 0] <<  0; RT_FALL_THRU();
+                    case 1: cClustersInRun |= (uint16_t)pbPairs[offPairs + 0] <<  0;
                 }
                 offPairs += cbRunField;
                 AssertBreakStmt(cClustersInRun <= cMaxClustersInRun,
@@ -5535,7 +5535,7 @@ RTDECL(int) RTFsNtfsVolOpen(RTVFSFILE hVfsFileIn, uint32_t fMntFlags, uint32_t f
         RTListInit(&pThis->CoreUnusedHead);
         RTListInit(&pThis->IdxNodeUnusedHead);
 
-        rc = RTVfsFileGetSize(pThis->hVfsBacking, &pThis->cbBacking);
+        rc = RTVfsFileQuerySize(pThis->hVfsBacking, &pThis->cbBacking);
         if (RT_SUCCESS(rc))
         {
             void *pvBuf = RTMemTmpAlloc(_64K);

@@ -23,6 +23,7 @@
 #include <VBox/vmm/pdmdev.h>
 #include <VBox/log.h>
 #include <VBox/vmm/mm.h>
+#include <VBox/AssertGuest.h>
 
 #include <iprt/assert.h>
 
@@ -64,7 +65,7 @@ DECLINLINE(uint16_t)  msixTableSize(PPDMPCIDEV pDev)
 
 DECLINLINE(uint8_t *) msixGetPageOffset(PPDMPCIDEV pDev, uint32_t off)
 {
-    return (uint8_t *)pDev->Int.s.CTX_SUFF(pMsixPage) + off;
+    return &pDev->abMsixState[off];
 }
 
 DECLINLINE(MsixTableRecord *) msixGetVectorRecord(PPDMPCIDEV pDev, uint32_t iVector)
@@ -116,63 +117,46 @@ static void msixR3CheckPendingVector(PPDMDEVINS pDevIns, PCPDMPCIHLP pPciHlp, PP
         MsixNotify(pDevIns, pPciHlp, pDev, iVector, 1 /* iLevel */, 0 /*uTagSrc*/);
 }
 
-
-PDMBOTHCBDECL(int) msixR3MMIORead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb)
+/**
+ * @callback_method_impl{FNIOMMMIONEWREAD}
+ */
+static DECLCALLBACK(VBOXSTRICTRC) msixR3MMIORead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS off, void *pv, unsigned cb)
 {
-    LogFlowFunc(("\n"));
-
-    uint32_t off = (uint32_t)(GCPhysAddr & 0xffff);
     PPDMPCIDEV pPciDev = (PPDMPCIDEV)pvUser;
-
-    /// @todo qword accesses?
     RT_NOREF(pDevIns);
-    AssertMsgReturn(cb == 4,
-                    ("MSI-X must be accessed with 4-byte reads"),
-                    VERR_INTERNAL_ERROR);
-    AssertMsgReturn(off + cb <= pPciDev->Int.s.cbMsixRegion,
-                    ("Out of bounds access for the MSI-X region\n"),
-                    VINF_IOM_MMIO_UNUSED_FF);
 
-    *(uint32_t *)pv = *(uint32_t *)msixGetPageOffset(pPciDev, off);
-    return VINF_SUCCESS;
-}
+    /* Validate IOM behaviour. */
+    Assert(cb == 4);
+    Assert((off & 3) == 0);
 
-PDMBOTHCBDECL(int) msixR3MMIOWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb)
-{
-    LogFlowFunc(("\n"));
+    /* Do the read if it's within the MSI state. */
+    ASSERT_GUEST_MSG_RETURN(off + cb <= pPciDev->Int.s.cbMsixRegion, ("Out of bounds access for the MSI-X region\n"),
+                            VINF_IOM_MMIO_UNUSED_FF);
+    *(uint32_t *)pv = *(uint32_t *)&pPciDev->abMsixState[off];
 
-    PPDMPCIDEV pPciDev = (PPDMPCIDEV)pvUser;
-    uint32_t off = (uint32_t)(GCPhysAddr & 0xffff);
-
-    /// @todo qword accesses?
-    AssertMsgReturn(cb == 4,
-                    ("MSI-X must be accessed with 4-byte reads"),
-                    VERR_INTERNAL_ERROR);
-    AssertMsgReturn(off + cb <= pPciDev->Int.s.offMsixPba,
-                    ("Trying to write to PBA\n"), VINF_SUCCESS);
-
-    *(uint32_t *)msixGetPageOffset(pPciDev, off) = *(uint32_t *)pv;
-
-    msixR3CheckPendingVector(pDevIns, (PCPDMPCIHLP)pPciDev->Int.s.pPciBusPtrR3, pPciDev, off / VBOX_MSIX_ENTRY_SIZE);
+    LogFlowFunc(("off=%RGp cb=%d -> %#010RX32\n", off, cb, *(uint32_t *)pv));
     return VINF_SUCCESS;
 }
 
 /**
- * @callback_method_impl{FNPCIIOREGIONMAP}
+ * @callback_method_impl{FNIOMMMIONEWWRITE}
  */
-static DECLCALLBACK(int) msixR3Map(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t iRegion,
-                                   RTGCPHYS GCPhysAddress, RTGCPHYS cb, PCIADDRESSSPACE enmType)
+static DECLCALLBACK(VBOXSTRICTRC) msixR3MMIOWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS off, void const *pv, unsigned cb)
 {
-    Assert(enmType == PCI_ADDRESS_SPACE_MEM);
-    NOREF(iRegion); NOREF(enmType);
+    PPDMPCIDEV pPciDev = (PPDMPCIDEV)pvUser;
+    LogFlowFunc(("off=%RGp cb=%d %#010RX32\n", off, cb, *(uint32_t *)pv));
 
-    int rc = PDMDevHlpMMIORegister(pDevIns, GCPhysAddress, cb, pPciDev,
-                                   IOMMMIO_FLAGS_READ_PASSTHRU | IOMMMIO_FLAGS_WRITE_PASSTHRU,
-                                   msixR3MMIOWrite, msixR3MMIORead, "MSI-X tables");
+    /* Validate IOM behaviour. */
+    Assert(cb == 4);
+    Assert((off & 3) == 0);
 
-    if (RT_FAILURE(rc))
-        return rc;
+    /* Do the write if it's within the MSI state. */
+    ASSERT_GUEST_MSG_RETURN(off + cb <= pPciDev->Int.s.offMsixPba, ("Trying to write to PBA\n"),
+                            VINF_SUCCESS);
+    *(uint32_t *)&pPciDev->abMsixState[off] = *(uint32_t *)pv;
 
+    /* (See MsixR3Init the setting up of pvPciBusPtrR3.) */
+    msixR3CheckPendingVector(pDevIns, (PCPDMPCIHLP)pPciDev->Int.s.pvPciBusPtrR3, pPciDev, off / VBOX_MSIX_ENTRY_SIZE);
     return VINF_SUCCESS;
 }
 
@@ -192,27 +176,34 @@ int MsixR3Init(PCPDMPCIHLP pPciHlp, PPDMPCIDEV pDev, PPDMMSIREG pMsiReg)
     uint8_t    iNextOffset = pMsiReg->iMsixNextOffset;
     uint8_t    iBar        = pMsiReg->iMsixBar;
 
-    AssertMsgReturn(cVectors <= VBOX_MSIX_MAX_ENTRIES,
-                    ("Too many MSI-X vectors: %d\n", cVectors),
-                    VERR_TOO_MUCH_DATA);
-    AssertMsgReturn(iBar <= 5,
-                    ("Using wrong BAR for MSI-X: %d\n", iBar),
-                    VERR_INVALID_PARAMETER);
-
+    AssertMsgReturn(cVectors <= VBOX_MSIX_MAX_ENTRIES, ("Too many MSI-X vectors: %d\n", cVectors), VERR_TOO_MUCH_DATA);
+    AssertMsgReturn(iBar <= 5, ("Using wrong BAR for MSI-X: %d\n", iBar), VERR_INVALID_PARAMETER);
     Assert(iCapOffset != 0 && iCapOffset < 0xff && iNextOffset < 0xff);
 
-    int rc = VINF_SUCCESS;
     uint16_t cbPba = cVectors / 8;
     if (cVectors % 8)
         cbPba++;
     uint16_t cbMsixRegion = RT_ALIGN_T(cVectors * sizeof(MsixTableRecord) + cbPba, _4K, uint16_t);
+    AssertLogRelMsgReturn(cbMsixRegion <= pDev->cbMsixState,
+                          ("%#x vs %#x (%s)\n", cbMsixRegion, pDev->cbMsixState, pDev->pszNameR3),
+                          VERR_MISMATCH);
 
     /* If device is passthrough, BAR is registered using common mechanism. */
     if (!pciDevIsPassthrough(pDev))
     {
-        rc = PDMDevHlpPCIIORegionRegister(pDev->Int.s.CTX_SUFF(pDevIns), iBar, cbMsixRegion, PCI_ADDRESS_SPACE_MEM, msixR3Map);
-        if (RT_FAILURE (rc))
-            return rc;
+        /** @todo r=bird: This used to be IOMMMIO_FLAGS_READ_PASSTHRU |
+         * IOMMMIO_FLAGS_WRITE_PASSTHRU with the callbacks asserting and
+         * returning VERR_INTERNAL_ERROR on non-dword reads.  That is of
+         * course certifiable insane behaviour.  So, instead I've changed it
+         * so the callbacks only see dword reads and writes.  I'm not at all
+         * sure about the read-missing behaviour, but it seems like a good
+         * idea for now. */
+        /** @todo r=bird: Shouldn't we at least handle writes in ring-0?   */
+        int rc = PDMDevHlpPCIIORegionCreateMmio(pDev->Int.s.CTX_SUFF(pDevIns), iBar, cbMsixRegion, PCI_ADDRESS_SPACE_MEM,
+                                                msixR3MMIOWrite, msixR3MMIORead, pDev,
+                                                IOMMMIO_FLAGS_READ_DWORD | IOMMMIO_FLAGS_WRITE_DWORD_READ_MISSING,
+                                                "MSI-X tables", &pDev->Int.s.hMmioMsix);
+        AssertRCReturn(rc, rc);
     }
 
     uint16_t offTable = 0;
@@ -222,19 +213,9 @@ int MsixR3Init(PCPDMPCIHLP pPciHlp, PPDMPCIDEV pDev, PPDMMSIREG pMsiReg)
     pDev->Int.s.u8MsixCapSize   = VBOX_MSIX_CAP_SIZE;
     pDev->Int.s.cbMsixRegion    = cbMsixRegion;
     pDev->Int.s.offMsixPba      = offPBA;
-    PVM pVM = PDMDevHlpGetVM(pDev->Int.s.CTX_SUFF(pDevIns));
-
-    pDev->Int.s.pMsixPageR3     = NULL;
-
-    rc = MMHyperAlloc(pVM, cbMsixRegion, 1, MM_TAG_PDM_DEVICE_USER, (void **)&pDev->Int.s.pMsixPageR3);
-    if (RT_FAILURE(rc) || (pDev->Int.s.pMsixPageR3 == NULL))
-        return VERR_NO_VM_MEMORY;
-    RT_BZERO(pDev->Int.s.pMsixPageR3, cbMsixRegion);
-    pDev->Int.s.pMsixPageR0     = MMHyperR3ToR0(pVM, pDev->Int.s.pMsixPageR3);
-    pDev->Int.s.pMsixPageRC     = MMHyperR3ToRC(pVM, pDev->Int.s.pMsixPageR3);
 
     /* R3 PCI helper */
-    pDev->Int.s.pPciBusPtrR3    = pPciHlp;
+    pDev->Int.s.pvPciBusPtrR3   = pPciHlp;
 
     PCIDevSetByte(pDev,  iCapOffset + 0, VBOX_PCI_CAP_ID_MSIX);
     PCIDevSetByte(pDev,  iCapOffset + 1, iNextOffset); /* next */

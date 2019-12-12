@@ -27,7 +27,7 @@
 
 /* GUI includes: */
 #include "QIMessageBox.h"
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #include "UIActionPoolManager.h"
 #include "UIIconPool.h"
 #include "UITools.h"
@@ -255,10 +255,10 @@ void UIToolsModel::setFocusItem(UIToolsItem *pItem)
 
     /* Disconnect old focus-item (if any): */
     if (pOldFocusItem)
-        disconnect(pOldFocusItem, SIGNAL(destroyed(QObject*)), this, SLOT(sltFocusItemDestroyed()));
+        disconnect(pOldFocusItem, &UIToolsItem::destroyed, this, &UIToolsModel::sltFocusItemDestroyed);
     /* Connect new focus-item (if any): */
     if (m_pFocusItem)
-        connect(m_pFocusItem, SIGNAL(destroyed(QObject*)), this, SLOT(sltFocusItemDestroyed()));
+        connect(m_pFocusItem.data(), &UIToolsItem::destroyed, this, &UIToolsModel::sltFocusItemDestroyed);
 
     /* Notify about focus change: */
     emit sigFocusChanged();
@@ -449,7 +449,7 @@ void UIToolsModel::prepareScene()
 void UIToolsModel::prepareItems()
 {
     /* Check if Ext Pack is ready, some of actions my depend on it: */
-    CExtPack extPack = vboxGlobal().virtualBox().GetExtensionPackManager().Find(GUI_ExtPackName);
+    CExtPack extPack = uiCommon().virtualBox().GetExtensionPackManager().Find(GUI_ExtPackName);
     const bool fExtPackAccessible = !extPack.isNull() && extPack.GetUsable();
 
     /* Enable both classes of tools initially: */
@@ -494,13 +494,17 @@ void UIToolsModel::prepareHandlers()
 
 void UIToolsModel::prepareConnections()
 {
-    /* Setup parent connections: */
-    connect(this, SIGNAL(sigSelectionChanged()),
-            parent(), SIGNAL(sigSelectionChanged()));
-    connect(this, SIGNAL(sigExpandingStarted()),
-            parent(), SIGNAL(sigExpandingStarted()));
-    connect(this, SIGNAL(sigExpandingFinished()),
-            parent(), SIGNAL(sigExpandingFinished()));
+    UITools* pTools = qobject_cast<UITools*>(parent());
+    AssertPtrReturnVoid(pTools);
+    {
+        /* Setup parent connections: */
+        connect(this, &UIToolsModel::sigSelectionChanged,
+                pTools, &UITools::sigSelectionChanged);
+        connect(this, &UIToolsModel::sigExpandingStarted,
+                pTools, &UITools::sigExpandingStarted);
+        connect(this, &UIToolsModel::sigExpandingFinished,
+                pTools, &UITools::sigExpandingFinished);
+    }
 }
 
 void UIToolsModel::loadLastSelectedItems()
@@ -538,6 +542,15 @@ void UIToolsModel::saveLastSelectedItems()
     gEDataManager->setToolsPaneLastItemsChosen(set);
 }
 
+void UIToolsModel::cleanupConnections()
+{
+    /* Disconnect selection-changed signal prematurelly.
+     * Keep in mind, we are using static_cast instead of qobject_cast here to be
+     * sure connection is disconnected even if parent is self-destroyed. */
+    disconnect(this, &UIToolsModel::sigSelectionChanged,
+               static_cast<UITools*>(parent()), &UITools::sigSelectionChanged);
+}
+
 void UIToolsModel::cleanupHandlers()
 {
     delete m_pKeyboardHandler;
@@ -561,6 +574,8 @@ void UIToolsModel::cleanupScene()
 
 void UIToolsModel::cleanup()
 {
+    /* Cleanup connections: */
+    cleanupConnections();
     /* Cleanup handlers: */
     cleanupHandlers();
     /* Cleanup items: */

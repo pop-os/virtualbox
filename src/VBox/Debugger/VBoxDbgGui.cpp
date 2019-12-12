@@ -22,7 +22,6 @@
 #define LOG_GROUP LOG_GROUP_DBGG
 #define VBOX_COM_NO_ATL
 #include <VBox/com/defs.h>
-#include <VBox/vmm/vm.h>
 #include <iprt/errcore.h>
 
 #include "VBoxDbgGui.h"
@@ -254,6 +253,22 @@ VBoxDbgGui::adjustRelativePos(int x, int y, unsigned cx, unsigned cy)
         updateDesktopSize();
     repositionConsole(fResize);
     repositionStatistics(fResize);
+}
+
+
+QString
+VBoxDbgGui::getMachineName() const
+{
+    QString strName;
+    AssertReturn(m_pMachine, strName);
+    BSTR bstr;
+    HRESULT hrc = m_pMachine->COMGETTER(Name)(&bstr);
+    if (SUCCEEDED(hrc))
+    {
+        strName = QString::fromUtf16(bstr);
+        SysFreeString(bstr);
+    }
+    return strName;
 }
 
 

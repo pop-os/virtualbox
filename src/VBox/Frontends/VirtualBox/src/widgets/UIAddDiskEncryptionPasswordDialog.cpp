@@ -30,7 +30,7 @@
 #include "QIDialogButtonBox.h"
 #include "QIStyledItemDelegate.h"
 #include "QIWithRetranslateUI.h"
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #include "UIAddDiskEncryptionPasswordDialog.h"
 #include "UIIconPool.h"
 #include "UIMedium.h"
@@ -214,6 +214,9 @@ void UIPasswordEditor::keyPressEvent(QKeyEvent *pEvent)
 
 void UIPasswordEditor::prepare()
 {
+    /* Make sure QIStyledDelegate aware of us: */
+    setProperty("has_sigCommitData", true);
+    setProperty("has_sigEnterKeyTriggered", true);
     /* Set echo mode: */
     setEchoMode(QLineEdit::Password);
     /* Listen for the text changes: */
@@ -573,7 +576,7 @@ void UIAddDiskEncryptionPasswordDialog::prepare()
 bool UIAddDiskEncryptionPasswordDialog::isPasswordValid(const QUuid &uMediumId, const QString strPassword)
 {
     /* Look for the medium with passed ID: */
-    const UIMedium uimedium = vboxGlobal().medium(uMediumId);
+    const UIMedium uimedium = uiCommon().medium(uMediumId);
     if (!uimedium.isNull())
     {
         /* Check wrapped medium for validity: */

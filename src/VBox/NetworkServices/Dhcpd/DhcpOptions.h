@@ -21,62 +21,74 @@
 # pragma once
 #endif
 
-#include "Defs.h"
+#include "DhcpdInternal.h"
 
-#include <string.h>
-
-#include <iprt/err.h>
-#include <iprt/types.h>
 #include <iprt/asm.h>
-#include <iprt/stdint.h>
+#include <iprt/err.h>
 #include <iprt/net.h>
+#include <iprt/string.h>
+#include <iprt/cpp/ministring.h>
 
-#include <string>
 
 class DhcpClientMessage;
+
+typedef struct DhcpIpv4AddrAndMask
+{
+    RTNETADDRIPV4   Ipv4;
+    RTNETADDRIPV4   Mask;
+} DhcpIpv4AddrAndMask;
 
 
 class DhcpOption
 {
-  protected:
+protected:
     uint8_t m_OptCode;
-    bool m_fPresent;
+    bool    m_fPresent;
 
-  public:
+public:
     explicit DhcpOption(uint8_t aOptCode)
-      : m_OptCode(aOptCode), m_fPresent(true) {}
+        : m_OptCode(aOptCode), m_fPresent(true)
+    {}
 
     DhcpOption(uint8_t aOptCode, bool fPresent)
-      : m_OptCode(aOptCode), m_fPresent(fPresent) {}
+        : m_OptCode(aOptCode), m_fPresent(fPresent)
+    {}
 
     virtual DhcpOption *clone() const = 0;
 
-    virtual ~DhcpOption() {}
+    virtual ~DhcpOption()
+    {}
 
-  public:
-    static DhcpOption *parse(uint8_t aOptCode, int aEnc, const char *pcszValue);
+public:
+    static DhcpOption *parse(uint8_t aOptCode, int aEnc, const char *pcszValue, int *prc = NULL);
+    static const char *name(uint8_t bOptcode);
 
-  public:
-    uint8_t optcode() const { return m_OptCode; }
-    bool present() const { return m_fPresent; }
+public:
+    uint8_t optcode() const RT_NOEXCEPT { return m_OptCode; }
+    bool    present() const RT_NOEXCEPT { return m_fPresent; }
 
-  public:
+public:
     int encode(octets_t &dst) const;
 
     int decode(const rawopts_t &map);
     int decode(const DhcpClientMessage &req);
 
-  protected:
+protected:
     virtual ssize_t encodeValue(octets_t &dst) const = 0;
     virtual int decodeValue(const octets_t &src, size_t cb) = 0;
 
-  protected:
+protected:
     static const octets_t *findOption(const rawopts_t &aOptMap, uint8_t aOptCode);
 
-  protected:
-    /*
-     * Serialization
-     */
+protected:
+    /** @name Serialization
+     * @{ */
+    static void append(octets_t &aDst, bool aValue)
+    {
+        uint8_t b = aValue ? 1 : 0;
+        aDst.push_back(b);
+    }
+
     static void append(octets_t &aDst, uint8_t aValue)
     {
         aDst.push_back(aValue);
@@ -99,14 +111,19 @@ class DhcpOption
         aDst.insert(aDst.end(), aIPv4.au8, aIPv4.au8 + sizeof(aIPv4));
     }
 
+    static void append(octets_t &aDst, DhcpIpv4AddrAndMask aIPv4)
+    {
+        aDst.insert(aDst.end(), (uint8_t *)&aIPv4, (uint8_t *)&aIPv4 + sizeof(aIPv4));
+    }
+
     static void append(octets_t &aDst, const char *pszString, size_t cb)
     {
         aDst.insert(aDst.end(), pszString, pszString + cb);
     }
 
-    static void append(octets_t &aDst, const std::string &str)
+    static void append(octets_t &aDst, const RTCString &str)
     {
-        append(aDst, str.c_str(), str.size());
+        append(aDst, str.c_str(), str.length());
     }
 
     /* non-overloaded name to avoid ambiguity */
@@ -115,10 +132,17 @@ class DhcpOption
         append(aDst, static_cast<uint8_t>(cb));
     }
 
+    /** @} */
 
-    /*
-     * Deserialization
-     */
+
+    /** @name Deserialization
+     * @{  */
+    static void extract(bool &aValue, octets_t::const_iterator &pos)
+    {
+        aValue = *pos != 0;
+        pos += sizeof(uint8_t);
+    }
+
     static void extract(uint8_t &aValue, octets_t::const_iterator &pos)
     {
         aValue = *pos;
@@ -147,24 +171,36 @@ class DhcpOption
         pos += sizeof(RTNETADDRIPV4);
     }
 
-    static void extract(std::string &aString, octets_t::const_iterator &pos, size_t cb)
+    static void extract(DhcpIpv4AddrAndMask &aValue, octets_t::const_iterator &pos)
+    {
+        memcpy(&aValue, &pos[0], sizeof(aValue));
+        pos += sizeof(aValue);
+    }
+
+#if 0 /** @todo fix me */
+    static void extract(RTCString &aString, octets_t::const_iterator &pos, size_t cb)
     {
         aString.replace(aString.begin(), aString.end(), &pos[0], &pos[cb]);
         pos += cb;
     }
+#endif
 
+    /** @} */
 
-    /*
-     * Parse textual representation (e.g. in config file)
-     */
+    /** @name Parse textual representation (e.g. in config file)
+     * @{  */
+    static int parse1(bool &aValue, const char *pcszValue);
     static int parse1(uint8_t &aValue, const char *pcszValue);
     static int parse1(uint16_t &aValue, const char *pcszValue);
     static int parse1(uint32_t &aValue, const char *pcszValue);
     static int parse1(RTNETADDRIPV4 &aValue, const char *pcszValue);
+    static int parse1(DhcpIpv4AddrAndMask &aValue, const char *pcszValue);
 
-    static int parseList(std::vector<RTNETADDRIPV4> &aList, const char *pcszValue);
+    template <typename a_Type> static int parseList(std::vector<a_Type> &aList, const char *pcszValue);
 
     static int parseHex(octets_t &aRawValue, const char *pcszValue);
+
+    /** @} */
 };
 
 
@@ -175,12 +211,14 @@ inline octets_t &operator<<(octets_t &dst, const DhcpOption &option)
 }
 
 
+#ifndef IN_VBOXSVC
 optmap_t &operator<<(optmap_t &optmap, DhcpOption *option);
 optmap_t &operator<<(optmap_t &optmap, const std::shared_ptr<DhcpOption> &option);
+#endif
 
 
 
-/*
+/**
  * Only for << OptEnd() syntactic sugar...
  */
 struct OptEnd {};
@@ -194,21 +232,23 @@ inline octets_t &operator<<(octets_t &dst, const OptEnd &end)
 
 
 
-/*
+/**
  * Option that has no value
  */
 class OptNoValueBase
-  : public DhcpOption
+    : public DhcpOption
 {
-  public:
+public:
     explicit OptNoValueBase(uint8_t aOptCode)
-      : DhcpOption(aOptCode, false) {}
+        : DhcpOption(aOptCode, false)
+    {}
 
     OptNoValueBase(uint8_t aOptCode, bool fPresent)
-      : DhcpOption(aOptCode, fPresent) {}
+        : DhcpOption(aOptCode, fPresent)
+    {}
 
     OptNoValueBase(uint8_t aOptCode, const DhcpClientMessage &req)
-      : DhcpOption(aOptCode, false)
+        : DhcpOption(aOptCode, false)
     {
         decode(req);
     }
@@ -218,14 +258,14 @@ class OptNoValueBase
         return new OptNoValueBase(*this);
     }
 
-  protected:
+protected:
     virtual ssize_t encodeValue(octets_t &dst) const
     {
         RT_NOREF(dst);
         return 0;
     }
 
-  public:
+public:
     static bool isLengthValid(size_t cb)
     {
         return cb == 0;
@@ -245,19 +285,22 @@ class OptNoValueBase
 
 template <uint8_t _OptCode>
 class OptNoValue
-  : public OptNoValueBase
+    : public OptNoValueBase
 {
-  public:
+public:
     static const uint8_t optcode = _OptCode;
 
     OptNoValue()
-      : OptNoValueBase(optcode) {}
+        : OptNoValueBase(optcode)
+    {}
 
     explicit OptNoValue(bool fPresent) /* there's no overloaded ctor with value */
-      : OptNoValueBase(optcode, fPresent) {}
+        : OptNoValueBase(optcode, fPresent)
+    {}
 
     explicit OptNoValue(const DhcpClientMessage &req)
-      : OptNoValueBase(optcode, req) {}
+        : OptNoValueBase(optcode, req)
+    {}
 };
 
 
@@ -267,44 +310,46 @@ class OptNoValue
  */
 template <typename T>
 class OptValueBase
-  : public DhcpOption
+    : public DhcpOption
 {
-  public:
+public:
     typedef T value_t;
 
-  protected:
+protected:
     T m_Value;
 
     explicit OptValueBase(uint8_t aOptCode)
-      : DhcpOption(aOptCode, false), m_Value() {}
+        : DhcpOption(aOptCode, false), m_Value()
+    {}
 
     OptValueBase(uint8_t aOptCode, const T &aOptValue)
-      : DhcpOption(aOptCode), m_Value(aOptValue) {}
+        : DhcpOption(aOptCode), m_Value(aOptValue)
+    {}
 
     OptValueBase(uint8_t aOptCode, const DhcpClientMessage &req)
-      : DhcpOption(aOptCode, false), m_Value()
+        : DhcpOption(aOptCode, false), m_Value()
     {
         decode(req);
     }
 
-  public:
+public:
     virtual OptValueBase *clone() const
     {
         return new OptValueBase(*this);
     }
 
-  public:
-    T &value() { return m_Value; }
-    const T &value() const { return m_Value; }
+public:
+    T &value()              { return m_Value; }
+    const T &value() const  { return m_Value; }
 
-  protected:
+protected:
     virtual ssize_t encodeValue(octets_t &dst) const
     {
         append(dst, m_Value);
         return sizeof(T);
     }
 
-  public:
+public:
     static bool isLengthValid(size_t cb)
     {
         return cb == sizeof(T);
@@ -325,80 +370,86 @@ class OptValueBase
 
 template<uint8_t _OptCode, typename T>
 class OptValue
-  : public OptValueBase<T>
+    : public OptValueBase<T>
 {
-  public:
+public:
     using typename OptValueBase<T>::value_t;
 
-  public:
+public:
     static const uint8_t optcode = _OptCode;
 
     OptValue()
-      : OptValueBase<T>(optcode) {}
+        : OptValueBase<T>(optcode)
+    {}
 
     explicit OptValue(const T &aOptValue)
-      : OptValueBase<T>(optcode, aOptValue) {}
+        : OptValueBase<T>(optcode, aOptValue)
+    {}
 
     explicit OptValue(const DhcpClientMessage &req)
-      : OptValueBase<T>(optcode, req) {}
+        : OptValueBase<T>(optcode, req)
+    {}
 
-    static OptValue *parse(const char *pcszValue)
+    static OptValue *parse(const char *pcszValue, int *prc)
     {
         typename OptValueBase<T>::value_t v;
         int rc = DhcpOption::parse1(v, pcszValue);
-        if (RT_FAILURE(rc))
-            return NULL;
-        return new OptValue(v);
+        *prc = rc;
+        if (RT_SUCCESS(rc))
+            return new OptValue(v);
+        return NULL;
     }
 };
 
 
 
-/*
+/**
  * Option that contains a string.
  */
 class OptStringBase
-  : public DhcpOption
+    : public DhcpOption
 {
-  public:
-    typedef std::string value_t;
+public:
+    typedef RTCString value_t;
 
-  protected:
-    std::string m_String;
+protected:
+    RTCString m_String;
 
     explicit OptStringBase(uint8_t aOptCode)
-      : DhcpOption(aOptCode, false), m_String() {}
+        : DhcpOption(aOptCode, false), m_String()
+    {}
 
-    OptStringBase(uint8_t aOptCode, const std::string &aOptString)
-      : DhcpOption(aOptCode), m_String(aOptString) {}
+    OptStringBase(uint8_t aOptCode, const RTCString &aOptString)
+        : DhcpOption(aOptCode), m_String(aOptString)
+    {}
 
     OptStringBase(uint8_t aOptCode, const DhcpClientMessage &req)
-      : DhcpOption(aOptCode, false), m_String()
+        : DhcpOption(aOptCode, false), m_String()
     {
         decode(req);
     }
 
-  public:
+public:
     virtual OptStringBase *clone() const
     {
         return new OptStringBase(*this);
     }
 
-  public:
-    std::string &value() { return m_String; }
-    const std::string &value() const { return m_String; }
+public:
+    RTCString &value()              { return m_String; }
+    const RTCString &value() const  { return m_String; }
 
-  protected:
+protected:
     virtual ssize_t encodeValue(octets_t &dst) const
     {
-        if (!isLengthValid(m_String.size()))
+        if (!isLengthValid(m_String.length()))
             return -1;
 
         append(dst, m_String);
-        return m_String.size();
+        return m_String.length();
     }
 
-  public:
+public:
     static bool isLengthValid(size_t cb)
     {
         return cb <= UINT8_MAX;
@@ -409,31 +460,34 @@ class OptStringBase
         if (!isLengthValid(cb))
             return VERR_INVALID_PARAMETER;
 
-        octets_t::const_iterator pos(src.begin());
-        extract(m_String, pos, cb);
+        int rc = m_String.assignNoThrow((char *)&src.front(), cb); /** @todo encoding. */
         m_fPresent = true;
-        return VINF_SUCCESS;
+        return rc;
     }
 };
 
 template<uint8_t _OptCode>
 class OptString
-  : public OptStringBase
+    : public OptStringBase
 {
-  public:
+public:
     static const uint8_t optcode = _OptCode;
 
     OptString()
-      : OptStringBase(optcode) {}
+        : OptStringBase(optcode)
+    {}
 
-    explicit OptString(const std::string &aOptString)
-      : OptStringBase(optcode, aOptString) {}
+    explicit OptString(const RTCString &aOptString)
+        : OptStringBase(optcode, aOptString)
+    {}
 
     explicit OptString(const DhcpClientMessage &req)
-      : OptStringBase(optcode, req) {}
+        : OptStringBase(optcode, req)
+    {}
 
-    static OptString *parse(const char *pcszValue)
+    static OptString *parse(const char *pcszValue, int *prc)
     {
+        *prc = VINF_SUCCESS;
         return new OptString(pcszValue);
     }
 };
@@ -445,40 +499,43 @@ class OptString
  */
 template <typename T>
 class OptListBase
-  : public DhcpOption
+    : public DhcpOption
 {
-  public:
+public:
     typedef std::vector<T> value_t;
 
-  protected:
+protected:
     std::vector<T> m_List;
 
     explicit OptListBase(uint8_t aOptCode)
-      : DhcpOption(aOptCode, false), m_List() {}
+        : DhcpOption(aOptCode, false), m_List()
+    {}
 
     OptListBase(uint8_t aOptCode, const T &aOptSingle)
-      : DhcpOption(aOptCode), m_List(1, aOptSingle) {}
+        : DhcpOption(aOptCode), m_List(1, aOptSingle)
+    {}
 
     OptListBase(uint8_t aOptCode, const std::vector<T> &aOptList)
-      : DhcpOption(aOptCode), m_List(aOptList) {}
+        : DhcpOption(aOptCode), m_List(aOptList)
+    {}
 
     OptListBase(uint8_t aOptCode, const DhcpClientMessage &req)
-      : DhcpOption(aOptCode, false), m_List()
+        : DhcpOption(aOptCode, false), m_List()
     {
         decode(req);
     }
 
-  public:
+public:
     virtual OptListBase *clone() const
     {
         return new OptListBase(*this);
     }
 
-  public:
-    std::vector<T> &value() { return m_List; }
+public:
+    std::vector<T> &value()             { return m_List; }
     const std::vector<T> &value() const { return m_List; }
 
-  protected:
+protected:
     virtual ssize_t encodeValue(octets_t &dst) const
     {
         const size_t cbItem = sizeof(T);
@@ -496,7 +553,7 @@ class OptListBase
         return cbValue;
     }
 
-  public:
+public:
     static bool isLengthValid(size_t cb)
     {
         return cb % sizeof(T) == 0;
@@ -523,34 +580,97 @@ class OptListBase
 
 template<uint8_t _OptCode, typename T>
 class OptList
-  : public OptListBase<T>
+    : public OptListBase<T>
 
 {
-  public:
+public:
     using typename OptListBase<T>::value_t;
 
-  public:
+public:
     static const uint8_t optcode = _OptCode;
 
     OptList()
-      : OptListBase<T>(optcode) {}
+        : OptListBase<T>(optcode)
+    {}
 
     explicit OptList(const T &aOptSingle)
-      : OptListBase<T>(optcode, aOptSingle) {}
+        : OptListBase<T>(optcode, aOptSingle)
+    {}
 
     explicit OptList(const std::vector<T> &aOptList)
-      : OptListBase<T>(optcode, aOptList) {}
+        : OptListBase<T>(optcode, aOptList)
+    {}
 
     explicit OptList(const DhcpClientMessage &req)
-      : OptListBase<T>(optcode, req) {}
+        : OptListBase<T>(optcode, req)
+    {}
 
-    static OptList *parse(const char *pcszValue)
+    static OptList *parse(const char *pcszValue, int *prc)
     {
         typename OptListBase<T>::value_t v;
-        int rc = DhcpOption::parseList(v, pcszValue);
-        if (RT_FAILURE(rc) || v.empty())
-            return NULL;
-        return new OptList(v);
+        int rc = DhcpOption::parseList<T>(v, pcszValue);
+        if (RT_SUCCESS(rc))
+        {
+            if (!v.empty())
+            {
+                *prc = rc;
+                return new OptList(v);
+            }
+            rc = VERR_NO_DATA;
+        }
+        *prc = rc;
+        return NULL;
+    }
+};
+
+
+template<uint8_t _OptCode, typename T>
+class OptPairList
+    : public OptListBase<T>
+
+{
+public:
+    using typename OptListBase<T>::value_t;
+
+public:
+    static const uint8_t optcode = _OptCode;
+
+    OptPairList()
+        : OptListBase<T>(optcode)
+    {}
+
+    explicit OptPairList(const T &aOptSingle)
+        : OptListBase<T>(optcode, aOptSingle)
+    {}
+
+    explicit OptPairList(const std::vector<T> &aOptList)
+        : OptListBase<T>(optcode, aOptList)
+    {}
+
+    explicit OptPairList(const DhcpClientMessage &req)
+        : OptListBase<T>(optcode, req)
+    {}
+
+    static OptPairList *parse(const char *pcszValue, int *prc)
+    {
+        typename OptListBase<T>::value_t v;
+        int rc = DhcpOption::parseList<T>(v, pcszValue);
+        if (RT_SUCCESS(rc))
+        {
+            if (!v.empty())
+            {
+                if ((v.size() & 1) == 0)
+                {
+                    *prc = rc;
+                    return new OptPairList(v);
+                }
+                rc = VERR_UNEVEN_INPUT;
+            }
+            else
+                rc = VERR_NO_DATA;
+        }
+        *prc = rc;
+        return NULL;
     }
 };
 
@@ -560,26 +680,28 @@ class OptList
  * interpret.
  */
 class RawOption
-  : public DhcpOption
+    : public DhcpOption
 {
-  protected:
+protected:
     octets_t m_Data;
 
-  public:
+public:
     explicit RawOption(uint8_t aOptCode)
-      : DhcpOption(aOptCode, false), m_Data() {}
+        : DhcpOption(aOptCode, false), m_Data()
+    {}
 
     RawOption(uint8_t aOptCode, const octets_t &aSrc)
-      : DhcpOption(aOptCode), m_Data(aSrc) {}
+        : DhcpOption(aOptCode), m_Data(aSrc)
+    {}
 
-  public:
+public:
     virtual RawOption *clone() const
     {
         return new RawOption(*this);
     }
 
 
-  protected:
+protected:
     virtual ssize_t encodeValue(octets_t &dst) const
     {
         dst.insert(dst.end(), m_Data.begin(), m_Data.end());
@@ -596,33 +718,73 @@ class RawOption
         return VINF_SUCCESS;
     }
 
-  public:
-    static RawOption *parse(uint8_t aOptCode, const char *pcszValue)
+public:
+    static RawOption *parse(uint8_t aOptCode, const char *pcszValue, int *prc)
     {
         octets_t data;
         int rc = DhcpOption::parseHex(data, pcszValue);
-        if (RT_FAILURE(rc))
-            return NULL;
-        return new RawOption(aOptCode, data);
+        *prc = rc;
+        if (RT_SUCCESS(rc))
+            return new RawOption(aOptCode, data);
+        return NULL;
     }
 };
 
 
 
-/*
- * Define the DHCP options we want to use.
+/** @name The DHCP options types.
+ * @{
  */
 typedef OptValue<1, RTNETADDRIPV4>      OptSubnetMask;
 typedef OptValue<2, uint32_t>           OptTimeOffset;
-typedef OptList<3, RTNETADDRIPV4>       OptRouter;
-typedef OptList<4, RTNETADDRIPV4>       OptTimeServer;
-typedef OptList<6, RTNETADDRIPV4>       OptDNS;
+typedef OptList<3, RTNETADDRIPV4>       OptRouters;
+typedef OptList<4, RTNETADDRIPV4>       OptTimeServers;
+typedef OptList<5, RTNETADDRIPV4>       OptNameServers;
+typedef OptList<6, RTNETADDRIPV4>       OptDNSes;
+typedef OptList<7, RTNETADDRIPV4>       OptLogServers;
+typedef OptList<8, RTNETADDRIPV4>       OptCookieServers;
+typedef OptList<9, RTNETADDRIPV4>       OptLPRServers;
+typedef OptList<10, RTNETADDRIPV4>      OptImpressServers;
+typedef OptList<11, RTNETADDRIPV4>      OptResourceLocationServers;
 typedef OptString<12>                   OptHostName;
+typedef OptValue<13, uint16_t>          OptBootFileSize;
+typedef OptString<14>                   OptMeritDumpFile;
 typedef OptString<15>                   OptDomainName;
+typedef OptValue<16, RTNETADDRIPV4>     OptSwapServer;
 typedef OptString<17>                   OptRootPath;
-
-/* DHCP related options */
+typedef OptString<18>                   OptExtensionPath;
+typedef OptValue<19, bool>              OptIPForwarding;
+typedef OptValue<20, bool>              OptNonLocalSourceRouting;
+typedef OptList<21, DhcpIpv4AddrAndMask> OptPolicyFilter;
+typedef OptValue<22, uint16_t>          OptMaxDgramReassemblySize;
+typedef OptValue<23, uint16_t>          OptDefaultIPTTL;
+typedef OptValue<24, uint32_t>          OptPathMTUAgingTimeout;
+typedef OptList<25, uint16_t>           OptPathMTUPlateauTable;
+typedef OptValue<26, uint16_t>          OptInterfaceMTU;
+typedef OptValue<27, bool>              OptAllSubnetsAreLocal;
+typedef OptValue<28, RTNETADDRIPV4>     OptBroadcastAddress;
+typedef OptValue<29, bool>              OptPerformMaskDiscovery;
+typedef OptValue<30, bool>              OptMaskSupplier;
+typedef OptValue<31, bool>              OptPerformRouterDiscovery;
+typedef OptValue<32, RTNETADDRIPV4>     OptRouterSolicitationAddress;
+typedef OptPairList<33, RTNETADDRIPV4>  OptStaticRoute;
+typedef OptValue<34, bool>              OptTrailerEncapsulation;
+typedef OptValue<35, uint32_t>          OptARPCacheTimeout;
+typedef OptValue<36, bool>              OptEthernetEncapsulation;
+typedef OptValue<37, uint8_t>           OptTCPDefaultTTL;
+typedef OptValue<38, uint32_t>          OptTCPKeepaliveInterval;
+typedef OptValue<39, bool>              OptTCPKeepaliveGarbage;
+typedef OptString<40>                   OptNISDomain;
+typedef OptList<41, RTNETADDRIPV4>      OptNISServers;
+typedef OptList<42, RTNETADDRIPV4>      OptNTPServers;
+/* DHCP related options: */
 typedef OptList<43, uint8_t>            OptVendorSpecificInfo;
+typedef OptList<44, RTNETADDRIPV4>      OptNetBIOSNameServers;
+typedef OptList<45, RTNETADDRIPV4>      OptNetBIOSDatagramServers;
+typedef OptValue<46, uint8_t>           OptNetBIOSNodeType;
+typedef OptList<47, uint8_t>            OptNetBIOSScope;            /**< uint8_t or string? */
+typedef OptList<48, RTNETADDRIPV4>      OptXWindowsFontServers;
+typedef OptList<49, RTNETADDRIPV4>      OptXWindowsDisplayManager;
 typedef OptValue<50, RTNETADDRIPV4>     OptRequestedAddress;
 typedef OptValue<51, uint32_t>          OptLeaseTime;
 /* 52 - option overload is syntactic and handled internally */
@@ -635,8 +797,26 @@ typedef OptValue<58, uint32_t>          OptRenewalTime;
 typedef OptValue<59, uint32_t>          OptRebindingTime;
 typedef OptList<60, uint8_t>            OptVendorClassId;
 typedef OptList<61, uint8_t>            OptClientId;
-typedef OptString<66>                   OptTFTPServer;   /* when overloaded */
-typedef OptString<67>                   OptBootFileName; /* when overloaded */
-typedef OptNoValue<80>                  OptRapidCommit;  /* RFC4039 */
+typedef OptString<62>                   OptNetWareIPDomainName;     /**< RFC2242 */
+typedef OptList<63, uint8_t>            OptNetWareIPInformation;    /**< complicated, so just byte list for now. RFC2242 */
+typedef OptString<64>                   OptNISPlusDomain;
+typedef OptString<65>                   OptNISPlusServers;
+typedef OptString<66>                   OptTFTPServerName;          /**< when overloaded */
+typedef OptString<67>                   OptBootfileName;            /**< when overloaded */
+typedef OptList<68, RTNETADDRIPV4>      OptMobileIPHomeAgents;
+typedef OptList<69, RTNETADDRIPV4>      OptSMTPServers;
+typedef OptList<70, RTNETADDRIPV4>      OptPOP3Servers;
+typedef OptList<71, RTNETADDRIPV4>      OptNNTPServers;
+typedef OptList<72, RTNETADDRIPV4>      OptWWWServers;
+typedef OptList<73, RTNETADDRIPV4>      OptFingerServers;
+typedef OptList<74, RTNETADDRIPV4>      OptIRCServers;
+typedef OptList<75, RTNETADDRIPV4>      OptStreetTalkServers;
+typedef OptList<76, RTNETADDRIPV4>      OptSTDAServers;
+typedef OptList<77, uint8_t>            OptUserClassId;
+typedef OptList<78, uint8_t>            OptSLPDirectoryAgent;       /**< complicated, so just byte list for now. RFC2610 */
+typedef OptList<79, uint8_t>            OptSLPServiceScope;         /**< complicated, so just byte list for now. RFC2610 */
+typedef OptNoValue<80>                  OptRapidCommit;             /**< RFC4039 */
+typedef OptList<119, uint8_t>           OptDomainSearch;            /**< RFC3397 */
+/** @} */
 
 #endif /* !VBOX_INCLUDED_SRC_Dhcpd_DhcpOptions_h */

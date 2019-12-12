@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 131227 $"
 
 
 # Standard Python imports.
@@ -53,7 +53,7 @@ class SubTstDrvMoveMedium1(base.SubTestDriverBase):
     """
 
     def __init__(self, oTstDrv):
-        base.SubTestDriverBase.__init__(self, 'move-medium', oTstDrv)
+        base.SubTestDriverBase.__init__(self, oTstDrv, 'move-medium', 'Move Medium');
 
     def testIt(self):
         """
@@ -111,7 +111,7 @@ class SubTstDrvMoveMedium1(base.SubTestDriverBase):
         """
         reporter.testStart('medium moving')
 
-        try:
+        try: ## @todo r=bird: Bad 'ing style.
             oVM = self.oTstDrv.createTestVM('test-medium-move', 1, None, 4)
             assert oVM is not None
 
@@ -194,8 +194,6 @@ class SubTstDrvMoveMedium1(base.SubTestDriverBase):
                 fRc = self.checkLocation(sOrigLoc, aoMediumAttachments, asSnapFiles) and fRc
 
             fRc = oSession.close() and fRc
-
-            assert fRc is True
         except:
             reporter.errorXcpt()
 

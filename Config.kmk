@@ -254,7 +254,7 @@ VBOX_PRODUCT      = Oracle VM VirtualBox
 # have to be updated manually, please keep this up to date:
 #	src/VBox/Devices/PC/PXE/client/uinit.asm
 #	src/VBox/RDP/webclient/flash/com/sun/network/rdp/Version.as
-#	src/VBox/Frontends/VirtualBox/src/globals/VBoxGlobal.cpp
+#	src/VBox/Frontends/VirtualBox/src/globals/UICommon.cpp
 #	src/VBox/Frontends/VirtualBox/src/settings/global/VBoxGLSettingsLanguage.cpp
 #	src/VBox/Frontends/VirtualBox/nls/*.ts
 #	debian/control
@@ -297,6 +297,8 @@ VBOX_PACKAGE_DIST ?= GENERIC
 # Full string
 VBOX_PACKAGE_STRING = $(VBOX_PACKAGE_OS)_$(VBOX_PACKAGE_ARCH)_$(VBOX_PACKAGE_DIST)
 
+# Supported VirtualBox host architectures.
+VBOX_SUPPORTED_HOST_ARCHS := amd64
 
 #
 # The VirtualBox Configuration Defaults.
@@ -396,12 +398,6 @@ endif
 
 ## @name VMM related settings.
 ## @{
-# Enable the tradition raw-mode virtualization.
-if !$(intersects $(KBUILD_TARGET), darwin) || defined(VBOX_ONLY_EXTPACKS)
- VBOX_WITH_RAW_MODE = 1
-endif
-# Enable the ring-1 compression option (mainly for QNX).
-VBOX_WITH_RAW_RING1 = 1
 # Enable safe STR (store task register) emulation for raw-mode.
 VBOX_WITH_SAFE_STR = 1
 # Enable support for 64-bit guests.
@@ -421,7 +417,7 @@ ifeq ($(KBUILD_TARGET_ARCH),amd64)
  # Enables SVM nested hardware virtualization support.
  VBOX_WITH_NESTED_HWVIRT_SVM = 1
  # Enables VMX nested hardware virtualization support.
- #VBOX_WITH_NESTED_HWVIRT_VMX = 1
+ VBOX_WITH_NESTED_HWVIRT_VMX = 1
  # Enables nested hardware virtualization support but only in IEM.
  #VBOX_WITH_NESTED_HWVIRT_ONLY_IN_IEM = 1
  ifdef VBOX_WITH_NESTED_HWVIRT_ONLY_IN_IEM
@@ -461,6 +457,8 @@ VBOX_WITH_NAT_SERVICE = 1
 VBOX_WITH_E1000 = 1
 # Enable the Virtio feature.
 VBOX_WITH_VIRTIO = 1
+# Enable the Virtio SCSI device.
+VBOX_WITH_VIRTIO_SCSI = 1
 # HDA emulation is Intel HDA by default.
 VBOX_WITH_INTEL_HDA = 1
 ifn1of ($(KBUILD_TARGET), win darwin)
@@ -484,7 +482,8 @@ endif
 # Enables the audio endpoint detection on Windows hosts.
 VBOX_WITH_AUDIO_MMNOTIFICATION_CLIENT = 1
 # Enable PCI passthrough support.
-VBOX_WITH_PCI_PASSTHROUGH = 1
+# (disabled with 6.1, since it's not complete/useful enough)
+VBOX_WITH_PCI_PASSTHROUGH =
 # Enable statically linked dbus support.
 if1of ($(KBUILD_TARGET), linux solaris)
  VBOX_WITH_DBUS = 1
@@ -500,6 +499,10 @@ VBOX_WITH_VMSVGA = 1
 # Enable vmsvga (svga2) graphics device variant, 3D part
 if1of ($(KBUILD_TARGET), darwin linux win)
  VBOX_WITH_VMSVGA3D = 1
+endif
+# Enable the generic 3D settings support if at least one 3D capable solution is enabled
+ifdef VBOX_WITH_VMSVGA3D
+ VBOX_WITH_3D_ACCELERATION = 1
 endif
 # Enable Host Guest Shared Memory Interface.
 VBOX_WITH_HGSMI = 1
@@ -525,10 +528,14 @@ endif
 VBOX_WITH_INTEL_PXE =
 # Enable EFI support
 VBOX_WITH_EFI = 1
+# Embed the EFI firmwares in VBoxDD2.dll/dylib/so.
+VBOX_WITH_EFI_IN_DD2 = 1
 # Fetch EFI firmware image from the build server
 #VBOX_WITH_EFIFW_FROM_BUILD_SERVER = 1
 # Include the EFI firmware into the package
-VBOX_WITH_EFIFW_PACKING = 1
+ifndef VBOX_WITH_EFI_IN_DD2
+ VBOX_WITH_EFIFW_PACKING = 1
+endif
 # Enable setuid wrapper for Solaris host DVD.
 #VBOX_WITH_SUID_WRAPPER = 1
 # Enable the virtual SATA/AHCI controller
@@ -543,7 +550,8 @@ ifdef VBOX_WITH_EHCI
  VBOX_WITH_EHCI_IMPL = 1
 endif
 ifdef VBOX_WITH_PCI_PASSTHROUGH
- VBOX_WITH_PCI_PASSTHROUGH_IMPL = 1
+ ## @bugref{9218}: Disabled awaiting conversion of the device to new PDM device style.
+ #VBOX_WITH_PCI_PASSTHROUGH_IMPL = 1
 endif
 ifndef VBOX_WITHOUT_HOSTWEBCAM
  VBOX_WITH_USB_VIDEO_IMPL = 1
@@ -607,6 +615,7 @@ endif
 ## @{
 # Build the installer.
 VBOX_WITH_INSTALLER = 1
+VBOX_WITH_GUEST_INSTALLER_UNICODE = 1
 # The kernel driver/module and related runtime libraries.
 # On Linux we build this as a test case instead.
 ifneq ($(KBUILD_TARGET), linux)
@@ -628,10 +637,10 @@ if1of ($(KBUILD_TARGET).$(KBUILD_TARGET_ARCH), solaris.amd64 win.amd64)
 endif
 # Whether to generate a database of USB vendor IDs and device IDs into VBoxSVC.
 VBOX_WITH_MAIN_USB_ID_DATABASE = 1
-# The recompiler.
-if !defined(VBOX_WITH_NEW_XCODE) || "$(KBUILD_TARGET)" != "darwin"
- VBOX_WITH_REM = 1
-endif
+## The recompiler - Dropped in 6.1.
+#if !defined(VBOX_WITH_NEW_XCODE) || "$(KBUILD_TARGET)" != "darwin"
+# VBOX_WITH_REM = 1
+#endif
 # Set this to prefix all C symbols in XPCOM, to avoid dynamic linking problems
 # caused by our XPCOM library polluting the symbol namespace for system libs.
 if1of ($(KBUILD_TARGET), linux solaris)
@@ -646,6 +655,12 @@ VBOX_WITH_QTGUI = 1
 ifeq ($(KBUILD_TARGET),darwin)
  VBOX_WITH_COCOA_QT = 1
 endif
+# VBox Ballooning Control frontend.
+VBOX_WITH_FE_BALLOONCTRL = 1
+# VBox Autostart Service.
+VBOX_WITH_FE_AUTOSTART = 1
+# VBox Bug Report tool.
+VBOX_WITH_FE_BUGREPORT = 1
 # The SDL based GUI.
 VBOX_WITH_VBOXSDL = 1
 # Build VBoxSDL with secure label support.
@@ -712,6 +727,10 @@ VBOX_WITH_OPUS_SSE = 1
 VBOX_WITH_SHARED_FOLDERS = 1
 # Enable shared clipboard
 VBOX_WITH_SHARED_CLIPBOARD = 1
+# Enable shared clipboard (file) transfers
+#if1of ($(KBUILD_TARGET), win linux)
+# VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS = 1
+#endif
 # Enable the host/guest information service (aka guest properties).
 VBOX_WITH_GUEST_PROPS = 1
 # Enable this to prevent the guest from writing guest properties.
@@ -782,6 +801,8 @@ if1of ($(KBUILD_TARGET), freebsd linux)
 endif
 # Use new VBoxNetDhcpd instead of old VBoxNetDHCP
 VBOX_WITH_DHCPD = 1
+# Experimental suport for cloud network integration
+#VBOX_WITH_CLOUD_NET = 1
 ## @}
 
 
@@ -839,7 +860,7 @@ endif
 # windows versions (only define when buildling win.x86).
 #VBOX_WITH_MORE_NT4_COMPAT_BINARIES = 1
 # Set this to enable building of the vboximg-mount FUSE mounting utility.
-if1of ($(KBUILD_TARGET), darwin)
+if1of ($(KBUILD_TARGET), darwin linux)
  VBOX_WITH_VBOXIMGMOUNT = 1
 endif
 # Set this to enable packaging the fuse related bits into our installer.
@@ -922,7 +943,7 @@ endif
 # things gets a bit complicated since the $ORIGIN+setuid policy differs.
 #VBOX_WITH_ORIGIN = 1
 ifndef VBOX_WITH_HARDENING
- if1of ($(KBUILD_TARGET), linux solaris)
+ if1of ($(KBUILD_TARGET), freebsd linux netbsd openbsd solaris) # duplicated further down
   VBOX_WITH_ORIGIN = 1
  endif
 endif
@@ -1279,8 +1300,8 @@ ifdef VBOX_WITHOUT_HARDENING
   VBOX_PATH_SHARED_LIBS=
   VBOX_PATH_APP_DOCS=
   VBOX_WITH_RUNPATH=
-  if1of ($(KBUILD_TARGET), linux solaris)
-   VBOX_WITH_ORIGIN=1
+  if1of ($(KBUILD_TARGET), freebsd linux netbsd openbsd solaris) # duplicated up above
+   VBOX_WITH_ORIGIN = 1
   endif
  endif
 endif
@@ -1873,6 +1894,11 @@ if1of ($(KBUILD_TARGET).$(KBUILD_TARGET_ARCH), win.amd64 linux.amd64)
 else
  VBOX_LIB_VMM_LAZY      = $(LIB_VMM)
 endif
+ifn1of ($(KBUILD_TARGET_ARCH), $(VBOX_SUPPORTED_HOST_ARCHS)) # Hack to build a couple of extpack things that thing they need the VMM lib.
+ LIB_VMM           :=
+ LIB_VMMRC         :=
+ VBOX_LIB_VMM_LAZY :=
+endif
 VBOX_LIB_SUPHARDENED    = $(PATH_STAGE_LIB)/SUPR3HardenedStatic$(VBOX_SUFF_LIB)
 VBOX_LIB_RUNTIME_STATIC = $(PATH_STAGE_LIB)/RuntimeR3$(VBOX_SUFF_LIB)
 
@@ -1975,6 +2001,8 @@ VBOX_PYLINT_FLAGS = $(if-expr $(VBOX_PYLINT_VERSION) >= 10500,--reports=n,--repo
        $(if-expr $(VBOX_PYLINT_VERSION) >= 10201 && $(VBOX_PYLIN_VERSION) < 10500,--disable=bad-option-value,) \
        $(if-expr $(VBOX_PYLINT_VERSION) >= 10500,--disable=wrong-import-position --disable=E0012 --disable=locally-enabled,) \
        $(if-expr $(VBOX_PYLINT_VERSION) >= 10600,--disable=missing-docstring --disable=trailing-newlines --disable=ungrouped-imports,) \
+       $(if-expr $(VBOX_PYLINT_VERSION) >= 10800,--disable=redundant-keyword-arg,) \
+       $(if-expr $(VBOX_PYLINT_VERSION) >= 20000,--disable=useless-object-inheritance --disable=useless-return,) \
 	--disable=unnecessary-semicolon,invalid-encoded-data,global-statement,bare-except,broad-except,multiple-statements,no-self-use,fixme \
 	--disable=I0011 \
 	--ignored-classes=testdriver.vboxcon \
@@ -2113,7 +2141,7 @@ VBOX_MAKESELF  ?= $(KBUILD_DEVTOOLS)/common/makeself/v2.1.5/makeself.sh
 VBOX_PATH_HTML_HELP_WORKSHOP ?= $(KBUILD_DEVTOOLS)/win.x86/HTML_Help_Workshop/v1.3/
 
 # Path to the null soft installer.
-VBOX_PATH_NSIS ?= $(KBUILD_DEVTOOLS)/win.x86/nsis/v2.51-log-nsscm-r2
+VBOX_PATH_NSIS ?= $(KBUILD_DEVTOOLS)/win.x86/nsis/v3.04-log
 
 # Path to AutoIt3.
 VBOX_PATH_AUTOIT3 ?= $(KBUILD_DEVTOOLS)/win.x86/autoit/v3.2.10.0
@@ -2285,7 +2313,7 @@ VBOX_PATH_MACOSX_SDK := $(firstword $(wildcard $(addsuffix /MacOSX$(VBOX_DEF_MAC
   endif
   ifdef VBOX_WITH_NEW_XCODE
    if defined(VBOX_WITH_REM) && "$(VBOX_XCODE_VERSION)" >= "4.2"
-    $(warning Xcode $(VBOX_XCODE_VERSION) is not able to correctly build the recompiler! Please disabled it: 'VBOX_WITH_REM=')
+    $(warning Xcode $(VBOX_XCODE_VERSION) is not able to correctly build the recompiler! Please disable it: 'VBOX_WITH_REM=')
    endif
    ifdef KBUILD_USE_KOBJCACHE
     $(warning KBUILD_USE_KOBJCACHE does _not_ currently work with this version of Xcode)
@@ -2644,43 +2672,6 @@ else
  VBOX_GCC_VERSION = $(shell ($(1) -dumpfullversion 2>/dev/null || $(1) -dumpversion) | \
     $(SED_EXT) 's|\([0-9]\)\.\{0,1\}\([0-9]\{0,1\}\)\.\{0,1\}\([0-9]\{0,1\}\).*|$$(int-add $$(int-mul 10000, \1), $$(int-mul 100, $$(firstword \2 0)), $$(firstword \3 0))|' )
 endif
-
-# Find MinGW cross compilers for EFI on non-windows systems. We need to probe
-# them for supported options in the Dynamic Config.kmk section below.
-ifdef VBOX_WITH_EFI
- ifneq ($(KBUILD_HOST),win)
-  ifndef VBOX_PATH_PREFIX_MINGW32
-   VBOX_PATH_PREFIX_MINGW32 := $(firstword \
-   	$(which i686-w64-mingw32-gcc) \
-   	$(which i686-w32-mingw32-gcc) \
-   	$(which i686-pc-mingw32-gcc) \
-   	$(which i586-mingw32msvc-gcc) \
-        )# Add more variants.
-   ifdef VBOX_PATH_PREFIX_MINGW32
-    VBOX_PATH_PREFIX_MINGW32 := $(substr $(VBOX_PATH_PREFIX_MINGW32), 1, $(expr $(length-var VBOX_PATH_PREFIX_MINGW32) - 3))
-   endif
-  endif
-  ifndef VBOX_PATH_PREFIX_MINGW64
-   VBOX_PATH_PREFIX_MINGW64 := $(firstword \
-   	$(which x86_64-w64-mingw64-gcc) \
-   	$(which x86_64-w64-mingw32-gcc) \
-   	$(which x86_64-pc-mingw64-gcc) \
-   	$(which x86_64-pc-mingw32-gcc) \
-   	$(which x86_64-w32-mingw32-gcc) \
-        )# Add more variants.
-   ifdef VBOX_PATH_PREFIX_MINGW64
-    VBOX_PATH_PREFIX_MINGW64 := $(substr $(VBOX_PATH_PREFIX_MINGW64), 1, $(expr $(length-var VBOX_PATH_PREFIX_MINGW64) - 3))
-   endif
-  endif
-  if defined(VBOX_PATH_PREFIX_MINGW32) || defined(VBOX_PATH_PREFIX_MINGW64)
-   if !defined(VBOX_PATH_PREFIX_MINGW32)
-    VBOX_PATH_PREFIX_MINGW32 = $(VBOX_PATH_PREFIX_MINGW64)
-   else if !defined(VBOX_PATH_PREFIX_MINGW64)
-    VBOX_PATH_PREFIX_MINGW64 = $(VBOX_PATH_PREFIX_MINGW32)
-   endif
-  endif
- endif # !win
-endif # VBOX_WITH_EFI
 
 # YASM macros
 ifndef DONT_USE_YASM
@@ -3473,7 +3464,7 @@ ifdef VBOX_SIGNING_MODE
    VBOX_CERTIFICATE_FINGERPRINT ?= 6f 47 42 06 bc bb 39 1b b8 2b a9 e5 dc 03 02 de f3 7a eb be
    #VBOX_CROSS_CERTIFICATE_FILE ?= $(VBOX_PATH_SELFSIGN)/VeriSign Class 3 Public Primary Certification Authority - G5.cer
    VBOX_CROSS_CERTIFICATE_FILE ?= $(VBOX_PATH_SELFSIGN)/DigiCert Assured ID Root CA.crt
-   VBOX_TSA_URL ?= http://timestamp.verisign.com/scripts/timestamp.dll
+   VBOX_TSA_URL ?= http://timestamp.verisign.com/scripts/timstamp.dll
   endif
   if !defined(VBOX_CROSS_CERTIFICATE_FILE_ARGS) && defined(VBOX_CROSS_CERTIFICATE_FILE)
    VBOX_CROSS_CERTIFICATE_FILE_ARGS = /ac "$(VBOX_CROSS_CERTIFICATE_FILE)"
@@ -3701,6 +3692,8 @@ ifdef VBOX_SIGNING_MODE
    VBOX_SIGN_BUNDLE_FN = $(call MSG_TOOL,SIGNTOOL,,$(1),$(2))$(NLTAB)$(VBOX_CODESIGN) \
 	--verbose=9 \
 	--force \
+	$(if-expr $(KBUILD_HOST_VERSION_MAJOR) <= 14,--digest-algorithm sha256,) \
+	$(if $(VBOX_WITH_MACOS_HARDENED_RUNTIME),$(if-expr $(KBUILD_HOST_VERSION_MAJOR) <= 16,--options 0x10000,--options runtime)) \
 	--file-list - \
 	$(if-expr defined(VBOX_TSA_URL),--timestamp="$(VBOX_TSA_URL)") \
 	$(3) \
@@ -3718,6 +3711,7 @@ ifdef VBOX_SIGNING_MODE
    VBOX_SIGN_MACHO_FN = $(call MSG_TOOL,SIGNTOOL,,$(1),$(2))$(NLTAB)$(VBOX_CODESIGN) \
 	--verbose=9 \
 	--force \
+	$(if-expr $(KBUILD_HOST_VERSION_MAJOR) <= 14,--digest-algorithm sha256,) \
 	--file-list - \
 	$(if-expr defined(VBOX_TSA_URL),--timestamp="$(VBOX_TSA_URL)") \
 	$(VBOX_CERTIFICATE_SUBJECT_NAME_ARGS) \
@@ -3740,6 +3734,7 @@ ifdef VBOX_SIGNING_MODE
    VBOX_SIGN_FILE_FN = $(call MSG_TOOL,SIGNTOOL,,$(1),$(2))$(NLTAB)$(VBOX_CODESIGN) \
 	--verbose=9 \
 	--force \
+	$(if-expr $(KBUILD_HOST_VERSION_MAJOR) <= 14,--digest-algorithm sha256,) \
 	--file-list - \
 	$(if-expr defined(VBOX_TSA_URL),--timestamp="$(VBOX_TSA_URL)") \
 	$(VBOX_CERTIFICATE_SUBJECT_NAME_ARGS) \
@@ -3864,7 +3859,7 @@ VBOX_EDIT_INF32_FN = $(SED) $(if $(VBOX_SIGNING_MODE),-e 's/^;cat  *//', -e '/^;
 	-e '/^;amd64 /d' \
 	-e 's/@DOT-NT-ARCH@//' \
 	-e 's/@COMMA-NT-ARCH@//' \
-	-e 's/^;edit-DriverVer.*/DriverVer = $(date-utc %m\/%d\/%Y),$(VBOX_VERSION_MAJOR).$(VBOX_VERSION_MINOR).$(VBOX_VERSION_BUILD) ; r$(VBOX_SVN_REV)/' \
+	-e 's/^;edit-DriverVer.*/DriverVer = $(date-utc %m\/%d\/%Y),$(VBOX_VERSION_MAJOR).$(VBOX_VERSION_MINOR).$(VBOX_VERSION_BUILD).$(expr $(VBOX_SVN_REV) % 50000) ; r$(VBOX_SVN_REV)/' \
 	--output $(2) \
 	$(1)
 ## Edit an inf file an x86 target.
@@ -3876,7 +3871,7 @@ VBOX_EDIT_INF64_FN = $(SED) \
 	-e '/^;x86 /d' \
 	-e 's/@DOT-NT-ARCH@/.ntamd64/' \
 	-e 's/@COMMA-NT-ARCH@/,ntamd64/' \
-	-e 's/^;edit-DriverVer.*/DriverVer = $(date-utc %m\/%d\/%Y),$(VBOX_VERSION_MAJOR).$(VBOX_VERSION_MINOR).$(VBOX_VERSION_BUILD) ; r$(VBOX_SVN_REV)/' \
+	-e 's/^;edit-DriverVer.*/DriverVer = $(date-utc %m\/%d\/%Y),$(VBOX_VERSION_MAJOR).$(VBOX_VERSION_MINOR).$(VBOX_VERSION_BUILD).$(expr $(VBOX_SVN_REV) % 50000) ; r$(VBOX_SVN_REV)/' \
 	--output $(2) \
 	$(1)
 
@@ -4156,6 +4151,13 @@ ifdef VBOX_WITH_LIBOPUS
  SDK_VBOX_OPUS_DEFAULT_INCS := $(PATH_ROOT)/src/libs/libopus-1.2.1/include
  SDK_VBOX_OPUS_INCS ?= $(SDK_VBOX_OPUS_DEFAULT_INCS)
  SDK_VBOX_OPUS_LIBS ?= $(PATH_STAGE_LIB)/VBox-libopus$(VBOX_SUFF_LIB)
+endif
+
+ifdef VBOX_WITH_LIBFUSE
+ SDK_VBOX_FUSE               = .
+ SDK_VBOX_FUSE_DEFAULT_INCS := $(PATH_ROOT)/src/libs/libfuse-2.9.8/include
+ SDK_VBOX_FUSE_INCS         ?= $(SDK_VBOX_FUSE_DEFAULT_INCS)
+ SDK_VBOX_FUSE_LIBS         ?= $(PATH_STAGE_LIB)/VBox-libfuse$(VBOX_SUFF_LIB)
 endif
 
 #
@@ -5022,7 +5024,13 @@ TEMPLATE_VBOXR3EXE                     = VBox Ring 3 Exe
 TEMPLATE_VBOXR3EXE_ASTOOL              = $(VBOX_ASTOOL)
 TEMPLATE_VBOXR3EXE_ASFLAGS.x86         = $(VBOX_ASFLAGS32)
 TEMPLATE_VBOXR3EXE_ASFLAGS.amd64       = $(VBOX_ASFLAGS64)
-TEMPLATE_VBOXR3EXE_DEFS                = IN_RING3 $(ARCH_BITS_DEFS)
+TEMPLATE_VBOXR3EXE_DEFS                = IN_RING3 $(VBOX_GC_ARCH_BITS_DEFS)
+TEMPLATE_VBOXR3EXE_DEFS.x86            = HC_ARCH_BITS=32
+TEMPLATE_VBOXR3EXE_DEFS.arm32          = HC_ARCH_BITS=32
+TEMPLATE_VBOXR3EXE_DEFS.sparc32        = HC_ARCH_BITS=32
+TEMPLATE_VBOXR3EXE_DEFS.amd64          = HC_ARCH_BITS=64
+TEMPLATE_VBOXR3EXE_DEFS.arm64          = HC_ARCH_BITS=64
+TEMPLATE_VBOXR3EXE_DEFS.sparc64        = HC_ARCH_BITS=64
 TEMPLATE_VBOXR3EXE_DEFS.win            = _CRT_SECURE_NO_DEPRECATE
 TEMPLATE_VBOXR3EXE_USES                = dtrace
 if defined(VBOX_WITH_DTRACE_R3) && defined(VBOX_WITH_NATIVE_DTRACE)
@@ -6401,11 +6409,13 @@ ifdef VBOX_WITH_EXTPACK
   TEMPLATE_VBoxR3ExtPackPuel_EXTENDS = VBoxR3ExtPack
   TEMPLATE_VBoxR3ExtPackPuel_INST = $(INST_EXTPACK_PUEL)$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH)/
   TEMPLATE_VBoxR3ExtPackPuel_DEFS = $(TEMPLATE_VBoxR3ExtPack_DEFS) VBOX_IN_PUEL_EXTPACK
+  TEMPLATE_VBoxR3ExtPackPuel_LD_DEBUG = split
 
   TEMPLATE_VBoxR3ExtPackApiPuel = For the ring-3 context modules in the PUEL extension pack.
   TEMPLATE_VBoxR3ExtPackApiPuel_EXTENDS = VBoxR3ExtPackApi
   TEMPLATE_VBoxR3ExtPackApiPuel_INST = $(INST_EXTPACK_PUEL)$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH)/
   TEMPLATE_VBoxR3ExtPackApiPuel_DEFS = $(TEMPLATE_VBoxR3ExtPackApi_DEFS) VBOX_IN_PUEL_EXTPACK
+  TEMPLATE_VBoxR3ExtPackApiPuel_LD_DEBUG = split
 
   TEMPLATE_VBoxR3ExtPackPuelWithOpenSsl = For the ring-3 context modules in the PUEL extension pack using ExtPack OpenSSL.
   TEMPLATE_VBoxR3ExtPackPuelWithOpenSsl_EXTENDS = VBoxR3ExtPackPuel
@@ -6714,6 +6724,8 @@ ifdef VBOX_WITH_QTGUI
    TEMPLATE_VBOXQTGUIEXE_DEFS     += PIC
    TEMPLATE_VBOXQTGUIEXE_CFLAGS   += -fPIC
    TEMPLATE_VBOXQTGUIEXE_CXXFLAGS += -fPIC
+   # Needed for GCC 9. Even system's Qt 5.12.4 (on Ubuntu 19.10) did not have this fixed yet.
+   TEMPLATE_VBOXQTGUIEXE_CXXFLAGS.linux = -Wno-deprecated-copy $(TEMPLATE_VBOXQTGUIEXE_CXXFLAGS)
    TEMPLATE_VBOXQTGUIEXE_LDFLAGS  += -fPIC
  endif # not darwin, os2 or win
 
@@ -7695,7 +7707,8 @@ endif
 # The VBOX_SVN_REV contains our best guess.  Use svn info on the root of the
 # tree to determine this it if .svn/wc.db or .svn/entries is found (the former
 # also up to two directory levels higher to allow for checkouts of the entire
-# repository), otherwise fall back on the Config.kmk revision.
+# repository), otherwise fall back on maximum value of Config.kmk and
+# Version.kmk revision.
 #
 # Makefile rules using this information shall list $(VBOX_SVN_REV_KMK) as a
 # prerequisite.
@@ -7703,7 +7716,8 @@ endif
 SVN                    ?= svn$(HOSTSUFF_EXE)
 VBOX_SVN_REV_KMK        = $(PATH_OUT)/revision.kmk
 ifndef VBOX_SVN_REV
- VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 132055 $  )
+ VBOX_SVN_REV_CONFIG_FALLBACK := $(patsubst %:,,  $Rev: 135348 $  )
+ VBOX_SVN_REV_FALLBACK := $(if-expr $(VBOX_SVN_REV_CONFIG_FALLBACK) > $(VBOX_SVN_REV_VERSION_FALLBACK),$(VBOX_SVN_REV_CONFIG_FALLBACK),$(VBOX_SVN_REV_VERSION_FALLBACK))
  VBOX_SVN_DEP          := $(firstword $(wildcard $(PATH_ROOT)/.svn/wc.db $(abspath $(PATH_ROOT)/../.svn/wc.db) $(abspath $(PATH_ROOT)/../../.svn/wc.db) $(PATH_ROOT)/.svn/entries))
  ifeq ($(which $(SVN)),)
   VBOX_SVN_DEP         :=
@@ -7833,4 +7847,3 @@ up2 update2::
 
 st stat status:
 	$(SVN) status
-

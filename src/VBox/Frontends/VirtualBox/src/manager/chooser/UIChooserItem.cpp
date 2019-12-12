@@ -31,12 +31,36 @@
 /* GUI includes: */
 #include "UIChooser.h"
 #include "UIChooserItem.h"
-#include "UIChooserView.h"
-#include "UIChooserModel.h"
 #include "UIChooserItemGroup.h"
 #include "UIChooserItemGlobal.h"
 #include "UIChooserItemMachine.h"
+#include "UIChooserView.h"
+#include "UIChooserModel.h"
+#include "UIChooserNode.h"
+#include "UIImageTools.h"
 
+/* Other VBox includes: */
+#include "iprt/assert.h"
+
+UIChooserDisabledItemEffect::UIChooserDisabledItemEffect(int iBlurRadius, QObject *pParent /* = 0 */)
+    :QGraphicsEffect(pParent)
+    , m_iBlurRadius(iBlurRadius)
+{
+}
+
+void UIChooserDisabledItemEffect::draw(QPainter *painter)
+{
+    QPoint offset;
+    QPixmap pixmap;
+    /* Get the original pixmap: */
+    pixmap = sourcePixmap( Qt::LogicalCoordinates, &offset );
+    QImage resultImage;
+    /* Apply our blur and grayscale filters to the original pixmap: */
+    UIImageTools::blurImage(pixmap.toImage(), resultImage, m_iBlurRadius);
+    pixmap.convertFromImage(UIImageTools::toGray(resultImage));
+    /* Use the filtered pixmap: */
+    painter->drawPixmap( offset, pixmap );
+}
 
 /** QAccessibleObject extension used as an accessibility interface for Chooser-view items. */
 class UIAccessibilityInterfaceForUIChooserItem : public QAccessibleObject
@@ -161,8 +185,8 @@ public:
         state.focusable = true;
         state.selectable = true;
 
-        /* Compose the state of current item: */
-        if (item() && item() == item()->model()->currentItem())
+        /* Compose the state of first selected-item: */
+        if (item() && item() == item()->model()->firstSelectedItem())
         {
             state.active = true;
             state.focused = true;
@@ -192,12 +216,11 @@ private:
 *   Class UIChooserItem implementation.                                                                                          *
 *********************************************************************************************************************************/
 
-UIChooserItem::UIChooserItem(UIChooserItem *pParent, bool fTemporary,
+UIChooserItem::UIChooserItem(UIChooserItem *pParent, UIChooserNode *pNode,
                              int iDefaultValue /* = 100 */, int iHoveredValue /* = 90 */)
-    : m_pParent(pParent)
-    , m_fTemporary(fTemporary)
-    , m_fRoot(!pParent)
-    , m_iLevel(-1)
+    : QIWithRetranslateUI4<QIGraphicsWidget>(pParent)
+    , m_pParent(pParent)
+    , m_pNode(pNode)
     , m_fHovered(false)
     , m_pHoveringMachine(0)
     , m_pHoveringAnimationForward(0)
@@ -206,13 +229,15 @@ UIChooserItem::UIChooserItem(UIChooserItem *pParent, bool fTemporary,
     , m_iDefaultValue(iDefaultValue)
     , m_iHoveredValue(iHoveredValue)
     , m_iAnimatedValue(m_iDefaultValue)
-    , m_iPreviousMinimumWidthHint(0)
-    , m_iPreviousMinimumHeightHint(0)
-    , m_enmDragTokenPlace(DragToken_Off)
+    , m_pDisabledEffect(0)
+    , m_enmDragTokenPlace(UIChooserItemDragToken_Off)
     , m_iDragTokenDarkness(110)
 {
     /* Install Chooser-view item accessibility interface factory: */
     QAccessible::installFactory(UIAccessibilityInterfaceForUIChooserItem::pFactory);
+
+    /* Assign item for passed node: */
+    node()->setItem(this);
 
     /* Basic item setup: */
     setOwnedByLayout(false);
@@ -287,6 +312,10 @@ UIChooserItem::UIChooserItem(UIChooserItem *pParent, bool fTemporary,
             m_pHoveringMachine->start();
         }
     }
+    /* Allocate the effect instance which we use when the item is marked as disablec: */
+    m_pDisabledEffect = new UIChooserDisabledItemEffect(1 /* Blur Radius */);
+    setGraphicsEffect(m_pDisabledEffect);
+    m_pDisabledEffect->setEnabled(false);
 }
 
 UIChooserItemGroup *UIChooserItem::toGroupItem()
@@ -322,49 +351,51 @@ UIActionPool *UIChooserItem::actionPool() const
     return model()->actionPool();
 }
 
-int UIChooserItem::level() const
-{
-    /* Check whether it is specified manually: */
-    if (m_iLevel != -1)
-        return m_iLevel;
-
-    /* Otherwise calculate ourself: */
-    int iLevel = 0;
-    UIChooserItem *pParentItem = parentItem();
-    while (pParentItem && !pParentItem->isRoot())
-    {
-        pParentItem = pParentItem->parentItem();
-        ++iLevel;
-    }
-    return iLevel;
-}
-
-void UIChooserItem::setLevel(int iLevel)
-{
-    m_iLevel = iLevel;
-}
-
-void UIChooserItem::show()
-{
-    /* Call to base-class: */
-    QIGraphicsWidget::show();
-}
-
-void UIChooserItem::hide()
-{
-    /* Call to base-class: */
-    QIGraphicsWidget::hide();
-}
-
-void UIChooserItem::setRoot(bool fRoot)
-{
-    m_fRoot = fRoot;
-    handleRootStatusChange();
-}
-
 bool UIChooserItem::isRoot() const
 {
-    return m_fRoot;
+    return node()->isRoot();
+}
+
+QString UIChooserItem::name() const
+{
+    return node()->name();
+}
+
+QString UIChooserItem::fullName() const
+{
+    return node()->fullName();
+}
+
+QString UIChooserItem::description() const
+{
+    return node()->description();
+}
+
+QString UIChooserItem::definition() const
+{
+    return node()->definition();
+}
+
+bool UIChooserItem::isFavorite() const
+{
+    return node()->isFavorite();
+}
+
+void UIChooserItem::setFavorite(bool fFavorite)
+{
+    node()->setFavorite(fFavorite);
+    if (m_pParent)
+        m_pParent->toGroupItem()->updateFavorites();
+}
+
+int UIChooserItem::position() const
+{
+    return node()->position();
+}
+
+bool UIChooserItem::isHovered() const
+{
+    return m_fHovered;
 }
 
 void UIChooserItem::setHovered(bool fHovered)
@@ -376,9 +407,10 @@ void UIChooserItem::setHovered(bool fHovered)
         emit sigHoverLeave();
 }
 
-bool UIChooserItem::isHovered() const
+void UIChooserItem::disableEnableItem(bool fDisabled)
 {
-    return m_fHovered;
+    if (m_pDisabledEffect)
+        m_pDisabledEffect->setEnabled(fDisabled);
 }
 
 void UIChooserItem::updateGeometry()
@@ -389,47 +421,31 @@ void UIChooserItem::updateGeometry()
     /* Update parent's geometry: */
     if (parentItem())
         parentItem()->updateGeometry();
-
-    /* Special handling for root-items: */
-    if (isRoot())
-    {
-        /* Root-item should notify chooser-view if minimum-width-hint was changed: */
-        const int iMinimumWidthHint = minimumWidthHint();
-        if (m_iPreviousMinimumWidthHint != iMinimumWidthHint)
-        {
-            /* Save new minimum-width-hint, notify listener: */
-            m_iPreviousMinimumWidthHint = iMinimumWidthHint;
-            emit sigMinimumWidthHintChanged(m_iPreviousMinimumWidthHint);
-        }
-        /* Root-item should notify chooser-view if minimum-height-hint was changed: */
-        const int iMinimumHeightHint = minimumHeightHint();
-        if (m_iPreviousMinimumHeightHint != iMinimumHeightHint)
-        {
-            /* Save new minimum-height-hint, notify listener: */
-            m_iPreviousMinimumHeightHint = iMinimumHeightHint;
-            emit sigMinimumHeightHintChanged(m_iPreviousMinimumHeightHint);
-        }
-    }
 }
 
 void UIChooserItem::makeSureItsVisible()
 {
-    /* If item is not visible: */
+    /* Get parrent item: */
+    UIChooserItemGroup *pParentItem = parentItem()->toGroupItem();
+    if (!pParentItem)
+        return;
+    /* If item is not visible. That is all the parent group(s) are opened (expanded): */
     if (!isVisible())
     {
-        /* Get parrent item, assert if can't: */
-        if (UIChooserItemGroup *pParentItem = parentItem()->toGroupItem())
-        {
-            /* We should make parent visible: */
-            pParentItem->makeSureItsVisible();
-            /* And make sure its opened: */
-            if (pParentItem->isClosed())
-                pParentItem->open(false);
-        }
+        /* We should make parent visible: */
+        pParentItem->makeSureItsVisible();
+        /* And make sure its opened: */
+        if (pParentItem->isClosed())
+            pParentItem->open(false);
     }
 }
 
-void UIChooserItem::setDragTokenPlace(DragToken enmPlace)
+UIChooserItemDragToken UIChooserItem::dragTokenPlace() const
+{
+    return m_enmDragTokenPlace;
+}
+
+void UIChooserItem::setDragTokenPlace(UIChooserItemDragToken enmPlace)
 {
     /* Something changed? */
     if (m_enmDragTokenPlace != enmPlace)
@@ -437,11 +453,6 @@ void UIChooserItem::setDragTokenPlace(DragToken enmPlace)
         m_enmDragTokenPlace = enmPlace;
         update();
     }
-}
-
-DragToken UIChooserItem::dragTokenPlace() const
-{
-    return m_enmDragTokenPlace;
 }
 
 void UIChooserItem::hoverMoveEvent(QGraphicsSceneHoverEvent *)
@@ -508,11 +519,11 @@ void UIChooserItem::dragMoveEvent(QGraphicsSceneDragDropEvent *pEvent)
         {
             QPoint p = pEvent->pos().toPoint();
             if (p.y() < 10)
-                setDragTokenPlace(DragToken_Up);
+                setDragTokenPlace(UIChooserItemDragToken_Up);
             else if (p.y() > minimumSizeHint().toSize().height() - 10)
-                setDragTokenPlace(DragToken_Down);
+                setDragTokenPlace(UIChooserItemDragToken_Down);
             else
-                setDragTokenPlace(DragToken_Off);
+                setDragTokenPlace(UIChooserItemDragToken_Off);
         }
     }
     /* Check if drop is allowed: */
@@ -529,7 +540,7 @@ void UIChooserItem::dropEvent(QGraphicsSceneDragDropEvent *pEvent)
     /* Do we have token active? */
     switch (dragTokenPlace())
     {
-        case DragToken_Off:
+        case UIChooserItemDragToken_Off:
         {
             /* Its our drop, processing: */
             processDrop(pEvent);
@@ -541,16 +552,6 @@ void UIChooserItem::dropEvent(QGraphicsSceneDragDropEvent *pEvent)
             parentItem()->processDrop(pEvent, this, dragTokenPlace());
             break;
         }
-    }
-}
-
-void UIChooserItem::handleRootStatusChange()
-{
-    /* Reset minimum size hints for non-root items: */
-    if (!isRoot())
-    {
-        m_iPreviousMinimumWidthHint = 0;
-        m_iPreviousMinimumHeightHint = 0;
     }
 }
 

@@ -67,7 +67,8 @@ void vbox_enable_accel(struct vbox_private *vbox)
 		if (vbox->vbva_info[i].pVBVA)
 			continue;
 
-		vbva = (void *)vbox->vbva_buffers + i * VBVA_MIN_BUFFER_SIZE;
+		vbva = (void __force *)vbox->vbva_buffers +
+			i * VBVA_MIN_BUFFER_SIZE;
 		if (!VBoxVBVAEnable(&vbox->vbva_info[i],
 				 vbox->guest_pool, vbva, i)) {
 			/* very old host or driver error. */
@@ -446,7 +447,11 @@ static void vbox_hw_fini(struct vbox_private *vbox)
 	pci_iounmap(vbox->dev->pdev, vbox->guest_heap);
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 0)
 int vbox_driver_load(struct drm_device *dev, unsigned long flags)
+#else
+int vbox_driver_load(struct drm_device *dev)
+#endif
 {
 	struct vbox_private *vbox;
 	int ret = 0;
@@ -616,11 +621,13 @@ void vbox_gem_free_object(struct drm_gem_object *obj)
 
 static inline u64 vbox_bo_mmap_offset(struct vbox_bo *bo)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 12, 0) && !defined(RHEL_70)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0)
+        return drm_vma_node_offset_addr(&bo->bo.base.vma_node);
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(3, 12, 0) && !defined(RHEL_70)
 	return bo->bo.addr_space_offset;
 #else
 	return drm_vma_node_offset_addr(&bo->bo.vma_node);
-#endif
+#endif /* >= KERNEL_VERSION(5, 4, 0) */
 }
 
 int

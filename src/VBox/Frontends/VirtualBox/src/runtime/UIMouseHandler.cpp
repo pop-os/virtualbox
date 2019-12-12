@@ -24,7 +24,7 @@
 #endif
 
 /* GUI includes: */
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #include "UIDesktopWidgetWatchdog.h"
 #include "UIExtraDataManager.h"
 #include "UIMessageCenter.h"
@@ -107,8 +107,10 @@ void UIMouseHandler::prepareListener(ulong uIndex, UIMachineWindow *pMachineWind
         m_views.insert(uIndex, pMachineWindow->machineView());
         /* Install event-filter for machine-view: */
         m_views[uIndex]->installEventFilter(this);
+        /* Make machine-view notify mouse-handler about mouse pointer shape change: */
+        connect(m_views[uIndex], &UIMachineView::sigMousePointerShapeChange, this, &UIMouseHandler::sltMousePointerShapeChanged);
         /* Make machine-view notify mouse-handler about frame-buffer resize: */
-        connect(m_views[uIndex], SIGNAL(sigFrameBufferResize()), this, SLOT(sltMousePointerShapeChanged()));
+        connect(m_views[uIndex], &UIMachineView::sigFrameBufferResize, this, &UIMouseHandler::sltMousePointerShapeChanged);
     }
 
     /* If that viewport is NOT registered yet: */
@@ -460,7 +462,7 @@ void UIMouseHandler::sltMousePointerShapeChanged()
     {
         QList<ulong> screenIds = m_viewports.keys();
         for (int i = 0; i < screenIds.size(); ++i)
-            VBoxGlobal::setCursor(m_viewports[screenIds[i]], Qt::BlankCursor);
+            UICommon::setCursor(m_viewports[screenIds[i]], Qt::BlankCursor);
     }
 
     else
@@ -474,7 +476,7 @@ void UIMouseHandler::sltMousePointerShapeChanged()
     {
         QList<ulong> screenIds = m_viewports.keys();
         for (int i = 0; i < screenIds.size(); ++i)
-            VBoxGlobal::setCursor(m_viewports[screenIds[i]], uisession()->cursor());
+            UICommon::setCursor(m_viewports[screenIds[i]], m_views[screenIds[i]]->cursor());
     }
 
     else
@@ -487,7 +489,7 @@ void UIMouseHandler::sltMousePointerShapeChanged()
     {
         QList<ulong> screenIds = m_viewports.keys();
         for (int i = 0; i < screenIds.size(); ++i)
-            VBoxGlobal::unsetCursor(m_viewports[screenIds[i]]);
+            UICommon::unsetCursor(m_viewports[screenIds[i]]);
     }
 }
 
@@ -517,14 +519,13 @@ UIMouseHandler::UIMouseHandler(UIMachineLogic *pMachineLogic)
 #endif
 {
     /* Machine state-change updater: */
-    connect(uisession(), SIGNAL(sigMachineStateChange()), this, SLOT(sltMachineStateChanged()));
+    connect(uisession(), &UISession::sigMachineStateChange, this, &UIMouseHandler::sltMachineStateChanged);
 
     /* Mouse capability state-change updater: */
-    connect(uisession(), SIGNAL(sigMouseCapabilityChange()), this, SLOT(sltMouseCapabilityChanged()));
+    connect(uisession(), &UISession::sigMouseCapabilityChange, this, &UIMouseHandler::sltMouseCapabilityChanged);
 
-    /* Mouse pointer shape state-change updaters: */
-    connect(uisession(), SIGNAL(sigMousePointerShapeChange()), this, SLOT(sltMousePointerShapeChanged()));
-    connect(this, SIGNAL(sigStateChange(int)), this, SLOT(sltMousePointerShapeChanged()));
+    /* Mouse pointer shape state-change updater: */
+    connect(this, &UIMouseHandler::sigStateChange, this, &UIMouseHandler::sltMousePointerShapeChanged);
 
     /* Mouse cursor position state-change updater: */
     connect(uisession(), &UISession::sigCursorPositionChange, this, &UIMouseHandler::sltMousePointerShapeChanged);
@@ -1149,7 +1150,7 @@ bool UIMouseHandler::mouseEvent(int iEventType, ulong uScreenId,
                         qApp->processEvents();
 #endif /* VBOX_WS_X11 */
                         machineLogic()->keyboardHandler()->captureKeyboard(uScreenId);
-                        const MouseCapturePolicy mcp = gEDataManager->mouseCapturePolicy(vboxGlobal().managedVMUuid());
+                        const MouseCapturePolicy mcp = gEDataManager->mouseCapturePolicy(uiCommon().managedVMUuid());
                         if (mcp == MouseCapturePolicy_Default)
                             captureMouse(uScreenId);
                     }

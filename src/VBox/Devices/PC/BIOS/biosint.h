@@ -1,6 +1,6 @@
 /* $Id: biosint.h $ */
 /** @file
- * PC BIOS - ???
+ * PC BIOS - BIOS internal definitions.
  */
 
 /*
@@ -289,6 +289,8 @@ extern  bx_bool     set_enable_a20(bx_bool val);
 #define BX_INFO(...)    bios_printf(BIOS_PRINTF_INFO, __VA_ARGS__)
 #endif /* !VBOX */
 #define BX_PANIC(...)   bios_printf(BIOS_PRINTF_DEBHALT, __VA_ARGS__)
+
+uint16_t pci16_find_device(uint32_t search_item, uint16_t index, int search_class, int ignore_if);
 
 /* Because we don't tell the recompiler when guest physical memory
  * is written, it can incorrectly cache guest code overwritten by

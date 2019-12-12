@@ -231,7 +231,7 @@ typedef struct PDMIMEDIAPORT
 
 
     /**
-     * Queries the vendor and product ID and revision to report for INQUIRY commands in underlying devices.
+     * Queries the vendor and product ID and revision to report for INQUIRY commands in underlying devices, optional.
      *
      * @returns VBox status code.
      * @param   pInterface      Pointer to this interface.
@@ -541,6 +541,8 @@ typedef struct PDMIMEDIA
 typedef struct PDMMEDIAEXIOREQINT *PDMMEDIAEXIOREQ;
 /** Pointer to an I/O request handle. */
 typedef PDMMEDIAEXIOREQ *PPDMMEDIAEXIOREQ;
+/** NIL I/O request handle. */
+#define NIL_PDMMEDIAEXIOREQ     ((PDMMEDIAEXIOREQ)0)
 
 /** A I/O request ID. */
 typedef uint64_t PDMMEDIAEXIOREQID;
@@ -949,17 +951,20 @@ typedef struct PDMIMEDIAEX
      * @param   pbCdb           The SCSI CDB containing the command.
      * @param   cbCdb           Size of the CDB in bytes.
      * @param   enmTxDir        Direction of transfer.
+     * @param   penmTxDirRet    Where to store the transfer direction as parsed from the CDB, optional.
      * @param   cbBuf           Size of the transfer buffer.
      * @param   pabSense        Where to store the optional sense key.
      * @param   cbSense         Size of the sense key buffer.
+     * @param   pcbSenseRet     Where to store the amount of sense data written, optional.
      * @param   pu8ScsiSts      Where to store the SCSI status on success.
      * @param   cTimeoutMillies Command timeout in milliseconds.
      * @thread  Any thread.
      */
-    DECLR3CALLBACKMEMBER(int, pfnIoReqSendScsiCmd,(PPDMIMEDIAEX pInterface, PDMMEDIAEXIOREQ hIoReq, uint32_t uLun,
-                                                   const uint8_t *pbCdb, size_t cbCdb, PDMMEDIAEXIOREQSCSITXDIR enmTxDir,
-                                                   size_t cbBuf, uint8_t *pabSense, size_t cbSense, uint8_t *pu8ScsiSts,
-                                                   uint32_t cTimeoutMillies));
+    DECLR3CALLBACKMEMBER(int, pfnIoReqSendScsiCmd,(PPDMIMEDIAEX pInterface, PDMMEDIAEXIOREQ hIoReq,
+                                                   uint32_t uLun, const uint8_t *pbCdb, size_t cbCdb,
+                                                   PDMMEDIAEXIOREQSCSITXDIR enmTxDir, PDMMEDIAEXIOREQSCSITXDIR *penmTxDirRet,
+                                                   size_t cbBuf, uint8_t *pabSense, size_t cbSense, size_t *pcbSenseRet,
+                                                   uint8_t *pu8ScsiSts, uint32_t cTimeoutMillies));
 
     /**
      * Returns the number of active I/O requests.
@@ -1035,7 +1040,7 @@ typedef struct PDMIMEDIAEX
 
 } PDMIMEDIAEX;
 /** PDMIMEDIAEX interface ID. */
-#define PDMIMEDIAEX_IID                      "1f82b709-a9f7-4928-ad50-e879c9bbeba1"
+#define PDMIMEDIAEX_IID                      "29c9e82b-934e-45c5-bb84-0d871c3cc9dd"
 
 /** @} */
 

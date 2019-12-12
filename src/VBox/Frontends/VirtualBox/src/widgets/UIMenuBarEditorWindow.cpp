@@ -30,7 +30,7 @@
 
 /* GUI includes: */
 #include "QIToolButton.h"
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #include "UIActionPoolRuntime.h"
 #include "UIConverter.h"
 #include "UIExtraDataManager.h"
@@ -306,9 +306,9 @@ QString UIAccessibilityInterfaceForUIMenuBarEditorButton::subText(UIMenuBarEdito
 
 UIMenuBarEditorWindow::UIMenuBarEditorWindow(UIMachineWindow *pParent, UIActionPool *pActionPool)
 #ifndef VBOX_WS_MAC
-    : UISlidingToolBar(pParent, pParent->menuBar(), new UIMenuBarEditorWidget(0, false, vboxGlobal().managedVMUuid(), pActionPool), UISlidingToolBar::Position_Top)
+    : UISlidingToolBar(pParent, pParent->menuBar(), new UIMenuBarEditorWidget(0, false, uiCommon().managedVMUuid(), pActionPool), UISlidingToolBar::Position_Top)
 #else
-    : UISlidingToolBar(pParent, 0, new UIMenuBarEditorWidget(0, false, vboxGlobal().managedVMUuid(), pActionPool), UISlidingToolBar::Position_Top)
+    : UISlidingToolBar(pParent, 0, new UIMenuBarEditorWidget(0, false, uiCommon().managedVMUuid(), pActionPool), UISlidingToolBar::Position_Top)
 #endif
 {
 }
@@ -1070,8 +1070,8 @@ void UIMenuBarEditorWidget::prepareMenus()
 #endif
         setRestrictionsOfMenuHelp(gEDataManager->restrictedRuntimeMenuHelpActionTypes(machineID()));
         /* And listen for the menu-bar configuration changes after that: */
-        connect(gEDataManager, SIGNAL(sigMenuBarConfigurationChange(const QString&)),
-                this, SLOT(sltHandleConfigurationChange(const QString&)));
+        connect(gEDataManager, &UIExtraDataManager::sigMenuBarConfigurationChange,
+                this, &UIMenuBarEditorWidget::sltHandleConfigurationChange);
     }
 }
 
@@ -1138,7 +1138,7 @@ QMenu *UIMenuBarEditorWidget::prepareCopiedMenu(const UIAction *pAction)
             pCopiedMenuAction->setCheckable(true);
             pCopiedMenuAction->setProperty("class", UIExtraDataMetaDefs::MenuType_All);
             pCopiedMenuAction->setProperty("type", pAction->extraDataID());
-            connect(pCopiedMenuAction, SIGNAL(triggered(bool)), this, SLOT(sltHandleMenuBarMenuClick()));
+            connect(pCopiedMenuAction, &QAction::triggered, this, &UIMenuBarEditorWidget::sltHandleMenuBarMenuClick);
             m_actions.insert(pAction->extraDataKey(), pCopiedMenuAction);
             /* Add menu action into tool-bar: */
             m_pToolBar->addAction(pCopiedMenuAction);
@@ -1190,7 +1190,7 @@ QMenu *UIMenuBarEditorWidget::prepareCopiedSubMenu(QMenu *pMenu, const UIAction 
             pCopiedMenuAction->setCheckable(true);
             pCopiedMenuAction->setProperty("class", pCopiedMenu->property("class"));
             pCopiedMenuAction->setProperty("type", pAction->extraDataID());
-            connect(pCopiedMenuAction, SIGNAL(triggered(bool)), this, SLOT(sltHandleMenuBarMenuClick()));
+            connect(pCopiedMenuAction, &QAction::triggered, &UIMenuBarEditorWidget::sltHandleMenuBarMenuClick);
             m_actions.insert(pAction->extraDataKey(), pCopiedMenuAction);
         }
     }
@@ -1210,7 +1210,7 @@ QAction *UIMenuBarEditorWidget::prepareNamedAction(QMenu *pMenu, const QString &
         pCopiedAction->setCheckable(true);
         pCopiedAction->setProperty("class", pMenu->property("class"));
         pCopiedAction->setProperty("type", iExtraDataID);
-        connect(pCopiedAction, SIGNAL(triggered(bool)), this, SLOT(sltHandleMenuBarMenuClick()));
+        connect(pCopiedAction, &QAction::triggered, this, &UIMenuBarEditorWidget::sltHandleMenuBarMenuClick);
         m_actions.insert(strExtraDataID, pCopiedAction);
     }
     /* Return copied action: */
@@ -1227,7 +1227,7 @@ QAction *UIMenuBarEditorWidget::prepareCopiedAction(QMenu *pMenu, const UIAction
         pCopiedAction->setCheckable(true);
         pCopiedAction->setProperty("class", pMenu->property("class"));
         pCopiedAction->setProperty("type", pAction->extraDataID());
-        connect(pCopiedAction, SIGNAL(triggered(bool)), this, SLOT(sltHandleMenuBarMenuClick()));
+        connect(pCopiedAction, &QAction::triggered, this, &UIMenuBarEditorWidget::sltHandleMenuBarMenuClick);
         m_actions.insert(pAction->extraDataKey(), pCopiedAction);
     }
     /* Return copied action: */
@@ -1273,6 +1273,7 @@ void UIMenuBarEditorWidget::prepareMenuMachine()
         pMenu->addSeparator();
         prepareCopiedAction(pMenu, actionPool()->action(UIActionIndexRT_M_Machine_S_TakeSnapshot));
         prepareCopiedAction(pMenu, actionPool()->action(UIActionIndexRT_M_Machine_S_ShowInformation));
+        prepareCopiedAction(pMenu, actionPool()->action(UIActionIndexRT_M_Machine_S_ShowFileManager));
         pMenu->addSeparator();
         prepareCopiedAction(pMenu, actionPool()->action(UIActionIndexRT_M_Machine_T_Pause));
         prepareCopiedAction(pMenu, actionPool()->action(UIActionIndexRT_M_Machine_S_Reset));

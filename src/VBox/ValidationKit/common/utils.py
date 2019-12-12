@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # $Id: utils.py $
-# pylint: disable=C0302
+# pylint: disable=too-many-lines
 
 """
 Common Utility Functions.
@@ -29,7 +29,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 133737 $"
 
 
 # Standard Python imports.
@@ -299,6 +299,29 @@ def getHostOsVersion():
 
     return sVersion;
 
+def getPresentCpuCount():
+    """
+    Gets the number of CPUs present in the system.
+
+    This differs from multiprocessor.cpu_count() and os.cpu_count() on windows in
+    that we return the active count rather than the maximum count.  If we don't,
+    we will end up thinking testboxmem1 has 512 CPU threads, which it doesn't and
+    never will have.
+
+    @todo This is probably not exactly what we get on non-windows...
+    """
+
+    if getHostOs() == 'win':
+        fnGetActiveProcessorCount = getattr(ctypes.windll.kernel32, 'GetActiveProcessorCount', None);
+        if fnGetActiveProcessorCount:
+            cCpus = fnGetActiveProcessorCount(ctypes.c_ushort(0xffff));
+            if cCpus > 0:
+                return cCpus;
+
+    import multiprocessing
+    return multiprocessing.cpu_count();
+
+
 #
 # File system.
 #
@@ -319,7 +342,7 @@ def openNoInherit(sFile, sMode = 'r'):
         oFile = open(sFile, sMode);
     else:
         try:
-            from fcntl import FD_CLOEXEC, F_GETFD, F_SETFD, fcntl; # pylint: disable=F0401
+            from fcntl import FD_CLOEXEC, F_GETFD, F_SETFD, fcntl; # pylint: disable=import-error
         except:
             # On windows, we can use the 'N' flag introduced in Visual C++ 7.0 or 7.1 with python 2.x.
             if getHostOs() == 'win':
@@ -398,7 +421,7 @@ def openNoDenyDeleteNoInherit(sFile, sMode = 'r'):
         uPythonVer = (sys.version_info[0] << 16) | (sys.version_info[1] & 0xffff);
         if uPythonVer < ((3 << 16) | 4):
             try:
-                from fcntl import FD_CLOEXEC, F_GETFD, F_SETFD, fcntl; # pylint: disable=F0401
+                from fcntl import FD_CLOEXEC, F_GETFD, F_SETFD, fcntl; # pylint: disable=import-error
             except:
                 pass;
             else:
@@ -410,7 +433,7 @@ def noxcptReadLink(sPath, sXcptRet, sEncoding = 'utf-8'):
     No exceptions os.readlink wrapper.
     """
     try:
-        sRet = os.readlink(sPath); # pylint: disable=E1101
+        sRet = os.readlink(sPath); # pylint: disable=no-member
     except:
         return sXcptRet;
     if hasattr(sRet, 'decode'):
@@ -569,6 +592,29 @@ def copyFileSimple(sFileSrc, sFileDst):
     __installShUtilHacks(shutil);
     return shutil.copyfile(sFileSrc, sFileDst);
 
+
+def getDiskUsage(sPath):
+    """
+    Get free space of a partition that corresponds to specified sPath in MB.
+
+    Returns partition free space value in MB.
+    """
+    if platform.system() == 'Windows':
+        oCTypeFreeSpace = ctypes.c_ulonglong(0);
+        ctypes.windll.kernel32.GetDiskFreeSpaceExW(ctypes.c_wchar_p(sPath), None, None,
+                                                   ctypes.pointer(oCTypeFreeSpace));
+        cbFreeSpace = oCTypeFreeSpace.value;
+    else:
+        oStats = os.statvfs(sPath); # pylint: disable=no-member
+        cbFreeSpace = long(oStats.f_frsize) * oStats.f_bfree;
+
+    # Convert to MB
+    cMbFreeSpace = long(cbFreeSpace) / (1024 * 1024);
+
+    return cMbFreeSpace;
+
+
+
 #
 # SubProcess.
 #
@@ -641,7 +687,7 @@ def processOutputChecked(*aPositionalArgs, **dKeywordArgs):
     sOutput, _ = oProcess.communicate();
     iExitCode  = oProcess.poll();
 
-    if iExitCode is not 0:
+    if iExitCode != 0:
         asArgs = dKeywordArgs.get('args');
         if asArgs is None:
             asArgs = aPositionalArgs[0];
@@ -661,7 +707,7 @@ def _sudoFixArguments(aPositionalArgs, dKeywordArgs, fInitialEnv = True):
     # Are we root?
     fIsRoot = True;
     try:
-        fIsRoot = os.getuid() == 0; # pylint: disable=E1101
+        fIsRoot = os.getuid() == 0; # pylint: disable=no-member
     except:
         pass;
 
@@ -773,7 +819,7 @@ def sendUserSignal1(uPid):
         fRc = False;
     else:
         try:
-            os.kill(uPid, signal.SIGUSR1); # pylint: disable=E1101
+            os.kill(uPid, signal.SIGUSR1); # pylint: disable=no-member
             fRc = True;
         except:
             fRc = False;
@@ -816,7 +862,7 @@ def processKill(uPid):
         fRc = processTerminate(uPid);
     else:
         try:
-            os.kill(uPid, signal.SIGKILL); # pylint: disable=E1101
+            os.kill(uPid, signal.SIGKILL); # pylint: disable=no-member
             fRc = True;
         except:
             fRc = False;
@@ -874,7 +920,7 @@ def processCheckPidAndName(uPid, sName):
 
     if sys.platform == 'win32':
         try:
-            from win32com.client import GetObject; # pylint: disable=F0401
+            from win32com.client import GetObject; # pylint: disable=import-error
             oWmi = GetObject('winmgmts:');
             aoProcesses = oWmi.InstancesOf('Win32_Process');
             for oProcess in aoProcesses:
@@ -914,7 +960,7 @@ def processCheckPidAndName(uPid, sName):
                 return False;
 
             # ps fails with non-zero exit code if the pid wasn't found.
-            if iExitCode is not 0:
+            if iExitCode != 0:
                 return False;
             if sCurName is None:
                 return False;
@@ -1068,7 +1114,7 @@ class ProcessInfo(object):
         return sRet;
 
 
-def processListAll(): # pylint: disable=R0914
+def processListAll():
     """
     Return a list of ProcessInfo objects for all the processes in the system
     that the current user can see.
@@ -1077,7 +1123,7 @@ def processListAll(): # pylint: disable=R0914
 
     sOs = getHostOs();
     if sOs == 'win':
-        from win32com.client import GetObject; # pylint: disable=F0401
+        from win32com.client import GetObject; # pylint: disable=import-error
         oWmi = GetObject('winmgmts:');
         aoProcesses = oWmi.InstancesOf('Win32_Process');
         for oProcess in aoProcesses:
@@ -1328,7 +1374,6 @@ def _winFloatTime():
             return float(uCurValue.value) / g_fpWinPerfCounterFreq;
     return time.time();
 
-
 def timestampNano():
     """
     Gets a nanosecond timestamp.
@@ -1352,6 +1397,13 @@ def timestampSecond():
     if g_fWinUseWinPerfCounter is True:
         return long(_winFloatTime());
     return long(time.time());
+
+def secondsSinceUnixEpoch():
+    """
+    Returns unix time, floating point second count since 1970-01-01T00:00:00Z
+    """
+    ## ASSUMES This returns unix epoch time on all systems we care about...
+    return time.time();
 
 def getTimePrefix():
     """
@@ -1692,6 +1744,24 @@ def getObjectTypeName(oObject):
         return '__type__-throws-exception';
 
 
+def chmodPlusX(sFile):
+    """
+    Makes the specified file or directory executable.
+    Returns success indicator, no exceptions.
+
+    Note! Symbolic links are followed and the target will be changed.
+    """
+    try:
+        oStat = os.stat(sFile);
+    except:
+        return False;
+    try:
+        os.chmod(sFile, oStat.st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH);
+    except:
+        return False;
+    return True;
+
+
 #
 # TestSuite stuff.
 #
@@ -1766,10 +1836,6 @@ def stricmp(sFirst, sSecond):
     return 1;
 
 
-#
-# Misc.
-#
-
 def versionCompare(sVer1, sVer2):
     """
     Compares to version strings in a fashion similar to RTStrVersionCompare.
@@ -1833,23 +1899,9 @@ def hasNonAsciiCharacters(sText):
     return False;
 
 
-def chmodPlusX(sFile):
-    """
-    Makes the specified file or directory executable.
-    Returns success indicator, no exceptions.
-
-    Note! Symbolic links are followed and the target will be changed.
-    """
-    try:
-        oStat = os.stat(sFile);
-    except:
-        return False;
-    try:
-        os.chmod(sFile, oStat.st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH);
-    except:
-        return False;
-    return True;
-
+#
+# Unpacking.
+#
 
 def unpackZipFile(sArchive, sDstDir, fnLog, fnError = None, fnFilter = None):
     # type: (string, string, (string) -> None, (string) -> None, (string) -> bool) -> list[string]
@@ -1930,7 +1982,7 @@ def unpackTarFile(sArchive, sDstDir, fnLog, fnError = None, fnFilter = None):
     # 60%+ speedup for python 2.7 and 50%+ speedup for python 3.5, both on windows with PDBs.
     # 20%+ speedup for python 2.7 and 15%+ speedup for python 3.5, both on windows skipping PDBs.
     #
-    if True is True:
+    if True is True: # pylint: disable=comparison-with-itself
         __installShUtilHacks(shutil);
         global g_fTarCopyFileObjOverriddend;
         if g_fTarCopyFileObjOverriddend is False:
@@ -2039,32 +2091,113 @@ def unpackFile(sArchive, sDstDir, fnLog, fnError = None, fnFilter = None):
     return [];
 
 
-def getDiskUsage(sPath):
+#
+# Misc.
+#
+def areBytesEqual(oLeft, oRight):
     """
-    Get free space of a partition that corresponds to specified sPath in MB.
+    Compares two byte arrays, strings or whatnot.
 
-    Returns partition free space value in MB.
+    returns true / false accordingly.
     """
-    if platform.system() == 'Windows':
-        oCTypeFreeSpace = ctypes.c_ulonglong(0);
-        ctypes.windll.kernel32.GetDiskFreeSpaceExW(ctypes.c_wchar_p(sPath), None, None,
-                                                   ctypes.pointer(oCTypeFreeSpace));
-        cbFreeSpace = oCTypeFreeSpace.value;
+
+    # If both are None, consider them equal (bogus?):
+    if oLeft is None and oRight is None:
+        return True;
+
+    # If just one is None, they can't match:
+    if oLeft is None or oRight is None:
+        return False;
+
+    # If both have the same type, use the compare operator of the class:
+    if type(oLeft) is type(oRight):
+        #print('same type: %s' % (oLeft == oRight,));
+        return oLeft == oRight;
+
+    # On the offchance that they're both strings, but of different types.
+    if isString(oLeft) and isString(oRight):
+        #print('string compare: %s' % (oLeft == oRight,));
+        return oLeft == oRight;
+
+    #
+    # See if byte/buffer stuff that can be compared directory. If not convert
+    # strings to bytes.
+    #
+    # Note! For 2.x, we must convert both sides to the buffer type or the
+    #       comparison may fail despite it working okay in test cases.
+    #
+    if sys.version_info[0] >= 3:
+        if isinstance(oLeft, (bytearray, memoryview, bytes)) and isinstance(oRight, (bytearray, memoryview, bytes)):  # pylint: disable=undefined-variable
+            return oLeft == oRight;
+
+        if isString(oLeft):
+            try:    oLeft = bytes(oLeft, 'utf-8');
+            except: pass;
+        if isString(oRight):
+            try:    oRight = bytes(oRight, 'utf-8');
+            except: pass;
     else:
-        oStats = os.statvfs(sPath); # pylint: disable=E1101
-        cbFreeSpace = long(oStats.f_frsize) * oStats.f_bfree;
+        if isinstance(oLeft, (bytearray, buffer)) and isinstance(oRight, (bytearray, buffer)): # pylint: disable=undefined-variable
+            if isinstance(oLeft, bytearray):
+                oLeft  = buffer(oLeft);                     # pylint: disable=redefined-variable-type,undefined-variable
+            else:
+                oRight = buffer(oRight);                    # pylint: disable=redefined-variable-type,undefined-variable
+            #print('buf/byte #1 compare: %s (%s vs %s)' % (oLeft == oRight, type(oLeft), type(oRight),));
+            return oLeft == oRight;
 
-    # Convert to MB
-    cMbFreeSpace = long(cbFreeSpace) / (1024 * 1024);
+        if isString(oLeft):
+            try:    oLeft = bytearray(oLeft, 'utf-8');      # pylint: disable=redefined-variable-type
+            except: pass;
+        if isString(oRight):
+            try:    oRight = bytearray(oRight, 'utf-8');    # pylint: disable=redefined-variable-type
+            except: pass;
 
-    return cMbFreeSpace;
+    # Check if we now have the same type for both:
+    if type(oLeft) is type(oRight):
+        #print('same type now: %s' % (oLeft == oRight,));
+        return oLeft == oRight;
+
+    # Check if we now have buffer/memoryview vs bytes/bytesarray again.
+    if sys.version_info[0] >= 3:
+        if isinstance(oLeft, (bytearray, memoryview, bytes)) and isinstance(oRight, (bytearray, memoryview, bytes)):  # pylint: disable=undefined-variable
+            return oLeft == oRight;
+    else:
+        if isinstance(oLeft, (bytearray, buffer)) and isinstance(oRight, (bytearray, buffer)): # pylint: disable=undefined-variable
+            if isinstance(oLeft, bytearray):
+                oLeft  = buffer(oLeft);                     # pylint: disable=redefined-variable-type,undefined-variable
+            else:
+                oRight = buffer(oRight);                    # pylint: disable=redefined-variable-type,undefined-variable
+            #print('buf/byte #2 compare: %s (%s vs %s)' % (oLeft == oRight, type(oLeft), type(oRight),));
+            return oLeft == oRight;
+
+    # Do item by item comparison:
+    if len(oLeft) != len(oRight):
+        #print('different length: %s vs %s' % (len(oLeft), len(oRight)));
+        return False;
+    i = len(oLeft);
+    while i > 0:
+        i = i - 1;
+
+        iElmLeft = oLeft[i];
+        if not isinstance(iElmLeft, int) and not isinstance(iElmLeft, long):
+            iElmLeft = ord(iElmLeft);
+
+        iElmRight = oRight[i];
+        if not isinstance(iElmRight, int) and not isinstance(iElmRight, long):
+            iElmRight = ord(iElmRight);
+
+        if iElmLeft != iElmRight:
+            #print('element %d differs: %x %x' % (i, iElmLeft, iElmRight,));
+            return False;
+    return True;
 
 
 #
 # Unit testing.
 #
 
-# pylint: disable=C0111
+# pylint: disable=missing-docstring
+# pylint: disable=undefined-variable
 class BuildCategoryDataTestCase(unittest.TestCase):
     def testIntervalSeconds(self):
         self.assertEqual(parseIntervalSeconds(formatIntervalSeconds(3600)), (3600, None));
@@ -2090,6 +2223,37 @@ class BuildCategoryDataTestCase(unittest.TestCase):
         self.assertEqual(hasNonAsciiCharacters(u'\u0081 \u0100'), True);
         self.assertEqual(hasNonAsciiCharacters(b'\x20\x20\x20'), False);
         self.assertEqual(hasNonAsciiCharacters(b'\x20\x81\x20'), True);
+
+    def testAreBytesEqual(self):
+        self.assertEqual(areBytesEqual(None, None), True);
+        self.assertEqual(areBytesEqual(None, ''), False);
+        self.assertEqual(areBytesEqual('', ''), True);
+        self.assertEqual(areBytesEqual('1', '1'), True);
+        self.assertEqual(areBytesEqual('12345', '1234'), False);
+        self.assertEqual(areBytesEqual('1234', '1234'), True);
+        self.assertEqual(areBytesEqual('1234', b'1234'), True);
+        self.assertEqual(areBytesEqual(b'1234', b'1234'), True);
+        self.assertEqual(areBytesEqual(b'1234', '1234'), True);
+        self.assertEqual(areBytesEqual(b'1234', bytearray([0x31,0x32,0x33,0x34])), True);
+        self.assertEqual(areBytesEqual('1234', bytearray([0x31,0x32,0x33,0x34])), True);
+        self.assertEqual(areBytesEqual(u'1234', bytearray([0x31,0x32,0x33,0x34])), True);
+        self.assertEqual(areBytesEqual(bytearray([0x31,0x32,0x33,0x34]), bytearray([0x31,0x32,0x33,0x34])), True);
+        self.assertEqual(areBytesEqual(bytearray([0x31,0x32,0x33,0x34]), '1224'), False);
+        self.assertEqual(areBytesEqual(bytearray([0x31,0x32,0x33,0x34]), bytearray([0x31,0x32,0x32,0x34])), False);
+        if sys.version_info[0] >= 3:
+            pass;
+        else:
+            self.assertEqual(areBytesEqual(buffer(bytearray([0x30,0x31,0x32,0x33,0x34]), 1),
+                                                       bytearray([0x31,0x32,0x33,0x34])), True);
+            self.assertEqual(areBytesEqual(buffer(bytearray([0x30,0x31,0x32,0x33,0x34]), 1),
+                                                       bytearray([0x99,0x32,0x32,0x34])), False);
+            self.assertEqual(areBytesEqual(buffer(bytearray([0x30,0x31,0x32,0x33,0x34]), 1),
+                                                buffer(bytearray([0x31,0x32,0x33,0x34,0x34]), 0, 4)), True);
+            self.assertEqual(areBytesEqual(buffer(bytearray([0x30,0x31,0x32,0x33,0x34]), 1),
+                                                buffer(bytearray([0x99,0x32,0x33,0x34,0x34]), 0, 4)), False);
+            self.assertEqual(areBytesEqual(buffer(bytearray([0x30,0x31,0x32,0x33,0x34]), 1), b'1234'), True);
+            self.assertEqual(areBytesEqual(buffer(bytearray([0x30,0x31,0x32,0x33,0x34]), 1),  '1234'), True);
+            self.assertEqual(areBytesEqual(buffer(bytearray([0x30,0x31,0x32,0x33,0x34]), 1), u'1234'), True);
 
 if __name__ == '__main__':
     unittest.main();

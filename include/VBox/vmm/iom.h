@@ -154,8 +154,13 @@ RT_C_DECLS_BEGIN
  * supply bytes (zero them or read them). */
 #define IOMMMIO_FLAGS_DBGSTOP_ON_COMPLICATED_WRITE      UINT32_C(0x00000200)
 
+/** Pass the absolute physical address (GC) to the callback rather than the
+ * relative one.
+ * @note New-style only, is implicit in old-style interface.  */
+#define IOMMMIO_FLAGS_ABS                               UINT32_C(0x00001000)
+
 /** Mask of valid flags. */
-#define IOMMMIO_FLAGS_VALID_MASK                        UINT32_C(0x00000373)
+#define IOMMMIO_FLAGS_VALID_MASK                        UINT32_C(0x00001373)
 /** @} */
 
 /**
@@ -244,6 +249,103 @@ typedef FNIOMIOPORTOUTSTRING *PFNIOMIOPORTOUTSTRING;
 
 
 /**
+ * Port I/O Handler for IN operations.
+ *
+ * @returns VINF_SUCCESS or VINF_EM_*.
+ * @returns VERR_IOM_IOPORT_UNUSED if the port is really unused and a ~0 value should be returned.
+ *
+ * @param   pDevIns     The device instance.
+ * @param   pvUser      User argument.
+ * @param   offPort     The port number if IOM_IOPORT_F_ABS is used, otherwise
+ *                      relative to the mapping base.
+ * @param   pu32        Where to store the result.  This is always a 32-bit
+ *                      variable regardless of what @a cb might say.
+ * @param   cb          Number of bytes read.
+ * @remarks Caller enters the device critical section.
+ */
+typedef DECLCALLBACK(VBOXSTRICTRC) FNIOMIOPORTNEWIN(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT offPort, uint32_t *pu32, unsigned cb);
+/** Pointer to a FNIOMIOPORTNEWIN(). */
+typedef FNIOMIOPORTNEWIN *PFNIOMIOPORTNEWIN;
+
+/**
+ * Port I/O Handler for string IN operations.
+ *
+ * @returns VINF_SUCCESS or VINF_EM_*.
+ * @returns VERR_IOM_IOPORT_UNUSED if the port is really unused and a ~0 value should be returned.
+ *
+ * @param   pDevIns     The device instance.
+ * @param   pvUser      User argument.
+ * @param   offPort     The port number if IOM_IOPORT_F_ABS is used, otherwise
+ *                      relative to the mapping base.
+ * @param   pbDst       Pointer to the destination buffer.
+ * @param   pcTransfers Pointer to the number of transfer units to read, on
+ *                      return remaining transfer units.
+ * @param   cb          Size of the transfer unit (1, 2 or 4 bytes).
+ * @remarks Caller enters the device critical section.
+ */
+typedef DECLCALLBACK(VBOXSTRICTRC) FNIOMIOPORTNEWINSTRING(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT offPort, uint8_t *pbDst,
+                                                          uint32_t *pcTransfers, unsigned cb);
+/** Pointer to a FNIOMIOPORTNEWINSTRING(). */
+typedef FNIOMIOPORTNEWINSTRING *PFNIOMIOPORTNEWINSTRING;
+
+/**
+ * Port I/O Handler for OUT operations.
+ *
+ * @returns VINF_SUCCESS or VINF_EM_*.
+ *
+ * @param   pDevIns     The device instance.
+ * @param   pvUser      User argument.
+ * @param   offPort     The port number if IOM_IOPORT_F_ABS is used, otherwise
+ *                      relative to the mapping base.
+ * @param   u32         The value to output.
+ * @param   cb          The value size in bytes.
+ * @remarks Caller enters the device critical section.
+ */
+typedef DECLCALLBACK(VBOXSTRICTRC) FNIOMIOPORTNEWOUT(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT offPort, uint32_t u32, unsigned cb);
+/** Pointer to a FNIOMIOPORTNEWOUT(). */
+typedef FNIOMIOPORTNEWOUT *PFNIOMIOPORTNEWOUT;
+
+/**
+ * Port I/O Handler for string OUT operations.
+ *
+ * @returns VINF_SUCCESS or VINF_EM_*.
+ *
+ * @param   pDevIns     The device instance.
+ * @param   pvUser      User argument.
+ * @param   offPort     The port number if IOM_IOPORT_F_ABS is used, otherwise
+ *                      relative to the mapping base.
+ * @param   pbSrc       Pointer to the source buffer.
+ * @param   pcTransfers Pointer to the number of transfer units to write, on
+ *                      return remaining transfer units.
+ * @param   cb          Size of the transfer unit (1, 2 or 4 bytes).
+ * @remarks Caller enters the device critical section.
+ */
+typedef DECLCALLBACK(VBOXSTRICTRC) FNIOMIOPORTNEWOUTSTRING(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT offPort, const uint8_t *pbSrc,
+                                                           uint32_t *pcTransfers, unsigned cb);
+/** Pointer to a FNIOMIOPORTNEWOUTSTRING(). */
+typedef FNIOMIOPORTNEWOUTSTRING *PFNIOMIOPORTNEWOUTSTRING;
+
+/**
+ * I/O port description.
+ *
+ * If both pszIn and pszOut are NULL, the entry is considered a terminator.
+ */
+typedef struct IOMIOPORTDESC
+{
+    /** Brief description / name of the IN port. */
+    const char *pszIn;
+    /** Brief description / name of the OUT port. */
+    const char *pszOut;
+    /** Detailed description of the IN port, optional. */
+    const char *pszInDetail;
+    /** Detialed description of the OUT port, optional. */
+    const char *pszOutDetail;
+} IOMIOPORTDESC;
+/** Pointer to an I/O port description. */
+typedef IOMIOPORTDESC const *PCIOMIOPORTDESC;
+
+
+/**
  * Memory mapped I/O Handler for read operations.
  *
  * @returns VBox status code.
@@ -292,94 +394,140 @@ typedef DECLCALLBACK(int) FNIOMMMIOFILL(PPDMDEVINS pDevIns, void *pvUser, RTGCPH
 /** Pointer to a FNIOMMMIOFILL(). */
 typedef FNIOMMMIOFILL *PFNIOMMMIOFILL;
 
-VMMDECL(VBOXSTRICTRC)   IOMIOPortRead(PVM pVM, PVMCPU pVCpu, RTIOPORT Port, uint32_t *pu32Value, size_t cbValue);
-VMMDECL(VBOXSTRICTRC)   IOMIOPortWrite(PVM pVM, PVMCPU pVCpu, RTIOPORT Port, uint32_t u32Value, size_t cbValue);
-VMM_INT_DECL(VBOXSTRICTRC) IOMIOPortReadString(PVM pVM, PVMCPU pVCpu, RTIOPORT Port, void *pvDst,
+
+/**
+ * Memory mapped I/O Handler for read operations.
+ *
+ * @returns Strict VBox status code.
+ *
+ * @param   pDevIns     The device instance.
+ * @param   pvUser      User argument.
+ * @param   off         Offset into the mapping of the read,
+ *                      or the physical address if IOMMMIO_FLAGS_ABS is active.
+ * @param   pv          Where to store the result.
+ * @param   cb          Number of bytes read.
+ * @remarks Caller enters the device critical section.
+ */
+typedef DECLCALLBACK(VBOXSTRICTRC) FNIOMMMIONEWREAD(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS off, void *pv, uint32_t cb);
+/** Pointer to a FNIOMMMIONEWREAD(). */
+typedef FNIOMMMIONEWREAD *PFNIOMMMIONEWREAD;
+
+/**
+ * Memory mapped I/O Handler for write operations.
+ *
+ * @returns Strict VBox status code.
+ *
+ * @param   pDevIns     The device instance.
+ * @param   pvUser      User argument.
+ * @param   off         Offset into the mapping of the write,
+ *                      or the physical address if IOMMMIO_FLAGS_ABS is active.
+ * @param   pv          Where to fetch the result.
+ * @param   cb          Number of bytes to write.
+ * @remarks Caller enters the device critical section.
+ */
+typedef DECLCALLBACK(VBOXSTRICTRC) FNIOMMMIONEWWRITE(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS off, void const *pv, uint32_t cb);
+/** Pointer to a FNIOMMMIONEWWRITE(). */
+typedef FNIOMMMIONEWWRITE *PFNIOMMMIONEWWRITE;
+
+/**
+ * Memory mapped I/O Handler for memset operations, actually for REP STOS* instructions handling.
+ *
+ * @returns Strict VBox status code.
+ *
+ * @param   pDevIns     The device instance.
+ * @param   pvUser      User argument.
+ * @param   off         Offset into the mapping of the fill,
+ *                      or the physical address if IOMMMIO_FLAGS_ABS is active.
+ * @param   u32Item     Byte/Word/Dword data to fill.
+ * @param   cbItem      Size of data in u32Item parameter, restricted to 1/2/4 bytes.
+ * @param   cItems      Number of iterations.
+ * @remarks Caller enters the device critical section.
+ */
+typedef DECLCALLBACK(VBOXSTRICTRC) FNIOMMMIONEWFILL(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS off,
+                                                    uint32_t u32Item, uint32_t cbItem, uint32_t cItems);
+/** Pointer to a FNIOMMMIONEWFILL(). */
+typedef FNIOMMMIONEWFILL *PFNIOMMMIONEWFILL;
+
+VMMDECL(VBOXSTRICTRC)   IOMIOPortRead(PVMCC pVM, PVMCPU pVCpu, RTIOPORT Port, uint32_t *pu32Value, size_t cbValue);
+VMMDECL(VBOXSTRICTRC)   IOMIOPortWrite(PVMCC pVM, PVMCPU pVCpu, RTIOPORT Port, uint32_t u32Value, size_t cbValue);
+VMM_INT_DECL(VBOXSTRICTRC) IOMIOPortReadString(PVMCC pVM, PVMCPU pVCpu, RTIOPORT Port, void *pvDst,
                                                uint32_t *pcTransfers, unsigned cb);
-VMM_INT_DECL(VBOXSTRICTRC) IOMIOPortWriteString(PVM pVM, PVMCPU pVCpu, RTIOPORT uPort, void const *pvSrc,
+VMM_INT_DECL(VBOXSTRICTRC) IOMIOPortWriteString(PVMCC pVM, PVMCPU pVCpu, RTIOPORT uPort, void const *pvSrc,
                                                 uint32_t *pcTransfers, unsigned cb);
-VMMDECL(VBOXSTRICTRC)   IOMInterpretINSEx(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t uPort, uint32_t uPrefix, DISCPUMODE enmAddrMode, uint32_t cbTransfer);
-VMMDECL(VBOXSTRICTRC)   IOMInterpretOUTSEx(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t uPort, uint32_t uPrefix, DISCPUMODE enmAddrMode, uint32_t cbTransfer);
 VMMDECL(VBOXSTRICTRC)   IOMMMIORead(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys, uint32_t *pu32Value, size_t cbValue);
 VMMDECL(VBOXSTRICTRC)   IOMMMIOWrite(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys, uint32_t u32Value, size_t cbValue);
-VMMDECL(VBOXSTRICTRC)   IOMMMIOPhysHandler(PVM pVM, PVMCPU pVCpu, RTGCUINT uErrorCode, PCPUMCTXCORE pCtxCore, RTGCPHYS GCPhysFault);
-VMMDECL(int)            IOMMMIOMapMMIO2Page(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS GCPhysRemapped, uint64_t fPageFlags);
-VMMDECL(int)            IOMMMIOMapMMIOHCPage(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys, RTHCPHYS HCPhys, uint64_t fPageFlags);
-VMMDECL(int)            IOMMMIOResetRegion(PVM pVM, RTGCPHYS GCPhys);
-VMMDECL(bool)           IOMIsLockWriteOwner(PVM pVM);
+VMM_INT_DECL(VBOXSTRICTRC) IOMR0MmioPhysHandler(PVMCC pVM, PVMCPUCC pVCpu, uint32_t uErrorCode, RTGCPHYS GCPhysFault);
+VMMDECL(int)            IOMMmioMapMmio2Page(PVMCC pVM, PPDMDEVINS pDevIns, IOMMMIOHANDLE hRegion, RTGCPHYS offRegion,
+                                            uint64_t hMmio2, RTGCPHYS offMmio2, uint64_t fPageFlags);
+VMMR0_INT_DECL(int)     IOMR0MmioMapMmioHCPage(PVMCC pVM, PVMCPUCC pVCpu, RTGCPHYS GCPhys, RTHCPHYS HCPhys, uint64_t fPageFlags);
+VMMDECL(int)            IOMMmioResetRegion(PVMCC pVM, PPDMDEVINS pDevIns, IOMMMIOHANDLE hRegion);
 
-#ifdef IN_RC
-/** @defgroup grp_iom_rc    The IOM Raw-Mode Context API
- * @{
- */
-VMMRCDECL(VBOXSTRICTRC) IOMRCIOPortHandler(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, PDISCPUSTATE pCpu);
+
+/** @name IOM_IOPORT_F_XXX - Flags for IOMR3IoPortCreate() and PDMDevHlpIoPortCreateEx().
+ * @{ */
+/** Pass the absolute I/O port to the callback rather than the relative one.  */
+#define IOM_IOPORT_F_ABS            RT_BIT_32(0)
+/** Valid flags for IOMR3IoPortCreate(). */
+#define IOM_IOPORT_F_VALID_MASK     UINT32_C(0x00000001)
 /** @} */
-#endif /* IN_RC */
-
-
 
 #ifdef IN_RING3
 /** @defgroup grp_iom_r3    The IOM Host Context Ring-3 API
  * @{
  */
 VMMR3_INT_DECL(int)  IOMR3Init(PVM pVM);
+VMMR3_INT_DECL(int)  IOMR3InitCompleted(PVM pVM, VMINITCOMPLETED enmWhat);
 VMMR3_INT_DECL(void) IOMR3Reset(PVM pVM);
 VMMR3_INT_DECL(void) IOMR3Relocate(PVM pVM, RTGCINTPTR offDelta);
 VMMR3_INT_DECL(int)  IOMR3Term(PVM pVM);
-VMMR3_INT_DECL(int)  IOMR3IOPortRegisterR3(PVM pVM, PPDMDEVINS pDevIns, RTIOPORT PortStart, RTUINT cPorts, RTHCPTR pvUser,
-                                           R3PTRTYPE(PFNIOMIOPORTOUT) pfnOutCallback, R3PTRTYPE(PFNIOMIOPORTIN) pfnInCallback,
-                                           R3PTRTYPE(PFNIOMIOPORTOUTSTRING) pfnOutStringCallback, R3PTRTYPE(PFNIOMIOPORTINSTRING) pfnInStringCallback,
-                                           const char *pszDesc);
-VMMR3_INT_DECL(int)  IOMR3IOPortRegisterRC(PVM pVM, PPDMDEVINS pDevIns, RTIOPORT PortStart, RTUINT cPorts, RTRCPTR pvUser,
-                                           RCPTRTYPE(PFNIOMIOPORTOUT) pfnOutCallback, RCPTRTYPE(PFNIOMIOPORTIN) pfnInCallback,
-                                           RCPTRTYPE(PFNIOMIOPORTOUTSTRING) pfnOutStrCallback, RCPTRTYPE(PFNIOMIOPORTINSTRING) pfnInStrCallback,
-                                           const char *pszDesc);
-VMMR3_INT_DECL(int)  IOMR3IOPortRegisterR0(PVM pVM, PPDMDEVINS pDevIns, RTIOPORT PortStart, RTUINT cPorts, RTR0PTR pvUser,
-                                           R0PTRTYPE(PFNIOMIOPORTOUT) pfnOutCallback, R0PTRTYPE(PFNIOMIOPORTIN) pfnInCallback,
-                                           R0PTRTYPE(PFNIOMIOPORTOUTSTRING) pfnOutStrCallback, R0PTRTYPE(PFNIOMIOPORTINSTRING) pfnInStrCallback,
-                                           const char *pszDesc);
-VMMR3_INT_DECL(int)  IOMR3IOPortDeregister(PVM pVM, PPDMDEVINS pDevIns, RTIOPORT PortStart, RTUINT cPorts);
 
-VMMR3_INT_DECL(int)  IOMR3MmioRegisterR3(PVM pVM, PPDMDEVINS pDevIns, RTGCPHYS GCPhysStart, RTGCPHYS cbRange, RTHCPTR pvUser,
-                                         R3PTRTYPE(PFNIOMMMIOWRITE) pfnWriteCallback,
-                                         R3PTRTYPE(PFNIOMMMIOREAD)  pfnReadCallback,
-                                         R3PTRTYPE(PFNIOMMMIOFILL)  pfnFillCallback,
-                                         uint32_t fFlags, const char *pszDesc);
-VMMR3_INT_DECL(int)  IOMR3MmioRegisterR0(PVM pVM, PPDMDEVINS pDevIns, RTGCPHYS GCPhysStart, RTGCPHYS cbRange, RTR0PTR pvUser,
-                                         R0PTRTYPE(PFNIOMMMIOWRITE) pfnWriteCallback,
-                                         R0PTRTYPE(PFNIOMMMIOREAD)  pfnReadCallback,
-                                         R0PTRTYPE(PFNIOMMMIOFILL)  pfnFillCallback);
-VMMR3_INT_DECL(int)  IOMR3MmioRegisterRC(PVM pVM, PPDMDEVINS pDevIns, RTGCPHYS GCPhysStart, RTGCPHYS cbRange, RTGCPTR pvUser,
-                                         RCPTRTYPE(PFNIOMMMIOWRITE) pfnWriteCallback,
-                                         RCPTRTYPE(PFNIOMMMIOREAD)  pfnReadCallback,
-                                         RCPTRTYPE(PFNIOMMMIOFILL)  pfnFillCallback);
-VMMR3_INT_DECL(int)  IOMR3MmioDeregister(PVM pVM, PPDMDEVINS pDevIns, RTGCPHYS GCPhysStart, RTGCPHYS cbRange);
-VMMR3_INT_DECL(int)  IOMR3MmioExPreRegister(PVM pVM, PPDMDEVINS pDevIns, uint32_t iSubDev, uint32_t iRegion, RTGCPHYS cbRange,
-                                            uint32_t fFlags, const char *pszDesc,
-                                            RTR3PTR pvUserR3,
-                                            R3PTRTYPE(PFNIOMMMIOWRITE) pfnWriteCallbackR3,
-                                            R3PTRTYPE(PFNIOMMMIOREAD)  pfnReadCallbackR3,
-                                            R3PTRTYPE(PFNIOMMMIOFILL)  pfnFillCallbackR3,
-                                            RTR0PTR pvUserR0,
-                                            R0PTRTYPE(PFNIOMMMIOWRITE) pfnWriteCallbackR0,
-                                            R0PTRTYPE(PFNIOMMMIOREAD)  pfnReadCallbackR0,
-                                            R0PTRTYPE(PFNIOMMMIOFILL)  pfnFillCallbackR0,
-                                            RTRCPTR pvUserRC,
-                                            RCPTRTYPE(PFNIOMMMIOWRITE) pfnWriteCallbackRC,
-                                            RCPTRTYPE(PFNIOMMMIOREAD)  pfnReadCallbackRC,
-                                            RCPTRTYPE(PFNIOMMMIOFILL)  pfnFillCallbackRC);
-VMMR3_INT_DECL(int)  IOMR3MmioExNotifyMapped(PVM pVM, void *pvUser, RTGCPHYS GCPhys);
-VMMR3_INT_DECL(void) IOMR3MmioExNotifyUnmapped(PVM pVM, void *pvUser, RTGCPHYS GCPhys);
-VMMR3_INT_DECL(void) IOMR3MmioExNotifyDeregistered(PVM pVM, void *pvUser);
+VMMR3_INT_DECL(int)  IOMR3IoPortCreate(PVM pVM, PPDMDEVINS pDevIns, RTIOPORT cPorts, uint32_t fFlags, PPDMPCIDEV pPciDev,
+                                       uint32_t iPciRegion, PFNIOMIOPORTNEWOUT pfnOut, PFNIOMIOPORTNEWIN pfnIn,
+                                       PFNIOMIOPORTNEWOUTSTRING pfnOutStr, PFNIOMIOPORTNEWINSTRING pfnInStr, RTR3PTR pvUser,
+                                       const char *pszDesc, PCIOMIOPORTDESC paExtDescs, PIOMIOPORTHANDLE phIoPorts);
+VMMR3_INT_DECL(int)  IOMR3IoPortMap(PVM pVM, PPDMDEVINS pDevIns, IOMIOPORTHANDLE hIoPorts, RTIOPORT Port);
+VMMR3_INT_DECL(int)  IOMR3IoPortUnmap(PVM pVM, PPDMDEVINS pDevIns, IOMIOPORTHANDLE hIoPorts);
+VMMR3_INT_DECL(int)  IOMR3IoPortValidateHandle(PVM pVM, PPDMDEVINS pDevIns, IOMIOPORTHANDLE hIoPorts);
+VMMR3_INT_DECL(uint32_t) IOMR3IoPortGetMappingAddress(PVM pVM, PPDMDEVINS pDevIns, IOMIOPORTHANDLE hIoPorts);
+
+VMMR3_INT_DECL(int)  IOMR3MmioCreate(PVM pVM, PPDMDEVINS pDevIns, RTGCPHYS cbRegion, uint32_t fFlags, PPDMPCIDEV pPciDev,
+                                     uint32_t iPciRegion, PFNIOMMMIONEWWRITE pfnWrite, PFNIOMMMIONEWREAD pfnRead,
+                                     PFNIOMMMIONEWFILL pfnFill, void *pvUser, const char *pszDesc, PIOMMMIOHANDLE phRegion);
+VMMR3_INT_DECL(int)  IOMR3MmioMap(PVM pVM, PPDMDEVINS pDevIns, IOMMMIOHANDLE hRegion, RTGCPHYS GCPhys);
+VMMR3_INT_DECL(int)  IOMR3MmioUnmap(PVM pVM, PPDMDEVINS pDevIns, IOMMMIOHANDLE hRegion);
+VMMR3_INT_DECL(int)  IOMR3MmioReduce(PVM pVM, PPDMDEVINS pDevIns, IOMMMIOHANDLE hRegion, RTGCPHYS cbRegion);
+VMMR3_INT_DECL(int)  IOMR3MmioValidateHandle(PVM pVM, PPDMDEVINS pDevIns, IOMMMIOHANDLE hRegion);
+VMMR3_INT_DECL(RTGCPHYS) IOMR3MmioGetMappingAddress(PVM pVM, PPDMDEVINS pDevIns, IOMMMIOHANDLE hRegion);
 
 VMMR3_INT_DECL(VBOXSTRICTRC) IOMR3ProcessForceFlag(PVM pVM, PVMCPU pVCpu, VBOXSTRICTRC rcStrict);
 
 VMMR3_INT_DECL(void) IOMR3NotifyBreakpointCountChange(PVM pVM, bool fPortIo, bool fMmio);
 VMMR3_INT_DECL(void) IOMR3NotifyDebugEventChange(PVM pVM, DBGFEVENT enmEvent, bool fEnabled);
-
 /** @} */
 #endif /* IN_RING3 */
 
+
+#if defined(IN_RING0) || defined(DOXYGEN_RUNNING)
+/** @defgroup grpm_iom_r0   The IOM Host Context Ring-0 API
+ * @{ */
+VMMR0_INT_DECL(void) IOMR0InitPerVMData(PGVM pGVM);
+VMMR0_INT_DECL(void) IOMR0CleanupVM(PGVM pGVM);
+
+VMMR0_INT_DECL(int)  IOMR0IoPortSetUpContext(PGVM pGVM, PPDMDEVINS pDevIns, IOMIOPORTHANDLE hIoPorts,
+                                             PFNIOMIOPORTNEWOUT pfnOut,  PFNIOMIOPORTNEWIN pfnIn,
+                                             PFNIOMIOPORTNEWOUTSTRING pfnOutStr, PFNIOMIOPORTNEWINSTRING pfnInStr, void *pvUser);
+VMMR0_INT_DECL(int)  IOMR0IoPortGrowRegistrationTables(PGVM pGVM, uint64_t cMinEntries);
+VMMR0_INT_DECL(int)  IOMR0IoPortGrowStatisticsTable(PGVM pGVM, uint64_t cMinEntries);
+VMMR0_INT_DECL(int)  IOMR0IoPortSyncStatisticsIndices(PGVM pGVM);
+
+VMMR0_INT_DECL(int)  IOMR0MmioSetUpContext(PGVM pGVM, PPDMDEVINS pDevIns, IOMMMIOHANDLE hRegion, PFNIOMMMIONEWWRITE pfnWrite,
+                                           PFNIOMMMIONEWREAD pfnRead, PFNIOMMMIONEWFILL pfnFill, void *pvUser);
+VMMR0_INT_DECL(int)  IOMR0MmioGrowRegistrationTables(PGVM pGVM, uint64_t cMinEntries);
+VMMR0_INT_DECL(int)  IOMR0MmioGrowStatisticsTable(PGVM pGVM, uint64_t cMinEntries);
+VMMR0_INT_DECL(int)  IOMR0MmioSyncStatisticsIndices(PGVM pGVM);
+
+/** @} */
+#endif /* IN_RING0 || DOXYGEN_RUNNING */
 
 /** @} */
 

@@ -30,6 +30,7 @@
 #include <iprt/thread.h>
 #include <iprt/utf16.h>
 #include <VBox/VBoxGuestLib.h>
+#include <VBox/GuestHost/SharedClipboard.h>
 #include <VBox/HostServices/VBoxClipboardSvc.h>
 #include <VBox/GuestHost/clipboard-helper.h>
 #include "VBoxClientInternal.h"
@@ -167,11 +168,11 @@ static int vbclClipboardGuestPasteText(PasteboardRef pPasteboard, void *pData, u
        it in both formats UTF16 (original) and UTF8. */
 
     /* Convert END-OF-LINE */
-    rc = vboxClipboardUtf16GetLinSize((RTUTF16 *)pData, cbDataSize / 2, &cbActualLen);
+    rc = ShClUtf16GetLinSize((RTUTF16 *)pData, cbDataSize / 2, &cbActualLen);
     AssertReturn(RT_SUCCESS(rc), rc);
     pDataInternal = (RTUTF16 *)RTMemAlloc(cbActualLen * 2);
     AssertReturn(pDataInternal, VERR_NO_MEMORY);
-    rc = vboxClipboardUtf16WinToLin((RTUTF16 *)pData, cbDataSize / 2, pDataInternal, cbActualLen);
+    rc = ShClUtf16WinToLin((RTUTF16 *)pData, cbDataSize / 2, pDataInternal, cbActualLen);
 
     /* Do actual paste */
     if (RT_SUCCESS(rc))
@@ -215,7 +216,7 @@ static int vbclClipboardGuestPastePicture(PasteboardRef pPasteboard, void *pData
     /* Skip zero-sized buffer */
     AssertReturn(cbDataSize > 0, VINF_SUCCESS);
 
-    rc = vboxClipboardDibToBmp(pData, cbDataSize, &pBmp, &cbBmpSize);
+    rc = ShClDibToBmp(pData, cbDataSize, &pBmp, &cbBmpSize);
     AssertReturn(RT_SUCCESS(rc), rc);
 
     rc = vbclClipboardGuestPasteData(pPasteboard, (UInt8 *)pBmp, cbBmpSize, kUTTypeBMP, true);
@@ -243,11 +244,11 @@ int vbclClipboardForwardToGuest(uint32_t u32ClientId, PasteboardRef pPasteboard,
     /* Walk across all item(s) formats */
     while (fFormatsInternal)
     {
-        if (fFormatsInternal & VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT)
+        if (fFormatsInternal & VBOX_SHCL_FMT_UNICODETEXT)
         {
-            VBoxClientVerbose(3, "found VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT: %d\n", fFormatsInternal);
+            VBoxClientVerbose(3, "found VBOX_SHCL_FMT_UNICODETEXT: %d\n", fFormatsInternal);
 
-            rc = vbclClipboardReadHostData(u32ClientId, VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT, &pData, &cbDataSize, &cbMemSize);
+            rc = vbclClipboardReadHostData(u32ClientId, VBOX_SHCL_FMT_UNICODETEXT, &pData, &cbDataSize, &cbMemSize);
             if (RT_SUCCESS(rc))
             {
                 /* Store data in guest buffer */
@@ -257,14 +258,14 @@ int vbclClipboardForwardToGuest(uint32_t u32ClientId, PasteboardRef pPasteboard,
                 vbclClipboardReleaseHostData(&pData, cbMemSize);
             }
 
-            fFormatsInternal &= ~((uint32_t)VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT);
+            fFormatsInternal &= ~((uint32_t)VBOX_SHCL_FMT_UNICODETEXT);
         }
 
-        else if (fFormatsInternal & VBOX_SHARED_CLIPBOARD_FMT_BITMAP)
+        else if (fFormatsInternal & VBOX_SHCL_FMT_BITMAP)
         {
-            VBoxClientVerbose(3, "found VBOX_SHARED_CLIPBOARD_FMT_BITMAP: %d\n", fFormatsInternal);
+            VBoxClientVerbose(3, "found VBOX_SHCL_FMT_BITMAP: %d\n", fFormatsInternal);
 
-            rc = vbclClipboardReadHostData(u32ClientId, VBOX_SHARED_CLIPBOARD_FMT_BITMAP, &pData, &cbDataSize, &cbMemSize);
+            rc = vbclClipboardReadHostData(u32ClientId, VBOX_SHCL_FMT_BITMAP, &pData, &cbDataSize, &cbMemSize);
             if (RT_SUCCESS(rc))
             {
                 /* Store data in guest buffer */
@@ -274,14 +275,14 @@ int vbclClipboardForwardToGuest(uint32_t u32ClientId, PasteboardRef pPasteboard,
                 vbclClipboardReleaseHostData(&pData, cbMemSize);
             }
 
-            fFormatsInternal &= ~((uint32_t)VBOX_SHARED_CLIPBOARD_FMT_BITMAP);
+            fFormatsInternal &= ~((uint32_t)VBOX_SHCL_FMT_BITMAP);
         }
 
-        else if (fFormatsInternal & VBOX_SHARED_CLIPBOARD_FMT_HTML)
+        else if (fFormatsInternal & VBOX_SHCL_FMT_HTML)
         {
-            VBoxClientVerbose(3, "found VBOX_SHARED_CLIPBOARD_FMT_HTML: %d\n", fFormatsInternal);
+            VBoxClientVerbose(3, "found VBOX_SHCL_FMT_HTML: %d\n", fFormatsInternal);
 
-            rc = vbclClipboardReadHostData(u32ClientId, VBOX_SHARED_CLIPBOARD_FMT_HTML, &pData, &cbDataSize, &cbMemSize);
+            rc = vbclClipboardReadHostData(u32ClientId, VBOX_SHCL_FMT_HTML, &pData, &cbDataSize, &cbMemSize);
             if (RT_SUCCESS(rc))
             {
                 /* Store data in guest buffer */
@@ -291,7 +292,7 @@ int vbclClipboardForwardToGuest(uint32_t u32ClientId, PasteboardRef pPasteboard,
                 vbclClipboardReleaseHostData(&pData, cbMemSize);
             }
 
-            fFormatsInternal &= ~((uint32_t)VBOX_SHARED_CLIPBOARD_FMT_HTML);
+            fFormatsInternal &= ~((uint32_t)VBOX_SHCL_FMT_HTML);
         }
 
         else

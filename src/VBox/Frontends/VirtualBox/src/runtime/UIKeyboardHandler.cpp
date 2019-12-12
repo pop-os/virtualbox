@@ -38,7 +38,7 @@
 #endif
 
 /* GUI includes: */
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #include "UIExtraDataManager.h"
 #include "UIMessageCenter.h"
 #include "UIPopupCenter.h"
@@ -660,7 +660,7 @@ bool UIKeyboardHandler::nativeEventFilter(void *pMessage, ulong uScreenId)
             // WORKAROUND:
             // Can't do COM inter-process calls from a SendMessage handler,
             // see http://support.microsoft.com/kb/131056.
-            if (vboxGlobal().isSeparateProcess() && InSendMessage())
+            if (uiCommon().isSeparateProcess() && InSendMessage())
             {
                 PostMessage(pMsg->hwnd, pMsg->message, pMsg->wParam, pMsg->lParam);
                 fResult = true;
@@ -981,7 +981,6 @@ UIKeyboardHandler::UIKeyboardHandler(UIMachineLogic *pMachineLogic)
 #elif defined(VBOX_WS_X11)
     , m_hButtonGrabWindow(0)
 #endif /* VBOX_WS_X11 */
-    , m_cMonitors(1)
 {
     /* Prepare: */
     prepareCommon();
@@ -1008,12 +1007,10 @@ void UIKeyboardHandler::prepareCommon()
 #endif /* VBOX_WS_WIN */
 
     /* Machine state-change updater: */
-    connect(uisession(), SIGNAL(sigMachineStateChange()), this, SLOT(sltMachineStateChanged()));
+    connect(uisession(), &UISession::sigMachineStateChange, this, &UIKeyboardHandler::sltMachineStateChanged);
 
     /* Pressed keys: */
     ::memset(m_pressedKeys, 0, sizeof(m_pressedKeys));
-
-    m_cMonitors = uisession()->machine().GetMonitorCount();
 }
 
 void UIKeyboardHandler::loadSettings()
@@ -1032,7 +1029,7 @@ void UIKeyboardHandler::loadSettings()
     /* Extra data settings: */
     {
         /* CAD setting: */
-        m_fPassCADtoGuest = gEDataManager->passCADtoGuest(vboxGlobal().managedVMUuid());
+        m_fPassCADtoGuest = gEDataManager->passCADtoGuest(uiCommon().managedVMUuid());
     }
 }
 
@@ -1532,7 +1529,7 @@ void UIKeyboardHandler::keyEventHandleHostComboRelease(ulong uScreenId)
                         finaliseCaptureKeyboard();
                         if (fCaptureMouse)
                         {
-                            const MouseCapturePolicy mcp = gEDataManager->mouseCapturePolicy(vboxGlobal().managedVMUuid());
+                            const MouseCapturePolicy mcp = gEDataManager->mouseCapturePolicy(uiCommon().managedVMUuid());
                             if (mcp == MouseCapturePolicy_Default || mcp == MouseCapturePolicy_HostComboOnly)
                                 machineLogic()->mouseHandler()->captureMouse(uScreenId);
                         }

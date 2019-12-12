@@ -80,7 +80,9 @@ typedef struct MEDIUMINFO
 
 char *vboximgScaledSize(size_t size)
 {
-    uint64_t exp = log2((double)size);
+    uint64_t exp = 0;
+    if (size > 0)
+        exp = log2((double)size);
     char scaledMagnitude = ((char []){ ' ', 'K', 'M', 'G', 'T', 'P' })[exp / 10];
      /* This workaround is because IPRT RT*Printf* funcs don't handle floating point format specifiers */
     double cbScaled = (double)size / pow(2, (double)(((uint64_t)(exp / 10)) * 10));
@@ -202,19 +204,17 @@ getMediumInfo(IMachine *pMachine, IMedium *pMedium, MEDIUMINFO **ppMediumInfo)
 
 static void displayMediumInfo(MEDIUMINFO *pInfo, int nestLevel, bool fLast)
 {
-
-    char *cbScaled = vboximgScaledSize(pInfo->cbSize);
+    char *pszSzScaled = vboximgScaledSize(pInfo->cbSize);
     int cPad = nestLevel * 2;
     if (g_vboximgOpts.fWide && !g_vboximgOpts.fVerbose)
     {
         RTPrintf("%3s %-*s %7s  %-9s %9s %-*s %s\n",
             !fLast ? (pInfo->fSnapshot ? " | " : " +-") : (pInfo->fSnapshot ? "   " : " +-"),
             VM_MAX_NAME, pInfo->fSnapshot ? "+- <snapshot>" : pInfo->pszName,
-            cbScaled,
+            pszSzScaled,
             pInfo->pszFormat,
             pInfo->pszState,
             cPad, "", pInfo->pszUuid);
-        RTMemFree(cbScaled);
     }
     else
     {
@@ -228,7 +228,7 @@ static void displayMediumInfo(MEDIUMINFO *pInfo, int nestLevel, bool fLast)
             {
                 RTPrintf("    Path:    %s\n", pInfo->pszPath);
                 RTPrintf("    Format:  %s\n", pInfo->pszFormat);
-                RTPrintf("    Size:    %s\n", cbScaled);
+                RTPrintf("    Size:    %s\n", pszSzScaled);
                 RTPrintf("    State:   %s\n", pInfo->pszState);
                 RTPrintf("    Type:    %s\n", pInfo->pszType);
             }
@@ -242,12 +242,13 @@ static void displayMediumInfo(MEDIUMINFO *pInfo, int nestLevel, bool fLast)
                 RTPrintf("         Name:     %s\n", pInfo->pszName);
                 RTPrintf("         Desc:     %s\n", pInfo->pszDescription);
             }
-            RTPrintf("         Size:     %s\n", cbScaled);
+            RTPrintf("         Size:     %s\n", pszSzScaled);
             if (g_vboximgOpts.fVerbose)
                 RTPrintf("         Path:     %s\n", pInfo->pszPath);
             RTPrintf("\n");
         }
     }
+    RTMemFree(pszSzScaled);
 }
 
 static int vboximgListBranch(IMachine *pMachine, IMedium *pMedium, uint8_t nestLevel, bool fLast)

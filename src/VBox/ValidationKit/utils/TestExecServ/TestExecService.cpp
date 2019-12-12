@@ -176,6 +176,10 @@ static char                 g_szDefScratchPath[RTPATH_MAX];
 static char                 g_szCdRomPath[RTPATH_MAX];
 /** The default CD/DVD-ROM path. */
 static char                 g_szDefCdRomPath[RTPATH_MAX];
+/** The directory containing the TXS executable. */
+static char                 g_szTxsDir[RTPATH_MAX];
+/** The current working directory for TXS (doesn't change). */
+static char                 g_szCwd[RTPATH_MAX];
 /** The operating system short name. */
 static char                 g_szOsShortName[16];
 /** The CPU architecture short name. */
@@ -350,7 +354,7 @@ static int txsReplyInternal(PTXSPKTHDR pReply, const char *pszOpcode, size_t cbE
     }
 
     pReply->cb     = (uint32_t)sizeof(TXSPKTHDR) + (uint32_t)cbExtra;
-    pReply->uCrc32 = 0;
+    pReply->uCrc32 = 0; /* (txsSendPkt sets it) */
 
     return txsSendPkt(pReply);
 }
@@ -548,9 +552,10 @@ static int txsReplaceStringVariables(PCTXSPKTHDR pPktHdr, const char *pszSrc, ch
     char   *pszDollar = pszNew;
     while ((pszDollar = strchr(pszDollar, '$')) != NULL)
     {
+        /** @todo employ $$ as escape sequence here. */
         if (pszDollar[1] == '{')
         {
-            const char *pszEnd = strchr(&pszDollar[2], '}');
+            char *pszEnd = strchr(&pszDollar[2], '}');
             if (pszEnd)
             {
 #define IF_VARIABLE_DO(pszDollar, szVarExpr, pszValue) \
@@ -573,6 +578,36 @@ static int txsReplaceStringVariables(PCTXSPKTHDR pPktHdr, const char *pszSrc, ch
                 else IF_VARIABLE_DO(pszDollar, "${OS/ARCH}", g_szOsSlashArchShortName)
                 else IF_VARIABLE_DO(pszDollar, "${EXESUFF}", g_szExeSuff)
                 else IF_VARIABLE_DO(pszDollar, "${SCRIPTSUFF}", g_szScriptSuff)
+                else IF_VARIABLE_DO(pszDollar, "${TXSDIR}",  g_szTxsDir)
+                else IF_VARIABLE_DO(pszDollar, "${CWD}",     g_szCwd)
+                else if (   cchVar >= sizeof("${env.") + 1
+                         && memcmp(pszDollar, RT_STR_TUPLE("${env.")) == 0)
+                {
+                    const char *pszEnvVar = pszDollar + 6;
+                    size_t      cchValue  = 0;
+                    char        szValue[RTPATH_MAX];
+                    *pszEnd = '\0';
+                    rc = RTEnvGetEx(RTENV_DEFAULT, pszEnvVar, szValue, sizeof(szValue), &cchValue);
+                    if (RT_SUCCESS(rc))
+                    {
+                        *pszEnd = '}';
+                        rc = txsReplaceStringVariable(&pszNew, &cchNew, offDollar, cchVar, szValue, cchValue);
+                        offDollar += cchValue;
+                    }
+                    else
+                    {
+                        if (rc == VERR_ENV_VAR_NOT_FOUND)
+                            *prcSend = txsReplyFailure(pPktHdr, "UNKN VAR", "Environment variable '%s' encountered in '%s'",
+                                                       pszEnvVar, pszSrc);
+                        else
+                            *prcSend = txsReplyFailure(pPktHdr, "FAILDENV",
+                                                       "RTEnvGetEx(,'%s',,,) failed with %Rrc (opcode '%.8s')",
+                                                       pszEnvVar, rc, pPktHdr->achOpcode);
+                        RTStrFree(pszNew);
+                        *ppszNew = NULL;
+                        return false;
+                    }
+                }
                 else
                 {
                     RTStrFree(pszNew);
@@ -592,6 +627,14 @@ static int txsReplaceStringVariables(PCTXSPKTHDR pPktHdr, const char *pszSrc, ch
                 }
 #undef IF_VARIABLE_DO
             }
+        }
+        /* Undo dollar escape sequences: $$ -> $ */
+        else if (pszDollar[1] == '$')
+        {
+            size_t cchLeft = cchNew - (&pszDollar[1] - pszNew);
+            memmove(pszDollar, &pszDollar[1], cchLeft);
+            pszDollar[cchLeft] = '\0';
+            cchNew -= 1;
         }
     }
 
@@ -744,6 +787,43 @@ static int txsWaitForAck(PCTXSPKTHDR pPktHdr)
 }
 
 /**
+ * Expands the variables in the string and sends it back to the host.
+ *
+ * @returns IPRT status code from send.
+ * @param   pPktHdr             The expand string packet.
+ */
+static int txsDoExpandString(PCTXSPKTHDR pPktHdr)
+{
+    int rc;
+    char *pszExpanded;
+    if (!txsIsStringPktValid(pPktHdr, "string", &pszExpanded, &rc))
+        return rc;
+
+    struct
+    {
+        TXSPKTHDR   Hdr;
+        char        szString[_64K];
+        char        abPadding[TXSPKT_ALIGNMENT];
+    } Pkt;
+
+    size_t const cbExpanded = strlen(pszExpanded) + 1;
+    if (cbExpanded <= sizeof(Pkt.szString))
+    {
+        memcpy(Pkt.szString, pszExpanded, cbExpanded);
+        rc = txsReplyInternal(&Pkt.Hdr, "STRING  ", cbExpanded);
+    }
+    else
+    {
+        memcpy(Pkt.szString, pszExpanded, sizeof(Pkt.szString));
+        Pkt.szString[0] = '\0';
+        rc = txsReplyInternal(&Pkt.Hdr, "SHORTSTR", sizeof(Pkt.szString));
+    }
+
+    RTStrFree(pszExpanded);
+    return rc;
+}
+
+/**
  * Unpacks a tar file.
  *
  * @returns IPRT status code from send.
@@ -873,22 +953,43 @@ static int txsDoGetFile(PCTXSPKTHDR pPktHdr)
  *
  * @returns IPRT status code from send.
  * @param   pPktHdr             The put file packet.
+ * @param   fHasMode            Set if the packet starts with a mode field.
  */
-static int txsDoPutFile(PCTXSPKTHDR pPktHdr)
+static int txsDoPutFile(PCTXSPKTHDR pPktHdr, bool fHasMode)
 {
     int rc;
-    char *pszPath;
-    if (!txsIsStringPktValid(pPktHdr, "file", &pszPath, &rc))
-        return rc;
+    RTFMODE fMode = 0;
+    char   *pszPath;
+    if (!fHasMode)
+    {
+        if (!txsIsStringPktValid(pPktHdr, "file", &pszPath, &rc))
+            return rc;
+    }
+    else
+    {
+        /* After the packet header follows a mode mask and the remainder of
+           the packet is the zero terminated file name. */
+        size_t const cbMin = sizeof(TXSPKTHDR) + sizeof(RTFMODE) + 2;
+        if (pPktHdr->cb < cbMin)
+            return txsReplyBadMinSize(pPktHdr, cbMin);
+        if (!txsIsStringValid(pPktHdr, "file", (const char *)(pPktHdr + 1) + sizeof(RTFMODE), &pszPath, NULL, &rc))
+            return rc;
+        fMode = *(RTFMODE const *)(pPktHdr + 1);
+        fMode <<= RTFILE_O_CREATE_MODE_SHIFT;
+        fMode &= RTFILE_O_CREATE_MODE_MASK;
+    }
 
     RTFILE hFile;
-    rc = RTFileOpen(&hFile, pszPath, RTFILE_O_WRITE | RTFILE_O_DENY_WRITE | RTFILE_O_CREATE_REPLACE);
+    rc = RTFileOpen(&hFile, pszPath, RTFILE_O_WRITE | RTFILE_O_DENY_WRITE | RTFILE_O_CREATE_REPLACE | fMode);
     if (RT_SUCCESS(rc))
     {
         bool fSuccess = false;
         rc = txsReplyAck(pPktHdr);
         if (RT_SUCCESS(rc))
         {
+            if (fMode)
+                RTFileSetMode(hFile, fMode);
+
             /*
              * Read client command packets and process them.
              */
@@ -987,6 +1088,49 @@ static int txsDoList(PCTXSPKTHDR pPktHdr)
     return rc;
 }
 
+/**
+ * Worker for STAT and LSTAT for packing down the file info reply.
+ *
+ * @returns IPRT status code from send.
+ * @param   pInfo               The info to pack down.
+ */
+static int txsReplyObjInfo(PCRTFSOBJINFO pInfo)
+{
+    struct
+    {
+        TXSPKTHDR   Hdr;
+        int64_t     cbObject;
+        int64_t     cbAllocated;
+        int64_t     nsAccessTime;
+        int64_t     nsModificationTime;
+        int64_t     nsChangeTime;
+        int64_t     nsBirthTime;
+        uint32_t    fMode;
+        uint32_t    uid;
+        uint32_t    gid;
+        uint32_t    cHardLinks;
+        uint64_t    INodeIdDevice;
+        uint64_t    INodeId;
+        uint64_t    Device;
+        char        abPadding[TXSPKT_ALIGNMENT];
+    } Pkt;
+
+    Pkt.cbObject            = pInfo->cbObject;
+    Pkt.cbAllocated         = pInfo->cbAllocated;
+    Pkt.nsAccessTime        = RTTimeSpecGetNano(&pInfo->AccessTime);
+    Pkt.nsModificationTime  = RTTimeSpecGetNano(&pInfo->ModificationTime);
+    Pkt.nsChangeTime        = RTTimeSpecGetNano(&pInfo->ChangeTime);
+    Pkt.nsBirthTime         = RTTimeSpecGetNano(&pInfo->BirthTime);
+    Pkt.fMode               = pInfo->Attr.fMode;
+    Pkt.uid                 = pInfo->Attr.u.Unix.uid;
+    Pkt.gid                 = pInfo->Attr.u.Unix.gid;
+    Pkt.cHardLinks          = pInfo->Attr.u.Unix.cHardlinks;
+    Pkt.INodeIdDevice       = pInfo->Attr.u.Unix.INodeIdDevice;
+    Pkt.INodeId             = pInfo->Attr.u.Unix.INodeId;
+    Pkt.Device              = pInfo->Attr.u.Unix.Device;
+
+    return txsReplyInternal(&Pkt.Hdr, "FILEINFO", sizeof(Pkt) - TXSPKT_ALIGNMENT - sizeof(TXSPKTHDR));
+}
 
 /**
  * Get info about a file system object, following all but the symbolic links
@@ -1005,8 +1149,7 @@ static int txsDoLStat(PCTXSPKTHDR pPktHdr)
     RTFSOBJINFO Info;
     rc = RTPathQueryInfoEx(pszPath, &Info, RTFSOBJATTRADD_UNIX, RTPATH_F_ON_LINK);
     if (RT_SUCCESS(rc))
-        /** @todo figure out how to format the return buffer here. */
-        rc = txsReplyNotImplemented(pPktHdr);
+        rc = txsReplyObjInfo(&Info);
     else
         rc = txsReplyRC(pPktHdr, rc, "RTPathQueryInfoEx(\"%s\",,UNIX,ON_LINK)",  pszPath);
 
@@ -1030,8 +1173,7 @@ static int txsDoStat(PCTXSPKTHDR pPktHdr)
     RTFSOBJINFO Info;
     rc = RTPathQueryInfoEx(pszPath, &Info, RTFSOBJATTRADD_UNIX, RTPATH_F_FOLLOW_LINK);
     if (RT_SUCCESS(rc))
-        /** @todo figure out how to format the return buffer here. */
-        rc = txsReplyNotImplemented(pPktHdr);
+        rc = txsReplyObjInfo(&Info);
     else
         rc = txsReplyRC(pPktHdr, rc, "RTPathQueryInfoEx(\"%s\",,UNIX,FOLLOW_LINK)",  pszPath);
 
@@ -1118,25 +1260,36 @@ static int txsDoIsDir(PCTXSPKTHDR pPktHdr)
 }
 
 /**
- * Changes the group of a file, directory of symbolic link.
- *
- * @returns IPRT status code from send.
- * @param   pPktHdr             The chmod packet.
- */
-static int txsDoChGrp(PCTXSPKTHDR pPktHdr)
-{
-    return txsReplyNotImplemented(pPktHdr);
-}
-
-/**
- * Changes the owner of a file, directory of symbolic link.
+ * Changes the owner of a file, directory or symbolic link.
  *
  * @returns IPRT status code from send.
  * @param   pPktHdr             The chmod packet.
  */
 static int txsDoChOwn(PCTXSPKTHDR pPktHdr)
 {
+#ifdef RT_OS_WINDOWS
     return txsReplyNotImplemented(pPktHdr);
+#else
+    /* After the packet header follows a 32-bit UID and 32-bit GID, while the
+       remainder of the packet is the zero terminated path. */
+    size_t const cbMin = sizeof(TXSPKTHDR) + sizeof(RTFMODE) + 2;
+    if (pPktHdr->cb < cbMin)
+        return txsReplyBadMinSize(pPktHdr, cbMin);
+
+    int rc;
+    char *pszPath;
+    if (!txsIsStringValid(pPktHdr, "path", (const char *)(pPktHdr + 1) + sizeof(uint32_t) * 2, &pszPath, NULL, &rc))
+        return rc;
+
+    uint32_t uid = ((uint32_t const *)(pPktHdr + 1))[0];
+    uint32_t gid = ((uint32_t const *)(pPktHdr + 1))[1];
+
+    rc = RTPathSetOwnerEx(pszPath, uid, gid, RTPATH_F_ON_LINK);
+
+    rc = txsReplyRC(pPktHdr, rc, "RTPathSetOwnerEx(\"%s\", %u, %u)", pszPath, uid, gid);
+    RTStrFree(pszPath);
+    return rc;
+#endif
 }
 
 /**
@@ -1147,7 +1300,24 @@ static int txsDoChOwn(PCTXSPKTHDR pPktHdr)
  */
 static int txsDoChMod(PCTXSPKTHDR pPktHdr)
 {
-    return txsReplyNotImplemented(pPktHdr);
+    /* After the packet header follows a mode mask and the remainder of
+       the packet is the zero terminated file name. */
+    size_t const cbMin = sizeof(TXSPKTHDR) + sizeof(RTFMODE) + 2;
+    if (pPktHdr->cb < cbMin)
+        return txsReplyBadMinSize(pPktHdr, cbMin);
+
+    int rc;
+    char *pszPath;
+    if (!txsIsStringValid(pPktHdr, "path", (const char *)(pPktHdr + 1) + sizeof(RTFMODE), &pszPath, NULL, &rc))
+        return rc;
+
+    RTFMODE fMode = *(RTFMODE const *)(pPktHdr + 1);
+
+    rc = RTPathSetMode(pszPath, fMode);
+
+    rc = txsReplyRC(pPktHdr, rc, "RTPathSetMode(\"%s\", %o)", pszPath, fMode);
+    RTStrFree(pszPath);
+    return rc;
 }
 
 /**
@@ -1183,7 +1353,7 @@ static int txsDoRmSymlnk(PCTXSPKTHDR pPktHdr)
     if (!txsIsStringPktValid(pPktHdr, "symlink", &pszPath, &rc))
         return rc;
 
-    rc = VERR_NOT_IMPLEMENTED; /// @todo RTSymlinkDelete(pszPath);
+    rc = RTSymlinkDelete(pszPath, 0);
 
     rc = txsReplyRC(pPktHdr, rc, "RTSymlinkDelete(\"%s\")", pszPath);
     RTStrFree(pszPath);
@@ -1259,7 +1429,8 @@ static int txsDoMkDrPath(PCTXSPKTHDR pPktHdr)
         return rc;
 
     RTFMODE fMode = *(RTFMODE const *)(pPktHdr + 1);
-    rc = RTDirCreateFullPath(pszPath, fMode);
+
+    rc = RTDirCreateFullPathEx(pszPath, fMode, RTDIRCREATE_FLAGS_IGNORE_UMASK);
 
     rc = txsReplyRC(pPktHdr, rc, "RTDirCreateFullPath(\"%s\", %#x)", pszPath, fMode);
     RTStrFree(pszPath);
@@ -1286,7 +1457,7 @@ static int txsDoMkDir(PCTXSPKTHDR pPktHdr)
         return rc;
 
     RTFMODE fMode = *(RTFMODE const *)(pPktHdr + 1);
-    rc = RTDirCreate(pszPath, fMode, 0);
+    rc = RTDirCreate(pszPath, fMode, RTDIRCREATE_FLAGS_IGNORE_UMASK);
 
     rc = txsReplyRC(pPktHdr, rc, "RTDirCreate(\"%s\", %#x)", pszPath, fMode);
     RTStrFree(pszPath);
@@ -2546,7 +2717,7 @@ static int txsDoExecHlp(PCTXSPKTHDR pPktHdr, uint32_t fFlags, const char *pszExe
         }
         rc = RTProcCreateEx(pszExecName, papszArgs, pTxsExec->hEnv, 0 /*fFlags*/,
                             pTxsExec->StdIn.phChild, pTxsExec->StdOut.phChild, pTxsExec->StdErr.phChild,
-                            *pszUsername ? pszUsername : NULL, NULL,
+                            *pszUsername ? pszUsername : NULL, NULL, NULL,
                             &pTxsExec->hProcess);
         if (RT_SUCCESS(rc))
         {
@@ -2819,8 +2990,6 @@ static RTEXITCODE txsMainLoop(void)
             rc = txsDoChMod(pPktHdr);
         else if (txsIsSameOpcode(pPktHdr, "CHOWN   "))
             rc = txsDoChOwn(pPktHdr);
-        else if (txsIsSameOpcode(pPktHdr, "CHGRP   "))
-            rc = txsDoChGrp(pPktHdr);
         else if (txsIsSameOpcode(pPktHdr, "ISDIR   "))
             rc = txsDoIsDir(pPktHdr);
         else if (txsIsSameOpcode(pPktHdr, "ISFILE  "))
@@ -2834,12 +3003,16 @@ static RTEXITCODE txsMainLoop(void)
         else if (txsIsSameOpcode(pPktHdr, "LIST    "))
             rc = txsDoList(pPktHdr);
         else if (txsIsSameOpcode(pPktHdr, "PUT FILE"))
-            rc = txsDoPutFile(pPktHdr);
+            rc = txsDoPutFile(pPktHdr, false /*fHasMode*/);
+        else if (txsIsSameOpcode(pPktHdr, "PUT2FILE"))
+            rc = txsDoPutFile(pPktHdr, true /*fHasMode*/);
         else if (txsIsSameOpcode(pPktHdr, "GET FILE"))
             rc = txsDoGetFile(pPktHdr);
         else if (txsIsSameOpcode(pPktHdr, "UNPKFILE"))
             rc = txsDoUnpackFile(pPktHdr);
         /* Misc: */
+        else if (txsIsSameOpcode(pPktHdr, "EXP STR "))
+            rc = txsDoExpandString(pPktHdr);
         else
             rc = txsReplyUnknown(pPktHdr);
 
@@ -3178,6 +3351,17 @@ static void txsSetDefaults(void)
     strcpy(g_szScriptSuff, ".sh");
 #endif
 
+    int rc = RTPathGetCurrent(g_szCwd, sizeof(g_szCwd));
+    if (RT_FAILURE(rc))
+        RTMsgError("RTPathGetCurrent failed: %Rrc\n", rc);
+    g_szCwd[sizeof(g_szCwd) - 1] = '\0';
+
+    if (!RTProcGetExecutablePath(g_szTxsDir, sizeof(g_szTxsDir)))
+        RTMsgError("RTProcGetExecutablePath failed!\n");
+    g_szTxsDir[sizeof(g_szTxsDir) - 1] = '\0';
+    RTPathStripFilename(g_szTxsDir);
+    RTPathStripTrailingSlash(g_szTxsDir);
+
     /*
      * The CD/DVD-ROM location.
      */
@@ -3197,7 +3381,7 @@ static void txsSetDefaults(void)
     /*
      * Temporary directory.
      */
-    int rc = RTPathTemp(g_szDefScratchPath, sizeof(g_szDefScratchPath));
+    rc = RTPathTemp(g_szDefScratchPath, sizeof(g_szDefScratchPath));
     if (RT_SUCCESS(rc))
 #if defined(RT_OS_OS2) || defined(RT_OS_WINDOWS) || defined(RT_OS_DOS)
         rc = RTPathAppend(g_szDefScratchPath, sizeof(g_szDefScratchPath), "txs-XXXX.tmp");
@@ -3421,7 +3605,7 @@ static RTEXITCODE txsParseArgv(int argc, char **argv, bool *pfExit)
                 break;
 
             case 'V':
-                RTPrintf("$Revision: 127855 $\n");
+                RTPrintf("$Revision: 133086 $\n");
                 *pfExit = true;
                 return RTEXITCODE_SUCCESS;
 

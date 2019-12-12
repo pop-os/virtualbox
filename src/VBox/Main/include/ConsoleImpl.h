@@ -45,7 +45,6 @@ class AudioVRDE;
 #ifdef VBOX_WITH_AUDIO_RECORDING
 class AudioVideoRec;
 #endif
-class Nvram;
 #ifdef VBOX_WITH_USB_CARDREADER
 class UsbCardReader;
 #endif
@@ -68,6 +67,12 @@ class VMPowerDownTask;
 #include <VBox/vmm/pdmdrv.h>
 #ifdef VBOX_WITH_GUEST_PROPS
 # include <VBox/HostServices/GuestPropertySvc.h>  /* For the property notification callback */
+#endif
+
+#if    defined(VBOX_WITH_GUEST_PROPS) || defined(VBOX_WITH_SHARED_CLIPBOARD) \
+    || defined(VBOX_WITH_DRAG_AND_DROP)
+# include "HGCM.h" /** @todo It should be possible to register a service
+                    *        extension using a VMMDev callback. */
 #endif
 
 struct VUSBIRHCONFIG;
@@ -178,11 +183,12 @@ public:
     HRESULT i_onAudioAdapterChange(IAudioAdapter *aAudioAdapter);
     HRESULT i_onSerialPortChange(ISerialPort *aSerialPort);
     HRESULT i_onParallelPortChange(IParallelPort *aParallelPort);
-    HRESULT i_onStorageControllerChange();
+    HRESULT i_onStorageControllerChange(const com::Guid& aMachineId, const com::Utf8Str& aControllerName);
     HRESULT i_onMediumChange(IMediumAttachment *aMediumAttachment, BOOL aForce);
     HRESULT i_onCPUChange(ULONG aCPU, BOOL aRemove);
     HRESULT i_onCPUExecutionCapChange(ULONG aExecutionCap);
     HRESULT i_onClipboardModeChange(ClipboardMode_T aClipboardMode);
+    HRESULT i_onClipboardFileTransferModeChange(bool aEnabled);
     HRESULT i_onDnDModeChange(DnDMode_T aDnDMode);
     HRESULT i_onVRDEServerChange(BOOL aRestart);
     HRESULT i_onRecordingChange(BOOL fEnable);
@@ -207,6 +213,7 @@ public:
                                 ULONG aSourceIdx, ULONG aTargetIdx,
                                 IProgress *aProgress);
     HRESULT i_reconfigureMediumAttachments(const std::vector<ComPtr<IMediumAttachment> > &aAttachments);
+    HRESULT i_onVMProcessPriorityChange(VMProcPriority_T priority);
     int i_hgcmLoadService(const char *pszServiceLibrary, const char *pszServiceName);
     VMMDev *i_getVMMDev() { return m_pVMMDev; }
 
@@ -572,13 +579,24 @@ public:
             , m_strAutoMountPoint(aAutoMountPoint)
         { }
 
-        // copy constructor
+        /** Copy constructor. */
         SharedFolderData(const SharedFolderData& aThat)
             : m_strHostPath(aThat.m_strHostPath)
             , m_fWritable(aThat.m_fWritable)
             , m_fAutoMount(aThat.m_fAutoMount)
             , m_strAutoMountPoint(aThat.m_strAutoMountPoint)
         { }
+
+        /** Copy assignment operator. */
+        SharedFolderData &operator=(SharedFolderData const &a_rThat) RT_NOEXCEPT
+        {
+            m_strHostPath       = a_rThat.m_strHostPath;
+            m_fWritable         = a_rThat.m_fWritable;
+            m_fAutoMount        = a_rThat.m_fAutoMount;
+            m_strAutoMountPoint = a_rThat.m_strAutoMountPoint;
+
+            return *this;
+        }
 
         Utf8Str m_strHostPath;
         bool m_fWritable;
@@ -664,6 +682,7 @@ private:
                                    const GraphicsControllerType_T graphicsController,
                                    BusAssignmentManager *pBusMgr,
                                    const ComPtr<IMachine> &ptrMachine,
+                                   const ComPtr<IGraphicsAdapter> &ptrGraphicsAdapter,
                                    const ComPtr<IBIOSSettings> &ptrBiosSettings,
                                    bool fHMEnabled);
     int i_checkMediumLocation(IMedium *pMedium, bool *pfUseHostIOCache);
@@ -764,7 +783,8 @@ private:
     static DECLCALLBACK(int) i_changeSerialPortAttachment(Console *pThis, PUVM pUVM,
                                                           ISerialPort *pSerialPort);
 
-    void i_changeClipboardMode(ClipboardMode_T aClipboardMode);
+    int i_changeClipboardMode(ClipboardMode_T aClipboardMode);
+    int i_changeClipboardFileTransferMode(bool aEnabled);
     int i_changeDnDMode(DnDMode_T aDnDMode);
 
 #ifdef VBOX_WITH_USB
@@ -863,8 +883,6 @@ private:
     void i_guestPropertiesVRDPUpdateDisconnect(uint32_t u32ClientId);
 #endif
 
-    bool i_isResetTurnedIntoPowerOff(void);
-
     /** @name Disk encryption support
      * @{ */
     HRESULT i_consoleParseDiskEncryption(const char *psz, const char **ppszEnd);
@@ -939,6 +957,9 @@ private:
     bool mfSnapshotFolderDiskTypeShown : 1;
     /** true if a USB controller is available (i.e. USB devices can be attached). */
     bool mfVMHasUsbController : 1;
+    /** Shadow of the VBoxInternal2/TurnResetIntoPowerOff extra data setting.
+     * This is initialized by Console::i_configConstructorInner(). */
+    bool mfTurnResetIntoPowerOff : 1;
     /** true if the VM power off was caused by reset. */
     bool mfPowerOffCausedByReset : 1;
 
@@ -960,7 +981,6 @@ private:
 
     VMMDev *                    m_pVMMDev;
     AudioVRDE * const           mAudioVRDE;
-    Nvram   * const             mNvram;
 #ifdef VBOX_WITH_USB_CARDREADER
     UsbCardReader * const       mUsbCardReader;
 #endif
@@ -982,7 +1002,9 @@ private:
         cLedUsb     = 8,
         iLedNvme    = iLedUsb + cLedUsb,
         cLedNvme    = 30,
-        cLedStorage = cLedFloppy + cLedIde + cLedSata + cLedScsi + cLedSas + cLedUsb + cLedNvme
+        iLedVirtio  = iLedNvme + cLedNvme,
+        cLedVirtio  = 16,
+        cLedStorage = cLedFloppy + cLedIde + cLedSata + cLedScsi + cLedSas + cLedUsb + cLedNvme + cLedVirtio
     };
     DeviceType_T maStorageDevType[cLedStorage];
     PPDMLED      mapStorageLeds[cLedStorage];
@@ -1033,6 +1055,10 @@ private:
 
     /** Machine uuid string. */
     Bstr mstrUuid;
+
+#ifdef VBOX_WITH_DRAG_AND_DROP
+    HGCMSVCEXTHANDLE m_hHgcmSvcExtDragAndDrop;
+#endif
 
     /** Pointer to the progress object of a live cancelable task.
      *

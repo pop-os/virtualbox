@@ -23,7 +23,8 @@
 
 /* GUI includes: */
 #include "QILineEdit.h"
-#include "VBoxGlobal.h"
+#include "UICommon.h"
+#include "UIConverter.h"
 #include "UIMediumSizeEditor.h"
 
 /* COM includes: */
@@ -35,8 +36,10 @@ const qulonglong UIMediumSizeEditor::m_uSectorSize = 512;
 UIMediumSizeEditor::UIMediumSizeEditor(QWidget *pParent /* = 0 */)
     : QIWithRetranslateUI<QWidget>(pParent)
     , m_uSizeMin(_4M)
-    , m_uSizeMax(vboxGlobal().virtualBox().GetSystemProperties().GetInfoVDSize())
+    , m_uSizeMax(uiCommon().virtualBox().GetSystemProperties().GetInfoVDSize())
     , m_iSliderScale(calculateSliderScale(m_uSizeMax))
+    , m_uSize(0)
+    , m_enmSizeSuffix(SizeSuffix_Byte)
     , m_pSlider(0)
     , m_pLabelMinSize(0)
     , m_pLabelMaxSize(0)
@@ -44,6 +47,8 @@ UIMediumSizeEditor::UIMediumSizeEditor(QWidget *pParent /* = 0 */)
 {
     /* Prepare: */
     prepare();
+    QString strRegEx = QString("[^\\d%1]").arg(uiCommon().decimalSep());
+    m_regExNonDigitOrSeparator = QRegularExpression(strRegEx);
 }
 
 void UIMediumSizeEditor::setMediumSize(qulonglong uSize)
@@ -56,7 +61,8 @@ void UIMediumSizeEditor::setMediumSize(qulonglong uSize)
     m_pSlider->setValue(sizeMBToSlider(m_uSize, m_iSliderScale));
     m_pSlider->blockSignals(false);
     m_pEditor->blockSignals(true);
-    m_pEditor->setText(vboxGlobal().formatSize(m_uSize));
+    m_pEditor->setText(uiCommon().formatSize(m_uSize));
+    m_enmSizeSuffix = uiCommon().parseSizeSuffix(m_pEditor->text());
     m_pEditor->blockSignals(false);
 
     /* Update the tool-tips: */
@@ -66,8 +72,8 @@ void UIMediumSizeEditor::setMediumSize(qulonglong uSize)
 void UIMediumSizeEditor::retranslateUi()
 {
     /* Translate labels: */
-    m_pLabelMinSize->setText(vboxGlobal().formatSize(m_uSizeMin));
-    m_pLabelMaxSize->setText(vboxGlobal().formatSize(m_uSizeMax));
+    m_pLabelMinSize->setText(uiCommon().formatSize(m_uSizeMin));
+    m_pLabelMaxSize->setText(uiCommon().formatSize(m_uSizeMax));
 
     /* Translate fields: */
     m_pSlider->setToolTip(tr("Holds the size of this medium."));
@@ -83,7 +89,8 @@ void UIMediumSizeEditor::sltSizeSliderChanged(int iValue)
     m_uSize = sliderToSizeMB(iValue, m_iSliderScale);
     /* Update the other widget: */
     m_pEditor->blockSignals(true);
-    m_pEditor->setText(vboxGlobal().formatSize(m_uSize));
+    m_pEditor->setText(uiCommon().formatSize(m_uSize));
+    m_enmSizeSuffix = uiCommon().parseSizeSuffix(m_pEditor->text());
     m_pEditor->blockSignals(false);
     /* Update the tool-tips: */
     updateSizeToolTips(m_uSize);
@@ -91,10 +98,20 @@ void UIMediumSizeEditor::sltSizeSliderChanged(int iValue)
     emit sigSizeChanged(m_uSize);
 }
 
-void UIMediumSizeEditor::sltSizeEditorChanged(const QString &strValue)
+void UIMediumSizeEditor::sltSizeEditorTextChanged()
 {
+    QString strSizeString = ensureSizeSuffix(m_pEditor->text());
+
+
+    m_pEditor->blockSignals(true);
+    int iCursorPosition = m_pEditor->cursorPosition();
+    m_pEditor->setText(strSizeString);
+    m_pEditor->setCursorPosition(iCursorPosition);
+    m_pEditor->blockSignals(false);
+
     /* Update the current size: */
-    m_uSize = vboxGlobal().parseSize(strValue);
+    m_uSize = checkSectorSizeAlignment(uiCommon().parseSize(strSizeString));
+
     /* Update the other widget: */
     m_pSlider->blockSignals(true);
     m_pSlider->setValue(sizeMBToSlider(m_uSize, m_iSliderScale));
@@ -105,14 +122,15 @@ void UIMediumSizeEditor::sltSizeEditorChanged(const QString &strValue)
     emit sigSizeChanged(m_uSize);
 }
 
-void UIMediumSizeEditor::sltSizeEditorEditingFinished()
+QString UIMediumSizeEditor::ensureSizeSuffix(const QString &strSizeString)
 {
-    qulonglong uSize = checkSectorSizeAlignment(m_uSize);
+    /* Try to update the m_enmSizeSuffix: */
+    if (uiCommon().hasSizeSuffix(strSizeString))
+        m_enmSizeSuffix = uiCommon().parseSizeSuffix(strSizeString);
 
-    /* The size is already aligned to sector size: */
-    if (uSize == m_uSize)
-        return;
-    setMediumSize(uSize);
+    QString strOnlyDigits(strSizeString);
+    /* Remove any chars from the string except digits and decimal separator and then add a space and size suffix: */
+    return QString("%1 %2").arg(strOnlyDigits.remove(m_regExNonDigitOrSeparator)).arg(gpConverter->toString(m_enmSizeSuffix));
 }
 
 void UIMediumSizeEditor::prepare()
@@ -175,14 +193,13 @@ void UIMediumSizeEditor::prepare()
         if (m_pEditor)
         {
             /* Configure editor: */
+            m_pEditor->installEventFilter(this);
             m_pEditor->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
             m_pEditor->setFixedWidthByText("88888.88 MB");
             m_pEditor->setAlignment(Qt::AlignRight);
-            m_pEditor->setValidator(new QRegExpValidator(QRegExp(vboxGlobal().sizeRegexp()), this));
+            m_pEditor->setValidator(new QRegExpValidator(QRegExp(uiCommon().sizeRegexp()), this));
             connect(m_pEditor, &QILineEdit::textChanged,
-                    this, &UIMediumSizeEditor::sltSizeEditorChanged);
-            connect(m_pEditor, &QILineEdit::editingFinished,
-                    this, &UIMediumSizeEditor::sltSizeEditorEditingFinished);
+                    this, &UIMediumSizeEditor::sltSizeEditorTextChanged);
 
             /* Add into layout: */
             pLayout->addWidget(m_pEditor, 0, 2, Qt::AlignTop);
@@ -269,7 +286,7 @@ qulonglong UIMediumSizeEditor::sliderToSizeMB(int uValue, int iSliderScale)
 
 void UIMediumSizeEditor::updateSizeToolTips(qulonglong uSize)
 {
-    const QString strToolTip = tr("<nobr>%1 (%2 B)</nobr>").arg(vboxGlobal().formatSize(uSize)).arg(uSize);
+    const QString strToolTip = tr("<nobr>%1 (%2 B)</nobr>").arg(uiCommon().formatSize(uSize)).arg(uSize);
     m_pSlider->setToolTip(strToolTip);
     m_pEditor->setToolTip(strToolTip);
 }

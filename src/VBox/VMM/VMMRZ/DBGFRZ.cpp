@@ -27,7 +27,7 @@
 #endif
 #include <VBox/log.h>
 #include "DBGFInternal.h"
-#include <VBox/vmm/vm.h>
+#include <VBox/vmm/vmcc.h>
 #include <VBox/err.h>
 #include <iprt/assert.h>
 

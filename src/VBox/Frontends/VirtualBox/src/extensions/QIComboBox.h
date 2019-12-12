@@ -85,7 +85,15 @@ public:
     int count() const;
     /** Returns the index of the current item in the combo-box. */
     int currentIndex() const;
+    /** Returns the text of the current item in the combo-box. */
+    QString currentText() const;
+    /** Returns the data of the current item in the combo-box. */
+    QVariant currentData(int iRole = Qt::UserRole) const;
 
+    /** Adds the @a items into the combo-box. */
+    void addItems(const QStringList &items) const;
+    /** Adds the @a strText and userData (stored in the Qt::UserRole) into the combo-box. */
+    void addItem(const QString &strText, const QVariant &userData = QVariant()) const;
     /** Inserts the @a strText and userData (stored in the Qt::UserRole) into the combo-box at the given @a iIndex. */
     void insertItem(int iIndex, const QString &strText, const QVariant &userData = QVariant()) const;
     /** Removes the item from the combo-box at the given @a iIndex. */
@@ -98,7 +106,23 @@ public:
     /** Returns the text for the item with the given @a iIndex. */
     QString itemText(int iIndex) const;
 
+    /** Returns the index of the item containing the given @a data for the given @a iRole; otherwise returns -1.
+      * @param  flags  Specifies how the items in the combobox are searched. */
+    int findData(const QVariant &data, int iRole = Qt::UserRole,
+                 Qt::MatchFlags flags = static_cast<Qt::MatchFlags>(Qt::MatchExactly | Qt::MatchCaseSensitive)) const;
+    /** Returns the index of the item containing the given @a strText; otherwise returns -1.
+      * @param  flags  Specifies how the items in the combobox are searched. */
+    int findText(const QString &strText, Qt::MatchFlags flags = static_cast<Qt::MatchFlags>(Qt::MatchExactly | Qt::MatchCaseSensitive)) const;
+
+    /** Returns size adjust policy. */
+    QComboBox::SizeAdjustPolicy sizeAdjustPolicy() const;
+    /** Defines size adjust @a enmPolicy. */
+    void setSizeAdjustPolicy(QComboBox::SizeAdjustPolicy enmPolicy);
+
 public slots:
+
+    /** Clears the combobox, removing all items. */
+    void clear();
 
     /** Defines the @a size of the icons shown in the combo-box. */
     void setIconSize(const QSize &size) const;

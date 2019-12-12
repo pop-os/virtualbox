@@ -40,7 +40,6 @@
 #include "TRPMInternal.h"
 #include "TMInternal.h"
 #include "IOMInternal.h"
-#include "REMInternal.h"
 #include "SSMInternal.h"
 #include "HMInternal.h"
 #include "VMMInternal.h"
@@ -51,14 +50,9 @@
 #include "VMInternal.h"
 #include "EMInternal.h"
 #include "IEMInternal.h"
-#include "REMInternal.h"
 #include "NEMInternal.h"
 #include "../VMMR0/GMMR0Internal.h"
 #include "../VMMR0/GVMMR0Internal.h"
-#ifdef VBOX_WITH_RAW_MODE
-# include "CSAMInternal.h"
-# include "PATMInternal.h"
-#endif
 #include <VBox/vmm/vm.h>
 #include <VBox/vmm/uvm.h>
 #include <VBox/vmm/gvm.h>
@@ -221,10 +215,6 @@ int main()
     CHECK_PADDING_VM(64, pdm);
     PRINT_OFFSET(VM, pdm.s.CritSect);
     CHECK_PADDING_VM(64, iom);
-#ifdef VBOX_WITH_RAW_MODE
-    CHECK_PADDING_VM(64, patm);
-    CHECK_PADDING_VM(64, csam);
-#endif
     CHECK_PADDING_VM(64, em);
     /*CHECK_PADDING_VM(64, iem);*/
     CHECK_PADDING_VM(64, nem);
@@ -233,12 +223,11 @@ int main()
     CHECK_PADDING_VM(64, dbgf);
     CHECK_PADDING_VM(64, gim);
     CHECK_PADDING_VM(64, ssm);
-#ifdef VBOX_WITH_REM
-    CHECK_PADDING_VM(64, rem);
-#endif
     CHECK_PADDING_VM(8, vm);
     CHECK_PADDING_VM(8, cfgm);
     CHECK_PADDING_VM(8, apic);
+    PRINT_OFFSET(VM, cfgm);
+    PRINT_OFFSET(VM, apCpusR3);
 
     PRINT_OFFSET(VMCPU, cpum);
     CHECK_PADDING_VMCPU(64, iem);
@@ -257,39 +246,8 @@ int main()
     PRINT_OFFSET(VMCPU, pgm);
     CHECK_PADDING_VMCPU(4096, pgm);
     CHECK_PADDING_VMCPU(4096, cpum);
-#ifdef VBOX_WITH_STATISTICS
-    PRINT_OFFSET(VMCPU, pgm.s.pStatTrap0eAttributionRC);
-#endif
 
-    CHECK_MEMBER_ALIGNMENT(VM, selm.s.Tss, 16);
-    PRINT_OFFSET(VM, selm.s.Tss);
     PVM pVM = NULL; NOREF(pVM);
-    if ((RT_UOFFSETOF(VM, selm.s.Tss) & PAGE_OFFSET_MASK) > PAGE_SIZE - sizeof(pVM->selm.s.Tss))
-    {
-        printf("error! SELM:Tss is crossing a page!\n");
-        rc++;
-    }
-    PRINT_OFFSET(VM, selm.s.TssTrap08);
-    if ((RT_UOFFSETOF(VM, selm.s.TssTrap08) & PAGE_OFFSET_MASK) > PAGE_SIZE - sizeof(pVM->selm.s.TssTrap08))
-    {
-        printf("error! SELM:TssTrap08 is crossing a page!\n");
-        rc++;
-    }
-    CHECK_MEMBER_ALIGNMENT(VM, trpm.s.aIdt, 16);
-    CHECK_MEMBER_ALIGNMENT(VM, aCpus[0], PAGE_SIZE);
-    CHECK_MEMBER_ALIGNMENT(VM, aCpus[1], PAGE_SIZE);
-    CHECK_MEMBER_ALIGNMENT(VM, aCpus[0].cpum.s.Host, 64);
-    CHECK_MEMBER_ALIGNMENT(VM, aCpus[0].cpum.s.Guest, 64);
-    CHECK_MEMBER_ALIGNMENT(VM, aCpus[1].cpum.s.Host, 64);
-    CHECK_MEMBER_ALIGNMENT(VM, aCpus[1].cpum.s.Guest, 64);
-    CHECK_MEMBER_ALIGNMENT(VM, aCpus[0].cpum.s.Hyper, 64);
-    CHECK_MEMBER_ALIGNMENT(VM, aCpus[1].cpum.s.Hyper, 64);
-#ifdef VBOX_WITH_VMMR0_DISABLE_LAPIC_NMI
-    CHECK_MEMBER_ALIGNMENT(VM, aCpus[0].cpum.s.pvApicBase, 8);
-#endif
-
-    CHECK_MEMBER_ALIGNMENT(VM, aCpus[0].iem.s.DataTlb, 64);
-    CHECK_MEMBER_ALIGNMENT(VM, aCpus[0].iem.s.CodeTlb, 64);
 
     CHECK_MEMBER_ALIGNMENT(VMCPU, vmm.s.u64CallRing3Arg, 8);
 #if defined(RT_OS_WINDOWS) && defined(RT_ARCH_AMD64)
@@ -297,16 +255,8 @@ int main()
     CHECK_MEMBER_ALIGNMENT(VMCPU, vmm.s.CallRing3JmpBufR0.xmm6, 16);
 #endif
     CHECK_MEMBER_ALIGNMENT(VM, vmm.s.u64LastYield, 8);
-    CHECK_MEMBER_ALIGNMENT(VM, vmm.s.StatRunRC, 8);
-    CHECK_MEMBER_ALIGNMENT(VM, StatTotalQemuToGC, 8);
-#ifdef VBOX_WITH_REM
-    CHECK_MEMBER_ALIGNMENT(VM, rem.s.uPendingExcptCR2, 8);
-    CHECK_MEMBER_ALIGNMENT(VM, rem.s.StatsInQEMU, 8);
-    CHECK_MEMBER_ALIGNMENT(VM, rem.s.Env, 64);
-#endif
 
     /* the VMCPUs are page aligned TLB hit reasons. */
-    CHECK_MEMBER_ALIGNMENT(VM, aCpus, 4096);
     CHECK_SIZE_ALIGNMENT(VMCPU, 4096);
 
     /* cpumctx */
@@ -353,10 +303,20 @@ int main()
     CHECK_SIZE_ALIGNMENT(CPUMCTXMSRS, 64);
 
     /* pdm */
-    PRINT_OFFSET(PDMDEVINS, Internal);
-    PRINT_OFFSET(PDMDEVINS, achInstanceData);
-    CHECK_MEMBER_ALIGNMENT(PDMDEVINS, achInstanceData, 64);
-    CHECK_PADDING(PDMDEVINS, Internal, 1);
+    PRINT_OFFSET(PDMDEVINSR3, Internal);
+    PRINT_OFFSET(PDMDEVINSR3, achInstanceData);
+    CHECK_MEMBER_ALIGNMENT(PDMDEVINSR3, achInstanceData, 64);
+    CHECK_PADDING(PDMDEVINSR3, Internal, 1);
+
+    PRINT_OFFSET(PDMDEVINSR0, Internal);
+    PRINT_OFFSET(PDMDEVINSR0, achInstanceData);
+    CHECK_MEMBER_ALIGNMENT(PDMDEVINSR0, achInstanceData, 64);
+    CHECK_PADDING(PDMDEVINSR0, Internal, 1);
+
+    PRINT_OFFSET(PDMDEVINSRC, Internal);
+    PRINT_OFFSET(PDMDEVINSRC, achInstanceData);
+    CHECK_MEMBER_ALIGNMENT(PDMDEVINSRC, achInstanceData, 64);
+    CHECK_PADDING(PDMDEVINSRC, Internal, 1);
 
     PRINT_OFFSET(PDMUSBINS, Internal);
     PRINT_OFFSET(PDMUSBINS, achInstanceData);
@@ -372,7 +332,7 @@ int main()
     CHECK_PADDING2(PDMCRITSECTRW);
 
     /* pgm */
-#if defined(VBOX_WITH_2X_4GB_ADDR_SPACE)  || defined(VBOX_WITH_RAW_MODE)
+#if defined(VBOX_WITH_2X_4GB_ADDR_SPACE)
     CHECK_MEMBER_ALIGNMENT(PGMCPU, AutoSet, 8);
 #endif
     CHECK_MEMBER_ALIGNMENT(PGMCPU, GCPhysCR3, sizeof(RTGCPHYS));
@@ -384,15 +344,7 @@ int main()
     CHECK_MEMBER_ALIGNMENT(PGMPOOLPAGE, GCPhys, sizeof(RTGCPHYS));
     CHECK_SIZE(PGMPAGE, 16);
     CHECK_MEMBER_ALIGNMENT(PGMRAMRANGE, aPages, 16);
-    CHECK_MEMBER_ALIGNMENT(PGMREGMMIORANGE, RamRange, 16);
-
-    /* rem */
-    CHECK_MEMBER_ALIGNMENT(REM, aGCPtrInvalidatedPages, 8);
-    CHECK_PADDING3(REMHANDLERNOTIFICATION, u.PhysicalRegister, u.padding);
-    CHECK_PADDING3(REMHANDLERNOTIFICATION, u.PhysicalDeregister, u.padding);
-    CHECK_PADDING3(REMHANDLERNOTIFICATION, u.PhysicalModify, u.padding);
-    CHECK_SIZE_ALIGNMENT(REMHANDLERNOTIFICATION, 8);
-    CHECK_MEMBER_ALIGNMENT(REMHANDLERNOTIFICATION, u.PhysicalDeregister.GCPhys, 8);
+    CHECK_MEMBER_ALIGNMENT(PGMREGMMIO2RANGE, RamRange, 16);
 
     /* TM */
     CHECK_MEMBER_ALIGNMENT(TM, TimerCritSect, sizeof(uintptr_t));
@@ -401,9 +353,6 @@ int main()
     /* misc */
     CHECK_PADDING3(EMCPU, u.FatalLongJump, u.achPaddingFatalLongJump);
     CHECK_SIZE_ALIGNMENT(VMMR0JMPBUF, 8);
-#ifdef VBOX_WITH_RAW_MODE
-    CHECK_SIZE_ALIGNMENT(PATCHINFO, 8);
-#endif
 #if 0
     PRINT_OFFSET(VM, fForcedActions);
     PRINT_OFFSET(VM, StatQemuToGC);
@@ -411,9 +360,7 @@ int main()
 #endif
 
     CHECK_MEMBER_ALIGNMENT(IOM, CritSect, sizeof(uintptr_t));
-#ifdef VBOX_WITH_REM
-    CHECK_MEMBER_ALIGNMENT(EM, CritSectREM, sizeof(uintptr_t));
-#endif
+    CHECK_MEMBER_ALIGNMENT(EMCPU, u.achPaddingFatalLongJump, 32);
     CHECK_MEMBER_ALIGNMENT(EMCPU, aExitRecords, sizeof(EMEXITREC));
     CHECK_MEMBER_ALIGNMENT(PGM, CritSectX, sizeof(uintptr_t));
     CHECK_MEMBER_ALIGNMENT(PDM, CritSect, sizeof(uintptr_t));
@@ -427,10 +374,12 @@ int main()
     CHECK_MEMBER_ALIGNMENT(HM, PatchTree, 8);
     CHECK_MEMBER_ALIGNMENT(HM, aPatches, 8);
     CHECK_MEMBER_ALIGNMENT(HMCPU, vmx, 8);
-    CHECK_MEMBER_ALIGNMENT(HMCPU, vmx.pfnStartVM, 8);
-    CHECK_MEMBER_ALIGNMENT(HMCPU, vmx.HCPhysVmcs, 8);
-    CHECK_MEMBER_ALIGNMENT(HMCPU, vmx.LastError, 8);
+    CHECK_MEMBER_ALIGNMENT(HMCPU, vmx.VmcsInfo, 8);
+    CHECK_MEMBER_ALIGNMENT(HMCPU, vmx.VmcsInfo.pfnStartVM, 8);
+    CHECK_MEMBER_ALIGNMENT(HMCPU, vmx.VmcsInfoNstGst, 8);
+    CHECK_MEMBER_ALIGNMENT(HMCPU, vmx.VmcsInfoNstGst.pfnStartVM, 8);
     CHECK_MEMBER_ALIGNMENT(HMCPU, vmx.RestoreHost, 8);
+    CHECK_MEMBER_ALIGNMENT(HMCPU, vmx.LastError, 8);
     CHECK_MEMBER_ALIGNMENT(HMCPU, svm, 8);
     CHECK_MEMBER_ALIGNMENT(HMCPU, svm.pfnVMRun, 8);
     CHECK_MEMBER_ALIGNMENT(HMCPU, Event, 8);
@@ -456,20 +405,13 @@ int main()
     printf("info: struct UVMCPU: %d bytes\n", (int)sizeof(UVMCPU));
     CHECK_PADDING_UVMCPU(32, vm);
 
-#ifdef VBOX_WITH_RAW_MODE
-    /*
-     * Compare HC and RC.
-     */
-    printf("tstVMStructSize: Comparing HC and RC...\n");
-# include "tstVMStructRC.h"
-#endif /* VBOX_WITH_RAW_MODE */
-
     CHECK_PADDING_GVM(4, gvmm);
     CHECK_PADDING_GVM(4, gmm);
     CHECK_PADDING_GVMCPU(4, gvmm);
 
     /*
-     * Check that the optimized access macros for PGMPAGE works correctly.
+     * Check that the optimized access macros for PGMPAGE works correctly (kind of
+     * obsolete after dropping raw-mode).
      */
     PGMPAGE Page;
     PGM_PAGE_CLEAR(&Page);
@@ -487,52 +429,6 @@ int main()
 
     PGM_PAGE_SET_HNDL_PHYS_STATE(&Page, PGM_PAGE_HNDL_PHYS_STATE_WRITE);
     CHECK_EXPR(PGM_PAGE_GET_HNDL_PHYS_STATE(&Page) == PGM_PAGE_HNDL_PHYS_STATE_WRITE);
-    CHECK_EXPR(PGM_PAGE_HAS_ANY_HANDLERS(&Page) == true);
-    CHECK_EXPR(PGM_PAGE_HAS_ACTIVE_HANDLERS(&Page) == true);
-    CHECK_EXPR(PGM_PAGE_HAS_ACTIVE_ALL_HANDLERS(&Page) == false);
-
-    PGM_PAGE_CLEAR(&Page);
-    PGM_PAGE_SET_HNDL_VIRT_STATE(&Page, PGM_PAGE_HNDL_VIRT_STATE_ALL);
-    CHECK_EXPR(PGM_PAGE_GET_HNDL_VIRT_STATE(&Page) == PGM_PAGE_HNDL_VIRT_STATE_ALL);
-    CHECK_EXPR(PGM_PAGE_HAS_ANY_HANDLERS(&Page) == true);
-    CHECK_EXPR(PGM_PAGE_HAS_ACTIVE_HANDLERS(&Page) == true);
-    CHECK_EXPR(PGM_PAGE_HAS_ACTIVE_ALL_HANDLERS(&Page) == true);
-
-    PGM_PAGE_SET_HNDL_VIRT_STATE(&Page, PGM_PAGE_HNDL_VIRT_STATE_WRITE);
-    CHECK_EXPR(PGM_PAGE_GET_HNDL_VIRT_STATE(&Page) == PGM_PAGE_HNDL_VIRT_STATE_WRITE);
-    CHECK_EXPR(PGM_PAGE_HAS_ANY_HANDLERS(&Page) == true);
-    CHECK_EXPR(PGM_PAGE_HAS_ACTIVE_HANDLERS(&Page) == true);
-    CHECK_EXPR(PGM_PAGE_HAS_ACTIVE_ALL_HANDLERS(&Page) == false);
-
-
-    PGM_PAGE_CLEAR(&Page);
-    PGM_PAGE_SET_HNDL_PHYS_STATE(&Page, PGM_PAGE_HNDL_PHYS_STATE_ALL);
-    PGM_PAGE_SET_HNDL_VIRT_STATE(&Page, PGM_PAGE_HNDL_VIRT_STATE_WRITE);
-    CHECK_EXPR(PGM_PAGE_GET_HNDL_PHYS_STATE(&Page) == PGM_PAGE_HNDL_PHYS_STATE_ALL);
-    CHECK_EXPR(PGM_PAGE_GET_HNDL_VIRT_STATE(&Page) == PGM_PAGE_HNDL_VIRT_STATE_WRITE);
-    CHECK_EXPR(PGM_PAGE_HAS_ANY_HANDLERS(&Page) == true);
-    CHECK_EXPR(PGM_PAGE_HAS_ACTIVE_HANDLERS(&Page) == true);
-    CHECK_EXPR(PGM_PAGE_HAS_ACTIVE_ALL_HANDLERS(&Page) == true);
-
-    PGM_PAGE_SET_HNDL_PHYS_STATE(&Page, PGM_PAGE_HNDL_PHYS_STATE_WRITE);
-    PGM_PAGE_SET_HNDL_VIRT_STATE(&Page, PGM_PAGE_HNDL_VIRT_STATE_ALL);
-    CHECK_EXPR(PGM_PAGE_GET_HNDL_PHYS_STATE(&Page) == PGM_PAGE_HNDL_PHYS_STATE_WRITE);
-    CHECK_EXPR(PGM_PAGE_GET_HNDL_VIRT_STATE(&Page) == PGM_PAGE_HNDL_VIRT_STATE_ALL);
-    CHECK_EXPR(PGM_PAGE_HAS_ANY_HANDLERS(&Page) == true);
-    CHECK_EXPR(PGM_PAGE_HAS_ACTIVE_HANDLERS(&Page) == true);
-    CHECK_EXPR(PGM_PAGE_HAS_ACTIVE_ALL_HANDLERS(&Page) == true);
-
-    PGM_PAGE_SET_HNDL_PHYS_STATE(&Page, PGM_PAGE_HNDL_PHYS_STATE_WRITE);
-    PGM_PAGE_SET_HNDL_VIRT_STATE(&Page, PGM_PAGE_HNDL_VIRT_STATE_WRITE);
-    CHECK_EXPR(PGM_PAGE_GET_HNDL_PHYS_STATE(&Page) == PGM_PAGE_HNDL_PHYS_STATE_WRITE);
-    CHECK_EXPR(PGM_PAGE_GET_HNDL_VIRT_STATE(&Page) == PGM_PAGE_HNDL_VIRT_STATE_WRITE);
-    CHECK_EXPR(PGM_PAGE_HAS_ANY_HANDLERS(&Page) == true);
-    CHECK_EXPR(PGM_PAGE_HAS_ACTIVE_HANDLERS(&Page) == true);
-    CHECK_EXPR(PGM_PAGE_HAS_ACTIVE_ALL_HANDLERS(&Page) == false);
-
-    PGM_PAGE_SET_HNDL_VIRT_STATE(&Page, PGM_PAGE_HNDL_VIRT_STATE_NONE);
-    CHECK_EXPR(PGM_PAGE_GET_HNDL_PHYS_STATE(&Page) == PGM_PAGE_HNDL_PHYS_STATE_WRITE);
-    CHECK_EXPR(PGM_PAGE_GET_HNDL_VIRT_STATE(&Page) == PGM_PAGE_HNDL_VIRT_STATE_NONE);
     CHECK_EXPR(PGM_PAGE_HAS_ANY_HANDLERS(&Page) == true);
     CHECK_EXPR(PGM_PAGE_HAS_ACTIVE_HANDLERS(&Page) == true);
     CHECK_EXPR(PGM_PAGE_HAS_ACTIVE_ALL_HANDLERS(&Page) == false);

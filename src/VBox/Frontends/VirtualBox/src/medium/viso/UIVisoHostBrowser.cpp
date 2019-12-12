@@ -15,25 +15,16 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 /* Qt includes: */
-#include <QAction>
-#include <QAbstractItemModel>
-#include <QDir>
 #include <QFileSystemModel>
 #include <QGridLayout>
 #include <QHeaderView>
-#include <QLabel>
-#include <QListView>
-#include <QMenu>
 #include <QMimeData>
 #include <QTableView>
+#include <QTextEdit>
 #include <QTreeView>
 
 /* GUI includes: */
-#include "QIToolButton.h"
-#include "UIIconPool.h"
-#include "UIToolBar.h"
 #include "UIVisoHostBrowser.h"
-
 
 /*********************************************************************************************************************************
 *   UIVisoHostBrowserModel definition.                                                                                   *
@@ -115,11 +106,10 @@ QMimeData *UIVisoHostBrowserModel::mimeData(const QModelIndexList &indexes) cons
 *   UIVisoHostBrowser implementation.                                                                                   *
 *********************************************************************************************************************************/
 
-UIVisoHostBrowser::UIVisoHostBrowser(QWidget *pParent /* = 0 */, QMenu *pMenu /* = 0 */)
-    : UIVisoBrowserBase(pParent, pMenu)
+UIVisoHostBrowser::UIVisoHostBrowser(QWidget *pParent /* = 0 */)
+    : UIVisoBrowserBase(pParent)
     , m_pTreeModel(0)
     , m_pTableModel(0)
-    , m_pAddAction(0)
     , m_pTableView(0)
 {
     prepareObjects();
@@ -132,13 +122,6 @@ UIVisoHostBrowser::~UIVisoHostBrowser()
 
 void UIVisoHostBrowser::retranslateUi()
 {
-    if (m_pTitleLabel)
-        m_pTitleLabel->setText(QApplication::translate("UIVisoCreator", "Host file system"));
-    if (m_pAddAction)
-    {
-        m_pAddAction->setToolTip(QApplication::translate("UIVisoCreator", "Add selected file objects to ISO"));
-        m_pAddAction->setText(QApplication::translate("UIVisoCreator", "Add"));
-    }
 }
 
 void UIVisoHostBrowser::prepareObjects()
@@ -168,7 +151,8 @@ void UIVisoHostBrowser::prepareObjects()
     m_pTableView = new QTableView;
     if (m_pTableView)
     {
-        m_pRightContainerLayout->addWidget(m_pTableView, 0, 0, 6, 4);
+        m_pTableView->setContextMenuPolicy(Qt::CustomContextMenu);
+        m_pMainLayout->addWidget(m_pTableView, 1, 0, 8, 4);
         m_pTableView->setSelectionMode(QAbstractItemView::ContiguousSelection);
         m_pTableView->setShowGrid(false);
         m_pTableView->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -197,20 +181,6 @@ void UIVisoHostBrowser::prepareObjects()
         m_pTableView->setDragDropMode(QAbstractItemView::DragOnly);
     }
 
-    m_pAddAction = new QAction(this);
-    if (m_pAddAction)
-    {
-        m_pVerticalToolBar->addAction(m_pAddAction);
-        m_pAddAction->setIcon(UIIconPool::iconSetFull(":/file_manager_copy_to_guest_24px.png",
-                                                      ":/file_manager_copy_to_guest_16px.png",
-                                                      ":/file_manager_copy_to_guest_disabled_24px.png",
-                                                      ":/file_manager_copy_to_guest_disabled_16px.png"));
-        m_pAddAction->setText(QApplication::translate("UIVisoCreator", "Add"));
-        m_pAddAction->setEnabled(false);
-        if (m_pMenu)
-            m_pMenu->addAction(m_pAddAction);
-    }
-
     retranslateUi();
 }
 
@@ -218,22 +188,22 @@ void UIVisoHostBrowser::prepareConnections()
 {
     UIVisoBrowserBase::prepareConnections();
     if (m_pTableView)
+    {
         connect(m_pTableView, &QTableView::doubleClicked,
                 this, &UIVisoBrowserBase::sltHandleTableViewItemDoubleClick);
+        connect(m_pTableView, &QTableView::customContextMenuRequested,
+                this, &UIVisoHostBrowser::sltFileTableViewContextMenu);
+    }
 
     if (m_pTableView->selectionModel())
         connect(m_pTableView->selectionModel(), &QItemSelectionModel::selectionChanged,
                 this, &UIVisoHostBrowser::sltHandleTableSelectionChanged);
-    if (m_pAddAction)
-        connect(m_pAddAction, &QAction::triggered,
-                this, &UIVisoHostBrowser::sltHandleAddAction);
 }
 
 void UIVisoHostBrowser::sltHandleTableSelectionChanged(const QItemSelection &selected, const QItemSelection &deselected)
 {
     Q_UNUSED(deselected);
-    if (m_pAddAction)
-        m_pAddAction->setEnabled(!selected.isEmpty());
+    emit sigTableSelectionChanged(selected.isEmpty());
 }
 
 void UIVisoHostBrowser::tableViewItemDoubleClick(const QModelIndex &index)
@@ -249,6 +219,10 @@ void UIVisoHostBrowser::tableViewItemDoubleClick(const QModelIndex &index)
     m_pTreeView->blockSignals(true);
     setTreeCurrentIndex(index);
     m_pTreeView->blockSignals(false);
+
+    /* Check if we still have something selected after table root index change: */
+    if (m_pTableView && m_pTableView->selectionModel())
+        emit sigTableSelectionChanged(m_pTableView->selectionModel()->hasSelection());
 }
 
 void UIVisoHostBrowser::treeSelectionChanged(const QModelIndex &selectedTreeIndex)
@@ -319,6 +293,7 @@ void UIVisoHostBrowser::setTableRootIndex(QModelIndex index /* = QModelIndex */)
         strCurrentTreePath = m_pTreeModel->filePath(index);
     if (!strCurrentTreePath.isEmpty())
         m_pTableView->setRootIndex(m_pTableModel->index(strCurrentTreePath));
+    updateLocationSelectorText(strCurrentTreePath);
 }
 
 void UIVisoHostBrowser::setTreeCurrentIndex(QModelIndex index /* = QModelIndex() */)

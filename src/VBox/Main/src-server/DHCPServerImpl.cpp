@@ -15,63 +15,115 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_MAIN_DHCPSERVER
-#include "NetworkServiceRunner.h"
 #include "DHCPServerImpl.h"
-#include "AutoCaller.h"
 #include "LoggingNew.h"
 
 #include <iprt/asm.h>
+#include <iprt/err.h>
 #include <iprt/file.h>
 #include <iprt/net.h>
 #include <iprt/path.h>
+#include <iprt/cpp/path.h>
 #include <iprt/cpp/utils.h>
 #include <iprt/cpp/xml.h>
 
 #include <VBox/com/array.h>
 #include <VBox/settings.h>
 
+#include "AutoCaller.h"
+#include "DHCPConfigImpl.h"
+#include "MachineImpl.h"
+#include "NetworkServiceRunner.h"
 #include "VirtualBoxImpl.h"
 
-// constructor / destructor
-/////////////////////////////////////////////////////////////////////////////
-const std::string DHCPServerRunner::kDsrKeyGateway = "--gateway";
-const std::string DHCPServerRunner::kDsrKeyLowerIp = "--lower-ip";
-const std::string DHCPServerRunner::kDsrKeyUpperIp = "--upper-ip";
-const std::string DHCPServerRunner::kDsrKeyConfig  = "--config";
-const std::string DHCPServerRunner::kDsrKeyComment = "--comment";
+
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
+#if defined(RT_OS_WINDOWS) || defined(RT_OS_OS2)
+# define DHCP_EXECUTABLE_NAME "VBoxNetDHCP.exe"
+#else
+# define DHCP_EXECUTABLE_NAME "VBoxNetDHCP"
+#endif
 
 
+/**
+ * DHCP server specialization of NetworkServiceRunner.
+ *
+ * Just defines the executable name and adds option constants.
+ */
+class DHCPServerRunner : public NetworkServiceRunner
+{
+public:
+    DHCPServerRunner() : NetworkServiceRunner(DHCP_EXECUTABLE_NAME)
+    {}
+    virtual ~DHCPServerRunner()
+    {}
+};
+
+
+/**
+ * Hidden private data of the DHCPServer class.
+ */
 struct DHCPServer::Data
 {
     Data()
-        : enabled(FALSE)
-        , router(false)
+        : pVirtualBox(NULL)
+        , strName()
+        , enabled(FALSE)
+        , uIndividualMACAddressVersion(1)
     {
-        tempConfigFileName[0] = '\0';
     }
+
+    /** weak VirtualBox parent */
+    VirtualBox * const  pVirtualBox;
+    /** The DHCP server name (network). */
+    Utf8Str const       strName;
 
     Utf8Str IPAddress;
     Utf8Str lowerIP;
     Utf8Str upperIP;
 
     BOOL enabled;
-    bool router;
     DHCPServerRunner dhcp;
 
-    settings::DhcpOptionMap GlobalDhcpOptions;
-    settings::VmSlot2OptionsMap VmSlot2Options;
+    com::Utf8Str strLeasesFilename;
+    com::Utf8Str strConfigFilename;
+    com::Utf8Str strLogFilename;
 
-    char tempConfigFileName[RTPATH_MAX];
-    com::Utf8Str networkName;
     com::Utf8Str trunkName;
     com::Utf8Str trunkType;
+
+    /** Global configuration. */
+    ComObjPtr<DHCPGlobalConfig> globalConfig;
+
+    /** Group configuration indexed by name. */
+    std::map<com::Utf8Str, ComObjPtr<DHCPGroupConfig> > groupConfigs;
+    /** Iterator for groupConfigs. */
+    typedef std::map<com::Utf8Str, ComObjPtr<DHCPGroupConfig> >::iterator GroupConfigIterator;
+
+    /** Individual (host) configuration indexed by MAC address or VM UUID. */
+    std::map<com::Utf8Str, ComObjPtr<DHCPIndividualConfig> > individualConfigs;
+    /** Iterator for individualConfigs. */
+    typedef std::map<com::Utf8Str, ComObjPtr<DHCPIndividualConfig> >::iterator IndividualConfigIterator;
+
+    /** Part of a lock-avoidance hack to resolve the VM ID + slot into MAC
+     *  addresses before writing out the Dhcpd configuration file. */
+    uint32_t uIndividualMACAddressVersion;
 };
 
 
+// constructor / destructor
+/////////////////////////////////////////////////////////////////////////////
+
+
 DHCPServer::DHCPServer()
-  : m(NULL)
-  , mVirtualBox(NULL)
+    : m(NULL)
 {
     m = new DHCPServer::Data();
 }
@@ -95,8 +147,7 @@ HRESULT DHCPServer::FinalConstruct()
 
 void DHCPServer::FinalRelease()
 {
-    uninit ();
-
+    uninit();
     BaseFinalRelease();
 }
 
@@ -111,7 +162,7 @@ void DHCPServer::uninit()
     if (m->dhcp.isRunning())
         stop();
 
-    unconst(mVirtualBox) = NULL;
+    unconst(m->pVirtualBox) = NULL;
 }
 
 
@@ -123,92 +174,284 @@ HRESULT DHCPServer::init(VirtualBox *aVirtualBox, const Utf8Str &aName)
     AssertReturn(autoInitSpan.isOk(), E_FAIL);
 
     /* share VirtualBox weakly (parent remains NULL so far) */
-    unconst(mVirtualBox) = aVirtualBox;
+    unconst(m->pVirtualBox) = aVirtualBox;
 
-    unconst(mName) = aName;
+    unconst(m->strName) = aName;
     m->IPAddress = "0.0.0.0";
-    m->GlobalDhcpOptions[DhcpOpt_SubnetMask] = settings::DhcpOptValue("0.0.0.0");
-    m->enabled = FALSE;
+    m->lowerIP   = "0.0.0.0";
+    m->upperIP   = "0.0.0.0";
+    m->enabled   = FALSE;
 
-    m->lowerIP = "0.0.0.0";
-    m->upperIP = "0.0.0.0";
+    /* Global configuration: */
+    HRESULT hrc = m->globalConfig.createObject();
+    if (SUCCEEDED(hrc))
+        hrc = m->globalConfig->initWithDefaults(aVirtualBox, this);
 
-    /* Confirm a successful initialization */
-    autoInitSpan.setSucceeded();
+    Assert(m->groupConfigs.size() == 0);
+    Assert(m->individualConfigs.size() == 0);
 
-    return S_OK;
+    /* Confirm a successful initialization or not: */
+    if (SUCCEEDED(hrc))
+        autoInitSpan.setSucceeded();
+    else
+        autoInitSpan.setFailed(hrc);
+    return hrc;
 }
 
 
-HRESULT DHCPServer::init(VirtualBox *aVirtualBox,
-                         const settings::DHCPServer &data)
+HRESULT DHCPServer::init(VirtualBox *aVirtualBox, const settings::DHCPServer &rData)
 {
     /* Enclose the state transition NotReady->InInit->Ready */
     AutoInitSpan autoInitSpan(this);
     AssertReturn(autoInitSpan.isOk(), E_FAIL);
 
     /* share VirtualBox weakly (parent remains NULL so far) */
-    unconst(mVirtualBox) = aVirtualBox;
+    unconst(m->pVirtualBox) = aVirtualBox;
 
-    unconst(mName) = data.strNetworkName;
-    m->IPAddress = data.strIPAddress;
-    m->enabled = data.fEnabled;
-    m->lowerIP = data.strIPLower;
-    m->upperIP = data.strIPUpper;
+    unconst(m->strName) = rData.strNetworkName;
+    m->IPAddress        = rData.strIPAddress;
+    m->enabled          = rData.fEnabled;
+    m->lowerIP          = rData.strIPLower;
+    m->upperIP          = rData.strIPUpper;
 
-    m->GlobalDhcpOptions.clear();
-    m->GlobalDhcpOptions.insert(data.GlobalDhcpOptions.begin(),
-                               data.GlobalDhcpOptions.end());
+    /*
+     * Global configuration:
+     */
+    HRESULT hrc = m->globalConfig.createObject();
+    if (SUCCEEDED(hrc))
+        hrc = m->globalConfig->initWithSettings(aVirtualBox, this, rData.globalConfig);
 
-    m->VmSlot2Options.clear();
-    m->VmSlot2Options.insert(data.VmSlot2OptionsM.begin(),
-                            data.VmSlot2OptionsM.end());
+    /*
+     * Group configurations:
+     */
+    Assert(m->groupConfigs.size() == 0);
+    for (settings::DHCPGroupConfigVec::const_iterator it = rData.vecGroupConfigs.begin();
+         it != rData.vecGroupConfigs.end() && SUCCEEDED(hrc); ++it)
+    {
+        ComObjPtr<DHCPGroupConfig> ptrGroupConfig;
+        hrc = ptrGroupConfig.createObject();
+        if (SUCCEEDED(hrc))
+            hrc = ptrGroupConfig->initWithSettings(aVirtualBox, this, *it);
+        if (SUCCEEDED(hrc))
+        {
+            try
+            {
+                m->groupConfigs[it->strName] = ptrGroupConfig;
+            }
+            catch (std::bad_alloc &)
+            {
+                return E_OUTOFMEMORY;
+            }
+        }
+    }
 
-    autoInitSpan.setSucceeded();
+    /*
+     * Individual configuration:
+     */
+    Assert(m->individualConfigs.size() == 0);
+    for (settings::DHCPIndividualConfigMap::const_iterator it = rData.mapIndividualConfigs.begin();
+         it != rData.mapIndividualConfigs.end() && SUCCEEDED(hrc); ++it)
+    {
+        ComObjPtr<DHCPIndividualConfig> ptrIndiCfg;
+        com::Utf8Str                    strKey;
+        if (it->second.strVMName.isEmpty())
+        {
+            RTMAC MACAddress;
+            int vrc = RTNetStrToMacAddr(it->second.strMACAddress.c_str(), &MACAddress);
+            if (RT_FAILURE(vrc))
+            {
+                LogRel(("Ignoring invalid MAC address for individual DHCP config: '%s' - %Rrc\n", it->second.strMACAddress.c_str(), vrc));
+                continue;
+            }
 
-    return S_OK;
+            vrc = strKey.printfNoThrow("%RTmac", &MACAddress);
+            AssertRCReturn(vrc, E_OUTOFMEMORY);
+
+            hrc = ptrIndiCfg.createObject();
+            if (SUCCEEDED(hrc))
+                hrc = ptrIndiCfg->initWithSettingsAndMACAddress(aVirtualBox, this, it->second, &MACAddress);
+        }
+        else
+        {
+            /* This ASSUMES that we're being called after the machines have been
+               loaded so we can resolve VM names into UUID for old settings. */
+            com::Guid idMachine;
+            hrc = i_vmNameToIdAndValidateSlot(it->second.strVMName, it->second.uSlot, idMachine);
+            if (SUCCEEDED(hrc))
+            {
+                int vrc = strKey.printfNoThrow("%RTuuid/%u", idMachine.raw(), it->second.uSlot);
+                AssertRCReturn(vrc, E_OUTOFMEMORY);
+
+                hrc = ptrIndiCfg.createObject();
+                if (SUCCEEDED(hrc))
+                    hrc = ptrIndiCfg->initWithSettingsAndMachineIdAndSlot(aVirtualBox, this, it->second,
+                                                                          idMachine, it->second.uSlot,
+                                                                          m->uIndividualMACAddressVersion - UINT32_MAX / 4);
+            }
+        }
+        if (SUCCEEDED(hrc))
+        {
+            try
+            {
+                m->individualConfigs[strKey] = ptrIndiCfg;
+            }
+            catch (std::bad_alloc &)
+            {
+                return E_OUTOFMEMORY;
+            }
+        }
+    }
+
+    /* Confirm a successful initialization or not: */
+    if (SUCCEEDED(hrc))
+        autoInitSpan.setSucceeded();
+    else
+        autoInitSpan.setFailed(hrc);
+    return hrc;
 }
 
 
-HRESULT DHCPServer::i_saveSettings(settings::DHCPServer &data)
+/**
+ * Called by VirtualBox to save our settings.
+ */
+HRESULT DHCPServer::i_saveSettings(settings::DHCPServer &rData)
 {
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    data.strNetworkName = mName;
-    data.strIPAddress = m->IPAddress;
+    rData.strNetworkName = m->strName;
+    rData.strIPAddress   = m->IPAddress;
+    rData.fEnabled       = m->enabled != FALSE;
+    rData.strIPLower     = m->lowerIP;
+    rData.strIPUpper     = m->upperIP;
 
-    data.fEnabled = !!m->enabled;
-    data.strIPLower = m->lowerIP;
-    data.strIPUpper = m->upperIP;
+    /* Global configuration: */
+    HRESULT hrc = m->globalConfig->i_saveSettings(rData.globalConfig);
 
-    data.GlobalDhcpOptions.clear();
-    data.GlobalDhcpOptions.insert(m->GlobalDhcpOptions.begin(),
-                                  m->GlobalDhcpOptions.end());
+    /* Group configuration: */
+    size_t const cGroupConfigs = m->groupConfigs.size();
+    try
+    {
+        rData.vecGroupConfigs.resize(cGroupConfigs);
+    }
+    catch (std::bad_alloc &)
+    {
+        return E_OUTOFMEMORY;
+    }
+    size_t i = 0;
+    for (Data::GroupConfigIterator it = m->groupConfigs.begin(); it != m->groupConfigs.end() && SUCCEEDED(hrc); ++it, i++)
+    {
+        try
+        {
+            rData.vecGroupConfigs[i] = settings::DHCPGroupConfig();
+        }
+        catch (std::bad_alloc &)
+        {
+            return E_OUTOFMEMORY;
+        }
+        hrc = it->second->i_saveSettings(rData.vecGroupConfigs[i]);
+    }
 
-    data.VmSlot2OptionsM.clear();
-    data.VmSlot2OptionsM.insert(m->VmSlot2Options.begin(),
-                                m->VmSlot2Options.end());
+    /* Individual configuration: */
+    for (Data::IndividualConfigIterator it = m->individualConfigs.begin();
+         it != m->individualConfigs.end() && SUCCEEDED(hrc); ++it)
+    {
+        try
+        {
+            rData.mapIndividualConfigs[it->first] = settings::DHCPIndividualConfig();
+        }
+        catch (std::bad_alloc &)
+        {
+            return E_OUTOFMEMORY;
+        }
+        hrc = it->second->i_saveSettings(rData.mapIndividualConfigs[it->first]);
+    }
 
-    return S_OK;
+    return hrc;
+}
+
+
+HRESULT DHCPServer::i_removeConfig(DHCPConfig *pConfig, DHCPConfigScope_T enmScope)
+{
+    {
+        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+        bool fFound = false;
+        switch (enmScope)
+        {
+            case DHCPConfigScope_Group:
+            {
+                for (Data::GroupConfigIterator it = m->groupConfigs.begin(); it != m->groupConfigs.end();)
+                {
+                    DHCPConfig *pCurConfig = it->second;
+                    if (pCurConfig == pConfig)
+                    {
+                        m->groupConfigs.erase(it++); /* Post increment returns copy of original that is then erased. */
+                        fFound = true;
+                    }
+                    else
+                        ++it;
+                }
+                break;
+            }
+
+            case DHCPConfigScope_MAC:
+            case DHCPConfigScope_MachineNIC:
+            {
+                for (Data::IndividualConfigIterator it = m->individualConfigs.begin(); it != m->individualConfigs.end();)
+                {
+                    DHCPConfig *pCurConfig = it->second;
+                    if (pCurConfig == pConfig)
+                    {
+                        m->individualConfigs.erase(it++); /* Post increment returns copy of original that is then erased. */
+                        fFound = true;
+                    }
+                    else
+                        ++it;
+                }
+                break;
+            }
+
+            default:
+                AssertFailedReturn(E_FAIL);
+        }
+
+        /* Don't complain if already removed, right? */
+        if (!fFound)
+            return S_OK;
+    }
+
+    return i_doSaveSettings();
+}
+
+
+/**
+ * Internal worker that saves the settings after a modification was made.
+ *
+ * @returns COM status code.
+ *
+ * @note    Caller must not hold any locks!
+ */
+HRESULT DHCPServer::i_doSaveSettings()
+{
+    // save the global settings; for that we should hold only the VirtualBox lock
+    AutoWriteLock vboxLock(m->pVirtualBox COMMA_LOCKVAL_SRC_POS);
+    return m->pVirtualBox->i_saveSettings();
 }
 
 
 HRESULT DHCPServer::getNetworkName(com::Utf8Str &aName)
 {
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    aName = mName;
-    return S_OK;
+    /* The name is const, so no need to for locking. */
+    return aName.assignEx(m->strName);
 }
 
 
 HRESULT DHCPServer::getEnabled(BOOL *aEnabled)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
     *aEnabled = m->enabled;
     return S_OK;
 }
@@ -216,51 +459,38 @@ HRESULT DHCPServer::getEnabled(BOOL *aEnabled)
 
 HRESULT DHCPServer::setEnabled(BOOL aEnabled)
 {
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    m->enabled = aEnabled;
-
-    // save the global settings; for that we should hold only the VirtualBox lock
-    alock.release();
-    AutoWriteLock vboxLock(mVirtualBox COMMA_LOCKVAL_SRC_POS);
-    HRESULT rc = mVirtualBox->i_saveSettings();
-
-    return rc;
+    {
+        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+        m->enabled = aEnabled;
+    }
+    return i_doSaveSettings();
 }
 
 
 HRESULT DHCPServer::getIPAddress(com::Utf8Str &aIPAddress)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    aIPAddress = Utf8Str(m->IPAddress);
-    return S_OK;
+    return aIPAddress.assignEx(m->IPAddress);
 }
 
 
 HRESULT DHCPServer::getNetworkMask(com::Utf8Str &aNetworkMask)
 {
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    aNetworkMask = m->GlobalDhcpOptions[DhcpOpt_SubnetMask].text;
-    return S_OK;
+    return m->globalConfig->i_getNetworkMask(aNetworkMask);
 }
 
 
 HRESULT DHCPServer::getLowerIP(com::Utf8Str &aIPAddress)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    aIPAddress = Utf8Str(m->lowerIP);
-    return S_OK;
+    return aIPAddress.assignEx(m->lowerIP);
 }
 
 
 HRESULT DHCPServer::getUpperIP(com::Utf8Str &aIPAddress)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    aIPAddress = Utf8Str(m->upperIP);
-    return S_OK;
+    return aIPAddress.assignEx(m->upperIP);
 }
 
 
@@ -273,19 +503,19 @@ HRESULT DHCPServer::setConfiguration(const com::Utf8Str &aIPAddress,
 
     int vrc = RTNetStrToIPv4Addr(aIPAddress.c_str(), &IPAddress);
     if (RT_FAILURE(vrc))
-        return mVirtualBox->setErrorBoth(E_INVALIDARG, vrc, "Invalid server address");
+        return setErrorBoth(E_INVALIDARG, vrc, tr("Invalid server address: %s"), aIPAddress.c_str());
 
     vrc = RTNetStrToIPv4Addr(aNetworkMask.c_str(), &NetworkMask);
     if (RT_FAILURE(vrc))
-        return mVirtualBox->setErrorBoth(E_INVALIDARG, vrc, "Invalid netmask");
+        return setErrorBoth(E_INVALIDARG, vrc, tr("Invalid netmask: %s"), aNetworkMask.c_str());
 
     vrc = RTNetStrToIPv4Addr(aLowerIP.c_str(), &LowerIP);
     if (RT_FAILURE(vrc))
-        return mVirtualBox->setErrorBoth(E_INVALIDARG, vrc, "Invalid range lower address");
+        return setErrorBoth(E_INVALIDARG, vrc, tr("Invalid range lower address: %s"), aLowerIP.c_str());
 
     vrc = RTNetStrToIPv4Addr(aUpperIP.c_str(), &UpperIP);
     if (RT_FAILURE(vrc))
-        return mVirtualBox->setErrorBoth(E_INVALIDARG, vrc, "Invalid range upper address");
+        return setErrorBoth(E_INVALIDARG, vrc, tr("Invalid range upper address: %s"), aUpperIP.c_str());
 
     /*
      * Insist on continuous mask.  May be also accept prefix length
@@ -293,13 +523,13 @@ HRESULT DHCPServer::setConfiguration(const com::Utf8Str &aIPAddress,
      */
     vrc = RTNetMaskToPrefixIPv4(&NetworkMask, NULL);
     if (RT_FAILURE(vrc))
-        return mVirtualBox->setErrorBoth(E_INVALIDARG, vrc, "Invalid netmask");
+        return setErrorBoth(E_INVALIDARG, vrc, tr("Invalid netmask: %s"), aNetworkMask.c_str());
 
-    /* It's more convenient to convert to host order once */
-    IPAddress.u = RT_N2H_U32(IPAddress.u);
+    /* It's more convenient to convert to host order once: */
+    IPAddress.u   = RT_N2H_U32(IPAddress.u);
     NetworkMask.u = RT_N2H_U32(NetworkMask.u);
-    LowerIP.u = RT_N2H_U32(LowerIP.u);
-    UpperIP.u = RT_N2H_U32(UpperIP.u);
+    LowerIP.u     = RT_N2H_U32(LowerIP.u);
+    UpperIP.u     = RT_N2H_U32(UpperIP.u);
 
     /*
      * Addresses must be unicast and from the same network
@@ -307,343 +537,160 @@ HRESULT DHCPServer::setConfiguration(const com::Utf8Str &aIPAddress,
     if (   (IPAddress.u & UINT32_C(0xe0000000)) == UINT32_C(0xe0000000)
         || (IPAddress.u & ~NetworkMask.u) == 0
         || ((IPAddress.u & ~NetworkMask.u) | NetworkMask.u) == UINT32_C(0xffffffff))
-        return mVirtualBox->setError(E_INVALIDARG, "Invalid server address");
+        return setError(E_INVALIDARG, tr("Invalid server address: %s (mask %s)"), aIPAddress.c_str(), aNetworkMask.c_str());
 
     if (   (LowerIP.u & UINT32_C(0xe0000000)) == UINT32_C(0xe0000000)
         || (LowerIP.u & NetworkMask.u) != (IPAddress.u &NetworkMask.u)
         || (LowerIP.u & ~NetworkMask.u) == 0
         || ((LowerIP.u & ~NetworkMask.u) | NetworkMask.u) == UINT32_C(0xffffffff))
-        return mVirtualBox->setError(E_INVALIDARG, "Invalid range lower address");
+        return setError(E_INVALIDARG, tr("Invalid range lower address: %s (mask %s)"), aLowerIP.c_str(), aNetworkMask.c_str());
 
     if (   (UpperIP.u & UINT32_C(0xe0000000)) == UINT32_C(0xe0000000)
         || (UpperIP.u & NetworkMask.u) != (IPAddress.u &NetworkMask.u)
         || (UpperIP.u & ~NetworkMask.u) == 0
         || ((UpperIP.u & ~NetworkMask.u) | NetworkMask.u) == UINT32_C(0xffffffff))
-        return mVirtualBox->setError(E_INVALIDARG, "Invalid range upper address");
+        return setError(E_INVALIDARG, tr("Invalid range upper address"), aUpperIP.c_str(), aNetworkMask.c_str());
 
-    /* The range should be valid ... */
+    /* The range should be valid. (It's okay to overlap the server IP.) */
     if (LowerIP.u > UpperIP.u)
-        return mVirtualBox->setError(E_INVALIDARG, "Invalid range bounds");
+        return setError(E_INVALIDARG, tr("Lower bound must be less or eqaul than the upper: %s vs %s"),
+                        aLowerIP.c_str(), aUpperIP.c_str());
 
-    /* ... and shouldn't contain the server's address */
-    if (LowerIP.u <= IPAddress.u && IPAddress.u <= UpperIP.u)
-        return mVirtualBox->setError(E_INVALIDARG, "Server address within range bounds");
-
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    m->IPAddress = aIPAddress;
-    m->GlobalDhcpOptions[DhcpOpt_SubnetMask] = aNetworkMask;
-
-    m->lowerIP = aLowerIP;
-    m->upperIP = aUpperIP;
-
-    // save the global settings; for that we should hold only the VirtualBox lock
-    alock.release();
-    AutoWriteLock vboxLock(mVirtualBox COMMA_LOCKVAL_SRC_POS);
-    return mVirtualBox->i_saveSettings();
-}
-
-
-HRESULT DHCPServer::encodeOption(com::Utf8Str &aEncoded,
-                                 uint32_t aOptCode,
-                                 const settings::DhcpOptValue &aOptValue)
-{
-    switch (aOptValue.encoding)
-    {
-        case DhcpOptEncoding_Legacy:
-        {
-            /*
-             * This is original encoding which assumed that for each
-             * option we know its format and so we know how option
-             * "value" text is to be interpreted.
-             *
-             *   "2:10800"           # integer 32
-             *   "6:1.2.3.4 8.8.8.8" # array of ip-address
-             */
-            aEncoded = Utf8StrFmt("%d:%s", aOptCode, aOptValue.text.c_str());
-            break;
-        }
-
-        case DhcpOptEncoding_Hex:
-        {
-            /*
-             * This is a bypass for any option - preformatted value as
-             * hex string with no semantic involved in formatting the
-             * value for the DHCP reply.
-             *
-             *   234=68:65:6c:6c:6f:2c:20:77:6f:72:6c:64
-             */
-            aEncoded = Utf8StrFmt("%d=%s", aOptCode, aOptValue.text.c_str());
-            break;
-        }
-
-        default:
-        {
-            /*
-             * Try to be forward compatible.
-             *
-             *   "254@42=i hope you know what this means"
-             */
-            aEncoded = Utf8StrFmt("%d@%d=%s", aOptCode, (int)aOptValue.encoding,
-                                  aOptValue.text.c_str());
-            break;
-        }
-    }
-
-    return S_OK;
-}
-
-
-int DHCPServer::addOption(settings::DhcpOptionMap &aMap,
-                          DhcpOpt_T aOption, const com::Utf8Str &aValue)
-{
-    settings::DhcpOptValue OptValue;
-
-    if (aOption != 0)
-    {
-        OptValue = settings::DhcpOptValue(aValue, DhcpOptEncoding_Legacy);
-    }
     /*
-     * This is a kludge to sneak in option encoding information
-     * through existing API.  We use option 0 and supply the real
-     * option/value in the same format that encodeOption() above
-     * produces for getter methods.
+     * Input is valid, effect the changes.
      */
-    else
+    HRESULT hrc;
     {
-        uint8_t u8Code;
-        char    *pszNext;
-        int vrc = RTStrToUInt8Ex(aValue.c_str(), &pszNext, 10, &u8Code);
-        if (!RT_SUCCESS(vrc))
-            return VERR_PARSE_ERROR;
-
-        uint32_t u32Enc;
-        switch (*pszNext)
-        {
-            case ':':           /* support legacy format too */
-            {
-                u32Enc = DhcpOptEncoding_Legacy;
-                break;
-            }
-
-            case '=':
-            {
-                u32Enc = DhcpOptEncoding_Hex;
-                break;
-            }
-
-            case '@':
-            {
-                vrc = RTStrToUInt32Ex(pszNext + 1, &pszNext, 10, &u32Enc);
-                if (!RT_SUCCESS(vrc))
-                    return VERR_PARSE_ERROR;
-                if (*pszNext != '=')
-                    return VERR_PARSE_ERROR;
-                break;
-            }
-
-            default:
-                return VERR_PARSE_ERROR;
-        }
-
-        aOption = (DhcpOpt_T)u8Code;
-        OptValue = settings::DhcpOptValue(pszNext + 1, (DhcpOptEncoding_T)u32Enc);
+        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+        m->IPAddress  = aIPAddress;
+        m->lowerIP    = aLowerIP;
+        m->upperIP    = aUpperIP;
+        hrc = m->globalConfig->i_setNetworkMask(aNetworkMask);
     }
-
-    aMap[aOption] = OptValue;
-    return VINF_SUCCESS;
-}
-
-
-HRESULT DHCPServer::addGlobalOption(DhcpOpt_T aOption, const com::Utf8Str &aValue)
-{
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    int rc = addOption(m->GlobalDhcpOptions, aOption, aValue);
-    if (!RT_SUCCESS(rc))
-        return E_INVALIDARG;
-
-    /* Indirect way to understand that we're on NAT network */
-    if (aOption == DhcpOpt_Router)
-    {
-        m->router = true;
-    }
-
-    alock.release();
-
-    AutoWriteLock vboxLock(mVirtualBox COMMA_LOCKVAL_SRC_POS);
-    return mVirtualBox->i_saveSettings();
-}
-
-
-HRESULT DHCPServer::removeGlobalOption(DhcpOpt_T aOption)
-{
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    settings::DhcpOptionMap::size_type cErased = m->GlobalDhcpOptions.erase(aOption);
-    if (!cErased)
-        return E_INVALIDARG;
-
-    alock.release();
-
-    AutoWriteLock vboxLock(mVirtualBox COMMA_LOCKVAL_SRC_POS);
-    return mVirtualBox->i_saveSettings();
-}
-
-
-HRESULT DHCPServer::removeGlobalOptions()
-{
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    m->GlobalDhcpOptions.clear();
-
-    alock.release();
-
-    AutoWriteLock vboxLock(mVirtualBox COMMA_LOCKVAL_SRC_POS);
-    return mVirtualBox->i_saveSettings();
-}
-
-
-HRESULT DHCPServer::getGlobalOptions(std::vector<com::Utf8Str> &aValues)
-{
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-    aValues.resize(m->GlobalDhcpOptions.size());
-    settings::DhcpOptionMap::const_iterator it;
-    size_t i = 0;
-    for (it = m->GlobalDhcpOptions.begin(); it != m->GlobalDhcpOptions.end(); ++it, ++i)
-    {
-        uint32_t OptCode = (*it).first;
-        const settings::DhcpOptValue &OptValue = (*it).second;
-
-        encodeOption(aValues[i], OptCode, OptValue);
-    }
-
-    return S_OK;
-}
-
-HRESULT DHCPServer::getVmConfigs(std::vector<com::Utf8Str> &aValues)
-{
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-    aValues.resize(m->VmSlot2Options.size());
-    settings::VmSlot2OptionsMap::const_iterator it;
-    size_t i = 0;
-    for (it = m->VmSlot2Options.begin(); it != m->VmSlot2Options.end(); ++it, ++i)
-    {
-        aValues[i] = Utf8StrFmt("[%s]:%d", it->first.VmName.c_str(), it->first.Slot);
-    }
-
-    return S_OK;
-}
-
-
-HRESULT DHCPServer::addVmSlotOption(const com::Utf8Str &aVmName,
-                                    LONG aSlot,
-                                    DhcpOpt_T aOption,
-                                    const com::Utf8Str &aValue)
-{
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    settings::DhcpOptionMap &map = m->VmSlot2Options[settings::VmNameSlotKey(aVmName, aSlot)];
-    int rc = addOption(map, aOption, aValue);
-    if (!RT_SUCCESS(rc))
-        return E_INVALIDARG;
-
-    alock.release();
-
-    AutoWriteLock vboxLock(mVirtualBox COMMA_LOCKVAL_SRC_POS);
-    return mVirtualBox->i_saveSettings();
-}
-
-
-HRESULT DHCPServer::removeVmSlotOption(const com::Utf8Str &aVmName, LONG aSlot, DhcpOpt_T aOption)
-{
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    settings::DhcpOptionMap &map = i_findOptMapByVmNameSlot(aVmName, aSlot);
-    settings::DhcpOptionMap::size_type cErased = map.erase(aOption);
-    if (!cErased)
-        return E_INVALIDARG;
-
-    alock.release();
-
-    AutoWriteLock vboxLock(mVirtualBox COMMA_LOCKVAL_SRC_POS);
-    return mVirtualBox->i_saveSettings();
-}
-
-
-HRESULT DHCPServer::removeVmSlotOptions(const com::Utf8Str &aVmName, LONG aSlot)
-{
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    settings::DhcpOptionMap &map = i_findOptMapByVmNameSlot(aVmName, aSlot);
-    map.clear();
-
-    alock.release();
-
-    AutoWriteLock vboxLock(mVirtualBox COMMA_LOCKVAL_SRC_POS);
-    return mVirtualBox->i_saveSettings();
-}
-
-/**
- * this is mapping (vm, slot)
- */
-HRESULT DHCPServer::getVmSlotOptions(const com::Utf8Str &aVmName,
-                                     LONG aSlot,
-                                     std::vector<com::Utf8Str> &aValues)
-{
-
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-    settings::DhcpOptionMap &map = i_findOptMapByVmNameSlot(aVmName, aSlot);
-    aValues.resize(map.size());
-    size_t i = 0;
-    settings::DhcpOptionMap::const_iterator it;
-    for (it = map.begin(); it != map.end(); ++it, ++i)
-    {
-        uint32_t OptCode = (*it).first;
-        const settings::DhcpOptValue &OptValue = (*it).second;
-
-        encodeOption(aValues[i], OptCode, OptValue);
-    }
-
-    return S_OK;
-}
-
-
-HRESULT DHCPServer::getMacOptions(const com::Utf8Str &aMAC, std::vector<com::Utf8Str> &aOption)
-{
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-    HRESULT hrc = S_OK;
-    ComPtr<IMachine> machine;
-    ComPtr<INetworkAdapter> nic;
-    settings::VmSlot2OptionsIterator it;
-    for(it = m->VmSlot2Options.begin(); it != m->VmSlot2Options.end(); ++it)
-    {
-        alock.release();
-        hrc = mVirtualBox->FindMachine(Bstr(it->first.VmName).raw(), machine.asOutParam());
-        alock.acquire();
-
-        if (FAILED(hrc))
-            continue;
-
-        alock.release();
-        hrc = machine->GetNetworkAdapter(it->first.Slot, nic.asOutParam());
-        alock.acquire();
-
-        if (FAILED(hrc))
-            continue;
-
-        com::Bstr mac;
-
-        alock.release();
-        hrc = nic->COMGETTER(MACAddress)(mac.asOutParam());
-        alock.acquire();
-
-        if (FAILED(hrc)) /* no MAC address ??? */
-            break;
-        if (!RTStrICmp(com::Utf8Str(mac).c_str(), aMAC.c_str()))
-            return getVmSlotOptions(it->first.VmName,
-                                    it->first.Slot,
-                                    aOption);
-    } /* end of for */
-
+    if (SUCCEEDED(hrc))
+        hrc = i_doSaveSettings();
     return hrc;
 }
+
+
+/**
+ * Validates the VM name and slot, returning the machine ID.
+ *
+ * If a machine ID is given instead of a name, we won't check whether it
+ * actually exists...
+ *
+ * @returns COM status code.
+ * @param   aVmName             The VM name or UUID.
+ * @param   aSlot               The slot.
+ * @param   idMachine           Where to return the VM UUID.
+ */
+HRESULT DHCPServer::i_vmNameToIdAndValidateSlot(const com::Utf8Str &aVmName, LONG aSlot, com::Guid &idMachine)
+{
+    if ((ULONG)aSlot <= 32)
+    {
+        /* Is it a UUID? */
+        idMachine = aVmName;
+        if (idMachine.isValid() && !idMachine.isZero())
+            return S_OK;
+
+        /* No, find the VM and get it's UUID. */
+        ComObjPtr<Machine> ptrMachine;
+        HRESULT hrc = m->pVirtualBox->i_findMachineByName(aVmName, true /*aSetError*/, &ptrMachine);
+        if (SUCCEEDED(hrc))
+            idMachine = ptrMachine->i_getId();
+        return hrc;
+    }
+    return setError(E_INVALIDARG, tr("NIC slot number (%d) is out of range (0..32)"), aSlot);
+}
+
+
+/**
+ * Translates a VM name/id and slot to an individual configuration object.
+ *
+ * @returns COM status code.
+ * @param   a_strVmName         The VM name or ID.
+ * @param   a_uSlot             The NIC slot.
+ * @param   a_fCreateIfNeeded   Whether to create a new entry if not found.
+ * @param   a_rPtrConfig        Where to return the config object.  It's
+ *                              implicitly referenced, so we don't be returning
+ *                              with any locks held.
+ *
+ * @note    Caller must not be holding any locks!
+ */
+HRESULT DHCPServer::i_vmNameAndSlotToConfig(const com::Utf8Str &a_strVmName, LONG a_uSlot, bool a_fCreateIfNeeded,
+                                            ComObjPtr<DHCPIndividualConfig> &a_rPtrConfig)
+{
+    /*
+     * Validate the slot and normalize the name into a UUID.
+     */
+    com::Guid idMachine;
+    HRESULT hrc = i_vmNameToIdAndValidateSlot(a_strVmName, a_uSlot, idMachine);
+    if (SUCCEEDED(hrc))
+    {
+        Utf8Str strKey;
+        int vrc = strKey.printfNoThrow("%RTuuid/%u", idMachine.raw(), a_uSlot);
+        if (RT_SUCCESS(vrc))
+        {
+            /*
+             * Look it up.
+             */
+            {
+                AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+                Data::IndividualConfigIterator it = m->individualConfigs.find(strKey);
+                if (it != m->individualConfigs.end())
+                {
+                    a_rPtrConfig = it->second;
+                    return S_OK;
+                }
+            }
+            if (a_fCreateIfNeeded)
+            {
+                /*
+                 * Create a new slot.
+                 */
+                /* Instantiate the object: */
+                hrc = a_rPtrConfig.createObject();
+                if (SUCCEEDED(hrc))
+                    hrc = a_rPtrConfig->initWithMachineIdAndSlot(m->pVirtualBox, this, idMachine, a_uSlot,
+                                                                 m->uIndividualMACAddressVersion - UINT32_MAX / 4);
+                if (SUCCEEDED(hrc))
+                {
+                    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+                    /* Check for creation race: */
+                    Data::IndividualConfigIterator it = m->individualConfigs.find(strKey);
+                    if (it != m->individualConfigs.end())
+                    {
+                        a_rPtrConfig.setNull();
+                        a_rPtrConfig = it->second;
+                        return S_OK;
+                    }
+
+                    /* Add it. */
+                    try
+                    {
+                        m->individualConfigs[strKey] = a_rPtrConfig;
+
+                        /* Save settings. */
+                        alock.release();
+                        return i_doSaveSettings();
+                    }
+                    catch (std::bad_alloc &)
+                    {
+                        hrc = E_OUTOFMEMORY;
+                    }
+                    a_rPtrConfig.setNull();
+                }
+            }
+            else
+                hrc = VBOX_E_OBJECT_NOT_FOUND;
+        }
+        else
+            hrc = E_OUTOFMEMORY;
+    }
+    return hrc;
+}
+
 
 HRESULT DHCPServer::getEventSource(ComPtr<IEventSource> &aEventSource)
 {
@@ -652,188 +699,568 @@ HRESULT DHCPServer::getEventSource(ComPtr<IEventSource> &aEventSource)
 }
 
 
-DECLINLINE(void) addOptionChild(xml::ElementNode *pParent, uint32_t OptCode, const settings::DhcpOptValue &OptValue)
+HRESULT DHCPServer::getGlobalConfig(ComPtr<IDHCPGlobalConfig> &aGlobalConfig)
 {
-    xml::ElementNode *pOption = pParent->createChild("Option");
-    pOption->setAttribute("name", OptCode);
-    pOption->setAttribute("encoding", OptValue.encoding);
-    pOption->setAttribute("value", OptValue.text.c_str());
+    /* The global configuration is immutable, so no need to lock anything here. */
+    return m->globalConfig.queryInterfaceTo(aGlobalConfig.asOutParam());
+}
+
+
+HRESULT DHCPServer::getGroupConfigs(std::vector<ComPtr<IDHCPGroupConfig> > &aGroupConfigs)
+{
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    size_t const cGroupConfigs = m->groupConfigs.size();
+    try
+    {
+        aGroupConfigs.resize(cGroupConfigs);
+    }
+    catch (std::bad_alloc &)
+    {
+        return E_OUTOFMEMORY;
+    }
+
+    size_t i = 0;
+    for (Data::GroupConfigIterator it = m->groupConfigs.begin(); it != m->groupConfigs.end(); ++it, i++)
+    {
+        Assert(i < cGroupConfigs);
+        HRESULT hrc = it->second.queryInterfaceTo(aGroupConfigs[i].asOutParam());
+        if (FAILED(hrc))
+            return hrc;
+    }
+
+    return S_OK;
+}
+
+
+HRESULT DHCPServer::getIndividualConfigs(std::vector<ComPtr<IDHCPIndividualConfig> > &aIndividualConfigs)
+{
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    size_t const cIndividualConfigs = m->individualConfigs.size();
+    try
+    {
+        aIndividualConfigs.resize(cIndividualConfigs);
+    }
+    catch (std::bad_alloc &)
+    {
+        return E_OUTOFMEMORY;
+    }
+
+    size_t i = 0;
+    for (Data::IndividualConfigIterator it = m->individualConfigs.begin(); it != m->individualConfigs.end(); ++it, i++)
+    {
+        Assert(i < cIndividualConfigs);
+        HRESULT hrc = it->second.queryInterfaceTo(aIndividualConfigs[i].asOutParam());
+        if (FAILED(hrc))
+            return hrc;
+    }
+
+    return S_OK;
 }
 
 
 HRESULT DHCPServer::restart()
 {
     if (!m->dhcp.isRunning())
-        return E_FAIL;
+        return setErrorBoth(E_FAIL, VERR_PROCESS_NOT_FOUND, tr("not running"));
+
     /*
-        * Disabled servers will be brought down, but won't be restarted.
-        * (see DHCPServer::start)
-        */
+     * Disabled servers will be brought down, but won't be restarted.
+     * (see DHCPServer::start)
+     */
     HRESULT hrc = stop();
     if (SUCCEEDED(hrc))
-        hrc = start(m->networkName, m->trunkName, m->trunkType);
+        hrc = start(m->trunkName, m->trunkType);
     return hrc;
 }
 
 
-HRESULT DHCPServer::start(const com::Utf8Str &aNetworkName,
-                          const com::Utf8Str &aTrunkName,
-                          const com::Utf8Str &aTrunkType)
+/**
+ * @throws std::bad_alloc
+ */
+HRESULT DHCPServer::i_writeDhcpdConfig(const char *pszFilename, uint32_t uMACAddressVersion) RT_NOEXCEPT
 {
+    /*
+     * Produce the DHCP server configuration.
+     */
+    xml::Document doc;
+    try
+    {
+        xml::ElementNode *pElmRoot = doc.createRootElement("DHCPServer");
+        pElmRoot->setAttribute("networkName", m->strName);
+        if (m->trunkName.isNotEmpty())
+            pElmRoot->setAttribute("trunkName", m->trunkName);
+        pElmRoot->setAttribute("trunkType", m->trunkType);
+        pElmRoot->setAttribute("IPAddress",  m->IPAddress);
+        pElmRoot->setAttribute("lowerIP", m->lowerIP);
+        pElmRoot->setAttribute("upperIP", m->upperIP);
+        pElmRoot->setAttribute("leasesFilename", m->strLeasesFilename);
+        Utf8Str strNetworkMask;
+        HRESULT hrc = m->globalConfig->i_getNetworkMask(strNetworkMask);
+        if (FAILED(hrc))
+            return hrc;
+        pElmRoot->setAttribute("networkMask", strNetworkMask);
+
+        /*
+         * Process global options
+         */
+        m->globalConfig->i_writeDhcpdConfig(pElmRoot->createChild("Options"));
+
+        /*
+         * Groups.
+         */
+        for (Data::GroupConfigIterator it = m->groupConfigs.begin(); it != m->groupConfigs.end(); ++it)
+            it->second->i_writeDhcpdConfig(pElmRoot->createChild("Group"));
+
+        /*
+         * Individual NIC configurations.
+         */
+        for (Data::IndividualConfigIterator it = m->individualConfigs.begin(); it != m->individualConfigs.end(); ++it)
+            if (it->second->i_isMACAddressResolved(uMACAddressVersion))
+                it->second->i_writeDhcpdConfig(pElmRoot->createChild("Config"));
+            else
+                LogRelFunc(("Skipping %RTuuid/%u, no MAC address.\n", it->second->i_getMachineId().raw(), it->second->i_getSlot()));
+    }
+    catch (std::bad_alloc &)
+    {
+        return E_OUTOFMEMORY;
+    }
+
+    /*
+     * Write out the document.
+     */
+    try
+    {
+        xml::XmlFileWriter writer(doc);
+        writer.write(pszFilename, false);
+    }
+    catch (...)
+    {
+        return E_FAIL;
+    }
+
+    return S_OK;
+}
+
+
+HRESULT DHCPServer::start(const com::Utf8Str &aTrunkName, const com::Utf8Str &aTrunkType)
+{
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
     /* Silently ignore attempts to run disabled servers. */
     if (!m->enabled)
         return S_OK;
 
     /*
-     * @todo: the existing code cannot handle concurrent attempts to start DHCP server.
-     * Note that technically it may receive different parameters from different callers.
+     * Resolve the MAC addresses.  This requires us to leave the lock.
      */
-    m->networkName = aNetworkName;
-    m->trunkName = aTrunkName;
-    m->trunkType = aTrunkType;
-
-    m->dhcp.clearOptions();
-#ifdef VBOX_WITH_DHCPD
-    int rc = RTPathTemp(m->tempConfigFileName, sizeof(m->tempConfigFileName));
-    if (RT_FAILURE(rc))
-        return E_FAIL;
-    rc = RTPathAppend(m->tempConfigFileName, sizeof(m->tempConfigFileName), "dhcp-config-XXXXX.xml");
-    if (RT_FAILURE(rc))
+    uint32_t uMACAddressVersion = m->uIndividualMACAddressVersion;
+    if (m->individualConfigs.size() > 0)
     {
-        m->tempConfigFileName[0] = '\0';
-        return E_FAIL;
-    }
-    rc = RTFileCreateTemp(m->tempConfigFileName, 0600);
-    if (RT_FAILURE(rc))
-    {
-        m->tempConfigFileName[0] = '\0';
-        return E_FAIL;
-    }
+        m->uIndividualMACAddressVersion = uMACAddressVersion + 1;
 
-    xml::Document doc;
-    xml::ElementNode *pElmRoot = doc.createRootElement("DHCPServer");
-    pElmRoot->setAttribute("networkName", m->networkName.c_str());
-    if (!m->trunkName.isEmpty())
-        pElmRoot->setAttribute("trunkName", m->trunkName.c_str());
-    pElmRoot->setAttribute("trunkType", m->trunkType.c_str());
-    pElmRoot->setAttribute("IPAddress",  Utf8Str(m->IPAddress).c_str());
-    pElmRoot->setAttribute("networkMask", Utf8Str(m->GlobalDhcpOptions[DhcpOpt_SubnetMask].text).c_str());
-    pElmRoot->setAttribute("lowerIP", Utf8Str(m->lowerIP).c_str());
-    pElmRoot->setAttribute("upperIP", Utf8Str(m->upperIP).c_str());
+        /* Retain pointers to all the individual configuration objects so we
+           can safely access these after releaseing the lock: */
+        std::vector< ComObjPtr<DHCPIndividualConfig> > vecIndividualConfigs;
+        try
+        {
+            vecIndividualConfigs.resize(m->individualConfigs.size());
+        }
+        catch (std::bad_alloc &)
+        {
+            return E_OUTOFMEMORY;
+        }
+        size_t i = 0;
+        for (Data::IndividualConfigIterator it = m->individualConfigs.begin(); it != m->individualConfigs.end(); ++it, i++)
+            vecIndividualConfigs[i] = it->second;
 
-    /* Process global options */
-    xml::ElementNode *pOptions = pElmRoot->createChild("Options");
-    // settings::DhcpOptionMap::const_iterator itGlobal;
-    for (settings::DhcpOptionMap::const_iterator it = m->GlobalDhcpOptions.begin();
-         it != m->GlobalDhcpOptions.end();
-         ++it)
-        addOptionChild(pOptions, (*it).first, (*it).second);
-
-    /* Process network-adapter-specific options */
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-    HRESULT hrc = S_OK;
-    ComPtr<IMachine> machine;
-    ComPtr<INetworkAdapter> nic;
-    settings::VmSlot2OptionsIterator it;
-    for(it = m->VmSlot2Options.begin(); it != m->VmSlot2Options.end(); ++it)
-    {
+        /* Drop the lock and resolve the MAC addresses: */
         alock.release();
-        hrc = mVirtualBox->FindMachine(Bstr(it->first.VmName).raw(), machine.asOutParam());
+
+        i = vecIndividualConfigs.size();
+        while (i-- > 0)
+            vecIndividualConfigs[i]->i_resolveMACAddress(uMACAddressVersion);
+
+        /* Reacquire the lock  */
         alock.acquire();
-
-        if (FAILED(hrc))
-            continue;
-
-        alock.release();
-        hrc = machine->GetNetworkAdapter(it->first.Slot, nic.asOutParam());
-        alock.acquire();
-
-        if (FAILED(hrc))
-            continue;
-
-        com::Bstr mac;
-
-        alock.release();
-        hrc = nic->COMGETTER(MACAddress)(mac.asOutParam());
-        alock.acquire();
-
-        if (FAILED(hrc)) /* no MAC address ??? */
-            continue;
-
-        /* Convert MAC address from XXXXXXXXXXXX to XX:XX:XX:XX:XX:XX */
-        Utf8Str strMacWithoutColons(mac);
-        const char *pszSrc = strMacWithoutColons.c_str();
-        RTMAC binaryMac;
-        if (RTStrConvertHexBytes(pszSrc, &binaryMac, sizeof(binaryMac), 0) != VINF_SUCCESS)
-            continue;
-        char szMac[18]; /* "XX:XX:XX:XX:XX:XX" */
-        if (RTStrPrintHexBytes(szMac, sizeof(szMac), &binaryMac, sizeof(binaryMac), RTSTRPRINTHEXBYTES_F_SEP_COLON) != VINF_SUCCESS)
-            continue;
-
-        xml::ElementNode *pMacConfig = pElmRoot->createChild("Config");
-        pMacConfig->setAttribute("MACAddress", szMac);
-
-        com::Utf8Str encodedOption;
-        settings::DhcpOptionMap &map = i_findOptMapByVmNameSlot(it->first.VmName, it->first.Slot);
-        settings::DhcpOptionMap::const_iterator itAdapterOption;
-        for (itAdapterOption = map.begin(); itAdapterOption != map.end(); ++itAdapterOption)
-            addOptionChild(pMacConfig, (*itAdapterOption).first, (*itAdapterOption).second);
+        if (!m->enabled)
+            return S_OK;
     }
 
-    xml::XmlFileWriter writer(doc);
-    writer.write(m->tempConfigFileName, true);
+    /*
+     * Refuse to start a 2nd DHCP server instance for the same network.
+     */
+    if (m->dhcp.isRunning())
+        return setErrorBoth(VBOX_E_OBJECT_IN_USE, VERR_PROCESS_RUNNING,
+                            tr("Cannot start DHCP server because it is already running (pid %RTproc)"), m->dhcp.getPid());
 
-    m->dhcp.setOption(DHCPServerRunner::kDsrKeyConfig, m->tempConfigFileName);
-    m->dhcp.setOption(DHCPServerRunner::kDsrKeyComment, m->networkName.c_str());
-#else /* !VBOX_WITH_DHCPD */
-    /* Main is needed for NATNetwork */
-    if (m->router)
-        m->dhcp.setOption(NetworkServiceRunner::kNsrKeyNeedMain, "on");
-
-    /* Commmon Network Settings */
-    m->dhcp.setOption(NetworkServiceRunner::kNsrKeyNetwork, aNetworkName.c_str());
-
-    if (!aTrunkName.isEmpty())
-        m->dhcp.setOption(NetworkServiceRunner::kNsrTrunkName, aTrunkName.c_str());
-
-    m->dhcp.setOption(NetworkServiceRunner::kNsrKeyTrunkType, aTrunkType.c_str());
-
-    /* XXX: should this MAC default initialization moved to NetworkServiceRunner? */
-    char strMAC[32];
-    Guid guid;
-    guid.create();
-    RTStrPrintf (strMAC, sizeof(strMAC), "08:00:27:%02X:%02X:%02X",
-                 guid.raw()->au8[0],
-                 guid.raw()->au8[1],
-                 guid.raw()->au8[2]);
-    m->dhcp.setOption(NetworkServiceRunner::kNsrMacAddress, strMAC);
-    m->dhcp.setOption(NetworkServiceRunner::kNsrIpAddress,  Utf8Str(m->IPAddress).c_str());
-    m->dhcp.setOption(NetworkServiceRunner::kNsrIpNetmask, Utf8Str(m->GlobalDhcpOptions[DhcpOpt_SubnetMask].text).c_str());
-    m->dhcp.setOption(DHCPServerRunner::kDsrKeyLowerIp, Utf8Str(m->lowerIP).c_str());
-    m->dhcp.setOption(DHCPServerRunner::kDsrKeyUpperIp, Utf8Str(m->upperIP).c_str());
-#endif /* !VBOX_WITH_DHCPD */
-
-    /* XXX: This parameters Dhcp Server will fetch via API */
-    return RT_FAILURE(m->dhcp.start(!m->router /* KillProcOnExit */)) ? E_FAIL : S_OK;
-    //m->dhcp.detachFromServer(); /* need to do this to avoid server shutdown on runner destruction */
+    /*
+     * Copy the startup parameters.
+     */
+    m->trunkName   = aTrunkName;
+    m->trunkType   = aTrunkType;
+    HRESULT hrc = i_calcLeasesConfigAndLogFilenames(m->strName);
+    if (SUCCEEDED(hrc))
+    {
+        /*
+         * Create configuration file path and write out the configuration.
+         */
+        hrc = i_writeDhcpdConfig(m->strConfigFilename.c_str(), uMACAddressVersion);
+        if (SUCCEEDED(hrc))
+        {
+            /*
+             * Setup the arguments and start the DHCP server.
+             */
+            m->dhcp.resetArguments();
+            int vrc = m->dhcp.addArgPair("--comment", m->strName.c_str());
+            if (RT_SUCCESS(vrc))
+                vrc = m->dhcp.addArgPair("--config", m->strConfigFilename.c_str());
+            if (RT_SUCCESS(vrc))
+                vrc = m->dhcp.addArgPair("--log", m->strLogFilename.c_str());
+            /** @todo Add --log-flags, --log-group-settings, and --log-destinations with
+             *        associated IDHCPServer attributes.  (Not doing it now because that'll
+             *        exhaust all reserved attribute slot in 6.0.) */
+            if (RT_SUCCESS(vrc))
+            {
+                /* Start it: */
+                vrc = m->dhcp.start(true /*aKillProcessOnStop*/);
+                if (RT_FAILURE(vrc))
+                    hrc = setErrorVrc(vrc, tr("Failed to start DHCP server for '%s': %Rrc"), m->strName.c_str(), vrc);
+            }
+            else
+                hrc = setErrorVrc(vrc, tr("Failed to assemble the command line for DHCP server '%s': %Rrc"),
+                                  m->strName.c_str(), vrc);
+        }
+    }
+    return hrc;
 }
 
 
-HRESULT DHCPServer::stop (void)
+HRESULT DHCPServer::stop(void)
 {
-#ifdef VBOX_WITH_DHCPD
-    if (m->tempConfigFileName[0])
-    {
-        RTFileDelete(m->tempConfigFileName);
-        m->tempConfigFileName[0] = 0;
-    }
-#endif /* VBOX_WITH_DHCPD */
-    return RT_FAILURE(m->dhcp.stop()) ? E_FAIL : S_OK;
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    int vrc = m->dhcp.stop();
+    if (RT_SUCCESS(vrc))
+        return S_OK;
+    return setErrorVrc(vrc);
 }
 
 
-settings::DhcpOptionMap &DHCPServer::i_findOptMapByVmNameSlot(const com::Utf8Str &aVmName,
-                                                              LONG aSlot)
+HRESULT DHCPServer::findLeaseByMAC(const com::Utf8Str &aMac, LONG aType,
+                                    com::Utf8Str &aAddress, com::Utf8Str &aState, LONG64 *aIssued, LONG64 *aExpire)
 {
-    return m->VmSlot2Options[settings::VmNameSlotKey(aVmName, aSlot)];
+    /* Reset output before we start */
+    *aIssued = 0;
+    *aExpire = 0;
+    aAddress.setNull();
+    aState.setNull();
+
+    /*
+     * Convert and check input.
+     */
+    RTMAC MacAddress;
+    int vrc = RTStrConvertHexBytes(aMac.c_str(), &MacAddress, sizeof(MacAddress), RTSTRCONVERTHEXBYTES_F_SEP_COLON);
+    if (vrc != VINF_SUCCESS)
+        return setErrorBoth(E_INVALIDARG, vrc, tr("Invalid MAC address '%s': %Rrc"), aMac.c_str(), vrc);
+    if (aType != 0)
+        return setError(E_INVALIDARG, tr("flags must be zero (not %#x)"), aType);
+
+    /*
+     * Make sure we've got a lease filename to work with.
+     */
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+    if (m->strLeasesFilename.isEmpty())
+    {
+        HRESULT hrc = i_calcLeasesConfigAndLogFilenames(m->strName);
+        if (FAILED(hrc))
+            return hrc;
+    }
+
+    /*
+     * Try at least twice to read the lease database, more if busy.
+     */
+    uint64_t const nsStart = RTTimeNanoTS();
+    for (uint32_t uReadAttempt = 0; ; uReadAttempt++)
+    {
+        /*
+         * Try read the file.
+         */
+        xml::Document doc;
+        try
+        {
+            xml::XmlFileParser parser;
+            parser.read(m->strLeasesFilename.c_str(), doc);
+        }
+        catch (const xml::EIPRTFailure &e)
+        {
+            vrc = e.rc();
+            LogThisFunc(("caught xml::EIPRTFailure: rc=%Rrc (attempt %u, msg=%s)\n", vrc, uReadAttempt, e.what()));
+            if (   (   vrc == VERR_FILE_NOT_FOUND
+                    || vrc == VERR_OPEN_FAILED
+                    || vrc == VERR_ACCESS_DENIED
+                    || vrc == VERR_SHARING_VIOLATION
+                    || vrc == VERR_READ_ERROR /*?*/)
+                && (   uReadAttempt == 0
+                    || (   uReadAttempt < 64
+                        && RTTimeNanoTS() - nsStart < RT_NS_1SEC / 4)) )
+            {
+                alock.release();
+
+                if (uReadAttempt > 0)
+                    RTThreadYield();
+                RTThreadSleep(8/*ms*/);
+
+                alock.acquire();
+                LogThisFunc(("Retrying...\n"));
+                continue;
+            }
+            return setErrorBoth(VBOX_E_FILE_ERROR, vrc, "Reading '%s' failed: %Rrc - %s",
+                                m->strLeasesFilename.c_str(), vrc, e.what());
+        }
+        catch (const RTCError &e)
+        {
+            if (e.what())
+                return setError(VBOX_E_FILE_ERROR, "Reading '%s' failed: %s", m->strLeasesFilename.c_str(), e.what());
+            return setError(VBOX_E_FILE_ERROR, "Reading '%s' failed: RTCError", m->strLeasesFilename.c_str());
+        }
+        catch (std::bad_alloc &)
+        {
+            return E_OUTOFMEMORY;
+        }
+        catch (...)
+        {
+            AssertFailed();
+            return setError(VBOX_E_FILE_ERROR, tr("Reading '%s' failed: Unexpected exception"), m->strLeasesFilename.c_str());
+        }
+
+        /*
+         * Look for that mac address.
+         */
+        xml::ElementNode *pElmRoot = doc.getRootElement();
+        if (pElmRoot && pElmRoot->nameEquals("Leases"))
+        {
+            xml::NodesLoop          it(*pElmRoot);
+            const xml::ElementNode *pElmLease;
+            while ((pElmLease = it.forAllNodes()) != NULL)
+                if (pElmLease->nameEquals("Lease"))
+                {
+                    const char *pszCurMacAddress = pElmLease->findAttributeValue("mac");
+                    RTMAC       CurMacAddress;
+                    if (   pszCurMacAddress
+                        && RT_SUCCESS(RTNetStrToMacAddr(pszCurMacAddress, &CurMacAddress))
+                        && memcmp(&CurMacAddress, &MacAddress, sizeof(MacAddress)) == 0)
+                    {
+                        /*
+                         * Found it!
+                         */
+                        xml::ElementNode const *pElmTime    = pElmLease->findChildElement("Time");
+                        int64_t                 secIssued   = 0;
+                        uint32_t                cSecsToLive = 0;
+                        if (pElmTime)
+                        {
+                            pElmTime->getAttributeValue("issued", &secIssued);
+                            pElmTime->getAttributeValue("expiration", &cSecsToLive);
+                            *aIssued = secIssued;
+                            *aExpire = secIssued + cSecsToLive;
+                        }
+                        try
+                        {
+                            aAddress = pElmLease->findChildElementAttributeValue("Address", "value");
+                            aState   = pElmLease->findAttributeValue("state");
+                        }
+                        catch (std::bad_alloc &)
+                        {
+                            return E_OUTOFMEMORY;
+                        }
+
+                        /* Check if the lease has expired in the mean time. */
+                        HRESULT hrc = S_OK;
+                        RTTIMESPEC Now;
+                        if (   (aState.equals("acked") || aState.equals("offered") || aState.isEmpty())
+                            && secIssued + cSecsToLive < RTTimeSpecGetSeconds(RTTimeNow(&Now)))
+                            hrc = aState.assignNoThrow("expired");
+                        return hrc;
+                    }
+                }
+        }
+        break;
+    }
+
+    return setError(VBOX_E_OBJECT_NOT_FOUND, tr("Could not find a lease for %RTmac"), &MacAddress);
 }
+
+
+HRESULT DHCPServer::getConfig(DHCPConfigScope_T aScope, const com::Utf8Str &aName, ULONG aSlot, BOOL aMayAdd,
+                              ComPtr<IDHCPConfig> &aConfig)
+{
+    if (aSlot != 0 && aScope != DHCPConfigScope_MachineNIC)
+        return setError(E_INVALIDARG, tr("The 'slot' argument must be zero for all but the MachineNIC scope!"));
+
+    switch (aScope)
+    {
+        case DHCPConfigScope_Global:
+            if (aName.isNotEmpty())
+                return setError(E_INVALIDARG, tr("The name must be empty or NULL for the Global scope!"));
+
+            /* No locking required here. */
+            return m->globalConfig.queryInterfaceTo(aConfig.asOutParam());
+
+        case DHCPConfigScope_Group:
+        {
+            if (aName.isEmpty())
+                return setError(E_INVALIDARG, tr("A group must have a name!"));
+            if (aName.length() > _1K)
+                return setError(E_INVALIDARG, tr("Name too long! %zu bytes"), aName.length());
+
+            /* Look up the group: */
+            {
+                AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+                Data::GroupConfigIterator it = m->groupConfigs.find(aName);
+                if (it != m->groupConfigs.end())
+                    return it->second.queryInterfaceTo(aConfig.asOutParam());
+            }
+            /* Create a new group if we can. */
+            if (!aMayAdd)
+                return setError(VBOX_E_OBJECT_NOT_FOUND, tr("Found no configuration for group %s"), aName.c_str());
+            ComObjPtr<DHCPGroupConfig> ptrGroupConfig;
+            HRESULT hrc = ptrGroupConfig.createObject();
+            if (SUCCEEDED(hrc))
+                hrc = ptrGroupConfig->initWithDefaults(m->pVirtualBox, this, aName);
+            if (SUCCEEDED(hrc))
+            {
+                AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+                /* Check for insertion race: */
+                Data::GroupConfigIterator it = m->groupConfigs.find(aName);
+                if (it != m->groupConfigs.end())
+                    return it->second.queryInterfaceTo(aConfig.asOutParam()); /* creation race*/
+
+                /* Try insert it: */
+                try
+                {
+                    m->groupConfigs[aName] = ptrGroupConfig;
+                }
+                catch (std::bad_alloc &)
+                {
+                    return E_OUTOFMEMORY;
+                }
+                return ptrGroupConfig.queryInterfaceTo(aConfig.asOutParam());
+            }
+            return hrc;
+        }
+
+        case DHCPConfigScope_MachineNIC:
+        {
+            ComObjPtr<DHCPIndividualConfig> ptrIndividualConfig;
+            HRESULT hrc = i_vmNameAndSlotToConfig(aName, aSlot, aMayAdd != FALSE, ptrIndividualConfig);
+            if (SUCCEEDED(hrc))
+                hrc = ptrIndividualConfig.queryInterfaceTo(aConfig.asOutParam());
+            return hrc;
+        }
+
+        case DHCPConfigScope_MAC:
+        {
+            /* Check and Normalize the MAC address into a key: */
+            RTMAC MACAddress;
+            int vrc = RTNetStrToMacAddr(aName.c_str(), &MACAddress);
+            if (RT_SUCCESS(vrc))
+            {
+                Utf8Str strKey;
+                vrc = strKey.printfNoThrow("%RTmac", &MACAddress);
+                if (RT_SUCCESS(vrc))
+                {
+                    /* Look up the MAC address: */
+                    {
+                        AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+                        Data::IndividualConfigIterator it = m->individualConfigs.find(strKey);
+                        if (it != m->individualConfigs.end())
+                            return it->second.queryInterfaceTo(aConfig.asOutParam());
+                    }
+                    if (aMayAdd)
+                    {
+                        /* Create a new individiual configuration: */
+                        ComObjPtr<DHCPIndividualConfig> ptrIndividualConfig;
+                        HRESULT hrc = ptrIndividualConfig.createObject();
+                        if (SUCCEEDED(hrc))
+                            hrc = ptrIndividualConfig->initWithMACAddress(m->pVirtualBox, this, &MACAddress);
+                        if (SUCCEEDED(hrc))
+                        {
+                            AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+                            /* Check for insertion race: */
+                            Data::IndividualConfigIterator it = m->individualConfigs.find(strKey);
+                            if (it != m->individualConfigs.end())
+                                return it->second.queryInterfaceTo(aConfig.asOutParam()); /* creation race*/
+
+                            /* Try insert it: */
+                            try
+                            {
+                                m->individualConfigs[strKey] = ptrIndividualConfig;
+                            }
+                            catch (std::bad_alloc &)
+                            {
+                                return E_OUTOFMEMORY;
+                            }
+                            return ptrIndividualConfig.queryInterfaceTo(aConfig.asOutParam());
+                        }
+                    }
+                    else
+                        return setError(VBOX_E_OBJECT_NOT_FOUND, tr("Found no configuration for MAC address %s"), strKey.c_str());
+                }
+                return E_OUTOFMEMORY;
+            }
+            return setErrorBoth(E_INVALIDARG, vrc, tr("Invalid MAC address: %s"), aName.c_str());
+        }
+
+        default:
+            return E_FAIL;
+    }
+}
+
+
+/**
+ * Calculates and updates the value of strLeasesFilename given @a aNetwork.
+ */
+HRESULT DHCPServer::i_calcLeasesConfigAndLogFilenames(const com::Utf8Str &aNetwork) RT_NOEXCEPT
+{
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    /* The lease file must be the same as we used the last time, so careful when changing this code. */
+    int vrc = m->strLeasesFilename.assignNoThrow(m->pVirtualBox->i_homeDir());
+    if (RT_SUCCESS(vrc))
+        vrc = RTPathAppendCxx(m->strLeasesFilename, aNetwork);
+    if (RT_SUCCESS(vrc))
+    {
+        RTPathPurgeFilename(RTPathFilename(m->strLeasesFilename.mutableRaw()), RTPATH_STR_F_STYLE_HOST);
+
+        /* The configuration file: */
+        vrc = m->strConfigFilename.assignNoThrow(m->strLeasesFilename);
+        if (RT_SUCCESS(vrc))
+            vrc = m->strConfigFilename.appendNoThrow("-Dhcpd.config");
+
+
+        /* The log file: */
+        if (RT_SUCCESS(vrc))
+        {
+            vrc = m->strLogFilename.assignNoThrow(m->strLeasesFilename);
+            if (RT_SUCCESS(vrc))
+                vrc = m->strLogFilename.appendNoThrow("-Dhcpd.log");
+
+            /* Finally, complete the leases file: */
+            if (RT_SUCCESS(vrc))
+            {
+                vrc = m->strLeasesFilename.appendNoThrow("-Dhcpd.leases");
+                if (RT_SUCCESS(vrc))
+                {
+                    RTPathPurgeFilename(RTPathFilename(m->strLeasesFilename.mutableRaw()), RTPATH_STR_F_STYLE_HOST);
+                    m->strLeasesFilename.jolt();
+                    return S_OK;
+                }
+            }
+        }
+    }
+    return setErrorBoth(E_FAIL, vrc, tr("Failed to construct leases, config and log filenames: %Rrc"), vrc);
+}
+

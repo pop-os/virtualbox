@@ -32,11 +32,8 @@
 #include <iprt/uuid.h>
 #include <iprt/file.h>
 #include <iprt/string.h>
-#include <iprt/tcp.h>
 #include <iprt/semaphore.h>
 #include <iprt/sg.h>
-#include <iprt/poll.h>
-#include <iprt/pipe.h>
 #include <iprt/system.h>
 #include <iprt/memsafer.h>
 #include <iprt/memcache.h>
@@ -117,7 +114,9 @@ typedef struct VBOXIMAGE
     PVDINTERFACE       pVDIfsImage;
     /** Configuration information interface. */
     VDINTERFACECONFIG  VDIfConfig;
-    /** TCP network stack interface. */
+    /** TCP network stack instance for host mode. */
+    VDIFINST           hVdIfTcpNet;
+    /** TCP network stack interface (for INIP). */
     VDINTERFACETCPNET  VDIfTcpNet;
     /** I/O interface. */
     VDINTERFACEIO      VDIfIo;
@@ -485,6 +484,8 @@ static void drvvdFreeImages(PVBOXDISK pThis)
     {
         PVBOXIMAGE p = pThis->pImages;
         pThis->pImages = pThis->pImages->pNext;
+        if (p->hVdIfTcpNet != NULL)
+            VDIfTcpNetInstDefaultDestroy(p->hVdIfTcpNet);
         RTMemFree(p);
     }
 }
@@ -1367,499 +1368,6 @@ static DECLCALLBACK(int) drvvdINIPPoke(VDSOCKET Sock)
 #endif /* VBOX_WITH_INIP */
 
 
-/*********************************************************************************************************************************
-*   VD TCP network stack interface implementation - Host TCP case                                                                *
-*********************************************************************************************************************************/
-
-/**
- * Socket data.
- */
-typedef struct VDSOCKETINT
-{
-    /** IPRT socket handle. */
-    RTSOCKET      hSocket;
-    /** Pollset with the wakeup pipe and socket. */
-    RTPOLLSET     hPollSet;
-    /** Pipe endpoint - read (in the pollset). */
-    RTPIPE        hPipeR;
-    /** Pipe endpoint - write. */
-    RTPIPE        hPipeW;
-    /** Flag whether the thread was woken up. */
-    volatile bool fWokenUp;
-    /** Flag whether the thread is waiting in the select call. */
-    volatile bool fWaiting;
-    /** Old event mask. */
-    uint32_t      fEventsOld;
-} VDSOCKETINT, *PVDSOCKETINT;
-
-/** Pollset id of the socket. */
-#define VDSOCKET_POLL_ID_SOCKET 0
-/** Pollset id of the pipe. */
-#define VDSOCKET_POLL_ID_PIPE   1
-
-/** @interface_method_impl{VDINTERFACETCPNET,pfnSocketCreate} */
-static DECLCALLBACK(int) drvvdTcpSocketCreate(uint32_t fFlags, PVDSOCKET phVdSock)
-{
-    int rc = VINF_SUCCESS;
-    int rc2 = VINF_SUCCESS;
-    PVDSOCKETINT pSockInt = NULL;
-
-    pSockInt = (PVDSOCKETINT)RTMemAllocZ(sizeof(VDSOCKETINT));
-    if (!pSockInt)
-        return VERR_NO_MEMORY;
-
-    pSockInt->hSocket  = NIL_RTSOCKET;
-    pSockInt->hPollSet = NIL_RTPOLLSET;
-    pSockInt->hPipeR   = NIL_RTPIPE;
-    pSockInt->hPipeW   = NIL_RTPIPE;
-    pSockInt->fWokenUp = false;
-    pSockInt->fWaiting = false;
-
-    if (fFlags & VD_INTERFACETCPNET_CONNECT_EXTENDED_SELECT)
-    {
-        /* Init pipe and pollset. */
-        rc = RTPipeCreate(&pSockInt->hPipeR, &pSockInt->hPipeW, 0);
-        if (RT_SUCCESS(rc))
-        {
-            rc = RTPollSetCreate(&pSockInt->hPollSet);
-            if (RT_SUCCESS(rc))
-            {
-                rc = RTPollSetAddPipe(pSockInt->hPollSet, pSockInt->hPipeR,
-                                      RTPOLL_EVT_READ, VDSOCKET_POLL_ID_PIPE);
-                if (RT_SUCCESS(rc))
-                {
-                    *phVdSock = pSockInt;
-                    return VINF_SUCCESS;
-                }
-
-                RTPollSetRemove(pSockInt->hPollSet, VDSOCKET_POLL_ID_PIPE);
-                rc2 = RTPollSetDestroy(pSockInt->hPollSet);
-                AssertRC(rc2);
-            }
-
-            rc2 = RTPipeClose(pSockInt->hPipeR);
-            AssertRC(rc2);
-            rc2 = RTPipeClose(pSockInt->hPipeW);
-            AssertRC(rc2);
-        }
-    }
-    else
-    {
-        *phVdSock = pSockInt;
-        return VINF_SUCCESS;
-    }
-
-    RTMemFree(pSockInt);
-
-    return rc;
-}
-
-/** @interface_method_impl{VDINTERFACETCPNET,pfnSocketDestroy} */
-static DECLCALLBACK(int) drvvdTcpSocketDestroy(VDSOCKET hVdSock)
-{
-    int rc = VINF_SUCCESS;
-    PVDSOCKETINT pSockInt = (PVDSOCKETINT)hVdSock;
-
-    /* Destroy the pipe and pollset if necessary. */
-    if (pSockInt->hPollSet != NIL_RTPOLLSET)
-    {
-        if (pSockInt->hSocket != NIL_RTSOCKET)
-        {
-            rc = RTPollSetRemove(pSockInt->hPollSet, VDSOCKET_POLL_ID_SOCKET);
-            Assert(RT_SUCCESS(rc) || rc == VERR_POLL_HANDLE_ID_NOT_FOUND);
-        }
-        rc = RTPollSetRemove(pSockInt->hPollSet, VDSOCKET_POLL_ID_PIPE);
-        AssertRC(rc);
-        rc = RTPollSetDestroy(pSockInt->hPollSet);
-        AssertRC(rc);
-        rc = RTPipeClose(pSockInt->hPipeR);
-        AssertRC(rc);
-        rc = RTPipeClose(pSockInt->hPipeW);
-        AssertRC(rc);
-    }
-
-    if (pSockInt->hSocket != NIL_RTSOCKET)
-        rc = RTTcpClientCloseEx(pSockInt->hSocket, false /*fGracefulShutdown*/);
-
-    RTMemFree(pSockInt);
-
-    return rc;
-}
-
-/** @interface_method_impl{VDINTERFACETCPNET,pfnClientConnect} */
-static DECLCALLBACK(int) drvvdTcpClientConnect(VDSOCKET hVdSock, const char *pszAddress, uint32_t uPort,
-                                               RTMSINTERVAL cMillies)
-{
-    int rc = VINF_SUCCESS;
-    PVDSOCKETINT pSockInt = (PVDSOCKETINT)hVdSock;
-
-    rc = RTTcpClientConnectEx(pszAddress, uPort, &pSockInt->hSocket, cMillies, NULL);
-    if (RT_SUCCESS(rc))
-    {
-        /* Add to the pollset if required. */
-        if (pSockInt->hPollSet != NIL_RTPOLLSET)
-        {
-            pSockInt->fEventsOld = RTPOLL_EVT_READ | RTPOLL_EVT_WRITE | RTPOLL_EVT_ERROR;
-
-            rc = RTPollSetAddSocket(pSockInt->hPollSet, pSockInt->hSocket,
-                                    pSockInt->fEventsOld, VDSOCKET_POLL_ID_SOCKET);
-        }
-
-        if (RT_SUCCESS(rc))
-            return VINF_SUCCESS;
-
-        rc = RTTcpClientCloseEx(pSockInt->hSocket, false /*fGracefulShutdown*/);
-    }
-
-    return rc;
-}
-
-/** @interface_method_impl{VDINTERFACETCPNET,pfnClientClose} */
-static DECLCALLBACK(int) drvvdTcpClientClose(VDSOCKET hVdSock)
-{
-    int rc = VINF_SUCCESS;
-    PVDSOCKETINT pSockInt = (PVDSOCKETINT)hVdSock;
-
-    if (pSockInt->hPollSet != NIL_RTPOLLSET)
-    {
-        rc = RTPollSetRemove(pSockInt->hPollSet, VDSOCKET_POLL_ID_SOCKET);
-        AssertRC(rc);
-    }
-
-    rc = RTTcpClientCloseEx(pSockInt->hSocket, false /*fGracefulShutdown*/);
-    pSockInt->hSocket = NIL_RTSOCKET;
-
-    return rc;
-}
-
-/** @interface_method_impl{VDINTERFACETCPNET,pfnIsClientConnected} */
-static DECLCALLBACK(bool) drvvdTcpIsClientConnected(VDSOCKET hVdSock)
-{
-    PVDSOCKETINT pSockInt = (PVDSOCKETINT)hVdSock;
-
-    return pSockInt->hSocket != NIL_RTSOCKET;
-}
-
-/** @interface_method_impl{VDINTERFACETCPNET,pfnSelectOne} */
-static DECLCALLBACK(int) drvvdTcpSelectOne(VDSOCKET hVdSock, RTMSINTERVAL cMillies)
-{
-    PVDSOCKETINT pSockInt = (PVDSOCKETINT)hVdSock;
-
-    return RTTcpSelectOne(pSockInt->hSocket, cMillies);
-}
-
-/** @interface_method_impl{VDINTERFACETCPNET,pfnRead} */
-static DECLCALLBACK(int) drvvdTcpRead(VDSOCKET hVdSock, void *pvBuffer, size_t cbBuffer, size_t *pcbRead)
-{
-    PVDSOCKETINT pSockInt = (PVDSOCKETINT)hVdSock;
-
-    return RTTcpRead(pSockInt->hSocket, pvBuffer, cbBuffer, pcbRead);
-}
-
-/** @interface_method_impl{VDINTERFACETCPNET,pfnWrite} */
-static DECLCALLBACK(int) drvvdTcpWrite(VDSOCKET hVdSock, const void *pvBuffer, size_t cbBuffer)
-{
-    PVDSOCKETINT pSockInt = (PVDSOCKETINT)hVdSock;
-
-    return RTTcpWrite(pSockInt->hSocket, pvBuffer, cbBuffer);
-}
-
-/** @interface_method_impl{VDINTERFACETCPNET,pfnSgWrite} */
-static DECLCALLBACK(int) drvvdTcpSgWrite(VDSOCKET hVdSock, PCRTSGBUF pSgBuf)
-{
-    PVDSOCKETINT pSockInt = (PVDSOCKETINT)hVdSock;
-
-    return RTTcpSgWrite(pSockInt->hSocket, pSgBuf);
-}
-
-/** @interface_method_impl{VDINTERFACETCPNET,pfnReadNB} */
-static DECLCALLBACK(int) drvvdTcpReadNB(VDSOCKET hVdSock, void *pvBuffer, size_t cbBuffer, size_t *pcbRead)
-{
-    PVDSOCKETINT pSockInt = (PVDSOCKETINT)hVdSock;
-
-    return RTTcpReadNB(pSockInt->hSocket, pvBuffer, cbBuffer, pcbRead);
-}
-
-/** @interface_method_impl{VDINTERFACETCPNET,pfnWriteNB} */
-static DECLCALLBACK(int) drvvdTcpWriteNB(VDSOCKET hVdSock, const void *pvBuffer, size_t cbBuffer, size_t *pcbWritten)
-{
-    PVDSOCKETINT pSockInt = (PVDSOCKETINT)hVdSock;
-
-    return RTTcpWriteNB(pSockInt->hSocket, pvBuffer, cbBuffer, pcbWritten);
-}
-
-/** @interface_method_impl{VDINTERFACETCPNET,pfnSgWriteNB} */
-static DECLCALLBACK(int) drvvdTcpSgWriteNB(VDSOCKET hVdSock, PRTSGBUF pSgBuf, size_t *pcbWritten)
-{
-    PVDSOCKETINT pSockInt = (PVDSOCKETINT)hVdSock;
-
-    return RTTcpSgWriteNB(pSockInt->hSocket, pSgBuf, pcbWritten);
-}
-
-/** @interface_method_impl{VDINTERFACETCPNET,pfnFlush} */
-static DECLCALLBACK(int) drvvdTcpFlush(VDSOCKET hVdSock)
-{
-    PVDSOCKETINT pSockInt = (PVDSOCKETINT)hVdSock;
-
-    return RTTcpFlush(pSockInt->hSocket);
-}
-
-/** @interface_method_impl{VDINTERFACETCPNET,pfnSetSendCoalescing} */
-static DECLCALLBACK(int) drvvdTcpSetSendCoalescing(VDSOCKET hVdSock, bool fEnable)
-{
-    PVDSOCKETINT pSockInt = (PVDSOCKETINT)hVdSock;
-
-    return RTTcpSetSendCoalescing(pSockInt->hSocket, fEnable);
-}
-
-/** @interface_method_impl{VDINTERFACETCPNET,pfnGetLocalAddress} */
-static DECLCALLBACK(int) drvvdTcpGetLocalAddress(VDSOCKET hVdSock, PRTNETADDR pAddr)
-{
-    PVDSOCKETINT pSockInt = (PVDSOCKETINT)hVdSock;
-
-    return RTTcpGetLocalAddress(pSockInt->hSocket, pAddr);
-}
-
-/** @interface_method_impl{VDINTERFACETCPNET,pfnGetPeerAddress} */
-static DECLCALLBACK(int) drvvdTcpGetPeerAddress(VDSOCKET hVdSock, PRTNETADDR pAddr)
-{
-    PVDSOCKETINT pSockInt = (PVDSOCKETINT)hVdSock;
-
-    return RTTcpGetPeerAddress(pSockInt->hSocket, pAddr);
-}
-
-static DECLCALLBACK(int) drvvdTcpSelectOneExPoll(VDSOCKET hVdSock, uint32_t fEvents,
-                                                 uint32_t *pfEvents, RTMSINTERVAL cMillies)
-{
-    int rc = VINF_SUCCESS;
-    uint32_t id = 0;
-    uint32_t fEventsRecv = 0;
-    PVDSOCKETINT pSockInt = (PVDSOCKETINT)hVdSock;
-
-    *pfEvents = 0;
-
-    if (   pSockInt->fEventsOld != fEvents
-        && pSockInt->hSocket != NIL_RTSOCKET)
-    {
-        uint32_t fPollEvents = 0;
-
-        if (fEvents & VD_INTERFACETCPNET_EVT_READ)
-            fPollEvents |= RTPOLL_EVT_READ;
-        if (fEvents & VD_INTERFACETCPNET_EVT_WRITE)
-            fPollEvents |= RTPOLL_EVT_WRITE;
-        if (fEvents & VD_INTERFACETCPNET_EVT_ERROR)
-            fPollEvents |= RTPOLL_EVT_ERROR;
-
-        rc = RTPollSetEventsChange(pSockInt->hPollSet, VDSOCKET_POLL_ID_SOCKET, fPollEvents);
-        if (RT_FAILURE(rc))
-            return rc;
-
-        pSockInt->fEventsOld = fEvents;
-    }
-
-    ASMAtomicXchgBool(&pSockInt->fWaiting, true);
-    if (ASMAtomicXchgBool(&pSockInt->fWokenUp, false))
-    {
-        ASMAtomicXchgBool(&pSockInt->fWaiting, false);
-        return VERR_INTERRUPTED;
-    }
-
-    rc = RTPoll(pSockInt->hPollSet, cMillies, &fEventsRecv, &id);
-    Assert(RT_SUCCESS(rc) || rc == VERR_TIMEOUT);
-
-    ASMAtomicXchgBool(&pSockInt->fWaiting, false);
-
-    if (RT_SUCCESS(rc))
-    {
-        if (id == VDSOCKET_POLL_ID_SOCKET)
-        {
-            fEventsRecv &= RTPOLL_EVT_VALID_MASK;
-
-            if (fEventsRecv & RTPOLL_EVT_READ)
-                *pfEvents |= VD_INTERFACETCPNET_EVT_READ;
-            if (fEventsRecv & RTPOLL_EVT_WRITE)
-                *pfEvents |= VD_INTERFACETCPNET_EVT_WRITE;
-            if (fEventsRecv & RTPOLL_EVT_ERROR)
-                *pfEvents |= VD_INTERFACETCPNET_EVT_ERROR;
-        }
-        else
-        {
-            size_t cbRead = 0;
-            uint8_t abBuf[10];
-            Assert(id == VDSOCKET_POLL_ID_PIPE);
-            Assert((fEventsRecv & RTPOLL_EVT_VALID_MASK) == RTPOLL_EVT_READ);
-
-            /* We got interrupted, drain the pipe. */
-            rc = RTPipeRead(pSockInt->hPipeR, abBuf, sizeof(abBuf), &cbRead);
-            AssertRC(rc);
-
-            ASMAtomicXchgBool(&pSockInt->fWokenUp, false);
-
-            rc = VERR_INTERRUPTED;
-        }
-    }
-
-    return rc;
-}
-
-/** @interface_method_impl{VDINTERFACETCPNET,pfnSelectOneEx} */
-static DECLCALLBACK(int) drvvdTcpSelectOneExNoPoll(VDSOCKET hVdSock, uint32_t fEvents, uint32_t *pfEvents, RTMSINTERVAL cMillies)
-{
-    RT_NOREF(cMillies); /** @todo timeouts */
-    int rc = VINF_SUCCESS;
-    PVDSOCKETINT pSockInt = (PVDSOCKETINT)hVdSock;
-
-    *pfEvents = 0;
-
-    ASMAtomicXchgBool(&pSockInt->fWaiting, true);
-    if (ASMAtomicXchgBool(&pSockInt->fWokenUp, false))
-    {
-        ASMAtomicXchgBool(&pSockInt->fWaiting, false);
-        return VERR_INTERRUPTED;
-    }
-
-    if (   pSockInt->hSocket == NIL_RTSOCKET
-        || !fEvents)
-    {
-        /*
-         * Only the pipe is configured or the caller doesn't wait for a socket event,
-         * wait until there is something to read from the pipe.
-         */
-        size_t cbRead = 0;
-        char ch = 0;
-        rc = RTPipeReadBlocking(pSockInt->hPipeR, &ch, 1, &cbRead);
-        if (RT_SUCCESS(rc))
-        {
-            Assert(cbRead == 1);
-            rc = VERR_INTERRUPTED;
-            ASMAtomicXchgBool(&pSockInt->fWokenUp, false);
-        }
-    }
-    else
-    {
-        uint32_t fSelectEvents = 0;
-
-        if (fEvents & VD_INTERFACETCPNET_EVT_READ)
-            fSelectEvents |= RTSOCKET_EVT_READ;
-        if (fEvents & VD_INTERFACETCPNET_EVT_WRITE)
-            fSelectEvents |= RTSOCKET_EVT_WRITE;
-        if (fEvents & VD_INTERFACETCPNET_EVT_ERROR)
-            fSelectEvents |= RTSOCKET_EVT_ERROR;
-
-        if (fEvents & VD_INTERFACETCPNET_HINT_INTERRUPT)
-        {
-            uint32_t fEventsRecv = 0;
-
-            /* Make sure the socket is not in the pollset. */
-            rc = RTPollSetRemove(pSockInt->hPollSet, VDSOCKET_POLL_ID_SOCKET);
-            Assert(RT_SUCCESS(rc) || rc == VERR_POLL_HANDLE_ID_NOT_FOUND);
-
-            for (;;)
-            {
-                uint32_t id = 0;
-                rc = RTPoll(pSockInt->hPollSet, 5, &fEvents, &id);
-                if (rc == VERR_TIMEOUT)
-                {
-                    /* Check the socket. */
-                    rc = RTTcpSelectOneEx(pSockInt->hSocket, fSelectEvents, &fEventsRecv, 0);
-                    if (RT_SUCCESS(rc))
-                    {
-                        if (fEventsRecv & RTSOCKET_EVT_READ)
-                            *pfEvents |= VD_INTERFACETCPNET_EVT_READ;
-                        if (fEventsRecv & RTSOCKET_EVT_WRITE)
-                            *pfEvents |= VD_INTERFACETCPNET_EVT_WRITE;
-                        if (fEventsRecv & RTSOCKET_EVT_ERROR)
-                            *pfEvents |= VD_INTERFACETCPNET_EVT_ERROR;
-                        break; /* Quit */
-                    }
-                    else if (rc != VERR_TIMEOUT)
-                        break;
-                }
-                else if (RT_SUCCESS(rc))
-                {
-                    size_t cbRead = 0;
-                    uint8_t abBuf[10];
-                    Assert(id == VDSOCKET_POLL_ID_PIPE);
-                    Assert((fEventsRecv & RTPOLL_EVT_VALID_MASK) == RTPOLL_EVT_READ);
-
-                    /* We got interrupted, drain the pipe. */
-                    rc = RTPipeRead(pSockInt->hPipeR, abBuf, sizeof(abBuf), &cbRead);
-                    AssertRC(rc);
-
-                    ASMAtomicXchgBool(&pSockInt->fWokenUp, false);
-
-                    rc = VERR_INTERRUPTED;
-                    break;
-                }
-                else
-                    break;
-            }
-        }
-        else /* The caller waits for a socket event. */
-        {
-            uint32_t fEventsRecv = 0;
-
-            /* Loop until we got woken up or a socket event occurred. */
-            for (;;)
-            {
-                /** @todo find an adaptive wait algorithm based on the
-                 * number of wakeups in the past. */
-                rc = RTTcpSelectOneEx(pSockInt->hSocket, fSelectEvents, &fEventsRecv, 5);
-                if (rc == VERR_TIMEOUT)
-                {
-                    /* Check if there is an event pending. */
-                    size_t cbRead = 0;
-                    char ch = 0;
-                    rc = RTPipeRead(pSockInt->hPipeR, &ch, 1, &cbRead);
-                    if (RT_SUCCESS(rc) && rc != VINF_TRY_AGAIN)
-                    {
-                        Assert(cbRead == 1);
-                        rc = VERR_INTERRUPTED;
-                        ASMAtomicXchgBool(&pSockInt->fWokenUp, false);
-                        break; /* Quit */
-                    }
-                    else
-                        Assert(rc == VINF_TRY_AGAIN);
-                }
-                else if (RT_SUCCESS(rc))
-                {
-                    if (fEventsRecv & RTSOCKET_EVT_READ)
-                        *pfEvents |= VD_INTERFACETCPNET_EVT_READ;
-                    if (fEventsRecv & RTSOCKET_EVT_WRITE)
-                        *pfEvents |= VD_INTERFACETCPNET_EVT_WRITE;
-                    if (fEventsRecv & RTSOCKET_EVT_ERROR)
-                        *pfEvents |= VD_INTERFACETCPNET_EVT_ERROR;
-                    break; /* Quit */
-                }
-                else
-                    break;
-            }
-        }
-    }
-
-    ASMAtomicXchgBool(&pSockInt->fWaiting, false);
-
-    return rc;
-}
-
-/** @interface_method_impl{VDINTERFACETCPNET,pfnPoke} */
-static DECLCALLBACK(int) drvvdTcpPoke(VDSOCKET hVdSock)
-{
-    int rc = VINF_SUCCESS;
-    size_t cbWritten = 0;
-    PVDSOCKETINT pSockInt = (PVDSOCKETINT)hVdSock;
-
-    ASMAtomicXchgBool(&pSockInt->fWokenUp, true);
-
-    if (ASMAtomicReadBool(&pSockInt->fWaiting))
-    {
-        rc = RTPipeWrite(pSockInt->hPipeW, "", 1, &cbWritten);
-        Assert(RT_SUCCESS(rc) || cbWritten == 0);
-    }
-
-    return VINF_SUCCESS;
-}
-
 /**
  * Checks the prerequisites for encrypted I/O.
  *
@@ -2047,9 +1555,6 @@ static DECLCALLBACK(int) drvvdWrite(PPDMIMEDIA pInterface,
         AssertMsgFailed(("Invalid state! Not mounted!\n"));
         return VERR_PDM_MEDIA_NOT_MOUNTED;
     }
-
-    /* Set an FTM checkpoint as this operation changes the state permanently. */
-    PDMDrvHlpFTSetCheckpoint(pThis->pDrvIns, FTMCHECKPOINTTYPE_STORAGE);
 
     int rc = drvvdKeyCheckPrereqs(pThis, true /* fSetError */);
     if (RT_FAILURE(rc))
@@ -3653,7 +3158,6 @@ DECLINLINE(bool) drvvdMediaExIoReqIsVmRunning(PVBOXDISK pThis)
     if (   enmVmState == VMSTATE_RESUMING
         || enmVmState == VMSTATE_RUNNING
         || enmVmState == VMSTATE_RUNNING_LS
-        || enmVmState == VMSTATE_RUNNING_FT
         || enmVmState == VMSTATE_RESETTING
         || enmVmState == VMSTATE_RESETTING_LS
         || enmVmState == VMSTATE_SOFT_RESETTING
@@ -4126,12 +3630,13 @@ static DECLCALLBACK(int) drvvdIoReqDiscard(PPDMIMEDIAEX pInterface, PDMMEDIAEXIO
 /**
  * @interface_method_impl{PDMIMEDIAEX,pfnIoReqSendScsiCmd}
  */
-static DECLCALLBACK(int) drvvdIoReqSendScsiCmd(PPDMIMEDIAEX pInterface, PDMMEDIAEXIOREQ hIoReq, uint32_t uLun,
-                                               const uint8_t *pbCdb, size_t cbCdb, PDMMEDIAEXIOREQSCSITXDIR enmTxDir,
-                                               size_t cbBuf, uint8_t *pabSense, size_t cbSense, uint8_t *pu8ScsiSts,
-                                               uint32_t cTimeoutMillies)
+static DECLCALLBACK(int) drvvdIoReqSendScsiCmd(PPDMIMEDIAEX pInterface, PDMMEDIAEXIOREQ hIoReq,
+                                               uint32_t uLun, const uint8_t *pbCdb, size_t cbCdb,
+                                               PDMMEDIAEXIOREQSCSITXDIR enmTxDir, PDMMEDIAEXIOREQSCSITXDIR *penmTxDirRet,
+                                               size_t cbBuf, uint8_t *pabSense, size_t cbSense, size_t *pcbSenseRet,
+                                               uint8_t *pu8ScsiSts, uint32_t cTimeoutMillies)
 {
-    RT_NOREF10(pInterface, uLun, pbCdb, cbCdb, enmTxDir, cbBuf, pabSense, cbSense, pu8ScsiSts, cTimeoutMillies);
+    RT_NOREF12(pInterface, uLun, pbCdb, cbCdb, enmTxDir, penmTxDirRet, cbBuf, pabSense, cbSense, pcbSenseRet, pu8ScsiSts, cTimeoutMillies);
     PPDMMEDIAEXIOREQINT pIoReq = hIoReq;
     VDIOREQSTATE enmState = (VDIOREQSTATE)ASMAtomicReadU32((volatile uint32_t *)&pIoReq->enmState);
 
@@ -4554,56 +4059,60 @@ static VDTYPE drvvdGetVDFromMediaType(PDMMEDIATYPE enmType)
 static int drvvdStatsRegister(PVBOXDISK pThis)
 {
     PPDMDRVINS pDrvIns = pThis->pDrvIns;
-    uint32_t iInstance, iLUN;
-    const char *pcszController;
 
-    int rc = pThis->pDrvMediaPort->pfnQueryDeviceLocation(pThis->pDrvMediaPort, &pcszController,
-                                                          &iInstance, &iLUN);
-    if (RT_SUCCESS(rc))
-    {
-        char *pszCtrlUpper = RTStrDup(pcszController);
-        if (pszCtrlUpper)
-        {
-            RTStrToUpper(pszCtrlUpper);
+    /*
+     * Figure out where to place the stats.
+     */
+    uint32_t iInstance = 0;
+    uint32_t iLUN = 0;
+    const char *pcszController = NULL;
+    int rc = pThis->pDrvMediaPort->pfnQueryDeviceLocation(pThis->pDrvMediaPort, &pcszController, &iInstance, &iLUN);
+    AssertRCReturn(rc, rc);
 
-            PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatQueryBufAttempts, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS,
-                                   STAMUNIT_COUNT, "Number of attempts to query a direct buffer.",
-                                   "/Devices/%s%u/Port%u/QueryBufAttempts", pszCtrlUpper, iInstance, iLUN);
-            PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatQueryBufSuccess, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS,
-                                   STAMUNIT_COUNT, "Number of succeeded attempts to query a direct buffer.",
-                                   "/Devices/%s%u/Port%u/QueryBufSuccess", pszCtrlUpper, iInstance, iLUN);
+    /*
+     * Compose the prefix for the statistics to reduce the amount of repetition below.
+     * The /Public/ bits are official and used by session info in the GUI.
+     */
+    char szCtrlUpper[32];
+    rc = RTStrCopy(szCtrlUpper, sizeof(szCtrlUpper), pcszController);
+    AssertRCReturn(rc, rc);
 
-            PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatBytesRead, STAMTYPE_COUNTER, STAMVISIBILITY_USED, STAMUNIT_BYTES,
-                                   "Amount of data read.", "/Devices/%s%u/Port%u/ReadBytes", pszCtrlUpper, iInstance, iLUN);
-            PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatBytesWritten, STAMTYPE_COUNTER, STAMVISIBILITY_USED, STAMUNIT_BYTES,
-                                   "Amount of data written.", "/Devices/%s%u/Port%u/WrittenBytes", pszCtrlUpper, iInstance, iLUN);
+    RTStrToUpper(szCtrlUpper);
+    char szPrefix[128];
+    RTStrPrintf(szPrefix, sizeof(szPrefix), "/Public/Storage/%s%u/Port%u", szCtrlUpper, iInstance, iLUN);
 
-            PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatReqsSubmitted, STAMTYPE_COUNTER, STAMVISIBILITY_USED, STAMUNIT_COUNT,
-                                   "Number of I/O requests submitted.", "/Devices/%s%u/Port%u/ReqsSubmitted", pszCtrlUpper, iInstance, iLUN);
-            PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatReqsFailed, STAMTYPE_COUNTER, STAMVISIBILITY_USED, STAMUNIT_COUNT,
-                                   "Number of I/O requests failed.", "/Devices/%s%u/Port%u/ReqsFailed", pszCtrlUpper, iInstance, iLUN);
-            PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatReqsSucceeded, STAMTYPE_COUNTER, STAMVISIBILITY_USED, STAMUNIT_COUNT,
-                                   "Number of I/O requests succeeded.", "/Devices/%s%u/Port%u/ReqsSucceeded", pszCtrlUpper, iInstance, iLUN);
-            PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatReqsFlush, STAMTYPE_COUNTER, STAMVISIBILITY_USED, STAMUNIT_COUNT,
-                                   "Number of flush I/O requests submitted.", "/Devices/%s%u/Port%u/ReqsFlush", pszCtrlUpper, iInstance, iLUN);
-            PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatReqsWrite, STAMTYPE_COUNTER, STAMVISIBILITY_USED, STAMUNIT_COUNT,
-                                   "Number of write I/O requests submitted.", "/Devices/%s%u/Port%u/ReqsWrite", pszCtrlUpper, iInstance, iLUN);
-            PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatReqsRead, STAMTYPE_COUNTER, STAMVISIBILITY_USED, STAMUNIT_COUNT,
-                                   "Number of read I/O requests submitted.", "/Devices/%s%u/Port%u/ReqsRead", pszCtrlUpper, iInstance, iLUN);
-            PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatReqsDiscard, STAMTYPE_COUNTER, STAMVISIBILITY_USED, STAMUNIT_COUNT,
-                                   "Number of discard I/O requests submitted.", "/Devices/%s%u/Port%u/ReqsDiscard", pszCtrlUpper, iInstance, iLUN);
+    /*
+     * Do the registrations.
+     */
+    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatQueryBufAttempts,   STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT,
+                           "Number of attempts to query a direct buffer.",              "%s/QueryBufAttempts", szPrefix);
+    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatQueryBufSuccess,    STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT,
+                           "Number of succeeded attempts to query a direct buffer.",    "%s/QueryBufSuccess", szPrefix);
 
-            PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatReqsPerSec, STAMTYPE_COUNTER, STAMVISIBILITY_USED, STAMUNIT_OCCURENCES,
-                                   "Number of processed I/O requests per second.", "/Devices/%s%u/Port%u/ReqsPerSec",
-                                   pszCtrlUpper, iInstance, iLUN);
+    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatBytesRead,          STAMTYPE_COUNTER, STAMVISIBILITY_USED, STAMUNIT_BYTES,
+                           "Amount of data read.",                          "%s/BytesRead", szPrefix);
+    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatBytesWritten,       STAMTYPE_COUNTER, STAMVISIBILITY_USED, STAMUNIT_BYTES,
+                           "Amount of data written.",                       "%s/BytesWritten", szPrefix);
 
-            RTStrFree(pszCtrlUpper);
-        }
-        else
-            rc = VERR_NO_STR_MEMORY;
-    }
+    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatReqsSubmitted,      STAMTYPE_COUNTER, STAMVISIBILITY_USED, STAMUNIT_COUNT,
+                           "Number of I/O requests submitted.",             "%s/ReqsSubmitted", szPrefix);
+    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatReqsFailed,         STAMTYPE_COUNTER, STAMVISIBILITY_USED, STAMUNIT_COUNT,
+                           "Number of I/O requests failed.",                "%s/ReqsFailed", szPrefix);
+    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatReqsSucceeded,      STAMTYPE_COUNTER, STAMVISIBILITY_USED, STAMUNIT_COUNT,
+                           "Number of I/O requests succeeded.",             "%s/ReqsSucceeded", szPrefix);
+    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatReqsFlush,          STAMTYPE_COUNTER, STAMVISIBILITY_USED, STAMUNIT_COUNT,
+                           "Number of flush I/O requests submitted.",       "%s/ReqsFlush", szPrefix);
+    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatReqsWrite,          STAMTYPE_COUNTER, STAMVISIBILITY_USED, STAMUNIT_COUNT,
+                           "Number of write I/O requests submitted.",       "%s/ReqsWrite", szPrefix);
+    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatReqsRead,           STAMTYPE_COUNTER, STAMVISIBILITY_USED, STAMUNIT_COUNT,
+                           "Number of read I/O requests submitted.",        "%s/ReqsRead", szPrefix);
+    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatReqsDiscard,        STAMTYPE_COUNTER, STAMVISIBILITY_USED, STAMUNIT_COUNT,
+                           "Number of discard I/O requests submitted.",     "%s/ReqsDiscard", szPrefix);
 
-    return rc;
+    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatReqsPerSec,         STAMTYPE_COUNTER, STAMVISIBILITY_USED, STAMUNIT_OCCURENCES,
+                           "Number of processed I/O requests per second.",  "%s/ReqsPerSec", szPrefix);
+
+    return VINF_SUCCESS;
 }
 
 /**
@@ -5594,46 +5103,7 @@ static DECLCALLBACK(int) drvvdConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint
             /* Construct TCPNET callback table depending on the config. This is
              * done unconditionally, as uninterested backends will ignore it. */
             if (fHostIP)
-            {
-                pImage->VDIfTcpNet.pfnSocketCreate = drvvdTcpSocketCreate;
-                pImage->VDIfTcpNet.pfnSocketDestroy = drvvdTcpSocketDestroy;
-                pImage->VDIfTcpNet.pfnClientConnect = drvvdTcpClientConnect;
-                pImage->VDIfTcpNet.pfnIsClientConnected = drvvdTcpIsClientConnected;
-                pImage->VDIfTcpNet.pfnClientClose = drvvdTcpClientClose;
-                pImage->VDIfTcpNet.pfnSelectOne = drvvdTcpSelectOne;
-                pImage->VDIfTcpNet.pfnRead = drvvdTcpRead;
-                pImage->VDIfTcpNet.pfnWrite = drvvdTcpWrite;
-                pImage->VDIfTcpNet.pfnSgWrite = drvvdTcpSgWrite;
-                pImage->VDIfTcpNet.pfnReadNB = drvvdTcpReadNB;
-                pImage->VDIfTcpNet.pfnWriteNB = drvvdTcpWriteNB;
-                pImage->VDIfTcpNet.pfnSgWriteNB = drvvdTcpSgWriteNB;
-                pImage->VDIfTcpNet.pfnFlush = drvvdTcpFlush;
-                pImage->VDIfTcpNet.pfnSetSendCoalescing = drvvdTcpSetSendCoalescing;
-                pImage->VDIfTcpNet.pfnGetLocalAddress = drvvdTcpGetLocalAddress;
-                pImage->VDIfTcpNet.pfnGetPeerAddress = drvvdTcpGetPeerAddress;
-
-                /*
-                 * There is a 15ms delay between receiving the data and marking the socket
-                 * as readable on Windows XP which hurts async I/O performance of
-                 * TCP backends badly. Provide a different select method without
-                 * using poll on XP.
-                 * This is only used on XP because it is not as efficient as the one using poll
-                 * and all other Windows versions are working fine.
-                 */
-                char szOS[64];
-                memset(szOS, 0, sizeof(szOS));
-                rc = RTSystemQueryOSInfo(RTSYSOSINFO_PRODUCT, &szOS[0], sizeof(szOS));
-
-                if (RT_SUCCESS(rc) && !strncmp(szOS, "Windows XP", 10))
-                {
-                    LogRel(("VD: Detected Windows XP, disabled poll based waiting for TCP\n"));
-                    pImage->VDIfTcpNet.pfnSelectOneEx = drvvdTcpSelectOneExNoPoll;
-                }
-                else
-                    pImage->VDIfTcpNet.pfnSelectOneEx = drvvdTcpSelectOneExPoll;
-
-                pImage->VDIfTcpNet.pfnPoke = drvvdTcpPoke;
-            }
+                rc = VDIfTcpNetInstDefaultCreate(&pImage->hVdIfTcpNet, &pImage->pVDIfsImage);
             else
             {
 #ifndef VBOX_WITH_INIP
@@ -5655,12 +5125,13 @@ static DECLCALLBACK(int) drvvdConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint
                 pImage->VDIfTcpNet.pfnGetPeerAddress = drvvdINIPGetPeerAddress;
                 pImage->VDIfTcpNet.pfnSelectOneEx = drvvdINIPSelectOneEx;
                 pImage->VDIfTcpNet.pfnPoke = drvvdINIPPoke;
+
+                rc = VDInterfaceAdd(&pImage->VDIfTcpNet.Core, "DrvVD_TCPNET",
+                                    VDINTERFACETYPE_TCPNET, NULL,
+                                    sizeof(VDINTERFACETCPNET), &pImage->pVDIfsImage);
+                AssertRC(rc);
 #endif /* VBOX_WITH_INIP */
             }
-            rc = VDInterfaceAdd(&pImage->VDIfTcpNet.Core, "DrvVD_TCPNET",
-                                VDINTERFACETYPE_TCPNET, NULL,
-                                sizeof(VDINTERFACETCPNET), &pImage->pVDIfsImage);
-            AssertRC(rc);
 
             /* Insert the custom I/O interface only if we're told to use new IO.
              * Since the I/O interface is per image we could make this more

@@ -110,7 +110,7 @@ int main(int argc, char **argv)
                 return RTEXITCODE_SUCCESS;
 
             case 'V':
-                RTPrintf("$Revision: 127855 $\n");
+                RTPrintf("$Revision: 129781 $\n");
                 return RTEXITCODE_SUCCESS;
 
             case 's':
@@ -172,6 +172,7 @@ int main(int argc, char **argv)
         }
     }
 
+    RTHttpDestroy(hHttp);
     return rcExit;
 }
 

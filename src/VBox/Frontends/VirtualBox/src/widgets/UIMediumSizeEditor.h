@@ -22,10 +22,12 @@
 #endif
 
 /* Qt includes: */
+#include <QRegularExpression>
 #include <QWidget>
 
 /* GUI includes: */
 #include "QIWithRetranslateUI.h"
+#include "UIDefs.h"
 #include "UILibraryDefs.h"
 
 /* Forward declarations: */
@@ -52,7 +54,7 @@ public:
 
     /** Returns the medium size. */
     qulonglong mediumSize() const { return m_uSize; }
-    /** Defines the @a uSize. */
+    /** Sets the initial medium size as the widget is created. */
     void setMediumSize(qulonglong uSize);
 
 protected:
@@ -64,9 +66,8 @@ private slots:
 
     /** Handles size slider change. */
     void sltSizeSliderChanged(int iValue);
-    /** Handles size editor change. */
-    void sltSizeEditorChanged(const QString &strValue);
-    void sltSizeEditorEditingFinished();
+    /** Handles size editor text edit finished signal. */
+    void sltSizeEditorTextChanged();
 
 private:
 
@@ -85,6 +86,7 @@ private:
     void updateSizeToolTips(qulonglong uSize);
     /** Checks if the uSize is divisible by m_uSectorSize */
     qulonglong checkSectorSizeAlignment(qulonglong uSize);
+    QString ensureSizeSuffix(const QString &strSizeString);
 
     /* Holds the block size. We force m_uSize to be multiple of this number. */
     static const qulonglong m_uSectorSize;
@@ -96,6 +98,7 @@ private:
     const int         m_iSliderScale;
     /** Holds the current medium size. */
     qulonglong        m_uSize;
+    SizeSuffix        m_enmSizeSuffix;
 
     /** Holds the size slider. */
     QSlider    *m_pSlider;
@@ -105,6 +108,9 @@ private:
     QLabel     *m_pLabelMaxSize;
     /** Holds the size editor. */
     QILineEdit *m_pEditor;
+
+    /* A regular expression used to remove any character from a QString which is neither a digit nor decimal separator. */
+    QRegularExpression m_regExNonDigitOrSeparator;
 };
 
 #endif /* !FEQT_INCLUDED_SRC_widgets_UIMediumSizeEditor_h */

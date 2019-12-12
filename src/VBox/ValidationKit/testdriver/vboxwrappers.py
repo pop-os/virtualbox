@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # $Id: vboxwrappers.py $
-# pylint: disable=C0302
+# pylint: disable=too-many-lines
 
 """
 VirtualBox Wrapper Classes
@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 134786 $"
 
 
 # Standard Python imports.
@@ -92,16 +92,17 @@ def _nameMachineState(eState):
     if eState == vboxcon.MachineState_Restoring: return 'Restoring';
     if eState == vboxcon.MachineState_TeleportingPausedVM: return 'TeleportingPausedVM';
     if eState == vboxcon.MachineState_TeleportingIn: return 'TeleportingIn';
-    if eState == vboxcon.MachineState_FaultTolerantSyncing: return 'FaultTolerantSyncing';
     if eState == vboxcon.MachineState_DeletingSnapshotOnline: return 'DeletingSnapshotOnline';
     if eState == vboxcon.MachineState_DeletingSnapshotPaused: return 'DeletingSnapshotPaused';
     if eState == vboxcon.MachineState_RestoringSnapshot: return 'RestoringSnapshot';
     if eState == vboxcon.MachineState_DeletingSnapshot: return 'DeletingSnapshot';
     if eState == vboxcon.MachineState_SettingUp: return 'SettingUp';
+    if hasattr(vboxcon, 'MachineState_FaultTolerantSyncing'):
+        if eState == vboxcon.MachineState_FaultTolerantSyncing: return 'FaultTolerantSyncing';
     return 'Unknown-%s' % (eState,);
 
 
-class VirtualBoxWrapper(object): # pylint: disable=R0903
+class VirtualBoxWrapper(object): # pylint: disable=too-few-public-methods
     """
     Wrapper around the IVirtualBox object that adds some (hopefully) useful
     utility methods
@@ -236,6 +237,8 @@ class ProgressWrapper(TdTaskBase):
                 self.o.waitForCompletion(cMsToWait);
             except KeyboardInterrupt: raise;
             except: pass;
+            if self.fnProcessEvents:
+                self.fnProcessEvents();
             reporter.doPollWork('ProgressWrapper.waitForTask');
             fState = self.pollTask(False);
         return fState;
@@ -377,12 +380,15 @@ class ProgressWrapper(TdTaskBase):
         return sRet;
 
     def logResult(self, fIgnoreErrors = False):
-        """ Logs the result. """
+        """
+        Logs the result, failure logged as error unless fIgnoreErrors is True.
+        Return True on success, False on failure (and fIgnoreErrors is false).
+        """
         sText = self.stringifyResult();
-        if      self.isCompleted() and self.getResult() < 0 \
-            and fIgnoreErrors is False:
+        if self.isCompleted() and self.getResult() < 0 and fIgnoreErrors is False:
             return reporter.error(sText);
-        return reporter.log(sText);
+        reporter.log(sText);
+        return True;
 
     def waitOnProgress(self, cMsInterval = 1000):
         """
@@ -505,7 +511,7 @@ class ProgressWrapper(TdTaskBase):
         Queries everything that is stable and easy to get at and checks that
         they don't throw errors.
         """
-        if True is True:
+        if True is True: # pylint: disable=comparison-with-itself
             try:
                 iPct        = self.o.operationPercent;
                 sDesc       = self.o.description;
@@ -692,6 +698,8 @@ class SessionWrapper(TdTaskBase):
             try:    self.oVBoxMgr.waitForEvents(cMsSleep);
             except KeyboardInterrupt: raise;
             except: pass;
+            if self.fnProcessEvents:
+                self.fnProcessEvents();
             reporter.doPollWork('SessionWrapper.waitForTask');
             fState = self.pollTask(False);
         return fState;
@@ -775,8 +783,9 @@ class SessionWrapper(TdTaskBase):
             return True;
         if eState == vboxcon.MachineState_TeleportingIn:
             return True;
-        if eState == vboxcon.MachineState_FaultTolerantSyncing:
-            return True;
+        if hasattr(vboxcon, 'MachineState_FaultTolerantSyncing'):
+            if eState == vboxcon.MachineState_FaultTolerantSyncing:
+                return True;
         return False;
 
     def assertPoweredOff(self):
@@ -1276,12 +1285,11 @@ class SessionWrapper(TdTaskBase):
         """
         Helper that translate the adapter type into a driver name.
         """
-        if    eNicType == vboxcon.NetworkAdapterType_Am79C970A \
-           or eNicType == vboxcon.NetworkAdapterType_Am79C973:
+        if eNicType in (vboxcon.NetworkAdapterType_Am79C970A, vboxcon.NetworkAdapterType_Am79C973):
             sName = 'pcnet';
-        elif    eNicType == vboxcon.NetworkAdapterType_I82540EM \
-             or eNicType == vboxcon.NetworkAdapterType_I82543GC \
-             or eNicType == vboxcon.NetworkAdapterType_I82545EM:
+        elif eNicType in (vboxcon.NetworkAdapterType_I82540EM,
+                          vboxcon.NetworkAdapterType_I82543GC,
+                          vboxcon.NetworkAdapterType_I82545EM):
             sName = 'e1000';
         elif eNicType == vboxcon.NetworkAdapterType_Virtio:
             sName = 'virtio-net';
@@ -1431,6 +1439,7 @@ class SessionWrapper(TdTaskBase):
                             break;
                 except:
                     reporter.errorXcpt();
+
         elif eAttachmentType == vboxcon.NetworkAttachmentType_HostOnly:
             try:
                 aoHostNics = self.oVBoxMgr.getArray(self.oVBox.host, 'networkInterfaces');
@@ -1444,12 +1453,27 @@ class SessionWrapper(TdTaskBase):
             except:
                 reporter.errorXcpt();
             if sRetName == '':
-                sRetName = 'HostInterfaceNetwork-vboxnet0';
+                # Create a new host-only interface.
+                reporter.log("Creating host only NIC ...");
+                try:
+                    (oIProgress, oIHostOnly) = self.oVBox.host.createHostOnlyNetworkInterface();
+                    oProgress = ProgressWrapper(oIProgress, self.oVBoxMgr, self.oTstDrv, 'Create host only NIC');
+                    oProgress.wait();
+                    if oProgress.logResult() is False:
+                        return '';
+                    sRetName = oIHostOnly.name;
+                except:
+                    reporter.errorXcpt();
+                    return '';
+                reporter.log("Created host only NIC: '%s'" % (sRetName,));
+
         elif eAttachmentType == vboxcon.NetworkAttachmentType_Internal:
             sRetName = 'VBoxTest';
+
         elif eAttachmentType == vboxcon.NetworkAttachmentType_NAT:
             sRetName = '';
-        else:
+
+        else: ## @todo Support NetworkAttachmentType_NATNetwork
             reporter.error('eAttachmentType=%s is not known' % (eAttachmentType));
         return sRetName;
 
@@ -1510,8 +1534,8 @@ class SessionWrapper(TdTaskBase):
                         else:
                             oNic.hostInterface = sName;
                     except:
-                        reporter.errorXcpt('failed to set the hostInterface property on slot %s to "%s" for VM "%s"' \
-                            % (iNic, sName, self.sName));
+                        reporter.errorXcpt('failed to set the hostInterface property on slot %s to "%s" for VM "%s"'
+                                           % (iNic, sName, self.sName,));
                         return False;
                 elif eAttachmentType == vboxcon.NetworkAttachmentType_HostOnly:
                     try:
@@ -1520,22 +1544,22 @@ class SessionWrapper(TdTaskBase):
                         else:
                             oNic.hostInterface = sName;
                     except:
-                        reporter.errorXcpt('failed to set the internalNetwork property on slot %s to "%s" for VM "%s"' \
-                            % (iNic, sName, self.sName));
+                        reporter.errorXcpt('failed to set the internalNetwork property on slot %s to "%s" for VM "%s"'
+                                           % (iNic, sName, self.sName,));
                         return False;
                 elif eAttachmentType == vboxcon.NetworkAttachmentType_Internal:
                     try:
                         oNic.internalNetwork = sName;
                     except:
-                        reporter.errorXcpt('failed to set the internalNetwork property on slot %s to "%s" for VM "%s"' \
-                            % (iNic, sName, self.sName));
+                        reporter.errorXcpt('failed to set the internalNetwork property on slot %s to "%s" for VM "%s"'
+                                           % (iNic, sName, self.sName,));
                         return False;
                 elif eAttachmentType == vboxcon.NetworkAttachmentType_NAT:
                     try:
                         oNic.NATNetwork = sName;
                     except:
-                        reporter.errorXcpt('failed to set the NATNetwork property on slot %s to "%s" for VM "%s"' \
-                            % (iNic, sName, self.sName));
+                        reporter.errorXcpt('failed to set the NATNetwork property on slot %s to "%s" for VM "%s"'
+                                           % (iNic, sName, self.sName,));
                         return False;
             finally:
                 self.oTstDrv.processPendingEvents();
@@ -1548,12 +1572,17 @@ class SessionWrapper(TdTaskBase):
     def setNicMacAddress(self, sMacAddr, iNic = 0):
         """
         Sets the MAC address of the specified NIC.
+
+        The sMacAddr parameter is a string supplying the tail end of the MAC
+        address, missing quads are supplied from a constant byte (2), the IPv4
+        address of the host, and the NIC number.
+
         Returns True on success and False on failure.  Error information is logged.
         """
 
         # Resolve missing MAC address prefix by feeding in the host IP address bytes.
         cchMacAddr = len(sMacAddr);
-        if cchMacAddr > 0 and cchMacAddr < 12:
+        if 0 < cchMacAddr < 12:
             sHostIP = netutils.getPrimaryHostIp();
             abHostIP = socket.inet_aton(sHostIP);
             if sys.version_info[0] < 3:
@@ -1605,7 +1634,10 @@ class SessionWrapper(TdTaskBase):
         """
         fRc = True;
         try:
-            self.o.machine.VRAMSize = cMB;
+            if self.fpApiVer >= 6.1 and hasattr(self.o.machine, 'graphicsAdapter'):
+                self.o.machine.graphicsAdapter.VRAMSize = cMB;
+            else:
+                self.o.machine.VRAMSize = cMB;
         except:
             reporter.errorXcpt('failed to set the VRAM size of "%s" to %s' % (self.sName, cMB));
             fRc = False;
@@ -1916,7 +1948,7 @@ class SessionWrapper(TdTaskBase):
 
         return oHd;
 
-    def createAndAttachHd(self, sHd, sFmt = "VDI", sController = "IDE Controller", cb = 10*1024*1024*1024, # pylint: disable=R0913
+    def createAndAttachHd(self, sHd, sFmt = "VDI", sController = "IDE Controller", cb = 10*1024*1024*1024, # pylint: disable=too-many-arguments
                           iPort = 0, iDevice = 0, fImmutable = True, cMsTimeout = 60000, tMediumVariant = None):
         """
         Creates and attaches a HD to a VM.
@@ -2106,7 +2138,7 @@ class SessionWrapper(TdTaskBase):
         self.oTstDrv.processPendingEvents();
         return True;
 
-    def setupPreferredConfig(self):                                             # pylint: disable=R0914
+    def setupPreferredConfig(self):                                             # pylint: disable=too-many-locals
         """
         Configures the VM according to the preferences of the guest type.
         """
@@ -2171,9 +2203,9 @@ class SessionWrapper(TdTaskBase):
             if not self.setFirmwareType(eFirmwareType): fRc = False;
             if not self.enableUsbHid(fUsbHid):          fRc = False;
             if not self.enableHpet(fHpet):              fRc = False;
-        if  eStorCtlType == vboxcon.StorageControllerType_PIIX3 \
-         or eStorCtlType == vboxcon.StorageControllerType_PIIX4 \
-         or eStorCtlType == vboxcon.StorageControllerType_ICH6:
+        if eStorCtlType in (vboxcon.StorageControllerType_PIIX3,
+                            vboxcon.StorageControllerType_PIIX4,
+                            vboxcon.StorageControllerType_ICH6,):
             if not self.setStorageControllerType(eStorCtlType, "IDE Controller"):
                 fRc = False;
         if self.fpApiVer >= 4.0:
@@ -2181,7 +2213,7 @@ class SessionWrapper(TdTaskBase):
 
         return fRc;
 
-    def addUsbDeviceFilter(self, sName, sVendorId = None, sProductId = None, sRevision = None, # pylint: disable=R0913
+    def addUsbDeviceFilter(self, sName, sVendorId = None, sProductId = None, sRevision = None, # pylint: disable=too-many-arguments
                            sManufacturer = None, sProduct = None, sSerialNumber = None,
                            sPort = None, sRemote = None):
         """
@@ -2946,7 +2978,7 @@ class SessionWrapper(TdTaskBase):
     # Test eXecution Service methods.
     #
 
-    def txsConnectViaTcp(self, cMsTimeout = 10*60000, sIpAddr = None, sMacAddr = None, fNatForwardingForTxs = False):
+    def txsConnectViaTcp(self, cMsTimeout = 10*60000, sIpAddr = None, fNatForwardingForTxs = False):
         """
         Connects to the TXS using TCP/IP as transport.  If no IP or MAC is
         addresses are specified, we'll get the IP from the guest additions.
@@ -2956,21 +2988,33 @@ class SessionWrapper(TdTaskBase):
         # If the VM is configured with a NAT interface, connect to local host.
         fReversedSetup = False;
         fUseNatForTxs  = False;
+        sMacAddr       = None;
+        oIDhcpServer   = None;
         if sIpAddr is None:
             try:
-                oNic = self.oVM.getNetworkAdapter(0);
-                if oNic.attachmentType == vboxcon.NetworkAttachmentType_NAT:
+                oNic              = self.oVM.getNetworkAdapter(0);
+                enmAttachmentType = oNic.attachmentType;
+                if enmAttachmentType == vboxcon.NetworkAttachmentType_NAT:
                     fUseNatForTxs = True;
+                elif enmAttachmentType == vboxcon.NetworkAttachmentType_HostOnly and not sIpAddr:
+                    # Get the MAC address and find the DHCP server.
+                    sMacAddr      = oNic.MACAddress;
+                    sHostOnlyNIC  = oNic.hostOnlyInterface;
+                    oIHostOnlyIf  = self.oVBox.host.findHostNetworkInterfaceByName(sHostOnlyNIC);
+                    sHostOnlyNet  = oIHostOnlyIf.networkName;
+                    oIDhcpServer  = self.oVBox.findDHCPServerByNetworkName(sHostOnlyNet);
             except:
                 reporter.errorXcpt();
                 return None;
+
         if fUseNatForTxs:
             fReversedSetup = not fNatForwardingForTxs;
             sIpAddr = '127.0.0.1';
 
         # Kick off the task.
         try:
-            oTask = TxsConnectTask(self, cMsTimeout, sIpAddr, sMacAddr, fReversedSetup);
+            oTask = TxsConnectTask(self, cMsTimeout, sIpAddr, sMacAddr, oIDhcpServer, fReversedSetup,
+                                   fnProcessEvents = self.oTstDrv.processPendingEvents);
         except:
             reporter.errorXcpt();
             oTask = None;
@@ -2990,7 +3034,8 @@ class SessionWrapper(TdTaskBase):
             raise base.GenError('Empty sHostname is not implemented yet');
 
         oTxsSession = txsclient.tryOpenTcpSession(cMsTimeout, sHostname, fReversedSetup = fReversed,
-                                                  cMsIdleFudge = cMsTimeout // 2);
+                                                  cMsIdleFudge = cMsTimeout // 2,
+                                                  fnProcessEvents = self.oTstDrv.processPendingEvents);
         if oTxsSession is None:
             return False;
 
@@ -3024,7 +3069,7 @@ class TxsConnectTask(TdTaskBase):
     class TxsConnectTaskVBoxCallback(vbox.VirtualBoxEventHandlerBase):
         """ Class for looking for IPv4 address changes on interface 0."""
         def __init__(self, dArgs):
-            vbox.VirtualBoxEventHandlerBase.__init__(self, dArgs);              # pylint: disable=W0233
+            vbox.VirtualBoxEventHandlerBase.__init__(self, dArgs);
             self.oParentTask = dArgs['oParentTask'];
             self.sMachineId  = dArgs['sMachineId'];
 
@@ -3035,22 +3080,27 @@ class TxsConnectTask(TdTaskBase):
               and sName  == '/VirtualBox/GuestInfo/Net/0/V4/IP':
                 oParentTask = self.oParentTask;
                 if oParentTask:
-                    oParentTask._setIp(sValue);                                # pylint: disable=W0212
+                    oParentTask._setIp(sValue);                                # pylint: disable=protected-access
 
 
-    def __init__(self, oSession, cMsTimeout, sIpAddr, sMacAddr, fReversedSetup):
-        TdTaskBase.__init__(self, utils.getCallerName());
+    def __init__(self, oSession, cMsTimeout, sIpAddr, sMacAddr, oIDhcpServer, fReversedSetup, fnProcessEvents = None):
+        TdTaskBase.__init__(self, utils.getCallerName(), fnProcessEvents = fnProcessEvents);
         self.cMsTimeout         = cMsTimeout;
+        self.fnProcessEvents    = fnProcessEvents;
         self.sIpAddr            = None;
         self.sNextIpAddr        = None;
         self.sMacAddr           = sMacAddr;
+        self.oIDhcpServer       = oIDhcpServer;
         self.fReversedSetup     = fReversedSetup;
         self.oVBoxEventHandler  = None;
         self.oTxsSession        = None;
 
-        # Skip things we don't implement.
-        if sMacAddr is not None:
-            reporter.error('TxsConnectTask does not implement sMacAddr yet');
+        # Check that the input makes sense:
+        if   (sMacAddr is None) != (oIDhcpServer is None)  \
+          or (sMacAddr and fReversedSetup) \
+          or (sMacAddr and sIpAddr):
+            reporter.error('TxsConnectTask sMacAddr=%s oIDhcpServer=%s sIpAddr=%s fReversedSetup=%s'
+                           % (sMacAddr, oIDhcpServer, sIpAddr, fReversedSetup,));
             raise base.GenError();
 
         reporter.log2('TxsConnectTask: sIpAddr=%s fReversedSetup=%s' % (sIpAddr, fReversedSetup))
@@ -3085,6 +3135,16 @@ class TxsConnectTask(TdTaskBase):
             else:
                 if sIpAddr is not None:
                     self._setIp(sIpAddr);
+
+            #
+            # If the network adapter of the VM is host-only we can talk poll IDHCPServer
+            # for the guest IP, allowing us to detect it for VMs without guest additions.
+            # This will when we're polled.
+            #
+            if sMacAddr is not None:
+                assert self.oIDhcpServer is not None;
+
+
         # end __init__
 
     def __del__(self):
@@ -3139,11 +3199,11 @@ class TxsConnectTask(TdTaskBase):
         """
         self.oCv.acquire();
         if self.oTxsSession is None:
-            reporter.log2('_openTcpSession: sIpAddr=%s, uPort=%d, fReversedSetup=%s' % \
+            reporter.log2('_openTcpSession: sIpAddr=%s, uPort=%d, fReversedSetup=%s' %
                           (sIpAddr, uPort if uPort is not None else 0, fReversedSetup));
             self.sIpAddr     = sIpAddr;
-            self.oTxsSession = txsclient.openTcpSession(self.cMsTimeout, sIpAddr, uPort, \
-                                                        fReversedSetup, cMsIdleFudge);
+            self.oTxsSession = txsclient.openTcpSession(self.cMsTimeout, sIpAddr, uPort, fReversedSetup,
+                                                        cMsIdleFudge, fnProcessEvents = self.fnProcessEvents);
             self.oTxsSession.setTaskOwner(self);
         else:
             self.sNextIpAddr = sIpAddr;
@@ -3189,6 +3249,45 @@ class TxsConnectTask(TdTaskBase):
             self._deregisterEventHandler();
         return True;
 
+    def _pollDhcpServer(self):
+        """
+        Polls the DHCP server by MAC address in host-only setups.
+        """
+
+        if self.sIpAddr:
+            return False;
+
+        if self.oIDhcpServer is None or not self.sMacAddr:
+            return False;
+
+        try:
+            (sIpAddr, sState, secIssued, secExpire) = self.oIDhcpServer.findLeaseByMAC(self.sMacAddr, 0);
+        except:
+            reporter.log4Xcpt('sMacAddr=%s' % (self.sMacAddr,));
+            return False;
+
+        secNow = utils.secondsSinceUnixEpoch();
+        reporter.log2('dhcp poll: secNow=%s secExpire=%s secIssued=%s sState=%s sIpAddr=%s'
+                      % (secNow, secExpire, secIssued, sState, sIpAddr,));
+        if secNow > secExpire or sState != 'acked' or not sIpAddr:
+            return False;
+
+        reporter.log('dhcp poll: sIpAddr=%s secExpire=%s (%s TTL) secIssued=%s (%s ago)'
+                     % (sIpAddr, secExpire, secExpire - secNow, secIssued, secNow - secIssued,));
+        self._setIp(sIpAddr);
+        return True;
+
+    #
+    # Task methods
+    #
+
+    def pollTask(self, fLocked = False):
+        """
+        Overridden pollTask method.
+        """
+        self._pollDhcpServer();
+        return TdTaskBase.pollTask(self, fLocked);
+
     #
     # Public methods
     #
@@ -3220,5 +3319,192 @@ class TxsConnectTask(TdTaskBase):
                 self.oCv.acquire();
             self.signalTaskLocked();
         self.oCv.release();
+        return True;
+
+
+
+class AdditionsStatusTask(TdTaskBase):
+    """
+    Class that takes care of waiting till the guest additions are in a given state.
+    """
+
+    class AdditionsStatusTaskCallback(vbox.EventHandlerBase):
+        """ Class for looking for IPv4 address changes on interface 0."""
+        def __init__(self, dArgs):
+            self.oParentTask = dArgs['oParentTask'];
+            vbox.EventHandlerBase.__init__(self, dArgs, self.oParentTask.oSession.fpApiVer,
+                                           'AdditionsStatusTaskCallback/%s' % (self.oParentTask.oSession.sName,));
+
+        def handleEvent(self, oEvt):
+            try:
+                enmType = oEvt.type;
+            except:
+                reporter.errorXcpt();
+            else:
+                reporter.log2('AdditionsStatusTaskCallback:handleEvent: enmType=%s' % (enmType,));
+                if enmType == vboxcon.VBoxEventType_OnGuestAdditionsStatusChanged:
+                    oParentTask = self.oParentTask;
+                    if oParentTask:
+                        oParentTask.pollTask();
+
+            # end
+
+
+    def __init__(self, oSession, oIGuest, cMsTimeout = 120000, aenmWaitForRunLevels = None, aenmWaitForActive = None,
+                 aenmWaitForInactive = None):
+        """
+        aenmWaitForRunLevels - List of run level values to wait for (success if one matches).
+        aenmWaitForActive    - List facilities (type values) that must be active.
+        aenmWaitForInactive  - List facilities (type values) that must be inactive.
+
+        The default is to wait for AdditionsRunLevelType_Userland if all three lists
+        are unspecified or empty.
+        """
+        TdTaskBase.__init__(self, utils.getCallerName());
+        self.oSession               = oSession      # type: vboxwrappers.SessionWrapper
+        self.oIGuest                = oIGuest;
+        self.cMsTimeout             = cMsTimeout;
+        self.fSucceeded             = False;
+        self.oVBoxEventHandler      = None;
+        self.aenmWaitForRunLevels   = aenmWaitForRunLevels if aenmWaitForRunLevels else [];
+        self.aenmWaitForActive      = aenmWaitForActive    if aenmWaitForActive    else [];
+        self.aenmWaitForInactive    = aenmWaitForInactive  if aenmWaitForInactive  else [];
+
+        # Provide a sensible default if nothing is given.
+        if not self.aenmWaitForRunLevels and not self.aenmWaitForActive and not self.aenmWaitForInactive:
+            self.aenmWaitForRunLevels = [vboxcon.AdditionsRunLevelType_Userland,];
+
+        # Register the event handler on hosts which has it:
+        if oSession.fpApiVer >= 6.1 or hasattr(vboxcon, 'VBoxEventType_OnGuestAdditionsStatusChanged'):
+            aenmEvents = (vboxcon.VBoxEventType_OnGuestAdditionsStatusChanged,);
+            dArgs = {
+                'oParentTask': self,
+            };
+            self.oVBoxEventHandler = vbox.EventHandlerBase.registerDerivedEventHandler(oSession.oVBoxMgr,
+                                                                                       oSession.fpApiVer,
+                                                                                       self.AdditionsStatusTaskCallback,
+                                                                                       dArgs,
+                                                                                       oIGuest,
+                                                                                       'IGuest',
+                                                                                       'AdditionsStatusTaskCallback',
+                                                                                       aenmEvents = aenmEvents);
+        reporter.log2('AdditionsStatusTask: %s' % (self.toString(), ));
+
+    def __del__(self):
+        """ Make sure we deregister the callback. """
+        self._deregisterEventHandler();
+        self.oIGuest = None;
+        return TdTaskBase.__del__(self);
+
+    def toString(self):
+        return '<%s cMsTimeout=%s, fSucceeded=%s, aenmWaitForRunLevels=%s, aenmWaitForActive=%s, aenmWaitForInactive=%s, ' \
+               'oVBoxEventHandler=%s>' \
+             % (TdTaskBase.toString(self), self.cMsTimeout, self.fSucceeded, self.aenmWaitForRunLevels, self.aenmWaitForActive,
+                self.aenmWaitForInactive, self.oVBoxEventHandler,);
+
+    def _deregisterEventHandler(self):
+        """Deregisters the event handler."""
+        fRc = True;
+        oVBoxEventHandler = self.oVBoxEventHandler;
+        if oVBoxEventHandler is not None:
+            self.oVBoxEventHandler = None;
+            fRc = oVBoxEventHandler.unregister();
+            oVBoxEventHandler.oParentTask = None; # Try avoid cylic deps.
+        return fRc;
+
+    def _poll(self):
+        """
+        Internal worker for pollTask() that returns the new signalled state.
+        """
+
+        #
+        # Check if any of the runlevels we wait for have been reached:
+        #
+        if self.aenmWaitForRunLevels:
+            try:
+                enmRunLevel = self.oIGuest.additionsRunLevel;
+            except:
+                reporter.errorXcpt();
+                return True;
+            if enmRunLevel not in self.aenmWaitForRunLevels:
+                reporter.log2('AdditionsStatusTask/poll: enmRunLevel=%s not in %s' % (enmRunLevel, self.aenmWaitForRunLevels,));
+                return False;
+            reporter.log2('AdditionsStatusTask/poll: enmRunLevel=%s matched %s!' % (enmRunLevel, self.aenmWaitForRunLevels,));
+
+
+        #
+        # Check for the facilities that must all be active.
+        #
+        for enmFacility in self.aenmWaitForActive:
+            try:
+                (enmStatus, _) = self.oIGuest.getFacilityStatus(enmFacility);
+            except:
+                reporter.errorXcpt('enmFacility=%s' % (enmFacility,));
+                return True;
+            if enmStatus != vboxcon.AdditionsFacilityStatus_Active:
+                reporter.log2('AdditionsStatusTask/poll: enmFacility=%s not active: %s' % (enmFacility, enmStatus,));
+                return False;
+
+        #
+        # Check for the facilities that must all be inactive or terminated.
+        #
+        for enmFacility in self.aenmWaitForInactive:
+            try:
+                (enmStatus, _) = self.oIGuest.getFacilityStatus(enmFacility);
+            except:
+                reporter.errorXcpt('enmFacility=%s' % (enmFacility,));
+                return True;
+            if enmStatus not in (vboxcon.AdditionsFacilityStatus_Inactive,
+                                 vboxcon.AdditionsFacilityStatus_Terminated):
+                reporter.log2('AdditionsStatusTask/poll: enmFacility=%s not inactive: %s' % (enmFacility, enmStatus,));
+                return False;
+
+
+        reporter.log('AdditionsStatusTask: Poll succeeded, signalling...');
+        self.fSucceeded = True;
+        return True;
+
+
+    #
+    # Task methods
+    #
+
+    def pollTask(self, fLocked = False):
+        """
+        Overridden pollTask method.
+        """
+        if not fLocked:
+            self.lockTask();
+
+        fDeregister = False;
+        fRc = self.fSignalled;
+        if not fRc:
+            fRc = self._poll();
+            if fRc or self.getAgeAsMs() >= self.cMsTimeout:
+                self.signalTaskLocked();
+                fDeregister = True;
+
+        if not fLocked:
+            self.unlockTask();
+
+        # If we're done, deregister the event callback (w/o owning lock).
+        if fDeregister:
+            self._deregisterEventHandler();
+        return fRc;
+
+    def getResult(self):
+        """
+        Returns true if the we succeeded.
+        Returns false if not.  If the task is signalled already, then we
+        encountered a problem while polling.
+        """
+        return self.fSucceeded;
+
+    def cancelTask(self):
+        """
+        Cancels the task.
+        Just to actively disengage the event handler.
+        """
+        self._deregisterEventHandler();
         return True;
 

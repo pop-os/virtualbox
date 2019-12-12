@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 131252 $"
 
 
 # Standard python imports.
@@ -142,7 +142,7 @@ class BuildCategoryData(ModelDataBase):
         return False;
 
 
-class BuildCategoryLogic(ModelLogicBase): # pylint: disable=R0903
+class BuildCategoryLogic(ModelLogicBase): # pylint: disable=too-few-public-methods
     """
     Build categories database logic.
     """
@@ -501,7 +501,7 @@ class BuildDataEx(BuildData):
 
 
 
-class BuildLogic(ModelLogicBase): # pylint: disable=R0903
+class BuildLogic(ModelLogicBase): # pylint: disable=too-few-public-methods
     """
     Build database logic (covers build categories as well as builds).
     """
@@ -724,7 +724,7 @@ class BuildLogic(ModelLogicBase): # pylint: disable=R0903
         aaoRows = self._oDb.fetchAll();
 
         for aoRow in aaoRows:
-            oBuildExRet = BuildDataEx().initFromDbRow(self, aoRow);
+            oBuildExRet = BuildDataEx().initFromDbRow(aoRow);
             if not self.isBuildBlacklisted(oBuildExRet):
                 return oBuildExRet;
 
@@ -866,7 +866,7 @@ class BuildLogic(ModelLogicBase): # pylint: disable=R0903
 # Unit testing.
 #
 
-# pylint: disable=C0111
+# pylint: disable=missing-docstring
 class BuildCategoryDataTestCase(ModelDataBaseTestCase):
     def setUp(self):
         self.aoSamples = [BuildCategoryData(),];

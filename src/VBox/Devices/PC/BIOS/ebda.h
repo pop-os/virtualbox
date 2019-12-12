@@ -1,6 +1,6 @@
 /* $Id: ebda.h $ */
 /** @file
- * PC BIOS - ???
+ * PC BIOS - EBDA (Extended BIOS Data Area) Definition
  */
 
 /*
@@ -88,19 +88,31 @@
     #define BX_MAX_AHCI_DEVICES 0
 #endif
 
-#define BX_MAX_STORAGE_DEVICES (BX_MAX_ATA_DEVICES + BX_MAX_SCSI_DEVICES + BX_MAX_AHCI_DEVICES)
+#ifdef VBOX_WITH_VIRTIO_SCSI
+    /* Four should be enough for now */
+    #define BX_MAX_VIRTIO_SCSI_DEVICES 4
+
+    /* An AHCI device starts always at BX_MAX_ATA_DEVICES + BX_MAX_SCSI_DEVICES. */
+    #define VBOX_IS_VIRTIO_SCSI_DEVICE(device_id) (device_id >= (BX_MAX_ATA_DEVICES + BX_MAX_SCSI_DEVICES + BX_MAX_AHCI_DEVICES))
+    #define VBOX_GET_VIRTIO_SCSI_DEVICE(device_id) (device_id - (BX_MAX_ATA_DEVICES + BX_MAX_SCSI_DEVICES + BX_MAX_AHCI_DEVICES))
+#else
+    #define BX_MAX_VIRTIO_SCSI_DEVICES 0
+#endif
+
+#define BX_MAX_STORAGE_DEVICES (BX_MAX_ATA_DEVICES + BX_MAX_SCSI_DEVICES + BX_MAX_AHCI_DEVICES + BX_MAX_VIRTIO_SCSI_DEVICES)
 
 /* Generic storage device types. These depend on the controller type and
  * determine which device access routines should be called.
  */
 enum dsk_type_enm {
-    DSK_TYPE_NONE,      /* Unknown device. */
-    DSK_TYPE_UNKNOWN,   /* Unknown ATA device. */
-    DSK_TYPE_ATA,       /* ATA disk. */
-    DSK_TYPE_ATAPI,     /* ATAPI device. */
-    DSK_TYPE_SCSI,      /* SCSI disk. */
-    DSK_TYPE_AHCI,      /* SATA disk via AHCI. */
-    DSKTYP_CNT          /* Number of disk types. */
+    DSK_TYPE_NONE,        /* Unknown device. */
+    DSK_TYPE_UNKNOWN,     /* Unknown ATA device. */
+    DSK_TYPE_ATA,         /* ATA disk. */
+    DSK_TYPE_ATAPI,       /* ATAPI device. */
+    DSK_TYPE_SCSI,        /* SCSI disk. */
+    DSK_TYPE_AHCI,        /* SATA disk via AHCI. */
+    DSK_TYPE_VIRTIO_SCSI, /* SCSI disk. */
+    DSKTYP_CNT            /* Number of disk types. */
 };
 
 /* Disk device types. */
@@ -199,6 +211,15 @@ typedef struct {
 
 #endif
 
+#ifdef VBOX_WITH_VIRTIO_SCSI
+
+/* VirtIO SCSI specific device information. */
+typedef struct {
+    uint8_t     target;           /* Target ID. */
+} virtio_scsi_dev_t;
+
+#endif
+
 /* Generic disk information. */
 typedef struct {
     uint8_t     type;         /* Device type (ATA/ATAPI/SCSI/none/unknown). */
@@ -239,6 +260,8 @@ extern uint16_t scsi_cmd_packet(uint16_t device, uint8_t cmdlen, char __far *cmd
                                 uint16_t header, uint32_t length, uint8_t inout, char __far *buffer);
 extern uint16_t ata_cmd_packet(uint16_t device, uint8_t cmdlen, char __far *cmdbuf,
                                uint16_t header, uint32_t length, uint8_t inout, char __far *buffer);
+extern uint16_t virtio_scsi_cmd_packet(uint16_t device, uint8_t cmdlen, char __far *cmdbuf,
+                                       uint16_t skip_b, uint32_t length, uint8_t inout, char __far *buffer);
 
 extern uint16_t ata_soft_reset(uint16_t device);
 
@@ -266,6 +289,9 @@ typedef struct {
     /* SCSI bus-specific device information. */
     scsi_dev_t  scsidev[BX_MAX_SCSI_DEVICES];
     uint8_t     scsi_devcount;      /* Number of SCSI devices. */
+# ifdef VBOX_WITH_VIRTIO_SCSI
+    uint16_t    virtio_seg;         /* Segment of VirtIO data block. */
+# endif
 #endif
 
 #ifdef VBOX_WITH_AHCI
@@ -307,7 +333,9 @@ typedef struct {
     fdpt_t      fdpt0;      /* FDPTs for the first two ATA disks. */
     fdpt_t      fdpt1;
 
+#ifndef VBOX_WITH_VIRTIO_SCSI /** @todo For development only, need to find a real solution to voercome the 1KB limit. */
     uint8_t     filler2[0xC4];
+#endif
 
     bio_dsk_t   bdisk;      /* Disk driver data (ATA/SCSI/AHCI). */
 
@@ -370,6 +398,9 @@ int __fastcall scsi_write_sectors(bio_dsk_t __far *bios_dsk);
 
 int __fastcall ahci_read_sectors(bio_dsk_t __far *bios_dsk);
 int __fastcall ahci_write_sectors(bio_dsk_t __far *bios_dsk);
+
+int __fastcall virtio_scsi_read_sectors(bio_dsk_t __far *bios_dsk);
+int __fastcall virtio_scsi_write_sectors(bio_dsk_t __far *bios_dsk);
 
 extern void set_geom_lba(chs_t __far *lgeo, uint64_t nsectors);
 extern int edd_fill_dpt(dpt_t __far *dpt, bio_dsk_t __far *bios_dsk, uint8_t device);

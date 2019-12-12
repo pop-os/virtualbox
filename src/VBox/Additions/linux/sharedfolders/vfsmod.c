@@ -364,15 +364,19 @@ static int vbsf_init_backing_dev(struct super_block *sb, struct vbsf_super_info 
 # endif
     struct backing_dev_info *bdi;
 
-#  if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 0, 0) && LINUX_VERSION_CODE < KERNEL_VERSION(4, 2, 0)
+    pSuperInfo->bdi_org = sb->s_bdi;
+# endif
+
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
     rc = super_setup_bdi_name(sb, "vboxsf-%llu", (unsigned long long)idSeqMine);
     if (!rc)
         bdi = sb->s_bdi;
     else
         return rc;
-#  else
+# else
     bdi = &pSuperInfo->bdi;
-#  endif
+# endif
 
     bdi->ra_pages = 0;                      /* No readahead */
 
@@ -434,7 +438,12 @@ static void vbsf_done_backing_dev(struct super_block *sb, struct vbsf_super_info
 {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 24) && LINUX_VERSION_CODE <= KERNEL_VERSION(4, 12, 0)
     bdi_destroy(&pSuperInfo->bdi);    /* includes bdi_unregister() */
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34) && LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
+
+    /* Paranoia: Make sb->s_bdi not point at pSuperInfo->bdi, in case someone
+                 trouches it after this point (we may screw up something).  */
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 0, 0) && LINUX_VERSION_CODE < KERNEL_VERSION(4, 2, 0)
+    sb->s_bdi = pSuperInfo->bdi_org; /* (noop_backing_dev_info is not exported) */
+# elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34) && LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
     sb->s_bdi = &noop_backing_dev_info;
 # endif
 #endif

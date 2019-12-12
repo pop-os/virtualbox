@@ -15,6 +15,17 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+
+/** @page pg_net_dhcp       VBoxNetDHCP
+ *
+ * Write a few words...
+ *
+ */
+
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #include <iprt/cdefs.h>
 
 /*
@@ -26,7 +37,7 @@
 # include <iprt/win/winsock2.h>
 #endif
 
-
+#include "DhcpdInternal.h"
 #include <iprt/param.h>
 #include <iprt/errcore.h>
 
@@ -118,11 +129,11 @@ private:
 
     int vmmInit();
 
-    int ifInit(const std::string &strNetwork,
-               const std::string &strTrunk = std::string(),
+    int ifInit(const RTCString &strNetwork,
+               const RTCString &strTrunk = RTCString(),
                INTNETTRUNKTYPE enmTrunkType = kIntNetTrunkType_WhateverNone);
-    int ifOpen(const std::string &strNetwork,
-               const std::string &strTrunk,
+    int ifOpen(const RTCString &strNetwork,
+               const RTCString &strTrunk,
                INTNETTRUNKTYPE enmTrunkType);
     int ifGetBuf();
     int ifActivate();
@@ -243,32 +254,18 @@ void VBoxNetDhcpd::r3Fini()
 
 int VBoxNetDhcpd::vmmInit()
 {
-    int rc;
-    try {
-        std::vector<char> vExecDir(RTPATH_MAX);
-        rc = RTPathExecDir(&vExecDir.front(), vExecDir.size());
-        if (RT_FAILURE(rc))
-            return rc;
-        std::string strPath(&vExecDir.front());
-        strPath.append("/VMMR0.r0");
-
-        rc = SUPR3LoadVMM(strPath.c_str());
-        if (RT_FAILURE(rc))
-            return rc;
-
-        rc = VINF_SUCCESS;
-    }
-    catch (...)
-    {
-        rc = VERR_GENERAL_FAILURE;
-    }
-
+    char szPathVMMR0[RTPATH_MAX];
+    int rc = RTPathExecDir(szPathVMMR0, sizeof(szPathVMMR0));
+    if (RT_SUCCESS(rc))
+        rc = RTPathAppend(szPathVMMR0, sizeof(szPathVMMR0), "VMMR0.r0");
+    if (RT_SUCCESS(rc))
+        rc = SUPR3LoadVMM(szPathVMMR0);
     return rc;
 }
 
 
-int VBoxNetDhcpd::ifInit(const std::string &strNetwork,
-                         const std::string &strTrunk,
+int VBoxNetDhcpd::ifInit(const RTCString &strNetwork,
+                         const RTCString &strTrunk,
                          INTNETTRUNKTYPE enmTrunkType)
 {
     int rc;
@@ -289,25 +286,25 @@ int VBoxNetDhcpd::ifInit(const std::string &strNetwork,
 }
 
 
-int VBoxNetDhcpd::ifOpen(const std::string &strNetwork,
-                         const std::string &strTrunk,
+int VBoxNetDhcpd::ifOpen(const RTCString &strNetwork,
+                         const RTCString &strTrunk,
                          INTNETTRUNKTYPE enmTrunkType)
 {
     AssertReturn(m_pSession != NIL_RTR0PTR, VERR_GENERAL_FAILURE);
     AssertReturn(m_hIf == INTNET_HANDLE_INVALID, VERR_GENERAL_FAILURE);
 
     INTNETOPENREQ OpenReq;
-    int rc;
+    RT_ZERO(OpenReq);
 
     OpenReq.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
     OpenReq.Hdr.cbReq = sizeof(OpenReq);
     OpenReq.pSession = m_pSession;
 
-    strncpy(OpenReq.szNetwork, strNetwork.c_str(), sizeof(OpenReq.szNetwork));
-    OpenReq.szNetwork[sizeof(OpenReq.szNetwork) - 1] = '\0';
+    int rc = RTStrCopy(OpenReq.szNetwork, sizeof(OpenReq.szNetwork), strNetwork.c_str());
+    AssertRCReturn(rc, rc);
 
-    strncpy(OpenReq.szTrunk, strTrunk.c_str(), sizeof(OpenReq.szTrunk));
-    OpenReq.szTrunk[sizeof(OpenReq.szTrunk) - 1] = '\0';
+    rc = RTStrCopy(OpenReq.szTrunk, sizeof(OpenReq.szTrunk), strTrunk.c_str());
+    AssertRCReturn(rc, rc);
 
     if (enmTrunkType != kIntNetTrunkType_Invalid)
         OpenReq.enmTrunkType = enmTrunkType;
@@ -315,8 +312,8 @@ int VBoxNetDhcpd::ifOpen(const std::string &strNetwork,
         OpenReq.enmTrunkType = kIntNetTrunkType_WhateverNone;
 
     OpenReq.fFlags = 0;
-    OpenReq.cbSend = 128 * _1K;
-    OpenReq.cbRecv = 256 * _1K;
+    OpenReq.cbSend = _128K;
+    OpenReq.cbRecv = _256K;
 
     OpenReq.hIf = INTNET_HANDLE_INVALID;
 
@@ -385,19 +382,17 @@ void VBoxNetDhcpd::ifPump()
     for (;;)
     {
         int rc = ifWait();
-
-        if (RT_UNLIKELY(rc == VERR_INTERRUPTED))
-            continue;
-
+        if (   rc != VERR_INTERRUPTED
 #if 0 /* we wait indefinitely */
-        if (rc == VERR_TIMEOUT)
-            ...;
+            && rc != VERR_TIMEOUT
 #endif
-
-        if (RT_FAILURE(rc))
+            )
+            ifProcessInput();
+        else
+        {
+            DHCP_LOG_MSG_ERROR(("ifWait failed: %Rrc\n", rc));
             return;
-
-        ifProcessInput();
+        }
     }
 }
 
@@ -470,7 +465,7 @@ int VBoxNetDhcpd::ifProcessInput()
 }
 
 
-/*
+/**
  * Got a frame from the internal network, feed it to the lwIP stack.
  */
 int VBoxNetDhcpd::ifInput(void *pvFrame, uint32_t cbFrame)
@@ -494,7 +489,7 @@ int VBoxNetDhcpd::ifInput(void *pvFrame, uint32_t cbFrame)
      *   pbuf_header(p, ETH_PAD_SIZE);  // reveal padding
      */
     struct pbuf *q = p;
-    uint8_t *pu8Chunk = (uint8_t *)pvFrame;
+    uint8_t *pbChunk = (uint8_t *)pvFrame;
     do {
         uint8_t *payload = (uint8_t *)q->payload;
         size_t len = q->len;
@@ -506,8 +501,8 @@ int VBoxNetDhcpd::ifInput(void *pvFrame, uint32_t cbFrame)
             len -= ETH_PAD_SIZE;
         }
 #endif
-        memcpy(payload, pu8Chunk, len);
-        pu8Chunk += len;
+        memcpy(payload, pbChunk, len);
+        pbChunk += len;
         q = q->next;
     } while (RT_UNLIKELY(q != NULL));
 
@@ -516,7 +511,7 @@ int VBoxNetDhcpd::ifInput(void *pvFrame, uint32_t cbFrame)
 }
 
 
-/*
+/**
  * Got a frame from the lwIP stack, feed it to the internal network.
  */
 err_t VBoxNetDhcpd::netifLinkOutput(pbuf *pPBuf)
@@ -626,38 +621,47 @@ int VBoxNetDhcpd::ifClose()
 
 int VBoxNetDhcpd::main(int argc, char **argv)
 {
-    int rc;
-
+    /*
+     * Register string format types.
+     */
     ClientId::registerFormat();
+    Binding::registerFormat();
 
-    /* XXX: We no longer need hardcoded and compat methods. We should remove them soon. */
-    if (argc < 2)
-        m_Config = Config::hardcoded();
-    else if (   strcmp(argv[1], "--config") == 0
-             || strcmp(argv[1], "--comment") == 0)
-        m_Config = Config::create(argc, argv);
-    else
-        m_Config = Config::compat(argc, argv);
-
+    /*
+     * Parse the command line into a configuration object.
+     */
+    m_Config = Config::create(argc, argv);
     if (m_Config == NULL)
         return VERR_GENERAL_FAILURE;
 
-    rc = m_server.init(m_Config);
-
-    /* connect to the intnet */
-    rc = ifInit(m_Config->getNetwork(),
-                m_Config->getTrunk(),
-                m_Config->getTrunkType());
-    if (RT_FAILURE(rc))
-        return rc;
-
-    /* setup lwip */
-    rc = vboxLwipCoreInitialize(lwipInitCB, this);
-    if (RT_FAILURE(rc))
-        return rc;
-
-    ifPump();
-    return VINF_SUCCESS;
+    /*
+     * Initialize the server.
+     */
+    int rc = m_server.init(m_Config);
+    if (RT_SUCCESS(rc))
+    {
+        /* connect to the intnet */
+        rc = ifInit(m_Config->getNetwork(), m_Config->getTrunk(), m_Config->getTrunkType());
+        if (RT_SUCCESS(rc))
+        {
+            /* setup lwip */
+            rc = vboxLwipCoreInitialize(lwipInitCB, this);
+            if (RT_SUCCESS(rc))
+            {
+                /*
+                 * Pump packets more or less for ever.
+                 */
+                ifPump();
+            }
+            else
+                DHCP_LOG_MSG_ERROR(("Terminating - vboxLwipCoreInitialize failed: %Rrc\n", rc));
+        }
+        else
+            DHCP_LOG_MSG_ERROR(("Terminating - ifInit failed: %Rrc\n", rc));
+    }
+    else
+        DHCP_LOG_MSG_ERROR(("Terminating - Dhcpd::init failed: %Rrc\n", rc));
+    return rc;
 }
 
 
@@ -720,9 +724,6 @@ err_t VBoxNetDhcpd::netifInit(netif *pNetif)
 void VBoxNetDhcpd::dhcp4Recv(struct udp_pcb *pcb, struct pbuf *p,
                              ip_addr_t *addr, u16_t port)
 {
-    err_t error;
-    int rc;
-
     RT_NOREF(pcb, addr, port);
 
     if (RT_UNLIKELY(p->next != NULL))
@@ -731,38 +732,45 @@ void VBoxNetDhcpd::dhcp4Recv(struct udp_pcb *pcb, struct pbuf *p,
     bool broadcasted = ip_addr_cmp(ip_current_dest_addr(), &ip_addr_broadcast)
                     || ip_addr_cmp(ip_current_dest_addr(), &ip_addr_any);
 
-    DhcpClientMessage *msgIn = DhcpClientMessage::parse(broadcasted, p->payload, p->len);
-    if (msgIn == NULL)
-        return;
+    try
+    {
+        DhcpClientMessage *msgIn = DhcpClientMessage::parse(broadcasted, p->payload, p->len);
+        if (msgIn == NULL)
+            return;
 
-    std::unique_ptr<DhcpClientMessage> autoFreeMsgIn(msgIn);
+        std::unique_ptr<DhcpClientMessage> autoFreeMsgIn(msgIn);
 
-    DhcpServerMessage *msgOut = m_server.process(*msgIn);
-    if (msgOut == NULL)
-        return;
+        DhcpServerMessage *msgOut = m_server.process(*msgIn);
+        if (msgOut == NULL)
+            return;
 
-    std::unique_ptr<DhcpServerMessage> autoFreeMsgOut(msgOut);
+        std::unique_ptr<DhcpServerMessage> autoFreeMsgOut(msgOut);
 
-    ip_addr_t dst = { msgOut->dst().u };
-    if (ip_addr_cmp(&dst, &ip_addr_any))
-        ip_addr_copy(dst, ip_addr_broadcast);
+        ip_addr_t dst = { msgOut->dst().u };
+        if (ip_addr_cmp(&dst, &ip_addr_any))
+            ip_addr_copy(dst, ip_addr_broadcast);
 
-    octets_t data;
-    rc = msgOut->encode(data);
-    if (RT_FAILURE(rc))
-        return;
+        octets_t data;
+        int rc = msgOut->encode(data);
+        if (RT_FAILURE(rc))
+            return;
 
-    unique_ptr_pbuf q ( pbuf_alloc(PBUF_RAW, (u16_t)data.size(), PBUF_RAM) );
-    if (!q)
-        return;
+        unique_ptr_pbuf q ( pbuf_alloc(PBUF_RAW, (u16_t)data.size(), PBUF_RAM) );
+        if (!q)
+            return;
 
-    error = pbuf_take(q.get(), &data.front(), (u16_t)data.size());
-    if (error != ERR_OK)
-        return;
+        err_t error = pbuf_take(q.get(), &data.front(), (u16_t)data.size());
+        if (error != ERR_OK)
+            return;
 
-    error = udp_sendto(pcb, q.get(), &dst, RTNETIPV4_PORT_BOOTPC);
-    if (error != ERR_OK)
-        return;
+        error = udp_sendto(pcb, q.get(), &dst, RTNETIPV4_PORT_BOOTPC);
+        if (error != ERR_OK)
+            return;
+    }
+    catch (std::bad_alloc &)
+    {
+        LogRel(("VBoxNetDhcpd::dhcp4Recv: Caught std::bad_alloc!\n"));
+    }
 }
 
 

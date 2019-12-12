@@ -21,12 +21,8 @@
 #include <QDir>
 #include <QGridLayout>
 #include <QHeaderView>
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonObject>
-#include <QJsonValue>
 #include <QLabel>
-#include <QLineEdit>
+#include <QRadioButton>
 #include <QStackedWidget>
 #include <QTableWidget>
 #include <QVBoxLayout>
@@ -34,7 +30,7 @@
 /* GUI includes: */
 #include "QIRichTextLabel.h"
 #include "QIToolButton.h"
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #include "UIConverter.h"
 #include "UIEmptyFilePathSelector.h"
 #include "UIIconPool.h"
@@ -45,8 +41,8 @@
 #include "UIWizardExportAppPageBasic2.h"
 
 /* COM includes: */
-#include "CCloudClient.h"
-#include "CCloudProvider.h"
+#include "CMachine.h"
+#include "CSystemProperties.h"
 
 
 /*********************************************************************************************************************************
@@ -68,7 +64,7 @@ UIWizardExportAppPage2::UIWizardExportAppPage2(bool fExportToOCIByDefault)
     , m_pAdditionalLabel(0)
     , m_pManifestCheckbox(0)
     , m_pIncludeISOsCheckbox(0)
-    , m_pAccountComboBoxLabel(0)
+    , m_pAccountLabel(0)
     , m_pAccountComboBox(0)
     , m_pAccountToolButton(0)
     , m_pAccountPropertyTable(0)
@@ -94,7 +90,7 @@ void UIWizardExportAppPage2::populateFormats()
 
     /* Initialize Cloud Provider Manager: */
     bool fOCIPresent = false;
-    CVirtualBox comVBox = vboxGlobal().virtualBox();
+    CVirtualBox comVBox = uiCommon().virtualBox();
     m_comCloudProviderManager = comVBox.GetCloudProviderManager();
     /* Show error message if necessary: */
     if (!comVBox.isOk())
@@ -138,15 +134,33 @@ void UIWizardExportAppPage2::populateMACAddressPolicies()
 {
     AssertReturnVoid(m_pMACComboBox->count() == 0);
 
-    /* Apply hardcoded policies list: */
-    for (int i = 0; i < (int)MACAddressPolicy_MAX; ++i)
-    {
-        m_pMACComboBox->addItem(QString::number(i));
-        m_pMACComboBox->setItemData(i, i);
-    }
+    /* Map known export options to known MAC address export policies: */
+    QMap<KExportOptions, MACAddressExportPolicy> knownOptions;
+    knownOptions[KExportOptions_StripAllMACs] = MACAddressExportPolicy_StripAllMACs;
+    knownOptions[KExportOptions_StripAllNonNATMACs] = MACAddressExportPolicy_StripAllNonNATMACs;
+
+    /* Load currently supported export options: */
+    CSystemProperties comProperties = uiCommon().virtualBox().GetSystemProperties();
+    const QVector<KExportOptions> supportedOptions = comProperties.GetSupportedExportOptions();
+
+    /* Check which of supported options/policies are known: */
+    QList<MACAddressExportPolicy> supportedPolicies;
+    foreach (const KExportOptions &enmOption, supportedOptions)
+        if (knownOptions.contains(enmOption))
+            supportedPolicies << knownOptions.value(enmOption);
+
+    /* Add supported policies first: */
+    foreach (const MACAddressExportPolicy &enmPolicy, supportedPolicies)
+        m_pMACComboBox->addItem(QString(), QVariant::fromValue(enmPolicy));
+
+    /* Add hardcoded policy finally: */
+    m_pMACComboBox->addItem(QString(), QVariant::fromValue(MACAddressExportPolicy_KeepAllMACs));
 
     /* Set default: */
-    setMACAddressPolicy(MACAddressPolicy_StripAllNonNATMACs);
+    if (supportedPolicies.contains(MACAddressExportPolicy_StripAllNonNATMACs))
+        setMACAddressExportPolicy(MACAddressExportPolicy_StripAllNonNATMACs);
+    else
+        setMACAddressExportPolicy(MACAddressExportPolicy_KeepAllMACs);
 }
 
 void UIWizardExportAppPage2::populateAccounts()
@@ -293,213 +307,115 @@ void UIWizardExportAppPage2::populateAccountProperties()
     }
 }
 
-void UIWizardExportAppPage2::populateCloudClientParameters()
+void UIWizardExportAppPage2::populateFormProperties()
 {
-    /* Forget current parameters: */
-    m_cloudClientParameters.clear();
+    /* Clear appliance: */
+    m_comAppliance = CAppliance();
+    /* Clear cloud client: */
+    m_comClient = CCloudClient();
+    /* Clear description: */
+    m_comVSD = CVirtualSystemDescription();
+    /* Clear description form: */
+    m_comVSDExportForm = CVirtualSystemDescriptionForm();
 
-    /* Return if no profile chosen: */
-    if (m_comCloudProfile.isNull())
-        return;
-
-    /* Create Cloud Client: */
-    CCloudClient comCloudClient = m_comCloudProfile.CreateCloudClient();
-    /* Show error message if necessary: */
-    if (!m_comCloudProfile.isOk())
-        msgCenter().cannotCreateCloudClient(m_comCloudProfile);
-    else
+    /* If profile chosen: */
+    if (m_comCloudProfile.isNotNull())
     {
-        /* Read Cloud Client parameters for Export VM operation: */
-        const QString strJSON = comCloudClient.GetExportLaunchParameters();
-        /* Show error message if necessary: */
-        if (!comCloudClient.isOk())
-            msgCenter().cannotAcquireCloudClientParameter(comCloudClient);
-        else
+        /* Main API request sequence, can be interrupted after any step: */
+        do
         {
-            /* Create JSON document and parse it: */
-            const QJsonDocument document = QJsonDocument::fromJson(strJSON.toUtf8());
-            if (!document.isEmpty())
-                m_cloudClientParameters = parseJsonDocument(document);
+            /* Perform cloud export procedure for first uuid only: */
+            const QList<QUuid> uuids = fieldImp("machineIDs").value<QList<QUuid> >();
+            AssertReturnVoid(!uuids.isEmpty());
+            const QUuid uMachineId = uuids.first();
+
+            /* Get the machine with the uMachineId: */
+            CVirtualBox comVBox = uiCommon().virtualBox();
+            CMachine comMachine = comVBox.FindMachine(uMachineId.toString());
+            if (!comVBox.isOk())
+            {
+                msgCenter().cannotFindMachineById(comVBox, uMachineId);
+                break;
+            }
+
+            /* Create appliance: */
+            CAppliance comAppliance = comVBox.CreateAppliance();
+            if (!comVBox.isOk())
+            {
+                msgCenter().cannotCreateAppliance(comVBox);
+                break;
+            }
+
+            /* Remember appliance: */
+            m_comAppliance = comAppliance;
+
+            /* Add the export virtual system description to our appliance object: */
+            CVirtualSystemDescription comVSD = comMachine.ExportTo(m_comAppliance, qobject_cast<UIWizardExportApp*>(wizardImp())->uri());
+            if (!comMachine.isOk())
+            {
+                msgCenter().cannotExportAppliance(comMachine, m_comAppliance.GetPath(), thisImp());
+                break;
+            }
+
+            /* Remember description: */
+            m_comVSD = comVSD;
+
+            /* Add Launch Instance flag to virtual system description: */
+            switch (cloudExportMode())
+            {
+                case CloudExportMode_AskThenExport:
+                case CloudExportMode_ExportThenAsk:
+                    m_comVSD.AddDescription(KVirtualSystemDescriptionType_CloudLaunchInstance, "true", QString());
+                    break;
+                default:
+                    m_comVSD.AddDescription(KVirtualSystemDescriptionType_CloudLaunchInstance, "false", QString());
+                    break;
+            }
+            if (!m_comVSD.isOk())
+            {
+                msgCenter().cannotAddVirtualSystemDescriptionValue(m_comVSD);
+                break;
+            }
+
+            /* Create Cloud Client: */
+            CCloudClient comClient = m_comCloudProfile.CreateCloudClient();
+            if (!m_comCloudProfile.isOk())
+            {
+                msgCenter().cannotCreateCloudClient(m_comCloudProfile);
+                break;
+            }
+
+            /* Remember client: */
+            m_comClient = comClient;
+
+            /* Read Cloud Client Export description form: */
+            CVirtualSystemDescriptionForm comExportForm;
+            CProgress comExportDescriptionFormProgress = m_comClient.GetExportDescriptionForm(m_comVSD, comExportForm);
+            if (!m_comClient.isOk())
+            {
+                msgCenter().cannotAcquireCloudClientParameter(m_comClient);
+                break;
+            }
+
+            /* Show "Acquire export form" progress: */
+            msgCenter().showModalProgressDialog(comExportDescriptionFormProgress, UIWizardExportApp::tr("Acquire export form ..."),
+                                                ":/progress_refresh_90px.png", 0, 0);
+            if (!comExportDescriptionFormProgress.isOk() || comExportDescriptionFormProgress.GetResultCode() != 0)
+            {
+                msgCenter().cannotAcquireCloudClientParameter(comExportDescriptionFormProgress);
+                break;
+            }
+
+            /* Remember description form: */
+            m_comVSDExportForm = comExportForm;
         }
+        while (0);
     }
-}
-
-/* static */
-AbstractVSDParameterList UIWizardExportAppPage2::parseJsonDocument(const QJsonDocument &document)
-{
-    /* Prepare parameters: */
-    AbstractVSDParameterList parameters;
-
-    /* Convert document to object, make sure it isn't empty: */
-    QJsonObject documentObject = document.object();
-    AssertMsgReturn(!documentObject.isEmpty(), ("Document object is empty!"), parameters);
-
-    /* Iterate through document object values: */
-    foreach (const QString &strElementName, documentObject.keys())
-    {
-        //printf("Element name: \"%s\"\n", strElementName.toUtf8().constData());
-
-        /* Prepare parameter: */
-        AbstractVSDParameter parameter;
-
-        /* Assign name: */
-        parameter.name = strElementName;
-
-        /* Acquire element, make sure it's an object: */
-        const QJsonValue element = documentObject.value(strElementName);
-        AssertMsg(element.isObject(), ("Element '%s' has wrong structure!", strElementName.toUtf8().constData()));
-        if (!element.isObject())
-            continue;
-
-        /* Convert element to object, make sure it isn't empty: */
-        const QJsonObject elementObject = element.toObject();
-        AssertMsg(!elementObject.isEmpty(), ("Element '%s' object has wrong structure!", strElementName.toUtf8().constData()));
-        if (elementObject.isEmpty())
-            continue;
-
-        /* Iterate through element object values: */
-        foreach (const QString &strFieldName, elementObject.keys())
-        {
-            //printf(" Field name: \"%s\"\n", strFieldName.toUtf8().constData());
-
-            /* Acquire field: */
-            const QJsonValue field = elementObject.value(strFieldName);
-
-            /* Parse known fields: */
-            if (strFieldName == "type")
-                parameter.type = (KVirtualSystemDescriptionType)(int)parseJsonFieldDouble(strFieldName, field);
-            else
-            if (strFieldName == "bool")
-            {
-                AbstractVSDParameterBool get;
-                get.value = parseJsonFieldBool(strFieldName, field);
-                parameter.get = QVariant::fromValue(get);
-                parameter.kind = ParameterKind_Bool;
-            }
-            else
-            if (strFieldName == "min")
-            {
-                AbstractVSDParameterDouble get = parameter.get.value<AbstractVSDParameterDouble>();
-                get.minimum = parseJsonFieldDouble(strFieldName, field);
-                parameter.get = QVariant::fromValue(get);
-                parameter.kind = ParameterKind_Double;
-            }
-            else
-            if (strFieldName == "max")
-            {
-                AbstractVSDParameterDouble get = parameter.get.value<AbstractVSDParameterDouble>();
-                get.maximum = parseJsonFieldDouble(strFieldName, field);
-                parameter.get = QVariant::fromValue(get);
-                parameter.kind = ParameterKind_Double;
-            }
-            else
-            if (strFieldName == "unit")
-            {
-                AbstractVSDParameterDouble get = parameter.get.value<AbstractVSDParameterDouble>();
-                get.unit = parseJsonFieldString(strFieldName, field);
-                parameter.get = QVariant::fromValue(get);
-                parameter.kind = ParameterKind_Double;
-            }
-            else
-            if (strFieldName == "items")
-            {
-                AbstractVSDParameterArray get;
-                get.values = parseJsonFieldArray(strFieldName, field);
-                parameter.get = QVariant::fromValue(get);
-                parameter.kind = ParameterKind_Array;
-            }
-            else
-            if (strFieldName == "name")
-            {
-                AbstractVSDParameterString get;
-                get.value = parseJsonFieldString(strFieldName, field);
-                parameter.get = QVariant::fromValue(get);
-                parameter.kind = ParameterKind_String;
-            }
-        }
-
-        /* Append parameter: */
-        parameters << parameter;
-    }
-
-    /* Return parameters: */
-    return parameters;
-}
-
-/* static */
-bool UIWizardExportAppPage2::parseJsonFieldBool(const QString &strFieldName, const QJsonValue &field)
-{
-    /* Make sure field is bool: */
-    Q_UNUSED(strFieldName);
-    AssertMsgReturn(field.isBool(), ("Field '%s' has wrong structure!", strFieldName.toUtf8().constData()), false);
-    const bool fFieldValue = field.toBool();
-    //printf("  Field value: \"%s\"\n", fFieldValue ? "true" : "false");
-
-    return fFieldValue;
-}
-
-/* static */
-double UIWizardExportAppPage2::parseJsonFieldDouble(const QString &strFieldName, const QJsonValue &field)
-{
-    /* Make sure field is double: */
-    Q_UNUSED(strFieldName);
-    AssertMsgReturn(field.isDouble(), ("Field '%s' has wrong structure!", strFieldName.toUtf8().constData()), 0);
-    const double dFieldValue = field.toDouble();
-    //printf("  Field value: \"%f\"\n", dFieldValue);
-
-    return dFieldValue;
-}
-
-/* static */
-QString UIWizardExportAppPage2::parseJsonFieldString(const QString &strFieldName, const QJsonValue &field)
-{
-    /* Make sure field is string: */
-    Q_UNUSED(strFieldName);
-    AssertMsgReturn(field.isString(), ("Field '%s' has wrong structure!", strFieldName.toUtf8().constData()), QString());
-    const QString strFieldValue = field.toString();
-    //printf("  Field value: \"%s\"\n", strFieldValue.toUtf8().constData());
-
-    return strFieldValue;
-}
-
-/* static */
-QIStringPairList UIWizardExportAppPage2::parseJsonFieldArray(const QString &strFieldName, const QJsonValue &field)
-{
-    /* Make sure field is array: */
-    Q_UNUSED(strFieldName);
-    AssertMsgReturn(field.isArray(), ("Field '%s' has wrong structure!", strFieldName.toUtf8().constData()), QIStringPairList());
-    const QJsonArray fieldValueArray = field.toArray();
-    QIStringPairList fieldValueStringPairList;
-    /* Parse array: */
-    for (int i = 0; i < fieldValueArray.count(); ++i)
-    {
-        /* Parse current array value: */
-        const QJsonValue value = fieldValueArray[i];
-        /* If value is of string type, we just take it: */
-        if (value.isString())
-            fieldValueStringPairList << qMakePair(fieldValueArray[i].toString(), QString());
-        /* If value is of object type, we take object key/value pairs: */
-        else if (value.isObject())
-        {
-            const QJsonObject valueObject = value.toObject();
-            foreach (const QString &strKey, valueObject.keys())
-                fieldValueStringPairList << qMakePair(strKey, valueObject.value(strKey).toString());
-        }
-    }
-    //QStringList test;
-    //foreach (const QIStringPair &pair, fieldValueStringPairList)
-    //    if (pair.second.isNull())
-    //        test << QString("{%1}").arg(pair.first);
-    //    else
-    //        test << QString("{%1 : %2}").arg(pair.first, pair.second);
-    //printf("  Field value: \"%s\"\n", test.join(", ").toUtf8().constData());
-
-    return fieldValueStringPairList;
 }
 
 void UIWizardExportAppPage2::updatePageAppearance()
 {
-    /* Update page appearance according to chosen storage-type: */
+    /* Update page appearance according to chosen format: */
     m_pSettingsWidget->setCurrentIndex((int)isFormatCloudOne());
 }
 
@@ -558,7 +474,7 @@ void UIWizardExportAppPage2::refreshFileSelectorPath()
     {
         /* Compose file selector path: */
         const QString strPath = QDir::toNativeSeparators(QString("%1/%2")
-                                                         .arg(vboxGlobal().documentsPath())
+                                                         .arg(uiCommon().documentsPath())
                                                          .arg(m_strFileSelectorName + m_strFileSelectorExt));
         m_pFileSelector->setPath(strPath);
     }
@@ -607,10 +523,9 @@ void UIWizardExportAppPage2::updateFormatComboToolTip()
     m_pFormatComboBox->setToolTip(strCurrentToolTip);
 }
 
-void UIWizardExportAppPage2::updateMACAddressPolicyComboToolTip()
+void UIWizardExportAppPage2::updateMACAddressExportPolicyComboToolTip()
 {
-    const int iCurrentIndex = m_pMACComboBox->currentIndex();
-    const QString strCurrentToolTip = m_pMACComboBox->itemData(iCurrentIndex, Qt::ToolTipRole).toString();
+    const QString strCurrentToolTip = m_pMACComboBox->currentData(Qt::ToolTipRole).toString();
     AssertMsg(!strCurrentToolTip.isEmpty(), ("Data not found!"));
     m_pMACComboBox->setToolTip(strCurrentToolTip);
 }
@@ -677,17 +592,16 @@ QString UIWizardExportAppPage2::path() const
     return m_pFileSelector->path();
 }
 
-void UIWizardExportAppPage2::setMACAddressPolicy(MACAddressPolicy enmMACAddressPolicy)
+void UIWizardExportAppPage2::setMACAddressExportPolicy(MACAddressExportPolicy enmMACAddressExportPolicy)
 {
-    const int iIndex = m_pMACComboBox->findData((int)enmMACAddressPolicy);
+    const int iIndex = m_pMACComboBox->findData(enmMACAddressExportPolicy);
     AssertMsg(iIndex != -1, ("Data not found!"));
     m_pMACComboBox->setCurrentIndex(iIndex);
 }
 
-MACAddressPolicy UIWizardExportAppPage2::macAddressPolicy() const
+MACAddressExportPolicy UIWizardExportAppPage2::macAddressExportPolicy() const
 {
-    const int iIndex = m_pMACComboBox->currentIndex();
-    return (MACAddressPolicy)m_pMACComboBox->itemData(iIndex).toInt();
+    return m_pMACComboBox->currentData().value<MACAddressExportPolicy>();
 }
 
 void UIWizardExportAppPage2::setManifestSelected(bool fChecked)
@@ -735,14 +649,33 @@ QString UIWizardExportAppPage2::profileName() const
     return m_pAccountComboBox->itemData(iIndex, AccountData_ProfileName).toString();
 }
 
-CCloudProfile UIWizardExportAppPage2::profile() const
+CAppliance UIWizardExportAppPage2::appliance() const
 {
-    return m_comCloudProfile;
+    return m_comAppliance;
 }
 
-AbstractVSDParameterList UIWizardExportAppPage2::cloudClientParameters() const
+CCloudClient UIWizardExportAppPage2::client() const
 {
-    return m_cloudClientParameters;
+    return m_comClient;
+}
+
+CVirtualSystemDescription UIWizardExportAppPage2::vsd() const
+{
+    return m_comVSD;
+}
+
+CVirtualSystemDescriptionForm UIWizardExportAppPage2::vsdExportForm() const
+{
+    return m_comVSDExportForm;
+}
+
+CloudExportMode UIWizardExportAppPage2::cloudExportMode() const
+{
+    if (m_pRadioAskThenExport->isChecked())
+        return CloudExportMode_AskThenExport;
+    else if (m_pRadioExportThenAsk->isChecked())
+        return CloudExportMode_ExportThenAsk;
+    return CloudExportMode_DoNotAsk;
 }
 
 
@@ -930,14 +863,14 @@ UIWizardExportAppPageBasic2::UIWizardExportAppPageBasic2(bool fExportToOCIByDefa
                     m_pSettingsLayout2->setColumnStretch(0, 0);
                     m_pSettingsLayout2->setColumnStretch(1, 1);
 
-                    /* Create provider label: */
-                    m_pAccountComboBoxLabel = new QLabel;
-                    if (m_pAccountComboBoxLabel)
+                    /* Create account label: */
+                    m_pAccountLabel = new QLabel;
+                    if (m_pAccountLabel)
                     {
-                        m_pAccountComboBoxLabel->setAlignment(Qt::AlignRight | Qt::AlignTrailing | Qt::AlignVCenter);
+                        m_pAccountLabel->setAlignment(Qt::AlignRight | Qt::AlignTrailing | Qt::AlignVCenter);
 
                         /* Add into layout: */
-                        m_pSettingsLayout2->addWidget(m_pAccountComboBoxLabel, 0, 0);
+                        m_pSettingsLayout2->addWidget(m_pAccountLabel, 0, 0);
                     }
                     /* Create sub-layout: */
                     QHBoxLayout *pSubLayout = new QHBoxLayout;
@@ -946,16 +879,16 @@ UIWizardExportAppPageBasic2::UIWizardExportAppPageBasic2(bool fExportToOCIByDefa
                         pSubLayout->setContentsMargins(0, 0, 0, 0);
                         pSubLayout->setSpacing(1);
 
-                        /* Create provider combo-box: */
+                        /* Create account combo-box: */
                         m_pAccountComboBox = new QComboBox;
                         if (m_pAccountComboBox)
                         {
-                            m_pAccountComboBoxLabel->setBuddy(m_pAccountComboBox);
+                            m_pAccountLabel->setBuddy(m_pAccountComboBox);
 
                             /* Add into layout: */
                             pSubLayout->addWidget(m_pAccountComboBox);
                         }
-                        /* Create provider combo-box: */
+                        /* Create account tool-button: */
                         m_pAccountToolButton = new QIToolButton;
                         if (m_pAccountToolButton)
                         {
@@ -988,6 +921,37 @@ UIWizardExportAppPageBasic2::UIWizardExportAppPageBasic2(bool fExportToOCIByDefa
                         /* Add into layout: */
                         m_pSettingsLayout2->addWidget(m_pAccountPropertyTable, 1, 1);
                     }
+
+                    /* Create account label: */
+                    m_pMachineLabel = new QLabel;
+                    if (m_pMachineLabel)
+                    {
+                        m_pMachineLabel->setAlignment(Qt::AlignRight | Qt::AlignTrailing | Qt::AlignVCenter);
+
+                        /* Add into layout: */
+                        m_pSettingsLayout2->addWidget(m_pMachineLabel, 2, 0);
+                    }
+                    /* Create Export Then Ask button: */
+                    m_pRadioExportThenAsk = new QRadioButton;
+                    if (m_pRadioExportThenAsk)
+                    {
+                        /* Add into layout: */
+                        m_pSettingsLayout2->addWidget(m_pRadioExportThenAsk, 2, 1);
+                    }
+                    /* Create Ask Then Export button: */
+                    m_pRadioAskThenExport = new QRadioButton;
+                    if (m_pRadioAskThenExport)
+                    {
+                        /* Add into layout: */
+                        m_pSettingsLayout2->addWidget(m_pRadioAskThenExport, 3, 1);
+                    }
+                    /* Create Do Not Ask button: */
+                    m_pRadioDoNotAsk = new QRadioButton;
+                    if (m_pRadioDoNotAsk)
+                    {
+                        /* Add into layout: */
+                        m_pSettingsLayout2->addWidget(m_pRadioDoNotAsk, 4, 1);
+                    }
                 }
 
                 /* Add into layout: */
@@ -1003,9 +967,9 @@ UIWizardExportAppPageBasic2::UIWizardExportAppPageBasic2(bool fExportToOCIByDefa
     populateFormats();
     /* Populate MAC address policies: */
     populateMACAddressPolicies();
-    /* Populate providers: */
+    /* Populate accounts: */
     populateAccounts();
-    /* Populate profile properties: */
+    /* Populate account properties: */
     populateAccountProperties();
 
     /* Setup connections: */
@@ -1017,25 +981,25 @@ UIWizardExportAppPageBasic2::UIWizardExportAppPageBasic2(bool fExportToOCIByDefa
     connect(m_pFormatComboBox, static_cast<void(QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
             this, &UIWizardExportAppPageBasic2::sltHandleFormatComboChange);
     connect(m_pMACComboBox, static_cast<void(QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
-            this, &UIWizardExportAppPageBasic2::sltHandleMACAddressPolicyComboChange);
+            this, &UIWizardExportAppPageBasic2::sltHandleMACAddressExportPolicyComboChange);
     connect(m_pAccountComboBox, static_cast<void(QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
             this, &UIWizardExportAppPageBasic2::sltHandleAccountComboChange);
     connect(m_pAccountToolButton, &QIToolButton::clicked,
             this, &UIWizardExportAppPageBasic2::sltHandleAccountButtonClick);
 
-    /* Register classes: */
-    qRegisterMetaType<AbstractVSDParameterList>();
     /* Register fields: */
     registerField("format", this, "format");
     registerField("isFormatCloudOne", this, "isFormatCloudOne");
     registerField("path", this, "path");
-    registerField("macAddressPolicy", this, "macAddressPolicy");
+    registerField("macAddressExportPolicy", this, "macAddressExportPolicy");
     registerField("manifestSelected", this, "manifestSelected");
     registerField("includeISOsSelected", this, "includeISOsSelected");
     registerField("providerShortName", this, "providerShortName");
-    registerField("profileName", this, "profileName");
-    registerField("profile", this, "profile");
-    registerField("cloudClientParameters", this, "cloudClientParameters");
+    registerField("appliance", this, "appliance");
+    registerField("client", this, "client");
+    registerField("vsd", this, "vsd");
+    registerField("vsdExportForm", this, "vsdExportForm");
+    registerField("cloudExportMode", this, "cloudExportMode");
 }
 
 bool UIWizardExportAppPageBasic2::event(QEvent *pEvent)
@@ -1101,18 +1065,33 @@ void UIWizardExportAppPageBasic2::retranslateUi()
 
     /* Translate MAC address policy combo-box: */
     m_pMACComboBoxLabel->setText(UIWizardExportApp::tr("MAC Address &Policy:"));
-    m_pMACComboBox->setItemText(MACAddressPolicy_KeepAllMACs,
-                                UIWizardExportApp::tr("Include all network adapter MAC addresses"));
-    m_pMACComboBox->setItemText(MACAddressPolicy_StripAllNonNATMACs,
-                                UIWizardExportApp::tr("Include only NAT network adapter MAC addresses"));
-    m_pMACComboBox->setItemText(MACAddressPolicy_StripAllMACs,
-                                UIWizardExportApp::tr("Strip all network adapter MAC addresses"));
-    m_pMACComboBox->setItemData(MACAddressPolicy_KeepAllMACs,
-                                UIWizardExportApp::tr("Include all network adapter MAC addresses in exported appliance archive."), Qt::ToolTipRole);
-    m_pMACComboBox->setItemData(MACAddressPolicy_StripAllNonNATMACs,
-                                UIWizardExportApp::tr("Include only NAT network adapter MAC addresses in exported appliance archive."), Qt::ToolTipRole);
-    m_pMACComboBox->setItemData(MACAddressPolicy_StripAllMACs,
-                                UIWizardExportApp::tr("Strip all network adapter MAC addresses from exported appliance archive."), Qt::ToolTipRole);
+    for (int i = 0; i < m_pMACComboBox->count(); ++i)
+    {
+        const MACAddressExportPolicy enmPolicy = m_pMACComboBox->itemData(i).value<MACAddressExportPolicy>();
+        switch (enmPolicy)
+        {
+            case MACAddressExportPolicy_KeepAllMACs:
+            {
+                m_pMACComboBox->setItemText(i, UIWizardExportApp::tr("Include all network adapter MAC addresses"));
+                m_pMACComboBox->setItemData(i, UIWizardExportApp::tr("Include all network adapter MAC addresses in exported appliance archive."), Qt::ToolTipRole);
+                break;
+            }
+            case MACAddressExportPolicy_StripAllNonNATMACs:
+            {
+                m_pMACComboBox->setItemText(i, UIWizardExportApp::tr("Include only NAT network adapter MAC addresses"));
+                m_pMACComboBox->setItemData(i, UIWizardExportApp::tr("Include only NAT network adapter MAC addresses in exported appliance archive."), Qt::ToolTipRole);
+                break;
+            }
+            case MACAddressExportPolicy_StripAllMACs:
+            {
+                m_pMACComboBox->setItemText(i, UIWizardExportApp::tr("Strip all network adapter MAC addresses"));
+                m_pMACComboBox->setItemData(i, UIWizardExportApp::tr("Strip all network adapter MAC addresses from exported appliance archive."), Qt::ToolTipRole);
+                break;
+            }
+            default:
+                break;
+        }
+    }
 
     /* Translate addtional stuff: */
     m_pAdditionalLabel->setText(UIWizardExportApp::tr("Additionally:"));
@@ -1121,8 +1100,14 @@ void UIWizardExportAppPageBasic2::retranslateUi()
     m_pIncludeISOsCheckbox->setToolTip(UIWizardExportApp::tr("Include ISO image files in exported VM archive."));
     m_pIncludeISOsCheckbox->setText(UIWizardExportApp::tr("&Include ISO image files"));
 
-    /* Translate Account combo-box: */
-    m_pAccountComboBoxLabel->setText(UIWizardExportApp::tr("&Account:"));
+    /* Translate Account label: */
+    m_pAccountLabel->setText(UIWizardExportApp::tr("&Account:"));
+
+    /* Translate option label: */
+    m_pMachineLabel->setText(UIWizardExportApp::tr("Machine Creation:"));
+    m_pRadioExportThenAsk->setText(UIWizardExportApp::tr("Ask me about it &after exporting disk as custom image"));
+    m_pRadioAskThenExport->setText(UIWizardExportApp::tr("Ask me about it &before exporting disk as custom image"));
+    m_pRadioDoNotAsk->setText(UIWizardExportApp::tr("Do &not ask me about it, leave custom image for future usage"));
 
     /* Adjust label widths: */
     QList<QWidget*> labels;
@@ -1130,7 +1115,8 @@ void UIWizardExportAppPageBasic2::retranslateUi()
     labels << m_pFileSelectorLabel;
     labels << m_pMACComboBoxLabel;
     labels << m_pAdditionalLabel;
-    labels << m_pAccountComboBoxLabel;
+    labels << m_pAccountLabel;
+    labels << m_pMachineLabel;
     int iMaxWidth = 0;
     foreach (QWidget *pLabel, labels)
         iMaxWidth = qMax(iMaxWidth, pLabel->minimumSizeHint().width());
@@ -1146,7 +1132,7 @@ void UIWizardExportAppPageBasic2::retranslateUi()
 
     /* Update tool-tips: */
     updateFormatComboToolTip();
-    updateMACAddressPolicyComboToolTip();
+    updateMACAddressExportPolicyComboToolTip();
     updateAccountPropertyTableToolTips();
 }
 
@@ -1163,29 +1149,23 @@ void UIWizardExportAppPageBasic2::initializePage()
     refreshManifestCheckBoxAccess();
     /* Refresh include ISOs check-box access: */
     refreshIncludeISOsCheckBoxAccess();
+
+    /* Choose default cloud export option: */
+    m_pRadioExportThenAsk->setChecked(true);
 }
 
 bool UIWizardExportAppPageBasic2::isComplete() const
 {
+    /* Initial result: */
     bool fResult = true;
 
-    /* Check appliance settings: */
-    if (fResult)
-    {
-        const bool fOVF =    field("format").toString() == "ovf-0.9"
-                          || field("format").toString() == "ovf-1.0"
-                          || field("format").toString() == "ovf-2.0";
-        const bool fCSP =    field("isFormatCloudOne").toBool();
+    /* Check whether there was cloud target selected: */
+    if (isFormatCloudOne())
+        fResult = m_comCloudProfile.isNotNull();
+    else
+        fResult = UICommon::hasAllowedExtension(path().toLower(), OVFFileExts);
 
-        const QString &strFile = field("path").toString().toLower();
-        const QString &strAccount = field("profileName").toString();
-
-        fResult =    (   fOVF
-                      && VBoxGlobal::hasAllowedExtension(strFile, OVFFileExts))
-                  || (   fCSP
-                      && !strAccount.isNull());
-    }
-
+    /* Return result: */
     return fResult;
 }
 
@@ -1194,13 +1174,16 @@ bool UIWizardExportAppPageBasic2::validatePage()
     /* Initial result: */
     bool fResult = true;
 
-    /* For cloud formats we need to: */
-    if (field("isFormatCloudOne").toBool())
+    /* Check whether there was cloud target selected: */
+    if (isFormatCloudOne())
     {
-        /* Populate cloud client parameters: */
-        populateCloudClientParameters();
-        /* Which is required to continue to the next page: */
-        fResult = !field("cloudClientParameters").value<AbstractVSDParameterList>().isEmpty();
+        /* Create appliance and populate form properties: */
+        populateFormProperties();
+        /* Which are required to continue to the next page: */
+        fResult =    field("appliance").value<CAppliance>().isNotNull()
+                  && field("client").value<CCloudClient>().isNotNull()
+                  && field("vsd").value<CVirtualSystemDescription>().isNotNull()
+                  && field("vsdExportForm").value<CVirtualSystemDescriptionForm>().isNotNull();
     }
 
     /* Return result: */
@@ -1257,10 +1240,10 @@ void UIWizardExportAppPageBasic2::sltHandleFileSelectorChange()
     emit completeChanged();
 }
 
-void UIWizardExportAppPageBasic2::sltHandleMACAddressPolicyComboChange()
+void UIWizardExportAppPageBasic2::sltHandleMACAddressExportPolicyComboChange()
 {
     /* Update tool-tip: */
-    updateMACAddressPolicyComboToolTip();
+    updateMACAddressExportPolicyComboToolTip();
 }
 
 void UIWizardExportAppPageBasic2::sltHandleAccountComboChange()

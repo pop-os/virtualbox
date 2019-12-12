@@ -23,7 +23,7 @@
 #include <QScrollBar>
 
 /* GUI includes: */
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #include "UIDesktopWidgetWatchdog.h"
 #include "UIMachineWindowNormal.h"
 #include "UIActionPoolRuntime.h"
@@ -134,11 +134,11 @@ void UIMachineWindowNormal::sltHandleSessionInitialized()
 void UIMachineWindowNormal::sltHandleMenuBarConfigurationChange(const QUuid &uMachineID)
 {
     /* Skip unrelated machine IDs: */
-    if (vboxGlobal().managedVMUuid() != uMachineID)
+    if (uiCommon().managedVMUuid() != uMachineID)
         return;
 
     /* Check whether menu-bar is enabled: */
-    const bool fEnabled = gEDataManager->menuBarEnabled(vboxGlobal().managedVMUuid());
+    const bool fEnabled = gEDataManager->menuBarEnabled(uiCommon().managedVMUuid());
     /* Update settings action 'enable' state: */
     QAction *pActionMenuBarSettings = actionPool()->action(UIActionIndexRT_M_View_M_MenuBar_S_Settings);
     pActionMenuBarSettings->setEnabled(fEnabled);
@@ -160,7 +160,7 @@ void UIMachineWindowNormal::sltHandleMenuBarConfigurationChange(const QUuid &uMa
 void UIMachineWindowNormal::sltHandleMenuBarContextMenuRequest(const QPoint &position)
 {
     /* Raise action's context-menu: */
-    if (gEDataManager->menuBarContextMenuEnabled(vboxGlobal().managedVMUuid()))
+    if (gEDataManager->menuBarContextMenuEnabled(uiCommon().managedVMUuid()))
         actionPool()->action(UIActionIndexRT_M_View_M_MenuBar)->menu()->exec(menuBar()->mapToGlobal(position));
 }
 #endif /* !RT_OS_DARWIN */
@@ -168,11 +168,11 @@ void UIMachineWindowNormal::sltHandleMenuBarContextMenuRequest(const QPoint &pos
 void UIMachineWindowNormal::sltHandleStatusBarConfigurationChange(const QUuid &uMachineID)
 {
     /* Skip unrelated machine IDs: */
-    if (vboxGlobal().managedVMUuid() != uMachineID)
+    if (uiCommon().managedVMUuid() != uMachineID)
         return;
 
     /* Check whether status-bar is enabled: */
-    const bool fEnabled = gEDataManager->statusBarEnabled(vboxGlobal().managedVMUuid());
+    const bool fEnabled = gEDataManager->statusBarEnabled(uiCommon().managedVMUuid());
     /* Update settings action 'enable' state: */
     QAction *pActionStatusBarSettings = actionPool()->action(UIActionIndexRT_M_View_M_StatusBar_S_Settings);
     pActionStatusBarSettings->setEnabled(fEnabled);
@@ -194,7 +194,7 @@ void UIMachineWindowNormal::sltHandleStatusBarConfigurationChange(const QUuid &u
 void UIMachineWindowNormal::sltHandleStatusBarContextMenuRequest(const QPoint &position)
 {
     /* Raise action's context-menu: */
-    if (gEDataManager->statusBarContextMenuEnabled(vboxGlobal().managedVMUuid()))
+    if (gEDataManager->statusBarContextMenuEnabled(uiCommon().managedVMUuid()))
         actionPool()->action(UIActionIndexRT_M_View_M_StatusBar)->menu()->exec(statusBar()->mapToGlobal(position));
 }
 
@@ -236,24 +236,24 @@ void UIMachineWindowNormal::prepareSessionConnections()
     UIMachineWindow::prepareSessionConnections();
 
     /* We should watch for console events: */
-    connect(machineLogic()->uisession(), SIGNAL(sigMediumChange(const CMediumAttachment &)),
-            this, SLOT(sltMediumChange(const CMediumAttachment &)));
-    connect(machineLogic()->uisession(), SIGNAL(sigUSBControllerChange()),
-            this, SLOT(sltUSBControllerChange()));
-    connect(machineLogic()->uisession(), SIGNAL(sigUSBDeviceStateChange(const CUSBDevice &, bool, const CVirtualBoxErrorInfo &)),
-            this, SLOT(sltUSBDeviceStateChange()));
+    connect(machineLogic()->uisession(), &UISession::sigMediumChange,
+        this, &UIMachineWindowNormal::sltMediumChange);
+    connect(machineLogic()->uisession(), &UISession::sigUSBControllerChange,
+            this, &UIMachineWindowNormal::sltUSBControllerChange);
+    connect(machineLogic()->uisession(), &UISession::sigUSBDeviceStateChange,
+            this, &UIMachineWindowNormal::sltUSBDeviceStateChange);
     connect(machineLogic()->uisession(), &UISession::sigAudioAdapterChange,
             this, &UIMachineWindowNormal::sltAudioAdapterChange);
-    connect(machineLogic()->uisession(), SIGNAL(sigNetworkAdapterChange(const CNetworkAdapter &)),
-            this, SLOT(sltNetworkAdapterChange()));
-    connect(machineLogic()->uisession(), SIGNAL(sigSharedFolderChange()),
-            this, SLOT(sltSharedFolderChange()));
-    connect(machineLogic()->uisession(), SIGNAL(sigRecordingChange()),
-            this, SLOT(sltRecordingChange()));
-    connect(machineLogic()->uisession(), SIGNAL(sigCPUExecutionCapChange()),
-            this, SLOT(sltCPUExecutionCapChange()));
-    connect(machineLogic()->uisession(), SIGNAL(sigInitialized()),
-            this, SLOT(sltHandleSessionInitialized()));
+    connect(machineLogic()->uisession(), &UISession::sigNetworkAdapterChange,
+            this, &UIMachineWindowNormal::sltNetworkAdapterChange);
+    connect(machineLogic()->uisession(), &UISession::sigSharedFolderChange,
+            this, &UIMachineWindowNormal::sltSharedFolderChange);
+    connect(machineLogic()->uisession(), &UISession::sigRecordingChange,
+            this, &UIMachineWindowNormal::sltRecordingChange);
+    connect(machineLogic()->uisession(), &UISession::sigCPUExecutionCapChange,
+            this, &UIMachineWindowNormal::sltCPUExecutionCapChange);
+    connect(machineLogic()->uisession(), &UISession::sigInitialized,
+            this, &UIMachineWindowNormal::sltHandleSessionInitialized);
 }
 
 #ifndef VBOX_WS_MAC
@@ -265,10 +265,10 @@ void UIMachineWindowNormal::prepareMenu()
     {
         /* Configure menu-bar: */
         menuBar()->setContextMenuPolicy(Qt::CustomContextMenu);
-        connect(menuBar(), SIGNAL(customContextMenuRequested(const QPoint&)),
-                this, SLOT(sltHandleMenuBarContextMenuRequest(const QPoint&)));
-        connect(gEDataManager, SIGNAL(sigMenuBarConfigurationChange(const QUuid &)),
-                this, SLOT(sltHandleMenuBarConfigurationChange(const QUuid &)));
+        connect(menuBar(), &UIMenuBar::customContextMenuRequested,
+                this, &UIMachineWindowNormal::sltHandleMenuBarContextMenuRequest);
+        connect(gEDataManager, &UIExtraDataManager::sigMenuBarConfigurationChange,
+                this, &UIMachineWindowNormal::sltHandleMenuBarConfigurationChange);
         /* Update menu-bar: */
         updateMenu();
     }
@@ -286,25 +286,25 @@ void UIMachineWindowNormal::prepareStatusBar()
     {
         /* Configure status-bar: */
         statusBar()->setContextMenuPolicy(Qt::CustomContextMenu);
-        connect(statusBar(), SIGNAL(customContextMenuRequested(const QPoint&)),
-                this, SLOT(sltHandleStatusBarContextMenuRequest(const QPoint&)));
+        connect(statusBar(), &QIStatusBar::customContextMenuRequested,
+                this, &UIMachineWindowNormal::sltHandleStatusBarContextMenuRequest);
         /* Create indicator-pool: */
         m_pIndicatorsPool = new UIIndicatorsPool(machineLogic()->uisession());
         AssertPtrReturnVoid(m_pIndicatorsPool);
         {
             /* Configure indicator-pool: */
-            connect(m_pIndicatorsPool, SIGNAL(sigContextMenuRequest(IndicatorType, const QPoint&)),
-                    this, SLOT(sltHandleIndicatorContextMenuRequest(IndicatorType, const QPoint&)));
+            connect(m_pIndicatorsPool, &UIIndicatorsPool::sigContextMenuRequest,
+                    this, &UIMachineWindowNormal::sltHandleIndicatorContextMenuRequest);
             /* Add indicator-pool into status-bar: */
             statusBar()->addPermanentWidget(m_pIndicatorsPool, 0);
         }
         /* Post-configure status-bar: */
-        connect(gEDataManager, SIGNAL(sigStatusBarConfigurationChange(const QUuid &)),
-                this, SLOT(sltHandleStatusBarConfigurationChange(const QUuid &)));
+        connect(gEDataManager, &UIExtraDataManager::sigStatusBarConfigurationChange,
+                this, &UIMachineWindowNormal::sltHandleStatusBarConfigurationChange);
 #ifdef VBOX_WS_MAC
         /* Make sure the status-bar is aware of action hovering: */
-        connect(actionPool(), SIGNAL(sigActionHovered(UIAction *)),
-                this, SLOT(sltActionHovered(UIAction *)));
+        connect(actionPool(), &UIActionPool::sigActionHovered,
+                this, &UIMachineWindowNormal::sltActionHovered);
 #endif /* VBOX_WS_MAC */
     }
 
@@ -330,14 +330,14 @@ void UIMachineWindowNormal::prepareVisualState()
 
 #ifdef VBOX_WS_MAC
     /* Beta label? */
-    if (vboxGlobal().isBeta())
+    if (uiCommon().isBeta())
     {
         QPixmap betaLabel = ::betaLabel(QSize(100, 16));
         ::darwinLabelWindow(this, &betaLabel, true);
     }
 
     /* For 'Yosemite' and above: */
-    if (vboxGlobal().osRelease() >= MacOSXRelease_Yosemite)
+    if (uiCommon().osRelease() >= MacOSXRelease_Yosemite)
     {
         /* Enable fullscreen support for every screen which requires it: */
         if (darwinScreensHaveSeparateSpaces() || m_uScreenId == 0)
@@ -369,7 +369,7 @@ void UIMachineWindowNormal::loadSettings()
     {
         /* Load extra-data: */
         QRect geo = gEDataManager->machineWindowGeometry(machineLogic()->visualStateType(),
-                                                         m_uScreenId, vboxGlobal().managedVMUuid());
+                                                         m_uScreenId, uiCommon().managedVMUuid());
 
         /* If we do have proper geometry: */
         if (!geo.isNull())
@@ -379,21 +379,21 @@ void UIMachineWindowNormal::loadSettings()
             {
                 /* Restore window geometry: */
                 m_normalGeometry = geo;
-                VBoxGlobal::setTopLevelGeometry(this, m_normalGeometry);
+                UICommon::setTopLevelGeometry(this, m_normalGeometry);
             }
             /* If previous machine-state was NOT SAVED: */
             else
             {
                 /* Restore only window position: */
                 m_normalGeometry = QRect(geo.x(), geo.y(), width(), height());
-                VBoxGlobal::setTopLevelGeometry(this, m_normalGeometry);
+                UICommon::setTopLevelGeometry(this, m_normalGeometry);
                 /* And normalize to the optimal-size: */
                 normalizeGeometry(false /* adjust position */);
             }
 
             /* Maximize (if necessary): */
             if (gEDataManager->machineWindowShouldBeMaximized(machineLogic()->visualStateType(),
-                                                              m_uScreenId, vboxGlobal().managedVMUuid()))
+                                                              m_uScreenId, uiCommon().managedVMUuid()))
                 setWindowState(windowState() | Qt::WindowMaximized);
         }
         /* If we do NOT have proper geometry: */
@@ -408,7 +408,7 @@ void UIMachineWindowNormal::loadSettings()
             /* Move newly created window to the screen-center: */
             m_normalGeometry = geometry();
             m_normalGeometry.moveCenter(availableGeo.center());
-            VBoxGlobal::setTopLevelGeometry(this, m_normalGeometry);
+            UICommon::setTopLevelGeometry(this, m_normalGeometry);
         }
 
         /* Normalize to the optimal size: */
@@ -426,7 +426,7 @@ void UIMachineWindowNormal::saveSettings()
     {
         gEDataManager->setMachineWindowGeometry(machineLogic()->visualStateType(),
                                                 m_uScreenId, m_normalGeometry,
-                                                isMaximizedChecked(), vboxGlobal().managedVMUuid());
+                                                isMaximizedChecked(), uiCommon().managedVMUuid());
     }
 
     /* Call to base-class: */
@@ -437,7 +437,7 @@ void UIMachineWindowNormal::cleanupVisualState()
 {
 #ifdef VBOX_WS_MAC
     /* Unregister 'Zoom' button from using our full-screen since Yosemite: */
-    if (vboxGlobal().osRelease() >= MacOSXRelease_Yosemite)
+    if (uiCommon().osRelease() >= MacOSXRelease_Yosemite)
         UICocoaApplication::instance()->unregisterCallbackForStandardWindowButton(this, StandardWindowButtonType_Zoom);
 #endif /* VBOX_WS_MAC */
 }
@@ -445,22 +445,22 @@ void UIMachineWindowNormal::cleanupVisualState()
 void UIMachineWindowNormal::cleanupSessionConnections()
 {
     /* We should stop watching for console events: */
-    disconnect(machineLogic()->uisession(), SIGNAL(sigMediumChange(const CMediumAttachment &)),
-               this, SLOT(sltMediumChange(const CMediumAttachment &)));
-    disconnect(machineLogic()->uisession(), SIGNAL(sigUSBControllerChange()),
-               this, SLOT(sltUSBControllerChange()));
-    disconnect(machineLogic()->uisession(), SIGNAL(sigUSBDeviceStateChange(const CUSBDevice &, bool, const CVirtualBoxErrorInfo &)),
-               this, SLOT(sltUSBDeviceStateChange()));
-    disconnect(machineLogic()->uisession(), SIGNAL(sigNetworkAdapterChange(const CNetworkAdapter &)),
-               this, SLOT(sltNetworkAdapterChange()));
+    disconnect(machineLogic()->uisession(), &UISession::sigMediumChange,
+               this, &UIMachineWindowNormal::sltMediumChange);
+    disconnect(machineLogic()->uisession(), &UISession::sigUSBControllerChange,
+               this, &UIMachineWindowNormal::sltUSBControllerChange);
+    disconnect(machineLogic()->uisession(), &UISession::sigUSBDeviceStateChange,
+               this, &UIMachineWindowNormal::sltUSBDeviceStateChange);
+    disconnect(machineLogic()->uisession(), &UISession::sigNetworkAdapterChange,
+               this, &UIMachineWindowNormal::sltNetworkAdapterChange);
     disconnect(machineLogic()->uisession(), &UISession::sigAudioAdapterChange,
                this, &UIMachineWindowNormal::sltAudioAdapterChange);
-    disconnect(machineLogic()->uisession(), SIGNAL(sigSharedFolderChange()),
-               this, SLOT(sltSharedFolderChange()));
-    disconnect(machineLogic()->uisession(), SIGNAL(sigRecordingChange()),
-               this, SLOT(sltRecordingChange()));
-    disconnect(machineLogic()->uisession(), SIGNAL(sigCPUExecutionCapChange()),
-               this, SLOT(sltCPUExecutionCapChange()));
+    disconnect(machineLogic()->uisession(), &UISession::sigSharedFolderChange,
+               this, &UIMachineWindowNormal::sltSharedFolderChange);
+    disconnect(machineLogic()->uisession(), &UISession::sigRecordingChange,
+               this, &UIMachineWindowNormal::sltRecordingChange);
+    disconnect(machineLogic()->uisession(), &UISession::sigCPUExecutionCapChange,
+               this, &UIMachineWindowNormal::sltCPUExecutionCapChange);
 
     /* Call to base-class: */
     UIMachineWindow::cleanupSessionConnections();
@@ -584,10 +584,10 @@ void UIMachineWindowNormal::normalizeGeometry(bool fAdjustPosition)
 
     /* Adjust position if necessary: */
     if (fAdjustPosition)
-        frGeo = VBoxGlobal::normalizeGeometry(frGeo, gpDesktop->overallAvailableRegion());
+        frGeo = UICommon::normalizeGeometry(frGeo, gpDesktop->overallAvailableRegion());
 
     /* Finally, set the frame geometry: */
-    VBoxGlobal::setTopLevelGeometry(this, frGeo.left() + dl, frGeo.top() + dt,
+    UICommon::setTopLevelGeometry(this, frGeo.left() + dl, frGeo.top() + dt,
                                     frGeo.width() - dl - dr, frGeo.height() - dt - db);
 #else /* VBOX_GUI_WITH_CUSTOMIZATIONS1 */
     /* Customer request: There should no be
@@ -658,4 +658,3 @@ bool UIMachineWindowNormal::isMaximizedChecked()
     return isMaximized();
 #endif /* !VBOX_WS_MAC */
 }
-

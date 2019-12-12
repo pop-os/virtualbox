@@ -162,10 +162,26 @@ unsigned VBoxDbgBaseWindow::m_cxBorder = 0;
 unsigned VBoxDbgBaseWindow::m_cyBorder = 0;
 
 
-VBoxDbgBaseWindow::VBoxDbgBaseWindow(VBoxDbgGui *a_pDbgGui, QWidget *a_pParent)
-    : QWidget(a_pParent, Qt::Window), VBoxDbgBase(a_pDbgGui), m_fPolished(false),
-    m_x(INT_MAX), m_y(INT_MAX), m_cx(0), m_cy(0)
+VBoxDbgBaseWindow::VBoxDbgBaseWindow(VBoxDbgGui *a_pDbgGui, QWidget *a_pParent, const char *a_pszTitle)
+    : QWidget(a_pParent, Qt::Window), VBoxDbgBase(a_pDbgGui), m_pszTitle(a_pszTitle), m_fPolished(false)
+    , m_x(INT_MAX), m_y(INT_MAX), m_cx(0), m_cy(0)
 {
+    /* Set the title, using the parent one as prefix when possible: */
+    if (!parent())
+    {
+        QString strMachineName = a_pDbgGui->getMachineName();
+        if (strMachineName.isEmpty())
+            setWindowTitle(QString("VBoxDbg - %1").arg(m_pszTitle));
+        else
+            setWindowTitle(QString("%1 - VBoxDbg - %2").arg(strMachineName).arg(m_pszTitle));
+    }
+    else
+    {
+        setWindowTitle(QString("%1 - %2").arg(parentWidget()->windowTitle()).arg(m_pszTitle));
+
+        /* Install an event filter so we can make adjustments when the parent title changes: */
+        parent()->installEventFilter(this);
+    }
 }
 
 
@@ -217,6 +233,18 @@ VBoxDbgBaseWindow::event(QEvent *a_pEvt)
 }
 
 
+bool VBoxDbgBaseWindow::eventFilter(QObject *pWatched, QEvent *pEvent)
+{
+    /* We're only interested in title changes to the parent so we can amend our own title: */
+    if (   pWatched == parent()
+        && pEvent->type() == QEvent::WindowTitleChange)
+        setWindowTitle(QString("%1 - %2").arg(parentWidget()->windowTitle()).arg(m_pszTitle));
+
+    /* Forward to base-class: */
+    return QWidget::eventFilter(pWatched, pEvent);
+}
+
+
 void
 VBoxDbgBaseWindow::vPolishSizeAndPos()
 {
@@ -237,37 +265,35 @@ QSize
 VBoxDbgBaseWindow::vGuessBorderSizes()
 {
 #ifdef Q_WS_X11 /* (from the qt gui) */
-    /* only once. */
-    if (!m_cxBorder && !m_cyBorder)
+    /*
+     * On X11, there is no way to determine frame geometry (including WM
+     * decorations) before the widget is shown for the first time.  Stupidly
+     * enumerate other top level widgets to find the thickest frame.
+     */
+    if (!m_cxBorder && !m_cyBorder) /* (only till we're successful) */
     {
+        int cxExtra = 0;
+        int cyExtra = 0;
 
-        /* On X11, there is no way to determine frame geometry (including WM
-         * decorations) before the widget is shown for the first time. Stupidly
-         * enumerate other top level widgets to find the thickest frame. The code
-         * is based on the idea taken from QDialog::adjustPositionInternal(). */
-
-        int extraw = 0, extrah = 0;
-
-        QWidgetList list = QApplication::topLevelWidgets();
-        QListIterator<QWidget*> it (list);
-        while ((extraw == 0 || extrah == 0) && it.hasNext())
+        QWidgetList WidgetList = QApplication::topLevelWidgets();
+        for (QListIterator<QWidget *> it(WidgetList); it.hasNext(); )
         {
-            int framew, frameh;
-            QWidget *current = it.next();
-            if (!current->isVisible())
-                continue;
-
-            framew = current->frameGeometry().width() - current->width();
-            frameh = current->frameGeometry().height() - current->height();
-
-            extraw = qMax (extraw, framew);
-            extrah = qMax (extrah, frameh);
+            QWidget *pCurWidget = it.next();
+            if (pCurWidget->isVisible())
+            {
+                int const cxFrame = pCurWidget->frameGeometry().width()  - pCurWidget->width();
+                cxExtra = qMax(cxExtra, cxFrame);
+                int const cyFrame = pCurWidget->frameGeometry().height() - pCurWidget->height();
+                cyExtra = qMax(cyExtra, cyFrame);
+                if (cyExtra && cxExtra)
+                    break;
+            }
         }
 
-        if (extraw || extrah)
+        if (cxExtra || cyExtra)
         {
-            m_cxBorder = extraw;
-            m_cyBorder = extrah;
+            m_cxBorder = cxExtra;
+            m_cyBorder = cyExtra;
         }
     }
 #endif /* X11 */

@@ -23,13 +23,10 @@
 #include <VBox/vmm/tm.h>
 #include <VBox/vmm/dbgftrace.h>
 #ifdef IN_RING3
-# ifdef VBOX_WITH_REM
-#  include <VBox/vmm/rem.h>
-# endif
 # include <iprt/thread.h>
 #endif
 #include "TMInternal.h"
-#include <VBox/vmm/vm.h>
+#include <VBox/vmm/vmcc.h>
 #include <VBox/vmm/vmm.h>
 #include <VBox/err.h>
 #include <VBox/log.h>
@@ -89,7 +86,7 @@ DECLCALLBACK(DECLEXPORT(uint64_t)) tmVirtualNanoTSRediscover(PRTTIMENANOTSDATA p
     {
         case SUPGIPMODE_SYNC_TSC:
         case SUPGIPMODE_INVARIANT_TSC:
-#if defined(IN_RC) || defined(IN_RING0)
+#ifdef IN_RING0
             if (pGip->enmUseTscDelta <= SUPGIPUSETSCDELTA_ROUGHLY_ZERO)
                 pfnWorker = fLFence ? RTTimeNanoTSLFenceSyncInvarNoDelta    : RTTimeNanoTSLegacySyncInvarNoDelta;
             else
@@ -97,21 +94,29 @@ DECLCALLBACK(DECLEXPORT(uint64_t)) tmVirtualNanoTSRediscover(PRTTIMENANOTSDATA p
 #else
             if (pGip->fGetGipCpu & SUPGIPGETCPU_IDTR_LIMIT_MASK_MAX_SET_CPUS)
                 pfnWorker = pGip->enmUseTscDelta <= SUPGIPUSETSCDELTA_PRACTICALLY_ZERO
-                          ? fLFence ? RTTimeNanoTSLFenceSyncInvarNoDelta    : RTTimeNanoTSLegacySyncInvarNoDelta
+                          ? fLFence ? RTTimeNanoTSLFenceSyncInvarNoDelta             : RTTimeNanoTSLegacySyncInvarNoDelta
                           : fLFence ? RTTimeNanoTSLFenceSyncInvarWithDeltaUseIdtrLim : RTTimeNanoTSLegacySyncInvarWithDeltaUseIdtrLim;
             else if (pGip->fGetGipCpu & SUPGIPGETCPU_RDTSCP_MASK_MAX_SET_CPUS)
                 pfnWorker = pGip->enmUseTscDelta <= SUPGIPUSETSCDELTA_PRACTICALLY_ZERO
-                          ? fLFence ? RTTimeNanoTSLFenceSyncInvarNoDelta    : RTTimeNanoTSLegacySyncInvarNoDelta
+                          ? fLFence ? RTTimeNanoTSLFenceSyncInvarNoDelta            : RTTimeNanoTSLegacySyncInvarNoDelta
                           : fLFence ? RTTimeNanoTSLFenceSyncInvarWithDeltaUseRdtscp : RTTimeNanoTSLegacySyncInvarWithDeltaUseRdtscp;
+            else if (pGip->fGetGipCpu & SUPGIPGETCPU_APIC_ID_EXT_0B)
+                pfnWorker = pGip->enmUseTscDelta <= SUPGIPUSETSCDELTA_ROUGHLY_ZERO
+                          ? fLFence ? RTTimeNanoTSLFenceSyncInvarNoDelta                 : RTTimeNanoTSLegacySyncInvarNoDelta
+                          : fLFence ? RTTimeNanoTSLFenceSyncInvarWithDeltaUseApicIdExt0B : RTTimeNanoTSLegacySyncInvarWithDeltaUseApicIdExt0B;
+            else if (pGip->fGetGipCpu & SUPGIPGETCPU_APIC_ID_EXT_8000001E)
+                pfnWorker = pGip->enmUseTscDelta <= SUPGIPUSETSCDELTA_ROUGHLY_ZERO
+                          ? fLFence ? RTTimeNanoTSLFenceSyncInvarNoDelta                       : RTTimeNanoTSLegacySyncInvarNoDelta
+                          : fLFence ? RTTimeNanoTSLFenceSyncInvarWithDeltaUseApicIdExt8000001E : RTTimeNanoTSLegacySyncInvarWithDeltaUseApicIdExt8000001E;
             else
                 pfnWorker = pGip->enmUseTscDelta <= SUPGIPUSETSCDELTA_ROUGHLY_ZERO
-                          ? fLFence ? RTTimeNanoTSLFenceSyncInvarNoDelta    : RTTimeNanoTSLegacySyncInvarNoDelta
+                          ? fLFence ? RTTimeNanoTSLFenceSyncInvarNoDelta            : RTTimeNanoTSLegacySyncInvarNoDelta
                           : fLFence ? RTTimeNanoTSLFenceSyncInvarWithDeltaUseApicId : RTTimeNanoTSLegacySyncInvarWithDeltaUseApicId;
 #endif
             break;
 
         case SUPGIPMODE_ASYNC_TSC:
-#if defined(IN_RC) || defined(IN_RING0)
+#ifdef IN_RING0
             pfnWorker = fLFence ? RTTimeNanoTSLFenceAsync : RTTimeNanoTSLegacyAsync;
 #else
             if (pGip->fGetGipCpu & SUPGIPGETCPU_IDTR_LIMIT_MASK_MAX_SET_CPUS)
@@ -120,6 +125,10 @@ DECLCALLBACK(DECLEXPORT(uint64_t)) tmVirtualNanoTSRediscover(PRTTIMENANOTSDATA p
                 pfnWorker = fLFence ? RTTimeNanoTSLFenceAsyncUseRdtscp      : RTTimeNanoTSLegacyAsyncUseRdtscp;
             else if (pGip->fGetGipCpu & SUPGIPGETCPU_RDTSCP_GROUP_IN_CH_NUMBER_IN_CL)
                 pfnWorker = fLFence ? RTTimeNanoTSLFenceAsyncUseRdtscpGroupChNumCl : RTTimeNanoTSLegacyAsyncUseRdtscpGroupChNumCl;
+            else if (pGip->fGetGipCpu & SUPGIPGETCPU_APIC_ID_EXT_0B)
+                pfnWorker = fLFence ? RTTimeNanoTSLFenceAsyncUseApicIdExt0B : RTTimeNanoTSLegacyAsyncUseApicIdExt0B;
+            else if (pGip->fGetGipCpu & SUPGIPGETCPU_APIC_ID_EXT_8000001E)
+                pfnWorker = fLFence ? RTTimeNanoTSLFenceAsyncUseApicIdExt8000001E  : RTTimeNanoTSLegacyAsyncUseApicIdExt8000001E;
             else
                 pfnWorker = fLFence ? RTTimeNanoTSLFenceAsyncUseApicId      : RTTimeNanoTSLegacyAsyncUseApicId;
 #endif
@@ -153,7 +162,7 @@ DECLEXPORT(uint64_t) tmVirtualNanoTSBadCpuIndex(PRTTIMENANOTSDATA pData, uint16_
 /**
  * Wrapper around the IPRT GIP time methods.
  */
-DECLINLINE(uint64_t) tmVirtualGetRawNanoTS(PVM pVM)
+DECLINLINE(uint64_t) tmVirtualGetRawNanoTS(PVMCC pVM)
 {
 # ifdef IN_RING3
     uint64_t u64 = CTXALLSUFF(pVM->tm.s.pfnVirtualGetRaw)(&CTXALLSUFF(pVM->tm.s.VirtualGetRawData));
@@ -174,7 +183,7 @@ DECLINLINE(uint64_t) tmVirtualGetRawNanoTS(PVM pVM)
  * @returns The timestamp.
  * @param   pVM     The cross context VM structure.
  */
-static uint64_t tmVirtualGetRawNonNormal(PVM pVM)
+static uint64_t tmVirtualGetRawNonNormal(PVMCC pVM)
 {
     /*
      * Recalculate the RTTimeNanoTS() value for the period where
@@ -202,7 +211,7 @@ static uint64_t tmVirtualGetRawNonNormal(PVM pVM)
  * @returns The current time stamp.
  * @param   pVM     The cross context VM structure.
  */
-DECLINLINE(uint64_t) tmVirtualGetRaw(PVM pVM)
+DECLINLINE(uint64_t) tmVirtualGetRaw(PVMCC pVM)
 {
     if (RT_LIKELY(!pVM->tm.s.fVirtualWarpDrive))
         return tmVirtualGetRawNanoTS(pVM) - pVM->tm.s.u64VirtualOffset;
@@ -213,7 +222,7 @@ DECLINLINE(uint64_t) tmVirtualGetRaw(PVM pVM)
 /**
  * Inlined version of tmVirtualGetEx.
  */
-DECLINLINE(uint64_t) tmVirtualGet(PVM pVM, bool fCheckTimers)
+DECLINLINE(uint64_t) tmVirtualGet(PVMCC pVM, bool fCheckTimers)
 {
     uint64_t u64;
     if (RT_LIKELY(pVM->tm.s.cVirtualTicking))
@@ -226,7 +235,7 @@ DECLINLINE(uint64_t) tmVirtualGet(PVM pVM, bool fCheckTimers)
          */
         if (fCheckTimers)
         {
-            PVMCPU pVCpuDst = &pVM->aCpus[pVM->tm.s.idTimerCpu];
+            PVMCPUCC pVCpuDst = VMCC_GET_CPU(pVM, pVM->tm.s.idTimerCpu);
             if (    !VMCPU_FF_IS_SET(pVCpuDst, VMCPU_FF_TIMER)
                 &&  !pVM->tm.s.fRunningQueues
                 &&  (   pVM->tm.s.CTX_SUFF(paTimerQueues)[TMCLOCK_VIRTUAL].u64Expire <= u64
@@ -241,9 +250,6 @@ DECLINLINE(uint64_t) tmVirtualGet(PVM pVM, bool fCheckTimers)
                 Log5(("TMAllVirtual(%u): FF: %d -> 1\n", __LINE__, VMCPU_FF_IS_SET(pVCpuDst, VMCPU_FF_TIMER)));
                 VMCPU_FF_SET(pVCpuDst, VMCPU_FF_TIMER);
 #ifdef IN_RING3
-# ifdef VBOX_WITH_REM
-                REMR3NotifyTimerPending(pVM, pVCpuDst);
-# endif
                 VMR3NotifyCpuFFU(pVCpuDst->pUVCpu, VMNOTIFYFF_FLAGS_DONE_REM);
 #endif
             }
@@ -266,7 +272,7 @@ DECLINLINE(uint64_t) tmVirtualGet(PVM pVM, bool fCheckTimers)
  *          influenced by power saving (SpeedStep, PowerNow!), while the former
  *          makes use of TSC and kernel timers.
  */
-VMM_INT_DECL(uint64_t) TMVirtualGet(PVM pVM)
+VMM_INT_DECL(uint64_t) TMVirtualGet(PVMCC pVM)
 {
     return tmVirtualGet(pVM, true /*fCheckTimers*/);
 }
@@ -283,7 +289,7 @@ VMM_INT_DECL(uint64_t) TMVirtualGet(PVM pVM)
  *
  * @remarks See TMVirtualGet.
  */
-VMM_INT_DECL(uint64_t) TMVirtualGetNoCheck(PVM pVM)
+VMM_INT_DECL(uint64_t) TMVirtualGetNoCheck(PVMCC pVM)
 {
     return tmVirtualGet(pVM, false /*fCheckTimers*/);
 }
@@ -315,7 +321,7 @@ DECLINLINE(uint64_t) tmVirtualVirtToNsDeadline(PVM pVM, uint64_t cVirtTicksToDea
  *                              the next virtual sync timer deadline. Can be
  *                              NULL.
  */
-DECLINLINE(uint64_t) tmVirtualSyncGetHandleCatchUpLocked(PVM pVM, uint64_t u64, uint64_t off, uint64_t *pcNsToDeadline)
+DECLINLINE(uint64_t) tmVirtualSyncGetHandleCatchUpLocked(PVMCC pVM, uint64_t u64, uint64_t off, uint64_t *pcNsToDeadline)
 {
     STAM_COUNTER_INC(&pVM->tm.s.StatVirtualSyncGetLocked);
 
@@ -393,7 +399,7 @@ DECLINLINE(uint64_t) tmVirtualSyncGetHandleCatchUpLocked(PVM pVM, uint64_t u64, 
         ASMAtomicWriteBool(&pVM->tm.s.fVirtualSyncTicking, false);
 
         VM_FF_SET(pVM, VM_FF_TM_VIRTUAL_SYNC);
-        PVMCPU pVCpuDst = &pVM->aCpus[pVM->tm.s.idTimerCpu];
+        PVMCPUCC pVCpuDst = VMCC_GET_CPU(pVM, pVM->tm.s.idTimerCpu);
         VMCPU_FF_SET(pVCpuDst, VMCPU_FF_TIMER);
         Log5(("TMAllVirtual(%u): FF: %d -> 1\n", __LINE__, VMCPU_FF_IS_SET(pVCpuDst, VMCPU_FF_TIMER)));
         Log4(("TM: %'RU64/-%'8RU64: exp tmr=>ff [vsghcul]\n", u64, pVM->tm.s.offVirtualSync - pVM->tm.s.offVirtualSyncGivenUp));
@@ -402,9 +408,6 @@ DECLINLINE(uint64_t) tmVirtualSyncGetHandleCatchUpLocked(PVM pVM, uint64_t u64, 
         if (pcNsToDeadline)
             *pcNsToDeadline = 0;
 #ifdef IN_RING3
-# ifdef VBOX_WITH_REM
-        REMR3NotifyTimerPending(pVM, pVCpuDst);
-# endif
         VMR3NotifyCpuFFU(pVCpuDst->pUVCpu, VMNOTIFYFF_FLAGS_DONE_REM);
 #endif
         STAM_COUNTER_INC(&pVM->tm.s.StatVirtualSyncGetSetFF);
@@ -428,7 +431,7 @@ DECLINLINE(uint64_t) tmVirtualSyncGetHandleCatchUpLocked(PVM pVM, uint64_t u64, 
  *                              the next virtual sync timer deadline.  Can be
  *                              NULL.
  */
-DECLINLINE(uint64_t) tmVirtualSyncGetLocked(PVM pVM, uint64_t u64, uint64_t *pcNsToDeadline)
+DECLINLINE(uint64_t) tmVirtualSyncGetLocked(PVMCC pVM, uint64_t u64, uint64_t *pcNsToDeadline)
 {
     /*
      * Not ticking?
@@ -481,16 +484,13 @@ DECLINLINE(uint64_t) tmVirtualSyncGetLocked(PVM pVM, uint64_t u64, uint64_t *pcN
         ASMAtomicWriteBool(&pVM->tm.s.fVirtualSyncTicking, false);
 
         VM_FF_SET(pVM, VM_FF_TM_VIRTUAL_SYNC);
-        PVMCPU pVCpuDst = &pVM->aCpus[pVM->tm.s.idTimerCpu];
+        PVMCPUCC pVCpuDst = VMCC_GET_CPU(pVM, pVM->tm.s.idTimerCpu);
         VMCPU_FF_SET(pVCpuDst, VMCPU_FF_TIMER);
         Log5(("TMAllVirtual(%u): FF: %d -> 1\n", __LINE__, VMCPU_FF_IS_SET(pVCpuDst, VMCPU_FF_TIMER)));
         Log4(("TM: %'RU64/-%'8RU64: exp tmr=>ff [vsgl]\n", u64, pVM->tm.s.offVirtualSync - pVM->tm.s.offVirtualSyncGivenUp));
         PDMCritSectLeave(&pVM->tm.s.VirtualSyncLock);
 
 #ifdef IN_RING3
-# ifdef VBOX_WITH_REM
-        REMR3NotifyTimerPending(pVM, pVCpuDst);
-# endif
         VMR3NotifyCpuFFU(pVCpuDst->pUVCpu, VMNOTIFYFF_FLAGS_DONE_REM);
 #endif
         if (pcNsToDeadline)
@@ -516,7 +516,7 @@ DECLINLINE(uint64_t) tmVirtualSyncGetLocked(PVM pVM, uint64_t u64, uint64_t *pcN
  *                              NULL.
  * @thread  EMT.
  */
-DECLINLINE(uint64_t) tmVirtualSyncGetEx(PVM pVM, bool fCheckTimers, uint64_t *pcNsToDeadline)
+DECLINLINE(uint64_t) tmVirtualSyncGetEx(PVMCC pVM, bool fCheckTimers, uint64_t *pcNsToDeadline)
 {
     STAM_COUNTER_INC(&pVM->tm.s.StatVirtualSyncGet);
 
@@ -537,16 +537,13 @@ DECLINLINE(uint64_t) tmVirtualSyncGetEx(PVM pVM, bool fCheckTimers, uint64_t *pc
     u64 = tmVirtualGetRaw(pVM);
     if (fCheckTimers)
     {
-        PVMCPU pVCpuDst = &pVM->aCpus[pVM->tm.s.idTimerCpu];
+        PVMCPUCC pVCpuDst = VMCC_GET_CPU(pVM, pVM->tm.s.idTimerCpu);
         if (    !VMCPU_FF_IS_SET(pVCpuDst, VMCPU_FF_TIMER)
             &&  pVM->tm.s.CTX_SUFF(paTimerQueues)[TMCLOCK_VIRTUAL].u64Expire <= u64)
         {
             Log5(("TMAllVirtual(%u): FF: 0 -> 1\n", __LINE__));
             VMCPU_FF_SET(pVCpuDst, VMCPU_FF_TIMER);
 #ifdef IN_RING3
-# ifdef VBOX_WITH_REM
-            REMR3NotifyTimerPending(pVM, pVCpuDst);
-# endif
             VMR3NotifyCpuFFU(pVCpuDst->pUVCpu, VMNOTIFYFF_FLAGS_DONE_REM /** @todo |VMNOTIFYFF_FLAGS_POKE*/);
 #endif
             STAM_COUNTER_INC(&pVM->tm.s.StatVirtualSyncGetSetFF);
@@ -707,16 +704,13 @@ DECLINLINE(uint64_t) tmVirtualSyncGetEx(PVM pVM, bool fCheckTimers, uint64_t *pc
     uint64_t u64Expire = ASMAtomicReadU64(&pVM->tm.s.CTX_SUFF(paTimerQueues)[TMCLOCK_VIRTUAL_SYNC].u64Expire);
     if (u64 >= u64Expire)
     {
-        PVMCPU pVCpuDst = &pVM->aCpus[pVM->tm.s.idTimerCpu];
+        PVMCPUCC pVCpuDst = VMCC_GET_CPU(pVM, pVM->tm.s.idTimerCpu);
         if (!VMCPU_FF_IS_SET(pVCpuDst, VMCPU_FF_TIMER))
         {
             Log5(("TMAllVirtual(%u): FF: %d -> 1 (NoLock)\n", __LINE__, VMCPU_FF_IS_SET(pVCpuDst, VMCPU_FF_TIMER)));
             VM_FF_SET(pVM, VM_FF_TM_VIRTUAL_SYNC); /* Hmm? */
             VMCPU_FF_SET(pVCpuDst, VMCPU_FF_TIMER);
 #ifdef IN_RING3
-# ifdef VBOX_WITH_REM
-            REMR3NotifyTimerPending(pVM, pVCpuDst);
-# endif
             VMR3NotifyCpuFFU(pVCpuDst->pUVCpu, VMNOTIFYFF_FLAGS_DONE_REM);
 #endif
             STAM_COUNTER_INC(&pVM->tm.s.StatVirtualSyncGetSetFF);
@@ -751,7 +745,7 @@ DECLINLINE(uint64_t) tmVirtualSyncGetEx(PVM pVM, bool fCheckTimers, uint64_t *pc
  * @thread  EMT.
  * @remarks May set the timer and virtual sync FFs.
  */
-VMM_INT_DECL(uint64_t) TMVirtualSyncGet(PVM pVM)
+VMM_INT_DECL(uint64_t) TMVirtualSyncGet(PVMCC pVM)
 {
     return tmVirtualSyncGetEx(pVM, true /*fCheckTimers*/, NULL /*pcNsToDeadline*/);
 }
@@ -766,7 +760,7 @@ VMM_INT_DECL(uint64_t) TMVirtualSyncGet(PVM pVM)
  * @thread  EMT.
  * @remarks May set the timer and virtual sync FFs.
  */
-VMM_INT_DECL(uint64_t) TMVirtualSyncGetNoCheck(PVM pVM)
+VMM_INT_DECL(uint64_t) TMVirtualSyncGetNoCheck(PVMCC pVM)
 {
     return tmVirtualSyncGetEx(pVM, false /*fCheckTimers*/, NULL /*pcNsToDeadline*/);
 }
@@ -781,7 +775,7 @@ VMM_INT_DECL(uint64_t) TMVirtualSyncGetNoCheck(PVM pVM)
  * @thread  EMT.
  * @remarks May set the timer and virtual sync FFs.
  */
-VMM_INT_DECL(uint64_t) TMVirtualSyncGetEx(PVM pVM, bool fCheckTimers)
+VMM_INT_DECL(uint64_t) TMVirtualSyncGetEx(PVMCC pVM, bool fCheckTimers)
 {
     return tmVirtualSyncGetEx(pVM, fCheckTimers, NULL /*pcNsToDeadline*/);
 }
@@ -798,7 +792,7 @@ VMM_INT_DECL(uint64_t) TMVirtualSyncGetEx(PVM pVM, bool fCheckTimers)
  * @thread  EMT.
  * @remarks May set the timer and virtual sync FFs.
  */
-VMM_INT_DECL(uint64_t) TMVirtualSyncGetWithDeadlineNoCheck(PVM pVM, uint64_t *pcNsToDeadline)
+VMM_INT_DECL(uint64_t) TMVirtualSyncGetWithDeadlineNoCheck(PVMCC pVM, uint64_t *pcNsToDeadline)
 {
     uint64_t cNsToDeadlineTmp;       /* try convince the compiler to skip the if tests. */
     uint64_t u64Now = tmVirtualSyncGetEx(pVM, false /*fCheckTimers*/, &cNsToDeadlineTmp);
@@ -815,7 +809,7 @@ VMM_INT_DECL(uint64_t) TMVirtualSyncGetWithDeadlineNoCheck(PVM pVM, uint64_t *pc
  * @thread  EMT.
  * @remarks May set the timer and virtual sync FFs.
  */
-VMMDECL(uint64_t) TMVirtualSyncGetNsToDeadline(PVM pVM)
+VMMDECL(uint64_t) TMVirtualSyncGetNsToDeadline(PVMCC pVM)
 {
     uint64_t cNsToDeadline;
     tmVirtualSyncGetEx(pVM, false /*fCheckTimers*/, &cNsToDeadline);
@@ -829,7 +823,7 @@ VMMDECL(uint64_t) TMVirtualSyncGetNsToDeadline(PVM pVM)
  * @return  The current lag.
  * @param   pVM     The cross context VM structure.
  */
-VMM_INT_DECL(uint64_t) TMVirtualSyncGetLag(PVM pVM)
+VMM_INT_DECL(uint64_t) TMVirtualSyncGetLag(PVMCC pVM)
 {
     return pVM->tm.s.offVirtualSync - pVM->tm.s.offVirtualSyncGivenUp;
 }
@@ -841,7 +835,7 @@ VMM_INT_DECL(uint64_t) TMVirtualSyncGetLag(PVM pVM)
  * @return  The current catch0up percent. 0 means running at the same speed as the virtual clock.
  * @param   pVM     The cross context VM structure.
  */
-VMM_INT_DECL(uint32_t) TMVirtualSyncGetCatchUpPct(PVM pVM)
+VMM_INT_DECL(uint32_t) TMVirtualSyncGetCatchUpPct(PVMCC pVM)
 {
     if (pVM->tm.s.fVirtualSyncCatchUp)
         return pVM->tm.s.u32VirtualSyncCatchUpPercentage;
@@ -868,7 +862,7 @@ VMM_INT_DECL(uint64_t) TMVirtualGetFreq(PVM pVM)
  * @returns VINF_SUCCESS or VERR_TM_VIRTUAL_TICKING_IPE (asserted).
  * @param   pVM     The cross context VM structure.
  */
-int tmVirtualPauseLocked(PVM pVM)
+int tmVirtualPauseLocked(PVMCC pVM)
 {
     uint32_t c = ASMAtomicDecU32(&pVM->tm.s.cVirtualTicking);
     AssertMsgReturn(c < pVM->cCpus, ("%u vs %u\n", c, pVM->cCpus), VERR_TM_VIRTUAL_TICKING_IPE);
@@ -888,7 +882,7 @@ int tmVirtualPauseLocked(PVM pVM)
  * @returns VINF_SUCCESS or VERR_TM_VIRTUAL_TICKING_IPE (asserted).
  * @param   pVM     The cross context VM structure.
  */
-int tmVirtualResumeLocked(PVM pVM)
+int tmVirtualResumeLocked(PVMCC pVM)
 {
     uint32_t c = ASMAtomicIncU32(&pVM->tm.s.cVirtualTicking);
     AssertMsgReturn(c <= pVM->cCpus, ("%u vs %u\n", c, pVM->cCpus), VERR_TM_VIRTUAL_TICKING_IPE);

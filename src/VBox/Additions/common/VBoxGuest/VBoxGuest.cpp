@@ -1388,13 +1388,13 @@ void VGDrvCommonProcessOption(PVBOXGUESTDEVEXT pDevExt, const char *pszName, con
     else if (   RTStrNICmpAscii(pszName, RT_STR_TUPLE("log")) == 0
              || RTStrNICmpAscii(pszName, RT_STR_TUPLE("dbg_log")) == 0)
     {
-        bool const  fLogRel    = *pszName == 'd' || *pszName == 'D';
-        const char *pszSubName = &pszName[fLogRel ? 4 + 3 : 3];
+        bool const  fDbgRel    = *pszName == 'd' || *pszName == 'D';
+        const char *pszSubName = &pszName[fDbgRel ? 4 + 3 : 3];
         if (   !*pszSubName
             || RTStrICmpAscii(pszSubName, "_flags") == 0
             || RTStrICmpAscii(pszSubName, "_dest") == 0)
         {
-            PRTLOGGER pLogger = fLogRel ? RTLogRelGetDefaultInstance() : RTLogDefaultInstance();
+            PRTLOGGER pLogger = !fDbgRel ? RTLogRelGetDefaultInstance() : RTLogDefaultInstance();
             if (pLogger)
             {
                 if (!*pszSubName)
@@ -2864,7 +2864,7 @@ static int vgdrvIoCtl_HGCMFastCall(PVBOXGUESTDEVEXT pDevExt, VBGLIOCIDCHGCMFASTC
     /* Make the compiler aware that the host has changed memory. */
     ASMCompilerBarrier();
 
-    pCallReq->Hdr.rc = rc = pHgcmCall->header.header.rc;
+    rc = pHgcmCall->header.header.rc;
     Log(("vgdrvIoCtl_HGCMFastCall -> %Rrc (header rc=%Rrc)\n", rc, pHgcmCall->header.result));
 
     /*
@@ -4140,7 +4140,7 @@ int VGDrvCommonIoCtl(uintptr_t iFunction, PVBOXGUESTDEVEXT pDevExt, PVBOXGUESTSE
         {
             REQ_CHECK_RING0("VBGL_IOCTL_IDC_HGCM_FAST_CALL");
             REQ_CHECK_EXPR(VBGL_IOCTL_IDC_HGCM_FAST_CALL, cbReq >= sizeof(VBGLIOCIDCHGCMFASTCALL) + sizeof(VMMDevHGCMCall));
-            vgdrvIoCtl_HGCMFastCall(pDevExt, (VBGLIOCIDCHGCMFASTCALL volatile *)pReqHdr);
+            pReqHdr->rc = vgdrvIoCtl_HGCMFastCall(pDevExt, (VBGLIOCIDCHGCMFASTCALL volatile *)pReqHdr);
         }
         else if (   iFunctionStripped == VBGL_IOCTL_CODE_STRIPPED(VBGL_IOCTL_HGCM_CALL(0))
 # if ARCH_BITS == 64

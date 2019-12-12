@@ -431,6 +431,17 @@ RTDECL(char *) RTPathSkipRootSpec(const char *pszPath);
 RTDECL(size_t) RTPathEnsureTrailingSeparator(char *pszPath, size_t cbPath);
 
 /**
+ * Same as RTPathEnsureTrailingSeparator but with selectable path style.
+ *
+ * @returns The length of the path, 0 on buffer overflow.
+ * @param   pszPath     The path.
+ * @param   cbPath      The length of the path buffer @a pszPath points to.
+ * @param   fFlags      The path style, RTPATH_STR_F_STYLE_XXX.
+ * @sa      RTPathEnsureTrailingSeparator
+ */
+RTDECL(size_t) RTPathEnsureTrailingSeparatorEx(char *pszPath, size_t cbPath, uint32_t fFlags);
+
+/**
  * Changes all the slashes in the specified path to DOS style.
  *
  * Unless @a fForce is set, nothing will be done when on a UNIX flavored system
@@ -453,6 +464,18 @@ RTDECL(char *) RTPathChangeToDosSlashes(char *pszPath, bool fForce);
  * @param   fForce              Whether to force the conversion on non-DOS OSes.
  */
 RTDECL(char *) RTPathChangeToUnixSlashes(char *pszPath, bool fForce);
+
+/**
+ * Purges a string so it can be used as a file according to fFlags.
+ *
+ * Illegal filename characters are replaced by '_'.
+ *
+ * @returns pszString
+ * @param   pszString   The string to purge.
+ * @param   fFlags      One of the RTPATH_STR_F_STYLE_XXX flags.  Most users
+ *                      will pass RTPATH_STR_F_STYLE_HOST (0).
+ */
+RTDECL(char *) RTPathPurgeFilename(char *pszString, uint32_t fFlags);
 
 /**
  * Simple parsing of the a path.
@@ -711,7 +734,7 @@ typedef struct RTPATHPARSED
     uint16_t    u16Reserved;
     /** The offset of the filename suffix, offset of the NUL char if none. */
     uint16_t    offSuffix;
-    /** The lenght of the suffix. */
+    /** The length of the suffix. */
     uint16_t    cchSuffix;
     /** Array of component descriptors (variable size).
      * @note Don't try figure the end of the input path by adding up off and cch

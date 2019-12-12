@@ -22,12 +22,13 @@
 #endif
 
 /* Qt includes: */
+#include <QMainWindow>
 #include <QUrl>
 
 /* GUI includes: */
-#include "QIMainWindow.h"
+#include "QIWithRestorableGeometry.h"
 #include "QIWithRetranslateUI.h"
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 
 /* Forward declarations: */
 class QMenu;
@@ -38,10 +39,12 @@ class UIVirtualBoxManagerWidget;
 class UIVirtualMachineItem;
 
 /* Type definitions: */
+typedef QIWithRestorableGeometry<QMainWindow> QMainWindowWithRestorableGeometry;
+typedef QIWithRetranslateUI<QMainWindowWithRestorableGeometry> QMainWindowWithRestorableGeometryAndRetranslateUi;
 typedef QMap<QString, QIManagerDialog*> VMLogViewerMap;
 
-/** Singleton QIMainWindow extension used as VirtualBox Manager instance. */
-class UIVirtualBoxManager : public QIWithRetranslateUI<QIMainWindow>
+/** Singleton QMainWindow extension used as VirtualBox Manager instance. */
+class UIVirtualBoxManager : public QMainWindowWithRestorableGeometryAndRetranslateUi
 {
     Q_OBJECT;
 
@@ -90,10 +93,6 @@ protected:
 
         /** Handles any Qt @a pEvent. */
         virtual bool event(QEvent *pEvent) /* override */;
-        /** Handles move @a pEvent. */
-        virtual void moveEvent(QMoveEvent *pEvent) /* override */;
-        /** Handles resize @a pEvent. */
-        virtual void resizeEvent(QResizeEvent *pEvent) /* override */;
         /** Handles show @a pEvent. */
         virtual void showEvent(QShowEvent *pEvent) /* override */;
         /** Handles first show @a pEvent. */
@@ -162,6 +161,8 @@ private slots:
         void sltOpenImportApplianceWizardDefault() { sltOpenImportApplianceWizard(); }
         /** Handles call to open Export Appliance wizard. */
         void sltOpenExportApplianceWizard();
+        /** Handles call to open New Cloud VM wizard. */
+        void sltOpenNewCloudVMWizard();
 
 #ifdef VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
         /** Handles call to open Extra-data Manager window. */
@@ -297,7 +298,7 @@ private:
     /** @name VM launching stuff.
       * @{ */
         /** Launches or shows virtual machines represented by passed @a items in corresponding @a enmLaunchMode (for launch). */
-        void performStartOrShowVirtualMachines(const QList<UIVirtualMachineItem*> &items, VBoxGlobal::LaunchMode enmLaunchMode);
+        void performStartOrShowVirtualMachines(const QList<UIVirtualMachineItem*> &items, UICommon::LaunchMode enmLaunchMode);
     /** @} */
 
     /** @name Action update stuff.
@@ -342,7 +343,7 @@ private:
 
     /** Holds whether the dialog is polished. */
     bool  m_fPolished                      : 1;
-    /** Holds whether first medium enumeration handled. */
+    /** Holds whether first medium-enumeration handled. */
     bool  m_fFirstMediumEnumerationHandled : 1;
 
     /** Holds the action-pool instance. */

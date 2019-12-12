@@ -19,10 +19,11 @@
 #include <QHBoxLayout>
 
 /* GUI includes: */
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #include "UISlidingToolBar.h"
 #include "UIAnimationFramework.h"
 #include "UIMachineWindow.h"
+#include "UIMenuBarEditorWindow.h"
 #ifdef VBOX_WS_MAC
 # include "VBoxUtils-darwin.h"
 #endif
@@ -124,7 +125,7 @@ void UISlidingToolBar::prepare()
     /* Use Qt API to enable translucency: */
     setAttribute(Qt::WA_TranslucentBackground);
 #elif defined(VBOX_WS_X11)
-    if (vboxGlobal().isCompositingManagerRunning())
+    if (uiCommon().isCompositingManagerRunning())
     {
         /* Use Qt API to enable translucency: */
         setAttribute(Qt::WA_TranslucentBackground);
@@ -165,6 +166,7 @@ void UISlidingToolBar::prepareContents()
                 QPalette pal2 = m_pWidget->palette();
                 pal2.setColor(QPalette::Window, palette().color(QPalette::Window));
                 m_pWidget->setPalette(pal2);
+                /* Using abstract (old-style) connection here(!) since the base classes can be different: */
                 connect(m_pWidget, SIGNAL(sigCancelClicked()), this, SLOT(close()));
                 /* Add child-widget into area: */
                 m_pWidget->setParent(m_pArea);
@@ -184,14 +186,14 @@ void UISlidingToolBar::prepareGeometry()
     {
         case Position_Top:
         {
-            VBoxGlobal::setTopLevelGeometry(this, m_parentRect.x(), m_parentRect.y()                         + m_indentRect.height(),
+            UICommon::setTopLevelGeometry(this, m_parentRect.x(), m_parentRect.y()                         + m_indentRect.height(),
                                                   qMax(m_parentRect.width(), sh.width()), sh.height());
             m_pWidget->setGeometry(0, -sh.height(), qMax(width(), sh.width()), sh.height());
             break;
         }
         case Position_Bottom:
         {
-            VBoxGlobal::setTopLevelGeometry(this, m_parentRect.x(), m_parentRect.y() + m_parentRect.height() - m_indentRect.height() - sh.height(),
+            UICommon::setTopLevelGeometry(this, m_parentRect.x(), m_parentRect.y() + m_parentRect.height() - m_indentRect.height() - sh.height(),
                                                   qMax(m_parentRect.width(), sh.width()), sh.height());
             m_pWidget->setGeometry(0,  sh.height(), qMax(width(), sh.width()), sh.height());
             break;
@@ -199,7 +201,7 @@ void UISlidingToolBar::prepareGeometry()
     }
 
 #ifdef VBOX_WS_X11
-    if (!vboxGlobal().isCompositingManagerRunning())
+    if (!uiCommon().isCompositingManagerRunning())
     {
         /* Use Xshape otherwise: */
         setMask(m_pWidget->geometry());
@@ -212,9 +214,10 @@ void UISlidingToolBar::prepareGeometry()
 #endif
 
     /* Activate window after it was shown: */
-    connect(this, SIGNAL(sigShown()), this,
-            SLOT(sltActivateWindow()), Qt::QueuedConnection);
+    connect(this, &UISlidingToolBar::sigShown,
+            this, &UISlidingToolBar::sltActivateWindow, Qt::QueuedConnection);
     /* Update window geometry after parent geometry changed: */
+    /* Leave this in the old connection syntax for now: */
     connect(parent(), SIGNAL(sigGeometryChange(const QRect&)),
             this, SLOT(sltParentGeometryChanged(const QRect&)));
 }
@@ -227,8 +230,8 @@ void UISlidingToolBar::prepareAnimation()
                                                          "widgetGeometry",
                                                          "startWidgetGeometry", "finalWidgetGeometry",
                                                          SIGNAL(sigExpand()), SIGNAL(sigCollapse()));
-    connect(m_pAnimation, SIGNAL(sigStateEnteredStart()), this, SLOT(sltMarkAsCollapsed()));
-    connect(m_pAnimation, SIGNAL(sigStateEnteredFinal()), this, SLOT(sltMarkAsExpanded()));
+    connect(m_pAnimation, &UIAnimation::sigStateEnteredStart, this, &UISlidingToolBar::sltMarkAsCollapsed);
+    connect(m_pAnimation, &UIAnimation::sigStateEnteredFinal, this, &UISlidingToolBar::sltMarkAsExpanded);
     /* Update geometry animation: */
     updateAnimation();
 }
@@ -241,13 +244,13 @@ void UISlidingToolBar::adjustGeometry()
     {
         case Position_Top:
         {
-            VBoxGlobal::setTopLevelGeometry(this, m_parentRect.x(), m_parentRect.y()                         + m_indentRect.height(),
+            UICommon::setTopLevelGeometry(this, m_parentRect.x(), m_parentRect.y()                         + m_indentRect.height(),
                                                   qMax(m_parentRect.width(), sh.width()), sh.height());
             break;
         }
         case Position_Bottom:
         {
-            VBoxGlobal::setTopLevelGeometry(this, m_parentRect.x(), m_parentRect.y() + m_parentRect.height() - m_indentRect.height() - sh.height(),
+            UICommon::setTopLevelGeometry(this, m_parentRect.x(), m_parentRect.y() + m_parentRect.height() - m_indentRect.height() - sh.height(),
                                                   qMax(m_parentRect.width(), sh.width()), sh.height());
             break;
         }
@@ -256,7 +259,7 @@ void UISlidingToolBar::adjustGeometry()
     m_pWidget->setGeometry(0, 0, qMax(width(), sh.width()), sh.height());
 
 #ifdef VBOX_WS_X11
-    if (!vboxGlobal().isCompositingManagerRunning())
+    if (!uiCommon().isCompositingManagerRunning())
     {
         /* Use Xshape otherwise: */
         setMask(m_pWidget->geometry());
@@ -292,7 +295,7 @@ void UISlidingToolBar::setWidgetGeometry(const QRect &rect)
     m_pWidget->setGeometry(rect);
 
 #ifdef VBOX_WS_X11
-    if (!vboxGlobal().isCompositingManagerRunning())
+    if (!uiCommon().isCompositingManagerRunning())
     {
         /* Use Xshape otherwise: */
         setMask(m_pWidget->geometry());

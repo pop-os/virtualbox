@@ -106,42 +106,17 @@ RT_C_DECLS_BEGIN
 # define HMIsInHwVirtNoLongJmpCtx(a_pVCpu)  (false)
 #endif
 
-/**
- * 64-bit raw-mode (intermediate memory context) operations.
- *
- * These are special hypervisor eip values used when running 64-bit guests on
- * 32-bit hosts. Each operation corresponds to a routine.
- *
- * @note Duplicated in the assembly code!
- */
-typedef enum HM64ON32OP
-{
-    HM64ON32OP_INVALID = 0,
-    HM64ON32OP_VMXRCStartVM64,
-    HM64ON32OP_SVMRCVMRun64,
-    HM64ON32OP_HMRCSaveGuestFPU64,
-    HM64ON32OP_HMRCSaveGuestDebug64,
-    HM64ON32OP_HMRCTestSwitcher64,
-    HM64ON32OP_END,
-    HM64ON32OP_32BIT_HACK = 0x7fffffff
-} HM64ON32OP;
-
 /** @name All-context HM API.
  * @{ */
 VMMDECL(bool)                   HMIsEnabledNotMacro(PVM pVM);
-VMMDECL(bool)                   HMCanExecuteGuest(PVMCPU pVCpu, PCCPUMCTX pCtx);
-VMM_INT_DECL(int)               HMInvalidatePage(PVMCPU pVCpu, RTGCPTR GCVirt);
-VMM_INT_DECL(bool)              HMHasPendingIrq(PVM pVM);
+VMMDECL(bool)                   HMCanExecuteGuest(PVMCC pVM, PVMCPUCC pVCpu, PCCPUMCTX pCtx);
+VMM_INT_DECL(int)               HMInvalidatePage(PVMCPUCC pVCpu, RTGCPTR GCVirt);
+VMM_INT_DECL(bool)              HMHasPendingIrq(PVMCC pVM);
 VMM_INT_DECL(PX86PDPE)          HMGetPaePdpes(PVMCPU pVCpu);
-VMM_INT_DECL(bool)              HMSetSingleInstruction(PVM pVM, PVMCPU pVCpu, bool fEnable);
+VMM_INT_DECL(bool)              HMSetSingleInstruction(PVMCC pVM, PVMCPUCC pVCpu, bool fEnable);
 VMM_INT_DECL(bool)              HMIsSvmActive(PVM pVM);
 VMM_INT_DECL(bool)              HMIsVmxActive(PVM pVM);
 VMM_INT_DECL(const char *)      HMGetVmxDiagDesc(VMXVDIAG enmDiag);
-VMM_INT_DECL(const char *)      HMGetVmxAbortDesc(VMXABORT enmAbort);
-VMM_INT_DECL(const char *)      HMGetVmxVmcsStateDesc(uint8_t fVmcsState);
-VMM_INT_DECL(const char *)      HMGetVmxIdtVectoringInfoTypeDesc(uint8_t uType);
-VMM_INT_DECL(const char *)      HMGetVmxExitIntInfoTypeDesc(uint8_t uType);
-VMM_INT_DECL(const char *)      HMGetVmxEntryIntInfoTypeDesc(uint8_t uType);
 VMM_INT_DECL(const char *)      HMGetVmxExitName(uint32_t uExit);
 VMM_INT_DECL(const char *)      HMGetSvmExitName(uint32_t uExit);
 VMM_INT_DECL(void)              HMDumpHwvirtVmxState(PVMCPU pVCpu);
@@ -156,7 +131,10 @@ VMM_INT_DECL(void)              HMGetSvmMsrsFromHwvirtMsrs(PCSUPHWVIRTMSRS pMsrs
  * based purely on the Intel VT-x specification (used by IEM/REM and HM) can be
  * found in CPUM.
  * @{ */
-VMM_INT_DECL(bool)              HMCanExecuteVmxGuest(PVMCPU pVCpu, PCCPUMCTX pCtx);
+VMM_INT_DECL(bool)              HMIsSubjectToVmxPreemptTimerErratum(void);
+VMM_INT_DECL(bool)              HMCanExecuteVmxGuest(PVMCC pVM, PVMCPUCC pVCpu, PCCPUMCTX pCtx);
+VMM_INT_DECL(TRPMEVENT)         HMVmxEventTypeToTrpmEventType(uint32_t uIntInfo);
+VMM_INT_DECL(uint32_t)          HMTrpmEventTypeToVmxEventType(uint8_t uVector, TRPMEVENT enmTrpmEvent, bool fIcebp);
 /** @} */
 
 /** @name All-context SVM helpers.
@@ -173,24 +151,27 @@ VMM_INT_DECL(TRPMEVENT)         HMSvmEventToTrpmEventType(PCSVMEVENT pSvmEvent, 
 /** @name R0, R3 HM (VMX/SVM agnostic) handlers.
  * @{ */
 VMM_INT_DECL(int)               HMFlushTlb(PVMCPU pVCpu);
-VMM_INT_DECL(int)               HMFlushTlbOnAllVCpus(PVM pVM);
-VMM_INT_DECL(int)               HMInvalidatePageOnAllVCpus(PVM pVM, RTGCPTR GCVirt);
-VMM_INT_DECL(int)               HMInvalidatePhysPage(PVM pVM, RTGCPHYS GCPhys);
+VMM_INT_DECL(int)               HMFlushTlbOnAllVCpus(PVMCC pVM);
+VMM_INT_DECL(int)               HMInvalidatePageOnAllVCpus(PVMCC pVM, RTGCPTR GCVirt);
+VMM_INT_DECL(int)               HMInvalidatePhysPage(PVMCC pVM, RTGCPHYS GCPhys);
 VMM_INT_DECL(bool)              HMAreNestedPagingAndFullGuestExecEnabled(PVM pVM);
 VMM_INT_DECL(bool)              HMIsLongModeAllowed(PVM pVM);
 VMM_INT_DECL(bool)              HMIsNestedPagingActive(PVM pVM);
 VMM_INT_DECL(bool)              HMIsMsrBitmapActive(PVM pVM);
+# ifdef VBOX_WITH_NESTED_HWVIRT_VMX
+VMM_INT_DECL(void)              HMNotifyVmxNstGstVmexit(PVMCPU pVCpu);
+VMM_INT_DECL(void)              HMNotifyVmxNstGstCurrentVmcsChanged(PVMCPU pVCpu);
+# endif
 /** @} */
 
 /** @name R0, R3 SVM handlers.
  * @{ */
-VMM_INT_DECL(bool)              HMIsSvmVGifActive(PVM pVM);
-VMM_INT_DECL(uint64_t)          HMApplySvmNstGstTscOffset(PVMCPU pVCpu, uint64_t uTicks);
+VMM_INT_DECL(bool)              HMIsSvmVGifActive(PCVM pVM);
 # ifdef VBOX_WITH_NESTED_HWVIRT_SVM
-VMM_INT_DECL(void)              HMNotifySvmNstGstVmexit(PVMCPU pVCpu, PCPUMCTX pCtx);
+VMM_INT_DECL(void)              HMNotifySvmNstGstVmexit(PVMCPUCC pVCpu, PCPUMCTX pCtx);
 # endif
 VMM_INT_DECL(int)               HMIsSubjectToSvmErratum170(uint32_t *pu32Family, uint32_t *pu32Model, uint32_t *pu32Stepping);
-VMM_INT_DECL(int)               HMHCMaybeMovTprSvmHypercall(PVMCPU pVCpu);
+VMM_INT_DECL(int)               HMHCMaybeMovTprSvmHypercall(PVMCC pVM, PVMCPUCC pVCpu);
 /** @} */
 
 #else /* Nops in RC: */
@@ -210,10 +191,9 @@ VMM_INT_DECL(int)               HMHCMaybeMovTprSvmHypercall(PVMCPU pVCpu);
 /** @name RC SVM handlers.
  * @{ */
 # define HMIsSvmVGifActive(pVM)                                       false
-# define HMApplySvmNstGstTscOffset(pVCpu, uTicks)                     (uTicks)
 # define HMNotifySvmNstGstVmexit(pVCpu, pCtx)                         do { } while (0)
 # define HMIsSubjectToSvmErratum170(puFamily, puModel, puStepping)    false
-# define HMHCMaybeMovTprSvmHypercall(pVCpu)                           do { } while (0)
+# define HMHCMaybeMovTprSvmHypercall(pVM, pVCpu)                      do { } while (0)
 /** @} */
 
 #endif
@@ -224,30 +204,24 @@ VMM_INT_DECL(int)               HMHCMaybeMovTprSvmHypercall(PVMCPU pVCpu);
  */
 VMMR0_INT_DECL(int)             HMR0Init(void);
 VMMR0_INT_DECL(int)             HMR0Term(void);
-VMMR0_INT_DECL(int)             HMR0InitVM(PVM pVM);
-VMMR0_INT_DECL(int)             HMR0TermVM(PVM pVM);
-VMMR0_INT_DECL(int)             HMR0EnableAllCpus(PVM pVM);
+VMMR0_INT_DECL(int)             HMR0InitVM(PVMCC pVM);
+VMMR0_INT_DECL(int)             HMR0TermVM(PVMCC pVM);
+VMMR0_INT_DECL(int)             HMR0EnableAllCpus(PVMCC pVM);
 # ifdef VBOX_WITH_RAW_MODE
-VMMR0_INT_DECL(int)             HMR0EnterSwitcher(PVM pVM, VMMSWITCHER enmSwitcher, bool *pfVTxDisabled);
-VMMR0_INT_DECL(void)            HMR0LeaveSwitcher(PVM pVM, bool fVTxDisabled);
+VMMR0_INT_DECL(int)             HMR0EnterSwitcher(PVMCC pVM, VMMSWITCHER enmSwitcher, bool *pfVTxDisabled);
+VMMR0_INT_DECL(void)            HMR0LeaveSwitcher(PVMCC pVM, bool fVTxDisabled);
 # endif
 
-VMMR0_INT_DECL(int)             HMR0SetupVM(PVM pVM);
-VMMR0_INT_DECL(int)             HMR0RunGuestCode(PVM pVM, PVMCPU pVCpu);
-VMMR0_INT_DECL(int)             HMR0Enter(PVMCPU pVCpu);
-VMMR0_INT_DECL(int)             HMR0LeaveCpu(PVMCPU pVCpu);
+VMMR0_INT_DECL(int)             HMR0SetupVM(PVMCC pVM);
+VMMR0_INT_DECL(int)             HMR0RunGuestCode(PVMCC pVM, PVMCPUCC pVCpu);
+VMMR0_INT_DECL(int)             HMR0Enter(PVMCPUCC pVCpu);
+VMMR0_INT_DECL(int)             HMR0LeaveCpu(PVMCPUCC pVCpu);
 VMMR0_INT_DECL(void)            HMR0ThreadCtxCallback(RTTHREADCTXEVENT enmEvent, void *pvUser);
-VMMR0_INT_DECL(void)            HMR0NotifyCpumUnloadedGuestFpuState(PVMCPU VCpu);
-VMMR0_INT_DECL(void)            HMR0NotifyCpumModifiedHostCr0(PVMCPU VCpu);
+VMMR0_INT_DECL(void)            HMR0NotifyCpumUnloadedGuestFpuState(PVMCPUCC VCpu);
+VMMR0_INT_DECL(void)            HMR0NotifyCpumModifiedHostCr0(PVMCPUCC VCpu);
 VMMR0_INT_DECL(bool)            HMR0SuspendPending(void);
-VMMR0_INT_DECL(int)             HMR0InvalidatePage(PVMCPU pVCpu, RTGCPTR GCVirt);
-VMMR0_INT_DECL(int)             HMR0ImportStateOnDemand(PVMCPU pVCpu, uint64_t fWhat);
-
-# if HC_ARCH_BITS == 32 && defined(VBOX_WITH_64_BITS_GUESTS)
-VMMR0_INT_DECL(int)             HMR0SaveFPUState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx);
-VMMR0_INT_DECL(int)             HMR0SaveDebugState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx);
-VMMR0_INT_DECL(int)             HMR0TestSwitcher3264(PVM pVM);
-# endif
+VMMR0_INT_DECL(int)             HMR0InvalidatePage(PVMCPUCC pVCpu, RTGCPTR GCVirt);
+VMMR0_INT_DECL(int)             HMR0ImportStateOnDemand(PVMCPUCC pVCpu, uint64_t fWhat);
 
 /** @} */
 #endif /* IN_RING0 */
@@ -266,7 +240,6 @@ VMMR3DECL(bool)                 HMR3IsUXActive(PUVM pUVM);
 VMMR3DECL(bool)                 HMR3IsSvmEnabled(PUVM pUVM);
 VMMR3DECL(bool)                 HMR3IsVmxEnabled(PUVM pUVM);
 
-VMMR3_INT_DECL(bool)            HMR3IsEventPending(PVMCPU pVCpu);
 VMMR3_INT_DECL(int)             HMR3Init(PVM pVM);
 VMMR3_INT_DECL(int)             HMR3InitCompleted(PVM pVM, VMINITCOMPLETED enmWhat);
 VMMR3_INT_DECL(void)            HMR3Relocate(PVM pVM);
@@ -276,11 +249,11 @@ VMMR3_INT_DECL(void)            HMR3ResetCpu(PVMCPU pVCpu);
 VMMR3_INT_DECL(void)            HMR3CheckError(PVM pVM, int iStatusCode);
 VMMR3_INT_DECL(void)            HMR3NotifyDebugEventChanged(PVM pVM);
 VMMR3_INT_DECL(void)            HMR3NotifyDebugEventChangedPerCpu(PVM pVM, PVMCPU pVCpu);
-VMMR3_INT_DECL(bool)            HMR3IsActive(PVMCPU pVCpu);
+VMMR3_INT_DECL(bool)            HMR3IsActive(PCVMCPU pVCpu);
 VMMR3_INT_DECL(int)             HMR3EnablePatching(PVM pVM, RTGCPTR pPatchMem, unsigned cbPatchMem);
 VMMR3_INT_DECL(int)             HMR3DisablePatching(PVM pVM, RTGCPTR pPatchMem, unsigned cbPatchMem);
 VMMR3_INT_DECL(int)             HMR3PatchTprInstr(PVM pVM, PVMCPU pVCpu);
-VMMR3_INT_DECL(bool)            HMR3IsRescheduleRequired(PVM pVM, PCPUMCTX pCtx);
+VMMR3_INT_DECL(bool)            HMR3IsRescheduleRequired(PVM pVM, PCCPUMCTX pCtx);
 VMMR3_INT_DECL(bool)            HMR3IsVmxPreemptionTimerUsed(PVM pVM);
 /** @} */
 #endif /* IN_RING3 */

@@ -25,13 +25,9 @@
 #include <VBox/vmm/em.h>
 #include <VBox/vmm/nem.h>
 #include <VBox/vmm/pdmapi.h>
-#ifdef VBOX_WITH_REM
-# include <VBox/vmm/rem.h>
-#endif
 #include <VBox/vmm/tm.h>
 #include "VMInternal.h"
-#include <VBox/vmm/vm.h>
-#include <VBox/vmm/uvm.h>
+#include <VBox/vmm/vmcc.h>
 
 #include <VBox/err.h>
 #include <VBox/log.h>
@@ -166,7 +162,7 @@ int vmR3EmulationThreadWithId(RTTHREAD hThreadSelf, PUVMCPU pUVCpu, VMCPUID idCp
 
             if (VM_FF_IS_SET(pVM, VM_FF_EMT_RENDEZVOUS))
             {
-                rc = VMMR3EmtRendezvousFF(pVM, &pVM->aCpus[idCpu]);
+                rc = VMMR3EmtRendezvousFF(pVM, pVM->apCpusR3[idCpu]);
                 Log(("vmR3EmulationThread: Rendezvous rc=%Rrc, VM state %s -> %s\n", rc, VMR3GetStateName(enmBefore), VMR3GetStateName(pVM->enmVMState)));
             }
             else if (pUVM->vm.s.pNormalReqs || pUVM->vm.s.pPriorityReqs)
@@ -234,7 +230,7 @@ int vmR3EmulationThreadWithId(RTTHREAD hThreadSelf, PUVMCPU pUVCpu, VMCPUID idCp
             pVM = pUVM->pVM;
             if (pVM)
             {
-                pVCpu = &pVM->aCpus[idCpu];
+                pVCpu = pVM->apCpusR3[idCpu];
                 if (   pVM->enmVMState == VMSTATE_RUNNING
                     && VMCPUSTATE_IS_STARTED(VMCPU_GET_STATE(pVCpu)))
                 {
@@ -288,14 +284,14 @@ int vmR3EmulationThreadWithId(RTTHREAD hThreadSelf, PUVMCPU pUVCpu, VMCPUID idCp
             pUVM->aCpus[iCpu].pVCpu = NULL;
         }
 
-        int rc2 = SUPR3CallVMMR0Ex(pVM->pVMR0, 0 /*idCpu*/, VMMR0_DO_GVMM_DESTROY_VM, 0, NULL);
+        int rc2 = SUPR3CallVMMR0Ex(VMCC_GET_VMR0_FOR_CALL(pVM), 0 /*idCpu*/, VMMR0_DO_GVMM_DESTROY_VM, 0, NULL);
         AssertLogRelRC(rc2);
     }
     /* Deregister the EMT with VMMR0. */
     else if (   idCpu != 0
              && (pVM = pUVM->pVM) != NULL)
     {
-        int rc2 = SUPR3CallVMMR0Ex(pVM->pVMR0, idCpu, VMMR0_DO_GVMM_DEREGISTER_VMCPU, 0, NULL);
+        int rc2 = SUPR3CallVMMR0Ex(VMCC_GET_VMR0_FOR_CALL(pVM), idCpu, VMMR0_DO_GVMM_DEREGISTER_VMCPU, 0, NULL);
         AssertLogRelRC(rc2);
     }
 
@@ -750,7 +746,7 @@ static DECLCALLBACK(int) vmR3HaltGlobal1Halt(PUVMCPU pUVCpu, const uint32_t fMas
 
             //RTLogPrintf("loop=%-3d  u64GipTime=%'llu / %'llu   now=%'llu / %'llu\n", cLoops, u64GipTime, u64Delta, u64NowLog, u64GipTime - u64NowLog);
             uint64_t const u64StartSchedHalt   = RTTimeNanoTS();
-            rc = SUPR3CallVMMR0Ex(pVM->pVMR0, pVCpu->idCpu, VMMR0_DO_GVMM_SCHED_HALT, u64GipTime, NULL);
+            rc = SUPR3CallVMMR0Ex(VMCC_GET_VMR0_FOR_CALL(pVM), pVCpu->idCpu, VMMR0_DO_GVMM_SCHED_HALT, u64GipTime, NULL);
             uint64_t const u64EndSchedHalt     = RTTimeNanoTS();
             uint64_t const cNsElapsedSchedHalt = u64EndSchedHalt - u64StartSchedHalt;
             STAM_REL_PROFILE_ADD_PERIOD(&pUVCpu->vm.s.StatHaltBlock, cNsElapsedSchedHalt);
@@ -780,7 +776,7 @@ static DECLCALLBACK(int) vmR3HaltGlobal1Halt(PUVMCPU pUVCpu, const uint32_t fMas
         else if (!(cLoops & 0x1fff))
         {
             uint64_t const u64StartSchedYield   = RTTimeNanoTS();
-            rc = SUPR3CallVMMR0Ex(pVM->pVMR0, pVCpu->idCpu, VMMR0_DO_GVMM_SCHED_POLL, false /* don't yield */, NULL);
+            rc = SUPR3CallVMMR0Ex(VMCC_GET_VMR0_FOR_CALL(pVM), pVCpu->idCpu, VMMR0_DO_GVMM_SCHED_POLL, false /* don't yield */, NULL);
             uint64_t const cNsElapsedSchedYield = RTTimeNanoTS() - u64StartSchedYield;
             STAM_REL_PROFILE_ADD_PERIOD(&pUVCpu->vm.s.StatHaltYield, cNsElapsedSchedYield);
         }
@@ -820,7 +816,7 @@ static DECLCALLBACK(int) vmR3HaltGlobal1Wait(PUVMCPU pUVCpu)
          * Wait for a while. Someone will wake us up or interrupt the call if
          * anything needs our attention.
          */
-        rc = SUPR3CallVMMR0Ex(pVM->pVMR0, pVCpu->idCpu, VMMR0_DO_GVMM_SCHED_HALT, RTTimeNanoTS() + 1000000000 /* +1s */, NULL);
+        rc = SUPR3CallVMMR0Ex(VMCC_GET_VMR0_FOR_CALL(pVM), pVCpu->idCpu, VMMR0_DO_GVMM_SCHED_HALT, RTTimeNanoTS() + 1000000000 /* +1s */, NULL);
         if (rc == VERR_INTERRUPTED)
             rc = VINF_SUCCESS;
         else if (RT_FAILURE(rc))
@@ -853,7 +849,7 @@ static DECLCALLBACK(void) vmR3HaltGlobal1NotifyCpuFF(PUVMCPU pUVCpu, uint32_t fF
         VMCPUSTATE enmState = VMCPU_GET_STATE(pVCpu);
         if (enmState == VMCPUSTATE_STARTED_HALTED || pUVCpu->vm.s.fWait)
         {
-            int rc = SUPR3CallVMMR0Ex(pUVCpu->pVM->pVMR0, pUVCpu->idCpu, VMMR0_DO_GVMM_SCHED_WAKE_UP, 0, NULL);
+            int rc = SUPR3CallVMMR0Ex(VMCC_GET_VMR0_FOR_CALL(pUVCpu->pVM), pUVCpu->idCpu, VMMR0_DO_GVMM_SCHED_WAKE_UP, 0, NULL);
             AssertRC(rc);
 
         }
@@ -864,26 +860,19 @@ static DECLCALLBACK(void) vmR3HaltGlobal1NotifyCpuFF(PUVMCPU pUVCpu, uint32_t fF
             {
                 if (fFlags & VMNOTIFYFF_FLAGS_POKE)
                 {
-                    int rc = SUPR3CallVMMR0Ex(pUVCpu->pVM->pVMR0, pUVCpu->idCpu, VMMR0_DO_GVMM_SCHED_POKE, 0, NULL);
+                    int rc = SUPR3CallVMMR0Ex(VMCC_GET_VMR0_FOR_CALL(pUVCpu->pVM), pUVCpu->idCpu, VMMR0_DO_GVMM_SCHED_POKE, 0, NULL);
                     AssertRC(rc);
                 }
             }
             else if (   enmState == VMCPUSTATE_STARTED_EXEC_NEM
                      || enmState == VMCPUSTATE_STARTED_EXEC_NEM_WAIT)
                 NEMR3NotifyFF(pUVCpu->pVM, pVCpu, fFlags);
-#ifdef VBOX_WITH_REM
-            else if (enmState == VMCPUSTATE_STARTED_EXEC_REM)
-            {
-                if (!(fFlags & VMNOTIFYFF_FLAGS_DONE_REM))
-                    REMR3NotifyFF(pUVCpu->pVM);
-            }
-#endif
         }
     }
     /* This probably makes little sense: */
     else if (pUVCpu->vm.s.fWait)
     {
-        int rc = SUPR3CallVMMR0Ex(pUVCpu->pVM->pVMR0, pUVCpu->idCpu, VMMR0_DO_GVMM_SCHED_WAKE_UP, 0, NULL);
+        int rc = SUPR3CallVMMR0Ex(VMCC_GET_VMR0_FOR_CALL(pUVCpu->pVM), pUVCpu->idCpu, VMMR0_DO_GVMM_SCHED_WAKE_UP, 0, NULL);
         AssertRC(rc);
     }
 }
@@ -1020,11 +1009,6 @@ static DECLCALLBACK(void) vmR3DefaultNotifyCpuFF(PUVMCPU pUVCpu, uint32_t fFlags
             if (   enmState == VMCPUSTATE_STARTED_EXEC_NEM
                 || enmState == VMCPUSTATE_STARTED_EXEC_NEM_WAIT)
                 NEMR3NotifyFF(pUVCpu->pVM, pVCpu, fFlags);
-#ifdef VBOX_WITH_REM
-            else if (   !(fFlags & VMNOTIFYFF_FLAGS_DONE_REM)
-                     && enmState == VMCPUSTATE_STARTED_EXEC_REM)
-                REMR3NotifyFF(pUVCpu->pVM);
-#endif
         }
     }
 }
@@ -1389,7 +1373,7 @@ VMMR3DECL(int) VMR3WaitForDeviceReady(PVM pVM, VMCPUID idCpu)
      */
     VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
     AssertReturn(idCpu < pVM->cCpus, VERR_INVALID_CPU_ID);
-    PVMCPU pVCpu = &pVM->aCpus[idCpu];
+    PVMCPU pVCpu = pVM->apCpusR3[idCpu];
     VMCPU_ASSERT_EMT_RETURN(pVCpu, VERR_VM_THREAD_NOT_EMT);
 
     /*
@@ -1416,7 +1400,7 @@ VMMR3DECL(int) VMR3NotifyCpuDeviceReady(PVM pVM, VMCPUID idCpu)
      */
     VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
     AssertReturn(idCpu < pVM->cCpus, VERR_INVALID_CPU_ID);
-    PVMCPU pVCpu = &pVM->aCpus[idCpu];
+    PVMCPU pVCpu = pVM->apCpusR3[idCpu];
 
     /*
      * Pretend it was an FF that got set since we've got logic for that already.

@@ -164,12 +164,10 @@ const Global::OSType Global::sOSTypes[] =
        2048,128, 50 * _1G64, GraphicsControllerType_VBoxSVGA, NetworkAdapterType_I82540EM, 0, StorageControllerType_IntelAhci, StorageBus_SATA,
         StorageControllerType_IntelAhci, StorageBus_SATA, ChipsetType_PIIX3, AudioControllerType_HDA, AudioCodecType_STAC9221  },
 
-#if 0
     { "Windows", "Microsoft Windows", "Windows2019_64",     "Windows 2019 (64-bit)",
-      VBOXOSTYPE_Win2k16_x64,     VBOXOSHINT_64BIT | VBOXOSHINT_HWVIRTEX | VBOXOSHINT_IOAPIC | VBOXOSHINT_USBTABLET | VBOXOSHINT_USB3,
+      VBOXOSTYPE_Win2k19_x64,     VBOXOSHINT_64BIT | VBOXOSHINT_HWVIRTEX | VBOXOSHINT_IOAPIC | VBOXOSHINT_USBTABLET | VBOXOSHINT_USB3,
        2048,128, 50 * _1G64, GraphicsControllerType_VBoxSVGA, NetworkAdapterType_I82540EM, 0, StorageControllerType_IntelAhci, StorageBus_SATA,
         StorageControllerType_IntelAhci, StorageBus_SATA, ChipsetType_PIIX3, AudioControllerType_HDA, AudioCodecType_STAC9221  },
-#endif
 
     { "Windows", "Microsoft Windows", "WindowsNT",          "Other Windows (32-bit)",
       VBOXOSTYPE_WinNT,           VBOXOSHINT_NONE,
@@ -501,11 +499,11 @@ const Global::OSType Global::sOSTypes[] =
 
     { "Other",   "Other",             "DOS",                "DOS",
       VBOXOSTYPE_DOS,             VBOXOSHINT_FLOPPY | VBOXOSHINT_NOUSB,
-        32,   4,  500 * _1M, GraphicsControllerType_VBoxVGA, NetworkAdapterType_Am79C973, 0, StorageControllerType_PIIX4, StorageBus_IDE,
+        32,   4,  500 * _1M, GraphicsControllerType_VBoxVGA, NetworkAdapterType_Am79C973, 1, StorageControllerType_PIIX4, StorageBus_IDE,
         StorageControllerType_PIIX4, StorageBus_IDE, ChipsetType_PIIX3, AudioControllerType_SB16, AudioCodecType_SB16  },
 
     { "Other",   "Other",             "Netware",            "Netware",
-      VBOXOSTYPE_Netware,         VBOXOSHINT_HWVIRTEX,
+      VBOXOSTYPE_Netware,         VBOXOSHINT_HWVIRTEX | VBOXOSHINT_FLOPPY | VBOXOSHINT_NOUSB,
        512,   4,  4 * _1G64, GraphicsControllerType_VBoxVGA, NetworkAdapterType_Am79C973, 0, StorageControllerType_PIIX4, StorageBus_IDE,
         StorageControllerType_PIIX4, StorageBus_IDE, ChipsetType_PIIX3, AudioControllerType_AC97, AudioCodecType_STAC9700  },
 
@@ -515,11 +513,7 @@ const Global::OSType Global::sOSTypes[] =
         StorageControllerType_PIIX4, StorageBus_IDE, ChipsetType_PIIX3, AudioControllerType_AC97, AudioCodecType_STAC9700  },
 
     { "Other",   "Other",             "QNX",                "QNX",
-#ifdef VBOX_WITH_RAW_RING1
-      VBOXOSTYPE_QNX,             VBOXOSHINT_NONE,
-#else
       VBOXOSTYPE_QNX,             VBOXOSHINT_HWVIRTEX,
-#endif
        512,   4,  4 * _1G64, GraphicsControllerType_VBoxVGA, NetworkAdapterType_Am79C973, 0, StorageControllerType_PIIX4, StorageBus_IDE,
       StorageControllerType_PIIX4, StorageBus_IDE, ChipsetType_PIIX3, AudioControllerType_AC97, AudioCodecType_STAC9700  },
 
@@ -603,7 +597,6 @@ Global::stringifyMachineState(MachineState_T aState)
         case MachineState_Restoring:            return "Restoring";
         case MachineState_TeleportingPausedVM:  return "TeleportingPausedVM";
         case MachineState_TeleportingIn:        return "TeleportingIn";
-        case MachineState_FaultTolerantSyncing: return "FaultTolerantSyncing";
         case MachineState_DeletingSnapshotOnline: return "DeletingSnapshotOnline";
         case MachineState_DeletingSnapshotPaused: return "DeletingSnapshotPaused";
         case MachineState_OnlineSnapshotting:   return "OnlineSnapshotting";

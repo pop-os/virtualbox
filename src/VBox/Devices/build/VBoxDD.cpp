@@ -145,11 +145,9 @@ extern "C" DECLEXPORT(int) VBoxDevicesRegister(PPDMDEVREGCB pCallbacks, uint32_t
     if (RT_FAILURE(rc))
         return rc;
 #endif
-#ifdef VBOX_ACPI
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceACPI);
     if (RT_FAILURE(rc))
         return rc;
-#endif
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceDMA);
     if (RT_FAILURE(rc))
         return rc;
@@ -191,6 +189,11 @@ extern "C" DECLEXPORT(int) VBoxDevicesRegister(PPDMDEVREGCB pCallbacks, uint32_t
 #endif
 #ifdef VBOX_WITH_NVME_IMPL
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceNVMe);
+    if (RT_FAILURE(rc))
+        return rc;
+#endif
+#ifdef VBOX_WITH_VIRTIO_SCSI
+    rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceVirtioSCSI);
     if (RT_FAILURE(rc))
         return rc;
 #endif

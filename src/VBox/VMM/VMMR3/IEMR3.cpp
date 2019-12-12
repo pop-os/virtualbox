@@ -65,7 +65,7 @@ VMMR3DECL(int)      IEMR3Init(PVM pVM)
 
     for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
     {
-        PVMCPU pVCpu = &pVM->aCpus[idCpu];
+        PVMCPU pVCpu = pVM->apCpusR3[idCpu];
 
         pVCpu->iem.s.CodeTlb.uTlbRevision = pVCpu->iem.s.DataTlb.uTlbRevision = uInitialTlbRevision;
         pVCpu->iem.s.CodeTlb.uTlbPhysRev  = pVCpu->iem.s.DataTlb.uTlbPhysRev  = uInitialTlbPhysRev;
@@ -118,7 +118,6 @@ VMMR3DECL(int)      IEMR3Init(PVM pVM)
         int rc = MMHyperAlloc(pVM, sizeof(IEMINSTRSTATS), sizeof(uint64_t), MM_TAG_IEM, (void **)&pVCpu->iem.s.pStatsCCR3);
         AssertLogRelRCReturn(rc, rc);
         pVCpu->iem.s.pStatsR0 = MMHyperR3ToR0(pVM, pVCpu->iem.s.pStatsCCR3);
-        pVCpu->iem.s.pStatsRC = MMHyperR3ToR0(pVM, pVCpu->iem.s.pStatsCCR3);
 # define IEM_DO_INSTR_STAT(a_Name, a_szDesc) \
             STAMR3RegisterF(pVM, &pVCpu->iem.s.pStatsCCR3->a_Name, STAMTYPE_U32_RESET, STAMVISIBILITY_USED, \
                             STAMUNIT_COUNT, a_szDesc, "/IEM/CPU%u/instr-RZ/" #a_Name, idCpu); \
@@ -154,10 +153,10 @@ VMMR3DECL(int)      IEMR3Init(PVM pVM)
         }
         else
         {
-            pVCpu->iem.s.enmCpuVendor             = pVM->aCpus[0].iem.s.enmCpuVendor;
-            pVCpu->iem.s.enmHostCpuVendor         = pVM->aCpus[0].iem.s.enmHostCpuVendor;
+            pVCpu->iem.s.enmCpuVendor             = pVM->apCpusR3[0]->iem.s.enmCpuVendor;
+            pVCpu->iem.s.enmHostCpuVendor         = pVM->apCpusR3[0]->iem.s.enmHostCpuVendor;
 #if IEM_CFG_TARGET_CPU == IEMTARGETCPU_DYNAMIC
-            pVCpu->iem.s.uTargetCpu               = pVM->aCpus[0].iem.s.uTargetCpu;
+            pVCpu->iem.s.uTargetCpu               = pVM->apCpusR3[0]->iem.s.uTargetCpu;
 #endif
         }
 
@@ -175,7 +174,7 @@ VMMR3DECL(int)      IEMR3Init(PVM pVM)
      */
     if (pVM->cpum.ro.GuestFeatures.fVmx)
     {
-        PVMCPU pVCpu0 = &pVM->aCpus[0];
+        PVMCPU pVCpu0 = pVM->apCpusR3[0];
         int rc = PGMR3HandlerPhysicalTypeRegister(pVM, PGMPHYSHANDLERKIND_ALL, iemVmxApicAccessPageHandler,
                                                   NULL /* pszModR0 */,
                                                   "iemVmxApicAccessPageHandler", NULL /* pszPfHandlerR0 */,
@@ -196,7 +195,7 @@ VMMR3DECL(int)      IEMR3Term(PVM pVM)
 #if defined(VBOX_WITH_STATISTICS) && !defined(DOXYGEN_RUNNING)
     for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
     {
-        PVMCPU pVCpu = &pVM->aCpus[idCpu];
+        PVMCPU pVCpu = pVM->apCpusR3[idCpu];
         MMR3HeapFree(pVCpu->iem.s.pStatsR3);
         pVCpu->iem.s.pStatsR3 = NULL;
     }
@@ -207,8 +206,6 @@ VMMR3DECL(int)      IEMR3Term(PVM pVM)
 
 VMMR3DECL(void)     IEMR3Relocate(PVM pVM)
 {
-    for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
-        if (pVM->aCpus[idCpu].iem.s.pStatsRC)
-            pVM->aCpus[idCpu].iem.s.pStatsRC = MMHyperR3ToRC(pVM, pVM->aCpus[idCpu].iem.s.pStatsCCR3);
+    RT_NOREF(pVM);
 }
 

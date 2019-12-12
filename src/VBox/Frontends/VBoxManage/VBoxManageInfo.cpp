@@ -178,8 +178,6 @@ const char *machineStateToName(MachineState_T machineState, bool fShort)
             return fShort ? "teleportingpausedvm"  : "teleporting paused vm";
         case MachineState_TeleportingIn:
             return fShort ? "teleportingin"        : "teleporting (incoming)";
-        case MachineState_FaultTolerantSyncing:
-            return fShort ? "faulttolerantsyncing" : "fault tolerant syncing";
         case MachineState_DeletingSnapshotOnline:
             return fShort ? "deletingsnapshotlive" : "deleting snapshot live";
         case MachineState_DeletingSnapshotPaused:
@@ -724,7 +722,9 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> pVirtualBox,
     SHOW_UUID_PROP(        machine, HardwareUUID,               "hardwareuuid",         "Hardware UUID:");
     SHOW_ULONG_PROP(       machine, MemorySize,                 "memory",               "Memory size",      "MB");
     SHOW_BOOLEAN_PROP(     machine, PageFusionEnabled,          "pagefusion",           "Page Fusion:");
-    SHOW_ULONG_PROP(       machine, VRAMSize,                   "vram",                 "VRAM size:",        "MB");
+    ComPtr<IGraphicsAdapter> pGraphicsAdapter;
+    machine->COMGETTER(GraphicsAdapter)(pGraphicsAdapter.asOutParam());
+    SHOW_ULONG_PROP(pGraphicsAdapter, VRAMSize,                 "vram",                 "VRAM size:",        "MB");
     SHOW_ULONG_PROP(       machine, CPUExecutionCap,            "cpuexecutioncap",      "CPU exec cap:",     "%");
     SHOW_BOOLEAN_PROP(     machine, HPETEnabled,                "hpet",                 "HPET:");
     SHOW_STRING_PROP_MAJ(  machine, CPUProfile,                 "cpu-profile",          "CPUProfile:",       "host", 6);
@@ -871,12 +871,16 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> pVirtualBox,
     SHOW_UTF8_STRING("biosapic", "BIOS APIC mode:", pszAPIC);
 
     SHOW_LONG64_PROP(biosSettings,  TimeOffset,                 "biossystemtimeoffset", "Time offset:",  "ms");
+    Bstr bstrNVRAMFile;
+    CHECK_ERROR2I_RET(biosSettings, COMGETTER(NonVolatileStorageFile)(bstrNVRAMFile.asOutParam()), hrcCheck);
+    if (bstrNVRAMFile.isNotEmpty())
+        SHOW_BSTR_STRING("BIOS NVRAM File", "BIOS NVRAM File:", bstrNVRAMFile);
     SHOW_BOOLEAN_PROP_EX(machine,   RTCUseUTC,                  "rtcuseutc",            "RTC:",         "UTC", "local time");
-    SHOW_BOOLEAN_METHOD(machine, GetHWVirtExProperty(HWVirtExPropertyType_Enabled,   &f),   "hwvirtex",     "Hardw. virt.ext:");
+    SHOW_BOOLEAN_METHOD(machine, GetHWVirtExProperty(HWVirtExPropertyType_Enabled,   &f),   "hwvirtex",     "Hardware Virtualization:");
     SHOW_BOOLEAN_METHOD(machine, GetHWVirtExProperty(HWVirtExPropertyType_NestedPaging, &f),"nestedpaging", "Nested Paging:");
     SHOW_BOOLEAN_METHOD(machine, GetHWVirtExProperty(HWVirtExPropertyType_LargePages, &f),  "largepages",   "Large Pages:");
     SHOW_BOOLEAN_METHOD(machine, GetHWVirtExProperty(HWVirtExPropertyType_VPID, &f),        "vtxvpid",      "VT-x VPID:");
-    SHOW_BOOLEAN_METHOD(machine, GetHWVirtExProperty(HWVirtExPropertyType_UnrestrictedExecution, &f), "vtxux", "VT-x unr. exec.:");
+    SHOW_BOOLEAN_METHOD(machine, GetHWVirtExProperty(HWVirtExPropertyType_UnrestrictedExecution, &f), "vtxux", "VT-x Unrestricted Exec.:");
 
     ParavirtProvider_T paravirtProvider;
     CHECK_ERROR2I_RET(machine, COMGETTER(ParavirtProvider)(&paravirtProvider), hrcCheck);
@@ -916,10 +920,53 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> pVirtualBox,
     else
         RTPrintf("%-28s %s (since %s)\n", "State:", pszState, pszTime);
 
-    SHOW_ULONG_PROP(      machine,  MonitorCount,               "monitorcount",             "Monitor count:", "");
-    SHOW_BOOLEAN_PROP(    machine,  Accelerate3DEnabled,        "accelerate3d",             "3D Acceleration:");
+    GraphicsControllerType_T enmGraphics;
+    rc = pGraphicsAdapter->COMGETTER(GraphicsControllerType)(&enmGraphics);
+    if (SUCCEEDED(rc))
+    {
+        const char *pszCtrl  = "Unknown";
+        switch (enmGraphics)
+        {
+            case GraphicsControllerType_Null:
+                if (details == VMINFO_MACHINEREADABLE)
+                    pszCtrl = "null";
+                else
+                    pszCtrl = "Null";
+                break;
+            case GraphicsControllerType_VBoxVGA:
+                if (details == VMINFO_MACHINEREADABLE)
+                    pszCtrl = "vboxvga";
+                else
+                    pszCtrl = "VBoxVGA";
+                break;
+            case GraphicsControllerType_VMSVGA:
+                if (details == VMINFO_MACHINEREADABLE)
+                    pszCtrl = "vmsvga";
+                else
+                    pszCtrl = "VMSVGA";
+                break;
+            case GraphicsControllerType_VBoxSVGA:
+                if (details == VMINFO_MACHINEREADABLE)
+                    pszCtrl = "vboxsvga";
+                else
+                    pszCtrl = "VBoxSVGA";
+                break;
+            default:
+                if (details == VMINFO_MACHINEREADABLE)
+                    pszCtrl = "unknown";
+                break;
+        }
+
+        if (details == VMINFO_MACHINEREADABLE)
+            RTPrintf("graphicscontroller=\"%s\"\n", pszCtrl);
+        else
+            RTPrintf("%-28s %s\n", "Graphics Controller:", pszCtrl);
+    }
+
+    SHOW_ULONG_PROP(pGraphicsAdapter, MonitorCount,             "monitorcount",             "Monitor count:", "");
+    SHOW_BOOLEAN_PROP(pGraphicsAdapter, Accelerate3DEnabled,    "accelerate3d",             "3D Acceleration:");
 #ifdef VBOX_WITH_VIDEOHWACCEL
-    SHOW_BOOLEAN_PROP(    machine,  Accelerate2DVideoEnabled,   "accelerate2dvideo",        "2D Video Acceleration:");
+    SHOW_BOOLEAN_PROP(pGraphicsAdapter, Accelerate2DVideoEnabled, "accelerate2dvideo",      "2D Video Acceleration:");
 #endif
     SHOW_BOOLEAN_PROP(    machine,  TeleporterEnabled,          "teleporterenabled",        "Teleporter Enabled:");
     SHOW_ULONG_PROP(      machine,  TeleporterPort,             "teleporterport",           "Teleporter Port:", "");
@@ -931,6 +978,29 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> pVirtualBox,
     SHOW_BOOLEAN_PROP(    machine,  AutostartEnabled,           "autostart-enabled",        "Autostart Enabled:");
     SHOW_ULONG_PROP(      machine,  AutostartDelay,             "autostart-delay",          "Autostart Delay:", "");
     SHOW_STRING_PROP(     machine,  DefaultFrontend,            "defaultfrontend",          "Default Frontend:");
+
+    VMProcPriority_T enmVMProcPriority;
+    CHECK_ERROR2I_RET(machine, COMGETTER(VMProcessPriority)(&enmVMProcPriority), hrcCheck);
+    const char *pszVMProcPriority;
+    switch (enmVMProcPriority)
+    {
+        case VMProcPriority_Flat:
+            pszVMProcPriority = "flat";
+            break;
+        case VMProcPriority_Low:
+            pszVMProcPriority = "low";
+            break;
+        case VMProcPriority_Normal:
+            pszVMProcPriority = "normal";
+            break;
+        case VMProcPriority_High:
+            pszVMProcPriority = "high";
+            break;
+        default:
+            pszVMProcPriority = "default";
+            break;
+    }
+    SHOW_UTF8_STRING("vmprocpriority", "VM process priority:", pszVMProcPriority);
 
 /** @todo Convert the remainder of the function to SHOW_XXX macros and add error
  *        checking where missing. */
@@ -1378,6 +1448,7 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> pVirtualBox,
                 {
                     case NetworkAdapterType_Am79C970A:  pszNICType = "Am79C970A";   break;
                     case NetworkAdapterType_Am79C973:   pszNICType = "Am79C973";    break;
+                    case NetworkAdapterType_Am79C960:   pszNICType = "Am79C960";    break;
 #ifdef VBOX_WITH_E1000
                     case NetworkAdapterType_I82540EM:   pszNICType = "82540EM";     break;
                     case NetworkAdapterType_I82543GC:   pszNICType = "82543GC";     break;
@@ -1798,6 +1869,9 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> pVirtualBox,
                 break;
         }
         SHOW_UTF8_STRING("clipboard", "Clipboard Mode:", psz);
+#ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
+        SHOW_BOOLEAN_PROP(machine, ClipboardFileTransfersEnabled, "clipboard_file_transfers", "Clipboard file transfers:");
+#endif
     }
 
     /* Drag and drop */
@@ -2485,7 +2559,7 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> pVirtualBox,
                 if (FAILED(rc))
                     uRevision = 0;
                 RTStrPrintf(szValue, sizeof(szValue), "%ls r%u", guestString.raw(), uRevision);
-                SHOW_UTF8_STRING("GuestAdditionsVersion", "Additions version", szValue);
+                SHOW_UTF8_STRING("GuestAdditionsVersion", "Additions version:", szValue);
             }
 
             if (details != VMINFO_MACHINEREADABLE)

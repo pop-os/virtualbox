@@ -79,6 +79,8 @@ typedef SUPSEMEVENTMULTI                           *PSUPSEMEVENTMULTI;
 
 /** Pointer to a VM. */
 typedef struct VM                  *PVM;
+/** Pointer to a const VM. */
+typedef const struct VM            *PCVM;
 /** Pointer to a VM - Ring-0 Ptr. */
 typedef R0PTRTYPE(struct VM *)      PVMR0;
 /** Pointer to a VM - Ring-3 Ptr. */
@@ -99,14 +101,47 @@ typedef RCPTRTYPE(struct VMCPU *)   PVMCPURC;
 
 /** Pointer to a ring-0 (global) VM structure. */
 typedef R0PTRTYPE(struct GVM *)     PGVM;
-/** Pointer to the GVMCPU data. */
+/** Pointer to a const ring-0 (global) VM structure. */
+typedef R0PTRTYPE(const struct GVM *) PCGVM;
+/** Pointer to a GVMCPU structure. */
 typedef R0PTRTYPE(struct GVMCPU *)  PGVMCPU;
+/** Pointer to a const GVMCPU structure. */
+typedef R0PTRTYPE(struct GVMCPU const *) PCGVMCPU;
 
 /** Pointer to a ring-3 (user mode) VM structure. */
 typedef R3PTRTYPE(struct UVM *)     PUVM;
 
 /** Pointer to a ring-3 (user mode) VMCPU structure. */
 typedef R3PTRTYPE(struct UVMCPU *)  PUVMCPU;
+
+/** Pointer to a context specific VM derived structure.
+ * This is PGVM in ring-0 and plain PVM in ring-3. */
+#ifdef IN_RING0
+typedef PGVM                        PVMCC;
+#else
+typedef PVM                         PVMCC;
+#endif
+/** Pointer to a const context specific VM derived structure.
+ * This is PCGVM in ring-0 and plain PCVM in ring-3. */
+#ifdef IN_RING0
+typedef PCGVM                       PCVMCC;
+#else
+typedef PCVM                        PCVMCC;
+#endif
+/** Pointer to a context specific VMCPUM derived structure.
+ * This is PGVMCPU in ring-0 and plain PVMCPU in ring-3. */
+#ifdef IN_RING0
+typedef PGVMCPU                     PVMCPUCC;
+#else
+typedef PVMCPU                      PVMCPUCC;
+#endif
+/** Pointer to a const context specific VMCPU derived structure.
+ * This is PCGVMCPU in ring-0 and plain PCVMCPU in ring-3. */
+#ifdef IN_RING0
+typedef PCGVMCPU                    PCVMCPUCC;
+#else
+typedef PCVMCPU                     PCVMCPUCC;
+#endif
 
 /** Virtual CPU ID. */
 typedef uint32_t                    VMCPUID;
@@ -329,24 +364,53 @@ typedef int32_t VBOXSTRICTRC;
 #define VBOXSTRICTRC_TODO(rcStrict) VBOXSTRICTRC_VAL(rcStrict)
 
 
+/** A cross context I/O port range handle. */
+typedef uint64_t                IOMIOPORTHANDLE;
+/** Pointer to a cross context I/O port handle. */
+typedef IOMIOPORTHANDLE        *PIOMIOPORTHANDLE;
+/** A NIL I/O port handle. */
+#define NIL_IOMIOPORTHANDLE     ((uint64_t)UINT64_MAX)
+
+/** A cross context MMIO range handle. */
+typedef uint64_t                IOMMMIOHANDLE;
+/** Pointer to a cross context MMIO handle. */
+typedef IOMMMIOHANDLE          *PIOMMMIOHANDLE;
+/** A NIL MMIO handle. */
+#define NIL_IOMMMIOHANDLE       ((uint64_t)UINT64_MAX)
+
+/** A cross context MMIO2 range handle. */
+typedef uint64_t                PGMMMIO2HANDLE;
+/** Pointer to a cross context MMIO2 handle. */
+typedef PGMMMIO2HANDLE         *PPGMMMIO2HANDLE;
+/** A NIL MMIO2 handle. */
+#define NIL_PGMMMIO2HANDLE      ((uint64_t)UINT64_MAX)
+
 /** Pointer to a PDM Base Interface. */
 typedef struct PDMIBASE *PPDMIBASE;
 /** Pointer to a pointer to a PDM Base Interface. */
 typedef PPDMIBASE *PPPDMIBASE;
 
-/** Pointer to a PDM Device Instance. */
-typedef struct PDMDEVINS *PPDMDEVINS;
-/** Pointer to a pointer to a PDM Device Instance. */
+/** Pointer to a PDM device instance for the current context. */
+#ifdef IN_RING3
+typedef struct PDMDEVINSR3 *PPDMDEVINS;
+#elif defined(IN_RING0) || defined(DOXYGEN_RUNNING)
+typedef struct PDMDEVINSR0 *PPDMDEVINS;
+#else
+typedef struct PDMDEVINSRC *PPDMDEVINS;
+#endif
+/** Pointer to a pointer a PDM device instance for the current context. */
 typedef PPDMDEVINS *PPPDMDEVINS;
-/** R3 pointer to a PDM Device Instance. */
-typedef R3PTRTYPE(PPDMDEVINS) PPDMDEVINSR3;
-/** R0 pointer to a PDM Device Instance. */
-typedef R0PTRTYPE(PPDMDEVINS) PPDMDEVINSR0;
-/** RC pointer to a PDM Device Instance. */
-typedef RCPTRTYPE(PPDMDEVINS) PPDMDEVINSRC;
+/** R3 pointer to a PDM device instance. */
+typedef R3PTRTYPE(struct PDMDEVINSR3 *) PPDMDEVINSR3;
+/** R0 pointer to a PDM device instance. */
+typedef R0PTRTYPE(struct PDMDEVINSR0 *) PPDMDEVINSR0;
+/** RC pointer to a PDM device instance. */
+typedef RCPTRTYPE(struct PDMDEVINSRC *) PPDMDEVINSRC;
 
 /** Pointer to a PDM PCI device structure. */
 typedef struct PDMPCIDEV *PPDMPCIDEV;
+/** Pointer to a const PDM PCI device structure. */
+typedef const struct PDMPCIDEV *PCPDMPCIDEV;
 
 /** Pointer to a PDM USB Device Instance. */
 typedef struct PDMUSBINS *PPDMUSBINS;
@@ -395,9 +459,16 @@ typedef RCPTRTYPE(struct TMTIMER *) PTMTIMERRC;
 typedef PTMTIMERRC *PPTMTIMERRC;
 
 /** Pointer to a timer. */
-typedef CTX_SUFF(PTMTIMER)     PTMTIMER;
+typedef CTX_SUFF(PTMTIMER) PTMTIMER;
 /** Pointer to a pointer to a timer. */
-typedef PTMTIMER              *PPTMTIMER;
+typedef PTMTIMER *PPTMTIMER;
+
+/** A cross context timer handle. */
+typedef uint64_t TMTIMERHANDLE;
+/** Pointer to a cross context timer handle. */
+typedef TMTIMERHANDLE *PTMTIMERHANDLE;
+/** A NIL timer handle. */
+#define NIL_TMTIMERHANDLE ((uint64_t)UINT64_MAX)
 
 /** SSM Operation handle. */
 typedef struct SSMHANDLE *PSSMHANDLE;
@@ -766,8 +837,6 @@ typedef struct VBOXIDTR
     uint64_t     pIdt;
 } VBOXIDTR, *PVBOXIDTR;
 #pragma pack()
-
-/** @} */
 
 
 /** @def VBOXIDTE_OFFSET

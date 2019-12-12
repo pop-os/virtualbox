@@ -20,24 +20,23 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_PDM_DEVICE
+#define PDMPCIDEV_INCLUDE_PRIVATE  /* Hack to get pdmpcidevint.h included at the right point. */
 #include "PDMInternal.h"
 #include <VBox/vmm/pdm.h>
-#include <VBox/vmm/mm.h>
-#include <VBox/vmm/pgm.h>
-#include <VBox/vmm/iom.h>
-#include <VBox/vmm/hm.h>
-#include <VBox/vmm/cfgm.h>
 #include <VBox/vmm/apic.h>
-#ifdef VBOX_WITH_REM
-# include <VBox/vmm/rem.h>
-#endif
+#include <VBox/vmm/cfgm.h>
 #include <VBox/vmm/dbgf.h>
+#include <VBox/vmm/hm.h>
+#include <VBox/vmm/mm.h>
+#include <VBox/vmm/iom.h>
+#include <VBox/vmm/pgm.h>
 #include <VBox/vmm/vm.h>
 #include <VBox/vmm/uvm.h>
 #include <VBox/vmm/vmm.h>
 
 #include <VBox/version.h>
 #include <VBox/log.h>
+#include <VBox/msi.h>
 #include <VBox/err.h>
 #include <iprt/alloc.h>
 #include <iprt/alloca.h>
@@ -131,17 +130,6 @@ int pdmR3DevInit(PVM pVM)
     /*
      * Get the RC & R0 devhlps and create the devhlp R3 task queue.
      */
-    PCPDMDEVHLPRC pHlpRC = NIL_RTRCPTR;
-    if (VM_IS_RAW_MODE_ENABLED(pVM))
-    {
-        rc = PDMR3LdrGetSymbolRC(pVM, NULL, "g_pdmRCDevHlp", &pHlpRC);
-        AssertReleaseRCReturn(rc, rc);
-    }
-
-    PCPDMDEVHLPR0 pHlpR0;
-    rc = PDMR3LdrGetSymbolR0(pVM, NULL, "g_pdmR0DevHlp", &pHlpR0);
-    AssertReleaseRCReturn(rc, rc);
-
     rc = PDMR3QueueCreateInternal(pVM, sizeof(PDMDEVHLPTASK), 8, 0, pdmR3DevHlpQueueConsumer, true, "DevHlp",
                                   &pVM->pdm.s.pDevHlpQueueR3);
     AssertRCReturn(rc, rc);
@@ -272,6 +260,8 @@ int pdmR3DevInit(PVM pVM)
      */
     for (i = 0; i < cDevs; i++)
     {
+        PDMDEVREGR3 const * const pReg = paDevs[i].pDev->pReg;
+
         /*
          * Gather a bit of config.
          */
@@ -285,6 +275,38 @@ int pdmR3DevInit(PVM pVM)
             AssertMsgFailed(("configuration error: failed to query boolean \"Trusted\", rc=%Rrc\n", rc));
             return rc;
         }
+
+        /* RZEnabled, R0Enabled, RCEnabled*/
+        bool fR0Enabled = false;
+        bool fRCEnabled = false;
+        if (pReg->fFlags & (PDM_DEVREG_FLAGS_R0 | PDM_DEVREG_FLAGS_RC))
+        {
+            if (pReg->fFlags & PDM_DEVREG_FLAGS_R0)
+            {
+                if (pReg->fFlags & PDM_DEVREG_FLAGS_REQUIRE_R0)
+                    fR0Enabled = true;
+                else
+                {
+                    rc = CFGMR3QueryBoolDef(paDevs[i].pNode, "R0Enabled", &fR0Enabled,
+                                            !(pReg->fFlags & PDM_DEVREG_FLAGS_OPT_IN_R0));
+                    AssertLogRelRCReturn(rc, rc);
+                }
+            }
+
+            if (pReg->fFlags & PDM_DEVREG_FLAGS_RC)
+            {
+                if (pReg->fFlags & PDM_DEVREG_FLAGS_REQUIRE_RC)
+                    fRCEnabled = true;
+                else
+                {
+                    rc = CFGMR3QueryBoolDef(paDevs[i].pNode, "RCEnabled", &fRCEnabled,
+                                            !(pReg->fFlags & PDM_DEVREG_FLAGS_OPT_IN_RC));
+                    AssertLogRelRCReturn(rc, rc);
+                }
+                fRCEnabled = false;
+            }
+        }
+
         /* config node */
         PCFGMNODE pConfigNode = CFGMR3GetChild(paDevs[i].pNode, "Config");
         if (!pConfigNode)
@@ -301,62 +323,114 @@ int pdmR3DevInit(PVM pVM)
         /*
          * Allocate the device instance and critical section.
          */
-        AssertReturn(paDevs[i].pDev->cInstances < paDevs[i].pDev->pReg->cMaxInstances, VERR_PDM_TOO_MANY_DEVICE_INSTANCES);
-        size_t cb = RT_UOFFSETOF_DYN(PDMDEVINS, achInstanceData[paDevs[i].pDev->pReg->cbInstance]);
-        cb = RT_ALIGN_Z(cb, 16);
-        PPDMDEVINS pDevIns;
-        if (paDevs[i].pDev->pReg->fFlags & (PDM_DEVREG_FLAGS_RC | PDM_DEVREG_FLAGS_R0))
-            rc = MMR3HyperAllocOnceNoRel(pVM, cb, 0, MM_TAG_PDM_DEVICE, (void **)&pDevIns);
-        else
-            rc = MMR3HeapAllocZEx(pVM, MM_TAG_PDM_DEVICE, cb, (void **)&pDevIns);
-        AssertLogRelMsgRCReturn(rc,
-                                ("Failed to allocate %d bytes of instance data for device '%s'. rc=%Rrc\n",
-                                cb, paDevs[i].pDev->pReg->szName, rc),
-                                rc);
+        AssertLogRelReturn(paDevs[i].pDev->cInstances < pReg->cMaxInstances,
+                           VERR_PDM_TOO_MANY_DEVICE_INSTANCES);
+        PPDMDEVINS   pDevIns;
         PPDMCRITSECT pCritSect;
-        if (paDevs[i].pDev->pReg->fFlags & (PDM_DEVREG_FLAGS_RC | PDM_DEVREG_FLAGS_R0))
-            rc = MMHyperAlloc(pVM, sizeof(*pCritSect), 0, MM_TAG_PDM_DEVICE, (void **)&pCritSect);
-        else
-            rc = MMR3HeapAllocZEx(pVM, MM_TAG_PDM_DEVICE, sizeof(*pCritSect), (void **)&pCritSect);
-        AssertLogRelMsgRCReturn(rc, ("Failed to allocate a critical section for the device (%Rrc)\n",  rc), rc);
+        if (fR0Enabled || fRCEnabled)
+        {
+            AssertLogRel(fR0Enabled /* not possible to just enabled raw-mode atm. */);
 
-        /*
-         * Initialize it.
-         */
-        pDevIns->u32Version                     = PDM_DEVINS_VERSION;
-        pDevIns->iInstance                      = paDevs[i].iInstance;
-        //pDevIns->Internal.s.pNextR3             = NULL;
-        //pDevIns->Internal.s.pPerDeviceNextR3    = NULL;
-        pDevIns->Internal.s.pDevR3              = paDevs[i].pDev;
-        pDevIns->Internal.s.pVMR3               = pVM;
-        pDevIns->Internal.s.pVMR0               = pVM->pVMR0;
-        pDevIns->Internal.s.pVMRC               = pVM->pVMRC;
-        //pDevIns->Internal.s.pLunsR3             = NULL;
-        pDevIns->Internal.s.pCfgHandle          = paDevs[i].pNode;
-        //pDevIns->Internal.s.pHeadPciDevR3       = NULL;
-        //pDevIns->Internal.s.pHeadPciDevR0       = 0;
-        //pDevIns->Internal.s.pHeadPciDevRC       = 0;
-        pDevIns->Internal.s.fIntFlags           = PDMDEVINSINT_FLAGS_SUSPENDED;
-        //pDevIns->Internal.s.uLastIrqTag         = 0;
+            rc = PDMR3LdrLoadR0(pVM->pUVM, pReg->pszR0Mod, paDevs[i].pDev->pszR0SearchPath);
+            if (RT_FAILURE(rc))
+                return VMR3SetError(pVM->pUVM, rc, RT_SRC_POS, "Failed to load ring-0 module '%s' for device '%s'",
+                                    pReg->pszR0Mod, pReg->szName);
+
+            PDMDEVICECREATEREQ Req;
+            Req.Hdr.u32Magic     = SUPVMMR0REQHDR_MAGIC;
+            Req.Hdr.cbReq        = sizeof(Req);
+            Req.pDevInsR3        = NULL;
+            Req.fFlags           = pReg->fFlags;
+            Req.fClass           = pReg->fClass;
+            Req.cMaxInstances    = pReg->cMaxInstances;
+            Req.uSharedVersion   = pReg->uSharedVersion;
+            Req.cbInstanceShared = pReg->cbInstanceShared;
+            Req.cbInstanceR3     = pReg->cbInstanceCC;
+            Req.cbInstanceRC     = pReg->cbInstanceRC;
+            Req.cMaxPciDevices   = pReg->cMaxPciDevices;
+            Req.cMaxMsixVectors  = pReg->cMaxMsixVectors;
+            Req.iInstance        = paDevs[i].iInstance;
+            Req.fRCEnabled       = fRCEnabled;
+            Req.afReserved[0]    = false;
+            Req.afReserved[1]    = false;
+            Req.afReserved[2]    = false;
+            rc = RTStrCopy(Req.szDevName, sizeof(Req.szDevName), pReg->szName);
+            AssertLogRelRCReturn(rc, rc);
+            rc = RTStrCopy(Req.szModName, sizeof(Req.szModName), pReg->pszR0Mod);
+            AssertLogRelRCReturn(rc, rc);
+            rc = VMMR3CallR0Emt(pVM, pVM->apCpusR3[0], VMMR0_DO_PDM_DEVICE_CREATE, 0, &Req.Hdr);
+            AssertLogRelMsgRCReturn(rc, ("VMMR0_DO_PDM_DEVICE_CREATE for %s failed: %Rrc\n", pReg->szName, rc), rc);
+            pDevIns = Req.pDevInsR3;
+            pCritSect = pDevIns->pCritSectRoR3;
+            Assert(pDevIns->Internal.s.fIntFlags & PDMDEVINSINT_FLAGS_R0_ENABLED);
+        }
+        else
+        {
+            /* The code in this else branch works by the same rules as the PDMR0Device.cpp
+               code, except there is only the ring-3 components of the device instance.
+               Changes here may need to be reflected in PDMR0DEvice.cpp and vice versa! */
+            uint32_t cb = RT_UOFFSETOF_DYN(PDMDEVINS, achInstanceData[pReg->cbInstanceCC]);
+            cb  = RT_ALIGN_32(cb, 64);
+            uint32_t const offShared   = cb;
+            cb += RT_ALIGN_32(pReg->cbInstanceShared, 64);
+            uint32_t const cbCritSect  = RT_ALIGN_32(sizeof(*pCritSect), 64);
+            cb += cbCritSect;
+            uint32_t const cbMsixState = RT_ALIGN_32(pReg->cMaxMsixVectors * 16 + (pReg->cMaxMsixVectors + 7) / 8, _4K);
+            uint32_t const cbPciDev    = RT_ALIGN_32(RT_UOFFSETOF_DYN(PDMPCIDEV, abMsixState[cbMsixState]), 64);
+            uint32_t const cPciDevs    = RT_MIN(pReg->cMaxPciDevices, 1024);
+            uint32_t const cbPciDevs   = cbPciDev * cPciDevs;
+            cb += cbPciDevs;
+            AssertLogRelMsgReturn(cb <= PDM_MAX_DEVICE_INSTANCE_SIZE_R3,
+                                  ("Device %s total instance size is to big: %u, max %u\n",
+                                   pReg->szName, cb, PDM_MAX_DEVICE_INSTANCE_SIZE_R3),
+                                  VERR_ALLOCATION_TOO_BIG);
+
+            rc = MMR3HeapAllocZEx(pVM, MM_TAG_PDM_DEVICE, cb, (void **)&pDevIns);
+            AssertLogRelMsgRCReturn(rc, ("Failed to allocate %zu bytes of instance data for device '%s'. rc=%Rrc\n",
+                                         cb, pReg->szName, rc), rc);
+
+            /* Initialize it: */
+            pDevIns->u32Version             = PDM_DEVINSR3_VERSION;
+            pDevIns->iInstance              = paDevs[i].iInstance;
+            pDevIns->cbRing3                = cb;
+            //pDevIns->fR0Enabled           = false;
+            //pDevIns->fRCEnabled           = false;
+            pDevIns->pvInstanceDataR3       = (uint8_t *)pDevIns + offShared;
+            pDevIns->pvInstanceDataForR3    = &pDevIns->achInstanceData[0];
+            pCritSect = (PPDMCRITSECT)((uint8_t *)pDevIns + offShared + RT_ALIGN_32(pReg->cbInstanceShared, 64));
+            pDevIns->pCritSectRoR3          = pCritSect;
+            pDevIns->cbPciDev               = cbPciDev;
+            pDevIns->cPciDevs               = cPciDevs;
+            for (uint32_t iPciDev = 0; iPciDev < cPciDevs; iPciDev++)
+            {
+                PPDMPCIDEV pPciDev = (PPDMPCIDEV)((uint8_t *)pDevIns->pCritSectRoR3 + cbCritSect + cbPciDev * iPciDev);
+                if (iPciDev < RT_ELEMENTS(pDevIns->apPciDevs))
+                    pDevIns->apPciDevs[iPciDev] = pPciDev;
+                pPciDev->cbConfig           = _4K;
+                pPciDev->cbMsixState        = cbMsixState;
+                pPciDev->idxSubDev          = (uint16_t)iPciDev;
+                pPciDev->Int.s.idxSubDev    = (uint16_t)iPciDev;
+                pPciDev->u32Magic           = PDMPCIDEV_MAGIC;
+            }
+        }
+
         pDevIns->pHlpR3                         = fTrusted ? &g_pdmR3DevHlpTrusted : &g_pdmR3DevHlpUnTrusted;
-        pDevIns->pHlpRC                         = pHlpRC;
-        pDevIns->pHlpR0                         = pHlpR0;
-        pDevIns->pReg                           = paDevs[i].pDev->pReg;
+        pDevIns->pReg                           = pReg;
         pDevIns->pCfg                           = pConfigNode;
         //pDevIns->IBase.pfnQueryInterface        = NULL;
         //pDevIns->fTracing                       = 0;
         pDevIns->idTracing                      = ++pVM->pdm.s.idTracingDev;
-        pDevIns->pvInstanceDataR3               = &pDevIns->achInstanceData[0];
-        pDevIns->pvInstanceDataRC               = pDevIns->pReg->fFlags & PDM_DEVREG_FLAGS_RC
-                                                ? MMHyperR3ToRC(pVM, pDevIns->pvInstanceDataR3) : NIL_RTRCPTR;
-        pDevIns->pvInstanceDataR0               = pDevIns->pReg->fFlags & PDM_DEVREG_FLAGS_R0
-                                                ? MMHyperR3ToR0(pVM, pDevIns->pvInstanceDataR3) : NIL_RTR0PTR;
 
-        pDevIns->pCritSectRoR3                  = pCritSect;
-        pDevIns->pCritSectRoRC                  = pDevIns->pReg->fFlags & PDM_DEVREG_FLAGS_RC
-                                                ? MMHyperR3ToRC(pVM, pCritSect) : NIL_RTRCPTR;
-        pDevIns->pCritSectRoR0                  = pDevIns->pReg->fFlags & PDM_DEVREG_FLAGS_R0
-                                                ? MMHyperR3ToR0(pVM, pCritSect) : NIL_RTR0PTR;
+        //pDevIns->Internal.s.pNextR3             = NULL;
+        //pDevIns->Internal.s.pPerDeviceNextR3    = NULL;
+        pDevIns->Internal.s.pDevR3              = paDevs[i].pDev;
+        //pDevIns->Internal.s.pLunsR3             = NULL;
+        //pDevIns->Internal.s.pfnAsyncNotify      = NULL;
+        pDevIns->Internal.s.pCfgHandle          = paDevs[i].pNode;
+        pDevIns->Internal.s.pVMR3               = pVM;
+        //pDevIns->Internal.s.pHeadPciDevR3       = NULL;
+        pDevIns->Internal.s.fIntFlags          |= PDMDEVINSINT_FLAGS_SUSPENDED;
+        //pDevIns->Internal.s.uLastIrqTag         = 0;
 
         rc = pdmR3CritSectInitDeviceAuto(pVM, pDevIns, pCritSect, RT_SRC_POS,
                                          "%s#%uAuto", pDevIns->pReg->szName, pDevIns->iInstance);
@@ -396,11 +470,40 @@ int pdmR3DevInit(PVM pVM)
         if (RT_FAILURE(rc))
         {
             LogRel(("PDM: Failed to construct '%s'/%d! %Rra\n", pDevIns->pReg->szName, pDevIns->iInstance, rc));
-            paDevs[i].pDev->cInstances--;
+            if (VMR3GetErrorCount(pVM->pUVM) == 0)
+                VMSetError(pVM, rc, RT_SRC_POS, "Failed to construct device '%s' instance #%u",
+                           pDevIns->pReg->szName, pDevIns->iInstance);
             /* Because we're damn lazy, the destructor will be called even if
                the constructor fails.  So, no unlinking. */
+            paDevs[i].pDev->cInstances--;
             return rc == VERR_VERSION_MISMATCH ? VERR_PDM_DEVICE_VERSION_MISMATCH : rc;
         }
+
+        /*
+         * Call the ring-0 constructor if applicable.
+         */
+        if (fR0Enabled)
+        {
+            PDMDEVICEGENCALLREQ Req;
+            RT_ZERO(Req.Params);
+            Req.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
+            Req.Hdr.cbReq    = sizeof(Req);
+            Req.enmCall      = PDMDEVICEGENCALL_CONSTRUCT;
+            Req.idxR0Device  = pDevIns->Internal.s.idxR0Device;
+            Req.pDevInsR3    = pDevIns;
+            rc = VMMR3CallR0Emt(pVM, pVM->apCpusR3[0], VMMR0_DO_PDM_DEVICE_GEN_CALL, 0, &Req.Hdr);
+            pDevIns->Internal.s.fIntFlags |= PDMDEVINSINT_FLAGS_R0_CONTRUCT;
+            if (RT_FAILURE(rc))
+            {
+                LogRel(("PDM: Failed to construct (ring-0) '%s'/%d! %Rra\n", pDevIns->pReg->szName, pDevIns->iInstance, rc));
+                if (VMR3GetErrorCount(pVM->pUVM) == 0)
+                    VMSetError(pVM, rc, RT_SRC_POS, "The ring-0 constructor of device '%s' instance #%u failed",
+                               pDevIns->pReg->szName, pDevIns->iInstance);
+                paDevs[i].pDev->cInstances--;
+                return rc == VERR_VERSION_MISMATCH ? VERR_PDM_DEVICE_VERSION_MISMATCH : rc;
+            }
+        }
+
     } /* for device instances */
 
 #ifdef VBOX_WITH_USB
@@ -492,9 +595,9 @@ static int pdmR3DevLoadModules(PVM pVM)
     RegCB.pCfgNode         = NULL;
 
     /*
-     * Load the internal VMM APIC device.
+     * Register the internal VMM APIC device.
      */
-    int rc = APICR3RegisterDevice(&RegCB.Core);
+    int rc = pdmR3DevReg_Register(&RegCB.Core, &g_DeviceAPIC);
     AssertRCReturn(rc, rc);
 
     /*
@@ -657,14 +760,14 @@ static DECLCALLBACK(int) pdmR3DevReg_Register(PPDMDEVREGCB pCallbacks, PCPDMDEVR
                     ("Invalid name '%.*s'\n", sizeof(pReg->szName), pReg->szName),
                     VERR_PDM_INVALID_DEVICE_REGISTRATION);
     AssertMsgReturn(   !(pReg->fFlags & PDM_DEVREG_FLAGS_RC)
-                    || (   pReg->szRCMod[0]
-                        && strlen(pReg->szRCMod) < sizeof(pReg->szRCMod)),
-                    ("Invalid GC module name '%s' - (Device %s)\n", pReg->szRCMod, pReg->szName),
+                    || (   pReg->pszRCMod[0]
+                        && strlen(pReg->pszRCMod) < RT_SIZEOFMEMB(PDMDEVICECREATEREQ, szModName)),
+                    ("Invalid GC module name '%s' - (Device %s)\n", pReg->pszRCMod, pReg->szName),
                     VERR_PDM_INVALID_DEVICE_REGISTRATION);
     AssertMsgReturn(   !(pReg->fFlags & PDM_DEVREG_FLAGS_R0)
-                    || (   pReg->szR0Mod[0]
-                        && strlen(pReg->szR0Mod) < sizeof(pReg->szR0Mod)),
-                    ("Invalid R0 module name '%s' - (Device %s)\n", pReg->szR0Mod, pReg->szName),
+                    || (   pReg->pszR0Mod[0]
+                        && strlen(pReg->pszR0Mod) < RT_SIZEOFMEMB(PDMDEVICECREATEREQ, szModName)),
+                    ("Invalid R0 module name '%s' - (Device %s)\n", pReg->pszR0Mod, pReg->szName),
                     VERR_PDM_INVALID_DEVICE_REGISTRATION);
     AssertMsgReturn((pReg->fFlags & PDM_DEVREG_FLAGS_HOST_BITS_MASK) == PDM_DEVREG_FLAGS_HOST_BITS_DEFAULT,
                     ("Invalid host bits flags! fFlags=%#x (Device %s)\n", pReg->fFlags, pReg->szName),
@@ -678,8 +781,13 @@ static DECLCALLBACK(int) pdmR3DevReg_Register(PPDMDEVREGCB pCallbacks, PCPDMDEVR
     AssertMsgReturn(pReg->cMaxInstances > 0,
                     ("Max instances %u! (Device %s)\n", pReg->cMaxInstances, pReg->szName),
                     VERR_PDM_INVALID_DEVICE_REGISTRATION);
-    AssertMsgReturn(pReg->cbInstance <= (uint32_t)(pReg->fFlags & (PDM_DEVREG_FLAGS_RC | PDM_DEVREG_FLAGS_R0)  ? 96 * _1K : _1M),
-                    ("Instance size %d bytes! (Device %s)\n", pReg->cbInstance, pReg->szName),
+    uint32_t const cbMaxInstance = pReg->fFlags & (PDM_DEVREG_FLAGS_RC | PDM_DEVREG_FLAGS_R0)
+                                 ? PDM_MAX_DEVICE_INSTANCE_SIZE : PDM_MAX_DEVICE_INSTANCE_SIZE_R3;
+    AssertMsgReturn(pReg->cbInstanceShared <= cbMaxInstance,
+                    ("Instance size %u bytes! (Max %u; Device %s)\n", pReg->cbInstanceShared, cbMaxInstance, pReg->szName),
+                    VERR_PDM_INVALID_DEVICE_REGISTRATION);
+    AssertMsgReturn(pReg->cbInstanceCC <= cbMaxInstance,
+                    ("Instance size %d bytes! (Max %u; Device %s)\n", pReg->cbInstanceCC, cbMaxInstance, pReg->szName),
                     VERR_PDM_INVALID_DEVICE_REGISTRATION);
     AssertMsgReturn(pReg->pfnConstruct,
                     ("No constructor! (Device %s)\n", pReg->szName),
@@ -690,6 +798,14 @@ static DECLCALLBACK(int) pdmR3DevReg_Register(PPDMDEVREGCB pCallbacks, PCPDMDEVR
     AssertLogRelMsg(pReg->u32VersionEnd == PDM_DEVREG_VERSION,
                     ("u32VersionEnd=%#x, expected %#x. (szName=%s)\n",
                      pReg->u32VersionEnd, PDM_DEVREG_VERSION, pReg->szName));
+    AssertLogRelMsgReturn(pReg->cMaxPciDevices <= 8, ("%#x (szName=%s)\n", pReg->cMaxPciDevices, pReg->szName),
+                          VERR_PDM_INVALID_DEVICE_REGISTRATION);
+    AssertLogRelMsgReturn(pReg->cMaxMsixVectors <= VBOX_MSIX_MAX_ENTRIES,
+                          ("%#x (szName=%s)\n", pReg->cMaxMsixVectors, pReg->szName),
+                          VERR_PDM_INVALID_DEVICE_REGISTRATION);
+    AssertLogRelMsgReturn(pReg->fFlags & PDM_DEVREG_FLAGS_NEW_STYLE /* the flag is required now */,
+                          ("PDM_DEVREG_FLAGS_NEW_STYLE not set for szName=%s!\n", pReg->szName),
+                          VERR_PDM_INVALID_DEVICE_REGISTRATION);
 
     /*
      * Check for duplicate and find FIFO entry at the same time.

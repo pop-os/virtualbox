@@ -42,7 +42,6 @@
  */
 
 #include <slirp.h>
-#include <iprt/asm-math.h>
 #include <iprt/file.h>
 #include <iprt/err.h>
 #include <iprt/path.h>
@@ -122,6 +121,16 @@ static TFTPOPTIONDESC g_TftpDesc[] =
     {"tsize", TFTPFMT_NOT_FMT, 5, true}, /* RFC2349 */
     {"size", TFTPFMT_NOT_FMT, 4, true}, /* RFC2349 */
 };
+
+
+DECLINLINE(struct mbuf *) slirpTftpMbufAlloc(PNATState pData)
+{
+    struct mbuf *m = slirpServiceMbufAlloc(pData, CTL_TFTP);
+    if (RT_UNLIKELY(m == NULL))
+        LogFlowFunc(("LEAVE: Can't allocate mbuf\n"));
+    return m;
+}
+
 
 /**
  * This function evaluate file name.
@@ -448,7 +457,7 @@ DECLINLINE(int) tftpSessionEvaluateOptions(PNATState pData, PTFTPSESSION pTftpSe
         return rc;
     }
 
-    rc = RTFileGetSize(hSessionFile, &cbSessionFile);
+    rc = RTFileQuerySize(hSessionFile, &cbSessionFile);
     RTFileClose(hSessionFile);
     if (RT_FAILURE(rc))
     {
@@ -497,8 +506,9 @@ DECLINLINE(int) tftpSend(PNATState pData,
                          struct mbuf *pMBuf,
                          PCTFTPIPHDR pcTftpIpHeaderRecv)
 {
-    int rc = VINF_SUCCESS;
     struct sockaddr_in saddr, daddr;
+    int error, rc;
+
     LogFlowFunc(("pMBuf:%p, pcTftpIpHeaderRecv:%p\n", pMBuf, pcTftpIpHeaderRecv));
     saddr.sin_addr = pcTftpIpHeaderRecv->IPv4Hdr.ip_dst;
     saddr.sin_port = pcTftpIpHeaderRecv->UdpHdr.uh_dport;
@@ -509,7 +519,10 @@ DECLINLINE(int) tftpSend(PNATState pData,
 
     pMBuf->m_data += sizeof(struct udpiphdr);
     pMBuf->m_len -= sizeof(struct udpiphdr);
-    udp_output2(pData, NULL, pMBuf, &saddr, &daddr, IPTOS_LOWDELAY);
+
+    error = udp_output2(pData, NULL, pMBuf, &saddr, &daddr, IPTOS_LOWDELAY);
+    rc = error ? VERR_GENERAL_FAILURE : VINF_SUCCESS;
+
     LogFlowFuncLeaveRC(rc);
     return rc;
 }
@@ -597,6 +610,7 @@ DECLINLINE(int) tftpAddOptionToOACK(PNATState pData, struct mbuf *pMBuf, const c
     return rc;
 }
 
+
 DECLINLINE(int) tftpSendOACK(PNATState pData,
                              PTFTPSESSION pTftpSession,
                              PCTFTPIPHDR pcTftpIpHeaderRecv)
@@ -610,12 +624,18 @@ DECLINLINE(int) tftpSendOACK(PNATState pData,
     {
         tftpSendError(pData, pTftpSession, 2, "Option negotiation failure (file not found or inaccessible?)", pcTftpIpHeaderRecv);
         LogFlowFuncLeave();
-        return -1;
+        return rc;
     }
 
+    if (rc == VWRN_NOT_FOUND)
+        return rc;
+
     m = slirpTftpMbufAlloc(pData);
-    if (!m)
-        return -1;
+    if (m == NULL)
+    {
+        tftpSessionTerminate(pTftpSession);
+        return VERR_NO_MEMORY;
+    }
 
     m->m_data += if_maxlinkhdr;
     m->m_pkthdr.header = mtod(m, void *);
@@ -632,8 +652,12 @@ DECLINLINE(int) tftpSendOACK(PNATState pData,
         rc = tftpAddOptionToOACK(pData, m, "tsize", pTftpSession->OptionTSize.u64Value);
 
     rc = tftpSend(pData, pTftpSession, m, pcTftpIpHeaderRecv);
-    return RT_SUCCESS(rc) ? 0 : -1;
+    if (RT_FAILURE(rc))
+        tftpSessionTerminate(pTftpSession);
+
+    return rc;
 }
+
 
 DECLINLINE(int) tftpSendError(PNATState pData,
                               PTFTPSESSION pTftpSession,
@@ -642,34 +666,33 @@ DECLINLINE(int) tftpSendError(PNATState pData,
                               PCTFTPIPHDR pcTftpIpHeaderRecv)
 {
     struct mbuf *m = NULL;
-    PTFTPIPHDR pTftpIpHeader = NULL;
-    u_int cbMsg = (u_int)strlen(msg) + 1; /* ending zero */
 
     LogFlowFunc(("ENTER: errorcode: %RX16, msg: %s\n", errorcode, msg));
     m = slirpTftpMbufAlloc(pData);
-    if (!m)
+    if (m != NULL)
     {
-        LogFlowFunc(("LEAVE: Can't allocate mbuf\n"));
-        return -1;
+        u_int cbMsg = (u_int)strlen(msg) + 1; /* ending zero */
+        PTFTPIPHDR pTftpIpHeader;
+
+        m->m_data += if_maxlinkhdr;
+        m->m_len = sizeof(TFTPIPHDR) + cbMsg;
+        m->m_pkthdr.header = mtod(m, void *);
+        pTftpIpHeader = mtod(m, PTFTPIPHDR);
+
+        pTftpIpHeader->u16TftpOpType = RT_H2N_U16_C(TFTP_ERROR);
+        pTftpIpHeader->Core.u16TftpOpCode = RT_H2N_U16(errorcode);
+
+        m_copyback(pData, m, sizeof(TFTPIPHDR), cbMsg, (c_caddr_t)msg);
+
+        tftpSend(pData, pTftpSession, m, pcTftpIpHeaderRecv);
     }
-
-    m->m_data += if_maxlinkhdr;
-    m->m_len = sizeof(TFTPIPHDR) + cbMsg;
-    m->m_pkthdr.header = mtod(m, void *);
-    pTftpIpHeader = mtod(m, PTFTPIPHDR);
-
-    pTftpIpHeader->u16TftpOpType = RT_H2N_U16_C(TFTP_ERROR);
-    pTftpIpHeader->Core.u16TftpOpCode = RT_H2N_U16(errorcode);
-
-    m_copyback(pData, m, sizeof(TFTPIPHDR), cbMsg, (c_caddr_t)msg);
-
-    tftpSend(pData, pTftpSession, m, pcTftpIpHeaderRecv);
 
     tftpSessionTerminate(pTftpSession);
 
     LogFlowFuncLeave();
     return 0;
 }
+
 
 static int tftpSendData(PNATState pData,
                           PTFTPSESSION pTftpSession,
@@ -686,7 +709,6 @@ static int tftpSendData(PNATState pData,
     else
     {
         tftpSendError(pData, pTftpSession, 6, "ACK is wrong", pcTftpIpHeaderRecv);
-        tftpSessionTerminate(pTftpSession);
         return -1;
     }
 
@@ -781,7 +803,10 @@ DECLINLINE(void) tftpProcessRRQ(PNATState pData, PCTFTPIPHDR pTftpIpHeader, int 
     }
 
 
-    tftpSendOACK(pData, pTftpSession, pTftpIpHeader);
+    rc = tftpSendOACK(pData, pTftpSession, pTftpIpHeader);
+    if (rc == VWRN_NOT_FOUND)
+        rc = tftpSendData(pData, pTftpSession, 0, pTftpIpHeader);
+
     LogFlowFuncLeave();
     return;
 }
@@ -830,6 +855,15 @@ int slirpTftpInput(PNATState pData, struct mbuf *pMbuf)
         case TFTP_ACK:
             tftpProcessACK(pData, pTftpIpHeader);
             break;
+
+        case TFTP_ERROR:
+        {
+            PTFTPSESSION pTftpSession;
+            int rc = tftpSessionFind(pData, pTftpIpHeader, &pTftpSession);
+            if (RT_SUCCESS(rc))
+                tftpSessionTerminate(pTftpSession);
+        }
+
         default:;
     }
     LogFlowFuncLeaveRC(VINF_SUCCESS);

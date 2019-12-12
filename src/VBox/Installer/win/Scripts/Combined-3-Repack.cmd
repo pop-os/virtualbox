@@ -141,15 +141,15 @@ echo syntax error: The AMD64 bin directory was not found: "%_MY_BINDIR_AMD64%"
 goto end_failed
 
 :error_x86_bindir_not_found
-echo syntax error: The AMD64 bin directory was not found: "%_MY_BINDIR_X86%"
+echo syntax error: The X86 bin directory was not found: "%_MY_BINDIR_X86%"
 goto end_failed
 
 :error_amd64_repack_dir_not_found
-echo syntax error: The AMD64 bin directory was not found: "%_MY_REPACK_DIR_AMD64%"
+echo syntax error: The AMD64 repack directory was not found: "%_MY_REPACK_DIR_AMD64%"
 goto end_failed
 
 :error_x86_repack_dir_not_found
-echo syntax error: The AMD64 bin directory was not found: "%_MY_REPACK_DIR_X86%"
+echo syntax error: The X86 repack directory was not found: "%_MY_REPACK_DIR_X86%"
 goto end_failed
 
 :error_extpack_not_found
