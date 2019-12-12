@@ -29,7 +29,7 @@
 #include <VBox/vmm/pdmapi.h>
 #include "GIMKvmInternal.h"
 #include "GIMInternal.h"
-#include <VBox/vmm/vm.h>
+#include <VBox/vmm/vmcc.h>
 
 #include <VBox/dis.h>
 #include <VBox/err.h>
@@ -53,11 +53,11 @@
  *
  * @thread  EMT(pVCpu).
  */
-VMM_INT_DECL(VBOXSTRICTRC) gimKvmHypercall(PVMCPU pVCpu, PCPUMCTX pCtx)
+VMM_INT_DECL(VBOXSTRICTRC) gimKvmHypercall(PVMCPUCC pVCpu, PCPUMCTX pCtx)
 {
     VMCPU_ASSERT_EMT(pVCpu);
 
-    PVM pVM = pVCpu->CTX_SUFF(pVM);
+    PVMCC pVM = pVCpu->CTX_SUFF(pVM);
     STAM_REL_COUNTER_INC(&pVM->gim.s.StatHypercalls);
 
     /*
@@ -102,7 +102,7 @@ VMM_INT_DECL(VBOXSTRICTRC) gimKvmHypercall(PVMCPU pVCpu, PCPUMCTX pCtx)
         {
             if (uHyperArg1 < pVM->cCpus)
             {
-                PVMCPU pVCpuDst = &pVM->aCpus[uHyperArg1];   /* ASSUMES pVCpu index == ApicId of the VCPU. */
+                PVMCPUCC pVCpuDst = VMCC_GET_CPU(pVM, uHyperArg1); /* ASSUMES pVCpu index == ApicId of the VCPU. */
                 EMUnhaltAndWakeUp(pVM, pVCpuDst);
                 uHyperRet = KVM_HYPERCALL_RET_SUCCESS;
             }
@@ -153,12 +153,12 @@ VMM_INT_DECL(bool) gimKvmAreHypercallsEnabled(PVMCPU pVCpu)
  * @returns true if paravirt. TSC is enabled, false otherwise.
  * @param   pVM     The cross context VM structure.
  */
-VMM_INT_DECL(bool) gimKvmIsParavirtTscEnabled(PVM pVM)
+VMM_INT_DECL(bool) gimKvmIsParavirtTscEnabled(PVMCC pVM)
 {
-    uint32_t cCpus = pVM->cCpus;
-    for (uint32_t i = 0; i < cCpus; i++)
+    uint32_t const cCpus = pVM->cCpus;
+    for (uint32_t idCpu = 0; idCpu < cCpus; idCpu++)
     {
-        PVMCPU     pVCpu      = &pVM->aCpus[i];
+        PVMCPUCC   pVCpu      = pVM->CTX_SUFF(apCpus)[idCpu];
         PGIMKVMCPU pGimKvmCpu = &pVCpu->gim.s.u.KvmCpu;
         if (MSR_GIM_KVM_SYSTEM_TIME_IS_ENABLED(pGimKvmCpu->u64SystemTimeMsr))
             return true;
@@ -179,7 +179,7 @@ VMM_INT_DECL(bool) gimKvmIsParavirtTscEnabled(PVM pVM)
  * @param   pRange      The range this MSR belongs to.
  * @param   puValue     Where to store the MSR value read.
  */
-VMM_INT_DECL(VBOXSTRICTRC) gimKvmReadMsr(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t *puValue)
+VMM_INT_DECL(VBOXSTRICTRC) gimKvmReadMsr(PVMCPUCC pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t *puValue)
 {
     NOREF(pRange);
     PVM     pVM        = pVCpu->CTX_SUFF(pVM);
@@ -226,10 +226,10 @@ VMM_INT_DECL(VBOXSTRICTRC) gimKvmReadMsr(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSR
  * @param   pRange      The range this MSR belongs to.
  * @param   uRawValue   The raw value with the ignored bits not masked.
  */
-VMM_INT_DECL(VBOXSTRICTRC) gimKvmWriteMsr(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t uRawValue)
+VMM_INT_DECL(VBOXSTRICTRC) gimKvmWriteMsr(PVMCPUCC pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t uRawValue)
 {
     NOREF(pRange);
-    PVM        pVM  = pVCpu->CTX_SUFF(pVM);
+    PVMCC      pVM  = pVCpu->CTX_SUFF(pVM);
     PGIMKVMCPU pKvmCpu = &pVCpu->gim.s.u.KvmCpu;
 
     switch (idMsr)
@@ -238,19 +238,9 @@ VMM_INT_DECL(VBOXSTRICTRC) gimKvmWriteMsr(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMS
         case MSR_GIM_KVM_SYSTEM_TIME_OLD:
         {
             bool fEnable = RT_BOOL(uRawValue & MSR_GIM_KVM_SYSTEM_TIME_ENABLE_BIT);
-#ifdef IN_RING0
+#ifndef IN_RING3
             NOREF(fEnable); NOREF(pKvmCpu);
             gimR0KvmUpdateSystemTime(pVM, pVCpu);
-            return VINF_CPUM_R3_MSR_WRITE;
-#elif defined(IN_RC)
-            Assert(pVM->cCpus == 1);
-            if (fEnable)
-            {
-                RTCCUINTREG fEFlags  = ASMIntDisableFlags();
-                pKvmCpu->uTsc        = TMCpuTickGetNoCheck(pVCpu) | UINT64_C(1);
-                pKvmCpu->uVirtNanoTS = TMVirtualGetNoCheck(pVM)   | UINT64_C(1);
-                ASMSetFlags(fEFlags);
-            }
             return VINF_CPUM_R3_MSR_WRITE;
 #else /* IN_RING3 */
             if (!fEnable)
@@ -287,7 +277,7 @@ VMM_INT_DECL(VBOXSTRICTRC) gimKvmWriteMsr(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMS
                 /* We shouldn't throw a #GP(0) here for buggy guests (neither does KVM apparently), see @bugref{8627}. */
             }
             return VINF_SUCCESS;
-#endif
+#endif /* IN_RING3 */
         }
 
         case MSR_GIM_KVM_WALL_CLOCK:
@@ -345,11 +335,10 @@ VMM_INT_DECL(VBOXSTRICTRC) gimKvmWriteMsr(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMS
  *
  * For raw-mode VMs, this function will always return true. See gimR3KvmInit().
  *
- * @param   pVCpu       The cross context virtual CPU structure.
+ * @param   pVM     The cross context VM structure.
  */
-VMM_INT_DECL(bool) gimKvmShouldTrapXcptUD(PVMCPU pVCpu)
+VMM_INT_DECL(bool) gimKvmShouldTrapXcptUD(PVM pVM)
 {
-    PVM pVM = pVCpu->CTX_SUFF(pVM);
     return pVM->gim.s.u.Kvm.fTrapXcptUD;
 }
 
@@ -368,7 +357,7 @@ VMM_INT_DECL(bool) gimKvmShouldTrapXcptUD(PVMCPU pVCpu)
  *
  * @thread  EMT(pVCpu).
  */
-VMM_INT_DECL(VBOXSTRICTRC) gimKvmHypercallEx(PVMCPU pVCpu, PCPUMCTX pCtx, unsigned uDisOpcode, uint8_t cbInstr)
+VMM_INT_DECL(VBOXSTRICTRC) gimKvmHypercallEx(PVMCPUCC pVCpu, PCPUMCTX pCtx, unsigned uDisOpcode, uint8_t cbInstr)
 {
     Assert(pVCpu);
     Assert(pCtx);
@@ -404,7 +393,6 @@ VMM_INT_DECL(VBOXSTRICTRC) gimKvmHypercallEx(PVMCPU pVCpu, PCPUMCTX pCtx, unsign
             PVM      pVM  = pVCpu->CTX_SUFF(pVM);
             PCGIMKVM pKvm = &pVM->gim.s.u.Kvm;
             if (   uDisOpcode != pKvm->uOpcodeNative
-                && !VM_IS_RAW_MODE_ENABLED(pVM)
                 && cbInstr == sizeof(pKvm->abOpcodeNative) )
             {
                 /** @todo r=ramshankar: we probably should be doing this in an
@@ -440,6 +428,7 @@ VMM_INT_DECL(VBOXSTRICTRC) gimKvmHypercallEx(PVMCPU pVCpu, PCPUMCTX pCtx, unsign
  * @retval  VERR_GIM_INVALID_HYPERCALL_INSTR instruction at RIP is not a valid
  *          hypercall instruction.
  *
+ * @param   pVM         The cross context VM structure.
  * @param   pVCpu       The cross context virtual CPU structure.
  * @param   pCtx        Pointer to the guest-CPU context.
  * @param   pDis        Pointer to the disassembled instruction state at RIP.
@@ -449,16 +438,14 @@ VMM_INT_DECL(VBOXSTRICTRC) gimKvmHypercallEx(PVMCPU pVCpu, PCPUMCTX pCtx, unsign
  *
  * @thread  EMT(pVCpu).
  */
-VMM_INT_DECL(VBOXSTRICTRC) gimKvmXcptUD(PVMCPU pVCpu, PCPUMCTX pCtx, PDISCPUSTATE pDis, uint8_t *pcbInstr)
+VMM_INT_DECL(VBOXSTRICTRC) gimKvmXcptUD(PVMCC pVM, PVMCPUCC pVCpu, PCPUMCTX pCtx, PDISCPUSTATE pDis, uint8_t *pcbInstr)
 {
     VMCPU_ASSERT_EMT(pVCpu);
 
     /*
      * If we didn't ask for #UD to be trapped, bail.
      */
-    PVM      pVM  = pVCpu->CTX_SUFF(pVM);
-    PCGIMKVM pKvm = &pVM->gim.s.u.Kvm;
-    if (RT_UNLIKELY(!pKvm->fTrapXcptUD))
+    if (RT_UNLIKELY(!pVM->gim.s.u.Kvm.fTrapXcptUD))
         return VERR_GIM_IPE_3;
 
     if (!pDis)

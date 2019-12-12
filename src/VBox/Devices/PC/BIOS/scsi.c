@@ -21,6 +21,7 @@
 #include "inlines.h"
 #include "pciutil.h"
 #include "ebda.h"
+#include "scsi.h"
 
 
 #if DEBUG_SCSI
@@ -48,44 +49,9 @@
 
 #define VBSCSI_MAX_DEVICES 16 /* Maximum number of devices a SCSI device can have. */
 
-/* Command opcodes. */
-#define SCSI_SERVICE_ACT   0x9e
-#define SCSI_INQUIRY       0x12
-#define SCSI_READ_CAP_10   0x25
-#define SCSI_READ_10       0x28
-#define SCSI_WRITE_10      0x2a
-#define SCSI_READ_CAP_16   0x10    /* Not an opcode by itself, sub-action for the "Service Action" */
-#define SCSI_READ_16       0x88
-#define SCSI_WRITE_16      0x8a
-
 /* Data transfer direction. */
 #define SCSI_TXDIR_FROM_DEVICE 0
 #define SCSI_TXDIR_TO_DEVICE   1
-
-#pragma pack(1)
-
-/* READ_10/WRITE_10 CDB layout. */
-typedef struct {
-    uint16_t    command;    /* Command. */
-    uint32_t    lba;        /* LBA, MSB first! */
-    uint8_t     pad1;       /* Unused. */
-    uint16_t    nsect;      /* Sector count, MSB first! */
-    uint8_t     pad2;       /* Unused. */
-} cdb_rw10;
-
-/* READ_16/WRITE_16 CDB layout. */
-typedef struct {
-    uint16_t    command;    /* Command. */
-    uint64_t    lba;        /* LBA, MSB first! */
-    uint32_t    nsect32;    /* Sector count, MSB first! */
-    uint8_t     pad1;       /* Unused. */
-    uint8_t     pad2;       /* Unused. */
-} cdb_rw16;
-
-#pragma pack()
-
-ct_assert(sizeof(cdb_rw10) == 10);
-ct_assert(sizeof(cdb_rw16) == 16);
 
 void insb_discard(unsigned nbytes, unsigned port);
 #pragma aux insb_discard =  \

@@ -70,36 +70,35 @@ HRESULT OUSBDevice::init(IUSBDevice *aUSBDevice)
     hrc = aUSBDevice->COMGETTER(Revision)(&unconst(mData.revision));
     ComAssertComRCRet(hrc, hrc);
 
-    BSTR tmp;
-    BSTR *bptr = &tmp;
+    Bstr bstr;
 
-    hrc = aUSBDevice->COMGETTER(Manufacturer)(bptr);
+    hrc = aUSBDevice->COMGETTER(Manufacturer)(bstr.asOutParam());
     ComAssertComRCRet(hrc, hrc);
-    unconst(mData.manufacturer) = Utf8Str(tmp);
+    unconst(mData.manufacturer) = bstr;
 
-    hrc = aUSBDevice->COMGETTER(Product)(bptr);
+    hrc = aUSBDevice->COMGETTER(Product)(bstr.asOutParam());
     ComAssertComRCRet(hrc, hrc);
-    unconst(mData.product) = Utf8Str(tmp);
+    unconst(mData.product) = bstr;
 
-    hrc = aUSBDevice->COMGETTER(SerialNumber)(bptr);
+    hrc = aUSBDevice->COMGETTER(SerialNumber)(bstr.asOutParam());
     ComAssertComRCRet(hrc, hrc);
-    unconst(mData.serialNumber) = Utf8Str(tmp);
+    unconst(mData.serialNumber) = bstr;
 
-    hrc = aUSBDevice->COMGETTER(Address)(bptr);
+    hrc = aUSBDevice->COMGETTER(Address)(bstr.asOutParam());
     ComAssertComRCRet(hrc, hrc);
-    unconst(mData.address) = Utf8Str(tmp);
+    unconst(mData.address) = bstr;
 
-    hrc = aUSBDevice->COMGETTER(Backend)(bptr);
+    hrc = aUSBDevice->COMGETTER(Backend)(bstr.asOutParam());
     ComAssertComRCRet(hrc, hrc);
-    unconst(mData.backend) = Utf8Str(tmp);
+    unconst(mData.backend) = bstr;
 
     hrc = aUSBDevice->COMGETTER(Port)(&unconst(mData.port));
     ComAssertComRCRet(hrc, hrc);
 
-    hrc = aUSBDevice->COMGETTER(Version)(&unconst(mData.version));
+    hrc = aUSBDevice->COMGETTER(PortPath)(bstr.asOutParam());
     ComAssertComRCRet(hrc, hrc);
 
-    hrc = aUSBDevice->COMGETTER(PortVersion)(&unconst(mData.portVersion));
+    hrc = aUSBDevice->COMGETTER(Version)(&unconst(mData.version));
     ComAssertComRCRet(hrc, hrc);
 
     hrc = aUSBDevice->COMGETTER(Speed)(&unconst(mData.speed));
@@ -146,8 +145,8 @@ void OUSBDevice::uninit()
     unconst(mData.backend).setNull();
 
     unconst(mData.port) = 0;
+    unconst(mData.portPath).setNull();
     unconst(mData.version) = 1;
-    unconst(mData.portVersion) = 1;
 
     unconst(mData.remote) = FALSE;
 }
@@ -281,18 +280,18 @@ HRESULT OUSBDevice::getPort(USHORT *aPort)
     return S_OK;
 }
 
-HRESULT OUSBDevice::getVersion(USHORT *aVersion)
+HRESULT OUSBDevice::getPortPath(com::Utf8Str &aPortPath)
 {
     /* this is const, no need to lock */
-    *aVersion = mData.version;
+    aPortPath = mData.portPath;
 
     return S_OK;
 }
 
-HRESULT OUSBDevice::getPortVersion(USHORT *aPortVersion)
+HRESULT OUSBDevice::getVersion(USHORT *aVersion)
 {
     /* this is const, no need to lock */
-    *aPortVersion = mData.portVersion;
+    *aVersion = mData.version;
 
     return S_OK;
 }

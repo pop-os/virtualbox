@@ -873,9 +873,11 @@ RTR3DECL(int) RTTcpClientCancelConnect(PRTTCPCLIENTCONNECTCANCEL volatile *ppCan
 {
     AssertPtrReturn(ppCancelCookie, VERR_INVALID_POINTER);
 
+    RTSOCKET const hSockCancelled = (RTSOCKET)(uintptr_t)0xdead9999;
+
     AssertCompile(NIL_RTSOCKET == NULL);
-    RTSOCKET hSock = (RTSOCKET)ASMAtomicXchgPtr((void * volatile *)ppCancelCookie, (void *)(uintptr_t)0xdead9999);
-    if (hSock != NIL_RTSOCKET)
+    RTSOCKET hSock = (RTSOCKET)ASMAtomicXchgPtr((void * volatile *)ppCancelCookie, hSockCancelled);
+    if (hSock != NIL_RTSOCKET && hSock != hSockCancelled)
     {
         int rc = rtTcpClose(hSock, "RTTcpClientCancelConnect", false /*fTryGracefulShutdown*/);
         AssertRCReturn(rc, rc);
@@ -1074,6 +1076,17 @@ RTR3DECL(int)  RTTcpSetSendCoalescing(RTSOCKET Sock, bool fEnable)
 {
     int fFlag = fEnable ? 0 : 1;
     return rtSocketSetOpt(Sock, IPPROTO_TCP, TCP_NODELAY, &fFlag, sizeof(fFlag));
+}
+
+
+RTR3DECL(int)  RTTcpSetBufferSize(RTSOCKET hSocket, uint32_t cbSize)
+{
+    int cbIntSize = (int)cbSize;
+    AssertReturn(cbIntSize >= 0, VERR_OUT_OF_RANGE);
+    int rc = rtSocketSetOpt(hSocket, SOL_SOCKET, SO_SNDBUF, &cbIntSize, sizeof(cbIntSize));
+    if (RT_SUCCESS(rc))
+        rc = rtSocketSetOpt(hSocket, SOL_SOCKET, SO_RCVBUF, &cbIntSize, sizeof(cbIntSize));
+    return rc;
 }
 
 

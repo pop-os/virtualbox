@@ -102,6 +102,8 @@
 #define VERR_VERSION_MISMATCH               (-11)
 /** The request function is not implemented. */
 #define VERR_NOT_IMPLEMENTED                (-12)
+/** The request function is not implemented. */
+#define VINF_NOT_IMPLEMENTED                12
 /** Invalid flags was given. */
 #define VERR_INVALID_FLAGS                  (-13)
 
@@ -371,6 +373,12 @@
 #define VERR_PROC_ELEVATION_REQUIRED        (-22419)
 /** Incompatible configuration requested. */
 #define VERR_INCOMPATIBLE_CONFIG            (-22420)
+/** String is not terminated within the buffer bounds. */
+#define VERR_NO_STRING_TERMINATOR           (-22421)
+/** Empty string. */
+#define VERR_EMPTY_STRING                   (-22422)
+/** Too many references to an object. */
+#define VERR_TOO_MANY_REFERENCES            (-22423)
 /** @} */
 
 
@@ -626,6 +634,8 @@
 #define VERR_TOO_MANY_POSTS                 (-357)
 /** The event semaphore has already been posted. */
 #define VERR_ALREADY_POSTED                 (-358)
+/** The event semaphore has already been posted. */
+#define VINF_ALREADY_POSTED                 (358)
 /** The event semaphore has already been reset. */
 #define VERR_ALREADY_RESET                  (-359)
 /** The semaphore is in use. */
@@ -1266,7 +1276,7 @@
 #define VERR_PKZIP_UNKNOWN_TYPE_FLAG            (-964)
 /** Found a ZIP64 Extra Information Field in a ZIP32 file. */
 #define VERR_PKZIP_ZIP64EX_IN_ZIP32             (-965)
-
+/** @} */
 
 /** @name RTZip status codes
  * @{ */
@@ -1440,6 +1450,8 @@
 #define VINF_SYS_MAY_POWER_OFF                      (22501)
 /** Shutdown failed. */
 #define VERR_SYS_SHUTDOWN_FAILED                    (-22502)
+/** Unsupported firmware property. */
+#define VERR_SYS_UNSUPPORTED_FIRMWARE_PROPERTY      (-22503)
 /** @} */
 
 /** @name Filesystem status codes
@@ -2181,7 +2193,6 @@
 #define VERR_BIGNUM_DIV_BY_ZERO                     (-24001)
 /** Negative exponent makes no sense to integer math. */
 #define VERR_BIGNUM_NEGATIVE_EXPONENT               (-24002)
-
 /** @} */
 
 /** @name RTCrDigest status codes.
@@ -2482,7 +2493,6 @@
 /** A boot catalog entry in the import ISO sets the continuation flag when
  *  we reached the ned of the boot catalog secotr. */
 #define VERR_ISOMK_IMPORT_BOOT_CAT_ENTRY_CONTINUATION_EOS           (-25157)
-
 /** @} */
 
 
@@ -2684,6 +2694,19 @@
  * @{ */
 /** Maximum number of mappings reached. */
 #define VERR_SHMEM_MAXIMUM_MAPPINGS_REACHED                     (-26000)
+/** @} */
+
+
+/** @name RTIoQueue status codes
+ * @{ */
+/** The handle was not registered for use with the I/O queue. */
+#define VERR_IOQUEUE_HANDLE_NOT_REGISTERED                      (-26200)
+/** The I/O queue is full and can't accept more requests. */
+#define VERR_IOQUEUE_FULL                                       (-26201)
+/** The I/O queue doesn't contain any prepared requests to commit or wait for completion. */
+#define VERR_IOQUEUE_EMPTY                                      (-26202)
+/** The I/O queue has requests pending which need complete first. */
+#define VERR_IOQUEUE_BUSY                                       (-26203)
 /** @} */
 
 /* SED-END */

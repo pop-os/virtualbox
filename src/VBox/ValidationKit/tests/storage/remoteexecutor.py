@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 133060 $"
 
 
 # Standard Python imports.
@@ -35,9 +35,9 @@ import os;
 import shutil;
 import sys;
 if sys.version_info[0] >= 3:
-    from io import StringIO as StringIO;            # pylint: disable=import-error,no-name-in-module
+    from io import StringIO as StringIO;            # pylint: disable=import-error,no-name-in-module,useless-import-alias
 else:
-    from StringIO import StringIO as StringIO;      # pylint: disable=import-error,no-name-in-module
+    from StringIO import StringIO as StringIO;      # pylint: disable=import-error,no-name-in-module,useless-import-alias
 import subprocess;
 
 # Validation Kit imports.
@@ -63,11 +63,13 @@ class StdInOutBuffer(object):
         """
         if isinstance(sText, array.array):
             try:
-                return sText.tostring();
+                return str(sText.tostring()); # tostring() returns bytes with python3.
             except:
                 pass;
-        else:
-            return sText;
+        elif isinstance(sText, bytes):
+            return sText.decode('utf-8');
+
+        return sText;
 
     def read(self, cb):
         """file.read"""
@@ -100,14 +102,6 @@ class RemoteExecutor(object):
         if self.asPaths is None:
             self.asPaths = [ ];
 
-    def _isFile(self, sFile):
-        """
-        Checks whether a file exists.
-        """
-        if self.oTxsSession is not None:
-            return self.oTxsSession.syncIsFile(sFile);
-        return os.path.isfile(sFile);
-
     def _getBinaryPath(self, sBinary):
         """
         Returns the complete path of the given binary if found
@@ -115,9 +109,9 @@ class RemoteExecutor(object):
         """
         for sPath in self.asPaths:
             sFile = sPath + '/' + sBinary;
-            if self._isFile(sFile):
+            if self.isFile(sFile):
                 return sFile;
-        return None;
+        return sBinary;
 
     def _sudoExecuteSync(self, asArgs, sInput):
         """
@@ -137,7 +131,7 @@ class RemoteExecutor(object):
             sOutput, sError = oProcess.communicate(sInput);
             iExitCode  = oProcess.poll();
 
-            if iExitCode is not 0:
+            if iExitCode != 0:
                 fRc = False;
         except:
             reporter.errorXcpt();
@@ -157,14 +151,16 @@ class RemoteExecutor(object):
             reporter.flushall();
             oStdOut = StdInOutBuffer();
             oStdErr = StdInOutBuffer();
+            oTestPipe = reporter.FileWrapperTestPipe();
             oStdIn = None;
             if sInput is not None:
                 oStdIn = StdInOutBuffer(sInput);
             else:
-                oStdIn = '/dev/null'; # pylint: disable=R0204
+                oStdIn = '/dev/null'; # pylint: disable=redefined-variable-type
             fRc = self.oTxsSession.syncExecEx(sExec, (sExec,) + asArgs,
                                               oStdIn = oStdIn, oStdOut = oStdOut,
-                                              oStdErr = oStdErr, cMsTimeout = cMsTimeout);
+                                              oStdErr = oStdErr, oTestPipe = oTestPipe,
+                                              cMsTimeout = cMsTimeout);
             sOutput = oStdOut.getOutput();
             sError = oStdErr.getOutput();
             if fRc is False:
@@ -258,8 +254,8 @@ class RemoteExecutor(object):
         fRc = True;
         if self.oTxsSession is not None:
             fRc = self.oTxsSession.syncMkDir(sDir, fMode, cMsTimeout);
-        else:
-            fRc = self.execBinaryNoStdOut('mkdir', ('-m', format(fMode, 'o'), sDir));
+        elif not os.path.isdir(sDir):
+            fRc = os.mkdir(sDir, fMode);
 
         return fRc;
 
@@ -272,6 +268,36 @@ class RemoteExecutor(object):
             fRc = self.oTxsSession.syncRmDir(sDir, cMsTimeout);
         else:
             fRc = self.execBinaryNoStdOut('rmdir', (sDir,));
+
+        return fRc;
+
+    def rmTree(self, sDir, cMsTimeout = 30000):
+        """
+        Recursively removes all files and sub directories including the given directory.
+        """
+        fRc = True;
+        if self.oTxsSession is not None:
+            fRc = self.oTxsSession.syncRmTree(sDir, cMsTimeout);
+        else:
+            try:
+                shutil.rmtree(sDir, ignore_errors=True);
+            except:
+                fRc = False;
+
+        return fRc;
+
+    def isFile(self, sPath, cMsTimeout = 30000):
+        """
+        Checks that the given file  exists.
+        """
+        fRc = True;
+        if self.oTxsSession is not None:
+            fRc = self.oTxsSession.syncIsFile(sPath, cMsTimeout);
+        else:
+            try:
+                fRc = os.path.isfile(sPath);
+            except:
+                fRc = False;
 
         return fRc;
 

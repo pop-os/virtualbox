@@ -25,6 +25,76 @@
  */
 
 
+/*
+ *
+ *                        Theory of Operation
+ *                              - or -
+ *        The Document I Wish The Original Author Had Written
+ *
+ *
+ * The USB Monitor (VBoxUSBMon.sys) serves to capture and uncapture USB
+ * devices. Its job is to ensure that the USB proxy (VBoxUSB.sys) gets installed
+ * for captured devices and removed again when not needed, restoring the regular
+ * driver (if any).
+ *
+ * The USB Monitor does not handle any actual USB traffic; that is the role of
+ * VBoxUSB.sys, the USB proxy. A typical solution for installing such USB proxy
+ * is using a filter driver, but that approach was rejected because filter drivers
+ * cannot be dynamically added and removed. What VBoxUSBMon does instead is hook
+ * into the dispatch routine of the bus driver, i.e. USB hub driver, and alter
+ * the PnP information returned by the bus driver.
+ *
+ * The key functionality for capturing is cycling a USB port (which causes a USB
+ * device reset and triggers re-enumeration in the Windows USB driver stack), and
+ * then modifying IRP_MN_QUERY_ID / BusQueryHardwareIDs and related requests so
+ * that they return the synthetic USB VID/PID that VBoxUSB.sys handles rather than
+ * the true hardware VID/PID. That causes Windows to install VBoxUSB.sys for the
+ * device.
+ *
+ * Uncapturing again cycles the USB port but returns unmodified hardware IDs,
+ * causing Windows to load the normal driver for the device.
+ *
+ * Identifying devices to capture or release (uncapture) is done through USB filters,
+ * a cross-platform concept which matches USB device based on their VID/PID, class,
+ * and other criteria.
+ *
+ * There is an IOCTL interface for adding/removing USB filters and applying them.
+ * The IOCTLs are normally issued by VBoxSVC.
+ *
+ * USB devices are enumerated by finding all USB hubs (GUID_DEVINTERFACE_USB_HUB)
+ * and querying their child devices (i.e. USB devices or other hubs) by sending
+ * IRP_MJ_PNP / IRP_MN_QUERY_DEVICE_RELATIONS / BusRelations. This is done when
+ * applying existing filters.
+ *
+ * Newly arrived USB devices are intercepted early in their PnP enumeration
+ * through the hooked bus driver dispatch routine. Devices which satisty the
+ * filter matching criteria are morphed (see above) such that VBoxUSB.sys loads
+ * for them before any default driver does.
+ *
+ * There is an IDC interface to VBoxUSB.sys which allows the USB proxy to report
+ * that it's installed for a given USB device, and also report when the USB proxy
+ * is unloaded (typically caused by either unplugging the device or uncapturing
+ * and cycling the port). VBoxUSBMon.sys relies on these IDC calls to track
+ * captured devices and be informed when VBoxUSB.sys unloads.
+ *
+ * Windows 8+ complicates the USB Monitor's life by automatically putting some
+ * USB devices to a low-power state where they are unable to respond to any USB
+ * requests and VBoxUSBMon can't read any of their descriptors (note that in
+ * userland, the device descriptor can always be read, but string descriptors
+ * can't). Such devices'  USB VID/PID/revision is recovered using the Windows
+ * PnP Manager from their DevicePropertyHardwareID, but their USB class/subclass
+ * and protocol unfortunately cannot be unambiguously recovered from their
+ * DevicePropertyCompatibleIDs.
+ *
+ * Filter drivers add another complication. With filter drivers in place, the
+ * device objects returned by the BusRelations query (or passing through the PnP
+ * hooks) may not be PDOs but rather filter DOs higher in the stack. To avoid
+ * confusion, we flatten the references to their base, i.e. the real PDO, which
+ * should remain the same for the lifetime of a device. Note that VBoxUSB.sys
+ * always passes its own PDO in the proxy startup IOCTL.
+ */
+
+
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
@@ -85,12 +155,6 @@ typedef struct VBOXUSBHUB_PNPHOOK_COMPLETION
     VBOXUSBHOOK_REQUEST Rq;
 } VBOXUSBHUB_PNPHOOK_COMPLETION, *PVBOXUSBHUB_PNPHOOK_COMPLETION;
 
-/*
- * Comment out VBOX_USB3PORT definition to disable hooking to multiple drivers (#6509)
- */
-#define VBOX_USB3PORT
-
-#ifdef VBOX_USB3PORT
 #define VBOXUSBMON_MAXDRIVERS 5
 typedef struct VBOXUSB_PNPDRIVER
 {
@@ -98,16 +162,11 @@ typedef struct VBOXUSB_PNPDRIVER
     VBOXUSBHUB_PNPHOOK UsbHubPnPHook;
     PDRIVER_DISPATCH   pfnHookStub;
 } VBOXUSB_PNPDRIVER, *PVBOXUSB_PNPDRIVER;
-#endif /* !VBOX_USB3PORT */
 
 typedef struct VBOXUSBMONGLOBALS
 {
     PDEVICE_OBJECT pDevObj;
-#ifdef VBOX_USB3PORT
     VBOXUSB_PNPDRIVER pDrivers[VBOXUSBMON_MAXDRIVERS];
-#else /* !VBOX_USB3PORT */
-    VBOXUSBHUB_PNPHOOK UsbHubPnPHook;
-#endif /* !VBOX_USB3PORT */
     KEVENT OpenSynchEvent;
     IO_REMOVE_LOCK RmLock;
     uint32_t cOpens;
@@ -150,6 +209,14 @@ VOID VBoxUsbMonMemFree(PVOID pvMem)
 #define VBOXUSBDBG_STRCASE_UNKNOWN(_v) \
         default: LOG((__FUNCTION__": Unknown Value (0n%d), (0x%x)", _v, _v)); return "Unknown"
 
+/* These minor code are semi-undocumented. */
+#ifndef IRP_MN_QUERY_LEGACY_BUS_INFORMATION
+#define IRP_MN_QUERY_LEGACY_BUS_INFORMATION 0x18
+#endif
+#ifndef IRP_MN_DEVICE_ENUMERATED
+#define IRP_MN_DEVICE_ENUMERATED 0x19
+#endif
+
 static const char* vboxUsbDbgStrPnPMn(UCHAR uMn)
 {
     switch (uMn)
@@ -177,6 +244,8 @@ static const char* vboxUsbDbgStrPnPMn(UCHAR uMn)
         VBOXUSBDBG_STRCASE(IRP_MN_QUERY_BUS_INFORMATION);
         VBOXUSBDBG_STRCASE(IRP_MN_DEVICE_USAGE_NOTIFICATION);
         VBOXUSBDBG_STRCASE(IRP_MN_SURPRISE_REMOVAL);
+        VBOXUSBDBG_STRCASE(IRP_MN_QUERY_LEGACY_BUS_INFORMATION);
+        VBOXUSBDBG_STRCASE(IRP_MN_DEVICE_ENUMERATED);
         VBOXUSBDBG_STRCASE_UNKNOWN(uMn);
     }
 }
@@ -246,89 +315,9 @@ NTSTATUS VBoxUsbMonQueryBusRelations(PDEVICE_OBJECT pDevObj, PFILE_OBJECT pFileO
     return Status;
 }
 
-VOID vboxUsbMonHubDevWalk(PFNVBOXUSBMONDEVWALKER pfnWalker, PVOID pvWalker, ULONG fFlags)
+VOID vboxUsbMonHubDevWalk(PFNVBOXUSBMONDEVWALKER pfnWalker, PVOID pvWalker)
 {
     NTSTATUS Status = STATUS_UNSUCCESSFUL;
-#ifndef VBOX_USB3PORT
-    UNICODE_STRING szStandardHubName;
-    PDRIVER_OBJECT pDrvObj = NULL;
-    szStandardHubName.Length = 0;
-    szStandardHubName.MaximumLength = 0;
-    szStandardHubName.Buffer = 0;
-    RtlInitUnicodeString(&szStandardHubName, L"\\Driver\\usbhub");
-    UNICODE_STRING szStandardHubPdoNamePrefix;
-    szStandardHubPdoNamePrefix.Length = 0;
-    szStandardHubPdoNamePrefix.MaximumLength = 0;
-    szStandardHubPdoNamePrefix.Buffer = 0;
-    RtlInitUnicodeString(&szStandardHubPdoNamePrefix, L"\\Device\\USBPDO-");
-
-    for (int i = 0; i < 16; i++)
-    {
-        WCHAR           szwHubName[32] = {0};
-        char            szHubName[32] = {0};
-        ANSI_STRING     AnsiName;
-        UNICODE_STRING  UnicodeName;
-        PDEVICE_OBJECT  pHubDevObj;
-        PFILE_OBJECT    pHubFileObj;
-
-        sprintf(szHubName, "\\Device\\USBPDO-%d", i);
-
-        RtlInitAnsiString(&AnsiName, szHubName);
-
-        UnicodeName.Length = 0;
-        UnicodeName.MaximumLength = sizeof (szwHubName);
-        UnicodeName.Buffer = szwHubName;
-
-        RtlInitAnsiString(&AnsiName, szHubName);
-        Status = RtlAnsiStringToUnicodeString(&UnicodeName, &AnsiName, FALSE);
-        if (Status == STATUS_SUCCESS)
-        {
-            Status = IoGetDeviceObjectPointer(&UnicodeName, FILE_READ_DATA, &pHubFileObj, &pHubDevObj);
-            if (Status == STATUS_SUCCESS)
-            {
-                LOG(("IoGetDeviceObjectPointer for \\Device\\USBPDO-%d returned %p %p", i, pHubDevObj, pHubFileObj));
-
-                VBOXUSBOBJDRVOBJSEARCHER Data = {0};
-                Data.pDrvName = &szStandardHubName;
-                Data.pPdoNamePrefix = &szStandardHubPdoNamePrefix;
-                Data.fFlags = fFlags;
-
-                vboxUsbObjDevStackWalk(pHubDevObj, vboxUsbObjDevObjSearcherWalker, &Data);
-                if (Data.pDevObj)
-                {
-                    LOG(("found hub dev obj (0x%p)", Data.pDevObj));
-                    if (!pfnWalker(pHubFileObj, pHubDevObj, Data.pDevObj, pvWalker))
-                    {
-                        LOG(("the walker said to stop"));
-                        ObDereferenceObject(Data.pDevObj);
-                        ObDereferenceObject(pHubFileObj);
-                        break;
-                    }
-
-                    LOG(("going forward.."));
-                    ObDereferenceObject(Data.pDevObj);
-                }
-                else
-                {
-                    LOG(("no hub driver obj found"));
-                    ASSERT_WARN(!Data.pDevObj, ("non-null dev obj poiter returned (0x%p)", Data.pDevObj));
-                }
-
-                /* this will dereference both file and dev obj */
-                ObDereferenceObject(pHubFileObj);
-            }
-            else
-            {
-                LOG(("IoGetDeviceObjectPointer returned Status (0x%x) for (\\Device\\USBPDO-%d)", Status, i));
-            }
-        }
-        else
-        {
-            WARN(("RtlAnsiStringToUnicodeString failed, Status (0x%x) for Ansu name (\\Device\\USBPDO-%d)", Status, i));
-        }
-    }
-#else /* VBOX_USB3PORT */
-    RT_NOREF1(fFlags);
     PWSTR szwHubList;
     Status = IoGetDeviceInterfaces(&GUID_DEVINTERFACE_USB_HUB, NULL, 0, &szwHubList);
     if (Status != STATUS_SUCCESS)
@@ -352,7 +341,7 @@ VOID vboxUsbMonHubDevWalk(PFNVBOXUSBMONDEVWALKER pfnWalker, PVOID pvWalker, ULON
                  * It is the paged memory and we cannot use it in logger cause it increases the IRQL
                  */
                 LOG(("IoGetDeviceObjectPointer returned %p %p", pHubDevObj, pHubFileObj));
-                if (!pfnWalker(pHubFileObj, pHubDevObj, pHubDevObj, pvWalker))
+                if (!pfnWalker(pHubFileObj, pHubDevObj, pvWalker))
                 {
                     LOG(("the walker said to stop"));
                     ObDereferenceObject(pHubFileObj);
@@ -366,7 +355,6 @@ VOID vboxUsbMonHubDevWalk(PFNVBOXUSBMONDEVWALKER pfnWalker, PVOID pvWalker, ULON
         }
         ExFreePool(szwHubList);
     }
-#endif /* VBOX_USB3PORT */
 }
 
 /* NOTE: the stack location data is not the "actual" IRP stack location,
@@ -713,15 +701,7 @@ NTSTATUS _stdcall VBoxUsbPnPCompletion(DEVICE_OBJECT *pDevObj, IRP *pIrp, void *
         /* IRP_MN_START_DEVICE only arrives if it's a USB device of a known class or with a present host driver */
         case IRP_MN_QUERY_RESOURCE_REQUIREMENTS:
         case IRP_MN_QUERY_RESOURCES:
-            if (NT_SUCCESS(pIrp->IoStatus.Status) || pIrp->IoStatus.Status == STATUS_NOT_SUPPORTED)
-            {
-                VBoxUsbFltPdoAddCompleted(pRealDevObj);
-            }
-            else
-            {
-                AssertFailed();
-            }
-            break;
+            /* There used to be code to support SUPUSBFLT_IOCTL_SET_NOTIFY_EVENT but it was not reliable. */
 
         default:
             break;
@@ -734,11 +714,7 @@ NTSTATUS _stdcall VBoxUsbPnPCompletion(DEVICE_OBJECT *pDevObj, IRP *pIrp, void *
 #ifdef DEBUG_misha
     NTSTATUS tmpStatus = pIrp->IoStatus.Status;
 #endif
-#ifdef VBOX_USB3PORT
     PVBOXUSBHOOK_ENTRY pHook = pRequest->pHook;
-#else /* !VBOX_USB3PORT */
-    PVBOXUSBHOOK_ENTRY pHook = &g_VBoxUsbMonGlobals.UsbHubPnPHook.Hook;
-#endif /* !VBOX_USB3PORT */
     NTSTATUS Status = VBoxUsbHookRequestComplete(pHook, pDevObj, pIrp, pRequest);
     VBoxUsbMonMemFree(pRequest);
 #ifdef DEBUG_misha
@@ -757,15 +733,8 @@ NTSTATUS _stdcall VBoxUsbPnPCompletion(DEVICE_OBJECT *pDevObj, IRP *pIrp, void *
  * @param   pDevObj     Device object.
  * @param   pIrp         Request packet.
  */
-#ifdef VBOX_USB3PORT
 static NTSTATUS vboxUsbMonPnPHook(IN PVBOXUSBHOOK_ENTRY pHook, IN PDEVICE_OBJECT pDevObj, IN PIRP pIrp)
-#else /* !VBOX_USB3PORT */
-NTSTATUS _stdcall VBoxUsbMonPnPHook(IN PDEVICE_OBJECT pDevObj, IN PIRP pIrp)
-#endif /* !VBOX_USB3PORT */
 {
-#ifndef VBOX_USB3PORT
-    PVBOXUSBHOOK_ENTRY pHook = &g_VBoxUsbMonGlobals.UsbHubPnPHook.Hook;
-#endif /* !VBOX_USB3PORT */
     LOG(("==>PnP: Mn(%s), PDO(0x%p), IRP(0x%p), Status(0x%x)", vboxUsbDbgStrPnPMn(IoGetCurrentIrpStackLocation(pIrp)->MinorFunction), pDevObj, pIrp, pIrp->IoStatus.Status));
 
     if (!VBoxUsbHookRetain(pHook))
@@ -800,7 +769,6 @@ NTSTATUS _stdcall VBoxUsbMonPnPHook(IN PDEVICE_OBJECT pDevObj, IN PIRP pIrp)
     return Status;
 }
 
-#ifdef VBOX_USB3PORT
 /**
  * Device PnP hook stubs.
  *
@@ -834,6 +802,9 @@ typedef struct VBOXUSBMONHOOKDRIVERWALKER
  * @param   uErrId         Unique error id representing the location in the driver.
  * @param   cbDumpData     Number of bytes at pDumpData.
  * @param   pDumpData      Pointer to data that will be added to the message (see 'details' tab).
+ *
+ * NB: We only use IoLogMsg.dll as the message file, limiting
+ * ErrCode to status codes and messages defined in ntiologc.h
  */
 static void vboxUsbMonLogError(NTSTATUS ErrCode, NTSTATUS ReturnedStatus, ULONG uErrId, USHORT cbDumpData, PVOID pDumpData)
 {
@@ -868,9 +839,9 @@ static void vboxUsbMonLogError(NTSTATUS ErrCode, NTSTATUS ReturnedStatus, ULONG 
     }
 }
 
-static DECLCALLBACK(BOOLEAN) vboxUsbMonHookDrvObjWalker(PFILE_OBJECT pFile, PDEVICE_OBJECT pTopDo, PDEVICE_OBJECT pHubDo, PVOID pvContext)
+static DECLCALLBACK(BOOLEAN) vboxUsbMonHookDrvObjWalker(PFILE_OBJECT pHubFile, PDEVICE_OBJECT pHubDo, PVOID pvContext)
 {
-    RT_NOREF3(pFile, pTopDo, pvContext);
+    RT_NOREF2(pHubFile, pvContext);
     PDRIVER_OBJECT pDrvObj = pHubDo->DriverObject;
 
     /* First we try to figure out if we are already hooked to this driver. */
@@ -924,10 +895,9 @@ static DECLCALLBACK(BOOLEAN) vboxUsbMonHookDrvObjWalker(PFILE_OBJECT pFile, PDEV
  */
 static NTSTATUS vboxUsbMonInstallAllHooks()
 {
-    vboxUsbMonHubDevWalk(vboxUsbMonHookDrvObjWalker, NULL, VBOXUSBMONHUBWALK_F_ALL);
+    vboxUsbMonHubDevWalk(vboxUsbMonHookDrvObjWalker, NULL);
     return STATUS_SUCCESS;
 }
-#endif /* VBOX_USB3PORT */
 
 static NTSTATUS vboxUsbMonHookCheckInit()
 {
@@ -937,39 +907,13 @@ static NTSTATUS vboxUsbMonHookCheckInit()
         LOG(("hook inited already, success"));
         return STATUS_SUCCESS;
     }
-#ifdef VBOX_USB3PORT
     return vboxUsbMonInstallAllHooks();
-#else /* !VBOX_USB3PORT */
-    PDRIVER_OBJECT pDrvObj = vboxUsbMonHookFindHubDrvObj();
-    if (pDrvObj)
-    {
-        VBoxUsbHookInit(&g_VBoxUsbMonGlobals.UsbHubPnPHook.Hook, pDrvObj, IRP_MJ_PNP, VBoxUsbMonPnPHook);
-        fIsHookInited = true;
-        LOG(("SUCCESS"));
-        return STATUS_SUCCESS;
-    }
-    WARN(("hub drv obj not found, fail"));
-    return STATUS_UNSUCCESSFUL;
-#endif /* !VBOX_USB3PORT */
 }
 
 static NTSTATUS vboxUsbMonHookInstall()
 {
-#ifdef VBOX_USB3PORT
     /* Nothing to do here as we have already installed all hooks in vboxUsbMonHookCheckInit(). */
     return STATUS_SUCCESS;
-#else /* !VBOX_USB3PORT */
-#ifdef VBOXUSBMON_DBG_NO_PNPHOOK
-    return STATUS_SUCCESS;
-#else
-    if (g_VBoxUsbMonGlobals.UsbHubPnPHook.fUninitFailed)
-    {
-        WARN(("trying to hook usbhub pnp after the unhook failed, do nothing & pretend success"));
-        return STATUS_SUCCESS;
-    }
-    return VBoxUsbHookInstall(&g_VBoxUsbMonGlobals.UsbHubPnPHook.Hook);
-#endif
-#endif /* !VBOX_USB3PORT */
 }
 
 static NTSTATUS vboxUsbMonHookUninstall()
@@ -977,7 +921,6 @@ static NTSTATUS vboxUsbMonHookUninstall()
 #ifdef VBOXUSBMON_DBG_NO_PNPHOOK
     return STATUS_SUCCESS;
 #else
-#ifdef VBOX_USB3PORT
     NTSTATUS Status = STATUS_SUCCESS;
     for (int i = 0; i < VBOXUSBMON_MAXDRIVERS; i++)
     {
@@ -1005,14 +948,6 @@ static NTSTATUS vboxUsbMonHookUninstall()
             }
         }
     }
-#else /* !VBOX_USB3PORT */
-    NTSTATUS Status = VBoxUsbHookUninstall(&g_VBoxUsbMonGlobals.UsbHubPnPHook.Hook);
-    if (!NT_SUCCESS(Status))
-    {
-        AssertMsgFailed(("usbhub pnp unhook failed, setting the fUninitFailed flag, the current value of fUninitFailed (%d)", g_VBoxUsbMonGlobals.UsbHubPnPHook.fUninitFailed));
-        g_VBoxUsbMonGlobals.UsbHubPnPHook.fUninitFailed = true;
-    }
-#endif /* !VBOX_USB3PORT */
     return Status;
 #endif
 }
@@ -1170,7 +1105,7 @@ static NTSTATUS _stdcall VBoxUsbMonClose(PDEVICE_OBJECT pDevObj, PIRP pIrp)
     NTSTATUS Status = vboxUsbMonContextClose(pCtx);
     if (Status != STATUS_SUCCESS)
     {
-        WARN(("vboxUsbMonContextClose failed, Status (0x%x), prefent unload", Status));
+        WARN(("vboxUsbMonContextClose failed, Status (0x%x), prevent unload", Status));
         if (!InterlockedExchange(&g_VBoxUsbMonGlobals.ulPreventUnloadOn, 1))
         {
             LOGREL(("ulPreventUnloadOn not set, preventing unload"));
@@ -1231,12 +1166,6 @@ static NTSTATUS _stdcall VBoxUsbMonCreate(PDEVICE_OBJECT pDevObj, PIRP pIrp)
     pIrp->IoStatus.Information  = 0;
     IoCompleteRequest(pIrp, IO_NO_INCREMENT);
     return Status;
-}
-
-static int VBoxUsbMonSetNotifyEvent(PVBOXUSBMONCTX pContext, HANDLE hEvent)
-{
-    int rc = VBoxUsbFltSetNotifyEvent(&pContext->FltCtx, hEvent);
-    return rc;
 }
 
 static int VBoxUsbMonFltAdd(PVBOXUSBMONCTX pContext, PUSBFILTER pFilter, uintptr_t *pId)
@@ -1368,7 +1297,14 @@ static NTSTATUS vboxUsbMonIoctlDispatch(PVBOXUSBMONCTX pContext, ULONG Ctl, PVOI
             PUSBSUP_GETDEV_MON pOut = (PUSBSUP_GETDEV_MON)pvBuffer;
             if (!pvBuffer || cbInBuffer != sizeof (hDevice) || cbOutBuffer < sizeof (*pOut))
             {
-                WARN(("SUPUSBFLT_IOCTL_GET_DEVICE: Invalid input/output sizes. cbIn=%d expected %d. cbOut=%d expected >= %d.",
+                WARN(("SUPUSBFLT_IOCTL_GET_DEVICE: Invalid input/output sizes! cbIn=%d expected %d. cbOut=%d expected >= %d.",
+                        cbInBuffer, sizeof (hDevice), cbOutBuffer, sizeof (*pOut)));
+                Status = STATUS_INVALID_PARAMETER;
+                break;
+            }
+            if (!hDevice)
+            {
+                WARN(("SUPUSBFLT_IOCTL_GET_DEVICE: hDevice is NULL!",
                         cbInBuffer, sizeof (hDevice), cbOutBuffer, sizeof (*pOut)));
                 Status = STATUS_INVALID_PARAMETER;
                 break;
@@ -1384,23 +1320,6 @@ static NTSTATUS vboxUsbMonIoctlDispatch(PVBOXUSBMONCTX pContext, ULONG Ctl, PVOI
             {
                 WARN(("VBoxUsbMonGetDevice fail 0x%x", Status));
             }
-            break;
-        }
-
-        case SUPUSBFLT_IOCTL_SET_NOTIFY_EVENT:
-        {
-            PUSBSUP_SET_NOTIFY_EVENT pSne = (PUSBSUP_SET_NOTIFY_EVENT)pvBuffer;
-            if (!pvBuffer || cbInBuffer != sizeof (*pSne) || cbOutBuffer != sizeof (*pSne))
-            {
-                WARN(("SUPUSBFLT_IOCTL_SET_NOTIFY_EVENT: Invalid input/output sizes. cbIn=%d expected %d. cbOut=%d expected %d.",
-                        cbInBuffer, sizeof (*pSne), cbOutBuffer, sizeof (*pSne)));
-                Status = STATUS_INVALID_PARAMETER;
-                break;
-            }
-
-            pSne->u.rc = VBoxUsbMonSetNotifyEvent(pContext, pSne->u.hEvent);
-            Info = sizeof (*pSne);
-            ASSERT_WARN(Status == STATUS_SUCCESS, ("unexpected status, 0x%x", Status));
             break;
         }
 
@@ -1484,7 +1403,15 @@ static NTSTATUS vboxUsbMonInternalIoctlDispatch(ULONG Ctl, PVOID pvBuffer,  ULON
                 break;
             }
 
-            pOut->u.hDev = VBoxUsbFltProxyStarted(pOut->u.pPDO);
+            PDEVICE_OBJECT pDevObj = pOut->u.pPDO;
+            pOut->u.hDev = VBoxUsbFltProxyStarted(pDevObj);
+
+            /* If we couldn't find the PDO in our list, that's a real problem and
+             * the capturing will not really work. Log an error.
+             */
+            if (!pOut->u.hDev)
+                vboxUsbMonLogError(IO_ERR_DRIVER_ERROR, STATUS_SUCCESS, 2, sizeof("INTERNAL_IOCTL_PROXY_STARTUP"), "INTERNAL_IOCTL_PROXY_STARTUP");
+
             ASSERT_WARN(pOut->u.hDev, ("zero hDev"));
             ASSERT_WARN(Status == STATUS_SUCCESS, ("unexpected status, 0x%x", Status));
             break;
@@ -1591,14 +1518,14 @@ NTSTATUS _stdcall DriverEntry(PDRIVER_OBJECT pDrvObj, PUNICODE_STRING pRegPath)
     LOGREL(("Built %s %s", __DATE__, __TIME__));
 
     memset (&g_VBoxUsbMonGlobals, 0, sizeof (g_VBoxUsbMonGlobals));
-#ifdef VBOX_USB3PORT
+
     VBOX_PNPHOOKSTUB_INIT(0);
     VBOX_PNPHOOKSTUB_INIT(1);
     VBOX_PNPHOOKSTUB_INIT(2);
     VBOX_PNPHOOKSTUB_INIT(3);
     VBOX_PNPHOOKSTUB_INIT(4);
     AssertCompile(VBOXUSBMON_MAXDRIVERS == 5);
-#endif /* VBOX_USB3PORT */
+
     KeInitializeEvent(&g_VBoxUsbMonGlobals.OpenSynchEvent, SynchronizationEvent, TRUE /* signaled */);
     IoInitializeRemoveLock(&g_VBoxUsbMonGlobals.RmLock, VBOXUSBMON_MEMTAG, 1, 100);
     UNICODE_STRING DevName;

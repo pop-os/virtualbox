@@ -207,7 +207,9 @@ static bool vbox_set_up_input_mapping(struct vbox_private *vbox)
 }
 
 static int vbox_crtc_set_base(struct drm_crtc *crtc,
-				 struct drm_framebuffer *old_fb, int x, int y)
+				 struct drm_framebuffer *old_fb,
+				 struct drm_framebuffer *new_fb,
+				 int x, int y)
 {
 	struct vbox_private *vbox = crtc->dev->dev_private;
 	struct vbox_crtc *vbox_crtc = to_vbox_crtc(crtc);
@@ -217,7 +219,7 @@ static int vbox_crtc_set_base(struct drm_crtc *crtc,
 	int ret;
 	u64 gpu_addr;
 
-	vbox_fb = to_vbox_framebuffer(CRTC_FB(crtc));
+	vbox_fb = to_vbox_framebuffer(new_fb);
 	obj = vbox_fb->obj;
 	bo = gem_to_vbox_bo(obj);
 
@@ -267,7 +269,7 @@ static int vbox_crtc_mode_set(struct drm_crtc *crtc,
 			      int x, int y, struct drm_framebuffer *old_fb)
 {
 	struct vbox_private *vbox = crtc->dev->dev_private;
-	int ret = vbox_crtc_set_base(crtc, old_fb, x, y);
+	int ret = vbox_crtc_set_base(crtc, old_fb, CRTC_FB(crtc), x, y);
 	if (ret)
 		return ret;
 	mutex_lock(&vbox->hw_mutex);
@@ -278,6 +280,45 @@ static int vbox_crtc_mode_set(struct drm_crtc *crtc,
 	mutex_unlock(&vbox->hw_mutex);
 
 	return ret;
+}
+
+static int vbox_crtc_page_flip(struct drm_crtc *crtc,
+			       struct drm_framebuffer *fb,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0) || defined(RHEL_75)
+			       struct drm_pending_vblank_event *event,
+			       uint32_t page_flip_flags,
+			       struct drm_modeset_acquire_ctx *ctx)
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 0) || defined(RHEL_70)
+			       struct drm_pending_vblank_event *event,
+			       uint32_t page_flip_flags)
+#else
+			       struct drm_pending_vblank_event *event)
+#endif
+{
+	struct vbox_private *vbox = crtc->dev->dev_private;
+	struct drm_device *drm = vbox->dev;
+	unsigned long flags;
+	int rc;
+
+	rc = vbox_crtc_set_base(crtc, CRTC_FB(crtc), fb, 0, 0);
+	if (rc)
+		return rc;
+
+	vbox_do_modeset(crtc, &crtc->mode);
+	mutex_unlock(&vbox->hw_mutex);
+
+	spin_lock_irqsave(&drm->event_lock, flags);
+
+	if (event)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0) || defined(RHEL_72)
+		drm_crtc_send_vblank_event(crtc, event);
+#else
+		drm_send_vblank_event(drm, -1, event);
+#endif
+
+	spin_unlock_irqrestore(&drm->event_lock, flags);
+
+	return 0;
 }
 
 static void vbox_crtc_disable(struct drm_crtc *crtc)
@@ -317,6 +358,7 @@ static const struct drm_crtc_funcs vbox_crtc_funcs = {
 	.reset = vbox_crtc_reset,
 	.set_config = drm_crtc_helper_set_config,
 	/* .gamma_set = vbox_crtc_gamma_set, */
+	.page_flip = vbox_crtc_page_flip,
 	.destroy = vbox_crtc_destroy,
 };
 
@@ -577,7 +619,11 @@ static int vbox_get_modes(struct drm_connector *connector)
 	return num_modes;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0) && !defined(RHEL_71)
 static int vbox_mode_valid(struct drm_connector *connector,
+#else
+static enum drm_mode_status vbox_mode_valid(struct drm_connector *connector,
+#endif
 			   struct drm_display_mode *mode)
 {
 	return MODE_OK;

@@ -5491,7 +5491,7 @@ int main(int argc, char **argv)
                         break;
 
                     case 'V':
-                        printf("%s\n", "$Revision: 129721 $");
+                        printf("%s\n", "$Revision: 129503 $");
                         return 0;
 
                     case '?':

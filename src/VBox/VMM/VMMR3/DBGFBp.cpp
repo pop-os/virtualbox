@@ -22,11 +22,7 @@
 #define LOG_GROUP LOG_GROUP_DBGF
 #include <VBox/vmm/dbgf.h>
 #include <VBox/vmm/selm.h>
-#ifdef VBOX_WITH_REM
-# include <VBox/vmm/rem.h>
-#else
-# include <VBox/vmm/iem.h>
-#endif
+#include <VBox/vmm/iem.h>
 #include <VBox/vmm/mm.h>
 #include <VBox/vmm/iom.h>
 #include <VBox/vmm/hm.h>
@@ -100,7 +96,7 @@ int dbgfR3BpInit(PVM pVM)
 
     for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
     {
-        PVMCPU pVCpu = &pVM->aCpus[idCpu];
+        PVMCPU pVCpu = pVM->apCpusR3[idCpu];
         pVCpu->dbgf.s.iActiveBp = ~0U;
     }
 
@@ -824,11 +820,7 @@ static DECLCALLBACK(int) dbgfR3BpSetREM(PUVM pUVM, PCDBGFADDRESS pAddress, uint6
     {
         int rc = VINF_SUCCESS;
         if (!pBp->fEnabled)
-#ifdef VBOX_WITH_REM
-            rc = REMR3BreakpointSet(pVM, pBp->u.Rem.GCPtr);
-#else
             rc = IEMBreakpointSet(pVM, pBp->u.Rem.GCPtr);
-#endif
         if (RT_SUCCESS(rc))
         {
             rc = VINF_DBGF_BP_ALREADY_EXIST;
@@ -853,11 +845,7 @@ static DECLCALLBACK(int) dbgfR3BpSetREM(PUVM pUVM, PCDBGFADDRESS pAddress, uint6
     /*
      * Now ask REM to set the breakpoint.
      */
-#ifdef VBOX_WITH_REM
-    int rc = REMR3BreakpointSet(pVM, pAddress->FlatPtr);
-#else
     int rc = IEMBreakpointSet(pVM, pAddress->FlatPtr);
-#endif
     if (RT_SUCCESS(rc))
     {
         if (piBp)
@@ -1174,11 +1162,7 @@ static DECLCALLBACK(int) dbgfR3BpClear(PUVM pUVM, uint32_t iBp)
                 break;
 
             case DBGFBPTYPE_REM:
-#ifdef VBOX_WITH_REM
-                rc = REMR3BreakpointClear(pVM, pBp->u.Rem.GCPtr);
-#else
                 rc = IEMBreakpointClear(pVM, pBp->u.Rem.GCPtr);
-#endif
                 break;
 
             case DBGFBPTYPE_PORT_IO:
@@ -1261,11 +1245,7 @@ static DECLCALLBACK(int) dbgfR3BpEnable(PUVM pUVM, uint32_t iBp)
             break;
 
         case DBGFBPTYPE_REM:
-#ifdef VBOX_WITH_REM
-            rc = REMR3BreakpointSet(pVM, pBp->u.Rem.GCPtr);
-#else
             rc = IEMBreakpointSet(pVM, pBp->u.Rem.GCPtr);
-#endif
             break;
 
         case DBGFBPTYPE_PORT_IO:
@@ -1344,11 +1324,7 @@ static DECLCALLBACK(int) dbgfR3BpDisable(PUVM pUVM, uint32_t iBp)
             break;
 
         case DBGFBPTYPE_REM:
-#ifdef VBOX_WITH_REM
-            rc = REMR3BreakpointClear(pVM, pBp->u.Rem.GCPtr);
-#else
             rc = IEMBreakpointClear(pVM, pBp->u.Rem.GCPtr);
-#endif
             break;
 
         case DBGFBPTYPE_PORT_IO:

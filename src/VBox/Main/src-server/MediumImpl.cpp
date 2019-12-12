@@ -36,7 +36,6 @@
 #include <iprt/param.h>
 #include <iprt/path.h>
 #include <iprt/file.h>
-#include <iprt/tcp.h>
 #include <iprt/cpp/utils.h>
 #include <iprt/memsafer.h>
 #include <iprt/base64.h>
@@ -189,7 +188,8 @@ struct Medium::Data
 
     VDINTERFACECONFIG vdIfConfig;
 
-    VDINTERFACETCPNET vdIfTcpNet;
+    /** The handle to the default VD TCP/IP interface. */
+    VDIFINST          hTcpNetInst;
 
     PVDINTERFACE vdDiskIfaces;
     PVDINTERFACE vdImageIfaces;
@@ -339,11 +339,6 @@ private:
     bool mNotifyAboutChanges;
 };
 
-HRESULT Medium::Task::executeTask()
-{
-    return E_NOTIMPL;//ReturnComNotImplemented()
-}
-
 class Medium::CreateBaseTask : public Medium::Task
 {
 public:
@@ -363,7 +358,10 @@ public:
     MediumVariant_T mVariant;
 
 private:
-    HRESULT executeTask();
+    HRESULT executeTask()
+    {
+        return mMedium->i_taskCreateBaseHandler(*this);
+    }
 };
 
 class Medium::CreateDiffTask : public Medium::Task
@@ -402,7 +400,11 @@ public:
     MediumVariant_T mVariant;
 
 private:
-    HRESULT executeTask();
+    HRESULT executeTask()
+    {
+        return mMedium->i_taskCreateDiffHandler(*this);
+    }
+
     AutoCaller mTargetCaller;
     bool mfKeepMediumLockList;
 };
@@ -465,7 +467,11 @@ public:
     uint32_t midxDstImageSame;
 
 private:
-    HRESULT executeTask();
+    HRESULT executeTask()
+    {
+        return mMedium->i_taskCloneHandler(*this);
+    }
+
     AutoCaller mTargetCaller;
     AutoCaller mParentCaller;
     bool mfKeepSourceMediumLockList;
@@ -500,7 +506,11 @@ public:
     MediumVariant_T mVariant;
 
 private:
-    HRESULT executeTask();
+    HRESULT executeTask()
+    {
+        return mMedium->i_taskMoveHandler(*this);
+    }
+
     bool mfKeepMediumLockList;
 };
 
@@ -529,7 +539,11 @@ public:
     MediumLockList *mpMediumLockList;
 
 private:
-    HRESULT executeTask();
+    HRESULT executeTask()
+    {
+        return mMedium->i_taskCompactHandler(*this);
+    }
+
     bool mfKeepMediumLockList;
 };
 
@@ -561,7 +575,11 @@ public:
     MediumLockList *mpMediumLockList;
 
 private:
-    HRESULT executeTask();
+    HRESULT executeTask()
+    {
+        return mMedium->i_taskResizeHandler(*this);
+    }
+
     bool mfKeepMediumLockList;
 };
 
@@ -589,7 +607,11 @@ public:
     MediumLockList *mpMediumLockList;
 
 private:
-    HRESULT executeTask();
+    HRESULT executeTask()
+    {
+        return mMedium->i_taskResetHandler(*this);
+    }
+
     bool mfKeepMediumLockList;
 };
 
@@ -617,7 +639,11 @@ public:
     MediumLockList *mpMediumLockList;
 
 private:
-    HRESULT executeTask();
+    HRESULT executeTask()
+    {
+        return mMedium->i_taskDeleteHandler(*this);
+    }
+
     bool mfKeepMediumLockList;
 };
 
@@ -664,7 +690,11 @@ public:
     MediumLockList *mpMediumLockList;
 
 private:
-    HRESULT executeTask();
+    HRESULT executeTask()
+    {
+        return mMedium->i_taskMergeHandler(*this);
+    }
+
     AutoCaller mTargetCaller;
     AutoCaller mParentForTargetCaller;
     bool mfKeepMediumLockList;
@@ -731,7 +761,11 @@ public:
     PVDINTERFACEIO mpVfsIoIf; /**< Pointer to the VFS I/O stream to VD I/O interface wrapper. */
 
 private:
-    HRESULT executeTask();
+    HRESULT executeTask()
+    {
+        return mMedium->i_taskImportHandler(*this);
+    }
+
     AutoCaller mParentCaller;
     bool mfKeepTargetMediumLockList;
 };
@@ -783,98 +817,53 @@ public:
     PVDINTERFACE    mVDImageIfaces;
 
 private:
-    HRESULT executeTask();
+    HRESULT executeTask()
+    {
+        return mMedium->i_taskEncryptHandler(*this);
+    }
+
     AutoCaller mParentCaller;
 };
 
-/**
- * Implementation code for the "create base" task.
- */
-HRESULT Medium::CreateBaseTask::executeTask()
-{
-    return mMedium->i_taskCreateBaseHandler(*this);
-}
-
-/**
- * Implementation code for the "create diff" task.
- */
-HRESULT Medium::CreateDiffTask::executeTask()
-{
-    return mMedium->i_taskCreateDiffHandler(*this);
-}
-
-/**
- * Implementation code for the "clone" task.
- */
-HRESULT Medium::CloneTask::executeTask()
-{
-    return mMedium->i_taskCloneHandler(*this);
-}
-
-/**
- * Implementation code for the "move" task.
- */
-HRESULT Medium::MoveTask::executeTask()
-{
-    return mMedium->i_taskMoveHandler(*this);
-}
-
-/**
- * Implementation code for the "compact" task.
- */
-HRESULT Medium::CompactTask::executeTask()
-{
-    return mMedium->i_taskCompactHandler(*this);
-}
-
-/**
- * Implementation code for the "resize" task.
- */
-HRESULT Medium::ResizeTask::executeTask()
-{
-    return mMedium->i_taskResizeHandler(*this);
-}
 
 
 /**
- * Implementation code for the "reset" task.
+ * Converts the Medium device type to the VD type.
  */
-HRESULT Medium::ResetTask::executeTask()
+static const char *getVDTypeName(VDTYPE enmType)
 {
-    return mMedium->i_taskResetHandler(*this);
+    switch (enmType)
+    {
+        case VDTYPE_HDD:                return "HDD";
+        case VDTYPE_OPTICAL_DISC:       return "DVD";
+        case VDTYPE_FLOPPY:             return "floppy";
+        case VDTYPE_INVALID:            return "invalid";
+        default:
+            AssertFailedReturn("unknown");
+    }
 }
 
 /**
- * Implementation code for the "delete" task.
+ * Converts the Medium device type to the VD type.
  */
-HRESULT Medium::DeleteTask::executeTask()
+static const char *getDeviceTypeName(DeviceType_T enmType)
 {
-    return mMedium->i_taskDeleteHandler(*this);
+    switch (enmType)
+    {
+        case DeviceType_HardDisk:       return "HDD";
+        case DeviceType_DVD:            return "DVD";
+        case DeviceType_Floppy:         return "floppy";
+        case DeviceType_Null:           return "null";
+        case DeviceType_Network:        return "network";
+        case DeviceType_USB:            return "USB";
+        case DeviceType_SharedFolder:   return "shared folder";
+        case DeviceType_Graphics3D:     return "graphics 3d";
+        default:
+            AssertFailedReturn("unknown");
+    }
 }
 
-/**
- * Implementation code for the "merge" task.
- */
-HRESULT Medium::MergeTask::executeTask()
-{
-    return mMedium->i_taskMergeHandler(*this);
-}
 
-/**
- * Implementation code for the "import" task.
- */
-HRESULT Medium::ImportTask::executeTask()
-{
-    return mMedium->i_taskImportHandler(*this);
-}
-
-/**
- * Implementation code for the "encrypt" task.
- */
-HRESULT Medium::EncryptTask::executeTask()
-{
-    return mMedium->i_taskEncryptHandler(*this);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -896,25 +885,8 @@ HRESULT Medium::FinalConstruct()
     m->vdIfConfig.pfnAreKeysValid = i_vdConfigAreKeysValid;
     m->vdIfConfig.pfnQuerySize = i_vdConfigQuerySize;
     m->vdIfConfig.pfnQuery = i_vdConfigQuery;
+    m->vdIfConfig.pfnUpdate = i_vdConfigUpdate;
     m->vdIfConfig.pfnQueryBytes = NULL;
-
-    /* Initialize the callbacks of the VD TCP interface (we always use the host
-     * IP stack for now) */
-    m->vdIfTcpNet.pfnSocketCreate = i_vdTcpSocketCreate;
-    m->vdIfTcpNet.pfnSocketDestroy = i_vdTcpSocketDestroy;
-    m->vdIfTcpNet.pfnClientConnect = i_vdTcpClientConnect;
-    m->vdIfTcpNet.pfnClientClose = i_vdTcpClientClose;
-    m->vdIfTcpNet.pfnIsClientConnected = i_vdTcpIsClientConnected;
-    m->vdIfTcpNet.pfnSelectOne = i_vdTcpSelectOne;
-    m->vdIfTcpNet.pfnRead = i_vdTcpRead;
-    m->vdIfTcpNet.pfnWrite = i_vdTcpWrite;
-    m->vdIfTcpNet.pfnSgWrite = i_vdTcpSgWrite;
-    m->vdIfTcpNet.pfnFlush = i_vdTcpFlush;
-    m->vdIfTcpNet.pfnSetSendCoalescing = i_vdTcpSetSendCoalescing;
-    m->vdIfTcpNet.pfnGetLocalAddress = i_vdTcpGetLocalAddress;
-    m->vdIfTcpNet.pfnGetPeerAddress = i_vdTcpGetPeerAddress;
-    m->vdIfTcpNet.pfnSelectOneEx = NULL;
-    m->vdIfTcpNet.pfnPoke = NULL;
 
     /* Initialize the per-disk interface chain (could be done more globally,
      * but it's not wasting much time or space so it's not worth it). */
@@ -932,10 +904,9 @@ HRESULT Medium::FinalConstruct()
                          sizeof(VDINTERFACECONFIG), &m->vdImageIfaces);
     AssertRCReturn(vrc, E_FAIL);
 
-    vrc = VDInterfaceAdd(&m->vdIfTcpNet.Core,
-                         "Medium::vdInterfaceTcpNet",
-                         VDINTERFACETYPE_TCPNET, this,
-                         sizeof(VDINTERFACETCPNET), &m->vdImageIfaces);
+    /* Initialize the callbacks of the VD TCP interface (we always use the host
+     * IP stack for now) */
+    vrc = VDIfTcpNetInstDefaultCreate(&m->hTcpNetInst, &m->vdImageIfaces);
     AssertRCReturn(vrc, E_FAIL);
 
     return BaseFinalConstruct();
@@ -945,6 +916,7 @@ void Medium::FinalRelease()
 {
     uninit();
 
+    VDIfTcpNetInstDefaultDestroy(m->hTcpNetInst);
     delete m;
 
     BaseFinalRelease();
@@ -2399,12 +2371,11 @@ HRESULT Medium::close(AutoCaller &aAutoCaller)
 
     Guid uId = i_getId();
     DeviceType_T devType = i_getDeviceType();
-    bool wasCreated = m->state != MediumState_NotCreated;
     MultiResult mrc = i_close(aAutoCaller);
 
     pVirtualBox->i_saveModifiedRegistries();
 
-    if (SUCCEEDED(mrc) && wasCreated)
+    if (SUCCEEDED(mrc) && uId.isValid() && !uId.isZero())
         pVirtualBox->i_onMediumRegistered(uId, devType, FALSE);
 
     return mrc;
@@ -2438,6 +2409,7 @@ HRESULT Medium::setProperty(const com::Utf8Str &aName,
 
     switch (m->state)
     {
+        case MediumState_NotCreated:
         case MediumState_Created:
         case MediumState_Inaccessible:
             break;
@@ -2630,6 +2602,7 @@ HRESULT Medium::createBaseStorage(LONG64 aLogicalSize,
     if (SUCCEEDED(rc))
     {
         rc = pTask->createThread();
+        pTask = NULL;
 
         if (SUCCEEDED(rc))
             pProgress.queryInterfaceTo(aProgress.asOutParam());
@@ -2958,7 +2931,7 @@ HRESULT Medium::cloneTo(const ComPtr<IMedium> &aTarget,
     if (SUCCEEDED(rc))
     {
         rc = pTask->createThread();
-
+        pTask = NULL;
         if (SUCCEEDED(rc))
             pProgress.queryInterfaceTo(aProgress.asOutParam());
     }
@@ -3016,15 +2989,11 @@ HRESULT Medium::moveTo(AutoCaller &autoCaller, const com::Utf8Str &aLocation, Co
             Utf8Str destFName(destPath);
             destFName.stripPath();
 
-            Utf8Str suffix(destFName);
-            suffix.stripSuffix();
-
-            if (suffix.equals(destFName) && !destFName.isEmpty())
+            if (destFName.isNotEmpty() && !RTPathHasSuffix(destFName.c_str()))
             {
                 /*
                  * The target path has no filename: Either "/path/to/new/location" or
-                 * just "newname" (no trailing backslash or there is no filename with
-                 * extension(suffix)).
+                 * just "newname" (no trailing backslash or there is no filename extension).
                  */
                 if (destPath.equals(destFName))
                 {
@@ -3057,33 +3026,42 @@ HRESULT Medium::moveTo(AutoCaller &autoCaller, const com::Utf8Str &aLocation, Co
                      */
                     destPath = sourcePath.stripFilename().append(RTPATH_SLASH).append(destFName);
                 }
-                suffix = i_getFormat();
-                if (suffix.compare("RAW", Utf8Str::CaseInsensitive) == 0)
-                {
-                    DeviceType_T devType = i_getDeviceType();
-                    switch (devType)
-                    {
-                        case DeviceType_DVD:
-                            suffix = "iso";
-                            break;
-                        case DeviceType_Floppy:
-                            suffix = "img";
-                            break;
-                        default:
-                            rc = setError(VERR_NOT_A_FILE,
-                                   tr("Medium '%s' has RAW type. \"Move\" operation isn't supported for this type."),
-                                   i_getLocationFull().c_str());
-                            throw rc;
-                    }
-                }
-                else if (suffix.compare("Parallels", Utf8Str::CaseInsensitive) == 0)
-                {
-                    suffix = "hdd";
-                }
 
-                /* Set the target extension like on the source. Any conversions are prohibited */
-                suffix.toLower();
-                destPath.stripSuffix().append('.').append(suffix);
+                const char *pszSuffix = RTPathSuffix(sourceFName.c_str());
+
+                /* Suffix is empty and one is deduced from the medium format */
+                if (pszSuffix == NULL)
+                {
+                    Utf8Str strExt = i_getFormat();
+                    if (strExt.compare("RAW", Utf8Str::CaseInsensitive) == 0)
+                    {
+                        DeviceType_T devType = i_getDeviceType();
+                        switch (devType)
+                        {
+                            case DeviceType_DVD:
+                                strExt = "iso";
+                                break;
+                            case DeviceType_Floppy:
+                                strExt = "img";
+                                break;
+                            default:
+                                rc = setError(VERR_NOT_A_FILE, /** @todo r=bird: Mixing status codes again. */
+                                       tr("Medium '%s' has RAW type. \"Move\" operation isn't supported for this type."),
+                                       i_getLocationFull().c_str());
+                                throw rc;
+                        }
+                    }
+                    else if (strExt.compare("Parallels", Utf8Str::CaseInsensitive) == 0)
+                    {
+                        strExt = "hdd";
+                    }
+
+                    /* Set the target extension like on the source. Any conversions are prohibited */
+                    strExt.toLower();
+                    destPath.stripSuffix().append('.').append(strExt);
+                }
+                else
+                    destPath.stripSuffix().append(pszSuffix);
             }
 
             /* Simple check for existence */
@@ -3236,7 +3214,7 @@ HRESULT Medium::moveTo(AutoCaller &autoCaller, const com::Utf8Str &aLocation, Co
     if (SUCCEEDED(rc))
     {
         rc = pTask->createThread();
-
+        pTask = NULL;
         if (SUCCEEDED(rc))
             pProgress.queryInterfaceTo(aProgress.asOutParam());
     }
@@ -3414,7 +3392,7 @@ HRESULT Medium::compact(ComPtr<IProgress> &aProgress)
     if (SUCCEEDED(rc))
     {
         rc = pTask->createThread();
-
+        pTask = NULL;
         if (SUCCEEDED(rc))
             pProgress.queryInterfaceTo(aProgress.asOutParam());
     }
@@ -3444,13 +3422,13 @@ HRESULT Medium::resize(LONG64 aLogicalSize,
                                     *pMediumLockList);
         if (FAILED(rc))
         {
-            pszError = tr("Failed to create medium lock list when resize '%s'");
+            pszError = tr("Failed to create medium lock list when resizing '%s'");
         }
         else
         {
             rc = pMediumLockList->Lock();
             if (FAILED(rc))
-                pszError = tr("Failed to lock media when compacting '%s'");
+                pszError = tr("Failed to lock media when resizing '%s'");
         }
 
 
@@ -3458,7 +3436,6 @@ HRESULT Medium::resize(LONG64 aLogicalSize,
 
         if (FAILED(rc))
         {
-            delete pMediumLockList;
             throw setError(rc, pszError, i_getLocationFull().c_str());
         }
 
@@ -3469,7 +3446,6 @@ HRESULT Medium::resize(LONG64 aLogicalSize,
                              TRUE /* aCancelable */);
         if (FAILED(rc))
         {
-            delete pMediumLockList;
             throw rc;
         }
     }
@@ -3565,7 +3541,7 @@ HRESULT Medium::reset(AutoCaller &autoCaller, ComPtr<IProgress> &aProgress)
     if (SUCCEEDED(rc))
     {
         rc = pTask->createThread();
-
+        pTask = NULL;
         if (SUCCEEDED(rc))
             pProgress.queryInterfaceTo(aProgress.asOutParam());
     }
@@ -3701,7 +3677,7 @@ HRESULT Medium::changeEncryption(const com::Utf8Str &aCurrentPassword, const com
     if (SUCCEEDED(rc))
     {
         rc = pTask->createThread();
-
+        pTask = NULL;
         if (SUCCEEDED(rc))
             pProgress.queryInterfaceTo(aProgress.asOutParam());
     }
@@ -4742,11 +4718,23 @@ void Medium::i_saveSettingsOne(settings::Medium &data, const Utf8Str &strHardDis
         {
             const Utf8Str &name = it->first;
             const Utf8Str &value = it->second;
-            /* do NOT store the plain InitiatorSecret */
-            if (   !fHaveInitiatorSecretEncrypted
-                || !name.equals("InitiatorSecret"))
-                data.properties[name] = value;
-        }
+            bool fCreateOnly = false;
+            for (MediumFormat::PropertyArray::const_iterator itf = m->formatObj->i_getProperties().begin();
+                 itf != m->formatObj->i_getProperties().end();
+                 ++itf)
+             {
+                if (itf->strName.equals(name) &&
+                    (itf->flags & VD_CFGKEY_CREATEONLY))
+                {
+                        fCreateOnly = true;
+                        break;
+                }
+            }
+            if (!fCreateOnly)
+                /* do NOT store the plain InitiatorSecret */
+                if (   !fHaveInitiatorSecretEncrypted
+                    || !name.equals("InitiatorSecret"))
+                            data.properties[name] = value;        }
     }
     if (fHaveInitiatorSecretEncrypted)
         data.properties["InitiatorSecretEncrypted"] = strCiphertext;
@@ -5028,12 +5016,11 @@ HRESULT Medium::i_createDiffStorage(ComObjPtr<Medium> &aTarget,
         if (aWait)
         {
             rc = pTask->runNow();
-
             delete pTask;
         }
         else
             rc = pTask->createThread();
-
+        pTask = NULL;
         if (SUCCEEDED(rc) && aProgress != NULL)
             *aProgress = pProgress;
     }
@@ -5380,15 +5367,13 @@ HRESULT Medium::i_deleteStorage(ComObjPtr<Progress> *aProgress,
         if (aWait)
         {
             rc = pTask->runNow();
-
             delete pTask;
         }
         else
             rc = pTask->createThread();
-
+        pTask = NULL;
         if (SUCCEEDED(rc) && aProgress != NULL)
             *aProgress = pProgress;
-
     }
     else
     {
@@ -5561,10 +5546,10 @@ HRESULT Medium::i_queryPreferredMergeDirection(const ComObjPtr<Medium> &pOther,
 
         if (i_isMediumFormatFile() && pOther->i_isMediumFormatFile())
         {
-            vrc = RTFileQuerySize(this->i_getLocationFull().c_str(), &cbMediumThis);
+            vrc = RTFileQuerySizeByPath(this->i_getLocationFull().c_str(), &cbMediumThis);
             if (RT_SUCCESS(vrc))
             {
-                vrc = RTFileQuerySize(pOther->i_getLocationFull().c_str(),
+                vrc = RTFileQuerySizeByPath(pOther->i_getLocationFull().c_str(),
                                       &cbMediumOther);
             }
 
@@ -6093,12 +6078,11 @@ HRESULT Medium::i_mergeTo(const ComObjPtr<Medium> &pTarget,
         if (aWait)
         {
             rc = pTask->runNow();
-
             delete pTask;
         }
         else
             rc = pTask->createThread();
-
+        pTask = NULL;
         if (SUCCEEDED(rc) && aProgress != NULL)
             *aProgress = pProgress;
     }
@@ -6262,7 +6246,7 @@ HRESULT Medium::i_resize(LONG64 aLogicalSize,
         }
         else
             rc = pTask->createThread();
-
+        pTask = NULL;
         if (SUCCEEDED(rc) && aProgress != NULL)
             *aProgress = pProgress;
     }
@@ -6637,7 +6621,10 @@ HRESULT Medium::i_importFile(const char *aFilename,
     catch (HRESULT aRC) { rc = aRC; }
 
     if (SUCCEEDED(rc))
+    {
         rc = pTask->createThread();
+        pTask = NULL;
+    }
     else if (pTask != NULL)
         delete pTask;
 
@@ -6784,7 +6771,7 @@ HRESULT Medium::i_cloneToEx(const ComObjPtr<Medium> &aTarget, MediumVariant_T aV
     if (SUCCEEDED(rc))
     {
         rc = pTask->createThread();
-
+        pTask = NULL;
         if (SUCCEEDED(rc))
             pProgress.queryInterfaceTo(aProgress);
     }
@@ -6876,7 +6863,7 @@ HRESULT Medium::i_preparationForMoving(const Utf8Str &aLocation)
 bool Medium::i_isMoveOperation(const ComObjPtr<Medium> &aTarget) const
 {
     RT_NOREF(aTarget);
-    return (m->fMoveThisMedium == true) ? true:false;
+    return (m->fMoveThisMedium == true) ? true:false; /** @todo r=bird: this is not an obfuscation contest! */
 }
 
 bool Medium::i_resetMoveOperationData()
@@ -7670,22 +7657,18 @@ HRESULT Medium::i_setLocation(const Utf8Str &aLocation,
         /* detect the backend from the storage unit if importing */
         if (isImport)
         {
+            VDTYPE const enmDesiredType = i_convertDeviceType();
             VDTYPE enmType = VDTYPE_INVALID;
             char *backendName = NULL;
 
-            int vrc = VINF_SUCCESS;
-
             /* is it a file? */
-            {
-                RTFILE file;
-                vrc = RTFileOpen(&file, locationFull.c_str(), RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
-                if (RT_SUCCESS(vrc))
-                    RTFileClose(file);
-            }
+            RTFILE hFile;
+            int vrc = RTFileOpen(&hFile, locationFull.c_str(), RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
             if (RT_SUCCESS(vrc))
             {
+                RTFileClose(hFile);
                 vrc = VDGetFormat(NULL /* pVDIfsDisk */, NULL /* pVDIfsImage */,
-                                  locationFull.c_str(), &backendName, &enmType);
+                                  locationFull.c_str(), enmDesiredType, &backendName, &enmType);
             }
             else if (   vrc != VERR_FILE_NOT_FOUND
                      && vrc != VERR_PATH_NOT_FOUND
@@ -7695,7 +7678,7 @@ HRESULT Medium::i_setLocation(const Utf8Str &aLocation,
                 /* assume it's not a file, restore the original location */
                 locationFull = aLocation;
                 vrc = VDGetFormat(NULL /* pVDIfsDisk */, NULL /* pVDIfsImage */,
-                                  locationFull.c_str(), &backendName, &enmType);
+                                  locationFull.c_str(), enmDesiredType, &backendName, &enmType);
             }
 
             if (RT_FAILURE(vrc))
@@ -7704,21 +7687,18 @@ HRESULT Medium::i_setLocation(const Utf8Str &aLocation,
                     return setErrorBoth(VBOX_E_FILE_ERROR, vrc,
                                         tr("Permission problem accessing the file for the medium '%s' (%Rrc)"),
                                         locationFull.c_str(), vrc);
-                else if (vrc == VERR_FILE_NOT_FOUND || vrc == VERR_PATH_NOT_FOUND)
+                if (vrc == VERR_FILE_NOT_FOUND || vrc == VERR_PATH_NOT_FOUND)
                     return setErrorBoth(VBOX_E_FILE_ERROR, vrc,
                                         tr("Could not find file for the medium '%s' (%Rrc)"),
                                         locationFull.c_str(), vrc);
-                else if (aFormat.isEmpty())
+                if (aFormat.isEmpty())
                     return setErrorBoth(VBOX_E_IPRT_ERROR, vrc,
                                         tr("Could not get the storage format of the medium '%s' (%Rrc)"),
                                         locationFull.c_str(), vrc);
-                else
-                {
-                    HRESULT rc = i_setFormat(aFormat);
-                    /* setFormat() must not fail since we've just used the backend so
-                     * the format object must be there */
-                    AssertComRCReturnRC(rc);
-                }
+                HRESULT rc = i_setFormat(aFormat);
+                /* setFormat() must not fail since we've just used the backend so
+                         * the format object must be there */
+                AssertComRCReturnRC(rc);
             }
             else if (   enmType == VDTYPE_INVALID
                      || m->devType != i_convertToDeviceType(enmType))
@@ -7727,9 +7707,10 @@ HRESULT Medium::i_setLocation(const Utf8Str &aLocation,
                  * The user tried to use a image as a device which is not supported
                  * by the backend.
                  */
+                RTStrFree(backendName);
                 return setError(E_FAIL,
-                                tr("The medium '%s' can't be used as the requested device type"),
-                                locationFull.c_str());
+                                tr("The medium '%s' can't be used as the requested device type (%s, detected %s)"),
+                                locationFull.c_str(), getDeviceTypeName(m->devType), getVDTypeName(enmType));
             }
             else
             {
@@ -8022,106 +8003,6 @@ DECLCALLBACK(int) Medium::i_vdConfigQuery(void *pvUser,
     return VINF_SUCCESS;
 }
 
-DECLCALLBACK(int) Medium::i_vdTcpSocketCreate(uint32_t fFlags, PVDSOCKET pSock)
-{
-    PVDSOCKETINT pSocketInt = NULL;
-
-    if ((fFlags & VD_INTERFACETCPNET_CONNECT_EXTENDED_SELECT) != 0)
-        return VERR_NOT_SUPPORTED;
-
-    pSocketInt = (PVDSOCKETINT)RTMemAllocZ(sizeof(VDSOCKETINT));
-    if (!pSocketInt)
-        return VERR_NO_MEMORY;
-
-    pSocketInt->hSocket = NIL_RTSOCKET;
-    *pSock = pSocketInt;
-    return VINF_SUCCESS;
-}
-
-DECLCALLBACK(int) Medium::i_vdTcpSocketDestroy(VDSOCKET Sock)
-{
-    PVDSOCKETINT pSocketInt = (PVDSOCKETINT)Sock;
-
-    if (pSocketInt->hSocket != NIL_RTSOCKET)
-        RTTcpClientCloseEx(pSocketInt->hSocket, false /*fGracefulShutdown*/);
-
-    RTMemFree(pSocketInt);
-
-    return VINF_SUCCESS;
-}
-
-DECLCALLBACK(int) Medium::i_vdTcpClientConnect(VDSOCKET Sock, const char *pszAddress, uint32_t uPort,
-                                               RTMSINTERVAL cMillies)
-{
-    PVDSOCKETINT pSocketInt = (PVDSOCKETINT)Sock;
-
-    return RTTcpClientConnectEx(pszAddress, uPort, &pSocketInt->hSocket, cMillies, NULL);
-}
-
-DECLCALLBACK(int) Medium::i_vdTcpClientClose(VDSOCKET Sock)
-{
-    int rc = VINF_SUCCESS;
-    PVDSOCKETINT pSocketInt = (PVDSOCKETINT)Sock;
-
-    rc = RTTcpClientCloseEx(pSocketInt->hSocket, false /*fGracefulShutdown*/);
-    pSocketInt->hSocket = NIL_RTSOCKET;
-    return rc;
-}
-
-DECLCALLBACK(bool) Medium::i_vdTcpIsClientConnected(VDSOCKET Sock)
-{
-    PVDSOCKETINT pSocketInt = (PVDSOCKETINT)Sock;
-    return pSocketInt->hSocket != NIL_RTSOCKET;
-}
-
-DECLCALLBACK(int) Medium::i_vdTcpSelectOne(VDSOCKET Sock, RTMSINTERVAL cMillies)
-{
-    PVDSOCKETINT pSocketInt = (PVDSOCKETINT)Sock;
-    return RTTcpSelectOne(pSocketInt->hSocket, cMillies);
-}
-
-DECLCALLBACK(int) Medium::i_vdTcpRead(VDSOCKET Sock, void *pvBuffer, size_t cbBuffer, size_t *pcbRead)
-{
-    PVDSOCKETINT pSocketInt = (PVDSOCKETINT)Sock;
-    return RTTcpRead(pSocketInt->hSocket, pvBuffer, cbBuffer, pcbRead);
-}
-
-DECLCALLBACK(int) Medium::i_vdTcpWrite(VDSOCKET Sock, const void *pvBuffer, size_t cbBuffer)
-{
-    PVDSOCKETINT pSocketInt = (PVDSOCKETINT)Sock;
-    return RTTcpWrite(pSocketInt->hSocket, pvBuffer, cbBuffer);
-}
-
-DECLCALLBACK(int) Medium::i_vdTcpSgWrite(VDSOCKET Sock, PCRTSGBUF pSgBuf)
-{
-    PVDSOCKETINT pSocketInt = (PVDSOCKETINT)Sock;
-    return RTTcpSgWrite(pSocketInt->hSocket, pSgBuf);
-}
-
-DECLCALLBACK(int) Medium::i_vdTcpFlush(VDSOCKET Sock)
-{
-    PVDSOCKETINT pSocketInt = (PVDSOCKETINT)Sock;
-    return RTTcpFlush(pSocketInt->hSocket);
-}
-
-DECLCALLBACK(int) Medium::i_vdTcpSetSendCoalescing(VDSOCKET Sock, bool fEnable)
-{
-    PVDSOCKETINT pSocketInt = (PVDSOCKETINT)Sock;
-    return RTTcpSetSendCoalescing(pSocketInt->hSocket, fEnable);
-}
-
-DECLCALLBACK(int) Medium::i_vdTcpGetLocalAddress(VDSOCKET Sock, PRTNETADDR pAddr)
-{
-    PVDSOCKETINT pSocketInt = (PVDSOCKETINT)Sock;
-    return RTTcpGetLocalAddress(pSocketInt->hSocket, pAddr);
-}
-
-DECLCALLBACK(int) Medium::i_vdTcpGetPeerAddress(VDSOCKET Sock, PRTNETADDR pAddr)
-{
-    PVDSOCKETINT pSocketInt = (PVDSOCKETINT)Sock;
-    return RTTcpGetPeerAddress(pSocketInt->hSocket, pAddr);
-}
-
 DECLCALLBACK(bool) Medium::i_vdCryptoConfigAreKeysValid(void *pvUser, const char *pszzValid)
 {
     /* Just return always true here. */
@@ -8187,6 +8068,30 @@ DECLCALLBACK(int) Medium::i_vdCryptoConfigQuery(void *pvUser, const char *pszNam
 
     memcpy(pszValue, psz, cch + 1);
     return VINF_SUCCESS;
+}
+
+DECLCALLBACK(int) Medium::i_vdConfigUpdate(void *pvUser,
+                                           bool fCreate,
+                                           const char *pszName,
+                                           const char *pszValue)
+{
+    Medium *that = (Medium *)pvUser;
+
+    // Detect if this runs inside i_queryInfo() on the current thread.
+    // Skip if not. Check does not need synchronization.
+    if (!that->m || !that->m->queryInfoRunning || !that->m->queryInfoSem.isWriteLockOnCurrentThread())
+        return VINF_SUCCESS;
+
+    // It's guaranteed that this code is executing inside Medium::i_queryInfo,
+    // can assume it took care of synchronization.
+    int rv = VINF_SUCCESS;
+    Utf8Str strName(pszName);
+    settings::StringsMap::const_iterator it = that->m->mapProperties.find(strName);
+    if (it == that->m->mapProperties.end() && !fCreate)
+        rv = VERR_CFGM_VALUE_NOT_FOUND;
+    else
+        that->m->mapProperties[strName] = Utf8Str(pszValue);
+    return rv;
 }
 
 DECLCALLBACK(int) Medium::i_vdCryptoKeyRetain(void *pvUser, const char *pszId,
@@ -8309,9 +8214,9 @@ HRESULT Medium::i_openForIO(bool fWritable, SecretKeyStore *pKeyStore, PVDISK *p
         settings::StringsMap::iterator itKeyStore = pBase->m->mapProperties.find("CRYPT/KeyStore");
         if (itKeyStore != pBase->m->mapProperties.end())
         {
+#ifdef VBOX_WITH_EXTPACK
             settings::StringsMap::iterator itKeyId = pBase->m->mapProperties.find("CRYPT/KeyId");
 
-#ifdef VBOX_WITH_EXTPACK
             ExtPackManager *pExtPackManager = m->pVirtualBox->i_getExtPackManager();
             if (pExtPackManager->i_isExtPackUsable(ORACLE_PUEL_EXTPACK_NAME))
             {
@@ -8335,10 +8240,6 @@ HRESULT Medium::i_openForIO(bool fWritable, SecretKeyStore *pKeyStore, PVDISK *p
                 throw setError(VBOX_E_NOT_SUPPORTED,
                                tr("Encryption is not supported because the extension pack '%s' is missing"),
                                ORACLE_PUEL_EXTPACK_NAME);
-#else
-            throw setError(VBOX_E_NOT_SUPPORTED,
-                           tr("Encryption is not supported because extension pack support is not built in"));
-#endif
 
             if (itKeyId == pBase->m->mapProperties.end())
                 throw setError(VBOX_E_INVALID_OBJECT_STATE,
@@ -8367,6 +8268,11 @@ HRESULT Medium::i_openForIO(bool fWritable, SecretKeyStore *pKeyStore, PVDISK *p
             if (RT_FAILURE(vrc))
                 throw setErrorBoth(VBOX_E_INVALID_OBJECT_STATE, vrc, tr("Failed to load the decryption filter: %s"),
                                    i_vdError(vrc).c_str());
+#else
+            RT_NOREF(pKeyStore, pCryptoSettings);
+            throw setError(VBOX_E_NOT_SUPPORTED,
+                           tr("Encryption is not supported because extension pack support is not built in"));
+#endif /* VBOX_WITH_EXTPACK */
         }
 
         /*
@@ -8569,8 +8475,6 @@ HRESULT Medium::i_taskCreateBaseHandler(Medium::CreateBaseTask &task)
             // in asynchronous mode, save settings now
             m->pVirtualBox->i_saveModifiedRegistries();
         }
-        if (task.NotifyAboutChanges())
-            m->pVirtualBox->i_onMediumRegistered(m->id, m->devType, TRUE);
     }
     else
     {
@@ -8580,6 +8484,12 @@ HRESULT Medium::i_taskCreateBaseHandler(Medium::CreateBaseTask &task)
         /* reset UUID to prevent it from being reused next time */
         if (fGenerateUuid)
             unconst(m->id).clear();
+    }
+
+    if (task.NotifyAboutChanges() && SUCCEEDED(rc))
+    {
+        m->pVirtualBox->i_onMediumConfigChanged(this);
+        m->pVirtualBox->i_onMediumRegistered(m->id, m->devType, TRUE);
     }
 
     return rc;
@@ -8808,8 +8718,8 @@ HRESULT Medium::i_taskCreateDiffHandler(Medium::CreateDiffTask &task)
 
     if (task.NotifyAboutChanges() && SUCCEEDED(mrc))
     {
-        m->pVirtualBox->i_onMediumRegistered(pTarget->i_getId(), pTarget->i_getDeviceType(), TRUE);
         m->pVirtualBox->i_onMediumConfigChanged(this);
+        m->pVirtualBox->i_onMediumRegistered(m->id, m->devType, TRUE);
     }
 
     return mrc;
@@ -9599,7 +9509,7 @@ HRESULT Medium::i_taskCloneHandler(Medium::CloneTask &task)
  */
 HRESULT Medium::i_taskMoveHandler(Medium::MoveTask &task)
 {
-
+    LogFlowFuncEnter();
     HRESULT rcOut = S_OK;
 
     /* pTarget is equal "this" in our case */
@@ -9617,6 +9527,7 @@ HRESULT Medium::i_taskMoveHandler(Medium::MoveTask &task)
         HRESULT rc = setError(VBOX_E_FILE_ERROR,
                               tr("Wrong preconditions for moving the medium %s"),
                               pTarget->m->strLocationFull.c_str());
+        LogFlowFunc(("LEAVE: rc=%Rhrc (early)\n", rc));
         return rc;
     }
 
@@ -9750,6 +9661,8 @@ HRESULT Medium::i_taskMoveHandler(Medium::MoveTask &task)
 
     if (task.NotifyAboutChanges() && SUCCEEDED(mrc))
         m->pVirtualBox->i_onMediumConfigChanged(this);
+
+    LogFlowFunc(("LEAVE: mrc=%Rhrc\n", (HRESULT)mrc));
     return mrc;
 }
 
@@ -9816,10 +9729,15 @@ HRESULT Medium::i_taskDeleteHandler(Medium::DeleteTask &task)
     m->state = MediumState_NotCreated;
 
     /* Reset UUID to prevent Create* from reusing it again */
+    com::Guid uOldId = m->id;
     unconst(m->id).clear();
 
-    if (task.NotifyAboutChanges() && SUCCEEDED(rc) && m->pParent.isNotNull())
-        m->pVirtualBox->i_onMediumConfigChanged(m->pParent);
+    if (task.NotifyAboutChanges() && SUCCEEDED(rc))
+    {
+        if (m->pParent.isNotNull())
+            m->pVirtualBox->i_onMediumConfigChanged(m->pParent);
+        m->pVirtualBox->i_onMediumRegistered(uOldId, m->devType, FALSE);
+    }
 
     return rc;
 }

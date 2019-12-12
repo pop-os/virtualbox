@@ -22,7 +22,7 @@
 #define LOG_GROUP LOG_GROUP_TM
 #include <VBox/vmm/tm.h>
 #include "TMInternal.h"
-#include <VBox/vmm/vm.h>
+#include <VBox/vmm/vmcc.h>
 #include <iprt/time.h>
 
 

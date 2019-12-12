@@ -30,6 +30,10 @@
 
 #include "PDMAsyncCompletionFileInternal.h"
 
+
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 /** The update period for the I/O load statistics in ms. */
 #define PDMACEPFILEMGR_LOAD_UPDATE_PERIOD   1000
 /** Maximum number of requests a manager will handle. */

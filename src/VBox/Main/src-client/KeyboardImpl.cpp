@@ -36,8 +36,9 @@
 // globals
 ////////////////////////////////////////////////////////////////////////////////
 
-/** @name Keyboard device capabilities bitfield
- * @{ */
+/**
+ * Keyboard device capabilities bitfield.
+ */
 enum
 {
     /** The keyboard device does not wish to receive keystrokes. */
@@ -217,6 +218,47 @@ HRESULT Keyboard::putScancodes(const std::vector<LONG> &aScancodes,
     if (RT_FAILURE(vrc))
         return setErrorBoth(VBOX_E_IPRT_ERROR, vrc,
                             tr("Could not send all scan codes to the virtual keyboard (%Rrc)"),
+                            vrc);
+
+    return S_OK;
+}
+
+/**
+ * Sends a HID usage code and page to the keyboard.
+ *
+ * @returns COM status code
+ * @param aUsageCode    The HID usage code to send
+ * @param aUsagePage    The HID usage page corresponding to the code
+ * @param fKeyRelease   The key release flag
+ */
+HRESULT Keyboard::putUsageCode(LONG aUsageCode, LONG aUsagePage, BOOL fKeyRelease)
+{
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    CHECK_CONSOLE_DRV(mpDrv[0]);
+
+    /* Send input to the last enabled device. Relies on the fact that
+     * the USB keyboard is always initialized after the PS/2 keyboard.
+     */
+    PPDMIKEYBOARDPORT pUpPort = NULL;
+    for (int i = KEYBOARD_MAX_DEVICES - 1; i >= 0 ; --i)
+    {
+        if (mpDrv[i] && (mpDrv[i]->u32DevCaps & KEYBOARD_DEVCAP_ENABLED))
+        {
+            pUpPort = mpDrv[i]->pUpPort;
+            break;
+        }
+    }
+
+    /* No enabled keyboard - throw the input away. */
+    if (!pUpPort)
+        return S_OK;
+
+    uint32_t idUsage = (uint16_t)aUsageCode | ((uint32_t)(uint8_t)aUsagePage << 16) | (fKeyRelease ? UINT32_C(0x80000000) : 0);
+    int vrc = pUpPort->pfnPutEventHid(pUpPort, idUsage);
+    if (RT_FAILURE(vrc))
+        return setErrorBoth(VBOX_E_IPRT_ERROR, vrc,
+                            tr("Could not send usage code to the virtual keyboard (%Rrc)"),
                             vrc);
 
     return S_OK;

@@ -26,7 +26,6 @@
  *    Monitor.
  *      - @ref pg_cfgm
  *      - @ref pg_cpum
- *      - @ref pg_csam
  *      - @ref pg_dbgf
  *          - @ref pg_dbgf_addr_space
  *          - @ref pg_dbgf_vmcore
@@ -37,9 +36,8 @@
  *      - @ref pg_em
  *      - @ref pg_gim
  *      - @ref pg_hm
- *      - @ref pg_rem
- *          - @ref pg_vboxrem_amd64
  *      - @ref pg_iem
+ *      - @ref pg_nem
  *      - @ref pg_gmm
  *          - @ref pg_mm
  *          - @ref pg_pgm
@@ -47,7 +45,6 @@
  *              - @ref pg_pgm_pool
  *          - @ref pg_selm
  *      - @ref pg_iom
- *      - @ref pg_patm
  *      - @ref pg_pdm
  *          - Devices / USB Devices, Drivers and their public interfaces.
  *          - Async I/O Completion API.
@@ -114,8 +111,6 @@
  *  - Host Services.
  *      - @ref pg_hostclip Shared Clipboard.
  *      - Shared Folders.
- *      - Shared OpenGL. See PDF. (TODO: translate PDF to doxygen)
- *          - @ref pg_opengl_cocoa
  *      - @ref pg_svc_guest_properties
  *      - @ref pg_svc_guest_control
  *  - Guest Additions.

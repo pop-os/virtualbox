@@ -2904,7 +2904,9 @@ static void rcLockValidatorDoDeadlockComplaining(PRTLOCKVALDDSTACK pStack, PRTLO
 static int rtLockValidatorDeadlockDetection(PRTLOCKVALRECUNION pRec, PRTTHREADINT pThreadSelf, PCRTLOCKVALSRCPOS pSrcPos)
 {
     RTLOCKVALDDSTACK Stack;
+    rtLockValidatorSerializeDetectionEnter();
     int rc = rtLockValidatorDdDoDetection(&Stack, pRec, pThreadSelf);
+    rtLockValidatorSerializeDetectionLeave();
     if (RT_SUCCESS(rc))
         return VINF_SUCCESS;
 
@@ -2912,7 +2914,9 @@ static int rtLockValidatorDeadlockDetection(PRTLOCKVALRECUNION pRec, PRTTHREADIN
     {
         for (uint32_t iLoop = 0; ; iLoop++)
         {
+            rtLockValidatorSerializeDetectionEnter();
             rc = rtLockValidatorDdDoDetection(&Stack, pRec, pThreadSelf);
+            rtLockValidatorSerializeDetectionLeave();
             if (RT_SUCCESS_NP(rc))
                 return VINF_SUCCESS;
             if (rc != VERR_TRY_AGAIN)
@@ -3833,11 +3837,7 @@ static bool rtLockValidatorRecSharedMakeRoom(PRTLOCKVALRECSHRD pShared)
                 /*
                  * Ok, still not enough space.  Reallocate the table.
                  */
-#if 0  /** @todo enable this after making sure growing works flawlessly. */
                 uint32_t                cInc = RT_ALIGN_32(pShared->cEntries - cAllocated, 16);
-#else
-                uint32_t                cInc = RT_ALIGN_32(pShared->cEntries - cAllocated, 1);
-#endif
                 PRTLOCKVALRECSHRDOWN   *papOwners;
                 papOwners = (PRTLOCKVALRECSHRDOWN *)RTMemRealloc((void *)pShared->papOwners,
                                                                  (cAllocated + cInc) * sizeof(void *));

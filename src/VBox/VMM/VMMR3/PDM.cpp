@@ -33,6 +33,7 @@
  *
  * @sa  @ref grp_pdm
  *      @subpage pg_pdm_block_cache
+ *      @subpage pg_pdm_audio
  *
  *
  * @section sec_pdm_dev     The Pluggable Devices
@@ -96,6 +97,81 @@
  * There's currently a limit of 256 PCI devices per PDM device.
  *
  *
+ * @subsection sec_pdm_dev_new          New Style (6.1)
+ *
+ * VBox 6.1 changes the PDM interface for devices and they have to be converted
+ * to the new style to continue working (see @bugref{9218}).
+ *
+ * Steps for converting a PDM device to the new style:
+ *
+ * - State data needs to be split into shared, ring-3, ring-0 and raw-mode
+ *   structures.  The shared structure shall contains absolutely no pointers.
+ *
+ * - Context specific typedefs ending in CC for the structure and pointer to
+ *   it are required (copy & edit the PRTCSTATECC stuff).
+ *   The pointer to a context specific structure is obtained using the
+ *   PDMINS_2_DATA_CC macro.  The PDMINS_2_DATA macro gets the shared one.
+ *
+ * - Update the registration structure with sizeof the new structures.
+ *
+ * - MMIO handlers to FNIOMMMIONEWREAD and FNIOMMMIONEWRITE form, take care renaming
+ *   GCPhys to off and really treat it as an offset.   Return status is VBOXSTRICTRC,
+ *   which should be propagated to worker functions as far as possible.
+ *
+ * - I/O handlers to FNIOMIOPORTNEWIN and FNIOMIOPORTNEWOUT form, take care renaming
+ *   uPort/Port to offPort and really treat it as an offset.   Return status is
+ *   VBOXSTRICTRC, which should be propagated to worker functions as far as possible.
+ *
+ * - MMIO and I/O port registration must be converted, handles stored in the shared structure.
+ *
+ * - PCI devices must also update the I/O region registration and corresponding
+ *   mapping callback.   The latter is generally not needed any more, as the PCI
+ *   bus does the mapping and unmapping using the handle passed to it during registration.
+ *
+ * - If the device contains ring-0 or raw-mode optimizations:
+ *    - Make sure to replace any R0Enabled, GCEnabled, and RZEnabled with
+ *      pDevIns->fR0Enabled and pDevIns->fRCEnabled.  Removing CFGM reading and
+ *      validation of such options as well as state members for them.
+ *    - Callbacks for ring-0 and raw-mode are registered in a context contructor.
+ *      Setting up of non-default critical section handling needs to be repeated
+ *      in the ring-0/raw-mode context constructor too.   See for instance
+ *      e1kRZConstruct().
+ *
+ * - Convert all PDMCritSect calls to PDMDevHlpCritSect.
+ *   Note! pDevIns should be passed as parameter rather than put in pThisCC.
+ *
+ * - Convert all timers to the handle based ones.
+ *
+ * - Convert all queues to the handle based ones or tasks.
+ *
+ * - Set the PDM_DEVREG_FLAGS_NEW_STYLE in the registration structure.
+ *   (Functionally, this only makes a difference for PDMDevHlpSetDeviceCritSect
+ *   behavior, but it will become mandatory once all devices has been
+ *   converted.)
+ *
+ * - Convert all CFGMR3Xxxx calls to pHlp->pfnCFGMXxxx.
+ *
+ * - Convert all SSMR3Xxxx calls to pHlp->pfnSSMXxxx.
+ *
+ * - Ensure that CFGM values and nodes are validated using PDMDEV_VALIDATE_CONFIG_RETURN()
+ *
+ * - Ensure that the first statement in the constructors is
+ *   @code
+           PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
+     @endcode
+ *   There shall be absolutely nothing preceeding that and it is mandatory.
+ *
+ * - Ensure that the first statement in the destructors is
+ *   @code
+           PDMDEV_CHECK_VERSIONS_RETURN_QUIET(pDevIns);
+     @endcode
+ *   There shall be absolutely nothing preceeding that and it is mandatory.
+ *
+ * - Use 'nm -u' (tools/win.amd64/mingw-w64/r1/bin/nm.exe on windows) to check
+ *   for VBoxVMM and VMMR0 function you forgot to convert to device help calls
+ *   or would need adding as device helpers or something.
+ *
+ *
  * @section sec_pdm_special_devs    Special Devices
  *
  * Several kinds of devices interacts with the VMM and/or other device and PDM
@@ -116,7 +192,6 @@
  * since the address changes when RC is relocated.
  *
  * @see grp_pdm_device
- *
  *
  * @section sec_pdm_usbdev  The Pluggable USB Devices
  *
@@ -421,6 +496,8 @@ VMMR3_INT_DECL(int) PDMR3Init(PVM pVM)
      * Initialize sub components.
      */
     if (RT_SUCCESS(rc))
+        rc = pdmR3TaskInit(pVM);
+    if (RT_SUCCESS(rc))
         rc = pdmR3LdrInitU(pVM->pUVM);
 #ifdef VBOX_WITH_PDM_ASYNC_COMPLETION
     if (RT_SUCCESS(rc))
@@ -480,11 +557,7 @@ VMMR3_INT_DECL(int) PDMR3Init(PVM pVM)
  */
 VMMR3_INT_DECL(int) PDMR3InitCompleted(PVM pVM, VMINITCOMPLETED enmWhat)
 {
-#ifdef VBOX_WITH_RAW_MODE
-    if (enmWhat == VMINITCOMPLETED_RC)
-#else
     if (enmWhat == VMINITCOMPLETED_RING0)
-#endif
         return pdmR3DevInitComplete(pVM);
     return VINF_SUCCESS;
 }
@@ -545,20 +618,9 @@ VMMR3_INT_DECL(void) PDMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
     }
 
     /*
-     * The register PCI Buses.
-     */
-    for (unsigned i = 0; i < RT_ELEMENTS(pVM->pdm.s.aPciBuses); i++)
-    {
-        if (pVM->pdm.s.aPciBuses[i].pDevInsRC)
-        {
-            pVM->pdm.s.aPciBuses[i].pDevInsRC   += offDelta;
-            pVM->pdm.s.aPciBuses[i].pfnSetIrqRC += offDelta;
-        }
-    }
-
-    /*
      * Devices & Drivers.
      */
+#ifdef VBOX_WITH_RAW_MODE_KEEP /* needs fixing */
     int rc;
     PCPDMDEVHLPRC pDevHlpRC = NIL_RTRCPTR;
     if (VM_IS_RAW_MODE_ENABLED(pVM))
@@ -627,6 +689,7 @@ VMMR3_INT_DECL(void) PDMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
         }
 
     }
+#endif
 }
 
 
@@ -750,9 +813,22 @@ VMMR3_INT_DECL(int) PDMR3Term(PVM pVM)
 
         if (pDevIns->pReg->pfnDestruct)
         {
-            LogFlow(("pdmR3DevTerm: Destroying - device '%s'/%d\n",
-                     pDevIns->pReg->szName, pDevIns->iInstance));
+            LogFlow(("pdmR3DevTerm: Destroying - device '%s'/%d\n", pDevIns->pReg->szName, pDevIns->iInstance));
             pDevIns->pReg->pfnDestruct(pDevIns);
+        }
+
+        if (pDevIns->Internal.s.fIntFlags & PDMDEVINSINT_FLAGS_R0_CONTRUCT)
+        {
+            LogFlow(("pdmR3DevTerm: Destroying (ring-0) - device '%s'/%d\n", pDevIns->pReg->szName, pDevIns->iInstance));
+            PDMDEVICEGENCALLREQ Req;
+            RT_ZERO(Req.Params);
+            Req.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
+            Req.Hdr.cbReq    = sizeof(Req);
+            Req.enmCall      = PDMDEVICEGENCALL_DESTRUCT;
+            Req.idxR0Device  = pDevIns->Internal.s.idxR0Device;
+            Req.pDevInsR3    = pDevIns;
+            int rc2 = VMMR3CallR0(pVM, VMMR0_DO_PDM_DEVICE_GEN_CALL, 0, &Req.Hdr);
+            AssertRC(rc2);
         }
 
         TMR3TimerDestroyDevice(pVM, pDevIns);
@@ -760,7 +836,7 @@ VMMR3_INT_DECL(int) PDMR3Term(PVM pVM)
         pdmR3CritSectBothDeleteDevice(pVM, pDevIns);
         pdmR3ThreadDestroyDevice(pVM, pDevIns);
         PDMR3QueueDestroyDevice(pVM, pDevIns);
-        PGMR3PhysMMIOExDeregister(pVM, pDevIns, UINT32_MAX, UINT32_MAX);
+        PGMR3PhysMmio2Deregister(pVM, pDevIns, NIL_PGMMMIO2HANDLE);
 #ifdef VBOX_WITH_PDM_ASYNC_COMPLETION
         pdmR3AsyncCompletionTemplateDestroyDevice(pVM, pDevIns);
 #endif
@@ -794,6 +870,11 @@ VMMR3_INT_DECL(int) PDMR3Term(PVM pVM)
      * Free modules.
      */
     pdmR3LdrTermU(pVM->pUVM);
+
+    /*
+     * Stop task threads.
+     */
+    pdmR3TaskTerm(pVM);
 
     /*
      * Destroy the PDM lock.
@@ -896,7 +977,7 @@ static DECLCALLBACK(int) pdmR3SaveExec(PVM pVM, PSSMHANDLE pSSM)
      */
     for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
     {
-        PVMCPU pVCpu = &pVM->aCpus[idCpu];
+        PVMCPU pVCpu = pVM->apCpusR3[idCpu];
         SSMR3PutU32(pSSM, VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INTERRUPT_APIC));
         SSMR3PutU32(pSSM, VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INTERRUPT_PIC));
         SSMR3PutU32(pSSM, VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INTERRUPT_NMI));
@@ -926,7 +1007,7 @@ static DECLCALLBACK(int) pdmR3LoadPrep(PVM pVM, PSSMHANDLE pSSM)
 #ifdef LOG_ENABLED
     for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
     {
-        PVMCPU pVCpu = &pVM->aCpus[idCpu];
+        PVMCPU pVCpu = pVM->apCpusR3[idCpu];
         LogFlow(("pdmR3LoadPrep: VCPU %u %s%s\n", idCpu,
                 VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INTERRUPT_APIC) ? " VMCPU_FF_INTERRUPT_APIC" : "",
                 VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INTERRUPT_PIC)  ? " VMCPU_FF_INTERRUPT_PIC" : ""));
@@ -944,7 +1025,7 @@ static DECLCALLBACK(int) pdmR3LoadPrep(PVM pVM, PSSMHANDLE pSSM)
     /* Clear the FFs. */
     for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
     {
-        PVMCPU pVCpu = &pVM->aCpus[idCpu];
+        PVMCPU pVCpu = pVM->apCpusR3[idCpu];
         VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INTERRUPT_APIC);
         VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INTERRUPT_PIC);
         VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INTERRUPT_NMI);
@@ -995,7 +1076,7 @@ static DECLCALLBACK(int) pdmR3LoadExec(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersi
          */
         for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
         {
-            PVMCPU pVCpu = &pVM->aCpus[idCpu];
+            PVMCPU pVCpu = pVM->apCpusR3[idCpu];
 
             /* APIC interrupt */
             uint32_t fInterruptPending = 0;
@@ -1639,7 +1720,7 @@ VMMR3_INT_DECL(void) PDMR3Reset(PVM pVM)
      * Clear all pending interrupts and DMA operations.
      */
     for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
-        PDMR3ResetCpu(&pVM->aCpus[idCpu]);
+        PDMR3ResetCpu(pVM->apCpusR3[idCpu]);
     VM_FF_CLEAR(pVM, VM_FF_PDM_DMA);
 
     LogFlow(("PDMR3Reset: returns void\n"));
@@ -1705,10 +1786,10 @@ VMMR3_INT_DECL(bool) PDMR3GetResetInfo(PVM pVM, uint32_t fOverride, uint32_t *pf
      * like clearing memory).
      */
     bool     fOtherCpusActive = false;
-    VMCPUID  iCpu             = pVM->cCpus;
-    while (iCpu-- > 1)
+    VMCPUID  idCpu            = pVM->cCpus;
+    while (idCpu-- > 1)
     {
-        EMSTATE enmState = EMGetState(&pVM->aCpus[iCpu]);
+        EMSTATE enmState = EMGetState(pVM->apCpusR3[idCpu]);
         if (   enmState != EMSTATE_WAIT_SIPI
             && enmState != EMSTATE_NONE)
         {

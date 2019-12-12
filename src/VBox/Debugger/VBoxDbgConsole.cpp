@@ -21,6 +21,7 @@
 *********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_DBGG
 #include "VBoxDbgConsole.h"
+#include "VBoxDbgGui.h"
 
 #include <QLabel>
 #include <QApplication>
@@ -482,13 +483,14 @@ VBoxDbgConsoleInput::returnPressed()
 
 
 VBoxDbgConsole::VBoxDbgConsole(VBoxDbgGui *a_pDbgGui, QWidget *a_pParent/* = NULL*/, IVirtualBox *a_pVirtualBox/* = NULL */)
-    : VBoxDbgBaseWindow(a_pDbgGui, a_pParent), m_pOutput(NULL), m_pInput(NULL), m_fInputRestoreFocus(false),
+    : VBoxDbgBaseWindow(a_pDbgGui, a_pParent, "Console"), m_pOutput(NULL), m_pInput(NULL), m_fInputRestoreFocus(false),
     m_pszInputBuf(NULL), m_cbInputBuf(0), m_cbInputBufAlloc(0),
     m_pszOutputBuf(NULL), m_cbOutputBuf(0), m_cbOutputBufAlloc(0),
     m_pTimer(NULL), m_fUpdatePending(false), m_Thread(NIL_RTTHREAD), m_EventSem(NIL_RTSEMEVENT),
     m_fTerminate(false), m_fThreadTerminated(false)
 {
-    setWindowTitle("VBoxDbg - Console");
+    /* Delete dialog on close: */
+    setAttribute(Qt::WA_DeleteOnClose);
 
     /*
      * Create the output text box.
@@ -994,10 +996,7 @@ void
 VBoxDbgConsole::closeEvent(QCloseEvent *a_pCloseEvt)
 {
     if (m_fThreadTerminated)
-    {
         a_pCloseEvt->accept();
-        delete this;
-    }
 }
 
 

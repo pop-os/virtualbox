@@ -37,6 +37,8 @@
     <xsl:text>-------------------------------------------------------------------------------------------------------------------</xsl:text>
   </xsl:variable>
 
+  <!-- Sub-command style command (true) or single command (false). -->
+  <xsl:variable name="g_fSubCommands" select="not(not(//refsect2[@id]))" />
 
   <!-- Default action, do nothing. -->
   <xsl:template match="node()|@*"/>
@@ -87,7 +89,7 @@ static const RTMSGREFENTRYSTR </xsl:text><xsl:value-of select="$sDataBaseSym"/><
       <xsl:if test="not(starts-with(substring-after(@id, '-'), $sBaseId))">
         <xsl:message terminate="yes"><xsl:call-template name="error-prefix"/>The refsynopsisdiv/cmdsynopsis elements @id is expected to include the refentry @id.</xsl:message>
       </xsl:if>
-      <xsl:if test="not(../../refsect1/refsect2[@id=./@id])">
+      <xsl:if test="not(../../refsect1/refsect2[@id=./@id]) and $g_fSubCommands">
         <xsl:message terminate="yes"><xsl:call-template name="error-prefix"/>No refsect2 with id="<xsl:value-of select="@id"/>" found.</xsl:message>
       </xsl:if>
 
@@ -247,14 +249,18 @@ static const RTMSGREFENTRY </xsl:text><xsl:value-of select="$sDataBaseSym"/><xsl
         <xsl:otherwise><xsl:text> </xsl:text></xsl:otherwise>
       </xsl:choose>
     </xsl:if>
+
     <!-- open wrapping -->
-    <xsl:choose>
-      <xsl:when test="not(@choice) or @choice = ''">  <xsl:value-of select="$arg.choice.def.open.str"/></xsl:when>
-      <xsl:when test="@choice = 'opt'">               <xsl:value-of select="$arg.choice.opt.open.str"/></xsl:when>
-      <xsl:when test="@choice = 'req'">               <xsl:value-of select="$arg.choice.req.open.str"/></xsl:when>
-      <xsl:when test="@choice = 'plain'"/>
-      <xsl:otherwise><xsl:message terminate="yes"><xsl:call-template name="error-prefix"/>Invalid arg choice: "<xsl:value-of select="@choice"/>"</xsl:message></xsl:otherwise>
-    </xsl:choose>
+    <xsl:variable name="fWrappers" select="not(ancestor::group)"/>
+    <xsl:if test="$fWrappers">
+      <xsl:choose>
+        <xsl:when test="not(@choice) or @choice = ''">  <xsl:value-of select="$arg.choice.def.open.str"/></xsl:when>
+        <xsl:when test="@choice = 'opt'">               <xsl:value-of select="$arg.choice.opt.open.str"/></xsl:when>
+        <xsl:when test="@choice = 'req'">               <xsl:value-of select="$arg.choice.req.open.str"/></xsl:when>
+        <xsl:when test="@choice = 'plain'"/>
+        <xsl:otherwise><xsl:message terminate="yes"><xsl:call-template name="error-prefix"/>Invalid arg choice: "<xsl:value-of select="@choice"/>"</xsl:message></xsl:otherwise>
+      </xsl:choose>
+    </xsl:if>
 
     <!-- render the arg (TODO: may need to do more work here) -->
     <xsl:apply-templates />
@@ -262,15 +268,22 @@ static const RTMSGREFENTRY </xsl:text><xsl:value-of select="$sDataBaseSym"/><xsl
     <!-- repeat wrapping -->
     <xsl:choose>
       <xsl:when test="@rep = 'norepeat' or not(@rep) or @rep = ''"/>
-      <xsl:when test="@rep = 'repeat'">               <xsl:value-of select="$arg.rep.repeat.str"/></xsl:when>
+      <xsl:when test="@rep = 'repeat'">                 <xsl:value-of select="$arg.rep.repeat.str"/></xsl:when>
       <xsl:otherwise><xsl:message terminate="yes"><xsl:call-template name="error-prefix"/>Invalid rep choice: "<xsl:value-of select="@rep"/>"</xsl:message></xsl:otherwise>
     </xsl:choose>
+
     <!-- close wrapping -->
-    <xsl:choose>
-      <xsl:when test="not(@choice) or @choice = ''">  <xsl:value-of select="$arg.choice.def.close.str"/></xsl:when>
-      <xsl:when test="@choice = 'opt'">               <xsl:value-of select="$arg.choice.opt.close.str"/></xsl:when>
-      <xsl:when test="@choice = 'req'">               <xsl:value-of select="$arg.choice.req.close.str"/></xsl:when>
-    </xsl:choose>
+    <xsl:if test="$fWrappers">
+      <xsl:choose>
+        <xsl:when test="not(@choice) or @choice = ''">  <xsl:value-of select="$arg.choice.def.close.str"/></xsl:when>
+        <xsl:when test="@choice = 'opt'">               <xsl:value-of select="$arg.choice.opt.close.str"/></xsl:when>
+        <xsl:when test="@choice = 'req'">               <xsl:value-of select="$arg.choice.req.close.str"/></xsl:when>
+      </xsl:choose>
+      <!-- Add a space padding if we're the last element in a repeating arg or group -->
+      <xsl:if test="(parent::arg or parent::group) and not(following-sibiling)">
+        <xsl:text> </xsl:text>
+      </xsl:if>
+    </xsl:if>
   </xsl:template>
 
 
@@ -350,7 +363,7 @@ static const RTMSGREFENTRY </xsl:text><xsl:value-of select="$sDataBaseSym"/><xsl
 
   <xsl:template match="varlistentry/listitem">
     <xsl:call-template name="check-children">
-      <xsl:with-param name="UnsupportedNodes" select="*[not(self::para or self::itemizedlist or self::orderedlist)]|text()"/>
+      <xsl:with-param name="UnsupportedNodes" select="*[not(self::para or self::itemizedlist or self::orderedlist or self::variablelist)]|text()"/>
       <xsl:with-param name="SupportedNames">para, itemizedlist and orderedlist</xsl:with-param>
     </xsl:call-template>
 
@@ -508,7 +521,7 @@ static const RTMSGREFENTRY </xsl:text><xsl:value-of select="$sDataBaseSym"/><xsl
 
   <!-- Elements producing non-breaking strings (single line). -->
   <xsl:template match="command/text()|option/text()|computeroutput/text()|arg/text()" name="escape_fixed_text">
-    <xsl:param name="sText" select="."/>
+    <xsl:param name="sText" select="normalize-space(.)"/>
     <xsl:choose>
 
       <xsl:when test="contains($sText, '\') or contains($sText, '&quot;')">
@@ -894,14 +907,13 @@ Only supported on: refsect1, refsect2, refsynopsisdiv/cmdsynopsis</xsl:message>
     -->
   <xsl:template name="list-nodes">
     <xsl:param name="Nodes" select="node()"/>
-
-    <for-each select="$Nodes">
-      <xsl:if test="posision() != 1">
+    <xsl:for-each select="$Nodes">
+      <xsl:if test="position() != 1">
         <xsl:text>, </xsl:text>
       </xsl:if>
       <xsl:choose>
         <xsl:when test="name(.) = ''">
-          <xsl:text>text()</xsl:text>
+          <xsl:text>text:text()</xsl:text>
         </xsl:when>
         <xsl:otherwise>
           <xsl:value-of select="name(.)"/>
@@ -912,8 +924,7 @@ Only supported on: refsect1, refsect2, refsynopsisdiv/cmdsynopsis</xsl:message>
           </xsl:if>
         </xsl:otherwise>
       </xsl:choose>
-    </for-each>
-
+    </xsl:for-each>
   </xsl:template>
 
   <xsl:template name="check-children">
@@ -927,7 +938,8 @@ Only supported on: refsect1, refsect2, refsynopsisdiv/cmdsynopsis</xsl:message>
         </xsl:call-template>
         <!-- -->: error: Only <xsl:value-of select="$SupportedNames"/> are supported as children to <!-- -->
         <xsl:value-of select="name($Node)"/>
-        <!-- -->Unsupported children: <!-- -->
+        <!-- -->
+Unsupported children: <!-- -->
         <xsl:call-template name="list-nodes">
           <xsl:with-param name="Nodes" select="$UnsupportedNodes"/>
         </xsl:call-template>

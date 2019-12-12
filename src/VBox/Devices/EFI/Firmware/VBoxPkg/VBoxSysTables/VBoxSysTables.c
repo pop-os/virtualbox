@@ -118,7 +118,7 @@ ConvertAndInstallTable(EFI_GUID* Guid, VOID* Ptr)
     EFI_STATUS  rc = EFI_SUCCESS;
 
     rc = ConvertSystemTable(Guid, &Ptr);
-    ASSERT_EFI_ERROR (rc);
+    //ASSERT_EFI_ERROR (rc);
 
     rc = gBS->InstallConfigurationTable(Guid, Ptr);
     ASSERT_EFI_ERROR (rc);
@@ -147,7 +147,10 @@ DxeInitializeVBoxSysTables(IN EFI_HANDLE ImageHandle, IN EFI_SYSTEM_TABLE *Syste
     DEBUG((DEBUG_INFO, "SMBIOS=%p\n", Ptr));
     ASSERT(Ptr != NULL);
     if (Ptr)
+    {
         rc = ConvertAndInstallTable(&gEfiSmbiosTableGuid, Ptr);
+        ASSERT_EFI_ERROR (rc);
+    }
 
     Ptr = FindMPSPtr();
     DEBUG((DEBUG_INFO, "MPS=%p\n", Ptr));

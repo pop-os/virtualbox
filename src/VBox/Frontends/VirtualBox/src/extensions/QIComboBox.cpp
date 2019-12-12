@@ -208,6 +208,34 @@ int QIComboBox::currentIndex() const
     return m_pComboBox->currentIndex();
 }
 
+QString QIComboBox::currentText() const
+{
+    /* Redirect to combo-box: */
+    AssertPtrReturn(m_pComboBox, QString());
+    return m_pComboBox->currentText();
+}
+
+QVariant QIComboBox::currentData(int iRole /* = Qt::UserRole */) const
+{
+    /* Redirect to combo-box: */
+    AssertPtrReturn(m_pComboBox, QVariant());
+    return m_pComboBox->currentData(iRole);
+}
+
+void QIComboBox::addItems(const QStringList &items) const
+{
+    /* Redirect to combo-box: */
+    AssertPtrReturnVoid(m_pComboBox);
+    return m_pComboBox->addItems(items);
+}
+
+void QIComboBox::addItem(const QString &strText, const QVariant &userData /* = QVariant() */) const
+{
+    /* Redirect to combo-box: */
+    AssertPtrReturnVoid(m_pComboBox);
+    return m_pComboBox->addItem(strText, userData);
+}
+
 void QIComboBox::insertItem(int iIndex, const QString &strText, const QVariant &userData /* = QVariant() */) const
 {
     /* Redirect to combo-box: */
@@ -241,6 +269,44 @@ QString QIComboBox::itemText(int iIndex) const
     /* Redirect to combo-box: */
     AssertPtrReturn(m_pComboBox, QString());
     return m_pComboBox->itemText(iIndex);
+}
+
+int QIComboBox::findData(const QVariant &data,
+                         int iRole /* = Qt::UserRole */,
+                         Qt::MatchFlags flags /* = static_cast<Qt::MatchFlags>(Qt::MatchExactly | Qt::MatchCaseSensitive) */) const
+{
+    /* Redirect to combo-box: */
+    AssertPtrReturn(m_pComboBox, -1);
+    return m_pComboBox->findData(data, iRole, flags);
+}
+
+int QIComboBox::findText(const QString &strText,
+                         Qt::MatchFlags flags /* = static_cast<Qt::MatchFlags>(Qt::MatchExactly | Qt::MatchCaseSensitive) */) const
+{
+    /* Redirect to combo-box: */
+    AssertPtrReturn(m_pComboBox, -1);
+    return m_pComboBox->findText(strText, flags);
+}
+
+QComboBox::SizeAdjustPolicy QIComboBox::sizeAdjustPolicy() const
+{
+    /* Redirect to combo-box: */
+    AssertPtrReturn(m_pComboBox, QComboBox::AdjustToContentsOnFirstShow);
+    return m_pComboBox->sizeAdjustPolicy();
+}
+
+void QIComboBox::setSizeAdjustPolicy(QComboBox::SizeAdjustPolicy enmPolicy)
+{
+    /* Redirect to combo-box: */
+    AssertPtrReturnVoid(m_pComboBox);
+    m_pComboBox->setSizeAdjustPolicy(enmPolicy);
+}
+
+void QIComboBox::clear()
+{
+    /* Redirect to combo-box: */
+    AssertPtrReturnVoid(m_pComboBox);
+    m_pComboBox->clear();
 }
 
 void QIComboBox::setIconSize(const QSize &size) const
@@ -310,6 +376,7 @@ void QIComboBox::prepare()
         AssertPtrReturnVoid(m_pComboBox);
         {
             /* Configure combo-box: */
+            setFocusProxy(m_pComboBox);
             connect(m_pComboBox, static_cast<void(QComboBox::*)(int)>(&QComboBox::activated),
                     this, static_cast<void(QIComboBox::*)(int)>(&QIComboBox::activated));
             connect(m_pComboBox, static_cast<void(QComboBox::*)(const QString &)>(&QComboBox::activated),

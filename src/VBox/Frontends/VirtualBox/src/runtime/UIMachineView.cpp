@@ -16,6 +16,7 @@
  */
 
 /* Qt includes: */
+#include <QBitmap>
 #include <QMainWindow>
 #include <QPainter>
 #include <QScrollBar>
@@ -23,7 +24,7 @@
 #include <QAbstractNativeEventFilter>
 
 /* GUI includes: */
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #include "UIActionPoolRuntime.h"
 #include "UIDesktopWidgetWatchdog.h"
 #include "UIExtraDataManager.h"
@@ -54,6 +55,7 @@
 /* COM includes: */
 #include "CConsole.h"
 #include "CDisplay.h"
+#include "CGraphicsAdapter.h"
 #include "CSession.h"
 #include "CFramebuffer.h"
 #ifdef VBOX_WITH_DRAG_AND_DROP
@@ -228,7 +230,7 @@ void UIMachineView::applyMachineViewScaleFactor()
         return;
 
     /* Acquire selected scale-factor: */
-    double dScaleFactor = gEDataManager->scaleFactor(vboxGlobal().managedVMUuid(), m_uScreenId);
+    double dScaleFactor = gEDataManager->scaleFactor(uiCommon().managedVMUuid(), m_uScreenId);
 
     /* Take the device-pixel-ratio into account: */
     frameBuffer()->setDevicePixelRatio(gpDesktop->devicePixelRatio(machineWindow()));
@@ -242,7 +244,7 @@ void UIMachineView::applyMachineViewScaleFactor()
     frameBuffer()->setUseUnscaledHiDPIOutput(fUseUnscaledHiDPIOutput);
 
     /* Propagate the scale-factor related attributes to 3D service if necessary: */
-    if (machine().GetAccelerate3DEnabled() && vboxGlobal().is3DAvailable())
+    if (machine().GetGraphicsAdapter().GetAccelerate3DEnabled() && uiCommon().is3DAvailable())
     {
         double dScaleFactorFor3D = dScaleFactor;
 #if defined(VBOX_WS_WIN) || defined(VBOX_WS_X11)
@@ -305,7 +307,7 @@ void UIMachineView::sltPerformGuestResize(const QSize &toSize)
         storeGuestSizeHint(size);
 
     /* If auto-mount of guest-screens (auto-pilot) enabled: */
-    if (gEDataManager->autoMountGuestScreensEnabled(vboxGlobal().managedVMUuid()))
+    if (gEDataManager->autoMountGuestScreensEnabled(uiCommon().managedVMUuid()))
     {
         /* Do not send a hint if nothing has changed to prevent the guest being notified about its own changes: */
         if (   (int)m_pFrameBuffer->width() != size.width() || (int)m_pFrameBuffer->height() != size.height()
@@ -315,13 +317,13 @@ void UIMachineView::sltPerformGuestResize(const QSize &toSize)
             if (uisession()->isScreenVisible(screenId()) == uisession()->isScreenVisibleHostDesires(screenId()))
                 display().SetVideoModeHint(screenId(),
                                            uisession()->isScreenVisible(screenId()),
-                                           false, 0, 0, size.width(), size.height(), 0);
+                                           false, 0, 0, size.width(), size.height(), 0, true);
             /* If host desires to have guest-screen disabled and guest-screen is enabled, retrying: */
             else if (!uisession()->isScreenVisibleHostDesires(screenId()))
-                display().SetVideoModeHint(screenId(), false, false, 0, 0, 0, 0, 0);
+                display().SetVideoModeHint(screenId(), false, false, 0, 0, 0, 0, 0, true);
             /* If host desires to have guest-screen enabled and guest-screen is disabled, retrying: */
             else if (uisession()->isScreenVisibleHostDesires(screenId()))
-                display().SetVideoModeHint(screenId(), true, false, 0, 0, size.width(), size.height(), 0);
+                display().SetVideoModeHint(screenId(), true, false, 0, 0, size.width(), size.height(), 0, true);
         }
     }
     /* If auto-mount of guest-screens (auto-pilot) disabled: */
@@ -331,7 +333,7 @@ void UIMachineView::sltPerformGuestResize(const QSize &toSize)
         if ((int)m_pFrameBuffer->width() != size.width() || (int)m_pFrameBuffer->height() != size.height())
             display().SetVideoModeHint(screenId(),
                                        uisession()->isScreenVisible(screenId()),
-                                       false, 0, 0, size.width(), size.height(), 0);
+                                       false, 0, 0, size.width(), size.height(), 0, true);
     }
 }
 
@@ -425,7 +427,7 @@ void UIMachineView::sltHandleNotifyChange(int iWidth, int iHeight)
      * ourselves.  Windows guests should use VBoxVGA controllers, not VMSVGA. */
     if (   !isFullscreenOrSeamless()
         && uisession()->isGuestSupportsGraphics()
-        && (machine().GetGraphicsControllerType() != KGraphicsControllerType_VMSVGA))
+        && (machine().GetGraphicsAdapter().GetGraphicsControllerType() != KGraphicsControllerType_VMSVGA))
         storeGuestSizeHint(QSize(iWidth, iHeight));
 
     LogRelFlow(("GUI: UIMachineView::sltHandleNotifyChange: Complete for Screen=%d, Size=%dx%d\n",
@@ -502,11 +504,11 @@ void UIMachineView::sltDesktopResized()
 void UIMachineView::sltHandleScaleFactorChange(const QUuid &uMachineID)
 {
     /* Skip unrelated machine IDs: */
-    if (uMachineID != vboxGlobal().managedVMUuid())
+    if (uMachineID != uiCommon().managedVMUuid())
         return;
 
     /* Acquire selected scale-factor: */
-    double dScaleFactor = gEDataManager->scaleFactor(vboxGlobal().managedVMUuid(), m_uScreenId);
+    double dScaleFactor = gEDataManager->scaleFactor(uiCommon().managedVMUuid(), m_uScreenId);
 
     /* Take the device-pixel-ratio into account: */
     const double dDevicePixelRatioActual = frameBuffer()->devicePixelRatioActual();
@@ -518,7 +520,7 @@ void UIMachineView::sltHandleScaleFactorChange(const QUuid &uMachineID)
     frameBuffer()->setUseUnscaledHiDPIOutput(fUseUnscaledHiDPIOutput);
 
     /* Propagate the scale-factor related attributes to 3D service if necessary: */
-    if (machine().GetAccelerate3DEnabled() && vboxGlobal().is3DAvailable())
+    if (machine().GetGraphicsAdapter().GetAccelerate3DEnabled() && uiCommon().is3DAvailable())
     {
         double dScaleFactorFor3D = dScaleFactor;
 #if defined(VBOX_WS_WIN) || defined(VBOX_WS_X11)
@@ -550,11 +552,11 @@ void UIMachineView::sltHandleScaleFactorChange(const QUuid &uMachineID)
 void UIMachineView::sltHandleScalingOptimizationChange(const QUuid &uMachineID)
 {
     /* Skip unrelated machine IDs: */
-    if (uMachineID != vboxGlobal().managedVMUuid())
+    if (uMachineID != uiCommon().managedVMUuid())
         return;
 
     /* Take the scaling-optimization type into account: */
-    frameBuffer()->setScalingOptimizationType(gEDataManager->scalingOptimizationType(vboxGlobal().managedVMUuid()));
+    frameBuffer()->setScalingOptimizationType(gEDataManager->scalingOptimizationType(uiCommon().managedVMUuid()));
 
     /* Update viewport: */
     viewport()->update();
@@ -616,6 +618,37 @@ void UIMachineView::sltMachineStateChanged()
     }
 
     m_previousState = state;
+}
+
+void UIMachineView::sltMousePointerShapeChange()
+{
+    /* Fetch the shape and the mask: */
+    QPixmap pixmapShape = uisession()->cursorShapePixmap();
+    QPixmap pixmapMask = uisession()->cursorMaskPixmap();
+    const QPoint hotspot = uisession()->cursorHotspot();
+    uint uXHot = hotspot.x();
+    uint uYHot = hotspot.y();
+
+    /* If there is no mask: */
+    if (pixmapMask.isNull())
+    {
+        /* Scale the shape pixmap and
+         * compose the cursor on the basis of shape only: */
+        updateMousePointerPixmapScaling(pixmapShape, uXHot, uYHot);
+        m_cursor = QCursor(pixmapShape, uXHot, uYHot);
+    }
+    /* Otherwise: */
+    else
+    {
+        /* Scale the shape and the mask pixmaps and
+         * compose the cursor on the basis of shape and mask both: */
+        updateMousePointerPixmapScaling(pixmapShape, uXHot, uYHot);
+        /// @todo updateMousePointerPixmapScaling(pixmapMask, uXHot, uYHot);
+        m_cursor = QCursor(pixmapShape, pixmapMask, uXHot, uYHot);
+    }
+
+    /* Let the listeners know: */
+    emit sigMousePointerShapeChange();
 }
 
 UIMachineView::UIMachineView(  UIMachineWindow *pMachineWindow
@@ -696,10 +729,10 @@ void UIMachineView::prepareFrameBuffer()
 #endif /* !VBOX_WITH_VIDEOHWACCEL */
 
         /* Take scaling optimization type into account: */
-        m_pFrameBuffer->setScalingOptimizationType(gEDataManager->scalingOptimizationType(vboxGlobal().managedVMUuid()));
+        m_pFrameBuffer->setScalingOptimizationType(gEDataManager->scalingOptimizationType(uiCommon().managedVMUuid()));
 
         /* Acquire selected scale-factor: */
-        double dScaleFactor = gEDataManager->scaleFactor(vboxGlobal().managedVMUuid(), m_uScreenId);
+        double dScaleFactor = gEDataManager->scaleFactor(uiCommon().managedVMUuid(), m_uScreenId);
 
         /* Take the device-pixel-ratio into account: */
         const double dDevicePixelRatioFormal = gpDesktop->devicePixelRatio(machineWindow());
@@ -714,7 +747,7 @@ void UIMachineView::prepareFrameBuffer()
         m_pFrameBuffer->setUseUnscaledHiDPIOutput(fUseUnscaledHiDPIOutput);
 
         /* Propagate the scale-factor related attributes to 3D service if necessary: */
-        if (machine().GetAccelerate3DEnabled() && vboxGlobal().is3DAvailable())
+        if (machine().GetGraphicsAdapter().GetAccelerate3DEnabled() && uiCommon().is3DAvailable())
         {
             double dScaleFactorFor3D = dScaleFactor;
 #if defined(VBOX_WS_WIN) || defined(VBOX_WS_X11)
@@ -820,20 +853,22 @@ void UIMachineView::prepareFilters()
 void UIMachineView::prepareConnections()
 {
     /* Desktop resolution change (e.g. monitor hotplug): */
-    connect(gpDesktop, SIGNAL(sigHostScreenResized(int)), this,
-            SLOT(sltDesktopResized()));
+    connect(gpDesktop, &UIDesktopWidgetWatchdog::sigHostScreenResized,
+            this, &UIMachineView::sltDesktopResized);
     /* Scale-factor change: */
-    connect(gEDataManager, SIGNAL(sigScaleFactorChange(const QUuid &)),
-            this, SLOT(sltHandleScaleFactorChange(const QUuid &)));
+    connect(gEDataManager, &UIExtraDataManager::sigScaleFactorChange,
+            this, &UIMachineView::sltHandleScaleFactorChange);
     /* Scaling-optimization change: */
-    connect(gEDataManager, SIGNAL(sigScalingOptimizationTypeChange(const QUuid &)),
-            this, SLOT(sltHandleScalingOptimizationChange(const QUuid &)));
+    connect(gEDataManager, &UIExtraDataManager::sigScalingOptimizationTypeChange,
+            this, &UIMachineView::sltHandleScalingOptimizationChange);
 }
 
 void UIMachineView::prepareConsoleConnections()
 {
     /* Machine state-change updater: */
-    connect(uisession(), SIGNAL(sigMachineStateChange()), this, SLOT(sltMachineStateChanged()));
+    connect(uisession(), &UISession::sigMachineStateChange, this, &UIMachineView::sltMachineStateChanged);
+    /* Mouse pointer shape updater: */
+    connect(uisession(), &UISession::sigMousePointerShapeChange, this, &UIMachineView::sltMousePointerShapeChange);
 }
 
 void UIMachineView::cleanupFrameBuffer()
@@ -942,7 +977,7 @@ QSize UIMachineView::sizeHint() const
     /// @todo Fix all DEBUGGER stuff!
     /* HACK ALERT! Really ugly workaround for the resizing to 9x1 done by DevVGA if provoked before power on. */
     if (size.width() < 16 || size.height() < 16)
-        if (vboxGlobal().shouldStartPaused() || vboxGlobal().isDebuggerAutoShowEnabled())
+        if (uiCommon().shouldStartPaused() || uiCommon().isDebuggerAutoShowEnabled())
             size = QSize(640, 480);
 #endif /* !VBOX_WITH_DEBUGGER_GUI */
 
@@ -1012,13 +1047,13 @@ bool UIMachineView::guestScreenVisibilityStatus() const
         return true;
 
     /* Actual value for other guest-screens: */
-    return gEDataManager->lastGuestScreenVisibilityStatus(m_uScreenId, vboxGlobal().managedVMUuid());
+    return gEDataManager->lastGuestScreenVisibilityStatus(m_uScreenId, uiCommon().managedVMUuid());
 }
 
 QSize UIMachineView::guestScreenSizeHint() const
 {
     /* Load guest-screen size-hint: */
-    QSize sizeHint = gEDataManager->lastGuestScreenSizeHint(m_uScreenId, vboxGlobal().managedVMUuid());
+    QSize sizeHint = gEDataManager->lastGuestScreenSizeHint(m_uScreenId, uiCommon().managedVMUuid());
 
     /* Invent the default if necessary: */
     if (!sizeHint.isValid())
@@ -1036,7 +1071,7 @@ void UIMachineView::storeGuestSizeHint(const QSize &sizeHint)
     /* Save guest-screen size-hint: */
     LogRel2(("GUI: UIMachineView::storeGuestSizeHint: Storing guest-screen size-hint for screen %d as %dx%d\n",
              (int)screenId(), sizeHint.width(), sizeHint.height()));
-    gEDataManager->setLastGuestScreenSizeHint(m_uScreenId, sizeHint, vboxGlobal().managedVMUuid());
+    gEDataManager->setLastGuestScreenSizeHint(m_uScreenId, sizeHint, uiCommon().managedVMUuid());
 }
 
 void UIMachineView::handleScaleChange()
@@ -1103,7 +1138,7 @@ void UIMachineView::takePausePixmapLive()
     screenShot.fill(0);
 
     /* For separate process: */
-    if (vboxGlobal().isSeparateProcess())
+    if (uiCommon().isSeparateProcess())
     {
         /* Take screen-data to array: */
         const QVector<BYTE> screenData = display().TakeScreenShotToArray(screenId(), screenShot.width(), screenShot.height(), KBitmapFormat_BGR0);
@@ -1905,4 +1940,85 @@ QSize UIMachineView::scaledBackward(QSize size) const
 
     /* Return result: */
     return size;
+}
+
+void UIMachineView::updateMousePointerPixmapScaling(QPixmap &pixmap, uint &uXHot, uint &uYHot)
+{
+#if defined(VBOX_WS_MAC)
+
+    /* Take into account scale-factor if necessary: */
+    const double dScaleFactor = frameBuffer()->scaleFactor();
+    //printf("Scale-factor: %f\n", dScaleFactor);
+    if (dScaleFactor > 1.0)
+    {
+        /* Scale the pixmap up: */
+        pixmap = pixmap.scaled(pixmap.width() * dScaleFactor, pixmap.height() * dScaleFactor,
+                               Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+        uXHot *= dScaleFactor;
+        uYHot *= dScaleFactor;
+    }
+
+    /* Take into account device-pixel-ratio if necessary: */
+    const double dDevicePixelRatio = frameBuffer()->devicePixelRatio();
+    const bool fUseUnscaledHiDPIOutput = frameBuffer()->useUnscaledHiDPIOutput();
+    //printf("Device-pixel-ratio: %f, Unscaled HiDPI Output: %d\n",
+    //       dDevicePixelRatio, fUseUnscaledHiDPIOutput);
+    if (dDevicePixelRatio > 1.0 && fUseUnscaledHiDPIOutput)
+    {
+        /* Scale the pixmap down: */
+        pixmap.setDevicePixelRatio(dDevicePixelRatio);
+        uXHot /= dDevicePixelRatio;
+        uYHot /= dDevicePixelRatio;
+    }
+
+#elif defined(VBOX_WS_WIN) || defined(VBOX_WS_X11)
+
+    /* We want to scale the pixmap just once, so let's prepare cumulative multiplier: */
+    double dScaleMultiplier = 1.0;
+
+    /* Take into account scale-factor if necessary: */
+    const double dScaleFactor = frameBuffer()->scaleFactor();
+    //printf("Scale-factor: %f\n", dScaleFactor);
+    if (dScaleFactor > 1.0)
+        dScaleMultiplier *= dScaleFactor;
+
+    /* Take into account device-pixel-ratio if necessary: */
+# ifdef VBOX_WS_WIN
+    const double dDevicePixelRatio = frameBuffer()->devicePixelRatio();
+# endif
+    const double dDevicePixelRatioActual = frameBuffer()->devicePixelRatioActual();
+    const bool fUseUnscaledHiDPIOutput = frameBuffer()->useUnscaledHiDPIOutput();
+    //printf("Device-pixel-ratio/actual: %f/%f, Unscaled HiDPI Output: %d\n",
+    //       dDevicePixelRatio, dDevicePixelRatioActual, fUseUnscaledHiDPIOutput);
+    if (dDevicePixelRatioActual > 1.0 && !fUseUnscaledHiDPIOutput)
+        dScaleMultiplier *= dDevicePixelRatioActual;
+
+    /* If scale multiplier was set: */
+    if (dScaleMultiplier > 1.0)
+    {
+        /* Scale the pixmap up: */
+        pixmap = pixmap.scaled(pixmap.width() * dScaleMultiplier, pixmap.height() * dScaleMultiplier,
+                               Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+        uXHot *= dScaleMultiplier;
+        uYHot *= dScaleMultiplier;
+    }
+
+# ifdef VBOX_WS_WIN
+    /* If device pixel ratio was set: */
+    if (dDevicePixelRatio > 1.0)
+    {
+        /* Scale the pixmap down: */
+        pixmap.setDevicePixelRatio(dDevicePixelRatio);
+        uXHot /= dDevicePixelRatio;
+        uYHot /= dDevicePixelRatio;
+    }
+# endif
+
+#else
+
+    Q_UNUSED(pixmap);
+    Q_UNUSED(uXHot);
+    Q_UNUSED(uYHot);
+
+#endif
 }

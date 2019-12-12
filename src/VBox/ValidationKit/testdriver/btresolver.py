@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # $Id: btresolver.py $
-# pylint: disable=C0302
+# pylint: disable=too-many-lines
 
 """
 Backtrace resolver using external debugging symbols and RTLdrFlt.
@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 131247 $"
 
 
 # Standard Python imports.
@@ -547,9 +547,9 @@ class BacktraceResolver(object):
             if self.sTargetOs == 'linux':
                 self.oResolverOs = BacktraceResolverOsLinux(self.sScratchDbgPath, self.sScratchPath, self.fnLog);
             elif self.sTargetOs == 'darwin':
-                self.oResolverOs = BacktraceResolverOsDarwin(self.sScratchDbgPath, self.sScratchPath, self.fnLog); # pylint: disable=R0204
+                self.oResolverOs = BacktraceResolverOsDarwin(self.sScratchDbgPath, self.sScratchPath, self.fnLog); # pylint: disable=redefined-variable-type
             elif self.sTargetOs == 'solaris':
-                self.oResolverOs = BacktraceResolverOsSolaris(self.sScratchDbgPath, self.sScratchPath, self.fnLog); # pylint: disable=R0204
+                self.oResolverOs = BacktraceResolverOsSolaris(self.sScratchDbgPath, self.sScratchPath, self.fnLog); # pylint: disable=redefined-variable-type
             else:
                 self.log('The backtrace resolver is not supported on %s' % (self.sTargetOs,));
                 fRc = False;

@@ -48,8 +48,6 @@ struc CPUMINFO
     .paCpuIdLeavesR0        RTR0PTR_RES 1           ; R0PTRTYPE(PCPUMCPUIDLEAF)
     .paMsrRangesR3          RTR3PTR_RES 1           ; R3PTRTYPE(PCPUMMSRRANGE)
     .paCpuIdLeavesR3        RTR3PTR_RES 1           ; R3PTRTYPE(PCPUMCPUIDLEAF)
-    .paMsrRangesRC          RTRCPTR_RES 1           ; RCPTRTYPE(PCPUMMSRRANGE)
-    .paCpuIdLeavesRC        RTRCPTR_RES 1           ; RCPTRTYPE(PCPUMCPUIDLEAF)
 endstruc
 
 
@@ -81,13 +79,11 @@ endstruc
 
 struc CPUM
     ;...
-    .offCPUMCPU0                resd    1
     .fHostUseFlags              resd    1
 
     ; CR4 masks
     .CR4.AndMask                resd    1
     .CR4.OrMask                 resd    1
-    ; entered rawmode?
     .u8PortableCpuIdLevel       resb    1
     .fPendingRestore            resb    1
 
@@ -98,7 +94,7 @@ struc CPUM
     alignb 64
     .HostFeatures               resb    48
     .GuestFeatures              resb    48
-    .GuestInfo                  resb    RTHCPTR_CB*4 + RTRCPTR_CB*2 + 4*12
+    .GuestInfo                  resb    RTHCPTR_CB*4 + 4*12
 
     ; Patch manager saved state compatability CPUID leaf arrays
     .aGuestCpuIdPatmStd         resb    16*6
@@ -226,9 +222,9 @@ struc CPUMCPU
     alignb 8
     .Guest.pXStateR3      RTR3PTR_RES 1
     alignb 8
-    .Guest.pXStateRC      RTRCPTR_RES 1
     .Guest.aoffXState         resw    64
     .Guest.fWorldSwitcher     resd    1
+    alignb 8
     .Guest.fExtrn             resq    1
     alignb 8
     .Guest.hwvirt.svm.uMsrHSavePa            resq         1
@@ -252,7 +248,7 @@ struc CPUMCPU
     .Guest.hwvirt.svm.pvIoBitmapR3           RTR3PTR_RES  1
     alignb 8
     .Guest.hwvirt.svm.HCPhysVmcb             RTHCPHYS_RES 1
-    .Guest.hwvirt.svm.u64Padding0            resq         19
+    .Guest.hwvirt.svm.abPadding0             resb       272
     .Guest.hwvirt.enmHwvirt                  resd         1
     .Guest.hwvirt.fGif                       resb         1
     alignb 8
@@ -265,31 +261,31 @@ struc CPUMCPU
     ;
     ; Other stuff.
     ;
+    .pNestedVmxPreemptTimerR0   RTR0PTR_RES    1
+    .pNestedVmxPreemptTimerR3   RTR3PTR_RES    1
+
     .fUseFlags            resd    1
     .fChanged             resd    1
-    .offCPUM              resd    1
     .u32RetCode           resd    1
 
 %ifdef VBOX_WITH_VMMR0_DISABLE_LAPIC_NMI
-    .pvApicBase           RTR0PTR_RES 1
     .fApicDisVectors      resd    1
+    .pvApicBase           RTR0PTR_RES 1
     .fX2Apic              resb    1
 %else
-    .abPadding3           resb    (RTR0PTR_CB + 4 + 1)
+    .abPadding3           resb    (4 + RTR0PTR_CB + 1)
 %endif
 
-    .fRawEntered          resb    1
-    .fRemEntered          resb    1
-    .fCpuIdApicFeatureVisible resb 1
+    .fRemEntered                resb    1
+    .fCpuIdApicFeatureVisible   resb    1
 
-    .abPadding2           resb    (64 - 16 - RTR0PTR_CB - 4 - 1 - 3)
+    .abPadding2           resb    (64 - (RTR0PTR_CB + RTR3PTR_CB + 12 + 4 + RTR0PTR_CB + 1 + 2))
 
     ;
     ; Host context state
     ;
     alignb 64
     .Host                resb    0
-%if HC_ARCH_BITS == 64
     ;.Host.rax            resq    1 - scratch
     .Host.rbx            resq    1
     ;.Host.rcx            resq    1 - scratch
@@ -308,20 +304,6 @@ struc CPUMCPU
     .Host.r15            resq    1
     ;.Host.rip            resd    1 - scratch
     .Host.rflags         resq    1
-%endif
-%if HC_ARCH_BITS == 32
-    ;.Host.eax            resd    1 - scratch
-    .Host.ebx            resd    1
-    ;.Host.edx            resd    1 - scratch
-    ;.Host.ecx            resd    1 - scratch
-    .Host.edi            resd    1
-    .Host.esi            resd    1
-    .Host.ebp            resd    1
-    .Host.eflags         resd    1
-    ;.Host.eip            resd    1 - scratch
-    ; lss pair!
-    .Host.esp            resd    1
-%endif
     .Host.ss             resw    1
     .Host.ssPadding      resw    1
     .Host.gs             resw    1
@@ -334,38 +316,6 @@ struc CPUMCPU
     .Host.dsPadding      resw    1
     .Host.cs             resw    1
     .Host.csPadding      resw    1
-
-%if HC_ARCH_BITS == 32
-    .Host.cr0            resd    1
-    ;.Host.cr2            resd    1 - scratch
-    .Host.cr3            resd    1
-    .Host.cr4            resd    1
-    .Host.cr0Fpu         resd    1
-
-    .Host.dr0            resd    1
-    .Host.dr1            resd    1
-    .Host.dr2            resd    1
-    .Host.dr3            resd    1
-    .Host.dr6            resd    1
-    .Host.dr7            resd    1
-
-    .Host.gdtr           resb    6           ; GDT limit + linear address
-    .Host.gdtrPadding    resw    1
-    .Host.idtr           resb    6           ; IDT limit + linear address
-    .Host.idtrPadding    resw    1
-    .Host.ldtr           resw    1
-    .Host.ldtrPadding    resw    1
-    .Host.tr             resw    1
-    .Host.trPadding      resw    1
-
-    alignb 8
-    .Host.SysEnter.cs    resq    1
-    .Host.SysEnter.eip   resq    1
-    .Host.SysEnter.esp   resq    1
-    .Host.efer           resq    1
-    .Host.auPadding      resb    (20)
-
-%else ; 64-bit
 
     .Host.cr0Fpu:
     .Host.cr0            resq    1
@@ -397,8 +347,6 @@ struc CPUMCPU
     .Host.GSbase         resq    1
     .Host.efer           resq    1
     .Host.auPadding      resb    4
-%endif ; 64-bit
-    .Host.pXStateRC RTRCPTR_RES  1
     alignb RTR0PTR_CB
     .Host.pXStateR0 RTR0PTR_RES  1
     .Host.pXStateR3 RTR3PTR_RES  1
@@ -407,146 +355,12 @@ struc CPUMCPU
     .Host.fXStateMask    resq    1
 
     ;
-    ; Hypervisor Context (same as .Guest above).
+    ; Hypervisor Context.
     ;
     alignb 64
     .Hyper                    resq    0
-    .Hyper.eax                resq    1
-    .Hyper.ecx                resq    1
-    .Hyper.edx                resq    1
-    .Hyper.ebx                resq    1
-    .Hyper.esp                resq    1
-    .Hyper.ebp                resq    1
-    .Hyper.esi                resq    1
-    .Hyper.edi                resq    1
-    .Hyper.r8                 resq    1
-    .Hyper.r9                 resq    1
-    .Hyper.r10                resq    1
-    .Hyper.r11                resq    1
-    .Hyper.r12                resq    1
-    .Hyper.r13                resq    1
-    .Hyper.r14                resq    1
-    .Hyper.r15                resq    1
-    .Hyper.es.Sel             resw    1
-    .Hyper.es.PaddingSel      resw    1
-    .Hyper.es.ValidSel        resw    1
-    .Hyper.es.fFlags          resw    1
-    .Hyper.es.u64Base         resq    1
-    .Hyper.es.u32Limit        resd    1
-    .Hyper.es.Attr            resd    1
-    .Hyper.cs.Sel             resw    1
-    .Hyper.cs.PaddingSel      resw    1
-    .Hyper.cs.ValidSel        resw    1
-    .Hyper.cs.fFlags          resw    1
-    .Hyper.cs.u64Base         resq    1
-    .Hyper.cs.u32Limit        resd    1
-    .Hyper.cs.Attr            resd    1
-    .Hyper.ss.Sel             resw    1
-    .Hyper.ss.PaddingSel      resw    1
-    .Hyper.ss.ValidSel        resw    1
-    .Hyper.ss.fFlags          resw    1
-    .Hyper.ss.u64Base         resq    1
-    .Hyper.ss.u32Limit        resd    1
-    .Hyper.ss.Attr            resd    1
-    .Hyper.ds.Sel             resw    1
-    .Hyper.ds.PaddingSel      resw    1
-    .Hyper.ds.ValidSel        resw    1
-    .Hyper.ds.fFlags          resw    1
-    .Hyper.ds.u64Base         resq    1
-    .Hyper.ds.u32Limit        resd    1
-    .Hyper.ds.Attr            resd    1
-    .Hyper.fs.Sel             resw    1
-    .Hyper.fs.PaddingSel      resw    1
-    .Hyper.fs.ValidSel        resw    1
-    .Hyper.fs.fFlags          resw    1
-    .Hyper.fs.u64Base         resq    1
-    .Hyper.fs.u32Limit        resd    1
-    .Hyper.fs.Attr            resd    1
-    .Hyper.gs.Sel             resw    1
-    .Hyper.gs.PaddingSel      resw    1
-    .Hyper.gs.ValidSel        resw    1
-    .Hyper.gs.fFlags          resw    1
-    .Hyper.gs.u64Base         resq    1
-    .Hyper.gs.u32Limit        resd    1
-    .Hyper.gs.Attr            resd    1
-    .Hyper.eip                resq    1
-    .Hyper.eflags             resq    1
-    .Hyper.cr0                resq    1
-    .Hyper.cr2                resq    1
-    .Hyper.cr3                resq    1
-    .Hyper.cr4                resq    1
     .Hyper.dr                 resq    8
-    .Hyper.gdtrPadding        resw    3
-    .Hyper.gdtr               resw    0
-    .Hyper.gdtr.cbGdt         resw    1
-    .Hyper.gdtr.pGdt          resq    1
-    .Hyper.idtrPadding        resw    3
-    .Hyper.idtr               resw    0
-    .Hyper.idtr.cbIdt         resw    1
-    .Hyper.idtr.pIdt          resq    1
-    .Hyper.ldtr.Sel           resw    1
-    .Hyper.ldtr.PaddingSel    resw    1
-    .Hyper.ldtr.ValidSel      resw    1
-    .Hyper.ldtr.fFlags        resw    1
-    .Hyper.ldtr.u64Base       resq    1
-    .Hyper.ldtr.u32Limit      resd    1
-    .Hyper.ldtr.Attr          resd    1
-    .Hyper.tr.Sel             resw    1
-    .Hyper.tr.PaddingSel      resw    1
-    .Hyper.tr.ValidSel        resw    1
-    .Hyper.tr.fFlags          resw    1
-    .Hyper.tr.u64Base         resq    1
-    .Hyper.tr.u32Limit        resd    1
-    .Hyper.tr.Attr            resd    1
-    .Hyper.SysEnter.cs        resb    8
-    .Hyper.SysEnter.eip       resb    8
-    .Hyper.SysEnter.esp       resb    8
-    .Hyper.msrEFER            resb    8
-    .Hyper.msrSTAR            resb    8
-    .Hyper.msrPAT             resb    8
-    .Hyper.msrLSTAR           resb    8
-    .Hyper.msrCSTAR           resb    8
-    .Hyper.msrSFMASK          resb    8
-    .Hyper.msrKERNELGSBASE    resb    8
-    .Hyper.uMsrPadding0       resb    8
-    alignb 8
-    .Hyper.aXcr               resq    2
-    .Hyper.fXStateMask        resq    1
-    .Hyper.pXStateR0      RTR0PTR_RES 1
-    alignb 8
-    .Hyper.pXStateR3      RTR3PTR_RES 1
-    alignb 8
-    .Hyper.pXStateRC      RTRCPTR_RES 1
-    .Hyper.aoffXState         resw    64
-    .Hyper.fWorldSwitcher     resd    1
-    .Hyper.fExtrn             resq    1
-    alignb 8
-    .Hyper.hwvirt.svm.uMsrHSavePa            resq         1
-    .Hyper.hwvirt.svm.GCPhysVmcb             resq         1
-    .Hyper.hwvirt.svm.pVmcbR0                RTR0PTR_RES  1
-    alignb 8
-    .Hyper.hwvirt.svm.pVmcbR3                RTR3PTR_RES  1
-    alignb 8
-    .Hyper.hwvirt.svm.HostState              resb         184
-    .Hyper.hwvirt.svm.uPrevPauseTick         resq         1
-    .Hyper.hwvirt.svm.cPauseFilter           resw         1
-    .Hyper.hwvirt.svm.cPauseFilterThreshold  resw         1
-    .Hyper.hwvirt.svm.fInterceptEvents       resb         1
-    alignb 8
-    .Hyper.hwvirt.svm.pvMsrBitmapR0          RTR0PTR_RES  1
-    alignb 8
-    .Hyper.hwvirt.svm.pvMsrBitmapR3          RTR3PTR_RES  1
-    alignb 8
-    .Hyper.hwvirt.svm.pvIoBitmapR0           RTR0PTR_RES  1
-    alignb 8
-    .Hyper.hwvirt.svm.pvIoBitmapR3           RTR3PTR_RES  1
-    alignb 8
-    .Hyper.hwvirt.svm.HCPhysVmcb             RTHCPHYS_RES 1
-    .Hyper.hwvirt.svm.u64Padding0            resq         19
-    .Hyper.hwvirt.enmHwvirt                  resd         1
-    .Hyper.hwvirt.fGif                       resb         1
-    alignb 8
-    .Hyper.hwvirt.fLocalForcedActions        resd         1
+    .Hyper.cr3                resq    1
     alignb 64
 
 %ifdef VBOX_WITH_CRASHDUMP_MAGIC
@@ -554,37 +368,6 @@ struc CPUMCPU
     .uMagic              resq    1
 %endif
 endstruc
-
-
-;;
-; Converts the CPUM pointer to CPUMCPU
-; @param   %1   register name
-%macro CPUMCPU_FROM_CPUM 1
-    add     %1, dword [%1 + CPUM.offCPUMCPU0]
-%endmacro
-
-;;
-; Converts the CPUM pointer to CPUMCPU
-; @param   %1   register name (CPUM)
-; @param   %2   register name (CPUMCPU offset)
-%macro CPUMCPU_FROM_CPUM_WITH_OFFSET 2
-    add     %1, %2
-%endmacro
-
-;;
-; Converts the CPUMCPU pointer to CPUM
-; @param   %1   register name
-%macro CPUM_FROM_CPUMCPU 1
-    sub     %1, dword [%1 + CPUMCPU.offCPUM]
-%endmacro
-
-;;
-; Converts the CPUMCPU pointer to CPUM
-; @param   %1   register name (CPUM)
-; @param   %2   register name (CPUMCPU offset)
-%macro CPUM_FROM_CPUMCPU_WITH_OFFSET 2
-    sub     %1, %2
-%endmacro
 
 
 
@@ -642,17 +425,8 @@ endstruc
 ; @uses     EFLAGS, CR0, %1, %2
 ;
 %macro CPUMRZ_TOUCH_FPU_CLEAR_CR0_FPU_TRAPS_SET_RC 3
- %ifdef IN_RC
         ;
-        ; raw-mode - always clear it.  We won't be here otherwise.
-        ;
-        mov     %2, cr0
-        and     %2, ~(X86_CR0_TS | X86_CR0_EM)
-        mov     cr0, %2
-
- %else
-        ;
-        ; ring-0 - slightly complicated.
+        ; ring-0 - slightly complicated (than old raw-mode).
         ;
         xor     %1, %1                          ; 0 / VINF_SUCCESS. Wishing for no CR0 changes.
         mov     [%3 + CPUMCPU.Host.cr0Fpu], %1
@@ -661,19 +435,18 @@ endstruc
         test    %2, X86_CR0_TS | X86_CR0_EM ; Make sure its safe to access the FPU state.
         jz      %%no_cr0_change
 
-  %ifdef VMM_R0_TOUCH_FPU
+ %ifdef VMM_R0_TOUCH_FPU
         ; Touch the state and check that the kernel updated CR0 for us.
         movdqa  xmm0, xmm0
         mov     %2, cr0
         test    %2, X86_CR0_TS | X86_CR0_EM
         jz      %%cr0_changed
-  %endif
+ %endif
 
         ; Save CR0 and clear them flags ourselves.
         mov     [%3 + CPUMCPU.Host.cr0Fpu], %2
         and     %2, ~(X86_CR0_TS | X86_CR0_EM)
         mov     cr0, %2
- %endif ; IN_RING0
 
 %%cr0_changed:
         mov     %1,  VINF_CPUM_HOST_CR0_MODIFIED
@@ -707,8 +480,6 @@ endstruc
         ;
  %ifdef IN_RING0
         mov     pXState, [pCpumCpu + CPUMCPU.Host.pXStateR0]
- %elifdef IN_RC
-        mov     pXState, [pCpumCpu + CPUMCPU.Host.pXStateRC]
  %else
   %error "Unsupported context!"
  %endif
@@ -754,8 +525,6 @@ endstruc
         ;
  %ifdef IN_RING0
         mov     pXState, [pCpumCpu + CPUMCPU.Host.pXStateR0]
- %elifdef IN_RC
-        mov     pXState, [pCpumCpu + CPUMCPU.Host.pXStateRC]
  %else
   %error "Unsupported context!"
  %endif
@@ -843,8 +612,6 @@ endstruc
         ;
  %ifdef IN_RING0
         mov     pXState, [pCpumCpu + CPUMCPU.Guest.pXStateR0]
- %elifdef IN_RC
-        mov     pXState, [pCpumCpu + CPUMCPU.Guest.pXStateRC]
  %else
   %error "Unsupported context!"
  %endif
@@ -914,8 +681,6 @@ endstruc
         ;
  %ifdef IN_RING0
         mov     pXState, [pCpumCpu + CPUMCPU.Guest.pXStateR0]
- %elifdef IN_RC
-        mov     pXState, [pCpumCpu + CPUMCPU.Guest.pXStateRC]
  %else
   %error "Unsupported context!"
  %endif

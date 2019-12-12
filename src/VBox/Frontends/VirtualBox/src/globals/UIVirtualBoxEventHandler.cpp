@@ -16,7 +16,7 @@
  */
 
 /* GUI includes: */
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #include "UIExtraDataManager.h"
 #include "UIMainEventListener.h"
 #include "UIVirtualBoxEventHandler.h"
@@ -55,6 +55,25 @@ signals:
     void sigSnapshotChange(const QUuid &uId, const QUuid &uSnapshotId);
     /** Notifies about snapshot with @a uSnapshotId was restored for the machine with @a uId. */
     void sigSnapshotRestore(const QUuid &uId, const QUuid &uSnapshotId);
+
+    /** Notifies about storage controller change.
+      * @param  uMachineId         Brings the ID of machine corresponding controller belongs to.
+      * @param  strControllerName  Brings the name of controller this event is related to. */
+    void sigStorageControllerChange(const QUuid &uMachineId, const QString &strControllerName);
+    /** Notifies about storage device change.
+      * @param  comAttachment  Brings corresponding attachment.
+      * @param  fRemoved       Brings whether medium is removed or added.
+      * @param  fSilent        Brings whether this change has gone silent for guest. */
+    void sigStorageDeviceChange(CMediumAttachment comAttachment, bool fRemoved, bool fSilent);
+    /** Notifies about storage medium @a comAttachment state change. */
+    void sigMediumChange(CMediumAttachment comAttachment);
+    /** Notifies about storage @a comMedium config change. */
+    void sigMediumConfigChange(CMedium comMedium);
+    /** Notifies about storage medium is (un)registered.
+      * @param  uMediumId      Brings corresponding medium ID.
+      * @param  enmMediumType  Brings corresponding medium type.
+      * @param  fRegistered    Brings whether medium is registered or unregistered. */
+    void sigMediumRegistered(const QUuid &uMediumId, KDeviceType enmMediumType, bool fRegistered);
 
 public:
 
@@ -126,14 +145,14 @@ void UIVirtualBoxEventHandlerProxy::prepareListener()
     m_comEventListener = CEventListener(m_pQtListener);
 
     /* Get VirtualBoxClient: */
-    const CVirtualBoxClient comVBoxClient = vboxGlobal().virtualBoxClient();
+    const CVirtualBoxClient comVBoxClient = uiCommon().virtualBoxClient();
     AssertWrapperOk(comVBoxClient);
     /* Get VirtualBoxClient event source: */
     CEventSource comEventSourceVBoxClient = comVBoxClient.GetEventSource();
     AssertWrapperOk(comEventSourceVBoxClient);
 
     /* Get VirtualBox: */
-    const CVirtualBox comVBox = vboxGlobal().virtualBox();
+    const CVirtualBox comVBox = uiCommon().virtualBox();
     AssertWrapperOk(comVBox);
     /* Get VirtualBox event source: */
     CEventSource comEventSourceVBox = comVBox.GetEventSource();
@@ -157,7 +176,12 @@ void UIVirtualBoxEventHandlerProxy::prepareListener()
         << KVBoxEventType_OnSnapshotTaken
         << KVBoxEventType_OnSnapshotDeleted
         << KVBoxEventType_OnSnapshotChanged
-        << KVBoxEventType_OnSnapshotRestored;
+        << KVBoxEventType_OnSnapshotRestored
+        << KVBoxEventType_OnStorageControllerChanged
+        << KVBoxEventType_OnStorageDeviceChanged
+        << KVBoxEventType_OnMediumChanged
+        << KVBoxEventType_OnMediumConfigChanged
+        << KVBoxEventType_OnMediumRegistered;
 
     /* Register event listener for event source aggregator: */
     m_comEventSource.RegisterListener(m_comEventListener, eventTypes,
@@ -174,7 +198,8 @@ void UIVirtualBoxEventHandlerProxy::prepareListener()
 
 void UIVirtualBoxEventHandlerProxy::prepareConnections()
 {
-    /* Create direct (sync) connections for signals of main listener: */
+    /* Create direct (sync) connections for signals of main event listener.
+     * Keep in mind that the abstract Qt4 connection notation should be used here. */
     connect(m_pQtListener->getWrapped(), SIGNAL(sigVBoxSVCAvailabilityChange(bool)),
             this, SIGNAL(sigVBoxSVCAvailabilityChange(bool)),
             Qt::DirectConnection);
@@ -201,6 +226,21 @@ void UIVirtualBoxEventHandlerProxy::prepareConnections()
             Qt::DirectConnection);
     connect(m_pQtListener->getWrapped(), SIGNAL(sigSnapshotRestore(QUuid, QUuid)),
             this, SIGNAL(sigSnapshotRestore(QUuid, QUuid)),
+            Qt::DirectConnection);
+    connect(m_pQtListener->getWrapped(), SIGNAL(sigStorageControllerChange(QUuid, QString)),
+            this, SIGNAL(sigStorageControllerChange(QUuid, QString)),
+            Qt::DirectConnection);
+    connect(m_pQtListener->getWrapped(), SIGNAL(sigStorageDeviceChange(CMediumAttachment, bool, bool)),
+            this, SIGNAL(sigStorageDeviceChange(CMediumAttachment, bool, bool)),
+            Qt::DirectConnection);
+    connect(m_pQtListener->getWrapped(), SIGNAL(sigMediumChange(CMediumAttachment)),
+            this, SIGNAL(sigMediumChange(CMediumAttachment)),
+            Qt::DirectConnection);
+    connect(m_pQtListener->getWrapped(), SIGNAL(sigMediumConfigChange(CMedium)),
+            this, SIGNAL(sigMediumConfigChange(CMedium)),
+            Qt::DirectConnection);
+    connect(m_pQtListener->getWrapped(), SIGNAL(sigMediumRegistered(QUuid, KDeviceType, bool)),
+            this, SIGNAL(sigMediumRegistered(QUuid, KDeviceType, bool)),
             Qt::DirectConnection);
 }
 
@@ -271,7 +311,8 @@ void UIVirtualBoxEventHandler::prepare()
 
 void UIVirtualBoxEventHandler::prepareConnections()
 {
-    /* Create queued (async) connections for signals of event proxy object: */
+    /* Create queued (async) connections for signals of event proxy object.
+     * Keep in mind that the abstract Qt4 connection notation should be used here. */
     connect(m_pProxy, SIGNAL(sigVBoxSVCAvailabilityChange(bool)),
             this, SIGNAL(sigVBoxSVCAvailabilityChange(bool)),
             Qt::QueuedConnection);
@@ -298,6 +339,21 @@ void UIVirtualBoxEventHandler::prepareConnections()
             Qt::QueuedConnection);
     connect(m_pProxy, SIGNAL(sigSnapshotRestore(QUuid, QUuid)),
             this, SIGNAL(sigSnapshotRestore(QUuid, QUuid)),
+            Qt::QueuedConnection);
+    connect(m_pProxy, SIGNAL(sigStorageControllerChange(QUuid, QString)),
+            this, SIGNAL(sigStorageControllerChange(QUuid, QString)),
+            Qt::QueuedConnection);
+    connect(m_pProxy, SIGNAL(sigStorageDeviceChange(CMediumAttachment, bool, bool)),
+            this, SIGNAL(sigStorageDeviceChange(CMediumAttachment, bool, bool)),
+            Qt::QueuedConnection);
+    connect(m_pProxy, SIGNAL(sigMediumChange(CMediumAttachment)),
+            this, SIGNAL(sigMediumChange(CMediumAttachment)),
+            Qt::QueuedConnection);
+    connect(m_pProxy, SIGNAL(sigMediumConfigChange(CMedium)),
+            this, SIGNAL(sigMediumConfigChange(CMedium)),
+            Qt::QueuedConnection);
+    connect(m_pProxy, SIGNAL(sigMediumRegistered(QUuid, KDeviceType, bool)),
+            this, SIGNAL(sigMediumRegistered(QUuid, KDeviceType, bool)),
             Qt::QueuedConnection);
 }
 

@@ -21,24 +21,17 @@
 # pragma once
 #endif
 
-/* Qt includes: */
-#include <QPixmap>
-#include <QString>
-#include <QWidget>
-
 /* GUI includes: */
 #include "UIChooserItem.h"
 
 /* Forward declarations: */
-class QGraphicsScene;
+class QGraphicsLinearLayout;
 class QLineEdit;
-class QMenu;
-class QMimeData;
-class QPainter;
-class QStyleOptionGraphicsItem;
+class UIChooserNodeGroup;
 class UIEditorGroupRename;
 class UIGraphicsButton;
 class UIGraphicsRotatorButton;
+class UIGraphicsScrollArea;
 
 
 /** UIChooserItem extension implementing group item. */
@@ -57,40 +50,56 @@ signals:
         void sigToggleFinished();
     /** @} */
 
+    /** @name Layout stuff.
+      * @{ */
+        /** Notifies listeners about @a iMinimumWidthHint change. */
+        void sigMinimumWidthHintChanged(int iMinimumWidthHint);
+    /** @} */
+
 public:
 
-    /** RTTI item type. */
+    /** RTTI required for qgraphicsitem_cast. */
     enum { Type = UIChooserItemType_Group };
 
-    /** Constructs main-root item, passing pScene to the base-class. */
-    UIChooserItemGroup(QGraphicsScene *pScene);
-    /** Constructs temporary @a fMainRoot item as a @a pCopyFrom, passing pScene to the base-class. */
-    UIChooserItemGroup(QGraphicsScene *pScene, UIChooserItemGroup *pCopyFrom, bool fMainRoot);
-    /** Constructs non-root item with specified @a strName and @a iPosition, @a fOpened if requested, passing pParent to the base-class. */
-    UIChooserItemGroup(UIChooserItem *pParent, const QString &strName, bool fOpened = false, int iPosition  = -1);
-    /** Constructs temporary non-root item with specified @a iPosition as a @a pCopyFrom, passing pParent to the base-class. */
-    UIChooserItemGroup(UIChooserItem *pParent, UIChooserItemGroup *pCopyFrom, int iPosition = -1);
+    /** Build item for certain @a pNode, adding it directly to the @a pScene. */
+    UIChooserItemGroup(QGraphicsScene *pScene, UIChooserNodeGroup *pNode);
+    /** Build item for certain @a pNode, passing @a pParent to the base-class. */
+    UIChooserItemGroup(UIChooserItem *pParent, UIChooserNodeGroup *pNode);
     /** Destructs group item. */
     virtual ~UIChooserItemGroup() /* override */;
 
     /** @name Item stuff.
       * @{ */
-        /** Defines group @a strName. */
-        void setName(const QString &strName);
-
-        /** Closes group in @a fAnimated way if requested. */
-        void close(bool fAnimated = true);
         /** Returns whether group is closed. */
         bool isClosed() const;
+        /** Closes group in @a fAnimated way if requested. */
+        void close(bool fAnimated = true);
 
-        /** Opens group in @a fAnimated way if requested. */
-        void open(bool fAnimated = true);
         /** Returns whether group is opened. */
         bool isOpened() const;
+        /** Opens group in @a fAnimated way if requested. */
+        void open(bool fAnimated = true);
+    /** @} */
+
+    /** @name Children stuff.
+      * @{ */
+        /** Updates positions of favorite items. */
+        void updateFavorites();
     /** @} */
 
     /** @name Navigation stuff.
       * @{ */
+        /** Performs scrolling by @a iDelta pixels. */
+        void scrollBy(int iDelta);
+
+        /** Makes sure passed @a pItem is visible within the current root item.
+          * @note Please keep in mind that any group item can be a root, but there
+          * is just one model root item at the same time, accessible via model's
+          * root() getter, and this API can be called for current root item only,
+          * because this is root item who performs actual scrolling, while
+          * @a pItem itself can be on any level of embedding. */
+        void makeSureItemIsVisible(UIChooserItem *pItem) /* override */;
+
         /** Class-name used for drag&drop mime-data format. */
         static QString className();
     /** @} */
@@ -122,63 +131,40 @@ protected:
         /** Returns RTTI item type. */
         virtual int type() const /* override */ { return Type; }
 
-        /** Shows item. */
-        virtual void show() /* override */;
-        /** Hides item. */
-        virtual void hide() /* override */;
-
         /** Starts item editing. */
         virtual void startEditing() /* override */;
 
+        /** Updates item. */
+        virtual void updateItem() /* override */;
         /** Updates item tool-tip. */
         virtual void updateToolTip() /* override */;
 
-        /** Returns item name. */
-        virtual QString name() const /* override */;
-        /** Returns item description. */
-        virtual QString description() const /* override */;
-        /** Returns item full-name. */
-        virtual QString fullName() const /* override */;
-        /** Returns item definition. */
-        virtual QString definition() const /* override */;
-
-        /** Handles root status change. */
-        virtual void handleRootStatusChange() /* override */;
+        /** Installs event-filter for @a pSource object. */
+        virtual void installEventFilterHelper(QObject *pSource) /* override */;
     /** @} */
 
     /** @name Children stuff.
       * @{ */
-        /** Adds child @a pItem to certain @a iPosition. */
-        virtual void addItem(UIChooserItem *pItem, int iPosition) /* override */;
-        /** Removes child @a pItem. */
-        virtual void removeItem(UIChooserItem *pItem) /* override */;
-
-        /** Replaces children @a items of certain @a enmType. */
-        virtual void setItems(const QList<UIChooserItem*> &items, UIChooserItemType enmType) /* override */;
         /** Returns children items of certain @a enmType. */
         virtual QList<UIChooserItem*> items(UIChooserItemType enmType = UIChooserItemType_Any) const /* override */;
-        /** Returns whether there are children items of certain @a enmType. */
-        virtual bool hasItems(UIChooserItemType enmType = UIChooserItemType_Any) const /* override */;
-        /** Clears children items of certain @a enmType. */
-        virtual void clearItems(UIChooserItemType enmType = UIChooserItemType_Any) /* override */;
 
-        /** Updates all children items with specified @a uId. */
-        virtual void updateAllItems(const QUuid &uId) /* override */;
-        /** Removes all children items with specified @a uId. */
-        virtual void removeAllItems(const QUuid &uId) /* override */;
+        /** Adds possible @a fFavorite child @a pItem to certain @a iPosition. */
+        virtual void addItem(UIChooserItem *pItem, bool fFavorite, int iPosition) /* override */;
+        /** Removes child @a pItem. */
+        virtual void removeItem(UIChooserItem *pItem) /* override */;
 
         /** Searches for a first child item answering to specified @a strSearchTag and @a iItemSearchFlags. */
         virtual UIChooserItem *searchForItem(const QString &strSearchTag, int iItemSearchFlags) /* override */;
 
         /** Searches for a first machine child item. */
         virtual UIChooserItem *firstMachineItem() /* override */;
-
-        /** Sorts children items. */
-        virtual void sortItems() /* override */;
     /** @} */
 
     /** @name Layout stuff.
       * @{ */
+        /** Updates geometry. */
+        virtual void updateGeometry() /* override */;
+
         /** Updates layout. */
         virtual void updateLayout() /* override */;
 
@@ -201,12 +187,12 @@ protected:
         /** Returns whether item drop is allowed.
           * @param  pEvent    Brings information about drop event.
           * @param  enmPlace  Brings the place of drag token to the drop moment. */
-        virtual bool isDropAllowed(QGraphicsSceneDragDropEvent *pEvent, DragToken where) const /* override */;
+        virtual bool isDropAllowed(QGraphicsSceneDragDropEvent *pEvent, UIChooserItemDragToken where) const /* override */;
         /** Processes item drop.
           * @param  pEvent    Brings information about drop event.
           * @param  pFromWho  Brings the item according to which we choose drop position.
           * @param  enmPlace  Brings the place of drag token to the drop moment (according to item mentioned above). */
-        virtual void processDrop(QGraphicsSceneDragDropEvent *pEvent, UIChooserItem *pFromWho, DragToken where) /* override */;
+        virtual void processDrop(QGraphicsSceneDragDropEvent *pEvent, UIChooserItem *pFromWho, UIChooserItemDragToken where) /* override */;
         /** Reset drag token. */
         virtual void resetDragToken() /* override */;
 
@@ -241,8 +227,9 @@ private:
     enum GroupItemData
     {
         /* Layout hints: */
-        GroupItemData_HorizonalMargin,
-        GroupItemData_VerticalMargin,
+        GroupItemData_MarginHL,
+        GroupItemData_MarginHR,
+        GroupItemData_MarginV,
         GroupItemData_HeaderSpacing,
         GroupItemData_ChildrenSpacing,
         GroupItemData_ParentIndent,
@@ -252,9 +239,8 @@ private:
       * @{ */
         /** Prepares all. */
         void prepare();
-
-        /** Copies group contents @a pFrom one item @a pTo another. */
-        static void copyContent(UIChooserItemGroup *pFrom, UIChooserItemGroup *pTo);
+        /** Cleanups all. */
+        void cleanup();
     /** @} */
 
     /** @name Item stuff.
@@ -262,16 +248,13 @@ private:
         /** Returns abstractly stored data value for certain @a iKey. */
         QVariant data(int iKey) const;
 
-        /** Returns whether group is main-root. */
-        bool isMainRoot() const { return m_fMainRoot; }
-
         /** Returns item's header darkness. */
         int headerDarkness() const { return m_iHeaderDarkness; }
 
-        /** Defines @a iAdditionalHeight. */
-        void setAdditionalHeight(int iAdditionalHeight);
         /** Returns additional height. */
         int additionalHeight() const;
+        /** Defines @a iAdditionalHeight. */
+        void setAdditionalHeight(int iAdditionalHeight);
 
         /** Updates animation parameters. */
         void updateAnimationParameters();
@@ -281,6 +264,9 @@ private:
 
     /** @name Children stuff.
       * @{ */
+        /** Copies group contents from @a pCopyFrom node recursively. */
+        void copyContents(UIChooserNodeGroup *pCopyFrom);
+
         /** Returns whether group contains machine with @a uId. */
         bool isContainsMachine(const QUuid &uId) const;
         /** Returns whether group contains locked machine. */
@@ -297,7 +283,7 @@ private:
         /** Returns minimum height-hint depending on whether @a fGroupOpened. */
         int minimumHeightHintForGroup(bool fGroupOpened) const;
         /** Returns minimum size-hint depending on whether @a fGroupOpened. */
-        QSizeF minimumSizeHintForProup(bool fGroupOpened) const;
+        QSizeF minimumSizeHintForGroup(bool fGroupOpened) const;
 
         /** Updates visible name. */
         void updateVisibleName();
@@ -305,6 +291,8 @@ private:
         void updatePixmaps();
         /** Updates minimum header size. */
         void updateMinimumHeaderSize();
+        /** Updates layout spacings. */
+        void updateLayoutSpacings();
     /** @} */
 
     /** @name Painting stuff.
@@ -319,32 +307,33 @@ private:
 
     /** @name Item stuff.
       * @{ */
-        /** Holds whether group is main-root. */
-        bool  m_fMainRoot;
-        /** Holds whether group is closed. */
-        bool  m_fClosed;
+        /** Holds the graphics scene reference. */
+        QGraphicsScene *m_pScene;
+
+        /** Holds the cached visible name. */
+        QString  m_strVisibleName;
+        /** Holds the cached group children info. */
+        QString  m_strInfoGroups;
+        /** Holds the cached machine children info. */
+        QString  m_strInfoMachines;
 
         /** Holds aditional height. */
         int  m_iAdditionalHeight;
         /** Holds the header darkness. */
         int  m_iHeaderDarkness;
 
-        /** Holds the cached name. */
-        QString m_strName;
-        /** Holds the cached description. */
-        QString m_strDescription;
-        /** Holds the cached visible name. */
-        QString m_strVisibleName;
+        /** Holds group children pixmap. */
+        QPixmap  m_groupsPixmap;
+        /** Holds machine children pixmap. */
+        QPixmap  m_machinesPixmap;
 
         /** Holds the name font. */
         QFont  m_nameFont;
+        /** Holds the info font. */
+        QFont  m_infoFont;
 
         /** Holds the group toggle button instance. */
         UIGraphicsRotatorButton *m_pToggleButton;
-        /** Holds the group enter button instance. */
-        UIGraphicsButton        *m_pEnterButton;
-        /** Holds the group exit button instance. */
-        UIGraphicsButton        *m_pExitButton;
 
         /** Holds the group name editor instance. */
         UIEditorGroupRename *m_pNameEditorWidget;
@@ -352,29 +341,38 @@ private:
 
     /** @name Children stuff.
       * @{ */
-        /** Holds the group children list. */
-        QList<UIChooserItem*>  m_groupItems;
+        /** Holds the favorite children container instance. */
+        QIGraphicsWidget      *m_pContainerFavorite;
+        /** Holds the favorite children layout instance. */
+        QGraphicsLinearLayout *m_pLayoutFavorite;
+
+        /** Holds the children scroll-area instance. */
+        UIGraphicsScrollArea  *m_pScrollArea;
+        /** Holds the children container instance. */
+        QIGraphicsWidget      *m_pContainer;
+
+        /** Holds the main layout instance. */
+        QGraphicsLinearLayout *m_pLayout;
+        /** Holds the global layout instance. */
+        QGraphicsLinearLayout *m_pLayoutGlobal;
+        /** Holds the group layout instance. */
+        QGraphicsLinearLayout *m_pLayoutGroup;
+        /** Holds the machine layout instance. */
+        QGraphicsLinearLayout *m_pLayoutMachine;
+
         /** Holds the global children list. */
         QList<UIChooserItem*>  m_globalItems;
+        /** Holds the group children list. */
+        QList<UIChooserItem*>  m_groupItems;
         /** Holds the machine children list. */
         QList<UIChooserItem*>  m_machineItems;
-
-        /** Holds group children pixmap. */
-        QPixmap  m_groupsPixmap;
-        /** Holds machine children pixmap. */
-        QPixmap  m_machinesPixmap;
-
-        /** Holds the cached group children info. */
-        QString  m_strInfoGroups;
-        /** Holds the cached machine children info. */
-        QString  m_strInfoMachines;
-
-        /** Holds the children info font. */
-        QFont  m_infoFont;
     /** @} */
 
     /** @name Layout stuff.
       * @{ */
+        /** Holds previous minimum width hint. */
+        int  m_iPreviousMinimumWidthHint;
+
         /** Holds cached visible name size. */
         QSize  m_visibleNameSize;
         /** Holds cached group children pixmap size. */
@@ -389,10 +387,6 @@ private:
         QSize  m_minimumHeaderSize;
         /** Holds cached toggle button size. */
         QSize  m_toggleButtonSize;
-        /** Holds cached enter button size. */
-        QSize  m_enterButtonSize;
-        /** Holds cached exit button size. */
-        QSize  m_exitButtonSize;
     /** @} */
 };
 

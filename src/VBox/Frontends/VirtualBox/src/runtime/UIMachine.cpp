@@ -16,7 +16,7 @@
  */
 
 /* GUI includes: */
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #include "UIExtraDataManager.h"
 #include "UIMachine.h"
 #include "UISession.h"
@@ -43,10 +43,10 @@ bool UIMachine::startMachine(const QUuid &uID)
     AssertReturn(!m_spInstance, false);
 
     /* Restore current snapshot if requested: */
-    if (vboxGlobal().shouldRestoreCurrentSnapshot())
+    if (uiCommon().shouldRestoreCurrentSnapshot())
     {
         /* Create temporary session: */
-        CSession session = vboxGlobal().openSession(uID, KLockType_VM);
+        CSession session = uiCommon().openSession(uID, KLockType_VM);
         if (session.isNull())
             return false;
 
@@ -69,18 +69,18 @@ bool UIMachine::startMachine(const QUuid &uID)
         session.UnlockMachine();
 
         /* Clear snapshot-restoring request: */
-        vboxGlobal().setShouldRestoreCurrentSnapshot(false);
+        uiCommon().setShouldRestoreCurrentSnapshot(false);
     }
 
     /* For separate process we should launch VM before UI: */
-    if (vboxGlobal().isSeparateProcess())
+    if (uiCommon().isSeparateProcess())
     {
         /* Get corresponding machine: */
-        CMachine machine = vboxGlobal().virtualBox().FindMachine(vboxGlobal().managedVMUuid().toString());
-        AssertMsgReturn(!machine.isNull(), ("VBoxGlobal::managedVMUuid() should have filter that case before!\n"), false);
+        CMachine machine = uiCommon().virtualBox().FindMachine(uiCommon().managedVMUuid().toString());
+        AssertMsgReturn(!machine.isNull(), ("UICommon::managedVMUuid() should have filter that case before!\n"), false);
 
         /* Try to launch corresponding machine: */
-        if (!vboxGlobal().launchMachine(machine, VBoxGlobal::LaunchMode_Separate))
+        if (!uiCommon().launchMachine(machine, UICommon::LaunchMode_Separate))
             return false;
     }
 
@@ -205,12 +205,13 @@ bool UIMachine::prepare()
     if (!prepareSession())
         return false;
 
-    /* Cache medium data early if necessary: */
-    if (vboxGlobal().agressiveCaching())
+    /* Cache media data early if necessary: */
+    if (uiCommon().agressiveCaching())
     {
         AssertReturn(m_pSession, false);
-        vboxGlobal().startMediumEnumeration(m_pSession->getMachineMedia());
+        uiCommon().enumerateMedia(m_pSession->machineMedia());
     }
+
     /* Prepare machine-logic: */
     prepareMachineLogic();
 
@@ -236,17 +237,17 @@ void UIMachine::prepareMachineLogic()
 {
     /* Prepare async visual state type change handler: */
     qRegisterMetaType<UIVisualStateType>();
-    connect(this, SIGNAL(sigRequestAsyncVisualStateChange(UIVisualStateType)),
-            this, SLOT(sltChangeVisualState(UIVisualStateType)),
+    connect(this, &UIMachine::sigRequestAsyncVisualStateChange,
+            this, &UIMachine::sltChangeVisualState,
             Qt::QueuedConnection);
 
     /* Load restricted visual states: */
-    UIVisualStateType restrictedVisualStates = gEDataManager->restrictedVisualStates(vboxGlobal().managedVMUuid());
+    UIVisualStateType restrictedVisualStates = gEDataManager->restrictedVisualStates(uiCommon().managedVMUuid());
     /* Acquire allowed visual states: */
     m_allowedVisualStates = static_cast<UIVisualStateType>(UIVisualStateType_All ^ restrictedVisualStates);
 
     /* Load requested visual state: */
-    UIVisualStateType requestedVisualState = gEDataManager->requestedVisualState(vboxGlobal().managedVMUuid());
+    UIVisualStateType requestedVisualState = gEDataManager->requestedVisualState(uiCommon().managedVMUuid());
     /* Check if requested visual state is allowed: */
     if (isVisualStateAllowed(requestedVisualState))
     {
@@ -277,7 +278,7 @@ void UIMachine::cleanupMachineLogic()
             requestedVisualState = m_visualState;
 
         /* Save requested visual state: */
-        gEDataManager->setRequestedVisualState(requestedVisualState, vboxGlobal().managedVMUuid());
+        gEDataManager->setRequestedVisualState(requestedVisualState, uiCommon().managedVMUuid());
     }
 
     /* Destroy machine-logic if exists: */

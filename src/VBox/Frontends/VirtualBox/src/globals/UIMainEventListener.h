@@ -24,6 +24,7 @@
 /* Qt includes: */
 #include <QList>
 #include <QObject>
+#include <QRect>
 
 /* GUI includes: */
 #include "UILibraryDefs.h"
@@ -32,6 +33,7 @@
 #include "COMEnums.h"
 #include "CGuestProcess.h"
 #include "CGuestSession.h"
+#include "CMedium.h"
 #include "CMediumAttachment.h"
 #include "CNetworkAdapter.h"
 #include "CUSBDevice.h"
@@ -42,9 +44,9 @@
 
 /* Forward declarations: */
 class QPoint;
-class QSize;
 class QString;
 class UIMainEventListeningThread;
+class UIMousePointerShapeData;
 class CEventListener;
 class CEventSource;
 class CGuestProcessStateChangedEvent;
@@ -103,10 +105,33 @@ signals:
         void sigExtraDataChange(const QUuid &uId, const QString &strKey, const QString &strValue);
     /** @} */
 
+    /** @name VirtualBox Medium related signals
+      * @{ */
+        /** Notifies about storage controller change.
+          * @param  uMachineId         Brings the ID of machine corresponding controller belongs to.
+          * @param  strControllerName  Brings the name of controller this event is related to. */
+        void sigStorageControllerChange(const QUuid &uMachineId, const QString &strControllerName);
+        /** Notifies about storage device change.
+          * @param  comAttachment  Brings corresponding attachment.
+          * @param  fRemoved       Brings whether medium is removed or added.
+          * @param  fSilent        Brings whether this change has gone silent for guest. */
+        void sigStorageDeviceChange(CMediumAttachment comAttachment, bool fRemoved, bool fSilent);
+
+        /** Notifies about storage medium @a comAttachment state change. */
+        void sigMediumChange(CMediumAttachment comAttachment);
+        /** Notifies about storage @a comMedium config change. */
+        void sigMediumConfigChange(CMedium comMedium);
+        /** Notifies about storage medium is (un)registered.
+          * @param  uMediumId      Brings corresponding medium ID.
+          * @param  enmMediumType  Brings corresponding medium type.
+          * @param  fRegistered    Brings whether medium is registered or unregistered. */
+        void sigMediumRegistered(const QUuid &uMediumId, KDeviceType enmMediumType, bool fRegistered);
+    /** @} */
+
     /** @name Console related signals
       * @{ */
-        /** Notifies about mouse pointer become @a fVisible and his shape changed to @a fAlpha, @a hotCorner, @a size and @a shape. */
-        void sigMousePointerShapeChange(bool fVisible, bool fAlpha, QPoint hotCorner, QSize size, QVector<uint8_t> shape);
+        /** Notifies about mouse pointer @a shapeData change. */
+        void sigMousePointerShapeChange(const UIMousePointerShapeData &shapeData);
         /** Notifies about mouse capability change to @a fSupportsAbsolute, @a fSupportsRelative, @a fSupportsMultiTouch and @a fNeedsHostCursor. */
         void sigMouseCapabilityChange(bool fSupportsAbsolute, bool fSupportsRelative, bool fSupportsMultiTouch, bool fNeedsHostCursor);
         /** Notifies about guest request to change the cursor position to @a uX * @a uY.
@@ -120,10 +145,6 @@ signals:
         void sigAdditionsChange();
         /** Notifies about network @a adapter state change. */
         void sigNetworkAdapterChange(CNetworkAdapter comAdapter);
-        /** Notifies about storage device change for @a attachment, which was @a fRemoved and it was @a fSilent for guest. */
-        void sigStorageDeviceChange(CMediumAttachment comAttachment, bool fRemoved, bool fSilent);
-        /** Notifies about storage medium @a attachment state change. */
-        void sigMediumChange(CMediumAttachment comAttachment);
         /** Notifies about VRDE device state change. */
         void sigVRDEChange();
         /** Notifies about recording state change. */
@@ -146,6 +167,10 @@ signals:
         void sigShowWindow(qint64 &winId); /* use Qt::DirectConnection */
         /** Notifies about audio adapter state change. */
         void sigAudioAdapterChange();
+        /** Notifies about the clipboard mode change. */
+        void sigClipboardModeChange(KClipboardMode enmClipboardMode);
+        /** Notifies about the drag and drop mode change. */
+        void sigDnDModeChange(KDnDMode enmDnDMode);
     /** @} */
 
     /** @name Progress related signals
@@ -195,4 +220,3 @@ public:
 typedef ListenerImpl<UIMainEventListener, QObject*> UIMainEventListenerImpl;
 
 #endif /* !FEQT_INCLUDED_SRC_globals_UIMainEventListener_h */
-

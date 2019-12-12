@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 131252 $"
 
 # Python imports.
 import functools;
@@ -204,7 +204,7 @@ class WuiGraphWiz(WuiReportBase):
         """
         # Must be at least two series for something to be splittable.
         if len(aoSeries) <= 1:
-            if len(aoSeries) < 1:
+            if not aoSeries:
                 return [];
             return [aoSeries,];
 

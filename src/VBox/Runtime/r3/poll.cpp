@@ -42,6 +42,9 @@
 # include <limits.h>
 # include <errno.h>
 # include <sys/poll.h>
+# if defined(RT_OS_SOLARIS)
+#  include <sys/socket.h>
+# endif
 #endif
 
 #include <iprt/poll.h>
@@ -416,7 +419,23 @@ static int rtPollNoResumeWorker(RTPOLLSETINTERNAL *pThis, uint64_t MsStart, RTMS
 # endif
                                                    )
                    )
-                *pfEvents |= RTPOLL_EVT_ERROR;
+                    *pfEvents |= RTPOLL_EVT_ERROR;
+
+# if defined(RT_OS_SOLARIS)
+                /* Solaris does not return POLLHUP for sockets, just POLLIN.  Check if a
+                   POLLIN should also have RTPOLL_EVT_ERROR set or not, so we present a
+                   behaviour more in line with linux and BSDs.  Note that this will not
+                   help is only RTPOLL_EVT_ERROR was requested, that will require
+                   extending this hack quite a bit further (restart poll):  */
+                if (   *pfEvents == RTPOLL_EVT_READ
+                    && pThis->paHandles[i].enmType == RTHANDLETYPE_SOCKET)
+                {
+                    uint8_t abBuf[64];
+                    ssize_t rcRecv = recv(pThis->paPollFds[i].fd, abBuf, sizeof(abBuf), MSG_PEEK | MSG_DONTWAIT);
+                    if (rcRecv == 0)
+                        *pfEvents |= RTPOLL_EVT_ERROR;
+                }
+# endif
             }
             if (pid)
                 *pid = pThis->paHandles[i].id;
@@ -838,7 +857,11 @@ RTDECL(int) RTPollSetAdd(RTPOLLSET hPollSet, PCRTHANDLE pHandle, uint32_t fEvent
             if (fEvents & RTPOLL_EVT_WRITE)
                 pThis->paPollFds[i].events |= POLLOUT;
             if (fEvents & RTPOLL_EVT_ERROR)
+# ifdef RT_OS_DARWIN
+                pThis->paPollFds[i].events |= POLLERR | POLLHUP;
+# else
                 pThis->paPollFds[i].events |= POLLERR;
+# endif
 #endif
             pThis->paHandles[i].enmType     = pHandle->enmType;
             pThis->paHandles[i].u           = uh;

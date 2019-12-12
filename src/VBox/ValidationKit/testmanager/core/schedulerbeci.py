@@ -26,14 +26,14 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 131247 $"
 
 
 # Validation Kit imports.
 from testmanager.core.schedulerbase  import SchedulerBase, SchedQueueData;
 
 
-class SchdulerBeci(SchedulerBase): # pylint: disable=R0903
+class SchdulerBeci(SchedulerBase): # pylint: disable=too-few-public-methods
     """
     The best-effort-continuous-integration scheduler, BECI for short.
     """

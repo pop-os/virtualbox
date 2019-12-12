@@ -120,7 +120,10 @@ typedef uint64_t STAMCOUNTER;
 /** @name CPUM Saved State Version.
  * @{ */
 /** The current saved state version. */
-#define CPUM_SAVED_STATE_VERSION                CPUM_SAVED_STATE_VERSION_HWVIRT_SVM
+#define CPUM_SAVED_STATE_VERSION                CPUM_SAVED_STATE_VERSION_HWVIRT_VMX_IEM
+/** The saved state version including VMX hardware virtualization state (IEM only
+ *  execution). */
+#define CPUM_SAVED_STATE_VERSION_HWVIRT_VMX_IEM 19
 /** The saved state version including SVM hardware virtualization state. */
 #define CPUM_SAVED_STATE_VERSION_HWVIRT_SVM     18
 /** The saved state version including XSAVE state. */
@@ -188,11 +191,6 @@ typedef struct CPUMINFO
     R3PTRTYPE(PCPUMMSRRANGE)    paMsrRangesR3;
     /** Pointer to the CPUID leaves (ring-3 pointer). */
     R3PTRTYPE(PCPUMCPUIDLEAF)   paCpuIdLeavesR3;
-
-    /** Pointer to the MSR ranges (raw-mode context pointer). */
-    RCPTRTYPE(PCPUMMSRRANGE)    paMsrRangesRC;
-    /** Pointer to the CPUID leaves (raw-mode context pointer). */
-    RCPTRTYPE(PCPUMCPUIDLEAF)   paCpuIdLeavesRC;
 } CPUMINFO;
 /** Pointer to a CPU info structure. */
 typedef CPUMINFO *PCPUMINFO;
@@ -207,7 +205,6 @@ typedef struct CPUMHOSTCTX
 {
     /** General purpose register, selectors, flags and more
      * @{ */
-#if HC_ARCH_BITS == 64
     /** General purpose register ++
      * { */
     /*uint64_t        rax; - scratch*/
@@ -228,21 +225,6 @@ typedef struct CPUMHOSTCTX
     uint64_t        r15;
     /*uint64_t        rip; - scratch*/
     uint64_t        rflags;
-#endif
-
-#if HC_ARCH_BITS == 32
-    /*uint32_t        eax; - scratch*/
-    uint32_t        ebx;
-    /*uint32_t        ecx; - scratch*/
-    /*uint32_t        edx; - scratch*/
-    uint32_t        edi;
-    uint32_t        esi;
-    uint32_t        ebp;
-    X86EFLAGS       eflags;
-    /*uint32_t        eip; - scratch*/
-    /* lss pair! */
-    uint32_t        esp;
-#endif
     /** @} */
 
     /** Selector registers
@@ -260,55 +242,6 @@ typedef struct CPUMHOSTCTX
     RTSEL           cs;
     RTSEL           csPadding;
     /** @} */
-
-#if HC_ARCH_BITS == 32
-    /** Control registers.
-     * @{ */
-    uint32_t        cr0;
-    /*uint32_t        cr2; - scratch*/
-    uint32_t        cr3;
-    uint32_t        cr4;
-    /** The CR0 FPU state in HM mode.  Can't use cr0 here because the
-     *  64-bit-on-32-bit-host world switches is using it. */
-    uint32_t        cr0Fpu;
-    /** @} */
-
-    /** Debug registers.
-     * @{ */
-    uint32_t        dr0;
-    uint32_t        dr1;
-    uint32_t        dr2;
-    uint32_t        dr3;
-    uint32_t        dr6;
-    uint32_t        dr7;
-    /** @} */
-
-    /** Global Descriptor Table register. */
-    X86XDTR32       gdtr;
-    uint16_t        gdtrPadding;
-    /** Interrupt Descriptor Table register. */
-    X86XDTR32       idtr;
-    uint16_t        idtrPadding;
-    /** The task register. */
-    RTSEL           ldtr;
-    RTSEL           ldtrPadding;
-    /** The task register. */
-    RTSEL           tr;
-    RTSEL           trPadding;
-
-    /** The sysenter msr registers.
-     * This member is not used by the hypervisor context. */
-    CPUMSYSENTER    SysEnter;
-
-    /** MSRs
-     * @{ */
-    uint64_t        efer;
-    /** @} */
-
-    /* padding to get 64byte aligned size */
-    uint8_t         auPadding[20];
-
-#elif HC_ARCH_BITS == 64
 
     /** Control registers.
      * @{ */
@@ -352,14 +285,12 @@ typedef struct CPUMHOSTCTX
     /** @} */
 
     /* padding to get 64byte aligned size */
-    uint8_t         auPadding[4];
+    uint8_t         auPadding[8];
 
-#else
+#if HC_ARCH_BITS != 64
 # error HC_ARCH_BITS not defined or unsupported
 #endif
 
-    /** Pointer to the FPU/SSE/AVX/XXXX state raw-mode mapping. */
-    RCPTRTYPE(PX86XSAVEAREA)    pXStateRC;
     /** Pointer to the FPU/SSE/AVX/XXXX state ring-0 mapping. */
     R0PTRTYPE(PX86XSAVEAREA)    pXStateR0;
     /** Pointer to the FPU/SSE/AVX/XXXX state ring-3 mapping. */
@@ -378,13 +309,33 @@ typedef CPUMHOSTCTX *PCPUMHOSTCTX;
 
 
 /**
+ * The hypervisor context CPU state (just DRx left now).
+ */
+typedef struct CPUMHYPERCTX
+{
+    /** Debug registers.
+     * @remarks DR4 and DR5 should not be used since they are aliases for
+     *          DR6 and DR7 respectively on both AMD and Intel CPUs.
+     * @remarks DR8-15 are currently not supported by AMD or Intel, so
+     *          neither do we.
+     */
+    uint64_t        dr[8];
+    /** @todo eliminiate the rest.   */
+    uint64_t        cr3;
+    uint64_t        au64Padding[7];
+} CPUMHYPERCTX;
+#ifndef VBOX_FOR_DTRACE_LIB
+AssertCompileSizeAlignment(CPUMHYPERCTX, 64);
+#endif
+/** Pointer to the hypervisor context CPU state. */
+typedef CPUMHYPERCTX *PCPUMHYPERCTX;
+
+
+/**
  * CPUM Data (part of VM)
  */
 typedef struct CPUM
 {
-    /** Offset from CPUM to CPUMCPU for the first CPU. */
-    uint32_t                offCPUMCPU0;
-
     /** Use flags.
      * These flags indicates which CPU features the host uses.
      */
@@ -402,7 +353,7 @@ typedef struct CPUM
     /** Indicates that a state restore is pending.
      * This is used to verify load order dependencies (PGM). */
     bool                    fPendingRestore;
-    uint8_t                 abPadding0[6];
+    uint8_t                 abPadding0[2];
 
     /** XSAVE/XRTOR components we can expose to the guest mask. */
     uint64_t                fXStateGuestMask;
@@ -412,7 +363,12 @@ typedef struct CPUM
 
     /** The host MXCSR mask (determined at init). */
     uint32_t                fHostMxCsrMask;
-    uint8_t                 abPadding1[20];
+    /** Nested VMX: Whether to expose VMX-preemption timer to the guest. */
+    bool                    fNestedVmxPreemptTimer;
+    uint8_t                 abPadding1[3];
+
+    /** Align to 64-byte boundary. */
+    uint8_t                 abPadding2[20+4];
 
     /** Host CPU feature information.
      * Externaly visible via the VM structure, aligned on 64-byte boundrary. */
@@ -465,6 +421,11 @@ typedef struct CPUMCPU
      */
     CPUMCTXMSRS             GuestMsrs;
 
+    /** Nested VMX: VMX-preemption timer - R0 ptr. */
+    PTMTIMERR0              pNestedVmxPreemptTimerR0;
+    /** Nested VMX: VMX-preemption timer - R3 ptr. */
+    PTMTIMERR3              pNestedVmxPreemptTimerR3;
+
     /** Use flags.
      * These flags indicates both what is to be used and what has been used.
      */
@@ -477,29 +438,24 @@ typedef struct CPUMCPU
      */
     uint32_t                fChanged;
 
-    /** Offset from CPUM to CPUMCPU. */
-    uint32_t                offCPUM;
-
     /** Temporary storage for the return code of the function called in the
      * 32-64 switcher. */
     uint32_t                u32RetCode;
 
 #ifdef VBOX_WITH_VMMR0_DISABLE_LAPIC_NMI
-    /** The address of the APIC mapping, NULL if no APIC.
-     * Call CPUMR0SetLApic to update this before doing a world switch. */
-    RTHCPTR                 pvApicBase;
     /** Used by the world switcher code to store which vectors needs restoring on
      * the way back. */
     uint32_t                fApicDisVectors;
+    /** The address of the APIC mapping, NULL if no APIC.
+     * Call CPUMR0SetLApic to update this before doing a world switch. */
+    RTHCPTR                 pvApicBase;
     /** Set if the CPU has the X2APIC mode enabled.
      * Call CPUMR0SetLApic to update this before doing a world switch. */
     bool                    fX2Apic;
 #else
-    uint8_t                 abPadding3[(HC_ARCH_BITS == 64 ? 8 : 4) + 4 + 1];
+    uint8_t                 abPadding3[4 + sizeof(RTHCPTR) + 1];
 #endif
 
-    /** Have we entered raw-mode? */
-    bool                    fRawEntered;
     /** Have we entered the recompiler? */
     bool                    fRemEntered;
     /** Whether the X86_CPUID_FEATURE_EDX_APIC and X86_CPUID_AMD_FEATURE_EDX_APIC
@@ -507,14 +463,15 @@ typedef struct CPUMCPU
      *  when loading state, so we won't save it.) */
     bool                    fCpuIdApicFeatureVisible;
 
-    /** Align the next member on a 64-byte boundrary. */
-    uint8_t                 abPadding2[64 - 16 - (HC_ARCH_BITS == 64 ? 8 : 4) - 4 - 1 - 3];
+    /** Align the next member on a 64-byte boundary. */
+    uint8_t                 abPadding2[64 - (16 + 12 + 4 + 8 + 1 + 2)];
 
     /** Saved host context.  Only valid while inside RC or HM contexts.
      * Must be aligned on a 64-byte boundary. */
     CPUMHOSTCTX             Host;
-    /** Hypervisor context. Must be aligned on a 64-byte boundary. */
-    CPUMCTX                 Hyper;
+    /** Old hypervisor context, only used for combined DRx values now.
+     * Must be aligned on a 64-byte boundary. */
+    CPUMHYPERCTX            Hyper;
 
 #ifdef VBOX_WITH_CRASHDUMP_MAGIC
     uint8_t                 aMagic[56];

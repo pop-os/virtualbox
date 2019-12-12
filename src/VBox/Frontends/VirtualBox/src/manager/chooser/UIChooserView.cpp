@@ -23,6 +23,7 @@
 #include "UIChooser.h"
 #include "UIChooserItem.h"
 #include "UIChooserModel.h"
+#include "UIChooserSearchWidget.h"
 #include "UIChooserView.h"
 
 /* Other VBox includes: */
@@ -93,26 +94,65 @@ private:
 UIChooserView::UIChooserView(UIChooser *pParent)
     : QIWithRetranslateUI<QIGraphicsView>(pParent)
     , m_pChooser(pParent)
+    , m_pSearchWidget(0)
     , m_iMinimumWidthHint(0)
-    , m_iMinimumHeightHint(0)
 {
     /* Prepare: */
     prepare();
 }
 
-void UIChooserView::sltFocusChanged()
+bool UIChooserView::isSearchWidgetVisible() const
 {
-    /* Make sure focus-item set: */
-    const UIChooserItem *pFocusItem = chooser() && chooser()->model()
-                                    ? chooser()->model()->focusItem()
-                                    : 0;
-    if (!pFocusItem)
+    if (!m_pSearchWidget)
+        return false;
+
+    /* Return widget visibility state: */
+    return m_pSearchWidget->isVisible();
+}
+
+void UIChooserView::setSearchWidgetVisible(bool fVisible)
+{
+    if (!m_pSearchWidget)
         return;
 
-    const QSize viewSize = viewport()->size();
-    QRectF geo = pFocusItem->geometry();
-    geo &= QRectF(geo.topLeft(), viewSize);
-    ensureVisible(geo, 0, 0);
+    /* Make sure keyboard focus is managed correctly: */
+    if (fVisible)
+        m_pSearchWidget->setFocus();
+    else
+        setFocus();
+
+    /* Make sure visibility state is really changed: */
+    if (m_pSearchWidget->isVisible() == fVisible)
+        return;
+
+    /* Set widget visibility state: */
+    m_pSearchWidget->setVisible(fVisible);
+
+    /* Update geometry if widget is visible: */
+    if (m_pSearchWidget->isVisible())
+        updateSearchWidgetGeometry();
+
+    /* Reset search each time widget visibility changed: */
+    UIChooserModel *pModel = m_pChooser->model();
+    if (pModel)
+        pModel->resetSearch();
+}
+
+void UIChooserView::setSearchResultsCount(int iTotalMacthCount, int iCurrentlyScrolledItemIndex)
+{
+    if (!m_pSearchWidget)
+        return;
+
+    m_pSearchWidget->setMatchCount(iTotalMacthCount);
+    m_pSearchWidget->setScroolToIndex(iCurrentlyScrolledItemIndex);
+}
+
+void UIChooserView::appendToSearchString(const QString &strSearchText)
+{
+    if (!m_pSearchWidget)
+        return;
+
+    m_pSearchWidget->appendToSearchString(strSearchText);
 }
 
 void UIChooserView::sltMinimumWidthHintChanged(int iHint)
@@ -131,17 +171,31 @@ void UIChooserView::sltMinimumWidthHintChanged(int iHint)
     updateSceneRect();
 }
 
-void UIChooserView::sltMinimumHeightHintChanged(int iHint)
+void UIChooserView::sltRedoSearch(const QString &strSearchTerm, int iItemSearchFlags)
 {
-    /* Is there something changed? */
-    if (m_iMinimumHeightHint == iHint)
+    if (!m_pChooser)
+        return;
+    UIChooserModel *pModel =  m_pChooser->model();
+    if (!pModel)
         return;
 
-    /* Remember new value: */
-    m_iMinimumHeightHint = iHint;
+    pModel->performSearch(strSearchTerm, iItemSearchFlags);
+}
 
-    /* Update scene-rect: */
-    updateSceneRect();
+void UIChooserView::sltHandleScrollToSearchResult(bool fIsNext)
+{
+    if (!m_pChooser)
+        return;
+    UIChooserModel *pModel =  m_pChooser->model();
+    if (!pModel)
+        return;
+
+    pModel->selectSearchResult(fIsNext);
+}
+
+void UIChooserView::sltHandleSearchWidgetVisibilityToggle(bool fIsVisible)
+{
+    setSearchWidgetVisible(fIsVisible);
 }
 
 void UIChooserView::retranslateUi()
@@ -167,9 +221,22 @@ void UIChooserView::prepare()
 
     /* Setup scroll-bars policy: */
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+
+    /* Create the search widget (hidden): */
+    m_pSearchWidget = new UIChooserSearchWidget(this);
+    m_pSearchWidget->hide();
+    connect(m_pSearchWidget, &UIChooserSearchWidget::sigRedoSearch,
+            this, &UIChooserView::sltRedoSearch);
+    connect(m_pSearchWidget, &UIChooserSearchWidget::sigScrollToMatch,
+            this, &UIChooserView::sltHandleScrollToSearchResult);
+    connect(m_pSearchWidget, &UIChooserSearchWidget::sigToggleVisibility,
+            this, &UIChooserView::sltHandleSearchWidgetVisibilityToggle);
 
     /* Update scene-rect: */
     updateSceneRect();
+    /* Update the location and size of the search widget: */
+    updateSearchWidgetGeometry();
 
     /* Apply language settings: */
     retranslateUi();
@@ -190,9 +257,23 @@ void UIChooserView::resizeEvent(QResizeEvent *pEvent)
     QIWithRetranslateUI<QIGraphicsView>::resizeEvent(pEvent);
     /* Notify listeners: */
     emit sigResized();
+
+    /* Update scene-rect: */
+    updateSceneRect();
+    /* Update the location and size of the search widget: */
+    updateSearchWidgetGeometry();
 }
 
 void UIChooserView::updateSceneRect()
 {
-    setSceneRect(0, 0, m_iMinimumWidthHint, m_iMinimumHeightHint);
+    setSceneRect(0, 0, m_iMinimumWidthHint, height());
+}
+
+void UIChooserView::updateSearchWidgetGeometry()
+{
+    if (!m_pSearchWidget || !m_pSearchWidget->isVisible())
+        return;
+
+    const int iHeight = m_pSearchWidget->height();
+    m_pSearchWidget->setGeometry(QRect(0, height() - iHeight, width(), iHeight));
 }

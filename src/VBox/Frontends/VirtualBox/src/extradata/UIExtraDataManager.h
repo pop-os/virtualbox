@@ -24,6 +24,7 @@
 /* Qt includes: */
 #include <QMap>
 #include <QObject>
+#include <QRect>
 #include <QSize>
 #include <QUuid>
 #ifdef VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
@@ -147,6 +148,11 @@ public:
       * @{ */
         /** Returns event handling type. */
         EventHandlingType eventHandlingType();
+
+        /** Returns a list of restricted dialogs. */
+        UIExtraDataMetaDefs::DialogType restrictedDialogTypes(const QUuid &uID);
+        /** Defines a list of restricted dialogs. */
+        void setRestrictedDialogTypes(UIExtraDataMetaDefs::DialogType enmTypes, const QUuid &uID);
     /** @} */
 
     /** @name Messaging
@@ -268,16 +274,12 @@ public:
         QString recentFolderForOpticalDisks();
         /** Returns recent folder for floppy-disks. */
         QString recentFolderForFloppyDisks();
-        /** Returns recent folder for VISO creation content. */
-        QString recentFolderForVISOContent();
         /** Defines recent folder for hard-drives as @a strValue. */
         void setRecentFolderForHardDrives(const QString &strValue);
         /** Defines recent folder for optical-disk as @a strValue. */
         void setRecentFolderForOpticalDisks(const QString &strValue);
         /** Defines recent folder for floppy-disk as @a strValue. */
         void setRecentFolderForFloppyDisks(const QString &strValue);
-        /** Defines recent folder for VISO creation content as @a strValue. */
-        void setRecentFolderForVISOContent(const QString &strValue);
 
         /** Returns the list of recently used hard-drives. */
         QStringList recentListOfHardDrives();
@@ -291,6 +293,20 @@ public:
         void setRecentListOfOpticalDisks(const QStringList &value);
         /** Defines the list of recently used floppy-disks as @a value. */
         void setRecentListOfFloppyDisks(const QStringList &value);
+    /** @} */
+
+    /** @name Settings: Network
+      * @{ */
+        /** Returns the list of restricted network attachment types. */
+        UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork restrictedNetworkAttachmentTypes();
+    /** @} */
+
+    /** @name VISO Creator
+      * @{ */
+        /** Returns recent folder for VISO creation content. */
+        QString visoCreatorRecentFolder();
+        /** Defines recent folder for VISO creation content as @a strValue. */
+        void setVISOCreatorRecentFolder(const QString &strValue);
     /** @} */
 
     /** @name VirtualBox Manager
@@ -369,6 +385,10 @@ public:
         bool virtualMediaManagerDetailsExpanded();
         /** Defines whether Virtual Media Manager details @a fExpanded. */
         void setVirtualMediaManagerDetailsExpanded(bool fExpanded);
+        /** Returns whether Virtual Media Manager search widget expanded. */
+        bool virtualMediaManagerSearchWidgetExpanded();
+        /** Defines whether Virtual Media Manager search widget @a fExpanded. */
+        void setVirtualMediaManagerSearchWidgetExpanded(bool fExpanded);
     /** @} */
 
     /** @name Host Network Manager
@@ -397,10 +417,10 @@ public:
 
     /** @name Virtual Machine
       * @{ */
-        /** Returns whether machine should be shown in selector-window chooser-pane. */
-        bool showMachineInSelectorChooser(const QUuid &uID);
-        /** Returns whether machine should be shown in selector-window details-pane. */
-        bool showMachineInSelectorDetails(const QUuid &uID);
+        /** Returns whether machine should be shown in VirtualBox Manager Chooser-pane. */
+        bool showMachineInVirtualBoxManagerChooser(const QUuid &uID);
+        /** Returns whether machine should be shown in VirtualBox Manager Details-pane. */
+        bool showMachineInVirtualBoxManagerDetails(const QUuid &uID);
 
         /** Returns whether machine reconfiguration enabled. */
         bool machineReconfigurationEnabled(const QUuid &uID);
@@ -621,33 +641,43 @@ public:
         ScalingOptimizationType scalingOptimizationType(const QUuid &uID);
     /** @} */
 
-    /** @name Virtual Machine: Information dialog
+    /** @name Virtual Machine: Session Information dialog
       * @{ */
-        /** Returns information-window geometry using @a pWidget and @a pParentWidget as hints. */
-        QRect informationWindowGeometry(QWidget *pWidget, QWidget *pParentWidget, const QUuid &uID);
+        /** Returns session information dialog geometry using @a pWidget and @a pParentWidget as hints. */
+        QRect sessionInformationDialogGeometry(QWidget *pWidget, QWidget *pParentWidget);
         /** Returns whether information-window should be maximized or not. */
-        bool informationWindowShouldBeMaximized(const QUuid &uID);
+        bool sessionInformationDialogShouldBeMaximized();
         /** Defines information-window @a geometry and @a fMaximized state. */
-        void setInformationWindowGeometry(const QRect &geometry, bool fMaximized, const QUuid &uID);
-
-        /** Returns information-window elements. */
-        QMap<InformationElementType, bool> informationWindowElements();
-        /** Defines information-window @a elements. */
-        void setInformationWindowElements(const QMap<InformationElementType, bool> &elements);
+        void setSessionInformationDialogGeometry(const QRect &geometry, bool fMaximized);
     /** @} */
 
     /** @name Guest Control related dialogs
       * @{ */
         void setGuestControlProcessControlSplitterHints(const QList<int> &hints);
         QList<int> guestControlProcessControlSplitterHints();
-        QRect fileManagerDialogGeometry(QWidget *pWidget, const QRect &defaultGeometry);
+        QRect fileManagerDialogGeometry(QWidget *pWidget, QWidget *pParentWidget);
         bool fileManagerDialogShouldBeMaximized();
         void setFileManagerDialogGeometry(const QRect &geometry, bool fMaximized);
-        QRect guestProcessControlDialogGeometry(QWidget *pWidget, const QRect &defaultGeometry);
+        QRect guestProcessControlDialogGeometry(QWidget *pWidget, QWidget *pParentWidget, const QRect &defaultGeometry);
         bool guestProcessControlDialogShouldBeMaximized();
         void setGuestProcessControlDialogGeometry(const QRect &geometry, bool fMaximized);
         void setFileManagerVisiblePanels(const QStringList &panelNameList);
         QStringList fileManagerVisiblePanels();
+    /** @} */
+
+    /** @name Soft Keyboard
+      * @{ */
+        QRect softKeyboardDialogGeometry(QWidget *pWidget, QWidget *pParentWidget, const QRect &defaultGeometry);
+        void setSoftKeyboardDialogGeometry(const QRect &geometry, bool fMaximized);
+        bool softKeyboardDialogShouldBeMaximized();
+        void setSoftKeyboardOptions(bool fShowNumPad, bool fHideOSMenuKeys, bool fMultimediaKeys);
+        void softKeyboardOptions(bool &fOutShowNumPad, bool &fOutHideOSMenuKeys, bool &fOutHideMultimediaKeys);
+        void setSoftKeyboardColorTheme(const QStringList &colorStringList);
+        QStringList softKeyboardColorTheme();
+        void setSoftKeyboardSelectedColorTheme(const QString &strColorThemeName);
+        QString softKeyboardSelectedColorTheme();
+        void setSoftKeyboardSelectedLayout(const QUuid &uLayoutUid);
+        QUuid softKeyboardSelectedLayout();
     /** @} */
 
     /** @name File Manager options
@@ -689,8 +719,8 @@ public:
 #ifdef VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
     /** @name VirtualBox: Extra-data Manager window
       * @{ */
-        /** Returns Extra-data Manager geometry using @a pWidget as hint. */
-        QRect extraDataManagerGeometry(QWidget *pWidget);
+        /** Returns Extra-data Manager geometry using @a pWidget and @a pParentWidget as hint. */
+        QRect extraDataManagerGeometry(QWidget *pWidget, QWidget *pParentWidget);
         /** Returns whether Extra-data Manager should be maximized or not. */
         bool extraDataManagerShouldBeMaximized();
         /** Defines Extra-data Manager @a geometry and @a fMaximized state. */
@@ -705,8 +735,8 @@ public:
 
     /** @name Virtual Machine: Log Viewer dialog
       * @{ */
-        /** Returns log-window geometry using @a pWidget and @a defaultGeometry as hints. */
-        QRect logWindowGeometry(QWidget *pWidget, const QRect &defaultGeometry);
+        /** Returns log-window geometry using @a pWidget, @a pParentWidget and @a defaultGeometry as hints. */
+        QRect logWindowGeometry(QWidget *pWidget, QWidget *pParentWidget, const QRect &defaultGeometry);
         /** Returns whether log-window should be maximized or not. */
         bool logWindowShouldBeMaximized();
         /** Defines log-window @a geometry and @a fMaximized state. */
@@ -784,8 +814,18 @@ private:
     /** Translates bool flag into 'restricted' value. */
     QString toFeatureRestricted(bool fRestricted);
 
-    QRect dialogGeometry(const QString &strKey, QWidget *pWidget, const QRect &defaultGeometry);
+    /** Defines saved dialog geometry according to specified attributes.
+      * @param  strKey      Brings geometry extra-data key of particular dialog.
+      * @param  geometry    Brings the dialog geometry to save.
+      * @param  fMaximized  Brings whether saved dialog geometry should be marked as maximized. */
     void setDialogGeometry(const QString &strKey, const QRect &geometry, bool fMaximized);
+    /** Returns saved dialog geometry according to specified attributes.
+      * @param  strKey           Brings geometry extra-data key of particular dialog.
+      * @param  pWidget          Brings the widget to limit geometry bounds according to.
+      * @param  pParentWidget    Brings the widget to center geometry rectangle according to.
+      * @param  defaultGeometry  Brings the default geometry which should be used to
+      *                          calculate resulting geometry if saved was not found. */
+    QRect dialogGeometry(const QString &strKey, QWidget *pWidget, QWidget *pParentWidget = 0, const QRect &defaultGeometry = QRect());
 
     /** Returns string consisting of @a strBase appended with @a uScreenIndex for the *non-primary* screen-index.
       * If @a fSameRuleForPrimary is 'true' same rule will be used for *primary* screen-index. Used for storing per-screen extra-data. */

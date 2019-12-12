@@ -68,10 +68,12 @@ ValidationKit-testdriver_SOURCES := \
 	$(PATH_SUB_CURRENT)/testdriver/base.py \
 	$(PATH_SUB_CURRENT)/testdriver/btresolver.py \
 	$(PATH_SUB_CURRENT)/testdriver/reporter.py \
+	$(PATH_SUB_CURRENT)/testdriver/testfileset.py \
 	$(PATH_SUB_CURRENT)/testdriver/tst-txsclient.py \
 	$(PATH_SUB_CURRENT)/testdriver/txsclient.py \
 	$(PATH_SUB_CURRENT)/testdriver/vbox.py \
 	$(PATH_SUB_CURRENT)/testdriver/vboxcon.py \
+	$(PATH_SUB_CURRENT)/testdriver/vboxtestfileset.py \
 	$(PATH_SUB_CURRENT)/testdriver/vboxtestvms.py \
 	$(PATH_SUB_CURRENT)/testdriver/vboxwrappers.py \
 	$(PATH_SUB_CURRENT)/testdriver/winbase.py \
@@ -167,9 +169,11 @@ define def_vbox_validationkit_common_files
       	$$(VBOX_PATH_VALIDATIONKIT.$(os).$(arch))/cpu-alloc-all-mem$(TMP_SUFF_EXE) \
       	$$(VBOX_PATH_VALIDATIONKIT.$(os).$(arch))/cpu-numa$(TMP_SUFF_EXE) \
       	$$(VBOX_PATH_VALIDATIONKIT.$(os).$(arch))/FsPerf$(TMP_SUFF_EXE) \
+      	$$(VBOX_PATH_VALIDATIONKIT.$(os).$(arch))/IoPerf$(TMP_SUFF_EXE) \
       	$$(VBOX_PATH_VALIDATIONKIT.$(os).$(arch))/NetPerf$(TMP_SUFF_EXE) \
       	$$(VBOX_PATH_VALIDATIONKIT.$(os).$(arch))/LoadGenerator$(TMP_SUFF_EXE) \
       	$$(VBOX_PATH_VALIDATIONKIT.$(os).$(arch))/loadgeneratorR0.r0 \
+      	$$(VBOX_PATH_VALIDATIONKIT.$(os).$(arch))/SerialTest$(TMP_SUFF_EXE) \
       	$$(VBOX_PATH_VALIDATIONKIT.$(os).$(arch))/TestExecService$(TMP_SUFF_EXE) \
       	$$(VBOX_PATH_VALIDATIONKIT.$(os).$(arch))/vts_rm$(TMP_SUFF_EXE) \
       	$$(VBOX_PATH_VALIDATIONKIT.$(os).$(arch))/vts_shutdown$(TMP_SUFF_EXE) \
@@ -190,13 +194,11 @@ $(foreach os, darwin freebsd linux solaris,$(foreach arch, x86 amd64, \
 # OS specific files - Linux
 ifdef VBOX_WITH_VALIDATIONKIT_PACKING.linux.x86
  VBOX_VALIDATIONKIT_FILESPEC += \
- 	$(VBOX_PATH_VALIDATIONKIT.linux.x86)/UsbTest \
- 	$(VBOX_PATH_VALIDATIONKIT.linux.x86)/SerialTest
+ 	$(VBOX_PATH_VALIDATIONKIT.linux.x86)/UsbTest
 endif
 ifdef VBOX_WITH_VALIDATIONKIT_PACKING.linux.amd64
  VBOX_VALIDATIONKIT_FILESPEC += \
- 	$(VBOX_PATH_VALIDATIONKIT.linux.amd64)/UsbTest \
- 	$(VBOX_PATH_VALIDATIONKIT.linux.amd64)/SerialTest
+ 	$(VBOX_PATH_VALIDATIONKIT.linux.amd64)/UsbTest
 endif
 ifdef VBOX_WITH_VALIDATIONKIT_PACKING.linux.x86
  VBOX_VALIDATIONKIT_FILESPEC += $(abspath $(VBOX_PATH_VALIDATIONKIT.linux.x86)/../vboxtxs)
@@ -223,14 +225,6 @@ endif
 
 # OS specific files - Solaris
 ifdef VBOX_WITH_VALIDATIONKIT_PACKING.solaris.x86
- VBOX_VALIDATIONKIT_FILESPEC += \
- 	$(VBOX_PATH_VALIDATIONKIT.solaris.x86)/SerialTest
-endif
-ifdef VBOX_WITH_VALIDATIONKIT_PACKING.solaris.amd64
- VBOX_VALIDATIONKIT_FILESPEC += \
- 	$(VBOX_PATH_VALIDATIONKIT.solaris.amd64)/SerialTest
-endif
-ifdef VBOX_WITH_VALIDATIONKIT_PACKING.solaris.x86
  VBOX_VALIDATIONKIT_FILESPEC += $(abspath $(VBOX_PATH_VALIDATIONKIT.solaris.x86)/../vboxtxs.sh)
  VBOX_VALIDATIONKIT_FILESPEC += $(abspath $(VBOX_PATH_VALIDATIONKIT.solaris.x86)/../vboxtxs.xml)
  VBOX_VALIDATIONKIT_FILESPEC += $(abspath $(VBOX_PATH_VALIDATIONKIT.solaris.x86)/../vboxtxs-sol10.xml)
@@ -244,8 +238,7 @@ endif
 ifdef VBOX_WITH_VALIDATIONKIT_PACKING.win.x86
  VBOX_VALIDATIONKIT_FILESPEC += \
  	$(VBOX_PATH_VALIDATIONKIT.win.x86)/ntSetFreq.exe \
- 	$(VBOX_PATH_VALIDATIONKIT.win.x86)/ntTimeSources.exe \
- 	$(VBOX_PATH_VALIDATIONKIT.win.x86)/SerialTest.exe
+ 	$(VBOX_PATH_VALIDATIONKIT.win.x86)/ntTimeSources.exe
     ifdef VBOX_WITH_AUDIO_VALIDATIONKIT
      	VBOX_VALIDATIONKIT_FILESPEC += \
      	$(VBOX_PATH_VALIDATIONKIT.win.x86)/ntPlayToneWaveX.exe
@@ -254,8 +247,7 @@ endif
 ifdef VBOX_WITH_VALIDATIONKIT_PACKING.win.amd64
  VBOX_VALIDATIONKIT_FILESPEC += \
  	$(VBOX_PATH_VALIDATIONKIT.win.amd64)/ntSetFreq.exe \
- 	$(VBOX_PATH_VALIDATIONKIT.win.amd64)/ntTimeSources.exe \
- 	$(VBOX_PATH_VALIDATIONKIT.win.amd64)/SerialTest.exe
+ 	$(VBOX_PATH_VALIDATIONKIT.win.amd64)/ntTimeSources.exe
     ifdef VBOX_WITH_AUDIO_VALIDATIONKIT
      	VBOX_VALIDATIONKIT_FILESPEC += \
      	$(VBOX_PATH_VALIDATIONKIT.win.amd64)/ntPlayToneWaveX.exe

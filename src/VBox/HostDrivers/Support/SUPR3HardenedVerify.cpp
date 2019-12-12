@@ -130,9 +130,6 @@ static SUPINSTFILE const    g_aSupInstallFiles[] =
 
     {   kSupIFT_Dll,  kSupID_AppSharedLib,      false, "VBoxRT" SUPLIB_DLL_SUFF },
     {   kSupIFT_Dll,  kSupID_AppSharedLib,      false, "VBoxVMM" SUPLIB_DLL_SUFF },
-#ifdef VBOX_WITH_REM
-    {   kSupIFT_Dll,  kSupID_AppSharedLib,      false, "VBoxREM" SUPLIB_DLL_SUFF },
-#endif
 #if HC_ARCH_BITS == 32
     {   kSupIFT_Dll,  kSupID_AppSharedLib,       true, "VBoxREM32" SUPLIB_DLL_SUFF },
     {   kSupIFT_Dll,  kSupID_AppSharedLib,       true, "VBoxREM64" SUPLIB_DLL_SUFF },
@@ -199,7 +196,7 @@ static SUPINSTFILE const    g_aSupInstallFiles[] =
     {   kSupIFT_Exe,  kSupID_AppBin,             true, "VirtualBox" SUPLIB_EXE_SUFF },
     {   kSupIFT_Exe,  kSupID_AppBin,             true, "VirtualBoxVM" SUPLIB_EXE_SUFF },
     {   kSupIFT_Dll,  kSupID_AppPrivArch,        true, "VirtualBoxVM" SUPLIB_DLL_SUFF },
-    {   kSupIFT_Dll,  kSupID_AppPrivArch,        true, "VBoxGlobal" SUPLIB_DLL_SUFF },
+    {   kSupIFT_Dll,  kSupID_AppPrivArch,        true, "UICommon" SUPLIB_DLL_SUFF },
 # if !defined(RT_OS_DARWIN) && !defined(RT_OS_WINDOWS) && !defined(RT_OS_OS2)
     {   kSupIFT_Dll,  kSupID_AppSharedLib,       true, "VBoxKeyboard" SUPLIB_DLL_SUFF },
 # endif

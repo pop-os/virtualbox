@@ -301,7 +301,7 @@ SOLARIS_STRIP_EXES = \
 	VBoxNetNAT \
 	$(if $(VBOX_WITH_EXTPACK),VBoxExtPackHelperApp,) \
 	VBoxSVC \
-	$(if $(VBOX_WITH_CROGL),VBoxTestOGL,) \
+	$(if $(VBOX_WITH_VMSVGA3D), VBoxTestOGL,) \
 	VBoxXPCOMIPCD \
 	$(if $(VBOX_WITH_KCHMVIEWER),kchmviewer,) \
 	$(if $(VBOX_WITH_DTRACE),VBoxDTrace,)
@@ -317,8 +317,6 @@ SOLARIS_STRIP_BINS.DST     := $(VBOX_PATH_SI_SCRATCH_PKG)/opt/VirtualBox/$(VBOX_
 SOLARIS_STRIP_BINS = \
 	VBoxDD.so \
 	VBoxDD2.so \
-	VBoxREM.so \
-	$(if-expr "$(KBUILD_TARGET_ARCH)" == "x86",VBoxREM32.so VBoxREM64.so,) \
 	VBoxRT.so \
 	VBoxDDU.so \
 	VBoxVMM.so \
@@ -334,26 +332,24 @@ SOLARIS_STRIP_BINS = \
 	$(if $(VBOX_WITH_QTGUI),\
 	  VBoxKeyboard.so) \
 	$(if $(VBOX_WITH_DEBUGGER_GUI),VBoxDbg.so DbgPlugInDiggers.so,) \
-	$(if $(VBOX_WITH_CROGL),\
-	  VBoxSharedCrOpenGL.so) \
 	components/VBoxC.so \
 	components/VBoxSVCM.so \
 	components/VBoxXPCOMIPCC.so
 
 ifdef VBOX_WITH_QTGUI
-  ifdef VBOX_WITH_ORACLE_QT
-   SOLARIS_STRIP_BINS += \
-          libQt5CoreVBox.so.5 \
-	  libQt5GuiVBox.so.5 \
-          libQt5XcbQpaVBox.so.5 \
-          libQt5PrintSupportVBox.so.5 \
-          libQt5DBusVBox.so.5 \
-	  libQt5X11ExtrasVBox.so.5 \
-          libQt5WidgetsVBox.so.5 \
-          plugins/platforms/libqxcb.so \
-          plugins/xcbglintegrations/libqxcb-glx-integration.so \
-	  $(if $(VBOX_GUI_USE_QGL),libQt5OpenGLVBox.so.5,)
-  endif
+ ifdef VBOX_WITH_ORACLE_QT
+  SOLARIS_STRIP_BINS += \
+  	libQt5CoreVBox.so.5 \
+  	libQt5GuiVBox.so.5 \
+  	libQt5XcbQpaVBox.so.5 \
+  	libQt5PrintSupportVBox.so.5 \
+  	libQt5DBusVBox.so.5 \
+  	libQt5X11ExtrasVBox.so.5 \
+  	libQt5WidgetsVBox.so.5 \
+  	plugins/platforms/libqxcb.so \
+  	plugins/xcbglintegrations/libqxcb-glx-integration.so \
+  	$(if $(VBOX_GUI_USE_QGL),libQt5OpenGLVBox.so.5,)
+ endif
 endif #VBOX_WITH_QTGUI
 
 ifdef VBOX_WITH_32_ON_64_MAIN_API
@@ -369,7 +365,7 @@ ifdef VBOX_WITH_HARDENING
 	VBoxNetDHCP.so \
 	VBoxNetNAT.so \
 	$(if $(VBOX_WITH_VBOXSDL),VBoxSDL.so,) \
-	$(if $(VBOX_WITH_QTGUI),VirtualBoxVM.so VBoxGlobal.so,)
+	$(if $(VBOX_WITH_QTGUI),VirtualBoxVM.so UICommon.so,)
 endif
 
 ## @def SOLARIS_STRIP_OBJS
@@ -382,10 +378,13 @@ SOLARIS_STRIP_OBJS.MODE    := 0644
 SOLARIS_STRIP_OBJS.SRC     := $(PATH_STAGE_BIN)
 SOLARIS_STRIP_OBJS.DST     := $(VBOX_PATH_SI_SCRATCH_PKG)/opt/VirtualBox/$(VBOX_SI_ARCH)
 SOLARIS_STRIP_OBJS = \
-	VBoxDDRC.rc \
 	VBoxDDR0.r0 \
-	VMMRC.rc \
 	VMMR0.r0
+ifdef VBOX_WITH_RAW_MODE
+SOLARIS_STRIP_OBJS += \
+	VBoxDDRC.rc \
+	VMMRC.rc
+endif
 
 ## @def SOLARIS_NO_STRIP
 # List of data files that should be copied from INST_BIN to /opt/VirtualBox/$(VBOX_SI_ARCH)/.

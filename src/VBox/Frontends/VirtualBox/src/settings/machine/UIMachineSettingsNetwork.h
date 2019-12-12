@@ -56,6 +56,15 @@ public:
     const QStringList &genericDriverList() const { return m_genericDriverList; }
     /** Returns the NAT network list. */
     const QStringList &natNetworkList() const { return m_natNetworkList; }
+#ifdef VBOX_WITH_CLOUD_NET
+    /** Returns the cloud network list. */
+    const QStringList &cloudNetworkList() const { return m_cloudNetworkList; }
+#endif /* VBOX_WITH_CLOUD_NET */
+
+ public slots:
+
+    /** Handles particular tab update. */
+    void sltHandleTabUpdate();
 
 protected:
 
@@ -87,9 +96,6 @@ protected:
 
 private slots:
 
-    /** Handles particular tab update. */
-    void sltHandleTabUpdate();
-
     /** Handles whether the advanced button is @a fExpanded. */
     void sltHandleAdvancedButtonStateChange(bool fExpanded);
 
@@ -110,11 +116,11 @@ private:
     void refreshGenericDriverList(bool fFullRefresh = false);
     /** Repopulates NAT network list. */
     void refreshNATNetworkList();
+#ifdef VBOX_WITH_CLOUD_NET
+    /** Repopulates cloud network list. */
+    void refreshCloudNetworkList();
+#endif /* VBOX_WITH_CLOUD_NET */
 
-    /** Populates a list of known internal networks. */
-    static QStringList otherInternalNetworkList();
-    /** Populates a list of known generic drivers. */
-    static QStringList otherGenericDriverList();
     /** Loads generic properties from passed @a adapter. */
     static QString loadGenericProperties(const CNetworkAdapter &adapter);
     /** Saves generic @a strProperties to passed @a adapter. */
@@ -132,12 +138,20 @@ private:
     QStringList  m_bridgedAdapterList;
     /** Holds the internal network list. */
     QStringList  m_internalNetworkList;
+    /** Holds the saved internal network list. */
+    QStringList  m_internalNetworkListSaved;
     /** Holds the host-only interface list. */
     QStringList  m_hostInterfaceList;
     /** Holds the generic driver list. */
     QStringList  m_genericDriverList;
+    /** Holds the saved generic driver list. */
+    QStringList  m_genericDriverListSaved;
     /** Holds the NAT network list. */
     QStringList  m_natNetworkList;
+#ifdef VBOX_WITH_CLOUD_NET
+    /** Holds the cloud network list. */
+    QStringList  m_cloudNetworkList;
+#endif /* VBOX_WITH_CLOUD_NET */
 
     /** Holds the page data cache instance. */
     UISettingsCacheMachineNetwork *m_pCache;

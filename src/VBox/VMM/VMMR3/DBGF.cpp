@@ -72,9 +72,6 @@
 #define LOG_GROUP LOG_GROUP_DBGF
 #include <VBox/vmm/dbgf.h>
 #include <VBox/vmm/selm.h>
-#ifdef VBOX_WITH_REM
-# include <VBox/vmm/rem.h>
-#endif
 #include <VBox/vmm/em.h>
 #include <VBox/vmm/hm.h>
 #include "DBGFInternal.h"
@@ -506,7 +503,7 @@ static void dbgfR3EventSetStoppedInHyperFlag(PVM pVM, DBGFEVENTTYPE enmEvent)
 static DBGFEVENTCTX dbgfR3FigureEventCtx(PVM pVM)
 {
     /** @todo SMP support! */
-    PVMCPU pVCpu = &pVM->aCpus[0];
+    PVMCPU pVCpu = pVM->apCpusR3[0];
 
     switch (EMGetState(pVCpu))
     {
@@ -552,13 +549,9 @@ static int dbgfR3EventPrologue(PVM pVM, DBGFEVENTTYPE enmEvent)
     }
 
     /*
-     * Sync back the state from the REM.
+     * Set flag.
      */
     dbgfR3EventSetStoppedInHyperFlag(pVM, enmEvent);
-#ifdef VBOX_WITH_REM
-    if (!pVM->dbgf.s.fStoppedInHyper)
-        REMR3StateUpdate(pVM, pVCpu);
-#endif
 
     /*
      * Look thru pending commands and finish those which make sense now.
@@ -1353,11 +1346,9 @@ static DBGFSTEPINSTRTYPE dbgfStepGetCurInstrType(PVM pVM, PVMCPU pVCpu)
     /*
      * Read the instruction.
      */
-    bool     fIsHyper = dbgfR3FigureEventCtx(pVM) == DBGFEVENTCTX_HYPER;
     size_t   cbRead   = 0;
     uint8_t  abOpcode[16] = { 0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0 };
-    int rc = PGMR3DbgReadGCPtr(pVM, abOpcode, !fIsHyper ? CPUMGetGuestFlatPC(pVCpu) : CPUMGetHyperRIP(pVCpu),
-                               sizeof(abOpcode) - 1, 0 /*fFlags*/, &cbRead);
+    int rc = PGMR3DbgReadGCPtr(pVM, abOpcode, CPUMGetGuestFlatPC(pVCpu), sizeof(abOpcode) - 1, 0 /*fFlags*/, &cbRead);
     if (RT_SUCCESS(rc))
     {
         /*
@@ -1406,8 +1397,6 @@ static DBGFSTEPINSTRTYPE dbgfStepGetCurInstrType(PVM pVM, PVMCPU pVCpu)
                 /* Must handle some REX prefixes. So we do all normal prefixes. */
                 case 0x40: case 0x41: case 0x42: case 0x43: case 0x44: case 0x45: case 0x46: case 0x47:
                 case 0x48: case 0x49: case 0x4a: case 0x4b: case 0x4c: case 0x4d: case 0x4e: case 0x4f:
-                    if (fIsHyper) /* ASSUMES 32-bit raw-mode! */
-                        return DBGFSTEPINSTRTYPE_OTHER;
                     if (!CPUMIsGuestIn64BitCode(pVCpu))
                         return DBGFSTEPINSTRTYPE_OTHER;
                     break;
@@ -1463,13 +1452,11 @@ static bool dbgfStepAreWeThereYet(PVM pVM, PVMCPU pVCpu)
                  */
                 if (pVM->dbgf.s.SteppingFilter.fFlags & (DBGF_STEP_F_STOP_ON_ADDRESS | DBGF_STEP_F_STOP_ON_STACK_POP))
                 {
-                    bool fIsHyper = dbgfR3FigureEventCtx(pVM) == DBGFEVENTCTX_HYPER;
                     if (   (pVM->dbgf.s.SteppingFilter.fFlags & DBGF_STEP_F_STOP_ON_ADDRESS)
-                        && pVM->dbgf.s.SteppingFilter.AddrPc == (!fIsHyper ? CPUMGetGuestFlatPC(pVCpu) : CPUMGetHyperRIP(pVCpu)))
+                        && pVM->dbgf.s.SteppingFilter.AddrPc == CPUMGetGuestFlatPC(pVCpu))
                         return true;
                     if (   (pVM->dbgf.s.SteppingFilter.fFlags & DBGF_STEP_F_STOP_ON_STACK_POP)
-                        &&     (!fIsHyper ? CPUMGetGuestFlatSP(pVCpu) : (uint64_t)CPUMGetHyperESP(pVCpu))
-                             - pVM->dbgf.s.SteppingFilter.AddrStackPop
+                        &&   CPUMGetGuestFlatSP(pVCpu) - pVM->dbgf.s.SteppingFilter.AddrStackPop
                            < pVM->dbgf.s.SteppingFilter.cbStackPop)
                         return true;
                 }
@@ -2111,9 +2098,9 @@ VMMR3DECL(int) DBGFR3InjectNMI(PUVM pUVM, VMCPUID idCpu)
     /** @todo Implement generic NMI injection. */
     /** @todo NEM: NMI injection   */
     if (!HMIsEnabled(pVM))
-        return VERR_NOT_SUP_IN_RAW_MODE;
+        return VERR_NOT_SUP_BY_NEM;
 
-    VMCPU_FF_SET(&pVM->aCpus[idCpu], VMCPU_FF_INTERRUPT_NMI);
+    VMCPU_FF_SET(pVM->apCpusR3[idCpu], VMCPU_FF_INTERRUPT_NMI);
     return VINF_SUCCESS;
 }
 

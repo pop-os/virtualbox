@@ -24,7 +24,7 @@
 
 /* GUI includes: */
 #include "QIFileDialog.h"
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #include "UIGlobalSettingsExtension.h"
 #include "UIIconPool.h"
 #include "UIMessageCenter.h"
@@ -193,7 +193,7 @@ void UIGlobalSettingsExtension::loadToCacheFrom(QVariant &data)
     UIDataSettingsGlobalExtension oldExtensionData;
 
     /* Gather old extension data: */
-    const CExtPackVector &packages = vboxGlobal().virtualBox().
+    const CExtPackVector &packages = uiCommon().virtualBox().
                                      GetExtensionPackManager().GetInstalledExtPacks();
     foreach (const CExtPack &package, packages)
     {
@@ -305,7 +305,7 @@ void UIGlobalSettingsExtension::sltAddPackage()
     if (!strFilePath.isEmpty())
     {
         QString strExtPackName;
-        vboxGlobal().doExtPackInstallation(strFilePath, QString(), this, &strExtPackName);
+        uiCommon().doExtPackInstallation(strFilePath, QString(), this, &strExtPackName);
 
         /* Since we might be reinstalling an existing package, we have to
          * do a little refreshing regardless of what the user chose. */
@@ -334,7 +334,7 @@ void UIGlobalSettingsExtension::sltAddPackage()
             }
 
             /* Reinsert it into the cache and tree: */
-            CExtPackManager manager = vboxGlobal().virtualBox().GetExtensionPackManager();
+            CExtPackManager manager = uiCommon().virtualBox().GetExtensionPackManager();
             const CExtPack &package = manager.Find(strExtPackName);
             if (package.isOk())
             {
@@ -366,7 +366,7 @@ void UIGlobalSettingsExtension::sltRemovePackage()
         if (msgCenter().confirmRemoveExtensionPack(strSelectedPackageName, this))
         {
             /* Uninstall the package: */
-            CExtPackManager manager = vboxGlobal().virtualBox().GetExtensionPackManager();
+            CExtPackManager manager = uiCommon().virtualBox().GetExtensionPackManager();
             /** @todo Refuse this if any VMs are running. */
             QString displayInfo;
 #ifdef VBOX_WS_WIN
@@ -425,10 +425,10 @@ void UIGlobalSettingsExtension::prepare()
             m_pPackagesTree->header()->setSectionResizeMode(1, QHeaderView::Stretch);
             m_pPackagesTree->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
             m_pPackagesTree->setContextMenuPolicy(Qt::CustomContextMenu);
-            connect(m_pPackagesTree, SIGNAL(currentItemChanged(QTreeWidgetItem *, QTreeWidgetItem *)),
-                    this, SLOT(sltHandleCurrentItemChange(QTreeWidgetItem *)));
-            connect(m_pPackagesTree, SIGNAL(customContextMenuRequested(const QPoint &)),
-                    this, SLOT(sltHandleContextMenuRequest(const QPoint &)));
+            connect(m_pPackagesTree, &QITreeWidget::currentItemChanged,
+                    this, &UIGlobalSettingsExtension::sltHandleCurrentItemChange);
+            connect(m_pPackagesTree, &QITreeWidget::customContextMenuRequested,
+                    this, &UIGlobalSettingsExtension::sltHandleContextMenuRequest);
         }
 
         /* Tool-bar created in the .ui file. */

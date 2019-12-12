@@ -27,6 +27,7 @@
 
 /* Forward declarations: */
 class UIChooser;
+class UIChooserSearchWidget;
 
 /** QIGraphicsView extension used as VM chooser pane view. */
 class UIChooserView : public QIWithRetranslateUI<QIGraphicsView>
@@ -50,20 +51,24 @@ public:
         UIChooser *chooser() const { return m_pChooser; }
     /** @} */
 
-public slots:
-
-    /** @name General stuff.
+    /** @name Search stuff.
       * @{ */
-        /** Handles focus change to @a pFocusItem. */
-        void sltFocusChanged();
+        /** Returns if the search widget is visible or not. */
+        bool isSearchWidgetVisible() const;
+        /** Shows/hides wrt. @a fVisible machine search widget. */
+        void setSearchWidgetVisible(bool fVisible);
+        /** Updates the search widget's counts. */
+        void setSearchResultsCount(int iTotalMacthCount, int iCurrentlyScrolledItemIndex);
+        /** Forwards @a strSearchText to the search widget which in turn appends it to the current (if any) search term. */
+        void appendToSearchString(const QString &strSearchText);
     /** @} */
+
+public slots:
 
     /** @name Layout stuff.
       * @{ */
         /** Handles minimum width @a iHint change. */
         void sltMinimumWidthHintChanged(int iHint);
-        /** Handles minimum height @a iHint change. */
-        void sltMinimumHeightHintChanged(int iHint);
     /** @} */
 
 protected:
@@ -76,6 +81,14 @@ protected:
         /** Handles resize @a pEvent. */
         virtual void resizeEvent(QResizeEvent *pEvent) /* override */;
     /** @} */
+
+private slots:
+
+    /** Is connected to search widget's signal for a new search. */
+    void sltRedoSearch(const QString &strSearchTerm, int iItemSearchFlags);
+    /** Is connected to search widget's scroll to next/prev search result signal. */
+    void sltHandleScrollToSearchResult(bool fIsNext);
+    void sltHandleSearchWidgetVisibilityToggle(bool fIsVisible);
 
 private:
 
@@ -93,18 +106,24 @@ private:
         void updateSceneRect();
     /** @} */
 
+    /** @name Search stuff.
+      * @{ */
+        /** Updates search widget's geometry. */
+        void updateSearchWidgetGeometry();
+    /** @} */
+
     /** @name General stuff.
       * @{ */
         /** Holds the chooser pane reference. */
         UIChooser *m_pChooser;
+        /** Holds the search widget instance reference. */
+        UIChooserSearchWidget *m_pSearchWidget;
     /** @} */
 
     /** @name Layout stuff.
       * @{ */
         /** Holds the minimum width hint. */
         int m_iMinimumWidthHint;
-        /** Holds the minimum height hint. */
-        int m_iMinimumHeightHint;
     /** @} */
 };
 

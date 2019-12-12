@@ -23,7 +23,7 @@
 #include "UIChooserModel.h"
 #include "UIChooserView.h"
 #include "UIVirtualBoxManagerWidget.h"
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 
 
 UIChooser::UIChooser(UIVirtualBoxManagerWidget *pParent)
@@ -50,12 +50,12 @@ UIActionPool *UIChooser::actionPool() const
 
 UIVirtualMachineItem *UIChooser::currentItem() const
 {
-    return m_pChooserModel->currentMachineItem();
+    return m_pChooserModel->firstSelectedMachineItem();
 }
 
 QList<UIVirtualMachineItem*> UIChooser::currentItems() const
 {
-    return m_pChooserModel->currentMachineItems();
+    return m_pChooserModel->selectedMachineItems();
 }
 
 bool UIChooser::isGroupItemSelected() const
@@ -166,10 +166,6 @@ void UIChooser::prepareConnections()
     /* Setup chooser-model connections: */
     connect(m_pChooserModel, &UIChooserModel::sigRootItemMinimumWidthHintChanged,
             m_pChooserView, &UIChooserView::sltMinimumWidthHintChanged);
-    connect(m_pChooserModel, &UIChooserModel::sigRootItemMinimumHeightHintChanged,
-            m_pChooserView, &UIChooserView::sltMinimumHeightHintChanged);
-    connect(m_pChooserModel, &UIChooserModel::sigFocusChanged,
-            m_pChooserView, &UIChooserView::sltFocusChanged);
     connect(m_pChooserModel, &UIChooserModel::sigToolMenuRequested,
             this, &UIChooser::sltToolMenuRequested);
 

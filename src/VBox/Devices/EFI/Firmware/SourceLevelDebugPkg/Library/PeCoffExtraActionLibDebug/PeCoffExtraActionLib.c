@@ -1,19 +1,52 @@
 /** @file
   PE/Coff Extra Action library instances.
 
-  Copyright (c) 2010 - 2013, Intel Corporation. All rights reserved.<BR>
-  This program and the accompanying materials
-  are licensed and made available under the terms and conditions of the BSD License
-  which accompanies this distribution.  The full text of the license may be found at
-  http://opensource.org/licenses/bsd-license.php.
-
-  THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
-  WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
+  Copyright (c) 2010 - 2018, Intel Corporation. All rights reserved.<BR>
+  SPDX-License-Identifier: BSD-2-Clause-Patent
 
 **/
 
 #include <PeCoffExtraActionLib.h>
 
+#ifdef VBOX
+#include "VBoxPkg.h"
+#include "../../../../DevEFI.h"
+
+
+
+static void vboxImageEvtU64(uint32_t uCmd, uint64_t uValue)
+{
+    RTUINT64U u; /* 64-bit shift builtins. */
+    u.u = uValue;
+    ASMOutU32(EFI_PORT_IMAGE_EVENT, EFI_IMAGE_EVT_MAKE(uCmd, u.au16[3]));
+    ASMOutU32(EFI_PORT_IMAGE_EVENT, EFI_IMAGE_EVT_MAKE(uCmd, u.au16[2]));
+    ASMOutU32(EFI_PORT_IMAGE_EVENT, EFI_IMAGE_EVT_MAKE(uCmd, u.au16[1]));
+    ASMOutU32(EFI_PORT_IMAGE_EVENT, EFI_IMAGE_EVT_MAKE(uCmd, u.au16[0]));
+}
+
+static void vboxImageEvtString(uint32_t uCmd, const char *pszName)
+{
+    unsigned char uch;
+    while ((uch = *pszName++) != '\0')
+        ASMOutU32(EFI_PORT_IMAGE_EVENT, EFI_IMAGE_EVT_MAKE(uCmd, uch));
+}
+
+static void vboxImageEvtEmitOne(PE_COFF_LOADER_IMAGE_CONTEXT const *pImageCtx, uint32_t uEvt)
+{
+    ASMOutU32(EFI_PORT_IMAGE_EVENT, uEvt);
+    if (pImageCtx->DestinationAddress)
+        vboxImageEvtU64(EFI_IMAGE_EVT_CMD_ADDR0, pImageCtx->DestinationAddress);
+    else
+        vboxImageEvtU64(EFI_IMAGE_EVT_CMD_ADDR0, pImageCtx->ImageAddress);
+    vboxImageEvtU64(EFI_IMAGE_EVT_CMD_SIZE0, pImageCtx->ImageSize);
+    if (pImageCtx->PdbPointer)
+        vboxImageEvtString(EFI_IMAGE_EVT_CMD_NAME, pImageCtx->PdbPointer);
+    ASMOutU32(EFI_PORT_IMAGE_EVENT, EFI_IMAGE_EVT_CMD_COMPLETE);
+}
+#endif
+
+
+#ifdef VBOX_SOURCE_DEBUG_ENABLE
 /**
   Check if the hardware breakpoint in Drx is enabled by checking the Lx and Gx bit in Dr7.
 
@@ -65,6 +98,7 @@ PeCoffLoaderExtraActionCommon (
   IA32_DESCRIPTOR            IdtDescriptor;
   IA32_IDT_GATE_DESCRIPTOR   OriginalIdtEntry;
   BOOLEAN                    IdtEntryHooked;
+  UINT32                     RegEdx;
 
   ASSERT (ImageContext != NULL);
 
@@ -79,6 +113,16 @@ PeCoffLoaderExtraActionCommon (
 
   IdtEntryHooked  = FALSE;
   LoadImageMethod = PcdGet8 (PcdDebugLoadImageMethod);
+  if (LoadImageMethod == DEBUG_LOAD_IMAGE_METHOD_IO_HW_BREAKPOINT) {
+    //
+    // If the CPU does not support Debug Extensions(CPUID:01 EDX:BIT2)
+    // then force use of DEBUG_LOAD_IMAGE_METHOD_SOFT_INT3
+    //
+    AsmCpuid (1, NULL, NULL, NULL, &RegEdx);
+    if ((RegEdx & BIT2) == 0) {
+      LoadImageMethod = DEBUG_LOAD_IMAGE_METHOD_SOFT_INT3;
+    }
+  }
   AsmReadIdtr (&IdtDescriptor);
   if (LoadImageMethod == DEBUG_LOAD_IMAGE_METHOD_SOFT_INT3) {
     if (!CheckDebugAgentHandler (&IdtDescriptor, SOFT_INT_VECTOR_NUM)) {
@@ -104,7 +148,7 @@ PeCoffLoaderExtraActionCommon (
   Dr1 = AsmReadDr1 ();
   Dr2 = AsmReadDr2 ();
   Dr3 = AsmReadDr3 ();
-  Dr7 = AsmReadDr7 ();
+  Dr7 = AsmReadDr7 () | BIT10; // H/w sets bit 10, some simulators don't
   Cr4 = AsmReadCr4 ();
 
   //
@@ -115,7 +159,7 @@ PeCoffLoaderExtraActionCommon (
   // DR7 = Disables all HW breakpoints except for DR3 I/O port access of length 1 byte
   // CR4 = Make sure DE(BIT3) is set
   //
-  AsmWriteDr7 (0);
+  AsmWriteDr7 (BIT10);
   AsmWriteDr0 (Signature);
   AsmWriteDr1 ((UINTN) ImageContext->PdbPointer);
   AsmWriteDr2 ((UINTN) ImageContext);
@@ -144,7 +188,7 @@ PeCoffLoaderExtraActionCommon (
   // E.g.: User halts the target and sets the HW breakpoint while target is
   //       in the above exception handler
   //
-  NewDr7 = AsmReadDr7 ();
+  NewDr7 = AsmReadDr7 () | BIT10; // H/w sets bit 10, some simulators don't
   if (!IsDrxEnabled (0, NewDr7) && (AsmReadDr0 () == 0 || AsmReadDr0 () == Signature)) {
     //
     // If user changed Dr3 (by setting HW bp in the above exception handler,
@@ -161,11 +205,17 @@ PeCoffLoaderExtraActionCommon (
   if (!IsDrxEnabled (3, NewDr7) && (AsmReadDr3 () == IO_PORT_BREAKPOINT_ADDRESS)) {
     AsmWriteDr3 (Dr3);
   }
-  if (AsmReadCr4 () == (Cr4 | BIT3)) {
-    AsmWriteCr4 (Cr4);
-  }
-  if (NewDr7 == 0x20000480) {
-    AsmWriteDr7 (Dr7);
+  if (LoadImageMethod == DEBUG_LOAD_IMAGE_METHOD_IO_HW_BREAKPOINT) {
+    if (AsmReadCr4 () == (Cr4 | BIT3)) {
+      AsmWriteCr4 (Cr4);
+    }
+    if (NewDr7 == 0x20000480) {
+      AsmWriteDr7 (Dr7);
+    }
+  } else if (LoadImageMethod == DEBUG_LOAD_IMAGE_METHOD_SOFT_INT3) {
+    if (NewDr7 == BIT10) {
+      AsmWriteDr7 (Dr7);
+    }
   }
   //
   // Restore original IDT entry for INT1 if it was hooked.
@@ -178,6 +228,7 @@ PeCoffLoaderExtraActionCommon (
   //
   SetInterruptState (InterruptState);
 }
+#endif
 
 /**
   Performs additional actions after a PE/COFF image has been loaded and relocated.
@@ -192,7 +243,17 @@ PeCoffLoaderRelocateImageExtraAction (
   IN OUT PE_COFF_LOADER_IMAGE_CONTEXT  *ImageContext
   )
 {
+#ifdef VBOX_SOURCE_DEBUG_ENABLE
   PeCoffLoaderExtraActionCommon (ImageContext, IMAGE_LOAD_SIGNATURE);
+#endif
+
+#ifdef VBOX
+# if ARCH_BITS == 32
+  vboxImageEvtEmitOne(ImageContext, EFI_IMAGE_EVT_CMD_START_LOAD32);
+# else
+  vboxImageEvtEmitOne(ImageContext, EFI_IMAGE_EVT_CMD_START_LOAD64);
+# endif
+#endif
 }
 
 /**
@@ -209,5 +270,34 @@ PeCoffLoaderUnloadImageExtraAction (
   IN OUT PE_COFF_LOADER_IMAGE_CONTEXT  *ImageContext
   )
 {
+#ifdef VBOX_SOURCE_DEBUG_ENABLE
   PeCoffLoaderExtraActionCommon (ImageContext, IMAGE_UNLOAD_SIGNATURE);
+#endif
+
+#ifdef VBOX
+# if ARCH_BITS == 32
+  vboxImageEvtEmitOne(ImageContext, EFI_IMAGE_EVT_CMD_START_UNLOAD32);
+# else
+  vboxImageEvtEmitOne(ImageContext, EFI_IMAGE_EVT_CMD_START_UNLOAD64);
+# endif
+#endif
 }
+
+#ifdef VBOX
+VOID
+EFIAPI
+VBoxPeCoffLoaderMoveImageExtraAction(
+  IN PHYSICAL_ADDRESS OldBase,
+  IN PHYSICAL_ADDRESS NewBase
+  )
+{
+#if ARCH_BITS == 32
+    ASMOutU32(EFI_PORT_IMAGE_EVENT, EFI_IMAGE_EVT_CMD_START_RELOC32);
+#else
+    ASMOutU32(EFI_PORT_IMAGE_EVENT, EFI_IMAGE_EVT_CMD_START_RELOC64);
+#endif
+    vboxImageEvtU64(EFI_IMAGE_EVT_CMD_ADDR0, NewBase);
+    vboxImageEvtU64(EFI_IMAGE_EVT_CMD_ADDR1, OldBase);
+    ASMOutU32(EFI_PORT_IMAGE_EVENT, EFI_IMAGE_EVT_CMD_COMPLETE);
+}
+#endif

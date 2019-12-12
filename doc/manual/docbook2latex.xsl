@@ -187,6 +187,7 @@
   <xsl:apply-templates />
 
   <xsl:text>
+\end{sloppypar}
 \end{document}
   </xsl:text>
 
@@ -217,6 +218,9 @@
 \hyphenation{VirtualBox}
 
 \begin{document}
+% bird/2018-05-14: Use sloppypar so we don't push path names and other long words
+%                  thru the right margin.  TODO: Find better solution? microtype?
+\begin{sloppypar}
 % \maketitle
 %\begin{titlepage}
 \thispagestyle{empty}
@@ -276,6 +280,38 @@
         <xsl:text>}</xsl:text>
       </xsl:when>
     </xsl:choose>
+  </xsl:template>
+
+  <!-- Determins the section depth, returning a number 1,2,3,4,5,6,7,... -->
+  <xsl:template name="get-section-level">
+    <xsl:param name="a_Node" select=".."/>
+    <xsl:for-each select="$a_Node"> <!-- makes it current -->
+      <xsl:choose>
+        <xsl:when test="self::sect1"><xsl:text>1</xsl:text></xsl:when>
+        <xsl:when test="self::sect2"><xsl:text>2</xsl:text></xsl:when>
+        <xsl:when test="self::sect3"><xsl:text>3</xsl:text></xsl:when>
+        <xsl:when test="self::sect4"><xsl:text>4</xsl:text></xsl:when>
+        <xsl:when test="self::sect5"><xsl:text>5</xsl:text></xsl:when>
+        <xsl:when test="self::section">
+          <xsl:value-of select="count(ancestor::section) + 1"/>
+        </xsl:when>
+        <xsl:when test="self::simplesect">
+          <xsl:variable name="tmp">
+            <xsl:call-template name="get-section-level">
+              <xsl:with-param name="a_Node" select="parent::*"/>
+            </xsl:call-template>
+          </xsl:variable>
+          <xsl:value-of select="$tmp + 1"/>
+        </xsl:when>
+        <xsl:when test="self::preface"><xsl:text>0</xsl:text></xsl:when>
+        <xsl:when test="self::chapter"><xsl:text>0</xsl:text></xsl:when>
+        <xsl:when test="self::appendix"><xsl:text>0</xsl:text></xsl:when>
+        <xsl:when test="self::article"><xsl:text>0</xsl:text></xsl:when>
+        <xsl:otherwise>
+          <xsl:message terminate="yes">get-section-level was called on non-section element: <xsl:value-of select="."/> </xsl:message>
+        </xsl:otherwise>
+      </xsl:choose>
+    </xsl:for-each>
   </xsl:template>
 
   <!--
@@ -396,6 +432,38 @@
           <xsl:with-param name="texcmd">\section*</xsl:with-param>
         </xsl:call-template>
       </xsl:when>
+
+      <xsl:when test="parent::simplesect">
+        <xsl:if test="../@role">
+          <xsl:message terminate="yes">Role not allowed with simplesect: <xsl:value-of select="../@role"/></xsl:message>
+        </xsl:if>
+        <xsl:variable name="level">
+          <xsl:call-template name="get-section-level">
+            <xsl:with-param name="a_Node" select=".."/>
+          </xsl:call-template>
+        </xsl:variable>
+        <xsl:choose>
+          <xsl:when test="$level = 1">
+            <xsl:call-template name="title-wrapper"><xsl:with-param name="texcmd">\section*</xsl:with-param></xsl:call-template>
+          </xsl:when>
+          <xsl:when test="$level = 2">
+            <xsl:call-template name="title-wrapper"><xsl:with-param name="texcmd">\subsection*</xsl:with-param></xsl:call-template>
+          </xsl:when>
+          <xsl:when test="$level = 3">
+            <xsl:call-template name="title-wrapper"><xsl:with-param name="texcmd">\subsubsection*</xsl:with-param></xsl:call-template>
+          </xsl:when>
+          <xsl:when test="$level = 4">
+            <xsl:call-template name="title-wrapper"><xsl:with-param name="texcmd">\paragraph*</xsl:with-param></xsl:call-template>
+          </xsl:when>
+          <xsl:when test="$level = 5">
+            <xsl:call-template name="title-wrapper"><xsl:with-param name="texcmd">\subparagraph*</xsl:with-param></xsl:call-template>
+          </xsl:when>
+          <xsl:otherwise>
+            <xsl:message terminate="yes">Unsupported simplesect/title depth: <xsl:value-of select="$level"/></xsl:message>
+          </xsl:otherwise>
+        </xsl:choose>
+      </xsl:when>
+
     </xsl:choose>
     <xsl:if test="$refid">
       <xsl:value-of select="concat('&#x0a;\label{', $refid, '}')" />
@@ -679,7 +747,39 @@
     <xsl:text>}</xsl:text>
   </xsl:template>
 
-  <xsl:template match="ulink">
+  <xsl:template match="literal | filename">
+    <xsl:text>\texttt{</xsl:text>
+    <xsl:apply-templates />
+    <xsl:text>}</xsl:text>
+  </xsl:template>
+
+  <xsl:template match="citetitle">
+    <xsl:text>\textit{</xsl:text>
+    <xsl:apply-templates />
+    <xsl:text>}</xsl:text>
+  </xsl:template>
+
+  <xsl:template match="lineannotation">
+    <xsl:text>\textit{</xsl:text>
+    <xsl:apply-templates />
+    <xsl:text>}</xsl:text>
+  </xsl:template>
+
+  <xsl:template match="ulink[@url!='' and not(text())]">
+    <xsl:text>\url{</xsl:text>
+    <xsl:value-of select="@url"/>
+    <xsl:text>}</xsl:text>
+  </xsl:template>
+
+  <xsl:template match="ulink[@url!='' and text()]">
+    <xsl:text>\href{</xsl:text>
+    <xsl:value-of select="@url"/>
+    <xsl:text>}{</xsl:text>
+    <xsl:apply-templates />
+    <xsl:text>}</xsl:text>
+  </xsl:template>
+
+  <xsl:template match="ulink[(@url='' or not(@url)) and text()]">
     <xsl:text>\url{</xsl:text>
     <xsl:apply-templates />
     <xsl:text>}</xsl:text>
@@ -793,7 +893,7 @@
     <xsl:if test="not(ancestor::cmdsynopsis)">
       <xsl:message terminate="yes">sbr only supported inside cmdsynopsis (because of hangindent)</xsl:message>
     </xsl:if>
-    <xsl:text>\linebreak</xsl:text>
+    <xsl:text>\newline</xsl:text>
   </xsl:template>
 
   <xsl:template match="refentry|refnamediv|refentryinfo|refmeta|refsect3|refsect4|refsect5|synopfragment|synopfragmentref|cmdsynopsis/info">
@@ -858,7 +958,7 @@
     </xsl:choose>
   </xsl:template>
 
-  <!-- duplicated in docbook2latex.xsl -->
+  <!-- duplicated in docbook-refentry-to-C-help.xsl -->
   <xsl:template match="arg|group">
     <!-- separator char if we're not the first child -->
     <xsl:if test="position() > 1">
@@ -868,14 +968,18 @@
         <xsl:otherwise><xsl:text> </xsl:text></xsl:otherwise>
       </xsl:choose>
     </xsl:if>
+
     <!-- open wrapping -->
-    <xsl:choose>
-      <xsl:when test="not(@choice) or @choice = ''">  <xsl:value-of select="$arg.choice.def.open.str"/></xsl:when>
-      <xsl:when test="@choice = 'opt'">               <xsl:value-of select="$arg.choice.opt.open.str"/></xsl:when>
-      <xsl:when test="@choice = 'req'">               <xsl:value-of select="$arg.choice.req.open.str"/></xsl:when>
-      <xsl:when test="@choice = 'plain'"/>
-      <xsl:otherwise><xsl:message terminate="yes">Invalid arg choice: "<xsl:value-of select="@choice"/>"</xsl:message></xsl:otherwise>
-    </xsl:choose>
+    <xsl:variable name="fWrappers" select="not(ancestor::group)"/>
+    <xsl:if test="$fWrappers">
+      <xsl:choose>
+        <xsl:when test="not(@choice) or @choice = ''">  <xsl:value-of select="$arg.choice.def.open.str"/></xsl:when>
+        <xsl:when test="@choice = 'opt'">               <xsl:value-of select="$arg.choice.opt.open.str"/></xsl:when>
+        <xsl:when test="@choice = 'req'">               <xsl:value-of select="$arg.choice.req.open.str"/></xsl:when>
+        <xsl:when test="@choice = 'plain'"/>
+        <xsl:otherwise><xsl:message terminate="yes"><xsl:call-template name="error-prefix"/>Invalid arg choice: "<xsl:value-of select="@choice"/>"</xsl:message></xsl:otherwise>
+      </xsl:choose>
+    </xsl:if>
 
     <!-- render the arg (TODO: may need to do more work here) -->
     <xsl:apply-templates />
@@ -884,14 +988,21 @@
     <xsl:choose>
       <xsl:when test="@rep = 'norepeat' or not(@rep) or @rep = ''"/>
       <xsl:when test="@rep = 'repeat'">               <xsl:value-of select="$arg.rep.repeat.str"/></xsl:when>
-      <xsl:otherwise><xsl:message terminate="yes">Invalid rep choice: "<xsl:value-of select="@rep"/>"</xsl:message></xsl:otherwise>
+      <xsl:otherwise><xsl:message terminate="yes"><xsl:call-template name="error-prefix"/>Invalid rep choice: "<xsl:value-of select="@rep"/>"</xsl:message></xsl:otherwise>
     </xsl:choose>
+
     <!-- close wrapping -->
-    <xsl:choose>
-      <xsl:when test="not(@choice) or @choice = ''">  <xsl:value-of select="$arg.choice.def.close.str"/></xsl:when>
-      <xsl:when test="@choice = 'opt'">               <xsl:value-of select="$arg.choice.opt.close.str"/></xsl:when>
-      <xsl:when test="@choice = 'req'">               <xsl:value-of select="$arg.choice.req.close.str"/></xsl:when>
-    </xsl:choose>
+    <xsl:if test="$fWrappers">
+      <xsl:choose>
+        <xsl:when test="not(@choice) or @choice = ''">  <xsl:value-of select="$arg.choice.def.close.str"/></xsl:when>
+        <xsl:when test="@choice = 'opt'">               <xsl:value-of select="$arg.choice.opt.close.str"/></xsl:when>
+        <xsl:when test="@choice = 'req'">               <xsl:value-of select="$arg.choice.req.close.str"/></xsl:when>
+      </xsl:choose>
+      <!-- Add a space padding if we're the last element in a repeating arg or group -->
+      <xsl:if test="(parent::arg or parent::group) and not(following-sibiling)">
+        <xsl:text> </xsl:text>
+      </xsl:if>
+    </xsl:if>
   </xsl:template>
 
   <xsl:template match="replaceable">

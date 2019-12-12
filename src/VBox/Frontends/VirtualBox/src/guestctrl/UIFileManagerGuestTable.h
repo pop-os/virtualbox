@@ -41,6 +41,10 @@ class UIFileManagerGuestTable : public UIFileManagerTable
 {
     Q_OBJECT;
 
+signals:
+
+    void sigNewFileOperation(const CProgress &comProgress);
+
 public:
 
     UIFileManagerGuestTable(UIActionPool *pActionPool, QWidget *pParent = 0);
@@ -48,10 +52,6 @@ public:
     void copyGuestToHost(const QString& hostDestinationPath);
     void copyHostToGuest(const QStringList &hostSourcePathList,
                          const QString &strDestination = QString());
-
-signals:
-
-    void sigNewFileOperation(const CProgress &comProgress);
 
 protected:
 
@@ -65,6 +65,7 @@ protected:
     virtual QString fsObjectPropertyString() /* override */;
     virtual void    showProperties() /* override */;
     virtual void    determineDriveLetters() /* override */;
+    virtual void    determinePathSeparator() /* override */;
     virtual void    prepareToolbar() /* override */;
     virtual void    createFileViewContextMenu(const QWidget *pWidget, const QPoint &point) /* override */;
     /** @name Copy/Cut guest-to-guest stuff.

@@ -23,7 +23,7 @@
 #include "PDMInternal.h"
 #include <VBox/vmm/pdm.h>
 #include <VBox/vmm/mm.h>
-#include <VBox/vmm/vm.h>
+#include <VBox/vmm/vmcc.h>
 #include <VBox/err.h>
 #include <VBox/vmm/apic.h>
 
@@ -50,10 +50,8 @@
  * @param   pVCpu           The cross context virtual CPU structure.
  * @param   pu8Interrupt    Where to store the interrupt.
  */
-VMMDECL(int) PDMGetInterrupt(PVMCPU pVCpu, uint8_t *pu8Interrupt)
+VMMDECL(int) PDMGetInterrupt(PVMCPUCC pVCpu, uint8_t *pu8Interrupt)
 {
-    PVM pVM = pVCpu->CTX_SUFF(pVM);
-
     /*
      * The local APIC has a higher priority than the PIC.
      */
@@ -73,6 +71,7 @@ VMMDECL(int) PDMGetInterrupt(PVMCPU pVCpu, uint8_t *pu8Interrupt)
            interrupts shouldn't prevent ExtINT from being delivered. */
     }
 
+    PVMCC pVM = pVCpu->CTX_SUFF(pVM);
     pdmLock(pVM);
 
     /*
@@ -117,7 +116,7 @@ VMMDECL(int) PDMGetInterrupt(PVMCPU pVCpu, uint8_t *pu8Interrupt)
  * @param   u8Level         The new level.
  * @param   uTagSrc         The IRQ tag and source tracer ID.
  */
-VMMDECL(int) PDMIsaSetIrq(PVM pVM, uint8_t u8Irq, uint8_t u8Level, uint32_t uTagSrc)
+VMMDECL(int) PDMIsaSetIrq(PVMCC pVM, uint8_t u8Irq, uint8_t u8Level, uint32_t uTagSrc)
 {
     pdmLock(pVM);
 
@@ -131,6 +130,8 @@ VMMDECL(int) PDMIsaSetIrq(PVM pVM, uint8_t u8Irq, uint8_t u8Level, uint32_t uTag
     }
 
     int rc = VERR_PDM_NO_PIC_INSTANCE;
+/** @todo r=bird: This code is incorrect, as it ASSUMES the PIC and I/O APIC
+ *        are always ring-0 enabled! */
     if (pVM->pdm.s.Pic.CTX_SUFF(pDevIns))
     {
         Assert(pVM->pdm.s.Pic.CTX_SUFF(pfnSetIrq));
@@ -196,7 +197,7 @@ VMM_INT_DECL(int) PDMIoApicSetIrq(PVM pVM, uint8_t u8Irq, uint8_t u8Level, uint3
  * @param   pVM             The cross context VM structure.
  * @param   uVector         The interrupt vector corresponding to the EOI.
  */
-VMM_INT_DECL(int) PDMIoApicBroadcastEoi(PVM pVM, uint8_t uVector)
+VMM_INT_DECL(VBOXSTRICTRC) PDMIoApicBroadcastEoi(PVM pVM, uint8_t uVector)
 {
     /* At present, we support only a maximum of one I/O APIC per-VM. If we ever implement having
        multiple I/O APICs per-VM, we'll have to broadcast this EOI to all of the I/O APICs. */
@@ -241,7 +242,7 @@ VMM_INT_DECL(int) PDMIoApicSendMsi(PVM pVM, RTGCPHYS GCAddr, uint32_t uValue, ui
  */
 VMM_INT_DECL(bool) PDMHasIoApic(PVM pVM)
 {
-    return pVM->pdm.s.IoApic.CTX_SUFF(pDevIns) != NULL;
+    return pVM->pdm.s.IoApic.pDevInsR3 != NULL;
 }
 
 
@@ -253,7 +254,7 @@ VMM_INT_DECL(bool) PDMHasIoApic(PVM pVM)
  */
 VMM_INT_DECL(bool) PDMHasApic(PVM pVM)
 {
-    return pVM->pdm.s.Apic.CTX_SUFF(pDevIns) != NULL;
+    return pVM->pdm.s.Apic.pDevInsR3 != NIL_RTR3PTR;
 }
 
 
@@ -263,7 +264,7 @@ VMM_INT_DECL(bool) PDMHasApic(PVM pVM)
  *
  * @param   pVM     The cross context VM structure.
  */
-void pdmLock(PVM pVM)
+void pdmLock(PVMCC pVM)
 {
 #ifdef IN_RING3
     int rc = PDMCritSectEnter(&pVM->pdm.s.CritSect, VERR_IGNORED);
@@ -284,7 +285,7 @@ void pdmLock(PVM pVM)
  * @param   pVM     The cross context VM structure.
  * @param   rc      The RC to return in GC or R0 when we can't get the lock.
  */
-int pdmLockEx(PVM pVM, int rc)
+int pdmLockEx(PVMCC pVM, int rc)
 {
     return PDMCritSectEnter(&pVM->pdm.s.CritSect, rc);
 }
@@ -295,7 +296,7 @@ int pdmLockEx(PVM pVM, int rc)
  *
  * @param   pVM     The cross context VM structure.
  */
-void pdmUnlock(PVM pVM)
+void pdmUnlock(PVMCC pVM)
 {
     PDMCritSectLeave(&pVM->pdm.s.CritSect);
 }

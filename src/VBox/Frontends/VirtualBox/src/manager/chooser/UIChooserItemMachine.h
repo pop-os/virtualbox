@@ -21,50 +21,42 @@
 # pragma once
 #endif
 
-/* Qt includes */
-#include <QUuid>
-
 /* GUI includes: */
-#include "UIVirtualMachineItem.h"
 #include "UIChooserItem.h"
 
 /* Forward declarations: */
-class CMachine;
+class UIChooserNodeMachine;
 
-/** Machine-item enumeration flags. */
-enum UIChooserItemMachineEnumerationFlag
-{
-    UIChooserItemMachineEnumerationFlag_Unique       = RT_BIT(0),
-    UIChooserItemMachineEnumerationFlag_Inaccessible = RT_BIT(1)
-};
 
 /** UIChooserItem extension implementing machine item. */
-class UIChooserItemMachine : public UIChooserItem, public UIVirtualMachineItem
+class UIChooserItemMachine : public UIChooserItem
 {
     Q_OBJECT;
 
 public:
 
-    /** RTTI item type. */
+    /** RTTI required for qgraphicsitem_cast. */
     enum { Type = UIChooserItemType_Machine };
 
-    /** Constructs item with specified @a comMachine and @a iPosition, passing @a pParent to the base-class. */
-    UIChooserItemMachine(UIChooserItem *pParent, const CMachine &comMachine, int iPosition = -1);
-    /** Constructs temporary item with specified @a iPosition as a @a pCopyFrom, passing @a pParent to the base-class. */
-    UIChooserItemMachine(UIChooserItem *pParent, UIChooserItemMachine *pCopyFrom, int iPosition = -1);
+    /** Build item for certain @a pNode, passing @a pParent to the base-class. */
+    UIChooserItemMachine(UIChooserItem *pParent, UIChooserNodeMachine *pNode);
     /** Destructs machine item. */
     virtual ~UIChooserItemMachine() /* override */;
 
     /** @name Item stuff.
       * @{ */
-        /** Returns item name. */
-        virtual QString name() const /* override */;
+        /** Returns item machine id. */
+        QUuid id() const;
+        /** Returns whether item accessible. */
+        bool accessible() const;
+        /** Recaches item contents. */
+        void recache();
 
         /** Returns whether VM is locked. */
         bool isLockedMachine() const;
 
-        /** Returns whether passed @a position belongs to tools button area. */
-        bool isToolsButtonArea(const QPoint &position, int iMarginMultiplier = 1) const;
+        /** Returns whether passed @a position belongs to tool button area. */
+        bool isToolButtonArea(const QPoint &position, int iMarginMultiplier = 1) const;
     /** @} */
 
     /** @name Navigation stuff.
@@ -106,46 +98,27 @@ protected:
         /** Starts item editing. */
         virtual void startEditing() /* override */;
 
+        /** Updates item. */
+        virtual void updateItem() /* override */;
         /** Updates item tool-tip. */
         virtual void updateToolTip() /* override */;
-
-        /** Returns item description. */
-        virtual QString description() const /* override */;
-        /** Returns item full-name. */
-        virtual QString fullName() const /* override */;
-        /** Returns item definition. */
-        virtual QString definition() const /* override */;
     /** @} */
 
     /** @name Children stuff.
       * @{ */
-        /** Adds child @a pItem to certain @a iPosition. */
-        virtual void addItem(UIChooserItem *pItem, int iPosition) /* override */;
-        /** Removes child @a pItem. */
-        virtual void removeItem(UIChooserItem *pItem) /* override */;
-
-        /** Replaces children @a items of certain @a enmType. */
-        virtual void setItems(const QList<UIChooserItem*> &items, UIChooserItemType enmType) /* override */;
         /** Returns children items of certain @a enmType. */
         virtual QList<UIChooserItem*> items(UIChooserItemType enmType = UIChooserItemType_Any) const /* override */;
-        /** Returns whether there are children items of certain @a enmType. */
-        virtual bool hasItems(UIChooserItemType enmType = UIChooserItemType_Any) const /* override */;
-        /** Clears children items of certain @a enmType. */
-        virtual void clearItems(UIChooserItemType enmType = UIChooserItemType_Any) /* override */;
 
-        /** Updates all children items with specified @a uId. */
-        virtual void updateAllItems(const QUuid &uId) /* override */;
-        /** Removes all children items with specified @a uId. */
-        virtual void removeAllItems(const QUuid &uId) /* override */;
+        /** Adds possible @a fFavorite child @a pItem to certain @a iPosition. */
+        virtual void addItem(UIChooserItem *pItem, bool fFavorite, int iPosition) /* override */;
+        /** Removes child @a pItem. */
+        virtual void removeItem(UIChooserItem *pItem) /* override */;
 
         /** Searches for a first child item answering to specified @a strSearchTag and @a iItemSearchFlags. */
         virtual UIChooserItem *searchForItem(const QString &strSearchTag, int iItemSearchFlags) /* override */;
 
         /** Searches for a first machine child item. */
         virtual UIChooserItem *firstMachineItem() /* override */;
-
-        /** Sorts children items. */
-        virtual void sortItems() /* override */;
     /** @} */
 
     /** @name Layout stuff.
@@ -172,12 +145,12 @@ protected:
         /** Returns whether item drop is allowed.
           * @param  pEvent    Brings information about drop event.
           * @param  enmPlace  Brings the place of drag token to the drop moment. */
-        virtual bool isDropAllowed(QGraphicsSceneDragDropEvent *pEvent, DragToken where) const /* override */;
+        virtual bool isDropAllowed(QGraphicsSceneDragDropEvent *pEvent, UIChooserItemDragToken where) const /* override */;
         /** Processes item drop.
           * @param  pEvent    Brings information about drop event.
           * @param  pFromWho  Brings the item according to which we choose drop position.
           * @param  enmPlace  Brings the place of drag token to the drop moment (according to item mentioned above). */
-        virtual void processDrop(QGraphicsSceneDragDropEvent *pEvent, UIChooserItem *pFromWho, DragToken where) /* override */;
+        virtual void processDrop(QGraphicsSceneDragDropEvent *pEvent, UIChooserItem *pFromWho, UIChooserItemDragToken where) /* override */;
         /** Reset drag token. */
         virtual void resetDragToken() /* override */;
 
@@ -202,23 +175,21 @@ private:
     enum MachineItemData
     {
         /* Layout hints: */
-        MachineItemData_Margin,
+        MachineItemData_MarginHL,
+        MachineItemData_MarginHR,
+        MachineItemData_MarginV,
         MachineItemData_MajorSpacing,
         MachineItemData_MinorSpacing,
         MachineItemData_TextSpacing,
-        MachineItemData_ParentIndent,
         MachineItemData_ButtonMargin,
-        /* Pixmaps: */
-        MachineItemData_SettingsButtonPixmap,
-        MachineItemData_StartButtonPixmap,
-        MachineItemData_PauseButtonPixmap,
-        MachineItemData_CloseButtonPixmap,
     };
 
     /** @name Prepare/cleanup cascade.
       * @{ */
         /** Prepares all. */
         void prepare();
+        /** Cleanups all. */
+        void cleanup();
     /** @} */
 
     /** @name Item stuff.
@@ -235,12 +206,8 @@ private:
         void updatePixmap();
         /** Updates state pixmap. */
         void updateStatePixmap();
-        /** Updates tools pixmap. */
-        void updateToolsPixmap();
-        /** Updates name. */
-        void updateName();
-        /** Updates snapshot name. */
-        void updateSnapshotName();
+        /** Updates tool pixmap. */
+        void updateToolPixmap();
         /** Updates first row maximum width. */
         void updateFirstRowMaximumWidth();
         /** Updates minimum name width. */
@@ -255,8 +222,8 @@ private:
         void updateVisibleName();
         /** Updates visible snapshot name. */
         void updateVisibleSnapshotName();
-        /** Updates state text. */
-        void updateStateText();
+        /** Updates state text size. */
+        void updateStateTextSize();
     /** @} */
 
     /** @name Painting stuff.
@@ -278,9 +245,6 @@ private:
 
     /** @name Item stuff.
       * @{ */
-        /** Holds initial item position. */
-        const int  m_iPosition;
-
         /** Holds item minimum default lightness. */
         int  m_iDefaultLightnessMin;
         /** Holds item maximum default lightness. */
@@ -298,21 +262,13 @@ private:
         QPixmap  m_pixmap;
         /** Holds item state pixmap. */
         QPixmap  m_statePixmap;
-        /** Holds item tools pixmap. */
-        QPixmap  m_toolsPixmap;
+        /** Holds item tool pixmap. */
+        QPixmap  m_toolPixmap;
 
-        /** Holds item name. */
-        QString  m_strName;
-        /** Holds item description. */
-        QString  m_strDescription;
         /** Holds item visible name. */
         QString  m_strVisibleName;
-        /** Holds item snapshot name. */
-        QString  m_strSnapshotName;
         /** Holds item visible snapshot name. */
         QString  m_strVisibleSnapshotName;
-        /** Holds item state text. */
-        QString  m_strStateText;
 
         /** Holds item name font. */
         QFont  m_nameFont;
@@ -328,8 +284,8 @@ private:
         QSize  m_pixmapSize;
         /** Holds state pixmap size. */
         QSize  m_statePixmapSize;
-        /** Holds tools pixmap size. */
-        QSize  m_toolsPixmapSize;
+        /** Holds tool pixmap size. */
+        QSize  m_toolPixmapSize;
         /** Holds visible name size. */
         QSize  m_visibleNameSize;
         /** Holds visible snapshot name size. */
@@ -349,5 +305,6 @@ private:
         int  m_iMaximumSnapshotNameWidth;
     /** @} */
 };
+
 
 #endif /* !FEQT_INCLUDED_SRC_manager_chooser_UIChooserItemMachine_h */

@@ -1283,22 +1283,22 @@ void testDate()
         CHECK_DATE(obj3, false, true, 0, "1970-01-01T00:00:00.00Z", true);
 
         /* Format changes: */
-        RTTESTI_CHECK_RC(obj3.assignValue(RTTimeSpecSetNano(&TimeSpec, 59123456789), RTCRestDate::kFormat_Rfc3339_Fraction_9), VINF_SUCCESS);
-        CHECK_DATE(obj3, false, true, 59123456789, "1970-01-01T00:00:59.123456789Z", true);
+        RTTESTI_CHECK_RC(obj3.assignValue(RTTimeSpecSetNano(&TimeSpec, INT64_C(59123456789)), RTCRestDate::kFormat_Rfc3339_Fraction_9), VINF_SUCCESS);
+        CHECK_DATE(obj3, false, true, INT64_C(59123456789), "1970-01-01T00:00:59.123456789Z", true);
         RTTESTI_CHECK_RC(obj3.setFormat(RTCRestDate::kFormat_Rfc2822), VINF_SUCCESS);
-        CHECK_DATE(obj3, false, true, 59123456789, "Thu, 1 Jan 1970 00:00:59 -0000", true);
+        CHECK_DATE(obj3, false, true, INT64_C(59123456789), "Thu, 1 Jan 1970 00:00:59 -0000", true);
         RTTESTI_CHECK_RC(obj3.setFormat(RTCRestDate::kFormat_Rfc7131), VINF_SUCCESS);
-        CHECK_DATE(obj3, false, true, 59123456789, "Thu, 1 Jan 1970 00:00:59 GMT", true);
+        CHECK_DATE(obj3, false, true, INT64_C(59123456789), "Thu, 1 Jan 1970 00:00:59 GMT", true);
         RTTESTI_CHECK_RC(obj3.setFormat(RTCRestDate::kFormat_Rfc3339), VINF_SUCCESS);
-        CHECK_DATE(obj3, false, true, 59123456789, "1970-01-01T00:00:59Z", true);
+        CHECK_DATE(obj3, false, true, INT64_C(59123456789), "1970-01-01T00:00:59Z", true);
         RTTESTI_CHECK_RC(obj3.setFormat(RTCRestDate::kFormat_Rfc3339_Fraction_2), VINF_SUCCESS);
-        CHECK_DATE(obj3, false, true, 59123456789, "1970-01-01T00:00:59.12Z", true);
+        CHECK_DATE(obj3, false, true, INT64_C(59123456789), "1970-01-01T00:00:59.12Z", true);
         RTTESTI_CHECK_RC(obj3.setFormat(RTCRestDate::kFormat_Rfc3339_Fraction_3), VINF_SUCCESS);
-        CHECK_DATE(obj3, false, true, 59123456789, "1970-01-01T00:00:59.123Z", true);
+        CHECK_DATE(obj3, false, true, INT64_C(59123456789), "1970-01-01T00:00:59.123Z", true);
         RTTESTI_CHECK_RC(obj3.setFormat(RTCRestDate::kFormat_Rfc3339_Fraction_6), VINF_SUCCESS);
-        CHECK_DATE(obj3, false, true, 59123456789, "1970-01-01T00:00:59.123456Z", true);
+        CHECK_DATE(obj3, false, true, INT64_C(59123456789), "1970-01-01T00:00:59.123456Z", true);
         RTTESTI_CHECK_RC(obj3.setFormat(RTCRestDate::kFormat_Rfc3339_Fraction_9), VINF_SUCCESS);
-        CHECK_DATE(obj3, false, true, 59123456789, "1970-01-01T00:00:59.123456789Z", true);
+        CHECK_DATE(obj3, false, true, INT64_C(59123456789), "1970-01-01T00:00:59.123456789Z", true);
 
         /* Reset to default and setNull works identically: */
         RTTESTI_CHECK_RC(obj3.resetToDefault(), VINF_SUCCESS);
@@ -2047,7 +2047,7 @@ public:
         RTCString strPath;
         RTTESTI_CHECK_RC(doPathParameters(&strPath, RT_STR_TUPLE("my/{integer}/{string}/array:{array}/path"),
                                           s_aParams, aState, RT_ELEMENTS(aState)), VINF_SUCCESS);
-        RTTESTI_CHECK_MSG(strPath.equals(a_pszExpected), ("actual: '%s'\nexpect: '%s'\n", strPath.c_str(), a_pszExpected));
+        RTTESTI_CHECK_MSG(strPath.equals(a_pszExpected), ("actual: %s\nexpect: %s\n", strPath.c_str(), a_pszExpected));
     }
 
     void testQuery(const char *a_pszCsv,
@@ -2066,32 +2066,32 @@ public:
         RTCRestObjectBase const *apObjects[] =  { &m_strValue,  &m_iValue, &m_Array };
         RTCString strQuery;
         RTTESTI_CHECK_RC(doQueryParameters(&strQuery, aParams, apObjects, RT_ELEMENTS(apObjects)), VINF_SUCCESS);
-        RTTESTI_CHECK_MSG(strQuery.equals(a_pszCsv), ("actual: '%s'\nexpect: %s\n", strQuery.c_str(), a_pszCsv));
+        RTTESTI_CHECK_MSG(strQuery.equals(a_pszCsv), ("actual: %s\nexpect: %s\n", strQuery.c_str(), a_pszCsv));
 
         strQuery.setNull();
         aParams[2].fFlags = RTCRestObjectBase::kCollectionFormat_csv;
         RTTESTI_CHECK_RC(doQueryParameters(&strQuery, aParams, apObjects, RT_ELEMENTS(apObjects)), VINF_SUCCESS);
-        RTTESTI_CHECK_MSG(strQuery.equals(a_pszCsv), ("actual: '%s'\nexpect: %s\n", strQuery.c_str(), a_pszCsv));
+        RTTESTI_CHECK_MSG(strQuery.equals(a_pszCsv), ("actual: %s\nexpect: %s\n", strQuery.c_str(), a_pszCsv));
 
         strQuery.setNull();
         aParams[2].fFlags = RTCRestObjectBase::kCollectionFormat_ssv;
         RTTESTI_CHECK_RC(doQueryParameters(&strQuery, aParams, apObjects, RT_ELEMENTS(apObjects)), VINF_SUCCESS);
-        RTTESTI_CHECK_MSG(strQuery.equals(a_pszSsv), ("actual: '%s'\nexpect: %s\n", strQuery.c_str(), a_pszSsv));
+        RTTESTI_CHECK_MSG(strQuery.equals(a_pszSsv), ("actual: %s\nexpect: %s\n", strQuery.c_str(), a_pszSsv));
 
         strQuery.setNull();
         aParams[2].fFlags = RTCRestObjectBase::kCollectionFormat_tsv;
         RTTESTI_CHECK_RC(doQueryParameters(&strQuery, aParams, apObjects, RT_ELEMENTS(apObjects)), VINF_SUCCESS);
-        RTTESTI_CHECK_MSG(strQuery.equals(a_pszTsv), ("actual: '%s'\nexpect: %s\n", strQuery.c_str(), a_pszTsv));
+        RTTESTI_CHECK_MSG(strQuery.equals(a_pszTsv), ("actual: %s\nexpect: %s\n", strQuery.c_str(), a_pszTsv));
 
         strQuery.setNull();
         aParams[2].fFlags = RTCRestObjectBase::kCollectionFormat_pipes;
         RTTESTI_CHECK_RC(doQueryParameters(&strQuery, aParams, apObjects, RT_ELEMENTS(apObjects)), VINF_SUCCESS);
-        RTTESTI_CHECK_MSG(strQuery.equals(a_pszPipes), ("actual: '%s'\nexpect: %s\n", strQuery.c_str(), a_pszPipes));
+        RTTESTI_CHECK_MSG(strQuery.equals(a_pszPipes), ("actual: %s\nexpect: %s\n", strQuery.c_str(), a_pszPipes));
 
         strQuery.setNull();
         aParams[2].fFlags = RTCRestObjectBase::kCollectionFormat_multi;
         RTTESTI_CHECK_RC(doQueryParameters(&strQuery, aParams, apObjects, RT_ELEMENTS(apObjects)), VINF_SUCCESS);
-        RTTESTI_CHECK_MSG(strQuery.equals(a_pszMulti), ("actual: '%s'\nexpect: %s\n", strQuery.c_str(), a_pszMulti));
+        RTTESTI_CHECK_MSG(strQuery.equals(a_pszMulti), ("actual: %s\nexpect: %s\n", strQuery.c_str(), a_pszMulti));
     }
 
     void testHeader(unsigned a_cHeaders, ...)

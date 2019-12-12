@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 133105 $"
 
 
 # Standard Python imports.
@@ -73,7 +73,7 @@ class tdUnitTest1(vbox.TestDriver):
             'testcase/tstRTR0MemUserKernelDriver': '',  # Failes when kernel to kernel buffers.
             'testcase/tstRTSemRW': '',                  # line 338: RTSemRWReleaseRead(hSemRW): got VERR_ACCESS_DENIED
             'testcase/tstRTStrAlloc': '',               # VERR_NO_STR_MEMORY!
-            'testcase/tstRTFileGetSize-1': '',          # VERR_DEV_IO_ERROR on /dev/null!
+            'testcase/tstRTFileQuerySize-1': '',        # VERR_DEV_IO_ERROR on /dev/null!
         },
         'solaris.amd64': {
             'testcase/tstLdr-4': '',        # failed: Failed to get bits for '/home/vbox/test/tmp/bin/testcase/tstLdrObjR0.r0'/0,
@@ -98,7 +98,7 @@ class tdUnitTest1(vbox.TestDriver):
             'testcase/tstVMMR0CallHost-2': '',          # STATUS_STACK_OVERFLOW
             'testcase/tstX86-1': '',                    # Fails on win.x86.
             'tscpasswd': '',                            # ??
-            'tstVMREQ': '',                            # ?? Same as darwin.x86?
+            'tstVMREQ': '',                             # ?? Same as darwin.x86?
         },
         'win.x86': {
             'testcase/tstRTR0TimerDriver': '',          # See xTracker #8041.
@@ -504,7 +504,7 @@ class tdUnitTest1(vbox.TestDriver):
             reporter.errorXcpt();
             return False;
         reporter.log('Exit code [sudo]: %s (%s)' % (iRc, asArgs));
-        return iRc is 0;
+        return iRc == 0;
 
     def _hardenedMkDir(self, sPath):
         """
@@ -564,7 +564,7 @@ class tdUnitTest1(vbox.TestDriver):
                     raise Exception('Failed to remove "%s".' % (sPath,));
         return True;
 
-    def _executeTestCase(self, sName, sFullPath, sTestCaseSubDir, oDevNull): # pylint: disable=R0914
+    def _executeTestCase(self, sName, sFullPath, sTestCaseSubDir, oDevNull): # pylint: disable=too-many-locals
         """
         Executes a test case.
         """

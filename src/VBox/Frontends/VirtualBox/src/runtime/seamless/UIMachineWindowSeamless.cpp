@@ -21,7 +21,7 @@
 #include <QTimer>
 
 /* GUI includes: */
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #include "UIDesktopWidgetWatchdog.h"
 #include "UIExtraDataManager.h"
 #include "UISession.h"
@@ -125,27 +125,27 @@ void UIMachineWindowSeamless::prepareVisualState()
 void UIMachineWindowSeamless::prepareMiniToolbar()
 {
     /* Make sure mini-toolbar is not restricted: */
-    if (!gEDataManager->miniToolbarEnabled(vboxGlobal().managedVMUuid()))
+    if (!gEDataManager->miniToolbarEnabled(uiCommon().managedVMUuid()))
         return;
 
     /* Create mini-toolbar: */
     m_pMiniToolBar = new UIMiniToolBar(this,
                                        GeometryType_Available,
-                                       gEDataManager->miniToolbarAlignment(vboxGlobal().managedVMUuid()),
-                                       gEDataManager->autoHideMiniToolbar(vboxGlobal().managedVMUuid()),
+                                       gEDataManager->miniToolbarAlignment(uiCommon().managedVMUuid()),
+                                       gEDataManager->autoHideMiniToolbar(uiCommon().managedVMUuid()),
                                        screenId());
     AssertPtrReturnVoid(m_pMiniToolBar);
     {
         /* Configure mini-toolbar: */
         m_pMiniToolBar->addMenus(actionPool()->menus());
-        connect(m_pMiniToolBar, SIGNAL(sigMinimizeAction()),
-                this, SLOT(sltShowMinimized()), Qt::QueuedConnection);
-        connect(m_pMiniToolBar, SIGNAL(sigExitAction()),
-                actionPool()->action(UIActionIndexRT_M_View_T_Seamless), SLOT(trigger()));
-        connect(m_pMiniToolBar, SIGNAL(sigCloseAction()),
-                actionPool()->action(UIActionIndex_M_Application_S_Close), SLOT(trigger()));
-        connect(m_pMiniToolBar, SIGNAL(sigNotifyAboutWindowActivationStolen()),
-                this, SLOT(sltRevokeWindowActivation()), Qt::QueuedConnection);
+        connect(m_pMiniToolBar, &UIMiniToolBar::sigMinimizeAction,
+                this, &UIMachineWindowSeamless::sltShowMinimized, Qt::QueuedConnection);
+        connect(m_pMiniToolBar, &UIMiniToolBar::sigExitAction,
+                actionPool()->action(UIActionIndexRT_M_View_T_Seamless), &UIAction::trigger);
+        connect(m_pMiniToolBar, &UIMiniToolBar::sigCloseAction,
+                actionPool()->action(UIActionIndex_M_Application_S_Close), &UIAction::trigger);
+        connect(m_pMiniToolBar, &UIMiniToolBar::sigNotifyAboutWindowActivationStolen,
+                this, &UIMachineWindowSeamless::sltRevokeWindowActivation, Qt::QueuedConnection);
     }
 }
 #endif /* VBOX_WS_WIN || VBOX_WS_X11 */
@@ -158,7 +158,7 @@ void UIMachineWindowSeamless::cleanupMiniToolbar()
         return;
 
     /* Save mini-toolbar settings: */
-    gEDataManager->setAutoHideMiniToolbar(m_pMiniToolBar->autoHide(), vboxGlobal().managedVMUuid());
+    gEDataManager->setAutoHideMiniToolbar(m_pMiniToolBar->autoHide(), uiCommon().managedVMUuid());
     /* Delete mini-toolbar: */
     delete m_pMiniToolBar;
     m_pMiniToolBar = 0;
@@ -401,4 +401,3 @@ void UIMachineWindowSeamless::setMask(const QRegion &maskGuest)
     }
 }
 #endif /* VBOX_WITH_MASKED_SEAMLESS */
-

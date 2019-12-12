@@ -64,6 +64,9 @@ void UIDetails::prepare()
                 /* Add into layout: */
                 pMainLayout->addWidget(m_pDetailsView);
             }
+
+            /* Init model: */
+            m_pDetailsModel->init();
         }
     }
 
@@ -76,12 +79,8 @@ void UIDetails::prepare()
     /* Setup details-model connections: */
     connect(m_pDetailsModel, &UIDetailsModel::sigRootItemMinimumWidthHintChanged,
             m_pDetailsView, &UIDetailsView::sltMinimumWidthHintChanged);
-    connect(m_pDetailsModel, &UIDetailsModel::sigRootItemMinimumHeightHintChanged,
-            m_pDetailsView, &UIDetailsView::sltMinimumHeightHintChanged);
     connect(m_pDetailsModel, &UIDetailsModel::sigLinkClicked,
             this, &UIDetails::sigLinkClicked);
-    connect(this, &UIDetails::sigSlidingStarted,
-            m_pDetailsModel, &UIDetailsModel::sltHandleSlidingStarted);
     connect(this, &UIDetails::sigToggleStarted,
             m_pDetailsModel, &UIDetailsModel::sltHandleToggleStarted);
     connect(this, &UIDetails::sigToggleFinished,

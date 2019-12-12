@@ -25,11 +25,8 @@
 #include "UIChooserItem.h"
 
 /* Forward declarations: */
-class QMimeData;
-class QPainter;
-class QStyleOptionGraphicsItem;
-class UIGraphicsToolBar;
-class UIGraphicsZoomButton;
+class UIChooserNodeGlobal;
+
 
 /** UIChooserItem extension implementing global item. */
 class UIChooserItemGlobal : public UIChooserItem
@@ -38,24 +35,26 @@ class UIChooserItemGlobal : public UIChooserItem
 
 public:
 
-    /** RTTI item type. */
+    /** RTTI required for qgraphicsitem_cast. */
     enum { Type = UIChooserItemType_Global };
 
-    /** Constructs item with specified @a iPosition, passing @a pParent to the base-class. */
-    UIChooserItemGlobal(UIChooserItem *pParent, int iPosition = -1);
-    /** Constructs temporary item with specified @a iPosition as a @a pCopyFrom, passing @a pParent to the base-class. */
-    UIChooserItemGlobal(UIChooserItem *pParent, UIChooserItemGlobal *pCopyFrom, int iPosition = -1);
+    /** Build item for certain @a pNode, passing @a pParent to the base-class. */
+    UIChooserItemGlobal(UIChooserItem *pParent, UIChooserNodeGlobal *pNode);
     /** Destructs global item. */
     virtual ~UIChooserItemGlobal() /* override */;
 
     /** @name Item stuff.
       * @{ */
-        /** Returns whether passed @a position belongs to tools button area. */
-        bool isToolsButtonArea(const QPoint &position, int iMarginMultiplier = 1) const;
+        /** Returns whether passed @a position belongs to tool button area. */
+        bool isToolButtonArea(const QPoint &position, int iMarginMultiplier = 1) const;
+        /** Returns whether passed @a position belongs to pin button area. */
+        bool isPinButtonArea(const QPoint &position, int iMarginMultiplier = 1) const;
     /** @} */
 
     /** @name Layout stuff.
       * @{ */
+        /** Returns height hint. */
+        int heightHint() const;
         /** Defines height @a iHint. */
         void setHeightHint(int iHint);
     /** @} */
@@ -85,51 +84,33 @@ protected:
         /** Returns RTTI item type. */
         virtual int type() const /* override */ { return Type; }
 
+        /** Defines whether item is @a fFavorite. */
+        virtual void setFavorite(bool fFavorite) /* override */;
+
         /** Starts item editing. */
         virtual void startEditing() /* override */;
 
+        /** Updates item. */
+        virtual void updateItem() /* override */;
         /** Updates item tool-tip. */
         virtual void updateToolTip() /* override */;
-
-        /** Returns item name. */
-        virtual QString name() const /* override */;
-        /** Returns item description. */
-        virtual QString description() const /* override */;
-        /** Returns item full-name. */
-        virtual QString fullName() const /* override */;
-        /** Returns item definition. */
-        virtual QString definition() const /* override */;
     /** @} */
 
     /** @name Children stuff.
       * @{ */
-        /** Adds child @a pItem to certain @a iPosition. */
-        virtual void addItem(UIChooserItem *pItem, int iPosition) /* override */;
-        /** Removes child @a pItem. */
-        virtual void removeItem(UIChooserItem *pItem) /* override */;
-
-        /** Replaces children @a items of certain @a enmType. */
-        virtual void setItems(const QList<UIChooserItem*> &items, UIChooserItemType enmType) /* override */;
         /** Returns children items of certain @a enmType. */
         virtual QList<UIChooserItem*> items(UIChooserItemType enmType = UIChooserItemType_Any) const /* override */;
-        /** Returns whether there are children items of certain @a enmType. */
-        virtual bool hasItems(UIChooserItemType enmType = UIChooserItemType_Any) const /* override */;
-        /** Clears children items of certain @a enmType. */
-        virtual void clearItems(UIChooserItemType enmType = UIChooserItemType_Any) /* override */;
 
-        /** Updates all children items with specified @a uId. */
-        virtual void updateAllItems(const QUuid &uId) /* override */;
-        /** Removes all children items with specified @a uId. */
-        virtual void removeAllItems(const QUuid &uId) /* override */;
+        /** Adds possible @a fFavorite child @a pItem to certain @a iPosition. */
+        virtual void addItem(UIChooserItem *pItem, bool fFavorite, int iPosition) /* override */;
+        /** Removes child @a pItem. */
+        virtual void removeItem(UIChooserItem *pItem) /* override */;
 
         /** Searches for a first child item answering to specified @a strSearchTag and @a iItemSearchFlags. */
         virtual UIChooserItem *searchForItem(const QString &strSearchTag, int iItemSearchFlags) /* override */;
 
         /** Searches for a first machine child item. */
         virtual UIChooserItem *firstMachineItem() /* override */;
-
-        /** Sorts children items. */
-        virtual void sortItems() /* override */;
     /** @} */
 
     /** @name Layout stuff.
@@ -156,12 +137,12 @@ protected:
         /** Returns whether item drop is allowed.
           * @param  pEvent    Brings information about drop event.
           * @param  enmPlace  Brings the place of drag token to the drop moment. */
-        virtual bool isDropAllowed(QGraphicsSceneDragDropEvent *pEvent, DragToken where) const /* override */;
+        virtual bool isDropAllowed(QGraphicsSceneDragDropEvent *pEvent, UIChooserItemDragToken where) const /* override */;
         /** Processes item drop.
           * @param  pEvent    Brings information about drop event.
           * @param  pFromWho  Brings the item according to which we choose drop position.
           * @param  enmPlace  Brings the place of drag token to the drop moment (according to item mentioned above). */
-        virtual void processDrop(QGraphicsSceneDragDropEvent *pEvent, UIChooserItem *pFromWho, DragToken where) /* override */;
+        virtual void processDrop(QGraphicsSceneDragDropEvent *pEvent, UIChooserItem *pFromWho, UIChooserItemDragToken where) /* override */;
         /** Reset drag token. */
         virtual void resetDragToken() /* override */;
 
@@ -183,7 +164,9 @@ private:
     enum GlobalItemData
     {
         /* Layout hints: */
-        GlobalItemData_Margin,
+        GlobalItemData_MarginHL,
+        GlobalItemData_MarginHR,
+        GlobalItemData_MarginV,
         GlobalItemData_Spacing,
         GlobalItemData_ButtonMargin,
     };
@@ -192,6 +175,8 @@ private:
       * @{ */
         /** Prepares all. */
         void prepare();
+        /** Cleanups all. */
+        void cleanup();
     /** @} */
 
     /** @name Item stuff.
@@ -206,8 +191,10 @@ private:
         void updatePixmaps();
         /** Updates pixmap. */
         void updatePixmap();
-        /** Updates tools pixmap. */
-        void updateToolsPixmap();
+        /** Updates tool pixmap. */
+        void updateToolPixmap();
+        /** Updates pin pixmap. */
+        void updatePinPixmap();
         /** Updates minimum name width. */
         void updateMinimumNameWidth();
         /** Updates maximum name width. */
@@ -243,13 +230,11 @@ private:
 
         /** Holds item pixmap. */
         QPixmap  m_pixmap;
-        /** Holds item tools pixmap. */
-        QPixmap  m_toolsPixmap;
+        /** Holds item tool pixmap. */
+        QPixmap  m_toolPixmap;
+        /** Holds item pin pixmap. */
+        QPixmap  m_pinPixmap;
 
-        /** Holds item name. */
-        QString  m_strName;
-        /** Holds item description. */
-        QString  m_strDescription;
         /** Holds item visible name. */
         QString  m_strVisibleName;
 
@@ -261,8 +246,10 @@ private:
       * @{ */
         /** Holds pixmap size. */
         QSize  m_pixmapSize;
-        /** Holds tools pixmap size. */
-        QSize  m_toolsPixmapSize;
+        /** Holds tool pixmap size. */
+        QSize  m_toolPixmapSize;
+        /** Holds pin pixmap size. */
+        QSize  m_pinPixmapSize;
         /** Holds visible name size. */
         QSize  m_visibleNameSize;
 
@@ -275,5 +262,6 @@ private:
         int  m_iHeightHint;
     /** @} */
 };
+
 
 #endif /* !FEQT_INCLUDED_SRC_manager_chooser_UIChooserItemGlobal_h */

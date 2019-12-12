@@ -66,11 +66,10 @@ struct LocationInfo
 // opaque private instance data of Appliance class
 struct Appliance::Data
 {
-    enum ApplianceState { ApplianceIdle, ApplianceImporting, ApplianceExporting };
     enum digest_T {SHA1, SHA256};
 
     Data()
-      : state(ApplianceIdle)
+      : state(Appliance::ApplianceIdle)
       , fDigestTypes(0)
       , hOurManifest(NIL_RTMANIFEST)
       , fManifest(true)
@@ -150,7 +149,7 @@ struct Appliance::Data
         strCertError.setNull();
     }
 
-    ApplianceState      state;
+    Appliance::ApplianceState      state;
 
     LocationInfo        locInfo;        // location info for the currently processed OVF
     /** The digests types to calculate (RTMANIFEST_ATTR_XXX) for the manifest.
@@ -338,7 +337,9 @@ class Appliance::TaskCloud : public ThreadTask
 public:
     enum TaskType
     {
-        Export
+        Export,
+        Import,
+        ReadData
     };
 
     TaskCloud(Appliance *aThat,
@@ -352,7 +353,13 @@ public:
         pProgress(aProgress),
         rc(S_OK)
     {
-        m_strTaskName = "CloudExpt";
+        switch (taskType)
+        {
+            case TaskCloud::Export:    m_strTaskName = "CloudExpt"; break;
+            case TaskCloud::Import:    m_strTaskName = "CloudImpt"; break;
+            case TaskCloud::ReadData:  m_strTaskName = "CloudRead"; break;
+            default:                   m_strTaskName = "CloudTask"; break;
+        }
     }
 
     ~TaskCloud()
@@ -370,7 +377,7 @@ public:
 
     void handler()
     {
-        Appliance::i_exportCloudThreadTask(this);
+        Appliance::i_importOrExportCloudThreadTask(this);
     }
 };
 
@@ -405,6 +412,7 @@ struct Appliance::ImportStack
     bool                            fForceHWVirt;       // if true, we force enabling hardware virtualization
     bool                            fForceIOAPIC;       // if true, we force enabling the IOAPIC
     uint32_t                        ulMemorySizeMB;     // virtual machine RAM in megabytes
+    Utf8Str                         strFirmwareType;    //Firmware - BIOS or EFI
 #ifdef VBOX_WITH_USB
     bool                            fUSBEnabled;
 #endif

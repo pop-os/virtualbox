@@ -100,7 +100,7 @@ typedef struct DRVAUDIOCFG
         bool             fEnabled;
         /** Where to store the debugging files.
          *  Defaults to VBOX_AUDIO_DEBUG_DUMP_PCM_DATA_PATH if not set. */
-        char             szPathOut[RTPATH_MAX + 1];
+        char             szPathOut[RTPATH_MAX];
     } Dbg;
 } DRVAUDIOCFG, *PDRVAUDIOCFG;
 
@@ -226,15 +226,16 @@ const char *DrvAudioHlpStreamCmdToStr(PDMAUDIOSTREAMCMD enmCmd);
 
 /** @name Audio stream status helper methods.
  * @{ */
-bool DrvAudioHlpStreamStatusCanRead(PDMAUDIOSTREAMSTS enmStatus);
-bool DrvAudioHlpStreamStatusCanWrite(PDMAUDIOSTREAMSTS enmStatus);
-bool DrvAudioHlpStreamStatusIsReady(PDMAUDIOSTREAMSTS enmStatus);
+bool DrvAudioHlpStreamStatusCanRead(PDMAUDIOSTREAMSTS fStatus);
+bool DrvAudioHlpStreamStatusCanWrite(PDMAUDIOSTREAMSTS fStatus);
+bool DrvAudioHlpStreamStatusIsReady(PDMAUDIOSTREAMSTS fStatus);
 /** @}  */
 
 /** @name Audio file (name) helper methods.
  * @{ */
 int DrvAudioHlpFileNameSanitize(char *pszPath, size_t cbPath);
-int DrvAudioHlpFileNameGet(char *pszFile, size_t cchFile, const char *pszPath, const char *pszName, uint32_t uInstance, PDMAUDIOFILETYPE enmType, PDMAUDIOFILENAMEFLAGS fFlags);
+int DrvAudioHlpFileNameGet(char *pszFile, size_t cchFile, const char *pszPath, const char *pszName, uint32_t uInstance,
+                           PDMAUDIOFILETYPE enmType, uint32_t fFlags);
 /** @}  */
 
 /** @name Audio device methods.
@@ -262,15 +263,15 @@ void DrvAudioHlpDeviceEnumPrint(const char *pszDesc, const PPDMAUDIODEVICEENUM p
 /** @name Audio string-ify methods.
  * @{ */
 const char *DrvAudioHlpAudMixerCtlToStr(PDMAUDIOMIXERCTL enmMixerCtl);
-const char *DrvAudioHlpPlaybackDstToStr(const PDMAUDIOPLAYBACKDEST enmPlaybackDst);
-const char *DrvAudioHlpRecSrcToStr(const PDMAUDIORECSOURCE enmRecSource);
+const char *DrvAudioHlpPlaybackDstToStr(const PDMAUDIOPLAYBACKDST enmPlaybackDst);
+const char *DrvAudioHlpRecSrcToStr(const PDMAUDIORECSRC enmRecSource);
 PDMAUDIOFMT DrvAudioHlpStrToAudFmt(const char *pszFmt);
-char *DrvAudioHlpAudDevFlagsToStrA(PDMAUDIODEVFLAG fFlags);
+char *DrvAudioHlpAudDevFlagsToStrA(uint32_t fFlags);
 /** @}  */
 
 /** @name Audio file methods.
  * @{ */
-int DrvAudioHlpFileCreate(PDMAUDIOFILETYPE enmType, const char *pszFile, PDMAUDIOFILEFLAGS fFlags, PPDMAUDIOFILE *ppFile);
+int DrvAudioHlpFileCreate(PDMAUDIOFILETYPE enmType, const char *pszFile, uint32_t fFlags, PPDMAUDIOFILE *ppFile);
 void DrvAudioHlpFileDestroy(PPDMAUDIOFILE pFile);
 int DrvAudioHlpFileOpen(PPDMAUDIOFILE pFile, uint32_t fOpen, const PPDMAUDIOPCMPROPS pProps);
 int DrvAudioHlpFileClose(PPDMAUDIOFILE pFile);

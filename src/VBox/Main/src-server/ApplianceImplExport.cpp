@@ -90,6 +90,7 @@ HRESULT Machine::exportTo(const ComPtr<IAppliance> &aAppliance, const com::Utf8S
         // store the machine object so we can dump the XML in Appliance::Write()
         pNewDesc->m->pMachine = this;
 
+#ifdef VBOX_WITH_USB
         // first, call the COM methods, as they request locks
         BOOL fUSBEnabled = FALSE;
         com::SafeIfaceArray<IUSBController> usbControllers;
@@ -107,6 +108,7 @@ HRESULT Machine::exportTo(const ComPtr<IAppliance> &aAppliance, const com::Utf8S
                     fUSBEnabled = TRUE;
             }
         }
+#endif /* VBOX_WITH_USB */
 
         // request the machine lock while accessing internal members
         AutoReadLock alock1(this COMMA_LOCKVAL_SRC_POS);
@@ -205,7 +207,7 @@ HRESULT Machine::exportTo(const ComPtr<IAppliance> &aAppliance, const com::Utf8S
                      && pSATAController.isNull())
                 pSATAController = nwControllers[j];
             else if (   eType == StorageBus_SCSI
-                     && pSATAController.isNull())
+                     && pSCSIController.isNull())
                 pSCSIController = nwControllers[j];
             else if (   eType == StorageBus_SAS
                      && pSASController.isNull())
@@ -323,14 +325,29 @@ HRESULT Machine::exportTo(const ComPtr<IAppliance> &aAppliance, const com::Utf8S
             rc = pHDA->COMGETTER(Type)(&deviceType);
             if (FAILED(rc)) throw rc;
 
-            rc = pHDA->COMGETTER(Medium)(pMedium.asOutParam());
-            if (FAILED(rc)) throw rc;
-
             rc = pHDA->COMGETTER(Port)(&lChannel);
             if (FAILED(rc)) throw rc;
 
             rc = pHDA->COMGETTER(Device)(&lDevice);
             if (FAILED(rc)) throw rc;
+
+            rc = pHDA->COMGETTER(Medium)(pMedium.asOutParam());
+            if (FAILED(rc)) throw rc;
+            if (pMedium.isNull())
+            {
+                Utf8Str strStBus;
+                if ( storageBus == StorageBus_IDE)
+                strStBus = "IDE";
+                else if ( storageBus == StorageBus_SATA)
+                strStBus = "SATA";
+                else if ( storageBus == StorageBus_SCSI)
+                strStBus = "SCSI";
+                else if ( storageBus == StorageBus_SAS)
+                strStBus = "SAS";
+                LogRel(("Warning: skip the medium (bus: %s, slot: %d, port: %d). No storage device attached.\n",
+                strStBus.c_str(), lDevice, lChannel));
+                continue;
+            }
 
             Utf8Str strTargetImageName;
             Utf8Str strLocation;
@@ -440,7 +457,7 @@ HRESULT Machine::exportTo(const ComPtr<IAppliance> &aAppliance, const com::Utf8S
                 strLocation = bstrLocation;
 
                 Utf8Str ext = strLocation;
-                ext.assignEx(RTPathSuffix(ext.c_str()));//returns extension with dot (".iso")
+                ext.assignEx(RTPathSuffix(strLocation.c_str()));//returns extension with dot (".iso")
 
                 int eq = ext.compare(".iso", Utf8Str::CaseInsensitive);
                 if (eq != 0)
@@ -652,7 +669,7 @@ HRESULT Appliance::write(const com::Utf8Str &aFormat,
     /* Parse all necessary info out of the URI */
     i_parseURI(aPath, m->locInfo);
 
-    if (m->locInfo.storageType == VFSType_Cloud)//(isCloudDestination(aPath))
+    if (m->locInfo.storageType == VFSType_Cloud)
     {
         rc = S_OK;
         ComObjPtr<Progress> progress;
@@ -791,39 +808,44 @@ HRESULT Appliance::write(const com::Utf8Str &aFormat,
  */
 HRESULT Appliance::i_writeImpl(ovf::OVFVersion_T aFormat, const LocationInfo &aLocInfo, ComObjPtr<Progress> &aProgress)
 {
-    HRESULT rc;
-
-    rc = i_setUpProgress(aProgress,
-                         BstrFmt(tr("Export appliance '%s'"), aLocInfo.strPath.c_str()),
-                         (aLocInfo.storageType == VFSType_File) ? WriteFile : WriteS3);
-    if (FAILED(rc))
-        return rc;
-
-    /* Initialize our worker task */
-    TaskOVF* task = NULL;
+    /* Prepare progress object: */
+    HRESULT hrc;
     try
     {
-        task = new TaskOVF(this, TaskOVF::Write, aLocInfo, aProgress);
+        hrc = i_setUpProgress(aProgress,
+                              Utf8StrFmt(tr("Export appliance '%s'"), aLocInfo.strPath.c_str()),
+                              aLocInfo.storageType == VFSType_File ? WriteFile : WriteS3);
     }
-    catch(...)
+    catch (std::bad_alloc &) /* only Utf8StrFmt */
     {
-        return setError(VBOX_E_OBJECT_NOT_FOUND,
-                        tr("Could not create TaskOVF object for for writing out the OVF to disk"));
+        hrc = E_OUTOFMEMORY;
     }
+    if (SUCCEEDED(hrc))
+    {
+        /* Create our worker task: */
+        TaskOVF *pTask = NULL;
+        try
+        {
+            pTask = new TaskOVF(this, TaskOVF::Write, aLocInfo, aProgress);
+        }
+        catch (std::bad_alloc &)
+        {
+            return E_OUTOFMEMORY;
+        }
 
-    /* The OVF version to write */
-    task->enFormat = aFormat;
+        /* The OVF version to produce: */
+        pTask->enFormat = aFormat;
 
-    rc = task->createThread();
-
-    return rc;
+        /* Start the thread: */
+        hrc = pTask->createThread();
+        pTask = NULL;
+    }
+    return hrc;
 }
 
 
 HRESULT Appliance::i_writeCloudImpl(const LocationInfo &aLocInfo, ComObjPtr<Progress> &aProgress)
 {
-    HRESULT rc;
-
     for (list<ComObjPtr<VirtualSystemDescription> >::const_iterator
          it = m->virtualSystemDescriptions.begin();
          it != m->virtualSystemDescriptions.end();
@@ -854,91 +876,101 @@ HRESULT Appliance::i_writeCloudImpl(const LocationInfo &aLocInfo, ComObjPtr<Prog
 
         //just in case
         if (vsdescThis->i_findByType(VirtualSystemDescriptionType_HardDiskImage).empty())
-        {
-            return setError(VBOX_E_OBJECT_NOT_FOUND,
-                                tr("There are no images to export to Cloud after preparation steps"));
-        }
+            return setError(VBOX_E_OBJECT_NOT_FOUND, tr("There are no images to export to Cloud after preparation steps"));
 
         /*
          * Fills out the OCI settings
-        */
-        std::list<VirtualSystemDescriptionEntry*> profileName =
-            vsdescThis->i_findByType(VirtualSystemDescriptionType_CloudProfileName);
+         */
+        std::list<VirtualSystemDescriptionEntry*> profileName
+            = vsdescThis->i_findByType(VirtualSystemDescriptionType_CloudProfileName);
         if (profileName.size() > 1)
-            return setError(VBOX_E_OBJECT_NOT_FOUND,
-                                tr("Cloud: More than one profile name was found."));
-        else if (profileName.empty())
-            return setError(VBOX_E_OBJECT_NOT_FOUND,
-                                tr("Cloud: Profile name wasn't specified."));
+            return setError(VBOX_E_OBJECT_NOT_FOUND, tr("Cloud: More than one profile name was found."));
+        if (profileName.empty())
+            return setError(VBOX_E_OBJECT_NOT_FOUND, tr("Cloud: Profile name wasn't specified."));
 
         if (profileName.front()->strVBoxCurrent.isEmpty())
-            return setError(VBOX_E_OBJECT_NOT_FOUND,
-                                tr("Cloud: Cloud user profile name is empty"));
+            return setError(VBOX_E_OBJECT_NOT_FOUND, tr("Cloud: Cloud user profile name is empty"));
 
         LogRel(("profile name: %s\n", profileName.front()->strVBoxCurrent.c_str()));
-
     }
 
     // we need to do that as otherwise Task won't be created successfully
-    aProgress.createObject();
-    if (aLocInfo.strProvider.equals("OCI"))
+    /// @todo r=bird: What's 'that' here exactly?
+    HRESULT hrc = aProgress.createObject();
+    if (SUCCEEDED(hrc))
     {
-        aProgress->init(mVirtualBox, static_cast<IAppliance*>(this),
-                     Bstr("Exporting VM to Cloud...").raw(),
-                     TRUE /* aCancelable */,
-                     5, // ULONG cOperations,
-                     1000, // ULONG ulTotalOperationsWeight,
-                     Bstr("Exporting VM to Cloud...").raw(), // aFirstOperationDescription
-                     10); // ULONG ulFirstOperationWeight
+        if (aLocInfo.strProvider.equals("OCI"))
+        {
+            hrc = aProgress->init(mVirtualBox, static_cast<IAppliance *>(this),
+                                  Utf8Str(tr("Exporting VM to Cloud...")),
+                                  TRUE /* aCancelable */,
+                                  5, // ULONG cOperations,
+                                  1000, // ULONG ulTotalOperationsWeight,
+                                  Utf8Str(tr("Exporting VM to Cloud...")), // aFirstOperationDescription
+                                  10); // ULONG ulFirstOperationWeight
+        }
+        else
+            hrc = setErrorVrc(VBOX_E_NOT_SUPPORTED,
+                              tr("Only \"OCI\" cloud provider is supported for now. \"%s\" isn't supported."),
+                              aLocInfo.strProvider.c_str());
+        if (SUCCEEDED(hrc))
+        {
+            /* Initialize the worker task: */
+            TaskCloud *pTask = NULL;
+            try
+            {
+                pTask = new Appliance::TaskCloud(this, TaskCloud::Export, aLocInfo, aProgress);
+            }
+            catch (std::bad_alloc &)
+            {
+                pTask = NULL;
+                hrc = E_OUTOFMEMORY;
+            }
+            if (SUCCEEDED(hrc))
+            {
+                /* Kick off the worker task: */
+                hrc = pTask->createThread();
+                pTask = NULL;
+            }
+        }
     }
-    else
-        return setErrorVrc(VBOX_E_NOT_SUPPORTED,
-                           tr("Only \"OCI\" cloud provider is supported for now. \"%s\" isn't supported."),
-                           aLocInfo.strProvider.c_str());
-    // Initialize our worker task
-    TaskCloud* task = NULL;
-    try
-    {
-        task = new Appliance::TaskCloud(this, TaskCloud::Export, aLocInfo, aProgress);
-
-    }
-    catch(...)
-    {
-        return setError(VBOX_E_OBJECT_NOT_FOUND,
-                        tr("Could not create TaskCloud object for exporting to Cloud"));
-    }
-
-    rc = task->createThread();
-
-    return rc;
+    return hrc;
 }
 
 HRESULT Appliance::i_writeOPCImpl(ovf::OVFVersion_T aFormat, const LocationInfo &aLocInfo, ComObjPtr<Progress> &aProgress)
 {
-    HRESULT rc;
     RT_NOREF(aFormat);
 
-    rc = i_setUpProgress(aProgress,
-                         BstrFmt(tr("Export appliance '%s'"), aLocInfo.strPath.c_str()),
-                         (aLocInfo.storageType == VFSType_File) ? WriteFile : WriteS3);
-    if (FAILED(rc))
-        return rc;
-
-    /* Initialize our worker task */
-    TaskOPC* task = NULL;
+    /* Prepare progress object: */
+    HRESULT hrc;
     try
     {
-        task = new Appliance::TaskOPC(this, TaskOPC::Export, aLocInfo, aProgress);
+        hrc = i_setUpProgress(aProgress,
+                              Utf8StrFmt(tr("Export appliance '%s'"), aLocInfo.strPath.c_str()),
+                              aLocInfo.storageType == VFSType_File ? WriteFile : WriteS3);
     }
-    catch(...)
+    catch (std::bad_alloc &) /* only Utf8StrFmt */
     {
-        return setError(VBOX_E_OBJECT_NOT_FOUND,
-                        tr("Could not create TaskOPC object for for writing out the OPC to disk"));
+        hrc = E_OUTOFMEMORY;
     }
+    if (SUCCEEDED(hrc))
+    {
+        /* Create our worker task: */
+        TaskOPC *pTask = NULL;
+        try
+        {
+            pTask = new Appliance::TaskOPC(this, TaskOPC::Export, aLocInfo, aProgress);
+        }
+        catch (std::bad_alloc &)
+        {
+            return E_OUTOFMEMORY;
+        }
 
-    rc = task->createThread();
-
-    return rc;
+        /* Kick it off: */
+        hrc = pTask->createThread();
+        pTask = NULL;
+    }
+    return hrc;
 }
 
 
@@ -2131,7 +2163,7 @@ HRESULT Appliance::i_writeFS(TaskOVF *pTask)
     // Additional protect the IAppliance object, cause we leave the lock
     // when starting the disk export and we don't won't block other
     // callers on this lengthy operations.
-    m->state = Data::ApplianceExporting;
+    m->state = ApplianceExporting;
 
     if (pTask->locInfo.strPath.endsWith(".ovf", Utf8Str::CaseInsensitive))
         rc = i_writeFSOVF(pTask, multiLock);
@@ -2139,7 +2171,7 @@ HRESULT Appliance::i_writeFS(TaskOVF *pTask)
         rc = i_writeFSOVA(pTask, multiLock);
 
     // reset the state so others can call methods again
-    m->state = Data::ApplianceIdle;
+    m->state = ApplianceIdle;
 
     LogFlowFunc(("rc=%Rhrc\n", rc));
     LogFlowFuncLeave();
@@ -2241,7 +2273,7 @@ HRESULT Appliance::i_writeFSOVA(TaskOVF *pTask, AutoWriteLockBase &writeLock)
  * uploaded image into internal OCI image format and launch an
  * instance with this image in the OCI Compute service.
  */
-HRESULT Appliance::i_writeFSCloud(TaskCloud *pTask)
+HRESULT Appliance::i_exportCloudImpl(TaskCloud *pTask)
 {
     LogFlowFuncEnter();
 
@@ -2249,7 +2281,7 @@ HRESULT Appliance::i_writeFSCloud(TaskCloud *pTask)
     ComPtr<ICloudProviderManager> cpm;
     hrc = mVirtualBox->COMGETTER(CloudProviderManager)(cpm.asOutParam());
     if (FAILED(hrc))
-        return setErrorVrc(VERR_COM_OBJECT_NOT_FOUND, tr("Cloud: Cloud provider manager object wasn't found"));
+        return setErrorVrc(VERR_COM_OBJECT_NOT_FOUND, tr("%: Cloud provider manager object wasn't found"), __FUNCTION__);
 
     Utf8Str strProviderName = pTask->locInfo.strProvider;
     ComPtr<ICloudProvider> cloudProvider;
@@ -2257,7 +2289,7 @@ HRESULT Appliance::i_writeFSCloud(TaskCloud *pTask)
     hrc = cpm->GetProviderByShortName(Bstr(strProviderName.c_str()).raw(), cloudProvider.asOutParam());
 
     if (FAILED(hrc))
-        return setErrorVrc(VERR_COM_OBJECT_NOT_FOUND, tr("Cloud: Cloud provider object wasn't found"));
+        return setErrorVrc(VERR_COM_OBJECT_NOT_FOUND, tr("%s: Cloud provider object wasn't found"), __FUNCTION__);
 
     ComPtr<IVirtualSystemDescription> vsd = m->virtualSystemDescriptions.front();
 
@@ -2278,23 +2310,21 @@ HRESULT Appliance::i_writeFSCloud(TaskCloud *pTask)
 
     Utf8Str profileName(aVBoxValues[0]);
     if (profileName.isEmpty())
-        return setErrorVrc(VBOX_E_OBJECT_NOT_FOUND, tr("Cloud: Cloud user profile name wasn't found"));
+        return setErrorVrc(VBOX_E_OBJECT_NOT_FOUND, tr("%s: Cloud user profile name wasn't found"), __FUNCTION__);
 
     hrc = cloudProvider->GetProfileByName(aVBoxValues[0], cloudProfile.asOutParam());
     if (FAILED(hrc))
-        return setErrorVrc(VERR_COM_OBJECT_NOT_FOUND, tr("Cloud: Cloud profile object wasn't found"));
+        return setErrorVrc(VERR_COM_OBJECT_NOT_FOUND, tr("%s: Cloud profile object wasn't found"), __FUNCTION__);
 
     ComObjPtr<ICloudClient> cloudClient;
     hrc = cloudProfile->CreateCloudClient(cloudClient.asOutParam());
     if (FAILED(hrc))
-        return setErrorVrc(VERR_COM_OBJECT_NOT_FOUND, tr("Cloud: Cloud client object wasn't found"));
-
-    LogRel(("Appliance::i_writeFSCloud(): calling CloudClient::ExportLaunchVM\n"));
+        return setErrorVrc(VERR_COM_OBJECT_NOT_FOUND, tr("%s: Cloud client object wasn't found"), __FUNCTION__);
 
     if (m->virtualSystemDescriptions.size() == 1)
     {
         ComPtr<IVirtualBox> VBox(mVirtualBox);
-        hrc = cloudClient->ExportLaunchVM(m->virtualSystemDescriptions.front(), pTask->pProgress, VBox);
+        hrc = cloudClient->ExportVM(m->virtualSystemDescriptions.front(), pTask->pProgress);
     }
     else
         hrc = setErrorVrc(VERR_MISMATCH, tr("Export to Cloud isn't supported for more than one VM instance."));
@@ -2321,7 +2351,7 @@ HRESULT Appliance::i_writeFSOPC(TaskOPC *pTask)
     // Additional protect the IAppliance object, cause we leave the lock
     // when starting the disk export and we don't won't block other
     // callers on this lengthy operations.
-    m->state = Data::ApplianceExporting;
+    m->state = ApplianceExporting;
 
     /*
      * We're duplicating parts of i_writeFSImpl here because that's simpler
@@ -2493,7 +2523,7 @@ HRESULT Appliance::i_writeFSOPC(TaskOPC *pTask)
             RTFileDelete(it->c_str());
 
     // reset the state so others can call methods again
-    m->state = Data::ApplianceIdle;
+    m->state = ApplianceIdle;
 
     LogFlowFuncLeave();
     return hrc;

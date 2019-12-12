@@ -25,12 +25,9 @@
 #include "UIDialogPanel.h"
 
 /* Forward declarations: */
-class QGridLayout;
-class QTextEdit;
 class QComboBox;
 class QILabel;
 class QILineEdit;
-class QITabWidget;
 class QIToolButton;
 class UIVisoCreator;
 
@@ -38,17 +35,17 @@ class UIVisoConfigurationPanel : public UIDialogPanel
 {
     Q_OBJECT;
 
-public:
-    UIVisoConfigurationPanel(QWidget *pParent = 0);
-    ~UIVisoConfigurationPanel();
-    virtual QString panelName() const /* override */;
-    void setVisoName(const QString& strVisoName);
-    void setVisoCustomOptions(const QStringList& visoCustomOptions);
-
 signals:
 
     void sigVisoNameChanged(const QString &strVisoName);
     void sigCustomVisoOptionsChanged(const QStringList &customVisoOptions);
+
+public:
+    UIVisoConfigurationPanel(UIVisoCreator *pCreator, QWidget *pParent = 0);
+    ~UIVisoConfigurationPanel();
+    virtual QString panelName() const /* override */;
+    void setVisoName(const QString& strVisoName);
+    void setVisoCustomOptions(const QStringList& visoCustomOptions);
 
 protected:
 
@@ -67,13 +64,14 @@ private:
     void addCustomVisoOption();
     void emitCustomVisoOptions();
 
+    /** Holds the parent creator reference. */
+    UIVisoCreator *m_pCreator;
+
     QILabel      *m_pVisoNameLabel;
     QILabel      *m_pCustomOptionsLabel;
     QILineEdit   *m_pVisoNameLineEdit;
     QComboBox    *m_pCustomOptionsComboBox;
     QIToolButton *m_pDeleteButton;
-
-    friend class UIVisoCreator;
 };
 
 #endif /* !FEQT_INCLUDED_SRC_medium_viso_UIVisoConfigurationPanel_h */

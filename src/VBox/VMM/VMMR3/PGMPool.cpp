@@ -233,14 +233,12 @@ int pgmR3PoolInit(PVM pVM)
         return rc;
     pVM->pgm.s.pPoolR3 = pPool;
     pVM->pgm.s.pPoolR0 = MMHyperR3ToR0(pVM, pPool);
-    pVM->pgm.s.pPoolRC = MMHyperR3ToRC(pVM, pPool);
 
     /*
      * Initialize it.
      */
     pPool->pVMR3     = pVM;
-    pPool->pVMR0     = pVM->pVMR0;
-    pPool->pVMRC     = pVM->pVMRC;
+    pPool->pVMR0     = pVM->pVMR0ForCall;
     pPool->cMaxPages = cMaxPages;
     pPool->cCurPages = PGMPOOL_IDX_FIRST;
     pPool->iUserFreeHead = 0;
@@ -248,7 +246,6 @@ int pgmR3PoolInit(PVM pVM)
     PPGMPOOLUSER paUsers = (PPGMPOOLUSER)&pPool->aPages[pPool->cMaxPages];
     pPool->paUsersR3 = paUsers;
     pPool->paUsersR0 = MMHyperR3ToR0(pVM, paUsers);
-    pPool->paUsersRC = MMHyperR3ToRC(pVM, paUsers);
     for (unsigned i = 0; i < cMaxUsers; i++)
     {
         paUsers[i].iNext = i + 1;
@@ -261,7 +258,6 @@ int pgmR3PoolInit(PVM pVM)
     PPGMPOOLPHYSEXT paPhysExts = (PPGMPOOLPHYSEXT)&paUsers[cMaxUsers];
     pPool->paPhysExtsR3 = paPhysExts;
     pPool->paPhysExtsR0 = MMHyperR3ToR0(pVM, paPhysExts);
-    pPool->paPhysExtsRC = MMHyperR3ToRC(pVM, paPhysExts);
     for (unsigned i = 0; i < cMaxPhysExts; i++)
     {
         paPhysExts[i].iNext = i + 1;
@@ -465,10 +461,7 @@ int pgmR3PoolInit(PVM pVM)
  */
 void pgmR3PoolRelocate(PVM pVM)
 {
-    pVM->pgm.s.pPoolRC = MMHyperR3ToRC(pVM, pVM->pgm.s.pPoolR3);
-    pVM->pgm.s.pPoolR3->pVMRC = pVM->pVMRC;
-    pVM->pgm.s.pPoolR3->paUsersRC = MMHyperR3ToRC(pVM, pVM->pgm.s.pPoolR3->paUsersR3);
-    pVM->pgm.s.pPoolR3->paPhysExtsRC = MMHyperR3ToRC(pVM, pVM->pgm.s.pPoolR3->paPhysExtsR3);
+    RT_NOREF(pVM);
 }
 
 
@@ -489,8 +482,7 @@ VMMR3DECL(int) PGMR3PoolGrow(PVM pVM)
        (below 4 GB) memory. */
     /** @todo change the pool to handle ROOT page allocations specially when
      *        required. */
-    bool fCanUseHighMemory = HMIsNestedPagingActive(pVM)
-                          && HMIsVmxActive(pVM);
+    bool fCanUseHighMemory = HMIsNestedPagingActive(pVM);
 
     pgmLock(pVM);
 
@@ -769,7 +761,7 @@ DECLCALLBACK(VBOXSTRICTRC) pgmR3PoolClearAllRendezvous(PVM pVM, PVMCPU pVCpu, vo
 
     /* Clear the PGM_SYNC_CLEAR_PGM_POOL flag on all VCPUs to prevent redundant flushes. */
     for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
-        pVM->aCpus[idCpu].pgm.s.fSyncFlags &= ~PGM_SYNC_CLEAR_PGM_POOL;
+        pVM->apCpusR3[idCpu]->pgm.s.fSyncFlags &= ~PGM_SYNC_CLEAR_PGM_POOL;
 
     /* Flush job finished. */
     VM_FF_CLEAR(pVM, VM_FF_PGM_POOL_FLUSH_PENDING);
@@ -780,7 +772,7 @@ DECLCALLBACK(VBOXSTRICTRC) pgmR3PoolClearAllRendezvous(PVM pVM, PVMCPU pVCpu, vo
 
     if (fpvFlushRemTlb)
         for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
-            CPUMSetChangedFlags(&pVM->aCpus[idCpu], CPUM_CHANGED_GLOBAL_TLB_FLUSH);
+            CPUMSetChangedFlags(pVM->apCpusR3[idCpu], CPUM_CHANGED_GLOBAL_TLB_FLUSH);
 
     STAM_PROFILE_STOP(&pPool->StatClearAll, c);
     return VINF_SUCCESS;

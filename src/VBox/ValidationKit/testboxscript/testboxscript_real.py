@@ -27,12 +27,11 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 133738 $"
 
 
 # Standard python imports.
 import math
-import multiprocessing
 import os
 from optparse import OptionParser       # pylint: disable=deprecated-module
 import platform
@@ -66,7 +65,7 @@ if sys.version_info[0] >= 3:
 
 class TestBoxScriptException(Exception):
     """ For raising exceptions during TestBoxScript.__init__. """
-    pass;
+    pass;                               # pylint: disable=unnecessary-pass
 
 
 class TestBoxScript(object):
@@ -95,7 +94,7 @@ class TestBoxScript(object):
 
     # Keys for config params
     VALUE = 'value'
-    FN = 'fn'                           # pylint: disable=C0103
+    FN = 'fn'                           # pylint: disable=invalid-name
 
     ## @}
 
@@ -135,7 +134,7 @@ class TestBoxScript(object):
                 self._oOptions.sScratchRoot = '/var/tmp';
             sSubDir = 'testbox';
             try:
-                sSubDir = '%s-%u' % (sSubDir, os.getuid()); # pylint: disable=E1101
+                sSubDir = '%s-%u' % (sSubDir, os.getuid()); # pylint: disable=no-member
             except:
                 pass;
             self._oOptions.sScratchRoot = os.path.join(self._oOptions.sScratchRoot, sSubDir);
@@ -178,7 +177,7 @@ class TestBoxScript(object):
             constants.tbreq.SIGNON_PARAM_SCRIPT_REV:       { self.VALUE: self._getScriptRev(),         self.FN: None },
             constants.tbreq.SIGNON_PARAM_REPORT:           { self.VALUE: self._getHostReport(),        self.FN: None },
             constants.tbreq.SIGNON_PARAM_PYTHON_VERSION:   { self.VALUE: self._getPythonHexVersion(),  self.FN: None },
-            constants.tbreq.SIGNON_PARAM_CPU_COUNT:        { self.VALUE: None,     self.FN: multiprocessing.cpu_count },
+            constants.tbreq.SIGNON_PARAM_CPU_COUNT:        { self.VALUE: None,     self.FN: utils.getPresentCpuCount },
             constants.tbreq.SIGNON_PARAM_MEM_SIZE:         { self.VALUE: None,     self.FN: self._getHostMemSize },
             constants.tbreq.SIGNON_PARAM_SCRATCH_SIZE:     { self.VALUE: None,     self.FN: self._getFreeScratchSpace },
         }
@@ -278,7 +277,7 @@ class TestBoxScript(object):
                 sMountOpt = ',' + sMountOpt
             utils.sudoProcessCall(['/sbin/umount', sMountPoint]);
             utils.sudoProcessCall(['/bin/mkdir', '-p', sMountPoint]);
-            utils.sudoProcessCall(['/usr/sbin/chown', str(os.getuid()), sMountPoint]); # pylint: disable=E1101
+            utils.sudoProcessCall(['/usr/sbin/chown', str(os.getuid()), sMountPoint]); # pylint: disable=no-member
             if sType == 'cifs':
                 # Note! no smb://server/share stuff here, 10.6.8 didn't like it.
                 utils.processOutputChecked(['/sbin/mount_smbfs',
@@ -301,8 +300,8 @@ class TestBoxScript(object):
                                                 'user=' + sUser
                                                 + ',password=' + sPassword
                                                 + ',sec=ntlmv2'
-                                                + ',uid=' + str(os.getuid()) # pylint: disable=E1101
-                                                + ',gid=' + str(os.getgid()) # pylint: disable=E1101
+                                                + ',uid=' + str(os.getuid()) # pylint: disable=no-member
+                                                + ',gid=' + str(os.getgid()) # pylint: disable=no-member
                                                 + ',nounix,file_mode=0555,dir_mode=0555,soft,ro'
                                                 + sMountOpt,
                                                 '//%s/%s' % (sServer, sShare),
@@ -329,8 +328,8 @@ class TestBoxScript(object):
                 utils.sudoProcessOutputChecked(['/sbin/mount', '-F', 'smbfs',
                                                 '-o',
                                                 'user=' + sUser
-                                                + ',uid=' + str(os.getuid()) # pylint: disable=E1101
-                                                + ',gid=' + str(os.getgid()) # pylint: disable=E1101
+                                                + ',uid=' + str(os.getuid()) # pylint: disable=no-member
+                                                + ',gid=' + str(os.getgid()) # pylint: disable=no-member
                                                 + ',fileperms=0555,dirperms=0555,noxattr,ro'
                                                 + sMountOpt,
                                                 '//%s/%s' % (sServer, sShare),
@@ -400,7 +399,7 @@ class TestBoxScript(object):
             return True;
         if sValue == 'false':
             return False;
-        if sValue != 'dunno' and sValue != 'none':
+        if sValue not in  ('dunno', 'none',):
             raise TestBoxException('Unexpected response "%s" to helper command "%s"' % (sValue, sCmd));
         return fDunnoValue;
 
@@ -448,11 +447,11 @@ class TestBoxScript(object):
         elif utils.getHostOs() == 'win':
             # Windows: WMI
             try:
-                import win32com.client;  # pylint: disable=F0401
+                import win32com.client;  # pylint: disable=import-error
                 oWmi  = win32com.client.Dispatch('WbemScripting.SWbemLocator');
                 oWebm = oWmi.ConnectServer('.', 'root\\cimv2');
                 for oItem in oWebm.ExecQuery('SELECT * FROM Win32_ComputerSystemProduct'):
-                    if oItem.UUID != None:
+                    if oItem.UUID is not None:
                         sUuid = str(uuid.UUID(oItem.UUID));
             except:
                 pass;
@@ -591,7 +590,7 @@ class TestBoxScript(object):
                                                        ctypes.pointer(cTypeMbFreeSpace))
             cMbFreeSpace = cTypeMbFreeSpace.value
         else:
-            stats = os.statvfs(self._oOptions.sScratchRoot); # pylint: disable=E1101
+            stats = os.statvfs(self._oOptions.sScratchRoot); # pylint: disable=no-member
             cMbFreeSpace = stats.f_frsize * stats.f_bfree
 
         # Convert to MB
@@ -686,7 +685,7 @@ class TestBoxScript(object):
         if fUseTheForce is None:
             fUseTheForce = self._fFirstSignOn;
 
-        class ErrorCallback(object): # pylint: disable=R0903
+        class ErrorCallback(object): # pylint: disable=too-few-public-methods
             """
             Callbacks + state for the cleanup.
             """
@@ -847,7 +846,7 @@ class TestBoxScript(object):
             return None;
 
         # Refresh sign-on parameters, changes triggers sign-on.
-        fNeedSignOn = (True if not self._fSignedOn or self._fNeedReSignOn else False)
+        fNeedSignOn = not self._fSignedOn or self._fNeedReSignOn;
         for item in self._ddSignOnParams:
             if self._ddSignOnParams[item][self.FN] is None:
                 continue

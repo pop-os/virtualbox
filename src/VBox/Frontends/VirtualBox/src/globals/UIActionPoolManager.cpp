@@ -16,7 +16,7 @@
  */
 
 /* GUI includes: */
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #include "UIActionPoolManager.h"
 #include "UIExtraDataManager.h"
 #include "UIIconPool.h"
@@ -197,8 +197,7 @@ protected:
         setIconText(QApplication::translate("UIActionPool", "Import"));
         setName(QApplication::translate("UIActionPool", "&Import Appliance..."));
         setStatusTip(QApplication::translate("UIActionPool", "Import an appliance into VirtualBox"));
-        setToolTip(text().remove('&').remove('.') +
-                   (shortcut().toString().isEmpty() ? "" : QString(" (%1)").arg(shortcut().toString())));
+        setToolTip(simplifyText(text()) + (shortcut().isEmpty() ? QString() : QString(" (%1)").arg(shortcut().toString())));
     }
 };
 
@@ -236,8 +235,38 @@ protected:
         setIconText(QApplication::translate("UIActionPool", "Export"));
         setName(QApplication::translate("UIActionPool", "&Export Appliance..."));
         setStatusTip(QApplication::translate("UIActionPool", "Export one or more VirtualBox virtual machines as an appliance"));
-        setToolTip(text().remove('&').remove('.') +
-                   (shortcut().toString().isEmpty() ? "" : QString(" (%1)").arg(shortcut().toString())));
+        setToolTip(simplifyText(text()) + (shortcut().isEmpty() ? QString() : QString(" (%1)").arg(shortcut().toString())));
+    }
+};
+
+/** Simple action extension, used as 'Show New Cloud VM Wizard' action class. */
+class UIActionSimpleSelectorFileShowNewCloudVMWizard : public UIActionSimple
+{
+    Q_OBJECT;
+
+public:
+
+    /** Constructs action passing @a pParent to the base-class. */
+    UIActionSimpleSelectorFileShowNewCloudVMWizard(UIActionPool *pParent)
+        : UIActionSimple(pParent,
+                         ":/cloud_vm_new_32px.png", ":/cloud_vm_new_16px.png",
+                         ":/cloud_vm_new_disabled_32px.png", ":/cloud_vm_new_disabled_16px.png")
+    {}
+
+protected:
+
+    /** Returns shortcut extra-data ID. */
+    virtual QString shortcutExtraDataID() const /* override */
+    {
+        return QString("NewCloudVM");
+    }
+
+    /** Handles translation event. */
+    virtual void retranslateUi() /* override */
+    {
+        setName(QApplication::translate("UIActionPool", "&New Cloud VM..."));
+        setStatusTip(QApplication::translate("UIActionPool", "Create new cloud virtual machine"));
+        setToolTip(simplifyText(text()) + (shortcut().isEmpty() ? QString() : QString(" (%1)").arg(shortcut().toString())));
     }
 };
 
@@ -368,8 +397,7 @@ protected:
     {
         setName(QApplication::translate("UIActionPool", "&New Machine..."));
         setStatusTip(QApplication::translate("UIActionPool", "Create new virtual machine"));
-        setToolTip(text().remove('&').remove('.') +
-                   (shortcut().toString().isEmpty() ? "" : QString(" (%1)").arg(shortcut().toString())));
+        setToolTip(simplifyText(text()) + (shortcut().isEmpty() ? QString() : QString(" (%1)").arg(shortcut().toString())));
     }
 };
 
@@ -548,8 +576,7 @@ protected:
     {
         setName(QApplication::translate("UIActionPool", "&New..."));
         setStatusTip(QApplication::translate("UIActionPool", "Create new virtual machine"));
-        setToolTip(text().remove('&').remove('.') +
-                   (shortcut().toString().isEmpty() ? "" : QString(" (%1)").arg(shortcut().toString())));
+        setToolTip(simplifyText(text()) + (shortcut().isEmpty() ? QString() : QString(" (%1)").arg(shortcut().toString())));
     }
 };
 
@@ -586,8 +613,7 @@ protected:
     {
         setName(QApplication::translate("UIActionPool", "&Add..."));
         setStatusTip(QApplication::translate("UIActionPool", "Add existing virtual machine"));
-        setToolTip(text().remove('&').remove('.') +
-                   (shortcut().toString().isEmpty() ? "" : QString(" (%1)").arg(shortcut().toString())));
+        setToolTip(simplifyText(text()) + (shortcut().isEmpty() ? QString() : QString(" (%1)").arg(shortcut().toString())));
     }
 };
 
@@ -652,8 +678,7 @@ protected:
     {
         setName(QApplication::translate("UIActionPool", "&Settings..."));
         setStatusTip(QApplication::translate("UIActionPool", "Display the virtual machine settings window"));
-        setToolTip(text().remove('&').remove('.') +
-                   (shortcut().toString().isEmpty() ? "" : QString(" (%1)").arg(shortcut().toString())));
+        setToolTip(simplifyText(text()) + (shortcut().isEmpty() ? QString() : QString(" (%1)").arg(shortcut().toString())));
     }
 };
 
@@ -716,6 +741,34 @@ protected:
     {
         setName(QApplication::translate("UIActionPool", "&Move..."));
         setStatusTip(QApplication::translate("UIActionPool", "Move selected virtual machine"));
+    }
+};
+
+/** Simple action extension, used as 'Perform Export Machine locally' action class. */
+class UIActionSimpleSelectorMachinePerformExportLocally : public UIActionSimple
+{
+    Q_OBJECT;
+
+public:
+
+    /** Constructs action passing @a pParent to the base-class. */
+    UIActionSimpleSelectorMachinePerformExportLocally(UIActionPool *pParent)
+        : UIActionSimple(pParent, ":/export_16px.png", ":/export_disabled_16px.png")
+    {}
+
+protected:
+
+    /** Returns shortcut extra-data ID. */
+    virtual QString shortcutExtraDataID() const /* override */
+    {
+        return QString("ExportLocally");
+    }
+
+    /** Handles translation event. */
+    virtual void retranslateUi() /* override */
+    {
+        setName(QApplication::translate("UIActionPool", "E&xport Locally..."));
+        setStatusTip(QApplication::translate("UIActionPool", "Export selected virtual machine locally"));
     }
 };
 
@@ -805,6 +858,40 @@ protected:
     }
 };
 
+/** Simple action extension, used as 'Machine Search' action class. */
+class UIActionSimpleSelectorMachinePerformSearch : public UIActionSimple
+{
+    Q_OBJECT;
+
+public:
+
+    /** Constructs action passing @a pParent to the base-class. */
+    UIActionSimpleSelectorMachinePerformSearch(UIActionPool *pParent)
+        : UIActionSimple(pParent, ":/sort_16px.png", ":/sort_disabled_16px.png")
+    {}
+
+protected:
+
+    /** Returns shortcut extra-data ID. */
+    virtual QString shortcutExtraDataID() const /* override */
+    {
+        return QString("SearchVM");
+    }
+
+    /** Returns default shortcut. */
+    virtual QKeySequence defaultShortcut(UIActionPoolType) const /* override */
+    {
+        return QKeySequence("Ctrl+F");
+    }
+
+    /** Handles translation event. */
+    virtual void retranslateUi() /* override */
+    {
+        setName(QApplication::translate("UIActionPool", "S&earch"));
+        setStatusTip(QApplication::translate("UIActionPool", "Search virtual machines with respect to a search term"));
+    }
+};
+
 
 /** Menu action extension, used as 'Start or Show' menu class. */
 class UIActionStateSelectorCommonStartOrShow : public UIActionPolymorphicMenu
@@ -838,8 +925,7 @@ protected:
                 showMenu();
                 setName(QApplication::translate("UIActionPool", "S&tart"));
                 setStatusTip(QApplication::translate("UIActionPool", "Start selected virtual machines"));
-                setToolTip(text().remove('&').remove('.') +
-                           (shortcut().toString().isEmpty() ? "" : QString(" (%1)").arg(shortcut().toString())));
+                setToolTip(simplifyText(text()) + (shortcut().isEmpty() ? QString() : QString(" (%1)").arg(shortcut().toString())));
                 break;
             }
             case 1:
@@ -847,8 +933,7 @@ protected:
                 hideMenu();
                 setName(QApplication::translate("UIActionPool", "S&how"));
                 setStatusTip(QApplication::translate("UIActionPool", "Switch to the windows of selected virtual machines"));
-                setToolTip(text().remove('&').remove('.') +
-                           (shortcut().toString().isEmpty() ? "" : QString(" (%1)").arg(shortcut().toString())));
+                setToolTip(simplifyText(text()) + (shortcut().isEmpty() ? QString() : QString(" (%1)").arg(shortcut().toString())));
                 break;
             }
             default:
@@ -1027,8 +1112,7 @@ protected:
         setIconText(QApplication::translate("UIActionPool", "Discard"));
         setName(QApplication::translate("UIActionPool", "D&iscard Saved State..."));
         setStatusTip(QApplication::translate("UIActionPool", "Discard saved state of selected virtual machines"));
-        setToolTip(text().remove('&').remove('.') +
-                   (shortcut().toString().isEmpty() ? "" : QString(" (%1)").arg(shortcut().toString())));
+        setToolTip(simplifyText(text()) + (shortcut().isEmpty() ? QString() : QString(" (%1)").arg(shortcut().toString())));
     }
 };
 
@@ -1328,7 +1412,6 @@ protected:
     virtual void retranslateUi() /* override */
     {
         setName(QApplication::translate("UIActionPool", "Tools"));
-        setStatusTip(QApplication::translate("UIActionPool", "Open the machine tools menu"));
     }
 };
 
@@ -1456,7 +1539,6 @@ protected:
     virtual void retranslateUi() /* override */
     {
         setName(QApplication::translate("UIActionPool", "&Global Tools Menu"));
-        setStatusTip(QApplication::translate("UIActionPool", "Open the global tools menu"));
     }
 };
 
@@ -1575,7 +1657,6 @@ protected:
     virtual void retranslateUi() /* override */
     {
         setName(QApplication::translate("UIActionPool", "&Snapshot"));
-        setStatusTip(QApplication::translate("UIActionPool", "Open the snapshot menu"));
     }
 };
 
@@ -1615,7 +1696,8 @@ protected:
         setName(QApplication::translate("UIActionPool", "&Take..."));
         setShortcutScope(QApplication::translate("UIActionPool", "Snapshot Pane"));
         setStatusTip(QApplication::translate("UIActionPool", "Take a snapshot of the current virtual machine state"));
-        setToolTip(QApplication::translate("UIActionPool", "Take Snapshot (%1)").arg(shortcut().toString()));
+        setToolTip(  QApplication::translate("UIActionPool", "Take Snapshot")
+                   + (shortcut().isEmpty() ? QString() : QString(" (%1)").arg(shortcut().toString())));
     }
 };
 
@@ -1655,7 +1737,8 @@ protected:
         setName(QApplication::translate("UIActionPool", "&Delete..."));
         setShortcutScope(QApplication::translate("UIActionPool", "Snapshot Pane"));
         setStatusTip(QApplication::translate("UIActionPool", "Delete selected snapshot of the virtual machine"));
-        setToolTip(QApplication::translate("UIActionPool", "Delete Snapshot (%1)").arg(shortcut().toString()));
+        setToolTip(  QApplication::translate("UIActionPool", "Delete Snapshot")
+                   + (shortcut().isEmpty() ? QString() : QString(" (%1)").arg(shortcut().toString())));
     }
 };
 
@@ -1695,7 +1778,8 @@ protected:
         setName(QApplication::translate("UIActionPool", "&Restore..."));
         setShortcutScope(QApplication::translate("UIActionPool", "Snapshot Pane"));
         setStatusTip(QApplication::translate("UIActionPool", "Restore selected snapshot of the virtual machine"));
-        setToolTip(QApplication::translate("UIActionPool", "Restore Snapshot (%1)").arg(shortcut().toString()));
+        setToolTip(  QApplication::translate("UIActionPool", "Restore Snapshot")
+                   + (shortcut().isEmpty() ? QString() : QString(" (%1)").arg(shortcut().toString())));
     }
 };
 
@@ -1735,7 +1819,8 @@ protected:
         setName(QApplication::translate("UIActionPool", "&Properties"));
         setShortcutScope(QApplication::translate("UIActionPool", "Snapshot Pane"));
         setStatusTip(QApplication::translate("UIActionPool", "Open pane with the selected snapshot properties"));
-        setToolTip(QApplication::translate("UIActionPool", "Open Snapshot Properties (%1)").arg(shortcut().toString()));
+        setToolTip(  QApplication::translate("UIActionPool", "Open Snapshot Properties")
+                   + (shortcut().isEmpty() ? QString() : QString(" (%1)").arg(shortcut().toString())));
     }
 };
 
@@ -1775,7 +1860,8 @@ protected:
         setName(QApplication::translate("UIActionPool", "&Clone..."));
         setShortcutScope(QApplication::translate("UIActionPool", "Snapshot Pane"));
         setStatusTip(QApplication::translate("UIActionPool", "Clone selected virtual machine"));
-        setToolTip(QApplication::translate("UIActionPool", "Clone Virtual Machine (%1)").arg(shortcut().toString()));
+        setToolTip(  QApplication::translate("UIActionPool", "Clone Virtual Machine")
+                   + (shortcut().isEmpty() ? QString() : QString(" (%1)").arg(shortcut().toString())));
     }
 };
 
@@ -1804,7 +1890,6 @@ protected:
     virtual void retranslateUi() /* override */
     {
         setName(QApplication::translate("UIActionPool", "&Medium"));
-        setStatusTip(QApplication::translate("UIActionPool", "Open the medium menu"));
     }
 };
 
@@ -1847,8 +1932,54 @@ protected:
     {
         setName(QApplication::translate("UIActionPool", "&Add..."));
         setShortcutScope(QApplication::translate("UIActionPool", "Media Manager"));
-        setStatusTip(QApplication::translate("UIActionPool", "Add a disk image file"));
-        setToolTip(QApplication::translate("UIActionPool", "Add a Disk Image File (%1)").arg(shortcut().toString()));
+        setStatusTip(QApplication::translate("UIActionPool", "Add a disk image"));
+        setToolTip(  QApplication::translate("UIActionPool", "Add Disk Image")
+                   + (shortcut().isEmpty() ? QString() : QString(" (%1)").arg(shortcut().toString())));
+    }
+};
+
+/** Simple action extension, used as 'Perform Create' action class. */
+class UIActionMenuSelectorMediumPerformCreate : public UIActionSimple
+{
+    Q_OBJECT;
+
+public:
+
+    /** Constructs action passing @a pParent to the base-class. */
+    UIActionMenuSelectorMediumPerformCreate(UIActionPool *pParent)
+        : UIActionSimple(pParent)
+    {
+        setShortcutContext(Qt::WidgetWithChildrenShortcut);
+        setIcon(0, UIIconPool::iconSetFull(":/hd_create_32px.png",          ":/hd_create_16px.png",
+                                           ":/hd_create_disabled_32px.png", ":/hd_create_disabled_16px.png"));
+        setIcon(1, UIIconPool::iconSetFull(":/cd_create_32px.png",          ":/cd_create_16px.png",
+                                           ":/cd_create_disabled_32px.png", ":/cd_create_disabled_16px.png"));
+        setIcon(2, UIIconPool::iconSetFull(":/fd_create_32px.png",          ":/fd_create_16px.png",
+                                           ":/fd_create_disabled_32px.png", ":/fd_create_disabled_16px.png"));
+    }
+
+protected:
+
+    /** Returns shortcut extra-data ID. */
+    virtual QString shortcutExtraDataID() const /* override */
+    {
+        return QString("CreateMedium");
+    }
+
+    /** Returns default shortcut. */
+    virtual QKeySequence defaultShortcut(UIActionPoolType) const /* override */
+    {
+        return QKeySequence("");
+    }
+
+    /** Handles translation event. */
+    virtual void retranslateUi() /* override */
+    {
+        setName(QApplication::translate("UIActionPool", "&Create..."));
+        setShortcutScope(QApplication::translate("UIActionPool", "Media Manager"));
+        setStatusTip(QApplication::translate("UIActionPool", "Create a new disk image"));
+        setToolTip(  QApplication::translate("UIActionPool", "Create Disk Image")
+                   + (shortcut().isEmpty() ? QString() : QString(" (%1)").arg(shortcut().toString())));
     }
 };
 
@@ -1891,8 +2022,9 @@ protected:
     {
         setName(QApplication::translate("UIActionPool", "&Copy..."));
         setShortcutScope(QApplication::translate("UIActionPool", "Media Manager"));
-        setStatusTip(QApplication::translate("UIActionPool", "Copy selected disk image file"));
-        setToolTip(QApplication::translate("UIActionPool", "Copy Disk Image File (%1)").arg(shortcut().toString()));
+        setStatusTip(QApplication::translate("UIActionPool", "Copy selected disk image"));
+        setToolTip(  QApplication::translate("UIActionPool", "Copy Disk Image")
+                   + (shortcut().isEmpty() ? QString() : QString(" (%1)").arg(shortcut().toString())));
     }
 };
 
@@ -1935,8 +2067,9 @@ protected:
     {
         setName(QApplication::translate("UIActionPool", "&Move..."));
         setShortcutScope(QApplication::translate("UIActionPool", "Media Manager"));
-        setStatusTip(QApplication::translate("UIActionPool", "Move selected disk image file"));
-        setToolTip(QApplication::translate("UIActionPool", "Move Disk Image File (%1)").arg(shortcut().toString()));
+        setStatusTip(QApplication::translate("UIActionPool", "Move selected disk image"));
+        setToolTip(  QApplication::translate("UIActionPool", "Move Disk Image")
+                   + (shortcut().isEmpty() ? QString() : QString(" (%1)").arg(shortcut().toString())));
     }
 };
 
@@ -1979,8 +2112,9 @@ protected:
     {
         setName(QApplication::translate("UIActionPool", "&Remove..."));
         setShortcutScope(QApplication::translate("UIActionPool", "Media Manager"));
-        setStatusTip(QApplication::translate("UIActionPool", "Remove selected disk image file"));
-        setToolTip(QApplication::translate("UIActionPool", "Remove Disk Image File (%1)").arg(shortcut().toString()));
+        setStatusTip(QApplication::translate("UIActionPool", "Remove selected disk image"));
+        setToolTip(  QApplication::translate("UIActionPool", "Remove Disk Image")
+                   + (shortcut().isEmpty() ? QString() : QString(" (%1)").arg(shortcut().toString())));
     }
 };
 
@@ -2023,8 +2157,9 @@ protected:
     {
         setName(QApplication::translate("UIActionPool", "Re&lease..."));
         setShortcutScope(QApplication::translate("UIActionPool", "Media Manager"));
-        setStatusTip(QApplication::translate("UIActionPool", "Release selected disk image file"));
-        setToolTip(QApplication::translate("UIActionPool", "Release Disk Image File (%1)").arg(shortcut().toString()));
+        setStatusTip(QApplication::translate("UIActionPool", "Release selected disk image"));
+        setToolTip(  QApplication::translate("UIActionPool", "Release Disk Image")
+                   + (shortcut().isEmpty() ? QString() : QString(" (%1)").arg(shortcut().toString())));
     }
 };
 
@@ -2067,8 +2202,54 @@ protected:
     {
         setName(QApplication::translate("UIActionPool", "&Properties"));
         setShortcutScope(QApplication::translate("UIActionPool", "Media Manager"));
-        setStatusTip(QApplication::translate("UIActionPool", "Open pane with selected disk image file properties"));
-        setToolTip(QApplication::translate("UIActionPool", "Open Disk Image File Properties (%1)").arg(shortcut().toString()));
+        setStatusTip(QApplication::translate("UIActionPool", "Open pane with selected disk image properties"));
+        setToolTip(  QApplication::translate("UIActionPool", "Open Disk Image Properties")
+                   + (shortcut().isEmpty() ? QString() : QString(" (%1)").arg(shortcut().toString())));
+    }
+};
+
+/** Toggle action extension, used as 'Toggle Search Pane' action class. */
+class UIActionMenuSelectorMediumToggleSearch : public UIActionToggle
+{
+    Q_OBJECT;
+
+public:
+
+    /** Constructs action passing @a pParent to the base-class. */
+    UIActionMenuSelectorMediumToggleSearch(UIActionPool *pParent)
+        : UIActionToggle(pParent)
+    {
+        setShortcutContext(Qt::WidgetWithChildrenShortcut);
+        setIcon(0, UIIconPool::iconSetFull(":/hd_search_32px.png",          ":/hd_search_16px.png",
+                                           ":/hd_search_disabled_32px.png", ":/hd_search_disabled_16px.png"));
+        setIcon(1, UIIconPool::iconSetFull(":/cd_search_32px.png",          ":/cd_search_16px.png",
+                                           ":/cd_search_disabled_32px.png", ":/cd_search_disabled_16px.png"));
+        setIcon(2, UIIconPool::iconSetFull(":/fd_search_32px.png",          ":/fd_search_16px.png",
+                                           ":/fd_search_disabled_32px.png", ":/fd_search_disabled_16px.png"));
+    }
+
+protected:
+
+    /** Returns shortcut extra-data ID. */
+    virtual QString shortcutExtraDataID() const /* override */
+    {
+        return QString("ToggleMediumSearch");
+    }
+
+    /** Returns default shortcut. */
+    virtual QKeySequence defaultShortcut(UIActionPoolType) const /* override */
+    {
+        return QKeySequence("");
+    }
+
+    /** Handles translation event. */
+    virtual void retranslateUi() /* override */
+    {
+        setName(QApplication::translate("UIActionPool", "&Search"));
+        setShortcutScope(QApplication::translate("UIActionPool", "Media Manager"));
+        setStatusTip(QApplication::translate("UIActionPool", "Open the disk image search pane"));
+        setToolTip(  QApplication::translate("UIActionPool", "Open Disk Image Search Pane")
+                   + (shortcut().isEmpty() ? QString() : QString(" (%1)").arg(shortcut().toString())));
     }
 };
 
@@ -2107,8 +2288,9 @@ protected:
     {
         setName(QApplication::translate("UIActionPool", "Re&fresh..."));
         setShortcutScope(QApplication::translate("UIActionPool", "Media Manager"));
-        setStatusTip(QApplication::translate("UIActionPool", "Refresh the list of disk image files"));
-        setToolTip(QApplication::translate("UIActionPool", "Refresh Disk Image Files (%1)").arg(shortcut().toString()));
+        setStatusTip(QApplication::translate("UIActionPool", "Refresh the list of disk images"));
+        setToolTip(  QApplication::translate("UIActionPool", "Refresh Disk Images")
+                   + (shortcut().isEmpty() ? QString() : QString(" (%1)").arg(shortcut().toString())));
     }
 };
 
@@ -2137,7 +2319,6 @@ protected:
     virtual void retranslateUi() /* override */
     {
         setName(QApplication::translate("UIActionPool", "&Network"));
-        setStatusTip(QApplication::translate("UIActionPool", "Open the network menu"));
     }
 };
 
@@ -2177,7 +2358,8 @@ protected:
         setName(QApplication::translate("UIActionPool", "&Create..."));
         setShortcutScope(QApplication::translate("UIActionPool", "Network Manager"));
         setStatusTip(QApplication::translate("UIActionPool", "Create new host-only network"));
-        setToolTip(QApplication::translate("UIActionPool", "Create Host-only Network (%1)").arg(shortcut().toString()));
+        setToolTip(  QApplication::translate("UIActionPool", "Create Host-only Network")
+                   + (shortcut().isEmpty() ? QString() : QString(" (%1)").arg(shortcut().toString())));
     }
 };
 
@@ -2217,7 +2399,8 @@ protected:
         setName(QApplication::translate("UIActionPool", "&Remove..."));
         setShortcutScope(QApplication::translate("UIActionPool", "Network Manager"));
         setStatusTip(QApplication::translate("UIActionPool", "Remove selected host-only network"));
-        setToolTip(QApplication::translate("UIActionPool", "Remove Host-only Network (%1)").arg(shortcut().toString()));
+        setToolTip(  QApplication::translate("UIActionPool", "Remove Host-only Network")
+                   + (shortcut().isEmpty() ? QString() : QString(" (%1)").arg(shortcut().toString())));
     }
 };
 
@@ -2257,7 +2440,8 @@ protected:
         setName(QApplication::translate("UIActionPool", "&Properties"));
         setShortcutScope(QApplication::translate("UIActionPool", "Network Manager"));
         setStatusTip(QApplication::translate("UIActionPool", "Open pane with selected host-only network properties"));
-        setToolTip(QApplication::translate("UIActionPool", "Open Host-only Network Properties (%1)").arg(shortcut().toString()));
+        setToolTip(  QApplication::translate("UIActionPool", "Open Host-only Network Properties")
+                   + (shortcut().isEmpty() ? QString() : QString(" (%1)").arg(shortcut().toString())));
     }
 };
 
@@ -2297,7 +2481,8 @@ protected:
         setName(QApplication::translate("UIActionPool", "Re&fresh..."));
         setShortcutScope(QApplication::translate("UIActionPool", "Network Manager"));
         setStatusTip(QApplication::translate("UIActionPool", "Refresh the list of host-only networks"));
-        setToolTip(QApplication::translate("UIActionPool", "Refresh Host-only Networks (%1)").arg(shortcut().toString()));
+        setToolTip(  QApplication::translate("UIActionPool", "Refresh Host-only Networks")
+                   + (shortcut().isEmpty() ? QString() : QString(" (%1)").arg(shortcut().toString())));
     }
 };
 
@@ -2326,7 +2511,6 @@ protected:
     virtual void retranslateUi() /* override */
     {
         setName(QApplication::translate("UIActionPool", "&Cloud"));
-        setStatusTip(QApplication::translate("UIActionPool", "Open the cloud menu"));
     }
 };
 
@@ -2367,7 +2551,8 @@ protected:
         setName(QApplication::translate("UIActionPool", "&Add Profile..."));
         setShortcutScope(QApplication::translate("UIActionPool", "Cloud Profile Manager"));
         setStatusTip(QApplication::translate("UIActionPool", "Add new cloud profile"));
-        setToolTip(QApplication::translate("UIActionPool", "Add Cloud Profile (%1)").arg(shortcut().toString()));
+        setToolTip(  QApplication::translate("UIActionPool", "Add Cloud Profile")
+                   + (shortcut().isEmpty() ? QString() : QString(" (%1)").arg(shortcut().toString())));
     }
 };
 
@@ -2408,7 +2593,8 @@ protected:
         setName(QApplication::translate("UIActionPool", "&Import Profiles..."));
         setShortcutScope(QApplication::translate("UIActionPool", "Cloud Profile Manager"));
         setStatusTip(QApplication::translate("UIActionPool", "Import the list of cloud profiles from external files"));
-        setToolTip(QApplication::translate("UIActionPool", "Import Cloud Profiles (%1)").arg(shortcut().toString()));
+        setToolTip(  QApplication::translate("UIActionPool", "Import Cloud Profiles")
+                   + (shortcut().isEmpty() ? QString() : QString(" (%1)").arg(shortcut().toString())));
     }
 };
 
@@ -2449,7 +2635,8 @@ protected:
         setName(QApplication::translate("UIActionPool", "&Remove Profile..."));
         setShortcutScope(QApplication::translate("UIActionPool", "Cloud Profile Manager"));
         setStatusTip(QApplication::translate("UIActionPool", "Remove selected cloud profile"));
-        setToolTip(QApplication::translate("UIActionPool", "Remove Cloud Profile (%1)").arg(shortcut().toString()));
+        setToolTip(  QApplication::translate("UIActionPool", "Remove Cloud Profile")
+                   + (shortcut().isEmpty() ? QString() : QString(" (%1)").arg(shortcut().toString())));
     }
 };
 
@@ -2490,7 +2677,8 @@ protected:
         setName(QApplication::translate("UIActionPool", "Profile &Properties"));
         setShortcutScope(QApplication::translate("UIActionPool", "Cloud Profile Manager"));
         setStatusTip(QApplication::translate("UIActionPool", "Open pane with selected cloud profile properties"));
-        setToolTip(QApplication::translate("UIActionPool", "Open Cloud Profile Properties (%1)").arg(shortcut().toString()));
+        setToolTip(  QApplication::translate("UIActionPool", "Open Cloud Profile Properties")
+                   + (shortcut().isEmpty() ? QString() : QString(" (%1)").arg(shortcut().toString())));
     }
 };
 
@@ -2531,8 +2719,8 @@ protected:
         setName(QApplication::translate("UIActionPool", "&Try Oracle Cloud for Free..."));
         setShortcutScope(QApplication::translate("UIActionPool", "Cloud Profile Manager"));
         setStatusTip(QApplication::translate("UIActionPool", "Try Oracle cloud for free"));
-        const QString strToolTip = QApplication::translate("UIActionPool", "Try Oracle Cloud for Free");
-        setToolTip(shortcut().isEmpty() ? strToolTip : QString("%1 (%2)").arg(strToolTip, shortcut().toString()));
+        setToolTip(  QApplication::translate("UIActionPool", "Try Oracle Cloud for Free")
+                   + (shortcut().isEmpty() ? QString() : QString(" (%1)").arg(shortcut().toString())));
     }
 };
 
@@ -2573,7 +2761,8 @@ protected:
         setName(QApplication::translate("UIActionPool", "&Show Help..."));
         setShortcutScope(QApplication::translate("UIActionPool", "Cloud Profile Manager"));
         setStatusTip(QApplication::translate("UIActionPool", "Show cloud profile help"));
-        setToolTip(QApplication::translate("UIActionPool", "Show Cloud Profile Help (%1)").arg(shortcut().toString()));
+        setToolTip(  QApplication::translate("UIActionPool", "Show Cloud Profile Help")
+                   + (shortcut().isEmpty() ? QString() : QString(" (%1)").arg(shortcut().toString())));
     }
 };
 
@@ -2596,6 +2785,7 @@ void UIActionPoolManager::preparePool()
     m_pool[UIActionIndexST_M_File_S_ShowCloudProfileManager] = new UIActionSimpleSelectorFileShowCloudProfileManager(this);
     m_pool[UIActionIndexST_M_File_S_ImportAppliance] = new UIActionSimpleSelectorFileShowImportApplianceWizard(this);
     m_pool[UIActionIndexST_M_File_S_ExportAppliance] = new UIActionSimpleSelectorFileShowExportApplianceWizard(this);
+    m_pool[UIActionIndexST_M_File_S_NewCloudVM] = new UIActionSimpleSelectorFileShowNewCloudVMWizard(this);
 #ifdef VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
     m_pool[UIActionIndexST_M_File_S_ShowExtraDataManager] = new UIActionSimpleSelectorFileShowExtraDataManager(this);
 #endif
@@ -2665,6 +2855,7 @@ void UIActionPoolManager::preparePool()
     m_pool[UIActionIndexST_M_Machine_S_ShowInFileManager] = new UIActionSimpleSelectorCommonShowInFileManager(this);
     m_pool[UIActionIndexST_M_Machine_S_CreateShortcut] = new UIActionSimpleSelectorCommonPerformCreateShortcut(this);
     m_pool[UIActionIndexST_M_Machine_S_SortParent] = new UIActionSimpleSelectorMachinePerformSortParent(this);
+    m_pool[UIActionIndexST_M_Machine_S_Search] = new UIActionSimpleSelectorMachinePerformSearch(this);
 
     /* Global Tools actions: */
     m_pool[UIActionIndexST_M_Tools_M_Global] = new UIActionMenuSelectorToolsGlobal(this);
@@ -2684,11 +2875,13 @@ void UIActionPoolManager::preparePool()
     m_pool[UIActionIndexST_M_MediumWindow] = new UIActionMenuSelectorMedium(this);
     m_pool[UIActionIndexST_M_Medium] = new UIActionMenuSelectorMedium(this);
     m_pool[UIActionIndexST_M_Medium_S_Add] = new UIActionMenuSelectorMediumPerformAdd(this);
+    m_pool[UIActionIndexST_M_Medium_S_Create] = new UIActionMenuSelectorMediumPerformCreate(this);
     m_pool[UIActionIndexST_M_Medium_S_Copy] = new UIActionMenuSelectorMediumPerformCopy(this);
     m_pool[UIActionIndexST_M_Medium_S_Move] = new UIActionMenuSelectorMediumPerformMove(this);
     m_pool[UIActionIndexST_M_Medium_S_Remove] = new UIActionMenuSelectorMediumPerformRemove(this);
     m_pool[UIActionIndexST_M_Medium_S_Release] = new UIActionMenuSelectorMediumPerformRelease(this);
     m_pool[UIActionIndexST_M_Medium_T_Details] = new UIActionMenuSelectorMediumToggleProperties(this);
+    m_pool[UIActionIndexST_M_Medium_T_Search] = new UIActionMenuSelectorMediumToggleSearch(this);
     m_pool[UIActionIndexST_M_Medium_S_Refresh] = new UIActionMenuSelectorMediumPerformRefresh(this);
 
     /* Host Network Manager actions: */
@@ -2747,8 +2940,8 @@ void UIActionPoolManager::preparePool()
 void UIActionPoolManager::prepareConnections()
 {
     /* Prepare connections: */
-    connect(gShortcutPool, SIGNAL(sigSelectorShortcutsReloaded()), this, SLOT(sltApplyShortcuts()));
-    connect(gShortcutPool, SIGNAL(sigMachineShortcutsReloaded()), this, SLOT(sltApplyShortcuts()));
+    connect(gShortcutPool, &UIShortcutPool::sigSelectorShortcutsReloaded, this, &UIActionPoolManager::sltApplyShortcuts);
+    connect(gShortcutPool, &UIShortcutPool::sigMachineShortcutsReloaded, this, &UIActionPoolManager::sltApplyShortcuts);
 
     /* Call to base-class: */
     UIActionPool::prepareConnections();
@@ -2835,7 +3028,7 @@ void UIActionPoolManager::updateMenuFile()
     pMenu->clear();
 
     /* Check if Ext Pack is ready, some of actions my depend on it: */
-    CExtPack extPack = vboxGlobal().virtualBox().GetExtensionPackManager().Find(GUI_ExtPackName);
+    CExtPack extPack = uiCommon().virtualBox().GetExtensionPackManager().Find(GUI_ExtPackName);
     const bool fExtPackAccessible = !extPack.isNull() && extPack.GetUsable();
 
     /* The Application / 'File' menu contents is very different depending on host type. */
@@ -2862,6 +3055,8 @@ void UIActionPoolManager::updateMenuFile()
     pMenu->addAction(action(UIActionIndexST_M_File_S_ImportAppliance));
     /* 'Export Appliance' action goes to 'File' menu: */
     pMenu->addAction(action(UIActionIndexST_M_File_S_ExportAppliance));
+    /* 'New Cloud VM' action goes to 'File' menu: */
+    pMenu->addAction(action(UIActionIndexST_M_File_S_NewCloudVM));
 # ifdef VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
     /* 'Show Extra-data Manager' action goes to 'File' menu for Debug build: */
     pMenu->addAction(action(UIActionIndexST_M_File_S_ShowExtraDataManager));
@@ -2884,6 +3079,8 @@ void UIActionPoolManager::updateMenuFile()
     pMenu->addAction(action(UIActionIndexST_M_File_S_ImportAppliance));
     /* 'Export Appliance' action goes to 'File' menu: */
     pMenu->addAction(action(UIActionIndexST_M_File_S_ExportAppliance));
+    /* 'New Cloud VM' action goes to 'File' menu: */
+    pMenu->addAction(action(UIActionIndexST_M_File_S_NewCloudVM));
     /* Separator after 'Export Appliance' action of the 'File' menu: */
     pMenu->addSeparator();
 # ifdef VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
@@ -3004,6 +3201,7 @@ void UIActionPoolManager::updateMenuMachine()
     pMenu->addAction(action(UIActionIndexST_M_Machine_S_CreateShortcut));
     pMenu->addSeparator();
     pMenu->addAction(action(UIActionIndexST_M_Machine_S_SortParent));
+    pMenu->addAction(action(UIActionIndexST_M_Machine_S_Search));
 
     /* Mark menu as valid: */
     m_invalidations.remove(UIActionIndexST_M_Machine);
@@ -3141,6 +3339,7 @@ void UIActionPoolManager::updateMenuMediumWrapper(UIMenu *pMenu)
 
     /* 'Add' action: */
     fSeparator = addAction(pMenu, action(UIActionIndexST_M_Medium_S_Add)) || fSeparator;
+    fSeparator = addAction(pMenu, action(UIActionIndexST_M_Medium_S_Create)) || fSeparator;
 
     /* Separator? */
     if (fSeparator)
@@ -3157,6 +3356,8 @@ void UIActionPoolManager::updateMenuMediumWrapper(UIMenu *pMenu)
     fSeparator = addAction(pMenu, action(UIActionIndexST_M_Medium_S_Remove)) || fSeparator;
     /* 'Release' action: */
     fSeparator = addAction(pMenu, action(UIActionIndexST_M_Medium_S_Release)) || fSeparator;
+    /* 'Search' action: */
+    fSeparator = addAction(pMenu, action(UIActionIndexST_M_Medium_T_Search)) || fSeparator;
     /* 'Properties' action: */
     fSeparator = addAction(pMenu, action(UIActionIndexST_M_Medium_T_Details)) || fSeparator;
 

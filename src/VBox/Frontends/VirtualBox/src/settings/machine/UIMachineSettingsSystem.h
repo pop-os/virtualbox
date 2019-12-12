@@ -28,6 +28,7 @@
 /* Forward declarations: */
 struct UIDataSettingsMachineSystem;
 typedef UISettingsCache<UIDataSettingsMachineSystem> UISettingsCacheMachineSystem;
+class CMachine;
 
 /** Machine settings: System page. */
 class SHARED_LIBRARY_STUFF UIMachineSettingsSystem : public UISettingsPageMachine,
@@ -97,18 +98,7 @@ protected:
     /** Performs final page polishing. */
     virtual void polishPage() /* override */;
 
-    /** Preprocesses any Qt @a pEvent for passed @a pObject. */
-    virtual bool eventFilter(QObject *pObject, QEvent *pEvent) /* override */;
-
 private slots:
-
-    /** Handles memory size slider change. */
-    void sltHandleMemorySizeSliderChange();
-    /** Handles memory size editor change. */
-    void sltHandleMemorySizeEditorChange();
-
-    /** Handle current boot item change to @a iCurrentIndex. */
-    void sltHandleCurrentBootItemChange(int iCurrentIndex);
 
     /** Handles CPU count slider change. */
     void sltHandleCPUCountSliderChange();
@@ -137,8 +127,12 @@ private:
     /** Cleanups all. */
     void cleanup();
 
+    /** Repopulates Chipset type combo-box. */
+    void repopulateComboChipsetType();
     /** Repopulates Pointing HID type combo-box. */
     void repopulateComboPointingHIDType();
+    /** Repopulates Paravirtualization Provider type combo-box. */
+    void repopulateComboParavirtProviderType();
 
     /** Retranslates Chipset type combo-box. */
     void retranslateComboChipsetType();
@@ -146,9 +140,6 @@ private:
     void retranslateComboPointingHIDType();
     /** Retranslates Paravirtualization providers combo-box. */
     void retranslateComboParavirtProvider();
-
-    /** Adjusts boot-order tree-widget size. */
-    void adjustBootOrderTWSize();
 
     /** Saves existing system data from the cache. */
     bool saveSystemData();
@@ -158,9 +149,6 @@ private:
     bool saveProcessorData();
     /** Saves existing 'Acceleration' data from the cache. */
     bool saveAccelerationData();
-
-    /** Holds the list of all possible boot items. */
-    QList<KDeviceType>  m_possibleBootItems;
 
     /** Holds the minimum guest CPU count. */
     uint  m_uMinGuestCPU;

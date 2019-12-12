@@ -24,11 +24,8 @@
 #include <VBox/vmm/mm.h>
 #include <VBox/vmm/em.h>
 #include <VBox/vmm/cpum.h>
-#ifdef IN_RC
-# include <VBox/vmm/patm.h>
-#endif
 #include "PGMInternal.h"
-#include <VBox/vmm/vm.h>
+#include <VBox/vmm/vmcc.h>
 #include "PGMInline.h"
 #include <VBox/disopcode.h>
 #include <VBox/vmm/hm_vmx.h>
@@ -59,7 +56,7 @@ static const char *pgmPoolPoolKindToStr(uint8_t enmKind);
 static void pgmPoolTrackCheckPTPaePae(PPGMPOOL pPool, PPGMPOOLPAGE pPage, PPGMSHWPTPAE pShwPT, PCX86PTPAE pGstPT);
 #endif
 
-int             pgmPoolTrackFlushGCPhysPTsSlow(PVM pVM, PPGMPAGE pPhysPage);
+int             pgmPoolTrackFlushGCPhysPTsSlow(PVMCC pVM, PPGMPAGE pPhysPage);
 PPGMPOOLPHYSEXT pgmPoolTrackPhysExtAlloc(PVM pVM, uint16_t *piPhysExt);
 void            pgmPoolTrackPhysExtFree(PVM pVM, uint16_t iPhysExt);
 void            pgmPoolTrackPhysExtFreeList(PVM pVM, uint16_t iPhysExt);
@@ -144,7 +141,7 @@ void pgmPoolMonitorChainFlush(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
  * @param   GCPhysSrc   The source guest physical address.
  * @param   cb          Size of data to read
  */
-DECLINLINE(int) pgmPoolPhysSimpleReadGCPhys(PVM pVM, void *pvDst, void const *pvSrc, RTGCPHYS GCPhysSrc, size_t cb)
+DECLINLINE(int) pgmPoolPhysSimpleReadGCPhys(PVMCC pVM, void *pvDst, void const *pvSrc, RTGCPHYS GCPhysSrc, size_t cb)
 {
 #if defined(IN_RING3)
     NOREF(pVM); NOREF(GCPhysSrc);
@@ -177,7 +174,7 @@ static void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPA
 {
     AssertMsg(pPage->iMonitoredPrev == NIL_PGMPOOL_IDX, ("%u (idx=%u)\n", pPage->iMonitoredPrev, pPage->idx));
     const unsigned  off = GCPhysFault & PAGE_OFFSET_MASK;
-    PVM             pVM = pPool->CTX_SUFF(pVM);
+    PVMCC           pVM = pPool->CTX_SUFF(pVM);
     NOREF(pVCpu);
 
     LogFlow(("pgmPoolMonitorChainChanging: %RGv phys=%RGp cbWrite=%d\n",
@@ -266,15 +263,6 @@ static void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPA
                 {
                     for (unsigned i = 0; i < 2; i++)
                     {
-#  ifdef VBOX_WITH_RAW_MODE_NOT_R0
-                        if ((uShw.pPDPae->a[iShw + i].u & (PGM_PDFLAGS_MAPPING | X86_PDE_P)) == (PGM_PDFLAGS_MAPPING | X86_PDE_P))
-                        {
-                            Assert(pgmMapAreMappingsEnabled(pVM));
-                            VMCPU_FF_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3);
-                            LogFlow(("pgmPoolMonitorChainChanging: Detected conflict at iShwPdpt=%#x iShw=%#x!\n", iShwPdpt, iShw+i));
-                            break;
-                        }
-#  endif /* VBOX_WITH_RAW_MODE_NOT_R0 */
                         if (uShw.pPDPae->a[iShw+i].n.u1Present)
                         {
                             LogFlow(("pgmPoolMonitorChainChanging: pae pd iShw=%#x: %RX64 -> freeing it!\n", iShw+i, uShw.pPDPae->a[iShw+i].u));
@@ -292,15 +280,6 @@ static void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPA
                             const unsigned iShw2 = iShw + 2 + i;
                             if (iShw2 < RT_ELEMENTS(uShw.pPDPae->a))
                             {
-#  ifdef VBOX_WITH_RAW_MODE_NOT_R0
-                                if ((uShw.pPDPae->a[iShw2].u & (PGM_PDFLAGS_MAPPING | X86_PDE_P)) == (PGM_PDFLAGS_MAPPING | X86_PDE_P))
-                                {
-                                    Assert(pgmMapAreMappingsEnabled(pVM));
-                                    VMCPU_FF_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3);
-                                    LogFlow(("pgmPoolMonitorChainChanging: Detected conflict at iShwPdpt=%#x iShw2=%#x!\n", iShwPdpt, iShw2));
-                                    break;
-                                }
-#  endif /* VBOX_WITH_RAW_MODE_NOT_R0 */
                                 if (uShw.pPDPae->a[iShw2].n.u1Present)
                                 {
                                     LogFlow(("pgmPoolMonitorChainChanging: pae pd iShw=%#x: %RX64 -> freeing it!\n", iShw2, uShw.pPDPae->a[iShw2].u));
@@ -368,27 +347,14 @@ static void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPA
 
                 LogFlow(("pgmPoolMonitorChainChanging: PGMPOOLKIND_32BIT_PD %x\n", iShw));
                 STAM_COUNTER_INC(&pPool->CTX_MID_Z(StatMonitor,FaultPD));
-#  ifdef VBOX_WITH_RAW_MODE_NOT_R0
-                if (uShw.pPD->a[iShw].u & PGM_PDFLAGS_MAPPING)
+                if (uShw.pPD->a[iShw].n.u1Present)
                 {
-                    Assert(pgmMapAreMappingsEnabled(pVM));
-                    VMCPU_FF_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3);
-                    STAM_COUNTER_INC(&(pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZGuestCR3WriteConflict));
-                    LogFlow(("pgmPoolMonitorChainChanging: Detected conflict at iShw=%#x!\n", iShw));
-                    break;
-                }
-                else
-#  endif /* VBOX_WITH_RAW_MODE_NOT_R0 */
-                {
-                    if (uShw.pPD->a[iShw].n.u1Present)
-                    {
-                        LogFlow(("pgmPoolMonitorChainChanging: 32 bit pd iShw=%#x: %RX64 -> freeing it!\n", iShw, uShw.pPD->a[iShw].u));
-                        pgmPoolFree(pVM,
-                                    uShw.pPD->a[iShw].u & X86_PDE_PAE_PG_MASK,
-                                    pPage->idx,
-                                    iShw);
-                        ASMAtomicWriteU32(&uShw.pPD->a[iShw].u, 0);
-                    }
+                    LogFlow(("pgmPoolMonitorChainChanging: 32 bit pd iShw=%#x: %RX64 -> freeing it!\n", iShw, uShw.pPD->a[iShw].u));
+                    pgmPoolFree(pVM,
+                                uShw.pPD->a[iShw].u & X86_PDE_PAE_PG_MASK,
+                                pPage->idx,
+                                iShw);
+                    ASMAtomicWriteU32(&uShw.pPD->a[iShw].u, 0);
                 }
                 /* paranoia / a bit assumptive. */
                 if (    (off & 3)
@@ -398,16 +364,6 @@ static void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPA
                     if (    iShw2 != iShw
                         &&  iShw2 < RT_ELEMENTS(uShw.pPD->a))
                     {
-#   ifdef VBOX_WITH_RAW_MODE_NOT_R0
-                        if (uShw.pPD->a[iShw2].u & PGM_PDFLAGS_MAPPING)
-                        {
-                            Assert(pgmMapAreMappingsEnabled(pVM));
-                            STAM_COUNTER_INC(&(pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZGuestCR3WriteConflict));
-                            VMCPU_FF_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3);
-                            LogFlow(("pgmPoolMonitorChainChanging: Detected conflict at iShw2=%#x!\n", iShw2));
-                            break;
-                        }
-#   endif /* VBOX_WITH_RAW_MODE_NOT_R0 */
                         if (uShw.pPD->a[iShw2].n.u1Present)
                         {
                             LogFlow(("pgmPoolMonitorChainChanging: 32 bit pd iShw=%#x: %RX64 -> freeing it!\n", iShw2, uShw.pPD->a[iShw2].u));
@@ -424,9 +380,6 @@ static void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPA
                     &&  !VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3))
                 {
                     LogFlow(("pgmPoolMonitorChainChanging: iShw=%#x: %RX32 -> freeing it!\n", iShw, uShw.pPD->a[iShw].u));
-# ifdef IN_RC       /* TLB load - we're pushing things a bit... */
-                    ASMProbeReadByte(pvAddress);
-# endif
                     pgmPoolFree(pVM, uShw.pPD->a[iShw].u & X86_PDE_PG_MASK, pPage->idx, iShw);
                     ASMAtomicWriteU32(&uShw.pPD->a[iShw].u, 0);
                 }
@@ -439,35 +392,22 @@ static void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPA
                 uShw.pv = PGMPOOL_PAGE_2_PTR(pVM, pPage);
                 const unsigned iShw = off / sizeof(X86PDEPAE);
                 STAM_COUNTER_INC(&pPool->CTX_MID_Z(StatMonitor,FaultPD));
-#ifdef VBOX_WITH_RAW_MODE_NOT_R0
-                if (uShw.pPDPae->a[iShw].u & PGM_PDFLAGS_MAPPING)
-                {
-                    Assert(pgmMapAreMappingsEnabled(pVM));
-                    VMCPU_FF_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3);
-                    STAM_COUNTER_INC(&(pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZGuestCR3WriteConflict));
-                    LogFlow(("pgmPoolMonitorChainChanging: Detected conflict at iShw=%#x!\n", iShw));
-                    break;
-                }
-#endif /* VBOX_WITH_RAW_MODE_NOT_R0 */
+
                 /*
                  * Causes trouble when the guest uses a PDE to refer to the whole page table level
                  * structure. (Invalidate here; faults later on when it tries to change the page
                  * table entries -> recheck; probably only applies to the RC case.)
                  */
-#ifdef VBOX_WITH_RAW_MODE_NOT_R0
-                else
-#endif
+                if (uShw.pPDPae->a[iShw].n.u1Present)
                 {
-                    if (uShw.pPDPae->a[iShw].n.u1Present)
-                    {
-                        LogFlow(("pgmPoolMonitorChainChanging: pae pd iShw=%#x: %RX64 -> freeing it!\n", iShw, uShw.pPDPae->a[iShw].u));
-                        pgmPoolFree(pVM,
-                                    uShw.pPDPae->a[iShw].u & X86_PDE_PAE_PG_MASK,
-                                    pPage->idx,
-                                    iShw);
-                        ASMAtomicWriteU64(&uShw.pPDPae->a[iShw].u, 0);
-                    }
+                    LogFlow(("pgmPoolMonitorChainChanging: pae pd iShw=%#x: %RX64 -> freeing it!\n", iShw, uShw.pPDPae->a[iShw].u));
+                    pgmPoolFree(pVM,
+                                uShw.pPDPae->a[iShw].u & X86_PDE_PAE_PG_MASK,
+                                pPage->idx,
+                                iShw);
+                    ASMAtomicWriteU64(&uShw.pPDPae->a[iShw].u, 0);
                 }
+
                 /* paranoia / a bit assumptive. */
                 if (    (off & 7)
                     &&  (off & 7) + cbWrite > sizeof(X86PDEPAE))
@@ -475,18 +415,6 @@ static void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPA
                     const unsigned iShw2 = (off + cbWrite - 1) / sizeof(X86PDEPAE);
                     AssertBreak(iShw2 < RT_ELEMENTS(uShw.pPDPae->a));
 
-#ifdef VBOX_WITH_RAW_MODE_NOT_R0
-                    if (    iShw2 != iShw
-                        &&  uShw.pPDPae->a[iShw2].u & PGM_PDFLAGS_MAPPING)
-                    {
-                        Assert(pgmMapAreMappingsEnabled(pVM));
-                        VMCPU_FF_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3);
-                        STAM_COUNTER_INC(&(pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZGuestCR3WriteConflict));
-                        LogFlow(("pgmPoolMonitorChainChanging: Detected conflict at iShw2=%#x!\n", iShw2));
-                        break;
-                    }
-                    else
-#endif /* VBOX_WITH_RAW_MODE_NOT_R0 */
                     if (uShw.pPDPae->a[iShw2].n.u1Present)
                     {
                         LogFlow(("pgmPoolMonitorChainChanging: pae pd iShw2=%#x: %RX64 -> freeing it!\n", iShw2, uShw.pPDPae->a[iShw2].u));
@@ -515,17 +443,6 @@ static void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPA
                 const unsigned iShw = offPdpt / sizeof(X86PDPE);
                 if (iShw < X86_PG_PAE_PDPE_ENTRIES)          /* don't use RT_ELEMENTS(uShw.pPDPT->a), because that's for long mode only */
                 {
-# ifdef VBOX_WITH_RAW_MODE_NOT_R0
-                    if (uShw.pPDPT->a[iShw].u & PGM_PLXFLAGS_MAPPING)
-                    {
-                        Assert(pgmMapAreMappingsEnabled(pVM));
-                        STAM_COUNTER_INC(&(pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZGuestCR3WriteConflict));
-                        VMCPU_FF_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3);
-                        LogFlow(("pgmPoolMonitorChainChanging: Detected pdpt conflict at iShw=%#x!\n", iShw));
-                        break;
-                    }
-                    else
-# endif /* VBOX_WITH_RAW_MODE_NOT_R0 */
                     if (uShw.pPDPT->a[iShw].n.u1Present)
                     {
                         LogFlow(("pgmPoolMonitorChainChanging: pae pdpt iShw=%#x: %RX64 -> freeing it!\n", iShw, uShw.pPDPT->a[iShw].u));
@@ -544,17 +461,6 @@ static void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPA
                         if (    iShw2 != iShw
                             &&  iShw2 < X86_PG_PAE_PDPE_ENTRIES)
                         {
-# ifdef VBOX_WITH_RAW_MODE_NOT_R0
-                            if (uShw.pPDPT->a[iShw2].u & PGM_PLXFLAGS_MAPPING)
-                            {
-                                Assert(pgmMapAreMappingsEnabled(pVM));
-                                STAM_COUNTER_INC(&(pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZGuestCR3WriteConflict));
-                                VMCPU_FF_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3);
-                                LogFlow(("pgmPoolMonitorChainChanging: Detected conflict at iShw2=%#x!\n", iShw2));
-                                break;
-                            }
-                            else
-# endif /* VBOX_WITH_RAW_MODE_NOT_R0 */
                             if (uShw.pPDPT->a[iShw2].n.u1Present)
                             {
                                 LogFlow(("pgmPoolMonitorChainChanging: pae pdpt iShw=%#x: %RX64 -> freeing it!\n", iShw2, uShw.pPDPT->a[iShw2].u));
@@ -570,7 +476,6 @@ static void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPA
                 break;
             }
 
-#ifndef IN_RC
             case PGMPOOLKIND_64BIT_PD_FOR_64BIT_PD:
             {
                 STAM_COUNTER_INC(&pPool->CTX_MID_Z(StatMonitor,FaultPD));
@@ -666,7 +571,6 @@ static void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPA
                 }
                 break;
             }
-#endif /* IN_RING0 */
 
             default:
                 AssertFatalMsgFailed(("enmKind=%d\n", pPage->enmKind));
@@ -736,7 +640,7 @@ DECLINLINE(bool) pgmRZPoolMonitorIsForking(PPGMPOOL pPool, PDISCPUSTATE pDis, un
  *
  * @remark  The REP prefix check is left to the caller because of STOSD/W.
  */
-DECLINLINE(bool) pgmRZPoolMonitorIsReused(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, PDISCPUSTATE pDis, RTGCPTR pvFault,
+DECLINLINE(bool) pgmRZPoolMonitorIsReused(PVMCC pVM, PVMCPUCC pVCpu, PCPUMCTXCORE pRegFrame, PDISCPUSTATE pDis, RTGCPTR pvFault,
                                           PPGMPOOLPAGE pPage)
 {
     /* Locked (CR3, PDPTR*4) should not be reusable.  Considering them as
@@ -747,18 +651,14 @@ DECLINLINE(bool) pgmRZPoolMonitorIsReused(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pR
         return false;
     }
 
-# ifndef IN_RC
     /** @todo could make this general, faulting close to rsp should be a safe reuse heuristic. */
     if (   HMHasPendingIrq(pVM)
-        && (pRegFrame->rsp - pvFault) < 32)
+        && pRegFrame->rsp - pvFault < 32)
     {
         /* Fault caused by stack writes while trying to inject an interrupt event. */
         Log(("pgmRZPoolMonitorIsReused: reused %RGv for interrupt stack (rsp=%RGv).\n", pvFault, pRegFrame->rsp));
         return true;
     }
-# else
-    NOREF(pVM); NOREF(pvFault);
-# endif
 
     LogFlow(("Reused instr %RGv %d at %RGv param1.fUse=%llx param1.reg=%d\n", pRegFrame->rip, pDis->pCurInstr->uOpcode, pvFault, pDis->Param1.fUse,  pDis->Param1.Base.idxGenReg));
 
@@ -855,7 +755,7 @@ DECLINLINE(bool) pgmRZPoolMonitorIsReused(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pR
  * @param   pvFault     The fault address.
  * @todo VBOXSTRICTRC
  */
-static int pgmRZPoolAccessPfHandlerFlush(PVM pVM, PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPage, PDISCPUSTATE pDis,
+static int pgmRZPoolAccessPfHandlerFlush(PVMCC pVM, PVMCPUCC pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPage, PDISCPUSTATE pDis,
                                          PCPUMCTXCORE pRegFrame, RTGCPHYS GCPhysFault, RTGCPTR pvFault)
 {
     NOREF(pVM); NOREF(GCPhysFault);
@@ -882,20 +782,8 @@ static int pgmRZPoolAccessPfHandlerFlush(PVM pVM, PVMCPU pVCpu, PPGMPOOL pPool, 
     }
     else if (rc2 == VERR_EM_INTERPRETER)
     {
-# ifdef IN_RC
-        if (PATMIsPatchGCAddr(pVM, pRegFrame->eip))
-        {
-            LogFlow(("pgmRZPoolAccessPfHandlerFlush: Interpretation failed for patch code %04x:%RGv, ignoring.\n",
-                     pRegFrame->cs.Sel, (RTGCPTR)pRegFrame->eip));
-            rc = VINF_SUCCESS;
-            STAM_COUNTER_INC(&pPool->StatMonitorPfRZIntrFailPatch2);
-        }
-        else
-# endif
-        {
-            rc = VINF_EM_RAW_EMULATE_INSTR;
-            STAM_COUNTER_INC(&pPool->CTX_MID_Z(StatMonitorPf,EmulateInstr));
-        }
+        rc = VINF_EM_RAW_EMULATE_INSTR;
+        STAM_COUNTER_INC(&pPool->CTX_MID_Z(StatMonitorPf,EmulateInstr));
     }
     else if (RT_FAILURE_NP(rc2))
         rc = VBOXSTRICTRC_VAL(rc2);
@@ -919,7 +807,7 @@ static int pgmRZPoolAccessPfHandlerFlush(PVM pVM, PVMCPU pVCpu, PPGMPOOL pPool, 
  * @param   GCPhysFault The fault address as guest physical address.
  * @param   pvFault     The fault address.
  */
-DECLINLINE(int) pgmRZPoolAccessPfHandlerSTOSD(PVM pVM, PPGMPOOL pPool, PPGMPOOLPAGE pPage, PDISCPUSTATE pDis,
+DECLINLINE(int) pgmRZPoolAccessPfHandlerSTOSD(PVMCC pVM, PPGMPOOL pPool, PPGMPOOLPAGE pPage, PDISCPUSTATE pDis,
                                               PCPUMCTXCORE pRegFrame, RTGCPHYS GCPhysFault, RTGCPTR pvFault)
 {
     unsigned uIncrement = pDis->Param1.cb;
@@ -950,22 +838,18 @@ DECLINLINE(int) pgmRZPoolAccessPfHandlerSTOSD(PVM pVM, PPGMPOOL pPool, PPGMPOOLP
      * This ASSUMES that we're not invoked by Trap0e on in a out-of-sync
      * write situation, meaning that it's safe to write here.
      */
-    PVMCPU      pVCpu = VMMGetCpu(pPool->CTX_SUFF(pVM));
+    PVMCPUCC    pVCpu = VMMGetCpu(pPool->CTX_SUFF(pVM));
     RTGCUINTPTR pu32 = (RTGCUINTPTR)pvFault;
     while (pRegFrame->rcx)
     {
-# if defined(VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0) || defined(IN_RC)
+# ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
         uint32_t iPrevSubset = PGMRZDynMapPushAutoSubset(pVCpu);
         pgmPoolMonitorChainChanging(pVCpu, pPool, pPage, GCPhysFault, NULL, uIncrement);
         PGMRZDynMapPopAutoSubset(pVCpu, iPrevSubset);
 # else
         pgmPoolMonitorChainChanging(pVCpu, pPool, pPage, GCPhysFault, NULL, uIncrement);
 # endif
-# ifdef IN_RC
-        *(uint32_t *)(uintptr_t)pu32 = pRegFrame->eax;
-# else
         PGMPhysSimpleWriteGCPhys(pVM, GCPhysFault, &pRegFrame->rax, uIncrement);
-# endif
         pu32           += uIncrement;
         GCPhysFault    += uIncrement;
         pRegFrame->rdi += uIncrement;
@@ -992,7 +876,7 @@ DECLINLINE(int) pgmRZPoolAccessPfHandlerSTOSD(PVM pVM, PPGMPOOL pPool, PPGMPOOLP
  * @param   pvFault     The fault address.
  * @param   pfReused    Reused state (in/out)
  */
-DECLINLINE(int) pgmRZPoolAccessPfHandlerSimple(PVM pVM, PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPage, PDISCPUSTATE pDis,
+DECLINLINE(int) pgmRZPoolAccessPfHandlerSimple(PVMCC pVM, PVMCPUCC pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPage, PDISCPUSTATE pDis,
                                                PCPUMCTXCORE pRegFrame, RTGCPHYS GCPhysFault, RTGCPTR pvFault, bool *pfReused)
 {
     Log3(("pgmRZPoolAccessPfHandlerSimple\n"));
@@ -1009,7 +893,7 @@ DECLINLINE(int) pgmRZPoolAccessPfHandlerSimple(PVM pVM, PVMCPU pVCpu, PPGMPOOL p
     /*
      * Clear all the pages. ASSUMES that pvFault is readable.
      */
-# if defined(VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0) || defined(IN_RC)
+# ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
     uint32_t iPrevSubset = PGMRZDynMapPushAutoSubset(pVCpu);
 # endif
 
@@ -1028,7 +912,7 @@ DECLINLINE(int) pgmRZPoolAccessPfHandlerSimple(PVM pVM, PVMCPU pVCpu, PPGMPOOL p
             pgmPoolMonitorChainChanging(pVCpu, pPool, pPage, GCPhysFault + off, NULL, RT_MIN(8, cbWrite - off));
     }
 
-# if defined(VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0) || defined(IN_RC)
+# ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
     PGMRZDynMapPopAutoSubset(pVCpu, iPrevSubset);
 # endif
 
@@ -1087,7 +971,7 @@ DECLINLINE(int) pgmRZPoolAccessPfHandlerSimple(PVM pVM, PVMCPU pVCpu, PPGMPOOL p
  *
  * @remarks The @a pvUser argument points to the PGMPOOLPAGE.
  */
-DECLEXPORT(VBOXSTRICTRC) pgmRZPoolAccessPfHandler(PVM pVM, PVMCPU pVCpu, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame,
+DECLEXPORT(VBOXSTRICTRC) pgmRZPoolAccessPfHandler(PVMCC pVM, PVMCPUCC pVCpu, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame,
                                                   RTGCPTR pvFault, RTGCPHYS GCPhysFault, void *pvUser)
 {
     STAM_PROFILE_START(&pVM->pgm.s.CTX_SUFF(pPool)->StatMonitorRZ, a);
@@ -1357,7 +1241,7 @@ DECLEXPORT(VBOXSTRICTRC) pgmRZPoolAccessPfHandler(PVM pVM, PVMCPU pVCpu, RTGCUIN
             }
         }
     }
-# endif /* PGMPOOL_WITH_OPTIMIZED_DIRTY_PT */
+# endif /* PGMPOOL_WITH_OPTIMIZED_DIRTY_PT && IN_RING0 */
 
     STAM_COUNTER_INC(&pPool->StatMonitorPfRZFlushModOverflow);
 flushPage:
@@ -1391,7 +1275,7 @@ flushPage:
  * @remarks Only uses the VINF_PGM_HANDLER_DO_DEFAULT status.
  */
 PGM_ALL_CB2_DECL(VBOXSTRICTRC)
-pgmPoolAccessHandler(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys, void *pvPhys, void *pvBuf, size_t cbBuf,
+pgmPoolAccessHandler(PVMCC pVM, PVMCPUCC pVCpu, RTGCPHYS GCPhys, void *pvPhys, void *pvBuf, size_t cbBuf,
                      PGMACCESSTYPE enmAccessType, PGMACCESSORIGIN enmOrigin, void *pvUser)
 {
     PPGMPOOL        pPool = pVM->pgm.s.CTX_SUFF(pPool);
@@ -1454,9 +1338,6 @@ pgmPoolAccessHandler(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys, void *pvPhys, void 
             cMaxModifications = 4;
         else
             cMaxModifications = 24;
-# ifdef IN_RC
-        cMaxModifications *= 2; /* traps are cheaper than exists. */
-# endif
 #endif
 
         /*
@@ -1510,7 +1391,7 @@ static void pgmPoolTrackCheckPTPaePae(PPGMPOOL pPool, PPGMPOOLPAGE pPage, PPGMSH
     int      LastRc     = -1;           /* initialized to shut up gcc */
     unsigned LastPTE    = ~0U;          /* initialized to shut up gcc */
     RTHCPHYS LastHCPhys = NIL_RTHCPHYS; /* initialized to shut up gcc */
-    PVM      pVM        = pPool->CTX_SUFF(pVM);
+    PVMCC    pVM        = pPool->CTX_SUFF(pVM);
 
 #  ifdef VBOX_STRICT
     for (unsigned i = 0; i < RT_MIN(RT_ELEMENTS(pShwPT->a), pPage->iFirstPresent); i++)
@@ -1576,7 +1457,7 @@ static void pgmPoolTrackCheckPTPae32Bit(PPGMPOOL pPool, PPGMPOOLPAGE pPage, PPGM
     int      LastRc     = -1;           /* initialized to shut up gcc */
     unsigned LastPTE    = ~0U;          /* initialized to shut up gcc */
     RTHCPHYS LastHCPhys = NIL_RTHCPHYS; /* initialized to shut up gcc */
-    PVM      pVM        = pPool->CTX_SUFF(pVM);
+    PVMCC    pVM        = pPool->CTX_SUFF(pVM);
 
 #  ifdef VBOX_STRICT
     for (unsigned i = 0; i < RT_MIN(RT_ELEMENTS(pShwPT->a), pPage->iFirstPresent); i++)
@@ -1773,7 +1654,7 @@ DECLINLINE(unsigned) pgmPoolTrackFlushPTPae32Bit(PPGMPOOL pPool, PPGMPOOLPAGE pP
  * @param   idxSlot         Dirty array slot index
  * @param   fAllowRemoval   Allow a reused page table to be removed
  */
-static void pgmPoolFlushDirtyPage(PVM pVM, PPGMPOOL pPool, unsigned idxSlot, bool fAllowRemoval = false)
+static void pgmPoolFlushDirtyPage(PVMCC pVM, PPGMPOOL pPool, unsigned idxSlot, bool fAllowRemoval = false)
 {
     AssertCompile(RT_ELEMENTS(pPool->aidxDirtyPages) == RT_ELEMENTS(pPool->aDirtyPages));
 
@@ -1789,7 +1670,7 @@ static void pgmPoolFlushDirtyPage(PVM pVM, PPGMPOOL pPool, unsigned idxSlot, boo
     AssertMsg(pPage->fDirty, ("Page %RGp (slot=%d) not marked dirty!", pPage->GCPhys, idxSlot));
     Log(("Flush dirty page %RGp cMods=%d\n", pPage->GCPhys, pPage->cModifications));
 
-# if defined(VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0) || defined(IN_RC)
+# ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
     PVMCPU   pVCpu = VMMGetCpu(pVM);
     uint32_t iPrevSubset = PGMRZDynMapPushAutoSubset(pVCpu);
 # endif
@@ -1855,7 +1736,7 @@ static void pgmPoolFlushDirtyPage(PVM pVM, PPGMPOOL pPool, unsigned idxSlot, boo
     else
         Log(("Removed dirty page %RGp cMods=%d cChanges=%d\n", pPage->GCPhys, pPage->cModifications, cChanges));
 
-# if defined(VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0) || defined(IN_RC)
+# ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
     PGMRZDynMapPopAutoSubset(pVCpu, iPrevSubset);
 # endif
 }
@@ -1869,7 +1750,7 @@ static void pgmPoolFlushDirtyPage(PVM pVM, PPGMPOOL pPool, unsigned idxSlot, boo
  * @param   pPool       The pool.
  * @param   pPage       The page.
  */
-void pgmPoolAddDirtyPage(PVM pVM, PPGMPOOL pPool, PPGMPOOLPAGE pPage)
+void pgmPoolAddDirtyPage(PVMCC pVM, PPGMPOOL pPool, PPGMPOOLPAGE pPage)
 {
     PGM_LOCK_ASSERT_OWNER(pVM);
     AssertCompile(RT_ELEMENTS(pPool->aDirtyPages) == 8 || RT_ELEMENTS(pPool->aDirtyPages) == 16);
@@ -1975,7 +1856,7 @@ bool pgmPoolIsDirtyPageSlow(PVM pVM, RTGCPHYS GCPhys)
  *
  * @param   pVM             The cross context VM structure.
  */
-void pgmPoolResetDirtyPages(PVM pVM)
+void pgmPoolResetDirtyPages(PVMCC pVM)
 {
     PPGMPOOL pPool = pVM->pgm.s.CTX_SUFF(pPool);
     PGM_LOCK_ASSERT_OWNER(pVM);
@@ -2038,7 +1919,7 @@ void pgmPoolResetDirtyPage(PVM pVM, RTGCPTR GCPtrPage)
  * @param   pVM             The cross context VM structure.
  * @param   GCPhysPT        Physical address of the page table
  */
-void pgmPoolInvalidateDirtyPage(PVM pVM, RTGCPHYS GCPhysPT)
+void pgmPoolInvalidateDirtyPage(PVMCC pVM, RTGCPHYS GCPhysPT)
 {
     PPGMPOOL pPool = pVM->pgm.s.CTX_SUFF(pPool);
     PGM_LOCK_ASSERT_OWNER(pVM);
@@ -2147,9 +2028,7 @@ DECLINLINE(void) pgmPoolHashRemove(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
  */
 static int pgmPoolCacheFreeOne(PPGMPOOL pPool, uint16_t iUser)
 {
-#ifndef IN_RC
-    const PVM pVM = pPool->CTX_SUFF(pVM);
-#endif
+    const PVMCC pVM = pPool->CTX_SUFF(pVM);
     Assert(pPool->iAgeHead != pPool->iAgeTail); /* We shouldn't be here if there < 2 cached entries! */
     STAM_COUNTER_INC(&pPool->StatCacheFreeUpOne);
 
@@ -2629,7 +2508,7 @@ static int pgmPoolMonitorInsert(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
     else
     {
         Assert(pPage->iMonitoredNext == NIL_PGMPOOL_IDX); Assert(pPage->iMonitoredPrev == NIL_PGMPOOL_IDX);
-        PVM pVM = pPool->CTX_SUFF(pVM);
+        PVMCC pVM = pPool->CTX_SUFF(pVM);
         const RTGCPHYS GCPhysPage = pPage->GCPhys & ~(RTGCPHYS)PAGE_OFFSET_MASK;
         rc = PGMHandlerPhysicalRegister(pVM, GCPhysPage, GCPhysPage + PAGE_OFFSET_MASK, pPool->hAccessHandlerType,
                                         MMHyperCCToR3(pVM, pPage), MMHyperCCToR0(pVM, pPage), MMHyperCCToRC(pVM, pPage),
@@ -2701,7 +2580,7 @@ static int pgmPoolMonitorFlush(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
     /*
      * Remove the page from the monitored list or uninstall it if last.
      */
-    const PVM pVM = pPool->CTX_SUFF(pVM);
+    const PVMCC pVM = pPool->CTX_SUFF(pVM);
     int rc;
     if (    pPage->iMonitoredNext != NIL_PGMPOOL_IDX
         ||  pPage->iMonitoredPrev != NIL_PGMPOOL_IDX)
@@ -2710,8 +2589,8 @@ static int pgmPoolMonitorFlush(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
         {
             PPGMPOOLPAGE pNewHead = &pPool->aPages[pPage->iMonitoredNext];
             pNewHead->iMonitoredPrev = NIL_PGMPOOL_IDX;
-            rc = PGMHandlerPhysicalChangeUserArgs(pVM, pPage->GCPhys & ~(RTGCPHYS)PAGE_OFFSET_MASK, MMHyperCCToR3(pVM, pNewHead),
-                                                  MMHyperCCToR0(pVM, pNewHead), MMHyperCCToRC(pVM, pNewHead));
+            rc = PGMHandlerPhysicalChangeUserArgs(pVM, pPage->GCPhys & ~(RTGCPHYS)PAGE_OFFSET_MASK,
+                                                  MMHyperCCToR3(pVM, pNewHead), MMHyperCCToR0(pVM, pNewHead));
 
             AssertFatalRCSuccess(rc);
             pPage->iMonitoredNext = NIL_PGMPOOL_IDX;
@@ -2818,7 +2697,7 @@ static void pgmPoolMonitorModifiedRemove(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
  *
  * @param   pVM     The cross context VM structure.
  */
-static void pgmPoolMonitorModifiedClearAll(PVM pVM)
+static void pgmPoolMonitorModifiedClearAll(PVMCC pVM)
 {
     pgmLock(pVM);
     PPGMPOOL pPool = pVM->pgm.s.CTX_SUFF(pPool);
@@ -2857,9 +2736,9 @@ static void pgmPoolMonitorModifiedClearAll(PVM pVM)
  * @remark  Should only be used when monitoring is available, thus placed in
  *          the PGMPOOL_WITH_MONITORING \#ifdef.
  */
-int pgmPoolSyncCR3(PVMCPU pVCpu)
+int pgmPoolSyncCR3(PVMCPUCC pVCpu)
 {
-    PVM pVM = pVCpu->CTX_SUFF(pVM);
+    PVMCC pVM = pVCpu->CTX_SUFF(pVM);
     LogFlow(("pgmPoolSyncCR3 fSyncFlags=%x\n", pVCpu->pgm.s.fSyncFlags));
 
     /*
@@ -3611,9 +3490,9 @@ static void pgmPoolTrackFlushGCPhysPTs(PVM pVM, PPGMPAGE pPhysPage, bool fFlushP
  *                      flushed, it is NOT touched if this isn't necessary.
  *                      The caller MUST initialized this to @a false.
  */
-int pgmPoolTrackUpdateGCPhys(PVM pVM, RTGCPHYS GCPhysPage, PPGMPAGE pPhysPage, bool fFlushPTEs, bool *pfFlushTLBs)
+int pgmPoolTrackUpdateGCPhys(PVMCC pVM, RTGCPHYS GCPhysPage, PPGMPAGE pPhysPage, bool fFlushPTEs, bool *pfFlushTLBs)
 {
-    PVMCPU pVCpu = VMMGetCpu(pVM);
+    PVMCPUCC pVCpu = VMMGetCpu(pVM);
     pgmLock(pVM);
     int rc = VINF_SUCCESS;
 
@@ -3668,7 +3547,7 @@ int pgmPoolTrackUpdateGCPhys(PVM pVM, RTGCPHYS GCPhysPage, PPGMPAGE pPhysPage, b
             rc = VINF_PGM_GCPHYS_ALIASED;
         else
         {
-# if defined(VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0) || defined(IN_RC) /** @todo we can drop this now. */
+# ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0 /** @todo we can drop this now. */
             /* Start a subset here because pgmPoolTrackFlushGCPhysPTsSlow and
                pgmPoolTrackFlushGCPhysPTs will/may kill the pool otherwise. */
             uint32_t iPrevSubset = PGMRZDynMapPushAutoSubset(pVCpu);
@@ -3688,7 +3567,7 @@ int pgmPoolTrackUpdateGCPhys(PVM pVM, RTGCPHYS GCPhysPage, PPGMPAGE pPhysPage, b
                 rc = pgmPoolTrackFlushGCPhysPTsSlow(pVM, pPhysPage);
             *pfFlushTLBs = true;
 
-# if defined(VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0) || defined(IN_RC)
+# ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
             PGMRZDynMapPopAutoSubset(pVCpu, iPrevSubset);
 # endif
         }
@@ -3719,7 +3598,7 @@ int pgmPoolTrackUpdateGCPhys(PVM pVM, RTGCPHYS GCPhysPage, PPGMPAGE pPhysPage, b
  * @param   pVM         The cross context VM structure.
  * @param   pPhysPage   The guest page in question.
  */
-int pgmPoolTrackFlushGCPhysPTsSlow(PVM pVM, PPGMPAGE pPhysPage)
+int pgmPoolTrackFlushGCPhysPTsSlow(PVMCC pVM, PPGMPAGE pPhysPage)
 {
     PPGMPOOL pPool = pVM->pgm.s.CTX_SUFF(pPool);
     STAM_PROFILE_START(&pPool->StatTrackFlushGCPhysPTsSlow, s);
@@ -3811,7 +3690,7 @@ int pgmPoolTrackFlushGCPhysPTsSlow(PVM pVM, PPGMPAGE pPhysPage)
                     PGM_DYNMAP_UNUSED_HINT_VM(pVM, pPT);
                     break;
                 }
-#ifndef IN_RC
+
                 case PGMPOOLKIND_EPT_PT_FOR_PHYS:
                 {
                     unsigned  cPresent = pPage->cPresent;
@@ -3836,8 +3715,8 @@ int pgmPoolTrackFlushGCPhysPTsSlow(PVM pVM, PPGMPAGE pPhysPage)
                     PGM_DYNMAP_UNUSED_HINT_VM(pVM, pPT);
                     break;
                 }
-#endif
             }
+
             if (!--cLeft)
                 break;
         }
@@ -3964,15 +3843,6 @@ static void pgmPoolTrackClearPageUser(PPGMPOOL pPool, PPGMPOOLPAGE pPage, PCPGMP
         case PGMPOOLKIND_PAE_PD2_FOR_32BIT_PD:
         case PGMPOOLKIND_PAE_PD3_FOR_32BIT_PD:
         case PGMPOOLKIND_PAE_PD_FOR_PAE_PD:
-#ifdef IN_RC
-            /*
-             * In 32 bits PAE mode we *must* invalidate the TLB when changing a
-             * PDPT entry; the CPU fetches them only during cr3 load, so any
-             * non-present PDPT will continue to cause page faults.
-             */
-            ASMReloadCR3();
-#endif
-            RT_FALL_THRU();
         case PGMPOOLKIND_PAE_PD_PHYS:
         case PGMPOOLKIND_PAE_PDPT_PHYS:
         case PGMPOOLKIND_64BIT_PD_FOR_64BIT_PD:
@@ -4203,7 +4073,7 @@ static uint16_t pgmPoolTrackPhysExtInsert(PVM pVM, uint16_t iPhysExt, uint16_t i
  * @param   iShwPT      The shadow page table index.
  * @param   iPte        Page table entry
  */
-uint16_t pgmPoolTrackPhysExtAddref(PVM pVM, PPGMPAGE pPhysPage, uint16_t u16, uint16_t iShwPT, uint16_t iPte)
+uint16_t pgmPoolTrackPhysExtAddref(PVMCC pVM, PPGMPAGE pPhysPage, uint16_t u16, uint16_t iShwPT, uint16_t iPte)
 {
     pgmLock(pVM);
     if (PGMPOOL_TD_GET_CREFS(u16) != PGMPOOL_TD_CREFS_PHYSEXT)
@@ -4251,7 +4121,7 @@ uint16_t pgmPoolTrackPhysExtAddref(PVM pVM, PPGMPAGE pPhysPage, uint16_t u16, ui
  */
 void pgmPoolTrackPhysExtDerefGCPhys(PPGMPOOL pPool, PPGMPOOLPAGE pPage, PPGMPAGE pPhysPage, uint16_t iPte)
 {
-    PVM            pVM = pPool->CTX_SUFF(pVM);
+    PVMCC          pVM = pPool->CTX_SUFF(pVM);
     const unsigned cRefs = PGM_PAGE_GET_TD_CREFS(pPhysPage);
     AssertFatalMsg(cRefs == PGMPOOL_TD_CREFS_PHYSEXT, ("cRefs=%d pPhysPage=%R[pgmpage] pPage=%p:{.idx=%d}\n", cRefs, pPhysPage, pPage, pPage->idx));
 
@@ -4345,7 +4215,7 @@ static void pgmPoolTracDerefGCPhys(PPGMPOOL pPool, PPGMPOOLPAGE pPage, RTHCPHYS 
     /*
      * Lookup the page and check if it checks out before derefing it.
      */
-    PVM      pVM       = pPool->CTX_SUFF(pVM);
+    PVMCC    pVM       = pPool->CTX_SUFF(pVM);
     PPGMPAGE pPhysPage = pgmPhysGetPage(pVM, GCPhys);
     if (pPhysPage)
     {
@@ -4388,7 +4258,7 @@ void pgmPoolTracDerefGCPhysHint(PPGMPOOL pPool, PPGMPOOLPAGE pPage, RTHCPHYS HCP
      * Try the hint first.
      */
     RTHCPHYS HCPhysHinted;
-    PVM      pVM       = pPool->CTX_SUFF(pVM);
+    PVMCC    pVM       = pPool->CTX_SUFF(pVM);
     PPGMPAGE pPhysPage = pgmPhysGetPage(pVM, GCPhysHint);
     if (pPhysPage)
     {
@@ -4812,7 +4682,7 @@ static void pgmPoolTrackDeref(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
     /*
      * Map the shadow page and take action according to the page kind.
      */
-    PVM   pVM   = pPool->CTX_SUFF(pVM);
+    PVMCC pVM   = pPool->CTX_SUFF(pVM);
     void *pvShw = PGMPOOL_PAGE_2_PTR(pVM, pPage);
     switch (pPage->enmKind)
     {
@@ -4938,7 +4808,7 @@ static void pgmPoolTrackDeref(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
  */
 int pgmPoolFlushPage(PPGMPOOL pPool, PPGMPOOLPAGE pPage, bool fFlush)
 {
-    PVM     pVM = pPool->CTX_SUFF(pVM);
+    PVMCC   pVM = pPool->CTX_SUFF(pVM);
     bool    fFlushRequired = false;
 
     int rc = VINF_SUCCESS;
@@ -4978,7 +4848,7 @@ int pgmPoolFlushPage(PPGMPOOL pPool, PPGMPOOLPAGE pPage, bool fFlush)
         return VINF_SUCCESS;
     }
 
-#if defined(VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0) || defined(IN_RC)
+#ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
     /* Start a subset so we won't run out of mapping space. */
     PVMCPU pVCpu = VMMGetCpu(pVM);
     uint32_t iPrevSubset = PGMRZDynMapPushAutoSubset(pVCpu);
@@ -5011,7 +4881,7 @@ int pgmPoolFlushPage(PPGMPOOL pPool, PPGMPOOLPAGE pPage, bool fFlush)
      */
     pgmPoolCacheFlushPage(pPool, pPage);
 
-#if defined(VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0) || defined(IN_RC)
+#ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
     /* Heavy stuff done. */
     PGMRZDynMapPopAutoSubset(pVCpu, iPrevSubset);
 #endif
@@ -5063,7 +4933,7 @@ int pgmPoolFlushPage(PPGMPOOL pPool, PPGMPOOLPAGE pPage, bool fFlush)
  */
 void pgmPoolFreeByPage(PPGMPOOL pPool, PPGMPOOLPAGE pPage, uint16_t iUser, uint32_t iUserTable)
 {
-    PVM pVM = pPool->CTX_SUFF(pVM);
+    PVMCC pVM = pPool->CTX_SUFF(pVM);
 
     STAM_PROFILE_START(&pPool->StatFree, a);
     LogFlow(("pgmPoolFreeByPage: pPage=%p:{.Key=%RHp, .idx=%d, enmKind=%s} iUser=%d iUserTable=%#x\n",
@@ -5092,20 +4962,14 @@ void pgmPoolFreeByPage(PPGMPOOL pPool, PPGMPOOLPAGE pPage, uint16_t iUser, uint3
  */
 static int pgmPoolMakeMoreFreePages(PPGMPOOL pPool, PGMPOOLKIND enmKind, uint16_t iUser)
 {
-    PVM pVM = pPool->CTX_SUFF(pVM);
+    PVMCC pVM = pPool->CTX_SUFF(pVM);
     LogFlow(("pgmPoolMakeMoreFreePages: enmKind=%d iUser=%d\n", enmKind, iUser));
     NOREF(enmKind);
 
     /*
      * If the pool isn't full grown yet, expand it.
      */
-    if (    pPool->cCurPages < pPool->cMaxPages
-#if defined(IN_RC)
-        /* Hack alert: we can't deal with jumps to ring 3 when called from MapCR3 and allocating pages for PAE PDs. */
-        &&  enmKind != PGMPOOLKIND_PAE_PD_FOR_PAE_PD
-        &&  (enmKind < PGMPOOLKIND_PAE_PD0_FOR_32BIT_PD || enmKind > PGMPOOLKIND_PAE_PD3_FOR_32BIT_PD)
-#endif
-        )
+    if (pPool->cCurPages < pPool->cMaxPages)
     {
         STAM_PROFILE_ADV_SUSPEND(&pPool->StatAlloc, a);
 #ifdef IN_RING3
@@ -5151,7 +5015,7 @@ static int pgmPoolMakeMoreFreePages(PPGMPOOL pPool, PGMPOOLKIND enmKind, uint16_
  * @param   fLockPage   Lock the page
  * @param   ppPage      Where to store the pointer to the page. NULL is stored here on failure.
  */
-int pgmPoolAlloc(PVM pVM, RTGCPHYS GCPhys, PGMPOOLKIND enmKind, PGMPOOLACCESS enmAccess, bool fA20Enabled,
+int pgmPoolAlloc(PVMCC pVM, RTGCPHYS GCPhys, PGMPOOLKIND enmKind, PGMPOOLACCESS enmAccess, bool fA20Enabled,
                  uint16_t iUser, uint32_t iUserTable, bool fLockPage, PPPGMPOOLPAGE ppPage)
 {
     PPGMPOOL pPool = pVM->pgm.s.CTX_SUFF(pPool);
@@ -5370,11 +5234,11 @@ void pgmPoolFlushPageByGCPhys(PVM pVM, RTGCPHYS GCPhys)
                 case PGMPOOLKIND_PAE_PDPT:
                 {
                     Log(("PGMPoolFlushPage: found pgm pool pages for %RGp\n", GCPhys));
-#ifdef PGMPOOL_WITH_OPTIMIZED_DIRTY_PT
+# ifdef PGMPOOL_WITH_OPTIMIZED_DIRTY_PT
                     if (pPage->fDirty)
                         STAM_COUNTER_INC(&pPool->StatForceFlushDirtyPage);
                     else
-#endif
+# endif
                         STAM_COUNTER_INC(&pPool->StatForceFlushPage);
                     Assert(!pgmPoolIsPageLocked(pPage));
                     pgmPoolMonitorChainFlush(pPool, pPage);
@@ -5410,8 +5274,6 @@ void pgmPoolFlushPageByGCPhys(PVM pVM, RTGCPHYS GCPhys)
     return;
 }
 
-#endif /* IN_RING3 */
-#ifdef IN_RING3
 
 /**
  * Reset CPU on hot plugging.
@@ -5458,8 +5320,10 @@ void pgmR3PoolReset(PVM pVM)
      * Exit the shadow mode since we're going to clear everything,
      * including the root page.
      */
-    for (VMCPUID i = 0; i < pVM->cCpus; i++)
-        pgmR3ExitShadowModeBeforePoolFlush(&pVM->aCpus[i]);
+    VMCC_FOR_EACH_VMCPU(pVM)
+        pgmR3ExitShadowModeBeforePoolFlush(pVCpu);
+    VMCC_FOR_EACH_VMCPU_END(pVM);
+
 
     /*
      * Nuke the free list and reinsert all pages into it.
@@ -5498,9 +5362,9 @@ void pgmR3PoolReset(PVM pVM)
         pPage->GCPtrLastAccessHandlerFault = NIL_RTGCPTR;
         pPage->cLastAccessHandler = 0;
         pPage->cLocked    = 0;
-#ifdef VBOX_STRICT
+# ifdef VBOX_STRICT
         pPage->GCPtrDirtyFault = NIL_RTGCPTR;
-#endif
+# endif
     }
     pPool->aPages[pPool->cCurPages - 1].iNext = NIL_PGMPOOL_IDX;
     pPool->iFreeHead = PGMPOOL_IDX_FIRST;
@@ -5562,27 +5426,27 @@ void pgmR3PoolReset(PVM pVM)
     pPool->iAgeHead = NIL_PGMPOOL_IDX;
     pPool->iAgeTail = NIL_PGMPOOL_IDX;
 
-#ifdef PGMPOOL_WITH_OPTIMIZED_DIRTY_PT
+# ifdef PGMPOOL_WITH_OPTIMIZED_DIRTY_PT
     /* Clear all dirty pages. */
     pPool->idxFreeDirtyPage = 0;
     pPool->cDirtyPages      = 0;
     for (unsigned i = 0; i < RT_ELEMENTS(pPool->aidxDirtyPages); i++)
         pPool->aidxDirtyPages[i] = NIL_PGMPOOL_IDX;
-#endif
+# endif
 
     /*
      * Reinsert active pages into the hash and ensure monitoring chains are correct.
      */
-    for (VMCPUID i = 0; i < pVM->cCpus; i++)
+    VMCC_FOR_EACH_VMCPU(pVM)
     {
         /*
          * Re-enter the shadowing mode and assert Sync CR3 FF.
          */
-        PVMCPU pVCpu = &pVM->aCpus[i];
         pgmR3ReEnterShadowModeAfterPoolFlush(pVM, pVCpu);
         VMCPU_FF_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3);
         VMCPU_FF_SET(pVCpu, VMCPU_FF_TLB_FLUSH);
     }
+    VMCC_FOR_EACH_VMCPU_END(pVM);
 
     STAM_PROFILE_STOP(&pPool->StatR3Reset, a);
 }

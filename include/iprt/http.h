@@ -167,6 +167,11 @@ RTR3DECL(void) RTHttpFreeResponseText(char *pszNotUtf8);
  * @param   ppvResponse     Where to store the HTTP response data.  Use
  *                          RTHttpFreeResponse to free.
  * @param   pcb             Size of the returned buffer.
+ *
+ * @note    There is a limit on how much this function allows to be downloaded,
+ *          given that the return requires a single heap allocation and all
+ *          that.  Currently 32 MB on 32-bit hosts and 64 MB on 64-bit hosts.
+ *          Use RTHttpGetFile or RTHttpSetDownloadCallback for larger transfers.
  */
 RTR3DECL(int) RTHttpGetBinary(RTHTTP hHttp, const char *pszUrl, void **ppvResponse, size_t *pcb);
 
@@ -271,7 +276,7 @@ RTR3DECL(int) RTHttpUseSystemProxySettings(RTHTTP hHttp);
  * @param   hHttp           The HTTP client handle.
  * @param   pszUrl          The proxy URL (libproxy style):
  *
- *                          [{type}"://"][{userid}[@{password}]:]{server}[":"{port}]
+ *                          [{type}"://"][{userid}[\@{password}]:]{server}[":"{port}]
  *
  *                          Valid proxy types are: http (default), https, socks4, socks4a,
  *                          socks5, socks5h and direct.  Support for the socks and https
@@ -562,7 +567,8 @@ typedef FNRTHTTPDOWNLOADCALLBACK *PFNRTHTTPDOWNLOADCALLBACK;
  */
 RTR3DECL(int) RTHttpSetDownloadCallback(RTHTTP hHttp, uint32_t fFlags, PFNRTHTTPDOWNLOADCALLBACK pfnCallback, void *pvUser);
 
-/** @name RTHTTPDOWNLOAD_F_XXX */
+/** @name RTHTTPDOWNLOAD_F_XXX
+ * @{ */
 /** The lower 10 bits gives the HTTP status required by the callback.
  * For all other status codes, any body data will be returned via the
  * RTHttpPerform ppvBody/pcbBody return parameters. */

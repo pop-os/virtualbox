@@ -56,6 +56,11 @@ ifdef VBOX_WITH_GUEST_CONTROL
 VBOX_WITH_VBOXSERVICE_CONTROL       := 1
 endif
 
+# Shared Clipboard.
+ifdef VBOX_WITH_SHARED_CLIPBOARD
+VBOX_WITH_VBOXSERVICE_CLIPBOARD     := 1
+endif
+
 #
 # VBoxService
 #
@@ -85,7 +90,7 @@ VBoxService_DEFS         += \
 VBoxService_DEFS         += \
 	VBOX_BUILD_TARGET=\"$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH)\"
 VBoxService_DEFS.win     += _WIN32_WINNT=0x0501
-VBoxService_DEFS.os2      = VBOX_WITH_HGCM VBOX_WITH_VBOXSERVICE_CLIPBOARD
+VBoxService_DEFS.os2      = VBOX_WITH_HGCM
 
 VBoxService_SOURCES       = \
 	VBoxService.cpp \
@@ -95,6 +100,13 @@ VBoxService_SOURCES       = \
 ifdef VBOX_WITH_VBOXSERVICE_TIMESYNC
 VBoxService_SOURCES      += \
 	VBoxServiceTimeSync.cpp
+endif
+
+ifdef VBOX_WITH_VBOXSERVICE_CLIPBOARD
+ VBoxService_DEFS.os2    += VBOX_WITH_VBOXSERVICE_CLIPBOARD VBOX_WITH_SHARED_CLIPBOARD
+ VBoxService_SOURCES.os2 += \
+	VBoxServiceClipboard-os2.cpp \
+	$(PATH_ROOT)/src/VBox/GuestHost/SharedClipboard/clipboard-common.cpp
 endif
 
 ifdef VBOX_WITH_VBOXSERVICE_TOOLBOX
@@ -151,9 +163,8 @@ VBoxService_SOURCES.win  += \
 	VBoxService-win.rc \
 	VBoxService-win.cpp
 
-VBoxService_SOURCES.os2   = \
-	VBoxService-os2.def \
-	VBoxServiceClipboard-os2.cpp
+VBoxService_SOURCES.os2  += \
+	VBoxService-os2.def
 
 VBoxService_LDFLAGS.darwin = -framework IOKit
 
@@ -167,6 +178,7 @@ VBoxService_LIBS         += \
 	dl
  endif
 endif
+VBoxService_LIBS.netbsd  += crypt
 ifdef VBOX_WITH_GUEST_PROPS
 VBoxService_LIBS.win     += \
 	Secur32.lib \
@@ -199,4 +211,3 @@ $$(VBoxService_0_OUTDIR)/VBoxService-win-icon.rc: $(VBOX_WINDOWS_ADDITIONS_ICON_
 	$(APPEND) $@ 'IDI_VIRTUALBOX ICON DISCARDABLE "$(subst /,\\,$(VBOX_WINDOWS_ADDITIONS_ICON_FILE))"'
 
 include $(FILE_KBUILD_SUB_FOOTER)
-

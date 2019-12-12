@@ -135,7 +135,7 @@ void DrvAudioHlpClearBuf(const PPDMAUDIOPCMPROPS pPCMProps, void *pvBuf, size_t 
     if (!cbBuf || !cFrames)
         return;
 
-    Assert(pPCMProps->cBytes);
+    Assert(pPCMProps->cbSample);
     size_t cbToClear = DrvAudioHlpFramesToBytes(cFrames, pPCMProps);
     Assert(cbBuf >= cbToClear);
 
@@ -143,7 +143,7 @@ void DrvAudioHlpClearBuf(const PPDMAUDIOPCMPROPS pPCMProps, void *pvBuf, size_t 
         cbToClear = cbBuf;
 
     Log2Func(("pPCMProps=%p, pvBuf=%p, cFrames=%RU32, fSigned=%RTbool, cBytes=%RU8\n",
-              pPCMProps, pvBuf, cFrames, pPCMProps->fSigned, pPCMProps->cBytes));
+              pPCMProps, pvBuf, cFrames, pPCMProps->fSigned, pPCMProps->cbSample));
 
     Assert(pPCMProps->fSwapEndian == false); /** @todo Swapping Endianness is not supported yet. */
 
@@ -153,7 +153,7 @@ void DrvAudioHlpClearBuf(const PPDMAUDIOPCMPROPS pPCMProps, void *pvBuf, size_t 
     }
     else /* Unsigned formats. */
     {
-        switch (pPCMProps->cBytes)
+        switch (pPCMProps->cbSample)
         {
             case 1: /* 8 bit */
             {
@@ -187,7 +187,7 @@ void DrvAudioHlpClearBuf(const PPDMAUDIOPCMPROPS pPCMProps, void *pvBuf, size_t 
 
             default:
             {
-                AssertMsgFailed(("Invalid bytes per sample: %RU8\n", pPCMProps->cBytes));
+                AssertMsgFailed(("Invalid bytes per sample: %RU8\n", pPCMProps->cbSample));
                 break;
             }
         }
@@ -596,9 +596,9 @@ const char *DrvAudioHlpAudMixerCtlToStr(PDMAUDIOMIXERCTL enmMixerCtl)
  *
  * @returns Stringified audio flags. Must be free'd with RTStrFree().
  *          NULL if no flags set.
- * @param   fFlags              Audio flags to convert.
+ * @param   fFlags      Audio flags (PDMAUDIODEV_FLAGS_XXX) to convert.
  */
-char *DrvAudioHlpAudDevFlagsToStrA(PDMAUDIODEVFLAG fFlags)
+char *DrvAudioHlpAudDevFlagsToStrA(uint32_t fFlags)
 {
 #define APPEND_FLAG_TO_STR(_aFlag)              \
     if (fFlags & PDMAUDIODEV_FLAGS_##_aFlag)    \
@@ -650,14 +650,14 @@ char *DrvAudioHlpAudDevFlagsToStrA(PDMAUDIODEVFLAG fFlags)
  * @returns Stringified playback destination, or "Unknown", if not found.
  * @param   enmPlaybackDst      Playback destination to convert.
  */
-const char *DrvAudioHlpPlaybackDstToStr(const PDMAUDIOPLAYBACKDEST enmPlaybackDst)
+const char *DrvAudioHlpPlaybackDstToStr(const PDMAUDIOPLAYBACKDST enmPlaybackDst)
 {
     switch (enmPlaybackDst)
     {
-        case PDMAUDIOPLAYBACKDEST_UNKNOWN:    return "Unknown";
-        case PDMAUDIOPLAYBACKDEST_FRONT:      return "Front";
-        case PDMAUDIOPLAYBACKDEST_CENTER_LFE: return "Center / LFE";
-        case PDMAUDIOPLAYBACKDEST_REAR:       return "Rear";
+        case PDMAUDIOPLAYBACKDST_UNKNOWN:    return "Unknown";
+        case PDMAUDIOPLAYBACKDST_FRONT:      return "Front";
+        case PDMAUDIOPLAYBACKDST_CENTER_LFE: return "Center / LFE";
+        case PDMAUDIOPLAYBACKDST_REAR:       return "Rear";
         default:
             break;
     }
@@ -672,17 +672,17 @@ const char *DrvAudioHlpPlaybackDstToStr(const PDMAUDIOPLAYBACKDEST enmPlaybackDs
  * @returns Stringified recording source, or "Unknown", if not found.
  * @param   enmRecSrc           Recording source to convert.
  */
-const char *DrvAudioHlpRecSrcToStr(const PDMAUDIORECSOURCE enmRecSrc)
+const char *DrvAudioHlpRecSrcToStr(const PDMAUDIORECSRC enmRecSrc)
 {
     switch (enmRecSrc)
     {
-        case PDMAUDIORECSOURCE_UNKNOWN: return "Unknown";
-        case PDMAUDIORECSOURCE_MIC:     return "Microphone In";
-        case PDMAUDIORECSOURCE_CD:      return "CD";
-        case PDMAUDIORECSOURCE_VIDEO:   return "Video";
-        case PDMAUDIORECSOURCE_AUX:     return "AUX";
-        case PDMAUDIORECSOURCE_LINE:    return "Line In";
-        case PDMAUDIORECSOURCE_PHONE:   return "Phone";
+        case PDMAUDIORECSRC_UNKNOWN: return "Unknown";
+        case PDMAUDIORECSRC_MIC:     return "Microphone In";
+        case PDMAUDIORECSRC_CD:      return "CD";
+        case PDMAUDIORECSRC_VIDEO:   return "Video";
+        case PDMAUDIORECSRC_AUX:     return "AUX";
+        case PDMAUDIORECSRC_LINE:    return "Line In";
+        case PDMAUDIORECSRC_PHONE:   return "Phone";
         default:
             break;
     }
@@ -831,7 +831,7 @@ bool DrvAudioHlpPCMPropsAreEqual(const PPDMAUDIOPCMPROPS pProps1, const PPDMAUDI
 
     return    pProps1->uHz         == pProps2->uHz
            && pProps1->cChannels   == pProps2->cChannels
-           && pProps1->cBytes      == pProps2->cBytes
+           && pProps1->cbSample    == pProps2->cbSample
            && pProps1->fSigned     == pProps2->fSigned
            && pProps1->fSwapEndian == pProps2->fSwapEndian;
 }
@@ -852,7 +852,7 @@ bool DrvAudioHlpPCMPropsAreValid(const PPDMAUDIOPCMPROPS pProps)
 
     if (fValid)
     {
-        switch (pProps->cBytes)
+        switch (pProps->cbSample)
         {
             case 1: /* 8 bit */
                if (pProps->fSigned)
@@ -877,7 +877,7 @@ bool DrvAudioHlpPCMPropsAreValid(const PPDMAUDIOPCMPROPS pProps)
         return false;
 
     fValid &= pProps->uHz > 0;
-    fValid &= pProps->cShift == PDMAUDIOPCMPROPS_MAKE_SHIFT_PARMS(pProps->cBytes, pProps->cChannels);
+    fValid &= pProps->cShift == PDMAUDIOPCMPROPS_MAKE_SHIFT_PARMS(pProps->cbSample, pProps->cChannels);
     fValid &= pProps->fSwapEndian == false; /** @todo Handling Big Endian audio data is not supported yet. */
 
     return fValid;
@@ -920,7 +920,7 @@ void DrvAudioHlpPCMPropsPrint(const PPDMAUDIOPCMPROPS pProps)
     AssertPtrReturnVoid(pProps);
 
     Log(("uHz=%RU32, cChannels=%RU8, cBits=%RU8%s",
-         pProps->uHz, pProps->cChannels, pProps->cBytes * 8, pProps->fSigned ? "S" : "U"));
+         pProps->uHz, pProps->cChannels, pProps->cbSample * 8, pProps->fSigned ? "S" : "U"));
 }
 
 /**
@@ -950,9 +950,9 @@ void DrvAudioHlpStreamCfgInit(PPDMAUDIOSTREAMCFG pCfg)
 {
     AssertPtrReturnVoid(pCfg);
 
-    RT_BZERO(pCfg, sizeof(PDMAUDIOSTREAMCFG));
+    RT_ZERO(*pCfg);
 
-    pCfg->Backend.cfPreBuf = UINT32_MAX; /* Explicitly set to "undefined". */
+    pCfg->Backend.cFramesPreBuffering = UINT32_MAX; /* Explicitly set to "undefined". */
 }
 
 /**
@@ -1062,7 +1062,7 @@ void DrvAudioHlpStreamCfgPrint(const PPDMAUDIOSTREAMCFG pCfg)
 
     LogFunc(("szName=%s, enmDir=%RU32 (uHz=%RU32, cBits=%RU8%s, cChannels=%RU8)\n",
              pCfg->szName, pCfg->enmDir,
-             pCfg->Props.uHz, pCfg->Props.cBytes * 8, pCfg->Props.fSigned ? "S" : "U", pCfg->Props.cChannels));
+             pCfg->Props.uHz, pCfg->Props.cbSample * 8, pCfg->Props.fSigned ? "S" : "U", pCfg->Props.cChannels));
 }
 
 /**
@@ -1075,6 +1075,7 @@ const char *DrvAudioHlpStreamCmdToStr(PDMAUDIOSTREAMCMD enmCmd)
 {
     switch (enmCmd)
     {
+        case PDMAUDIOSTREAMCMD_INVALID: return "Invalid";
         case PDMAUDIOSTREAMCMD_UNKNOWN: return "Unknown";
         case PDMAUDIOSTREAMCMD_ENABLE:  return "Enable";
         case PDMAUDIOSTREAMCMD_DISABLE: return "Disable";
@@ -1082,10 +1083,10 @@ const char *DrvAudioHlpStreamCmdToStr(PDMAUDIOSTREAMCMD enmCmd)
         case PDMAUDIOSTREAMCMD_RESUME:  return "Resume";
         case PDMAUDIOSTREAMCMD_DRAIN:   return "Drain";
         case PDMAUDIOSTREAMCMD_DROP:    return "Drop";
-        default:                        break;
+        case PDMAUDIOSTREAMCMD_32BIT_HACK:
+            break;
     }
-
-    AssertMsgFailed(("Invalid stream command %ld\n", enmCmd));
+    AssertMsgFailed(("Invalid stream command %d\n", enmCmd));
     return "Unknown";
 }
 
@@ -1094,16 +1095,16 @@ const char *DrvAudioHlpStreamCmdToStr(PDMAUDIOSTREAMCMD enmCmd)
  * @c false if not.
  *
  * @returns @c true if ready to be read from, @c if not.
- * @param   enmStatus           Stream status to evaluate.
+ * @param   fStatus     Stream status to evaluate, PDMAUDIOSTREAMSTS_FLAGS_XXX.
  */
-bool DrvAudioHlpStreamStatusCanRead(PDMAUDIOSTREAMSTS enmStatus)
+bool DrvAudioHlpStreamStatusCanRead(PDMAUDIOSTREAMSTS fStatus)
 {
-    AssertReturn(enmStatus & PDMAUDIOSTREAMSTS_VALID_MASK, false);
+    AssertReturn(fStatus & PDMAUDIOSTREAMSTS_VALID_MASK, false);
 
-    return      enmStatus & PDMAUDIOSTREAMSTS_FLAG_INITIALIZED
-           &&   enmStatus & PDMAUDIOSTREAMSTS_FLAG_ENABLED
-           && !(enmStatus & PDMAUDIOSTREAMSTS_FLAG_PAUSED)
-           && !(enmStatus & PDMAUDIOSTREAMSTS_FLAG_PENDING_REINIT);
+    return      fStatus & PDMAUDIOSTREAMSTS_FLAGS_INITIALIZED
+           &&   fStatus & PDMAUDIOSTREAMSTS_FLAGS_ENABLED
+           && !(fStatus & PDMAUDIOSTREAMSTS_FLAGS_PAUSED)
+           && !(fStatus & PDMAUDIOSTREAMSTS_FLAGS_PENDING_REINIT);
 }
 
 /**
@@ -1111,17 +1112,17 @@ bool DrvAudioHlpStreamStatusCanRead(PDMAUDIOSTREAMSTS enmStatus)
  * @c false if not.
  *
  * @returns @c true if ready to be written to, @c if not.
- * @param   enmStatus           Stream status to evaluate.
+ * @param   fStatus     Stream status to evaluate, PDMAUDIOSTREAMSTS_FLAGS_XXX.
  */
-bool DrvAudioHlpStreamStatusCanWrite(PDMAUDIOSTREAMSTS enmStatus)
+bool DrvAudioHlpStreamStatusCanWrite(PDMAUDIOSTREAMSTS fStatus)
 {
-    AssertReturn(enmStatus & PDMAUDIOSTREAMSTS_VALID_MASK, false);
+    AssertReturn(fStatus & PDMAUDIOSTREAMSTS_VALID_MASK, false);
 
-    return      enmStatus & PDMAUDIOSTREAMSTS_FLAG_INITIALIZED
-           &&   enmStatus & PDMAUDIOSTREAMSTS_FLAG_ENABLED
-           && !(enmStatus & PDMAUDIOSTREAMSTS_FLAG_PAUSED)
-           && !(enmStatus & PDMAUDIOSTREAMSTS_FLAG_PENDING_DISABLE)
-           && !(enmStatus & PDMAUDIOSTREAMSTS_FLAG_PENDING_REINIT);
+    return      fStatus & PDMAUDIOSTREAMSTS_FLAGS_INITIALIZED
+           &&   fStatus & PDMAUDIOSTREAMSTS_FLAGS_ENABLED
+           && !(fStatus & PDMAUDIOSTREAMSTS_FLAGS_PAUSED)
+           && !(fStatus & PDMAUDIOSTREAMSTS_FLAGS_PENDING_DISABLE)
+           && !(fStatus & PDMAUDIOSTREAMSTS_FLAGS_PENDING_REINIT);
 }
 
 /**
@@ -1129,15 +1130,15 @@ bool DrvAudioHlpStreamStatusCanWrite(PDMAUDIOSTREAMSTS enmStatus)
  * @c false if not.
  *
  * @returns @c true if ready to operate, @c if not.
- * @param   enmStatus           Stream status to evaluate.
+ * @param   fStatus Stream status to evaluate.
  */
-bool DrvAudioHlpStreamStatusIsReady(PDMAUDIOSTREAMSTS enmStatus)
+bool DrvAudioHlpStreamStatusIsReady(PDMAUDIOSTREAMSTS fStatus)
 {
-    AssertReturn(enmStatus & PDMAUDIOSTREAMSTS_VALID_MASK, false);
+    AssertReturn(fStatus & PDMAUDIOSTREAMSTS_VALID_MASK, false);
 
-    return      enmStatus & PDMAUDIOSTREAMSTS_FLAG_INITIALIZED
-           &&   enmStatus & PDMAUDIOSTREAMSTS_FLAG_ENABLED
-           && !(enmStatus & PDMAUDIOSTREAMSTS_FLAG_PENDING_REINIT);
+    return      fStatus & PDMAUDIOSTREAMSTS_FLAGS_INITIALIZED
+           &&   fStatus & PDMAUDIOSTREAMSTS_FLAGS_ENABLED
+           && !(fStatus & PDMAUDIOSTREAMSTS_FLAGS_PENDING_REINIT);
 }
 
 /**
@@ -1168,7 +1169,7 @@ uint32_t DrvAudioHlpCalcBitrate(uint8_t cBits, uint32_t uHz, uint8_t cChannels)
  */
 uint32_t DrvAudioHlpCalcBitrate(const PPDMAUDIOPCMPROPS pProps)
 {
-    return DrvAudioHlpCalcBitrate(pProps->cBytes * 8, pProps->uHz, pProps->cChannels);
+    return DrvAudioHlpCalcBitrate(pProps->cbSample * 8, pProps->uHz, pProps->cChannels);
 }
 
 /**
@@ -1503,10 +1504,10 @@ int DrvAudioHlpFileNameSanitize(char *pszPath, size_t cbPath)
  * @param   pszName             A name for better identifying the file.
  * @param   uInstance           Device / driver instance which is using this file.
  * @param   enmType             Audio file type to construct file name for.
- * @param   fFlags              File naming flags.
+ * @param   fFlags              File naming flags, PDMAUDIOFILENAME_FLAGS_XXX.
  */
 int DrvAudioHlpFileNameGet(char *pszFile, size_t cchFile, const char *pszPath, const char *pszName,
-                           uint32_t uInstance, PDMAUDIOFILETYPE enmType, PDMAUDIOFILENAMEFLAGS fFlags)
+                           uint32_t uInstance, PDMAUDIOFILETYPE enmType, uint32_t fFlags)
 {
     AssertPtrReturn(pszFile, VERR_INVALID_POINTER);
     AssertReturn(cchFile,    VERR_INVALID_PARAMETER);
@@ -1518,8 +1519,9 @@ int DrvAudioHlpFileNameGet(char *pszFile, size_t cchFile, const char *pszPath, c
 
     do
     {
-        char szFilePath[RTPATH_MAX + 1];
-        RTStrPrintf2(szFilePath, sizeof(szFilePath), "%s", pszPath);
+        char szFilePath[RTPATH_MAX];
+        rc = RTStrCopy(szFilePath, sizeof(szFilePath), pszPath);
+        AssertRCBreak(rc);
 
         /* Create it when necessary. */
         if (!RTDirExists(szFilePath))
@@ -1529,10 +1531,10 @@ int DrvAudioHlpFileNameGet(char *pszFile, size_t cchFile, const char *pszPath, c
                 break;
         }
 
-        char szFileName[RTPATH_MAX + 1];
+        char szFileName[RTPATH_MAX];
         szFileName[0] = '\0';
 
-        if (fFlags & PDMAUDIOFILENAME_FLAG_TS)
+        if (fFlags & PDMAUDIOFILENAME_FLAGS_TS)
         {
             RTTIMESPEC time;
             if (!RTTimeSpecToString(RTTimeNow(&time), szFileName, sizeof(szFileName)))
@@ -1586,7 +1588,7 @@ int DrvAudioHlpFileNameGet(char *pszFile, size_t cchFile, const char *pszPath, c
         if (RT_FAILURE(rc))
             break;
 
-        RTStrPrintf2(pszFile, cchFile, "%s", szFilePath);
+        rc = RTStrCopy(pszFile, cchFile, szFilePath);
 
     } while (0);
 
@@ -1600,11 +1602,11 @@ int DrvAudioHlpFileNameGet(char *pszFile, size_t cchFile, const char *pszPath, c
  * @returns IPRT status code.
  * @param   enmType             Audio file type to open / create.
  * @param   pszFile             File path of file to open or create.
- * @param   fFlags              Audio file flags.
+ * @param   fFlags              Audio file flags, PDMAUDIOFILE_FLAGS_XXX.
  * @param   ppFile              Where to store the created audio file handle.
  *                              Needs to be destroyed with DrvAudioHlpFileDestroy().
  */
-int DrvAudioHlpFileCreate(PDMAUDIOFILETYPE enmType, const char *pszFile, PDMAUDIOFILEFLAGS fFlags, PPDMAUDIOFILE *ppFile)
+int DrvAudioHlpFileCreate(PDMAUDIOFILETYPE enmType, const char *pszFile, uint32_t fFlags, PPDMAUDIOFILE *ppFile)
 {
     AssertPtrReturn(pszFile, VERR_INVALID_POINTER);
     /** @todo Validate fFlags. */
@@ -1688,7 +1690,7 @@ int DrvAudioHlpFileOpen(PPDMAUDIOFILE pFile, uint32_t fOpen, const PPDMAUDIOPCMP
     {
         Assert(pProps->cChannels);
         Assert(pProps->uHz);
-        Assert(pProps->cBytes);
+        Assert(pProps->cbSample);
 
         pFile->pvData = (PAUDIOWAVFILEDATA)RTMemAllocZ(sizeof(AUDIOWAVFILEDATA));
         if (pFile->pvData)
@@ -1709,8 +1711,8 @@ int DrvAudioHlpFileOpen(PPDMAUDIOFILE pFile, uint32_t fOpen, const PPDMAUDIOPCMP
             pData->Hdr.u16NumChannels   = pProps->cChannels;
             pData->Hdr.u32SampleRate    = pProps->uHz;
             pData->Hdr.u32ByteRate      = DrvAudioHlpCalcBitrate(pProps) / 8;
-            pData->Hdr.u16BlockAlign    = pProps->cChannels * pProps->cBytes;
-            pData->Hdr.u16BitsPerSample = pProps->cBytes * 8;
+            pData->Hdr.u16BlockAlign    = pProps->cChannels * pProps->cbSample;
+            pData->Hdr.u16BitsPerSample = pProps->cbSample * 8;
 
             /* Data chunk. */
             pData->Hdr.u32ID2           = AUDIO_MAKE_FOURCC('d','a','t','a');
@@ -1795,7 +1797,7 @@ int DrvAudioHlpFileClose(PPDMAUDIOFILE pFile)
 
     if (   RT_SUCCESS(rc)
         && !cbSize
-        && !(pFile->fFlags & PDMAUDIOFILE_FLAG_KEEP_IF_EMPTY))
+        && !(pFile->fFlags & PDMAUDIOFILE_FLAGS_KEEP_IF_EMPTY))
     {
         rc = DrvAudioHlpFileDelete(pFile);
     }

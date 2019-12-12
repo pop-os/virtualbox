@@ -243,6 +243,7 @@ static const RTGETOPTDEF g_aCreateMediumOptions[] =
     { "-static",        'F', RTGETOPT_REQ_NOTHING },    // deprecated
     { "--variant",      'm', RTGETOPT_REQ_STRING },
     { "-variant",       'm', RTGETOPT_REQ_STRING },     // deprecated
+    { "--property",     'p', RTGETOPT_REQ_STRING }
 };
 
 RTEXITCODE handleCreateMedium(HandlerArg *a)
@@ -252,7 +253,15 @@ RTEXITCODE handleCreateMedium(HandlerArg *a)
     const char *filename = NULL;
     const char *diffparent = NULL;
     uint64_t size = 0;
-    enum {
+    typedef struct MEDIUMPROPERTY_LIST
+    {
+        struct MEDIUMPROPERTY_LIST *next;
+        const char *key;
+        const char *value;
+    } MEDIUMPROPERTY, *PMEDIUMPROPERTY;
+    PMEDIUMPROPERTY pMediumProps = NULL;
+    enum
+    {
         CMD_NONE,
         CMD_DISK,
         CMD_DVD,
@@ -310,6 +319,34 @@ RTEXITCODE handleCreateMedium(HandlerArg *a)
             case 'o':   // --format
                 format = ValueUnion.psz;
                 break;
+
+            case 'p':   // --property
+            {
+                /* allocate property kvp, parse, and append to end of singly linked list */
+# define PROP_MAXLEN 256
+                PMEDIUMPROPERTY pNewProp = (PMEDIUMPROPERTY)RTMemAlloc(sizeof(MEDIUMPROPERTY));
+                if (!pNewProp)
+                    return errorArgument("Can't allocate memory for property '%s'", ValueUnion.psz);
+                size_t cchKvp = RTStrNLen(ValueUnion.psz, PROP_MAXLEN);
+                char *pszEqual = (char *)memchr(ValueUnion.psz, '=', cchKvp);
+                if (pszEqual)
+                {
+                    *pszEqual = '\0';       /* Warning! Modifies argument string. */
+                    pNewProp->next = NULL;
+                    pNewProp->key = (char *)ValueUnion.psz;
+                    pNewProp->value = pszEqual + 1;
+                }
+                if (pMediumProps)
+                {
+                    PMEDIUMPROPERTY pProp;
+                    for (pProp = pMediumProps; pProp->next; pProp = pProp->next)
+                        continue;
+                    pProp->next = pNewProp;
+                }
+                else
+                    pMediumProps = pNewProp;
+                break;
+            }
 
             case 'F':   // --static ("fixed"/"flat")
             {
@@ -420,7 +457,8 @@ RTEXITCODE handleCreateMedium(HandlerArg *a)
                 strName.append(".vhd");
             else
                 strName.append(".vdi");
-        } else if (cmd == CMD_DVD)
+        }
+        else if (cmd == CMD_DVD)
             strName.append(".iso");
         else if (cmd == CMD_FLOPPY)
             strName.append(".img");
@@ -436,12 +474,22 @@ RTEXITCODE handleCreateMedium(HandlerArg *a)
                           AccessMode_ReadOnly, pMedium);
     else if (cmd == CMD_FLOPPY)
         rc = createMedium(a, format, filename, DeviceType_Floppy,
-                        AccessMode_ReadWrite, pMedium);
+                          AccessMode_ReadWrite, pMedium);
     else
         rc = E_INVALIDARG; /* cannot happen but make gcc happy */
 
+
     if (SUCCEEDED(rc) && pMedium)
     {
+        if (pMediumProps)
+            for (PMEDIUMPROPERTY pProp = pMediumProps; pProp;)
+            {
+                CHECK_ERROR(pMedium, SetProperty(Bstr(pProp->key).raw(), Bstr(pProp->value).raw()));
+                PMEDIUMPROPERTY next = pProp->next;
+                RTMemFree(pProp);
+                pProp = next;
+            }
+
         ComPtr<IProgress> pProgress;
         com::SafeArray<MediumVariant_T> l_variants(sizeof(MediumVariant_T)*8);
 
@@ -999,7 +1047,7 @@ RTEXITCODE handleCloneMedium(HandlerArg *a)
                                   AccessMode_ReadWrite, pDstMedium);
             else if (cmd == CMD_DVD)
                 rc = createMedium(a, strFormat.c_str(), pszDst, DeviceType_DVD,
-                                  AccessMode_ReadOnly, pDstMedium);
+                                  AccessMode_ReadOnly,  pDstMedium);
             else if (cmd == CMD_FLOPPY)
                 rc = createMedium(a, strFormat.c_str(), pszDst, DeviceType_Floppy,
                                   AccessMode_ReadWrite, pDstMedium);
@@ -1138,7 +1186,7 @@ RTEXITCODE handleConvertFromRaw(HandlerArg *a)
     if (fReadFromStdIn)
         cbFile = RTStrToUInt64(filesize);
     else
-        rc = RTFileGetSize(File, &cbFile);
+        rc = RTFileQuerySize(File, &cbFile);
     if (RT_FAILURE(rc))
     {
         RTMsgError("Cannot get image size for file \"%s\": %Rrc", srcfilename, rc);

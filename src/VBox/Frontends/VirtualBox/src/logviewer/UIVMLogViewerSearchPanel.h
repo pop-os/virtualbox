@@ -33,6 +33,7 @@ class QHBoxLayout;
 class QLabel;
 class QWidget;
 class QIToolButton;
+class UISearchLineEdit;
 class UIVMLogViewerSearchField;
 class UIVMLogViewerWidget;
 
@@ -58,7 +59,7 @@ public:
     const QVector<float> &matchLocationVector() const;
     virtual QString panelName() const /* override */;
     /** Returns the number of the matches to the current search. */
-    int marchCount() const;
+    int matchCount() const;
 
 protected:
 
@@ -80,10 +81,7 @@ private slots:
     void sltHighlightAllCheckBox();
     void sltCaseSentitiveCheckBox();
     void sltMatchWholeWordCheckBox();
-    /** Forward search routine wrapper. */
-    void findNext();
-    /** Backward search routine wrapper. */
-    void findPrevious();
+    void sltSelectNextPreviousMatch();
 
 private:
 
@@ -96,14 +94,18 @@ private:
       * @param  eDirection     Specifies the seach direction
       * @param  highlight      if false highlight function is not called
                                thus we avoid calling highlighting for the same string repeatedly. */
-    void search(SearchDirection eDirection, bool highlight);
+    void performSearch(SearchDirection eDirection, bool highlight);
     void highlightAll(QTextDocument *pDocument, const QString &searchString);
+    void findAll(QTextDocument *pDocument, const QString &searchString);
+    void selectMatch(int iMatchIndex, const QString &searchString);
+    void moveSelection(bool fForward);
+
     /** Constructs the find flags for QTextDocument::find function. */
     QTextDocument::FindFlags constructFindFlags(SearchDirection eDirection) const;
     /** Searches the whole document and return the number of matches to the current search term. */
     int countMatches(QTextDocument *pDocument, const QString &searchString) const;
     /** Holds the instance of search-editor we create. */
-    UIVMLogViewerSearchField *m_pSearchEditor;
+    UISearchLineEdit *m_pSearchEditor;
 
     QIToolButton *m_pNextButton;
     QIToolButton *m_pPreviousButton;
@@ -111,14 +113,13 @@ private:
     QCheckBox    *m_pCaseSensitiveCheckBox;
     QCheckBox    *m_pMatchWholeWordCheckBox;
     QCheckBox    *m_pHighlightAllCheckBox;
-
-    /** Holds the position where we start the next search. */
-    int          m_iSearchPosition;
-    /** Holds the number of the matches for the string. 0 for no matches. */
-    int          m_iMatchCount;
-    /** Stores relative positions of the lines of the matches. The values are [0,1]
+    /** Stores relative positions of the lines of the matches wrt. total # of lines. The values are in [0,1]
         0 being the first line 1 being the last. */
     QVector<float> m_matchLocationVector;
+    /** Document positions of the cursors within th document for all matches. */
+    QVector<int>   m_matchedCursorPosition;
+    /** The index of the curently selected item within m_matchedCursorPosition. */
+    int            m_iSelectedMatchIndex;
 };
 
 

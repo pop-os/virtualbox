@@ -34,10 +34,11 @@
 #include "UIIconPool.h"
 #include "UIHostComboEditor.h"
 #include "QIStatusBarIndicator.h"
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 
 /* COM includes: */
 #include "CAudioAdapter.h"
+#include "CGraphicsAdapter.h"
 #include "CRecordingSettings.h"
 #include "CRecordingScreenSettings.h"
 #include "CConsole.h"
@@ -468,10 +469,10 @@ public:
         setStateIcon(KDeviceActivity_Writing, UIIconPool::iconSet(":/nw_write_16px.png"));
         setStateIcon(KDeviceActivity_Null,    UIIconPool::iconSet(":/nw_disabled_16px.png"));
         /* Configure machine state-change listener: */
-        connect(m_pSession, SIGNAL(sigMachineStateChange()),
-                this, SLOT(sltHandleMachineStateChange()));
+        connect(m_pSession, &UISession::sigMachineStateChange,
+                this, &UIIndicatorNetwork::sltHandleMachineStateChange);
         /* Fetch maximum network adapters count: */
-        const CVirtualBox vbox = vboxGlobal().virtualBox();
+        const CVirtualBox vbox = uiCommon().virtualBox();
         const CMachine machine = m_pSession->machine();
         m_cMaxNetworkAdapters = vbox.GetSystemProperties().GetMaxNetworkAdapters(machine.GetChipsetType());
         /* Create auto-update timer: */
@@ -479,7 +480,7 @@ public:
         if (m_pTimerAutoUpdate)
         {
             /* Configure auto-update timer: */
-            connect(m_pTimerAutoUpdate, SIGNAL(timeout()), SLOT(sltUpdateNetworkIPs()));
+            connect(m_pTimerAutoUpdate, &QTimer::timeout, this, &UIIndicatorNetwork::sltUpdateNetworkIPs);
             /* Start timer immediately if machine is running: */
             sltHandleMachineStateChange();
         }
@@ -630,7 +631,7 @@ private:
             /* Enumerate all the USB devices: */
             const CConsole console = m_pSession->console();
             foreach (const CUSBDevice &usbDevice, console.GetUSBDevices())
-                strFullData += s_strTableRow1.arg(vboxGlobal().details(usbDevice));
+                strFullData += s_strTableRow1.arg(uiCommon().details(usbDevice));
             /* Handle 'no-usb-devices' case: */
             if (strFullData.isNull())
                 strFullData = s_strTableRow1
@@ -693,7 +694,7 @@ private:
         for (QMap<QString, QString>::const_iterator it = sfs.constBegin(); it != sfs.constEnd(); ++it)
         {
             /* Select slashes depending on the OS type: */
-            if (VBoxGlobal::isDOSType(guest.GetOSTypeId()))
+            if (UICommon::isDOSType(guest.GetOSTypeId()))
                 strFullData += s_strTableRow2.arg(QString("<b>\\\\vboxsvr\\%1</b>").arg(it.key()), it.value());
             else
                 strFullData += s_strTableRow2.arg(QString("<b>%1</b>").arg(it.key()), it.value());
@@ -741,14 +742,17 @@ private:
         /* Prepare tool-tip: */
         QString strFullData;
 
+        /* Get graphics adapter: */
+        CGraphicsAdapter comGraphics = machine.GetGraphicsAdapter();
+
         /* Video Memory: */
-        const ULONG uVRAMSize = machine.GetVRAMSize();
-        const QString strVRAMSize = VBoxGlobal::tr("<nobr>%1 MB</nobr>", "details report").arg(uVRAMSize);
+        const ULONG uVRAMSize = comGraphics.GetVRAMSize();
+        const QString strVRAMSize = UICommon::tr("<nobr>%1 MB</nobr>", "details report").arg(uVRAMSize);
         strFullData += s_strTableRow2
             .arg(QApplication::translate("UIIndicatorsPool", "Video memory", "Display tooltip"), strVRAMSize);
 
         /* Monitor Count: */
-        const ULONG uMonitorCount = machine.GetMonitorCount();
+        const ULONG uMonitorCount = comGraphics.GetMonitorCount();
         if (uMonitorCount > 1)
         {
             const QString strMonitorCount = QString::number(uMonitorCount);
@@ -757,12 +761,12 @@ private:
         }
 
         /* 3D acceleration: */
-        const bool fAcceleration3D = machine.GetAccelerate3DEnabled() && vboxGlobal().is3DAvailable();
+        const bool fAcceleration3D = comGraphics.GetAccelerate3DEnabled() && uiCommon().is3DAvailable();
         if (fAcceleration3D)
         {
             const QString strAcceleration3D = fAcceleration3D ?
-                VBoxGlobal::tr("Enabled", "details report (3D Acceleration)") :
-                VBoxGlobal::tr("Disabled", "details report (3D Acceleration)");
+                UICommon::tr("Enabled", "details report (3D Acceleration)") :
+                UICommon::tr("Disabled", "details report (3D Acceleration)");
             strFullData += s_strTableRow2
                 .arg(QApplication::translate("UIIndicatorsPool", "3D acceleration", "Display tooltip"), strAcceleration3D);
         }
@@ -978,6 +982,7 @@ public:
     /** Constructor, passes @a pSession to the UISessionStateStatusBarIndicator constructor. */
     UIIndicatorFeatures(UISession *pSession)
         : UISessionStateStatusBarIndicator(IndicatorType_Features, pSession)
+        , m_iCPULoadPercentage(0)
     {
         /* Assign state-icons: */
         setStateIcon(KVMExecutionEngine_NotSet, UIIconPool::iconSet(":/vtx_amdv_disabled_16px.png"));
@@ -985,8 +990,76 @@ public:
         setStateIcon(KVMExecutionEngine_HwVirt, UIIconPool::iconSet(":/vtx_amdv_16px.png"));
         /** @todo New indicator icon, vm_execution_engine_native_api_16px.png, V inside a turtle / tortoise.  @bugref{9044} */
         setStateIcon(KVMExecutionEngine_NativeApi, UIIconPool::iconSet(":/vm_execution_engine_native_api_16px.png"));
+
+        /* Configure machine state-change listener: */
+        connect(m_pSession, &UISession::sigMachineStateChange,
+                this, &UIIndicatorFeatures::sltHandleMachineStateChange);
+        m_pTimerAutoUpdate = new QTimer(this);
+        if (m_pTimerAutoUpdate)
+        {
+            connect(m_pTimerAutoUpdate, &QTimer::timeout, this, &UIIndicatorFeatures::sltTimeout);
+            /* Start the timer immediately if the machine is running: */
+            sltHandleMachineStateChange();
+        }
         /* Translate finally: */
         retranslateUi();
+    }
+
+protected:
+
+    virtual void paintEvent(QPaintEvent *pEvent) /* override */
+    {
+        UISessionStateStatusBarIndicator::paintEvent(pEvent);
+        QPainter painter(this);
+
+        /* Draw a thin bar on th right hand side of the icon indication CPU load: */
+        QLinearGradient gradient(0, 0, 0, height());
+        gradient.setColorAt(1.0, Qt::green);
+        gradient.setColorAt(0.5, Qt::yellow);
+        gradient.setColorAt(0.0, Qt::red);
+
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(gradient);
+        /* Use 20% of the icon width to draw the indicator bar: */
+        painter.drawRect(QRect(QPoint(0.8 * width(), (100 - m_iCPULoadPercentage) / 100.f * height()),
+                               QPoint(width(),  height())));
+        /* Draw an empty rect. around the CPU load bar: */
+        int iBorderThickness = 1;
+        QRect outRect(QPoint(0.8 * width(), 0),
+                      QPoint(width() - 2 * iBorderThickness,  height() - 2 * iBorderThickness));
+        painter.setPen(QPen(Qt::black, 1));
+        painter.setBrush(Qt::NoBrush);
+        painter.drawRect(outRect);
+    }
+
+private slots:
+
+    /** Updates auto-update timer depending on machine state. */
+    void sltHandleMachineStateChange()
+    {
+        if (m_pSession->machineState() == KMachineState_Running)
+        {
+            /* Start auto-update timer otherwise: */
+            m_pTimerAutoUpdate->start(1000);
+            return;
+        }
+        /* Stop auto-update timer otherwise: */
+        m_pTimerAutoUpdate->stop();
+    }
+
+    void sltTimeout()
+    {
+        if (!m_pSession)
+            return;
+        CMachineDebugger comMachineDebugger = m_pSession->debugger();
+        if (comMachineDebugger.isNull())
+            return;
+        ULONG aPctExecuting;
+        ULONG aPctHalted;
+        ULONG aPctOther;
+        comMachineDebugger.GetCPULoad(0x7fffffff, aPctExecuting, aPctHalted, aPctOther);
+        m_iCPULoadPercentage = aPctExecuting + aPctOther;
+        update();
     }
 
 private:
@@ -1016,19 +1089,19 @@ private:
                 enmEngine = KVMExecutionEngine_NotSet;
                 RT_FALL_THRU();
             case KVMExecutionEngine_NotSet:
-                strExecutionEngine = VBoxGlobal::tr("not set", "details report (execution engine)");
+                strExecutionEngine = UICommon::tr("not set", "details report (execution engine)");
                 break;
         }
 
         /* Nested Paging feature: */
         const QString strNestedPaging = m_pSession->isHWVirtExNestedPagingEnabled() ?
-                                        VBoxGlobal::tr("Active", "details report (Nested Paging)") :
-                                        VBoxGlobal::tr("Inactive", "details report (Nested Paging)");
+                                        UICommon::tr("Active", "details report (Nested Paging)") :
+                                        UICommon::tr("Inactive", "details report (Nested Paging)");
 
         /* Unrestricted Execution feature: */
         const QString strUnrestrictExec = m_pSession->isHWVirtExUXEnabled() ?
-                                          VBoxGlobal::tr("Active", "details report (Unrestricted Execution)") :
-                                          VBoxGlobal::tr("Inactive", "details report (Unrestricted Execution)");
+                                          UICommon::tr("Active", "details report (Unrestricted Execution)") :
+                                          UICommon::tr("Inactive", "details report (Unrestricted Execution)");
 
         /* CPU Execution Cap feature: */
         QString strCPUExecCap = QString::number(machine.GetCPUExecutionCap());
@@ -1038,21 +1111,24 @@ private:
 
         /* Prepare tool-tip: */
         QString strFullData;
-        //strFullData += s_strTableRow2.arg(VBoxGlobal::tr("VT-x/AMD-V", "details report"),                   strVirtualization);
-        strFullData += s_strTableRow2.arg(VBoxGlobal::tr("Execution engine", "details report"),             strExecutionEngine);
-        strFullData += s_strTableRow2.arg(VBoxGlobal::tr("Nested Paging"),                                  strNestedPaging);
-        strFullData += s_strTableRow2.arg(VBoxGlobal::tr("Unrestricted Execution"),                         strUnrestrictExec);
-        strFullData += s_strTableRow2.arg(VBoxGlobal::tr("Execution Cap", "details report"),                strCPUExecCap);
-        strFullData += s_strTableRow2.arg(VBoxGlobal::tr("Paravirtualization Interface", "details report"), strParavirt);
+        //strFullData += s_strTableRow2.arg(UICommon::tr("VT-x/AMD-V", "details report"),                   strVirtualization);
+        strFullData += s_strTableRow2.arg(UICommon::tr("Execution engine", "details report"),             strExecutionEngine);
+        strFullData += s_strTableRow2.arg(UICommon::tr("Nested Paging"),                                  strNestedPaging);
+        strFullData += s_strTableRow2.arg(UICommon::tr("Unrestricted Execution"),                         strUnrestrictExec);
+        strFullData += s_strTableRow2.arg(UICommon::tr("Execution Cap", "details report"),                strCPUExecCap);
+        strFullData += s_strTableRow2.arg(UICommon::tr("Paravirtualization Interface", "details report"), strParavirt);
         const int cpuCount = machine.GetCPUCount();
         if (cpuCount > 1)
-            strFullData += s_strTableRow2.arg(VBoxGlobal::tr("Processors", "details report"), QString::number(cpuCount));
+            strFullData += s_strTableRow2.arg(UICommon::tr("Processors", "details report"), QString::number(cpuCount));
 
         /* Update tool-tip: */
         setToolTip(s_strTable.arg(strFullData));
         /* Update indicator state: */
         setState(enmEngine);
     }
+
+    QTimer *m_pTimerAutoUpdate;
+    ULONG m_iCPULoadPercentage;
 };
 
 
@@ -1074,7 +1150,8 @@ public:
         setStateIcon(3, UIIconPool::iconSet(":/mouse_can_seamless_16px.png"));
         setStateIcon(4, UIIconPool::iconSet(":/mouse_can_seamless_uncaptured_16px.png"));
         /* Configure connection: */
-        connect(pSession, SIGNAL(sigMouseStateChange(int)), this, SLOT(setState(int)));
+        connect(pSession, &UISession::sigMouseStateChange,
+                this, static_cast<void(UIIndicatorMouse::*)(int)>(&UIIndicatorMouse::setState));
         setState(pSession->mouseState());
         /* Translate finally: */
         retranslateUi();
@@ -1152,7 +1229,8 @@ public:
         setStateIcon(6, UIIconPool::iconSet(":/hostkey_pressed_checked_16px.png"));
         setStateIcon(7, UIIconPool::iconSet(":/hostkey_captured_pressed_checked_16px.png"));
         /* Configure connection: */
-        connect(pSession, SIGNAL(sigKeyboardStateChange(int)), this, SLOT(setState(int)));
+        connect(pSession, &UISession::sigKeyboardStateChange,
+                this, static_cast<void(UIIndicatorKeyboard::*)(int)>(&UIIndicatorKeyboard::setState));
         setState(pSession->keyboardState());
         /* Translate finally: */
         retranslateUi();
@@ -1191,8 +1269,8 @@ public:
     UIIndicatorKeyboardExtension()
     {
         /* Make sure host-combination label will be updated: */
-        connect(gEDataManager, SIGNAL(sigRuntimeUIHostKeyCombinationChange()),
-                this, SLOT(sltUpdateAppearance()));
+        connect(gEDataManager, &UIExtraDataManager::sigRuntimeUIHostKeyCombinationChange,
+                this, &UIIndicatorKeyboardExtension::sltUpdateAppearance);
         /* Translate finally: */
         retranslateUi();
     }
@@ -1276,7 +1354,7 @@ QPoint UIIndicatorsPool::mapIndicatorPositionToGlobal(IndicatorType enmIndicator
 void UIIndicatorsPool::sltHandleConfigurationChange(const QUuid &uMachineID)
 {
     /* Skip unrelated machine IDs: */
-    if (vboxGlobal().managedVMUuid() != uMachineID)
+    if (uiCommon().managedVMUuid() != uMachineID)
         return;
 
     /* Update pool: */
@@ -1354,8 +1432,8 @@ void UIIndicatorsPool::prepare()
 void UIIndicatorsPool::prepareConnections()
 {
     /* Listen for the status-bar configuration changes: */
-    connect(gEDataManager, SIGNAL(sigStatusBarConfigurationChange(const QUuid &)),
-            this, SLOT(sltHandleConfigurationChange(const QUuid &)));
+    connect(gEDataManager, &UIExtraDataManager::sigStatusBarConfigurationChange,
+            this, &UIIndicatorsPool::sltHandleConfigurationChange);
 }
 
 void UIIndicatorsPool::prepareContents()
@@ -1383,8 +1461,8 @@ void UIIndicatorsPool::prepareUpdateTimer()
     AssertPtrReturnVoid(m_pTimerAutoUpdate);
     {
         /* Configure auto-update timer: */
-        connect(m_pTimerAutoUpdate, SIGNAL(timeout()),
-                this, SLOT(sltAutoUpdateIndicatorStates()));
+        connect(m_pTimerAutoUpdate, &QTimer::timeout,
+                this, &UIIndicatorsPool::sltAutoUpdateIndicatorStates);
         setAutoUpdateIndicatorStates(true);
     }
 }
@@ -1392,7 +1470,7 @@ void UIIndicatorsPool::prepareUpdateTimer()
 void UIIndicatorsPool::updatePool()
 {
     /* Acquire status-bar availability: */
-    m_fEnabled = gEDataManager->statusBarEnabled(vboxGlobal().managedVMUuid());
+    m_fEnabled = gEDataManager->statusBarEnabled(uiCommon().managedVMUuid());
     /* If status-bar is not enabled: */
     if (!m_fEnabled)
     {
@@ -1408,7 +1486,7 @@ void UIIndicatorsPool::updatePool()
     }
 
     /* Acquire status-bar restrictions: */
-    m_restrictions = gEDataManager->restrictedStatusBarIndicators(vboxGlobal().managedVMUuid());
+    m_restrictions = gEDataManager->restrictedStatusBarIndicators(uiCommon().managedVMUuid());
     /* Remove restricted indicators: */
     foreach (const IndicatorType &indicatorType, m_restrictions)
     {
@@ -1420,7 +1498,7 @@ void UIIndicatorsPool::updatePool()
     }
 
     /* Acquire status-bar order: */
-    m_order = gEDataManager->statusBarIndicatorOrder(vboxGlobal().managedVMUuid());
+    m_order = gEDataManager->statusBarIndicatorOrder(uiCommon().managedVMUuid());
     /* Make sure the order is complete taking restrictions into account: */
     for (int iType = IndicatorType_Invalid; iType < IndicatorType_Max; ++iType)
     {
@@ -1478,8 +1556,8 @@ void UIIndicatorsPool::updatePool()
                 default: break;
             }
             /* Configure indicator: */
-            connect(m_pool.value(indicatorType), SIGNAL(sigContextMenuRequest(QIStatusBarIndicator*, QContextMenuEvent*)),
-                    this, SLOT(sltContextMenuRequest(QIStatusBarIndicator*, QContextMenuEvent*)));
+            connect(m_pool.value(indicatorType), &QIStatusBarIndicator::sigContextMenuRequest,
+                    this, &UIIndicatorsPool::sltContextMenuRequest);
             /* Insert indicator into main-layout at proper position: */
             m_pMainLayout->insertWidget(indicatorPosition(indicatorType), m_pool.value(indicatorType));
         }

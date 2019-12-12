@@ -77,6 +77,8 @@ void __cdecl          unknown(void);
 
 static uint8_t find_vga_entry();
 
+extern uint8_t xread_byte(uint16_t seg, uint16_t offset);
+
 #ifdef VBE
 extern uint16_t __cdecl vbe_has_vbe_display(void);
 extern void             vbe_init(void);
@@ -336,12 +338,179 @@ static void vga_get_cursor_pos(uint8_t page, uint16_t STACK_BASED *scans, uint16
     }
 }
 
+/* Look for a glyph bitmap in a given font. */
+static uint16_t vga_find_glyph(uint8_t __far *font, uint8_t STACK_BASED *glyph, uint8_t cp, uint16_t n_glyphs, uint8_t cheight)
+{
+    uint16_t    codepoint = 0;  /* Zero returned when glyph not found. */
+
+    while (n_glyphs--) {
+        if (!repe_cmpsb(font, glyph, cheight)) {
+            codepoint = cp | 0x8000;    /* Found matching glyph! */
+            break;
+        }
+        font += cheight;
+        ++cp;   /* Increment code point number. */
+    }
+    return codepoint;
+}
+
+static void vga_read_glyph_planar(uint8_t __far *vptr, uint16_t stride, uint8_t STACK_BASED *glyph, uint8_t cheight)
+{
+    /* Set Mode Register (GR5) to Read Mode 1. Assuming default register
+     * state from our mode set, this does all the hard work for us such that
+     * reading a byte from video memory gives us a bit mask for all eight
+     * pixels, for both 16-color and monochrome modes.
+     */
+    outw(VGAREG_GRDC_ADDRESS, 0x0805);
+
+    while (cheight--) {
+        *glyph++ = ~*vptr;
+        vptr += stride;
+    }
+
+    /* Put GR5 back to Read Mode 0. */
+    outw(VGAREG_GRDC_ADDRESS, 0x0005);
+}
+
+static uint16_t vga_char_ofs_planar(uint8_t xcurs, uint8_t ycurs, uint16_t nbcols, uint8_t page, uint8_t cheight)
+{
+    uint16_t    ofs;
+
+    ofs = ycurs * nbcols * cheight + xcurs;
+    ofs += page * read_word(BIOSMEM_SEG, BIOSMEM_PAGE_SIZE);
+
+    return ofs;
+}
+
+static uint8_t vga_read_char_planar(uint16_t nbcols, uint16_t ofs, uint8_t cheight)
+{
+    uint8_t     glyph[16];  /* NB: Don't try taller characters! */
+
+    vga_read_glyph_planar(0xA000 :> (uint8_t *)ofs, nbcols, &glyph, cheight);
+
+    /* Look through font pointed to by INT 43h. */
+    return vga_find_glyph((void __far *)read_dword(0, 0x43 * 4), &glyph, 0, 256, cheight);
+}
+
+static uint16_t vga_char_ofs_linear(uint8_t xcurs, uint8_t ycurs, uint16_t nbcols, uint8_t page, uint8_t cheight)
+{
+    uint16_t    ofs;
+
+    ofs = ycurs * nbcols * cheight + xcurs;
+    ofs *= 8;
+    return ofs;
+}
+
+static void vga_read_glyph_linear(uint8_t __far *vptr, uint16_t stride, uint8_t STACK_BASED *glyph, uint8_t cheight)
+{
+    uint8_t bmap, cbit;
+    int     i;
+
+    /* Zero pixels are background, everything else foreground. */
+    while (cheight--) {
+        bmap = 0;
+        cbit = 0x80;
+        for (i = 0; i < 8; ++i) {
+            if (vptr[i])
+                bmap |= cbit;
+            cbit >>= 1;
+        }
+        *glyph++ = bmap;
+        vptr += stride;
+    }
+}
+
+static uint8_t vga_read_char_linear(uint16_t nbcols, uint16_t ofs, uint8_t cheight)
+{
+    uint8_t     glyph[16];  /* NB: Don't try taller characters! */
+
+    vga_read_glyph_linear(0xA000 :> (uint8_t *)ofs, nbcols * 8, &glyph, cheight);
+
+    /* Look through font pointed to by INT 43h. */
+    return vga_find_glyph((void __far *)read_dword(0, 0x43 * 4), &glyph, 0, 256, cheight);
+}
+
+static uint8_t vga_read_2bpp_char(uint8_t __far *vptr)
+{
+    uint16_t    mask, pixb;
+    uint8_t     bmap, cbit;
+    int         i;
+
+    mask = 0xC000;  /* Check two bits at a time to see if they're zero. */
+    cbit = 0x80;    /* Go from left to right. */
+    bmap = 0;
+    pixb = swap_16(*((uint16_t __far *)vptr));
+    /* Go through 8 lines/words. */
+    for (i = 0; i < 8; ++i) {
+        if (pixb & mask)
+            bmap |= cbit;
+        cbit >>= 1;
+        mask >>= 2;
+    }
+    return bmap;
+}
+
+static void vga_read_glyph_cga(uint16_t ofs, uint8_t STACK_BASED *glyph, uint8_t mode)
+{
+    int             i;
+    uint8_t __far   *vptr;
+
+    /* The font size is fixed at 8x8. Stride is always 80 bytes because the
+     * mode is either 80 characters wide at 1bpp or 40 characters at 2bpp.
+     */
+    if (mode != 6) {
+        /* Adjust offset for 2bpp. */
+        vptr = 0xB800 :> (uint8_t *)(ofs * 2);
+        /* For 2bpp modes, we have to extract the bits by hand. */
+        for (i = 0; i < 4; ++i) {
+            *glyph++ = vga_read_2bpp_char(vptr);
+            *glyph++ = vga_read_2bpp_char(vptr + 0x2000);
+            vptr += 80;
+        }
+    } else {
+        vptr = 0xB800 :> (uint8_t *)ofs;
+        for (i = 0; i < 4; ++i) {
+            *glyph++ = vptr[0];
+            *glyph++ = vptr[0x2000];
+            vptr += 80;
+        }
+    }
+}
+
+static uint16_t vga_char_ofs_cga(uint8_t xcurs, uint8_t ycurs, uint16_t nbcols)
+{
+    /* Multiply ony by 8 due to line interleaving. NB: Caller
+     * has to multiply the result for two for 2bpp mode.
+     */
+    return ycurs * nbcols * 4 + xcurs;
+}
+
+static uint8_t vga_read_char_cga(uint16_t ofs, uint8_t mode)
+{
+    uint8_t     glyph[8];   /* Char height is hardcoded to 8. */
+    uint16_t    found;
+
+    /* Segment would be B000h for mono modes; we don't do those. */
+    vga_read_glyph_cga(ofs, &glyph, mode);
+
+    /* Look through the first half of the font pointed to by INT 43h. */
+    found = vga_find_glyph((void __far *)read_dword(0, 0x43 * 4), &glyph, 0, 128, 8);
+    /* If not found, look for the second half pointed to by INT 1Fh */
+    if (!(found & 0x8000)) {
+        void __far *int1f;
+
+        int1f = (void __far *)read_dword(0, 0x1f * 4);
+        if (int1f)  /* If null pointer, skip. */
+            found = vga_find_glyph(int1f, &glyph, 128, 128, 8);
+    }
+    return found;
+}
 
 static void vga_read_char_attr(uint8_t page, uint16_t STACK_BASED *chr_atr)
 {
-    uint8_t     xcurs, ycurs, mode, line;
+    uint8_t     xcurs, ycurs, mode, line, cheight;
     uint16_t    nbcols, nbrows, address;
-    uint16_t    cursor, dummy;
+    uint16_t    cursor, dummy, ofs;
 
     // Get the mode
     mode = read_byte(BIOSMEM_SEG, BIOSMEM_CURRENT_MODE);
@@ -363,10 +532,29 @@ static void vga_read_char_attr(uint8_t page, uint16_t STACK_BASED *chr_atr)
         address  = SCREEN_MEM_START(nbcols, nbrows, page) + (xcurs + ycurs * nbcols) * 2;
         *chr_atr = read_word(vga_modes[line].sstart, address);
     } else {
-        /// @todo graphics modes (not so easy - or useful!)
+        switch (vga_modes[line].memmodel) {
+        case CGA:
+            /* For CGA graphics, font size is hardcoded at 8x8. */
+            ofs = vga_char_ofs_cga(xcurs, ycurs, nbcols);
+            *chr_atr = vga_read_char_cga(ofs, mode);
+            break;
+        case PLANAR1:
+        case PLANAR4:
+            cheight = read_word(BIOSMEM_SEG, BIOSMEM_CHAR_HEIGHT);
+            ofs = vga_char_ofs_planar(xcurs, ycurs, nbcols, page, cheight);
+            *chr_atr = vga_read_char_planar(nbcols, ofs, cheight);
+            break;
+        case LINEAR8:
+            cheight = read_word(BIOSMEM_SEG, BIOSMEM_CHAR_HEIGHT);
+            ofs = vga_char_ofs_linear(xcurs, ycurs, nbcols, page, cheight);
+            *chr_atr = vga_read_char_linear(nbcols, ofs, cheight);
+            break;
+        default:
 #ifdef VGA_DEBUG
-        unimplemented();
+            unimplemented();
 #endif
+            break;
+        }
     }
 }
 
@@ -435,6 +623,7 @@ static void vga_read_pixel(uint8_t page, uint16_t col, uint16_t row, uint16_t ST
     case PLANAR4:
     case PLANAR1:
         addr = col / 8 + row * read_word(BIOSMEM_SEG, BIOSMEM_NB_COLS);
+        addr += read_word(BIOSMEM_SEG, BIOSMEM_PAGE_SIZE) * page;
         mask = 0x80 >> (col & 0x07);
         attr = 0x00;
         for (i = 0; i < 4; i++) {
@@ -445,7 +634,7 @@ static void vga_read_pixel(uint8_t page, uint16_t col, uint16_t row, uint16_t ST
         }
         break;
     case CGA:
-        addr = (col >> 2) + (row >> 1) * 80;
+        addr = (col >> (4 - vga_modes[line].pixbits)) + (row >> 1) * 80;
         if (row & 1)
             addr += 0x2000;
         data = read_byte(0xb800, addr);
@@ -509,36 +698,72 @@ static void vga_read_pixel(uint8_t page, uint16_t col, uint16_t row, uint16_t ST
 
 // --------------------------------------------------------------------------------------------
 static void biosfn_set_cursor_shape(uint8_t CH, uint8_t CL)
-{uint16_t cheight,curs,crtc_addr;
- uint8_t modeset_ctl;
+{
+  uint16_t cheight, curs, crtc_addr;
+  int cga_emu;
 
- CH&=0x3f;
- CL&=0x1f;
+  /* Unmodified input is stored in the BDA. */
+  curs = (CH << 8) + CL;
+  write_word(BIOSMEM_SEG, BIOSMEM_CURSOR_TYPE, curs);
 
- curs=(CH<<8)+CL;
- write_word(BIOSMEM_SEG,BIOSMEM_CURSOR_TYPE,curs);
+  /* Check if VGA is active. If not, just write the input to the CRTC. */
+  if (!(read_byte(BIOSMEM_SEG, BIOSMEM_VIDEO_CTL) & 8)) {
+    /* Trying to disable the cursor? */
+    if ((CH & 0x60) == 0x20) {
+      /* Special IBM-compatible value to turn off cursor. */
+      CH = 0x1E;
+      CL = 0;
+    } else {
+      cga_emu = !(read_byte(BIOSMEM_SEG, BIOSMEM_VIDEO_CTL) & 1);
 
- modeset_ctl=read_byte(BIOSMEM_SEG,BIOSMEM_MODESET_CTL);
- cheight = read_word(BIOSMEM_SEG,BIOSMEM_CHAR_HEIGHT);
- if((modeset_ctl&0x01) && (cheight>8) && (CL<8) && (CH<0x20))
-  {
-   if(CL!=(CH+1))
-    {
-     CH = ((CH+1) * cheight / 8) -1;
+      /* If CGA cursor emulation is on and this is a text mode, adjust.
+       * But if cursor star or end is bigger than 31, don't adjust.
+       */
+      /// @todo Figure out if this is a text mode
+      if (cga_emu /* && text mode*/ && (CH < 32) && (CL < 32)) {
+        cheight = read_word(BIOSMEM_SEG, BIOSMEM_CHAR_HEIGHT);
+
+        /* Is the end lower than start? VGA does not wrap around.*/
+        if (CL < CH) {
+          /* For zero CL (end), leave values unchanged. */
+          if (CL) {
+            CH = 0;
+            CL = cheight - 1;
+          }
+        } else {
+          if (((CL | CH) >= cheight) || ((CL != cheight - 1) && (CH != cheight - 2))) {
+            /* If it's an overbar cursor, don't adjust. */
+            if (CL > 3) {
+              if (CL <= CH + 2) {
+                /* It's it a normal underline style cursor. */
+                CH = CH - CL + cheight - 1;
+                CL = cheight - 1;
+                if (cheight >= 14) {
+                  /* Shift up one pixel for normal EGA/VGA fonts. */
+                  CL--;
+                  CH--;
+                }
+              } else if (CH <= 2) {
+                /* It's a full block cursor. */
+                CL = cheight - 1;
+              } else {
+                /* It's a half block cursor. */
+                CH = cheight / 2;
+                CL = cheight - 1;
+              }
+            }
+          }
+        }
+      }
     }
-   else
-    {
-     CH = ((CL+1) * cheight / 8) - 2;
-    }
-   CL = ((CL+1) * cheight / 8) - 1;
   }
 
- // CTRC regs 0x0a and 0x0b
- crtc_addr=read_word(BIOSMEM_SEG,BIOSMEM_CRTC_ADDRESS);
- outb(crtc_addr,0x0a);
- outb(crtc_addr+1,CH);
- outb(crtc_addr,0x0b);
- outb(crtc_addr+1,CL);
+  // CTRC regs 0x0a and 0x0b
+  crtc_addr = read_word(BIOSMEM_SEG, BIOSMEM_CRTC_ADDRESS);
+  outb(crtc_addr, 0x0a);
+  outb(crtc_addr + 1, CH);
+  outb(crtc_addr, 0x0b);
+  outb(crtc_addr + 1 ,CL);
 }
 
 // --------------------------------------------------------------------------------------------
@@ -607,7 +832,7 @@ static void biosfn_set_active_page(uint8_t page)
   }
  else
   {
-   address = page * (*(uint16_t *)&video_param_table[line_to_vpti[line]].slength_l);
+   address = page * video_param_table[line_to_vpti[line]].slength;
   }
 
  // CRTC regs 0x0c and 0x0d
@@ -810,7 +1035,7 @@ void biosfn_set_video_mode(uint8_t mode)
  // Set the BIOS mem
  write_byte(BIOSMEM_SEG,BIOSMEM_CURRENT_MODE,mode);
  write_word(BIOSMEM_SEG,BIOSMEM_NB_COLS,twidth);
- write_word(BIOSMEM_SEG,BIOSMEM_PAGE_SIZE,*(uint16_t *)&video_param_table[vpti].slength_l);
+ write_word(BIOSMEM_SEG,BIOSMEM_PAGE_SIZE,video_param_table[vpti].slength);
  write_word(BIOSMEM_SEG,BIOSMEM_CRTC_ADDRESS,crtc_addr);
  write_byte(BIOSMEM_SEG,BIOSMEM_NB_ROWS,theightm1);
  write_word(BIOSMEM_SEG,BIOSMEM_CHAR_HEIGHT,cheight);
@@ -906,12 +1131,10 @@ static void vgamem_copy_cga(uint8_t xstart, uint8_t ysrc, uint8_t ydest,
 
  src=((ysrc*cheight*nbcols)>>1)+xstart;
  dest=((ydest*cheight*nbcols)>>1)+xstart;
- for(i=0;i<cheight;i++)
+ for(i=0;i<cheight/2;i++)
   {
-   if (i & 1)
-     memcpyb(0xb800,0x2000+dest+(i>>1)*nbcols,0xb800,0x2000+src+(i>>1)*nbcols,cols);
-   else
-     memcpyb(0xb800,dest+(i>>1)*nbcols,0xb800,src+(i>>1)*nbcols,cols);
+   memcpyb(0xb800,dest+i*nbcols,0xb800,src+i*nbcols,cols);
+   memcpyb(0xb800,0x2000+dest+i*nbcols,0xb800,0x2000+src+i*nbcols,cols);
   }
 }
 
@@ -923,12 +1146,43 @@ static void vgamem_fill_cga(uint8_t xstart, uint8_t ystart, uint8_t cols,
  uint8_t i;
 
  dest=((ystart*cheight*nbcols)>>1)+xstart;
+ for(i=0;i<cheight/2;i++)
+  {
+   memsetb(0xb800,dest+i*nbcols,attr,cols);
+   memsetb(0xb800,0x2000+dest+i*nbcols,attr,cols);
+  }
+}
+
+// --------------------------------------------------------------------------------------------
+static void vgamem_copy_linear(uint8_t xstart, uint8_t ysrc, uint8_t ydest,
+                               uint16_t cols, uint16_t nbcols, uint8_t cheight)
+{
+ uint16_t src,dest;
+ uint8_t i;
+
+ src=((ysrc*cheight*nbcols)+xstart)*8;
+ dest=((ydest*cheight*nbcols)+xstart)*8;
+ cols*=8;
+ nbcols*=8;
  for(i=0;i<cheight;i++)
   {
-   if (i & 1)
-     memsetb(0xb800,0x2000+dest+(i>>1)*nbcols,attr,cols);
-   else
-     memsetb(0xb800,dest+(i>>1)*nbcols,attr,cols);
+   memcpyb(0xa000,dest+i*nbcols,0xa000,src+i*nbcols,cols);
+  }
+}
+
+// --------------------------------------------------------------------------------------------
+static void vgamem_fill_linear(uint8_t xstart, uint8_t ystart, uint16_t cols,
+                               uint16_t nbcols, uint8_t cheight, uint8_t attr)
+{
+ uint16_t dest;
+ uint8_t i;
+
+ dest=((ystart*cheight*nbcols)+xstart)*8;
+ cols*=8;
+ nbcols*=8;
+ for(i=0;i<cheight;i++)
+  {
+   memsetb(0xa000,dest+i*nbcols,attr,cols);
   }
 }
 
@@ -1000,7 +1254,6 @@ static void biosfn_scroll(uint8_t nblines, uint8_t attr, uint8_t rul, uint8_t cu
   }
  else
   {
-   // FIXME gfx mode not complete
    cheight=video_param_table[line_to_vpti[line]].cheight;
    switch(vga_modes[line].memmodel)
     {
@@ -1029,7 +1282,7 @@ static void biosfn_scroll(uint8_t nblines, uint8_t attr, uint8_t rul, uint8_t cu
              if((i<rul+nblines)||(nblines==0))
               vgamem_fill_pl4(cul,i,cols,nbcols,cheight,attr);
              else
-              vgamem_copy_pl4(cul,i,i-nblines,cols,nbcols,cheight);
+              vgamem_copy_pl4(cul,i-nblines,i,cols,nbcols,cheight);
              if (i>rlr) break;
             }
           }
@@ -1065,7 +1318,36 @@ static void biosfn_scroll(uint8_t nblines, uint8_t attr, uint8_t rul, uint8_t cu
              if((i<rul+nblines)||(nblines==0))
               vgamem_fill_cga(cul,i,cols,nbcols,cheight,attr);
              else
-              vgamem_copy_cga(cul,i,i-nblines,cols,nbcols,cheight);
+              vgamem_copy_cga(cul,i-nblines,i,cols,nbcols,cheight);
+             if (i>rlr) break;
+            }
+          }
+        }
+       break;
+     case LINEAR8:
+       if(nblines==0&&rul==0&&cul==0&&rlr==nbrows-1&&clr==nbcols-1)
+        {
+         memsetb(vga_modes[line].sstart,0,attr,nbrows*nbcols*cheight*8);
+        }
+       else
+        {
+         // if Scroll up
+         if(dir==SCROLL_UP)
+          {for(i=rul;i<=rlr;i++)
+            {
+             if((i+nblines>rlr)||(nblines==0))
+              vgamem_fill_linear(cul,i,cols,nbcols,cheight,attr);
+             else
+              vgamem_copy_linear(cul,i+nblines,i,cols,nbcols,cheight);
+            }
+          }
+         else
+          {for(i=rlr;i>=rul;i--)
+            {
+             if((i<rul+nblines)||(nblines==0))
+              vgamem_fill_linear(cul,i,cols,nbcols,cheight,attr);
+             else
+              vgamem_copy_linear(cul,i-nblines,i,cols,nbcols,cheight);
              if (i>rlr) break;
             }
           }
@@ -1082,23 +1364,16 @@ static void biosfn_scroll(uint8_t nblines, uint8_t attr, uint8_t rul, uint8_t cu
 
 // --------------------------------------------------------------------------------------------
 static void write_gfx_char_pl4(uint8_t car, uint8_t attr, uint8_t xcurs,
-                               uint8_t ycurs, uint8_t nbcols, uint8_t cheight)
+                               uint8_t ycurs, uint8_t nbcols, uint8_t cheight, uint8_t page)
 {
  uint8_t i,j,mask;
- uint8_t *fdata;
+ uint8_t __far *fdata;
  uint16_t addr,dest,src;
 
- switch(cheight)
-  {case 14:
-    fdata = &vgafont14;
-    break;
-   case 16:
-    fdata = &vgafont16;
-    break;
-   default:
-    fdata = &vgafont8;
-  }
+ fdata = (void __far *)read_dword(0x00, 0x43 * 4);
+
  addr=xcurs+ycurs*cheight*nbcols;
+ addr+=read_word(BIOSMEM_SEG,BIOSMEM_PAGE_SIZE)*page;
  src = car * cheight;
  outw(VGAREG_SEQU_ADDRESS, 0x0f02);
  outw(VGAREG_GRDC_ADDRESS, 0x0205);
@@ -1117,7 +1392,7 @@ static void write_gfx_char_pl4(uint8_t car, uint8_t attr, uint8_t xcurs,
     {
      mask=0x80>>j;
      outw(VGAREG_GRDC_ADDRESS, (mask << 8) | 0x08);
-     read_byte(0xa000,dest);
+     xread_byte(0xa000,dest);
      if(fdata[src+i]&mask)
       {
        write_byte(0xa000,dest,attr&0x0f);
@@ -1149,30 +1424,17 @@ static void write_gfx_char_cga(uint8_t car, uint8_t attr, uint8_t xcurs,
    dest=addr+(i>>1)*80;
    if (i & 1) dest += 0x2000;
    mask = 0x80;
+   /* NB: In 1bpp modes, the attribute is ignored, only the XOR flag has meaning. */
    if (bpp == 1)
     {
      if (attr & 0x80)
       {
        data = read_byte(0xb800,dest);
+       data ^= fdata[src+i];
       }
      else
       {
-       data = 0x00;
-      }
-     for(j=0;j<8;j++)
-      {
-       if (fdata[src+i] & mask)
-        {
-         if (attr & 0x80)
-          {
-           data ^= (attr & 0x01) << (7-j);
-          }
-         else
-          {
-           data |= (attr & 0x01) << (7-j);
-          }
-        }
-       mask >>= 1;
+       data = fdata[src+i];
       }
      write_byte(0xb800,dest,data);
     }
@@ -1271,13 +1533,14 @@ static void biosfn_write_char_attr(uint8_t car, uint8_t page, uint8_t attr, uint
    // FIXME gfx mode not complete
    cheight=video_param_table[line_to_vpti[line]].cheight;
    bpp=vga_modes[line].pixbits;
-   while((count-->0) && (xcurs<nbcols))
+   while(count-->0)
     {
      switch(vga_modes[line].memmodel)
       {
-       case PLANAR4:
        case PLANAR1:
-         write_gfx_char_pl4(car,attr,xcurs,ycurs,nbcols,cheight);
+         attr |= 0x01;  /* Color is ignored in 1bpp modes, always foreground. */
+       case PLANAR4:
+         write_gfx_char_pl4(car,attr,xcurs,ycurs,nbcols,cheight,page);
          break;
        case CGA:
          write_gfx_char_cga(car,attr,xcurs,ycurs,nbcols,bpp);
@@ -1330,13 +1593,14 @@ static void biosfn_write_char_only(uint8_t car, uint8_t page, uint8_t attr, uint
    // FIXME gfx mode not complete
    cheight=video_param_table[line_to_vpti[line]].cheight;
    bpp=vga_modes[line].pixbits;
-   while((count-->0) && (xcurs<nbcols))
+   while(count-->0)
     {
      switch(vga_modes[line].memmodel)
       {
-       case PLANAR4:
        case PLANAR1:
-         write_gfx_char_pl4(car,attr,xcurs,ycurs,nbcols,cheight);
+         attr |= 0x01;  /* Color is ignored in 1bpp modes, always foreground. */
+       case PLANAR4:
+         write_gfx_char_pl4(car,attr,xcurs,ycurs,nbcols,cheight,page);
          break;
        case CGA:
          write_gfx_char_cga(car,attr,xcurs,ycurs,nbcols,bpp);
@@ -1371,10 +1635,11 @@ static void biosfn_write_pixel(uint8_t BH, uint8_t AL, uint16_t CX, uint16_t DX)
    case PLANAR4:
    case PLANAR1:
      addr = CX/8+DX*read_word(BIOSMEM_SEG,BIOSMEM_NB_COLS);
+     addr += read_word(BIOSMEM_SEG,BIOSMEM_PAGE_SIZE) * BH;
      mask = 0x80 >> (CX & 0x07);
      outw(VGAREG_GRDC_ADDRESS, (mask << 8) | 0x08);
      outw(VGAREG_GRDC_ADDRESS, 0x0205);
-     data = read_byte(0xa000,addr);
+     data = xread_byte(0xa000,addr);
      if (AL & 0x80)
       {
        outw(VGAREG_GRDC_ADDRESS, 0x1803);
@@ -1490,9 +1755,10 @@ static void biosfn_write_teletype(uint8_t car, uint8_t page, uint8_t attr, uint8
       bpp=vga_modes[line].pixbits;
       switch(vga_modes[line].memmodel)
        {
-        case PLANAR4:
         case PLANAR1:
-          write_gfx_char_pl4(car,attr,xcurs,ycurs,nbcols,cheight);
+          attr |= 0x01;  /* Color is ignored in 1bpp modes, always foreground. */
+        case PLANAR4:
+          write_gfx_char_pl4(car,attr,xcurs,ycurs,nbcols,cheight,page);
           break;
         case CGA:
           write_gfx_char_cga(car,attr,xcurs,ycurs,nbcols,bpp);
@@ -1755,23 +2021,75 @@ static void biosfn_write_string(uint8_t flag, uint8_t page, uint8_t attr, uint16
 // --------------------------------------------------------------------------------------------
 static void biosfn_read_state_info(uint16_t BX, uint16_t ES, uint16_t DI)
 {
+ uint16_t   pg_sz;
+ uint16_t   scans;
+ uint8_t    mode;
+ uint8_t    mctl;
+ uint8_t    temp;
+
+ mode  = read_byte(BIOSMEM_SEG,BIOSMEM_CURRENT_MODE);
+ pg_sz = read_word(BIOSMEM_SEG,BIOSMEM_PAGE_SIZE);
  // Address of static functionality table
  write_dword(ES,DI+0x00, (uint32_t)(void __far *)static_functionality);
 
- // Hard coded copy from BIOS area. Should it be cleaner ?
- memcpyb(ES,DI+0x04,BIOSMEM_SEG,0x49,30);
- memcpyb(ES,DI+0x22,BIOSMEM_SEG,0x84,3);
+ // A lot is a straight copy from the BDA. Note that the number
+ // of character rows in the BDA is zero-based but one-based in
+ // the dynamic state area
+ memcpyb(ES,DI+0x04,BIOSMEM_SEG,BIOSMEM_CURRENT_MODE,30);
+ write_byte(ES,DI+0x22,read_byte(BIOSMEM_SEG,BIOSMEM_NB_ROWS)+1);
+ memcpyb(ES,DI+0x23,BIOSMEM_SEG,BIOSMEM_CHAR_HEIGHT,2);
 
  write_byte(ES,DI+0x25,read_byte(BIOSMEM_SEG,BIOSMEM_DCC_INDEX));
- write_byte(ES,DI+0x26,0);
- write_byte(ES,DI+0x27,16);
- write_byte(ES,DI+0x28,0);
- write_byte(ES,DI+0x29,8);
- write_byte(ES,DI+0x2a,2);
- write_byte(ES,DI+0x2b,0);
- write_byte(ES,DI+0x2c,0);
- write_byte(ES,DI+0x31,3);
- write_byte(ES,DI+0x32,0);
+ write_byte(ES,DI+0x26,0);  // Alternate display code
+ write_word(ES,DI+0x27,16); // Number of colors
+ write_byte(ES,DI+0x29,8);  // Number of pages
+ write_byte(ES,DI+0x2a,2);  // Vertical resolution specifier
+ write_byte(ES,DI+0x2b,0);  // Primary font block
+ write_byte(ES,DI+0x2c,0);  // Secondary font block
+ write_byte(ES,DI+0x2d,0x21);
+ write_byte(ES,DI+0x31,3);  // 256K video RAM
+ write_byte(ES,DI+0x32,0);  // Save pointer state information
+
+ mctl = read_byte(BIOSMEM_SEG,BIOSMEM_MODESET_CTL);
+
+ /* Extract and write the vertical resolution specifier bits. */
+ scans = ((mctl & 0x80) >> 6) | ((mctl & 0x10) >> 4);
+ switch (scans) {
+ case 0:    temp = 1;   break;  /* 350 lines */
+ case 1:    temp = 2;   break;  /* 400 lines */
+ default:
+ case 2:    temp = 0;   break;  /* 200 lines */
+ }
+ write_byte(ES,DI+0x2a,temp);
+
+ /* Patch up the data for graphics modes. */
+ if (mode >= 0x0E && mode <= 0x12) {
+     if (pg_sz)
+         write_byte(ES,DI+0x29,16384/(pg_sz >> 2));
+ } else if (mode == 0x13) {
+     write_byte(ES,DI+0x29,1);      /* Just one page due to chaining */
+     write_word(ES,DI+0x27,256);    /* But 256!! colors!!! */
+ } else if (mode >= 4 && mode <= 6) {
+     /* CGA modes. */
+     if (pg_sz)
+         write_byte(ES,DI+0x29,16384/pg_sz);
+     write_word(ES,DI+0x27,4);
+ }
+ if (mode == 6 || mode == 0x11)
+     write_word(ES,DI+0x27,2);  /* 2-color modes. */
+
+ if ((mode >= 4) && (mode != 7)) {
+     write_byte(ES,DI+0x2d,0x01);
+     scans = (read_byte(BIOSMEM_SEG,BIOSMEM_NB_ROWS)+1) * read_byte(BIOSMEM_SEG,BIOSMEM_CHAR_HEIGHT);
+     switch (scans) {
+     case 200:  temp = 0;   break;
+     case 350:  temp = 1;   break;
+     case 400:  temp = 2;   break;
+     default:
+     case 480:  temp = 3;   break;
+     }
+     write_byte(ES,DI+0x2a,temp);
+ }
 
  memsetb(ES,DI+0x33,0,13);
 }
@@ -1791,13 +2109,13 @@ uint16_t biosfn_read_video_state_size2(uint16_t state)
     if (state & 4)
         size += 3 + 256 * 3 + 1;
 
-    /// @todo Is this supposed to be in 1-byte or 64-byte units?
     return size;
 }
 
 static void vga_get_video_state_size(uint16_t state, uint16_t STACK_BASED *size)
 {
-    *size = biosfn_read_video_state_size2(state);
+    /* The size is the number of 64-byte blocks required to save the state. */
+    *size = (biosfn_read_video_state_size2(state) + 63) / 64;
 }
 
 uint16_t biosfn_save_video_state(uint16_t CX, uint16_t ES, uint16_t BX)
@@ -2008,34 +2326,13 @@ static uint8_t find_vga_entry(uint8_t mode)
 */
 /* =========================================================== */
 
-uint8_t read_byte(uint16_t seg, uint16_t offset)
+/* This function is used for planar VGA memory reads to defeat the
+ * optimizer. We must read exactly one byte, otherwise the screen
+ * may be corrupted.
+ */
+uint8_t xread_byte(uint16_t seg, uint16_t offset)
 {
     return( *(seg:>(uint8_t *)offset) );
-}
-
-void write_byte(uint16_t seg, uint16_t offset, uint8_t data)
-{
-    *(seg:>(uint8_t *)offset) = data;
-}
-
-uint16_t read_word(uint16_t seg, uint16_t offset)
-{
-    return( *(seg:>(uint16_t *)offset) );
-}
-
-void write_word(uint16_t seg, uint16_t offset, uint16_t data)
-{
-    *(seg:>(uint16_t *)offset) = data;
-}
-
-uint32_t read_dword(uint16_t seg, uint16_t offset)
-{
-    return( *(seg:>(uint32_t *)offset) );
-}
-
-void write_dword(uint16_t seg, uint16_t offset, uint32_t data)
-{
-    *(seg:>(uint32_t *)offset) = data;
 }
 
 #ifdef VGA_DEBUG
@@ -2245,6 +2542,15 @@ void __cdecl int10_func(uint16_t DI, uint16_t SI, uint16_t BP, uint16_t SP, uint
       {
        case 0x20:
         biosfn_alternate_prtsc();
+        break;
+       case 0x34:   /* CGA text cursor emulation control. */
+        if (GET_AL() < 2) {
+            write_byte(BIOSMEM_SEG,BIOSMEM_VIDEO_CTL,
+              (xread_byte(BIOSMEM_SEG,BIOSMEM_VIDEO_CTL) & ~1) | GET_AL());
+            SET_AL(0x12);
+        }
+        else
+         SET_AL(0); /* Invalid argument. */
         break;
        case 0x35:
         biosfn_switch_video_interface(GET_AL(),ES,DX);

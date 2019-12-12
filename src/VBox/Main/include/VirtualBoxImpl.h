@@ -52,6 +52,9 @@ class ExtPackManager;
 #endif
 class AutostartDb;
 class NATNetwork;
+#ifdef VBOX_WITH_CLOUD_NET
+class CloudNetwork;
+#endif /* VBOX_WITH_CLOUD_NET */
 
 
 typedef std::list<ComObjPtr<SessionMachine> > SessionMachinesList;
@@ -71,6 +74,9 @@ namespace settings
 class VirtualBoxClassFactory; /* See ../src-server/win/svcmain.cpp  */
 #endif
 
+#ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
+struct SharedClipboardAreaData;
+#endif
 
 class ATL_NO_VTABLE VirtualBox :
     public VirtualBoxWrap
@@ -155,6 +161,7 @@ public:
     void i_onMediumRegistered(const Guid &aMediumId, const DeviceType_T aDevType, const BOOL aRegistered);
     void i_onMediumConfigChanged(IMedium *aMedium);
     void i_onMediumChanged(IMediumAttachment* aMediumAttachment);
+    void i_onStorageControllerChanged(const Guid &aMachineId, const com::Utf8Str &aControllerName);
     void i_onStorageDeviceChanged(IMediumAttachment* aStorageDevice, const BOOL fRemoved, const BOOL fSilent);
     void i_onMachineStateChange(const Guid &aId, MachineState_T aState);
     void i_onMachineDataChange(const Guid &aId, BOOL aTemporary = FALSE);
@@ -168,6 +175,19 @@ public:
     void i_onSnapshotDeleted(const Guid &aMachineId, const Guid &aSnapshotId);
     void i_onSnapshotRestored(const Guid &aMachineId, const Guid &aSnapshotId);
     void i_onSnapshotChange(const Guid &aMachineId, const Guid &aSnapshotId);
+
+#ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
+    int i_clipboardAreaCreate(ULONG uAreaID, uint32_t fFlags, SharedClipboardAreaData **ppAreaData);
+    int i_clipboardAreaDestroy(SharedClipboardAreaData *pAreaData);
+
+    HRESULT i_onClipboardAreaRegister(const std::vector<com::Utf8Str> &aParms, ULONG *aID);
+    HRESULT i_onClipboardAreaUnregister(ULONG aID);
+    HRESULT i_onClipboardAreaAttach(ULONG aID);
+    HRESULT i_onClipboardAreaDetach(ULONG aID);
+    ULONG i_onClipboardAreaGetMostRecent(void);
+    ULONG i_onClipboardAreaGetRefCount(ULONG aID);
+#endif /* VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS */
+
     void i_onGuestPropertyChange(const Guid &aMachineId, IN_BSTR aName, IN_BSTR aValue,
                                  IN_BSTR aFlags);
     void i_onNatRedirectChange(const Guid &aMachineId, ULONG ulSlot, bool fRemove, IN_BSTR aName,
@@ -186,6 +206,11 @@ public:
 
     int i_natNetworkRefInc(const Utf8Str &aNetworkName);
     int i_natNetworkRefDec(const Utf8Str &aNetworkName);
+
+#ifdef VBOX_WITH_CLOUD_NET
+    HRESULT i_findCloudNetworkByName(const com::Utf8Str &aNetworkName,
+                                     ComObjPtr<CloudNetwork> *aNetwork = NULL);
+#endif /* VBOX_WITH_CLOUD_NET */
 
     ComObjPtr<GuestOSType> i_getUnknownOSType();
 
@@ -301,6 +326,7 @@ private:
     HRESULT getExtensionPackManager(ComPtr<IExtPackManager> &aExtensionPackManager);
     HRESULT getInternalNetworks(std::vector<com::Utf8Str> &aInternalNetworks);
     HRESULT getGenericNetworkDrivers(std::vector<com::Utf8Str> &aGenericNetworkDrivers);
+    HRESULT getCloudNetworks(std::vector<ComPtr<ICloudNetwork> > &aCloudNetworks);
     HRESULT getCloudProviderManager(ComPtr<ICloudProviderManager> &aCloudProviderManager);
 
    // wrapped IVirtualBox methods
@@ -360,6 +386,11 @@ private:
     HRESULT findNATNetworkByName(const com::Utf8Str &aNetworkName,
                                  ComPtr<INATNetwork> &aNetwork);
     HRESULT removeNATNetwork(const ComPtr<INATNetwork> &aNetwork);
+    HRESULT createCloudNetwork(const com::Utf8Str &aNetworkName,
+                               ComPtr<ICloudNetwork> &aNetwork);
+    HRESULT findCloudNetworkByName(const com::Utf8Str &aNetworkName,
+                                   ComPtr<ICloudNetwork> &aNetwork);
+    HRESULT removeCloudNetwork(const ComPtr<ICloudNetwork> &aNetwork);
     HRESULT checkFirmwarePresent(FirmwareType_T aFirmwareType,
                                  const com::Utf8Str &aVersion,
                                  com::Utf8Str &aUrl,

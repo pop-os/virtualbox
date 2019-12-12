@@ -23,15 +23,13 @@
 #include "VMInternal.h"
 #include <VBox/vmm/vmm.h>
 #include <VBox/vmm/mm.h>
-#include <VBox/vmm/vm.h>
+#include <VBox/vmm/vmcc.h>
 #include <VBox/err.h>
 #include <VBox/log.h>
 
 #include <iprt/assert.h>
 #include <iprt/string.h>
-#ifndef IN_RC
-# include <iprt/thread.h>
-#endif
+#include <iprt/thread.h>
 
 
 /**
@@ -48,7 +46,7 @@
  * @param   ...             Error message arguments.
  * @thread  Any
  */
-VMMDECL(int) VMSetError(PVM pVM, int rc, RT_SRC_POS_DECL, const char *pszFormat, ...)
+VMMDECL(int) VMSetError(PVMCC pVM, int rc, RT_SRC_POS_DECL, const char *pszFormat, ...)
 {
     va_list args;
     va_start(args, pszFormat);
@@ -72,7 +70,7 @@ VMMDECL(int) VMSetError(PVM pVM, int rc, RT_SRC_POS_DECL, const char *pszFormat,
  * @param   args            Error message arguments.
  * @thread  Any
  */
-VMMDECL(int) VMSetErrorV(PVM pVM, int rc, RT_SRC_POS_DECL, const char *pszFormat, va_list args)
+VMMDECL(int) VMSetErrorV(PVMCC pVM, int rc, RT_SRC_POS_DECL, const char *pszFormat, va_list args)
 {
 #ifdef IN_RING3
     /*
@@ -204,7 +202,7 @@ void vmSetErrorCopy(PVM pVM, int rc, RT_SRC_POS_DECL, const char *pszFormat, va_
  *
  * @thread  Any
  */
-VMMDECL(int) VMSetRuntimeError(PVM pVM, uint32_t fFlags, const char *pszErrorId, const char *pszFormat, ...)
+VMMDECL(int) VMSetRuntimeError(PVMCC pVM, uint32_t fFlags, const char *pszErrorId, const char *pszFormat, ...)
 {
     va_list va;
     va_start(va, pszFormat);
@@ -229,7 +227,7 @@ VMMDECL(int) VMSetRuntimeError(PVM pVM, uint32_t fFlags, const char *pszErrorId,
  *
  * @thread  Any
  */
-VMMDECL(int) VMSetRuntimeErrorV(PVM pVM, uint32_t fFlags, const char *pszErrorId, const char *pszFormat, va_list va)
+VMMDECL(int) VMSetRuntimeErrorV(PVMCC pVM, uint32_t fFlags, const char *pszErrorId, const char *pszFormat, va_list va)
 {
     Log(("VMSetRuntimeErrorV: fFlags=%#x pszErrorId=%s\n", fFlags, pszErrorId));
 
@@ -397,7 +395,7 @@ VMMDECL(const char *) VMGetStateName(VMSTATE enmState)
  * @returns Reset count. UINT32_MAX if @a pVM is invalid.
  * @param   pVM         The VM handle.
  */
-VMMDECL(uint32_t) VMGetResetCount(PVM pVM)
+VMMDECL(uint32_t) VMGetResetCount(PVMCC pVM)
 {
     VM_ASSERT_VALID_EXT_RETURN(pVM, UINT32_MAX);
     return pVM->vm.s.cResets;
@@ -410,7 +408,7 @@ VMMDECL(uint32_t) VMGetResetCount(PVM pVM)
  * @returns Soft reset count. UINT32_MAX if @a pVM is invalid.
  * @param   pVM         The VM handle.
  */
-VMMDECL(uint32_t) VMGetSoftResetCount(PVM pVM)
+VMMDECL(uint32_t) VMGetSoftResetCount(PVMCC pVM)
 {
     VM_ASSERT_VALID_EXT_RETURN(pVM, UINT32_MAX);
     return pVM->vm.s.cSoftResets;
@@ -423,7 +421,7 @@ VMMDECL(uint32_t) VMGetSoftResetCount(PVM pVM)
  * @returns Hard reset count. UINT32_MAX if @a pVM is invalid.
  * @param   pVM         The VM handle.
  */
-VMMDECL(uint32_t) VMGetHardResetCount(PVM pVM)
+VMMDECL(uint32_t) VMGetHardResetCount(PVMCC pVM)
 {
     VM_ASSERT_VALID_EXT_RETURN(pVM, UINT32_MAX);
     return pVM->vm.s.cHardResets;

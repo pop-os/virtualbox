@@ -107,6 +107,10 @@ namespace Phy
 #define MDIO_READ_OP  2
 #define MDIO_WRITE_OP 1
 
+/* External callback declaration */
+void e1kPhyLinkResetCallback(PPDMDEVINS pDevIns);
+
+
 typedef struct Phy::Phy_st PHY;
 typedef PHY *PPHY;
 
@@ -116,13 +120,13 @@ namespace Phy
     /** Initialize PHY. */
     void     init(PPHY pPhy, int iNICInstance, uint16_t u16EPid);
     /** Read PHY register at specified address. */
-    uint16_t readRegister(PPHY pPhy, uint32_t u32Address);
+    uint16_t readRegister(PPHY pPhy, uint32_t u32Address, PPDMDEVINS pDevIns);
     /** Write to PHY register at specified address. */
-    void     writeRegister(PPHY pPhy, uint32_t u32Address, uint16_t u16Value);
+    void     writeRegister(PPHY pPhy, uint32_t u32Address, uint16_t u16Value, PPDMDEVINS pDevIns);
     /** Read the value on MDIO pin. */
     bool     readMDIO(PPHY pPhy);
     /** Set the value of MDIO pin. */
-    void     writeMDIO(PPHY pPhy, bool fPin);
+    void     writeMDIO(PPHY pPhy, bool fPin, PPDMDEVINS pDevIns);
     /** Hardware reset. */
     void     hardReset(PPHY pPhy);
     /** Query link status. */
@@ -130,9 +134,9 @@ namespace Phy
     /** Set link status. */
     void     setLinkStatus(PPHY pPhy, bool fLinkIsUp);
     /** Save PHY state. */
-    int      saveState(PSSMHANDLE pSSMHandle, PPHY pPhy);
+    int      saveState(struct PDMDEVHLPR3 const *pHlp, PSSMHANDLE pSSM, PPHY pPhy);
     /** Restore previously saved PHY state. */
-    int      loadState(PSSMHANDLE pSSMHandle, PPHY pPhy);
+    int      loadState(struct PDMDEVHLPR3 const *pHlp, PSSMHANDLE pSSM, PPHY pPhy);
 }
 
 #endif /* !VBOX_INCLUDED_SRC_Network_DevE1000Phy_h */

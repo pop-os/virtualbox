@@ -28,7 +28,7 @@
 #include "QIMessageBox.h"
 #include "QITabWidget.h"
 #include "QIToolButton.h"
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #include "UIDesktopWidgetWatchdog.h"
 #include "UIExtraDataManager.h"
 #include "UIFDCreationDialog.h"
@@ -53,14 +53,18 @@
 #endif /* VBOX_WS_MAC */
 
 
-UIMediumSelector::UIMediumSelector(UIMediumDeviceType enmMediumType, const QString &machineName /* = QString() */,
-                                   const QString &machineSettigFilePath /* = QString() */, QWidget *pParent /* = 0 */)
+UIMediumSelector::UIMediumSelector(UIMediumDeviceType enmMediumType, const QString &machineName,
+                                   const QString &machineSettingsFilePath, const QString &strMachineGuestOSTypeId,
+                                   const QUuid &uMachineID, QWidget *pParent)
     :QIWithRetranslateUI<QIMainDialog>(pParent)
     , m_pCentralWidget(0)
     , m_pMainLayout(0)
     , m_pTreeWidget(0)
     , m_enmMediumType(enmMediumType)
     , m_pButtonBox(0)
+    , m_pCancelButton(0)
+    , m_pChooseButton(0)
+    , m_pLeaveEmptyButton(0)
     , m_pMainMenu(0)
     , m_pToolBar(0)
     , m_pActionAdd(0)
@@ -71,11 +75,24 @@ UIMediumSelector::UIMediumSelector(UIMediumDeviceType enmMediumType, const QStri
     , m_pParent(pParent)
     , m_pSearchWidget(0)
     , m_iCurrentShownIndex(0)
-    , m_strMachineSettingsFilePath(machineSettigFilePath)
+    , m_strMachineFolder(machineSettingsFilePath)
     , m_strMachineName(machineName)
+    , m_strMachineGuestOSTypeId(strMachineGuestOSTypeId)
+    , m_uMachineID(uMachineID)
 {
+    /* Start full medium-enumeration (if necessary): */
+    if (!uiCommon().isFullMediumEnumerationRequested())
+        uiCommon().enumerateMedia();
     configure();
     finalize();
+}
+
+void UIMediumSelector::setEnableCreateAction(bool fEnable)
+{
+    if (!m_pActionCreate)
+        return;
+    m_pActionCreate->setEnabled(fEnable);
+    m_pActionCreate->setVisible(fEnable);
 }
 
 QList<QUuid> UIMediumSelector::selectedMediumIds() const
@@ -92,7 +109,6 @@ QList<QUuid> UIMediumSelector::selectedMediumIds() const
     }
     return selectedIds;
 }
-
 
 void UIMediumSelector::retranslateUi()
 {
@@ -120,8 +136,12 @@ void UIMediumSelector::retranslateUi()
         m_pActionRefresh->setStatusTip(tr("Refresh the list of disk image files"));
     }
 
-    if (m_pButtonBox)
-        m_pButtonBox->button(QDialogButtonBox::Ok)->setText(tr("Choose"));
+    if (m_pCancelButton)
+        m_pCancelButton->setText(tr("Cancel"));
+    if (m_pLeaveEmptyButton)
+        m_pLeaveEmptyButton->setText(tr("Leave Empty"));
+    if (m_pChooseButton)
+        m_pChooseButton->setText(tr("Choose"));
 
     if (m_pTreeWidget)
     {
@@ -135,8 +155,10 @@ void UIMediumSelector::configure()
 {
     /* Apply window icons: */
     setWindowIcon(UIIconPool::iconSetFull(":/media_manager_32px.png", ":/media_manager_16px.png"));
+    setTitle();
     prepareWidgets();
     prepareActions();
+    prepareMenuAndToolBar();
     prepareConnections();
 }
 
@@ -163,60 +185,59 @@ void UIMediumSelector::prepareActions()
     if (m_pActionAdd)
     {
         /* Configure add-action: */
-        m_pActionAdd->setShortcut(QKeySequence("Ctrl+A"));
+        m_pActionAdd->setShortcut(QKeySequence(""));
 
         m_pActionAdd->setIcon(UIIconPool::iconSetFull(QString(":/%1_add_32px.png").arg(strPrefix),
                                                       QString(":/%1_add_16px.png").arg(strPrefix),
                                                       QString(":/%1_add_disabled_32px.png").arg(strPrefix),
                                                       QString(":/%1_add_disabled_16px.png").arg(strPrefix)));
-        if (m_pMainMenu)
-            m_pMainMenu->addAction(m_pActionAdd);
-        if (m_pToolBar)
-            m_pToolBar->addAction(m_pActionAdd);
     }
 
-    /* Currently create is supported only for Floppy: */
-    if (m_enmMediumType == UIMediumDeviceType_Floppy)
-    {
-        m_pActionCreate = new QAction(this);
-    }
+    m_pActionCreate = new QAction(this);
     if (m_pActionCreate)
     {
-
-        m_pActionCreate->setShortcut(QKeySequence("Ctrl+C"));
-        m_pActionCreate->setIcon(UIIconPool::iconSetFull(QString(":/%1_add_32px.png").arg(strPrefix),
-                                                         QString(":/%1_add_16px.png").arg(strPrefix),
-                                                         QString(":/%1_add_disabled_32px.png").arg(strPrefix),
-                                                         QString(":/%1_add_disabled_16px.png").arg(strPrefix)));
-        if (m_pMainMenu)
-            m_pMainMenu->addAction(m_pActionCreate);
-        if (m_pToolBar)
-            m_pToolBar->addAction(m_pActionCreate);
+        m_pActionCreate->setShortcut(QKeySequence(""));
+        m_pActionCreate->setIcon(UIIconPool::iconSetFull(QString(":/%1_create_32px.png").arg(strPrefix),
+                                                         QString(":/%1_create_16px.png").arg(strPrefix),
+                                                         QString(":/%1_create_disabled_32px.png").arg(strPrefix),
+                                                         QString(":/%1_create_disabled_16px.png").arg(strPrefix)));
     }
-
 
     m_pActionRefresh = new QAction(this);
     if (m_pActionRefresh)
     {
-        m_pActionRefresh->setShortcut(QKeySequence(QKeySequence::Refresh));
+        m_pActionRefresh->setShortcut(QKeySequence());
         if (m_pActionRefresh && m_pActionRefresh->icon().isNull())
             m_pActionRefresh->setIcon(UIIconPool::iconSetFull(":/refresh_32px.png", ":/refresh_16px.png",
                                                               ":/refresh_disabled_32px.png", ":/refresh_disabled_16px.png"));
-        if (m_pMainMenu)
-            m_pMainMenu->addAction(m_pActionRefresh);
-        if (m_pToolBar)
-            m_pToolBar->addAction(m_pActionRefresh);
     }
+}
+
+void UIMediumSelector::prepareMenuAndToolBar()
+{
+    if (!m_pMainMenu || !m_pToolBar)
+        return;
+
+    m_pMainMenu->addAction(m_pActionAdd);
+    m_pMainMenu->addAction(m_pActionCreate);
+    m_pMainMenu->addSeparator();
+    m_pMainMenu->addAction(m_pActionRefresh);
+
+    m_pToolBar->addAction(m_pActionAdd);
+    if (!(gEDataManager->restrictedDialogTypes(m_uMachineID) & UIExtraDataMetaDefs::DialogType_VISOCreator))
+        m_pToolBar->addAction(m_pActionCreate);
+    m_pToolBar->addSeparator();
+    m_pToolBar->addAction(m_pActionRefresh);
 }
 
 void UIMediumSelector::prepareConnections()
 {
     /* Configure medium-enumeration connections: */
-    connect(&vboxGlobal(), &VBoxGlobal::sigMediumEnumerationStarted,
+    connect(&uiCommon(), &UICommon::sigMediumEnumerationStarted,
             this, &UIMediumSelector::sltHandleMediumEnumerationStart);
-    connect(&vboxGlobal(), &VBoxGlobal::sigMediumEnumerated,
+    connect(&uiCommon(), &UICommon::sigMediumEnumerated,
             this, &UIMediumSelector::sltHandleMediumEnumerated);
-    connect(&vboxGlobal(), &VBoxGlobal::sigMediumEnumerationFinished,
+    connect(&uiCommon(), &UICommon::sigMediumEnumerationFinished,
             this, &UIMediumSelector::sltHandleMediumEnumerationFinish);
     if (m_pActionAdd)
         connect(m_pActionAdd, &QAction::triggered, this, &UIMediumSelector::sltAddMedium);
@@ -232,11 +253,12 @@ void UIMediumSelector::prepareConnections()
         connect(m_pTreeWidget, &QITreeWidget::customContextMenuRequested, this, &UIMediumSelector::sltHandleTreeContextMenuRequest);
     }
 
-    if (m_pButtonBox)
-    {
-        connect(m_pButtonBox, &QIDialogButtonBox::rejected, this, &UIMediumSelector::close);
-        connect(m_pButtonBox, &QIDialogButtonBox::accepted, this, &UIMediumSelector::accept);
-    }
+    if (m_pCancelButton)
+        connect(m_pCancelButton, &QPushButton::clicked, this, &UIMediumSelector::sltButtonCancel);
+    if (m_pChooseButton)
+        connect(m_pChooseButton, &QPushButton::clicked, this, &UIMediumSelector::sltButtonChoose);
+    if (m_pLeaveEmptyButton)
+        connect(m_pLeaveEmptyButton, &QPushButton::clicked, this, &UIMediumSelector::sltButtonLeaveEmpty);
 
     if (m_pSearchWidget)
     {
@@ -284,7 +306,7 @@ UIMediumItem* UIMediumSelector::createHardDiskItem(const UIMedium &medium, QITre
         if (!pParentMediumItem)
         {
             /* Make sure corresponding parent medium is already cached! */
-            UIMedium parentMedium = vboxGlobal().medium(medium.parentID());
+            UIMedium parentMedium = uiCommon().medium(medium.parentID());
             if (parentMedium.isNull())
                 AssertMsgFailed(("Parent medium with ID={%s} was not found!\n", medium.parentID().toString().toUtf8().constData()));
             /* Try to create parent medium-item: */
@@ -350,7 +372,7 @@ void UIMediumSelector::prepareWidgets()
 
     m_pMainMenu = menuBar()->addMenu(tr("Medium"));
 
-    m_pToolBar = new UIToolBar(parentWidget());
+    m_pToolBar = new UIToolBar;
     if (m_pToolBar)
     {
         /* Configure toolbar: */
@@ -383,8 +405,14 @@ void UIMediumSelector::prepareWidgets()
     if (m_pButtonBox)
     {
         /* Configure button-box: */
-        m_pButtonBox->setStandardButtons(QDialogButtonBox::Cancel | QDialogButtonBox::Ok);
-        m_pButtonBox->button(QDialogButtonBox::Cancel)->setShortcut(Qt::Key_Escape);
+        m_pCancelButton = m_pButtonBox->addButton(tr("Cancel"), QDialogButtonBox::RejectRole);
+
+        /* Only DVDs and Floppies can be left empty: */
+        if (m_enmMediumType == UIMediumDeviceType_DVD || m_enmMediumType == UIMediumDeviceType_Floppy)
+            m_pLeaveEmptyButton = m_pButtonBox->addButton(tr("Leave Empty"), QDialogButtonBox::ActionRole);
+
+        m_pChooseButton = m_pButtonBox->addButton(tr("Choose"), QDialogButtonBox::AcceptRole);
+        m_pCancelButton->setShortcut(Qt::Key_Escape);
 
         /* Add button-box into main layout: */
         m_pMainLayout->addWidget(m_pButtonBox);
@@ -393,32 +421,47 @@ void UIMediumSelector::prepareWidgets()
     repopulateTreeWidget();
 }
 
+void UIMediumSelector::sltButtonChoose()
+{
+    done(static_cast<int>(ReturnCode_Accepted));
+}
+
+void UIMediumSelector::sltButtonCancel()
+{
+    done(static_cast<int>(ReturnCode_Rejected));
+}
+
+void UIMediumSelector::sltButtonLeaveEmpty()
+{
+    done(static_cast<int>(ReturnCode_LeftEmpty));
+}
+
 void UIMediumSelector::sltAddMedium()
 {
-    QString strDefaultMachineFolder = vboxGlobal().virtualBox().GetSystemProperties().GetDefaultMachineFolder();
-    QUuid uMediumID = vboxGlobal().openMediumWithFileOpenDialog(m_enmMediumType, this, strDefaultMachineFolder);
+    QUuid uMediumID = uiCommon().openMediumWithFileOpenDialog(m_enmMediumType, this, m_strMachineFolder);
     if (uMediumID.isNull())
         return;
     repopulateTreeWidget();
     selectMedium(uMediumID);
-
 }
 
 void UIMediumSelector::sltCreateMedium()
 {
-    QString strMachineFolder = QFileInfo(m_strMachineSettingsFilePath).absolutePath();
-    UIFDCreationDialog *pDialog = new UIFDCreationDialog(this, m_strMachineName, strMachineFolder);
-    if (pDialog->exec())
-    {
-        repopulateTreeWidget();
-        selectMedium(pDialog->mediumID());
-    }
-    delete pDialog;
+    QUuid uMediumId = uiCommon().openMediumCreatorDialog(this, m_enmMediumType, m_strMachineFolder,
+                                                           m_strMachineName, m_strMachineGuestOSTypeId);
+    if (uMediumId.isNull())
+        return;
+    /* Update the tree widget making sure we show the new item: */
+    repopulateTreeWidget();
+    /* Select the new item: */
+    selectMedium(uMediumId);
+    /* Update the search: */
+    m_pSearchWidget->search(m_pTreeWidget);
 }
 
 void UIMediumSelector::sltHandleItemSelectionChanged()
 {
-    updateOkButton();
+    updateChooseButton();
 }
 
 void UIMediumSelector::sltHandleTreeWidgetDoubleClick(QTreeWidgetItem * item, int column)
@@ -450,8 +493,10 @@ void UIMediumSelector::sltHandleMediumEnumerationFinish()
 
 void UIMediumSelector::sltHandleRefresh()
 {
-    /* Initialize media enumation: */
-    vboxGlobal().startMediumEnumeration();
+    /* Restart full medium-enumeration: */
+    uiCommon().enumerateMedia();
+    /* Update the search: */
+    m_pSearchWidget->search(m_pTreeWidget);
 }
 
 void UIMediumSelector::sltHandlePerformSearch()
@@ -471,6 +516,11 @@ void UIMediumSelector::sltHandleTreeContextMenuRequest(const QPoint &point)
     QMenu menu;
     QAction *pExpandAll = menu.addAction(tr("Expand All"));
     QAction *pCollapseAll = menu.addAction(tr("Collapse All"));
+    if (!pExpandAll || !pCollapseAll)
+        return;
+
+    pExpandAll->setIcon(UIIconPool::iconSet(":/expand_all_16px.png"));
+    pCollapseAll->setIcon(UIIconPool::iconSet(":/collapse_all_16px.png"));
 
     connect(pExpandAll, &QAction::triggered, this, &UIMediumSelector::sltHandleTreeExpandAllSignal);
     connect(pCollapseAll, &QAction::triggered, this, &UIMediumSelector::sltHandleTreeCollapseAllSignal);
@@ -501,21 +551,18 @@ void UIMediumSelector::selectMedium(const QUuid &uMediumID)
         return;
     UIMediumItem *pMediumItem = searchItem(0, uMediumID);
     if (pMediumItem)
-    {
         m_pTreeWidget->setCurrentItem(pMediumItem);
-
-    }
 }
 
-void UIMediumSelector::updateOkButton()
+void UIMediumSelector::updateChooseButton()
 {
 
-    if (!m_pTreeWidget || !m_pButtonBox || !m_pButtonBox->button(QDialogButtonBox::Ok))
+    if (!m_pTreeWidget || !m_pChooseButton)
         return;
     QList<QTreeWidgetItem*> selectedItems = m_pTreeWidget->selectedItems();
     if (selectedItems.isEmpty())
     {
-        m_pButtonBox->button(QDialogButtonBox::Ok)->setEnabled(false);
+        m_pChooseButton->setEnabled(false);
         return;
     }
 
@@ -527,9 +574,9 @@ void UIMediumSelector::updateOkButton()
             mediumItemSelected = true;
     }
     if (mediumItemSelected)
-        m_pButtonBox->button(QDialogButtonBox::Ok)->setEnabled(true);
+        m_pChooseButton->setEnabled(true);
     else
-        m_pButtonBox->button(QDialogButtonBox::Ok)->setEnabled(false);
+        m_pChooseButton->setEnabled(false);
 }
 
 void UIMediumSelector::finalize()
@@ -563,8 +610,7 @@ void UIMediumSelector::showEvent(QShowEvent *pEvent)
     resize(proposedSize);
 
     if (m_pParent)
-        VBoxGlobal::centerWidget(this, m_pParent, false);
-
+        UICommon::centerWidget(this, m_pParent, false);
 }
 
 void UIMediumSelector::repopulateTreeWidget()
@@ -581,11 +627,9 @@ void UIMediumSelector::repopulateTreeWidget()
     m_pAttachedSubTreeRoot = 0;
     m_pNotAttachedSubTreeRoot = 0;
     QVector<UIMediumItem*> menuItemVector;
-
-    foreach (const QUuid &uMediumID, vboxGlobal().mediumIDs())
+    foreach (const QUuid &uMediumID, uiCommon().mediumIDs())
     {
-        UIMedium medium = vboxGlobal().medium(uMediumID);
-        //printf("name %s\n", qPrintable(medium.name()));
+        UIMedium medium = uiCommon().medium(uMediumID);
         if (medium.type() == m_enmMediumType)
         {
             bool isMediumAttached = !(medium.medium().GetMachineIds().isEmpty());
@@ -618,13 +662,11 @@ void UIMediumSelector::repopulateTreeWidget()
     }
     restoreSelection(selectedMedia, menuItemVector);
     saveDefaultForeground();
-    updateOkButton();
+    updateChooseButton();
     if (m_pAttachedSubTreeRoot)
         m_pTreeWidget->expandItem(m_pAttachedSubTreeRoot);
-
     if (m_pNotAttachedSubTreeRoot)
         m_pTreeWidget->expandItem(m_pNotAttachedSubTreeRoot);
-
     m_pTreeWidget->resizeColumnToContents(0);
 }
 
@@ -651,9 +693,7 @@ UIMediumItem* UIMediumSelector::searchItem(const QTreeWidgetItem *pParent, const
     if (!m_pTreeWidget)
         return 0;
     if (!pParent)
-    {
-        pParent = m_pTreeWidget->invisibleRootItem();
-    }
+         pParent = m_pTreeWidget->invisibleRootItem();
     if (!pParent)
         return 0;
 
@@ -694,4 +734,37 @@ void UIMediumSelector::scrollToItem(UIMediumItem* pItem)
     pItem->setFont(0, font);
 
     m_pTreeWidget->scrollTo(itemIndex);
+}
+
+void UIMediumSelector::setTitle()
+{
+    switch (m_enmMediumType)
+    {
+        case UIMediumDeviceType_DVD:
+            if (!m_strMachineName.isEmpty())
+                setWindowTitle(QString("%1 - %2").arg(m_strMachineName).arg(tr("Optical Disk Selector")));
+            else
+                setWindowTitle(QString("%1").arg(tr("Optical Disk Selector")));
+            break;
+        case UIMediumDeviceType_Floppy:
+            if (!m_strMachineName.isEmpty())
+                setWindowTitle(QString("%1 - %2").arg(m_strMachineName).arg(tr("Floppy Disk Selector")));
+            else
+                setWindowTitle(QString("%1").arg(tr("Floppy Disk Selector")));
+            break;
+        case UIMediumDeviceType_HardDisk:
+            if (!m_strMachineName.isEmpty())
+                setWindowTitle(QString("%1 - %2").arg(m_strMachineName).arg(tr("Hard Disk Selector")));
+            else
+                setWindowTitle(QString("%1").arg(tr("Hard Disk Selector")));
+            break;
+        case UIMediumDeviceType_All:
+        case UIMediumDeviceType_Invalid:
+        default:
+            if (!m_strMachineName.isEmpty())
+                setWindowTitle(QString("%1 - %2").arg(m_strMachineName).arg(tr("Virtual Medium Selector")));
+            else
+                setWindowTitle(QString("%1").arg(tr("Virtual Medium Selector")));
+            break;
+    }
 }

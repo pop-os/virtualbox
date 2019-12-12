@@ -651,16 +651,19 @@ static int createFakeVM(PVM *ppVM)
                 /*
                  * Allocate and init the VM structure.
                  */
-                PVM pVM;
-                rc = SUPR3PageAlloc((sizeof(*pVM) + PAGE_SIZE - 1) >> PAGE_SHIFT, (void **)&pVM);
+                PVM pVM = (PVM)RTMemPageAllocZ(sizeof(VM) + sizeof(VMCPU));
+                rc = pVM ? VINF_SUCCESS : VERR_NO_PAGE_MEMORY;
                 if (RT_SUCCESS(rc))
                 {
                     pVM->enmVMState = VMSTATE_CREATED;
                     pVM->pVMR3 = pVM;
                     pVM->pUVM = pUVM;
                     pVM->cCpus = 1;
-                    pVM->aCpus[0].pVMR3 = pVM;
-                    pVM->aCpus[0].hNativeThread = RTThreadNativeSelf();
+
+                    PVMCPU pVCpu = (PVMCPU)(pVM + 1);
+                    pVCpu->pVMR3 = pVM;
+                    pVCpu->hNativeThread = RTThreadNativeSelf();
+                    pVM->apCpusR3[0] = pVCpu;
 
                     pUVM->pVM = pVM;
                     *ppVM = pVM;
@@ -700,14 +703,13 @@ static void destroyFakeVM(PVM pVM)
 /**
  *  Entry point.
  */
-extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
+int main(int argc, char **argv)
 {
-    RT_NOREF1(envp);
-
     /*
      * Init runtime and static data.
      */
-    RTR3InitExe(argc, &argv, RTR3INIT_FLAGS_SUPLIB);
+    int rc = RTR3InitExe(argc, &argv, 0);
+    AssertRCReturn(rc, RTEXITCODE_INIT);
     RTPrintf("tstSSM: TESTING...\n");
     initBigMem();
     const char *pszFilename = "SSMTestSave#1";
@@ -715,12 +717,6 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
     /*
      * Create an fake VM structure and init SSM.
      */
-    int rc = SUPR3Init(NULL);
-    if (RT_FAILURE(rc))
-    {
-        RTPrintf("Fatal error: SUP Failure! rc=%Rrc\n", rc);
-        return 1;
-    }
     PVM pVM;
     if (createFakeVM(&pVM))
         return 1;
@@ -936,15 +932,4 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
     RTPrintf("tstSSM: SUCCESS\n");
     return 0;
 }
-
-
-#if !defined(VBOX_WITH_HARDENING) || !defined(RT_OS_WINDOWS)
-/**
- * Main entry point.
- */
-int main(int argc, char **argv, char **envp)
-{
-    return TrustedMain(argc, argv, envp);
-}
-#endif
 

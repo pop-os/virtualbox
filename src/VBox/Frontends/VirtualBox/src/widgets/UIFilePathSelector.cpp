@@ -32,7 +32,7 @@
 #include "QILabel.h"
 #include "QILineEdit.h"
 #include "QIToolButton.h"
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #include "UIIconPool.h"
 #include "UIFilePathSelector.h"
 
@@ -95,8 +95,8 @@ UIFilePathSelector::UIFilePathSelector(QWidget *pParent /* = 0 */)
     setMinimumWidth(200);
 
     /* Setup connections: */
-    connect(this, SIGNAL(activated(int)), this, SLOT(onActivated(int)));
-    connect(m_pCopyAction, SIGNAL(triggered(bool)), this, SLOT(copyToClipboard()));
+    connect(this, static_cast<void(UIFilePathSelector::*)(int)>(&UIFilePathSelector::activated), this, &UIFilePathSelector::onActivated);
+    connect(m_pCopyAction, &QAction::triggered, this, &UIFilePathSelector::copyToClipboard);
 
     /* Editable by default: */
     setEditable(true);
@@ -126,8 +126,8 @@ void UIFilePathSelector::setEditable(bool fEditable)
 
         /* Install line-edit connection/event-filter: */
         Assert(lineEdit());
-        connect(lineEdit(), SIGNAL(textEdited(const QString &)),
-                this, SLOT(onTextEdited(const QString &)));
+        connect(lineEdit(), &QLineEdit::textEdited,
+                this, &UIFilePathSelector::onTextEdited);
         lineEdit()->installEventFilter(this);
     }
     else
@@ -136,8 +136,8 @@ void UIFilePathSelector::setEditable(bool fEditable)
         {
             /* Remove line-edit event-filter/connection: */
             lineEdit()->removeEventFilter(this);
-            disconnect(lineEdit(), SIGNAL(textEdited(const QString &)),
-                       this, SLOT(onTextEdited(const QString &)));
+            disconnect(lineEdit(), &QLineEdit::textEdited,
+                       this, &UIFilePathSelector::onTextEdited);
         }
         if (comboBox())
         {
@@ -428,9 +428,9 @@ void UIFilePathSelector::selectPath()
 QIcon UIFilePathSelector::defaultIcon() const
 {
     if (m_enmMode == Mode_Folder)
-        return vboxGlobal().icon(QFileIconProvider::Folder);
+        return uiCommon().icon(QFileIconProvider::Folder);
     else
-        return vboxGlobal().icon(QFileIconProvider::File);
+        return uiCommon().icon(QFileIconProvider::File);
 }
 
 QString UIFilePathSelector::fullPath(bool fAbsolute /* = true */) const
@@ -568,7 +568,7 @@ void UIFilePathSelector::refreshText()
 
         /* Attach corresponding icon: */
         setItemIcon(PathId, QFileInfo(m_strPath).exists() ?
-                            vboxGlobal().icon(QFileInfo(m_strPath)) :
+                            uiCommon().icon(QFileInfo(m_strPath)) :
                             defaultIcon());
 
         /* Set the tool-tip: */

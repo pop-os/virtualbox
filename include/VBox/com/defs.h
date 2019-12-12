@@ -372,6 +372,7 @@ typedef nsIID   IID;
 
 /* OLE error codes */
 #define S_OK                ((nsresult)NS_OK)
+#define S_FALSE             ((nsresult)1)
 #define E_UNEXPECTED        NS_ERROR_UNEXPECTED
 #define E_NOTIMPL           NS_ERROR_NOT_IMPLEMENTED
 #define E_OUTOFMEMORY       NS_ERROR_OUT_OF_MEMORY
@@ -396,7 +397,7 @@ typedef nsIID   IID;
 extern "C"
 {
 BSTR SysAllocString(const OLECHAR *sz);
-BSTR SysAllocStringByteLen(char *psz, unsigned int len);
+BSTR SysAllocStringByteLen(char const *psz, unsigned int len);
 BSTR SysAllocStringLen(const OLECHAR *pch, unsigned int cch);
 void SysFreeString(BSTR bstr);
 int SysReAllocString(BSTR *pbstr, const OLECHAR *psz);

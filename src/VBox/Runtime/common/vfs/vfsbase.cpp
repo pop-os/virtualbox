@@ -3207,6 +3207,25 @@ RTDECL(int) RTVfsDirReadEx(RTVFSDIR hVfsDir, PRTDIRENTRYEX pDirEntry, size_t *pc
 }
 
 
+RTDECL(int) RTVfsDirRewind(RTVFSDIR hVfsDir)
+{
+    /*
+     * Validate input.
+     */
+    RTVFSDIRINTERNAL *pThis = hVfsDir;
+    AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
+    AssertReturn(pThis->uMagic == RTVFSDIR_MAGIC, VERR_INVALID_HANDLE);
+
+    /*
+     * Call the directory method.
+     */
+    RTVfsLockAcquireRead(pThis->Base.hLock);
+    int rc = pThis->pOps->pfnRewindDir(pThis->Base.pvThis);
+    RTVfsLockReleaseRead(pThis->Base.hLock);
+    return rc;
+}
+
+
 /*
  *
  *  S Y M B O L I C   L I N K
@@ -4200,7 +4219,7 @@ RTDECL(int) RTVfsFileSeek(RTVFSFILE hVfsFile, RTFOFF offSeek, uint32_t uMethod, 
 }
 
 
-RTDECL(int) RTVfsFileGetSize(RTVFSFILE hVfsFile, uint64_t *pcbSize)
+RTDECL(int) RTVfsFileQuerySize(RTVFSFILE hVfsFile, uint64_t *pcbSize)
 {
     RTVFSFILEINTERNAL *pThis = hVfsFile;
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);

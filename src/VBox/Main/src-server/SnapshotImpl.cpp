@@ -655,14 +655,14 @@ void Snapshot::i_updateSavedStatePathsImpl(const Utf8Str &strOldPath,
     LogFlowThisFunc(("Snap[%s].statePath={%s}\n", m->strName.c_str(), path.c_str()));
 
     /* state file may be NULL (for offline snapshots) */
-    if (    path.length()
+    if (    path.isNotEmpty()
          && RTPathStartsWith(path.c_str(), strOldPath.c_str())
        )
     {
         m->pMachine->mSSData->strStateFilePath = Utf8StrFmt("%s%s",
                                                             strNewPath.c_str(),
                                                             path.c_str() + strOldPath.length());
-        LogFlowThisFunc(("-> updated: {%s}\n", path.c_str()));
+        LogFlowThisFunc(("-> updated: {%s}\n", m->pMachine->mSSData->strStateFilePath.c_str()));
     }
 
     for (SnapshotsList::const_iterator it = m->llChildren.begin();
@@ -672,6 +672,32 @@ void Snapshot::i_updateSavedStatePathsImpl(const Utf8Str &strOldPath,
         Snapshot *pChild = *it;
         pChild->i_updateSavedStatePathsImpl(strOldPath, strNewPath);
     }
+}
+
+/**
+ *  Checks if the specified path change affects the saved state file path of
+ *  this snapshot or any of its (grand-)children and updates it accordingly.
+ *
+ *  Intended to be called by Machine::openConfigLoader() only.
+ *
+ *  @param  strOldPath old path (full)
+ *  @param  strNewPath new path (full)
+ *
+ *  @note Locks the machine (for the snapshots tree) +  this object + children for writing.
+ */
+void Snapshot::i_updateSavedStatePaths(const Utf8Str &strOldPath,
+                                       const Utf8Str &strNewPath)
+{
+    LogFlowThisFunc(("aOldPath={%s} aNewPath={%s}\n", strOldPath.c_str(), strNewPath.c_str()));
+
+    AutoCaller autoCaller(this);
+    AssertComRC(autoCaller.rc());
+
+    // snapshots tree is protected by machine lock
+    AutoWriteLock alock(m->pMachine COMMA_LOCKVAL_SRC_POS);
+
+    // call the implementation under the tree lock
+    i_updateSavedStatePathsImpl(strOldPath, strNewPath);
 }
 
 /**
@@ -713,7 +739,40 @@ bool Snapshot::i_sharesSavedStateFile(const Utf8Str &strPath,
 
 
 /**
- *  Checks if the specified path change affects the saved state file path of
+ * Internal implementation for Snapshot::updateNVRAMPaths (below).
+ * @param   strOldPath
+ * @param   strNewPath
+ */
+void Snapshot::i_updateNVRAMPathsImpl(const Utf8Str &strOldPath,
+                                      const Utf8Str &strNewPath)
+{
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    const Utf8Str path = m->pMachine->mBIOSSettings->i_getNonVolatileStorageFile();
+    LogFlowThisFunc(("Snap[%s].nvramPath={%s}\n", m->strName.c_str(), path.c_str()));
+
+    /* NVRAM filename may be empty */
+    if (    path.isNotEmpty()
+         && RTPathStartsWith(path.c_str(), strOldPath.c_str())
+       )
+    {
+        m->pMachine->mBIOSSettings->i_updateNonVolatileStorageFile(Utf8StrFmt("%s%s",
+                                                                              strNewPath.c_str(),
+                                                                              path.c_str() + strOldPath.length()));
+        LogFlowThisFunc(("-> updated: {%s}\n", m->pMachine->mBIOSSettings->i_getNonVolatileStorageFile().c_str()));
+    }
+
+    for (SnapshotsList::const_iterator it = m->llChildren.begin();
+         it != m->llChildren.end();
+         ++it)
+    {
+        Snapshot *pChild = *it;
+        pChild->i_updateNVRAMPathsImpl(strOldPath, strNewPath);
+    }
+}
+
+/**
+ *  Checks if the specified path change affects the NVRAM file path of
  *  this snapshot or any of its (grand-)children and updates it accordingly.
  *
  *  Intended to be called by Machine::openConfigLoader() only.
@@ -723,8 +782,8 @@ bool Snapshot::i_sharesSavedStateFile(const Utf8Str &strPath,
  *
  *  @note Locks the machine (for the snapshots tree) +  this object + children for writing.
  */
-void Snapshot::i_updateSavedStatePaths(const Utf8Str &strOldPath,
-                                       const Utf8Str &strNewPath)
+void Snapshot::i_updateNVRAMPaths(const Utf8Str &strOldPath,
+                                  const Utf8Str &strNewPath)
 {
     LogFlowThisFunc(("aOldPath={%s} aNewPath={%s}\n", strOldPath.c_str(), strNewPath.c_str()));
 
@@ -843,7 +902,7 @@ HRESULT Snapshot::i_uninitOne(AutoWriteLock &writeLock,
         return rc;
 
     // report the saved state file if it's not on the list yet
-    if (!m->pMachine->mSSData->strStateFilePath.isEmpty())
+    if (m->pMachine->mSSData->strStateFilePath.isNotEmpty())
     {
         bool fFound = false;
         for (std::list<Utf8Str>::const_iterator it = llFilenames.begin();
@@ -860,6 +919,10 @@ HRESULT Snapshot::i_uninitOne(AutoWriteLock &writeLock,
         if (!fFound)
             llFilenames.push_back(m->pMachine->mSSData->strStateFilePath);
     }
+
+    Utf8Str strNVRAMFile = m->pMachine->mBIOSSettings->i_getNonVolatileStorageFile();
+    if (strNVRAMFile.isNotEmpty() && RTFileExists(strNVRAMFile.c_str()))
+        llFilenames.push_back(strNVRAMFile);
 
     i_beginSnapshotDelete();
     uninit();
@@ -1089,6 +1152,10 @@ HRESULT SnapshotMachine::init(SessionMachine *aSessionMachine,
     rc = mRecordingSettings->initCopy(this, pMachine->mRecordingSettings);
     if (FAILED(rc)) return rc;
 
+    unconst(mGraphicsAdapter).createObject();
+    rc = mGraphicsAdapter->initCopy(this, pMachine->mGraphicsAdapter);
+    if (FAILED(rc)) return rc;
+
     unconst(mVRDEServer).createObject();
     rc = mVRDEServer->initCopy(this, pMachine->mVRDEServer);
     if (FAILED(rc)) return rc;
@@ -1213,6 +1280,9 @@ HRESULT SnapshotMachine::initFromSettings(Machine *aMachine,
 
     unconst(mRecordingSettings).createObject();
     mRecordingSettings->init(this);
+
+    unconst(mGraphicsAdapter).createObject();
+    mGraphicsAdapter->init(this);
 
     unconst(mVRDEServer).createObject();
     mVRDEServer->init(this);
@@ -1576,14 +1646,16 @@ HRESULT SessionMachine::takeSnapshot(const com::Utf8Str &aName,
                                                    !!fPause,
                                                    mHWData->mMemorySize,
                                                    fTakingSnapshotOnline);
+    MachineState_T const machineStateBackup = pTask->m_machineStateBackup;
     rc = pTask->createThread();
+    pTask = NULL;
     if (FAILED(rc))
         return rc;
 
     /* set the proper machine state (note: after creating a Task instance) */
     if (fTakingSnapshotOnline)
     {
-        if (pTask->m_machineStateBackup != MachineState_Paused && !fPause)
+        if (machineStateBackup != MachineState_Paused && !fPause)
             i_setMachineState(MachineState_LiveSnapshotting);
         else
             i_setMachineState(MachineState_OnlineSnapshotting);
@@ -1593,7 +1665,7 @@ HRESULT SessionMachine::takeSnapshot(const com::Utf8Str &aName,
         i_setMachineState(MachineState_Snapshotting);
 
     aId = snapshotId;
-    pTask->m_pProgress.queryInterfaceTo(aProgress.asOutParam());
+    pProgress.queryInterfaceTo(aProgress.asOutParam());
 
     return rc;
 }
@@ -1779,6 +1851,24 @@ void SessionMachine::i_takeSnapshotHandler(TakeSnapshotTask &task)
             alock.acquire();
             if (FAILED(rc))
                 throw rc;
+        }
+
+        // Handle NVRAM file snapshotting
+        Utf8Str strNVRAM = mBIOSSettings->i_getNonVolatileStorageFile();
+        Utf8Str strNVRAMSnap = pSnapshotMachine->i_getSnapshotNVRAMFilename();
+        if (strNVRAM.isNotEmpty() && strNVRAMSnap.isNotEmpty() && RTFileExists(strNVRAM.c_str()))
+        {
+            Utf8Str strNVRAMSnapAbs;
+            i_calculateFullPath(strNVRAMSnap, strNVRAMSnapAbs);
+            rc = VirtualBox::i_ensureFilePathExists(strNVRAMSnapAbs, true /* fCreate */);
+            if (FAILED(rc))
+                throw rc;
+            int vrc = RTFileCopy(strNVRAM.c_str(), strNVRAMSnapAbs.c_str());
+            if (RT_FAILURE(vrc))
+                throw setErrorBoth(VBOX_E_IPRT_ERROR, vrc,
+                                   tr("Could not copy NVRAM file '%s' to '%s' (%Rrc)"),
+                                   strNVRAM.c_str(), strNVRAMSnapAbs.c_str(), vrc);
+            pSnapshotMachine->mBIOSSettings->i_updateNonVolatileStorageFile(strNVRAMSnap);
         }
 
         // store parent of newly created diffs before commit for notify
@@ -2131,6 +2221,7 @@ HRESULT SessionMachine::restoreSnapshot(const ComPtr<ISnapshot> &aSnapshot,
                                                          "RestoreSnap",
                                                          pSnapshot);
     rc = pTask->createThread();
+    pTask = NULL;
     if (FAILED(rc))
         return rc;
 
@@ -2180,7 +2271,7 @@ void SessionMachine::i_restoreSnapshotHandler(RestoreSnapshotTask &task)
     HRESULT rc = S_OK;
     Guid snapshotId;
     std::set<ComObjPtr<Medium> > pMediumsForNotify;
-    std::map<Guid, DeviceType_T> uIdsForNotify;
+    std::map<Guid, std::pair<DeviceType_T, BOOL> > uIdsForNotify;
 
     try
     {
@@ -2272,6 +2363,13 @@ void SessionMachine::i_restoreSnapshotHandler(RestoreSnapshotTask &task)
                 // online snapshot: then share the state file
                 mSSData->strStateFilePath = strSnapshotStateFile;
 
+            const Utf8Str srcNVRAM(pSnapshotMachine->mBIOSSettings->i_getNonVolatileStorageFile());
+            const Utf8Str dstNVRAM(mBIOSSettings->i_getNonVolatileStorageFile());
+            if (dstNVRAM.isNotEmpty() && RTFileExists(dstNVRAM.c_str()))
+                RTFileDelete(dstNVRAM.c_str());
+            if (srcNVRAM.isNotEmpty() && dstNVRAM.isNotEmpty() && RTFileExists(srcNVRAM.c_str()))
+                RTFileCopy(srcNVRAM.c_str(), dstNVRAM.c_str());
+
             LogFlowThisFunc(("Setting new current snapshot {%RTuuid}\n", task.m_pSnapshot->i_getId().raw()));
             /* make the snapshot we restored from the current snapshot */
             mData->mCurrentSnapshot = task.m_pSnapshot;
@@ -2307,7 +2405,7 @@ void SessionMachine::i_restoreSnapshotHandler(RestoreSnapshotTask &task)
                 if (!fFound)
                 {
                     pMediumsForNotify.insert(pMedium->i_getParent());
-                    uIdsForNotify[pMedium->i_getId()] = pMedium->i_getDeviceType();
+                    uIdsForNotify[pMedium->i_getId()] = std::pair<DeviceType_T, BOOL>(pMedium->i_getDeviceType(), TRUE);
                 }
             }
         }
@@ -2411,6 +2509,8 @@ void SessionMachine::i_restoreSnapshotHandler(RestoreSnapshotTask &task)
             LogFlowThisFunc(("Deleting old current state in differencing image '%s'\n", pMedium->i_getName().c_str()));
 
             ComObjPtr<Medium> pParent = pMedium->i_getParent();
+            // store the id here because it becomes NULL after deleting storage.
+            com::Guid id = pMedium->i_getId();
             HRESULT rc2 = pMedium->i_deleteStorage(NULL /* aProgress */,
                                                    true /* aWait */,
                                                    false /* aNotify */);
@@ -2418,6 +2518,7 @@ void SessionMachine::i_restoreSnapshotHandler(RestoreSnapshotTask &task)
             if (SUCCEEDED(rc2))
             {
                 pMediumsForNotify.insert(pParent);
+                uIdsForNotify[id] = std::pair<DeviceType_T, BOOL>(pMedium->i_getDeviceType(), FALSE);
                 pMedium->uninit();
             }
         }
@@ -2448,11 +2549,11 @@ void SessionMachine::i_restoreSnapshotHandler(RestoreSnapshotTask &task)
     if (SUCCEEDED(rc))
     {
         mParent->i_onSnapshotRestored(mData->mUuid, snapshotId);
-        for (std::map<Guid, DeviceType_T>::const_iterator it = uIdsForNotify.begin();
+        for (std::map<Guid, std::pair<DeviceType_T, BOOL> >::const_iterator it = uIdsForNotify.begin();
              it != uIdsForNotify.end();
              ++it)
         {
-            mParent->i_onMediumRegistered(it->first, it->second, TRUE);
+            mParent->i_onMediumRegistered(it->first, it->second.first, it->second.second);
         }
         for (std::set<ComObjPtr<Medium> >::const_iterator it = pMediumsForNotify.begin();
              it != pMediumsForNotify.end();
@@ -2614,7 +2715,7 @@ HRESULT SessionMachine::i_deleteSnapshot(const com::Guid &aStartId,
     ULONG ulOpCount = 1;            // one for preparations
     ULONG ulTotalWeight = 1;        // one for preparations
 
-    if (pSnapshot->i_getStateFilePath().length())
+    if (pSnapshot->i_getStateFilePath().isNotEmpty())
     {
         ++ulOpCount;
         ++ulTotalWeight;            // assume 1 MB for deleting the state file
@@ -2670,6 +2771,7 @@ HRESULT SessionMachine::i_deleteSnapshot(const com::Guid &aStartId,
                                                        fDeleteOnline,
                                                        pSnapshot);
     rc = pTask->createThread();
+    pTask = NULL;
     if (FAILED(rc))
         return rc;
 
@@ -3233,7 +3335,7 @@ void SessionMachine::i_deleteSnapshotHandler(DeleteSnapshotTask &task)
                     }
                     else
                     {
-                        for (ComObjPtr<Medium> pTmpMedium = it->mpSource->i_getParent();
+                        for (ComObjPtr<Medium> pTmpMedium = it->mpSource;
                              pTmpMedium && pTmpMedium != it->mpTarget;
                              pTmpMedium = pTmpMedium->i_getParent())
                         {
@@ -3383,6 +3485,14 @@ void SessionMachine::i_deleteSnapshotHandler(DeleteSnapshotTask &task)
                 throw rc;
         }
 
+        /* 3a: delete NVRAM file if present. */
+        {
+            Utf8Str NVRAMPath = pSnapMachine->mBIOSSettings->i_getNonVolatileStorageFile();
+            if (NVRAMPath.isNotEmpty() && RTFileExists(NVRAMPath.c_str()))
+                RTFileDelete(NVRAMPath.c_str());
+        }
+
+        /* third pass: */
         {
             // beginSnapshotDelete() needs the machine lock, and the snapshots
             // tree is protected by the machine lock as well

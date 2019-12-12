@@ -25,7 +25,7 @@
 #include "QIStyledItemDelegate.h"
 #include "QITableView.h"
 #include "QIWidgetValidator.h"
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #include "UIActionPool.h"
 #include "UIGlobalSettingsInput.h"
 #include "UIHostComboEditor.h"
@@ -385,7 +385,7 @@ public:
     /* API: Validation stuff: */
     bool isAllShortcutsUnique();
 
-private slots:
+public slots:
 
     /* Handler: Filtering stuff: */
     void sltHandleFilterTextChange(const QString &strText);
@@ -841,7 +841,12 @@ void UIHotKeyTable::prepare()
     horizontalHeader()->setSectionResizeMode(UIHotKeyColumnIndex_Sequence, QHeaderView::Stretch);
 
     /* Connect model: */
-    connect(model(), SIGNAL(sigShortcutsLoaded()), this, SLOT(sltHandleShortcutsLoaded()));
+    UIHotKeyTableModel *pHotKeyTableModel = qobject_cast<UIHotKeyTableModel*>(model());
+    AssertPtrReturnVoid(pHotKeyTableModel);
+    {
+        connect(pHotKeyTableModel, &UIHotKeyTableModel::sigShortcutsLoaded,
+                this, &UIHotKeyTable::sltHandleShortcutsLoaded);
+    }
 
     /* Check if we do have proper item delegate: */
     QIStyledItemDelegate *pStyledItemDelegate = qobject_cast<QIStyledItemDelegate*>(itemDelegate());
@@ -920,8 +925,8 @@ void UIGlobalSettingsInput::loadToCacheFrom(QVariant &data)
         oldInputData.shortcuts() << UIDataShortcutRow(pParent,
                                                       strShortcutKey,
                                                       shortcut.scope(),
-                                                      VBoxGlobal::removeAccelMark(shortcut.description()),
-                                                      shortcut.sequence().toString(QKeySequence::NativeText),
+                                                      UICommon::removeAccelMark(shortcut.description()),
+                                                      shortcut.primaryToNativeText(),
                                                       shortcut.defaultSequence().toString(QKeySequence::NativeText));
     }
     oldInputData.setAutoCapture(gEDataManager->autoCaptureEnabled());
@@ -982,7 +987,7 @@ bool UIGlobalSettingsInput::validate(QList<UIValidationMessage> &messages)
     if (!m_pSelectorModel->isAllShortcutsUnique())
     {
         UIValidationMessage message;
-        message.first = VBoxGlobal::removeAccelMark(m_pTabWidget->tabText(UIHotKeyTableIndex_Selector));
+        message.first = UICommon::removeAccelMark(m_pTabWidget->tabText(UIHotKeyTableIndex_Selector));
         message.second << tr("Some items have the same shortcuts assigned.");
         messages << message;
         fPass = false;
@@ -992,7 +997,7 @@ bool UIGlobalSettingsInput::validate(QList<UIValidationMessage> &messages)
     if (!m_pMachineModel->isAllShortcutsUnique())
     {
         UIValidationMessage message;
-        message.first = VBoxGlobal::removeAccelMark(m_pTabWidget->tabText(UIHotKeyTableIndex_Machine));
+        message.first = UICommon::removeAccelMark(m_pTabWidget->tabText(UIHotKeyTableIndex_Machine));
         message.second << tr("Some items have the same shortcuts assigned.");
         messages << message;
         fPass = false;
@@ -1140,7 +1145,7 @@ void UIGlobalSettingsInput::prepareTabMachine()
         m_pTabWidget->insertTab(UIHotKeyTableIndex_Machine, pMachineTab, QString());
 
         /* In the VM process we start by displaying the Runtime UI tab: */
-        if (vboxGlobal().uiType() == VBoxGlobal::UIType_RuntimeUI)
+        if (uiCommon().uiType() == UICommon::UIType_RuntimeUI)
             m_pTabWidget->setCurrentWidget(pMachineTab);
     }
 }
@@ -1148,14 +1153,14 @@ void UIGlobalSettingsInput::prepareTabMachine()
 void UIGlobalSettingsInput::prepareConnections()
 {
     /* Configure 'Selector UI' connections: */
-    connect(m_pSelectorFilterEditor, SIGNAL(textChanged(const QString &)),
-            m_pSelectorModel, SLOT(sltHandleFilterTextChange(const QString &)));
-    connect(m_pSelectorModel, SIGNAL(sigRevalidationRequired()), this, SLOT(revalidate()));
+    connect(m_pSelectorFilterEditor, &QLineEdit::textChanged,
+            m_pSelectorModel, &UIHotKeyTableModel::sltHandleFilterTextChange);
+    connect(m_pSelectorModel, &UIHotKeyTableModel::sigRevalidationRequired, this, &UIGlobalSettingsInput::revalidate);
 
     /* Configure 'Runtime UI' connections: */
-    connect(m_pMachineFilterEditor, SIGNAL(textChanged(const QString &)),
-            m_pMachineModel, SLOT(sltHandleFilterTextChange(const QString &)));
-    connect(m_pMachineModel, SIGNAL(sigRevalidationRequired()), this, SLOT(revalidate()));
+    connect(m_pMachineFilterEditor, &QLineEdit::textChanged,
+            m_pMachineModel, &UIHotKeyTableModel::sltHandleFilterTextChange);
+    connect(m_pMachineModel, &UIHotKeyTableModel::sigRevalidationRequired, this, &UIGlobalSettingsInput::revalidate);
 }
 
 void UIGlobalSettingsInput::cleanup()
@@ -1205,4 +1210,3 @@ bool UIGlobalSettingsInput::saveInputData()
 }
 
 # include "UIGlobalSettingsInput.moc"
-

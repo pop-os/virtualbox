@@ -501,7 +501,7 @@ static int dmgWrapFileReadUser(PDMGIMAGE pThis, RTFOFF off, PVDIOCTX pIoCtx, siz
 }
 
 /**
- * vdIfIoIntFileGetSize / RTVfsFileGetSize wrapper.
+ * vdIfIoIntFileGetSize / RTVfsFileQuerySize wrapper.
  */
 static int dmgWrapFileGetSize(PDMGIMAGE pThis, uint64_t *pcbFile)
 {
@@ -509,7 +509,7 @@ static int dmgWrapFileGetSize(PDMGIMAGE pThis, uint64_t *pcbFile)
     if (pThis->hDmgFileInXar == NIL_RTVFSFILE)
         rc = vdIfIoIntFileGetSize(pThis->pIfIoXxx, pThis->pStorage, pcbFile);
     else
-        rc = RTVfsFileGetSize(pThis->hDmgFileInXar, pcbFile);
+        rc = RTVfsFileQuerySize(pThis->hDmgFileInXar, pcbFile);
     return rc;
 }
 
@@ -1741,9 +1741,9 @@ static DECLCALLBACK(int) dmgOpenImage(PDMGIMAGE pThis, unsigned uOpenFlags)
 
 /** @interface_method_impl{VDIMAGEBACKEND,pfnProbe} */
 static DECLCALLBACK(int) dmgProbe(const char *pszFilename, PVDINTERFACE pVDIfsDisk,
-                                  PVDINTERFACE pVDIfsImage, VDTYPE *penmType)
+                                  PVDINTERFACE pVDIfsImage, VDTYPE enmDesiredType, VDTYPE *penmType)
 {
-    RT_NOREF1(pVDIfsDisk);
+    RT_NOREF(pVDIfsDisk, enmDesiredType);
     LogFlowFunc(("pszFilename=\"%s\" pVDIfsDisk=%#p pVDIfsImage=%#p penmType=%#p\n",
                  pszFilename, pVDIfsDisk, pVDIfsImage, penmType));
 
@@ -1787,7 +1787,7 @@ static DECLCALLBACK(int) dmgProbe(const char *pszFilename, PVDINTERFACE pVDIfsDi
     if (hDmgFileInXar == NIL_RTVFSFILE)
         rc = vdIfIoIntFileGetSize(pIfIo, pStorage, &cbFile);
     else
-        rc = RTVfsFileGetSize(hDmgFileInXar, &cbFile);
+        rc = RTVfsFileQuerySize(hDmgFileInXar, &cbFile);
     if (   RT_SUCCESS(rc)
         && cbFile >= sizeof(DMGUDIF))
     {

@@ -287,9 +287,8 @@ typedef IEMTLBENTRY *PIEMTLBENTRY;
 #define IEMTLBE_F_PT_NO_USER        RT_BIT_64(2) /**< Page tables: Not user accessible (supervisor only). */
 #define IEMTLBE_F_PG_NO_WRITE       RT_BIT_64(3) /**< Phys page:   Not writable (access handler, ROM, whatever). */
 #define IEMTLBE_F_PG_NO_READ        RT_BIT_64(4) /**< Phys page:   Not readable (MMIO / access handler, ROM) */
-#define IEMTLBE_F_PATCH_CODE        RT_BIT_64(5) /**< Code TLB:    Patch code (PATM). */
-#define IEMTLBE_F_PT_NO_DIRTY       RT_BIT_64(6) /**< Page tables: Not dirty (needs to be made dirty on write). */
-#define IEMTLBE_F_NO_MAPPINGR3      RT_BIT_64(7) /**< TLB entry:   The IEMTLBENTRY::pMappingR3 member is invalid. */
+#define IEMTLBE_F_PT_NO_DIRTY       RT_BIT_64(5) /**< Page tables: Not dirty (needs to be made dirty on write). */
+#define IEMTLBE_F_NO_MAPPINGR3      RT_BIT_64(6) /**< TLB entry:   The IEMTLBENTRY::pMappingR3 member is invalid. */
 #define IEMTLBE_F_PHYS_REV          UINT64_C(0xffffffffffffff00) /**< Physical revision mask. */
 /** @} */
 
@@ -374,8 +373,7 @@ typedef struct IEMCPU
 
     /** Whether to bypass access handlers or not. */
     bool                    fBypassHandlers;                                                                /* 0x06 */
-    /** Indicates that we're interpreting patch code - RC only! */
-    bool                    fInPatchCode;                                                                   /* 0x07 */
+    bool                    fUnusedWasInPatchCode;                                                          /* 0x07 */
 
     /** @name Decoder state.
      * @{ */
@@ -505,9 +503,6 @@ typedef struct IEMCPU
     {
         /** The address of the mapped bytes. */
         void               *pv;
-#if defined(IN_RC) && HC_ARCH_BITS == 64
-        uint32_t            u32Alignment3; /**< Alignment padding. */
-#endif
         /** The access flags (IEM_ACCESS_XXX).
          * IEM_ACCESS_INVALID if the entry is unused. */
         uint32_t            fAccess;
@@ -553,14 +548,12 @@ typedef struct IEMCPU
     R3PTRTYPE(jmp_buf *)    pJmpBufR3;
     /** Pointer set jump buffer - ring-0 context. */
     R0PTRTYPE(jmp_buf *)    pJmpBufR0;
-    /** Pointer set jump buffer - raw-mode context. */
-    RCPTRTYPE(jmp_buf *)    pJmpBufRC;
 
     /** @todo Should move this near @a fCurXcpt later. */
-    /** The error code for the current exception / interrupt. */
-    uint32_t                uCurXcptErr;
     /** The CR2 for the current exception / interrupt. */
     uint64_t                uCurXcptCr2;
+    /** The error code for the current exception / interrupt. */
+    uint32_t                uCurXcptErr;
     /** The VMX APIC-access page handler type. */
     PGMPHYSHANDLERTYPE      hVmxApicAccessPage;
 
@@ -612,7 +605,7 @@ typedef struct IEMCPU
     /** Counts WRMSR \#GP(0) LogRel(). */
     uint8_t                 cLogRelWrMsr;
     /** Alignment padding. */
-    uint8_t                 abAlignment8[HC_ARCH_BITS == 64 ? 46 : 14];
+    uint8_t                 abAlignment8[50];
 
     /** Data TLB.
      * @remarks Must be 64-byte aligned. */
@@ -621,13 +614,9 @@ typedef struct IEMCPU
      * @remarks Must be 64-byte aligned. */
     IEMTLB                  CodeTlb;
 
-    /** Pointer to instruction statistics for raw-mode context (same as R0). */
-    RCPTRTYPE(PIEMINSTRSTATS) pStatsRC;
-    /** Alignment padding. */
-    RTRCPTR                   RCPtrPadding;
-    /** Pointer to instruction statistics for ring-0 context (same as RC). */
+    /** Pointer to instruction statistics for ring-0 context. */
     R0PTRTYPE(PIEMINSTRSTATS) pStatsR0;
-    /** Pointer to instruction statistics for non-ring-3 code. */
+    /** Ring-3 pointer to instruction statistics for non-ring-3 code. */
     R3PTRTYPE(PIEMINSTRSTATS) pStatsCCR3;
     /** Pointer to instruction statistics for ring-3 context. */
     R3PTRTYPE(PIEMINSTRSTATS) pStatsR3;
@@ -1665,7 +1654,7 @@ typedef IEMOPMEDIAF1H1 const *PCIEMOPMEDIAF1H1;
  * @param   a_Name              The name of the type.
  */
 # define IEM_CIMPL_DECL_TYPE_0(a_Name) \
-    IEM_DECL_IMPL_TYPE(VBOXSTRICTRC, a_Name, (PVMCPU pVCpu, uint8_t cbInstr))
+    IEM_DECL_IMPL_TYPE(VBOXSTRICTRC, a_Name, (PVMCPUCC pVCpu, uint8_t cbInstr))
 /**
  * For defining a C instruction implementation function taking no extra
  * arguments.
@@ -1673,7 +1662,7 @@ typedef IEMOPMEDIAF1H1 const *PCIEMOPMEDIAF1H1;
  * @param   a_Name              The name of the function
  */
 # define IEM_CIMPL_DEF_0(a_Name) \
-    IEM_DECL_IMPL_DEF(VBOXSTRICTRC, a_Name, (PVMCPU pVCpu, uint8_t cbInstr))
+    IEM_DECL_IMPL_DEF(VBOXSTRICTRC, a_Name, (PVMCPUCC pVCpu, uint8_t cbInstr))
 /**
  * For calling a C instruction implementation function taking no extra
  * arguments.
@@ -1694,7 +1683,7 @@ typedef IEMOPMEDIAF1H1 const *PCIEMOPMEDIAF1H1;
  * @param   a_Arg0              The argument name.
  */
 # define IEM_CIMPL_DECL_TYPE_1(a_Name, a_Type0, a_Arg0) \
-    IEM_DECL_IMPL_TYPE(VBOXSTRICTRC, a_Name, (PVMCPU pVCpu, uint8_t cbInstr, a_Type0 a_Arg0))
+    IEM_DECL_IMPL_TYPE(VBOXSTRICTRC, a_Name, (PVMCPUCC pVCpu, uint8_t cbInstr, a_Type0 a_Arg0))
 /**
  * For defining a C instruction implementation function taking one extra
  * argument.
@@ -1704,7 +1693,7 @@ typedef IEMOPMEDIAF1H1 const *PCIEMOPMEDIAF1H1;
  * @param   a_Arg0              The argument name.
  */
 # define IEM_CIMPL_DEF_1(a_Name, a_Type0, a_Arg0) \
-    IEM_DECL_IMPL_DEF(VBOXSTRICTRC, a_Name, (PVMCPU pVCpu, uint8_t cbInstr, a_Type0 a_Arg0))
+    IEM_DECL_IMPL_DEF(VBOXSTRICTRC, a_Name, (PVMCPUCC pVCpu, uint8_t cbInstr, a_Type0 a_Arg0))
 /**
  * For calling a C instruction implementation function taking one extra
  * argument.
@@ -1728,7 +1717,7 @@ typedef IEMOPMEDIAF1H1 const *PCIEMOPMEDIAF1H1;
  * @param   a_Arg1              The name of the 2nd argument.
  */
 # define IEM_CIMPL_DECL_TYPE_2(a_Name, a_Type0, a_Arg0, a_Type1, a_Arg1) \
-    IEM_DECL_IMPL_TYPE(VBOXSTRICTRC, a_Name, (PVMCPU pVCpu, uint8_t cbInstr, a_Type0 a_Arg0, a_Type1 a_Arg1))
+    IEM_DECL_IMPL_TYPE(VBOXSTRICTRC, a_Name, (PVMCPUCC pVCpu, uint8_t cbInstr, a_Type0 a_Arg0, a_Type1 a_Arg1))
 /**
  * For defining a C instruction implementation function taking two extra
  * arguments.
@@ -1740,7 +1729,7 @@ typedef IEMOPMEDIAF1H1 const *PCIEMOPMEDIAF1H1;
  * @param   a_Arg1              The name of the 2nd argument.
  */
 # define IEM_CIMPL_DEF_2(a_Name, a_Type0, a_Arg0, a_Type1, a_Arg1) \
-    IEM_DECL_IMPL_DEF(VBOXSTRICTRC, a_Name, (PVMCPU pVCpu, uint8_t cbInstr, a_Type0 a_Arg0, a_Type1 a_Arg1))
+    IEM_DECL_IMPL_DEF(VBOXSTRICTRC, a_Name, (PVMCPUCC pVCpu, uint8_t cbInstr, a_Type0 a_Arg0, a_Type1 a_Arg1))
 /**
  * For calling a C instruction implementation function taking two extra
  * arguments.
@@ -1767,7 +1756,7 @@ typedef IEMOPMEDIAF1H1 const *PCIEMOPMEDIAF1H1;
  * @param   a_Arg2              The name of the 3rd argument.
  */
 # define IEM_CIMPL_DECL_TYPE_3(a_Name, a_Type0, a_Arg0, a_Type1, a_Arg1, a_Type2, a_Arg2) \
-    IEM_DECL_IMPL_TYPE(VBOXSTRICTRC, a_Name, (PVMCPU pVCpu, uint8_t cbInstr, a_Type0 a_Arg0, a_Type1 a_Arg1, a_Type2 a_Arg2))
+    IEM_DECL_IMPL_TYPE(VBOXSTRICTRC, a_Name, (PVMCPUCC pVCpu, uint8_t cbInstr, a_Type0 a_Arg0, a_Type1 a_Arg1, a_Type2 a_Arg2))
 /**
  * For defining a C instruction implementation function taking three extra
  * arguments.
@@ -1781,7 +1770,7 @@ typedef IEMOPMEDIAF1H1 const *PCIEMOPMEDIAF1H1;
  * @param   a_Arg2              The name of the 3rd argument.
  */
 # define IEM_CIMPL_DEF_3(a_Name, a_Type0, a_Arg0, a_Type1, a_Arg1, a_Type2, a_Arg2) \
-    IEM_DECL_IMPL_DEF(VBOXSTRICTRC, a_Name, (PVMCPU pVCpu, uint8_t cbInstr, a_Type0 a_Arg0, a_Type1 a_Arg1, a_Type2 a_Arg2))
+    IEM_DECL_IMPL_DEF(VBOXSTRICTRC, a_Name, (PVMCPUCC pVCpu, uint8_t cbInstr, a_Type0 a_Arg0, a_Type1 a_Arg1, a_Type2 a_Arg2))
 /**
  * For calling a C instruction implementation function taking three extra
  * arguments.
@@ -1812,7 +1801,7 @@ typedef IEMOPMEDIAF1H1 const *PCIEMOPMEDIAF1H1;
  * @param   a_Arg3              The name of the 4th argument.
  */
 # define IEM_CIMPL_DECL_TYPE_4(a_Name, a_Type0, a_Arg0, a_Type1, a_Arg1, a_Type2, a_Arg2, a_Type3, a_Arg3) \
-    IEM_DECL_IMPL_TYPE(VBOXSTRICTRC, a_Name, (PVMCPU pVCpu, uint8_t cbInstr, a_Type0 a_Arg0, a_Type1 a_Arg1, a_Type2 a_Arg2, a_Type3 a_Arg3))
+    IEM_DECL_IMPL_TYPE(VBOXSTRICTRC, a_Name, (PVMCPUCC pVCpu, uint8_t cbInstr, a_Type0 a_Arg0, a_Type1 a_Arg1, a_Type2 a_Arg2, a_Type3 a_Arg3))
 /**
  * For defining a C instruction implementation function taking four extra
  * arguments.
@@ -1828,7 +1817,7 @@ typedef IEMOPMEDIAF1H1 const *PCIEMOPMEDIAF1H1;
  * @param   a_Arg3              The name of the 4th argument.
  */
 # define IEM_CIMPL_DEF_4(a_Name, a_Type0, a_Arg0, a_Type1, a_Arg1, a_Type2, a_Arg2, a_Type3, a_Arg3) \
-    IEM_DECL_IMPL_DEF(VBOXSTRICTRC, a_Name, (PVMCPU pVCpu, uint8_t cbInstr, a_Type0 a_Arg0, a_Type1 a_Arg1, \
+    IEM_DECL_IMPL_DEF(VBOXSTRICTRC, a_Name, (PVMCPUCC pVCpu, uint8_t cbInstr, a_Type0 a_Arg0, a_Type1 a_Arg1, \
                                              a_Type2 a_Arg2, a_Type3 a_Arg3))
 /**
  * For calling a C instruction implementation function taking four extra
@@ -1863,7 +1852,7 @@ typedef IEMOPMEDIAF1H1 const *PCIEMOPMEDIAF1H1;
  * @param   a_Arg4              The name of the 5th argument.
  */
 # define IEM_CIMPL_DECL_TYPE_5(a_Name, a_Type0, a_Arg0, a_Type1, a_Arg1, a_Type2, a_Arg2, a_Type3, a_Arg3, a_Type4, a_Arg4) \
-    IEM_DECL_IMPL_TYPE(VBOXSTRICTRC, a_Name, (PVMCPU pVCpu, uint8_t cbInstr, \
+    IEM_DECL_IMPL_TYPE(VBOXSTRICTRC, a_Name, (PVMCPUCC pVCpu, uint8_t cbInstr, \
                                                a_Type0 a_Arg0, a_Type1 a_Arg1, a_Type2 a_Arg2, \
                                                a_Type3 a_Arg3, a_Type4 a_Arg4))
 /**
@@ -1883,7 +1872,7 @@ typedef IEMOPMEDIAF1H1 const *PCIEMOPMEDIAF1H1;
  * @param   a_Arg4              The name of the 5th argument.
  */
 # define IEM_CIMPL_DEF_5(a_Name, a_Type0, a_Arg0, a_Type1, a_Arg1, a_Type2, a_Arg2, a_Type3, a_Arg3, a_Type4, a_Arg4) \
-    IEM_DECL_IMPL_DEF(VBOXSTRICTRC, a_Name, (PVMCPU pVCpu, uint8_t cbInstr, \
+    IEM_DECL_IMPL_DEF(VBOXSTRICTRC, a_Name, (PVMCPUCC pVCpu, uint8_t cbInstr, \
                                              a_Type0 a_Arg0, a_Type1 a_Arg1, a_Type2 a_Arg2, \
                                              a_Type3 a_Arg3, a_Type4 a_Arg4))
 /**

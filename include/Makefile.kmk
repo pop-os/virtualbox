@@ -30,12 +30,13 @@ VBOX_HDRS_CPP_FEATURES := \
 	VBox/HostServices/Service.h \
 	VBox/GuestHost/GuestControl.h \
 	VBox/GuestHost/DragAndDrop.h \
-       VBox/dbus.h \
+	VBox/GuestHost/SharedClipboard-transfers.h \
+	VBox/dbus.h \
 	VBox/VBoxCrHgsmi.h \
 	VBox/VBoxGuestLibSharedFoldersInline.h \
-       VBox/VBoxPktDmp.h \
+	VBox/VBoxPktDmp.h \
 	VBox/VBoxUhgsmi.h \
-       iprt/cpp/%
+	iprt/cpp/%
 
 # Omit headers that are C++ and ring-3.
 VBOX_HDRS_R3_CPP := \
@@ -70,6 +71,9 @@ VBOX_HDRS_R3_ONLY := \
 	VBox/vmm/uvm.h \
 	VBox/vscsi.h \
 	VBox/ExtPack/% \
+	VBox/GuestHost/SharedClipboard-transfers.h \
+	VBox/GuestHost/SharedClipboard-win.h \
+	VBox/GuestHost/SharedClipboard-x11.h \
 	VBox/GuestHost/DragAndDrop.h \
 	VBox/HostServices/Service.h \
 	iprt/win/% \
@@ -79,7 +83,8 @@ VBOX_HDRS_R3_ONLY := \
 	iprt/linux/sysfs.h \
 	iprt/socket.h \
 	iprt/udp.h \
-       iprt/linux/symvers.h
+	iprt/fuzz.h \
+	iprt/linux/symvers.h
 
 # Ring-0 driver only headers.
 VBOX_HDRS_R0DRV_ONLY := \
@@ -97,6 +102,9 @@ VBOX_HDRS_OMIT := \
 	VBox/HostServices/glxext.h \
 	VBox/HostServices/wglext.h \
 	VBox/VBoxGL2D.h \
+	$(if-expr "$(KBUILD_TARGET)" != "linux", \
+		VBox/GuestHost/SharedClipboard-x11.h \
+	,)\
 	$(if-expr "$(KBUILD_TARGET)" != "solaris", \
 		VBox/usblib-solaris.h \
 	,)\
@@ -104,10 +112,11 @@ VBOX_HDRS_OMIT := \
 	VBox/VDEPlugSymDefs.h \
 	VBox/VBoxNetCmn-win.h \
 	$(if-expr "$(KBUILD_TARGET)" != "win", \
+		VBox/com/microatl.h \
+		VBox/GuestHost/SharedClipboard-win.h \
+		VBox/usblib-win.h \
 		VBox/VBoxDrvCfg-win.h \
 		VBox/VBoxNetCfg-win.h \
-		VBox/usblib-win.h \
-		VBox/com/microatl.h \
 	,$(VBOX_HDRS_GCC_ONLY)) \
 	\
 	VBox/dbus-calls.h \
@@ -123,6 +132,14 @@ VBOX_HDRS_OMIT := \
 	$(foreach os,$(filter-out $(KBUILD_TARGET),$(KBUILD_OSES)),iprt/$(os)/% VBox/$(os)/%) \
 	$(foreach arch,$(KBUILD_ARCHES),iprt/nocrt/$(arch)/%)
 
+# AMD64 only headers.
+ifneq ($(KBUILD_TARGET_ARCH),amd64)
+VBOX_HDRS_OMIT += \
+	VBox/vmm/cpumctx.h \
+	VBox/vmm/cpumctx-v1_6.h \
+	VBox/vmm/dbgfcorefmt.h
+endif
+
 # We omit a few headers which have platform specific issues or are templates.
 VBOX_HDRS_ALL := $(filter-out $(VBOX_HDRS_OMIT), \
 	$(subst $(PATH_SUB_CURRENT)/,,$(wildcard \
@@ -134,6 +151,13 @@ VBOX_HDRS_ALL := $(filter-out $(VBOX_HDRS_OMIT), \
 
 # ring-3, ring-0 and raw-mode context specific exclusions.
 VBOX_HDRS_ALL_R3      := $(filter-out $(VBOX_HDRS_R0DRV_ONLY), $(VBOX_HDRS_ALL))
+if "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SUPPORTED_HOST_ARCHS))" == ""
+ ifeq ($(KBUILD_TARGET),win)
+VBOX_HDRS_ALL_R3      := $(filter-out VBox/com/VirtualBox.h VBox/com/listeners.h VBox/settings.h,$(VBOX_HDRS_ALL_R3))
+ else
+VBOX_HDRS_ALL_R3      := $(filter-out VBox/com/% VBox/settings.h,$(VBOX_HDRS_ALL_R3))
+ endif
+endif
 VBOX_HDRS_ALL_R3_C    := $(filter-out $(VBOX_HDRS_CPP_FEATURES) $(VBOX_HDRS_R3_CPP), $(VBOX_HDRS_ALL_R3))
 VBOX_HDRS_ALL_R0      := $(filter-out $(VBOX_HDRS_R3_CPP) $(VBOX_HDRS_R3_ONLY) $(VBOX_HDRS_R0DRV_ONLY), $(VBOX_HDRS_ALL))
 VBOX_HDRS_ALL_R0_C    := $(filter-out $(VBOX_HDRS_CPP_FEATURES), $(VBOX_HDRS_ALL_R0))
@@ -154,8 +178,14 @@ VBOX_HDRS_ALL_RC      := $(filter-out \
 VBOX_HDRS_ALL_RC_C := $(filter-out $(VBOX_HDRS_CPP_FEATURES), $(VBOX_HDRS_ALL_RC))
 #$(error $(subst $(SP),$(NLTAB),$(strip $(sort $(VBOX_HDRS_ALL_RC_C)))))
 
+if1of ($(KBUILD_TARGET_ARCH), $(VBOX_SUPPORTED_HOST_ARCHS))
 SyntaxVBoxIncludeR3_TEMPLATE = VBOXMAINEXE
 SyntaxVBoxIncludeR3_DEFS = VBOX_WITH_HGCM
+else
+SyntaxVBoxIncludeR3_TEMPLATE = VBOXR3EXE
+SyntaxVBoxIncludeR3_SDKS.win = ReorderCompilerIncs $(VBOX_WINPSDK) $(VBOX_WINDDK)
+endif
+SyntaxVBoxIncludeR3_DEFS += USING_VMM_COMMON_DEFS
 SyntaxVBoxIncludeR3_CDEFS = IPRT_WITHOUT_NAMED_UNIONS_AND_STRUCTS
 SyntaxVBoxIncludeR3_SOURCES := \
 	$(addprefix $(PATH_OBJ)/include/c/,  $(addsuffix .c,  $(basename $(VBOX_HDRS_ALL_R3_C)))) \
@@ -164,7 +194,7 @@ SyntaxVBoxIncludeR3_CLEAN = $(SyntaxVBoxIncludeR3_SOURCES)
 #$(error $(subst $(SP),$(NLTAB),$(strip $(sort $(SyntaxVBoxIncludeR3_SOURCES)))))
 
 SyntaxVBoxIncludeR0_TEMPLATE = VBoxR0
-SyntaxVBoxIncludeR0_DEFS = VBOX_WITH_HGCM
+SyntaxVBoxIncludeR0_DEFS = VBOX_WITH_HGCM USING_VMM_COMMON_DEFS
 SyntaxVBoxIncludeR0_CDEFS = IPRT_WITHOUT_NAMED_UNIONS_AND_STRUCTS
 SyntaxVBoxIncludeR0_SOURCES := \
 	$(addprefix $(PATH_OBJ)/include/c/,  $(addsuffix .c,  $(basename $(VBOX_HDRS_ALL_R0_C)))) \
@@ -175,7 +205,7 @@ if1of ($(KBUILD_TARGET), darwin os2 solaris win)
 LIBRARIES += SyntaxVBoxIncludeR0Drv
 SyntaxVBoxIncludeR0Drv_TEMPLATE = VBoxR0DrvLib
 SyntaxVBoxIncludeR0Drv_SDKS.win = ReorderCompilerIncs $(VBOX_WINDDK) $(VBOX_WINPSDK)INCS
-SyntaxVBoxIncludeR0Drv_DEFS = VBOX_WITH_HGCM
+SyntaxVBoxIncludeR0Drv_DEFS = VBOX_WITH_HGCM USING_VMM_COMMON_DEFS
 SyntaxVBoxIncludeR0Drv_CDEFS = IPRT_WITHOUT_NAMED_UNIONS_AND_STRUCTS
 SyntaxVBoxIncludeR0Drv_SOURCES := \
 	$(addprefix $(PATH_OBJ)/include/c/,  $(addsuffix .c,  $(basename $(VBOX_HDRS_ALL_R0DRV_C)))) \
@@ -186,7 +216,7 @@ endif
 ifdef VBOX_WITH_RAW_MODE
 LIBRARIES += SyntaxVBoxIncludeRC
 SyntaxVBoxIncludeRC_TEMPLATE = VBoxRc
-SyntaxVBoxIncludeRC_DEFS = VBOX_WITH_HGCM
+SyntaxVBoxIncludeRC_DEFS = VBOX_WITH_HGCM USING_VMM_COMMON_DEFS
 SyntaxVBoxIncludeRC_CDEFS = IPRT_WITHOUT_NAMED_UNIONS_AND_STRUCTS
 SyntaxVBoxIncludeRC_SOURCES := \
 	$(addprefix $(PATH_OBJ)/include/c/,  $(addsuffix .c,  $(basename $(VBOX_HDRS_ALL_RC_C)))) \
@@ -228,4 +258,3 @@ BLDDIRS += $(addprefix $(PATH_OBJ)/include/c/,$(VBOX_HDR_DIRS)) $(addprefix $(PA
 
 
 include $(FILE_KBUILD_SUB_FOOTER)
-

@@ -28,7 +28,7 @@
 #include "UIFilePathSelector.h"
 #include "UIMedium.h"
 #include "UIMessageCenter.h"
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 
 /* COM includes: */
 #include "CSystemProperties.h"
@@ -36,9 +36,9 @@
 #include "CMediumFormat.h"
 
 
-UIFDCreationDialog::UIFDCreationDialog(QWidget *pParent /* = 0 */,
-                                       const QString &strMachineName /* = QString() */,
-                                       const QString &strMachineFolder /* = QString() */)
+UIFDCreationDialog::UIFDCreationDialog(QWidget *pParent,
+                                           const QString &strDefaultFolder,
+                                           const QString &strMachineName /* = QString() */)
    : QIWithRetranslateUI<QDialog>(pParent)
     , m_pFilePathselector(0)
     , m_pPathLabel(0)
@@ -46,8 +46,8 @@ UIFDCreationDialog::UIFDCreationDialog(QWidget *pParent /* = 0 */,
     , m_pSizeCombo(0)
     , m_pButtonBox(0)
     , m_pFormatCheckBox(0)
+    , m_strDefaultFolder(strDefaultFolder)
     , m_strMachineName(strMachineName)
-    , m_strMachineFolder(strMachineFolder)
 {
 
     prepare();
@@ -62,7 +62,10 @@ UIFDCreationDialog::UIFDCreationDialog(QWidget *pParent /* = 0 */,
 
 void UIFDCreationDialog::retranslateUi()
 {
-    setWindowTitle(tr("Create a Floppy Disk"));
+    if (m_strMachineName.isEmpty())
+        setWindowTitle(QString("%1").arg(tr("Floppy Disk Creator")));
+    else
+        setWindowTitle(QString("%1 - %2").arg(m_strMachineName).arg(tr("Floppy Disk Creator")));
     if (m_pPathLabel)
         m_pPathLabel->setText(tr("File Path:"));
     if (m_pSizeLabel)
@@ -155,14 +158,17 @@ QString UIFDCreationDialog::getDefaultFolder() const
 {
     QString strPreferredExtension = UIMediumDefs::getPreferredExtensionForMedium(KDeviceType_Floppy);
 
-    QString strInitialPath = m_strMachineFolder;
+    QString strInitialPath = m_strDefaultFolder;
     if (strInitialPath.isEmpty())
-        strInitialPath = vboxGlobal().virtualBox().GetSystemProperties().GetDefaultMachineFolder();
+        strInitialPath = uiCommon().virtualBox().GetSystemProperties().GetDefaultMachineFolder();
 
     if (strInitialPath.isEmpty())
         return strInitialPath;
 
-    strInitialPath = QDir(strInitialPath).absoluteFilePath(m_strMachineName + "." + strPreferredExtension);
+    QString strDiskname = !(m_strMachineName.isEmpty()) ? m_strMachineName : "NewFloppyDisk";
+    strDiskname = UICommon::findUniqueFileName(m_strDefaultFolder, strDiskname);
+
+    strInitialPath = QDir(strInitialPath).absoluteFilePath(strDiskname + "." + strPreferredExtension);
     return strInitialPath;
 }
 
@@ -173,7 +179,7 @@ void UIFDCreationDialog::accept()
     if (m_pFilePathselector->path().isEmpty() || mediumFormats.isEmpty())
         return;
 
-    CVirtualBox vbox = vboxGlobal().virtualBox();
+    CVirtualBox vbox = uiCommon().virtualBox();
     QString strMediumLocation = m_pFilePathselector->path();
 
     CMedium newMedium = vbox.CreateMedium(mediumFormats[0].GetName(), strMediumLocation,
@@ -208,10 +214,8 @@ void UIFDCreationDialog::accept()
     /* Store the id of the newly create medium: */
     m_uMediumID = newMedium.GetId();
 
-    /* Notify VBoxGlobal about the new medium: */
-    vboxGlobal().createMedium(UIMedium(newMedium, UIMediumDeviceType_Floppy, KMediumState_Created));
-    /* Update the recently used media list: */
-    vboxGlobal().updateRecentlyUsedMediumListAndFolder(UIMediumDeviceType_Floppy, strMediumLocation);
+    /* Notify UICommon about the new medium: */
+    uiCommon().createMedium(UIMedium(newMedium, UIMediumDeviceType_Floppy, KMediumState_Created));
 
     /* After a successful creation and initilization of the floppy disk we call base class accept
        effectively closing this dialog: */

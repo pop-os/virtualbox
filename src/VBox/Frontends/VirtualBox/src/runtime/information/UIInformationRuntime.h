@@ -26,19 +26,21 @@
 
 /* COM includes: */
 #include "COMEnums.h"
-#include "CMachine.h"
 #include "CConsole.h"
+#include "CGuest.h"
+#include "CMachine.h"
+
+/* GUI includes: */
+#include "QIWithRetranslateUI.h"
 
 /* Forward declarations: */
 class QVBoxLayout;
-class UIInformationView;
-class UIInformationModel;
-class UIVMItem;
+class UISession;
+class UIRuntimeInfoWidget;
 
-
-/** QWidget extension
-  * providing GUI with configuration-information tab in session-information window. */
-class UIInformationRuntime : public QWidget
+/** UIInformationRuntime class displays a table including some
+  * run time attributes. */
+class UIInformationRuntime : public QIWithRetranslateUI<QWidget>
 {
     Q_OBJECT;
 
@@ -47,30 +49,34 @@ public:
     /** Constructs information-tab passing @a pParent to the QWidget base-class constructor.
       * @param machine is machine reference.
       * @param console is machine console reference. */
-    UIInformationRuntime(QWidget *pParent, const CMachine &machine, const CConsole &console);
+    UIInformationRuntime(QWidget *pParent, const CMachine &machine, const CConsole &console, const UISession *pSession);
+
+protected:
+
+    void retranslateUi();
+
+private slots:
+
+    /** @name These functions are connected to API events and implement necessary updates on the table.
+      * @{ */
+        void sltGuestAdditionsStateChange();
+        void sltGuestMonitorChange(KGuestMonitorChangedEventType changeType, ulong uScreenId, QRect screenGeo);
+        void sltVRDEChange();
+        void sltClipboardChange(KClipboardMode enmMode);
+        void sltDnDModeChange(KDnDMode enmMode);
+    /** @} */
 
 private:
 
-    /** Prepares layout. */
-    void prepareLayout();
+    void prepareObjects();
 
-    /** Prepares model. */
-    void prepareModel();
-
-    /** Prepares view. */
-    void prepareView();
-
-    /** Holds the machine instance. */
     CMachine m_machine;
-    /** Holds the console instance. */
     CConsole m_console;
+    CGuest m_comGuest;
+
     /** Holds the instance of layout we create. */
     QVBoxLayout *m_pMainLayout;
-    /** Holds the instance of model we create. */
-    UIInformationModel *m_pModel;
-    /** Holds the instance of view we create. */
-    UIInformationView *m_pView;
+    UIRuntimeInfoWidget *m_pRuntimeInfoWidget;
 };
 
 #endif /* !FEQT_INCLUDED_SRC_runtime_information_UIInformationRuntime_h */
-

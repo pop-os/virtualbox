@@ -21,48 +21,61 @@
 # pragma once
 #endif
 
-#include "Defs.h"
+#include "DhcpdInternal.h"
 #include <iprt/net.h>
 #include "DhcpOptions.h"
 
-/*
- * Client is identified by either the Client ID option it sends or its
- * chaddr, i.e. MAC address.
+/**
+ * A client is identified by either the Client ID option it sends or its chaddr,
+ * i.e. MAC address.
  */
 class ClientId
 {
-    RTMAC m_mac;
+    /** The mac address of the client. */
+    RTMAC       m_mac;
+    /** The client ID. */
     OptClientId m_id;
 
 public:
     ClientId()
-      : m_mac(), m_id() {}
-    ClientId(const RTMAC &macParam, const OptClientId &idParam)
-      : m_mac(macParam), m_id(idParam) {}
+        : m_mac(), m_id()
+    {}
+    /** @throws std::bad_alloc */
+    ClientId(const RTMAC &a_mac, const OptClientId &a_id)
+        : m_mac(a_mac), m_id(a_id)
+    {}
+    /** @throws std::bad_alloc */
+    ClientId(const ClientId &a_rThat)
+        : m_mac(a_rThat.m_mac), m_id(a_rThat.m_id)
+    {}
+    /** @throws std::bad_alloc */
+    ClientId &operator=(const ClientId &a_rThat)
+    {
+        m_mac = a_rThat.m_mac;
+        m_id  = a_rThat.m_id;
+        return *this;
+    }
 
-    const RTMAC &mac() const { return m_mac; }
-    const OptClientId &id() const { return m_id; }
+    const RTMAC       &mac() const RT_NOEXCEPT  { return m_mac; }
+    const OptClientId &id() const RT_NOEXCEPT   { return m_id; }
 
-public:
-    static void registerFormat(); /* %R[id] */
-
+    /** @name String formatting of %R[id].
+     * @{ */
+    static void registerFormat() RT_NOEXCEPT;
 private:
+    static DECLCALLBACK(size_t) rtStrFormat(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, const char *pszType,
+                                            void const *pvValue, int cchWidth, int cchPrecision, unsigned fFlags, void *pvUser);
     static bool g_fFormatRegistered;
-    static DECLCALLBACK(size_t) rtStrFormat(
-        PFNRTSTROUTPUT pfnOutput, void *pvArgOutput,
-        const char *pszType, void const *pvValue,
-        int cchWidth, int cchPrecision, unsigned fFlags,
-        void *pvUser);
+    /** @} */
 
-private:
-    friend bool operator==(const ClientId &l, const ClientId &r);
-    friend bool operator<(const ClientId &l, const ClientId &r);
+    friend bool operator==(const ClientId &l, const ClientId &r) RT_NOEXCEPT;
+    friend bool operator<(const ClientId &l, const ClientId &r) RT_NOEXCEPT;
 };
 
-bool operator==(const ClientId &l, const ClientId &r);
-bool operator<(const ClientId &l, const ClientId &r);
+bool operator==(const ClientId &l, const ClientId &r) RT_NOEXCEPT;
+bool operator<(const ClientId &l, const ClientId &r) RT_NOEXCEPT;
 
-inline bool operator!=(const ClientId &l, const ClientId &r)
+inline bool operator!=(const ClientId &l, const ClientId &r) RT_NOEXCEPT
 {
     return !(l == r);
 }

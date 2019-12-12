@@ -229,8 +229,10 @@
               Source="$(env.PATH_OUT)\bin\VBoxBalloonCtrl.exe"/>
         <File Id="file_VBoxBugReport.exe" Name="VBoxBugReport.exe"
               Source="$(env.PATH_OUT)\bin\VBoxBugReport.exe"/>
+<?if $(env.VBOX_WITH_VBOX_IMG) = "yes" ?>
         <File Id="file_vbox_img.exe" Name="vbox-img.exe"
               Source="$(env.PATH_OUT)\bin\vbox-img.exe"/>
+<?endif ?>
 
         <!-- Misc tools -->
         <File Id="file_VBoxNetDHCP.exe" Name="VBoxNetDHCP.exe"
@@ -263,14 +265,6 @@
               Source="$(env.PATH_OUT)\bin\VBoxDDU.dll" />
         <File Id="file_VBoxRT.dll" Name="VBoxRT.dll"
               Source="$(env.PATH_OUT)\bin\VBoxRT.dll" />
-        <File Id="file_VBoxREM.dll" Name="VBoxREM.dll"
-              Source="$(env.PATH_OUT)\bin\VBoxREM.dll" />
-<?if $(env.BUILD_TARGET_ARCH) = "x86" ?>
-        <File Id="file_VBoxREM32.dll" Name="VBoxREM32.dll"
-              Source="$(env.PATH_OUT)\bin\VBoxREM32.dll" />
-        <File Id="file_VBoxREM64.dll" Name="VBoxREM64.dll"
-              Source="$(env.PATH_OUT)\bin\VBoxREM64.dll" />
-<?endif ?>
         <File Id="file_VBoxSupLib.dll" Name="VBoxSupLib.dll"
               Source="$(env.PATH_OUT)\bin\VBoxSupLib.dll" />
         <File Id="file_VBoxVMM.dll" Name="VBoxVMM.dll"
@@ -306,20 +300,18 @@
         <File Id="file_VBoxRes.dll" Name="VBoxRes.dll"
               Source="$(env.PATH_OUT)\bin\VBoxRes.dll" />
 
+<?if $(env.VBOX_WITH_RAW_MODE) = "yes" ?>
         <File Id="file_VMMRC.rc" Name="VMMRC.rc"
               Source="$(env.PATH_OUT)\bin\VMMRC.rc" />
         <File Id="file_VBoxDDRC.rc" Name="VBoxDDRC.rc"
               Source="$(env.PATH_OUT)\bin\VBoxDDRC.rc" />
+<?endif ?>
 
         <File Id="file_VMMR0.r0" Name="VMMR0.r0"
               Source="$(env.PATH_OUT)\bin\VMMR0.r0" />
         <File Id="file_VBoxDDR0.r0" Name="VBoxDDR0.r0"
               Source="$(env.PATH_OUT)\bin\VBoxDDR0.r0" />
 
-<?if $(env.VBOX_WITH_CROGL) = "yes" ?>
-        <File Id="file_VBoxTestOGL.exe" Name="VBoxTestOGL.exe"
-              Source="$(env.PATH_OUT)\bin\VBoxTestOGL.exe" />
-<?endif ?>
 <?if $(env.VBOX_WITH_QTGUI) = "yes" ?>
         <!-- Qt frontend -->
         <File Id="file_VirtualBox.exe" Name="VirtualBox.exe"
@@ -328,8 +320,8 @@
         <File Id="file_VirtualBoxVM.exe" Name="VirtualBoxVM.exe"
             Source="$(env.PATH_OUT)\bin\VirtualBoxVM.exe">
         </File>
-        <File Id="file_VBoxGlobal.dll" Name="VBoxGlobal.dll"
-            Source="$(env.PATH_OUT)\bin\VBoxGlobal.dll">
+        <File Id="file_UICommon.dll" Name="UICommon.dll"
+            Source="$(env.PATH_OUT)\bin\UICommon.dll">
         </File>
         <?if $(env.VBOX_WITH_HARDENING) = "yes" ?>
             <File Id="file_VirtualBoxVM.dll" Name="VirtualBoxVM.dll"
@@ -346,6 +338,9 @@
               Source="$(env.PATH_OUT)\bin\Qt5PrintSupport$(var.VBOX_QT_INFIX).dll" />
         <File Id="file_Qt5WinExtras$(var.VBOX_QT_INFIX).dll" Name="Qt5WinExtras$(var.VBOX_QT_INFIX).dll"
               Source="$(env.PATH_OUT)\bin\Qt5WinExtras$(var.VBOX_QT_INFIX).dll" />
+
+        <File Id="file_VBoxTestOGL.exe" Name="VBoxTestOGL.exe"
+            Source="$(env.PATH_OUT)\bin\VBoxTestOGL.exe" />
 <?endif ?>
 <?if $(env.VBOX_WITH_DEBUGGER_GUI) = "yes" ?>
         <File Id="file_VBoxDbg.dll" Name="VBoxDbg.dll"
@@ -410,29 +405,25 @@
         </Directory>
 <?endif ?>
 
-<?if $(env.VBOX_WITH_CROGL) = "yes" ?>
-    <Component Id="cp_VBoxCROpenGL" Guid="874A1297-835A-491D-8A9D-7E723BC29EE7" Win64="$(var.Property_Win64)">
-        <File Id="file_VBoxSharedCrOpenGL.dll" Name="VBoxSharedCrOpenGL.dll"
-              Source="$(env.PATH_OUT)\bin\VBoxSharedCrOpenGL.dll" />
-    </Component>
-<?endif?>
-    <!-- SDL plugins -->
+<?if $(env.VBOX_WITH_VBOXSDL) = "yes" ?>
+    <!-- SDL frontend -->
     <Component Id="cp_VBoxSDLBinaries" Guid="F09D5FD9-E176-42B0-90A9-481BB18B0CB4"
                Win64="$(var.Property_Win64)">
         <File Id="file_VBoxSDL.exe" Name="VBoxSDL.exe"
               Source="$(env.PATH_OUT)\bin\VBoxSDL.exe" />
-<?if $(env.VBOX_WITH_HARDENING) = "yes" ?>
-        <File Id="file_VBoxSDL.dll" Name="VBoxSDL.dll"
-              Source="$(env.PATH_OUT)\bin\VBoxSDL.dll">
-        </File>
-<?endif ?>
+    <?if $(env.VBOX_WITH_HARDENING) = "yes" ?>
+            <File Id="file_VBoxSDL.dll" Name="VBoxSDL.dll"
+                  Source="$(env.PATH_OUT)\bin\VBoxSDL.dll">
+            </File>
+    <?endif ?>
         <File Id="file_SDL.dll" Name="SDL.dll"
               Source="$(env.PATH_OUT)\bin\SDL.dll" />
-<?if $(env.VBOX_WITH_SECURELABEL) = "yes" ?>
-        <File Id="file_SDL_ttf.dll" Name="SDL_ttf.dll"
-              Source="$(env.PATH_OUT)\bin\SDL_ttf.dll" />
-<?endif?>
-    </Component> <!-- SDL plugins -->
+    <?if $(env.VBOX_WITH_SECURELABEL) = "yes" ?>
+            <File Id="file_SDL_ttf.dll" Name="SDL_ttf.dll"
+                  Source="$(env.PATH_OUT)\bin\SDL_ttf.dll" />
+    <?endif?>
+    </Component> <!-- SDL frontend -->
+<?endif ?>
 
 <?if $(env.VBOX_WITH_WEBSERVICES) = "yes" ?>
     <!-- Webservice -->

@@ -35,739 +35,7 @@ technical terms if no non-technical ones are clear enough.
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
 
   <sect1>
-    <title>Version 6.0.x (2019-xx-xx)</title>
-
-    <para>This is a maintenance release. The following items were fixed and/or
-      added:</para>
-
-    <itemizedlist>
-
-      <listitem>
-        <para>Virtualization core: fixed an invalid-guest state guru meditation
-          in some rare circumstances on Intel hosts</para>
-      </listitem>
-
-      <listitem>
-        <para>Virtualization core: some fixes for systems with lots of
-          processors</para>
-      </listitem>
-
-      <listitem>
-        <para>Audio: relaxed VRM / VRA (variable rate audio) bit checks to
-          provide more compatibility for guests running ALSA setups with the
-          AC'97 emulation</para>
-      </listitem>
-
-      <listitem>
-        <para>USB: made device capturing for passthrough more accurate and
-          reliable on Windows host</para>
-      </listitem>
-
-      <listitem>
-        <para>Network: fixed potential issue with interrupt signalling for
-          network adapters in UEFI guests</para>
-      </listitem>
-
-      <listitem>
-        <para>3D: fixed flicker and redraw issues when using VBoxSVGA or
-          VMSVGA graphics adapter (bugs #18562, #18956)</para>
-      </listitem>
-
-      <listitem>
-        <para>3D: fixed crash with some applications when using VBoxSVGA or
-          VMSVGA graphics adapter (bug #18638)</para>
-      </listitem>
-
-      <listitem>
-        <para>macOS host: fix crash of GUI VM process which showed up
-          frequently with 10.15 Catalina (bug #18990)</para>
-      </listitem>
-
-      <listitem>
-        <para>Linux host: support Linux 5.3, thank you Larry Finger
-          (see also bug #18911)</para>
-      </listitem>
-
-      <listitem>
-        <para>Linux host: improve python version detection during rpm
-          package creation, can change package dependencies and fix some
-          installation problems</para>
-      </listitem>
-
-      <listitem>
-        <para>Linux guests: calls to aio_read(3) and aio_write(3) may fail
-          inside shared folders (bug #18805)</para>
-      </listitem>
-
-      <listitem>
-        <para>Linux guests: fix problem with shared folder unmounting in
-          service script, thank you Denis Ryndine (bug #18853)</para>
-      </listitem>
-
-      <listitem>
-        <para>Linux guests: VBox 6.0.10 GAs fail to compile on Red
-          Hat/CentOS/Oracle Linux 7.7 and Red Hat 8.1 Beta (bug #18917)</para>
-      </listitem>
-
-    </itemizedlist>
-  </sect1>
-
-  <sect1>
-    <title>Version 6.0.12 (2019-09-03)</title>
-
-    <para>This is a maintenance release. The following items were fixed and/or
-      added:</para>
-
-    <itemizedlist>
-
-      <listitem>
-        <para>OCI export: handle empty disk image correctly</para>
-      </listitem>
-
-      <listitem>
-        <para>API: fix potential crash when using the medium I/O functionality</para>
-      </listitem>
-
-      <listitem>
-        <para>VBoxManage: fixed documentation of VBoxManage modifyvm uarttype
-          (bug #18759)</para>
-      </listitem>
-
-      <listitem>
-        <para>Network: scrub inbound TCP URG pointer, working around incorrect
-          OOB handling</para>
-      </listitem>
-
-      <listitem>
-        <para>USB: Improved identification of power-saved devices on Windows hosts</para>
-      </listitem>
-
-      <listitem>
-        <para>Audio: in the AC97 work around buggy guest drivers which reprogram
-          the sampling rate, breaking audio in and/or audio out</para>
-      </listitem>
-
-      <listitem>
-        <para>Windows host: fixed crashes on startup with software trying to
-          inject code into a VM process</para>
-      </listitem>
-
-      <listitem>
-        <para>Linux host and guest: fix kernel module build for SLES 12 SP4 kernel</para>
-      </listitem>
-
-      <listitem>
-        <para>3D: fixed state saving and loading when the VBoxVGA graphics
-          adapter is used with 3D enabled (bug #18802, 6.0.10 regression)</para>
-      </listitem>
-
-      <listitem>
-        <para>Windows guests: fixed mouse cursor visibility updating</para>
-      </listitem>
-
-      <listitem>
-        <para>Windows guests: fixed graphics corruption in Windows 10 search menu
-          with VBoxSVGA adapter</para>
-      </listitem>
-
-      <listitem>
-        <para>Windows guests: fixed dwm.exe crashes related to the WDDM driver for
-          VBoxSVGA adapter when the VM has lots of RAM</para>
-      </listitem>
-
-      <listitem>
-        <para>MacOS Guest Additions fail to start in 6.0.10 (bug #18793)</para>
-      </listitem>
-
-      <listitem>
-        <para>Windows guests: fixed crashes when using shared folders (bug #18766)</para>
-      </listitem>
-
-      <listitem>
-        <para>Linux guests: unprivileged users unable to create files inside
-          shared folders (bug #18737)</para>
-      </listitem>
-
-      <listitem>
-        <para>Linux guests: improve compatibility of vboxvideo.ko kernel module
-          build logic (bug #18869)</para>
-      </listitem>
-
-    </itemizedlist>
-  </sect1>
-
-  <sect1>
-
-    <title>Version 6.0.10 (2019-07-16)</title>
-
-    <para>This is a maintenance release. The following items were fixed and/or
-      added:</para>
-
-    <itemizedlist>
-
-      <listitem>
-        <para>User interface: fix issue inputing controller names (bug #11579)</para>
-      </listitem>
-
-      <listitem>
-        <para>User interface: fix resize problems with recent Linux hosts
-          (bug #18677)</para>
-      </listitem>
-
-      <listitem>
-        <para>Serial: fixed guru meditation when raw mode is enabled
-          (bug #18632)</para>
-      </listitem>
-
-      <listitem>
-        <para>Serial: fixed possible VM crash under certain circumstances</para>
-      </listitem>
-
-      <listitem>
-        <para>USB: Fixed "unrecoverable error" problems in OHCI emulation (bug
-           #18593, 6.0.6 regression)</para>
-      </listitem>
-
-      <listitem>
-        <para>USB: improve captured device identification</para>
-      </listitem>
-
-      <listitem>
-        <para>VBoxManage: fix reversed reporting of audio input and output
-          (thank you Socratis Kalogrianitis)</para>
-      </listitem>
-
-      <listitem>
-        <para>VBoxManage: fix controlling recording for running machine
-          (bug #18723)</para>
-      </listitem>
-
-      <listitem>
-        <para>Guest control service: various fixes</para>
-      </listitem>
-
-      <listitem>
-        <para>Windows hosts: fix problems copying files from shared folders
-          (bug #18569)</para>
-      </listitem>
-
-      <listitem>
-        <para>Linux hosts: kernel module build fixes for various kernels
-           (bug #18316)</para>
-      </listitem>
-
-      <listitem>
-        <para>Linux hosts: support UEFI secure boot driver signing on Ubuntu and
-           Debian hosts (bug #11577)</para>
-      </listitem>
-
-      <listitem>
-        <para>Linux hosts: fix focus grabbing problems with recent Qt versions
-           (builds from source only; thank you Fabian Vogt (SUSE) and Larry Finger;
-           bug #18745)</para>
-      </listitem>
-
-      <listitem>
-        <para>Windows guests: many shared folders fixes</para>
-      </listitem>
-
-      <listitem>
-        <para>Windows guests: fix other services failing if seamless mode was
-           not available</para>
-      </listitem>
-
-      <listitem>
-        <para>Linux guests: kernel module build fixes for various kernels
-           (bugs #18677 and #18697; fixes by Larry Finger and Gianfranco
-           Costamagna)</para>
-      </listitem>
-
-      <listitem>
-        <para>Linux guests: do not try to load old versions of libcrypt on
-           recent guests in Guest Additions tools (bug #18682)</para>
-      </listitem>
-
-      <listitem>
-        <para>Linux guests: udev rules for guest kernel modules did not always
-           take effect in time</para>
-      </listitem>
-
-      <listitem>
-        <para>Linux guests/VMSVGA: do not forget the guest screen size after
-           a guest reboot</para>
-      </listitem>
-
-      <listitem>
-        <para>Linux guests: Kernel panic in Debian 9 guest at shut down with
-           shared folders (bug #18667)</para>
-      </listitem>
-
-      <listitem>
-        <para>OS/2 guests: various shared folder fixes</para>
-      </listitem>
-
-    </itemizedlist>
-  </sect1>
-
-  <sect1>
-
-    <title>Version 6.0.8 (2019-05-13)</title>
-
-    <para>This is a maintenance release. The following items were fixed and/or
-      added:</para>
-
-    <itemizedlist>
-
-      <listitem>
-        <para>Core: fix saved state resume failures (bugs #18265 and #18331)</para>
-      </listitem>
-
-      <listitem>
-        <para>User interface: show full file location in New Medium window.</para>
-      </listitem>
-
-      <listitem>
-        <para>User interface: fix mouse click pass-through problems in multi-screen
-           virtual machines (6.0.6 regression, bug #18567)</para>
-      </listitem>
-
-      <listitem>
-        <para>Graphics: fixed a crash when powering off a VM without graphics
-          controller (bug #18570)</para>
-      </listitem>
-
-      <listitem>
-        <para>API: partial fix for dealing with VM config conflicting with
-          other VMs related to medium UUIDs, now correctly flags VM as
-          inaccessible (bug #17908)</para>
-      </listitem>
-
-      <listitem>
-        <para>Windows hosts: Support paths longer than 4096 characters on
-           in shared folders</para>
-      </listitem>
-
-      <listitem>
-        <para>Linux hosts: fix kernel module build breakage in non-default build
-           set-ups (bug #18620, thank you Ambroz Bizjak)</para>
-      </listitem>
-
-      <listitem>
-        <para>Linux hosts: fix kernel module build breakage in debug build
-           set-ups (bug #18621, thank you Ambroz Bizjak)</para>
-      </listitem>
-
-      <listitem>
-        <para>Windows guests: notice file size increases in shared folders
-           which were missed in certain cases</para>
-      </listitem>
-
-      <listitem>
-        <para>Linux guests: make shared folders work with Linux 3.16.35</para>
-      </listitem>
-
-      <listitem>
-        <para>Linux guests: fix incorrectly read-only shared folders (bug
-           #18345)</para>
-      </listitem>
-
-    </itemizedlist>
-  </sect1>
-
-  <sect1>
-
-    <title>Version 6.0.6 (2019-04-17)</title>
-
-    <para>This is a maintenance release. The following items were fixed and/or
-      added:</para>
-
-    <itemizedlist>
-
-      <listitem>
-        <para>Virtualization core: nested AMD virtualization fixes</para>
-      </listitem>
-
-      <listitem>
-        <para>User interface: fixed copying directories in file manager</para>
-      </listitem>
-
-      <listitem>
-        <para>User interface: fixed operation progress in file manager when
-          copying content</para>
-      </listitem>
-
-      <listitem>
-        <para>User interface: fixed operation progress when deleting
-           snapshots</para>
-      </listitem>
-
-      <listitem>
-        <para>User interface: fixed unattended installation of recent
-           Ubuntu guests</para>
-      </listitem>
-
-      <listitem>
-        <para>User interface: new virtual disk sector sizes should be
-           divisible by 512 (bug #18177)</para>
-      </listitem>
-
-      <listitem>
-        <para>User interface: various additional improvements</para>
-      </listitem>
-
-      <listitem>
-        <para>Storage: fixed loading saved states for LsiLogic devices (6.0.0
-          regression; bug #18263)</para>
-      </listitem>
-
-      <listitem>
-        <para>Storage: fixed fixed reading certain QCOW2 images and support
-          version 3 of the format readonly</para>
-      </listitem>
-
-      <listitem>
-        <para>Storage: Improved IDE PCI emulation to allow NetWare IDE drivers to
-           use bus-mastering</para>
-      </listitem>
-
-      <listitem>
-        <para>Graphics: Improved VMSVGA support to work with old X servers
-           which previously showed only a badly scrambled screen</para>
-      </listitem>
-
-      <listitem>
-        <para>Graphics: fixed invisible mouse cursor with VMSVGA emulation
-           and without mouse integration (bug #18239)</para>
-      </listitem>
-
-      <listitem>
-        <para>Graphics: make EFI work with VMSVGA emulation (bug #18282)</para>
-      </listitem>
-
-      <listitem>
-        <para>Graphics: remember last guest screen size VMSVGA emulation
-           (bug #18408)</para>
-      </listitem>
-
-      <listitem>
-        <para>Graphics: fix RDP to guests using VMSVGA emulation
-           (bug #18518)</para>
-      </listitem>
-
-      <listitem>
-        <para>Graphics: various additional VMSVGA emulation fixes</para>
-      </listitem>
-
-      <listitem>
-        <para>Audio: implemented audio device enumeration for the DirectSound
-          backend</para>
-      </listitem>
-
-      <listitem>
-        <para>Network: fixed unwanted padding bytes in Windows host adaptor
-           network packets (bug #18202 and bug #18355)</para>
-      </listitem>
-
-      <listitem>
-        <para>Serial: fixed possible crash on Windows when using a host device
-          (6.0.0 regression; bug #18319)</para>
-      </listitem>
-
-      <listitem>
-        <para>Serial: fixed loopback handling in the emulation causing garbage to
-          be sent during boot with Linux guests (6.0.0 regression; bug #18319)</para>
-      </listitem>
-
-      <listitem>
-        <para>Shared folders: fixed duplicate folders after restoring a saved
-          state (bug #18373)
-        </para>
-      </listitem>
-
-      <listitem>
-        <para>Shared folders: fixed hangs inside guest (bug #18151)
-        </para>
-      </listitem>
-
-      <listitem>
-        <para>Drag and drop: fixed copying files from guest host (bug #18305)</para>
-      </listitem>
-
-      <listitem>
-        <para>Recording: fixed modifying settings via VBoxManage (bug #18494)</para>
-      </listitem>
-
-      <listitem>
-        <para>Fixed invalid Extra Data characters making machines
-           inaccessible</para>
-      </listitem>
-
-      <listitem>
-        <para>VBoxManage: crash fix (bug #18341)</para>
-      </listitem>
-
-      <listitem>
-        <para>Fixed hangs during failed virtual machine start-up</para>
-      </listitem>
-
-      <listitem>
-        <para>Windows host: fix unwanted wake-ups from standby,
-           thank you Daniel Karsubka (bug #18549)
-           </para>
-      </listitem>
-
-      <listitem>
-        <para>Windows host: disallow Pause as a host key (bug #18482)</para>
-      </listitem>
-
-      <listitem>
-        <para>Linux host and guest: support Linux 5.0 and 5.1, thank you
-           Valdis Kletnieks (see also bug #18515)</para>
-      </listitem>
-
-      <listitem>
-        <para>Linux host: support kernel 4.4.169 (bug #18315)</para>
-      </listitem>
-
-      <listitem>
-        <para>Linux host: fix logging when building Linux kernel modules
-           (bug #18226)</para>
-      </listitem>
-
-      <listitem>
-        <para>Linux host: clarified building Linux host drivers with secure
-           boot (bug #18312)</para>
-      </listitem>
-
-      <listitem>
-        <para>FreeBSD host: compilation fixes</para>
-      </listitem>
-
-      <listitem>
-        <para>Installers: reduced size of packages</para>
-      </listitem>
-
-      <listitem>
-        <para>Web services: work with Java 11</para>
-      </listitem>
-
-      <listitem>
-        <para>LibreSSL compilation fix, thank you Stefan Strogin</para>
-      </listitem>
-
-      <listitem>
-        <para>Windows guests: fixed running applications which use complex
-          display topologies with WDDM driver, fixed Skype for Business
-          hangs (bug #17092)</para>
-      </listitem>
-
-      <listitem>
-        <para>Windows guests: fixed an occasional guest crash with WDDM driver
-          and VBoxSVGA adapter (bug #18369)</para>
-      </listitem>
-
-      <listitem>
-        <para>Windows guests: shared folder file creation detection issue (bug #9276)</para>
-      </listitem>
-
-      <listitem>
-        <para>Windows guests: fixed "mismatched pool allocation/free" error with
-           checked builds of Windows and ReactOS (bug #18187, thank you
-           Adam Stachowicz)</para>
-      </listitem>
-
-      <listitem>
-        <para>Linux guests: shared folder performance and reliability
-           improvements and missing features (bugs #17360, #819)</para>
-      </listitem>
-
-      <listitem>
-        <para>Linux guests: fixed a NULL pointer dereference in vboxvideo
-           (bug #18443)</para>
-      </listitem>
-
-      <listitem>
-        <para>Solaris guests: fix an error message from VBoxClient
-           (bug #18428)</para>
-      </listitem>
-
-    </itemizedlist>
-  </sect1>
-
-  <sect1>
-
-    <title>Version 6.0.4 (2019-01-28)</title>
-
-    <para>This is a maintenance release. The following items were fixed and/or
-      added:</para>
-
-    <itemizedlist>
-
-      <listitem>
-        <para>Virtualization core: support Shanghai/Zhaoxin CPUs.</para>
-      </listitem>
-
-      <listitem>
-        <para>User interface: handle command line arguments to VirtualBox correctly
-          (bugs #18206 and #18197)</para>
-      </listitem>
-
-      <listitem>
-        <para>User interface: improvements to machine manager window, virtual
-           optical disk creator, storage selector window and log viewer window
-           </para>
-      </listitem>
-
-      <listitem>
-        <para>User interface: various small fixes and improvements</para>
-      </listitem>
-
-      <listitem>
-        <para>User interface: fix incorrect restoring of main window
-           position (bug #18367)</para>
-      </listitem>
-
-      <listitem>
-        <para>Audio: implemented time scheduling for the AC'97 device emulation
-          to keep audio and video in sync</para>
-      </listitem>
-
-      <listitem>
-        <para>Graphics: basic support for VMSVGA graphics device in virtual
-           machines using EFI</para>
-      </listitem>
-
-      <listitem>
-        <para>Network: fix occasional NATNet crashes (bug #13899)</para>
-      </listitem>
-
-      <listitem>
-        <para>Network: worked around problems in certain PCnet drivers
-           on old operating systems</para>
-      </listitem>
-
-      <listitem>
-        <para>Serial: fixed connecting to pseudo terminals on POSIX hosts
-          (6.0.0 regression; bug #18319)</para>
-      </listitem>
-
-      <listitem>
-        <para>Linux hosts and guests: fix for building kernel modules
-           against Linux 5.0.  Thank you Kyle Laker</para>
-      </listitem>
-
-    </itemizedlist>
-  </sect1>
-
-  <sect1>
-
-    <title>Version 6.0.2 (2019-01-15)</title>
-
-    <para>
-      This is a maintenance release. The following items were fixed
-      and/or added:
-    </para>
-
-    <itemizedlist>
-
-      <listitem>
-        <para>
-          User interface: fixed creation of desktop shortcuts for
-          starting virtual machines (bug #18207)
-        </para>
-      </listitem>
-
-      <listitem>
-        <para>
-          User interface: allow the first run window to selecting host drives
-          (bug #18230)
-        </para>
-      </listitem>
-
-      <listitem>
-        <para>
-          User interface: fixed attaching empty host optical drives (bug #18223)
-        </para>
-      </listitem>
-
-      <listitem>
-        <para>
-          User interface: implemented a new virtual optical disk creation
-          window
-        </para>
-      </listitem>
-
-      <listitem>
-        <para>
-          USB: modified Linux backends to reset USB devices (previously, most
-          guest attempts to reset USB devices were ignored)
-        </para>
-      </listitem>
-
-      <listitem>
-        <para>
-          PCnet: fixed a regression which caused some PCnet PCI guest
-          drivers to not detect the emulated hardware (bug #18286)
-        </para>
-      </listitem>
-
-      <listitem>
-        <para>Linux hosts: Skip device enumeration if PulseAudio interface is
-          not available</para>
-      </listitem>
-
-      <listitem>
-        <para>
-          Linux hosts: fixed conflict between Debian and Oracle build desktop
-          files (bug #18264)
-        </para>
-      </listitem>
-
-      <listitem>
-        <para>
-          Linux and MacOS hosts: VirtualBoxVM command not accessible (bug #18257)
-        </para>
-      </listitem>
-
-      <listitem>
-        <para>
-          Windows guests: multiple monitor fixes with VBoxSVGA graphics
-        </para>
-      </listitem>
-
-      <listitem>
-        <para>
-          Windows guests: black screen with VBoxSVGA graphics when 3D is
-          disabled (bug #18205)
-        </para>
-      </listitem>
-
-      <listitem>
-        <para>
-          Linux guests: fixed building drivers on SLES 12.4 (bug #18213)
-        </para>
-      </listitem>
-
-      <listitem>
-        <para>
-          Linux guests: fixed building shared folder driver with older
-          kernels (bug #18238)
-        </para>
-      </listitem>
-
-      <listitem>
-        <para>
-          OS/2 shared folders: fixed write regression introduced in 6.0.0 GA
-        </para>
-      </listitem>
-
-    </itemizedlist>
-
-  </sect1>
-
-  <sect1>
-
-    <title>Version 6.0.0 (2018-12-18)</title>
+    <title>Version 6.1.0 (2019-12-10)</title>
 
     <para>
       This is a major update. The following major new features were
@@ -778,237 +46,456 @@ technical terms if no non-technical ones are clear enough.
 
       <listitem>
         <para>
-          Implemented support for exporting a virtual machine to Oracle
+          Implemented support for importing a virtual machine from Oracle
           Cloud Infrastructure
         </para>
       </listitem>
 
       <listitem>
         <para>
-          Virtualization core: support for nested hardware-virtualization
-          on AMD CPUs
+          Extended support for exporting a virtual machine to Oracle
+          Cloud Infrastructure, allowing the creation of multiple
+          virtual machines without re-uploading. Also added option to
+          export a VM to the cloud using the more efficient variant
+          "paravirtialized", and to specify free-form tags for cloud
+          images
         </para>
       </listitem>
 
       <listitem>
         <para>
-          User interface: greatly improved HiDPI and scaling support,
-          including better detection and per-machine configuration
+          Virtualization core: Support for nested hardware-virtualization
+          on Intel CPUs (starting with 5th generation Core i, codename
+          Broadwell), so far tested only with guest running VirtualBox
         </para>
       </listitem>
 
       <listitem>
         <para>
-          Major rework of user interface with simpler and more powerful
-          application and virtual machine set-up
+          Graphics: New style 3D support (with VBoxSVGA and VMSVGA) remains,
+          old style 3D support (with VBoxVGA) has been completely removed
         </para>
       </listitem>
 
       <listitem>
         <para>
-          User interface: a new file manager enabling user to control
-          the guest file system and copy files between host and guest.
-        </para>
-      </listitem>
-
-      <listitem>
-        <para>
-          Graphics: major update of 3D graphics support for Windows
-          guests, and VMSVGA 3D graphics device emulation on Linux and
-          Solaris guests
-        </para>
-      </listitem>
-
-      <listitem>
-        <para>
-          Added support for surround speaker setups (as used by Windows
-          10 Build 1809)
-        </para>
-      </listitem>
-
-      <listitem>
-        <para>
-          Added utility <computeroutput>vboximg-mount</computeroutput>
-          on Apple hosts to access the content of guest disks on the
-          host
-        </para>
-      </listitem>
-
-      <listitem>
-        <para>
-          Added support for using Hyper-V as the fallback execution core
-          on Windows host, to avoid inability to run VMs at the price of
-          reduced performance
+          Shared Clipboard: Implemented experimental support for file transfers
+          (Windows hosts/guests only at the moment). Needs to be enabled via
+          VBoxManage (disabled by default).
         </para>
       </listitem>
 
     </itemizedlist>
 
     <para>
-      In addition, the following items were fixed and/or added:
+        In addition, the following items were fixed and/or added:
     </para>
 
     <itemizedlist>
 
       <listitem>
         <para>
-          Execution core: fixed single-stepping in certain circumstances
-          (bug #17316)
+          Virtualization core: Drop recompiler, i.e. running VMs now needs
+          a CPU supporting hardware virtualization
         </para>
       </listitem>
 
       <listitem>
         <para>
-          User interface: video and audio recording can now be
-          separately enabled
+          Runtime: Works now on hosts with many CPUs (limit now 1024)
         </para>
       </listitem>
 
       <listitem>
         <para>
-          Audio/Video recording fixes and improvements
+          Appliance and Cloud Import: Add field for defining firmware type (not
+          part of OVF spec and thus manual in the Appliance case, for OCI it is
+          automatically taken from the instance information)
         </para>
       </listitem>
 
       <listitem>
         <para>
-          Audio: better support for attaching and detaching remote
-          desktop connections
+            GUI: Improved the VISO creation and file manager dialogs
         </para>
       </listitem>
 
       <listitem>
         <para>
-          Serial port emulation fixes
+          GUI: Virtual machine list of VirtualBox Manager was improved. Machine
+          groups are now more obvious visually and VM search functionality
+          has been improved. Global Tools element can now be pinned in place,
+          to avoid scrolling it with rest of machine list
         </para>
       </listitem>
 
       <listitem>
         <para>
-          Serial ports: allow changing the serial port attachment while
-          a machine is running (bug #6115)
+          GUI: Virtual machine details pane is now extended with embedded editors
+          for selected VM attributes, allowing user to edit them on-the-fly byi
+          clicking corresponding hyper-links without opening VM settings dialog
         </para>
       </listitem>
 
       <listitem>
         <para>
-          Networking: Added a workaround for older guests which do not
-          enable bus mastering for the virtio PCI device
+          GUI: Details pane provides more complete information
         </para>
       </listitem>
 
       <listitem>
         <para>
-          Networking: fixed wrong RCODE from DNS AAAA query with
-          --natdnshostresolver1 (bug #18171)
+          GUI: Internal medium enumeration routines were optimized to reduce the load
+          and optimize the performance in cases when user have lots
+          of media registered. Also, we again allowed to add existing media (and create new)
+          via Virtual Media Manager
         </para>
       </listitem>
 
       <listitem>
         <para>
-          iSCSI: In cases where there is no ambiguity, the LUN of an
-          iSCSI target is automatically determined, for targets with
-          non-zero LUNs
+          GUI: More consistent medium selection (both showing known images
+          and allowing to select using the file picker)
         </para>
       </listitem>
 
       <listitem>
         <para>
-          Transparently resize disk images when merging if possible
+          GUI: VM storage settings page was adjusted a bit in usability regard. User is now
+          allowed to change controller bus type and can move attachments between the controllers
+          by using drag and drop
         </para>
       </listitem>
 
       <listitem>
         <para>
-          VBoxManage: support for DHCP options
+          GUI: Storage and Network settings pages bug-fixes and usability optimization
         </para>
       </listitem>
 
       <listitem>
         <para>
-          Fixed VNC/RDP (bug #18153)
+          GUI: Added a new soft (virtual) keyboard enabling arbitrary keyboard input to guests,
+          including multimedia keys
         </para>
       </listitem>
 
       <listitem>
         <para>
-          Guest Control: various new interfaces and features (see SDK
-          documentation)
+          GUI: Fixed crash in cloud related wizards when accessibility
+          functionality was enabled
         </para>
       </listitem>
 
       <listitem>
         <para>
-          Linux hosts: support Linux 4.20 (thank you Larry Finger)
+          GUI: Show VM CPU load as part of status bar CPU indicator
         </para>
       </listitem>
 
       <listitem>
         <para>
-          Solaris: installer fixes
+          GUI: Improved and extended the Session Information dialog
         </para>
       </listitem>
 
       <listitem>
         <para>
-          Shared folders: performance improvements
+          GUI: Fixed/improved mouse pointer scaling
         </para>
       </listitem>
 
       <listitem>
         <para>
-          Guest Additions: improved shared folder auto-mounting
+          GUI: Some issues related to mouse integration cursor scaling were
+          addressed (bug #14366), more to go
         </para>
       </listitem>
 
       <listitem>
         <para>
-          Windows Guest Additions: fix incorrect tablet co-ordinate
-          handling with recent Windows 10 builds
+          GUI: Fix and unify geometry save/restore in various dialogs
         </para>
       </listitem>
 
       <listitem>
         <para>
-          Linux Additions: fix for building vboxvideo on EL 7.6 standard
-          kernel, contributed by Robert Conde (bug #18093)
+          GUI: Added the missing restriction options for disabling new
+          functionality such as the VISO creator
         </para>
       </listitem>
 
       <listitem>
         <para>
-          Linux guests: support Linux 4.20 (thank you Larry Finger)
+          GUI: Popup messages mouse click fix
         </para>
       </listitem>
 
       <listitem>
         <para>
-          Linux guests: support VMSVGA in the Linux and X11 Additions
+          Graphics: Remove 3D support for VBoxVGA (old one deprecated with 6.0)
         </para>
       </listitem>
 
       <listitem>
         <para>
-          MacOS Guest Additions: initial support
+          Graphics: Additional texture format support on Windows host
         </para>
       </listitem>
 
       <listitem>
         <para>
-          OS/2 Guest Additions: initial shared folder support
+          Graphics: Improved fix for flickering on Windows host
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>Input: Added support for horizontal scrolling in the PS/2 mouse
+          device using the IntelliMouse Explorer protocol. Note that this support
+          is automatically used by Linux guests but not by Windows guests
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>vboximg-mount: Experimental support for direct read-only access
+          to NTFS, FAT and ext2/3/4 filesystems inside a disk image without
+          the need for support on the host
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>vboximg-mount: Now also available on Linux host
         </para>
       </listitem>
 
       <listitem>
         <para>
-          BIOS fixes
+          Storage: Experimental support for virtio-scsi, for both hard disks and
+          optical drives (including boot support in BIOS)
         </para>
       </listitem>
 
       <listitem>
         <para>
-          ACPI: Up to four custom ACPI tables can now be configured for
-          a VM
+          Storage: For optical drive emulation fix empty host drive crash
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>
+          USB: Improvements for EHCI controller implementation
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>
+          USB: Filter can now specify port path, uniquely identifying a port
+          in a system
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>
+          NAT: Fix TFTP OACK response, send only if request has options
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>
+          NAT Network: Use non-blocking sockets on Linux for accepted
+          incoming connections (port forwarding)
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>
+          PCnet-ISA: Added new network adapter type, currently CLI only
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>
+          Audio: Allow changing the host audio backend while the VM is
+          in saved state
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>
+          ACPI: Report NVMe controller
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>
+          VGA: Improve hardware and BIOS compatibility
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>
+          VBoxSVGA/VMSVGA: Support YUV2 and related texture formats with hosts
+          using OpenGL (macOS and Linux), which accelerates video playback
+          when 3D is enabled by delegating the color space conversion to the
+          host GPU
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>
+          VBoxSVGA/VMSVGA: Several drawing fixes for the 3D case
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>
+          VMSVGA 3D: Fixed OpenGL compressed textures
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>
+          VBoxManage: More cloud functionality coverage, e.g. starting
+          a cloud instance
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>
+          VBoxManage: As part of the guest control feature support moving
+          multiple source files/directories to a target directory
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>Guest Control/VBoxManage: Added support for specifying multiple sources
+          when renaming guest files
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: Show "unrestricted guest" and "nested HW
+        virtualization" CPU features when listing the host information</para>
+      </listitem>
+
+      <listitem>
+        <para>
+          API: Reduce the amount of leftovers from Move VM function
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>
+          Shared Clipboard: Implemented experimental support for file transfers
+          for Linux hosts on Windows guests (disabled by default)
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>
+          SMBIOS: Store system UUID in little endian format which is the
+          default for new VMs, while existing VMs stick to the old VirtualBox
+          behavior of storing them in big endian format for backwards
+          compatibility to avoid breaking the activation status of Windows VMs
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxSDL frontend: Fixed running on Windows hosts</para>
+      </listitem>
+
+      <listitem>
+        <para>
+          macOS host: Fix VM crashes (most visible on macOS Catalina)
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>
+          Linux host: Improve vboxweb systemd service dependency information
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>
+          Linux host: Drop PCI passthrough, the current code is too incomplete
+          (cannot handle PCIe devices at all), i.e. not useful enough
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>Linux host and guest: Support Linux 5.4 (bug #18945)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux host and guest: Force disabling of kernel module signing
+        during build (user can do it afterwards)</para>
+      </listitem>
+
+      <listitem>
+        <para>
+          Windows host: When possible, distinguish USB devices by port number; helps
+          with accurate capturing of devices when multiple otherwise identical devices
+          are connected
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>
+          Windows Guest Additions: Many fixes for drawing problems in the
+          driver for VBoxSVGA
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>
+          Windows Guest Additions: Fixes for legacy VBoxVGA adapter, restore
+          previously working cases
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>
+          Windows Guest Additions: Restore VHWA functionality for VBoxSVGA
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>
+          Windows guest: DXVA implementation for WDDM driver
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>
+          Documentation: Updated supported host operating systems, added few
+          new manual pages (more to come later)
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>
+          EFI: Switch to newer firmware code base and add NVRAM support,
+          should improve compatibility with OSes significantly
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>
+          EFI: Added support for booting from APFS
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>
+          EFI: Added support for non-standard SATA and NVMe boot device paths
+          created by OS X
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>
+          EFI: Modified updated EFI code base to support older OS X guests again
         </para>
       </listitem>
 

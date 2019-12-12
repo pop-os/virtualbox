@@ -423,6 +423,10 @@ typedef enum SUPGIPUSETSCDELTA
  *       it since we only support 256 CPUs/groups at the moment.
  */
 #define SUPGIPGETCPU_RDTSCP_GROUP_IN_CH_NUMBER_IN_CL RT_BIT_32(3)
+/** Can use CPUID[0xb].EDX and translate the result via aiCpuFromApicId. */
+#define SUPGIPGETCPU_APIC_ID_EXT_0B                  RT_BIT_32(4)
+/** Can use CPUID[0x8000001e].EAX and translate the result via aiCpuFromApicId. */
+#define SUPGIPGETCPU_APIC_ID_EXT_8000001E            RT_BIT_32(5)
 /** @} */
 
 /** @def SUPGIP_MAX_CPU_GROUPS
@@ -462,12 +466,6 @@ typedef struct SUPGLOBALINFOPAGE
     volatile uint64_t   u64NanoTSLastUpdateHz;
     /** The TSC frequency of the system. */
     uint64_t            u64CpuHz;
-    /** The set of online CPUs. */
-    RTCPUSET            OnlineCpuSet;
-    /** The set of present CPUs. */
-    RTCPUSET            PresentCpuSet;
-    /** The set of possible CPUs. */
-    RTCPUSET            PossibleCpuSet;
     /** The number of CPUs that are online. */
     volatile uint16_t   cOnlineCpus;
     /** The number of CPUs present in the system. */
@@ -485,19 +483,34 @@ typedef struct SUPGLOBALINFOPAGE
     uint32_t            fGetGipCpu;
     /** GIP flags, see SUPGIP_FLAGS_XXX. */
     volatile uint32_t   fFlags;
+    /** The set of online CPUs. */
+    RTCPUSET            OnlineCpuSet;
+#if RTCPUSET_MAX_CPUS < 1024
+    uint64_t            abOnlineCpuSetPadding[(1024 - RTCPUSET_MAX_CPUS) / 64];
+#endif
+    /** The set of present CPUs. */
+    RTCPUSET            PresentCpuSet;
+#if RTCPUSET_MAX_CPUS < 1024
+    uint64_t            abPresentCpuSetPadding[(1024 - RTCPUSET_MAX_CPUS) / 64];
+#endif
+    /** The set of possible CPUs. */
+    RTCPUSET            PossibleCpuSet;
+#if RTCPUSET_MAX_CPUS < 1024
+    uint64_t            abPossibleCpuSetPadding[(1024 - RTCPUSET_MAX_CPUS) / 64];
+#endif
 
     /** Padding / reserved space for future data. */
-    uint32_t            au32Padding1[24];
+    uint32_t            au32Padding1[48];
 
     /** Table indexed by the CPU APIC ID to get the CPU table index. */
-    uint16_t            aiCpuFromApicId[256];
+    uint16_t            aiCpuFromApicId[4096];
     /** CPU set index to CPU table index. */
-    uint16_t            aiCpuFromCpuSetIdx[RTCPUSET_MAX_CPUS];
+    uint16_t            aiCpuFromCpuSetIdx[1024];
     /** Table indexed by CPU group to containing offsets to SUPGIPCPUGROUP
-     * structures, invalid entries are set to UINT16_MAX.  The offsets are relative
+     * structures, invalid entries are set to UINT32_MAX.  The offsets are relative
      * to the start of this structure.
-     * @note Windows only. The other hosts sets all entries to UINT16_MAX! */
-    uint16_t            aoffCpuGroup[SUPGIP_MAX_CPU_GROUPS];
+     * @note Windows only. The other hosts sets all entries to UINT32_MAX! */
+    uint32_t            aoffCpuGroup[SUPGIP_MAX_CPU_GROUPS];
 
     /** Array of per-cpu data.
      * This is index by ApicId via the aiCpuFromApicId table.
@@ -509,12 +522,14 @@ typedef struct SUPGLOBALINFOPAGE
     SUPGIPCPU           aCPUs[1];
 } SUPGLOBALINFOPAGE;
 AssertCompileMemberAlignment(SUPGLOBALINFOPAGE, u64NanoTSLastUpdateHz, 8);
-#if defined(RT_ARCH_SPARC) || defined(RT_ARCH_SPARC64)
+AssertCompileMemberAlignment(SUPGLOBALINFOPAGE, OnlineCpuSet, 64);
+AssertCompileMemberAlignment(SUPGLOBALINFOPAGE, PresentCpuSet, 64);
+AssertCompileMemberAlignment(SUPGLOBALINFOPAGE, PossibleCpuSet, 64);
+#if defined(RT_ARCH_SPARC) || defined(RT_ARCH_SPARC64) /* ?? needed ?? */
 AssertCompileMemberAlignment(SUPGLOBALINFOPAGE, aCPUs, 32);
 #else
-AssertCompileMemberAlignment(SUPGLOBALINFOPAGE, aCPUs, 256);
+AssertCompileMemberAlignment(SUPGLOBALINFOPAGE, aCPUs, 128);
 #endif
-AssertCompile(sizeof(SUPGLOBALINFOPAGE) <= 0x1000); /* Keeping it less or equal to a page for raw-mode (saved state). */
 
 /** Pointer to the global info page.
  * @remark there is no const version of this typedef, see g_pSUPGlobalInfoPage for details. */
@@ -526,7 +541,7 @@ typedef SUPGLOBALINFOPAGE *PSUPGLOBALINFOPAGE;
 /** The GIP version.
  * Upper 16 bits is the major version. Major version is only changed with
  * incompatible changes in the GIP. */
-#define SUPGLOBALINFOPAGE_VERSION   0x00080000
+#define SUPGLOBALINFOPAGE_VERSION   0x000a0000
 
 /**
  * SUPGLOBALINFOPAGE::u32Mode values.
@@ -849,14 +864,12 @@ typedef SUPVMMR0REQHDR *PSUPVMMR0REQHDR;
 /** For the fast ioctl path.
  * @{
  */
-/** @see VMMR0_DO_RAW_RUN. */
-#define SUP_VMMR0_DO_RAW_RUN    0
 /** @see VMMR0_DO_HM_RUN. */
-#define SUP_VMMR0_DO_HM_RUN     1
+#define SUP_VMMR0_DO_HM_RUN     0
+/** @see VMMR0_DO_NEM_RUN */
+#define SUP_VMMR0_DO_NEM_RUN    1
 /** @see VMMR0_DO_NOP */
 #define SUP_VMMR0_DO_NOP        2
-/** @see VMMR0_DO_NEM_RUN */
-#define SUP_VMMR0_DO_NEM_RUN    3
 /** @} */
 
 /** SUPR3QueryVTCaps capability flags.
@@ -870,6 +883,8 @@ typedef SUPVMMR0REQHDR *PSUPVMMR0REQHDR;
 #define SUPVTCAPS_NESTED_PAGING             RT_BIT(2)
 /** VT-x: Unrestricted guest execution is supported. */
 #define SUPVTCAPS_VTX_UNRESTRICTED_GUEST    RT_BIT(3)
+/** VT-x: VMCS shadowing is supported. */
+#define SUPVTCAPS_VTX_VMCS_SHADOWING        RT_BIT(4)
 /** @} */
 
 /**
@@ -1976,11 +1991,16 @@ SUPR0DECL(int) SUPR0PageMapKernel(PSUPDRVSESSION pSession, RTR3PTR pvR3, uint32_
 SUPR0DECL(int) SUPR0PageProtect(PSUPDRVSESSION pSession, RTR3PTR pvR3, RTR0PTR pvR0, uint32_t offSub, uint32_t cbSub, uint32_t fProt);
 SUPR0DECL(int) SUPR0PageFree(PSUPDRVSESSION pSession, RTR3PTR pvR3);
 SUPR0DECL(int) SUPR0GipMap(PSUPDRVSESSION pSession, PRTR3PTR ppGipR3, PRTHCPHYS pHCPhysGip);
+SUPR0DECL(int) SUPR0LdrLock(PSUPDRVSESSION pSession);
+SUPR0DECL(int) SUPR0LdrUnlock(PSUPDRVSESSION pSession);
+SUPR0DECL(bool) SUPR0LdrIsLockOwnerByMod(void *hMod, bool fWantToHear);
+SUPR0DECL(int) SUPR0LdrModByName(PSUPDRVSESSION pSession, const char *pszName, void **phMod);
+SUPR0DECL(int) SUPR0LdrModRetain(PSUPDRVSESSION pSession, void *hMod);
+SUPR0DECL(int) SUPR0LdrModRelease(PSUPDRVSESSION pSession, void *hMod);
 SUPR0DECL(int) SUPR0GetVTSupport(uint32_t *pfCaps);
 SUPR0DECL(int) SUPR0GetHwvirtMsrs(PSUPHWVIRTMSRS pMsrs, uint32_t fCaps, bool fForce);
 SUPR0DECL(int) SUPR0GetSvmUsability(bool fInitSvm);
 SUPR0DECL(int) SUPR0GetVmxUsability(bool *pfIsSmxModeAmbiguous);
-SUPR0DECL(int) SUPR0GetRawModeUsability(void);
 SUPR0DECL(int) SUPR0GetCurrentGdtRw(RTHCUINTPTR *pGdtRw);
 SUPR0DECL(int) SUPR0QueryVTCaps(PSUPDRVSESSION pSession, uint32_t *pfCaps);
 SUPR0DECL(int) SUPR0GipUnmap(PSUPDRVSESSION pSession);

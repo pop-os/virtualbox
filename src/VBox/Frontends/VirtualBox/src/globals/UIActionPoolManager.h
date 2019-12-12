@@ -45,6 +45,7 @@ enum UIActionIndexST
     UIActionIndexST_M_File_S_ShowCloudProfileManager,
     UIActionIndexST_M_File_S_ImportAppliance,
     UIActionIndexST_M_File_S_ExportAppliance,
+    UIActionIndexST_M_File_S_NewCloudVM,
 #ifdef VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
     UIActionIndexST_M_File_S_ShowExtraDataManager,
 #endif
@@ -114,6 +115,7 @@ enum UIActionIndexST
     UIActionIndexST_M_Machine_S_ShowInFileManager,
     UIActionIndexST_M_Machine_S_CreateShortcut,
     UIActionIndexST_M_Machine_S_SortParent,
+    UIActionIndexST_M_Machine_S_Search,
 
     /* Global Tools actions: */
     UIActionIndexST_M_Tools_M_Global,
@@ -133,11 +135,13 @@ enum UIActionIndexST
     UIActionIndexST_M_MediumWindow,
     UIActionIndexST_M_Medium,
     UIActionIndexST_M_Medium_S_Add,
+    UIActionIndexST_M_Medium_S_Create,
     UIActionIndexST_M_Medium_S_Copy,
     UIActionIndexST_M_Medium_S_Move,
     UIActionIndexST_M_Medium_S_Remove,
     UIActionIndexST_M_Medium_S_Release,
     UIActionIndexST_M_Medium_T_Details,
+    UIActionIndexST_M_Medium_T_Search,
     UIActionIndexST_M_Medium_S_Refresh,
 
     /* Host Network Manager actions: */
@@ -248,4 +252,3 @@ private:
 
 
 #endif /* !FEQT_INCLUDED_SRC_globals_UIActionPoolManager_h */
-

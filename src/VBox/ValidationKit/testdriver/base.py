@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # $Id: base.py $
-# pylint: disable=C0302
+# pylint: disable=too-many-lines
 
 """
 Base testdriver module.
@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 132687 $"
 
 
 # Standard Python imports.
@@ -221,7 +221,7 @@ def sendUserSignal1(uPid, fSudo = False):
     if sys.platform == 'win32':
         fRc = False;
     else:
-        fRc = __processSudoKill(uPid, signal.SIGUSR1, fSudo); # pylint: disable=E1101
+        fRc = __processSudoKill(uPid, signal.SIGUSR1, fSudo); # pylint: disable=no-member
     return fRc;
 
 def processTerminate(uPid, fSudo = False):
@@ -245,7 +245,7 @@ def processKill(uPid, fSudo = False):
     if sys.platform == 'win32':
         fRc = winbase.processKill(uPid);
     else:
-        fRc = __processSudoKill(uPid, signal.SIGKILL, fSudo); # pylint: disable=E1101
+        fRc = __processSudoKill(uPid, signal.SIGKILL, fSudo); # pylint: disable=no-member
     return fRc;
 
 def processKillWithNameCheck(uPid, sName):
@@ -306,7 +306,7 @@ def processCheckPidAndName(uPid, sName):
                 return False;
 
             # ps fails with non-zero exit code if the pid wasn't found.
-            if iExitCode is not 0:
+            if iExitCode != 0:
                 return False;
             if sCurName is None:
                 return False;
@@ -325,6 +325,46 @@ def processCheckPidAndName(uPid, sName):
             fRc = True;
     return fRc;
 
+def wipeDirectory(sDir):
+    """
+    Deletes all file and sub-directories in sDir, leaving sDir in empty afterwards.
+    Returns the number of errors after logging them as errors.
+    """
+    if not os.path.exists(sDir):
+        return 0;
+
+    try:
+        asNames = os.listdir(sDir);
+    except:
+        return reporter.errorXcpt('os.listdir("%s")' % (sDir));
+
+    cErrors = 0;
+    for sName in asNames:
+        # Build full path and lstat the object.
+        sFullName = os.path.join(sDir, sName)
+        try:
+            oStat = os.lstat(sFullName);
+        except:
+            reporter.errorXcpt('lstat("%s")' % (sFullName,));
+            cErrors = cErrors + 1;
+            continue;
+
+        if stat.S_ISDIR(oStat.st_mode):
+            # Directory - recurse and try remove it.
+            cErrors = cErrors + wipeDirectory(sFullName);
+            try:
+                os.rmdir(sFullName);
+            except:
+                reporter.errorXcpt('rmdir("%s")' % (sFullName,));
+                cErrors = cErrors + 1;
+        else:
+            # File, symlink, fifo or something - remove/unlink.
+            try:
+                os.remove(sFullName);
+            except:
+                reporter.errorXcpt('remove("%s")' % (sFullName,));
+                cErrors = cErrors + 1;
+    return cErrors;
 
 
 #
@@ -368,18 +408,23 @@ class TdTaskBase(object):
     The base task.
     """
 
-    def __init__(self, sCaller):
-        self.sDbgCreated    = '%s: %s' % (utils.getTimePrefix(), sCaller);
-        self.fSignalled     = False;
-        self.__oRLock       = threading.RLock();
-        self.oCv            = threading.Condition(self.__oRLock);
-        self.oOwner         = None;
-        self.msStart        = timestampMilli();
-        self.oLocker        = None;
+    def __init__(self, sCaller, fnProcessEvents = None):
+        self.sDbgCreated        = '%s: %s' % (utils.getTimePrefix(), sCaller);
+        self.fSignalled         = False;
+        self.__oRLock           = threading.RLock();
+        self.oCv                = threading.Condition(self.__oRLock);
+        self.oOwner             = None;
+        self.msStart            = timestampMilli();
+        self.oLocker            = None;
+
+        ## Callback function that takes no parameters and will not be called holding the lock.
+        ## It is a hack to work the XPCOM and COM event queues, so we won't hold back events
+        ## that could block task progress (i.e. hangs VM).
+        self.fnProcessEvents    = fnProcessEvents;
 
     def __del__(self):
         """In case we need it later on."""
-        pass;
+        pass;   # pylint: disable=unnecessary-pass
 
     def toString(self):
         """
@@ -394,7 +439,7 @@ class TdTaskBase(object):
 
     def lockTask(self):
         """ Wrapper around oCv.acquire(). """
-        if True is True: # change to False for debugging deadlocks.
+        if True is True: # change to False for debugging deadlocks. # pylint: disable=comparison-with-itself
             self.oCv.acquire();
         else:
             msStartWait = timestampMilli();
@@ -499,11 +544,14 @@ class TdTaskBase(object):
 
         Overriable.
         """
+        if self.fnProcessEvents:
+            self.fnProcessEvents();
+
         self.lockTask();
 
         fState = self.pollTask(True);
         if not fState:
-            # Don't wait more than 1s.  This allow lazy state polling.
+            # Don't wait more than 1s.  This allow lazy state polling and avoid event processing trouble.
             msStart = timestampMilli();
             while not fState:
                 cMsElapsed = timestampMilli() - msStart;
@@ -517,10 +565,20 @@ class TdTaskBase(object):
                     self.oCv.wait(cMsWait / 1000.0);
                 except:
                     pass;
+
+                if self.fnProcessEvents:
+                    self.unlockTask();
+                    self.fnProcessEvents();
+                    self.lockTask();
+
                 reporter.doPollWork('TdTaskBase.waitForTask');
                 fState = self.pollTask(True);
 
         self.unlockTask();
+
+        if self.fnProcessEvents:
+            self.fnProcessEvents();
+
         return fState;
 
 
@@ -599,7 +657,7 @@ class Process(TdTaskBase):
                 if winbase.processPollByHandle(self.hWin):
                     try:
                         (uPid, uStatus) = os.waitpid(self.hWin, 0);
-                        if uPid == self.hWin or uPid == self.uPid:
+                        if uPid in (self.hWin, self.uPid,):
                             self.hWin.Detach(); # waitpid closed it, so it's now invalid.
                             self.hWin = None;
                             uPid = self.uPid;
@@ -612,7 +670,7 @@ class Process(TdTaskBase):
                     uStatus = 0;        # pylint: disable=redefined-variable-type
             else:
                 try:
-                    (uPid, uStatus) = os.waitpid(self.uPid, os.WNOHANG); # pylint: disable=E1101
+                    (uPid, uStatus) = os.waitpid(self.uPid, os.WNOHANG); # pylint: disable=no-member
                 except:
                     reporter.logXcpt();
                     uPid    = self.uPid;
@@ -740,10 +798,12 @@ class SubTestDriverBase(object):
     base class: options, help, resources, various other actions.
     """
 
-    def __init__(self, sName, oTstDrv):
-        self.sName              = sName;
-        self.oTstDrv            = oTstDrv;
-        self.asRsrcs            = [];
+    def __init__(self, oTstDrv, sName, sTestName):
+        self.oTstDrv            = oTstDrv       # type: TestDriverBase
+        self.sName              = sName;        # For use with options (--enable-sub-driver sName:sName2)
+        self.sTestName          = sTestName;    # More descriptive for passing to reporter.testStart().
+        self.asRsrcs            = []            # type: List(str)
+        self.fEnabled           = True;         # TestDriverBase --enable-sub-driver and --disable-sub-driver.
 
     def showUsage(self):
         """
@@ -752,7 +812,7 @@ class SubTestDriverBase(object):
         The default implementation only prints the name.
         """
         reporter.log('');
-        reporter.log('Options for sub-test driver %s:' % (self.sName,));
+        reporter.log('Options for sub-test driver %s (%s):' % (self.sTestName, self.sName,));
         return True;
 
     def parseOption(self, asArgs, iArg):
@@ -770,7 +830,7 @@ class SubTestDriverBase(object):
         return iArg;
 
 
-class TestDriverBase(object): # pylint: disable=R0902
+class TestDriverBase(object): # pylint: disable=too-many-instance-attributes
     """
     The base test driver.
     """
@@ -793,6 +853,9 @@ class TestDriverBase(object): # pylint: disable=R0902
         # Host info.
         self.sHost              = utils.getHostOs();
         self.sHostArch          = utils.getHostArch();
+
+        # Skipped status modifier (see end of innerMain()).
+        self.fBadTestbox        = False;
 
         #
         # Get our bearings and adjust the environment.
@@ -855,7 +918,7 @@ class TestDriverBase(object): # pylint: disable=R0902
         self.secTimeoutFudge = 30;
 
         # List of sub-test drivers (SubTestDriverBase derivatives).
-        self.aoSubTstDrvs    = [];          # type: list(SubTestDriverBase)
+        self.aoSubTstDrvs    = [] # type: list(SubTestDriverBase)
 
         # Use the scratch path for temporary files.
         if self.sHost in ['win', 'os2']:
@@ -896,51 +959,12 @@ class TestDriverBase(object): # pylint: disable=R0902
     # Scratch related utility methods.
     #
 
-    def __wipeScratchRecurse(self, sDir):
-        """
-        Deletes all file and sub-directories in sDir.
-        Returns the number of errors.
-        """
-        try:
-            asNames = os.listdir(sDir);
-        except:
-            reporter.errorXcpt('os.listdir("%s")' % (sDir));
-            return False;
-
-        cErrors = 0;
-        for sName in asNames:
-            # Build full path and lstat the object.
-            sFullName = os.path.join(sDir, sName)
-            try:
-                oStat = os.lstat(sFullName);
-            except:
-                reporter.errorXcpt('lstat("%s")' % (sFullName));
-                cErrors = cErrors + 1;
-                continue;
-
-            if stat.S_ISDIR(oStat.st_mode):
-                # Directory - recurse and try remove it.
-                cErrors = cErrors + self.__wipeScratchRecurse(sFullName);
-                try:
-                    os.rmdir(sFullName);
-                except:
-                    reporter.errorXcpt('rmdir("%s")' % (sFullName));
-                    cErrors = cErrors + 1;
-            else:
-                # File, symlink, fifo or something - remove/unlink.
-                try:
-                    os.remove(sFullName);
-                except:
-                    reporter.errorXcpt('remove("%s")' % (sFullName));
-                    cErrors = cErrors + 1;
-        return cErrors;
-
     def wipeScratch(self):
         """
         Removes the content of the scratch directory.
         Returns True on no errors, False + log entries on errors.
         """
-        cErrors = self.__wipeScratchRecurse(self.sScratchPath);
+        cErrors = wipeDirectory(self.sScratchPath);
         return cErrors == 0;
 
     #
@@ -980,6 +1004,16 @@ class TestDriverBase(object): # pylint: disable=R0902
                 assert iNext <= len(asArgs);
                 return iNext;
         return iArgs;
+
+    def findSubTstDrvByShortName(self, sShortName):
+        """
+        Locates a sub-test driver by it's short name.
+        Returns sub-test driver object reference if found, None if not.
+        """
+        for oSubTstDrv in self.aoSubTstDrvs:
+            if oSubTstDrv.sName == sShortName:
+                return oSubTstDrv;
+        return None;
 
 
     #
@@ -1052,7 +1086,7 @@ class TestDriverBase(object): # pylint: disable=R0902
 
     def waitForTasksSleepWorker(self, cMsTimeout):
         """
-        Overriable method that does the sleeping for waitForTask().
+        Overridable method that does the sleeping for waitForTask().
 
         cMsTimeout will not be larger than 1000, so there is normally no need
         to do any additional splitting up of the polling interval.
@@ -1319,6 +1353,11 @@ class TestDriverBase(object): # pylint: disable=R0902
         reporter.log('  --no-wipe-clean');
         reporter.log('      Do not wipe clean the scratch area during the two clean up');
         reporter.log('      actions.  This is for facilitating nested test driver execution.');
+        if self.aoSubTstDrvs:
+            reporter.log('  --enable-sub-driver <sub1>[:..]');
+            reporter.log('  --disable-sub-driver <sub1>[:..]');
+            reporter.log('     Enables or disables one or more of the sub drivers: %s'
+                         % (', '.join([oSubTstDrv.sName for oSubTstDrv in self.aoSubTstDrvs]),));
         return True;
 
     def parseOption(self, asArgs, iArg):
@@ -1347,6 +1386,14 @@ class TestDriverBase(object): # pylint: disable=R0902
             reporter.incDebug()
         elif asArgs[iArg] == '--no-wipe-clean':
             self.fNoWipeClean = True;
+        elif asArgs[iArg] in ('--enable-sub-driver', '--disable-sub-driver') and self.aoSubTstDrvs:
+            sOption = asArgs[iArg];
+            iArg = self.requireMoreArgs(1, asArgs, iArg);
+            for sSubTstDrvName in asArgs[iArg].split(':'):
+                oSubTstDrv = self.findSubTstDrvByShortName(sSubTstDrvName);
+                if oSubTstDrv is None:
+                    raise InvalidOption('Unknown sub-test driver given to %s: %s' % (sOption, sSubTstDrvName,));
+                oSubTstDrv.fEnabled = sOption == '--enable-sub-driver';
         elif (asArgs[iArg] == 'all' or asArgs[iArg] in self.asNormalActions) \
           and self.asActions in self.asSpecialActions:
             raise InvalidOption('selected special action "%s" already' % (self.asActions[0], ));
@@ -1593,6 +1640,7 @@ class TestDriverBase(object): # pylint: disable=R0902
         try:
             iRc = self.innerMain(asArgs);
         except:
+            reporter.logXcpt(cFrames = None);
             try:
                 self.onExit(-1);
             except:
@@ -1602,7 +1650,7 @@ class TestDriverBase(object): # pylint: disable=R0902
         return iRc;
 
 
-    def innerMain(self, asArgs = None): # pylint: disable=R0915
+    def innerMain(self, asArgs = None): # pylint: disable=too-many-statements
         """
         Exception wrapped main() worker.
         """
@@ -1708,6 +1756,11 @@ class TestDriverBase(object): # pylint: disable=R0902
 
         # Done
         if fRc is None:
+            if self.fBadTestbox:
+                reporter.log('****************************************************************');
+                reporter.log('*** The test driver SKIPPED the test because of BAD_TESTBOX. ***');
+                reporter.log('****************************************************************');
+                return rtexitcode.RTEXITCODE_BAD_TESTBOX;
             reporter.log('*****************************************');
             reporter.log('*** The test driver SKIPPED the test. ***');
             reporter.log('*****************************************');
@@ -1723,14 +1776,14 @@ class TestDriverBase(object): # pylint: disable=R0902
         return rtexitcode.RTEXITCODE_SUCCESS;
 
 # The old, deprecated name.
-TestDriver = TestDriverBase; # pylint: disable=C0103
+TestDriver = TestDriverBase; # pylint: disable=invalid-name
 
 
 #
 # Unit testing.
 #
 
-# pylint: disable=C0111
+# pylint: disable=missing-docstring
 class TestDriverBaseTestCase(unittest.TestCase):
     def setUp(self):
         self.oTstDrv = TestDriverBase();

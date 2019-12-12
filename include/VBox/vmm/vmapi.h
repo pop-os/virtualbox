@@ -56,57 +56,6 @@ RT_C_DECLS_BEGIN
 /** @} */
 
 
-/** @def VM_RC_ADDR
- * Converts a current context address of data within the VM structure to the equivalent
- * raw-mode address.
- *
- * @returns raw-mode virtual address.
- * @param   pVM     The cross context VM structure.
- * @param   pvInVM  CC Pointer within the VM.
- */
-#ifdef IN_RING3
-# define VM_RC_ADDR(pVM, pvInVM)        ( (RTRCPTR)((RTRCUINTPTR)pVM->pVMRC + (uint32_t)((uintptr_t)(pvInVM) - (uintptr_t)pVM->pVMR3)) )
-#elif defined(IN_RING0)
-# define VM_RC_ADDR(pVM, pvInVM)        ( (RTRCPTR)((RTRCUINTPTR)pVM->pVMRC + (uint32_t)((uintptr_t)(pvInVM) - (uintptr_t)pVM->pVMR0)) )
-#else
-# define VM_RC_ADDR(pVM, pvInVM)        ( (RTRCPTR)(pvInVM) )
-#endif
-
-/** @def VM_R3_ADDR
- * Converts a current context address of data within the VM structure to the equivalent
- * ring-3 host address.
- *
- * @returns host virtual address.
- * @param   pVM     The cross context VM structure.
- * @param   pvInVM  CC pointer within the VM.
- */
-#ifdef IN_RC
-# define VM_R3_ADDR(pVM, pvInVM)       ( (RTR3PTR)((RTR3UINTPTR)pVM->pVMR3 + (uint32_t)((uintptr_t)(pvInVM) - (uintptr_t)pVM->pVMRC)) )
-#elif defined(IN_RING0)
-# define VM_R3_ADDR(pVM, pvInVM)       ( (RTR3PTR)((RTR3UINTPTR)pVM->pVMR3 + (uint32_t)((uintptr_t)(pvInVM) - (uintptr_t)pVM->pVMR0)) )
-#else
-# define VM_R3_ADDR(pVM, pvInVM)       ( (RTR3PTR)(pvInVM) )
-#endif
-
-
-/** @def VM_R0_ADDR
- * Converts a current context address of data within the VM structure to the equivalent
- * ring-0 host address.
- *
- * @returns host virtual address.
- * @param   pVM     The cross context VM structure.
- * @param   pvInVM  CC pointer within the VM.
- */
-#ifdef IN_RC
-# define VM_R0_ADDR(pVM, pvInVM)       ( (RTR0PTR)((RTR0UINTPTR)pVM->pVMR0 + (uint32_t)((uintptr_t)(pvInVM) - (uintptr_t)pVM->pVMRC)) )
-#elif defined(IN_RING3)
-# define VM_R0_ADDR(pVM, pvInVM)       ( (RTR0PTR)((RTR0UINTPTR)pVM->pVMR0 + (uint32_t)((uintptr_t)(pvInVM) - (uintptr_t)pVM->pVMR3)) )
-#else
-# define VM_R0_ADDR(pVM, pvInVM)       ( (RTR0PTR)(pvInVM) )
-#endif
-
-
-
 /**
  * VM error callback function.
  *
@@ -122,8 +71,8 @@ typedef DECLCALLBACK(void) FNVMATERROR(PUVM pUVM, void *pvUser, int rc, RT_SRC_P
 /** Pointer to a VM error callback. */
 typedef FNVMATERROR *PFNVMATERROR;
 
-VMMDECL(int)    VMSetError(PVM pVM, int rc, RT_SRC_POS_DECL, const char *pszFormat, ...) RT_IPRT_FORMAT_ATTR(6, 7);
-VMMDECL(int)    VMSetErrorV(PVM pVM, int rc, RT_SRC_POS_DECL, const char *pszFormat, va_list args) RT_IPRT_FORMAT_ATTR(6, 7);
+VMMDECL(int)    VMSetError(PVMCC pVM, int rc, RT_SRC_POS_DECL, const char *pszFormat, ...) RT_IPRT_FORMAT_ATTR(6, 7);
+VMMDECL(int)    VMSetErrorV(PVMCC pVM, int rc, RT_SRC_POS_DECL, const char *pszFormat, va_list args) RT_IPRT_FORMAT_ATTR(6, 7);
 
 /** @def VM_SET_ERROR
  * Macro for setting a simple VM error message.
@@ -173,9 +122,9 @@ typedef DECLCALLBACK(void) FNVMATRUNTIMEERROR(PUVM pUVM, void *pvUser, uint32_t 
 /** Pointer to a VM runtime error callback. */
 typedef FNVMATRUNTIMEERROR *PFNVMATRUNTIMEERROR;
 
-VMMDECL(int) VMSetRuntimeError(PVM pVM, uint32_t fFlags, const char *pszErrorId,
+VMMDECL(int) VMSetRuntimeError(PVMCC pVM, uint32_t fFlags, const char *pszErrorId,
                                const char *pszFormat, ...) RT_IPRT_FORMAT_ATTR(4, 5);
-VMMDECL(int) VMSetRuntimeErrorV(PVM pVM, uint32_t fFlags, const char *pszErrorId,
+VMMDECL(int) VMSetRuntimeErrorV(PVMCC pVM, uint32_t fFlags, const char *pszErrorId,
                                 const char *pszFormat, va_list args) RT_IPRT_FORMAT_ATTR(4, 0);
 
 /** @name VMSetRuntimeError fFlags
@@ -214,9 +163,9 @@ typedef FNVMATSTATE *PFNVMATSTATE;
 
 VMMDECL(const char *)   VMGetStateName(VMSTATE enmState);
 
-VMMDECL(uint32_t)       VMGetResetCount(PVM pVM);
-VMMDECL(uint32_t)       VMGetSoftResetCount(PVM pVM);
-VMMDECL(uint32_t)       VMGetHardResetCount(PVM pVM);
+VMMDECL(uint32_t)       VMGetResetCount(PVMCC pVM);
+VMMDECL(uint32_t)       VMGetSoftResetCount(PVMCC pVM);
+VMMDECL(uint32_t)       VMGetHardResetCount(PVMCC pVM);
 
 
 /**
@@ -320,8 +269,6 @@ typedef struct VMREQ
 /** Pointer to a VM request packet. */
 typedef VMREQ *PVMREQ;
 
-/** @} */
-
 
 #ifndef IN_RC
 /** @defgroup grp_vmm_apis_hc  VM Host Context API
@@ -334,7 +281,6 @@ typedef VMREQ *PVMREQ;
 
 #ifdef IN_RING3
 /** @defgroup grp_vmm_apis_r3  VM Host Context Ring 3 API
- * This interface is a _draft_!
  * @ingroup grp_vm
  * @{ */
 
@@ -350,9 +296,7 @@ typedef enum VMINITCOMPLETED
     /** The hardware accelerated virtualization init is completed.
      * Used to make decisision depending on HM* bits being completely
      * initialized. */
-    VMINITCOMPLETED_HM,
-    /** The RC init is completed. */
-    VMINITCOMPLETED_RC
+    VMINITCOMPLETED_HM
 } VMINITCOMPLETED;
 
 
@@ -436,12 +380,10 @@ VMMR3DECL(int)          VMR3Reset(PUVM pUVM);
 VMMR3_INT_DECL(VBOXSTRICTRC) VMR3ResetFF(PVM pVM);
 VMMR3_INT_DECL(VBOXSTRICTRC) VMR3ResetTripleFault(PVM pVM);
 VMMR3DECL(int)          VMR3Save(PUVM pUVM, const char *pszFilename, bool fContinueAfterwards, PFNVMPROGRESS pfnProgress, void *pvUser, bool *pfSuspended);
-VMMR3_INT_DECL(int)     VMR3SaveFT(PUVM pUVM, PCSSMSTRMOPS pStreamOps, void *pvStreamOpsUser, bool *pfSuspended, bool fSkipStateChanges);
 VMMR3DECL(int)          VMR3Teleport(PUVM pUVM, uint32_t cMsDowntime, PCSSMSTRMOPS pStreamOps, void *pvStreamOpsUser, PFNVMPROGRESS pfnProgress, void *pvProgressUser, bool *pfSuspended);
 VMMR3DECL(int)          VMR3LoadFromFile(PUVM pUVM, const char *pszFilename, PFNVMPROGRESS pfnProgress, void *pvUser);
 VMMR3DECL(int)          VMR3LoadFromStream(PUVM pUVM, PCSSMSTRMOPS pStreamOps, void *pvStreamOpsUser,
                                            PFNVMPROGRESS pfnProgress, void *pvProgressUser);
-VMMR3_INT_DECL(int)     VMR3LoadFromStreamFT(PUVM pUVM, PCSSMSTRMOPS pStreamOps, void *pvStreamOpsUser);
 
 VMMR3DECL(int)          VMR3PowerOff(PUVM pUVM);
 VMMR3DECL(int)          VMR3Destroy(PUVM pUVM);
@@ -518,15 +460,6 @@ VMMR3DECL(int)              VMR3SetCpuExecutionCap(PUVM pUVM, uint32_t uCpuExecu
 VMMR3DECL(int)              VMR3SetPowerOffInsteadOfReset(PUVM pUVM, bool fPowerOffInsteadOfReset);
 /** @} */
 #endif /* IN_RING3 */
-
-
-#ifdef IN_RC
-/** @defgroup grp_vmm_apis_gc  VM Guest Context APIs
- * @ingroup grp_vm
- * @{ */
-
-/** @} */
-#endif
 
 RT_C_DECLS_END
 

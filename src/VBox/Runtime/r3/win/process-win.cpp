@@ -139,10 +139,8 @@ static PFNGETMODULEBASENAME             g_pfnGetModuleBaseName          = NULL;
 static PFNENUMPROCESSES                 g_pfnEnumProcesses              = NULL;
 /* advapi32.dll: */
 static PFNCREATEPROCESSWITHLOGON        g_pfnCreateProcessWithLogonW    = NULL;
-static PFNLSALOOKUPNAMES2               g_pfnLsaLookupNames2            = NULL;
 static decltype(LogonUserW)            *g_pfnLogonUserW                 = NULL;
 static decltype(CreateProcessAsUserW)  *g_pfnCreateProcessAsUserW       = NULL;
-static decltype(LsaNtStatusToWinError) *g_pfnLsaNtStatusToWinError      = NULL;
 /* user32.dll: */
 static decltype(OpenWindowStationW)    *g_pfnOpenWindowStationW         = NULL;
 static decltype(CloseWindowStation)    *g_pfnCloseWindowStation        = NULL;
@@ -352,17 +350,11 @@ static DECLCALLBACK(int) rtProcWinResolveOnce(void *pvUser)
         rc = RTLdrGetSymbol(hMod, "CreateProcessWithLogonW", (void **)&g_pfnCreateProcessWithLogonW);
         if (RT_FAILURE(rc)) { g_pfnCreateProcessWithLogonW = NULL; Assert(g_enmWinVer <= kRTWinOSType_NT4); }
 
-        rc = RTLdrGetSymbol(hMod, "LsaLookupNames2", (void **)&g_pfnLsaLookupNames2);
-        if (RT_FAILURE(rc)) { g_pfnLsaLookupNames2 = NULL; Assert(g_enmWinVer <= kRTWinOSType_NT4); }
-
         rc = RTLdrGetSymbol(hMod, "LogonUserW", (void **)&g_pfnLogonUserW);
         if (RT_FAILURE(rc)) { g_pfnLogonUserW = NULL; Assert(g_enmWinVer <= kRTWinOSType_NT350); }
 
         rc = RTLdrGetSymbol(hMod, "CreateProcessAsUserW", (void **)&g_pfnCreateProcessAsUserW);
         if (RT_FAILURE(rc)) { g_pfnCreateProcessAsUserW = NULL; Assert(g_enmWinVer <= kRTWinOSType_NT350); }
-
-        rc = RTLdrGetSymbol(hMod, "LsaNtStatusToWinError", (void **)&g_pfnLsaNtStatusToWinError);
-        if (RT_FAILURE(rc)) { g_pfnLsaNtStatusToWinError = NULL; Assert(g_enmWinVer <= kRTWinOSType_NT350); }
 
         RTLdrClose(hMod);
     }
@@ -412,21 +404,119 @@ RTR3DECL(int) RTProcCreate(const char *pszExec, const char * const *papszArgs, R
     return RTProcCreateEx(pszExec, papszArgs, Env, fFlags,
                           NULL, NULL, NULL,  /* standard handles */
                           NULL /*pszAsUser*/, NULL /* pszPassword*/,
-                          pProcess);
+                          NULL /*pvExtraData*/, pProcess);
 }
 
 
 /**
- * Get the process token of the process indicated by @a dwPID if the @a pSid
- * matches.
+ * The following NT call is for v3.51 and does the equivalent of:
+ *      DuplicateTokenEx(hSrcToken, MAXIMUM_ALLOWED, NULL,
+ *                       SecurityIdentification, TokenPrimary, phToken);
+ */
+static int rtProcWinDuplicateToken(HANDLE hSrcToken, PHANDLE phToken)
+{
+    int rc;
+    if (g_pfnNtDuplicateToken)
+    {
+        SECURITY_QUALITY_OF_SERVICE SecQoS;
+        SecQoS.Length              = sizeof(SecQoS);
+        SecQoS.ImpersonationLevel  = SecurityIdentification;
+        SecQoS.ContextTrackingMode = SECURITY_DYNAMIC_TRACKING;
+        SecQoS.EffectiveOnly       = FALSE;
+
+        OBJECT_ATTRIBUTES ObjAttr;
+        InitializeObjectAttributes(&ObjAttr, NULL /*Name*/, 0 /*OBJ_XXX*/, NULL /*Root*/, NULL /*SecDesc*/);
+        ObjAttr.SecurityQualityOfService = &SecQoS;
+
+        NTSTATUS rcNt = g_pfnNtDuplicateToken(hSrcToken, MAXIMUM_ALLOWED, &ObjAttr, FALSE, TokenPrimary, phToken);
+        if (NT_SUCCESS(rcNt))
+            rc = VINF_SUCCESS;
+        else
+            rc = RTErrConvertFromNtStatus(rcNt);
+    }
+    else
+        rc = VERR_SYMBOL_NOT_FOUND; /** @todo do we really need to duplicate the token? */
+    return rc;
+}
+
+
+/**
+ * Get the token assigned to the thread indicated by @a hThread.
+ *
+ * Only used when RTPROC_FLAGS_AS_IMPERSONATED_TOKEN is in effect and the
+ * purpose is to get a duplicate the impersonated token of the current thread.
  *
  * @returns IPRT status code.
- * @param   dwPid           The process identifier.
- * @param   pSid            The secure identifier of the user.
- * @param   phToken         Where to return the a duplicate of the process token
+ * @param   hThread         The thread handle (current thread).
+ * @param   phToken         Where to return the a duplicate of the thread token
  *                          handle on success. (The caller closes it.)
  */
-static int rtProcWinGetProcessTokenHandle(DWORD dwPid, PSID pSid, PHANDLE phToken)
+static int rtProcWinGetThreadTokenHandle(HANDLE hThread, PHANDLE phToken)
+{
+    AssertPtr(phToken);
+
+    int     rc;
+    HANDLE hTokenThread;
+    if (OpenThreadToken(hThread,
+                        TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY | TOKEN_DUPLICATE
+                        | TOKEN_ASSIGN_PRIMARY | TOKEN_ADJUST_SESSIONID | TOKEN_READ | TOKEN_WRITE,
+                        TRUE /* OpenAsSelf - for impersonation at SecurityIdentification level */,
+                        &hTokenThread))
+    {
+        rc = rtProcWinDuplicateToken(hTokenThread, phToken);
+        CloseHandle(hTokenThread);
+    }
+    else
+        rc = RTErrConvertFromWin32(GetLastError());
+    return rc;
+}
+
+
+/**
+ * Get the token assigned the process indicated by @a hProcess.
+ *
+ * Only used when pwszUser is NULL and RTPROC_FLAGS_AS_IMPERSONATED_TOKEN isn't
+ * set.
+ *
+ * @returns IPRT status code.
+ * @param   hProcess        The process handle (current process).
+ * @param   phToken         Where to return the a duplicate of the thread token
+ *                          handle on success. (The caller closes it.)
+ */
+static int rtProcWinGetProcessTokenHandle(HANDLE hProcess, PHANDLE phToken)
+{
+    AssertPtr(phToken);
+
+    int     rc;
+    HANDLE hTokenProcess;
+    if (OpenProcessToken(hProcess,
+                         TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY | TOKEN_DUPLICATE
+                         | TOKEN_ASSIGN_PRIMARY | TOKEN_ADJUST_SESSIONID | TOKEN_READ | TOKEN_WRITE,
+                         &hTokenProcess))
+    {
+        rc = rtProcWinDuplicateToken(hTokenProcess, phToken); /* not sure if this is strictly necessary */
+        CloseHandle(hTokenProcess);
+    }
+    else
+        rc = RTErrConvertFromWin32(GetLastError());
+    return rc;
+}
+
+
+/**
+ * Get the process token of the process indicated by @a dwPID if the @a pSid and
+ * @a idSessionDesired matches.
+ *
+ * @returns IPRT status code.
+ * @param   dwPid               The process identifier.
+ * @param   pSid                The secure identifier of the user.
+ * @param   idDesiredSession    The session the process candidate should
+ *                              preferably belong to, UINT32_MAX if anything
+ *                              goes.
+ * @param   phToken             Where to return the a duplicate of the process token
+ *                              handle on success. (The caller closes it.)
+ */
+static int rtProcWinGetProcessTokenHandle(DWORD dwPid, PSID pSid, DWORD idDesiredSession, PHANDLE phToken)
 {
     AssertPtr(pSid);
     AssertPtr(phToken);
@@ -437,10 +527,13 @@ static int rtProcWinGetProcessTokenHandle(DWORD dwPid, PSID pSid, PHANDLE phToke
     {
         HANDLE hTokenProc;
         if (OpenProcessToken(hProc,
-                             TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY | TOKEN_DUPLICATE
+                             TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY | TOKEN_DUPLICATE | TOKEN_IMPERSONATE
                              | TOKEN_ASSIGN_PRIMARY | TOKEN_ADJUST_SESSIONID | TOKEN_READ | TOKEN_WRITE,
                              &hTokenProc))
         {
+            /*
+             * Query the user SID from the token.
+             */
             SetLastError(NO_ERROR);
             DWORD   dwSize = 0;
             BOOL    fRc    = GetTokenInformation(hTokenProc, TokenUser, NULL, 0, &dwSize);
@@ -454,43 +547,32 @@ static int rtProcWinGetProcessTokenHandle(DWORD dwPid, PSID pSid, PHANDLE phToke
                 {
                     if (GetTokenInformation(hTokenProc, TokenUser, pTokenUser, dwSize, &dwSize))
                     {
+                        /*
+                         * Match token user with the user we're want to create a process as.
+                         */
                         if (   IsValidSid(pTokenUser->User.Sid)
                             && EqualSid(pTokenUser->User.Sid, pSid))
                         {
                             /*
-                             * The following NT call is for v3.51 and does the equivalent of:
-                             *      DuplicateTokenEx(hTokenProc, MAXIMUM_ALLOWED, NULL,
-                             *                       SecurityIdentification, TokenPrimary, phToken);
+                             * Do we need to match the session ID?
                              */
-                            if (g_pfnNtDuplicateToken)
+                            rc = VINF_SUCCESS;
+                            if (idDesiredSession != UINT32_MAX)
                             {
-                                SECURITY_QUALITY_OF_SERVICE SecQoS;
-                                SecQoS.Length              = sizeof(SecQoS);
-                                SecQoS.ImpersonationLevel  = SecurityIdentification;
-                                SecQoS.ContextTrackingMode = SECURITY_DYNAMIC_TRACKING;
-                                SecQoS.EffectiveOnly       = FALSE;
-
-                                OBJECT_ATTRIBUTES ObjAttr;
-                                InitializeObjectAttributes(&ObjAttr, NULL /*Name*/, 0 /*OBJ_XXX*/, NULL /*Root*/, NULL /*SecDesc*/);
-                                ObjAttr.SecurityQualityOfService = &SecQoS;
-
-                                NTSTATUS rcNt = g_pfnNtDuplicateToken(hTokenProc, MAXIMUM_ALLOWED, &ObjAttr, FALSE,
-                                                                      TokenPrimary, phToken);
-                                if (NT_SUCCESS(rcNt))
-                                {
-                                    /*
-                                     * So we found the process instance which belongs to the user we want to
-                                     * to run our new process under. This duplicated token will be used for
-                                     * the actual CreateProcessAsUserW() call then.
-                                     */
-                                    rc = VINF_SUCCESS;
-                                }
+                                DWORD idCurSession = UINT32_MAX;
+                                if (GetTokenInformation(hTokenProc, TokenSessionId, &idCurSession, sizeof(DWORD), &dwSize))
+                                    rc = idDesiredSession == idCurSession ? VINF_SUCCESS : VERR_NOT_FOUND;
                                 else
-                                    rc = RTErrConvertFromNtStatus(rcNt);
-
+                                    rc = RTErrConvertFromWin32(GetLastError());
                             }
-                            else
-                                rc = VERR_SYMBOL_NOT_FOUND; /** @todo do we really need to duplicate the token? */
+                            if (RT_SUCCESS(rc))
+                            {
+                                /*
+                                 * Got a match.  Duplicate the token.  This duplicated token will
+                                 * be used for the actual CreateProcessAsUserW() call then.
+                                 */
+                                rc = rtProcWinDuplicateToken(hTokenProc, phToken);
+                            }
                         }
                         else
                             rc = VERR_NOT_FOUND;
@@ -590,7 +672,7 @@ static bool rtProcWinFindTokenByProcessAndPsApi(const char * const *papszNames, 
                         DWORD cbRet = g_pfnGetModuleBaseName(hProc, 0 /*hModule = exe */, pszProcName, cbProcName);
                         if (   cbRet > 0
                             && _stricmp(pszProcName, papszNames[i]) == 0
-                            && RT_SUCCESS(rtProcWinGetProcessTokenHandle(paPids[iPid], pSid, phToken)))
+                            && RT_SUCCESS(rtProcWinGetProcessTokenHandle(paPids[iPid], pSid, UINT32_MAX, phToken)))
                             fFound = true;
                         CloseHandle(hProc);
                     }
@@ -608,16 +690,19 @@ static bool rtProcWinFindTokenByProcessAndPsApi(const char * const *papszNames, 
 
 
 /**
- * Finds a one of the processes in @a papszNames running with user @a pSid and
- * returns a duplicate handle to its token.
+ * Finds a one of the processes in @a papszNames running with user @a pSid and possibly
+ * in the required windows session. Returns a duplicate handle to its token.
  *
  * @returns Success indicator.
- * @param   papszNames      The process candidates, in prioritized order.
- * @param   pSid            The secure identifier of the user.
- * @param   phToken         Where to return the token handle - duplicate,
- *                          caller closes it on success.
+ * @param   papszNames          The process candidates, in prioritized order.
+ * @param   pSid                The secure identifier of the user.
+ * @param   idDesiredSession    The session the process candidate should
+ *                              belong to if possible, UINT32_MAX if anything
+ *                              goes.
+ * @param   phToken             Where to return the token handle - duplicate,
+ *                              caller closes it on success.
  */
-static bool rtProcWinFindTokenByProcess(const char * const *papszNames, PSID pSid, PHANDLE phToken)
+static bool rtProcWinFindTokenByProcess(const char * const *papszNames, PSID pSid, uint32_t idDesiredSession, PHANDLE phToken)
 {
     AssertPtr(papszNames);
     AssertPtr(pSid);
@@ -648,7 +733,7 @@ static bool rtProcWinFindTokenByProcess(const char * const *papszNames, PSID pSi
                     {
                         if (_stricmp(ProcEntry.szExeFile, papszNames[i]) == 0)
                         {
-                            int rc = rtProcWinGetProcessTokenHandle(ProcEntry.th32ProcessID, pSid, phToken);
+                            int rc = rtProcWinGetProcessTokenHandle(ProcEntry.th32ProcessID, pSid, idDesiredSession, phToken);
                             if (RT_SUCCESS(rc))
                             {
                                 fFound = true;
@@ -945,9 +1030,15 @@ static bool rtProcWinLogSecAttr(HANDLE hUserObj)
  *
  * @returns Pointer to the SID on success. Free by calling RTMemFree.
  * @param   hToken              The token..
+ * @param   prc                 Optional return code.
  */
-static PSID rtProcWinGetTokenUserSid(HANDLE hToken)
+static PSID rtProcWinGetTokenUserSid(HANDLE hToken, int *prc)
 {
+    int rcIgn;
+    if (!prc)
+        prc = &rcIgn;
+    *prc = VERR_NO_MEMORY;
+
     /*
      * Get the groups associated with the token.  We just try a size first then
      * reallocates if it's insufficient.
@@ -958,15 +1049,20 @@ static PSID rtProcWinGetTokenUserSid(HANDLE hToken)
     DWORD cbNeeded = 0;
     if (!GetTokenInformation(hToken, TokenUser, pUser, cbUser, &cbNeeded))
     {
+        DWORD dwErr = GetLastError();
         RTMemTmpFree(pUser);
-        AssertReturn(GetLastError() == ERROR_INSUFFICIENT_BUFFER, NULL);
+        AssertLogRelMsgReturnStmt(dwErr == ERROR_INSUFFICIENT_BUFFER,
+                                  ("rtProcWinGetTokenUserSid: GetTokenInformation failed with %u\n", dwErr),
+                                  *prc = RTErrConvertFromWin32(dwErr), NULL);
         cbUser = cbNeeded + 128;
         pUser = (PTOKEN_USER)RTMemTmpAlloc(cbUser);
         AssertReturn(pUser, NULL);
         if (!GetTokenInformation(hToken, TokenUser, pUser, cbUser, &cbNeeded))
         {
+            dwErr = GetLastError();
+            *prc = RTErrConvertFromWin32(dwErr);
             RTMemTmpFree(pUser);
-            AssertFailedReturn(NULL);
+            AssertLogRelMsgFailedReturn(("rtProcWinGetTokenUserSid: GetTokenInformation failed with %u\n", dwErr), NULL);
         }
     }
 
@@ -974,6 +1070,7 @@ static PSID rtProcWinGetTokenUserSid(HANDLE hToken)
     PSID pSidRet = RTMemDup(pUser->User.Sid, cbSid);
     Assert(pSidRet);
     RTMemTmpFree(pUser);
+    *prc = VINF_SUCCESS;
     return pSidRet;
 }
 
@@ -1330,7 +1427,7 @@ static void rtProcWinStationPrep(HANDLE hTokenToUse, STARTUPINFOW *pStartupInfo,
             if (hDesktop)
             {
                 /*PSID pSid = rtProcWinGetTokenLogonSid(hTokenToUse); - Better to use the user SID. Avoid overflowing the ACL. */
-                PSID pSid = rtProcWinGetTokenUserSid(hTokenToUse);
+                PSID pSid = rtProcWinGetTokenUserSid(hTokenToUse, NULL /*prc*/);
                 if (pSid)
                 {
                     if (   rtProcWinAddSidToWinStation(hWinStation0, pSid)
@@ -1441,12 +1538,80 @@ static void rtProcWinFreeAccountInfo(PRTPROCWINACCOUNTINFO pAccountInfo)
 
 
 /**
+ * Tries to resolve the name of the SID.
+ *
+ * @returns IPRT status code.
+ * @param   pSid        The SID to resolve.
+ * @param   ppwszName   Where to return the name. Use RTUtf16Free to free.
+ */
+static int rtProcWinSidToName(PSID pSid, PRTUTF16 *ppwszName)
+{
+    *ppwszName = NULL;
+
+    /*
+     * Use large initial buffers here to try avoid having to repeat the call.
+     */
+    DWORD cwcAllocated = 512;
+    while (cwcAllocated < _32K)
+    {
+        PRTUTF16 pwszName = RTUtf16Alloc(cwcAllocated * sizeof(RTUTF16));
+        AssertReturn(pwszName, VERR_NO_UTF16_MEMORY);
+        PRTUTF16 pwszDomain = RTUtf16Alloc(cwcAllocated * sizeof(RTUTF16));
+        AssertReturnStmt(pwszDomain, RTUtf16Free(pwszName), VERR_NO_UTF16_MEMORY);
+
+        DWORD cwcName   = cwcAllocated;
+        DWORD cwcDomain = cwcAllocated;
+        SID_NAME_USE SidNameUse = SidTypeUser;
+        if (LookupAccountSidW(NULL /*lpSystemName*/, pSid, pwszName, &cwcName, pwszDomain, &cwcDomain, &SidNameUse))
+        {
+            *ppwszName = pwszName;
+            RTUtf16Free(pwszDomain); /* may need this later. */
+            return VINF_SUCCESS;
+        }
+
+        DWORD const dwErr = GetLastError();
+        RTUtf16Free(pwszName);
+        RTUtf16Free(pwszDomain);
+        if (dwErr != ERROR_INSUFFICIENT_BUFFER)
+            return RTErrConvertFromWin32(dwErr);
+        cwcAllocated = RT_MAX(cwcName, cwcDomain) + 1;
+    }
+
+    return RTErrConvertFromWin32(ERROR_INSUFFICIENT_BUFFER);
+}
+
+
+/**
+ * Tries to resolve the user name for the token.
+ *
+ * @returns IPRT status code.
+ * @param   hToken      The token.
+ * @param   ppwszUser   Where to return the username. Use RTUtf16Free to free.
+ */
+static int rtProcWinTokenToUsername(HANDLE hToken, PRTUTF16 *ppwszUser)
+{
+    int rc = VINF_SUCCESS;
+    PSID pSid = rtProcWinGetTokenUserSid(hToken, &rc);
+    if (pSid)
+    {
+        rc = rtProcWinSidToName(pSid, ppwszUser);
+        RTMemFree(pSid);
+    }
+    else
+        *ppwszUser = NULL;
+    return rc;
+}
+
+
+/**
  * Method \#2.
+ *
+ * @note pwszUser can be NULL when RTPROC_FLAGS_AS_IMPERSONATED_TOKEN is set.
  */
 static int rtProcWinCreateAsUser2(PRTUTF16 pwszUser, PRTUTF16 pwszPassword, PRTUTF16 *ppwszExec, PRTUTF16 pwszCmdLine,
                                   RTENV hEnv, DWORD dwCreationFlags,
                                   STARTUPINFOW *pStartupInfo, PROCESS_INFORMATION *pProcInfo,
-                                  uint32_t fFlags, const char *pszExec)
+                                  uint32_t fFlags, const char *pszExec, uint32_t idDesiredSession)
 {
     /*
      * So if we want to start a process from a service (RTPROC_FLAGS_SERVICE),
@@ -1476,10 +1641,16 @@ static int rtProcWinCreateAsUser2(PRTUTF16 pwszUser, PRTUTF16 pwszPassword, PRTU
      */
     DWORD   dwErr       = NO_ERROR;
     HANDLE  hTokenLogon = INVALID_HANDLE_VALUE;
-    int rc = rtProcWinUserLogon(pwszUser, pwszPassword, &hTokenLogon);
+    int rc;
+    if (fFlags & RTPROC_FLAGS_AS_IMPERSONATED_TOKEN)
+        rc = rtProcWinGetThreadTokenHandle(GetCurrentThread(), &hTokenLogon);
+    else if (pwszUser == NULL)
+        rc = rtProcWinGetProcessTokenHandle(GetCurrentProcess(), &hTokenLogon);
+    else
+        rc = rtProcWinUserLogon(pwszUser, pwszPassword, &hTokenLogon);
     if (RT_SUCCESS(rc))
     {
-        DWORD  fRc;
+        BOOL   fRc;
         bool   fFound = false;
         HANDLE hTokenUserDesktop = INVALID_HANDLE_VALUE;
 
@@ -1491,158 +1662,17 @@ static int rtProcWinCreateAsUser2(PRTUTF16 pwszUser, PRTUTF16 pwszPassword, PRTU
          */
         if (fFlags & RTPROC_FLAGS_SERVICE)
         {
-            PSID pSid = NULL;
+            /*
+             * For the token search we need a SID.
+             */
+            PSID pSid = rtProcWinGetTokenUserSid(hTokenLogon, &rc);
 
-            /* Try query the SID and domain sizes first. */
-            DWORD        cbSid      = 0; /* Must be zero to query size! */
-            DWORD        cwcDomain  = 0;
-            SID_NAME_USE SidNameUse = SidTypeUser;
-            fRc = LookupAccountNameW(NULL, pwszUser, NULL, &cbSid, NULL, &cwcDomain, &SidNameUse);
-            if (!fRc)
-            {
-                dwErr = GetLastError();
-
-                /*
-                 * The errors ERROR_TRUSTED_DOMAIN_FAILURE and ERROR_TRUSTED_RELATIONSHIP_FAILURE
-                 * can happen if an ADC (Active Domain Controller) is offline or not reachable.
-                 *
-                 * Try to handle these errors gracefully by asking the local LSA cache of the
-                 * client OS instead then. For this to work, the desired user must have at
-                 * least logged in once at that client -- otherwise there will be no cached
-                 * authentication available and this fallback will fail.
-                 */
-                if (   g_pfnLsaLookupNames2 /* >= Windows XP */
-                    && (   dwErr == ERROR_TRUSTED_DOMAIN_FAILURE
-                        || dwErr == ERROR_TRUSTED_RELATIONSHIP_FAILURE))
-                {
-                    LSA_OBJECT_ATTRIBUTES objAttr;
-                    RT_ZERO(objAttr);
-                    objAttr.Length = sizeof(LSA_OBJECT_ATTRIBUTES);
-
-                    LSA_HANDLE lsahPolicy;
-                    NTSTATUS ntSts = LsaOpenPolicy(NULL, &objAttr, POLICY_LOOKUP_NAMES, &lsahPolicy);
-                    if (ntSts == STATUS_SUCCESS)
-                    {
-                        RTPROCWINACCOUNTINFO accountInfo;
-                        RT_ZERO(accountInfo);
-                        rc = rtProcWinParseAccountInfo(pwszUser, &accountInfo);
-                        AssertRC(rc);
-                        AssertPtr(accountInfo.pwszUserName);
-
-                        LSA_UNICODE_STRING lsaUser;
-                        lsaUser.Buffer        = accountInfo.pwszUserName;
-                        lsaUser.Length        = (USHORT)(RTUtf16Len(accountInfo.pwszUserName) * sizeof(WCHAR));
-                        lsaUser.MaximumLength = lsaUser.Length;
-
-                        PLSA_REFERENCED_DOMAIN_LIST pDomainList     = NULL;
-                        PLSA_TRANSLATED_SID2        pTranslatedSids = NULL;
-                        ntSts = g_pfnLsaLookupNames2(lsahPolicy, 0 /* Flags */,
-                                                     1 /* Number of users to lookup */,
-                                                     &lsaUser, &pDomainList, &pTranslatedSids);
-                        if (ntSts == STATUS_SUCCESS)
-                        {
-                            AssertPtr(pDomainList);
-                            AssertPtr(pTranslatedSids);
-# ifdef DEBUG
-                            LogRelFunc(("LsaLookupNames2: cDomains=%u, DomainIndex=%ld, SidUse=%ld\n",
-                                        pDomainList->Entries, pTranslatedSids[0].DomainIndex, pTranslatedSids[0].Use));
-# endif
-                            Assert(pTranslatedSids[0].Use == SidTypeUser);
-
-                            if (pDomainList->Entries)
-                            {
-                                AssertPtr(pDomainList->Domains);
-                                LogRelFunc(("LsaLookupNames2: Domain=%ls\n",
-                                            pDomainList->Domains[pTranslatedSids[0].DomainIndex].Name.Buffer));
-                            }
-
-                            cbSid = GetLengthSid(pTranslatedSids->Sid) + 16;
-                            Assert(cbSid);
-                            pSid = (PSID)RTMemAllocZ(cbSid);
-                            if (!CopySid(cbSid, pSid, pTranslatedSids->Sid))
-                            {
-                                dwErr = GetLastError();
-                                LogRelFunc(("CopySid failed with: %ld\n", dwErr));
-                                rc = dwErr != NO_ERROR ? RTErrConvertFromWin32(dwErr) : VERR_INTERNAL_ERROR_2;
-                            }
-                        }
-                        else if (g_pfnLsaNtStatusToWinError)
-                        {
-                            dwErr = g_pfnLsaNtStatusToWinError(ntSts);
-                            LogRelFunc(("LsaLookupNames2 failed with: %ld\n", dwErr));
-                            rc = dwErr != NO_ERROR ? RTErrConvertFromWin32(dwErr) : VERR_INTERNAL_ERROR_2;
-                        }
-                        else
-                        {
-                            LogRelFunc(("LsaLookupNames2 failed with: %#x\n", ntSts));
-                            rc = RTErrConvertFromNtStatus(ntSts);
-                        }
-
-                        if (pDomainList)
-                        {
-                            LsaFreeMemory(pDomainList);
-                            pDomainList = NULL;
-                        }
-                        if (pTranslatedSids)
-                        {
-                            LsaFreeMemory(pTranslatedSids);
-                            pTranslatedSids = NULL;
-                        }
-
-                        rtProcWinFreeAccountInfo(&accountInfo);
-                        LsaClose(lsahPolicy);
-                    }
-                    else if (g_pfnLsaNtStatusToWinError)
-                    {
-                        dwErr = g_pfnLsaNtStatusToWinError(ntSts);
-                        LogRelFunc(("LsaOpenPolicy failed with: %ld\n", dwErr));
-                        rc = dwErr != NO_ERROR ? RTErrConvertFromWin32(dwErr) : VERR_INTERNAL_ERROR_3;
-                    }
-                    else
-                    {
-                        LogRelFunc(("LsaOpenPolicy failed with: %#x\n", ntSts));
-                        rc = RTErrConvertFromNtStatus(ntSts);
-                    }
-
-                    /* Note: pSid will be free'd down below. */
-                }
-                else if (dwErr == ERROR_INSUFFICIENT_BUFFER)
-                {
-                    /* Allocate memory for the LookupAccountNameW output buffers and do it for real. */
-                    cbSid = fRc && cbSid != 0 ? cbSid + 16 : _1K;
-                    pSid = (PSID)RTMemAllocZ(cbSid);
-                    if (pSid)
-                    {
-                        cwcDomain = fRc ? cwcDomain + 2 : _4K;
-                        PRTUTF16 pwszDomain = (PRTUTF16)RTMemAllocZ(cwcDomain * sizeof(RTUTF16));
-                        if (pwszDomain)
-                        {
-                            /* Note: Just pass in the UPN (User Principal Name), e.g. someone@example.com */
-                            if (!LookupAccountNameW(NULL /*lpSystemName*/, pwszUser, pSid, &cbSid, pwszDomain, &cwcDomain,
-                                                    &SidNameUse))
-                            {
-                                dwErr = GetLastError();
-                                LogRelFunc(("LookupAccountNameW(2) failed with: %ld\n", dwErr));
-                                rc = dwErr != NO_ERROR ? RTErrConvertFromWin32(dwErr) : VERR_INTERNAL_ERROR_4;
-                            }
-
-                            RTMemFree(pwszDomain);
-                        }
-                        else
-                            rc = VERR_NO_MEMORY;
-
-                        /* Note: pSid will be free'd down below. */
-                    }
-                    else
-                        rc = VERR_NO_MEMORY;
-                }
-                else
-                {
-                    LogRelFunc(("LookupAccountNameW(1) failed with: %ld\n", dwErr));
-                    rc = dwErr != NO_ERROR ? RTErrConvertFromWin32(dwErr) : VERR_INTERNAL_ERROR_2;
-                }
-            }
-
+            /*
+             * If we got a valid SID, search the running processes.
+             */
+            /*
+             * If we got a valid SID, search the running processes.
+             */
             if (pSid)
             {
                 if (IsValidSid(pSid))
@@ -1652,11 +1682,14 @@ static int rtProcWinCreateAsUser2(PRTUTF16 pwszUser, PRTUTF16 pwszPassword, PRTU
                     {
 #ifdef VBOX             /* The explorer entry is a fallback in case GA aren't installed. */
                         { "VBoxTray.exe" },
+# ifndef IN_GUEST
+                        { "VirtualBox.exe" },
+# endif
 #endif
                         { "explorer.exe" },
                         NULL
                     };
-                    fFound = rtProcWinFindTokenByProcess(s_papszProcNames, pSid, &hTokenUserDesktop);
+                    fFound = rtProcWinFindTokenByProcess(s_papszProcNames, pSid, idDesiredSession, &hTokenUserDesktop);
                     dwErr  = 0;
                 }
                 else
@@ -1702,19 +1735,31 @@ static int rtProcWinCreateAsUser2(PRTUTF16 pwszUser, PRTUTF16 pwszPassword, PRTU
                 || (g_pfnUnloadUserProfile && g_pfnLoadUserProfileW) )
             {
                 /*
-                 * Load the profile, if requested.  (Must be done prior to
-                 * creating the enviornment.)
+                 * Load the profile, if requested.  (Must be done prior to creating the enviornment.)
+                 *
+                 * Note! We don't have sufficient rights when impersonating a user, but we can
+                 *       ASSUME the user is logged on and has its profile loaded into HKEY_USERS already.
                  */
                 PROFILEINFOW ProfileInfo;
+                PRTUTF16     pwszUserFree = NULL;
                 RT_ZERO(ProfileInfo);
-                if (fFlags & RTPROC_FLAGS_PROFILE)
+                /** @todo r=bird: We probably don't need to load anything if pwszUser is NULL... */
+                if ((fFlags & (RTPROC_FLAGS_PROFILE | RTPROC_FLAGS_AS_IMPERSONATED_TOKEN)) == RTPROC_FLAGS_PROFILE)
                 {
-                    ProfileInfo.dwSize     = sizeof(ProfileInfo);
-                    ProfileInfo.lpUserName = pwszUser;
-                    ProfileInfo.dwFlags    = PI_NOUI; /* Prevents the display of profile error messages. */
-
-                    if (!g_pfnLoadUserProfileW(hTokenToUse, &ProfileInfo))
-                        rc = RTErrConvertFromWin32(GetLastError());
+                    if (!pwszUser)
+                    {
+                        Assert(fFlags & RTPROC_FLAGS_AS_IMPERSONATED_TOKEN);
+                        rc = rtProcWinTokenToUsername(hTokenToUse, &pwszUserFree);
+                        pwszUser = pwszUserFree;
+                    }
+                    if (RT_SUCCESS(rc))
+                    {
+                        ProfileInfo.dwSize     = sizeof(ProfileInfo);
+                        ProfileInfo.dwFlags    = PI_NOUI; /* Prevents the display of profile error messages. */
+                        ProfileInfo.lpUserName = pwszUser;
+                        if (!g_pfnLoadUserProfileW(hTokenToUse, &ProfileInfo))
+                            rc = RTErrConvertFromWin32(GetLastError());
+                    }
                 }
                 if (RT_SUCCESS(rc))
                 {
@@ -1794,6 +1839,8 @@ static int rtProcWinCreateAsUser2(PRTUTF16 pwszUser, PRTUTF16 pwszPassword, PRTU
                         }
 #endif
                     }
+                    if (pwszUserFree)
+                        RTUtf16Free(pwszUserFree);
                 }
             }
             else
@@ -1985,7 +2032,7 @@ static int rtProcWinCreateAsUser1(PRTUTF16 pwszUser, PRTUTF16 pwszPassword, PRTU
         BOOL fRc = g_pfnCreateProcessWithLogonW(pwszUser,
                                                 NULL,                       /* lpDomain*/
                                                 pwszPassword,
-                                                fFlags & RTPROC_FLAGS_PROFILE ? 1 /*LOGON_WITH_ PROFILE*/ : 0,
+                                                fFlags & RTPROC_FLAGS_PROFILE ? 1 /*LOGON_WITH_PROFILE*/ : 0,
                                                 *ppwszExec,
                                                 pwszCmdLine,
                                                 dwCreationFlags | (fCreatedSuspended ? CREATE_SUSPENDED : 0),
@@ -2041,21 +2088,24 @@ static int rtProcWinCreateAsUser1(PRTUTF16 pwszUser, PRTUTF16 pwszPassword, PRTU
 static int rtProcWinCreateAsUser(PRTUTF16 pwszUser, PRTUTF16 pwszPassword, PRTUTF16 *ppwszExec, PRTUTF16 pwszCmdLine,
                                  RTENV hEnv, DWORD dwCreationFlags,
                                  STARTUPINFOW *pStartupInfo, PROCESS_INFORMATION *pProcInfo,
-                                 uint32_t fFlags, const char *pszExec)
+                                 uint32_t fFlags, const char *pszExec, uint32_t idDesiredSession)
 {
     /*
      * If we run as a service CreateProcessWithLogon will fail, so don't even
-     * try it (because of Local System context).  This method is very slow on W2K.
+     * try it (because of Local System context).  If we got an impersonated token
+     * we should use, we also have to have to skip over this approach.
+     * Note! This method is very slow on W2K.
      */
-    if (!(fFlags & RTPROC_FLAGS_SERVICE))
+    if (!(fFlags & (RTPROC_FLAGS_SERVICE | RTPROC_FLAGS_AS_IMPERSONATED_TOKEN)))
     {
+        AssertPtr(pwszUser);
         int rc = rtProcWinCreateAsUser1(pwszUser, pwszPassword, ppwszExec, pwszCmdLine,
                                         hEnv, dwCreationFlags, pStartupInfo, pProcInfo, fFlags, pszExec);
         if (RT_SUCCESS(rc))
             return rc;
     }
     return rtProcWinCreateAsUser2(pwszUser, pwszPassword, ppwszExec, pwszCmdLine,
-                                  hEnv, dwCreationFlags, pStartupInfo, pProcInfo, fFlags, pszExec);
+                                  hEnv, dwCreationFlags, pStartupInfo, pProcInfo, fFlags, pszExec, idDesiredSession);
 }
 
 
@@ -2205,7 +2255,7 @@ static int rtProcWinCreateEnvBlockAndFindExe(uint32_t fFlags, RTENV hEnv, const 
 
 RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArgs, RTENV hEnv, uint32_t fFlags,
                                PCRTHANDLE phStdIn, PCRTHANDLE phStdOut, PCRTHANDLE phStdErr, const char *pszAsUser,
-                               const char *pszPassword, PRTPROCESS phProcess)
+                               const char *pszPassword, void *pvExtraData, PRTPROCESS phProcess)
 {
     /*
      * Input validation
@@ -2221,12 +2271,23 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
     AssertReturn(!pszPassword || pszAsUser, VERR_INVALID_PARAMETER);
     AssertPtrNullReturn(pszPassword, VERR_INVALID_POINTER);
 
+    /* Extra data: */
+    uint32_t idDesiredSession = UINT32_MAX;
+    if (   (fFlags & (RTPROC_FLAGS_DESIRED_SESSION_ID | RTPROC_FLAGS_SERVICE))
+        ==           (RTPROC_FLAGS_DESIRED_SESSION_ID | RTPROC_FLAGS_SERVICE))
+    {
+        AssertPtrReturn(pvExtraData, VERR_INVALID_POINTER);
+        idDesiredSession = *(uint32_t *)pvExtraData;
+    }
+    else
+        AssertReturn(!(fFlags & RTPROC_FLAGS_DESIRED_SESSION_ID), VERR_INVALID_FLAGS);
+
     /*
      * Initialize the globals.
      */
     int rc = RTOnce(&g_rtProcWinInitOnce, rtProcWinInitOnce, NULL);
     AssertRCReturn(rc, rc);
-    if (pszAsUser || (fFlags & (RTPROC_FLAGS_PROFILE | RTPROC_FLAGS_SERVICE)))
+    if (pszAsUser || (fFlags & (RTPROC_FLAGS_PROFILE | RTPROC_FLAGS_SERVICE | RTPROC_FLAGS_AS_IMPERSONATED_TOKEN)))
     {
         rc = RTOnce(&g_rtProcWinResolveOnce, rtProcWinResolveOnce, NULL);
         AssertRCReturn(rc, rc);
@@ -2384,7 +2445,7 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
              * the more advanced version in rtProcWinCreateAsUser().
              */
             if (   pszAsUser == NULL
-                && !(fFlags & RTPROC_FLAGS_SERVICE))
+                && !(fFlags & (RTPROC_FLAGS_SERVICE | RTPROC_FLAGS_AS_IMPERSONATED_TOKEN)))
             {
                 /* Create the environment block first. */
                 PRTUTF16 pwszzBlock;
@@ -2413,8 +2474,9 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
                  * Convert the additional parameters and use a helper
                  * function to do the actual work.
                  */
-                PRTUTF16 pwszUser;
-                rc = RTStrToUtf16(pszAsUser, &pwszUser);
+                PRTUTF16 pwszUser = NULL;
+                if (pszAsUser)
+                    rc = RTStrToUtf16(pszAsUser, &pwszUser);
                 if (RT_SUCCESS(rc))
                 {
                     PRTUTF16 pwszPassword;
@@ -2423,7 +2485,7 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
                     {
                         rc = rtProcWinCreateAsUser(pwszUser, pwszPassword,
                                                    &pwszExec, pwszCmdLine, hEnv, dwCreationFlags,
-                                                   &StartupInfo, &ProcInfo, fFlags, pszExec);
+                                                   &StartupInfo, &ProcInfo, fFlags, pszExec, idDesiredSession);
 
                         if (pwszPassword && *pwszPassword)
                             RTMemWipeThoroughly(pwszPassword, RTUtf16Len(pwszPassword), 5);
@@ -2438,10 +2500,13 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
                 if (phProcess)
                 {
                     /*
-                     * Add the process to the child process list so
-                     * RTProcWait can reuse and close the process handle.
+                     * Add the process to the child process list so RTProcWait can reuse and close
+                     * the process handle, unless, of course, the caller has no intention waiting.
                      */
-                    rtProcWinAddPid(ProcInfo.dwProcessId, ProcInfo.hProcess);
+                    if (!(fFlags & RTPROC_FLAGS_NO_WAIT))
+                        rtProcWinAddPid(ProcInfo.dwProcessId, ProcInfo.hProcess);
+                    else
+                        CloseHandle(ProcInfo.hProcess);
                     *phProcess = ProcInfo.dwProcessId;
                 }
                 else

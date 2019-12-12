@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 131252 $"
 
 # Standard Python imports.
 
@@ -716,7 +716,7 @@ class WuiMain(WuiDispatcherBase):
     # The rest of stuff
     #
 
-    def _actionGroupedResultsListing( #pylint: disable=R0914
+    def _actionGroupedResultsListing( #pylint: disable=too-many-locals
             self,
             enmResultsGroupingType,
             oResultsLogicType,
@@ -758,10 +758,9 @@ class WuiMain(WuiDispatcherBase):
         #
         oTrLogic = TestResultLogic(self._oDb);
         sAltSelectorAction = None;
-        if   enmResultsGroupingType == TestResultLogic.ksResultsGroupingTypeNone \
-          or enmResultsGroupingType == TestResultLogic.ksResultsGroupingTypeTestBox:
+        if enmResultsGroupingType in (TestResultLogic.ksResultsGroupingTypeNone, TestResultLogic.ksResultsGroupingTypeTestBox,):
             aoTmp = oTrLogic.getTestBoxes(tsNow = tsEffective, sPeriod = sCurPeriod)
-            aoGroupMembers = sorted(list(set([ (x.idTestBox, '%s (%s)' % (x.sName, str(x.ip))) for x in aoTmp ])),
+            aoGroupMembers = sorted(list({(x.idTestBox, '%s (%s)' % (x.sName, str(x.ip))) for x in aoTmp }),
                                     reverse = False, key = lambda asData: asData[1])
 
             if enmResultsGroupingType == TestResultLogic.ksResultsGroupingTypeTestBox:
@@ -773,27 +772,27 @@ class WuiMain(WuiDispatcherBase):
 
         elif enmResultsGroupingType == TestResultLogic.ksResultsGroupingTypeTestGroup:
             aoTmp = oTrLogic.getTestGroups(tsNow = tsEffective, sPeriod = sCurPeriod);
-            aoGroupMembers = sorted(list(set([ (x.idTestGroup, x.sName ) for x in aoTmp ])),
+            aoGroupMembers = sorted(list({ (x.idTestGroup, x.sName ) for x in aoTmp }),
                                     reverse = False, key = lambda asData: asData[1])
             self._sPageTitle = 'Grouped by Test Group'
 
         elif enmResultsGroupingType == TestResultLogic.ksResultsGroupingTypeBuildRev:
             aoTmp = oTrLogic.getBuilds(tsNow = tsEffective, sPeriod = sCurPeriod)
-            aoGroupMembers = sorted(list(set([ (x.iRevision, '%s.%d' % (x.oCat.sBranch, x.iRevision)) for x in aoTmp ])),
+            aoGroupMembers = sorted(list({ (x.iRevision, '%s.%d' % (x.oCat.sBranch, x.iRevision)) for x in aoTmp }),
                                     reverse = True, key = lambda asData: asData[0])
             self._sPageTitle = 'Grouped by Build'
 
         elif enmResultsGroupingType == TestResultLogic.ksResultsGroupingTypeBuildCat:
             aoTmp = oTrLogic.getBuildCategories(tsNow = tsEffective, sPeriod = sCurPeriod)
-            aoGroupMembers = sorted(list(set([ ( x.idBuildCategory, '%s / %s / %s / %s'
-                                                 % ( x.sProduct, x.sBranch, ', '.join(x.asOsArches), x.sType) )
-                                               for x in aoTmp ])),
+            aoGroupMembers = sorted(list({ (x.idBuildCategory,
+                                            '%s / %s / %s / %s' % ( x.sProduct, x.sBranch, ', '.join(x.asOsArches), x.sType) )
+                                           for x in aoTmp }),
                                     reverse = True, key = lambda asData: asData[1]);
             self._sPageTitle = 'Grouped by Build Category'
 
         elif enmResultsGroupingType == TestResultLogic.ksResultsGroupingTypeTestCase:
             aoTmp = oTrLogic.getTestCases(tsNow = tsEffective, sPeriod = sCurPeriod)
-            aoGroupMembers = sorted(list(set([ (x.idTestCase, '%s' % x.sName) for x in aoTmp ])),
+            aoGroupMembers = sorted(list({ (x.idTestCase, '%s' % x.sName) for x in aoTmp }),
                                     reverse = False, key = lambda asData: asData[1])
             self._sPageTitle = 'Grouped by Test Case'
 
@@ -809,7 +808,7 @@ class WuiMain(WuiDispatcherBase):
 
         elif enmResultsGroupingType == TestResultLogic.ksResultsGroupingTypeSchedGroup:
             aoTmp = oTrLogic.getSchedGroups(tsNow = tsEffective, sPeriod = sCurPeriod)
-            aoGroupMembers = sorted(list(set([ (x.idSchedGroup, '%s' % x.sName) for x in aoTmp ])),
+            aoGroupMembers = sorted(list({ (x.idSchedGroup, '%s' % x.sName) for x in aoTmp }),
                                     reverse = False, key = lambda asData: asData[1])
             self._sPageTitle = 'Grouped by Scheduling Group'
 

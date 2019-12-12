@@ -35,9 +35,7 @@
 #include <VBox/log.h>
 #include <VBox/vmm/gmm.h>
 #include <VBox/vmm/hm.h>
-#ifndef IN_RC
-# include <VBox/vmm/nem.h>
-#endif
+#include <VBox/vmm/nem.h>
 #include <iprt/asm.h>
 #include <iprt/assert.h>
 #include <iprt/avl.h>
@@ -60,7 +58,7 @@
  * @param   pVM         The cross context VM structure.
  * @param   GCPhys      The GC physical address.
  */
-DECLINLINE(PPGMRAMRANGE) pgmPhysGetRange(PVM pVM, RTGCPHYS GCPhys)
+DECLINLINE(PPGMRAMRANGE) pgmPhysGetRange(PVMCC pVM, RTGCPHYS GCPhys)
 {
     PPGMRAMRANGE pRam = pVM->pgm.s.CTX_SUFF(apRamRangesTlb)[PGM_RAMRANGE_TLB_IDX(GCPhys)];
     if (!pRam || GCPhys - pRam->GCPhys >= pRam->cb)
@@ -80,7 +78,7 @@ DECLINLINE(PPGMRAMRANGE) pgmPhysGetRange(PVM pVM, RTGCPHYS GCPhys)
  * @param   pVM         The cross context VM structure.
  * @param   GCPhys      The GC physical address.
  */
-DECLINLINE(PPGMRAMRANGE) pgmPhysGetRangeAtOrAbove(PVM pVM, RTGCPHYS GCPhys)
+DECLINLINE(PPGMRAMRANGE) pgmPhysGetRangeAtOrAbove(PVMCC pVM, RTGCPHYS GCPhys)
 {
     PPGMRAMRANGE pRam = pVM->pgm.s.CTX_SUFF(apRamRangesTlb)[PGM_RAMRANGE_TLB_IDX(GCPhys)];
     if (   !pRam
@@ -100,7 +98,7 @@ DECLINLINE(PPGMRAMRANGE) pgmPhysGetRangeAtOrAbove(PVM pVM, RTGCPHYS GCPhys)
  * @param   pVM         The cross context VM structure.
  * @param   GCPhys      The GC physical address.
  */
-DECLINLINE(PPGMPAGE) pgmPhysGetPage(PVM pVM, RTGCPHYS GCPhys)
+DECLINLINE(PPGMPAGE) pgmPhysGetPage(PVMCC pVM, RTGCPHYS GCPhys)
 {
     PPGMRAMRANGE pRam = pVM->pgm.s.CTX_SUFF(apRamRangesTlb)[PGM_RAMRANGE_TLB_IDX(GCPhys)];
     RTGCPHYS off;
@@ -125,14 +123,14 @@ DECLINLINE(PPGMPAGE) pgmPhysGetPage(PVM pVM, RTGCPHYS GCPhys)
  * @param   GCPhys      The GC physical address.
  * @param   ppPage      Where to store the page pointer on success.
  */
-DECLINLINE(int) pgmPhysGetPageEx(PVM pVM, RTGCPHYS GCPhys, PPPGMPAGE ppPage)
+DECLINLINE(int) pgmPhysGetPageEx(PVMCC pVM, RTGCPHYS GCPhys, PPPGMPAGE ppPage)
 {
     PPGMRAMRANGE pRam = pVM->pgm.s.CTX_SUFF(apRamRangesTlb)[PGM_RAMRANGE_TLB_IDX(GCPhys)];
     RTGCPHYS off;
     if (   !pRam
         || (off = GCPhys - pRam->GCPhys) >= pRam->cb)
         return pgmPhysGetPageExSlow(pVM, GCPhys, ppPage);
-    *ppPage = &pRam->aPages[(GCPhys - pRam->GCPhys) >> PAGE_SHIFT];
+    *ppPage = &pRam->aPages[off >> PAGE_SHIFT];
     STAM_COUNTER_INC(&pVM->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,RamRangeTlbHits));
     return VINF_SUCCESS;
 }
@@ -153,7 +151,7 @@ DECLINLINE(int) pgmPhysGetPageEx(PVM pVM, RTGCPHYS GCPhys, PPPGMPAGE ppPage)
  * @param   ppRamHint   Where to read and store the ram list hint.
  *                      The caller initializes this to NULL before the call.
  */
-DECLINLINE(int) pgmPhysGetPageWithHintEx(PVM pVM, RTGCPHYS GCPhys, PPPGMPAGE ppPage, PPGMRAMRANGE *ppRamHint)
+DECLINLINE(int) pgmPhysGetPageWithHintEx(PVMCC pVM, RTGCPHYS GCPhys, PPPGMPAGE ppPage, PPGMRAMRANGE *ppRamHint)
 {
     RTGCPHYS off;
     PPGMRAMRANGE pRam = *ppRamHint;
@@ -184,7 +182,7 @@ DECLINLINE(int) pgmPhysGetPageWithHintEx(PVM pVM, RTGCPHYS GCPhys, PPPGMPAGE ppP
  * @param   ppPage      Where to store the pointer to the PGMPAGE structure.
  * @param   ppRam       Where to store the pointer to the PGMRAMRANGE structure.
  */
-DECLINLINE(int) pgmPhysGetPageAndRangeEx(PVM pVM, RTGCPHYS GCPhys, PPPGMPAGE ppPage, PPGMRAMRANGE *ppRam)
+DECLINLINE(int) pgmPhysGetPageAndRangeEx(PVMCC pVM, RTGCPHYS GCPhys, PPPGMPAGE ppPage, PPGMRAMRANGE *ppRam)
 {
     PPGMRAMRANGE pRam = pVM->pgm.s.CTX_SUFF(apRamRangesTlb)[PGM_RAMRANGE_TLB_IDX(GCPhys)];
     RTGCPHYS off;
@@ -210,7 +208,7 @@ DECLINLINE(int) pgmPhysGetPageAndRangeEx(PVM pVM, RTGCPHYS GCPhys, PPPGMPAGE ppP
  * @deprecated  Doesn't deal with zero, shared or write monitored pages.
  *              Avoid when writing new code!
  */
-DECLINLINE(int) pgmRamGCPhys2HCPhys(PVM pVM, RTGCPHYS GCPhys, PRTHCPHYS pHCPhys)
+DECLINLINE(int) pgmRamGCPhys2HCPhys(PVMCC pVM, RTGCPHYS GCPhys, PRTHCPHYS pHCPhys)
 {
     PPGMPAGE pPage;
     int rc = pgmPhysGetPageEx(pVM, GCPhys, &pPage);
@@ -220,7 +218,7 @@ DECLINLINE(int) pgmRamGCPhys2HCPhys(PVM pVM, RTGCPHYS GCPhys, PRTHCPHYS pHCPhys)
     return VINF_SUCCESS;
 }
 
-#if defined(VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0) || defined(IN_RC)
+#ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
 
 /**
  * Inlined version of the ring-0 version of the host page mapping code
@@ -232,7 +230,7 @@ DECLINLINE(int) pgmRamGCPhys2HCPhys(PVM pVM, RTGCPHYS GCPhys, PRTHCPHYS pHCPhys)
  * @param   ppv         Where to store the mapping address.
  * @param   SRC_POS     The source location of the caller.
  */
-DECLINLINE(int) pgmRZDynMapHCPageInlined(PVMCPU pVCpu, RTHCPHYS HCPhys, void **ppv RTLOG_COMMA_SRC_POS_DECL)
+DECLINLINE(int) pgmRZDynMapHCPageInlined(PVMCPUCC pVCpu, RTHCPHYS HCPhys, void **ppv RTLOG_COMMA_SRC_POS_DECL)
 {
     PPGMMAPSET  pSet    = &pVCpu->pgm.s.AutoSet;
 
@@ -272,7 +270,7 @@ DECLINLINE(int) pgmRZDynMapHCPageInlined(PVMCPU pVCpu, RTHCPHYS HCPhys, void **p
  * @param   ppv         Where to store the mapping address.
  * @param   SRC_POS     The source location of the caller.
  */
-DECLINLINE(int) pgmRZDynMapGCPageV2Inlined(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys, void **ppv RTLOG_COMMA_SRC_POS_DECL)
+DECLINLINE(int) pgmRZDynMapGCPageV2Inlined(PVMCC pVM, PVMCPUCC pVCpu, RTGCPHYS GCPhys, void **ppv RTLOG_COMMA_SRC_POS_DECL)
 {
     STAM_PROFILE_START(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZDynMapGCPageInl, a);
     AssertMsg(!(GCPhys & PAGE_OFFSET_MASK), ("%RGp\n", GCPhys));
@@ -333,7 +331,7 @@ DECLINLINE(int) pgmRZDynMapGCPageV2Inlined(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhy
  * @param   ppv         Where to store the mapping address.
  * @param   SRC_POS     The source location of the caller.
  */
-DECLINLINE(int) pgmRZDynMapGCPageInlined(PVMCPU pVCpu, RTGCPHYS GCPhys, void **ppv RTLOG_COMMA_SRC_POS_DECL)
+DECLINLINE(int) pgmRZDynMapGCPageInlined(PVMCPUCC pVCpu, RTGCPHYS GCPhys, void **ppv RTLOG_COMMA_SRC_POS_DECL)
 {
     return pgmRZDynMapGCPageV2Inlined(pVCpu->CTX_SUFF(pVM), pVCpu, GCPhys, ppv RTLOG_COMMA_SRC_POS_ARGS);
 }
@@ -350,14 +348,14 @@ DECLINLINE(int) pgmRZDynMapGCPageInlined(PVMCPU pVCpu, RTGCPHYS GCPhys, void **p
  *                      preserved.
  * @param   SRC_POS     The source location of the caller.
  */
-DECLINLINE(int) pgmRZDynMapGCPageOffInlined(PVMCPU pVCpu, RTGCPHYS GCPhys, void **ppv RTLOG_COMMA_SRC_POS_DECL)
+DECLINLINE(int) pgmRZDynMapGCPageOffInlined(PVMCPUCC pVCpu, RTGCPHYS GCPhys, void **ppv RTLOG_COMMA_SRC_POS_DECL)
 {
     STAM_PROFILE_START(&pVCpu->pgm.s.StatRZDynMapGCPageInl, a);
 
     /*
      * Get the ram range.
      */
-    PVM             pVM  = pVCpu->CTX_SUFF(pVM);
+    PVMCC             pVM  = pVCpu->CTX_SUFF(pVM);
     PPGMRAMRANGE    pRam = pVM->pgm.s.CTX_SUFF(apRamRangesTlb)[PGM_RAMRANGE_TLB_IDX(GCPhys)];
     RTGCPHYS        off;
     if (   !pRam
@@ -401,8 +399,6 @@ DECLINLINE(int) pgmRZDynMapGCPageOffInlined(PVMCPU pVCpu, RTGCPHYS GCPhys, void 
     return VINF_SUCCESS;
 }
 
-#endif /* VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0 */
-#if defined(IN_RC) || defined(VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0)
 
 /**
  * Maps the page into current context (RC and maybe R0).
@@ -412,7 +408,7 @@ DECLINLINE(int) pgmRZDynMapGCPageOffInlined(PVMCPU pVCpu, RTGCPHYS GCPhys, void 
  * @param   pPage       The page.
  * @param   SRC_POS     The source location of the caller.
  */
-DECLINLINE(void *) pgmPoolMapPageInlined(PVM pVM, PPGMPOOLPAGE pPage RTLOG_COMMA_SRC_POS_DECL)
+DECLINLINE(void *) pgmPoolMapPageInlined(PVMCC pVM, PPGMPOOLPAGE pPage RTLOG_COMMA_SRC_POS_DECL)
 {
     if (pPage->idx >= PGMPOOL_IDX_FIRST)
     {
@@ -434,7 +430,7 @@ DECLINLINE(void *) pgmPoolMapPageInlined(PVM pVM, PPGMPOOLPAGE pPage RTLOG_COMMA
  * @param   pPage       The page.
  * @param   SRC_POS     The source location of the caller.
  */
-DECLINLINE(void *) pgmPoolMapPageV2Inlined(PVM pVM, PVMCPU pVCpu, PPGMPOOLPAGE pPage RTLOG_COMMA_SRC_POS_DECL)
+DECLINLINE(void *) pgmPoolMapPageV2Inlined(PVMCC pVM, PVMCPUCC pVCpu, PPGMPOOLPAGE pPage RTLOG_COMMA_SRC_POS_DECL)
 {
     if (pPage->idx >= PGMPOOL_IDX_FIRST)
     {
@@ -447,8 +443,7 @@ DECLINLINE(void *) pgmPoolMapPageV2Inlined(PVM pVM, PVMCPU pVCpu, PPGMPOOLPAGE p
     AssertFatalMsgFailed(("pgmPoolMapPageV2Inlined invalid page index %x\n", pPage->idx));
 }
 
-#endif /*  VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0 || IN_RC */
-#ifndef IN_RC
+#endif /*  VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0 */
 
 /**
  * Queries the Physical TLB entry for a physical guest page,
@@ -462,10 +457,10 @@ DECLINLINE(void *) pgmPoolMapPageV2Inlined(PVM pVM, PVMCPU pVCpu, PPGMPOOLPAGE p
  * @param   GCPhys      The address of the guest page.
  * @param   ppTlbe      Where to store the pointer to the TLB entry.
  */
-DECLINLINE(int) pgmPhysPageQueryTlbe(PVM pVM, RTGCPHYS GCPhys, PPPGMPAGEMAPTLBE ppTlbe)
+DECLINLINE(int) pgmPhysPageQueryTlbe(PVMCC pVM, RTGCPHYS GCPhys, PPPGMPAGEMAPTLBE ppTlbe)
 {
     int rc;
-    PPGMPAGEMAPTLBE pTlbe = &pVM->pgm.s.CTXSUFF(PhysTlb).aEntries[PGM_PAGEMAPTLB_IDX(GCPhys)];
+    PPGMPAGEMAPTLBE pTlbe = &pVM->pgm.s.CTX_SUFF(PhysTlb).aEntries[PGM_PAGEMAPTLB_IDX(GCPhys)];
     if (pTlbe->GCPhys == (GCPhys & X86_PTE_PAE_PG_MASK))
     {
         STAM_COUNTER_INC(&pVM->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,PageMapTlbHits));
@@ -492,26 +487,26 @@ DECLINLINE(int) pgmPhysPageQueryTlbe(PVM pVM, RTGCPHYS GCPhys, PPPGMPAGEMAPTLBE 
  * @param   GCPhys      The address of the guest page.
  * @param   ppTlbe      Where to store the pointer to the TLB entry.
  */
-DECLINLINE(int) pgmPhysPageQueryTlbeWithPage(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys, PPPGMPAGEMAPTLBE ppTlbe)
+DECLINLINE(int) pgmPhysPageQueryTlbeWithPage(PVMCC pVM, PPGMPAGE pPage, RTGCPHYS GCPhys, PPPGMPAGEMAPTLBE ppTlbe)
 {
     int rc;
-    PPGMPAGEMAPTLBE pTlbe = &pVM->pgm.s.CTXSUFF(PhysTlb).aEntries[PGM_PAGEMAPTLB_IDX(GCPhys)];
+    PPGMPAGEMAPTLBE pTlbe = &pVM->pgm.s.CTX_SUFF(PhysTlb).aEntries[PGM_PAGEMAPTLB_IDX(GCPhys)];
     if (pTlbe->GCPhys == (GCPhys & X86_PTE_PAE_PG_MASK))
     {
         STAM_COUNTER_INC(&pVM->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,PageMapTlbHits));
         rc = VINF_SUCCESS;
-# if 0 //def VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
-#  ifdef IN_RING3
+#if 0 //def VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
+# ifdef IN_RING3
         if (pTlbe->pv == (void *)pVM->pgm.s.pvZeroPgR0)
-#  else
+# else
         if (pTlbe->pv == (void *)pVM->pgm.s.pvZeroPgR3)
-#  endif
+# endif
             pTlbe->pv = pVM->pgm.s.CTX_SUFF(pvZeroPg);
-# endif
+#endif
         AssertPtr(pTlbe->pv);
-# ifndef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
+#ifndef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
         Assert(!pTlbe->pMap || RT_VALID_PTR(pTlbe->pMap->pv));
-# endif
+#endif
     }
     else
         rc = pgmPhysPageLoadIntoTlbWithPage(pVM, pPage, GCPhys);
@@ -552,7 +547,6 @@ DECL_FORCE_INLINE(uint32_t) pgmPhysPageCalcNemProtection(PPGMPAGE pPage, PGMPAGE
     return NEM_PAGE_PROT_NONE;
 }
 
-#endif /* !IN_RC */
 
 /**
  * Enables write monitoring for an allocated page.
@@ -563,7 +557,7 @@ DECL_FORCE_INLINE(uint32_t) pgmPhysPageCalcNemProtection(PPGMPAGE pPage, PGMPAGE
  * @param   pPage       The page to write monitor.
  * @param   GCPhysPage  The address of the page.
  */
-DECLINLINE(void) pgmPhysPageWriteMonitor(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhysPage)
+DECLINLINE(void) pgmPhysPageWriteMonitor(PVMCC pVM, PPGMPAGE pPage, RTGCPHYS GCPhysPage)
 {
     Assert(PGM_PAGE_GET_STATE(pPage) == PGM_PAGE_STATE_ALLOCATED);
     PGM_LOCK_ASSERT_OWNER(pVM);
@@ -585,7 +579,6 @@ DECLINLINE(void) pgmPhysPageWriteMonitor(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhy
             Assert(PGM_PAGE_GET_PDE_TYPE(pFirstPage) == PGM_PAGE_PDE_TYPE_PDE_DISABLED);
     }
 
-#ifndef IN_RC
     /* Tell NEM. */
     if (VM_IS_NEM_ENABLED(pVM))
     {
@@ -595,7 +588,6 @@ DECLINLINE(void) pgmPhysPageWriteMonitor(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhy
                                        pgmPhysPageCalcNemProtection(pPage, enmType), enmType, &u2State);
         PGM_PAGE_SET_NEM_STATE(pPage, u2State);
     }
-#endif
 }
 
 
@@ -608,7 +600,7 @@ DECLINLINE(void) pgmPhysPageWriteMonitor(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhy
  * @returns true if it is, false if it isn't.
  * @param   pVCpu       The cross context virtual CPU structure.
  */
-DECL_FORCE_INLINE(bool) pgmGstIsNoExecuteActive(PVMCPU pVCpu)
+DECL_FORCE_INLINE(bool) pgmGstIsNoExecuteActive(PVMCPUCC pVCpu)
 {
     Assert(pVCpu->pgm.s.fNoExecuteEnabled == CPUMIsGuestNXEnabled(pVCpu));
     Assert(CPUMIsGuestInPAEMode(pVCpu) || CPUMIsGuestInLongMode(pVCpu));
@@ -625,7 +617,7 @@ DECL_FORCE_INLINE(bool) pgmGstIsNoExecuteActive(PVMCPU pVCpu)
  * @returns true if it is, false if it isn't.
  * @param   pVCpu       The cross context virtual CPU structure.
  */
-DECL_FORCE_INLINE(bool) pgmGst32BitIsPageSizeExtActive(PVMCPU pVCpu)
+DECL_FORCE_INLINE(bool) pgmGst32BitIsPageSizeExtActive(PVMCPUCC pVCpu)
 {
     Assert(pVCpu->pgm.s.fGst32BitPageSizeExtension == CPUMIsGuestPageSizeExtEnabled(pVCpu));
     Assert(!CPUMIsGuestInPAEMode(pVCpu));
@@ -642,7 +634,7 @@ DECL_FORCE_INLINE(bool) pgmGst32BitIsPageSizeExtActive(PVMCPU pVCpu)
  * @param   pVM         The cross context VM structure.
  * @param   Pde         Guest Pde
  */
-DECLINLINE(RTGCPHYS) pgmGstGet4MBPhysPage(PVM pVM, X86PDE Pde)
+DECLINLINE(RTGCPHYS) pgmGstGet4MBPhysPage(PVMCC pVM, X86PDE Pde)
 {
     RTGCPHYS GCPhys = Pde.u & X86_PDE4M_PG_MASK;
     GCPhys |= (RTGCPHYS)Pde.b.u8PageNoHigh << 32;
@@ -658,7 +650,7 @@ DECLINLINE(RTGCPHYS) pgmGstGet4MBPhysPage(PVM pVM, X86PDE Pde)
  * @param   pVCpu       The cross context virtual CPU structure.
  * @param   ppPd        Where to return the mapping. This is always set.
  */
-DECLINLINE(int) pgmGstGet32bitPDPtrEx(PVMCPU pVCpu, PX86PD *ppPd)
+DECLINLINE(int) pgmGstGet32bitPDPtrEx(PVMCPUCC pVCpu, PX86PD *ppPd)
 {
 #ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
     int rc = pgmRZDynMapGCPageInlined(pVCpu, pVCpu->pgm.s.GCPhysCR3, (void **)ppPd RTLOG_COMMA_SRC_POS);
@@ -682,7 +674,7 @@ DECLINLINE(int) pgmGstGet32bitPDPtrEx(PVMCPU pVCpu, PX86PD *ppPd)
  * @returns Pointer to the page directory entry in question.
  * @param   pVCpu       The cross context virtual CPU structure.
  */
-DECLINLINE(PX86PD) pgmGstGet32bitPDPtr(PVMCPU pVCpu)
+DECLINLINE(PX86PD) pgmGstGet32bitPDPtr(PVMCPUCC pVCpu)
 {
 #ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
     PX86PD pGuestPD = NULL;
@@ -712,7 +704,7 @@ DECLINLINE(PX86PD) pgmGstGet32bitPDPtr(PVMCPU pVCpu)
  * @param   pVCpu       The cross context virtual CPU structure.
  * @param   ppPdpt      Where to return the mapping.  This is always set.
  */
-DECLINLINE(int) pgmGstGetPaePDPTPtrEx(PVMCPU pVCpu, PX86PDPT *ppPdpt)
+DECLINLINE(int) pgmGstGetPaePDPTPtrEx(PVMCPUCC pVCpu, PX86PDPT *ppPdpt)
 {
 #ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
     int rc = pgmRZDynMapGCPageOffInlined(pVCpu, pVCpu->pgm.s.GCPhysCR3, (void **)ppPdpt RTLOG_COMMA_SRC_POS);
@@ -737,7 +729,7 @@ DECLINLINE(int) pgmGstGetPaePDPTPtrEx(PVMCPU pVCpu, PX86PDPT *ppPdpt)
  * @returns NULL if the page directory is not present or on an invalid page.
  * @param   pVCpu       The cross context virtual CPU structure.
  */
-DECLINLINE(PX86PDPT) pgmGstGetPaePDPTPtr(PVMCPU pVCpu)
+DECLINLINE(PX86PDPT) pgmGstGetPaePDPTPtr(PVMCPUCC pVCpu)
 {
     PX86PDPT pGuestPdpt;
     int rc = pgmGstGetPaePDPTPtrEx(pVCpu, &pGuestPdpt);
@@ -754,7 +746,7 @@ DECLINLINE(PX86PDPT) pgmGstGetPaePDPTPtr(PVMCPU pVCpu)
  * @param   pVCpu       The cross context virtual CPU structure.
  * @param   GCPtr       The address.
  */
-DECLINLINE(PX86PDPE) pgmGstGetPaePDPEPtr(PVMCPU pVCpu, RTGCPTR GCPtr)
+DECLINLINE(PX86PDPE) pgmGstGetPaePDPEPtr(PVMCPUCC pVCpu, RTGCPTR GCPtr)
 {
     AssertGCPtr32(GCPtr);
 
@@ -783,7 +775,7 @@ DECLINLINE(PX86PDPE) pgmGstGetPaePDPEPtr(PVMCPU pVCpu, RTGCPTR GCPtr)
  * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
  * @param   GCPtr       The address.
  */
-DECLINLINE(X86PDEPAE) pgmGstGetPaePDE(PVMCPU pVCpu, RTGCPTR GCPtr)
+DECLINLINE(X86PDEPAE) pgmGstGetPaePDE(PVMCPUCC pVCpu, RTGCPTR GCPtr)
 {
     AssertGCPtr32(GCPtr);
     PX86PDPT    pGuestPDPT = pgmGstGetPaePDPTPtr(pVCpu);
@@ -830,7 +822,7 @@ DECLINLINE(X86PDEPAE) pgmGstGetPaePDE(PVMCPU pVCpu, RTGCPTR GCPtr)
  * @param   piPD        Receives the index into the returned page directory
  * @param   pPdpe       Receives the page directory pointer entry. Optional.
  */
-DECLINLINE(PX86PDPAE) pgmGstGetPaePDPtr(PVMCPU pVCpu, RTGCPTR GCPtr, unsigned *piPD, PX86PDPE pPdpe)
+DECLINLINE(PX86PDPAE) pgmGstGetPaePDPtr(PVMCPUCC pVCpu, RTGCPTR GCPtr, unsigned *piPD, PX86PDPE pPdpe)
 {
     AssertGCPtr32(GCPtr);
 
@@ -869,7 +861,6 @@ DECLINLINE(PX86PDPAE) pgmGstGetPaePDPtr(PVMCPU pVCpu, RTGCPTR GCPtr, unsigned *p
     return pGuestPD;
 }
 
-#ifndef IN_RC
 
 /**
  * Gets the page map level-4 pointer for the guest.
@@ -878,7 +869,7 @@ DECLINLINE(PX86PDPAE) pgmGstGetPaePDPtr(PVMCPU pVCpu, RTGCPTR GCPtr, unsigned *p
  * @param   pVCpu       The cross context virtual CPU structure.
  * @param   ppPml4      Where to return the mapping.  Always set.
  */
-DECLINLINE(int) pgmGstGetLongModePML4PtrEx(PVMCPU pVCpu, PX86PML4 *ppPml4)
+DECLINLINE(int) pgmGstGetLongModePML4PtrEx(PVMCPUCC pVCpu, PX86PML4 *ppPml4)
 {
 #ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
     int rc = pgmRZDynMapGCPageInlined(pVCpu, pVCpu->pgm.s.GCPhysCR3, (void **)ppPml4 RTLOG_COMMA_SRC_POS);
@@ -902,7 +893,7 @@ DECLINLINE(int) pgmGstGetLongModePML4PtrEx(PVMCPU pVCpu, PX86PML4 *ppPml4)
  * @returns Pointer to the PML4 page.
  * @param   pVCpu       The cross context virtual CPU structure.
  */
-DECLINLINE(PX86PML4) pgmGstGetLongModePML4Ptr(PVMCPU pVCpu)
+DECLINLINE(PX86PML4) pgmGstGetLongModePML4Ptr(PVMCPUCC pVCpu)
 {
     PX86PML4 pGuestPml4;
     int rc = pgmGstGetLongModePML4PtrEx(pVCpu, &pGuestPml4);
@@ -919,7 +910,7 @@ DECLINLINE(PX86PML4) pgmGstGetLongModePML4Ptr(PVMCPU pVCpu)
  * @param   iPml4       The index.
  * @remarks Only used by AssertCR3.
  */
-DECLINLINE(PX86PML4E) pgmGstGetLongModePML4EPtr(PVMCPU pVCpu, unsigned int iPml4)
+DECLINLINE(PX86PML4E) pgmGstGetLongModePML4EPtr(PVMCPUCC pVCpu, unsigned int iPml4)
 {
 #ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
     PX86PML4 pGuestPml4;
@@ -945,7 +936,7 @@ DECLINLINE(PX86PML4E) pgmGstGetLongModePML4EPtr(PVMCPU pVCpu, unsigned int iPml4
  * @param   pVCpu       The cross context virtual CPU structure.
  * @param   GCPtr       The address.
  */
-DECLINLINE(X86PDEPAE) pgmGstGetLongModePDE(PVMCPU pVCpu, RTGCPTR64 GCPtr)
+DECLINLINE(X86PDEPAE) pgmGstGetLongModePDE(PVMCPUCC pVCpu, RTGCPTR64 GCPtr)
 {
     /*
      * Note! To keep things simple, ASSUME invalid physical addresses will
@@ -994,7 +985,7 @@ DECLINLINE(X86PDEPAE) pgmGstGetLongModePDE(PVMCPU pVCpu, RTGCPTR64 GCPtr)
  * @param   pPdpe       Page directory pointer table entry (out)
  * @param   piPD        Receives the index into the returned page directory
  */
-DECLINLINE(PX86PDPAE) pgmGstGetLongModePDPtr(PVMCPU pVCpu, RTGCPTR64 GCPtr, PX86PML4E *ppPml4e, PX86PDPE pPdpe, unsigned *piPD)
+DECLINLINE(PX86PDPAE) pgmGstGetLongModePDPtr(PVMCPUCC pVCpu, RTGCPTR64 GCPtr, PX86PML4E *ppPml4e, PX86PDPE pPdpe, unsigned *piPD)
 {
     /* The PMLE4. */
     PX86PML4        pGuestPml4 = pgmGstGetLongModePML4Ptr(pVCpu);
@@ -1035,7 +1026,6 @@ DECLINLINE(PX86PDPAE) pgmGstGetLongModePDPtr(PVMCPU pVCpu, RTGCPTR64 GCPtr, PX86
     return pPD;
 }
 
-#endif /* !IN_RC */
 
 /**
  * Gets the shadow page directory, 32-bit.
@@ -1043,7 +1033,7 @@ DECLINLINE(PX86PDPAE) pgmGstGetLongModePDPtr(PVMCPU pVCpu, RTGCPTR64 GCPtr, PX86
  * @returns Pointer to the shadow 32-bit PD.
  * @param   pVCpu       The cross context virtual CPU structure.
  */
-DECLINLINE(PX86PD) pgmShwGet32BitPDPtr(PVMCPU pVCpu)
+DECLINLINE(PX86PD) pgmShwGet32BitPDPtr(PVMCPUCC pVCpu)
 {
     return (PX86PD)PGMPOOL_PAGE_2_PTR_V2(pVCpu->CTX_SUFF(pVM), pVCpu, pVCpu->pgm.s.CTX_SUFF(pShwPageCR3));
 }
@@ -1056,7 +1046,7 @@ DECLINLINE(PX86PD) pgmShwGet32BitPDPtr(PVMCPU pVCpu)
  * @param   pVCpu       The cross context virtual CPU structure.
  * @param   GCPtr       The address.
  */
-DECLINLINE(X86PDE) pgmShwGet32BitPDE(PVMCPU pVCpu, RTGCPTR GCPtr)
+DECLINLINE(X86PDE) pgmShwGet32BitPDE(PVMCPUCC pVCpu, RTGCPTR GCPtr)
 {
     PX86PD pShwPde = pgmShwGet32BitPDPtr(pVCpu);
     if (!pShwPde)
@@ -1076,7 +1066,7 @@ DECLINLINE(X86PDE) pgmShwGet32BitPDE(PVMCPU pVCpu, RTGCPTR GCPtr)
  * @param   pVCpu       The cross context virtual CPU structure.
  * @param   GCPtr       The address.
  */
-DECLINLINE(PX86PDE) pgmShwGet32BitPDEPtr(PVMCPU pVCpu, RTGCPTR GCPtr)
+DECLINLINE(PX86PDE) pgmShwGet32BitPDEPtr(PVMCPUCC pVCpu, RTGCPTR GCPtr)
 {
     PX86PD pPde = pgmShwGet32BitPDPtr(pVCpu);
     AssertReturn(pPde, NULL);
@@ -1090,7 +1080,7 @@ DECLINLINE(PX86PDE) pgmShwGet32BitPDEPtr(PVMCPU pVCpu, RTGCPTR GCPtr)
  * @returns Pointer to the shadow PAE PDPT.
  * @param   pVCpu       The cross context virtual CPU structure.
  */
-DECLINLINE(PX86PDPT) pgmShwGetPaePDPTPtr(PVMCPU pVCpu)
+DECLINLINE(PX86PDPT) pgmShwGetPaePDPTPtr(PVMCPUCC pVCpu)
 {
     return (PX86PDPT)PGMPOOL_PAGE_2_PTR_V2(pVCpu->CTX_SUFF(pVM), pVCpu, pVCpu->pgm.s.CTX_SUFF(pShwPageCR3));
 }
@@ -1103,7 +1093,7 @@ DECLINLINE(PX86PDPT) pgmShwGetPaePDPTPtr(PVMCPU pVCpu)
  * @param   pVCpu       The cross context virtual CPU structure.
  * @param   GCPtr       The address.
  */
-DECLINLINE(PX86PDPAE) pgmShwGetPaePDPtr(PVMCPU pVCpu, RTGCPTR GCPtr)
+DECLINLINE(PX86PDPAE) pgmShwGetPaePDPtr(PVMCPUCC pVCpu, RTGCPTR GCPtr)
 {
     const unsigned  iPdpt = (uint32_t)GCPtr >> X86_PDPT_SHIFT;
     PX86PDPT        pPdpt = pgmShwGetPaePDPTPtr(pVCpu);
@@ -1112,7 +1102,7 @@ DECLINLINE(PX86PDPAE) pgmShwGetPaePDPtr(PVMCPU pVCpu, RTGCPTR GCPtr)
         return NULL;
 
     /* Fetch the pgm pool shadow descriptor. */
-    PVM pVM = pVCpu->CTX_SUFF(pVM);
+    PVMCC pVM = pVCpu->CTX_SUFF(pVM);
     PPGMPOOLPAGE pShwPde = pgmPoolGetPage(pVM->pgm.s.CTX_SUFF(pPool), pPdpt->a[iPdpt].u & X86_PDPE_PG_MASK);
     AssertReturn(pShwPde, NULL);
 
@@ -1128,7 +1118,7 @@ DECLINLINE(PX86PDPAE) pgmShwGetPaePDPtr(PVMCPU pVCpu, RTGCPTR GCPtr)
  * @param   pPdpt       Pointer to the page directory pointer table.
  * @param   GCPtr       The address.
  */
-DECLINLINE(PX86PDPAE) pgmShwGetPaePDPtr(PVMCPU pVCpu, PX86PDPT pPdpt, RTGCPTR GCPtr)
+DECLINLINE(PX86PDPAE) pgmShwGetPaePDPtr(PVMCPUCC pVCpu, PX86PDPT pPdpt, RTGCPTR GCPtr)
 {
     const unsigned  iPdpt = (uint32_t)GCPtr >> X86_PDPT_SHIFT;
 
@@ -1136,7 +1126,7 @@ DECLINLINE(PX86PDPAE) pgmShwGetPaePDPtr(PVMCPU pVCpu, PX86PDPT pPdpt, RTGCPTR GC
         return NULL;
 
     /* Fetch the pgm pool shadow descriptor. */
-    PVM             pVM     = pVCpu->CTX_SUFF(pVM);
+    PVMCC             pVM     = pVCpu->CTX_SUFF(pVM);
     PPGMPOOLPAGE    pShwPde = pgmPoolGetPage(pVM->pgm.s.CTX_SUFF(pPool), pPdpt->a[iPdpt].u & X86_PDPE_PG_MASK);
     AssertReturn(pShwPde, NULL);
 
@@ -1151,7 +1141,7 @@ DECLINLINE(PX86PDPAE) pgmShwGetPaePDPtr(PVMCPU pVCpu, PX86PDPT pPdpt, RTGCPTR GC
  * @param   pVCpu       The cross context virtual CPU structure.
  * @param   GCPtr       The address.
  */
-DECLINLINE(X86PDEPAE) pgmShwGetPaePDE(PVMCPU pVCpu, RTGCPTR GCPtr)
+DECLINLINE(X86PDEPAE) pgmShwGetPaePDE(PVMCPUCC pVCpu, RTGCPTR GCPtr)
 {
     const unsigned iPd = (GCPtr >> X86_PD_PAE_SHIFT) & X86_PD_PAE_MASK;
 
@@ -1173,7 +1163,7 @@ DECLINLINE(X86PDEPAE) pgmShwGetPaePDE(PVMCPU pVCpu, RTGCPTR GCPtr)
  * @param   GCPtr       The address.
  * @remarks Only used by AssertCR3.
  */
-DECLINLINE(PX86PDEPAE) pgmShwGetPaePDEPtr(PVMCPU pVCpu, RTGCPTR GCPtr)
+DECLINLINE(PX86PDEPAE) pgmShwGetPaePDEPtr(PVMCPUCC pVCpu, RTGCPTR GCPtr)
 {
     const unsigned iPd = (GCPtr >> X86_PD_PAE_SHIFT) & X86_PD_PAE_MASK;
 
@@ -1182,7 +1172,6 @@ DECLINLINE(PX86PDEPAE) pgmShwGetPaePDEPtr(PVMCPU pVCpu, RTGCPTR GCPtr)
     return &pPde->a[iPd];
 }
 
-#ifndef IN_RC
 
 /**
  * Gets the shadow page map level-4 pointer.
@@ -1190,7 +1179,7 @@ DECLINLINE(PX86PDEPAE) pgmShwGetPaePDEPtr(PVMCPU pVCpu, RTGCPTR GCPtr)
  * @returns Pointer to the shadow PML4.
  * @param   pVCpu       The cross context virtual CPU structure.
  */
-DECLINLINE(PX86PML4) pgmShwGetLongModePML4Ptr(PVMCPU pVCpu)
+DECLINLINE(PX86PML4) pgmShwGetLongModePML4Ptr(PVMCPUCC pVCpu)
 {
     return (PX86PML4)PGMPOOL_PAGE_2_PTR_V2(pVCpu->CTX_SUFF(pVM), pVCpu, pVCpu->pgm.s.CTX_SUFF(pShwPageCR3));
 }
@@ -1203,7 +1192,7 @@ DECLINLINE(PX86PML4) pgmShwGetLongModePML4Ptr(PVMCPU pVCpu)
  * @param   pVCpu       The cross context virtual CPU structure.
  * @param   GCPtr       The address.
  */
-DECLINLINE(X86PML4E) pgmShwGetLongModePML4E(PVMCPU pVCpu, RTGCPTR GCPtr)
+DECLINLINE(X86PML4E) pgmShwGetLongModePML4E(PVMCPUCC pVCpu, RTGCPTR GCPtr)
 {
     const unsigned  iPml4 = ((RTGCUINTPTR64)GCPtr >> X86_PML4_SHIFT) & X86_PML4_MASK;
     PX86PML4        pShwPml4 = pgmShwGetLongModePML4Ptr(pVCpu);
@@ -1224,7 +1213,7 @@ DECLINLINE(X86PML4E) pgmShwGetLongModePML4E(PVMCPU pVCpu, RTGCPTR GCPtr)
  * @param   pVCpu       The cross context virtual CPU structure.
  * @param   iPml4       The PML4 index.
  */
-DECLINLINE(PX86PML4E) pgmShwGetLongModePML4EPtr(PVMCPU pVCpu, unsigned int iPml4)
+DECLINLINE(PX86PML4E) pgmShwGetLongModePML4EPtr(PVMCPUCC pVCpu, unsigned int iPml4)
 {
     PX86PML4 pShwPml4 = pgmShwGetLongModePML4Ptr(pVCpu);
     if (!pShwPml4)
@@ -1232,7 +1221,6 @@ DECLINLINE(PX86PML4E) pgmShwGetLongModePML4EPtr(PVMCPU pVCpu, unsigned int iPml4
     return &pShwPml4->a[iPml4];
 }
 
-#endif /* !IN_RC */
 
 /**
  * Cached physical handler lookup.
@@ -1241,7 +1229,7 @@ DECLINLINE(PX86PML4E) pgmShwGetLongModePML4EPtr(PVMCPU pVCpu, unsigned int iPml4
  * @param   pVM                 The cross context VM structure.
  * @param   GCPhys              The lookup address.
  */
-DECLINLINE(PPGMPHYSHANDLER) pgmHandlerPhysicalLookup(PVM pVM, RTGCPHYS GCPhys)
+DECLINLINE(PPGMPHYSHANDLER) pgmHandlerPhysicalLookup(PVMCC pVM, RTGCPHYS GCPhys)
 {
     PPGMPHYSHANDLER pHandler = pVM->pgm.s.CTX_SUFF(pLastPhysHandler);
     if (   pHandler
@@ -1258,113 +1246,6 @@ DECLINLINE(PPGMPHYSHANDLER) pgmHandlerPhysicalLookup(PVM pVM, RTGCPHYS GCPhys)
         pVM->pgm.s.CTX_SUFF(pLastPhysHandler) = pHandler;
     return pHandler;
 }
-
-
-#ifdef VBOX_WITH_RAW_MODE
-/**
- * Clears one physical page of a virtual handler.
- *
- * @param   pVM         The cross context VM structure.
- * @param   pCur        Virtual handler structure.
- * @param   iPage       Physical page index.
- *
- * @remark  Only used when PGM_SYNC_UPDATE_PAGE_BIT_VIRTUAL is being set, so no
- *          need to care about other handlers in the same page.
- */
-DECLINLINE(void) pgmHandlerVirtualClearPage(PVM pVM, PPGMVIRTHANDLER pCur, unsigned iPage)
-{
-    const PPGMPHYS2VIRTHANDLER pPhys2Virt = &pCur->aPhysToVirt[iPage];
-
-    /*
-     * Remove the node from the tree (it's supposed to be in the tree if we get here!).
-     */
-# ifdef VBOX_STRICT_PGM_HANDLER_VIRTUAL
-    AssertReleaseMsg(pPhys2Virt->offNextAlias & PGMPHYS2VIRTHANDLER_IN_TREE,
-                     ("pPhys2Virt=%p:{.Core.Key=%RGp, .Core.KeyLast=%RGp, .offVirtHandler=%#RX32, .offNextAlias=%#RX32}\n",
-                      pPhys2Virt, pPhys2Virt->Core.Key, pPhys2Virt->Core.KeyLast, pPhys2Virt->offVirtHandler, pPhys2Virt->offNextAlias));
-# endif
-    if (pPhys2Virt->offNextAlias & PGMPHYS2VIRTHANDLER_IS_HEAD)
-    {
-        /* We're the head of the alias chain. */
-        PPGMPHYS2VIRTHANDLER pRemove = (PPGMPHYS2VIRTHANDLER)RTAvlroGCPhysRemove(&pVM->pgm.s.CTX_SUFF(pTrees)->PhysToVirtHandlers, pPhys2Virt->Core.Key); NOREF(pRemove);
-# ifdef VBOX_STRICT_PGM_HANDLER_VIRTUAL
-        AssertReleaseMsg(pRemove != NULL,
-                         ("pPhys2Virt=%p:{.Core.Key=%RGp, .Core.KeyLast=%RGp, .offVirtHandler=%#RX32, .offNextAlias=%#RX32}\n",
-                          pPhys2Virt, pPhys2Virt->Core.Key, pPhys2Virt->Core.KeyLast, pPhys2Virt->offVirtHandler, pPhys2Virt->offNextAlias));
-        AssertReleaseMsg(pRemove == pPhys2Virt,
-                         ("wanted: pPhys2Virt=%p:{.Core.Key=%RGp, .Core.KeyLast=%RGp, .offVirtHandler=%#RX32, .offNextAlias=%#RX32}\n"
-                          "   got:    pRemove=%p:{.Core.Key=%RGp, .Core.KeyLast=%RGp, .offVirtHandler=%#RX32, .offNextAlias=%#RX32}\n",
-                          pPhys2Virt, pPhys2Virt->Core.Key, pPhys2Virt->Core.KeyLast, pPhys2Virt->offVirtHandler, pPhys2Virt->offNextAlias,
-                          pRemove, pRemove->Core.Key, pRemove->Core.KeyLast, pRemove->offVirtHandler, pRemove->offNextAlias));
-# endif
-        if (pPhys2Virt->offNextAlias & PGMPHYS2VIRTHANDLER_OFF_MASK)
-        {
-            /* Insert the next list in the alias chain into the tree. */
-            PPGMPHYS2VIRTHANDLER pNext = (PPGMPHYS2VIRTHANDLER)((intptr_t)pPhys2Virt + (pPhys2Virt->offNextAlias & PGMPHYS2VIRTHANDLER_OFF_MASK));
-# ifdef VBOX_STRICT_PGM_HANDLER_VIRTUAL
-            AssertReleaseMsg(pNext->offNextAlias & PGMPHYS2VIRTHANDLER_IN_TREE,
-                             ("pNext=%p:{.Core.Key=%RGp, .Core.KeyLast=%RGp, .offVirtHandler=%#RX32, .offNextAlias=%#RX32}\n",
-                             pNext, pNext->Core.Key, pNext->Core.KeyLast, pNext->offVirtHandler, pNext->offNextAlias));
-# endif
-            pNext->offNextAlias |= PGMPHYS2VIRTHANDLER_IS_HEAD;
-            bool fRc = RTAvlroGCPhysInsert(&pVM->pgm.s.CTX_SUFF(pTrees)->PhysToVirtHandlers, &pNext->Core);
-            AssertRelease(fRc);
-        }
-    }
-    else
-    {
-        /* Locate the previous node in the alias chain. */
-        PPGMPHYS2VIRTHANDLER pPrev = (PPGMPHYS2VIRTHANDLER)RTAvlroGCPhysGet(&pVM->pgm.s.CTX_SUFF(pTrees)->PhysToVirtHandlers, pPhys2Virt->Core.Key);
-# ifdef VBOX_STRICT_PGM_HANDLER_VIRTUAL
-        AssertReleaseMsg(pPrev != pPhys2Virt,
-                         ("pPhys2Virt=%p:{.Core.Key=%RGp, .Core.KeyLast=%RGp, .offVirtHandler=%#RX32, .offNextAlias=%#RX32} pPrev=%p\n",
-                          pPhys2Virt, pPhys2Virt->Core.Key, pPhys2Virt->Core.KeyLast, pPhys2Virt->offVirtHandler, pPhys2Virt->offNextAlias, pPrev));
-# endif
-        for (;;)
-        {
-            PPGMPHYS2VIRTHANDLER pNext = (PPGMPHYS2VIRTHANDLER)((intptr_t)pPrev + (pPrev->offNextAlias & PGMPHYS2VIRTHANDLER_OFF_MASK));
-            if (pNext == pPhys2Virt)
-            {
-                /* unlink. */
-                LogFlow(("pgmHandlerVirtualClearPage: removed %p:{.offNextAlias=%#RX32} from alias chain. prev %p:{.offNextAlias=%#RX32} [%RGp-%RGp]\n",
-                         pPhys2Virt, pPhys2Virt->offNextAlias, pPrev, pPrev->offNextAlias, pPhys2Virt->Core.Key, pPhys2Virt->Core.KeyLast));
-                if (!(pPhys2Virt->offNextAlias & PGMPHYS2VIRTHANDLER_OFF_MASK))
-                    pPrev->offNextAlias &= ~PGMPHYS2VIRTHANDLER_OFF_MASK;
-                else
-                {
-                    PPGMPHYS2VIRTHANDLER pNewNext = (PPGMPHYS2VIRTHANDLER)((intptr_t)pPhys2Virt + (pPhys2Virt->offNextAlias & PGMPHYS2VIRTHANDLER_OFF_MASK));
-                    pPrev->offNextAlias = ((intptr_t)pNewNext - (intptr_t)pPrev)
-                                        | (pPrev->offNextAlias & ~PGMPHYS2VIRTHANDLER_OFF_MASK);
-                }
-                break;
-            }
-
-            /* next */
-            if (pNext == pPrev)
-            {
-# ifdef VBOX_STRICT_PGM_HANDLER_VIRTUAL
-                AssertReleaseMsg(pNext != pPrev,
-                                 ("pPhys2Virt=%p:{.Core.Key=%RGp, .Core.KeyLast=%RGp, .offVirtHandler=%#RX32, .offNextAlias=%#RX32} pPrev=%p\n",
-                                  pPhys2Virt, pPhys2Virt->Core.Key, pPhys2Virt->Core.KeyLast, pPhys2Virt->offVirtHandler, pPhys2Virt->offNextAlias, pPrev));
-# endif
-                break;
-            }
-            pPrev = pNext;
-        }
-    }
-    Log2(("PHYS2VIRT: Removing %RGp-%RGp %#RX32 %s\n",
-          pPhys2Virt->Core.Key, pPhys2Virt->Core.KeyLast, pPhys2Virt->offNextAlias, R3STRING(pCur->pszDesc)));
-    pPhys2Virt->offNextAlias = 0;
-    pPhys2Virt->Core.KeyLast = NIL_RTGCPHYS; /* require reinsert */
-
-    /*
-     * Clear the ram flags for this page.
-     */
-    PPGMPAGE pPage = pgmPhysGetPage(pVM, pPhys2Virt->Core.Key);
-    AssertReturnVoid(pPage);
-    PGM_PAGE_SET_HNDL_VIRT_STATE(pPage, PGM_PAGE_HNDL_VIRT_STATE_NONE);
-}
-#endif /* VBOX_WITH_RAW_MODE */
 
 
 /**
@@ -1394,12 +1275,12 @@ DECLINLINE(void) pgmTrackDerefGCPhys(PPGMPOOL pPool, PPGMPOOLPAGE pPoolPage, PPG
     /*
      * Just deal with the simple case here.
      */
-# ifdef VBOX_STRICT
-    PVM pVM = pPool->CTX_SUFF(pVM); NOREF(pVM);
-# endif
-# ifdef LOG_ENABLED
+#ifdef VBOX_STRICT
+    PVMCC pVM = pPool->CTX_SUFF(pVM); NOREF(pVM);
+#endif
+#ifdef LOG_ENABLED
     const unsigned uOrg = PGM_PAGE_GET_TRACKING(pPhysPage);
-# endif
+#endif
     const unsigned cRefs = PGM_PAGE_GET_TD_CREFS(pPhysPage);
     if (cRefs == 1)
     {
@@ -1501,7 +1382,7 @@ DECLINLINE(bool) pgmPoolIsPageLocked(PPGMPOOLPAGE pPage)
  * @param   pVM             The cross context VM structure.
  * @param   GCPhys          Guest physical address
  */
-DECLINLINE(bool) pgmPoolIsDirtyPage(PVM pVM, RTGCPHYS GCPhys)
+DECLINLINE(bool) pgmPoolIsDirtyPage(PVMCC pVM, RTGCPHYS GCPhys)
 {
     PPGMPOOL pPool = pVM->pgm.s.CTX_SUFF(pPool);
     PGM_LOCK_ASSERT_OWNER(pVM);
@@ -1517,7 +1398,7 @@ DECLINLINE(bool) pgmPoolIsDirtyPage(PVM pVM, RTGCPHYS GCPhys)
  * @returns boolean result
  * @param   pVM         The cross context VM structure.
  */
-DECL_FORCE_INLINE(bool) pgmMapAreMappingsEnabled(PVM pVM)
+DECL_FORCE_INLINE(bool) pgmMapAreMappingsEnabled(PVMCC pVM)
 {
 #ifdef PGM_WITHOUT_MAPPINGS
     /* Only raw-mode has mappings. */
@@ -1536,7 +1417,7 @@ DECL_FORCE_INLINE(bool) pgmMapAreMappingsEnabled(PVM pVM)
  * @returns true / false.
  * @param   pVM         The cross context VM structure.
  */
-DECL_FORCE_INLINE(bool) pgmMapAreMappingsFloating(PVM pVM)
+DECL_FORCE_INLINE(bool) pgmMapAreMappingsFloating(PVMCC pVM)
 {
 #ifdef PGM_WITHOUT_MAPPINGS
     /* Only raw-mode has mappings. */

@@ -217,20 +217,11 @@ int main()
     GEN_CHECK_OFF(DEVPCIBUS, cBridges);
     GEN_CHECK_OFF(DEVPCIBUS, apDevices);
     GEN_CHECK_OFF(DEVPCIBUS, apDevices[1]);
-    GEN_CHECK_OFF(DEVPCIBUS, pDevInsR3);
-    GEN_CHECK_OFF(DEVPCIBUS, pPciHlpR3);
     GEN_CHECK_OFF(DEVPCIBUS, papBridgesR3);
-    GEN_CHECK_OFF(DEVPCIBUS, pDevInsR0);
-    GEN_CHECK_OFF(DEVPCIBUS, pPciHlpR0);
-    GEN_CHECK_OFF(DEVPCIBUS, pDevInsRC);
-    GEN_CHECK_OFF(DEVPCIBUS, pPciHlpRC);
     GEN_CHECK_OFF(DEVPCIBUS, PciDev);
     GEN_CHECK_SIZE(PIIX3ISABRIDGE);
     GEN_CHECK_SIZE(DEVPCIROOT);
     GEN_CHECK_OFF(DEVPCIROOT, PciBus);
-    GEN_CHECK_OFF(DEVPCIROOT, pDevInsR3);
-    GEN_CHECK_OFF(DEVPCIROOT, pDevInsR0);
-    GEN_CHECK_OFF(DEVPCIROOT, pDevInsRC);
     GEN_CHECK_OFF(DEVPCIROOT, fUseIoApic);
     GEN_CHECK_OFF(DEVPCIROOT, u64PciConfigMMioAddress);
     GEN_CHECK_OFF(DEVPCIROOT, u64PciConfigMMioLength);
@@ -349,7 +340,7 @@ int main()
 #endif
     GEN_CHECK_OFF(VGASTATE, IBase);
     GEN_CHECK_OFF(VGASTATE, IPort);
-#if defined(VBOX_WITH_HGSMI) && (defined(VBOX_WITH_VIDEOHWACCEL) || defined(VBOX_WITH_CRHGSMI))
+#if defined(VBOX_WITH_HGSMI) && defined(VBOX_WITH_VIDEOHWACCEL)
     GEN_CHECK_OFF(VGASTATE, IVBVACallbacks);
 #endif
     GEN_CHECK_OFF(VGASTATE, pDrvBase);
@@ -376,11 +367,9 @@ int main()
     GEN_CHECK_OFF(VGASTATE, svga.u32PitchLock);
     GEN_CHECK_OFF(VGASTATE, svga.u32CurrentGMRId);
     GEN_CHECK_OFF(VGASTATE, svga.u32RegCaps);
-    GEN_CHECK_OFF(VGASTATE, svga.BasePort);
     GEN_CHECK_OFF(VGASTATE, svga.u32IndexReg);
-    GEN_CHECK_OFF(VGASTATE, svga.pSupDrvSession);
-    GEN_CHECK_OFF(VGASTATE, svga.FIFORequestSem);
-    GEN_CHECK_OFF(VGASTATE, svga.FIFOExtCmdSem);
+    GEN_CHECK_OFF(VGASTATE, svga.hFIFORequestSem);
+    GEN_CHECK_OFF(VGASTATE, svga.hFIFOExtCmdSem);
     GEN_CHECK_OFF(VGASTATE, svga.pFIFOIOThread);
     GEN_CHECK_OFF(VGASTATE, svga.uWidth);
     GEN_CHECK_OFF(VGASTATE, svga.uHeight);
@@ -458,13 +447,13 @@ int main()
 #endif
 
     /* Input/pckbd.c */
-    GEN_CHECK_SIZE(KBDState);
-    GEN_CHECK_OFF(KBDState, write_cmd);
-    GEN_CHECK_OFF(KBDState, status);
-    GEN_CHECK_OFF(KBDState, mode);
-    GEN_CHECK_OFF(KBDState, pDevInsR3);
-    GEN_CHECK_OFF(KBDState, pDevInsR0);
-    GEN_CHECK_OFF(KBDState, pDevInsRC);
+    GEN_CHECK_SIZE(KBDSTATE);
+    GEN_CHECK_OFF(KBDSTATE, write_cmd);
+    GEN_CHECK_OFF(KBDSTATE, status);
+    GEN_CHECK_OFF(KBDSTATE, mode);
+    GEN_CHECK_OFF(KBDSTATE, pDevInsR3);
+    GEN_CHECK_OFF(KBDSTATE, pDevInsR0);
+    GEN_CHECK_OFF(KBDSTATE, pDevInsRC);
     GEN_CHECK_SIZE(KbdKeyQ);
     GEN_CHECK_OFF(KbdCmdQ, rpos);
     GEN_CHECK_OFF(KbdCmdQ, wpos);
@@ -1392,6 +1381,7 @@ int main()
     GEN_CHECK_OFF(AHCIPort, pDrvBase);
     GEN_CHECK_OFF(AHCIPort, pDrvMedia);
     GEN_CHECK_OFF(AHCIPort, pDrvMediaEx);
+    GEN_CHECK_OFF(AHCIPort, pszDesc);
     GEN_CHECK_OFF(AHCIPort, IBase);
     GEN_CHECK_OFF(AHCIPort, IPort);
     GEN_CHECK_OFF(AHCIPort, IMediaExPort);

@@ -21,10 +21,10 @@
 
 /* Other includes */
 #include "UIMachineSettingsSFDetails.h"
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 
 
-UIMachineSettingsSFDetails::UIMachineSettingsSFDetails(DialogType type,
+UIMachineSettingsSFDetails::UIMachineSettingsSFDetails(SFDialogType type,
                                                        bool fEnableSelector, /* for "permanent" checkbox */
                                                        const QStringList &usedNames,
                                                        QWidget *pParent /* = 0 */)
@@ -42,11 +42,12 @@ UIMachineSettingsSFDetails::UIMachineSettingsSFDetails(DialogType type,
     mCbPermanent->setHidden(!fEnableSelector);
 
     /* Setup connections: */
-    connect(mPsPath, SIGNAL(currentIndexChanged(int)), this, SLOT(sltSelectPath()));
-    connect(mPsPath, SIGNAL(pathChanged(const QString &)), this, SLOT(sltSelectPath()));
-    connect(mLeName, SIGNAL(textChanged(const QString &)), this, SLOT(sltValidate()));
+    connect(mPsPath, static_cast<void(UIFilePathSelector::*)(int)>(&UIFilePathSelector::currentIndexChanged),
+            this, &UIMachineSettingsSFDetails::sltSelectPath);
+    connect(mPsPath, &UIFilePathSelector::pathChanged, this, &UIMachineSettingsSFDetails::sltSelectPath);
+    connect(mLeName, &QLineEdit::textChanged, this, &UIMachineSettingsSFDetails::sltValidate);
     if (fEnableSelector)
-        connect(mCbPermanent, SIGNAL(toggled(bool)), this, SLOT(sltValidate()));
+        connect(mCbPermanent, &QCheckBox::toggled, this, &UIMachineSettingsSFDetails::sltValidate);
 
      /* Applying language settings: */
     retranslateUi();
@@ -183,4 +184,3 @@ void UIMachineSettingsSFDetails::sltSelectPath()
     /* Validate the field values: */
     sltValidate();
 }
-

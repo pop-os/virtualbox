@@ -37,17 +37,8 @@
 #include <iprt/avl.h>
 #include <iprt/string.h>
 
-#if HC_ARCH_BITS == 32 && defined(RT_OS_DARWIN)
-# error "32-bit darwin is no longer supported. Go back to 4.3 or earlier!"
-#endif
-
-#if HC_ARCH_BITS == 64 || defined(VBOX_WITH_64_BITS_GUESTS)
-/* Enable 64 bits guest support. */
-# define VBOX_ENABLE_64_BITS_GUESTS
-#endif
-
-#if HC_ARCH_BITS == 32 && defined(VBOX_ENABLE_64_BITS_GUESTS)
-# define VMX_USE_CACHED_VMCS_ACCESSES
+#if HC_ARCH_BITS == 32
+# error "32-bit hosts are no longer supported. Go back to 6.0 or earlier!"
 #endif
 
 /** @def HM_PROFILE_EXIT_DISPATCH
@@ -141,16 +132,15 @@ RT_C_DECLS_BEGIN
 
 #define HM_CHANGED_KEEPER_STATE_MASK             UINT64_C(0xffff000000000000)
 
-#define HM_CHANGED_VMX_GUEST_XCPT_INTERCEPTS     UINT64_C(0x0001000000000000)
+#define HM_CHANGED_VMX_XCPT_INTERCEPTS           UINT64_C(0x0001000000000000)
 #define HM_CHANGED_VMX_GUEST_AUTO_MSRS           UINT64_C(0x0002000000000000)
 #define HM_CHANGED_VMX_GUEST_LAZY_MSRS           UINT64_C(0x0004000000000000)
-#define HM_CHANGED_VMX_ENTRY_CTLS                UINT64_C(0x0008000000000000)
-#define HM_CHANGED_VMX_EXIT_CTLS                 UINT64_C(0x0010000000000000)
-#define HM_CHANGED_VMX_MASK                      UINT64_C(0x001f000000000000)
+#define HM_CHANGED_VMX_ENTRY_EXIT_CTLS           UINT64_C(0x0008000000000000)
+#define HM_CHANGED_VMX_MASK                      UINT64_C(0x000f000000000000)
 #define HM_CHANGED_VMX_HOST_GUEST_SHARED_STATE   (  HM_CHANGED_GUEST_DR_MASK \
                                                   | HM_CHANGED_VMX_GUEST_LAZY_MSRS)
 
-#define HM_CHANGED_SVM_GUEST_XCPT_INTERCEPTS     UINT64_C(0x0001000000000000)
+#define HM_CHANGED_SVM_XCPT_INTERCEPTS           UINT64_C(0x0001000000000000)
 #define HM_CHANGED_SVM_MASK                      UINT64_C(0x0001000000000000)
 #define HM_CHANGED_SVM_HOST_GUEST_SHARED_STATE   HM_CHANGED_GUEST_DR_MASK
 
@@ -195,8 +185,26 @@ RT_C_DECLS_BEGIN
                                                   | HM_CHANGED_SVM_MASK          \
                                                   | HM_CHANGED_GUEST_APIC_TPR)
 
-/** Mask of what state might have changed when \#VMEXIT is emulated. */
+/** Mask of what state might have changed when VMRUN is emulated. */
 # define HM_CHANGED_SVM_VMRUN_MASK               HM_CHANGED_SVM_VMEXIT_MASK
+#endif
+#ifdef VBOX_WITH_NESTED_HWVIRT_VMX
+/** Mask of what state might have changed when VM-exit is emulated.
+ *
+ *  This is currently unused, but keeping it here in case we can get away a bit more
+ *  fine-grained state handling.
+ *
+ *  @note Update IEM_CPUMCTX_EXTRN_VMX_VMEXIT_MASK when this changes. */
+# define HM_CHANGED_VMX_VMEXIT_MASK             (  HM_CHANGED_GUEST_CR0 | HM_CHANGED_GUEST_CR3 | HM_CHANGED_GUEST_CR4 \
+                                                 | HM_CHANGED_GUEST_DR7 | HM_CHANGED_GUEST_DR6 \
+                                                 | HM_CHANGED_GUEST_EFER_MSR \
+                                                 | HM_CHANGED_GUEST_SYSENTER_MSR_MASK \
+                                                 | HM_CHANGED_GUEST_OTHER_MSRS    /* for PAT MSR */ \
+                                                 | HM_CHANGED_GUEST_RIP | HM_CHANGED_GUEST_RSP | HM_CHANGED_GUEST_RFLAGS \
+                                                 | HM_CHANGED_GUEST_SREG_MASK \
+                                                 | HM_CHANGED_GUEST_TR \
+                                                 | HM_CHANGED_GUEST_LDTR | HM_CHANGED_GUEST_GDTR | HM_CHANGED_GUEST_IDTR \
+                                                 | HM_CHANGED_GUEST_HWVIRT )
 #endif
 /** @} */
 
@@ -266,6 +274,8 @@ typedef struct HMPHYSCPU
     bool                fConfigured;
     /** Set if the VBOX_HWVIRTEX_IGNORE_SVM_IN_USE hack is active. */
     bool                fIgnoreAMDVInUseError;
+    /** Whether CR4.VMXE was already enabled prior to us enabling it. */
+    bool                fVmxeAlreadyEnabled;
     /** In use by our code. (for power suspend) */
     bool volatile       fInUse;
 #ifdef VBOX_WITH_NESTED_HWVIRT_SVM
@@ -404,15 +414,43 @@ typedef FNHMSWITCHERHC *PFNHMSWITCHERHC;
 #endif
 
 /**
+ * HM event.
+ *
+ * VT-x and AMD-V common event injection structure.
+ */
+typedef struct HMEVENT
+{
+    /** Whether the event is pending. */
+    uint32_t        fPending;
+    /** The error-code associated with the event. */
+    uint32_t        u32ErrCode;
+    /** The length of the instruction in bytes (only relevant for software
+     *  interrupts or software exceptions). */
+    uint32_t        cbInstr;
+    /** Alignment. */
+    uint32_t        u32Padding;
+    /** The encoded event (VM-entry interruption-information for VT-x or EVENTINJ
+     *  for SVM). */
+    uint64_t        u64IntInfo;
+    /** Guest virtual address if this is a page-fault event. */
+    RTGCUINTPTR     GCPtrFaultAddress;
+} HMEVENT;
+/** Pointer to a HMEVENT struct. */
+typedef HMEVENT *PHMEVENT;
+/** Pointer to a const HMEVENT struct. */
+typedef const HMEVENT *PCHMEVENT;
+AssertCompileSizeAlignment(HMEVENT, 8);
+
+/**
  * HM VM Instance data.
  * Changes to this must checked against the padding of the hm union in VM!
  */
 typedef struct HM
 {
-    /** Set when we've initialized VMX or SVM. */
-    bool                        fInitialized;
     /** Set if nested paging is enabled. */
     bool                        fNestedPaging;
+    /** Set when we've initialized VMX or SVM. */
+    bool                        fInitialized;
     /** Set if nested paging is allowed. */
     bool                        fAllowNestedPaging;
     /** Set if large pages are enabled (requires nested paging). */
@@ -465,12 +503,6 @@ typedef struct HM
     /** Current free pointer inside the patch block. */
     RTGCPTR                     pFreeGuestPatchMem;
 
-#if HC_ARCH_BITS == 32 && defined(VBOX_ENABLE_64_BITS_GUESTS)
-    /** 32 to 64 bits switcher entrypoint. */
-    R0PTRTYPE(PFNHMSWITCHERHC)  pfnHost32ToGuest64R0;
-    RTR0PTR                     pvR0Alignment0;
-#endif
-
     struct
     {
         /** Set by the ring-0 side of HM to indicate VMX is supported by the
@@ -482,7 +514,8 @@ typedef struct HM
         bool                        fVpid;
         /** Set if VT-x VPID is allowed. */
         bool                        fAllowVpid;
-        /** Set if unrestricted guest execution is in use (real and protected mode without paging). */
+        /** Set if unrestricted guest execution is in use (real and protected mode
+         *  without paging). */
         bool                        fUnrestrictedGuest;
         /** Set if unrestricted guest execution is allowed to be used. */
         bool                        fAllowUnrestricted;
@@ -491,23 +524,21 @@ typedef struct HM
         /** The shift mask employed by the VMX-Preemption timer. */
         uint8_t                     cPreemptTimerShift;
 
-        /** Virtual address of the TSS page used for real mode emulation. */
-        R3PTRTYPE(PVBOXTSS)         pRealModeTSS;
-        /** Virtual address of the identity page table used for real mode and protected mode without paging emulation in EPT mode. */
-        R3PTRTYPE(PX86PD)           pNonPagingModeEPTPageTable;
-
-        /** Physical address of the APIC-access page. */
-        RTHCPHYS                    HCPhysApicAccess;
-        /** R0 memory object for the APIC-access page. */
-        RTR0MEMOBJ                  hMemObjApicAccess;
         /** Virtual address of the APIC-access page. */
         R0PTRTYPE(uint8_t *)        pbApicAccess;
+        /** Pointer to the VMREAD bitmap. */
+        R0PTRTYPE(void *)           pvVmreadBitmap;
+        /** Pointer to the VMWRITE bitmap. */
+        R0PTRTYPE(void *)           pvVmwriteBitmap;
 
-#ifdef VBOX_WITH_CRASHDUMP_MAGIC
-        RTHCPHYS                    HCPhysScratch;
-        RTR0MEMOBJ                  hMemObjScratch;
-        R0PTRTYPE(uint8_t *)        pbScratch;
-#endif
+        /** Pointer to the shadow VMCS read-only fields array. */
+        R0PTRTYPE(uint32_t *)       paShadowVmcsRoFields;
+        /** Pointer to the shadow VMCS read/write fields array. */
+        R0PTRTYPE(uint32_t *)       paShadowVmcsFields;
+        /** Number of elements in the shadow VMCS read-only fields array. */
+        uint32_t                    cShadowVmcsRoFields;
+        /** Number of elements in the shadow VMCS read-write fields array. */
+        uint32_t                    cShadowVmcsFields;
 
         /** Tagged-TLB flush type. */
         VMXTLBFLUSHTYPE             enmTlbFlushType;
@@ -527,16 +558,41 @@ typedef struct HM
         /** Host SMM monitor control (set by ring-0 VMX init) */
         uint64_t                    u64HostSmmMonitorCtl;
         /** Host EFER value (set by ring-0 VMX init) */
-        uint64_t                    u64HostEfer;
+        uint64_t                    u64HostMsrEfer;
         /** Whether the CPU supports VMCS fields for swapping EFER. */
         bool                        fSupportsVmcsEfer;
-        uint8_t                     u8Alignment2[7];
+        /** Whether to use VMCS shadowing. */
+        bool                        fUseVmcsShadowing;
+        uint8_t                     u8Alignment2[6];
 
         /** VMX MSR values. */
         VMXMSRS                     Msrs;
 
         /** Host-physical address for a failing VMXON instruction. */
         RTHCPHYS                    HCPhysVmxEnableError;
+        /** Host-physical address of the APIC-access page. */
+        RTHCPHYS                    HCPhysApicAccess;
+        /** Host-physical address of the VMREAD bitmap. */
+        RTHCPHYS                    HCPhysVmreadBitmap;
+        /** Host-physical address of the VMWRITE bitmap. */
+        RTHCPHYS                    HCPhysVmwriteBitmap;
+#ifdef VBOX_WITH_CRASHDUMP_MAGIC
+        /** Host-physical address of the crash-dump scratch area. */
+        RTHCPHYS                    HCPhysScratch;
+#endif
+
+#ifdef VBOX_WITH_CRASHDUMP_MAGIC
+        /** Pointer to the crash-dump scratch bitmap. */
+        R0PTRTYPE(uint8_t *)        pbScratch;
+#endif
+        /** Virtual address of the TSS page used for real mode emulation. */
+        R3PTRTYPE(PVBOXTSS)         pRealModeTSS;
+        /** Virtual address of the identity page table used for real mode and protected
+         *  mode without paging emulation in EPT mode. */
+        R3PTRTYPE(PX86PD)           pNonPagingModeEPTPageTable;
+
+        /** Ring-0 memory object for per-VM VMX structures. */
+        RTR0MEMOBJ                  hMemObj;
     } vmx;
 
     struct
@@ -601,73 +657,10 @@ typedef struct HM
 } HM;
 /** Pointer to HM VM instance data. */
 typedef HM *PHM;
-
 AssertCompileMemberAlignment(HM, StatTprPatchSuccess, 8);
+AssertCompileMemberAlignment(HM, vmx,                 8);
+AssertCompileMemberAlignment(HM, svm,                 8);
 
-/* Maximum number of cached entries. */
-#define VMX_VMCS_BATCH_CACHE_MAX_ENTRY              128
-
-/**
- * Cache of a VMCS for batch reads or writes.
- */
-typedef struct VMXVMCSBATCHCACHE
-{
-#ifdef VBOX_WITH_CRASHDUMP_MAGIC
-    /* Magic marker for searching in crash dumps. */
-    uint8_t         aMagic[16];
-    uint64_t        uMagic;
-    uint64_t        u64TimeEntry;
-    uint64_t        u64TimeSwitch;
-    uint64_t        cResume;
-    uint64_t        interPD;
-    uint64_t        pSwitcher;
-    uint32_t        uPos;
-    uint32_t        idCpu;
-#endif
-    /* CR2 is saved here for EPT syncing. */
-    uint64_t        cr2;
-    struct
-    {
-        uint32_t    cValidEntries;
-        uint32_t    uAlignment;
-        uint32_t    aField[VMX_VMCS_BATCH_CACHE_MAX_ENTRY];
-        uint64_t    aFieldVal[VMX_VMCS_BATCH_CACHE_MAX_ENTRY];
-    } Write;
-    struct
-    {
-        uint32_t    cValidEntries;
-        uint32_t    uAlignment;
-        uint32_t    aField[VMX_VMCS_BATCH_CACHE_MAX_ENTRY];
-        uint64_t    aFieldVal[VMX_VMCS_BATCH_CACHE_MAX_ENTRY];
-    } Read;
-#ifdef VBOX_STRICT
-    struct
-    {
-        RTHCPHYS    HCPhysCpuPage;
-        RTHCPHYS    HCPhysVmcs;
-        RTGCPTR     pCache;
-        RTGCPTR     pCtx;
-    } TestIn;
-    struct
-    {
-        RTHCPHYS    HCPhysVmcs;
-        RTGCPTR     pCache;
-        RTGCPTR     pCtx;
-        uint64_t    eflags;
-        uint64_t    cr8;
-    } TestOut;
-    struct
-    {
-        uint64_t    param1;
-        uint64_t    param2;
-        uint64_t    param3;
-        uint64_t    param4;
-    } ScratchPad;
-#endif
-} VMXVMCSBATCHCACHE;
-/** Pointer to VMXVMCSBATCHCACHE. */
-typedef VMXVMCSBATCHCACHE *PVMXVMCSBATCHCACHE;
-AssertCompileSizeAlignment(VMXVMCSBATCHCACHE, 8);
 
 /**
  * VMX StartVM function.
@@ -675,104 +668,52 @@ AssertCompileSizeAlignment(VMXVMCSBATCHCACHE, 8);
  * @returns VBox status code (no informational stuff).
  * @param   fResume     Whether to use VMRESUME (true) or VMLAUNCH (false).
  * @param   pCtx        The CPU register context.
- * @param   pVmcsCache  The VMCS batch cache.
+ * @param   pvUnused    Unused argument.
  * @param   pVM         Pointer to the cross context VM structure.
  * @param   pVCpu       Pointer to the cross context per-CPU structure.
  */
-typedef DECLCALLBACK(int) FNHMVMXSTARTVM(RTHCUINT fResume, PCPUMCTX pCtx, PVMXVMCSBATCHCACHE pVmcsCache, PVM pVM, PVMCPU pVCpu);
+typedef DECLCALLBACK(int) FNHMVMXSTARTVM(RTHCUINT fResume, PCPUMCTX pCtx, void *pvUnused, PVMCC pVM, PVMCPUCC pVCpu);
 /** Pointer to a VMX StartVM function. */
 typedef R0PTRTYPE(FNHMVMXSTARTVM *) PFNHMVMXSTARTVM;
 
 /** SVM VMRun function. */
-typedef DECLCALLBACK(int) FNHMSVMVMRUN(RTHCPHYS pVmcbHostPhys, RTHCPHYS pVmcbPhys, PCPUMCTX pCtx, PVM pVM, PVMCPU pVCpu);
+typedef DECLCALLBACK(int) FNHMSVMVMRUN(RTHCPHYS pVmcbHostPhys, RTHCPHYS pVmcbPhys, PCPUMCTX pCtx, PVMCC pVM, PVMCPUCC pVCpu);
 /** Pointer to a SVM VMRun function. */
 typedef R0PTRTYPE(FNHMSVMVMRUN *) PFNHMSVMVMRUN;
-
-/**
- * Cache of certain VMCS fields during execution of a guest or nested-guest.
- */
-typedef struct VMXVMCSCTLSCACHE
-{
-    /** Cache of pin-based VM-execution controls. */
-    uint32_t                    u32PinCtls;
-    /** Cache of processor-based VM-execution controls. */
-    uint32_t                    u32ProcCtls;
-    /** Cache of secondary processor-based VM-execution controls. */
-    uint32_t                    u32ProcCtls2;
-    /** Cache of VM-entry controls. */
-    uint32_t                    u32EntryCtls;
-    /** Cache of VM-exit controls. */
-    uint32_t                    u32ExitCtls;
-    /** Cache of CR0 mask. */
-    uint32_t                    u32Cr0Mask;
-    /** Cache of CR4 mask. */
-    uint32_t                    u32Cr4Mask;
-    /** Cache of exception bitmap. */
-    uint32_t                    u32XcptBitmap;
-    /** Cache of TSC offset. */
-    uint64_t                    u64TscOffset;
-} VMXVMCSCTLSCACHE;
-/** Pointer to a VMXVMCSCTLSCACHE struct. */
-typedef VMXVMCSCTLSCACHE *PVMXVMCSCTLSCACHE;
-/** Pointer to a  VMXVMCSCTLSCACHE struct. */
-typedef const VMXVMCSCTLSCACHE *PCVMXVMCSCTLSCACHE;
-AssertCompileSizeAlignment(VMXVMCSCTLSCACHE, 8);
 
 /**
  * VMX VMCS information.
  *
  * This structure provides information maintained for and during the executing of a
  * guest (or nested-guest) VMCS (VM control structure) using hardware-assisted VMX.
+ *
+ * Note! The members here are ordered and aligned based on estimated frequency of
+ * usage and grouped to fit within a cache line in hot code paths. Even subtle
+ * changes here have a noticeable effect in the bootsector benchmarks. Modify with
+ * care.
  */
 typedef struct VMXVMCSINFO
 {
-    /** @name VMCS and related data structures.
-     *  @{ */
-    /** Host-physical address of the VMCS. */
-    RTHCPHYS                    HCPhysVmcs;
-    /** R0 memory object for the VMCS. */
-    RTR0MEMOBJ                  hMemObjVmcs;
-    /** Host-virtual address of the VMCS. */
-    R0PTRTYPE(void *)           pvVmcs;
-
-    /** Host-physical address of the virtual APIC page. */
-    RTHCPHYS                    HCPhysVirtApic;
-    /** Padding. */
-    R0PTRTYPE(void *)           pvAlignment0;
-    /** Host-virtual address of the virtual-APIC page. */
-    R0PTRTYPE(uint8_t *)        pbVirtApic;
-
-    /** Host-physical address of the MSR bitmap. */
-    RTHCPHYS                    HCPhysMsrBitmap;
-    /** R0 memory object for the MSR bitmap. */
-    RTR0MEMOBJ                  hMemObjMsrBitmap;
-    /** Host-virtual address of the MSR bitmap. */
-    R0PTRTYPE(void *)           pvMsrBitmap;
-
-    /** Host-physical address of the VM-entry MSR-load and VM-exit MSR-store area. */
-    RTHCPHYS                    HCPhysGuestMsr;
-    /** R0 memory object of the VM-entry MSR-load and VM-exit MSR-store area. */
-    RTR0MEMOBJ                  hMemObjGuestMsr;
-    /** Host-virtual address of the VM-entry MSR-load and VM-exit MSR-store area. */
-    R0PTRTYPE(void *)           pvGuestMsr;
-
-    /** Host-physical address of the VM-exit MSR-load area. */
-    RTHCPHYS                    HCPhysHostMsr;
-    /** R0 memory object for the VM-exit MSR-load area. */
-    RTR0MEMOBJ                  hMemObjHostMsr;
-    /** Host-virtual address of the VM-exit MSR-load area. */
-    R0PTRTYPE(void *)           pvHostMsr;
-
-    /** Host-physical address of the EPTP. */
-    RTHCPHYS                    HCPhysEPTP;
-    /** @} */
-
     /** @name Auxiliary information.
      * @{ */
-    /** Number of guest/host MSR pairs in the auto-load/store area. */
-    uint32_t                    cMsrs;
-    /** The VMCS state, see VMX_V_VMCS_STATE_XXX. */
+    /** Ring-0 pointer to the hardware-assisted VMX execution function. */
+    PFNHMVMXSTARTVM             pfnStartVM;
+    /** Host-physical address of the EPTP. */
+    RTHCPHYS                    HCPhysEPTP;
+    /** The VMCS launch state, see VMX_V_VMCS_LAUNCH_STATE_XXX. */
     uint32_t                    fVmcsState;
+    /** The VMCS launch state of the shadow VMCS, see VMX_V_VMCS_LAUNCH_STATE_XXX. */
+    uint32_t                    fShadowVmcsState;
+    /** The host CPU for which its state has been exported to this VMCS. */
+    RTCPUID                     idHostCpuState;
+    /** The host CPU on which we last executed this VMCS. */
+    RTCPUID                     idHostCpuExec;
+    /** Number of guest MSRs in the VM-entry MSR-load area. */
+    uint32_t                    cEntryMsrLoad;
+    /** Number of guest MSRs in the VM-exit MSR-store area. */
+    uint32_t                    cExitMsrStore;
+    /** Number of host MSRs in the VM-exit MSR-load area. */
+    uint32_t                    cExitMsrLoad;
     /** @} */
 
     /** @name Cache of execution related VMCS fields.
@@ -787,47 +728,133 @@ typedef struct VMXVMCSINFO
     uint32_t                    u32EntryCtls;
     /** VM-exit controls. */
     uint32_t                    u32ExitCtls;
-    /** CR0 guest/host mask. */
-    uint32_t                    u32Cr0Mask;
-    /** CR4 guset/host mask. */
-    uint32_t                    u32Cr4Mask;
     /** Exception bitmap. */
     uint32_t                    u32XcptBitmap;
+    /** Page-fault exception error-code mask. */
+    uint32_t                    u32XcptPFMask;
+    /** Page-fault exception error-code match. */
+    uint32_t                    u32XcptPFMatch;
+    /** Padding. */
+    uint32_t                    u32Alignment0;
     /** TSC offset. */
     uint64_t                    u64TscOffset;
+    /** VMCS link pointer. */
+    uint64_t                    u64VmcsLinkPtr;
+    /** CR0 guest/host mask. */
+    uint64_t                    u64Cr0Mask;
+    /** CR4 guest/host mask. */
+    uint64_t                    u64Cr4Mask;
+    /** @} */
+
+    /** @name Host-virtual address of VMCS and related data structures.
+     *  @{ */
+    /** The VMCS. */
+    R0PTRTYPE(void *)           pvVmcs;
+    /** The shadow VMCS. */
+    R0PTRTYPE(void *)           pvShadowVmcs;
+    /** The virtual-APIC page. */
+    R0PTRTYPE(uint8_t *)        pbVirtApic;
+    /** The MSR bitmap. */
+    R0PTRTYPE(void *)           pvMsrBitmap;
+    /** The VM-entry MSR-load area. */
+    R0PTRTYPE(void *)           pvGuestMsrLoad;
+    /** The VM-exit MSR-store area. */
+    R0PTRTYPE(void *)           pvGuestMsrStore;
+    /** The VM-exit MSR-load area. */
+    R0PTRTYPE(void *)           pvHostMsrLoad;
+    /** @} */
+
+    /** @name Real-mode emulation state.
+     * @{ */
+    /** Set if guest was executing in real mode (extra checks). */
+    bool                        fWasInRealMode;
+    /** Set if the guest switched to 64-bit mode on a 32-bit host. */
+    bool                        fSwitchedTo64on32Obsolete;
+    /** Padding. */
+    bool                        afPadding0[6];
+    struct
+    {
+        X86DESCATTR             AttrCS;
+        X86DESCATTR             AttrDS;
+        X86DESCATTR             AttrES;
+        X86DESCATTR             AttrFS;
+        X86DESCATTR             AttrGS;
+        X86DESCATTR             AttrSS;
+        X86EFLAGS               Eflags;
+        bool                    fRealOnV86Active;
+        bool                    afPadding1[3];
+    } RealMode;
+    /** @} */
+
+    /** @name Host-physical address of VMCS and related data structures.
+     *  @{ */
+    /** The VMCS. */
+    RTHCPHYS                    HCPhysVmcs;
+    /** The shadow VMCS. */
+    RTHCPHYS                    HCPhysShadowVmcs;
+    /** The virtual APIC page. */
+    RTHCPHYS                    HCPhysVirtApic;
+    /** The MSR bitmap. */
+    RTHCPHYS                    HCPhysMsrBitmap;
+    /** The VM-entry MSR-load area. */
+    RTHCPHYS                    HCPhysGuestMsrLoad;
+    /** The VM-exit MSR-store area. */
+    RTHCPHYS                    HCPhysGuestMsrStore;
+    /** The VM-exit MSR-load area. */
+    RTHCPHYS                    HCPhysHostMsrLoad;
+    /** @} */
+
+    /** @name R0-memory objects address for VMCS and related data structures.
+     *  @{ */
+    /** R0-memory object for VMCS and related data structures. */
+    RTR0MEMOBJ                  hMemObj;
     /** @} */
 
     /** Padding. */
-    uint64_t                    u64Padding[4];
+    uint64_t                    au64Padding[2];
 } VMXVMCSINFO;
 /** Pointer to a VMXVMCSINFO struct. */
 typedef VMXVMCSINFO *PVMXVMCSINFO;
-/** Pointer to a VMXVMCSINFO struct. */
+/** Pointer to a const VMXVMCSINFO struct. */
 typedef const VMXVMCSINFO *PCVMXVMCSINFO;
 AssertCompileSizeAlignment(VMXVMCSINFO, 8);
+AssertCompileMemberAlignment(VMXVMCSINFO, pfnStartVM,      8);
+AssertCompileMemberAlignment(VMXVMCSINFO, u32PinCtls,      4);
+AssertCompileMemberAlignment(VMXVMCSINFO, u64VmcsLinkPtr,  8);
+AssertCompileMemberAlignment(VMXVMCSINFO, pvVmcs,          8);
+AssertCompileMemberAlignment(VMXVMCSINFO, pvShadowVmcs,    8);
+AssertCompileMemberAlignment(VMXVMCSINFO, pbVirtApic,      8);
+AssertCompileMemberAlignment(VMXVMCSINFO, pvMsrBitmap,     8);
+AssertCompileMemberAlignment(VMXVMCSINFO, pvGuestMsrLoad,  8);
+AssertCompileMemberAlignment(VMXVMCSINFO, pvGuestMsrStore, 8);
+AssertCompileMemberAlignment(VMXVMCSINFO, pvHostMsrLoad,   8);
+AssertCompileMemberAlignment(VMXVMCSINFO, HCPhysVmcs,      8);
+AssertCompileMemberAlignment(VMXVMCSINFO, hMemObj,         8);
 
 /**
  * HM VMCPU Instance data.
  *
  * Note! If you change members of this struct, make sure to check if the
  * assembly counterpart in HMInternal.mac needs to be updated as well.
+ *
+ * Note! The members here are ordered and aligned based on estimated frequency of
+ * usage and grouped to fit within a cache line in hot code paths. Even subtle
+ * changes here have a noticeable effect in the bootsector benchmarks. Modify with
+ * care.
  */
 typedef struct HMCPU
 {
     /** Set when the TLB has been checked until we return from the world switch. */
     bool volatile               fCheckedTLBFlush;
-    /** Set if we need to flush the TLB during the world switch. */
-    bool                        fForceTLBFlush;
     /** Set when we're using VT-x or AMD-V at that moment. */
     bool                        fActive;
     /** Whether we've completed the inner HM leave function. */
     bool                        fLeaveDone;
     /** Whether we're using the hyper DR7 or guest DR7. */
     bool                        fUsingHyperDR7;
-    /** Set if XCR0 needs to be saved/restored when entering/exiting guest code
-     *  execution. */
-    bool                        fLoadSaveGuestXcr0;
 
+    /** Set if we need to flush the TLB during the world switch. */
+    bool                        fForceTLBFlush;
     /** Whether we should use the debug loop because of single stepping or special
      *  debug breakpoints / events are armed. */
     bool                        fUseDebugLoop;
@@ -836,16 +863,20 @@ typedef struct HMCPU
     bool                        fUsingDebugLoop;
     /** Set if we using the debug loop and wish to intercept RDTSC. */
     bool                        fDebugWantRdTscExit;
-    /** Whether we're executing a single instruction. */
-    bool                        fSingleInstruction;
-    /** Set if we need to clear the trap flag because of single stepping. */
-    bool                        fClearTrapFlag;
 
+    /** Set if XCR0 needs to be saved/restored when entering/exiting guest code
+     *  execution. */
+    bool                        fLoadSaveGuestXcr0;
     /** Whether \#UD needs to be intercepted (required by certain GIM providers). */
     bool                        fGIMTrapXcptUD;
     /** Whether \#GP needs to be intercept for mesa driver workaround. */
     bool                        fTrapXcptGpForLovelyMesaDrv;
-    uint8_t                     u8Alignment0[3];
+    /** Whether we're executing a single instruction. */
+    bool                        fSingleInstruction;
+
+    /** Set if we need to clear the trap flag because of single stepping. */
+    bool                        fClearTrapFlag;
+    bool                        afAlignment0[3];
 
     /** World switch exit counter. */
     uint32_t volatile           cWorldSwitchExits;
@@ -861,129 +892,72 @@ typedef struct HMCPU
     int32_t                     rcLastExitToR3;
     /** CPU-context changed flags (see HM_CHANGED_xxx). */
     uint64_t                    fCtxChanged;
-    /** Host's TSC_AUX MSR (used when RDTSCP doesn't cause VM-exits). */
-    uint64_t                    u64HostTscAux;
 
     union /* no tag! */
     {
         /** VT-x data.   */
         struct
         {
-            /** Ring 0 handlers for VT-x. */
-            PFNHMVMXSTARTVM             pfnStartVM;
-#if HC_ARCH_BITS == 32
-            uint32_t                    u32Alignment0;
-#endif
+            /** @name Guest information.
+             * @{ */
+            /** Guest VMCS information. */
+            VMXVMCSINFO                 VmcsInfo;
+            /** Nested-guest VMCS information. */
+            VMXVMCSINFO                 VmcsInfoNstGst;
+            /** Whether the nested-guest VMCS was the last current VMCS. */
+            bool                        fSwitchedToNstGstVmcs;
+            /** Whether the static guest VMCS controls has been merged with the
+             *  nested-guest VMCS controls. */
+            bool                        fMergedNstGstCtls;
+            /** Whether the nested-guest VMCS has been copied to the shadow VMCS. */
+            bool                        fCopiedNstGstToShadowVmcs;
+            /** Whether flushing the TLB is required due to switching to/from the
+             *  nested-guest. */
+            bool                        fSwitchedNstGstFlushTlb;
+            /** Alignment. */
+            bool                        afAlignment0[4];
+            /** Cached guest APIC-base MSR for identifying when to map the APIC-access page. */
+            uint64_t                    u64GstMsrApicBase;
+            /** @} */
 
-            /** Cache of the executing guest (or nested-guest) VMCS control fields. */
-            VMXVMCSCTLSCACHE            Ctls;
-            /** Cache of guest (level 1) VMCS control fields when executing a nested-guest
-             *  (level 2). */
-            VMXVMCSCTLSCACHE            Level1Ctls;
-
-            /** Physical address of the VM control structure (VMCS). */
-            RTHCPHYS                    HCPhysVmcs;
-            /** R0 memory object for the VM control structure (VMCS). */
-            RTR0MEMOBJ                  hMemObjVmcs;
-            /** Virtual address of the VM control structure (VMCS). */
-            R0PTRTYPE(void *)           pvVmcs;
-
-            /** Physical address of the virtual APIC page for TPR caching. */
-            RTHCPHYS                    HCPhysVirtApic;
-            /** Padding. */
-            R0PTRTYPE(void *)           pvAlignment0;
-            /** Virtual address of the virtual APIC page for TPR caching. */
-            R0PTRTYPE(uint8_t *)        pbVirtApic;
-
-            /** Physical address of the MSR bitmap. */
-            RTHCPHYS                    HCPhysMsrBitmap;
-            /** R0 memory object for the MSR bitmap. */
-            RTR0MEMOBJ                  hMemObjMsrBitmap;
-            /** Virtual address of the MSR bitmap. */
-            R0PTRTYPE(void *)           pvMsrBitmap;
-
-            /** Physical address of the VM-entry MSR-load and VM-exit MSR-store area (used
-             *  for guest MSRs). */
-            RTHCPHYS                    HCPhysGuestMsr;
-            /** R0 memory object of the VM-entry MSR-load and VM-exit MSR-store area
-             *  (used for guest MSRs). */
-            RTR0MEMOBJ                  hMemObjGuestMsr;
-            /** Virtual address of the VM-entry MSR-load and VM-exit MSR-store area (used
-             *  for guest MSRs). */
-            R0PTRTYPE(void *)           pvGuestMsr;
-
-            /** Physical address of the VM-exit MSR-load area (used for host MSRs). */
-            RTHCPHYS                    HCPhysHostMsr;
-            /** R0 memory object for the VM-exit MSR-load area (used for host MSRs). */
-            RTR0MEMOBJ                  hMemObjHostMsr;
-            /** Virtual address of the VM-exit MSR-load area (used for host MSRs). */
-            R0PTRTYPE(void *)           pvHostMsr;
-
-            /** Physical address of the current EPTP. */
-            RTHCPHYS                    HCPhysEPTP;
-
-            /** Number of guest/host MSR pairs in the auto-load/store area. */
-            uint32_t                    cMsrs;
-            /** Whether the host MSR values are up-to-date in the auto-load/store area. */
-            bool                        fUpdatedHostMsrs;
-            uint8_t                     au8Alignment0[3];
-
-            /** Host LSTAR MSR value to restore lazily while leaving VT-x. */
-            uint64_t                    u64HostLStarMsr;
-            /** Host STAR MSR value to restore lazily while leaving VT-x. */
-            uint64_t                    u64HostStarMsr;
-            /** Host SF_MASK MSR value to restore lazily while leaving VT-x. */
-            uint64_t                    u64HostSFMaskMsr;
-            /** Host KernelGS-Base MSR value to restore lazily while leaving VT-x. */
-            uint64_t                    u64HostKernelGSBaseMsr;
-            /** A mask of which MSRs have been swapped and need restoration. */
+            /** @name Host information.
+             * @{ */
+            /** Host LSTAR MSR to restore lazily while leaving VT-x. */
+            uint64_t                    u64HostMsrLStar;
+            /** Host STAR MSR to restore lazily while leaving VT-x. */
+            uint64_t                    u64HostMsrStar;
+            /** Host SF_MASK MSR to restore lazily while leaving VT-x. */
+            uint64_t                    u64HostMsrSfMask;
+            /** Host KernelGS-Base MSR to restore lazily while leaving VT-x. */
+            uint64_t                    u64HostMsrKernelGsBase;
+            /** The mask of lazy MSRs swap/restore state, see VMX_LAZY_MSRS_XXX. */
             uint32_t                    fLazyMsrs;
-            uint32_t                    u32Alignment1;
+            /** Whether the host MSR values are up-to-date in the auto-load/store MSR area. */
+            bool                        fUpdatedHostAutoMsrs;
+            /** Alignment. */
+            uint8_t                     au8Alignment0[3];
+            /** Which host-state bits to restore before being preempted. */
+            uint32_t                    fRestoreHostFlags;
+            /** Alignment. */
+            uint32_t                    u32Alignment0;
+            /** The host-state restoration structure. */
+            VMXRESTOREHOST              RestoreHost;
+            /** @} */
 
-            /** The cached APIC-base MSR used for identifying when to map the HC physical APIC-access page. */
-            uint64_t                    u64MsrApicBase;
-
-            /** VMCS cache for batched vmread/vmwrites. */
-            VMXVMCSBATCHCACHE           VmcsBatchCache;
-
-            /** Real-mode emulation state. */
-            struct
-            {
-                X86DESCATTR             AttrCS;
-                X86DESCATTR             AttrDS;
-                X86DESCATTR             AttrES;
-                X86DESCATTR             AttrFS;
-                X86DESCATTR             AttrGS;
-                X86DESCATTR             AttrSS;
-                X86EFLAGS               Eflags;
-                bool                    fRealOnV86Active;
-            } RealMode;
-
+            /** @name Error reporting and diagnostics.
+             * @{ */
             /** VT-x error-reporting (mainly for ring-3 propagation). */
             struct
             {
-                uint64_t                u64VmcsPhys;
+                RTCPUID                 idCurrentCpu;
+                RTCPUID                 idEnteredCpu;
+                RTHCPHYS                HCPhysCurrentVmcs;
                 uint32_t                u32VmcsRev;
                 uint32_t                u32InstrError;
                 uint32_t                u32ExitReason;
-                uint32_t                u32Alignment0;
-                RTCPUID                 idEnteredCpu;
-                RTCPUID                 idCurrentCpu;
+                uint32_t                u32GuestIntrState;
             } LastError;
-
-            /** Current state of the VMCS. */
-            uint32_t                    fVmcsState;
-            /** Which host-state bits to restore before being preempted. */
-            uint32_t                    fRestoreHostFlags;
-            /** The host-state restoration structure. */
-            VMXRESTOREHOST              RestoreHost;
-
-            /** Set if guest was executing in real mode (extra checks). */
-            bool                        fWasInRealMode;
-            /** Set if guest switched to 64-bit mode on a 32-bit host. */
-            bool                        fSwitchedTo64on32;
-            /** Padding. */
-            uint8_t                     au8Alignment1[6];
+            /** @} */
         } vmx;
 
         /** SVM data. */
@@ -991,9 +965,6 @@ typedef struct HMCPU
         {
             /** Ring 0 handlers for VT-x. */
             PFNHMSVMVMRUN               pfnVMRun;
-#if HC_ARCH_BITS == 32
-            uint32_t                    u32Alignment0;
-#endif
 
             /** Physical address of the host VMCB which holds additional host-state. */
             RTHCPHYS                    HCPhysVmcbHost;
@@ -1021,6 +992,9 @@ typedef struct HMCPU
             bool                        fSyncVTpr;
             uint8_t                     au8Alignment0[7];
 
+            /** Host's TSC_AUX MSR (used when RDTSCP doesn't cause VM-exits). */
+            uint64_t                    u64HostTscAux;
+
             /** Cache of the nested-guest's VMCB fields that we modify in order to run the
              *  nested-guest using AMD-V. This will be restored on \#VMEXIT. */
             SVMNESTEDVMCBCACHE          NstGstVmcbCache;
@@ -1028,26 +1002,18 @@ typedef struct HMCPU
     } HM_UNION_NM(u);
 
     /** Event injection state. */
-    struct
-    {
-        uint32_t                    fPending;
-        uint32_t                    u32ErrCode;
-        uint32_t                    cbInstr;
-        uint32_t                    u32Padding; /**< Explicit alignment padding. */
-        uint64_t                    u64IntInfo;
-        RTGCUINTPTR                 GCPtrFaultAddress;
-    } Event;
-
-    /** The PAE PDPEs used with Nested Paging (only valid when
-     *  VMCPU_FF_HM_UPDATE_PAE_PDPES is set). */
-    X86PDPE                 aPdpes[4];
-
-    /** Current shadow paging mode for updating CR4. */
-    PGMMODE                 enmShadowMode;
+    HMEVENT                 Event;
 
     /** The CPU ID of the CPU currently owning the VMCS. Set in
      * HMR0Enter and cleared in HMR0Leave. */
     RTCPUID                 idEnteredCpu;
+
+    /** Current shadow paging mode for updating CR4. */
+    PGMMODE                 enmShadowMode;
+
+    /** The PAE PDPEs used with Nested Paging (only valid when
+     *  VMCPU_FF_HM_UPDATE_PAE_PDPES is set). */
+    X86PDPE                 aPdpes[4];
 
     /** For saving stack space, the disassembler state is allocated here instead of
      * on the stack. */
@@ -1059,23 +1025,24 @@ typedef struct HMCPU
     STAMPROFILEADV          StatExitIO;
     STAMPROFILEADV          StatExitMovCRx;
     STAMPROFILEADV          StatExitXcptNmi;
+    STAMPROFILEADV          StatExitVmentry;
     STAMPROFILEADV          StatImportGuestState;
     STAMPROFILEADV          StatExportGuestState;
     STAMPROFILEADV          StatLoadGuestFpuState;
     STAMPROFILEADV          StatInGC;
-#if HC_ARCH_BITS == 32 && defined(VBOX_ENABLE_64_BITS_GUESTS)
-    STAMPROFILEADV          StatWorldSwitch3264;
-#endif
     STAMPROFILEADV          StatPoke;
     STAMPROFILEADV          StatSpinPoke;
     STAMPROFILEADV          StatSpinPokeFailed;
 
     STAMCOUNTER             StatInjectInterrupt;
     STAMCOUNTER             StatInjectXcpt;
-    STAMCOUNTER             StatInjectPendingReflect;
-    STAMCOUNTER             StatInjectPendingInterpret;
+    STAMCOUNTER             StatInjectReflect;
+    STAMCOUNTER             StatInjectConvertDF;
+    STAMCOUNTER             StatInjectInterpret;
+    STAMCOUNTER             StatInjectReflectNPF;
 
     STAMCOUNTER             StatExitAll;
+    STAMCOUNTER             StatNestedExitAll;
     STAMCOUNTER             StatExitShadowNM;
     STAMCOUNTER             StatExitGuestNM;
     STAMCOUNTER             StatExitShadowPF;       /**< Misleading, currently used for MMIO \#PFs as well. */
@@ -1085,20 +1052,17 @@ typedef struct HMCPU
     STAMCOUNTER             StatExitGuestSS;
     STAMCOUNTER             StatExitGuestNP;
     STAMCOUNTER             StatExitGuestTS;
+    STAMCOUNTER             StatExitGuestOF;
     STAMCOUNTER             StatExitGuestGP;
     STAMCOUNTER             StatExitGuestDE;
+    STAMCOUNTER             StatExitGuestDF;
+    STAMCOUNTER             StatExitGuestBR;
+    STAMCOUNTER             StatExitGuestAC;
     STAMCOUNTER             StatExitGuestDB;
     STAMCOUNTER             StatExitGuestMF;
     STAMCOUNTER             StatExitGuestBP;
     STAMCOUNTER             StatExitGuestXF;
     STAMCOUNTER             StatExitGuestXcpUnk;
-    STAMCOUNTER             StatExitCli;
-    STAMCOUNTER             StatExitSti;
-    STAMCOUNTER             StatExitPushf;
-    STAMCOUNTER             StatExitPopf;
-    STAMCOUNTER             StatExitIret;
-    STAMCOUNTER             StatExitInt;
-    STAMCOUNTER             StatExitHlt;
     STAMCOUNTER             StatExitDRxWrite;
     STAMCOUNTER             StatExitDRxRead;
     STAMCOUNTER             StatExitCR0Read;
@@ -1115,8 +1079,6 @@ typedef struct HMCPU
     STAMCOUNTER             StatExitWrmsr;
     STAMCOUNTER             StatExitClts;
     STAMCOUNTER             StatExitXdtrAccess;
-    STAMCOUNTER             StatExitMwait;
-    STAMCOUNTER             StatExitMonitor;
     STAMCOUNTER             StatExitLmsw;
     STAMCOUNTER             StatExitIOWrite;
     STAMCOUNTER             StatExitIORead;
@@ -1125,10 +1087,10 @@ typedef struct HMCPU
     STAMCOUNTER             StatExitIntWindow;
     STAMCOUNTER             StatExitExtInt;
     STAMCOUNTER             StatExitHostNmiInGC;
+    STAMCOUNTER             StatExitHostNmiInGCIpi;
     STAMCOUNTER             StatExitPreemptTimer;
     STAMCOUNTER             StatExitTprBelowThreshold;
     STAMCOUNTER             StatExitTaskSwitch;
-    STAMCOUNTER             StatExitMtf;
     STAMCOUNTER             StatExitApicAccess;
     STAMCOUNTER             StatExitReasonNpf;
 
@@ -1138,6 +1100,7 @@ typedef struct HMCPU
     STAMCOUNTER             StatFlushPageManual;
     STAMCOUNTER             StatFlushPhysPageManual;
     STAMCOUNTER             StatFlushTlb;
+    STAMCOUNTER             StatFlushTlbNstGst;
     STAMCOUNTER             StatFlushTlbManual;
     STAMCOUNTER             StatFlushTlbWorldSwitch;
     STAMCOUNTER             StatNoFlushTlbWorldSwitch;
@@ -1153,13 +1116,16 @@ typedef struct HMCPU
     STAMCOUNTER             StatSwitchTprMaskedIrq;
     STAMCOUNTER             StatSwitchGuestIrq;
     STAMCOUNTER             StatSwitchHmToR3FF;
+    STAMCOUNTER             StatSwitchVmReq;
+    STAMCOUNTER             StatSwitchPgmPoolFlush;
+    STAMCOUNTER             StatSwitchDma;
     STAMCOUNTER             StatSwitchExitToR3;
     STAMCOUNTER             StatSwitchLongJmpToR3;
     STAMCOUNTER             StatSwitchMaxResumeLoops;
     STAMCOUNTER             StatSwitchHltToR3;
     STAMCOUNTER             StatSwitchApicAccessToR3;
     STAMCOUNTER             StatSwitchPreempt;
-    STAMCOUNTER             StatSwitchPreemptExportHostState;
+    STAMCOUNTER             StatSwitchNstGstVmexit;
 
     STAMCOUNTER             StatTscParavirt;
     STAMCOUNTER             StatTscOffset;
@@ -1172,6 +1138,7 @@ typedef struct HMCPU
     STAMCOUNTER             StatExportMinimal;
     STAMCOUNTER             StatExportFull;
     STAMCOUNTER             StatLoadGuestFpu;
+    STAMCOUNTER             StatExportHostState;
 
     STAMCOUNTER             StatVmxCheckBadRmSelBase;
     STAMCOUNTER             StatVmxCheckBadRmSelLimit;
@@ -1184,10 +1151,6 @@ typedef struct HMCPU
     STAMCOUNTER             StatVmxCheckBadRpl;
     STAMCOUNTER             StatVmxCheckPmOk;
 
-#if HC_ARCH_BITS == 32 && defined(VBOX_ENABLE_64_BITS_GUESTS)
-    STAMCOUNTER             StatFpu64SwitchBack;
-    STAMCOUNTER             StatDebug64SwitchBack;
-#endif
 #ifdef VBOX_WITH_STATISTICS
     R3PTRTYPE(PSTAMCOUNTER) paStatExitReason;
     R0PTRTYPE(PSTAMCOUNTER) paStatExitReasonR0;
@@ -1202,31 +1165,43 @@ typedef struct HMCPU
 } HMCPU;
 /** Pointer to HM VMCPU instance data. */
 typedef HMCPU *PHMCPU;
+AssertCompileMemberAlignment(HMCPU, fCheckedTLBFlush,  4);
+AssertCompileMemberAlignment(HMCPU, fForceTLBFlush,    4);
 AssertCompileMemberAlignment(HMCPU, cWorldSwitchExits, 4);
-AssertCompileMemberAlignment(HMCPU, fCtxChanged, 8);
+AssertCompileMemberAlignment(HMCPU, fCtxChanged,       8);
 AssertCompileMemberAlignment(HMCPU, HM_UNION_NM(u.) vmx, 8);
+AssertCompileMemberAlignment(HMCPU, HM_UNION_NM(u.) vmx.VmcsInfo,       8);
+AssertCompileMemberAlignment(HMCPU, HM_UNION_NM(u.) vmx.VmcsInfoNstGst, 8);
+AssertCompileMemberAlignment(HMCPU, HM_UNION_NM(u.) vmx.RestoreHost,    8);
 AssertCompileMemberAlignment(HMCPU, HM_UNION_NM(u.) svm, 8);
 AssertCompileMemberAlignment(HMCPU, Event, 8);
 
 #ifdef IN_RING0
-VMMR0_INT_DECL(PHMPHYSCPU) hmR0GetCurrentCpu(void);
-VMMR0_INT_DECL(int) hmR0EnterCpu(PVMCPU pVCpu);
+VMMR0_INT_DECL(PHMPHYSCPU)  hmR0GetCurrentCpu(void);
+VMMR0_INT_DECL(int)         hmR0EnterCpu(PVMCPUCC pVCpu);
 
 # ifdef VBOX_STRICT
-VMMR0_INT_DECL(void) hmR0DumpRegs(PVMCPU pVCpu);
-VMMR0_INT_DECL(void) hmR0DumpDescriptor(PCX86DESCHC pDesc, RTSEL Sel, const char *pszMsg);
+#  define HM_DUMP_REG_FLAGS_GPRS      RT_BIT(0)
+#  define HM_DUMP_REG_FLAGS_FPU       RT_BIT(1)
+#  define HM_DUMP_REG_FLAGS_MSRS      RT_BIT(2)
+#  define HM_DUMP_REG_FLAGS_ALL       (HM_DUMP_REG_FLAGS_GPRS | HM_DUMP_REG_FLAGS_FPU | HM_DUMP_REG_FLAGS_MSRS)
+
+VMMR0_INT_DECL(void)        hmR0DumpRegs(PVMCPUCC pVCpu, uint32_t fFlags);
+VMMR0_INT_DECL(void)        hmR0DumpDescriptor(PCX86DESCHC pDesc, RTSEL Sel, const char *pszMsg);
 # endif
 
 # ifdef VBOX_WITH_KERNEL_USING_XMM
-DECLASM(int) hmR0VMXStartVMWrapXMM(RTHCUINT fResume, PCPUMCTX pCtx, PVMXVMCSBATCHCACHE pVmcsCache, PVM pVM, PVMCPU pVCpu,
-                                   PFNHMVMXSTARTVM pfnStartVM);
-DECLASM(int) hmR0SVMRunWrapXMM(RTHCPHYS pVmcbHostPhys, RTHCPHYS pVmcbPhys, PCPUMCTX pCtx, PVM pVM, PVMCPU pVCpu,
-                               PFNHMSVMVMRUN pfnVMRun);
+DECLASM(int)                hmR0VMXStartVMWrapXMM(RTHCUINT fResume, PCPUMCTX pCtx, void *pvUnused, PVMCC pVM, PVMCPUCC pVCpu,
+                                                  PFNHMVMXSTARTVM pfnStartVM);
+DECLASM(int)                hmR0SVMRunWrapXMM(RTHCPHYS pVmcbHostPhys, RTHCPHYS pVmcbPhys, PCPUMCTX pCtx, PVMCC pVM, PVMCPUCC pVCpu,
+                                              PFNHMSVMVMRUN pfnVMRun);
 # endif
 DECLASM(void)               hmR0MdsClear(void);
 #endif /* IN_RING0 */
 
-VMM_INT_DECL(int) hmEmulateSvmMovTpr(PVMCPU pVCpu);
+VMM_INT_DECL(int)           hmEmulateSvmMovTpr(PVMCC pVM, PVMCPUCC pVCpu);
+
+VMM_INT_DECL(PVMXVMCSINFO)  hmGetVmxActiveVmcsInfo(PVMCPU pVCpu);
 
 /** @} */
 

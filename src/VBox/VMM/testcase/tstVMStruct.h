@@ -26,7 +26,6 @@
     GEN_CHECK_SIZE(X86CPUIDFEATECX);
 
     GEN_CHECK_SIZE(CPUM);    // has .mac
-    GEN_CHECK_OFF(CPUM, offCPUMCPU0);
     GEN_CHECK_OFF(CPUM, fHostUseFlags);
     GEN_CHECK_OFF(CPUM, CR4);
 #ifndef VBOX_FOR_DTRACE_LIB
@@ -48,20 +47,17 @@
     GEN_CHECK_OFF(CPUMCPU, GuestMsrs);
     GEN_CHECK_OFF(CPUMCPU, fUseFlags);
     GEN_CHECK_OFF(CPUMCPU, fChanged);
-    GEN_CHECK_OFF(CPUMCPU, offCPUM);
     GEN_CHECK_OFF(CPUMCPU, u32RetCode);
 #ifdef VBOX_WITH_VMMR0_DISABLE_LAPIC_NMI
     GEN_CHECK_OFF(CPUMCPU, pvApicBase);
     GEN_CHECK_OFF(CPUMCPU, fApicDisVectors);
     GEN_CHECK_OFF(CPUMCPU, fX2Apic);
 #endif
-    GEN_CHECK_OFF(CPUMCPU, fRawEntered);
     GEN_CHECK_OFF(CPUMCPU, fRemEntered);
 
     GEN_CHECK_SIZE(CPUMHOSTCTX);
     GEN_CHECK_OFF(CPUMHOSTCTX, pXStateR3);
     GEN_CHECK_OFF(CPUMHOSTCTX, pXStateR0);
-    GEN_CHECK_OFF(CPUMHOSTCTX, pXStateRC);
 #if HC_ARCH_BITS == 64
     GEN_CHECK_OFF(CPUMHOSTCTX, rbx);
     GEN_CHECK_OFF(CPUMHOSTCTX, rdi);
@@ -149,6 +145,7 @@
     GEN_CHECK_OFF(CPUMCTX, hwvirt.vmx.GCPhysVmcs);
     GEN_CHECK_OFF(CPUMCTX, hwvirt.vmx.enmDiag);
     GEN_CHECK_OFF(CPUMCTX, hwvirt.vmx.enmAbort);
+    GEN_CHECK_OFF(CPUMCTX, hwvirt.vmx.uDiagAux);
     GEN_CHECK_OFF(CPUMCTX, hwvirt.vmx.uAbortAux);
     GEN_CHECK_OFF(CPUMCTX, hwvirt.vmx.fInVmxRootMode);
     GEN_CHECK_OFF(CPUMCTX, hwvirt.vmx.fInVmxNonRootMode);
@@ -164,18 +161,31 @@
     GEN_CHECK_OFF(CPUMCTX, hwvirt.vmx.pvVmreadBitmapR3);
     GEN_CHECK_OFF(CPUMCTX, hwvirt.vmx.pvVmwriteBitmapR0);
     GEN_CHECK_OFF(CPUMCTX, hwvirt.vmx.pvVmwriteBitmapR3);
-    GEN_CHECK_OFF(CPUMCTX, hwvirt.vmx.pAutoMsrAreaR0);
-    GEN_CHECK_OFF(CPUMCTX, hwvirt.vmx.pAutoMsrAreaR3);
+    GEN_CHECK_OFF(CPUMCTX, hwvirt.vmx.pEntryMsrLoadAreaR0);
+    GEN_CHECK_OFF(CPUMCTX, hwvirt.vmx.pEntryMsrLoadAreaR3);
+    GEN_CHECK_OFF(CPUMCTX, hwvirt.vmx.pExitMsrStoreAreaR0);
+    GEN_CHECK_OFF(CPUMCTX, hwvirt.vmx.pExitMsrStoreAreaR3);
+    GEN_CHECK_OFF(CPUMCTX, hwvirt.vmx.pExitMsrLoadAreaR0);
+    GEN_CHECK_OFF(CPUMCTX, hwvirt.vmx.pExitMsrLoadAreaR3);
     GEN_CHECK_OFF(CPUMCTX, hwvirt.vmx.pvMsrBitmapR0);
     GEN_CHECK_OFF(CPUMCTX, hwvirt.vmx.pvMsrBitmapR3);
     GEN_CHECK_OFF(CPUMCTX, hwvirt.vmx.pvIoBitmapR0);
     GEN_CHECK_OFF(CPUMCTX, hwvirt.vmx.pvIoBitmapR3);
     GEN_CHECK_OFF(CPUMCTX, hwvirt.vmx.uFirstPauseLoopTick);
     GEN_CHECK_OFF(CPUMCTX, hwvirt.vmx.uPrevPauseTick);
-    GEN_CHECK_OFF(CPUMCTX, hwvirt.vmx.uVmentryTick);
+    GEN_CHECK_OFF(CPUMCTX, hwvirt.vmx.uEntryTick);
     GEN_CHECK_OFF(CPUMCTX, hwvirt.vmx.offVirtApicWrite);
     GEN_CHECK_OFF(CPUMCTX, hwvirt.vmx.fVirtNmiBlocking);
     GEN_CHECK_OFF(CPUMCTX, hwvirt.vmx.Msrs);
+    GEN_CHECK_OFF(CPUMCTX, hwvirt.vmx.HCPhysVmcs);
+    GEN_CHECK_OFF(CPUMCTX, hwvirt.vmx.HCPhysShadowVmcs);
+    GEN_CHECK_OFF(CPUMCTX, hwvirt.vmx.HCPhysVmreadBitmap);
+    GEN_CHECK_OFF(CPUMCTX, hwvirt.vmx.HCPhysVmwriteBitmap);
+    GEN_CHECK_OFF(CPUMCTX, hwvirt.vmx.HCPhysEntryMsrLoadArea);
+    GEN_CHECK_OFF(CPUMCTX, hwvirt.vmx.HCPhysExitMsrStoreArea);
+    GEN_CHECK_OFF(CPUMCTX, hwvirt.vmx.HCPhysExitMsrLoadArea);
+    GEN_CHECK_OFF(CPUMCTX, hwvirt.vmx.HCPhysMsrBitmap);
+    GEN_CHECK_OFF(CPUMCTX, hwvirt.vmx.HCPhysIoBitmap);
     GEN_CHECK_OFF(CPUMCTX, hwvirt.enmHwvirt);
     GEN_CHECK_OFF(CPUMCTX, hwvirt.fGif);
     GEN_CHECK_OFF(CPUMCTX, hwvirt.fLocalForcedActions);
@@ -183,7 +193,6 @@
      *        finalized. */
     GEN_CHECK_OFF(CPUMCTX, pXStateR0);
     GEN_CHECK_OFF(CPUMCTX, pXStateR3);
-    GEN_CHECK_OFF(CPUMCTX, pXStateRC);
     GEN_CHECK_OFF(CPUMCTX, rdi);
     GEN_CHECK_OFF(CPUMCTX, rsi);
     GEN_CHECK_OFF(CPUMCTX, rbp);
@@ -303,7 +312,6 @@
     GEN_CHECK_SIZE(EM);
     GEN_CHECK_OFF(EM, offVM);
     GEN_CHECK_OFF(EMCPU, enmState);
-    GEN_CHECK_OFF(EMCPU, fForceRAW);
     GEN_CHECK_OFF_DOT(EMCPU, u.achPaddingFatalLongJump);
     GEN_CHECK_OFF(EMCPU, DisState);
     GEN_CHECK_OFF(EMCPU, StatForcedActions);
@@ -1174,8 +1182,8 @@
     GEN_CHECK_OFF(TMTIMERQUEUE, offSchedule);
     GEN_CHECK_OFF(TMTIMERQUEUE, enmClock);
 
-    GEN_CHECK_SIZE(TRPM); // has .mac
-    GEN_CHECK_SIZE(TRPMCPU); // has .mac
+    GEN_CHECK_SIZE(TRPM);
+    GEN_CHECK_SIZE(TRPMCPU);
     GEN_CHECK_SIZE(VM);  // has .mac
     GEN_CHECK_SIZE(VMM);
     GEN_CHECK_OFF(VMM, offVM);
@@ -1387,27 +1395,17 @@
 #endif
 
     GEN_CHECK_SIZE(APIC);
-    GEN_CHECK_OFF(APIC, pApicDevR0);
-    GEN_CHECK_OFF(APIC, pApicDevR3);
-    GEN_CHECK_OFF(APIC, pApicDevRC);
     GEN_CHECK_OFF(APIC, pvApicPibR0);
     GEN_CHECK_OFF(APIC, pvApicPibR3);
-    GEN_CHECK_OFF(APIC, pvApicPibRC);
     GEN_CHECK_OFF(APIC, cbApicPib);
     GEN_CHECK_OFF(APIC, enmMaxMode);
     GEN_CHECK_OFF(APICCPU, pvApicPageR0);
     GEN_CHECK_OFF(APICCPU, pvApicPageR3);
-    GEN_CHECK_OFF(APICCPU, pvApicPageRC);
-    GEN_CHECK_OFF(APICCPU, pvApicPageRC);
     GEN_CHECK_OFF(APICCPU, cbApicPage);
     GEN_CHECK_OFF(APICCPU, pvApicPibR0);
     GEN_CHECK_OFF(APICCPU, pvApicPibR3);
-    GEN_CHECK_OFF(APICCPU, pvApicPibRC);
     GEN_CHECK_OFF(APICCPU, ApicPibLevel);
-    GEN_CHECK_OFF(APICCPU, pTimerR0);
-    GEN_CHECK_OFF(APICCPU, pTimerR3);
-    GEN_CHECK_OFF(APICCPU, pTimerRC);
-    GEN_CHECK_OFF(APICCPU, TimerCritSect);
+    GEN_CHECK_OFF(APICCPU, hTimer);
 
     GEN_CHECK_SIZE(VM);
     GEN_CHECK_OFF(VM, enmVMState);
@@ -1416,42 +1414,22 @@
     GEN_CHECK_OFF(VM, pSession);
     GEN_CHECK_OFF(VM, pUVM);
     GEN_CHECK_OFF(VM, pVMR3);
-    GEN_CHECK_OFF(VM, pVMR0);
+    GEN_CHECK_OFF(VM, pVMR0ForCall);
     GEN_CHECK_OFF(VM, pVMRC);
+#ifdef IN_RING0
+    GEN_CHECK_OFF(VM, hSelfUnsafe);
+    GEN_CHECK_OFF(VM, cCpusUnsafe);
+#else
     GEN_CHECK_OFF(VM, hSelf);
     GEN_CHECK_OFF(VM, cCpus);
+#endif
     GEN_CHECK_OFF(VM, uCpuExecutionCap);
     GEN_CHECK_OFF(VM, cbSelf);
-    GEN_CHECK_OFF(VM, pfnVMMRCToHostAsm);
-    GEN_CHECK_OFF(VM, pfnVMMRCToHostAsmNoReturn);
     GEN_CHECK_OFF(VM, bMainExecutionEngine);
-    GEN_CHECK_OFF(VM, fRecompileUser);
-    GEN_CHECK_OFF(VM, fRecompileSupervisor);
-    GEN_CHECK_OFF(VM, fPATMEnabled);
-    GEN_CHECK_OFF(VM, fCSAMEnabled);
     GEN_CHECK_OFF(VM, fHMEnabled);
-    GEN_CHECK_OFF(VM, fFaultTolerantMaster);
     GEN_CHECK_OFF(VM, fUseLargePages);
-    GEN_CHECK_OFF(VM, hTraceBufRC);
     GEN_CHECK_OFF(VM, hTraceBufR3);
     GEN_CHECK_OFF(VM, hTraceBufR0);
-    GEN_CHECK_OFF(VM, StatTotalQemuToGC);
-    GEN_CHECK_OFF(VM, StatTotalGCToQemu);
-    GEN_CHECK_OFF(VM, StatTotalInGC);
-    GEN_CHECK_OFF(VM, StatTotalInQemu);
-    GEN_CHECK_OFF(VM, StatSwitcherToGC);
-    GEN_CHECK_OFF(VM, StatSwitcherToHC);
-    GEN_CHECK_OFF(VM, StatSwitcherSaveRegs);
-    GEN_CHECK_OFF(VM, StatSwitcherSysEnter);
-    GEN_CHECK_OFF(VM, StatSwitcherDebug);
-    GEN_CHECK_OFF(VM, StatSwitcherCR0);
-    GEN_CHECK_OFF(VM, StatSwitcherCR4);
-    GEN_CHECK_OFF(VM, StatSwitcherJmpCR3);
-    GEN_CHECK_OFF(VM, StatSwitcherRstrRegs);
-    GEN_CHECK_OFF(VM, StatSwitcherLgdt);
-    GEN_CHECK_OFF(VM, StatSwitcherLidt);
-    GEN_CHECK_OFF(VM, StatSwitcherLldt);
-    GEN_CHECK_OFF(VM, StatSwitcherTSS);
     GEN_CHECK_OFF(VM, cpum);
     GEN_CHECK_OFF(VM, vmm);
     GEN_CHECK_OFF(VM, pgm);
@@ -1469,15 +1447,10 @@
     GEN_CHECK_OFF(VM, tm);
     GEN_CHECK_OFF(VM, dbgf);
     GEN_CHECK_OFF(VM, ssm);
-    GEN_CHECK_OFF(VM, ftm);
-#ifdef VBOX_WITH_REM
-    GEN_CHECK_OFF(VM, rem);
-#endif
     GEN_CHECK_OFF(VM, gim);
     GEN_CHECK_OFF(VM, vm);
     GEN_CHECK_OFF(VM, cfgm);
     GEN_CHECK_OFF(VM, apic);
-    GEN_CHECK_OFF(VM, aCpus);
 
 
     GEN_CHECK_SIZE(VMCPU);
@@ -1485,7 +1458,7 @@
     GEN_CHECK_OFF(VMCPU, enmState);
     GEN_CHECK_OFF(VMCPU, pUVCpu);
     GEN_CHECK_OFF(VMCPU, pVMR3);
-    GEN_CHECK_OFF(VMCPU, pVMR0);
+    GEN_CHECK_OFF(VMCPU, pVCpuR0ForVtg);
     GEN_CHECK_OFF(VMCPU, pVMRC);
     GEN_CHECK_OFF(VMCPU, idCpu);
     GEN_CHECK_OFF(VMCPU, hNativeThread);

@@ -118,7 +118,7 @@ void UIGuestDirectoryDiskUsageComputer::directoryStatisticsRecursive(const QStri
     if (fileInfo.GetType() != KFsObjType_Directory)
         return;
     /* Open the directory to start reading its content: */
-    QVector<KDirectoryOpenFlag> flag(KDirectoryOpenFlag_None);
+    QVector<KDirectoryOpenFlag> flag(1, KDirectoryOpenFlag_None);
     CGuestDirectory directory = m_comGuestSession.DirectoryOpen(path, /*aFilter*/ "", flag);
     if (!m_comGuestSession.isOk())
         return;
@@ -157,19 +157,20 @@ void UIFileManagerGuestTable::initGuestFileTable(const CGuestSession &session)
     if (session.GetStatus() != KGuestSessionStatus_Started)
         return;
     m_comGuestSession = session;
+    /* To determine the path separator we need to have a valid guest session: */
+    determinePathSeparator();
     initializeFileTree();
 }
 
 void UIFileManagerGuestTable::retranslateUi()
 {
     if (m_pLocationLabel)
-        m_pLocationLabel->setText(UIFileManager::tr("Guest System"));
+        m_pLocationLabel->setText(UIFileManager::tr("Guest File System"));
     UIFileManagerTable::retranslateUi();
 }
 
 void UIFileManagerGuestTable::readDirectory(const QString& strPath,
                                      UICustomFileSystemItem *parent, bool isStartDir /*= false*/)
-
 {
     if (!parent)
         return;
@@ -197,18 +198,15 @@ void UIFileManagerGuestTable::readDirectory(const QString& strPath,
             {
                 QVector<QVariant> data;
                 QDateTime changeTime = QDateTime::fromMSecsSinceEpoch(fsInfo.GetChangeTime()/RT_NS_1MS);
-
                 KFsObjType fsObjectType = fileType(fsInfo);
                 UICustomFileSystemItem *item = new UICustomFileSystemItem(fsInfo.GetName(), parent, fsObjectType);
-
                 if (!item)
                     continue;
-
                 item->setData(static_cast<qulonglong>(fsInfo.GetObjectSize()), UICustomFileSystemModelColumn_Size);
                 item->setData(changeTime, UICustomFileSystemModelColumn_ChangeTime);
                 item->setData(fsInfo.GetUserName(), UICustomFileSystemModelColumn_Owner);
                 item->setData(permissionString(fsInfo), UICustomFileSystemModelColumn_Permissions);
-                item->setPath(UIPathOperations::mergePaths(strPath, fsInfo.GetName()));
+                item->setPath(UIPathOperations::removeTrailingDelimiters(UIPathOperations::mergePaths(strPath, fsInfo.GetName())));
                 item->setIsOpened(false);
                 item->setIsHidden(isFileObjectHidden(fsInfo));
                 fileObjects.insert(fsInfo.GetName(), item);
@@ -232,11 +230,11 @@ void UIFileManagerGuestTable::deleteByItem(UICustomFileSystemItem *item)
         return;
     if (item->isUpDirectory())
         return;
-    QVector<KDirectoryRemoveRecFlag> flags(KDirectoryRemoveRecFlag_ContentAndDir);
 
     if (item->isDirectory())
     {
-        m_comGuestSession.DirectoryRemoveRecursive(item->path(), flags);
+        QVector<KDirectoryRemoveRecFlag> aFlags(1, KDirectoryRemoveRecFlag_ContentAndDir);
+        m_comGuestSession.DirectoryRemoveRecursive(item->path(), aFlags);
     }
     else
         m_comGuestSession.FsObjRemove(item->path());
@@ -259,8 +257,8 @@ void UIFileManagerGuestTable::deleteByPath(const QStringList &pathList)
         }
         else if (eType == KFsObjType_Directory)
         {
-            QVector<KDirectoryRemoveRecFlag> flags(KDirectoryRemoveRecFlag_ContentAndDir);
-            m_comGuestSession.DirectoryRemoveRecursive(strPath, flags);
+            QVector<KDirectoryRemoveRecFlag> aFlags(1, KDirectoryRemoveRecFlag_ContentAndDir);
+            m_comGuestSession.DirectoryRemoveRecursive(strPath, aFlags);
         }
 
     }
@@ -291,10 +289,11 @@ bool UIFileManagerGuestTable::renameItem(UICustomFileSystemItem *item, QString n
 
     if (!item || item->isUpDirectory() || newBaseName.isEmpty())
         return false;
-    QString newPath = UIPathOperations::constructNewItemPath(item->path(), newBaseName);
-    QVector<KFsObjRenameFlag> aFlags(KFsObjRenameFlag_Replace);
+    QString newPath = UIPathOperations::removeTrailingDelimiters(UIPathOperations::constructNewItemPath(item->path(), newBaseName));
+    QVector<KFsObjRenameFlag> aFlags(1, KFsObjRenameFlag_Replace);
 
     m_comGuestSession.FsObjRename(item->path(), newPath, aFlags);
+
     if (!m_comGuestSession.isOk())
     {
         emit sigLogOutput(UIErrorString::formatErrorInfo(m_comGuestSession), FileManagerLogType_Error);
@@ -308,7 +307,7 @@ bool UIFileManagerGuestTable::renameItem(UICustomFileSystemItem *item, QString n
 bool UIFileManagerGuestTable::createDirectory(const QString &path, const QString &directoryName)
 {
     QString newDirectoryPath = UIPathOperations::mergePaths(path, directoryName);
-    QVector<KDirectoryCreateFlag> flags(KDirectoryCreateFlag_None);
+    QVector<KDirectoryCreateFlag> flags(1, KDirectoryCreateFlag_None);
 
     m_comGuestSession.DirectoryCreate(newDirectoryPath, 0/*aMode*/, flags);
 
@@ -541,7 +540,7 @@ void UIFileManagerGuestTable::showProperties()
     if (fsPropertyString.isEmpty())
         return;
 
-    m_pPropertiesDialog = new UIPropertiesDialog();
+    m_pPropertiesDialog = new UIPropertiesDialog(this);
     if (!m_pPropertiesDialog)
         return;
 
@@ -604,6 +603,15 @@ void UIFileManagerGuestTable::determineDriveLetters()
         if (exists)
             m_driveLetterList.push_back(path);
     }
+}
+
+void UIFileManagerGuestTable::determinePathSeparator()
+{
+    if (m_comGuestSession.isNull())
+        return;
+    KPathStyle pathStyle = m_comGuestSession.GetPathStyle();
+    if (pathStyle == KPathStyle_DOS)
+        setPathSeparator(UIPathOperations::dosDelimiter);
 }
 
 void UIFileManagerGuestTable::prepareToolbar()
@@ -674,17 +682,7 @@ void UIFileManagerGuestTable::setPasteActionEnabled(bool fEnabled)
 
 void UIFileManagerGuestTable::pasteCutCopiedObjects()
 {
-    /** Wait until we have a API function that would take multiple source objects
-     *  and return a single IProgress instance: */
-    // QVector<KFileCopyFlag> fileCopyFlags;
-    // QVector<KDirectoryCopyFlag> directoryCopyFlags;
-
-    // foreach (const QString &strPath, m_copyCutBuffer)
-    // {
-
-    // }
 }
-
 
 void UIFileManagerGuestTable::prepareActionConnections()
 {

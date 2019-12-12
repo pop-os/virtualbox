@@ -21,7 +21,7 @@
 #endif /* !VBOX_WS_MAC */
 
 /* GUI includes: */
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #include "UIMessageCenter.h"
 #include "UIPopupCenter.h"
 #include "UISession.h"
@@ -35,6 +35,9 @@
 #else  /* VBOX_WS_MAC */
 # include "VBoxUtils.h"
 #endif /* VBOX_WS_MAC */
+
+/* COM includes: */
+#include "CGraphicsAdapter.h"
 
 
 UIMachineLogicSeamless::UIMachineLogicSeamless(QObject *pParent, UISession *pSession)
@@ -58,7 +61,7 @@ bool UIMachineLogicSeamless::checkAvailability()
     /* Check if there is enough physical memory to enter seamless: */
     if (uisession()->isGuestSupportsSeamless())
     {
-        quint64 availBits = machine().GetVRAMSize() /* VRAM */ * _1M /* MiB to bytes */ * 8 /* to bits */;
+        quint64 availBits = machine().GetGraphicsAdapter().GetVRAMSize() /* VRAM */ * _1M /* MiB to bytes */ * 8 /* to bits */;
         quint64 usedBits = m_pScreenLayout->memoryRequirements();
         if (availBits < usedBits)
         {
@@ -72,7 +75,7 @@ bool UIMachineLogicSeamless::checkAvailability()
     const UIShortcut &shortcut =
             gShortcutPool->shortcut(actionPool()->shortcutsExtraDataID(),
                                     actionPool()->action(UIActionIndexRT_M_View_T_Seamless)->shortcutExtraDataID());
-    const QString strHotKey = QString("Host+%1").arg(shortcut.toString());
+    const QString strHotKey = QString("Host+%1").arg(shortcut.primaryToPortableText());
     if (!msgCenter().confirmGoingSeamless(strHotKey))
         return false;
 
@@ -243,12 +246,12 @@ void UIMachineLogicSeamless::prepareActionConnections()
     UIMachineLogic::prepareActionConnections();
 
     /* Prepare 'View' actions connections: */
-    connect(actionPool()->action(UIActionIndexRT_M_View_T_Seamless), SIGNAL(triggered(bool)),
-            this, SLOT(sltChangeVisualStateToNormal()));
-    connect(actionPool()->action(UIActionIndexRT_M_View_T_Fullscreen), SIGNAL(triggered(bool)),
-            this, SLOT(sltChangeVisualStateToFullscreen()));
-    connect(actionPool()->action(UIActionIndexRT_M_View_T_Scale), SIGNAL(triggered(bool)),
-            this, SLOT(sltChangeVisualStateToScale()));
+    connect(actionPool()->action(UIActionIndexRT_M_View_T_Seamless), &QAction::triggered,
+            this, &UIMachineLogicSeamless::sltChangeVisualStateToNormal);
+    connect(actionPool()->action(UIActionIndexRT_M_View_T_Fullscreen), &QAction::triggered,
+            this, &UIMachineLogicSeamless::sltChangeVisualStateToFullscreen);
+    connect(actionPool()->action(UIActionIndexRT_M_View_T_Scale), &QAction::triggered,
+            this, &UIMachineLogicSeamless::sltChangeVisualStateToScale);
 }
 
 void UIMachineLogicSeamless::prepareMachineWindows()
@@ -267,24 +270,24 @@ void UIMachineLogicSeamless::prepareMachineWindows()
     m_pScreenLayout->update();
 
     /* Create machine-window(s): */
-    for (uint cScreenId = 0; cScreenId < machine().GetMonitorCount(); ++cScreenId)
+    for (uint cScreenId = 0; cScreenId < machine().GetGraphicsAdapter().GetMonitorCount(); ++cScreenId)
         addMachineWindow(UIMachineWindow::create(this, cScreenId));
 
     /* Listen for frame-buffer resize: */
     foreach (UIMachineWindow *pMachineWindow, machineWindows())
-        connect(pMachineWindow, SIGNAL(sigFrameBufferResize()),
-                this, SIGNAL(sigFrameBufferResize()));
+        connect(pMachineWindow, &UIMachineWindow::sigFrameBufferResize,
+                this, &UIMachineLogicSeamless::sigFrameBufferResize);
     emit sigFrameBufferResize();
 
     /* Connect multi-screen layout change handler: */
-    connect(m_pScreenLayout, SIGNAL(sigScreenLayoutChange()),
-            this, SLOT(sltScreenLayoutChanged()));
+    connect(m_pScreenLayout, &UIMultiScreenLayout::sigScreenLayoutChange,
+            this, &UIMachineLogicSeamless::sltScreenLayoutChanged);
 
     /* Mark machine-window(s) created: */
     setMachineWindowsCreated(true);
 
 #ifdef VBOX_WS_X11
-    switch (vboxGlobal().typeOfWindowManager())
+    switch (uiCommon().typeOfWindowManager())
     {
         case X11WMType_GNOMEShell:
         case X11WMType_Mutter:
@@ -342,12 +345,12 @@ void UIMachineLogicSeamless::cleanupMachineWindows()
 void UIMachineLogicSeamless::cleanupActionConnections()
 {
     /* "View" actions disconnections: */
-    disconnect(actionPool()->action(UIActionIndexRT_M_View_T_Seamless), SIGNAL(triggered(bool)),
-               this, SLOT(sltChangeVisualStateToNormal()));
-    disconnect(actionPool()->action(UIActionIndexRT_M_View_T_Fullscreen), SIGNAL(triggered(bool)),
-               this, SLOT(sltChangeVisualStateToFullscreen()));
-    disconnect(actionPool()->action(UIActionIndexRT_M_View_T_Scale), SIGNAL(triggered(bool)),
-               this, SLOT(sltChangeVisualStateToScale()));
+    disconnect(actionPool()->action(UIActionIndexRT_M_View_T_Seamless), &QAction::triggered,
+               this, &UIMachineLogicSeamless::sltChangeVisualStateToNormal);
+    disconnect(actionPool()->action(UIActionIndexRT_M_View_T_Fullscreen), &QAction::triggered,
+               this, &UIMachineLogicSeamless::sltChangeVisualStateToFullscreen);
+    disconnect(actionPool()->action(UIActionIndexRT_M_View_T_Scale), &QAction::triggered,
+               this, &UIMachineLogicSeamless::sltChangeVisualStateToScale);
 
     /* Call to base-class: */
     UIMachineLogic::cleanupActionConnections();
@@ -376,4 +379,3 @@ void UIMachineLogicSeamless::cleanupActionGroups()
     /* Call to base-class: */
     UIMachineLogic::cleanupActionGroups();
 }
-

@@ -40,11 +40,6 @@
 
 using namespace std;
 
-/* XPCOM doesn't define S_FALSE. */
-#ifndef S_FALSE
-# define S_FALSE ((HRESULT)1)
-#endif
-
 
 /*********************************************************************************************************************************
 *   Structures and Typedefs                                                                                                      *
@@ -386,6 +381,8 @@ HRESULT Unattended::i_innerDetectIsoOSWindows(RTVFS hVfsIso, DETECTBUFFER *pBuf,
      * This file appeared with Vista beta 2 from what we can tell.  Before windows 10
      * it contains easily decodable branch names, after that things goes weird.
      */
+    const char *pszVersion = NULL;
+    const char *pszProduct = NULL;
     RTVFSFILE hVfsFile;
     int vrc = RTVfsFileOpen(hVfsIso, "sources/idwbinfo.txt", RTFILE_O_READ | RTFILE_O_DENY_NONE | RTFILE_O_OPEN, &hVfsFile);
     if (RT_SUCCESS(vrc))
@@ -420,6 +417,16 @@ HRESULT Unattended::i_innerDetectIsoOSWindows(RTVFS hVfsIso, DETECTBUFFER *pBuf,
                 if (   RTStrNICmp(pBuf->sz, RT_STR_TUPLE("vista")) == 0
                     || RTStrNICmp(pBuf->sz, RT_STR_TUPLE("winmain_beta")) == 0)
                     *penmOsType = (VBOXOSTYPE)((*penmOsType & VBOXOSTYPE_x64) | VBOXOSTYPE_WinVista);
+                else if (RTStrNICmp(pBuf->sz, RT_STR_TUPLE("lh_sp2rtm")) == 0)
+                {
+                    *penmOsType = (VBOXOSTYPE)((*penmOsType & VBOXOSTYPE_x64) | VBOXOSTYPE_WinVista);
+                    pszVersion = "sp2";
+                }
+                else if (RTStrNICmp(pBuf->sz, RT_STR_TUPLE("longhorn_rtm")) == 0)
+                {
+                    *penmOsType = (VBOXOSTYPE)((*penmOsType & VBOXOSTYPE_x64) | VBOXOSTYPE_WinVista);
+                    pszVersion = "sp1";
+                }
                 else if (RTStrNICmp(pBuf->sz, RT_STR_TUPLE("win7")) == 0)
                     *penmOsType = (VBOXOSTYPE)((*penmOsType & VBOXOSTYPE_x64) | VBOXOSTYPE_Win7);
                 else if (   RTStrNICmp(pBuf->sz, RT_STR_TUPLE("winblue")) == 0
@@ -429,12 +436,256 @@ HRESULT Unattended::i_innerDetectIsoOSWindows(RTVFS hVfsIso, DETECTBUFFER *pBuf,
                 else if (   RTStrNICmp(pBuf->sz, RT_STR_TUPLE("win8")) == 0
                          || RTStrNICmp(pBuf->sz, RT_STR_TUPLE("winmain_win8")) == 0 )
                     *penmOsType = (VBOXOSTYPE)((*penmOsType & VBOXOSTYPE_x64) | VBOXOSTYPE_Win8);
+                else if (RTStrNICmp(pBuf->sz, RT_STR_TUPLE("th1")) == 0)
+                {
+                    pszVersion = "1507";    // aka. GA, retroactively 1507
+                    *penmOsType = (VBOXOSTYPE)((*penmOsType & VBOXOSTYPE_x64) | VBOXOSTYPE_Win10);
+                }
+                else if (RTStrNICmp(pBuf->sz, RT_STR_TUPLE("th2")) == 0)
+                {
+                    pszVersion = "1511";    // aka. threshold 2
+                    *penmOsType = (VBOXOSTYPE)((*penmOsType & VBOXOSTYPE_x64) | VBOXOSTYPE_Win10);
+                }
+                else if (RTStrNICmp(pBuf->sz, RT_STR_TUPLE("rs1_release")) == 0)
+                {
+                    pszVersion = "1607";    // aka. anniversay update; rs=redstone
+                    *penmOsType = (VBOXOSTYPE)((*penmOsType & VBOXOSTYPE_x64) | VBOXOSTYPE_Win10);
+                }
+                else if (RTStrNICmp(pBuf->sz, RT_STR_TUPLE("rs2_release")) == 0)
+                {
+                    pszVersion = "1703";    // aka. creators update
+                    *penmOsType = (VBOXOSTYPE)((*penmOsType & VBOXOSTYPE_x64) | VBOXOSTYPE_Win10);
+                }
+                else if (RTStrNICmp(pBuf->sz, RT_STR_TUPLE("rs3_release")) == 0)
+                {
+                    pszVersion = "1709";    // aka. fall creators update
+                    *penmOsType = (VBOXOSTYPE)((*penmOsType & VBOXOSTYPE_x64) | VBOXOSTYPE_Win10);
+                }
+                else if (RTStrNICmp(pBuf->sz, RT_STR_TUPLE("rs4_release")) == 0)
+                {
+                    pszVersion = "1803";
+                    *penmOsType = (VBOXOSTYPE)((*penmOsType & VBOXOSTYPE_x64) | VBOXOSTYPE_Win10);
+                }
+                else if (RTStrNICmp(pBuf->sz, RT_STR_TUPLE("rs5_release")) == 0)
+                {
+                    pszVersion = "1809";
+                    *penmOsType = (VBOXOSTYPE)((*penmOsType & VBOXOSTYPE_x64) | VBOXOSTYPE_Win10);
+                }
+                else if (RTStrNICmp(pBuf->sz, RT_STR_TUPLE("19h1_release")) == 0)
+                {
+                    pszVersion = "1903";
+                    *penmOsType = (VBOXOSTYPE)((*penmOsType & VBOXOSTYPE_x64) | VBOXOSTYPE_Win10);
+                }
+                else if (RTStrNICmp(pBuf->sz, RT_STR_TUPLE("19h2_release")) == 0)
+                {
+                    pszVersion = "1909";    // ??
+                    *penmOsType = (VBOXOSTYPE)((*penmOsType & VBOXOSTYPE_x64) | VBOXOSTYPE_Win10);
+                }
+                else if (RTStrNICmp(pBuf->sz, RT_STR_TUPLE("20h1_release")) == 0)
+                {
+                    pszVersion = "2003";    // ??
+                    *penmOsType = (VBOXOSTYPE)((*penmOsType & VBOXOSTYPE_x64) | VBOXOSTYPE_Win10);
+                }
+                else if (RTStrNICmp(pBuf->sz, RT_STR_TUPLE("20h2_release")) == 0)
+                {
+                    pszVersion = "2009";    // ??
+                    *penmOsType = (VBOXOSTYPE)((*penmOsType & VBOXOSTYPE_x64) | VBOXOSTYPE_Win10);
+                }
+                else if (RTStrNICmp(pBuf->sz, RT_STR_TUPLE("21h1_release")) == 0)
+                {
+                    pszVersion = "2103";    // ??
+                    *penmOsType = (VBOXOSTYPE)((*penmOsType & VBOXOSTYPE_x64) | VBOXOSTYPE_Win10);
+                }
+                else if (RTStrNICmp(pBuf->sz, RT_STR_TUPLE("21h2_release")) == 0)
+                {
+                    pszVersion = "2109";    // ??
+                    *penmOsType = (VBOXOSTYPE)((*penmOsType & VBOXOSTYPE_x64) | VBOXOSTYPE_Win10);
+                }
                 else
                     LogRel(("Unattended: sources/idwbinfo.txt: Unknown: BuildBranch=%s\n", pBuf->sz));
             }
             RTIniFileRelease(hIniFile);
         }
     }
+    bool fClarifyProd = false;
+    if (RT_FAILURE(vrc))
+    {
+        /*
+         * Check a INF file with a DriverVer that is updated with each service pack.
+         *      DriverVer=10/01/2002,5.2.3790.3959
+         */
+        vrc = RTVfsFileOpen(hVfsIso, "AMD64/HIVESYS.INF", RTFILE_O_READ | RTFILE_O_DENY_NONE | RTFILE_O_OPEN, &hVfsFile);
+        if (RT_SUCCESS(vrc))
+            *penmOsType = VBOXOSTYPE_WinNT_x64;
+        else
+        {
+            vrc = RTVfsFileOpen(hVfsIso, "I386/HIVESYS.INF", RTFILE_O_READ | RTFILE_O_DENY_NONE | RTFILE_O_OPEN, &hVfsFile);
+            if (RT_SUCCESS(vrc))
+                *penmOsType = VBOXOSTYPE_WinNT;
+        }
+        if (RT_SUCCESS(vrc))
+        {
+            RTINIFILE hIniFile;
+            vrc = RTIniFileCreateFromVfsFile(&hIniFile, hVfsFile, RTINIFILE_F_READONLY);
+            RTVfsFileRelease(hVfsFile);
+            if (RT_SUCCESS(vrc))
+            {
+                vrc = RTIniFileQueryValue(hIniFile, "Version", "DriverVer", pBuf->sz, sizeof(*pBuf), NULL);
+                if (RT_SUCCESS(vrc))
+                {
+                    LogRelFlow(("Unattended: HIVESYS.INF: DriverVer=%s\n", pBuf->sz));
+                    const char *psz = strchr(pBuf->sz, ',');
+                    psz = psz ? psz + 1 : pBuf->sz;
+                    if (RTStrVersionCompare(psz, "6.0.0") >= 0)
+                        LogRel(("Unattended: HIVESYS.INF: unknown: DriverVer=%s\n", psz));
+                    else if (RTStrVersionCompare(psz, "5.2.0") >= 0) /* W2K3, XP64 */
+                    {
+                        fClarifyProd = true;
+                        *penmOsType = (VBOXOSTYPE)((*penmOsType & VBOXOSTYPE_x64) | VBOXOSTYPE_Win2k3);
+                        if (RTStrVersionCompare(psz, "5.2.3790.3959") >= 0)
+                            pszVersion = "sp2";
+                        else if (RTStrVersionCompare(psz, "5.2.3790.1830") >= 0)
+                            pszVersion = "sp1";
+                    }
+                    else if (RTStrVersionCompare(psz, "5.1.0") >= 0) /* XP */
+                    {
+                        *penmOsType = (VBOXOSTYPE)((*penmOsType & VBOXOSTYPE_x64) | VBOXOSTYPE_WinXP);
+                        if (RTStrVersionCompare(psz, "5.1.2600.5512") >= 0)
+                            pszVersion = "sp3";
+                        else if (RTStrVersionCompare(psz, "5.1.2600.2180") >= 0)
+                            pszVersion = "sp2";
+                        else if (RTStrVersionCompare(psz, "5.1.2600.1105") >= 0)
+                            pszVersion = "sp1";
+                    }
+                    else if (RTStrVersionCompare(psz, "5.0.0") >= 0)
+                    {
+                        *penmOsType = (VBOXOSTYPE)((*penmOsType & VBOXOSTYPE_x64) | VBOXOSTYPE_Win2k);
+                        if (RTStrVersionCompare(psz, "5.0.2195.6717") >= 0)
+                            pszVersion = "sp4";
+                        else if (RTStrVersionCompare(psz, "5.0.2195.5438") >= 0)
+                            pszVersion = "sp3";
+                        else if (RTStrVersionCompare(psz, "5.0.2195.1620") >= 0)
+                            pszVersion = "sp1";
+                    }
+                    else
+                        LogRel(("Unattended: HIVESYS.INF: unknown: DriverVer=%s\n", psz));
+                }
+                RTIniFileRelease(hIniFile);
+            }
+        }
+    }
+    if (RT_FAILURE(vrc) || fClarifyProd)
+    {
+        /*
+         * NT 4 and older does not have DriverVer entries, we consult the PRODSPEC.INI, which
+         * works for NT4 & W2K. It does usually not reflect the service pack.
+         */
+        vrc = RTVfsFileOpen(hVfsIso, "AMD64/PRODSPEC.INI", RTFILE_O_READ | RTFILE_O_DENY_NONE | RTFILE_O_OPEN, &hVfsFile);
+        if (RT_SUCCESS(vrc))
+            *penmOsType = VBOXOSTYPE_WinNT_x64;
+        else
+        {
+            vrc = RTVfsFileOpen(hVfsIso, "I386/PRODSPEC.INI", RTFILE_O_READ | RTFILE_O_DENY_NONE | RTFILE_O_OPEN, &hVfsFile);
+            if (RT_SUCCESS(vrc))
+                *penmOsType = VBOXOSTYPE_WinNT;
+        }
+        if (RT_SUCCESS(vrc))
+        {
+
+            RTINIFILE hIniFile;
+            vrc = RTIniFileCreateFromVfsFile(&hIniFile, hVfsFile, RTINIFILE_F_READONLY);
+            RTVfsFileRelease(hVfsFile);
+            if (RT_SUCCESS(vrc))
+            {
+                vrc = RTIniFileQueryValue(hIniFile, "Product Specification", "Version", pBuf->sz, sizeof(*pBuf), NULL);
+                if (RT_SUCCESS(vrc))
+                {
+                    LogRelFlow(("Unattended: PRODSPEC.INI: Version=%s\n", pBuf->sz));
+                    if (RTStrVersionCompare(pBuf->sz, "5.1") >= 0) /* Shipped with XP + W2K3, but version stuck at 5.0. */
+                        LogRel(("Unattended: PRODSPEC.INI: unknown: DriverVer=%s\n", pBuf->sz));
+                    else if (RTStrVersionCompare(pBuf->sz, "5.0") >= 0) /* 2000 */
+                    {
+                        vrc = RTIniFileQueryValue(hIniFile, "Product Specification", "Product", pBuf->sz, sizeof(*pBuf), NULL);
+                        if (RT_SUCCESS(vrc) && RTStrNICmp(pBuf->sz, RT_STR_TUPLE("Windows XP")) == 0)
+                            *penmOsType = (VBOXOSTYPE)((*penmOsType & VBOXOSTYPE_x64) | VBOXOSTYPE_WinXP);
+                        else if (RT_SUCCESS(vrc) && RTStrNICmp(pBuf->sz, RT_STR_TUPLE("Windows Server 2003")) == 0)
+                            *penmOsType = (VBOXOSTYPE)((*penmOsType & VBOXOSTYPE_x64) | VBOXOSTYPE_Win2k3);
+                        else
+                            *penmOsType = (VBOXOSTYPE)((*penmOsType & VBOXOSTYPE_x64) | VBOXOSTYPE_Win2k);
+
+                        if (RT_SUCCESS(vrc) && (strstr(pBuf->sz, "Server") || strstr(pBuf->sz, "server")))
+                            pszProduct = "Server";
+                    }
+                    else if (RTStrVersionCompare(pBuf->sz, "4.0") >= 0) /* NT4 */
+                        *penmOsType = VBOXOSTYPE_WinNT4;
+                    else
+                        LogRel(("Unattended: PRODSPEC.INI: unknown: DriverVer=%s\n", pBuf->sz));
+
+                    vrc = RTIniFileQueryValue(hIniFile, "Product Specification", "ProductType", pBuf->sz, sizeof(*pBuf), NULL);
+                    if (RT_SUCCESS(vrc))
+                        pszProduct = strcmp(pBuf->sz, "0") == 0 ? "Workstation" : /* simplification: */ "Server";
+                }
+                RTIniFileRelease(hIniFile);
+            }
+        }
+        if (fClarifyProd)
+            vrc = VINF_SUCCESS;
+    }
+    if (RT_FAILURE(vrc))
+    {
+        /*
+         * NT 3.x we look at the LoadIdentifier (boot manager) string in TXTSETUP.SIF/TXT.
+         */
+        vrc = RTVfsFileOpen(hVfsIso, "I386/TXTSETUP.SIF", RTFILE_O_READ | RTFILE_O_DENY_NONE | RTFILE_O_OPEN, &hVfsFile);
+        if (RT_FAILURE(vrc))
+            vrc = RTVfsFileOpen(hVfsIso, "I386/TXTSETUP.INF", RTFILE_O_READ | RTFILE_O_DENY_NONE | RTFILE_O_OPEN, &hVfsFile);
+        if (RT_SUCCESS(vrc))
+        {
+            *penmOsType = VBOXOSTYPE_WinNT;
+
+            RTINIFILE hIniFile;
+            vrc = RTIniFileCreateFromVfsFile(&hIniFile, hVfsFile, RTINIFILE_F_READONLY);
+            RTVfsFileRelease(hVfsFile);
+            if (RT_SUCCESS(vrc))
+            {
+                vrc = RTIniFileQueryValue(hIniFile, "SetupData", "ProductType", pBuf->sz, sizeof(*pBuf), NULL);
+                if (RT_SUCCESS(vrc))
+                    pszProduct = strcmp(pBuf->sz, "0") == 0 ? "Workstation" : /* simplification: */ "Server";
+
+                vrc = RTIniFileQueryValue(hIniFile, "SetupData", "LoadIdentifier", pBuf->sz, sizeof(*pBuf), NULL);
+                if (RT_SUCCESS(vrc))
+                {
+                    LogRelFlow(("Unattended: TXTSETUP.SIF: LoadIdentifier=%s\n", pBuf->sz));
+                    char *psz = pBuf->sz;
+                    while (!RT_C_IS_DIGIT(*psz) && *psz)
+                        psz++;
+                    char *psz2 = psz;
+                    while (RT_C_IS_DIGIT(*psz2) || *psz2 == '.')
+                        psz2++;
+                    *psz2 = '\0';
+                    if (RTStrVersionCompare(psz, "6.0") >= 0)
+                        LogRel(("Unattended: TXTSETUP.SIF: unknown: LoadIdentifier=%s\n", pBuf->sz));
+                    else if (RTStrVersionCompare(psz, "4.0") >= 0)
+                        *penmOsType = VBOXOSTYPE_WinNT4;
+                    else if (RTStrVersionCompare(psz, "3.1") >= 0)
+                    {
+                        *penmOsType = VBOXOSTYPE_WinNT3x;
+                        pszVersion = psz;
+                    }
+                    else
+                        LogRel(("Unattended: TXTSETUP.SIF: unknown: LoadIdentifier=%s\n", pBuf->sz));
+                }
+                RTIniFileRelease(hIniFile);
+            }
+        }
+    }
+
+    if (pszVersion)
+        try { mStrDetectedOSVersion = pszVersion; }
+        catch (std::bad_alloc &) { return E_OUTOFMEMORY; }
+    if (pszProduct)
+        try { mStrDetectedOSFlavor = pszProduct; }
+        catch (std::bad_alloc &) { return E_OUTOFMEMORY; }
 
     /*
      * Look for sources/lang.ini and try parse it to get the languages out of it.
@@ -560,6 +811,19 @@ static bool detectLinuxDistroName(const char *pszOsAndVersion, VBOXOSTYPE *penmO
     {
         *penmOsType = (VBOXOSTYPE)((*penmOsType & VBOXOSTYPE_x64) | VBOXOSTYPE_FedoraCore);
         pszOsAndVersion = RTStrStripL(pszOsAndVersion + 6);
+    }
+    else if (   RTStrNICmp(pszOsAndVersion, RT_STR_TUPLE("Ubuntu")) == 0
+             && !RT_C_IS_ALNUM(pszOsAndVersion[6]))
+    {
+        *penmOsType = (VBOXOSTYPE)((*penmOsType & VBOXOSTYPE_x64) | VBOXOSTYPE_Ubuntu);
+        pszOsAndVersion = RTStrStripL(pszOsAndVersion + 6);
+    }
+    else if (    (   RTStrNICmp(pszOsAndVersion, RT_STR_TUPLE("Xubuntu")) == 0
+                  || RTStrNICmp(pszOsAndVersion, RT_STR_TUPLE("Kubuntu")) == 0)
+             && !RT_C_IS_ALNUM(pszOsAndVersion[7]))
+    {
+        *penmOsType = (VBOXOSTYPE)((*penmOsType & VBOXOSTYPE_x64) | VBOXOSTYPE_Ubuntu);
+        pszOsAndVersion = RTStrStripL(pszOsAndVersion + 7);
     }
     else
         fRet = false;
@@ -788,6 +1052,114 @@ HRESULT Unattended::i_innerDetectIsoOSLinux(RTVFS hVfsIso, DETECTBUFFER *pBuf, V
             return S_FALSE;
     }
 
+    /*
+     * Ubuntu has a README.diskdefins file on their ISO (already on 4.10 / warty warthog).
+     * Example content:
+     *  #define DISKNAME  Ubuntu 4.10 "Warty Warthog" - Preview amd64 Binary-1
+     *  #define TYPE  binary
+     *  #define TYPEbinary  1
+     *  #define ARCH  amd64
+     *  #define ARCHamd64  1
+     *  #define DISKNUM  1
+     *  #define DISKNUM1  1
+     *  #define TOTALNUM  1
+     *  #define TOTALNUM1  1
+     */
+    vrc = RTVfsFileOpen(hVfsIso, "README.diskdefines", RTFILE_O_READ | RTFILE_O_DENY_NONE | RTFILE_O_OPEN, &hVfsFile);
+    if (RT_SUCCESS(vrc))
+    {
+        RT_ZERO(*pBuf);
+        size_t cchIgn;
+        RTVfsFileRead(hVfsFile, pBuf->sz, sizeof(*pBuf) - 1, &cchIgn);
+        pBuf->sz[sizeof(*pBuf) - 1] = '\0';
+        RTVfsFileRelease(hVfsFile);
+
+        /* Find the DISKNAME and ARCH defines. */
+        const char *pszDiskName = NULL;
+        const char *pszArch     = NULL;
+        char       *psz         = pBuf->sz;
+        for (unsigned i = 0; *psz != '\0'; i++)
+        {
+            while (RT_C_IS_BLANK(*psz))
+                psz++;
+
+            /* Match #define: */
+            static const char s_szDefine[] = "#define";
+            if (   strncmp(psz, s_szDefine, sizeof(s_szDefine) - 1) == 0
+                && RT_C_IS_BLANK(psz[sizeof(s_szDefine) - 1]))
+            {
+                psz = &psz[sizeof(s_szDefine) - 1];
+                while (RT_C_IS_BLANK(*psz))
+                    psz++;
+
+                /* Match the identifier: */
+                char *pszIdentifier = psz;
+                if (RT_C_IS_ALPHA(*psz) || *psz == '_')
+                {
+                    do
+                        psz++;
+                    while (RT_C_IS_ALNUM(*psz) || *psz == '_');
+                    size_t cchIdentifier = psz - pszIdentifier;
+
+                    /* Skip to the value. */
+                    while (RT_C_IS_BLANK(*psz))
+                        psz++;
+                    char *pszValue = psz;
+
+                    /* Skip to EOL and strip the value. */
+                    char *pszEol = psz = strchr(psz, '\n');
+                    if (psz)
+                        *psz++ = '\0';
+                    else
+                        pszEol = strchr(pszValue, '\0');
+                    while (pszEol > pszValue && RT_C_IS_SPACE(pszEol[-1]))
+                        *--pszEol = '\0';
+
+                    LogRelFlow(("Unattended: README.diskdefines: %.*s=%s\n", cchIdentifier, pszIdentifier, pszValue));
+
+                    /* Do identifier matching: */
+                    if (cchIdentifier == sizeof("DISKNAME") - 1 && strncmp(pszIdentifier, RT_STR_TUPLE("DISKNAME")) == 0)
+                        pszDiskName = pszValue;
+                    else if (cchIdentifier == sizeof("ARCH") - 1 && strncmp(pszIdentifier, RT_STR_TUPLE("ARCH")) == 0)
+                        pszArch = pszValue;
+                    else
+                        continue;
+                    if (pszDiskName == NULL || pszArch == NULL)
+                        continue;
+                    break;
+                }
+            }
+
+            /* Next line: */
+            psz = strchr(psz, '\n');
+            if (!psz)
+                break;
+            psz++;
+        }
+
+        /* Did we find both of them? */
+        if (pszDiskName && pszArch)
+        {
+            if (!detectLinuxArch(pszArch, penmOsType, VBOXOSTYPE_Ubuntu))
+                LogRel(("Unattended: README.diskdefines: Unknown: arch='%s'\n", pszArch));
+
+            const char *pszVersion = NULL;
+            if (detectLinuxDistroName(pszDiskName, penmOsType, &pszVersion))
+            {
+                LogRelFlow(("Unattended: README.diskdefines: version=%s\n", pszVersion));
+                try { mStrDetectedOSVersion = RTStrStripL(pszVersion); }
+                catch (std::bad_alloc &) { return E_OUTOFMEMORY; }
+            }
+            else
+                LogRel(("Unattended: README.diskdefines: Unknown: diskname='%s'\n", pszDiskName));
+        }
+        else
+            LogRel(("Unattended: README.diskdefines: Did not find both DISKNAME and ARCH. :-/\n"));
+
+        if (*penmOsType != VBOXOSTYPE_Unknown)
+            return S_FALSE;
+    }
+
     return S_FALSE;
 }
 
@@ -927,7 +1299,8 @@ HRESULT Unattended::prepare()
         if (mStrTimeZone.isEmpty())
         {
             int vrc = RTTimeZoneGetCurrent(szTmp, sizeof(szTmp));
-            if (RT_SUCCESS(vrc))
+            if (   RT_SUCCESS(vrc)
+                && strcmp(szTmp, "localtime") != 0 /* Typcial solaris TZ that isn't very helpful. */)
                 mStrTimeZone = szTmp;
             else
                 mStrTimeZone = "Etc/UTC";

@@ -17,7 +17,6 @@
 
 /* Qt includes: */
 #include <QAccessibleWidget>
-#include <QApplication>
 #include <QScrollBar>
 
 /* GUI includes: */
@@ -109,54 +108,23 @@ UIDetailsView::UIDetailsView(UIDetails *pParent)
     : QIWithRetranslateUI<QIGraphicsView>(pParent)
     , m_pDetails(pParent)
     , m_iMinimumWidthHint(0)
-    , m_iMinimumHeightHint(0)
 {
-    /* Install Details-view accessibility interface factory: */
-    QAccessible::installFactory(UIAccessibilityInterfaceForUIDetailsView::pFactory);
-
-    /* Setup frame: */
-    setFrameShape(QFrame::NoFrame);
-    setFrameShadow(QFrame::Plain);
-    setAlignment(Qt::AlignLeft | Qt::AlignTop);
-
-    /* Setup scroll-bars policy: */
-    setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-
-    /* Update scene-rect: */
-    updateSceneRect();
-
-    /* Translate finally: */
-    retranslateUi();
+    prepare();
 }
 
-void UIDetailsView::sltMinimumWidthHintChanged(int iMinimumWidthHint)
+void UIDetailsView::sltMinimumWidthHintChanged(int iHint)
 {
     /* Is there something changed? */
-    if (m_iMinimumWidthHint == iMinimumWidthHint)
+    if (m_iMinimumWidthHint == iHint)
         return;
 
     /* Remember new value: */
-    m_iMinimumWidthHint = iMinimumWidthHint;
+    m_iMinimumWidthHint = iHint;
     if (m_iMinimumWidthHint <= 0)
         m_iMinimumWidthHint = 1;
 
     /* Set minimum view width according passed width-hint: */
-    setMinimumWidth(2 * frameWidth() + iMinimumWidthHint + verticalScrollBar()->sizeHint().width());
-
-    /* Update scene-rect: */
-    updateSceneRect();
-}
-
-void UIDetailsView::sltMinimumHeightHintChanged(int iMinimumHeightHint)
-{
-    /* Is there something changed? */
-    if (m_iMinimumHeightHint == iMinimumHeightHint)
-        return;
-
-    /* Remember new value: */
-    m_iMinimumHeightHint = iMinimumHeightHint;
-    if (m_iMinimumHeightHint <= 0)
-        m_iMinimumHeightHint = 1;
+    setMinimumWidth(2 * frameWidth() + m_iMinimumWidthHint + verticalScrollBar()->sizeHint().width());
 
     /* Update scene-rect: */
     updateSceneRect();
@@ -176,10 +144,33 @@ void UIDetailsView::resizeEvent(QResizeEvent *pEvent)
     QIWithRetranslateUI<QIGraphicsView>::resizeEvent(pEvent);
     /* Notify listeners: */
     emit sigResized();
+
+    /* Update scene-rect: */
+    updateSceneRect();
+}
+
+void UIDetailsView::prepare()
+{
+    /* Install Details-view accessibility interface factory: */
+    QAccessible::installFactory(UIAccessibilityInterfaceForUIDetailsView::pFactory);
+
+    /* Setup frame: */
+    setFrameShape(QFrame::NoFrame);
+    setFrameShadow(QFrame::Plain);
+    setAlignment(Qt::AlignLeft | Qt::AlignTop);
+
+    /* Setup scroll-bars policy: */
+    setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+
+    /* Update scene-rect: */
+    updateSceneRect();
+
+    /* Translate finally: */
+    retranslateUi();
 }
 
 void UIDetailsView::updateSceneRect()
 {
-    setSceneRect(0, 0, m_iMinimumWidthHint, m_iMinimumHeightHint);
+    setSceneRect(0, 0, m_iMinimumWidthHint, height());
 }
-

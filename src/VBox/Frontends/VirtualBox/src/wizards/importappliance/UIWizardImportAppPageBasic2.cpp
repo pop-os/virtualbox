@@ -15,22 +15,23 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Global includes: */
+/* Qt includes: */
 #include <QLabel>
 #include <QPointer>
-#include <QPushButton>
-#include <QTextBrowser>
+#include <QStackedLayout>
 #include <QVBoxLayout>
 
-/* Local includes: */
-#include "QIDialogButtonBox.h"
+/* GUI includes: */
 #include "QIRichTextLabel.h"
+#include "UIApplianceUnverifiedCertificateViewer.h"
+#include "UIMessageCenter.h"
 #include "UIWizardImportApp.h"
 #include "UIWizardImportAppPageBasic2.h"
 
 /* COM includes: */
 #include "CAppliance.h"
 #include "CCertificate.h"
+#include "CVirtualSystemDescriptionForm.h"
 
 
 /*********************************************************************************************************************************
@@ -38,7 +39,25 @@
 *********************************************************************************************************************************/
 
 UIWizardImportAppPage2::UIWizardImportAppPage2()
+    : m_pSettingsCntLayout(0)
 {
+}
+
+void UIWizardImportAppPage2::updatePageAppearance()
+{
+    /* Check whether there was cloud source selected: */
+    const bool fIsSourceCloudOne = fieldImp("isSourceCloudOne").toBool();
+    /* Update page appearance according to chosen source: */
+    m_pSettingsCntLayout->setCurrentIndex((int)fIsSourceCloudOne);
+}
+
+void UIWizardImportAppPage2::refreshFormPropertiesTable()
+{
+    /* Acquire VSD form: */
+    CVirtualSystemDescriptionForm comForm = fieldImp("vsdForm").value<CVirtualSystemDescriptionForm>();
+    /* Make sure the properties table get the new description form: */
+    if (comForm.isNotNull())
+        m_pFormEditor->setVirtualSystemDescriptionForm(comForm);
 }
 
 
@@ -49,19 +68,82 @@ UIWizardImportAppPage2::UIWizardImportAppPage2()
 UIWizardImportAppPageBasic2::UIWizardImportAppPageBasic2(const QString &strFileName)
     : m_enmCertText(kCertText_Uninitialized)
 {
-    /* Create widgets: */
+    /* Create main layout: */
     QVBoxLayout *pMainLayout = new QVBoxLayout(this);
+    if (pMainLayout)
     {
+        /* Create label: */
         m_pLabel = new QIRichTextLabel(this);
-        m_pApplianceWidget = new UIApplianceImportEditorWidget(this);
+        if (m_pLabel)
         {
-            m_pApplianceWidget->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::MinimumExpanding);
-            m_pApplianceWidget->setFile(strFileName);
+            /* Add into layout: */
+            pMainLayout->addWidget(m_pLabel);
         }
-        m_pCertLabel = new QLabel("<cert label>", this);
-        pMainLayout->addWidget(m_pLabel);
-        pMainLayout->addWidget(m_pApplianceWidget);
-        pMainLayout->addWidget(m_pCertLabel);
+
+        /* Create settings container layout: */
+        m_pSettingsCntLayout = new QStackedLayout;
+        if (m_pSettingsCntLayout)
+        {
+            /* Create appliance widget container: */
+            QWidget *pApplianceWidgetCnt = new QWidget(this);
+            if (pApplianceWidgetCnt)
+            {
+                /* Create appliance widget layout: */
+                QVBoxLayout *pApplianceWidgetLayout = new QVBoxLayout(pApplianceWidgetCnt);
+                if (pApplianceWidgetLayout)
+                {
+                    pApplianceWidgetLayout->setContentsMargins(0, 0, 0, 0);
+
+                    /* Create appliance widget: */
+                    m_pApplianceWidget = new UIApplianceImportEditorWidget(pApplianceWidgetCnt);
+                    if (m_pApplianceWidget)
+                    {
+                        m_pApplianceWidget->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::MinimumExpanding);
+                        m_pApplianceWidget->setFile(strFileName);
+
+                        /* Add into layout: */
+                        pApplianceWidgetLayout->addWidget(m_pApplianceWidget);
+                    }
+
+                    /* Create certificate label: */
+                    m_pCertLabel = new QLabel(QString(), pApplianceWidgetCnt);
+                    if (m_pCertLabel)
+                    {
+                        /* Add into layout: */
+                        pApplianceWidgetLayout->addWidget(m_pCertLabel);
+                    }
+                }
+
+                /* Add into layout: */
+                m_pSettingsCntLayout->addWidget(pApplianceWidgetCnt);
+            }
+
+            /* Create form editor container: */
+            QWidget *pFormEditorCnt = new QWidget(this);
+            if (pFormEditorCnt)
+            {
+                /* Create form editor layout: */
+                QVBoxLayout *pFormEditorLayout = new QVBoxLayout(pFormEditorCnt);
+                if (pFormEditorLayout)
+                {
+                    pFormEditorLayout->setContentsMargins(0, 0, 0, 0);
+
+                    /* Create form editor widget: */
+                    m_pFormEditor = new UIFormEditorWidget(pFormEditorCnt);
+                    if (m_pFormEditor)
+                    {
+                        /* Add into layout: */
+                        pFormEditorLayout->addWidget(m_pFormEditor);
+                    }
+                }
+
+                /* Add into layout: */
+                m_pSettingsCntLayout->addWidget(pFormEditorCnt);
+            }
+
+            /* Add into layout: */
+            pMainLayout->addLayout(m_pSettingsCntLayout);
+        }
     }
 
     /* Register classes: */
@@ -75,11 +157,10 @@ void UIWizardImportAppPageBasic2::retranslateUi()
     /* Translate page: */
     setTitle(UIWizardImportApp::tr("Appliance settings"));
 
-    /* Translate widgets: */
-    m_pLabel->setText(UIWizardImportApp::tr("These are the virtual machines contained in the appliance "
-                                            "and the suggested settings of the imported VirtualBox machines. "
-                                            "You can change many of the properties shown by double-clicking "
-                                            "on the items and disable others using the check boxes below."));
+    /* Update page appearance: */
+    updatePageAppearance();
+
+    /* Translate the certificate label: */
     switch (m_enmCertText)
     {
         case kCertText_Unsigned:
@@ -114,57 +195,69 @@ void UIWizardImportAppPageBasic2::retranslateUi()
 
 void UIWizardImportAppPageBasic2::initializePage()
 {
-    /* Acquire appliance and certificate: */
-    CAppliance *pAppliance = m_pApplianceWidget->appliance();
-    /* Check if pAppliance is alive. If not just return here. This
-       prevents crashes when an invalid ova file is supllied: */
-    if (!pAppliance)
-    {
-        if (wizard())
-            wizard()->reject();
-        return;
-    }
-    CCertificate certificate = pAppliance->GetCertificate();
-    if (certificate.isNull())
-        m_enmCertText = kCertText_Unsigned;
+    /* Update widget visibility: */
+    updatePageAppearance();
+
+    /* Check whether there was cloud source selected: */
+    const bool fIsSourceCloudOne = field("isSourceCloudOne").toBool();
+    if (fIsSourceCloudOne)
+        refreshFormPropertiesTable();
     else
     {
-        /* Pick a 'signed-by' name. */
-        m_strSignedBy = certificate.GetFriendlyName();
+        /* Acquire appliance: */
+        CAppliance *pAppliance = m_pApplianceWidget->appliance();
 
-        /* If trusted, just select the right message: */
-        if (certificate.GetTrusted())
+        /* Check if pAppliance is alive. If not just return here.
+         * This prevents crashes when an invalid ova file is supllied: */
+        if (!pAppliance)
         {
-            if (certificate.GetSelfSigned())
-                m_enmCertText = !certificate.GetExpired() ? kCertText_SelfSignedTrusted : kCertText_SelfSignedExpired;
-            else
-                m_enmCertText = !certificate.GetExpired() ? kCertText_IssuedTrusted     : kCertText_IssuedExpired;
+            if (wizard())
+                wizard()->reject();
+            return;
         }
+
+        /* Acquire certificate: */
+        CCertificate comCertificate = pAppliance->GetCertificate();
+        if (comCertificate.isNull())
+            m_enmCertText = kCertText_Unsigned;
         else
         {
-            /* Not trusted!  Must ask the user whether to continue in this case: */
-            m_enmCertText = certificate.GetSelfSigned() ? kCertText_SelfSignedUnverified : kCertText_IssuedUnverified;
+            /* Pick a 'signed-by' name: */
+            m_strSignedBy = comCertificate.GetFriendlyName();
 
-            /* Translate page early: */
-            retranslateUi();
+            /* If trusted, just select the right message: */
+            if (comCertificate.GetTrusted())
+            {
+                if (comCertificate.GetSelfSigned())
+                    m_enmCertText = !comCertificate.GetExpired() ? kCertText_SelfSignedTrusted : kCertText_SelfSignedExpired;
+                else
+                    m_enmCertText = !comCertificate.GetExpired() ? kCertText_IssuedTrusted     : kCertText_IssuedExpired;
+            }
+            else
+            {
+                /* Not trusted!  Must ask the user whether to continue in this case: */
+                m_enmCertText = comCertificate.GetSelfSigned() ? kCertText_SelfSignedUnverified : kCertText_IssuedUnverified;
 
-            /* Instantiate the dialog: */
-            QPointer<UIApplianceUnverifiedCertificateViewer> pDialog = new UIApplianceUnverifiedCertificateViewer(this, certificate);
-            AssertPtrReturnVoid(pDialog.data());
+                /* Translate page early: */
+                retranslateUi();
 
-            /* Show viewer in modal mode: */
-            const int iResultCode = pDialog->exec();
+                /* Instantiate the dialog: */
+                QPointer<UIApplianceUnverifiedCertificateViewer> pDialog = new UIApplianceUnverifiedCertificateViewer(this, comCertificate);
+                AssertPtrReturnVoid(pDialog.data());
 
-            /* Leave if viewer destroyed prematurely: */
-            if (!pDialog)
-                return;
-            /* Delete viewer finally: */
-            delete pDialog;
-            pDialog = 0;
+                /* Show viewer in modal mode: */
+                const int iResultCode = pDialog->exec();
 
-            /* Dismiss the entire import-appliance wizard if user rejects certificate: */
-            if (iResultCode == QDialog::Rejected)
-                wizard()->reject();
+                /* Leave if viewer destroyed prematurely: */
+                if (!pDialog)
+                    return;
+                /* Delete viewer finally: */
+                delete pDialog;
+
+                /* Dismiss the entire import-appliance wizard if user rejects certificate: */
+                if (iResultCode == QDialog::Rejected)
+                    wizard()->reject();
+            }
         }
     }
 
@@ -188,6 +281,28 @@ bool UIWizardImportAppPageBasic2::validatePage()
     /* Lock finish button: */
     startProcessing();
 
+    /* Check whether there was cloud source selected: */
+    const bool fIsSourceCloudOne = fieldImp("isSourceCloudOne").toBool();
+    if (fIsSourceCloudOne)
+    {
+        /* Make sure table has own data committed: */
+        m_pFormEditor->makeSureEditorDataCommitted();
+
+        /* Check whether we have proper VSD form: */
+        CVirtualSystemDescriptionForm comForm = fieldImp("vsdForm").value<CVirtualSystemDescriptionForm>();
+        fResult = comForm.isNotNull();
+        Assert(fResult);
+
+        /* Give changed VSD back to appliance: */
+        if (fResult)
+        {
+            comForm.GetVirtualSystemDescription();
+            fResult = comForm.isOk();
+            if (!fResult)
+                msgCenter().cannotAcquireVirtualSystemDescriptionFormProperty(comForm);
+        }
+    }
+
     /* Try to import appliance: */
     if (fResult)
         fResult = qobject_cast<UIWizardImportApp*>(wizard())->importAppliance();
@@ -199,93 +314,27 @@ bool UIWizardImportAppPageBasic2::validatePage()
     return fResult;
 }
 
-
-/*********************************************************************************************************************************
-*   Class UIApplianceUnverifiedCertificateViewer implementation.                                                                 *
-*********************************************************************************************************************************/
-
-UIApplianceUnverifiedCertificateViewer::UIApplianceUnverifiedCertificateViewer(QWidget *pParent, const CCertificate &certificate)
-    : QIWithRetranslateUI<QIDialog>(pParent)
-    , m_certificate(certificate)
-    , m_pTextLabel(0)
-    , m_pTextBrowser(0)
+void UIWizardImportAppPageBasic2::updatePageAppearance()
 {
-    /* Prepare: */
-    prepare();
-}
+    /* Call to base-class: */
+    UIWizardImportAppPage2::updatePageAppearance();
 
-void UIApplianceUnverifiedCertificateViewer::prepare()
-{
-    /* Create layout: */
-    QVBoxLayout *pLayout = new QVBoxLayout(this);
-    AssertPtrReturnVoid(pLayout);
+    /* Check whether there was cloud source selected: */
+    const bool fIsSourceCloudOne = field("isSourceCloudOne").toBool();
+    if (fIsSourceCloudOne)
     {
-        /* Create text-label: */
-        m_pTextLabel = new QLabel;
-        AssertPtrReturnVoid(m_pTextLabel);
-        {
-            /* Configure text-label: */
-            m_pTextLabel->setWordWrap(true);
-            /* Add text-label into layout: */
-            pLayout->addWidget(m_pTextLabel);
-        }
-
-        /* Create text-browser: */
-        m_pTextBrowser = new QTextBrowser;
-        AssertPtrReturnVoid(m_pTextBrowser);
-        {
-            /* Configure text-browser: */
-            m_pTextBrowser->setMinimumSize(500, 300);
-            /* Add text-browser into layout: */
-            pLayout->addWidget(m_pTextBrowser);
-        }
-
-        /* Create button-box: */
-        QIDialogButtonBox *pButtonBox = new QIDialogButtonBox;
-        AssertPtrReturnVoid(pButtonBox);
-        {
-            /* Configure button-box: */
-            pButtonBox->setStandardButtons(QDialogButtonBox::Yes | QDialogButtonBox::No);
-            pButtonBox->button(QDialogButtonBox::Yes)->setShortcut(Qt::Key_Enter);
-            //pButtonBox->button(QDialogButtonBox::No)->setShortcut(Qt::Key_Esc);
-            connect(pButtonBox, &QIDialogButtonBox::accepted, this, &UIApplianceUnverifiedCertificateViewer::accept);
-            connect(pButtonBox, &QIDialogButtonBox::rejected, this, &UIApplianceUnverifiedCertificateViewer::reject);
-            /* Add button-box into layout: */
-            pLayout->addWidget(pButtonBox);
-        }
+        m_pLabel->setText(UIWizardImportApp::tr("These are the the suggested settings of the cloud VM import "
+                                                "procedure, they are influencing the resulting local VM instance. "
+                                                "You can change many of the properties shown by double-clicking "
+                                                "on the items and disable others using the check boxes below."));
+        m_pFormEditor->setFocus();
     }
-    /* Translate UI: */
-    retranslateUi();
-}
-
-void UIApplianceUnverifiedCertificateViewer::retranslateUi()
-{
-    /* Translate dialog title: */
-    setWindowTitle(tr("Unverifiable Certificate! Continue?"));
-
-    /* Translate text-label caption: */
-    if (m_certificate.GetSelfSigned())
-        m_pTextLabel->setText(tr("<b>The appliance is signed by an unverified self signed certificate issued by '%1'. "
-                                 "We recommend to only proceed with the importing if you are sure you should trust this entity.</b>"
-                                 ).arg(m_certificate.GetFriendlyName()));
     else
-        m_pTextLabel->setText(tr("<b>The appliance is signed by an unverified certificate issued to '%1'. "
-                                 "We recommend to only proceed with the importing if you are sure you should trust this entity.</b>"
-                                 ).arg(m_certificate.GetFriendlyName()));
-
-    /* Translate text-browser contents: */
-    const QString strTemplateRow = tr("<tr><td>%1:</td><td>%2</td></tr>", "key: value");
-    QString strTableContent;
-    strTableContent += strTemplateRow.arg(tr("Issuer"),               QStringList(m_certificate.GetIssuerName().toList()).join(", "));
-    strTableContent += strTemplateRow.arg(tr("Subject"),              QStringList(m_certificate.GetSubjectName().toList()).join(", "));
-    strTableContent += strTemplateRow.arg(tr("Not Valid Before"),     m_certificate.GetValidityPeriodNotBefore());
-    strTableContent += strTemplateRow.arg(tr("Not Valid After"),      m_certificate.GetValidityPeriodNotAfter());
-    strTableContent += strTemplateRow.arg(tr("Serial Number"),        m_certificate.GetSerialNumber());
-    strTableContent += strTemplateRow.arg(tr("Self-Signed"),          m_certificate.GetSelfSigned() ? tr("True") : tr("False"));
-    strTableContent += strTemplateRow.arg(tr("Authority (CA)"),       m_certificate.GetCertificateAuthority() ? tr("True") : tr("False"));
-//    strTableContent += strTemplateRow.arg(tr("Trusted"),              m_certificate.GetTrusted() ? tr("True") : tr("False"));
-    strTableContent += strTemplateRow.arg(tr("Public Algorithm"),     tr("%1 (%2)", "value (clarification)").arg(m_certificate.GetPublicKeyAlgorithm()).arg(m_certificate.GetPublicKeyAlgorithmOID()));
-    strTableContent += strTemplateRow.arg(tr("Signature Algorithm"),  tr("%1 (%2)", "value (clarification)").arg(m_certificate.GetSignatureAlgorithmName()).arg(m_certificate.GetSignatureAlgorithmOID()));
-    strTableContent += strTemplateRow.arg(tr("X.509 Version Number"), QString::number(m_certificate.GetVersionNumber()));
-    m_pTextBrowser->setText(QString("<table>%1</table>").arg(strTableContent));
+    {
+        m_pLabel->setText(UIWizardImportApp::tr("These are the virtual machines contained in the appliance "
+                                                "and the suggested settings of the imported VirtualBox machines. "
+                                                "You can change many of the properties shown by double-clicking "
+                                                "on the items and disable others using the check boxes below."));
+        m_pApplianceWidget->setFocus();
+    }
 }

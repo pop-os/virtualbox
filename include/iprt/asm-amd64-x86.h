@@ -44,6 +44,9 @@
    /* Emit the intrinsics at all optimization levels. */
 # pragma intrinsic(_ReadWriteBarrier)
 # pragma intrinsic(__cpuid)
+# if RT_INLINE_ASM_USES_INTRIN >= 16 /*?*/
+#  pragma intrinsic(__cpuidex)
+# endif
 # pragma intrinsic(_enable)
 # pragma intrinsic(_disable)
 # pragma intrinsic(__rdtsc)
@@ -1385,6 +1388,84 @@ DECLINLINE(uint8_t) ASMGetApicId(void)
 
 
 /**
+ * Gets the APIC ID of the current CPU using leaf 0xb.
+ *
+ * @returns the APIC ID.
+ */
+#if RT_INLINE_ASM_EXTERNAL && RT_INLINE_ASM_USES_INTRIN < 16 /*?*/
+RT_ASM_DECL_PRAGMA_WATCOM(uint8_t) ASMGetApicIdExt0B(void);
+#else
+DECLINLINE(uint32_t) ASMGetApicIdExt0B(void)
+{
+# if RT_INLINE_ASM_GNU_STYLE
+    RTCCUINTREG xDX;
+#  ifdef RT_ARCH_AMD64
+    RTCCUINTREG uSpillEax, uSpillEcx;
+    __asm__ __volatile__ ("cpuid"
+                          : "=a" (uSpillEax),
+                            "=c" (uSpillEcx),
+                            "=d" (xDX)
+                          : "0" (0xb),
+                            "1" (0)
+                          : "rbx");
+#  elif (defined(PIC) || defined(__PIC__)) && defined(__i386__)
+    RTCCUINTREG uSpillEax, uSpillEcx, uSpillEbx;
+    __asm__ __volatile__ ("mov   %%ebx,%2\n\t"
+                          "cpuid\n\t"
+                          "xchgl %%ebx,%2\n\t"
+                          : "=a" (uSpillEax),
+                            "=c" (uSpillEcx),
+                            "=rm" (uSpillEbx),
+                            "=d" (xDX)
+                          : "0" (0xb),
+                            "1" (0));
+#  else
+    RTCCUINTREG uSpillEax, uSpillEcx;
+    __asm__ __volatile__ ("cpuid"
+                          : "=a" (uSpillEax),
+                            "=c" (uSpillEcx),
+                            "=d" (xDX)
+                          : "0" (0xb),
+                            "1" (0)
+                          : "ebx");
+#  endif
+    return (uint32_t)xDX;
+
+# elif RT_INLINE_ASM_USES_INTRIN >= 16 /*?*/
+
+    int aInfo[4];
+    __cpuidex(aInfo, 0xb, 0);
+    return aInfo[3];
+
+# else
+    RTCCUINTREG xDX;
+    __asm
+    {
+        push    ebx
+        mov     eax, 0xb
+        xor     ecx, ecx
+        cpuid
+        mov     [xDX], edx
+        pop     ebx
+    }
+    return (uint32_t)xDX;
+# endif
+}
+#endif
+
+
+/**
+ * Gets the APIC ID of the current CPU using leaf 8000001E.
+ *
+ * @returns the APIC ID.
+ */
+DECLINLINE(uint32_t) ASMGetApicIdExt8000001E(void)
+{
+    return ASMCpuId_EAX(0x8000001e);
+}
+
+
+/**
  * Tests if it a genuine Intel CPU based on the ASMCpuId(0) output.
  *
  * @returns true/false.
@@ -1394,9 +1475,10 @@ DECLINLINE(uint8_t) ASMGetApicId(void)
  */
 DECLINLINE(bool) ASMIsIntelCpuEx(uint32_t uEBX, uint32_t uECX, uint32_t uEDX)
 {
-    return uEBX == UINT32_C(0x756e6547)
-        && uECX == UINT32_C(0x6c65746e)
-        && uEDX == UINT32_C(0x49656e69);
+    /* 'GenuineIntel' */
+    return uEBX == UINT32_C(0x756e6547)     /* 'Genu' */
+        && uEDX == UINT32_C(0x49656e69)     /* 'ineI' */
+        && uECX == UINT32_C(0x6c65746e);    /* 'ntel' */
 }
 
 
@@ -1424,9 +1506,10 @@ DECLINLINE(bool) ASMIsIntelCpu(void)
  */
 DECLINLINE(bool) ASMIsAmdCpuEx(uint32_t uEBX, uint32_t uECX, uint32_t uEDX)
 {
-    return uEBX == UINT32_C(0x68747541)
-        && uECX == UINT32_C(0x444d4163)
-        && uEDX == UINT32_C(0x69746e65);
+    /* 'AuthenticAMD' */
+    return uEBX == UINT32_C(0x68747541)     /* 'Auth' */
+        && uEDX == UINT32_C(0x69746e65)     /* 'enti' */
+        && uECX == UINT32_C(0x444d4163);    /* 'dAMD' */
 }
 
 
@@ -1454,9 +1537,10 @@ DECLINLINE(bool) ASMIsAmdCpu(void)
  */
 DECLINLINE(bool) ASMIsViaCentaurCpuEx(uint32_t uEBX, uint32_t uECX, uint32_t uEDX)
 {
-    return uEBX == UINT32_C(0x746e6543)
-        && uECX == UINT32_C(0x736c7561)
-        && uEDX == UINT32_C(0x48727561);
+    /* 'CentaurHauls' */
+    return uEBX == UINT32_C(0x746e6543)     /* 'Cent' */
+        && uEDX == UINT32_C(0x48727561)     /* 'aurH' */
+        && uECX == UINT32_C(0x736c7561);    /* 'auls' */
 }
 
 
@@ -1484,9 +1568,10 @@ DECLINLINE(bool) ASMIsViaCentaurCpu(void)
  */
 DECLINLINE(bool) ASMIsShanghaiCpuEx(uint32_t uEBX, uint32_t uECX, uint32_t uEDX)
 {
-    return uEBX == UINT32_C(0x68532020)
-        && uECX == UINT32_C(0x20206961)
-        && uEDX == UINT32_C(0x68676e61);
+    /* '  Shanghai  ' */
+    return uEBX == UINT32_C(0x68532020)     /* '  Sh' */
+        && uEDX == UINT32_C(0x68676e61)     /* 'angh' */
+        && uECX == UINT32_C(0x20206961);    /* 'ai  ' */
 }
 
 
@@ -1501,6 +1586,37 @@ DECLINLINE(bool) ASMIsShanghaiCpu(void)
     uint32_t uEAX, uEBX, uECX, uEDX;
     ASMCpuId(0, &uEAX, &uEBX, &uECX, &uEDX);
     return ASMIsShanghaiCpuEx(uEBX, uECX, uEDX);
+}
+
+
+/**
+ * Tests if it a genuine Hygon CPU based on the ASMCpuId(0) output.
+ *
+ * @returns true/false.
+ * @param   uEBX    EBX return from ASMCpuId(0)
+ * @param   uECX    ECX return from ASMCpuId(0)
+ * @param   uEDX    EDX return from ASMCpuId(0)
+ */
+DECLINLINE(bool) ASMIsHygonCpuEx(uint32_t uEBX, uint32_t uECX, uint32_t uEDX)
+{
+    /* 'HygonGenuine' */
+    return uEBX == UINT32_C(0x6f677948)     /* Hygo */
+        && uECX == UINT32_C(0x656e6975)     /* uine */
+        && uEDX == UINT32_C(0x6e65476e);    /* nGen */
+}
+
+
+/**
+ * Tests if this is a genuine Hygon CPU.
+ *
+ * @returns true/false.
+ * @remarks ASSUMES that cpuid is supported by the CPU.
+ */
+DECLINLINE(bool) ASMIsHygonCpu(void)
+{
+    uint32_t uEAX, uEBX, uECX, uEDX;
+    ASMCpuId(0, &uEAX, &uEBX, &uECX, &uEDX);
+    return ASMIsHygonCpuEx(uEBX, uECX, uEDX);
 }
 
 

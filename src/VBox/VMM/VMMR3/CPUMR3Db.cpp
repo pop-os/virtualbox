@@ -216,6 +216,7 @@ typedef struct CPUMDBENTRY
 
 #include "cpus/ZHAOXIN_KaiXian_KX_U5581_1_8GHz.h"
 
+#include "cpus/Hygon_C86_7185_32_core.h"
 
 
 /**
@@ -318,6 +319,10 @@ static CPUMDBENTRY const * const g_apCpumDbEntries[] =
 #ifdef VBOX_CPUDB_NEC_V20_h
     &g_Entry_NEC_V20,
 #endif
+
+#ifdef VBOX_CPUDB_Hygon_C86_7185_32_core_h
+    &g_Entry_Hygon_C86_7185_32_core,
+#endif
 };
 
 
@@ -406,7 +411,6 @@ static PCPUMMSRRANGE cpumR3MsrRangesEnsureSpace(PVM pVM, PCPUMMSRRANGE *ppaMsrRa
             {
                 *ppaMsrRanges = NULL;
                 pVM->cpum.s.GuestInfo.paMsrRangesR0 = NIL_RTR0PTR;
-                pVM->cpum.s.GuestInfo.paMsrRangesRC = NIL_RTRCPTR;
                 LogRel(("CPUM: cpumR3MsrRangesEnsureSpace: MMR3HyperRealloc failed. rc=%Rrc\n", rc));
                 return NULL;
             }
@@ -427,10 +431,9 @@ static PCPUMMSRRANGE cpumR3MsrRangesEnsureSpace(PVM pVM, PCPUMMSRRANGE *ppaMsrRa
 
     if (pVM)
     {
-        /* Update R0 and RC pointers. */
+        /* Update the R0 pointer. */
         Assert(ppaMsrRanges == &pVM->cpum.s.GuestInfo.paMsrRangesR3);
         pVM->cpum.s.GuestInfo.paMsrRangesR0 = MMHyperR3ToR0(pVM, *ppaMsrRanges);
-        pVM->cpum.s.GuestInfo.paMsrRangesRC = MMHyperR3ToRC(pVM, *ppaMsrRanges);
     }
 
     return *ppaMsrRanges;
@@ -1026,8 +1029,6 @@ int cpumR3DbGetCpuInfo(const char *pszName, PCPUMINFO pInfo)
     pInfo->uScalableBusFreq     = pEntry->uScalableBusFreq;
     pInfo->paCpuIdLeavesR0      = NIL_RTR0PTR;
     pInfo->paMsrRangesR0        = NIL_RTR0PTR;
-    pInfo->paCpuIdLeavesRC      = NIL_RTRCPTR;
-    pInfo->paMsrRangesRC        = NIL_RTRCPTR;
 
     /*
      * Copy the MSR range.

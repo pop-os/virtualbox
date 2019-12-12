@@ -402,40 +402,33 @@ int GuestFile::i_closeFile(int *prcGuest)
     return vrc;
 }
 
-/* static */
-Utf8Str GuestFile::i_guestErrorToString(int rcGuest)
+/* static */ const char *GuestFile::i_guestVrcToString(int rcGuest)
 {
-    Utf8Str strError;
-
     /** @todo pData->u32Flags: int vs. uint32 -- IPRT errors are *negative* !!! */
     switch (rcGuest)
     {
-        case VERR_ACCESS_DENIED:
-            strError += Utf8StrFmt(tr("Access denied"));
-            break;
-
-        case VERR_ALREADY_EXISTS:
-            strError += Utf8StrFmt(tr("File already exists"));
-            break;
-
-        case VERR_FILE_NOT_FOUND:
-            strError += Utf8StrFmt(tr("File not found"));
-            break;
-
-        case VERR_NET_HOST_NOT_FOUND:
-            strError += Utf8StrFmt(tr("Host name not found"));
-            break;
-
-        case VERR_SHARING_VIOLATION:
-            strError += Utf8StrFmt(tr("Sharing violation"));
-            break;
-
-        default:
-            strError += Utf8StrFmt("%Rrc", rcGuest);
-            break;
+        case VERR_ACCESS_DENIED:        return tr("Access denied");
+        case VERR_ALREADY_EXISTS:       return tr("File already exists");
+        case VERR_FILE_NOT_FOUND:       return tr("File not found");
+        case VERR_NET_HOST_NOT_FOUND:   return tr("Host name not found");
+        case VERR_SHARING_VIOLATION:    return tr("Sharing violation");
+        default:                        return RTErrGetDefine(rcGuest);
     }
+}
 
-    return strError;
+/**
+ * @todo r=bird: This is an absolutely cryptic way of reporting errors.  You may convert
+ *               this to a const char * returning function for explaining rcGuest and
+ *               use that as part of a _proper_ error message.  This alone extremely
+ *               user unfriendly. E.g. which file is not found? One of the source files,
+ *               a destination file, what are you referring to?!?
+ *
+ *               I've addressed one of these that annoyed me, you can do the rest of them.
+ */
+/* static */ Utf8Str GuestFile::i_guestErrorToString(int rcGuest)
+{
+    /** @todo pData->u32Flags: int vs. uint32 -- IPRT errors are *negative* !!! */
+    return i_guestVrcToString(rcGuest);
 }
 
 int GuestFile::i_onFileNotify(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLHOSTCALLBACK pSvcCbData)
@@ -1153,6 +1146,12 @@ int GuestFile::i_waitForRead(GuestWaitEvent *pEvent, uint32_t uTimeoutMS,
     return vrc;
 }
 
+/**
+ * Undocumented, use with great care.
+ *
+ * @note Similar code in GuestProcess::i_waitForStatusChange() and
+ *       GuestSession::i_waitForStatusChange().
+ */
 int GuestFile::i_waitForStatusChange(GuestWaitEvent *pEvent, uint32_t uTimeoutMS,
                                      FileStatus_T *pFileStatus, int *prcGuest)
 {
@@ -1193,6 +1192,18 @@ int GuestFile::i_waitForStatusChange(GuestWaitEvent *pEvent, uint32_t uTimeoutMS
         if (prcGuest)
             *prcGuest = (int)lGuestRc;
     }
+    /* waitForEvent may also return VERR_GSTCTL_GUEST_ERROR like we do above, so make prcGuest is set. */
+    /** @todo r=bird: Andy, you seem to have forgotten this scenario.  Showed up occasionally when
+     * using the wrong password with a copyto command in a debug  build on windows, error info
+     * contained "Unknown Status -858993460 (0xcccccccc)".  As you know windows fills the stack frames
+     * with 0xcccccccc in debug builds to highlight use of uninitialized data, so that's what happened
+     * here.  It's actually good you didn't initialize lGuest, as it would be heck to find otherwise.
+     *
+     * I'm still not very impressed with the error managment or the usuefullness of the documentation
+     * in this code, though the latter is getting better! */
+    else if (vrc == VERR_GSTCTL_GUEST_ERROR && prcGuest)
+        *prcGuest = pEvent->GuestResult();
+    Assert(vrc != VERR_GSTCTL_GUEST_ERROR || !prcGuest || *prcGuest != (int)0xcccccccc);
 
     return vrc;
 }
@@ -1226,7 +1237,7 @@ int GuestFile::i_waitForWrite(GuestWaitEvent *pEvent,
     return vrc;
 }
 
-int GuestFile::i_writeData(uint32_t uTimeoutMS, void *pvData, uint32_t cbData,
+int GuestFile::i_writeData(uint32_t uTimeoutMS, const void *pvData, uint32_t cbData,
                            uint32_t *pcbWritten)
 {
     AssertPtrReturn(pvData, VERR_INVALID_POINTER);
@@ -1262,7 +1273,7 @@ int GuestFile::i_writeData(uint32_t uTimeoutMS, void *pvData, uint32_t cbData,
     HGCMSvcSetU32(&paParms[i++], pEvent->ContextID());
     HGCMSvcSetU32(&paParms[i++], mObjectID /* File handle */);
     HGCMSvcSetU32(&paParms[i++], cbData /* Size (in bytes) to write */);
-    HGCMSvcSetPv(&paParms[i++], pvData, cbData);
+    HGCMSvcSetPv (&paParms[i++], unconst(pvData), cbData);
 
     alock.release(); /* Drop write lock before sending. */
 
@@ -1290,7 +1301,7 @@ int GuestFile::i_writeData(uint32_t uTimeoutMS, void *pvData, uint32_t cbData,
 }
 
 int GuestFile::i_writeDataAt(uint64_t uOffset, uint32_t uTimeoutMS,
-                             void *pvData, uint32_t cbData, uint32_t *pcbWritten)
+                             const void *pvData, uint32_t cbData, uint32_t *pcbWritten)
 {
     AssertPtrReturn(pvData, VERR_INVALID_POINTER);
     AssertReturn(cbData, VERR_INVALID_PARAMETER);
@@ -1326,7 +1337,7 @@ int GuestFile::i_writeDataAt(uint64_t uOffset, uint32_t uTimeoutMS,
     HGCMSvcSetU32(&paParms[i++], mObjectID /* File handle */);
     HGCMSvcSetU64(&paParms[i++], uOffset /* Offset where to starting writing */);
     HGCMSvcSetU32(&paParms[i++], cbData /* Size (in bytes) to write */);
-    HGCMSvcSetPv(&paParms[i++], pvData, cbData);
+    HGCMSvcSetPv (&paParms[i++], unconst(pvData), cbData);
 
     alock.release(); /* Drop write lock before sending. */
 
@@ -1363,7 +1374,7 @@ HRESULT GuestFile::close()
     LogFlowThisFuncEnter();
 
     /* Close file on guest. */
-    int rcGuest;
+    int rcGuest = VERR_IPE_UNINITIALIZED_STATUS;
     int vrc = i_closeFile(&rcGuest);
     /* On failure don't return here, instead do all the cleanup
      * work first and then return an error. */
@@ -1393,7 +1404,8 @@ HRESULT GuestFile::queryInfo(ComPtr<IFsObjInfo> &aObjInfo)
 
     HRESULT hr = S_OK;
 
-    GuestFsObjData fsObjData; int rcGuest;
+    GuestFsObjData fsObjData;
+    int rcGuest = VERR_IPE_UNINITIALIZED_STATUS;
     int vrc = i_queryInfo(fsObjData, &rcGuest);
     if (RT_SUCCESS(vrc))
     {
@@ -1429,7 +1441,8 @@ HRESULT GuestFile::querySize(LONG64 *aSize)
 
     HRESULT hr = S_OK;
 
-    GuestFsObjData fsObjData; int rcGuest;
+    GuestFsObjData fsObjData;
+    int rcGuest = VERR_IPE_UNINITIALIZED_STATUS;
     int vrc = i_queryInfo(fsObjData, &rcGuest);
     if (RT_SUCCESS(vrc))
     {
@@ -1652,12 +1665,15 @@ HRESULT GuestFile::write(const std::vector<BYTE> &aData, ULONG aTimeoutMS, ULONG
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
+    if (aData.size() == 0)
+        return setError(E_INVALIDARG, tr("No data to write specified"));
+
     LogFlowThisFuncEnter();
 
     HRESULT hr = S_OK;
 
-    uint32_t cbData = (uint32_t)aData.size();
-    void *pvData = cbData > 0? (void *)&aData.front(): NULL;
+    const uint32_t cbData = (uint32_t)aData.size();
+    const void *pvData = (void *)&aData.front();
     int vrc = i_writeData(aTimeoutMS, pvData, cbData, (uint32_t*)aWritten);
     if (RT_FAILURE(vrc))
         hr = setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("Writing %zubytes to file \"%s\" failed: %Rrc"),
@@ -1672,12 +1688,15 @@ HRESULT GuestFile::writeAt(LONG64 aOffset, const std::vector<BYTE> &aData, ULONG
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
+    if (aData.size() == 0)
+        return setError(E_INVALIDARG, tr("No data to write at specified"));
+
     LogFlowThisFuncEnter();
 
     HRESULT hr = S_OK;
 
-    uint32_t cbData = (uint32_t)aData.size();
-    void *pvData = cbData > 0? (void *)&aData.front(): NULL;
+    const uint32_t cbData = (uint32_t)aData.size();
+    const void *pvData = (void *)&aData.front();
     int vrc = i_writeDataAt(aOffset, aTimeoutMS, pvData, cbData, (uint32_t*)aWritten);
     if (RT_FAILURE(vrc))
         hr = setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("Writing %zubytes to file \"%s\" (at offset %RU64) failed: %Rrc"),

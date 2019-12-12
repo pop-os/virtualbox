@@ -27,11 +27,14 @@ class QILabel;
 
 /* GUI includes: */
 #include "UIDialogPanel.h"
-#include "QIWithRetranslateUI.h"
 
 class UIVisoCreatorOptionsPanel : public UIDialogPanel
 {
     Q_OBJECT;
+
+signals:
+
+    void sigShowHiddenObjects(bool fShow);
 
 public:
 
@@ -39,10 +42,6 @@ public:
     ~UIVisoCreatorOptionsPanel();
     virtual QString panelName() const /* override */;
     void setShowHiddenbjects(bool fShow);
-
-signals:
-
-    void sigShowHiddenObjects(bool fShow);
 
 protected:
 

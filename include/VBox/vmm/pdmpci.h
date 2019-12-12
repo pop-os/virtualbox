@@ -155,7 +155,6 @@ typedef struct PDMIPCIRAWUP
      *
      * @thread  EMT thread.
      */
-
     DECLR3CALLBACKMEMBER(int, pfnPioRead, (PPDMIPCIRAWUP pInterface,
                                            RTIOPORT      uPort,
                                            uint32_t     *puValue,
@@ -163,16 +162,19 @@ typedef struct PDMIPCIRAWUP
 
 
     /**
-     * Request MMIO write. This callback is only called if driver wants to receive MMIO via
-     * pu32Flags argument of pfnPciDeviceConstructStart().
+     * Request MMIO write.
+     *
+     * This callback is only called if driver wants to receive MMIO via pu32Flags
+     * argument of pfnPciDeviceConstructStart().
      *
      * @returns status code
      * @param   pInterface          Pointer to this interface structure.
      * @param   Address             Guest physical address.
-     *                              @todo Why is this documented as guest physical
-     *                              address and given a host ring-0 address type?
      * @param   pvValue             Address of value to write.
      * @param   cb                  Access width.
+     *
+     * @todo Why is this @a Address documented as guest physical
+     *       address and given a host ring-0 address type?
      *
      * @thread  EMT thread.
      */
@@ -187,14 +189,14 @@ typedef struct PDMIPCIRAWUP
      * @returns status code
      * @param   pInterface          Pointer to this interface structure.
      * @param   Address             Guest physical address.
-     *                              @todo Why is this documented as guest physical
-     *                              address and given a host ring-0 address type?
      * @param   pvValue             Place to store read value.
      * @param   cb                  Access width.
      *
+     * @todo Why is this @a Address documented as guest physical
+     *       address and given a host ring-0 address type?
+     *
      * @thread  EMT thread.
      */
-
     DECLR3CALLBACKMEMBER(int, pfnMmioRead, (PPDMIPCIRAWUP pInterface,
                                             RTR0PTR       Address,
                                             void         *pvValue,
@@ -351,7 +353,7 @@ PCIRAWR0DECL(int)  PciRawR0Init(void);
 /**
  * Process request (in R0).
  */
-PCIRAWR0DECL(int)  PciRawR0ProcessReq(PGVM pGVM, PVM pVM, PSUPDRVSESSION pSession, PPCIRAWSENDREQ pReq);
+PCIRAWR0DECL(int)  PciRawR0ProcessReq(PGVM pGVM, PSUPDRVSESSION pSession, PPCIRAWSENDREQ pReq);
 /**
  * Terminate R0 PCI module.
  */
@@ -360,12 +362,12 @@ PCIRAWR0DECL(void) PciRawR0Term(void);
 /**
  * Per-VM R0 module init.
  */
-PCIRAWR0DECL(int)  PciRawR0InitVM(PGVM pGVM, PVM pVM);
+PCIRAWR0DECL(int)  PciRawR0InitVM(PGVM pGVM);
 
 /**
  * Per-VM R0 module termination routine.
  */
-PCIRAWR0DECL(void)  PciRawR0TermVM(PGVM pGVM, PVM pVM);
+PCIRAWR0DECL(void)  PciRawR0TermVM(PGVM pGVM);
 
 /**
  * Flags returned by pfnPciDeviceConstructStart(), to notify device

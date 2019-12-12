@@ -26,16 +26,9 @@
 #include <iprt/cpp/utils.h>
 #include <iprt/string.h>
 
-/** Exit with a fatal error. */
-#define VBClFatalError(format) \
-do { \
-    char *pszMessage = RTStrAPrintf2 format; \
-    LogRel(format); \
-    vbclFatalError(pszMessage); \
-} while(0)
-
-/** Exit with a fatal error. */
-extern DECLNORETURN(void) vbclFatalError(char *pszMessage);
+void VBClLogInfo(const char *pszFormat, ...);
+void VBClLogError(const char *pszFormat, ...);
+void VBClLogFatalError(const char *pszFormat, ...);
 
 /** Call clean-up for the current service and exit. */
 extern void VBClCleanUp(bool fExit = true);
@@ -44,6 +37,8 @@ extern void VBClCleanUp(bool fExit = true);
  * service per invocation. */
 struct VBCLSERVICE
 {
+    /** Returns the (friendly) name of the service. */
+    const char *(*getName)(void);
     /** Get the services default path to pidfile, relative to $HOME */
     /** @todo Should this also have a component relative to the X server number?
      */
@@ -71,7 +66,7 @@ DECLINLINE(int) VBClServiceDefaultHandler(struct VBCLSERVICE **pSelf)
  * process/X11 exits. */
 DECLINLINE(void) VBClServiceDefaultCleanup(struct VBCLSERVICE **ppInterface)
 {
-    NOREF(ppInterface);
+    RT_NOREF(ppInterface);
 }
 
 extern struct VBCLSERVICE **VBClGetClipboardService();

@@ -22,7 +22,7 @@
 #include "QILineEdit.h"
 #include "UIIconPool.h"
 #include "UIEmptyFilePathSelector.h"
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 
 /* Global includes */
 #include <iprt/assert.h>
@@ -61,7 +61,7 @@ UIEmptyFilePathSelector::UIEmptyFilePathSelector (QWidget *aParent /* = NULL */)
     mSelectButton->setAutoRaise(true);
 #endif
     mSelectButton->setIcon(UIIconPool::iconSet(":/select_file_16px.png", ":/select_file_disabled_16px.png"));
-    connect(mSelectButton, SIGNAL(clicked()), this, SLOT(choose()));
+    connect(mSelectButton, &QToolButton::clicked, this, &UIEmptyFilePathSelector::choose);
     mMainLayout->addWidget(mSelectButton);
 
     setEditable (false);
@@ -110,6 +110,7 @@ void UIEmptyFilePathSelector::setEditable (bool aOn)
     if (aOn)
     {
         mPathWgt = mLineEdit = new QILineEdit (this);
+        setFocusProxy(mLineEdit);
         connect (mLineEdit, SIGNAL (textChanged (const QString&)),
                  this, SLOT (textChanged (const QString&)));
     }
@@ -215,11 +216,18 @@ void UIEmptyFilePathSelector::choose()
 {
     QString path = mPath;
 
+    /* Check whether we have file-name information available: */
+    const QString strFileName = QFileInfo(path).fileName();
+
     /* Preparing initial directory. */
     QString initDir = path.isNull() ? mHomeDir :
         QIFileDialog::getFirstExistingDir (path);
     if (initDir.isNull())
         initDir = mHomeDir;
+
+    /* Append file-name information if any: */
+    if (!strFileName.isEmpty())
+        initDir = QDir(initDir).absoluteFilePath(strFileName);
 
     switch (mMode)
     {
@@ -252,4 +260,3 @@ void UIEmptyFilePathSelector::textChanged (const QString& aPath)
         emit pathChanged (mPath);
     }
 }
-

@@ -27,6 +27,7 @@
 
 #include <iprt/assert.h>
 #include <iprt/mem.h>
+#include <iprt/path.h>
 
 #include <VBox/vmm/pgm.h> /* required by DevVGA.h */
 #include <VBoxVideo.h> /* required by DevVGA.h */
@@ -288,7 +289,7 @@ static int vmsvga3dSurfaceUpdateHeapBuffers(PVMSVGA3DSTATE pState, PVMSVGA3DSURF
         for (uint32_t iFace = 0; iFace < pSurface->cFaces; iFace++)
         {
             Assert(pSurface->faces[iFace].numMipLevels <= pSurface->faces[0].numMipLevels);
-            PVMSVGA3DMIPMAPLEVEL pMipmapLevel = &pSurface->pMipmapLevels[iFace * pSurface->faces[0].numMipLevels];
+            PVMSVGA3DMIPMAPLEVEL pMipmapLevel = &pSurface->paMipmapLevels[iFace * pSurface->faces[0].numMipLevels];
             for (uint32_t i = 0; i < pSurface->faces[iFace].numMipLevels; i++, pMipmapLevel++)
             {
                 if (VMSVGA3DSURFACE_HAS_HW_SURFACE(pSurface))
@@ -339,19 +340,14 @@ static int vmsvga3dSurfaceUpdateHeapBuffers(PVMSVGA3DSTATE pState, PVMSVGA3DSURF
                             {
                                 if (pSurface->bounce.pTexture)
                                 {
-                                    if (    !pSurface->fDirty
-                                        &&  RT_BOOL(fSwitchFlags & SVGA3D_SURFACE_HINT_RENDERTARGET)
-                                        &&  i == 0 /* only the first time */)
+                                    if (   !pSurface->fDirty
+                                        && RT_BOOL(fSwitchFlags & SVGA3D_SURFACE_HINT_RENDERTARGET))
                                     {
                                         /** @todo stricter checks for associated context */
                                         uint32_t cid = pSurface->idAssociatedContext;
-                                        if (   cid >= pState->cContexts
-                                            || pState->papContexts[cid]->id != cid)
-                                        {
-                                            Log(("vmsvga3dSurfaceUpdateHeapBuffers: invalid context id (%x - %x)!\n", cid, (cid >= pState->cContexts) ? -1 : pState->papContexts[cid]->id));
-                                            AssertFailedReturn(VERR_INVALID_PARAMETER);
-                                        }
-                                        PVMSVGA3DCONTEXT pContext = pState->papContexts[cid];
+                                        PVMSVGA3DCONTEXT pContext;
+                                        int rc = vmsvga3dContextFromCid(pState, cid, &pContext);
+                                        AssertRCReturn(rc, rc);
 
                                         IDirect3DSurface9 *pDst = NULL;
                                         hr = pSurface->bounce.pTexture->GetSurfaceLevel(i, &pDst);
@@ -515,13 +511,13 @@ static int vmsvga3dSurfaceUpdateHeapBuffers(PVMSVGA3DSTATE pState, PVMSVGA3DSURF
 /**
  * Updates the heap buffers for all surfaces or one specific one.
  *
- * @param   pThis               The VGA device instance data.
- * @param   sid                 The surface ID, UINT32_MAX if all.
+ * @param   pThisCC     The VGA/VMSVGA state for ring-3.
+ * @param   sid         The surface ID, UINT32_MAX if all.
  * @thread  VMSVGAFIFO
  */
-void vmsvga3dUpdateHeapBuffersForSurfaces(PVGASTATE pThis, uint32_t sid)
+void vmsvga3dUpdateHeapBuffersForSurfaces(PVGASTATECC pThisCC, uint32_t sid)
 {
-    PVMSVGA3DSTATE pState = pThis->svga.p3dState;
+    PVMSVGA3DSTATE pState = pThisCC->svga.p3dState;
     AssertReturnVoid(pState);
 
     if (sid == UINT32_MAX)
@@ -1718,12 +1714,12 @@ static void vmsvga3dInfoContextWorkerOne(PCDBGFINFOHLP pHlp, PVMSVGA3DCONTEXT pC
 }
 
 
-void vmsvga3dInfoContextWorker(PVGASTATE pThis, PCDBGFINFOHLP pHlp, uint32_t cid, bool fVerbose)
+void vmsvga3dInfoContextWorker(PVGASTATECC pThisCC, PCDBGFINFOHLP pHlp, uint32_t cid, bool fVerbose)
 {
     /* Warning! This code is currently racing papContexts reallocation! */
     /* Warning! This code is currently racing papContexts reallocation! */
     /* Warning! This code is currently racing papContexts reallocation! */
-    VMSVGA3DSTATE volatile *pState = pThis->svga.p3dState;
+    VMSVGA3DSTATE volatile *pState = pThisCC->svga.p3dState;
     if (pState)
     {
         /*
@@ -1802,10 +1798,40 @@ static DECLCALLBACK(int) vmsvga3dInfoSharedObjectCallback(PAVLU32NODECORE pNode,
 }
 #endif /* VMSVGA3D_DIRECT3D */
 
+#ifndef RT_OS_WINDOWS
+typedef uint16_t WORD;
+typedef uint32_t DWORD;
+typedef int32_t LONG;
+
+#pragma pack(2)
+typedef struct
+{
+    WORD    bfType;
+    DWORD   bfSize;
+    WORD    bfReserved1;
+    WORD    bfReserved2;
+    DWORD   bfOffBits;
+} BITMAPFILEHEADER, *PBITMAPFILEHEADER, *LPBITMAPFILEHEADER;
+
+typedef struct
+{
+    DWORD biSize;
+    LONG  biWidth;
+    LONG  biHeight;
+    WORD  biPlanes;
+    WORD  biBitCount;
+    DWORD biCompression;
+    DWORD biSizeImage;
+    LONG  biXPelsPerMeter;
+    LONG  biYPelsPerMeter;
+    DWORD biClrUsed;
+    DWORD biClrImportant;
+} BITMAPINFOHEADER, *PBITMAPINFOHEADER, *LPBITMAPINFOHEADER;
+#pragma pack()
+#endif
 
 static int vmsvga3dInfoBmpWrite(const char *pszFilename, const void *pvBits, int w, int h, uint32_t cbPixel, uint32_t u32Mask)
 {
-#ifdef RT_OS_WINDOWS
     if (   cbPixel != 4
         && cbPixel != 2
         && cbPixel != 1)
@@ -1818,6 +1844,7 @@ static int vmsvga3dInfoBmpWrite(const char *pszFilename, const void *pvBits, int
     if (!f)
         return VERR_FILE_NOT_FOUND;
 
+#ifdef RT_OS_WINDOWS
     if (cbPixel == 4)
     {
         BITMAPV4HEADER bh;
@@ -1854,9 +1881,10 @@ static int vmsvga3dInfoBmpWrite(const char *pszFilename, const void *pvBits, int
         fwrite(&bh, 1, sizeof(bh), f);
     }
     else
+#endif
     {
         BITMAPFILEHEADER bf;
-        bf.bfType = 'MB';
+        bf.bfType = 0x4D42; //'MB'
         bf.bfSize = sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER) + cbBitmap;
         bf.bfReserved1 = 0;
         bf.bfReserved2 = 0;
@@ -1918,44 +1946,42 @@ static int vmsvga3dInfoBmpWrite(const char *pszFilename, const void *pvBits, int
     fclose(f);
 
     return VINF_SUCCESS;
-#else /* !RT_OS_WINDOWS */
-    RT_NOREF6(pszFilename, pvBits, w, h, cbPixel, u32Mask);
-    return VERR_NOT_SUPPORTED;
-#endif
 }
 
 void vmsvga3dInfoSurfaceToBitmap(PCDBGFINFOHLP pHlp, PVMSVGA3DSURFACE pSurface,
                                  const char *pszPath, const char *pszNamePrefix, const char *pszNameSuffix)
 {
     static volatile uint32_t sSeq = 0;
-
-    if (!pSurface->pMipmapLevels[0].pSurfaceData)
-        return;
-
     const uint32_t u32Seq = ASMAtomicIncU32(&sSeq);
 
-    char szFilepath[4096];
-    RTStrPrintf(szFilepath, sizeof(szFilepath),
-                "%s\\%s-%u-sid%u%s.bmp",
-                pszPath, pszNamePrefix, u32Seq, pSurface->id, pszNameSuffix);
+    for (uint32_t i = 0; i < pSurface->faces[0].numMipLevels; ++i)
+    {
+        if (!pSurface->paMipmapLevels[i].pSurfaceData)
+            continue;
 
-    const uint32_t cbPixel = vmsvga3dSurfaceFormatSize(pSurface->format, NULL, NULL);
-    int rc = vmsvga3dInfoBmpWrite(szFilepath,
-                                  pSurface->pMipmapLevels[0].pSurfaceData,
-                                  pSurface->pMipmapLevels[0].mipmapSize.width,
-                                  pSurface->pMipmapLevels[0].mipmapSize.height,
-                                  cbPixel, 0xFFFFFFFF);
-    if (RT_SUCCESS(rc))
-    {
-        Log(("Bitmap: %s\n", szFilepath));
-        if (pHlp)
-            pHlp->pfnPrintf(pHlp, "Bitmap: %s\n", szFilepath);
-    }
-    else
-    {
-        Log(("Bitmap: %s %Rrc\n", szFilepath, rc));
-        if (pHlp)
-            pHlp->pfnPrintf(pHlp, "Bitmap: %s %Rrc\n", szFilepath, rc);
+        char szFilepath[4096];
+        RTStrPrintf(szFilepath, sizeof(szFilepath),
+                    "%s" RTPATH_SLASH_STR "%s-%u-sid%u-%u%s.bmp",
+                    pszPath, pszNamePrefix, u32Seq, pSurface->id, i, pszNameSuffix);
+
+        const uint32_t cbPixel = vmsvga3dSurfaceFormatSize(pSurface->format, NULL, NULL);
+        int rc = vmsvga3dInfoBmpWrite(szFilepath,
+                                      pSurface->paMipmapLevels[i].pSurfaceData,
+                                      pSurface->paMipmapLevels[i].mipmapSize.width,
+                                      pSurface->paMipmapLevels[i].mipmapSize.height,
+                                      cbPixel, 0xFFFFFFFF);
+        if (RT_SUCCESS(rc))
+        {
+            Log(("Bitmap: %s\n", szFilepath));
+            if (pHlp)
+                pHlp->pfnPrintf(pHlp, "Bitmap: %s\n", szFilepath);
+        }
+        else
+        {
+            Log(("Bitmap: %s %Rrc\n", szFilepath, rc));
+            if (pHlp)
+                pHlp->pfnPrintf(pHlp, "Bitmap: %s %Rrc\n", szFilepath, rc);
+        }
     }
 
 #if 0
@@ -1964,9 +1990,9 @@ void vmsvga3dInfoSurfaceToBitmap(PCDBGFINFOHLP pHlp, PVMSVGA3DSURFACE pSurface,
                 "%s\\%s-%u-sid%u%s-a.bmp",
                 pszPath, pszNamePrefix, u32Seq, pSurface->id, pszNameSuffix);
     vmsvga3dInfoBmpWrite(szFilepath,
-                         pSurface->pMipmapLevels[0].pSurfaceData,
-                         pSurface->pMipmapLevels[0].mipmapSize.width,
-                         pSurface->pMipmapLevels[0].mipmapSize.height,
+                         pSurface->paMipmapLevels[0].pSurfaceData,
+                         pSurface->paMipmapLevels[0].mipmapSize.width,
+                         pSurface->paMipmapLevels[0].mipmapSize.height,
                          cbPixel, 0xFF000000);
 #endif
 }
@@ -2000,14 +2026,14 @@ static void vmsvga3dInfoSurfaceWorkerOne(PCDBGFINFOHLP pHlp, PVMSVGA3DSURFACE pS
         {
             pHlp->pfnPrintf(pHlp, "Face #%u, mipmap #%u[%u]:%s  cx=%u, cy=%u, cz=%u, cbSurface=%#x, cbPitch=%#x",
                             iFace, iLevel, iMipmap, iMipmap < 10 ? " " : "",
-                            pSurface->pMipmapLevels[iMipmap].mipmapSize.width,
-                            pSurface->pMipmapLevels[iMipmap].mipmapSize.height,
-                            pSurface->pMipmapLevels[iMipmap].mipmapSize.depth,
-                            pSurface->pMipmapLevels[iMipmap].cbSurface,
-                            pSurface->pMipmapLevels[iMipmap].cbSurfacePitch);
-            if (pSurface->pMipmapLevels[iMipmap].pSurfaceData)
-                pHlp->pfnPrintf(pHlp, " pvData=%p", pSurface->pMipmapLevels[iMipmap].pSurfaceData);
-            if (pSurface->pMipmapLevels[iMipmap].fDirty)
+                            pSurface->paMipmapLevels[iMipmap].mipmapSize.width,
+                            pSurface->paMipmapLevels[iMipmap].mipmapSize.height,
+                            pSurface->paMipmapLevels[iMipmap].mipmapSize.depth,
+                            pSurface->paMipmapLevels[iMipmap].cbSurface,
+                            pSurface->paMipmapLevels[iMipmap].cbSurfacePitch);
+            if (pSurface->paMipmapLevels[iMipmap].pSurfaceData)
+                pHlp->pfnPrintf(pHlp, " pvData=%p", pSurface->paMipmapLevels[iMipmap].pSurfaceData);
+            if (pSurface->paMipmapLevels[iMipmap].fDirty)
                 pHlp->pfnPrintf(pHlp, " dirty");
             pHlp->pfnPrintf(pHlp, "\n");
         }
@@ -2050,24 +2076,24 @@ static void vmsvga3dInfoSurfaceWorkerOne(PCDBGFINFOHLP pHlp, PVMSVGA3DSURFACE pS
         {
             uint32_t iMipmap = iFace * pSurface->faces[0].numMipLevels;
             for (uint32_t iLevel = 0; iLevel < pSurface->faces[iFace].numMipLevels; iLevel++, iMipmap++)
-                if (pSurface->pMipmapLevels[iMipmap].pSurfaceData)
+                if (pSurface->paMipmapLevels[iMipmap].pSurfaceData)
                 {
-                    if (ASMMemIsZero(pSurface->pMipmapLevels[iMipmap].pSurfaceData,
-                                     pSurface->pMipmapLevels[iMipmap].cbSurface))
+                    if (ASMMemIsZero(pSurface->paMipmapLevels[iMipmap].pSurfaceData,
+                                     pSurface->paMipmapLevels[iMipmap].cbSurface))
                         pHlp->pfnPrintf(pHlp, "--- Face #%u, mipmap #%u[%u]: all zeros ---\n", iFace, iLevel, iMipmap);
                     else
                     {
                         pHlp->pfnPrintf(pHlp, "--- Face #%u, mipmap #%u[%u]: cx=%u, cy=%u, cz=%u ---\n",
                                         iFace, iLevel, iMipmap,
-                                        pSurface->pMipmapLevels[iMipmap].mipmapSize.width,
-                                        pSurface->pMipmapLevels[iMipmap].mipmapSize.height,
-                                        pSurface->pMipmapLevels[iMipmap].mipmapSize.depth);
+                                        pSurface->paMipmapLevels[iMipmap].mipmapSize.width,
+                                        pSurface->paMipmapLevels[iMipmap].mipmapSize.height,
+                                        pSurface->paMipmapLevels[iMipmap].mipmapSize.depth);
                         vmsvga3dAsciiPrint(vmsvga3dAsciiPrintlnInfo, (void *)pHlp,
-                                           pSurface->pMipmapLevels[iMipmap].pSurfaceData,
-                                           pSurface->pMipmapLevels[iMipmap].cbSurface,
-                                           pSurface->pMipmapLevels[iMipmap].mipmapSize.width,
-                                           pSurface->pMipmapLevels[iMipmap].mipmapSize.height,
-                                           pSurface->pMipmapLevels[iMipmap].cbSurfacePitch,
+                                           pSurface->paMipmapLevels[iMipmap].pSurfaceData,
+                                           pSurface->paMipmapLevels[iMipmap].cbSurface,
+                                           pSurface->paMipmapLevels[iMipmap].mipmapSize.width,
+                                           pSurface->paMipmapLevels[iMipmap].mipmapSize.height,
+                                           pSurface->paMipmapLevels[iMipmap].cbSurfacePitch,
                                            pSurface->format,
                                            fInvY,
                                            cxAscii, cxAscii * 3 / 4);
@@ -2077,12 +2103,13 @@ static void vmsvga3dInfoSurfaceWorkerOne(PCDBGFINFOHLP pHlp, PVMSVGA3DSURFACE pS
 }
 
 
-void vmsvga3dInfoSurfaceWorker(PVGASTATE pThis, PCDBGFINFOHLP pHlp, uint32_t sid, bool fVerbose, uint32_t cxAscii, bool fInvY, const char *pszBitmapPath)
+void vmsvga3dInfoSurfaceWorker(PPDMDEVINS pDevIns, PVGASTATE pThis, PVGASTATECC pThisCC, PCDBGFINFOHLP pHlp, uint32_t sid,
+                               bool fVerbose, uint32_t cxAscii, bool fInvY, const char *pszBitmapPath)
 {
     /* Warning! This code is currently racing papSurfaces reallocation! */
     /* Warning! This code is currently racing papSurfaces reallocation! */
     /* Warning! This code is currently racing papSurfaces reallocation! */
-    VMSVGA3DSTATE volatile *pState = pThis->svga.p3dState;
+    VMSVGA3DSTATE volatile *pState = pThisCC->svga.p3dState;
     if (pState)
     {
         /*
@@ -2096,7 +2123,7 @@ void vmsvga3dInfoSurfaceWorker(PVGASTATE pThis, PCDBGFINFOHLP pHlp, uint32_t sid
                 if (pSurface && pSurface->id == sid)
                 {
                     if (fVerbose)
-                        vmsvga3dSurfaceUpdateHeapBuffersOnFifoThread(pThis, sid);
+                        vmsvgaR33dSurfaceUpdateHeapBuffersOnFifoThread(pDevIns, pThis, pThisCC, sid);
                     vmsvga3dInfoSurfaceWorkerOne(pHlp, pSurface, fVerbose, cxAscii, fInvY);
                     if (pszBitmapPath && *pszBitmapPath)
                         vmsvga3dInfoSurfaceToBitmap(pHlp, pSurface, pszBitmapPath, "info", "");
@@ -2111,7 +2138,7 @@ void vmsvga3dInfoSurfaceWorker(PVGASTATE pThis, PCDBGFINFOHLP pHlp, uint32_t sid
              * Dump all.
              */
             if (fVerbose)
-                vmsvga3dSurfaceUpdateHeapBuffersOnFifoThread(pThis, UINT32_MAX);
+                vmsvgaR33dSurfaceUpdateHeapBuffersOnFifoThread(pDevIns, pThis, pThisCC, UINT32_MAX);
             uint32_t cSurfaces = pState->cSurfaces;
             pHlp->pfnPrintf(pHlp, "cSurfaces=%d\n", cSurfaces);
             for (sid = 0; sid < cSurfaces; sid++)

@@ -19,11 +19,11 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
-#define LOG_GROUP LOG_GROUP_PDM//_CRITSECT
+#define LOG_GROUP LOG_GROUP_PDM_CRITSECT
 #include "PDMInternal.h"
 #include <VBox/vmm/pdmcritsect.h>
 #include <VBox/vmm/pdmcritsectrw.h>
-#include <VBox/vmm/vm.h>
+#include <VBox/vmm/vmcc.h>
 #include <iprt/errcore.h>
 
 #include <VBox/log.h>
@@ -37,7 +37,7 @@
  *
  * @param   pVCpu         The cross context virtual CPU structure.
  */
-VMM_INT_DECL(void) PDMCritSectBothFF(PVMCPU pVCpu)
+VMM_INT_DECL(void) PDMCritSectBothFF(PVMCPUCC pVCpu)
 {
     uint32_t i;
     Assert(   pVCpu->pdm.s.cQueuedCritSectLeaves       > 0

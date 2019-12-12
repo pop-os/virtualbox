@@ -280,16 +280,17 @@ RTEXITCODE handleCreateVM(HandlerArg *a)
                                         machine.asOutParam()));
 
         CHECK_ERROR_BREAK(machine, SaveSettings());
-        if (fRegister)
-        {
-            CHECK_ERROR_BREAK(a->virtualBox, RegisterMachine(machine));
-        }
         if (fDefault)
         {
             /* ApplyDefaults assumes the machine is already registered */
             CHECK_ERROR_BREAK(machine, ApplyDefaults(bstrDefaultFlags.raw()));
             CHECK_ERROR_BREAK(machine, SaveSettings());
         }
+        if (fRegister)
+        {
+            CHECK_ERROR_BREAK(a->virtualBox, RegisterMachine(machine));
+        }
+
         Bstr uuid;
         CHECK_ERROR_BREAK(machine, COMGETTER(Id)(uuid.asOutParam()));
         Bstr settingsFile;
@@ -540,17 +541,17 @@ RTEXITCODE handleCloneVM(HandlerArg *a)
                 if (!pszSrcName)
                     pszSrcName = ValueUnion.psz;
                 else
-                    return errorSyntax(USAGE_CLONEVM, "Invalid parameter '%s'", ValueUnion.psz);
+                    return errorSyntax("Invalid parameter '%s'", ValueUnion.psz);
                 break;
 
             default:
-                return errorGetOpt(USAGE_CLONEVM, c, &ValueUnion);
+                return errorGetOpt(c, &ValueUnion);
         }
     }
 
     /* Check for required options */
     if (!pszSrcName)
-        return errorSyntax(USAGE_CLONEVM, "VM name required");
+        return errorSyntax("VM name required");
 
     /* Get the machine object */
     ComPtr<IMachine> srcMachine;
@@ -623,17 +624,17 @@ RTEXITCODE handleStartVM(HandlerArg *a)
     HRESULT rc = S_OK;
     std::list<const char *> VMs;
     Bstr sessionType;
-    Utf8Str strEnv;
+    com::SafeArray<IN_BSTR> aBstrEnv;
 
 #if defined(RT_OS_LINUX) || defined(RT_OS_SOLARIS)
     /* make sure the VM process will by default start on the same display as VBoxManage */
     {
         const char *pszDisplay = RTEnvGet("DISPLAY");
         if (pszDisplay)
-            strEnv = Utf8StrFmt("DISPLAY=%s\n", pszDisplay);
+            aBstrEnv.push_back(BstrFmt("DISPLAY=%s", pszDisplay).raw());
         const char *pszXAuth = RTEnvGet("XAUTHORITY");
         if (pszXAuth)
-            strEnv.append(Utf8StrFmt("XAUTHORITY=%s\n", pszXAuth));
+            aBstrEnv.push_back(BstrFmt("XAUTHORITY=%s", pszXAuth).raw());
     }
 #endif
 
@@ -680,7 +681,7 @@ RTEXITCODE handleStartVM(HandlerArg *a)
 
             case 'E':   // --putenv
                 if (!RTStrStr(ValueUnion.psz, "\n"))
-                    strEnv.append(Utf8StrFmt("%s\n", ValueUnion.psz));
+                    aBstrEnv.push_back(Bstr(ValueUnion.psz).raw());
                 else
                     return errorSyntax(USAGE_STARTVM, "Parameter to option --putenv must not contain any newline character");
                 break;
@@ -723,7 +724,7 @@ RTEXITCODE handleStartVM(HandlerArg *a)
         {
             ComPtr<IProgress> progress;
             CHECK_ERROR(machine, LaunchVMProcess(a->session, sessionType.raw(),
-                                                 Bstr(strEnv).raw(), progress.asOutParam()));
+                                                 ComSafeArrayAsInParam(aBstrEnv), progress.asOutParam()));
             if (SUCCEEDED(rc) && !progress.isNull())
             {
                 RTPrintf("Waiting for VM \"%s\" to power on...\n", pszVM);
@@ -1085,7 +1086,7 @@ RTEXITCODE handleSharedFolder(HandlerArg *a)
     {
         /* we need at least four more parameters */
         if (a->argc < 5)
-            return errorSyntax(USAGE_SHAREDFOLDER_ADD, "Not enough parameters");
+            return errorSyntaxEx(USAGE_SHAREDFOLDER, HELP_SCOPE_SHAREDFOLDER_ADD, "Not enough parameters");
 
         char *name = NULL;
         char *hostpath = NULL;
@@ -1135,16 +1136,16 @@ RTEXITCODE handleSharedFolder(HandlerArg *a)
                 pszAutoMountPoint = a->argv[i];
             }
             else
-                return errorSyntax(USAGE_SHAREDFOLDER_ADD, "Invalid parameter '%s'", Utf8Str(a->argv[i]).c_str());
+                return errorSyntaxEx(USAGE_SHAREDFOLDER, HELP_SCOPE_SHAREDFOLDER_ADD, "Invalid parameter '%s'", Utf8Str(a->argv[i]).c_str());
         }
 
         if (NULL != strstr(name, " "))
-            return errorSyntax(USAGE_SHAREDFOLDER_ADD, "No spaces allowed in parameter '-name'!");
+            return errorSyntaxEx(USAGE_SHAREDFOLDER, HELP_SCOPE_SHAREDFOLDER_ADD, "No spaces allowed in parameter '-name'!");
 
         /* required arguments */
         if (!name || !hostpath)
         {
-            return errorSyntax(USAGE_SHAREDFOLDER_ADD, "Parameters --name and --hostpath are required");
+            return errorSyntaxEx(USAGE_SHAREDFOLDER, HELP_SCOPE_SHAREDFOLDER_ADD, "Parameters --name and --hostpath are required");
         }
 
         if (fTransient)
@@ -1189,7 +1190,7 @@ RTEXITCODE handleSharedFolder(HandlerArg *a)
     {
         /* we need at least two more parameters */
         if (a->argc < 3)
-            return errorSyntax(USAGE_SHAREDFOLDER_REMOVE, "Not enough parameters");
+            return errorSyntaxEx(USAGE_SHAREDFOLDER, HELP_SCOPE_SHAREDFOLDER_REMOVE, "Not enough parameters");
 
         char *name = NULL;
         bool fTransient = false;
@@ -1210,12 +1211,12 @@ RTEXITCODE handleSharedFolder(HandlerArg *a)
                 fTransient = true;
             }
             else
-                return errorSyntax(USAGE_SHAREDFOLDER_REMOVE, "Invalid parameter '%s'", Utf8Str(a->argv[i]).c_str());
+                return errorSyntaxEx(USAGE_SHAREDFOLDER, HELP_SCOPE_SHAREDFOLDER_REMOVE, "Invalid parameter '%s'", Utf8Str(a->argv[i]).c_str());
         }
 
         /* required arguments */
         if (!name)
-            return errorSyntax(USAGE_SHAREDFOLDER_REMOVE, "Parameter --name is required");
+            return errorSyntaxEx(USAGE_SHAREDFOLDER, HELP_SCOPE_SHAREDFOLDER_REMOVE, "Parameter --name is required");
 
         if (fTransient)
         {
@@ -1864,20 +1865,18 @@ RTEXITCODE handleUnattendedInstall(HandlerArg *a)
     }
     else
     {
-        Bstr env;
+        com::SafeArray<IN_BSTR> aBstrEnv;
 #if defined(RT_OS_LINUX) || defined(RT_OS_SOLARIS)
         /* make sure the VM process will start on the same display as VBoxManage */
-        Utf8Str str;
         const char *pszDisplay = RTEnvGet("DISPLAY");
         if (pszDisplay)
-            str = Utf8StrFmt("DISPLAY=%s\n", pszDisplay);
+            aBstrEnv.push_back(BstrFmt("DISPLAY=%s", pszDisplay).raw());
         const char *pszXAuth = RTEnvGet("XAUTHORITY");
         if (pszXAuth)
-            str.append(Utf8StrFmt("XAUTHORITY=%s\n", pszXAuth));
-        env = str;
+            aBstrEnv.push_back(BstrFmt("XAUTHORITY=%s", pszXAuth).raw());
 #endif
         ComPtr<IProgress> ptrProgress;
-        CHECK_ERROR2(hrc, ptrMachine, LaunchVMProcess(a->session, Bstr(pszSessionType).raw(), env.raw(), ptrProgress.asOutParam()));
+        CHECK_ERROR2(hrc, ptrMachine, LaunchVMProcess(a->session, Bstr(pszSessionType).raw(), ComSafeArrayAsInParam(aBstrEnv), ptrProgress.asOutParam()));
         if (SUCCEEDED(hrc) && !ptrProgress.isNull())
         {
             RTMsgInfo("Waiting for VM '%ls' to power on...\n", bstrMachineName.raw());
@@ -1939,3 +1938,391 @@ RTEXITCODE handleUnattended(HandlerArg *a)
     /* Consider some kind of create-vm-and-install-guest-os command. */
     return errorUnknownSubcommand(a->argv[0]);
 }
+
+/**
+ * Common Cloud profile options.
+ */
+typedef struct
+{
+    const char     *pszProviderName;
+    const char     *pszProfileName;
+} CLOUDPROFILECOMMONOPT;
+typedef CLOUDPROFILECOMMONOPT *PCLOUDPROFILECOMMONOPT;
+
+/**
+ * Sets the properties of cloud profile
+ *
+ * @returns 0 on success, 1 on failure
+ */
+
+static RTEXITCODE setCloudProfileProperties(HandlerArg *a, int iFirst, PCLOUDPROFILECOMMONOPT pCommonOpts)
+{
+
+    HRESULT hrc = S_OK;
+
+    Bstr bstrProvider(pCommonOpts->pszProviderName);
+    Bstr bstrProfile(pCommonOpts->pszProfileName);
+
+    /*
+     * Parse options.
+     */
+    static const RTGETOPTDEF s_aOptions[] =
+    {
+        { "--clouduser",    'u', RTGETOPT_REQ_STRING },
+        { "--fingerprint",  'p', RTGETOPT_REQ_STRING },
+        { "--keyfile",      'k', RTGETOPT_REQ_STRING },
+        { "--passphrase",   'P', RTGETOPT_REQ_STRING },
+        { "--tenancy",      't', RTGETOPT_REQ_STRING },
+        { "--compartment",  'c', RTGETOPT_REQ_STRING },
+        { "--region",       'r', RTGETOPT_REQ_STRING }
+    };
+
+    RTGETOPTSTATE GetState;
+    int vrc = RTGetOptInit(&GetState, a->argc, a->argv, s_aOptions, RT_ELEMENTS(s_aOptions), iFirst, 0);
+    AssertRCReturn(vrc, RTEXITCODE_FAILURE);
+
+    com::SafeArray<BSTR> names;
+    com::SafeArray<BSTR> values;
+
+    int c;
+    RTGETOPTUNION ValueUnion;
+    while ((c = RTGetOpt(&GetState, &ValueUnion)) != 0)
+    {
+        switch (c)
+        {
+            case 'u':   // --clouduser
+                Bstr("user").detachTo(names.appendedRaw());
+                Bstr(ValueUnion.psz).detachTo(values.appendedRaw());
+                break;
+            case 'p':   // --fingerprint
+                Bstr("fingerprint").detachTo(names.appendedRaw());
+                Bstr(ValueUnion.psz).detachTo(values.appendedRaw());
+                break;
+            case 'k':   // --keyfile
+                Bstr("key_file").detachTo(names.appendedRaw());
+                Bstr(ValueUnion.psz).detachTo(values.appendedRaw());
+                break;
+            case 'P':   // --passphrase
+                Bstr("pass_phrase").detachTo(names.appendedRaw());
+                Bstr(ValueUnion.psz).detachTo(values.appendedRaw());
+                break;
+            case 't':   // --tenancy
+                Bstr("tenancy").detachTo(names.appendedRaw());
+                Bstr(ValueUnion.psz).detachTo(values.appendedRaw());
+                break;
+            case 'c':   // --compartment
+                Bstr("compartment").detachTo(names.appendedRaw());
+                Bstr(ValueUnion.psz).detachTo(values.appendedRaw());
+                break;
+            case 'r':   // --region
+                Bstr("region").detachTo(names.appendedRaw());
+                Bstr(ValueUnion.psz).detachTo(values.appendedRaw());
+                break;
+            default:
+                return errorGetOpt(USAGE_CLOUDPROFILE, c, &ValueUnion);
+        }
+    }
+
+    /* check for required options */
+    if (bstrProvider.isEmpty())
+        return errorSyntax(USAGE_CLOUDPROFILE, "Parameter --provider is required");
+    if (bstrProfile.isEmpty())
+        return errorSyntax(USAGE_CLOUDPROFILE, "Parameter --profile is required");
+
+    ComPtr<IVirtualBox> pVirtualBox = a->virtualBox;
+
+    ComPtr<ICloudProviderManager> pCloudProviderManager;
+    CHECK_ERROR2_RET(hrc, pVirtualBox,
+                     COMGETTER(CloudProviderManager)(pCloudProviderManager.asOutParam()),
+                     RTEXITCODE_FAILURE);
+
+    ComPtr<ICloudProvider> pCloudProvider;
+
+    CHECK_ERROR2_RET(hrc, pCloudProviderManager,
+                     GetProviderByShortName(bstrProvider.raw(), pCloudProvider.asOutParam()),
+                     RTEXITCODE_FAILURE);
+
+    ComPtr<ICloudProfile> pCloudProfile;
+
+    if (pCloudProvider)
+    {
+        CHECK_ERROR2_RET(hrc, pCloudProvider,
+                         GetProfileByName(bstrProfile.raw(), pCloudProfile.asOutParam()),
+                         RTEXITCODE_FAILURE);
+        CHECK_ERROR2_RET(hrc, pCloudProfile,
+                         SetProperties(ComSafeArrayAsInParam(names), ComSafeArrayAsInParam(values)),
+                         RTEXITCODE_FAILURE);
+    }
+
+    CHECK_ERROR2(hrc, pCloudProvider, SaveProfiles());
+
+    RTPrintf("Provider %ls: profile '%ls' was updated.\n",bstrProvider.raw(), bstrProfile.raw());
+
+    return SUCCEEDED(hrc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
+}
+
+/**
+ * Gets the properties of cloud profile
+ *
+ * @returns 0 on success, 1 on failure
+ */
+static RTEXITCODE showCloudProfileProperties(HandlerArg *a, PCLOUDPROFILECOMMONOPT pCommonOpts)
+{
+    HRESULT hrc = S_OK;
+
+    Bstr bstrProvider(pCommonOpts->pszProviderName);
+    Bstr bstrProfile(pCommonOpts->pszProfileName);
+
+    /* check for required options */
+    if (bstrProvider.isEmpty())
+        return errorSyntax(USAGE_CLOUDPROFILE, "Parameter --provider is required");
+    if (bstrProfile.isEmpty())
+        return errorSyntax(USAGE_CLOUDPROFILE, "Parameter --profile is required");
+
+    ComPtr<IVirtualBox> pVirtualBox = a->virtualBox;
+    ComPtr<ICloudProviderManager> pCloudProviderManager;
+    CHECK_ERROR2_RET(hrc, pVirtualBox,
+                     COMGETTER(CloudProviderManager)(pCloudProviderManager.asOutParam()),
+                     RTEXITCODE_FAILURE);
+    ComPtr<ICloudProvider> pCloudProvider;
+    CHECK_ERROR2_RET(hrc, pCloudProviderManager,
+                     GetProviderByShortName(bstrProvider.raw(), pCloudProvider.asOutParam()),
+                     RTEXITCODE_FAILURE);
+
+    ComPtr<ICloudProfile> pCloudProfile;
+    if (pCloudProvider)
+    {
+        CHECK_ERROR2_RET(hrc, pCloudProvider,
+                         GetProfileByName(bstrProfile.raw(), pCloudProfile.asOutParam()),
+                         RTEXITCODE_FAILURE);
+
+        Bstr bstrProviderID;
+        pCloudProfile->COMGETTER(ProviderId)(bstrProviderID.asOutParam());
+        RTPrintf("Provider GUID: %ls\n", bstrProviderID.raw());
+
+        com::SafeArray<BSTR> names;
+        com::SafeArray<BSTR> values;
+        CHECK_ERROR2_RET(hrc, pCloudProfile,
+                         GetProperties(Bstr().raw(), ComSafeArrayAsOutParam(names), ComSafeArrayAsOutParam(values)),
+                         RTEXITCODE_FAILURE);
+        size_t cNames = names.size();
+        size_t cValues = values.size();
+        bool fFirst = true;
+        for (size_t k = 0; k < cNames; k++)
+        {
+            Bstr value;
+            if (k < cValues)
+                value = values[k];
+            RTPrintf("%s%ls=%ls\n",
+                     fFirst ? "Property:      " : "               ",
+                     names[k], value.raw());
+            fFirst = false;
+        }
+
+        RTPrintf("\n");
+    }
+
+    return SUCCEEDED(hrc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
+}
+
+static RTEXITCODE addCloudProfile(HandlerArg *a, int iFirst, PCLOUDPROFILECOMMONOPT pCommonOpts)
+{
+    HRESULT hrc = S_OK;
+
+    Bstr bstrProvider(pCommonOpts->pszProviderName);
+    Bstr bstrProfile(pCommonOpts->pszProfileName);
+
+
+    /* check for required options */
+    if (bstrProvider.isEmpty())
+        return errorSyntax(USAGE_CLOUDPROFILE, "Parameter --provider is required");
+    if (bstrProfile.isEmpty())
+        return errorSyntax(USAGE_CLOUDPROFILE, "Parameter --profile is required");
+
+    /*
+     * Parse options.
+     */
+    static const RTGETOPTDEF s_aOptions[] =
+    {
+        { "--clouduser",    'u', RTGETOPT_REQ_STRING },
+        { "--fingerprint",  'p', RTGETOPT_REQ_STRING },
+        { "--keyfile",      'k', RTGETOPT_REQ_STRING },
+        { "--passphrase",   'P', RTGETOPT_REQ_STRING },
+        { "--tenancy",      't', RTGETOPT_REQ_STRING },
+        { "--compartment",  'c', RTGETOPT_REQ_STRING },
+        { "--region",       'r', RTGETOPT_REQ_STRING }
+    };
+
+    RTGETOPTSTATE GetState;
+    int vrc = RTGetOptInit(&GetState, a->argc, a->argv, s_aOptions, RT_ELEMENTS(s_aOptions), iFirst, 0);
+    AssertRCReturn(vrc, RTEXITCODE_FAILURE);
+
+    com::SafeArray<BSTR> names;
+    com::SafeArray<BSTR> values;
+
+    int c;
+    RTGETOPTUNION ValueUnion;
+    while ((c = RTGetOpt(&GetState, &ValueUnion)) != 0)
+    {
+        switch (c)
+        {
+            case 'u':   // --clouduser
+                Bstr("user").detachTo(names.appendedRaw());
+                Bstr(ValueUnion.psz).detachTo(values.appendedRaw());
+                break;
+            case 'p':   // --fingerprint
+                Bstr("fingerprint").detachTo(names.appendedRaw());
+                Bstr(ValueUnion.psz).detachTo(values.appendedRaw());
+                break;
+            case 'k':   // --keyfile
+                Bstr("key_file").detachTo(names.appendedRaw());
+                Bstr(ValueUnion.psz).detachTo(values.appendedRaw());
+                break;
+            case 'P':   // --passphrase
+                Bstr("pass_phrase").detachTo(names.appendedRaw());
+                Bstr(ValueUnion.psz).detachTo(values.appendedRaw());
+                break;
+            case 't':   // --tenancy
+                Bstr("tenancy").detachTo(names.appendedRaw());
+                Bstr(ValueUnion.psz).detachTo(values.appendedRaw());
+                break;
+            case 'c':   // --compartment
+                Bstr("compartment").detachTo(names.appendedRaw());
+                Bstr(ValueUnion.psz).detachTo(values.appendedRaw());
+                break;
+            case 'r':   // --region
+                Bstr("region").detachTo(names.appendedRaw());
+                Bstr(ValueUnion.psz).detachTo(values.appendedRaw());
+                break;
+            default:
+                return errorGetOpt(USAGE_CLOUDPROFILE, c, &ValueUnion);
+        }
+    }
+
+    ComPtr<IVirtualBox> pVirtualBox = a->virtualBox;
+
+    ComPtr<ICloudProviderManager> pCloudProviderManager;
+    CHECK_ERROR2_RET(hrc, pVirtualBox,
+                     COMGETTER(CloudProviderManager)(pCloudProviderManager.asOutParam()),
+                     RTEXITCODE_FAILURE);
+
+    ComPtr<ICloudProvider> pCloudProvider;
+    CHECK_ERROR2_RET(hrc, pCloudProviderManager,
+                     GetProviderByShortName(bstrProvider.raw(), pCloudProvider.asOutParam()),
+                     RTEXITCODE_FAILURE);
+
+    CHECK_ERROR2_RET(hrc, pCloudProvider,
+                     CreateProfile(bstrProfile.raw(),
+                                   ComSafeArrayAsInParam(names),
+                                   ComSafeArrayAsInParam(values)),
+                     RTEXITCODE_FAILURE);
+
+    CHECK_ERROR2(hrc, pCloudProvider, SaveProfiles());
+
+    RTPrintf("Provider %ls: profile '%ls' was added.\n",bstrProvider.raw(), bstrProfile.raw());
+
+    return SUCCEEDED(hrc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
+}
+
+static RTEXITCODE deleteCloudProfile(HandlerArg *a, PCLOUDPROFILECOMMONOPT pCommonOpts)
+{
+    HRESULT hrc = S_OK;
+
+    Bstr bstrProvider(pCommonOpts->pszProviderName);
+    Bstr bstrProfile(pCommonOpts->pszProfileName);
+
+    /* check for required options */
+    if (bstrProvider.isEmpty())
+        return errorSyntax(USAGE_CLOUDPROFILE, "Parameter --provider is required");
+    if (bstrProfile.isEmpty())
+        return errorSyntax(USAGE_CLOUDPROFILE, "Parameter --profile is required");
+
+    ComPtr<IVirtualBox> pVirtualBox = a->virtualBox;
+    ComPtr<ICloudProviderManager> pCloudProviderManager;
+    CHECK_ERROR2_RET(hrc, pVirtualBox,
+                     COMGETTER(CloudProviderManager)(pCloudProviderManager.asOutParam()),
+                     RTEXITCODE_FAILURE);
+    ComPtr<ICloudProvider> pCloudProvider;
+    CHECK_ERROR2_RET(hrc, pCloudProviderManager,
+                     GetProviderByShortName(bstrProvider.raw(), pCloudProvider.asOutParam()),
+                     RTEXITCODE_FAILURE);
+
+    ComPtr<ICloudProfile> pCloudProfile;
+    if (pCloudProvider)
+    {
+        CHECK_ERROR2_RET(hrc, pCloudProvider,
+                         GetProfileByName(bstrProfile.raw(), pCloudProfile.asOutParam()),
+                         RTEXITCODE_FAILURE);
+
+        CHECK_ERROR2_RET(hrc, pCloudProfile,
+                         Remove(),
+                         RTEXITCODE_FAILURE);
+
+        CHECK_ERROR2_RET(hrc, pCloudProvider,
+                         SaveProfiles(),
+                         RTEXITCODE_FAILURE);
+
+        RTPrintf("Provider %ls: profile '%ls' was deleted.\n",bstrProvider.raw(), bstrProfile.raw());
+    }
+
+    return SUCCEEDED(hrc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
+}
+
+RTEXITCODE handleCloudProfile(HandlerArg *a)
+{
+    if (a->argc < 1)
+        return errorNoSubcommand();
+
+    static const RTGETOPTDEF s_aOptions[] =
+    {
+        /* common options */
+        { "--provider",     'v', RTGETOPT_REQ_STRING },
+        { "--profile",      'f', RTGETOPT_REQ_STRING },
+        /* subcommands */
+        { "add",            1000, RTGETOPT_REQ_NOTHING },
+        { "show",           1001, RTGETOPT_REQ_NOTHING },
+        { "update",         1002, RTGETOPT_REQ_NOTHING },
+        { "delete",         1003, RTGETOPT_REQ_NOTHING },
+    };
+
+    RTGETOPTSTATE GetState;
+    int vrc = RTGetOptInit(&GetState, a->argc, a->argv, s_aOptions, RT_ELEMENTS(s_aOptions), 0, 0);
+    AssertRCReturn(vrc, RTEXITCODE_FAILURE);
+
+    CLOUDPROFILECOMMONOPT   CommonOpts = { NULL, NULL };
+    int c;
+    RTGETOPTUNION ValueUnion;
+    while ((c = RTGetOpt(&GetState, &ValueUnion)) != 0)
+    {
+        switch (c)
+        {
+            case 'v':   // --provider
+                CommonOpts.pszProviderName = ValueUnion.psz;
+                break;
+            case 'f':   // --profile
+                CommonOpts.pszProfileName = ValueUnion.psz;
+                break;
+            /* Sub-commands: */
+            case 1000:
+                setCurrentSubcommand(HELP_SCOPE_CLOUDPROFILE_ADD);
+                return addCloudProfile(a, GetState.iNext, &CommonOpts);
+            case 1001:
+                setCurrentSubcommand(HELP_SCOPE_CLOUDPROFILE_SHOW);
+                return showCloudProfileProperties(a, &CommonOpts);
+            case 1002:
+                setCurrentSubcommand(HELP_SCOPE_CLOUDPROFILE_UPDATE);
+                return setCloudProfileProperties(a, GetState.iNext, &CommonOpts);
+            case 1003:
+                setCurrentSubcommand(HELP_SCOPE_CLOUDPROFILE_DELETE);
+                return deleteCloudProfile(a, &CommonOpts);
+            case VINF_GETOPT_NOT_OPTION:
+                return errorUnknownSubcommand(ValueUnion.psz);
+
+            default:
+                return errorGetOpt(c, &ValueUnion);
+        }
+    }
+
+    return errorNoSubcommand();
+}
+

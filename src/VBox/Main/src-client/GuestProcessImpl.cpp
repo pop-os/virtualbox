@@ -1163,35 +1163,27 @@ int GuestProcess::i_startProcessAsync(void)
 {
     LogFlowThisFuncEnter();
 
-    int vrc = VINF_SUCCESS;
-    HRESULT hr = S_OK;
-
-    GuestProcessStartTask* pTask = NULL;
+    /* Create the task: */
+    GuestProcessStartTask *pTask = NULL;
     try
     {
         pTask = new GuestProcessStartTask(this);
-        if (!pTask->i_isOk())
-        {
-            delete pTask;
-            LogFlowThisFunc(("Could not create GuestProcessStartTask object\n"));
-            throw VERR_MEMOBJ_INIT_FAILED;
-        }
-        LogFlowThisFunc(("Successfully created GuestProcessStartTask object\n"));
-        //this function delete pTask in case of exceptions, so there is no need in the call of delete operator
-        hr = pTask->createThread();
     }
-    catch(std::bad_alloc &)
+    catch (std::bad_alloc &)
     {
-        vrc = VERR_NO_MEMORY;
+        LogFlowThisFunc(("out of memory\n"));
+        return VERR_NO_MEMORY;
     }
-    catch(int eVRC)
-    {
-        vrc = eVRC;
-        LogFlowThisFunc(("Could not create thread for GuestProcessStartTask task %Rrc\n", vrc));
-    }
+    AssertReturnStmt(pTask->i_isOk(), delete pTask, E_FAIL); /* cannot fail for GuestProcessStartTask. */
+    LogFlowThisFunc(("Successfully created GuestProcessStartTask object\n"));
 
-    LogFlowFuncLeaveRC(vrc);
-    return vrc;
+    /* Start the thread (always consumes the task): */
+    HRESULT hrc = pTask->createThread();
+    pTask = NULL;
+    if (SUCCEEDED(hrc))
+        return VINF_SUCCESS;
+    LogFlowThisFunc(("Failed to create thread for GuestProcessStartTask\n"));
+    return VERR_GENERAL_FAILURE;
 }
 
 /* static */
@@ -1349,12 +1341,12 @@ ProcessWaitResult_T GuestProcess::i_waitFlagsToResultEx(uint32_t fWaitFlags,
 
     if (newStatus == ProcessStatus_Started)
     {
-        /**
+        /*
          * Filter out waits which are *not* supported using
          * older guest control Guest Additions.
          *
-         ** @todo ProcessWaitForFlag_Std* flags are not implemented yet.
          */
+        /** @todo ProcessWaitForFlag_Std* flags are not implemented yet. */
         if (uProtocol < 99) /* See @todo above. */
         {
             if (   waitResult == ProcessWaitResult_None
@@ -1609,6 +1601,12 @@ int GuestProcess::i_waitForOutput(GuestWaitEvent *pEvent, uint32_t uHandle, uint
     return vrc;
 }
 
+/**
+ * Undocumented, you guess what it does.
+ *
+ * @note Similar code in GuestFile::i_waitForStatusChange() and
+ *       GuestSession::i_waitForStatusChange().
+ */
 int GuestProcess::i_waitForStatusChange(GuestWaitEvent *pEvent, uint32_t uTimeoutMS,
                                         ProcessStatus_T *pProcessStatus, int *prcGuest)
 {
@@ -1649,11 +1647,16 @@ int GuestProcess::i_waitForStatusChange(GuestWaitEvent *pEvent, uint32_t uTimeou
         if (prcGuest)
             *prcGuest = (int)lGuestRc;
     }
+    /* waitForEvent may also return VERR_GSTCTL_GUEST_ERROR like we do above, so make prcGuest is set. */
+    else if (vrc == VERR_GSTCTL_GUEST_ERROR && prcGuest)
+        *prcGuest = pEvent->GuestResult();
+    Assert(vrc != VERR_GSTCTL_GUEST_ERROR || !prcGuest || *prcGuest != (int)0xcccccccc);
 
     LogFlowFuncLeaveRC(vrc);
     return vrc;
 }
 
+#if 0 /* Unused */
 /* static */
 bool GuestProcess::i_waitResultImpliesEx(ProcessWaitResult_T waitResult, ProcessStatus_T procStatus, uint32_t uProtocol)
 {
@@ -1684,6 +1687,7 @@ bool GuestProcess::i_waitResultImpliesEx(ProcessWaitResult_T waitResult, Process
 
     return fImplies;
 }
+#endif /* unused */
 
 int GuestProcess::i_writeData(uint32_t uHandle, uint32_t uFlags,
                               void *pvData, size_t cbData, uint32_t uTimeoutMS, uint32_t *puWritten, int *prcGuest)
@@ -1780,7 +1784,8 @@ HRESULT GuestProcess::read(ULONG aHandle, ULONG aToRead, ULONG aTimeoutMS, std::
 
     HRESULT hr = S_OK;
 
-    uint32_t cbRead; int rcGuest;
+    uint32_t cbRead;
+    int rcGuest = VERR_IPE_UNINITIALIZED_STATUS;
     int vrc = i_readData(aHandle, aToRead, aTimeoutMS, &aData.front(), aToRead, &cbRead, &rcGuest);
     if (RT_SUCCESS(vrc))
     {
@@ -1819,7 +1824,7 @@ HRESULT GuestProcess::terminate()
 
     HRESULT hr = S_OK;
 
-    int rcGuest;
+    int rcGuest = VERR_IPE_UNINITIALIZED_STATUS;
     int vrc = i_terminateProcess(30 * 1000 /* Timeout in ms */, &rcGuest);
     if (RT_FAILURE(vrc))
     {
@@ -1860,12 +1865,19 @@ HRESULT GuestProcess::waitFor(ULONG aWaitFor, ULONG aTimeoutMS, ProcessWaitResul
 
     LogFlowThisFuncEnter();
 
+    /* Validate flags: */
+    static ULONG const s_fValidFlags = ProcessWaitForFlag_None   | ProcessWaitForFlag_Start  | ProcessWaitForFlag_Terminate
+                                     | ProcessWaitForFlag_StdIn  | ProcessWaitForFlag_StdOut | ProcessWaitForFlag_StdErr;
+    if (aWaitFor & ~s_fValidFlags)
+        return setErrorBoth(E_INVALIDARG, VERR_INVALID_FLAGS, tr("Flags value %#x, invalid: %#x"),
+                            aWaitFor, aWaitFor & ~s_fValidFlags);
+
     /*
      * Note: Do not hold any locks here while waiting!
      */
     HRESULT hr = S_OK;
 
-    int rcGuest;
+    int rcGuest = VERR_IPE_UNINITIALIZED_STATUS;
     ProcessWaitResult_T waitResult;
     int vrc = i_waitFor(aWaitFor, aTimeoutMS, waitResult, &rcGuest);
     if (RT_SUCCESS(vrc))
@@ -1908,6 +1920,11 @@ HRESULT GuestProcess::waitForArray(const std::vector<ProcessWaitForFlag_T> &aWai
 HRESULT GuestProcess::write(ULONG aHandle, ULONG aFlags, const std::vector<BYTE> &aData,
                             ULONG aTimeoutMS, ULONG *aWritten)
 {
+    static ULONG const s_fValidFlags = ProcessInputFlag_None | ProcessInputFlag_EndOfFile;
+    if (aFlags & ~s_fValidFlags)
+        return setErrorBoth(E_INVALIDARG, VERR_INVALID_FLAGS, tr("Flags value %#x, invalid: %#x"),
+                            aFlags, aFlags & ~s_fValidFlags);
+
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
@@ -1915,9 +1932,10 @@ HRESULT GuestProcess::write(ULONG aHandle, ULONG aFlags, const std::vector<BYTE>
 
     HRESULT hr = S_OK;
 
-    uint32_t cbWritten; int rcGuest;
-    uint32_t cbData = (uint32_t)aData.size();
-    void *pvData = cbData > 0? (void *)&aData.front(): NULL;
+    uint32_t cbWritten;
+    int      rcGuest = VERR_IPE_UNINITIALIZED_STATUS;
+    uint32_t cbData  = (uint32_t)aData.size();
+    void    *pvData  = cbData > 0 ? (void *)&aData.front() : NULL;
     int vrc = i_writeData(aHandle, aFlags, pvData, cbData, aTimeoutMS, &cbWritten, &rcGuest);
     if (RT_FAILURE(vrc))
     {
@@ -1995,10 +2013,11 @@ int GuestProcessTool::init(GuestSession *pGuestSession, const GuestProcessStartu
             && RT_FAILURE(vrcGuest)
            )
         {
-            if (prcGuest)
-                *prcGuest = vrcGuest;
             vrc = VERR_GSTCTL_GUEST_ERROR;
         }
+
+        if (prcGuest)
+            *prcGuest = vrcGuest;
     }
 
     LogFlowFuncLeaveRC(vrc);
@@ -2103,9 +2122,9 @@ int GuestProcessTool::run(      GuestSession              *pGuestSession,
                           const GuestProcessStartupInfo   &startupInfo,
                                 int                       *prcGuest /* = NULL */)
 {
-    int rcGuest;
+    int rcGuest = VERR_IPE_UNINITIALIZED_STATUS;
 
-    GuestProcessToolErrorInfo errorInfo;
+    GuestProcessToolErrorInfo errorInfo = { VERR_IPE_UNINITIALIZED_STATUS, INT32_MAX };
     int vrc = runErrorInfo(pGuestSession, startupInfo, errorInfo);
     if (RT_SUCCESS(vrc))
     {
@@ -2164,9 +2183,9 @@ int GuestProcessTool::runEx(      GuestSession              *pGuestSession,
                                   uint32_t                   cStrmOutObjects,
                                   int                       *prcGuest /* = NULL */)
 {
-    int rcGuest;
+    int rcGuest = VERR_IPE_UNINITIALIZED_STATUS;
 
-    GuestProcessToolErrorInfo errorInfo;
+    GuestProcessToolErrorInfo errorInfo = { VERR_IPE_UNINITIALIZED_STATUS, INT32_MAX };
     int vrc = GuestProcessTool::runExErrorInfo(pGuestSession, startupInfo, paStrmOutObjects, cStrmOutObjects, errorInfo);
     if (RT_SUCCESS(vrc))
     {

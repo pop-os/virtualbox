@@ -23,7 +23,8 @@
 #include <VBox/vmm/pgm.h>
 #include <VBox/vmm/gmm.h>
 #include "PGMInternal.h"
-#include <VBox/vmm/vm.h>
+#include <VBox/vmm/vmcc.h>
+#include <VBox/vmm/gvm.h>
 #include "PGMInline.h"
 #include <VBox/log.h>
 #include <VBox/err.h>
@@ -47,9 +48,9 @@
  *                              addresses of the regions in the calling
  *                              process.
  */
-VMMR0DECL(int) PGMR0SharedModuleCheck(PVM pVM, PGVM pGVM, VMCPUID idCpu, PGMMSHAREDMODULE pModule, PCRTGCPTR64 paRegionsGCPtrs)
+VMMR0DECL(int) PGMR0SharedModuleCheck(PVMCC pVM, PGVM pGVM, VMCPUID idCpu, PGMMSHAREDMODULE pModule, PCRTGCPTR64 paRegionsGCPtrs)
 {
-    PVMCPU              pVCpu         = &pVM->aCpus[idCpu];
+    PVMCPUCC            pVCpu         = &pGVM->aCpus[idCpu];
     int                 rc            = VINF_SUCCESS;
     bool                fFlushTLBs    = false;
     bool                fFlushRemTLBs = false;
@@ -161,8 +162,8 @@ VMMR0DECL(int) PGMR0SharedModuleCheck(PVM pVM, PGVM pGVM, VMCPUID idCpu, PGMMSHA
         PGM_INVL_ALL_VCPU_TLBS(pVM);
 
     if (fFlushRemTLBs)
-        for (VMCPUID idCurCpu = 0; idCurCpu < pVM->cCpus; idCurCpu++)
-            CPUMSetChangedFlags(&pVM->aCpus[idCurCpu], CPUM_CHANGED_GLOBAL_TLB_FLUSH);
+        for (VMCPUID idCurCpu = 0; idCurCpu < pGVM->cCpus; idCurCpu++)
+            CPUMSetChangedFlags(&pGVM->aCpus[idCurCpu], CPUM_CHANGED_GLOBAL_TLB_FLUSH);
 
     return rc;
 }

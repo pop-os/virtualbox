@@ -24,17 +24,19 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QRadioButton>
+#include <QStackedLayout>
 #include <QStackedWidget>
 #include <QTableWidget>
 #include <QVBoxLayout>
 
 /* GUI includes: */
 #include "QIToolButton.h"
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #include "UIApplianceExportEditorWidget.h"
 #include "UIConverter.h"
 #include "UIEmptyFilePathSelector.h"
 #include "UIIconPool.h"
+#include "UIMessageCenter.h"
 #include "UIVirtualBoxManager.h"
 #include "UIWizardExportApp.h"
 #include "UIWizardExportAppDefs.h"
@@ -47,6 +49,7 @@
 
 UIWizardExportAppPageExpert::UIWizardExportAppPageExpert(const QStringList &selectedVMNames, bool fExportToOCIByDefault)
     : UIWizardExportAppPage2(fExportToOCIByDefault)
+    , m_fPolished(false)
     , m_pSelectorCnt(0)
     , m_pApplianceCnt(0)
     , m_pSettingsCnt(0)
@@ -89,15 +92,61 @@ UIWizardExportAppPageExpert::UIWizardExportAppPageExpert(const QStringList &sele
             QVBoxLayout *pApplianceCntLayout = new QVBoxLayout(m_pApplianceCnt);
             if (pApplianceCntLayout)
             {
-                /* Create appliance widget: */
-                m_pApplianceWidget = new UIApplianceExportEditorWidget;
-                if (m_pApplianceWidget)
+                /* Create settings container layout: */
+                m_pSettingsCntLayout = new QStackedLayout;
+                if (m_pSettingsCntLayout)
                 {
-                    m_pApplianceWidget->setMinimumHeight(250);
-                    m_pApplianceWidget->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::MinimumExpanding);
+                    /* Create appliance widget container: */
+                    QWidget *pApplianceWidgetCnt = new QWidget(this);
+                    if (pApplianceWidgetCnt)
+                    {
+                        /* Create appliance widget layout: */
+                        QVBoxLayout *pApplianceWidgetLayout = new QVBoxLayout(pApplianceWidgetCnt);
+                        if (pApplianceWidgetLayout)
+                        {
+                            pApplianceWidgetLayout->setContentsMargins(0, 0, 0, 0);
+
+                            /* Create appliance widget: */
+                            m_pApplianceWidget = new UIApplianceExportEditorWidget;
+                            if (m_pApplianceWidget)
+                            {
+                                m_pApplianceWidget->setMinimumHeight(250);
+                                m_pApplianceWidget->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::MinimumExpanding);
+
+                                /* Add into layout: */
+                                pApplianceWidgetLayout->addWidget(m_pApplianceWidget);
+                            }
+                        }
+
+                        /* Add into layout: */
+                        m_pSettingsCntLayout->addWidget(pApplianceWidgetCnt);
+                    }
+
+                    /* Create form editor container: */
+                    QWidget *pFormEditorCnt = new QWidget(this);
+                    if (pFormEditorCnt)
+                    {
+                        /* Create form editor layout: */
+                        QVBoxLayout *pFormEditorLayout = new QVBoxLayout(pFormEditorCnt);
+                        if (pFormEditorLayout)
+                        {
+                            pFormEditorLayout->setContentsMargins(0, 0, 0, 0);
+
+                            /* Create form editor widget: */
+                            m_pFormEditor = new UIFormEditorWidget(pFormEditorCnt);
+                            if (m_pFormEditor)
+                            {
+                                /* Add into layout: */
+                                pFormEditorLayout->addWidget(m_pFormEditor);
+                            }
+                        }
+
+                        /* Add into layout: */
+                        m_pSettingsCntLayout->addWidget(pFormEditorCnt);
+                    }
 
                     /* Add into layout: */
-                    pApplianceCntLayout->addWidget(m_pApplianceWidget);
+                    pApplianceCntLayout->addLayout(m_pSettingsCntLayout);
                 }
             }
 
@@ -263,13 +312,13 @@ UIWizardExportAppPageExpert::UIWizardExportAppPageExpert(const QStringList &sele
                             m_pSettingsLayout2->setColumnStretch(1, 1);
 
                             /* Create account label: */
-                            m_pAccountComboBoxLabel = new QLabel;
-                            if (m_pAccountComboBoxLabel)
+                            m_pAccountLabel = new QLabel;
+                            if (m_pAccountLabel)
                             {
-                                m_pAccountComboBoxLabel->setAlignment(Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter);
+                                m_pAccountLabel->setAlignment(Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter);
 
                                 /* Add into layout: */
-                                m_pSettingsLayout2->addWidget(m_pAccountComboBoxLabel, 0, 0);
+                                m_pSettingsLayout2->addWidget(m_pAccountLabel, 0, 0);
                             }
                             /* Create sub-layout: */
                             QHBoxLayout *pSubLayout = new QHBoxLayout;
@@ -278,16 +327,16 @@ UIWizardExportAppPageExpert::UIWizardExportAppPageExpert(const QStringList &sele
                                 pSubLayout->setContentsMargins(0, 0, 0, 0);
                                 pSubLayout->setSpacing(1);
 
-                                /* Create provider combo-box: */
+                                /* Create account combo-box: */
                                 m_pAccountComboBox = new QComboBox;
                                 if (m_pAccountComboBox)
                                 {
-                                    m_pAccountComboBoxLabel->setBuddy(m_pAccountComboBox);
+                                    m_pAccountLabel->setBuddy(m_pAccountComboBox);
 
                                     /* Add into layout: */
                                     pSubLayout->addWidget(m_pAccountComboBox);
                                 }
-                                /* Create provider combo-box: */
+                                /* Create account tool-button: */
                                 m_pAccountToolButton = new QIToolButton;
                                 if (m_pAccountToolButton)
                                 {
@@ -309,7 +358,7 @@ UIWizardExportAppPageExpert::UIWizardExportAppPageExpert(const QStringList &sele
                                 const int iFontWidth = fm.width('x');
                                 const int iTotalWidth = 50 * iFontWidth;
                                 const int iFontHeight = fm.height();
-                                const int iTotalHeight = 4 * iFontHeight;
+                                const int iTotalHeight = 8 * iFontHeight;
                                 m_pAccountPropertyTable->setMinimumSize(QSize(iTotalWidth, iTotalHeight));
                                 m_pAccountPropertyTable->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
                                 m_pAccountPropertyTable->setAlternatingRowColors(true);
@@ -319,6 +368,37 @@ UIWizardExportAppPageExpert::UIWizardExportAppPageExpert(const QStringList &sele
 
                                 /* Add into layout: */
                                 m_pSettingsLayout2->addWidget(m_pAccountPropertyTable, 1, 1);
+                            }
+
+                            /* Create account label: */
+                            m_pMachineLabel = new QLabel;
+                            if (m_pMachineLabel)
+                            {
+                                m_pMachineLabel->setAlignment(Qt::AlignRight | Qt::AlignTrailing | Qt::AlignVCenter);
+
+                                /* Add into layout: */
+                                m_pSettingsLayout2->addWidget(m_pMachineLabel, 2, 0);
+                            }
+                            /* Create Export Then Ask button: */
+                            m_pRadioExportThenAsk = new QRadioButton;
+                            if (m_pRadioExportThenAsk)
+                            {
+                                /* Add into layout: */
+                                m_pSettingsLayout2->addWidget(m_pRadioExportThenAsk, 2, 1);
+                            }
+                            /* Create Ask Then Export button: */
+                            m_pRadioAskThenExport = new QRadioButton;
+                            if (m_pRadioAskThenExport)
+                            {
+                                /* Add into layout: */
+                                m_pSettingsLayout2->addWidget(m_pRadioAskThenExport, 3, 1);
+                            }
+                            /* Create Do Not Ask button: */
+                            m_pRadioDoNotAsk = new QRadioButton;
+                            if (m_pRadioDoNotAsk)
+                            {
+                                /* Add into layout: */
+                                m_pSettingsLayout2->addWidget(m_pRadioDoNotAsk, 4, 1);
                             }
                         }
 
@@ -342,12 +422,6 @@ UIWizardExportAppPageExpert::UIWizardExportAppPageExpert(const QStringList &sele
     populateFormats();
     /* Populate MAC address policies: */
     populateMACAddressPolicies();
-    /* Populate accounts: */
-    populateAccounts();
-    /* Populate account properties: */
-    populateAccountProperties();
-    /* Populate cloud client parameters: */
-    populateCloudClientParameters();
 
     /* Setup connections: */
     if (gpManager)
@@ -359,7 +433,7 @@ UIWizardExportAppPageExpert::UIWizardExportAppPageExpert(const QStringList &sele
     connect(m_pFormatComboBox, static_cast<void(QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
             this, &UIWizardExportAppPageExpert::sltHandleFormatComboChange);
     connect(m_pMACComboBox, static_cast<void(QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
-            this, &UIWizardExportAppPageExpert::sltHandleMACAddressPolicyComboChange);
+            this, &UIWizardExportAppPageExpert::sltHandleMACAddressExportPolicyComboChange);
     connect(m_pAccountComboBox, static_cast<void(QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
             this, &UIWizardExportAppPageExpert::sltHandleAccountComboChange);
     connect(m_pAccountToolButton, &QIToolButton::clicked,
@@ -368,21 +442,21 @@ UIWizardExportAppPageExpert::UIWizardExportAppPageExpert(const QStringList &sele
     /* Register classes: */
     qRegisterMetaType<ExportAppliancePointer>();
 
-    /* Register classes: */
-    qRegisterMetaType<AbstractVSDParameterList>();
     /* Register fields: */
     registerField("machineNames", this, "machineNames");
     registerField("machineIDs", this, "machineIDs");
     registerField("format", this, "format");
     registerField("isFormatCloudOne", this, "isFormatCloudOne");
     registerField("path", this, "path");
-    registerField("macAddressPolicy", this, "macAddressPolicy");
+    registerField("macAddressExportPolicy", this, "macAddressExportPolicy");
     registerField("manifestSelected", this, "manifestSelected");
     registerField("includeISOsSelected", this, "includeISOsSelected");
     registerField("providerShortName", this, "providerShortName");
-    registerField("profileName", this, "profileName");
-    registerField("profile", this, "profile");
-    registerField("cloudClientParameters", this, "cloudClientParameters");
+    registerField("appliance", this, "appliance");
+    registerField("client", this, "client");
+    registerField("vsd", this, "vsd");
+    registerField("vsdExportForm", this, "vsdExportForm");
+    registerField("cloudExportMode", this, "cloudExportMode");
     registerField("applianceWidget", this, "applianceWidget");
 }
 
@@ -441,18 +515,33 @@ void UIWizardExportAppPageExpert::retranslateUi()
 
     /* Translate MAC address policy combo-box: */
     m_pMACComboBoxLabel->setText(UIWizardExportApp::tr("MAC Address &Policy:"));
-    m_pMACComboBox->setItemText(MACAddressPolicy_KeepAllMACs,
-                                UIWizardExportApp::tr("Include all network adapter MAC addresses"));
-    m_pMACComboBox->setItemText(MACAddressPolicy_StripAllNonNATMACs,
-                                UIWizardExportApp::tr("Include only NAT network adapter MAC addresses"));
-    m_pMACComboBox->setItemText(MACAddressPolicy_StripAllMACs,
-                                UIWizardExportApp::tr("Strip all network adapter MAC addresses"));
-    m_pMACComboBox->setItemData(MACAddressPolicy_KeepAllMACs,
-                                UIWizardExportApp::tr("Include all network adapter MAC addresses in exported appliance archive."), Qt::ToolTipRole);
-    m_pMACComboBox->setItemData(MACAddressPolicy_StripAllNonNATMACs,
-                                UIWizardExportApp::tr("Include only NAT network adapter MAC addresses in exported appliance archive."), Qt::ToolTipRole);
-    m_pMACComboBox->setItemData(MACAddressPolicy_StripAllMACs,
-                                UIWizardExportApp::tr("Strip all network adapter MAC addresses from exported appliance archive."), Qt::ToolTipRole);
+    for (int i = 0; i < m_pMACComboBox->count(); ++i)
+    {
+        const MACAddressExportPolicy enmPolicy = m_pMACComboBox->itemData(i).value<MACAddressExportPolicy>();
+        switch (enmPolicy)
+        {
+            case MACAddressExportPolicy_KeepAllMACs:
+            {
+                m_pMACComboBox->setItemText(i, UIWizardExportApp::tr("Include all network adapter MAC addresses"));
+                m_pMACComboBox->setItemData(i, UIWizardExportApp::tr("Include all network adapter MAC addresses in exported appliance archive."), Qt::ToolTipRole);
+                break;
+            }
+            case MACAddressExportPolicy_StripAllNonNATMACs:
+            {
+                m_pMACComboBox->setItemText(i, UIWizardExportApp::tr("Include only NAT network adapter MAC addresses"));
+                m_pMACComboBox->setItemData(i, UIWizardExportApp::tr("Include only NAT network adapter MAC addresses in exported appliance archive."), Qt::ToolTipRole);
+                break;
+            }
+            case MACAddressExportPolicy_StripAllMACs:
+            {
+                m_pMACComboBox->setItemText(i, UIWizardExportApp::tr("Strip all network adapter MAC addresses"));
+                m_pMACComboBox->setItemData(i, UIWizardExportApp::tr("Strip all network adapter MAC addresses from exported appliance archive."), Qt::ToolTipRole);
+                break;
+            }
+            default:
+                break;
+        }
+    }
 
     /* Translate addtional stuff: */
     m_pAdditionalLabel->setText(UIWizardExportApp::tr("Additionally:"));
@@ -461,8 +550,14 @@ void UIWizardExportAppPageExpert::retranslateUi()
     m_pIncludeISOsCheckbox->setToolTip(UIWizardExportApp::tr("Include ISO image files into exported VM archive."));
     m_pIncludeISOsCheckbox->setText(UIWizardExportApp::tr("&Include ISO image files"));
 
-    /* Translate Account combo-box: */
-    m_pAccountComboBoxLabel->setText(UIWizardExportApp::tr("&Account:"));
+    /* Translate Account label: */
+    m_pAccountLabel->setText(UIWizardExportApp::tr("&Account:"));
+
+    /* Translate option label: */
+    m_pMachineLabel->setText(UIWizardExportApp::tr("Machine Creation:"));
+    m_pRadioExportThenAsk->setText(UIWizardExportApp::tr("Ask me about it &after exporting disk as custom image"));
+    m_pRadioAskThenExport->setText(UIWizardExportApp::tr("Ask me about it &before exporting disk as custom image"));
+    m_pRadioDoNotAsk->setText(UIWizardExportApp::tr("Do &not ask me about it, leave custom image for future usage"));
 
     /* Adjust label widths: */
     QList<QWidget*> labels;
@@ -470,7 +565,8 @@ void UIWizardExportAppPageExpert::retranslateUi()
     labels << m_pFileSelectorLabel;
     labels << m_pMACComboBoxLabel;
     labels << m_pAdditionalLabel;
-    labels << m_pAccountComboBoxLabel;
+    labels << m_pAccountLabel;
+    labels << m_pMachineLabel;
     int iMaxWidth = 0;
     foreach (QWidget *pLabel, labels)
         iMaxWidth = qMax(iMaxWidth, pLabel->minimumSizeHint().width());
@@ -483,25 +579,23 @@ void UIWizardExportAppPageExpert::retranslateUi()
 
     /* Update tool-tips: */
     updateFormatComboToolTip();
-    updateMACAddressPolicyComboToolTip();
+    updateMACAddressExportPolicyComboToolTip();
 }
 
 void UIWizardExportAppPageExpert::initializePage()
 {
+    /* If wasn't polished yet: */
+    if (!m_fPolished)
+    {
+        QMetaObject::invokeMethod(this, "sltHandleFormatComboChange", Qt::QueuedConnection);
+        m_fPolished = true;
+    }
+
     /* Translate page: */
     retranslateUi();
 
-    /* Refresh file selector name: */
-    // refreshFileSelectorName(); already called from retranslateUi();
-    /* Refresh file selector extension: */
-    refreshFileSelectorExtension();
-    /* Refresh manifest check-box access: */
-    refreshManifestCheckBoxAccess();
-    /* Refresh include ISOs check-box access: */
-    refreshIncludeISOsCheckBoxAccess();
-
-    /* Refresh appliance settings: */
-    refreshApplianceSettingsWidget();
+    /* Choose default cloud export option: */
+    m_pRadioExportThenAsk->setChecked(true);
 }
 
 void UIWizardExportAppPageExpert::cleanupPage()
@@ -525,15 +619,13 @@ bool UIWizardExportAppPageExpert::isComplete() const
                           || field("format").toString() == "ovf-2.0";
         const bool fCSP =    field("isFormatCloudOne").toBool();
 
-        const QString &strFile = field("path").toString().toLower();
-        const QString &strAccount = field("profileName").toString();
-        const AbstractVSDParameterList &parameters = field("cloudClientParameters").value<AbstractVSDParameterList>();
-
         fResult =    (   fOVF
-                      && VBoxGlobal::hasAllowedExtension(strFile, OVFFileExts))
+                      && UICommon::hasAllowedExtension(path().toLower(), OVFFileExts))
                   || (   fCSP
-                      && !strAccount.isNull()
-                      && !parameters.isEmpty());
+                      && field("appliance").value<CAppliance>().isNotNull()
+                      && field("client").value<CCloudClient>().isNotNull()
+                      && field("vsd").value<CVirtualSystemDescription>().isNotNull()
+                      && field("vsdExportForm").value<CVirtualSystemDescriptionForm>().isNotNull());
     }
 
     return fResult;
@@ -547,8 +639,31 @@ bool UIWizardExportAppPageExpert::validatePage()
     /* Lock finish button: */
     startProcessing();
 
+    /* Check whether there was cloud target selected: */
+    const bool fIsFormatCloudOne = fieldImp("isFormatCloudOne").toBool();
+    if (fIsFormatCloudOne)
+    {
+        /* Make sure table has own data committed: */
+        m_pFormEditor->makeSureEditorDataCommitted();
+
+        /* Check whether we have proper VSD form: */
+        CVirtualSystemDescriptionForm comForm = fieldImp("vsdExportForm").value<CVirtualSystemDescriptionForm>();
+        fResult = comForm.isNotNull();
+        Assert(fResult);
+
+        /* Give changed VSD back to appliance: */
+        if (fResult)
+        {
+            comForm.GetVirtualSystemDescription();
+            fResult = comForm.isOk();
+            if (!fResult)
+                msgCenter().cannotAcquireVirtualSystemDescriptionFormProperty(comForm);
+        }
+    }
+
     /* Try to export appliance: */
-    fResult = qobject_cast<UIWizardExportApp*>(wizard())->exportAppliance();
+    if (fResult)
+        fResult = qobject_cast<UIWizardExportApp*>(wizard())->exportAppliance();
 
     /* Unlock finish button: */
     endProcessing();
@@ -561,7 +676,14 @@ void UIWizardExportAppPageExpert::sltVMSelectionChangeHandler()
 {
     /* Refresh required settings: */
     refreshFileSelectorName();
-    refreshApplianceSettingsWidget();
+    populateFormProperties();
+
+    /* Check whether there was cloud target selected: */
+    const bool fIsFormatCloudOne = field("isFormatCloudOne").toBool();
+    if (fIsFormatCloudOne)
+        refreshFormPropertiesTable();
+    else
+        refreshApplianceSettingsWidget();
 
     /* Broadcast complete-change: */
     emit completeChanged();
@@ -573,14 +695,23 @@ void UIWizardExportAppPageExpert::sltHandleFormatComboChange()
     updateFormatComboToolTip();
 
     /* Refresh required settings: */
-    updatePageAppearance();
+    UIWizardExportAppPage2::updatePageAppearance();
+    UIWizardExportAppPage3::updatePageAppearance();
     refreshFileSelectorExtension();
     refreshManifestCheckBoxAccess();
     refreshIncludeISOsCheckBoxAccess();
     populateAccounts();
     populateAccountProperties();
-    populateCloudClientParameters();
-    refreshApplianceSettingsWidget();
+    populateFormProperties();
+
+    /* Check whether there was cloud target selected: */
+    const bool fIsFormatCloudOne = field("isFormatCloudOne").toBool();
+    if (fIsFormatCloudOne)
+        refreshFormPropertiesTable();
+    else
+        refreshApplianceSettingsWidget();
+
+    /* Broadcast complete-change: */
     emit completeChanged();
 }
 
@@ -590,22 +721,30 @@ void UIWizardExportAppPageExpert::sltHandleFileSelectorChange()
     if (!m_pFileSelector->path().isEmpty())
         m_strFileSelectorName = QFileInfo(m_pFileSelector->path()).completeBaseName();
 
-    /* Refresh required settings: */
+    /* Broadcast complete-change: */
     emit completeChanged();
 }
 
-void UIWizardExportAppPageExpert::sltHandleMACAddressPolicyComboChange()
+void UIWizardExportAppPageExpert::sltHandleMACAddressExportPolicyComboChange()
 {
     /* Update tool-tip: */
-    updateMACAddressPolicyComboToolTip();
+    updateMACAddressExportPolicyComboToolTip();
 }
 
 void UIWizardExportAppPageExpert::sltHandleAccountComboChange()
 {
     /* Refresh required settings: */
     populateAccountProperties();
-    populateCloudClientParameters();
-    refreshApplianceSettingsWidget();
+    populateFormProperties();
+
+    /* Check whether there was cloud target selected: */
+    const bool fIsFormatCloudOne = field("isFormatCloudOne").toBool();
+    if (fIsFormatCloudOne)
+        refreshFormPropertiesTable();
+    else
+        refreshApplianceSettingsWidget();
+
+    /* Broadcast complete-change: */
     emit completeChanged();
 }
 

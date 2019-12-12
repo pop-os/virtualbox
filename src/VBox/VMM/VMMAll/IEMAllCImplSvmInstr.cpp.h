@@ -83,7 +83,7 @@ IEM_STATIC uint8_t iemGetSvmEventType(uint32_t uVector, uint32_t fIemXcptFlags)
  * @returns Strict VBox status code.
  * @param   pVCpu       The cross context virtual CPU structure.
  */
-DECLINLINE(VBOXSTRICTRC) iemSvmWorldSwitch(PVMCPU pVCpu)
+DECLINLINE(VBOXSTRICTRC) iemSvmWorldSwitch(PVMCPUCC pVCpu)
 {
     /*
      * Inform PGM about paging mode changes.
@@ -128,7 +128,7 @@ DECLINLINE(VBOXSTRICTRC) iemSvmWorldSwitch(PVMCPU pVCpu)
  * @param   uExitInfo1  The exit info. 1 field.
  * @param   uExitInfo2  The exit info. 2 field.
  */
-IEM_STATIC VBOXSTRICTRC iemSvmVmexit(PVMCPU pVCpu, uint64_t uExitCode, uint64_t uExitInfo1, uint64_t uExitInfo2)
+IEM_STATIC VBOXSTRICTRC iemSvmVmexit(PVMCPUCC pVCpu, uint64_t uExitCode, uint64_t uExitInfo1, uint64_t uExitInfo2)
 {
     VBOXSTRICTRC rcStrict;
     if (   CPUMIsGuestInSvmNestedHwVirtMode(IEM_GET_CTX(pVCpu))
@@ -352,7 +352,7 @@ IEM_STATIC VBOXSTRICTRC iemSvmVmexit(PVMCPU pVCpu, uint64_t uExitCode, uint64_t 
  * execution in the guest.
  *
  * @returns Strict VBox status code (i.e. informational status codes too).
- * @retval  VINF_SUCCESS successully executed VMRUN and entered nested-guest
+ * @retval  VINF_SUCCESS successfully executed VMRUN and entered nested-guest
  *          code execution.
  * @retval  VINF_SVM_VMEXIT when executing VMRUN causes a \#VMEXIT
  *          (SVM_EXIT_INVALID most likely).
@@ -361,7 +361,7 @@ IEM_STATIC VBOXSTRICTRC iemSvmVmexit(PVMCPU pVCpu, uint64_t uExitCode, uint64_t 
  * @param   cbInstr             The length of the VMRUN instruction.
  * @param   GCPhysVmcb          Guest physical address of the VMCB to run.
  */
-IEM_STATIC VBOXSTRICTRC iemSvmVmrun(PVMCPU pVCpu, uint8_t cbInstr, RTGCPHYS GCPhysVmcb)
+IEM_STATIC VBOXSTRICTRC iemSvmVmrun(PVMCPUCC pVCpu, uint8_t cbInstr, RTGCPHYS GCPhysVmcb)
 {
     LogFlow(("iemSvmVmrun\n"));
 
@@ -378,7 +378,7 @@ IEM_STATIC VBOXSTRICTRC iemSvmVmrun(PVMCPU pVCpu, uint8_t cbInstr, RTGCPHYS GCPh
     /*
      * Read the guest VMCB.
      */
-    PVM pVM = pVCpu->CTX_SUFF(pVM);
+    PVMCC pVM = pVCpu->CTX_SUFF(pVM);
     int rc = PGMPhysSimpleReadGCPhys(pVM, pVCpu->cpum.GstCtx.hwvirt.svm.CTX_SUFF(pVmcb), GCPhysVmcb, sizeof(SVMVMCB));
     if (RT_SUCCESS(rc))
     {
@@ -864,7 +864,7 @@ IEM_STATIC VBOXSTRICTRC iemSvmVmrun(PVMCPU pVCpu, uint8_t cbInstr, RTGCPHYS GCPh
  * @retval  VINF_SVM_VMEXIT if the intercept is active and the \#VMEXIT occurred
  *          successfully.
  * @retval  VERR_SVM_VMEXIT_FAILED if the intercept is active and the \#VMEXIT
- *          failed and a shutdown needs to be initiated for the geust.
+ *          failed and a shutdown needs to be initiated for the guest.
  *
  * @returns VBox strict status code.
  * @param   pVCpu       The cross context virtual CPU structure of the calling thread.
@@ -873,7 +873,7 @@ IEM_STATIC VBOXSTRICTRC iemSvmVmrun(PVMCPU pVCpu, uint8_t cbInstr, RTGCPHYS GCPh
  * @param   uErr        The error-code associated with the exception.
  * @param   uCr2        The CR2 value in case of a \#PF exception.
  */
-IEM_STATIC VBOXSTRICTRC iemHandleSvmEventIntercept(PVMCPU pVCpu, uint8_t u8Vector, uint32_t fFlags, uint32_t uErr, uint64_t uCr2)
+IEM_STATIC VBOXSTRICTRC iemHandleSvmEventIntercept(PVMCPUCC pVCpu, uint8_t u8Vector, uint32_t fFlags, uint32_t uErr, uint64_t uCr2)
 {
     Assert(CPUMIsGuestInSvmNestedHwVirtMode(IEM_GET_CTX(pVCpu)));
 
@@ -965,7 +965,7 @@ IEM_STATIC VBOXSTRICTRC iemHandleSvmEventIntercept(PVMCPU pVCpu, uint8_t u8Vecto
  * @retval  VINF_SVM_VMEXIT if the intercept is active and the \#VMEXIT occurred
  *          successfully.
  * @retval  VERR_SVM_VMEXIT_FAILED if the intercept is active and the \#VMEXIT
- *          failed and a shutdown needs to be initiated for the geust.
+ *          failed and a shutdown needs to be initiated for the guest.
  *
  * @returns VBox strict status code.
  * @param   pVCpu           The cross context virtual CPU structure of the calling thread.
@@ -978,7 +978,7 @@ IEM_STATIC VBOXSTRICTRC iemHandleSvmEventIntercept(PVMCPU pVCpu, uint8_t u8Vecto
  * @param   fStrIo          Whether this is a string IO instruction.
  * @param   cbInstr         The length of the IO instruction in bytes.
  */
-IEM_STATIC VBOXSTRICTRC iemSvmHandleIOIntercept(PVMCPU pVCpu, uint16_t u16Port, SVMIOIOTYPE enmIoType, uint8_t cbReg,
+IEM_STATIC VBOXSTRICTRC iemSvmHandleIOIntercept(PVMCPUCC pVCpu, uint16_t u16Port, SVMIOIOTYPE enmIoType, uint8_t cbReg,
                                                 uint8_t cAddrSizeBits, uint8_t iEffSeg, bool fRep, bool fStrIo, uint8_t cbInstr)
 {
     Assert(IEM_SVM_IS_CTRL_INTERCEPT_SET(pVCpu, SVM_CTRL_INTERCEPT_IOIO_PROT));
@@ -989,8 +989,8 @@ IEM_STATIC VBOXSTRICTRC iemSvmHandleIOIntercept(PVMCPU pVCpu, uint16_t u16Port, 
 
     SVMIOIOEXITINFO IoExitInfo;
     void *pvIoBitmap = pVCpu->cpum.GstCtx.hwvirt.svm.CTX_SUFF(pvIoBitmap);
-    bool const fIntercept = HMIsSvmIoInterceptActive(pvIoBitmap, u16Port, enmIoType, cbReg, cAddrSizeBits, iEffSeg, fRep,
-                                                       fStrIo, &IoExitInfo);
+    bool const fIntercept = CPUMIsSvmIoInterceptSet(pvIoBitmap, u16Port, enmIoType, cbReg, cAddrSizeBits, iEffSeg, fRep,
+                                                    fStrIo, &IoExitInfo);
     if (fIntercept)
     {
         Log3(("iemSvmHandleIOIntercept: u16Port=%#x (%u) -> #VMEXIT\n", u16Port, u16Port));
@@ -1015,7 +1015,7 @@ IEM_STATIC VBOXSTRICTRC iemSvmHandleIOIntercept(PVMCPU pVCpu, uint16_t u16Port, 
  * @retval  VINF_SVM_VMEXIT if the intercept is active and the \#VMEXIT occurred
  *          successfully.
  * @retval  VERR_SVM_VMEXIT_FAILED if the intercept is active and the \#VMEXIT
- *          failed and a shutdown needs to be initiated for the geust.
+ *          failed and a shutdown needs to be initiated for the guest.
  *
  * @param   pVCpu       The cross context virtual CPU structure.
  * @param   idMsr       The MSR being accessed in the nested-guest.
@@ -1023,7 +1023,7 @@ IEM_STATIC VBOXSTRICTRC iemSvmHandleIOIntercept(PVMCPU pVCpu, uint16_t u16Port, 
  *                      MSR read.
  * @param   cbInstr     The length of the MSR read/write instruction in bytes.
  */
-IEM_STATIC VBOXSTRICTRC iemSvmHandleMsrIntercept(PVMCPU pVCpu, uint32_t idMsr, bool fWrite)
+IEM_STATIC VBOXSTRICTRC iemSvmHandleMsrIntercept(PVMCPUCC pVCpu, uint32_t idMsr, bool fWrite)
 {
     /*
      * Check if any MSRs are being intercepted.
@@ -1038,7 +1038,7 @@ IEM_STATIC VBOXSTRICTRC iemSvmHandleMsrIntercept(PVMCPU pVCpu, uint32_t idMsr, b
      */
     uint16_t offMsrpm;
     uint8_t  uMsrpmBit;
-    int rc = HMGetSvmMsrpmOffsetAndBit(idMsr, &offMsrpm, &uMsrpmBit);
+    int rc = CPUMGetSvmMsrpmOffsetAndBit(idMsr, &offMsrpm, &uMsrpmBit);
     if (RT_SUCCESS(rc))
     {
         Assert(uMsrpmBit == 0 || uMsrpmBit == 2 || uMsrpmBit == 4 || uMsrpmBit == 6);
@@ -1060,7 +1060,7 @@ IEM_STATIC VBOXSTRICTRC iemSvmHandleMsrIntercept(PVMCPU pVCpu, uint32_t idMsr, b
     else
     {
         /*
-         * This shouldn't happen, but if it does, cause a #VMEXIT and let the "host" (guest hypervisor) deal with it.
+         * This shouldn't happen, but if it does, cause a #VMEXIT and let the "host" (nested hypervisor) deal with it.
          */
         Log(("iemSvmHandleMsrIntercept: Invalid/out-of-range MSR %#RX32 fWrite=%RTbool -> #VMEXIT\n", idMsr, fWrite));
         return iemSvmVmexit(pVCpu, SVM_EXIT_MSR, uExitInfo1, 0 /* uExitInfo2 */);
@@ -1411,19 +1411,18 @@ IEM_CIMPL_DEF_0(iemCImpl_vmmcall)
         IEM_SVM_VMEXIT_RET(pVCpu, SVM_EXIT_VMMCALL, 0 /* uExitInfo1 */, 0 /* uExitInfo2 */);
     }
 
-#ifndef IN_RC
     /* This is a little bit more complicated than the VT-x version because HM/SVM may
        patch MOV CR8 instructions to speed up APIC.TPR access for 32-bit windows guests. */
-    if (VM_IS_HM_ENABLED(pVCpu->CTX_SUFF(pVM)))
+    PVMCC pVM = pVCpu->CTX_SUFF(pVM);
+    if (VM_IS_HM_ENABLED(pVM))
     {
-        int rc = HMHCMaybeMovTprSvmHypercall(pVCpu);
+        int rc = HMHCMaybeMovTprSvmHypercall(pVM, pVCpu);
         if (RT_SUCCESS(rc))
         {
-            Log(("vmmcall: MovTrp\n"));
+            Log(("vmmcall: MovTpr\n"));
             return VINF_SUCCESS;
         }
     }
-#endif
 
     /* Join forces with vmcall. */
     return IEM_CIMPL_CALL_1(iemCImpl_Hypercall, OP_VMMCALL);

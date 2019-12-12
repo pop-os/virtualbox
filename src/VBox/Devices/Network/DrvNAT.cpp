@@ -597,9 +597,6 @@ static DECLCALLBACK(int) drvNATNetworkUp_SendBuf(PPDMINETWORKUP pInterface, PPDM
     int rc;
     if (pThis->pSlirpThread->enmState == PDMTHREADSTATE_RUNNING)
     {
-        /* Set an FTM checkpoint as this operation changes the state permanently. */
-        PDMDrvHlpFTSetCheckpoint(pThis->pDrvIns, FTMCHECKPOINTTYPE_NETWORK);
-
         rc = RTReqQueueCallEx(pThis->hSlirpReqQueue, NULL /*ppReq*/, 0 /*cMillies*/,
                               RTREQFLAGS_VOID | RTREQFLAGS_NO_WAIT,
                               (PFNRT)drvNATSendWorker, 2, pThis, pSgBuf);
@@ -1216,7 +1213,7 @@ static DECLCALLBACK(void) drvNATPowerOn(PPDMDRVINS pDrvIns)
 
 
 /**
- * @interface_method_impl{PDMDEVREG,pfnResume}
+ * @interface_method_impl{PDMDRVREG,pfnResume}
  */
 static DECLCALLBACK(void) drvNATResume(PPDMDRVINS pDrvIns)
 {
@@ -1817,8 +1814,6 @@ static DECLCALLBACK(int) drvNATConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uin
                 LogRel(("NAT#%d: Failed to install DNS change notifier. The guest might loose DNS access when switching networks on the host\n",
                          pDrvIns->iInstance));
 #endif
-
-            /* might return VINF_NAT_DNS */
             return rc;
         }
 

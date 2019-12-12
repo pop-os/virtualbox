@@ -31,7 +31,7 @@
 #include "UIMachineView.h"
 #include "UIPopupCenter.h"
 #include "UIExtraDataManager.h"
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #ifdef VBOX_WITH_MASKED_SEAMLESS
 # include "UIMachineWindow.h"
 #endif /* VBOX_WITH_MASKED_SEAMLESS */
@@ -718,7 +718,7 @@ STDMETHODIMP UIFrameBufferPrivate::COMGETTER(Capabilities)(ComSafeArrayOut(Frame
         return E_POINTER;
 
     com::SafeArray<FramebufferCapabilities_T> caps;
-    if (vboxGlobal().isSeparateProcess())
+    if (uiCommon().isSeparateProcess())
     {
        caps.resize(2);
        caps[0] = FramebufferCapabilities_UpdateImage;
@@ -739,7 +739,7 @@ STDMETHODIMP UIFrameBufferPrivate::COMGETTER(Capabilities)(ComSafeArrayOut(Frame
 STDMETHODIMP UIFrameBufferPrivate::NotifyChange(ULONG uScreenId, ULONG uX, ULONG uY, ULONG uWidth, ULONG uHeight)
 {
     CDisplaySourceBitmap sourceBitmap;
-    if (!vboxGlobal().isSeparateProcess())
+    if (!uiCommon().isSeparateProcess())
         display().QuerySourceBitmap(uScreenId, sourceBitmap);
 
     /* Lock access to frame-buffer: */
@@ -766,7 +766,7 @@ STDMETHODIMP UIFrameBufferPrivate::NotifyChange(ULONG uScreenId, ULONG uX, ULONG
     /* While updates are disabled, visible region will be saved:  */
     m_pendingSyncVisibleRegion = QRegion();
 
-    if (!vboxGlobal().isSeparateProcess())
+    if (!uiCommon().isSeparateProcess())
     {
        /* Acquire new pending bitmap: */
        m_pendingSourceBitmap = sourceBitmap;
@@ -1086,7 +1086,7 @@ void UIFrameBufferPrivate::handleNotifyChange(int iWidth, int iHeight)
     lock();
 
     /* If there is NO pending source-bitmap: */
-    if (!vboxGlobal().isSeparateProcess() && !m_fPendingSourceBitmap)
+    if (!uiCommon().isSeparateProcess() && !m_fPendingSourceBitmap)
     {
         /* Do nothing, change-event already processed: */
         LogRel2(("GUI: UIFrameBufferPrivate::handleNotifyChange: Already processed.\n"));
@@ -1382,17 +1382,17 @@ void UIFrameBufferPrivate::sltCursorPositionChange()
 void UIFrameBufferPrivate::prepareConnections()
 {
     /* Attach EMT connections: */
-    connect(this, SIGNAL(sigNotifyChange(int, int)),
-            m_pMachineView, SLOT(sltHandleNotifyChange(int, int)),
+    connect(this, &UIFrameBufferPrivate::sigNotifyChange,
+            m_pMachineView, &UIMachineView::sltHandleNotifyChange,
             Qt::QueuedConnection);
-    connect(this, SIGNAL(sigNotifyUpdate(int, int, int, int)),
-            m_pMachineView, SLOT(sltHandleNotifyUpdate(int, int, int, int)),
+    connect(this, &UIFrameBufferPrivate::sigNotifyUpdate,
+            m_pMachineView, &UIMachineView::sltHandleNotifyUpdate,
             Qt::QueuedConnection);
-    connect(this, SIGNAL(sigSetVisibleRegion(QRegion)),
-            m_pMachineView, SLOT(sltHandleSetVisibleRegion(QRegion)),
+    connect(this, &UIFrameBufferPrivate::sigSetVisibleRegion,
+            m_pMachineView, &UIMachineView::sltHandleSetVisibleRegion,
             Qt::QueuedConnection);
-    connect(this, SIGNAL(sigNotifyAbout3DOverlayVisibilityChange(bool)),
-            m_pMachineView, SLOT(sltHandle3DOverlayVisibilityChange(bool)),
+    connect(this, &UIFrameBufferPrivate::sigNotifyAbout3DOverlayVisibilityChange,
+            m_pMachineView, &UIMachineView::sltHandle3DOverlayVisibilityChange,
             Qt::QueuedConnection);
 
     /* Attach GUI connections: */
@@ -1405,14 +1405,14 @@ void UIFrameBufferPrivate::prepareConnections()
 void UIFrameBufferPrivate::cleanupConnections()
 {
     /* Detach EMT connections: */
-    disconnect(this, SIGNAL(sigNotifyChange(int, int)),
-               m_pMachineView, SLOT(sltHandleNotifyChange(int, int)));
-    disconnect(this, SIGNAL(sigNotifyUpdate(int, int, int, int)),
-               m_pMachineView, SLOT(sltHandleNotifyUpdate(int, int, int, int)));
-    disconnect(this, SIGNAL(sigSetVisibleRegion(QRegion)),
-               m_pMachineView, SLOT(sltHandleSetVisibleRegion(QRegion)));
-    disconnect(this, SIGNAL(sigNotifyAbout3DOverlayVisibilityChange(bool)),
-               m_pMachineView, SLOT(sltHandle3DOverlayVisibilityChange(bool)));
+    disconnect(this, &UIFrameBufferPrivate::sigNotifyChange,
+               m_pMachineView, &UIMachineView::sltHandleNotifyChange);
+    disconnect(this, &UIFrameBufferPrivate::sigNotifyUpdate,
+               m_pMachineView, &UIMachineView::sltHandleNotifyUpdate);
+    disconnect(this, &UIFrameBufferPrivate::sigSetVisibleRegion,
+               m_pMachineView, &UIMachineView::sltHandleSetVisibleRegion);
+    disconnect(this, &UIFrameBufferPrivate::sigNotifyAbout3DOverlayVisibilityChange,
+               m_pMachineView, &UIMachineView::sltHandle3DOverlayVisibilityChange);
 
     /* Detach GUI connections: */
     disconnect(m_pMachineView->uisession(), &UISession::sigCursorPositionChange,
@@ -1516,8 +1516,8 @@ void UIFrameBufferPrivate::paintDefault(QPaintEvent *pEvent)
         && (   !m_pMachineView->uisession()->isMouseIntegrated()
             || !m_pMachineView->uisession()->isMouseSupportsAbsolute()))
     {
-        /* Acquire session cursor pixmap: */
-        QPixmap cursorPixmap = m_pMachineView->uisession()->cursorPixmap();
+        /* Acquire session cursor shape pixmap: */
+        QPixmap cursorPixmap = m_pMachineView->uisession()->cursorShapePixmap();
 
         /* Take the device-pixel-ratio into account: */
         cursorPixmap.setDevicePixelRatio(devicePixelRatio());
@@ -1625,8 +1625,8 @@ void UIFrameBufferPrivate::paintSeamless(QPaintEvent *pEvent)
         && (   !m_pMachineView->uisession()->isMouseIntegrated()
             || !m_pMachineView->uisession()->isMouseSupportsAbsolute()))
     {
-        /* Acquire session cursor pixmap: */
-        QPixmap cursorPixmap = m_pMachineView->uisession()->cursorPixmap();
+        /* Acquire session cursor shape pixmap: */
+        QPixmap cursorPixmap = m_pMachineView->uisession()->cursorShapePixmap();
 
         /* Take the device-pixel-ratio into account: */
         cursorPixmap.setDevicePixelRatio(devicePixelRatio());
@@ -1904,4 +1904,3 @@ void UIFrameBuffer::viewportScrolled(int iX, int iY)
 #endif /* VBOX_WITH_VIDEOHWACCEL */
 
 #include "UIFrameBuffer.moc"
-

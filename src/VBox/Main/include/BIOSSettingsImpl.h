@@ -48,7 +48,7 @@ public:
     HRESULT initCopy(Machine *parent, BIOSSettings *that);
     void uninit();
 
-    // public methods only for internal purposes
+    // public methods for internal purposes only
     HRESULT i_loadSettings(const settings::BIOSSettings &data);
     HRESULT i_saveSettings(settings::BIOSSettings &data);
 
@@ -56,6 +56,9 @@ public:
     void i_commit();
     void i_copyFrom(BIOSSettings *aThat);
     void i_applyDefaults(GuestOSType *aOsType);
+
+    com::Utf8Str i_getNonVolatileStorageFile();
+    void i_updateNonVolatileStorageFile(const com::Utf8Str &aNonVolatileStorageFile);
 
 private:
 
@@ -81,6 +84,8 @@ private:
     HRESULT getPXEDebugEnabled(BOOL *enabled);
     HRESULT setPXEDebugEnabled(BOOL enable);
     HRESULT getNonVolatileStorageFile(com::Utf8Str &aNonVolatileStorageFile);
+    HRESULT getSMBIOSUuidLittleEndian(BOOL *enabled);
+    HRESULT setSMBIOSUuidLittleEndian(BOOL enable);
 
     struct Data;
     Data *m;

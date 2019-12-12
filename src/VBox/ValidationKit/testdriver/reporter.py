@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # $Id: reporter.py $
-# pylint: disable=C0302
+# pylint: disable=too-many-lines
 
 """
 Testdriver reporter module.
@@ -29,7 +29,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 132323 $"
 
 
 # Standard Python imports.
@@ -48,7 +48,7 @@ import traceback
 from common import utils;
 
 ## test reporter instance
-g_oReporter = None;                     # type: ReporterBase
+g_oReporter = None # type: ReporterBase
 g_sReporterName = None;
 
 
@@ -116,7 +116,7 @@ class PythonLoggingStream(object):
 
     def write(self, sText):
         """Writes python log message to our stream."""
-        if g_oReporter != None:
+        if g_oReporter is not None:
             sText = sText.rstrip("\r\n");
             #g_oReporter.log(0, 'python: %s' % (sText), utils.getCallerName(), utils.getTimePrefix());
         return True;
@@ -303,7 +303,7 @@ class ReporterBase(object):
         sFullName        = self._testGetFullName();
 
         # safe pop
-        if len(self.atTests) <= 0:
+        if not self.atTests:
             self.log(0, 'testDone on empty test stack!', sCaller, sTsPrf);
             return ('internal error', 0);
         fTimedOut = self.fTimedOut;
@@ -498,10 +498,12 @@ class LocalReporter(ReporterBase):
     def log(self, iLevel, sText, sCaller, sTsPrf):
         if iLevel <= self.iVerbose:
             # format it.
-            if self.iDebug > 0:
+            if self.iDebug <= 0:
+                sLogText = '%s %s' % (sTsPrf, sText);
+            elif self.iDebug <= 1:
                 sLogText = '%s %30s: %s' % (sTsPrf, sCaller, sText);
             else:
-                sLogText = '%s %s' % (sTsPrf, sText);
+                sLogText = '%s e=%u %30s: %s' % (sTsPrf, self.cErrors, sCaller, sText);
 
             # output it.
             if sys.version_info[0] >= 3:
@@ -676,14 +678,14 @@ class RemoteReporter(ReporterBase):
 
         if     sys.version_info[0] >= 3 \
            or (sys.version_info[0] == 2 and sys.version_info[1] >= 6):
-            if self._oParsedTmUrl.scheme == 'https': # pylint: disable=E1101
+            if self._oParsedTmUrl.scheme == 'https': # pylint: disable=no-member
                 self._fnTmConnect = lambda: httplib.HTTPSConnection(self._oParsedTmUrl.hostname,
                                                                     timeout = self.kcSecTestManagerRequestTimeout);
             else:
                 self._fnTmConnect = lambda: httplib.HTTPConnection( self._oParsedTmUrl.hostname,
                                                                     timeout = self.kcSecTestManagerRequestTimeout);
         else:
-            if self._oParsedTmUrl.scheme == 'https': # pylint: disable=E1101
+            if self._oParsedTmUrl.scheme == 'https': # pylint: disable=no-member
                 self._fnTmConnect = lambda: httplib.HTTPSConnection(self._oParsedTmUrl.hostname);
             else:
                 self._fnTmConnect = lambda: httplib.HTTPConnection( self._oParsedTmUrl.hostname);
@@ -703,7 +705,7 @@ class RemoteReporter(ReporterBase):
             constants.tbreq.RESULT_PARAM_TEST_SET_ID:   self.idTestSet,
         };
         self._sTmServerPath = '/%s/testboxdisp.py?%s' \
-                            % ( self._oParsedTmUrl.path.strip('/'), # pylint: disable=E1101
+                            % ( self._oParsedTmUrl.path.strip('/'), # pylint: disable=no-member
                                 self._fnUrlEncode(dParams), );
 
     def __del__(self):
@@ -782,8 +784,13 @@ class RemoteReporter(ReporterBase):
         dHeader['Content-Type'] = 'application/octet-stream';
         self._writeOutput('%s: _doUploadFile: sHeader=%s' % (utils.getTimePrefix(), dHeader,));
         oSrcFile.seek(0, 2);
-        self._writeOutput('%s: _doUploadFile: size=%d' % (utils.getTimePrefix(), oSrcFile.tell(),));
+        cbFileSize = oSrcFile.tell();
+        self._writeOutput('%s: _doUploadFile: size=%d' % (utils.getTimePrefix(), cbFileSize,));
         oSrcFile.seek(0);
+
+        if cbFileSize <= 0: # The Test Manager will bitch if the file size is 0, so skip uploading.
+            self._writeOutput('%s: _doUploadFile: Empty file, skipping upload' % utils.getTimePrefix());
+            return False;
 
         from common import constants;
         sUrl = self._sTmServerPath + '&' \
@@ -907,10 +914,12 @@ class RemoteReporter(ReporterBase):
 
     def log(self, iLevel, sText, sCaller, sTsPrf):
         if iLevel <= self.iVerbose:
-            if self.iDebug > 0:
+            if self.iDebug <= 0:
+                sLogText = '%s %s' % (sTsPrf, sText);
+            elif self.iDebug <= 1:
                 sLogText = '%s %30s: %s' % (sTsPrf, sCaller, sText);
             else:
-                sLogText = '%s %s: %s' % (sTsPrf, self.sName, sText);
+                sLogText = '%s e=%u %30s: %s' % (sTsPrf, self.cErrors, sCaller, sText);
             self._writeOutput(sLogText);
         return 0;
 
@@ -1066,6 +1075,50 @@ class RemoteReporter(ReporterBase):
 # Helpers
 #
 
+g_fnComXcptFormatter = None;
+
+def setComXcptFormatter(fnCallback):
+    """
+    Install callback for prettier COM exception formatting.
+
+    The callback replaces the work done by format_exception_only() and
+    takes the same arguments.  It returns None if not interested in the
+    exception.
+    """
+    global g_fnComXcptFormatter;
+    g_fnComXcptFormatter = fnCallback;
+    return True;
+
+def formatExceptionOnly(oType, oXcpt, sCaller, sTsPrf):
+    """
+    Wrapper around traceback.format_exception_only and __g_fnComXcptFormatter.
+    """
+    #asRet = ['oType=%s type(oXcpt)=%s' % (oType, type(oXcpt),)];
+    asRet = [];
+
+    # Try the callback first.
+    fnCallback = g_fnComXcptFormatter;
+    if fnCallback:
+        try:
+            asRetCb = fnCallback(oType, oXcpt);
+            if asRetCb:
+                return asRetCb;
+                #asRet += asRetCb;
+        except:
+            g_oReporter.log(0, '** internal-error: Hit exception #2 in __g_fnComXcptFormatter! %s'
+                            % (traceback.format_exc()), sCaller, sTsPrf);
+            asRet += ['internal error: exception in __g_fnComXcptFormatter'];
+
+    # Now try format_exception_only:
+    try:
+        asRet += traceback.format_exception_only(oType, oXcpt);
+    except:
+        g_oReporter.log(0, '** internal-error: Hit exception #2 in format_exception_only! %s'
+                        % (traceback.format_exc()), sCaller, sTsPrf);
+        asRet += ['internal error: Exception in format_exception_only!'];
+    return asRet;
+
+
 def logXcptWorker(iLevel, fIncErrors, sPrefix="", sText=None, cFrames=1):
     """
     Log an exception, optionally with a preceeding message and more than one
@@ -1093,14 +1146,20 @@ def logXcptWorker(iLevel, fIncErrors, sPrefix="", sText=None, cFrames=1):
                 sCaller = utils.getCallerName(oTraceback.tb_frame);
                 if sText is not None:
                     rc = g_oReporter.log(iLevel, "%s%s" % (sPrefix, sText), sCaller, sTsPrf);
-                asInfo = [];
+                asInfo = None;
                 try:
-                    asInfo = asInfo + traceback.format_exception_only(oType, oValue);
+                    asInfo = formatExceptionOnly(oType, oValue, sCaller, sTsPrf);
+                    atEntries = traceback.extract_tb(oTraceback);
+                    atEntries.reverse();
                     if cFrames is not None and cFrames <= 1:
-                        asInfo = asInfo + traceback.format_tb(oTraceback, 1);
+                        if atEntries:
+                            asInfo = asInfo + traceback.format_list(atEntries[:1]);
                     else:
-                        asInfo.append('Traceback:')
-                        asInfo = asInfo + traceback.format_tb(oTraceback, cFrames);
+                        asInfo.append('Traceback (stack order):')
+                        if cFrames is not None and cFrames < len(atEntries):
+                            asInfo = asInfo + traceback.format_list(atEntries[:cFrames]);
+                        else:
+                            asInfo = asInfo + traceback.format_list(atEntries);
                         asInfo.append('Stack:')
                         asInfo = asInfo + traceback.format_stack(oTraceback.tb_frame.f_back, cFrames);
                 except:
@@ -1127,6 +1186,7 @@ def logXcptWorker(iLevel, fIncErrors, sPrefix="", sText=None, cFrames=1):
     finally:
         g_oLock.release();
     return rc;
+
 
 #
 # The public Classes
@@ -1322,6 +1382,78 @@ def log2Xcpt(sText=None, cFrames=1):
     more than one call frame.
     """
     return logXcptWorker(2, False, "", sText, cFrames);
+
+def log3(sText):
+    """Log level 3: Writes the specfied text to the log."""
+    g_oLock.acquire();
+    try:
+        rc = g_oReporter.log(3, sText, utils.getCallerName(), utils.getTimePrefix());
+    except:
+        rc = -1;
+    finally:
+        g_oLock.release();
+    return rc;
+
+def log3Xcpt(sText=None, cFrames=1):
+    """
+    Log level 3: Log an exception, optionally with a preceeding message and
+    more than one call frame.
+    """
+    return logXcptWorker(3, False, "", sText, cFrames);
+
+def log4(sText):
+    """Log level 4: Writes the specfied text to the log."""
+    g_oLock.acquire();
+    try:
+        rc = g_oReporter.log(4, sText, utils.getCallerName(), utils.getTimePrefix());
+    except:
+        rc = -1;
+    finally:
+        g_oLock.release();
+    return rc;
+
+def log4Xcpt(sText=None, cFrames=1):
+    """
+    Log level 4: Log an exception, optionally with a preceeding message and
+    more than one call frame.
+    """
+    return logXcptWorker(4, False, "", sText, cFrames);
+
+def log5(sText):
+    """Log level 2: Writes the specfied text to the log."""
+    g_oLock.acquire();
+    try:
+        rc = g_oReporter.log(5, sText, utils.getCallerName(), utils.getTimePrefix());
+    except:
+        rc = -1;
+    finally:
+        g_oLock.release();
+    return rc;
+
+def log5Xcpt(sText=None, cFrames=1):
+    """
+    Log level 5: Log an exception, optionally with a preceeding message and
+    more than one call frame.
+    """
+    return logXcptWorker(5, False, "", sText, cFrames);
+
+def log6(sText):
+    """Log level 6: Writes the specfied text to the log."""
+    g_oLock.acquire();
+    try:
+        rc = g_oReporter.log(6, sText, utils.getCallerName(), utils.getTimePrefix());
+    except:
+        rc = -1;
+    finally:
+        g_oLock.release();
+    return rc;
+
+def log6Xcpt(sText=None, cFrames=1):
+    """
+    Log level 6: Log an exception, optionally with a preceeding message and
+    more than one call frame.
+    """
+    return logXcptWorker(6, False, "", sText, cFrames);
 
 def maybeErr(fIsError, sText):
     """ Maybe error or maybe normal log entry. """
@@ -1583,7 +1715,7 @@ def testFailureXcpt(sDetails = ''):
         oType = oValue, oTraceback = None;
     if oType is not None:
         sCaller = utils.getCallerName(oTraceback.tb_frame);
-        sXcpt   = ' '.join(traceback.format_exception_only(oType, oValue));
+        sXcpt   = ' '.join(formatExceptionOnly(oType, oValue, sCaller, utils.getTimePrefix()));
     else:
         sCaller = utils.getCallerName();
         sXcpt   = 'No exception at %s' % (sCaller,);
@@ -1681,7 +1813,7 @@ def logAllStacks(cFrames = None):
     g_oLock.acquire();
 
     cThread = 0;
-    for idThread, oStack in sys._current_frames().items(): # >=2.5, a bit ugly - pylint: disable=W0212
+    for idThread, oStack in sys._current_frames().items(): # >=2.5, a bit ugly - pylint: disable=protected-access
         try:
             if cThread > 0:
                 g_oReporter.log(1, '', sCaller, sTsPrf);
@@ -1759,4 +1891,3 @@ def _InitReporterModule():
 
 if __name__ != "checker": # pychecker avoidance.
     _InitReporterModule();
-

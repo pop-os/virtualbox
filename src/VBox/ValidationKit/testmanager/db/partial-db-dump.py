@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # $Id: partial-db-dump.py $
-# pylint: disable=C0301
+# pylint: disable=line-too-long
 
 """
 Utility for dumping the last X days of data.
@@ -28,7 +28,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 131247 $"
 
 # Standard python imports
 import sys;
@@ -46,7 +46,7 @@ from testmanager.core.db            import TMDatabaseConnection;
 from common                         import utils;
 
 
-class PartialDbDump(object): # pylint: disable=R0903
+class PartialDbDump(object): # pylint: disable=too-few-public-methods
     """
     Dumps or loads the last X days of database data.
 

@@ -3,8 +3,9 @@
  * DevE1000Phy - Intel 82540EM Ethernet Controller Internal PHY Emulation.
  *
  * Implemented in accordance with the specification:
- *      PCI/PCI-X Family of Gigabit Ethernet Controllers Software Developer�s Manual
- *      82540EP/EM, 82541xx, 82544GC/EI, 82545GM/EM, 82546GB/EB, and 82547xx
+ *      PCI/PCI-X Family of Gigabit Ethernet Controllers Software Developer's
+ *      Manual 82540EP/EM, 82541xx, 82544GC/EI, 82545GM/EM, 82546GB/EB, and
+ *      82547xx
  *
  *      317453-002 Revision 3.5
  */
@@ -32,7 +33,9 @@
 
 #include <iprt/errcore.h>
 #include <VBox/log.h>
-#include <VBox/vmm/ssm.h>
+#ifdef IN_RING3
+# include <VBox/vmm/pdmdev.h>
+#endif
 #include "DevE1000Phy.h"
 
 /* Little helpers ************************************************************/
@@ -48,10 +51,6 @@
 #define REG(x) pPhy->au16Regs[x##_IDX]
 
 
-/* External callback declaration */
-void e1kPhyLinkResetCallback(PPHY pPhy);
-
-
 /* Internals */
 namespace Phy {
 #if defined(LOG_ENABLED) && !defined(PHY_UNIT_TEST)
@@ -61,22 +60,27 @@ namespace Phy {
     /** Look up register index by address. */
     static int lookupRegister(uint32_t u32Address);
     /** Software-triggered reset. */
-    static void softReset(PPHY pPhy);
+    static void softReset(PPHY pPhy, PPDMDEVINS pDevIns);
+
+    /** Read callback. */
+    typedef uint16_t FNREAD(PPHY pPhy, uint32_t index, PPDMDEVINS pDevIns);
+    /** Write callback. */
+    typedef void     FNWRITE(PPHY pPhy, uint32_t index, uint16_t u16Value, PPDMDEVINS pDevIns);
 
     /** @name Generic handlers
      * @{ */
-    static uint16_t regReadDefault       (PPHY pPhy, uint32_t index);
-    static void     regWriteDefault      (PPHY pPhy, uint32_t index, uint16_t u16Value);
-    static uint16_t regReadForbidden     (PPHY pPhy, uint32_t index);
-    static void     regWriteForbidden    (PPHY pPhy, uint32_t index, uint16_t u16Value);
-    static uint16_t regReadUnimplemented (PPHY pPhy, uint32_t index);
-    static void     regWriteUnimplemented(PPHY pPhy, uint32_t index, uint16_t u16Value);
+    static FNREAD  regReadDefault;
+    static FNWRITE regWriteDefault;
+    static FNREAD  regReadForbidden;
+    static FNWRITE regWriteForbidden;
+    static FNREAD  regReadUnimplemented;
+    static FNWRITE regWriteUnimplemented;
     /** @} */
     /** @name Register-specific handlers
      * @{ */
-    static void     regWritePCTRL        (PPHY pPhy, uint32_t index, uint16_t u16Value);
-    static uint16_t regReadPSTATUS       (PPHY pPhy, uint32_t index);
-    static uint16_t regReadGSTATUS       (PPHY pPhy, uint32_t index);
+    static FNWRITE regWritePCTRL;
+    static FNREAD  regReadPSTATUS;
+    static FNREAD  regReadGSTATUS;
     /** @} */
 
     /**
@@ -87,11 +91,11 @@ namespace Phy {
     static struct RegMap_st
     {
         /** PHY register address. */
-        uint32_t   u32Address;
+        uint32_t    u32Address;
         /** Read callback. */
-        uint16_t   (*pfnRead)(PPHY pPhy, uint32_t index);
+        FNREAD     *pfnRead;
         /** Write callback. */
-        void       (*pfnWrite)(PPHY pPhy, uint32_t index, uint16_t u16Value);
+        FNWRITE    *pfnWrite;
         /** Abbreviated name. */
         const char *pszAbbrev;
         /** Full name. */
@@ -133,8 +137,9 @@ namespace Phy {
  *
  * @param   index       Register index in register array.
  */
-static uint16_t Phy::regReadDefault(PPHY pPhy, uint32_t index)
+static uint16_t Phy::regReadDefault(PPHY pPhy, uint32_t index, PPDMDEVINS pDevIns)
 {
+    RT_NOREF(pDevIns);
     AssertReturn(index<Phy::NUM_OF_PHY_REGS, 0);
     return pPhy->au16Regs[index];
 }
@@ -147,9 +152,10 @@ static uint16_t Phy::regReadDefault(PPHY pPhy, uint32_t index)
  * @param   index       Register index in register array.
  * @param   value       The value to store (ignored).
  */
-static void Phy::regWriteDefault(PPHY pPhy, uint32_t index, uint16_t u16Value)
+static void Phy::regWriteDefault(PPHY pPhy, uint32_t index, uint16_t u16Value, PPDMDEVINS pDevIns)
 {
-    AssertReturnVoid(index<NUM_OF_PHY_REGS);
+    RT_NOREF(pDevIns);
+    AssertReturnVoid(index < NUM_OF_PHY_REGS);
     pPhy->au16Regs[index] = u16Value;
 }
 
@@ -162,9 +168,9 @@ static void Phy::regWriteDefault(PPHY pPhy, uint32_t index, uint16_t u16Value)
  *
  * @param   index       Register index in register array.
  */
-static uint16_t Phy::regReadForbidden(PPHY pPhy, uint32_t index)
+static uint16_t Phy::regReadForbidden(PPHY pPhy, uint32_t index, PPDMDEVINS pDevIns)
 {
-    RT_NOREF2(pPhy, index);
+    RT_NOREF(pPhy, index, pDevIns);
     PhyLog(("PHY#%d At %02d read attempted from write-only '%s'\n",
             pPhy->iInstance, s_regMap[index].u32Address, s_regMap[index].pszName));
     return 0;
@@ -178,9 +184,9 @@ static uint16_t Phy::regReadForbidden(PPHY pPhy, uint32_t index)
  * @param   index       Register index in register array.
  * @param   value       The value to store (ignored).
  */
-static void Phy::regWriteForbidden(PPHY pPhy, uint32_t index, uint16_t u16Value)
+static void Phy::regWriteForbidden(PPHY pPhy, uint32_t index, uint16_t u16Value, PPDMDEVINS pDevIns)
 {
-    RT_NOREF_PV(pPhy); RT_NOREF_PV(index); RT_NOREF_PV(u16Value);
+    RT_NOREF(pPhy, index, u16Value, pDevIns);
     PhyLog(("PHY#%d At %02d write attempted to read-only '%s'\n",
             pPhy->iInstance, s_regMap[index].u32Address, s_regMap[index].pszName));
 }
@@ -194,9 +200,9 @@ static void Phy::regWriteForbidden(PPHY pPhy, uint32_t index, uint16_t u16Value)
  *
  * @param   index       Register index in register array.
  */
-static uint16_t Phy::regReadUnimplemented(PPHY pPhy, uint32_t index)
+static uint16_t Phy::regReadUnimplemented(PPHY pPhy, uint32_t index, PPDMDEVINS pDevIns)
 {
-    RT_NOREF_PV(pPhy); RT_NOREF_PV(index);
+    RT_NOREF(pPhy, index, pDevIns);
     PhyLog(("PHY#%d At %02d read attempted from unimplemented '%s'\n",
             pPhy->iInstance, s_regMap[index].u32Address, s_regMap[index].pszName));
     return 0;
@@ -210,9 +216,9 @@ static uint16_t Phy::regReadUnimplemented(PPHY pPhy, uint32_t index)
  * @param   index       Register index in register array.
  * @param   value       The value to store (ignored).
  */
-static void Phy::regWriteUnimplemented(PPHY pPhy, uint32_t index, uint16_t u16Value)
+static void Phy::regWriteUnimplemented(PPHY pPhy, uint32_t index, uint16_t u16Value, PPDMDEVINS pDevIns)
 {
-    RT_NOREF_PV(pPhy); RT_NOREF_PV(index); RT_NOREF_PV(u16Value);
+    RT_NOREF(pPhy, index, u16Value, pDevIns);
     PhyLog(("PHY#%d At %02d write attempted to unimplemented '%s'\n",
             pPhy->iInstance, s_regMap[index].u32Address, s_regMap[index].pszName));
 }
@@ -233,7 +239,7 @@ static int Phy::lookupRegister(uint32_t u32Address)
     {
         if (s_regMap[index].u32Address == u32Address)
         {
-            return index;
+            return (int)index;
         }
     }
 
@@ -247,14 +253,14 @@ static int Phy::lookupRegister(uint32_t u32Address)
  *
  * @param   u32Address  Register address.
  */
-uint16_t Phy::readRegister(PPHY pPhy, uint32_t u32Address)
+uint16_t Phy::readRegister(PPHY pPhy, uint32_t u32Address, PPDMDEVINS pDevIns)
 {
     int      index = Phy::lookupRegister(u32Address);
     uint16_t u16   = 0;
 
-    if (index != -1)
+    if (index >= 0)
     {
-        u16 = s_regMap[index].pfnRead(pPhy, index);
+        u16 = s_regMap[index].pfnRead(pPhy, (uint32_t)index, pDevIns);
         PhyLog(("PHY#%d At %02d read  %04X      from %s (%s)\n",
                 pPhy->iInstance, s_regMap[index].u32Address, u16,
                 s_regMap[index].pszAbbrev, s_regMap[index].pszName));
@@ -273,21 +279,21 @@ uint16_t Phy::readRegister(PPHY pPhy, uint32_t u32Address)
  * @param   u32Address  Register address.
  * @param   u16Value    Value to store.
  */
-void Phy::writeRegister(PPHY pPhy, uint32_t u32Address, uint16_t u16Value)
+void Phy::writeRegister(PPHY pPhy, uint32_t u32Address, uint16_t u16Value, PPDMDEVINS pDevIns)
 {
     int index = Phy::lookupRegister(u32Address);
 
-    if (index != -1)
+    if (index >= 0)
     {
         PhyLog(("PHY#%d At %02d write      %04X  to  %s (%s)\n",
                 pPhy->iInstance, s_regMap[index].u32Address, u16Value,
                 s_regMap[index].pszAbbrev, s_regMap[index].pszName));
-        s_regMap[index].pfnWrite(pPhy, index, u16Value);
+        s_regMap[index].pfnWrite(pPhy, (uint32_t)index, u16Value, pDevIns);
     }
     else
     {
         PhyLog(("PHY#%d write attempted to non-existing register %08x\n",
-            pPhy->iInstance, u32Address));
+                pPhy->iInstance, u32Address));
     }
 }
 
@@ -350,7 +356,7 @@ void Phy::hardReset(PPHY pPhy)
 /**
  * Software PHY reset.
  */
-static void Phy::softReset(PPHY pPhy)
+static void Phy::softReset(PPHY pPhy, PPDMDEVINS pDevIns)
 {
     PhyLog(("PHY#%d Soft reset\n", pPhy->iInstance));
 
@@ -363,7 +369,7 @@ static void Phy::softReset(PPHY pPhy)
     REG(PSSTAT)  &= 0xe001;
     PhyLog(("PHY#%d PSTATUS=%04x PSSTAT=%04x\n", pPhy->iInstance, REG(PSTATUS), REG(PSSTAT)));
 
-    e1kPhyLinkResetCallback(pPhy);
+    e1kPhyLinkResetCallback(pDevIns);
 }
 
 /**
@@ -408,12 +414,13 @@ void Phy::setLinkStatus(PPHY pPhy, bool fLinkIsUp)
  *          versioning of its own.
  *
  * @returns VBox status code.
- * @param   pSSMHandle  The handle to save the state to.
+ * @param   pHlp        Device helper table.
+ * @param   pSSM        The handle to save the state to.
  * @param   pPhy        The pointer to this instance.
  */
-int Phy::saveState(PSSMHANDLE pSSMHandle, PPHY pPhy)
+int Phy::saveState(PCPDMDEVHLPR3 pHlp, PSSMHANDLE pSSM, PPHY pPhy)
 {
-    SSMR3PutMem(pSSMHandle, pPhy->au16Regs, sizeof(pPhy->au16Regs));
+    pHlp->pfnSSMPutMem(pSSM, pPhy->au16Regs, sizeof(pPhy->au16Regs));
     return VINF_SUCCESS;
 }
 
@@ -424,12 +431,13 @@ int Phy::saveState(PSSMHANDLE pSSMHandle, PPHY pPhy)
  *          versioning of its own.
  *
  * @returns VBox status code.
- * @param   pSSMHandle  The handle to save the state to.
+ * @param   pHlp        Device helper table.
+ * @param   pSSM        The handle to save the state to.
  * @param   pPhy        The pointer to this instance.
  */
-int Phy::loadState(PSSMHANDLE pSSMHandle, PPHY pPhy)
+int Phy::loadState(PCPDMDEVHLPR3 pHlp, PSSMHANDLE pSSM, PPHY pPhy)
 {
-    return SSMR3GetMem(pSSMHandle, pPhy->au16Regs, sizeof(pPhy->au16Regs));
+    return pHlp->pfnSSMGetMem(pSSM, pPhy->au16Regs, sizeof(pPhy->au16Regs));
 }
 
 #endif /* IN_RING3 */
@@ -444,12 +452,12 @@ int Phy::loadState(PSSMHANDLE pSSMHandle, PPHY pPhy)
  * @param   index       Register index in register array.
  * @param   value       The value to store (ignored).
  */
-static void Phy::regWritePCTRL(PPHY pPhy, uint32_t index, uint16_t u16Value)
+static void Phy::regWritePCTRL(PPHY pPhy, uint32_t index, uint16_t u16Value, PPDMDEVINS pDevIns)
 {
     if (u16Value & PCTRL_RESET)
-        softReset(pPhy);
+        softReset(pPhy, pDevIns);
     else
-        regWriteDefault(pPhy, index, u16Value);
+        regWriteDefault(pPhy, index, u16Value, pDevIns);
 }
 
 /**
@@ -461,9 +469,9 @@ static void Phy::regWritePCTRL(PPHY pPhy, uint32_t index, uint16_t u16Value)
  *
  * @param   index       Register index in register array.
  */
-static uint16_t Phy::regReadPSTATUS(PPHY pPhy, uint32_t index)
+static uint16_t Phy::regReadPSTATUS(PPHY pPhy, uint32_t index, PPDMDEVINS pDevIns)
 {
-    RT_NOREF_PV(pPhy); RT_NOREF_PV(index);
+    RT_NOREF(pPhy, index, pDevIns);
 
     /* Read latched value */
     uint16_t u16 = REG(PSTATUS);
@@ -481,9 +489,9 @@ static uint16_t Phy::regReadPSTATUS(PPHY pPhy, uint32_t index)
  *
  * @param   index       Register index in register array.
  */
-static uint16_t Phy::regReadGSTATUS(PPHY pPhy, uint32_t index)
+static uint16_t Phy::regReadGSTATUS(PPHY pPhy, uint32_t index, PPDMDEVINS pDevIns)
 {
-    RT_NOREF_PV(pPhy); RT_NOREF_PV(index);
+    RT_NOREF(pPhy, index, pDevIns);
 
     /*
      * - Link partner is capable of 1000BASE-T half duplex
@@ -540,7 +548,7 @@ bool Phy::readMDIO(PPHY pPhy)
 }
 
 /** Set the value of MDIO pin. */
-void Phy::writeMDIO(PPHY pPhy, bool fPin)
+void Phy::writeMDIO(PPHY pPhy, bool fPin, PPDMDEVINS pDevIns)
 {
     switch (pPhy->u16State)
     {
@@ -569,7 +577,7 @@ void Phy::writeMDIO(PPHY pPhy, bool fPin)
                 switch (pPhy->u16Acc >> 10)
                 {
                     case MDIO_READ_OP:
-                        pPhy->u16Acc = readRegister(pPhy, pPhy->u16Acc & 0x1F);
+                        pPhy->u16Acc = readRegister(pPhy, pPhy->u16Acc & 0x1F, pDevIns);
                         pPhy->u16State = MDIO_TA_RD;
                         pPhy->u16Cnt = 1;
                         break;
@@ -601,7 +609,7 @@ void Phy::writeMDIO(PPHY pPhy, bool fPin)
                 pPhy->u16Acc |= 1;
             if (--pPhy->u16Cnt == 0)
             {
-                writeRegister(pPhy, pPhy->u16RegAdr, pPhy->u16Acc);
+                writeRegister(pPhy, pPhy->u16RegAdr, pPhy->u16Acc, pDevIns);
                 pPhy->u16State = MDIO_IDLE;
             }
             break;

@@ -44,11 +44,12 @@
 #include "UIVMLogViewerSearchPanel.h"
 #include "UIVMLogViewerOptionsPanel.h"
 #include "UIToolBar.h"
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 
 /* COM includes: */
 #include "CSystemProperties.h"
 
+/** Limit the read string size to avoid bloated log viewer pages. */
 const ULONG uAllowedLogSize = _256M;
 UIVMLogViewerWidget::UIVMLogViewerWidget(EmbedTo enmEmbedding,
                                          UIActionPool *pActionPool,
@@ -310,9 +311,6 @@ void UIVMLogViewerWidget::sltHandleSearchUpdated()
 {
     if (!m_pSearchPanel || !currentLogPage())
         return;
-    for (int i = 0; i < m_logPageList.size(); ++i)
-        if (UIVMLogPage *pPage = qobject_cast<UIVMLogPage*>(m_logPageList[i]))
-            pPage->setSearchMatchCount(m_pSearchPanel->marchCount());
 }
 
 void UIVMLogViewerWidget::sltTabIndexChange(int tabIndex)
@@ -767,8 +765,6 @@ void UIVMLogViewerWidget::createLogPage(const QString &strFileName, const QStrin
             pLogPage->setTextEditTextAsHtml(strLogContent);
             pLogPage->markForError();
         }
-        pLogPage->setSearchResultOverlayShowHide(m_pSearchPanel->isVisible());
-        pLogPage->setSearchMatchCount(m_pSearchPanel->marchCount());
         pLogPage->setScrollBarMarkingsVector(m_pSearchPanel->matchLocationVector());
     }
 }
@@ -803,7 +799,7 @@ bool UIVMLogViewerWidget::createLogViewerPages()
                                      "Please select a Virtual Machine to see its logs"));
     }
 
-    const CSystemProperties &sys = vboxGlobal().virtualBox().GetSystemProperties();
+    const CSystemProperties &sys = uiCommon().virtualBox().GetSystemProperties();
     unsigned cMaxLogs = sys.GetLogHistoryCount() + 1 /*VBox.log*/ + 1 /*VBoxHardening.log*/; /** @todo Add api for getting total possible log count! */
     bool logFileRead = false;
     for (unsigned i = 0; i < cMaxLogs && !noLogsToShow; ++i)
@@ -878,13 +874,6 @@ void UIVMLogViewerWidget::hidePanel(UIDialogPanel* panel)
     }
     m_visiblePanelsList.removeOne(panel);
     manageEscapeShortCut();
-    /* Hide the search result overlay on the text edit: */
-    if (panel == m_pSearchPanel)
-    {
-        for (int i = 0; i < m_logPageList.size(); ++i)
-            if (UIVMLogPage *pPage = qobject_cast<UIVMLogPage*>(m_logPageList[i]))
-                pPage->setSearchResultOverlayShowHide(false);
-    }
 }
 
 void UIVMLogViewerWidget::showPanel(UIDialogPanel* panel)
@@ -899,14 +888,6 @@ void UIVMLogViewerWidget::showPanel(UIDialogPanel* panel)
     }
     m_visiblePanelsList.push_back(panel);
     manageEscapeShortCut();
-
-    /* Show the search result overlay on the text edit: */
-    if (panel == m_pSearchPanel)
-    {
-        for (int i = 0; i < m_logPageList.size(); ++i)
-            if (UIVMLogPage *pPage = qobject_cast<UIVMLogPage*>(m_logPageList[i]))
-                pPage->setSearchResultOverlayShowHide(true);
-    }
 }
 
 void UIVMLogViewerWidget::manageEscapeShortCut()

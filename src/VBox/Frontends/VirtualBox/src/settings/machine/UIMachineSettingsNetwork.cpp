@@ -23,15 +23,12 @@
 #include "UIIconPool.h"
 #include "UIMachineSettingsNetwork.h"
 #include "UIErrorString.h"
-#include "VBoxGlobal.h"
-
-/* COM includes: */
-#include "CNetworkAdapter.h"
-#include "CHostNetworkInterface.h"
-#include "CNATNetwork.h"
+#include "UIExtraDataManager.h"
+#include "UICommon.h"
 
 /* COM includes: */
 #include "CNATEngine.h"
+#include "CNetworkAdapter.h"
 
 /* Other VBox includes: */
 #ifdef VBOX_WITH_VDE
@@ -39,9 +36,6 @@
 # include <VBox/VDEPlug.h>
 #endif
 
-
-/* Empty item extra-code: */
-const char *pEmptyItemCode = "#empty#";
 
 QString wipedOutString(const QString &strInputString)
 {
@@ -65,6 +59,9 @@ struct UIDataSettingsMachineNetworkAdapter
         , m_strGenericDriverName(QString())
         , m_strGenericProperties(QString())
         , m_strNATNetworkName(QString())
+#ifdef VBOX_WITH_CLOUD_NET
+        , m_strCloudNetworkName(QString())
+#endif /* VBOX_WITH_CLOUD_NET */
         , m_strMACAddress(QString())
         , m_fCableConnected(false)
     {}
@@ -84,6 +81,9 @@ struct UIDataSettingsMachineNetworkAdapter
                && (m_strGenericDriverName == other.m_strGenericDriverName)
                && (m_strGenericProperties == other.m_strGenericProperties)
                && (m_strNATNetworkName == other.m_strNATNetworkName)
+#ifdef VBOX_WITH_CLOUD_NET
+               && (m_strCloudNetworkName == other.m_strCloudNetworkName)
+#endif /* VBOX_WITH_CLOUD_NET */
                && (m_strMACAddress == other.m_strMACAddress)
                && (m_fCableConnected == other.m_fCableConnected)
                ;
@@ -116,6 +116,10 @@ struct UIDataSettingsMachineNetworkAdapter
     QString                           m_strGenericProperties;
     /** Holds the NAT network name. */
     QString                           m_strNATNetworkName;
+#ifdef VBOX_WITH_CLOUD_NET
+    /** Holds the cloud network name. */
+    QString                           m_strCloudNetworkName;
+#endif /* VBOX_WITH_CLOUD_NET */
     /** Holds the network adapter MAC address. */
     QString                           m_strMACAddress;
     /** Holds whether the network adapter is connected. */
@@ -160,9 +164,9 @@ public:
     /* Other public stuff: */
     QString tabTitle() const;
     KNetworkAttachmentType attachmentType() const;
-    QString alternativeName(int iType = -1) const;
+    QString alternativeName(KNetworkAttachmentType enmType = KNetworkAttachmentType_Null) const;
     void polishTab();
-    void reloadAlternative();
+    void reloadAlternatives();
 
     /** Defines whether the advanced button is @a fExpanded. */
     void setAdvancedButtonState(bool fExpanded);
@@ -197,8 +201,6 @@ private:
 
     /* Helping stuff: */
     void populateComboboxes();
-    void updateAlternativeList();
-    void updateAlternativeName();
 
     /** Handles advanced button state change. */
     void handleAdvancedButtonStateChange();
@@ -212,11 +214,6 @@ private:
 
     /* Other variables: */
     int m_iSlot;
-    QString m_strBridgedAdapterName;
-    QString m_strInternalNetworkName;
-    QString m_strHostInterfaceName;
-    QString m_strGenericDriverName;
-    QString m_strNATNetworkName;
     UIPortForwardingDataList m_portForwardingRules;
 };
 
@@ -238,7 +235,8 @@ UIMachineSettingsNetwork::UIMachineSettingsNetwork(UIMachineSettingsNetworkPage 
     const int iIconMetric = (int)(pStyle->pixelMetric(QStyle::PM_SmallIconSize) * .625);
 
     /* Setup widgets: */
-    m_pAdapterNameCombo->setInsertPolicy(QComboBox::NoInsert);
+    m_pAttachmentTypeLabel->setBuddy(m_pAttachmentTypeEditor->focusProxy1());
+    m_pAdapterNameLabel->setBuddy(m_pAttachmentTypeEditor->focusProxy2());
     m_pMACEditor->setValidator(new QRegExpValidator(QRegExp("[0-9A-Fa-f]{12}"), this));
     m_pMACEditor->setMinimumWidthByText(QString().fill('0', 12));
     m_pMACButton->setIcon(UIIconPool::iconSet(":/refresh_16px.png"));
@@ -247,14 +245,15 @@ UIMachineSettingsNetwork::UIMachineSettingsNetwork(UIMachineSettingsNetworkPage 
                                UIIconPool::iconSet(":/arrow_down_10px.png"));
 
     /* Setup connections: */
-    connect(m_pEnableAdapterCheckBox, SIGNAL(toggled(bool)), this, SLOT(sltHandleAdapterActivityChange()));
-    connect(m_pAttachmentTypeComboBox, SIGNAL(activated(int)), this, SLOT(sltHandleAttachmentTypeChange()));
-    connect(m_pAdapterNameCombo, SIGNAL(activated(int)), this, SLOT(sltHandleAlternativeNameChange()));
-    connect(m_pAdapterNameCombo, SIGNAL(editTextChanged(const QString&)), this, SLOT(sltHandleAlternativeNameChange()));
-    connect(m_pAdvancedArrow, SIGNAL(sigClicked()), this, SLOT(sltHandleAdvancedButtonStateChange()));
-    connect(m_pMACButton, SIGNAL(clicked()), this, SLOT(sltGenerateMac()));
-    connect(m_pPortForwardingButton, SIGNAL(clicked()), this, SLOT(sltOpenPortForwardingDlg()));
-    connect(this, SIGNAL(sigTabUpdated()), m_pParent, SLOT(sltHandleTabUpdate()));
+    connect(m_pEnableAdapterCheckBox, &QCheckBox::toggled, this, &UIMachineSettingsNetwork::sltHandleAdapterActivityChange);
+    connect(m_pAttachmentTypeEditor, &UINetworkAttachmentEditor::sigValueTypeChanged,
+            this, &UIMachineSettingsNetwork::sltHandleAttachmentTypeChange);
+    connect(m_pAttachmentTypeEditor, &UINetworkAttachmentEditor::sigValueNameChanged,
+            this, &UIMachineSettingsNetwork::sltHandleAlternativeNameChange);
+    connect(m_pAdvancedArrow, &QIArrowButtonSwitch::sigClicked, this, &UIMachineSettingsNetwork::sltHandleAdvancedButtonStateChange);
+    connect(m_pMACButton, &QIToolButton::clicked, this, &UIMachineSettingsNetwork::sltGenerateMac);
+    connect(m_pPortForwardingButton, &QPushButton::clicked, this, &UIMachineSettingsNetwork::sltOpenPortForwardingDlg);
+    connect(this, &UIMachineSettingsNetwork::sigTabUpdated, m_pParent, &UIMachineSettingsNetworkPage::sltHandleTabUpdate);
 
     /* Prepare validation: */
     prepareValidation();
@@ -277,13 +276,16 @@ void UIMachineSettingsNetwork::getAdapterDataFromCache(const UISettingsCacheMach
     sltHandleAdapterActivityChange();
 
     /* Load attachment type: */
-    m_pAttachmentTypeComboBox->setCurrentIndex(position(m_pAttachmentTypeComboBox, oldAdapterData.m_attachmentType));
-    /* Load alternative name: */
-    m_strBridgedAdapterName = wipedOutString(oldAdapterData.m_strBridgedAdapterName);
-    m_strInternalNetworkName = wipedOutString(oldAdapterData.m_strInternalNetworkName);
-    m_strHostInterfaceName = wipedOutString(oldAdapterData.m_strHostInterfaceName);
-    m_strGenericDriverName = wipedOutString(oldAdapterData.m_strGenericDriverName);
-    m_strNATNetworkName = wipedOutString(oldAdapterData.m_strNATNetworkName);
+    m_pAttachmentTypeEditor->setValueType(oldAdapterData.m_attachmentType);
+    /* Load alternative names: */
+    m_pAttachmentTypeEditor->setValueName(KNetworkAttachmentType_Bridged, wipedOutString(oldAdapterData.m_strBridgedAdapterName));
+    m_pAttachmentTypeEditor->setValueName(KNetworkAttachmentType_Internal, wipedOutString(oldAdapterData.m_strInternalNetworkName));
+    m_pAttachmentTypeEditor->setValueName(KNetworkAttachmentType_HostOnly, wipedOutString(oldAdapterData.m_strHostInterfaceName));
+    m_pAttachmentTypeEditor->setValueName(KNetworkAttachmentType_Generic, wipedOutString(oldAdapterData.m_strGenericDriverName));
+    m_pAttachmentTypeEditor->setValueName(KNetworkAttachmentType_NATNetwork, wipedOutString(oldAdapterData.m_strNATNetworkName));
+#ifdef VBOX_WITH_CLOUD_NET
+    m_pAttachmentTypeEditor->setValueName(KNetworkAttachmentType_Cloud, wipedOutString(oldAdapterData.m_strCloudNetworkName));
+#endif /* VBOX_WITH_CLOUD_NET */
     /* Handle attachment type change: */
     sltHandleAttachmentTypeChange();
 
@@ -302,6 +304,11 @@ void UIMachineSettingsNetwork::getAdapterDataFromCache(const UISettingsCacheMach
     m_portForwardingRules.clear();
     for (int i = 0; i < adapterCache.childCount(); ++i)
         m_portForwardingRules << adapterCache.child(i).base();
+
+    /* Repopulate combo-boxes content: */
+    populateComboboxes();
+    /* Reapply attachment info: */
+    sltHandleAttachmentTypeChange();
 }
 
 void UIMachineSettingsNetwork::putAdapterDataToCache(UISettingsCacheMachineNetworkAdapter &adapterCache)
@@ -324,18 +331,23 @@ void UIMachineSettingsNetwork::putAdapterDataToCache(UISettingsCacheMachineNetwo
             newAdapterData.m_strBridgedAdapterName = alternativeName();
             break;
         case KNetworkAttachmentType_Internal:
-            newAdapterData.m_strInternalNetworkName = alternativeName();
+            newAdapterData.m_strInternalNetworkName = m_pAttachmentTypeEditor->valueName(KNetworkAttachmentType_Internal);
             break;
         case KNetworkAttachmentType_HostOnly:
-            newAdapterData.m_strHostInterfaceName = alternativeName();
+            newAdapterData.m_strHostInterfaceName = m_pAttachmentTypeEditor->valueName(KNetworkAttachmentType_HostOnly);
             break;
         case KNetworkAttachmentType_Generic:
-            newAdapterData.m_strGenericDriverName = alternativeName();
+            newAdapterData.m_strGenericDriverName = m_pAttachmentTypeEditor->valueName(KNetworkAttachmentType_Generic);
             newAdapterData.m_strGenericProperties = m_pGenericPropertiesTextEdit->toPlainText();
             break;
         case KNetworkAttachmentType_NATNetwork:
-            newAdapterData.m_strNATNetworkName = alternativeName();
+            newAdapterData.m_strNATNetworkName = m_pAttachmentTypeEditor->valueName(KNetworkAttachmentType_NATNetwork);
             break;
+#ifdef VBOX_WITH_CLOUD_NET
+        case KNetworkAttachmentType_Cloud:
+            newAdapterData.m_strCloudNetworkName = m_pAttachmentTypeEditor->valueName(KNetworkAttachmentType_Cloud);
+            break;
+#endif /* VBOX_WITH_CLOUD_NET */
         default:
             break;
     }
@@ -369,7 +381,7 @@ bool UIMachineSettingsNetwork::validate(QList<UIValidationMessage> &messages)
 
     /* Prepare message: */
     UIValidationMessage message;
-    message.first = vboxGlobal().removeAccelMark(tabTitle());
+    message.first = uiCommon().removeAccelMark(tabTitle());
 
     /* Validate alternatives: */
     switch (attachmentType())
@@ -419,6 +431,17 @@ bool UIMachineSettingsNetwork::validate(QList<UIValidationMessage> &messages)
             }
             break;
         }
+#ifdef VBOX_WITH_CLOUD_NET
+        case KNetworkAttachmentType_Cloud:
+        {
+            if (alternativeName().isNull())
+            {
+                message.second << tr("No cloud network name is currently specified.");
+                fPass = false;
+            }
+            break;
+        }
+#endif /* VBOX_WITH_CLOUD_NET */
         default:
             break;
     }
@@ -452,9 +475,8 @@ bool UIMachineSettingsNetwork::validate(QList<UIValidationMessage> &messages)
 QWidget *UIMachineSettingsNetwork::setOrderAfter(QWidget *pAfter)
 {
     setTabOrder(pAfter, m_pEnableAdapterCheckBox);
-    setTabOrder(m_pEnableAdapterCheckBox, m_pAttachmentTypeComboBox);
-    setTabOrder(m_pAttachmentTypeComboBox, m_pAdapterNameCombo);
-    setTabOrder(m_pAdapterNameCombo, m_pAdvancedArrow);
+    setTabOrder(m_pEnableAdapterCheckBox, m_pAttachmentTypeEditor);
+    setTabOrder(m_pAttachmentTypeEditor, m_pAdvancedArrow);
     setTabOrder(m_pAdvancedArrow, m_pAdapterTypeCombo);
     setTabOrder(m_pAdapterTypeCombo, m_pPromiscuousModeCombo);
     setTabOrder(m_pPromiscuousModeCombo, m_pMACEditor);
@@ -467,41 +489,19 @@ QWidget *UIMachineSettingsNetwork::setOrderAfter(QWidget *pAfter)
 
 QString UIMachineSettingsNetwork::tabTitle() const
 {
-    return VBoxGlobal::tr("Adapter %1").arg(QString("&%1").arg(m_iSlot + 1));
+    return UICommon::tr("Adapter %1").arg(QString("&%1").arg(m_iSlot + 1));
 }
 
 KNetworkAttachmentType UIMachineSettingsNetwork::attachmentType() const
 {
-    return (KNetworkAttachmentType)m_pAttachmentTypeComboBox->itemData(m_pAttachmentTypeComboBox->currentIndex()).toInt();
+    return m_pAttachmentTypeEditor->valueType();
 }
 
-QString UIMachineSettingsNetwork::alternativeName(int iType) const
+QString UIMachineSettingsNetwork::alternativeName(KNetworkAttachmentType enmType /* = KNetworkAttachmentType_Null */) const
 {
-    if (iType == -1)
-        iType = attachmentType();
-    QString strResult;
-    switch (iType)
-    {
-        case KNetworkAttachmentType_Bridged:
-            strResult = m_strBridgedAdapterName;
-            break;
-        case KNetworkAttachmentType_Internal:
-            strResult = m_strInternalNetworkName;
-            break;
-        case KNetworkAttachmentType_HostOnly:
-            strResult = m_strHostInterfaceName;
-            break;
-        case KNetworkAttachmentType_Generic:
-            strResult = m_strGenericDriverName;
-            break;
-        case KNetworkAttachmentType_NATNetwork:
-            strResult = m_strNATNetworkName;
-            break;
-        default:
-            break;
-    }
-    Assert(strResult.isNull() || !strResult.isEmpty());
-    return strResult;
+    if (enmType == KNetworkAttachmentType_Null)
+        enmType = attachmentType();
+    return m_pAttachmentTypeEditor->valueName(enmType);
 }
 
 void UIMachineSettingsNetwork::polishTab()
@@ -509,11 +509,8 @@ void UIMachineSettingsNetwork::polishTab()
     /* Basic attributes: */
     m_pEnableAdapterCheckBox->setEnabled(m_pParent->isMachineOffline());
     m_pAttachmentTypeLabel->setEnabled(m_pParent->isMachineInValidMode());
-    m_pAttachmentTypeComboBox->setEnabled(m_pParent->isMachineInValidMode());
+    m_pAttachmentTypeEditor->setEnabled(m_pParent->isMachineInValidMode());
     m_pAdapterNameLabel->setEnabled(m_pParent->isMachineInValidMode() &&
-                                    attachmentType() != KNetworkAttachmentType_Null &&
-                                    attachmentType() != KNetworkAttachmentType_NAT);
-    m_pAdapterNameCombo->setEnabled(m_pParent->isMachineInValidMode() &&
                                     attachmentType() != KNetworkAttachmentType_Null &&
                                     attachmentType() != KNetworkAttachmentType_NAT);
     m_pAdvancedArrow->setEnabled(m_pParent->isMachineInValidMode());
@@ -542,12 +539,16 @@ void UIMachineSettingsNetwork::polishTab()
     handleAdvancedButtonStateChange();
 }
 
-void UIMachineSettingsNetwork::reloadAlternative()
+void UIMachineSettingsNetwork::reloadAlternatives()
 {
-    /* Repopulate alternative-name combo-box content: */
-    updateAlternativeList();
-    /* Select previous or default alternative-name combo-box item: */
-    updateAlternativeName();
+    m_pAttachmentTypeEditor->setValueNames(KNetworkAttachmentType_Bridged, m_pParent->bridgedAdapterList());
+    m_pAttachmentTypeEditor->setValueNames(KNetworkAttachmentType_Internal, m_pParent->internalNetworkList());
+    m_pAttachmentTypeEditor->setValueNames(KNetworkAttachmentType_HostOnly, m_pParent->hostInterfaceList());
+    m_pAttachmentTypeEditor->setValueNames(KNetworkAttachmentType_Generic, m_pParent->genericDriverList());
+    m_pAttachmentTypeEditor->setValueNames(KNetworkAttachmentType_NATNetwork, m_pParent->natNetworkList());
+#ifdef VBOX_WITH_CLOUD_NET
+    m_pAttachmentTypeEditor->setValueNames(KNetworkAttachmentType_Cloud, m_pParent->cloudNetworkList());
+#endif /* VBOX_WITH_CLOUD_NET */
 }
 
 void UIMachineSettingsNetwork::setAdvancedButtonState(bool fExpanded)
@@ -592,8 +593,6 @@ void UIMachineSettingsNetwork::sltHandleAttachmentTypeChange()
     /* Update alternative-name combo-box availability: */
     m_pAdapterNameLabel->setEnabled(attachmentType() != KNetworkAttachmentType_Null &&
                                     attachmentType() != KNetworkAttachmentType_NAT);
-    m_pAdapterNameCombo->setEnabled(attachmentType() != KNetworkAttachmentType_Null &&
-                                    attachmentType() != KNetworkAttachmentType_NAT);
     /* Update promiscuous-mode combo-box availability: */
     m_pPromiscuousModeLabel->setEnabled(attachmentType() != KNetworkAttachmentType_Null &&
                                         attachmentType() != KNetworkAttachmentType_Generic &&
@@ -608,61 +607,9 @@ void UIMachineSettingsNetwork::sltHandleAttachmentTypeChange()
                                              m_pAdvancedArrow->isExpanded());
     /* Update forwarding rules button availability: */
     m_pPortForwardingButton->setEnabled(attachmentType() == KNetworkAttachmentType_NAT);
-    /* Update alternative-name combo-box whats-this and editable state: */
-    switch (attachmentType())
-    {
-        case KNetworkAttachmentType_Bridged:
-        {
-            m_pAdapterNameCombo->setWhatsThis(tr("Selects the network adapter on the host system that traffic "
-                                                 "to and from this network card will go through."));
-            m_pAdapterNameCombo->setEditable(false);
-            break;
-        }
-        case KNetworkAttachmentType_Internal:
-        {
-            m_pAdapterNameCombo->setWhatsThis(tr("Holds the name of the internal network that this network card "
-                                                 "will be connected to. You can create a new internal network by "
-                                                 "choosing a name which is not used by any other network cards "
-                                                 "in this virtual machine or others."));
-            m_pAdapterNameCombo->setEditable(true);
-            break;
-        }
-        case KNetworkAttachmentType_HostOnly:
-        {
-            m_pAdapterNameCombo->setWhatsThis(tr("Selects the virtual network adapter on the host system that traffic "
-                                                 "to and from this network card will go through. "
-                                                 "You can create and remove adapters using the global network "
-                                                 "settings in the virtual machine manager window."));
-            m_pAdapterNameCombo->setEditable(false);
-            break;
-        }
-        case KNetworkAttachmentType_Generic:
-        {
-            m_pAdapterNameCombo->setWhatsThis(tr("Selects the driver to be used with this network card."));
-            m_pAdapterNameCombo->setEditable(true);
-            break;
-        }
-        case KNetworkAttachmentType_NATNetwork:
-        {
-            m_pAdapterNameCombo->setWhatsThis(tr("Holds the name of the NAT network that this network card "
-                                                 "will be connected to. You can create and remove networks "
-                                                 "using the global network settings in the virtual machine "
-                                                 "manager window."));
-            m_pAdapterNameCombo->setEditable(false);
-            break;
-        }
-        default:
-        {
-            m_pAdapterNameCombo->setWhatsThis(QString());
-            break;
-        }
-    }
 
-    /* Update alternative combo: */
-    reloadAlternative();
-
-    /* Handle alternative-name cange: */
-    sltHandleAlternativeNameChange();
+    /* Revalidate: */
+    m_pParent->revalidate();
 }
 
 void UIMachineSettingsNetwork::sltHandleAlternativeNameChange()
@@ -671,54 +618,16 @@ void UIMachineSettingsNetwork::sltHandleAlternativeNameChange()
      * Call for other pages update, if necessary: */
     switch (attachmentType())
     {
-        case KNetworkAttachmentType_Bridged:
-        {
-            QString newName(m_pAdapterNameCombo->itemData(m_pAdapterNameCombo->currentIndex()).toString() == QString(pEmptyItemCode) ||
-                            m_pAdapterNameCombo->currentText().isEmpty() ? QString() : m_pAdapterNameCombo->currentText());
-            if (m_strBridgedAdapterName != newName)
-                m_strBridgedAdapterName = newName;
-            break;
-        }
         case KNetworkAttachmentType_Internal:
         {
-            QString newName((m_pAdapterNameCombo->itemData(m_pAdapterNameCombo->currentIndex()).toString() == QString(pEmptyItemCode) &&
-                             m_pAdapterNameCombo->currentText() == m_pAdapterNameCombo->itemText(m_pAdapterNameCombo->currentIndex())) ||
-                             m_pAdapterNameCombo->currentText().isEmpty() ? QString() : m_pAdapterNameCombo->currentText());
-            if (m_strInternalNetworkName != newName)
-            {
-                m_strInternalNetworkName = newName;
-                if (!m_strInternalNetworkName.isNull())
-                    emit sigTabUpdated();
-            }
-            break;
-        }
-        case KNetworkAttachmentType_HostOnly:
-        {
-            QString newName(m_pAdapterNameCombo->itemData(m_pAdapterNameCombo->currentIndex()).toString() == QString(pEmptyItemCode) ||
-                            m_pAdapterNameCombo->currentText().isEmpty() ? QString() : m_pAdapterNameCombo->currentText());
-            if (m_strHostInterfaceName != newName)
-                m_strHostInterfaceName = newName;
+            if (!m_pAttachmentTypeEditor->valueName(KNetworkAttachmentType_Internal).isNull())
+                emit sigTabUpdated();
             break;
         }
         case KNetworkAttachmentType_Generic:
         {
-            QString newName((m_pAdapterNameCombo->itemData(m_pAdapterNameCombo->currentIndex()).toString() == QString(pEmptyItemCode) &&
-                             m_pAdapterNameCombo->currentText() == m_pAdapterNameCombo->itemText(m_pAdapterNameCombo->currentIndex())) ||
-                             m_pAdapterNameCombo->currentText().isEmpty() ? QString() : m_pAdapterNameCombo->currentText());
-            if (m_strGenericDriverName != newName)
-            {
-                m_strGenericDriverName = newName;
-                if (!m_strGenericDriverName.isNull())
-                    emit sigTabUpdated();
-            }
-            break;
-        }
-        case KNetworkAttachmentType_NATNetwork:
-        {
-            QString newName(m_pAdapterNameCombo->itemData(m_pAdapterNameCombo->currentIndex()).toString() == QString(pEmptyItemCode) ||
-                            m_pAdapterNameCombo->currentText().isEmpty() ? QString() : m_pAdapterNameCombo->currentText());
-            if (m_strNATNetworkName != newName)
-                m_strNATNetworkName = newName;
+            if (!m_pAttachmentTypeEditor->valueName(KNetworkAttachmentType_Generic).isNull())
+                emit sigTabUpdated();
             break;
         }
         default:
@@ -740,7 +649,7 @@ void UIMachineSettingsNetwork::sltHandleAdvancedButtonStateChange()
 
 void UIMachineSettingsNetwork::sltGenerateMac()
 {
-    m_pMACEditor->setText(vboxGlobal().host().GenerateMACAddress());
+    m_pMACEditor->setText(uiCommon().host().GenerateMACAddress());
 }
 
 void UIMachineSettingsNetwork::sltOpenPortForwardingDlg()
@@ -753,52 +662,14 @@ void UIMachineSettingsNetwork::sltOpenPortForwardingDlg()
 void UIMachineSettingsNetwork::prepareValidation()
 {
     /* Configure validation: */
-    connect(m_pMACEditor, SIGNAL(textChanged(const QString &)), m_pParent, SLOT(revalidate()));
+    connect(m_pMACEditor, &QILineEdit::textChanged, m_pParent, &UIMachineSettingsNetworkPage::revalidate);
 }
 
 void UIMachineSettingsNetwork::populateComboboxes()
 {
-    /* Attachment type: */
+    /* Adapter names: */
     {
-        /* Remember the currently selected attachment type: */
-        int iCurrentAttachment = m_pAttachmentTypeComboBox->currentIndex();
-
-        /* Clear the attachments combo-box: */
-        m_pAttachmentTypeComboBox->clear();
-
-        /* Populate attachments: */
-        int iAttachmentTypeIndex = 0;
-        m_pAttachmentTypeComboBox->insertItem(iAttachmentTypeIndex, gpConverter->toString(KNetworkAttachmentType_Null));
-        m_pAttachmentTypeComboBox->setItemData(iAttachmentTypeIndex, KNetworkAttachmentType_Null);
-        m_pAttachmentTypeComboBox->setItemData(iAttachmentTypeIndex, m_pAttachmentTypeComboBox->itemText(iAttachmentTypeIndex), Qt::ToolTipRole);
-        ++iAttachmentTypeIndex;
-        m_pAttachmentTypeComboBox->insertItem(iAttachmentTypeIndex, gpConverter->toString(KNetworkAttachmentType_NAT));
-        m_pAttachmentTypeComboBox->setItemData(iAttachmentTypeIndex, KNetworkAttachmentType_NAT);
-        m_pAttachmentTypeComboBox->setItemData(iAttachmentTypeIndex, m_pAttachmentTypeComboBox->itemText(iAttachmentTypeIndex), Qt::ToolTipRole);
-        ++iAttachmentTypeIndex;
-        m_pAttachmentTypeComboBox->insertItem(iAttachmentTypeIndex, gpConverter->toString(KNetworkAttachmentType_NATNetwork));
-        m_pAttachmentTypeComboBox->setItemData(iAttachmentTypeIndex, KNetworkAttachmentType_NATNetwork);
-        m_pAttachmentTypeComboBox->setItemData(iAttachmentTypeIndex, m_pAttachmentTypeComboBox->itemText(iAttachmentTypeIndex), Qt::ToolTipRole);
-        ++iAttachmentTypeIndex;
-        m_pAttachmentTypeComboBox->insertItem(iAttachmentTypeIndex, gpConverter->toString(KNetworkAttachmentType_Bridged));
-        m_pAttachmentTypeComboBox->setItemData(iAttachmentTypeIndex, KNetworkAttachmentType_Bridged);
-        m_pAttachmentTypeComboBox->setItemData(iAttachmentTypeIndex, m_pAttachmentTypeComboBox->itemText(iAttachmentTypeIndex), Qt::ToolTipRole);
-        ++iAttachmentTypeIndex;
-        m_pAttachmentTypeComboBox->insertItem(iAttachmentTypeIndex, gpConverter->toString(KNetworkAttachmentType_Internal));
-        m_pAttachmentTypeComboBox->setItemData(iAttachmentTypeIndex, KNetworkAttachmentType_Internal);
-        m_pAttachmentTypeComboBox->setItemData(iAttachmentTypeIndex, m_pAttachmentTypeComboBox->itemText(iAttachmentTypeIndex), Qt::ToolTipRole);
-        ++iAttachmentTypeIndex;
-        m_pAttachmentTypeComboBox->insertItem(iAttachmentTypeIndex, gpConverter->toString(KNetworkAttachmentType_HostOnly));
-        m_pAttachmentTypeComboBox->setItemData(iAttachmentTypeIndex, KNetworkAttachmentType_HostOnly);
-        m_pAttachmentTypeComboBox->setItemData(iAttachmentTypeIndex, m_pAttachmentTypeComboBox->itemText(iAttachmentTypeIndex), Qt::ToolTipRole);
-        ++iAttachmentTypeIndex;
-        m_pAttachmentTypeComboBox->insertItem(iAttachmentTypeIndex, gpConverter->toString(KNetworkAttachmentType_Generic));
-        m_pAttachmentTypeComboBox->setItemData(iAttachmentTypeIndex, KNetworkAttachmentType_Generic);
-        m_pAttachmentTypeComboBox->setItemData(iAttachmentTypeIndex, m_pAttachmentTypeComboBox->itemText(iAttachmentTypeIndex), Qt::ToolTipRole);
-        ++iAttachmentTypeIndex;
-
-        /* Restore the previously selected attachment type: */
-        m_pAttachmentTypeComboBox->setCurrentIndex(iCurrentAttachment == -1 ? 0 : iCurrentAttachment);
+        reloadAlternatives();
     }
 
     /* Adapter type: */
@@ -872,91 +743,6 @@ void UIMachineSettingsNetwork::populateComboboxes()
     }
 }
 
-void UIMachineSettingsNetwork::updateAlternativeList()
-{
-    /* Block signals initially: */
-    m_pAdapterNameCombo->blockSignals(true);
-
-    /* Repopulate alternative-name combo: */
-    m_pAdapterNameCombo->clear();
-    switch (attachmentType())
-    {
-        case KNetworkAttachmentType_Bridged:
-            m_pAdapterNameCombo->insertItems(0, m_pParent->bridgedAdapterList());
-            break;
-        case KNetworkAttachmentType_Internal:
-            m_pAdapterNameCombo->insertItems(0, m_pParent->internalNetworkList());
-            break;
-        case KNetworkAttachmentType_HostOnly:
-            m_pAdapterNameCombo->insertItems(0, m_pParent->hostInterfaceList());
-            break;
-        case KNetworkAttachmentType_Generic:
-            m_pAdapterNameCombo->insertItems(0, m_pParent->genericDriverList());
-            break;
-        case KNetworkAttachmentType_NATNetwork:
-            m_pAdapterNameCombo->insertItems(0, m_pParent->natNetworkList());
-            break;
-        default:
-            break;
-    }
-
-    /* Prepend 'empty' or 'default' item to alternative-name combo: */
-    if (m_pAdapterNameCombo->count() == 0)
-    {
-        switch (attachmentType())
-        {
-            case KNetworkAttachmentType_Bridged:
-            case KNetworkAttachmentType_HostOnly:
-            case KNetworkAttachmentType_NATNetwork:
-            {
-                /* If adapter list is empty => add 'Not selected' item: */
-                int pos = m_pAdapterNameCombo->findData(pEmptyItemCode);
-                if (pos == -1)
-                    m_pAdapterNameCombo->insertItem(0, tr("Not selected", "network adapter name"), pEmptyItemCode);
-                else
-                    m_pAdapterNameCombo->setItemText(pos, tr("Not selected", "network adapter name"));
-                break;
-            }
-            case KNetworkAttachmentType_Internal:
-            {
-                /* Internal network list should have a default item: */
-                if (m_pAdapterNameCombo->findText("intnet") == -1)
-                    m_pAdapterNameCombo->insertItem(0, "intnet");
-                break;
-            }
-            default:
-                break;
-        }
-    }
-
-    /* Unblock signals finally: */
-    m_pAdapterNameCombo->blockSignals(false);
-}
-
-void UIMachineSettingsNetwork::updateAlternativeName()
-{
-    /* Block signals initially: */
-    m_pAdapterNameCombo->blockSignals(true);
-
-    switch (attachmentType())
-    {
-        case KNetworkAttachmentType_Bridged:
-        case KNetworkAttachmentType_Internal:
-        case KNetworkAttachmentType_HostOnly:
-        case KNetworkAttachmentType_Generic:
-        case KNetworkAttachmentType_NATNetwork:
-        {
-            m_pAdapterNameCombo->setCurrentIndex(position(m_pAdapterNameCombo, alternativeName()));
-            break;
-        }
-        default:
-            break;
-    }
-
-    /* Unblock signals finally: */
-    m_pAdapterNameCombo->blockSignals(false);
-}
-
 void UIMachineSettingsNetwork::handleAdvancedButtonStateChange()
 {
     /* Update visibility of advanced options: */
@@ -1027,6 +813,9 @@ void UIMachineSettingsNetworkPage::loadToCacheFrom(QVariant &data)
     refreshHostInterfaceList();
     refreshGenericDriverList(true);
     refreshNATNetworkList();
+#ifdef VBOX_WITH_CLOUD_NET
+    refreshCloudNetworkList();
+#endif /* VBOX_WITH_CLOUD_NET */
 
     /* Prepare old network data: */
     UIDataSettingsMachineNetwork oldNetworkData;
@@ -1050,6 +839,9 @@ void UIMachineSettingsNetworkPage::loadToCacheFrom(QVariant &data)
             oldAdapterData.m_strHostInterfaceName = wipedOutString(comAdapter.GetHostOnlyInterface());
             oldAdapterData.m_strGenericDriverName = wipedOutString(comAdapter.GetGenericDriver());
             oldAdapterData.m_strNATNetworkName = wipedOutString(comAdapter.GetNATNetwork());
+#ifdef VBOX_WITH_CLOUD_NET
+            oldAdapterData.m_strCloudNetworkName = wipedOutString(comAdapter.GetCloudNetwork());
+#endif /* VBOX_WITH_CLOUD_NET */
             oldAdapterData.m_adapterType = comAdapter.GetAdapterType();
             oldAdapterData.m_promiscuousMode = comAdapter.GetPromiscModePolicy();
             oldAdapterData.m_strMACAddress = comAdapter.GetMACAddress();
@@ -1219,9 +1011,9 @@ void UIMachineSettingsNetworkPage::sltHandleTabUpdate()
         UIMachineSettingsNetwork *pTab = qobject_cast<UIMachineSettingsNetwork*>(m_pTabWidget->widget(iSlot));
         AssertMsg(pTab, ("All the tabs of m_pTabWidget should be of the UIMachineSettingsNetwork type!\n"));
 
-        /* Update all the tabs (except sender) with the same attachment type as sender have: */
-        if (pTab != pSender && pTab->attachmentType() == enmSenderAttachmentType)
-            pTab->reloadAlternative();
+        /* Update all the tabs (except sender): */
+        if (pTab != pSender)
+            pTab->reloadAlternatives();
     }
 }
 
@@ -1254,7 +1046,7 @@ void UIMachineSettingsNetworkPage::prepare()
               * but in this place the m_machine field isn't set yet. My observation (on Linux)
               * is that the limitation to 4 isn't necessary any more, but this needs to be checked
               * on all platforms to be certain that it's usable everywhere. */
-            const ulong uCount = qMin((ULONG)4, vboxGlobal().virtualBox().GetSystemProperties().GetMaxNetworkAdapters(KChipsetType_PIIX3));
+            const ulong uCount = qMin((ULONG)4, uiCommon().virtualBox().GetSystemProperties().GetMaxNetworkAdapters(KChipsetType_PIIX3));
 
             /* Create corresponding adapter tabs: */
             for (ulong uSlot = 0; uSlot < uCount; ++uSlot)
@@ -1264,8 +1056,8 @@ void UIMachineSettingsNetworkPage::prepare()
                 AssertPtrReturnVoid(pTab);
                 {
                     /* Configure tab: */
-                    connect(pTab, SIGNAL(sigNotifyAdvancedButtonStateChange(bool)),
-                            this, SLOT(sltHandleAdvancedButtonStateChange(bool)));
+                    connect(pTab, &UIMachineSettingsNetwork::sigNotifyAdvancedButtonStateChange,
+                            this, &UIMachineSettingsNetworkPage::sltHandleAdvancedButtonStateChange);
 
                     /* Add tab into tab-widget: */
                     m_pTabWidget->addTab(pTab, pTab->tabTitle());
@@ -1287,15 +1079,8 @@ void UIMachineSettingsNetworkPage::cleanup()
 
 void UIMachineSettingsNetworkPage::refreshBridgedAdapterList()
 {
-    /* Reload bridged interface list: */
-    m_bridgedAdapterList.clear();
-    const CHostNetworkInterfaceVector &ifaces = vboxGlobal().host().GetNetworkInterfaces();
-    for (int i = 0; i < ifaces.size(); ++i)
-    {
-        const CHostNetworkInterface &iface = ifaces[i];
-        if (iface.GetInterfaceType() == KHostNetworkInterfaceType_Bridged && !m_bridgedAdapterList.contains(iface.GetName()))
-            m_bridgedAdapterList << iface.GetName();
-    }
+    /* Reload bridged adapters: */
+    m_bridgedAdapterList = UINetworkAttachmentEditor::bridgedAdapters();
 }
 
 void UIMachineSettingsNetworkPage::refreshInternalNetworkList(bool fFullRefresh /* = false */)
@@ -1304,7 +1089,8 @@ void UIMachineSettingsNetworkPage::refreshInternalNetworkList(bool fFullRefresh 
     m_internalNetworkList.clear();
     /* Get internal network names from other VMs: */
     if (fFullRefresh)
-        m_internalNetworkList << otherInternalNetworkList();
+        m_internalNetworkListSaved = UINetworkAttachmentEditor::internalNetworks();
+    m_internalNetworkList << m_internalNetworkListSaved;
     /* Append internal network list with names from all the tabs: */
     for (int iTab = 0; iTab < m_pTabWidget->count(); ++iTab)
     {
@@ -1318,17 +1104,18 @@ void UIMachineSettingsNetworkPage::refreshInternalNetworkList(bool fFullRefresh 
     }
 }
 
+#ifdef VBOX_WITH_CLOUD_NET
+void UIMachineSettingsNetworkPage::refreshCloudNetworkList()
+{
+    /* Reload cloud network list: */
+    m_cloudNetworkList = UINetworkAttachmentEditor::cloudNetworks();
+}
+#endif /* VBOX_WITH_CLOUD_NET */
+
 void UIMachineSettingsNetworkPage::refreshHostInterfaceList()
 {
-    /* Reload host-only interface list: */
-    m_hostInterfaceList.clear();
-    const CHostNetworkInterfaceVector &ifaces = vboxGlobal().host().GetNetworkInterfaces();
-    for (int i = 0; i < ifaces.size(); ++i)
-    {
-        const CHostNetworkInterface &iface = ifaces[i];
-        if (iface.GetInterfaceType() == KHostNetworkInterfaceType_HostOnly && !m_hostInterfaceList.contains(iface.GetName()))
-            m_hostInterfaceList << iface.GetName();
-    }
+    /* Reload host interfaces: */
+    m_hostInterfaceList = UINetworkAttachmentEditor::hostInterfaces();
 }
 
 void UIMachineSettingsNetworkPage::refreshGenericDriverList(bool fFullRefresh /* = false */)
@@ -1337,7 +1124,8 @@ void UIMachineSettingsNetworkPage::refreshGenericDriverList(bool fFullRefresh /*
     m_genericDriverList.clear();
     /* Get generic driver names from other VMs: */
     if (fFullRefresh)
-        m_genericDriverList << otherGenericDriverList();
+        m_genericDriverListSaved = UINetworkAttachmentEditor::genericDrivers();
+    m_genericDriverList << m_genericDriverListSaved;
     /* Append generic driver list with names from all the tabs: */
     for (int iTab = 0; iTab < m_pTabWidget->count(); ++iTab)
     {
@@ -1353,32 +1141,8 @@ void UIMachineSettingsNetworkPage::refreshGenericDriverList(bool fFullRefresh /*
 
 void UIMachineSettingsNetworkPage::refreshNATNetworkList()
 {
-    /* Reload NAT network list: */
-    m_natNetworkList.clear();
-    const CNATNetworkVector &nws = vboxGlobal().virtualBox().GetNATNetworks();
-    for (int i = 0; i < nws.size(); ++i)
-    {
-        const CNATNetwork &nw = nws[i];
-        m_natNetworkList << nw.GetNetworkName();
-    }
-}
-
-/* static */
-QStringList UIMachineSettingsNetworkPage::otherInternalNetworkList()
-{
-    /* Load total internal network list of all VMs: */
-    const CVirtualBox vbox = vboxGlobal().virtualBox();
-    const QStringList otherInternalNetworks(QList<QString>::fromVector(vbox.GetInternalNetworks()));
-    return otherInternalNetworks;
-}
-
-/* static */
-QStringList UIMachineSettingsNetworkPage::otherGenericDriverList()
-{
-    /* Load total generic driver list of all VMs: */
-    const CVirtualBox vbox = vboxGlobal().virtualBox();
-    const QStringList otherGenericDrivers(QList<QString>::fromVector(vbox.GetGenericNetworkDrivers()));
-    return otherGenericDrivers;
+    /* Reload nat networks: */
+    m_natNetworkList = UINetworkAttachmentEditor::natNetworks();
 }
 
 /* static */
@@ -1560,6 +1324,17 @@ bool UIMachineSettingsNetworkPage::saveAdapterData(int iSlot)
                     }
                     break;
                 }
+#ifdef VBOX_WITH_CLOUD_NET
+                case KNetworkAttachmentType_Cloud:
+                {
+                    if (fSuccess && newAdapterData.m_strCloudNetworkName != oldAdapterData.m_strCloudNetworkName)
+                    {
+                        comAdapter.SetCloudNetwork(newAdapterData.m_strCloudNetworkName);
+                        fSuccess = comAdapter.isOk();
+                    }
+                    break;
+                }
+#endif /* VBOX_WITH_CLOUD_NET */
                 default:
                     break;
             }
@@ -1638,4 +1413,3 @@ bool UIMachineSettingsNetworkPage::saveAdapterData(int iSlot)
 }
 
 # include "UIMachineSettingsNetwork.moc"
-

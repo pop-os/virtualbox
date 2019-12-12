@@ -46,41 +46,6 @@ RT_C_DECLS_BEGIN
  * @{
  */
 
-/**
- * World switcher identifiers.
- */
-typedef enum VMMSWITCHER
-{
-    /** The usual invalid 0. */
-    VMMSWITCHER_INVALID = 0,
-    /** Switcher for 32-bit host to 32-bit shadow paging. */
-    VMMSWITCHER_32_TO_32,
-    /** Switcher for 32-bit host paging to PAE shadow paging. */
-    VMMSWITCHER_32_TO_PAE,
-    /** Switcher for 32-bit host paging to AMD64 shadow paging. */
-    VMMSWITCHER_32_TO_AMD64,
-    /** Switcher for PAE host to 32-bit shadow paging. */
-    VMMSWITCHER_PAE_TO_32,
-    /** Switcher for PAE host to PAE shadow paging. */
-    VMMSWITCHER_PAE_TO_PAE,
-    /** Switcher for PAE host paging to AMD64 shadow paging. */
-    VMMSWITCHER_PAE_TO_AMD64,
-    /** Switcher for AMD64 host paging to 32-bit shadow paging. */
-    VMMSWITCHER_AMD64_TO_32,
-    /** Switcher for AMD64 host paging to PAE shadow paging. */
-    VMMSWITCHER_AMD64_TO_PAE,
-    /** Switcher for AMD64 host paging to AMD64 shadow paging. */
-    VMMSWITCHER_AMD64_TO_AMD64,
-    /** Stub switcher for 32-bit and PAE. */
-    VMMSWITCHER_X86_STUB,
-    /** Stub switcher for AMD64. */
-    VMMSWITCHER_AMD64_STUB,
-    /** Used to make a count for array declarations and suchlike. */
-    VMMSWITCHER_MAX,
-    /** The usual 32-bit paranoia. */
-    VMMSWITCHER_32BIT_HACK = 0x7fffffff
-} VMMSWITCHER;
-
 
 /**
  * VMMRZCallRing3 operations.
@@ -109,8 +74,6 @@ typedef enum VMMCALLRING3
     VMMCALLRING3_PGM_ALLOCATE_LARGE_HANDY_PAGE,
     /** Acquire the MM hypervisor heap lock. */
     VMMCALLRING3_MMHYPER_LOCK,
-    /** Replay the REM handler notifications. */
-    VMMCALLRING3_REM_REPLAY_HANDLER_NOTIFICATIONS,
     /** Flush the GC/R0 logger. */
     VMMCALLRING3_VMM_LOGGER_FLUSH,
     /** Set the VM error message. */
@@ -122,8 +85,6 @@ typedef enum VMMCALLRING3
     /** Ring switch to force preemption.  This is also used by PDMCritSect to
      *  handle VERR_INTERRUPTED in kernel context. */
     VMMCALLRING3_VM_R0_PREEMPT,
-    /** Sync the FTM state with the standby node. */
-    VMMCALLRING3_FTM_SET_CHECKPOINT,
     /** The usual 32-bit hack. */
     VMMCALLRING3_32BIT_HACK = 0x7fffffff
 } VMMCALLRING3;
@@ -136,7 +97,7 @@ typedef enum VMMCALLRING3
  * @param   enmOperation    The operation causing the ring-3 jump.
  * @param   pvUser          The user argument.
  */
-typedef DECLCALLBACK(int) FNVMMR0CALLRING3NOTIFICATION(PVMCPU pVCpu, VMMCALLRING3 enmOperation, void *pvUser);
+typedef DECLCALLBACK(int) FNVMMR0CALLRING3NOTIFICATION(PVMCPUCC pVCpu, VMMCALLRING3 enmOperation, void *pvUser);
 /** Pointer to a FNRTMPNOTIFICATION(). */
 typedef FNVMMR0CALLRING3NOTIFICATION *PFNVMMR0CALLRING3NOTIFICATION;
 
@@ -278,15 +239,13 @@ typedef struct VMM2USERMETHODS
 #endif
 
 
-VMM_INT_DECL(RTRCPTR)       VMMGetStackRC(PVMCPU pVCpu);
-VMMDECL(VMCPUID)            VMMGetCpuId(PVM pVM);
-VMMDECL(PVMCPU)             VMMGetCpu(PVM pVM);
-VMMDECL(PVMCPU)             VMMGetCpu0(PVM pVM);
-VMMDECL(PVMCPU)             VMMGetCpuById(PVM pVM, VMCPUID idCpu);
-VMMR3DECL(PVMCPU)           VMMR3GetCpuByIdU(PUVM pVM, VMCPUID idCpu);
+VMMDECL(VMCPUID)            VMMGetCpuId(PVMCC pVM);
+VMMDECL(PVMCPUCC)           VMMGetCpu(PVMCC pVM);
+VMMDECL(PVMCPUCC)           VMMGetCpu0(PVMCC pVM);
+VMMDECL(PVMCPUCC)           VMMGetCpuById(PVMCC pVM, VMCPUID idCpu);
+VMMR3DECL(PVMCPUCC)         VMMR3GetCpuByIdU(PUVM pVM, VMCPUID idCpu);
 VMM_INT_DECL(uint32_t)      VMMGetSvnRev(void);
-VMM_INT_DECL(VMMSWITCHER)   VMMGetSwitcher(PVM pVM);
-VMM_INT_DECL(bool)          VMMIsInRing3Call(PVMCPU pVCpu);
+VMM_INT_DECL(bool)          VMMIsInRing3Call(PVMCPUCC pVCpu);
 VMM_INT_DECL(void)          VMMTrashVolatileXMMRegs(void);
 
 
@@ -299,14 +258,12 @@ VMM_INT_DECL(void)          VMMTrashVolatileXMMRegs(void);
  */
 typedef enum VMMR0OPERATION
 {
-    /** Run guest context. */
-    VMMR0_DO_RAW_RUN = SUP_VMMR0_DO_RAW_RUN,
     /** Run guest code using the available hardware acceleration technology. */
     VMMR0_DO_HM_RUN = SUP_VMMR0_DO_HM_RUN,
     /** Official NOP that we use for profiling. */
-    VMMR0_DO_NOP = SUP_VMMR0_DO_NOP,
-    /** Official NOP that we use for profiling. */
     VMMR0_DO_NEM_RUN = SUP_VMMR0_DO_NEM_RUN,
+    /** Official NOP that we use for profiling. */
+    VMMR0_DO_NOP = SUP_VMMR0_DO_NOP,
     /** Official slow iocl NOP that we use for profiling. */
     VMMR0_DO_SLOW_NOP,
 
@@ -391,15 +348,12 @@ typedef enum VMMR0OPERATION
 
     /** Call PDMR0DriverCallReqHandler. */
     VMMR0_DO_PDM_DRIVER_CALL_REQ_HANDLER = 320,
-    /** Call PDMR0DeviceCallReqHandler. */
-    VMMR0_DO_PDM_DEVICE_CALL_REQ_HANDLER,
-
-    /** Calls function in the hypervisor.
-     * The caller must setup the hypervisor context so the call will be performed.
-     * The difference between VMMR0_DO_RUN_GC and this one is the handling of
-     * the return GC code. The return code will not be interpreted by this operation.
-     */
-    VMMR0_DO_CALL_HYPERVISOR = 384,
+    /** Call PDMR0DeviceCreateReqHandler. */
+    VMMR0_DO_PDM_DEVICE_CREATE,
+    /** Call PDMR0DeviceGenCallReqHandler. */
+    VMMR0_DO_PDM_DEVICE_GEN_CALL,
+    /** Old style device compat: Set ring-0 critical section. */
+    VMMR0_DO_PDM_DEVICE_COMPAT_SET_CRITSECT,
 
     /** Set a GVMM or GMM configuration value. */
     VMMR0_DO_GCFGM_SET_VALUE = 400,
@@ -454,10 +408,19 @@ typedef enum VMMR0OPERATION
     /** Call NEMR0DoExperiment() (host specific, experimental, debug only). */
     VMMR0_DO_NEM_EXPERIMENT,
 
+    /** Grow the I/O port registration tables. */
+    VMMR0_DO_IOM_GROW_IO_PORTS = 640,
+    /** Grow the I/O port statistics tables. */
+    VMMR0_DO_IOM_GROW_IO_PORT_STATS,
+    /** Grow the MMIO registration tables. */
+    VMMR0_DO_IOM_GROW_MMIO_REGS,
+    /** Grow the MMIO statistics tables. */
+    VMMR0_DO_IOM_GROW_MMIO_STATS,
+    /** Synchronize statistics indices for I/O ports and MMIO regions. */
+    VMMR0_DO_IOM_SYNC_STATS_INDICES,
+
     /** Official call we use for testing Ring-0 APIs. */
-    VMMR0_DO_TESTS = 640,
-    /** Test the 32->64 bits switcher. */
-    VMMR0_DO_TEST_SWITCHER3264,
+    VMMR0_DO_TESTS = 704,
 
     /** The usual 32-bit type blow up. */
     VMMR0_DO_32BIT_HACK = 0x7fffffff
@@ -487,21 +450,21 @@ typedef struct GCFGMVALUEREQ
 typedef GCFGMVALUEREQ *PGCFGMVALUEREQ;
 
 #if defined(IN_RING0) || defined(DOXYGEN_RUNNING)
-VMMR0DECL(void)      VMMR0EntryFast(PGVM pGVM, PVM pVM, VMCPUID idCpu, VMMR0OPERATION enmOperation);
-VMMR0DECL(int)       VMMR0EntryEx(PGVM pGVM, PVM pVM, VMCPUID idCpu, VMMR0OPERATION enmOperation,
+VMMR0DECL(void)      VMMR0EntryFast(PGVM pGVM, PVMCC pVM, VMCPUID idCpu, VMMR0OPERATION enmOperation);
+VMMR0DECL(int)       VMMR0EntryEx(PGVM pGVM, PVMCC pVM, VMCPUID idCpu, VMMR0OPERATION enmOperation,
                                   PSUPVMMR0REQHDR pReq, uint64_t u64Arg, PSUPDRVSESSION);
-VMMR0_INT_DECL(int)  VMMR0TermVM(PGVM pGVM, PVM pVM, VMCPUID idCpu);
-VMMR0_INT_DECL(bool) VMMR0IsLongJumpArmed(PVMCPU pVCpu);
-VMMR0_INT_DECL(bool) VMMR0IsInRing3LongJump(PVMCPU pVCpu);
-VMMR0_INT_DECL(int)  VMMR0ThreadCtxHookCreateForEmt(PVMCPU pVCpu);
-VMMR0_INT_DECL(void) VMMR0ThreadCtxHookDestroyForEmt(PVMCPU pVCpu);
-VMMR0_INT_DECL(void) VMMR0ThreadCtxHookDisable(PVMCPU pVCpu);
-VMMR0_INT_DECL(bool) VMMR0ThreadCtxHookIsEnabled(PVMCPU pVCpu);
+VMMR0_INT_DECL(int)  VMMR0TermVM(PGVM pGVM, VMCPUID idCpu);
+VMMR0_INT_DECL(bool) VMMR0IsLongJumpArmed(PVMCPUCC pVCpu);
+VMMR0_INT_DECL(bool) VMMR0IsInRing3LongJump(PVMCPUCC pVCpu);
+VMMR0_INT_DECL(int)  VMMR0ThreadCtxHookCreateForEmt(PVMCPUCC pVCpu);
+VMMR0_INT_DECL(void) VMMR0ThreadCtxHookDestroyForEmt(PVMCPUCC pVCpu);
+VMMR0_INT_DECL(void) VMMR0ThreadCtxHookDisable(PVMCPUCC pVCpu);
+VMMR0_INT_DECL(bool) VMMR0ThreadCtxHookIsEnabled(PVMCPUCC pVCpu);
 
 # ifdef LOG_ENABLED
-VMMR0_INT_DECL(void) VMMR0LogFlushDisable(PVMCPU pVCpu);
-VMMR0_INT_DECL(void) VMMR0LogFlushEnable(PVMCPU pVCpu);
-VMMR0_INT_DECL(bool) VMMR0IsLogFlushDisabled(PVMCPU pVCpu);
+VMMR0_INT_DECL(void) VMMR0LogFlushDisable(PVMCPUCC pVCpu);
+VMMR0_INT_DECL(void) VMMR0LogFlushEnable(PVMCPUCC pVCpu);
+VMMR0_INT_DECL(bool) VMMR0IsLogFlushDisabled(PVMCPUCC pVCpu);
 # else
 #  define            VMMR0LogFlushDisable(pVCpu)     do { } while(0)
 #  define            VMMR0LogFlushEnable(pVCpu)      do { } while(0)
@@ -518,25 +481,13 @@ VMMR0_INT_DECL(bool) VMMR0IsLogFlushDisabled(PVMCPU pVCpu);
  */
 VMMR3_INT_DECL(int)     VMMR3Init(PVM pVM);
 VMMR3_INT_DECL(int)     VMMR3InitR0(PVM pVM);
-# ifdef VBOX_WITH_RAW_MODE
-VMMR3_INT_DECL(int)     VMMR3InitRC(PVM pVM);
-# endif
 VMMR3_INT_DECL(int)     VMMR3InitCompleted(PVM pVM, VMINITCOMPLETED enmWhat);
 VMMR3_INT_DECL(int)     VMMR3Term(PVM pVM);
 VMMR3_INT_DECL(void)    VMMR3Relocate(PVM pVM, RTGCINTPTR offDelta);
 VMMR3_INT_DECL(int)     VMMR3UpdateLoggers(PVM pVM);
 VMMR3DECL(const char *) VMMR3GetRZAssertMsg1(PVM pVM);
 VMMR3DECL(const char *) VMMR3GetRZAssertMsg2(PVM pVM);
-VMMR3_INT_DECL(int)     VMMR3SelectSwitcher(PVM pVM, VMMSWITCHER enmSwitcher);
-VMMR3_INT_DECL(RTR0PTR) VMMR3GetHostToGuestSwitcher(PVM pVM, VMMSWITCHER enmSwitcher);
 VMMR3_INT_DECL(int)     VMMR3HmRunGC(PVM pVM, PVMCPU pVCpu);
-# ifdef VBOX_WITH_RAW_MODE
-VMMR3_INT_DECL(int)     VMMR3RawRunGC(PVM pVM, PVMCPU pVCpu);
-VMMR3DECL(int)          VMMR3ResumeHyper(PVM pVM, PVMCPU pVCpu);
-VMMR3_INT_DECL(int)     VMMR3GetImportRC(PVM pVM, const char *pszSymbol, PRTRCPTR pRCPtrValue);
-VMMR3DECL(int)          VMMR3CallRC(PVM pVM, RTRCPTR RCPtrEntry, unsigned cArgs, ...);
-VMMR3DECL(int)          VMMR3CallRCV(PVM pVM, RTRCPTR RCPtrEntry, unsigned cArgs, va_list args);
-# endif
 VMMR3DECL(int)          VMMR3CallR0(PVM pVM, uint32_t uOperation, uint64_t u64Arg, PSUPVMMR0REQHDR pReqHdr);
 VMMR3_INT_DECL(int)     VMMR3CallR0Emt(PVM pVM, PVMCPU pVCpu, VMMR0OPERATION enmOperation, uint64_t u64Arg, PSUPVMMR0REQHDR pReqHdr);
 VMMR3_INT_DECL(VBOXSTRICTRC) VMMR3CallR0EmtFast(PVM pVM, PVMCPU pVCpu, VMMR0OPERATION enmOperation);
@@ -587,28 +538,18 @@ VMMR3_INT_DECL(void)    VMMR3InitR0StackUnwindState(PUVM pUVM, VMCPUID idCpu, PR
 #endif /* IN_RING3 */
 
 
-#if defined(IN_RC) || defined(DOXYGEN_RUNNING)
-/** @defgroup grp_vmm_api_rc    The VMM Raw-Mode Context API
- * @{
- */
-VMMRCDECL(int)      VMMRCEntry(PVM pVM, unsigned uOperation, unsigned uArg, ...);
-VMMRCDECL(void)     VMMRCGuestToHost(PVM pVM, int rc);
-VMMRCDECL(void)     VMMRCLogFlushIfFull(PVM pVM);
-/** @} */
-#endif /* IN_RC */
-
 #if defined(IN_RC) || defined(IN_RING0) || defined(DOXYGEN_RUNNING)
 /** @defgroup grp_vmm_api_rz    The VMM Raw-Mode and Ring-0 Context API
  * @{
  */
-VMMRZDECL(int)      VMMRZCallRing3(PVM pVM, PVMCPU pVCpu, VMMCALLRING3 enmOperation, uint64_t uArg);
-VMMRZDECL(int)      VMMRZCallRing3NoCpu(PVM pVM, VMMCALLRING3 enmOperation, uint64_t uArg);
-VMMRZDECL(void)     VMMRZCallRing3Disable(PVMCPU pVCpu);
-VMMRZDECL(void)     VMMRZCallRing3Enable(PVMCPU pVCpu);
-VMMRZDECL(bool)     VMMRZCallRing3IsEnabled(PVMCPU pVCpu);
-VMMRZDECL(int)      VMMRZCallRing3SetNotification(PVMCPU pVCpu, R0PTRTYPE(PFNVMMR0CALLRING3NOTIFICATION) pfnCallback, RTR0PTR pvUser);
-VMMRZDECL(void)     VMMRZCallRing3RemoveNotification(PVMCPU pVCpu);
-VMMRZDECL(bool)     VMMRZCallRing3IsNotificationSet(PVMCPU pVCpu);
+VMMRZDECL(int)      VMMRZCallRing3(PVMCC pVMCC, PVMCPUCC pVCpu, VMMCALLRING3 enmOperation, uint64_t uArg);
+VMMRZDECL(int)      VMMRZCallRing3NoCpu(PVMCC pVM, VMMCALLRING3 enmOperation, uint64_t uArg);
+VMMRZDECL(void)     VMMRZCallRing3Disable(PVMCPUCC pVCpu);
+VMMRZDECL(void)     VMMRZCallRing3Enable(PVMCPUCC pVCpu);
+VMMRZDECL(bool)     VMMRZCallRing3IsEnabled(PVMCPUCC pVCpu);
+VMMRZDECL(int)      VMMRZCallRing3SetNotification(PVMCPUCC pVCpu, R0PTRTYPE(PFNVMMR0CALLRING3NOTIFICATION) pfnCallback, RTR0PTR pvUser);
+VMMRZDECL(void)     VMMRZCallRing3RemoveNotification(PVMCPUCC pVCpu);
+VMMRZDECL(bool)     VMMRZCallRing3IsNotificationSet(PVMCPUCC pVCpu);
 /** @} */
 #endif
 

@@ -59,12 +59,10 @@ protected:
     /** Handles the translation event. */
     void retranslateUi() /* override */;
 
-    /** Handles Qt @a pEvent, used for keyboard processing. */
-    bool eventFilter(QObject *pObject, QEvent *pEvent);
     /** Handles the Qt show @a pEvent. */
-    void showEvent(QShowEvent *pEvent);
+    void showEvent(QShowEvent *pEvent) /* override */;
     /** Handles the Qt hide @a pEvent. */
-    void hideEvent(QHideEvent *pEvent);
+    void hideEvent(QHideEvent *pEvent) /* override */;
     void addVerticalSeparator();
 
 private:

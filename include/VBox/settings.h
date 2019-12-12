@@ -337,45 +337,73 @@ typedef std::list<MachineRegistryEntry> MachinesRegistry;
 struct DhcpOptValue
 {
     DhcpOptValue();
-    DhcpOptValue(const com::Utf8Str &aText, DhcpOptEncoding_T aEncoding = DhcpOptEncoding_Legacy);
+    DhcpOptValue(const com::Utf8Str &aText, DHCPOptionEncoding_T aEncoding = DHCPOptionEncoding_Normal);
 
-    com::Utf8Str text;
-    DhcpOptEncoding_T encoding;
+    com::Utf8Str            strValue;
+    DHCPOptionEncoding_T    enmEncoding;
 };
 
-typedef std::map<DhcpOpt_T, DhcpOptValue> DhcpOptionMap;
+typedef std::map<DHCPOption_T, DhcpOptValue> DhcpOptionMap;
 typedef DhcpOptionMap::value_type DhcpOptValuePair;
 typedef DhcpOptionMap::iterator DhcpOptIterator;
 typedef DhcpOptionMap::const_iterator DhcpOptConstIterator;
 
-typedef struct VmNameSlotKey
+struct DHCPGroupCondition
 {
-    VmNameSlotKey(const com::Utf8Str& aVmName, LONG aSlot);
+    DHCPGroupCondition();
 
-    bool operator<(const VmNameSlotKey& that) const;
+    bool                    fInclusive;
+    DHCPGroupConditionType_T enmType;
+    com::Utf8Str            strValue;
+};
+typedef std::vector<DHCPGroupCondition> DHCPGroupConditionVec;
 
-    const com::Utf8Str VmName;
-    LONG      Slot;
-} VmNameSlotKey;
 
-typedef std::map<VmNameSlotKey, DhcpOptionMap> VmSlot2OptionsMap;
-typedef VmSlot2OptionsMap::value_type VmSlot2OptionsPair;
-typedef VmSlot2OptionsMap::iterator VmSlot2OptionsIterator;
-typedef VmSlot2OptionsMap::const_iterator VmSlot2OptionsConstIterator;
+struct DHCPConfig
+{
+    DHCPConfig();
+
+    DhcpOptionMap           mapOptions;
+    uint32_t                secMinLeaseTime;
+    uint32_t                secDefaultLeaseTime;
+    uint32_t                secMaxLeaseTime;
+    com::Utf8Str            strForcedOptions;
+    com::Utf8Str            strSuppressedOptions;
+};
+
+struct DHCPGroupConfig : DHCPConfig
+{
+    DHCPGroupConfig();
+
+    com::Utf8Str            strName;
+    DHCPGroupConditionVec   vecConditions;
+};
+typedef std::vector<DHCPGroupConfig> DHCPGroupConfigVec;
+
+struct DHCPIndividualConfig : DHCPConfig
+{
+    DHCPIndividualConfig();
+
+    com::Utf8Str            strMACAddress;
+    com::Utf8Str            strVMName;
+    uint32_t                uSlot;
+    com::Utf8Str            strFixedAddress;
+};
+typedef std::map<com::Utf8Str, DHCPIndividualConfig> DHCPIndividualConfigMap;
 
 struct DHCPServer
 {
     DHCPServer();
 
-    com::Utf8Str    strNetworkName,
-                    strIPAddress,
-                    strIPLower,
-                    strIPUpper;
-    bool            fEnabled;
-    DhcpOptionMap   GlobalDhcpOptions;
-    VmSlot2OptionsMap VmSlot2OptionsM;
+    com::Utf8Str            strNetworkName;
+    com::Utf8Str            strIPAddress;
+    com::Utf8Str            strIPLower;
+    com::Utf8Str            strIPUpper;
+    bool                    fEnabled;
+    DHCPConfig              globalConfig;
+    DHCPGroupConfigVec      vecGroupConfigs;
+    DHCPIndividualConfigMap mapIndividualConfigs;
 };
-
 typedef std::list<DHCPServer> DHCPServersList;
 
 
@@ -401,6 +429,24 @@ struct NATNetwork
 
 typedef std::list<NATNetwork> NATNetworksList;
 
+#ifdef VBOX_WITH_CLOUD_NET
+/**
+ * Cloud Networking settings.
+ */
+struct CloudNetwork
+{
+    CloudNetwork();
+
+    com::Utf8Str strNetworkName;
+    com::Utf8Str strProviderShortName;
+    com::Utf8Str strProfileName;
+    com::Utf8Str strNetworkId;
+    bool         fEnabled;
+};
+
+typedef std::list<CloudNetwork> CloudNetworksList;
+#endif /* VBOX_WITH_CLOUD_NET */
+
 
 class MainConfigFile : public ConfigFileBase
 {
@@ -408,9 +454,10 @@ public:
     MainConfigFile(const com::Utf8Str *pstrFilename);
 
     void readMachineRegistry(const xml::ElementNode &elmMachineRegistry);
-    void readDHCPServers(const xml::ElementNode &elmDHCPServers);
-    void readDhcpOptions(DhcpOptionMap& map, const xml::ElementNode& options);
     void readNATNetworks(const xml::ElementNode &elmNATNetworks);
+#ifdef VBOX_WITH_CLOUD_NET
+    void readCloudNetworks(const xml::ElementNode &elmCloudNetworks);
+#endif /* VBOX_WITH_CLOUD_NET */
 
     void write(const com::Utf8Str strFilename);
 
@@ -420,12 +467,19 @@ public:
     MachinesRegistry        llMachines;
     DHCPServersList         llDhcpServers;
     NATNetworksList         llNATNetworks;
+#ifdef VBOX_WITH_CLOUD_NET
+    CloudNetworksList       llCloudNetworks;
+#endif /* VBOX_WITH_CLOUD_NET */
     StringsMap              mapExtraDataItems;
 
 private:
     void bumpSettingsVersionIfNeeded();
     void buildUSBDeviceSources(xml::ElementNode &elmParent, const USBDeviceSourcesList &ll);
     void readUSBDeviceSources(const xml::ElementNode &elmDeviceSources, USBDeviceSourcesList &ll);
+    void buildDHCPServers(xml::ElementNode &elmDHCPServers, DHCPServersList const &ll);
+    void buildDHCPOptions(xml::ElementNode &elmOptions, DHCPConfig const &rConfig, bool fIgnoreSubnetMask);
+    void readDHCPServers(const xml::ElementNode &elmDHCPServers);
+    void readDHCPOptions(DHCPConfig &rConfig, const xml::ElementNode &elmOptions, bool fIgnoreSubnetMask);
     bool convertGuiProxySettings(const com::Utf8Str &strUIProxySettings);
 };
 
@@ -475,12 +529,14 @@ struct BIOSSettings
                     fIOAPICEnabled,
                     fLogoFadeIn,
                     fLogoFadeOut,
-                    fPXEDebugEnabled;
+                    fPXEDebugEnabled,
+                    fSmbiosUuidLittleEndian;
     uint32_t        ulLogoDisplayTime;
     BIOSBootMenuMode_T biosBootMenuMode;
     APICMode_T      apicMode;           // requires settings version 1.16 (VirtualBox 5.1)
     int64_t         llTimeOffset;
     com::Utf8Str    strLogoImagePath;
+    com::Utf8Str    strNVRAMPath;
 };
 
 /** List for keeping a recording feature list. */
@@ -603,6 +659,26 @@ struct RecordingSettings
  * the operator== which is used by MachineConfigFile::operator==(), or otherwise
  * your settings might never get saved.
  */
+struct GraphicsAdapter
+{
+    GraphicsAdapter();
+
+    bool areDefaultSettings() const;
+
+    bool operator==(const GraphicsAdapter &g) const;
+
+    GraphicsControllerType_T graphicsControllerType;
+    uint32_t            ulVRAMSizeMB;
+    uint32_t            cMonitors;
+    bool                fAccelerate3D,
+                        fAccelerate2DVideo;     // requires settings version 1.8 (VirtualBox 3.1)
+};
+
+/**
+ * NOTE: If you add any fields in here, you must update a) the constructor and b)
+ * the operator== which is used by MachineConfigFile::operator==(), or otherwise
+ * your settings might never get saved.
+ */
 struct USBController
 {
     USBController();
@@ -691,6 +767,9 @@ struct NetworkAdapter
     com::Utf8Str                        strGenericDriver;
     StringsMap                          genericProperties;
     com::Utf8Str                        strNATNetworkName;
+#ifdef VBOX_WITH_CLOUD_NET
+    com::Utf8Str                        strCloudNetworkName;
+#endif /* VBOX_WITH_CLOUD_NET */
     uint32_t                            ulBootPriority;
     com::Utf8Str                        strBandwidthGroup; // requires settings version 1.13 (VirtualBox 4.2)
 };
@@ -1052,12 +1131,6 @@ struct Hardware
 
     BootOrderMap        mapBootOrder;           // item 0 has highest priority
 
-    GraphicsControllerType_T graphicsControllerType;
-    uint32_t            ulVRAMSizeMB;
-    uint32_t            cMonitors;
-    bool                fAccelerate3D,
-                        fAccelerate2DVideo;     // requires settings version 1.8 (VirtualBox 3.1)
-
     FirmwareType_T      firmwareType;           // requires settings version 1.9 (VirtualBox 3.1)
 
     PointingHIDType_T   pointingHIDType;        // requires settings version 1.10 (VirtualBox 3.2)
@@ -1073,6 +1146,7 @@ struct Hardware
 
     BIOSSettings        biosSettings;
     RecordingSettings   recordingSettings;
+    GraphicsAdapter     graphicsAdapter;
     USB                 usbSettings;
     NetworkAdaptersList llNetworkAdapters;
     SerialPortsList     llSerialPorts;
@@ -1083,7 +1157,10 @@ struct Hardware
     // technically these two have no business in the hardware section, but for some
     // clever reason <Hardware> is where they are in the XML....
     SharedFoldersList   llSharedFolders;
+
     ClipboardMode_T     clipboardMode;
+    bool                fClipboardFileTransfersEnabled;
+
     DnDMode_T           dndMode;
 
     uint32_t            ulMemoryBalloonSize;
@@ -1182,14 +1259,9 @@ struct MachineUserData
     uint32_t                uTeleporterPort;
     com::Utf8Str            strTeleporterAddress;
     com::Utf8Str            strTeleporterPassword;
-    FaultToleranceState_T   enmFaultToleranceState;
-    uint32_t                uFaultTolerancePort;
-    com::Utf8Str            strFaultToleranceAddress;
-    com::Utf8Str            strFaultTolerancePassword;
-    uint32_t                uFaultToleranceInterval;
     bool                    fRTCUseUTC;
     IconBlob                ovIcon;
-    com::Utf8Str            strVMPriority;
+    VMProcPriority_T        enmVMPriority;
 };
 
 

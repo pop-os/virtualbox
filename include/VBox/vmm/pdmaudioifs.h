@@ -1,5 +1,5 @@
 /** @file
- * PDM - Pluggable Device Manager, audio interfaces.
+ * PDM - Pluggable Device Manager, Audio interfaces.
  */
 
 /*
@@ -23,152 +23,204 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-/**
- * == Audio architecture overview
+/** @page pg_pdm_audio  PDM Audio
  *
- * The audio architecture mainly consists of two PDM interfaces, PDMAUDIOCONNECTOR
- * and PDMIHOSTAUDIO.
+ * @section sec_pdm_audio_overview  Audio architecture overview
  *
- * The PDMAUDIOCONNECTOR interface is responsible of connecting a device emulation, such
- * as SB16, AC'97 and HDA to one or multiple audio backend(s). Its API abstracts audio
- * stream handling and I/O functions, device enumeration and so on.
+ * The audio architecture mainly consists of two PDM interfaces,
+ * PDMIAUDIOCONNECTOR and PDMIHOSTAUDIO.
  *
- * The PDMIHOSTAUDIO interface must be implemented by all audio backends to provide an
- * abstract and common way of accessing needed functions, such as transferring output audio
- * data for playing audio or recording input from the host.
+ * The PDMIAUDIOCONNECTOR interface is responsible of connecting a device
+ * emulation, such as SB16, AC'97 and HDA to one or multiple audio backend(s).
+ * Its API abstracts audio stream handling and I/O functions, device enumeration
+ * and so on.
  *
- * A device emulation can have one or more LUNs attached to it, whereas these LUNs in turn
- * then all have their own PDMIAUDIOCONNECTOR, making it possible to connect multiple backends
- * to a certain device emulation stream (multiplexing).
+ * The PDMIHOSTAUDIO interface must be implemented by all audio backends to
+ * provide an abstract and common way of accessing needed functions, such as
+ * transferring output audio data for playing audio or recording input from the
+ * host.
  *
- * An audio backend's job is to record and/or play audio data (depending on its capabilities).
- * It highly depends on the host it's running on and needs very specific (host-OS-dependent) code.
- * The backend itself only has very limited ways of accessing and/or communicating with the
- * PDMIAUDIOCONNECTOR interface via callbacks, but never directly with the device emulation or
- * other parts of the audio sub system.
+ * A device emulation can have one or more LUNs attached to it, whereas these
+ * LUNs in turn then all have their own PDMIAUDIOCONNECTOR, making it possible
+ * to connect multiple backends to a certain device emulation stream
+ * (multiplexing).
  *
- *
- * == Mixing
- *
- * The AUDIOMIXER API is optionally available to create and manage virtual audio mixers.
- * Such an audio mixer in turn then can be used by the device emulation code to manage all
- * the multiplexing to/from the connected LUN audio streams.
- *
- * Currently only input and output stream are supported. Duplex stream are not supported yet.
- *
- * This also is handy if certain LUN audio streams should be added or removed during runtime.
- *
- * To create a group of either input or output streams the AUDMIXSINK API can be used.
- *
- * For example: The device emulation has one hardware output stream (HW0), and that output
- *              stream shall be available to all connected LUN backends. For that to happen,
- *              an AUDMIXSINK sink has to be created and attached to the device's AUDIOMIXER object.
- *
- *              As every LUN has its own AUDMIXSTREAM object, adding all those objects to the
- *              just created audio mixer sink will do the job.
- *
- * Note: The AUDIOMIXER API is purely optional and is not used by all currently implemented
- *       device emulations (e.g. SB16).
+ * An audio backend's job is to record and/or play audio data (depending on its
+ * capabilities). It highly depends on the host it's running on and needs very
+ * specific (host-OS-dependent) code. The backend itself only has very limited
+ * ways of accessing and/or communicating with the PDMIAUDIOCONNECTOR interface
+ * via callbacks, but never directly with the device emulation or other parts of
+ * the audio sub system.
  *
  *
- * == Data processing
+ * @section sec_pdm_audio_mixing    Mixing
  *
- * Audio input / output data gets handed-off to/from the device emulation in an unmodified
- * - that is, raw - way. The actual audio frame / sample conversion is done via the PDMAUDIOMIXBUF API.
+ * The AUDIOMIXER API is optionally available to create and manage virtual audio
+ * mixers. Such an audio mixer in turn then can be used by the device emulation
+ * code to manage all the multiplexing to/from the connected LUN audio streams.
  *
- * This concentrates the audio data processing in one place and makes it easier to test / benchmark
- * such code.
+ * Currently only input and output stream are supported. Duplex stream are not
+ * supported yet.
  *
- * A PDMAUDIOFRAME is the internal representation of a single audio frame, which consists of a single left
- * and right audio sample in time. Only mono (1) and stereo (2) channel(s) currently are supported.
+ * This also is handy if certain LUN audio streams should be added or removed
+ * during runtime.
  *
+ * To create a group of either input or output streams the AUDMIXSINK API can be
+ * used.
  *
- * == Timing
+ * For example: The device emulation has one hardware output stream (HW0), and
+ * that output stream shall be available to all connected LUN backends. For that
+ * to happen, an AUDMIXSINK sink has to be created and attached to the device's
+ * AUDIOMIXER object.
  *
- * Handling audio data in a virtual environment is hard, as the human perception is very sensitive
- * to the slightest cracks and stutters in the audible data. This can happen if the VM's timing is
- * lagging behind or not within the expected time frame.
+ * As every LUN has its own AUDMIXSTREAM object, adding all those
+ * objects to the just created audio mixer sink will do the job.
  *
- * The two main components which unfortunately contradict each other is a) the audio device emulation
- * and b) the audio backend(s) on the host. Those need to be served in a timely manner to function correctly.
- * To make e.g. the device emulation rely on the pace the host backend(s) set - or vice versa - will not work,
- * as the guest's audio system / drivers then will not be able to compensate this accordingly.
- *
- * So each component, the device emulation, the audio connector(s) and the backend(s) must do its thing
- * *when* it needs to do it, independently of the others. For that we use various (small) ring buffers to
- * (hopefully) serve all components with the amount of data *when* they need it.
- *
- * Additionally, the device emulation can run with a different audio frame size, while the backends(s) may
- * require a different frame size (16 bit stereo -> 8 bit mono, for example).
- *
- * The device emulation can give the audio connector(s) a scheduling hint (optional), e.g. in which interval
- * it expects any data processing.
- *
- * A data transfer for playing audio data from the guest on the host looks like this:
- * (RB = Ring Buffer, MB = Mixing Buffer)
- *
- * (A) Device DMA -> (B) Device RB -> (C) Audio Connector Guest MB -> (D) Audio Connector Host MB -> \
- * (E) Backend RB (optional, up to the backend) > (F) Backend audio framework
- *
- * For capturing audio data the above chain is similar, just in a different direction, of course.
- *
- * The audio connector hereby plays a key role when it comes to (pre-) buffering data to minimize any audio stutters
- * and/or cracks. The following values, which also can be tweaked via CFGM / extra-data are available:
- *
- * - The pre-buffering time (in ms): Audio data which needs to be buffered before any playback (or capturing) can happen.
- * - The actual buffer size (in ms): How big the mixing buffer (for C and D) will be.
- * - The period size (in ms): How big a chunk of audio (often called period or fragment) for F must be to get handled correctly.
- *
- * The above values can be set on a per-driver level, whereas input and output streams for a driver also can be handled
- * set independently. The verbose audio (release) log will tell about the (final) state of each audio stream.
+ * @note The AUDIOMIXER API is purely optional and is not used by all currently
+ *       implemented device emulations (e.g. SB16).
  *
  *
- * == Diagram
+ * @section sec_pdm_audio_data_processing   Data processing
  *
- * +-------------------------+
- * +-------------------------+        +-------------------------+        +-------------------+
- * |PDMAUDIOSTREAM           |        |PDMAUDIOCONNECTOR        |    + ++|LUN                |
- * |-------------------------|        |-------------------------|    | |||-------------------|
- * |PDMAUDIOMIXBUF           |+------>|PDMAUDIOSTREAM Host      |+---|-|||PDMIAUDIOCONNECTOR |
- * |PDMAUDIOSTREAMCFG        |+------>|PDMAUDIOSTREAM Guest     |    | |||AUDMIXSTREAM       |
- * |                         |        |Device capabilities      |    | |||                   |
- * |                         |        |Device configuration     |    | |||                   |
- * |                         |        |                         |    | |||                   |
- * |                         |       +|PDMIHOSTAUDIO            |    | |||                   |
- * |                         |       ||+-----------------------+|    | ||+-------------------+
- * +-------------------------+       |||Backend storage space  ||    | ||
- *                                   ||+-----------------------+|    | ||
- *                                   |+-------------------------+    | ||
- *                                   |                               | ||
- * +---------------------+           |                               | ||
- * |PDMIHOSTAUDIO        |           |                               | ||
- * |+--------------+     |           |      +-------------------+    | ||      +-------------+
- * ||DirectSound   |     |           |      |AUDMIXSINK         |    | ||      |AUDIOMIXER   |
- * |+--------------+     |           |      |-------------------|    | ||      |-------------|
- * |                     |           |      |AUDMIXSTREAM0      |+---|-||----->|AUDMIXSINK0  |
- * |+--------------+     |           |      |AUDMIXSTREAM1      |+---|-||----->|AUDMIXSINK1  |
- * ||PulseAudio    |     |           |      |AUDMIXSTREAMn      |+---|-||----->|AUDMIXSINKn  |
- * |+--------------+     |+----------+      +-------------------+    | ||      +-------------+
- * |                     |                                           | ||
- * |+--------------+     |                                           | ||
- * ||Core Audio    |     |                                           | ||
- * |+--------------+     |                                           | ||
- * |                     |                                           | ||
- * |                     |                                           | ||+----------------------------------+
- * |                     |                                           | |||Device (SB16 / AC'97 / HDA)       |
- * |                     |                                           | |||----------------------------------|
- * +---------------------+                                           | |||AUDIOMIXER (Optional)             |
- *                                                                   | |||AUDMIXSINK0 (Optional)            |
- *                                                                   | |||AUDMIXSINK1 (Optional)            |
- *                                                                   | |||AUDMIXSINKn (Optional)            |
- *                                                                   | |||                                  |
- *                                                                   | |+|LUN0                              |
- *                                                                   | ++|LUN1                              |
- *                                                                   +--+|LUNn                              |
- *                                                                       |                                  |
- *                                                                       |                                  |
- *                                                                       |                                  |
- *                                                                       +----------------------------------+
+ * Audio input / output data gets handed off to/from the device emulation in an
+ * unmodified (raw) way. The actual audio frame / sample conversion is done via
+ * the PDMAUDIOMIXBUF API.
+ *
+ * This concentrates the audio data processing in one place and makes it easier
+ * to test / benchmark such code.
+ *
+ * A PDMAUDIOFRAME is the internal representation of a single audio frame, which
+ * consists of a single left and right audio sample in time. Only mono (1) and
+ * stereo (2) channel(s) currently are supported.
+ *
+ *
+ * @section sec_pdm_audio_timing    Timing
+ *
+ * Handling audio data in a virtual environment is hard, as the human perception
+ * is very sensitive to the slightest cracks and stutters in the audible data.
+ * This can happen if the VM's timing is lagging behind or not within the
+ * expected time frame.
+ *
+ * The two main components which unfortunately contradict each other is a) the
+ * audio device emulation and b) the audio backend(s) on the host. Those need to
+ * be served in a timely manner to function correctly. To make e.g. the device
+ * emulation rely on the pace the host backend(s) set - or vice versa - will not
+ * work, as the guest's audio system / drivers then will not be able to
+ * compensate this accordingly.
+ *
+ * So each component, the device emulation, the audio connector(s) and the
+ * backend(s) must do its thing *when* it needs to do it, independently of the
+ * others. For that we use various (small) ring buffers to (hopefully) serve all
+ * components with the amount of data *when* they need it.
+ *
+ * Additionally, the device emulation can run with a different audio frame size,
+ * while the backends(s) may require a different frame size (16 bit stereo
+ * -> 8 bit mono, for example).
+ *
+ * The device emulation can give the audio connector(s) a scheduling hint
+ * (optional), e.g. in which interval it expects any data processing.
+ *
+ * A data transfer for playing audio data from the guest on the host looks like
+ * this: (RB = Ring Buffer, MB = Mixing Buffer)
+ *
+ * (A) Device DMA -> (B) Device RB -> (C) Audio Connector %Guest MB -> (D) Audio
+ * Connector %Host MB -> (E) Backend RB (optional, up to the backend) -> (F)
+ * Backend audio framework.
+ *
+ * When capturing audio data the chain is similar to the above one, just in a
+ * different direction, of course.
+ *
+ * The audio connector hereby plays a key role when it comes to (pre-)buffering
+ * data to minimize any audio stutters and/or cracks. The following values,
+ * which also can be tweaked via CFGM / extra-data are available:
+ *
+ * - The pre-buffering time (in ms): Audio data which needs to be buffered
+ *   before any playback (or capturing) can happen.
+ * - The actual buffer size (in ms): How big the mixing buffer (for C and D)
+ *   will be.
+ * - The period size (in ms): How big a chunk of audio (often called period or
+ *   fragment) for F must be to get handled correctly.
+ *
+ * The above values can be set on a per-driver level, whereas input and output
+ * streams for a driver also can be handled set independently. The verbose audio
+ * (release) log will tell about the (final) state of each audio stream.
+ *
+ *
+ * @section sec_pdm_audio_diagram Diagram
+ *
+ * @todo r=bird: Not quite able to make sense of this, esp. the
+ *       AUDMIXSINK/AUDIOMIXER bits crossing the LUN connections.
+ *
+ * @verbatim
+               +----------------------------------+
+               |Device (SB16 / AC'97 / HDA)       |
+               |----------------------------------|
+               |AUDIOMIXER (Optional)             |
+               |AUDMIXSINK0 (Optional)            |
+               |AUDMIXSINK1 (Optional)            |
+               |AUDMIXSINKn (Optional)            |
+               |                                  |
+               |     L    L    L                  |
+               |     U    U    U                  |
+               |     N    N    N                  |
+               |     0    1    n                  |
+               +-----+----+----+------------------+
+                     |    |    |
+                     |    |    |
+   +--------------+  |    |    |   +-------------+
+   |AUDMIXSINK    |  |    |    |   |AUDIOMIXER   |
+   |--------------|  |    |    |   |-------------|
+   |AUDMIXSTREAM0 |+-|----|----|-->|AUDMIXSINK0  |
+   |AUDMIXSTREAM1 |+-|----|----|-->|AUDMIXSINK1  |
+   |AUDMIXSTREAMn |+-|----|----|-->|AUDMIXSINKn  |
+   +--------------+  |    |    |   +-------------+
+                     |    |    |
+                     |    |    |
+                +----+----+----+----+
+                |LUN                |
+                |-------------------|
+                |PDMIAUDIOCONNECTOR |
+                |AUDMIXSTREAM       |
+                |                   +------+
+                |                   |      |
+                |                   |      |
+                |                   |      |
+                +-------------------+      |
+                                           |
+   +-------------------------+             |
+   +-------------------------+        +----+--------------------+
+   |PDMAUDIOSTREAM           |        |PDMIAUDIOCONNECTOR       |
+   |-------------------------|        |-------------------------|
+   |PDMAUDIOMIXBUF           |+------>|PDMAUDIOSTREAM Host      |
+   |PDMAUDIOSTREAMCFG        |+------>|PDMAUDIOSTREAM Guest     |
+   |                         |        |Device capabilities      |
+   |                         |        |Device configuration     |
+   |                         |        |                         |
+   |                         |    +--+|PDMIHOSTAUDIO            |
+   |                         |    |   |+-----------------------+|
+   +-------------------------+    |   ||Backend storage space  ||
+                                  |   |+-----------------------+|
+                                  |   +-------------------------+
+                                  |
+   +---------------------+        |
+   |PDMIHOSTAUDIO        |        |
+   |+--------------+     |        |
+   ||DirectSound   |     |        |
+   |+--------------+     |        |
+   |                     |        |
+   |+--------------+     |        |
+   ||PulseAudio    |     |        |
+   |+--------------+     |+-------+
+   |                     |
+   |+--------------+     |
+   ||Core Audio    |     |
+   |+--------------+     |
+   |                     |
+   |                     |
+   |                     |
+   |                     |
+   +---------------------+
+   @endverbatim
  */
 
 #ifndef VBOX_INCLUDED_vmm_pdmaudioifs_h
@@ -193,7 +245,7 @@
  */
 
 #ifndef VBOX_AUDIO_DEBUG_DUMP_PCM_DATA_PATH
-# ifdef RT_OS_WINDOWS
+# if defined(RT_OS_WINDOWS) || defined(RT_OS_OS2)
 #  define VBOX_AUDIO_DEBUG_DUMP_PCM_DATA_PATH "c:\\temp\\"
 # else
 #  define VBOX_AUDIO_DEBUG_DUMP_PCM_DATA_PATH "/tmp/"
@@ -215,7 +267,7 @@ typedef uint32_t PDMAUDIODRVFLAGS;
 typedef enum PDMAUDIOFMT
 {
     /** Invalid format, do not use. */
-    PDMAUDIOFMT_INVALID,
+    PDMAUDIOFMT_INVALID = 0,
     /** 8-bit, unsigned. */
     PDMAUDIOFMT_U8,
     /** 8-bit, signed. */
@@ -237,14 +289,16 @@ typedef enum PDMAUDIOFMT
  */
 typedef enum PDMAUDIODIR
 {
+    /** Invalid zero value as per usual (guards against using unintialized values). */
+    PDMAUDIODIR_INVALID = 0,
     /** Unknown direction. */
-    PDMAUDIODIR_UNKNOWN = 0,
+    PDMAUDIODIR_UNKNOWN,
     /** Input. */
-    PDMAUDIODIR_IN      = 1,
+    PDMAUDIODIR_IN,
     /** Output. */
-    PDMAUDIODIR_OUT     = 2,
+    PDMAUDIODIR_OUT,
     /** Duplex handling. */
-    PDMAUDIODIR_ANY     = 3,
+    PDMAUDIODIR_ANY,
     /** Hack to blow the type up to 32-bit. */
     PDMAUDIODIR_32BIT_HACK = 0x7fffffff
 } PDMAUDIODIR;
@@ -255,31 +309,33 @@ typedef uint32_t PDMAUDIODEVLATSPECMS;
 /** Device latency spec in seconds (s). */
 typedef uint32_t PDMAUDIODEVLATSPECSEC;
 
-/** Audio device flags. Use with PDMAUDIODEV_FLAG_ flags. */
-typedef uint32_t PDMAUDIODEVFLAG;
-
+/** @name PDMAUDIODEV_FLAGS_XXX
+ * @{  */
 /** No flags set. */
-#define PDMAUDIODEV_FLAGS_NONE            0
+#define PDMAUDIODEV_FLAGS_NONE            UINT32_C(0)
 /** The device marks the default device within the host OS. */
-#define PDMAUDIODEV_FLAGS_DEFAULT         RT_BIT(0)
+#define PDMAUDIODEV_FLAGS_DEFAULT         RT_BIT_32(0)
 /** The device can be removed at any time and we have to deal with it. */
-#define PDMAUDIODEV_FLAGS_HOTPLUG         RT_BIT(1)
+#define PDMAUDIODEV_FLAGS_HOTPLUG         RT_BIT_32(1)
 /** The device is known to be buggy and needs special treatment. */
-#define PDMAUDIODEV_FLAGS_BUGGY           RT_BIT(2)
+#define PDMAUDIODEV_FLAGS_BUGGY           RT_BIT_32(2)
 /** Ignore the device, no matter what. */
-#define PDMAUDIODEV_FLAGS_IGNORE          RT_BIT(3)
+#define PDMAUDIODEV_FLAGS_IGNORE          RT_BIT_32(3)
 /** The device is present but marked as locked by some other application. */
-#define PDMAUDIODEV_FLAGS_LOCKED          RT_BIT(4)
+#define PDMAUDIODEV_FLAGS_LOCKED          RT_BIT_32(4)
 /** The device is present but not in an alive state (dead). */
-#define PDMAUDIODEV_FLAGS_DEAD            RT_BIT(5)
+#define PDMAUDIODEV_FLAGS_DEAD            RT_BIT_32(5)
+/** @} */
 
 /**
  * Audio device type.
  */
 typedef enum PDMAUDIODEVICETYPE
 {
+    /** Invalid zero value as per usual (guards against using unintialized values). */
+    PDMAUDIODEVICETYPE_INVALID = 0,
     /** Unknown device type. This is the default. */
-    PDMAUDIODEVICETYPE_UNKNOWN    = 0,
+    PDMAUDIODEVICETYPE_UNKNOWN,
     /** Dummy device; for backends which are not able to report
      *  actual device information (yet). */
     PDMAUDIODEVICETYPE_DUMMY,
@@ -292,46 +348,53 @@ typedef enum PDMAUDIODEVICETYPE
 } PDMAUDIODEVICETYPE;
 
 /**
- * Audio device instance data.
+ * Audio device info (enumeration result).
+ * @sa PDMAUDIODEVICEENUM, PDMIHOSTAUDIO::pfnGetDevices
  */
 typedef struct PDMAUDIODEVICE
 {
     /** List node. */
-    RTLISTNODE         Node;
-    /** Friendly name of the device, if any. */
-    char               szName[64];
-    /** The device type. */
-    PDMAUDIODEVICETYPE enmType;
-    /** Reference count indicating how many audio streams currently are relying on this device. */
-    uint8_t            cRefCount;
-    /** Usage of the device. */
-    PDMAUDIODIR        enmUsage;
-    /** Device flags. */
-    PDMAUDIODEVFLAG    fFlags;
-    /** Maximum number of input audio channels the device supports. */
-    uint8_t            cMaxInputChannels;
-    /** Maximum number of output audio channels the device supports. */
-    uint8_t            cMaxOutputChannels;
-    /** Additional data which might be relevant for the current context. */
-    void              *pvData;
+    RTLISTNODE          Node;
+    /** Additional data which might be relevant for the current context.
+     * @todo r=bird: I would do this C++ style, having the host specific bits
+     *       appended after this structure and downcast. */
+    void               *pvData;
     /** Size of the additional data. */
-    size_t             cbData;
+    size_t              cbData;
+    /** The device type. */
+    PDMAUDIODEVICETYPE  enmType;
+    /** Usage of the device. */
+    PDMAUDIODIR         enmUsage;
+    /** Device flags, PDMAUDIODEV_FLAGS_XXX. */
+    uint32_t            fFlags;
+    /** Reference count indicating how many audio streams currently are relying on this device. */
+    uint8_t             cRefCount;
+    /** Maximum number of input audio channels the device supports. */
+    uint8_t             cMaxInputChannels;
+    /** Maximum number of output audio channels the device supports. */
+    uint8_t             cMaxOutputChannels;
     /** Device type union, based on enmType. */
     union
     {
         /** USB type specifics. */
         struct
         {
-            /** Vendor ID. */
-            int16_t    VID;
+            /** Vendor ID.
+             * @todo r=bird: Why signed?? VUSB uses uint16_t for idVendor and idProduct!  */
+            int16_t     VID;
             /** Product ID. */
-            int16_t    PID;
+            int16_t     PID;
         } USB;
     } Type;
-} PDMAUDIODEVICE, *PPDMAUDIODEVICE;
+    /** Friendly name of the device, if any. */
+    char                szName[64];
+} PDMAUDIODEVICE;
+/** Pointer to audio device info (enum result). */
+typedef PDMAUDIODEVICE *PPDMAUDIODEVICE;
 
 /**
- * Structure for keeping an audio device enumeration.
+ * An audio device enumeration result.
+ * @sa PDMIHOSTAUDIO::pfnGetDevices
  */
 typedef struct PDMAUDIODEVICEENUM
 {
@@ -339,33 +402,37 @@ typedef struct PDMAUDIODEVICEENUM
     uint16_t        cDevices;
     /** List of audio devices. */
     RTLISTANCHOR    lstDevices;
-} PDMAUDIODEVICEENUM, *PPDMAUDIODEVICEENUM;
+} PDMAUDIODEVICEENUM;
+/** Pointer to an audio device enumeration result. */
+typedef PDMAUDIODEVICEENUM *PPDMAUDIODEVICEENUM;
 
 /**
- * Audio (static) configuration of an audio host backend.
+ * Audio configuration (static) of an audio host backend.
  */
 typedef struct PDMAUDIOBACKENDCFG
 {
     /** The backend's friendly name. */
-    char     szName[32];
+    char            szName[32];
     /** Size (in bytes) of the host backend's audio output stream structure. */
-    size_t   cbStreamOut;
+    size_t          cbStreamOut;
     /** Size (in bytes) of the host backend's audio input stream structure. */
-    size_t   cbStreamIn;
+    size_t          cbStreamIn;
     /** Number of concurrent output (playback) streams supported on the host.
      *  UINT32_MAX for unlimited concurrent streams, 0 if no concurrent input streams are supported. */
-    uint32_t cMaxStreamsOut;
+    uint32_t        cMaxStreamsOut;
     /** Number of concurrent input (recording) streams supported on the host.
      *  UINT32_MAX for unlimited concurrent streams, 0 if no concurrent input streams are supported. */
-    uint32_t cMaxStreamsIn;
-} PDMAUDIOBACKENDCFG, *PPDMAUDIOBACKENDCFG;
+    uint32_t        cMaxStreamsIn;
+} PDMAUDIOBACKENDCFG;
+/** Pointer to a static host audio audio configuration. */
+typedef PDMAUDIOBACKENDCFG *PPDMAUDIOBACKENDCFG;
 
 /**
  * A single audio frame.
  *
  * Currently only two (2) channels, left and right, are supported.
  *
- * Note: When changing this structure, make sure to also handle
+ * @note When changing this structure, make sure to also handle
  *       VRDP's input / output processing in DrvAudioVRDE, as VRDP
  *       expects audio data in st_sample_t format (historical reasons)
  *       which happens to be the same as PDMAUDIOFRAME for now.
@@ -373,9 +440,9 @@ typedef struct PDMAUDIOBACKENDCFG
 typedef struct PDMAUDIOFRAME
 {
     /** Left channel. */
-    int64_t i64LSample;
+    int64_t         i64LSample;
     /** Right channel. */
-    int64_t i64RSample;
+    int64_t         i64RSample;
 } PDMAUDIOFRAME;
 /** Pointer to a single (stereo) audio frame. */
 typedef PDMAUDIOFRAME *PPDMAUDIOFRAME;
@@ -384,8 +451,8 @@ typedef PDMAUDIOFRAME const *PCPDMAUDIOFRAME;
 
 typedef enum PDMAUDIOENDIANNESS
 {
-    /** The usual invalid endian. */
-    PDMAUDIOENDIANNESS_INVALID,
+    /** The usual invalid value. */
+    PDMAUDIOENDIANNESS_INVALID = 0,
     /** Little endian. */
     PDMAUDIOENDIANNESS_LITTLE,
     /** Bit endian. */
@@ -398,53 +465,83 @@ typedef enum PDMAUDIOENDIANNESS
     PDMAUDIOENDIANNESS_32BIT_HACK = 0x7fffffff
 } PDMAUDIOENDIANNESS;
 
+/** @def PDMAUDIOHOSTENDIANNESS
+ * The PDMAUDIOENDIANNESS value for the host. */
+#if defined(RT_LITTLE_ENDIAN)
+# define PDMAUDIOHOSTENDIANNESS PDMAUDIOENDIANNESS_LITTLE
+#elif defined(RT_BIG_ENDIAN)
+# define PDMAUDIOHOSTENDIANNESS PDMAUDIOENDIANNESS_BIG
+#else
+# error "Port me!"
+#endif
+
 /**
  * Audio playback destinations.
  */
-typedef enum PDMAUDIOPLAYBACKDEST
+typedef enum PDMAUDIOPLAYBACKDST
 {
+    /** Invalid zero value as per usual (guards against using unintialized values). */
+    PDMAUDIOPLAYBACKDST_INVALID = 0,
     /** Unknown destination. */
-    PDMAUDIOPLAYBACKDEST_UNKNOWN = 0,
+    PDMAUDIOPLAYBACKDST_UNKNOWN,
     /** Front channel. */
-    PDMAUDIOPLAYBACKDEST_FRONT,
+    PDMAUDIOPLAYBACKDST_FRONT,
     /** Center / LFE (Subwoofer) channel. */
-    PDMAUDIOPLAYBACKDEST_CENTER_LFE,
+    PDMAUDIOPLAYBACKDST_CENTER_LFE,
     /** Rear channel. */
-    PDMAUDIOPLAYBACKDEST_REAR,
+    PDMAUDIOPLAYBACKDST_REAR,
     /** Hack to blow the type up to 32-bit. */
-    PDMAUDIOPLAYBACKDEST_32BIT_HACK = 0x7fffffff
-} PDMAUDIOPLAYBACKDEST;
+    PDMAUDIOPLAYBACKDST_32BIT_HACK = 0x7fffffff
+} PDMAUDIOPLAYBACKDST;
 
 /**
  * Audio recording sources.
+ *
+ * @note Because this is almost exclusively used in PDMAUDIODSTSRCUNION where it
+ *       overlaps with PDMAUDIOPLAYBACKDST, the values starts at 64 instead of 0.
  */
-typedef enum PDMAUDIORECSOURCE
+typedef enum PDMAUDIORECSRC
 {
     /** Unknown recording source. */
-    PDMAUDIORECSOURCE_UNKNOWN = 0,
+    PDMAUDIORECSRC_UNKNOWN = 64,
     /** Microphone-In. */
-    PDMAUDIORECSOURCE_MIC,
+    PDMAUDIORECSRC_MIC,
     /** CD. */
-    PDMAUDIORECSOURCE_CD,
+    PDMAUDIORECSRC_CD,
     /** Video-In. */
-    PDMAUDIORECSOURCE_VIDEO,
+    PDMAUDIORECSRC_VIDEO,
     /** AUX. */
-    PDMAUDIORECSOURCE_AUX,
+    PDMAUDIORECSRC_AUX,
     /** Line-In. */
-    PDMAUDIORECSOURCE_LINE,
+    PDMAUDIORECSRC_LINE,
     /** Phone-In. */
-    PDMAUDIORECSOURCE_PHONE,
+    PDMAUDIORECSRC_PHONE,
     /** Hack to blow the type up to 32-bit. */
-    PDMAUDIORECSOURCE_32BIT_HACK = 0x7fffffff
-} PDMAUDIORECSOURCE;
+    PDMAUDIORECSRC_32BIT_HACK = 0x7fffffff
+} PDMAUDIORECSRC;
+
+/**
+ * Union for keeping an audio stream destination or source.
+ */
+typedef union PDMAUDIODSTSRCUNION
+{
+    /** Desired playback destination (for an output stream). */
+    PDMAUDIOPLAYBACKDST enmDst;
+    /** Desired recording source (for an input stream). */
+    PDMAUDIORECSRC      enmSrc;
+} PDMAUDIODSTSRCUNION;
+/** Pointer to an audio stream src/dst union. */
+typedef PDMAUDIODSTSRCUNION *PPDMAUDIODSTSRCUNION;
 
 /**
  * Audio stream (data) layout.
  */
 typedef enum PDMAUDIOSTREAMLAYOUT
 {
-    /** Unknown access type; do not use. */
-    PDMAUDIOSTREAMLAYOUT_UNKNOWN = 0,
+    /** Invalid zero value as per usual (guards against using unintialized values). */
+    PDMAUDIOSTREAMLAYOUT_INVALID = 0,
+    /** Unknown access type; do not use (hdaR3StreamMapReset uses it). */
+    PDMAUDIOSTREAMLAYOUT_UNKNOWN,
     /** Non-interleaved access, that is, consecutive
      *  access to the data. */
     PDMAUDIOSTREAMLAYOUT_NON_INTERLEAVED,
@@ -461,34 +558,43 @@ typedef enum PDMAUDIOSTREAMLAYOUT
     PDMAUDIOSTREAMLAYOUT_RAW,
     /** Hack to blow the type up to 32-bit. */
     PDMAUDIOSTREAMLAYOUT_32BIT_HACK = 0x7fffffff
-} PDMAUDIOSTREAMLAYOUT, *PPDMAUDIOSTREAMLAYOUT;
-
-/** No stream channel data flags defined. */
-#define PDMAUDIOSTREAMCHANNELDATA_FLAG_NONE      0
+} PDMAUDIOSTREAMLAYOUT;
 
 /**
- * Structure for keeping a stream channel data block around.
+ * Stream channel data block.
  */
 typedef struct PDMAUDIOSTREAMCHANNELDATA
 {
     /** Circular buffer for the channel data. */
-    PRTCIRCBUF pCircBuf;
+    PRTCIRCBUF          pCircBuf;
     /** Amount of audio data (in bytes) acquired for reading. */
-    size_t     cbAcq;
-    /** Channel data flags. */
-    uint32_t   fFlags;
-} PDMAUDIOSTREAMCHANNELDATA, *PPDMAUDIOSTREAMCHANNELDATA;
+    size_t              cbAcq;
+    /** Channel data flags, PDMAUDIOSTREAMCHANNELDATA_FLAGS_XXX. */
+    uint32_t            fFlags;
+} PDMAUDIOSTREAMCHANNELDATA;
+/** Pointer to audio stream channel data buffer. */
+typedef PDMAUDIOSTREAMCHANNELDATA  *PPDMAUDIOSTREAMCHANNELDATA;
+
+/** @name PDMAUDIOSTREAMCHANNELDATA_FLAGS_XXX
+ *  @{ */
+/** No stream channel data flags defined. */
+#define PDMAUDIOSTREAMCHANNELDATA_FLAGS_NONE      UINT32_C(0)
+/** @} */
 
 /**
- * Enumeration for standard speaker channel IDs.
+ * Standard speaker channel IDs.
+ *
  * This can cover up to 11.0 surround sound.
  *
- * Note: Any of those channels can be marked / used as the LFE channel (played through the subwoofer).
+ * @note Any of those channels can be marked / used as the LFE channel (played
+ *       through the subwoofer).
  */
 typedef enum PDMAUDIOSTREAMCHANNELID
 {
+    /** Invalid zero value as per usual (guards against using unintialized values). */
+    PDMAUDIOSTREAMCHANNELID_INVALID = 0,
     /** Unknown / not set channel ID. */
-    PDMAUDIOSTREAMCHANNELID_UNKNOWN = 0,
+    PDMAUDIOSTREAMCHANNELID_UNKNOWN,
     /** Front left channel. */
     PDMAUDIOSTREAMCHANNELID_FRONT_LEFT,
     /** Front right channel. */
@@ -520,38 +626,31 @@ typedef enum PDMAUDIOSTREAMCHANNELID
 } PDMAUDIOSTREAMCHANNELID;
 
 /**
- * Structure for mapping a single (mono) channel or dual (stereo) channels of an audio stream (aka stream profile).
+ * Mappings channels onto an audio stream.
  *
- * An audio stream consists of one or multiple channels (e.g. 1 for mono, 2 for stereo),
- * depending on the configuration.
+ * The mappings are either for a single (mono) or dual (stereo) channels onto an
+ * audio stream (aka stream profile).  An audio stream consists of one or
+ * multiple channels (e.g. 1 for mono, 2 for stereo), depending on the
+ * configuration.
  */
 typedef struct PDMAUDIOSTREAMMAP
 {
     /** Array of channel IDs being handled.
-     *  Note: The first (zero-based) index specifies the leftmost channel. */
-    PDMAUDIOSTREAMCHANNELID    aID[2];
+     * @note The first (zero-based) index specifies the leftmost channel. */
+    PDMAUDIOSTREAMCHANNELID     aenmIDs[2];
     /** Step size (in bytes) to the channel's next frame. */
-    size_t                     cbSize;
+    uint32_t                    cbStep;
     /** Frame size (in bytes) of this channel. */
-    size_t                     cbFrame;
-    /** Offset (in bytes) to first frame in the data block. */
-    size_t                     cbFirst;
-    /** Offset (in bytes) to the next frame in the data block. */
-    size_t                     cbOff;
+    uint32_t                    cbFrame;
+    /** Byte offset to the first frame in the data block. */
+    uint32_t                    offFirst;
+    /** Byte offset to the next frame in the data block. */
+    uint32_t                    offNext;
     /** Associated data buffer. */
-    PDMAUDIOSTREAMCHANNELDATA  Data;
-} PDMAUDIOSTREAMMAP, *PPDMAUDIOSTREAMMAP;
-
-/**
- * Union for keeping an audio stream destination or source.
- */
-typedef union PDMAUDIODESTSOURCE
-{
-    /** Desired playback destination (for an output stream). */
-    PDMAUDIOPLAYBACKDEST Dest;
-    /** Desired recording source (for an input stream). */
-    PDMAUDIORECSOURCE    Source;
-} PDMAUDIODESTSOURCE, *PPDMAUDIODESTSOURCE;
+    PDMAUDIOSTREAMCHANNELDATA   Data;
+} PDMAUDIOSTREAMMAP;
+/** Pointer to an audio stream channel mapping. */
+typedef PDMAUDIOSTREAMMAP *PPDMAUDIOSTREAMMAP;
 
 /**
  * Properties of audio streams for host/guest for in or out directions.
@@ -559,16 +658,17 @@ typedef union PDMAUDIODESTSOURCE
 typedef struct PDMAUDIOPCMPROPS
 {
     /** Sample width (in bytes). */
-    uint8_t     cBytes;
+    uint8_t     cbSample;
     /** Number of audio channels. */
     uint8_t     cChannels;
-    /** Shift count used for faster calculation of various
-     *  values, such as the alignment, bytes to frames and so on.
-     *  Depends on number of stream channels and the stream format
-     *  being used.
-     *
-     ** @todo Use some RTAsmXXX functions instead?
-     */
+    /** Shift count used with PDMAUDIOPCMPROPS_F2B and PDMAUDIOPCMPROPS_B2F.
+     * Depends on number of stream channels and the stream format being used, calc
+     * value using PDMAUDIOPCMPROPS_MAKE_SHIFT.
+     * @sa   PDMAUDIOSTREAMCFG_B2F, PDMAUDIOSTREAMCFG_F2B
+     * @todo r=bird: The original brief description: "Shift count used
+     *       for faster calculation of various values, such as the alignment, bytes
+     *       to frames and so on."  I cannot make heads or tails from that.
+     * @todo Use some RTAsmXXX functions instead? */
     uint8_t     cShift;
     /** Signed or unsigned sample. */
     bool        fSigned : 1;
@@ -577,38 +677,40 @@ typedef struct PDMAUDIOPCMPROPS
     /** Sample frequency in Hertz (Hz). */
     uint32_t    uHz;
 } PDMAUDIOPCMPROPS;
+AssertCompileSize(PDMAUDIOPCMPROPS, 8);
 AssertCompileSizeAlignment(PDMAUDIOPCMPROPS, 8);
 /** Pointer to audio stream properties. */
 typedef PDMAUDIOPCMPROPS *PPDMAUDIOPCMPROPS;
 
+/** @name Macros for use with PDMAUDIOPCMPROPS
+ * @{ */
 /** Initializor for PDMAUDIOPCMPROPS. */
 #define PDMAUDIOPCMPROPS_INITIALIZOR(a_cBytes, a_fSigned, a_cCannels, a_uHz, a_cShift, a_fSwapEndian) \
     { a_cBytes, a_cCannels, a_cShift, a_fSigned, a_fSwapEndian, a_uHz }
 /** Calculates the cShift value of given sample bits and audio channels.
- *  Note: Does only support mono/stereo channels for now. */
+ * @note Does only support mono/stereo channels for now. */
 #define PDMAUDIOPCMPROPS_MAKE_SHIFT_PARMS(cBytes, cChannels)    ((cChannels == 2) + (cBytes / 2))
 /** Calculates the cShift value of a PDMAUDIOPCMPROPS structure. */
-#define PDMAUDIOPCMPROPS_MAKE_SHIFT(pProps)                     PDMAUDIOPCMPROPS_MAKE_SHIFT_PARMS((pProps)->cBytes, (pProps)->cChannels)
+#define PDMAUDIOPCMPROPS_MAKE_SHIFT(pProps)     PDMAUDIOPCMPROPS_MAKE_SHIFT_PARMS((pProps)->cbSample, (pProps)->cChannels)
 /** Converts (audio) frames to bytes.
  *  Needs the cShift value set correctly, using PDMAUDIOPCMPROPS_MAKE_SHIFT. */
-#define PDMAUDIOPCMPROPS_F2B(pProps, frames)                    ((frames) << (pProps)->cShift)
+#define PDMAUDIOPCMPROPS_F2B(pProps, frames)    ((frames) << (pProps)->cShift)
 /** Converts bytes to (audio) frames.
  *  Needs the cShift value set correctly, using PDMAUDIOPCMPROPS_MAKE_SHIFT. */
-#define PDMAUDIOPCMPROPS_B2F(pProps, cb)                        (cb >> (pProps)->cShift)
+#define PDMAUDIOPCMPROPS_B2F(pProps, cb)        ((cb) >> (pProps)->cShift)
+/** @}   */
 
 /**
- * Structure for keeping an audio stream configuration.
+ * An audio stream configuration.
  */
 typedef struct PDMAUDIOSTREAMCFG
 {
-    /** Friendly name of the stream. */
-    char                     szName[64];
     /** Direction of the stream. */
-    PDMAUDIODIR              enmDir;
+    PDMAUDIODIR             enmDir;
     /** Destination / source indicator, depending on enmDir. */
-    PDMAUDIODESTSOURCE       DestSource;
+    PDMAUDIODSTSRCUNION     u;
     /** The stream's PCM properties. */
-    PDMAUDIOPCMPROPS         Props;
+    PDMAUDIOPCMPROPS        Props;
     /** The stream's audio data layout.
      *  This indicates how the audio data buffers to/from the backend is being layouted.
      *
@@ -621,13 +723,13 @@ typedef struct PDMAUDIOSTREAMCFG
      *  PDMAUDIOSTREAMLAYOUT_RAW:
      *      Can be one or many streams at once, depending on the stream's mixing buffer setup.
      *      The audio data will get handled as PDMAUDIOFRAME frames without any modification done. */
-    PDMAUDIOSTREAMLAYOUT     enmLayout;
+    PDMAUDIOSTREAMLAYOUT    enmLayout;
     /** Device emulation-specific data needed for the audio connector. */
     struct
     {
         /** Scheduling hint set by the device emulation about when this stream is being served on average (in ms).
          *  Can be 0 if not hint given or some other mechanism (e.g. callbacks) is being used. */
-        uint32_t             uSchedulingHintMs;
+        uint32_t            cMsSchedulingHint;
     } Device;
     /**
      * Backend-specific data for the stream.
@@ -640,41 +742,37 @@ typedef struct PDMAUDIOSTREAMCFG
         /** Period size of the stream (in audio frames).
          *  This value reflects the number of audio frames in between each hardware interrupt on the
          *  backend (host) side. 0 if not set / available by the backend. */
-        uint32_t             cfPeriod;
-        /** (Ring) buffer size (in audio frames). Often is a multiple of cfPeriod.
+        uint32_t            cFramesPeriod;
+        /** (Ring) buffer size (in audio frames). Often is a multiple of cFramesPeriod.
          *  0 if not set / available by the backend. */
-        uint32_t             cfBufferSize;
+        uint32_t            cFramesBufferSize;
         /** Pre-buffering size (in audio frames). Frames needed in buffer before the stream becomes active (pre buffering).
          *  The bigger this value is, the more latency for the stream will occur.
          *  0 if not set / available by the backend. UINT32_MAX if not defined (yet). */
-        uint32_t             cfPreBuf;
+        uint32_t            cFramesPreBuffering;
     } Backend;
+    uint32_t                u32Padding;
+    /** Friendly name of the stream. */
+    char                    szName[64];
 } PDMAUDIOSTREAMCFG;
-AssertCompileSizeAlignment(PDMAUDIOPCMPROPS, 8);
+AssertCompileSizeAlignment(PDMAUDIOSTREAMCFG, 8);
 /** Pointer to audio stream configuration keeper. */
 typedef PDMAUDIOSTREAMCFG *PPDMAUDIOSTREAMCFG;
-
 
 /** Converts (audio) frames to bytes. */
 #define PDMAUDIOSTREAMCFG_F2B(pCfg, frames) ((frames) << (pCfg->Props).cShift)
 /** Converts bytes to (audio) frames. */
 #define PDMAUDIOSTREAMCFG_B2F(pCfg, cb)  (cb >> (pCfg->Props).cShift)
 
-#if defined(RT_LITTLE_ENDIAN)
-# define PDMAUDIOHOSTENDIANNESS PDMAUDIOENDIANNESS_LITTLE
-#elif defined(RT_BIG_ENDIAN)
-# define PDMAUDIOHOSTENDIANNESS PDMAUDIOENDIANNESS_BIG
-#else
-# error "Port me!"
-#endif
-
 /**
  * Audio mixer controls.
  */
 typedef enum PDMAUDIOMIXERCTL
 {
+    /** Invalid zero value as per usual (guards against using unintialized values). */
+    PDMAUDIOMIXERCTL_INVALID = 0,
     /** Unknown mixer control. */
-    PDMAUDIOMIXERCTL_UNKNOWN = 0,
+    PDMAUDIOMIXERCTL_UNKNOWN,
     /** Master volume. */
     PDMAUDIOMIXERCTL_VOLUME_MASTER,
     /** Front. */
@@ -692,13 +790,16 @@ typedef enum PDMAUDIOMIXERCTL
 } PDMAUDIOMIXERCTL;
 
 /**
- * Audio stream commands. Used in the audio connector
- * as well as in the actual host backends.
+ * Audio stream commands.
+ *
+ * Used in the audio connector as well as in the actual host backends.
  */
 typedef enum PDMAUDIOSTREAMCMD
 {
+    /** Invalid zero value as per usual (guards against using unintialized values). */
+    PDMAUDIOSTREAMCMD_INVALID = 0,
     /** Unknown command, do not use. */
-    PDMAUDIOSTREAMCMD_UNKNOWN = 0,
+    PDMAUDIOSTREAMCMD_UNKNOWN,
     /** Enables the stream. */
     PDMAUDIOSTREAMCMD_ENABLE,
     /** Disables the stream.
@@ -737,7 +838,9 @@ typedef struct PDMAUDIOVOLUME
      *  Range is from [0 ... 255], whereas 0 specifies
      *  the most silent and 255 the loudest value. */
     uint8_t uRight;
-} PDMAUDIOVOLUME, *PPDMAUDIOVOLUME;
+} PDMAUDIOVOLUME;
+/** Pointer to audio volume settings. */
+typedef PDMAUDIOVOLUME  *PPDMAUDIOVOLUME;
 
 /** Defines the minimum volume allowed. */
 #define PDMAUDIO_VOLUME_MIN     (0)
@@ -745,55 +848,57 @@ typedef struct PDMAUDIOVOLUME
 #define PDMAUDIO_VOLUME_MAX     (255)
 
 /**
- * Structure for holding rate processing information
- * of a source + destination audio stream. This is needed
- * because both streams can differ regarding their rates
- * and therefore need to be treated accordingly.
+ * Rate processing information of a source & destination audio stream.
+ *
+ * This is needed because both streams can differ regarding their rates and
+ * therefore need to be treated accordingly.
  */
 typedef struct PDMAUDIOSTREAMRATE
 {
-    /** Current (absolute) offset in the output
-     *  (destination) stream. */
-    uint64_t       dstOffset;
-    /** Increment for moving dstOffset for the
-     *  destination stream. This is needed because the
-     *  source <-> destination rate might be different. */
-    uint64_t       dstInc;
-    /** Current (absolute) offset in the input
-     *  stream. */
-    uint32_t       srcOffset;
+    /** Current (absolute) offset in the output (destination) stream.
+     * @todo r=bird: Please reveal which unit these members are given in. */
+    uint64_t        offDst;
+    /** Increment for moving offDst for the destination stream.
+     * This is needed because the source <-> destination rate might be different. */
+    uint64_t        uDstInc;
+    /** Current (absolute) offset in the input stream. */
+    uint32_t        offSrc;
+    /** Explicit alignment padding. */
+    uint32_t        u32AlignmentPadding;
     /** Last processed frame of the input stream.
      *  Needed for interpolation. */
-    PDMAUDIOFRAME  srcFrameLast;
-} PDMAUDIOSTREAMRATE, *PPDMAUDIOSTREAMRATE;
+    PDMAUDIOFRAME   SrcFrameLast;
+} PDMAUDIOSTREAMRATE;
+/** Pointer to rate processing information of a stream. */
+typedef PDMAUDIOSTREAMRATE *PPDMAUDIOSTREAMRATE;
 
 /**
- * Structure for holding mixing buffer volume parameters.
- * The volume values are in fixed point style and must
- * be converted to/from before using with e.g. PDMAUDIOVOLUME.
+ * Mixing buffer volume parameters.
+ *
+ * The volume values are in fixed point style and must be converted to/from
+ * before using with e.g. PDMAUDIOVOLUME.
  */
 typedef struct PDMAUDMIXBUFVOL
 {
     /** Set to @c true if this stream is muted, @c false if not. */
-    bool    fMuted;
-    /** Left volume to apply during conversion. Pass 0
-     *  to convert the original values. May not apply to
-     *  all conversion functions. */
-    uint32_t uLeft;
-    /** Right volume to apply during conversion. Pass 0
-     *  to convert the original values. May not apply to
-     *  all conversion functions. */
-    uint32_t uRight;
-} PDMAUDMIXBUFVOL, *PPDMAUDMIXBUFVOL;
+    bool            fMuted;
+    /** Left volume to apply during conversion.
+     * Pass 0 to convert the original values. May not apply to all conversion functions. */
+    uint32_t        uLeft;
+    /** Right volume to apply during conversion.
+     * Pass 0 to convert the original values. May not apply to all conversion functions. */
+    uint32_t        uRight;
+} PDMAUDMIXBUFVOL;
+/** Pointer to mixing buffer volument parameters. */
+typedef PDMAUDMIXBUFVOL *PPDMAUDMIXBUFVOL;
 
-/**
- * Structure for holding frame conversion parameters for
- * the audioMixBufConvFromXXX / audioMixBufConvToXXX macros.
+/*
+ * Frame conversion parameters for the audioMixBufConvFromXXX / audioMixBufConvToXXX functions.
  */
 typedef struct PDMAUDMIXBUFCONVOPTS
 {
     /** Number of audio frames to convert. */
-    uint32_t                cFrames;
+    uint32_t        cFrames;
     union
     {
         struct
@@ -809,8 +914,8 @@ typedef PDMAUDMIXBUFCONVOPTS *PPDMAUDMIXBUFCONVOPTS;
 typedef PDMAUDMIXBUFCONVOPTS const *PCPDMAUDMIXBUFCONVOPTS;
 
 /**
- * Note: All internal handling is done in audio frames,
- *       not in bytes!
+ * @note All internal handling is done in audio frames, not in bytes!
+ * @todo r=bird: What does this node actually apply to?
  */
 typedef uint32_t PDMAUDIOMIXBUFFMT;
 typedef PDMAUDIOMIXBUFFMT *PPDMAUDIOMIXBUFFMT;
@@ -823,6 +928,7 @@ typedef PDMAUDIOMIXBUFFMT *PPDMAUDIOMIXBUFFMT;
  * @param   pvSrc           The source frame bytes.
  * @param   cbSrc           Number of bytes to convert.
  * @param   pOpts           Conversion options.
+ * @todo r=bird: The @a paDst size is presumable given in @a pOpts->cFrames?
  */
 typedef DECLCALLBACK(uint32_t) FNPDMAUDIOMIXBUFCONVFROM(PPDMAUDIOFRAME paDst, const void *pvSrc, uint32_t cbSrc,
                                                         PCPDMAUDMIXBUFCONVOPTS pOpts);
@@ -835,12 +941,19 @@ typedef FNPDMAUDIOMIXBUFCONVFROM *PFNPDMAUDIOMIXBUFCONVFROM;
  * @param   pvDst           Output buffer.
  * @param   paSrc           The input frames.
  * @param   pOpts           Conversion options.
+ * @todo r=bird: The @a paSrc size is presumable given in @a pOpts->cFrames and
+ *       this implicitly gives the pvDst size too, right?
  */
 typedef DECLCALLBACK(void) FNPDMAUDIOMIXBUFCONVTO(void *pvDst, PCPDMAUDIOFRAME paSrc, PCPDMAUDMIXBUFCONVOPTS pOpts);
 /** Pointer to a convertion-to function used by the PDM audio buffer mixer. */
 typedef FNPDMAUDIOMIXBUFCONVTO *PFNPDMAUDIOMIXBUFCONVTO;
 
+/** Pointer to audio mixing buffer.  */
 typedef struct PDMAUDIOMIXBUF *PPDMAUDIOMIXBUF;
+
+/**
+ * Audio mixing buffer.
+ */
 typedef struct PDMAUDIOMIXBUF
 {
     RTLISTNODE                Node;
@@ -855,11 +968,11 @@ typedef struct PDMAUDIOMIXBUF
     /** The current write position (in frames). */
     uint32_t                  offWrite;
     /**
-     * Total frames already mixed down to the parent buffer (if any). Always starting at
-     * the parent's offRead position.
+     * Total frames already mixed down to the parent buffer (if any).
      *
-     * Note: Count always is specified in parent frames, as the sample count can differ between parent
-     *       and child.
+     * Always starting at the parent's offRead position.
+     * @note Count always is specified in parent frames, as the sample count can
+     *       differ between parent and child.
      */
     uint32_t                  cMixed;
     /** How much audio frames are currently being used
@@ -876,11 +989,14 @@ typedef struct PDMAUDIOMIXBUF
     PPDMAUDIOSTREAMRATE       pRate;
     /** Internal representation of current volume used for mixing. */
     PDMAUDMIXBUFVOL           Volume;
-    /** This buffer's audio format. */
-    PDMAUDIOMIXBUFFMT         AudioFmt;
-    /** Standard conversion-to function for set AudioFmt. */
+    /** This buffer's audio format.
+     * @todo r=bird: This seems to be a value created by AUDMIXBUF_AUDIO_FMT_MAKE(),
+     *       which is not define here.  Does this structure really belong here at
+     *       all?  */
+    PDMAUDIOMIXBUFFMT         uAudioFmt;
+    /** Standard conversion-to function for set uAudioFmt. */
     PFNPDMAUDIOMIXBUFCONVTO   pfnConvTo;
-    /** Standard conversion-from function for set AudioFmt. */
+    /** Standard conversion-from function for set uAudioFmt. */
     PFNPDMAUDIOMIXBUFCONVFROM pfnConvFrom;
     /**
      * Ratio of the associated parent stream's frequency by this stream's
@@ -897,16 +1013,18 @@ typedef struct PDMAUDIOMIXBUF
     uint8_t                   cShift;
 } PDMAUDIOMIXBUF;
 
-typedef uint32_t PDMAUDIOFILEFLAGS;
-
+/** @name PDMAUDIOFILE_FLAGS_XXX
+ * @{ */
 /** No flags defined. */
-#define PDMAUDIOFILE_FLAG_NONE          0
+#define PDMAUDIOFILE_FLAGS_NONE             UINT32_C(0)
 /** Keep the audio file even if it contains no audio data. */
-#define PDMAUDIOFILE_FLAG_KEEP_IF_EMPTY RT_BIT(0)
+#define PDMAUDIOFILE_FLAGS_KEEP_IF_EMPTY    RT_BIT_32(0)
 /** Audio file flag validation mask. */
-#define PDMAUDIOFILE_FLAG_VALID_MASK    0x1
+#define PDMAUDIOFILE_FLAGS_VALID_MASK       UINT32_C(0x1)
+/** @} */
 
-/** Audio file default open flags. */
+/** Audio file default open flags.
+ * @todo r=bird: What is the exact purpose of this?  */
 #define PDMAUDIOFILE_DEFAULT_OPEN_FLAGS (RTFILE_O_OPEN_CREATE | RTFILE_O_APPEND | RTFILE_O_WRITE | RTFILE_O_DENY_WRITE)
 
 /**
@@ -914,8 +1032,10 @@ typedef uint32_t PDMAUDIOFILEFLAGS;
  */
 typedef enum PDMAUDIOFILETYPE
 {
+    /** The customary invalid zero value. */
+    PDMAUDIOFILETYPE_INVALID = 0,
     /** Unknown type, do not use. */
-    PDMAUDIOFILETYPE_UNKNOWN = 0,
+    PDMAUDIOFILETYPE_UNKNOWN,
     /** Raw (PCM) file. */
     PDMAUDIOFILETYPE_RAW,
     /** Wave (.WAV) file. */
@@ -924,60 +1044,65 @@ typedef enum PDMAUDIOFILETYPE
     PDMAUDIOFILETYPE_32BIT_HACK = 0x7fffffff
 } PDMAUDIOFILETYPE;
 
-typedef uint32_t PDMAUDIOFILENAMEFLAGS;
-
+/** @name PDMAUDIOFILENAME_FLAGS_XXX
+ * @{ */
 /** No flags defined. */
-#define PDMAUDIOFILENAME_FLAG_NONE          0
+#define PDMAUDIOFILENAME_FLAGS_NONE         UINT32_C(0)
 /** Adds an ISO timestamp to the file name. */
-#define PDMAUDIOFILENAME_FLAG_TS            RT_BIT(0)
+#define PDMAUDIOFILENAME_FLAGS_TS           RT_BIT(0)
+/** @} */
 
 /**
- * Structure for an audio file handle.
+ * Audio file handle.
  */
 typedef struct PDMAUDIOFILE
 {
     /** Type of the audio file. */
     PDMAUDIOFILETYPE    enmType;
-    /** Audio file flags. */
-    PDMAUDIOFILEFLAGS   fFlags;
-    /** File name and path. */
-    char                szName[RTPATH_MAX + 1];
+    /** Audio file flags, PDMAUDIOFILE_FLAGS_XXX. */
+    uint32_t            fFlags;
     /** Actual file handle. */
     RTFILE              hFile;
     /** Data needed for the specific audio file type implemented.
-     *  Optional, can be NULL. */
+     * Optional, can be NULL. */
     void               *pvData;
     /** Data size (in bytes). */
     size_t              cbData;
-} PDMAUDIOFILE, *PPDMAUDIOFILE;
+    /** File name and path. */
+    char                szName[RTPATH_MAX];
+} PDMAUDIOFILE;
+/** Pointer to an audio file handle. */
+typedef PDMAUDIOFILE *PPDMAUDIOFILE;
 
-/** Stream status flag. To be used with PDMAUDIOSTRMSTS_FLAG_ flags. */
-typedef uint32_t PDMAUDIOSTREAMSTS;
-
+/** @name PDMAUDIOSTREAMSTS_FLAGS_XXX
+ * @{ */
 /** No flags being set. */
-#define PDMAUDIOSTREAMSTS_FLAG_NONE            0
+#define PDMAUDIOSTREAMSTS_FLAGS_NONE            UINT32_C(0)
 /** Whether this stream has been initialized by the
  *  backend or not. */
-#define PDMAUDIOSTREAMSTS_FLAG_INITIALIZED     RT_BIT_32(0)
+#define PDMAUDIOSTREAMSTS_FLAGS_INITIALIZED     RT_BIT_32(0)
 /** Whether this stream is enabled or disabled. */
-#define PDMAUDIOSTREAMSTS_FLAG_ENABLED         RT_BIT_32(1)
+#define PDMAUDIOSTREAMSTS_FLAGS_ENABLED         RT_BIT_32(1)
 /** Whether this stream has been paused or not. This also implies
  *  that this is an enabled stream! */
-#define PDMAUDIOSTREAMSTS_FLAG_PAUSED          RT_BIT_32(2)
+#define PDMAUDIOSTREAMSTS_FLAGS_PAUSED          RT_BIT_32(2)
 /** Whether this stream was marked as being disabled
  *  but there are still associated guest output streams
  *  which rely on its data. */
-#define PDMAUDIOSTREAMSTS_FLAG_PENDING_DISABLE RT_BIT_32(3)
+#define PDMAUDIOSTREAMSTS_FLAGS_PENDING_DISABLE RT_BIT_32(3)
 /** Whether this stream is in re-initialization phase.
  *  All other bits remain untouched to be able to restore
  *  the stream's state after the re-initialization bas been
  *  finished. */
-#define PDMAUDIOSTREAMSTS_FLAG_PENDING_REINIT  RT_BIT_32(4)
+#define PDMAUDIOSTREAMSTS_FLAGS_PENDING_REINIT  RT_BIT_32(4)
 /** Validation mask. */
-#define PDMAUDIOSTREAMSTS_VALID_MASK           UINT32_C(0x0000001F)
+#define PDMAUDIOSTREAMSTS_VALID_MASK            UINT32_C(0x0000001F)
+/** Stream status flag, PDMAUDIOSTREAMSTS_FLAGS_XXX. */
+typedef uint32_t PDMAUDIOSTREAMSTS;
+/** @} */
 
 /**
- * Enumeration presenting a backend's current status.
+ * Backend status.
  */
 typedef enum PDMAUDIOBACKENDSTS
 {
@@ -1000,56 +1125,62 @@ typedef enum PDMAUDIOBACKENDSTS
 } PDMAUDIOBACKENDSTS;
 
 /**
- * Structure for keeping audio input stream specifics.
- * Do not use directly. Instead, use PDMAUDIOSTREAM.
+ * The specifics for an audio input stream.
+ *
+ * Do not use directly, use PDMAUDIOSTREAM instead.
  */
 typedef struct PDMAUDIOSTREAMIN
 {
 #ifdef VBOX_WITH_STATISTICS
     struct
     {
-        STAMCOUNTER TotalFramesCaptured;
-        STAMCOUNTER AvgFramesCaptured;
-        STAMCOUNTER TotalTimesCaptured;
-        STAMCOUNTER TotalFramesRead;
-        STAMCOUNTER AvgFramesRead;
-        STAMCOUNTER TotalTimesRead;
+        STAMCOUNTER     TotalFramesCaptured;
+        STAMCOUNTER     AvgFramesCaptured;
+        STAMCOUNTER     TotalTimesCaptured;
+        STAMCOUNTER     TotalFramesRead;
+        STAMCOUNTER     AvgFramesRead;
+        STAMCOUNTER     TotalTimesRead;
     } Stats;
 #endif
     struct
     {
         /** File for writing stream reads. */
-        PPDMAUDIOFILE           pFileStreamRead;
+        PPDMAUDIOFILE   pFileStreamRead;
         /** File for writing non-interleaved captures. */
-        PPDMAUDIOFILE           pFileCaptureNonInterleaved;
+        PPDMAUDIOFILE   pFileCaptureNonInterleaved;
     } Dbg;
-} PDMAUDIOSTREAMIN, *PPDMAUDIOSTREAMIN;
+} PDMAUDIOSTREAMIN;
+/** Pointer to the specifics for an audio input stream. */
+typedef PDMAUDIOSTREAMIN *PPDMAUDIOSTREAMIN;
 
 /**
- * Structure for keeping audio output stream specifics.
- * Do not use directly. Instead, use PDMAUDIOSTREAM.
+ * The specifics for an audio output stream.
+ *
+ * Do not use directly, use PDMAUDIOSTREAM instead.
  */
 typedef struct PDMAUDIOSTREAMOUT
 {
 #ifdef VBOX_WITH_STATISTICS
     struct
     {
-        STAMCOUNTER TotalFramesPlayed;
-        STAMCOUNTER AvgFramesPlayed;
-        STAMCOUNTER TotalTimesPlayed;
-        STAMCOUNTER TotalFramesWritten;
-        STAMCOUNTER AvgFramesWritten;
-        STAMCOUNTER TotalTimesWritten;
+        STAMCOUNTER     TotalFramesPlayed;
+        STAMCOUNTER     AvgFramesPlayed;
+        STAMCOUNTER     TotalTimesPlayed;
+        STAMCOUNTER     TotalFramesWritten;
+        STAMCOUNTER     AvgFramesWritten;
+        STAMCOUNTER     TotalTimesWritten;
     } Stats;
 #endif
     struct
     {
         /** File for writing stream writes. */
-        PPDMAUDIOFILE           pFileStreamWrite;
+        PPDMAUDIOFILE   pFileStreamWrite;
         /** File for writing stream playback. */
-        PPDMAUDIOFILE           pFilePlayNonInterleaved;
+        PPDMAUDIOFILE   pFilePlayNonInterleaved;
     } Dbg;
-} PDMAUDIOSTREAMOUT, *PPDMAUDIOSTREAMOUT;
+} PDMAUDIOSTREAMOUT;
+/** Pointer to the specifics for an audio output stream. */
+typedef PDMAUDIOSTREAMOUT *PPDMAUDIOSTREAMOUT;
 
 /** Pointer to an audio stream. */
 typedef struct PDMAUDIOSTREAM *PPDMAUDIOSTREAM;
@@ -1061,77 +1192,76 @@ typedef struct PDMAUDIOSTREAM *PPDMAUDIOSTREAM;
 typedef struct PDMAUDIOSTREAMCTX
 {
     /** The stream's audio configuration. */
-    PDMAUDIOSTREAMCFG      Cfg;
+    PDMAUDIOSTREAMCFG   Cfg;
     /** This stream's mixing buffer. */
-    PDMAUDIOMIXBUF         MixBuf;
+    PDMAUDIOMIXBUF      MixBuf;
 } PDMAUDIOSTREAMCTX;
 
 /** Pointer to an audio stream context. */
 typedef struct PDMAUDIOSTREAM *PPDMAUDIOSTREAMCTX;
 
 /**
- * Structure for maintaining an input/output audio stream.
+ * An input or output audio stream.
  */
 typedef struct PDMAUDIOSTREAM
 {
     /** List node. */
-    RTLISTNODE             Node;
+    RTLISTNODE              Node;
     /** Name of this stream. */
-    char                   szName[64];
-    /** Number of references to this stream. Only can be
-     *  destroyed if the reference count is reaching 0. */
-    uint32_t               cRefs;
+    char                    szName[64];
+    /** Number of references to this stream.
+     *  Only can be destroyed when the reference count reaches 0. */
+    uint32_t                cRefs;
     /** Stream status flag. */
-    PDMAUDIOSTREAMSTS      fStatus;
+    PDMAUDIOSTREAMSTS       fStatus;
     /** Audio direction of this stream. */
-    PDMAUDIODIR            enmDir;
-    /** The guest side of the stream. */
-    PDMAUDIOSTREAMCTX      Guest;
-    /** The host side of the stream. */
-    PDMAUDIOSTREAMCTX      Host;
-    /** Union for input/output specifics (based on enmDir). */
-    union
-    {
-        PDMAUDIOSTREAMIN   In;
-        PDMAUDIOSTREAMOUT  Out;
-    } RT_UNION_NM(u);
-    /** Timestamp (in ns) since last iteration. */
-    uint64_t               tsLastIteratedNs;
-    /** Timestamp (in ns) since last playback / capture. */
-    uint64_t               tsLastPlayedCapturedNs;
-    /** Timestamp (in ns) since last read (input streams) or
-     *  write (output streams). */
-    uint64_t               tsLastReadWrittenNs;
+    PDMAUDIODIR             enmDir;
     /** For output streams this indicates whether the stream has reached
      *  its playback threshold, e.g. is playing audio.
      *  For input streams this  indicates whether the stream has enough input
      *  data to actually start reading audio. */
-    bool                   fThresholdReached;
+    bool                    fThresholdReached;
+    bool                    afPadding[3];
+    /** The guest side of the stream. */
+    PDMAUDIOSTREAMCTX       Guest;
+    /** The host side of the stream. */
+    PDMAUDIOSTREAMCTX       Host;
+    /** Union for input/output specifics depending on enmDir. */
+    union
+    {
+        PDMAUDIOSTREAMIN    In;
+        PDMAUDIOSTREAMOUT   Out;
+    } RT_UNION_NM(u);
+    /** Timestamp (in ns) since last iteration. */
+    uint64_t                tsLastIteratedNs;
+    /** Timestamp (in ns) since last playback / capture. */
+    uint64_t                tsLastPlayedCapturedNs;
+    /** Timestamp (in ns) since last read (input streams) or
+     *  write (output streams). */
+    uint64_t                tsLastReadWrittenNs;
     /** Data to backend-specific stream data.
      *  This data block will be casted by the backend to access its backend-dependent data.
      *
      *  That way the backends do not have access to the audio connector's data. */
-    void                  *pvBackend;
+    void                   *pvBackend;
     /** Size (in bytes) of the backend-specific stream data. */
-    size_t                 cbBackend;
+    size_t                  cbBackend;
 } PDMAUDIOSTREAM;
 
-/** Pointer to a audio connector interface. */
-typedef struct PDMIAUDIOCONNECTOR *PPDMIAUDIOCONNECTOR;
 
 /**
- * Enumeration for an audio callback source.
+ * Audio callback source.
  */
 typedef enum PDMAUDIOCBSOURCE
 {
     /** Invalid, do not use. */
-    PDMAUDIOCBSOURCE_INVALID    = 0,
+    PDMAUDIOCBSOURCE_INVALID = 0,
     /** Device emulation. */
-    PDMAUDIOCBSOURCE_DEVICE     = 1,
+    PDMAUDIOCBSOURCE_DEVICE,
     /** Audio connector interface. */
-    PDMAUDIOCBSOURCE_CONNECTOR  = 2,
+    PDMAUDIOCBSOURCE_CONNECTOR,
     /** Backend (lower). */
-    PDMAUDIOCBSOURCE_BACKEND    = 3,
+    PDMAUDIOCBSOURCE_BACKEND,
     /** Hack to blow the type up to 32-bit. */
     PDMAUDIOCBSOURCE_32BIT_HACK = 0x7fffffff
 } PDMAUDIOCBSOURCE;
@@ -1152,6 +1282,7 @@ typedef enum PDMAUDIODEVICECBTYPE
     PDMAUDIODEVICECBTYPE_32BIT_HACK = 0x7fffffff
 } PDMAUDIODEVICECBTYPE;
 
+#if 0 /** @todo r=bird: Who needs this exactly?  Fix the style or remove  */
 /**
  * Device callback data for audio input.
  */
@@ -1162,7 +1293,8 @@ typedef struct PDMAUDIODEVICECBDATA_DATA_INPUT
     uint32_t cbInAvail;
     /** Output: How many bytes have been read. */
     uint32_t cbOutRead;
-} PDMAUDIODEVICECBDATA_DATA_INPUT, *PPDMAUDIODEVICECBDATA_DATA_INPUT;
+} PDMAUDIODEVICECBDATA_DATA_INPUT;
+typedef PDMAUDIODEVICECBDATA_DATA_INPUT *PPDMAUDIODEVICECBDATA_DATA_INPUT;
 
 /**
  * Device callback data for audio output.
@@ -1174,6 +1306,7 @@ typedef struct PDMAUDIODEVICECBDATA_DATA_OUTPUT
     /** Output: How many bytes were written by the device emulation. */
     uint32_t cbOutWritten;
 } PDMAUDIODEVICECBDATA_DATA_OUTPUT, *PPDMAUDIODEVICECBDATA_DATA_OUTPUT;
+#endif
 
 /**
  * Audio backend callback types.
@@ -1231,9 +1364,15 @@ typedef struct PDMAUDIOCBRECORD
     /** Size (in bytes) of context data.
      *  Must be 0 if pvCtx is NULL. */
     size_t              cbCtx;
-} PDMAUDIOCBRECORD, *PPDMAUDIOCBRECORD;
+} PDMAUDIOCBRECORD;
+/** Pointer to an audio callback registration record.   */
+typedef PDMAUDIOCBRECORD *PPDMAUDIOCBRECORD;
 
+/** @todo r=bird: What is this exactly? */
 #define PPDMAUDIOBACKENDSTREAM void *
+
+/** Pointer to a audio connector interface. */
+typedef struct PDMIAUDIOCONNECTOR *PPDMIAUDIOCONNECTOR;
 
 /**
  * Audio connector interface (up).
@@ -1285,12 +1424,13 @@ typedef struct PDMIAUDIOCONNECTOR
      * Creates an audio stream.
      *
      * @returns VBox status code.
-     * @param   pInterface           Pointer to the interface structure containing the called function pointer.
-     * @param   pCfgHost             Stream configuration for host side.
-     * @param   pCfgGuest            Stream configuration for guest side.
-     * @param   ppStream             Pointer where to return the created audio stream on success.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   pCfgHost        Stream configuration for host side.
+     * @param   pCfgGuest       Stream configuration for guest side.
+     * @param   ppStream        Pointer where to return the created audio stream on success.
      */
-    DECLR3CALLBACKMEMBER(int, pfnStreamCreate, (PPDMIAUDIOCONNECTOR pInterface, PPDMAUDIOSTREAMCFG pCfgHost, PPDMAUDIOSTREAMCFG pCfgGuest, PPDMAUDIOSTREAM *ppStream));
+    DECLR3CALLBACKMEMBER(int, pfnStreamCreate, (PPDMIAUDIOCONNECTOR pInterface, PPDMAUDIOSTREAMCFG pCfgHost,
+                                                PPDMAUDIOSTREAMCFG pCfgGuest, PPDMAUDIOSTREAM *ppStream));
 
     /**
      * Destroys an audio stream.
@@ -1328,7 +1468,8 @@ typedef struct PDMIAUDIOCONNECTOR
      * @param   cbBuf           Number of bytes to read.
      * @param   pcbRead         Bytes of audio data read. Optional.
      */
-    DECLR3CALLBACKMEMBER(int, pfnStreamRead, (PPDMIAUDIOCONNECTOR pInterface, PPDMAUDIOSTREAM pStream, void *pvBuf, uint32_t cbBuf, uint32_t *pcbRead));
+    DECLR3CALLBACKMEMBER(int, pfnStreamRead, (PPDMIAUDIOCONNECTOR pInterface, PPDMAUDIOSTREAM pStream,
+                                              void *pvBuf, uint32_t cbBuf, uint32_t *pcbRead));
 
     /**
      * Writes PCM audio data to the host (output).
@@ -1340,7 +1481,8 @@ typedef struct PDMIAUDIOCONNECTOR
      * @param   cbBuf           Number of bytes to be written.
      * @param   pcbWritten      Bytes of audio data written. Optional.
      */
-    DECLR3CALLBACKMEMBER(int, pfnStreamWrite, (PPDMIAUDIOCONNECTOR pInterface, PPDMAUDIOSTREAM pStream, const void *pvBuf, uint32_t cbBuf, uint32_t *pcbWritten));
+    DECLR3CALLBACKMEMBER(int, pfnStreamWrite, (PPDMIAUDIOCONNECTOR pInterface, PPDMAUDIOSTREAM pStream,
+                                               const void *pvBuf, uint32_t cbBuf, uint32_t *pcbWritten));
 
     /**
      * Controls a specific audio stream.
@@ -1350,7 +1492,8 @@ typedef struct PDMIAUDIOCONNECTOR
      * @param   pStream         Pointer to audio stream.
      * @param   enmStreamCmd    The stream command to issue.
      */
-    DECLR3CALLBACKMEMBER(int, pfnStreamControl, (PPDMIAUDIOCONNECTOR pInterface, PPDMAUDIOSTREAM pStream, PDMAUDIOSTREAMCMD enmStreamCmd));
+    DECLR3CALLBACKMEMBER(int, pfnStreamControl, (PPDMIAUDIOCONNECTOR pInterface, PPDMAUDIOSTREAM pStream,
+                                                 PDMAUDIOSTREAMCMD enmStreamCmd));
 
     /**
      * Processes stream data.
@@ -1415,7 +1558,8 @@ typedef struct PDMIAUDIOCONNECTOR
      * @param   pStream              Pointer to audio stream.
      * @param   pcFramesCaptured     Number of frames captured. Optional.
      */
-    DECLR3CALLBACKMEMBER(int, pfnStreamCapture, (PPDMIAUDIOCONNECTOR pInterface, PPDMAUDIOSTREAM pStream, uint32_t *pcFramesCaptured));
+    DECLR3CALLBACKMEMBER(int, pfnStreamCapture, (PPDMIAUDIOCONNECTOR pInterface, PPDMAUDIOSTREAM pStream,
+                                                 uint32_t *pcFramesCaptured));
 
     /**
      * Registers (device) callbacks.
@@ -1427,36 +1571,14 @@ typedef struct PDMIAUDIOCONNECTOR
      * @param   paCallbacks          Pointer to array of callbacks to register.
      * @param   cCallbacks           Number of callbacks to register.
      */
-    DECLR3CALLBACKMEMBER(int, pfnRegisterCallbacks, (PPDMIAUDIOCONNECTOR pInterface, PPDMAUDIOCBRECORD paCallbacks, size_t cCallbacks));
+    DECLR3CALLBACKMEMBER(int, pfnRegisterCallbacks, (PPDMIAUDIOCONNECTOR pInterface, PPDMAUDIOCBRECORD paCallbacks,
+                                                     size_t cCallbacks));
 
 } PDMIAUDIOCONNECTOR;
 
 /** PDMIAUDIOCONNECTOR interface ID. */
-#define PDMIAUDIOCONNECTOR_IID                  "A643B40C-733F-4307-9549-070AF0EE0ED6"
+#define PDMIAUDIOCONNECTOR_IID                  "00e704ef-0078-4bb6-0005-a5fd000ded9f"
 
-/**
- * Assigns all needed interface callbacks for an audio backend.
- *
- * @param   a_Prefix        The function name prefix.
- */
-#define PDMAUDIO_IHOSTAUDIO_CALLBACKS(a_Prefix) \
-    do { \
-        pThis->IHostAudio.pfnInit              = RT_CONCAT(a_Prefix,Init); \
-        pThis->IHostAudio.pfnShutdown          = RT_CONCAT(a_Prefix,Shutdown); \
-        pThis->IHostAudio.pfnGetConfig         = RT_CONCAT(a_Prefix,GetConfig); \
-        /** @todo Add pfnGetDevices here as soon as supported by all backends. */ \
-        pThis->IHostAudio.pfnGetStatus         = RT_CONCAT(a_Prefix,GetStatus); \
-        /** @todo Ditto for pfnSetCallback. */ \
-        pThis->IHostAudio.pfnStreamCreate      = RT_CONCAT(a_Prefix,StreamCreate); \
-        pThis->IHostAudio.pfnStreamDestroy     = RT_CONCAT(a_Prefix,StreamDestroy); \
-        pThis->IHostAudio.pfnStreamControl     = RT_CONCAT(a_Prefix,StreamControl); \
-        pThis->IHostAudio.pfnStreamGetReadable = RT_CONCAT(a_Prefix,StreamGetReadable); \
-        pThis->IHostAudio.pfnStreamGetWritable = RT_CONCAT(a_Prefix,StreamGetWritable); \
-        pThis->IHostAudio.pfnStreamGetStatus   = RT_CONCAT(a_Prefix,StreamGetStatus); \
-        pThis->IHostAudio.pfnStreamIterate     = RT_CONCAT(a_Prefix,StreamIterate); \
-        pThis->IHostAudio.pfnStreamPlay        = RT_CONCAT(a_Prefix,StreamPlay); \
-        pThis->IHostAudio.pfnStreamCapture     = RT_CONCAT(a_Prefix,StreamCapture); \
-    } while (0)
 
 /**
  * PDM host audio interface.
@@ -1517,16 +1639,20 @@ typedef struct PDMIHOSTAUDIO
 
     /**
      * Creates an audio stream using the requested stream configuration.
-     * If a backend is not able to create this configuration, it will return its best match in the acquired configuration
-     * structure on success.
+     *
+     * If a backend is not able to create this configuration, it will return its
+     * best match in the acquired configuration structure on success.
      *
      * @returns VBox status code.
      * @param   pInterface          Pointer to the interface structure containing the called function pointer.
      * @param   pStream             Pointer to audio stream.
      * @param   pCfgReq             Pointer to requested stream configuration.
      * @param   pCfgAcq             Pointer to acquired stream configuration.
+     * @todo    r=bird: Implementation (at least Alsa) seems to make undocumented
+     *          assumptions about the content of @a pCfgAcq.
      */
-    DECLR3CALLBACKMEMBER(int, pfnStreamCreate, (PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDSTREAM pStream, PPDMAUDIOSTREAMCFG pCfgReq, PPDMAUDIOSTREAMCFG pCfgAcq));
+    DECLR3CALLBACKMEMBER(int, pfnStreamCreate, (PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDSTREAM pStream,
+                                                PPDMAUDIOSTREAMCFG pCfgReq, PPDMAUDIOSTREAMCFG pCfgAcq));
 
     /**
      * Destroys an audio stream.
@@ -1545,7 +1671,8 @@ typedef struct PDMIHOSTAUDIO
      * @param   pStream             Pointer to audio stream.
      * @param   enmStreamCmd        The stream command to issue.
      */
-    DECLR3CALLBACKMEMBER(int, pfnStreamControl, (PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDSTREAM pStream, PDMAUDIOSTREAMCMD enmStreamCmd));
+    DECLR3CALLBACKMEMBER(int, pfnStreamControl, (PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDSTREAM pStream,
+                                                 PDMAUDIOSTREAMCMD enmStreamCmd));
 
     /**
      * Returns the amount which is readable from the audio (input) stream.
@@ -1611,15 +1738,16 @@ typedef struct PDMIHOSTAUDIO
      * Plays (writes to) an audio (output) stream.
      *
      * @returns VBox status code.
-     * @param   pInterface          Pointer to the interface structure containing the called function pointer.
-     * @param   pStream             Pointer to audio stream.
-     * @param   pvBuf               Pointer to audio data buffer to play.
-     * @param   cxBuf               For non-raw layout streams: Size (in bytes) of audio data buffer,
-     *                              for raw layout streams    : Size (in audio frames) of audio data buffer.
-     * @param   pcxWritten          For non-raw layout streams: Returns number of bytes written.   Optional.
-     *                              for raw layout streams    : Returns number of frames written.  Optional.
+     * @param   pInterface  Pointer to the interface structure containing the called function pointer.
+     * @param   pStream     Pointer to audio stream.
+     * @param   pvBuf       Pointer to audio data buffer to play.
+     * @param   uBufSize    The audio data buffer size (see note below for unit).
+     * @param   puWritten   Number of unit written.
+     * @note    The @a uBufSize and @a puWritten values are in bytes for non-raw
+     *          layout streams and in frames for raw layout ones.
      */
-    DECLR3CALLBACKMEMBER(int, pfnStreamPlay, (PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDSTREAM pStream, const void *pvBuf, uint32_t cxBuf, uint32_t *pcxWritten));
+    DECLR3CALLBACKMEMBER(int, pfnStreamPlay, (PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDSTREAM pStream,
+                                              const void *pvBuf, uint32_t uBufSize, uint32_t *puWritten));
 
     /**
      * Signals the backend that the host finished playing for this iteration. Optional.
@@ -1641,15 +1769,16 @@ typedef struct PDMIHOSTAUDIO
      * Captures (reads from) an audio (input) stream.
      *
      * @returns VBox status code.
-     * @param   pInterface          Pointer to the interface structure containing the called function pointer.
-     * @param   pStream             Pointer to audio stream.
-     * @param   pvBuf               Buffer where to store read audio data.
-     * @param   cxBuf               For non-raw layout streams: Size (in bytes) of audio data buffer,
-     *                              for raw layout streams    : Size (in audio frames) of audio data buffer.
-     * @param   pcxRead             For non-raw layout streams: Returns number of bytes read.   Optional.
-     *                              for raw layout streams    : Returns number of frames read.  Optional.
+     * @param   pInterface  Pointer to the interface structure containing the called function pointer.
+     * @param   pStream     Pointer to audio stream.
+     * @param   pvBuf       Buffer where to store read audio data.
+     * @param   uBufSize    Size of the audio data buffer (see note below for unit).
+     * @param   puRead      Returns number of units read.
+     * @note    The @a uBufSize and @a puRead values are in bytes for non-raw
+     *          layout streams and in frames for raw layout ones.
      */
-    DECLR3CALLBACKMEMBER(int, pfnStreamCapture, (PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDSTREAM pStream, void *pvBuf, uint32_t cxBuf, uint32_t *pcxRead));
+    DECLR3CALLBACKMEMBER(int, pfnStreamCapture, (PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDSTREAM pStream,
+                                                 void *pvBuf, uint32_t uBufSize, uint32_t *puRead));
 
     /**
      * Signals the backend that the host finished capturing for this iteration. Optional.
@@ -1662,7 +1791,7 @@ typedef struct PDMIHOSTAUDIO
 } PDMIHOSTAUDIO;
 
 /** PDMIHOSTAUDIO interface ID. */
-#define PDMIHOSTAUDIO_IID                           "640F5A31-8245-491C-538F-29A0F9D08881"
+#define PDMIHOSTAUDIO_IID                           "007847a0-0075-4964-007d-343f0010f081"
 
 /** @} */
 

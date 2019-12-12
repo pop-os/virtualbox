@@ -23,12 +23,14 @@
 #include <VBox/vmm/pgm.h>
 #include <VBox/vmm/em.h>
 #include "PGMInternal.h"
-#include <VBox/vmm/vm.h>
+#include <VBox/vmm/vmcc.h>
 #include "PGMInline.h"
 #include <VBox/err.h>
 #include <iprt/asm-amd64-x86.h>
 #include <iprt/assert.h>
 
+
+#ifndef PGM_WITHOUT_MAPPINGS
 
 /**
  * Maps a range of physical pages at a given virtual address
@@ -259,7 +261,6 @@ VMMDECL(int) PGMMapGetPage(PVM pVM, RTGCPTR GCPtr, uint64_t *pfFlags, PRTHCPHYS 
     return VERR_NOT_FOUND;
 }
 
-#ifndef PGM_WITHOUT_MAPPINGS
 
 /**
  * Sets all PDEs involved with the mapping in the shadow page table.
@@ -439,9 +440,7 @@ void pgmMapClearShadowPDEs(PVM pVM, PPGMPOOLPAGE pShwPageCR3, PPGMMAPPING pMap, 
 
     /* This only applies to raw mode where we only support 1 VCPU. */
     PVMCPU pVCpu = VMMGetCpu0(pVM);
-# ifdef IN_RC
-    Assert(pShwPageCR3 != pVCpu->pgm.s.CTX_SUFF(pShwPageCR3));
-# endif
+# error fixme
 
     PPGMPOOL pPool = pVM->pgm.s.CTX_SUFF(pPool);
 
@@ -543,8 +542,7 @@ void pgmMapClearShadowPDEs(PVM pVM, PPGMPOOLPAGE pShwPageCR3, PPGMMAPPING pMap, 
     PGM_DYNMAP_UNUSED_HINT_VM(pVM, pCurrentShwPdpt);
 }
 
-#endif /* PGM_WITHOUT_MAPPINGS */
-#if defined(VBOX_STRICT) && !defined(IN_RING0)
+# if defined(VBOX_STRICT) && !defined(IN_RING0)
 
 /**
  * Clears all PDEs involved with the mapping in the shadow page table.
@@ -655,8 +653,8 @@ VMMDECL(void) PGMMapCheck(PVM pVM)
     pgmUnlock(pVM);
 }
 
-#endif /* defined(VBOX_STRICT) && !defined(IN_RING0) */
-#ifndef PGM_WITHOUT_MAPPINGS
+
+# endif /* defined(VBOX_STRICT) && !defined(IN_RING0) */
 
 /**
  * Apply the hypervisor mappings to the active CR3.
@@ -681,10 +679,10 @@ int pgmMapActivateCR3(PVM pVM, PPGMPOOLPAGE pShwPageCR3)
              cannot flush the log at this point. */
     Log4(("pgmMapActivateCR3: fixed mappings=%RTbool idxShwPageCR3=%#x\n", pVM->pgm.s.fMappingsFixed, pShwPageCR3 ? pShwPageCR3->idx : NIL_PGMPOOL_IDX));
 
-#ifdef VBOX_STRICT
+# ifdef VBOX_STRICT
     PVMCPU pVCpu = VMMGetCpu0(pVM);
     Assert(pShwPageCR3 && pShwPageCR3 == pVCpu->pgm.s.CTX_SUFF(pShwPageCR3));
-#endif
+# endif
 
     /*
      * Iterate mappings.
@@ -747,7 +745,7 @@ VMMDECL(bool) PGMMapHasConflicts(PVM pVM)
     AssertReturn(pgmMapAreMappingsEnabled(pVM), false);
 
     /* This only applies to raw mode where we only support 1 VCPU. */
-    PVMCPU pVCpu = &pVM->aCpus[0];
+    PVMCPU pVCpu = &VMCC_GET_CPU_0(pVM);
 
     PGMMODE const enmGuestMode = PGMGetGuestMode(pVCpu);
     Assert(enmGuestMode <= PGMMODE_PAE_NX);
@@ -768,8 +766,7 @@ VMMDECL(bool) PGMMapHasConflicts(PVM pVM)
             unsigned iPDE = pCur->GCPtr >> X86_PD_SHIFT;
             unsigned iPT = pCur->cPTs;
             while (iPT-- > 0)
-                if (    pPD->a[iPDE + iPT].n.u1Present /** @todo PGMGstGetPDE. */
-                    &&  (EMIsRawRing0Enabled(pVM) || pPD->a[iPDE + iPT].n.u1User))
+                if (pPD->a[iPDE + iPT].n.u1Present /** @todo PGMGstGetPDE. */)
                 {
                     STAM_COUNTER_INC(&pVM->pgm.s.CTX_SUFF(pStats)->StatR3DetectedConflicts);
 
@@ -800,8 +797,7 @@ VMMDECL(bool) PGMMapHasConflicts(PVM pVM)
             {
                 X86PDEPAE Pde = pgmGstGetPaePDE(pVCpu, GCPtr);
 
-                if (   Pde.n.u1Present
-                    && (EMIsRawRing0Enabled(pVM) || Pde.n.u1User))
+                if (Pde.n.u1Present)
                 {
                     STAM_COUNTER_INC(&pVM->pgm.s.CTX_SUFF(pStats)->StatR3DetectedConflicts);
 # ifdef IN_RING3
@@ -840,7 +836,7 @@ int pgmMapResolveConflicts(PVM pVM)
 
     /* This only applies to raw mode where we only support 1 VCPU. */
     Assert(pVM->cCpus == 1);
-    PVMCPU          pVCpu        = &pVM->aCpus[0];
+    PVMCPU          pVCpu        = &VMCC_GET_CPU_0(pVM);
     PGMMODE const   enmGuestMode = PGMGetGuestMode(pVCpu);
     Assert(enmGuestMode <= PGMMODE_PAE_NX);
 
@@ -862,9 +858,7 @@ int pgmMapResolveConflicts(PVM pVM)
             unsigned    iPT   = pCur->cPTs;
             while (iPT-- > 0)
             {
-                if (    pPD->a[iPDE + iPT].n.u1Present /** @todo PGMGstGetPDE. */
-                    &&  (   EMIsRawRing0Enabled(pVM)
-                         || pPD->a[iPDE + iPT].n.u1User))
+                if (pPD->a[iPDE + iPT].n.u1Present /** @todo PGMGstGetPDE. */)
                 {
                     STAM_COUNTER_INC(&pVM->pgm.s.CTX_SUFF(pStats)->StatR3DetectedConflicts);
 
@@ -903,23 +897,22 @@ int pgmMapResolveConflicts(PVM pVM)
             {
                 X86PDEPAE Pde = pgmGstGetPaePDE(pVCpu, GCPtr);
 
-                if (   Pde.n.u1Present
-                    && (EMIsRawRing0Enabled(pVM) || Pde.n.u1User))
+                if (Pde.n.u1Present)
                 {
                     STAM_COUNTER_INC(&pVM->pgm.s.CTX_SUFF(pStats)->StatR3DetectedConflicts);
-#ifdef IN_RING3
+# ifdef IN_RING3
                     Log(("PGMHasMappingConflicts: Conflict was detected at %RGv for mapping %s (PAE)\n"
                          "                        PDE=%016RX64.\n",
                          GCPtr, pCur->pszDesc, Pde.u));
                     int rc = pgmR3SyncPTResolveConflictPAE(pVM, pCur, pCur->GCPtr);
                     AssertRCReturn(rc, rc);
                     break;
-#else
+# else
                     Log(("PGMHasMappingConflicts: Conflict was detected at %RGv for mapping (PAE)\n"
                          "                        PDE=%016RX64.\n",
                          GCPtr, Pde.u));
                     return VINF_PGM_SYNC_CR3;
-#endif
+# endif
                 }
                 GCPtr += (1 << X86_PD_PAE_SHIFT);
             }
@@ -933,5 +926,5 @@ int pgmMapResolveConflicts(PVM pVM)
     return VINF_SUCCESS;
 }
 
-#endif /* PGM_WITHOUT_MAPPINGS */
+#endif /* !PGM_WITHOUT_MAPPINGS */
 

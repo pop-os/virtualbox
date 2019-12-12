@@ -27,12 +27,10 @@
 #include <VBox/vmm/mm.h>
 #include <VBox/vmm/dbgftrace.h>
 #ifdef IN_RING3
-# ifdef VBOX_WITH_REM
-#  include <VBox/vmm/rem.h>
-# endif
 #endif
+#include <VBox/vmm/pdmdev.h> /* (for TMTIMER_GET_CRITSECT implementation) */
 #include "TMInternal.h"
-#include <VBox/vmm/vm.h>
+#include <VBox/vmm/vmcc.h>
 
 #include <VBox/param.h>
 #include <VBox/err.h>
@@ -52,6 +50,18 @@
 /*********************************************************************************************************************************
 *   Defined Constants And Macros                                                                                                 *
 *********************************************************************************************************************************/
+#ifdef VBOX_STRICT
+/** @def TMTIMER_GET_CRITSECT
+ * Helper for safely resolving the critical section for a timer belonging to a
+ * device instance.
+ * @todo needs reworking later as it uses PDMDEVINSR0::pDevInsR0RemoveMe.  */
+# ifdef IN_RING3
+#  define TMTIMER_GET_CRITSECT(pTimer) ((pTimer)->pCritSect)
+# else
+#  define TMTIMER_GET_CRITSECT(pTimer) tmRZTimerGetCritSect(pTimer)
+# endif
+#endif
+
 /** @def TMTIMER_ASSERT_CRITSECT
  * Checks that the caller owns the critical section if one is associated with
  * the timer. */
@@ -61,7 +71,7 @@
         if ((pTimer)->pCritSect) \
         { \
             VMSTATE      enmState; \
-            PPDMCRITSECT pCritSect = (PPDMCRITSECT)MMHyperR3ToCC((pTimer)->CTX_SUFF(pVM), (pTimer)->pCritSect); \
+            PPDMCRITSECT pCritSect = TMTIMER_GET_CRITSECT(pTimer); \
             AssertMsg(   pCritSect \
                       && (   PDMCritSectIsOwner(pCritSect) \
                           || (enmState = (pTimer)->CTX_SUFF(pVM)->enmVMState) == VMSTATE_CREATING \
@@ -94,7 +104,7 @@
         if ((pTimer)->pCritSect) \
         { \
             VMSTATE      enmState; \
-            PPDMCRITSECT pCritSect = (PPDMCRITSECT)MMHyperR3ToCC(pVM, (pTimer)->pCritSect); \
+            PPDMCRITSECT pCritSect = TMTIMER_GET_CRITSECT(pTimer); \
             AssertMsg(   pCritSect \
                       && (   !PDMCritSectIsOwner(pCritSect) \
                           || PDMCritSectIsOwner(&pVM->tm.s.VirtualSyncLock) \
@@ -110,6 +120,28 @@
 #endif
 
 
+#if defined(VBOX_STRICT) && defined(IN_RING0)
+/**
+ * Helper for  TMTIMER_GET_CRITSECT
+ * @todo This needs a redo!
+ */
+DECLINLINE(PPDMCRITSECT) tmRZTimerGetCritSect(PTMTIMER pTimer)
+{
+    if (pTimer->enmType == TMTIMERTYPE_DEV)
+    {
+        PPDMDEVINSR0        pDevInsR0 = ((struct PDMDEVINSR3 *)pTimer->u.Dev.pDevIns)->pDevInsR0RemoveMe; /* !ring-3 read! */
+        struct PDMDEVINSR3 *pDevInsR3 = pDevInsR0->pDevInsForR3R0;
+        if (pTimer->pCritSect == pDevInsR3->pCritSectRoR3)
+            return pDevInsR0->pCritSectRoR0;
+        uintptr_t offCritSect = (uintptr_t)pTimer->pCritSect - (uintptr_t)pDevInsR3->pvInstanceDataR3;
+        if (offCritSect < pDevInsR0->pReg->cbInstanceShared)
+            return (PPDMCRITSECT)((uintptr_t)pDevInsR0->pvInstanceDataR0 + offCritSect);
+    }
+    return (PPDMCRITSECT)MMHyperR3ToCC((pTimer)->CTX_SUFF(pVM), pTimer->pCritSect);
+}
+#endif /* VBOX_STRICT && IN_RING0 */
+
+
 /**
  * Notification that execution is about to start.
  *
@@ -118,12 +150,11 @@
  * The function may, depending on the configuration, resume the TSC and future
  * clocks that only ticks when we're executing guest code.
  *
+ * @param   pVM         The cross context VM structure.
  * @param   pVCpu       The cross context virtual CPU structure.
  */
-VMMDECL(void) TMNotifyStartOfExecution(PVMCPU pVCpu)
+VMMDECL(void) TMNotifyStartOfExecution(PVMCC pVM, PVMCPUCC pVCpu)
 {
-    PVM pVM = pVCpu->CTX_SUFF(pVM);
-
 #ifndef VBOX_WITHOUT_NS_ACCOUNTING
     pVCpu->tm.s.u64NsTsStartExecuting = RTTimeNanoTS();
 #endif
@@ -140,12 +171,11 @@ VMMDECL(void) TMNotifyStartOfExecution(PVMCPU pVCpu)
  * The function may, depending on the configuration, suspend the TSC and future
  * clocks that only ticks when we're executing guest code.
  *
+ * @param   pVM         The cross context VM structure.
  * @param   pVCpu       The cross context virtual CPU structure.
  */
-VMMDECL(void) TMNotifyEndOfExecution(PVMCPU pVCpu)
+VMMDECL(void) TMNotifyEndOfExecution(PVMCC pVM, PVMCPUCC pVCpu)
 {
-    PVM pVM = pVCpu->CTX_SUFF(pVM);
-
     if (pVM->tm.s.fTSCTiedToExecution)
         tmCpuTickPause(pVCpu);
 
@@ -190,9 +220,9 @@ VMMDECL(void) TMNotifyEndOfExecution(PVMCPU pVCpu)
  *
  * @param   pVCpu       The cross context virtual CPU structure.
  */
-VMM_INT_DECL(void) TMNotifyStartOfHalt(PVMCPU pVCpu)
+VMM_INT_DECL(void) TMNotifyStartOfHalt(PVMCPUCC pVCpu)
 {
-    PVM pVM = pVCpu->CTX_SUFF(pVM);
+    PVMCC pVM = pVCpu->CTX_SUFF(pVM);
 
 #ifndef VBOX_WITHOUT_NS_ACCOUNTING
     pVCpu->tm.s.u64NsTsStartHalting = RTTimeNanoTS();
@@ -214,7 +244,7 @@ VMM_INT_DECL(void) TMNotifyStartOfHalt(PVMCPU pVCpu)
  *
  * @param   pVCpu       The cross context virtual CPU structure.
  */
-VMM_INT_DECL(void) TMNotifyEndOfHalt(PVMCPU pVCpu)
+VMM_INT_DECL(void) TMNotifyEndOfHalt(PVMCPUCC pVCpu)
 {
     PVM pVM = pVCpu->CTX_SUFF(pVM);
 
@@ -252,17 +282,14 @@ VMM_INT_DECL(void) TMNotifyEndOfHalt(PVMCPU pVCpu)
  *
  * @param   pVM         The cross context VM structure.
  */
-DECLINLINE(void) tmScheduleNotify(PVM pVM)
+DECLINLINE(void) tmScheduleNotify(PVMCC pVM)
 {
-    PVMCPU pVCpuDst = &pVM->aCpus[pVM->tm.s.idTimerCpu];
+    PVMCPUCC pVCpuDst = VMCC_GET_CPU(pVM, pVM->tm.s.idTimerCpu);
     if (!VMCPU_FF_IS_SET(pVCpuDst, VMCPU_FF_TIMER))
     {
         Log5(("TMAll(%u): FF: 0 -> 1\n", __LINE__));
         VMCPU_FF_SET(pVCpuDst, VMCPU_FF_TIMER);
 #ifdef IN_RING3
-# ifdef VBOX_WITH_REM
-        REMR3NotifyTimerPending(pVM, pVCpuDst);
-# endif
         VMR3NotifyCpuFFU(pVCpuDst->pUVCpu, VMNOTIFYFF_FLAGS_DONE_REM);
 #endif
         STAM_COUNTER_INC(&pVM->tm.s.StatScheduleSetFF);
@@ -275,7 +302,7 @@ DECLINLINE(void) tmScheduleNotify(PVM pVM)
  */
 DECLINLINE(void) tmSchedule(PTMTIMER pTimer)
 {
-    PVM pVM = pTimer->CTX_SUFF(pVM);
+    PVMCC pVM = pTimer->CTX_SUFF(pVM);
     if (    VM_IS_EMT(pVM)
         &&  RT_SUCCESS(TM_TRY_LOCK_TIMERS(pVM)))
     {
@@ -770,9 +797,9 @@ DECL_FORCE_INLINE(uint64_t) tmTimerPollReturnHit(PVM pVM, PVMCPU pVCpu, PVMCPU p
  *
  * @remarks GIP uses ns ticks.
  */
-DECL_FORCE_INLINE(uint64_t) tmTimerPollInternal(PVM pVM, PVMCPU pVCpu, uint64_t *pu64Delta)
+DECL_FORCE_INLINE(uint64_t) tmTimerPollInternal(PVMCC pVM, PVMCPUCC pVCpu, uint64_t *pu64Delta)
 {
-    PVMCPU                  pVCpuDst      = &pVM->aCpus[pVM->tm.s.idTimerCpu];
+    PVMCPU                  pVCpuDst      = VMCC_GET_CPU(pVM, pVM->tm.s.idTimerCpu);
     const uint64_t          u64Now        = TMVirtualGetNoCheck(pVM);
     STAM_COUNTER_INC(&pVM->tm.s.StatPoll);
 
@@ -802,9 +829,6 @@ DECL_FORCE_INLINE(uint64_t) tmTimerPollInternal(PVM pVM, PVMCPU pVCpu, uint64_t 
         {
             Log5(("TMAll(%u): FF: %d -> 1\n", __LINE__, VMCPU_FF_IS_SET(pVCpuDst, VMCPU_FF_TIMER)));
             VMCPU_FF_SET(pVCpuDst, VMCPU_FF_TIMER);
-#if defined(IN_RING3) && defined(VBOX_WITH_REM)
-            REMR3NotifyTimerPending(pVM, pVCpuDst);
-#endif
         }
         LogFlow(("TMTimerPoll: expire1=%'RU64 <= now=%'RU64\n", u64Expire1, u64Now));
         return tmTimerPollReturnHit(pVM, pVCpu, pVCpuDst, u64Now, pu64Delta, &pVM->tm.s.StatPollVirtual);
@@ -848,9 +872,6 @@ DECL_FORCE_INLINE(uint64_t) tmTimerPollInternal(PVM pVM, PVMCPU pVCpu, uint64_t 
                 {
                     Log5(("TMAll(%u): FF: %d -> 1\n", __LINE__, VMCPU_FF_IS_SET(pVCpuDst, VMCPU_FF_TIMER)));
                     VMCPU_FF_SET(pVCpuDst, VMCPU_FF_TIMER);
-#if defined(IN_RING3) && defined(VBOX_WITH_REM)
-                    REMR3NotifyTimerPending(pVM, pVCpuDst);
-#endif
                 }
 
                 STAM_COUNTER_INC(&pVM->tm.s.StatPollSimple);
@@ -947,9 +968,6 @@ DECL_FORCE_INLINE(uint64_t) tmTimerPollInternal(PVM pVM, PVMCPU pVCpu, uint64_t 
         {
             Log5(("TMAll(%u): FF: %d -> 1\n", __LINE__, VMCPU_FF_IS_SET(pVCpuDst, VMCPU_FF_TIMER)));
             VMCPU_FF_SET(pVCpuDst, VMCPU_FF_TIMER);
-#if defined(IN_RING3) && defined(VBOX_WITH_REM)
-            REMR3NotifyTimerPending(pVM, pVCpuDst);
-#endif
         }
         STAM_COUNTER_INC(&pVM->tm.s.StatPollVirtualSync);
         LogFlow(("TMTimerPoll: expire2=%'RU64 <= now=%'RU64\n", u64Expire2, u64Now));
@@ -981,7 +999,7 @@ DECL_FORCE_INLINE(uint64_t) tmTimerPollInternal(PVM pVM, PVMCPU pVCpu, uint64_t 
  * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
  * @thread  The emulation thread.
  */
-VMMDECL(bool) TMTimerPollBool(PVM pVM, PVMCPU pVCpu)
+VMMDECL(bool) TMTimerPollBool(PVMCC pVM, PVMCPUCC pVCpu)
 {
     AssertCompile(TMCLOCK_FREQ_VIRTUAL == 1000000000);
     uint64_t off = 0;
@@ -999,7 +1017,7 @@ VMMDECL(bool) TMTimerPollBool(PVM pVM, PVMCPU pVCpu)
  * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
  * @thread  The emulation thread.
  */
-VMM_INT_DECL(void) TMTimerPollVoid(PVM pVM, PVMCPU pVCpu)
+VMM_INT_DECL(void) TMTimerPollVoid(PVMCC pVM, PVMCPUCC pVCpu)
 {
     uint64_t off;
     tmTimerPollInternal(pVM, pVCpu, &off);
@@ -1018,7 +1036,7 @@ VMM_INT_DECL(void) TMTimerPollVoid(PVM pVM, PVMCPU pVCpu)
  * @param   pu64Delta   Where to store the delta.
  * @thread  The emulation thread.
  */
-VMM_INT_DECL(uint64_t) TMTimerPollGIP(PVM pVM, PVMCPU pVCpu, uint64_t *pu64Delta)
+VMM_INT_DECL(uint64_t) TMTimerPollGIP(PVMCC pVM, PVMCPUCC pVCpu, uint64_t *pu64Delta)
 {
     return tmTimerPollInternal(pVM, pVCpu, pu64Delta);
 }
@@ -1161,7 +1179,7 @@ static int tmTimerSetOptimizedStart(PVM pVM, PTMTIMER pTimer, uint64_t u64Expire
  * @param   pTimer              The timer handle.
  * @param   u64Expire           The expiration time.
  */
-static int tmTimerVirtualSyncSet(PVM pVM, PTMTIMER pTimer, uint64_t u64Expire)
+static int tmTimerVirtualSyncSet(PVMCC pVM, PTMTIMER pTimer, uint64_t u64Expire)
 {
     STAM_PROFILE_START(&pVM->tm.s.CTX_SUFF_Z(StatTimerSetVs), a);
     VM_ASSERT_EMT(pVM);
@@ -1230,7 +1248,8 @@ static int tmTimerVirtualSyncSet(PVM pVM, PTMTIMER pTimer, uint64_t u64Expire)
  */
 VMMDECL(int) TMTimerSet(PTMTIMER pTimer, uint64_t u64Expire)
 {
-    PVM pVM = pTimer->CTX_SUFF(pVM);
+    PVMCC pVM = pTimer->CTX_SUFF(pVM);
+    STAM_COUNTER_INC(&pTimer->StatSetAbsolute);
 
     /* Treat virtual sync timers specially. */
     if (pTimer->enmClock == TMCLOCK_VIRTUAL_SYNC)
@@ -1387,7 +1406,7 @@ VMMDECL(int) TMTimerSet(PTMTIMER pTimer, uint64_t u64Expire)
  * @param   enmClock        The clock to query.
  * @param   pu64Now         Optional pointer where to store the return time
  */
-DECL_FORCE_INLINE(uint64_t) tmTimerSetRelativeNowWorker(PVM pVM, TMCLOCK enmClock, uint64_t *pu64Now)
+DECL_FORCE_INLINE(uint64_t) tmTimerSetRelativeNowWorker(PVMCC pVM, TMCLOCK enmClock, uint64_t *pu64Now)
 {
     uint64_t u64Now;
     switch (enmClock)
@@ -1422,7 +1441,7 @@ DECL_FORCE_INLINE(uint64_t) tmTimerSetRelativeNowWorker(PVM pVM, TMCLOCK enmCloc
  * @param   pu64Now         Where to return the current time stamp used.
  *                          Optional.
  */
-static int tmTimerSetRelativeOptimizedStart(PVM pVM, PTMTIMER pTimer, uint64_t cTicksToNext, uint64_t *pu64Now)
+static int tmTimerSetRelativeOptimizedStart(PVMCC pVM, PTMTIMER pTimer, uint64_t cTicksToNext, uint64_t *pu64Now)
 {
     Assert(!pTimer->offPrev);
     Assert(!pTimer->offNext);
@@ -1461,7 +1480,7 @@ static int tmTimerSetRelativeOptimizedStart(PVM pVM, PTMTIMER pTimer, uint64_t c
  * @param   pu64Now             Where to return the current time stamp used.
  *                              Optional.
  */
-static int tmTimerVirtualSyncSetRelative(PVM pVM, PTMTIMER pTimer, uint64_t cTicksToNext, uint64_t *pu64Now)
+static int tmTimerVirtualSyncSetRelative(PVMCC pVM, PTMTIMER pTimer, uint64_t cTicksToNext, uint64_t *pu64Now)
 {
     STAM_PROFILE_START(pVM->tm.s.CTX_SUFF_Z(StatTimerSetRelativeVs), a);
     VM_ASSERT_EMT(pVM);
@@ -1536,7 +1555,8 @@ static int tmTimerVirtualSyncSetRelative(PVM pVM, PTMTIMER pTimer, uint64_t cTic
  */
 VMMDECL(int) TMTimerSetRelative(PTMTIMER pTimer, uint64_t cTicksToNext, uint64_t *pu64Now)
 {
-    PVM pVM = pTimer->CTX_SUFF(pVM);
+    PVMCC pVM = pTimer->CTX_SUFF(pVM);
+    STAM_COUNTER_INC(&pTimer->StatSetRelative);
 
     /* Treat virtual sync timers specially. */
     if (pTimer->enmClock == TMCLOCK_VIRTUAL_SYNC)
@@ -1788,7 +1808,7 @@ VMMDECL(int) TMTimerSetFrequencyHint(PTMTIMER pTimer, uint32_t uHzHint)
  * @param   pVM                 The cross context VM structure.
  * @param   pTimer              The timer handle.
  */
-static int tmTimerVirtualSyncStop(PVM pVM, PTMTIMER pTimer)
+static int tmTimerVirtualSyncStop(PVMCC pVM, PTMTIMER pTimer)
 {
     STAM_PROFILE_START(&pVM->tm.s.CTX_SUFF_Z(StatTimerStopVs), a);
     VM_ASSERT_EMT(pVM);
@@ -1858,7 +1878,8 @@ static int tmTimerVirtualSyncStop(PVM pVM, PTMTIMER pTimer)
  */
 VMMDECL(int) TMTimerStop(PTMTIMER pTimer)
 {
-    PVM pVM = pTimer->CTX_SUFF(pVM);
+    PVMCC pVM = pTimer->CTX_SUFF(pVM);
+    STAM_COUNTER_INC(&pTimer->StatStop);
 
     /* Treat virtual sync timers specially. */
     if (pTimer->enmClock == TMCLOCK_VIRTUAL_SYNC)
@@ -1965,7 +1986,8 @@ VMMDECL(int) TMTimerStop(PTMTIMER pTimer)
  */
 VMMDECL(uint64_t) TMTimerGet(PTMTIMER pTimer)
 {
-    PVM pVM = pTimer->CTX_SUFF(pVM);
+    PVMCC pVM = pTimer->CTX_SUFF(pVM);
+    STAM_COUNTER_INC(&pTimer->StatGet);
 
     uint64_t u64;
     switch (pTimer->enmClock)
@@ -2532,7 +2554,7 @@ static uint32_t tmGetFrequencyHint(PVM pVM)
  * @param   pVM         The cross context VM structure.
  * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
  */
-VMM_INT_DECL(uint32_t) TMCalcHostTimerFrequency(PVM pVM, PVMCPU pVCpu)
+VMM_INT_DECL(uint32_t) TMCalcHostTimerFrequency(PVMCC pVM, PVMCPUCC pVCpu)
 {
     uint32_t uHz = tmGetFrequencyHint(pVM);
 

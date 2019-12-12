@@ -211,17 +211,20 @@ typedef enum SCSIMAINTENANCEIN
 #define SCSI_ASC_ILLEGAL_OPCODE                             0x20
 #define SCSI_ASC_LOGICAL_BLOCK_OOR                          0x21
 #define SCSI_ASC_INV_FIELD_IN_CMD_PACKET                    0x24
+#define SCSI_ASC_LOGICAL_UNIT_NOT_SUPPORTED                 0x25
 #define SCSI_ASC_WRITE_PROTECTED                            0x27
 #define SCSI_ASC_MEDIUM_MAY_HAVE_CHANGED                    0x28
 #define SCSI_ASC_POWER_ON_RESET_BUS_DEVICE_RESET_OCCURRED   0x29
 #define SCSI_ASC_CANNOT_READ_MEDIUM                         0x30
 #define SCSI_ASC_MEDIUM_NOT_PRESENT                         0x3a
 #define SCSI_ASC_SAVING_PARAMETERS_NOT_SUPPORTED            0x39
+#define SCSI_ASC_INTERNAL_TARGET_FAILURE                    0x44
 #define SCSI_ASC_INVALID_MESSAGE                            0x49
 #define SCSI_ASC_MEDIA_LOAD_OR_EJECT_FAILED                 0x53
 #define SCSI_ASC_LOGICAL_UNIT_DOES_NOT_RESPOND_TO_SELECTION 0x00
 #define SCSI_ASC_SYSTEM_RESOURCE_FAILURE                    0x55
 #define SCSI_ASC_ILLEGAL_MODE_FOR_THIS_TRACK                0x64
+#define SCSI_ASC_COMMAND_TO_LOGICAL_UNIT_FAILED             0x6E
 
 /** Additional sense code qualifiers (ASCQ). */
 /* NB: The ASC/ASCQ combination determines the full meaning. */
@@ -232,9 +235,9 @@ typedef enum SCSIMAINTENANCEIN
 #define SCSI_ASCQ_EOP_EOM_DETECTED                          0x02
 #define SCSI_ASCQ_SETMARK_DETECTED                          0x03
 #define SCSI_ASCQ_BOP_BOM_DETECTED                          0x04
-
 #define SCSI_ASCQ_UNKNOWN_FORMAT                            0x01
 #define SCSI_ASCQ_INCOMPATIBLE_FORMAT                       0x02
+#define SCSI_ASCQ_COPY_TARGET_DEVICE_DATA_OVERRUN           0x0d
 
 /** @name SCSI_INQUIRY
  * @{
@@ -314,6 +317,7 @@ typedef const SCSIINQUIRYDATA *PCSCSIINQUIRYDATA;
 
 #if defined(IN_RING3) && (defined(LOG_ENABLED) || defined(RT_STRICT))
 const char * SCSICmdText(uint8_t uCmd);
+const char * SCSIStatusText(uint8_t uStatus);
 const char * SCSISenseText(uint8_t uSense);
 const char * SCSISenseExtText(uint8_t uASC, uint8_t uASCQ);
 int SCSILogModePage(char *pszBuf, size_t cchBuffer, uint8_t *pbModePage,

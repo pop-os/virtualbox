@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 131247 $"
 
 
 # Standard python imports.
@@ -36,7 +36,7 @@ import unittest;
 from testmanager.core.base import ModelDataBase, ModelDataBaseTestCase, ModelLogicBase, TMExceptionBase;
 
 
-class SystemLogData(ModelDataBase):  # pylint: disable=R0902
+class SystemLogData(ModelDataBase):  # pylint: disable=too-many-instance-attributes
     """
     SystemLog Data.
     """
@@ -165,7 +165,7 @@ class SystemLogLogic(ModelLogicBase):
 # Unit testing.
 #
 
-# pylint: disable=C0111
+# pylint: disable=missing-docstring
 class SystemLogDataTestCase(ModelDataBaseTestCase):
     def setUp(self):
         self.aoSamples = [SystemLogData(),];

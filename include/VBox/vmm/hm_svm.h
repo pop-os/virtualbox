@@ -235,7 +235,7 @@
 # define SVM_EXIT_RSM                    0x73
 /** IRET instruction. */
 # define SVM_EXIT_IRET                   0x74
-/** software interrupt (INTn instructions). */
+/** Software interrupt (INTn instructions). */
 # define SVM_EXIT_SWINT                  0x75
 /** INVD instruction. */
 # define SVM_EXIT_INVD                   0x76
@@ -285,6 +285,30 @@
 # define SVM_EXIT_MWAIT_ARMED            0x8c
 /** XSETBV instruction. */
 # define SVM_EXIT_XSETBV                 0x8d
+/** RDPRU instruction. */
+# define SVM_EXIT_RDPRU                  0x8e
+/** Write to EFER (after guest instruction completes). */
+# define SVM_EXIT_WRITE_EFER_TRAP        0x8f
+/** Write to CR0-CR15 (after guest instruction completes). */
+# define SVM_EXIT_WRITE_CR0_TRAP         0x90
+# define SVM_EXIT_WRITE_CR1_TRAP         0x91
+# define SVM_EXIT_WRITE_CR2_TRAP         0x92
+# define SVM_EXIT_WRITE_CR3_TRAP         0x93
+# define SVM_EXIT_WRITE_CR4_TRAP         0x94
+# define SVM_EXIT_WRITE_CR5_TRAP         0x95
+# define SVM_EXIT_WRITE_CR6_TRAP         0x96
+# define SVM_EXIT_WRITE_CR7_TRAP         0x97
+# define SVM_EXIT_WRITE_CR8_TRAP         0x98
+# define SVM_EXIT_WRITE_CR9_TRAP         0x99
+# define SVM_EXIT_WRITE_CR10_TRAP        0x9a
+# define SVM_EXIT_WRITE_CR11_TRAP        0x9b
+# define SVM_EXIT_WRITE_CR12_TRAP        0x9c
+# define SVM_EXIT_WRITE_CR13_TRAP        0x9d
+# define SVM_EXIT_WRITE_CR14_TRAP        0x9e
+# define SVM_EXIT_WRITE_CR15_TRAP        0x9f
+/** MCOMMIT instruction. */
+# define SVM_EXIT_MCOMMIT                0xa3
+
 /** Nested paging: host-level page fault occurred (EXITINFO1 contains fault errorcode; EXITINFO2 contains the guest physical address causing the fault). */
 # define SVM_EXIT_NPF                    0x400
 /** AVIC: Virtual IPI delivery not completed. */
@@ -431,7 +455,8 @@
 #define SVM_CTRL_INTERCEPT_MWAIT_ARMED        RT_BIT_64(32 + 12)
 /** Intercept XSETBV instruction. */
 #define SVM_CTRL_INTERCEPT_XSETBV             RT_BIT_64(32 + 13)
-/* Bit 14 - Reserved, SBZ. */
+/** Intercept RDPRU instruction. */
+#define SVM_CTRL_INTERCEPT_RDPRU              RT_BIT_64(32 + 14)
 /** Intercept EFER writes after guest instruction finishes. */
 #define SVM_CTRL_INTERCEPT_EFER_WRITES_TRAP   RT_BIT_64(32 + 15)
 /** Intercept CR0 writes after guest instruction finishes. */
@@ -1130,7 +1155,7 @@ AssertCompileSizeAlignment(SVMNESTEDVMCBCACHE, 8);
         (a_pVmcbStateSave)->a_REG.u16Attr  = HMSVM_CPU_2_VMCB_SEG_ATTR((a_pCtx)->a_reg.Attr.u); \
     } while (0)
 
-/** @def HMSVM_SEG_REG_COPY_TO_VMCB
+/** @def HMSVM_SEG_REG_COPY_FROM_VMCB
  * Copies the specified segment register from the VMCB to a virtual CPU
  * context.
  *
@@ -1153,37 +1178,22 @@ AssertCompileSizeAlignment(SVMNESTEDVMCBCACHE, 8);
     } while (0)
 
 
-/** @defgroup grp_hm_svm_c    SVM C Helpers
- *
- * These are functions that strictly only implement SVM functionality that is in
- * accordance to the SVM spec. and thus fit to use by IEM/REM/HM.
- *
- * These are not HM all-context API functions, those are to be placed in hm.h.
- * @{
- */
-VMM_INT_DECL(int)       HMGetSvmMsrpmOffsetAndBit(uint32_t idMsr, uint16_t *pbOffMsrpm, uint8_t *puMsrpmBit);
-VMM_INT_DECL(bool)      HMIsSvmIoInterceptActive(void *pvIoBitmap, uint16_t u16Port, SVMIOIOTYPE enmIoType, uint8_t cbReg,
-                                                 uint8_t cAddrSizeBits, uint8_t iEffSeg, bool fRep, bool fStrIo,
-                                                 PSVMIOIOEXITINFO pIoExitInfo);
-/** @} */
-
-
 /** @defgroup grp_hm_svm_hwexec    SVM Hardware-assisted execution Helpers
  *
  * These functions are only here because the inline functions in cpum.h calls them.
  * Don't add any more functions here unless there is no other option.
  * @{
  */
-VMM_INT_DECL(bool)     HMHasGuestSvmVmcbCached(PVMCPU pVCpu);
-VMM_INT_DECL(bool)     HMIsGuestSvmCtrlInterceptSet(PVMCPU pVCpu, uint64_t fIntercept);
-VMM_INT_DECL(bool)     HMIsGuestSvmReadCRxInterceptSet(PVMCPU pVCpu, uint8_t uCr);
-VMM_INT_DECL(bool)     HMIsGuestSvmWriteCRxInterceptSet(PVMCPU pVCpu, uint8_t uCr);
-VMM_INT_DECL(bool)     HMIsGuestSvmReadDRxInterceptSet(PVMCPU pVCpu, uint8_t uDr);
-VMM_INT_DECL(bool)     HMIsGuestSvmWriteDRxInterceptSet(PVMCPU pVCpu, uint8_t uDr);
-VMM_INT_DECL(bool)     HMIsGuestSvmXcptInterceptSet(PVMCPU pVCpu, uint8_t uVector);
-VMM_INT_DECL(bool)     HMIsGuestSvmVirtIntrMasking(PVMCPU pVCpu);
-VMM_INT_DECL(bool)     HMIsGuestSvmNestedPagingEnabled(PVMCPU pVCpu);
-VMM_INT_DECL(uint16_t) HMGetGuestSvmPauseFilterCount(PVMCPU pVCpu);
+VMM_INT_DECL(bool)     HMGetGuestSvmCtrlIntercepts(PCVMCPU pVCpu, uint64_t *pu64Intercepts);
+VMM_INT_DECL(bool)     HMGetGuestSvmReadCRxIntercepts(PCVMCPU pVCpu, uint16_t *pu16Intercepts);
+VMM_INT_DECL(bool)     HMGetGuestSvmWriteCRxIntercepts(PCVMCPU pVCpu, uint16_t *pu16Intercepts);
+VMM_INT_DECL(bool)     HMGetGuestSvmReadDRxIntercepts(PCVMCPU pVCpu, uint16_t *pu16Intercepts);
+VMM_INT_DECL(bool)     HMGetGuestSvmWriteDRxIntercepts(PCVMCPU pVCpu, uint16_t *pu16Intercepts);
+VMM_INT_DECL(bool)     HMGetGuestSvmXcptIntercepts(PCVMCPU pVCpu, uint32_t *pu32Intercepts);
+VMM_INT_DECL(bool)     HMGetGuestSvmVirtIntrMasking(PCVMCPU pVCpu, bool *pfVIntrMasking);
+VMM_INT_DECL(bool)     HMGetGuestSvmNestedPaging(PCVMCPU pVCpu, bool *pfNestedPagingCtrl);
+VMM_INT_DECL(bool)     HMGetGuestSvmPauseFilterCount(PCVMCPU pVCpu, uint16_t *pu16PauseFilterCount);
+VMM_INT_DECL(bool)     HMGetGuestSvmTscOffset(PCVMCPU pVCpu, uint64_t *pu64TscOffset);
 /** @} */
 
 

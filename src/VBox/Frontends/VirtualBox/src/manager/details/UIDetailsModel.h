@@ -45,6 +45,7 @@ class UIDetailsElement;
 class UIDetailsElementAnimationCallback;
 class UIDetailsGroup;
 class UIDetailsItem;
+class UIDetailsView;
 
 
 /** QObject sub-class used as graphics details model. */
@@ -56,8 +57,6 @@ signals:
 
     /** Notifies listeners about model root item @a iMinimumWidthHint changed. */
     void sigRootItemMinimumWidthHintChanged(int iMinimumWidthHint);
-    /** Notifies listeners about model root item @a iMinimumHeightHint changed. */
-    void sigRootItemMinimumHeightHintChanged(int iMinimumHeightHint);
 
     /** Notifies listeners about element link clicked.
       * @param  strCategory  Brings details element category.
@@ -73,8 +72,13 @@ public:
     /** Destructs a details model. */
     virtual ~UIDetailsModel() /* override */;
 
+    /** Inits model. */
+    void init();
+
     /** Returns graphics scene this model belongs to. */
     QGraphicsScene *scene() const;
+    /** Returns the reference of the first view of the scene(). */
+    UIDetailsView *view() const;
     /** Returns paint device this model belongs to. */
     QGraphicsView *paintDevice() const;
 
@@ -158,8 +162,6 @@ public slots:
     /** Handle details view resize. */
     void sltHandleViewResize();
 
-    /** Handles chooser pane signal about item sliding started. */
-    void sltHandleSlidingStarted();
     /** Handles chooser pane signal about group toggle started. */
     void sltHandleToggleStarted();
     /** Handles chooser pane signal about group toggle finished. */
@@ -170,6 +172,9 @@ public slots:
     /** Handle extra-data options change for category of certain @a enmType. */
     void sltHandleExtraDataOptionsChange(DetailsElementType enmType);
 
+    /** Handles request to start toggle details element of certain @a enmType, making element @a fToggled. */
+    void sltToggleElements(DetailsElementType type, bool fToggled);
+
 protected:
 
     /** Preprocesses any Qt @a pEvent for passed @a pObject. */
@@ -177,8 +182,6 @@ protected:
 
 private slots:
 
-    /** Handles request to start toggle details element of certain @a enmType, making element @a fToggled. */
-    void sltToggleElements(DetailsElementType type, bool fToggled);
     /** Handles sigal about details element of certain @a enmType toggling finished, making element @a fToggled. */
     void sltToggleAnimationFinished(DetailsElementType type, bool fToggled);
 

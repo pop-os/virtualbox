@@ -29,8 +29,13 @@
 
 #include <VBox/vmm/pdmaudioifs.h>
 
+
+/** Pointer to an audio mixer sink. */
+typedef struct AUDMIXSINK *PAUDMIXSINK;
+
+
 /**
- * Structure for maintaining an audio mixer instance.
+ * Audio mixer instance.
  */
 typedef struct AUDIOMIXER
 {
@@ -44,19 +49,33 @@ typedef struct AUDIOMIXER
     RTLISTANCHOR            lstSinks;
     /** Number of used audio sinks. */
     uint8_t                 cSinks;
-} AUDIOMIXER, *PAUDIOMIXER;
+} AUDIOMIXER;
+/** Pointer to an audio mixer instance. */
+typedef AUDIOMIXER *PAUDIOMIXER;
 
 /** Defines an audio mixer stream's flags. */
 #define AUDMIXSTREAMFLAGS uint32_t
 
 /** No flags specified. */
-#define AUDMIXSTREAM_FLAG_NONE                  0
+#define AUDMIXSTREAM_F_NONE                     0
+/** The mixing stream is flagged as being enabled (active). */
+#define AUDMIXSTREAM_F_ENABLED                  RT_BIT(0)
 
-/** Prototype needed for AUDMIXSTREAM struct definition. */
-typedef struct AUDMIXSINK *PAUDMIXSINK;
+/** Defines an audio mixer stream's internal status. */
+#define AUDMIXSTREAMSTATUS uint32_t
+
+/** No status set. */
+#define AUDMIXSTREAM_STATUS_NONE                0
+/** The mixing stream is enabled (active). */
+#define AUDMIXSTREAM_STATUS_ENABLED             RT_BIT(0)
+/** The mixing stream can be read from. */
+#define AUDMIXSTREAM_STATUS_CAN_READ            RT_BIT(1)
+/** The mixing stream can be written to. */
+#define AUDMIXSTREAM_STATUS_CAN_WRITE           RT_BIT(2)
+
 
 /**
- * Structure for maintaining an audio mixer stream.
+ * Audio mixer stream.
  */
 typedef struct AUDMIXSTREAM
 {
@@ -68,8 +87,10 @@ typedef struct AUDMIXSTREAM
     RTCRITSECT              CritSect;
     /** Sink this stream is attached to. */
     PAUDMIXSINK             pSink;
-    /** Stream flags of type AUDMIXSTREAM_FLAG_. */
+    /** Stream flags of type AUDMIXSTREAM_F_. */
     uint32_t                fFlags;
+    /** Stream status of type AUDMIXSTREAM_STATUS_. */
+    uint32_t                fStatus;
     /** Pointer to audio connector being used. */
     PPDMIAUDIOCONNECTOR     pConn;
     /** Pointer to PDM audio stream this mixer stream handles. */
@@ -135,7 +156,8 @@ typedef enum AUDMIXSINKCMD
 } AUDMIXSINKCMD;
 
 /**
- * Structure for keeping audio input sink specifics.
+ * Audio input sink specifics.
+ *
  * Do not use directly. Instead, use AUDMIXSINK.
  */
 typedef struct AUDMIXSINKIN
@@ -145,7 +167,8 @@ typedef struct AUDMIXSINKIN
 } AUDMIXSINKIN;
 
 /**
- * Structure for keeping audio output sink specifics.
+ * Audio output sink specifics.
+ *
  * Do not use directly. Instead, use AUDMIXSINK.
  */
 typedef struct AUDMIXSINKOUT
@@ -153,7 +176,7 @@ typedef struct AUDMIXSINKOUT
 } AUDMIXSINKOUT;
 
 /**
- * Structure for maintaining an audio mixer sink.
+ * Audio mixer sink.
  */
 typedef struct AUDMIXSINK
 {
@@ -202,7 +225,7 @@ typedef struct AUDMIXSINK
         PPDMAUDIOFILE       pFile;
     } Dbg;
 #endif
-} AUDMIXSINK, *PAUDMIXSINK;
+} AUDMIXSINK;
 
 /**
  * Audio mixer operation.
@@ -220,7 +243,7 @@ typedef enum AUDMIXOP
 } AUDMIXOP;
 
 /** No flags specified. */
-#define AUDMIXSTRMCTL_FLAG_NONE         0
+#define AUDMIXSTRMCTL_F_NONE            0
 
 int AudioMixerCreate(const char *pszName, uint32_t uFlags, PAUDIOMIXER *ppMixer);
 int AudioMixerCreateSink(PAUDIOMIXER pMixer, const char *pszName, AUDMIXSINKDIR enmDir, PAUDMIXSINK *ppSink);

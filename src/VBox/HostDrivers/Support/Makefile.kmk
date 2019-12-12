@@ -49,7 +49,8 @@ if !defined(VBOX_ONLY_BUILD) && defined(VBOX_WITH_RAW_MODE)
 endif
 if  !defined(VBOX_ONLY_DOCS) \
  && !defined(VBOX_ONLY_EXTPACKS) \
- && !defined(VBOX_ONLY_VALIDATIONKIT)
+ && !defined(VBOX_ONLY_VALIDATIONKIT) \
+ && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SUPPORTED_HOST_ARCHS))" != ""
  ifdef VBOX_WITH_SUPSVC
   PROGRAMS += VBoxSupSvc
  endif
@@ -90,7 +91,7 @@ VBOX_SUP_WIN_CERTS := \
        SpcRootMicrosoft6=SpcRoot-MicrosoftDevelopmentRootCertificateAuthority2014-078f0a9d03df119e434e4fec1bf0235a.taf \
        NtRootMicrosoft7=NtRoot-MicrosoftCodeVerificationRoot-729404101f3e0ca347837fca175a8438.taf \
        TimeRootMicrosoft0=Timestamp-CopyrightC1997MicrosoftCorp-01.taf \
-       TrustedCertVBox0=Trusted-OracleCorporationVirtualBox-51ca009816fdbd80f120e015ee75823e.taf \
+       TrustedCertVBox0=Trusted-OracleCorporationVirtualBox-05308b76ac2e15b29720fb4395f65f38.taf \
        AppleRoot0=AppleRoot-2bd06947947609fef46b8d2e40a6f7474d7f085e.taf \
        AppleRoot1=AppleRoot-G2-c499136c1803c27bc0a3a00d7f72807a1c77268d.taf
 VBOX_SUP_WIN_CERT_NAMES := $(foreach cert,$(VBOX_SUP_WIN_CERTS),$(firstword $(subst =,$(SPACE) ,$(cert))))
@@ -152,7 +153,6 @@ SUPR3_DEFS          = \
 	$(if $(VBOX_WITH_SUPSVC),VBOX_WITH_SUPSVC) \
 	$(if $(VBOX_WITH_MAIN),VBOX_WITH_MAIN,) \
 	$(if $(VBOX_WITH_RAW_MODE),VBOX_WITH_RAW_MODE,) \
-	$(if $(VBOX_WITH_REM),VBOX_WITH_REM,) \
 	VBOX_PERMIT_MORE \
 	VBOX_PERMIT_EVEN_MORE
 SUPR3_INCS         := $(PATH_SUB_CURRENT)
@@ -195,7 +195,6 @@ SUPR3HardenedStatic_DEFS    += \
 	$(if $(VBOX_WITH_SUPSVC),VBOX_WITH_SUPSVC,) \
 	$(if $(VBOX_WITH_MAIN),VBOX_WITH_MAIN,) \
 	$(if $(VBOX_WITH_RAW_MODE),VBOX_WITH_RAW_MODE,) \
-	$(if $(VBOX_WITH_REM),VBOX_WITH_REM,) \
 	$(if $(VBOX_WITHOUT_DEBUGGER_CHECKS),VBOX_WITHOUT_DEBUGGER_CHECKS,) \
 	$(if $(VBOX_PERMIT_VISUAL_STUDIO_PROFILING),VBOX_PERMIT_VISUAL_STUDIO_PROFILING,) \
 	VBOX_PERMIT_MORE \
@@ -387,7 +386,9 @@ if "$(KBUILD_TARGET)" == "win" && defined(VBOX_WITH_HARDENING) ## @todo some of 
 	../../Disassembler/DisasmReg.cpp
 
  SUPR3HardenedStatic_SOURCES.amd64 += \
- 	$(VBOX_PATH_RUNTIME_SRC)/common/math/RTUInt128MulByU64.asm
+ 	$(VBOX_PATH_RUNTIME_SRC)/common/math/RTUInt128MulByU64.asm \
+ 	$(VBOX_PATH_RUNTIME_SRC)/win/amd64/ASMGetCS.asm \
+ 	$(VBOX_PATH_RUNTIME_SRC)/win/amd64/ASMGetSS.asm
 
  SUPR3HardenedStatic_SOURCES.win += \
  	win/SUPR3HardenedNoCrt-win.cpp \
@@ -741,6 +742,7 @@ endif
 
 
 if1of ($(KBUILD_TARGET), linux freebsd)
+ if1of ($(KBUILD_TARGET_ARCH), $(VBOX_SUPPORTED_HOST_ARCHS))
  #
  # Targets for installing the linux sources.
  #
@@ -773,6 +775,7 @@ if1of ($(KBUILD_TARGET), linux freebsd)
  # Build test for the linux host kernel modules.
  #
  $(evalcall2 VBOX_LINUX_KMOD_TEST_BUILD_RULE_FN,vboxdrv-src,,save_symvers)
+ endif # supported host arch
 endif # linux freebsd
 
 

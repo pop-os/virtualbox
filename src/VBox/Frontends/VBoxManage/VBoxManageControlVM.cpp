@@ -40,6 +40,7 @@
 
 #include <list>
 
+VMProcPriority_T nameToVMProcPriority(const char *pszName);
 
 /**
  * Parses a number.
@@ -319,7 +320,7 @@ static HRESULT keyboardPutFile(IKeyboard *pKeyboard, const char *pszFilename)
     if (RT_SUCCESS(vrc))
     {
         uint64_t cbFile = 0;
-        vrc = RTFileGetSize(File, &cbFile);
+        vrc = RTFileQuerySize(File, &cbFile);
         if (RT_SUCCESS(vrc))
         {
             const uint64_t cbFileMax = _64K;
@@ -511,36 +512,77 @@ RTEXITCODE handleControlVM(HandlerArg *a)
                 break;
             }
         }
+#ifdef VBOX_WITH_SHARED_CLIPBOARD
         else if (!strcmp(a->argv[1], "clipboard"))
         {
             if (a->argc <= 1 + 1)
             {
-                errorArgument("Missing argument to '%s'. Expected clipboard mode.", a->argv[1]);
+                errorArgument("Missing argument to '%s'.", a->argv[1]);
                 rc = E_FAIL;
                 break;
             }
 
             ClipboardMode_T mode = ClipboardMode_Disabled; /* Shut up MSC */
-            if (!strcmp(a->argv[2], "disabled"))
-                mode = ClipboardMode_Disabled;
-            else if (!strcmp(a->argv[2], "hosttoguest"))
-                mode = ClipboardMode_HostToGuest;
-            else if (!strcmp(a->argv[2], "guesttohost"))
-                mode = ClipboardMode_GuestToHost;
-            else if (!strcmp(a->argv[2], "bidirectional"))
-                mode = ClipboardMode_Bidirectional;
-            else
+            if (!strcmp(a->argv[2], "mode"))
             {
-                errorArgument("Invalid '%s' argument '%s'.", a->argv[1], a->argv[2]);
-                rc = E_FAIL;
-            }
-            if (SUCCEEDED(rc))
-            {
+                if (!strcmp(a->argv[3], "disabled"))
+                    mode = ClipboardMode_Disabled;
+                else if (!strcmp(a->argv[3], "hosttoguest"))
+                    mode = ClipboardMode_HostToGuest;
+                else if (!strcmp(a->argv[3], "guesttohost"))
+                    mode = ClipboardMode_GuestToHost;
+                else if (!strcmp(a->argv[3], "bidirectional"))
+                    mode = ClipboardMode_Bidirectional;
+                else
+                {
+                    errorArgument("Invalid '%s' argument '%s'.", a->argv[2], a->argv[3]);
+                    rc = E_FAIL;
+                    break;
+                }
+
                 CHECK_ERROR_BREAK(sessionMachine, COMSETTER(ClipboardMode)(mode));
                 if (SUCCEEDED(rc))
                     fNeedsSaving = true;
             }
+# ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
+            else if (!strcmp(a->argv[2], "filetransfers"))
+            {
+                if (a->argc <= 1 + 2)
+                {
+                    errorArgument("Missing argument to '%s'. Expected enabled / disabled.", a->argv[2]);
+                    rc = E_FAIL;
+                    break;
+                }
+
+                BOOL fEnabled;
+                if (!strcmp(a->argv[3], "enabled"))
+                {
+                    fEnabled = TRUE;
+                }
+                else if (!strcmp(a->argv[3], "disabled"))
+                {
+                    fEnabled = FALSE;
+                }
+                else
+                {
+                    errorArgument("Invalid '%s' argument '%s'.", a->argv[2], a->argv[3]);
+                    rc = E_FAIL;
+                    break;
+                }
+
+                CHECK_ERROR_BREAK(sessionMachine, COMSETTER(ClipboardFileTransfersEnabled)(fEnabled));
+                if (SUCCEEDED(rc))
+                    fNeedsSaving = true;
+            }
+# endif /* VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS */
+            else
+            {
+                errorArgument("Invalid '%s' argument '%s'.", a->argv[1], a->argv[2]);
+                rc = E_FAIL;
+                break;
+            }
         }
+#endif /* VBOX_WITH_SHARED_CLIPBOARD */
         else if (!strcmp(a->argv[1], "draganddrop"))
         {
             if (a->argc <= 1 + 1)
@@ -1437,7 +1479,7 @@ RTEXITCODE handleControlVM(HandlerArg *a)
             }
             CHECK_ERROR_BREAK(pDisplay, SetVideoModeHint(uDisplayIdx, fEnabled,
                                                          fChangeOrigin, iOriginX, iOriginY,
-                                                         uXRes, uYRes, uBpp));
+                                                         uXRes, uYRes, uBpp, true));
         }
         else if (!strcmp(a->argv[1], "setscreenlayout"))
         {
@@ -1869,6 +1911,9 @@ RTEXITCODE handleControlVM(HandlerArg *a)
             SafeIfaceArray <IRecordingScreenSettings> saRecordingScreenScreens;
             CHECK_ERROR_BREAK(recordingSettings, COMGETTER(Screens)(ComSafeArrayAsOutParam(saRecordingScreenScreens)));
 
+            ComPtr<IGraphicsAdapter> pGraphicsAdapter;
+            CHECK_ERROR_BREAK(sessionMachine, COMGETTER(GraphicsAdapter)(pGraphicsAdapter.asOutParam()));
+
             /* Note: For now all screens have the same configuration. */
 
             /*
@@ -1886,7 +1931,7 @@ RTEXITCODE handleControlVM(HandlerArg *a)
             else if (!strcmp(a->argv[2], "screens"))
             {
                 ULONG cMonitors = 64;
-                CHECK_ERROR_BREAK(sessionMachine, COMGETTER(MonitorCount)(&cMonitors));
+                CHECK_ERROR_BREAK(pGraphicsAdapter, COMGETTER(MonitorCount)(&cMonitors));
                 com::SafeArray<BOOL> saScreens(cMonitors);
                 if (   a->argc == 4
                     && !strcmp(a->argv[3], "all"))
@@ -2273,6 +2318,26 @@ RTEXITCODE handleControlVM(HandlerArg *a)
                 CHECK_ERROR(uart, COMSETTER(Path)(Bstr(a->argv[2]).raw()));
                 CHECK_ERROR(uart, COMSETTER(HostMode)(PortMode_HostDevice));
             }
+        }
+        else if (!strncmp(a->argv[1], "vm-process-priority", 14))
+        {
+            if (a->argc != 3)
+            {
+                errorArgument("Incorrect arguments to '%s'", a->argv[1]);
+                rc = E_FAIL;
+                break;
+            }
+            VMProcPriority_T enmPriority = nameToVMProcPriority(a->argv[2]);
+            if (enmPriority == VMProcPriority_Invalid)
+            {
+                errorArgument("Invalid vm-process-priority '%s'", a->argv[2]);
+                rc = E_FAIL;
+            }
+            else
+            {
+                CHECK_ERROR(sessionMachine, COMSETTER(VMProcessPriority)(enmPriority));
+            }
+            break;
         }
         else
         {

@@ -332,7 +332,7 @@ VMMR3_INT_DECL(int) PGMR3DbgReadGCPtr(PVM pVM, void *pvDst, RTGCPTR GCPtrSrc, si
     AssertReturn(pVM, VERR_INVALID_PARAMETER);
 
     /** @todo SMP support! */
-    PVMCPU pVCpu = &pVM->aCpus[0];
+    PVMCPU pVCpu = pVM->apCpusR3[0];
 
 /** @todo deal with HMA */
     /* try simple first. */
@@ -388,7 +388,7 @@ VMMR3_INT_DECL(int) PGMR3DbgWriteGCPtr(PVM pVM, RTGCPTR GCPtrDst, void const *pv
     AssertReturn(pVM, VERR_INVALID_PARAMETER);
 
     /** @todo SMP support! */
-    PVMCPU pVCpu = &pVM->aCpus[0];
+    PVMCPU pVCpu = pVM->apCpusR3[0];
 
 /** @todo deal with HMA */
     /* try simple first. */
@@ -1003,7 +1003,7 @@ VMMR3_INT_DECL(int) PGMR3DbgScanVirtual(PVM pVM, PVMCPU pVCpu, RTGCPTR GCPtr, RT
         /* Yield the PGM lock every now and then. */
         if (!--cYieldCountDown)
         {
-            fFullWalk = PDMR3CritSectYield(&pVM->pgm.s.CritSectX);
+            fFullWalk = PDMR3CritSectYield(pVM, &pVM->pgm.s.CritSectX);
             cYieldCountDown = cYieldCountDownReload;
         }
     }
@@ -1126,6 +1126,7 @@ static int pgmR3DumpHierarchyShwMapPage(PPGMR3DUMPHIERARCHYSTATE pState, RTHCPHY
     else
     {
         pvPage = NULL;
+#ifndef PGM_WITHOUT_MAPPINGS
         for (PPGMMAPPING pMap = pState->pVM->pgm.s.pMappingsR3; pMap; pMap = pMap->pNextR3)
         {
             uint64_t off = pState->u64Address - pMap->GCPtr;
@@ -1142,6 +1143,7 @@ static int pgmR3DumpHierarchyShwMapPage(PPGMR3DUMPHIERARCHYSTATE pState, RTHCPHY
                 break;
             }
         }
+#endif /* !PGM_WITHOUT_MAPPINGS */
         if (!pvPage)
         {
             pState->pHlp->pfnPrintf(pState->pHlp, "%0*llx error! PT mapping %s at HCPhys=%RHp was not found in the page pool!\n",
@@ -1171,6 +1173,7 @@ static void pgmR3DumpHierarchyShwTablePageInfo(PPGMR3DUMPHIERARCHYSTATE pState, 
     {
         /* probably a mapping */
         strcpy(szPage, " not found");
+#ifndef PGM_WITHOUT_MAPPINGS
         for (PPGMMAPPING pMap = pState->pVM->pgm.s.pMappingsR3; pMap; pMap = pMap->pNextR3)
         {
             uint64_t off = pState->u64Address - pMap->GCPtr;
@@ -1188,6 +1191,7 @@ static void pgmR3DumpHierarchyShwTablePageInfo(PPGMR3DUMPHIERARCHYSTATE pState, 
                 break;
             }
         }
+#endif /* !PGM_WITHOUT_MAPPINGS */
     }
     pgmUnlock(pState->pVM);
     pState->pHlp->pfnPrintf(pState->pHlp, "%s", szPage);
@@ -1219,12 +1223,14 @@ static void pgmR3DumpHierarchyShwGuestPageInfo(PPGMR3DUMPHIERARCHYSTATE pState, 
     }
     else
     {
+#ifndef PGM_WITHOUT_MAPPINGS
         /* check the heap */
         uint32_t cbAlloc;
         rc = MMR3HyperQueryInfoFromHCPhys(pState->pVM, HCPhys, szPage, sizeof(szPage), &cbAlloc);
         if (RT_SUCCESS(rc))
             pState->pHlp->pfnPrintf(pState->pHlp, " %s %#x bytes", szPage, cbAlloc);
         else
+#endif
             pState->pHlp->pfnPrintf(pState->pHlp, " not found");
     }
     NOREF(cbPage);
@@ -1841,7 +1847,7 @@ VMMR3DECL(int) PGMR3DumpHierarchyHC(PVM pVM, uint64_t cr3, uint64_t cr4, bool fL
 
     PVMCPU pVCpu = VMMGetCpu(pVM);
     if (!pVCpu)
-        pVCpu = &pVM->aCpus[0];
+        pVCpu = pVM->apCpusR3[0];
 
     uint32_t fFlags = DBGFPGDMP_FLAGS_HEADER | DBGFPGDMP_FLAGS_PRINT_CR3 | DBGFPGDMP_FLAGS_PAGE_INFO | DBGFPGDMP_FLAGS_SHADOW;
     fFlags |= cr4 & (X86_CR4_PAE | X86_CR4_PSE);

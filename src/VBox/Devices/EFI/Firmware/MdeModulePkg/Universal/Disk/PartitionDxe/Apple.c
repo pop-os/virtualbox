@@ -102,14 +102,13 @@ PartitionInstallAppleChildHandles (
   EFI_STATUS                Found;
   UINT32                    Partition;
   UINT32                    PartitionEntries;
-  UINT32                    VolSpaceSize;
   UINT32                    SubBlockSize;
   UINT32                    BlkPerSec;
+  EFI_PARTITION_INFO_PROTOCOL  PartitionInfo;
 
-  VBoxLogFlowFuncMarkDP(DevicePath);
+  VBoxLogFlowFuncEnter();
   Found         = EFI_NOT_FOUND;
   Media         = BlockIo->Media;
-  VolSpaceSize  = 0;
 
   Block = AllocatePool ((UINTN) Media->BlockSize);
 
@@ -191,7 +190,7 @@ PartitionInstallAppleChildHandles (
           if (0 && CompareMem("Apple_HFS", Entry->type, 10) == 0)
               Print(L"HFS partition (%d of %d) at LBA 0x%x size=%dM\n",
                     Partition, PartitionEntries, StartLba,
-                    (UINT32)(MultU64x32(SizeLbs, SubBlockSize) / (1024 * 1024)));
+                    (UINT32)(DivU64x32(MultU64x32(SizeLbs, SubBlockSize), (1024 * 1024))));
 
           ZeroMem (&CdDev, sizeof (CdDev));
           CdDev.Header.Type     = MEDIA_DEVICE_PATH;
@@ -212,10 +211,11 @@ PartitionInstallAppleChildHandles (
               BlockIo2,
               DevicePath,
               (EFI_DEVICE_PATH_PROTOCOL *) &CdDev,
+              &PartitionInfo,
               CdDev.PartitionStart,
               CdDev.PartitionStart + CdDev.PartitionSize - 1,
               SubBlockSize,
-              FALSE);
+              NULL);
 
           if (!EFI_ERROR (Status)) {
               Found = EFI_SUCCESS;

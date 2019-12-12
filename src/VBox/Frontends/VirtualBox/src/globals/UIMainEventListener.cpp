@@ -20,13 +20,16 @@
 #include <QThread>
 
 /* GUI includes: */
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #include "UIMainEventListener.h"
+#include "UIMousePointerShapeData.h"
 
 /* COM includes: */
 #include "COMEnums.h"
 #include "CCanShowWindowEvent.h"
+#include "CClipboardModeChangedEvent.h"
 #include "CCursorPositionChangedEvent.h"
+#include "CDnDModeChangedEvent.h"
 #include "CEvent.h"
 #include "CEventSource.h"
 #include "CEventListener.h"
@@ -43,6 +46,8 @@
 #include "CMachineStateChangedEvent.h"
 #include "CMachineRegisteredEvent.h"
 #include "CMediumChangedEvent.h"
+#include "CMediumConfigChangedEvent.h"
+#include "CMediumRegisteredEvent.h"
 #include "CMouseCapabilityChangedEvent.h"
 #include "CMousePointerShapeChangedEvent.h"
 #include "CNetworkAdapterChangedEvent.h"
@@ -56,6 +61,7 @@
 #include "CSnapshotRestoredEvent.h"
 #include "CSnapshotTakenEvent.h"
 #include "CStateChangedEvent.h"
+#include "CStorageControllerChangedEvent.h"
 #include "CStorageDeviceChangedEvent.h"
 #include "CUSBDevice.h"
 #include "CUSBDeviceStateChangedEvent.h"
@@ -176,10 +182,12 @@ void UIMainEventListeningThread::setShutdown(bool fShutdown)
 UIMainEventListener::UIMainEventListener()
 {
     /* Register meta-types for required enums. */
+    qRegisterMetaType<KDeviceType>("KDeviceType");
     qRegisterMetaType<KMachineState>("KMachineState");
     qRegisterMetaType<KSessionState>("KSessionState");
     qRegisterMetaType< QVector<uint8_t> >("QVector<uint8_t>");
     qRegisterMetaType<CNetworkAdapter>("CNetworkAdapter");
+    qRegisterMetaType<CMedium>("CMedium");
     qRegisterMetaType<CMediumAttachment>("CMediumAttachment");
     qRegisterMetaType<CUSBDevice>("CUSBDevice");
     qRegisterMetaType<CVirtualBoxErrorInfo>("CVirtualBoxErrorInfo");
@@ -216,7 +224,7 @@ void UIMainEventListener::unregisterSources()
 STDMETHODIMP UIMainEventListener::HandleEvent(VBoxEventType_T, IEvent *pEvent)
 {
     /* Try to acquire COM cleanup protection token first: */
-    if (!vboxGlobal().comTokenTryLockForRead())
+    if (!uiCommon().comTokenTryLockForRead())
         return S_OK;
 
     CEvent comEvent(pEvent);
@@ -278,8 +286,6 @@ STDMETHODIMP UIMainEventListener::HandleEvent(VBoxEventType_T, IEvent *pEvent)
             emit sigSnapshotRestore(comEventSpecific.GetMachineId(), comEventSpecific.GetSnapshotId());
             break;
         }
-//        case KVBoxEventType_OnMediumRegistered:
-//        case KVBoxEventType_OnGuestPropertyChange:
 
         case KVBoxEventType_OnExtraDataCanChange:
         {
@@ -300,13 +306,51 @@ STDMETHODIMP UIMainEventListener::HandleEvent(VBoxEventType_T, IEvent *pEvent)
             break;
         }
 
+        case KVBoxEventType_OnStorageControllerChanged:
+        {
+            CStorageControllerChangedEvent comEventSpecific(pEvent);
+            emit sigStorageControllerChange(comEventSpecific.GetMachinId(),
+                                            comEventSpecific.GetControllerName());
+            break;
+        }
+        case KVBoxEventType_OnStorageDeviceChanged:
+        {
+            CStorageDeviceChangedEvent comEventSpecific(pEvent);
+            emit sigStorageDeviceChange(comEventSpecific.GetStorageDevice(),
+                                        comEventSpecific.GetRemoved(),
+                                        comEventSpecific.GetSilent());
+            break;
+        }
+        case KVBoxEventType_OnMediumChanged:
+        {
+            CMediumChangedEvent comEventSpecific(pEvent);
+            emit sigMediumChange(comEventSpecific.GetMediumAttachment());
+            break;
+        }
+        case KVBoxEventType_OnMediumConfigChanged:
+        {
+            CMediumConfigChangedEvent comEventSpecific(pEvent);
+            emit sigMediumConfigChange(comEventSpecific.GetMedium());
+            break;
+        }
+        case KVBoxEventType_OnMediumRegistered:
+        {
+            CMediumRegisteredEvent comEventSpecific(pEvent);
+            emit sigMediumRegistered(comEventSpecific.GetMediumId(),
+                                     comEventSpecific.GetMediumType(),
+                                     comEventSpecific.GetRegistered());
+            break;
+        }
+
         case KVBoxEventType_OnMousePointerShapeChanged:
         {
             CMousePointerShapeChangedEvent comEventSpecific(pEvent);
-            emit sigMousePointerShapeChange(comEventSpecific.GetVisible(), comEventSpecific.GetAlpha(),
-                                            QPoint(comEventSpecific.GetXhot(), comEventSpecific.GetYhot()),
-                                            QSize(comEventSpecific.GetWidth(), comEventSpecific.GetHeight()),
-                                            comEventSpecific.GetShape());
+            UIMousePointerShapeData shapeData(comEventSpecific.GetVisible(),
+                                              comEventSpecific.GetAlpha(),
+                                              QPoint(comEventSpecific.GetXhot(), comEventSpecific.GetYhot()),
+                                              QSize(comEventSpecific.GetWidth(), comEventSpecific.GetHeight()),
+                                              comEventSpecific.GetShape());
+            emit sigMousePointerShapeChange(shapeData);
             break;
         }
         case KVBoxEventType_OnMouseCapabilityChanged:
@@ -346,20 +390,6 @@ STDMETHODIMP UIMainEventListener::HandleEvent(VBoxEventType_T, IEvent *pEvent)
         {
             CNetworkAdapterChangedEvent comEventSpecific(pEvent);
             emit sigNetworkAdapterChange(comEventSpecific.GetNetworkAdapter());
-            break;
-        }
-        case KVBoxEventType_OnStorageDeviceChanged:
-        {
-            CStorageDeviceChangedEvent comEventSpecific(pEvent);
-            emit sigStorageDeviceChange(comEventSpecific.GetStorageDevice(),
-                                        comEventSpecific.GetRemoved(),
-                                        comEventSpecific.GetSilent());
-            break;
-        }
-        case KVBoxEventType_OnMediumChanged:
-        {
-            CMediumChangedEvent comEventSpecific(pEvent);
-            emit sigMediumChange(comEventSpecific.GetMediumAttachment());
             break;
         }
         case KVBoxEventType_OnVRDEServerChanged:
@@ -439,6 +469,7 @@ STDMETHODIMP UIMainEventListener::HandleEvent(VBoxEventType_T, IEvent *pEvent)
             emit sigAudioAdapterChange();
             break;
         }
+
         case KVBoxEventType_OnProgressPercentageChanged:
         {
             CProgressPercentageChangedEvent comEventSpecific(pEvent);
@@ -451,9 +482,9 @@ STDMETHODIMP UIMainEventListener::HandleEvent(VBoxEventType_T, IEvent *pEvent)
             emit sigProgressTaskComplete(comEventSpecific.GetProgressId());
             break;
         }
+
         case KVBoxEventType_OnGuestSessionRegistered:
         {
-
             CGuestSessionRegisteredEvent comEventSpecific(pEvent);
             if (comEventSpecific.GetRegistered())
                 emit sigGuestSessionRegistered(comEventSpecific.GetSession());
@@ -488,7 +519,6 @@ STDMETHODIMP UIMainEventListener::HandleEvent(VBoxEventType_T, IEvent *pEvent)
             emit sigGuestProcessStateChanged(comEventSpecific);
             break;
         }
-
         case KVBoxEventType_OnGuestFileRegistered:
         case KVBoxEventType_OnGuestFileStateChanged:
         case KVBoxEventType_OnGuestFileOffsetChanged:
@@ -497,15 +527,25 @@ STDMETHODIMP UIMainEventListener::HandleEvent(VBoxEventType_T, IEvent *pEvent)
         {
             break;
         }
-
+        case KVBoxEventType_OnClipboardModeChanged:
+        {
+            CClipboardModeChangedEvent comEventSpecific(pEvent);
+            emit sigClipboardModeChange(comEventSpecific.GetClipboardMode());
+            break;
+        }
+        case KVBoxEventType_OnDnDModeChanged:
+        {
+            CDnDModeChangedEvent comEventSpecific(pEvent);
+            emit sigDnDModeChange(comEventSpecific.GetDndMode());
+            break;
+        }
         default: break;
     }
 
     /* Unlock COM cleanup protection token: */
-    vboxGlobal().comTokenUnlock();
+    uiCommon().comTokenUnlock();
 
     return S_OK;
 }
 
 #include "UIMainEventListener.moc"
-

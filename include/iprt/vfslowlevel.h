@@ -552,9 +552,8 @@ typedef struct RTVFSDIROPS
      * @retval  VERR_IS_A_SOCKET if @a pszEntry is a socket but @a fFlags indicates
      *          that sockets should not be opened.
      * @retval  VERR_IS_A_BLOCK_DEVICE if @a pszEntry is a block device but
-     *          @a fFlags indicates that block devices should not be opened.
-     * @retval  VERR_IS_A_BLOCK_DEVICE if @a pszEntry is a character device but
-     *          @a fFlags indicates that character devices should not be opened.
+     *          @a fFlags indicates that block devices should not be opened, or vice
+     *          versa.
      *
      * @param   pvThis      The implementation specific directory data.
      * @param   pszEntry    The name of the immediate file to open or create.
@@ -1022,7 +1021,7 @@ typedef struct RTVFSFILEOPS
      * @returns IPRT status code.
      * @param   pvThis      The implementation specific file data.
      * @param   pcbFile     Where to store the current file size.
-     * @sa      RTFileGetSize
+     * @sa      RTFileQuerySize
      */
     DECLCALLBACKMEMBER(int, pfnQuerySize)(void *pvThis, uint64_t *pcbFile);
 
@@ -1056,7 +1055,7 @@ typedef struct RTVFSFILEOPS
      * @param   pvThis      The implementation specific file data.
      * @param   pcbMax      Where to return the max file size.
      * @note    Optional.  If NULL, VERR_NOT_IMPLEMENTED will be returned.
-     * @sa      RTFileGetMaxSizeEx
+     * @sa      RTFileQueryMaxSizeEx
      */
     DECLCALLBACKMEMBER(int, pfnQueryMaxSize)(void *pvThis, uint64_t *pcbMax);
 

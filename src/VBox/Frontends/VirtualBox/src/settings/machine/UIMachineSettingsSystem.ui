@@ -23,78 +23,30 @@
       </attribute>
       <layout class="QGridLayout">
        <item row="0" column="0">
-        <widget class="QLabel" name="m_pLabelMemorySize">
+        <widget class="QLabel" name="m_pBaseMemoryLabel">
          <property name="text">
           <string>Base &amp;Memory:</string>
          </property>
          <property name="alignment">
           <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
          </property>
-         <property name="buddy">
-          <cstring>m_pEditorMemorySize</cstring>
-         </property>
         </widget>
        </item>
-       <item row="0" column="1" rowspan="2" colspan="2">
-        <widget class="QWidget">
+       <item row="0" column="1" rowspan="2" colspan="3">
+        <widget class="UIBaseMemoryEditor" name="m_pBaseMemoryEditor">
          <property name="sizePolicy">
           <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
            <horstretch>1</horstretch>
            <verstretch>0</verstretch>
           </sizepolicy>
          </property>
-         <layout class="QVBoxLayout">
-          <property name="spacing">
-           <number>0</number>
-          </property>
-          <item>
-           <widget class="UIGuestRAMSlider" name="m_pSliderMemorySize">
-            <property name="whatsThis">
-             <string>Controls the amount of memory provided to the virtual machine. If you assign too much, the machine might not start.</string>
-            </property>
-            <property name="orientation">
-             <enum>Qt::Horizontal</enum>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <layout class="QHBoxLayout">
-            <property name="spacing">
-             <number>0</number>
-            </property>
-            <item>
-             <widget class="QLabel" name="m_pLabelMemoryMin"/>
-            </item>
-            <item>
-             <spacer name="m_pSpacerHorizontal1">
-              <property name="orientation">
-               <enum>Qt::Horizontal</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>0</width>
-                <height>0</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-            <item>
-             <widget class="QLabel" name="m_pLabelMemoryMax"/>
-            </item>
-           </layout>
-          </item>
-         </layout>
-        </widget>
-       </item>
-       <item row="0" column="3">
-        <widget class="QSpinBox" name="m_pEditorMemorySize">
          <property name="whatsThis">
           <string>Controls the amount of memory provided to the virtual machine. If you assign too much, the machine might not start.</string>
          </property>
         </widget>
        </item>
        <item row="2" column="0">
-        <widget class="QLabel" name="m_pLabelBootOrder">
+        <widget class="QLabel" name="m_pBootOrderLabel">
          <property name="text">
           <string>&amp;Boot Order:</string>
          </property>
@@ -102,112 +54,24 @@
           <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
          </property>
          <property name="buddy">
-          <cstring>mTwBootOrder</cstring>
+          <cstring>m_pBootOrderEditor</cstring>
          </property>
         </widget>
        </item>
-       <item row="2" column="1" rowspan="2" colspan="2">
-        <layout class="QHBoxLayout" name="m_pLayoutBootOrder">
-         <property name="spacing">
-          <number>1</number>
+       <item row="2" column="1" rowspan="3" colspan="3">
+        <widget class="UIBootOrderEditor" name="m_pBootOrderEditor">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
          </property>
-         <item>
-          <widget class="UIBootTable" name="mTwBootOrder">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="whatsThis">
-            <string>Defines the boot device order. Use the checkboxes on the left to enable or disable individual boot devices. Move items up and down to change the device order.</string>
-           </property>
-           <property name="verticalScrollBarPolicy">
-            <enum>Qt::ScrollBarAlwaysOff</enum>
-           </property>
-           <property name="horizontalScrollBarPolicy">
-            <enum>Qt::ScrollBarAlwaysOff</enum>
-           </property>
-           <property name="alternatingRowColors">
-            <bool>true</bool>
-           </property>
-           <column>
-            <property name="text">
-             <string/>
-            </property>
-           </column>
-          </widget>
-         </item>
-         <item>
-          <layout class="QVBoxLayout" name="mLtBootOrderButtons">
-           <property name="spacing">
-            <number>0</number>
-           </property>
-           <item>
-            <widget class="QIToolButton" name="mTbBootItemUp">
-             <property name="focusPolicy">
-              <enum>Qt::StrongFocus</enum>
-             </property>
-             <property name="whatsThis">
-              <string>Moves the selected boot device up.</string>
-             </property>
-             <property name="text">
-              <string/>
-             </property>
-             <property name="icon">
-              <iconset>
-               <normaloff>../images/list_moveup_16px.png</normaloff>../images/list_moveup_16px.png</iconset>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QIToolButton" name="mTbBootItemDown">
-             <property name="focusPolicy">
-              <enum>Qt::StrongFocus</enum>
-             </property>
-             <property name="whatsThis">
-              <string>Moves the selected boot device down.</string>
-             </property>
-             <property name="text">
-              <string/>
-             </property>
-             <property name="icon">
-              <iconset>
-               <normaloff>../images/list_movedown_16px.png</normaloff>../images/list_movedown_16px.png</iconset>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <spacer name="m_pSpacerVertical1">
-             <property name="orientation">
-              <enum>Qt::Vertical</enum>
-             </property>
-             <property name="sizeHint" stdset="0">
-              <size>
-               <width>0</width>
-               <height>0</height>
-              </size>
-             </property>
-            </spacer>
-           </item>
-          </layout>
-         </item>
-         <item>
-          <spacer name="m_pSpacerHorizontal2">
-           <property name="orientation">
-            <enum>Qt::Horizontal</enum>
-           </property>
-           <property name="sizeHint" stdset="0">
-            <size>
-             <width>0</width>
-             <height>0</height>
-            </size>
-           </property>
-          </spacer>
-         </item>
-        </layout>
+         <property name="whatsThis">
+          <string>Defines the boot device order. Use the checkboxes on the left to enable or disable individual boot devices. Move items up and down to change the device order.</string>
+         </property>
+        </widget>
        </item>
-       <item row="4" column="0">
+       <item row="5" column="0">
         <widget class="QLabel" name="m_pLabelChipsetType">
          <property name="text">
           <string>&amp;Chipset:</string>
@@ -220,7 +84,7 @@
          </property>
         </widget>
        </item>
-       <item row="4" column="1" colspan="3">
+       <item row="5" column="1" colspan="3">
         <layout class="QHBoxLayout">
          <item>
           <widget class="QComboBox" name="m_pComboChipsetType">
@@ -250,7 +114,7 @@
          </item>
         </layout>
        </item>
-       <item row="5" column="0">
+       <item row="6" column="0">
         <widget class="QLabel" name="m_pLabelPointingHIDType">
          <property name="text">
           <string>&amp;Pointing Device:</string>
@@ -263,7 +127,7 @@
          </property>
         </widget>
        </item>
-       <item row="5" column="1" colspan="3">
+       <item row="6" column="1" colspan="3">
         <layout class="QHBoxLayout">
          <item>
           <widget class="QComboBox" name="m_pComboPointingHIDType" >
@@ -293,7 +157,7 @@
          </item>
         </layout>
        </item>
-       <item row="6" column="0">
+       <item row="7" column="0">
         <widget class="QLabel" name="m_pLabelMotherboardExtended">
          <property name="text">
           <string>Extended Features:</string>
@@ -303,7 +167,7 @@
          </property>
         </widget>
        </item>
-       <item row="6" column="1" colspan="3">
+       <item row="7" column="1" colspan="3">
         <widget class="QCheckBox" name="m_pCheckBoxApic">
          <property name="whatsThis">
           <string>When checked, the virtual machine will support the Input Output APIC (I/O APIC), which may slightly decrease performance. &lt;b&gt;Note:&lt;/b&gt; don't disable this feature after having installed a Windows guest operating system!</string>
@@ -313,7 +177,7 @@
          </property>
         </widget>
        </item>
-       <item row="7" column="1" colspan="3">
+       <item row="8" column="1" colspan="3">
         <widget class="QCheckBox" name="m_pCheckBoxEFI">
          <property name="whatsThis">
           <string>When checked, the guest will support the Extended Firmware Interface (EFI), which is required to boot certain guest OSes. Non-EFI aware OSes will not be able to boot if this option is activated.</string>
@@ -323,7 +187,7 @@
          </property>
         </widget>
        </item>
-       <item row="8" column="1" colspan="3">
+       <item row="9" column="1" colspan="3">
         <widget class="QCheckBox" name="m_pCheckBoxUseUTC" >
          <property name="whatsThis" >
           <string>When checked, the RTC device will report the time in UTC, otherwise in local (host) time. Unix usually expects the hardware clock to be set to UTC.</string>
@@ -333,7 +197,7 @@
          </property>
         </widget>
        </item>
-       <item row="9" column="0" colspan="4">
+       <item row="10" column="0" colspan="4">
         <spacer name="m_pSpacerVertical2">
          <property name="orientation">
           <enum>Qt::Vertical</enum>
@@ -549,14 +413,14 @@
           <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
          </property>
          <property name="buddy">
-          <cstring>m_pComboParavirtProvider</cstring>
+          <cstring>m_pComboParavirtProviderType</cstring>
          </property>
         </widget>
        </item>
        <item row="0" column="1">
         <layout class="QHBoxLayout">
          <item>
-          <widget class="QComboBox" name="m_pComboParavirtProvider">
+          <widget class="QComboBox" name="m_pComboParavirtProviderType">
            <property name="sizePolicy">
             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
              <horstretch>0</horstretch>
@@ -657,9 +521,9 @@
  </widget>
  <customwidgets>
   <customwidget>
-   <class>UIBootTable</class>
-   <extends>QListWidget</extends>
-   <header>UIBootTable.h</header>
+   <class>UIBootOrderEditor</class>
+   <extends>QWidget</extends>
+   <header>UIBootOrderEditor.h</header>
   </customwidget>
   <customwidget>
    <class>QIAdvancedSlider</class>
@@ -667,9 +531,9 @@
    <header>QIAdvancedSlider.h</header>
   </customwidget>
   <customwidget>
-   <class>UIGuestRAMSlider</class>
-   <extends>QIAdvancedSlider</extends>
-   <header>UIGuestRAMSlider.h</header>
+   <class>UIBaseMemoryEditor</class>
+   <extends>QWidget</extends>
+   <header>UIBaseMemoryEditor.h</header>
   </customwidget>
   <customwidget>
    <class>QIToolButton</class>

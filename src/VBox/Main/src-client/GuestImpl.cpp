@@ -79,19 +79,16 @@ HRESULT Guest::init(Console *aParent)
 
     unconst(mParent) = aParent;
 
-    /* Confirm a successful initialization when it's the case */
-    autoInitSpan.setSucceeded();
-
-    ULONG aMemoryBalloonSize;
+    ULONG aMemoryBalloonSize = 0;
     HRESULT hr = mParent->i_machine()->COMGETTER(MemoryBalloonSize)(&aMemoryBalloonSize);
-    if (hr == S_OK) /** @todo r=andy SUCCEEDED? */
+    if (SUCCEEDED(hr))
         mMemoryBalloonSize = aMemoryBalloonSize;
     else
         mMemoryBalloonSize = 0; /* Default is no ballooning */
 
-    BOOL fPageFusionEnabled;
+    BOOL fPageFusionEnabled = FALSE;
     hr = mParent->i_machine()->COMGETTER(PageFusionEnabled)(&fPageFusionEnabled);
-    if (hr == S_OK) /** @todo r=andy SUCCEEDED? */
+    if (SUCCEEDED(hr))
         mfPageFusionEnabled = fPageFusionEnabled;
     else
         mfPageFusionEnabled = false; /* Default is no page fusion*/
@@ -110,9 +107,7 @@ HRESULT Guest::init(Console *aParent)
     RT_ZERO(mCurrentGuestCpuIdleStat);
 
     mMagic = GUEST_MAGIC;
-    int vrc = RTTimerLRCreate(&mStatTimer, 1000 /* ms */,
-                              &Guest::i_staticUpdateStats, this);
-    AssertMsgRC(vrc, ("Failed to create guest statistics update timer (%Rrc)\n", vrc));
+    mStatTimer = NIL_RTTIMERLR;
 
     hr = unconst(mEventSource).createObject();
     if (SUCCEEDED(hr))
@@ -121,26 +116,35 @@ HRESULT Guest::init(Console *aParent)
     mCpus = 1;
 
 #ifdef VBOX_WITH_DRAG_AND_DROP
-    try
+    if (SUCCEEDED(hr))
     {
-        GuestDnD::createInstance(this /* pGuest */);
-        hr = unconst(mDnDSource).createObject();
-        if (SUCCEEDED(hr))
-            hr = mDnDSource->init(this /* pGuest */);
-        if (SUCCEEDED(hr))
+        try
         {
-            hr = unconst(mDnDTarget).createObject();
+            GuestDnD::createInstance(this /* pGuest */);
+            hr = unconst(mDnDSource).createObject();
             if (SUCCEEDED(hr))
-                hr = mDnDTarget->init(this /* pGuest */);
-        }
+                hr = mDnDSource->init(this /* pGuest */);
+            if (SUCCEEDED(hr))
+            {
+                hr = unconst(mDnDTarget).createObject();
+                if (SUCCEEDED(hr))
+                    hr = mDnDTarget->init(this /* pGuest */);
+            }
 
-        LogFlowFunc(("Drag and drop initializied with hr=%Rhrc\n", hr));
-    }
-    catch (std::bad_alloc &)
-    {
-        hr = E_OUTOFMEMORY;
+            LogFlowFunc(("Drag and drop initializied with hr=%Rhrc\n", hr));
+        }
+        catch (std::bad_alloc &)
+        {
+            hr = E_OUTOFMEMORY;
+        }
     }
 #endif
+
+    /* Confirm a successful initialization when it's the case: */
+    if (SUCCEEDED(hr))
+        autoInitSpan.setSucceeded();
+    else
+        autoInitSpan.setFailed();
 
     LogFlowFunc(("hr=%Rhrc\n", hr));
     return hr;
@@ -162,7 +166,7 @@ void Guest::uninit()
     /* Destroy stat update timer */
     int vrc = RTTimerLRDestroy(mStatTimer);
     AssertMsgRC(vrc, ("Failed to create guest statistics update timer(%Rra)\n", vrc));
-    mStatTimer = NULL;
+    mStatTimer = NIL_RTTIMERLR;
     mMagic     = 0;
 
 #ifdef VBOX_WITH_GUEST_CONTROL
@@ -172,6 +176,11 @@ void Guest::uninit()
     while (itSessions != mData.mGuestSessions.end())
     {
 # ifdef DEBUG
+/** @todo r=bird: hit a use-after-free situation here while debugging the
+ * 0xcccccccc status code issue in copyto.  My bet is that this happens
+ * because of an uninit race, where GuestSession::close(), or someone, does
+ * not ensure that the parent object (Guest) is okay to use (in the AutoCaller
+ * sense), only their own object. */
         ULONG cRefs = itSessions->second->AddRef();
         LogFlowThisFunc(("sessionID=%RU32, cRefs=%RU32\n", itSessions->first, cRefs > 1 ? cRefs - 1 : 0));
         itSessions->second->Release();
@@ -375,8 +384,8 @@ HRESULT Guest::getOSTypeId(com::Utf8Str &aOSTypeId)
         /* Redirect the call to IMachine if no additions are installed. */
         ComPtr<IMachine> ptrMachine(mParent->i_machine());
         alock.release();
-        BSTR bstr;
-        hrc = ptrMachine->COMGETTER(OSTypeId)(&bstr);
+        Bstr bstr;
+        hrc = ptrMachine->COMGETTER(OSTypeId)(bstr.asOutParam());
         aOSTypeId = bstr;
     }
     return hrc;
@@ -615,22 +624,42 @@ HRESULT Guest::setStatisticsUpdateInterval(ULONG aStatisticsUpdateInterval)
 {
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (mStatUpdateInterval)
-        if (aStatisticsUpdateInterval == 0)
-            RTTimerLRStop(mStatTimer);
-        else
-            RTTimerLRChangeInterval(mStatTimer, aStatisticsUpdateInterval);
-    else
-        if (aStatisticsUpdateInterval != 0)
+    /* Update the timer, creating it the first time we're called with a non-zero value. */
+    int vrc;
+    HRESULT hrc = S_OK;
+    if (aStatisticsUpdateInterval > 0)
+    {
+        if (mStatTimer == NIL_RTTIMERLR)
         {
-            RTTimerLRChangeInterval(mStatTimer, aStatisticsUpdateInterval);
-            RTTimerLRStart(mStatTimer, 0);
+            vrc = RTTimerLRCreate(&mStatTimer, aStatisticsUpdateInterval * RT_MS_1SEC, &Guest::i_staticUpdateStats, this);
+            AssertRCStmt(vrc, hrc = setErrorVrc(vrc, "Failed to create guest statistics update timer (%Rrc)", vrc));
         }
+        else if (aStatisticsUpdateInterval != mStatUpdateInterval)
+        {
+            vrc = RTTimerLRChangeInterval(mStatTimer, aStatisticsUpdateInterval * RT_NS_1SEC_64);
+            AssertRCStmt(vrc, hrc = setErrorVrc(vrc, "Failed to change guest statistics update timer interval from %u to %u failed (%Rrc)",
+                                                mStatUpdateInterval, aStatisticsUpdateInterval, vrc));
+            if (mStatUpdateInterval == 0)
+            {
+                vrc = RTTimerLRStart(mStatTimer, 0);
+                AssertRCStmt(vrc, hrc = setErrorVrc(vrc, "Failed to start the guest statistics update timer (%Rrc)", vrc));
+            }
+        }
+    }
+    /* Setting interval to zero - stop the update timer if needed: */
+    else if (mStatUpdateInterval > 0 && mStatTimer != NIL_RTTIMERLR)
+    {
+        vrc = RTTimerLRStop(mStatTimer);
+        AssertRCStmt(vrc, hrc = setErrorVrc(vrc, "Failed to stop the guest statistics update timer (%Rrc)", vrc));
+    }
+
+    /* Update the interval now that the timer is in sync. */
     mStatUpdateInterval = aStatisticsUpdateInterval;
-    /* forward the information to the VMM device */
+
+    /* Forward the information to the VMM device.
+       MUST release all locks before calling VMM device as its critsect
+       has higher lock order than anything in Main. */
     VMMDev *pVMMDev = mParent->i_getVMMDev();
-    /* MUST release all locks before calling VMM device as its critsect
-     * has higher lock order than anything in Main. */
     alock.release();
     if (pVMMDev)
     {
@@ -639,7 +668,7 @@ HRESULT Guest::setStatisticsUpdateInterval(ULONG aStatisticsUpdateInterval)
             pVMMDevPort->pfnSetStatisticsInterval(pVMMDevPort, aStatisticsUpdateInterval);
     }
 
-    return S_OK;
+    return hrc;
 }
 
 
@@ -654,11 +683,11 @@ HRESULT Guest::internalGetStatistics(ULONG *aCpuUser, ULONG *aCpuKernel, ULONG *
     *aCpuUser    = mCurrentGuestStat[GUESTSTATTYPE_CPUUSER];
     *aCpuKernel  = mCurrentGuestStat[GUESTSTATTYPE_CPUKERNEL];
     *aCpuIdle    = mCurrentGuestStat[GUESTSTATTYPE_CPUIDLE];
-    *aMemTotal   = mCurrentGuestStat[GUESTSTATTYPE_MEMTOTAL] * (_4K/_1K);     /* page (4K) -> 1KB units */
-    *aMemFree    = mCurrentGuestStat[GUESTSTATTYPE_MEMFREE] * (_4K/_1K);       /* page (4K) -> 1KB units */
+    *aMemTotal   = mCurrentGuestStat[GUESTSTATTYPE_MEMTOTAL]   * (_4K/_1K); /* page (4K) -> 1KB units */
+    *aMemFree    = mCurrentGuestStat[GUESTSTATTYPE_MEMFREE]    * (_4K/_1K); /* page (4K) -> 1KB units */
     *aMemBalloon = mCurrentGuestStat[GUESTSTATTYPE_MEMBALLOON] * (_4K/_1K); /* page (4K) -> 1KB units */
-    *aMemCache   = mCurrentGuestStat[GUESTSTATTYPE_MEMCACHE] * (_4K/_1K);     /* page (4K) -> 1KB units */
-    *aPageTotal  = mCurrentGuestStat[GUESTSTATTYPE_PAGETOTAL] * (_4K/_1K);   /* page (4K) -> 1KB units */
+    *aMemCache   = mCurrentGuestStat[GUESTSTATTYPE_MEMCACHE]   * (_4K/_1K); /* page (4K) -> 1KB units */
+    *aPageTotal  = mCurrentGuestStat[GUESTSTATTYPE_PAGETOTAL]  * (_4K/_1K); /* page (4K) -> 1KB units */
 
     /* Play safe or smth? */
     *aMemAllocTotal   = 0;
@@ -1013,14 +1042,22 @@ bool Guest::i_facilityUpdate(VBoxGuestFacilityType a_enmFacility, VBoxGuestFacil
         }
 
         ComObjPtr<AdditionsFacility> ptrFac;
-        ptrFac.createObject();
-        AssertReturn(!ptrFac.isNull(), false);
-
-        HRESULT hrc = ptrFac->init(this, (AdditionsFacilityType_T)a_enmFacility, (AdditionsFacilityStatus_T)a_enmStatus,
-                                   a_fFlags, a_pTimeSpecTS);
+        HRESULT hrc = ptrFac.createObject();
         AssertComRCReturn(hrc, false);
-        mData.mFacilityMap.insert(std::make_pair((AdditionsFacilityType_T)a_enmFacility, ptrFac));
-        fChanged = true;
+        Assert(ptrFac);
+
+        hrc = ptrFac->init(this, (AdditionsFacilityType_T)a_enmFacility, (AdditionsFacilityStatus_T)a_enmStatus,
+                           a_fFlags, a_pTimeSpecTS);
+        AssertComRCReturn(hrc, false);
+        try
+        {
+            mData.mFacilityMap.insert(std::make_pair((AdditionsFacilityType_T)a_enmFacility, ptrFac));
+            fChanged = true;
+        }
+        catch (std::bad_alloc &)
+        {
+            fChanged = false;
+        }
     }
     return fChanged;
 }
@@ -1129,8 +1166,22 @@ void Guest::i_setSupportedFeatures(uint32_t aCaps)
     RTTIMESPEC TimeSpecTS;
     RTTimeNow(&TimeSpecTS);
 
-    i_facilityUpdate(VBoxGuestFacilityType_Seamless,
-                     aCaps & VMMDEV_GUEST_SUPPORTS_SEAMLESS ? VBoxGuestFacilityStatus_Active : VBoxGuestFacilityStatus_Inactive,
-                     0 /*fFlags*/, &TimeSpecTS);
+    bool fFireEvent = i_facilityUpdate(VBoxGuestFacilityType_Seamless,
+                                       aCaps & VMMDEV_GUEST_SUPPORTS_SEAMLESS
+                                       ? VBoxGuestFacilityStatus_Active : VBoxGuestFacilityStatus_Inactive,
+                                       0 /*fFlags*/, &TimeSpecTS);
     /** @todo Add VMMDEV_GUEST_SUPPORTS_GUEST_HOST_WINDOW_MAPPING */
+
+    /*
+     * Fire event if the state actually changed.
+     */
+    if (fFireEvent)
+    {
+        AdditionsRunLevelType_T const enmRunLevel = mData.mAdditionsRunLevel;
+        alock.release();
+        fireGuestAdditionsStatusChangedEvent(mEventSource, AdditionsFacilityType_Seamless,
+                                             aCaps & VMMDEV_GUEST_SUPPORTS_SEAMLESS
+                                             ? AdditionsFacilityStatus_Active : AdditionsFacilityStatus_Inactive, enmRunLevel,
+                                             RTTimeSpecGetMilli(&TimeSpecTS));
+    }
 }

@@ -23,7 +23,7 @@
 #include <QTimer>
 
 /* GUI includes: */
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #include "UIConverter.h"
 #include "UIModalWindowManager.h"
 #include "UIExtraDataManager.h"
@@ -43,6 +43,7 @@
 
 /* COM includes: */
 #include "CConsole.h"
+#include "CGraphicsAdapter.h"
 #include "CSnapshot.h"
 
 /* Other VBox includes: */
@@ -130,10 +131,10 @@ void UIMachineWindow::prepare()
     const QString strWindowClass = QString("VirtualBox Machine");
     QString strWindowName = strWindowClass;
     /* Check if we want Window Manager to distinguish Virtual Machine windows: */
-    if (gEDataManager->distinguishMachineWindowGroups(vboxGlobal().managedVMUuid()))
-        strWindowName = QString("VirtualBox Machine UUID: %1").arg(vboxGlobal().managedVMUuid().toString());
+    if (gEDataManager->distinguishMachineWindowGroups(uiCommon().managedVMUuid()))
+        strWindowName = QString("VirtualBox Machine UUID: %1").arg(uiCommon().managedVMUuid().toString());
     /* Assign WM_CLASS property: */
-    VBoxGlobal::setWMClass(this, strWindowName, strWindowClass);
+    UICommon::setWMClass(this, strWindowName, strWindowClass);
 #endif
 }
 
@@ -312,7 +313,7 @@ void UIMachineWindow::closeEvent(QCloseEvent *pCloseEvent)
         return;
 
     /* If there is a close hook script defined: */
-    const QString strScript = gEDataManager->machineCloseHookScript(vboxGlobal().managedVMUuid());
+    const QString strScript = gEDataManager->machineCloseHookScript(uiCommon().managedVMUuid());
     if (!strScript.isEmpty())
     {
         /* Execute asynchronously and leave: */
@@ -374,7 +375,7 @@ void UIMachineWindow::closeEvent(QCloseEvent *pCloseEvent)
                 if (!fIsPaused)
                 {
                     /* If that is NOT the separate VM process UI: */
-                    if (!vboxGlobal().isSeparateProcess())
+                    if (!uiCommon().isSeparateProcess())
                     {
                         /* We are not going to show close-dialog: */
                         fShowCloseDialog = false;
@@ -464,7 +465,7 @@ void UIMachineWindow::closeEvent(QCloseEvent *pCloseEvent)
 void UIMachineWindow::prepareSessionConnections()
 {
     /* We should watch for console events: */
-    connect(uisession(), SIGNAL(sigMachineStateChange()), this, SLOT(sltMachineStateChanged()));
+    connect(uisession(), &UISession::sigMachineStateChange, this, &UIMachineWindow::sltMachineStateChanged);
 }
 
 void UIMachineWindow::prepareMainLayout()
@@ -494,7 +495,7 @@ void UIMachineWindow::prepareMachineView()
 {
 #ifdef VBOX_WITH_VIDEOHWACCEL
     /* Need to force the QGL framebuffer in case 2D Video Acceleration is supported & enabled: */
-    bool bAccelerate2DVideo = machine().GetAccelerate2DVideoEnabled() && VBox2DHelpers::isAcceleration2DVideoAvailable();
+    bool bAccelerate2DVideo = machine().GetGraphicsAdapter().GetAccelerate2DVideoEnabled() && VBox2DHelpers::isAcceleration2DVideoAvailable();
 #endif /* VBOX_WITH_VIDEOHWACCEL */
 
     /* Get visual-state type: */
@@ -510,7 +511,7 @@ void UIMachineWindow::prepareMachineView()
                                            );
 
     /* Listen for frame-buffer resize: */
-    connect(m_pMachineView, SIGNAL(sigFrameBufferResize()), this, SIGNAL(sigFrameBufferResize()));
+    connect(m_pMachineView, &UIMachineView::sigFrameBufferResize, this, &UIMachineWindow::sigFrameBufferResize);
 
     /* Add machine-view into main-layout: */
     m_pMainLayout->addWidget(m_pMachineView, 1, 1, viewAlignment(visualStateType));
@@ -547,7 +548,7 @@ void UIMachineWindow::cleanupMachineView()
 void UIMachineWindow::cleanupSessionConnections()
 {
     /* We should stop watching for console events: */
-    disconnect(uisession(), SIGNAL(sigMachineStateChange()), this, SLOT(sltMachineStateChanged()));
+    disconnect(uisession(), &UISession::sigMachineStateChange, this, &UIMachineWindow::sltMachineStateChanged);
 }
 
 void UIMachineWindow::updateAppearanceOf(int iElement)
@@ -572,7 +573,7 @@ void UIMachineWindow::updateAppearanceOf(int iElement)
         const QString strUserProductName = uisession()->machineWindowNamePostfix();
         strMachineName += " - " + (strUserProductName.isEmpty() ? defaultWindowTitle() : strUserProductName);
 #endif /* !VBOX_WS_MAC */
-        if (machine().GetMonitorCount() > 1)
+        if (machine().GetGraphicsAdapter().GetMonitorCount() > 1)
             strMachineName += QString(" : %1").arg(m_uScreenId + 1);
         setWindowTitle(strMachineName);
     }

@@ -24,7 +24,7 @@
 #include <VBox/vmm/tm.h>
 #include "GIMInternal.h"
 #include "GIMHvInternal.h"
-#include <VBox/vmm/vm.h>
+#include <VBox/vmm/vmcc.h>
 
 #include <VBox/err.h>
 
@@ -92,7 +92,7 @@ static void gimR0HvPageFree(PRTR0MEMOBJ pMemObj, PRTR0PTR ppVirt, PRTHCPHYS pHCP
  * @param   u64Offset   The computed TSC offset.
  * @thread  EMT.
  */
-VMM_INT_DECL(int) gimR0HvUpdateParavirtTsc(PVM pVM, uint64_t u64Offset)
+VMM_INT_DECL(int) gimR0HvUpdateParavirtTsc(PVMCC pVM, uint64_t u64Offset)
 {
     Assert(GIMIsEnabled(pVM));
     bool fHvTscEnabled = MSR_GIM_HV_REF_TSC_IS_ENABLED(pVM->gim.s.u.Hv.u64TscPageMsr);
@@ -149,7 +149,7 @@ VMM_INT_DECL(int) gimR0HvUpdateParavirtTsc(PVM pVM, uint64_t u64Offset)
  * @returns VBox status code.
  * @param   pVM     The cross context VM structure.
  */
-VMMR0_INT_DECL(int) gimR0HvInitVM(PVM pVM)
+VMMR0_INT_DECL(int) gimR0HvInitVM(PVMCC pVM)
 {
     AssertPtr(pVM);
     Assert(GIMIsEnabled(pVM));
@@ -168,7 +168,7 @@ VMMR0_INT_DECL(int) gimR0HvInitVM(PVM pVM)
  * @returns VBox status code.
  * @param   pVM     The cross context VM structure.
  */
-VMMR0_INT_DECL(int) gimR0HvTermVM(PVM pVM)
+VMMR0_INT_DECL(int) gimR0HvTermVM(PVMCC pVM)
 {
     AssertPtr(pVM);
     Assert(GIMIsEnabled(pVM));

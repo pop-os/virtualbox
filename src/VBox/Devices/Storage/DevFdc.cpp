@@ -48,14 +48,23 @@
 #define LOG_GROUP LOG_GROUP_DEV_FDC
 #include <VBox/vmm/pdmdev.h>
 #include <VBox/vmm/pdmstorageifs.h>
+#include <VBox/AssertGuest.h>
 #include <iprt/assert.h>
 #include <iprt/string.h>
 #include <iprt/uuid.h>
 
 #include "VBoxDD.h"
 
-#define FDC_SAVESTATE_CURRENT   2       /* The new and improved saved state. */
-#define FDC_SAVESTATE_OLD       1       /* The original saved state. */
+
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
+/** @name FDC saved state versions
+ * @{ */
+#define FDC_SAVESTATE_CURRENT   3       /**< Current version. */
+#define FDC_SAVESTATE_PRE_DELAY 2       /**< Pre IRQDelay. */
+#define FDC_SAVESTATE_OLD       1       /**< The original saved state. */
+/** @}*/
 
 #define MAX_FD 2
 
@@ -64,29 +73,15 @@
 /* debug Floppy devices */
 /* #define DEBUG_FLOPPY */
 
-#ifndef VBOX
-    #ifdef DEBUG_FLOPPY
-    #define FLOPPY_DPRINTF(fmt, args...) \
-        do { printf("FLOPPY: " fmt , ##args); } while (0)
-    #endif
-#else /* !VBOX */
-# ifdef LOG_ENABLED
-#  define FLOPPY_DPRINTF(...) Log(("floppy: " __VA_ARGS__))
-# else
-#  define FLOPPY_DPRINTF(...) do { } while (0)
-# endif
-#endif /* !VBOX */
+#ifdef LOG_ENABLED
+# define FLOPPY_DPRINTF(...) Log(("floppy: " __VA_ARGS__))
+#else
+# define FLOPPY_DPRINTF(...) do { } while (0)
+#endif
 
-#ifndef VBOX
-#define FLOPPY_ERROR(fmt, args...) \
-    do { printf("FLOPPY ERROR: %s: " fmt, __func__ , ##args); } while (0)
-#else /* VBOX */
-#   define FLOPPY_ERROR RTLogPrintf
-#endif /* VBOX */
+#define FLOPPY_ERROR RTLogPrintf
 
-#ifdef VBOX
 typedef struct fdctrl_t fdctrl_t;
-#endif /* VBOX */
 
 /********************************************************/
 /* Floppy drive emulation                               */
@@ -100,23 +95,13 @@ typedef struct fdctrl_t fdctrl_t;
 #define FD_RESET_SENSEI_COUNT  4   /* Number of sense interrupts on RESET */
 
 /* Floppy disk drive emulation */
-typedef enum fdisk_type_t {
-    FDRIVE_DISK_288   = 0x01, /* 2.88 MB disk           */
-    FDRIVE_DISK_144   = 0x02, /* 1.44 MB disk           */
-    FDRIVE_DISK_720   = 0x03, /* 720 kB disk            */
-    FDRIVE_DISK_USER  = 0x04, /* User defined geometry  */
-    FDRIVE_DISK_NONE  = 0x05  /* No disk                */
-} fdisk_type_t;
-
 typedef enum fdrive_type_t {
     FDRIVE_DRV_144  = 0x00,   /* 1.44 MB 3"5 drive      */
     FDRIVE_DRV_288  = 0x01,   /* 2.88 MB 3"5 drive      */
     FDRIVE_DRV_120  = 0x02,   /* 1.2  MB 5"25 drive     */
-    FDRIVE_DRV_NONE = 0x03    /* No drive connected     */
-#ifdef VBOX
-    , FDRIVE_DRV_FAKE_15_6 = 0x0e /* Fake 15.6 MB drive. */
-    , FDRIVE_DRV_FAKE_63_5 = 0x0f /* Fake 63.5 MB drive. */
-#endif
+    FDRIVE_DRV_NONE = 0x03,   /* No drive connected     */
+    FDRIVE_DRV_FAKE_15_6 = 0x0e, /* Fake 15.6 MB drive. */
+    FDRIVE_DRV_FAKE_63_5 = 0x0f  /* Fake 63.5 MB drive. */
 } fdrive_type_t;
 
 typedef uint8_t fdrive_flags_t;
@@ -137,9 +122,6 @@ typedef enum fdrive_rate_t {
  * @implements  PDMIMOUNTNOTIFY
  */
 typedef struct fdrive_t {
-#ifndef VBOX
-    BlockDriverState *bs;
-#else /* VBOX */
     /** Pointer to the owning device instance. */
     R3PTRTYPE(PPDMDEVINS)           pDevIns;
     /** Pointer to the attached driver's base interface. */
@@ -159,7 +141,6 @@ typedef struct fdrive_t {
     RTUINT                          iLUN;
     /** The LED for this LUN. */
     PDMLED                          Led;
-#endif
     /* Drive status */
     fdrive_type_t drive;
     uint8_t perpendicular;    /* 2.88 MB access mode    */
@@ -183,9 +164,6 @@ typedef struct fdrive_t {
 static void fd_init(fdrive_t *drv, bool fInit)
 {
     /* Drive */
-#ifndef VBOX
-    drv->drive = FDRIVE_DRV_NONE;
-#else  /* VBOX */
     if (fInit) {
         /* Fixate the drive type at init time if possible. */
         if (drv->pDrvMedia) {
@@ -217,7 +195,6 @@ static void fd_init(fdrive_t *drv, bool fInit)
         }
     } /* else: The BIOS (and others) get the drive type via the CMOS, so
                don't change it after the VM has been constructed. */
-#endif /* VBOX */
     drv->perpendicular = 0;
     /* Disk */
     drv->last_sect = 0;
@@ -307,7 +284,6 @@ static void fd_recalibrate(fdrive_t *drv)
 /* Recognize floppy formats */
 typedef struct fd_format_t {
     fdrive_type_t drive;
-    fdisk_type_t  disk;
     uint8_t last_sect;      /**< Number of sectors. */
     uint8_t max_track;      /**< Number of tracks. */
     uint8_t max_head;       /**< Max head number. */
@@ -321,103 +297,102 @@ typedef struct fd_format_t {
 static fd_format_t fd_formats[] = {
     /* First entry is default format */
     /* 1.44 MB 3"1/2 floppy disks */
-    { FDRIVE_DRV_144, FDRIVE_DISK_144, 18, 80, 1, FDRIVE_RATE_500K, "1.44 MB 3\"1/2", },
-    { FDRIVE_DRV_144, FDRIVE_DISK_144, 20, 80, 1, FDRIVE_RATE_500K,  "1.6 MB 3\"1/2", },
-    { FDRIVE_DRV_144, FDRIVE_DISK_144, 21, 80, 1, FDRIVE_RATE_500K, "1.68 MB 3\"1/2", },
-    { FDRIVE_DRV_144, FDRIVE_DISK_144, 21, 82, 1, FDRIVE_RATE_500K, "1.72 MB 3\"1/2", },
-    { FDRIVE_DRV_144, FDRIVE_DISK_144, 21, 83, 1, FDRIVE_RATE_500K, "1.74 MB 3\"1/2", },
-    { FDRIVE_DRV_144, FDRIVE_DISK_144, 22, 80, 1, FDRIVE_RATE_500K, "1.76 MB 3\"1/2", },
-    { FDRIVE_DRV_144, FDRIVE_DISK_144, 23, 80, 1, FDRIVE_RATE_500K, "1.84 MB 3\"1/2", },
-    { FDRIVE_DRV_144, FDRIVE_DISK_144, 24, 80, 1, FDRIVE_RATE_500K, "1.92 MB 3\"1/2", },
+    { FDRIVE_DRV_144, 18, 80, 1, FDRIVE_RATE_500K, "1.44 MB 3\"1/2", },
+    { FDRIVE_DRV_144, 20, 80, 1, FDRIVE_RATE_500K,  "1.6 MB 3\"1/2", },
+    { FDRIVE_DRV_144, 21, 80, 1, FDRIVE_RATE_500K, "1.68 MB 3\"1/2", },
+    { FDRIVE_DRV_144, 21, 82, 1, FDRIVE_RATE_500K, "1.72 MB 3\"1/2", },
+    { FDRIVE_DRV_144, 21, 83, 1, FDRIVE_RATE_500K, "1.74 MB 3\"1/2", },
+    { FDRIVE_DRV_144, 22, 80, 1, FDRIVE_RATE_500K, "1.76 MB 3\"1/2", },
+    { FDRIVE_DRV_144, 23, 80, 1, FDRIVE_RATE_500K, "1.84 MB 3\"1/2", },
+    { FDRIVE_DRV_144, 24, 80, 1, FDRIVE_RATE_500K, "1.92 MB 3\"1/2", },
     /* 2.88 MB 3"1/2 floppy disks */
-    { FDRIVE_DRV_288, FDRIVE_DISK_288, 36, 80, 1, FDRIVE_RATE_1M,   "2.88 MB 3\"1/2", },
-    { FDRIVE_DRV_288, FDRIVE_DISK_288, 39, 80, 1, FDRIVE_RATE_1M,   "3.12 MB 3\"1/2", },
-    { FDRIVE_DRV_288, FDRIVE_DISK_288, 40, 80, 1, FDRIVE_RATE_1M,    "3.2 MB 3\"1/2", },
-    { FDRIVE_DRV_288, FDRIVE_DISK_288, 44, 80, 1, FDRIVE_RATE_1M,   "3.52 MB 3\"1/2", },
-    { FDRIVE_DRV_288, FDRIVE_DISK_288, 48, 80, 1, FDRIVE_RATE_1M,   "3.84 MB 3\"1/2", },
+    { FDRIVE_DRV_288, 36, 80, 1, FDRIVE_RATE_1M,   "2.88 MB 3\"1/2", },
+    { FDRIVE_DRV_288, 39, 80, 1, FDRIVE_RATE_1M,   "3.12 MB 3\"1/2", },
+    { FDRIVE_DRV_288, 40, 80, 1, FDRIVE_RATE_1M,    "3.2 MB 3\"1/2", },
+    { FDRIVE_DRV_288, 44, 80, 1, FDRIVE_RATE_1M,   "3.52 MB 3\"1/2", },
+    { FDRIVE_DRV_288, 48, 80, 1, FDRIVE_RATE_1M,   "3.84 MB 3\"1/2", },
     /* 720 kB 3"1/2 floppy disks */
-    { FDRIVE_DRV_144, FDRIVE_DISK_720,  9, 80, 1, FDRIVE_RATE_250K,  "720 kB 3\"1/2", },
-    { FDRIVE_DRV_144, FDRIVE_DISK_720, 10, 80, 1, FDRIVE_RATE_250K,  "800 kB 3\"1/2", },
-    { FDRIVE_DRV_144, FDRIVE_DISK_720, 10, 82, 1, FDRIVE_RATE_250K,  "820 kB 3\"1/2", },
-    { FDRIVE_DRV_144, FDRIVE_DISK_720, 10, 83, 1, FDRIVE_RATE_250K,  "830 kB 3\"1/2", },
-    { FDRIVE_DRV_144, FDRIVE_DISK_720, 13, 80, 1, FDRIVE_RATE_250K, "1.04 MB 3\"1/2", },
-    { FDRIVE_DRV_144, FDRIVE_DISK_720, 14, 80, 1, FDRIVE_RATE_250K, "1.12 MB 3\"1/2", },
+    { FDRIVE_DRV_144,  9, 80, 1, FDRIVE_RATE_250K,  "720 kB 3\"1/2", },
+    { FDRIVE_DRV_144, 10, 80, 1, FDRIVE_RATE_250K,  "800 kB 3\"1/2", },
+    { FDRIVE_DRV_144, 10, 82, 1, FDRIVE_RATE_250K,  "820 kB 3\"1/2", },
+    { FDRIVE_DRV_144, 10, 83, 1, FDRIVE_RATE_250K,  "830 kB 3\"1/2", },
+    { FDRIVE_DRV_144, 13, 80, 1, FDRIVE_RATE_250K, "1.04 MB 3\"1/2", },
+    { FDRIVE_DRV_144, 14, 80, 1, FDRIVE_RATE_250K, "1.12 MB 3\"1/2", },
     /* 1.2 MB 5"1/4 floppy disks */
-    { FDRIVE_DRV_120, FDRIVE_DISK_288, 15, 80, 1, FDRIVE_RATE_500K,  "1.2 MB 5\"1/4", },
-    { FDRIVE_DRV_120, FDRIVE_DISK_288, 16, 80, 1, FDRIVE_RATE_500K, "1.28 MB 5\"1/4", },    /* CP Backup 5.25" HD */
-    { FDRIVE_DRV_120, FDRIVE_DISK_288, 18, 80, 1, FDRIVE_RATE_500K, "1.44 MB 5\"1/4", },
-    { FDRIVE_DRV_120, FDRIVE_DISK_288, 18, 82, 1, FDRIVE_RATE_500K, "1.48 MB 5\"1/4", },
-    { FDRIVE_DRV_120, FDRIVE_DISK_288, 18, 83, 1, FDRIVE_RATE_500K, "1.49 MB 5\"1/4", },
-    { FDRIVE_DRV_120, FDRIVE_DISK_288, 20, 80, 1, FDRIVE_RATE_500K,  "1.6 MB 5\"1/4", },
+    { FDRIVE_DRV_120, 15, 80, 1, FDRIVE_RATE_500K,  "1.2 MB 5\"1/4", },
+    { FDRIVE_DRV_120, 16, 80, 1, FDRIVE_RATE_500K, "1.28 MB 5\"1/4", },    /* CP Backup 5.25" HD */
+    { FDRIVE_DRV_120, 18, 80, 1, FDRIVE_RATE_500K, "1.44 MB 5\"1/4", },
+    { FDRIVE_DRV_120, 18, 82, 1, FDRIVE_RATE_500K, "1.48 MB 5\"1/4", },
+    { FDRIVE_DRV_120, 18, 83, 1, FDRIVE_RATE_500K, "1.49 MB 5\"1/4", },
+    { FDRIVE_DRV_120, 20, 80, 1, FDRIVE_RATE_500K,  "1.6 MB 5\"1/4", },
     /* 720 kB 5"1/4 floppy disks */
-    { FDRIVE_DRV_120, FDRIVE_DISK_288,  9, 80, 1, FDRIVE_RATE_250K,  "720 kB 5\"1/4", },
-    { FDRIVE_DRV_120, FDRIVE_DISK_288, 11, 80, 1, FDRIVE_RATE_250K,  "880 kB 5\"1/4", },
+    { FDRIVE_DRV_120,  9, 80, 1, FDRIVE_RATE_300K,  "720 kB 5\"1/4", },
+    { FDRIVE_DRV_120, 11, 80, 1, FDRIVE_RATE_300K,  "880 kB 5\"1/4", },
     /* 360 kB 5"1/4 floppy disks (newer 9-sector formats) */
-    { FDRIVE_DRV_120, FDRIVE_DISK_288,  9, 40, 1, FDRIVE_RATE_300K,  "360 kB 5\"1/4", },
-    { FDRIVE_DRV_120, FDRIVE_DISK_288,  9, 40, 0, FDRIVE_RATE_300K,  "180 kB 5\"1/4", },
-    { FDRIVE_DRV_120, FDRIVE_DISK_288, 10, 40, 1, FDRIVE_RATE_300K,  "400 kB 5\"1/4", },    /* CP Backup 5.25" DD */
-    { FDRIVE_DRV_120, FDRIVE_DISK_288, 10, 41, 1, FDRIVE_RATE_300K,  "410 kB 5\"1/4", },
-    { FDRIVE_DRV_120, FDRIVE_DISK_288, 10, 42, 1, FDRIVE_RATE_300K,  "420 kB 5\"1/4", },
+    { FDRIVE_DRV_120,  9, 40, 1, FDRIVE_RATE_300K,  "360 kB 5\"1/4", },
+    { FDRIVE_DRV_120,  9, 40, 0, FDRIVE_RATE_300K,  "180 kB 5\"1/4", },
+    { FDRIVE_DRV_120, 10, 40, 1, FDRIVE_RATE_300K,  "400 kB 5\"1/4", },    /* CP Backup 5.25" DD */
+    { FDRIVE_DRV_120, 10, 41, 1, FDRIVE_RATE_300K,  "410 kB 5\"1/4", },
+    { FDRIVE_DRV_120, 10, 42, 1, FDRIVE_RATE_300K,  "420 kB 5\"1/4", },
     /* 320 kB 5"1/4 floppy disks (old 8-sector formats) */
-    { FDRIVE_DRV_120, FDRIVE_DISK_288,  8, 40, 1, FDRIVE_RATE_300K,  "320 kB 5\"1/4", },
-    { FDRIVE_DRV_120, FDRIVE_DISK_288,  8, 40, 0, FDRIVE_RATE_300K,  "160 kB 5\"1/4", },
+    { FDRIVE_DRV_120,  8, 40, 1, FDRIVE_RATE_300K,  "320 kB 5\"1/4", },
+    { FDRIVE_DRV_120,  8, 40, 0, FDRIVE_RATE_300K,  "160 kB 5\"1/4", },
     /* 1.2 MB and low density 3"1/2 floppy 'aliases' */
-    { FDRIVE_DRV_144, FDRIVE_DISK_144, 15, 80, 1, FDRIVE_RATE_500K,  "1.2 MB 3\"1/2", },
-    { FDRIVE_DRV_144, FDRIVE_DISK_144, 16, 80, 1, FDRIVE_RATE_500K, "1.28 MB 3\"1/2", },
-    { FDRIVE_DRV_144, FDRIVE_DISK_720, 10, 40, 1, FDRIVE_RATE_300K,  "400 kB 3\"1/2", },    /* CP Backup 5.25" DD */
-    { FDRIVE_DRV_144, FDRIVE_DISK_720,  9, 40, 1, FDRIVE_RATE_300K,  "360 kB 3\"1/2", },
-    { FDRIVE_DRV_144, FDRIVE_DISK_720,  9, 40, 0, FDRIVE_RATE_300K,  "180 kB 3\"1/2", },
-    { FDRIVE_DRV_144, FDRIVE_DISK_720,  8, 40, 1, FDRIVE_RATE_300K,  "320 kB 3\"1/2", },
-    { FDRIVE_DRV_144, FDRIVE_DISK_720,  8, 40, 0, FDRIVE_RATE_300K,  "160 kB 3\"1/2", },
-#ifdef VBOX /* For larger than real life floppy images (see DrvBlock.cpp). */
+    { FDRIVE_DRV_144, 15, 80, 1, FDRIVE_RATE_500K,  "1.2 MB 3\"1/2", },
+    { FDRIVE_DRV_144, 16, 80, 1, FDRIVE_RATE_500K, "1.28 MB 3\"1/2", },
+    { FDRIVE_DRV_144, 10, 40, 1, FDRIVE_RATE_300K,  "400 kB 3\"1/2", },    /* CP Backup 5.25" DD */
+    { FDRIVE_DRV_144,  9, 40, 1, FDRIVE_RATE_300K,  "360 kB 3\"1/2", },
+    { FDRIVE_DRV_144,  9, 40, 0, FDRIVE_RATE_300K,  "180 kB 3\"1/2", },
+    { FDRIVE_DRV_144,  8, 40, 1, FDRIVE_RATE_300K,  "320 kB 3\"1/2", },
+    { FDRIVE_DRV_144,  8, 40, 0, FDRIVE_RATE_300K,  "160 kB 3\"1/2", },
+    /* For larger than real life floppy images (see DrvBlock.cpp). */
     /* 15.6 MB fake floppy disk (just need something big). */
-    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_USER,  63, 255, 1, FDRIVE_RATE_1M,   "15.6 MB fake 15.6", },
-    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_288,   36,  80, 1, FDRIVE_RATE_1M,   "2.88 MB fake 15.6", },
-    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_288,   39,  80, 1, FDRIVE_RATE_1M,   "3.12 MB fake 15.6", },
-    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_288,   40,  80, 1, FDRIVE_RATE_1M,    "3.2 MB fake 15.6", },
-    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_288,   44,  80, 1, FDRIVE_RATE_1M,   "3.52 MB fake 15.6", },
-    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_288,   48,  80, 1, FDRIVE_RATE_1M,   "3.84 MB fake 15.6", },
-    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_144,   18,  80, 1, FDRIVE_RATE_500K, "1.44 MB fake 15.6", },
-    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_144,   20,  80, 1, FDRIVE_RATE_500K,  "1.6 MB fake 15.6", },
-    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_144,   21,  80, 1, FDRIVE_RATE_500K, "1.68 MB fake 15.6", },
-    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_144,   21,  82, 1, FDRIVE_RATE_500K, "1.72 MB fake 15.6", },
-    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_144,   21,  83, 1, FDRIVE_RATE_500K, "1.74 MB fake 15.6", },
-    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_144,   22,  80, 1, FDRIVE_RATE_500K, "1.76 MB fake 15.6", },
-    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_144,   23,  80, 1, FDRIVE_RATE_500K, "1.84 MB fake 15.6", },
-    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_144,   24,  80, 1, FDRIVE_RATE_500K, "1.92 MB fake 15.6", },
-    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_720,    9,  80, 1, FDRIVE_RATE_250K,  "720 kB fake 15.6", },
-    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_720,   10,  80, 1, FDRIVE_RATE_250K,  "800 kB fake 15.6", },
-    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_720,   10,  82, 1, FDRIVE_RATE_250K,  "820 kB fake 15.6", },
-    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_720,   10,  83, 1, FDRIVE_RATE_250K,  "830 kB fake 15.6", },
-    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_720,   13,  80, 1, FDRIVE_RATE_250K, "1.04 MB fake 15.6", },
-    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_720,   14,  80, 1, FDRIVE_RATE_250K, "1.12 MB fake 15.6", },
-    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_720,    9,  80, 0, FDRIVE_RATE_250K,  "360 kB fake 15.6", },
-    /* 63.5 MB fake floppy disk (just need something big). */
-    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_USER, 255, 255, 1, FDRIVE_RATE_1M,   "63.5 MB fake 63.5", },
-    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_USER,  63, 255, 1, FDRIVE_RATE_1M,   "15.6 MB fake 63.5", },
-    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_288,   36,  80, 1, FDRIVE_RATE_1M,   "2.88 MB fake 63.5", },
-    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_288,   39,  80, 1, FDRIVE_RATE_1M,   "3.12 MB fake 63.5", },
-    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_288,   40,  80, 1, FDRIVE_RATE_1M,    "3.2 MB fake 63.5", },
-    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_288,   44,  80, 1, FDRIVE_RATE_1M,   "3.52 MB fake 63.5", },
-    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_288,   48,  80, 1, FDRIVE_RATE_1M,   "3.84 MB fake 63.5", },
-    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_144,   18,  80, 1, FDRIVE_RATE_500K, "1.44 MB fake 63.5", },
-    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_144,   20,  80, 1, FDRIVE_RATE_500K,  "1.6 MB fake 63.5", },
-    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_144,   21,  80, 1, FDRIVE_RATE_500K, "1.68 MB fake 63.5", },
-    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_144,   21,  82, 1, FDRIVE_RATE_500K, "1.72 MB fake 63.5", },
-    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_144,   21,  83, 1, FDRIVE_RATE_500K, "1.74 MB fake 63.5", },
-    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_144,   22,  80, 1, FDRIVE_RATE_500K, "1.76 MB fake 63.5", },
-    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_144,   23,  80, 1, FDRIVE_RATE_500K, "1.84 MB fake 63.5", },
-    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_144,   24,  80, 1, FDRIVE_RATE_500K, "1.92 MB fake 63.5", },
-    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_720,    9,  80, 1, FDRIVE_RATE_250K,  "720 kB fake 63.5", },
-    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_720,   10,  80, 1, FDRIVE_RATE_250K,  "800 kB fake 63.5", },
-    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_720,   10,  82, 1, FDRIVE_RATE_250K,  "820 kB fake 63.5", },
-    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_720,   10,  83, 1, FDRIVE_RATE_250K,  "830 kB fake 63.5", },
-    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_720,   13,  80, 1, FDRIVE_RATE_250K, "1.04 MB fake 63.5", },
-    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_720,   14,  80, 1, FDRIVE_RATE_250K, "1.12 MB fake 63.5", },
-    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_720,    9,  80, 0, FDRIVE_RATE_250K,  "360 kB fake 63.5", },
-#endif
+    { FDRIVE_DRV_FAKE_15_6,  63, 255, 1, FDRIVE_RATE_1M,   "15.6 MB fake 15.6", },
+    { FDRIVE_DRV_FAKE_15_6,  36,  80, 1, FDRIVE_RATE_1M,   "2.88 MB fake 15.6", },
+    { FDRIVE_DRV_FAKE_15_6,  39,  80, 1, FDRIVE_RATE_1M,   "3.12 MB fake 15.6", },
+    { FDRIVE_DRV_FAKE_15_6,  40,  80, 1, FDRIVE_RATE_1M,    "3.2 MB fake 15.6", },
+    { FDRIVE_DRV_FAKE_15_6,  44,  80, 1, FDRIVE_RATE_1M,   "3.52 MB fake 15.6", },
+    { FDRIVE_DRV_FAKE_15_6,  48,  80, 1, FDRIVE_RATE_1M,   "3.84 MB fake 15.6", },
+    { FDRIVE_DRV_FAKE_15_6,  18,  80, 1, FDRIVE_RATE_500K, "1.44 MB fake 15.6", },
+    { FDRIVE_DRV_FAKE_15_6,  20,  80, 1, FDRIVE_RATE_500K,  "1.6 MB fake 15.6", },
+    { FDRIVE_DRV_FAKE_15_6,  21,  80, 1, FDRIVE_RATE_500K, "1.68 MB fake 15.6", },
+    { FDRIVE_DRV_FAKE_15_6,  21,  82, 1, FDRIVE_RATE_500K, "1.72 MB fake 15.6", },
+    { FDRIVE_DRV_FAKE_15_6,  21,  83, 1, FDRIVE_RATE_500K, "1.74 MB fake 15.6", },
+    { FDRIVE_DRV_FAKE_15_6,  22,  80, 1, FDRIVE_RATE_500K, "1.76 MB fake 15.6", },
+    { FDRIVE_DRV_FAKE_15_6,  23,  80, 1, FDRIVE_RATE_500K, "1.84 MB fake 15.6", },
+    { FDRIVE_DRV_FAKE_15_6,  24,  80, 1, FDRIVE_RATE_500K, "1.92 MB fake 15.6", },
+    { FDRIVE_DRV_FAKE_15_6,   9,  80, 1, FDRIVE_RATE_250K,  "720 kB fake 15.6", },
+    { FDRIVE_DRV_FAKE_15_6,  10,  80, 1, FDRIVE_RATE_250K,  "800 kB fake 15.6", },
+    { FDRIVE_DRV_FAKE_15_6,  10,  82, 1, FDRIVE_RATE_250K,  "820 kB fake 15.6", },
+    { FDRIVE_DRV_FAKE_15_6,  10,  83, 1, FDRIVE_RATE_250K,  "830 kB fake 15.6", },
+    { FDRIVE_DRV_FAKE_15_6,  13,  80, 1, FDRIVE_RATE_250K, "1.04 MB fake 15.6", },
+    { FDRIVE_DRV_FAKE_15_6,  14,  80, 1, FDRIVE_RATE_250K, "1.12 MB fake 15.6", },
+    { FDRIVE_DRV_FAKE_15_6,   9,  80, 0, FDRIVE_RATE_250K,  "360 kB fake 15.6", },
+    /* 63.5 MB fake floppy  disk (just need something big). */
+    { FDRIVE_DRV_FAKE_63_5, 255, 255, 1, FDRIVE_RATE_1M,   "63.5 MB fake 63.5", },
+    { FDRIVE_DRV_FAKE_63_5,  63, 255, 1, FDRIVE_RATE_1M,   "15.6 MB fake 63.5", },
+    { FDRIVE_DRV_FAKE_63_5,  36,  80, 1, FDRIVE_RATE_1M,   "2.88 MB fake 63.5", },
+    { FDRIVE_DRV_FAKE_63_5,  39,  80, 1, FDRIVE_RATE_1M,   "3.12 MB fake 63.5", },
+    { FDRIVE_DRV_FAKE_63_5,  40,  80, 1, FDRIVE_RATE_1M,    "3.2 MB fake 63.5", },
+    { FDRIVE_DRV_FAKE_63_5,  44,  80, 1, FDRIVE_RATE_1M,   "3.52 MB fake 63.5", },
+    { FDRIVE_DRV_FAKE_63_5,  48,  80, 1, FDRIVE_RATE_1M,   "3.84 MB fake 63.5", },
+    { FDRIVE_DRV_FAKE_63_5,  18,  80, 1, FDRIVE_RATE_500K, "1.44 MB fake 63.5", },
+    { FDRIVE_DRV_FAKE_63_5,  20,  80, 1, FDRIVE_RATE_500K,  "1.6 MB fake 63.5", },
+    { FDRIVE_DRV_FAKE_63_5,  21,  80, 1, FDRIVE_RATE_500K, "1.68 MB fake 63.5", },
+    { FDRIVE_DRV_FAKE_63_5,  21,  82, 1, FDRIVE_RATE_500K, "1.72 MB fake 63.5", },
+    { FDRIVE_DRV_FAKE_63_5,  21,  83, 1, FDRIVE_RATE_500K, "1.74 MB fake 63.5", },
+    { FDRIVE_DRV_FAKE_63_5,  22,  80, 1, FDRIVE_RATE_500K, "1.76 MB fake 63.5", },
+    { FDRIVE_DRV_FAKE_63_5,  23,  80, 1, FDRIVE_RATE_500K, "1.84 MB fake 63.5", },
+    { FDRIVE_DRV_FAKE_63_5,  24,  80, 1, FDRIVE_RATE_500K, "1.92 MB fake 63.5", },
+    { FDRIVE_DRV_FAKE_63_5,   9,  80, 1, FDRIVE_RATE_250K,  "720 kB fake 63.5", },
+    { FDRIVE_DRV_FAKE_63_5,  10,  80, 1, FDRIVE_RATE_250K,  "800 kB fake 63.5", },
+    { FDRIVE_DRV_FAKE_63_5,  10,  82, 1, FDRIVE_RATE_250K,  "820 kB fake 63.5", },
+    { FDRIVE_DRV_FAKE_63_5,  10,  83, 1, FDRIVE_RATE_250K,  "830 kB fake 63.5", },
+    { FDRIVE_DRV_FAKE_63_5,  13,  80, 1, FDRIVE_RATE_250K, "1.04 MB fake 63.5", },
+    { FDRIVE_DRV_FAKE_63_5,  14,  80, 1, FDRIVE_RATE_250K, "1.12 MB fake 63.5", },
+    { FDRIVE_DRV_FAKE_63_5,   9,  80, 0, FDRIVE_RATE_250K,  "360 kB fake 63.5", },
     /* end */
-    { FDRIVE_DRV_NONE, FDRIVE_DISK_NONE, (uint8_t)-1, (uint8_t)-1, 0, (fdrive_rate_t)0, NULL, },
+    { FDRIVE_DRV_NONE, (uint8_t)-1, (uint8_t)-1, 0, (fdrive_rate_t)0, NULL, },
 };
 
 /* Revalidate a disk drive after a disk change */
@@ -429,29 +404,17 @@ static void fd_revalidate(fdrive_t *drv)
     int nb_heads, max_track, last_sect, ro;
 
     FLOPPY_DPRINTF("revalidate\n");
-#ifndef VBOX
-    if (drv->bs != NULL && bdrv_is_inserted(drv->bs)) {
-        ro = bdrv_is_read_only(drv->bs);
-        bdrv_get_geometry_hint(drv->bs, &nb_heads, &max_track, &last_sect);
-#else /* VBOX */
     if (   drv->pDrvMedia
         && drv->pDrvMount
         && drv->pDrvMount->pfnIsMounted (drv->pDrvMount)) {
         ro = drv->pDrvMedia->pfnIsReadOnly (drv->pDrvMedia);
         nb_heads = max_track = last_sect = 0;
-#endif /* VBOX */
         if (nb_heads != 0 && max_track != 0 && last_sect != 0) {
             FLOPPY_DPRINTF("User defined disk (%d %d %d)",
                            nb_heads - 1, max_track, last_sect);
         } else {
-#ifndef VBOX
-            bdrv_get_geometry(drv->bs, &nb_sectors);
-#else /* VBOX */
-            {
-                uint64_t size2 = drv->pDrvMedia->pfnGetSize (drv->pDrvMedia);
-                nb_sectors = size2 / FD_SECTOR_LEN;
-            }
-#endif /* VBOX */
+            uint64_t size2 = drv->pDrvMedia->pfnGetSize (drv->pDrvMedia);
+            nb_sectors = size2 / FD_SECTOR_LEN;
             match = -1;
             first_match = -1;
             for (i = 0;; i++) {
@@ -481,9 +444,7 @@ static void fd_revalidate(fdrive_t *drv)
             max_track = parse->max_track;
             last_sect = parse->last_sect;
             drv->drive = parse->drive;
-#ifdef VBOX
             drv->media_rate = parse->rate;
-#endif
             FLOPPY_DPRINTF("%s floppy disk (%d h %d t %d s) %s\n", parse->str,
                            nb_heads, max_track, last_sect, ro ? "ro" : "rw");
             LogRel(("FDC: %s floppy disk (%d h %d t %d s) %s\n", parse->str,
@@ -511,20 +472,8 @@ static void fd_revalidate(fdrive_t *drv)
 
 static void fdctrl_reset(fdctrl_t *fdctrl, int do_irq);
 static void fdctrl_reset_fifo(fdctrl_t *fdctrl);
-#ifndef VBOX
-static int fdctrl_transfer_handler (void *opaque, int nchan,
-                                    int dma_pos, int dma_len);
-#else /* VBOX: */
-static DECLCALLBACK(uint32_t) fdctrl_transfer_handler (PPDMDEVINS pDevIns,
-                                                       void *opaque,
-                                                       unsigned nchan,
-                                                       uint32_t dma_pos,
-                                                       uint32_t dma_len);
-#endif /* VBOX */
-static void fdctrl_raise_irq(fdctrl_t *fdctrl, uint8_t status0);
 static fdrive_t *get_cur_drv(fdctrl_t *fdctrl);
 
-static void fdctrl_result_timer(void *opaque);
 static uint32_t fdctrl_read_statusA(fdctrl_t *fdctrl);
 static uint32_t fdctrl_read_statusB(fdctrl_t *fdctrl);
 static uint32_t fdctrl_read_dor(fdctrl_t *fdctrl);
@@ -694,34 +643,29 @@ enum {
 #define FD_DID_SEEK(state) ((state) & FD_STATE_SEEK)
 #define FD_FORMAT_CMD(state) ((state) & FD_STATE_FORMAT)
 
-#ifdef VBOX
 /**
  * Floppy controller state.
  *
  * @implements  PDMILEDPORTS
  */
-#endif
 struct fdctrl_t {
-#ifndef VBOX
-    fdctrl_t *fdctrl;
-#endif
     /* Controller's identification */
     uint8_t version;
     /* HW */
-#ifndef VBOX
-    int irq;
-    int dma_chann;
-#else
     uint8_t irq_lvl;
     uint8_t dma_chann;
-#endif
-    uint32_t io_base;
+    uint16_t io_base;
     /* Controller state */
-#ifndef VBOX
-    QEMUTimer *result_timer;
-#else
-    struct TMTIMER *result_timer;
-#endif
+    TMTIMERHANDLE hResultTimer;
+
+    /* Interrupt delay timers. */
+    TMTIMERHANDLE hXferDelayTimer;
+    TMTIMERHANDLE hIrqDelayTimer;
+    uint16_t uIrqDelayMsec;
+    uint8_t st0;
+    uint8_t st1;
+    uint8_t st2;
+
     uint8_t sra;
     uint8_t srb;
     uint8_t dor;
@@ -753,7 +697,6 @@ struct fdctrl_t {
     uint8_t num_floppies;
     fdrive_t drives[MAX_FD];
     uint8_t reset_sensei;
-#ifdef VBOX
     /** Pointer to device instance. */
     PPDMDEVINS pDevIns;
 
@@ -763,12 +706,17 @@ struct fdctrl_t {
     PDMILEDPORTS ILeds;
     /** Status LUN: The Partner of ILeds. */
     PPDMILEDCONNECTORS pLedsConnector;
-#endif
+
+    /** I/O ports: 0x3f0 */
+    IOMIOPORTHANDLE hIoPorts0;
+    /** I/O ports: 0x3f1..0x3f5 */
+    IOMIOPORTHANDLE hIoPorts1;
+    /** I/O port:  0x3f7 */
+    IOMIOPORTHANDLE hIoPorts2;
 };
 
-static uint32_t fdctrl_read (void *opaque, uint32_t reg)
+static uint32_t fdctrl_read (fdctrl_t *fdctrl, uint32_t reg)
 {
-    fdctrl_t *fdctrl = (fdctrl_t *)opaque;
     uint32_t retval;
 
     switch (reg) {
@@ -794,7 +742,7 @@ static uint32_t fdctrl_read (void *opaque, uint32_t reg)
         retval = fdctrl_read_dir(fdctrl);
         break;
     default:
-        retval = (uint32_t)(-1);
+        retval = UINT32_MAX;
         break;
     }
     FLOPPY_DPRINTF("read reg%d: 0x%02x\n", reg & 7, retval);
@@ -802,10 +750,8 @@ static uint32_t fdctrl_read (void *opaque, uint32_t reg)
     return retval;
 }
 
-static void fdctrl_write (void *opaque, uint32_t reg, uint32_t value)
+static void fdctrl_write (fdctrl_t *fdctrl, uint32_t reg, uint32_t value)
 {
-    fdctrl_t *fdctrl = (fdctrl_t *)opaque;
-
     FLOPPY_DPRINTF("write reg%d: 0x%02x\n", reg & 7, value);
 
     switch (reg) {
@@ -835,23 +781,15 @@ static void fdctrl_reset_irq(fdctrl_t *fdctrl)
     if (!(fdctrl->sra & FD_SRA_INTPEND))
         return;
     FLOPPY_DPRINTF("Reset interrupt\n");
-#ifdef VBOX
     PDMDevHlpISASetIrq (fdctrl->pDevIns, fdctrl->irq_lvl, 0);
-#else
-    qemu_set_irq(fdctrl->irq, 0);
-#endif
     fdctrl->sra &= ~FD_SRA_INTPEND;
 }
 
-static void fdctrl_raise_irq(fdctrl_t *fdctrl, uint8_t status0)
+static void fdctrl_raise_irq_now(fdctrl_t *fdctrl, uint8_t status0)
 {
     if (!(fdctrl->sra & FD_SRA_INTPEND)) {
         FLOPPY_DPRINTF("Raising interrupt...\n");
-#ifdef VBOX
         PDMDevHlpISASetIrq (fdctrl->pDevIns, fdctrl->irq_lvl, 1);
-#else
-        qemu_set_irq(fdctrl->irq, 1);
-#endif
         fdctrl->sra |= FD_SRA_INTPEND;
     }
     if (status0 & FD_SR0_SEEK) {
@@ -868,6 +806,21 @@ static void fdctrl_raise_irq(fdctrl_t *fdctrl, uint8_t status0)
     FLOPPY_DPRINTF("Set interrupt status to 0x%02x\n", fdctrl->status0);
 }
 
+static void fdctrl_raise_irq(fdctrl_t *fdctrl, uint8_t status0)
+{
+    if (!fdctrl->uIrqDelayMsec)
+    {
+        /* If not IRQ delay needed, trigger the interrupt now. */
+        fdctrl_raise_irq_now(fdctrl, status0);
+    }
+    else
+    {
+        /* Otherwise schedule completion after a short while. */
+        fdctrl->st0 = status0;
+        PDMDevHlpTimerSetMillies(fdctrl->pDevIns, fdctrl->hIrqDelayTimer, fdctrl->uIrqDelayMsec);
+    }
+}
+
 /* Reset controller */
 static void fdctrl_reset(fdctrl_t *fdctrl, int do_irq)
 {
@@ -878,11 +831,7 @@ static void fdctrl_reset(fdctrl_t *fdctrl, int do_irq)
     /* Initialise controller */
     fdctrl->sra = 0;
     fdctrl->srb = 0xc0;
-#ifdef VBOX
     if (!fdctrl->drives[1].pDrvMedia)
-#else
-    if (!fdctrl->drives[1].bs)
-#endif
         fdctrl->sra |= FD_SRA_nDRV2;
     fdctrl->cur_drv = 0;
     fdctrl->dor = FD_DOR_nRESET;
@@ -1091,19 +1040,7 @@ static void fdctrl_write_ccr(fdctrl_t *fdctrl, uint32_t value)
 
 static int fdctrl_media_changed(fdrive_t *drv)
 {
-#ifdef VBOX
     return drv->dsk_chg;
-#else
-    int ret;
-
-    if (!drv->bs)
-        return 0;
-    ret = bdrv_media_changed(drv->bs);
-    if (ret) {
-        fd_revalidate(drv);
-    }
-    return ret;
-#endif
 }
 
 /* Digital input register : 0x07 (read-only) */
@@ -1111,22 +1048,12 @@ static uint32_t fdctrl_read_dir(fdctrl_t *fdctrl)
 {
     uint32_t retval = 0;
 
-#ifdef VBOX
     /* The change line signal is reported by the currently selected
      * drive. If the corresponding motor on bit is not set, the drive
      * is *not* selected!
      */
     if (fdctrl_media_changed(get_cur_drv(fdctrl))
      && (fdctrl->dor & (0x10 << fdctrl->cur_drv)))
-#else
-    if (fdctrl_media_changed(drv0(fdctrl))
-     || fdctrl_media_changed(drv1(fdctrl))
-#if MAX_FD == 4
-     || fdctrl_media_changed(drv2(fdctrl))
-     || fdctrl_media_changed(drv3(fdctrl))
-#endif
-        )
-#endif
         retval |= FD_DIR_DSKCHG;
     if (retval != 0)
         FLOPPY_DPRINTF("Floppy digital input register: 0x%02x\n", retval);
@@ -1197,8 +1124,8 @@ static int fdctrl_seek_to_next_sect(fdctrl_t *fdctrl, fdrive_t *cur_drv)
 }
 
 /* Callback for transfer end (stop or abort) */
-static void fdctrl_stop_transfer(fdctrl_t *fdctrl, uint8_t status0,
-                                 uint8_t status1, uint8_t status2)
+static void fdctrl_stop_transfer_now(fdctrl_t *fdctrl, uint8_t status0,
+                                     uint8_t status1, uint8_t status2)
 {
     fdrive_t *cur_drv;
 
@@ -1219,15 +1146,29 @@ static void fdctrl_stop_transfer(fdctrl_t *fdctrl, uint8_t status0,
 
     fdctrl->data_dir = FD_DIR_READ;
     if (!(fdctrl->msr & FD_MSR_NONDMA)) {
-#ifdef VBOX
         PDMDevHlpDMASetDREQ (fdctrl->pDevIns, fdctrl->dma_chann, 0);
-#else
-        DMA_release_DREQ(fdctrl->dma_chann);
-#endif
     }
     fdctrl->msr |= FD_MSR_RQM | FD_MSR_DIO;
     fdctrl->msr &= ~FD_MSR_NONDMA;
     fdctrl_set_fifo(fdctrl, 7, 1);
+}
+
+static void fdctrl_stop_transfer(fdctrl_t *fdctrl, uint8_t status0,
+                                 uint8_t status1, uint8_t status2)
+{
+    if (!fdctrl->uIrqDelayMsec)
+    {
+        /* If not IRQ delay needed, just stop the transfer and trigger IRQ now. */
+        fdctrl_stop_transfer_now(fdctrl, status0, status1, status2);
+    }
+    else
+    {
+        /* Otherwise schedule completion after a short while. */
+        fdctrl->st0 = status0;
+        fdctrl->st1 = status1;
+        fdctrl->st2 = status2;
+        PDMDevHlpTimerSetMillies(fdctrl->pDevIns, fdctrl->hXferDelayTimer, fdctrl->uIrqDelayMsec);
+    }
 }
 
 /* Prepare a data transfer (either DMA or FIFO) */
@@ -1288,7 +1229,6 @@ static void fdctrl_start_transfer(fdctrl_t *fdctrl, int direction)
     /* Check the data rate. If the programmed data rate does not match
      * the currently inserted medium, the operation has to fail.
      */
-#ifdef VBOX
     if ((fdctrl->dsr & FD_DSR_DRATEMASK) != cur_drv->media_rate) {
         FLOPPY_DPRINTF("data rate mismatch (fdc=%d, media=%d)\n",
                        fdctrl->dsr & FD_DSR_DRATEMASK, cur_drv->media_rate);
@@ -1298,7 +1238,6 @@ static void fdctrl_start_transfer(fdctrl_t *fdctrl, int direction)
         fdctrl->fifo[5] = ks;
         return;
     }
-#endif
     /* Set the FIFO state */
     fdctrl->data_dir = direction;
     fdctrl->data_pos = 0;
@@ -1325,11 +1264,7 @@ static void fdctrl_start_transfer(fdctrl_t *fdctrl, int direction)
     if (fdctrl->dor & FD_DOR_DMAEN) {
         int dma_mode;
         /* DMA transfer are enabled. Check if DMA channel is well programmed */
-#ifndef VBOX
-        dma_mode = DMA_get_channel_mode(fdctrl->dma_chann);
-#else
         dma_mode = PDMDevHlpDMAGetChannelMode (fdctrl->pDevIns, fdctrl->dma_chann);
-#endif
         dma_mode = (dma_mode >> 2) & 3;
         FLOPPY_DPRINTF("dma_mode=%d direction=%d (%d - %d)\n",
                        dma_mode, direction,
@@ -1344,13 +1279,8 @@ static void fdctrl_start_transfer(fdctrl_t *fdctrl, int direction)
             /* Now, we just have to wait for the DMA controller to
              * recall us...
              */
-#ifndef VBOX
-            DMA_hold_DREQ(fdctrl->dma_chann);
-            DMA_schedule(fdctrl->dma_chann);
-#else
             PDMDevHlpDMASetDREQ (fdctrl->pDevIns, fdctrl->dma_chann, 1);
             PDMDevHlpDMASchedule (fdctrl->pDevIns);
-#endif
             return;
         } else {
             FLOPPY_ERROR("dma_mode=%d direction=%d\n", dma_mode, direction);
@@ -1360,9 +1290,9 @@ static void fdctrl_start_transfer(fdctrl_t *fdctrl, int direction)
     fdctrl->msr |= FD_MSR_NONDMA;
     if (direction != FD_DIR_WRITE)
         fdctrl->msr |= FD_MSR_DIO;
+
     /* IO based transfer: calculate len */
     fdctrl_raise_irq(fdctrl, 0x00);
-
     return;
 }
 
@@ -1441,11 +1371,7 @@ static void fdctrl_start_format(fdctrl_t *fdctrl)
     if (fdctrl->dor & FD_DOR_DMAEN) {
         int dma_mode;
         /* DMA transfer are enabled. Check if DMA channel is well programmed */
-#ifndef VBOX
-        dma_mode = DMA_get_channel_mode(fdctrl->dma_chann);
-#else
         dma_mode = PDMDevHlpDMAGetChannelMode (fdctrl->pDevIns, fdctrl->dma_chann);
-#endif
         dma_mode = (dma_mode >> 2) & 3;
         FLOPPY_DPRINTF("dma_mode=%d direction=%d (%d - %d)\n",
                        dma_mode, fdctrl->data_dir,
@@ -1457,13 +1383,8 @@ static void fdctrl_start_format(fdctrl_t *fdctrl)
             /* Now, we just have to wait for the DMA controller to
              * recall us...
              */
-#ifndef VBOX
-            DMA_hold_DREQ(fdctrl->dma_chann);
-            DMA_schedule(fdctrl->dma_chann);
-#else
             PDMDevHlpDMASetDREQ (fdctrl->pDevIns, fdctrl->dma_chann, 1);
             PDMDevHlpDMASchedule (fdctrl->pDevIns);
-#endif
             return;
         } else {
             FLOPPY_ERROR("dma_mode=%d direction=%d\n", dma_mode, fdctrl->data_dir);
@@ -1489,7 +1410,6 @@ static void fdctrl_start_transfer_del(fdctrl_t *fdctrl, int direction)
     fdctrl_stop_transfer(fdctrl, FD_SR0_ABNTERM | FD_SR0_SEEK, 0x00, 0x00);
 }
 
-#ifdef VBOX
 /* Block driver read/write wrappers. */
 
 static int blk_write(fdrive_t *drv, int64_t sector_num, const uint8_t *buf, int nb_sectors)
@@ -1525,33 +1445,21 @@ static int blk_read(fdrive_t *drv, int64_t sector_num, uint8_t *buf, int nb_sect
     return rc;
 }
 
-#endif
-
-/* handlers for DMA transfers */
-#ifdef VBOX
-static DECLCALLBACK(uint32_t) fdctrl_transfer_handler (PPDMDEVINS pDevIns,
-                                                       void *opaque,
-                                                       unsigned nchan,
-                                                       uint32_t dma_pos,
-                                                       uint32_t dma_len)
-#else
-static int fdctrl_transfer_handler (void *opaque, int nchan,
-                                    int dma_pos, int dma_len)
-#endif
+/**
+ * @callback_method_impl{FNDMATRANSFERHANDLER, handlers for DMA transfers}
+ */
+static DECLCALLBACK(uint32_t) fdctrl_transfer_handler(PPDMDEVINS pDevIns, void *pvUser,
+                                                      unsigned uChannel, uint32_t off, uint32_t cb)
 {
-    RT_NOREF(pDevIns, dma_pos);
+    RT_NOREF(pDevIns, off);
     fdctrl_t *fdctrl;
     fdrive_t *cur_drv;
-#ifdef VBOX
     int rc;
     uint32_t len = 0;
     uint32_t start_pos, rel_pos;
-#else
-    int len, start_pos, rel_pos;
-#endif
     uint8_t status0 = 0x00, status1 = 0x00, status2 = 0x00;
 
-    fdctrl = (fdctrl_t *)opaque;
+    fdctrl = (fdctrl_t *)pvUser;
     if (fdctrl->msr & FD_MSR_RQM) {
         FLOPPY_DPRINTF("Not in DMA transfer mode !\n");
         return 0;
@@ -1560,13 +1468,9 @@ static int fdctrl_transfer_handler (void *opaque, int nchan,
     if (fdctrl->data_dir == FD_DIR_SCANE || fdctrl->data_dir == FD_DIR_SCANL ||
         fdctrl->data_dir == FD_DIR_SCANH)
         status2 = FD_SR2_SNS;
-    if (dma_len > fdctrl->data_len)
-        dma_len = fdctrl->data_len;
-#ifndef VBOX
-    if (cur_drv->bs == NULL)
-#else  /* !VBOX */
+    if (cb > fdctrl->data_len)
+        cb = fdctrl->data_len;
     if (cur_drv->pDrvMedia == NULL)
-#endif
     {
         if (fdctrl->data_dir == FD_DIR_WRITE)
             fdctrl_stop_transfer(fdctrl, FD_SR0_ABNTERM | FD_SR0_SEEK, 0x00, 0x00);
@@ -1576,44 +1480,34 @@ static int fdctrl_transfer_handler (void *opaque, int nchan,
         goto transfer_error;
     }
 
-#ifdef VBOX
-        if (cur_drv->ro)
+    if (cur_drv->ro)
+    {
+        if (fdctrl->data_dir == FD_DIR_WRITE || fdctrl->data_dir == FD_DIR_FORMAT)
         {
-            if (fdctrl->data_dir == FD_DIR_WRITE || fdctrl->data_dir == FD_DIR_FORMAT)
-            {
-                /* Handle readonly medium early, no need to do DMA, touch the
-                 * LED or attempt any writes. A real floppy doesn't attempt
-                 * to write to readonly media either. */
-                fdctrl_stop_transfer(fdctrl, FD_SR0_ABNTERM | FD_SR0_SEEK, FD_SR1_NW,
-                                     0x00);
-                Assert(len == 0);
-                goto transfer_error;
-            }
+            /* Handle readonly medium early, no need to do DMA, touch the
+             * LED or attempt any writes. A real floppy doesn't attempt
+             * to write to readonly media either. */
+            fdctrl_stop_transfer(fdctrl, FD_SR0_ABNTERM | FD_SR0_SEEK, FD_SR1_NW,
+                                 0x00);
+            Assert(len == 0);
+            goto transfer_error;
         }
-#endif
-
+    }
 
     rel_pos = fdctrl->data_pos % FD_SECTOR_LEN;
-    for (start_pos = fdctrl->data_pos; fdctrl->data_pos < dma_len;) {
-        len = dma_len - fdctrl->data_pos;
+    for (start_pos = fdctrl->data_pos; fdctrl->data_pos < cb;) {
+        len = cb - fdctrl->data_pos;
         if (len + rel_pos > FD_SECTOR_LEN)
             len = FD_SECTOR_LEN - rel_pos;
-        FLOPPY_DPRINTF("copy %d bytes (%d %d %d) %d pos %d %02x "
-                       "(%d-0x%08x 0x%08x)\n", len, dma_len, fdctrl->data_pos,
-                       fdctrl->data_len, GET_CUR_DRV(fdctrl), cur_drv->head,
-                       cur_drv->track, cur_drv->sect, fd_sector(cur_drv),
-                       fd_sector(cur_drv) * FD_SECTOR_LEN);
+        FLOPPY_DPRINTF("copy %d bytes (%d %d %d) %d pos %d %02x (%d-0x%08x 0x%08x)\n",
+                       len, cb, fdctrl->data_pos, fdctrl->data_len, GET_CUR_DRV(fdctrl), cur_drv->head,
+                       cur_drv->track, cur_drv->sect, fd_sector(cur_drv), fd_sector(cur_drv) * FD_SECTOR_LEN);
         if (fdctrl->data_dir != FD_DIR_FORMAT &&
             (fdctrl->data_dir != FD_DIR_WRITE ||
             len < FD_SECTOR_LEN || rel_pos != 0)) {
             /* READ & SCAN commands and realign to a sector for WRITE */
-#ifdef VBOX
             rc = blk_read(cur_drv, fd_sector(cur_drv), fdctrl->fifo, 1);
             if (RT_FAILURE(rc))
-#else
-            if (bdrv_read(cur_drv->bs, fd_sector(cur_drv),
-                          fdctrl->fifo, 1) < 0)
-#endif
             {
                 FLOPPY_DPRINTF("Floppy: error getting sector %d\n",
                                fd_sector(cur_drv));
@@ -1624,28 +1518,20 @@ static int fdctrl_transfer_handler (void *opaque, int nchan,
         switch (fdctrl->data_dir) {
         case FD_DIR_READ:
             /* READ commands */
-#ifdef VBOX
             {
                 uint32_t read;
-                int rc2 = PDMDevHlpDMAWriteMemory(fdctrl->pDevIns, nchan,
+                int rc2 = PDMDevHlpDMAWriteMemory(fdctrl->pDevIns, uChannel,
                                                   fdctrl->fifo + rel_pos,
                                                   fdctrl->data_pos,
                                                   len, &read);
                 AssertMsgRC (rc2, ("DMAWriteMemory -> %Rrc\n", rc2));
             }
-#else
-            DMA_write_memory (nchan, fdctrl->fifo + rel_pos,
-                              fdctrl->data_pos, len);
-#endif
-/*          cpu_physical_memory_write(addr + fdctrl->data_pos, */
-/*                                    fdctrl->fifo + rel_pos, len); */
             break;
         case FD_DIR_WRITE:
             /* WRITE commands */
-#ifdef VBOX
             {
                 uint32_t written;
-                int rc2 = PDMDevHlpDMAReadMemory(fdctrl->pDevIns, nchan,
+                int rc2 = PDMDevHlpDMAReadMemory(fdctrl->pDevIns, uChannel,
                                                  fdctrl->fifo + rel_pos,
                                                  fdctrl->data_pos,
                                                  len, &written);
@@ -1654,19 +1540,12 @@ static int fdctrl_transfer_handler (void *opaque, int nchan,
 
             rc = blk_write(cur_drv, fd_sector(cur_drv), fdctrl->fifo, 1);
             if (RT_FAILURE(rc))
-#else
-            DMA_read_memory (nchan, fdctrl->fifo + rel_pos,
-                             fdctrl->data_pos, len);
-            if (bdrv_write(cur_drv->bs, fd_sector(cur_drv),
-                           fdctrl->fifo, 1) < 0)
-#endif
             {
                 FLOPPY_ERROR("writing sector %d\n", fd_sector(cur_drv));
                 fdctrl_stop_transfer(fdctrl, FD_SR0_ABNTERM | FD_SR0_SEEK, 0x00, 0x00);
                 goto transfer_error;
             }
             break;
-#ifdef VBOX
         case FD_DIR_FORMAT:
             /* FORMAT command */
             {
@@ -1674,7 +1553,7 @@ static int fdctrl_transfer_handler (void *opaque, int nchan,
                 uint8_t  filler = fdctrl->fifo[5];
                 uint32_t written;
                 int      sct;
-                int rc2 = PDMDevHlpDMAReadMemory(fdctrl->pDevIns, nchan,
+                int rc2 = PDMDevHlpDMAReadMemory(fdctrl->pDevIns, uChannel,
                                                  fdctrl->fifo + rel_pos,
                                                  fdctrl->data_pos,
                                                  len, &written);
@@ -1697,20 +1576,15 @@ static int fdctrl_transfer_handler (void *opaque, int nchan,
                 }
             }
             break;
-#endif
         default:
             /* SCAN commands */
             {
                 uint8_t tmpbuf[FD_SECTOR_LEN];
                 int ret;
-#ifdef VBOX
                 uint32_t read;
-                int rc2 = PDMDevHlpDMAReadMemory (fdctrl->pDevIns, nchan, tmpbuf,
-                                                  fdctrl->data_pos, len, &read);
+                int rc2 = PDMDevHlpDMAReadMemory(fdctrl->pDevIns, uChannel, tmpbuf,
+                                                 fdctrl->data_pos, len, &read);
                 AssertMsg(RT_SUCCESS(rc2), ("DMAReadMemory -> %Rrc2\n", rc2)); NOREF(rc2);
-#else
-                DMA_read_memory (nchan, tmpbuf, fdctrl->data_pos, len);
-#endif
                 ret = memcmp(tmpbuf, fdctrl->fifo + rel_pos, len);
                 if (ret == 0) {
                     status2 = FD_SR2_SEH;
@@ -1755,9 +1629,7 @@ static uint32_t fdctrl_read_data(fdctrl_t *fdctrl)
     fdrive_t *cur_drv;
     uint32_t retval = 0;
     unsigned pos;
-#ifdef VBOX
     int rc;
-#endif
 
     cur_drv = get_cur_drv(fdctrl);
     fdctrl->dsr &= ~FD_DSR_PWRDOWN;
@@ -1774,12 +1646,8 @@ static uint32_t fdctrl_read_data(fdctrl_t *fdctrl)
                                    fd_sector(cur_drv));
                     return 0;
                 }
-#ifdef VBOX
             rc = blk_read(cur_drv, fd_sector(cur_drv), fdctrl->fifo, 1);
             if (RT_FAILURE(rc))
-#else
-            if (bdrv_read(cur_drv->bs, fd_sector(cur_drv), fdctrl->fifo, 1) < 0)
-#endif
             {
                 FLOPPY_DPRINTF("error getting sector %d\n",
                                fd_sector(cur_drv));
@@ -1810,9 +1678,7 @@ static void fdctrl_format_sector(fdctrl_t *fdctrl)
 {
     fdrive_t *cur_drv;
     uint8_t kh, kt, ks;
-#ifdef VBOX
     int ok = 0, rc;
-#endif
 
     SET_CUR_DRV(fdctrl, fdctrl->fifo[1] & FD_DOR_SELMASK);
     cur_drv = get_cur_drv(fdctrl);
@@ -1858,7 +1724,6 @@ static void fdctrl_format_sector(fdctrl_t *fdctrl)
         break;
     }
     memset(fdctrl->fifo, 0, FD_SECTOR_LEN);
-#ifdef VBOX
     if (cur_drv->pDrvMedia) {
         rc = blk_write(cur_drv, fd_sector(cur_drv), fdctrl->fifo, 1);
         if (RT_FAILURE (rc)) {
@@ -1869,13 +1734,6 @@ static void fdctrl_format_sector(fdctrl_t *fdctrl)
         }
     }
     if (ok) {
-#else
-    if (cur_drv->bs == NULL ||
-        bdrv_write(cur_drv->bs, fd_sector(cur_drv), fdctrl->fifo, 1) < 0) {
-        FLOPPY_ERROR("formatting sector %d\n", fd_sector(cur_drv));
-        fdctrl_stop_transfer(fdctrl, FD_SR0_ABNTERM | FD_SR0_SEEK, 0x00, 0x00);
-    } else {
-#endif
         if (cur_drv->sect == cur_drv->last_sect) {
             fdctrl->data_state &= ~FD_STATE_FORMAT;
             /* Last sector done */
@@ -2004,12 +1862,7 @@ static void fdctrl_handle_readid(fdctrl_t *fdctrl, int direction)
 
     fdctrl->msr &= ~FD_MSR_RQM;
     cur_drv->head = (fdctrl->fifo[1] >> 2) & 1;
-#ifdef VBOX
-    TMTimerSetMillies(fdctrl->result_timer, 1000 / 50);
-#else
-    qemu_mod_timer(fdctrl->result_timer,
-                   qemu_get_clock(vm_clock) + (get_ticks_per_sec() / 50));
-#endif
+    PDMDevHlpTimerSetMillies(fdctrl->pDevIns, fdctrl->hResultTimer, 1000 / 50);
 }
 
 static void fdctrl_handle_format_track(fdctrl_t *fdctrl, int direction)
@@ -2131,7 +1984,7 @@ static void fdctrl_handle_seek(fdctrl_t *fdctrl, int direction)
     SET_CUR_DRV(fdctrl, fdctrl->fifo[1] & FD_DOR_SELMASK);
     cur_drv = get_cur_drv(fdctrl);
     fdctrl_reset_fifo(fdctrl);
-#ifdef VBOX
+
     /* The seek command just sends step pulses to the drive and doesn't care if
      * there's a medium inserted or if it's banging the head against the drive.
      */
@@ -2140,15 +1993,6 @@ static void fdctrl_handle_seek(fdctrl_t *fdctrl, int direction)
     cur_drv->head = (fdctrl->fifo[1] >> 2) & 1;
     /* Raise Interrupt */
     fdctrl_raise_irq(fdctrl, FD_SR0_SEEK | GET_CUR_DRV(fdctrl));
-#else
-    if (fdctrl->fifo[2] > cur_drv->max_track) {
-        fdctrl_raise_irq(fdctrl, FD_SR0_ABNTERM | FD_SR0_SEEK);
-    } else {
-        cur_drv->track = fdctrl->fifo[2];
-        /* Raise Interrupt */
-        fdctrl_raise_irq(fdctrl, FD_SR0_SEEK);
-    }
-#endif
 }
 
 static void fdctrl_handle_perpendicular_mode(fdctrl_t *fdctrl, int direction)
@@ -2314,12 +2158,7 @@ static void fdctrl_write_data(fdctrl_t *fdctrl, uint32_t value)
         fdctrl->fifo[pos] = value;
         if (pos == FD_SECTOR_LEN - 1 ||
             fdctrl->data_pos == fdctrl->data_len) {
-#ifdef VBOX
             blk_write(cur_drv, fd_sector(cur_drv), fdctrl->fifo, 1);
-#else
-            bdrv_write(cur_drv->bs, fd_sector(cur_drv),
-                       fdctrl->fifo, 1);
-#endif
         }
         /* Switch from transfer mode to status mode
          * then from status mode to command mode
@@ -2354,10 +2193,17 @@ static void fdctrl_write_data(fdctrl_t *fdctrl, uint32_t value)
     }
 }
 
-static void fdctrl_result_timer(void *opaque)
+
+/* -=-=-=-=-=-=-=-=- Timer Callback -=-=-=-=-=-=-=-=- */
+
+/**
+ * @callback_method_impl{FNTMTIMERDEV}
+ */
+static DECLCALLBACK(void) fdcTimerCallback(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
-    fdctrl_t *fdctrl = (fdctrl_t *)opaque;
+    fdctrl_t *fdctrl = PDMDEVINS_2_DATA(pDevIns, fdctrl_t *);
     fdrive_t *cur_drv = get_cur_drv(fdctrl);
+    RT_NOREF(pTimer, pvUser);
 
     /* Pretend we are spinning.
      * This is needed for Coherent, which uses READ ID to check for
@@ -2367,67 +2213,140 @@ static void fdctrl_result_timer(void *opaque)
         cur_drv->sect = (cur_drv->sect % cur_drv->last_sect) + 1;
     }
     /* READ_ID can't automatically succeed! */
-#ifdef VBOX
     if (!cur_drv->max_track) {
         FLOPPY_DPRINTF("read id when no disk in drive\n");
         /// @todo This is wrong! Command should not complete.
-        fdctrl_stop_transfer(fdctrl, FD_SR0_ABNTERM, FD_SR1_MA | FD_SR1_ND, FD_SR2_MD);
+        fdctrl_stop_transfer_now(fdctrl, FD_SR0_ABNTERM, FD_SR1_MA | FD_SR1_ND, FD_SR2_MD);
     } else if ((fdctrl->dsr & FD_DSR_DRATEMASK) != cur_drv->media_rate) {
         FLOPPY_DPRINTF("read id rate mismatch (fdc=%d, media=%d)\n",
                        fdctrl->dsr & FD_DSR_DRATEMASK, cur_drv->media_rate);
-        fdctrl_stop_transfer(fdctrl, FD_SR0_ABNTERM, FD_SR1_MA | FD_SR1_ND, FD_SR2_MD);
+        fdctrl_stop_transfer_now(fdctrl, FD_SR0_ABNTERM, FD_SR1_MA | FD_SR1_ND, FD_SR2_MD);
     } else if (cur_drv->track >= cur_drv->max_track) {
         FLOPPY_DPRINTF("read id past last track (%d >= %d)\n",
                        cur_drv->track, cur_drv->max_track);
         cur_drv->ltrk = 0;
-        fdctrl_stop_transfer(fdctrl, FD_SR0_ABNTERM, FD_SR1_MA | FD_SR1_ND, FD_SR2_MD);
+        fdctrl_stop_transfer_now(fdctrl, FD_SR0_ABNTERM, FD_SR1_MA | FD_SR1_ND, FD_SR2_MD);
     }
     else
-#endif
-        fdctrl_stop_transfer(fdctrl, 0x00, 0x00, 0x00);
-}
-
-
-#ifdef VBOX
-
-/* -=-=-=-=-=-=-=-=- Timer Callback -=-=-=-=-=-=-=-=- */
-
-/**
- * @callback_method_impl{FNTMTIMERDEV}
- */
-static DECLCALLBACK(void) fdcTimerCallback(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
-{
-    RT_NOREF(pDevIns, pTimer);
-    fdctrl_t *fdctrl = (fdctrl_t *)pvUser;
-    fdctrl_result_timer(fdctrl);
+        fdctrl_stop_transfer_now(fdctrl, 0x00, 0x00, 0x00);
 }
 
 
 /* -=-=-=-=-=-=-=-=- I/O Port Access Handlers -=-=-=-=-=-=-=-=- */
 
 /**
- * @callback_method_impl{FNIOMIOPORTOUT}
+ * @callback_method_impl{FNIOMIOPORTNEWOUT, Handling 0x3f0 accesses.}
  */
-static DECLCALLBACK(int) fdcIoPortWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT uPort, uint32_t u32, unsigned cb)
+static DECLCALLBACK(VBOXSTRICTRC) fdcIoPort0Write(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT offPort, uint32_t u32, unsigned cb)
 {
-    RT_NOREF(pDevIns);
+    RT_NOREF(pvUser);
+
     if (cb == 1)
-        fdctrl_write (pvUser, uPort & 7, u32);
+        fdctrl_write(PDMDEVINS_2_DATA(pDevIns, fdctrl_t *), offPort, u32);
     else
-        AssertMsgFailed(("uPort=%#x cb=%d u32=%#x\n", uPort, cb, u32));
+        ASSERT_GUEST_MSG_FAILED(("offPort=%#x cb=%d u32=%#x\n", offPort, cb, u32));
     return VINF_SUCCESS;
 }
 
 
 /**
- * @callback_method_impl{FNIOMIOPORTIN}
+ * @callback_method_impl{FNIOMIOPORTNEWIN, Handling 0x3f0 accesses.}
  */
-static DECLCALLBACK(int) fdcIoPortRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT uPort, uint32_t *pu32, unsigned cb)
+static DECLCALLBACK(VBOXSTRICTRC) fdcIoPort0Read(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT offPort, uint32_t *pu32, unsigned cb)
 {
-    RT_NOREF(pDevIns);
+    RT_NOREF(pvUser);
+
     if (cb == 1)
     {
-        *pu32 = fdctrl_read (pvUser, uPort & 7);
+        *pu32 = fdctrl_read(PDMDEVINS_2_DATA(pDevIns, fdctrl_t *), offPort);
+        return VINF_SUCCESS;
+    }
+    return VERR_IOM_IOPORT_UNUSED;
+}
+
+
+/**
+ * @callback_method_impl{FNIOMIOPORTNEWOUT, Handling 0x3f1..0x3f5 accesses.}
+ */
+static DECLCALLBACK(VBOXSTRICTRC) fdcIoPort1Write(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT offPort, uint32_t u32, unsigned cb)
+{
+    RT_NOREF(pvUser);
+
+    if (cb == 1)
+        fdctrl_write(PDMDEVINS_2_DATA(pDevIns, fdctrl_t *), offPort + 1, u32);
+    else
+        ASSERT_GUEST_MSG_FAILED(("offPort=%#x cb=%d u32=%#x\n", offPort, cb, u32));
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * @callback_method_impl{FNTMTIMERDEV}
+ */
+static DECLCALLBACK(void) fdcTransferDelayTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
+{
+    fdctrl_t *fdctrl = PDMDEVINS_2_DATA(pDevIns, fdctrl_t *);
+    RT_NOREF(pvUser, pTimer);
+    fdctrl_stop_transfer_now(fdctrl, fdctrl->st0, fdctrl->st1, fdctrl->st2);
+}
+
+
+/**
+ * @callback_method_impl{FNTMTIMERDEV}
+ */
+static DECLCALLBACK(void) fdcIrqDelayTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
+{
+    fdctrl_t *fdctrl = PDMDEVINS_2_DATA(pDevIns, fdctrl_t *);
+    RT_NOREF(pvUser, pTimer);
+    fdctrl_raise_irq_now(fdctrl, fdctrl->st0);
+}
+
+
+
+/* -=-=-=-=-=-=-=-=- I/O Port Access Handlers -=-=-=-=-=-=-=-=- */
+/**
+ * @callback_method_impl{FNIOMIOPORTNEWIN, Handling 0x3f1..0x3f5 accesses.}
+ */
+static DECLCALLBACK(VBOXSTRICTRC) fdcIoPort1Read(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT offPort, uint32_t *pu32, unsigned cb)
+{
+    RT_NOREF(pvUser);
+
+    if (cb == 1)
+    {
+        *pu32 = fdctrl_read(PDMDEVINS_2_DATA(pDevIns, fdctrl_t *), offPort + 1);
+        return VINF_SUCCESS;
+    }
+    return VERR_IOM_IOPORT_UNUSED;
+}
+
+
+/**
+ * @callback_method_impl{FNIOMIOPORTNEWOUT, Handling 0x3f7 access.}
+ */
+static DECLCALLBACK(VBOXSTRICTRC) fdcIoPort2Write(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT offPort, uint32_t u32, unsigned cb)
+{
+    RT_NOREF(offPort, pvUser);
+    Assert(offPort == 0);
+
+    if (cb == 1)
+        fdctrl_write(PDMDEVINS_2_DATA(pDevIns, fdctrl_t *), 7, u32);
+    else
+        ASSERT_GUEST_MSG_FAILED(("offPort=%#x cb=%d u32=%#x\n", offPort, cb, u32));
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * @callback_method_impl{FNIOMIOPORTNEWIN, Handling 0x3f7 access.}
+ */
+static DECLCALLBACK(VBOXSTRICTRC) fdcIoPort2Read(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT offPort, uint32_t *pu32, unsigned cb)
+{
+    RT_NOREF(pvUser, offPort);
+    Assert(offPort == 0);
+
+    if (cb == 1)
+    {
+        *pu32 = fdctrl_read(PDMDEVINS_2_DATA(pDevIns, fdctrl_t *), 7);
         return VINF_SUCCESS;
     }
     return VERR_IOM_IOPORT_UNUSED;
@@ -2441,56 +2360,62 @@ static DECLCALLBACK(int) fdcIoPortRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPOR
  */
 static DECLCALLBACK(int) fdcSaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {
-    fdctrl_t *pThis = PDMINS_2_DATA(pDevIns, fdctrl_t *);
+    fdctrl_t     *pThis = PDMDEVINS_2_DATA(pDevIns, fdctrl_t *);
+    PCPDMDEVHLPR3 pHlp = pDevIns->pHlpR3;
     unsigned int i;
+    int rc;
 
     /* Save the FDC I/O registers... */
-    SSMR3PutU8(pSSM, pThis->sra);
-    SSMR3PutU8(pSSM, pThis->srb);
-    SSMR3PutU8(pSSM, pThis->dor);
-    SSMR3PutU8(pSSM, pThis->tdr);
-    SSMR3PutU8(pSSM, pThis->dsr);
-    SSMR3PutU8(pSSM, pThis->msr);
+    pHlp->pfnSSMPutU8(pSSM, pThis->sra);
+    pHlp->pfnSSMPutU8(pSSM, pThis->srb);
+    pHlp->pfnSSMPutU8(pSSM, pThis->dor);
+    pHlp->pfnSSMPutU8(pSSM, pThis->tdr);
+    pHlp->pfnSSMPutU8(pSSM, pThis->dsr);
+    pHlp->pfnSSMPutU8(pSSM, pThis->msr);
     /* ...the status registers... */
-    SSMR3PutU8(pSSM, pThis->status0);
-    SSMR3PutU8(pSSM, pThis->status1);
-    SSMR3PutU8(pSSM, pThis->status2);
+    pHlp->pfnSSMPutU8(pSSM, pThis->status0);
+    pHlp->pfnSSMPutU8(pSSM, pThis->status1);
+    pHlp->pfnSSMPutU8(pSSM, pThis->status2);
     /* ...the command FIFO... */
-    SSMR3PutU32(pSSM, sizeof(pThis->fifo));
-    SSMR3PutMem(pSSM, &pThis->fifo, sizeof(pThis->fifo));
-    SSMR3PutU32(pSSM, pThis->data_pos);
-    SSMR3PutU32(pSSM, pThis->data_len);
-    SSMR3PutU8(pSSM, pThis->data_state);
-    SSMR3PutU8(pSSM, pThis->data_dir);
+    pHlp->pfnSSMPutU32(pSSM, sizeof(pThis->fifo));
+    pHlp->pfnSSMPutMem(pSSM, &pThis->fifo, sizeof(pThis->fifo));
+    pHlp->pfnSSMPutU32(pSSM, pThis->data_pos);
+    pHlp->pfnSSMPutU32(pSSM, pThis->data_len);
+    pHlp->pfnSSMPutU8(pSSM, pThis->data_state);
+    pHlp->pfnSSMPutU8(pSSM, pThis->data_dir);
     /* ...and miscellaneous internal FDC state. */
-    SSMR3PutU8(pSSM, pThis->reset_sensei);
-    SSMR3PutU8(pSSM, pThis->eot);
-    SSMR3PutU8(pSSM, pThis->timer0);
-    SSMR3PutU8(pSSM, pThis->timer1);
-    SSMR3PutU8(pSSM, pThis->precomp_trk);
-    SSMR3PutU8(pSSM, pThis->config);
-    SSMR3PutU8(pSSM, pThis->lock);
-    SSMR3PutU8(pSSM, pThis->pwrd);
-    SSMR3PutU8(pSSM, pThis->version);
+    pHlp->pfnSSMPutU8(pSSM, pThis->reset_sensei);
+    pHlp->pfnSSMPutU8(pSSM, pThis->eot);
+    pHlp->pfnSSMPutU8(pSSM, pThis->timer0);
+    pHlp->pfnSSMPutU8(pSSM, pThis->timer1);
+    pHlp->pfnSSMPutU8(pSSM, pThis->precomp_trk);
+    pHlp->pfnSSMPutU8(pSSM, pThis->config);
+    pHlp->pfnSSMPutU8(pSSM, pThis->lock);
+    pHlp->pfnSSMPutU8(pSSM, pThis->pwrd);
+    pHlp->pfnSSMPutU8(pSSM, pThis->version);
 
     /* Save the number of drives and per-drive state. Note that the media
      * states will be updated in fd_revalidate() and need not be saved.
      */
-    SSMR3PutU8(pSSM, pThis->num_floppies);
+    pHlp->pfnSSMPutU8(pSSM, pThis->num_floppies);
     Assert(RT_ELEMENTS(pThis->drives) == pThis->num_floppies);
     for (i = 0; i < pThis->num_floppies; ++i)
     {
         fdrive_t *d = &pThis->drives[i];
 
-        SSMR3PutMem(pSSM, &d->Led, sizeof(d->Led));
-        SSMR3PutU32(pSSM, d->drive);
-        SSMR3PutU8(pSSM, d->dsk_chg);
-        SSMR3PutU8(pSSM, d->perpendicular);
-        SSMR3PutU8(pSSM, d->head);
-        SSMR3PutU8(pSSM, d->track);
-        SSMR3PutU8(pSSM, d->sect);
+        pHlp->pfnSSMPutMem(pSSM, &d->Led, sizeof(d->Led));
+        pHlp->pfnSSMPutU32(pSSM, d->drive);
+        pHlp->pfnSSMPutU8(pSSM, d->dsk_chg);
+        pHlp->pfnSSMPutU8(pSSM, d->perpendicular);
+        pHlp->pfnSSMPutU8(pSSM, d->head);
+        pHlp->pfnSSMPutU8(pSSM, d->track);
+        pHlp->pfnSSMPutU8(pSSM, d->sect);
     }
-    return TMR3TimerSave (pThis->result_timer, pSSM);
+    rc = pHlp->pfnTimerSave(pDevIns, pThis->hXferDelayTimer, pSSM);
+    AssertRCReturn(rc, rc);
+    rc = pHlp->pfnTimerSave(pDevIns, pThis->hIrqDelayTimer, pSSM);
+    AssertRCReturn(rc, rc);
+    return pHlp->pfnTimerSave(pDevIns, pThis->hResultTimer, pSSM);
 }
 
 
@@ -2499,117 +2424,55 @@ static DECLCALLBACK(int) fdcSaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
  */
 static DECLCALLBACK(int) fdcLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
 {
-    fdctrl_t *pThis = PDMINS_2_DATA(pDevIns, fdctrl_t *);
+    fdctrl_t     *pThis = PDMDEVINS_2_DATA(pDevIns, fdctrl_t *);
+    PCPDMDEVHLPR3 pHlp = pDevIns->pHlpR3;
     unsigned int i;
     uint32_t val32;
     uint8_t val8;
+    int rc;
 
     if (uVersion > FDC_SAVESTATE_CURRENT)
         return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
     Assert(uPass == SSM_PASS_FINAL); NOREF(uPass);
 
-    /* The old saved state was significantly different. However, we can get
-     * back most of the controller state and fix the rest by pretending the
-     * disk in the drive (if any) has been replaced. At any rate there should
-     * be no difficulty unless the state was saved during a floppy operation.
-     */
-    if (uVersion == FDC_SAVESTATE_OLD)
+    if (uVersion > FDC_SAVESTATE_OLD)
     {
-        /* First verify a few assumptions. */
-        AssertMsgReturn(sizeof(pThis->fifo) == FD_SECTOR_LEN,
-                        ("The size of FIFO in saved state doesn't match!\n"),
-                        VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
-        AssertMsgReturn(RT_ELEMENTS(pThis->drives) == 2,
-                        ("The number of drives in old saved state doesn't match!\n"),
-                        VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
-        /* Now load the old state. */
-        SSMR3GetU8(pSSM, &pThis->version);
-        /* Toss IRQ level, DMA channel, I/O base, and state. */
-        SSMR3GetU8(pSSM, &val8);
-        SSMR3GetU8(pSSM, &val8);
-        SSMR3GetU32(pSSM, &val32);
-        SSMR3GetU8(pSSM, &val8);
-        /* Translate dma_en. */
-        SSMR3GetU8(pSSM, &val8);
-        if (val8)
-            pThis->dor |= FD_DOR_DMAEN;
-        SSMR3GetU8(pSSM, &pThis->cur_drv);
-        /* Translate bootsel. */
-        SSMR3GetU8(pSSM, &val8);
-        pThis->tdr |= val8 << 2;
-        SSMR3GetMem(pSSM, &pThis->fifo, FD_SECTOR_LEN);
-        SSMR3GetU32(pSSM, &pThis->data_pos);
-        SSMR3GetU32(pSSM, &pThis->data_len);
-        SSMR3GetU8(pSSM, &pThis->data_state);
-        SSMR3GetU8(pSSM, &pThis->data_dir);
-        SSMR3GetU8(pSSM, &pThis->status0);
-        SSMR3GetU8(pSSM, &pThis->eot);
-        SSMR3GetU8(pSSM, &pThis->timer0);
-        SSMR3GetU8(pSSM, &pThis->timer1);
-        SSMR3GetU8(pSSM, &pThis->precomp_trk);
-        SSMR3GetU8(pSSM, &pThis->config);
-        SSMR3GetU8(pSSM, &pThis->lock);
-        SSMR3GetU8(pSSM, &pThis->pwrd);
-
-        for (i = 0; i < 2; ++i)
-        {
-            fdrive_t *d = &pThis->drives[i];
-
-            SSMR3GetMem (pSSM, &d->Led, sizeof (d->Led));
-            SSMR3GetU32(pSSM, &val32);
-            d->drive = (fdrive_type_t)val32;
-            SSMR3GetU32(pSSM, &val32);    /* Toss drflags */
-            SSMR3GetU8(pSSM, &d->perpendicular);
-            SSMR3GetU8(pSSM, &d->head);
-            SSMR3GetU8(pSSM, &d->track);
-            SSMR3GetU8(pSSM, &d->sect);
-            SSMR3GetU8(pSSM, &val8);      /* Toss dir, rw */
-            SSMR3GetU8(pSSM, &val8);
-            SSMR3GetU32(pSSM, &val32);
-            d->flags = (fdrive_flags_t)val32;
-            SSMR3GetU8(pSSM, &d->last_sect);
-            SSMR3GetU8(pSSM, &d->max_track);
-            SSMR3GetU16(pSSM, &d->bps);
-            SSMR3GetU8(pSSM, &d->ro);
-        }
-    }
-    else    /* New state - straightforward. */
-    {
-        Assert(uVersion == FDC_SAVESTATE_CURRENT);
         /* Load the FDC I/O registers... */
-        SSMR3GetU8(pSSM, &pThis->sra);
-        SSMR3GetU8(pSSM, &pThis->srb);
-        SSMR3GetU8(pSSM, &pThis->dor);
-        SSMR3GetU8(pSSM, &pThis->tdr);
-        SSMR3GetU8(pSSM, &pThis->dsr);
-        SSMR3GetU8(pSSM, &pThis->msr);
+        pHlp->pfnSSMGetU8(pSSM, &pThis->sra);
+        pHlp->pfnSSMGetU8(pSSM, &pThis->srb);
+        pHlp->pfnSSMGetU8(pSSM, &pThis->dor);
+        pHlp->pfnSSMGetU8(pSSM, &pThis->tdr);
+        pHlp->pfnSSMGetU8(pSSM, &pThis->dsr);
+        pHlp->pfnSSMGetU8(pSSM, &pThis->msr);
         /* ...the status registers... */
-        SSMR3GetU8(pSSM, &pThis->status0);
-        SSMR3GetU8(pSSM, &pThis->status1);
-        SSMR3GetU8(pSSM, &pThis->status2);
+        pHlp->pfnSSMGetU8(pSSM, &pThis->status0);
+        pHlp->pfnSSMGetU8(pSSM, &pThis->status1);
+        pHlp->pfnSSMGetU8(pSSM, &pThis->status2);
         /* ...the command FIFO, if the size matches... */
-        SSMR3GetU32(pSSM, &val32);
+        rc = pHlp->pfnSSMGetU32(pSSM, &val32);
+        AssertRCReturn(rc, rc);
         AssertMsgReturn(sizeof(pThis->fifo) == val32,
                         ("The size of FIFO in saved state doesn't match!\n"),
                         VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
-        SSMR3GetMem(pSSM, &pThis->fifo, sizeof(pThis->fifo));
-        SSMR3GetU32(pSSM, &pThis->data_pos);
-        SSMR3GetU32(pSSM, &pThis->data_len);
-        SSMR3GetU8(pSSM, &pThis->data_state);
-        SSMR3GetU8(pSSM, &pThis->data_dir);
+        pHlp->pfnSSMGetMem(pSSM, &pThis->fifo, sizeof(pThis->fifo));
+        pHlp->pfnSSMGetU32(pSSM, &pThis->data_pos);
+        pHlp->pfnSSMGetU32(pSSM, &pThis->data_len);
+        pHlp->pfnSSMGetU8(pSSM, &pThis->data_state);
+        pHlp->pfnSSMGetU8(pSSM, &pThis->data_dir);
         /* ...and miscellaneous internal FDC state. */
-        SSMR3GetU8(pSSM, &pThis->reset_sensei);
-        SSMR3GetU8(pSSM, &pThis->eot);
-        SSMR3GetU8(pSSM, &pThis->timer0);
-        SSMR3GetU8(pSSM, &pThis->timer1);
-        SSMR3GetU8(pSSM, &pThis->precomp_trk);
-        SSMR3GetU8(pSSM, &pThis->config);
-        SSMR3GetU8(pSSM, &pThis->lock);
-        SSMR3GetU8(pSSM, &pThis->pwrd);
-        SSMR3GetU8(pSSM, &pThis->version);
+        pHlp->pfnSSMGetU8(pSSM, &pThis->reset_sensei);
+        pHlp->pfnSSMGetU8(pSSM, &pThis->eot);
+        pHlp->pfnSSMGetU8(pSSM, &pThis->timer0);
+        pHlp->pfnSSMGetU8(pSSM, &pThis->timer1);
+        pHlp->pfnSSMGetU8(pSSM, &pThis->precomp_trk);
+        pHlp->pfnSSMGetU8(pSSM, &pThis->config);
+        pHlp->pfnSSMGetU8(pSSM, &pThis->lock);
+        pHlp->pfnSSMGetU8(pSSM, &pThis->pwrd);
+        pHlp->pfnSSMGetU8(pSSM, &pThis->version);
 
         /* Validate the number of drives. */
-        SSMR3GetU8(pSSM, &pThis->num_floppies);
+        rc = pHlp->pfnSSMGetU8(pSSM, &pThis->num_floppies);
+        AssertRCReturn(rc, rc);
         AssertMsgReturn(RT_ELEMENTS(pThis->drives) == pThis->num_floppies,
                         ("The number of drives in saved state doesn't match!\n"),
                         VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
@@ -2619,17 +2482,96 @@ static DECLCALLBACK(int) fdcLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32
         {
             fdrive_t *d = &pThis->drives[i];
 
-            SSMR3GetMem(pSSM, &d->Led, sizeof(d->Led));
-            SSMR3GetU32(pSSM, &val32);
+            pHlp->pfnSSMGetMem(pSSM, &d->Led, sizeof(d->Led));
+            rc = pHlp->pfnSSMGetU32(pSSM, &val32);
+            AssertRCReturn(rc, rc);
             d->drive = (fdrive_type_t)val32;
-            SSMR3GetU8(pSSM, &d->dsk_chg);
-            SSMR3GetU8(pSSM, &d->perpendicular);
-            SSMR3GetU8(pSSM, &d->head);
-            SSMR3GetU8(pSSM, &d->track);
-            SSMR3GetU8(pSSM, &d->sect);
+            pHlp->pfnSSMGetU8(pSSM, &d->dsk_chg);
+            pHlp->pfnSSMGetU8(pSSM, &d->perpendicular);
+            pHlp->pfnSSMGetU8(pSSM, &d->head);
+            pHlp->pfnSSMGetU8(pSSM, &d->track);
+            pHlp->pfnSSMGetU8(pSSM, &d->sect);
+        }
+
+        if (uVersion > FDC_SAVESTATE_PRE_DELAY)
+        {
+            pHlp->pfnTimerLoad(pDevIns, pThis->hXferDelayTimer, pSSM);
+            pHlp->pfnTimerLoad(pDevIns, pThis->hIrqDelayTimer, pSSM);
         }
     }
-    return TMR3TimerLoad (pThis->result_timer, pSSM);
+    else if (uVersion == FDC_SAVESTATE_OLD)
+    {
+        /* The old saved state was significantly different. However, we can get
+         * back most of the controller state and fix the rest by pretending the
+         * disk in the drive (if any) has been replaced. At any rate there should
+         * be no difficulty unless the state was saved during a floppy operation.
+         */
+
+        /* First verify a few assumptions. */
+        AssertMsgReturn(sizeof(pThis->fifo) == FD_SECTOR_LEN,
+                        ("The size of FIFO in saved state doesn't match!\n"),
+                        VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
+        AssertMsgReturn(RT_ELEMENTS(pThis->drives) == 2,
+                        ("The number of drives in old saved state doesn't match!\n"),
+                        VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
+        /* Now load the old state. */
+        pHlp->pfnSSMGetU8(pSSM, &pThis->version);
+        /* Toss IRQ level, DMA channel, I/O base, and state. */
+        pHlp->pfnSSMGetU8(pSSM, &val8);
+        pHlp->pfnSSMGetU8(pSSM, &val8);
+        pHlp->pfnSSMGetU32(pSSM, &val32);
+        pHlp->pfnSSMGetU8(pSSM, &val8);
+        /* Translate dma_en. */
+        rc = pHlp->pfnSSMGetU8(pSSM, &val8);
+        AssertRCReturn(rc, rc);
+        if (val8)
+            pThis->dor |= FD_DOR_DMAEN;
+        pHlp->pfnSSMGetU8(pSSM, &pThis->cur_drv);
+        /* Translate bootsel. */
+        rc = pHlp->pfnSSMGetU8(pSSM, &val8);
+        AssertRCReturn(rc, rc);
+        pThis->tdr |= val8 << 2;
+        pHlp->pfnSSMGetMem(pSSM, &pThis->fifo, FD_SECTOR_LEN);
+        pHlp->pfnSSMGetU32(pSSM, &pThis->data_pos);
+        pHlp->pfnSSMGetU32(pSSM, &pThis->data_len);
+        pHlp->pfnSSMGetU8(pSSM, &pThis->data_state);
+        pHlp->pfnSSMGetU8(pSSM, &pThis->data_dir);
+        pHlp->pfnSSMGetU8(pSSM, &pThis->status0);
+        pHlp->pfnSSMGetU8(pSSM, &pThis->eot);
+        pHlp->pfnSSMGetU8(pSSM, &pThis->timer0);
+        pHlp->pfnSSMGetU8(pSSM, &pThis->timer1);
+        pHlp->pfnSSMGetU8(pSSM, &pThis->precomp_trk);
+        pHlp->pfnSSMGetU8(pSSM, &pThis->config);
+        pHlp->pfnSSMGetU8(pSSM, &pThis->lock);
+        pHlp->pfnSSMGetU8(pSSM, &pThis->pwrd);
+
+        for (i = 0; i < 2; ++i)
+        {
+            fdrive_t *d = &pThis->drives[i];
+
+            pHlp->pfnSSMGetMem(pSSM, &d->Led, sizeof (d->Led));
+            rc = pHlp->pfnSSMGetU32(pSSM, &val32);
+            d->drive = (fdrive_type_t)val32;
+            AssertRCReturn(rc, rc);
+            pHlp->pfnSSMGetU32(pSSM, &val32);    /* Toss drflags */
+            pHlp->pfnSSMGetU8(pSSM, &d->perpendicular);
+            pHlp->pfnSSMGetU8(pSSM, &d->head);
+            pHlp->pfnSSMGetU8(pSSM, &d->track);
+            pHlp->pfnSSMGetU8(pSSM, &d->sect);
+            pHlp->pfnSSMGetU8(pSSM, &val8);      /* Toss dir, rw */
+            pHlp->pfnSSMGetU8(pSSM, &val8);
+            rc = pHlp->pfnSSMGetU32(pSSM, &val32);
+            AssertRCReturn(rc, rc);
+            d->flags = (fdrive_flags_t)val32;
+            pHlp->pfnSSMGetU8(pSSM, &d->last_sect);
+            pHlp->pfnSSMGetU8(pSSM, &d->max_track);
+            pHlp->pfnSSMGetU16(pSSM, &d->bps);
+            pHlp->pfnSSMGetU8(pSSM, &d->ro);
+        }
+    }
+    else
+        AssertFailedReturn(VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION);
+    return pHlp->pfnTimerLoad(pDevIns, pThis->hResultTimer, pSSM);
 }
 
 
@@ -2795,7 +2737,7 @@ static int fdConfig(fdrive_t *drv, PPDMDEVINS pDevIns, bool fInit)
  */
 static DECLCALLBACK(int)  fdcAttach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t fFlags)
 {
-    fdctrl_t *fdctrl = PDMINS_2_DATA(pDevIns, fdctrl_t *);
+    fdctrl_t *fdctrl = PDMDEVINS_2_DATA(pDevIns, fdctrl_t *);
     fdrive_t *drv;
     int rc;
     LogFlow (("ideDetach: iLUN=%u\n", iLUN));
@@ -2843,7 +2785,7 @@ static DECLCALLBACK(int)  fdcAttach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t 
 static DECLCALLBACK(void) fdcDetach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t fFlags)
 {
     RT_NOREF(fFlags);
-    fdctrl_t *pThis = PDMINS_2_DATA(pDevIns, fdctrl_t *);
+    fdctrl_t *pThis = PDMDEVINS_2_DATA(pDevIns, fdctrl_t *);
     LogFlow (("ideDetach: iLUN=%u\n", iLUN));
 
     switch (iLUN)
@@ -2874,7 +2816,7 @@ static DECLCALLBACK(void) fdcDetach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t 
  */
 static DECLCALLBACK(void) fdcReset(PPDMDEVINS pDevIns)
 {
-    fdctrl_t *pThis = PDMINS_2_DATA (pDevIns, fdctrl_t *);
+    fdctrl_t *pThis = PDMDEVINS_2_DATA (pDevIns, fdctrl_t *);
     unsigned i;
     LogFlow (("fdcReset:\n"));
 
@@ -2890,157 +2832,183 @@ static DECLCALLBACK(void) fdcReset(PPDMDEVINS pDevIns)
  */
 static DECLCALLBACK(int) fdcConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
 {
-    RT_NOREF(iInstance);
-    fdctrl_t      *pThis = PDMINS_2_DATA(pDevIns, fdctrl_t *);
-    int            rc;
-    unsigned       i, j;
-    int            ii;
-    bool           mem_mapped;
-    uint16_t       io_base;
-    uint8_t        irq_lvl, dma_chann;
-    PPDMIBASE      pBase;
-
-    Assert(iInstance == 0);
     PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
+    fdctrl_t      *pThis = PDMDEVINS_2_DATA(pDevIns, fdctrl_t *);
+    PCPDMDEVHLPR3  pHlp  = pDevIns->pHlpR3;
+    int            rc;
+
+    RT_NOREF(iInstance);
+    Assert(iInstance == 0);
 
     /*
      * Validate configuration.
      */
-    if (!CFGMR3AreValuesValid(pCfg, "IRQ\0DMA\0MemMapped\0IOBase\0"))
-        return VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES;
+    PDMDEV_VALIDATE_CONFIG_RETURN(pDevIns, "IRQ|DMA|MemMapped|IOBase|StatusA|IRQDelay", "");
 
     /*
      * Read the configuration.
      */
-    rc = CFGMR3QueryU8Def(pCfg, "IRQ", &irq_lvl, 6);
+    rc = pHlp->pfnCFGMQueryU8Def(pCfg, "IRQ", &pThis->irq_lvl, 6);
     AssertMsgRCReturn(rc, ("Configuration error: Failed to read U8 IRQ, rc=%Rrc\n", rc), rc);
 
-    rc = CFGMR3QueryU8Def(pCfg, "DMA", &dma_chann, 2);
+    rc = pHlp->pfnCFGMQueryU8Def(pCfg, "DMA", &pThis->dma_chann, 2);
     AssertMsgRCReturn(rc, ("Configuration error: Failed to read U8 DMA, rc=%Rrc\n", rc), rc);
 
-    rc = CFGMR3QueryU16Def(pCfg, "IOBase", &io_base, 0x3f0);
+    rc = pHlp->pfnCFGMQueryU16Def(pCfg, "IOBase", &pThis->io_base, 0x3f0);
     AssertMsgRCReturn(rc, ("Configuration error: Failed to read U16 IOBase, rc=%Rrc\n", rc), rc);
 
-    rc = CFGMR3QueryBoolDef(pCfg, "MemMapped", &mem_mapped, false);
+    bool fMemMapped;
+    rc = pHlp->pfnCFGMQueryBoolDef(pCfg, "MemMapped", &fMemMapped, false);
     AssertMsgRCReturn(rc, ("Configuration error: Failed to read bool value MemMapped rc=%Rrc\n", rc), rc);
+
+    uint16_t uIrqDelay;
+    rc = pHlp->pfnCFGMQueryU16Def(pCfg, "IRQDelay", &uIrqDelay, 0);
+    AssertMsgRCReturn(rc, ("Configuration error: Failed to read U16 IRQDelay, rc=%Rrc\n", rc), rc);
+
+    bool fStatusA;
+    rc = pHlp->pfnCFGMQueryBoolDef(pCfg, "StatusA", &fStatusA, false);
+    AssertMsgRCReturn(rc, ("Configuration error: Failed to read bool value fStatusA rc=%Rrc\n", rc), rc);
 
     /*
      * Initialize data.
      */
-    LogFlow(("fdcConstruct: irq_lvl=%d dma_chann=%d io_base=%#x\n", irq_lvl, dma_chann, io_base));
+    LogFlow(("fdcConstruct: irq_lvl=%d dma_chann=%d io_base=%#x\n", pThis->irq_lvl, pThis->dma_chann, pThis->io_base));
     pThis->pDevIns   = pDevIns;
     pThis->version   = 0x90;   /* Intel 82078 controller */
-    pThis->irq_lvl   = irq_lvl;
-    pThis->dma_chann = dma_chann;
-    pThis->io_base   = io_base;
     pThis->config    = FD_CONFIG_EIS | FD_CONFIG_EFIFO; /* Implicit seek, polling & FIFO enabled */
     pThis->num_floppies = MAX_FD;
+    pThis->hIoPorts0 = NIL_IOMMMIOHANDLE;
+    pThis->hIoPorts1 = NIL_IOMMMIOHANDLE;
+    pThis->hIoPorts2 = NIL_IOMMMIOHANDLE;
 
     /* Fill 'command_to_handler' lookup table */
-    for (ii = RT_ELEMENTS(handlers) - 1; ii >= 0; ii--)
-        for (j = 0; j < sizeof(command_to_handler); j++)
+    for (int ii = RT_ELEMENTS(handlers) - 1; ii >= 0; ii--)
+        for (unsigned j = 0; j < sizeof(command_to_handler); j++)
             if ((j & handlers[ii].mask) == handlers[ii].value)
                 command_to_handler[j] = ii;
 
     pThis->IBaseStatus.pfnQueryInterface = fdcStatusQueryInterface;
     pThis->ILeds.pfnQueryStatusLed       = fdcStatusQueryStatusLed;
 
-    for (i = 0; i < RT_ELEMENTS(pThis->drives); ++i)
+    for (unsigned i = 0; i < RT_ELEMENTS(pThis->drives); ++i)
     {
         fdrive_t *pDrv = &pThis->drives[i];
 
-        pDrv->drive   = FDRIVE_DRV_NONE;
-        pDrv->iLUN    = i;
-        pDrv->pDevIns = pDevIns;
+        pDrv->drive                         = FDRIVE_DRV_NONE;
+        pDrv->iLUN                          = i;
+        pDrv->pDevIns                       = pDevIns;
 
         pDrv->IBase.pfnQueryInterface       = fdQueryInterface;
         pDrv->IMountNotify.pfnMountNotify   = fdMountNotify;
         pDrv->IMountNotify.pfnUnmountNotify = fdUnmountNotify;
         pDrv->IPort.pfnQueryDeviceLocation  = fdQueryDeviceLocation;
-        pDrv->Led.u32Magic = PDMLED_MAGIC;
+        pDrv->Led.u32Magic                  = PDMLED_MAGIC;
     }
 
     /*
      * Create the FDC timer.
      */
-    rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL, fdcTimerCallback, pThis,
-                                TMTIMER_FLAGS_DEFAULT_CRIT_SECT, "FDC Timer", &pThis->result_timer);
-    if (RT_FAILURE(rc))
-        return rc;
+    rc = PDMDevHlpTimerCreate(pDevIns, TMCLOCK_VIRTUAL, fdcTimerCallback, pThis,
+                              TMTIMER_FLAGS_DEFAULT_CRIT_SECT, "FDC Timer", &pThis->hResultTimer);
+    AssertRCReturn(rc, rc);
+
+    /*
+     * Create the transfer delay timer.
+     */
+    rc = PDMDevHlpTimerCreate(pDevIns, TMCLOCK_VIRTUAL_SYNC, fdcTransferDelayTimer, pThis,
+                              TMTIMER_FLAGS_DEFAULT_CRIT_SECT, "FDC Transfer Delay Timer", &pThis->hXferDelayTimer);
+    AssertRCReturn(rc, rc);
+
+    /*
+     * Create the IRQ delay timer.
+     */
+    rc = PDMDevHlpTimerCreate(pDevIns, TMCLOCK_VIRTUAL_SYNC, fdcIrqDelayTimer, pThis,
+                              TMTIMER_FLAGS_DEFAULT_CRIT_SECT, "FDC IRQ Delay Timer", &pThis->hIrqDelayTimer);
+    AssertRCReturn(rc, rc);
+
+    pThis->uIrqDelayMsec = uIrqDelay;
 
     /*
      * Register DMA channel.
      */
     if (pThis->dma_chann != 0xff)
     {
-        rc = PDMDevHlpDMARegister(pDevIns, dma_chann, &fdctrl_transfer_handler, pThis);
-        if (RT_FAILURE(rc))
-            return rc;
+        rc = PDMDevHlpDMARegister(pDevIns, pThis->dma_chann, &fdctrl_transfer_handler, pThis);
+        AssertRCReturn(rc, rc);
     }
 
     /*
      * IO / MMIO.
+     *
+     * We must skip I/O port 0x3f6 as it is the ATA alternate status register.
+     * Why we skip registering status register A, though, isn't as clear.
      */
-    if (mem_mapped)
+    if (!fMemMapped)
     {
-        AssertMsgFailed(("Memory mapped floppy not support by now\n"));
-        return VERR_NOT_SUPPORTED;
-#if 0
-        FLOPPY_ERROR("memory mapped floppy not supported by now !\n");
-        io_mem = cpu_register_io_memory(0, fdctrl_mem_read, fdctrl_mem_write);
-        cpu_register_physical_memory(base, 0x08, io_mem);
-#endif
+        static const IOMIOPORTDESC s_aDescs[] =
+        {
+            { "SRA", NULL, "Status register A", NULL },
+            { "SRB", NULL, "Status register B", NULL },
+            { "DOR", "DOR", "Digital output register", "Digital output register"},
+            { "TDR", "TDR", "Tape driver register", "Tape driver register"},
+            { "MSR", "DSR", "Main status register", "Datarate select register" },
+            { "FIFO", "FIFO", "Data FIFO", "Data FIFO" },
+            { "ATA", "ATA", NULL, NULL },
+            { "DIR", "CCR", "Digital input register", "Configuration control register"},
+            { NULL, NULL, NULL, NULL }
+        };
+
+        /* 0x3f0 */
+        if (fStatusA)
+        {
+            rc = PDMDevHlpIoPortCreateAndMap(pDevIns, pThis->io_base, 1 /*cPorts*/, fdcIoPort0Write, fdcIoPort0Read,
+                                             "FDC-SRA", s_aDescs, &pThis->hIoPorts0);
+            AssertRCReturn(rc, rc);
+        }
+
+        /* 0x3f1..0x3f5 */
+        rc = PDMDevHlpIoPortCreateAndMap(pDevIns, pThis->io_base + 0x1, 5, fdcIoPort1Write, fdcIoPort1Read,
+                                         "FDC#1", &s_aDescs[1], &pThis->hIoPorts1);
+        AssertRCReturn(rc, rc);
+
+        /* 0x3f7 */
+        rc = PDMDevHlpIoPortCreateAndMap(pDevIns, pThis->io_base + 0x7, 1, fdcIoPort2Write, fdcIoPort2Read,
+                                         "FDC#2", &s_aDescs[7], &pThis->hIoPorts2);
+        AssertRCReturn(rc, rc);
     }
     else
-    {
-        rc = PDMDevHlpIOPortRegister(pDevIns, io_base + 0x1, 5, pThis,
-                                     fdcIoPortWrite, fdcIoPortRead, NULL, NULL, "FDC#1");
-        if (RT_FAILURE(rc))
-            return rc;
-
-        rc = PDMDevHlpIOPortRegister(pDevIns, io_base + 0x7, 1, pThis,
-                                     fdcIoPortWrite, fdcIoPortRead, NULL, NULL, "FDC#2");
-        if (RT_FAILURE(rc))
-            return rc;
-    }
+        AssertMsgFailedReturn(("Memory mapped floppy not support by now\n"), VERR_NOT_SUPPORTED);
 
     /*
      * Register the saved state data unit.
      */
     rc = PDMDevHlpSSMRegister(pDevIns, FDC_SAVESTATE_CURRENT, sizeof(*pThis), fdcSaveExec, fdcLoadExec);
-    if (RT_FAILURE(rc))
-        return rc;
+    AssertRCReturn(rc, rc);
 
     /*
      * Attach the status port (optional).
      */
+    PPDMIBASE pBase;
     rc = PDMDevHlpDriverAttach(pDevIns, PDM_STATUS_LUN, &pThis->IBaseStatus, &pBase, "Status Port");
     if (RT_SUCCESS (rc))
         pThis->pLedsConnector = PDMIBASE_QUERY_INTERFACE(pBase, PDMILEDCONNECTORS);
-    else if (rc != VERR_PDM_NO_ATTACHED_DRIVER)
-    {
-        AssertMsgFailed(("Failed to attach to status driver. rc=%Rrc\n", rc));
-        return rc;
-    }
+    else
+        AssertMsgReturn(rc == VERR_PDM_NO_ATTACHED_DRIVER, ("Failed to attach to status driver. rc=%Rrc\n", rc), rc);
 
     /*
      * Initialize drives.
      */
-    for (i = 0; i < RT_ELEMENTS(pThis->drives); i++)
+    for (unsigned i = 0; i < RT_ELEMENTS(pThis->drives); i++)
     {
-        fdrive_t *pDrv = &pThis->drives[i];
-        rc = fdConfig(pDrv, pDevIns, true /*fInit*/);
-        if (   RT_FAILURE(rc)
-            && rc != VERR_PDM_NO_ATTACHED_DRIVER)
-        {
-            AssertMsgFailed(("Configuration error: failed to configure drive %d, rc=%Rrc\n", i, rc));
-            return rc;
-        }
+        rc = fdConfig(&pThis->drives[i], pDevIns, true /*fInit*/);
+        AssertMsgReturn(RT_SUCCESS(rc) || rc == VERR_PDM_NO_ATTACHED_DRIVER,
+                        ("Configuration error: failed to configure drive %d, rc=%Rrc\n", i, rc),
+                        rc);
     }
 
     fdctrl_reset(pThis, 0);
 
-    for (i = 0; i < RT_ELEMENTS(pThis->drives); i++)
+    for (unsigned i = 0; i < RT_ELEMENTS(pThis->drives); i++)
         fd_revalidate(&pThis->drives[i]);
 
     return VINF_SUCCESS;
@@ -3052,57 +3020,73 @@ static DECLCALLBACK(int) fdcConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
  */
 const PDMDEVREG g_DeviceFloppyController =
 {
-    /* u32Version */
-    PDM_DEVREG_VERSION,
-    /* szName */
-    "i82078",
-    /* szRCMod */
-    "",
-    /* szR0Mod */
-    "",
-    /* pszDescription */
-    "Floppy drive controller (Intel 82078)",
-    /* fFlags */
-    PDM_DEVREG_FLAGS_DEFAULT_BITS,
-    /* fClass */
-    PDM_DEVREG_CLASS_STORAGE,
-    /* cMaxInstances */
-    1,
-    /* cbInstance */
-    sizeof(fdctrl_t),
-    /* pfnConstruct */
-    fdcConstruct,
-    /* pfnDestruct */
-    NULL,
-    /* pfnRelocate */
-    NULL,
-    /* pfnMemSetup */
-    NULL,
-    /* pfnPowerOn */
-    NULL,
-    /* pfnReset */
-    fdcReset,
-    /* pfnSuspend */
-    NULL,
-    /* pfnResume */
-    NULL,
-    /* pfnAttach */
-    fdcAttach,
-    /* pfnDetach */
-    fdcDetach,
-    /* pfnQueryInterface. */
-    NULL,
-    /* pfnInitComplete */
-    NULL,
-    /* pfnPowerOff */
-    NULL,
-    /* pfnSoftReset */
-    NULL,
-    /* u32VersionEnd */
-    PDM_DEVREG_VERSION
+    /* .u32Version = */             PDM_DEVREG_VERSION,
+    /* .uReserved0 = */             0,
+    /* .szName = */                 "i82078",
+    /* .fFlags = */                 PDM_DEVREG_FLAGS_DEFAULT_BITS | PDM_DEVREG_FLAGS_NEW_STYLE,
+    /* .fClass = */                 PDM_DEVREG_CLASS_STORAGE,
+    /* .cMaxInstances = */          1,
+    /* .uSharedVersion = */         42,
+    /* .cbInstanceShared = */       sizeof(fdctrl_t),
+    /* .cbInstanceCC = */           0,
+    /* .cbInstanceRC = */           0,
+    /* .cMaxPciDevices = */         0,
+    /* .cMaxMsixVectors = */        0,
+    /* .pszDescription = */         "Floppy drive controller (Intel 82078)",
+#if defined(IN_RING3)
+    /* .pszRCMod = */               "",
+    /* .pszR0Mod = */               "",
+    /* .pfnConstruct = */           fdcConstruct,
+    /* .pfnDestruct = */            NULL,
+    /* .pfnRelocate = */            NULL,
+    /* .pfnMemSetup = */            NULL,
+    /* .pfnPowerOn = */             NULL,
+    /* .pfnReset = */               fdcReset,
+    /* .pfnSuspend = */             NULL,
+    /* .pfnResume = */              NULL,
+    /* .pfnAttach = */              fdcAttach,
+    /* .pfnDetach = */              fdcDetach,
+    /* .pfnQueryInterface = */      NULL,
+    /* .pfnInitComplete = */        NULL,
+    /* .pfnPowerOff = */            NULL,
+    /* .pfnSoftReset = */           NULL,
+    /* .pfnReserved0 = */           NULL,
+    /* .pfnReserved1 = */           NULL,
+    /* .pfnReserved2 = */           NULL,
+    /* .pfnReserved3 = */           NULL,
+    /* .pfnReserved4 = */           NULL,
+    /* .pfnReserved5 = */           NULL,
+    /* .pfnReserved6 = */           NULL,
+    /* .pfnReserved7 = */           NULL,
+#elif defined(IN_RING0)
+    /* .pfnEarlyConstruct = */      NULL,
+    /* .pfnConstruct = */           NULL,
+    /* .pfnDestruct = */            NULL,
+    /* .pfnFinalDestruct = */       NULL,
+    /* .pfnRequest = */             NULL,
+    /* .pfnReserved0 = */           NULL,
+    /* .pfnReserved1 = */           NULL,
+    /* .pfnReserved2 = */           NULL,
+    /* .pfnReserved3 = */           NULL,
+    /* .pfnReserved4 = */           NULL,
+    /* .pfnReserved5 = */           NULL,
+    /* .pfnReserved6 = */           NULL,
+    /* .pfnReserved7 = */           NULL,
+#elif defined(IN_RC)
+    /* .pfnConstruct = */           NULL,
+    /* .pfnReserved0 = */           NULL,
+    /* .pfnReserved1 = */           NULL,
+    /* .pfnReserved2 = */           NULL,
+    /* .pfnReserved3 = */           NULL,
+    /* .pfnReserved4 = */           NULL,
+    /* .pfnReserved5 = */           NULL,
+    /* .pfnReserved6 = */           NULL,
+    /* .pfnReserved7 = */           NULL,
+#else
+# error "Not in IN_RING3, IN_RING0 or IN_RC!"
+#endif
+    /* .u32VersionEnd = */          PDM_DEVREG_VERSION
 };
-
-#endif /* VBOX */
 
 /*
  * Local Variables:

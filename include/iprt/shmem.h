@@ -35,6 +35,7 @@ RT_C_DECLS_BEGIN
 
 /** @defgroup grp_rt_shmem RTShMem - Shared memory.
  * @ingroup grp_rt
+ * @{
  */
 
 /** @name Open flags for RTShMemOpen().
@@ -84,6 +85,15 @@ RTDECL(int) RTShMemOpen(PRTSHMEM phShMem, const char *pszName, uint32_t fFlags, 
  * @note The shared memory object will be deleted if the creator closes it.
  */
 RTDECL(int) RTShMemClose(RTSHMEM hShMem);
+
+/**
+ * Tries to delete a shared memory object with the given name.
+ *
+ * @returns IPRT status code.
+ * @retval  VERR_NOT_SUPPORTED if the platform does not support deleting the shared memory object by name.
+ * @param   pszName         Name of the shared memory object to delete.
+ */
+RTDECL(int) RTShMemDelete(const char *pszName);
 
 /**
  * Returns the number of references (i.e. mappings) held for the given shared memory object.

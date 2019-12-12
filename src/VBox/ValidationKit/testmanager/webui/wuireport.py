@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 131252 $"
 
 
 # Validation Kit imports.
@@ -90,7 +90,7 @@ class WuiReportBase(WuiContentBase):
         Generates the navigator (manipulate _dParams).
         Returns HTML.
         """
-        assert sWhere == 'top' or sWhere == 'bottom';
+        assert sWhere in ('top', 'bottom',);
 
         return '';
 
@@ -415,7 +415,7 @@ class WuiReportFailuresWithTotalBase(WuiReportFailuresBase):
 
                     oTable.addRow(oPeriod.sDesc, aiValues, asValues);
 
-                if True: # pylint: disable=W0125
+                if True: # pylint: disable=using-constant-test
                     aiValues = [];
                     asValues = [];
                     for idKey in aidSorted:

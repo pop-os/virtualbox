@@ -45,6 +45,10 @@
 #include <VBox/settings.h>
 #include <VBox/version.h>
 
+#ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
+# include <VBox/GuestHost/SharedClipboard-transfers.h>
+#endif
+
 #include <package-generated.h>
 
 #include <algorithm>
@@ -66,6 +70,9 @@
 #include "NetworkServiceRunner.h"
 #include "DHCPServerImpl.h"
 #include "NATNetworkImpl.h"
+#ifdef VBOX_WITH_CLOUD_NET
+#include "CloudNetworkImpl.h"
+#endif /* VBOX_WITH_CLOUD_NET */
 #ifdef VBOX_WITH_RESOURCE_USAGE_API
 # include "PerformanceImpl.h"
 #endif /* VBOX_WITH_RESOURCE_USAGE_API */
@@ -214,10 +221,88 @@ typedef ObjectsList<GuestOSType> GuestOSTypesOList;
 typedef ObjectsList<SharedFolder> SharedFoldersOList;
 typedef ObjectsList<DHCPServer> DHCPServersOList;
 typedef ObjectsList<NATNetwork> NATNetworksOList;
+#ifdef VBOX_WITH_CLOUD_NET
+typedef ObjectsList<CloudNetwork> CloudNetworksOList;
+#endif /* VBOX_WITH_CLOUD_NET */
 
 typedef std::map<Guid, ComPtr<IProgress> > ProgressMap;
 typedef std::map<Guid, ComObjPtr<Medium> > HardDiskMap;
 
+#ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
+/**
+ * Structure for keeping Shared Clipboard area data within the VirtualBox object.
+ */
+struct SharedClipboardAreaData
+{
+    SharedClipboardAreaData()
+        : uID(NIL_SHCLAREAID) { }
+
+    /** The area's (unique) ID.
+     *  Set to NIL_SHCLAREAID if not initialized yet. */
+    ULONG               uID;
+    /** The actual Shared Clipboard area assigned to this ID. */
+    SharedClipboardArea Area;
+};
+
+/** Map of Shared Clipboard areas. The key defines the area ID. */
+typedef std::map<ULONG, SharedClipboardAreaData *> SharedClipboardAreaMap;
+
+/**
+ * Structure for keeping global Shared Clipboard data within the VirtualBox object.
+ */
+struct SharedClipboardData
+{
+    SharedClipboardData()
+        : uMostRecentClipboardAreaID(NIL_SHCLAREAID)
+        , uMaxClipboardAreas(32) /** @todo Make this configurable. */
+    {
+#ifdef DEBUG_andy
+        uMaxClipboardAreas = 9999;
+#endif
+        int rc2 = RTCritSectInit(&CritSect);
+        AssertRC(rc2);
+    }
+
+    virtual ~SharedClipboardData()
+    {
+        RTCritSectDelete(&CritSect);
+    }
+
+    /**
+     * Generates a new clipboard area ID.
+     * Currently does *not* check for collisions and stuff.
+     *
+     * @returns New clipboard area ID.
+     */
+    ULONG GenerateAreaID(void)
+    {
+        ULONG uID = NIL_SHCLAREAID;
+
+        int rc = RTCritSectEnter(&CritSect);
+        if (RT_SUCCESS(rc))
+        {
+            uID = RTRandU32Ex(1, UINT32_MAX - 1); /** @todo Make this a bit more sophisticated. Later. */
+
+            int rc2 = RTCritSectLeave(&CritSect);
+            AssertRC(rc2);
+        }
+
+        LogFlowFunc(("uID=%RU32\n", uID));
+        return uID;
+    }
+
+    /** Critical section to serialize access. */
+    RTCRITSECT                          CritSect;
+    /** The most recent (last created) clipboard area ID.
+     *  NIL_SHCLAREAID if not initialized yet. */
+    ULONG                               uMostRecentClipboardAreaID;
+    /** Maximum of concurrent clipboard areas.
+     *  @todo Make this configurable. */
+    ULONG                               uMaxClipboardAreas;
+    /** Map of clipboard areas. The key is the area ID. */
+    SharedClipboardAreaMap              mapClipboardAreas;
+};
+#endif /* VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS */
 
 /**
  *  Main VirtualBox data structure.
@@ -244,6 +329,10 @@ struct VirtualBox::Data
         , allDHCPServers(lockDHCPServers)
         , lockNATNetworks(LOCKCLASS_LISTOFOTHEROBJECTS)
         , allNATNetworks(lockNATNetworks)
+#ifdef VBOX_WITH_CLOUD_NET
+        , lockCloudNetworks(LOCKCLASS_LISTOFOTHEROBJECTS)
+        , allCloudNetworks(lockCloudNetworks)
+#endif /* VBOX_WITH_CLOUD_NET */
         , mtxProgressOperations(LOCKCLASS_PROGRESSLIST)
         , pClientWatcher(NULL)
         , threadAsyncEvent(NIL_RTTHREAD)
@@ -329,6 +418,10 @@ struct VirtualBox::Data
 
     RWLockHandle                        lockNATNetworks;
     NATNetworksOList                    allNATNetworks;
+#ifdef VBOX_WITH_CLOUD_NET
+    RWLockHandle                        lockCloudNetworks;
+    CloudNetworksOList                  allCloudNetworks;
+#endif /* VBOX_WITH_CLOUD_NET */
 
     RWLockHandle                        mtxProgressOperations;
     ProgressMap                         mapProgressOperations;
@@ -364,6 +457,11 @@ struct VirtualBox::Data
      * The watcher goes unreliable when we run out of memory, fail open a client
      * process, or if the watcher thread gets messed up. */
     bool                                fWatcherIsReliable;
+#endif
+
+#ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
+    /** Data related to Shared Clipboard handling. */
+    SharedClipboardData                 SharedClipboard;
 #endif
 };
 
@@ -602,6 +700,24 @@ HRESULT VirtualBox::init()
             AssertComRCThrowRC(rc);
         }
 
+#ifdef VBOX_WITH_CLOUD_NET
+        /* net services - cloud networks */
+        for (settings::CloudNetworksList::const_iterator it = m->pMainConfigFile->llCloudNetworks.begin();
+             it != m->pMainConfigFile->llCloudNetworks.end();
+             ++it)
+        {
+            ComObjPtr<CloudNetwork> pCloudNetwork;
+            rc = pCloudNetwork.createObject();
+            AssertComRCThrowRC(rc);
+            rc = pCloudNetwork->init(this, "");
+            AssertComRCThrowRC(rc);
+            rc = pCloudNetwork->i_loadSettings(*it);
+            AssertComRCThrowRC(rc);
+            m->allCloudNetworks.addChild(pCloudNetwork);
+            AssertComRCThrowRC(rc);
+        }
+#endif /* VBOX_WITH_CLOUD_NET */
+
         /* events */
         if (SUCCEEDED(rc = unconst(m->pEventSource).createObject()))
             rc = m->pEventSource->init();
@@ -757,6 +873,9 @@ HRESULT VirtualBox::initMedia(const Guid &uuidRegistry,
 
     AutoWriteLock treeLock(i_getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
 
+    // the order of notification is critical for GUI, so use std::list<std::pair> instead of map
+    std::list<std::pair<Guid, DeviceType_T> > uIdsForNotify;
+
     HRESULT rc = S_OK;
     settings::MediaList::const_iterator it;
     for (it = mediaRegistry.llHardDisks.begin();
@@ -777,6 +896,33 @@ HRESULT VirtualBox::initMedia(const Guid &uuidRegistry,
         if (FAILED(rc)) return rc;
 
         rc = i_registerMedium(pHardDisk, &pHardDisk, treeLock);
+        if (SUCCEEDED(rc))
+        {
+            uIdsForNotify.push_back(std::pair<Guid, DeviceType_T>(pHardDisk->i_getId(), DeviceType_HardDisk));
+            // Add children IDs to notification using non-recursive children enumeration.
+            std::vector<std::pair<MediaList::const_iterator, ComObjPtr<Medium> > > llEnumStack;
+            const MediaList& mediaList = pHardDisk->i_getChildren();
+            llEnumStack.push_back(std::pair<MediaList::const_iterator, ComObjPtr<Medium> >(mediaList.begin(), pHardDisk));
+            while (!llEnumStack.empty())
+            {
+                if (llEnumStack.back().first == llEnumStack.back().second->i_getChildren().end())
+                {
+                    llEnumStack.pop_back();
+                    if (!llEnumStack.empty())
+                        ++llEnumStack.back().first;
+                    continue;
+                }
+                uIdsForNotify.push_back(std::pair<Guid, DeviceType_T>((*llEnumStack.back().first)->i_getId(), DeviceType_HardDisk));
+                const MediaList& childMediaList = (*llEnumStack.back().first)->i_getChildren();
+                if (!childMediaList.empty())
+                {
+                    llEnumStack.push_back(std::pair<MediaList::const_iterator, ComObjPtr<Medium> >(childMediaList.begin(),
+                                                                                             *llEnumStack.back().first));
+                    continue;
+                }
+                ++llEnumStack.back().first;
+            }
+        }
         // Avoid trouble with lock/refcount, before returning or not.
         treeLock.release();
         pHardDisk.setNull();
@@ -802,6 +948,8 @@ HRESULT VirtualBox::initMedia(const Guid &uuidRegistry,
         if (FAILED(rc)) return rc;
 
         rc = i_registerMedium(pImage, &pImage, treeLock);
+        if (SUCCEEDED(rc))
+            uIdsForNotify.push_back(std::pair<Guid, DeviceType_T>(pImage->i_getId(), DeviceType_DVD));
         // Avoid trouble with lock/refcount, before returning or not.
         treeLock.release();
         pImage.setNull();
@@ -827,11 +975,23 @@ HRESULT VirtualBox::initMedia(const Guid &uuidRegistry,
         if (FAILED(rc)) return rc;
 
         rc = i_registerMedium(pImage, &pImage, treeLock);
+        if (SUCCEEDED(rc))
+            uIdsForNotify.push_back(std::pair<Guid, DeviceType_T>(pImage->i_getId(), DeviceType_Floppy));
         // Avoid trouble with lock/refcount, before returning or not.
         treeLock.release();
         pImage.setNull();
         treeLock.acquire();
         if (FAILED(rc)) return rc;
+    }
+
+    if (SUCCEEDED(rc))
+    {
+        for (std::list<std::pair<Guid, DeviceType_T> >::const_iterator itItem = uIdsForNotify.begin();
+             itItem != uIdsForNotify.end();
+             ++itItem)
+        {
+            i_onMediumRegistered(itItem->first, itItem->second, TRUE);
+        }
     }
 
     LogFlow(("VirtualBox::initMedia LEAVING\n"));
@@ -918,6 +1078,17 @@ void VirtualBox::uninit()
         m->ptrExtPackManager->uninit();
         unconst(m->ptrExtPackManager).setNull();
     }
+#endif
+
+#ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
+    LogFlowThisFunc(("Destroying Shared Clipboard areas...\n"));
+    SharedClipboardAreaMap::iterator itArea = m->SharedClipboard.mapClipboardAreas.begin();
+    while (itArea != m->SharedClipboard.mapClipboardAreas.end())
+    {
+        i_clipboardAreaDestroy(itArea->second);
+        ++itArea;
+    }
+    m->SharedClipboard.mapClipboardAreas.clear();
 #endif
 
     LogFlowThisFunc(("Terminating the async event handler...\n"));
@@ -1017,7 +1188,7 @@ HRESULT VirtualBox::getAPIRevision(LONG64 *aAPIRevision)
 
     /** @todo This needs to be the same in OSE and non-OSE, preferrably
      *        only changing when actual API changes happens. */
-    uRevision |= 0;
+    uRevision |= 1;
 
     *aAPIRevision = uRevision;
 
@@ -1328,6 +1499,124 @@ HRESULT VirtualBox::getGenericNetworkDrivers(std::vector<com::Utf8Str> &aGeneric
     return S_OK;
 }
 
+/**
+ * Cloud Network
+ */
+#ifdef VBOX_WITH_CLOUD_NET
+HRESULT VirtualBox::i_findCloudNetworkByName(const com::Utf8Str &aNetworkName,
+                                             ComObjPtr<CloudNetwork> *aNetwork)
+{
+    HRESULT rc = E_FAIL;
+    ComPtr<CloudNetwork> found;
+    Bstr bstrNameToFind(aNetworkName);
+
+    AutoReadLock alock(m->allCloudNetworks.getLockHandle() COMMA_LOCKVAL_SRC_POS);
+
+    for (CloudNetworksOList::const_iterator it = m->allCloudNetworks.begin();
+         it != m->allCloudNetworks.end();
+         ++it)
+    {
+        Bstr bstrCloudNetworkName;
+        rc = (*it)->COMGETTER(NetworkName)(bstrCloudNetworkName.asOutParam());
+        if (FAILED(rc)) return rc;
+
+        if (bstrCloudNetworkName == bstrNameToFind)
+        {
+            *aNetwork = *it;
+            rc = S_OK;
+            break;
+        }
+    }
+    return rc;
+}
+#endif /* VBOX_WITH_CLOUD_NET */
+
+HRESULT VirtualBox::createCloudNetwork(const com::Utf8Str &aNetworkName,
+                                       ComPtr<ICloudNetwork> &aNetwork)
+{
+#ifdef VBOX_WITH_CLOUD_NET
+    ComObjPtr<CloudNetwork> cloudNetwork;
+    cloudNetwork.createObject();
+    HRESULT rc = cloudNetwork->init(this, aNetworkName);
+    if (FAILED(rc)) return rc;
+
+    m->allCloudNetworks.addChild(cloudNetwork);
+
+    cloudNetwork.queryInterfaceTo(aNetwork.asOutParam());
+
+    return rc;
+#else /* !VBOX_WITH_CLOUD_NET */
+    NOREF(aNetworkName);
+    NOREF(aNetwork);
+    return E_NOTIMPL;
+#endif /* !VBOX_WITH_CLOUD_NET */
+}
+
+HRESULT VirtualBox::findCloudNetworkByName(const com::Utf8Str &aNetworkName,
+                                           ComPtr<ICloudNetwork> &aNetwork)
+{
+#ifdef VBOX_WITH_CLOUD_NET
+    ComObjPtr<CloudNetwork> network;
+    HRESULT hrc = i_findCloudNetworkByName(aNetworkName, &network);
+    if (SUCCEEDED(hrc))
+        network.queryInterfaceTo(aNetwork.asOutParam());
+    return hrc;
+#else /* !VBOX_WITH_CLOUD_NET */
+    NOREF(aNetworkName);
+    NOREF(aNetwork);
+    return E_NOTIMPL;
+#endif /* !VBOX_WITH_CLOUD_NET */
+}
+
+HRESULT VirtualBox::removeCloudNetwork(const ComPtr<ICloudNetwork> &aNetwork)
+{
+#ifdef VBOX_WITH_CLOUD_NET
+    Bstr name;
+    HRESULT rc = aNetwork->COMGETTER(NetworkName)(name.asOutParam());
+    if (FAILED(rc))
+        return rc;
+    ICloudNetwork *p = aNetwork;
+    CloudNetwork *network = static_cast<CloudNetwork *>(p);
+
+    AutoCaller autoCaller(this);
+    AssertComRCReturnRC(autoCaller.rc());
+
+    AutoCaller cloudNetworkCaller(network);
+    AssertComRCReturnRC(cloudNetworkCaller.rc());
+
+    m->allCloudNetworks.removeChild(network);
+
+    {
+        AutoWriteLock vboxLock(this COMMA_LOCKVAL_SRC_POS);
+        rc = i_saveSettings();
+        vboxLock.release();
+
+        if (FAILED(rc))
+            m->allCloudNetworks.addChild(network);
+    }
+    return rc;
+#else /* !VBOX_WITH_CLOUD_NET */
+    NOREF(aNetwork);
+    return E_NOTIMPL;
+#endif /* !VBOX_WITH_CLOUD_NET */
+}
+
+HRESULT VirtualBox::getCloudNetworks(std::vector<ComPtr<ICloudNetwork> > &aCloudNetworks)
+{
+#ifdef VBOX_WITH_CLOUD_NET
+    AutoReadLock al(m->allCloudNetworks.getLockHandle() COMMA_LOCKVAL_SRC_POS);
+    aCloudNetworks.resize(m->allCloudNetworks.size());
+    size_t i = 0;
+    for (CloudNetworksOList::const_iterator it = m->allCloudNetworks.begin();
+         it != m->allCloudNetworks.end(); ++it)
+         (*it).queryInterfaceTo(aCloudNetworks[i++].asOutParam());
+    return S_OK;
+#else /* !VBOX_WITH_CLOUD_NET */
+    NOREF(aCloudNetworks);
+    return E_NOTIMPL;
+#endif /* !VBOX_WITH_CLOUD_NET */
+}
+
 HRESULT VirtualBox::getCloudProviderManager(ComPtr<ICloudProviderManager> &aCloudProviderManager)
 {
     HRESULT hrc = m->pCloudProviderManager.queryInterfaceTo(aCloudProviderManager.asOutParam());
@@ -1344,44 +1633,40 @@ HRESULT VirtualBox::checkFirmwarePresent(FirmwareType_T aFirmwareType,
 
     static const struct
     {
-        FirmwareType_T type;
-        const char*    fileName;
-        const char*    url;
+        FirmwareType_T  enmType;
+        bool            fBuiltIn;
+        const char     *pszFileName;
+        const char     *pszUrl;
     }
     firmwareDesc[] =
     {
-        {
-            /* compiled-in firmware */
-            FirmwareType_BIOS,    NULL,             NULL
-        },
-        {
-            FirmwareType_EFI32,   "VBoxEFI32.fd",   "http://virtualbox.org/firmware/VBoxEFI32.fd"
-        },
-        {
-            FirmwareType_EFI64,   "VBoxEFI64.fd",   "http://virtualbox.org/firmware/VBoxEFI64.fd"
-        },
-        {
-            FirmwareType_EFIDUAL, "VBoxEFIDual.fd", "http://virtualbox.org/firmware/VBoxEFIDual.fd"
-        }
+        {   FirmwareType_BIOS,    true,  NULL,             NULL },
+#ifdef VBOX_WITH_EFI_IN_DD2
+        {   FirmwareType_EFI32,   true,  "VBoxEFI32.fd",   NULL },
+        {   FirmwareType_EFI64,   true,  "VBoxEFI64.fd",   NULL },
+        {   FirmwareType_EFIDUAL, true,  "VBoxEFIDual.fd", NULL },
+#else
+        {   FirmwareType_EFI32,   false, "VBoxEFI32.fd",   "http://virtualbox.org/firmware/VBoxEFI32.fd" },
+        {   FirmwareType_EFI64,   false, "VBoxEFI64.fd",   "http://virtualbox.org/firmware/VBoxEFI64.fd" },
+        {   FirmwareType_EFIDUAL, false, "VBoxEFIDual.fd", "http://virtualbox.org/firmware/VBoxEFIDual.fd" },
+#endif
     };
 
     for (size_t i = 0; i < sizeof(firmwareDesc) / sizeof(firmwareDesc[0]); i++)
     {
-        if (aFirmwareType != firmwareDesc[i].type)
+        if (aFirmwareType != firmwareDesc[i].enmType)
             continue;
 
         /* compiled-in firmware */
-        if (firmwareDesc[i].fileName == NULL)
+        if (firmwareDesc[i].fBuiltIn)
         {
+            aFile = firmwareDesc[i].pszFileName;
             *aResult = TRUE;
             break;
         }
 
-        Utf8Str shortName, fullName;
-
-        shortName = Utf8StrFmt("Firmware%c%s",
-                               RTPATH_DELIMITER,
-                               firmwareDesc[i].fileName);
+        Utf8Str    fullName;
+        Utf8StrFmt shortName("Firmware%c%s", RTPATH_DELIMITER, firmwareDesc[i].pszFileName);
         int rc = i_calculateFullPath(shortName, fullName);
         AssertRCReturn(rc, VBOX_E_IPRT_ERROR);
         if (RTFileExists(fullName.c_str()))
@@ -1391,22 +1676,19 @@ HRESULT VirtualBox::checkFirmwarePresent(FirmwareType_T aFirmwareType,
             break;
         }
 
-        char pszVBoxPath[RTPATH_MAX];
-        rc = RTPathExecDir(pszVBoxPath, RTPATH_MAX);
+        char szVBoxPath[RTPATH_MAX];
+        rc = RTPathExecDir(szVBoxPath, RTPATH_MAX);
         AssertRCReturn(rc, VBOX_E_IPRT_ERROR);
-        fullName = Utf8StrFmt("%s%c%s",
-                              pszVBoxPath,
-                              RTPATH_DELIMITER,
-                              firmwareDesc[i].fileName);
-        if (RTFileExists(fullName.c_str()))
+        rc = RTPathAppend(szVBoxPath, sizeof(szVBoxPath), firmwareDesc[i].pszFileName);
+        if (RTFileExists(szVBoxPath))
         {
             *aResult = TRUE;
-            aFile = fullName;
+            aFile = szVBoxPath;
             break;
         }
 
         /** @todo account for version in the URL */
-        aUrl = firmwareDesc[i].url;
+        aUrl = firmwareDesc[i].pszUrl;
         *aResult = FALSE;
 
         /* Assume single record per firmware type */
@@ -1678,7 +1960,7 @@ HRESULT VirtualBox::createMachine(const com::Utf8Str &aSettingsFile,
         if (fDirectoryIncludesUUID)
             strNewCreateFlags += ",directoryIncludesUUID=1";
 
-        com::Utf8Str blstr = "";
+        com::Utf8Str blstr;
         rc = composeMachineFilename(aName,
                                     llGroups.front(),
                                     strNewCreateFlags,
@@ -1975,7 +2257,9 @@ HRESULT VirtualBox::createMedium(const com::Utf8Str &aFormat,
     if (SUCCEEDED(rc))
     {
         medium.queryInterfaceTo(aMedium.asOutParam());
-        i_onMediumRegistered(medium->i_getId(), medium->i_getDeviceType(), TRUE);
+        com::Guid uMediumId = medium->i_getId();
+        if (uMediumId.isValid() && !uMediumId.isZero())
+            i_onMediumRegistered(uMediumId, medium->i_getDeviceType(), TRUE);
     }
 
     return rc;
@@ -2191,14 +2475,13 @@ HRESULT VirtualBox::setExtraData(const com::Utf8Str &aKey,
         if (!i_onExtraDataCanChange(Guid::Empty, Bstr(aKey).raw(), Bstr(aValue).raw(), error))
         {
             const char *sep = error.isEmpty() ? "" : ": ";
-            CBSTR err = error.raw();
-            Log1WarningFunc(("Someone vetoed! Change refused%s%ls\n", sep, err));
+            Log1WarningFunc(("Someone vetoed! Change refused%s%ls\n", sep, error.raw()));
             return setError(E_ACCESSDENIED,
                             tr("Could not set extra data because someone refused the requested change of '%s' to '%s'%s%ls"),
                             strKey.c_str(),
                             strValue.c_str(),
                             sep,
-                            err);
+                            error.raw());
         }
 
         // data is changing and change not vetoed: then write it out under the lock
@@ -2662,7 +2945,7 @@ private:
  *
  *  If a failure happens anywhere before the user function would be normally
  *  called, it will be called anyway in special "cleanup only" mode indicated
- *  by \a aClient, \a aProgress and \aVrc arguments set to NULL. In this mode,
+ *  by \a aClient, \a aProgress and \a aVrc arguments set to NULL. In this mode,
  *  all the function is supposed to do is to cleanup its aUser argument if
  *  necessary (it's assumed that the ownership of this argument is passed to
  *  the user function once #startSVCHelperClient() returns a success, thus
@@ -3018,6 +3301,32 @@ void VirtualBox::i_onMediumChanged(IMediumAttachment *aMediumAttachment)
     i_postEvent(new MediumChangedEventStruct(this, aMediumAttachment));
 }
 
+/** Event for onStorageControllerChanged() */
+struct StorageControllerChangedEventStruct : public VirtualBox::CallbackEvent
+{
+    StorageControllerChangedEventStruct(VirtualBox *aVB, const Guid &aMachineId,
+                                        const com::Utf8Str &aControllerName)
+        : CallbackEvent(aVB, VBoxEventType_OnStorageControllerChanged)
+        , mMachineId(aMachineId.toUtf16()), mControllerName(aControllerName)
+    {}
+
+    virtual HRESULT prepareEventDesc(IEventSource *aSource, VBoxEventDesc &aEvDesc)
+    {
+        return aEvDesc.init(aSource, VBoxEventType_OnStorageControllerChanged, mMachineId.raw(), mControllerName.raw());
+    }
+
+    Bstr mMachineId;
+    Bstr mControllerName;
+};
+
+/**
+ *  @note Doesn't lock any object.
+ */
+void VirtualBox::i_onStorageControllerChanged(const Guid &aMachineId, const com::Utf8Str &aControllerName)
+{
+    i_postEvent(new StorageControllerChangedEventStruct(this, aMachineId, aControllerName));
+}
+
 /** Event for onStorageDeviceChanged() */
 struct StorageDeviceChangedEventStruct : public VirtualBox::CallbackEvent
 {
@@ -3237,6 +3546,281 @@ struct GuestPropertyEvent : public VirtualBox::CallbackEvent
     Bstr name, value, flags;
 };
 
+#ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
+/**
+ * Generates a new clipboard area on the host by opening (and locking) a new, temporary directory.
+ *
+ * @returns VBox status code.
+ * @param   uAreaID             Clipboard area ID to use for creation.
+ * @param   fFlags              Additional creation flags; currently unused and ignored.
+ * @param   ppAreaData          Where to return the created clipboard area on success.
+ */
+int VirtualBox::i_clipboardAreaCreate(ULONG uAreaID, uint32_t fFlags, SharedClipboardAreaData **ppAreaData)
+{
+    RT_NOREF(fFlags);
+
+    int vrc;
+
+    SharedClipboardAreaData *pAreaData = new SharedClipboardAreaData();
+    if (pAreaData)
+    {
+        vrc = pAreaData->Area.OpenTemp(uAreaID, SHCLAREA_OPEN_FLAGS_MUST_NOT_EXIST);
+        if (RT_SUCCESS(vrc))
+        {
+            pAreaData->uID = uAreaID;
+
+            *ppAreaData = pAreaData;
+        }
+    }
+    else
+        vrc = VERR_NO_MEMORY;
+
+    LogFlowFunc(("uID=%RU32, rc=%Rrc\n", uAreaID, vrc));
+    return vrc;
+}
+
+/**
+ * Destroys a formerly created clipboard area.
+ *
+ * @returns VBox status code.
+ * @param   pAreaData           Area data to destroy. The pointer will be invalid on successful return.
+ */
+int VirtualBox::i_clipboardAreaDestroy(SharedClipboardAreaData *pAreaData)
+{
+    if (!pAreaData)
+        return VINF_SUCCESS;
+
+    /** @todo Do we need a worker for this to not block here for too long?
+     *        This could take a while to clean up huge areas ... */
+    int vrc = pAreaData->Area.Close();
+    if (RT_SUCCESS(vrc))
+    {
+        delete pAreaData;
+        pAreaData = NULL;
+    }
+
+    LogFlowFunc(("uID=%RU32, rc=%Rrc\n", pAreaData->uID, vrc));
+    return vrc;
+}
+
+/**
+ * Registers and creates a new clipboard area on the host (for all VMs), returned the clipboard area ID for it.
+ *
+ * @returns HRESULT
+ * @param   aParms              Creation parameters. Currently unused.
+ * @param   aID                 Where to return the clipboard area ID on success.
+ */
+HRESULT VirtualBox::i_onClipboardAreaRegister(const std::vector<com::Utf8Str> &aParms, ULONG *aID)
+{
+    RT_NOREF(aParms);
+
+    HRESULT rc = S_OK;
+
+    int vrc = RTCritSectEnter(&m->SharedClipboard.CritSect);
+    if (RT_SUCCESS(vrc))
+    {
+        try
+        {
+            if (m->SharedClipboard.mapClipboardAreas.size() < m->SharedClipboard.uMaxClipboardAreas)
+            {
+                for (unsigned uTries = 0; uTries < 32; uTries++) /* Don't try too hard. */
+                {
+                    const ULONG uAreaID = m->SharedClipboard.GenerateAreaID();
+
+                    /* Area ID already taken? */
+                    if (m->SharedClipboard.mapClipboardAreas.find(uAreaID) != m->SharedClipboard.mapClipboardAreas.end())
+                        continue;
+
+                    SharedClipboardAreaData *pAreaData;
+                    vrc = i_clipboardAreaCreate(uAreaID, 0 /* fFlags */, &pAreaData);
+                    if (RT_SUCCESS(vrc))
+                    {
+                        m->SharedClipboard.mapClipboardAreas[uAreaID] = pAreaData;
+                        m->SharedClipboard.uMostRecentClipboardAreaID = uAreaID;
+
+                        /** @todo Implement collision detection / wrap-around. */
+
+                        if (aID)
+                            *aID = uAreaID;
+
+                        LogThisFunc(("Registered new clipboard area %RU32: '%s'\n",
+                                     uAreaID, pAreaData->Area.GetDirAbs()));
+                        break;
+                    }
+                }
+
+                if (RT_FAILURE(vrc))
+                    rc = setError(E_FAIL, /** @todo Find a better rc. */
+                                  tr("Failed to create new clipboard area (%Rrc)"), vrc);
+            }
+            else
+            {
+                rc = setError(E_FAIL, /** @todo Find a better rc. */
+                              tr("Maximum number of concurrent clipboard areas reached (%RU32)"),
+                              m->SharedClipboard.uMaxClipboardAreas);
+            }
+        }
+        catch (std::bad_alloc &ba)
+        {
+            vrc = VERR_NO_MEMORY;
+            RT_NOREF(ba);
+        }
+
+        RTCritSectLeave(&m->SharedClipboard.CritSect);
+    }
+    LogFlowThisFunc(("rc=%Rhrc\n", rc));
+    return rc;
+}
+
+/**
+ * Unregisters (destroys) a formerly created clipboard area.
+ *
+ * @returns HRESULT
+ * @param   aID                 ID of clipboard area to destroy.
+ */
+HRESULT VirtualBox::i_onClipboardAreaUnregister(ULONG aID)
+{
+    HRESULT rc = S_OK;
+
+    int vrc = RTCritSectEnter(&m->SharedClipboard.CritSect);
+    if (RT_SUCCESS(vrc))
+    {
+        SharedClipboardAreaMap::iterator itArea = m->SharedClipboard.mapClipboardAreas.find(aID);
+        if (itArea != m->SharedClipboard.mapClipboardAreas.end())
+        {
+            if (itArea->second->Area.GetRefCount() == 0)
+            {
+                vrc = i_clipboardAreaDestroy(itArea->second);
+                if (RT_SUCCESS(vrc))
+                {
+                    m->SharedClipboard.mapClipboardAreas.erase(itArea);
+                }
+            }
+            else
+                rc = setError(E_ACCESSDENIED, /** @todo Find a better rc. */
+                              tr("Area with ID %RU32 still in used, cannot unregister"), aID);
+        }
+        else
+            rc = setError(VBOX_E_OBJECT_NOT_FOUND, /** @todo Find a better rc. */
+                          tr("Could not find a registered clipboard area with ID %RU32"), aID);
+
+        int vrc2 = RTCritSectLeave(&m->SharedClipboard.CritSect);
+        AssertRC(vrc2);
+    }
+    LogFlowThisFunc(("aID=%RU32, rc=%Rhrc\n", aID, rc));
+    return rc;
+}
+
+/**
+ * Attaches to an existing clipboard area.
+ *
+ * @returns HRESULT
+ * @param   aID                 ID of clipboard area to attach.
+ */
+HRESULT VirtualBox::i_onClipboardAreaAttach(ULONG aID)
+{
+    HRESULT rc = S_OK;
+
+    int vrc = RTCritSectEnter(&m->SharedClipboard.CritSect);
+    if (RT_SUCCESS(vrc))
+    {
+        SharedClipboardAreaMap::iterator itArea = m->SharedClipboard.mapClipboardAreas.find(aID);
+        if (itArea != m->SharedClipboard.mapClipboardAreas.end())
+        {
+            const uint32_t cRefs = itArea->second->Area.AddRef();
+            RT_NOREF(cRefs);
+            LogFlowThisFunc(("aID=%RU32 -> cRefs=%RU32\n", aID, cRefs));
+            vrc = VINF_SUCCESS;
+        }
+        else
+            rc = setError(VBOX_E_OBJECT_NOT_FOUND, /** @todo Find a better rc. */
+                          tr("Could not find a registered clipboard area with ID %RU32"), aID);
+
+        int vrc2 = RTCritSectLeave(&m->SharedClipboard.CritSect);
+        AssertRC(vrc2);
+    }
+    LogFlowThisFunc(("aID=%RU32, rc=%Rhrc\n", aID, rc));
+    return rc;
+}
+
+/**
+ * Detaches from an existing clipboard area.
+ *
+ * @returns HRESULT
+ * @param   aID                 ID of clipboard area to detach from.
+ */
+HRESULT VirtualBox::i_onClipboardAreaDetach(ULONG aID)
+{
+    HRESULT rc = S_OK;
+
+    int vrc = RTCritSectEnter(&m->SharedClipboard.CritSect);
+    if (RT_SUCCESS(vrc))
+    {
+        SharedClipboardAreaMap::iterator itArea = m->SharedClipboard.mapClipboardAreas.find(aID);
+        if (itArea != m->SharedClipboard.mapClipboardAreas.end())
+        {
+            const uint32_t cRefs = itArea->second->Area.Release();
+            RT_NOREF(cRefs);
+            LogFlowThisFunc(("aID=%RU32 -> cRefs=%RU32\n", aID, cRefs));
+            vrc = VINF_SUCCESS;
+        }
+        else
+            rc = setError(VBOX_E_OBJECT_NOT_FOUND, /** @todo Find a better rc. */
+                          tr("Could not find a registered clipboard area with ID %RU32"), aID);
+
+        int rc2 = RTCritSectLeave(&m->SharedClipboard.CritSect);
+        AssertRC(rc2);
+    }
+    LogFlowThisFunc(("aID=%RU32, rc=%Rhrc\n", aID, rc));
+    return rc;
+}
+
+/**
+ * Returns the ID of the most recent (last created) clipboard area,
+ * or NIL_SHCLAREAID if no clipboard area has been created yet.
+ *
+ * @returns Most recent clipboard area ID.
+ */
+ULONG VirtualBox::i_onClipboardAreaGetMostRecent(void)
+{
+    ULONG aID = 0;
+    int vrc2 = RTCritSectEnter(&m->SharedClipboard.CritSect);
+    if (RT_SUCCESS(vrc2))
+    {
+        aID = m->SharedClipboard.uMostRecentClipboardAreaID;
+
+        vrc2 = RTCritSectLeave(&m->SharedClipboard.CritSect);
+        AssertRC(vrc2);
+    }
+    LogFlowThisFunc(("aID=%RU32\n", aID));
+    return aID;
+}
+
+/**
+ * Returns the current reference count of a clipboard area.
+ *
+ * @returns Reference count of given clipboard area ID.
+ */
+ULONG VirtualBox::i_onClipboardAreaGetRefCount(ULONG aID)
+{
+    ULONG cRefCount = 0;
+    int rc2 = RTCritSectEnter(&m->SharedClipboard.CritSect);
+    if (RT_SUCCESS(rc2))
+    {
+        SharedClipboardAreaMap::iterator itArea = m->SharedClipboard.mapClipboardAreas.find(aID);
+        if (itArea != m->SharedClipboard.mapClipboardAreas.end())
+        {
+            cRefCount = itArea->second->Area.GetRefCount();
+        }
+
+        rc2 = RTCritSectLeave(&m->SharedClipboard.CritSect);
+        AssertRC(rc2);
+    }
+    LogFlowThisFunc(("aID=%RU32, cRefCount=%RU32\n", aID, cRefCount));
+    return cRefCount;
+}
+#endif /* VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS */
+
 /**
  *  @note Doesn't lock any object.
  */
@@ -3306,7 +3890,7 @@ int VirtualBox::i_natNetworkRefInc(const Utf8Str &aNetworkName)
         HRESULT rc = findNATNetworkByName(aNetworkName, nat);
         if (FAILED(rc)) return -1;
 
-        rc = nat->Start(Bstr("whatever").raw());
+        rc = nat->Start();
         if (SUCCEEDED(rc))
             LogRel(("Started NAT network '%s'\n", aNetworkName.c_str()));
         else
@@ -4353,18 +4937,12 @@ void VirtualBox::i_saveMediaRegistry(settings::MediaRegistry &mediaRegistry,
             // levels up to whoever triggered saveSettings, as there are
             // lots of places which would need to handle saving more settings.
             pDesc->pVirtualBox = this;
-            HRESULT hr = S_OK;
-            try
-            {
-                //the function createThread() takes ownership of pDesc
-                //so there is no need to use delete operator for pDesc
-                //after calling this function
-                hr = pDesc->createThread();
-            }
-            catch(...)
-            {
-                hr = E_FAIL;
-            }
+
+            //the function createThread() takes ownership of pDesc
+            //so there is no need to use delete operator for pDesc
+            //after calling this function
+            HRESULT hr = pDesc->createThread();
+            pDesc = NULL;
 
             if (FAILED(hr))
             {
@@ -4494,6 +5072,21 @@ HRESULT VirtualBox::i_saveSettings()
         }
 #endif
 
+#ifdef VBOX_WITH_CLOUD_NET
+        m->pMainConfigFile->llCloudNetworks.clear();
+        {
+            AutoReadLock cloudNetworkLock(m->allCloudNetworks.getLockHandle() COMMA_LOCKVAL_SRC_POS);
+            for (CloudNetworksOList::const_iterator it = m->allCloudNetworks.begin();
+                 it != m->allCloudNetworks.end();
+                 ++it)
+            {
+                settings::CloudNetwork n;
+                rc = (*it)->i_saveSettings(n);
+                if (FAILED(rc)) throw rc;
+                m->pMainConfigFile->llCloudNetworks.push_back(n);
+            }
+        }
+#endif /* VBOX_WITH_CLOUD_NET */
         // leave extra data alone, it's still in the config file
 
         // host data (USB filters)

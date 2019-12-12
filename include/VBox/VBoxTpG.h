@@ -432,9 +432,9 @@ extern VTGOBJHDR            g_VTGObjHeader;
 # define VTG_VMCPU_TO_R0(a_pVCpu)                (a_pVCpu)
 # define VTG_CPUMCTX_TO_R0(a_pVCpu, a_pCtx)      (a_pCtx)
 #else
-# define VTG_VM_TO_R0(a_pVM)                     ((a_pVM)   ? (a_pVM)->pVMR0                                : NIL_RTR0PTR)
-# define VTG_VMCPU_TO_R0(a_pVCpu)                ((a_pVCpu) ? VM_R0_ADDR((a_pVCpu)->CTX_SUFF(pVM), a_pVCpu) : NIL_RTR0PTR)
-# define VTG_CPUMCTX_TO_R0(a_pVCpu, a_pCtx)      ((a_pVCpu) ? VM_R0_ADDR((a_pVCpu)->CTX_SUFF(pVM), a_pCtx)  : NIL_RTR0PTR)
+# define VTG_VM_TO_R0(a_pVM)                     ((a_pVM)   ? (a_pVM)->pVMR0ForCall  : NIL_RTR0PTR)
+# define VTG_VMCPU_TO_R0(a_pVCpu)                ((a_pVCpu) ? (a_pVCpu)->pVCpuR0ForVtg : NIL_RTR0PTR)
+# define VTG_CPUMCTX_TO_R0(a_pVCpu, a_pCtx)      ((a_pVCpu) ? (a_pVCpu)->pVCpuR0ForVtg + ((uintptr_t)(a_pCtx) - (uintptr_t)(a_pVCpu)) : NIL_RTR0PTR)
 #endif
 /** @} */
 

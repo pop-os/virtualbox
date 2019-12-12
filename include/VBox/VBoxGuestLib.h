@@ -39,6 +39,12 @@
 # ifdef VBOX_WITH_DRAG_AND_DROP
 #  include <VBox/GuestHost/DragAndDropDefs.h>
 # endif
+# ifdef VBOX_WITH_SHARED_CLIPBOARD
+#  include <VBox/GuestHost/SharedClipboard.h>
+#  ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
+#   include <VBox/GuestHost/SharedClipboard-transfers.h>
+#  endif
+# endif /* VBOX_WITH_SHARED_CLIPBOARD */
 
 /** @defgroup grp_vboxguest_lib     VirtualBox Guest Additions Library
  * @ingroup grp_vboxguest
@@ -565,15 +571,171 @@ VBGLR3DECL(int)     VbglR3GetSessionId(uint64_t *pu64IdSession);
 
 /** @} */
 
-/** @name Shared clipboard
+# ifdef VBOX_WITH_SHARED_CLIPBOARD
+/** @name Shared Clipboard
  * @{ */
+
+/**
+ * The context required for either retrieving or sending a HGCM shared clipboard
+ * commands from or to the host.
+ *
+ * @todo This struct could be handy if we want to implement a second
+ *       communication channel, e.g. via TCP/IP. Use a union for the HGCM stuff then.
+ */
+typedef struct VBGLR3SHCLCMDCTX
+{
+    /** HGCM client ID to use for communication.
+     * This is set by VbglR3ClipboardConnectEx(). */
+    uint32_t                    idClient;
+    /** This is @c false if both VBOX_SHCL_HF_0_CONTEXT_ID and
+     * VBOX_SHCL_GF_0_CONTEXT_ID are set, otherwise @c true and only the old
+     * protocol (< 6.1) should be used.
+     * This is set by VbglR3ClipboardConnectEx(). */
+    bool                        fUseLegacyProtocol;
+    /** Host feature flags (VBOX_SHCL_HF_XXX).
+     * This is set by VbglR3ClipboardConnectEx(). */
+    uint64_t                    fHostFeatures;
+    /** The guest feature flags reported to the host (VBOX_SHCL_GF_XXX).
+     * This is set by VbglR3ClipboardConnectEx().  */
+    uint64_t                    fGuestFeatures;
+#  ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
+    /** Default chunk size (in bytes).
+     * This is set by VbglR3ClipboardConnectEx(). */
+    uint32_t                    cbChunkSize;
+    /** Max chunk size (in bytes).
+     * This is set by VbglR3ClipboardConnectEx(). */
+    uint32_t                    cbMaxChunkSize;
+#  endif
+
+    /** The context ID - input or/and output depending on the operation. */
+    uint64_t                    idContext;
+    /** OUT: Number of parameters retrieved.
+     * This is set by ??. */
+    uint32_t                    cParmsRecived;
+
+#  ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
+    /** Callback table to use for all transfers. */
+    SHCLTRANSFERCALLBACKS       Callbacks;
+#  endif
+} VBGLR3SHCLCMDCTX;
+/** Pointer to a shared clipboard context for Vbgl. */
+typedef VBGLR3SHCLCMDCTX *PVBGLR3SHCLCMDCTX;
+
+/**
+ * Enumeration specifying a Shared Clipboard event type.
+ * @todo r=bird: Surely, this isn't necessary?!
+ */
+typedef enum _VBGLR3CLIPBOARDEVENTTYPE
+{
+    /** No event needed / defined. */
+    VBGLR3CLIPBOARDEVENTTYPE_NONE = 0,
+    /** Host reports available clipboard formats to the guest. */
+    VBGLR3CLIPBOARDEVENTTYPE_REPORT_FORMATS,
+    /** Host wants to read Shared Clipboard data from the guest. */
+    VBGLR3CLIPBOARDEVENTTYPE_READ_DATA,
+    /** Terminates the Shared Clipboard service. */
+    VBGLR3CLIPBOARDEVENTTYPE_QUIT,
+#  ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
+    /** Reports a transfer status to the guest. */
+    VBGLR3CLIPBOARDEVENTTYPE_TRANSFER_STATUS,
+#  endif
+    /** Blow the type up to 32-bit. */
+    VBGLR3CLIPBOARDEVENTTYPE_32BIT_HACK = 0x7fffffff
+} VBGLR3CLIPBOARDEVENTTYPE;
+
+/**
+ * Structure for keeping a Shared Clipboard VbglR3 event.
+ */
+typedef struct _VBGLR3CLIPBOARDEVENT
+{
+    /** The event type the union contains. */
+    VBGLR3CLIPBOARDEVENTTYPE enmType;
+    /** Command context bound to this event. */
+    VBGLR3SHCLCMDCTX         cmdCtx;
+    union
+    {
+        /** Reports available formats from the host. */
+        SHCLFORMATDATA       ReportedFormats;
+        /** Reports that data needs to be read from the guest. */
+        SHCLFORMAT           fReadData;
+#  ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
+        /** Reports a transfer status to the guest. */
+        struct
+        {
+            /** ID of the trnasfer. */
+            SHCLTRANSFERID     uID;
+            /** Transfer direction. */
+            SHCLTRANSFERDIR    enmDir;
+            /** Additional reproting information. */
+            SHCLTRANSFERREPORT Report;
+        } TransferStatus;
+#  endif /* VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS */
+    } u;
+} VBGLR3CLIPBOARDEVENT, *PVBGLR3CLIPBOARDEVENT;
+typedef const PVBGLR3CLIPBOARDEVENT CPVBGLR3CLIPBOARDEVENT;
+
+/** @todo r=bird: I'm not sure it is appropriate for the VbglR3 to use types
+ *        from VBox/GuestHost/SharedClipboard*.h, doesn't seem clean to me. */
+
 VBGLR3DECL(int)     VbglR3ClipboardConnect(HGCMCLIENTID *pidClient);
 VBGLR3DECL(int)     VbglR3ClipboardDisconnect(HGCMCLIENTID idClient);
-VBGLR3DECL(int)     VbglR3ClipboardGetHostMsg(HGCMCLIENTID idClient, uint32_t *pMsg, uint32_t *pfFormats);
+VBGLR3DECL(int)     VbglR3ClipboardGetHostMsgOld(HGCMCLIENTID idClient, uint32_t *pMsg, uint32_t *pfFormats);
 VBGLR3DECL(int)     VbglR3ClipboardReadData(HGCMCLIENTID idClient, uint32_t fFormat, void *pv, uint32_t cb, uint32_t *pcb);
-VBGLR3DECL(int)     VbglR3ClipboardReportFormats(HGCMCLIENTID idClient, uint32_t fFormats);
+VBGLR3DECL(int)     VbglR3ClipboardReadDataEx(PVBGLR3SHCLCMDCTX pCtx, PSHCLDATABLOCK pData, uint32_t *pcbRead);
 VBGLR3DECL(int)     VbglR3ClipboardWriteData(HGCMCLIENTID idClient, uint32_t fFormat, void *pv, uint32_t cb);
+VBGLR3DECL(int)     VbglR3ClipboardWriteDataEx(PVBGLR3SHCLCMDCTX pCtx, PSHCLDATABLOCK pData);
+VBGLR3DECL(int)     VbglR3ClipboardReportFormats(HGCMCLIENTID idClient, uint32_t fFormats);
+
+VBGLR3DECL(int)     VbglR3ClipboardConnectEx(PVBGLR3SHCLCMDCTX pCtx, uint64_t fGuestFeatures);
+VBGLR3DECL(int)     VbglR3ClipboardDisconnectEx(PVBGLR3SHCLCMDCTX pCtx);
+
+VBGLR3DECL(int)     VbglR3ClipboardReportFeatures(uint32_t idClient, uint64_t fGuestFeatures, uint64_t *pfHostFeatures);
+VBGLR3DECL(int)     VbglR3ClipboardQueryFeatures(uint32_t idClient, uint64_t *pfHostFeatures);
+VBGLR3DECL(int)     VbglR3ClipboardMsgPeekWait(PVBGLR3SHCLCMDCTX pCtx, uint32_t *pidMsg, uint32_t *pcParameters, uint64_t *pidRestoreCheck);
+VBGLR3DECL(int)     VbglR3ClipboardEventGetNext(uint32_t idMsg, uint32_t cParms, PVBGLR3SHCLCMDCTX pCtx, PVBGLR3CLIPBOARDEVENT pEvent);
+VBGLR3DECL(void)    VbglR3ClipboardEventFree(PVBGLR3CLIPBOARDEVENT pEvent);
+
+VBGLR3DECL(int)     VbglR3ClipboardWriteError(HGCMCLIENTID idClient, int rcErr);
+
+#  ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
+VBGLR3DECL(int)     VbglR3ClipboardEventGetNextEx(uint32_t idMsg, uint32_t cParms, PVBGLR3SHCLCMDCTX pCtx, PSHCLTRANSFERCTX pTransferCtx, PVBGLR3CLIPBOARDEVENT pEvent);
+
+VBGLR3DECL(int)     VbglR3ClipboardTransferStatusReply(PVBGLR3SHCLCMDCTX pCtx, PSHCLTRANSFER pTransfer, SHCLTRANSFERSTATUS uStatus);
+
+VBGLR3DECL(int)     VbglR3ClipboardRootListRead(PVBGLR3SHCLCMDCTX pCtx, PSHCLROOTLIST *ppRootList);
+
+VBGLR3DECL(int)     VbglR3ClipboardRootListHdrReadReq(PVBGLR3SHCLCMDCTX pCtx, uint32_t *pfRoots);
+VBGLR3DECL(int)     VbglR3ClipboardRootListHdrReadReply(PVBGLR3SHCLCMDCTX pCtx, PSHCLROOTLIST pRootList);
+VBGLR3DECL(int)     VbglR3ClipboardRootsWrite(PVBGLR3SHCLCMDCTX pCtx, PSHCLROOTLISTHDR pRoots);
+
+VBGLR3DECL(int)     VbglR3ClipboardListOpenSend(PVBGLR3SHCLCMDCTX pCtx, PSHCLLISTOPENPARMS pOpenParms, PSHCLLISTHANDLE phList);
+VBGLR3DECL(int)     VbglR3ClipboardListOpenRecv(PVBGLR3SHCLCMDCTX pCtx, PSHCLLISTOPENPARMS pOpenParms);
+VBGLR3DECL(int)     VbglR3ClipboardListOpenReply(PVBGLR3SHCLCMDCTX pCtx, int rcReply, SHCLLISTHANDLE hList);
+
+VBGLR3DECL(int)     VbglR3ClipboardListCloseSend(PVBGLR3SHCLCMDCTX pCtx, SHCLLISTHANDLE hList);
+VBGLR3DECL(int)     VbglR3ClipboardListCloseRecv(PVBGLR3SHCLCMDCTX pCtx, PSHCLLISTHANDLE phList);
+
+VBGLR3DECL(int)     VbglR3ClipboardListHdrWrite(PVBGLR3SHCLCMDCTX pCtx, SHCLLISTHANDLE hList, PSHCLLISTHDR pListHdr);
+VBGLR3DECL(int)     VbglR3ClipboardListEntryWrite(PVBGLR3SHCLCMDCTX pCtx, SHCLLISTHANDLE hList, PSHCLLISTENTRY pListEntry);
+
+VBGLR3DECL(int)     VbglR3ClipboardObjOpenRecv(PVBGLR3SHCLCMDCTX pCtx, PSHCLOBJOPENCREATEPARMS pCreateParms);
+VBGLR3DECL(int)     VbglR3ClipboardObjOpenReply(PVBGLR3SHCLCMDCTX pCtx, int rcReply, SHCLOBJHANDLE hObj);
+VBGLR3DECL(int)     VbglR3ClipboardObjOpenSend(PVBGLR3SHCLCMDCTX pCtx, PSHCLOBJOPENCREATEPARMS pCreateParms,
+                                               PSHCLOBJHANDLE phObj);
+
+VBGLR3DECL(int)     VbglR3ClipboardObjCloseRecv(PVBGLR3SHCLCMDCTX pCtx, PSHCLOBJHANDLE phObj);
+VBGLR3DECL(int)     VbglR3ClipboardObjCloseReply(PVBGLR3SHCLCMDCTX pCtx, int rcReply, SHCLOBJHANDLE hObj);
+VBGLR3DECL(int)     VbglR3ClipboardObjCloseSend(PVBGLR3SHCLCMDCTX pCtx, SHCLOBJHANDLE hObj);
+
+VBGLR3DECL(int)     VbglR3ClipboardObjReadRecv(PVBGLR3SHCLCMDCTX pCtx, PSHCLOBJHANDLE phObj, uint32_t pcbToRead,
+                                               uint32_t *pfFlags);
+VBGLR3DECL(int)     VbglR3ClipboardObjReadSend(PVBGLR3SHCLCMDCTX pCtx, SHCLOBJHANDLE hObj, void *pvBuf, uint32_t cbBuf,
+                                               uint32_t *pcbRead);
+VBGLR3DECL(int)     VbglR3ClipboardObjWriteSend(PVBGLR3SHCLCMDCTX pCtx, SHCLOBJHANDLE hObj, void *pvBuf, uint32_t cbBuf,
+                                                uint32_t *pcbWritten);
+#  endif /* VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS */
 /** @} */
+# endif /* VBOX_WITH_SHARED_CLIPBOARD */
 
 /** @name Seamless mode
  * @{ */
@@ -920,7 +1082,7 @@ typedef enum VBGLR3GUESTDNDMETADATATYPE
     VBGLR3GUESTDNDMETADATATYPE_UNKNOWN = 0,
     /** Raw meta data; can be everything. */
     VBGLR3GUESTDNDMETADATATYPE_RAW,
-    /** Meta data is an URI list, specifying objects. */
+    /** Meta data is a transfer list, specifying objects. */
     VBGLR3GUESTDNDMETADATATYPE_URI_LIST,
     /** Blow the type up to 32-bit. */
     VBGLR3GUESTDNDMETADATATYPE_32BIT_HACK = 0x7fffffff

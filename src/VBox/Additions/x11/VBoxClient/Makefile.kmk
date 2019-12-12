@@ -25,6 +25,7 @@ PROGRAMS += VBoxClient
 
 VBoxClient_TEMPLATE = NewVBoxGuestR3Exe
 VBoxClient_DEFS += VBOX_X11_CLIPBOARD VBOX_WITH_HGCM
+VBoxClient_DEFS += VBOX_BUILD_TARGET=\"$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH)\"
 ifdef VBOX_WITH_DBUS
  VBoxClient_DEFS += VBOX_WITH_DBUS
 endif
@@ -32,16 +33,13 @@ VBoxClient_DEFS.linux += _GNU_SOURCE
 VBoxClient_INCS = $(VBOX_GRAPHICS_INCS)
 VBoxClient_SOURCES = \
 	main.cpp \
-  	$(PATH_ROOT)/src/VBox/GuestHost/SharedClipboard/clipboard-helper.cpp \
-  	$(PATH_ROOT)/src/VBox/GuestHost/SharedClipboard/x11-clipboard.cpp \
-	clipboard.cpp \
 	display-svga.cpp \
 	display-svga-x11.cpp \
 	seamless.cpp \
 	seamless-x11.cpp \
 	display.cpp \
-	hostversion.cpp \
-	check3d.cpp
+	hostversion.cpp
+
 VBoxClient_SOURCES.linux = \
 	chk_stubs.c
 VBoxClient_LIBPATH = \
@@ -50,6 +48,8 @@ VBoxClient_LIBS.freebsd = \
 	iconv
 VBoxClient_LIBS.linux = \
 	dl
+VBoxClient_LIBS.netbsd = \
+	crypt
 VBoxClient_LIBS.solaris = \
 	dl
 VBoxClient_LIBS = \
@@ -78,6 +78,7 @@ endif
 ifdef VBOX_WITH_GUEST_PROPS
 VBoxClient_DEFS += VBOX_WITH_GUEST_PROPS
 endif
+
 ifdef VBOX_WITH_DRAG_AND_DROP
 VBoxClient_DEFS += \
 	VBOX_WITH_DRAG_AND_DROP \
@@ -87,6 +88,114 @@ VBoxClient_SOURCES += \
 VBoxClient_LIBS     += \
 	$(VBOX_LIB_VBGL_R3) \
 	$(PATH_STAGE_LIB)/additions/VBoxDnDGuestR3Lib$(VBOX_SUFF_LIB)
+endif
+
+ifdef VBOX_WITH_SHARED_CLIPBOARD
+ VBoxClient_DEFS += \
+	VBOX_WITH_SHARED_CLIPBOARD \
+	$(if $(VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS),VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS,)
+ VBoxClient_SOURCES += \
+	$(PATH_ROOT)/src/VBox/GuestHost/SharedClipboard/clipboard-common.cpp \
+	$(PATH_ROOT)/src/VBox/GuestHost/SharedClipboard/clipboard-x11.cpp \
+	clipboard.cpp
+ ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
+  VBoxClient_DEFS    += VBOX_WITH_SHARED_CLIPBOARD_GUEST
+  VBoxClient_SOURCES += \
+	$(PATH_ROOT)/src/VBox/GuestHost/SharedClipboard/clipboard-transfers.cpp \
+	$(PATH_ROOT)/src/VBox/GuestHost/SharedClipboard/ClipboardPath.cpp
+  ifdef VBOX_WITH_SHARED_CLIPBOARD_FUSE
+   VBoxClient_DEFS    += VBOX_WITH_SHARED_CLIPBOARD_FUSE
+   # @todo Make this dynamic loading more generic.
+   VBoxClient_SOURCES += \
+	$(PATH_ROOT)/src/VBox/ImageMounter/vboximg-mount/fuse.cpp \
+	clipboard-fuse.cpp
+   # @todo Ditto.
+   VBoxClient_INCS    += \
+	$(PATH_ROOT)/src/VBox/ImageMounter/vboximg-mount
+  endif
+  ifdef VBOX_WITH_LIBGVFS
+   VBOX_VBOXCLIENT_GVFS_PATH := gvfs-1.43.1
+   VBoxClient_SOURCES += \
+	clipboard-gvfs.c \
+   VBoxClient_SOURCES += \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsafpconnection.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsafpserver.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsafputils.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsafpvolume.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsbackend.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsdaemonutils.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsjobcopy.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsjobpush.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsjobunmountmountable.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfschannel.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsdaemon.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsjob.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsjobcloseread.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsjobclosewrite.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsjobcreatemonitor.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsjobdbus.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsjobdelete.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsjobenumerate.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsjoberror.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsjobmakedirectory.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsjobmakesymlink.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsjobmount.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsjobmountmountable.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsjobmove.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsjobopenforread.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsjobopenforwrite.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsjobopeniconforread.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsjobpollmountable.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsjobprogress.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsjobpull.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsjobqueryattributes.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsjobqueryfsinfo.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsjobqueryinfo.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsjobqueryinforead.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsjobqueryinfowrite.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsjobread.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsjobseekread.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsjobseekwrite.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsjobsetattribute.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsjobsetdisplayname.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsjobsource.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsjobstartmountable.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsjobstopmountable.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsjobtrash.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsjobtruncate.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsjobunmount.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsjobwrite.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfskeyring.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsmonitor.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfsreadchannel.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon/gvfswritechannel.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/common/gvfsmonitorimpl.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/common/gmountoperationdbus.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/common/gmountsource.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/common/gmountspec.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/common/gmounttracker.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/common/gvfsdaemonprotocol.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/common/gvfsfileinfo.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/common/gvfsicon.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/common/gvfsmountinfo.c \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/common/gvfsutils.c
+   VBoxClient_SOURCES += \
+	${VBOX_VBOXCLIENT_GVFS_PATH}/out/common/gvfsdbus.c
+   VBoxClient_CFLAGS  += -Wno-sign-compare -Wno-unused-parameter -Wno-pedantic
+   VBoxClient_INCS    += \
+ 	${VBOX_VBOXCLIENT_GVFS_PATH}/common \
+ 	${VBOX_VBOXCLIENT_GVFS_PATH}/daemon \
+ 	${VBOX_VBOXCLIENT_GVFS_PATH}/out \
+ 	${VBOX_VBOXCLIENT_GVFS_PATH}/out/common \
+ 	/usr/include/glib-2.0 \
+ 	/usr/lib/x86_64-linux-gnu/glib-2.0/include \
+ 	/usr/include/gio-unix-2.0
+   VBoxClient_LIBS += \
+	gio-2.0 \
+	glib-2.0 \
+	gobject-2.0
+  endif
+ endif
 endif
 
 if defined(VBOX_WITH_TESTCASES) && !defined(VBOX_ONLY_ADDITIONS) && !defined(VBOX_ONLY_SDK)
@@ -133,4 +242,3 @@ $$(tstSeamlessX11-auto_0_OUTDIR)/tstSeamlessX11-auto.run: \
 endif
 
 include $(FILE_KBUILD_SUB_FOOTER)
-

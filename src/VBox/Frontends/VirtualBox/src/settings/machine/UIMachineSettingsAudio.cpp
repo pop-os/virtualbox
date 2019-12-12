@@ -121,8 +121,8 @@ void UIMachineSettingsAudio::getFromCache()
 
     /* Load old audio data from the cache: */
     m_pCheckBoxAudio->setChecked(oldAudioData.m_fAudioEnabled);
-    m_pComboAudioDriver->setCurrentIndex(m_pComboAudioDriver->findData((int)oldAudioData.m_audioDriverType));
-    m_pComboAudioController->setCurrentIndex(m_pComboAudioController->findData((int)oldAudioData.m_audioControllerType));
+    m_pAudioHostDriverEditor->setValue(oldAudioData.m_audioDriverType);
+    m_pAudioControllerEditor->setValue(oldAudioData.m_audioControllerType);
     m_pCheckBoxAudioOutput->setChecked(oldAudioData.m_fAudioOutputEnabled);
     m_pCheckBoxAudioInput->setChecked(oldAudioData.m_fAudioInputEnabled);
 
@@ -137,8 +137,8 @@ void UIMachineSettingsAudio::putToCache()
 
     /* Gather new audio data: */
     newAudioData.m_fAudioEnabled = m_pCheckBoxAudio->isChecked();
-    newAudioData.m_audioDriverType = static_cast<KAudioDriverType>(m_pComboAudioDriver->itemData(m_pComboAudioDriver->currentIndex()).toInt());
-    newAudioData.m_audioControllerType = static_cast<KAudioControllerType>(m_pComboAudioController->itemData(m_pComboAudioController->currentIndex()).toInt());
+    newAudioData.m_audioDriverType = m_pAudioHostDriverEditor->value();
+    newAudioData.m_audioControllerType = m_pAudioControllerEditor->value();
     newAudioData.m_fAudioOutputEnabled = m_pCheckBoxAudioOutput->isChecked();
     newAudioData.m_fAudioInputEnabled = m_pCheckBoxAudioInput->isChecked();
 
@@ -162,46 +162,16 @@ void UIMachineSettingsAudio::retranslateUi()
 {
     /* Translate generated strings: */
     Ui::UIMachineSettingsAudio::retranslateUi(this);
-
-    /* Translate audio-driver combo.
-     * Make sure this order corresponds the same in prepare(): */
-    int iIndex = -1;
-    m_pComboAudioDriver->setItemText(++iIndex, gpConverter->toString(KAudioDriverType_Null));
-#ifdef Q_OS_WIN
-    m_pComboAudioDriver->setItemText(++iIndex, gpConverter->toString(KAudioDriverType_DirectSound));
-# ifdef VBOX_WITH_WINMM
-    m_pComboAudioDriver->setItemText(++iIndex, gpConverter->toString(KAudioDriverType_WinMM));
-# endif
-#endif
-#ifdef VBOX_WITH_AUDIO_OSS
-    m_pComboAudioDriver->setItemText(++iIndex, gpConverter->toString(KAudioDriverType_OSS));
-#endif
-#ifdef VBOX_WITH_AUDIO_ALSA
-    m_pComboAudioDriver->setItemText(++iIndex, gpConverter->toString(KAudioDriverType_ALSA));
-#endif
-#ifdef VBOX_WITH_AUDIO_PULSE
-    m_pComboAudioDriver->setItemText(++iIndex, gpConverter->toString(KAudioDriverType_Pulse));
-#endif
-#ifdef Q_OS_MACX
-    m_pComboAudioDriver->setItemText(++iIndex, gpConverter->toString(KAudioDriverType_CoreAudio));
-#endif
-
-    /* Translate audio-controller combo.
-     * Make sure this order corresponds the same in prepare(): */
-    iIndex = -1;
-    m_pComboAudioController->setItemText(++iIndex, gpConverter->toString(KAudioControllerType_HDA));
-    m_pComboAudioController->setItemText(++iIndex, gpConverter->toString(KAudioControllerType_AC97));
-    m_pComboAudioController->setItemText(++iIndex, gpConverter->toString(KAudioControllerType_SB16));
 }
 
 void UIMachineSettingsAudio::polishPage()
 {
     /* Polish audio page availability: */
     m_pCheckBoxAudio->setEnabled(isMachineOffline());
-    m_pLabelAudioDriver->setEnabled(isMachineOffline());
-    m_pComboAudioDriver->setEnabled(isMachineOffline());
-    m_pLabelAudioController->setEnabled(isMachineOffline());
-    m_pComboAudioController->setEnabled(isMachineOffline());
+    m_pAudioHostDriverLabel->setEnabled(isMachineOffline() || isMachineSaved());
+    m_pAudioHostDriverEditor->setEnabled(isMachineOffline() || isMachineSaved());
+    m_pAudioControllerLabel->setEnabled(isMachineOffline());
+    m_pAudioControllerEditor->setEnabled(isMachineOffline());
     m_pLabelAudioExtended->setEnabled(isMachineInValidMode());
     m_pCheckBoxAudioOutput->setEnabled(isMachineInValidMode());
     m_pCheckBoxAudioInput->setEnabled(isMachineInValidMode());
@@ -219,42 +189,20 @@ void UIMachineSettingsAudio::prepare()
 
     /* Layout created in the .ui file. */
     {
-        /* Audio-driver combo-box created in the .ui file. */
-        AssertPtrReturnVoid(m_pComboAudioDriver);
+        /* Audio host-driver label & editor created in the .ui file. */
+        AssertPtrReturnVoid(m_pAudioHostDriverLabel);
+        AssertPtrReturnVoid(m_pAudioHostDriverEditor);
         {
-            /* Configure combo-box.
-             * Make sure this order corresponds the same in retranslateUi(): */
-            int iIndex = -1;
-            m_pComboAudioDriver->insertItem(++iIndex, "", KAudioDriverType_Null);
-#ifdef Q_OS_WIN
-            m_pComboAudioDriver->insertItem(++iIndex, "", KAudioDriverType_DirectSound);
-# ifdef VBOX_WITH_WINMM
-            m_pComboAudioDriver->insertItem(++iIndex, "", KAudioDriverType_WinMM);
-# endif
-#endif
-#ifdef VBOX_WITH_AUDIO_OSS
-            m_pComboAudioDriver->insertItem(++iIndex, "", KAudioDriverType_OSS);
-#endif
-#ifdef VBOX_WITH_AUDIO_ALSA
-            m_pComboAudioDriver->insertItem(++iIndex, "", KAudioDriverType_ALSA);
-#endif
-#ifdef VBOX_WITH_AUDIO_PULSE
-            m_pComboAudioDriver->insertItem(++iIndex, "", KAudioDriverType_Pulse);
-#endif
-#ifdef Q_OS_MACX
-            m_pComboAudioDriver->insertItem(++iIndex, "", KAudioDriverType_CoreAudio);
-#endif
+            /* Configure label & editor: */
+            m_pAudioHostDriverLabel->setBuddy(m_pAudioHostDriverEditor->focusProxy());
         }
 
-        /* Audio-controller combo-box created in the .ui file. */
-        AssertPtrReturnVoid(m_pComboAudioController);
+        /* Audio controller label & editor created in the .ui file. */
+        AssertPtrReturnVoid(m_pAudioControllerLabel);
+        AssertPtrReturnVoid(m_pAudioControllerEditor);
         {
-            /* Configure combo-box.
-             * Make sure this order corresponds the same in retranslateUi(): */
-            int iIndex = -1;
-            m_pComboAudioController->insertItem(++iIndex, "", KAudioControllerType_HDA);
-            m_pComboAudioController->insertItem(++iIndex, "", KAudioControllerType_AC97);
-            m_pComboAudioController->insertItem(++iIndex, "", KAudioControllerType_SB16);
+            /* Configure label & editor: */
+            m_pAudioControllerLabel->setBuddy(m_pAudioControllerEditor->focusProxy());
         }
     }
 
@@ -297,7 +245,7 @@ bool UIMachineSettingsAudio::saveAudioData()
                 fSuccess = comAdapter.isOk();
             }
             /* Save audio driver type: */
-            if (fSuccess && isMachineOffline() && newAudioData.m_audioDriverType != oldAudioData.m_audioDriverType)
+            if (fSuccess && (isMachineOffline() || isMachineSaved()) && newAudioData.m_audioDriverType != oldAudioData.m_audioDriverType)
             {
                 comAdapter.SetAudioDriver(newAudioData.m_audioDriverType);
                 fSuccess = comAdapter.isOk();

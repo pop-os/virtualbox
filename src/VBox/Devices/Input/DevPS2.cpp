@@ -47,31 +47,22 @@
 *********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_DEV_KBD
 #include <VBox/vmm/pdmdev.h>
+#include <VBox/AssertGuest.h>
 #include <iprt/assert.h>
 #include <iprt/uuid.h>
 
 #include "VBoxDD.h"
-#include "PS2Dev.h"
+#include "DevPS2.h"
 
+
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 /* Do not remove this (unless eliminating the corresponding ifdefs), it will
  * cause instant triple faults when booting Windows VMs. */
 #define TARGET_I386
 
 #define PCKBD_SAVED_STATE_VERSION 8
-
-#ifndef VBOX_DEVICE_STRUCT_TESTCASE
-
-
-/*********************************************************************************************************************************
-*   Internal Functions                                                                                                           *
-*********************************************************************************************************************************/
-RT_C_DECLS_BEGIN
-PDMBOTHCBDECL(int) kbdIOPortDataRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb);
-PDMBOTHCBDECL(int) kbdIOPortDataWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb);
-PDMBOTHCBDECL(int) kbdIOPortStatusRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb);
-PDMBOTHCBDECL(int) kbdIOPortCommandWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb);
-RT_C_DECLS_END
-#endif /* !VBOX_DEVICE_STRUCT_TESTCASE */
 
 /* debug PC keyboard */
 #define DEBUG_KBD
@@ -124,47 +115,99 @@ RT_C_DECLS_END
 #define KBD_MODE_RFU            0x80
 
 
-/**
- * The keyboard controller/device state.
- *
- * @note We use the default critical section for serialize data access.
- */
-typedef struct KBDState
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
+/** AT to PC scancode translator state.  */
+typedef enum
 {
-    uint8_t write_cmd; /* if non zero, write data to port 60 is expected */
-    uint8_t status;
-    uint8_t mode;
-    uint8_t dbbout;    /* data buffer byte */
-    /* keyboard state */
-    int32_t translate;
-    int32_t xlat_state;
+    XS_IDLE,    /**< Starting state. */
+    XS_BREAK,   /**< F0 break byte was received. */
+    XS_HIBIT    /**< Break code still active. */
+} xlat_state_t;
 
-    /** Pointer to the device instance - RC. */
-    PPDMDEVINSRC                pDevInsRC;
-    /** Pointer to the device instance - R3 . */
-    PPDMDEVINSR3                pDevInsR3;
-    /** Pointer to the device instance. */
-    PPDMDEVINSR0                pDevInsR0;
 
-    /** Keyboard state (implemented in separate PS2K module). */
-#ifdef VBOX_DEVICE_STRUCT_TESTCASE
-    uint8_t                     KbdFiller[PS2K_STRUCT_FILLER];
-#else
-    PS2K                        Kbd;
-#endif
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
+/* Table used by the keyboard controller to optionally translate the incoming
+ * keyboard data. Note that the translation is designed for essentially taking
+ * Scan Set 2 input and producing Scan Set 1 output, but can be turned on and
+ * off regardless of what the keyboard is sending.
+ */
+static uint8_t const g_aAT2PC[128] =
+{
+    0xff,0x43,0x41,0x3f,0x3d,0x3b,0x3c,0x58,0x64,0x44,0x42,0x40,0x3e,0x0f,0x29,0x59,
+    0x65,0x38,0x2a,0x70,0x1d,0x10,0x02,0x5a,0x66,0x71,0x2c,0x1f,0x1e,0x11,0x03,0x5b,
+    0x67,0x2e,0x2d,0x20,0x12,0x05,0x04,0x5c,0x68,0x39,0x2f,0x21,0x14,0x13,0x06,0x5d,
+    0x69,0x31,0x30,0x23,0x22,0x15,0x07,0x5e,0x6a,0x72,0x32,0x24,0x16,0x08,0x09,0x5f,
+    0x6b,0x33,0x25,0x17,0x18,0x0b,0x0a,0x60,0x6c,0x34,0x35,0x26,0x27,0x19,0x0c,0x61,
+    0x6d,0x73,0x28,0x74,0x1a,0x0d,0x62,0x6e,0x3a,0x36,0x1c,0x1b,0x75,0x2b,0x63,0x76,
+    0x55,0x56,0x77,0x78,0x79,0x7a,0x0e,0x7b,0x7c,0x4f,0x7d,0x4b,0x47,0x7e,0x7f,0x6f,
+    0x52,0x53,0x50,0x4c,0x4d,0x48,0x01,0x45,0x57,0x4e,0x51,0x4a,0x37,0x49,0x46,0x54
+};
 
-    /** Mouse state (implemented in separate PS2M module). */
-#ifdef VBOX_DEVICE_STRUCT_TESTCASE
-    uint8_t                     AuxFiller[PS2M_STRUCT_FILLER];
-#else
-    PS2M                        Aux;
-#endif
-} KBDState;
 
-#ifndef VBOX_DEVICE_STRUCT_TESTCASE
 
-/* update irq and KBD_STAT_[MOUSE_]OBF */
-static void kbd_update_irq(KBDState *s)
+/**
+ * Convert an AT (Scan Set 2) scancode to PC (Scan Set 1).
+ *
+ * @param state         Current state of the translator
+ *                      (xlat_state_t).
+ * @param scanIn        Incoming scan code.
+ * @param pScanOut      Pointer to outgoing scan code. The
+ *                      contents are only valid if returned
+ *                      state is not XS_BREAK.
+ *
+ * @return xlat_state_t New state of the translator.
+ */
+static int32_t kbcXlateAT2PC(int32_t state, uint8_t scanIn, uint8_t *pScanOut)
+{
+    uint8_t     scan_in;
+    uint8_t     scan_out;
+
+    Assert(pScanOut);
+    Assert(state == XS_IDLE || state == XS_BREAK || state == XS_HIBIT);
+
+    /* Preprocess the scan code for a 128-entry translation table. */
+    if (scanIn == 0x83)         /* Check for F7 key. */
+        scan_in = 0x02;
+    else if (scanIn == 0x84)    /* Check for SysRq key. */
+        scan_in = 0x7f;
+    else
+        scan_in = scanIn;
+
+    /* Values 0x80 and above are passed through, except for 0xF0
+     * which indicates a key release.
+     */
+    if (scan_in < 0x80)
+    {
+        scan_out = g_aAT2PC[scan_in];
+        /* Turn into break code if required. */
+        if (state == XS_BREAK || state == XS_HIBIT)
+            scan_out |= 0x80;
+
+        state = XS_IDLE;
+    }
+    else
+    {
+        /* NB: F0 E0 10 will be translated to E0 E5 (high bit set on last byte)! */
+        if (scan_in == 0xF0)        /* Check for break code. */
+            state = XS_BREAK;
+        else if (state == XS_BREAK)
+            state = XS_HIBIT;       /* Remember the break bit. */
+        scan_out = scan_in;
+    }
+    LogFlowFunc(("scan code %02X translated to %02X; new state is %d\n",
+                 scanIn, scan_out, state));
+
+    *pScanOut = scan_out;
+    return state;
+}
+
+
+/** update irq and KBD_STAT_[MOUSE_]OBF */
+static void kbd_update_irq(PPDMDEVINS pDevIns, PKBDSTATE s)
 {
     int irq12_level, irq1_level;
     uint8_t val;
@@ -179,7 +222,7 @@ static void kbd_update_irq(KBDState *s)
     if (!(s->status & KBD_STAT_OBF)) {
         s->status &= ~KBD_STAT_MOUSE_OBF;
         /* Keyboard data has priority if both kbd and aux data is available. */
-        if (!(s->mode & KBD_MODE_DISABLE_KBD) && PS2KByteFromKbd(&s->Kbd, &val) == VINF_SUCCESS)
+        if (!(s->mode & KBD_MODE_DISABLE_KBD) && PS2KByteFromKbd(pDevIns, &s->Kbd, &val) == VINF_SUCCESS)
         {
             bool    fHaveData = true;
 
@@ -188,15 +231,15 @@ static void kbd_update_irq(KBDState *s)
             {
                 uint8_t     xlated_val;
 
-                s->xlat_state = XlateAT2PC(s->xlat_state, val, &xlated_val);
+                s->xlat_state = kbcXlateAT2PC(s->xlat_state, val, &xlated_val);
                 val = xlated_val;
 
                 /* If the translation state is XS_BREAK, there's nothing to report
                  * and we keep going until the state changes or there's no more data.
                  */
-                while (s->xlat_state == XS_BREAK && PS2KByteFromKbd(&s->Kbd, &val) == VINF_SUCCESS)
+                while (s->xlat_state == XS_BREAK && PS2KByteFromKbd(pDevIns, &s->Kbd, &val) == VINF_SUCCESS)
                 {
-                    s->xlat_state = XlateAT2PC(s->xlat_state, val, &xlated_val);
+                    s->xlat_state = kbcXlateAT2PC(s->xlat_state, val, &xlated_val);
                     val = xlated_val;
                 }
                 /* This can happen if the last byte in the queue is F0... */
@@ -228,62 +271,42 @@ static void kbd_update_irq(KBDState *s)
                 irq1_level = 1;
         }
     }
-    PDMDevHlpISASetIrq(s->CTX_SUFF(pDevIns), 1, irq1_level);
-    PDMDevHlpISASetIrq(s->CTX_SUFF(pDevIns), 12, irq12_level);
+    PDMDevHlpISASetIrq(pDevIns, 1, irq1_level);
+    PDMDevHlpISASetIrq(pDevIns, 12, irq12_level);
 }
 
-void KBCUpdateInterrupts(void *pKbc)
+void KBCUpdateInterrupts(PPDMDEVINS pDevIns)
 {
-    KBDState    *s = (KBDState *)pKbc;
-    kbd_update_irq(s);
+    PKBDSTATE pThis = PDMDEVINS_2_DATA(pDevIns, PKBDSTATE);
+    kbd_update_irq(pDevIns, pThis);
 }
 
-static void kbc_dbb_out(void *opaque, uint8_t val)
+static void kbc_dbb_out(PPDMDEVINS pDevIns, PKBDSTATE s, uint8_t val)
 {
-    KBDState *s = (KBDState*)opaque;
-
     s->dbbout = val;
     /* Set the OBF and raise IRQ. */
     s->status |= KBD_STAT_OBF;
     if (s->mode & KBD_MODE_KBD_INT)
-        PDMDevHlpISASetIrq(s->CTX_SUFF(pDevIns), 1, 1);
+        PDMDevHlpISASetIrq(pDevIns, 1, 1);
 }
 
-static void kbc_dbb_out_aux(void *opaque, uint8_t val)
+static void kbc_dbb_out_aux(PPDMDEVINS pDevIns, PKBDSTATE s, uint8_t val)
 {
-    KBDState *s = (KBDState*)opaque;
-
     s->dbbout = val;
     /* Set the aux OBF and raise IRQ. */
     s->status |= KBD_STAT_OBF | KBD_STAT_MOUSE_OBF;
     if (s->mode & KBD_MODE_MOUSE_INT)
-        PDMDevHlpISASetIrq(s->CTX_SUFF(pDevIns), 12, PDM_IRQ_LEVEL_HIGH);
+        PDMDevHlpISASetIrq(pDevIns, 12, PDM_IRQ_LEVEL_HIGH);
 }
 
-static uint32_t kbd_read_status(void *opaque, uint32_t addr)
+static VBOXSTRICTRC kbd_write_command(PPDMDEVINS pDevIns, PKBDSTATE s, uint32_t val)
 {
-    KBDState *s = (KBDState*)opaque;
-    int val = s->status;
-    NOREF(addr);
-
-#if defined(DEBUG_KBD)
-    Log(("kbd: read status=0x%02x\n", val));
-#endif
-    return val;
-}
-
-static int kbd_write_command(void *opaque, uint32_t addr, uint32_t val)
-{
-    int rc = VINF_SUCCESS;
-    KBDState *s = (KBDState*)opaque;
-    NOREF(addr);
-
 #ifdef DEBUG_KBD
     Log(("kbd: write cmd=0x%02x\n", val));
 #endif
     switch(val) {
     case KBD_CCMD_READ_MODE:
-        kbc_dbb_out(s, s->mode);
+        kbc_dbb_out(pDevIns, s, s->mode);
         break;
     case KBD_CCMD_WRITE_MODE:
     case KBD_CCMD_WRITE_OBUF:
@@ -298,28 +321,25 @@ static int kbd_write_command(void *opaque, uint32_t addr, uint32_t val)
     case KBD_CCMD_MOUSE_ENABLE:
         s->mode &= ~KBD_MODE_DISABLE_MOUSE;
         /* Check for queued input. */
-        kbd_update_irq(s);
+        kbd_update_irq(pDevIns, s);
         break;
     case KBD_CCMD_TEST_MOUSE:
-        kbc_dbb_out(s, 0x00);
+        kbc_dbb_out(pDevIns, s, 0x00);
         break;
     case KBD_CCMD_SELF_TEST:
         /* Enable the A20 line - that is the power-on state(!). */
 # ifndef IN_RING3
-        if (!PDMDevHlpA20IsEnabled(s->CTX_SUFF(pDevIns)))
-        {
-            rc = VINF_IOM_R3_IOPORT_WRITE;
-            break;
-        }
-# else /* IN_RING3 */
-        PDMDevHlpA20Set(s->CTX_SUFF(pDevIns), true);
+        if (!PDMDevHlpA20IsEnabled(pDevIns))
+            return VINF_IOM_R3_IOPORT_WRITE;
+# else  /* IN_RING3 */
+        PDMDevHlpA20Set(pDevIns, true);
 # endif /* IN_RING3 */
         s->status |= KBD_STAT_SELFTEST;
         s->mode |= KBD_MODE_DISABLE_KBD;
-        kbc_dbb_out(s, 0x55);
+        kbc_dbb_out(pDevIns, s, 0x55);
         break;
     case KBD_CCMD_KBD_TEST:
-        kbc_dbb_out(s, 0x00);
+        kbc_dbb_out(pDevIns, s, 0x00);
         break;
     case KBD_CCMD_KBD_DISABLE:
         s->mode |= KBD_MODE_DISABLE_KBD;
@@ -327,15 +347,15 @@ static int kbd_write_command(void *opaque, uint32_t addr, uint32_t val)
     case KBD_CCMD_KBD_ENABLE:
         s->mode &= ~KBD_MODE_DISABLE_KBD;
         /* Check for queued input. */
-        kbd_update_irq(s);
+        kbd_update_irq(pDevIns, s);
         break;
     case KBD_CCMD_READ_INPORT:
-        kbc_dbb_out(s, 0xBF);
+        kbc_dbb_out(pDevIns, s, 0xBF);
         break;
     case KBD_CCMD_READ_OUTPORT:
         /* XXX: check that */
 #ifdef TARGET_I386
-        val = 0x01 | (PDMDevHlpA20IsEnabled(s->CTX_SUFF(pDevIns)) << 1);
+        val = 0x01 | (PDMDevHlpA20IsEnabled(pDevIns) << 1);
 #else
         val = 0x01;
 #endif
@@ -343,40 +363,39 @@ static int kbd_write_command(void *opaque, uint32_t addr, uint32_t val)
             val |= 0x10;
         if (s->status & KBD_STAT_MOUSE_OBF)
             val |= 0x20;
-        kbc_dbb_out(s, val);
+        kbc_dbb_out(pDevIns, s, val);
         break;
 #ifdef TARGET_I386
     case KBD_CCMD_ENABLE_A20:
 # ifndef IN_RING3
-        if (!PDMDevHlpA20IsEnabled(s->CTX_SUFF(pDevIns)))
-            rc = VINF_IOM_R3_IOPORT_WRITE;
-# else /* IN_RING3 */
-        PDMDevHlpA20Set(s->CTX_SUFF(pDevIns), true);
+        if (!PDMDevHlpA20IsEnabled(pDevIns))
+            return VINF_IOM_R3_IOPORT_WRITE;
+# else  /* IN_RING3 */
+        PDMDevHlpA20Set(pDevIns, true);
 # endif /* IN_RING3 */
         break;
     case KBD_CCMD_DISABLE_A20:
 # ifndef IN_RING3
-        if (PDMDevHlpA20IsEnabled(s->CTX_SUFF(pDevIns)))
-            rc = VINF_IOM_R3_IOPORT_WRITE;
-# else /* IN_RING3 */
-        PDMDevHlpA20Set(s->CTX_SUFF(pDevIns), false);
-# endif /* !IN_RING3 */
+        if (PDMDevHlpA20IsEnabled(pDevIns))
+            return VINF_IOM_R3_IOPORT_WRITE;
+# else  /* IN_RING3 */
+        PDMDevHlpA20Set(pDevIns, false);
+# endif /* IN_RING3 */
         break;
 #endif
     case KBD_CCMD_READ_TSTINP:
         /* Keyboard clock line is zero IFF keyboard is disabled */
         val = (s->mode & KBD_MODE_DISABLE_KBD) ? 0 : 1;
-        kbc_dbb_out(s, val);
+        kbc_dbb_out(pDevIns, s, val);
         break;
     case KBD_CCMD_RESET:
     case KBD_CCMD_RESET_ALT:
 #ifndef IN_RING3
-        rc = VINF_IOM_R3_IOPORT_WRITE;
-#else /* IN_RING3 */
+        return VINF_IOM_R3_IOPORT_WRITE;
+#else  /* IN_RING3 */
         LogRel(("Reset initiated by keyboard controller\n"));
-        rc = PDMDevHlpVMReset(s->CTX_SUFF(pDevIns), PDMVMRESET_F_KBD);
-#endif /* !IN_RING3 */
-        break;
+        return PDMDevHlpVMReset(pDevIns, PDMVMRESET_F_KBD);
+#endif /* IN_RING3 */
     case 0xff:
         /* ignore that - I don't know what is its use */
         break;
@@ -389,58 +408,42 @@ static int kbd_write_command(void *opaque, uint32_t addr, uint32_t val)
     case 0x28: case 0x29: case 0x2a: case 0x2b: case 0x2c: case 0x2d: case 0x2e: case 0x2f:
     case 0x30: case 0x31: case 0x32: case 0x33: case 0x34: case 0x35: case 0x36: case 0x37:
     case 0x38: case 0x39: case 0x3a: case 0x3b: case 0x3c: case 0x3d: case 0x3e: case 0x3f:
-        kbc_dbb_out(s, 0);
+        kbc_dbb_out(pDevIns, s, 0);
         Log(("kbd: reading non-standard RAM addr %#x\n", val & 0x1f));
         break;
     default:
         Log(("kbd: unsupported keyboard cmd=0x%02x\n", val));
         break;
     }
-    return rc;
+    return VINF_SUCCESS;
 }
 
-static uint32_t kbd_read_data(void *opaque, uint32_t addr)
+static uint32_t kbd_read_data(PPDMDEVINS pDevIns, PKBDSTATE s)
 {
-    KBDState *s = (KBDState*)opaque;
     uint32_t val;
-    NOREF(addr);
 
     /* Return the current DBB contents. */
     val = s->dbbout;
 
     /* Reading the DBB deasserts IRQs... */
     if (s->status & KBD_STAT_MOUSE_OBF)
-        PDMDevHlpISASetIrq(s->CTX_SUFF(pDevIns), 12, 0);
+        PDMDevHlpISASetIrq(pDevIns, 12, 0);
     else
-        PDMDevHlpISASetIrq(s->CTX_SUFF(pDevIns), 1, 0);
+        PDMDevHlpISASetIrq(pDevIns, 1, 0);
     /* ...and clears the OBF bits. */
     s->status &= ~(KBD_STAT_OBF | KBD_STAT_MOUSE_OBF);
 
     /* Check if more data is available. */
-    kbd_update_irq(s);
+    kbd_update_irq(pDevIns, s);
 #ifdef DEBUG_KBD
     Log(("kbd: read data=0x%02x\n", val));
 #endif
     return val;
 }
 
-PS2K *KBDGetPS2KFromDevIns(PPDMDEVINS pDevIns)
+static VBOXSTRICTRC kbd_write_data(PPDMDEVINS pDevIns, PKBDSTATE s, uint32_t val)
 {
-    KBDState *pThis = PDMINS_2_DATA(pDevIns, KBDState *);
-    return &pThis->Kbd;
-}
-
-PS2M *KBDGetPS2MFromDevIns(PPDMDEVINS pDevIns)
-{
-    KBDState *pThis = PDMINS_2_DATA(pDevIns, KBDState *);
-    return &pThis->Aux;
-}
-
-static int kbd_write_data(void *opaque, uint32_t addr, uint32_t val)
-{
-    int rc = VINF_SUCCESS;
-    KBDState *s = (KBDState*)opaque;
-    NOREF(addr);
+    VBOXSTRICTRC rc = VINF_SUCCESS;
 
 #ifdef DEBUG_KBD
     Log(("kbd: write data=0x%02x\n", val));
@@ -450,44 +453,44 @@ static int kbd_write_data(void *opaque, uint32_t addr, uint32_t val)
     case 0:
         /* Automatically enables keyboard interface. */
         s->mode &= ~KBD_MODE_DISABLE_KBD;
-        rc = PS2KByteToKbd(&s->Kbd, val);
+        rc = PS2KByteToKbd(pDevIns, &s->Kbd, val);
         if (rc == VINF_SUCCESS)
-            kbd_update_irq(s);
+            kbd_update_irq(pDevIns, s);
         break;
     case KBD_CCMD_WRITE_MODE:
         s->mode = val;
         s->translate = (s->mode & KBD_MODE_KCC) == KBD_MODE_KCC;
-        kbd_update_irq(s);
+        kbd_update_irq(pDevIns, s);
         break;
     case KBD_CCMD_WRITE_OBUF:
-        kbc_dbb_out(s, val);
+        kbc_dbb_out(pDevIns, s, val);
         break;
     case KBD_CCMD_WRITE_AUX_OBUF:
-        kbc_dbb_out_aux(s, val);
+        kbc_dbb_out_aux(pDevIns, s, val);
         break;
     case KBD_CCMD_WRITE_OUTPORT:
 #ifdef TARGET_I386
 #  ifndef IN_RING3
-        if (PDMDevHlpA20IsEnabled(s->CTX_SUFF(pDevIns)) != !!(val & 2))
+        if (PDMDevHlpA20IsEnabled(pDevIns) != !!(val & 2))
             rc = VINF_IOM_R3_IOPORT_WRITE;
 #  else /* IN_RING3 */
-        PDMDevHlpA20Set(s->CTX_SUFF(pDevIns), !!(val & 2));
-#  endif /* !IN_RING3 */
+        PDMDevHlpA20Set(pDevIns, !!(val & 2));
+#  endif /* IN_RING3 */
 #endif
         if (!(val & 1)) {
 # ifndef IN_RING3
             rc = VINF_IOM_R3_IOPORT_WRITE;
 # else
-            rc = PDMDevHlpVMReset(s->CTX_SUFF(pDevIns), PDMVMRESET_F_KBD);
+            rc = PDMDevHlpVMReset(pDevIns, PDMVMRESET_F_KBD);
 # endif
         }
         break;
     case KBD_CCMD_WRITE_MOUSE:
         /* Automatically enables aux interface. */
         s->mode &= ~KBD_MODE_DISABLE_MOUSE;
-        rc = PS2MByteToAux(&s->Aux, val);
+        rc = PS2MByteToAux(pDevIns, &s->Aux, val);
         if (rc == VINF_SUCCESS)
-            kbd_update_irq(s);
+            kbd_update_irq(pDevIns, s);
         break;
     default:
         break;
@@ -499,32 +502,11 @@ static int kbd_write_data(void *opaque, uint32_t addr, uint32_t val)
 
 #ifdef IN_RING3
 
-static void kbd_reset(void *opaque)
-{
-    KBDState *s = (KBDState*)opaque;
-    s->mode = KBD_MODE_KBD_INT | KBD_MODE_MOUSE_INT;
-    s->status = KBD_STAT_CMD | KBD_STAT_UNLOCKED;
-    /* Resetting everything, keyword was not working right on NT4 reboot. */
-    s->write_cmd = 0;
-    s->translate = 0;
-}
-
-static void kbd_save(PSSMHANDLE pSSM, KBDState *s)
-{
-    SSMR3PutU8(pSSM, s->write_cmd);
-    SSMR3PutU8(pSSM, s->status);
-    SSMR3PutU8(pSSM, s->mode);
-    SSMR3PutU8(pSSM, s->dbbout);
-
-    /* terminator */
-    SSMR3PutU32(pSSM, UINT32_MAX);
-}
-
-static int kbd_load(PSSMHANDLE pSSM, KBDState *s, uint32_t version_id)
+static int kbd_load(PCPDMDEVHLPR3 pHlp, PSSMHANDLE pSSM, PKBDSTATE s, PKBDSTATER3 pThisCC, uint32_t version_id)
 {
     uint32_t    u32, i;
-    uint8_t u8Dummy;
-    uint32_t u32Dummy;
+    uint8_t     u8Dummy;
+    uint32_t    u32Dummy;
     int         rc;
 
 #if 0
@@ -535,17 +517,17 @@ static int kbd_load(PSSMHANDLE pSSM, KBDState *s, uint32_t version_id)
 #endif
     if (version_id < 2 || version_id > PCKBD_SAVED_STATE_VERSION)
         return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
-    SSMR3GetU8(pSSM, &s->write_cmd);
-    SSMR3GetU8(pSSM, &s->status);
-    SSMR3GetU8(pSSM, &s->mode);
+    pHlp->pfnSSMGetU8(pSSM, &s->write_cmd);
+    pHlp->pfnSSMGetU8(pSSM, &s->status);
+    pHlp->pfnSSMGetU8(pSSM, &s->mode);
     if (version_id <= 5)
     {
-        SSMR3GetU32(pSSM, (uint32_t *)&u32Dummy);
-        SSMR3GetU32(pSSM, (uint32_t *)&u32Dummy);
+        pHlp->pfnSSMGetU32(pSSM, &u32Dummy);
+        pHlp->pfnSSMGetU32(pSSM, &u32Dummy);
     }
     else
     {
-        SSMR3GetU8(pSSM, &s->dbbout);
+        pHlp->pfnSSMGetU8(pSSM, &s->dbbout);
     }
     if (version_id <= 7)
     {
@@ -554,34 +536,34 @@ static int kbd_load(PSSMHANDLE pSSM, KBDState *s, uint32_t version_id)
         uint8_t     u8Rate;
         uint8_t     u8Proto;
 
-        SSMR3GetU32(pSSM, &u32Dummy);
-        SSMR3GetU8(pSSM, &u8State);
-        SSMR3GetU8(pSSM, &u8Dummy);
-        SSMR3GetU8(pSSM, &u8Rate);
-        SSMR3GetU8(pSSM, &u8Dummy);
-        SSMR3GetU8(pSSM, &u8Proto);
-        SSMR3GetU8(pSSM, &u8Dummy);
-        SSMR3GetS32(pSSM, &i32Dummy);
-        SSMR3GetS32(pSSM, &i32Dummy);
-        SSMR3GetS32(pSSM, &i32Dummy);
+        pHlp->pfnSSMGetU32(pSSM, &u32Dummy);
+        pHlp->pfnSSMGetU8(pSSM, &u8State);
+        pHlp->pfnSSMGetU8(pSSM, &u8Dummy);
+        pHlp->pfnSSMGetU8(pSSM, &u8Rate);
+        pHlp->pfnSSMGetU8(pSSM, &u8Dummy);
+        pHlp->pfnSSMGetU8(pSSM, &u8Proto);
+        pHlp->pfnSSMGetU8(pSSM, &u8Dummy);
+        pHlp->pfnSSMGetS32(pSSM, &i32Dummy);
+        pHlp->pfnSSMGetS32(pSSM, &i32Dummy);
+        pHlp->pfnSSMGetS32(pSSM, &i32Dummy);
         if (version_id > 2)
         {
-            SSMR3GetS32(pSSM, &i32Dummy);
-            SSMR3GetS32(pSSM, &i32Dummy);
+            pHlp->pfnSSMGetS32(pSSM, &i32Dummy);
+            pHlp->pfnSSMGetS32(pSSM, &i32Dummy);
         }
-        rc = SSMR3GetU8(pSSM, &u8Dummy);
+        rc = pHlp->pfnSSMGetU8(pSSM, &u8Dummy);
         if (version_id == 4)
         {
-            SSMR3GetU32(pSSM, &u32Dummy);
-            rc = SSMR3GetU32(pSSM, &u32Dummy);
+            pHlp->pfnSSMGetU32(pSSM, &u32Dummy);
+            rc = pHlp->pfnSSMGetU32(pSSM, &u32Dummy);
         }
         if (version_id > 3)
-            rc = SSMR3GetU8(pSSM, &u8Dummy);
+            rc = pHlp->pfnSSMGetU8(pSSM, &u8Dummy);
         if (version_id == 4)
-            rc = SSMR3GetU8(pSSM, &u8Dummy);
+            rc = pHlp->pfnSSMGetU8(pSSM, &u8Dummy);
         AssertLogRelRCReturn(rc, rc);
 
-        PS2MFixupState(&s->Aux, u8State, u8Rate, u8Proto);
+        PS2MR3FixupState(&s->Aux, &pThisCC->Aux, u8State, u8Rate, u8Proto);
     }
 
     /* Determine the translation state. */
@@ -592,12 +574,12 @@ static int kbd_load(PSSMHANDLE pSSM, KBDState *s, uint32_t version_id)
      */
     if (version_id <= 5)
     {
-        rc = SSMR3GetU32(pSSM, &u32);
+        rc = pHlp->pfnSSMGetU32(pSSM, &u32);
         if (RT_FAILURE(rc))
             return rc;
         for (i = 0; i < u32; i++)
         {
-            rc = SSMR3GetU8(pSSM, &u8Dummy);
+            rc = pHlp->pfnSSMGetU8(pSSM, &u8Dummy);
             if (RT_FAILURE(rc))
                 return rc;
         }
@@ -606,23 +588,23 @@ static int kbd_load(PSSMHANDLE pSSM, KBDState *s, uint32_t version_id)
 
     if (version_id <= 7)
     {
-        rc = SSMR3GetU32(pSSM, &u32);
+        rc = pHlp->pfnSSMGetU32(pSSM, &u32);
         if (RT_FAILURE(rc))
             return rc;
         for (i = 0; i < u32; i++)
         {
-            rc = SSMR3GetU8(pSSM, &u8Dummy);
+            rc = pHlp->pfnSSMGetU8(pSSM, &u8Dummy);
             if (RT_FAILURE(rc))
                 return rc;
         }
         Log(("kbd_load: %d mouse event queue items discarded from old saved state\n", u32));
 
-        rc = SSMR3GetU32(pSSM, &u32);
+        rc = pHlp->pfnSSMGetU32(pSSM, &u32);
         if (RT_FAILURE(rc))
             return rc;
         for (i = 0; i < u32; i++)
         {
-            rc = SSMR3GetU8(pSSM, &u8Dummy);
+            rc = pHlp->pfnSSMGetU8(pSSM, &u8Dummy);
             if (RT_FAILURE(rc))
                 return rc;
         }
@@ -630,7 +612,7 @@ static int kbd_load(PSSMHANDLE pSSM, KBDState *s, uint32_t version_id)
     }
 
     /* terminator */
-    rc = SSMR3GetU32(pSSM, &u32);
+    rc = pHlp->pfnSSMGetU32(pSSM, &u32);
     if (RT_FAILURE(rc))
         return rc;
     if (u32 != ~0U)
@@ -640,6 +622,7 @@ static int kbd_load(PSSMHANDLE pSSM, KBDState *s, uint32_t version_id)
     }
     return 0;
 }
+
 #endif /* IN_RING3 */
 
 
@@ -647,179 +630,303 @@ static int kbd_load(PSSMHANDLE pSSM, KBDState *s, uint32_t version_id)
 
 /* -=-=-=-=-=- wrappers -=-=-=-=-=- */
 
-/**
- * Port I/O Handler for keyboard data IN operations.
- *
- * @returns VBox status code.
- *
- * @param   pDevIns     The device instance.
- * @param   pvUser      User argument - ignored.
- * @param   Port        Port number used for the IN operation.
- * @param   pu32        Where to store the result.
- * @param   cb          Number of bytes read.
- */
-PDMBOTHCBDECL(int) kbdIOPortDataRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb)
+/** Fluff bits indexed by size (1,2,4). */
+static uint32_t const g_afFluff[5] =
 {
-    uint32_t    fluff = 0;
-    KBDState    *pThis = PDMINS_2_DATA(pDevIns, KBDState *);
+    /* [0] = */ 0,
+    /* [1] = */ 0,
+    /* [2] = */ UINT32_C(0xff00),
+    /* [3] = */ 0,
+    /* [4] = */ UINT32_C(0xffffff00) /* Crazy Apple (Darwin 6.0.2 and earlier). */
+};
 
-    NOREF(pvUser);
-    switch (cb) {
-    case 4:
-        fluff |= 0xffff0000;    /* Crazy Apple (Darwin 6.0.2 and earlier). */
-        RT_FALL_THRU();
-    case 2:
-        fluff |= 0x0000ff00;
-        RT_FALL_THRU();
-    case 1:
-        *pu32 = fluff | kbd_read_data(pThis, Port);
-        Log2(("kbdIOPortDataRead: Port=%#x cb=%d *pu32=%#x\n", Port, cb, *pu32));
-        return VINF_SUCCESS;
-    default:
-        AssertMsgFailed(("Port=%#x cb=%d\n", Port, cb));
-        return VERR_IOM_IOPORT_UNUSED;
-    }
+/**
+ * @callback_method_impl{FNIOMIOPORTNEWIN,
+ * Port I/O Handler for keyboard data IN operations.}
+ */
+static DECLCALLBACK(VBOXSTRICTRC) kbdIOPortDataRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT offPort, uint32_t *pu32, unsigned cb)
+{
+    PKBDSTATE   pThis = PDMDEVINS_2_DATA(pDevIns, PKBDSTATE);
+    RT_NOREF(pvUser, offPort);
+    Assert(offPort == 0);
+    Assert(cb == 1 || cb == 2 || cb == 4);
+
+    *pu32 = kbd_read_data(pDevIns, pThis) | g_afFluff[cb];
+    Log2(("kbdIOPortDataRead: cb=%u *pu32=%#x\n", cb, *pu32));
+    return VINF_SUCCESS;
 }
 
 /**
- * Port I/O Handler for keyboard data OUT operations.
- *
- * @returns VBox status code.
- *
- * @param   pDevIns     The device instance.
- * @param   pvUser      User argument - ignored.
- * @param   Port        Port number used for the IN operation.
- * @param   u32         The value to output.
- * @param   cb          The value size in bytes.
+ * @callback_method_impl{FNIOMIOPORTNEWOUT,
+ * Port I/O Handler for keyboard data OUT operations.}
  */
-PDMBOTHCBDECL(int) kbdIOPortDataWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
+static DECLCALLBACK(VBOXSTRICTRC) kbdIOPortDataWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT offPort, uint32_t u32, unsigned cb)
 {
-    int rc = VINF_SUCCESS;
-    NOREF(pvUser);
+    RT_NOREF(offPort, pvUser);
+    Assert(offPort == 0);
+
     if (cb == 1 || cb == 2)
     {
-        KBDState *pThis = PDMINS_2_DATA(pDevIns, KBDState *);
-        rc = kbd_write_data(pThis, Port, (uint8_t)u32);
-        Log2(("kbdIOPortDataWrite: Port=%#x cb=%d u32=%#x\n", Port, cb, u32));
+        PKBDSTATE pThis = PDMDEVINS_2_DATA(pDevIns, PKBDSTATE);
+        VBOXSTRICTRC rc = kbd_write_data(pDevIns, pThis, (uint8_t)u32);
+        Log2(("kbdIOPortDataWrite: Port=0x60+%x cb=%d u32=%#x rc=%Rrc\n", offPort, cb, u32, VBOXSTRICTRC_VAL(rc)));
+        return rc;
     }
-    else
-        AssertMsgFailed(("Port=%#x cb=%d\n", Port, cb));
-    return rc;
+    Assert(cb == 4);
+    ASSERT_GUEST_MSG_FAILED(("Port=0x60+%x cb=%d\n", offPort, cb));
+    return VINF_SUCCESS;
 }
 
 /**
- * Port I/O Handler for keyboard status IN operations.
- *
- * @returns VBox status code.
- *
- * @param   pDevIns     The device instance.
- * @param   pvUser      User argument - ignored.
- * @param   Port        Port number used for the IN operation.
- * @param   pu32        Where to store the result.
- * @param   cb          Number of bytes read.
+ * @callback_method_impl{FNIOMIOPORTNEWIN,
+ * Port I/O Handler for keyboard status IN operations.}
  */
-PDMBOTHCBDECL(int) kbdIOPortStatusRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb)
+static DECLCALLBACK(VBOXSTRICTRC) kbdIOPortStatusRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT offPort, uint32_t *pu32, unsigned cb)
 {
-    uint32_t    fluff = 0;
-    KBDState    *pThis = PDMINS_2_DATA(pDevIns, KBDState *);
+    PKBDSTATE pThis = PDMDEVINS_2_DATA(pDevIns, PKBDSTATE);
+    RT_NOREF(offPort, pvUser);
+    Assert(offPort == 0);
+    Assert(cb == 1 || cb == 2 || cb == 4);
 
-    NOREF(pvUser);
-    switch (cb) {
-    case 4:
-        fluff |= 0xffff0000;    /* Crazy Apple (Darwin 6.0.2 and earlier). */
-        RT_FALL_THRU();
-    case 2:
-        fluff |= 0x0000ff00;
-        RT_FALL_THRU();
-    case 1:
-        *pu32 = fluff | kbd_read_status(pThis, Port);
-        Log2(("kbdIOPortStatusRead: Port=%#x cb=%d -> *pu32=%#x\n", Port, cb, *pu32));
-        return VINF_SUCCESS;
-    default:
-        AssertMsgFailed(("Port=%#x cb=%d\n", Port, cb));
-        return VERR_IOM_IOPORT_UNUSED;
-    }
+    *pu32 = pThis->status | g_afFluff[cb];
+    Log2(("kbdIOPortStatusRead: cb=%u -> *pu32=%#x\n", cb, *pu32));
+    return VINF_SUCCESS;
 }
 
 /**
- * Port I/O Handler for keyboard command OUT operations.
- *
- * @returns VBox status code.
- *
- * @param   pDevIns     The device instance.
- * @param   pvUser      User argument - ignored.
- * @param   Port        Port number used for the IN operation.
- * @param   u32         The value to output.
- * @param   cb          The value size in bytes.
+ * @callback_method_impl{FNIOMIOPORTNEWIN,
+ * Port I/O Handler for keyboard command OUT operations.}
  */
-PDMBOTHCBDECL(int) kbdIOPortCommandWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
+static DECLCALLBACK(VBOXSTRICTRC) kbdIOPortCommandWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT offPort, uint32_t u32, unsigned cb)
 {
-    int rc = VINF_SUCCESS;
-    NOREF(pvUser);
+    RT_NOREF(offPort, pvUser);
+    Assert(offPort == 0);
+
     if (cb == 1 || cb == 2)
     {
-        KBDState *pThis = PDMINS_2_DATA(pDevIns, KBDState *);
-        rc = kbd_write_command(pThis, Port, (uint8_t)u32);
-        Log2(("kbdIOPortCommandWrite: Port=%#x cb=%d u32=%#x rc=%Rrc\n", Port, cb, u32, rc));
+        PKBDSTATE pThis = PDMDEVINS_2_DATA(pDevIns, PKBDSTATE);
+        VBOXSTRICTRC rc = kbd_write_command(pDevIns, pThis, (uint8_t)u32);
+        Log2(("kbdIOPortCommandWrite: cb=%d u32=%#x rc=%Rrc\n", cb, u32, VBOXSTRICTRC_VAL(rc)));
+        return rc;
+    }
+    Assert(cb == 4);
+    ASSERT_GUEST_MSG_FAILED(("offPort=0x64+%x cb=%d\n", offPort, cb));
+    return VINF_SUCCESS;
+}
+
+/**
+ * Clear a queue.
+ *
+ * @param   pQHdr       The queue header.
+ * @param   cElements   The queue size.
+ */
+void PS2CmnClearQueue(PPS2QHDR pQHdr, size_t cElements)
+{
+    Assert(cElements > 0);
+    LogFlowFunc(("Clearing queue %p\n", pQHdr));
+    pQHdr->wpos  = pQHdr->rpos = pQHdr->rpos % cElements;
+    pQHdr->cUsed = 0;
+}
+
+
+/**
+ * Add a byte to a queue.
+ *
+ * @param   pQHdr       The queue header.
+ * @param   cElements   The queue size.
+ * @param   pbElements  The queue element array.
+ * @param   bValue      The byte to store.
+ */
+void PS2CmnInsertQueue(PPS2QHDR pQHdr, size_t cElements, uint8_t *pbElements, uint8_t bValue)
+{
+    Assert(cElements > 0);
+
+    /* Check that the queue is not full. */
+    uint32_t cUsed = pQHdr->cUsed;
+    if (cUsed < cElements)
+    {
+        /* Insert data and update circular buffer write position. */
+        uint32_t wpos = pQHdr->wpos % cElements;
+        pbElements[wpos] = bValue;
+
+        wpos += 1;
+        if (wpos < cElements)
+            pQHdr->wpos = wpos;
+        else
+            pQHdr->wpos = 0; /* Roll over. */
+        pQHdr->cUsed = cUsed + 1;
+
+        LogRelFlowFunc(("inserted %#04x into queue %p\n", bValue, pQHdr));
     }
     else
-        AssertMsgFailed(("Port=%#x cb=%d\n", Port, cb));
+    {
+        Assert(cUsed == cElements);
+        LogRelFlowFunc(("queue %p full (%zu entries)\n", pQHdr, cElements));
+    }
+}
+
+/**
+ * Retrieve a byte from a queue.
+ *
+ * @param   pQHdr       The queue header.
+ * @param   cElements   The queue size.
+ * @param   pbElements  The queue element array.
+ * @param   pbValue     Where to return the byte on success.
+ *
+ * @retval  VINF_TRY_AGAIN if queue is empty,
+ * @retval  VINF_SUCCESS if a byte was read.
+ */
+int PS2CmnRemoveQueue(PPS2QHDR pQHdr, size_t cElements, uint8_t const *pbElements, uint8_t *pbValue)
+{
+    int rc;
+
+    Assert(cElements > 0);
+    Assert(pbValue);
+
+    uint32_t cUsed = (uint32_t)RT_MIN(pQHdr->cUsed, cElements);
+    if (cUsed > 0)
+    {
+        uint32_t rpos = pQHdr->rpos % cElements;
+        *pbValue = pbElements[rpos];
+
+        rpos += 1;
+        if (rpos < cElements)
+            pQHdr->rpos = rpos;
+        else
+            pQHdr->rpos = 0;   /* Roll over. */
+        pQHdr->cUsed = cUsed - 1;
+
+        LogFlowFunc(("removed 0x%02X from queue %p\n", *pbValue, pQHdr));
+        rc = VINF_SUCCESS;
+    }
+    else
+    {
+        LogFlowFunc(("queue %p empty\n", pQHdr));
+        rc = VINF_TRY_AGAIN;
+    }
     return rc;
 }
 
 #ifdef IN_RING3
 
 /**
- * Saves a state of the keyboard device.
+ * Save a queue state.
+ *
+ * @param   pHlp        The device helpers.
+ * @param   pSSM        SSM handle to write the state to.
+ * @param   pQHdr       The queue header.
+ * @param   cElements   The queue size.
+ * @param   pbElements  The queue element array.
+ */
+void PS2CmnR3SaveQueue(PCPDMDEVHLPR3 pHlp, PSSMHANDLE pSSM, PPS2QHDR pQHdr, size_t cElements, uint8_t const *pbElements)
+{
+    uint32_t cItems = (uint32_t)RT_MIN(pQHdr->cUsed, cElements);
+
+    /* Only save the number of items. Note that the read/write
+     * positions aren't saved as they will be rebuilt on load.
+     */
+    pHlp->pfnSSMPutU32(pSSM, cItems);
+
+    LogFlow(("Storing %u items from queue %p\n", cItems, pQHdr));
+
+    /* Save queue data - only the bytes actually used (typically zero). */
+    for (uint32_t i = pQHdr->rpos % cElements; cItems-- > 0; i = (i + 1) % cElements)
+        pHlp->pfnSSMPutU8(pSSM, pbElements[i]);
+}
+
+/**
+ * Load a queue state.
+ *
+ * @param   pHlp        The device helpers.
+ * @param   pSSM        SSM handle to read the state from.
+ * @param   pQHdr       The queue header.
+ * @param   cElements   The queue size.
+ * @param   pbElements  The queue element array.
+ *
+ * @returns VBox status/error code.
+ */
+int PS2CmnR3LoadQueue(PCPDMDEVHLPR3 pHlp, PSSMHANDLE pSSM, PPS2QHDR pQHdr, size_t cElements, uint8_t *pbElements)
+{
+    /* On load, always put the read pointer at zero. */
+    uint32_t cUsed;
+    int rc = pHlp->pfnSSMGetU32(pSSM, &cUsed);
+    AssertRCReturn(rc, rc);
+
+    LogFlow(("Loading %u items to queue %p\n", cUsed, pQHdr));
+
+    AssertMsgReturn(cUsed <= cElements, ("Saved size=%u, actual=%zu\n", cUsed, cElements),
+                    VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
+
+    /* Recalculate queue positions and load data in one go. */
+    pQHdr->rpos  = 0;
+    pQHdr->wpos  = cUsed;
+    pQHdr->cUsed = cUsed;
+    return pHlp->pfnSSMGetMem(pSSM, pbElements, cUsed);
+}
+
+
+/**
+ * @callback_method_impl{FNSSMDEVSAVEEXEC, Saves a state of the keyboard device.}
  *
  * @returns VBox status code.
  * @param   pDevIns     The device instance.
  * @param   pSSM  The handle to save the state to.
  */
-static DECLCALLBACK(int) kbdSaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
+static DECLCALLBACK(int) kbdR3SaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {
-    KBDState    *pThis = PDMINS_2_DATA(pDevIns, KBDState *);
-    kbd_save(pSSM, pThis);
-    PS2KSaveState(&pThis->Kbd, pSSM);
-    PS2MSaveState(&pThis->Aux, pSSM);
+    PKBDSTATE       pThis = PDMDEVINS_2_DATA(pDevIns, PKBDSTATE);
+    PCPDMDEVHLPR3   pHlp = pDevIns->pHlpR3;
+
+    pHlp->pfnSSMPutU8(pSSM, pThis->write_cmd);
+    pHlp->pfnSSMPutU8(pSSM, pThis->status);
+    pHlp->pfnSSMPutU8(pSSM, pThis->mode);
+    pHlp->pfnSSMPutU8(pSSM, pThis->dbbout);
+    /* terminator */
+    pHlp->pfnSSMPutU32(pSSM, UINT32_MAX);
+
+    PS2KR3SaveState(pDevIns, &pThis->Kbd, pSSM);
+    PS2MR3SaveState(pDevIns, &pThis->Aux, pSSM);
     return VINF_SUCCESS;
 }
 
 
 /**
- * Loads a saved keyboard device state.
- *
- * @returns VBox status code.
- * @param   pDevIns     The device instance.
- * @param   pSSM  The handle to the saved state.
- * @param   uVersion    The data unit version number.
- * @param   uPass       The data pass.
+ * @callback_method_impl{FNSSMDEVLOADEXEC, Loads a saved keyboard device state.}
  */
-static DECLCALLBACK(int) kbdLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
+static DECLCALLBACK(int) kbdR3LoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
 {
-    KBDState    *pThis = PDMINS_2_DATA(pDevIns, KBDState *);
+    PKBDSTATE    pThis   = PDMDEVINS_2_DATA(pDevIns, PKBDSTATE);
+    PKBDSTATER3  pThisCC = PDMDEVINS_2_DATA_CC(pDevIns, PKBDSTATER3);
     int rc;
 
     Assert(uPass == SSM_PASS_FINAL); NOREF(uPass);
-    rc = kbd_load(pSSM, pThis, uVersion);
+    rc = kbd_load(pDevIns->pHlpR3, pSSM, pThis, pThisCC, uVersion);
+    AssertRCReturn(rc, rc);
+
     if (uVersion >= 6)
-        rc = PS2KLoadState(&pThis->Kbd, pSSM, uVersion);
+        rc = PS2KR3LoadState(pDevIns, &pThis->Kbd, pSSM, uVersion);
+    AssertRCReturn(rc, rc);
+
     if (uVersion >= 8)
-        rc = PS2MLoadState(&pThis->Aux, pSSM, uVersion);
+        rc = PS2MR3LoadState(pDevIns, &pThis->Aux, &pThisCC->Aux, pSSM, uVersion);
+    AssertRCReturn(rc, rc);
     return rc;
 }
+
 
 /**
  * @callback_method_impl{FNSSMDEVLOADDONE, Key state fix-up after loading}
  */
-static DECLCALLBACK(int) kbdLoadDone(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
+static DECLCALLBACK(int) kbdR3LoadDone(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {
-    KBDState    *pThis = PDMINS_2_DATA(pDevIns, KBDState *);
-    int rc;
-
-    rc = PS2KLoadDone(&pThis->Kbd, pSSM);
-    return rc;
+    PKBDSTATE    pThis   = PDMDEVINS_2_DATA(pDevIns, PKBDSTATE);
+    PKBDSTATER3  pThisCC = PDMDEVINS_2_DATA_CC(pDevIns, PKBDSTATER3);
+    RT_NOREF(pSSM);
+    return PS2KR3LoadDone(pDevIns, &pThis->Kbd, &pThisCC->Kbd);
 }
+
+
+/* -=-=-=-=-=- real code -=-=-=-=-=- */
 
 /**
  * Reset notification.
@@ -827,39 +934,32 @@ static DECLCALLBACK(int) kbdLoadDone(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
  * @returns VBox status code.
  * @param   pDevIns     The device instance data.
  */
-static DECLCALLBACK(void)  kbdReset(PPDMDEVINS pDevIns)
+static DECLCALLBACK(void)  kbdR3Reset(PPDMDEVINS pDevIns)
 {
-    KBDState   *pThis = PDMINS_2_DATA(pDevIns, KBDState *);
+    PKBDSTATE    pThis   = PDMDEVINS_2_DATA(pDevIns, PKBDSTATE);
+    PKBDSTATER3  pThisCC = PDMDEVINS_2_DATA_CC(pDevIns, PKBDSTATER3);
 
-    kbd_reset(pThis);
-    PS2KReset(&pThis->Kbd);
-    PS2MReset(&pThis->Aux);
+    pThis->mode = KBD_MODE_KBD_INT | KBD_MODE_MOUSE_INT;
+    pThis->status = KBD_STAT_CMD | KBD_STAT_UNLOCKED;
+    /* Resetting everything, keyword was not working right on NT4 reboot. */
+    pThis->write_cmd = 0;
+    pThis->translate = 0;
+
+    PS2KR3Reset(pDevIns, &pThis->Kbd, &pThisCC->Kbd);
+    PS2MR3Reset(&pThis->Aux);
 }
 
 
-/* -=-=-=-=-=- real code -=-=-=-=-=- */
-
-
 /**
- * Attach command.
+ * @interface_method_impl{PDMDEVREGR3,pfnAttach}
  *
- * This is called to let the device attach to a driver for a specified LUN
- * during runtime. This is not called during VM construction, the device
- * constructor have to attach to all the available drivers.
- *
- * This is like plugging in the keyboard or mouse after turning on the PC.
- *
- * @returns VBox status code.
- * @param   pDevIns     The device instance.
- * @param   iLUN        The logical unit which is being detached.
- * @param   fFlags      Flags, combination of the PDMDEVATT_FLAGS_* \#defines.
  * @remark  The keyboard controller doesn't support this action, this is just
  *          implemented to try out the driver<->device structure.
  */
-static DECLCALLBACK(int)  kbdAttach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t fFlags)
+static DECLCALLBACK(int)  kbdR3Attach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t fFlags)
 {
+    PKBDSTATER3 pThisCC = PDMDEVINS_2_DATA_CC(pDevIns, PKBDSTATER3);
     int         rc;
-    KBDState   *pThis = PDMINS_2_DATA(pDevIns, KBDState *);
 
     AssertMsgReturn(fFlags & PDM_TACH_FLAGS_NOT_HOT_PLUG,
                     ("PS/2 device does not support hotplugging\n"),
@@ -869,14 +969,12 @@ static DECLCALLBACK(int)  kbdAttach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t 
     {
         /* LUN #0: keyboard */
         case 0:
-            rc = PS2KAttach(&pThis->Kbd, pDevIns, iLUN, fFlags);
-            if (RT_FAILURE(rc))
-                return rc;
+            rc = PS2KR3Attach(pDevIns, &pThisCC->Kbd, iLUN, fFlags);
             break;
 
         /* LUN #1: aux/mouse */
         case 1:
-            rc = PS2MAttach(&pThis->Aux, pDevIns, iLUN, fFlags);
+            rc = PS2MR3Attach(pDevIns, &pThisCC->Aux, iLUN, fFlags);
             break;
 
         default:
@@ -889,39 +987,29 @@ static DECLCALLBACK(int)  kbdAttach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t 
 
 
 /**
- * Detach notification.
- *
- * This is called when a driver is detaching itself from a LUN of the device.
- * The device should adjust it's state to reflect this.
- *
- * This is like unplugging the network cable to use it for the laptop or
- * something while the PC is still running.
- *
- * @param   pDevIns     The device instance.
- * @param   iLUN        The logical unit which is being detached.
- * @param   fFlags      Flags, combination of the PDMDEVATT_FLAGS_* \#defines.
+ * @interface_method_impl{PDMDEVREGR3,pfnDetach}
  * @remark  The keyboard controller doesn't support this action, this is just
  *          implemented to try out the driver<->device structure.
  */
-static DECLCALLBACK(void)  kbdDetach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t fFlags)
+static DECLCALLBACK(void)  kbdR3Detach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t fFlags)
 {
 #if 0
     /*
      * Reset the interfaces and update the controller state.
      */
-    KBDState   *pThis = PDMINS_2_DATA(pDevIns, KBDState *);
+    PKBDSTATE    pThis = PDMDEVINS_2_DATA(pDevIns, PKBDSTATE);
     switch (iLUN)
     {
         /* LUN #0: keyboard */
         case 0:
-            pThis->Keyboard.pDrv = NULL;
-            pThis->Keyboard.pDrvBase = NULL;
+            pThisCC->Keyboard.pDrv = NULL;
+            pThisCC->Keyboard.pDrvBase = NULL;
             break;
 
         /* LUN #1: aux/mouse */
         case 1:
-            pThis->Mouse.pDrv = NULL;
-            pThis->Mouse.pDrvBase = NULL;
+            pThisCC->Mouse.pDrv = NULL;
+            pThisCC->Mouse.pDrvBase = NULL;
             break;
 
         default:
@@ -935,169 +1023,160 @@ static DECLCALLBACK(void)  kbdDetach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t
 
 
 /**
- * @copydoc FNPDMDEVRELOCATE
+ * @interface_method_impl{PDMDEVREGR3,pfnConstruct}
  */
-static DECLCALLBACK(void) kbdRelocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta)
+static DECLCALLBACK(int) kbdR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
 {
-    KBDState   *pThis = PDMINS_2_DATA(pDevIns, KBDState *);
-    pThis->pDevInsRC = PDMDEVINS_2_RCPTR(pDevIns);
-    PS2KRelocate(&pThis->Kbd, offDelta, pDevIns);
-    PS2MRelocate(&pThis->Aux, offDelta, pDevIns);
-}
-
-
-/**
- * @interface_method_impl{PDMDEVREG,pfnConstruct}
- */
-static DECLCALLBACK(int) kbdConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
-{
-    KBDState   *pThis = PDMINS_2_DATA(pDevIns, KBDState *);
-    int         rc;
-    bool        fGCEnabled;
-    bool        fR0Enabled;
-    Assert(iInstance == 0);
-
     PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
+    PKBDSTATE   pThis   = PDMDEVINS_2_DATA(pDevIns, PKBDSTATE);
+    PKBDSTATER3 pThisCC = PDMDEVINS_2_DATA_CC(pDevIns, PKBDSTATER3);
+    int         rc;
+    RT_NOREF(iInstance);
+
+    Assert(iInstance == 0);
 
     /*
      * Validate and read the configuration.
      */
-    if (!CFGMR3AreValuesValid(pCfg, "GCEnabled\0R0Enabled\0KbdThrottleEnabled\0"))
-        return VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES;
-    rc = CFGMR3QueryBoolDef(pCfg, "GCEnabled", &fGCEnabled, true);
-    if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Failed to query \"GCEnabled\" from the config"));
-    rc = CFGMR3QueryBoolDef(pCfg, "R0Enabled", &fR0Enabled, true);
-    if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Failed to query \"R0Enabled\" from the config"));
-    Log(("pckbd: fGCEnabled=%RTbool fR0Enabled=%RTbool\n", fGCEnabled, fR0Enabled));
-
+    PDMDEV_VALIDATE_CONFIG_RETURN(pDevIns,  "KbdThrottleEnabled", "");
+    Log(("pckbd: fRCEnabled=%RTbool fR0Enabled=%RTbool\n", pDevIns->fRCEnabled, pDevIns->fR0Enabled));
 
     /*
-     * Initialize the interfaces.
+     * Initialize the sub-components.
      */
-    pThis->pDevInsR3 = pDevIns;
-    pThis->pDevInsR0 = PDMDEVINS_2_R0PTR(pDevIns);
-    pThis->pDevInsRC = PDMDEVINS_2_RCPTR(pDevIns);
+    rc = PS2KR3Construct(pDevIns, &pThis->Kbd, &pThisCC->Kbd, pCfg);
+    AssertRCReturn(rc, rc);
 
-    rc = PS2KConstruct(&pThis->Kbd, pDevIns, pThis, iInstance, pCfg);
-    if (RT_FAILURE(rc))
-        return rc;
-
-    rc = PS2MConstruct(&pThis->Aux, pDevIns, pThis, iInstance);
-    if (RT_FAILURE(rc))
-        return rc;
+    rc = PS2MR3Construct(pDevIns, &pThis->Aux, &pThisCC->Aux);
+    AssertRCReturn(rc, rc);
 
     /*
-     * Register I/O ports, save state, keyboard event handler and mouse event handlers.
+     * Register I/O ports.
      */
-    rc = PDMDevHlpIOPortRegister(pDevIns, 0x60, 1, NULL, kbdIOPortDataWrite,    kbdIOPortDataRead, NULL, NULL,   "PC Keyboard - Data");
-    if (RT_FAILURE(rc))
-        return rc;
-    rc = PDMDevHlpIOPortRegister(pDevIns, 0x64, 1, NULL, kbdIOPortCommandWrite, kbdIOPortStatusRead, NULL, NULL, "PC Keyboard - Command / Status");
-    if (RT_FAILURE(rc))
-        return rc;
-    if (fGCEnabled)
-    {
-        rc = PDMDevHlpIOPortRegisterRC(pDevIns, 0x60, 1, 0, "kbdIOPortDataWrite",    "kbdIOPortDataRead", NULL, NULL,   "PC Keyboard - Data");
-        if (RT_FAILURE(rc))
-            return rc;
-        rc = PDMDevHlpIOPortRegisterRC(pDevIns, 0x64, 1, 0, "kbdIOPortCommandWrite", "kbdIOPortStatusRead", NULL, NULL, "PC Keyboard - Command / Status");
-        if (RT_FAILURE(rc))
-            return rc;
-    }
-    if (fR0Enabled)
-    {
-        rc = PDMDevHlpIOPortRegisterR0(pDevIns, 0x60, 1, 0, "kbdIOPortDataWrite",    "kbdIOPortDataRead", NULL, NULL,   "PC Keyboard - Data");
-        if (RT_FAILURE(rc))
-            return rc;
-        rc = PDMDevHlpIOPortRegisterR0(pDevIns, 0x64, 1, 0, "kbdIOPortCommandWrite", "kbdIOPortStatusRead", NULL, NULL, "PC Keyboard - Command / Status");
-        if (RT_FAILURE(rc))
-            return rc;
-    }
+    rc = PDMDevHlpIoPortCreateAndMap(pDevIns, 0x60 /*uPort*/, 1 /*cPorts*/, kbdIOPortDataWrite, kbdIOPortDataRead,
+                                     "PC Keyboard - Data", NULL /*pExtDescs*/, &pThis->hIoPortData);
+    AssertRCReturn(rc, rc);
+    rc = PDMDevHlpIoPortCreateAndMap(pDevIns, 0x64 /*uPort*/, 1 /*cPorts*/, kbdIOPortCommandWrite, kbdIOPortStatusRead,
+                                     "PC Keyboard - Command / Status", NULL /*pExtDescs*/, &pThis->hIoPortCmdStatus);
+    AssertRCReturn(rc, rc);
+
+    /*
+     * Saved state.
+     */
     rc = PDMDevHlpSSMRegisterEx(pDevIns, PCKBD_SAVED_STATE_VERSION, sizeof(*pThis), NULL,
                                 NULL, NULL, NULL,
-                                NULL, kbdSaveExec, NULL,
-                                NULL, kbdLoadExec, kbdLoadDone);
-    if (RT_FAILURE(rc))
-        return rc;
+                                NULL, kbdR3SaveExec, NULL,
+                                NULL, kbdR3LoadExec, kbdR3LoadDone);
+    AssertRCReturn(rc, rc);
 
     /*
      * Attach to the keyboard and mouse drivers.
      */
-    rc = kbdAttach(pDevIns, 0 /* keyboard LUN # */, PDM_TACH_FLAGS_NOT_HOT_PLUG);
-    if (RT_FAILURE(rc))
-        return rc;
-    rc = kbdAttach(pDevIns, 1 /* aux/mouse LUN # */, PDM_TACH_FLAGS_NOT_HOT_PLUG);
-    if (RT_FAILURE(rc))
-        return rc;
+    rc = kbdR3Attach(pDevIns, 0 /* keyboard LUN # */, PDM_TACH_FLAGS_NOT_HOT_PLUG);
+    AssertRCReturn(rc, rc);
+    rc = kbdR3Attach(pDevIns, 1 /* aux/mouse LUN # */, PDM_TACH_FLAGS_NOT_HOT_PLUG);
+    AssertRCReturn(rc, rc);
 
     /*
      * Initialize the device state.
      */
-    kbdReset(pDevIns);
+    kbdR3Reset(pDevIns);
 
     return VINF_SUCCESS;
 }
 
+#else  /* !IN_RING3 */
+
+/**
+ * @callback_method_impl{PDMDEVREGR0,pfnConstruct}
+ */
+static DECLCALLBACK(int) kbdRZConstruct(PPDMDEVINS pDevIns)
+{
+    PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
+    PKBDSTATE pThis = PDMDEVINS_2_DATA(pDevIns, PKBDSTATE);
+
+    int rc = PDMDevHlpIoPortSetUpContext(pDevIns, pThis->hIoPortData, kbdIOPortDataWrite, kbdIOPortDataRead, NULL /*pvUser*/);
+    AssertRCReturn(rc, rc);
+    rc = PDMDevHlpIoPortSetUpContext(pDevIns, pThis->hIoPortCmdStatus, kbdIOPortCommandWrite, kbdIOPortStatusRead, NULL /*pvUser*/);
+    AssertRCReturn(rc, rc);
+
+    return VINF_SUCCESS;
+}
+
+#endif /* !IN_RING3 */
 
 /**
  * The device registration structure.
  */
 const PDMDEVREG g_DevicePS2KeyboardMouse =
 {
-    /* u32Version */
-    PDM_DEVREG_VERSION,
-    /* szName */
-    "pckbd",
-    /* szRCMod */
-    "VBoxDDRC.rc",
-    /* szR0Mod */
-    "VBoxDDR0.r0",
-    /* pszDescription */
-    "PS/2 Keyboard and Mouse device. Emulates both the keyboard, mouse and the keyboard controller. "
-    "LUN #0 is the keyboard connector. "
-    "LUN #1 is the aux/mouse connector.",
-    /* fFlags */
-    PDM_DEVREG_FLAGS_HOST_BITS_DEFAULT | PDM_DEVREG_FLAGS_GUEST_BITS_32_64 | PDM_DEVREG_FLAGS_PAE36 | PDM_DEVREG_FLAGS_RC | PDM_DEVREG_FLAGS_R0,
-    /* fClass */
-    PDM_DEVREG_CLASS_INPUT,
-    /* cMaxInstances */
-    1,
-    /* cbInstance */
-    sizeof(KBDState),
-    /* pfnConstruct */
-    kbdConstruct,
-    /* pfnDestruct */
-    NULL,
-    /* pfnRelocate */
-    kbdRelocate,
-    /* pfnMemSetup */
-    NULL,
-    /* pfnPowerOn */
-    NULL,
-    /* pfnReset */
-    kbdReset,
-    /* pfnSuspend */
-    NULL,
-    /* pfnResume */
-    NULL,
-    /* pfnAttach */
-    kbdAttach,
-    /* pfnDetach */
-    kbdDetach,
-    /* pfnQueryInterface. */
-    NULL,
-    /* pfnInitComplete */
-    NULL,
-    /* pfnPowerOff */
-    NULL,
-    /* pfnSoftReset */
-    NULL,
-    /* u32VersionEnd */
-    PDM_DEVREG_VERSION
+    /* .u32Version = */             PDM_DEVREG_VERSION,
+    /* .uReserved0 = */             0,
+    /* .szName = */                 "pckbd",
+    /* .fFlags = */                 PDM_DEVREG_FLAGS_DEFAULT_BITS | PDM_DEVREG_FLAGS_RZ | PDM_DEVREG_FLAGS_NEW_STYLE,
+    /* .fClass = */                 PDM_DEVREG_CLASS_INPUT,
+    /* .cMaxInstances = */          1,
+    /* .uSharedVersion = */         42,
+    /* .cbInstanceShared = */       sizeof(KBDSTATE),
+    /* .cbInstanceCC = */           CTX_EXPR(sizeof(KBDSTATER3), 0, 0),
+    /* .cbInstanceRC = */           0,
+    /* .cMaxPciDevices = */         0,
+    /* .cMaxMsixVectors = */        0,
+    /* .pszDescription = */         "PS/2 Keyboard and Mouse device. Emulates both the keyboard, mouse and the keyboard controller.\n"
+                                    "LUN #0 is the keyboard connector.\n"
+                                    "LUN #1 is the aux/mouse connector.",
+#if defined(IN_RING3)
+    /* .pszRCMod = */               "VBoxDDRC.rc",
+    /* .pszR0Mod = */               "VBoxDDR0.r0",
+    /* .pfnConstruct = */           kbdR3Construct,
+    /* .pfnDestruct = */            NULL,
+    /* .pfnRelocate = */            NULL,
+    /* .pfnMemSetup = */            NULL,
+    /* .pfnPowerOn = */             NULL,
+    /* .pfnReset = */               kbdR3Reset,
+    /* .pfnSuspend = */             NULL,
+    /* .pfnResume = */              NULL,
+    /* .pfnAttach = */              kbdR3Attach,
+    /* .pfnDetach = */              kbdR3Detach,
+    /* .pfnQueryInterface = */      NULL,
+    /* .pfnInitComplete = */        NULL,
+    /* .pfnPowerOff = */            NULL,
+    /* .pfnSoftReset = */           NULL,
+    /* .pfnReserved0 = */           NULL,
+    /* .pfnReserved1 = */           NULL,
+    /* .pfnReserved2 = */           NULL,
+    /* .pfnReserved3 = */           NULL,
+    /* .pfnReserved4 = */           NULL,
+    /* .pfnReserved5 = */           NULL,
+    /* .pfnReserved6 = */           NULL,
+    /* .pfnReserved7 = */           NULL,
+#elif defined(IN_RING0)
+    /* .pfnEarlyConstruct = */      NULL,
+    /* .pfnConstruct = */           kbdRZConstruct,
+    /* .pfnDestruct = */            NULL,
+    /* .pfnFinalDestruct = */       NULL,
+    /* .pfnRequest = */             NULL,
+    /* .pfnReserved0 = */           NULL,
+    /* .pfnReserved1 = */           NULL,
+    /* .pfnReserved2 = */           NULL,
+    /* .pfnReserved3 = */           NULL,
+    /* .pfnReserved4 = */           NULL,
+    /* .pfnReserved5 = */           NULL,
+    /* .pfnReserved6 = */           NULL,
+    /* .pfnReserved7 = */           NULL,
+#elif defined(IN_RC)
+    /* .pfnConstruct = */           kbdRZConstruct,
+    /* .pfnReserved0 = */           NULL,
+    /* .pfnReserved1 = */           NULL,
+    /* .pfnReserved2 = */           NULL,
+    /* .pfnReserved3 = */           NULL,
+    /* .pfnReserved4 = */           NULL,
+    /* .pfnReserved5 = */           NULL,
+    /* .pfnReserved6 = */           NULL,
+    /* .pfnReserved7 = */           NULL,
+#else
+# error "Not in IN_RING3, IN_RING0 or IN_RC!"
+#endif
+    /* .u32VersionEnd = */          PDM_DEVREG_VERSION
 };
-
-#endif /* IN_RING3 */
-#endif /* !VBOX_DEVICE_STRUCT_TESTCASE */
 

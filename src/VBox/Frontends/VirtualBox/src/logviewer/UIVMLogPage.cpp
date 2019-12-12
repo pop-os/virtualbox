@@ -79,9 +79,9 @@ void UIVMLogPage::prepareWidgets()
     m_pTextEdit = new UIVMLogViewerTextEdit(this);
     m_pMainLayout->addWidget(m_pTextEdit);
 
-    connect(qobject_cast<UIVMLogViewerTextEdit*>(m_pTextEdit), &UIVMLogViewerTextEdit::sigAddBookmark,
+    connect(m_pTextEdit, &UIVMLogViewerTextEdit::sigAddBookmark,
             this, &UIVMLogPage::sltAddBookmark);
-    connect(qobject_cast<UIVMLogViewerTextEdit*>(m_pTextEdit), &UIVMLogViewerTextEdit::sigDeleteBookmark,
+    connect(m_pTextEdit, &UIVMLogViewerTextEdit::sigDeleteBookmark,
             this, &UIVMLogPage::sltDeleteBookmark);
 }
 
@@ -340,16 +340,4 @@ void UIVMLogPage::setCurrentFont(QFont font)
 {
     if (m_pTextEdit)
         m_pTextEdit->setCurrentFont(font);
-}
-
-void UIVMLogPage::setSearchResultOverlayShowHide(bool fShow)
-{
-    if (m_pTextEdit)
-        m_pTextEdit->setSearchResultOverlayShowHide(fShow);
-}
-
-void UIVMLogPage::setSearchMatchCount(int iMatchCount)
-{
-    if (m_pTextEdit)
-        m_pTextEdit->setSearchMatchCount(iMatchCount);
 }

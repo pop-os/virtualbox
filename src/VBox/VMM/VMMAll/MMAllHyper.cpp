@@ -23,7 +23,7 @@
 #include <VBox/vmm/mm.h>
 #include <VBox/vmm/stam.h>
 #include "MMInternal.h"
-#include <VBox/vmm/vm.h>
+#include <VBox/vmm/vmcc.h>
 
 #include <VBox/err.h>
 #include <VBox/param.h>
@@ -155,7 +155,7 @@ static void mmHyperHeapCheck(PMMHYPERHEAP pHeap);
  *
  * @param   pVM     The cross context VM structure.
  */
-static int mmHyperLock(PVM pVM)
+static int mmHyperLock(PVMCC pVM)
 {
     PMMHYPERHEAP pHeap = pVM->mm.s.CTX_SUFF(pHyperHeap);
 
@@ -166,7 +166,7 @@ static int mmHyperLock(PVM pVM)
     Assert(PDMCritSectIsInitialized(&pHeap->Lock));
 #endif
     int rc = PDMCritSectEnter(&pHeap->Lock, VERR_SEM_BUSY);
-#if defined(IN_RC) || defined(IN_RING0)
+#ifdef IN_RING0
     if (rc == VERR_SEM_BUSY)
         rc = VMMRZCallRing3NoCpu(pVM, VMMCALLRING3_MMHYPER_LOCK, 0);
 #endif
@@ -327,7 +327,7 @@ static int mmHyperAllocInternal(PVM pVM, size_t cb, unsigned uAlignment, MMTAG e
 /**
  * Wrapper for mmHyperAllocInternal
  */
-VMMDECL(int) MMHyperAlloc(PVM pVM, size_t cb, unsigned uAlignment, MMTAG enmTag, void **ppv)
+VMMDECL(int) MMHyperAlloc(PVMCC pVM, size_t cb, unsigned uAlignment, MMTAG enmTag, void **ppv)
 {
     int rc = mmHyperLock(pVM);
     AssertRCReturn(rc, rc);
@@ -355,7 +355,7 @@ VMMDECL(int) MMHyperAlloc(PVM pVM, size_t cb, unsigned uAlignment, MMTAG enmTag,
  * @param   ppv         Where to store the address to the allocated
  *                      memory.
  */
-VMMDECL(int) MMHyperDupMem(PVM pVM, const void *pvSrc, size_t cb, unsigned uAlignment, MMTAG enmTag, void **ppv)
+VMMDECL(int) MMHyperDupMem(PVMCC pVM, const void *pvSrc, size_t cb, unsigned uAlignment, MMTAG enmTag, void **ppv)
 {
     int rc = MMHyperAlloc(pVM, cb, uAlignment, enmTag, ppv);
     if (RT_SUCCESS(rc))
@@ -931,7 +931,7 @@ static int mmHyperFreeInternal(PVM pVM, void *pv)
 /**
  * Wrapper for mmHyperFreeInternal
  */
-VMMDECL(int) MMHyperFree(PVM pVM, void *pv)
+VMMDECL(int) MMHyperFree(PVMCC pVM, void *pv)
 {
     int rc;
 
@@ -1214,7 +1214,7 @@ static void mmHyperHeapCheck(PMMHYPERHEAP pHeap)
  *
  * @param   pVM         The cross context VM structure.
  */
-VMMDECL(void) MMHyperHeapCheck(PVM pVM)
+VMMDECL(void) MMHyperHeapCheck(PVMCC pVM)
 {
 #ifdef MMHYPER_HEAP_STRICT
     int rc;

@@ -39,27 +39,27 @@ class QIWithRetranslateUI : public Base
 public:
 
     /** Constructs translatable widget passing @a pParent to the base-class. */
-    QIWithRetranslateUI(QWidget *pParent = 0) : Base(pParent) {}
+    QIWithRetranslateUI(QWidget *pParent = 0) : Base(pParent)
+    {
+        qApp->installEventFilter(this);
+    }
 
 protected:
 
-    /** Handles standard Qt change @a pEvent. */
-    virtual void changeEvent(QEvent *pEvent)
+    /** Pre-handles standard Qt @a pEvent for passed @a pObject. */
+    virtual bool eventFilter(QObject *pObject, QEvent *pEvent)
     {
-        /* Call to base-class: */
-        Base::changeEvent(pEvent);
-        /* Handle LanguageChange events: */
-        switch (pEvent->type())
+        /* Handle LanguageChange events for qApp or this object: */
+        if (pObject == qApp || pObject == this)
         {
-            case QEvent::LanguageChange:
+            switch (pEvent->type())
             {
-                retranslateUi();
-                pEvent->accept();
-                break;
+                case QEvent::LanguageChange: retranslateUi(); break;
+                default: break;
             }
-            default:
-                break;
         }
+        /* Call to base-class: */
+        return Base::eventFilter(pObject, pEvent);
     }
 
     /** Handles translation event. */
@@ -83,27 +83,27 @@ class QIWithRetranslateUI2 : public Base
 public:
 
     /** Constructs translatable widget passing @a pParent and @a fFlags to the base-class. */
-    QIWithRetranslateUI2(QWidget *pParent = 0, Qt::WindowFlags fFlags = 0) : Base(pParent, fFlags) {}
+    QIWithRetranslateUI2(QWidget *pParent = 0, Qt::WindowFlags fFlags = 0) : Base(pParent, fFlags)
+    {
+        qApp->installEventFilter(this);
+    }
 
 protected:
 
-    /** Handles standard Qt change @a pEvent. */
-    virtual void changeEvent(QEvent *pEvent)
+    /** Pre-handles standard Qt @a pEvent for passed @a pObject. */
+    virtual bool eventFilter(QObject *pObject, QEvent *pEvent)
     {
-        /* Call to base-class: */
-        Base::changeEvent(pEvent);
-        /* Handle LanguageChange events: */
-        switch (pEvent->type())
+        /* Handle LanguageChange events for qApp or this object: */
+        if (pObject == qApp || pObject == this)
         {
-            case QEvent::LanguageChange:
+            switch (pEvent->type())
             {
-                retranslateUi();
-                pEvent->accept();
-                break;
+                case QEvent::LanguageChange: retranslateUi(); break;
+                default: break;
             }
-            default:
-                break;
         }
+        /* Call to base-class: */
+        return Base::eventFilter(pObject, pEvent);
     }
 
     /** Handles translation event. */
@@ -129,8 +129,8 @@ protected:
     /** Pre-handles standard Qt @a pEvent for passed @a pObject. */
     virtual bool eventFilter(QObject *pObject, QEvent *pEvent)
     {
-        /* Handle LanguageChange events for qApp only: */
-        if (pObject == qApp)
+        /* Handle LanguageChange events for qApp or this object: */
+        if (pObject == qApp || pObject == this)
         {
             switch (pEvent->type())
             {
@@ -145,6 +145,15 @@ protected:
     /** Handles translation event. */
     virtual void retranslateUi() = 0;
 };
+
+/** Explicit QIWithRetranslateUI3 instantiation for QObject class.
+  * @note  On Windows it's important that all template cases are instantiated just once across
+  *        the linking space. In case we have particular template case instantiated from both
+  *        library and executable sides, - we have multiple definition case and need to strictly
+  *        ask compiler to do it just once and link such cases against library only.
+  *        I would also note that it would be incorrect to just make whole the template exported
+  *        to library because latter can have lack of required instantiations (current case). */
+template class SHARED_LIBRARY_STUFF QIWithRetranslateUI3<QObject>;
 
 
 /** Template for automatic language translations of underlying QGraphicsWidget. */
@@ -165,11 +174,15 @@ protected:
     /** Pre-handles standard Qt @a pEvent for passed @a pObject. */
     virtual bool eventFilter(QObject *pObject, QEvent *pEvent)
     {
-        /* Handle LanguageChange events: */
-        switch (pEvent->type())
+        /* Handle LanguageChange events for qApp or this object: */
+        if (pObject == qApp || pObject == this)
         {
-            case QEvent::LanguageChange: retranslateUi(); break;
-            default: break;
+            /* Handle LanguageChange events: */
+            switch (pEvent->type())
+            {
+                case QEvent::LanguageChange: retranslateUi(); break;
+                default: break;
+            }
         }
         /* Call to base-class: */
         return Base::eventFilter(pObject, pEvent);

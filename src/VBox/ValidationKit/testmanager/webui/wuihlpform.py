@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 134567 $"
 
 # Standard python imports.
 import copy;
@@ -158,7 +158,7 @@ class WuiHlpForm(object):
         return self._add(u'          <input name="%s" id="%s" type="text"%s value="%s">%s\n'
                          u'        </div></div>\n'
                          u'      </li>\n'
-                         % ( escapeAttr(sName), escapeAttr(sName), sExtraAttribs, escapeElem(sValue), sPostHtml ));
+                         % ( escapeAttr(sName), escapeAttr(sName), sExtraAttribs, escapeAttr(unicode(sValue)), sPostHtml ));
 
     def addTextRO(self, sName, sValue, sLabel, sSubClass = 'string', sExtraAttribs = '', sPostHtml = ''):
         """Adds a read-only text input."""
@@ -169,7 +169,7 @@ class WuiHlpForm(object):
                          u'%s\n'
                          u'        </div></div>\n'
                          u'      </li>\n'
-                         % ( escapeAttr(sName), escapeAttr(sName), sExtraAttribs, escapeElem(unicode(sValue)), sPostHtml ));
+                         % ( escapeAttr(sName), escapeAttr(sName), sExtraAttribs, escapeAttr(unicode(sValue)), sPostHtml ));
 
     def addWideText(self, sName, sValue, sLabel, sExtraAttribs = '', sPostHtml = ''):
         """Adds a wide text input."""
@@ -414,7 +414,7 @@ class WuiHlpForm(object):
         return self._addList(sName, aoTestGroups, sLabel, fUseTable = False, sId = 'tmform-checkbox-list-testgroups',
                              sExtraAttribs = sExtraAttribs);
 
-    def addListOfTestCaseArgs(self, sName, aoVariations, sLabel): # pylint: disable=R0915
+    def addListOfTestCaseArgs(self, sName, aoVariations, sLabel): # pylint: disable=too-many-statements
         """
         Adds a list of test case argument variations to the form.
 
@@ -645,7 +645,7 @@ class WuiHlpForm(object):
 
         return self._add(sHtml)
 
-    def addListOfTestGroupMembers(self, sName, aoTestGroupMembers, aoAllTestCases, sLabel,  # pylint: disable=R0914
+    def addListOfTestGroupMembers(self, sName, aoTestGroupMembers, aoAllTestCases, sLabel,  # pylint: disable=too-many-locals
                                   fReadOnly = True):
         """
         For WuiTestGroup.
@@ -762,7 +762,7 @@ class WuiHlpForm(object):
         return self._add(u' </tbody>\n'
                          u'</table>\n');
 
-    def addListOfSchedGroupMembers(self, sName, aoSchedGroupMembers, aoAllTestGroups,  # pylint: disable=R0914
+    def addListOfSchedGroupMembers(self, sName, aoSchedGroupMembers, aoAllTestGroups,  # pylint: disable=too-many-locals
                                    sLabel, fReadOnly = True):
         """
         For WuiAdminSchedGroup.
@@ -861,7 +861,7 @@ class WuiHlpForm(object):
         return self._add(u' </tbody>\n'
                          u'</table>\n');
 
-    def addListOfSchedGroupsForTestBox(self, sName, aoInSchedGroups, aoAllSchedGroups, sLabel,  # pylint: disable=R0914
+    def addListOfSchedGroupsForTestBox(self, sName, aoInSchedGroups, aoAllSchedGroups, sLabel,  # pylint: disable=too-many-locals
                                        fReadOnly = None):
         # type: (str, TestBoxInSchedGroupDataEx, SchedGroupData, str, bool) -> str
         """

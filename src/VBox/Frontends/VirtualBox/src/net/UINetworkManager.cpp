@@ -20,7 +20,7 @@
 #include <QUrl>
 
 /* GUI includes: */
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #include "UINetworkCustomer.h"
 #include "UINetworkManager.h"
 #include "UINetworkManagerDialog.h"
@@ -64,7 +64,7 @@ UINetworkManagerDialog *UINetworkManager::window() const
 UINetworkManagerIndicator *UINetworkManager::createIndicator() const
 {
     /* For Selector UI only: */
-    AssertReturn(vboxGlobal().uiType() == VBoxGlobal::UIType_SelectorUI, 0);
+    AssertReturn(uiCommon().uiType() == UICommon::UIType_SelectorUI, 0);
 
     /* Create network-manager state-indicator: */
     UINetworkManagerIndicator *pNetworkManagerIndicator = new UINetworkManagerIndicator;
@@ -101,11 +101,11 @@ void UINetworkManager::show()
     m_pNetworkManagerDialog->showNormal();
 }
 
-void UINetworkManager::createNetworkRequest(UINetworkRequestType enmType, const QList<QUrl> &urls,
+void UINetworkManager::createNetworkRequest(UINetworkRequestType enmType, const QList<QUrl> &urls, const QString &strTarget,
                                             const UserDictionary &requestHeaders, UINetworkCustomer *pCustomer)
 {
     /* Create network-request: */
-    UINetworkRequest *pNetworkRequest = new UINetworkRequest(enmType, urls, requestHeaders, pCustomer, this);
+    UINetworkRequest *pNetworkRequest = new UINetworkRequest(enmType, urls, strTarget, requestHeaders, pCustomer, this);
     /* Prepare created network-request: */
     prepareNetworkRequest(pNetworkRequest);
 }

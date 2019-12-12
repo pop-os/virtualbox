@@ -56,7 +56,7 @@ typedef union PDMCRITSECT
 
 VMMR3_INT_DECL(int)     PDMR3CritSectBothTerm(PVM pVM);
 VMMR3_INT_DECL(void)    PDMR3CritSectLeaveAll(PVM pVM);
-VMM_INT_DECL(void)      PDMCritSectBothFF(PVMCPU pVCpu);
+VMM_INT_DECL(void)      PDMCritSectBothFF(PVMCPUCC pVCpu);
 
 
 VMMR3DECL(uint32_t) PDMR3CritSectCountOwned(PVM pVM, char *pszNames, size_t cbNames);
@@ -64,7 +64,7 @@ VMMR3DECL(uint32_t) PDMR3CritSectCountOwned(PVM pVM, char *pszNames, size_t cbNa
 VMMR3DECL(int)      PDMR3CritSectInit(PVM pVM, PPDMCRITSECT pCritSect, RT_SRC_POS_DECL,
                                       const char *pszNameFmt, ...) RT_IPRT_FORMAT_ATTR(6, 7);
 VMMR3DECL(int)      PDMR3CritSectEnterEx(PPDMCRITSECT pCritSect, bool fCallRing3);
-VMMR3DECL(bool)     PDMR3CritSectYield(PPDMCRITSECT pCritSect);
+VMMR3DECL(bool)     PDMR3CritSectYield(PVM pVM, PPDMCRITSECT pCritSect);
 VMMR3DECL(const char *) PDMR3CritSectName(PCPDMCRITSECT pCritSect);
 VMMR3DECL(int)      PDMR3CritSectDelete(PPDMCRITSECT pCritSect);
 #if defined(IN_RING0) || defined(IN_RING3)
@@ -78,7 +78,7 @@ VMMDECL(int)        PDMCritSectTryEnterDebug(PPDMCRITSECT pCritSect, RTHCUINTPTR
 VMMDECL(int)        PDMCritSectLeave(PPDMCRITSECT pCritSect);
 
 VMMDECL(bool)       PDMCritSectIsOwner(PCPDMCRITSECT pCritSect);
-VMMDECL(bool)       PDMCritSectIsOwnerEx(PCPDMCRITSECT pCritSect, PVMCPU pVCpu);
+VMMDECL(bool)       PDMCritSectIsOwnerEx(PCPDMCRITSECT pCritSect, PVMCPUCC pVCpu);
 VMMDECL(bool)       PDMCritSectIsInitialized(PCPDMCRITSECT pCritSect);
 VMMDECL(bool)       PDMCritSectHasWaiters(PCPDMCRITSECT pCritSect);
 VMMDECL(uint32_t)   PDMCritSectGetRecursion(PCPDMCRITSECT pCritSect);

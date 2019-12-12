@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 131252 $"
 
 # Validation Kit imports.
 from common                             import webutils;
@@ -41,7 +41,7 @@ g_cGraphs = 0;
 
 class WuiHlpGraphGoogleChartsBase(WuiHlpGraphBase):
     """ Base class for the Google Charts graphs. """
-    pass;
+    pass;                               # pylint: disable=unnecessary-pass
 
 
 ## @todo bar graphs later.
@@ -67,7 +67,7 @@ class WuiHlpLineGraph(WuiHlpGraphGoogleChartsBase):
         self._fErrorBarY = fEnable;
         return True;
 
-    def renderGraph(self): # pylint: disable=R0914
+    def renderGraph(self): # pylint: disable=too-many-locals
         fSlideFilter = True;
 
         # Tooltips?

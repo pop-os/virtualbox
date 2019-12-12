@@ -44,7 +44,6 @@
 #include <VBox/vmm/cfgm.h>
 #include <VBox/vmm/dbgf.h>
 #include <VBox/vmm/mm.h>
-#include <VBox/vmm/ftm.h>
 #include <iprt/stdarg.h>
 
 
@@ -647,20 +646,11 @@ typedef struct PDMDRVHLPRC
      */
     DECLRCCALLBACKMEMBER(bool, pfnAssertOther,(PPDMDRVINS pDrvIns, const char *pszFile, unsigned iLine, const char *pszFunction));
 
-    /**
-     * Notify FTM about a checkpoint occurrence
-     *
-     * @param   pDrvIns             The driver instance.
-     * @param   enmType             Checkpoint type
-     * @thread  Any
-     */
-    DECLRCCALLBACKMEMBER(int, pfnFTSetCheckpoint,(PPDMDRVINS pDrvIns, FTMCHECKPOINTTYPE enmType));
-
     /** Just a safety precaution. */
     uint32_t                        u32TheEnd;
 } PDMDRVHLPRC;
 /** Current PDMDRVHLPRC version number. */
-#define PDM_DRVHLPRC_VERSION                    PDM_VERSION_MAKE(0xf0f9, 2, 0)
+#define PDM_DRVHLPRC_VERSION                    PDM_VERSION_MAKE(0xf0f9, 3, 0)
 
 
 /**
@@ -747,20 +737,11 @@ typedef struct PDMDRVHLPR0
      */
     DECLR0CALLBACKMEMBER(bool, pfnAssertOther,(PPDMDRVINS pDrvIns, const char *pszFile, unsigned iLine, const char *pszFunction));
 
-    /**
-     * Notify FTM about a checkpoint occurrence
-     *
-     * @param   pDrvIns             The driver instance.
-     * @param   enmType             Checkpoint type
-     * @thread  Any
-     */
-    DECLR0CALLBACKMEMBER(int, pfnFTSetCheckpoint,(PPDMDRVINS pDrvIns, FTMCHECKPOINTTYPE enmType));
-
     /** Just a safety precaution. */
     uint32_t                        u32TheEnd;
 } PDMDRVHLPR0;
 /** Current DRVHLP version number. */
-#define PDM_DRVHLPR0_VERSION                    PDM_VERSION_MAKE(0xf0f8, 2, 0)
+#define PDM_DRVHLPR0_VERSION                    PDM_VERSION_MAKE(0xf0f8, 3, 0)
 
 
 #ifdef IN_RING3
@@ -1024,6 +1005,19 @@ typedef struct PDMDRVHLPR3
     DECLR3CALLBACKMEMBER(int, pfnDBGFInfoRegister,(PPDMDRVINS pDrvIns, const char *pszName, const char *pszDesc, PFNDBGFHANDLERDRV pfnHandler));
 
     /**
+     * Register an info handler with DBGF, argv style.
+     *
+     * @returns VBox status code.
+     * @param   pDrvIns         Driver instance.
+     * @param   pszName         Data unit name.
+     * @param   pszDesc         The description of the info and any arguments
+     *                          the handler may take.
+     * @param   pfnHandler      The handler function to be called to display the
+     *                          info.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnDBGFInfoRegisterArgv,(PPDMDRVINS pDrvIns, const char *pszName, const char *pszDesc, PFNDBGFINFOARGVDRV pfnHandler));
+
+    /**
      * Deregister an info handler from DBGF.
      *
      * @returns VBox status code.
@@ -1282,15 +1276,6 @@ typedef struct PDMDRVHLPR3
     DECLR3CALLBACKMEMBER(int, pfnCallR0,(PPDMDRVINS pDrvIns, uint32_t uOperation, uint64_t u64Arg));
 
     /**
-     * Notify FTM about a checkpoint occurrence
-     *
-     * @param   pDrvIns             The driver instance.
-     * @param   enmType             Checkpoint type
-     * @thread  Any
-     */
-    DECLR3CALLBACKMEMBER(int, pfnFTSetCheckpoint,(PPDMDRVINS pDrvIns, FTMCHECKPOINTTYPE enmType));
-
-    /**
      * Creates a block cache for a driver driver instance.
      *
      * @returns VBox status code.
@@ -1342,7 +1327,7 @@ typedef struct PDMDRVHLPR3
     uint32_t                        u32TheEnd;
 } PDMDRVHLPR3;
 /** Current DRVHLP version number. */
-#define PDM_DRVHLPR3_VERSION                    PDM_VERSION_MAKE(0xf0fb, 3, 0)
+#define PDM_DRVHLPR3_VERSION                    PDM_VERSION_MAKE(0xf0fb, 5, 0)
 
 #endif /* IN_RING3 */
 
@@ -1424,14 +1409,6 @@ DECLINLINE(int)  RT_IPRT_FORMAT_ATTR(4, 0) PDMDrvHlpVMSetRuntimeErrorV(PPDMDRVIN
 #else
 # define PDMDRV_ASSERT_OTHER(pDrvIns)  do { } while (0)
 #endif
-
-/**
- * @copydoc PDMDRVHLPR3::pfnFTSetCheckpoint
- */
-DECLINLINE(int) PDMDrvHlpFTSetCheckpoint(PPDMDRVINS pDrvIns, FTMCHECKPOINTTYPE enmType)
-{
-    return pDrvIns->CTX_SUFF(pHlp)->pfnFTSetCheckpoint(pDrvIns, enmType);
-}
 
 
 #ifdef IN_RING3
@@ -1591,6 +1568,14 @@ DECLINLINE(int) PDMDrvHlpSSMRegisterLoadDone(PPDMDRVINS pDrvIns, PFNSSMDRVLOADDO
 DECLINLINE(int) PDMDrvHlpDBGFInfoRegister(PPDMDRVINS pDrvIns, const char *pszName, const char *pszDesc, PFNDBGFHANDLERDRV pfnHandler)
 {
     return pDrvIns->pHlpR3->pfnDBGFInfoRegister(pDrvIns, pszName, pszDesc, pfnHandler);
+}
+
+/**
+ * @copydoc PDMDRVHLPR3::pfnDBGFInfoRegisterArgv
+ */
+DECLINLINE(int) PDMDrvHlpDBGFInfoRegisterArgv(PPDMDRVINS pDrvIns, const char *pszName, const char *pszDesc, PFNDBGFINFOARGVDRV pfnHandler)
+{
+    return pDrvIns->pHlpR3->pfnDBGFInfoRegisterArgv(pDrvIns, pszName, pszDesc, pfnHandler);
 }
 
 /**

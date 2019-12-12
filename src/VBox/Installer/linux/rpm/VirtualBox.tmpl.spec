@@ -141,11 +141,13 @@ for d in /lib/modules/*; do
       --module-source `pwd`/src/vboxhost/vboxnetadp \
       KBUILD_VERBOSE= KERN_VER=$(basename $d) INSTALL_MODULE_PATH=$RPM_BUILD_ROOT -j4 \
       %INSTMOD%
-    ./src/vboxhost/build_in_tmp \
-      --use-module-symvers /tmp/vboxdrv-Module.symvers \
-      --module-source `pwd`/src/vboxhost/vboxpci \
-      KBUILD_VERBOSE= KERN_VER=$(basename $d) INSTALL_MODULE_PATH=$RPM_BUILD_ROOT -j4 \
-      %INSTMOD%
+    if [ -e `pwd`/src/vboxhost/vboxpci ]; then
+      ./src/vboxhost/build_in_tmp \
+        --use-module-symvers /tmp/vboxdrv-Module.symvers \
+        --module-source `pwd`/src/vboxhost/vboxpci \
+        KBUILD_VERBOSE= KERN_VER=$(basename $d) INSTALL_MODULE_PATH=$RPM_BUILD_ROOT -j4 \
+        %INSTMOD%
+    fi
   fi
 done
 rm -r src
@@ -178,6 +180,7 @@ ln -s VBox $RPM_BUILD_ROOT/usr/bin/VBoxAutostart
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/vboxautostart
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/vboxwebsrv
 ln -s /usr/lib/virtualbox/vbox-img $RPM_BUILD_ROOT/usr/bin/vbox-img
+ln -s /usr/lib/virtualbox/vboximg-mount $RPM_BUILD_ROOT/usr/bin/vboximg-mount
 ln -s /usr/share/virtualbox/src/vboxhost $RPM_BUILD_ROOT/usr/src/vboxhost-%VER%
 mv virtualbox.desktop $RPM_BUILD_ROOT/usr/share/applications/virtualbox.desktop
 mv VBox.png $RPM_BUILD_ROOT/usr/share/pixmaps/VBox.png

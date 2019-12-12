@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # $Id: schedulerbase.py $
-# pylint: disable=C0302
+# pylint: disable=too-many-lines
 
 
 """
@@ -28,7 +28,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 131252 $"
 
 
 # Standard python imports.
@@ -351,7 +351,7 @@ class SchedQueueData(ModelDataBase):
         self.idTestSetGangLeader    = None;
         self.cMissingGangMembers    = 1;
 
-    def initFromValues(self, idSchedGroup, idGenTestCaseArgs, idTestGroup, aidTestGroupPreReqs, # pylint: disable=R0913
+    def initFromValues(self, idSchedGroup, idGenTestCaseArgs, idTestGroup, aidTestGroupPreReqs, # pylint: disable=too-many-arguments
                        bmHourlySchedule, cMissingGangMembers,
                        idItem = None, offQueue = None, tsConfig = None, tsLastScheduled = None, idTestSetGangLeader = None):
         """
@@ -786,7 +786,9 @@ class SchedulerBase(object):
         #
         oTestSet      = TestSetData().initFromDbWithId(oDb, idTestSet);
         oTestBox      = TestBoxData().initFromDbWithGenId(oDb, oTestSet.idGenTestBox);
-        oTestEx       = TestCaseArgsDataEx().initFromDbWithGenId(oDb, oTestSet.idGenTestCaseArgs);
+        oTestEx       = TestCaseArgsDataEx().initFromDbWithGenIdEx(oDb, oTestSet.idGenTestCaseArgs,
+                                                                   tsConfigEff = oTestSet.tsConfig,
+                                                                   tsRsrcEff = oTestSet.tsConfig);
         oBuild        = BuildDataEx().initFromDbWithId(oDb, oTestSet.idBuild);
         oValidationKitBuild = None;
         if oTestSet.idBuildTestSuite is not None:
@@ -1477,8 +1479,9 @@ class SchedulerBase(object):
                             'WHERE  idTestSetGangLeader = %s\n'
                             , (oTestSetData.idTestSetGangLeader,) );
                 oTask = SchedQueueData().initFromDbRow(oDb.fetchOne());
-                oTestEx = TestCaseArgsDataEx().initFromDbWithGenId(oDb, oTask.idGenTestCaseArgs);
-
+                oTestEx = TestCaseArgsDataEx().initFromDbWithGenIdEx(oDb, oTask.idGenTestCaseArgs,
+                                                                     tsConfigEff = oTask.tsConfig,
+                                                                     tsRsrcEff = oTask.tsConfig);
                 oDb.execute('UPDATE SchedQueues\n'
                             '   SET idItem = NEXTVAL(\'SchedQueueItemIdSeq\'),\n'
                             '       idTestSetGangLeader = NULL,\n'
@@ -1489,7 +1492,7 @@ class SchedulerBase(object):
                 oDb.commit();
                 return True;
 
-            elif oStatusData.enmState == TestBoxStatusData.ksTestBoxState_GangGatheringTimedOut:
+            if oStatusData.enmState == TestBoxStatusData.ksTestBoxState_GangGatheringTimedOut:
                 oDb.rollback();
                 return True;
         except:
@@ -1505,7 +1508,7 @@ class SchedulerBase(object):
 # Unit testing.
 #
 
-# pylint: disable=C0111
+# pylint: disable=missing-docstring
 class SchedQueueDataTestCase(ModelDataBaseTestCase):
     def setUp(self):
         self.aoSamples = [SchedQueueData(),];

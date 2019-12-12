@@ -24,7 +24,7 @@
 #include <VBox/vmm/hm.h>
 #include <VBox/vmm/pgm.h>
 #include "HMInternal.h"
-#include <VBox/vmm/vm.h>
+#include <VBox/vmm/vmcc.h>
 #include <VBox/vmm/hm_svm.h>
 #include <VBox/vmm/hmvmxinline.h>
 #include <VBox/err.h>
@@ -86,16 +86,17 @@ static struct
 
     /** @name Ring-0 method table for AMD-V and VT-x specific operations.
      * @{ */
-    DECLR0CALLBACKMEMBER(int,  pfnEnterSession, (PVMCPU pVCpu));
-    DECLR0CALLBACKMEMBER(void, pfnThreadCtxCallback, (RTTHREADCTXEVENT enmEvent, PVMCPU pVCpu, bool fGlobalInit));
-    DECLR0CALLBACKMEMBER(int,  pfnExportHostState, (PVMCPU pVCpu));
-    DECLR0CALLBACKMEMBER(VBOXSTRICTRC, pfnRunGuestCode, (PVMCPU pVCpu));
-    DECLR0CALLBACKMEMBER(int,  pfnEnableCpu, (PHMPHYSCPU pHostCpu, PVM pVM, void *pvCpuPage, RTHCPHYS HCPhysCpuPage,
-                                              bool fEnabledByHost, PCSUPHWVIRTMSRS pHwvirtMsrs));
-    DECLR0CALLBACKMEMBER(int,  pfnDisableCpu, (void *pvCpuPage, RTHCPHYS HCPhysCpuPage));
-    DECLR0CALLBACKMEMBER(int,  pfnInitVM, (PVM pVM));
-    DECLR0CALLBACKMEMBER(int,  pfnTermVM, (PVM pVM));
-    DECLR0CALLBACKMEMBER(int,  pfnSetupVM, (PVM pVM));
+    DECLR0CALLBACKMEMBER(int,          pfnEnterSession, (PVMCPUCC pVCpu));
+    DECLR0CALLBACKMEMBER(void,         pfnThreadCtxCallback, (RTTHREADCTXEVENT enmEvent, PVMCPUCC pVCpu, bool fGlobalInit));
+    DECLR0CALLBACKMEMBER(int,          pfnCallRing3Callback, (PVMCPUCC pVCpu, VMMCALLRING3 enmOperation));
+    DECLR0CALLBACKMEMBER(int,          pfnExportHostState, (PVMCPUCC pVCpu));
+    DECLR0CALLBACKMEMBER(VBOXSTRICTRC, pfnRunGuestCode, (PVMCPUCC pVCpu));
+    DECLR0CALLBACKMEMBER(int,          pfnEnableCpu, (PHMPHYSCPU pHostCpu, PVMCC pVM, void *pvCpuPage, RTHCPHYS HCPhysCpuPage,
+                                                      bool fEnabledByHost, PCSUPHWVIRTMSRS pHwvirtMsrs));
+    DECLR0CALLBACKMEMBER(int,          pfnDisableCpu, (PHMPHYSCPU pHostCpu, void *pvCpuPage, RTHCPHYS HCPhysCpuPage));
+    DECLR0CALLBACKMEMBER(int,          pfnInitVM, (PVMCC pVM));
+    DECLR0CALLBACKMEMBER(int,          pfnTermVM, (PVMCC pVM));
+    DECLR0CALLBACKMEMBER(int,          pfnSetupVM, (PVMCC pVM));
     /** @} */
 
     /** Hardware-virtualization data. */
@@ -109,7 +110,7 @@ static struct
                 /** Host CR4 value (set by ring-0 VMX init) */
                 uint64_t                    u64HostCr4;
                 /** Host EFER value (set by ring-0 VMX init) */
-                uint64_t                    u64HostEfer;
+                uint64_t                    u64HostMsrEfer;
                 /** Host SMM monitor control (used for logging/diagnostics) */
                 uint64_t                    u64HostSmmMonitorCtl;
                 /** Last instruction error. */
@@ -226,105 +227,67 @@ static RTCPUID hmR0FirstRcGetCpuId(PHMR0FIRSTRC pFirstRc)
 /** @name Dummy callback handlers.
  * @{ */
 
-static DECLCALLBACK(int) hmR0DummyEnter(PVMCPU pVCpu)
+static DECLCALLBACK(int) hmR0DummyEnter(PVMCPUCC pVCpu)
 {
     RT_NOREF1(pVCpu);
     return VINF_SUCCESS;
 }
 
-static DECLCALLBACK(void) hmR0DummyThreadCtxCallback(RTTHREADCTXEVENT enmEvent, PVMCPU pVCpu, bool fGlobalInit)
+static DECLCALLBACK(void) hmR0DummyThreadCtxCallback(RTTHREADCTXEVENT enmEvent, PVMCPUCC pVCpu, bool fGlobalInit)
 {
     RT_NOREF3(enmEvent, pVCpu, fGlobalInit);
 }
 
-static DECLCALLBACK(int) hmR0DummyEnableCpu(PHMPHYSCPU pHostCpu, PVM pVM, void *pvCpuPage, RTHCPHYS HCPhysCpuPage,
+static DECLCALLBACK(int) hmR0DummyEnableCpu(PHMPHYSCPU pHostCpu, PVMCC pVM, void *pvCpuPage, RTHCPHYS HCPhysCpuPage,
                                             bool fEnabledBySystem, PCSUPHWVIRTMSRS pHwvirtMsrs)
 {
     RT_NOREF6(pHostCpu, pVM, pvCpuPage, HCPhysCpuPage, fEnabledBySystem, pHwvirtMsrs);
     return VINF_SUCCESS;
 }
 
-static DECLCALLBACK(int) hmR0DummyDisableCpu(void *pvCpuPage, RTHCPHYS HCPhysCpuPage)
+static DECLCALLBACK(int) hmR0DummyDisableCpu(PHMPHYSCPU pHostCpu, void *pvCpuPage, RTHCPHYS HCPhysCpuPage)
 {
-    RT_NOREF2(pvCpuPage, HCPhysCpuPage);
+    RT_NOREF3(pHostCpu, pvCpuPage, HCPhysCpuPage);
     return VINF_SUCCESS;
 }
 
-static DECLCALLBACK(int) hmR0DummyInitVM(PVM pVM)
-{
-    RT_NOREF1(pVM);
-    return VINF_SUCCESS;
-}
-
-static DECLCALLBACK(int) hmR0DummyTermVM(PVM pVM)
+static DECLCALLBACK(int) hmR0DummyInitVM(PVMCC pVM)
 {
     RT_NOREF1(pVM);
     return VINF_SUCCESS;
 }
 
-static DECLCALLBACK(int) hmR0DummySetupVM(PVM pVM)
+static DECLCALLBACK(int) hmR0DummyTermVM(PVMCC pVM)
 {
     RT_NOREF1(pVM);
     return VINF_SUCCESS;
 }
 
-static DECLCALLBACK(VBOXSTRICTRC) hmR0DummyRunGuestCode(PVMCPU pVCpu)
+static DECLCALLBACK(int) hmR0DummySetupVM(PVMCC pVM)
+{
+    RT_NOREF1(pVM);
+    return VINF_SUCCESS;
+}
+
+static DECLCALLBACK(int) hmR0DummyCallRing3Callback(PVMCPUCC pVCpu, VMMCALLRING3 enmOperation)
+{
+    RT_NOREF2(pVCpu, enmOperation);
+    return VINF_SUCCESS;
+}
+
+static DECLCALLBACK(VBOXSTRICTRC) hmR0DummyRunGuestCode(PVMCPUCC pVCpu)
 {
     RT_NOREF(pVCpu);
     return VINF_SUCCESS;
 }
 
-static DECLCALLBACK(int) hmR0DummyExportHostState(PVMCPU pVCpu)
+static DECLCALLBACK(int) hmR0DummyExportHostState(PVMCPUCC pVCpu)
 {
     RT_NOREF1(pVCpu);
     return VINF_SUCCESS;
 }
 
 /** @} */
-
-
-/**
- * Checks if the CPU is subject to the "VMX-Preemption Timer Does Not Count
- * Down at the Rate Specified" erratum.
- *
- * Errata names and related steppings:
- *      - BA86   - D0.
- *      - AAX65  - C2.
- *      - AAU65  - C2, K0.
- *      - AAO95  - B1.
- *      - AAT59  - C2.
- *      - AAK139 - D0.
- *      - AAM126 - C0, C1, D0.
- *      - AAN92  - B1.
- *      - AAJ124 - C0, D0.
- *      - AAP86  - B1.
- *
- * Steppings: B1, C0, C1, C2, D0, K0.
- *
- * @returns true if subject to it, false if not.
- */
-static bool hmR0InitIntelIsSubjectToVmxPreemptTimerErratum(void)
-{
-    uint32_t u = ASMCpuId_EAX(1);
-    u &= ~(RT_BIT_32(14) | RT_BIT_32(15) | RT_BIT_32(28) | RT_BIT_32(29) | RT_BIT_32(30) | RT_BIT_32(31));
-    if (   u == UINT32_C(0x000206E6) /* 323344.pdf - BA86   - D0 - Intel Xeon Processor 7500 Series */
-        || u == UINT32_C(0x00020652) /* 323056.pdf - AAX65  - C2 - Intel Xeon Processor L3406 */
-                                     /* 322814.pdf - AAT59  - C2 - Intel CoreTM i7-600, i5-500, i5-400 and i3-300 Mobile Processor Series */
-                                     /* 322911.pdf - AAU65  - C2 - Intel CoreTM i5-600, i3-500 Desktop Processor Series and Intel Pentium Processor G6950 */
-        || u == UINT32_C(0x00020655) /* 322911.pdf - AAU65  - K0 - Intel CoreTM i5-600, i3-500 Desktop Processor Series and Intel Pentium Processor G6950 */
-        || u == UINT32_C(0x000106E5) /* 322373.pdf - AAO95  - B1 - Intel Xeon Processor 3400 Series */
-                                     /* 322166.pdf - AAN92  - B1 - Intel CoreTM i7-800 and i5-700 Desktop Processor Series */
-                                     /* 320767.pdf - AAP86  - B1 - Intel Core i7-900 Mobile Processor Extreme Edition Series, Intel Core i7-800 and i7-700 Mobile Processor Series */
-        || u == UINT32_C(0x000106A0) /* 321333.pdf - AAM126 - C0 - Intel Xeon Processor 3500 Series Specification */
-        || u == UINT32_C(0x000106A1) /* 321333.pdf - AAM126 - C1 - Intel Xeon Processor 3500 Series Specification */
-        || u == UINT32_C(0x000106A4) /* 320836.pdf - AAJ124 - C0 - Intel Core i7-900 Desktop Processor Extreme Edition Series and Intel Core i7-900 Desktop Processor Series */
-        || u == UINT32_C(0x000106A5) /* 321333.pdf - AAM126 - D0 - Intel Xeon Processor 3500 Series Specification */
-                                     /* 321324.pdf - AAK139 - D0 - Intel Xeon Processor 5500 Series Specification */
-                                     /* 320836.pdf - AAJ124 - D0 - Intel Core i7-900 Desktop Processor Extreme Edition Series and Intel Core i7-900 Desktop Processor Series */
-        )
-        return true;
-    return false;
-}
 
 
 /**
@@ -365,8 +328,8 @@ static int hmR0InitIntel(void)
     if (RT_SUCCESS(g_HmR0.rcInit))
     {
         /* Read CR4 and EFER for logging/diagnostic purposes. */
-        g_HmR0.hwvirt.u.vmx.u64HostCr4  = ASMGetCR4();
-        g_HmR0.hwvirt.u.vmx.u64HostEfer = ASMRdMsr(MSR_K6_EFER);
+        g_HmR0.hwvirt.u.vmx.u64HostCr4     = ASMGetCR4();
+        g_HmR0.hwvirt.u.vmx.u64HostMsrEfer = ASMRdMsr(MSR_K6_EFER);
 
         /* Get VMX MSRs for determining VMX features we can ultimately use. */
         SUPR0GetHwvirtMsrs(&g_HmR0.hwvirt.Msrs, SUPVTCAPS_VT_X, false /* fForce */);
@@ -397,8 +360,8 @@ static int hmR0InitIntel(void)
                 LogRel(("hmR0InitIntel: RTR0MemObjAllocCont(,PAGE_SIZE,false) -> %Rrc\n", rc));
                 return rc;
             }
-            void      *pvScatchPage      = RTR0MemObjAddress(hScatchMemObj);
-            RTHCPHYS   HCPhysScratchPage = RTR0MemObjGetPagePhysAddr(hScatchMemObj, 0);
+            void          *pvScatchPage      = RTR0MemObjAddress(hScatchMemObj);
+            RTHCPHYS const HCPhysScratchPage = RTR0MemObjGetPagePhysAddr(hScatchMemObj, 0);
             ASMMemZeroPage(pvScatchPage);
 
             /* Set revision dword at the beginning of the VMXON structure. */
@@ -407,14 +370,8 @@ static int hmR0InitIntel(void)
             /* Make sure we don't get rescheduled to another CPU during this probe. */
             RTCCUINTREG const fEFlags = ASMIntDisableFlags();
 
-            /* Check CR4.VMXE. */
-            g_HmR0.hwvirt.u.vmx.u64HostCr4 = ASMGetCR4();
-            if (!(g_HmR0.hwvirt.u.vmx.u64HostCr4 & X86_CR4_VMXE))
-            {
-                /* In theory this bit could be cleared behind our back. Which would cause #UD
-                   faults when we try to execute the VMX instructions... */
-                ASMSetCR4(g_HmR0.hwvirt.u.vmx.u64HostCr4 | X86_CR4_VMXE);
-            }
+            /* Enable CR4.VMXE if it isn't already set. */
+            RTCCUINTREG const uOldCr4 = SUPR0ChangeCR4(X86_CR4_VMXE, RTCCUINTREG_MAX);
 
             /*
              * The only way of checking if we're in VMX root mode or not is to try and enter it.
@@ -444,11 +401,11 @@ static int hmR0InitIntel(void)
                 Assert(g_HmR0.hwvirt.u.vmx.fSupported == false);
             }
 
-            /*
-             * Restore CR4 again; don't leave the X86_CR4_VMXE flag set if it was not
-             * set before (some software could incorrectly think it is in VMX mode).
-             */
-            ASMSetCR4(g_HmR0.hwvirt.u.vmx.u64HostCr4);
+            /* Restore CR4.VMXE if it wasn't set prior to us setting it above. */
+            if (!(uOldCr4 & X86_CR4_VMXE))
+                SUPR0ChangeCR4(0 /* fOrMask */, ~(uint64_t)X86_CR4_VMXE);
+
+            /* Restore interrupts. */
             ASMSetFlags(fEFlags);
 
             RTR0MemObjFree(hScatchMemObj, false);
@@ -465,6 +422,7 @@ static int hmR0InitIntel(void)
              */
             g_HmR0.pfnEnterSession      = VMXR0Enter;
             g_HmR0.pfnThreadCtxCallback = VMXR0ThreadCtxCallback;
+            g_HmR0.pfnCallRing3Callback = VMXR0CallRing3Callback;
             g_HmR0.pfnExportHostState   = VMXR0ExportHostState;
             g_HmR0.pfnRunGuestCode      = VMXR0RunGuestCode;
             g_HmR0.pfnEnableCpu         = VMXR0EnableCpu;
@@ -477,13 +435,14 @@ static int hmR0InitIntel(void)
              * Check for the VMX-Preemption Timer and adjust for the "VMX-Preemption
              * Timer Does Not Count Down at the Rate Specified" CPU erratum.
              */
-            uint32_t const fPinCtls = RT_HI_U32(g_HmR0.hwvirt.Msrs.u.vmx.u64PinCtls);
-            if (fPinCtls & VMX_PIN_CTLS_PREEMPT_TIMER)
+            VMXCTLSMSR PinCtls;
+            PinCtls.u = g_HmR0.hwvirt.Msrs.u.vmx.u64PinCtls;
+            if (PinCtls.n.allowed1 & VMX_PIN_CTLS_PREEMPT_TIMER)
             {
                 uint64_t const uVmxMiscMsr = g_HmR0.hwvirt.Msrs.u.vmx.u64Misc;
                 g_HmR0.hwvirt.u.vmx.fUsePreemptTimer   = true;
                 g_HmR0.hwvirt.u.vmx.cPreemptTimerShift = RT_BF_GET(uVmxMiscMsr, VMX_BF_MISC_PREEMPT_TIMER_TSC);
-                if (hmR0InitIntelIsSubjectToVmxPreemptTimerErratum())
+                if (HMIsSubjectToVmxPreemptTimerErratum())
                     g_HmR0.hwvirt.u.vmx.cPreemptTimerShift = 0; /* This is about right most of the time here. */
             }
         }
@@ -516,6 +475,7 @@ static int hmR0InitAmd(void)
      */
     g_HmR0.pfnEnterSession      = SVMR0Enter;
     g_HmR0.pfnThreadCtxCallback = SVMR0ThreadCtxCallback;
+    g_HmR0.pfnCallRing3Callback = SVMR0CallRing3Callback;
     g_HmR0.pfnExportHostState   = SVMR0ExportHostState;
     g_HmR0.pfnRunGuestCode      = SVMR0RunGuestCode;
     g_HmR0.pfnEnableCpu         = SVMR0EnableCpu;
@@ -586,6 +546,7 @@ VMMR0_INT_DECL(int) HMR0Init(void)
     /* Fill in all callbacks with placeholders. */
     g_HmR0.pfnEnterSession      = hmR0DummyEnter;
     g_HmR0.pfnThreadCtxCallback = hmR0DummyThreadCtxCallback;
+    g_HmR0.pfnCallRing3Callback = hmR0DummyCallRing3Callback;
     g_HmR0.pfnExportHostState   = hmR0DummyExportHostState;
     g_HmR0.pfnRunGuestCode      = hmR0DummyRunGuestCode;
     g_HmR0.pfnEnableCpu         = hmR0DummyEnableCpu;
@@ -786,7 +747,7 @@ static DECLCALLBACK(void) hmR0InitAmdCpu(RTCPUID idCpu, void *pvUser1, void *pvU
  *
  * @remarks Maybe called with interrupts disabled!
  */
-static int hmR0EnableCpu(PVM pVM, RTCPUID idCpu)
+static int hmR0EnableCpu(PVMCC pVM, RTCPUID idCpu)
 {
     PHMPHYSCPU pHostCpu = &g_HmR0.aCpuInfo[idCpu];
 
@@ -822,7 +783,7 @@ static int hmR0EnableCpu(PVM pVM, RTCPUID idCpu)
  */
 static DECLCALLBACK(void) hmR0EnableCpuCallback(RTCPUID idCpu, void *pvUser1, void *pvUser2)
 {
-    PVM             pVM      = (PVM)pvUser1;     /* can be NULL! */
+    PVMCC           pVM      = (PVMCC)pvUser1;     /* can be NULL! */
     PHMR0FIRSTRC    pFirstRc = (PHMR0FIRSTRC)pvUser2;
     AssertReturnVoid(g_HmR0.fGlobalInit);
     Assert(!RTThreadPreemptIsEnabled(NIL_RTTHREAD));
@@ -838,7 +799,7 @@ static DECLCALLBACK(void) hmR0EnableCpuCallback(RTCPUID idCpu, void *pvUser1, vo
  */
 static DECLCALLBACK(int32_t) hmR0EnableAllCpuOnce(void *pvUser)
 {
-    PVM pVM = (PVM)pvUser;
+    PVMCC pVM = (PVMCC)pvUser;
 
     /*
      * Indicate that we've initialized.
@@ -954,7 +915,7 @@ static DECLCALLBACK(int32_t) hmR0EnableAllCpuOnce(void *pvUser)
  * @returns VBox status code.
  * @param   pVM                 The cross context VM structure.
  */
-VMMR0_INT_DECL(int) HMR0EnableAllCpus(PVM pVM)
+VMMR0_INT_DECL(int) HMR0EnableAllCpus(PVMCC pVM)
 {
     /* Make sure we don't touch HM after we've disabled HM in preparation of a suspend. */
     if (ASMAtomicReadBool(&g_HmR0.fSuspended))
@@ -991,7 +952,7 @@ static int hmR0DisableCpu(RTCPUID idCpu)
     int rc;
     if (pHostCpu->fConfigured)
     {
-        rc = g_HmR0.pfnDisableCpu(pHostCpu->pvMemObj, pHostCpu->HCPhysMemObj);
+        rc = g_HmR0.pfnDisableCpu(pHostCpu, pHostCpu->pvMemObj, pHostCpu->HCPhysMemObj);
         AssertRCReturn(rc, rc);
 
         pHostCpu->fConfigured = false;
@@ -1040,7 +1001,7 @@ static DECLCALLBACK(void) hmR0DisableCpuOnSpecificCallback(RTCPUID idCpu, void *
  *
  * @param   enmEvent            The Mp event.
  * @param   idCpu               The identifier for the CPU the function is called on.
- * @param   pvData              Opaque data (PVM pointer).
+ * @param   pvData              Opaque data (PVMCC pointer).
  */
 static DECLCALLBACK(void) hmR0MpEventCallback(RTMPEVENT enmEvent, RTCPUID idCpu, void *pvData)
 {
@@ -1156,7 +1117,7 @@ static DECLCALLBACK(void) hmR0PowerCallback(RTPOWEREVENT enmEvent, void *pvUser)
  * @remarks This is called after HMR3Init(), see vmR3CreateU() and
  *          vmR3InitRing3().
  */
-VMMR0_INT_DECL(int) HMR0InitVM(PVM pVM)
+VMMR0_INT_DECL(int) HMR0InitVM(PVMCC pVM)
 {
     AssertReturn(pVM, VERR_INVALID_PARAMETER);
 
@@ -1170,18 +1131,51 @@ VMMR0_INT_DECL(int) HMR0InitVM(PVM pVM)
     Assert(!(pVM->hm.s.vmx.fSupported && pVM->hm.s.svm.fSupported));
     if (pVM->hm.s.vmx.fSupported)
     {
-        pVM->hm.s.vmx.fUsePreemptTimer     &= g_HmR0.hwvirt.u.vmx.fUsePreemptTimer; /* Can be overridden by CFGM see HMR3Init(). */
+        pVM->hm.s.vmx.fUsePreemptTimer     &= g_HmR0.hwvirt.u.vmx.fUsePreemptTimer; /* Can be overridden by CFGM in HMR3Init(). */
         pVM->hm.s.vmx.cPreemptTimerShift    = g_HmR0.hwvirt.u.vmx.cPreemptTimerShift;
         pVM->hm.s.vmx.u64HostCr4            = g_HmR0.hwvirt.u.vmx.u64HostCr4;
-        pVM->hm.s.vmx.u64HostEfer           = g_HmR0.hwvirt.u.vmx.u64HostEfer;
+        pVM->hm.s.vmx.u64HostMsrEfer        = g_HmR0.hwvirt.u.vmx.u64HostMsrEfer;
         pVM->hm.s.vmx.u64HostSmmMonitorCtl  = g_HmR0.hwvirt.u.vmx.u64HostSmmMonitorCtl;
         HMGetVmxMsrsFromHwvirtMsrs(&g_HmR0.hwvirt.Msrs, &pVM->hm.s.vmx.Msrs);
+        /* If you need to tweak host MSRs for testing VMX R0 code, do it here. */
+
+        /* Enable VPID if supported and configured. */
+        if (pVM->hm.s.vmx.Msrs.ProcCtls2.n.allowed1 & VMX_PROC_CTLS2_VPID)
+            pVM->hm.s.vmx.fVpid = pVM->hm.s.vmx.fAllowVpid; /* Can be overridden by CFGM in HMR3Init(). */
+
+        /* Use VMCS shadowing if supported. */
+        Assert(!pVM->hm.s.vmx.fUseVmcsShadowing);
+        if (   pVM->cpum.ro.GuestFeatures.fVmx
+            && (pVM->hm.s.vmx.Msrs.ProcCtls2.n.allowed1 & VMX_PROC_CTLS2_VMCS_SHADOWING))
+            pVM->hm.s.vmx.fUseVmcsShadowing = true;
+
+        /* Use the VMCS controls for swapping the EFER MSR if supported. */
+        Assert(!pVM->hm.s.vmx.fSupportsVmcsEfer);
+        if (   (pVM->hm.s.vmx.Msrs.EntryCtls.n.allowed1 & VMX_ENTRY_CTLS_LOAD_EFER_MSR)
+            && (pVM->hm.s.vmx.Msrs.ExitCtls.n.allowed1  & VMX_EXIT_CTLS_LOAD_EFER_MSR)
+            && (pVM->hm.s.vmx.Msrs.ExitCtls.n.allowed1  & VMX_EXIT_CTLS_SAVE_EFER_MSR))
+            pVM->hm.s.vmx.fSupportsVmcsEfer = true;
+
+#if 0
+        /* Enable APIC register virtualization and virtual-interrupt delivery if supported. */
+        if (   (pVM->hm.s.vmx.Msrs.ProcCtls2.n.allowed1 & VMX_PROC_CTLS2_APIC_REG_VIRT)
+            && (pVM->hm.s.vmx.Msrs.ProcCtls2.n.allowed1 & VMX_PROC_CTLS2_VIRT_INTR_DELIVERY))
+            pVM->hm.s.fVirtApicRegs = true;
+
+        /* Enable posted-interrupt processing if supported. */
+        /** @todo Add and query IPRT API for host OS support for posted-interrupt IPI
+         *        here. */
+        if (   (pVM->hm.s.vmx.Msrs.PinCtls.n.allowed1  & VMX_PIN_CTLS_POSTED_INT)
+            && (pVM->hm.s.vmx.Msrs.ExitCtls.n.allowed1 & VMX_EXIT_CTLS_ACK_EXT_INT))
+            pVM->hm.s.fPostedIntrs = true;
+#endif
     }
     else if (pVM->hm.s.svm.fSupported)
     {
         pVM->hm.s.svm.u32Rev      = g_HmR0.hwvirt.u.svm.u32Rev;
         pVM->hm.s.svm.u32Features = g_HmR0.hwvirt.u.svm.u32Features;
         pVM->hm.s.svm.u64MsrHwcr  = g_HmR0.hwvirt.Msrs.u.svm.u64MsrHwcr;
+        /* If you need to tweak host MSRs for testing SVM R0 code, do it here. */
     }
     pVM->hm.s.rcInit              = g_HmR0.rcInit;
     pVM->hm.s.uMaxAsid            = g_HmR0.hwvirt.uMaxAsid;
@@ -1200,9 +1194,9 @@ VMMR0_INT_DECL(int) HMR0InitVM(PVM pVM)
     /*
      * Initialize some per-VCPU fields.
      */
-    for (VMCPUID i = 0; i < pVM->cCpus; i++)
+    for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
     {
-        PVMCPU pVCpu = &pVM->aCpus[i];
+        PVMCPUCC pVCpu = VMCC_GET_CPU(pVM, idCpu);
         pVCpu->hm.s.idEnteredCpu   = NIL_RTCPUID;
         pVCpu->hm.s.idLastCpu      = NIL_RTCPUID;
 
@@ -1232,7 +1226,7 @@ VMMR0_INT_DECL(int) HMR0InitVM(PVM pVM)
  * @returns VBox status code.
  * @param   pVM         The cross context VM structure.
  */
-VMMR0_INT_DECL(int) HMR0TermVM(PVM pVM)
+VMMR0_INT_DECL(int) HMR0TermVM(PVMCC pVM)
 {
     Log(("HMR0TermVM: %p\n", pVM));
     AssertReturn(pVM, VERR_INVALID_PARAMETER);
@@ -1255,7 +1249,7 @@ VMMR0_INT_DECL(int) HMR0TermVM(PVM pVM)
  * @returns VBox status code.
  * @param   pVM         The cross context VM structure.
  */
-VMMR0_INT_DECL(int) HMR0SetupVM(PVM pVM)
+VMMR0_INT_DECL(int) HMR0SetupVM(PVMCC pVM)
 {
     Log(("HMR0SetupVM: %p\n", pVM));
     AssertReturn(pVM, VERR_INVALID_PARAMETER);
@@ -1264,11 +1258,7 @@ VMMR0_INT_DECL(int) HMR0SetupVM(PVM pVM)
     AssertReturn(!ASMAtomicReadBool(&g_HmR0.fSuspended), VERR_HM_SUSPEND_PENDING);
 
     /* On first entry we'll sync everything. */
-    for (VMCPUID i = 0; i < pVM->cCpus; i++)
-    {
-        PVMCPU pVCpu = &pVM->aCpus[i];
-        pVCpu->hm.s.fCtxChanged |= HM_CHANGED_HOST_CONTEXT | HM_CHANGED_ALL_GUEST;
-    }
+    VMCC_FOR_EACH_VMCPU_STMT(pVM, pVCpu->hm.s.fCtxChanged |= HM_CHANGED_HOST_CONTEXT | HM_CHANGED_ALL_GUEST);
 
     /*
      * Call the hardware specific setup VM method. This requires the CPU to be
@@ -1308,6 +1298,23 @@ VMMR0_INT_DECL(int) HMR0SetupVM(PVM pVM)
 
 
 /**
+ * Notification callback before performing a longjump to ring-3.
+ *
+ * @returns VBox status code.
+ * @param   pVCpu           The cross context virtual CPU structure.
+ * @param   enmOperation    The operation causing the ring-3 longjump.
+ * @param   pvUser          User argument, currently unused, NULL.
+ */
+static DECLCALLBACK(int) hmR0CallRing3Callback(PVMCPUCC pVCpu, VMMCALLRING3 enmOperation, void *pvUser)
+{
+    RT_NOREF(pvUser);
+    Assert(pVCpu);
+    Assert(g_HmR0.pfnCallRing3Callback);
+    return g_HmR0.pfnCallRing3Callback(pVCpu, enmOperation);
+}
+
+
+/**
  * Turns on HM on the CPU if necessary and initializes the bare minimum state
  * required for entering HM context.
  *
@@ -1316,7 +1323,7 @@ VMMR0_INT_DECL(int) HMR0SetupVM(PVM pVM)
  *
  * @remarks No-long-jump zone!!!
  */
-VMMR0_INT_DECL(int) hmR0EnterCpu(PVMCPU pVCpu)
+VMMR0_INT_DECL(int) hmR0EnterCpu(PVMCPUCC pVCpu)
 {
     Assert(!RTThreadPreemptIsEnabled(NIL_RTTHREAD));
 
@@ -1328,6 +1335,9 @@ VMMR0_INT_DECL(int) hmR0EnterCpu(PVMCPU pVCpu)
     /* Enable VT-x or AMD-V if local init is required, or enable if it's a freshly onlined CPU. */
     if (!pHostCpu->fConfigured)
         rc = hmR0EnableCpu(pVCpu->CTX_SUFF(pVM), idCpu);
+
+    /* Register a callback to fire prior to performing a longjmp to ring-3 so HM can disable VT-x/AMD-V if needed. */
+    VMMRZCallRing3SetNotification(pVCpu, hmR0CallRing3Callback, NULL /* pvUser */);
 
     /* Reload host-state (back from ring-3/migrated CPUs) and shared guest/host bits. */
     if (g_HmR0.hwvirt.u.vmx.fSupported)
@@ -1349,7 +1359,7 @@ VMMR0_INT_DECL(int) hmR0EnterCpu(PVMCPU pVCpu)
  *
  * @remarks This is called with preemption disabled.
  */
-VMMR0_INT_DECL(int) HMR0Enter(PVMCPU pVCpu)
+VMMR0_INT_DECL(int) HMR0Enter(PVMCPUCC pVCpu)
 {
     /* Make sure we can't enter a session after we've disabled HM in preparation of a suspend. */
     AssertReturn(!ASMAtomicReadBool(&g_HmR0.fSuspended), VERR_HM_SUSPEND_PENDING);
@@ -1402,7 +1412,7 @@ VMMR0_INT_DECL(int) HMR0Enter(PVMCPU pVCpu)
  *
  * @remarks No-long-jump zone!!!
  */
-VMMR0_INT_DECL(int) HMR0LeaveCpu(PVMCPU pVCpu)
+VMMR0_INT_DECL(int) HMR0LeaveCpu(PVMCPUCC pVCpu)
 {
     Assert(!RTThreadPreemptIsEnabled(NIL_RTTHREAD));
     VMCPU_ASSERT_EMT_RETURN(pVCpu, VERR_HM_WRONG_CPU);
@@ -1425,6 +1435,8 @@ VMMR0_INT_DECL(int) HMR0LeaveCpu(PVMCPU pVCpu)
     /* Clear it while leaving HM context, hmPokeCpuForTlbFlush() relies on this. */
     pVCpu->hm.s.idEnteredCpu = NIL_RTCPUID;
 
+    /* De-register the longjmp-to-ring 3 callback now that we have reliquished hardware resources. */
+    VMMRZCallRing3RemoveNotification(pVCpu);
     return VINF_SUCCESS;
 }
 
@@ -1437,7 +1449,7 @@ VMMR0_INT_DECL(int) HMR0LeaveCpu(PVMCPU pVCpu)
  */
 VMMR0_INT_DECL(void) HMR0ThreadCtxCallback(RTTHREADCTXEVENT enmEvent, void *pvUser)
 {
-    PVMCPU pVCpu = (PVMCPU)pvUser;
+    PVMCPUCC pVCpu = (PVMCPUCC)pvUser;
     Assert(pVCpu);
     Assert(g_HmR0.pfnThreadCtxCallback);
 
@@ -1456,7 +1468,7 @@ VMMR0_INT_DECL(void) HMR0ThreadCtxCallback(RTTHREADCTXEVENT enmEvent, void *pvUs
  * @remarks Can be called with preemption enabled if thread-context hooks are
  *          used!!!
  */
-VMMR0_INT_DECL(int) HMR0RunGuestCode(PVM pVM, PVMCPU pVCpu)
+VMMR0_INT_DECL(int) HMR0RunGuestCode(PVMCC pVM, PVMCPUCC pVCpu)
 {
     RT_NOREF(pVM);
 
@@ -1492,7 +1504,7 @@ VMMR0_INT_DECL(int) HMR0RunGuestCode(PVM pVM, PVMCPU pVCpu)
  *
  * @param   pVCpu   The cross context virtual CPU structure of the calling EMT.
  */
-VMMR0_INT_DECL(void) HMR0NotifyCpumUnloadedGuestFpuState(PVMCPU pVCpu)
+VMMR0_INT_DECL(void) HMR0NotifyCpumUnloadedGuestFpuState(PVMCPUCC pVCpu)
 {
     ASMAtomicUoOrU64(&pVCpu->hm.s.fCtxChanged, HM_CHANGED_GUEST_CR0);
 }
@@ -1503,73 +1515,11 @@ VMMR0_INT_DECL(void) HMR0NotifyCpumUnloadedGuestFpuState(PVMCPU pVCpu)
  *
  * @param   pVCpu   The cross context virtual CPU structure of the calling EMT.
  */
-VMMR0_INT_DECL(void) HMR0NotifyCpumModifiedHostCr0(PVMCPU pVCpu)
+VMMR0_INT_DECL(void) HMR0NotifyCpumModifiedHostCr0(PVMCPUCC pVCpu)
 {
     ASMAtomicUoOrU64(&pVCpu->hm.s.fCtxChanged, HM_CHANGED_HOST_CONTEXT);
 }
 
-
-#if HC_ARCH_BITS == 32 && defined(VBOX_ENABLE_64_BITS_GUESTS)
-
-/**
- * Save guest FPU/XMM state (64 bits guest mode & 32 bits host only)
- *
- * @returns VBox status code.
- * @param   pVM         The cross context VM structure.
- * @param   pVCpu       The cross context virtual CPU structure.
- * @param   pCtx        Pointer to the guest CPU context.
- */
-VMMR0_INT_DECL(int) HMR0SaveFPUState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
-{
-    RT_NOREF(pCtx);
-    STAM_COUNTER_INC(&pVCpu->hm.s.StatFpu64SwitchBack);
-    if (pVM->hm.s.vmx.fSupported)
-        return VMXR0Execute64BitsHandler(pVCpu, HM64ON32OP_HMRCSaveGuestFPU64, 0, NULL);
-    return SVMR0Execute64BitsHandler(pVCpu, HM64ON32OP_HMRCSaveGuestFPU64, 0, NULL);
-}
-
-
-/**
- * Save guest debug state (64 bits guest mode & 32 bits host only)
- *
- * @returns VBox status code.
- * @param   pVM         The cross context VM structure.
- * @param   pVCpu       The cross context virtual CPU structure.
- * @param   pCtx        Pointer to the guest CPU context.
- */
-VMMR0_INT_DECL(int) HMR0SaveDebugState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
-{
-    RT_NOREF(pCtx);
-    STAM_COUNTER_INC(&pVCpu->hm.s.StatDebug64SwitchBack);
-    if (pVM->hm.s.vmx.fSupported)
-        return VMXR0Execute64BitsHandler(pVCpu, HM64ON32OP_HMRCSaveGuestDebug64, 0, NULL);
-    return SVMR0Execute64BitsHandler(pVCpu, HM64ON32OP_HMRCSaveGuestDebug64, 0, NULL);
-}
-
-
-/**
- * Test the 32->64 bits switcher.
- *
- * @returns VBox status code.
- * @param   pVM         The cross context VM structure.
- */
-VMMR0_INT_DECL(int) HMR0TestSwitcher3264(PVM pVM)
-{
-    PVMCPU   pVCpu     = &pVM->aCpus[0];
-    uint32_t aParam[5] = { 0, 1, 2, 3, 4 };
-    int      rc;
-
-    STAM_PROFILE_ADV_START(&pVCpu->hm.s.StatWorldSwitch3264, z);
-    if (pVM->hm.s.vmx.fSupported)
-        rc = VMXR0Execute64BitsHandler(pVCpu, HM64ON32OP_HMRCTestSwitcher64, 5, &aParam[0]);
-    else
-        rc = SVMR0Execute64BitsHandler(pVCpu, HM64ON32OP_HMRCTestSwitcher64, 5, &aParam[0]);
-    STAM_PROFILE_ADV_STOP(&pVCpu->hm.s.StatWorldSwitch3264, z);
-
-    return rc;
-}
-
-#endif /* HC_ARCH_BITS == 32 && defined(VBOX_WITH_64_BITS_GUESTS) */
 
 /**
  * Returns suspend status of the host.
@@ -1588,9 +1538,9 @@ VMMR0_INT_DECL(bool) HMR0SuspendPending(void)
  * @param   pVCpu       The cross context virtual CPU structure.
  * @param   GCVirt      Page to invalidate.
  */
-VMMR0_INT_DECL(int) HMR0InvalidatePage(PVMCPU pVCpu, RTGCPTR GCVirt)
+VMMR0_INT_DECL(int) HMR0InvalidatePage(PVMCPUCC pVCpu, RTGCPTR GCVirt)
 {
-    PVM pVM = pVCpu->CTX_SUFF(pVM);
+    PVMCC pVM = pVCpu->CTX_SUFF(pVM);
     if (pVM->hm.s.vmx.fSupported)
         return VMXR0InvalidatePage(pVCpu, GCVirt);
     return SVMR0InvalidatePage(pVCpu, GCVirt);
@@ -1619,128 +1569,23 @@ VMMR0_INT_DECL(PHMPHYSCPU) hmR0GetCurrentCpu(void)
  * @param   pVCpu       The cross context CPU structure.
  * @param   fWhat       What to import, CPUMCTX_EXTRN_XXX.
  */
-VMMR0_INT_DECL(int) HMR0ImportStateOnDemand(PVMCPU pVCpu, uint64_t fWhat)
+VMMR0_INT_DECL(int) HMR0ImportStateOnDemand(PVMCPUCC pVCpu, uint64_t fWhat)
 {
     if (pVCpu->CTX_SUFF(pVM)->hm.s.vmx.fSupported)
         return VMXR0ImportStateOnDemand(pVCpu, fWhat);
     return SVMR0ImportStateOnDemand(pVCpu, fWhat);
 }
 
-
-#ifdef VBOX_WITH_RAW_MODE
-/**
- * Raw-mode switcher hook - disable VT-x if it's active *and* the current
- * switcher turns off paging.
- *
- * @returns VBox status code.
- * @param   pVM             The cross context VM structure.
- * @param   enmSwitcher     The switcher we're about to use.
- * @param   pfVTxDisabled   Where to store whether VT-x was disabled or not.
- */
-VMMR0_INT_DECL(int) HMR0EnterSwitcher(PVM pVM, VMMSWITCHER enmSwitcher, bool *pfVTxDisabled)
-{
-    NOREF(pVM);
-
-    Assert(!RTThreadPreemptIsEnabled(NIL_RTTHREAD));
-
-    *pfVTxDisabled = false;
-
-    /* No such issues with AMD-V */
-    if (!g_HmR0.hwvirt.u.vmx.fSupported)
-        return VINF_SUCCESS;
-
-    /* Check if the switching we're up to is safe. */
-    switch (enmSwitcher)
-    {
-        case VMMSWITCHER_32_TO_32:
-        case VMMSWITCHER_PAE_TO_PAE:
-            return VINF_SUCCESS;    /* safe switchers as they don't turn off paging */
-
-        case VMMSWITCHER_32_TO_PAE:
-        case VMMSWITCHER_PAE_TO_32: /* is this one actually used?? */
-        case VMMSWITCHER_AMD64_TO_32:
-        case VMMSWITCHER_AMD64_TO_PAE:
-            break;                  /* unsafe switchers */
-
-        default:
-            AssertFailedReturn(VERR_HM_WRONG_SWITCHER);
-    }
-
-    /* When using SUPR0EnableVTx we must let the host suspend and resume VT-x,
-       regardless of whether we're currently using VT-x or not. */
-    if (g_HmR0.hwvirt.u.vmx.fUsingSUPR0EnableVTx)
-    {
-        *pfVTxDisabled = SUPR0SuspendVTxOnCpu();
-        return VINF_SUCCESS;
-    }
-
-    /** @todo Check if this code is presumptive wrt other VT-x users on the
-    *        system... */
-
-    /* Nothing to do if we haven't enabled VT-x. */
-    if (!g_HmR0.fEnabled)
-        return VINF_SUCCESS;
-
-    /* Local init implies the CPU is currently not in VMX root mode. */
-    if (!g_HmR0.fGlobalInit)
-        return VINF_SUCCESS;
-
-    /* Ok, disable VT-x. */
-    PCHMPHYSCPU pHostCpu = hmR0GetCurrentCpu();
-    AssertReturn(   pHostCpu
-                 && pHostCpu->hMemObj != NIL_RTR0MEMOBJ
-                 && pHostCpu->pvMemObj
-                 && pHostCpu->HCPhysMemObj != NIL_RTHCPHYS,
-                 VERR_HM_IPE_2);
-
-    *pfVTxDisabled = true;
-    return VMXR0DisableCpu(pHostCpu->pvMemObj, pHostCpu->HCPhysMemObj);
-}
-
-
-/**
- * Raw-mode switcher hook - re-enable VT-x if was active *and* the current
- * switcher turned off paging.
- *
- * @param   pVM             The cross context VM structure.
- * @param   fVTxDisabled    Whether VT-x was disabled or not.
- */
-VMMR0_INT_DECL(void) HMR0LeaveSwitcher(PVM pVM, bool fVTxDisabled)
-{
-    Assert(!ASMIntAreEnabled());
-
-    if (!fVTxDisabled)
-        return;         /* nothing to do */
-
-    Assert(g_HmR0.hwvirt.u.vmx.fSupported);
-    if (g_HmR0.hwvirt.u.vmx.fUsingSUPR0EnableVTx)
-        SUPR0ResumeVTxOnCpu(fVTxDisabled);
-    else
-    {
-        Assert(g_HmR0.fEnabled);
-        Assert(g_HmR0.fGlobalInit);
-
-        PHMPHYSCPU pHostCpu = hmR0GetCurrentCpu();
-        AssertReturnVoid(   pHostCpu
-                         && pHostCpu->hMemObj != NIL_RTR0MEMOBJ
-                         && pHostCpu->pvMemObj
-                         && pHostCpu->HCPhysMemObj != NIL_RTHCPHYS);
-
-        VMXR0EnableCpu(pHostCpu, pVM, pHostCpu->pvMemObj, pHostCpu->HCPhysMemObj, false, &g_HmR0.hwvirt.Msrs);
-    }
-}
-#endif /* VBOX_WITH_RAW_MODE */
-
-
 #ifdef VBOX_STRICT
+
 /**
  * Dumps a descriptor.
  *
  * @param   pDesc    Descriptor to dump.
- * @param   Sel      Selector number.
- * @param   pszMsg   Message to prepend the log entry with.
+ * @param   Sel      The selector.
+ * @param   pszSel   The name of the selector.
  */
-VMMR0_INT_DECL(void) hmR0DumpDescriptor(PCX86DESCHC pDesc, RTSEL Sel, const char *pszMsg)
+VMMR0_INT_DECL(void) hmR0DumpDescriptor(PCX86DESCHC pDesc, RTSEL Sel, const char *pszSel)
 {
     /*
      * Make variable description string.
@@ -1823,7 +1668,7 @@ VMMR0_INT_DECL(void) hmR0DumpDescriptor(PCX86DESCHC pDesc, RTSEL Sel, const char
     if (pDesc->Gen.u1Long)
         ADD_STR(psz, "64-bit ");
     else
-        ADD_STR(psz, "Comp   ");
+        ADD_STR(psz, "Comp ");
 # else
     if (pDesc->Gen.u1Granularity)
         ADD_STR(psz, "Page ");
@@ -1842,16 +1687,16 @@ VMMR0_INT_DECL(void) hmR0DumpDescriptor(PCX86DESCHC pDesc, RTSEL Sel, const char
     uint32_t u32Limit = X86DESC_LIMIT_G(pDesc);
 
 # if HC_ARCH_BITS == 64
-    uint64_t    u32Base  = X86DESC64_BASE(pDesc);
-    Log(("%s %04x - %RX64 %RX64 - base=%RX64 limit=%08x dpl=%d %s\n", pszMsg,
-         Sel, pDesc->au64[0], pDesc->au64[1], u32Base, u32Limit, pDesc->Gen.u2Dpl, szMsg));
+    uint64_t const u64Base  = X86DESC64_BASE(pDesc);
+    Log(("  %s { %#04x - %#RX64 %#RX64 - base=%#RX64 limit=%#08x dpl=%d } %s\n", pszSel,
+         Sel, pDesc->au64[0], pDesc->au64[1], u64Base, u32Limit, pDesc->Gen.u2Dpl, szMsg));
 # else
-    uint32_t    u32Base  = X86DESC_BASE(pDesc);
-    Log(("%s %04x - %08x %08x - base=%08x limit=%08x dpl=%d %s\n", pszMsg,
+    uint32_t const u32Base  = X86DESC_BASE(pDesc);
+    Log(("  %s { %#04x - %#08x %#08x - base=%#08x limit=%#08x dpl=%d } %s\n", pszSel,
          Sel, pDesc->au32[0], pDesc->au32[1], u32Base, u32Limit, pDesc->Gen.u2Dpl, szMsg));
 # endif
 #else
-    NOREF(Sel); NOREF(pszMsg);
+    NOREF(Sel); NOREF(pszSel);
 #endif
 }
 
@@ -1859,16 +1704,19 @@ VMMR0_INT_DECL(void) hmR0DumpDescriptor(PCX86DESCHC pDesc, RTSEL Sel, const char
 /**
  * Formats a full register dump.
  *
- * @param   pVCpu       The cross context virtual CPU structure.
+ * @param   pVCpu   The cross context virtual CPU structure.
+ * @param   fFlags  The dumping flags (HM_DUMP_REG_FLAGS_XXX).
  */
-VMMR0_INT_DECL(void) hmR0DumpRegs(PVMCPU pVCpu)
+VMMR0_INT_DECL(void) hmR0DumpRegs(PVMCPUCC pVCpu, uint32_t fFlags)
 {
     /*
      * Format the flags.
      */
     static struct
     {
-        const char *pszSet; const char *pszClear; uint32_t fFlag;
+        const char *pszSet;
+        const char *pszClear;
+        uint32_t    fFlag;
     } const s_aFlags[] =
     {
         { "vip", NULL, X86_EFL_VIP },
@@ -1903,103 +1751,112 @@ VMMR0_INT_DECL(void) hmR0DumpRegs(PVMCPU pVCpu)
     }
     psz[-1] = '\0';
 
-    /*
-     * Format the registers.
-     */
-    if (CPUMIsGuestIn64BitCode(pVCpu))
+    if (fFlags & HM_DUMP_REG_FLAGS_GPRS)
     {
-        Log(("rax=%016RX64 rbx=%016RX64 rcx=%016RX64 rdx=%016RX64\n"
-             "rsi=%016RX64 rdi=%016RX64 r8 =%016RX64 r9 =%016RX64\n"
-             "r10=%016RX64 r11=%016RX64 r12=%016RX64 r13=%016RX64\n"
-             "r14=%016RX64 r15=%016RX64\n"
-             "rip=%016RX64 rsp=%016RX64 rbp=%016RX64 iopl=%d %*s\n"
-             "cs={%04x base=%016RX64 limit=%08x flags=%08x}\n"
-             "ds={%04x base=%016RX64 limit=%08x flags=%08x}\n"
-             "es={%04x base=%016RX64 limit=%08x flags=%08x}\n"
-             "fs={%04x base=%016RX64 limit=%08x flags=%08x}\n"
-             "gs={%04x base=%016RX64 limit=%08x flags=%08x}\n"
-             "ss={%04x base=%016RX64 limit=%08x flags=%08x}\n"
-             "cr0=%016RX64 cr2=%016RX64 cr3=%016RX64 cr4=%016RX64\n"
-             "dr0=%016RX64 dr1=%016RX64 dr2=%016RX64 dr3=%016RX64\n"
-             "dr4=%016RX64 dr5=%016RX64 dr6=%016RX64 dr7=%016RX64\n"
-             "gdtr=%016RX64:%04x  idtr=%016RX64:%04x  eflags=%08x\n"
-             "ldtr={%04x base=%08RX64 limit=%08x flags=%08x}\n"
-             "tr  ={%04x base=%08RX64 limit=%08x flags=%08x}\n"
-             "SysEnter={cs=%04llx eip=%08llx esp=%08llx}\n"
-             ,
-             pCtx->rax, pCtx->rbx, pCtx->rcx, pCtx->rdx, pCtx->rsi, pCtx->rdi,
-             pCtx->r8, pCtx->r9, pCtx->r10, pCtx->r11, pCtx->r12, pCtx->r13,
-             pCtx->r14, pCtx->r15,
-             pCtx->rip, pCtx->rsp, pCtx->rbp, X86_EFL_GET_IOPL(uEFlags), 31, szEFlags,
-             pCtx->cs.Sel, pCtx->cs.u64Base, pCtx->cs.u32Limit, pCtx->cs.Attr.u,
-             pCtx->ds.Sel, pCtx->ds.u64Base, pCtx->ds.u32Limit, pCtx->ds.Attr.u,
-             pCtx->es.Sel, pCtx->es.u64Base, pCtx->es.u32Limit, pCtx->es.Attr.u,
-             pCtx->fs.Sel, pCtx->fs.u64Base, pCtx->fs.u32Limit, pCtx->fs.Attr.u,
-             pCtx->gs.Sel, pCtx->gs.u64Base, pCtx->gs.u32Limit, pCtx->gs.Attr.u,
-             pCtx->ss.Sel, pCtx->ss.u64Base, pCtx->ss.u32Limit, pCtx->ss.Attr.u,
-             pCtx->cr0,  pCtx->cr2, pCtx->cr3,  pCtx->cr4,
-             pCtx->dr[0],  pCtx->dr[1], pCtx->dr[2],  pCtx->dr[3],
-             pCtx->dr[4],  pCtx->dr[5], pCtx->dr[6],  pCtx->dr[7],
-             pCtx->gdtr.pGdt, pCtx->gdtr.cbGdt, pCtx->idtr.pIdt, pCtx->idtr.cbIdt, uEFlags,
-             pCtx->ldtr.Sel, pCtx->ldtr.u64Base, pCtx->ldtr.u32Limit, pCtx->ldtr.Attr.u,
-             pCtx->tr.Sel, pCtx->tr.u64Base, pCtx->tr.u32Limit, pCtx->tr.Attr.u,
-             pCtx->SysEnter.cs, pCtx->SysEnter.eip, pCtx->SysEnter.esp));
+        /*
+         * Format the registers.
+         */
+        if (CPUMIsGuestIn64BitCode(pVCpu))
+        {
+            Log(("rax=%016RX64 rbx=%016RX64 rcx=%016RX64 rdx=%016RX64\n"
+                 "rsi=%016RX64 rdi=%016RX64 r8 =%016RX64 r9 =%016RX64\n"
+                 "r10=%016RX64 r11=%016RX64 r12=%016RX64 r13=%016RX64\n"
+                 "r14=%016RX64 r15=%016RX64\n"
+                 "rip=%016RX64 rsp=%016RX64 rbp=%016RX64 iopl=%d %*s\n"
+                 "cs={%04x base=%016RX64 limit=%08x flags=%08x}\n"
+                 "ds={%04x base=%016RX64 limit=%08x flags=%08x}\n"
+                 "es={%04x base=%016RX64 limit=%08x flags=%08x}\n"
+                 "fs={%04x base=%016RX64 limit=%08x flags=%08x}\n"
+                 "gs={%04x base=%016RX64 limit=%08x flags=%08x}\n"
+                 "ss={%04x base=%016RX64 limit=%08x flags=%08x}\n"
+                 "cr0=%016RX64 cr2=%016RX64 cr3=%016RX64 cr4=%016RX64\n"
+                 "dr0=%016RX64 dr1=%016RX64 dr2=%016RX64 dr3=%016RX64\n"
+                 "dr4=%016RX64 dr5=%016RX64 dr6=%016RX64 dr7=%016RX64\n"
+                 "gdtr=%016RX64:%04x  idtr=%016RX64:%04x  eflags=%08x\n"
+                 "ldtr={%04x base=%08RX64 limit=%08x flags=%08x}\n"
+                 "tr  ={%04x base=%08RX64 limit=%08x flags=%08x}\n"
+                 "SysEnter={cs=%04llx eip=%08llx esp=%08llx}\n"
+                 ,
+                 pCtx->rax, pCtx->rbx, pCtx->rcx, pCtx->rdx, pCtx->rsi, pCtx->rdi,
+                 pCtx->r8, pCtx->r9, pCtx->r10, pCtx->r11, pCtx->r12, pCtx->r13,
+                 pCtx->r14, pCtx->r15,
+                 pCtx->rip, pCtx->rsp, pCtx->rbp, X86_EFL_GET_IOPL(uEFlags), 31, szEFlags,
+                 pCtx->cs.Sel, pCtx->cs.u64Base, pCtx->cs.u32Limit, pCtx->cs.Attr.u,
+                 pCtx->ds.Sel, pCtx->ds.u64Base, pCtx->ds.u32Limit, pCtx->ds.Attr.u,
+                 pCtx->es.Sel, pCtx->es.u64Base, pCtx->es.u32Limit, pCtx->es.Attr.u,
+                 pCtx->fs.Sel, pCtx->fs.u64Base, pCtx->fs.u32Limit, pCtx->fs.Attr.u,
+                 pCtx->gs.Sel, pCtx->gs.u64Base, pCtx->gs.u32Limit, pCtx->gs.Attr.u,
+                 pCtx->ss.Sel, pCtx->ss.u64Base, pCtx->ss.u32Limit, pCtx->ss.Attr.u,
+                 pCtx->cr0,  pCtx->cr2, pCtx->cr3,  pCtx->cr4,
+                 pCtx->dr[0],  pCtx->dr[1], pCtx->dr[2],  pCtx->dr[3],
+                 pCtx->dr[4],  pCtx->dr[5], pCtx->dr[6],  pCtx->dr[7],
+                 pCtx->gdtr.pGdt, pCtx->gdtr.cbGdt, pCtx->idtr.pIdt, pCtx->idtr.cbIdt, uEFlags,
+                 pCtx->ldtr.Sel, pCtx->ldtr.u64Base, pCtx->ldtr.u32Limit, pCtx->ldtr.Attr.u,
+                 pCtx->tr.Sel, pCtx->tr.u64Base, pCtx->tr.u32Limit, pCtx->tr.Attr.u,
+                 pCtx->SysEnter.cs, pCtx->SysEnter.eip, pCtx->SysEnter.esp));
+        }
+        else
+            Log(("eax=%08x ebx=%08x ecx=%08x edx=%08x esi=%08x edi=%08x\n"
+                 "eip=%08x esp=%08x ebp=%08x iopl=%d %*s\n"
+                 "cs={%04x base=%016RX64 limit=%08x flags=%08x} dr0=%08RX64 dr1=%08RX64\n"
+                 "ds={%04x base=%016RX64 limit=%08x flags=%08x} dr2=%08RX64 dr3=%08RX64\n"
+                 "es={%04x base=%016RX64 limit=%08x flags=%08x} dr4=%08RX64 dr5=%08RX64\n"
+                 "fs={%04x base=%016RX64 limit=%08x flags=%08x} dr6=%08RX64 dr7=%08RX64\n"
+                 "gs={%04x base=%016RX64 limit=%08x flags=%08x} cr0=%08RX64 cr2=%08RX64\n"
+                 "ss={%04x base=%016RX64 limit=%08x flags=%08x} cr3=%08RX64 cr4=%08RX64\n"
+                 "gdtr=%016RX64:%04x  idtr=%016RX64:%04x  eflags=%08x\n"
+                 "ldtr={%04x base=%08RX64 limit=%08x flags=%08x}\n"
+                 "tr  ={%04x base=%08RX64 limit=%08x flags=%08x}\n"
+                 "SysEnter={cs=%04llx eip=%08llx esp=%08llx}\n"
+                 ,
+                 pCtx->eax, pCtx->ebx, pCtx->ecx, pCtx->edx, pCtx->esi, pCtx->edi,
+                 pCtx->eip, pCtx->esp, pCtx->ebp, X86_EFL_GET_IOPL(uEFlags), 31, szEFlags,
+                 pCtx->cs.Sel, pCtx->cs.u64Base, pCtx->cs.u32Limit, pCtx->cs.Attr.u, pCtx->dr[0],  pCtx->dr[1],
+                 pCtx->ds.Sel, pCtx->ds.u64Base, pCtx->ds.u32Limit, pCtx->ds.Attr.u, pCtx->dr[2],  pCtx->dr[3],
+                 pCtx->es.Sel, pCtx->es.u64Base, pCtx->es.u32Limit, pCtx->es.Attr.u, pCtx->dr[4],  pCtx->dr[5],
+                 pCtx->fs.Sel, pCtx->fs.u64Base, pCtx->fs.u32Limit, pCtx->fs.Attr.u, pCtx->dr[6],  pCtx->dr[7],
+                 pCtx->gs.Sel, pCtx->gs.u64Base, pCtx->gs.u32Limit, pCtx->gs.Attr.u, pCtx->cr0,  pCtx->cr2,
+                 pCtx->ss.Sel, pCtx->ss.u64Base, pCtx->ss.u32Limit, pCtx->ss.Attr.u, pCtx->cr3,  pCtx->cr4,
+                 pCtx->gdtr.pGdt, pCtx->gdtr.cbGdt, pCtx->idtr.pIdt, pCtx->idtr.cbIdt, uEFlags,
+                 pCtx->ldtr.Sel, pCtx->ldtr.u64Base, pCtx->ldtr.u32Limit, pCtx->ldtr.Attr.u,
+                 pCtx->tr.Sel, pCtx->tr.u64Base, pCtx->tr.u32Limit, pCtx->tr.Attr.u,
+                 pCtx->SysEnter.cs, pCtx->SysEnter.eip, pCtx->SysEnter.esp));
     }
-    else
-        Log(("eax=%08x ebx=%08x ecx=%08x edx=%08x esi=%08x edi=%08x\n"
-             "eip=%08x esp=%08x ebp=%08x iopl=%d %*s\n"
-             "cs={%04x base=%016RX64 limit=%08x flags=%08x} dr0=%08RX64 dr1=%08RX64\n"
-             "ds={%04x base=%016RX64 limit=%08x flags=%08x} dr2=%08RX64 dr3=%08RX64\n"
-             "es={%04x base=%016RX64 limit=%08x flags=%08x} dr4=%08RX64 dr5=%08RX64\n"
-             "fs={%04x base=%016RX64 limit=%08x flags=%08x} dr6=%08RX64 dr7=%08RX64\n"
-             "gs={%04x base=%016RX64 limit=%08x flags=%08x} cr0=%08RX64 cr2=%08RX64\n"
-             "ss={%04x base=%016RX64 limit=%08x flags=%08x} cr3=%08RX64 cr4=%08RX64\n"
-             "gdtr=%016RX64:%04x  idtr=%016RX64:%04x  eflags=%08x\n"
-             "ldtr={%04x base=%08RX64 limit=%08x flags=%08x}\n"
-             "tr  ={%04x base=%08RX64 limit=%08x flags=%08x}\n"
-             "SysEnter={cs=%04llx eip=%08llx esp=%08llx}\n"
-             ,
-             pCtx->eax, pCtx->ebx, pCtx->ecx, pCtx->edx, pCtx->esi, pCtx->edi,
-             pCtx->eip, pCtx->esp, pCtx->ebp, X86_EFL_GET_IOPL(uEFlags), 31, szEFlags,
-             pCtx->cs.Sel, pCtx->cs.u64Base, pCtx->cs.u32Limit, pCtx->cs.Attr.u, pCtx->dr[0],  pCtx->dr[1],
-             pCtx->ds.Sel, pCtx->ds.u64Base, pCtx->ds.u32Limit, pCtx->ds.Attr.u, pCtx->dr[2],  pCtx->dr[3],
-             pCtx->es.Sel, pCtx->es.u64Base, pCtx->es.u32Limit, pCtx->es.Attr.u, pCtx->dr[4],  pCtx->dr[5],
-             pCtx->fs.Sel, pCtx->fs.u64Base, pCtx->fs.u32Limit, pCtx->fs.Attr.u, pCtx->dr[6],  pCtx->dr[7],
-             pCtx->gs.Sel, pCtx->gs.u64Base, pCtx->gs.u32Limit, pCtx->gs.Attr.u, pCtx->cr0,  pCtx->cr2,
-             pCtx->ss.Sel, pCtx->ss.u64Base, pCtx->ss.u32Limit, pCtx->ss.Attr.u, pCtx->cr3,  pCtx->cr4,
-             pCtx->gdtr.pGdt, pCtx->gdtr.cbGdt, pCtx->idtr.pIdt, pCtx->idtr.cbIdt, uEFlags,
-             pCtx->ldtr.Sel, pCtx->ldtr.u64Base, pCtx->ldtr.u32Limit, pCtx->ldtr.Attr.u,
-             pCtx->tr.Sel, pCtx->tr.u64Base, pCtx->tr.u32Limit, pCtx->tr.Attr.u,
-             pCtx->SysEnter.cs, pCtx->SysEnter.eip, pCtx->SysEnter.esp));
 
-    PX86FXSTATE pFpuCtx = &pCtx->CTX_SUFF(pXState)->x87;
-    Log(("FPU:\n"
-        "FCW=%04x FSW=%04x FTW=%02x\n"
-        "FOP=%04x FPUIP=%08x CS=%04x Rsrvd1=%04x\n"
-        "FPUDP=%04x DS=%04x Rsvrd2=%04x MXCSR=%08x MXCSR_MASK=%08x\n"
-        ,
-        pFpuCtx->FCW,   pFpuCtx->FSW,   pFpuCtx->FTW,
-        pFpuCtx->FOP,   pFpuCtx->FPUIP, pFpuCtx->CS, pFpuCtx->Rsrvd1,
-        pFpuCtx->FPUDP, pFpuCtx->DS,    pFpuCtx->Rsrvd2,
-        pFpuCtx->MXCSR, pFpuCtx->MXCSR_MASK));
+    if (fFlags & HM_DUMP_REG_FLAGS_FPU)
+    {
+        PCX86FXSTATE pFpuCtx = &pCtx->CTX_SUFF(pXState)->x87;
+        Log(("FPU:\n"
+            "FCW=%04x FSW=%04x FTW=%02x\n"
+            "FOP=%04x FPUIP=%08x CS=%04x Rsrvd1=%04x\n"
+            "FPUDP=%04x DS=%04x Rsvrd2=%04x MXCSR=%08x MXCSR_MASK=%08x\n"
+            ,
+            pFpuCtx->FCW,   pFpuCtx->FSW,   pFpuCtx->FTW,
+            pFpuCtx->FOP,   pFpuCtx->FPUIP, pFpuCtx->CS, pFpuCtx->Rsrvd1,
+            pFpuCtx->FPUDP, pFpuCtx->DS,    pFpuCtx->Rsrvd2,
+            pFpuCtx->MXCSR, pFpuCtx->MXCSR_MASK));
+        NOREF(pFpuCtx);
+    }
 
-    Log(("MSR:\n"
-        "EFER         =%016RX64\n"
-        "PAT          =%016RX64\n"
-        "STAR         =%016RX64\n"
-        "CSTAR        =%016RX64\n"
-        "LSTAR        =%016RX64\n"
-        "SFMASK       =%016RX64\n"
-        "KERNELGSBASE =%016RX64\n",
-        pCtx->msrEFER,
-        pCtx->msrPAT,
-        pCtx->msrSTAR,
-        pCtx->msrCSTAR,
-        pCtx->msrLSTAR,
-        pCtx->msrSFMASK,
-        pCtx->msrKERNELGSBASE));
-
-    NOREF(pFpuCtx);
+    if (fFlags & HM_DUMP_REG_FLAGS_MSRS)
+    {
+        Log(("MSR:\n"
+            "EFER         =%016RX64\n"
+            "PAT          =%016RX64\n"
+            "STAR         =%016RX64\n"
+            "CSTAR        =%016RX64\n"
+            "LSTAR        =%016RX64\n"
+            "SFMASK       =%016RX64\n"
+            "KERNELGSBASE =%016RX64\n",
+            pCtx->msrEFER,
+            pCtx->msrPAT,
+            pCtx->msrSTAR,
+            pCtx->msrCSTAR,
+            pCtx->msrLSTAR,
+            pCtx->msrSFMASK,
+            pCtx->msrKERNELGSBASE));
+    }
 }
+
 #endif /* VBOX_STRICT */
 

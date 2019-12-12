@@ -39,6 +39,7 @@ class UIActionPool;
 class UIMedium;
 class UIMediumDetailsWidget;
 class UIMediumItem;
+class UIMediumSearchWidget;
 class UIToolBar;
 
 
@@ -146,26 +147,29 @@ private slots:
 
     /** @name Medium operation stuff.
       * @{ */
-        /** Handles VBoxGlobal::sigMediumCreated signal. */
+        /** Handles UICommon::sigMediumCreated signal. */
         void sltHandleMediumCreated(const QUuid &uMediumID);
-        /** Handles VBoxGlobal::sigMediumDeleted signal. */
+        /** Handles UICommon::sigMediumDeleted signal. */
         void sltHandleMediumDeleted(const QUuid &uMediumID);
     /** @} */
 
     /** @name Medium enumeration stuff.
       * @{ */
-        /** Handles VBoxGlobal::sigMediumEnumerationStarted signal. */
+        /** Handles UICommon::sigMediumEnumerationStarted signal. */
         void sltHandleMediumEnumerationStart();
-        /** Handles VBoxGlobal::sigMediumEnumerated signal. */
+        /** Handles UICommon::sigMediumEnumerated signal. */
         void sltHandleMediumEnumerated(const QUuid &uMediumID);
-        /** Handles VBoxGlobal::sigMediumEnumerationFinished signal. */
+        /** Handles UICommon::sigMediumEnumerationFinished signal. */
         void sltHandleMediumEnumerationFinish();
+        void sltHandleMachineStateChange(const QUuid &uId, const KMachineState state);
     /** @} */
 
     /** @name Menu/action stuff.
       * @{ */
         /** Handles command to add medium. */
         void sltAddMedium();
+        /** Handles command to create medium. */
+        void sltCreateMedium();
         /** Handles command to copy medium. */
         void sltCopyMedium();
         /** Handles command to move medium. */
@@ -176,6 +180,8 @@ private slots:
         void sltReleaseMedium();
         /** Handles command to make medium details @a fVisible. */
         void sltToggleMediumDetailsVisibility(bool fVisible);
+        /** Handles command to make medium search pane @a fVisible. */
+        void sltToggleMediumSearchVisibility(bool fVisible);
         /** Handles command to refresh medium. */
         void sltRefreshAll();
     /** @} */
@@ -194,6 +200,12 @@ private slots:
       * @{ */
         /** Adjusts tree-widgets according content. */
         void sltPerformTablesAdjustment();
+    /** @} */
+
+   /** @name Medium search stuff.
+      * @{ */
+        /** Adjusts tree-widgets according content. */
+        void sltHandlePerformSearch();
     /** @} */
 
 private:
@@ -218,6 +230,8 @@ private:
         void prepareTreeWidget(UIMediumDeviceType type, int iColumns);
         /** Prepares details-widget. */
         void prepareDetailsWidget();
+        /** Prepares search-widget. */
+        void prepareSearchWidget();
         /** Load settings: */
         void loadSettings();
 
@@ -271,6 +285,12 @@ private:
         void setCurrentItem(QITreeWidget *pTreeWidget, QTreeWidgetItem *pItem);
     /** @} */
 
+    /** @name Search stuff.
+      * @{ */
+        /** Calls  the UIMediumSearchWidget::search(..). */
+        void performSearch(bool fSelectNext);
+    /** @} */
+
     /** @name Helper stuff.
       * @{ */
         /** Returns tab index for passed UIMediumDeviceType. */
@@ -284,6 +304,7 @@ private:
         static UIMediumItem *searchItem(QTreeWidgetItem *pParentItem,
                                         const CheckIfSuitableBy &condition,
                                         CheckIfSuitableBy *pException = 0);
+
 
         /** Checks if @a action can be used for @a pItem. */
         static bool checkMediumFor(UIMediumItem *pItem, Action action);
@@ -350,6 +371,13 @@ private:
         /** Holds the progress-bar widget reference. */
         UIEnumerationProgressBar *m_pProgressBar;
     /** @} */
+
+    /** @name Search-widget variables.
+      * @{ */
+        /** Holds the medium details-widget instance. */
+        UIMediumSearchWidget *m_pSearchWidget;
+    /** @} */
+
 };
 
 

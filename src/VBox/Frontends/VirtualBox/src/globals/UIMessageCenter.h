@@ -262,6 +262,7 @@ public:
     void cannotSetExtraData(const CVirtualBox &vbox, const QString &strKey, const QString &strValue);
     void cannotSetExtraData(const CMachine &machine, const QString &strKey, const QString &strValue);
     void warnAboutInvalidEncryptionPassword(const QString &strPasswordId, QWidget *pParent = 0);
+    void cannotAcquireMachineParameter(const CMachine &comMachine, QWidget *pParent = 0) const;
 
     /* API: Selector warnings: */
     void cannotOpenMachine(const CVirtualBox &vbox, const QString &strMachinePath) const;
@@ -317,10 +318,9 @@ public:
     void warnAboutUnaccessibleUSB(const COMBaseWithEI &object, QWidget *pParent = 0) const;
     void warnAboutStateChange(QWidget *pParent = 0) const;
     bool confirmSettingsReloading(QWidget *pParent = 0) const;
-    int confirmHardDiskAttachmentCreation(const QString &strControllerName, QWidget *pParent = 0) const;
-    int confirmOpticalAttachmentCreation(const QString &strControllerName, QWidget *pParent = 0) const;
-    int confirmFloppyAttachmentCreation(const QString &strControllerName, QWidget *pParent = 0) const;
     int confirmRemovingOfLastDVDDevice(QWidget *pParent = 0) const;
+    bool confirmStorageBusChangeWithOpticalRemoval(QWidget *pParent = 0) const;
+    bool confirmStorageBusChangeWithExcessiveRemoval(QWidget *pParent = 0) const;
     void cannotAttachDevice(const CMachine &machine, UIMediumDeviceType type, const QString &strLocation, const StorageSlot &storageSlot, QWidget *pParent = 0);
     bool warnAboutIncorrectPort(QWidget *pParent = 0) const;
     bool warnAboutIncorrectAddress(QWidget *pParent = 0) const;
@@ -328,7 +328,11 @@ public:
     bool warnAboutNameShouldBeUnique(QWidget *pParent = 0) const;
     bool warnAboutRulesConflict(QWidget *pParent = 0) const;
     bool confirmCancelingPortForwardingDialog(QWidget *pParent = 0) const;
+    void cannotChangeMachineAttribute(const CMachine &comMachine, QWidget *pParent = 0) const;
     void cannotSaveMachineSettings(const CMachine &machine, QWidget *pParent = 0) const;
+    void cannotChangeGraphicsAdapterAttribute(const CGraphicsAdapter &comAdapter, QWidget *pParent = 0) const;
+    void cannotChangeAudioAdapterAttribute(const CAudioAdapter &comAdapter, QWidget *pParent = 0) const;
+    void cannotChangeNetworkAdapterAttribute(const CNetworkAdapter &comAdapter, QWidget *pParent = 0) const;
 
     /* API: Virtual Medium Manager warnings: */
     void cannotChangeMediumType(const CMedium &medium, KMediumType oldMediumType, KMediumType newMediumType, QWidget *pParent = 0) const;
@@ -344,7 +348,10 @@ public:
     void cannotResizeHardDiskStorage(const CProgress &comProgress, const QString &strLocation, const QString &strSizeOld, const QString &strSizeNew, QWidget *pParent = 0) const;
     void cannotDetachDevice(const CMachine &machine, UIMediumDeviceType type, const QString &strLocation, const StorageSlot &storageSlot, QWidget *pParent = 0) const;
     bool cannotRemountMedium(const CMachine &machine, const UIMedium &medium, bool fMount, bool fRetry, QWidget *pParent = 0) const;
-    void cannotOpenMedium(const CVirtualBox &vbox, UIMediumDeviceType type, const QString &strLocation, QWidget *pParent = 0) const;
+    void cannotOpenMedium(const CVirtualBox &comVBox, const QString &strLocation, QWidget *pParent = 0) const;
+    void cannotOpenKnownMedium(const CVirtualBox &comVBox, const QUuid &uMediumId, QWidget *pParent = 0) const;
+    void cannotAcquireAttachmentParameter(const CMediumAttachment &comAttachment, QWidget *pParent = 0) const;
+    void cannotAcquireMediumAttribute(const CMedium &comMedium, QWidget *pParent = 0) const;
     void cannotCloseMedium(const UIMedium &medium, const COMResult &rc, QWidget *pParent = 0) const;
 
     /* API: Host Network Manager warnings: */
@@ -374,9 +381,17 @@ public:
     void cannotAcquireCloudProfileParameter(const CCloudProfile &comProfile, QWidget *pParent = 0) const;
     void cannotAssignCloudProfileParameter(const CCloudProfile &comProfile, QWidget *pParent = 0) const;
     void cannotCreateCloudClient(const CCloudProfile &comProfile, QWidget *pParent = 0) const;
+    void cannotCreateCloudMachine(const CCloudClient &comClient, QWidget *pParent = 0) const;
+    void cannotCreateCloudMachine(const CProgress &comProgress, QWidget *pParent = 0) const;
     void cannotAcquireCloudClientParameter(const CCloudClient &comClient, QWidget *pParent = 0) const;
+    void cannotAcquireCloudClientParameter(const CProgress &comProgress, QWidget *pParent = 0) const;
     bool confirmCloudProfileRemoval(const QString &strName, QWidget *pParent = 0) const;
     bool confirmCloudProfilesImport(QWidget *pParent = 0) const;
+    void cannotAssignFormValue(const CBooleanFormValue &comValue, QWidget *pParent = 0) const;
+    void cannotAssignFormValue(const CStringFormValue &comValue, QWidget *pParent = 0) const;
+    void cannotAssignFormValue(const CChoiceFormValue &comValue, QWidget *pParent = 0) const;
+    void cannotAssignFormValue(const CRangedIntegerFormValue &comValue, QWidget *pParent = 0) const;
+    void cannotAssignFormValue(const CProgress &comProgress, QWidget *pParent = 0) const;
 
     /* API: Wizards warnings: */
     bool confirmHardDisklessMachine(QWidget *pParent = 0) const;
@@ -395,6 +410,11 @@ public:
     void cannotRemoveMachineFolder(const QString &strFolderName, QWidget *pParent = 0) const;
     void cannotRewriteMachineFolder(const QString &strFolderName, QWidget *pParent = 0) const;
     void cannotCreateMachineFolder(const QString &strFolderName, QWidget *pParent = 0) const;
+    void cannotCreateAppliance(const CVirtualBox &comVBox, QWidget *pParent = 0) const;
+    void cannotCreateVirtualSystemDescription(const CAppliance &comAppliance, QWidget *pParent = 0) const;
+    void cannotAcquireVirtualSystemDescription(const CAppliance &comAppliance, QWidget *pParent = 0) const;
+    void cannotAddVirtualSystemDescriptionValue(const CVirtualSystemDescription &comDescription, QWidget *pParent = 0) const;
+    void cannotAcquireVirtualSystemDescriptionFormProperty(const CVirtualSystemDescriptionForm &comForm, QWidget *pParent = 0) const;
     void cannotImportAppliance(CAppliance &appliance, QWidget *pParent = 0) const;
     void cannotImportAppliance(const CProgress &progress, const QString &strPath, QWidget *pParent = 0) const;
     bool cannotCheckFiles(const CAppliance &comAppliance, QWidget *pParent = 0) const;

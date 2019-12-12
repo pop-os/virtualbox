@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 131252 $"
 
 
 # Standard python imports.
@@ -127,7 +127,7 @@ class BuildSourceData(ModelDataBase):
             (oNewValue, sError) = ModelDataBase._validateAndConvertAttribute(self, sAttr, sParam, oValue,
                                                                              aoNilValues, fAllowNull, oDb);
             if sError is None:
-                if len(self.asTypes) <= 0:
+                if not self.asTypes:
                     oNewValue = None;
                 else:
                     for sType in oNewValue:
@@ -149,7 +149,7 @@ class BuildSourceData(ModelDataBase):
 
         return (oNewValue, sError);
 
-class BuildSourceLogic(ModelLogicBase): # pylint: disable=R0903
+class BuildSourceLogic(ModelLogicBase): # pylint: disable=too-few-public-methods
     """
     Build source database logic.
     """
@@ -503,7 +503,7 @@ class BuildSourceLogic(ModelLogicBase): # pylint: disable=R0903
 # Unit testing.
 #
 
-# pylint: disable=C0111
+# pylint: disable=missing-docstring
 class BuildSourceDataTestCase(ModelDataBaseTestCase):
     def setUp(self):
         self.aoSamples = [BuildSourceData(),];

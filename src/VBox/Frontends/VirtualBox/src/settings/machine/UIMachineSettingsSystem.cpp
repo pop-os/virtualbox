@@ -24,38 +24,13 @@
 #include "UIIconPool.h"
 #include "UIMachineSettingsSystem.h"
 #include "UIErrorString.h"
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 
 /* COM includes: */
 #include "CBIOSSettings.h"
 
 /* Other VBox includes: */
 #include <iprt/cdefs.h>
-
-
-/** Machine settings: System Boot data structure. */
-struct UIBootItemData
-{
-    /** Constructs data. */
-    UIBootItemData()
-        : m_type(KDeviceType_Null)
-        , m_fEnabled(false)
-    {}
-
-    /** Returns whether the @a other passed data is equal to this one. */
-    bool operator==(const UIBootItemData &other) const
-    {
-        return true
-               && (m_type == other.m_type)
-               && (m_fEnabled == other.m_fEnabled)
-               ;
-    }
-
-    /** Holds the boot device type. */
-    KDeviceType m_type;
-    /** Holds whether the boot device enabled. */
-    bool m_fEnabled;
-};
 
 
 /** Machine settings: System page data structure. */
@@ -70,7 +45,7 @@ struct UIDataSettingsMachineSystem
         , m_fSupportedNestedPaging(false)
         /* Motherboard data: */
         , m_iMemorySize(-1)
-        , m_bootItems(QList<UIBootItemData>())
+        , m_bootItems(UIBootItemDataList())
         , m_chipsetType(KChipsetType_Null)
         , m_pointingHIDType(KPointingHIDType_None)
         , m_fEnabledIoApic(false)
@@ -131,19 +106,19 @@ struct UIDataSettingsMachineSystem
     bool  m_fSupportedNestedPaging;
 
     /** Holds the RAM size. */
-    int                    m_iMemorySize;
+    int                 m_iMemorySize;
     /** Holds the boot items. */
-    QList<UIBootItemData>  m_bootItems;
+    UIBootItemDataList  m_bootItems;
     /** Holds the chipset type. */
-    KChipsetType           m_chipsetType;
+    KChipsetType        m_chipsetType;
     /** Holds the pointing HID type. */
-    KPointingHIDType       m_pointingHIDType;
+    KPointingHIDType    m_pointingHIDType;
     /** Holds whether the IO APIC is enabled. */
-    bool                   m_fEnabledIoApic;
+    bool                m_fEnabledIoApic;
     /** Holds whether the EFI is enabled. */
-    bool                   m_fEnabledEFI;
+    bool                m_fEnabledEFI;
     /** Holds whether the UTC is enabled. */
-    bool                   m_fEnabledUTC;
+    bool                m_fEnabledUTC;
 
     /** Holds the CPU count. */
     int   m_cCPUCount;
@@ -214,12 +189,12 @@ bool UIMachineSettingsSystem::isNestedHWVirtExEnabled() const
 
 bool UIMachineSettingsSystem::isHIDEnabled() const
 {
-    return (KPointingHIDType)m_pComboPointingHIDType->itemData(m_pComboPointingHIDType->currentIndex()).toInt() != KPointingHIDType_PS2Mouse;
+    return m_pComboPointingHIDType->currentData().value<KPointingHIDType>() != KPointingHIDType_PS2Mouse;
 }
 
 KChipsetType UIMachineSettingsSystem::chipsetType() const
 {
-    return (KChipsetType)m_pComboChipsetType->itemData(m_pComboChipsetType->currentIndex()).toInt();
+    return m_pComboChipsetType->currentData().value<KChipsetType>();
 }
 
 void UIMachineSettingsSystem::setUSBEnabled(bool fEnabled)
@@ -252,44 +227,19 @@ void UIMachineSettingsSystem::loadToCacheFrom(QVariant &data)
     UIDataSettingsMachineSystem oldSystemData;
 
     /* Gather support flags: */
-    oldSystemData.m_fSupportedPAE = vboxGlobal().host().GetProcessorFeature(KProcessorFeature_PAE);
-    oldSystemData.m_fSupportedNestedHwVirtEx = vboxGlobal().host().GetProcessorFeature(KProcessorFeature_NestedHWVirt);
-    oldSystemData.m_fSupportedHwVirtEx = vboxGlobal().host().GetProcessorFeature(KProcessorFeature_HWVirtEx);
-    oldSystemData.m_fSupportedNestedPaging = vboxGlobal().host().GetProcessorFeature(KProcessorFeature_NestedPaging);
+    oldSystemData.m_fSupportedPAE = uiCommon().host().GetProcessorFeature(KProcessorFeature_PAE);
+    oldSystemData.m_fSupportedNestedHwVirtEx = uiCommon().host().GetProcessorFeature(KProcessorFeature_NestedHWVirt);
+    oldSystemData.m_fSupportedHwVirtEx = uiCommon().host().GetProcessorFeature(KProcessorFeature_HWVirtEx);
+    oldSystemData.m_fSupportedNestedPaging = uiCommon().host().GetProcessorFeature(KProcessorFeature_NestedPaging);
 
     /* Gather old 'Motherboard' data: */
     oldSystemData.m_iMemorySize = m_machine.GetMemorySize();
+    oldSystemData.m_bootItems = loadBootItems(m_machine);
     oldSystemData.m_chipsetType = m_machine.GetChipsetType();
     oldSystemData.m_pointingHIDType = m_machine.GetPointingHIDType();
     oldSystemData.m_fEnabledIoApic = m_machine.GetBIOSSettings().GetIOAPICEnabled();
     oldSystemData.m_fEnabledEFI = m_machine.GetFirmwareType() >= KFirmwareType_EFI && m_machine.GetFirmwareType() <= KFirmwareType_EFIDUAL;
     oldSystemData.m_fEnabledUTC = m_machine.GetRTCUseUTC();
-    /* Gather boot-items of current VM: */
-    QList<KDeviceType> usedBootItems;
-    for (int i = 1; i <= m_possibleBootItems.size(); ++i)
-    {
-        KDeviceType type = m_machine.GetBootOrder(i);
-        if (type != KDeviceType_Null)
-        {
-            usedBootItems << type;
-            UIBootItemData data;
-            data.m_type = type;
-            data.m_fEnabled = true;
-            oldSystemData.m_bootItems << data;
-        }
-    }
-    /* Gather other unique boot-items: */
-    for (int i = 0; i < m_possibleBootItems.size(); ++i)
-    {
-        KDeviceType type = m_possibleBootItems[i];
-        if (!usedBootItems.contains(type))
-        {
-            UIBootItemData data;
-            data.m_type = type;
-            data.m_fEnabled = false;
-            oldSystemData.m_bootItems << data;
-        }
-    }
 
     /* Gather old 'Processor' data: */
     oldSystemData.m_cCPUCount = oldSystemData.m_fSupportedHwVirtEx ? m_machine.GetCPUCount() : 1;
@@ -314,13 +264,15 @@ void UIMachineSettingsSystem::getFromCache()
     /* Get old system data from the cache: */
     const UIDataSettingsMachineSystem &oldSystemData = m_pCache->base();
 
-    /* Repopulate 'pointing HID type' combo.
-     * We are doing that *now* because it has
+    /* We are doing that *now* because these combos have
      * dynamical content which depends on cashed value: */
+    repopulateComboChipsetType();
     repopulateComboPointingHIDType();
+    repopulateComboParavirtProviderType();
 
     /* Load old 'Motherboard' data from the cache: */
-    m_pSliderMemorySize->setValue(oldSystemData.m_iMemorySize);
+    m_pBaseMemoryEditor->setValue(oldSystemData.m_iMemorySize);
+    m_pBootOrderEditor->setValue(oldSystemData.m_bootItems);
     const int iChipsetTypePosition = m_pComboChipsetType->findData(oldSystemData.m_chipsetType);
     m_pComboChipsetType->setCurrentIndex(iChipsetTypePosition == -1 ? 0 : iChipsetTypePosition);
     const int iHIDTypePosition = m_pComboPointingHIDType->findData(oldSystemData.m_pointingHIDType);
@@ -328,17 +280,6 @@ void UIMachineSettingsSystem::getFromCache()
     m_pCheckBoxApic->setChecked(oldSystemData.m_fEnabledIoApic);
     m_pCheckBoxEFI->setChecked(oldSystemData.m_fEnabledEFI);
     m_pCheckBoxUseUTC->setChecked(oldSystemData.m_fEnabledUTC);
-    /* Remove any old data in the boot view: */
-    QAbstractItemView *pItemView = qobject_cast<QAbstractItemView*>(mTwBootOrder);
-    pItemView->model()->removeRows(0, pItemView->model()->rowCount());
-    /* Apply internal variables data to QWidget(s): */
-    for (int i = 0; i < oldSystemData.m_bootItems.size(); ++i)
-    {
-        const UIBootItemData data = oldSystemData.m_bootItems[i];
-        QListWidgetItem *pItem = new UIBootTableItem(data.m_type);
-        pItem->setCheckState(data.m_fEnabled ? Qt::Checked : Qt::Unchecked);
-        mTwBootOrder->addItem(pItem);
-    }
 
     /* Load old 'Processor' data from the cache: */
     m_pSliderCPUCount->setValue(oldSystemData.m_cCPUCount);
@@ -347,8 +288,8 @@ void UIMachineSettingsSystem::getFromCache()
     m_pCheckBoxNestedVirtualization->setChecked(oldSystemData.m_fEnabledNestedHwVirtEx);
 
     /* Load old 'Acceleration' data from the cache: */
-    const int iParavirtProviderPosition = m_pComboParavirtProvider->findData(oldSystemData.m_paravirtProvider);
-    m_pComboParavirtProvider->setCurrentIndex(iParavirtProviderPosition == -1 ? 0 : iParavirtProviderPosition);
+    const int iParavirtProviderPosition = m_pComboParavirtProviderType->findData(oldSystemData.m_paravirtProvider);
+    m_pComboParavirtProviderType->setCurrentIndex(iParavirtProviderPosition == -1 ? 0 : iParavirtProviderPosition);
     m_pCheckBoxVirtualization->setChecked(oldSystemData.m_fEnabledHwVirtEx);
     m_pCheckBoxNestedPaging->setChecked(oldSystemData.m_fEnabledNestedPaging);
 
@@ -371,23 +312,15 @@ void UIMachineSettingsSystem::putToCache()
     newSystemData.m_fSupportedNestedPaging = isNestedPagingSupported();
 
     /* Gather 'Motherboard' data: */
-    newSystemData.m_iMemorySize = m_pSliderMemorySize->value();
-    newSystemData.m_chipsetType = (KChipsetType)m_pComboChipsetType->itemData(m_pComboChipsetType->currentIndex()).toInt();
-    newSystemData.m_pointingHIDType = (KPointingHIDType)m_pComboPointingHIDType->itemData(m_pComboPointingHIDType->currentIndex()).toInt();
-    newSystemData.m_fEnabledIoApic = m_pCheckBoxApic->isChecked() || m_pSliderCPUCount->value() > 1 ||
-                                  (KChipsetType)m_pComboChipsetType->itemData(m_pComboChipsetType->currentIndex()).toInt() == KChipsetType_ICH9;
+    newSystemData.m_iMemorySize = m_pBaseMemoryEditor->value();
+    newSystemData.m_bootItems = m_pBootOrderEditor->value();
+    newSystemData.m_chipsetType = m_pComboChipsetType->currentData().value<KChipsetType>();
+    newSystemData.m_pointingHIDType = m_pComboPointingHIDType->currentData().value<KPointingHIDType>();
+    newSystemData.m_fEnabledIoApic =    m_pCheckBoxApic->isChecked()
+                                     || m_pSliderCPUCount->value() > 1
+                                     || m_pComboChipsetType->currentData().value<KChipsetType>() == KChipsetType_ICH9;
     newSystemData.m_fEnabledEFI = m_pCheckBoxEFI->isChecked();
     newSystemData.m_fEnabledUTC = m_pCheckBoxUseUTC->isChecked();
-    /* Gather boot-table data: */
-    newSystemData.m_bootItems.clear();
-    for (int i = 0; i < mTwBootOrder->count(); ++i)
-    {
-        QListWidgetItem *pItem = mTwBootOrder->item(i);
-        UIBootItemData bootData;
-        bootData.m_type = static_cast<UIBootTableItem*>(pItem)->type();
-        bootData.m_fEnabled = pItem->checkState() == Qt::Checked;
-        newSystemData.m_bootItems << bootData;
-    }
 
     /* Gather 'Processor' data: */
     newSystemData.m_cCPUCount = m_pSliderCPUCount->value();
@@ -396,7 +329,7 @@ void UIMachineSettingsSystem::putToCache()
     newSystemData.m_fEnabledNestedHwVirtEx = isNestedHWVirtExEnabled();
 
     /* Gather 'Acceleration' data: */
-    newSystemData.m_paravirtProvider = (KParavirtProvider)m_pComboParavirtProvider->itemData(m_pComboParavirtProvider->currentIndex()).toInt();
+    newSystemData.m_paravirtProvider = m_pComboParavirtProviderType->currentData().value<KParavirtProvider>();
     /* Enable HW Virt Ex automatically if it's supported and
      * 1. multiple CPUs, 2. Nested Paging or 3. Nested HW Virt Ex is requested. */
     newSystemData.m_fEnabledHwVirtEx =    isHWVirtExEnabled()
@@ -435,30 +368,30 @@ bool UIMachineSettingsSystem::validate(QList<UIValidationMessage> &messages)
     {
         /* Prepare message: */
         UIValidationMessage message;
-        message.first = VBoxGlobal::removeAccelMark(m_pTabWidgetSystem->tabText(0));
+        message.first = UICommon::removeAccelMark(m_pTabWidgetSystem->tabText(0));
 
         /* RAM amount test: */
-        const ulong uFullSize = vboxGlobal().host().GetMemorySize();
-        if (m_pSliderMemorySize->value() > (int)m_pSliderMemorySize->maxRAMAlw())
+        const ulong uFullSize = uiCommon().host().GetMemorySize();
+        if (m_pBaseMemoryEditor->value() > (int)m_pBaseMemoryEditor->maxRAMAlw())
         {
             message.second << tr(
                 "More than <b>%1%</b> of the host computer's memory (<b>%2</b>) is assigned to the virtual machine. "
                 "Not enough memory is left for the host operating system. Please select a smaller amount.")
-                .arg((unsigned)qRound((double)m_pSliderMemorySize->maxRAMAlw() / uFullSize * 100.0))
-                .arg(vboxGlobal().formatSize((uint64_t)uFullSize * _1M));
+                .arg((unsigned)qRound((double)m_pBaseMemoryEditor->maxRAMAlw() / uFullSize * 100.0))
+                .arg(uiCommon().formatSize((uint64_t)uFullSize * _1M));
             fPass = false;
         }
-        else if (m_pSliderMemorySize->value() > (int)m_pSliderMemorySize->maxRAMOpt())
+        else if (m_pBaseMemoryEditor->value() > (int)m_pBaseMemoryEditor->maxRAMOpt())
         {
             message.second << tr(
                 "More than <b>%1%</b> of the host computer's memory (<b>%2</b>) is assigned to the virtual machine. "
                 "There might not be enough memory left for the host operating system. Please consider selecting a smaller amount.")
-                .arg((unsigned)qRound((double)m_pSliderMemorySize->maxRAMOpt() / uFullSize * 100.0))
-                .arg(vboxGlobal().formatSize((uint64_t)uFullSize * _1M));
+                .arg((unsigned)qRound((double)m_pBaseMemoryEditor->maxRAMOpt() / uFullSize * 100.0))
+                .arg(uiCommon().formatSize((uint64_t)uFullSize * _1M));
         }
 
         /* Chipset type vs IO-APIC test: */
-        if ((KChipsetType)m_pComboChipsetType->itemData(m_pComboChipsetType->currentIndex()).toInt() == KChipsetType_ICH9 && !m_pCheckBoxApic->isChecked())
+        if (m_pComboChipsetType->currentData().value<KChipsetType>() == KChipsetType_ICH9 && !m_pCheckBoxApic->isChecked())
         {
             message.second << tr(
                 "The I/O APIC feature is not currently enabled in the Motherboard section of the System page. "
@@ -484,10 +417,10 @@ bool UIMachineSettingsSystem::validate(QList<UIValidationMessage> &messages)
     {
         /* Prepare message: */
         UIValidationMessage message;
-        message.first = VBoxGlobal::removeAccelMark(m_pTabWidgetSystem->tabText(1));
+        message.first = UICommon::removeAccelMark(m_pTabWidgetSystem->tabText(1));
 
         /* VCPU amount test: */
-        const int cTotalCPUs = vboxGlobal().host().GetProcessorOnlineCoreCount();
+        const int cTotalCPUs = uiCommon().host().GetProcessorOnlineCoreCount();
         if (m_pSliderCPUCount->value() > 2 * cTotalCPUs)
         {
             message.second << tr(
@@ -577,7 +510,7 @@ bool UIMachineSettingsSystem::validate(QList<UIValidationMessage> &messages)
     {
         /* Prepare message: */
         UIValidationMessage message;
-        message.first = VBoxGlobal::removeAccelMark(m_pTabWidgetSystem->tabText(2));
+        message.first = UICommon::removeAccelMark(m_pTabWidgetSystem->tabText(2));
 
         /* HW Virt Ex test: */
         if (!isHWVirtExSupported() && isHWVirtExEnabled())
@@ -616,12 +549,9 @@ void UIMachineSettingsSystem::setOrderAfter(QWidget *pWidget)
 {
     /* Configure navigation for 'motherboard' tab: */
     setTabOrder(pWidget, m_pTabWidgetSystem->focusProxy());
-    setTabOrder(m_pTabWidgetSystem->focusProxy(), m_pSliderMemorySize);
-    setTabOrder(m_pSliderMemorySize, m_pEditorMemorySize);
-    setTabOrder(m_pEditorMemorySize, mTwBootOrder);
-    setTabOrder(mTwBootOrder, mTbBootItemUp);
-    setTabOrder(mTbBootItemUp, mTbBootItemDown);
-    setTabOrder(mTbBootItemDown, m_pComboChipsetType);
+    setTabOrder(m_pTabWidgetSystem->focusProxy(), m_pBaseMemoryEditor);
+    setTabOrder(m_pBaseMemoryEditor, m_pBootOrderEditor);
+    setTabOrder(m_pBootOrderEditor, m_pComboChipsetType);
     setTabOrder(m_pComboChipsetType, m_pComboPointingHIDType);
     setTabOrder(m_pComboPointingHIDType, m_pCheckBoxApic);
     setTabOrder(m_pCheckBoxApic, m_pCheckBoxEFI);
@@ -632,10 +562,10 @@ void UIMachineSettingsSystem::setOrderAfter(QWidget *pWidget)
     setTabOrder(m_pSliderCPUCount, m_pEditorCPUCount);
     setTabOrder(m_pEditorCPUCount, m_pSliderCPUExecCap);
     setTabOrder(m_pSliderCPUExecCap, m_pEditorCPUExecCap);
-    setTabOrder(m_pEditorCPUExecCap, m_pComboParavirtProvider);
+    setTabOrder(m_pEditorCPUExecCap, m_pComboParavirtProviderType);
 
     /* Configure navigation for 'acceleration' tab: */
-    setTabOrder(m_pComboParavirtProvider, m_pCheckBoxPAE);
+    setTabOrder(m_pComboParavirtProviderType, m_pCheckBoxPAE);
     setTabOrder(m_pCheckBoxPAE, m_pCheckBoxNestedVirtualization);
     setTabOrder(m_pCheckBoxNestedVirtualization, m_pCheckBoxVirtualization);
     setTabOrder(m_pCheckBoxVirtualization, m_pCheckBoxNestedPaging);
@@ -645,14 +575,6 @@ void UIMachineSettingsSystem::retranslateUi()
 {
     /* Translate uic generated strings: */
     Ui::UIMachineSettingsSystem::retranslateUi(this);
-
-    /* Readjust the tree widget items size: */
-    adjustBootOrderTWSize();
-
-    /* Retranslate the memory slider legend: */
-    m_pEditorMemorySize->setSuffix(QString(" %1").arg(tr("MB")));
-    m_pLabelMemoryMin->setText(tr("%1 MB").arg(m_pSliderMemorySize->minRAM()));
-    m_pLabelMemoryMax->setText(tr("%1 MB").arg(m_pSliderMemorySize->maxRAM()));
 
     /* Retranslate the cpu slider legend: */
     m_pLabelCPUMin->setText(tr("%1 CPU", "%1 is 1 for now").arg(m_uMinGuestCPU));
@@ -674,15 +596,10 @@ void UIMachineSettingsSystem::polishPage()
     const UIDataSettingsMachineSystem &systemData = m_pCache->base();
 
     /* Polish 'Motherboard' availability: */
-    m_pLabelMemorySize->setEnabled(isMachineOffline());
-    m_pLabelMemoryMin->setEnabled(isMachineOffline());
-    m_pLabelMemoryMax->setEnabled(isMachineOffline());
-    m_pSliderMemorySize->setEnabled(isMachineOffline());
-    m_pEditorMemorySize->setEnabled(isMachineOffline());
-    m_pLabelBootOrder->setEnabled(isMachineOffline());
-    mTwBootOrder->setEnabled(isMachineOffline());
-    mTbBootItemUp->setEnabled(isMachineOffline() && mTwBootOrder->hasFocus() && mTwBootOrder->currentRow() > 0);
-    mTbBootItemDown->setEnabled(isMachineOffline() && mTwBootOrder->hasFocus() && (mTwBootOrder->currentRow() < mTwBootOrder->count() - 1));
+    m_pBaseMemoryLabel->setEnabled(isMachineOffline());
+    m_pBaseMemoryEditor->setEnabled(isMachineOffline());
+    m_pBootOrderLabel->setEnabled(isMachineOffline());
+    m_pBootOrderEditor->setEnabled(isMachineOffline());
     m_pLabelChipsetType->setEnabled(isMachineOffline());
     m_pComboChipsetType->setEnabled(isMachineOffline());
     m_pLabelPointingHIDType->setEnabled(isMachineOffline());
@@ -715,83 +632,8 @@ void UIMachineSettingsSystem::polishPage()
                                         && (   (systemData.m_fSupportedNestedPaging && isMachineOffline())
                                             || (systemData.m_fEnabledNestedPaging && isMachineOffline())));
     m_pLabelParavirtProvider->setEnabled(isMachineOffline());
-    m_pComboParavirtProvider->setEnabled(isMachineOffline());
+    m_pComboParavirtProviderType->setEnabled(isMachineOffline());
     m_pLabelVirtualization->setEnabled(isMachineOffline());
-}
-
-bool UIMachineSettingsSystem::eventFilter(QObject *pObject, QEvent *pEvent)
-{
-    if (!pObject->isWidgetType())
-        return QWidget::eventFilter(pObject, pEvent);
-
-    QWidget *pWidget = static_cast<QWidget*>(pObject);
-    if (pWidget->window() != window())
-        return QWidget::eventFilter(pObject, pEvent);
-
-    switch (pEvent->type())
-    {
-        case QEvent::FocusIn:
-        {
-            /* Boot Table: */
-            if (pWidget == mTwBootOrder)
-            {
-                if (!mTwBootOrder->currentItem())
-                    mTwBootOrder->setCurrentItem(mTwBootOrder->item(0));
-                else
-                    sltHandleCurrentBootItemChange(mTwBootOrder->currentRow());
-                mTwBootOrder->currentItem()->setSelected(true);
-            }
-            else if (pWidget != mTbBootItemUp && pWidget != mTbBootItemDown)
-            {
-                if (mTwBootOrder->currentItem())
-                {
-                    mTwBootOrder->currentItem()->setSelected(false);
-                    mTbBootItemUp->setEnabled(false);
-                    mTbBootItemDown->setEnabled(false);
-                }
-            }
-            break;
-        }
-        default:
-            break;
-    }
-
-    /* Call to base-class: */
-    return QWidget::eventFilter(pObject, pEvent);
-}
-
-void UIMachineSettingsSystem::sltHandleMemorySizeSliderChange()
-{
-    /* Apply new memory-size value: */
-    m_pEditorMemorySize->blockSignals(true);
-    m_pEditorMemorySize->setValue(m_pSliderMemorySize->value());
-    m_pEditorMemorySize->blockSignals(false);
-
-    /* Revalidate: */
-    revalidate();
-}
-
-void UIMachineSettingsSystem::sltHandleMemorySizeEditorChange()
-{
-    /* Apply new memory-size value: */
-    m_pSliderMemorySize->blockSignals(true);
-    m_pSliderMemorySize->setValue(m_pEditorMemorySize->value());
-    m_pSliderMemorySize->blockSignals(false);
-
-    /* Revalidate: */
-    revalidate();
-}
-
-void UIMachineSettingsSystem::sltHandleCurrentBootItemChange(int iCurrentItem)
-{
-    /* Update boot-order tool-buttons: */
-    const bool fEnabledUP = iCurrentItem > 0;
-    const bool fEnabledDOWN = iCurrentItem < mTwBootOrder->count() - 1;
-    if ((mTbBootItemUp->hasFocus() && !fEnabledUP) ||
-        (mTbBootItemDown->hasFocus() && !fEnabledDOWN))
-        mTwBootOrder->setFocus();
-    mTbBootItemUp->setEnabled(fEnabledUP);
-    mTbBootItemDown->setEnabled(fEnabledDOWN);
 }
 
 void UIMachineSettingsSystem::sltHandleCPUCountSliderChange()
@@ -879,86 +721,27 @@ void UIMachineSettingsSystem::prepareTabMotherboard()
 {
     /* Tab and it's layout created in the .ui file. */
     {
-        /* Memory Size editor created in the .ui file. */
-        AssertPtrReturnVoid(m_pEditorMemorySize);
+        /* Base-memory label and editor created in the .ui file. */
+        AssertPtrReturnVoid(m_pBaseMemoryLabel);
+        AssertPtrReturnVoid(m_pBaseMemoryEditor);
         {
-            /* Configure editor: */
-            m_pEditorMemorySize->setMinimum(m_pSliderMemorySize->minRAM());
-            m_pEditorMemorySize->setMaximum(m_pSliderMemorySize->maxRAM());
-            vboxGlobal().setMinimumWidthAccordingSymbolCount(m_pEditorMemorySize, 5);
+            /* Configure label & editor: */
+            m_pBaseMemoryLabel->setBuddy(m_pBaseMemoryEditor->focusProxy());
         }
 
-        /* Boot-order layout created in the .ui file. */
-        AssertPtrReturnVoid(m_pLayoutBootOrder);
+        /* Boot-order label and editor created in the .ui file. */
+        AssertPtrReturnVoid(m_pBootOrderLabel);
+        AssertPtrReturnVoid(m_pBootOrderEditor);
         {
-            /* Configure layout: */
-#ifdef VBOX_WS_MAC
-            /* We need a little space for the focus rect: */
-            m_pLayoutBootOrder->setContentsMargins(3, 3, 3, 3);
-            m_pLayoutBootOrder->setSpacing(3);
-#else
-            m_pLayoutBootOrder->setSpacing(qApp->style()->pixelMetric(QStyle::PM_LayoutHorizontalSpacing) / 3);
-#endif
-
-            /* Boot-order tree-widget created in the .ui file. */
-            AssertPtrReturnVoid(mTwBootOrder);
-            {
-                /* Install global event filter to handle
-                 * boot-table focus in/out events: */
-                /// @todo Get rid of that *crap*!
-                qApp->installEventFilter(this);
-
-                /* Populate possible boot items list.
-                 * Currently, it seems, we are supporting only 4 possible boot device types:
-                 * 1. Floppy, 2. DVD-ROM, 3. Hard Disk, 4. Network.
-                 * But maximum boot devices count supported by machine
-                 * should be retrieved through the ISystemProperties getter.
-                 * Moreover, possible boot device types are not listed in some separate Main vector,
-                 * so we should get them (randomely?) from the list of all device types.
-                 * Until there will be separate Main getter for list of supported boot device types,
-                 * this list will be hard-coded here... */
-                const CSystemProperties properties = vboxGlobal().virtualBox().GetSystemProperties();
-                const int iPossibleBootListSize = qMin((ULONG)4, properties.GetMaxBootPosition());
-                for (int iBootPosition = 1; iBootPosition <= iPossibleBootListSize; ++iBootPosition)
-                {
-                    switch (iBootPosition)
-                    {
-                        case 1: m_possibleBootItems << KDeviceType_Floppy; break;
-                        case 2: m_possibleBootItems << KDeviceType_DVD; break;
-                        case 3: m_possibleBootItems << KDeviceType_HardDisk; break;
-                        case 4: m_possibleBootItems << KDeviceType_Network; break;
-                        default: break;
-                    }
-                }
-                /* Add all available devices types, so we could initially calculate the right size: */
-                for (int i = 0; i < m_possibleBootItems.size(); ++i)
-                {
-                    QListWidgetItem *pItem = new UIBootTableItem(m_possibleBootItems[i]);
-                    mTwBootOrder->addItem(pItem);
-                }
-            }
-
-            /* Boot-order Button-up created in the .ui file. */
-            AssertPtrReturnVoid(mTbBootItemUp);
-            {
-                /* Configure button: */
-                mTbBootItemUp->setIcon(UIIconPool::iconSet(":/list_moveup_16px.png", ":/list_moveup_disabled_16px.png"));
-            }
-
-            /* Boot-order Button-down created in the .ui file. */
-            AssertPtrReturnVoid(mTbBootItemUp);
-            {
-                /* Configure button: */
-                mTbBootItemDown->setIcon(UIIconPool::iconSet(":/list_movedown_16px.png", ":/list_movedown_disabled_16px.png"));
-            }
+            /* Configure label & editor: */
+            m_pBootOrderLabel->setBuddy(m_pBootOrderEditor->focusProxy());
         }
 
         /* Chipset Type combo-box created in the .ui file. */
         AssertPtrReturnVoid(m_pComboChipsetType);
         {
             /* Configure combo-box: */
-            m_pComboChipsetType->addItem(gpConverter->toString(KChipsetType_PIIX3), QVariant(KChipsetType_PIIX3));
-            m_pComboChipsetType->addItem(gpConverter->toString(KChipsetType_ICH9), QVariant(KChipsetType_ICH9));
+            m_pComboChipsetType->setSizeAdjustPolicy(QComboBox::AdjustToContents);
         }
 
         /* Pointing HID Type combo-box created in the .ui file. */
@@ -973,8 +756,8 @@ void UIMachineSettingsSystem::prepareTabMotherboard()
 void UIMachineSettingsSystem::prepareTabProcessor()
 {
     /* Prepare common variables: */
-    const CSystemProperties properties = vboxGlobal().virtualBox().GetSystemProperties();
-    const uint uHostCPUs = vboxGlobal().host().GetProcessorOnlineCoreCount();
+    const CSystemProperties properties = uiCommon().virtualBox().GetSystemProperties();
+    const uint uHostCPUs = uiCommon().host().GetProcessorOnlineCoreCount();
     m_uMinGuestCPU = properties.GetMinGuestCPUCount();
     m_uMaxGuestCPU = qMin(2 * uHostCPUs, (uint)properties.GetMaxGuestCPUCount());
     m_uMinGuestCPUExecCap = 1;
@@ -1002,7 +785,7 @@ void UIMachineSettingsSystem::prepareTabProcessor()
             /* Configure editor: */
             m_pEditorCPUCount->setMinimum(m_uMinGuestCPU);
             m_pEditorCPUCount->setMaximum(m_uMaxGuestCPU);
-            vboxGlobal().setMinimumWidthAccordingSymbolCount(m_pEditorCPUCount, 4);
+            uiCommon().setMinimumWidthAccordingSymbolCount(m_pEditorCPUCount, 4);
         }
 
         /* CPU-execution-cap slider created in the .ui file. */
@@ -1025,7 +808,7 @@ void UIMachineSettingsSystem::prepareTabProcessor()
             /* Configure editor: */
             m_pEditorCPUExecCap->setMinimum(m_uMinGuestCPUExecCap);
             m_pEditorCPUExecCap->setMaximum(m_uMaxGuestCPUExecCap);
-            vboxGlobal().setMinimumWidthAccordingSymbolCount(m_pEditorCPUExecCap, 4);
+            uiCommon().setMinimumWidthAccordingSymbolCount(m_pEditorCPUExecCap, 4);
         }
     }
 }
@@ -1034,18 +817,6 @@ void UIMachineSettingsSystem::prepareTabAcceleration()
 {
     /* Tab and it's layout created in the .ui file. */
     {
-        /* Paravirtualization Provider combo-box created in the .ui file. */
-        AssertPtrReturnVoid(m_pComboParavirtProvider);
-        {
-            /* Configure combo-box: */
-            m_pComboParavirtProvider->addItem(gpConverter->toString(KParavirtProvider_None), QVariant(KParavirtProvider_None));
-            m_pComboParavirtProvider->addItem(gpConverter->toString(KParavirtProvider_Default), QVariant(KParavirtProvider_Default));
-            m_pComboParavirtProvider->addItem(gpConverter->toString(KParavirtProvider_Legacy), QVariant(KParavirtProvider_Legacy));
-            m_pComboParavirtProvider->addItem(gpConverter->toString(KParavirtProvider_Minimal), QVariant(KParavirtProvider_Minimal));
-            m_pComboParavirtProvider->addItem(gpConverter->toString(KParavirtProvider_HyperV), QVariant(KParavirtProvider_HyperV));
-            m_pComboParavirtProvider->addItem(gpConverter->toString(KParavirtProvider_KVM), QVariant(KParavirtProvider_KVM));
-        }
-
         /* Other widgets created in the .ui file. */
         AssertPtrReturnVoid(m_pWidgetPlaceholder);
         AssertPtrReturnVoid(m_pCheckBoxVirtualization);
@@ -1063,22 +834,21 @@ void UIMachineSettingsSystem::prepareTabAcceleration()
 void UIMachineSettingsSystem::prepareConnections()
 {
     /* Configure 'Motherboard' connections: */
-    connect(m_pComboChipsetType, SIGNAL(currentIndexChanged(int)), this, SLOT(revalidate()));
-    connect(m_pComboPointingHIDType, SIGNAL(currentIndexChanged(int)), this, SLOT(revalidate()));
-    connect(m_pSliderMemorySize, SIGNAL(valueChanged(int)), this, SLOT(sltHandleMemorySizeSliderChange()));
-    connect(m_pEditorMemorySize, SIGNAL(valueChanged(int)), this, SLOT(sltHandleMemorySizeEditorChange()));
-    connect(mTbBootItemUp, SIGNAL(clicked()), mTwBootOrder, SLOT(sltMoveItemUp()));
-    connect(mTbBootItemDown, SIGNAL(clicked()), mTwBootOrder, SLOT(sltMoveItemDown()));
-    connect(mTwBootOrder, SIGNAL(sigRowChanged(int)), this, SLOT(sltHandleCurrentBootItemChange(int)));
-    connect(m_pCheckBoxApic, SIGNAL(stateChanged(int)), this, SLOT(revalidate()));
+    connect(m_pComboChipsetType, static_cast<void(QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
+            this, &UIMachineSettingsSystem::revalidate);
+    connect(m_pComboPointingHIDType, static_cast<void(QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
+            this, &UIMachineSettingsSystem::revalidate);
+    connect(m_pBaseMemoryEditor, &UIBaseMemoryEditor::sigValidChanged, this, &UIMachineSettingsSystem::revalidate);
+    connect(m_pCheckBoxApic, &QCheckBox::stateChanged, this, &UIMachineSettingsSystem::revalidate);
 
     /* Configure 'Processor' connections: */
-    connect(m_pSliderCPUCount, SIGNAL(valueChanged(int)), this, SLOT(sltHandleCPUCountSliderChange()));
-    connect(m_pEditorCPUCount, SIGNAL(valueChanged(int)), this, SLOT(sltHandleCPUCountEditorChange()));
-    connect(m_pSliderCPUExecCap, SIGNAL(valueChanged(int)), this, SLOT(sltHandleCPUExecCapSliderChange()));
-    connect(m_pEditorCPUExecCap, SIGNAL(valueChanged(int)), this, SLOT(sltHandleCPUExecCapEditorChange()));
-    connect(m_pCheckBoxNestedVirtualization, &QCheckBox::stateChanged,
-            this, &UIMachineSettingsSystem::revalidate);
+    connect(m_pSliderCPUCount, &QIAdvancedSlider::valueChanged, this, &UIMachineSettingsSystem::sltHandleCPUCountSliderChange);
+    connect(m_pEditorCPUCount, static_cast<void(QSpinBox::*)(int)>(&QSpinBox::valueChanged),
+            this, &UIMachineSettingsSystem::sltHandleCPUCountEditorChange);
+    connect(m_pSliderCPUExecCap, &QIAdvancedSlider::valueChanged, this, &UIMachineSettingsSystem::sltHandleCPUExecCapSliderChange);
+    connect(m_pEditorCPUExecCap, static_cast<void(QSpinBox::*)(int)>(&QSpinBox::valueChanged),
+            this, &UIMachineSettingsSystem::sltHandleCPUExecCapEditorChange);
+    connect(m_pCheckBoxNestedVirtualization, &QCheckBox::stateChanged, this, &UIMachineSettingsSystem::revalidate);
 
     /* Configure 'Acceleration' connections: */
     connect(m_pCheckBoxVirtualization, &QCheckBox::stateChanged,
@@ -1094,103 +864,102 @@ void UIMachineSettingsSystem::cleanup()
     m_pCache = 0;
 }
 
+void UIMachineSettingsSystem::repopulateComboChipsetType()
+{
+    /* Chipset Type combo-box created in the .ui file. */
+    AssertPtrReturnVoid(m_pComboChipsetType);
+    {
+        /* Clear combo first of all: */
+        m_pComboChipsetType->clear();
+
+        /* Load currently supported chipset types: */
+        CSystemProperties comProperties = uiCommon().virtualBox().GetSystemProperties();
+        QVector<KChipsetType> chipsetTypes = comProperties.GetSupportedChipsetTypes();
+        /* Take into account currently cached value: */
+        const KChipsetType enmCachedValue = m_pCache->base().m_chipsetType;
+        if (!chipsetTypes.contains(enmCachedValue))
+            chipsetTypes.prepend(enmCachedValue);
+
+        /* Populate combo finally: */
+        foreach (const KChipsetType &enmType, chipsetTypes)
+            m_pComboChipsetType->addItem(gpConverter->toString(enmType), QVariant::fromValue(enmType));
+    }
+}
+
 void UIMachineSettingsSystem::repopulateComboPointingHIDType()
 {
-    /* Is there any value currently present/selected? */
-    KPointingHIDType enmCurrentValue = KPointingHIDType_None;
+    /* Pointing HID Type combo-box created in the .ui file. */
+    AssertPtrReturnVoid(m_pComboPointingHIDType);
     {
-        const int iCurrentIndex = m_pComboPointingHIDType->currentIndex();
-        if (iCurrentIndex != -1)
-            enmCurrentValue = (KPointingHIDType)m_pComboPointingHIDType->itemData(iCurrentIndex).toInt();
+        /* Clear combo first of all: */
+        m_pComboPointingHIDType->clear();
+
+        /* Load currently supported pointing HID types: */
+        CSystemProperties comProperties = uiCommon().virtualBox().GetSystemProperties();
+        QVector<KPointingHIDType> pointingHidTypes = comProperties.GetSupportedPointingHIDTypes();
+        /* Take into account currently cached value: */
+        const KPointingHIDType enmCachedValue = m_pCache->base().m_pointingHIDType;
+        if (!pointingHidTypes.contains(enmCachedValue))
+            pointingHidTypes.prepend(enmCachedValue);
+
+        /* Populate combo finally: */
+        foreach (const KPointingHIDType &enmType, pointingHidTypes)
+            m_pComboPointingHIDType->addItem(gpConverter->toString(enmType), QVariant::fromValue(enmType));
     }
+}
 
-    /* Clear combo: */
-    m_pComboPointingHIDType->clear();
-
-    /* Repopulate combo taking into account currently cached value: */
-    const KPointingHIDType enmCachedValue = m_pCache->base().m_pointingHIDType;
+void UIMachineSettingsSystem::repopulateComboParavirtProviderType()
+{
+    /* Paravirtualization Provider Type combo-box created in the .ui file. */
+    AssertPtrReturnVoid(m_pComboParavirtProviderType);
     {
-        /* "PS/2 Mouse" value is always here: */
-        m_pComboPointingHIDType->addItem(gpConverter->toString(KPointingHIDType_PS2Mouse), (int)KPointingHIDType_PS2Mouse);
+        /* Clear combo first of all: */
+        m_pComboParavirtProviderType->clear();
 
-        /* "USB Mouse" value is here only if it is currently selected: */
-        if (enmCachedValue == KPointingHIDType_USBMouse)
-            m_pComboPointingHIDType->addItem(gpConverter->toString(KPointingHIDType_USBMouse), (int)KPointingHIDType_USBMouse);
+        /* Load currently supported paravirtualization provider types: */
+        CSystemProperties comProperties = uiCommon().virtualBox().GetSystemProperties();
+        QVector<KParavirtProvider> supportedProviderTypes = comProperties.GetSupportedParavirtProviders();
+        /* Take into account currently cached value: */
+        const KParavirtProvider enmCachedValue = m_pCache->base().m_paravirtProvider;
+        if (!supportedProviderTypes.contains(enmCachedValue))
+            supportedProviderTypes.prepend(enmCachedValue);
 
-        /* "USB Mouse/Tablet" value is always here: */
-        m_pComboPointingHIDType->addItem(gpConverter->toString(KPointingHIDType_USBTablet), (int)KPointingHIDType_USBTablet);
-
-        /* "PS/2 and USB Mouse" value is here only if it is currently selected: */
-        if (enmCachedValue == KPointingHIDType_ComboMouse)
-            m_pComboPointingHIDType->addItem(gpConverter->toString(KPointingHIDType_ComboMouse), (int)KPointingHIDType_ComboMouse);
-
-        /* "USB Multi-Touch Mouse/Tablet" value is always here: */
-        m_pComboPointingHIDType->addItem(gpConverter->toString(KPointingHIDType_USBMultiTouch), (int)KPointingHIDType_USBMultiTouch);
-    }
-
-    /* Was there any value previously present/selected? */
-    if (enmCurrentValue != KPointingHIDType_None)
-    {
-        int iPreviousIndex = m_pComboPointingHIDType->findData((int)enmCurrentValue);
-        if (iPreviousIndex != -1)
-            m_pComboPointingHIDType->setCurrentIndex(iPreviousIndex);
+        /* Populate combo finally: */
+        foreach (const KParavirtProvider &enmProvider, supportedProviderTypes)
+            m_pComboParavirtProviderType->addItem(gpConverter->toString(enmProvider), QVariant::fromValue(enmProvider));
     }
 }
 
 void UIMachineSettingsSystem::retranslateComboChipsetType()
 {
-    /* For each the element in KChipsetType enum: */
-    for (int iIndex = (int)KChipsetType_Null; iIndex < (int)KChipsetType_Max; ++iIndex)
+    /* For each the element in m_pComboChipsetType: */
+    for (int iIndex = 0; iIndex < m_pComboChipsetType->count(); ++iIndex)
     {
-        /* Cast to the corresponding type: */
-        const KChipsetType enmType = (KChipsetType)iIndex;
-        /* Look for the corresponding item: */
-        const int iCorrespondingIndex = m_pComboChipsetType->findData((int)enmType);
-        /* Re-translate if corresponding item was found: */
-        if (iCorrespondingIndex != -1)
-            m_pComboChipsetType->setItemText(iCorrespondingIndex, gpConverter->toString(enmType));
+        /* Apply retranslated text: */
+        const KChipsetType enmType = m_pComboChipsetType->currentData().value<KChipsetType>();
+        m_pComboChipsetType->setItemText(iIndex, gpConverter->toString(enmType));
     }
 }
 
 void UIMachineSettingsSystem::retranslateComboPointingHIDType()
 {
-    /* For each the element in KPointingHIDType enum: */
-    for (int iIndex = (int)KPointingHIDType_None; iIndex < (int)KPointingHIDType_Max; ++iIndex)
+    /* For each the element in m_pComboPointingHIDType: */
+    for (int iIndex = 0; iIndex < m_pComboPointingHIDType->count(); ++iIndex)
     {
-        /* Cast to the corresponding type: */
-        const KPointingHIDType enmType = (KPointingHIDType)iIndex;
-        /* Look for the corresponding item: */
-        const int iCorrespondingIndex = m_pComboPointingHIDType->findData((int)enmType);
-        /* Re-translate if corresponding item was found: */
-        if (iCorrespondingIndex != -1)
-            m_pComboPointingHIDType->setItemText(iCorrespondingIndex, gpConverter->toString(enmType));
+        /* Apply retranslated text: */
+        const KPointingHIDType enmType = m_pComboPointingHIDType->currentData().value<KPointingHIDType>();
+        m_pComboPointingHIDType->setItemText(iIndex, gpConverter->toString(enmType));
     }
 }
 
 void UIMachineSettingsSystem::retranslateComboParavirtProvider()
 {
-    /* For each the element in KParavirtProvider enum: */
-    for (int iIndex = (int)KParavirtProvider_None; iIndex < (int)KParavirtProvider_Max; ++iIndex)
+    /* For each the element in m_pComboParavirtProviderType: */
+    for (int iIndex = 0; iIndex < m_pComboParavirtProviderType->count(); ++iIndex)
     {
-        /* Cast to the corresponding type: */
-        const KParavirtProvider enmType = (KParavirtProvider)iIndex;
-        /* Look for the corresponding item: */
-        const int iCorrespondingIndex = m_pComboParavirtProvider->findData((int)enmType);
-        /* Re-translate if corresponding item was found: */
-        if (iCorrespondingIndex != -1)
-            m_pComboParavirtProvider->setItemText(iCorrespondingIndex, gpConverter->toString(enmType));
-    }
-}
-
-void UIMachineSettingsSystem::adjustBootOrderTWSize()
-{
-    /* Adjust boot-table size: */
-    mTwBootOrder->adjustSizeToFitContent();
-    /* Update the layout system */
-    if (m_pTabMotherboard->layout())
-    {
-        m_pTabMotherboard->layout()->activate();
-        m_pTabMotherboard->layout()->update();
+        /* Apply retranslated text: */
+        const KParavirtProvider enmType = m_pComboParavirtProviderType->currentData().value<KParavirtProvider>();
+        m_pComboParavirtProviderType->setItemText(iIndex, gpConverter->toString(enmType));
     }
 }
 
@@ -1233,6 +1002,12 @@ bool UIMachineSettingsSystem::saveMotherboardData()
             m_machine.SetMemorySize(newSystemData.m_iMemorySize);
             fSuccess = m_machine.isOk();
         }
+        /* Save boot items: */
+        if (fSuccess && isMachineOffline() && newSystemData.m_bootItems != oldSystemData.m_bootItems)
+        {
+            saveBootItems(newSystemData.m_bootItems, m_machine);
+            fSuccess = m_machine.isOk();
+        }
         /* Save chipset type: */
         if (fSuccess && isMachineOffline() && newSystemData.m_chipsetType != oldSystemData.m_chipsetType)
         {
@@ -1262,27 +1037,6 @@ bool UIMachineSettingsSystem::saveMotherboardData()
         {
             m_machine.SetRTCUseUTC(newSystemData.m_fEnabledUTC);
             fSuccess = m_machine.isOk();
-        }
-        /* Save boot items: */
-        if (fSuccess && isMachineOffline() && newSystemData.m_bootItems != oldSystemData.m_bootItems)
-        {
-            int iBootIndex = 0;
-            for (int i = 0; fSuccess && i < newSystemData.m_bootItems.size(); ++i)
-            {
-                if (newSystemData.m_bootItems.at(i).m_fEnabled)
-                {
-                    m_machine.SetBootOrder(++iBootIndex, newSystemData.m_bootItems.at(i).m_type);
-                    fSuccess = m_machine.isOk();
-                }
-            }
-            for (int i = 0; fSuccess && i < newSystemData.m_bootItems.size(); ++i)
-            {
-                if (!newSystemData.m_bootItems.at(i).m_fEnabled)
-                {
-                    m_machine.SetBootOrder(++iBootIndex, KDeviceType_Null);
-                    fSuccess = m_machine.isOk();
-                }
-            }
         }
 
         /* Show error message if necessary: */

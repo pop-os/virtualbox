@@ -26,6 +26,7 @@
 # include <QLabel>
 # include <QLineEdit>
 # include <QListView>
+# include <QMainWindow>
 # include <QMenuBar>
 # include <QPainter>
 # include <QPushButton>
@@ -39,7 +40,7 @@
 #endif /* VBOX_GUI_WITH_EXTRADATA_MANAGER_UI */
 
 /* GUI includes: */
-#include "VBoxGlobal.h"
+#include "UICommon.h"
 #include "UIActionPool.h"
 #include "UIConverter.h"
 #include "UIDesktopWidgetWatchdog.h"
@@ -52,9 +53,9 @@
 # include "QIDialog.h"
 # include "QIDialogButtonBox.h"
 # include "QIFileDialog.h"
-# include "QIMainWindow.h"
 # include "QISplitter.h"
 # include "QIWidgetValidator.h"
+# include "QIWithRestorableGeometry.h"
 # include "VBoxUtils.h"
 # include "UIIconPool.h"
 # include "UIToolBar.h"
@@ -162,7 +163,7 @@ void UIExtraDataEventHandler::prepareListener()
     m_comEventListener = CEventListener(m_pQtListener);
 
     /* Get VirtualBox: */
-    const CVirtualBox comVBox = vboxGlobal().virtualBox();
+    const CVirtualBox comVBox = uiCommon().virtualBox();
     AssertWrapperOk(comVBox);
     /* Get VirtualBox event source: */
     CEventSource comEventSourceVBox = comVBox.GetEventSource();
@@ -213,11 +214,11 @@ void UIExtraDataEventHandler::cleanupListener()
     }
 
     /* Make sure VBoxSVC is available: */
-    if (!vboxGlobal().isVBoxSVCAvailable())
+    if (!uiCommon().isVBoxSVCAvailable())
         return;
 
     /* Get VirtualBox: */
-    const CVirtualBox comVBox = vboxGlobal().virtualBox();
+    const CVirtualBox comVBox = uiCommon().virtualBox();
     AssertWrapperOk(comVBox);
     /* Get VirtualBox event source: */
     CEventSource comEventSourceVBox = comVBox.GetEventSource();
@@ -415,7 +416,7 @@ void UIChooserPaneDelegate::fetchPixmapInfo(const QModelIndex &index, QPixmap &p
 {
     /* If proper machine ID passed => return corresponding pixmap/size: */
     if (index.data(Field_ID).toUuid() != UIExtraDataManager::GlobalID)
-        pixmap = vboxGlobal().vmGuestOSTypePixmapDefault(index.data(Field_OsTypeID).toString(), &pixmapSize);
+        pixmap = uiCommon().vmGuestOSTypePixmapDefault(index.data(Field_OsTypeID).toString(), &pixmapSize);
     else
     {
         /* For global ID we return static pixmap/size: */
@@ -457,9 +458,9 @@ protected:
 };
 
 
-/** QIMainWindow extension
+/** QMainWindow extension
   * providing Extra Data Manager with UI features. */
-class UIExtraDataManagerWindow : public QIMainWindow
+class UIExtraDataManagerWindow : public QIWithRestorableGeometry<QMainWindow>
 {
     Q_OBJECT;
 
@@ -468,7 +469,7 @@ public:
     /** @name Constructor/Destructor
       * @{ */
         /** Extra-data Manager Window constructor. */
-        UIExtraDataManagerWindow();
+        UIExtraDataManagerWindow(QWidget *pCenterWidget);
         /** Extra-data Manager Window destructor. */
         ~UIExtraDataManagerWindow();
     /** @} */
@@ -574,12 +575,6 @@ private:
         void cleanup();
     /** @} */
 
-    /** @name Event Processing
-      * @{ */
-        /** Common event-handler. */
-        bool event(QEvent *pEvent);
-    /** @} */
-
     /** @name Actions
       * @{ */
         /** */
@@ -649,6 +644,12 @@ private:
     /** @} */
 
 
+    /** @name Arguments
+      * @{ */
+        /** Holds the center widget reference. */
+        QWidget *m_pCenterWidget;
+    /** @} */
+
     /** @name General
       * @{ */
         QVBoxLayout *m_pMainLayout;
@@ -710,8 +711,9 @@ private:
 *   Class UIExtraDataManagerWindow implementation.                                                                               *
 *********************************************************************************************************************************/
 
-UIExtraDataManagerWindow::UIExtraDataManagerWindow()
-    : m_pMainLayout(0), m_pToolBar(0), m_pSplitter(0)
+UIExtraDataManagerWindow::UIExtraDataManagerWindow(QWidget *pCenterWidget)
+    : m_pCenterWidget(pCenterWidget)
+    , m_pMainLayout(0), m_pToolBar(0), m_pSplitter(0)
     , m_pPaneOfChooser(0), m_pFilterOfChooser(0), m_pViewOfChooser(0)
     , m_pModelSourceOfChooser(0), m_pModelProxyOfChooser(0)
     , m_pPaneOfData(0), m_pFilterOfData(0), m_pViewOfData(0),
@@ -739,7 +741,7 @@ void UIExtraDataManagerWindow::showAndRaise(QWidget*)
     /* Raise: */
     activateWindow();
 //    /* Center according passed widget: */
-//    VBoxGlobal::centerWidget(this, pCenterWidget, false);
+//    UICommon::centerWidget(this, pCenterWidget, false);
 }
 
 void UIExtraDataManagerWindow::sltMachineRegistered(const QUuid &uID, bool fRegistered)
@@ -753,7 +755,7 @@ void UIExtraDataManagerWindow::sltMachineRegistered(const QUuid &uID, bool fRegi
             knownIDs.append(chooserID(iRow));
 
         /* Get machine items: */
-        const CMachineVector machines = vboxGlobal().virtualBox().GetMachines();
+        const CMachineVector machines = uiCommon().virtualBox().GetMachines();
         /* Look for the proper place to insert new machine item: */
         QUuid uPositionID = UIExtraDataManager::GlobalID;
         foreach (const CMachine &machine, machines)
@@ -1172,7 +1174,7 @@ void UIExtraDataManagerWindow::sltSave()
     AssertReturnVoid(pSenderAction && m_pActionSave);
 
     /* Compose initial file-name: */
-    const QString strInitialFileName = QDir(vboxGlobal().homeFolder()).absoluteFilePath(QString("%1_ExtraData.xml").arg(currentChooserName()));
+    const QString strInitialFileName = QDir(uiCommon().homeFolder()).absoluteFilePath(QString("%1_ExtraData.xml").arg(currentChooserName()));
     /* Open file-save dialog to choose file to save extra-data into: */
     const QString strFileName = QIFileDialog::getSaveFileName(strInitialFileName, "XML files (*.xml)", this,
                                                               "Choose file to save extra-data into..", 0, true, true);
@@ -1259,7 +1261,7 @@ void UIExtraDataManagerWindow::sltLoad()
     AssertReturnVoid(pSenderAction && m_pActionLoad);
 
     /* Compose initial file-name: */
-    const QString strInitialFileName = QDir(vboxGlobal().homeFolder()).absoluteFilePath(QString("%1_ExtraData.xml").arg(currentChooserName()));
+    const QString strInitialFileName = QDir(uiCommon().homeFolder()).absoluteFilePath(QString("%1_ExtraData.xml").arg(currentChooserName()));
     /* Open file-open dialog to choose file to open extra-data into: */
     const QString strFileName = QIFileDialog::getOpenFileName(strInitialFileName, "XML files (*.xml)", this,
                                                               "Choose file to load extra-data from..");
@@ -1584,7 +1586,7 @@ void UIExtraDataManagerWindow::preparePaneChooser()
                     /* Add global chooser item into source-model: */
                     addChooserItemByID(UIExtraDataManager::GlobalID);
                     /* Add machine chooser items into source-model: */
-                    CMachineVector machines = vboxGlobal().virtualBox().GetMachines();
+                    CMachineVector machines = uiCommon().virtualBox().GetMachines();
                     foreach (const CMachine &machine, machines)
                         addChooserItemByMachine(machine);
                     /* And sort proxy-model: */
@@ -1687,13 +1689,10 @@ void UIExtraDataManagerWindow::loadSettings()
 {
     /* Load window geometry: */
     {
-        /* Load geometry: */
-        m_geometry = gEDataManager->extraDataManagerGeometry(this);
-
-        /* Restore geometry: */
+        const QRect geo = gEDataManager->extraDataManagerGeometry(this, m_pCenterWidget);
         LogRel2(("GUI: UIExtraDataManagerWindow: Restoring geometry to: Origin=%dx%d, Size=%dx%d\n",
-                 m_geometry.x(), m_geometry.y(), m_geometry.width(), m_geometry.height()));
-        restoreGeometry();
+                 geo.x(), geo.y(), geo.width(), geo.height()));
+        restoreGeometry(geo);
     }
 
     /* Load splitter hints: */
@@ -1711,14 +1710,10 @@ void UIExtraDataManagerWindow::saveSettings()
 
     /* Save window geometry: */
     {
-        /* Save geometry: */
-#ifdef VBOX_WS_MAC
-        gEDataManager->setExtraDataManagerGeometry(m_geometry, ::darwinIsWindowMaximized(this));
-#else /* VBOX_WS_MAC */
-        gEDataManager->setExtraDataManagerGeometry(m_geometry, isMaximized());
-#endif /* !VBOX_WS_MAC */
-        LogRel2(("GUI: UIExtraDataManagerWindow: Geometry saved as: Origin=%dx%d, Size=%dx%d\n",
-                 m_geometry.x(), m_geometry.y(), m_geometry.width(), m_geometry.height()));
+        const QRect geo = currentGeometry();
+        LogRel2(("GUI: UIExtraDataManagerWindow: Saving geometry as: Origin=%dx%d, Size=%dx%d\n",
+                 geo.x(), geo.y(), geo.width(), geo.height()));
+        gEDataManager->setExtraDataManagerGeometry(geo, isCurrentlyMaximized());
     }
 }
 
@@ -1726,45 +1721,6 @@ void UIExtraDataManagerWindow::cleanup()
 {
     /* Save settings: */
     saveSettings();
-}
-
-bool UIExtraDataManagerWindow::event(QEvent *pEvent)
-{
-    /* Pre-process through base-class: */
-    bool fResult = QIMainWindow::event(pEvent);
-
-    /* Process required events: */
-    switch (pEvent->type())
-    {
-        /* Handle every Resize and Move we keep track of the geometry. */
-        case QEvent::Resize:
-        {
-            if (isVisible() && (windowState() & (Qt::WindowMaximized | Qt::WindowMinimized | Qt::WindowFullScreen)) == 0)
-            {
-                QResizeEvent *pResizeEvent = static_cast<QResizeEvent*>(pEvent);
-                m_geometry.setSize(pResizeEvent->size());
-            }
-            break;
-        }
-        case QEvent::Move:
-        {
-            if (isVisible() && (windowState() & (Qt::WindowMaximized | Qt::WindowMinimized | Qt::WindowFullScreen)) == 0)
-            {
-#ifdef VBOX_WS_MAC
-                QMoveEvent *pMoveEvent = static_cast<QMoveEvent*>(pEvent);
-                m_geometry.moveTo(pMoveEvent->pos());
-#else /* !VBOX_WS_MAC */
-                m_geometry.moveTo(geometry().x(), geometry().y());
-#endif /* !VBOX_WS_MAC */
-            }
-            break;
-        }
-        default:
-            break;
-    }
-
-    /* Return result: */
-    return fResult;
 }
 
 void UIExtraDataManagerWindow::updateActionsAvailability()
@@ -1861,7 +1817,7 @@ void UIExtraDataManagerWindow::addChooserItemByID(const QUuid &uID,
         return addChooserItem(uID, QString("Global"), QString(), iPosition);
 
     /* Search for the corresponding machine by ID: */
-    CVirtualBox vbox = vboxGlobal().virtualBox();
+    CVirtualBox vbox = uiCommon().virtualBox();
     const CMachine machine = vbox.FindMachine(uID.toString());
     /* Make sure VM is accessible: */
     if (vbox.isOk() && !machine.isNull() && machine.GetAccessible())
@@ -1947,6 +1903,7 @@ QStringList UIExtraDataManagerWindow::knownExtraDataKeys()
     return QStringList()
            << QString()
            << GUI_EventHandlingType
+           << GUI_RestrictedDialogs
            << GUI_SuppressMessages << GUI_InvertMessageOption
 #ifdef VBOX_GUI_WITH_NETWORK_MANAGER
            << GUI_PreventApplicationUpdate << GUI_UpdateDate << GUI_UpdateCheckCount
@@ -1956,8 +1913,10 @@ QStringList UIExtraDataManagerWindow::knownExtraDataKeys()
            << GUI_LanguageID
            << GUI_ActivateHoveredMachineWindow
            << GUI_Input_SelectorShortcuts << GUI_Input_MachineShortcuts
-           << GUI_RecentFolderHD << GUI_RecentFolderCD << GUI_RecentFolderFD << GUI_RecentFolderVISOContent
+           << GUI_RecentFolderHD << GUI_RecentFolderCD << GUI_RecentFolderFD
+           << GUI_VISOCreator_RecentFolder
            << GUI_RecentListHD << GUI_RecentListCD << GUI_RecentListFD
+           << GUI_RestrictedNetworkAttachmentTypes
            << GUI_LastSelectorWindowPosition << GUI_SplitterSizes
            << GUI_Toolbar << GUI_Toolbar_Text
            << GUI_Toolbar_MachineTools_Order << GUI_Toolbar_GlobalTools_Order
@@ -2020,8 +1979,7 @@ QStringList UIExtraDataManagerWindow::knownExtraDataKeys()
            << GUI_GuruMeditationHandler
            << GUI_HidLedsSync
            << GUI_ScaleFactor << GUI_Scaling_Optimization
-           << GUI_InformationWindowGeometry
-           << GUI_InformationWindowElements
+           << GUI_SessionInformationDialogGeometry
            << GUI_GuestControl_ProcessControlSplitterHints
            << GUI_GuestControl_FileManagerDialogGeometry
            << GUI_GuestControl_FileManagerOptions
@@ -2088,7 +2046,7 @@ void UIExtraDataManager::hotloadMachineExtraDataMap(const QUuid &uID)
     AssertReturnVoid(!m_data.contains(uID));
 
     /* Search for corresponding machine: */
-    CVirtualBox vbox = vboxGlobal().virtualBox();
+    CVirtualBox vbox = uiCommon().virtualBox();
     CMachine machine = vbox.FindMachine(uID.toString());
     AssertReturnVoid(vbox.isOk() && !machine.isNull());
 
@@ -2132,7 +2090,7 @@ QString UIExtraDataManager::extraDataString(const QString &strKey, const QUuid &
 void UIExtraDataManager::setExtraDataString(const QString &strKey, const QString &strValue, const QUuid &uID /* = GlobalID */)
 {
     /* Make sure VBoxSVC is available: */
-    if (!vboxGlobal().isVBoxSVCAvailable())
+    if (!uiCommon().isVBoxSVCAvailable())
         return;
 
     /* Hot-load machine extra-data map if necessary: */
@@ -2149,7 +2107,7 @@ void UIExtraDataManager::setExtraDataString(const QString &strKey, const QString
     if (uID == GlobalID)
     {
         /* Get global object: */
-        CVirtualBox comVBox = vboxGlobal().virtualBox();
+        CVirtualBox comVBox = uiCommon().virtualBox();
         /* Update global extra-data: */
         comVBox.SetExtraData(strKey, strValue);
         if (!comVBox.isOk())
@@ -2169,7 +2127,7 @@ void UIExtraDataManager::setExtraDataString(const QString &strKey, const QString
     else
     {
         /* Search for corresponding machine: */
-        CVirtualBox comVBox = vboxGlobal().virtualBox();
+        CVirtualBox comVBox = uiCommon().virtualBox();
         const CMachine comMachine = comVBox.FindMachine(uID.toString());
         AssertReturnVoid(comVBox.isOk() && !comMachine.isNull());
         /* Check the configuration access-level: */
@@ -2179,9 +2137,9 @@ void UIExtraDataManager::setExtraDataString(const QString &strKey, const QString
         /* Prepare machine session: */
         CSession comSession;
         if (enmLevel == ConfigurationAccessLevel_Full)
-            comSession = vboxGlobal().openSession(uID);
+            comSession = uiCommon().openSession(uID);
         else
-            comSession = vboxGlobal().openExistingSession(uID);
+            comSession = uiCommon().openExistingSession(uID);
         AssertReturnVoid(!comSession.isNull());
         /* Get machine from that session: */
         CMachine comSessionMachine = comSession.GetMachine();
@@ -2229,7 +2187,7 @@ QStringList UIExtraDataManager::extraDataStringList(const QString &strKey, const
 void UIExtraDataManager::setExtraDataStringList(const QString &strKey, const QStringList &value, const QUuid &uID /* = GlobalID */)
 {
     /* Make sure VBoxSVC is available: */
-    if (!vboxGlobal().isVBoxSVCAvailable())
+    if (!uiCommon().isVBoxSVCAvailable())
         return;
 
     /* Hot-load machine extra-data map if necessary: */
@@ -2246,7 +2204,7 @@ void UIExtraDataManager::setExtraDataStringList(const QString &strKey, const QSt
     if (uID == GlobalID)
     {
         /* Get global object: */
-        CVirtualBox comVBox = vboxGlobal().virtualBox();
+        CVirtualBox comVBox = uiCommon().virtualBox();
         /* Update global extra-data: */
         comVBox.SetExtraDataStringList(strKey, value);
         if (!comVBox.isOk())
@@ -2266,7 +2224,7 @@ void UIExtraDataManager::setExtraDataStringList(const QString &strKey, const QSt
     else
     {
         /* Search for corresponding machine: */
-        CVirtualBox comVBox = vboxGlobal().virtualBox();
+        CVirtualBox comVBox = uiCommon().virtualBox();
         const CMachine comMachine = comVBox.FindMachine(uID.toString());
         AssertReturnVoid(comVBox.isOk() && !comMachine.isNull());
         /* Check the configuration access-level: */
@@ -2276,9 +2234,9 @@ void UIExtraDataManager::setExtraDataStringList(const QString &strKey, const QSt
         /* Prepare machine session: */
         CSession comSession;
         if (enmLevel == ConfigurationAccessLevel_Full)
-            comSession = vboxGlobal().openSession(uID);
+            comSession = uiCommon().openSession(uID);
         else
-            comSession = vboxGlobal().openExistingSession(uID);
+            comSession = uiCommon().openExistingSession(uID);
         AssertReturnVoid(!comSession.isNull());
         /* Get machine from that session: */
         CMachine comSessionMachine = comSession.GetMachine();
@@ -2316,6 +2274,53 @@ UIExtraDataManager::~UIExtraDataManager()
 EventHandlingType UIExtraDataManager::eventHandlingType()
 {
     return gpConverter->fromInternalString<EventHandlingType>(extraDataString(GUI_EventHandlingType));
+}
+
+UIExtraDataMetaDefs::DialogType UIExtraDataManager::restrictedDialogTypes(const QUuid &uID)
+{
+    /* Prepare result: */
+    UIExtraDataMetaDefs::DialogType result = UIExtraDataMetaDefs::DialogType_Invalid;
+    /* Get restricted runtime-menu-types: */
+    foreach (const QString &strValue, extraDataStringList(GUI_RestrictedDialogs, uID))
+    {
+        UIExtraDataMetaDefs::DialogType value = gpConverter->fromInternalString<UIExtraDataMetaDefs::DialogType>(strValue);
+        if (value != UIExtraDataMetaDefs::DialogType_Invalid)
+            result = static_cast<UIExtraDataMetaDefs::DialogType>(result | value);
+    }
+    /* Return result: */
+    return result;
+}
+
+void UIExtraDataManager::setRestrictedDialogTypes(UIExtraDataMetaDefs::DialogType dialogs, const QUuid &uID)
+{
+    /* We have MenuType enum registered, so we can enumerate it: */
+    const QMetaObject &smo = UIExtraDataMetaDefs::staticMetaObject;
+    const int iEnumIndex = smo.indexOfEnumerator("DialogType");
+    QMetaEnum metaEnum = smo.enumerator(iEnumIndex);
+
+    /* Prepare result: */
+    QStringList result;
+    /* Handle DialogType_All enum-value: */
+    if (dialogs == UIExtraDataMetaDefs::DialogType_All)
+        result << gpConverter->toInternalString(dialogs);
+    else
+    {
+        /* Handle other enum-values: */
+        for (int iKeyIndex = 0; iKeyIndex < metaEnum.keyCount(); ++iKeyIndex)
+        {
+            /* Get iterated enum-value: */
+            const UIExtraDataMetaDefs::DialogType enumValue =
+                static_cast<UIExtraDataMetaDefs::DialogType>(metaEnum.keyToValue(metaEnum.key(iKeyIndex)));
+            /* Skip DialogType_Invalid & DialogType_All enum-values: */
+            if (enumValue == UIExtraDataMetaDefs::DialogType_Invalid ||
+                enumValue == UIExtraDataMetaDefs::DialogType_All)
+                continue;
+            if (dialogs & enumValue)
+                result << gpConverter->toInternalString(enumValue);
+        }
+    }
+    /* Save result: */
+    setExtraDataStringList(GUI_RestrictedDialogs, result, uID);
 }
 
 QStringList UIExtraDataManager::suppressedMessages(const QUuid &uID /* = GlobalID */)
@@ -2617,11 +2622,6 @@ QString UIExtraDataManager::recentFolderForFloppyDisks()
     return extraDataString(GUI_RecentFolderFD);
 }
 
-QString UIExtraDataManager::recentFolderForVISOContent()
-{
-    return extraDataString(GUI_RecentFolderVISOContent);
-}
-
 void UIExtraDataManager::setRecentFolderForHardDrives(const QString &strValue)
 {
     setExtraDataString(GUI_RecentFolderHD, strValue);
@@ -2635,11 +2635,6 @@ void UIExtraDataManager::setRecentFolderForOpticalDisks(const QString &strValue)
 void UIExtraDataManager::setRecentFolderForFloppyDisks(const QString &strValue)
 {
     setExtraDataString(GUI_RecentFolderFD, strValue);
-}
-
-void UIExtraDataManager::setRecentFolderForVISOContent(const QString &strValue)
-{
-    setExtraDataString(GUI_RecentFolderVISOContent, strValue);
 }
 
 QStringList UIExtraDataManager::recentListOfHardDrives()
@@ -2672,51 +2667,36 @@ void UIExtraDataManager::setRecentListOfFloppyDisks(const QStringList &value)
     setExtraDataStringList(GUI_RecentListFD, value);
 }
 
+UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork UIExtraDataManager::restrictedNetworkAttachmentTypes()
+{
+    /* Prepare result: */
+    UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork enmResult =
+        UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_Invalid;
+    /* Get restricted network attachment types: */
+    foreach (const QString &strValue, extraDataStringList(GUI_RestrictedNetworkAttachmentTypes))
+    {
+        const UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork enmValue =
+            gpConverter->fromInternalString<UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork>(strValue);
+        if (enmValue != UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_Invalid && !(enmResult & enmValue))
+            enmResult = static_cast<UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork>(enmResult | enmValue);
+    }
+    /* Return result: */
+    return enmResult;
+}
+
+QString UIExtraDataManager::visoCreatorRecentFolder()
+{
+    return extraDataString(GUI_VISOCreator_RecentFolder);
+}
+
+void UIExtraDataManager::setVISOCreatorRecentFolder(const QString &strValue)
+{
+    setExtraDataString(GUI_VISOCreator_RecentFolder, strValue);
+}
+
 QRect UIExtraDataManager::selectorWindowGeometry(QWidget *pWidget)
 {
-    /* Get corresponding extra-data: */
-    const QStringList data = extraDataStringList(GUI_LastSelectorWindowPosition);
-
-    /* Parse loaded data: */
-    int iX = 0, iY = 0, iW = 0, iH = 0;
-    bool fOk = data.size() >= 4;
-    do
-    {
-        if (!fOk) break;
-        iX = data[0].toInt(&fOk);
-        if (!fOk) break;
-        iY = data[1].toInt(&fOk);
-        if (!fOk) break;
-        iW = data[2].toInt(&fOk);
-        if (!fOk) break;
-        iH = data[3].toInt(&fOk);
-    }
-    while (0);
-
-    /* Get available-geometry [of screen with point (iX, iY) if possible]: */
-    const QRect availableGeometry = fOk ? gpDesktop->availableGeometry(QPoint(iX, iY)) :
-                                          gpDesktop->availableGeometry();
-
-    /* Use geometry (loaded or default): */
-    QRect geometry = fOk ? QRect(iX, iY, iW, iH) : QRect(QPoint(0, 0), availableGeometry.size() * .50 /* % */);
-
-    /* Take hint-widget into account: */
-    if (pWidget)
-        geometry.setSize(geometry.size().expandedTo(pWidget->minimumSizeHint()));
-
-    /* In Windows Qt fails to reposition out of screen window properly, so doing it ourselves: */
-#ifdef VBOX_WS_WIN
-    /* Make sure resulting geometry is within current bounds: */
-    if (fOk && !availableGeometry.contains(geometry))
-        geometry = VBoxGlobal::getNormalized(geometry, QRegion(availableGeometry));
-#endif /* VBOX_WS_WIN */
-
-    /* As final fallback, move default-geometry to available-geometry' center: */
-    if (!fOk)
-        geometry.moveCenter(availableGeometry.center());
-
-    /* Return result: */
-    return geometry;
+    return dialogGeometry(GUI_LastSelectorWindowPosition, pWidget);
 }
 
 bool UIExtraDataManager::selectorWindowShouldBeMaximized()
@@ -2974,6 +2954,18 @@ void UIExtraDataManager::setVirtualMediaManagerDetailsExpanded(bool fExpanded)
     return setExtraDataString(GUI_VirtualMediaManager_Details_Expanded, toFeatureAllowed(fExpanded));
 }
 
+bool UIExtraDataManager::virtualMediaManagerSearchWidgetExpanded()
+{
+    /* 'False' unless feature allowed: */
+    return isFeatureAllowed(GUI_VirtualMediaManager_Search_Widget_Expanded);
+}
+
+void UIExtraDataManager::setVirtualMediaManagerSearchWidgetExpanded(bool fExpanded)
+{
+    /* 'True' if feature allowed, null-string otherwise: */
+    return setExtraDataString(GUI_VirtualMediaManager_Search_Widget_Expanded, toFeatureAllowed(fExpanded));
+}
+
 bool UIExtraDataManager::hostNetworkManagerDetailsExpanded()
 {
     /* 'False' unless feature allowed: */
@@ -3026,13 +3018,13 @@ void UIExtraDataManager::setModeForWizardType(WizardType type, WizardMode mode)
         setExtraDataStringList(GUI_HideDescriptionForWizards, newValue);
 }
 
-bool UIExtraDataManager::showMachineInSelectorChooser(const QUuid &uID)
+bool UIExtraDataManager::showMachineInVirtualBoxManagerChooser(const QUuid &uID)
 {
     /* 'True' unless 'restriction' feature allowed: */
     return !isFeatureAllowed(GUI_HideFromManager, uID);
 }
 
-bool UIExtraDataManager::showMachineInSelectorDetails(const QUuid &uID)
+bool UIExtraDataManager::showMachineInVirtualBoxManagerDetails(const QUuid &uID)
 {
     /* 'True' unless 'restriction' feature allowed: */
     return !isFeatureAllowed(GUI_HideDetails, uID);
@@ -4110,66 +4102,21 @@ ScalingOptimizationType UIExtraDataManager::scalingOptimizationType(const QUuid 
     return gpConverter->fromInternalString<ScalingOptimizationType>(extraDataString(GUI_Scaling_Optimization, uID));
 }
 
-QRect UIExtraDataManager::informationWindowGeometry(QWidget *pWidget, QWidget *pParentWidget, const QUuid &uID)
+QRect UIExtraDataManager::sessionInformationDialogGeometry(QWidget *pWidget, QWidget *pParentWidget)
 {
-    /* Get corresponding extra-data: */
-    const QStringList data = extraDataStringList(GUI_InformationWindowGeometry, uID);
-
-    /* Parse loaded data: */
-    int iX = 0, iY = 0, iW = 0, iH = 0;
-    bool fOk = data.size() >= 4;
-    do
-    {
-        if (!fOk) break;
-        iX = data[0].toInt(&fOk);
-        if (!fOk) break;
-        iY = data[1].toInt(&fOk);
-        if (!fOk) break;
-        iW = data[2].toInt(&fOk);
-        if (!fOk) break;
-        iH = data[3].toInt(&fOk);
-    }
-    while (0);
-
-    /* Get available-geometry [of screen with point (iX, iY) if possible]: */
-    const QRect availableGeometry = fOk ? gpDesktop->availableGeometry(QPoint(iX, iY)) :
-                                          gpDesktop->availableGeometry();
-
-    /* Use geometry (loaded or default): */
-    QRect geometry = fOk ? QRect(iX, iY, iW, iH) : QRect(QPoint(0, 0), availableGeometry.size() * .33 /* % */);
-
-    /* Take hint-widget into account: */
-    if (pWidget)
-        geometry.setSize(geometry.size().expandedTo(pWidget->minimumSizeHint()));
-
-    /* In Windows Qt fails to reposition out of screen window properly, so doing it ourselves: */
-#ifdef VBOX_WS_WIN
-    /* Make sure resulting geometry is within current bounds: */
-    if (fOk && !availableGeometry.contains(geometry))
-        geometry = VBoxGlobal::getNormalized(geometry, QRegion(availableGeometry));
-#endif /* VBOX_WS_WIN */
-
-    /* As a fallback, move default-geometry to pParentWidget' geometry center: */
-    if (!fOk && pParentWidget)
-        geometry.moveCenter(pParentWidget->geometry().center());
-    /* As final fallback, move default-geometry to available-geometry' center: */
-    else if (!fOk)
-        geometry.moveCenter(availableGeometry.center());
-
-    /* Return result: */
-    return geometry;
+    return dialogGeometry(GUI_SessionInformationDialogGeometry, pWidget, pParentWidget);
 }
 
-bool UIExtraDataManager::informationWindowShouldBeMaximized(const QUuid &uID)
+bool UIExtraDataManager::sessionInformationDialogShouldBeMaximized()
 {
     /* Get corresponding extra-data: */
-    const QStringList data = extraDataStringList(GUI_InformationWindowGeometry, uID);
+    const QStringList data = extraDataStringList(GUI_SessionInformationDialogGeometry);
 
     /* Make sure 5th item has required value: */
     return data.size() == 5 && data[4] == GUI_Geometry_State_Max;
 }
 
-void UIExtraDataManager::setInformationWindowGeometry(const QRect &geometry, bool fMaximized, const QUuid &uID)
+void UIExtraDataManager::setSessionInformationDialogGeometry(const QRect &geometry, bool fMaximized)
 {
     /* Serialize passed values: */
     QStringList data;
@@ -4181,7 +4128,7 @@ void UIExtraDataManager::setInformationWindowGeometry(const QRect &geometry, boo
         data << GUI_Geometry_State_Max;
 
     /* Re-cache corresponding extra-data: */
-    setExtraDataStringList(GUI_InformationWindowGeometry, data, uID);
+    setExtraDataStringList(GUI_SessionInformationDialogGeometry, data);
 }
 
 
@@ -4209,9 +4156,9 @@ QList<int> UIExtraDataManager::guestControlProcessControlSplitterHints()
     return hints;
 }
 
-QRect UIExtraDataManager::fileManagerDialogGeometry(QWidget *pWidget, const QRect &defaultGeometry)
+QRect UIExtraDataManager::fileManagerDialogGeometry(QWidget *pWidget, QWidget *pParentWidget)
 {
-    return dialogGeometry(GUI_GuestControl_FileManagerDialogGeometry, pWidget, defaultGeometry);
+    return dialogGeometry(GUI_GuestControl_FileManagerDialogGeometry, pWidget, pParentWidget);
 }
 
 bool UIExtraDataManager::fileManagerDialogShouldBeMaximized()
@@ -4238,6 +4185,85 @@ QStringList UIExtraDataManager::fileManagerVisiblePanels()
     return extraDataStringList(GUI_GuestControl_FileManagerVisiblePanels);
 }
 
+QRect UIExtraDataManager::softKeyboardDialogGeometry(QWidget *pWidget, QWidget *pParentWidget, const QRect &defaultGeometry)
+{
+    return dialogGeometry(GUI_SoftKeyboard_DialogGeometry, pWidget, pParentWidget, defaultGeometry);
+}
+
+void UIExtraDataManager::setSoftKeyboardDialogGeometry(const QRect &geometry, bool fMaximized)
+{
+    setDialogGeometry(GUI_SoftKeyboard_DialogGeometry, geometry, fMaximized);
+}
+
+bool UIExtraDataManager::softKeyboardDialogShouldBeMaximized()
+{
+    /* Get corresponding extra-data: */
+    const QStringList data = extraDataStringList(GUI_SoftKeyboard_DialogGeometry);
+
+    /* Make sure 5th item has required value: */
+    return data.size() == 5 && data[4] == GUI_Geometry_State_Max;
+}
+
+void UIExtraDataManager::setSoftKeyboardOptions(bool fHideNumPad, bool fHideOSMenuKeys, bool fMultimediaKeys)
+{
+    QStringList data;
+
+    if (fHideNumPad)
+        data << GUI_SoftKeyboard_HideNumPad;
+    if (fHideOSMenuKeys)
+        data << GUI_SoftKeyboard_HideOSMenuKeys;
+    if (fMultimediaKeys)
+        data << GUI_SoftKeyboard_HideMultimediaKeys;
+
+    setExtraDataStringList(GUI_SoftKeyboard_Options, data);
+}
+
+void UIExtraDataManager::softKeyboardOptions(bool &fOutHideNumPad, bool &fOutHideOSMenuKeys, bool &fOutHideMultimediaKeys)
+{
+    fOutHideNumPad = false;
+    fOutHideOSMenuKeys = false;
+    const QStringList data = extraDataStringList(GUI_SoftKeyboard_Options);
+    for (int i = 0; i < data.size(); ++i)
+    {
+        if (data[i] == GUI_SoftKeyboard_HideNumPad)
+            fOutHideNumPad = true;
+        if (data[i] == GUI_SoftKeyboard_HideOSMenuKeys)
+            fOutHideOSMenuKeys = true;
+        if (data[i] == GUI_SoftKeyboard_HideMultimediaKeys)
+            fOutHideMultimediaKeys = true;
+    }
+}
+
+void UIExtraDataManager::setSoftKeyboardColorTheme(const QStringList &colorStringList)
+{
+    setExtraDataStringList(GUI_SoftKeyboard_ColorTheme, colorStringList);
+}
+
+QStringList UIExtraDataManager::softKeyboardColorTheme()
+{
+    return extraDataStringList(GUI_SoftKeyboard_ColorTheme);
+}
+
+void UIExtraDataManager::setSoftKeyboardSelectedColorTheme(const QString &strColorThemeName)
+{
+    setExtraDataString(GUI_SoftKeyboard_SelectedColorTheme, strColorThemeName);
+}
+
+QString UIExtraDataManager::softKeyboardSelectedColorTheme()
+{
+    return extraDataString(GUI_SoftKeyboard_SelectedColorTheme);
+}
+
+void UIExtraDataManager::setSoftKeyboardSelectedLayout(const QUuid &uLayoutUid)
+{
+    setExtraDataString(GUI_SoftKeyboard_SelectedLayout, uLayoutUid.toString());
+}
+
+QUuid UIExtraDataManager::softKeyboardSelectedLayout()
+{
+    return QUuid(extraDataString(GUI_SoftKeyboard_SelectedLayout));
+}
+
 void UIExtraDataManager::setFileManagerOptions(bool fListDirectoriesFirst,
                                                bool fShowDeleteConfirmation,
                                                bool fShowHumanReadableSizes,
@@ -4254,6 +4280,7 @@ void UIExtraDataManager::setFileManagerOptions(bool fListDirectoriesFirst,
         data << GUI_GuestControl_FileManagerShowHumanReadableSizes;
     if (fShowHiddenObjects)
         data << GUI_GuestControl_FileManagerShowHiddenObjects;
+
     /* Re-cache corresponding extra-data: */
     setExtraDataStringList(GUI_GuestControl_FileManagerOptions, data);
 }
@@ -4302,9 +4329,9 @@ bool UIExtraDataManager::fileManagerShowHiddenObjects()
     return false;
 }
 
-QRect UIExtraDataManager::guestProcessControlDialogGeometry(QWidget *pWidget, const QRect &defaultGeometry)
+QRect UIExtraDataManager::guestProcessControlDialogGeometry(QWidget *pWidget, QWidget *pParentWidget, const QRect &defaultGeometry)
 {
-    return dialogGeometry(GUI_GuestControl_ProcessControlDialogGeometry, pWidget, defaultGeometry);
+    return dialogGeometry(GUI_GuestControl_ProcessControlDialogGeometry, pWidget, pParentWidget, defaultGeometry);
 }
 
 bool UIExtraDataManager::guestProcessControlDialogShouldBeMaximized()
@@ -4319,49 +4346,6 @@ bool UIExtraDataManager::guestProcessControlDialogShouldBeMaximized()
 void UIExtraDataManager::setGuestProcessControlDialogGeometry(const QRect &geometry, bool fMaximized)
 {
     setDialogGeometry(GUI_GuestControl_ProcessControlDialogGeometry, geometry, fMaximized);
-}
-
-
-QMap<InformationElementType, bool> UIExtraDataManager::informationWindowElements()
-{
-    /* Get corresponding extra-data: */
-    const QStringList data = extraDataStringList(GUI_InformationWindowElements);
-
-    /* Desearialize passed elements: */
-    QMap<InformationElementType, bool> elements;
-    foreach (QString strItem, data)
-    {
-        bool fOpened = true;
-        if (strItem.endsWith("Closed", Qt::CaseInsensitive))
-        {
-            fOpened = false;
-            strItem.remove("Closed");
-        }
-        InformationElementType type = gpConverter->fromInternalString<InformationElementType>(strItem);
-        if (type != InformationElementType_Invalid)
-            elements[type] = fOpened;
-    }
-
-    /* Return elements: */
-    return elements;
-}
-
-void UIExtraDataManager::setInformationWindowElements(const QMap<InformationElementType, bool> &elements)
-{
-    /* Prepare corresponding extra-data: */
-    QStringList data;
-
-    /* Searialize passed elements: */
-    foreach (InformationElementType type, elements.keys())
-    {
-        QString strValue = gpConverter->toInternalString(type);
-        if (!elements[type])
-            strValue += "Closed";
-        data << strValue;
-    }
-
-    /* Re-cache corresponding extra-data: */
-    setExtraDataStringList(GUI_InformationWindowElements, data);
 }
 
 MachineCloseAction UIExtraDataManager::defaultMachineCloseAction(const QUuid &uID)
@@ -4407,51 +4391,9 @@ QString UIExtraDataManager::debugFlagValue(const QString &strDebugFlagKey)
 #endif /* VBOX_WITH_DEBUGGER_GUI */
 
 #ifdef VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
-QRect UIExtraDataManager::extraDataManagerGeometry(QWidget *pWidget)
+QRect UIExtraDataManager::extraDataManagerGeometry(QWidget *pWidget, QWidget *pParentWidget)
 {
-    /* Get corresponding extra-data: */
-    const QStringList data = extraDataStringList(GUI_ExtraDataManager_Geometry);
-
-    /* Parse loaded data: */
-    int iX = 0, iY = 0, iW = 0, iH = 0;
-    bool fOk = data.size() >= 4;
-    do
-    {
-        if (!fOk) break;
-        iX = data[0].toInt(&fOk);
-        if (!fOk) break;
-        iY = data[1].toInt(&fOk);
-        if (!fOk) break;
-        iW = data[2].toInt(&fOk);
-        if (!fOk) break;
-        iH = data[3].toInt(&fOk);
-    }
-    while (0);
-
-    /* Use geometry (loaded or default): */
-    QRect geometry = fOk ? QRect(iX, iY, iW, iH) : QRect(0, 0, 800, 600);
-
-    /* Take hint-widget into account: */
-    if (pWidget)
-        geometry.setSize(geometry.size().expandedTo(pWidget->minimumSizeHint()));
-
-    /* Get available-geometry [of screen with point (iX, iY) if possible]: */
-    const QRect availableGeometry = fOk ? gpDesktop->availableGeometry(QPoint(iX, iY)) :
-                                          gpDesktop->availableGeometry();
-
-    /* In Windows Qt fails to reposition out of screen window properly, so doing it ourselves: */
-#ifdef VBOX_WS_WIN
-    /* Make sure resulting geometry is within current bounds: */
-    if (fOk && !availableGeometry.contains(geometry))
-        geometry = VBoxGlobal::getNormalized(geometry, QRegion(availableGeometry));
-#endif /* VBOX_WS_WIN */
-
-    /* As final fallback, move default-geometry to available-geometry' center: */
-    if (!fOk)
-        geometry.moveCenter(availableGeometry.center());
-
-    /* Return result: */
-    return geometry;
+    return dialogGeometry(GUI_ExtraDataManager_Geometry, pWidget, pParentWidget);
 }
 
 bool UIExtraDataManager::extraDataManagerShouldBeMaximized()
@@ -4524,47 +4466,9 @@ void UIExtraDataManager::setExtraDataManagerSplitterHints(const QList<int> &hint
 }
 #endif /* VBOX_GUI_WITH_EXTRADATA_MANAGER_UI */
 
-QRect UIExtraDataManager::logWindowGeometry(QWidget *pWidget, const QRect &defaultGeometry)
+QRect UIExtraDataManager::logWindowGeometry(QWidget *pWidget, QWidget *pParentWidget, const QRect &defaultGeometry)
 {
-    /* Get corresponding extra-data: */
-    const QStringList data = extraDataStringList(GUI_LogWindowGeometry);
-
-    /* Parse loaded data: */
-    int iX = 0, iY = 0, iW = 0, iH = 0;
-    bool fOk = data.size() >= 4;
-    do
-    {
-        if (!fOk) break;
-        iX = data[0].toInt(&fOk);
-        if (!fOk) break;
-        iY = data[1].toInt(&fOk);
-        if (!fOk) break;
-        iW = data[2].toInt(&fOk);
-        if (!fOk) break;
-        iH = data[3].toInt(&fOk);
-    }
-    while (0);
-
-    /* Use geometry (loaded or default): */
-    QRect geometry = fOk ? QRect(iX, iY, iW, iH) : defaultGeometry;
-
-    /* Take hint-widget into account: */
-    if (pWidget)
-        geometry.setSize(geometry.size().expandedTo(pWidget->minimumSizeHint()));
-
-    /* In Windows Qt fails to reposition out of screen window properly, so doing it ourselves: */
-#ifdef VBOX_WS_WIN
-    /* Get available-geometry [of screen with point (iX, iY) if possible]: */
-    const QRect availableGeometry = fOk ? gpDesktop->availableGeometry(QPoint(iX, iY)) :
-                                          gpDesktop->availableGeometry();
-
-    /* Make sure resulting geometry is within current bounds: */
-    if (!availableGeometry.contains(geometry))
-        geometry = VBoxGlobal::getNormalized(geometry, QRegion(availableGeometry));
-#endif /* VBOX_WS_WIN */
-
-    /* Return result: */
-    return geometry;
+    return dialogGeometry(GUI_LogWindowGeometry, pWidget, pParentWidget, defaultGeometry);
 }
 
 bool UIExtraDataManager::logWindowShouldBeMaximized()
@@ -4708,8 +4612,8 @@ void UIExtraDataManager::sltExtraDataChange(const QUuid &uMachineID, const QStri
     else
     {
         /* Current VM only: */
-        if (   vboxGlobal().uiType() == VBoxGlobal::UIType_RuntimeUI
-            && uMachineID == vboxGlobal().managedVMUuid())
+        if (   uiCommon().uiType() == UICommon::UIType_RuntimeUI
+            && uMachineID == uiCommon().managedVMUuid())
         {
             /* HID LEDs sync state changed (allowed if not restricted)? */
             if (strKey == GUI_HidLedsSync)
@@ -4772,7 +4676,7 @@ void UIExtraDataManager::prepare()
 void UIExtraDataManager::prepareGlobalExtraDataMap()
 {
     /* Get CVirtualBox: */
-    CVirtualBox vbox = vboxGlobal().virtualBox();
+    CVirtualBox vbox = uiCommon().virtualBox();
 
     /* Make sure at least empty map is created: */
     m_data[GlobalID] = ExtraDataMap();
@@ -4827,7 +4731,7 @@ void UIExtraDataManager::open(QWidget *pCenterWidget)
     if (!m_pWindow)
     {
         /* Create window: */
-        m_pWindow = new UIExtraDataManagerWindow;
+        m_pWindow = new UIExtraDataManagerWindow(pCenterWidget);
         /* Configure window connections: */
         connect(this, &UIExtraDataManager::sigExtraDataMapAcknowledging,
                 m_pWindow.data(), &UIExtraDataManagerWindow::sltExtraDataMapAcknowledging);
@@ -4918,13 +4822,25 @@ QString UIExtraDataManager::toFeatureRestricted(bool fRestricted)
     return fRestricted ? QString("false") : QString();
 }
 
-/* static */
-QString UIExtraDataManager::extraDataKeyPerScreen(const QString &strBase, ulong uScreenIndex, bool fSameRuleForPrimary /* = false */)
+void UIExtraDataManager::setDialogGeometry(const QString &strKey, const QRect &geometry, bool fMaximized)
 {
-    return fSameRuleForPrimary || uScreenIndex ? strBase + QString::number(uScreenIndex) : strBase;
+    /* Serialize passed values: */
+    QStringList data;
+    data << QString::number(geometry.x());
+    data << QString::number(geometry.y());
+    data << QString::number(geometry.width());
+    data << QString::number(geometry.height());
+    if (fMaximized)
+        data << GUI_Geometry_State_Max;
+
+    /* Save corresponding extra-data: */
+    setExtraDataStringList(strKey, data);
 }
 
-QRect UIExtraDataManager::dialogGeometry(const QString &strKey, QWidget *pWidget, const QRect &defaultGeometry)
+QRect UIExtraDataManager::dialogGeometry(const QString &strKey,
+                                         QWidget *pWidget,
+                                         QWidget *pParentWidget /* = 0 */,
+                                         const QRect &defaultGeometry /* = QRect() */)
 {
     /* Get corresponding extra-data: */
     const QStringList data = extraDataStringList(strKey);
@@ -4945,41 +4861,43 @@ QRect UIExtraDataManager::dialogGeometry(const QString &strKey, QWidget *pWidget
     }
     while (0);
 
+    /* Get available-geometry [of screen with point (iX, iY) if possible]: */
+    const QRect availableGeometry = fOk ? gpDesktop->availableGeometry(QPoint(iX, iY)) :
+                                          gpDesktop->availableGeometry();
+
     /* Use geometry (loaded or default): */
-    QRect geometry = fOk ? QRect(iX, iY, iW, iH) : defaultGeometry;
+    QRect geometry = fOk
+                   ? QRect(iX, iY, iW, iH)
+                   : !defaultGeometry.isNull()
+                   ? defaultGeometry
+                   : QRect(QPoint(0, 0), availableGeometry.size() * .50 /* % */);
 
     /* Take hint-widget into account: */
     if (pWidget)
         geometry.setSize(geometry.size().expandedTo(pWidget->minimumSizeHint()));
 
+    /* As a fallback, move default-geometry to pParentWidget' geometry center: */
+    if (!fOk && pParentWidget)
+        geometry.moveCenter(pParentWidget->geometry().center());
+    /* As final fallback, move default-geometry to available-geometry' center: */
+    else if (!fOk)
+        geometry.moveCenter(availableGeometry.center());
+
     /* In Windows Qt fails to reposition out of screen window properly, so doing it ourselves: */
 #ifdef VBOX_WS_WIN
-    /* Get available-geometry [of screen with point (iX, iY) if possible]: */
-    const QRect availableGeometry = fOk ? gpDesktop->availableGeometry(QPoint(iX, iY)) :
-                                          gpDesktop->availableGeometry();
-
     /* Make sure resulting geometry is within current bounds: */
     if (!availableGeometry.contains(geometry))
-        geometry = VBoxGlobal::getNormalized(geometry, QRegion(availableGeometry));
+        geometry = UICommon::getNormalized(geometry, QRegion(availableGeometry));
 #endif /* VBOX_WS_WIN */
 
     /* Return result: */
     return geometry;
 }
 
-void UIExtraDataManager::setDialogGeometry(const QString &strKey, const QRect &geometry, bool fMaximized)
+/* static */
+QString UIExtraDataManager::extraDataKeyPerScreen(const QString &strBase, ulong uScreenIndex, bool fSameRuleForPrimary /* = false */)
 {
-        /* Serialize passed values: */
-    QStringList data;
-    data << QString::number(geometry.x());
-    data << QString::number(geometry.y());
-    data << QString::number(geometry.width());
-    data << QString::number(geometry.height());
-    if (fMaximized)
-        data << GUI_Geometry_State_Max;
-
-    /* Re-cache corresponding extra-data: */
-    setExtraDataStringList(strKey, data);
+    return fSameRuleForPrimary || uScreenIndex ? strBase + QString::number(uScreenIndex) : strBase;
 }
 
 #include "UIExtraDataManager.moc"

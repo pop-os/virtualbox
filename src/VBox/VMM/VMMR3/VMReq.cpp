@@ -864,7 +864,7 @@ VMMR3DECL(int) VMR3ReqQueue(PVMREQ pReq, RTMSINTERVAL cMillies)
                  || pUVCpu->idCpu != pReq->idDstCpu))
     {
         VMCPUID  idTarget = pReq->idDstCpu;     Assert(idTarget < pUVM->cCpus);
-        PVMCPU   pVCpu = &pUVM->pVM->aCpus[idTarget];
+        PVMCPU   pVCpu = pUVM->pVM->apCpusR3[idTarget];
         unsigned fFlags = ((VMREQ volatile *)pReq)->fFlags;     /* volatile paranoia */
 
         /* Fetch the right UVMCPU */
@@ -1023,7 +1023,7 @@ DECLINLINE(void) vmR3ReqSetFF(PUVM pUVM, VMCPUID idDstCpu)
         if (idDstCpu == VMCPUID_ANY)
             VM_FF_SET(pUVM->pVM, VM_FF_REQUEST);
         else
-            VMCPU_FF_SET(&pUVM->pVM->aCpus[idDstCpu], VMCPU_FF_REQUEST);
+            VMCPU_FF_SET(pUVM->pVM->apCpusR3[idDstCpu], VMCPU_FF_REQUEST);
     }
 }
 
@@ -1143,7 +1143,7 @@ VMMR3_INT_DECL(int) VMR3ReqProcessU(PUVM pUVM, VMCPUID idDstCpu, bool fPriorityO
             if (idDstCpu == VMCPUID_ANY)
                 VM_FF_CLEAR(pUVM->pVM, VM_FF_REQUEST);
             else
-                VMCPU_FF_CLEAR(&pUVM->pVM->aCpus[idDstCpu], VMCPU_FF_REQUEST);
+                VMCPU_FF_CLEAR(pUVM->pVM->apCpusR3[idDstCpu], VMCPU_FF_REQUEST);
         }
 
         PVMREQ pReq = ASMAtomicXchgPtrT(ppPriorityReqs, NULL, PVMREQ);
