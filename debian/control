@@ -127,7 +127,7 @@ Description: x86 virtualization solution - base binaries
 
 Package: virtualbox-dkms
 Section: contrib/kernel
-Architecture: all
+Architecture: amd64
 Depends: ${misc:Depends}
 Recommends: virtualbox (>= ${source:Version})
 Provides: virtualbox-modules
@@ -142,7 +142,7 @@ Description: x86 virtualization solution - kernel module sources for dkms
 
 Package: virtualbox-source
 Section: contrib/kernel
-Architecture: all
+Architecture: amd64
 Depends: build-essential,
          bzip2,
          debhelper-compat (= 12),

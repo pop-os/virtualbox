@@ -88,9 +88,11 @@ override_dh_auto_build:
 override_dh_auto_install:
 	dh_auto_install
 
+ifneq (,$(filter $(sname), $(shell dh_listpackages)))
 	export VBOX_INSTALL_PATH=$(INSTALL_PATH) && \
 	    cd out/bin/sdk/installer && \
 	    python3 ./vboxapisetup.py install --root $(CURDIR)/debian/$(sname)
+endif
 
 	sed -e 's/CVERSION/$(VERSION)/g' < debian/$(pdkms).links.in > debian/$(pdkms).links
 
