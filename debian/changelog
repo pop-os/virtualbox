@@ -1,3 +1,10 @@
+virtualbox (6.1.0-dfsg-2) unstable; urgency=medium
+
+  * Add missing library to the qt installation, useful to startup the program
+    correctly. Thanks Vincas Dargis for the report (Closes: #946754)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Sun, 15 Dec 2019 12:19:34 +0100
+
 virtualbox (6.1.0-dfsg-1) unstable; urgency=medium
 
   * New upstream version 6.1.0-dfsg
