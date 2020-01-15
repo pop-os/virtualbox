@@ -87,7 +87,7 @@
  * Checks that the AC flag is set if SMAP is enabled.  If AC is not set, it will
  * be logged, written to the VMs assertion text buffer, and @a a_BadExpr is
  * executed. */
-#if defined(VBOX_STRICT) || 1
+#if (defined(VBOX_STRICT) || 1) && !defined(VBOX_WITH_RAM_IN_KERNEL)
 # define VMM_CHECK_SMAP_SETUP() uint32_t const fKernelFeatures = SUPR0GetKernelFeatures()
 # define VMM_CHECK_SMAP_CHECK(a_BadExpr) \
     do { \
@@ -436,6 +436,8 @@ static int vmmR0InitVM(PGVM pGVM, uint32_t uSvnRev, uint32_t uBuildType)
         pR0Logger->fRegistered = true;
     }
 #endif /* LOG_ENABLED */
+SUPR0Printf("VMMR0InitVM: eflags=%x fKernelFeatures=%#x (SUPKERNELFEATURES_SMAP=%d)\n",
+            ASMGetFlags(), fKernelFeatures, RT_BOOL(fKernelFeatures & SUPKERNELFEATURES_SMAP));
 
     /*
      * Check if the host supports high resolution timers or not.
@@ -464,9 +466,7 @@ static int vmmR0InitVM(PGVM pGVM, uint32_t uSvnRev, uint32_t uBuildType)
             if (RT_SUCCESS(rc))
             {
                 VMM_CHECK_SMAP_CHECK2(pGVM, RT_NOTHING);
-#ifdef VBOX_WITH_2X_4GB_ADDR_SPACE
-                rc = PGMR0DynMapInitVM(pGVM);
-#endif
+                rc = PGMR0InitVM(pGVM);
                 if (RT_SUCCESS(rc))
                 {
                     VMM_CHECK_SMAP_CHECK2(pGVM, RT_NOTHING);
@@ -1799,6 +1799,13 @@ static int vmmR0EntryExWorker(PGVM pGVM, VMCPUID idCpu, VMMR0OPERATION enmOperat
             VMM_CHECK_SMAP_CHECK2(pGVM, RT_NOTHING);
             break;
 
+        case VMMR0_DO_PGM_POOL_GROW:
+            if (idCpu == NIL_VMCPUID)
+                return VERR_INVALID_CPU_ID;
+            rc = PGMR0PoolGrow(pGVM);
+            VMM_CHECK_SMAP_CHECK2(pGVM, RT_NOTHING);
+            break;
+
         /*
          * GMM wrappers.
          */
@@ -2077,7 +2084,7 @@ static int vmmR0EntryExWorker(PGVM pGVM, VMCPUID idCpu, VMMR0OPERATION enmOperat
             VMM_CHECK_SMAP_CHECK2(pGVM, RT_NOTHING);
             break;
 
-#ifdef VBOX_WITH_PCI_PASSTHROUGH
+#if 0 //def VBOX_WITH_PCI_PASSTHROUGH
         /*
          * Requests to host PCI driver service.
          */
@@ -2343,6 +2350,7 @@ VMMR0DECL(int) VMMR0EntryEx(PGVM pGVM, PVMCC pVM, VMCPUID idCpu, VMMR0OPERATION 
             }
 
             default:
+            case VMMR0_DO_PGM_POOL_GROW:
                 break;
         }
     }

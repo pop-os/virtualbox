@@ -132,6 +132,7 @@ DECLINLINE(int) virtqIsEventNeeded(uint16_t uEventIdx, uint16_t uDescIdxNew, uin
 /**
  * Accessor for virtq descriptor
  */
+#ifdef IN_RING3
 DECLINLINE(void) virtioReadDesc(PPDMDEVINS pDevIns, PVIRTIOCORE pVirtio, uint16_t idxQueue,
                                 uint32_t idxDesc, PVIRTQ_DESC_T pDesc)
 {
@@ -141,10 +142,12 @@ DECLINLINE(void) virtioReadDesc(PPDMDEVINS pDevIns, PVIRTIOCORE pVirtio, uint16_
                       pVirtio->aGCPhysQueueDesc[idxQueue] + sizeof(VIRTQ_DESC_T) * (idxDesc % cQueueItems),
                       pDesc, sizeof(VIRTQ_DESC_T));
 }
+#endif
 
 /**
  * Accessors for virtq avail ring
  */
+#ifdef IN_RING3
 DECLINLINE(uint16_t) virtioReadAvailDescIdx(PPDMDEVINS pDevIns, PVIRTIOCORE pVirtio, uint16_t idxQueue, uint32_t availIdx)
 {
     uint16_t uDescIdx;
@@ -156,6 +159,7 @@ DECLINLINE(uint16_t) virtioReadAvailDescIdx(PPDMDEVINS pDevIns, PVIRTIOCORE pVir
                       &uDescIdx, sizeof(uDescIdx));
     return uDescIdx;
 }
+#endif
 
 DECLINLINE(uint16_t) virtioReadAvailRingIdx(PPDMDEVINS pDevIns, PVIRTIOCORE pVirtio, uint16_t idxQueue)
 {
@@ -172,7 +176,7 @@ DECLINLINE(bool) virtqIsEmpty(PPDMDEVINS pDevIns, PVIRTIOCORE pVirtio, uint16_t 
     uint16_t uAvailGst = virtioReadAvailRingIdx(pDevIns, pVirtio, idxQueue);
     bool fEmpty = uAvailGst == pVirtio->virtqState[idxQueue].uAvailIdx;
 
-    LogFlow(("Q<%u>: uAvailGst=%u uAvailIdx=%u -> fEmpty=%RTbool\n",
+    Log6Func(("Q<%u>: uAvailGst=%u uAvailIdx=%u -> fEmpty=%RTbool\n",
              idxQueue, uAvailGst, pVirtio->virtqState[idxQueue].uAvailIdx, fEmpty));
     return fEmpty;
 }
@@ -189,6 +193,7 @@ DECLINLINE(uint16_t) virtioReadAvailFlags(PPDMDEVINS pDevIns, PVIRTIOCORE pVirti
 }
 #endif
 
+#ifdef IN_RING3
 DECLINLINE(uint16_t) virtioReadAvailUsedEvent(PPDMDEVINS pDevIns, PVIRTIOCORE pVirtio, uint16_t idxQueue)
 {
     uint16_t uUsedEventIdx;
@@ -199,11 +204,15 @@ DECLINLINE(uint16_t) virtioReadAvailUsedEvent(PPDMDEVINS pDevIns, PVIRTIOCORE pV
                       &uUsedEventIdx, sizeof(uUsedEventIdx));
     return uUsedEventIdx;
 }
+#endif
+
 /** @} */
 
 /** @name Accessors for virtq used ring
  * @{
  */
+
+#ifdef IN_RING3
 DECLINLINE(void) virtioWriteUsedElem(PPDMDEVINS pDevIns, PVIRTIOCORE pVirtio, uint16_t idxQueue,
                                      uint32_t usedIdx, uint32_t uDescIdx, uint32_t uLen)
 {
@@ -214,6 +223,7 @@ DECLINLINE(void) virtioWriteUsedElem(PPDMDEVINS pDevIns, PVIRTIOCORE pVirtio, ui
                           pVirtio->aGCPhysQueueUsed[idxQueue] + RT_UOFFSETOF_DYN(VIRTQ_USED_T, aRing[usedIdx % cQueueItems]),
                           &elem, sizeof(elem));
 }
+#endif
 
 DECLINLINE(void) virtioWriteUsedRingIdx(PPDMDEVINS pDevIns, PVIRTIOCORE pVirtio, uint16_t idxQueue, uint16_t uIdx)
 {
@@ -787,7 +797,7 @@ int virtioCoreR3QueuePut(PPDMDEVINS pDevIns, PVIRTIOCORE pVirtio, uint16_t idxQu
      * That will be done with a subsequent client call to virtioCoreQueueSync() */
     virtioWriteUsedElem(pDevIns, pVirtio, idxQueue, pVirtq->uUsedIdx++, pDescChain->uHeadIdx, (uint32_t)cbCopy);
 
-    Log2Func((".... Copied %zu bytes to %u byte buffer, residual=%zu\n",
+    Log3Func((".... Copied %zu bytes to %u byte buffer, residual=%zu\n",
               cbCopy, pDescChain->cbPhysReturn, pDescChain->cbPhysReturn - cbCopy));
 
     Log6Func(("Write ahead used_idx=%u, %s used_idx=%u\n",
@@ -950,6 +960,24 @@ static void virtioLowerInterrupt(PPDMDEVINS pDevIns, uint16_t uMsixVector)
         PDMDevHlpPCISetIrq(pDevIns, pVirtio->uMsixConfig, PDM_IRQ_LEVEL_LOW);
 }
 
+
+
+/**
+ * Initiate orderly reset procedure. This is an exposed API for clients that might need it.
+ * Invoked by client to reset the device and driver (see VirtIO 1.0 section 2.1.1/2.1.2)
+ */
+void virtioCoreResetAll(PVIRTIOCORE pVirtio)
+{
+    LogFunc(("\n"));
+    pVirtio->uDeviceStatus |= VIRTIO_STATUS_DEVICE_NEEDS_RESET;
+    if (pVirtio->uDeviceStatus & VIRTIO_STATUS_DRIVER_OK)
+    {
+        pVirtio->fGenUpdatePending = true;
+        virtioKick(pVirtio->pDevIns, pVirtio, VIRTIO_ISR_DEVICE_CONFIG, pVirtio->uMsixConfig, false /* fForce */);
+    }
+}
+
+#ifdef IN_RING3
 static void virtioResetQueue(PVIRTIOCORE pVirtio, uint16_t idxQueue)
 {
     Assert(idxQueue < RT_ELEMENTS(pVirtio->virtqState));
@@ -995,22 +1023,6 @@ static void virtioResetDevice(PPDMDEVINS pDevIns, PVIRTIOCORE pVirtio)
         virtioResetQueue(pVirtio, idxQueue);
 }
 
-/**
- * Initiate orderly reset procedure. This is an exposed API for clients that might need it.
- * Invoked by client to reset the device and driver (see VirtIO 1.0 section 2.1.1/2.1.2)
- */
-void virtioCoreResetAll(PVIRTIOCORE pVirtio)
-{
-    LogFunc(("\n"));
-    pVirtio->uDeviceStatus |= VIRTIO_STATUS_DEVICE_NEEDS_RESET;
-    if (pVirtio->uDeviceStatus & VIRTIO_STATUS_DRIVER_OK)
-    {
-        pVirtio->fGenUpdatePending = true;
-        virtioKick(pVirtio->pDevIns, pVirtio, VIRTIO_ISR_DEVICE_CONFIG, pVirtio->uMsixConfig, false /* fForce */);
-    }
-}
-
-#ifdef IN_RING3
 /**
  * Invoked by this implementation when guest driver resets the device.
  * The driver itself will not  until the device has read the status change.
@@ -1709,8 +1721,8 @@ int virtioCoreR3Init(PPDMDEVINS pDevIns, PVIRTIOCORE pVirtio, PVIRTIOCORECC pVir
      */
     AssertReturn(pVirtioCC->pfnStatusChanged, VERR_INVALID_POINTER);
     AssertReturn(pVirtioCC->pfnQueueNotified, VERR_INVALID_POINTER);
-    AssertReturn(pVirtioCC->pfnDevCapRead,    VERR_INVALID_POINTER);
-    AssertReturn(pVirtioCC->pfnDevCapWrite,   VERR_INVALID_POINTER);
+//    AssertReturn(pVirtioCC->pfnDevCapRead,    VERR_INVALID_POINTER);
+//    AssertReturn(pVirtioCC->pfnDevCapWrite,   VERR_INVALID_POINTER);
 
 #if 0 /* Until pdmR3DvHlp_PCISetIrq() impl is fixed and Assert that limits vec to 0 is removed */
 # ifdef VBOX_WITH_MSI_DEVICES
@@ -1894,7 +1906,7 @@ int virtioCoreR3Init(PPDMDEVINS pDevIns, PVIRTIOCORE pVirtio, PVIRTIOCORECC pVir
 
     /* Set offset to first capability and enable PCI dev capabilities */
     PDMPciDevSetCapabilityList(pPciDev, 0x40);
-    PDMPciDevSetStatus(pPciDev,         VBOX_PCI_STATUS_CAP_LIST);
+    PDMPciDevSetStatus(pPciDev, VBOX_PCI_STATUS_CAP_LIST);
 
     /* Linux drivers/virtio/virtio_pci_modern.c tries to map at least a page for the
      * 'unknown' device-specific capability without querying the capability to figure

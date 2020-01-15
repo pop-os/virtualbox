@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 131252 $"
+__version__ = "$Revision: 135531 $"
 
 
 # Standard python imports.
@@ -273,17 +273,19 @@ class WuiContentBase(object): # pylint: disable=too-few-public-methods
     ## HTML hex entity string for ksShortDetailsLink.
     ksShortEditLinkHtml    = '&#x270d;'
     ## The text/symbol for a very short details link.
-    ksShortDetailsLink     = u'\u2318'
+    ksShortDetailsLink     = u'\U0001f6c8\ufe0e'
     ## HTML hex entity string for ksShortDetailsLink.
-    ksShortDetailsLinkHtml = '&#x2318;'
+    ksShortDetailsLinkHtml =    '&#x1f6c8;;&#xfe0e;'
     ## The text/symbol for a very short change log / details / previous page link.
     ksShortChangeLogLink   = u'\u2397'
     ## HTML hex entity string for ksShortDetailsLink.
     ksShortChangeLogLinkHtml = '&#x2397;'
     ## The text/symbol for a very short reports link.
-    ksShortReportLink      = u'\u2397'
+    ksShortReportLink      = u'\U0001f4ca\ufe0e'
     ## HTML hex entity string for ksShortReportLink.
-    ksShortReportLinkHtml  = '&#x2397;'
+    ksShortReportLinkHtml  =    '&#x1f4ca;&#xfe0e;'
+    ## The text/symbol for a very short test results link.
+    ksShortTestResultsLink = u'\U0001f5d0\ufe0e'
 
 
     def __init__(self, fnDPrint = None, oDisp = None):
@@ -319,8 +321,8 @@ class WuiContentBase(object): # pylint: disable=too-few-public-methods
             return str(oInterval);
 
         # Figure the hour, min and sec counts.
-        cHours   = oInterval.seconds / 3600;
-        cMinutes = (oInterval.seconds % 3600) / 60;
+        cHours   = oInterval.seconds // 3600;
+        cMinutes = (oInterval.seconds % 3600) // 60;
         cSeconds = oInterval.seconds - cHours * 3600 - cMinutes * 60;
 
         # Tailor formatting to the interval length.
@@ -331,10 +333,10 @@ class WuiContentBase(object): # pylint: disable=too-few-public-methods
         if cMinutes > 0 or cSeconds >= 30 or cHours > 0:
             return '%d:%02d:%02d' % (cHours, cMinutes, cSeconds);
         if cSeconds >= 10:
-            return '%d.%ds'   % (cSeconds, oInterval.microseconds / 100000);
+            return '%d.%ds'   % (cSeconds, oInterval.microseconds // 100000);
         if cSeconds > 0:
-            return '%d.%02ds' % (cSeconds, oInterval.microseconds / 10000);
-        return '%d ms' % (oInterval.microseconds / 1000,);
+            return '%d.%02ds' % (cSeconds, oInterval.microseconds // 10000);
+        return '%d ms' % (oInterval.microseconds // 1000,);
 
     @staticmethod
     def genericPageWalker(iCurItem, cItems, sHrefFmt, cWidth = 11, iBase = 1, sItemName = 'page'):
@@ -348,7 +350,7 @@ class WuiContentBase(object): # pylint: disable=too-few-public-methods
         """
 
         # Calc display range.
-        iStart = 0 if iCurItem - cWidth / 2 <= cWidth / 4 else iCurItem - cWidth / 2;
+        iStart = 0 if iCurItem - cWidth // 2 <= cWidth // 4 else iCurItem - cWidth // 2;
         iEnd   = iStart + cWidth;
         if iEnd > cItems:
             iEnd = cItems;

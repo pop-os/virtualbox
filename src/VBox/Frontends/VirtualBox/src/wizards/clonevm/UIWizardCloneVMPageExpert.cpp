@@ -15,7 +15,7 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Global includes: */
+/* Qt includes: */
 #include <QButtonGroup>
 #include <QCheckBox>
 #include <QGridLayout>
@@ -23,11 +23,15 @@
 #include <QLabel>
 #include <QRadioButton>
 
-/* Local includes: */
+/* GUI includes: */
 #include "QILineEdit.h"
+#include "UICommon.h"
 #include "UIFilePathSelector.h"
 #include "UIWizardCloneVMPageExpert.h"
 #include "UIWizardCloneVM.h"
+
+/* COM includes: */
+#include "CSystemProperties.h"
 
 
 UIWizardCloneVMPageExpert::UIWizardCloneVMPageExpert(const QString &strOriginalName, const QString &strDefaultPath,
@@ -75,22 +79,43 @@ UIWizardCloneVMPageExpert::UIWizardCloneVMPageExpert(const QString &strOriginalN
                 }
             }
         }
+        /* Prepare clone-type options container: */
         m_pCloneTypeCnt = new QGroupBox(this);
+        if (m_pCloneTypeCnt)
         {
+            /* Prepare clone-type options button-group: */
             m_pButtonGroup = new QButtonGroup(m_pCloneTypeCnt);
+            if (m_pButtonGroup)
             {
+                /* Prepare clone-type options layout: */
                 QVBoxLayout *pCloneTypeCntLayout = new QVBoxLayout(m_pCloneTypeCnt);
                 {
+                    /* Prepare full clone option radio-button: */
                     m_pFullCloneRadio = new QRadioButton(m_pCloneTypeCnt);
+                    if (m_pFullCloneRadio)
                     {
                         m_pFullCloneRadio->setChecked(true);
+                        m_pButtonGroup->addButton(m_pFullCloneRadio);
+                        pCloneTypeCntLayout->addWidget(m_pFullCloneRadio);
                     }
-                    m_pLinkedCloneRadio = new QRadioButton(m_pCloneTypeCnt);
-                    pCloneTypeCntLayout->addWidget(m_pFullCloneRadio);
-                    pCloneTypeCntLayout->addWidget(m_pLinkedCloneRadio);
+
+                    /* Load currently supported clone options: */
+                    CSystemProperties comProperties = uiCommon().virtualBox().GetSystemProperties();
+                    const QVector<KCloneOptions> supportedOptions = comProperties.GetSupportedCloneOptions();
+                    /* Check whether we support linked clone option at all: */
+                    const bool fSupportedLinkedClone = supportedOptions.contains(KCloneOptions_Link);
+
+                    /* Prepare linked clone option radio-button: */
+                    if (fSupportedLinkedClone)
+                    {
+                        m_pLinkedCloneRadio = new QRadioButton(m_pCloneTypeCnt);
+                        if (m_pLinkedCloneRadio)
+                        {
+                            m_pButtonGroup->addButton(m_pLinkedCloneRadio);
+                            pCloneTypeCntLayout->addWidget(m_pLinkedCloneRadio);
+                        }
+                    }
                 }
-                m_pButtonGroup->addButton(m_pFullCloneRadio);
-                m_pButtonGroup->addButton(m_pLinkedCloneRadio);
             }
         }
         m_pCloneModeCnt = new QGroupBox(this);
@@ -133,19 +158,26 @@ UIWizardCloneVMPageExpert::UIWizardCloneVMPageExpert(const QString &strOriginalN
                 /* Add into layout: */
                 m_pCloneOptionsLayout->addWidget(m_pMACComboBoxLabel, 0, 0, 1, 1);
             }
-            m_pAdditionalOptionsLabel = new QLabel;
-            if (m_pAdditionalOptionsLabel)
-            {
-                m_pAdditionalOptionsLabel->setAlignment(Qt::AlignRight | Qt::AlignTrailing | Qt::AlignVCenter);
-                m_pCloneOptionsLayout->addWidget(m_pAdditionalOptionsLabel, 3, 0, 1, 1);
-            }
-            m_pKeepDiskNamesCheckBox = new QCheckBox;
-            if (m_pKeepDiskNamesCheckBox)
-                m_pCloneOptionsLayout->addWidget(m_pKeepDiskNamesCheckBox, 3, 1, 1, 1);
-            m_pKeepHWUUIDsCheckBox = new QCheckBox;
-            if (m_pKeepHWUUIDsCheckBox)
-                m_pCloneOptionsLayout->addWidget(m_pKeepHWUUIDsCheckBox, 4, 1, 1, 1);
 
+            /* Load currently supported clone options: */
+            CSystemProperties comProperties = uiCommon().virtualBox().GetSystemProperties();
+            const QVector<KCloneOptions> supportedOptions = comProperties.GetSupportedCloneOptions();
+            /* Check whether we support additional clone options at all: */
+            int iVerticalPosition = 3;
+            const bool fSupportedKeepDiskNames = supportedOptions.contains(KCloneOptions_KeepDiskNames);
+            const bool fSupportedKeepHWUUIDs = supportedOptions.contains(KCloneOptions_KeepHwUUIDs);
+            if (fSupportedKeepDiskNames)
+            {
+                m_pKeepDiskNamesCheckBox = new QCheckBox;
+                if (m_pKeepDiskNamesCheckBox)
+                    m_pCloneOptionsLayout->addWidget(m_pKeepDiskNamesCheckBox, iVerticalPosition++, 1, 1, 1);
+            }
+            if (fSupportedKeepHWUUIDs)
+            {
+                m_pKeepHWUUIDsCheckBox = new QCheckBox;
+                if (m_pKeepHWUUIDsCheckBox)
+                    m_pCloneOptionsLayout->addWidget(m_pKeepHWUUIDsCheckBox, iVerticalPosition++, 1, 1, 1);
+            }
         }
 
         pMainLayout->addWidget(m_pNameCnt, 0, 0, 1, 2);
@@ -187,7 +219,7 @@ UIWizardCloneVMPageExpert::UIWizardCloneVMPageExpert(const QString &strOriginalN
 
 void UIWizardCloneVMPageExpert::sltButtonToggled(QAbstractButton *pButton, bool fChecked)
 {
-    if (pButton == m_pLinkedCloneRadio && fChecked)
+    if (m_pLinkedCloneRadio && pButton == m_pLinkedCloneRadio && fChecked)
     {
         m_pCloneModeCnt->setEnabled(false);
         m_pMachineRadio->setChecked(true);
@@ -204,7 +236,8 @@ void UIWizardCloneVMPageExpert::retranslateUi()
     m_pNameCnt->setTitle(UIWizardCloneVM::tr("New machine &name and path"));
     m_pCloneTypeCnt->setTitle(UIWizardCloneVM::tr("Clone type"));
     m_pFullCloneRadio->setText(UIWizardCloneVM::tr("&Full Clone"));
-    m_pLinkedCloneRadio->setText(UIWizardCloneVM::tr("&Linked Clone"));
+    if (m_pLinkedCloneRadio)
+        m_pLinkedCloneRadio->setText(UIWizardCloneVM::tr("&Linked Clone"));
     m_pCloneModeCnt->setTitle(UIWizardCloneVM::tr("Snapshots"));
     m_pMachineRadio->setText(UIWizardCloneVM::tr("Current &machine state"));
     m_pMachineAndChildsRadio->setText(UIWizardCloneVM::tr("Current &snapshot tree branch"));
@@ -215,24 +248,44 @@ void UIWizardCloneVMPageExpert::retranslateUi()
 
     /* Translate MAC address policy combo-box: */
     m_pMACComboBoxLabel->setText(UIWizardCloneVM::tr("MAC Address &Policy:"));
-    m_pMACComboBox->setItemText(MACAddressClonePolicy_KeepAllMACs,
-                                UIWizardCloneVM::tr("Include all network adapter MAC addresses"));
-    m_pMACComboBox->setItemText(MACAddressClonePolicy_KeepNATMACs,
-                                UIWizardCloneVM::tr("Include only NAT network adapter MAC addresses"));
-    m_pMACComboBox->setItemText(MACAddressClonePolicy_StripAllMACs,
-                                UIWizardCloneVM::tr("Generate new MAC addresses for all network adapters"));
-    m_pMACComboBox->setItemData(MACAddressClonePolicy_KeepAllMACs,
-                                UIWizardCloneVM::tr("Include all network adapter MAC addresses during cloning."), Qt::ToolTipRole);
-    m_pMACComboBox->setItemData(MACAddressClonePolicy_KeepNATMACs,
-                                UIWizardCloneVM::tr("Include only NAT network adapter MAC addresses during cloning."), Qt::ToolTipRole);
-    m_pMACComboBox->setItemData(MACAddressClonePolicy_StripAllMACs,
-                                UIWizardCloneVM::tr("Generate new MAC addresses for all network adapters during cloning."), Qt::ToolTipRole);
+    for (int i = 0; i < m_pMACComboBox->count(); ++i)
+    {
+        const MACAddressClonePolicy enmPolicy = m_pMACComboBox->itemData(i).value<MACAddressClonePolicy>();
+        switch (enmPolicy)
+        {
+            case MACAddressClonePolicy_KeepAllMACs:
+            {
+                m_pMACComboBox->setItemText(i, UIWizardCloneVM::tr("Include all network adapter MAC addresses"));
+                m_pMACComboBox->setItemData(i, UIWizardCloneVM::tr("Include all network adapter MAC addresses during cloning."), Qt::ToolTipRole);
+                break;
+            }
+            case MACAddressClonePolicy_KeepNATMACs:
+            {
+                m_pMACComboBox->setItemText(i, UIWizardCloneVM::tr("Include only NAT network adapter MAC addresses"));
+                m_pMACComboBox->setItemData(i, UIWizardCloneVM::tr("Include only NAT network adapter MAC addresses during cloning."), Qt::ToolTipRole);
+                break;
+            }
+            case MACAddressClonePolicy_StripAllMACs:
+            {
+                m_pMACComboBox->setItemText(i, UIWizardCloneVM::tr("Generate new MAC addresses for all network adapters"));
+                m_pMACComboBox->setItemData(i, UIWizardCloneVM::tr("Generate new MAC addresses for all network adapters during cloning."), Qt::ToolTipRole);
+                break;
+            }
+            default:
+                break;
+        }
+    }
 
-    m_pAdditionalOptionsLabel->setText(UIWizardCloneVM::tr("Additional Options:"));
-    m_pKeepDiskNamesCheckBox->setToolTip(UIWizardCloneVM::tr("Don't change the disk names during cloning."));
-    m_pKeepDiskNamesCheckBox->setText(UIWizardCloneVM::tr("Keep &Disk Names"));
-    m_pKeepHWUUIDsCheckBox->setToolTip(UIWizardCloneVM::tr("Don't change hardware UUIDs during cloning."));
-    m_pKeepHWUUIDsCheckBox->setText(UIWizardCloneVM::tr("Keep &Hardware UUIDs"));
+    if (m_pKeepDiskNamesCheckBox)
+    {
+        m_pKeepDiskNamesCheckBox->setToolTip(UIWizardCloneVM::tr("Don't change the disk names during cloning."));
+        m_pKeepDiskNamesCheckBox->setText(UIWizardCloneVM::tr("Keep &Disk Names"));
+    }
+    if (m_pKeepHWUUIDsCheckBox)
+    {
+        m_pKeepHWUUIDsCheckBox->setToolTip(UIWizardCloneVM::tr("Don't change hardware UUIDs during cloning."));
+        m_pKeepHWUUIDsCheckBox->setText(UIWizardCloneVM::tr("Keep &Hardware UUIDs"));
+    }
 }
 
 void UIWizardCloneVMPageExpert::initializePage()

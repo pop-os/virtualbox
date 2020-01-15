@@ -310,6 +310,8 @@ typedef enum VMMR0OPERATION
     VMMR0_DO_PGM_ALLOCATE_LARGE_HANDY_PAGE,
     /** Call PGMR0PhysSetupIommu(). */
     VMMR0_DO_PGM_PHYS_SETUP_IOMMU,
+    /** Call PGMR0PoolGrow(). */
+    VMMR0_DO_PGM_POOL_GROW,
 
     /** Call GMMR0InitialReservation(). */
     VMMR0_DO_GMM_INITIAL_RESERVATION = 256,
@@ -381,8 +383,10 @@ typedef enum VMMR0OPERATION
     /** Call IntNetR0IfAbortWait(). */
     VMMR0_DO_INTNET_IF_ABORT_WAIT,
 
+#if 0
     /** Forward call to the PCI driver */
     VMMR0_DO_PCIRAW_REQ = 512,
+#endif
 
     /** The end of the R0 service operations. */
     VMMR0_DO_SRV_END,
