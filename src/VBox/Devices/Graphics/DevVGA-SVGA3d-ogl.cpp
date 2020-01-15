@@ -737,6 +737,13 @@ static int vmsvga3dLoadGLFunctions(PVMSVGA3DSTATE pState)
     GLGETPROC_(PFNGLDELETESHADERPROC                     , glDeleteShader, "");
     GLGETPROC_(PFNGLDELETEPROGRAMPROC                    , glDeleteProgram, "");
 
+    GLGETPROC_(PFNGLVERTEXATTRIB4FVPROC                  , glVertexAttrib4fv, "");
+    GLGETPROC_(PFNGLVERTEXATTRIB4UBVPROC                 , glVertexAttrib4ubv, "");
+    GLGETPROC_(PFNGLVERTEXATTRIB4NUBVPROC                , glVertexAttrib4Nubv, "");
+    GLGETPROC_(PFNGLVERTEXATTRIB4SVPROC                  , glVertexAttrib4sv, "");
+    GLGETPROC_(PFNGLVERTEXATTRIB4NSVPROC                 , glVertexAttrib4Nsv, "");
+    GLGETPROC_(PFNGLVERTEXATTRIB4NUSVPROC                , glVertexAttrib4Nusv, "");
+
     /* OpenGL 3.0 core, GL_ARB_instanced_arrays. Same functions names in the ARB and core specs. */
     if (   pState->rsGLVersion >= 3.0f
         || vmsvga3dCheckGLExtension(pState, 0.0f, " GL_ARB_framebuffer_object "))
@@ -3101,22 +3108,11 @@ int vmsvga3dBackSurfaceDMACopyBox(PVGASTATE pThis, PVGASTATECC pThisCC, PVMSVGA3
                        (pSurface->surfaceFlags & VMSVGA3D_SURFACE_HINT_SWITCH_MASK) == SVGA3D_SURFACE_HINT_INDEXBUFFER ? "index" : "buffer",
                      pBox->x, pBox->y, pBox->x + pBox->w, pBox->y + pBox->h));
 
+                /* The caller already copied the data to the pMipLevel->pSurfaceData buffer, see VMSVGA3DSURFACE_NEEDS_DATA. */
                 uint32_t const offHst = pBox->x * pSurface->cbBlock;
                 uint32_t const cbWidth = pBox->w * pSurface->cbBlock;
 
-                rc = vmsvgaR3GmrTransfer(pThis,
-                                         pThisCC,
-                                         transfer,
-                                         pbData,
-                                         pMipLevel->cbSurface,
-                                         offHst,
-                                         pMipLevel->cbSurfacePitch,
-                                         GuestPtr,
-                                         pBox->srcx * pSurface->cbBlock,
-                                         cbGuestPitch,
-                                         cbWidth,
-                                         pBox->h);
-                AssertRC(rc);
+                memcpy(pbData + offHst, (uint8_t *)pMipLevel->pSurfaceData + offHst, cbWidth);
 
                 Log4(("Buffer updated at [0x%x;0x%x):\n%.*Rhxd\n", offHst, offHst + cbWidth, cbWidth, (uint8_t *)pbData + offHst));
 
@@ -5777,9 +5773,11 @@ int vmsvga3dCommandClear(PVGASTATECC pThisCC, uint32_t cid, SVGA3dClearFlag clea
                          uint32_t cRects, SVGA3dRect *pRect)
 {
     GLbitfield            mask = 0;
+    GLbitfield            restoreMask = 0;
     PVMSVGA3DSTATE        pState = pThisCC->svga.p3dState;
     AssertReturn(pState, VERR_NO_MEMORY);
     GLboolean             fDepthWriteEnabled = GL_FALSE;
+    GLboolean             afColorWriteEnabled[4] = { GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE };
 
     Log(("vmsvga3dCommandClear cid=%u clearFlag=%x color=%x depth=%d stencil=%x cRects=%d\n", cid, clearFlag, color, (uint32_t)(depth * 100.0), stencil, cRects));
 
@@ -5792,63 +5790,111 @@ int vmsvga3dCommandClear(PVGASTATECC pThisCC, uint32_t cid, SVGA3dClearFlag clea
     if (clearFlag & SVGA3D_CLEAR_COLOR)
     {
         GLfloat red, green, blue, alpha;
-
         vmsvgaColor2GLFloatArray(color, &red, &green, &blue, &alpha);
 
         /* Set the color clear value. */
         glClearColor(red, green, blue, alpha);
+        VMSVGA3D_CHECK_LAST_ERROR_WARN(pState, pContext);
 
         mask |= GL_COLOR_BUFFER_BIT;
+
+        /* glClear will not clear the color buffer if writing is disabled. */
+        glGetBooleanv(GL_COLOR_WRITEMASK, afColorWriteEnabled);
+        VMSVGA3D_CHECK_LAST_ERROR_WARN(pState, pContext);
+        if (   afColorWriteEnabled[0] == GL_FALSE
+            || afColorWriteEnabled[1] == GL_FALSE
+            || afColorWriteEnabled[2] == GL_FALSE
+            || afColorWriteEnabled[3] == GL_FALSE)
+        {
+            glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+            VMSVGA3D_CHECK_LAST_ERROR_WARN(pState, pContext);
+
+            restoreMask |= GL_COLOR_BUFFER_BIT;
+        }
+
     }
+
     if (clearFlag & SVGA3D_CLEAR_STENCIL)
     {
         /** @todo possibly the same problem as with glDepthMask */
         glClearStencil(stencil);
+        VMSVGA3D_CHECK_LAST_ERROR_WARN(pState, pContext);
+
         mask |= GL_STENCIL_BUFFER_BIT;
     }
+
     if (clearFlag & SVGA3D_CLEAR_DEPTH)
     {
         glClearDepth((GLdouble)depth);
+        VMSVGA3D_CHECK_LAST_ERROR_WARN(pState, pContext);
+
         mask |= GL_DEPTH_BUFFER_BIT;
 
         /* glClear will not clear the depth buffer if writing is disabled. */
         glGetBooleanv(GL_DEPTH_WRITEMASK, &fDepthWriteEnabled);
+        VMSVGA3D_CHECK_LAST_ERROR_WARN(pState, pContext);
         if (fDepthWriteEnabled == GL_FALSE)
+        {
             glDepthMask(GL_TRUE);
+            VMSVGA3D_CHECK_LAST_ERROR_WARN(pState, pContext);
+
+            restoreMask |= GL_DEPTH_BUFFER_BIT;
+        }
     }
+
+    /* Save the current scissor test bit and scissor box. */
+    glPushAttrib(GL_SCISSOR_BIT);
+    VMSVGA3D_CHECK_LAST_ERROR_WARN(pState, pContext);
 
     if (cRects)
     {
-        /* Save the current scissor test bit and scissor box. */
-        glPushAttrib(GL_SCISSOR_BIT);
         glEnable(GL_SCISSOR_TEST);
-        for (unsigned i=0; i < cRects; i++)
+        VMSVGA3D_CHECK_LAST_ERROR_WARN(pState, pContext);
+
+        for (uint32_t i = 0; i < cRects; ++i)
         {
-            Log(("vmsvga3dCommandClear: rect %d (%d,%d)(%d,%d)\n", i, pRect[i].x, pRect[i].y, pRect[i].x + pRect[i].w, pRect[i].y + pRect[i].h));
+            LogFunc(("rect [%d] %d,%d %dx%d)\n", i, pRect[i].x, pRect[i].y, pRect[i].w, pRect[i].h));
             glScissor(pRect[i].x, pRect[i].y, pRect[i].w, pRect[i].h);
-            VMSVGA3D_CHECK_LAST_ERROR(pState, pContext);
+            VMSVGA3D_CHECK_LAST_ERROR_WARN(pState, pContext);
+
             glClear(mask);
-            VMSVGA3D_CHECK_LAST_ERROR(pState, pContext);
+            VMSVGA3D_CHECK_LAST_ERROR_WARN(pState, pContext);
         }
-        /* Restore the old scissor test bit and box */
-        glPopAttrib();
     }
     else
     {
+        glDisable(GL_SCISSOR_TEST);
+        VMSVGA3D_CHECK_LAST_ERROR_WARN(pState, pContext);
+
         glClear(mask);
-        VMSVGA3D_CHECK_LAST_ERROR(pState, pContext);
+        VMSVGA3D_CHECK_LAST_ERROR_WARN(pState, pContext);
     }
 
-    /* Restore depth write state. */
-    if (    (clearFlag & SVGA3D_CLEAR_DEPTH)
-        && fDepthWriteEnabled == GL_FALSE)
-        glDepthMask(GL_FALSE);
+    /* Restore the old scissor test bit and box */
+    glPopAttrib();
+    VMSVGA3D_CHECK_LAST_ERROR_WARN(pState, pContext);
+
+    /* Restore the write states. */
+    if (restoreMask & GL_COLOR_BUFFER_BIT)
+    {
+        glColorMask(afColorWriteEnabled[0],
+                    afColorWriteEnabled[1],
+                    afColorWriteEnabled[2],
+                    afColorWriteEnabled[3]);
+        VMSVGA3D_CHECK_LAST_ERROR_WARN(pState, pContext);
+    }
+
+    if (restoreMask & GL_DEPTH_BUFFER_BIT)
+    {
+        glDepthMask(fDepthWriteEnabled);
+        VMSVGA3D_CHECK_LAST_ERROR_WARN(pState, pContext);
+    }
 
     return VINF_SUCCESS;
 }
 
 /* Convert VMWare vertex declaration to its OpenGL equivalent. */
-int vmsvga3dVertexDecl2OGL(SVGA3dVertexArrayIdentity &identity, GLint &size, GLenum &type, GLboolean &normalized)
+int vmsvga3dVertexDecl2OGL(SVGA3dVertexArrayIdentity &identity, GLint &size, GLenum &type, GLboolean &normalized, uint32_t &cbAttrib)
 {
     normalized = GL_FALSE;
     switch (identity.type)
@@ -5856,24 +5902,29 @@ int vmsvga3dVertexDecl2OGL(SVGA3dVertexArrayIdentity &identity, GLint &size, GLe
     case SVGA3D_DECLTYPE_FLOAT1:
         size = 1;
         type = GL_FLOAT;
+        cbAttrib = sizeof(float);
         break;
     case SVGA3D_DECLTYPE_FLOAT2:
         size = 2;
         type = GL_FLOAT;
+        cbAttrib = 2 * sizeof(float);
         break;
     case SVGA3D_DECLTYPE_FLOAT3:
         size = 3;
         type = GL_FLOAT;
+        cbAttrib = 3 * sizeof(float);
         break;
     case SVGA3D_DECLTYPE_FLOAT4:
         size = 4;
         type = GL_FLOAT;
+        cbAttrib = 4 * sizeof(float);
         break;
 
     case SVGA3D_DECLTYPE_D3DCOLOR:
         size = GL_BGRA;                 /* @note requires GL_ARB_vertex_array_bgra */
         type = GL_UNSIGNED_BYTE;
         normalized = GL_TRUE;   /* glVertexAttribPointer fails otherwise */
+        cbAttrib = sizeof(uint32_t);
         break;
 
     case SVGA3D_DECLTYPE_UBYTE4N:
@@ -5882,6 +5933,7 @@ int vmsvga3dVertexDecl2OGL(SVGA3dVertexArrayIdentity &identity, GLint &size, GLe
     case SVGA3D_DECLTYPE_UBYTE4:
         size = 4;
         type = GL_UNSIGNED_BYTE;
+        cbAttrib = sizeof(uint32_t);
         break;
 
     case SVGA3D_DECLTYPE_SHORT2N:
@@ -5890,6 +5942,7 @@ int vmsvga3dVertexDecl2OGL(SVGA3dVertexArrayIdentity &identity, GLint &size, GLe
     case SVGA3D_DECLTYPE_SHORT2:
         size = 2;
         type = GL_SHORT;
+        cbAttrib = 2 * sizeof(uint16_t);
         break;
 
     case SVGA3D_DECLTYPE_SHORT4N:
@@ -5898,38 +5951,45 @@ int vmsvga3dVertexDecl2OGL(SVGA3dVertexArrayIdentity &identity, GLint &size, GLe
     case SVGA3D_DECLTYPE_SHORT4:
         size = 4;
         type = GL_SHORT;
+        cbAttrib = 4 * sizeof(uint16_t);
         break;
 
     case SVGA3D_DECLTYPE_USHORT4N:
         normalized = GL_TRUE;
         size = 4;
         type = GL_UNSIGNED_SHORT;
+        cbAttrib = 4 * sizeof(uint16_t);
         break;
 
     case SVGA3D_DECLTYPE_USHORT2N:
         normalized = GL_TRUE;
         size = 2;
         type = GL_UNSIGNED_SHORT;
+        cbAttrib = 2 * sizeof(uint16_t);
         break;
 
     case SVGA3D_DECLTYPE_UDEC3:
         size = 3;
         type = GL_UNSIGNED_INT_2_10_10_10_REV;    /** @todo correct? */
+        cbAttrib = sizeof(uint32_t);
         break;
 
     case SVGA3D_DECLTYPE_DEC3N:
         normalized = true;
         size = 3;
         type = GL_INT_2_10_10_10_REV;    /** @todo correct? */
+        cbAttrib = sizeof(uint32_t);
         break;
 
     case SVGA3D_DECLTYPE_FLOAT16_2:
         size = 2;
         type = GL_HALF_FLOAT;
+        cbAttrib = 2 * sizeof(uint16_t);
         break;
     case SVGA3D_DECLTYPE_FLOAT16_4:
         size = 4;
         type = GL_HALF_FLOAT;
+        cbAttrib = 4 * sizeof(uint16_t);
         break;
     default:
         AssertFailedReturn(VERR_INVALID_PARAMETER);
@@ -5937,6 +5997,162 @@ int vmsvga3dVertexDecl2OGL(SVGA3dVertexArrayIdentity &identity, GLint &size, GLe
 
     //pVertexElement->Method      = identity.method;
     //pVertexElement->Usage       = identity.usage;
+
+    return VINF_SUCCESS;
+}
+
+static float vmsvga3dFloat16To32(uint16_t f16)
+{
+    /* From Wiki */
+#ifndef INFINITY
+    static uint32_t const sBitsINFINITY = UINT32_C(0x7f800000);
+    #define INFINITY (*(float const *)&sBitsINFINITY)
+#endif
+#ifndef NAN
+    static uint32_t const sBitsNAN = UINT32_C(0x7fc00000);
+    #define NAN (*(float const *)&sBitsNAN)
+#endif
+
+    uint16_t const s = (f16 >> UINT16_C(15)) & UINT16_C(0x1);
+    uint16_t const e = (f16 >> UINT16_C(10)) & UINT16_C(0x1f);
+    uint16_t const m = (f16                ) & UINT16_C(0x3ff);
+
+    float result = s ? 1.0f : -1.0f;
+    if (e == 0)
+    {
+        if (m == 0)
+            result *= 0.0f;                            /* zero, -0 */
+        else
+            result *= (float)m / 1024.0f / 16384.0f;   /* subnormal numbers: sign * 2^-14 * 0.m */
+    }
+    else if (e == 0x1f)
+    {
+        if (m == 0)
+            result *= INFINITY;                        /* +-infinity */
+        else
+            result = NAN;                              /* NAN */
+    }
+    else
+    {
+        result *= powf(2.0f, (float)e - 15.0f) * (1.0f + (float)m / 1024.0f); /* sign * 2^(e-15) * 1.m */
+    }
+
+    return result;
+}
+
+/* Set a vertex attribute according to VMSVGA vertex declaration. */
+static int vmsvga3dSetVertexAttrib(PVMSVGA3DSTATE pState, GLuint index, SVGA3dVertexArrayIdentity const *pIdentity, GLvoid const *pv)
+{
+    switch (pIdentity->type)
+    {
+        case SVGA3D_DECLTYPE_FLOAT1:
+        {
+            /* "One-component float expanded to (float, 0, 0, 1)." */
+            GLfloat const *p = (GLfloat *)pv;
+            GLfloat const v[4] = { p[0], 0.0f, 0.0f, 1.0f };
+            pState->ext.glVertexAttrib4fv(index, v);
+            break;
+        }
+        case SVGA3D_DECLTYPE_FLOAT2:
+        {
+            /* "Two-component float expanded to (float, float, 0, 1)." */
+            GLfloat const *p = (GLfloat *)pv;
+            GLfloat const v[4] = { p[0], p[1], 0.0f, 1.0f };
+            pState->ext.glVertexAttrib4fv(index, v);
+            break;
+        }
+        case SVGA3D_DECLTYPE_FLOAT3:
+        {
+            /* "Three-component float expanded to (float, float, float, 1)." */
+            GLfloat const *p = (GLfloat *)pv;
+            GLfloat const v[4] = { p[0], p[1], p[2], 1.0f };
+            pState->ext.glVertexAttrib4fv(index, v);
+            break;
+        }
+        case SVGA3D_DECLTYPE_FLOAT4:
+            pState->ext.glVertexAttrib4fv(index, (GLfloat const *)pv);
+            break;
+        case SVGA3D_DECLTYPE_D3DCOLOR:
+            /** @todo Need to swap bytes? */
+            pState->ext.glVertexAttrib4Nubv(index, (GLubyte const *)pv);
+            break;
+        case SVGA3D_DECLTYPE_UBYTE4:
+            pState->ext.glVertexAttrib4ubv(index, (GLubyte const *)pv);
+            break;
+        case SVGA3D_DECLTYPE_SHORT2:
+        {
+            /* "Two-component, signed short expanded to (value, value, 0, 1)." */
+            GLshort const *p = (GLshort const *)pv;
+            GLshort const v[4] = { p[0], p[1], 0, 1 };
+            pState->ext.glVertexAttrib4sv(index, v);
+            break;
+        }
+        case SVGA3D_DECLTYPE_SHORT4:
+            pState->ext.glVertexAttrib4sv(index, (GLshort const *)pv);
+            break;
+        case SVGA3D_DECLTYPE_UBYTE4N:
+            pState->ext.glVertexAttrib4Nubv(index, (GLubyte const *)pv);
+            break;
+        case SVGA3D_DECLTYPE_SHORT2N:
+        {
+            /* "Normalized, two-component, signed short, expanded to (first short/32767.0, second short/32767.0, 0, 1)." */
+            GLshort const *p = (GLshort const *)pv;
+            GLshort const v[4] = { p[0], p[1], 0, 1 };
+            pState->ext.glVertexAttrib4Nsv(index, v);
+            break;
+        }
+        case SVGA3D_DECLTYPE_SHORT4N:
+            pState->ext.glVertexAttrib4Nsv(index, (GLshort const *)pv);
+            break;
+        case SVGA3D_DECLTYPE_USHORT2N:
+        {
+            GLushort const *p = (GLushort const *)pv;
+            GLushort const v[4] = { p[0], p[1], 0, 1 };
+            pState->ext.glVertexAttrib4Nusv(index, v);
+            break;
+        }
+        case SVGA3D_DECLTYPE_USHORT4N:
+            pState->ext.glVertexAttrib4Nusv(index, (GLushort const *)pv);
+            break;
+        case SVGA3D_DECLTYPE_UDEC3:
+        {
+            /** @todo Test */
+            /* "Three-component, unsigned, 10 10 10 format expanded to (value, value, value, 1)." */
+            uint32_t const u32 = *(uint32_t *)pv;
+            GLfloat const v[4] = { (float)(u32 & 0x3ff), (float)((u32 >> 10) & 0x3ff), (float)((u32 >> 20) & 0x3ff), 1.0f };
+            pState->ext.glVertexAttrib4fv(index, v);
+            break;
+        }
+        case SVGA3D_DECLTYPE_DEC3N:
+        {
+            /** @todo Test */
+            /* "Three-component, signed, 10 10 10 format normalized and expanded to (v[0]/511.0, v[1]/511.0, v[2]/511.0, 1)." */
+            uint32_t const u32 = *(uint32_t *)pv;
+            GLfloat const v[4] = { (u32 & 0x3ff) / 511.0f, ((u32 >> 10) & 0x3ff) / 511.0f, ((u32 >> 20) & 0x3ff) / 511.0f, 1.0f };
+            pState->ext.glVertexAttrib4fv(index, v);
+            break;
+        }
+        case SVGA3D_DECLTYPE_FLOAT16_2:
+        {
+            /** @todo Test */
+            /* "Two-component, 16-bit, floating point expanded to (value, value, 0, 1)." */
+            uint16_t const *p = (uint16_t *)pv;
+            GLfloat const v[4] = { vmsvga3dFloat16To32(p[0]), vmsvga3dFloat16To32(p[1]), 0.0f, 1.0f };
+            pState->ext.glVertexAttrib4fv(index, v);
+            break;
+        }
+        case SVGA3D_DECLTYPE_FLOAT16_4:
+        {
+            /** @todo Test */
+            uint16_t const *p = (uint16_t *)pv;
+            GLfloat const v[4] = { vmsvga3dFloat16To32(p[0]), vmsvga3dFloat16To32(p[1]),
+                                   vmsvga3dFloat16To32(p[2]), vmsvga3dFloat16To32(p[3]) };
+            pState->ext.glVertexAttrib4fv(index, v);
+            break;
+        }
+        default:
+            AssertFailedReturn(VERR_INVALID_PARAMETER);
+    }
 
     return VINF_SUCCESS;
 }
@@ -6022,7 +6238,7 @@ static int vmsvga3dResetTransformMatrices(PVGASTATECC pThisCC, PVMSVGA3DCONTEXT 
 static int vmsvga3dDrawPrimitivesProcessVertexDecls(PVGASTATECC pThisCC, PVMSVGA3DCONTEXT pContext,
                                                     uint32_t iVertexDeclBase, uint32_t numVertexDecls,
                                                     SVGA3dVertexDecl *pVertexDecl,
-                                                    SVGA3dVertexDivisor const *paVertexDivisors, uint32_t cInstances)
+                                                    SVGA3dVertexDivisor const *paVertexDivisors)
 {
     PVMSVGA3DSTATE      pState = pThisCC->svga.p3dState;
     unsigned const      sidVertex = pVertexDecl[0].array.surfaceId;
@@ -6075,40 +6291,53 @@ static int vmsvga3dDrawPrimitivesProcessVertexDecls(PVGASTATECC pThisCC, PVMSVGA
         GLint size;
         GLenum type;
         GLboolean normalized;
+        uint32_t cbAttrib;
         GLuint index = iVertexDeclBase + iVertex;
 
         Log(("vmsvga3dDrawPrimitives: array index %d type=%s (%d) method=%s (%d) usage=%s (%d) usageIndex=%d stride=%d offset=%d\n", index, vmsvgaDeclType2String(pVertexDecl[iVertex].identity.type), pVertexDecl[iVertex].identity.type, vmsvgaDeclMethod2String(pVertexDecl[iVertex].identity.method), pVertexDecl[iVertex].identity.method, vmsvgaDeclUsage2String(pVertexDecl[iVertex].identity.usage), pVertexDecl[iVertex].identity.usage, pVertexDecl[iVertex].identity.usageIndex, pVertexDecl[iVertex].array.stride, pVertexDecl[iVertex].array.offset));
 
-        rc = vmsvga3dVertexDecl2OGL(pVertexDecl[iVertex].identity, size, type, normalized);
+        rc = vmsvga3dVertexDecl2OGL(pVertexDecl[iVertex].identity, size, type, normalized, cbAttrib);
         AssertRCReturn(rc, rc);
+
+        ASSERT_GUEST_RETURN(   pVertexSurface->paMipmapLevels[0].cbSurface >= pVertexDecl[iVertex].array.offset
+                            && pVertexSurface->paMipmapLevels[0].cbSurface - pVertexDecl[iVertex].array.offset >= cbAttrib,
+                            VERR_INVALID_PARAMETER);
+        RT_UNTRUSTED_VALIDATED_FENCE();
 
         if (pContext->state.shidVertex != SVGA_ID_INVALID)
         {
-            /* Use numbered vertex arrays when shaders are active. */
-            pState->ext.glEnableVertexAttribArray(index);
-            VMSVGA3D_CHECK_LAST_ERROR(pState, pContext);
-            pState->ext.glVertexAttribPointer(index, size, type, normalized, pVertexDecl[iVertex].array.stride,
-                                              (const GLvoid *)(uintptr_t)pVertexDecl[iVertex].array.offset);
-            VMSVGA3D_CHECK_LAST_ERROR(pState, pContext);
-
-            GLuint divisor = paVertexDivisors && paVertexDivisors[index].s.instanceData ? 1 : 0;
-            if (pVertexDecl[iVertex].array.stride == 0)
+            /* Use numbered vertex arrays (or attributes) when shaders are active. */
+            if (pVertexDecl[iVertex].array.stride)
             {
-                /* Zero stride means that the attribute pointer must not be increased.
-                 * See comment about stride in vmsvga3dDrawPrimitives.
-                 */
-                if (!divisor)
-                {
-                    LogRelMax(8, ("VMSVGA: zero stride array (instancing %s %d)\n", paVertexDivisors ? "on" : "off", cInstances));
-                    AssertFailed();
-                }
+                pState->ext.glEnableVertexAttribArray(index);
+                VMSVGA3D_CHECK_LAST_ERROR(pState, pContext);
+                pState->ext.glVertexAttribPointer(index, size, type, normalized, pVertexDecl[iVertex].array.stride,
+                                                  (const GLvoid *)(uintptr_t)pVertexDecl[iVertex].array.offset);
+                VMSVGA3D_CHECK_LAST_ERROR(pState, pContext);
 
-                divisor = cInstances; /* This attrib must never advance. */
+                GLuint divisor = paVertexDivisors && paVertexDivisors[index].s.instanceData ? 1 : 0;
+                pState->ext.glVertexAttribDivisor(index, divisor);
+                VMSVGA3D_CHECK_LAST_ERROR(pState, pContext);
+
+                /** @todo case SVGA3D_DECLUSAGE_COLOR: color component order not identical!! test GL_BGRA!!  */
             }
-            pState->ext.glVertexAttribDivisor(index, divisor);
-            VMSVGA3D_CHECK_LAST_ERROR(pState, pContext);
+            else
+            {
+                /*
+                 * D3D and OpenGL have a different meaning of value zero for the vertex array stride:
+                 * - D3D (VMSVGA): "use a zero stride to tell the runtime not to increment the vertex buffer offset."
+                 * - OpenGL: "If stride is 0, the generic vertex attributes are understood to be tightly packed in the array."
+                 * VMSVGA uses the D3D semantics.
+                 *
+                 * Use glVertexAttrib in order to tell OpenGL to reuse the zero stride attributes for each vertex.
+                 */
+                pState->ext.glDisableVertexAttribArray(index);
+                VMSVGA3D_CHECK_LAST_ERROR(pState, pContext);
 
-            /** @todo case SVGA3D_DECLUSAGE_COLOR: color component order not identical!! test GL_BGRA!!  */
+                const GLvoid *v = (uint8_t *)pVertexSurface->paMipmapLevels[0].pSurfaceData + pVertexDecl[iVertex].array.offset;
+                vmsvga3dSetVertexAttrib(pState, index, &pVertexDecl[iVertex].identity, v);
+                VMSVGA3D_CHECK_LAST_ERROR_WARN(pState, pContext);
+            }
         }
         else
         {
@@ -6344,57 +6573,6 @@ int vmsvga3dDrawPrimitives(PVGASTATECC pThisCC, uint32_t cid, uint32_t numVertex
         ShaderUpdateState(pContext->pShaderContext, rtHeight);
     }
 
-    /*
-     * D3D and OpenGL have a different meaning of value zero for the vertex array stride:
-     * - D3D and VMSVGA: "use a zero stride to tell the runtime not to increment the vertex buffer offset."
-     * - OpenGL: "If stride is 0, the generic vertex attributes are understood to be tightly packed in the array."
-     * VMSVGA uses the D3D semantics.
-     *
-     * In order to tell OpenGL to reuse the zero stride attributes for each vertex
-     * such attributes could be declared as instance data, then OpenGL applies them once
-     * for all vertices of the one drawn instance.
-     *
-     * If instancing is already used (cVertexDivisor > 0), then the code does nothing and assumes that
-     * all instance data is already correctly marked as such.
-     *
-     * If instancing is not requisted (cVertexDivisor == 0), then the code creates a description for
-     * one instance where all arrays with zero stride are marked as instance data, and all arrays
-     * with non-zero stride as indexed data.
-     */
-    bool fZeroStrideArray = false;
-    if (cVertexDivisor == 0)
-    {
-        unsigned i;
-        for (i = 0; i < numVertexDecls; ++i)
-        {
-            if (pVertexDecl[i].array.stride == 0)
-            {
-                fZeroStrideArray = true;
-                break;
-            }
-        }
-
-        if (fZeroStrideArray)
-        {
-            cVertexDivisor = numVertexDecls;
-            pVertexDivisor = (SVGA3dVertexDivisor *)RTMemTmpAlloc(sizeof(SVGA3dVertexDivisor) * cVertexDivisor);
-            AssertPtrReturn(pVertexDivisor, VERR_NO_MEMORY);
-
-            for (i = 0; i < numVertexDecls; ++i)
-            {
-                pVertexDivisor[i].s.count = 1;
-                if (pVertexDecl[i].array.stride == 0)
-                {
-                    pVertexDivisor[i].s.instanceData = 1;
-                }
-                else
-                {
-                    pVertexDivisor[i].s.indexedData = 1;
-                }
-            }
-        }
-    }
-
     /* Try to figure out if instancing is used.
      * Support simple instancing case with one set of indexed data and one set per-instance data.
      */
@@ -6431,7 +6609,7 @@ int vmsvga3dDrawPrimitives(PVGASTATECC pThisCC, uint32_t cid, uint32_t numVertex
         }
 
         rc = vmsvga3dDrawPrimitivesProcessVertexDecls(pThisCC, pContext, iCurrentVertex, iVertex - iCurrentVertex,
-                                                      &pVertexDecl[iCurrentVertex], pVertexDivisor, cInstances);
+                                                      &pVertexDecl[iCurrentVertex], pVertexDivisor);
         AssertRCReturn(rc, rc);
 
         iCurrentVertex = iVertex;
@@ -6596,12 +6774,6 @@ internal_error:
         iCurrentVertex = iVertex;
     }
 
-    if (fZeroStrideArray)
-    {
-        RTMemTmpFree(pVertexDivisor);
-        pVertexDivisor = NULL;
-    }
-
 #ifdef DEBUG
     /* Check whether 'activeTexture' on texture unit 'i' matches what we expect. */
     for (uint32_t i = 0; i < RT_ELEMENTS(pContext->aSidActiveTextures); ++i)
@@ -6637,7 +6809,7 @@ internal_error:
     /* Dump render target to a bitmap. */
     if (pContext->state.aRenderTargets[SVGA3D_RT_COLOR0] != SVGA3D_INVALID_ID)
     {
-        vmsvga3dUpdateHeapBuffersForSurfaces(pThis, pContext->state.aRenderTargets[SVGA3D_RT_COLOR0]);
+        vmsvga3dUpdateHeapBuffersForSurfaces(pThisCC, pContext->state.aRenderTargets[SVGA3D_RT_COLOR0]);
         PVMSVGA3DSURFACE pSurface;
         int rc2 = vmsvga3dSurfaceFromSid(pState, pContext->state.aRenderTargets[SVGA3D_RT_COLOR0], &pSurface);
         if (RT_SUCCESS(rc2))
@@ -6646,7 +6818,7 @@ internal_error:
         /* Stage 0 texture. */
         if (pContext->aSidActiveTextures[0] != SVGA3D_INVALID_ID)
         {
-            vmsvga3dUpdateHeapBuffersForSurfaces(pThis, pContext->aSidActiveTextures[0]);
+            vmsvga3dUpdateHeapBuffersForSurfaces(pThisCC, pContext->aSidActiveTextures[0]);
             rc2 = vmsvga3dSurfaceFromSid(pState, pContext->aSidActiveTextures[0], &pSurface);
             if (RT_SUCCESS(rc2))
                 vmsvga3dInfoSurfaceToBitmap(NULL, pSurface, "bmpgl", "rt", "-post-tx");
@@ -6735,12 +6907,12 @@ int vmsvga3dShaderDefine(PVGASTATECC pThisCC, uint32_t cid, uint32_t shid, SVGA3
     switch (type)
     {
     case SVGA3D_SHADERTYPE_VS:
-        rc = ShaderCreateVertexShader(pContext->pShaderContext, (const uint32_t *)pShaderData, &pShader->u.pVertexShader);
+        rc = ShaderCreateVertexShader(pContext->pShaderContext, (const uint32_t *)pShaderData, cbData, &pShader->u.pVertexShader);
         AssertRC(rc);
         break;
 
     case SVGA3D_SHADERTYPE_PS:
-        rc = ShaderCreatePixelShader(pContext->pShaderContext, (const uint32_t *)pShaderData, &pShader->u.pPixelShader);
+        rc = ShaderCreatePixelShader(pContext->pShaderContext, (const uint32_t *)pShaderData, cbData, &pShader->u.pPixelShader);
         AssertRC(rc);
         break;
 

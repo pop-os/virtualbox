@@ -181,14 +181,12 @@ static int run(struct VBCLSERVICE **ppInterface, bool fDaemonised)
     (void)ppInterface;
     (void)fDaemonised;
     struct DRMCONTEXT drmContext = { NIL_RTFILE };
-    unsigned i;
+    static struct VMMDevDisplayDef aMonitors[VMW_MAX_HEADS];
     int rc;
-    struct DRMVMWRECT aRects[VMW_MAX_HEADS];
-    unsigned cHeads;
+    unsigned cEnabledMonitors;
     /* Do not acknowledge the first event we query for to pick up old events,
      * e.g. from before a guest reboot. */
     bool fAck = false;
-
     drmConnect(&drmContext);
     if (drmContext.hDevice == NIL_RTFILE)
         return VINF_SUCCESS;
@@ -205,7 +203,6 @@ static int run(struct VBCLSERVICE **ppInterface, bool fDaemonised)
         uint32_t events;
         struct VMMDevDisplayDef aDisplays[VMW_MAX_HEADS];
         uint32_t cDisplaysOut;
-
         /* Query the first size without waiting.  This lets us e.g. pick up
          * the last event before a guest reboot when we start again after. */
         rc = VbglR3GetDisplayChangeRequestMulti(VMW_MAX_HEADS, &cDisplaysOut, aDisplays, fAck);
@@ -214,28 +211,53 @@ static int run(struct VBCLSERVICE **ppInterface, bool fDaemonised)
             VBClLogFatalError("Failed to get display change request, rc=%Rrc\n", rc);
         if (cDisplaysOut > VMW_MAX_HEADS)
             VBClLogFatalError("Display change request contained, rc=%Rrc\n", rc);
-        for (i = 0, cHeads = 0; i < cDisplaysOut && i < VMW_MAX_HEADS; ++i)
+        if (cDisplaysOut > 0)
         {
-            if (!(aDisplays[i].fDisplayFlags & VMMDEV_DISPLAY_DISABLED))
+            for (unsigned i = 0; i < cDisplaysOut && i < VMW_MAX_HEADS; ++i)
             {
-                if ((i == 0) || (aDisplays[i].fDisplayFlags & VMMDEV_DISPLAY_ORIGIN))
+                uint32_t idDisplay = aDisplays[i].idDisplay;
+                if (idDisplay >= VMW_MAX_HEADS)
+                    continue;
+                aMonitors[idDisplay].fDisplayFlags = aDisplays[i].fDisplayFlags;
+                if (!(aDisplays[i].fDisplayFlags & VMMDEV_DISPLAY_DISABLED))
                 {
-                    aRects[cHeads].x = aDisplays[i].xOrigin;
-                    aRects[cHeads].y = aDisplays[i].yOrigin;
-                } else {
-                    aRects[cHeads].x = aRects[cHeads - 1].x + aRects[cHeads - 1].w;
-                    aRects[cHeads].y = aRects[cHeads - 1].y;
+                    if ((idDisplay == 0) || (aDisplays[i].fDisplayFlags & VMMDEV_DISPLAY_ORIGIN))
+                    {
+                        aMonitors[idDisplay].xOrigin = aDisplays[i].xOrigin;
+                        aMonitors[idDisplay].yOrigin = aDisplays[i].yOrigin;
+                    } else {
+                        aMonitors[idDisplay].xOrigin = aMonitors[idDisplay - 1].xOrigin + aMonitors[idDisplay - 1].cx;
+                        aMonitors[idDisplay].yOrigin = aMonitors[idDisplay - 1].yOrigin;
+                    }
+                    aMonitors[idDisplay].cx = aDisplays[i].cx;
+                    aMonitors[idDisplay].cy = aDisplays[i].cy;
                 }
-                aRects[cHeads].w = aDisplays[i].cx;
-                aRects[cHeads].h = aDisplays[i].cy;
-                ++cHeads;
             }
+            /* Create an dense (consisting of enabled monitors only) array to pass to DRM. */
+            cEnabledMonitors = 0;
+            struct DRMVMWRECT aEnabledMonitors[VMW_MAX_HEADS];
+            for (int j = 0; j < VMW_MAX_HEADS; ++j)
+            {
+                if (!(aMonitors[j].fDisplayFlags & VMMDEV_DISPLAY_DISABLED))
+                {
+                    aEnabledMonitors[cEnabledMonitors].x = aMonitors[j].xOrigin;
+                    aEnabledMonitors[cEnabledMonitors].y = aMonitors[j].yOrigin;
+                    aEnabledMonitors[cEnabledMonitors].w = aMonitors[j].cx;
+                    aEnabledMonitors[cEnabledMonitors].h = aMonitors[j].cy;
+                    if (cEnabledMonitors > 0)
+                        aEnabledMonitors[cEnabledMonitors].x = aEnabledMonitors[cEnabledMonitors - 1].x + aEnabledMonitors[cEnabledMonitors - 1].w;
+                    ++cEnabledMonitors;
+                }
+            }
+            for (unsigned i = 0; i < cEnabledMonitors; ++i)
+                printf("Monitor %u: %dx%d, (%d, %d)\n", i, (int)aEnabledMonitors[i].w, (int)aEnabledMonitors[i].h,
+                       (int)aEnabledMonitors[i].x, (int)aEnabledMonitors[i].y);
+            drmSendHints(&drmContext, aEnabledMonitors, cEnabledMonitors);
         }
-        for (i = 0; i < cHeads; ++i)
-            printf("Head %u: %dx%d, (%d, %d)\n", i, (int)aRects[i].w, (int)aRects[i].h,
-                   (int)aRects[i].x, (int)aRects[i].y);
-        drmSendHints(&drmContext, aRects, cHeads);
-        rc = VbglR3WaitEvent(VMMDEV_EVENT_DISPLAY_CHANGE_REQUEST, RT_INDEFINITE_WAIT, &events);
+        do
+        {
+            rc = VbglR3WaitEvent(VMMDEV_EVENT_DISPLAY_CHANGE_REQUEST, RT_INDEFINITE_WAIT, &events);
+        } while (rc == VERR_INTERRUPTED);
         if (RT_FAILURE(rc))
             VBClLogFatalError("Failure waiting for event, rc=%Rrc\n", rc);
     }

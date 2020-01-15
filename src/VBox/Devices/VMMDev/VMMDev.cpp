@@ -4271,7 +4271,9 @@ static DECLCALLBACK(void) vmmdevReset(PPDMDEVINS pDevIns)
     for (unsigned i = 0; i < RT_ELEMENTS(pThis->displayChangeData.aRequests); i++)
     {
         DISPLAYCHANGEREQUEST *pRequest = &pThis->displayChangeData.aRequests[i];
-        memset (&pRequest->lastReadDisplayChangeRequest, 0, sizeof (pRequest->lastReadDisplayChangeRequest));
+        memset(&pRequest->lastReadDisplayChangeRequest, 0, sizeof(pRequest->lastReadDisplayChangeRequest));
+        pRequest->lastReadDisplayChangeRequest.fDisplayFlags = VMMDEV_DISPLAY_DISABLED;
+        pRequest->lastReadDisplayChangeRequest.idDisplay = i;
     }
     pThis->displayChangeData.iCurrentMonitor = 0;
     pThis->displayChangeData.fGuestSentChangeEventAck = false;
@@ -4456,6 +4458,17 @@ static DECLCALLBACK(int) vmmdevConstruct(PPDMDEVINS pDevIns, int iInstance, PCFG
     vmmdevAllocFacilityStatusEntry(pThis, VBoxGuestFacilityType_Seamless,        true /*fFixed*/, &TimeStampNow);
     vmmdevAllocFacilityStatusEntry(pThis, VBoxGuestFacilityType_Graphics,        true /*fFixed*/, &TimeStampNow);
     Assert(pThis->cFacilityStatuses == 5);
+
+    /* disable all screens (no better hints known yet). */
+    /** @todo r=klaus need a way to represent "no hint known" */
+    for (unsigned i = 0; i < RT_ELEMENTS(pThis->displayChangeData.aRequests); i++)
+    {
+        DISPLAYCHANGEREQUEST *pRequest = &pThis->displayChangeData.aRequests[i];
+        pRequest->displayChangeRequest.fDisplayFlags = VMMDEV_DISPLAY_DISABLED;
+        pRequest->displayChangeRequest.idDisplay = i;
+        pRequest->lastReadDisplayChangeRequest.fDisplayFlags = VMMDEV_DISPLAY_DISABLED;
+        pRequest->lastReadDisplayChangeRequest.idDisplay = i;
+    }
 
     /*
      * Interfaces
@@ -4918,5 +4931,4 @@ extern "C" const PDMDEVREG g_DeviceVMMDev =
     /* .u32VersionEnd = */          PDM_DEVREG_VERSION
 };
 
-#endif /* !VBOX_DEV1679
-ICE_STRUCT_TESTCASE */
+#endif /* !VBOX_DEVICE_STRUCT_TESTCASE */

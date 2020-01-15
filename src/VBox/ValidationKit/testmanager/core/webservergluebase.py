@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 131252 $"
+__version__ = "$Revision: 135520 $"
 
 
 # Standard python imports.
@@ -88,8 +88,12 @@ class WebServerGlueBase(object):
         self._cchBodyWrittenOut = 0;
 
         # Output.
-        self.oOutputRaw = sys.stdout;
-        self.oOutputText = codecs.getwriter('utf-8')(sys.stdout);
+        if sys.version_info[0] >= 3:
+            self.oOutputRaw = sys.stdout.detach();
+            sys.stdout = None; # Prevents flush_std_files() from complaining on stderr during sys.exit().
+        else:
+            self.oOutputRaw = sys.stdout;
+        self.oOutputText = codecs.getwriter('utf-8')(self.oOutputRaw);
 
 
     #

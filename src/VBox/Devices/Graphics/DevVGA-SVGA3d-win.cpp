@@ -2473,30 +2473,13 @@ int vmsvga3dBackSurfaceDMACopyBox(PVGASTATE pThis, PVGASTATECC pThisCC, PVMSVGA3
         /* Caller already clipped pBox and buffers are 1-dimensional. */
         Assert(pBox->y == 0 && pBox->h == 1 && pBox->z == 0 && pBox->d == 1);
 
-        /* vmsvgaR3GmrTransfer verifies input parameters except for the host buffer addres and size.
-         * srcx has been verified in vmsvga3dSurfaceDMA to not cause 32 bit overflow when multiplied by cbBlock.
-         */
+        /* The caller has already updated pMipLevel->pSurfaceData, see VMSVGA3DSURFACE_NEEDS_DATA. */
+
+#ifdef LOG_ENABLED
         uint32_t const offHst = pBox->x * pSurface->cbBlock;
         uint32_t const cbWidth = pBox->w * pSurface->cbBlock;
-
-        uint32_t const offGst = pBox->srcx * pSurface->cbBlock;
-
-        /* Copy data between the guest and the host buffer. */
-        rc = vmsvgaR3GmrTransfer(pThis,
-                                 pThisCC,
-                                 transfer,
-                                 (uint8_t *)pMipLevel->pSurfaceData,
-                                 pMipLevel->cbSurface,
-                                 offHst,
-                                 pMipLevel->cbSurfacePitch,
-                                 GuestPtr,
-                                 offGst,
-                                 cbGuestPitch,
-                                 cbWidth,
-                                 1); /* Buffers are 1-dimensional */
-        AssertRC(rc);
-
         Log4(("Buffer updated at [0x%x;0x%x):\n%.*Rhxd\n", offHst, offHst + cbWidth, cbWidth, (uint8_t *)pMipLevel->pSurfaceData + offHst));
+#endif
 
         /* Do not bother to copy the data to the D3D resource now. vmsvga3dDrawPrimitives will do that.
          * The SVGA driver may use the same surface for both index and vertex data.
@@ -2677,6 +2660,8 @@ int vmsvga3dContextDestroy(PVGASTATECC pThisCC, uint32_t cid)
         Log(("vmsvga3dContextDestroy id %x\n", cid));
 
         /* Cleanup the device runtime state. */
+        if (pContext->pDevice)
+            pContext->pDevice->SetVertexDeclaration(NULL);
         D3D_RELEASE(pContext->d3dState.pVertexDecl);
 
         /* Check for all surfaces that are associated with this context to remove all dependencies */
@@ -2954,10 +2939,12 @@ int vmsvga3dChangeMode(PVGASTATECC pThisCC)
             }
 #endif /* #ifdef VMSVGA3D_DIRECT3D9_RESET */
 
+            AssertReturn(pContext->pDevice, VERR_INTERNAL_ERROR);
+
             /* Cleanup the device runtime state. */
+            pContext->pDevice->SetVertexDeclaration(NULL);
             D3D_RELEASE(pContext->d3dState.pVertexDecl);
 
-            AssertReturn(pContext->pDevice, VERR_INTERNAL_ERROR);
             hr = pContext->pDevice->GetViewport(&viewportOrg);
             AssertMsgReturn(hr == D3D_OK, ("vmsvga3dChangeMode: GetViewport failed with %x\n", hr), VERR_INTERNAL_ERROR);
 
@@ -3903,6 +3890,7 @@ int vmsvga3dSetRenderTarget(PVGASTATECC pThisCC, uint32_t cid, SVGA3dRenderTarge
 
     /* Save for vm state save/restore. */
     pContext->state.aRenderTargets[type] = target.sid;
+    /** @todo Also save target.face and target.mipmap */
 
     if (target.sid == SVGA3D_INVALID_ID)
     {
@@ -4799,6 +4787,14 @@ int vmsvga3dSetClipPlane(PVGASTATECC pThisCC, uint32_t cid, uint32_t index, floa
 int vmsvga3dCommandClear(PVGASTATECC pThisCC, uint32_t cid, SVGA3dClearFlag clearFlag, uint32_t color, float depth,
                          uint32_t stencil, uint32_t cRects, SVGA3dRect *pRect)
 {
+    /* From SVGA3D_BeginClear comments:
+     *
+     *      Clear is not affected by clipping, depth test, or other
+     *      render state which affects the fragment pipeline.
+     *
+     * Therefore this code must ignore the current scissor rect.
+     */
+
     DWORD                 clearFlagD3D = 0;
     D3DRECT              *pRectD3D = NULL;
     HRESULT               hr;
@@ -4809,6 +4805,10 @@ int vmsvga3dCommandClear(PVGASTATECC pThisCC, uint32_t cid, SVGA3dClearFlag clea
     Log(("vmsvga3dCommandClear %x clearFlag=%x color=%x depth=%d stencil=%x cRects=%d\n", cid, clearFlag, color, (uint32_t)(depth * 100.0), stencil, cRects));
 
     int rc = vmsvga3dContextFromCid(pState, cid, &pContext);
+    AssertRCReturn(rc, rc);
+
+    PVMSVGA3DSURFACE pRT;
+    rc = vmsvga3dSurfaceFromSid(pState, pContext->state.aRenderTargets[SVGA3D_RT_COLOR0], &pRT);
     AssertRCReturn(rc, rc);
 
     if (clearFlag & SVGA3D_CLEAR_COLOR)
@@ -4833,9 +4833,22 @@ int vmsvga3dCommandClear(PVGASTATECC pThisCC, uint32_t cid, SVGA3dClearFlag clea
         }
     }
 
+    RECT currentScissorRect;
+    pContext->pDevice->GetScissorRect(&currentScissorRect);
+
+    RECT clearScissorRect;
+    clearScissorRect.left   = 0;
+    clearScissorRect.top    = 0;
+    clearScissorRect.right  = pRT->paMipmapLevels[0].mipmapSize.width;
+    clearScissorRect.bottom = pRT->paMipmapLevels[0].mipmapSize.height;
+    pContext->pDevice->SetScissorRect(&clearScissorRect);
+
     hr = pContext->pDevice->Clear(cRects, pRectD3D, clearFlagD3D, (D3DCOLOR)color, depth, stencil);
+
     if (pRectD3D)
         RTMemFree(pRectD3D);
+
+    pContext->pDevice->SetScissorRect(&currentScissorRect);
 
     AssertMsgReturn(hr == D3D_OK, ("Clear failed with %x\n", hr), VERR_INTERNAL_ERROR);
 
@@ -5170,21 +5183,25 @@ int vmsvga3dDrawPrimitives(PVGASTATECC pThisCC, uint32_t cid, uint32_t numVertex
     }
     else
     {
+        /* Create and set the vertex declaration. */
+        IDirect3DVertexDeclaration9 *pVertexDecl;
+        hr = pContext->pDevice->CreateVertexDeclaration(&aVertexElements[0], &pVertexDecl);
+        AssertMsgReturn(hr == D3D_OK, ("CreateVertexDeclaration failed with %x\n", hr), VERR_INTERNAL_ERROR);
+
+        hr = pContext->pDevice->SetVertexDeclaration(pVertexDecl);
+        AssertMsgReturnStmt(hr == D3D_OK, ("SetVertexDeclaration failed with %x\n", hr),
+                            D3D_RELEASE(pVertexDecl),
+                            VERR_INTERNAL_ERROR);
+
+        /* The new vertex declaration has been successfully set. Delete the old one. */
         D3D_RELEASE(pContext->d3dState.pVertexDecl);
 
+        /* Remember the new vertext declaration. */
+        pContext->d3dState.pVertexDecl = pVertexDecl;
         pContext->d3dState.cVertexElements = numVertexDecls + 1;
         memcpy(pContext->d3dState.aVertexElements,
                aVertexElements,
                pContext->d3dState.cVertexElements * sizeof(aVertexElements[0]));
-
-        /* Create and set the vertex declaration. */
-        hr = pContext->pDevice->CreateVertexDeclaration(&aVertexElements[0], &pContext->d3dState.pVertexDecl);
-        AssertMsgReturn(hr == D3D_OK, ("CreateVertexDeclaration failed with %x\n", hr), VERR_INTERNAL_ERROR);
-
-        hr = pContext->pDevice->SetVertexDeclaration(pContext->d3dState.pVertexDecl);
-        AssertMsgReturnStmt(hr == D3D_OK, ("SetVertexDeclaration failed with %x\n", hr),
-                            D3D_RELEASE(pContext->d3dState.pVertexDecl),
-                            VERR_INTERNAL_ERROR);
     }
 
     /* Begin a scene before rendering anything. */
@@ -5290,8 +5307,10 @@ int vmsvga3dDrawPrimitives(PVGASTATECC pThisCC, uint32_t cid, uint32_t numVertex
 
     /* Cleanup. */
     uint32_t i;
-    /* Clear streams above 1 as they might accidentally be reused in the future. */
-    for (i = 1; i < iCurrentStreamId; ++i)
+    /* Clear all streams, because they are set at the beginning of this function anyway.
+     * Now the vertex buffers can be safely deleted/recreated if necessary.
+     */
+    for (i = 0; i < iCurrentStreamId; ++i)
     {
         LogFunc(("clear stream %d\n", i));
         HRESULT hr2 = pContext->pDevice->SetStreamSource(i, NULL, 0, 0);
@@ -5337,7 +5356,7 @@ int vmsvga3dDrawPrimitives(PVGASTATECC pThisCC, uint32_t cid, uint32_t numVertex
     /* Dump render target to a bitmap. */
     if (pContext->state.aRenderTargets[SVGA3D_RT_COLOR0] != SVGA3D_INVALID_ID)
     {
-        vmsvga3dUpdateHeapBuffersForSurfaces(pThis, pContext->state.aRenderTargets[SVGA3D_RT_COLOR0]);
+        vmsvga3dUpdateHeapBuffersForSurfaces(pThisCC, pContext->state.aRenderTargets[SVGA3D_RT_COLOR0]);
         PVMSVGA3DSURFACE pSurface;
         int rc2 = vmsvga3dSurfaceFromSid(pState, pContext->state.aRenderTargets[SVGA3D_RT_COLOR0], &pSurface);
         if (RT_SUCCESS(rc2))
@@ -5346,7 +5365,7 @@ int vmsvga3dDrawPrimitives(PVGASTATECC pThisCC, uint32_t cid, uint32_t numVertex
         /* Stage 0 texture. */
         if (pContext->aSidActiveTextures[0] != SVGA3D_INVALID_ID)
         {
-            vmsvga3dUpdateHeapBuffersForSurfaces(pThis, pContext->aSidActiveTextures[0]);
+            vmsvga3dUpdateHeapBuffersForSurfaces(pThisCC, pContext->aSidActiveTextures[0]);
             rc2 = vmsvga3dSurfaceFromSid(pState, pContext->aSidActiveTextures[0], &pSurface);
             if (RT_SUCCESS(rc2))
                 vmsvga3dInfoSurfaceToBitmap(NULL, pSurface, "bmpd3d", "rt", "-post-tx");

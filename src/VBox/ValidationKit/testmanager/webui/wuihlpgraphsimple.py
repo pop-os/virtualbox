@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 131252 $"
+__version__ = "$Revision: 135537 $"
 
 # Validation Kit imports.
 from common.webutils                    import escapeAttr, escapeElem;
@@ -48,6 +48,10 @@ class WuiHlpBarGraph(WuiHlpGraphBase):
     def setRangeMax(self, fpMax):
         """ Sets the max range."""
         self.fpMax = float(fpMax);
+        return None;
+
+    def invertYDirection(self):
+        """ Not supported. """
         return None;
 
     def renderGraph(self):

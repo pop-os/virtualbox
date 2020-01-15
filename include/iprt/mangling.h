@@ -10,7 +10,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1034,6 +1034,8 @@
 # define RTFsIsoMakerCmd                                RT_MANGLER(RTFsIsoMakerCmd)
 # define RTFsIsoMakerCmdEx                              RT_MANGLER(RTFsIsoMakerCmdEx)
 # define RTFsNtfsVolOpen                                RT_MANGLER(RTFsNtfsVolOpen)
+# define RTFtpServerCreate                              RT_MANGLER(RTFtpServerCreate)
+# define RTFtpServerDestroy                             RT_MANGLER(RTFtpServerDestroy)
 # define RTFuzzCmdMaster                                RT_MANGLER(RTFuzzCmdMaster)
 # define RTFuzzCtxCfgGetBehavioralFlags                 RT_MANGLER(RTFuzzCtxCfgGetBehavioralFlags)
 # define RTFuzzCtxCfgGetInputSeedMaximum                RT_MANGLER(RTFuzzCtxCfgGetInputSeedMaximum)

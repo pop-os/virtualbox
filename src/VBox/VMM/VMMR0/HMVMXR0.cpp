@@ -8965,8 +8965,8 @@ VMMR0DECL(void) VMXR0ThreadCtxCallback(RTTHREADCTXEVENT enmEvent, PVMCPUCC pVCpu
                initializing VT-x if necessary (onlined CPUs, local init etc.) */
             int rc = hmR0EnterCpu(pVCpu);
             AssertRC(rc);
-            Assert(   (pVCpu->hm.s.fCtxChanged & (HM_CHANGED_HOST_CONTEXT | HM_CHANGED_VMX_HOST_GUEST_SHARED_STATE))
-                   ==                            (HM_CHANGED_HOST_CONTEXT | HM_CHANGED_VMX_HOST_GUEST_SHARED_STATE));
+            Assert((pVCpu->hm.s.fCtxChanged &  (HM_CHANGED_HOST_CONTEXT | HM_CHANGED_VMX_HOST_GUEST_SHARED_STATE))
+                                            == (HM_CHANGED_HOST_CONTEXT | HM_CHANGED_VMX_HOST_GUEST_SHARED_STATE));
 
             /* Load the active VMCS as the current one. */
             PVMXVMCSINFO pVmcsInfo = hmGetVmxActiveVmcsInfo(pVCpu);
@@ -10340,9 +10340,6 @@ static VBOXSTRICTRC hmR0VmxPreRunGuest(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransie
     /*
      * Virtualize memory-mapped accesses to the physical APIC (may take locks).
      */
-    /** @todo Doing this from ring-3 after VM setup phase causes a
-     *        VERR_IOM_MMIO_RANGE_NOT_FOUND guru while booting Visa 64 SMP VM. No
-     *        idea why atm. */
     PVMCC pVM = pVCpu->CTX_SUFF(pVM);
     if (   !pVCpu->hm.s.vmx.u64GstMsrApicBase
         && (pVM->hm.s.vmx.Msrs.ProcCtls2.n.allowed1 & VMX_PROC_CTLS2_VIRT_APIC_ACCESS)
@@ -12639,13 +12636,6 @@ DECLINLINE(VBOXSTRICTRC) hmR0VmxHandleExit(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTra
  */
 DECLINLINE(VBOXSTRICTRC) hmR0VmxHandleExitNested(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
 {
-    /** @todo NSTVMX: Remove after debugging page-fault issue. */
-#ifdef DEBUG_ramshankar
-    hmR0VmxImportGuestState(pVCpu, pVmxTransient->pVmcsInfo, HMVMX_CPUMCTX_EXTRN_ALL);
-    Log4Func(("cs:rip=%#04x:%#RX64 rsp=%#RX64 eflags=%#RX32 cr3=%#RX64\n", pVCpu->cpum.GstCtx.cs.Sel, pVCpu->cpum.GstCtx.rip,
-              pVCpu->cpum.GstCtx.rsp, pVCpu->cpum.GstCtx.eflags.u32, pVCpu->cpum.GstCtx.cr3));
-#endif
-
     uint32_t const uExitReason = pVmxTransient->uExitReason;
     switch (uExitReason)
     {

@@ -139,7 +139,7 @@
 /** @def PGMPOOL_CFG_MAX_GROW
  * The maximum number of pages to add to the pool in one go.
  */
-#define PGMPOOL_CFG_MAX_GROW            (_256K >> PAGE_SHIFT)
+#define PGMPOOL_CFG_MAX_GROW            (_2M >> PAGE_SHIFT)
 
 /** @def VBOX_STRICT_PGM_HANDLER_VIRTUAL
  * Enables some extra assertions for virtual handlers (mainly phys2virt related).
@@ -265,17 +265,9 @@
  * @param   ppv         Where to store the virtual address. No need to cast
  *                      this.
  *
- * @remark  Use with care as we don't have so much dynamic mapping space in
- *          ring-0 on 32-bit darwin and in RC.
  * @remark  There is no need to assert on the result.
  */
-#ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
-# define PGM_HCPHYS_2_PTR(pVM, pVCpu, HCPhys, ppv) \
-     pgmRZDynMapHCPageInlined(pVCpu, HCPhys, (void **)(ppv) RTLOG_COMMA_SRC_POS)
-#else
-# define PGM_HCPHYS_2_PTR(pVM, pVCpu, HCPhys, ppv) \
-     MMPagePhys2PageEx(pVM, HCPhys, (void **)(ppv))
-#endif
+#define PGM_HCPHYS_2_PTR(pVM, pVCpu, HCPhys, ppv) pgmPoolHCPhys2Ptr(pVM, HCPhys, (void **)(ppv))
 
 /** @def PGM_GCPHYS_2_PTR_V2
  * Maps a GC physical page address to a virtual address.
@@ -1486,8 +1478,12 @@ typedef struct PGMREGMMIO2RANGE
 {
     /** The owner of the range. (a device) */
     PPDMDEVINSR3                        pDevInsR3;
-    /** Pointer to the ring-3 mapping of the allocation, if MMIO2. */
+    /** Pointer to the ring-3 mapping of the allocation. */
     RTR3PTR                             pvR3;
+#if defined(VBOX_WITH_RAM_IN_KERNEL) && !defined(VBOX_WITH_LINEAR_HOST_PHYS_MEM)
+    /** Pointer to the ring-0 mapping of the allocation. */
+    RTR0PTR                             pvR0;
+#endif
     /** Pointer to the next range - R3. */
     R3PTRTYPE(struct PGMREGMMIO2RANGE *) pNextR3;
     /** Flags (PGMREGMMIO2RANGE_F_XXX). */
@@ -1501,7 +1497,11 @@ typedef struct PGMREGMMIO2RANGE
     /** MMIO2 range identifier, for page IDs (PGMPAGE::s.idPage). */
     uint8_t                             idMmio2;
     /** Alignment padding for putting the ram range on a PGMPAGE alignment boundary. */
+#if defined(VBOX_WITH_RAM_IN_KERNEL) && !defined(VBOX_WITH_LINEAR_HOST_PHYS_MEM)
+    uint8_t                             abAlignment[HC_ARCH_BITS == 32 ? 6 + 4 : 2];
+#else
     uint8_t                             abAlignment[HC_ARCH_BITS == 32 ? 6 + 8 : 2 + 8];
+#endif
     /** The real size.
      * This may be larger than indicated by RamRange.cb if the range has been
      * reduced during saved state loading. */
@@ -1575,6 +1575,9 @@ typedef struct PGMPHYSCACHE
 } PGMPHYSCACHE;
 
 
+/** @name Ring-3 page mapping TLBs
+ * @{  */
+
 /** Pointer to an allocation chunk ring-3 mapping. */
 typedef struct PGMCHUNKR3MAP *PPGMCHUNKR3MAP;
 /** Pointer to an allocation chunk ring-3 mapping pointer. */
@@ -1611,7 +1614,7 @@ typedef struct PGMCHUNKR3MAPTLBE
     uint32_t                            u32Padding; /**< alignment padding. */
 #endif
     /** The chunk map. */
-#ifdef VBOX_WITH_2X_4GB_ADDR_SPACE
+#if defined(VBOX_WITH_2X_4GB_ADDR_SPACE) || defined(VBOX_WITH_RAM_IN_KERNEL)
     R3PTRTYPE(PPGMCHUNKR3MAP) volatile  pChunk;
 #else
     R3R0PTRTYPE(PPGMCHUNKR3MAP) volatile  pChunk;
@@ -1663,19 +1666,19 @@ typedef struct PGMPAGER3MAPTLBE
     /** Address of the page. */
     RTGCPHYS volatile                   GCPhys;
     /** The guest page. */
-#ifdef VBOX_WITH_2X_4GB_ADDR_SPACE
+#if defined(VBOX_WITH_2X_4GB_ADDR_SPACE) || defined(VBOX_WITH_RAM_IN_KERNEL)
     R3PTRTYPE(PPGMPAGE) volatile        pPage;
 #else
     R3R0PTRTYPE(PPGMPAGE) volatile      pPage;
 #endif
     /** Pointer to the page mapping tracking structure, PGMCHUNKR3MAP. */
-#ifdef VBOX_WITH_2X_4GB_ADDR_SPACE
+#if defined(VBOX_WITH_2X_4GB_ADDR_SPACE) || defined(VBOX_WITH_RAM_IN_KERNEL)
     R3PTRTYPE(PPGMCHUNKR3MAP) volatile  pMap;
 #else
     R3R0PTRTYPE(PPGMCHUNKR3MAP) volatile pMap;
 #endif
     /** The address */
-#ifdef VBOX_WITH_2X_4GB_ADDR_SPACE
+#if defined(VBOX_WITH_2X_4GB_ADDR_SPACE) || defined(VBOX_WITH_RAM_IN_KERNEL)
     R3PTRTYPE(void *) volatile          pv;
 #else
     R3R0PTRTYPE(void *) volatile        pv;
@@ -1711,6 +1714,51 @@ typedef PGMPAGER3MAPTLB *PPGMPAGER3MAPTLB;
  */
 #define PGM_PAGER3MAPTLB_IDX(GCPhys)    ( ((GCPhys) >> PAGE_SHIFT) & (PGM_PAGER3MAPTLB_ENTRIES - 1) )
 
+/** @} */
+
+#if defined(VBOX_WITH_RAM_IN_KERNEL) || defined(DOXYGEN_RUNNING)
+/** @name Ring-0 page mapping TLB
+ * @{  */
+/**
+ * Ring-0 guest page mapping TLB entry.
+ */
+typedef struct PGMPAGER0MAPTLBE
+{
+    /** Address of the page. */
+    RTGCPHYS volatile                   GCPhys;
+    /** The guest page. */
+    R0PTRTYPE(PPGMPAGE) volatile        pPage;
+    /** The address */
+    R0PTRTYPE(void *) volatile          pv;
+} PGMPAGER0MAPTLBE;
+/** Pointer to an entry in the HC physical TLB. */
+typedef PGMPAGER0MAPTLBE *PPGMPAGER0MAPTLBE;
+
+
+/** The number of entries in the ring-3 guest page mapping TLB.
+ * @remarks The value must be a power of two. */
+#define PGM_PAGER0MAPTLB_ENTRIES 256
+
+/**
+ * Ring-3 guest page mapping TLB.
+ * @remarks used in ring-0 as well at the moment.
+ */
+typedef struct PGMPAGER0MAPTLB
+{
+    /** The TLB entries. */
+    PGMPAGER0MAPTLBE            aEntries[PGM_PAGER0MAPTLB_ENTRIES];
+} PGMPAGER0MAPTLB;
+/** Pointer to the ring-3 guest page mapping TLB. */
+typedef PGMPAGER0MAPTLB *PPGMPAGER0MAPTLB;
+
+/**
+ * Calculates the index of the TLB entry for the specified guest page.
+ * @returns Physical TLB index.
+ * @param   GCPhys      The guest physical address.
+ */
+#define PGM_PAGER0MAPTLB_IDX(GCPhys)    ( ((GCPhys) >> PAGE_SHIFT) & (PGM_PAGER0MAPTLB_ENTRIES - 1) )
+/** @} */
+#endif /* VBOX_WITH_RAM_IN_KERNEL || DOXYGEN_RUNNING */
 
 /**
  * Raw-mode context dynamic mapping cache entry.
@@ -1874,22 +1922,22 @@ typedef PGMMAPSET *PPGMMAPSET;
  * Pointer to a page mapper unit for current context. */
 /** @typedef PPPGMPAGEMAP
  * Pointer to a page mapper unit pointer for current context. */
-#if defined(IN_RING0) && 0
-// typedef PPGMPAGER0MAPTLB               PPGMPAGEMAPTLB;
-// typedef PPGMPAGER0MAPTLBE              PPGMPAGEMAPTLBE;
-// typedef PPGMPAGER0MAPTLBE             *PPPGMPAGEMAPTLBE;
-//# define PGM_PAGEMAPTLB_ENTRIES         PGM_PAGER0MAPTLB_ENTRIES
-//# define PGM_PAGEMAPTLB_IDX(GCPhys)     PGM_PAGER0MAPTLB_IDX(GCPhys)
-// typedef PPGMCHUNKR0MAP                 PPGMPAGEMAP;
-// typedef PPPGMCHUNKR0MAP                PPPGMPAGEMAP;
+#if defined(IN_RING0) && defined(VBOX_WITH_RAM_IN_KERNEL)
+typedef PPGMPAGER0MAPTLB                PPGMPAGEMAPTLB;
+typedef PPGMPAGER0MAPTLBE               PPGMPAGEMAPTLBE;
+typedef PPGMPAGER0MAPTLBE              *PPPGMPAGEMAPTLBE;
+# define PGM_PAGEMAPTLB_ENTRIES         PGM_PAGER0MAPTLB_ENTRIES
+# define PGM_PAGEMAPTLB_IDX(GCPhys)     PGM_PAGER0MAPTLB_IDX(GCPhys)
+typedef struct PGMCHUNKR0MAP           *PPGMPAGEMAP;
+typedef struct PGMCHUNKR0MAP          **PPPGMPAGEMAP;
 #else
- typedef PPGMPAGER3MAPTLB               PPGMPAGEMAPTLB;
- typedef PPGMPAGER3MAPTLBE              PPGMPAGEMAPTLBE;
- typedef PPGMPAGER3MAPTLBE             *PPPGMPAGEMAPTLBE;
+typedef PPGMPAGER3MAPTLB                PPGMPAGEMAPTLB;
+typedef PPGMPAGER3MAPTLBE               PPGMPAGEMAPTLBE;
+typedef PPGMPAGER3MAPTLBE              *PPPGMPAGEMAPTLBE;
 # define PGM_PAGEMAPTLB_ENTRIES         PGM_PAGER3MAPTLB_ENTRIES
 # define PGM_PAGEMAPTLB_IDX(GCPhys)     PGM_PAGER3MAPTLB_IDX(GCPhys)
- typedef PPGMCHUNKR3MAP                 PPGMPAGEMAP;
- typedef PPPGMCHUNKR3MAP                PPPGMPAGEMAP;
+typedef PPGMCHUNKR3MAP                  PPGMPAGEMAP;
+typedef PPPGMCHUNKR3MAP                 PPPGMPAGEMAP;
 #endif
 /** @} */
 
@@ -2054,14 +2102,9 @@ typedef struct PGMPOOLPAGE
     /** AVL node code with the (HC) physical address of this page. */
     AVLOHCPHYSNODECORE  Core;
     /** Pointer to the R3 mapping of the page. */
-#ifdef VBOX_WITH_2X_4GB_ADDR_SPACE
     R3PTRTYPE(void *)   pvPageR3;
-#else
-    R3R0PTRTYPE(void *) pvPageR3;
-#endif
-#if HC_ARCH_BITS == 32 && GC_ARCH_BITS == 64
-    uint32_t            Alignment0;
-#endif
+    /** Pointer to the R0 mapping of the page. */
+    R0PTRTYPE(void *)   pvPageR0;
     /** The guest physical address. */
     RTGCPHYS            GCPhys;
     /** The kind of page we're shadowing. (This is really a PGMPOOLKIND enum.) */
@@ -2346,6 +2389,8 @@ typedef struct PGMPOOL
 #else
     uint32_t                    Alignment3;         /**< Align the next member on a 64-bit boundary. */
 #endif
+    /** Profiling PGMR0PoolGrow(). */
+    STAMPROFILE                 StatGrow;
     /** The AVL tree for looking up a page by its HC physical address. */
     AVLOHCPHYSTREE              HCPhysTree;
     uint32_t                    Alignment4;         /**< Align the next member on a 64-bit boundary. */
@@ -2380,12 +2425,15 @@ AssertCompileMemberAlignment(PGMPOOL, aPages, 8);
 # define PGMPOOL_PAGE_2_PTR(a_pVM, a_pPage)     pgmPoolMapPageStrict(a_pPage, __FUNCTION__)
 DECLINLINE(void *) pgmPoolMapPageStrict(PPGMPOOLPAGE a_pPage, const char *pszCaller)
 {
+    RT_NOREF(pszCaller);
     AssertPtr(a_pPage);
-    AssertReleaseMsg(RT_VALID_PTR(a_pPage->pvPageR3), ("enmKind=%d idx=%#x HCPhys=%RHp GCPhys=%RGp caller=%s\n", a_pPage->enmKind, a_pPage->idx, a_pPage->Core.Key, a_pPage->GCPhys, pszCaller));
-    return a_pPage->pvPageR3;
+    AssertMsg(RT_VALID_PTR(a_pPage->CTX_SUFF(pvPage)),
+              ("enmKind=%d idx=%#x HCPhys=%RHp GCPhys=%RGp pvPageR3=%p pvPageR0=%p caller=%s\n",
+               a_pPage->enmKind, a_pPage->idx, a_pPage->Core.Key, a_pPage->GCPhys, a_pPage->pvPageR3, a_pPage->pvPageR0, pszCaller));
+    return a_pPage->CTX_SUFF(pvPage);
 }
 #else
-# define PGMPOOL_PAGE_2_PTR(pVM, a_pPage)       ((a_pPage)->pvPageR3)
+# define PGMPOOL_PAGE_2_PTR(pVM, a_pPage)       ((a_pPage)->CTX_SUFF(pvPage))
 #endif
 
 
@@ -3236,7 +3284,7 @@ typedef struct PGM
         /** The chunk mapping TLB. */
         PGMCHUNKR3MAPTLB            Tlb;
         /** The chunk tree, ordered by chunk id. */
-#ifdef VBOX_WITH_2X_4GB_ADDR_SPACE
+#if defined(VBOX_WITH_2X_4GB_ADDR_SPACE) || defined(VBOX_WITH_RAM_IN_KERNEL)
         R3PTRTYPE(PAVLU32NODECORE)  pTree;
 #else
         R3R0PTRTYPE(PAVLU32NODECORE) pTree;
@@ -3258,8 +3306,13 @@ typedef struct PGM
 
     /** The page mapping TLB for ring-3. */
     PGMPAGER3MAPTLB                 PhysTlbR3;
+#ifdef VBOX_WITH_RAM_IN_KERNEL
+    /** The page mapping TLB for ring-0. */
+    PGMPAGER0MAPTLB                 PhysTlbR0;
+#else
     /** The page mapping TLB for ring-0 (still using ring-3 mappings). */
     PGMPAGER3MAPTLB                 PhysTlbR0;
+#endif
 
     /** @name   The zero page.
      * @{ */
@@ -3833,6 +3886,22 @@ typedef PGMCPU *PPGMCPU;
 /** @} */
 
 
+/**
+ * PGM GVM instance data.
+ */
+typedef struct PGMR0PERVM
+{
+    /** @name PGM Pool related stuff.
+     * @{ */
+    /** Critical section for serializing pool growth. */
+    RTCRITSECT  PoolGrowCritSect;
+    /** The memory objects for the pool pages. */
+    RTR0MEMOBJ  ahPoolMemObjs[(PGMPOOL_IDX_LAST + PGMPOOL_CFG_MAX_GROW - 1) / PGMPOOL_CFG_MAX_GROW];
+    /** The ring-3 mapping objects for the pool pages. */
+    RTR0MEMOBJ  ahPoolMapObjs[(PGMPOOL_IDX_LAST + PGMPOOL_CFG_MAX_GROW - 1) / PGMPOOL_CFG_MAX_GROW];
+    /** @} */
+} PGMR0PERVM;
+
 RT_C_DECLS_BEGIN
 
 #if defined(VBOX_STRICT) && defined(IN_RING3)
@@ -3948,6 +4017,7 @@ int             pgmPoolFlushPage(PPGMPOOL pPool, PPGMPOOLPAGE pPage, bool fFlush
 void            pgmPoolFlushPageByGCPhys(PVM pVM, RTGCPHYS GCPhys);
 PPGMPOOLPAGE    pgmPoolGetPage(PPGMPOOL pPool, RTHCPHYS HCPhys);
 PPGMPOOLPAGE    pgmPoolQueryPageForDbg(PPGMPOOL pPool, RTHCPHYS HCPhys);
+int             pgmPoolHCPhys2Ptr(PVM pVM, RTHCPHYS HCPhys, void **ppv);
 int             pgmPoolSyncCR3(PVMCPUCC pVCpu);
 bool            pgmPoolIsDirtyPageSlow(PVM pVM, RTGCPHYS GCPhys);
 void            pgmPoolInvalidateDirtyPage(PVMCC pVM, RTGCPHYS GCPhysPT);

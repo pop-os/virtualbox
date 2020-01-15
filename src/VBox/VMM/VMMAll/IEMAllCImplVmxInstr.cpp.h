@@ -173,7 +173,6 @@
  *  VMX_EXIT_RSM
  *  VMX_EXIT_MONITOR (APIC access VM-exit caused by MONITOR pending)
  *  VMX_EXIT_ERR_MACHINE_CHECK (we never need to raise this?)
- *  VMX_EXIT_APIC_ACCESS
  *  VMX_EXIT_EPT_VIOLATION
  *  VMX_EXIT_EPT_MISCONFIG
  *  VMX_EXIT_INVEPT
@@ -3510,13 +3509,6 @@ IEM_STATIC VBOXSTRICTRC iemVmxVmexitExtInt(PVMCPUCC pVCpu, uint8_t uVector, bool
     PCVMXVVMCS pVmcs = pVCpu->cpum.GstCtx.hwvirt.vmx.CTX_SUFF(pVmcs);
     Assert(pVmcs);
     Assert(!fIntPending || uVector == 0);
-
-    /** @todo NSTVMX: r=ramshankar: Consider standardizing check basic/blanket
-     *        intercepts for VM-exits. Right now it is not clear which iemVmxVmexitXXX()
-     *        functions require prior checking of a blanket intercept and which don't.
-     *        It is better for the caller to check a blanket intercept performance wise
-     *        than making a function call. Leaving this as a todo because it is more
-     *        a performance issue. */
 
     /* The VM-exit is subject to "External interrupt exiting" being set. */
     if (pVmcs->u32PinCtls & VMX_PIN_CTLS_EXT_INT_EXIT)

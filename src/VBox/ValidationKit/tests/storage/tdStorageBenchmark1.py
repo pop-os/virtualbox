@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 132695 $"
+__version__ = "$Revision: 135510 $"
 
 
 # Standard Python imports.
@@ -561,7 +561,7 @@ class tdStorageBenchmark(vbox.TestDriver):                                      
         self.asVirtModes             = self.asVirtModesDef;
         self.acCpusDef               = [1, 2];
         self.acCpus                  = self.acCpusDef;
-        self.asStorageCtrlsDef       = ['AHCI', 'IDE', 'LsiLogicSAS', 'LsiLogic', 'BusLogic', 'NVMe'];
+        self.asStorageCtrlsDef       = ['AHCI', 'IDE', 'LsiLogicSAS', 'LsiLogic', 'BusLogic', 'NVMe', 'VirtIoScsi'];
         self.asStorageCtrls          = self.asStorageCtrlsDef;
         self.asHostIoCacheDef        = ['default', 'hostiocache', 'no-hostiocache'];
         self.asHostIoCache           = self.asHostIoCacheDef;
@@ -950,6 +950,8 @@ class tdStorageBenchmark(vbox.TestDriver):                                      
             eStorageCtrl = vboxcon.StorageControllerType_BusLogic;
         elif sStorageCtrl == 'NVMe':
             eStorageCtrl = vboxcon.StorageControllerType_NVMe;
+        elif sStorageCtrl == 'VirtIoScsi':
+            eStorageCtrl = vboxcon.StorageControllerType_VirtioSCSI;
 
         return eStorageCtrl;
 
@@ -972,6 +974,8 @@ class tdStorageBenchmark(vbox.TestDriver):                                      
             return ('buslogic', True);
         if eStorageCtrl == vboxcon.StorageControllerType_NVMe:
             return ('nvme', False);
+        if eStorageCtrl == vboxcon.StorageControllerType_VirtioSCSI:
+            return ('virtio-scsi', True);
 
         return ('<invalid>', False);
 

@@ -430,6 +430,10 @@ endif
 if1of ($(KBUILD_TARGET), win)
  VBOX_WITH_NATIVE_NEM = 1
 endif
+# Enables mapping guest RAM into host kernel space.
+#if1of ($(KBUILD_TARGET), linux win)
+# VBOX_WITH_RAM_IN_KERNEL := 1
+#endif
 ## @}
 
 
@@ -2003,6 +2007,7 @@ VBOX_PYLINT_FLAGS = $(if-expr $(VBOX_PYLINT_VERSION) >= 10500,--reports=n,--repo
        $(if-expr $(VBOX_PYLINT_VERSION) >= 10600,--disable=missing-docstring --disable=trailing-newlines --disable=ungrouped-imports,) \
        $(if-expr $(VBOX_PYLINT_VERSION) >= 10800,--disable=redundant-keyword-arg,) \
        $(if-expr $(VBOX_PYLINT_VERSION) >= 20000,--disable=useless-object-inheritance --disable=useless-return,) \
+       $(if-expr $(VBOX_PYLINT_VERSION) >= 20400,--disable=import-outside-toplevel,) \
 	--disable=unnecessary-semicolon,invalid-encoded-data,global-statement,bare-except,broad-except,multiple-statements,no-self-use,fixme \
 	--disable=I0011 \
 	--ignored-classes=testdriver.vboxcon \
@@ -2045,7 +2050,12 @@ endif
 
 
 # Intel ASL compiler for ACPI
+$(warning KBUILD_HOST:=$(KBUILD_HOST) KBUILD_HOST_VERSION_MAJOR=$(KBUILD_HOST_VERSION_MAJOR) VBOX_IASLCMD=$(VBOX_IASLCMD))
+if "$(KBUILD_HOST)" == "darwin" && "$(KBUILD_HOST_VERSION_MAJOR)" >= 19  # Temp hack! Catalina needs 64-bit binary
+VBOX_IASLCMD   ?= /opt/local/bin/iasl$(HOSTSUFF_EXE)
+else
 VBOX_IASLCMD   ?= $(firstword $(wildcard $(KBUILD_DEVTOOLS_HST)/bin/iasl$(HOSTSUFF_EXE)) iasl$(HOSTSUFF_EXE))
+endif
 
 # libxslt XSLT processor. (see PATH_TOOL_YASM for explanation why it's temporarily located in bin.)
 ifeq ($(VBOX_XSLTPROC),)
@@ -2299,22 +2309,26 @@ VBOX_PATH_MACOSX_SDK := $(firstword $(wildcard $(addsuffix /MacOSX$(VBOX_DEF_MAC
  ifeq ($(KBUILD_HOST),darwin)
   ifndef VBOX_XCODE_VERSION
    ifdef VBOX_WITH_NEW_XCODE
-    VBOX_XCODE_VERSION := $(word 2, $(shell $(VBOX_PATH_MACOSX_DEVEL_ROOT)/usr/bin/xcodebuild -version))
+    VBOX_XCODE_VERSION := $(shell exec $(VBOX_PATH_MACOSX_DEVEL_ROOT)/usr/bin/xcodebuild -version 2>&1)
+    ifneq ($(pos Symbol not found,$(VBOX_XCODE_VERSION)),0) # Try detect unresolved symbol running Xcode 6.2 on Catalina.
+     VBOX_XCODE_VERSION = 6.2
+    else
+     VBOX_XCODE_VERSION := $(word 2, $(VBOX_XCODE_VERSION))
+    endif
    else ifdef VBOX_WITH_MACOSX_COMPILERS_FROM_DEVEL
     VBOX_XCODE_VERSION := $(word 2, $(shell $(VBOX_PATH_MACOSX_DEVEL_ROOT)/usr/bin/xcodebuild -version))
    else
     VBOX_XCODE_VERSION := $(word 2, $(shell xcodebuild -version))
    endif
-   ifdef VBOX_WITH_NEW_XCODE
-    VBOX_XCODE_VERSION ?= 6.2
-   else
-    VBOX_XCODE_VERSION ?= 4.1
+   ifeq ($(strip $(VBOX_XCODE_VERSION)),)
+    ifdef VBOX_WITH_NEW_XCODE
+     VBOX_XCODE_VERSION := 6.2
+    else
+     VBOX_XCODE_VERSION := 4.1
+    endif
    endif
   endif
   ifdef VBOX_WITH_NEW_XCODE
-   if defined(VBOX_WITH_REM) && "$(VBOX_XCODE_VERSION)" >= "4.2"
-    $(warning Xcode $(VBOX_XCODE_VERSION) is not able to correctly build the recompiler! Please disable it: 'VBOX_WITH_REM=')
-   endif
    ifdef KBUILD_USE_KOBJCACHE
     $(warning KBUILD_USE_KOBJCACHE does _not_ currently work with this version of Xcode)
    endif
@@ -4585,7 +4599,7 @@ ifeq ($(KBUILD_TARGET),linux)
  ##
  ## @param 1    Module name.
  ## @param 2    The test build which symvers we need (empty if none)
- ## @param 3	 Save symvers if non-empty.
+ ## @param 3    Save symvers if non-empty.
  ##
  ## @note Using the extra expansion to replace $(1), $(2) and $(3) before eval,
  ##       thus everything else needs escaped dollars.
@@ -4616,7 +4630,7 @@ $$(PATH_TARGET)/tst$(1)$(subst /,_,$(KERN_DIR))_mod.run: \
 	$(QUIET)$$(CP) -f    -- "$$<" "$$(PATH_TARGET)/tst$(1)_mod/Module.symvers"
    endif
 	+ $(QUIET)$(REDIRECT_EXT) -d2=1 -w1 "$$(PATH_TARGET)/tst$(1)_mod/make.err" -- \
-		make KBUILD_VERBOSE=$(KBUILD_VERBOSE) KERN_DIR=$(KERN_DIR) VBOX_KERN_QUIET=1 $(if-expr $(KMK_OPTS_JOBS) != 0,JOBS=$(KMK_OPTS_JOBS),) -C $$(PATH_TARGET)/tst$(1)_mod
+		make KBUILD_VERBOSE=$(KBUILD_VERBOSE) KERN_DIR=$(KERN_DIR) VBOX_KERN_QUIET=1 $(if $(2),KBUILD_EXTRA_SYMBOLS="$$(PATH_TARGET)/tst$(1)_mod/Module.symvers",) $(if-expr $(KMK_OPTS_JOBS) != 0,JOBS=$(KMK_OPTS_JOBS),) -C $$(PATH_TARGET)/tst$(1)_mod
 	$(CAT) "$$(PATH_TARGET)/tst$(1)_mod/make.err"
 	$(QUIET)! grep "^WARNING: .* undefined!$$$$" "$$(PATH_TARGET)/tst$(1)_mod/make.err"
    if1of ($(USERNAME), bird)
@@ -7716,7 +7730,7 @@ endif
 SVN                    ?= svn$(HOSTSUFF_EXE)
 VBOX_SVN_REV_KMK        = $(PATH_OUT)/revision.kmk
 ifndef VBOX_SVN_REV
- VBOX_SVN_REV_CONFIG_FALLBACK := $(patsubst %:,,  $Rev: 135348 $  )
+ VBOX_SVN_REV_CONFIG_FALLBACK := $(patsubst %:,,  $Rev: 135614 $  )
  VBOX_SVN_REV_FALLBACK := $(if-expr $(VBOX_SVN_REV_CONFIG_FALLBACK) > $(VBOX_SVN_REV_VERSION_FALLBACK),$(VBOX_SVN_REV_CONFIG_FALLBACK),$(VBOX_SVN_REV_VERSION_FALLBACK))
  VBOX_SVN_DEP          := $(firstword $(wildcard $(PATH_ROOT)/.svn/wc.db $(abspath $(PATH_ROOT)/../.svn/wc.db) $(abspath $(PATH_ROOT)/../../.svn/wc.db) $(PATH_ROOT)/.svn/entries))
  ifeq ($(which $(SVN)),)

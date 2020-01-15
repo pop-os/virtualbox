@@ -1432,7 +1432,7 @@ HRESULT SystemProperties::getSupportedNetworkAttachmentTypes(std::vector<Network
         NetworkAttachmentType_HostOnly,
         NetworkAttachmentType_Generic,
         NetworkAttachmentType_NATNetwork,
-#ifdef DEBUG
+#ifdef VBOX_WITH_CLOUD_NET
         NetworkAttachmentType_Cloud,
 #endif
         NetworkAttachmentType_Null,
@@ -1452,7 +1452,9 @@ HRESULT SystemProperties::getSupportedNetworkAdapterTypes(std::vector<NetworkAda
         NetworkAdapterType_I82543GC,
         NetworkAdapterType_I82545EM,
         NetworkAdapterType_Virtio,
-        NetworkAdapterType_Am79C960,
+#ifdef VBOX_WITH_VIRTIO_NET_1_0
+        NetworkAdapterType_Virtio_1_0,
+#endif
     };
     aSupportedNetworkAdapterTypes.assign(aNetworkAdapterTypes,
                                          aNetworkAdapterTypes + RT_ELEMENTS(aNetworkAdapterTypes));
