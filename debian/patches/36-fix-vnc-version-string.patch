@@ -3,7 +3,7 @@ Index: virtualbox/Config.kmk
 ===================================================================
 --- virtualbox.orig/Config.kmk
 +++ virtualbox/Config.kmk
-@@ -3269,6 +3269,7 @@
+@@ -3283,6 +3283,7 @@
  	-e 's/@VBOX_VERSION_MINOR@/$(VBOX_VERSION_MINOR)/g' \
  	-e 's/@VBOX_VERSION_BUILD@/$(VBOX_VERSION_BUILD)/g' \
  	-e 's/@VBOX_VERSION_STRING@/$(VBOX_VERSION_STRING)/g' \

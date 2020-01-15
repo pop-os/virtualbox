@@ -1,3 +1,10 @@
+virtualbox (6.1.2-dfsg-1) unstable; urgency=medium
+
+  * New upstream version 6.1.2-dfsg
+  * Patch refresh
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 15 Jan 2020 16:14:29 +0100
+
 virtualbox (6.1.0-dfsg-3) unstable; urgency=medium
 
   * Add cfg files to UnattendedUpgrades (Closes: #942175)
