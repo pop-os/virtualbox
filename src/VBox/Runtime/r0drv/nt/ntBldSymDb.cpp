@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -197,7 +197,7 @@ static void generateHeader(PRTSTREAM pOut)
                  " */\n"
                  "\n"
                  "/*\n"
-                 " * Copyright (C) 2013-2017 Oracle Corporation \n"
+                 " * Copyright (C) 2013-2020 Oracle Corporation \n"
                  " *\n"
                  " * This file is part of VirtualBox Open Source Edition (OSE), as\n"
                  " * available from http://www.virtualbox.org. This file is free software;\n"
@@ -1155,7 +1155,7 @@ int main(int argc, char **argv)
                 break;
 
             case 'V':
-                RTPrintf("$Revision: 127862 $");
+                RTPrintf("$Revision: 135981 $");
                 break;
 
             case 'h':

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2018-2019 Oracle Corporation
+ * Copyright (C) 2018-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,7 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
  * --------------------------------------------------------------------
  *
  * This code is based on: kLdr/kLdrModMachO.c from kStuff r113.
@@ -1176,6 +1175,7 @@ static int kldrModMachOPreParseLoadCommands(uint8_t *pbLoadCommands, const mach_
                 break;
 
             case LC_SOURCE_VERSION:     /* Harmless. It just gives a clue regarding the source code revision/version. */
+            case LC_BUILD_VERSION:      /* Harmless. It just gives a clue regarding the tool/sdk versions. */
             case LC_DATA_IN_CODE:       /* Ignore */
             case LC_DYLIB_CODE_SIGN_DRS:/* Ignore */
                 /** @todo valid command size. */
@@ -1524,7 +1524,7 @@ static int  kldrModMachOParseLoadCommands(PRTLDRMODMACHO pThis, char *pbStringPo
      * Adjust mapping addresses calculating the image size.
      */
     {
-        bool                fLoadLinkEdit = false;
+        bool                fLoadLinkEdit = RT_BOOL(pThis->fOpenFlags & RTLDR_O_MACHO_LOAD_LINKEDIT);
         PRTLDRMODMACHOSECT  pSectExtraItr;
         RTLDRADDR           uNextRVA = 0;
         RTLDRADDR           cb;
@@ -1546,7 +1546,7 @@ static int  kldrModMachOParseLoadCommands(PRTLDRMODMACHO pThis, char *pbStringPo
 
             /* If we're skipping the __LINKEDIT segment, check for it and adjust
                the number of segments we'll be messing with here.  ASSUMES it's
-               last (by now anyway). */
+               last (typcially is, but not always for mach_kernel). */
             if (   !fLoadLinkEdit
                 && cSegmentsToAdjust > 0
                 && !strcmp(pThis->aSegments[cSegmentsToAdjust - 1].SegInfo.pszName, "__LINKEDIT"))

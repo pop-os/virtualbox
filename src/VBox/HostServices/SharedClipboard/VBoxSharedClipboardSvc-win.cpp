@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -177,27 +177,20 @@ static int vboxClipboardSvcWinDataRead(PSHCLCONTEXT pCtx, UINT uFormat, void **p
         return VERR_NOT_SUPPORTED;
     }
 
-    SHCLEVENTID uEvent = 0;
-    int rc = ShClSvcDataReadRequest(pCtx->pClient, fFormat, &uEvent);
+    SHCLEVENTID idEvent = 0;
+    int rc = ShClSvcDataReadRequest(pCtx->pClient, fFormat, &idEvent);
     if (RT_SUCCESS(rc))
     {
         PSHCLEVENTPAYLOAD pPayload;
-        rc = ShClEventWait(&pCtx->pClient->EventSrc, uEvent, 30 * 1000, &pPayload);
+        rc = ShClEventWait(&pCtx->pClient->EventSrc, idEvent, 30 * 1000, &pPayload);
         if (RT_SUCCESS(rc))
         {
             *ppvData = pPayload ? pPayload->pvData : NULL;
             *pcbData = pPayload ? pPayload->cbData : 0;
-
-            /* Detach the payload, as the caller then will own the data. */
-            ShClEventPayloadDetach(&pCtx->pClient->EventSrc, uEvent);
-            /**
-             * @todo r=bird: The payload has already been detached,
-             * ShClEventPayloadDetach and ShClEventWait does the exact same
-             * thing, except for the extra waiting in the latter.
-             */
         }
 
-        ShClEventUnregister(&pCtx->pClient->EventSrc, uEvent);
+        ShClEventRelease(&pCtx->pClient->EventSrc, idEvent);
+        ShClEventUnregister(&pCtx->pClient->EventSrc, idEvent);
     }
 
     LogFlowFuncLeaveRC(rc);
@@ -234,8 +227,6 @@ static LRESULT CALLBACK vboxClipboardSvcWinWndProcMain(PSHCLCONTEXT pCtx,
 
                     /* Clipboard was updated by another application, retrieve formats and report back. */
                     rc = vboxClipboardSvcWinSyncInternal(pCtx);
-                    if (RT_SUCCESS(rc))
-                        rc = shClSvcSetSource(pCtx->pClient, SHCLSOURCE_LOCAL);
                 }
                 else
                 {
@@ -276,8 +267,6 @@ static LRESULT CALLBACK vboxClipboardSvcWinWndProcMain(PSHCLCONTEXT pCtx,
 
                     /* Clipboard was updated by another application, retrieve formats and report back. */
                     rc = vboxClipboardSvcWinSyncInternal(pCtx);
-                    if (RT_SUCCESS(rc))
-                        shClSvcSetSource(pCtx->pClient, SHCLSOURCE_LOCAL);
                 }
                 else
                 {
@@ -732,13 +721,14 @@ int ShClSvcImplFormatAnnounce(PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCtx,
 }
 
 int ShClSvcImplReadData(PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCtx,
-                        PSHCLDATABLOCK pData, uint32_t *pcbActual)
+                        SHCLFORMAT uFormat, void *pvData, uint32_t cbData, uint32_t *pcbActual)
 {
     AssertPtrReturn(pClient,             VERR_INVALID_POINTER);
     RT_NOREF(pCmdCtx);
+    AssertPtrReturn(pvData,              VERR_INVALID_POINTER);
     AssertPtrReturn(pClient->State.pCtx, VERR_INVALID_POINTER);
 
-    LogFlowFunc(("uFormat=%02X\n", pData->uFormat));
+    LogFlowFunc(("uFormat=%02X\n", uFormat));
 
     HANDLE hClip = NULL;
 
@@ -752,7 +742,7 @@ int ShClSvcImplReadData(PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCtx,
     {
         LogFunc(("Clipboard opened\n"));
 
-        if (pData->uFormat & VBOX_SHCL_FMT_BITMAP)
+        if (uFormat & VBOX_SHCL_FMT_BITMAP)
         {
             hClip = GetClipboardData(CF_DIB);
             if (hClip != NULL)
@@ -764,7 +754,7 @@ int ShClSvcImplReadData(PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCtx,
                     LogFunc(("CF_DIB\n"));
 
                     vboxClipboardSvcWinGetData(VBOX_SHCL_FMT_BITMAP, lp, GlobalSize(hClip),
-                                               pData->pvData, pData->cbData, pcbActual);
+                                               pvData, cbData, pcbActual);
 
                     GlobalUnlock(hClip);
                 }
@@ -774,7 +764,7 @@ int ShClSvcImplReadData(PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCtx,
                 }
             }
         }
-        else if (pData->uFormat & VBOX_SHCL_FMT_UNICODETEXT)
+        else if (uFormat & VBOX_SHCL_FMT_UNICODETEXT)
         {
             hClip = GetClipboardData(CF_UNICODETEXT);
             if (hClip != NULL)
@@ -786,7 +776,7 @@ int ShClSvcImplReadData(PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCtx,
                     LogFunc(("CF_UNICODETEXT\n"));
 
                     vboxClipboardSvcWinGetData(VBOX_SHCL_FMT_UNICODETEXT, uniString, (lstrlenW(uniString) + 1) * 2,
-                                               pData->pvData, pData->cbData, pcbActual);
+                                               pvData, cbData, pcbActual);
 
                     GlobalUnlock(hClip);
                 }
@@ -796,7 +786,7 @@ int ShClSvcImplReadData(PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCtx,
                 }
             }
         }
-        else if (pData->uFormat & VBOX_SHCL_FMT_HTML)
+        else if (uFormat & VBOX_SHCL_FMT_HTML)
         {
             UINT format = RegisterClipboardFormat(SHCL_WIN_REGFMT_HTML);
             if (format != 0)
@@ -809,10 +799,10 @@ int ShClSvcImplReadData(PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCtx,
                     {
                         /** @todo r=andy Add data overflow handling. */
                         vboxClipboardSvcWinGetData(VBOX_SHCL_FMT_HTML, lp, GlobalSize(hClip),
-                                                   pData->pvData, pData->cbData, pcbActual);
+                                                   pvData, cbData, pcbActual);
 #ifdef VBOX_STRICT
                         LogFlowFunc(("Raw HTML clipboard data from host:"));
-                        ShClDbgDumpHtml((char *)pData->pvData, pData->cbData);
+                        ShClDbgDumpHtml((char *)pvData, cbData);
 #endif
                         GlobalUnlock(hClip);
                     }
@@ -824,7 +814,7 @@ int ShClSvcImplReadData(PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCtx,
             }
         }
 #ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
-        else if (pData->uFormat & VBOX_SHCL_FMT_URI_LIST)
+        else if (uFormat & VBOX_SHCL_FMT_URI_LIST)
         {
             AssertFailed(); /** @todo */
         }
@@ -835,7 +825,7 @@ int ShClSvcImplReadData(PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCtx,
     if (hClip == NULL)
     {
         /* Reply with empty data. */
-        vboxClipboardSvcWinGetData(0, NULL, 0, pData->pvData, pData->cbData, pcbActual);
+        vboxClipboardSvcWinGetData(0, NULL, 0, pvData, cbData, pcbActual);
     }
 
     LogFlowFuncLeaveRC(rc);
@@ -843,11 +833,11 @@ int ShClSvcImplReadData(PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCtx,
 }
 
 int ShClSvcImplWriteData(PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCtx,
-                         PSHCLDATABLOCK pData)
+                         SHCLFORMAT uFormat, void *pvData, uint32_t cbData)
 {
     LogFlowFuncEnter();
 
-    int rc = ShClSvcDataReadSignal(pClient, pCmdCtx, pData);
+    int rc = ShClSvcDataReadSignal(pClient, pCmdCtx, uFormat, pvData, cbData);
 
     LogFlowFuncLeaveRC(rc);
     return rc;

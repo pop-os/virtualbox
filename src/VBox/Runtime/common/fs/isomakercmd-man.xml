@@ -2,7 +2,7 @@
 <!--
     manpage for RTIsoMaker/VISO
 
-    Copyright (C) 2006-2017 Oracle Corporation
+    Copyright (C) 2006-2020 Oracle Corporation
 
     This file is part of VirtualBox Open Source Edition (OSE), as
     available from http://www.virtualbox.org. This file is free software;
@@ -25,7 +25,7 @@
 <refentry id="viso" lang="en">
 
   <refentryinfo>
-    <pubdate>$Date: 2018-07-20 19:42:10 +0200 (Fri, 20 Jul 2018) $</pubdate>
+    <pubdate>$Date: 2020-02-04 12:13:09 +0100 (Tue, 04 Feb 2020) $</pubdate>
     <title>VISO file format / RTIsoMaker</title>
   </refentryinfo>
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -140,12 +140,52 @@ static DECLCALLBACK(int)  hmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, 
 static DECLCALLBACK(void) hmR3InfoSvmNstGstVmcbCache(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs);
 static DECLCALLBACK(void) hmR3Info(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs);
 static DECLCALLBACK(void) hmR3InfoEventPending(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs);
+static DECLCALLBACK(void) hmR3InfoLbr(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs);
 static int                hmR3InitFinalizeR3(PVM pVM);
 static int                hmR3InitFinalizeR0(PVM pVM);
 static int                hmR3InitFinalizeR0Intel(PVM pVM);
 static int                hmR3InitFinalizeR0Amd(PVM pVM);
 static int                hmR3TermCPU(PVM pVM);
 
+
+#ifdef VBOX_WITH_STATISTICS
+/**
+ * Returns the name of the hardware exception.
+ *
+ * @returns The name of the hardware exception.
+ * @param   uVector     The exception vector.
+ */
+static const char *hmR3GetXcptName(uint8_t uVector)
+{
+    switch (uVector)
+    {
+        case X86_XCPT_DE:             return "#DE";
+        case X86_XCPT_DB:             return "#DB";
+        case X86_XCPT_NMI:            return "#NMI";
+        case X86_XCPT_BP:             return "#BP";
+        case X86_XCPT_OF:             return "#OF";
+        case X86_XCPT_BR:             return "#BR";
+        case X86_XCPT_UD:             return "#UD";
+        case X86_XCPT_NM:             return "#NM";
+        case X86_XCPT_DF:             return "#DF";
+        case X86_XCPT_CO_SEG_OVERRUN: return "#CO_SEG_OVERRUN";
+        case X86_XCPT_TS:             return "#TS";
+        case X86_XCPT_NP:             return "#NP";
+        case X86_XCPT_SS:             return "#SS";
+        case X86_XCPT_GP:             return "#GP";
+        case X86_XCPT_PF:             return "#PF";
+        case X86_XCPT_MF:             return "#MF";
+        case X86_XCPT_AC:             return "#AC";
+        case X86_XCPT_MC:             return "#MC";
+        case X86_XCPT_XF:             return "#XF";
+        case X86_XCPT_VE:             return "#VE";
+        case X86_XCPT_CP:             return "#CP";
+        case X86_XCPT_VC:             return "#VC";
+        case X86_XCPT_SX:             return "#SX";
+    }
+    return "Reserved";
+}
+#endif /* VBOX_WITH_STATISTICS */
 
 
 /**
@@ -205,6 +245,9 @@ VMMR3_INT_DECL(int) HMR3Init(PVM pVM)
                                       hmR3InfoSvmNstGstVmcbCache, DBGFINFO_FLAGS_ALL_EMTS);
     AssertRCReturn(rc, rc);
 
+    rc = DBGFR3InfoRegisterInternalEx(pVM, "lbr", "Dumps the HM LBR info.", hmR3InfoLbr, DBGFINFO_FLAGS_ALL_EMTS);
+    AssertRCReturn(rc, rc);
+
     /*
      * Read configuration.
      */
@@ -234,6 +277,7 @@ VMMR3_INT_DECL(int) HMR3Init(PVM pVM)
                               "|MaxResumeLoops"
                               "|VmxPleGap"
                               "|VmxPleWindow"
+                              "|VmxLbr"
                               "|UseVmxPreemptTimer"
                               "|SvmPauseFilter"
                               "|SvmPauseFilterThreshold"
@@ -321,6 +365,12 @@ VMMR3_INT_DECL(int) HMR3Init(PVM pVM)
      * Setting VmxPleGap and VmxPleGap to 0 disables pause-filter exiting.
      */
     rc = CFGMR3QueryU32Def(pCfgHm, "VmxPleWindow", &pVM->hm.s.vmx.cPleWindowTicks, 0);
+    AssertRCReturn(rc, rc);
+
+    /** @cfgm{/HM/VmxLbr, bool, false}
+     * Whether to enable LBR for the guest. This is disabled by default as it's only
+     * useful while debugging and enabling it causes a noticeable performance hit. */
+    rc = CFGMR3QueryBoolDef(pCfgHm, "VmxLbr", &pVM->hm.s.vmx.fLbr, false);
     AssertRCReturn(rc, rc);
 
     /** @cfgm{/HM/SvmPauseFilterCount, uint16_t, 0}
@@ -865,19 +915,43 @@ static int hmR3InitFinalizeR3(PVM pVM)
 #endif
 
         /*
-         * Injected events stats.
+         * Injected interrupts stats.
          */
-        rc = MMHyperAlloc(pVM, sizeof(STAMCOUNTER) * 256, 8, MM_TAG_HM, (void **)&pHmCpu->paStatInjectedIrqs);
-        AssertRCReturn(rc, rc);
-        pHmCpu->paStatInjectedIrqsR0 = MMHyperR3ToR0(pVM, pHmCpu->paStatInjectedIrqs);
-        Assert(pHmCpu->paStatInjectedIrqsR0 != NIL_RTR0PTR);
-        for (unsigned j = 0; j < 255; j++)
         {
-            rc = STAMR3RegisterF(pVM, &pHmCpu->paStatInjectedIrqs[j], STAMTYPE_COUNTER, STAMVISIBILITY_USED,
-                                 STAMUNIT_OCCURENCES, "Injected events.",
-                                 j < 0x20 ? "/HM/CPU%u/EventInject/InjectTrap/%02X" : "/HM/CPU%u/EventInject/InjectIRQ/%02X",
-                                 idCpu, j);
-            AssertRC(rc);
+            uint32_t const cInterrupts = 0xff + 1;
+            rc = MMHyperAlloc(pVM, sizeof(STAMCOUNTER) * cInterrupts, 8, MM_TAG_HM, (void **)&pHmCpu->paStatInjectedIrqs);
+            AssertRCReturn(rc, rc);
+            pHmCpu->paStatInjectedIrqsR0 = MMHyperR3ToR0(pVM, pHmCpu->paStatInjectedIrqs);
+            Assert(pHmCpu->paStatInjectedIrqsR0 != NIL_RTR0PTR);
+            for (unsigned j = 0; j < cInterrupts; j++)
+            {
+                char aszIntrName[64];
+                RTStrPrintf(&aszIntrName[0], sizeof(aszIntrName),  "Interrupt %u", j);
+                rc = STAMR3RegisterF(pVM, &pHmCpu->paStatInjectedIrqs[j], STAMTYPE_COUNTER, STAMVISIBILITY_USED,
+                                     STAMUNIT_OCCURENCES, aszIntrName,
+                                     "/HM/CPU%u/EventInject/InjectIntr/%02X", idCpu, j);
+                AssertRC(rc);
+            }
+        }
+
+        /*
+         * Injected exception stats.
+         */
+        {
+            uint32_t const cXcpts = X86_XCPT_LAST + 1;
+            rc = MMHyperAlloc(pVM, sizeof(STAMCOUNTER) * cXcpts, 8, MM_TAG_HM, (void **)&pHmCpu->paStatInjectedXcpts);
+            AssertRCReturn(rc, rc);
+            pHmCpu->paStatInjectedXcptsR0 = MMHyperR3ToR0(pVM, pHmCpu->paStatInjectedXcpts);
+            Assert(pHmCpu->paStatInjectedXcptsR0 != NIL_RTR0PTR);
+            for (unsigned j = 0; j < cXcpts; j++)
+            {
+                char aszXcptName[64];
+                RTStrPrintf(&aszXcptName[0], sizeof(aszXcptName),  "%s exception", hmR3GetXcptName(j));
+                rc = STAMR3RegisterF(pVM, &pHmCpu->paStatInjectedXcpts[j], STAMTYPE_COUNTER, STAMVISIBILITY_USED,
+                                     STAMUNIT_OCCURENCES, aszXcptName,
+                                     "/HM/CPU%u/EventInject/InjectXcpt/%02X", idCpu, j);
+                AssertRC(rc);
+            }
         }
 
 #endif /* VBOX_WITH_STATISTICS */
@@ -1495,8 +1569,8 @@ static int hmR3InitFinalizeR0Intel(PVM pVM)
         for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
         {
             PCVMXVMCSINFO pVmcsInfoNstGst = &pVM->apCpusR3[idCpu]->hm.s.vmx.VmcsInfoNstGst;
-            LogRel(("HM: VCPU%3d:   MSR bitmap physaddr    = %#RHp\n", idCpu, pVmcsInfoNstGst->HCPhysMsrBitmap));
-            LogRel(("HM: VCPU%3d:   VMCS physaddr          = %#RHp\n", idCpu, pVmcsInfoNstGst->HCPhysVmcs));
+            LogRel(("HM: VCPU%3d: MSR bitmap physaddr      = %#RHp\n", idCpu, pVmcsInfoNstGst->HCPhysMsrBitmap));
+            LogRel(("HM: VCPU%3d: VMCS physaddr            = %#RHp\n", idCpu, pVmcsInfoNstGst->HCPhysVmcs));
         }
     }
 #endif
@@ -1898,6 +1972,12 @@ static int hmR3TermCPU(PVM pVM)
             MMHyperFree(pVM, pVCpu->hm.s.paStatInjectedIrqs);
             pVCpu->hm.s.paStatInjectedIrqs   = NULL;
             pVCpu->hm.s.paStatInjectedIrqsR0 = NIL_RTR0PTR;
+        }
+        if (pVCpu->hm.s.paStatInjectedXcpts)
+        {
+            MMHyperFree(pVM, pVCpu->hm.s.paStatInjectedXcpts);
+            pVCpu->hm.s.paStatInjectedXcpts   = NULL;
+            pVCpu->hm.s.paStatInjectedXcptsR0 = NIL_RTR0PTR;
         }
 # if defined(VBOX_WITH_NESTED_HWVIRT_SVM) || defined(VBOX_WITH_NESTED_HWVIRT_VMX)
         if (pVCpu->hm.s.paStatNestedExitReason)
@@ -3218,6 +3298,76 @@ static DECLCALLBACK(void) hmR3Info(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszA
     }
     else
         pHlp->pfnPrintf(pHlp, "HM is not enabled for this VM!\n");
+}
+
+
+/**
+ * Displays the HM Last-Branch-Record info. for the guest.
+ *
+ * @param   pVM         The cross context VM structure.
+ * @param   pHlp        The info helper functions.
+ * @param   pszArgs     Arguments, ignored.
+ */
+static DECLCALLBACK(void) hmR3InfoLbr(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs)
+{
+    NOREF(pszArgs);
+    PVMCPU pVCpu = VMMGetCpu(pVM);
+    if (!pVCpu)
+        pVCpu = pVM->apCpusR3[0];
+
+    if (!HMIsEnabled(pVM))
+        pHlp->pfnPrintf(pHlp, "HM is not enabled for this VM!\n");
+
+    if (HMIsVmxActive(pVM))
+    {
+        if (pVM->hm.s.vmx.fLbr)
+        {
+            PCVMXVMCSINFO pVmcsInfo = hmGetVmxActiveVmcsInfo(pVCpu);
+            uint32_t const cLbrStack = pVM->hm.s.vmx.idLbrFromIpMsrLast - pVM->hm.s.vmx.idLbrFromIpMsrFirst + 1;
+
+            /** @todo r=ramshankar: The index technically varies depending on the CPU, but
+             *        0xf should cover everything we support thus far. Fix if necessary
+             *        later. */
+            uint32_t const idxTopOfStack = pVmcsInfo->u64LbrTosMsr & 0xf;
+            if (idxTopOfStack > cLbrStack)
+            {
+                pHlp->pfnPrintf(pHlp, "Top-of-stack LBR MSR seems corrupt (index=%u, msr=%#RX64) expected index < %u\n",
+                                idxTopOfStack, pVmcsInfo->u64LbrTosMsr, cLbrStack);
+                return;
+            }
+
+            /*
+             * Dump the circular buffer of LBR records starting from the most recent record (contained in idxTopOfStack).
+             */
+            pHlp->pfnPrintf(pHlp, "CPU[%u]: LBRs (most-recent first)\n", pVCpu->idCpu);
+            uint32_t idxCurrent = idxTopOfStack;
+            Assert(idxTopOfStack < cLbrStack);
+            Assert(RT_ELEMENTS(pVmcsInfo->au64LbrFromIpMsr) <= cLbrStack);
+            Assert(RT_ELEMENTS(pVmcsInfo->au64LbrToIpMsr) <= cLbrStack);
+            for (;;)
+            {
+                if (pVM->hm.s.vmx.idLbrToIpMsrFirst)
+                {
+                    pHlp->pfnPrintf(pHlp, "  Branch (%2u): From IP=%#016RX64 - To IP=%#016RX64\n", idxCurrent,
+                                    pVmcsInfo->au64LbrFromIpMsr[idxCurrent], pVmcsInfo->au64LbrToIpMsr[idxCurrent]);
+                }
+                else
+                    pHlp->pfnPrintf(pHlp, "  Branch (%2u): LBR=%#RX64\n", idxCurrent, pVmcsInfo->au64LbrFromIpMsr[idxCurrent]);
+
+                idxCurrent = (idxCurrent - 1) % cLbrStack;
+                if (idxCurrent == idxTopOfStack)
+                    break;
+            }
+        }
+        else
+            pHlp->pfnPrintf(pHlp, "VM not configured to record LBRs for the guest\n");
+    }
+    else
+    {
+        Assert(HMIsSvmActive(pVM));
+        /** @todo SVM: LBRs (get them from VMCB if possible). */
+        pHlp->pfnPrintf(pHlp, "SVM LBR not implemented in VM debugger yet\n");
+    }
 }
 
 

@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2019 Oracle Corporation
+# Copyright (C) 2006-2020 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -140,6 +140,8 @@ endif
 		$(call VBOX_SUP_GEN_CERT_MACRO,Timestamp,TimeRoot%) \
 		$(call VBOX_SUP_GEN_CERT_MACRO,AppleRoot,AppleRoot%) \
 		$(call VBOX_SUP_GEN_CERT_MACRO,Trusted,TrustedCert%,build)
+
+OTHER_CLEAN += $(VBOX_SUP_WIN_CERTS_FILE)
 
 tst: $(VBOX_SUP_WIN_CERTS_FILE)
 
@@ -641,7 +643,9 @@ if1of ($(KBUILD_TARGET), darwin freebsd solaris win)
  ifdef VBOX_WITH_HARDENING
   VBoxDrv_ASDEFS         += VBOX_WITH_HARDENING
  endif
- if ($(VBOX_VERSION_BUILD) % 2) == 1
+ ifdef VBOX_WITH_RAM_IN_KERNEL
+  VBoxDrv_DEFS           += VBOX_WITHOUT_EFLAGS_AC_SET_IN_VBOXDRV IPRT_WITHOUT_EFLAGS_AC_PRESERVING
+ else if ($(VBOX_VERSION_BUILD) % 2) == 1
   VBoxDrv_DEFS           += VBOX_WITH_EFLAGS_AC_SET_IN_VBOXDRV IPRT_WITH_EFLAGS_AC_PRESERVING
  endif
 

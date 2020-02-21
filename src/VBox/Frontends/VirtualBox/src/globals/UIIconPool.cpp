@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -365,6 +365,7 @@ UIIconPoolGeneral::UIIconPoolGeneral()
     m_guestOSTypeIconNames.insert("MacOS1013_64",    ":/os_macosx_64.png");
     m_guestOSTypeIconNames.insert("JRockitVE",       ":/os_jrockitve.png");
     m_guestOSTypeIconNames.insert("VBoxBS_64",       ":/os_other_64.png");
+    m_guestOSTypeIconNames.insert("Cloud",           ":/os_cloud.png");
 }
 
 QIcon UIIconPoolGeneral::userMachineIcon(const CMachine &comMachine) const

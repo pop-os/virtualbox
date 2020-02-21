@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2019 Oracle Corporation
+# Copyright (C) 2006-2020 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -198,7 +198,9 @@ if !defined(VBOX_ONLY_EXTPACKS) && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SU
  	Storage/ATAPIPassthrough.cpp \
  	Storage/IOBufMgmt.cpp \
  	Network/DrvNetSniffer.cpp \
- 	Network/Pcap.cpp
+ 	Network/Pcap.cpp \
+ 	Trace/DrvIfsTrace.cpp \
+ 	Trace/DrvIfsTrace-serial.cpp
  ifn1of ($(KBUILD_TARGET), os2)
   VBoxDD_SOURCES += Storage/DrvHostBase.cpp
  endif
@@ -1343,28 +1345,13 @@ endif
  # PDM device testcase framework.
  #
  ifdef VBOX_WITH_TESTCASES_TSTDEV
-  DLLS += tstDeviceVBoxVMMStubs
-  tstDeviceVBoxVMMStubs_TEMPLATE      = VBoxR3DllNoPic
-  tstDeviceVBoxVMMStubs_SONAME.linux  = tstDeviceVBoxVMMStubs.so
-  tstDeviceVBoxVMMStubs_SONAME.darwin = tstDeviceVBoxVMMStubs.dylib
-  tstDeviceVBoxVMMStubs_DEFS          = IN_VMM_R3 IN_DIS IN_GMM_R3 IN_DBG $(VMM_COMMON_DEFS)
-  tstDeviceVBoxVMMStubs_LIBS          = $(LIB_RUNTIME)
-
-  tstDeviceVBoxVMMStubs_SOURCES  = \
- 	testcase/tstDeviceVMMStubs.cpp
-
   PROGRAMS += tstDevice
   tstDevice_TEMPLATE    = VBOXR3TSTEXE
   tstDevice_DEFS        += IN_SUP_R3
-  tstDevice_LIBS.linux  = $(PATH_STAGE_BIN)/tstDeviceVBoxVMMStubs.so
-  tstDevice_LIBS.darwin = $(PATH_STAGE_BIN)/tstDeviceVBoxVMMStubs.dylib
-  # Required on OS X to prevent resolving symbols in the real VBoxVMM.dylib when VBoxDD.dylib is loaded
-  tstDevice_LDFLAGS.darwin += -force_flat_namespace
   tstDevice_SOURCES     = \
  	testcase/tstDevice.cpp \
- 	testcase/tstDevicePdmDevHlp.cpp \
- 	testcase/tstDeviceVMM.cpp \
- 	testcase/tstDeviceSUP.cpp
+ 	testcase/tstDeviceCfg.cpp \
+ 	testcase/tstDevicePdmDevHlp.cpp
  endif
 
 endif # !VBOX_ONLY_EXTPACKS && "$(intersects $(KBUILD_TARGET_ARCH),$(VBOX_SUPPORTED_HOST_ARCHS))" != ""

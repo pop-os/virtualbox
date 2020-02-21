@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,6 +29,7 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #define RTSEMEVENTMULTI_WITHOUT_REMAPPING
+#define RTMEM_NO_WRAP_TO_EF_APIS /* rtR0MemObjNativeProtect depends on this code, so no electrical fences here or we'll \#DF. */
 #include "the-darwin-kernel.h"
 #include "internal/iprt.h"
 #include <iprt/semaphore.h>

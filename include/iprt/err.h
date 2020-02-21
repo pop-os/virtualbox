@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -2715,6 +2715,16 @@
 #define VERR_FTP_STATUS_SERVER_ERROR                            (-26400)
 /** FTP initialization failed. */
 #define VERR_FTP_INIT_FAILED                                    (-26401)
+/** Data connection not found. */
+#define VERR_FTP_DATA_CONN_INIT_FAILED                          (-26402)
+/** Data connection not found. */
+#define VERR_FTP_DATA_CONN_NOT_FOUND                            (-26403)
+/** Data connection limit has been reached. */
+#define VERR_FTP_DATA_CONN_LIMIT_REACHED                        (-26404)
+/** Client not found. */
+#define VERR_FTP_CLIENT_NOT_FOUND                               (-26405)
+/** Client limit has been reached. */
+#define VERR_FTP_CLIENT_LIMIT_REACHED                           (-26406)
 /** @} */
 
 /* SED-END */

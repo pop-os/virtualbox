@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -64,6 +64,9 @@ signals:
 
     /** Notifies listeners about current Snapshots pane item change. */
     void sigCurrentSnapshotItemChange();
+
+    /** Notifies about state change for cloud machine with certain @a strMachineId. */
+    void sigCloudMachineStateChange(const QString &strMachineId);
 
 public:
 
@@ -153,6 +156,9 @@ private slots:
         /** Handles sliding animation complete signal.
           * @param  enmDirection  Brings which direction was animation finished for. */
         void sltHandleSlidingAnimationComplete(SlidingDirection enmDirection);
+
+        /** Handles state change for cloud machine with specified @a strMachineId. */
+        void sltHandleCloudMachineStateChange(const QString &strId);
     /** @} */
 
     /** @name Tools stuff.
@@ -214,6 +220,9 @@ private:
     UISlidingAnimation *m_pSlidingAnimation;
     /** Holds the Tools-pane instance. */
     UITools            *m_pPaneTools;
+
+    /** Holds whether last time single group item was selected exclusively. */
+    bool  m_fSingleGroupSelected;
 };
 
 #endif /* !FEQT_INCLUDED_SRC_manager_UIVirtualBoxManagerWidget_h */

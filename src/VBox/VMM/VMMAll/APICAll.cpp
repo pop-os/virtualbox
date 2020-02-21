@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2019 Oracle Corporation
+ * Copyright (C) 2016-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1926,6 +1926,10 @@ VMM_INT_DECL(VBOXSTRICTRC) APICReadMsr(PVMCPUCC pVCpu, uint32_t u32Reg, uint64_t
 
             /* Raw read, compatible with xAPIC: */
             case MSR_IA32_X2APIC_ID:
+            {
+                STAM_COUNTER_INC(&pVCpu->apic.s.StatIdMsrRead);
+                RT_FALL_THRU();
+            }
             case MSR_IA32_X2APIC_VERSION:
             case MSR_IA32_X2APIC_TPR:
             case MSR_IA32_X2APIC_LDR:

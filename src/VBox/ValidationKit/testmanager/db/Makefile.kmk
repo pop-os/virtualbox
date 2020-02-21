@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2019 Oracle Corporation
+# Copyright (C) 2006-2020 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -35,8 +35,17 @@ endif
 
 
 GENERATED_FILES = TestManagerDatabaseComments.pgsql
-PSQL := $(firstword $(which $(foreach pgver, 95 94 93 92,psql$(pgver)) ) psql)
-PSQL_OPTS = -U postgres --set=ON_ERROR_STOP=1
+PSQL := $(firstword $(which $(foreach pgver, 16 15 14 13 12 10 11 95 94 93 92,psql$(pgver)) ) psql)
+ifeq ($(PSQL_DB_HOST),)
+ PSQL_DB_HOST := localhost # Use localhost if nothing else is set.
+endif
+ifeq ($(PSQL_DB_PORT),)
+ PSQL_DB_PORT := 5432 # Same for the port; use the default.
+endif
+ifeq ($(PSQL_DB_USER),)
+ PSQL_DB_USER := postgres
+endif
+PSQL_OPTS = --user=$(PSQL_DB_USER) --set=ON_ERROR_STOP=1 --host=$(PSQL_DB_HOST) --port=$(PSQL_DB_PORT)
 
 all: $(GENERATED_FILES)
 
@@ -64,7 +73,7 @@ load-testmanager-db: \
 	$(PSQL) $(PSQL_OPTS) -d testmanager -f ../core/globalresource.pgsql
 	$(PSQL) $(PSQL_OPTS) -d testmanager -f TestManagerDatabaseDefaultUserAccounts.pgsql
 
-reload-testmanager-db-dunctions: \
+reload-testmanager-db-functions: \
 		../core/useraccount.pgsql \
 		../core/testcase.pgsql \
 		../core/testbox.pgsql \
@@ -77,4 +86,3 @@ reload-testmanager-db-dunctions: \
 
 # Only for prettier graphs:
 #	$(PSQL) $(PSQL_OPTS) -d testmanager -f TestManagerDatabaseForeignKeyErHacks.pgsql
-

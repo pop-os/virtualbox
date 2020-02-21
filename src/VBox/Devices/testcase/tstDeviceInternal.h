@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2017-2019 Oracle Corporation
+ * Copyright (C) 2017-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,19 +20,140 @@
 # pragma once
 #endif
 
+#include <VBox/param.h>
 #include <VBox/types.h>
 #include <iprt/assert.h>
 #include <iprt/list.h>
 #include <iprt/semaphore.h>
+#include <iprt/critsect.h>
 
+#include "tstDeviceCfg.h"
 #include "tstDevicePlugin.h"
-#include "tstDeviceVMMInternal.h"
 
 RT_C_DECLS_BEGIN
 
 
 /** Converts PDM device instance to the device under test structure. */
 #define TSTDEV_PDMDEVINS_2_DUT(a_pDevIns) ((a_pDevIns)->Internal.s.pDut)
+
+/** Forward declaration of internal test device instance data. */
+typedef struct TSTDEVDUTINT *PTSTDEVDUTINT;
+
+
+/**
+ * CFGM node structure.
+ */
+typedef struct CFGMNODE
+{
+    /** Device under test this CFGM node is for. */
+    PTSTDEVDUTINT        pDut;
+    /** @todo: */
+} CFGMNODE;
+
+
+/**
+ * Private device instance data.
+ */
+typedef struct PDMDEVINSINTR3
+{
+    /** Pointer to the device under test the PDM device instance is for. */
+    PTSTDEVDUTINT                   pDut;
+} PDMDEVINSINTR3;
+AssertCompile(sizeof(PDMDEVINSINTR3) <= (HC_ARCH_BITS == 32 ? 72 : 112 + 0x28));
+
+/**
+ * Private device instance data.
+ */
+typedef struct PDMDEVINSINTR0
+{
+    /** Pointer to the device under test the PDM device instance is for. */
+    PTSTDEVDUTINT                   pDut;
+} PDMDEVINSINTR0;
+AssertCompile(sizeof(PDMDEVINSINTR0) <= (HC_ARCH_BITS == 32 ? 72 : 112 + 0x28));
+
+/**
+ * Private device instance data.
+ */
+typedef struct PDMDEVINSINTRC
+{
+    /** Pointer to the device under test the PDM device instance is for. */
+    PTSTDEVDUTINT                   pDut;
+} PDMDEVINSINTRC;
+AssertCompile(sizeof(PDMDEVINSINTRC) <= (HC_ARCH_BITS == 32 ? 72 : 112 + 0x28));
+
+typedef struct PDMPCIDEVINT
+{
+    bool                            fRegistered;
+} PDMPCIDEVINT;
+
+
+/**
+ * Internal PDM critical section structure.
+ */
+typedef struct PDMCRITSECTINT
+{
+    /** The actual critical section used for emulation. */
+    RTCRITSECT           CritSect;
+} PDMCRITSECTINT;
+AssertCompile(sizeof(PDMCRITSECTINT) <= (HC_ARCH_BITS == 32 ? 0x80 : 0xc0));
+
+
+/**
+ * MM Heap allocation.
+ */
+typedef struct TSTDEVMMHEAPALLOC
+{
+    /** Node for the list of allocations. */
+    RTLISTNODE                      NdMmHeap;
+    /** Pointer to the device under test the allocation was made for. */
+    PTSTDEVDUTINT                   pDut;
+    /** Size of the allocation. */
+    size_t                          cbAlloc;
+    /** Start of the real allocation. */
+    uint8_t                         abAlloc[RT_FLEXIBLE_ARRAY];
+} TSTDEVMMHEAPALLOC;
+/** Pointer to a MM Heap allocation. */
+typedef TSTDEVMMHEAPALLOC *PTSTDEVMMHEAPALLOC;
+/** Pointer to a const MM Heap allocation. */
+typedef const TSTDEVMMHEAPALLOC *PCTSTDEVMMHEAPALLOC;
+
+AssertCompileMemberAlignment(TSTDEVMMHEAPALLOC, abAlloc, HC_ARCH_BITS == 64 ? 16 : 8);
+
+
+#define PDMCRITSECTINT_DECLARED
+#define PDMDEVINSINT_DECLARED
+#define PDMPCIDEVINT_DECLARED
+#define VMM_INCLUDED_SRC_include_VMInternal_h
+#define VMM_INCLUDED_SRC_include_VMMInternal_h
+RT_C_DECLS_END
+#include <VBox/vmm/pdmcritsect.h>
+#include <VBox/vmm/pdmdev.h>
+#include <VBox/vmm/pdmpci.h>
+#include <VBox/vmm/pdmdrv.h>
+#include <VBox/vmm/tm.h>
+RT_C_DECLS_BEGIN
+
+
+/**
+ * TM timer structure.
+ */
+typedef struct TMTIMER
+{
+    /** List of timers created by the device. */
+    RTLISTNODE           NdDevTimers;
+    /** Clock this timer belongs to. */
+    TMCLOCK              enmClock;
+    /** Callback to call when the timer expires. */
+    PFNTMTIMERDEV        pfnCallbackDev;
+    /** Opaque user data to pass to the callback. */
+    void                 *pvUser;
+    /** Flags. */
+    uint32_t             fFlags;
+    /** Assigned critical section. */
+    PPDMCRITSECT         pCritSect;
+    /** @todo: */
+} TMTIMER;
+
 
 /**
  * PDM module descriptor type.
@@ -65,42 +186,68 @@ typedef struct RTDEVDUTIOPORT
     /** Opaque user data - R3. */
     void                            *pvUserR3;
     /** Out handler - R3. */
-    PFNIOMIOPORTOUT                 pfnOutR3;
+    PFNIOMIOPORTNEWOUT              pfnOutR3;
     /** In handler - R3. */
-    PFNIOMIOPORTIN                  pfnInR3;
+    PFNIOMIOPORTNEWIN               pfnInR3;
     /** Out string handler - R3. */
-    PFNIOMIOPORTOUTSTRING           pfnOutStrR3;
+    PFNIOMIOPORTNEWOUTSTRING        pfnOutStrR3;
     /** In string handler - R3. */
-    PFNIOMIOPORTINSTRING            pfnInStrR3;
+    PFNIOMIOPORTNEWINSTRING         pfnInStrR3;
 
     /** Opaque user data - R0. */
     void                            *pvUserR0;
     /** Out handler - R0. */
-    PFNIOMIOPORTOUT                 pfnOutR0;
+    PFNIOMIOPORTNEWOUT              pfnOutR0;
     /** In handler - R0. */
-    PFNIOMIOPORTIN                  pfnInR0;
+    PFNIOMIOPORTNEWIN               pfnInR0;
     /** Out string handler - R0. */
-    PFNIOMIOPORTOUTSTRING           pfnOutStrR0;
+    PFNIOMIOPORTNEWOUTSTRING        pfnOutStrR0;
     /** In string handler - R0. */
-    PFNIOMIOPORTINSTRING            pfnInStrR0;
+    PFNIOMIOPORTNEWINSTRING         pfnInStrR0;
 
 #ifdef TSTDEV_SUPPORTS_RC
     /** Opaque user data - RC. */
     void                            *pvUserRC;
     /** Out handler - RC. */
-    PFNIOMIOPORTOUT                 pfnOutRC;
+    PFNIOMIOPORTNEWOUT              pfnOutRC;
     /** In handler - RC. */
-    PFNIOMIOPORTIN                  pfnInRC;
+    PFNIOMIOPORTNEWIN               pfnInRC;
     /** Out string handler - RC. */
-    PFNIOMIOPORTOUTSTRING           pfnOutStrRC;
+    PFNIOMIOPORTNEWOUTSTRING        pfnOutStrRC;
     /** In string handler - RC. */
-    PFNIOMIOPORTINSTRING            pfnInStrRC;
+    PFNIOMIOPORTNEWINSTRING         pfnInStrRC;
 #endif
 } RTDEVDUTIOPORT;
 /** Pointer to a registered I/O port handler. */
 typedef RTDEVDUTIOPORT *PRTDEVDUTIOPORT;
 /** Pointer to a const I/O port handler. */
 typedef const RTDEVDUTIOPORT *PCRTDEVDUTIOPORT;
+
+
+/**
+ * Registered SSM handlers.
+ */
+typedef struct TSTDEVDUTSSM
+{
+    /** Node for the list of registered SSM handlers. */
+    RTLISTNODE                      NdSsm;
+    /** Version */
+    uint32_t                        uVersion;
+    PFNSSMDEVLIVEPREP               pfnLivePrep;
+    PFNSSMDEVLIVEEXEC               pfnLiveExec;
+    PFNSSMDEVLIVEVOTE               pfnLiveVote;
+    PFNSSMDEVSAVEPREP               pfnSavePrep;
+    PFNSSMDEVSAVEEXEC               pfnSaveExec;
+    PFNSSMDEVSAVEDONE               pfnSaveDone;
+    PFNSSMDEVLOADPREP               pfnLoadPrep;
+    PFNSSMDEVLOADEXEC               pfnLoadExec;
+    PFNSSMDEVLOADDONE               pfnLoadDone;
+} TSTDEVDUTSSM;
+/** Pointer to the registered SSM handlers. */
+typedef TSTDEVDUTSSM *PTSTDEVDUTSSM;
+/** Pointer to a const SSM handler. */
+typedef const TSTDEVDUTSSM *PCTSTDEVDUTSSM;
+
 
 /**
  * The Support Driver session state.
@@ -183,10 +330,12 @@ typedef const TSTDEVDUTPCIREGION *PCTSTDEVDUTPCIREGION;
  */
 typedef struct TSTDEVDUTINT
 {
-    /** Pointer to the testcase this device is part of. */
-    PCTSTDEVTESTCASEREG             pTestcaseReg;
+    /** Pointer to the test this device is running under. */
+    PCTSTDEVTEST                    pTest;
     /** Pointer to the PDM device instance. */
     PPDMDEVINS                      pDevIns;
+    /** CFGM root config node for the device. */
+    CFGMNODE                        Cfg;
     /** Current device context. */
     TSTDEVDUTCTX                    enmCtx;
     /** Critical section protecting the lists below. */
@@ -201,15 +350,22 @@ typedef struct TSTDEVDUTINT
     RTLISTANCHOR                    LstMmHeap;
     /** List of PDM threads. */
     RTLISTANCHOR                    LstPdmThreads;
+    /** List of SSM handlers (just one normally). */
+    RTLISTANCHOR                    LstSsmHandlers;
     /** The SUP session we emulate. */
     TSTDEVSUPDRVSESSION             SupSession;
-    /** The VM state assoicated with this device. */
+    /** The NOP critical section. */
+    PDMCRITSECT                     CritSectNop;
+    /** The VM state associated with this device. */
     PVM                             pVm;
     /** The registered PCI device instance if this is a PCI device. */
     PPDMPCIDEV                      pPciDev;
     /** PCI Region descriptors. */
     TSTDEVDUTPCIREGION              aPciRegions[VBOX_PCI_NUM_REGIONS];
 } TSTDEVDUTINT;
+
+
+extern const PDMDEVHLPR3 g_tstDevPdmDevHlpR3;
 
 
 DECLHIDDEN(int) tstDevPdmLdrGetSymbol(PTSTDEVDUTINT pThis, const char *pszMod, TSTDEVPDMMODTYPE enmModType,

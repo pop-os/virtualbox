@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,12 +21,12 @@
 #include <QStyleOptionGraphicsItem>
 
 /* GUI includes: */
+#include "UICommon.h"
 #include "UIDetailsElements.h"
 #include "UIDetailsModel.h"
 #include "UIDetailsSet.h"
 #include "UIVirtualBoxEventHandler.h"
-#include "UIVirtualMachineItem.h"
-#include "UICommon.h"
+#include "UIVirtualMachineItemLocal.h"
 
 /* COM includes: */
 #include "CUSBController.h"
@@ -65,7 +65,7 @@ void UIDetailsSet::buildSet(UIVirtualMachineItem *pMachineItem, bool fFullSet, c
 {
     /* Remember passed arguments: */
     m_pMachineItem = pMachineItem;
-    m_machine = m_pMachineItem->machine();
+    m_machine = m_pMachineItem->toLocal()->machine();
     m_fHasDetails = m_pMachineItem->hasDetails();
     m_fFullSet = fFullSet;
     m_settings = settings;

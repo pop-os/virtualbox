@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -43,6 +43,8 @@
 #include "UIMessageCenter.h"
 #include "UIModalWindowManager.h"
 #include "UIVirtualBoxManagerWidget.h"
+#include "UIVirtualMachineItem.h"
+#include "UIWizardNewCloudVM.h"
 #include "UIWizardNewVM.h"
 
 /* COM includes: */
@@ -281,8 +283,11 @@ const QList<UIChooserItem*> &UIChooserModel::selectedItems() const
 UIVirtualMachineItem *UIChooserModel::firstSelectedMachineItem() const
 {
     /* Return first machine-item of the selected-item: */
-    return   firstSelectedItem() && firstSelectedItem()->firstMachineItem() && firstSelectedItem()->firstMachineItem()->node()
-           ? firstSelectedItem()->firstMachineItem()->node()->toMachineNode()
+    return      firstSelectedItem()
+             && firstSelectedItem()->firstMachineItem()
+             && firstSelectedItem()->firstMachineItem()->node()
+             && firstSelectedItem()->firstMachineItem()->node()->toMachineNode()
+           ? firstSelectedItem()->firstMachineItem()->node()->toMachineNode()->cache()
            : 0;
 }
 
@@ -296,7 +301,7 @@ QList<UIVirtualMachineItem*> UIChooserModel::selectedMachineItems() const
     /* Reintegrate machine-items into valid format: */
     QList<UIVirtualMachineItem*> currentMachineList;
     foreach (UIChooserItemMachine *pItem, currentMachineItemList)
-        currentMachineList << pItem->node()->toMachineNode();
+        currentMachineList << pItem->node()->toMachineNode()->cache();
     return currentMachineList;
 }
 
@@ -702,6 +707,19 @@ void UIChooserModel::sltReloadMachine(const QUuid &uId)
     emit sigSelectionChanged();
 }
 
+#ifdef VBOX_GUI_WITH_CLOUD_VMS
+void UIChooserModel::sltHandleCloudAcquireInstancesTaskComplete(UITask *pTask)
+{
+    /* Call to base-class: */
+    UIChooserAbstractModel::sltHandleCloudAcquireInstancesTaskComplete(pTask);
+
+    /* Rebuild tree for main root: */
+    buildTreeForMainRoot();
+    updateNavigationItemList();
+    updateLayout();
+}
+#endif /* VBOX_GUI_WITH_CLOUD_VMS */
+
 void UIChooserModel::sltMakeSureCurrentItemVisible()
 {
     root()->toGroupItem()->makeSureItemIsVisible(currentItem());
@@ -843,8 +861,10 @@ void UIChooserModel::sltUngroupSelectedGroup()
 
 void UIChooserModel::sltCreateNewMachine()
 {
-    /* Check if action is enabled: */
-    if (!actionPool()->action(UIActionIndexST_M_Machine_S_New)->isEnabled())
+    /* Check if at least one of actions is enabled: */
+    if (   !actionPool()->action(UIActionIndexST_M_Welcome_S_New)->isEnabled()
+        && !actionPool()->action(UIActionIndexST_M_Machine_S_New)->isEnabled()
+        && !actionPool()->action(UIActionIndexST_M_Group_S_New)->isEnabled())
         return;
 
     /* Select the parent: */
@@ -862,16 +882,32 @@ void UIChooserModel::sltCreateNewMachine()
     actionPool()->action(UIActionIndexST_M_Machine_S_New)->setEnabled(false);
     actionPool()->action(UIActionIndexST_M_Group_S_New)->setEnabled(false);
 
-    /* Use the "safe way" to open stack of Mac OS X Sheets: */
-    QWidget *pWizardParent = windowManager().realParentWindow(chooser()->managerWidget());
-    UISafePointerWizardNewVM pWizard = new UIWizardNewVM(pWizardParent, strGroupName);
-    windowManager().registerNewParent(pWizard, pWizardParent);
-    pWizard->prepare();
+    /* What first item do we have? */
+    if (  !firstSelectedMachineItem()
+        ||firstSelectedMachineItem()->itemType() == UIVirtualMachineItem::ItemType_Local)
+    {
+        /* Use the "safe way" to open stack of Mac OS X Sheets: */
+        QWidget *pWizardParent = windowManager().realParentWindow(chooser()->managerWidget());
+        UISafePointerWizardNewVM pWizard = new UIWizardNewVM(pWizardParent, strGroupName);
+        windowManager().registerNewParent(pWizard, pWizardParent);
+        pWizard->prepare();
 
-    /* Execute wizard: */
-    pWizard->exec();
-    if (pWizard)
+        /* Execute wizard: */
+        pWizard->exec();
         delete pWizard;
+    }
+    else
+    {
+        /* Use the "safe way" to open stack of Mac OS X Sheets: */
+        QWidget *pWizardParent = windowManager().realParentWindow(chooser()->managerWidget());
+        UISafePointerWizardNewCloudVM pWizard = new UIWizardNewCloudVM(pWizardParent);
+        windowManager().registerNewParent(pWizard, pWizardParent);
+        pWizard->prepare();
+
+        /* Execute wizard: */
+        pWizard->exec();
+        delete pWizard;
+    }
 
     /* Unlock the action allowing further calls: */
     actionPool()->action(UIActionIndexST_M_Welcome_S_New)->setEnabled(true);

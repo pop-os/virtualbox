@@ -8,7 +8,7 @@ VirtualBox Validation Kit - Storage benchmark.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2019 Oracle Corporation
+Copyright (C) 2012-2020 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 135510 $"
+__version__ = "$Revision: 135976 $"
 
 
 # Standard Python imports.
@@ -1280,7 +1280,7 @@ class tdStorageBenchmark(vbox.TestDriver):                                      
                     oExecVm = remoteexecutor.RemoteExecutor(oTxsSession, lstBinaryPaths, '${SCRATCH}');
                     fRc = self.mountValidationKitIso(oExecVm);
                     if fRc:
-                        oGstDiskCfg = storagecfg.DiskCfg('linux', storagecfg.g_ksDiskCfgList, \
+                        oGstDiskCfg = storagecfg.DiskCfg('linux', storagecfg.g_ksDiskCfgList,
                                                          self.getGuestDisk(oSession, oTxsSession, eStorageController));
                         oStorCfgVm = storagecfg.StorageCfg(oExecVm, oGstDiskCfg);
 
@@ -1290,14 +1290,12 @@ class tdStorageBenchmark(vbox.TestDriver):                                      
                             if sMountPoint is not None:
                                 reporter.log('Prepared storage on %s try' % (iTry + 1,));
                                 break;
-                            else:
-                                iTry = iTry + 1;
-                                self.sleep(5);
+                            iTry = iTry + 1;
+                            self.sleep(5);
 
                         if sMountPoint is not None:
                             # 3 hours max (Benchmark and QED takes a lot of time)
-                            self.testBenchmark('linux', sIoTest, sMountPoint, oExecVm, dTestSet, \
-                                               cMsTimeout = 3 * 3600 * 1000);
+                            self.testBenchmark('linux', sIoTest, sMountPoint, oExecVm, dTestSet, cMsTimeout = 3 * 3600 * 1000);
                             self.cleanupStorage(oStorCfgVm);
                         else:
                             reporter.testFailure('Failed to prepare storage for the guest benchmark');

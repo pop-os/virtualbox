@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -5627,9 +5627,12 @@ static DECLCALLBACK(int) vgaR3PciIORegionVRamMapUnmap(PPDMDEVINS pDevIns, PPDMPC
                  , VERR_INTERNAL_ERROR);
     Assert(pPciDev == pDevIns->apPciDevs[0]);
 
-    int rc = PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSect, VERR_SEM_BUSY);
-    AssertRC(rc);
+    /* Note! We cannot take the device lock here as that would create a lock order
+             problem as the caller has taken the PDM lock prior to calling us.  If
+             we did, we will get trouble later when raising interrupts while owning
+             the device lock (e.g. vmsvgaR3FifoLoop). */
 
+    int rc;
     if (GCPhysAddress != NIL_RTGCPHYS)
     {
         /*
@@ -5677,7 +5680,6 @@ static DECLCALLBACK(int) vgaR3PciIORegionVRamMapUnmap(PPDMDEVINS pDevIns, PPDMPC
         pThis->GCPhysVRAM = 0;
         /* NB: VBE_DISPI_INDEX_FB_BASE_HI is left unchanged here. */
     }
-    PDMDevHlpCritSectLeave(pDevIns, &pThis->CritSect);
     return rc;
 }
 

@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2004-2019 Oracle Corporation
+# Copyright (C) 2004-2020 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -325,6 +325,7 @@ VBoxAPIWrap_PCH_HDR       := $(PATH_SUB_CURRENT)/src-all/xpcom/VBoxAPIWrap-preco
  # VBOX_MAIN_APIWRAPPER_GEN_SRCS and VBOX_MAIN_APIWRAPPER_GEN_HDRS.
  VBoxAPIWrap_VBOX_KMK_FILE = $(PATH_OUT)/vboxapiwrap.kmk
  include $(VBoxAPIWrap_VBOX_KMK_FILE)
+ OTHER_CLEAN += $(VBoxAPIWrap_VBOX_KMK_FILE) $(VBoxAPIWrap_VBOX_KMK_FILE).ts
 
  ifdef VBOX_WITH_32_ON_64_MAIN_API
   LIBRARIES += VBoxAPIWrap-x86
@@ -420,7 +421,7 @@ $(call KB_FN_DO_PASS0_ON_TARGET,VBoxSDS) # Sets VBoxSDS_0_OUTDIR
 
 src-global/win/VBoxSDS.rc_INCS  = $(VBoxSDS_0_OUTDIR)
 src-global/win/VBoxSDS.rc_DEPS  = $(VBoxSDS_0_OUTDIR)/VBoxSDS-icon.rc #$(VBoxSDS_0_OUTDIR)/VBoxSDS.rgs
-src-global/win/VBoxSDS.rc_CLEAN = $(VBoxSDS_0_OUTDIR)/VBoxSDS-icon.rc #$(VBoxSDS_0_OUTDIR)/VBoxSDS.rgs
+VBoxSDS_CLEAN                   = $(VBoxSDS_0_OUTDIR)/VBoxSDS-icon.rc #$(VBoxSDS_0_OUTDIR)/VBoxSDS.rgs
 
 $(call KB_FN_AUTO_CMD_DEPS,$(VBoxSDS_0_OUTDIR)/VBoxSDS-icon.rc)
 $(VBoxSDS_0_OUTDIR)/VBoxSDS-icon.rc: $(VBOX_WINDOWS_ICON_FILE) | $$(dir $$@)
@@ -742,15 +743,15 @@ endif
 
 src-server/win/VBoxSVC.rc_INCS  = $(VBoxSVC_0_OUTDIR)
 src-server/win/VBoxSVC.rc_DEPS  = $(VBoxSVC_0_OUTDIR)/VBoxSVC-icon.rc
-src-server/win/VBoxSVC.rc_CLEAN = $(VBoxSVC_0_OUTDIR)/VBoxSVC-icon.rc
+VBoxSVC_CLEAN                  += $(VBoxSVC_0_OUTDIR)/VBoxSVC-icon.rc
 $(call KB_FN_AUTO_CMD_DEPS,$(VBoxSVC_0_OUTDIR)/VBoxSVC-icon.rc)
 $(VBoxSVC_0_OUTDIR)/VBoxSVC-icon.rc: $(VBOX_WINDOWS_ICON_FILE) | $$(dir $$@)
 	$(call KB_FN_AUTO_CMD_DEPS_COMMANDS)
 	$(APPEND) -t $@ '1 ICON DISCARDABLE "$(subst /,\\,$(VBOX_WINDOWS_ICON_FILE))"'
 
 ifndef VBOX_WITH_MIDL_PROXY_STUB
- src-server/win/VBoxSVC.rc_DEPS  += $(VBoxSVC_0_OUTDIR)/VBoxSVC.rgs
- src-server/win/VBoxSVC.rc_CLEAN += $(VBoxSVC_0_OUTDIR)/VBoxSVC.rgs
+ src-server/win/VBoxSVC.rc_DEPS += $(VBoxSVC_0_OUTDIR)/VBoxSVC.rgs
+ VBoxSVC_CLEAN                  += $(VBoxSVC_0_OUTDIR)/VBoxSVC.rgs
  $(call KB_FN_AUTO_CMD_DEPS,$(VBoxSVC_0_OUTDIR)/VBoxSVC.rgs)
  $(VBoxSVC_0_OUTDIR)/VBoxSVC.rgs: $(VBOX_PATH_MAIN_SRC)/src-all/win/VirtualBox_rgs.xsl $(VBOX_XIDL_FILE) | $$(dir $$@)
 	$(call KB_FN_AUTO_CMD_DEPS_COMMANDS)
@@ -1251,7 +1252,7 @@ if defined(VBOX_WITH_32_ON_64_MAIN_API) && !defined(VBOX_ONLY_EXTPACKS)
  	$(VBoxCOM-x86_0_OUTDIR)/VirtualBox_p.c \
  	$(VBoxCOM-x86_0_OUTDIR)/dlldata.c \
  	$(VBoxCOM-x86_0_OUTDIR)/VirtualBox.h \
- 	$(VBoxCOM-x86_0_OUTDIR)/VirtualBox.tlb
+ 	$(VBoxCOM-x86_0_OUTDIR)/VirtualBox-x86.tlb
  endif
 endif
 

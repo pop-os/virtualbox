@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2020 Oracle Corporation
  * This file is based on ast_fb.c
  * Copyright 2012 Red Hat Inc.
  *
@@ -42,12 +42,12 @@
 #include <linux/fb.h>
 #include <linux/init.h>
 
-#include <drm/drmP.h>
+#include "vbox_drv.h"
+
 #include <drm/drm_crtc.h>
 #include <drm/drm_fb_helper.h>
 #include <drm/drm_crtc_helper.h>
 
-#include "vbox_drv.h"
 #include <VBoxVideo.h>
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0) && !defined(RHEL_74)

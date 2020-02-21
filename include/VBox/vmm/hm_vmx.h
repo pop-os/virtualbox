@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -132,6 +132,10 @@ AssertCompileSizeAlignment(VMXRESTOREHOST, 8);
 #define VMX_UFC_EPT_PAGE_WALK_LENGTH_UNSUPPORTED                14
 /** VMX VMWRITE all feature exposed to the guest but not supported on host. */
 #define VMX_UFC_GST_HOST_VMWRITE_ALL                            15
+/** LBR stack size cannot be determined for the current CPU. */
+#define VMX_UFC_LBR_STACK_SIZE_UNKNOWN                          16
+/** LBR stack size of the CPU exceeds our buffer size. */
+#define VMX_UFC_LBR_STACK_SIZE_OVERFLOW                         17
 /** @} */
 
 /** @name VMX HM-error codes for VERR_VMX_VMCS_FIELD_CACHE_INVALID.
@@ -1199,6 +1203,25 @@ AssertCompileSize(VMXMSRS, 224);
 typedef VMXMSRS *PVMXMSRS;
 /** Pointer to a const VMXMSRS struct. */
 typedef const VMXMSRS *PCVMXMSRS;
+
+
+/**
+ * LBR MSRs.
+ */
+typedef struct LBRMSRS
+{
+    /** List of LastBranch-From-IP MSRs. */
+    uint64_t    au64BranchFromIpMsr[32];
+    /** List of LastBranch-To-IP MSRs. */
+    uint64_t    au64BranchToIpMsr[32];
+    /** The MSR containing the index to the most recent branch record.  */
+    uint64_t    uBranchTosMsr;
+} LBRMSRS;
+AssertCompileSizeAlignment(LBRMSRS, 8);
+/** Pointer to a VMXMSRS struct. */
+typedef LBRMSRS *PLBRMSRS;
+/** Pointer to a const VMXMSRS struct. */
+typedef const LBRMSRS *PCLBRMSRS;
 
 
 /** @name VMX Basic Exit Reasons.
@@ -3400,11 +3423,6 @@ AssertCompile(!(VMX_V_VMCS_REVISION_ID & RT_BIT(31)));
 #define VMX_V_VIRT_APIC_SIZE                                    X86_PAGE_4K_SIZE
 /** The size of the Virtual-APIC page (in pages). */
 #define VMX_V_VIRT_APIC_PAGES                                   1
-
-/** Virtual X2APIC MSR range start. */
-#define VMX_V_VIRT_APIC_MSR_START                               0x800
-/** Virtual X2APIC MSR range end. */
-#define VMX_V_VIRT_APIC_MSR_END                                 0x8ff
 
 /** The size of the VMREAD/VMWRITE bitmap (in bytes). */
 #define VMX_V_VMREAD_VMWRITE_BITMAP_SIZE                        X86_PAGE_4K_SIZE

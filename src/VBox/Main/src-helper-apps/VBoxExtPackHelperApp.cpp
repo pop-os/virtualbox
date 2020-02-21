@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -231,9 +231,9 @@ static int CommonDirRenameWrapper(const char *pszSrc, const char *pszDst, uint32
     for (;;)
     {
         int rc = RTDirRename(pszSrc, pszDst, fFlags);
-        if (   (   rc == VERR_ACCESS_DENIED
-                || rc == VERR_SHARING_VIOLATION)
-            && RTTimeNanoTS() - nsNow < RT_NS_15SEC)
+        if (   (   rc != VERR_ACCESS_DENIED
+                && rc != VERR_SHARING_VIOLATION)
+            || RTTimeNanoTS() - nsNow > RT_NS_15SEC)
             return rc;
         RTThreadSleep(128);
     }

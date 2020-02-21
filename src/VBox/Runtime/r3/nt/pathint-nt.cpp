@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -571,7 +571,7 @@ RTDECL(int) RTNtPathEnsureSpace(struct _UNICODE_STRING *pNtName, size_t cwcMin)
  * @param   hHandle             The handle.
  * @param   cwcExtra            How much extra space is needed.
  */
-static int rtNtPathFromHandle(struct _UNICODE_STRING *pNtName, HANDLE hHandle, size_t cwcExtra)
+RTDECL(int) RTNtPathFromHandle(struct _UNICODE_STRING *pNtName, HANDLE hHandle, size_t cwcExtra)
 {
     /*
      * Query the name into a buffer.
@@ -633,7 +633,7 @@ static int rtNtPathRelativeToAbs(struct _UNICODE_STRING *pNtName, HANDLE *phRoot
     if (pNtName->Length == 0)
     {
         RTUtf16Free(pNtName->Buffer);
-        rc = rtNtPathFromHandle(pNtName, *phRootDir, pNtName->Length / sizeof(RTUTF16) + 2);
+        rc = RTNtPathFromHandle(pNtName, *phRootDir, pNtName->Length / sizeof(RTUTF16) + 2);
         if (RT_SUCCESS(rc))
         {
             *phRootDir = NULL;
@@ -645,7 +645,7 @@ static int rtNtPathRelativeToAbs(struct _UNICODE_STRING *pNtName, HANDLE *phRoot
 
         UNICODE_STRING RootDir;
         size_t const   cwcAppend = pNtName->Length / sizeof(RTUTF16);
-        rc = rtNtPathFromHandle(&RootDir, *phRootDir, cwcAppend + 2);
+        rc = RTNtPathFromHandle(&RootDir, *phRootDir, cwcAppend + 2);
         if (RT_SUCCESS(rc))
         {
             size_t cwcRoot = RootDir.Length / sizeof(RTUTF16);
@@ -801,7 +801,7 @@ RTDECL(int) RTNtPathRelativeFromUtf8(struct _UNICODE_STRING *pNtName, PHANDLE ph
                                             if (*phRootDir != NULL)
                                             {
                                                 RTUtf16Free(pwszDst);
-                                                rc = rtNtPathFromHandle(pNtName, *phRootDir, cwcMax + 2);
+                                                rc = RTNtPathFromHandle(pNtName, *phRootDir, cwcMax + 2);
                                                 if (RT_FAILURE(rc))
                                                     return rc;
 

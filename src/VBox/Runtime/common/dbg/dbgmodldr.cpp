@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -215,10 +215,10 @@ static DECLCALLBACK(int) rtDbgModLdr_Close(PRTDBGMODINT pMod)
 
 
 /** @interface_method_impl{RTDBGMODVTIMG,pfnTryOpen} */
-static DECLCALLBACK(int) rtDbgModLdr_TryOpen(PRTDBGMODINT pMod, RTLDRARCH enmArch)
+static DECLCALLBACK(int) rtDbgModLdr_TryOpen(PRTDBGMODINT pMod, RTLDRARCH enmArch, uint32_t fLdrFlags)
 {
     RTLDRMOD hLdrMod;
-    int rc = RTLdrOpen(pMod->pszImgFile, RTLDR_O_FOR_DEBUG, enmArch, &hLdrMod);
+    int rc = RTLdrOpen(pMod->pszImgFile, RTLDR_O_FOR_DEBUG | fLdrFlags, enmArch, &hLdrMod);
     if (RT_SUCCESS(rc))
     {
         rc = rtDbgModLdrOpenFromHandle(pMod, hLdrMod);

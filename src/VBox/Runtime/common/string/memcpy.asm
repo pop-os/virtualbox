@@ -4,7 +4,7 @@
 ;
 
 ;
-; Copyright (C) 2006-2019 Oracle Corporation
+; Copyright (C) 2006-2020 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -42,6 +42,10 @@ RT_NOCRT_BEGINPROC memcpy
 
         ; Do the bulk of the work.
 %ifdef RT_ARCH_AMD64
+ %ifdef DEBUG
+        push    rbp
+        mov     rbp, rsp
+ %endif
  %ifdef ASM_CALL64_MSC
         mov     r10, rdi                ; save
         mov     r11, rsi                ; save
@@ -95,6 +99,9 @@ RT_NOCRT_BEGINPROC memcpy
  %ifdef ASM_CALL64_MSC
         mov     rdi, r10
         mov     rsi, r11
+ %endif
+ %ifdef DEBUG
+        leave
  %endif
 %else
         pop     esi

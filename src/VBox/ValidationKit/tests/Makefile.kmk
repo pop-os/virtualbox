@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2019 Oracle Corporation
+# Copyright (C) 2006-2020 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -34,6 +34,9 @@ include $(PATH_SUB_CURRENT)/additions/Makefile.kmk
 include $(PATH_SUB_CURRENT)/api/Makefile.kmk
 include $(PATH_SUB_CURRENT)/autostart/Makefile.kmk
 include $(PATH_SUB_CURRENT)/benchmarks/Makefile.kmk
+ifndef VBOX_OSE
+ include $(PATH_SUB_CURRENT)/cloud/Makefile.kmk
+endif
 include $(PATH_SUB_CURRENT)/cpu/Makefile.kmk
 include $(PATH_SUB_CURRENT)/network/Makefile.kmk
 include $(PATH_SUB_CURRENT)/selftests/Makefile.kmk

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,126 +22,209 @@
 #endif
 
 /* Qt includes: */
-#include <QDateTime>
+#include <QIcon>
 #include <QMimeData>
 #include <QPixmap>
 
 /* GUI includes: */
+#include "QIWithRetranslateUI.h"
 #include "UISettingsDefs.h"
 
 /* COM includes: */
 #include "COMEnums.h"
 #include "CVirtualBoxErrorInfo.h"
-#include "CMachine.h"
+
+/* Forward declarations: */
+class UIVirtualMachineItemCloud;
+class UIVirtualMachineItemLocal;
 
 /* Using declarations: */
 using namespace UISettingsDefs;
 
-class UIVirtualMachineItem
-{
-public:
-
-    UIVirtualMachineItem(const CMachine &aMachine);
-    virtual ~UIVirtualMachineItem();
-
-    CMachine machine() const { return m_machine; }
-
-    QString name() const { return m_strName; }
-    QPixmap osPixmap(QSize *pLogicalSize = 0) const;
-    QString osTypeId() const { return m_strOSTypeId; }
-    QUuid id() const { return m_uId; }
-
-    QString machineStateName() const;
-    QIcon machineStateIcon() const;
-
-    QString sessionStateName() const;
-
-    QString snapshotName() const { return m_strSnapshotName; }
-    ULONG snapshotCount() const { return m_cSnaphot; }
-
-    QString toolTipText() const;
-
-    bool accessible() const { return m_fAccessible; }
-    const CVirtualBoxErrorInfo &accessError() const { return m_accessError; }
-    KMachineState machineState() const { return m_machineState; }
-    KSessionState sessionState() const { return m_sessionState; }
-
-    QString settingsFile() const { return m_strSettingsFile; }
-    const QStringList &groups();
-    bool recache();
-    /** Recaches item pixmap. */
-    void recachePixmap();
-
-    bool canSwitchTo() const;
-    bool switchTo();
-
-    bool hasDetails() const { return m_fHasDetails; }
-
-    /** Returns configuration access level. */
-    ConfigurationAccessLevel configurationAccessLevel() const { return m_configurationAccessLevel; }
-
-    static bool isItemEditable(UIVirtualMachineItem *pItem);
-    static bool isItemSaved(UIVirtualMachineItem *pItem);
-    static bool isItemPoweredOff(UIVirtualMachineItem *pItem);
-    static bool isItemStarted(UIVirtualMachineItem *pItem);
-    static bool isItemRunning(UIVirtualMachineItem *pItem);
-    static bool isItemRunningHeadless(UIVirtualMachineItem *pItem);
-    static bool isItemPaused(UIVirtualMachineItem *pItem);
-    static bool isItemStuck(UIVirtualMachineItem *pItem);
-
-private:
-
-    /* Private member vars */
-    CMachine m_machine;
-
-    /* Cached machine data (to minimize server requests) */
-    QUuid   m_uId;
-    QString m_strSettingsFile;
-
-    bool m_fAccessible;
-    CVirtualBoxErrorInfo m_accessError;
-
-    QString m_strName;
-    QPixmap m_pixmap;
-    QSize m_logicalPixmapSize;
-    QString m_strSnapshotName;
-    QDateTime m_lastStateChange;
-    KMachineState m_machineState;
-    KSessionState m_sessionState;
-    QString m_strOSTypeId;
-    ULONG m_cSnaphot;
-
-    ULONG m_pid;
-
-    bool m_fHasDetails;
-
-    QStringList m_groups;
-    /** Holds configuration access level. */
-    ConfigurationAccessLevel m_configurationAccessLevel;
-};
-
-/* Make the pointer of this class public to the QVariant framework */
-Q_DECLARE_METATYPE(UIVirtualMachineItem *);
-
-class UIVirtualMachineItemMimeData: public QMimeData
+/** Virtual Machine item interface. A wrapper caching VM data. */
+class UIVirtualMachineItem : public QIWithRetranslateUI3<QObject>
 {
     Q_OBJECT;
 
 public:
 
+    /** Item types. */
+    enum ItemType { ItemType_Local, ItemType_CloudFake, ItemType_CloudReal };
+
+    /** Constructs VM item on the basis of taken @a enmType. */
+    UIVirtualMachineItem(ItemType enmType);
+    /** Destructs VM item. */
+    virtual ~UIVirtualMachineItem();
+
+    /** @name RTTI stuff.
+      * @{ */
+        /** Returns item type. */
+        ItemType itemType() const { return m_enmType; }
+        /** Returns item casted to local type. */
+        UIVirtualMachineItemLocal *toLocal();
+        /** Returns item casted to cloud type. */
+        UIVirtualMachineItemCloud *toCloud();
+    /** @} */
+
+    /** @name VM access attributes.
+      * @{ */
+        /** Returns whether VM was accessible. */
+        bool accessible() const { return m_fAccessible; }
+        /** Returns the last cached access error. */
+        const CVirtualBoxErrorInfo &accessError() const { return m_comAccessError; }
+    /** @} */
+
+    /** @name Basic attributes.
+      * @{ */
+        /** Returns cached machine id. */
+        QString id() const { return m_strId; }
+        /** Returns cached machine name. */
+        QString name() const { return m_strName; }
+        /** Returns cached machine OS type id. */
+        QString osTypeId() const { return m_strOSTypeId; }
+        /** Returns cached machine OS type pixmap.
+          * @param  pLogicalSize  Argument to assign actual pixmap size to. */
+        QPixmap osPixmap(QSize *pLogicalSize = 0) const;
+    /** @} */
+
+    /** @name State attributes.
+      * @{ */
+        /** Returns cached machine state. */
+        KMachineState machineState() const { return m_enmMachineState; }
+        /** Returns cached machine state name. */
+        QString machineStateName() const { return m_strMachineStateName; }
+        /** Returns cached machine state icon. */
+        QIcon machineStateIcon() const { return m_machineStateIcon; }
+
+        /** Returns cached configuration access level. */
+        ConfigurationAccessLevel configurationAccessLevel() const { return m_enmConfigurationAccessLevel; }
+    /** @} */
+
+    /** @name Visual attributes.
+      * @{ */
+        /** Returns cached machine tool-tip. */
+        QString toolTipText() const { return m_strToolTipText; }
+    /** @} */
+
+    /** @name Extra-data options.
+      * @{ */
+        /** Returns whether we should show machine details. */
+        bool hasDetails() const { return m_fHasDetails; }
+    /** @} */
+
+    /** @name Update stuff.
+      * @{ */
+        /** Recaches machine data. */
+        virtual void recache() = 0;
+        /** Recaches machine item pixmap. */
+        virtual void recachePixmap() = 0;
+    /** @} */
+
+    /** @name Validation stuff.
+      * @{ */
+        /** Returns whether passed machine @a pItem is editable. */
+        virtual bool isItemEditable() const = 0;
+        /** Returns whether passed machine @a pItem is saved. */
+        virtual bool isItemSaved() const = 0;
+        /** Returns whether passed machine @a pItem is powered off. */
+        virtual bool isItemPoweredOff() const = 0;
+        /** Returns whether passed machine @a pItem is started. */
+        virtual bool isItemStarted() const = 0;
+        /** Returns whether passed machine @a pItem is running. */
+        virtual bool isItemRunning() const = 0;
+        /** Returns whether passed machine @a pItem is running headless. */
+        virtual bool isItemRunningHeadless() const = 0;
+        /** Returns whether passed machine @a pItem is paused. */
+        virtual bool isItemPaused() const = 0;
+        /** Returns whether passed machine @a pItem is stuck. */
+        virtual bool isItemStuck() const = 0;
+    /** @} */
+
+protected:
+
+    /** @name RTTI stuff.
+      * @{ */
+        /** Holds item type. */
+        ItemType  m_enmType;
+    /** @} */
+
+    /** @name VM access attributes.
+      * @{ */
+        /** Holds whether VM was accessible. */
+        bool                  m_fAccessible;
+        /** Holds the last cached access error. */
+        CVirtualBoxErrorInfo  m_comAccessError;
+    /** @} */
+
+    /** @name Basic attributes.
+      * @{ */
+        /** Holds cached machine id. */
+        QString      m_strId;
+        /** Holds cached machine name. */
+        QString      m_strName;
+        /** Holds cached machine OS type id. */
+        QString      m_strOSTypeId;
+        /** Holds cached machine OS type pixmap. */
+        QPixmap      m_pixmap;
+        /** Holds cached machine OS type pixmap size. */
+        QSize        m_logicalPixmapSize;
+    /** @} */
+
+    /** @name State attributes.
+      * @{ */
+        /** Holds cached machine state. */
+        KMachineState             m_enmMachineState;
+        /** Holds cached machine state name. */
+        QString                   m_strMachineStateName;
+        /** Holds cached machine state name. */
+        QIcon                     m_machineStateIcon;
+
+        /** Holds configuration access level. */
+        ConfigurationAccessLevel  m_enmConfigurationAccessLevel;
+    /** @} */
+
+    /** @name Visual attributes.
+      * @{ */
+        /** Holds cached machine tool-tip. */
+        QString  m_strToolTipText;
+    /** @} */
+
+    /** @name Extra-data options.
+      * @{ */
+        /** Holds whether we should show machine details. */
+        bool  m_fHasDetails;
+    /** @} */
+};
+
+/* Make the pointer of this class public to the QVariant framework */
+Q_DECLARE_METATYPE(UIVirtualMachineItem *);
+
+/** QMimeData subclass for handling UIVirtualMachineItem mime data. */
+class UIVirtualMachineItemMimeData : public QMimeData
+{
+    Q_OBJECT;
+
+public:
+
+    /** Constructs mime data for passed VM @a pItem. */
     UIVirtualMachineItemMimeData(UIVirtualMachineItem *pItem);
 
-    UIVirtualMachineItem *item() const;
-    QStringList formats() const;
+    /** Returns cached VM item. */
+    UIVirtualMachineItem *item() const { return m_pItem; }
 
-    static QString type();
+    /** Returns supported format list. */
+    virtual QStringList formats() const /* override */;
+
+    /** Returns UIVirtualMachineItem mime data type. */
+    static QString type() { return m_type; }
 
 private:
 
-    /* Private member vars */
+    /** Holds cached VM item. */
     UIVirtualMachineItem *m_pItem;
 
-    static QString m_type;
+    /** Holds UIVirtualMachineItem mime data type. */
+    static QString  m_type;
 };
 
 #endif /* !FEQT_INCLUDED_SRC_manager_UIVirtualMachineItem_h */

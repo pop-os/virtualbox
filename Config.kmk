@@ -7,7 +7,7 @@
 #
 
 #
-# Copyright (C) 2006-2019 Oracle Corporation
+# Copyright (C) 2006-2020 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -431,9 +431,9 @@ if1of ($(KBUILD_TARGET), win)
  VBOX_WITH_NATIVE_NEM = 1
 endif
 # Enables mapping guest RAM into host kernel space.
-#if1of ($(KBUILD_TARGET), linux win)
-# VBOX_WITH_RAM_IN_KERNEL := 1
-#endif
+if1of ($(KBUILD_TARGET), darwin linux win)
+ VBOX_WITH_RAM_IN_KERNEL := 1
+endif
 ## @}
 
 
@@ -1921,6 +1921,8 @@ ifndef VBOX_BLD_PYTHON
 				   python-not-found)
  endif
 endif
+## For running python unittests in the validation kit.
+VBOX_UNITTEST_PYTHON ?= $(VBOX_BLD_PYTHON)
 
 #
 # pylint setup, see https://www.pylint.org/.
@@ -2050,7 +2052,6 @@ endif
 
 
 # Intel ASL compiler for ACPI
-$(warning KBUILD_HOST:=$(KBUILD_HOST) KBUILD_HOST_VERSION_MAJOR=$(KBUILD_HOST_VERSION_MAJOR) VBOX_IASLCMD=$(VBOX_IASLCMD))
 if "$(KBUILD_HOST)" == "darwin" && "$(KBUILD_HOST_VERSION_MAJOR)" >= 19  # Temp hack! Catalina needs 64-bit binary
 VBOX_IASLCMD   ?= /opt/local/bin/iasl$(HOSTSUFF_EXE)
 else
@@ -3051,6 +3052,12 @@ ifdef VBOX_WITH_GCC_SANITIZER
  	-fno-common \
  	-DIPRT_WITH_GCC_SANITIZER \
  	-DVBOX_WITH_GCC_SANITIZER
+else ifdef VBOX_WITH_CLANG_SANITIZER ## @todo make work...
+ VBOX_GCC_SANITIZER_FLAGS := \
+ 	-DIPRT_WITH_GCC_SANITIZER \
+ 	-DVBOX_WITH_GCC_SANITIZER \
+ 	-fsanitize=object-size \
+  	-fsanitize-undefined-trap-on-error
 else
  VBOX_GCC_SANITIZER_FLAGS =
 endif
@@ -3062,9 +3069,9 @@ ifdef VBOX_WITH_GCC_SANITIZER
  ifdef VBOX_WITH_GCC_SANITIZER_STATIC
   VBOX_GCC_NO_UNDEFINED    := -Wl,--no-undefined
   VBOX_GCC_NO_UNDEFINED_R0 := -no-undefined
-  VBOX_GCC_SANITIZER_FLAGS += -static-libasan
+  VBOX_GCC_SANITIZER_LDFLAGS += -static-libasan
  else
-  VBOX_GCC_SANITIZER_FLAGS += -lasan
+  VBOX_GCC_SANITIZER_LDFLAGS += -lasan
  endif
 endif
 
@@ -3304,6 +3311,7 @@ define VBOX_EDIT_VERSION_RULE_DEF
 $$($(1)_0_OUTDIR)/$(if $(3),$(3),$(2)): $(PATH_SUB_CURRENT)/$(2) $(VBOX_SVN_REV_KMK) | $$(dir $$@)
 	$(call MSG_GENERATE,$(1),$@,$<)
 	$(QUIET)$(call VBOX_EDIT_VERSION_CMD_FN,$<,$@)
+$(eval $(1)_CLEAN += $$($(1)_0_OUTDIR)/$(if $(3),$(3),$(2)))
 endef
 
 
@@ -3339,11 +3347,12 @@ VBOX_EDIT_VERSION_AND_BUILD_CMD_FN = $(SED) \
 # @param    3        The output filename relative to the target output dir.
 #                    Optional, defaults to 2.
 #
-VBOX_EDIT_VERSION_AND_BUILD_RULE_FN = $(eval $(value VBOX_EDIT_VERSION_AND_BUILD_RULE_DEF))
+VBOX_EDIT_VERSION_AND_BUILD_RULE_FN = $(eval $(VBOX_EDIT_VERSION_AND_BUILD_RULE_DEF))
 define VBOX_EDIT_VERSION_AND_BUILD_RULE_DEF
-$$($(1)_0_OUTDIR)/$(if $(3),$(3),$(2)): $(PATH_SUB_CURRENT)/$(2) $(VBOX_SVN_REV_KMK) | $$(dir $$@)
-	$(call MSG_GENERATE,$(1),$@,$<)
-	$(QUIET)$(call VBOX_EDIT_VERSION_AND_BUILD_CMD_FN,$<,$@)
+$$$$($(1)_0_OUTDIR)/$(if $(3),$(3),$(2)): $$(PATH_SUB_CURRENT)/$(2) $$(VBOX_SVN_REV_KMK) | $$$$(dir $$$$@)
+	$$(call MSG_GENERATE,$(1),$$@,$$<)
+	$$(QUIET)$$(call VBOX_EDIT_VERSION_AND_BUILD_CMD_FN,$$<,$$@)
+$(1)_CLEAN += $$($(1)_0_OUTDIR)/$(if $(3),$(3),$(2))
 endef
 
 
@@ -3436,7 +3445,8 @@ ifdef VBOX_SIGNING_MODE
  # @param  $3  The directory to put the signed file in. Defaults to $(dir $2).
  # @param  $4  Additional options.
  VBOX_CCS_SIGN_CMD    = $(VBOX_RETRY) $(VBOX_JAVA) -jar "$(VBOX_CCS_CLIENT_JAR)" \
- 	sign -user "$(VBOX_CCS_USER)" -global_uid "$(VBOX_CCS_GLOBAL_UID)" -server "$(VBOX_CCS_SERVER)" \
+ 	sign -user "$(VBOX_CCS_USER)" -global_uid "$(VBOX_CCS_GLOBAL_UID)" \
+		-job_timeout 90 -server_timeout 75 -server "$(VBOX_CCS_SERVER)" \
  		-sign_method "$1" -file_to_sign "$2" -signed_location "$(if $3,$3,$(dir $2))" $4
 
  ifeq ($(KBUILD_HOST),win)
@@ -3691,15 +3701,27 @@ ifdef VBOX_SIGNING_MODE
    VBOX_DARWIN_KEXT_SIGN_FILES = CodeResources
   endif
 
+  ##
+  # Corp Code Notarization command line. Modifies the file because the tickets are stapled.
+  # @param 1  The file to be submitted for signing.
+  # @param 2  Identifier, mandatory.
+  # @param 3  The directory to put the notarized file in. Defaults to $(dir $1).
+ VBOX_CCS_NOTARIZE_CMD = $(VBOX_RETRY) $(VBOX_JAVA) -jar "$(VBOX_CCS_CLIENT_JAR)" \
+ 	mac_notarize -user "$(VBOX_CCS_USER)" -global_uid "$(VBOX_CCS_GLOBAL_UID)" \
+		-job_timeout 90 -server_timeout 75 -server "$(VBOX_CCS_SERVER)" \
+ 		-file_to_notarize "$1" -bundle_id "$2" -download_location "$(if $3,$3,$(dir $1))"
+
   ## Sign an application bundle, framework or kernel extension.
   # @param 1  The bundle to sign.
   # @param 2  Identifier, optional.
   # @param 3  Additional codesign command line parameters, optional.
   if $(intersects darwin all 1,$(VBOX_WITH_CORP_CODE_SIGNING))
-   ## @todo cannot handle $(2), the identifier. $(3) is hopefully either empty or --deep
+   ## @todo cannot handle $(2), the identifier.
+   ## @todo $(3) is hopefully either empty, --deep or --entitlements=...
    VBOX_SIGN_BUNDLE_FN = $(call MSG_TOOL,SIGNTOOL,,$(1),$(2))$(NLTAB) \
 	ditto -c -k --keepParent "$(1)" "$(1).zip"$(NLTAB) \
-	$(call VBOX_CCS_SIGN_CMD,apple,$(1).zip,,$(if $(eq $(3),--deep),-deep,))$(NLTAB) \
+	$(call VBOX_CCS_SIGN_CMD,apple,$(1).zip,,$(subst --entitlements=,-entitlement_file_path ,$(subst --deep,-deep,$(3))) \
+		$(if $(VBOX_WITH_MACOS_HARDENED_RUNTIME),-hardened_runtime))$(NLTAB) \
 	ditto -x -k "$(1).zip" "$(1)/../"$(NLTAB) \
 	$(RM) -f -- "$(1).zip"
   else
@@ -3718,17 +3740,23 @@ ifdef VBOX_SIGNING_MODE
   ## Sign a Mach-O image.
   # @param 1  The file to sign.
   # @param 2  Identifier, optional.
+  # @param 3  Additional codesign command line parameters, optional.
   if $(intersects darwin all 1,$(VBOX_WITH_CORP_CODE_SIGNING))
    ## @todo cannot handle $(2), the identifier.
-   VBOX_SIGN_MACHO_FN = $(call MSG_TOOL,SIGNTOOL,,$(1),$(2))$(NLTAB)$(call VBOX_CCS_SIGN_CMD,binary,$(1))
+   ## @todo $(3) is hopefully either empty or --entitlements=...
+   VBOX_SIGN_MACHO_FN = $(call MSG_TOOL,SIGNTOOL,,$(1),$(2))$(NLTAB) \
+	$(call VBOX_CCS_SIGN_CMD,binary,$(1),,$(subst --entitlements=,-entitlement_file_path ,$(3)) \
+		$(if $(VBOX_WITH_MACOS_HARDENED_RUNTIME),-hardened_runtime))
   else
    VBOX_SIGN_MACHO_FN = $(call MSG_TOOL,SIGNTOOL,,$(1),$(2))$(NLTAB)$(VBOX_CODESIGN) \
 	--verbose=9 \
 	--force \
 	$(if-expr $(KBUILD_HOST_VERSION_MAJOR) <= 14,--digest-algorithm sha256,) \
+	$(if $(VBOX_WITH_MACOS_HARDENED_RUNTIME),$(if-expr $(KBUILD_HOST_VERSION_MAJOR) <= 16,--options 0x10000,--options runtime)) \
 	--file-list - \
 	$(if-expr defined(VBOX_TSA_URL),--timestamp="$(VBOX_TSA_URL)") \
 	$(VBOX_CERTIFICATE_SUBJECT_NAME_ARGS) \
+	$(3) \
 	$(1) \
 	$(if $(2),--identifier "$(2)",)
   endif
@@ -3749,17 +3777,18 @@ ifdef VBOX_SIGNING_MODE
 	--verbose=9 \
 	--force \
 	$(if-expr $(KBUILD_HOST_VERSION_MAJOR) <= 14,--digest-algorithm sha256,) \
-	--file-list - \
+	--file-list=- \
 	$(if-expr defined(VBOX_TSA_URL),--timestamp="$(VBOX_TSA_URL)") \
+	$(if $(2),--identifier "$(2)",) \
 	$(VBOX_CERTIFICATE_SUBJECT_NAME_ARGS) \
-	$(1) \
-	$(if $(2),--identifier "$(2)",)
+	$(1)
   endif
 
   ## Sign a DMG image.
   # @param 1  The file to sign.
   # @param 2  Identifier, optional.
-  VBOX_SIGN_DMG_FN = $(VBOX_SIGN_FILE_FN)
+  # @note Will segfault if --file-list is used on 10.15.2 (kSecCodeInfoChangedFiles -> NULL, outputter doesn't check for NULL).
+  VBOX_SIGN_DMG_FN = $(filter-out --file-list=-,$(VBOX_SIGN_FILE_FN))
 
   ## Sign a PKG file. Used with corp code signing only.
   # @param 1  The file to sign.
@@ -3767,6 +3796,13 @@ ifdef VBOX_SIGNING_MODE
   if $(intersects darwin all 1,$(VBOX_WITH_CORP_CODE_SIGNING))
    ## @todo cannot handle $(2), the identifier.
    VBOX_SIGN_PKG_FN = $(call MSG_TOOL,SIGNTOOL,,$(1),$(2))$(NLTAB)$(call VBOX_CCS_SIGN_CMD,mac_pkg,$(1))
+  endif
+
+  ## Notarize a file (usually DMG, can also be PKG). Used with corp code signing only.
+  # @param 1  The file to notarize.
+  # @param 2  Identifier, mandatory.
+  if $(intersects darwin all 1,$(VBOX_WITH_CORP_CODE_SIGNING))
+   VBOX_NOTARIZE_FILE_FN = $(call MSG_TOOL,SIGNTOOL,,$(1),$(2))$(NLTAB)$(call VBOX_CCS_NOTARIZE_CMD,$(1),$(2))
   endif
 
   ## @def VBOX_TEST_SIGN_KEXT
@@ -5169,7 +5205,7 @@ TEMPLATE_VBOXR3EXE_LDFLAGS.sparc32     = -m32
 TEMPLATE_VBOXR3EXE_LDFLAGS.sparc64     = -m64
 TEMPLATE_VBOXR3EXE_LDFLAGS.linux       = -Wl,-z,noexecstack,-z,relro $(VBOX_LD_as_needed)
 TEMPLATE_VBOXR3EXE_LDFLAGS.solaris     = -Wl,-z,ignore # same as VBOX_LD_as_needed
-TEMPLATE_VBOXR3EXE_LDFLAGS.debug       = $(VBOX_GCC_SANITIZER_FLAGS)
+TEMPLATE_VBOXR3EXE_LDFLAGS.debug       = $(VBOX_GCC_SANITIZER_FLAGS) $(VBOX_GCC_SANITIZER_LDFLAGS)
 
  ifeq ($(KBUILD_TARGET),linux)
 TEMPLATE_VBOXR3EXE_LIBS                = pthread m rt dl
@@ -6074,7 +6110,7 @@ TEMPLATE_VBOXMAINEXE_PCHFLAGS.debug      = $(TEMPLATE_VBOXMAINEXE_CXXFLAGS.debug
 TEMPLATE_VBOXMAINEXE_PCHFLAGS.kprofile   = $(TEMPLATE_VBOXMAINEXE_CXXFLAGS.kprofile)
 TEMPLATE_VBOXMAINEXE_LDFLAGS.x86         = -m32
 TEMPLATE_VBOXMAINEXE_LDFLAGS.amd64       = -m64
-TEMPLATE_VBOXMAINEXE_LDFLAGS.debug       = $(VBOX_GCC_SANITIZER_FLAGS)
+TEMPLATE_VBOXMAINEXE_LDFLAGS.debug       = $(VBOX_GCC_SANITIZER_FLAGS) $(VBOX_GCC_SANITIZER_LDFLAGS)
  ifeq ($(KBUILD_TARGET),linux)
 TEMPLATE_VBOXMAINEXE_LIBS                = pthread m rt $(LIB_RUNTIME) dl
 TEMPLATE_VBOXMAINEXE_LDFLAGS.linux       = -Wl,-z,noexecstack,-z,relro $(VBOX_LD_as_needed)
@@ -6647,7 +6683,7 @@ ifdef VBOX_WITH_QTGUI
   TEMPLATE_VBOXQTGUIEXE_OBJCXXFLAGS.amd64 = $(TEMPLATE_VBOXQTGUIEXE_CXXFLAGS.amd64)
   TEMPLATE_VBOXQTGUIEXE_LDFLAGS.x86 = -m32
   TEMPLATE_VBOXQTGUIEXE_LDFLAGS.amd64 = -m64
-  TEMPLATE_VBOXQTGUIEXE_LDFLAGS.debug = $(VBOX_GCC_SANITIZER_FLAGS)
+  TEMPLATE_VBOXQTGUIEXE_LDFLAGS.debug = $(VBOX_GCC_SANITIZER_FLAGS) $(VBOX_GCC_SANITIZER_LDFLAGS)
   TEMPLATE_VBOXQTGUIEXE_LIBS = \
 	$(VBOX_LIBS_QT) \
 	$(LIB_RUNTIME) \
@@ -6743,6 +6779,12 @@ ifdef VBOX_WITH_QTGUI
    TEMPLATE_VBOXQTGUIEXE_LDFLAGS  += -fPIC
  endif # not darwin, os2 or win
 
+ ifeq ($(KBUILD_TARGET),darwin)
+  TEMPLATE_VBOXQTGUIEXE_POST_CMDS = $(QUIET)install_name_tool $(foreach qtmod, $(VBOX_QT_MOD_NAMES), \
+	$(foreach prefix, @executable_path/../Frameworks/ $(VBOX_PATH_QT)/Frameworks/ $(PATH_SDK_QT)/, \
+		-change "$(prefix)$(qtmod).framework/Versions/5/$(qtmod)" \
+			"$(if $(VBOX_WITH_HARDENING),/Applications/VirtualBox.app/Contents/Frameworks,@rpath)/$(qtmod).framework/Versions/5/$(qtmod)" ) ) "$(out)"
+ endif
 
  #
  # Template for building Qt GUI components.
@@ -7730,7 +7772,7 @@ endif
 SVN                    ?= svn$(HOSTSUFF_EXE)
 VBOX_SVN_REV_KMK        = $(PATH_OUT)/revision.kmk
 ifndef VBOX_SVN_REV
- VBOX_SVN_REV_CONFIG_FALLBACK := $(patsubst %:,,  $Rev: 135614 $  )
+ VBOX_SVN_REV_CONFIG_FALLBACK := $(patsubst %:,,  $Rev: 136160 $  )
  VBOX_SVN_REV_FALLBACK := $(if-expr $(VBOX_SVN_REV_CONFIG_FALLBACK) > $(VBOX_SVN_REV_VERSION_FALLBACK),$(VBOX_SVN_REV_CONFIG_FALLBACK),$(VBOX_SVN_REV_VERSION_FALLBACK))
  VBOX_SVN_DEP          := $(firstword $(wildcard $(PATH_ROOT)/.svn/wc.db $(abspath $(PATH_ROOT)/../.svn/wc.db) $(abspath $(PATH_ROOT)/../../.svn/wc.db) $(PATH_ROOT)/.svn/entries))
  ifeq ($(which $(SVN)),)

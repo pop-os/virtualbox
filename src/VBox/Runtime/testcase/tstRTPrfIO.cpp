@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -211,7 +211,7 @@ int main(int argc, char **argv)
                 break;
 
             case 'V':
-                RTTestPrintf(g_hTest, RTTESTLVL_ALWAYS, "$Revision: 127855 $\n");
+                RTTestPrintf(g_hTest, RTTESTLVL_ALWAYS, "$Revision: 135976 $\n");
                 return RTTestSummaryAndDestroy(g_hTest);
 
             case 'h':

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2020 Oracle Corporation
  * This file is based on ast_ttm.c
  * Copyright 2012 Red Hat Inc.
  *
@@ -310,11 +310,12 @@ int vbox_mm_init(struct vbox_private *vbox)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 15, 0) || defined(RHEL_71)
 				 dev->anon_inode->i_mapping,
 #endif
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0)
-				 DRM_FILE_PAGE_OFFSET, true);
-#else
-				 true);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0)
+                                 dev->vma_offset_manager,
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0)
+				 DRM_FILE_PAGE_OFFSET,
 #endif
+				 true);
 	if (ret) {
 		DRM_ERROR("Error initialising bo driver; %d\n", ret);
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0) && !defined(RHEL_77) && !defined(RHEL_81)

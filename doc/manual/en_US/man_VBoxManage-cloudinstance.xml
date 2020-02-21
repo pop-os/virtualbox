@@ -2,7 +2,7 @@
 <!--
     manpage, user manual, usage: VBoxManage cloud instance
 
-    Copyright (C) 2018 Oracle Corporation
+    Copyright (C) 2018-2020 Oracle Corporation
 
     This file is part of VirtualBox Open Source Edition (OSE), as
     available from http://www.virtualbox.org. This file is free software;
@@ -15,7 +15,7 @@
 <refentry id="vboxmanage-cloudinstance" lang="en">
 
   <refentryinfo>
-    <pubdate>$Date: 2019-10-21 19:47:42 +0200 (Mon, 21 Oct 2019) $</pubdate>
+    <pubdate>$Date: 2020-02-04 11:54:12 +0100 (Tue, 04 Feb 2020) $</pubdate>
     <title>VBoxManage cloud instance</title>
   </refentryinfo>
 

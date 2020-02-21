@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -859,6 +859,63 @@ static const char * const g_apszVmxInstrErrors[HMVMX_INSTR_ERROR_MAX + 1] =
     /* 28 */ "Invalid operand to INVEPT/INVVPID."
 };
 #endif /* VBOX_STRICT && LOG_ENABLED */
+
+
+/**
+ * Checks if the given MSR is part of the lastbranch-from-IP MSR stack.
+ * @returns @c true if it's part of LBR stack, @c false otherwise.
+ *
+ * @param   pVM         The cross context VM structure.
+ * @param   idMsr       The MSR.
+ * @param   pidxMsr     Where to store the index of the MSR in the LBR MSR array.
+ *                      Optional, can be NULL.
+ *
+ * @remarks Must only be called when LBR is enabled.
+ */
+DECL_FORCE_INLINE(bool) hmR0VmxIsLbrBranchFromMsr(PCVM pVM, uint32_t idMsr, uint32_t *pidxMsr)
+{
+    Assert(pVM->hm.s.vmx.fLbr);
+    Assert(pVM->hm.s.vmx.idLbrFromIpMsrFirst);
+    uint32_t const cLbrStack = pVM->hm.s.vmx.idLbrFromIpMsrLast - pVM->hm.s.vmx.idLbrFromIpMsrFirst + 1;
+    uint32_t const idxMsr    = idMsr - pVM->hm.s.vmx.idLbrFromIpMsrFirst;
+    if (idxMsr < cLbrStack)
+    {
+        if (pidxMsr)
+            *pidxMsr = idxMsr;
+        return true;
+    }
+    return false;
+}
+
+
+/**
+ * Checks if the given MSR is part of the lastbranch-to-IP MSR stack.
+ * @returns @c true if it's part of LBR stack, @c false otherwise.
+ *
+ * @param   pVM         The cross context VM structure.
+ * @param   idMsr       The MSR.
+ * @param   pidxMsr     Where to store the index of the MSR in the LBR MSR array.
+ *                      Optional, can be NULL.
+ *
+ * @remarks Must only be called when LBR is enabled and when lastbranch-to-IP MSRs
+ *          are supported by the CPU (see hmR0VmxSetupLbrMsrRange).
+ */
+DECL_FORCE_INLINE(bool) hmR0VmxIsLbrBranchToMsr(PCVM pVM, uint32_t idMsr, uint32_t *pidxMsr)
+{
+    Assert(pVM->hm.s.vmx.fLbr);
+    if (pVM->hm.s.vmx.idLbrToIpMsrFirst)
+    {
+        uint32_t const cLbrStack = pVM->hm.s.vmx.idLbrToIpMsrLast - pVM->hm.s.vmx.idLbrToIpMsrFirst + 1;
+        uint32_t const idxMsr    = idMsr - pVM->hm.s.vmx.idLbrToIpMsrFirst;
+        if (idxMsr < cLbrStack)
+        {
+            if (pidxMsr)
+                *pidxMsr = idxMsr;
+            return true;
+        }
+    }
+    return false;
+}
 
 
 /**
@@ -2690,18 +2747,18 @@ static void hmR0VmxCheckAutoLoadStoreMsrs(PVMCPUCC pVCpu, PCVMXVMCSINFO pVmcsInf
                             ("HostMsrLoad=%#RX32 GuestMsrLoad=%#RX32 cMsrs=%u\n",
                              pHostMsrLoad->u32Msr, pGuestMsrLoad->u32Msr, cMsrs));
 
-        uint64_t const u64Msr = ASMRdMsr(pHostMsrLoad->u32Msr);
-        AssertMsgReturnVoid(pHostMsrLoad->u64Value == u64Msr,
+        uint64_t const u64HostMsr = ASMRdMsr(pHostMsrLoad->u32Msr);
+        AssertMsgReturnVoid(pHostMsrLoad->u64Value == u64HostMsr,
                             ("u32Msr=%#RX32 VMCS Value=%#RX64 ASMRdMsr=%#RX64 cMsrs=%u\n",
-                             pHostMsrLoad->u32Msr, pHostMsrLoad->u64Value, u64Msr, cMsrs));
+                             pHostMsrLoad->u32Msr, pHostMsrLoad->u64Value, u64HostMsr, cMsrs));
 
         /* Verify that cached host EFER MSR matches what's loaded the CPU. */
         bool const fIsEferMsr = RT_BOOL(pHostMsrLoad->u32Msr == MSR_K6_EFER);
         if (fIsEferMsr)
         {
-            AssertMsgReturnVoid(u64Msr == pVCpu->CTX_SUFF(pVM)->hm.s.vmx.u64HostMsrEfer,
+            AssertMsgReturnVoid(u64HostMsr == pVCpu->CTX_SUFF(pVM)->hm.s.vmx.u64HostMsrEfer,
                                 ("Cached=%#RX64 ASMRdMsr=%#RX64 cMsrs=%u\n",
-                                 pVCpu->CTX_SUFF(pVM)->hm.s.vmx.u64HostMsrEfer, u64Msr, cMsrs));
+                                 pVCpu->CTX_SUFF(pVM)->hm.s.vmx.u64HostMsrEfer, u64HostMsr, cMsrs));
         }
 
         /* Verify that the accesses are as expected in the MSR bitmap for auto-load/store MSRs. */
@@ -2715,9 +2772,20 @@ static void hmR0VmxCheckAutoLoadStoreMsrs(PVMCPUCC pVCpu, PCVMXVMCSINFO pVmcsInf
             }
             else
             {
-                if (!fIsNstGstVmcs)
+                /* Verify LBR MSRs (used only for debugging) are intercepted. We don't passthru these MSRs to the guest yet. */
+                PCVM pVM = pVCpu->CTX_SUFF(pVM);
+                if (   pVM->hm.s.vmx.fLbr
+                    && (   hmR0VmxIsLbrBranchFromMsr(pVM, pGuestMsrLoad->u32Msr, NULL /* pidxMsr */)
+                        || hmR0VmxIsLbrBranchToMsr(pVM, pGuestMsrLoad->u32Msr, NULL /* pidxMsr */)
+                        || pGuestMsrLoad->u32Msr == pVM->hm.s.vmx.idLbrTosMsr))
                 {
-                    AssertMsgReturnVoid((fMsrpm & VMXMSRPM_ALLOW_RD_WR) == VMXMSRPM_ALLOW_RD_WR,
+                    AssertMsgReturnVoid((fMsrpm & VMXMSRPM_MASK) == VMXMSRPM_EXIT_RD_WR,
+                                        ("u32Msr=%#RX32 cMsrs=%u Passthru read/write for LBR MSRs!\n",
+                                         pGuestMsrLoad->u32Msr, cMsrs));
+                }
+                else if (!fIsNstGstVmcs)
+                {
+                    AssertMsgReturnVoid((fMsrpm & VMXMSRPM_MASK) == VMXMSRPM_ALLOW_RD_WR,
                                         ("u32Msr=%#RX32 cMsrs=%u No passthru read/write!\n", pGuestMsrLoad->u32Msr, cMsrs));
                 }
                 else
@@ -3285,6 +3353,109 @@ static int hmR0VmxSetupTaggedTlb(PVMCC pVM)
         pVM->hm.s.vmx.enmTlbFlushType = VMXTLBFLUSHTYPE_VPID;
     else
         pVM->hm.s.vmx.enmTlbFlushType = VMXTLBFLUSHTYPE_NONE;
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Sets up the LBR MSR ranges based on the host CPU.
+ *
+ * @returns VBox status code.
+ * @param   pVM     The cross context VM structure.
+ */
+static int hmR0VmxSetupLbrMsrRange(PVMCC pVM)
+{
+    Assert(pVM->hm.s.vmx.fLbr);
+    uint32_t idLbrFromIpMsrFirst;
+    uint32_t idLbrFromIpMsrLast;
+    uint32_t idLbrToIpMsrFirst;
+    uint32_t idLbrToIpMsrLast;
+    uint32_t idLbrTosMsr;
+
+    /*
+     * Determine the LBR MSRs supported for this host CPU family and model.
+     *
+     * See Intel spec. 17.4.8 "LBR Stack".
+     * See Intel "Model-Specific Registers" spec.
+     */
+    uint32_t const uFamilyModel = (pVM->cpum.ro.HostFeatures.uFamily << 8)
+                                | pVM->cpum.ro.HostFeatures.uModel;
+    switch (uFamilyModel)
+    {
+        case 0x0f01: case 0x0f02:
+            idLbrFromIpMsrFirst = MSR_P4_LASTBRANCH_0;
+            idLbrFromIpMsrLast  = MSR_P4_LASTBRANCH_3;
+            idLbrToIpMsrFirst   = 0x0;
+            idLbrToIpMsrLast    = 0x0;
+            idLbrTosMsr         = MSR_P4_LASTBRANCH_TOS;
+            break;
+
+        case 0x065c: case 0x065f: case 0x064e: case 0x065e: case 0x068e:
+        case 0x069e: case 0x0655: case 0x0666: case 0x067a: case 0x0667:
+        case 0x066a: case 0x066c: case 0x067d: case 0x067e:
+            idLbrFromIpMsrFirst = MSR_LASTBRANCH_0_FROM_IP;
+            idLbrFromIpMsrLast  = MSR_LASTBRANCH_31_FROM_IP;
+            idLbrToIpMsrFirst   = MSR_LASTBRANCH_0_TO_IP;
+            idLbrToIpMsrLast    = MSR_LASTBRANCH_31_TO_IP;
+            idLbrTosMsr         = MSR_LASTBRANCH_TOS;
+            break;
+
+        case 0x063d: case 0x0647: case 0x064f: case 0x0656: case 0x063c:
+        case 0x0645: case 0x0646: case 0x063f: case 0x062a: case 0x062d:
+        case 0x063a: case 0x063e: case 0x061a: case 0x061e: case 0x061f:
+        case 0x062e: case 0x0625: case 0x062c: case 0x062f:
+            idLbrFromIpMsrFirst = MSR_LASTBRANCH_0_FROM_IP;
+            idLbrFromIpMsrLast  = MSR_LASTBRANCH_15_FROM_IP;
+            idLbrToIpMsrFirst   = MSR_LASTBRANCH_0_TO_IP;
+            idLbrToIpMsrLast    = MSR_LASTBRANCH_15_TO_IP;
+            idLbrTosMsr         = MSR_LASTBRANCH_TOS;
+            break;
+
+        case 0x0617: case 0x061d: case 0x060f:
+            idLbrFromIpMsrFirst = MSR_CORE2_LASTBRANCH_0_FROM_IP;
+            idLbrFromIpMsrLast  = MSR_CORE2_LASTBRANCH_3_FROM_IP;
+            idLbrToIpMsrFirst   = MSR_CORE2_LASTBRANCH_0_TO_IP;
+            idLbrToIpMsrLast    = MSR_CORE2_LASTBRANCH_3_TO_IP;
+            idLbrTosMsr         = MSR_CORE2_LASTBRANCH_TOS;
+            break;
+
+        /* Atom and related microarchitectures we don't care about:
+        case 0x0637: case 0x064a: case 0x064c: case 0x064d: case 0x065a:
+        case 0x065d: case 0x061c: case 0x0626: case 0x0627: case 0x0635:
+        case 0x0636: */
+        /* All other CPUs: */
+        default:
+        {
+            LogRelFunc(("Could not determine LBR stack size for the CPU model %#x\n", uFamilyModel));
+            VMCC_GET_CPU_0(pVM)->hm.s.u32HMError = VMX_UFC_LBR_STACK_SIZE_UNKNOWN;
+            return VERR_HM_UNSUPPORTED_CPU_FEATURE_COMBO;
+        }
+    }
+
+    /*
+     * Validate.
+     */
+    uint32_t const cLbrStack = idLbrFromIpMsrLast - idLbrFromIpMsrFirst + 1;
+    PCVMCPU pVCpu0 = VMCC_GET_CPU_0(pVM);
+    AssertCompile(   RT_ELEMENTS(pVCpu0->hm.s.vmx.VmcsInfo.au64LbrFromIpMsr)
+                  == RT_ELEMENTS(pVCpu0->hm.s.vmx.VmcsInfo.au64LbrToIpMsr));
+    if (cLbrStack > RT_ELEMENTS(pVCpu0->hm.s.vmx.VmcsInfo.au64LbrFromIpMsr))
+    {
+        LogRelFunc(("LBR stack size of the CPU (%u) exceeds our buffer size\n", cLbrStack));
+        VMCC_GET_CPU_0(pVM)->hm.s.u32HMError = VMX_UFC_LBR_STACK_SIZE_OVERFLOW;
+        return VERR_HM_UNSUPPORTED_CPU_FEATURE_COMBO;
+    }
+    NOREF(pVCpu0);
+
+    /*
+     * Update the LBR info. to the VM struct. for use later.
+     */
+    pVM->hm.s.vmx.idLbrTosMsr         = idLbrTosMsr;
+    pVM->hm.s.vmx.idLbrFromIpMsrFirst = idLbrFromIpMsrFirst;
+    pVM->hm.s.vmx.idLbrFromIpMsrLast  = idLbrFromIpMsrLast;
+
+    pVM->hm.s.vmx.idLbrToIpMsrFirst   = idLbrToIpMsrFirst;
+    pVM->hm.s.vmx.idLbrToIpMsrLast    = idLbrToIpMsrLast;
     return VINF_SUCCESS;
 }
 
@@ -3872,6 +4043,12 @@ static int hmR0VmxSetupVmcsMiscCtls(PVMCPUCC pVCpu, PVMXVMCSINFO pVmcsInfo)
 
         pVmcsInfo->u64Cr0Mask = u64Cr0Mask;
         pVmcsInfo->u64Cr4Mask = u64Cr4Mask;
+
+        if (pVCpu->CTX_SUFF(pVM)->hm.s.vmx.fLbr)
+        {
+            rc = VMXWriteVmcsNw(VMX_VMCS64_GUEST_DEBUGCTL_FULL, MSR_IA32_DEBUGCTL_LBR);
+            AssertRC(rc);
+        }
         return VINF_SUCCESS;
     }
     else
@@ -3977,6 +4154,12 @@ static int hmR0VmxSetupVmcs(PVMCPUCC pVCpu, PVMXVMCSINFO pVmcsInfo, bool fIsNstG
         rc = hmR0VmxLoadVmcs(pVmcsInfo);
         if (RT_SUCCESS(rc))
         {
+            /*
+             * Initialize the hardware-assisted VMX execution handler for guest and nested-guest VMCS.
+             * The host is always 64-bit since we no longer support 32-bit hosts.
+             * Currently we have just a single handler for all guest modes as well, see @bugref{6208#c73}.
+             */
+            pVmcsInfo->pfnStartVM = VMXR0StartVM64;
             if (!fIsNstGstVmcs)
             {
                 rc = hmR0VmxSetupVmcsPinCtls(pVCpu, pVmcsInfo);
@@ -4252,6 +4435,17 @@ VMMR0DECL(int) VMXR0SetupVM(PVMCC pVM)
     {
         LogRelFunc(("Failed to setup tagged TLB. rc=%Rrc\n", rc));
         return rc;
+    }
+
+    /* Determine LBR capabilities. */
+    if (pVM->hm.s.vmx.fLbr)
+    {
+        rc = hmR0VmxSetupLbrMsrRange(pVM);
+        if (RT_FAILURE(rc))
+        {
+            LogRelFunc(("Failed to setup LBR MSR range. rc=%Rrc\n", rc));
+            return rc;
+        }
     }
 
 #ifdef VBOX_WITH_NESTED_HWVIRT_VMX
@@ -4663,24 +4857,6 @@ static int hmR0VmxExportGuestEntryExitCtls(PVMCPUCC pVCpu, PCVMXTRANSIENT pVmxTr
     {
         PVMCC pVM = pVCpu->CTX_SUFF(pVM);
         PVMXVMCSINFO pVmcsInfo      = pVmxTransient->pVmcsInfo;
-        bool const   fGstInLongMode = CPUMIsGuestInLongModeEx(&pVCpu->cpum.GstCtx);
-
-        /*
-         * VMRUN function.
-         * If the guest is in long mode, use the 64-bit guest handler, else the 32-bit guest handler.
-         * The host is always 64-bit since we no longer support 32-bit hosts.
-         */
-        if (fGstInLongMode)
-        {
-#ifndef VBOX_WITH_64_BITS_GUESTS
-            return VERR_PGM_UNSUPPORTED_SHADOW_PAGING_MODE;
-#else
-            Assert(pVM->hm.s.fAllow64BitGuests);                              /* Guaranteed by hmR3InitFinalizeR0(). */
-            pVmcsInfo->pfnStartVM = VMXR0StartVM64;
-#endif
-        }
-        else
-            pVmcsInfo->pfnStartVM = VMXR0StartVM32;
 
         /*
          * VM-entry controls.
@@ -4707,7 +4883,7 @@ static int hmR0VmxExportGuestEntryExitCtls(PVMCPUCC pVCpu, PCVMXTRANSIENT pVmxTr
              * can skip intercepting changes to the EFER MSR. This is why it it needs to be done
              * here rather than while merging the guest VMCS controls.
              */
-            if (fGstInLongMode)
+            if (CPUMIsGuestInLongModeEx(&pVCpu->cpum.GstCtx))
             {
                 Assert(pVCpu->cpum.GstCtx.msrEFER & MSR_K6_EFER_LME);
                 fVal |= VMX_ENTRY_CTLS_IA32E_MODE_GUEST;
@@ -6500,10 +6676,10 @@ static int hmR0VmxExportGuestMsrs(PVMCPUCC pVCpu, PCVMXTRANSIENT pVmxTransient)
 
     /*
      * Other MSRs.
-     * Speculation Control (R/W).
      */
     if (ASMAtomicUoReadU64(&pVCpu->hm.s.fCtxChanged) & HM_CHANGED_GUEST_OTHER_MSRS)
     {
+        /* Speculation Control (R/W). */
         HMVMX_CPUMCTX_ASSERT(pVCpu, HM_CHANGED_GUEST_OTHER_MSRS);
         if (pVM->cpum.ro.GuestFeatures.fIbrs)
         {
@@ -6511,6 +6687,38 @@ static int hmR0VmxExportGuestMsrs(PVMCPUCC pVCpu, PCVMXTRANSIENT pVmxTransient)
                                                 false /* fSetReadWrite */, false /* fUpdateHostMsr */);
             AssertRCReturn(rc, rc);
         }
+
+        /* Last Branch Record. */
+        if (pVM->hm.s.vmx.fLbr)
+        {
+            uint32_t const idFromIpMsrStart = pVM->hm.s.vmx.idLbrFromIpMsrFirst;
+            uint32_t const idToIpMsrStart   = pVM->hm.s.vmx.idLbrToIpMsrFirst;
+            uint32_t const cLbrStack        = pVM->hm.s.vmx.idLbrFromIpMsrLast - pVM->hm.s.vmx.idLbrFromIpMsrFirst + 1;
+            Assert(cLbrStack <= 32);
+            for (uint32_t i = 0; i < cLbrStack; i++)
+            {
+                int rc = hmR0VmxAddAutoLoadStoreMsr(pVCpu, pVmxTransient, idFromIpMsrStart + i,
+                                                    pVmxTransient->pVmcsInfo->au64LbrFromIpMsr[i],
+                                                    false /* fSetReadWrite */, false /* fUpdateHostMsr */);
+                AssertRCReturn(rc, rc);
+
+                /* Some CPUs don't have a Branch-To-IP MSR (P4 and related Xeons). */
+                if (idToIpMsrStart != 0)
+                {
+                    rc = hmR0VmxAddAutoLoadStoreMsr(pVCpu, pVmxTransient, idToIpMsrStart + i,
+                                                    pVmxTransient->pVmcsInfo->au64LbrToIpMsr[i],
+                                                    false /* fSetReadWrite */, false /* fUpdateHostMsr */);
+                    AssertRCReturn(rc, rc);
+                }
+            }
+
+            /* Add LBR top-of-stack MSR (which contains the index to the most recent record). */
+            int rc = hmR0VmxAddAutoLoadStoreMsr(pVCpu, pVmxTransient, pVM->hm.s.vmx.idLbrTosMsr,
+                                                pVmxTransient->pVmcsInfo->u64LbrTosMsr, false /* fSetReadWrite */,
+                                                false /* fUpdateHostMsr */);
+            AssertRCReturn(rc, rc);
+        }
+
         ASMAtomicUoAndU64(&pVCpu->hm.s.fCtxChanged, ~HM_CHANGED_GUEST_OTHER_MSRS);
     }
 
@@ -7436,6 +7644,28 @@ static int hmR0VmxImportGuestState(PVMCPUCC pVCpu, PVMXVMCSINFO pVmcsInfo, uint6
                         case MSR_K6_EFER:           /* Can't be changed without causing a VM-exit */  break;
                         default:
                         {
+                            uint32_t idxLbrMsr;
+                            if (pVM->hm.s.vmx.fLbr)
+                            {
+                                if (hmR0VmxIsLbrBranchFromMsr(pVM, idMsr, &idxLbrMsr))
+                                {
+                                    Assert(idxLbrMsr < RT_ELEMENTS(pVmcsInfo->au64LbrFromIpMsr));
+                                    pVmcsInfo->au64LbrFromIpMsr[idxLbrMsr] = pMsrs[i].u64Value;
+                                    break;
+                                }
+                                else if (hmR0VmxIsLbrBranchToMsr(pVM, idMsr, &idxLbrMsr))
+                                {
+                                    Assert(idxLbrMsr < RT_ELEMENTS(pVmcsInfo->au64LbrFromIpMsr));
+                                    pVmcsInfo->au64LbrToIpMsr[idxLbrMsr] = pMsrs[i].u64Value;
+                                    break;
+                                }
+                                else if (idMsr == pVM->hm.s.vmx.idLbrTosMsr)
+                                {
+                                    pVmcsInfo->u64LbrTosMsr = pMsrs[i].u64Value;
+                                    break;
+                                }
+                                /* Fallthru (no break) */
+                            }
                             pCtx->fExtrn = 0;
                             pVCpu->hm.s.u32HMError = pMsrs->u32Msr;
                             ASMSetFlags(fEFlags);
@@ -7836,11 +8066,27 @@ static void hmR0VmxPendingEventToTrpmTrap(PVMCPUCC pVCpu)
 
     if (VMX_IDT_VECTORING_INFO_IS_XCPT_PF(u32IntInfo))
         TRPMSetFaultAddress(pVCpu, pVCpu->hm.s.Event.GCPtrFaultAddress);
-    else if (VMX_IDT_VECTORING_INFO_TYPE(u32IntInfo) == VMX_IDT_VECTORING_INFO_TYPE_SW_INT)
-        TRPMSetInstrLength(pVCpu, pVCpu->hm.s.Event.cbInstr);
-
-    if (VMX_IDT_VECTORING_INFO_TYPE(u32IntInfo) == VMX_IDT_VECTORING_INFO_TYPE_PRIV_SW_XCPT)
-        TRPMSetTrapDueToIcebp(pVCpu);
+    else
+    {
+        uint8_t const uVectorType = VMX_IDT_VECTORING_INFO_TYPE(u32IntInfo);
+        switch (uVectorType)
+        {
+            case VMX_IDT_VECTORING_INFO_TYPE_PRIV_SW_XCPT:
+                TRPMSetTrapDueToIcebp(pVCpu);
+                RT_FALL_THRU();
+            case VMX_IDT_VECTORING_INFO_TYPE_SW_INT:
+            case VMX_IDT_VECTORING_INFO_TYPE_SW_XCPT:
+            {
+                AssertMsg(   uVectorType == VMX_IDT_VECTORING_INFO_TYPE_SW_INT
+                          || (   uVector == X86_XCPT_BP /* INT3 */
+                              || uVector == X86_XCPT_OF /* INTO */
+                              || uVector == X86_XCPT_DB /* INT1 (ICEBP) */),
+                          ("Invalid vector: uVector=%#x uVectorType=%#x\n", uVector, uVectorType));
+                TRPMSetInstrLength(pVCpu, pVCpu->hm.s.Event.cbInstr);
+                break;
+            }
+        }
+    }
 
     /* We're now done converting the pending event. */
     pVCpu->hm.s.Event.fPending = false;
@@ -8148,7 +8394,13 @@ static int hmR0VmxExitToRing3(PVMCPUCC pVCpu, VBOXSTRICTRC rcExit)
         rc     = VMXWriteVmcs32(VMX_VMCS_GUEST_PENDING_DEBUG_XCPTS, 0);         AssertRC(rc);
     }
 #ifdef VBOX_STRICT
-    else
+    /*
+     * We check for rcExit here since for errors like VERR_VMX_UNABLE_TO_START_VM (which are
+     * fatal), we don't care about verifying duplicate injection of events. Errors like
+     * VERR_EM_INTERPRET are converted to their VINF_* counterparts -prior- to  calling this
+     * function so those should and will be checked below.
+     */
+    else if (RT_SUCCESS(rcExit))
     {
         /*
          * Ensure we don't accidentally clear a pending HM event without clearing the VMCS.
@@ -8164,7 +8416,8 @@ static int hmR0VmxExitToRing3(PVMCPUCC pVCpu, VBOXSTRICTRC rcExit)
         int rc = VMXReadVmcs32(VMX_VMCS32_RO_EXIT_REASON, &uExitReason);
         rc    |= VMXReadVmcs32(VMX_VMCS32_CTRL_ENTRY_INTERRUPTION_INFO, &uEntryIntInfo);
         AssertRC(rc);
-        Assert(VMX_EXIT_REASON_HAS_ENTRY_FAILED(uExitReason) || !VMX_ENTRY_INT_INFO_IS_VALID(uEntryIntInfo));
+        AssertMsg(VMX_EXIT_REASON_HAS_ENTRY_FAILED(uExitReason) || !VMX_ENTRY_INT_INFO_IS_VALID(uEntryIntInfo),
+                  ("uExitReason=%#RX32 uEntryIntInfo=%#RX32 rcExit=%d\n", uExitReason, uEntryIntInfo, VBOXSTRICTRC_VAL(rcExit)));
     }
 #endif
 
@@ -8386,7 +8639,18 @@ static VBOXSTRICTRC hmR0VmxInjectEventVmcs(PVMCPUCC pVCpu, PCVMXTRANSIENT pVmxTr
            || !(*pfIntrState & VMX_VMCS_GUEST_INT_STATE_BLOCK_MOVSS));
 #endif
 
-    STAM_COUNTER_INC(&pVCpu->hm.s.paStatInjectedIrqsR0[uVector & MASK_INJECT_IRQ_STAT]);
+    if (   uIntType == VMX_EXIT_INT_INFO_TYPE_HW_XCPT
+        || uIntType == VMX_EXIT_INT_INFO_TYPE_NMI
+        || uIntType == VMX_EXIT_INT_INFO_TYPE_PRIV_SW_XCPT
+        || uIntType == VMX_EXIT_INT_INFO_TYPE_SW_XCPT)
+    {
+        Assert(uVector <= X86_XCPT_LAST);
+        Assert(uIntType != VMX_EXIT_INT_INFO_TYPE_NMI          || uVector == X86_XCPT_NMI);
+        Assert(uIntType != VMX_EXIT_INT_INFO_TYPE_PRIV_SW_XCPT || uVector == X86_XCPT_DB);
+        STAM_COUNTER_INC(&pVCpu->hm.s.paStatInjectedXcptsR0[uVector]);
+    }
+    else
+        STAM_COUNTER_INC(&pVCpu->hm.s.paStatInjectedIrqsR0[uVector & MASK_INJECT_IRQ_STAT]);
 
     /*
      * Hardware interrupts & exceptions cannot be delivered through the software interrupt

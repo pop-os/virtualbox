@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -6076,7 +6076,7 @@ static int rtDbgModDwarfTryOpenDbgFile(PRTDBGMODINT pDbgMod, PRTDBGMODDWARF pThi
         {
             pDbgInfoMod->pszName = pDbgMod->pszName;
             pDbgInfoMod->pImgVt  = &g_rtDbgModVtImgLdr;
-            rc = pDbgInfoMod->pImgVt->pfnTryOpen(pDbgInfoMod, enmArch);
+            rc = pDbgInfoMod->pImgVt->pfnTryOpen(pDbgInfoMod, enmArch, 0 /*fLdrFlags*/);
             if (RT_SUCCESS(rc))
             {
                 pThis->pDbgInfoMod = pDbgInfoMod;

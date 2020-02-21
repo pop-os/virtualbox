@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -2147,7 +2147,7 @@ int main(int argc, char **argv)
             case 'V':
             {
                 /* The following is assuming that svn does it's job here. */
-                char szRev[] = "$Revision: 127855 $";
+                char szRev[] = "$Revision: 135976 $";
                 char *psz = szRev;
                 while (*psz && !RT_C_IS_DIGIT(*psz))
                     psz++;

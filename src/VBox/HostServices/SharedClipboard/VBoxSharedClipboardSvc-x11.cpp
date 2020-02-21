@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -166,7 +166,7 @@ struct CLIPREADCBREQ
     /** The actual size of the data written. */
     uint32_t            *pcbActual;
     /** The request's event ID. */
-    SHCLEVENTID          uEvent;
+    SHCLEVENTID          idEvent;
 };
 
 /**
@@ -176,34 +176,38 @@ struct CLIPREADCBREQ
  *         the backend code.
  */
 int ShClSvcImplReadData(PSHCLCLIENT pClient,
-                        PSHCLCLIENTCMDCTX pCmdCtx, PSHCLDATABLOCK pData, uint32_t *pcbActual)
+                        PSHCLCLIENTCMDCTX pCmdCtx, SHCLFORMAT uFormat, void *pvData, uint32_t cbData, uint32_t *pcbActual)
 {
+    AssertPtrReturn(pClient, VERR_INVALID_POINTER);
+    AssertPtrReturn(pCmdCtx, VERR_INVALID_POINTER);
+    AssertPtrReturn(pvData,  VERR_INVALID_POINTER);
+
     RT_NOREF(pCmdCtx);
 
     LogFlowFunc(("pClient=%p, uFormat=%02X, pv=%p, cb=%u, pcbActual=%p\n",
-                 pClient, pData->uFormat, pData->pvData, pData->cbData, pcbActual));
+                 pClient, uFormat, pvData, cbData, pcbActual));
 
     int rc = VINF_SUCCESS;
 
     CLIPREADCBREQ *pReq = (CLIPREADCBREQ *)RTMemAllocZ(sizeof(CLIPREADCBREQ));
     if (pReq)
     {
-        pReq->pv        = pData->pvData;
-        pReq->cb        = pData->cbData;
+        pReq->pv        = pvData;
+        pReq->cb        = cbData;
         pReq->pcbActual = pcbActual;
         const SHCLEVENTID idEvent = ShClEventIdGenerateAndRegister(&pClient->EventSrc);
-        pReq->uEvent    = idEvent;
-        if (idEvent)
+        pReq->idEvent    = idEvent;
+        if (idEvent != NIL_SHCLEVENTID)
         {
-            rc = ShClX11ReadDataFromX11(&pClient->State.pCtx->X11, pData->uFormat, pReq);
+            rc = ShClX11ReadDataFromX11(&pClient->State.pCtx->X11, uFormat, pReq);
             if (RT_SUCCESS(rc))
             {
                 PSHCLEVENTPAYLOAD pPayload;
                 rc = ShClEventWait(&pClient->EventSrc, idEvent, 30 * 1000, &pPayload);
                 if (RT_SUCCESS(rc))
                 {
-                    memcpy(pData->pvData, pPayload->pvData, RT_MIN(pData->cbData, pPayload->cbData));
-                    pData->cbData = (uint32_t)pPayload->cbData; /** @todo r=bird: Just ditch this data block wrapper, it made you forget to set pcbActual! */
+                    memcpy(pvData, pPayload->pvData, RT_MIN(cbData, pPayload->cbData));
+
                     *pcbActual = (uint32_t)pPayload->cbData;
 
                     ShClPayloadFree(pPayload);
@@ -215,7 +219,7 @@ int ShClSvcImplReadData(PSHCLCLIENT pClient,
         else
         {
             RTMemFree(pReq);
-            rc = VERR_GENERAL_FAILURE;
+            rc = VERR_SHCLPB_MAX_EVENTS_REACHED;
         }
     }
     else
@@ -226,16 +230,16 @@ int ShClSvcImplReadData(PSHCLCLIENT pClient,
 }
 
 int ShClSvcImplWriteData(PSHCLCLIENT pClient,
-                         PSHCLCLIENTCMDCTX pCmdCtx, PSHCLDATABLOCK pData)
+                         PSHCLCLIENTCMDCTX pCmdCtx, SHCLFORMAT uFormat, void *pvData, uint32_t cbData)
 {
     AssertPtrReturn(pClient, VERR_INVALID_POINTER);
     AssertPtrReturn(pCmdCtx, VERR_INVALID_POINTER);
-    AssertPtrReturn(pData,   VERR_INVALID_POINTER);
+    AssertPtrReturn(pvData,  VERR_INVALID_POINTER);
 
     LogFlowFunc(("pClient=%p, pv=%p, cb=%RU32, uFormat=%02X\n",
-                 pClient, pData->pvData, pData->cbData, pData->uFormat));
+                 pClient, pvData, cbData, uFormat));
 
-    int rc = ShClSvcDataReadSignal(pClient, pCmdCtx, pData);
+    int rc = ShClSvcDataReadSignal(pClient, pCmdCtx, uFormat, pvData, cbData);
 
     LogFlowFuncLeaveRC(rc);
     return rc;
@@ -282,23 +286,23 @@ DECLCALLBACK(void) ShClX11RequestFromX11CompleteCallback(PSHCLCONTEXT pCtx, int 
 {
     RT_NOREF(rcCompletion);
 
-    LogFlowFunc(("rcCompletion=%Rrc, pReq=%p, pv=%p, cb=%RU32, uEvent=%RU32\n", rcCompletion, pReq, pv, cb, pReq->uEvent));
+    LogFlowFunc(("rcCompletion=%Rrc, pReq=%p, pv=%p, cb=%RU32, idEvent=%RU32\n", rcCompletion, pReq, pv, cb, pReq->idEvent));
 
     AssertMsgRC(rcCompletion, ("Clipboard data completion from X11 failed with %Rrc\n", rcCompletion));
 
-    if (pReq->uEvent != NIL_SHCLEVENTID)
+    if (pReq->idEvent != NIL_SHCLEVENTID)
     {
         int rc2;
 
         PSHCLEVENTPAYLOAD pPayload = NULL;
         if (pv && cb)
         {
-            rc2 = ShClPayloadAlloc(pReq->uEvent, pv, cb, &pPayload);
+            rc2 = ShClPayloadAlloc(pReq->idEvent, pv, cb, &pPayload);
             AssertRC(rc2);
         }
 
         RTCritSectEnter(&pCtx->pClient->CritSect);
-        rc2 = ShClEventSignal(&pCtx->pClient->EventSrc, pReq->uEvent, pPayload);
+        rc2 = ShClEventSignal(&pCtx->pClient->EventSrc, pReq->idEvent, pPayload);
         AssertRC(rc2);
         RTCritSectLeave(&pCtx->pClient->CritSect);
     }
@@ -339,22 +343,20 @@ DECLCALLBACK(int) ShClX11RequestDataForX11Callback(PSHCLCONTEXT pCtx, SHCLFORMAT
 #endif
     {
         /* Request data from the guest. */
-        SHCLEVENTID uEvent;
-        rc = ShClSvcDataReadRequest(pCtx->pClient, fFormat, &uEvent);
+        SHCLEVENTID idEvent;
+        rc = ShClSvcDataReadRequest(pCtx->pClient, fFormat, &idEvent);
         if (RT_SUCCESS(rc))
         {
             PSHCLEVENTPAYLOAD pPayload;
-            rc = ShClEventWait(&pCtx->pClient->EventSrc, uEvent, 30 * 1000, &pPayload);
+            rc = ShClEventWait(&pCtx->pClient->EventSrc, idEvent, 30 * 1000, &pPayload);
             if (RT_SUCCESS(rc))
             {
                 *ppv = pPayload ? pPayload->pvData : NULL;
                 *pcb = pPayload ? pPayload->cbData : 0;
-
-                /* Detach the payload, as the caller then will own the data. */
-                ShClEventPayloadDetach(&pCtx->pClient->EventSrc, uEvent);
             }
 
-            ShClEventUnregister(&pCtx->pClient->EventSrc, uEvent);
+            ShClEventRelease(&pCtx->pClient->EventSrc, idEvent);
+            ShClEventUnregister(&pCtx->pClient->EventSrc, idEvent);
         }
     }
 
@@ -388,22 +390,22 @@ int ShClSvcImplTransferGetRoots(PSHCLCLIENT pClient, PSHCLTRANSFER pTransfer)
 {
     LogFlowFuncEnter();
 
-    SHCLEVENTID uEvent = ShClEventIDGenerate(&pClient->EventSrc);
+    int rc;
 
-    int rc = ShClEventRegister(&pClient->EventSrc, uEvent);
-    if (RT_SUCCESS(rc))
+    SHCLEVENTID idEvent = ShClEventIdGenerateAndRegister(&pClient->EventSrc);
+    if (idEvent != NIL_SHCLEVENTID)
     {
         CLIPREADCBREQ *pReq = (CLIPREADCBREQ *)RTMemAllocZ(sizeof(CLIPREADCBREQ));
         if (pReq)
         {
-            pReq->uEvent = uEvent;
+            pReq->idEvent = idEvent;
 
             rc = ShClX11ReadDataFromX11(&pClient->State.pCtx->X11, VBOX_SHCL_FMT_URI_LIST, pReq);
             if (RT_SUCCESS(rc))
             {
                 /* X supplies the data asynchronously, so we need to wait for data to arrive first. */
                 PSHCLEVENTPAYLOAD pPayload;
-                rc = ShClEventWait(&pClient->EventSrc, uEvent, 30 * 1000, &pPayload);
+                rc = ShClEventWait(&pClient->EventSrc, idEvent, 30 * 1000, &pPayload);
                 if (RT_SUCCESS(rc))
                 {
                     rc = ShClTransferRootsSet(pTransfer,
@@ -411,9 +413,13 @@ int ShClSvcImplTransferGetRoots(PSHCLCLIENT pClient, PSHCLTRANSFER pTransfer)
                 }
             }
         }
+        else
+            rc = VERR_NO_MEMORY;
 
-        ShClEventUnregister(&pClient->EventSrc, uEvent);
+        ShClEventUnregister(&pClient->EventSrc, idEvent);
     }
+    else
+        rc = VERR_SHCLPB_MAX_EVENTS_REACHED;
 
     LogFlowFuncLeaveRC(rc);
     return rc;

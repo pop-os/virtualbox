@@ -7,7 +7,7 @@ Test Manager Core - Web Server Abstraction Base Class.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2019 Oracle Corporation
+Copyright (C) 2012-2020 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 135520 $"
+__version__ = "$Revision: 135976 $"
 
 
 # Standard python imports.
@@ -89,7 +89,7 @@ class WebServerGlueBase(object):
 
         # Output.
         if sys.version_info[0] >= 3:
-            self.oOutputRaw = sys.stdout.detach();
+            self.oOutputRaw = sys.stdout.detach();  # pylint: disable=no-member
             sys.stdout = None; # Prevents flush_std_files() from complaining on stderr during sys.exit().
         else:
             self.oOutputRaw = sys.stdout;

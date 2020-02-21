@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -43,6 +43,7 @@
 #include <iprt/err.h>
 #include <iprt/ldr.h>
 #include <iprt/log.h>
+#include <iprt/utf16.h>
 #include "internal/file.h"
 #include "internal/fs.h"
 #include "internal/path.h"
@@ -54,6 +55,7 @@
 *********************************************************************************************************************************/
 typedef BOOL WINAPI FNVERIFYCONSOLEIOHANDLE(HANDLE);
 typedef FNVERIFYCONSOLEIOHANDLE *PFNVERIFYCONSOLEIOHANDLE; /* No, nobody fell on the keyboard, really! */
+
 
 /**
  * This is wrapper around the ugly SetFilePointer api.
@@ -751,9 +753,242 @@ RTR3DECL(int)  RTFileFlush(RTFILE hFile)
     return VINF_SUCCESS;
 }
 
+#if 1
+
+/**
+ * Checks the the two handles refers to the same file.
+ *
+ * @returns true if the same file, false if different ones or invalid handles.
+ * @param   hFile1              Handle \#1.
+ * @param   hFile2              Handle \#2.
+ */
+static bool rtFileIsSame(HANDLE hFile1, HANDLE hFile2)
+{
+    /*
+     * We retry in case CreationTime or the Object ID is being modified and there
+     * aren't any IndexNumber (file ID) on this kind of file system.
+     */
+    for (uint32_t iTries = 0; iTries < 3; iTries++)
+    {
+        /*
+         * Fetch data to compare (being a little lazy here).
+         */
+        struct
+        {
+            HANDLE                      hFile;
+            NTSTATUS                    rcObjId;
+            FILE_OBJECTID_INFORMATION   ObjId;
+            FILE_ALL_INFORMATION        All;
+            FILE_FS_VOLUME_INFORMATION  Vol;
+        } auData[2];
+        auData[0].hFile = hFile1;
+        auData[1].hFile = hFile2;
+
+        for (uintptr_t i = 0; i < RT_ELEMENTS(auData); i++)
+        {
+            RT_ZERO(auData[i].ObjId);
+            IO_STATUS_BLOCK Ios = RTNT_IO_STATUS_BLOCK_INITIALIZER;
+            auData[i].rcObjId = NtQueryInformationFile(auData[i].hFile, &Ios, &auData[i].ObjId, sizeof(auData[i].ObjId),
+                                                       FileObjectIdInformation);
+
+            RT_ZERO(auData[i].All);
+            RTNT_IO_STATUS_BLOCK_REINIT(&Ios);
+            NTSTATUS rcNt = NtQueryInformationFile(auData[i].hFile, &Ios, &auData[i].All, sizeof(auData[i].All),
+                                                   FileAllInformation);
+            AssertReturn(rcNt == STATUS_BUFFER_OVERFLOW /* insufficient space for name info */ || NT_SUCCESS(rcNt), false);
+
+            union
+            {
+                 FILE_FS_VOLUME_INFORMATION Info;
+                 uint8_t                    abBuf[sizeof(FILE_FS_VOLUME_INFORMATION) + 4096];
+            } uVol;
+            RT_ZERO(uVol.Info);
+            RTNT_IO_STATUS_BLOCK_REINIT(&Ios);
+            rcNt = NtQueryVolumeInformationFile(auData[i].hFile, &Ios, &uVol, sizeof(uVol), FileFsVolumeInformation);
+            if (NT_SUCCESS(rcNt))
+                auData[i].Vol = uVol.Info;
+            else
+                RT_ZERO(auData[i].Vol);
+        }
+
+        /*
+         * Compare it.
+         */
+        if (   auData[0].All.StandardInformation.Directory
+            == auData[1].All.StandardInformation.Directory)
+        { /* likely */ }
+        else
+            break;
+
+        if (   (auData[0].All.BasicInformation.FileAttributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_DEVICE | FILE_ATTRIBUTE_REPARSE_POINT))
+            == (auData[1].All.BasicInformation.FileAttributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_DEVICE | FILE_ATTRIBUTE_REPARSE_POINT)))
+        { /* likely */ }
+        else
+            break;
+
+        if (   auData[0].Vol.VolumeSerialNumber
+            == auData[1].Vol.VolumeSerialNumber)
+        { /* likely */ }
+        else
+            break;
+
+        if (   auData[0].All.InternalInformation.IndexNumber.QuadPart
+            == auData[1].All.InternalInformation.IndexNumber.QuadPart)
+        { /* likely */ }
+        else
+            break;
+
+        if (   !NT_SUCCESS(auData[0].rcObjId)
+            || memcmp(&auData[0].ObjId, &auData[1].ObjId, RT_UOFFSETOF(FILE_OBJECTID_INFORMATION, ExtendedInfo)) == 0)
+        {
+            if (   auData[0].All.BasicInformation.CreationTime.QuadPart
+                == auData[1].All.BasicInformation.CreationTime.QuadPart)
+                return true;
+        }
+    }
+
+    return false;
+}
+
+
+/**
+ * If @a hFile is opened in append mode, try return a handle with
+ * FILE_WRITE_DATA permissions.
+ *
+ * @returns Duplicate handle.
+ * @param   hFile               The NT handle to check & duplicate.
+ *
+ * @todo    It would be much easier to implement this by not dropping the
+ *          FILE_WRITE_DATA access and instead have the RTFileWrite APIs
+ *          enforce the appending.  That will require keeping additional
+ *          information along side the handle (instance structure).  However, on
+ *          windows you can grant append permissions w/o giving people access to
+ *          overwrite existing data, so the RTFileOpenEx code would have to deal
+ *          with those kinds of STATUS_ACCESS_DENIED too then.
+ */
+static HANDLE rtFileReOpenAppendOnlyWithFullWriteAccess(HANDLE hFile)
+{
+    OBJECT_BASIC_INFORMATION BasicInfo = {0};
+    ULONG                    cbActual  = 0;
+    NTSTATUS rcNt = NtQueryObject(hFile, ObjectBasicInformation, &BasicInfo, sizeof(BasicInfo), &cbActual);
+    if (NT_SUCCESS(rcNt))
+    {
+        if ((BasicInfo.GrantedAccess & (FILE_APPEND_DATA | FILE_WRITE_DATA)) == FILE_APPEND_DATA)
+        {
+            /*
+             * We cannot use NtDuplicateObject here as it is not possible to
+             * upgrade the access on files, only making it more strict.  So,
+             * query the path and re-open it (we could do by file/object/whatever
+             * id too, but that may not work with all file systems).
+             */
+            for (uint32_t i = 0; i < 16; i++)
+            {
+                UNICODE_STRING  NtName;
+                int rc = RTNtPathFromHandle(&NtName, hFile, 0);
+                AssertRCReturn(rc, INVALID_HANDLE_VALUE);
+
+                HANDLE              hDupFile = RTNT_INVALID_HANDLE_VALUE;
+                IO_STATUS_BLOCK     Ios      = RTNT_IO_STATUS_BLOCK_INITIALIZER;
+                OBJECT_ATTRIBUTES   ObjAttr;
+                InitializeObjectAttributes(&ObjAttr, &NtName, BasicInfo.Attributes & ~OBJ_INHERIT, NULL, NULL);
+
+                NTSTATUS rcNt = NtCreateFile(&hDupFile,
+                                             BasicInfo.GrantedAccess | FILE_WRITE_DATA,
+                                             &ObjAttr,
+                                             &Ios,
+                                             NULL /* AllocationSize*/,
+                                             FILE_ATTRIBUTE_NORMAL,
+                                             FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                                             FILE_OPEN,
+                                             FILE_OPEN_FOR_BACKUP_INTENT /*??*/,
+                                             NULL /*EaBuffer*/,
+                                             0 /*EaLength*/);
+                RTUtf16Free(NtName.Buffer);
+                if (NT_SUCCESS(rcNt))
+                {
+                    /*
+                     * Check that we've opened the same file.
+                     */
+                    if (rtFileIsSame(hFile, hDupFile))
+                        return hDupFile;
+                    NtClose(hDupFile);
+                }
+            }
+            AssertFailed();
+        }
+    }
+    return INVALID_HANDLE_VALUE;
+}
+
+#endif
 
 RTR3DECL(int) RTFileSetSize(RTFILE hFile, uint64_t cbSize)
 {
+#if 1
+    HANDLE hNtFile  = (HANDLE)RTFileToNative(hFile);
+    HANDLE hDupFile = INVALID_HANDLE_VALUE;
+    union
+    {
+        FILE_END_OF_FILE_INFORMATION Eof;
+        FILE_ALLOCATION_INFORMATION  Alloc;
+    } uInfo;
+
+    /*
+     * Change the EOF marker.
+     *
+     * HACK ALERT! If the file was opened in RTFILE_O_APPEND mode, we will have
+     *             to re-open it with FILE_WRITE_DATA access to get the job done.
+     *             This how ftruncate on a unixy system would work but not how
+     *             it is done on Windows where appending is a separate permission
+     *             rather than just a write modifier, making this hack totally wrong.
+     */
+    /** @todo The right way to fix this is either to add a RTFileSetSizeEx function
+     *        for specifically requesting the unixy behaviour, or add an additional
+     *        flag to RTFileOpen[Ex] to request the unixy append behaviour there.
+     *        The latter would require saving the open flags in a instance data
+     *        structure, which is a bit of a risky move, though something we should
+     *        do in 6.2 (or later).
+     *
+     *        Note! Because handle interitance, it is not realyan option to
+     *              always use FILE_WRITE_DATA and implement the RTFILE_O_APPEND
+     *              bits in RTFileWrite and friends.  Besides, it's not like
+     *              RTFILE_O_APPEND is so clearly defined anyway - see
+     *              RTFileWriteAt.
+     */
+    IO_STATUS_BLOCK Ios = RTNT_IO_STATUS_BLOCK_INITIALIZER;
+    uInfo.Eof.EndOfFile.QuadPart = cbSize;
+    NTSTATUS rcNt = NtSetInformationFile(hNtFile, &Ios, &uInfo.Eof, sizeof(uInfo.Eof), FileEndOfFileInformation);
+    if (rcNt == STATUS_ACCESS_DENIED)
+    {
+        hDupFile = rtFileReOpenAppendOnlyWithFullWriteAccess(hNtFile);
+        if (hDupFile != INVALID_HANDLE_VALUE)
+        {
+            hNtFile = hDupFile;
+            uInfo.Eof.EndOfFile.QuadPart = cbSize;
+            rcNt = NtSetInformationFile(hNtFile, &Ios, &uInfo.Eof, sizeof(uInfo.Eof), FileEndOfFileInformation);
+        }
+    }
+
+    if (NT_SUCCESS(rcNt))
+    {
+        /*
+         * Change the allocation.
+         */
+        uInfo.Alloc.AllocationSize.QuadPart = cbSize;
+        rcNt = NtSetInformationFile(hNtFile, &Ios, &uInfo.Eof, sizeof(uInfo.Alloc), FileAllocationInformation);
+    }
+
+    /*
+     * Close the temporary file handle:
+     */
+    if (hDupFile != INVALID_HANDLE_VALUE)
+        NtClose(hDupFile);
+
+    if (RT_SUCCESS(rcNt))
+        return VINF_SUCCESS;
+    return RTErrConvertFromNtStatus(rcNt);
+
+#else /* this version of the code will fail to truncate files when RTFILE_O_APPEND is in effect, which isn't what we want... */
     /*
      * Get current file pointer.
      */
@@ -794,6 +1029,7 @@ RTR3DECL(int) RTFileSetSize(RTFILE hFile, uint64_t cbSize)
         rc = GetLastError();
 
     return RTErrConvertFromWin32(rc);
+#endif
 }
 
 

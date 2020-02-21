@@ -6,7 +6,7 @@
 /*
  * Includes contributions from François Revol
  *
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -88,31 +88,6 @@ void ShClPayloadFree(PSHCLEVENTPAYLOAD pPayload)
     RTMemFree(pPayload);
 }
 
-#if 0 /* currently not used */
-/**
- * Creates (initializes) an event.
- *
- * @returns VBox status code.
- * @param   pEvent              Event to initialize.
- * @param   idEvent             Event ID to use.
- */
-static int shClEventInit(PSHCLEVENT pEvent, SHCLEVENTID idEvent)
-{
-    AssertPtrReturn(pEvent, VERR_INVALID_POINTER);
-
-    LogFlowFunc(("Event %RU32\n", idEvent));
-
-    int rc = RTSemEventMultiCreate(&pEvent->hEvtMulSem);
-    if (RT_SUCCESS(rc))
-    {
-        pEvent->idEvent  = idEvent;
-        pEvent->pPayload = NULL;
-    }
-
-    return rc;
-}
-#endif
-
 /**
  * Destroys an event, but doesn't free the memory.
  *
@@ -122,6 +97,9 @@ static void shClEventTerm(PSHCLEVENT pEvent)
 {
     if (!pEvent)
         return;
+
+    AssertMsgReturnVoid(pEvent->cRefs == 0, ("Event %RU32 still has %RU32 references\n",
+                                             pEvent->idEvent, pEvent->cRefs));
 
     LogFlowFunc(("Event %RU32\n", pEvent->idEvent));
 
@@ -218,41 +196,22 @@ DECLINLINE(PSHCLEVENT) shclEventGet(PSHCLEVENTSOURCE pSource, SHCLEVENTID idEven
 }
 
 /**
- * Generates a new event ID for a specific event source.
- *
- * @returns New event ID generated, or 0 on error.
- * @param   pSource             Event source to generate event for.
- * @deprecated as this does not deal with duplicates.
- */
-SHCLEVENTID ShClEventIDGenerate(PSHCLEVENTSOURCE pSource)
-{
-    AssertPtrReturn(pSource, 0);
-
-    SHCLEVENTID idEvent = ++pSource->idNextEvent;
-    if (idEvent >= VBOX_SHCL_MAX_EVENTS)
-        pSource->idNextEvent = idEvent = 1;  /* zero == error, remember! */
-
-    LogFlowFunc(("uSource=%RU16: New event: %RU32\n", pSource->uID, idEvent));
-    return idEvent;
-}
-
-/**
  * Generates a new event ID for a specific event source and registers it.
  *
- * @returns New event ID generated, or 0 on error.
+ * @returns New event ID generated, or NIL_SHCLEVENTID on error.
  * @param   pSource             Event source to generate event for.
  */
 SHCLEVENTID ShClEventIdGenerateAndRegister(PSHCLEVENTSOURCE pSource)
 {
-    AssertPtrReturn(pSource, 0);
+    AssertPtrReturn(pSource, NIL_SHCLEVENTID);
 
     /*
      * Allocate an event.
      */
     PSHCLEVENT pEvent = (PSHCLEVENT)RTMemAllocZ(sizeof(SHCLEVENT));
-    AssertReturn(pEvent, 0);
+    AssertReturn(pEvent, NIL_SHCLEVENTID);
     int rc = RTSemEventMultiCreate(&pEvent->hEvtMulSem);
-    AssertRCReturnStmt(rc, RTMemFree(pEvent), 0);
+    AssertRCReturnStmt(rc, RTMemFree(pEvent), NIL_SHCLEVENTID);
 
     /*
      * Allocate an unique event ID.
@@ -267,7 +226,6 @@ SHCLEVENTID ShClEventIdGenerateAndRegister(PSHCLEVENTSOURCE pSource)
 
         if (shclEventGet(pSource, idEvent) == NULL)
         {
-
             pEvent->idEvent = idEvent;
             RTListAppend(&pSource->lstEvents, &pEvent->Node);
 
@@ -278,8 +236,10 @@ SHCLEVENTID ShClEventIdGenerateAndRegister(PSHCLEVENTSOURCE pSource)
         AssertBreak(cTries < 4096);
     }
 
+    AssertMsgFailed(("Unable to register a new event ID for event source %RU16\n", pSource->uID));
+
     RTMemFree(pEvent);
-    return 0;
+    return NIL_SHCLEVENTID;
 }
 
 /**
@@ -312,50 +272,6 @@ static void shclEventPayloadDetachInternal(PSHCLEVENT pEvent)
 
     pEvent->pPayload = NULL;
 }
-
-#if 0 /** @todo fix later */
-/**
- * Registers an event.
- *
- * @returns VBox status code.
- * @param   pSource             Event source to register event for.
- * @param   uID                 Event ID to register.
- */
-int ShClEventRegister(PSHCLEVENTSOURCE pSource, SHCLEVENTID uID)
-{
-    AssertPtrReturn(pSource, VERR_INVALID_POINTER);
-
-    int rc;
-
-    LogFlowFunc(("uSource=%RU16, uEvent=%RU32\n", pSource->uID, uID));
-
-    if (shclEventGet(pSource, uID) == NULL)
-    {
-        PSHCLEVENT pEvent = (PSHCLEVENT)RTMemAllocZ(sizeof(SHCLEVENT));
-        if (pEvent)
-        {
-            rc = shClEventInit(pEvent, uID);
-            if (RT_SUCCESS(rc))
-            {
-                RTListAppend(&pSource->lstEvents, &pEvent->Node);
-
-                LogFlowFunc(("Event %RU32\n", uID));
-            }
-        }
-        else
-            rc = VERR_NO_MEMORY;
-    }
-    else
-        rc = VERR_ALREADY_EXISTS;
-
-#ifdef DEBUG_andy
-    AssertRC(rc);
-#endif
-
-    LogFlowFuncLeaveRC(rc);
-    return rc;
-}
-#endif /* later */
 
 /**
  * Unregisters an event.
@@ -433,6 +349,48 @@ int ShClEventWait(PSHCLEVENTSOURCE pSource, SHCLEVENTID uID, RTMSINTERVAL uTimeo
 
     LogFlowFuncLeaveRC(rc);
     return rc;
+}
+
+/**
+ * Retains an event by increasing its reference count.
+ *
+ * @returns New reference count, or UINT32_MAX if failed.
+ * @param   pSource             Event source of event to retain.
+ * @param   idEvent             ID of event to retain.
+ */
+uint32_t ShClEventRetain(PSHCLEVENTSOURCE pSource, SHCLEVENTID idEvent)
+{
+    PSHCLEVENT pEvent = shclEventGet(pSource, idEvent);
+    if (!pEvent)
+    {
+        AssertFailed();
+        return UINT32_MAX;
+    }
+
+    AssertReturn(pEvent->cRefs < 64, UINT32_MAX); /* Sanity. Yeah, not atomic. */
+
+    return ASMAtomicIncU32(&pEvent->cRefs);
+}
+
+/**
+ * Releases an event by decreasing its reference count.
+ *
+ * @returns New reference count, or UINT32_MAX if failed.
+ * @param   pSource             Event source of event to release.
+ * @param   idEvent             ID of event to release.
+ */
+uint32_t ShClEventRelease(PSHCLEVENTSOURCE pSource, SHCLEVENTID idEvent)
+{
+    PSHCLEVENT pEvent = shclEventGet(pSource, idEvent);
+    if (!pEvent)
+    {
+        AssertFailed();
+        return UINT32_MAX;
+    }
+
+    AssertReturn(pEvent->cRefs, UINT32_MAX); /* Sanity. Yeah, not atomic. */
+
+    return ASMAtomicDecU32(&pEvent->cRefs);
 }
 
 /**

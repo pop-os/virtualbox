@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2018-2019 Oracle Corporation
+ * Copyright (C) 2018-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -368,9 +368,9 @@ typedef struct RTFUZZMEMHDR
     /** Some padding. */
     uint32_t                    uPadding0;
 #elif HC_ARCH_BITS == 64
-#else
     /** Some padding. */
     uint64_t                    uPadding0;
+#else
 # error "Port me"
 #endif
 } RTFUZZMEMHDR;

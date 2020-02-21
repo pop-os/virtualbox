@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2019 Oracle Corporation
+ * Copyright (C) 2008-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,6 +29,9 @@
 #include <iprt/uuid.h>
 #include <iprt/ctype.h>
 #include <iprt/formats/mach-o.h>
+
+#undef LogRel2
+#define LogRel2 LogRel
 
 
 /*********************************************************************************************************************************
@@ -164,12 +167,12 @@ static DECLCALLBACK(int) dbgDiggerDarwinIDmsg_QueryKernelLog(PDBGFOSIDMESG pThis
                            &GCPtrMsgBufP, pData->f64Bit ? sizeof(uint64_t) : sizeof(uint32_t));
         if (RT_FAILURE(rc))
         {
-            Log(("dbgDiggerDarwinIDmsg_QueryKernelLog: failed to read _msgbufp at %RGv: %Rrc\n", Addr.FlatPtr, rc));
+            LogRel(("dbgDiggerDarwinIDmsg_QueryKernelLog: failed to read _msgbufp at %RGv: %Rrc\n", Addr.FlatPtr, rc));
             return VERR_NOT_FOUND;
         }
         if (!OSX_VALID_ADDRESS(pData->f64Bit, GCPtrMsgBufP))
         {
-            Log(("dbgDiggerDarwinIDmsg_QueryKernelLog: Invalid address for _msgbufp: %RGv\n", GCPtrMsgBufP));
+            LogRel(("dbgDiggerDarwinIDmsg_QueryKernelLog: Invalid address for _msgbufp: %RGv\n", GCPtrMsgBufP));
             return VERR_NOT_FOUND;
         }
     }
@@ -178,13 +181,13 @@ static DECLCALLBACK(int) dbgDiggerDarwinIDmsg_QueryKernelLog(PDBGFOSIDMESG pThis
         rc = RTDbgModSymbolByName(hMod, "_msgbuf", &SymInfo);
         if (RT_FAILURE(rc))
         {
-            Log(("dbgDiggerDarwinIDmsg_QueryKernelLog: failed to find _msgbufp and _msgbuf: %Rrc\n", rc));
+            LogRel(("dbgDiggerDarwinIDmsg_QueryKernelLog: failed to find _msgbufp and _msgbuf: %Rrc\n", rc));
             return VERR_NOT_FOUND;
         }
         GCPtrMsgBufP = SymInfo.Value + pData->AddrKernel.FlatPtr;
         if (!OSX_VALID_ADDRESS(pData->f64Bit, GCPtrMsgBufP))
         {
-            Log(("dbgDiggerDarwinIDmsg_QueryKernelLog: Invalid address for _msgbuf: %RGv\n", GCPtrMsgBufP));
+            LogRel(("dbgDiggerDarwinIDmsg_QueryKernelLog: Invalid address for _msgbuf: %RGv\n", GCPtrMsgBufP));
             return VERR_NOT_FOUND;
         }
     }
@@ -204,7 +207,7 @@ static DECLCALLBACK(int) dbgDiggerDarwinIDmsg_QueryKernelLog(PDBGFOSIDMESG pThis
                        &MsgBuf, sizeof(MsgBuf) - (pData->f64Bit ? 0 : sizeof(uint32_t)) );
     if (RT_FAILURE(rc))
     {
-        Log(("dbgDiggerDarwinIDmsg_QueryKernelLog: failed to read msgbuf struct at %RGv: %Rrc\n", Addr.FlatPtr, rc));
+        LogRel(("dbgDiggerDarwinIDmsg_QueryKernelLog: failed to read msgbuf struct at %RGv: %Rrc\n", Addr.FlatPtr, rc));
         return VERR_NOT_FOUND;
     }
     if (!pData->f64Bit)
@@ -220,8 +223,8 @@ static DECLCALLBACK(int) dbgDiggerDarwinIDmsg_QueryKernelLog(PDBGFOSIDMESG pThis
         || MsgBuf.msg_bufr > MsgBuf.msg_size
         || !OSX_VALID_ADDRESS(pData->f64Bit, MsgBuf.msg_bufc) )
     {
-        Log(("dbgDiggerDarwinIDmsg_QueryKernelLog: Invalid MsgBuf data: magic=%#x size=%#x bufx=%#x bufr=%#x bufc=%RGv\n",
-             MsgBuf.msg_magic, MsgBuf.msg_size, MsgBuf.msg_bufx, MsgBuf.msg_bufr, MsgBuf.msg_bufc));
+        LogRel(("dbgDiggerDarwinIDmsg_QueryKernelLog: Invalid MsgBuf data: magic=%#x size=%#x bufx=%#x bufr=%#x bufc=%RGv\n",
+                MsgBuf.msg_magic, MsgBuf.msg_size, MsgBuf.msg_bufx, MsgBuf.msg_bufr, MsgBuf.msg_bufc));
         return VERR_INVALID_STATE;
     }
 
@@ -231,8 +234,8 @@ static DECLCALLBACK(int) dbgDiggerDarwinIDmsg_QueryKernelLog(PDBGFOSIDMESG pThis
     char *pchMsgBuf = (char *)RTMemAlloc(MsgBuf.msg_size);
     if (!pchMsgBuf)
     {
-        Log(("dbgDiggerDarwinIDmsg_QueryKernelLog: Failed to allocate %#x bytes of memory for the log buffer\n",
-             MsgBuf.msg_size));
+        LogRel(("dbgDiggerDarwinIDmsg_QueryKernelLog: Failed to allocate %#x bytes of memory for the log buffer\n",
+                MsgBuf.msg_size));
         return VERR_INVALID_STATE;
     }
     rc = DBGFR3MemRead(pUVM, 0 /*idCpu*/, DBGFR3AddrFromFlat(pUVM, &Addr, MsgBuf.msg_bufc), pchMsgBuf, MsgBuf.msg_size);
@@ -298,7 +301,8 @@ static DECLCALLBACK(int) dbgDiggerDarwinIDmsg_QueryKernelLog(PDBGFOSIDMESG pThis
             *pcbActual = offDst;
     }
     else
-        Log(("dbgDiggerDarwinIDmsg_QueryKernelLog: Error reading %#x bytes at %RGv: %Rrc\n", MsgBuf.msg_size, MsgBuf.msg_bufc, rc));
+        LogRel(("dbgDiggerDarwinIDmsg_QueryKernelLog: Error reading %#x bytes at %RGv: %Rrc\n",
+                MsgBuf.msg_size, MsgBuf.msg_bufc, rc));
     RTMemFree(pchMsgBuf);
     return rc;
 }
@@ -392,6 +396,75 @@ static DECLCALLBACK(int)  dbgDiggerDarwinRefresh(PUVM pUVM, void *pvData)
 
 
 /**
+ * Helper function that tries to accertain whether a segment (__LINKEDIT) is
+ * present or not.
+ *
+ * @returns true if present, false if not.
+ * @param   pUVM                The user mode VM structure.
+ * @param   uSegAddr            The segment addresss.
+ * @param   cbSeg               The segment size.
+ * @param   uMinAddr            Lowest allowed address.
+ * @param   uMaxAddr            Highest allowed address.
+ */
+static bool dbgDiggerDarwinIsSegmentPresent(PUVM pUVM, uint64_t uSegAddr, uint64_t cbSeg, uint64_t uMinAddr, uint64_t uMaxAddr)
+{
+    /*
+     * Validate the size and address.
+     */
+    if (cbSeg < 32)
+    {
+        LogRel(("OSXDig: __LINKEDIT too small %#RX64\n", cbSeg));
+        return false;
+    }
+    if (cbSeg > uMaxAddr - uMinAddr)
+    {
+        LogRel(("OSXDig: __LINKEDIT too big %#RX64, max %#RX64\n", cbSeg, uMaxAddr - uMinAddr));
+        return false;
+    }
+
+    if (uSegAddr < uMinAddr)
+    {
+        LogRel(("OSXDig: __LINKEDIT too low %#RX64, min %#RX64\n", uSegAddr, uMinAddr));
+        return false;
+    }
+    if (uSegAddr > uMaxAddr)
+    {
+        LogRel(("OSXDig: __LINKEDIT too high %#RX64, max %#RX64\n", uSegAddr, uMaxAddr));
+        return false;
+    }
+    if (uSegAddr + cbSeg > uMaxAddr)
+    {
+        LogRel(("OSXDig: __LINKEDIT ends too high %#RX64 (%#RX64+%#RX64), max %#RX64\n",
+                 uSegAddr + cbSeg, uSegAddr, cbSeg, uMaxAddr));
+        return false;
+    }
+
+    /*
+     * Check that all the pages are present.
+     */
+    cbSeg    += uSegAddr & X86_PAGE_OFFSET_MASK;
+    uSegAddr &= ~(uint64_t)X86_PAGE_OFFSET_MASK;
+    for (;;)
+    {
+        uint8_t     abBuf[8];
+        DBGFADDRESS Addr;
+        int rc = DBGFR3MemRead(pUVM, 0 /*idCpu*/, DBGFR3AddrFromFlat(pUVM, &Addr, uSegAddr), abBuf, sizeof(abBuf));
+        if (RT_FAILURE(rc))
+        {
+            LogRel(("OSXDig: __LINKEDIT read error at %#RX64: %Rrc\n", uSegAddr, rc));
+            return false;
+        }
+
+        /* Advance */
+        if (cbSeg <= X86_PAGE_SIZE)
+            return true;
+        cbSeg    -= X86_PAGE_SIZE;
+        uSegAddr += X86_PAGE_SIZE;
+    }
+}
+
+
+/**
  * Helper function that validates a segment (or section) name.
  *
  * @returns true if valid, false if not.
@@ -474,9 +547,10 @@ static int dbgDiggerDarwinAddModule(PDBGDIGGERDARWIN pThis, PUVM pUVM, uint64_t 
     /*
      * Process the load commands.
      */
+    RTUUID          Uuid   = RTUUID_INITIALIZE_NULL;
     RTDBGSEGMENT    aSegs[24];
     uint32_t        cSegs  = 0;
-    RTUUID          Uuid   = RTUUID_INITIALIZE_NULL;
+    bool            fHasLinkEdit = false;
     uint32_t        cLeft  = uBuf.Hdr32.ncmds;
     uint32_t        cbLeft = uBuf.Hdr32.sizeofcmds;
     union
@@ -485,9 +559,6 @@ static int dbgDiggerDarwinAddModule(PDBGDIGGERDARWIN pThis, PUVM pUVM, uint64_t 
         load_command_t const       *pGenric;
         segment_command_32_t const *pSeg32;
         segment_command_64_t const *pSeg64;
-        section_32_t const         *pSect32;
-        section_64_t const         *pSect64;
-        symtab_command_t const     *pSymTab;
         uuid_command_t const       *pUuid;
     } uLCmd;
     uLCmd.pb = &uBuf.ab[f64Bit ? sizeof(mach_header_64_t) : sizeof(mach_header_32_t)];
@@ -505,7 +576,9 @@ static int dbgDiggerDarwinAddModule(PDBGDIGGERDARWIN pThis, PUVM pUVM, uint64_t 
                     return VERR_BAD_EXE_FORMAT;
                 if (!dbgDiggerDarwinIsValidSegOrSectName(uLCmd.pSeg32->segname, sizeof(uLCmd.pSeg32->segname)))
                     return VERR_INVALID_NAME;
-                if (!strcmp(uLCmd.pSeg32->segname, "__LINKEDIT"))
+                if (   !strcmp(uLCmd.pSeg32->segname, "__LINKEDIT")
+                    && !(fHasLinkEdit = dbgDiggerDarwinIsSegmentPresent(pUVM, uLCmd.pSeg32->vmaddr, uLCmd.pSeg32->vmsize,
+                                                                        uModAddr, uModAddr + _64M)))
                     break; /* This usually is discarded or not loaded at all. */
                 if (cSegs >= RT_ELEMENTS(aSegs))
                     return VERR_BUFFER_OVERFLOW;
@@ -524,7 +597,9 @@ static int dbgDiggerDarwinAddModule(PDBGDIGGERDARWIN pThis, PUVM pUVM, uint64_t 
                     return VERR_BAD_EXE_FORMAT;
                 if (!dbgDiggerDarwinIsValidSegOrSectName(uLCmd.pSeg64->segname, sizeof(uLCmd.pSeg64->segname)))
                     return VERR_INVALID_NAME;
-                if (!strcmp(uLCmd.pSeg64->segname, "__LINKEDIT"))
+                if (   !strcmp(uLCmd.pSeg64->segname, "__LINKEDIT")
+                    && !(fHasLinkEdit = dbgDiggerDarwinIsSegmentPresent(pUVM, uLCmd.pSeg64->vmaddr, uLCmd.pSeg64->vmsize,
+                                                                        uModAddr, uModAddr + _128M)))
                     break; /* This usually is discarded or not loaded at all. */
                 if (cSegs >= RT_ELEMENTS(aSegs))
                     return VERR_BUFFER_OVERFLOW;
@@ -559,7 +634,10 @@ static int dbgDiggerDarwinAddModule(PDBGDIGGERDARWIN pThis, PUVM pUVM, uint64_t 
     }
 
     if (cbLeft != 0)
+    {
+        LogRel(("OSXDig: uModAddr=%#RX64 - %u bytes of command left over!\n", uModAddr, cbLeft));
         return VERR_BAD_EXE_FORMAT;
+    }
 
     /*
      * Some post processing checks.
@@ -569,20 +647,42 @@ static int dbgDiggerDarwinAddModule(PDBGDIGGERDARWIN pThis, PUVM pUVM, uint64_t 
         if (aSegs[iSeg].Address == uModAddr)
             break;
     if (iSeg >= cSegs)
+    {
+        LogRel2(("OSXDig: uModAddr=%#RX64 was not found among the segments segments\n", uModAddr));
         return VERR_ADDRESS_CONFLICT;
+    }
 
     /*
      * Create a debug module.
      */
     RTDBGMOD hMod;
-    rc = RTDbgModCreateFromMachOImage(&hMod, pszName, NULL, f64Bit ? RTLDRARCH_AMD64 : RTLDRARCH_X86_32, 0 /*cbImage*/,
-                                      cSegs, aSegs, &Uuid, DBGFR3AsGetConfig(pUVM), RTDBGMOD_F_NOT_DEFERRED);
+    rc = RTDbgModCreateFromMachOImage(&hMod, pszName, NULL, f64Bit ? RTLDRARCH_AMD64 : RTLDRARCH_X86_32, NULL /*phLdrModIn*/,
+                                      0 /*cbImage*/, cSegs, aSegs, &Uuid, DBGFR3AsGetConfig(pUVM),
+                                      RTDBGMOD_F_NOT_DEFERRED | (fHasLinkEdit ? RTDBGMOD_F_MACHO_LOAD_LINKEDIT : 0));
 
+
+    /*
+     * If module creation failed and we've got a linkedit segment, try open the
+     * image in-memory, because that will at a minimum give us symbol table symbols.
+     */
+    if (RT_FAILURE(rc) && fHasLinkEdit)
+    {
+        DBGFADDRESS DbgfAddr;
+        RTERRINFOSTATIC ErrInfo;
+        rc = DBGFR3ModInMem(pUVM, DBGFR3AddrFromFlat(pUVM, &DbgfAddr, uModAddr),
+                            DBGFMODINMEM_F_NO_CONTAINER_FALLBACK,
+                            pszName, NULL /*pszFilename*/, f64Bit ? RTLDRARCH_AMD64 : RTLDRARCH_X86_32, 0 /*cbImage */,
+                            &hMod, RTErrInfoInitStatic(&ErrInfo));
+        if (RT_FAILURE(rc))
+            LogRel(("OSXDig: Failed to do an in-memory-opening of '%s' at %#RX64: %Rrc%s%s\n", pszName, uModAddr, rc,
+                    RTErrInfoIsSet(&ErrInfo.Core) ? " - " : "", RTErrInfoIsSet(&ErrInfo.Core) ? ErrInfo.Core.pszMsg : ""));
+    }
+
+    /*
+     * Final fallback is a container module.
+     */
     if (RT_FAILURE(rc))
     {
-        /*
-         * Final fallback is a container module.
-         */
         rc = RTDbgModCreate(&hMod, pszName, 0, 0);
         if (RT_FAILURE(rc))
             return rc;
@@ -733,17 +833,17 @@ static DECLCALLBACK(int)  dbgDiggerDarwinInit(PUVM pUVM, void *pvData)
                     /* Some extra loop conditions... */
                     if (!OSX_VALID_ADDRESS(f64Bit, AddrModInfo.FlatPtr))
                     {
-                        Log(("OSXDig: Invalid kmod_info pointer: %RGv\n", AddrModInfo.FlatPtr));
+                        LogRel(("OSXDig: Invalid kmod_info pointer: %RGv\n", AddrModInfo.FlatPtr));
                         break;
                     }
                     if (AddrModInfo.FlatPtr == uKmodValue.u && cIterations != 0)
                     {
-                        Log(("OSXDig: kmod_info list looped back to the start.\n"));
+                        LogRel(("OSXDig: kmod_info list looped back to the start.\n"));
                         break;
                     }
                     if (cIterations++ >= 2048)
                     {
-                        Log(("OSXDig: Too many mod_info loops (%u)\n", cIterations));
+                        LogRel(("OSXDig: Too many mod_info loops (%u)\n", cIterations));
                         break;
                     }
 
@@ -760,7 +860,7 @@ static DECLCALLBACK(int)  dbgDiggerDarwinInit(PUVM pUVM, void *pvData)
                                        f64Bit ? sizeof(uMod.Info64) : sizeof(uMod.Info32));
                     if (RT_FAILURE(rc))
                     {
-                        Log(("OSXDig: Error reading kmod_info structure at %RGv: %Rrc\n", AddrModInfo.FlatPtr, rc));
+                        LogRel(("OSXDig: Error reading kmod_info structure at %RGv: %Rrc\n", AddrModInfo.FlatPtr, rc));
                         break;
                     }
 
@@ -770,7 +870,7 @@ static DECLCALLBACK(int)  dbgDiggerDarwinInit(PUVM pUVM, void *pvData)
                     int32_t iInfoVer = f64Bit ? uMod.Info64.info_version : uMod.Info32.info_version;
                     if (iInfoVer != OSX_KMOD_INFO_VERSION)
                     {
-                        Log(("OSXDig: kmod_info @%RGv: Bad info_version %d\n", AddrModInfo.FlatPtr, iInfoVer));
+                        LogRel(("OSXDig: kmod_info @%RGv: Bad info_version %d\n", AddrModInfo.FlatPtr, iInfoVer));
                         break;
                     }
 
@@ -779,8 +879,8 @@ static DECLCALLBACK(int)  dbgDiggerDarwinInit(PUVM pUVM, void *pvData)
                         || !RTStrEnd(pszName, sizeof(uMod.Info64.name))
                         || !dbgDiggerDarwinIsValidName(pszName) )
                     {
-                        Log(("OSXDig: kmod_info @%RGv: Bad name '%.*s'\n", AddrModInfo.FlatPtr,
-                             sizeof(uMod.Info64.name), pszName));
+                        LogRel(("OSXDig: kmod_info @%RGv: Bad name '%.*s'\n", AddrModInfo.FlatPtr,
+                                sizeof(uMod.Info64.name), pszName));
                         break;
                     }
 
@@ -788,7 +888,7 @@ static DECLCALLBACK(int)  dbgDiggerDarwinInit(PUVM pUVM, void *pvData)
                     if (   !RTStrEnd(pszVersion, sizeof(uMod.Info64.version))
                         || !dbgDiggerDarwinIsValidVersion(pszVersion) )
                     {
-                        Log(("OSXDig: kmod_info @%RGv: Bad version '%.*s'\n", AddrModInfo.FlatPtr,
+                        LogRel(("OSXDig: kmod_info @%RGv: Bad version '%.*s'\n", AddrModInfo.FlatPtr,
                              sizeof(uMod.Info64.version), pszVersion));
                         break;
                     }
@@ -796,50 +896,50 @@ static DECLCALLBACK(int)  dbgDiggerDarwinInit(PUVM pUVM, void *pvData)
                     int32_t cRefs = f64Bit ? uMod.Info64.reference_count : uMod.Info32.reference_count;
                     if (cRefs < -1 || cRefs > 16384)
                     {
-                        Log(("OSXDig: kmod_info @%RGv: Bad reference_count %d\n", AddrModInfo.FlatPtr, cRefs));
+                        LogRel(("OSXDig: kmod_info @%RGv: Bad reference_count %d\n", AddrModInfo.FlatPtr, cRefs));
                         break;
                     }
 
                     uint64_t uImageAddr = f64Bit ? uMod.Info64.address : uMod.Info32.address;
                     if (!OSX_VALID_ADDRESS(f64Bit, uImageAddr))
                     {
-                        Log(("OSXDig: kmod_info @%RGv: Bad address %#llx\n", AddrModInfo.FlatPtr, uImageAddr));
+                        LogRel(("OSXDig: kmod_info @%RGv: Bad address %#llx\n", AddrModInfo.FlatPtr, uImageAddr));
                         break;
                     }
 
                     uint64_t cbImage = f64Bit ? uMod.Info64.size : uMod.Info32.size;
                     if (cbImage > 64U*_1M)
                     {
-                        Log(("OSXDig: kmod_info @%RGv: Bad size %#llx\n", AddrModInfo.FlatPtr, cbImage));
+                        LogRel(("OSXDig: kmod_info @%RGv: Bad size %#llx\n", AddrModInfo.FlatPtr, cbImage));
                         break;
                     }
 
                     uint64_t cbHdr = f64Bit ? uMod.Info64.hdr_size : uMod.Info32.hdr_size;
                     if (cbHdr > 16U*_1M)
                     {
-                        Log(("OSXDig: kmod_info @%RGv: Bad hdr_size %#llx\n", AddrModInfo.FlatPtr, cbHdr));
+                        LogRel(("OSXDig: kmod_info @%RGv: Bad hdr_size %#llx\n", AddrModInfo.FlatPtr, cbHdr));
                         break;
                     }
 
                     uint64_t uStartAddr = f64Bit ? uMod.Info64.start : uMod.Info32.start;
                     if (!uStartAddr && !OSX_VALID_ADDRESS(f64Bit, uStartAddr))
                     {
-                        Log(("OSXDig: kmod_info @%RGv: Bad start function %#llx\n", AddrModInfo.FlatPtr, uStartAddr));
+                        LogRel(("OSXDig: kmod_info @%RGv: Bad start function %#llx\n", AddrModInfo.FlatPtr, uStartAddr));
                         break;
                     }
 
                     uint64_t uStopAddr = f64Bit ? uMod.Info64.stop : uMod.Info32.stop;
                     if (!uStopAddr && !OSX_VALID_ADDRESS(f64Bit, uStopAddr))
                     {
-                        Log(("OSXDig: kmod_info @%RGv: Bad stop function %#llx\n", AddrModInfo.FlatPtr, uStopAddr));
+                        LogRel(("OSXDig: kmod_info @%RGv: Bad stop function %#llx\n", AddrModInfo.FlatPtr, uStopAddr));
                         break;
                     }
 
                     /*
                      * Try add the module.
                      */
-                    Log(("OSXDig: kmod_info @%RGv: '%s' ver '%s', image @%#llx LB %#llx cbHdr=%#llx\n", AddrModInfo.FlatPtr,
-                         pszName, pszVersion, uImageAddr, cbImage, cbHdr));
+                    LogRel(("OSXDig: kmod_info @%RGv: '%s' ver '%s', image @%#llx LB %#llx cbHdr=%#llx\n", AddrModInfo.FlatPtr,
+                            pszName, pszVersion, uImageAddr, cbImage, cbHdr));
                     rc = dbgDiggerDarwinAddModule(pThis, pUVM, uImageAddr, pszName, NULL);
 
 
@@ -850,10 +950,10 @@ static DECLCALLBACK(int)  dbgDiggerDarwinInit(PUVM pUVM, void *pvData)
                 }
             }
             else
-                Log(("OSXDig: Error reading the 'kmod' variable: %Rrc\n", rc));
+                LogRel(("OSXDig: Error reading the 'kmod' variable: %Rrc\n", rc));
         }
         else
-            Log(("OSXDig: Failed to locate the 'kmod' variable in mach_kernel.\n"));
+            LogRel(("OSXDig: Failed to locate the 'kmod' variable in mach_kernel.\n"));
 
         pThis->fValid = true;
         return VINF_SUCCESS;

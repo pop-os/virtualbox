@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -36,7 +36,8 @@
 #include "UIVirtualBoxManagerWidget.h"
 #include "UISettingsDialogSpecific.h"
 #include "UIVMLogViewerDialog.h"
-#include "UIVirtualMachineItem.h"
+#include "UIVirtualMachineItemCloud.h"
+#include "UIVirtualMachineItemLocal.h"
 #ifdef VBOX_GUI_WITH_NETWORK_MANAGER
 # include "UIUpdateManager.h"
 #endif
@@ -345,6 +346,11 @@ void UIVirtualBoxManager::sltHandleToolTypeChange()
 }
 
 void UIVirtualBoxManager::sltCurrentSnapshotItemChange()
+{
+    updateActionsAppearance();
+}
+
+void UIVirtualBoxManager::sltHandleCloudMachineStateChange(const QString /* strMachineId */)
 {
     updateActionsAppearance();
 }
@@ -685,12 +691,15 @@ void UIVirtualBoxManager::sltOpenCloneMachineWizard()
     /* Get current item: */
     UIVirtualMachineItem *pItem = currentItem();
     AssertMsgReturnVoid(pItem, ("Current item should be selected!\n"));
+    /* Make sure current item is local one: */
+    UIVirtualMachineItemLocal *pItemLocal = pItem->toLocal();
+    AssertMsgReturnVoid(pItemLocal, ("Current item should be local one!\n"));
 
     /* Use the "safe way" to open stack of Mac OS X Sheets: */
     QWidget *pWizardParent = windowManager().realParentWindow(this);
-    const QStringList &machineGroupNames = pItem->groups();
+    const QStringList &machineGroupNames = pItemLocal->groups();
     const QString strGroup = !machineGroupNames.isEmpty() ? machineGroupNames.at(0) : QString();
-    UISafePointerWizard pWizard = new UIWizardCloneVM(pWizardParent, pItem->machine(), strGroup);
+    UISafePointerWizard pWizard = new UIWizardCloneVM(pWizardParent, pItemLocal->machine(), strGroup);
     windowManager().registerNewParent(pWizard, pWizardParent);
     pWizard->prepare();
     pWizard->exec();
@@ -837,28 +846,40 @@ void UIVirtualBoxManager::sltPerformPauseOrResumeMachine(bool fPause)
              enmState == KMachineState_LiveSnapshotting))
             continue;
 
-        /* Open a session to modify VM state: */
-        CSession comSession = uiCommon().openExistingSession(pItem->id());
-        if (comSession.isNull())
-            return;
+        /* For local machine: */
+        if (pItem->itemType() == UIVirtualMachineItem::ItemType_Local)
+        {
+            /* Open a session to modify VM state: */
+            CSession comSession = uiCommon().openExistingSession(pItem->id());
+            if (comSession.isNull())
+                return;
 
-        /* Get session console: */
-        CConsole comConsole = comSession.GetConsole();
-        /* Pause/resume VM: */
-        if (fPause)
-            comConsole.Pause();
-        else
-            comConsole.Resume();
-        if (!comConsole.isOk())
+            /* Get session console: */
+            CConsole comConsole = comSession.GetConsole();
+            /* Pause/resume VM: */
+            if (fPause)
+                comConsole.Pause();
+            else
+                comConsole.Resume();
+            if (!comConsole.isOk())
+            {
+                if (fPause)
+                    msgCenter().cannotPauseMachine(comConsole);
+                else
+                    msgCenter().cannotResumeMachine(comConsole);
+            }
+
+            /* Unlock machine finally: */
+            comSession.UnlockMachine();
+        }
+        /* For real cloud machine: */
+        else if (pItem->itemType() == UIVirtualMachineItem::ItemType_CloudReal)
         {
             if (fPause)
-                msgCenter().cannotPauseMachine(comConsole);
+                pItem->toCloud()->pause(this);
             else
-                msgCenter().cannotResumeMachine(comConsole);
+                pItem->toCloud()->resume(this);
         }
-
-        /* Unlock machine finally: */
-        comSession.UnlockMachine();
     }
 }
 
@@ -1085,26 +1106,31 @@ void UIVirtualBoxManager::sltOpenLogViewerWindow()
     /* For each selected item: */
     foreach (UIVirtualMachineItem *pItem, items)
     {
+        /* Make sure current item is local one: */
+        UIVirtualMachineItemLocal *pItemLocal = pItem->toLocal();
+        if (!pItemLocal)
+            continue;
+
         /* Check if log could be show for the current item: */
         if (!isActionEnabled(UIActionIndexST_M_Group_S_ShowLogDialog, QList<UIVirtualMachineItem*>() << pItem))
             continue;
 
         QIManagerDialog *pLogViewerDialog = 0;
         /* Create and Show VM Log Viewer: */
-        if (!m_logViewers[pItem->machine().GetHardwareUUID().toString()])
+        if (!m_logViewers[pItemLocal->machine().GetHardwareUUID().toString()])
         {
-            UIVMLogViewerDialogFactory dialogFactory(actionPool(), pItem->machine());
+            UIVMLogViewerDialogFactory dialogFactory(actionPool(), pItemLocal->machine());
             dialogFactory.prepare(pLogViewerDialog, this);
             if (pLogViewerDialog)
             {
-                m_logViewers[pItem->machine().GetHardwareUUID().toString()] = pLogViewerDialog;
+                m_logViewers[pItemLocal->machine().GetHardwareUUID().toString()] = pLogViewerDialog;
                 connect(pLogViewerDialog, &QIManagerDialog::sigClose,
                         this, &UIVirtualBoxManager::sltCloseLogViewerWindow);
             }
         }
         else
         {
-            pLogViewerDialog = m_logViewers[pItem->machine().GetHardwareUUID().toString()];
+            pLogViewerDialog = m_logViewers[pItemLocal->machine().GetHardwareUUID().toString()];
         }
         if (pLogViewerDialog)
         {
@@ -1165,12 +1191,17 @@ void UIVirtualBoxManager::sltShowMachineInFileManager()
     /* For each selected item: */
     foreach (UIVirtualMachineItem *pItem, items)
     {
+        /* Make sure current item is local one: */
+        UIVirtualMachineItemLocal *pItemLocal = pItem->toLocal();
+        if (!pItemLocal)
+            continue;
+
         /* Check if that item could be shown in file-browser: */
         if (!isActionEnabled(UIActionIndexST_M_Group_S_ShowInFileManager, QList<UIVirtualMachineItem*>() << pItem))
             continue;
 
         /* Show VM in filebrowser: */
-        UIDesktopServices::openInFileManager(pItem->machine().GetSettingsFilePath());
+        UIDesktopServices::openInFileManager(pItemLocal->machine().GetSettingsFilePath());
     }
 }
 
@@ -1183,12 +1214,17 @@ void UIVirtualBoxManager::sltPerformCreateMachineShortcut()
     /* For each selected item: */
     foreach (UIVirtualMachineItem *pItem, items)
     {
+        /* Make sure current item is local one: */
+        UIVirtualMachineItemLocal *pItemLocal = pItem->toLocal();
+        if (!pItemLocal)
+            continue;
+
         /* Check if shortcuts could be created for this item: */
         if (!isActionEnabled(UIActionIndexST_M_Group_S_CreateShortcut, QList<UIVirtualMachineItem*>() << pItem))
             continue;
 
         /* Create shortcut for this VM: */
-        const CMachine &comMachine = pItem->machine();
+        const CMachine &comMachine = pItemLocal->machine();
         UIDesktopServices::createMachineShortcut(comMachine.GetSettingsFilePath(),
                                                  QStandardPaths::writableLocation(QStandardPaths::DesktopLocation),
                                                  comMachine.GetName(), comMachine.GetId());
@@ -1333,6 +1369,8 @@ void UIVirtualBoxManager::prepareWidgets()
                 this, &UIVirtualBoxManager::sigCloudProfileManagerChange);
         connect(m_pWidget, &UIVirtualBoxManagerWidget::sigCurrentSnapshotItemChange,
                 this, &UIVirtualBoxManager::sltCurrentSnapshotItemChange);
+        connect(m_pWidget, &UIVirtualBoxManagerWidget::sigCloudMachineStateChange,
+                this, &UIVirtualBoxManager::sltHandleCloudMachineStateChange);
         setCentralWidget(m_pWidget);
     }
 }
@@ -1609,16 +1647,22 @@ void UIVirtualBoxManager::performStartOrShowVirtualMachines(const QList<UIVirtua
             || (   isAtLeastOneItemCanBeStarted(QList<UIVirtualMachineItem*>() << pItem)
                 && fStartConfirmed))
         {
-            /* Fetch item launch mode: */
-            UICommon::LaunchMode enmItemLaunchMode = enmLaunchMode;
-            if (enmItemLaunchMode == UICommon::LaunchMode_Invalid)
-                enmItemLaunchMode = UIVirtualMachineItem::isItemRunningHeadless(pItem) ? UICommon::LaunchMode_Separate :
-                                    qApp->keyboardModifiers() == Qt::ShiftModifier     ? UICommon::LaunchMode_Headless :
-                                                                                         UICommon::LaunchMode_Default;
+            /* Make sure item is local one: */
+            if (pItem->itemType() == UIVirtualMachineItem::ItemType_Local)
+            {
+                /* Fetch item launch mode: */
+                UICommon::LaunchMode enmItemLaunchMode = enmLaunchMode;
+                if (enmItemLaunchMode == UICommon::LaunchMode_Invalid)
+                    enmItemLaunchMode = pItem->isItemRunningHeadless()
+                                      ? UICommon::LaunchMode_Separate
+                                      : qApp->keyboardModifiers() == Qt::ShiftModifier
+                                      ? UICommon::LaunchMode_Headless
+                                      : UICommon::LaunchMode_Default;
 
-            /* Launch current VM: */
-            CMachine machine = pItem->machine();
-            uiCommon().launchMachine(machine, enmItemLaunchMode);
+                /* Launch current VM: */
+                CMachine machine = pItem->toLocal()->machine();
+                uiCommon().launchMachine(machine, enmItemLaunchMode);
+            }
         }
     }
 }
@@ -1684,6 +1728,8 @@ void UIVirtualBoxManager::updateActionsAppearance()
     actionPool()->action(UIActionIndexST_M_Welcome_S_Add)->setEnabled(isActionEnabled(UIActionIndexST_M_Welcome_S_Add, items));
 
     /* Enable/disable group actions: */
+    actionPool()->action(UIActionIndexST_M_Group_S_New)->setEnabled(isActionEnabled(UIActionIndexST_M_Group_S_New, items));
+    actionPool()->action(UIActionIndexST_M_Group_S_Add)->setEnabled(isActionEnabled(UIActionIndexST_M_Group_S_Add, items));
     actionPool()->action(UIActionIndexST_M_Group_S_Rename)->setEnabled(isActionEnabled(UIActionIndexST_M_Group_S_Rename, items));
     actionPool()->action(UIActionIndexST_M_Group_S_Remove)->setEnabled(isActionEnabled(UIActionIndexST_M_Group_S_Remove, items));
     actionPool()->action(UIActionIndexST_M_Group_T_Pause)->setEnabled(isActionEnabled(UIActionIndexST_M_Group_T_Pause, items));
@@ -1696,6 +1742,8 @@ void UIVirtualBoxManager::updateActionsAppearance()
     actionPool()->action(UIActionIndexST_M_Group_S_Sort)->setEnabled(isActionEnabled(UIActionIndexST_M_Group_S_Sort, items));
 
     /* Enable/disable machine actions: */
+    actionPool()->action(UIActionIndexST_M_Machine_S_New)->setEnabled(isActionEnabled(UIActionIndexST_M_Machine_S_New, items));
+    actionPool()->action(UIActionIndexST_M_Machine_S_Add)->setEnabled(isActionEnabled(UIActionIndexST_M_Machine_S_Add, items));
     actionPool()->action(UIActionIndexST_M_Machine_S_Settings)->setEnabled(isActionEnabled(UIActionIndexST_M_Machine_S_Settings, items));
     actionPool()->action(UIActionIndexST_M_Machine_S_Clone)->setEnabled(isActionEnabled(UIActionIndexST_M_Machine_S_Clone, items));
     actionPool()->action(UIActionIndexST_M_Machine_S_Move)->setEnabled(isActionEnabled(UIActionIndexST_M_Machine_S_Move, items));
@@ -1743,12 +1791,12 @@ void UIVirtualBoxManager::updateActionsAppearance()
     /* Start/Show action is deremined by 1st item: */
     if (pItem && pItem->accessible())
     {
-        actionPool()->action(UIActionIndexST_M_Group_M_StartOrShow)->toActionPolymorphicMenu()->setState(UIVirtualMachineItem::isItemPoweredOff(pItem) ? 0 : 1);
-        actionPool()->action(UIActionIndexST_M_Machine_M_StartOrShow)->toActionPolymorphicMenu()->setState(UIVirtualMachineItem::isItemPoweredOff(pItem) ? 0 : 1);
+        actionPool()->action(UIActionIndexST_M_Group_M_StartOrShow)->toActionPolymorphicMenu()->setState(pItem->isItemPoweredOff() ? 0 : 1);
+        actionPool()->action(UIActionIndexST_M_Machine_M_StartOrShow)->toActionPolymorphicMenu()->setState(pItem->isItemPoweredOff() ? 0 : 1);
         /// @todo Hmm, fix it?
 //        QToolButton *pButton = qobject_cast<QToolButton*>(m_pToolBar->widgetForAction(actionPool()->action(UIActionIndexST_M_Machine_M_StartOrShow)));
 //        if (pButton)
-//            pButton->setPopupMode(UIVirtualMachineItem::isItemPoweredOff(pItem) ? QToolButton::MenuButtonPopup : QToolButton::DelayedPopup);
+//            pButton->setPopupMode(pItem->isItemPoweredOff() ? QToolButton::MenuButtonPopup : QToolButton::DelayedPopup);
     }
     else
     {
@@ -1757,14 +1805,14 @@ void UIVirtualBoxManager::updateActionsAppearance()
         /// @todo Hmm, fix it?
 //        QToolButton *pButton = qobject_cast<QToolButton*>(m_pToolBar->widgetForAction(actionPool()->action(UIActionIndexST_M_Machine_M_StartOrShow)));
 //        if (pButton)
-//            pButton->setPopupMode(UIVirtualMachineItem::isItemPoweredOff(pItem) ? QToolButton::MenuButtonPopup : QToolButton::DelayedPopup);
+//            pButton->setPopupMode(pItem->isItemPoweredOff() ? QToolButton::MenuButtonPopup : QToolButton::DelayedPopup);
     }
 
     /* Pause/Resume action is deremined by 1st started item: */
     UIVirtualMachineItem *pFirstStartedAction = 0;
     foreach (UIVirtualMachineItem *pSelectedItem, items)
     {
-        if (UIVirtualMachineItem::isItemStarted(pSelectedItem))
+        if (pSelectedItem->isItemStarted())
         {
             pFirstStartedAction = pSelectedItem;
             break;
@@ -1772,12 +1820,12 @@ void UIVirtualBoxManager::updateActionsAppearance()
     }
     /* Update the group Pause/Resume action appearance: */
     actionPool()->action(UIActionIndexST_M_Group_T_Pause)->blockSignals(true);
-    actionPool()->action(UIActionIndexST_M_Group_T_Pause)->setChecked(pFirstStartedAction && UIVirtualMachineItem::isItemPaused(pFirstStartedAction));
+    actionPool()->action(UIActionIndexST_M_Group_T_Pause)->setChecked(pFirstStartedAction && pFirstStartedAction->isItemPaused());
     actionPool()->action(UIActionIndexST_M_Group_T_Pause)->retranslateUi();
     actionPool()->action(UIActionIndexST_M_Group_T_Pause)->blockSignals(false);
     /* Update the machine Pause/Resume action appearance: */
     actionPool()->action(UIActionIndexST_M_Machine_T_Pause)->blockSignals(true);
-    actionPool()->action(UIActionIndexST_M_Machine_T_Pause)->setChecked(pFirstStartedAction && UIVirtualMachineItem::isItemPaused(pFirstStartedAction));
+    actionPool()->action(UIActionIndexST_M_Machine_T_Pause)->setChecked(pFirstStartedAction && pFirstStartedAction->isItemPaused());
     actionPool()->action(UIActionIndexST_M_Machine_T_Pause)->retranslateUi();
     actionPool()->action(UIActionIndexST_M_Machine_T_Pause)->blockSignals(false);
 
@@ -1837,22 +1885,38 @@ bool UIVirtualBoxManager::isActionEnabled(int iActionIndex, const QList<UIVirtua
     /* For known *machine* action types: */
     switch (iActionIndex)
     {
+        case UIActionIndexST_M_Group_S_New:
+        {
+            return !isGroupSavingInProgress() &&
+                   isSingleGroupSelected();
+        }
+        case UIActionIndexST_M_Group_S_Add:
+        case UIActionIndexST_M_Group_S_Sort:
+        {
+            return !isGroupSavingInProgress() &&
+                   isSingleGroupSelected() &&
+                   isItemsLocal(items);
+        }
         case UIActionIndexST_M_Group_S_Rename:
         case UIActionIndexST_M_Group_S_Remove:
         {
             return !isGroupSavingInProgress() &&
+                   isSingleGroupSelected() &&
+                   isItemsLocal(items) &&
                    isItemsPoweredOff(items);
         }
-        case UIActionIndexST_M_Group_S_Sort:
+        case UIActionIndexST_M_Machine_S_New:
+        case UIActionIndexST_M_Machine_S_Add:
         {
             return !isGroupSavingInProgress() &&
-                   isSingleGroupSelected();
+                   isItemsLocal(items);
         }
         case UIActionIndexST_M_Machine_S_Settings:
         {
             return !actionPool()->action(iActionIndex)->property("opened").toBool() &&
                    !isGroupSavingInProgress() &&
                    items.size() == 1 &&
+                   pItem->toLocal() &&
                    pItem->configurationAccessLevel() != ConfigurationAccessLevel_Null &&
                    (m_pWidget->currentMachineTool() != UIToolType_Snapshots ||
                     m_pWidget->isCurrentStateItemSelected());
@@ -1862,22 +1926,26 @@ bool UIVirtualBoxManager::isActionEnabled(int iActionIndex, const QList<UIVirtua
         {
             return !isGroupSavingInProgress() &&
                    items.size() == 1 &&
-                   UIVirtualMachineItem::isItemEditable(pItem);
+                   pItem->toLocal() &&
+                   pItem->isItemEditable();
         }
         case UIActionIndexST_M_Machine_S_ExportToOCI:
         {
             return !actionPool()->action(iActionIndex)->property("opened").toBool() &&
-                   items.size() == 1;
+                   items.size() == 1 &&
+                   pItem->toLocal();
         }
         case UIActionIndexST_M_Machine_S_Remove:
         {
             return !isGroupSavingInProgress() &&
-                   isAtLeastOneItemRemovable(items);
+                   isAtLeastOneItemRemovable(items) &&
+                   isItemsLocal(items);
         }
         case UIActionIndexST_M_Machine_S_AddGroup:
         {
             return !isGroupSavingInProgress() &&
                    !isAllItemsOfOneGroupSelected() &&
+                   isItemsLocal(items) &&
                    isItemsPoweredOff(items);
         }
         case UIActionIndexST_M_Group_M_StartOrShow:
@@ -1905,7 +1973,8 @@ bool UIVirtualBoxManager::isActionEnabled(int iActionIndex, const QList<UIVirtua
         case UIActionIndexST_M_Group_S_ShowLogDialog:
         case UIActionIndexST_M_Machine_S_ShowLogDialog:
         {
-            return isAtLeastOneItemAccessible(items);
+            return isItemsLocal(items) &&
+                   isAtLeastOneItemAccessible(items);
         }
         case UIActionIndexST_M_Group_T_Pause:
         case UIActionIndexST_M_Machine_T_Pause:
@@ -1915,21 +1984,25 @@ bool UIVirtualBoxManager::isActionEnabled(int iActionIndex, const QList<UIVirtua
         case UIActionIndexST_M_Group_S_Reset:
         case UIActionIndexST_M_Machine_S_Reset:
         {
-            return isAtLeastOneItemRunning(items);
+            return isItemsLocal(items) &&
+                   isAtLeastOneItemRunning(items);
         }
         case UIActionIndexST_M_Group_S_Refresh:
         case UIActionIndexST_M_Machine_S_Refresh:
         {
-            return isAtLeastOneItemInaccessible(items);
+            return isItemsLocal(items) &&
+                   isAtLeastOneItemInaccessible(items);
         }
         case UIActionIndexST_M_Group_S_ShowInFileManager:
         case UIActionIndexST_M_Machine_S_ShowInFileManager:
         {
-            return isAtLeastOneItemAccessible(items);
+            return isItemsLocal(items) &&
+                   isAtLeastOneItemAccessible(items);
         }
         case UIActionIndexST_M_Machine_S_SortParent:
         {
-            return !isGroupSavingInProgress();
+            return !isGroupSavingInProgress() &&
+                   isItemsLocal(items);
         }
         case UIActionIndexST_M_Group_S_CreateShortcut:
         case UIActionIndexST_M_Machine_S_CreateShortcut:
@@ -1939,28 +2012,33 @@ bool UIVirtualBoxManager::isActionEnabled(int iActionIndex, const QList<UIVirtua
         case UIActionIndexST_M_Group_M_Close:
         case UIActionIndexST_M_Machine_M_Close:
         {
-            return isAtLeastOneItemStarted(items);
+            return isItemsLocal(items) &&
+                   isAtLeastOneItemStarted(items);
         }
         case UIActionIndexST_M_Group_M_Close_S_Detach:
         case UIActionIndexST_M_Machine_M_Close_S_Detach:
         {
-            return isActionEnabled(UIActionIndexST_M_Machine_M_Close, items);
+            return isItemsLocal(items) &&
+                   isActionEnabled(UIActionIndexST_M_Machine_M_Close, items);
         }
         case UIActionIndexST_M_Group_M_Close_S_SaveState:
         case UIActionIndexST_M_Machine_M_Close_S_SaveState:
         {
-            return isActionEnabled(UIActionIndexST_M_Machine_M_Close, items);
+            return isItemsLocal(items) &&
+                   isActionEnabled(UIActionIndexST_M_Machine_M_Close, items);
         }
         case UIActionIndexST_M_Group_M_Close_S_Shutdown:
         case UIActionIndexST_M_Machine_M_Close_S_Shutdown:
         {
-            return isActionEnabled(UIActionIndexST_M_Machine_M_Close, items) &&
+            return isItemsLocal(items) &&
+                   isActionEnabled(UIActionIndexST_M_Machine_M_Close, items) &&
                    isAtLeastOneItemAbleToShutdown(items);
         }
         case UIActionIndexST_M_Group_M_Close_S_PowerOff:
         case UIActionIndexST_M_Machine_M_Close_S_PowerOff:
         {
-            return isActionEnabled(UIActionIndexST_M_Machine_M_Close, items);
+            return isItemsLocal(items) &&
+                   isActionEnabled(UIActionIndexST_M_Machine_M_Close, items);
         }
         default:
             break;
@@ -1971,10 +2049,19 @@ bool UIVirtualBoxManager::isActionEnabled(int iActionIndex, const QList<UIVirtua
 }
 
 /* static */
+bool UIVirtualBoxManager::isItemsLocal(const QList<UIVirtualMachineItem*> &items)
+{
+    foreach (UIVirtualMachineItem *pItem, items)
+        if (!pItem->toLocal())
+            return false;
+    return true;
+}
+
+/* static */
 bool UIVirtualBoxManager::isItemsPoweredOff(const QList<UIVirtualMachineItem*> &items)
 {
     foreach (UIVirtualMachineItem *pItem, items)
-        if (!UIVirtualMachineItem::isItemPoweredOff(pItem))
+        if (!pItem->isItemPoweredOff())
             return false;
     return true;
 }
@@ -1986,7 +2073,7 @@ bool UIVirtualBoxManager::isAtLeastOneItemAbleToShutdown(const QList<UIVirtualMa
     foreach (UIVirtualMachineItem *pItem, items)
     {
         /* Skip non-running machines: */
-        if (!UIVirtualMachineItem::isItemRunning(pItem))
+        if (!pItem->isItemRunning())
             continue;
         /* Skip session failures: */
         CSession session = uiCommon().openExistingSession(pItem->id());
@@ -2018,9 +2105,10 @@ bool UIVirtualBoxManager::isAtLeastOneItemSupportsShortcuts(const QList<UIVirtua
     foreach (UIVirtualMachineItem *pItem, items)
     {
         if (   pItem->accessible()
+            && pItem->toLocal()
 #ifdef VBOX_WS_MAC
             /* On Mac OS X this are real alias files, which don't work with the old legacy xml files. */
-            && pItem->settingsFile().endsWith(".vbox", Qt::CaseInsensitive)
+            && pItem->toLocal()->settingsFile().endsWith(".vbox", Qt::CaseInsensitive)
 #endif
             )
             return true;
@@ -2050,7 +2138,7 @@ bool UIVirtualBoxManager::isAtLeastOneItemInaccessible(const QList<UIVirtualMach
 bool UIVirtualBoxManager::isAtLeastOneItemRemovable(const QList<UIVirtualMachineItem*> &items)
 {
     foreach (UIVirtualMachineItem *pItem, items)
-        if (!pItem->accessible() || UIVirtualMachineItem::isItemEditable(pItem))
+        if (!pItem->accessible() || pItem->isItemEditable())
             return true;
     return false;
 }
@@ -2060,7 +2148,7 @@ bool UIVirtualBoxManager::isAtLeastOneItemCanBeStarted(const QList<UIVirtualMach
 {
     foreach (UIVirtualMachineItem *pItem, items)
     {
-        if (UIVirtualMachineItem::isItemPoweredOff(pItem) && UIVirtualMachineItem::isItemEditable(pItem))
+        if (pItem->isItemPoweredOff() && pItem->isItemEditable())
             return true;
     }
     return false;
@@ -2071,7 +2159,10 @@ bool UIVirtualBoxManager::isAtLeastOneItemCanBeShown(const QList<UIVirtualMachin
 {
     foreach (UIVirtualMachineItem *pItem, items)
     {
-        if (UIVirtualMachineItem::isItemStarted(pItem) && (pItem->canSwitchTo() || UIVirtualMachineItem::isItemRunningHeadless(pItem)))
+        if (   pItem->toLocal()
+            && pItem->isItemStarted()
+            && (   pItem->toLocal()->canSwitchTo()
+                || pItem->isItemRunningHeadless()))
             return true;
     }
     return false;
@@ -2082,8 +2173,12 @@ bool UIVirtualBoxManager::isAtLeastOneItemCanBeStartedOrShown(const QList<UIVirt
 {
     foreach (UIVirtualMachineItem *pItem, items)
     {
-        if ((UIVirtualMachineItem::isItemPoweredOff(pItem) && UIVirtualMachineItem::isItemEditable(pItem)) ||
-            (UIVirtualMachineItem::isItemStarted(pItem) && (pItem->canSwitchTo() || UIVirtualMachineItem::isItemRunningHeadless(pItem))))
+        if (   pItem->toLocal()
+            && (   (   pItem->isItemPoweredOff()
+                    && pItem->isItemEditable())
+                || (   pItem->isItemStarted()
+                    && (   pItem->toLocal()->canSwitchTo()
+                        || pItem->isItemRunningHeadless()))))
             return true;
     }
     return false;
@@ -2093,7 +2188,7 @@ bool UIVirtualBoxManager::isAtLeastOneItemCanBeStartedOrShown(const QList<UIVirt
 bool UIVirtualBoxManager::isAtLeastOneItemDiscardable(const QList<UIVirtualMachineItem*> &items)
 {
     foreach (UIVirtualMachineItem *pItem, items)
-        if (UIVirtualMachineItem::isItemSaved(pItem) && UIVirtualMachineItem::isItemEditable(pItem))
+        if (pItem->isItemSaved() && pItem->isItemEditable())
             return true;
     return false;
 }
@@ -2102,7 +2197,7 @@ bool UIVirtualBoxManager::isAtLeastOneItemDiscardable(const QList<UIVirtualMachi
 bool UIVirtualBoxManager::isAtLeastOneItemStarted(const QList<UIVirtualMachineItem*> &items)
 {
     foreach (UIVirtualMachineItem *pItem, items)
-        if (UIVirtualMachineItem::isItemStarted(pItem))
+        if (pItem->isItemStarted())
             return true;
     return false;
 }
@@ -2111,7 +2206,7 @@ bool UIVirtualBoxManager::isAtLeastOneItemStarted(const QList<UIVirtualMachineIt
 bool UIVirtualBoxManager::isAtLeastOneItemRunning(const QList<UIVirtualMachineItem*> &items)
 {
     foreach (UIVirtualMachineItem *pItem, items)
-        if (UIVirtualMachineItem::isItemRunning(pItem))
+        if (pItem->isItemRunning())
             return true;
     return false;
 }

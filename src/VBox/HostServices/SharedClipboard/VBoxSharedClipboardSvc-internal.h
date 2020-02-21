@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -43,15 +43,6 @@ struct SHCLCLIENTSTATE;
 #endif /* VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS */
 
 /**
- * Structure for keeping a Shared Clipboard HGCM message context.
- */
-typedef struct _SHCLMSGCTX
-{
-    /** Context ID. */
-    uint64_t uContextID;
-} SHCLMSGCTX, *PSHCLMSGCTX;
-
-/**
  * A queued message for the guest.
  */
 typedef struct _SHCLCLIENTMSG
@@ -60,11 +51,10 @@ typedef struct _SHCLCLIENTMSG
     RTLISTNODE          ListEntry;
     /** Stored message ID (VBOX_SHCL_HOST_MSG_XXX). */
     uint32_t            idMsg;
-    /** Number of stored parameters. */
+    /** Context ID. */
+    uint64_t            idCtx;
+    /** Number of stored parameters in aParms. */
     uint32_t            cParms;
-    /** The context ID for this message.
-     * @todo r=bird: Why do we need this? */
-    uint64_t            idContext;
     /** HGCM parameters. */
     VBOXHGCMSVCPARM     aParms[RT_FLEXIBLE_ARRAY];
 } SHCLCLIENTMSG;
@@ -100,9 +90,9 @@ typedef struct SHCLCLIENTPODSTATE
  * @note Part of saved state! */
 /** No Shared Clipboard client flags defined. */
 #define SHCLCLIENTSTATE_FLAGS_NONE              0
-/** Client has a guest read operation active. */
+/** Client has a guest read operation active. Currently unused. */
 #define SHCLCLIENTSTATE_FLAGS_READ_ACTIVE       RT_BIT(0)
-/** Client has a guest write operation active. */
+/** Client has a guest write operation active. Currently unused. */
 #define SHCLCLIENTSTATE_FLAGS_WRITE_ACTIVE      RT_BIT(1)
 /** @} */
 
@@ -125,7 +115,7 @@ typedef struct SHCLCLIENTSTATE
     uint64_t                fGuestFeatures0;
     /** Guest feature flags, VBOX_SHCL_GF_1_XXX. */
     uint64_t                fGuestFeatures1;
-    /** Maximum chunk size to use for data transfers. Set to _64K by default. */
+    /** Chunk size to use for data transfers. */
     uint32_t                cbChunkSize;
     /** Where the transfer sources its data from. */
     SHCLSOURCE              enmSource;
@@ -250,8 +240,8 @@ void shClSvcClientTransfersReset(PSHCLCLIENT pClient);
  * Locking is between the (host) service thread and the platform-dependent (window) thread.
  * @{
  */
-int ShClSvcDataReadRequest(PSHCLCLIENT pClient, SHCLFORMAT fFormat, PSHCLEVENTID puEvent);
-int ShClSvcDataReadSignal(PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCtx, PSHCLDATABLOCK pData);
+int ShClSvcDataReadRequest(PSHCLCLIENT pClient, SHCLFORMATS fFormats, PSHCLEVENTID pidEvent);
+int ShClSvcDataReadSignal(PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCtx, SHCLFORMAT uFormat, void *pvData, uint32_t cbData);
 int ShClSvcHostReportFormats(PSHCLCLIENT pClient, SHCLFORMATS fFormats);
 uint32_t ShClSvcGetMode(void);
 bool ShClSvcGetHeadless(void);
@@ -302,19 +292,23 @@ int ShClSvcImplFormatAnnounce(PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCtx, PS
  * @returns VBox status code.
  * @param   pClient             Shared Clipboard client context.
  * @param   pCmdCtx             Shared Clipboard command context.
- * @param   pData               Where to return the read clipboard data.
+ * @param   uFormat             Clipboard format to read.
+ * @param   pvData              Where to return the read clipboard data.
+ * @param   cbData              Size (in bytes) of buffer where to return the clipboard data.
  * @param   pcbActual           Where to return the amount of bytes read.
  */
-int ShClSvcImplReadData(PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCtx, PSHCLDATABLOCK pData, uint32_t *pcbActual);
+int ShClSvcImplReadData(PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCtx, SHCLFORMAT uFormat, void *pvData, uint32_t cbData, uint32_t *pcbActual);
 /**
  * Called when the guest writes clipboard data to the host.
  *
  * @returns VBox status code.
  * @param   pClient             Shared Clipboard client context.
  * @param   pCmdCtx             Shared Clipboard command context.
- * @param   pData               Clipboard data from the guest.
+ * @param   uFormat             Clipboard format to write.
+ * @param   pvData              Clipboard data to write.
+ * @param   cbData              Size (in bytes) of buffer clipboard data to write.
  */
-int ShClSvcImplWriteData(PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCtx, PSHCLDATABLOCK pData);
+int ShClSvcImplWriteData(PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCtx, SHCLFORMAT uFormat, void *pvData, uint32_t cbData);
 /**
  * Called when synchronization of the clipboard contents of the host clipboard with the guest is needed.
  *

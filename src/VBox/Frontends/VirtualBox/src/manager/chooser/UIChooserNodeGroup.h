@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -77,6 +77,10 @@ public:
     virtual void removeAllNodes(const QUuid &uId) /* override */;
     /** Updates all children with specified @a uId recursively. */
     virtual void updateAllNodes(const QUuid &uId) /* override */;
+
+    /** Returns whether this node is a cloud node itself
+      * or contains at least one cloud VM node child. */
+    virtual bool hasAtLeastOneCloudNode() const /* override */;
 
     /** Returns position of specified node inside this one. */
     virtual int positionOf(UIChooserNode *pNode) /* override */;

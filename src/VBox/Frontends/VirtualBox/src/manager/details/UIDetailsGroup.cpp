@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -77,8 +77,14 @@ UIDetailsGroup::~UIDetailsGroup()
 
 void UIDetailsGroup::buildGroup(const QList<UIVirtualMachineItem*> &machineItems)
 {
+    /* Filter out cloud VM items for now: */
+    QList<UIVirtualMachineItem*> filteredItems;
+    foreach (UIVirtualMachineItem *pItem, machineItems)
+        if (pItem->itemType() == UIVirtualMachineItem::ItemType_Local)
+            filteredItems << pItem;
+
     /* Remember passed machine-items: */
-    m_machineItems = machineItems;
+    m_machineItems = filteredItems;
 
     /* Cleanup superflous items: */
     bool fCleanupPerformed = m_items.size() > m_machineItems.size();

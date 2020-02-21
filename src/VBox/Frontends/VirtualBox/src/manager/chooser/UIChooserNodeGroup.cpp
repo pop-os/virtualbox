@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,6 +19,9 @@
 #include "UIChooserNodeGroup.h"
 #include "UIChooserNodeGlobal.h"
 #include "UIChooserNodeMachine.h"
+
+/* Other VBox includes: */
+#include "iprt/assert.h"
 
 
 UIChooserNodeGroup::UIChooserNodeGroup(UIChooserNode *pParent,
@@ -159,6 +162,19 @@ void UIChooserNodeGroup::updateAllNodes(const QUuid &uId)
     /* Update all the children recursively: */
     foreach (UIChooserNode *pNode, nodes())
         pNode->updateAllNodes(uId);
+}
+
+bool UIChooserNodeGroup::hasAtLeastOneCloudNode() const
+{
+    foreach (UIChooserNode *pNode, m_nodesGroup)
+        if (pNode->hasAtLeastOneCloudNode())
+            return true;
+
+    foreach (UIChooserNode *pNode, m_nodesMachine)
+        if (pNode->hasAtLeastOneCloudNode())
+            return true;
+
+    return false;
 }
 
 int UIChooserNodeGroup::positionOf(UIChooserNode *pNode)

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2019 Oracle Corporation
+ * Copyright (C) 2016-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1356,6 +1356,8 @@ typedef struct APICCPU
     STAMCOUNTER                 StatIcrHiWrite;
     /** Number of times the full ICR (x2APIC send IPI) is written. */
     STAMCOUNTER                 StatIcrFullWrite;
+    /** Number of times the APIC-ID MSR is read. */
+    STAMCOUNTER                 StatIdMsrRead;
     /** @} */
 #endif
 } APICCPU;

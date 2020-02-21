@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -500,7 +500,6 @@ static int shClSvcMsgSetOldWaitReturn(PSHCLCLIENTMSG pMsg, PVBOXHGCMSVCPARM paDs
 /**
  * Adds a new message to a client'S message queue.
  *
- * @returns IPRT status code.
  * @param   pClient             Pointer to the client data structure to add new message to.
  * @param   pMsg                Pointer to message to add. The queue then owns the pointer.
  * @param   fAppend             Whether to append or prepend the message to the queue.
@@ -663,6 +662,47 @@ void shClSvcClientReset(PSHCLCLIENT pClient)
     RTCritSectLeave(&pClient->CritSect);
 }
 
+static int shClSvcClientNegogiateChunkSize(PSHCLCLIENT pClient, VBOXHGCMCALLHANDLE hCall,
+                                           uint32_t cParms, VBOXHGCMSVCPARM paParms[])
+{
+    /*
+     * Validate the request.
+     */
+    ASSERT_GUEST_RETURN(cParms == VBOX_SHCL_CPARMS_NEGOTIATE_CHUNK_SIZE, VERR_WRONG_PARAMETER_COUNT);
+    ASSERT_GUEST_RETURN(paParms[0].type == VBOX_HGCM_SVC_PARM_32BIT, VERR_WRONG_PARAMETER_TYPE);
+    uint32_t const cbClientMaxChunkSize = paParms[0].u.uint32;
+    ASSERT_GUEST_RETURN(paParms[1].type == VBOX_HGCM_SVC_PARM_32BIT, VERR_WRONG_PARAMETER_TYPE);
+    uint32_t const cbClientChunkSize    = paParms[1].u.uint32;
+
+    uint32_t const cbHostMaxChunkSize = VBOX_SHCL_MAX_CHUNK_SIZE; /** @todo Make this configurable. */
+
+    /*
+     * Do the work.
+     */
+    if (cbClientChunkSize == 0) /* Does the client want us to choose? */
+    {
+        paParms[0].u.uint32 = cbHostMaxChunkSize;                                     /* Maximum */
+        paParms[1].u.uint32 = RT_MIN(pClient->State.cbChunkSize, cbHostMaxChunkSize); /* Preferred */
+
+    }
+    else /* The client told us what it supports, so update and report back. */
+    {
+        paParms[0].u.uint32 = RT_MIN(cbClientMaxChunkSize, cbHostMaxChunkSize);         /* Maximum */
+        paParms[1].u.uint32 = RT_MIN(cbClientMaxChunkSize, pClient->State.cbChunkSize); /* Preferred */
+    }
+
+    int rc = g_pHelpers->pfnCallComplete(hCall, VINF_SUCCESS);
+    if (RT_SUCCESS(rc))
+    {
+        Log(("[Client %RU32] chunk size: %#RU32, max: %#RU32\n",
+             pClient->State.uClientID, paParms[1].u.uint32, paParms[0].u.uint32));
+    }
+    else
+        LogFunc(("pfnCallComplete -> %Rrc\n", rc));
+
+    return VINF_HGCM_ASYNC_EXECUTE;
+}
+
 /**
  * Implements VBOX_SHCL_GUEST_FN_REPORT_FEATURES.
  *
@@ -677,8 +717,8 @@ void shClSvcClientReset(PSHCLCLIENT pClient)
  * @param   cParms      Number of parameters.
  * @param   paParms     Array of parameters.
  */
-int shClSvcClientReportFeatures(PSHCLCLIENT pClient, VBOXHGCMCALLHANDLE hCall,
-                                uint32_t cParms, VBOXHGCMSVCPARM paParms[])
+static int shClSvcClientReportFeatures(PSHCLCLIENT pClient, VBOXHGCMCALLHANDLE hCall,
+                                       uint32_t cParms, VBOXHGCMSVCPARM paParms[])
 {
     /*
      * Validate the request.
@@ -720,7 +760,7 @@ int shClSvcClientReportFeatures(PSHCLCLIENT pClient, VBOXHGCMCALLHANDLE hCall,
  * @param   cParms      Number of parameters.
  * @param   paParms     Array of parameters.
  */
-int shClSvcClientQueryFeatures(VBOXHGCMCALLHANDLE hCall, uint32_t cParms, VBOXHGCMSVCPARM paParms[])
+static int shClSvcClientQueryFeatures(VBOXHGCMCALLHANDLE hCall, uint32_t cParms, VBOXHGCMSVCPARM paParms[])
 {
     /*
      * Validate the request.
@@ -1149,94 +1189,140 @@ int shClSvcClientWakeup(PSHCLCLIENT pClient)
  *
  * @returns VBox status code.
  * @param   pClient             Client to request to read data form.
- * @param   fFormat             The format being requested (VBOX_SHCL_FMT_XXX).
+ * @param   fFormats            The formats being requested, OR'ed together (VBOX_SHCL_FMT_XXX).
  * @param   pidEvent            Event ID for waiting for new data. Optional.
+ *                              Must be released by the caller with ShClEventRelease() before unregistering then.
  */
-int ShClSvcDataReadRequest(PSHCLCLIENT pClient, SHCLFORMAT fFormat, PSHCLEVENTID pidEvent)
+int ShClSvcDataReadRequest(PSHCLCLIENT pClient, SHCLFORMATS fFormats, PSHCLEVENTID pidEvent)
 {
     LogFlowFuncEnter();
     if (pidEvent)
-        *pidEvent = 0;
+        *pidEvent = NIL_SHCLEVENTID;
     AssertPtrReturn(pClient,  VERR_INVALID_POINTER);
 
-    /*
-     * Allocate a message.
-     */
-    int rc;
-    PSHCLCLIENTMSG pMsg = shClSvcMsgAlloc(pClient,
-                                          pClient->State.fGuestFeatures0 & VBOX_SHCL_GF_0_CONTEXT_ID
-                                          ? VBOX_SHCL_HOST_MSG_READ_DATA_CID : VBOX_SHCL_HOST_MSG_READ_DATA,
-                                          2);
-    if (pMsg)
+    LogFlowFunc(("fFormats=%#x\n", fFormats));
+
+    int rc = VERR_NOT_SUPPORTED;
+
+    SHCLEVENTID idEvent = NIL_SHCLEVENTID;
+
+    while (fFormats)
     {
+        SHCLFORMAT fFormat = VBOX_SHCL_FMT_NONE;
+
+        /** @todo Make format reporting precedence configurable? */
+        if (fFormats & VBOX_SHCL_FMT_UNICODETEXT)
+            fFormat = VBOX_SHCL_FMT_UNICODETEXT;
+        else if (fFormats & VBOX_SHCL_FMT_BITMAP)
+            fFormat = VBOX_SHCL_FMT_BITMAP;
+        else if (fFormats & VBOX_SHCL_FMT_HTML)
+            fFormat = VBOX_SHCL_FMT_HTML;
+        else
+            AssertStmt(fFormats == VBOX_SHCL_FMT_NONE, fFormat = VBOX_SHCL_FMT_NONE);
+
+        if (fFormat == VBOX_SHCL_FMT_NONE)
+            break;
+
+        /* Remove format from format list. */
+        fFormats &= ~fFormat;
+
         /*
-         * Enter the critical section and generate an event.
+         * Allocate messages, one for each format.
          */
-        RTCritSectEnter(&pClient->CritSect);
-
-        const SHCLEVENTID idEvent = ShClEventIdGenerateAndRegister(&pClient->EventSrc);
-        if (idEvent != 0)
+        PSHCLCLIENTMSG pMsg = shClSvcMsgAlloc(pClient,
+                                              pClient->State.fGuestFeatures0 & VBOX_SHCL_GF_0_CONTEXT_ID
+                                              ? VBOX_SHCL_HOST_MSG_READ_DATA_CID : VBOX_SHCL_HOST_MSG_READ_DATA,
+                                              2);
+        if (pMsg)
         {
-            LogFlowFunc(("fFormat=%#x idEvent=%#x\n", fFormat, idEvent));
-
             /*
-             * Format the message
+             * Enter the critical section and generate an event.
              */
-            if (pMsg->idMsg == VBOX_SHCL_HOST_MSG_READ_DATA_CID)
-                HGCMSvcSetU64(&pMsg->aParms[0], VBOX_SHCL_CONTEXTID_MAKE(pClient->State.uSessionID, pClient->EventSrc.uID, idEvent));
+            RTCritSectEnter(&pClient->CritSect);
+
+            idEvent = ShClEventIdGenerateAndRegister(&pClient->EventSrc);
+            if (idEvent != NIL_SHCLEVENTID)
+            {
+                LogFlowFunc(("fFormats=%#x -> fFormat=%#x, idEvent=%#x\n", fFormats, fFormat, idEvent));
+
+                /*
+                 * Format the message.
+                 */
+                if (pMsg->idMsg == VBOX_SHCL_HOST_MSG_READ_DATA_CID)
+                    HGCMSvcSetU64(&pMsg->aParms[0],
+                                  VBOX_SHCL_CONTEXTID_MAKE(pClient->State.uSessionID, pClient->EventSrc.uID, idEvent));
+                else
+                    HGCMSvcSetU32(&pMsg->aParms[0], VBOX_SHCL_HOST_MSG_READ_DATA);
+                HGCMSvcSetU32(&pMsg->aParms[1], fFormat);
+
+                shClSvcMsgAdd(pClient, pMsg, true /* fAppend */);
+
+                rc = VINF_SUCCESS;
+            }
             else
-                HGCMSvcSetU32(&pMsg->aParms[0], VBOX_SHCL_HOST_MSG_READ_DATA);
-            HGCMSvcSetU32(&pMsg->aParms[1], fFormat);
+                rc = VERR_SHCLPB_MAX_EVENTS_REACHED;
 
-            /*
-             * Queue it and wake up the client if it's waiting on a message.
-             */
-            shClSvcMsgAddAndWakeupClient(pClient, pMsg);
-            if (pidEvent)
-                *pidEvent = idEvent;
-            rc = VINF_SUCCESS;
+            RTCritSectLeave(&pClient->CritSect);
         }
         else
-            rc = VERR_TRY_AGAIN;
+            rc = VERR_NO_MEMORY;
+
+        if (RT_FAILURE(rc))
+            break;
+    }
+
+    if (RT_SUCCESS(rc))
+    {
+        RTCritSectEnter(&pClient->CritSect);
+
+        /* Retain the last event generated (in case there were multiple clipboard formats)
+         * if we need to return the event ID to the caller. */
+        if (pidEvent)
+        {
+            ShClEventRetain(&pClient->EventSrc, idEvent);
+            *pidEvent = idEvent;
+        }
+
+        shClSvcClientWakeup(pClient);
 
         RTCritSectLeave(&pClient->CritSect);
     }
-    else
-        rc = VERR_NO_MEMORY;
 
     LogFlowFuncLeaveRC(rc);
     return rc;
 }
 
 int ShClSvcDataReadSignal(PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCtx,
-                          PSHCLDATABLOCK pData)
+                          SHCLFORMAT uFormat, void *pvData, uint32_t cbData)
 {
     AssertPtrReturn(pClient, VERR_INVALID_POINTER);
     AssertPtrReturn(pCmdCtx, VERR_INVALID_POINTER);
-    AssertPtrReturn(pData,   VERR_INVALID_POINTER);
+    AssertPtrReturn(pvData,  VERR_INVALID_POINTER);
+
+    RT_NOREF(uFormat);
 
     LogFlowFuncEnter();
 
-    SHCLEVENTID uEvent;
+    SHCLEVENTID idEvent;
     if (!(pClient->State.fGuestFeatures0 & VBOX_SHCL_GF_0_CONTEXT_ID)) /* Legacy, Guest Additions < 6.1. */
     {
         /* Older Guest Additions (<= VBox 6.0) did not have any context ID handling, so we ASSUME that the last event registered
          * is the one we want to handle (as this all was a synchronous protocol anyway). */
-        uEvent = ShClEventGetLast(&pClient->EventSrc);
+        idEvent = ShClEventGetLast(&pClient->EventSrc);
     }
     else
-        uEvent = VBOX_SHCL_CONTEXTID_GET_EVENT(pCmdCtx->uContextID);
+        idEvent = VBOX_SHCL_CONTEXTID_GET_EVENT(pCmdCtx->uContextID);
 
     int rc = VINF_SUCCESS;
 
     PSHCLEVENTPAYLOAD pPayload = NULL;
-    if (pData->cbData)
-        rc = ShClPayloadAlloc(uEvent, pData->pvData, pData->cbData, &pPayload);
+    if (cbData)
+        rc = ShClPayloadAlloc(idEvent, pvData, cbData, &pPayload);
 
     if (RT_SUCCESS(rc))
     {
         RTCritSectEnter(&pClient->CritSect);
-        rc = ShClEventSignal(&pClient->EventSrc, uEvent, pPayload);
+        rc = ShClEventSignal(&pClient->EventSrc, idEvent, pPayload);
         RTCritSectLeave(&pClient->CritSect);
         if (RT_FAILURE(rc))
             ShClPayloadFree(pPayload);
@@ -1285,28 +1371,24 @@ int ShClSvcHostReportFormats(PSHCLCLIENT pClient, SHCLFORMATS fFormats)
         shClSvcMsgAddAndWakeupClient(pClient, pMsg);
         RTCritSectLeave(&pClient->CritSect);
 
-        /*
-         * ...
-         */
 #ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
-# error fixme
         /* If we announce an URI list, create a transfer locally and also tell the guest to create
          * a transfer on the guest side. */
         if (fFormats & VBOX_SHCL_FMT_URI_LIST)
         {
             rc = shClSvcTransferStart(pClient, SHCLTRANSFERDIR_TO_REMOTE, SHCLSOURCE_LOCAL,
                                       NULL /* pTransfer */);
+            if (RT_SUCCESS(rc))
+                rc = shClSvcSetSource(pClient, SHCLSOURCE_LOCAL);
+
             if (RT_FAILURE(rc))
                 LogRel(("Shared Clipboard: Initializing host write transfer failed with %Rrc\n", rc));
         }
         else
 #endif
         {
-            pClient->State.fFlags |= SHCLCLIENTSTATE_FLAGS_READ_ACTIVE;
             rc = VINF_SUCCESS;
         }
-        /** @todo r=bird: shouldn't we also call shClSvcSetSource(pClient, SHCLSOURCE_LOCAL) here??
-         * Looks like the caller of this function does it, but only on windows.  Very helpful. */
     }
     else
         rc = VERR_NO_MEMORY;
@@ -1393,18 +1475,6 @@ static int shClSvcClientReportFormats(PSHCLCLIENT pClient, uint32_t cParms, VBOX
                 FormatData.Formats = fFormats;
                 rc = ShClSvcImplFormatAnnounce(pClient, &CmdCtx, &FormatData);
             }
-
-            /** @todo r=bird: I'm not sure if the guest should be automatically allowed
-             *        to write the host clipboard now.  It would make more sense to disallow
-             *        host clipboard reads until the host reports formats.
-             *
-             *        The writes should only really be allowed upon request from the host,
-             *        shouldn't they? (Though, I'm not sure, maybe there are situations
-             *        where the guest side will just want to push the content over
-             *        immediately while it's still available, I don't quite recall now...
-             */
-            if (RT_SUCCESS(rc))
-                pClient->State.fFlags |= SHCLCLIENTSTATE_FLAGS_WRITE_ACTIVE;
         }
     }
 
@@ -1428,12 +1498,6 @@ static int shClSvcClientReadData(PSHCLCLIENT pClient, uint32_t cParms, VBOXHGCMS
     { /* likely */ }
     else
         return VERR_ACCESS_DENIED;
-
-    /// @todo r=bird: The management of the SHCLCLIENTSTATE_FLAGS_READ_ACTIVE
-    /// makes it impossible for the guest to retrieve more than one format from
-    /// the clipboard.  I.e. it can either get the TEXT or the HTML rendering,
-    /// but not both.  So, I've disable the check. */
-    //ASSERT_GUEST_RETURN(pClient->State.fFlags & SHCLCLIENTSTATE_FLAGS_READ_ACTIVE, VERR_WRONG_ORDER);
 
     /*
      * Digest parameters.
@@ -1460,15 +1524,18 @@ static int shClSvcClientReadData(PSHCLCLIENT pClient, uint32_t cParms, VBOXHGCMS
         iParm++;
     }
 
-    SHCLDATABLOCK dataBlock;
+    SHCLFORMAT  uFormat = VBOX_SHCL_FMT_NONE;
+    uint32_t    cbData  = 0;
+    void       *pvData  = NULL;
+
     ASSERT_GUEST_RETURN(paParms[iParm].type == VBOX_HGCM_SVC_PARM_32BIT, VERR_WRONG_PARAMETER_TYPE);
-    dataBlock.uFormat = paParms[iParm].u.uint32;
+    uFormat = paParms[iParm].u.uint32;
     iParm++;
     if (cParms != VBOX_SHCL_CPARMS_DATA_READ_61B)
     {
         ASSERT_GUEST_RETURN(paParms[iParm].type == VBOX_HGCM_SVC_PARM_PTR, VERR_WRONG_PARAMETER_TYPE); /* Data buffer */
-        dataBlock.pvData = paParms[iParm].u.pointer.addr;
-        dataBlock.cbData = paParms[iParm].u.pointer.size;
+        pvData = paParms[iParm].u.pointer.addr;
+        cbData = paParms[iParm].u.pointer.size;
         iParm++;
         ASSERT_GUEST_RETURN(paParms[iParm].type == VBOX_HGCM_SVC_PARM_32BIT, VERR_WRONG_PARAMETER_TYPE); /*cbDataReturned*/
         iParm++;
@@ -1478,8 +1545,8 @@ static int shClSvcClientReadData(PSHCLCLIENT pClient, uint32_t cParms, VBOXHGCMS
         ASSERT_GUEST_RETURN(paParms[iParm].type == VBOX_HGCM_SVC_PARM_32BIT, VERR_WRONG_PARAMETER_TYPE); /*cbDataReturned*/
         iParm++;
         ASSERT_GUEST_RETURN(paParms[iParm].type == VBOX_HGCM_SVC_PARM_PTR, VERR_WRONG_PARAMETER_TYPE); /* Data buffer */
-        dataBlock.pvData = paParms[iParm].u.pointer.addr;
-        dataBlock.cbData = paParms[iParm].u.pointer.size;
+        pvData = paParms[iParm].u.pointer.addr;
+        cbData = paParms[iParm].u.pointer.size;
         iParm++;
     }
     Assert(iParm == cParms);
@@ -1492,13 +1559,7 @@ static int shClSvcClientReadData(PSHCLCLIENT pClient, uint32_t cParms, VBOXHGCMS
     if (!(pClient->State.fGuestFeatures0 & VBOX_SHCL_GF_0_CONTEXT_ID))
     {
         if (pClient->State.POD.uFormat == VBOX_SHCL_FMT_NONE)
-            pClient->State.POD.uFormat = dataBlock.uFormat;
-        /// @todo r=bird: This actively breaks copying different types of data into the
-        /// guest (first copy a text snippet, then you cannot copy any bitmaps), so I've
-        /// disabled it.
-        //ASSERT_GUEST_MSG_RETURN(pClient->State.POD.uFormat == dataBlock.uFormat,
-        //                        ("Requested %#x, POD.uFormat=%#x\n", dataBlock.uFormat, pClient->State.POD.uFormat),
-        //                        VERR_BAD_EXE_FORMAT /*VERR_INTERNAL_ERROR*/);
+            pClient->State.POD.uFormat = uFormat;
     }
 
     /*
@@ -1513,16 +1574,16 @@ static int shClSvcClientReadData(PSHCLCLIENT pClient, uint32_t cParms, VBOXHGCMS
         SHCLEXTPARMS parms;
         RT_ZERO(parms);
 
-        parms.uFormat  = dataBlock.uFormat;
-        parms.u.pvData = dataBlock.pvData;
-        parms.cbData   = dataBlock.cbData;
+        parms.uFormat  = uFormat;
+        parms.u.pvData = pvData;
+        parms.cbData   = cbData;
 
         g_ExtState.fReadingData = true;
 
         /* Read clipboard data from the extension. */
         rc = g_ExtState.pfnExtension(g_ExtState.pvExtension, VBOX_CLIPBOARD_EXT_FN_DATA_READ, &parms, sizeof(parms));
-        LogRelFlowFunc(("DATA/Ext: fDelayedAnnouncement=%RTbool fDelayedFormats=%#x cbData=%RU32->%RU32 rc=%Rrc\n",
-                        g_ExtState.fDelayedAnnouncement, g_ExtState.fDelayedFormats, dataBlock.cbData, parms.cbData, rc));
+        LogRelFlowFunc(("Shared Clipboard: DATA/Ext: fDelayedAnnouncement=%RTbool fDelayedFormats=%#x cbData=%RU32->%RU32 rc=%Rrc\n",
+                        g_ExtState.fDelayedAnnouncement, g_ExtState.fDelayedFormats, cbData, parms.cbData, rc));
 
         /* Did the extension send the clipboard formats yet?
          * Otherwise, do this now. */
@@ -1542,8 +1603,8 @@ static int shClSvcClientReadData(PSHCLCLIENT pClient, uint32_t cParms, VBOXHGCMS
     }
     else
     {
-        rc = ShClSvcImplReadData(pClient, &cmdCtx, &dataBlock, &cbActual);
-        LogRelFlowFunc(("DATA/Host: cbData=%RU32->%RU32 rc=%Rrc\n", dataBlock.cbData, cbActual, rc));
+        rc = ShClSvcImplReadData(pClient, &cmdCtx, uFormat, pvData, cbData, &cbActual);
+        LogRelFlowFunc(("Shared Clipboard: DATA/Host: cbData=%RU32->%RU32 rc=%Rrc\n", cbData, cbActual, rc));
     }
 
     if (RT_SUCCESS(rc))
@@ -1555,16 +1616,8 @@ static int shClSvcClientReadData(PSHCLCLIENT pClient, uint32_t cParms, VBOXHGCMS
             HGCMSvcSetU32(&paParms[3], cbActual);
 
         /* If the data to return exceeds the buffer the guest supplies, tell it (and let it try again). */
-        if (cbActual >= dataBlock.cbData)
+        if (cbActual >= cbData)
             rc = VINF_BUFFER_OVERFLOW;
-
-        if (rc == VINF_SUCCESS)
-        {
-            /* Only remove "read active" flag after successful read again. */
-            /** @todo r=bird: This doesn't make any effing sense.  What if the guest
-             *        wants to read another format???  */
-            pClient->State.fFlags &= ~SHCLCLIENTSTATE_FLAGS_READ_ACTIVE;
-        }
     }
 
     LogFlowFuncLeaveRC(rc);
@@ -1585,12 +1638,6 @@ int shClSvcClientWriteData(PSHCLCLIENT pClient, uint32_t cParms, VBOXHGCMSVCPARM
     { /* likely */ }
     else
         return VERR_ACCESS_DENIED;
-
-    /** @todo r=bird: This whole active flag stuff is broken, so disabling for now. */
-    //if (pClient->State.fFlags & SHCLCLIENTSTATE_FLAGS_WRITE_ACTIVE)
-    //{ /* likely */ }
-    //else
-    //    return VERR_WRONG_ORDER;
 
     /*
      * Digest parameters.
@@ -1627,9 +1674,13 @@ int shClSvcClientWriteData(PSHCLCLIENT pClient, uint32_t cParms, VBOXHGCMSVCPARM
         ASSERT_GUEST_RETURN(paParms[iParm].u.uint32 == 0, VERR_INVALID_FLAGS);
         iParm++;
     }
-    SHCLDATABLOCK dataBlock;
+
+    SHCLFORMAT  uFormat = VBOX_SHCL_FMT_NONE;
+    uint32_t    cbData  = 0;
+    void       *pvData  = NULL;
+
     ASSERT_GUEST_RETURN(paParms[iParm].type == VBOX_HGCM_SVC_PARM_32BIT, VERR_WRONG_PARAMETER_TYPE); /* Format bit. */
-    dataBlock.uFormat = paParms[iParm].u.uint32;
+    uFormat = paParms[iParm].u.uint32;
     iParm++;
     if (cParms == VBOX_SHCL_CPARMS_DATA_WRITE_61B)
     {
@@ -1637,8 +1688,8 @@ int shClSvcClientWriteData(PSHCLCLIENT pClient, uint32_t cParms, VBOXHGCMSVCPARM
         iParm++;
     }
     ASSERT_GUEST_RETURN(paParms[iParm].type == VBOX_HGCM_SVC_PARM_PTR, VERR_WRONG_PARAMETER_TYPE); /* Data buffer */
-    dataBlock.pvData = paParms[iParm].u.pointer.addr;
-    dataBlock.cbData = paParms[iParm].u.pointer.size;
+    pvData = paParms[iParm].u.pointer.addr;
+    cbData = paParms[iParm].u.pointer.size;
     iParm++;
     Assert(iParm == cParms);
 
@@ -1650,12 +1701,7 @@ int shClSvcClientWriteData(PSHCLCLIENT pClient, uint32_t cParms, VBOXHGCMSVCPARM
     if (!(pClient->State.fGuestFeatures0 & VBOX_SHCL_GF_0_CONTEXT_ID))
     {
         if (pClient->State.POD.uFormat == VBOX_SHCL_FMT_NONE)
-            pClient->State.POD.uFormat = dataBlock.uFormat;
-        /** @todo r=bird: this must be buggy to, I've disabled it without testing
-         *        though. */
-        //ASSERT_GUEST_MSG_RETURN(pClient->State.POD.uFormat == dataBlock.uFormat,
-        //                        ("Requested %#x, POD.uFormat=%#x\n", dataBlock.uFormat, pClient->State.POD.uFormat),
-        //                        VERR_BAD_EXE_FORMAT /*VERR_INTERNAL_ERROR*/);
+            pClient->State.POD.uFormat = uFormat;
     }
 
     /*
@@ -1666,22 +1712,15 @@ int shClSvcClientWriteData(PSHCLCLIENT pClient, uint32_t cParms, VBOXHGCMSVCPARM
     {
         SHCLEXTPARMS parms;
         RT_ZERO(parms);
-        parms.uFormat   = dataBlock.uFormat;
-        parms.u.pvData  = dataBlock.pvData;
-        parms.cbData    = dataBlock.cbData;
+        parms.uFormat   = uFormat;
+        parms.u.pvData  = pvData;
+        parms.cbData    = cbData;
 
         g_ExtState.pfnExtension(g_ExtState.pvExtension, VBOX_CLIPBOARD_EXT_FN_DATA_WRITE, &parms, sizeof(parms));
         rc = VINF_SUCCESS;
     }
     else
-        rc = ShClSvcImplWriteData(pClient, &cmdCtx, &dataBlock);
-    if (RT_SUCCESS(rc))
-    {
-        /* Remove "write active" flag after successful read again. */
-        /** @todo r=bird: This doesn't make any effing sense.  What if the host
-         *         wants to have the guest write it another format???  */
-        pClient->State.fFlags &= ~SHCLCLIENTSTATE_FLAGS_WRITE_ACTIVE;
-    }
+        rc = ShClSvcImplWriteData(pClient, &cmdCtx, uFormat, pvData, cbData);
 
     LogFlowFuncLeaveRC(rc);
     return rc;
@@ -1713,6 +1752,13 @@ static int shClSvcClientError(uint32_t cParms, VBOXHGCMSVCPARM paParms[], int *p
     return rc;
 }
 
+/**
+ * Sets the transfer source type of a Shared Clipboard client.
+ *
+ * @returns VBox status code.
+ * @param   pClient             Client to set transfer source type for.
+ * @param   enmSource           Source type to set.
+ */
 int shClSvcSetSource(PSHCLCLIENT pClient, SHCLSOURCE enmSource)
 {
     if (!pClient) /* If no client connected (anymore), bail out. */
@@ -1850,8 +1896,25 @@ static DECLCALLBACK(void) svcCall(void *,
              u32ClientID, u32Function, ShClGuestMsgToStr(u32Function), cParms, paParms));
     for (uint32_t i = 0; i < cParms; i++)
     {
-        /** @todo parameters other than 32 bit */
-        LogFunc(("    paParms[%d]: type %RU32 - value %RU32\n", i, paParms[i].type, paParms[i].u.uint32));
+        switch (paParms[i].type)
+        {
+            case VBOX_HGCM_SVC_PARM_32BIT:
+                LogFunc(("    paParms[%RU32]: type uint32_t - value %RU32\n", i, paParms[i].u.uint32));
+                break;
+            case VBOX_HGCM_SVC_PARM_64BIT:
+                LogFunc(("    paParms[%RU32]: type uint64_t - value %RU64\n", i, paParms[i].u.uint64));
+                break;
+            case VBOX_HGCM_SVC_PARM_PTR:
+                LogFunc(("    paParms[%RU32]: type ptr - value 0x%p (%RU32 bytes)\n",
+                         i, paParms[i].u.pointer.addr, paParms[i].u.pointer.size));
+                break;
+            case VBOX_HGCM_SVC_PARM_PAGES:
+                LogFunc(("    paParms[%RU32]: type pages - cb=%RU32, cPages=%RU16\n",
+                         i, paParms[i].u.Pages.cb, paParms[i].u.Pages.cPages));
+                break;
+            default:
+                AssertFailed();
+        }
     }
     LogFunc(("Client state: fFlags=0x%x, fGuestFeatures0=0x%x, fGuestFeatures1=0x%x\n",
              pClient->State.fFlags, pClient->State.fGuestFeatures0, pClient->State.fGuestFeatures1));
@@ -1867,8 +1930,12 @@ static DECLCALLBACK(void) svcCall(void *,
             break;
 
         case VBOX_SHCL_GUEST_FN_CONNECT:
-            LogRel(("6.1.0 beta or rc additions detected. Please upgrade!\n"));
+            LogRel(("Shared Clipboard: 6.1.0 beta or rc Guest Additions detected. Please upgrade!\n"));
             rc = VERR_NOT_IMPLEMENTED;
+            break;
+
+        case VBOX_SHCL_GUEST_FN_NEGOTIATE_CHUNK_SIZE:
+            rc = shClSvcClientNegogiateChunkSize(pClient, callHandle, cParms, paParms);
             break;
 
         case VBOX_SHCL_GUEST_FN_REPORT_FEATURES:
@@ -2008,9 +2075,9 @@ void shclSvcClientStateReset(PSHCLCLIENTSTATE pClientState)
     pClientState->fGuestFeatures0 = VBOX_SHCL_GF_NONE;
     pClientState->fGuestFeatures1 = VBOX_SHCL_GF_NONE;
 
-    pClientState->cbChunkSize        = _64K; /** Make this configurable. */
-    pClientState->enmSource          = SHCLSOURCE_INVALID;
-    pClientState->fFlags             = SHCLCLIENTSTATE_FLAGS_NONE;
+    pClientState->cbChunkSize     = VBOX_SHCL_DEFAULT_CHUNK_SIZE; /** @todo Make this configurable. */
+    pClientState->enmSource       = SHCLSOURCE_INVALID;
+    pClientState->fFlags          = SHCLCLIENTSTATE_FLAGS_NONE;
 
     pClientState->POD.enmDir             = SHCLTRANSFERDIR_UNKNOWN;
     pClientState->POD.uFormat            = VBOX_SHCL_FMT_NONE;
@@ -2176,7 +2243,7 @@ static SSMFIELD const s_aShClSSMClientMsgHdr[] =
  */
 static SSMFIELD const s_aShClSSMClientMsgCtx[] =
 {
-    SSMFIELD_ENTRY(SHCLCLIENTMSG, idContext),
+    SSMFIELD_ENTRY(SHCLCLIENTMSG, idCtx),
     SSMFIELD_ENTRY_TERM()
 };
 #endif /* !UNIT_TEST */
@@ -2331,7 +2398,7 @@ static DECLCALLBACK(int) svcLoadState(void *, uint32_t u32ClientID, void *pvClie
 
             PSHCLCLIENTMSG pMsg = shClSvcMsgAlloc(pClient, u.Msg.idMsg, u.Msg.cParms);
             AssertReturn(pMsg, VERR_NO_MEMORY);
-            pMsg->idContext = u.Msg.idContext;
+            pMsg->idCtx = u.Msg.idCtx;
 
             for (uint32_t p = 0; p < pMsg->cParms; p++)
             {
@@ -2391,7 +2458,7 @@ static DECLCALLBACK(int) extCallback(uint32_t u32Function, uint32_t u32Format, v
 
             /* The service extension wants read data from the guest. */
             case VBOX_CLIPBOARD_EXT_FN_DATA_READ:
-                rc = ShClSvcDataReadRequest(pClient, u32Format, NULL /* puEvent */);
+                rc = ShClSvcDataReadRequest(pClient, u32Format, NULL /* pidEvent */);
                 break;
 
             default:

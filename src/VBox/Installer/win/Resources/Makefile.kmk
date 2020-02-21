@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2010-2019 Oracle Corporation
+# Copyright (C) 2010-2020 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -21,14 +21,15 @@ include $(KBUILD_PATH)/subheader.kmk
 DLLS += VBoxRes
 VBoxRes_TEMPLATE = VBOXR3STATIC
 VBoxRes_DEPS     = $(VBOX_SVN_REV_KMK)
-VBoxRes_SOURCES = \
+VBoxRes_SOURCES  = \
 	dummy.cpp \
 	VBoxRes.rc
+VBoxRes_CLEAN    = \
+	$(VBoxRes_0_OUTDIR)/VBoxRes-icons.rc
 
 # The icon location is configurable.
 VBoxRes.rc_INCS += $(VBoxRes_0_OUTDIR)
 VBoxRes.rc_DEPS += $(VBoxRes_0_OUTDIR)/VBoxRes-icons.rc
-VBoxRes.rc_CLEAN = $(VBoxRes_0_OUTDIR)/VBoxRes-icons.rc
 
 # The resource path.
 VBOX_ARTWORK_PATH_WIN := $(subst /,\\,$(PATH_ROOT))/src/VBox/Artwork/win

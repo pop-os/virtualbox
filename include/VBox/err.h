@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -2955,6 +2955,8 @@
 #define VERR_SHCLPB_OBJ_HANDLE_INVALID              (-7104)
 /** A Shared Clipboard transfer ID is invalid. */
 #define VERR_SHCLPB_TRANSFER_ID_NOT_FOUND           (-7105)
+/** Maximum number of Shared Clipboard events for an event source has been reached. */
+#define VERR_SHCLPB_MAX_EVENTS_REACHED              (-7106)
 /** @} */
 /* SED-END */
 

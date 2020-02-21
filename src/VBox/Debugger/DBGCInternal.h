@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -137,12 +137,22 @@ typedef struct DBGC
     /** Log indicator. (If set we're writing the log to the console.) */
     bool                fLog;
 
-    /** Indicates whether the register are terse or sparse. */
-    bool                fRegTerse;
-    /** Whether to display registers when tracing. */
-    bool                fStepTraceRegs;
     /** Counter use to suppress the printing of the headers. */
     uint8_t             cPagingHierarchyDumps;
+    /** Indicates whether the register are terse or sparse. */
+    bool                fRegTerse;
+
+    /** @name Stepping
+     * @{ */
+    /** Whether to display registers when tracing. */
+    bool                fStepTraceRegs;
+    /** Number of multi-steps left, zero if not multi-stepping.   */
+    uint32_t            cMultiStepsLeft;
+    /** The multi-step stride length. */
+    uint32_t            uMultiStepStrideLength;
+    /** The active multi-step command. */
+    PCDBGCCMD           pMultiStepCmd;
+    /** @} */
 
     /** Current disassembler position. */
     DBGCVAR             DisasmPos;

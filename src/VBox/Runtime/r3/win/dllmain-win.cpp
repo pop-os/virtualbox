@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -81,6 +81,7 @@ BOOL __stdcall DllMain(HANDLE hModule, DWORD dwReason, PVOID pvReserved)
             break;
 
         case DLL_THREAD_DETACH:
+            rtTlsWinDetachThread();
             rtThreadNativeDetach();
             break;
     }
