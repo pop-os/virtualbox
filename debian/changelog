@@ -1,3 +1,12 @@
+virtualbox (6.1.4-dfsg-1) unstable; urgency=medium
+
+  * Bump copyright years
+  * New upstream version 6.1.4-dfsg
+  * bump std-version to 4.5.0, no changes required
+  * Patch refresh
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 21 Feb 2020 09:33:05 +0100
+
 virtualbox (6.1.2-dfsg-1) unstable; urgency=medium
 
   * New upstream version 6.1.2-dfsg
