@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2019 Oracle Corporation
+# Copyright (C) 2006-2020 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -95,7 +95,8 @@ ifdef VBOX_WITH_TESTCASES
  	$(TSTVDIO_BUILTIN_TESTS_FILE)
  tstVDIo_LIBS = \
  	$(LIB_DDU)
-
+ tstVDIo_CLEAN = \
+ 	$(TSTVDIO_BUILTIN_TESTS_FILE)
  tstVDSnap_TEMPLATE = VBOXR3TSTEXE
  tstVDSnap_LIBS = $(LIB_DDU)
  tstVDSnap_SOURCES  = tstVDSnap.cpp

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -395,6 +395,8 @@ protected:
     /** Handles translation event. */
     virtual void retranslateUi() /* override */
     {
+        /// @todo replace that one with separate "New" before 6.2
+        setIconText(QApplication::translate("UIActionPool", "&New...").remove('.'));
         setName(QApplication::translate("UIActionPool", "&New Machine..."));
         setStatusTip(QApplication::translate("UIActionPool", "Create new virtual machine"));
         setToolTip(simplifyText(text()) + (shortcut().isEmpty() ? QString() : QString(" (%1)").arg(shortcut().toString())));

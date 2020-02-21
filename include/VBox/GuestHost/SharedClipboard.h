@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -60,21 +60,6 @@ typedef uint32_t SHCLFORMATS;
 /** Pointer to a bit map of Shared Clipboard formats (VBOX_SHCL_FMT_XXX). */
 typedef SHCLFORMATS *PSHCLFORMATS;
 
-
-/**
- * Generic Shared Clipboard data block.
- */
-typedef struct SHCLDATABLOCK
-{
-    /** Clipboard format this data block represents. */
-    SHCLFORMAT  uFormat;
-    /** Size (in bytes) of actual data block. */
-    uint32_t    cbData;
-    /** Pointer to actual data block. */
-    void       *pvData;
-} SHCLDATABLOCK;
-/** Pointer to a generic shared clipboard data block. */
-typedef SHCLDATABLOCK *PSHCLDATABLOCK;
 
 /**
  * Shared Clipboard data read request.
@@ -157,6 +142,8 @@ typedef struct SHCLEVENT
     RTLISTNODE          Node;
     /** The event's ID, for self-reference. */
     SHCLEVENTID         idEvent;
+    /** Reference count to this event. */
+    uint32_t            cRefs;
     /** Event semaphore for signalling the event. */
     RTSEMEVENTMULTI     hEvtMulSem;
     /** Payload to this event, optional (NULL). */
@@ -202,12 +189,13 @@ void ShClEventSourceReset(PSHCLEVENTSOURCE pSource);
  *  @{
  */
 SHCLEVENTID ShClEventIdGenerateAndRegister(PSHCLEVENTSOURCE pSource);
-SHCLEVENTID ShClEventIDGenerate(PSHCLEVENTSOURCE pSource);
 SHCLEVENTID ShClEventGetLast(PSHCLEVENTSOURCE pSource);
-/*int ShClEventRegister(PSHCLEVENTSOURCE pSource, SHCLEVENTID idEvent);*/
+uint32_t ShClEventRetain(PSHCLEVENTSOURCE pSource, SHCLEVENTID idEvent);
+uint32_t ShClEventRelease(PSHCLEVENTSOURCE pSource, SHCLEVENTID idEvent);
+int ShClEventSignal(PSHCLEVENTSOURCE pSource, SHCLEVENTID idEvent, PSHCLEVENTPAYLOAD pPayload);
 int ShClEventUnregister(PSHCLEVENTSOURCE pSource, SHCLEVENTID idEvent);
 int ShClEventWait(PSHCLEVENTSOURCE pSource, SHCLEVENTID idEvent, RTMSINTERVAL uTimeoutMs, PSHCLEVENTPAYLOAD *ppPayload);
-int ShClEventSignal(PSHCLEVENTSOURCE pSource, SHCLEVENTID idEvent, PSHCLEVENTPAYLOAD pPayload);
+
 void ShClEventPayloadDetach(PSHCLEVENTSOURCE pSource, SHCLEVENTID idEvent);
 /** @} */
 

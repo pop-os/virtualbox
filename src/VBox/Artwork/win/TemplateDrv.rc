@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2015-2019 Oracle Corporation
+ * Copyright (C) 2015-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -82,7 +82,7 @@
 LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 
 #ifdef IN_ICON_FILE
-1 ICON IN_ICON_FILE
+IDI_ICON1 ICON IN_ICON_FILE
 #endif
 
 VS_VERSION_INFO VERSIONINFO

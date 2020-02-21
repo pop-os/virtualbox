@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2017-2019 Oracle Corporation
+ * Copyright (C) 2017-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,45 +21,6 @@
 #endif
 
 #include <VBox/types.h>
-
-/**
- * Config item type.
- */
-typedef enum TSTDEVCFGITEMTYPE
-{
-    /** Invalid type. */
-    TSTDEVCFGITEMTYPE_INVALID = 0,
-    /** String type. */
-    TSTDEVCFGITEMTYPE_STRING,
-    /** Integer value encoded in the string. */
-    TSTDEVCFGITEMTYPE_INTEGER,
-    /** Raw bytes. */
-    TSTDEVCFGITEMTYPE_BYTES,
-    /** 32bit hack. */
-    TSTDEVCFGITEMTYPE_32BIT_HACK = 0x7fffffff
-} TSTDEVCFGITEMTYPE;
-/** Pointer to a config item type. */
-typedef TSTDEVCFGITEMTYPE *PTSTDEVCFGITEMTYPE;
-
-
-/**
- * Testcase config item.
- */
-typedef struct TSTDEVCFGITEM
-{
-    /** The key of the item. */
-    const char          *pszKey;
-    /** Type of the config item. */
-    TSTDEVCFGITEMTYPE   enmType;
-    /** The value of the item (as a string/number of bytes to make static
-     * instantiation easier). */
-    const char          *pszVal;
-} TSTDEVCFGITEM;
-/** Pointer to a testcase config item. */
-typedef TSTDEVCFGITEM *PTSTDEVCFGITEM;
-/** Pointer to a constant testcase config item. */
-typedef const TSTDEVCFGITEM *PCTSTDEVCFGITEM;
-
 
 /** Device under test handle. */
 typedef struct TSTDEVDUTINT *TSTDEVDUT;

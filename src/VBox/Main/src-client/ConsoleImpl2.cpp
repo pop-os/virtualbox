@@ -9,7 +9,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -3308,6 +3308,7 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
             Utf8Str strPath;
             strPath.append(strSettingsPath).append("debug/;");
             strPath.append(strSettingsPath).append(";");
+            strPath.append("cache*").append(strSettingsPath).append("dbgcache/;"); /* handy for symlinking to actual cache */
             strPath.append(szHomeDir);
 
             InsertConfigString(pDbgf, "Path", strPath.c_str());

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -106,13 +106,15 @@ int SharedClipboardSvcImplFormatAnnounce(PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX 
  *
  * @param pClient       Context information about the guest VM
  * @param pCmdCtx       Command context to use.
- * @param pData         Data block to put read data into.
+ * @param uFormat       Clipboard format to read.
+ * @param pvData        Where to return the read clipboard data.
+ * @param cbData        Size (in bytes) of buffer where to return the clipboard data.
  * @param pcbActual     Where to store the actual amount of data available.
  */
 int SharedClipboardSvcImplReadData(PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCtx,
-                                   PSHCLDATABLOCK pData, uint32_t *pcbActual)
+                                   SHCLFORMAT uFormat, void *pvData, uint32_t cbData, uint32_t *pcbActual)
 {
-    RT_NOREF(pClient, pCmdCtx, pData);
+    RT_NOREF(pClient, pCmdCtx, uFormat, pvData, cbData);
 
     /* No data available. */
     *pcbActual = 0;
@@ -121,9 +123,9 @@ int SharedClipboardSvcImplReadData(PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCt
 }
 
 int SharedClipboardSvcImplWriteData(PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCtx,
-                                    PSHCLDATABLOCK pData)
+                                    SHCLFORMAT uFormat, void *pvData, uint32_t cbData)
 {
-    RT_NOREF(pClient, pCmdCtx, pData);
+    RT_NOREF(pClient, pCmdCtx, uFormat, pvData, cbData);
     return VERR_NOT_IMPLEMENTED;
 }
 

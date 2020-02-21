@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -262,6 +262,9 @@ DECLHIDDEN(int)          rtThreadDoSetProcPriority(RTPROCPRIORITY enmPriority);
 #ifdef IPRT_WITH_GENERIC_TLS
 DECLHIDDEN(void)         rtThreadClearTlsEntry(RTTLS iTls);
 DECLHIDDEN(void)         rtThreadTlsDestruction(PRTTHREADINT pThread); /* in tls-generic.cpp */
+#endif
+#ifdef RT_OS_WINDOWS
+DECLHIDDEN(void)         rtTlsWinDetachThread(void); /* in tls-dllmain-win.cpp */
 #endif
 
 /* thread-posix.cpp */

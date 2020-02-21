@@ -46,10 +46,11 @@
 #include <iprt/asm.h>
 #include <iprt/assert.h>
 #include <iprt/ctype.h>
-#include <iprt/errcore.h>
+#include <iprt/err.h>
 #include <iprt/file.h>
 #include <iprt/getopt.h>
 #include <iprt/initterm.h>
+#include <iprt/mem.h>
 #include <iprt/message.h>
 #include <iprt/path.h>
 #include <iprt/stream.h>
@@ -67,10 +68,41 @@
 *********************************************************************************************************************************/
 typedef struct FTPSERVERDATA
 {
-    char szRootDir[RTPATH_MAX];
+    /** The absolute path of the FTP server's root directory. */
+    char szPathRootAbs[RTPATH_MAX];
+    /** The relative current working directory (CWD) to szRootDir. */
     char szCWD[RTPATH_MAX];
 } FTPSERVERDATA;
 typedef FTPSERVERDATA *PFTPSERVERDATA;
+
+/**
+ * Enumeration specifying the VFS handle type of the FTP server.
+ */
+typedef enum FTPSERVERVFSHANDLETYPE
+{
+    FTPSERVERVFSHANDLETYPE_INVALID    = 0,
+    FTPSERVERVFSHANDLETYPE_FILE,
+    FTPSERVERVFSHANDLETYPE_DIR,
+    /** The usual 32-bit hack. */
+    FTPSERVERVFSHANDLETYPE_32BIT_HACK = 0x7fffffff
+} FTPSERVERVFSHANDLETYPE;
+
+/**
+ * Structure for keeping a VFS handle of the FTP server.
+ */
+typedef struct FTPSERVERVFSHANDLE
+{
+    /** The type of the handle, stored in the union below. */
+    FTPSERVERVFSHANDLETYPE enmType;
+    union
+    {
+        /** The VFS (chain) handle to use for this file. */
+        RTVFSFILE hVfsFile;
+        /** The VFS (chain) handle to use for this directory. */
+        RTVFSDIR  hVfsDir;
+    } u;
+} FTPSERVERVFSHANDLE;
+typedef FTPSERVERVFSHANDLE *PFTPSERVERVFSHANDLE;
 
 
 /*********************************************************************************************************************************
@@ -184,18 +216,80 @@ static DECLCALLBACK(int) onUserAuthenticate(PRTFTPCALLBACKDATA pData, const char
     return VINF_SUCCESS;
 }
 
-static DECLCALLBACK(int) onUserDisonnect(PRTFTPCALLBACKDATA pData)
+static DECLCALLBACK(int) onUserDisonnect(PRTFTPCALLBACKDATA pData, const char *pcszUser)
 {
     RT_NOREF(pData);
 
-    RTPrintf("User disconnected\n");
+    RTPrintf("User '%s' disconnected\n", pcszUser);
 
     return VINF_SUCCESS;
 }
 
-static DECLCALLBACK(int) onFileGetSize(PRTFTPCALLBACKDATA pData, const char *pcszPath, uint64_t *puSize)
+static DECLCALLBACK(int) onFileOpen(PRTFTPCALLBACKDATA pData, const char *pcszPath, uint32_t fMode, void **ppvHandle)
+{
+    PFTPSERVERDATA pThis = (PFTPSERVERDATA)pData->pvUser;
+    Assert(pData->cbUser == sizeof(FTPSERVERDATA));
+
+    PFTPSERVERVFSHANDLE pHandle = (PFTPSERVERVFSHANDLE)RTMemAllocZ(sizeof(FTPSERVERVFSHANDLE));
+    if (!pHandle)
+        return VERR_NO_MEMORY;
+
+    char *pszPathAbs = NULL;
+    if (RTStrAPrintf(&pszPathAbs, "%s/%s", pThis->szPathRootAbs, pcszPath) <= 0)
+        return VERR_NO_MEMORY;
+
+    int rc = RTVfsChainOpenFile(pszPathAbs, fMode, &pHandle->u.hVfsFile, NULL /*poffError */, NULL /* pErrInfo */);
+    if (RT_SUCCESS(rc))
+    {
+        pHandle->enmType = FTPSERVERVFSHANDLETYPE_FILE;
+
+        *ppvHandle = pHandle;
+    }
+    else
+        RTMemFree(pHandle);
+
+    RTStrFree(pszPathAbs);
+
+    return rc;
+}
+
+static DECLCALLBACK(int) onFileRead(PRTFTPCALLBACKDATA pData, void *pvHandle, void *pvBuf, size_t cbToRead, size_t *pcbRead)
 {
     RT_NOREF(pData);
+
+    PFTPSERVERVFSHANDLE pHandle = (PFTPSERVERVFSHANDLE)pvHandle;
+    AssertPtrReturn(pHandle, VERR_INVALID_POINTER);
+    AssertReturn(pHandle->enmType == FTPSERVERVFSHANDLETYPE_FILE, VERR_INVALID_PARAMETER);
+
+    return RTVfsFileRead(pHandle->u.hVfsFile, pvBuf, cbToRead, pcbRead);
+}
+
+static DECLCALLBACK(int) onFileClose(PRTFTPCALLBACKDATA pData, void *pvHandle)
+{
+    RT_NOREF(pData);
+
+    PFTPSERVERVFSHANDLE pHandle = (PFTPSERVERVFSHANDLE)pvHandle;
+    AssertPtrReturn(pHandle, VERR_INVALID_POINTER);
+    AssertReturn(pHandle->enmType == FTPSERVERVFSHANDLETYPE_FILE, VERR_INVALID_PARAMETER);
+
+    int rc = RTVfsFileRelease(pHandle->u.hVfsFile);
+    if (RT_SUCCESS(rc))
+    {
+        RTMemFree(pvHandle);
+        pvHandle = NULL;
+    }
+
+    return rc;
+}
+
+static DECLCALLBACK(int) onFileGetSize(PRTFTPCALLBACKDATA pData, const char *pcszPath, uint64_t *puSize)
+{
+    PFTPSERVERDATA pThis = (PFTPSERVERDATA)pData->pvUser;
+    Assert(pData->cbUser == sizeof(FTPSERVERDATA));
+
+    char *pszStat = NULL;
+    if (RTStrAPrintf(&pszStat, "%s/%s", pThis->szPathRootAbs, pcszPath) <= 0)
+        return VERR_NO_MEMORY;
 
     RTPrintf("Retrieving file size for '%s' ...\n", pcszPath);
 
@@ -210,21 +304,39 @@ static DECLCALLBACK(int) onFileGetSize(PRTFTPCALLBACKDATA pData, const char *pcs
         RTFileClose(hFile);
     }
 
+    RTStrFree(pszStat);
+
     return rc;
 }
 
 static DECLCALLBACK(int) onFileStat(PRTFTPCALLBACKDATA pData, const char *pcszPath, PRTFSOBJINFO pFsObjInfo)
 {
-    RT_NOREF(pData);
+    PFTPSERVERDATA pThis = (PFTPSERVERDATA)pData->pvUser;
+    Assert(pData->cbUser == sizeof(FTPSERVERDATA));
+
+    char *pszStat = NULL;
+    if (RTStrAPrintf(&pszStat, "%s/%s", pThis->szPathRootAbs, pcszPath) <= 0)
+        return VERR_NO_MEMORY;
+
+    RTPrintf("Stat for '%s'\n", pszStat);
 
     RTFILE hFile;
-    int rc = RTFileOpen(&hFile, pcszPath,
+    int rc = RTFileOpen(&hFile, pszStat,
                         RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_WRITE);
     if (RT_SUCCESS(rc))
     {
-        rc = RTFileQueryInfo(hFile, pFsObjInfo, RTFSOBJATTRADD_NOTHING);
+        RTFSOBJINFO fsObjInfo;
+        rc = RTFileQueryInfo(hFile, &fsObjInfo, RTFSOBJATTRADD_NOTHING);
+        if (RT_SUCCESS(rc))
+        {
+            if (pFsObjInfo)
+                *pFsObjInfo = fsObjInfo;
+        }
+
         RTFileClose(hFile);
     }
+
+    RTStrFree(pszStat);
 
     return rc;
 }
@@ -248,9 +360,7 @@ static DECLCALLBACK(int) onPathGetCurrent(PRTFTPCALLBACKDATA pData, char *pszPWD
 
     RTPrintf("Current directory is: '%s'\n", pThis->szCWD);
 
-    RTStrPrintf(pszPWD, cbPWD, "%s", pThis->szCWD);
-
-    return VINF_SUCCESS;
+    return RTStrCopy(pszPWD, cbPWD, pThis->szCWD);
 }
 
 static DECLCALLBACK(int) onPathUp(PRTFTPCALLBACKDATA pData)
@@ -260,11 +370,135 @@ static DECLCALLBACK(int) onPathUp(PRTFTPCALLBACKDATA pData)
     return VINF_SUCCESS;
 }
 
-static DECLCALLBACK(int) onList(PRTFTPCALLBACKDATA pData, const char *pcszPath, void **ppvData, size_t *pcbData)
+static DECLCALLBACK(int) onDirOpen(PRTFTPCALLBACKDATA pData, const char *pcszPath, void **ppvHandle)
 {
-    RT_NOREF(pData, pcszPath, ppvData, pcbData);
+    PFTPSERVERDATA pThis = (PFTPSERVERDATA)pData->pvUser;
+    Assert(pData->cbUser == sizeof(FTPSERVERDATA));
+
+    PFTPSERVERVFSHANDLE pHandle = (PFTPSERVERVFSHANDLE)RTMemAllocZ(sizeof(FTPSERVERVFSHANDLE));
+    if (!pHandle)
+        return VERR_NO_MEMORY;
+
+    /* Construct absolute path. */
+    char *pszPathAbs = NULL;
+    if (RTStrAPrintf(&pszPathAbs, "%s/%s", pThis->szPathRootAbs, pcszPath) <= 0)
+        return VERR_NO_MEMORY;
+
+    RTPrintf("Opening directory '%s'\n", pszPathAbs);
+
+    int rc = RTVfsChainOpenDir(pszPathAbs, 0 /*fFlags*/, &pHandle->u.hVfsDir, NULL /* poffError */, NULL /* pErrInfo */);
+    if (RT_SUCCESS(rc))
+    {
+        pHandle->enmType = FTPSERVERVFSHANDLETYPE_DIR;
+
+        *ppvHandle = pHandle;
+    }
+    else
+    {
+        RTMemFree(pHandle);
+    }
+
+    RTStrFree(pszPathAbs);
+
+    return rc;
+}
+
+static DECLCALLBACK(int) onDirClose(PRTFTPCALLBACKDATA pData, void *pvHandle)
+{
+    RT_NOREF(pData);
+
+    PFTPSERVERVFSHANDLE pHandle = (PFTPSERVERVFSHANDLE)pvHandle;
+    AssertPtrReturn(pHandle, VERR_INVALID_POINTER);
+    AssertReturn(pHandle->enmType == FTPSERVERVFSHANDLETYPE_DIR, VERR_INVALID_PARAMETER);
+
+    RTVfsDirRelease(pHandle->u.hVfsDir);
+
+    RTMemFree(pHandle);
+    pHandle = NULL;
 
     return VINF_SUCCESS;
+}
+
+static DECLCALLBACK(int) onDirRead(PRTFTPCALLBACKDATA pData, void *pvHandle, char **ppszEntry,
+                                   PRTFSOBJINFO pInfo, char **ppszOwner, char **ppszGroup, char **ppszTarget)
+{
+    RT_NOREF(pData);
+    RT_NOREF(ppszTarget); /* No symlinks yet */
+
+    PFTPSERVERVFSHANDLE pHandle = (PFTPSERVERVFSHANDLE)pvHandle;
+    AssertPtrReturn(pHandle, VERR_INVALID_POINTER);
+    AssertReturn(pHandle->enmType == FTPSERVERVFSHANDLETYPE_DIR, VERR_INVALID_PARAMETER);
+
+    size_t          cbDirEntryAlloced = sizeof(RTDIRENTRYEX);
+    PRTDIRENTRYEX   pDirEntry         = (PRTDIRENTRYEX)RTMemTmpAlloc(cbDirEntryAlloced);
+    if (!pDirEntry)
+        return VERR_NO_MEMORY;
+
+    int rc;
+
+    for (;;)
+    {
+        size_t cbDirEntry = cbDirEntryAlloced;
+        rc = RTVfsDirReadEx(pHandle->u.hVfsDir, pDirEntry, &cbDirEntry, RTFSOBJATTRADD_UNIX);
+        if (RT_FAILURE(rc))
+        {
+            if (rc == VERR_BUFFER_OVERFLOW)
+            {
+                RTMemTmpFree(pDirEntry);
+                cbDirEntryAlloced = RT_ALIGN_Z(RT_MIN(cbDirEntry, cbDirEntryAlloced) + 64, 64);
+                pDirEntry  = (PRTDIRENTRYEX)RTMemTmpAlloc(cbDirEntryAlloced);
+                if (pDirEntry)
+                    continue;
+            }
+            else if (rc != VERR_NO_MORE_FILES)
+                break;
+        }
+
+        if (RT_SUCCESS(rc))
+        {
+            if (pDirEntry->Info.Attr.u.Unix.uid != NIL_RTUID)
+            {
+                RTFSOBJINFO OwnerInfo;
+                rc = RTVfsDirQueryPathInfo(pHandle->u.hVfsDir,
+                                           pDirEntry->szName, &OwnerInfo, RTFSOBJATTRADD_UNIX_OWNER, RTPATH_F_ON_LINK);
+                if (   RT_SUCCESS(rc)
+                    && OwnerInfo.Attr.u.UnixOwner.szName[0])
+                {
+                    *ppszOwner = RTStrDup(&OwnerInfo.Attr.u.UnixOwner.szName[0]);
+                    if (!*ppszOwner)
+                        rc = VERR_NO_MEMORY;
+                }
+            }
+
+            if (   RT_SUCCESS(rc)
+                && pDirEntry->Info.Attr.u.Unix.gid != NIL_RTGID)
+            {
+                RTFSOBJINFO GroupInfo;
+                rc = RTVfsDirQueryPathInfo(pHandle->u.hVfsDir,
+                                           pDirEntry->szName, &GroupInfo, RTFSOBJATTRADD_UNIX_GROUP, RTPATH_F_ON_LINK);
+                if (   RT_SUCCESS(rc)
+                    && GroupInfo.Attr.u.UnixGroup.szName[0])
+                {
+                    *ppszGroup = RTStrDup(&GroupInfo.Attr.u.UnixGroup.szName[0]);
+                    if (!*ppszGroup)
+                        rc = VERR_NO_MEMORY;
+                }
+            }
+        }
+
+        *ppszEntry = RTStrDup(pDirEntry->szName);
+        AssertPtrReturn(*ppszEntry, VERR_NO_MEMORY);
+
+        *pInfo = pDirEntry->Info;
+
+        break;
+
+    } /* for */
+
+    RTMemTmpFree(pDirEntry);
+    pDirEntry = NULL;
+
+    return rc;
 }
 
 int main(int argc, char **argv)
@@ -311,7 +545,7 @@ int main(int argc, char **argv)
                 break;
 
             case 'r':
-                RTStrCopy(g_FTPServerData.szRootDir, sizeof(g_FTPServerData.szRootDir), ValueUnion.psz);
+                RTStrCopy(g_FTPServerData.szPathRootAbs, sizeof(g_FTPServerData.szPathRootAbs), ValueUnion.psz);
                 break;
 
             case 'v':
@@ -338,7 +572,7 @@ int main(int argc, char **argv)
                 return RTEXITCODE_SUCCESS;
 
             case 'V':
-                RTPrintf("$Revision: 135661 $\n");
+                RTPrintf("$Revision: 135814 $\n");
                 return RTEXITCODE_SUCCESS;
 
             default:
@@ -346,10 +580,10 @@ int main(int argc, char **argv)
         }
     }
 
-    if (!strlen(g_FTPServerData.szRootDir))
+    if (!strlen(g_FTPServerData.szPathRootAbs))
     {
         /* By default use the current directory as serving root directory. */
-        rc = RTPathGetCurrent(g_FTPServerData.szRootDir, sizeof(g_FTPServerData.szRootDir));
+        rc = RTPathGetCurrent(g_FTPServerData.szPathRootAbs, sizeof(g_FTPServerData.szPathRootAbs));
         if (RT_FAILURE(rc))
             return RTMsgErrorExit(RTEXITCODE_FAILURE, "Retrieving current directory failed: %Rrc", rc);
     }
@@ -367,25 +601,28 @@ int main(int argc, char **argv)
         RTFTPSERVERCALLBACKS Callbacks;
         RT_ZERO(Callbacks);
 
-        Callbacks.pvUser                = &g_FTPServerData;
-        Callbacks.cbUser                = sizeof(g_FTPServerData);
-
         Callbacks.pfnOnUserConnect      = onUserConnect;
         Callbacks.pfnOnUserAuthenticate = onUserAuthenticate;
         Callbacks.pfnOnUserDisconnect   = onUserDisonnect;
+        Callbacks.pfnOnFileOpen         = onFileOpen;
+        Callbacks.pfnOnFileRead         = onFileRead;
+        Callbacks.pfnOnFileClose        = onFileClose;
         Callbacks.pfnOnFileGetSize      = onFileGetSize;
         Callbacks.pfnOnFileStat         = onFileStat;
         Callbacks.pfnOnPathSetCurrent   = onPathSetCurrent;
         Callbacks.pfnOnPathGetCurrent   = onPathGetCurrent;
         Callbacks.pfnOnPathUp           = onPathUp;
-        Callbacks.pfnOnList             = onList;
+        Callbacks.pfnOnDirOpen          = onDirOpen;
+        Callbacks.pfnOnDirClose         = onDirClose;
+        Callbacks.pfnOnDirRead          = onDirRead;
 
         RTFTPSERVER hFTPServer;
-        rc = RTFtpServerCreate(&hFTPServer, szAddress, uPort, &Callbacks);
+        rc = RTFtpServerCreate(&hFTPServer, szAddress, uPort, &Callbacks,
+                               &g_FTPServerData, sizeof(g_FTPServerData));
         if (RT_SUCCESS(rc))
         {
             RTPrintf("Starting FTP server at %s:%RU16 ...\n", szAddress, uPort);
-            RTPrintf("Root directory is '%s'\n", g_FTPServerData.szRootDir);
+            RTPrintf("Root directory is '%s'\n", g_FTPServerData.szPathRootAbs);
 
             RTPrintf("Running FTP server ...\n");
 

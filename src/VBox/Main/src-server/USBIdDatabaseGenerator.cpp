@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2015-2019 Oracle Corporation
+ * Copyright (C) 2015-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -247,7 +247,7 @@ static void WriteSourceFile(FILE *pOut, const char *argv0, PBLDPROGSTRTAB pStrTa
             " */\n"
             "\n"
             "/*\n"
-            " * Copyright (C) 2015-2016 Oracle Corporation\n"
+            " * Copyright (C) 2015-2020 Oracle Corporation\n"
             " *\n"
             " * This file is part of VirtualBox Open Source Edition(OSE), as\n"
             " * available from http ://www.virtualbox.org. This file is free software;\n"

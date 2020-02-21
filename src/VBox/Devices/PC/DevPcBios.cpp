@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1611,7 +1611,8 @@ static DECLCALLBACK(int)  pcbiosConstruct(PPDMDEVINS pDevIns, int iInstance, PCF
     uint16_t cbDmiTables = 0;
     uint16_t cDmiTables = 0;
     rc = FwCommonPlantDMITable(pDevIns, pThis->au8DMIPage, VBOX_DMI_TABLE_SIZE,
-                               &uuid, pCfg, pThis->cCpus, &cbDmiTables, &cDmiTables);
+                               &uuid, pCfg, pThis->cCpus, &cbDmiTables, &cDmiTables,
+                               false /*fUefi*/);
     if (RT_FAILURE(rc))
         return rc;
 

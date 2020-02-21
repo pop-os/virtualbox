@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -739,6 +739,12 @@ VMMR0DECL(int) SVMR0InitVM(PVMCC pVM)
     for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
     {
         PVMCPUCC pVCpu = VMCC_GET_CPU(pVM, idCpu);
+
+        /*
+         * Initialize the hardware-assisted SVM guest-execution handler.
+         * We now use a single handler for both 32-bit and 64-bit guests, see @bugref{6208#c73}.
+         */
+        pVCpu->hm.s.svm.pfnVMRun = SVMR0VMRun;
 
         /*
          * Allocate one page for the host-context VM control block (VMCB). This is used for additional host-state (such as
@@ -2177,38 +2183,6 @@ static void hmR0SvmMergeVmcbCtrlsNested(PVMCPUCC pVCpu)
 
 
 /**
- * Selects the appropriate function to run guest code.
- *
- * @returns VBox status code.
- * @param   pVCpu   The cross context virtual CPU structure.
- *
- * @remarks No-long-jump zone!!!
- */
-static int hmR0SvmSelectVMRunHandler(PVMCPUCC pVCpu)
-{
-    if (CPUMIsGuestInLongMode(pVCpu))
-    {
-#ifndef VBOX_WITH_64_BITS_GUESTS
-        return VERR_PGM_UNSUPPORTED_SHADOW_PAGING_MODE;
-#else
-# if HC_ARCH_BITS != 64 || ARCH_BITS != 64
-#  error "Only 64-bit hosts are supported!"
-# endif
-        Assert(pVCpu->CTX_SUFF(pVM)->hm.s.fAllow64BitGuests);    /* Guaranteed by hmR3InitFinalizeR0(). */
-        /* Guest in long mode, use 64-bit handler (host is 64-bit). */
-        pVCpu->hm.s.svm.pfnVMRun = SVMR0VMRun64;
-#endif
-    }
-    else
-    {
-        /* Guest is not in long mode, use the 32-bit handler. */
-        pVCpu->hm.s.svm.pfnVMRun = SVMR0VMRun;
-    }
-    return VINF_SUCCESS;
-}
-
-
-/**
  * Enters the AMD-V session.
  *
  * @returns VBox status code.
@@ -2361,9 +2335,6 @@ static int hmR0SvmExportGuestState(PVMCPUCC pVCpu, PCSVMTRANSIENT pSvmTransient)
         hmR0SvmExportGuestApicTpr(pVCpu, pVmcb);
         hmR0SvmExportGuestXcptIntercepts(pVCpu, pVmcb);
     }
-
-    rc = hmR0SvmSelectVMRunHandler(pVCpu);
-    AssertRCReturn(rc, rc);
 
     /* Clear any bits that may be set but exported unconditionally or unused/reserved bits. */
     uint64_t fUnusedMask = HM_CHANGED_GUEST_RIP
@@ -3299,7 +3270,14 @@ DECLINLINE(void) hmR0SvmInjectEventVmcb(PVMCPUCC pVCpu, PSVMVMCB pVmcb, PSVMEVEN
 {
     Assert(!pVmcb->ctrl.EventInject.n.u1Valid);
     pVmcb->ctrl.EventInject.u = pEvent->u;
-    STAM_COUNTER_INC(&pVCpu->hm.s.paStatInjectedIrqsR0[pEvent->n.u8Vector & MASK_INJECT_IRQ_STAT]);
+    if (   pVmcb->ctrl.EventInject.n.u3Type == SVM_EVENT_EXCEPTION
+        || pVmcb->ctrl.EventInject.n.u3Type == SVM_EVENT_NMI)
+    {
+        Assert(pEvent->n.u8Vector <= X86_XCPT_LAST);
+        STAM_COUNTER_INC(&pVCpu->hm.s.paStatInjectedXcptsR0[pEvent->n.u8Vector]);
+    }
+    else
+        STAM_COUNTER_INC(&pVCpu->hm.s.paStatInjectedIrqsR0[pEvent->n.u8Vector & MASK_INJECT_IRQ_STAT]);
     RT_NOREF(pVCpu);
 
     Log4Func(("u=%#RX64 u8Vector=%#x Type=%#x ErrorCodeValid=%RTbool ErrorCode=%#RX32\n", pEvent->u, pEvent->n.u8Vector,

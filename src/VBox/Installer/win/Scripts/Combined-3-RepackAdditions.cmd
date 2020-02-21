@@ -5,7 +5,7 @@ rem Windows NT batch script for repacking signed amd64 and x86 drivers.
 rem
 
 rem
-rem Copyright (C) 2018-2019 Oracle Corporation
+rem Copyright (C) 2018-2020 Oracle Corporation
 rem
 rem This file is part of VirtualBox Open Source Edition (OSE), as
 rem available from http://www.virtualbox.org. This file is free software;
@@ -170,10 +170,18 @@ set _MY_BINDIR_X86=%_MY_OPT_UNTAR_DIR%\win.x86\%_MY_OPT_BUILD_TYPE%\bin\addition
 if not exist "%_MY_BINDIR_AMD64%"       goto error_amd64_bindir_not_found
 if not exist "%_MY_BINDIR_X86%"         goto error_x86_bindir_not_found
 
-set _MY_REPACK_DIR_AMD64=%_MY_OPT_UNTAR_DIR%\win.amd64\%_MY_OPT_BUILD_TYPE%\repack
-set _MY_REPACK_DIR_X86=%_MY_OPT_UNTAR_DIR%\win.x86\%_MY_OPT_BUILD_TYPE%\repack
+set _MY_REPACK_DIR_AMD64=%_MY_OPT_UNTAR_DIR%\win.amd64\%_MY_OPT_BUILD_TYPE%\repackadd
+set _MY_REPACK_DIR_X86=%_MY_OPT_UNTAR_DIR%\win.x86\%_MY_OPT_BUILD_TYPE%\repackadd
 if not exist "%_MY_REPACK_DIR_AMD64%"   goto error_amd64_repack_dir_not_found
 if not exist "%_MY_REPACK_DIR_X86%"     goto error_x86_repack_dir_not_found
+
+if not ".%_MY_OPT_SIGNED_AMD64%" == "." goto skip_set_default_amd64_signed
+set _MY_OPT_SIGNED_AMD64="%_MY_OPT_OUTDIR%/VBoxDrivers-@VBOX_VERSION_STRING@r@VBOX_SVN_REV@-amd64.cab.Signed.zip"
+:skip_set_default_amd64_signed
+
+if not ".%_MY_OPT_SIGNED_X86%" == "." goto skip_set_default_x86_signed
+set _MY_OPT_SIGNED_X86="%_MY_OPT_OUTDIR%/VBoxDrivers-@VBOX_VERSION_STRING@r@VBOX_SVN_REV@-x86.cab.Signed.zip"
+:skip_set_default_x86_signed
 
 if not exist "%_MY_OPT_SIGNED_AMD64%"   goto error_signed_amd64_not_found
 if not exist "%_MY_OPT_SIGNED_X86%"     goto error_signed_x86_not_found

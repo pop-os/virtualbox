@@ -4,7 +4,7 @@
 ;
 
 ;
-; Copyright (C) 2007-2019 Oracle Corporation
+; Copyright (C) 2007-2020 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -251,6 +251,9 @@ BS3_GLOBAL_LOCAL_LABEL .sixteen_bit_segment
         ; Before exiting to real mode we must load sensible selectors into the
         ; segment registers so the hidden parts (which doesn't get reloaded in
         ; real mode) are real mode compatible.
+        ;
+        ; ASSUMES BS3_SEL_R0_SS16 and BS3_SEL_R0_CS16 are both maxed out and
+        ; has no funny bits set!
         ;
 .is_386_or_better:
 ;; @todo Testcase: Experiment leaving weird stuff in the hidden segment registers.

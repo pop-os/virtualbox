@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -67,7 +67,7 @@
 #endif
 
 /* Generic disk read/write routine signature. */
-typedef __fastcall (* dsk_rw_func)(bio_dsk_t __far *bios_dsk);
+typedef int __fastcall (* dsk_rw_func)(bio_dsk_t __far *bios_dsk);
 
 /* Controller specific disk access routines. Declared as a union to reduce
  * the need for conditionals when choosing between read/write functions.
@@ -359,10 +359,13 @@ void BIOSCALL int13_harddisk(disk_regs_t r)
         if (( (bios_dsk->devices[device].pchs.heads != nlh) || (bios_dsk->devices[device].pchs.spt != nlspt)) || VBOX_IS_SCSI_DEVICE(device)) {
             lba = ((((uint32_t)cylinder * (uint32_t)nlh) + (uint32_t)head) * (uint32_t)nlspt) + (uint32_t)sector - 1;
             sector = 0; // this forces the command to be lba
+            BX_DEBUG_INT13_HD("%s: %d sectors from lba %lu @ %04x:%04x\n", __func__,
+                              count, lba, ES, BX);
+        } else {
+            BX_DEBUG_INT13_HD("%s: %d sectors from C/H/S %u/%u/%u @ %04x:%04x\n", __func__,
+                              count, cylinder, head, sector, ES, BX);
         }
 
-        BX_DEBUG_INT13_HD("%s: %d sectors from lba %lu @ %04x:%04x\n", __func__,
-                          count, lba, ES, BX);
 
         /* Clear the count of transferred sectors/bytes. */
         bios_dsk->drqp.trsfsectors = 0;
@@ -422,6 +425,10 @@ void BIOSCALL int13_harddisk(disk_regs_t r)
     case 0x10: /* check drive ready */
         // should look at 40:8E also???
 
+#ifdef VBOX_WITH_SCSI
+        /* SCSI drives are always "ready". */
+        if (!VBOX_IS_SCSI_DEVICE(device)) {
+#endif
         // Read the status from controller
         status = inb(bios_dsk->channels[device/2].iobase1 + ATA_CB_STAT);
         if ( (status & ( ATA_CB_STAT_BSY | ATA_CB_STAT_RDY )) == ATA_CB_STAT_RDY ) {
@@ -430,6 +437,10 @@ void BIOSCALL int13_harddisk(disk_regs_t r)
             SET_AH(0xAA);
             goto int13_fail_noah;
         }
+#ifdef VBOX_WITH_SCSI
+        } else  /* It's not an ATA drive. */
+            goto int13_success;
+#endif
         break;
 
     case 0x15: /* read disk drive size */

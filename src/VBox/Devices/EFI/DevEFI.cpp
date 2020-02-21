@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -2638,7 +2638,8 @@ static DECLCALLBACK(int)  efiConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
      * Plant DMI and MPS tables in the ROM region.
      */
     rc = FwCommonPlantDMITable(pDevIns, pThisCC->au8DMIPage, VBOX_DMI_TABLE_SIZE, &pThisCC->aUuid,
-                               pDevIns->pCfg, pThisCC->cCpus, &pThisCC->cbDmiTables, &pThisCC->cNumDmiTables);
+                               pDevIns->pCfg, pThisCC->cCpus, &pThisCC->cbDmiTables, &pThisCC->cNumDmiTables,
+                               true /*fUefi*/);
     AssertRCReturn(rc, rc);
 
     /*

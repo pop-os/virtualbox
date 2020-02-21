@@ -16,7 +16,7 @@ from __future__ import print_function;
 
 __copyright__ = \
 """
-Copyright (C) 2012-2019 Oracle Corporation
+Copyright (C) 2012-2020 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -35,7 +35,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 133743 $"
+__version__ = "$Revision: 135976 $"
 
 
 # Standard python imports
@@ -337,7 +337,7 @@ class VirtualTestSheriff(object): # pylint: disable=too-few-public-methods
 
         if self.oConfig.sLogFile:
             self.oLogFile = open(self.oConfig.sLogFile, "a");
-            self.oLogFile.write('VirtualTestSheriff: $Revision: 133743 $ \n');
+            self.oLogFile.write('VirtualTestSheriff: $Revision: 135976 $ \n');
 
 
     def eprint(self, sText):
@@ -498,8 +498,7 @@ class VirtualTestSheriff(object): # pylint: disable=too-few-public-methods
                             oFailure = self.oTestResultFailureLogic.getById(oFailedResult.idTestResult);
                             if oFailure is not None and oFailure.idFailureReason in aidFailureReasons:
                                 break;
-                            else:
-                                oFailure = None;
+                            oFailure = None;
                     if oFailure is not None:
                         cBad += 1;
                     else:
@@ -720,7 +719,7 @@ class VirtualTestSheriff(object): # pylint: disable=too-few-public-methods
         for idTestResult, tReason in dReasonForResultId.items():
             oFailureReason = self.getFailureReason(tReason);
             if oFailureReason is not None:
-                sComment = 'Set by $Revision: 133743 $' # Handy for reverting later.
+                sComment = 'Set by $Revision: 135976 $' # Handy for reverting later.
                 if idTestResult in dCommentForResultId:
                     sComment += ': ' + dCommentForResultId[idTestResult];
 

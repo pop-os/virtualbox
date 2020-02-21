@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,7 +16,10 @@
  */
 
 /* GUI includes: */
+#include "UIChooserAbstractModel.h"
 #include "UIChooserNodeMachine.h"
+#include "UIVirtualMachineItemCloud.h"
+#include "UIVirtualMachineItemLocal.h"
 
 
 UIChooserNodeMachine::UIChooserNodeMachine(UIChooserNode *pParent,
@@ -24,7 +27,35 @@ UIChooserNodeMachine::UIChooserNodeMachine(UIChooserNode *pParent,
                                            int  iPosition,
                                            const CMachine &comMachine)
     : UIChooserNode(pParent, fFavorite)
-    , UIVirtualMachineItem(comMachine)
+    , m_pCache(new UIVirtualMachineItemLocal(comMachine))
+{
+    if (parentNode())
+        parentNode()->addNode(this, iPosition);
+    retranslateUi();
+}
+
+UIChooserNodeMachine::UIChooserNodeMachine(UIChooserNode *pParent,
+                                           bool fFavorite,
+                                           int iPosition,
+                                           const UICloudMachine &guiCloudMachine)
+    : UIChooserNode(pParent, fFavorite)
+    , m_pCache(new UIVirtualMachineItemCloud(guiCloudMachine))
+{
+    if (parentNode())
+        parentNode()->addNode(this, iPosition);
+    /* Cloud VM item can notify machine node only directly (no console), we have to setup listener: */
+    connect(static_cast<UIVirtualMachineItemCloud*>(m_pCache), &UIVirtualMachineItemCloud::sigStateChange,
+            this, &UIChooserNodeMachine::sltHandleStateChange);
+    connect(static_cast<UIVirtualMachineItemCloud*>(m_pCache), &UIVirtualMachineItemCloud::sigStateChange,
+            static_cast<UIChooserAbstractModel*>(model()), &UIChooserAbstractModel::sltHandleCloudMachineStateChange);
+    retranslateUi();
+}
+
+UIChooserNodeMachine::UIChooserNodeMachine(UIChooserNode *pParent,
+                                           bool fFavorite,
+                                           int  iPosition)
+    : UIChooserNode(pParent, fFavorite)
+    , m_pCache(new UIVirtualMachineItemCloud)
 {
     if (parentNode())
         parentNode()->addNode(this, iPosition);
@@ -35,8 +66,19 @@ UIChooserNodeMachine::UIChooserNodeMachine(UIChooserNode *pParent,
                                            UIChooserNodeMachine *pCopyFrom,
                                            int iPosition)
     : UIChooserNode(pParent, pCopyFrom->isFavorite())
-    , UIVirtualMachineItem(pCopyFrom->machine())
 {
+    switch (pCopyFrom->cache()->itemType())
+    {
+        case UIVirtualMachineItem::ItemType_Local:
+            m_pCache = new UIVirtualMachineItemLocal(pCopyFrom->cache()->toLocal()->machine());
+            break;
+        case UIVirtualMachineItem::ItemType_CloudFake:
+            m_pCache = new UIVirtualMachineItemCloud;
+            break;
+        default:
+            break;
+    }
+
     if (parentNode())
         parentNode()->addNode(this, iPosition);
     retranslateUi();
@@ -47,11 +89,12 @@ UIChooserNodeMachine::~UIChooserNodeMachine()
     delete item();
     if (parentNode())
         parentNode()->removeNode(this);
+    delete m_pCache;
 }
 
 QString UIChooserNodeMachine::name() const
 {
-    return UIVirtualMachineItem::name();
+    return m_pCache->name();
 }
 
 QString UIChooserNodeMachine::fullName() const
@@ -103,7 +146,7 @@ void UIChooserNodeMachine::removeNode(UIChooserNode *pNode)
 void UIChooserNodeMachine::removeAllNodes(const QUuid &uId)
 {
     /* Skip other ids: */
-    if (id() != uId)
+    if (QUuid(m_pCache->id()) != uId)
         return;
 
     /* Remove this node: */
@@ -113,15 +156,20 @@ void UIChooserNodeMachine::removeAllNodes(const QUuid &uId)
 void UIChooserNodeMachine::updateAllNodes(const QUuid &uId)
 {
     /* Skip other ids: */
-    if (id() != uId)
+    if (QUuid(m_pCache->id()) != uId)
         return;
 
-    /* Update machine-node: */
-    recache();
+    /* Update cache: */
+    m_pCache->recache();
 
     /* Update machine-item: */
     if (item())
         item()->updateItem();
+}
+
+bool UIChooserNodeMachine::hasAtLeastOneCloudNode() const
+{
+    return cache()->itemType() != UIVirtualMachineItem::ItemType_Local;
 }
 
 int UIChooserNodeMachine::positionOf(UIChooserNode *pNode)
@@ -159,9 +207,16 @@ void UIChooserNodeMachine::sortNodes()
 
 void UIChooserNodeMachine::retranslateUi()
 {
-    /* Update description: */
+    /* Update internal stuff: */
     m_strDescription = tr("Virtual Machine");
 
+    /* Update machine-item: */
+    if (item())
+        item()->updateItem();
+}
+
+void UIChooserNodeMachine::sltHandleStateChange()
+{
     /* Update machine-item: */
     if (item())
         item()->updateItem();

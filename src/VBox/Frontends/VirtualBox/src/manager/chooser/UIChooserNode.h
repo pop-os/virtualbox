@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -32,6 +32,7 @@
 #include "UIChooserItem.h"
 
 /* Forward declaration: */
+class UIChooserAbstractModel;
 class UIChooserNodeGroup;
 class UIChooserNodeGlobal;
 class UIChooserNodeMachine;
@@ -66,11 +67,18 @@ public:
     UIChooserNode *parentNode() const {  return m_pParent; }
     /** Returns whether node is of root kind. */
     bool isRoot() const { return !m_pParent; }
+    /** Returns root node reference. */
+    UIChooserNode *rootNode() const;
 
     /** Returns whether the node is favorite. */
     bool isFavorite() const { return m_fFavorite; }
     /** Defines whether the node is @a fFavorite. */
     void setFavorite(bool fFavorite) { m_fFavorite = fFavorite; }
+
+    /** Defines the @a pModel reference. */
+    void setModel(UIChooserAbstractModel *pModel) { m_pModel = pModel; }
+    /** Returns the model reference. */
+    UIChooserAbstractModel *model() const;
 
     /** Returns node name. */
     virtual QString name() const = 0;
@@ -95,6 +103,10 @@ public:
     virtual void removeAllNodes(const QUuid &uId) = 0;
     /** Updates all children with specified @a uId recursively. */
     virtual void updateAllNodes(const QUuid &uId) = 0;
+
+    /** Returns whether this node is a cloud node itself
+      * or contains at least one cloud VM node child. */
+    virtual bool hasAtLeastOneCloudNode() const = 0;
 
     /** Returns node position. */
     int position();
@@ -124,6 +136,9 @@ protected:
     UIChooserNode  *m_pParent;
     /** Holds whether the node is favorite. */
     bool            m_fFavorite;
+
+    /** Holds the model reference. */
+    UIChooserAbstractModel *m_pModel;
 
     /** Holds the linked item reference. */
     QPointer<UIChooserItem>  m_pItem;

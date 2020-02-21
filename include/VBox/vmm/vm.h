@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1278,7 +1278,7 @@ typedef struct VM
 #ifdef VMM_INCLUDED_SRC_include_HMInternal_h
         struct HM s;
 #endif
-        uint8_t     padding[5440];      /* multiple of 64 */
+        uint8_t     padding[5504];      /* multiple of 64 */
     } hm;
 
     /** TRPM part. */
@@ -1434,8 +1434,22 @@ typedef struct VM
         uint8_t     padding[8];         /* multiple of 8 */
     } cfgm;
 
+    /** Statistics for ring-0 only components. */
+    struct
+    {
+        /** GMMR0 stats. */
+        struct
+        {
+            /** Chunk TLB hits. */
+            uint64_t    cChunkTlbHits;
+            /** Chunk TLB misses. */
+            uint64_t    cChunkTlbMisses;
+        } gmm;
+        uint64_t    au64Padding[6];     /* probably more comming here... */
+    } R0Stats;
+
     /** Padding for aligning the structure size on a page boundrary. */
-    uint8_t         abAlignment2[664 + 256 - sizeof(PVMCPUR3) * VMM_MAX_CPU_COUNT];
+    uint8_t         abAlignment2[600 - 64 + 256 - sizeof(PVMCPUR3) * VMM_MAX_CPU_COUNT];
 
     /* ---- end small stuff ---- */
 

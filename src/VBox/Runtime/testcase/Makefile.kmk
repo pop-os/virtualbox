@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2019 Oracle Corporation
+# Copyright (C) 2006-2020 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -136,13 +136,14 @@ PROGRAMS += \
 	tstRTThreadPoke \
 	tstRTThreadExecutionTime \
 	tstRTTime \
-	tstRTTraceLog \
 	tstTime-2 \
 	tstTime-3 \
 	tstTime-4 \
 	tstTimer \
 	tstRTTimerLR \
 	tstRTTimeSpec \
+	tstRTTls-1 \
+	tstRTTraceLog \
 	tstRTUdp-1 \
 	tstUtf8 \
 	tstRTUuid \
@@ -510,7 +511,7 @@ tstLog_TEMPLATE      = VBOXR3TSTEXE
 tstLog_SOURCES       = tstLog.cpp
 tstLog_INCS          = $(tstLog_0_OUTDIR)
 tstLog_INTERMEDIATES = $(tstLog_0_OUTDIR)/tstLogGroups.h
-tstLog_CLEANS        = $(tstLog_0_OUTDIR)/tstLogGroups.h
+tstLog_CLEAN         = $(tstLog_0_OUTDIR)/tstLogGroups.h
 $$(tstLog_0_OUTDIR)/tstLogGroups.h: $(PATH_ROOT)/include/VBox/log.h
 	$(call MSG_GENERATE,,$@,$<)
 	$(QUIET)$(RM) -f -- "$@"
@@ -685,6 +686,9 @@ tstRTThreadExecutionTime_SOURCES = tstRTThreadExecutionTime.cpp
 
 tstRTTime_TEMPLATE = VBOXR3TSTEXE
 tstRTTime_SOURCES = tstRTTime.cpp
+
+tstRTTls-1_TEMPLATE = VBOXR3TSTEXE
+tstRTTls-1_SOURCES = tstRTTls-1.cpp
 
 tstRTTraceLog_TEMPLATE = VBOXR3TSTEXE
 tstRTTraceLog_SOURCES = tstRTTraceLog.cpp

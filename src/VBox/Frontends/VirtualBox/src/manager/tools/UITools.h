@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -92,6 +92,11 @@ public:
         void setToolsEnabled(UIToolClass enmClass, bool fEnabled);
         /** Returns whether certain class of tools is enabled.*/
         bool areToolsEnabled(UIToolClass enmClass) const;
+
+        /** Defines restructed tool @a types. */
+        void setRestrictedToolTypes(const QList<UIToolType> &types);
+        /** Returns restricted tool types. */
+        QList<UIToolType> restrictedToolTypes() const;
     /** @} */
 
     /** @name Current item stuff.

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -2082,8 +2082,8 @@ static ssize_t vbsf_reg_write(struct file *file, const char *buf, size_t size, l
  */
 DECLINLINE(void) vbsf_iter_unlock_pages(struct iov_iter *iter, struct page **papPages, size_t cPages, bool fSetDirty)
 {
-    /* We don't mark kernel pages dirty: */
-    if (iter->type & ITER_KVEC)
+    /* We don't mark kernel pages dirty (KVECs, BVECs, PIPEs): */
+    if (!iter_is_iovec(iter))
         fSetDirty = false;
 
     while (cPages-- > 0)

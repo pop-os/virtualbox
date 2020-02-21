@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -2055,7 +2055,13 @@ static int pgmPoolCacheFreeOne(PPGMPOOL pPool, uint16_t iUser)
         }
 */
         Assert(iToFree != iUser);
-        AssertRelease(iToFree != NIL_PGMPOOL_IDX);
+        AssertReleaseMsg(iToFree != NIL_PGMPOOL_IDX,
+                         ("iToFree=%#x (iAgeTail=%#x) iUser=%#x iLoop=%u - pPool=%p LB %#zx\n",
+                          iToFree, pPool->iAgeTail, iUser, iLoop, pPool,
+                            RT_UOFFSETOF_DYN(PGMPOOL, aPages[pPool->cMaxPages])
+                          + pPool->cMaxUsers * sizeof(PGMPOOLUSER)
+                          + pPool->cMaxPhysExts * sizeof(PGMPOOLPHYSEXT) ));
+
         pPage = &pPool->aPages[iToFree];
 
         /*
@@ -5058,7 +5064,7 @@ int pgmPoolAlloc(PVMCC pVM, RTGCPHYS GCPhys, PGMPOOLKIND enmKind, PGMPOOLACCESS 
             return rc;
         }
         iNew = pPool->iFreeHead;
-        AssertReleaseReturn(iNew != NIL_PGMPOOL_IDX, VERR_PGM_POOL_IPE);
+        AssertReleaseMsgReturn(iNew != NIL_PGMPOOL_IDX, ("iNew=%#x\n", iNew), VERR_PGM_POOL_IPE);
     }
 
     /* unlink the free head */

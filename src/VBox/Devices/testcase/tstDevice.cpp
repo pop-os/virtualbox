@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017-2019 Oracle Corporation
+ * Copyright (C) 2017-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -38,6 +38,7 @@
 #include <iprt/trace.h>
 
 #include "tstDeviceInternal.h"
+#include "tstDeviceCfg.h"
 
 
 /*********************************************************************************************************************************
@@ -153,7 +154,7 @@ typedef struct TSTDEVPDMDEV
     /** Pointer to the PDM module containing the device. */
     PCTSTDEVPDMMOD                  pPdmMod;
     /** Device registration structure. */
-    const struct PDMDEVREG          *pReg;
+    const PDMDEVREG                 *pReg;
 } TSTDEVPDMDEV;
 /** Pointer to a PDM device descriptor .*/
 typedef TSTDEVPDMDEV *PTSTDEVPDMDEV;
@@ -203,13 +204,12 @@ RTLISTANCHOR g_LstPdmMods;
 /** List of registered PDM devices. */
 RTLISTANCHOR g_LstPdmDevs;
 
-extern const TSTDEVVMMCALLBACKS g_tstDevVmmCallbacks;
-
 /**
  * PDM R0 imports we implement.
  */
 static const TSTDEVPDMR0IMPORTS g_aPdmR0Imports[] =
 {
+#if 0
     {"IOMMMIOMapMMIO2Page",            (PFNRT)IOMMMIOMapMMIO2Page},
     {"IOMMMIOResetRegion",             (PFNRT)IOMMMIOResetRegion},
     {"IntNetR0IfSend",                 (PFNRT)/*IntNetR0IfSend*/NULL},
@@ -254,6 +254,9 @@ static const TSTDEVPDMR0IMPORTS g_aPdmR0Imports[] =
     {"nocrt_memmove",                  (PFNRT)memmove},
     {"nocrt_memset",                   (PFNRT)memset},
     {"nocrt_strlen",                   (PFNRT)strlen},
+#else
+    { NULL, NULL }
+#endif
 };
 
 
@@ -480,16 +483,6 @@ static DECLCALLBACK(int) tstDevPdmR3DevReg_Register(PPDMDEVREGCB pCallbacks, PCP
                     &&  tstDevPdmR3IsValidName(pReg->szName),
                     ("Invalid name '%.*s'\n", sizeof(pReg->szName), pReg->szName),
                     VERR_PDM_INVALID_DEVICE_REGISTRATION);
-    AssertMsgReturn(   !(pReg->fFlags & PDM_DEVREG_FLAGS_RC)
-                    || (   pReg->szRCMod[0]
-                        && strlen(pReg->szRCMod) < sizeof(pReg->szRCMod)),
-                    ("Invalid GC module name '%s' - (Device %s)\n", pReg->szRCMod, pReg->szName),
-                    VERR_PDM_INVALID_DEVICE_REGISTRATION);
-    AssertMsgReturn(   !(pReg->fFlags & PDM_DEVREG_FLAGS_R0)
-                    || (   pReg->szR0Mod[0]
-                        && strlen(pReg->szR0Mod) < sizeof(pReg->szR0Mod)),
-                    ("Invalid R0 module name '%s' - (Device %s)\n", pReg->szR0Mod, pReg->szName),
-                    VERR_PDM_INVALID_DEVICE_REGISTRATION);
     AssertMsgReturn((pReg->fFlags & PDM_DEVREG_FLAGS_HOST_BITS_MASK) == PDM_DEVREG_FLAGS_HOST_BITS_DEFAULT,
                     ("Invalid host bits flags! fFlags=%#x (Device %s)\n", pReg->fFlags, pReg->szName),
                     VERR_PDM_INVALID_DEVICE_HOST_BITS);
@@ -502,8 +495,8 @@ static DECLCALLBACK(int) tstDevPdmR3DevReg_Register(PPDMDEVREGCB pCallbacks, PCP
     AssertMsgReturn(pReg->cMaxInstances > 0,
                     ("Max instances %u! (Device %s)\n", pReg->cMaxInstances, pReg->szName),
                     VERR_PDM_INVALID_DEVICE_REGISTRATION);
-    AssertMsgReturn(pReg->cbInstance <= (uint32_t)(pReg->fFlags & (PDM_DEVREG_FLAGS_RC | PDM_DEVREG_FLAGS_R0)  ? 96 * _1K : _1M),
-                    ("Instance size %d bytes! (Device %s)\n", pReg->cbInstance, pReg->szName),
+    AssertMsgReturn(pReg->cbInstanceCC <= (uint32_t)(pReg->fFlags & (PDM_DEVREG_FLAGS_RC | PDM_DEVREG_FLAGS_R0)  ? 96 * _1K : _1M),
+                    ("Instance size %d bytes! (Device %s)\n", pReg->cbInstanceCC, pReg->szName),
                     VERR_PDM_INVALID_DEVICE_REGISTRATION);
     AssertMsgReturn(pReg->pfnConstruct,
                     ("No constructor! (Device %s)\n", pReg->szName),
@@ -812,68 +805,70 @@ DECLHIDDEN(int) tstDevPdmLdrGetSymbol(PTSTDEVDUTINT pThis, const char *pszMod, T
 }
 
 
-static TSTDEVCFGITEM s_aTestcaseCfg[] =
-{
-    {"CtrlMemBufSize", TSTDEVCFGITEMTYPE_INTEGER, "0"  },
-    {NULL,             TSTDEVCFGITEMTYPE_INVALID, NULL }
-};
-
-static TSTDEVTESTCASEREG s_TestcaseDef =
-{
-    "test",
-    "Testcase during implementation",
-    "nvme",
-    0,
-    &s_aTestcaseCfg[0],
-    NULL,
-};
-
 /**
  * Create a new PDM device with default config.
  *
  * @returns VBox status code.
  * @param   pszName                 Name of the device to create.
+ * @param   fR0Enabled              Flag whether R0 support should be enabled for this device.
+ * @param   fRCEnabled              Flag whether RC support should be enabled for this device.
+ * @param   pDut                    The device under test structure the created PDM device instance is exercised under.
  */
-static int tstDevPdmDevCreate(const char *pszName)
+static int tstDevPdmDevCreate(const char *pszName, bool fR0Enabled, bool fRCEnabled, PTSTDEVDUTINT pDut)
 {
     int rc = VINF_SUCCESS;
     PCTSTDEVPDMDEV pPdmDev = tstDevPdmDeviceFind(pszName);
     if (RT_LIKELY(pPdmDev))
     {
-        TSTDEVDUTINT Dut;
-        Dut.pTestcaseReg    = &s_TestcaseDef;
-        Dut.enmCtx          = TSTDEVDUTCTX_R3;
-        Dut.pVm             = NULL;
-        Dut.SupSession.pDut = &Dut;
-        RTListInit(&Dut.LstIoPorts);
-        RTListInit(&Dut.LstTimers);
-        RTListInit(&Dut.LstMmHeap);
-        RTListInit(&Dut.LstPdmThreads);
-        RTListInit(&Dut.SupSession.LstSupSem);
-        CFGMNODE Cfg;
-        Cfg.pVmmCallbacks = &g_tstDevVmmCallbacks;
-        Cfg.pDut = &Dut;
+        PPDMCRITSECT pCritSect;
+        /* Figure out how much we need. */
+        uint32_t cb = RT_UOFFSETOF_DYN(PDMDEVINS, achInstanceData[pPdmDev->pReg->cbInstanceCC]);
+        cb  = RT_ALIGN_32(cb, 64);
+        uint32_t const offShared   = cb;
+        cb += RT_ALIGN_32(pPdmDev->pReg->cbInstanceShared, 64);
+        uint32_t const cbCritSect  = RT_ALIGN_32(sizeof(*pCritSect), 64);
+        cb += cbCritSect;
+        uint32_t const cbMsixState = RT_ALIGN_32(pPdmDev->pReg->cMaxMsixVectors * 16 + (pPdmDev->pReg->cMaxMsixVectors + 7) / 8, _4K);
+        uint32_t const cbPciDev    = RT_ALIGN_32(RT_UOFFSETOF_DYN(PDMPCIDEV, abMsixState[cbMsixState]), 64);
+        uint32_t const cPciDevs    = RT_MIN(pPdmDev->pReg->cMaxPciDevices, 1024);
+        uint32_t const cbPciDevs   = cbPciDev * cPciDevs;
+        cb += cbPciDevs;
 
-        rc = RTCritSectRwInit(&Dut.CritSectLists);
-        AssertRC(rc);
-
-        PPDMDEVINS pDevIns = (PPDMDEVINS)RTMemAllocZ(RT_UOFFSETOF_DYN(PDMDEVINS, achInstanceData[pPdmDev->pReg->cbInstance]));
+        PPDMDEVINS pDevIns = (PPDMDEVINS)RTMemAllocZ(cb);
         pDevIns->u32Version               = PDM_DEVINS_VERSION;
         pDevIns->iInstance                = 0;
         pDevIns->pReg                     = pPdmDev->pReg;
         pDevIns->pvInstanceDataR3         = &pDevIns->achInstanceData[0];
         pDevIns->pHlpR3                   = &g_tstDevPdmDevHlpR3;
-        pDevIns->pCfg                     = &Cfg;
-        pDevIns->Internal.s.pVmmCallbacks = &g_tstDevVmmCallbacks;
-        pDevIns->Internal.s.pDut          = &Dut;
-        rc = pPdmDev->pReg->pfnConstruct(pDevIns, 0, &Cfg);
-        if (RT_SUCCESS(rc))
+        pDevIns->pCfg                     = &pDut->Cfg;
+        pDevIns->Internal.s.pDut          = pDut;
+        pDevIns->cbRing3                  = cb;
+        pDevIns->fR0Enabled               = fR0Enabled;
+        pDevIns->fRCEnabled               = fRCEnabled;
+        pDevIns->pvInstanceDataR3         = (uint8_t *)pDevIns + offShared;
+        pDevIns->pvInstanceDataForR3      = &pDevIns->achInstanceData[0];
+        pCritSect = (PPDMCRITSECT)((uint8_t *)pDevIns + offShared + RT_ALIGN_32(pPdmDev->pReg->cbInstanceShared, 64));
+        pDevIns->pCritSectRoR3            = pCritSect;
+        pDevIns->cbPciDev                 = cbPciDev;
+        pDevIns->cPciDevs                 = cPciDevs;
+        for (uint32_t iPciDev = 0; iPciDev < cPciDevs; iPciDev++)
         {
-            PRTDEVDUTIOPORT pIoPort = RTListGetFirst(&Dut.LstIoPorts, RTDEVDUTIOPORT, NdIoPorts);
-            uint32_t uVal = 0;
-            PDMCritSectEnter(pDevIns->pCritSectRoR3, VERR_IGNORED);
-            pIoPort->pfnInR0(pDevIns, pIoPort->pvUserR0, pIoPort->PortStart, &uVal, sizeof(uint8_t));
-            PDMCritSectLeave(pDevIns->pCritSectRoR3);
+            PPDMPCIDEV pPciDev = (PPDMPCIDEV)((uint8_t *)pDevIns->pCritSectRoR3 + cbCritSect + cbPciDev * iPciDev);
+            if (iPciDev < RT_ELEMENTS(pDevIns->apPciDevs))
+                pDevIns->apPciDevs[iPciDev] = pPciDev;
+            pPciDev->cbConfig           = _4K;
+            pPciDev->cbMsixState        = cbMsixState;
+            pPciDev->idxSubDev          = (uint16_t)iPciDev;
+            pPciDev->u32Magic           = PDMPCIDEV_MAGIC;
+        }
+
+        rc = pPdmDev->pReg->pfnConstruct(pDevIns, 0, pDevIns->pCfg);
+        if (RT_SUCCESS(rc))
+            pDut->pDevIns = pDevIns;
+        else
+        {
+            rc = pPdmDev->pReg->pfnDestruct(pDevIns);
+            RTMemFree(pDevIns);
         }
     }
     else
@@ -881,6 +876,51 @@ static int tstDevPdmDevCreate(const char *pszName)
 
     return rc;
 }
+
+
+/**
+ * Run a given test config.
+ *
+ * @returns VBox status code.
+ * @param   pDevTstCfg          The test config to run.
+ */
+static int tstDevTestsRun(PCTSTDEVCFG pDevTstCfg)
+{
+    int rc = VINF_SUCCESS;
+
+    for (uint32_t i = 0; i < pDevTstCfg->cTests; i++)
+    {
+        PCTSTDEVTEST pTest = &pDevTstCfg->aTests[i];
+
+        TSTDEVDUTINT Dut;
+        Dut.pTest           = pTest;
+        Dut.enmCtx          = TSTDEVDUTCTX_R3;
+        Dut.pVm             = NULL;
+        Dut.SupSession.pDut = &Dut;
+        Dut.Cfg.pDut        = &Dut;
+        RTListInit(&Dut.LstIoPorts);
+        RTListInit(&Dut.LstTimers);
+        RTListInit(&Dut.LstMmHeap);
+        RTListInit(&Dut.LstPdmThreads);
+        RTListInit(&Dut.LstSsmHandlers);
+        RTListInit(&Dut.SupSession.LstSupSem);
+
+        rc = RTCritSectRwInit(&Dut.CritSectLists);
+        AssertRC(rc);
+
+        rc = RTCritSectInitEx(&Dut.CritSectNop.s.CritSect, RTCRITSECT_FLAGS_NOP, NIL_RTLOCKVALCLASS, RTLOCKVAL_SUB_CLASS_NONE, "DutNop");
+        AssertRC(rc);
+
+        rc = tstDevPdmDevCreate(pDevTstCfg->pszDevName, pTest->fR0Enabled, pTest->fRCEnabled, &Dut);
+        if (RT_SUCCESS(rc))
+        {
+            /** @todo Next */
+        }
+    }
+
+    return rc;
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -896,19 +936,32 @@ int main(int argc, char *argv[])
         RTListInit(&g_LstPdmMods);
         RTListInit(&g_LstPdmDevs);
 
-        rc = tstDevLoadPlugin("TSTDevTestcases");
-        if (RT_SUCCESS(rc) || true)
+        PCTSTDEVCFG pDevTstCfg = NULL;
+        rc = tstDevCfgLoad(argv[1], NULL, &pDevTstCfg);
+        if (RT_SUCCESS(rc))
         {
-            rc = tstDevPdmLoadMod(argv[1], TSTDEVPDMMODTYPE_R3);
+            if (pDevTstCfg->pszTstDevMod)
+                rc = tstDevLoadPlugin(pDevTstCfg->pszTstDevMod);
             if (RT_SUCCESS(rc))
-                rc = tstDevPdmDevCreate("nvme");
+            {
+                rc = tstDevPdmLoadMod(pDevTstCfg->pszPdmR3Mod, TSTDEVPDMMODTYPE_R3);
+                if (   RT_SUCCESS(rc)
+                    && pDevTstCfg->pszPdmR0Mod)
+                    rc = tstDevPdmLoadMod(pDevTstCfg->pszPdmR0Mod, TSTDEVPDMMODTYPE_R0);
+                if (   RT_SUCCESS(rc)
+                    && pDevTstCfg->pszPdmRCMod)
+                    rc = tstDevPdmLoadMod(pDevTstCfg->pszPdmRCMod, TSTDEVPDMMODTYPE_RC);
+
+                if (RT_SUCCESS(rc))
+                    rc = tstDevTestsRun(pDevTstCfg);
+                else
+                    rcExit = RTEXITCODE_FAILURE;
+            }
             else
                 rcExit = RTEXITCODE_FAILURE;
         }
-        else
-            rcExit = RTEXITCODE_FAILURE;
 
-        //rcExit = tstDevParseOptions(argc, argv);
+        tstDevCfgDestroy(pDevTstCfg);
     }
     else
         rcExit = RTEXITCODE_FAILURE;

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,24 +23,42 @@
 
 /* GUI includes: */
 #include "UIChooserNode.h"
-#include "UIVirtualMachineItem.h"
+
+/* Forward declarations: */
+class UICloudMachine;
+class UIVirtualMachineItem;
+class CMachine;
 
 
 /** UIChooserNode subclass used as interface for invisible tree-view machine nodes. */
-class UIChooserNodeMachine : public UIChooserNode, public UIVirtualMachineItem
+class UIChooserNodeMachine : public UIChooserNode
 {
     Q_OBJECT;
 
 public:
 
-    /** Constructs chooser node passing @a pParent to the base-class.
+    /** Constructs chooser node for local VM passing @a pParent to the base-class.
       * @param  fFavorite   Brings whether the node is favorite.
-      * @param  iPosition   Brings the initial node position.
+      * @param  iPosition   Brings initial node position.
       * @param  comMachine  Brings COM machine object. */
     UIChooserNodeMachine(UIChooserNode *pParent,
                          bool fFavorite,
                          int iPosition,
                          const CMachine &comMachine);
+    /** Constructs chooser node for real cloud VM passing @a pParent to the base-class.
+      * @param  fFavorite        Brings whether the node is favorite.
+      * @param  iPosition        Brings initial node position.
+      * @param  guiCloudMachine  Brings cloud VM object. */
+    UIChooserNodeMachine(UIChooserNode *pParent,
+                         bool fFavorite,
+                         int iPosition,
+                         const UICloudMachine &guiCloudMachine);
+    /** Constructs chooser node for fake cloud VM passing @a pParent to the base-class.
+      * @param  fFavorite  Brings whether the node is favorite.
+      * @param  iPosition  Brings the initial node position. */
+    UIChooserNodeMachine(UIChooserNode *pParent,
+                         bool fFavorite,
+                         int iPosition);
     /** Constructs chooser node passing @a pParent to the base-class.
       * @param  pCopyFrom  Brings the node to copy data from.
       * @param  iPosition  Brings the initial node position. */
@@ -77,6 +95,10 @@ public:
     /** Updates all children with specified @a uId recursively. */
     virtual void updateAllNodes(const QUuid &uId) /* override */;
 
+    /** Returns whether this node is a cloud node itself
+      * or contains at least one cloud VM node child. */
+    virtual bool hasAtLeastOneCloudNode() const /* override */;
+
     /** Returns position of specified node inside this one. */
     virtual int positionOf(UIChooserNode *pNode) /* override */;
 
@@ -86,10 +108,23 @@ public:
     /** Performs sorting of children nodes. */
     virtual void sortNodes() /* override */;
 
+    /** Returns virtual machine cache instance. */
+    UIVirtualMachineItem *cache() const { return m_pCache; }
+
 protected:
 
     /** Handles translation event. */
     virtual void retranslateUi() /* override */;
+
+private slots:
+
+    /** Handles machine state change. */
+    void sltHandleStateChange();
+
+private:
+
+    /** Holds virtual machine cache instance. */
+    UIVirtualMachineItem *m_pCache;
 };
 
 

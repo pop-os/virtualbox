@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -56,6 +56,12 @@ signals:
 
         /** Notifies listeners about tool popup-menu request for certain tool @a enmClass and in specified @a position. */
         void sigToolMenuRequested(UIToolClass enmClass, const QPoint &position);
+    /** @} */
+
+    /** @name Cloud machine stuff.
+      * @{ */
+        /** Notifies about state change for cloud machine with certain @a strId. */
+        void sigCloudMachineStateChange(const QString &strId);
     /** @} */
 
     /** @name Group saving stuff.

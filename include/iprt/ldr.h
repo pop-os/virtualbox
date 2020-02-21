@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -442,8 +442,10 @@ RTDECL(RTLDRARCH) RTLdrGetHostArch(void);
 #define RTLDR_O_WHATEVER_ARCH               RT_BIT_32(2)
 /** Ignore the architecture specification if there is no code. */
 #define RTLDR_O_IGNORE_ARCH_IF_NO_CODE      RT_BIT_32(3)
+/** Mach-O: Include the __LINKEDIT segment (ignored by the others). */
+#define RTLDR_O_MACHO_LOAD_LINKEDIT         RT_BIT_32(4)
 /** Mask of valid flags. */
-#define RTLDR_O_VALID_MASK                  UINT32_C(0x0000000f)
+#define RTLDR_O_VALID_MASK                  UINT32_C(0x0000001f)
 /** @} */
 
 /**

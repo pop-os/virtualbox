@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2019 Oracle Corporation
+# Copyright (C) 2006-2020 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -52,13 +52,14 @@ include $(PATH_SUB_CURRENT)/nls/ApprovedLanguages.kmk
 #
 # Hardened VirtualBoxVM.
 #
+ifdef VBOX_WITH_HARDENING
 VirtualBoxHardenedVM_TEMPLATE = VBOXR3HARDENEDEXE
-VirtualBoxHardenedVM_SOURCES = src/hardenedmain.cpp
-VirtualBoxHardenedVM_SOURCES.win = src/platform/win/VirtualBoxHardenedVM.rc
+VirtualBoxHardenedVM_INST.darwin = $(INST_VIRTUALBOX)Contents/Resources/VirtualBoxVM.app/Contents/MacOS/
 VirtualBoxHardenedVM_NAME = VirtualBoxVM
+VirtualBoxHardenedVM_SOURCES = src/hardenedmain.cpp
 VirtualBoxHardenedVM_LDFLAGS.win = /SUBSYSTEM:$(if-expr "$(KBUILD_TYPE)" != "release",console,windows)
-src/platform/win/VirtualBoxHardenedVM.rc_INCS  = $(VirtualBox_0_OUTDIR)
-src/platform/win/VirtualBoxHardenedVM.rc_DEPS  = $(VirtualBox_0_OUTDIR)/VirtualBox-icon.rc
+$(call VBOX_SET_VER_INFO_EXE,VirtualBoxHardenedVM,VirtualBox Virtual Machine,$(VBOX_WINDOWS_ICON_FILE))
+endif
 
 
 #
@@ -129,6 +130,7 @@ VirtualBox_DEFS           += \
 	$(if $(VBOX_GUI_WITH_PIDFILE),VBOX_GUI_WITH_PIDFILE) \
 	$(if $(VBOX_GUI_WITH_KEYS_RESET_HANDLER),VBOX_GUI_WITH_KEYS_RESET_HANDLER) \
 	$(if $(VBOX_GUI_WITH_CUSTOMIZATIONS1),VBOX_GUI_WITH_CUSTOMIZATIONS1) \
+	$(if $(VBOX_GUI_WITH_CLOUD_VMS),VBOX_GUI_WITH_CLOUD_VMS) \
 	$(if $(VBOX_WITH_RAW_MODE),VBOX_WITH_RAW_MODE) \
 	$(if $(VBOX_WITH_SDS),VBOX_WITH_SDS,)
 ifdef VBOX_WITH_DEBUGGER_GUI
@@ -159,6 +161,9 @@ endif
 #
 VirtualBoxVM_TEMPLATE       := $(if $(VBOX_WITH_HARDENING),VBOXQTGUI,VBOXQTGUIEXE)
 VirtualBoxVM_NAME           = VirtualBoxVM
+ifndef VBOX_WITH_HARDENING
+VirtualBoxVM_INST.darwin    = $(INST_VIRTUALBOX)Contents/Resources/VirtualBoxVM.app/Contents/MacOS/
+endif
 VirtualBoxVM_DEPS           = $(UICommon_0_OUTDIR)/include/COMWrappers
 VirtualBoxVM_SDKS.win       = ReorderCompilerIncs $(VBOX_WINPSDK) $(VBOX_WINDDK)
 VirtualBoxVM_DEFS           += VBOX_RUNTIME_UI
@@ -386,6 +391,7 @@ else
 endif
 
 VirtualBox_LDFLAGS.darwin = \
+	$(if $(VBOX_WITH_HARDENING),,-rpath @executable_path/../MacOS -rpath @executable_path/../Frameworks) \
 	-framework AppKit -framework Carbon -framework IOKit
 
 if defined(VBOX_WITH_VIDEOHWACCEL) || defined(VBOX_GUI_USE_QGL)
@@ -420,8 +426,11 @@ else
 endif
 
 VirtualBoxVM_LDFLAGS.darwin = \
+	$(if $(VBOX_WITH_HARDENING)\
+	,-install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VirtualBoxVM.dylib \
+	,-rpath @executable_path/../../../../MacOS \
+	-rpath @executable_path/../../../../Frameworks) \
 	-framework AppKit -framework Carbon -framework IOKit \
-	$(if $(VBOX_WITH_HARDENING),-install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VirtualBoxVM.dylib)
 
 if defined(VBOX_WITH_VIDEOHWACCEL) || defined(VBOX_GUI_USE_QGL)
  VirtualBoxVM_LDFLAGS.darwin += -framework OpenGL
@@ -445,9 +454,10 @@ else
 endif
 
 UICommon_LDFLAGS.darwin = \
-	-framework AppKit -framework Carbon -framework IOKit \
-	$(if $(VBOX_WITH_HARDENING),-install_name $(VBOX_DYLD_EXECUTABLE_PATH)/UICommon.dylib)
-
+	-install_name "$(VBOX_DYLD_EXECUTABLE_PATH)/UICommon.dylib" \
+	-framework AppKit \
+	-framework Carbon \
+	-framework IOKit
 if defined(VBOX_WITH_VIDEOHWACCEL) || defined(VBOX_GUI_USE_QGL)
  UICommon_LDFLAGS.darwin += -framework OpenGL
 endif
@@ -605,11 +615,15 @@ VirtualBox_QT_MOCHDRS = \
 	src/hostnetwork/UIHostNetworkDetailsWidget.h \
 	src/hostnetwork/UIHostNetworkManager.h \
 	src/manager/UIErrorPane.h \
+	src/manager/UITaskCloudAcquireInstances.h \
+	src/manager/UITaskCloudGetInstanceState.h \
 	src/manager/UIToolPaneGlobal.h \
 	src/manager/UIToolPaneMachine.h \
 	src/manager/UIVirtualBoxManager.h \
 	src/manager/UIVirtualBoxManagerWidget.h \
 	src/manager/UIVirtualMachineItem.h \
+	src/manager/UIVirtualMachineItemCloud.h \
+	src/manager/UIVirtualMachineItemLocal.h \
 	src/manager/UIWelcomePane.h \
 	src/manager/chooser/UIChooser.h \
 	src/manager/chooser/UIChooserAbstractModel.h \
@@ -820,6 +834,7 @@ UICommon_QT_MOCHDRS = \
 	src/globals/UIPopupCenter.h \
 	src/globals/UIProgressEventHandler.h \
 	src/globals/UIShortcutPool.h \
+	src/globals/UITask.h \
 	src/globals/UIThreadPool.h \
 	src/globals/UITextTable.h \
 	src/globals/UIVirtualBoxEventHandler.h \
@@ -1046,12 +1061,18 @@ VirtualBox_SOURCES = \
 	src/hostnetwork/UIHostNetworkDetailsWidget.cpp \
 	src/hostnetwork/UIHostNetworkManager.cpp \
 	src/hostnetwork/UIHostNetworkUtils.cpp \
+	src/manager/UICloudMachine.cpp \
+	src/manager/UICloudNetworkingStuff.cpp \
 	src/manager/UIErrorPane.cpp \
+	src/manager/UITaskCloudAcquireInstances.cpp \
+	src/manager/UITaskCloudGetInstanceState.cpp \
 	src/manager/UIToolPaneGlobal.cpp \
 	src/manager/UIToolPaneMachine.cpp \
 	src/manager/UIVirtualBoxManager.cpp \
 	src/manager/UIVirtualBoxManagerWidget.cpp \
 	src/manager/UIVirtualMachineItem.cpp \
+	src/manager/UIVirtualMachineItemCloud.cpp \
+	src/manager/UIVirtualMachineItemLocal.cpp \
 	src/manager/UIWelcomePane.cpp \
 	src/manager/chooser/UIChooser.cpp \
 	src/manager/chooser/UIChooserAbstractModel.cpp \
@@ -1146,7 +1167,6 @@ if1of ($(KBUILD_TARGET), freebsd linux netbsd openbsd solaris) # X11
 endif
 
 VirtualBox_SOURCES.win += \
-	src/platform/win/VirtualBox.rc \
 	src/platform/win/UIDesktopServices_win.cpp
 
 if defined(VBOX_WITH_VIDEOHWACCEL) || defined(VBOX_GUI_USE_QGL)
@@ -1155,6 +1175,8 @@ if defined(VBOX_WITH_VIDEOHWACCEL) || defined(VBOX_GUI_USE_QGL)
 	src/VBoxFBOverlay.cpp \
 	src/VBoxGLSupportInfo.cpp
 endif
+
+$(call VBOX_SET_VER_INFO_EXE,VirtualBox,VirtualBox Manager,$(VBOX_WINDOWS_ICON_FILE))
 
 
 #
@@ -1239,8 +1261,11 @@ VirtualBoxVM_SOURCES.darwin += \
 	src/platform/darwin/UIAbstractDockIconPreview.cpp \
 	src/platform/darwin/UICocoaDockIconPreview.mm
 
-VirtualBoxVM_SOURCES.win += \
-	src/platform/win/VirtualBoxVM.rc
+ifdef VBOX_WITH_HARDENING
+$(call VBOX_SET_VER_INFO_DLL,VirtualBoxVM,VirtualBox Virtual Machine (dll),$(VBOX_WINDOWS_ICON_FILE))
+else
+$(call VBOX_SET_VER_INFO_EXE,VirtualBoxVM,VirtualBox Virtual Machine,$(VBOX_WINDOWS_ICON_FILE))
+endif
 
 
 #
@@ -1313,6 +1338,7 @@ UICommon_SOURCES = \
 	src/globals/UIProgressEventHandler.cpp \
 	src/globals/UIShortcutPool.cpp \
 	src/globals/UITextTable.cpp \
+	src/globals/UITask.cpp \
 	src/globals/UIThreadPool.cpp \
 	src/globals/UIVersion.cpp \
 	src/globals/UIVirtualBoxEventHandler.cpp \
@@ -1752,7 +1778,9 @@ VirtualBox.app_SOURCES = \
  $$(VirtualBox.app_0_OUTDIR)/qt.conf: $(PATH_SUB_CURRENT)/Makefile.kmk $(VBOX_VERSION_MK) | $$(@D)/
 	$(QUIET)$(RM) -f $@
 	$(QUIET)$(APPEND) $@ "[Paths]"
+ ifdef VBOX_WITH_HARDENING # Not necessary and will screwup copying files elsewhere to test.
 	$(QUIET)$(APPEND) $@ "Prefix =" $(PATH_OUT)/$(VirtualBox.app_INST)
+ endif
 
  INSTALLS += VirtualBoxVM.app
  VirtualBoxVM.app_INST = $(VirtualBox.app_INST)Resources/VirtualBoxVM.app/Contents/
@@ -1761,8 +1789,6 @@ VirtualBox.app_SOURCES = \
  	src/platform/darwin/VM-PkgInfo=>PkgInfo \
  	$(VirtualBoxVM.app_0_OUTDIR)/VM-Info.plist=>Info.plist \
  	$(foreach mysrc,$(VirtualBox.app_SOURCES),$(if-expr $(pos =>Resources/,$(mysrc)) > 0,$(mysrc),))
- VirtualBoxVM.app_SYMLINKS = \
- 	MacOS=>../../../MacOS/
 
  $$(VirtualBoxVM.app_0_OUTDIR)/VM-Info.plist: $(PATH_SUB_CURRENT)/src/platform/darwin/VM-Info.plist $(VBOX_VERSION_MK) | $$(@D)/
 	$(call MSG_GENERATE,VirtualBoxVM.app,$<,$@)

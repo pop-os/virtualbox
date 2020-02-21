@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2019 Oracle Corporation
+# Copyright (C) 2006-2020 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -42,7 +42,9 @@ ValidationKitTestsApi_EXEC_SOURCES := \
 
 ifndef VBOX_OSE
  ValidationKitTestsApi_EXEC_SOURCES += \
- 	$(PATH_SUB_CURRENT)/tdOciExport1.py
+ 	$(PATH_SUB_CURRENT)/tdOciExport1.py \
+ 	$(PATH_SUB_CURRENT)/tdOciImport1.py \
+ 	$(PATH_SUB_CURRENT)/tdOciProfile1.py
 endif
 ValidationKitTestsApi_SOURCES := \
 	$(wildcard \

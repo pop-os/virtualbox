@@ -7,7 +7,7 @@ VirtualBox Test VMs
 
 __copyright__ = \
 """
-Copyright (C) 2010-2019 Oracle Corporation
+Copyright (C) 2010-2020 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 134153 $"
+__version__ = "$Revision: 135976 $"
 
 # Standard Python imports.
 import copy;
@@ -330,7 +330,7 @@ class BaseTestVm(object):
             if _intersects(asSplit, ['uni']):
                 self.acCpusSup = [1];
             elif self.aInfo is not None:
-                self.acCpusSup = [i for i in range(self.aInfo[g_iMinCpu], self.aInfo[g_iMaxCpu]) ];
+                self.acCpusSup = list(range(self.aInfo[g_iMinCpu], self.aInfo[g_iMaxCpu]));
             else:
                 self.acCpusSup = [1];
 
@@ -1075,7 +1075,7 @@ class TestVm(object):
             if _intersects(asSplit, ['uni']):
                 self.acCpusSup = [1];
             elif self.aInfo is not None:
-                self.acCpusSup = [i for i in range(self.aInfo[g_iMinCpu], self.aInfo[g_iMaxCpu]) ];
+                self.acCpusSup = list(range(self.aInfo[g_iMinCpu], self.aInfo[g_iMaxCpu]));
             else:
                 self.acCpusSup = [1];
 

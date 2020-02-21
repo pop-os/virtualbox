@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -49,7 +49,7 @@
 # include <iprt/param.h>
 # include <iprt/utf16.h>
 # include <iprt/win/windows.h>
-#elif defined(RT_OS_LINUX)
+#elif defined(RT_OS_LINUX) || defined(RT_OS_DARWIN)
 # include <dlfcn.h>
 #endif
 
@@ -279,10 +279,10 @@ static PRTDBGSTACKSELFMOD rtDbgStackDumpSelfQueryModForPC(uintptr_t uPc, PRTLIST
             }
         }
     }
-#elif defined(RT_OS_LINUX)
+#elif defined(RT_OS_LINUX) || defined(RT_OS_DARWIN)
     Dl_info Info = { NULL, NULL, NULL, NULL };
     int rc = dladdr((const void *)uPc, &Info);
-    if (rc != 0)
+    if (rc != 0 && Info.dli_fname)
     {
         pMod = (PRTDBGSTACKSELFMOD)RTMemAllocZ(sizeof(*pMod));
         if (pMod)

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2020 Oracle Corporation
  * This file is based on ast_mode.c
  * Copyright 2012 Red Hat Inc.
  * Parts based on xf86-video-ast
@@ -398,19 +398,26 @@ static struct drm_encoder *drm_encoder_find(struct drm_device *dev, u32 id)
 static struct drm_encoder *vbox_best_single_encoder(struct drm_connector
 						    *connector)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0)
+        struct drm_encoder *encoder;
+
+        /* There is only one encoder per connector */
+        drm_connector_for_each_possible_encoder(connector, encoder)
+            return encoder;
+#else /* KERNEL_VERSION < 5.5 */
 	int enc_id = connector->encoder_ids[0];
 
 	/* pick the encoder ids */
 	if (enc_id)
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0) || \
-    (defined(CONFIG_SUSE_VERSION) && \
-        LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)) || \
-    defined(RHEL_76)
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0) || \
+     (defined(CONFIG_SUSE_VERSION) && \
+         LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)) || \
+     defined(RHEL_76)
 		return drm_encoder_find(connector->dev, NULL, enc_id);
-#else
+# else
 		return drm_encoder_find(connector->dev, enc_id);
-#endif
-
+# endif
+#endif /* KERNEL_VERSION < 5.5 */
 	return NULL;
 }
 

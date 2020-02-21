@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -4559,8 +4559,10 @@ VMMR3DECL(int) CPUMR3InitCompleted(PVM pVM, VMINITCOMPLETED enmWhat)
                 for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
                 {
                     PVMCPU pVCpu = pVM->apCpusR3[idCpu];
+                    char aszTimerName[128];
+                    RTStrPrintf(&aszTimerName[0], sizeof(aszTimerName), "Nested Guest VMX-preempt. timer %u", idCpu);
                     int rc = TMR3TimerCreateInternal(pVM, TMCLOCK_VIRTUAL_SYNC, cpumR3VmxPreemptTimerCallback, pVCpu,
-                                                     "Nested Guest VMX-preempt. timer", &pVCpu->cpum.s.pNestedVmxPreemptTimerR3);
+                                                     aszTimerName, &pVCpu->cpum.s.pNestedVmxPreemptTimerR3);
                     AssertLogRelRCReturn(rc, rc);
                     pVCpu->cpum.s.pNestedVmxPreemptTimerR0 = TMTimerR0Ptr(pVCpu->cpum.s.pNestedVmxPreemptTimerR3);
                 }

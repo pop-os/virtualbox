@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -247,6 +247,14 @@ protected slots:
         /** Handles reload machine with certain @a uId request. */
         virtual void sltReloadMachine(const QUuid &uId) /* override */;
     /** @} */
+
+#ifdef VBOX_GUI_WITH_CLOUD_VMS
+    /** @name Cloud stuff.
+      * @{ */
+        /** Handles acquire cloud machine task complete signal. */
+        virtual void sltHandleCloudAcquireInstancesTaskComplete(UITask *pTask) /* override */;
+    /** @} */
+#endif /* VBOX_GUI_WITH_CLOUD_VMS */
 
 private slots:
 

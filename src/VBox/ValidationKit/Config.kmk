@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2010-2019 Oracle Corporation
+# Copyright (C) 2010-2020 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -189,7 +189,7 @@ pyunittest: $(name)-pyunittest.o
 $(PATH_TARGET)/pyunittest/$(name).o $(name)-pyunittest.o:: $(py) | $(PATH_TARGET)/pyunittest/
 	$(QUIET2)$(call MSG_L1,Unittesting Python source $(py)...)
 	$(QUIET)$(REDIRECT) -E LC_ALL=C -E PYTHONPATH="$(VBOX_PYTHONPATH_VALIDATIONKIT)" -C $(dir $(py)) \
-		-- $(VBOX_BLD_PYTHON) -m unittest -v $(notdir $(basename $(py)))
+		-- $(VBOX_UNITTEST_PYTHON) -m unittest -v $(notdir $(basename $(py)))
 	$(QUIET)$(APPEND) -t "$(PATH_TARGET)/pyunittest/$(name).o"
 VBOX_VALIDATIONKIT_PYUNITTEST_TARGETS += $(PATH_TARGET)/pyunittest/$(name).o
 

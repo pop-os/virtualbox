@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2019 Oracle Corporation
+ * Copyright (C) 2008-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1237,14 +1237,18 @@ RTDECL(int)         RTDbgModCreateFromPdb(PRTDBGMOD phDbgMod, const char *pszFil
 RTDECL(int)         RTDbgModCreateFromDwo(PRTDBGMOD phDbgMod, const char *pszFilename, const char *pszName, uint32_t cbImage,
                                           uint32_t uCrc32, RTDBGCFG hDbgCfg);
 RTDECL(int)         RTDbgModCreateFromMachOImage(PRTDBGMOD phDbgMod, const char *pszFilename, const char *pszName,
-                                                 RTLDRARCH enmArch, uint32_t cbImage, uint32_t cSegs, PCRTDBGSEGMENT paSegs,
-                                                 PCRTUUID pUuid, RTDBGCFG hDbgCfg, uint32_t fFlags);
+                                                 RTLDRARCH enmArch, PRTLDRMOD phLdrModIn, uint32_t cbImage, uint32_t cSegs,
+                                                 PCRTDBGSEGMENT paSegs, PCRTUUID pUuid, RTDBGCFG hDbgCfg, uint32_t fFlags);
 
 /** @name Flags for RTDbgModCreate and friends.
  * @{ */
 /** Overrides the hDbgCfg settings and forces an image and/or symbol file
  *  search.  RTDbgModCreate will quietly ignore this flag. */
-#define RTDBGMOD_F_NOT_DEFERRED     RT_BIT_32(0)
+#define RTDBGMOD_F_NOT_DEFERRED         RT_BIT_32(0)
+/** Mach-O: Load the __LINKEDIT segment (@sa RTLDR_O_MACHO_LOAD_LINKEDIT). */
+#define RTDBGMOD_F_MACHO_LOAD_LINKEDIT  RT_BIT_32(1)
+/** Valid flag mask. */
+#define RTDBGMOD_F_VALID_MASK           UINT32_C(0x00000003)
 /** @} */
 
 

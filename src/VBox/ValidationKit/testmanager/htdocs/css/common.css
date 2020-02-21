@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1088,5 +1088,14 @@ table.tmsqltable pre {
     border:     0px none;
     width:      100%;
     overflow:   auto;
+}
+
+
+/*
+ * Workaround for flickering tooltips in the column bar graphs (see
+ * https://github.com/google/google-visualization-issues/issues/2162).
+ */
+.google-visualization-tooltip {
+    pointer-events: none;
 }
 

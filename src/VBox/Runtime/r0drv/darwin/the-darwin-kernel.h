@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -107,8 +107,13 @@
 
 /* This flag was added in 10.6, it seems.  Should be harmless in earlier
    releases... */
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
+#if __MAC_OS_X_VERSION_MAX_ALLOWED < 1060
 # define kIOMemoryMapperNone UINT32_C(0x800)
+#endif
+
+/* This flag was added in 10.8.2, it seems. */
+#if __MAC_OS_X_VERSION_MAX_ALLOWED < 1082
+# define kIOMemoryHostPhysicallyContiguous UINT32_C(0x00000080)
 #endif
 
 /** @name Macros for preserving EFLAGS.AC (despair / paranoid)
@@ -200,6 +205,10 @@ typedef void        (*PFNR0DARWINCPUINTERRUPT)(int);
 extern lck_grp_t                  *g_pDarwinLockGroup;
 extern PFNR0DARWINASTPENDING       g_pfnR0DarwinAstPending;
 extern PFNR0DARWINCPUINTERRUPT     g_pfnR0DarwinCpuInterrupt;
+#ifdef DEBUG /* Used once for debugging memory issues (see #9466). */
+typedef kern_return_t (*PFNR0DARWINVMFAULTEXTERNAL)(vm_map_t, vm_map_offset_t, vm_prot_t, boolean_t, int, pmap_t, vm_map_offset_t);
+extern PFNR0DARWINVMFAULTEXTERNAL  g_pfnR0DarwinVmFaultExternal;
+#endif
 
 /* threadpreempt-r0drv-darwin.cpp */
 int  rtThreadPreemptDarwinInit(void);

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2019 Oracle Corporation
+ * Copyright (C) 2007-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -96,10 +96,11 @@ VBGLR3DECL(int) VbglR3ClipboardConnectEx(PVBGLR3SHCLCMDCTX pCtx, uint64_t fGuest
     pCtx->fUseLegacyProtocol    = true;
     pCtx->cParmsRecived         = 0;
     pCtx->idContext             = 0;
+
 #ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
-    pCtx->cbChunkSize           = VBOX_SHCL_DEFAULT_MAX_CHUNK_SIZE;
-    pCtx->cbMaxChunkSize        = VMMDEV_MAX_HGCM_DATA_SIZE - _4K;
-# error todo
+    pCtx->fGuestFeatures       |= VBOX_SHCL_GF_0_TRANSFERS;
+    pCtx->cbChunkSize           = VBOX_SHCL_DEFAULT_CHUNK_SIZE; /** @todo Make this configurable. */
+    pCtx->cbMaxChunkSize        = VBOX_SHCL_MAX_CHUNK_SIZE;     /** @todo Ditto. */
 #endif
 
     /*
@@ -115,45 +116,50 @@ VBGLR3DECL(int) VbglR3ClipboardConnectEx(PVBGLR3SHCLCMDCTX pCtx, uint64_t fGuest
         if (RT_SUCCESS(rc))
         {
             pCtx->fGuestFeatures = fGuestFeatures;
-            LogRel2(("Shared Clipboard: Host features: %#RX64\n", pCtx->fHostFeatures));
+
+            LogRel2(("Shared Clipboard: Guest features: %#RX64 - Host features: %#RX64\n",
+                     pCtx->fGuestFeatures, pCtx->fHostFeatures));
+
             if (   (pCtx->fHostFeatures & VBOX_SHCL_HF_0_CONTEXT_ID)
                 && (pCtx->fGuestFeatures & VBOX_SHCL_GF_0_CONTEXT_ID) )
             {
                 pCtx->fUseLegacyProtocol = false;
 
 #ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
-                /*
-                 * Negotiate a chunk size (sketched, as I don't know what it is supposed to be for).
-                 */
-                struct
+                if (   (pCtx->fHostFeatures & VBOX_SHCL_HF_0_TRANSFERS)
+                    && (pCtx->fGuestFeatures & VBOX_SHCL_GF_0_TRANSFERS) )
                 {
-                    VBGLIOCHGCMCALL                 Hdr;
-                    VBoxShClParmNegotiateChunkSize  Parms;
-                } Msg;
-                do
-                {
-                    VBGL_HGCM_HDR_INIT(&Msg.Hdr, pCtx->idClient, VBOX_SHCL_GUEST_FN_NEGOTIATE_CHUNK_SIZE,
-                                       VBOX_SHCL_GUEST_CPARM_NEGOTIATE_CHUNK_SIZE);
-                    Msg.Parsm.cb32MaxChunkSize = VMMDEV_MAX_HGCM_DATA_SIZE - _4K;
-                    Msg.Parsm.cb32ChunkSize    = 0;
-                    rc = VbglR3HGCMCall(&Msg.Hdr, sizeof(Msg));
-                } while (rc == VERR_INTERRUPTED);
-                if (RT_SUCCESS(rc))
-                {
-                    pCtx->cbChunkSize = RT_MIN(Msg.Parms.cb32ChunkSize, _4K);
-                    pCtx->cbMaxChunkSize = RT_MIN(Msg.Parms.cb32ChunkSize);
+                    VBoxShClParmNegotiateChunkSize MsgChunkSize;
+                    do
+                    {
+                        VBGL_HGCM_HDR_INIT(&MsgChunkSize.hdr, pCtx->idClient, VBOX_SHCL_GUEST_FN_NEGOTIATE_CHUNK_SIZE,
+                                           VBOX_SHCL_CPARMS_NEGOTIATE_CHUNK_SIZE);
+                        MsgChunkSize.cb32MaxChunkSize.SetUInt32(pCtx->cbMaxChunkSize);
+                        MsgChunkSize.cb32ChunkSize.SetUInt32(0); /* If set to 0, let the host choose. */
+                        rc = VbglR3HGCMCall(&MsgChunkSize.hdr, sizeof(MsgChunkSize));
+                    } while (rc == VERR_INTERRUPTED);
+                    if (RT_SUCCESS(rc))
+                    {
+                        Assert(MsgChunkSize.cb32ChunkSize.type == VMMDevHGCMParmType_32bit);
+                        pCtx->cbChunkSize    = RT_MIN(MsgChunkSize.cb32ChunkSize.u.value32,    pCtx->cbChunkSize);
+                        Assert(MsgChunkSize.cb32MaxChunkSize.type == VMMDevHGCMParmType_32bit);
+                        pCtx->cbMaxChunkSize = RT_MIN(MsgChunkSize.cb32MaxChunkSize.u.value32, pCtx->cbMaxChunkSize);
+
+                        LogRel2(("Shared Clipboard: Using chunk size %RU32 (maximum is %RU32)\n",
+                                 pCtx->cbChunkSize, pCtx->cbMaxChunkSize));
+                    }
                 }
-# error todo
-                LogRel2(("Shared Clipboard: Client %RU32 connected (cbChunkSize=%RU32, fUseLegacyProtocol=%RTbool)\n",
-                         pCtx->idClient, pCtx->cbChunkSize, pCtx->fUseLegacyProtocol));
-#endif
+                else
+                {
+                    if (!(pCtx->fHostFeatures & VBOX_SHCL_HF_0_TRANSFERS))
+                        LogRel2(("Shared Clipboard: Host does not support transfers\n"));
+                }
+#endif /* VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS */
             }
             else
             {
-                if (pCtx->fHostFeatures & VBOX_SHCL_HF_0_CONTEXT_ID)
-                    LogRel(("Shared Clipboard: Host does not expose VBOX_SHCL_HF_0_CONTEXT_ID (%RX64)\n", pCtx->fHostFeatures));
-                if (pCtx->fHostFeatures & VBOX_SHCL_HF_0_CONTEXT_ID)
-                    LogRel(("Shared Clipboard: Host does not expose VBOX_SHCL_HF_0_CONTEXT_ID (%RX64)\n", pCtx->fHostFeatures));
+                if (!(pCtx->fHostFeatures & VBOX_SHCL_HF_0_CONTEXT_ID))
+                    LogRel(("Shared Clipboard: Host does not support context IDs, using legacy protocol\n"));
 
                 pCtx->fUseLegacyProtocol = true;
             }
@@ -446,17 +452,20 @@ VBGLR3DECL(int) VbglR3ClipboardReadData(HGCMCLIENTID idClient, uint32_t fFormat,
  * Reads clipboard data from the host clipboard.
  *
  * @returns VBox status code.
- * @retval  VINF_BUFFER_OVERFLOW    If there is more data available than the caller provided buffer space for.
+ * @retval  VINF_BUFFER_OVERFLOW If there is more data available than the caller provided buffer space for.
  *
  * @param   pCtx                The command context returned by VbglR3ClipboardConnectEx().
- * @param   pData               Where to store the clipboard data read.
+ * @param   uFormat             Clipboard format of clipboard data to be read.
+ * @param   pvData              Buffer where to store the read data.
+ * @param   cbData              Size (in bytes) of data buffer where to store the read data.
  * @param   pcbRead             The actual size of the host clipboard data.
  */
-VBGLR3DECL(int) VbglR3ClipboardReadDataEx(PVBGLR3SHCLCMDCTX pCtx, PSHCLDATABLOCK pData, uint32_t *pcbRead)
+VBGLR3DECL(int) VbglR3ClipboardReadDataEx(PVBGLR3SHCLCMDCTX pCtx,
+                                          SHCLFORMAT uFormat, void *pvData, uint32_t cbData, uint32_t *pcbRead)
 {
-    AssertPtrReturn(pCtx,  VERR_INVALID_POINTER);
-    AssertPtrReturn(pData, VERR_INVALID_POINTER);
-    return VbglR3ClipboardReadData(pCtx->idClient, pData->uFormat, pData->pvData, pData->cbData, pcbRead);
+    AssertPtrReturn(pCtx,   VERR_INVALID_POINTER);
+    AssertPtrReturn(pvData, VERR_INVALID_POINTER);
+    return VbglR3ClipboardReadData(pCtx->idClient, uFormat, pvData, cbData, pcbRead);
 }
 
 
@@ -1855,7 +1864,7 @@ static int vbglR3ClipboardTransferStart(PVBGLR3SHCLCMDCTX pCmdCtx, PSHCLTRANSFER
     int rc = ShClTransferCreate(&pTransfer);
     if (RT_SUCCESS(rc))
     {
-        ShClTransferSetCallbacks(pTransfer, &pCmdCtx->Transfers.Callbacks);
+        ShClTransferSetCallbacks(pTransfer, &pCmdCtx->Callbacks);
 
         rc = ShClTransferCtxTransferRegisterByIndex(pTransferCtx, pTransfer, uTransferID);
         if (RT_SUCCESS(rc))
@@ -1989,7 +1998,7 @@ VBGLR3DECL(int) VbglR3ClipboardEventGetNextEx(uint32_t idMsg, uint32_t cParms,
                 rc = VbglR3ClipboarTransferStatusRecv(pCmdCtx, &enmDir, &transferReport);
                 if (RT_SUCCESS(rc))
                 {
-                    const SHCLTRANSFERID uTransferID = VBOX_SHCL_CONTEXTID_GET_TRANSFER(pCmdCtx->uContextID);
+                    const SHCLTRANSFERID uTransferID = VBOX_SHCL_CONTEXTID_GET_TRANSFER(pCmdCtx->idContext);
 
                     LogFlowFunc(("[Transfer %RU16] enmDir=%RU32, status=%s\n",
                                  uTransferID, enmDir, ShClTransferStatusToStr(transferReport.uStatus)));
@@ -2030,7 +2039,7 @@ VBGLR3DECL(int) VbglR3ClipboardEventGetNextEx(uint32_t idMsg, uint32_t cParms,
                         case SHCLTRANSFERSTATUS_ERROR:
                         {
                             rc = vbglR3ClipboardTransferStop(pCmdCtx, pTransferCtx,
-                                                             VBOX_SHCL_CONTEXTID_GET_TRANSFER(pCmdCtx->uContextID));
+                                                             VBOX_SHCL_CONTEXTID_GET_TRANSFER(pCmdCtx->idContext));
                             break;
                         }
 
@@ -2043,7 +2052,7 @@ VBGLR3DECL(int) VbglR3ClipboardEventGetNextEx(uint32_t idMsg, uint32_t cParms,
                     {
                         pEvent->u.TransferStatus.enmDir = enmDir;
                         pEvent->u.TransferStatus.Report = transferReport;
-                        pEvent->u.TransferStatus.uID    = VBOX_SHCL_CONTEXTID_GET_TRANSFER(pCmdCtx->uContextID);
+                        pEvent->u.TransferStatus.uID    = VBOX_SHCL_CONTEXTID_GET_TRANSFER(pCmdCtx->idContext);
 
                         pEvent->enmType = VBGLR3CLIPBOARDEVENTTYPE_TRANSFER_STATUS;
 
@@ -2065,7 +2074,7 @@ VBGLR3DECL(int) VbglR3ClipboardEventGetNextEx(uint32_t idMsg, uint32_t cParms,
                 if (RT_SUCCESS(rc))
                 {
                     PSHCLTRANSFER pTransfer = ShClTransferCtxGetTransfer(pTransferCtx,
-                                                                        VBOX_SHCL_CONTEXTID_GET_TRANSFER(pCmdCtx->uContextID));
+                                                                        VBOX_SHCL_CONTEXTID_GET_TRANSFER(pCmdCtx->idContext));
                     AssertPtrBreakStmt(pTransfer, rc = VERR_NOT_FOUND);
 
                     SHCLROOTLISTHDR rootListHdr;
@@ -2088,7 +2097,7 @@ VBGLR3DECL(int) VbglR3ClipboardEventGetNextEx(uint32_t idMsg, uint32_t cParms,
                 if (RT_SUCCESS(rc))
                 {
                     PSHCLTRANSFER pTransfer = ShClTransferCtxGetTransfer(pTransferCtx,
-                                                                         VBOX_SHCL_CONTEXTID_GET_TRANSFER(pCmdCtx->uContextID));
+                                                                         VBOX_SHCL_CONTEXTID_GET_TRANSFER(pCmdCtx->idContext));
                     AssertPtrBreakStmt(pTransfer, rc = VERR_NOT_FOUND);
 
                     SHCLROOTLISTENTRY rootListEntry;
@@ -2109,7 +2118,7 @@ VBGLR3DECL(int) VbglR3ClipboardEventGetNextEx(uint32_t idMsg, uint32_t cParms,
                     if (RT_SUCCESS(rc))
                     {
                         PSHCLTRANSFER pTransfer = ShClTransferCtxGetTransfer(pTransferCtx,
-                                                                             VBOX_SHCL_CONTEXTID_GET_TRANSFER(pCmdCtx->uContextID));
+                                                                             VBOX_SHCL_CONTEXTID_GET_TRANSFER(pCmdCtx->idContext));
                         AssertPtrBreakStmt(pTransfer, rc = VERR_NOT_FOUND);
 
                         LogFlowFunc(("pszPath=%s\n", openParmsList.pszPath));
@@ -2135,7 +2144,7 @@ VBGLR3DECL(int) VbglR3ClipboardEventGetNextEx(uint32_t idMsg, uint32_t cParms,
                 if (RT_SUCCESS(rc))
                 {
                     PSHCLTRANSFER pTransfer = ShClTransferCtxGetTransfer(pTransferCtx,
-                                                                         VBOX_SHCL_CONTEXTID_GET_TRANSFER(pCmdCtx->uContextID));
+                                                                         VBOX_SHCL_CONTEXTID_GET_TRANSFER(pCmdCtx->idContext));
                     AssertPtrBreakStmt(pTransfer, rc = VERR_NOT_FOUND);
 
                     rc = ShClTransferListClose(pTransfer, hList);
@@ -2158,7 +2167,7 @@ VBGLR3DECL(int) VbglR3ClipboardEventGetNextEx(uint32_t idMsg, uint32_t cParms,
                 if (RT_SUCCESS(rc))
                 {
                     PSHCLTRANSFER pTransfer = ShClTransferCtxGetTransfer(pTransferCtx,
-                                                                         VBOX_SHCL_CONTEXTID_GET_TRANSFER(pCmdCtx->uContextID));
+                                                                         VBOX_SHCL_CONTEXTID_GET_TRANSFER(pCmdCtx->idContext));
                     AssertPtrBreakStmt(pTransfer, rc = VERR_NOT_FOUND);
 
                     SHCLLISTHDR hdrList;
@@ -2188,7 +2197,7 @@ VBGLR3DECL(int) VbglR3ClipboardEventGetNextEx(uint32_t idMsg, uint32_t cParms,
                     if (RT_SUCCESS(rc))
                     {
                         PSHCLTRANSFER pTransfer = ShClTransferCtxGetTransfer(pTransferCtx,
-                                                                             VBOX_SHCL_CONTEXTID_GET_TRANSFER(pCmdCtx->uContextID));
+                                                                             VBOX_SHCL_CONTEXTID_GET_TRANSFER(pCmdCtx->idContext));
                         AssertPtrBreakStmt(pTransfer, rc = VERR_NOT_FOUND);
 
                         rc = ShClTransferListRead(pTransfer, hList, &entryList);
@@ -2221,7 +2230,7 @@ VBGLR3DECL(int) VbglR3ClipboardEventGetNextEx(uint32_t idMsg, uint32_t cParms,
                     if (RT_SUCCESS(rc))
                     {
                         PSHCLTRANSFER pTransfer = ShClTransferCtxGetTransfer(pTransferCtx,
-                                                                             VBOX_SHCL_CONTEXTID_GET_TRANSFER(pCmdCtx->uContextID));
+                                                                             VBOX_SHCL_CONTEXTID_GET_TRANSFER(pCmdCtx->idContext));
                         AssertPtrBreakStmt(pTransfer, rc = VERR_NOT_FOUND);
 
                         SHCLOBJHANDLE hObj;
@@ -2245,7 +2254,7 @@ VBGLR3DECL(int) VbglR3ClipboardEventGetNextEx(uint32_t idMsg, uint32_t cParms,
                 if (RT_SUCCESS(rc))
                 {
                     PSHCLTRANSFER pTransfer = ShClTransferCtxGetTransfer(pTransferCtx,
-                                                                         VBOX_SHCL_CONTEXTID_GET_TRANSFER(pCmdCtx->uContextID));
+                                                                         VBOX_SHCL_CONTEXTID_GET_TRANSFER(pCmdCtx->idContext));
                     AssertPtrBreakStmt(pTransfer, rc = VERR_NOT_FOUND);
 
                     rc = ShClTransferObjClose(pTransfer, hObj);
@@ -2267,7 +2276,7 @@ VBGLR3DECL(int) VbglR3ClipboardEventGetNextEx(uint32_t idMsg, uint32_t cParms,
                 if (RT_SUCCESS(rc))
                 {
                     PSHCLTRANSFER pTransfer = ShClTransferCtxGetTransfer(pTransferCtx,
-                                                                         VBOX_SHCL_CONTEXTID_GET_TRANSFER(pCmdCtx->uContextID));
+                                                                         VBOX_SHCL_CONTEXTID_GET_TRANSFER(pCmdCtx->idContext));
                     AssertPtrBreakStmt(pTransfer, rc = VERR_NOT_FOUND);
 
                     AssertBreakStmt(pCmdCtx->cbChunkSize, rc = VERR_INVALID_PARAMETER);
@@ -2307,7 +2316,7 @@ VBGLR3DECL(int) VbglR3ClipboardEventGetNextEx(uint32_t idMsg, uint32_t cParms,
             && RT_FAILURE(rc))
         {
             /* Report error back to the host. */
-            int rc2 = VbglR3ClipboardWriteError(pCmdCtx->uClientID, rc);
+            int rc2 = VbglR3ClipboardWriteError(pCmdCtx->idClient, rc);
             AssertRC(rc2);
         }
     }
@@ -2536,12 +2545,14 @@ VBGLR3DECL(int) VbglR3ClipboardWriteData(HGCMCLIENTID idClient, uint32_t fFormat
  *
  * @returns VBox status code.
  * @param   pCtx                The command context returned by VbglR3ClipboardConnectEx().
- * @param   pData               Clipboard data to send.
+ * @param   uFormat             Clipboard format to send.
+ * @param   pvData              Pointer to data to send.
+ * @param   cbData              Size (in bytes) of data to send.
  */
-VBGLR3DECL(int) VbglR3ClipboardWriteDataEx(PVBGLR3SHCLCMDCTX pCtx, PSHCLDATABLOCK pData)
+VBGLR3DECL(int) VbglR3ClipboardWriteDataEx(PVBGLR3SHCLCMDCTX pCtx, SHCLFORMAT uFormat, void *pvData, uint32_t cbData)
 {
-    AssertPtrReturn(pCtx,  VERR_INVALID_POINTER);
-    AssertPtrReturn(pData, VERR_INVALID_POINTER);
+    AssertPtrReturn(pCtx,   VERR_INVALID_POINTER);
+    AssertPtrReturn(pvData, VERR_INVALID_POINTER);
 
     int rc;
 
@@ -2549,7 +2560,7 @@ VBGLR3DECL(int) VbglR3ClipboardWriteDataEx(PVBGLR3SHCLCMDCTX pCtx, PSHCLDATABLOC
 
     if (pCtx->fUseLegacyProtocol)
     {
-        rc = VbglR3ClipboardWriteData(pCtx->idClient, pData->uFormat, pData->pvData, pData->cbData);
+        rc = VbglR3ClipboardWriteData(pCtx->idClient, uFormat, pvData, cbData);
     }
     else
     {
@@ -2561,8 +2572,8 @@ VBGLR3DECL(int) VbglR3ClipboardWriteDataEx(PVBGLR3SHCLCMDCTX pCtx, PSHCLDATABLOC
 
         VBGL_HGCM_HDR_INIT(&Msg.Hdr, pCtx->idClient, VBOX_SHCL_GUEST_FN_DATA_WRITE, VBOX_SHCL_CPARMS_DATA_WRITE);
         Msg.Parms.id64Context.SetUInt64(pCtx->idContext);
-        Msg.Parms.f32Format.SetUInt32(pData->uFormat);
-        Msg.Parms.pData.SetPtr(pData->pvData, pData->cbData);
+        Msg.Parms.f32Format.SetUInt32(uFormat);
+        Msg.Parms.pData.SetPtr(pvData, cbData);
 
         LogFlowFunc(("CID=%RU32\n", pCtx->idContext));
 

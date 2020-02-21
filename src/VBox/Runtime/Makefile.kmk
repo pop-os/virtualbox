@@ -161,8 +161,10 @@ common/misc/buildconfig.cpp_DEFS = \
 BLDPROGS += oiddb2c
 oiddb2c_TEMPLATE = VBoxBldProg
 oiddb2c_SOURCES = common/asn1/oiddb2c.cpp
+
 common/asn1/asn1-dump.cpp_DEPS = $(IPRT_OUT_DIR)/oiddb.h
 common/asn1/asn1-dump.cpp_INCS = $(IPRT_OUT_DIR)
+OTHER_CLEAN += $(IPRT_OUT_DIR)/oiddb.h $(IPRT_OUT_DIR)/oiddb.h.ts
 
 $(IPRT_OUT_DIR)/oiddb.h.ts +| $(IPRT_OUT_DIR)/oiddb.h: \
 		$(VBOX_PATH_RUNTIME_SRC)/common/asn1/oiddb.cfg \
@@ -1567,10 +1569,8 @@ ifn1of ($(KBUILD_TARGET), os2) # breaks validationkit, figure out later.
  #$(call KB_FN_DO_PASS0_ON_TARGET,RuntimeR3)
 
  BLDDIRS += $(IPRT_OUT_DIR)/man/
- OTHER_CLEAN += \
- 	$(addprefix $(IPRT_OUT_DIR)/man/,$(IPRT_XML_REFENTRY_FILES)) \
- 	$(addprefix $(IPRT_OUT_DIR)/man/,$(patsubst %.xml,%.h,$(IPRT_XML_REFENTRY_FILES))) \
- 	$(addprefix $(IPRT_OUT_DIR)/man/,$(patsubst %.xml,%.h.ts,$(IPRT_XML_REFENTRY_FILES)))
+ OTHER_CLEAN += $(foreach xml,$(basename $(notdir $(IPRT_XML_REFENTRY_FILES))), \
+ 	$(IPRT_OUT_DIR)/man/$(xml).xml $(IPRT_OUT_DIR)/man/$(xml).h $(IPRT_OUT_DIR)/man/$(xml).h.ts)
 
 
  include $(PATH_ROOT)/doc/manual/Config.kmk
@@ -2193,11 +2193,12 @@ VBoxRT_SOURCES.$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH) := $(RuntimeR3_SOURCES.$(K
 VBoxRT_SOURCES.$(KBUILD_TARGET).x86   := $(RuntimeR3_SOURCES.$(KBUILD_TARGET).x86)
 VBoxRT_SOURCES.$(KBUILD_TARGET).amd64 := $(RuntimeR3_SOURCES.$(KBUILD_TARGET).amd64)
 VBoxRT_SOURCES.$(KBUILD_TARGET_ARCH) := $(RuntimeR3_SOURCES.$(KBUILD_TARGET_ARCH))
-VBoxRT_SOURCES.x86   := $(RuntimeR3_SOURCES.x86)
-VBoxRT_SOURCES.amd64 := $(RuntimeR3_SOURCES.amd64)
-VBoxRT_SOURCES.win            += \
+VBoxRT_SOURCES.x86            := $(RuntimeR3_SOURCES.x86)
+VBoxRT_SOURCES.amd64          := $(RuntimeR3_SOURCES.amd64)
+VBoxRT_SOURCES.win            := $(filter-out r3/win/tls-win.cpp, $(VBoxRT_SOURCES.win))\
 	r3/win/dllmain-win.cpp \
-	$(VBoxRT_0_OUTDIR)/VBoxRT.def
+	r3/win/tls-dllmain-win.cpp \
+	$(call TARGET_PATH,VBoxRT)/VBoxRT.def
 VBoxRT_INCS                   := $(RuntimeR3_INCS)
 VBoxRT_INCS.$(KBUILD_TARGET)  := $(RuntimeR3_INCS.$(KBUILD_TARGET))
 VBoxRT_INCS.$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH) := $(RuntimeR3_INCS.$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH))
@@ -2208,13 +2209,13 @@ VBoxRT_LIBS                   += \
 	$(PATH_STAGE_LIB)/SUPR3$(VBOX_SUFF_LIB)
 endif
 ifndef SDK_VBOX_LIBXML2_LIBS
- VBoxRT_LIBS                 += \
+ VBoxRT_LIBS                  += \
 	$(PATH_STAGE_LIB)/VBox-libxml2$(VBOX_SUFF_LIB)
 endif
-VBoxRT_LIBS                  += \
+VBoxRT_LIBS                   += \
 	$(SDK_VBOX_ZLIB_LIBS)
 ifndef SDK_VBOX_OPENSSL_LIBS
- VBoxRT_LIBS                 += \
+ VBoxRT_LIBS                  += \
 	$(PATH_STAGE_LIB)/VBox-libcrypto$(VBOX_SUFF_LIB) \
 	$(PATH_STAGE_LIB)/VBox-libssl$(VBOX_SUFF_LIB)
 endif
@@ -2425,6 +2426,8 @@ if1of (VBoxRT,$(DLLS))
  	$(VBoxRTStableCheck_0_OUTDIR)/VBoxRTStableCheckA.asm
  VBoxRTStableCheck_LIBS = \
  	$(LIB_RUNTIME)
+ VBoxRTStableCheck_CLEAN = \
+ 	$(VBoxRTStableCheck_0_OUTDIR)/VBoxRTStableCheckA.asm
  ifeq ($(KBUILD_TARGET).$(KBUILD_TARGET_ARCH),win.amd64)
 $$(VBoxRTStableCheck_0_OUTDIR)/VBoxRTStableCheckA.asm: \
        $(PATH_SUB_CURRENT)/VBox/DefToAsmExterns.sed \
@@ -3850,7 +3853,7 @@ test-doxygen::
 if1of ($(LIBRARIES),RuntimeR3 RuntimeR0 RuntimeR0Drv RuntimeRC)
  test-mangling:: $(IPRT_OUT_DIR)/mangling.run
  OTHERS      += $(IPRT_OUT_DIR)/mangling.run
- CLEANS      += $(IPRT_OUT_DIR)/mangling.run
+ OTHER_CLEAN += $(IPRT_OUT_DIR)/mangling.run
  $(IPRT_OUT_DIR)/mangling.run: \
 		$$(RuntimeR3_1_TARGET) \
 		$$(RuntimeR0_1_TARGET) \

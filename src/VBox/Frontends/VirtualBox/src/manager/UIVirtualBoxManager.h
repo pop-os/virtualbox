@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -129,6 +129,9 @@ private slots:
 
         /** Handles current snapshot item change. */
         void sltCurrentSnapshotItemChange();
+
+        /** Handles state change for cloud machine with specified @a strMachineId. */
+        void sltHandleCloudMachineStateChange(const QString strMachineId);
     /** @} */
 
     /** @name CVirtualBox event handling stuff.
@@ -312,6 +315,8 @@ private:
           * @param items used to calculate verdict about should the action be enabled. */
         bool isActionEnabled(int iActionIndex, const QList<UIVirtualMachineItem*> &items);
 
+        /** Returns whether all passed @a items are local. */
+        static bool isItemsLocal(const QList<UIVirtualMachineItem*> &items);
         /** Returns whether all passed @a items are powered off. */
         static bool isItemsPoweredOff(const QList<UIVirtualMachineItem*> &items);
         /** Returns whether at least one of passed @a items is able to shutdown. */

@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2012-2019 Oracle Corporation
+# Copyright (C) 2012-2020 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -111,6 +111,7 @@ endif
  TEMPLATE_iPxe_LNK_DEPS = $(VBOX_PATH_IPXE_SRC)/src/arch/i386/scripts/i386.lds
  TEMPLATE_iPxe_CFLAGS  = \
 	-fno-pie \
+	-fcommon \
 	-ffreestanding \
 	-ffunction-sections \
 	-march=i386 \

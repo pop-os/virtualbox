@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2020 Oracle Corporation
  * This file is based on ast_drv.c
  * Copyright 2012 Red Hat Inc.
  *
@@ -36,10 +36,9 @@
 #include <linux/console.h>
 #include <linux/vt_kern.h>
 
-#include <drm/drmP.h>
-#include <drm/drm_crtc_helper.h>
-
 #include "vbox_drv.h"
+
+#include <drm/drm_crtc_helper.h>
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0) || defined(RHEL_81)
 #include <drm/drm_probe_helper.h>

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2019 Oracle Corporation
+ * Copyright (C) 2008-2020 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -207,11 +207,11 @@ int ShClSvcImplFormatAnnounce(PSHCLCLIENT pClient,
         return VINF_SUCCESS;
 #endif
 
-    return ShClSvcDataReadRequest(pClient, pFormats->Formats, NULL /* puEvent */);
+    return ShClSvcDataReadRequest(pClient, pFormats->Formats, NULL /* pidEvent */);
 }
 
 int ShClSvcImplReadData(PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCtx,
-                        PSHCLDATABLOCK pData, uint32_t *pcbActual)
+                        SHCLFORMAT uFormat, void *pvData, uint32_t cbData, uint32_t *pcbActual)
 {
     RT_NOREF(pCmdCtx);
 
@@ -221,7 +221,7 @@ int ShClSvcImplReadData(PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCtx,
     *pcbActual = 0;
 
     int rc = readFromPasteboard(pClient->State.pCtx->pasteboard,
-                                pData->uFormat, pData->pvData, pData->cbData, pcbActual);
+                                uFormat, pvData, cbData, pcbActual);
 
     ShClSvcUnlock();
 
@@ -229,13 +229,13 @@ int ShClSvcImplReadData(PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCtx,
 }
 
 int ShClSvcImplWriteData(PSHCLCLIENT pClient,
-                         PSHCLCLIENTCMDCTX pCmdCtx, PSHCLDATABLOCK pData)
+                         PSHCLCLIENTCMDCTX pCmdCtx, SHCLFORMAT uFormat, void *pvData, uint32_t cbData)
 {
     RT_NOREF(pCmdCtx);
 
     ShClSvcLock();
 
-    writeToPasteboard(pClient->State.pCtx->pasteboard, pData->pvData, pData->cbData, pData->uFormat);
+    writeToPasteboard(pClient->State.pCtx->pasteboard, pvData, cbData, uFormat);
 
     ShClSvcUnlock();
 
