@@ -1,3 +1,10 @@
+virtualbox (6.1.4-dfsg-2) unstable; urgency=medium
+
+  * Apply upstream fix for ticket 19336, aka shared clipboard not working on
+    Ubuntu host
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 05 Mar 2020 16:02:51 +0100
+
 virtualbox (6.1.4-dfsg-1) unstable; urgency=medium
 
   * Bump copyright years
