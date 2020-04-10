@@ -1,5 +1,5 @@
---- a/include/iprt/time.h
-+++ b/include/iprt/time.h
+--- virtualbox.orig/include/iprt/time.h
++++ virtualbox/include/iprt/time.h
 @@ -366,6 +366,7 @@ DECLINLINE(void) RTTimeSpecGetSecondsAndNano(PRTTIMESPEC pTime, int32_t *pi32Sec
   * @param   pTime       The time spec to interpret.
   * @param   pTimeval    Where to store the time as POSIX timeval.
@@ -41,8 +41,8 @@
  
  
  
---- a/r0drv/linux/memobj-r0drv-linux.c
-+++ b/r0drv/linux/memobj-r0drv-linux.c
+--- virtualbox.orig/src/VBox/Runtime/r0drv/linux/memobj-r0drv-linux.c
++++ virtualbox/src/VBox/Runtime/r0drv/linux/memobj-r0drv-linux.c
 @@ -1461,9 +1461,13 @@ DECLHIDDEN(int) rtR0MemObjNativeMapKernel(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ
               * MMIO / physical memory.
               */
@@ -57,8 +57,8 @@
              if (pMemLnx->Core.pv)
              {
                  /** @todo fix protection. */
---- a/r0drv/linux/time-r0drv-linux.c
-+++ b/r0drv/linux/time-r0drv-linux.c
+--- virtualbox.orig/src/VBox/Runtime/r0drv/linux/time-r0drv-linux.c
++++ virtualbox/src/VBox/Runtime/r0drv/linux/time-r0drv-linux.c
 @@ -43,8 +43,8 @@ DECLINLINE(uint64_t) rtTimeGetSystemNanoTS(void)
       * Use ktime_get_ts, this is also what clock_gettime(CLOCK_MONOTONIC,) is using.
       */
