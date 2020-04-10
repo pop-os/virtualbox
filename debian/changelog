@@ -1,3 +1,9 @@
+virtualbox (6.1.4-dfsg-3) unstable; urgency=medium
+
+  * Apply upstream fix for ticket 19312 to fix build with Linux 5.6.
+
+ -- Konstantin Demin <rockdrilla@gmail.com>  Wed, 01 Apr 2020 11:52:17 +0300
+
 virtualbox (6.1.4-dfsg-2) unstable; urgency=medium
 
   * Apply upstream fix for ticket 19336, aka shared clipboard not working on
