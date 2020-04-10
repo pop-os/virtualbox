@@ -1,3 +1,10 @@
+virtualbox (6.1.4-dfsg-4) unstable; urgency=medium
+
+  * Fixup previous upload, by grabbing upstream commits:
+    #83484 #43473 #83471
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 10 Apr 2020 13:25:51 +0200
+
 virtualbox (6.1.4-dfsg-3) unstable; urgency=medium
 
   * Apply upstream fix for ticket 19312 to fix build with Linux 5.6.
