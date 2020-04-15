@@ -28,8 +28,8 @@
 /* GUI includes: */
 #include "QIArrowSplitter.h"
 #include "QIDialogButtonBox.h"
-#include "QILabel.h"
 #include "QIMessageBox.h"
+#include "QIRichTextLabel.h"
 #include "UIIconPool.h"
 
 /* Other VBox includes: */
@@ -119,10 +119,6 @@ void QIMessageBox::setButtonText(int iButton, const QString &strText)
 
 void QIMessageBox::polishEvent(QShowEvent *pPolishEvent)
 {
-    /* Tune text-label size: */
-    m_pLabelText->useSizeHintForWidth(m_pLabelText->width());
-    m_pLabelText->updateGeometry();
-
     /* Call to base-class: */
     QIDialog::polishEvent(pPolishEvent);
 
@@ -212,15 +208,11 @@ void QIMessageBox::prepare()
                 pTopLayout->addWidget(m_pLabelIcon);
             }
             /* Create text-label: */
-            m_pLabelText = new QILabel(m_strMessage);
+            m_pLabelText = new QIRichTextLabel;
             AssertPtrReturnVoid(m_pLabelText);
             {
                 /* Configure text-label: */
-                m_pLabelText->setWordWrap(true);
-                m_pLabelText->setAlignment(Qt::AlignLeft | Qt::AlignTop);
-                QSizePolicy sizePolicy(QSizePolicy::Minimum, QSizePolicy::Minimum);
-                sizePolicy.setHeightForWidth(true);
-                m_pLabelText->setSizePolicy(sizePolicy);
+                m_pLabelText->setText(compressLongWords(m_strMessage));
                 /* Add text-label into top-layout: */
                 pTopLayout->addWidget(m_pLabelText);
             }
@@ -373,4 +365,27 @@ QPixmap QIMessageBox::standardPixmap(AlertIconType iconType, QWidget *pWidget /*
     QStyle *pStyle = pWidget ? pWidget->style() : QApplication::style();
     int iSize = pStyle->pixelMetric(QStyle::PM_MessageBoxIconSize, 0, pWidget);
     return icon.pixmap(iSize, iSize);
+}
+
+/* static */
+QString QIMessageBox::compressLongWords(QString strText)
+{
+    // WORKAROUND:
+    // The idea is to compress long words of more than 100 symbols in size consisting of alphanumeric
+    // characters with ellipsiss using the following template:
+    // "[50 first symbols]...[50 last symbols]"
+    QRegExp re("[a-zA-Z0-9]{101,}");
+    int iPosition = re.indexIn(strText);
+    bool fChangeAllowed = iPosition != -1;
+    while (fChangeAllowed)
+    {
+        QString strNewText = strText;
+        const QString strFound = re.cap(0);
+        strNewText.replace(iPosition, strFound.size(), strFound.left(50) + "..." + strFound.right(50));
+        fChangeAllowed = fChangeAllowed && strText != strNewText;
+        strText = strNewText;
+        iPosition = re.indexIn(strText);
+        fChangeAllowed = fChangeAllowed && iPosition != -1;
+    }
+    return strText;
 }

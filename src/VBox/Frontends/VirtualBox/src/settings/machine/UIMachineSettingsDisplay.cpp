@@ -818,11 +818,8 @@ void UIMachineSettingsDisplay::polishPage()
 #else
     m_pCheckbox3D->hide();
 #endif
-#ifdef VBOX_WITH_VIDEOHWACCEL
-    m_pCheckbox2DVideo->setEnabled(isMachineOffline() && VBox2DHelpers::isAcceleration2DVideoAvailable());
-#else
     m_pCheckbox2DVideo->hide();
-#endif
+    m_pPlaceholder2DVideo->hide();
 
     /* Polish 'Remote Display' availability: */
     m_pTabWidget->setTabEnabled(1, oldDisplayData.m_fRemoteDisplayServerSupported);
@@ -874,11 +871,6 @@ void UIMachineSettingsDisplay::sltHandleGraphicsControllerComboChange()
 {
     /* Update Video RAM requirements: */
     m_pVideoMemoryEditor->setGraphicsControllerType(m_pGraphicsControllerEditor->value());
-#ifdef VBOX_WITH_VIDEOHWACCEL
-    m_pLayout2DVideo->setCurrentWidget(  graphicsControllerTypeCurrent() == KGraphicsControllerType_VBoxVGA
-                                       ? m_pCheckbox2DVideo
-                                       : m_pPlaceholder2DVideo);
-#endif
 
     /* Revalidate: */
     revalidate();

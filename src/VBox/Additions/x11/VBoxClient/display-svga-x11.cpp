@@ -36,7 +36,8 @@
  *    screen, and enabling others should not be possible.
  *  - When VMSVGA is not enabled, VBoxClient --vmsvga should never stay running.
  */
-#include "stdio.h"
+#include <stdio.h>
+#include <dlfcn.h>
 #include "VBoxClient.h"
 
 #include <VBox/VBoxGuestLib.h>
@@ -45,26 +46,49 @@
 #include <iprt/err.h>
 #include <iprt/file.h>
 #include <iprt/string.h>
+#include <iprt/thread.h>
 
-#include <sys/utsname.h>
+#include <X11/Xlibint.h>
+#include <X11/extensions/Xrandr.h>
+#include <X11/extensions/panoramiXproto.h>
 
 /** Maximum number of supported screens.  DRM and X11 both limit this to 32. */
 /** @todo if this ever changes, dynamically allocate resizeable arrays in the
  *  context structure. */
 #define VMW_MAX_HEADS 32
-
-#include "seamless-x11.h"
-
-#ifdef RT_OS_LINUX
-# include <sys/ioctl.h>
-#else  /* Solaris and BSDs, in case they ever adopt the DRM driver. */
-# include <sys/ioccom.h>
-#endif
-
-#define USE_XRANDR_BIN
+/** Monitor positions array. Allocated here and deallocated in the class descructor. */
+RTPOINT *mpMonitorPositions;
+/** Thread to listen to some of the X server events. */
+RTTHREAD mX11MonitorThread = NIL_RTTHREAD;
 
 
-struct X11VMWRECT /* xXineramaScreenInfo in Xlib headers. */
+typedef struct {
+   CARD8  reqType;           /* always X_VMwareCtrlReqCode */
+   CARD8  VMwareCtrlReqType; /* always X_VMwareCtrlSetTopology */
+   CARD16 length B16;
+   CARD32 screen B32;
+   CARD32 number B32;
+   CARD32 pad1   B32;
+} xVMwareCtrlSetTopologyReq;
+#define sz_xVMwareCtrlSetTopologyReq 16
+
+#define X_VMwareCtrlSetTopology 2
+
+typedef struct {
+   BYTE   type; /* X_Reply */
+   BYTE   pad1;
+   CARD16 sequenceNumber B16;
+   CARD32 length B32;
+   CARD32 screen B32;
+   CARD32 pad2   B32;
+   CARD32 pad3   B32;
+   CARD32 pad4   B32;
+   CARD32 pad5   B32;
+   CARD32 pad6   B32;
+} xVMwareCtrlSetTopologyReply;
+#define sz_xVMwareCtrlSetTopologyReply 32
+
+struct X11VMWRECT
 {
     int16_t x;
     int16_t y;
@@ -77,180 +101,23 @@ struct X11CONTEXT
 {
     Display *pDisplay;
     int hRandRMajor;
-    int hVMWMajor;
+    int hVMWCtrlMajorOpCode;
     int hRandRMinor;
     int hRandREventBase;
     int hRandRErrorBase;
+    int hEventMask;
+    /** The number of outputs (monitors, including disconnect ones) xrandr reports. */
+    int hOutputCount;
     Window rootWindow;
+    void *pRandLibraryHandle;
+    void (*pXRRSelectInput) (Display *, Window, int);
+    Bool (*pXRRQueryExtension) (Display *, int *, int *);
+    Status (*pXRRQueryVersion) (Display *, int *, int*);
+    XRRMonitorInfo* (*pXRRGetMonitors)(Display *, Window, Bool, int *);
+    void (*pXRRFreeMonitors)(XRRMonitorInfo *);
 };
 
-static void x11Connect(struct X11CONTEXT *pContext)
-{
-    int dummy;
-
-    if (pContext->pDisplay != NULL)
-        VBClLogFatalError("%s called with bad argument\n", __func__);
-    pContext->pDisplay = XOpenDisplay(NULL);
-    if (pContext->pDisplay == NULL)
-        return;
-    // if (   !XQueryExtension(pContext->pDisplay, "RANDR",
-    //                         &pContext->hRandRMajor, &dummy, &dummy)
-    if(!XQueryExtension(pContext->pDisplay, "VMWARE_CTRL",
-                        &pContext->hVMWMajor, &dummy, &dummy))
-    {
-        XCloseDisplay(pContext->pDisplay);
-        pContext->pDisplay = NULL;
-    }
-    if (!XRRQueryExtension(pContext->pDisplay, &pContext->hRandREventBase, &pContext->hRandRErrorBase))
-    {
-        XCloseDisplay(pContext->pDisplay);
-        pContext->pDisplay = NULL;
-    }
-    if (!XRRQueryVersion(pContext->pDisplay, &pContext->hRandRMajor, &pContext->hRandRMinor))
-    {
-        XCloseDisplay(pContext->pDisplay);
-        pContext->pDisplay = NULL;
-    }
-    pContext->rootWindow = DefaultRootWindow(pContext->pDisplay);
-}
-
-#ifndef USE_XRANDR_BIN
-
-static bool checkRecentLinuxKernel(void)
-{
-    struct utsname name;
-
-    if (uname(&name) == -1)
-        VBClLogFatalError("Failed to get kernel name\n");
-    if (strcmp(name.sysname, "Linux"))
-        return false;
-    return (RTStrVersionCompare(name.release, "4.6") >= 0);
-}
-
-
-#define X11_VMW_TOPOLOGY_REQ 2
-
-struct X11REQHEADER
-{
-    uint8_t hMajor;
-    uint8_t idType;
-    uint16_t cd;
-};
-
-struct X11VMWTOPOLOGYREQ
-{
-    struct X11REQHEADER header;
-    uint32_t idX11Screen;
-    uint32_t cScreens;
-    uint32_t u32Pad;
-    struct X11VMWRECT aRects[1];
-};
-AssertCompileSize(struct X11VMWTOPOLOGYREQ, 24);
-
-#define X11_VMW_TOPOLOGY_REPLY_SIZE 32
-
-#define X11_VMW_RESOLUTION_REQUEST 1
-struct X11VMWRESOLUTIONREQ
-{
-    struct X11REQHEADER header;
-    uint32_t idX11Screen;
-    uint32_t w;
-    uint32_t h;
-};
-AssertCompileSize(struct X11VMWRESOLUTIONREQ, 16);
-
-#define X11_VMW_RESOLUTION_REPLY_SIZE 32
-
-#define X11_RANDR_GET_SCREEN_REQUEST 5
-struct X11RANDRGETSCREENREQ
-{
-    struct X11REQHEADER header;
-    uint32_t hWindow;
-};
-AssertCompileSize(struct X11RANDRGETSCREENREQ, 8);
-
-#define X11_RANDR_GET_SCREEN_REPLY_SIZE 32
-
-/* This was a macro in old Xlib versions and a function in newer ones; the
- * display members touched by the macro were declared as ABI for compatibility
- * reasons.  To simplify building with different generations, we duplicate the
- * code. */
-static void x11GetRequest(struct X11CONTEXT *pContext, uint8_t hMajor,
-                          uint8_t idType, size_t cb, struct X11REQHEADER **ppReq)
-{
-    if (pContext->pDisplay->bufptr + cb > pContext->pDisplay->bufmax)
-        _XFlush(pContext->pDisplay);
-    if (pContext->pDisplay->bufptr + cb > pContext->pDisplay->bufmax)
-        VBClLogFatalError("%s display buffer overflow\n", __func__);
-    if (cb % 4 != 0)
-        VBClLogFatalError("%s bad parameter\n", __func__);
-    pContext->pDisplay->last_req = pContext->pDisplay->bufptr;
-    *ppReq = (struct X11REQHEADER *)pContext->pDisplay->bufptr;
-    (*ppReq)->hMajor = hMajor;
-    (*ppReq)->idType = idType;
-    (*ppReq)->cd = cb / 4;
-    pContext->pDisplay->bufptr += cb;
-    pContext->pDisplay->request++;
-}
-
-static void x11SendHints(struct X11CONTEXT *pContext, struct X11VMWRECT *pRects,
-                         unsigned cRects)
-{
-    unsigned i;
-    struct X11VMWTOPOLOGYREQ     *pReqTopology;
-    uint8_t                       repTopology[X11_VMW_TOPOLOGY_REPLY_SIZE];
-    struct X11VMWRESOLUTIONREQ   *pReqResolution;
-    uint8_t                       repResolution[X11_VMW_RESOLUTION_REPLY_SIZE];
-
-    if (!VALID_PTR(pContext->pDisplay))
-        VBClLogFatalError("%s bad display argument\n", __func__);
-    if (cRects == 0)
-        return;
-    /* Try a topology (multiple screen) request. */
-    x11GetRequest(pContext, pContext->hVMWMajor, X11_VMW_TOPOLOGY_REQ,
-                    sizeof(struct X11VMWTOPOLOGYREQ)
-                  + sizeof(struct X11VMWRECT) * (cRects - 1),
-                  (struct X11REQHEADER **)&pReqTopology);
-    pReqTopology->idX11Screen = DefaultScreen(pContext->pDisplay);
-    pReqTopology->cScreens = cRects;
-    for (i = 0; i < cRects; ++i)
-        pReqTopology->aRects[i] = pRects[i];
-    _XSend(pContext->pDisplay, NULL, 0);
-    if (_XReply(pContext->pDisplay, (xReply *)&repTopology, 0, xTrue))
-        return;
-    /* That failed, so try the old single screen set resolution.  We prefer
-     * simpler code to negligeably improved efficiency, so we just always try
-     * both requests instead of doing version checks or caching. */
-    x11GetRequest(pContext, pContext->hVMWMajor, X11_VMW_RESOLUTION_REQUEST,
-                  sizeof(struct X11VMWRESOLUTIONREQ),
-                  (struct X11REQHEADER **)&pReqResolution);
-    pReqResolution->idX11Screen = DefaultScreen(pContext->pDisplay);
-    pReqResolution->w = pRects[0].w;
-    pReqResolution->h = pRects[0].h;
-    if (_XReply(pContext->pDisplay, (xReply *)&repResolution, 0, xTrue))
-        return;
-    /* What now? */
-    VBClLogFatalError("%s failed to set resolution\n", __func__);
-}
-
-/** Call RRGetScreenInfo to wake up the server to the new modes. */
-static void x11GetScreenInfo(struct X11CONTEXT *pContext)
-{
-    struct X11RANDRGETSCREENREQ *pReqGetScreen;
-    uint8_t                      repGetScreen[X11_RANDR_GET_SCREEN_REPLY_SIZE];
-
-    if (!VALID_PTR(pContext->pDisplay))
-        VBClLogFatalError("%s bad display argument\n", __func__);
-    x11GetRequest(pContext, pContext->hRandRMajor, X11_RANDR_GET_SCREEN_REQUEST,
-                    sizeof(struct X11RANDRGETSCREENREQ),
-                  (struct X11REQHEADER **)&pReqGetScreen);
-    pReqGetScreen->hWindow = DefaultRootWindow(pContext->pDisplay);
-    _XSend(pContext->pDisplay, NULL, 0);
-    if (!_XReply(pContext->pDisplay, (xReply *)&repGetScreen, 0, xTrue))
-        VBClLogFatalError("%s failed to set resolution\n", __func__);
-}
-
-#else //#fndef USE_XRANDR_BIN
+static X11CONTEXT x11Context;
 
 #define MAX_MODE_NAME_LEN 64
 #define MAX_COMMAND_LINE_LEN 512
@@ -259,52 +126,6 @@ static void x11GetScreenInfo(struct X11CONTEXT *pContext)
 static const char *szDefaultOutputNamePrefix = "Virtual";
 static const char *pcszXrandr = "xrandr";
 static const char *pcszCvt = "cvt";
-/** The number of outputs (monitors, including disconnect ones) xrandr reports. */
-static int iOutputCount = 0;
-
-struct DRMCONTEXT
-{
-    RTFILE hDevice;
-};
-
-#define DRM_DRIVER_NAME "vmwgfx"
-
-/** DRM version structure. */
-struct DRMVERSION
-{
-    int cMajor;
-    int cMinor;
-    int cPatchLevel;
-    size_t cbName;
-    char *pszName;
-    size_t cbDate;
-    char *pszDate;
-    size_t cbDescription;
-    char *pszDescription;
-};
-AssertCompileSize(struct DRMVERSION, 8 + 7 * sizeof(void *));
-
-#define DRM_IOCTL_VERSION _IOWR('d', 0x00, struct DRMVERSION)
-
-/** Rectangle structure for geometry of a single screen. */
-struct DRMVMWRECT
-{
-        int32_t x;
-        int32_t y;
-        uint32_t w;
-        uint32_t h;
-};
-AssertCompileSize(struct DRMVMWRECT, 16);
-
-struct DRMVMWUPDATELAYOUT {
-        uint32_t cOutputs;
-        uint32_t u32Pad;
-        uint64_t ptrRects;
-};
-AssertCompileSize(struct DRMVMWUPDATELAYOUT, 16);
-
-#define DRM_IOCTL_VMW_UPDATE_LAYOUT \
-        _IOW('d', 0x40 + 20, struct DRMVMWUPDATELAYOUT)
 
 struct RANDROUTPUT
 {
@@ -314,6 +135,366 @@ struct RANDROUTPUT
     uint32_t height;
     bool fEnabled;
 };
+
+/** Forward declarations. */
+static void x11Connect();
+static int determineOutputCount();
+
+#define checkFunctionPtr(pFunction)                                     \
+    do{                                                                 \
+        if (!pFunction)                                                 \
+        {                                                               \
+            VBClLogFatalError("Could not find symbol address\n");       \
+            dlclose(x11Context.pRandLibraryHandle);                     \
+            x11Context.pRandLibraryHandle = NULL;                       \
+            return VERR_NOT_FOUND;                                      \
+        }                                                               \
+    }while(0)
+
+bool VMwareCtrlSetTopology(Display *dpy, int hExtensionMajorOpcode,
+                            int screen, xXineramaScreenInfo extents[], int number)
+{
+   xVMwareCtrlSetTopologyReply rep;
+   xVMwareCtrlSetTopologyReq *req;
+
+   long len;
+
+   LockDisplay(dpy);
+
+   GetReq(VMwareCtrlSetTopology, req);
+   req->reqType = hExtensionMajorOpcode;
+   req->VMwareCtrlReqType = X_VMwareCtrlSetTopology;
+   req->screen = screen;
+   req->number = number;
+
+   len = ((long) number) << 1;
+   SetReqLen(req, len, len);
+   len <<= 2;
+   _XSend(dpy, (char *)extents, len);
+
+   if (!_XReply(dpy, (xReply *)&rep,
+                (SIZEOF(xVMwareCtrlSetTopologyReply) - SIZEOF(xReply)) >> 2,
+                xFalse))
+   {
+       UnlockDisplay(dpy);
+       SyncHandle();
+       return false;
+   }
+   UnlockDisplay(dpy);
+   SyncHandle();
+   return true;
+}
+
+/** This function assumes monitors are named as from Virtual1 to VirtualX. */
+static int getMonitorIdFromName(const char *sMonitorName)
+{
+    if (!sMonitorName)
+        return -1;
+    int iLen = strlen(sMonitorName);
+    if (iLen <= 0)
+        return -1;
+    int iBase = 10;
+    int iResult = 0;
+    for (int i = iLen - 1; i >= 0; --i)
+    {
+        /* Stop upon seeing the first non-numeric char. */
+        if (sMonitorName[i] < 48 || sMonitorName[i] > 57)
+            break;
+        iResult += (sMonitorName[i] - 48) * iBase / 10;
+        iBase *= 10;
+    }
+    return iResult;
+}
+
+static void sendMonitorPositions(RTPOINT *pPositions, size_t cPositions)
+{
+    if (cPositions && !pPositions)
+    {
+        VBClLogError(("Monitor position update called with NULL pointer!\n"));
+        return;
+    }
+    int rc = VbglR3SeamlessSendMonitorPositions(cPositions, pPositions);
+    if (RT_SUCCESS(rc))
+        VBClLogError("Sending monitor positions (%u of them)  to the host: %Rrc\n", cPositions, rc);
+    else
+        VBClLogError("Error during sending monitor positions (%u of them)  to the host: %Rrc\n", cPositions, rc);
+}
+
+static void queryMonitorPositions()
+{
+    static const int iSentinelPosition = -1;
+    if (mpMonitorPositions)
+    {
+        free(mpMonitorPositions);
+        mpMonitorPositions = NULL;
+    }
+
+    int iMonitorCount = 0;
+    XRRMonitorInfo *pMonitorInfo = NULL;
+#ifdef WITH_DISTRO_XRAND_XINERAMA
+    pMonitorInfo = XRRGetMonitors(x11Context.pDisplay, DefaultRootWindow(x11Context.pDisplay), true, &iMonitorCount);
+#else
+    if (x11Context.pXRRGetMonitors)
+        pMonitorInfo = x11Context.pXRRGetMonitors(x11Context.pDisplay, DefaultRootWindow(x11Context.pDisplay), true, &iMonitorCount);
+#endif
+    if (!pMonitorInfo)
+        return;
+    if (iMonitorCount == -1)
+        VBClLogError("Could not get monitor info\n");
+    else
+    {
+        mpMonitorPositions = (RTPOINT*)malloc(x11Context.hOutputCount * sizeof(RTPOINT));
+        /** @todo memset? */
+        for (int i = 0; i < x11Context.hOutputCount; ++i)
+        {
+            mpMonitorPositions[i].x = iSentinelPosition;
+            mpMonitorPositions[i].y = iSentinelPosition;
+        }
+        for (int i = 0; i < iMonitorCount; ++i)
+        {
+            int iMonitorID = getMonitorIdFromName(XGetAtomName(x11Context.pDisplay, pMonitorInfo[i].name)) - 1;
+            if (iMonitorID >= x11Context.hOutputCount || iMonitorID == -1)
+                continue;
+            VBClLogInfo("Monitor %d (w,h)=(%d,%d) (x,y)=(%d,%d)\n",
+                        i,
+                        pMonitorInfo[i].width, pMonitorInfo[i].height,
+                        pMonitorInfo[i].x, pMonitorInfo[i].y);
+            mpMonitorPositions[iMonitorID].x = pMonitorInfo[i].x;
+            mpMonitorPositions[iMonitorID].y = pMonitorInfo[i].y;
+        }
+        if (iMonitorCount > 0)
+            sendMonitorPositions(mpMonitorPositions, x11Context.hOutputCount);
+    }
+#ifdef WITH_DISTRO_XRAND_XINERAMA
+    XRRFreeMonitors(pMonitorInfo);
+#else
+    if (x11Context.pXRRFreeMonitors)
+        x11Context.pXRRFreeMonitors(pMonitorInfo);
+#endif
+}
+
+static void monitorRandREvents()
+{
+    XEvent event;
+    XNextEvent(x11Context.pDisplay, &event);
+    int eventTypeOffset = event.type - x11Context.hRandREventBase;
+    switch (eventTypeOffset)
+    {
+        case RRScreenChangeNotify:
+            VBClLogInfo("RRScreenChangeNotify\n");
+            queryMonitorPositions();
+            break;
+        case RRNotify:
+            VBClLogInfo("RRNotify\n");
+            break;
+        default:
+            VBClLogInfo("Unknown RR event\n");
+            break;
+    }
+}
+
+int x11MonitorThreadFunction(RTTHREAD hThreadSelf, void *pvUser)
+{
+    (void)hThreadSelf;
+    (void*)pvUser;
+    while(1)
+    {
+        monitorRandREvents();
+    }
+    return 0;
+}
+
+static int startX11MonitorThread()
+{
+    int rc = 0;
+
+    if (mX11MonitorThread == NIL_RTTHREAD)
+    {
+        rc = RTThreadCreate(&mX11MonitorThread, x11MonitorThreadFunction, 0, 0,
+                            RTTHREADTYPE_MSG_PUMP, RTTHREADFLAGS_WAITABLE,
+                            "X11 events");
+        if (RT_FAILURE(rc))
+            VBClLogFatalError("Warning: failed to start X11 monitor thread (VBoxClient) rc=%Rrc!\n", rc);
+    }
+    return rc;
+}
+
+static int stopX11MonitorThread(void)
+{
+    int rc;
+    if (mX11MonitorThread != NIL_RTTHREAD)
+    {
+        //????????
+        //mX11Monitor.interruptEventWait();
+        rc = RTThreadWait(mX11MonitorThread, 1000, NULL);
+        if (RT_SUCCESS(rc))
+            mX11MonitorThread = NIL_RTTHREAD;
+        else
+            VBClLogError("Failed to stop X11 monitor thread, rc=%Rrc!\n", rc);
+    }
+    return rc;
+}
+
+static bool callVMWCTRL()
+{
+    const int hHeight = 600;
+    const int hWidth = 800;
+
+    xXineramaScreenInfo *extents = (xXineramaScreenInfo *)malloc(x11Context.hOutputCount * sizeof(xXineramaScreenInfo));
+    if (!extents)
+        return false;
+    int hRunningOffset = 0;
+    for (int i = 0; i < x11Context.hOutputCount; ++i)
+    {
+        extents[i].x_org = hRunningOffset;
+        extents[i].y_org = 0;
+        extents[i].width = hWidth;
+        extents[i].height = hHeight;
+        hRunningOffset += hWidth;
+    }
+    return VMwareCtrlSetTopology(x11Context.pDisplay, x11Context.hVMWCtrlMajorOpCode,
+                                 DefaultScreen(x11Context.pDisplay),
+                                 extents, x11Context.hOutputCount);
+}
+
+static bool init()
+{
+    x11Connect();
+    if (x11Context.pDisplay == NULL)
+        return false;
+    callVMWCTRL();
+    if (RT_FAILURE(startX11MonitorThread()))
+        return false;
+    return true;
+}
+
+static void cleanup()
+{
+    if (mpMonitorPositions)
+    {
+        free(mpMonitorPositions);
+        mpMonitorPositions = NULL;
+    }
+    stopX11MonitorThread();
+    if (x11Context.pRandLibraryHandle)
+    {
+        dlclose(x11Context.pRandLibraryHandle);
+        x11Context.pRandLibraryHandle = NULL;
+    }
+#ifdef WITH_DISTRO_XRAND_XINERAMA
+    XRRSelectInput(x11Context.pDisplay, x11Context.rootWindow, 0);
+#else
+    if (x11Context.pXRRSelectInput)
+        x11Context.pXRRSelectInput(x11Context.pDisplay, x11Context.rootWindow, 0);
+#endif
+    XCloseDisplay(x11Context.pDisplay);
+}
+
+#ifndef WITH_DISTRO_XRAND_XINERAMA
+static int openLibRandR()
+{
+    x11Context.pRandLibraryHandle = dlopen("libXrandr.so", RTLD_LAZY /*| RTLD_LOCAL */);
+    if (!x11Context.pRandLibraryHandle)
+        x11Context.pRandLibraryHandle = dlopen("libXrandr.so.2", RTLD_LAZY /*| RTLD_LOCAL */);
+    if (!x11Context.pRandLibraryHandle)
+        x11Context.pRandLibraryHandle = dlopen("libXrandr.so.2.2.0", RTLD_LAZY /*| RTLD_LOCAL */);
+
+    if (!x11Context.pRandLibraryHandle)
+    {
+        VBClLogFatalError("Could not locate libXrandr for dlopen\n");
+        return VERR_NOT_FOUND;
+    }
+
+    *(void **)(&x11Context.pXRRSelectInput) = dlsym(x11Context.pRandLibraryHandle, "XRRSelectInput");
+    checkFunctionPtr(x11Context.pXRRSelectInput);
+
+    *(void **)(&x11Context.pXRRQueryExtension) = dlsym(x11Context.pRandLibraryHandle, "XRRQueryExtension");
+    checkFunctionPtr(x11Context.pXRRQueryExtension);
+
+    *(void **)(&x11Context.pXRRQueryVersion) = dlsym(x11Context.pRandLibraryHandle, "XRRQueryVersion");
+    checkFunctionPtr(x11Context.pXRRQueryVersion);
+
+    *(void **)(&x11Context.pXRRGetMonitors) = dlsym(x11Context.pRandLibraryHandle, "XRRGetMonitors");
+    checkFunctionPtr(x11Context.pXRRGetMonitors);
+
+    *(void **)(&x11Context.pXRRFreeMonitors) = dlsym(x11Context.pRandLibraryHandle, "XRRFreeMonitors");
+    checkFunctionPtr(x11Context.pXRRFreeMonitors);
+
+    return VINF_SUCCESS;
+}
+#endif
+
+static void x11Connect()
+{
+    x11Context.pXRRSelectInput = NULL;
+    x11Context.pRandLibraryHandle = NULL;
+    x11Context.pXRRQueryExtension = NULL;
+    x11Context.pXRRQueryVersion = NULL;
+    x11Context.pXRRGetMonitors = NULL;
+    x11Context.pXRRFreeMonitors = NULL;
+
+    int dummy;
+    if (x11Context.pDisplay != NULL)
+        VBClLogFatalError("%s called with bad argument\n", __func__);
+    x11Context.pDisplay = XOpenDisplay(NULL);
+    if (x11Context.pDisplay == NULL)
+        return;
+#ifndef WITH_DISTRO_XRAND_XINERAMA
+    if (openLibRandR() != VINF_SUCCESS)
+    {
+        XCloseDisplay(x11Context.pDisplay);
+        x11Context.pDisplay = NULL;
+        return;
+    }
+#endif
+
+    if (!XQueryExtension(x11Context.pDisplay, "VMWARE_CTRL",
+                         &x11Context.hVMWCtrlMajorOpCode, &dummy, &dummy))
+    {
+        XCloseDisplay(x11Context.pDisplay);
+        x11Context.pDisplay = NULL;
+        return;
+    }
+    bool fSuccess = false;
+#ifdef WITH_DISTRO_XRAND_XINERAMA
+    fSuccess = XRRQueryExtension(x11Context.pDisplay, &x11Context.hRandREventBase, &x11Context.hRandRErrorBase);
+#else
+    if (x11Context.pXRRQueryExtension)
+        fSuccess = x11Context.pXRRQueryExtension(x11Context.pDisplay, &x11Context.hRandREventBase, &x11Context.hRandRErrorBase);
+#endif
+    if (fSuccess)
+    {
+        fSuccess = false;
+#ifdef WITH_DISTRO_XRAND_XINERAMA
+        fSuccess = XRRQueryVersion(x11Context.pDisplay, &x11Context.hRandRMajor, &x11Context.hRandRMinor);
+#else
+    if (x11Context.pXRRQueryVersion)
+        fSuccess = x11Context.pXRRQueryVersion(x11Context.pDisplay, &x11Context.hRandRMajor, &x11Context.hRandRMinor);
+#endif
+        if (!fSuccess)
+        {
+            XCloseDisplay(x11Context.pDisplay);
+            x11Context.pDisplay = NULL;
+            return;
+        }
+    }
+    x11Context.rootWindow = DefaultRootWindow(x11Context.pDisplay);
+    x11Context.hOutputCount = determineOutputCount();
+
+    x11Context.hEventMask = RRScreenChangeNotifyMask;
+    if (x11Context.hRandRMinor >= 2)
+        x11Context.hEventMask |=  RRCrtcChangeNotifyMask |
+            RROutputChangeNotifyMask |
+            RROutputPropertyNotifyMask;
+
+    /* Select the XEvent types we want to listen to. */
+#ifdef WITH_DISTRO_XRAND_XINERAMA
+    XRRSelectInput(x11Context.pDisplay, x11Context.rootWindow, x11Context.hEventMask);
+#else
+    if (x11Context.pXRRSelectInput)
+        x11Context.pXRRSelectInput(x11Context.pDisplay, x11Context.rootWindow, x11Context.hEventMask);
+#endif
+}
 
 /** run the xrandr command without options to get the total # of outputs (monitors) including
  *  disbaled ones. */
@@ -473,7 +654,7 @@ static void addMode(const char *pszModeName, const char *pszModeLine)
 
     char szAddModeCommand[1024];
     /* try to add the new mode to all possible outputs. we currently dont care if most the are disabled. */
-    for(int i = 0; i < iOutputCount; ++i)
+    for(int i = 0; i < x11Context.hOutputCount; ++i)
     {
         RTStrPrintf(szAddModeCommand, sizeof(szAddModeCommand), "%s --addmode Virtual%d \"%s\"", pcszXrandr, i + 1, pszModeName);
         system(szAddModeCommand);
@@ -510,7 +691,7 @@ static void setXrandrModes(struct RANDROUTPUT *paOutputs)
     char szCommand[MAX_COMMAND_LINE_LEN];
     RTStrPrintf(szCommand, sizeof(szCommand), "%s ", pcszXrandr);
 
-    for (int i = 0; i < iOutputCount; ++i)
+    for (int i = 0; i < x11Context.hOutputCount; ++i)
     {
         char line[64];
         if (!paOutputs[i].fEnabled)
@@ -538,67 +719,6 @@ static void setXrandrModes(struct RANDROUTPUT *paOutputs)
     removeCustomModesFromOutputs();
 }
 
-static void drmConnect(struct DRMCONTEXT *pContext)
-{
-    unsigned i;
-    RTFILE hDevice;
-
-    if (pContext->hDevice != NIL_RTFILE)
-        VBClLogFatalError("%s called with bad argument\n", __func__);
-    /* Try to open the SVGA DRM device. */
-    for (i = 0; i < 128; ++i)
-    {
-        char szPath[64];
-        struct DRMVERSION version;
-        char szName[sizeof(DRM_DRIVER_NAME)];
-        int rc;
-
-        /* Control devices for drm graphics driver control devices go from
-         * controlD64 to controlD127.  Render node devices go from renderD128
-         * to renderD192.  The driver takes resize hints via the control device
-         * on pre-4.10 kernels and on the render device on newer ones.  Try
-         * both types. */
-        if (i % 2 == 0)
-            rc = RTStrPrintf(szPath, sizeof(szPath), "/dev/dri/renderD%u", i / 2 + 128);
-        else
-            rc = RTStrPrintf(szPath, sizeof(szPath), "/dev/dri/controlD%u", i / 2 + 64);
-        if (RT_FAILURE(rc))
-            VBClLogFatalError("RTStrPrintf of device path failed, rc=%Rrc\n", rc);
-        rc = RTFileOpen(&hDevice, szPath, RTFILE_O_READWRITE | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
-        if (RT_FAILURE(rc))
-            continue;
-        RT_ZERO(version);
-        version.cbName = sizeof(szName);
-        version.pszName = szName;
-        rc = RTFileIoCtl(hDevice, DRM_IOCTL_VERSION, &version, sizeof(version), NULL);
-        if (   RT_SUCCESS(rc)
-            && !strncmp(szName, DRM_DRIVER_NAME, sizeof(DRM_DRIVER_NAME) - 1)
-            && (   version.cMajor > 2
-                || (version.cMajor == 2 && version.cMinor >= 9)))
-            break;
-        hDevice = NIL_RTFILE;
-    }
-    pContext->hDevice = hDevice;
-}
-
-static void drmSendHints(struct DRMCONTEXT *pContext, struct DRMVMWRECT *paRects,
-                         unsigned cHeads)
-{
-    int rc;
-    struct DRMVMWUPDATELAYOUT ioctlLayout;
-
-    if (pContext->hDevice == NIL_RTFILE)
-        VBClLogFatalError("%s bad device argument\n", __func__);
-    ioctlLayout.cOutputs = cHeads;
-    ioctlLayout.ptrRects = (uint64_t)paRects;
-    rc = RTFileIoCtl(pContext->hDevice, DRM_IOCTL_VMW_UPDATE_LAYOUT,
-                     &ioctlLayout, sizeof(ioctlLayout), NULL);
-    if (RT_FAILURE(rc) && rc != VERR_INVALID_PARAMETER)
-        VBClLogFatalError("Failure updating layout, rc=%Rrc\n", rc);
-}
-
-#endif /* #ifndef USE_XRANDR_BIN */
-
 static const char *getName()
 {
     return "Display SVGA X11";
@@ -611,31 +731,17 @@ static const char *getPidFilePath()
 
 static int run(struct VBCLSERVICE **ppInterface, bool fDaemonised)
 {
-    iOutputCount = determineOutputCount();
     (void)ppInterface;
     (void)fDaemonised;
     int rc;
+    uint32_t events;
     /* Do not acknowledge the first event we query for to pick up old events,
      * e.g. from before a guest reboot. */
     bool fAck = false;
-    struct X11CONTEXT x11Context = { NULL };
-    x11Connect(&x11Context);
-    if (x11Context.pDisplay == NULL)
-        return VINF_SUCCESS;
 
-#ifndef USE_XRANDR_BIN
-    unsigned cHeads;
-    struct X11VMWRECT aRects[VMW_MAX_HEADS];
-    if (checkRecentLinuxKernel())
+    if (!init())
         return VINF_SUCCESS;
-#else //#ifndef USE_XRANDR_BIN
     static struct VMMDevDisplayDef aMonitors[VMW_MAX_HEADS];
-    struct DRMCONTEXT drmContext = { NIL_RTFILE };
-    drmConnect(&drmContext);
-    if (drmContext.hDevice == NIL_RTFILE)
-        return VINF_SUCCESS;
-    unsigned cEnabledMonitors = 0;
-#endif
 
     rc = VbglR3CtlFilterMask(VMMDEV_EVENT_DISPLAY_CHANGE_REQUEST, 0);
     if (RT_FAILURE(rc))
@@ -648,55 +754,25 @@ static int run(struct VBCLSERVICE **ppInterface, bool fDaemonised)
 
     int eventMask = RRScreenChangeNotifyMask;
     if (x11Context.hRandRMinor >= 2)
-        eventMask |=  RRCrtcChangeNotifyMask |
-            RROutputChangeNotifyMask |
-            RROutputPropertyNotifyMask;
+        eventMask |= RRCrtcChangeNotifyMask
+                   | RROutputChangeNotifyMask
+                   | RROutputPropertyNotifyMask;
     if (x11Context.hRandRMinor >= 4)
-        eventMask |= RRProviderChangeNotifyMask |
-            RRProviderPropertyNotifyMask |
-            RRResourceChangeNotifyMask;
-    // if (x11Context.hRandRMinor >= 6)
-    //     eventMask |= RRLeaseNotifyMask;
-
-
+        eventMask |= RRProviderChangeNotifyMask
+                   | RRProviderPropertyNotifyMask
+                   | RRResourceChangeNotifyMask;
     for (;;)
     {
-        uint32_t events;
         struct VMMDevDisplayDef aDisplays[VMW_MAX_HEADS];
         uint32_t cDisplaysOut;
-
         /* Query the first size without waiting.  This lets us e.g. pick up
          * the last event before a guest reboot when we start again after. */
         rc = VbglR3GetDisplayChangeRequestMulti(VMW_MAX_HEADS, &cDisplaysOut, aDisplays, fAck);
         fAck = true;
-
         if (RT_FAILURE(rc))
             VBClLogFatalError("Failed to get display change request, rc=%Rrc\n", rc);
         if (cDisplaysOut > VMW_MAX_HEADS)
             VBClLogFatalError("Display change request contained, rc=%Rrc\n", rc);
-#ifndef USE_XRANDR_BIN
-        for (unsigned i = 0, cHeads = 0; i < cDisplaysOut && i < VMW_MAX_HEADS; ++i)
-        {
-            if (!(aDisplays[i].fDisplayFlags & VMMDEV_DISPLAY_DISABLED))
-            {
-                if ((i == 0) || (aDisplays[i].fDisplayFlags & VMMDEV_DISPLAY_ORIGIN))
-                {
-                    aRects[cHeads].x =   aDisplays[i].xOrigin < INT16_MAX
-                                       ? (int16_t)aDisplays[i].xOrigin : 0;
-                    aRects[cHeads].y =   aDisplays[i].yOrigin < INT16_MAX
-                                       ? (int16_t)aDisplays[i].yOrigin : 0;
-                } else {
-                    aRects[cHeads].x = aRects[cHeads - 1].x + aRects[cHeads - 1].w;
-                    aRects[cHeads].y = aRects[cHeads - 1].y;
-                }
-                aRects[cHeads].w = (int16_t)RT_MIN(aDisplays[i].cx, INT16_MAX);
-                aRects[cHeads].h = (int16_t)RT_MIN(aDisplays[i].cy, INT16_MAX);
-                ++cHeads;
-            }
-        }
-        x11SendHints(&x11Context, aRects, cHeads);
-        x11GetScreenInfo(&x11Context);
-#else
         if (cDisplaysOut > 0)
         {
             for (unsigned i = 0; i < cDisplaysOut && i < VMW_MAX_HEADS; ++i)
@@ -719,11 +795,10 @@ static int run(struct VBCLSERVICE **ppInterface, bool fDaemonised)
                     aMonitors[idDisplay].cy = aDisplays[i].cy;
                 }
             }
-
             /* Create a whole topology and send it to xrandr. */
             struct RANDROUTPUT aOutputs[VMW_MAX_HEADS];
             int iRunningX = 0;
-            for (int j = 0; j < iOutputCount; ++j)
+            for (int j = 0; j < x11Context.hOutputCount; ++j)
             {
                 aOutputs[j].x = iRunningX;
                 aOutputs[j].y = aMonitors[j].yOrigin;
@@ -734,43 +809,7 @@ static int run(struct VBCLSERVICE **ppInterface, bool fDaemonised)
                     iRunningX += aOutputs[j].width;
             }
             setXrandrModes(aOutputs);
-            /* Disable this for now since we want to fix messed up monitor positions in some other way. */
-            if(0)
-            {
-                /* Additionally update the drm thru ioctl since vmwgfx messes up monitor positions it gets from xserver. */
-                /* Create an dense (consisting of enabled monitors only) array to pass to DRM. */
-                cEnabledMonitors = 0;
-                struct DRMVMWRECT aEnabledMonitors[VMW_MAX_HEADS];
-                for (int j = 0; j < VMW_MAX_HEADS; ++j)
-                {
-                    if (!(aMonitors[j].fDisplayFlags & VMMDEV_DISPLAY_DISABLED))
-                    {
-                        aEnabledMonitors[cEnabledMonitors].x = aMonitors[j].xOrigin;
-                        aEnabledMonitors[cEnabledMonitors].y = aMonitors[j].yOrigin;
-                        aEnabledMonitors[cEnabledMonitors].w = aMonitors[j].cx;
-                        aEnabledMonitors[cEnabledMonitors].h = aMonitors[j].cy;
-                        if (cEnabledMonitors > 0)
-                            aEnabledMonitors[cEnabledMonitors].x = aEnabledMonitors[cEnabledMonitors - 1].x + aEnabledMonitors[cEnabledMonitors - 1].w;
-                        ++cEnabledMonitors;
-                    }
-                }
-                bool fScreenChangeNotifyEvent = false;
-                XRRSelectInput(x11Context.pDisplay, x11Context.rootWindow, eventMask);
-                XSync(x11Context.pDisplay, false);
-                XEvent event;
-                while (XCheckTypedEvent(x11Context.pDisplay, RRScreenChangeNotify + x11Context.hRandREventBase, &event) ||
-                       XCheckTypedEvent(x11Context.pDisplay, RRNotify + x11Context.hRandREventBase, &event))
-                    fScreenChangeNotifyEvent = true;
-                XRRSelectInput(x11Context.pDisplay, x11Context.rootWindow, 0);
-
-                if (!fScreenChangeNotifyEvent)
-                    VBClLogInfo("Did not receive any RRScreenChangeNotify events.\n");
-                else
-                    drmSendHints(&drmContext, aEnabledMonitors, cEnabledMonitors);
-            }
         }
-
-#endif
         do
         {
             rc = VbglR3WaitEvent(VMMDEV_EVENT_DISPLAY_CHANGE_REQUEST, RT_INDEFINITE_WAIT, &events);
@@ -778,6 +817,7 @@ static int run(struct VBCLSERVICE **ppInterface, bool fDaemonised)
         if (RT_FAILURE(rc))
             VBClLogFatalError("Failure waiting for event, rc=%Rrc\n", rc);
     }
+    cleanup();
 }
 
 static struct VBCLSERVICE interface =

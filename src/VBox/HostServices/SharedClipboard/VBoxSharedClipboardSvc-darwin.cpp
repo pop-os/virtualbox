@@ -24,6 +24,9 @@
 
 #include <iprt/assert.h>
 #include <iprt/asm.h>
+#include <iprt/process.h>
+#include <iprt/rand.h>
+#include <iprt/string.h>
 #include <iprt/thread.h>
 
 #include "VBoxSharedClipboardSvc-internal.h"
@@ -34,15 +37,24 @@
 *   Structures and Typedefs                                                                                                      *
 *********************************************************************************************************************************/
 /** Global clipboard context information */
-struct SHCLCONTEXT
+typedef struct SHCLCONTEXT
 {
-    /** We have a separate thread to poll for new clipboard content */
-    RTTHREAD                thread;
+    /** We have a separate thread to poll for new clipboard content. */
+    RTTHREAD                hThread;
+    /** Termination indicator.   */
     bool volatile           fTerminate;
     /** The reference to the current pasteboard */
-    PasteboardRef           pasteboard;
-    PSHCLCLIENT    pClient;
-};
+    PasteboardRef           hPasteboard;
+    /** Shared clipboard client. */
+    PSHCLCLIENT             pClient;
+    /** Random 64-bit number embedded into szGuestOwnershipFlavor. */
+    uint64_t                idGuestOwnership;
+    /** Ownership flavor CFStringRef returned by takePasteboardOwnership().
+     * This is the same a szGuestOwnershipFlavor only in core foundation terms. */
+    void                   *hStrOwnershipFlavor;
+    /** The guest ownership flavor (type) string. */
+    char                    szGuestOwnershipFlavor[64];
+} SHCLCONTEXT;
 
 
 /*********************************************************************************************************************************
@@ -57,16 +69,19 @@ static SHCLCONTEXT g_ctx;
  *
  * @returns IPRT status code (ignored).
  * @param   pCtx    The context.
+ *
+ * @note    Call must own lock.
  */
 static int vboxClipboardChanged(SHCLCONTEXT *pCtx)
 {
     if (pCtx->pClient == NULL)
         return VINF_SUCCESS;
 
-    uint32_t fFormats = 0;
-    bool fChanged = false;
     /* Retrieve the formats currently in the clipboard and supported by vbox */
-    int rc = queryNewPasteboardFormats(pCtx->pasteboard, &fFormats, &fChanged);
+    uint32_t fFormats = 0;
+    bool     fChanged = false;
+    int rc = queryNewPasteboardFormats(pCtx->hPasteboard, pCtx->idGuestOwnership, pCtx->hStrOwnershipFlavor,
+                                       &fFormats, &fChanged);
     if (   RT_SUCCESS(rc)
         && fChanged)
         rc = ShClSvcHostReportFormats(pCtx->pClient, fFormats);
@@ -76,21 +91,15 @@ static int vboxClipboardChanged(SHCLCONTEXT *pCtx)
 }
 
 /**
- * The poller thread.
+ * @callback_method_impl{FNRTTHREAD, The poller thread.
  *
- * This thread will check for the arrival of new data on the clipboard.
- *
- * @returns VINF_SUCCESS (not used).
- * @param   ThreadSelf  Our thread handle.
- * @param   pvUser      Pointer to the SHCLCONTEXT structure.
- *
+ * This thread will check for the arrival of new data on the clipboard.}
  */
-static int vboxClipboardThread(RTTHREAD ThreadSelf, void *pvUser)
+static DECLCALLBACK(int) vboxClipboardThread(RTTHREAD ThreadSelf, void *pvUser)
 {
-    LogFlowFuncEnter();
-
-    AssertPtrReturn(pvUser, VERR_INVALID_PARAMETER);
     SHCLCONTEXT *pCtx = (SHCLCONTEXT *)pvUser;
+    AssertPtr(pCtx);
+    LogFlowFuncEnter();
 
     while (!pCtx->fTerminate)
     {
@@ -113,15 +122,15 @@ int ShClSvcImplInit(void)
 {
     g_ctx.fTerminate = false;
 
-    int rc = initPasteboard(&g_ctx.pasteboard);
+    int rc = initPasteboard(&g_ctx.hPasteboard);
     AssertRCReturn(rc, rc);
 
-    rc = RTThreadCreate(&g_ctx.thread, vboxClipboardThread, &g_ctx, 0,
+    rc = RTThreadCreate(&g_ctx.hThread, vboxClipboardThread, &g_ctx, 0,
                         RTTHREADTYPE_IO, RTTHREADFLAGS_WAITABLE, "SHCLIP");
     if (RT_FAILURE(rc))
     {
-        g_ctx.thread = NIL_RTTHREAD;
-        destroyPasteboard(&g_ctx.pasteboard);
+        g_ctx.hThread = NIL_RTTHREAD;
+        destroyPasteboard(&g_ctx.hPasteboard);
     }
 
     return rc;
@@ -133,16 +142,16 @@ void ShClSvcImplDestroy(void)
      * Signal the termination of the polling thread and wait for it to respond.
      */
     ASMAtomicWriteBool(&g_ctx.fTerminate, true);
-    int rc = RTThreadUserSignal(g_ctx.thread);
+    int rc = RTThreadUserSignal(g_ctx.hThread);
     AssertRC(rc);
-    rc = RTThreadWait(g_ctx.thread, RT_INDEFINITE_WAIT, NULL);
+    rc = RTThreadWait(g_ctx.hThread, RT_INDEFINITE_WAIT, NULL);
     AssertRC(rc);
 
     /*
-     * Destroy the pasteboard and uninitialize the global context record.
+     * Destroy the hPasteboard and uninitialize the global context record.
      */
-    destroyPasteboard(&g_ctx.pasteboard);
-    g_ctx.thread = NIL_RTTHREAD;
+    destroyPasteboard(&g_ctx.hPasteboard);
+    g_ctx.hThread = NIL_RTTHREAD;
     g_ctx.pClient = NULL;
 }
 
@@ -189,29 +198,53 @@ int ShClSvcImplDisconnect(PSHCLCLIENT pClient)
     return VINF_SUCCESS;
 }
 
-int ShClSvcImplFormatAnnounce(PSHCLCLIENT pClient,
-                              PSHCLCLIENTCMDCTX pCmdCtx, PSHCLFORMATDATA pFormats)
+int ShClSvcImplFormatAnnounce(PSHCLCLIENT pClient, SHCLFORMATS fFormats)
 {
-    RT_NOREF(pCmdCtx);
+    LogFlowFunc(("fFormats=%02X\n", fFormats));
 
-    LogFlowFunc(("uFormats=%02X\n", pFormats->Formats));
-
-    if (pFormats->Formats == VBOX_SHCL_FMT_NONE)
+    /** @todo r=bird: BUGBUG: The following is probably a mistake. */
+    if (fFormats == VBOX_SHCL_FMT_NONE)
     {
         /* This is just an automatism, not a genuine announcement */
         return VINF_SUCCESS;
     }
 
 #ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
-    if (pFormats->Formats & VBOX_SHCL_FMT_URI_LIST) /* No transfer support yet. */
+    if (fFormats & VBOX_SHCL_FMT_URI_LIST) /* No transfer support yet. */
         return VINF_SUCCESS;
 #endif
 
-    return ShClSvcDataReadRequest(pClient, pFormats->Formats, NULL /* pidEvent */);
+    SHCLCONTEXT *pCtx = pClient->State.pCtx;
+    ShClSvcLock();
+
+    /*
+     * Generate a unique flavor string for this format announcement.
+     */
+    uint64_t idFlavor = RTRandU64();
+    pCtx->idGuestOwnership = idFlavor;
+    RTStrPrintf(pCtx->szGuestOwnershipFlavor, sizeof(pCtx->szGuestOwnershipFlavor),
+                "org.virtualbox.sharedclipboard.%RTproc.%RX64", RTProcSelf(), idFlavor);
+
+    /*
+     * Empty the pasteboard and put our ownership indicator flavor there
+     * with the stringified formats as value.
+     */
+    char szValue[32];
+    RTStrPrintf(szValue, sizeof(szValue), "%#x", fFormats);
+
+    takePasteboardOwnership(pCtx->hPasteboard, pCtx->idGuestOwnership, pCtx->szGuestOwnershipFlavor, szValue,
+                            &pCtx->hStrOwnershipFlavor);
+
+    ShClSvcUnlock();
+
+    /*
+     * Now, request the data from the guest.
+     */
+    return ShClSvcDataReadRequest(pClient, fFormats, NULL /* pidEvent */);
 }
 
-int ShClSvcImplReadData(PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCtx,
-                        SHCLFORMAT uFormat, void *pvData, uint32_t cbData, uint32_t *pcbActual)
+int ShClSvcImplReadData(PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCtx, SHCLFORMAT fFormat,
+                        void *pvData, uint32_t cbData, uint32_t *pcbActual)
 {
     RT_NOREF(pCmdCtx);
 
@@ -220,22 +253,20 @@ int ShClSvcImplReadData(PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCtx,
     /* Default to no data available. */
     *pcbActual = 0;
 
-    int rc = readFromPasteboard(pClient->State.pCtx->pasteboard,
-                                uFormat, pvData, cbData, pcbActual);
+    int rc = readFromPasteboard(pClient->State.pCtx->hPasteboard, fFormat, pvData, cbData, pcbActual);
 
     ShClSvcUnlock();
 
     return rc;
 }
 
-int ShClSvcImplWriteData(PSHCLCLIENT pClient,
-                         PSHCLCLIENTCMDCTX pCmdCtx, SHCLFORMAT uFormat, void *pvData, uint32_t cbData)
+int ShClSvcImplWriteData(PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCtx, SHCLFORMAT fFormat, void *pvData, uint32_t cbData)
 {
     RT_NOREF(pCmdCtx);
 
     ShClSvcLock();
 
-    writeToPasteboard(pClient->State.pCtx->pasteboard, pvData, cbData, uFormat);
+    writeToPasteboard(pClient->State.pCtx->hPasteboard, pClient->State.pCtx->idGuestOwnership, pvData, cbData, fFormat);
 
     ShClSvcUnlock();
 
@@ -243,6 +274,7 @@ int ShClSvcImplWriteData(PSHCLCLIENT pClient,
 }
 
 #ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
+
 int ShClSvcImplTransferReadDir(PSHCLCLIENT pClient, PSHCLDIRDATA pDirData)
 {
     RT_NOREF(pClient, pDirData);
@@ -278,5 +310,6 @@ int ShClSvcImplTransferWriteFileData(PSHCLCLIENT pClient, PSHCLFILEDATA pFileDat
     RT_NOREF(pClient, pFileData);
     return VERR_NOT_IMPLEMENTED;
 }
+
 #endif /* VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS */
 

@@ -123,24 +123,24 @@
         <file alias="drag_drop_16px.png">images/drag_drop_16px.png</file>
         <file alias="drag_drop_disabled_16px.png">images/drag_drop_disabled_16px.png</file>
         <file alias="edata_add_16px.png">images/edata_add_16px.png</file>
-        <file alias="edata_add_22px.png">images/edata_add_22px.png</file>
+        <file alias="edata_add_24px.png">images/edata_add_24px.png</file>
         <file alias="edata_add_disabled_16px.png">images/edata_add_disabled_16px.png</file>
-        <file alias="edata_add_disabled_22px.png">images/edata_add_disabled_22px.png</file>
+        <file alias="edata_add_disabled_24px.png">images/edata_add_disabled_24px.png</file>
         <file alias="edata_global_32px.png">images/edata_global_32px.png</file>
         <file alias="edata_load_16px.png">images/edata_load_16px.png</file>
-        <file alias="edata_load_22px.png">images/edata_load_22px.png</file>
+        <file alias="edata_load_24px.png">images/edata_load_24px.png</file>
         <file alias="edata_load_disabled_16px.png">images/edata_load_disabled_16px.png</file>
-        <file alias="edata_load_disabled_22px.png">images/edata_load_disabled_22px.png</file>
+        <file alias="edata_load_disabled_24px.png">images/edata_load_disabled_24px.png</file>
         <file alias="edata_manager_16px.png">images/edata_manager_16px.png</file>
         <file alias="edata_manager_32px.png">images/edata_manager_32px.png</file>
         <file alias="edata_remove_16px.png">images/edata_remove_16px.png</file>
-        <file alias="edata_remove_22px.png">images/edata_remove_22px.png</file>
+        <file alias="edata_remove_24px.png">images/edata_remove_24px.png</file>
         <file alias="edata_remove_disabled_16px.png">images/edata_remove_disabled_16px.png</file>
-        <file alias="edata_remove_disabled_22px.png">images/edata_remove_disabled_22px.png</file>
+        <file alias="edata_remove_disabled_24px.png">images/edata_remove_disabled_24px.png</file>
         <file alias="edata_save_16px.png">images/edata_save_16px.png</file>
-        <file alias="edata_save_22px.png">images/edata_save_22px.png</file>
+        <file alias="edata_save_24px.png">images/edata_save_24px.png</file>
         <file alias="edata_save_disabled_16px.png">images/edata_save_disabled_16px.png</file>
-        <file alias="edata_save_disabled_22px.png">images/edata_save_disabled_22px.png</file>
+        <file alias="edata_save_disabled_24px.png">images/edata_save_disabled_24px.png</file>
         <file alias="eraser_16px.png">images/eraser_16px.png</file>
         <file alias="exit_16px.png">images/exit_16px.png</file>
         <file alias="expand_all_16px.png">images/expand_all_16px.png</file>
@@ -319,8 +319,6 @@
         <file alias="hd_move_32px.png">images/hd_move_32px.png</file>
         <file alias="hd_move_disabled_16px.png">images/hd_move_disabled_16px.png</file>
         <file alias="hd_move_disabled_32px.png">images/hd_move_disabled_32px.png</file>
-        <file alias="hd_new_16px.png">images/hd_new_16px.png</file>
-        <file alias="hd_new_disabled_16px.png">images/hd_new_disabled_16px.png</file>
         <file alias="hd_read_16px.png">images/hd_read_16px.png</file>
         <file alias="hd_release_16px.png">images/hd_release_16px.png</file>
         <file alias="hd_release_32px.png">images/hd_release_32px.png</file>
@@ -339,8 +337,8 @@
         <file alias="hd_warning_16px.png">images/hd_warning_16px.png</file>
         <file alias="hd_write_16px.png">images/hd_write_16px.png</file>
         <file alias="help_16px.png">images/help_16px.png</file>
-        <file alias="help_button_normal_mac_22px.png">images/help_button_normal_mac_22px.png</file>
-        <file alias="help_button_pressed_mac_22px.png">images/help_button_pressed_mac_22px.png</file>
+        <file alias="help_button_normal_mac_24px.png">images/help_button_normal_mac_24px.png</file>
+        <file alias="help_button_pressed_mac_24px.png">images/help_button_pressed_mac_24px.png</file>
         <file alias="host_iface_add_16px.png">images/host_iface_add_16px.png</file>
         <file alias="host_iface_add_32px.png">images/host_iface_add_32px.png</file>
         <file alias="host_iface_add_disabled_16px.png">images/host_iface_add_disabled_16px.png</file>
@@ -432,5 +430,6 @@
         <file alias="machine_16px.png">images/machine_16px.png</file>
         <file alias="machine_24px.png">images/machine_24px.png</file>
         <file alias="machine_32px.png">images/machine_32px.png</file>
+        <file alias="machine_abstract_16px.png">images/machine_abstract_16px.png</file>
     </qresource>
 </RCC>

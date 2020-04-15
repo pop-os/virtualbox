@@ -32,6 +32,7 @@
 #include <iprt/process.h>
 #include <iprt/semaphore.h>
 #include <iprt/string.h>
+#include <iprt/string.h>
 #include <iprt/thread.h>
 
 #include <VBox/VBoxGuestLib.h>
@@ -554,7 +555,7 @@ static int vgsvcGstCtrlProcessProcLoop(PVBOXSERVICECTRLPROCESS pProcess)
                     break;
 
                 case VBOXSERVICECTRLPIPEID_STDERR:
-                    rc = vgsvcGstCtrlProcessPollsetOnOutput(pProcess, fPollEvt, &pProcess->hPipeStdOutR, idPollHnd);
+                    rc = vgsvcGstCtrlProcessPollsetOnOutput(pProcess, fPollEvt, &pProcess->hPipeStdErrR, idPollHnd);
                     break;
 
                 case VBOXSERVICECTRLPIPEID_IPC_NOTIFY:
@@ -1025,7 +1026,7 @@ static int vgsvcGstCtrlProcessResolveExecutable(const char *pszFileName, char *p
  * and relative paths.
  *
  * @return IPRT status code.
- * @param  pszArgv0         First argument (argv0), either original or modified version.  Optional.
+ * @param  pszArgv0         First argument (argv0), either original or modified version.
  * @param  papszArgs        Original argv command line from the host, starting at argv[1].
  * @param  fFlags           The process creation flags pass to us from the host.
  * @param  ppapszArgv       Pointer to a pointer with the new argv command line.
@@ -1034,10 +1035,11 @@ static int vgsvcGstCtrlProcessResolveExecutable(const char *pszFileName, char *p
 static int vgsvcGstCtrlProcessAllocateArgv(const char *pszArgv0, const char * const *papszArgs, uint32_t fFlags,
                                            char ***ppapszArgv)
 {
-    AssertPtrReturn(ppapszArgv, VERR_INVALID_POINTER);
-
     VGSvcVerbose(3, "VGSvcGstCtrlProcessPrepareArgv: pszArgv0=%p, papszArgs=%p, fFlags=%#x, ppapszArgv=%p\n",
                  pszArgv0, papszArgs, fFlags, ppapszArgv);
+
+    AssertPtrReturn(pszArgv0,   VERR_INVALID_POINTER);
+    AssertPtrReturn(ppapszArgv, VERR_INVALID_POINTER);
 
     int rc = VINF_SUCCESS;
     uint32_t cArgs;
@@ -1053,22 +1055,29 @@ static int vgsvcGstCtrlProcessAllocateArgv(const char *pszArgv0, const char * co
     if (!papszNewArgv)
         return VERR_NO_MEMORY;
 
-#ifdef DEBUG
-    VGSvcVerbose(3, "VGSvcGstCtrlProcessAllocateArgv: cbSize=%RU32, cArgs=%RU32\n", cbSize, cArgs);
+    VGSvcVerbose(3, "VGSvcGstCtrlProcessAllocateArgv: pszArgv0 = '%s', cArgs=%RU32, cbSize=%zu\n", pszArgv0, cArgs, cbSize);
+#ifdef DEBUG /* Never log this stuff in release mode! */
+    if (cArgs)
+    {
+        for (uint32_t i = 0; i < cArgs; i++)
+            VGSvcVerbose(3, "VGSvcGstCtrlProcessAllocateArgv: papszArgs[%RU32] = '%s'\n", i, papszArgs[i]);
+    }
 #endif
 
-    /* HACK ALERT! Since we still don't allow the user to really specify the first
-                   argument separately from the executable image, we have to fudge
+    /* HACK ALERT! Older hosts (< VBox 6.1.x) did not allow the user to really specify the first
+                   argument separately from the executable image, so we have to fudge
                    a little in the unquoted argument case to deal with executables
                    containing spaces. */
-    /** @todo Fix the stupid host/guest protocol so the user can do this for us! */
     if (   !(fFlags & EXECUTEPROCESSFLAG_UNQUOTED_ARGS)
         || !strpbrk(pszArgv0, " \t\n\r")
         || pszArgv0[0] == '"')
+    {
         rc = RTStrDupEx(&papszNewArgv[0], pszArgv0);
+    }
     else
     {
         size_t cchArgv0 = strlen(pszArgv0);
+        AssertReturn(cchArgv0, VERR_INVALID_PARAMETER); /* Paranoia. */
         rc = RTStrAllocEx(&papszNewArgv[0], 1 + cchArgv0 + 1 + 1);
         if (RT_SUCCESS(rc))
         {
@@ -1080,6 +1089,7 @@ static int vgsvcGstCtrlProcessAllocateArgv(const char *pszArgv0, const char * co
             *pszDst   = '\0';
         }
     }
+
     if (RT_SUCCESS(rc))
     {
         size_t i;
@@ -1328,12 +1338,29 @@ static int vgsvcGstCtrlProcessCreateProcess(const char *pszExec, const char * co
 #endif
     if (RT_SUCCESS(rc))
     {
+        /**
+         * This one is a bit tricky to also support older hosts:
+         *
+         * - If the host does not provide a dedicated argv[0] (< VBox 6.1.x), we use the
+         *   unmodified executable name (pszExec) as the (default) argv[0]. This is wrong, but we can't do
+         *   much about it. The rest (argv[1,2,n]) then gets set starting at papszArgs[0].
+         *
+         * - Newer hosts (>= VBox 6.1.x) provide a correct argv[0] independently of the actual
+         *   executable name though, so actually use argv[0] *and* argv[1,2,n] as intended.
+         */
+        const bool fHasArgv0 = RT_BOOL(g_fControlHostFeatures0 & VBOX_GUESTCTRL_HF_0_PROCESS_ARGV0);
+
+        const char *pcszArgv0 = (fHasArgv0 && papszArgs[0]) ? papszArgs[0] : pszExec;
+        AssertPtrReturn(pcszArgv0, VERR_INVALID_POINTER); /* Paranoia. */
+
+        const uint32_t uArgvIdx = pcszArgv0 == papszArgs[0] ? 1 : 0;
+
+        VGSvcVerbose(3, "vgsvcGstCtrlProcessCreateProcess: fHasArgv0=%RTbool, pcszArgv0=%p, uArgvIdx=%RU32, "
+                        "g_fControlHostFeatures0=%#x\n",
+                     fHasArgv0, pcszArgv0, uArgvIdx, g_fControlHostFeatures0);
+
         char **papszArgsExp;
-        /** @todo r-bird: pszExec != argv[0]! When are you going to get that?!? How many
-         * times does this need to be pointed out?  HOST/GUEST INTERFACE IS MISDESIGNED! */
-        rc = vgsvcGstCtrlProcessAllocateArgv(pszExec /* Always use the unmodified executable name as argv0. */,
-                                             papszArgs /* Append the rest of the argument vector (if any). */,
-                                             fFlags, &papszArgsExp);
+        rc = vgsvcGstCtrlProcessAllocateArgv(pcszArgv0, &papszArgs[uArgvIdx], fFlags, &papszArgsExp);
         if (RT_FAILURE(rc))
         {
             /* Don't print any arguments -- may contain passwords or other sensible data! */
@@ -1405,26 +1432,47 @@ static int vgsvcGstCtrlProcessCreateProcess(const char *pszExec, const char * co
 
 
 #ifdef DEBUG
-static int vgsvcGstCtrlProcessDumpToFile(const char *pszFileName, void *pvBuf, size_t cbBuf)
+/**
+ * Dumps content to a file in the OS temporary directory.
+ *
+ * @returns VBox status code.
+ * @param   pvBuf               Buffer of content to dump.
+ * @param   cbBuf               Size (in bytes) of content to dump.
+ * @param   pszFileNmFmt        Pointer to the file name format string, @see pg_rt_str_format.
+ * @param   ...                 The format argument.
+ */
+static int vgsvcGstCtrlProcessDbgDumpToFileF(const void *pvBuf, size_t cbBuf, const char *pszFileNmFmt, ...)
 {
-    AssertPtrReturn(pszFileName, VERR_INVALID_POINTER);
+    AssertPtrReturn(pszFileNmFmt, VERR_INVALID_POINTER);
     AssertPtrReturn(pvBuf, VERR_INVALID_POINTER);
 
     if (!cbBuf)
         return VINF_SUCCESS;
 
-    char szFile[RTPATH_MAX];
+    va_list va;
+    va_start(va, pszFileNmFmt);
 
-    int rc = RTPathTemp(szFile, sizeof(szFile));
+    char *pszFileName = NULL;
+    const int cchFileName = RTStrAPrintfV(&pszFileName, pszFileNmFmt, va);
+
+    va_end(va);
+
+    if (!cchFileName)
+        return VERR_NO_MEMORY;
+
+    char szPathFileAbs[RTPATH_MAX];
+    int rc = RTPathTemp(szPathFileAbs, sizeof(szPathFileAbs));
     if (RT_SUCCESS(rc))
-        rc = RTPathAppend(szFile, sizeof(szFile), pszFileName);
+        rc = RTPathAppend(szPathFileAbs, sizeof(szPathFileAbs), pszFileName);
+
+    RTStrFree(pszFileName);
 
     if (RT_SUCCESS(rc))
     {
-        VGSvcVerbose(4, "Dumping %ld bytes to '%s'\n", cbBuf, szFile);
+        VGSvcVerbose(4, "Dumping %zu bytes to '%s'\n", cbBuf, szPathFileAbs);
 
         RTFILE fh;
-        rc = RTFileOpen(&fh, szFile, RTFILE_O_OPEN_CREATE | RTFILE_O_WRITE | RTFILE_O_DENY_WRITE);
+        rc = RTFileOpen(&fh, szPathFileAbs, RTFILE_O_OPEN_CREATE | RTFILE_O_WRITE | RTFILE_O_DENY_WRITE);
         if (RT_SUCCESS(rc))
         {
             rc = RTFileWrite(fh, pvBuf, cbBuf, NULL /* pcbWritten */);
@@ -1464,53 +1512,33 @@ static int vgsvcGstCtrlProcessProcessWorker(PVBOXSERVICECTRLPROCESS pProcess)
     /*
      * Prepare argument list.
      */
+    VGSvcVerbose(3, "vgsvcGstCtrlProcessProcessWorker: fHostFeatures0       = %#x\n",     g_fControlHostFeatures0);
+    VGSvcVerbose(3, "vgsvcGstCtrlProcessProcessWorker: StartupInfo.szCmd    = '%s'\n",    pProcess->StartupInfo.szCmd);
+    VGSvcVerbose(3, "vgsvcGstCtrlProcessProcessWorker: StartupInfo.uNumArgs = '%RU32'\n", pProcess->StartupInfo.uNumArgs);
+#ifdef DEBUG /* Never log this stuff in release mode! */
+    VGSvcVerbose(3, "vgsvcGstCtrlProcessProcessWorker: StartupInfo.szArgs   = '%s'\n",    pProcess->StartupInfo.szArgs);
+#endif
+
     char **papszArgs;
     int cArgs = 0; /* Initialize in case of RTGetOptArgvFromString() is failing ... */
     rc = RTGetOptArgvFromString(&papszArgs, &cArgs,
                                 pProcess->StartupInfo.uNumArgs > 0 ? pProcess->StartupInfo.szArgs : "",
                                 RTGETOPTARGV_CNV_QUOTE_BOURNE_SH, NULL);
-    /* Did we get the same result? */
-    Assert((int)pProcess->StartupInfo.uNumArgs == cArgs + 1 /* Take argv[0] into account */);
 
-    /*
-     * Prepare environment variables list.
-     */
-/** @todo r=bird: you don't need to prepare this, do you? Why don't you replace
- * the brilliant RTStrAPrintf call with RTEnvPutEx and drop the papszEnv related code? */
-    char **papszEnv = NULL;
-    uint32_t uNumEnvVars = 0; /* Initialize in case of failing ... */
-    if (RT_SUCCESS(rc))
-    {
-        /* Prepare environment list. */
-        if (pProcess->StartupInfo.uNumEnvVars)
-        {
-            papszEnv = (char **)RTMemAlloc(pProcess->StartupInfo.uNumEnvVars * sizeof(char*));
-            AssertPtr(papszEnv);
-            uNumEnvVars = pProcess->StartupInfo.uNumEnvVars;
+    VGSvcVerbose(3, "vgsvcGstCtrlProcessProcessWorker: cArgs = %d\n", cArgs);
+#ifdef VBOX_STRICT
+    for (int i = 0; i < cArgs; i++)
+        VGSvcVerbose(3, "vgsvcGstCtrlProcessProcessWorker: papszArgs[%d] = '%s'\n", i, papszArgs[i] ? papszArgs[i] : "<NULL>");
 
-            const char *pszCur = pProcess->StartupInfo.szEnv;
-            uint32_t i = 0;
-            uint32_t cbLen = 0;
-            while (cbLen < pProcess->StartupInfo.cbEnv)
-            {
-                /* sanity check */
-                if (i >= pProcess->StartupInfo.uNumEnvVars)
-                {
-                    rc = VERR_INVALID_PARAMETER;
-                    break;
-                }
-                int cbStr = RTStrAPrintf(&papszEnv[i++], "%s", pszCur);
-                if (cbStr < 0)
-                {
-                    rc = VERR_NO_STR_MEMORY;
-                    break;
-                }
-                pszCur += cbStr + 1; /* Skip terminating '\0' */
-                cbLen  += cbStr + 1; /* Skip terminating '\0' */
-            }
-            Assert(i == pProcess->StartupInfo.uNumEnvVars);
-        }
-    }
+    const bool fHasArgv0    = RT_BOOL(g_fControlHostFeatures0 & VBOX_GUESTCTRL_HF_0_PROCESS_ARGV0); RT_NOREF(fHasArgv0);
+    const int  cArgsToCheck = cArgs + (fHasArgv0 ? 0 : 1);
+
+    /* Did we get the same result?
+     * Take into account that we might not have supplied a (correct) argv[0] from the host. */
+    AssertMsg((int)pProcess->StartupInfo.uNumArgs == cArgsToCheck,
+              ("rc=%Rrc, StartupInfo.uNumArgs=%RU32 != cArgsToCheck=%d, cArgs=%d, fHostFeatures0=%#x\n",
+               rc, pProcess->StartupInfo.uNumArgs, cArgsToCheck, cArgs, g_fControlHostFeatures0));
+#endif
 
     /*
      * Create the environment.
@@ -1521,13 +1549,30 @@ static int vgsvcGstCtrlProcessProcessWorker(PVBOXSERVICECTRLPROCESS pProcess)
         rc = RTEnvClone(&hEnv, RTENV_DEFAULT);
         if (RT_SUCCESS(rc))
         {
-            size_t i;
-            for (i = 0; i < uNumEnvVars && papszEnv; i++)
+            VGSvcVerbose(3, "Additional environment variables: %RU32 (%RU32 bytes)\n",
+                         pProcess->StartupInfo.uNumEnvVars, pProcess->StartupInfo.cbEnv);
+
+            if (   pProcess->StartupInfo.uNumEnvVars
+                && pProcess->StartupInfo.cbEnv)
             {
-                rc = RTEnvPutEx(hEnv, papszEnv[i]);
-                if (RT_FAILURE(rc))
-                    break;
+                      uint32_t cbCur  = 0;
+                const char    *pszCur = pProcess->StartupInfo.szEnv;
+                while (cbCur < pProcess->StartupInfo.cbEnv)
+                {
+                    VGSvcVerbose(3, "Setting environment variable: '%s'\n", pszCur);
+                    rc = RTEnvPutEx(hEnv, pszCur);
+                    if (RT_FAILURE(rc))
+                    {
+                        VGSvcError("Setting environment variable '%s' failed: %Rrc\n", pszCur, rc);
+                        break;
+                    }
+                    cbCur  += (uint32_t)strlen(pszCur) + 1;
+                    AssertBreakStmt(cbCur <= GUESTPROCESS_MAX_ENV_LEN   , rc = VERR_INVALID_PARAMETER);
+                    AssertBreakStmt(cbCur <= pProcess->StartupInfo.cbEnv, rc = VERR_INVALID_PARAMETER);
+                    pszCur += cbCur;
+                }
             }
+
             if (RT_SUCCESS(rc))
             {
                 /*
@@ -1691,13 +1736,6 @@ static int vgsvcGstCtrlProcessProcessWorker(PVBOXSERVICECTRLPROCESS pProcess)
                        pProcess->uPID, rc2, rc);
     }
 
-    /* Free argument + environment variable lists. */
-    if (uNumEnvVars)
-    {
-        for (uint32_t i = 0; i < uNumEnvVars; i++)
-            RTStrFree(papszEnv[i]);
-        RTMemFree(papszEnv);
-    }
     if (cArgs)
         RTGetOptArgvFree(papszArgs);
 
@@ -1780,11 +1818,9 @@ int VGSvcGstCtrlProcessStart(const PVBOXSERVICECTRLSESSION pSession,
     if (RT_SUCCESS(rc))
     {
         static uint32_t s_uCtrlExecThread = 0;
-        if (s_uCtrlExecThread++ == UINT32_MAX) /** @todo r=bird: ????????????? */
-            s_uCtrlExecThread = 0; /* Wrap around to not let IPRT freak out. */
         rc = RTThreadCreateF(&pProcess->Thread, vgsvcGstCtrlProcessThread,
                              pProcess /*pvUser*/, 0 /*cbStack*/,
-                             RTTHREADTYPE_DEFAULT, RTTHREADFLAGS_WAITABLE, "gctl%u", s_uCtrlExecThread);
+                             RTTHREADTYPE_DEFAULT, RTTHREADFLAGS_WAITABLE, "gctl%RU32", s_uCtrlExecThread++);
         if (RT_FAILURE(rc))
         {
             VGSvcError("Creating thread for guest process '%s' failed: rc=%Rrc, pProcess=%p\n",
@@ -1939,23 +1975,15 @@ static DECLCALLBACK(int) vgsvcGstCtrlProcessOnOutput(PVBOXSERVICECTRLPROCESS pTh
                     || uHandle == OUTPUT_HANDLE_ID_STDOUT_DEPRECATED)
                )
             {
-                /** @todo r=bird: vgsvcGstCtrlProcessDumpToFile(void *pvBuf, size_t cbBuf, const char *pszFileNmFmt, ...) */
-                char szDumpFile[RTPATH_MAX];
-                if (!RTStrPrintf(szDumpFile, sizeof(szDumpFile), "VBoxService_Session%RU32_PID%RU32_StdOut.txt",
-                                 pSession->StartupInfo.uSessionID, pThis->uPID)) rc = VERR_BUFFER_UNDERFLOW;
-                if (RT_SUCCESS(rc))
-                    rc = vgsvcGstCtrlProcessDumpToFile(szDumpFile, pvBuf, cbRead);
+                rc = vgsvcGstCtrlProcessDbgDumpToFileF(pvBuf, cbRead, "VBoxService_Session%RU32_PID%RU32_StdOut.txt",
+                                                pSession->StartupInfo.uSessionID, pThis->uPID);
                 AssertRC(rc);
             }
             else if (   pSession->fFlags & VBOXSERVICECTRLSESSION_FLAG_DUMPSTDERR
                      && uHandle == OUTPUT_HANDLE_ID_STDERR)
             {
-                char szDumpFile[RTPATH_MAX];
-                if (!RTStrPrintf(szDumpFile, sizeof(szDumpFile), "VBoxService_Session%RU32_PID%RU32_StdErr.txt",
-                                 pSession->StartupInfo.uSessionID, pThis->uPID))
-                    rc = VERR_BUFFER_UNDERFLOW;
-                if (RT_SUCCESS(rc))
-                    rc = vgsvcGstCtrlProcessDumpToFile(szDumpFile, pvBuf, cbRead);
+                rc = vgsvcGstCtrlProcessDbgDumpToFileF(pvBuf, cbRead, "VBoxService_Session%RU32_PID%RU32_StdErr.txt",
+                                                pSession->StartupInfo.uSessionID, pThis->uPID);
                 AssertRC(rc);
             }
         }
@@ -2127,4 +2155,3 @@ int VGSvcGstCtrlProcessHandleTerm(PVBOXSERVICECTRLPROCESS pProcess)
 
     return vgsvcGstCtrlProcessOnTerm(pProcess);
 }
-

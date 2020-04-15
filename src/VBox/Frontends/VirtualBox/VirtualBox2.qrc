@@ -1,6 +1,5 @@
 <RCC>
     <qresource suffix="/">
-        <file alias="machine_abstract_16px.png">images/machine_abstract_16px.png</file>
         <file alias="machine_details_manager_16px.png">images/machine_details_manager_16px.png</file>
         <file alias="machine_details_manager_24px.png">images/machine_details_manager_24px.png</file>
         <file alias="machine_details_manager_disabled_16px.png">images/machine_details_manager_disabled_16px.png</file>
@@ -92,10 +91,8 @@
         <file alias="os_solaris_64.png">images/os_solaris_64.png</file>
         <file alias="os_turbolinux.png">images/os_turbolinux.png</file>
         <file alias="os_turbolinux_64.png">images/os_turbolinux_64.png</file>
-        <file alias="os_type_16px.png">images/os_type_16px.png</file>
         <file alias="os_ubuntu.png">images/os_ubuntu.png</file>
         <file alias="os_ubuntu_64.png">images/os_ubuntu_64.png</file>
-        <file alias="os_version_16px.png">images/os_version_16px.png</file>
         <file alias="os_win10.png">images/os_win10.png</file>
         <file alias="os_win10_64.png">images/os_win10_64.png</file>
         <file alias="os_win2k.png">images/os_win2k.png</file>
@@ -203,6 +200,8 @@
         <file alias="seamless_disabled_16px.png">images/seamless_disabled_16px.png</file>
         <file alias="seamless_on_16px.png">images/seamless_on_16px.png</file>
         <file alias="seamless_on_disabled_16px.png">images/seamless_on_disabled_16px.png</file>
+        <file alias="search_16px.png">images/search_16px.png</file>
+        <file alias="search_disabled_16px.png">images/search_disabled_16px.png</file>
         <file alias="select_file_16px.png">images/select_file_16px.png</file>
         <file alias="select_file_disabled_16px.png">images/select_file_disabled_16px.png</file>
         <file alias="serial_port_16px.png">images/serial_port_16px.png</file>
@@ -299,10 +298,11 @@
         <file alias="statusbar_settings_16px.png">images/statusbar_settings_16px.png</file>
         <file alias="statusbar_settings_disabled_16px.png">images/statusbar_settings_disabled_16px.png</file>
         <file alias="subnet_16px.png">images/subnet_16px.png</file>
+        <file alias="system_type_16px.png">images/system_type_16px.png</file>
+        <file alias="system_version_16px.png">images/system_version_16px.png</file>
         <file alias="tools_banner_global_200px.png">images/tools_banner_global_200px.png</file>
         <file alias="tools_banner_machine_200px.png">images/tools_banner_machine_200px.png</file>
         <file alias="tools_global_32px.png">images/tools_global_32px.png</file>
-        <file alias="tools_machine_32px.png">images/tools_machine_32px.png</file>
         <file alias="tools_menu_24px.png">images/tools_menu_24px.png</file>
         <file alias="usb_16px.png">images/usb_16px.png</file>
         <file alias="usb_24px.png">images/usb_24px.png</file>

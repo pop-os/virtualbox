@@ -75,7 +75,7 @@ typedef struct DRVMAINDISPLAY
     Display                    *pDisplay;
     /** Pointer to the driver instance structure. */
     PPDMDRVINS                  pDrvIns;
-    /** Pointer to the keyboard port interface of the driver/device above us. */
+    /** Pointer to the display port interface of the driver/device above us. */
     PPDMIDISPLAYPORT            pUpPort;
     /** Our display connector interface. */
     PDMIDISPLAYCONNECTOR        IConnector;
@@ -1282,6 +1282,18 @@ int Display::i_handleSetVisibleRegion(uint32_t cRect, PRTRECT pRect)
 
     RTMemTmpFree(pVisibleRegion);
 
+    return VINF_SUCCESS;
+}
+
+int  Display::i_handleUpdateMonitorPositions(uint32_t cPositions, PRTPOINT pPosition)
+{
+    AssertMsgReturn(pPosition, ("Empty monitor position array\n"), E_INVALIDARG);
+    for (unsigned i = 0; i < cPositions; ++i)
+        LogRel2(("Display::i_handleUpdateMonitorPositions: uScreenId=%d xOrigin=%d yOrigin=%dX\n",
+                 i, pPosition[i].x, pPosition[i].y));
+
+    if (mpDrv && mpDrv->pUpPort->pfnReportMonitorPositions)
+        mpDrv->pUpPort->pfnReportMonitorPositions(mpDrv->pUpPort, cPositions, pPosition);
     return VINF_SUCCESS;
 }
 
@@ -3088,6 +3100,12 @@ DECLCALLBACK(void) Display::i_displayProcessDisplayDataCallback(PPDMIDISPLAYCONN
 
 int Display::i_handleVHWACommandProcess(int enmCmd, bool fGuestCmd, VBOXVHWACMD RT_UNTRUSTED_VOLATILE_GUEST *pCommand)
 {
+    /* bugref:9691 Disable the legacy VHWA interface.
+     * Keep the host commands enabled because they are needed when an old saved state is loaded.
+     */
+    if (fGuestCmd)
+        return VERR_NOT_IMPLEMENTED;
+
     unsigned id = (unsigned)pCommand->iDisplay;
     if (id >= mcMonitors)
         return VERR_INVALID_PARAMETER;
@@ -3160,6 +3178,7 @@ DECLCALLBACK(int) Display::i_displayVBVAEnable(PPDMIDISPLAYCONNECTOR pInterface,
 
     PDRVMAINDISPLAY pDrv = PDMIDISPLAYCONNECTOR_2_MAINDISPLAY(pInterface);
     Display *pThis = pDrv->pDisplay;
+    AssertReturn(uScreenId < pThis->mcMonitors, VERR_INVALID_PARAMETER);
 
     if (pThis->maFramebuffers[uScreenId].fVBVAEnabled)
     {
@@ -3188,6 +3207,7 @@ DECLCALLBACK(void) Display::i_displayVBVADisable(PPDMIDISPLAYCONNECTOR pInterfac
 
     PDRVMAINDISPLAY pDrv = PDMIDISPLAYCONNECTOR_2_MAINDISPLAY(pInterface);
     Display *pThis = pDrv->pDisplay;
+    AssertReturnVoid(uScreenId < pThis->mcMonitors);
 
     DISPLAYFBINFO *pFBInfo = &pThis->maFramebuffers[uScreenId];
 
@@ -3251,7 +3271,10 @@ DECLCALLBACK(void) Display::i_displayVBVAUpdateProcess(PPDMIDISPLAYCONNECTOR pIn
 
     PDRVMAINDISPLAY pDrv = PDMIDISPLAYCONNECTOR_2_MAINDISPLAY(pInterface);
     Display *pThis = pDrv->pDisplay;
-    DISPLAYFBINFO *pFBInfo = &pThis->maFramebuffers[uScreenId];
+    DISPLAYFBINFO *pFBInfo;
+    AssertReturnVoid(uScreenId < pThis->mcMonitors);
+
+    pFBInfo = &pThis->maFramebuffers[uScreenId];
 
     if (pFBInfo->fDefaultFormat)
     {
@@ -3334,7 +3357,10 @@ DECLCALLBACK(void) Display::i_displayVBVAUpdateEnd(PPDMIDISPLAYCONNECTOR pInterf
 
     PDRVMAINDISPLAY pDrv = PDMIDISPLAYCONNECTOR_2_MAINDISPLAY(pInterface);
     Display *pThis = pDrv->pDisplay;
-    DISPLAYFBINFO *pFBInfo = &pThis->maFramebuffers[uScreenId];
+    DISPLAYFBINFO *pFBInfo;
+    AssertReturnVoid(uScreenId < pThis->mcMonitors);
+
+    pFBInfo = &pThis->maFramebuffers[uScreenId];
 
     /** @todo handleFramebufferUpdate (uScreenId,
      *                                x - pThis->maFramebuffers[uScreenId].xOrigin,
@@ -3546,6 +3572,8 @@ DECLCALLBACK(void) Display::i_displayVBVAReportCursorPosition(PPDMIDISPLAYCONNEC
 
     if (fFlags & VBVA_CURSOR_SCREEN_RELATIVE)
     {
+        AssertReturnVoid(aScreenId < pThis->mcMonitors);
+
         x += pThis->maFramebuffers[aScreenId].xOrigin;
         y += pThis->maFramebuffers[aScreenId].yOrigin;
     }
