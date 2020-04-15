@@ -83,6 +83,7 @@ typedef struct VIRTIOSGBUF
     PVIRTIOSGSEG paSegs;                                       /**< Pointer to the scatter/gather array       */
     unsigned  cSegs;                                            /**< Number of segments                        */
     unsigned  idxSeg;                                           /**< Current segment we are in                 */
+    /** @todo r=bird: s/gcPhys/GCPhys/g as this is how we write it everywhere. */
     RTGCPHYS  gcPhysCur;                                        /**< Ptr to byte within the current seg        */
     size_t    cbSegLeft;                                        /**< # of bytes left in the current segment    */
 } VIRTIOSGBUF;
@@ -91,14 +92,33 @@ typedef VIRTIOSGBUF *PVIRTIOSGBUF;
 typedef const VIRTIOSGBUF *PCVIRTIOSGBUF;
 typedef PVIRTIOSGBUF *PPVIRTIOSGBUF;
 
+/**
+ * Virtio descriptor chain representation.
+ */
 typedef struct VIRTIO_DESC_CHAIN
 {
-    uint32_t     uHeadIdx;                                        /**< Head idx of associated desc chain        */
-    uint32_t     cbPhysSend;                                      /**< Total size of src buffer                 */
-    PVIRTIOSGBUF pSgPhysSend;                                     /**< Phys S/G/ buf for data from guest        */
-    uint32_t     cbPhysReturn;                                    /**< Total size of dst buffer                 */
-    PVIRTIOSGBUF pSgPhysReturn;                                   /**< Phys S/G buf to store result for guest   */
-} VIRTIO_DESC_CHAIN_T, *PVIRTIO_DESC_CHAIN_T, **PPVIRTIO_DESC_CHAIN_T;
+    uint32_t            u32Magic;                                   /**< Magic value, VIRTIO_DESC_CHAIN_MAGIC.    */
+    uint32_t volatile   cRefs;                                      /**< Reference counter. */
+    uint32_t            uHeadIdx;                                   /**< Head idx of associated desc chain        */
+    uint32_t            cbPhysSend;                                 /**< Total size of src buffer                 */
+    PVIRTIOSGBUF        pSgPhysSend;                                /**< Phys S/G/ buf for data from guest        */
+    uint32_t            cbPhysReturn;                               /**< Total size of dst buffer                 */
+    PVIRTIOSGBUF        pSgPhysReturn;                              /**< Phys S/G buf to store result for guest   */
+
+    /** @name Internal (bird combined 5 allocations into a single), fingers off.
+     * @{ */
+    VIRTIOSGBUF         SgBufIn;
+    VIRTIOSGBUF         SgBufOut;
+    VIRTIOSGSEG         aSegsIn[VIRTQ_MAX_SIZE];
+    VIRTIOSGSEG         aSegsOut[VIRTQ_MAX_SIZE];
+    /** @} */
+} VIRTIO_DESC_CHAIN_T;
+/** Pointer to a Virtio descriptor chain. */
+typedef VIRTIO_DESC_CHAIN_T *PVIRTIO_DESC_CHAIN_T;
+/** Pointer to a Virtio descriptor chain pointer. */
+typedef VIRTIO_DESC_CHAIN_T **PPVIRTIO_DESC_CHAIN_T;
+/** Magic value for VIRTIO_DESC_CHAIN_T::u32Magic. */
+#define VIRTIO_DESC_CHAIN_MAGIC             UINT32_C(0x19600219)
 
 typedef struct VIRTIOPCIPARAMS
 {
@@ -267,6 +287,14 @@ typedef struct VIRTIOCORE
 
     /** The MMIO handle for the PCI capability region (\#2). */
     IOMMMIOHANDLE               hMmioPciCap;
+
+    /** @name Statistics
+     * @{ */
+    STAMCOUNTER                 StatDescChainsAllocated;
+    STAMCOUNTER                 StatDescChainsFreed;
+    STAMCOUNTER                 StatDescChainsSegsIn;
+    STAMCOUNTER                 StatDescChainsSegsOut;
+    /** @} */
 } VIRTIOCORE;
 
 
@@ -375,6 +403,8 @@ int  virtioCoreR3QueueAttach(PVIRTIOCORE pVirtio, uint16_t idxQueue, const char 
 
 int  virtioCoreR3DescChainGet(PPDMDEVINS pDevIns, PVIRTIOCORE pVirtio, uint16_t idxQueue,
                              uint16_t uHeadIdx, PPVIRTIO_DESC_CHAIN_T ppDescChain);
+uint32_t virtioCoreR3DescChainRetain(PVIRTIO_DESC_CHAIN_T pDescChain);
+uint32_t virtioCoreR3DescChainRelease(PVIRTIOCORE pVirtio, PVIRTIO_DESC_CHAIN_T pDescChain);
 
 int  virtioCoreR3QueuePeek(PPDMDEVINS pDevIns, PVIRTIOCORE pVirtio, uint16_t idxQueue,
                            PPVIRTIO_DESC_CHAIN_T ppDescChain);

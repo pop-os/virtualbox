@@ -2092,6 +2092,7 @@ static int buslogicProcessCommand(PPDMDEVINS pDevIns, PBUSLOGIC pThis)
             }
             pThis->fMbxIs24Bit = true;
             pThis->cMailbox = pRequest->cMailbox;
+            pThis->uMailboxOutgoingPositionCurrent = pThis->uMailboxIncomingPositionCurrent = 0;
             pThis->GCPhysAddrMailboxOutgoingBase = (RTGCPHYS)ADDR_TO_U32(pRequest->aMailboxBaseAddr);
             /* The area for incoming mailboxes is right after the last entry of outgoing mailboxes. */
             pThis->GCPhysAddrMailboxIncomingBase = pThis->GCPhysAddrMailboxOutgoingBase + (pThis->cMailbox * sizeof(Mailbox24));
@@ -2125,6 +2126,7 @@ static int buslogicProcessCommand(PPDMDEVINS pDevIns, PBUSLOGIC pThis)
             }
             pThis->fMbxIs24Bit = false;
             pThis->cMailbox = pRequest->cMailbox;
+            pThis->uMailboxOutgoingPositionCurrent = pThis->uMailboxIncomingPositionCurrent = 0;
             pThis->GCPhysAddrMailboxOutgoingBase = (RTGCPHYS)pRequest->uMailboxBaseAddress;
             /* The area for incoming mailboxes is right after the last entry of outgoing mailboxes. */
             pThis->GCPhysAddrMailboxIncomingBase = (RTGCPHYS)pRequest->uMailboxBaseAddress + (pThis->cMailbox * sizeof(Mailbox32));
@@ -3827,13 +3829,13 @@ static DECLCALLBACK(void) buslogicR3Info(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp,
 
             /* Incoming mailbox, 32-bit format. */
             GCMailbox = pThis->GCPhysAddrMailboxOutgoingBase + (pThis->cMailbox * sizeof(Mailbox32));
-            pHlp->pfnPrintf(pHlp, " Outgoing mailbox entries (32-bit) at %08X:\n", (uint32_t)GCMailbox);
+            pHlp->pfnPrintf(pHlp, " Incoming mailbox entries (32-bit) at %08X:\n", (uint32_t)GCMailbox);
             for (i = 0; i < pThis->cMailbox; ++i)
             {
                 PDMDevHlpPhysRead(pDevIns, GCMailbox, &Mbx32, sizeof(Mailbox32));
                 pHlp->pfnPrintf(pHlp, "  slot %03d: CCB at %08X completion code %02X BTSTAT %02X SDSTAT %02X", i,
                                 Mbx32.u32PhysAddrCCB, Mbx32.u.in.uCompletionCode, Mbx32.u.in.uHostAdapterStatus, Mbx32.u.in.uTargetDeviceStatus);
-                pHlp->pfnPrintf(pHlp, "%s\n", pThis->uMailboxOutgoingPositionCurrent == i ? " *" : "");
+                pHlp->pfnPrintf(pHlp, "%s\n", pThis->uMailboxIncomingPositionCurrent == i ? " *" : "");
                 GCMailbox += sizeof(Mailbox32);
             }
 

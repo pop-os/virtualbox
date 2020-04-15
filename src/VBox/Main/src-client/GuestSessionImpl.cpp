@@ -795,18 +795,7 @@ HRESULT GuestSession::i_copyToGuest(const GuestSessionFsSourceSet &SourceSet,
 
     LogFlowThisFuncEnter();
 
-    /* Validate stuff. */
-/** @todo r=bird: these validations are better left to the caller.  The first one in particular as there is only one
- * of the four callers which supplies a user specified source set, making an assertion more appropriate and efficient
- * here. */
-    if (RT_UNLIKELY(SourceSet.size() == 0)) /* At least one source must be present. */
-        return setError(E_INVALIDARG, tr("No sources specified"));
-    if (RT_UNLIKELY(SourceSet[0].strSource.isEmpty()))
-        return setError(E_INVALIDARG, tr("First source entry is empty"));
-    if (RT_UNLIKELY(strDestination.isEmpty()))
-        return setError(E_INVALIDARG, tr("No destination specified"));
-
-    /* Create a task and return the progress obejct for it. */
+    /* Create a task and return the progress object for it. */
     GuestSessionTaskCopyTo *pTask = NULL;
     try
     {
@@ -961,6 +950,15 @@ inline bool GuestSession::i_directoryExists(uint32_t uDirID, ComObjPtr<GuestDire
     return false;
 }
 
+/**
+ * Queries information about a directory on the guest.
+ *
+ * @returns VBox status code, or VERR_NOT_A_DIRECTORY if the file system object exists but is not a directory.
+ * @param   strPath             Path to directory to query information for.
+ * @param   fFollowSymlinks     Whether to follow symlinks or not.
+ * @param   objData             Where to store the information returned on success.
+ * @param   prcGuest            Guest rc, when returning VERR_GSTCTL_GUEST_ERROR.
+ */
 int GuestSession::i_directoryQueryInfo(const Utf8Str &strPath, bool fFollowSymlinks,
                                        GuestFsObjData &objData, int *prcGuest)
 {
@@ -1151,35 +1149,46 @@ int GuestSession::i_directoryOpen(const GuestDirectoryOpenInfo &openInfo,
         return vrc;
     }
 
+    /* We need to release the write lock first before initializing the directory object below,
+     * as we're starting a guest process as part of it. This in turn will try to acquire the session's
+     * write lock. */
+    alock.release();
+
     Console *pConsole = mParent->i_getConsole();
     AssertPtr(pConsole);
 
     vrc = pDirectory->init(pConsole, this /* Parent */, idObject, openInfo);
     if (RT_FAILURE(vrc))
-        return vrc;
-
-    /*
-     * Since this is a synchronous guest call we have to
-     * register the file object first, releasing the session's
-     * lock and then proceed with the actual opening command
-     * -- otherwise the file's opening callback would hang
-     * because the session's lock still is in place.
-     */
-    try
     {
-        /* Add the created directory to our map. */
-        mData.mDirectories[idObject] = pDirectory;
+        /* Make sure to acquire the write lock again before unregistering the object. */
+        alock.acquire();
 
-        LogFlowFunc(("Added new guest directory \"%s\" (Session: %RU32) (now total %zu directories)\n",
-                     openInfo.mPath.c_str(), mData.mSession.mID, mData.mDirectories.size()));
+        int vrc2 = i_objectUnregister(idObject);
+        AssertRC(vrc2);
 
-        alock.release(); /* Release lock before firing off event. */
-
-        /** @todo Fire off a VBoxEventType_OnGuestDirectoryRegistered event? */
+        pDirectory.setNull();
     }
-    catch (std::bad_alloc &)
+    else
     {
-        vrc = VERR_NO_MEMORY;
+        /* Make sure to acquire the write lock again before continuing. */
+        alock.acquire();
+
+        try
+        {
+            /* Add the created directory to our map. */
+            mData.mDirectories[idObject] = pDirectory;
+
+            LogFlowFunc(("Added new guest directory \"%s\" (Session: %RU32) (now total %zu directories)\n",
+                         openInfo.mPath.c_str(), mData.mSession.mID, mData.mDirectories.size()));
+
+            alock.release(); /* Release lock before firing off event. */
+
+            /** @todo Fire off a VBoxEventType_OnGuestDirectoryRegistered event? */
+        }
+        catch (std::bad_alloc &)
+        {
+            vrc = VERR_NO_MEMORY;
+        }
     }
 
     if (RT_SUCCESS(vrc))
@@ -1463,8 +1472,6 @@ int GuestSession::i_fileOpenEx(const com::Utf8Str &aPath, FileAccessMode_T aAcce
                                ComObjPtr<GuestFile> &pFile, int *prcGuest)
 {
     GuestFileOpenInfo openInfo;
-    RT_ZERO(openInfo);
-
     openInfo.mFilename     = aPath;
     openInfo.mCreationMode = aCreationMode;
     openInfo.mAccessMode   = aAccessMode;
@@ -2989,7 +2996,10 @@ HRESULT GuestSession::fileCopyFromGuest(const com::Utf8Str &aSource, const com::
     {
         for (size_t i = 0; i < aFlags.size(); i++)
             fFlags |= aFlags[i];
-        /** @todo r=bird: Please reject unknown flags. */
+
+        const uint32_t fValidFlags = FileCopyFlag_None | FileCopyFlag_NoReplace | FileCopyFlag_FollowLinks | FileCopyFlag_Update;
+        if (fFlags & ~fValidFlags)
+            return setError(E_INVALIDARG,tr("Unknown flags: flags value %#x, invalid: %#x"), fFlags, fFlags & ~fValidFlags);
     }
 
     GuestSessionFsSourceSet SourceSet;
@@ -3014,16 +3024,14 @@ HRESULT GuestSession::fileCopyToGuest(const com::Utf8Str &aSource, const com::Ut
     {
         for (size_t i = 0; i < aFlags.size(); i++)
             fFlags |= aFlags[i];
-        /** @todo r=bird: Please reject unknown flags. */
+
+        const uint32_t fValidFlags = FileCopyFlag_None | FileCopyFlag_NoReplace | FileCopyFlag_FollowLinks | FileCopyFlag_Update;
+        if (fFlags & ~fValidFlags)
+            return setError(E_INVALIDARG,tr("Unknown flags: flags value %#x, invalid: %#x"), fFlags, fFlags & ~fValidFlags);
     }
 
     GuestSessionFsSourceSet SourceSet;
 
-    /** @todo r=bird: The GuestSessionFsSourceSpec constructor does not zero the
-     *        members you aren't setting here and there are no hints about "input"
-     *        vs "task" members, so you have me worrying about using random stack by
-     *        accident somewhere...  For instance Type.File.phFile sure sounds like
-     *        an input field and thus a disaster waiting to happen. */
     GuestSessionFsSourceSpec source;
     source.strSource            = aSource;
     source.enmType              = FsObjType_File;
@@ -3182,6 +3190,14 @@ HRESULT GuestSession::copyToGuest(const std::vector<com::Utf8Str> &aSources, con
         ++itSource;
     }
 
+    /* (Re-)Validate stuff. */
+    if (RT_UNLIKELY(SourceSet.size() == 0)) /* At least one source must be present. */
+        return setError(E_INVALIDARG, tr("No sources specified"));
+    if (RT_UNLIKELY(SourceSet[0].strSource.isEmpty()))
+        return setError(E_INVALIDARG, tr("First source entry is empty"));
+    if (RT_UNLIKELY(aDestination.isEmpty()))
+        return setError(E_INVALIDARG, tr("No destination specified"));
+
     return i_copyToGuest(SourceSet, aDestination, aProgress);
 }
 
@@ -3200,7 +3216,10 @@ HRESULT GuestSession::directoryCopyFromGuest(const com::Utf8Str &aSource, const 
     {
         for (size_t i = 0; i < aFlags.size(); i++)
             fFlags |= aFlags[i];
-        /** @todo r=bird: Please reject unknown flags. */
+
+        const uint32_t fValidFlags = DirectoryCopyFlag_None | DirectoryCopyFlag_CopyIntoExisting;
+        if (fFlags & ~fValidFlags)
+            return setError(E_INVALIDARG,tr("Unknown flags: flags value %#x, invalid: %#x"), fFlags, fFlags & ~fValidFlags);
     }
 
     GuestSessionFsSourceSet SourceSet;
@@ -3226,7 +3245,10 @@ HRESULT GuestSession::directoryCopyToGuest(const com::Utf8Str &aSource, const co
     {
         for (size_t i = 0; i < aFlags.size(); i++)
             fFlags |= aFlags[i];
-        /** @todo r=bird: Please reject unknown flags. */
+
+        const uint32_t fValidFlags = DirectoryCopyFlag_None | DirectoryCopyFlag_CopyIntoExisting;
+        if (fFlags & ~fValidFlags)
+            return setError(E_INVALIDARG,tr("Unknown flags: flags value %#x, invalid: %#x"), fFlags, fFlags & ~fValidFlags);
     }
 
     GuestSessionFsSourceSet SourceSet;
@@ -3336,9 +3358,6 @@ HRESULT GuestSession::directoryCreateTemp(const com::Utf8Str &aTemplateName, ULO
 
 HRESULT GuestSession::directoryExists(const com::Utf8Str &aPath, BOOL aFollowSymlinks, BOOL *aExists)
 {
-    AutoCaller autoCaller(this); /** @todo r=bird: GuestSessionWrap.cpp does already, doesn't it? */
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
     if (RT_UNLIKELY(aPath.isEmpty()))
         return setError(E_INVALIDARG, tr("Empty path"));
 
@@ -3350,20 +3369,10 @@ HRESULT GuestSession::directoryExists(const com::Utf8Str &aPath, BOOL aFollowSym
 
     GuestFsObjData objData;
     int rcGuest = VERR_IPE_UNINITIALIZED_STATUS;
-    /** @todo r=bird: Please look at i_directoryQueryInfo() and explain why there
-     * is an extra FsObjType_Directory check here...
-     *
-     * Looks a lot like you wanted to replicate the RTDirExists behavior, but when
-     * refactoring in i_directoryQueryInfo you lost overview here.   One problem
-     * could be that the documention is VirtualBox.xidl does not mention what
-     * happens when the path leads to a file system object that isn't a
-     * directory.
-     *
-     * Fix the documention and behaviour so it works like RTDirExists and
-     * RTFileExists.  */
+
     int vrc = i_directoryQueryInfo(aPath, aFollowSymlinks != FALSE, objData, &rcGuest);
     if (RT_SUCCESS(vrc))
-        *aExists = objData.mType == FsObjType_Directory;
+        *aExists = TRUE;
     else
     {
         switch (vrc)
@@ -3380,6 +3389,12 @@ HRESULT GuestSession::directoryExists(const com::Utf8Str &aPath, BOOL aFollowSym
                                            aPath.c_str(), GuestProcess::i_guestErrorToString(rcGuest).c_str());
                         break;
                 }
+                break;
+            }
+
+            case VERR_NOT_A_DIRECTORY:
+            {
+                *aExists = FALSE;
                 break;
             }
 
@@ -4107,8 +4122,12 @@ HRESULT GuestSession::processCreateEx(const com::Utf8Str &aExecutable, const std
     /* Executable and arguments. */
     procInfo.mExecutable = pszExecutable;
     if (aArguments.size())
+    {
         for (size_t i = 0; i < aArguments.size(); i++)
             procInfo.mArguments.push_back(aArguments[i]);
+    }
+    else /* If no arguments were given, add the executable as argv[0] by default. */
+        procInfo.mArguments.push_back(procInfo.mExecutable);
 
     /* Combine the environment changes associated with the ones passed in by
        the caller, giving priority to the latter.  The changes are putenv style

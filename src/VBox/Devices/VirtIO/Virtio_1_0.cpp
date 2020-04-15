@@ -564,17 +564,12 @@ bool virtioCoreQueueIsEmpty(PPDMDEVINS pDevIns, PVIRTIOCORE pVirtio, uint16_t id
 int virtioCoreR3DescChainGet(PPDMDEVINS pDevIns, PVIRTIOCORE pVirtio, uint16_t idxQueue,
                              uint16_t uHeadIdx, PPVIRTIO_DESC_CHAIN_T ppDescChain)
 {
-    AssertReturn(ppDescChain, VERR_INVALID_PARAMETER);
+    AssertReturn(ppDescChain, VERR_INVALID_POINTER);
+    *ppDescChain = NULL;
 
     Assert(idxQueue < RT_ELEMENTS(pVirtio->virtqState));
 
-    PVIRTQSTATE pVirtq  = &pVirtio->virtqState[idxQueue];
-
-    PVIRTIOSGSEG paSegsIn = (PVIRTIOSGSEG)RTMemAlloc(VIRTQ_MAX_SIZE * sizeof(VIRTIOSGSEG));
-    AssertReturn(paSegsIn, VERR_NO_MEMORY);
-
-    PVIRTIOSGSEG paSegsOut = (PVIRTIOSGSEG)RTMemAlloc(VIRTQ_MAX_SIZE * sizeof(VIRTIOSGSEG));
-    AssertReturn(paSegsOut, VERR_NO_MEMORY);
+    PVIRTQSTATE pVirtq = &pVirtio->virtqState[idxQueue];
 
     AssertMsgReturn(IS_DRIVER_OK(pVirtio) && pVirtio->uQueueEnable[idxQueue],
                     ("Guest driver not in ready state.\n"), VERR_INVALID_STATE);
@@ -584,9 +579,27 @@ int virtioCoreR3DescChainGet(PPDMDEVINS pDevIns, PVIRTIOCORE pVirtio, uint16_t i
     Log3Func(("%s DESC CHAIN: (head) desc_idx=%u\n", pVirtq->szVirtqName, uHeadIdx));
     RT_NOREF(pVirtq);
 
+    /*
+     * Allocate and initialize the descriptor chain structure.
+     */
+    PVIRTIO_DESC_CHAIN_T pDescChain = (PVIRTIO_DESC_CHAIN_T)RTMemAllocZ(sizeof(VIRTIO_DESC_CHAIN_T));
+    AssertReturn(pDescChain, VERR_NO_MEMORY);
+    pDescChain->u32Magic = VIRTIO_DESC_CHAIN_MAGIC;
+    pDescChain->cRefs    = 1;
+    pDescChain->uHeadIdx = uHeadIdx;
+    *ppDescChain = pDescChain;
+
+    /*
+     * Gather segments.
+     */
     VIRTQ_DESC_T desc;
 
-    uint32_t cbIn = 0, cbOut = 0, cSegsIn = 0, cSegsOut = 0;
+    uint32_t cbIn = 0;
+    uint32_t cbOut = 0;
+    uint32_t cSegsIn = 0;
+    uint32_t cSegsOut = 0;
+    PVIRTIOSGSEG paSegsIn  = pDescChain->aSegsIn;
+    PVIRTIOSGSEG paSegsOut = pDescChain->aSegsOut;
 
     do
     {
@@ -619,13 +632,13 @@ int virtioCoreR3DescChainGet(PPDMDEVINS pDevIns, PVIRTIOCORE pVirtio, uint16_t i
         {
             Log3Func(("%s IN  desc_idx=%u seg=%u addr=%RGp cb=%u\n", VIRTQNAME(pVirtio, idxQueue), uDescIdx, cSegsIn, desc.GCPhysBuf, desc.cb));
             cbIn += desc.cb;
-            pSeg = &(paSegsIn[cSegsIn++]);
+            pSeg = &paSegsIn[cSegsIn++];
         }
         else
         {
             Log3Func(("%s OUT desc_idx=%u seg=%u addr=%RGp cb=%u\n", VIRTQNAME(pVirtio, idxQueue), uDescIdx, cSegsOut, desc.GCPhysBuf, desc.cb));
             cbOut += desc.cb;
-            pSeg = &(paSegsOut[cSegsOut++]);
+            pSeg = &paSegsOut[cSegsOut++];
         }
 
         pSeg->gcPhys = desc.GCPhysBuf;
@@ -634,30 +647,73 @@ int virtioCoreR3DescChainGet(PPDMDEVINS pDevIns, PVIRTIOCORE pVirtio, uint16_t i
         uDescIdx = desc.uDescIdxNext;
     } while (desc.fFlags & VIRTQ_DESC_F_NEXT);
 
-    PVIRTIOSGBUF pSgPhysIn = (PVIRTIOSGBUF)RTMemAllocZ(sizeof(VIRTIOSGBUF));
-    AssertReturn(pSgPhysIn, VERR_NO_MEMORY);
+    if (cSegsIn)
+    {
+        virtioCoreSgBufInit(&pDescChain->SgBufIn, paSegsIn, cSegsIn);
+        pDescChain->pSgPhysReturn = &pDescChain->SgBufIn;
+        pDescChain->cbPhysReturn  = cbIn;
+        STAM_REL_COUNTER_ADD(&pVirtio->StatDescChainsSegsIn, cSegsIn);
+    }
 
-    virtioCoreSgBufInit(pSgPhysIn, paSegsIn, cSegsIn);
+    if (cSegsOut)
+    {
+        virtioCoreSgBufInit(&pDescChain->SgBufOut, paSegsOut, cSegsOut);
+        pDescChain->pSgPhysSend   = &pDescChain->SgBufOut;
+        pDescChain->cbPhysSend    = cbOut;
+        STAM_REL_COUNTER_ADD(&pVirtio->StatDescChainsSegsOut, cSegsOut);
+    }
 
-    PVIRTIOSGBUF pSgPhysOut = (PVIRTIOSGBUF)RTMemAllocZ(sizeof(VIRTIOSGBUF));
-    AssertReturn(pSgPhysOut, VERR_NO_MEMORY);
-
-    virtioCoreSgBufInit(pSgPhysOut, paSegsOut, cSegsOut);
-
-    PVIRTIO_DESC_CHAIN_T pDescChain = (PVIRTIO_DESC_CHAIN_T)RTMemAllocZ(sizeof(VIRTIO_DESC_CHAIN_T));
-    AssertReturn(pDescChain, VERR_NO_MEMORY);
-
-    pDescChain->uHeadIdx      = uHeadIdx;
-    pDescChain->cbPhysSend    = cbOut;
-    pDescChain->pSgPhysSend   = pSgPhysOut;
-    pDescChain->cbPhysReturn  = cbIn;
-    pDescChain->pSgPhysReturn = pSgPhysIn;
-    *ppDescChain = pDescChain;
-
-    Log3Func(("%s -- segs OUT: %u (%u bytes)   IN: %u (%u bytes) --\n", pVirtq->szVirtqName, cSegsOut, cbOut, cSegsIn, cbIn));
+    STAM_REL_COUNTER_INC(&pVirtio->StatDescChainsAllocated);
+    Log6Func(("%s -- segs OUT: %u (%u bytes)   IN: %u (%u bytes) --\n", pVirtq->szVirtqName, cSegsOut, cbOut, cSegsIn, cbIn));
 
     return VINF_SUCCESS;
 }
+
+
+/**
+ * Retains a reference to the given descriptor chain.
+ *
+ * @returns New reference count.
+ * @retval  UINT32_MAX on invalid parameter.
+ * @param   pDescChain      The descriptor chain to reference.
+ */
+uint32_t virtioCoreR3DescChainRetain(PVIRTIO_DESC_CHAIN_T pDescChain)
+{
+    AssertReturn(pDescChain, UINT32_MAX);
+    AssertReturn(pDescChain->u32Magic == VIRTIO_DESC_CHAIN_MAGIC, UINT32_MAX);
+    uint32_t cRefs = ASMAtomicIncU32(&pDescChain->cRefs);
+    Assert(cRefs > 1);
+    Assert(cRefs < 16);
+    return cRefs;
+}
+
+
+/**
+ * Releases a reference to the given descriptor chain.
+ *
+ * @returns New reference count.
+ * @retval  0 if freed or invalid parameter.
+ * @param   pVirtio         Pointer to the shared virtio state.
+ * @param   pDescChain      The descriptor chain to reference.  NULL is quietly
+ *                          ignored (returns 0).
+ */
+uint32_t virtioCoreR3DescChainRelease(PVIRTIOCORE pVirtio, PVIRTIO_DESC_CHAIN_T pDescChain)
+{
+    if (!pDescChain)
+        return 0;
+    AssertReturn(pDescChain, 0);
+    AssertReturn(pDescChain->u32Magic == VIRTIO_DESC_CHAIN_MAGIC, 0);
+    uint32_t cRefs = ASMAtomicDecU32(&pDescChain->cRefs);
+    Assert(cRefs < 16);
+    if (cRefs == 0)
+    {
+        pDescChain->u32Magic = ~VIRTIO_DESC_CHAIN_MAGIC;
+        RTMemFree(pDescChain);
+        STAM_REL_COUNTER_INC(&pVirtio->StatDescChainsFreed);
+    }
+    return cRefs;
+}
+
 
 /*
  * Notifies guest (via ISR or MSI-X) of device configuration change
@@ -793,6 +849,8 @@ int virtioCoreR3QueueSkip(PVIRTIOCORE pVirtio, uint16_t idxQueue)
  * @param   idxQueue    Queue number
  * @param   ppDescChain Address to store pointer to descriptor chain that contains the
  *                      pre-processed transaction information pulled from the virtq.
+ *                      Returned reference must be released by calling
+ *                      virtioCoreR3DescChainRelease().
  * @param   fRemove     flags whether to remove desc chain from queue (false = peek)
  *
  * @returns VBox status code:
@@ -847,6 +905,9 @@ int virtioCoreR3QueueGet(PPDMDEVINS pDevIns, PVIRTIOCORE pVirtio, uint16_t idxQu
  * @retval  VINF_SUCCESS       Success
  * @retval  VERR_INVALID_STATE VirtIO not in ready state
  * @retval  VERR_NOT_AVAILABLE Queue is empty
+ *
+ * @note    This function will not release any reference to pDescChain.  The
+ *          caller must take care of that.
  */
 int virtioCoreR3QueuePut(PPDMDEVINS pDevIns, PVIRTIOCORE pVirtio, uint16_t idxQueue, PRTSGBUF pSgVirtReturn,
                          PVIRTIO_DESC_CHAIN_T pDescChain, bool fFence)
@@ -854,6 +915,9 @@ int virtioCoreR3QueuePut(PPDMDEVINS pDevIns, PVIRTIOCORE pVirtio, uint16_t idxQu
     Assert(idxQueue < RT_ELEMENTS(pVirtio->virtqState));
     PVIRTQSTATE pVirtq = &pVirtio->virtqState[idxQueue];
     PVIRTIOSGBUF pSgPhysReturn = pDescChain->pSgPhysReturn;
+
+    Assert(pDescChain->u32Magic == VIRTIO_DESC_CHAIN_MAGIC);
+    Assert(pDescChain->cRefs > 0);
 
     AssertMsgReturn(IS_DRIVER_OK(pVirtio) /*&& pVirtio->uQueueEnable[idxQueue]*/,
                     ("Guest driver not in ready state.\n"), VERR_INVALID_STATE);
@@ -876,10 +940,11 @@ int virtioCoreR3QueuePut(PPDMDEVINS pDevIns, PVIRTIOCORE pVirtio, uint16_t idxQu
         while (cbRemain)
         {
             PVIRTIOSGSEG paSeg = &pSgPhysReturn->paSegs[pSgPhysReturn->idxSeg];
-            uint64_t dstSgStart = (uint64_t)paSeg->gcPhys;
-            uint64_t dstSgLen   = (uint64_t)paSeg->cbSeg;
-            uint64_t dstSgCur   = (uint64_t)pSgPhysReturn->gcPhysCur;
-            cbCopy = RT_MIN((uint64_t)pSgVirtReturn->cbSegLeft, dstSgLen - (dstSgCur - dstSgStart));
+            /** @todo r=bird: Shouldn't this be: RT_MIN(pSgVirtReturn->cbSegLeft, pSgPhysReturn->cbSegLeft); */
+            cbCopy = RT_MIN(pSgVirtReturn->cbSegLeft, paSeg->cbSeg - (size_t)(pSgPhysReturn->gcPhysCur - paSeg->gcPhys));
+            Assert(cbCopy > 0); /** @todo r=bird: There is no check that there is sufficient space in the output
+                                 * buffer (pSgPhysReturn), so we might loop here forever if the caller is careless,
+                                 * right?  I'm pretty sure virtioScsiR3SendEvent could do more checks. */
             PDMDevHlpPhysWrite(pDevIns, (RTGCPHYS)pSgPhysReturn->gcPhysCur, pSgVirtReturn->pvSegCur, cbCopy);
             RTSgBufAdvance(pSgVirtReturn, cbCopy);
             virtioCoreSgBufAdvance(pSgPhysReturn, cbCopy);
@@ -908,12 +973,6 @@ int virtioCoreR3QueuePut(PPDMDEVINS pDevIns, PVIRTIOCORE pVirtio, uint16_t idxQu
 
     Log6Func(("Write ahead used_idx=%u, %s used_idx=%u\n",
               pVirtq->uUsedIdx, VIRTQNAME(pVirtio, idxQueue), virtioReadUsedRingIdx(pDevIns, pVirtio, idxQueue)));
-
-    RTMemFree((void *)pDescChain->pSgPhysSend->paSegs);
-    RTMemFree(pDescChain->pSgPhysSend);
-    RTMemFree((void *)pSgPhysReturn->paSegs);
-    RTMemFree(pSgPhysReturn);
-    RTMemFree(pDescChain);
 
     return VINF_SUCCESS;
 }
@@ -2012,7 +2071,19 @@ int virtioCoreR3Init(PPDMDEVINS pDevIns, PVIRTIOCORE pVirtio, PVIRTIOCORECC pVir
                                         &pVirtio->hMmioPciCap);
     AssertLogRelRCReturn(rc, PDMDEV_SET_ERROR(pDevIns, rc, N_("virtio: cannot register PCI Capabilities address space")));
 
-    return rc;
+    /*
+     * Statistics.
+     */
+    PDMDevHlpSTAMRegisterF(pDevIns, &pVirtio->StatDescChainsAllocated,  STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT,
+                           "Total number of allocated descriptor chains",   "DescChainsAllocated");
+    PDMDevHlpSTAMRegisterF(pDevIns, &pVirtio->StatDescChainsFreed,      STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT,
+                           "Total number of freed descriptor chains",       "DescChainsFreed");
+    PDMDevHlpSTAMRegisterF(pDevIns, &pVirtio->StatDescChainsSegsIn,     STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT,
+                           "Total number of inbound segments",              "DescChainsSegsIn");
+    PDMDevHlpSTAMRegisterF(pDevIns, &pVirtio->StatDescChainsSegsOut,    STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT,
+                           "Total number of outbound segments",             "DescChainsSegsOut");
+
+    return VINF_SUCCESS;
 }
 
 #else  /* !IN_RING3 */

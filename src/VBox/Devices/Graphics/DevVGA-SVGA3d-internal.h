@@ -517,7 +517,6 @@ typedef struct
     AVLU32NODECORE          Core;
     union
     {
-        IDirect3DSurface9          *pSurface;
         IDirect3DTexture9          *pTexture;
         IDirect3DCubeTexture9      *pCubeTexture;
         IDirect3DVolumeTexture9    *pVolumeTexture;
@@ -1393,6 +1392,9 @@ void FormatConvReadTexture(PVMSVGA3DSTATE pState,
                            PVMSVGA3DSURFACE pSurface,
                            uint32_t iMipmap);
 #endif
+
+int vmsvga3dShaderParse(uint32_t cbShaderData, uint32_t const *pShaderData);
+void vmsvga3dShaderLogRel(char const *pszMsg, SVGA3dShaderType type, uint32_t cbShaderData, uint32_t const *pShaderData);
 
 #endif /* !VBOX_INCLUDED_SRC_Graphics_DevVGA_SVGA3d_internal_h */
 

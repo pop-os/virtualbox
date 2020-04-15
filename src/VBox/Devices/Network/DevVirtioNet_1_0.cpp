@@ -1356,6 +1356,10 @@ static int virtioNetR3HandleRxPacket(PPDMDEVINS pDevIns, PVIRTIONET pThis, PVIRT
 
     uint16_t cSegsAllocated = VIRTIONET_PREALLOCATE_RX_SEG_COUNT;
 
+    /**  @todo r=bird: error codepaths below are almost all leaky!  Maybe keep
+     *         allocations and cleanup here and put the code doing the complicated
+     *         work into a helper that can AssertReturn at will without needing to
+     *         care about cleaning stuff up. */
     PRTSGBUF pVirtSegBufToGuest = NULL;
     PRTSGSEG paVirtSegsToGuest = (PRTSGSEG)RTMemAllocZ(sizeof(RTSGSEG) * cSegsAllocated);
     AssertReturn(paVirtSegsToGuest, VERR_NO_MEMORY);
@@ -1368,24 +1372,24 @@ static int virtioNetR3HandleRxPacket(PPDMDEVINS pDevIns, PVIRTIONET pThis, PVIRT
 
     while (uOffset < cb)
     {
-        PVIRTIO_DESC_CHAIN_T pDescChain;
+        PVIRTIO_DESC_CHAIN_T pDescChain = NULL;
         int rc = virtioCoreR3QueueGet(pDevIns, &pThis->Virtio, RXQIDX_QPAIR(idxQueue), &pDescChain, true);
 
-        AssertRC(rc == VINF_SUCCESS || rc == VERR_NOT_AVAILABLE);
+        Assert(rc == VINF_SUCCESS || rc == VERR_NOT_AVAILABLE, ("%Rrc\n", rc));
 
         /** @todo  Find a better way to deal with this */
-
-        AssertMsgReturn(rc == VINF_SUCCESS && pDescChain->cbPhysReturn,
-                        ("Not enough Rx buffers in queue to accomodate ethernet packet\n"),
-                        VERR_INTERNAL_ERROR);
+        AssertMsgReturnStmt(rc == VINF_SUCCESS && pDescChain->cbPhysReturn,
+                            ("Not enough Rx buffers in queue to accomodate ethernet packet\n"),
+                            virtioCoreR3DescChainRelease(&pThis->Virtio, pDescChain),
+                            VERR_INTERNAL_ERROR);
 
         /* Unlikely that len of 1st seg of guest Rx (IN) buf is less than sizeof(virtio_net_hdr) == 12.
          * Assert it to reduce complexity. Robust solution would entail finding seg idx and offset of
          * virtio_net_header.num_buffers (to update field *after* hdr & pkts copied to gcPhys) */
-
-        AssertMsgReturn(pDescChain->pSgPhysReturn->paSegs[0].cbSeg >= sizeof(VIRTIONET_PKT_HDR_T),
-                        ("Desc chain's first seg has insufficient space for pkt header!\n"),
-                        VERR_INTERNAL_ERROR);
+        AssertMsgReturnStmt(pDescChain->pSgPhysReturn->paSegs[0].cbSeg >= sizeof(VIRTIONET_PKT_HDR_T),
+                            ("Desc chain's first seg has insufficient space for pkt header!\n"),
+                            virtioCoreR3DescChainRelease(&pThis->Virtio, pDescChain),
+                            VERR_INTERNAL_ERROR);
 
         uint32_t cbDescChainLeft = pDescChain->cbPhysSend;
 
@@ -1423,9 +1427,11 @@ static int virtioNetR3HandleRxPacket(PPDMDEVINS pDevIns, PVIRTIONET pThis, PVIRT
 
         virtioCoreR3QueuePut(pDevIns, &pThis->Virtio, RXQIDX_QPAIR(idxQueue),
                              pVirtSegBufToGuest, pDescChain, true);
+        virtioCoreR3DescChainRelease(&pThis->Virtio, pDescChain);
 
         if (FEATURE_DISABLED(MRG_RXBUF))
             break;
+
     }
 
     /* Fix-up pkthdr (in guest phys. memory) with number buffers (descriptors) processed */
@@ -1968,14 +1974,15 @@ static void virtioNetR3TransmitPendingPackets(PPDMDEVINS pDevIns, PVIRTIONET pTh
     virtioNetR3SetWriteLed(pThisCC, true);
 
     int rc;
-    PVIRTIO_DESC_CHAIN_T pDescChain;
+    PVIRTIO_DESC_CHAIN_T pDescChain = NULL;
     while ((rc = virtioCoreR3QueuePeek(pVirtio->pDevIns, pVirtio, idxQueue, &pDescChain)))
     {
-        if (RT_SUCCESS(rc))
+        if (RT_SUCCESS(rc)) /** @todo r=bird: pointless, see loop condition. */
             Log6Func(("%s fetched descriptor chain from %s\n", INSTANCE(pThis), VIRTQNAME(idxQueue)));
         else
         {
             LogFunc(("%s Failed find expected data on %s, rc = %Rrc\n", INSTANCE(pThis), VIRTQNAME(idxQueue), rc));
+            virtioCoreR3DescChainRelease(pVirtio, pDescChain);
             break;
         }
 
@@ -2007,7 +2014,8 @@ static void virtioNetR3TransmitPendingPackets(PPDMDEVINS pDevIns, PVIRTIONET pTh
 
         if (pThisCC->pDrv && virtioNetR3ReadHeader(pDevIns, paSegsFromGuest[0].gcPhys, &PktHdr, uSize))
         {
-            PDMNETWORKGSO Gso, *pGso = virtioNetR3SetupGsoCtx(&Gso, &PktHdr);
+            PDMNETWORKGSO  Gso;
+            PPDMNETWORKGSO pGso = virtioNetR3SetupGsoCtx(&Gso, &PktHdr);
 
             /** @todo Optimize away the extra copying! (lazy bird) */
             PPDMSCATTERGATHER pSgBufToPdmLeafDevice;
@@ -2039,6 +2047,7 @@ static void virtioNetR3TransmitPendingPackets(PPDMDEVINS pDevIns, PVIRTIONET pTh
             {
                 Log4Func(("Failed to allocate S/G buffer: size=%u rc=%Rrc\n", uSize, rc));
                 /* Stop trying to fetch TX descriptors until we get more bandwidth. */
+                virtioCoreR3DescChainRelease(pVirtio, pDescChain);
                 break;
             }
         }
@@ -2050,6 +2059,9 @@ static void virtioNetR3TransmitPendingPackets(PPDMDEVINS pDevIns, PVIRTIONET pTh
 
         virtioCoreQueueSync(pVirtio->pDevIns, pVirtio, idxQueue);
 
+
+        virtioCoreR3DescChainRelease(pVirtio, pDescChain);
+        pDescChain = NULL;
     }
     virtioNetR3SetWriteLed(pThisCC, false);
 
@@ -2164,7 +2176,7 @@ static DECLCALLBACK(int) virtioNetR3WorkerThread(PPDMDEVINS pDevIns, PPDMTHREAD 
              if (IS_CTRL_QUEUE(idxQueue))
              {
                  Log6Func(("%s fetching next descriptor chain from %s\n", INSTANCE(pThis), VIRTQNAME(idxQueue)));
-                 PVIRTIO_DESC_CHAIN_T pDescChain;
+                 PVIRTIO_DESC_CHAIN_T pDescChain = NULL;
                  int rc = virtioCoreR3QueueGet(pDevIns, &pThis->Virtio, idxQueue, &pDescChain, true);
                  if (rc == VERR_NOT_AVAILABLE)
                  {
@@ -2172,6 +2184,7 @@ static DECLCALLBACK(int) virtioNetR3WorkerThread(PPDMDEVINS pDevIns, PPDMTHREAD 
                     continue;
                  }
                  virtioNetR3Ctrl(pDevIns, pThis, pThisCC, pDescChain);
+                 virtioCoreR3DescChainRelease(&pThis->Virtio, pDescChain);
              }
              else if (IS_TX_QUEUE(idxQueue))
              {

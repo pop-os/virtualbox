@@ -123,24 +123,24 @@
         <file alias="drag_drop_16px_x2.png">images/x2/drag_drop_16px_x2.png</file>
         <file alias="drag_drop_disabled_16px_x2.png">images/x2/drag_drop_disabled_16px_x2.png</file>
         <file alias="edata_add_16px_x2.png">images/x2/edata_add_16px_x2.png</file>
-        <file alias="edata_add_22px_x2.png">images/x2/edata_add_22px_x2.png</file>
+        <file alias="edata_add_24px_x2.png">images/x2/edata_add_24px_x2.png</file>
         <file alias="edata_add_disabled_16px_x2.png">images/x2/edata_add_disabled_16px_x2.png</file>
-        <file alias="edata_add_disabled_22px_x2.png">images/x2/edata_add_disabled_22px_x2.png</file>
+        <file alias="edata_add_disabled_24px_x2.png">images/x2/edata_add_disabled_24px_x2.png</file>
         <file alias="edata_global_32px_x2.png">images/x2/edata_global_32px_x2.png</file>
         <file alias="edata_load_16px_x2.png">images/x2/edata_load_16px_x2.png</file>
-        <file alias="edata_load_22px_x2.png">images/x2/edata_load_22px_x2.png</file>
+        <file alias="edata_load_24px_x2.png">images/x2/edata_load_24px_x2.png</file>
         <file alias="edata_load_disabled_16px_x2.png">images/x2/edata_load_disabled_16px_x2.png</file>
-        <file alias="edata_load_disabled_22px_x2.png">images/x2/edata_load_disabled_22px_x2.png</file>
+        <file alias="edata_load_disabled_24px_x2.png">images/x2/edata_load_disabled_24px_x2.png</file>
         <file alias="edata_manager_16px_x2.png">images/x2/edata_manager_16px_x2.png</file>
         <file alias="edata_manager_32px_x2.png">images/x2/edata_manager_32px_x2.png</file>
         <file alias="edata_remove_16px_x2.png">images/x2/edata_remove_16px_x2.png</file>
-        <file alias="edata_remove_22px_x2.png">images/x2/edata_remove_22px_x2.png</file>
+        <file alias="edata_remove_24px_x2.png">images/x2/edata_remove_24px_x2.png</file>
         <file alias="edata_remove_disabled_16px_x2.png">images/x2/edata_remove_disabled_16px_x2.png</file>
-        <file alias="edata_remove_disabled_22px_x2.png">images/x2/edata_remove_disabled_22px_x2.png</file>
+        <file alias="edata_remove_disabled_24px_x2.png">images/x2/edata_remove_disabled_24px_x2.png</file>
         <file alias="edata_save_16px_x2.png">images/x2/edata_save_16px_x2.png</file>
-        <file alias="edata_save_22px_x2.png">images/x2/edata_save_22px_x2.png</file>
+        <file alias="edata_save_24px_x2.png">images/x2/edata_save_24px_x2.png</file>
         <file alias="edata_save_disabled_16px_x2.png">images/x2/edata_save_disabled_16px_x2.png</file>
-        <file alias="edata_save_disabled_22px_x2.png">images/x2/edata_save_disabled_22px_x2.png</file>
+        <file alias="edata_save_disabled_24px_x2.png">images/x2/edata_save_disabled_24px_x2.png</file>
         <file alias="eraser_16px_x2.png">images/x2/eraser_16px_x2.png</file>
         <file alias="exit_16px_x2.png">images/x2/exit_16px_x2.png</file>
         <file alias="expand_all_16px_x2.png">images/x2/expand_all_16px_x2.png</file>
@@ -224,7 +224,7 @@
         <file alias="file_manager_disabled_24px_x2.png">images/x2/file_manager_disabled_24px_x2.png</file>
         <file alias="file_manager_disabled_32px_x2.png">images/x2/file_manager_disabled_32px_x2.png</file>
         <file alias="file_manager_file_16px_x2.png">images/x2/file_manager_file_16px_x2.png</file>
-        <file alias="file_manager_file_symlink_16px.png">images/x2/file_manager_file_symlink_16px.png</file>
+        <file alias="file_manager_file_symlink_16px_x2.png">images/x2/file_manager_file_symlink_16px_x2.png</file>
         <file alias="file_manager_folder_16px_x2.png">images/x2/file_manager_folder_16px_x2.png</file>
         <file alias="file_manager_folder_symlink_16px_x2.png">images/x2/file_manager_folder_symlink_16px_x2.png</file>
         <file alias="file_manager_go_home_16px_x2.png">images/x2/file_manager_go_home_16px_x2.png</file>
@@ -319,8 +319,6 @@
         <file alias="hd_move_32px_x2.png">images/x2/hd_move_32px_x2.png</file>
         <file alias="hd_move_disabled_16px_x2.png">images/x2/hd_move_disabled_16px_x2.png</file>
         <file alias="hd_move_disabled_32px_x2.png">images/x2/hd_move_disabled_32px_x2.png</file>
-        <file alias="hd_new_16px_x2.png">images/x2/hd_new_16px_x2.png</file>
-        <file alias="hd_new_disabled_16px_x2.png">images/x2/hd_new_disabled_16px_x2.png</file>
         <file alias="hd_read_16px_x2.png">images/x2/hd_read_16px_x2.png</file>
         <file alias="hd_release_16px_x2.png">images/x2/hd_release_16px_x2.png</file>
         <file alias="hd_release_32px_x2.png">images/x2/hd_release_32px_x2.png</file>
@@ -339,8 +337,8 @@
         <file alias="hd_warning_16px_x2.png">images/x2/hd_warning_16px_x2.png</file>
         <file alias="hd_write_16px_x2.png">images/x2/hd_write_16px_x2.png</file>
         <file alias="help_16px_x2.png">images/x2/help_16px_x2.png</file>
-        <file alias="help_button_normal_mac_22px_x2.png">images/x2/help_button_normal_mac_22px_x2.png</file>
-        <file alias="help_button_pressed_mac_22px_x2.png">images/x2/help_button_pressed_mac_22px_x2.png</file>
+        <file alias="help_button_normal_mac_24px_x2.png">images/x2/help_button_normal_mac_24px_x2.png</file>
+        <file alias="help_button_pressed_mac_24px_x2.png">images/x2/help_button_pressed_mac_24px_x2.png</file>
         <file alias="host_iface_add_16px_x2.png">images/x2/host_iface_add_16px_x2.png</file>
         <file alias="host_iface_add_32px_x2.png">images/x2/host_iface_add_32px_x2.png</file>
         <file alias="host_iface_add_disabled_16px_x2.png">images/x2/host_iface_add_disabled_16px_x2.png</file>
@@ -360,8 +358,12 @@
         <file alias="host_iface_remove_disabled_32px_x2.png">images/x2/host_iface_remove_disabled_32px_x2.png</file>
         <file alias="hostkey_16px_x2.png">images/x2/hostkey_16px_x2.png</file>
         <file alias="hostkey_captured_16px_x2.png">images/x2/hostkey_captured_16px_x2.png</file>
+        <file alias="hostkey_captured_checked_16px_x2.png">images/x2/hostkey_captured_checked_16px_x2.png</file>
         <file alias="hostkey_captured_pressed_16px_x2.png">images/x2/hostkey_captured_pressed_16px_x2.png</file>
+        <file alias="hostkey_captured_pressed_checked_16px_x2.png">images/x2/hostkey_captured_pressed_checked_16px_x2.png</file>
+        <file alias="hostkey_checked_16px_x2.png">images/x2/hostkey_checked_16px_x2.png</file>
         <file alias="hostkey_pressed_16px_x2.png">images/x2/hostkey_pressed_16px_x2.png</file>
+        <file alias="hostkey_pressed_checked_16px_x2.png">images/x2/hostkey_pressed_checked_16px_x2.png</file>
         <file alias="hostkey_warning_16px_x2.png">images/x2/hostkey_warning_16px_x2.png</file>
         <file alias="ide_16px_x2.png">images/x2/ide_16px_x2.png</file>
         <file alias="ide_add_16px_x2.png">images/x2/ide_add_16px_x2.png</file>
@@ -424,6 +426,5 @@
         <file alias="log_viewer_save_disabled_16px_x2.png">images/x2/log_viewer_save_disabled_16px_x2.png</file>
         <file alias="log_viewer_save_disabled_32px_x2.png">images/x2/log_viewer_save_disabled_32px_x2.png</file>
         <file alias="log_viewer_search_backward_16px_x2.png">images/x2/log_viewer_search_backward_16px_x2.png</file>
-        <file alias="log_viewer_search_forward_16px_x2.png">images/x2/log_viewer_search_forward_16px_x2.png</file>
     </qresource>
 </RCC>

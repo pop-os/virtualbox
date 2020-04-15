@@ -5642,15 +5642,24 @@ static DECLCALLBACK(int) vgaR3PciIORegionVRamMapUnmap(PPDMDEVINS pDevIns, PPDMPC
         AssertLogRelRC(rc);
         if (RT_SUCCESS(rc))
         {
-            rc = PGMHandlerPhysicalRegister(PDMDevHlpGetVM(pDevIns), GCPhysAddress, GCPhysAddress + (pThis->vram_size - 1),
-                                            pThis->hLfbAccessHandlerType, pDevIns, pDevIns->pDevInsR0RemoveMe,
-                                            pDevIns->pDevInsForRC, "VGA LFB");
-            AssertLogRelRC(rc);
-            if (RT_SUCCESS(rc))
+# ifdef VBOX_WITH_VMSVGA
+            Assert(!pThis->svga.fEnabled || !pThis->svga.fVRAMTracking);
+            if (    !pThis->svga.fEnabled
+                ||  (   pThis->svga.fEnabled
+                     && pThis->svga.fVRAMTracking
+                    )
+               )
+# endif
             {
-                pThis->GCPhysVRAM = GCPhysAddress;
-                pThis->vbe_regs[VBE_DISPI_INDEX_FB_BASE_HI] = GCPhysAddress >> 16;
+                rc = PGMHandlerPhysicalRegister(PDMDevHlpGetVM(pDevIns), GCPhysAddress, GCPhysAddress + (pThis->vram_size - 1),
+                                                pThis->hLfbAccessHandlerType, pDevIns, pDevIns->pDevInsR0RemoveMe,
+                                                pDevIns->pDevInsForRC, "VGA LFB");
+                AssertLogRelRC(rc);
             }
+
+            pThis->GCPhysVRAM = GCPhysAddress;
+            pThis->vbe_regs[VBE_DISPI_INDEX_FB_BASE_HI] = GCPhysAddress >> 16;
+
             rc = VINF_PCI_MAPPING_DONE; /* caller doesn't care about any other status, so no problem overwriting error here */
         }
     }
@@ -6589,6 +6598,12 @@ static DECLCALLBACK(int)   vgaR3Construct(PPDMDEVINS pDevIns, int iInstance, PCF
     pThisCC->IPort.pfnSendModeHint      = vbvaR3PortSendModeHint;
     pThisCC->IPort.pfnReportHostCursorCapabilities = vgaR3PortReportHostCursorCapabilities;
     pThisCC->IPort.pfnReportHostCursorPosition = vgaR3PortReportHostCursorPosition;
+# ifdef VBOX_WITH_VMSVGA
+    pThisCC->IPort.pfnReportMonitorPositions = vmsvgaR3PortReportMonitorPositions;
+# else
+    pThisCC->IPort.pfnReportMonitorPositions = NULL;
+# endif
+
 
 # if defined(VBOX_WITH_HGSMI) && defined(VBOX_WITH_VIDEOHWACCEL)
     pThisCC->IVBVACallbacks.pfnVHWACommandCompleteAsync = vbvaR3VHWACommandCompleteAsync;

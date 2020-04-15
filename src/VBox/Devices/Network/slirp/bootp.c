@@ -389,6 +389,8 @@ static int dhcp_send_ack(PNATState pData, struct bootp_t *bp, BOOTPClient *bc, s
 {
     int offReply = 0; /* boot_reply will fill general options and add END before sending response */
 
+    AssertReturn(bc != NULL, -1);
+
     dhcp_create_msg(pData, bp, m, DHCPACK);
     slirp_update_guest_addr_guess(pData, bc->addr.s_addr, "DHCP ACK");
     offReply = dhcp_do_ack_offer(pData, m, bc, fDhcpRequest);
@@ -571,15 +573,14 @@ static int dhcp_decode_request(PNATState pData, struct bootp_t *bp, size_t vlen,
             break;
 
         case NONE:
-            if (dhcp_stat == REBINDING)
-                LogRel(("NAT: REBINDING state isn't impemented\n"));
-            else if (dhcp_stat == SELECTING)
-                LogRel(("NAT: SELECTING state isn't impemented\n"));
             return -1;
 
         default:
             break;
     }
+
+    if (bc == NULL)
+        return -1;
 
     LogRel(("NAT: DHCP offered IP address %RTnaipv4\n", bc->addr.s_addr));
     offReply = dhcp_send_ack(pData, bp, bc, m, /* fDhcpRequest=*/ 1);

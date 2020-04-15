@@ -321,23 +321,41 @@ static int vgsvcGstCtrlSessionHandleFileOpen(PVBOXSERVICECTRLSESSION pSession, P
                     rc = RTFileOpen(&pFile->hFile, pFile->szName, fFlags);
                     if (RT_SUCCESS(rc))
                     {
-                        /* Seeking is optional. However, the whole operation
-                         * will fail if we don't succeed seeking to the wanted position. */
-                        if (offOpen)
-                            rc = RTFileSeek(pFile->hFile, (int64_t)offOpen, RTFILE_SEEK_BEGIN, NULL /* Current offset */);
+                        RTFSOBJINFO objInfo;
+                        rc = RTFileQueryInfo(pFile->hFile, &objInfo, RTFSOBJATTRADD_NOTHING);
                         if (RT_SUCCESS(rc))
                         {
-                            /*
-                             * Succeeded!
-                             */
-                            uHandle = VBOX_GUESTCTRL_CONTEXTID_GET_OBJECT(pHostCtx->uContextID);
-                            pFile->uHandle = uHandle;
-                            pFile->fOpen   = fFlags;
-                            RTListAppend(&pSession->lstFiles, &pFile->Node);
-                            VGSvcVerbose(2, "[File %s] Opened (ID=%RU32)\n", pFile->szName, pFile->uHandle);
+                            /* Make sure that we only open stuff we really support.
+                             * Only POSIX / UNIX we could open stuff like directories and sockets as well. */
+                            if (   RT_LIKELY(RTFS_IS_FILE(objInfo.Attr.fMode))
+                                ||           RTFS_IS_SYMLINK(objInfo.Attr.fMode))
+                            {
+                                /* Seeking is optional. However, the whole operation
+                                 * will fail if we don't succeed seeking to the wanted position. */
+                                if (offOpen)
+                                    rc = RTFileSeek(pFile->hFile, (int64_t)offOpen, RTFILE_SEEK_BEGIN, NULL /* Current offset */);
+                                if (RT_SUCCESS(rc))
+                                {
+                                    /*
+                                     * Succeeded!
+                                     */
+                                    uHandle = VBOX_GUESTCTRL_CONTEXTID_GET_OBJECT(pHostCtx->uContextID);
+                                    pFile->uHandle = uHandle;
+                                    pFile->fOpen   = fFlags;
+                                    RTListAppend(&pSession->lstFiles, &pFile->Node);
+                                    VGSvcVerbose(2, "[File %s] Opened (ID=%RU32)\n", pFile->szName, pFile->uHandle);
+                                }
+                                else
+                                    VGSvcError("[File %s] Seeking to offset %RU64 failed: rc=%Rrc\n", pFile->szName, offOpen, rc);
+                            }
+                            else
+                            {
+                                VGSvcError("[File %s] Unsupported mode %#x\n", pFile->szName, objInfo.Attr.fMode);
+                                rc = VERR_NOT_SUPPORTED;
+                            }
                         }
                         else
-                            VGSvcError("[File %s] Seeking to offset %RU64 failed: rc=%Rrc\n", pFile->szName, offOpen, rc);
+                            VGSvcError("[File %s] Getting mode failed with rc=%Rrc\n", pFile->szName, rc);
                     }
                     else
                         VGSvcError("[File %s] Opening failed with rc=%Rrc\n", pFile->szName, rc);
@@ -1698,12 +1716,15 @@ static RTEXITCODE vgsvcGstCtrlSessionSpawnWorker(PVBOXSERVICECTRLSESSION pSessio
         return VGSvcError("Error connecting to guest control service, rc=%Rrc\n", rc);
     g_fControlSupportsOptimizations = VbglR3GuestCtrlSupportsOptimizations(idClient);
     g_idControlSvcClient            = idClient;
-    VbglR3GuestCtrlQueryFeatures(idClient, &g_fControlHostFeatures0);
+
+    int rc2 = VbglR3GuestCtrlQueryFeatures(idClient, &g_fControlHostFeatures0);
+    if (RT_FAILURE(rc2)) /* Querying host features is not fatal -- do not use rc here. */
+        VGSvcVerbose(1, "Querying host features failed with %Rrc\n", rc2);
 
     rc = vgsvcGstCtrlSessionReadKeyAndAccept(idClient, pSession->StartupInfo.uSessionID);
     if (RT_SUCCESS(rc))
     {
-        VGSvcVerbose(1, "Using client ID=%RU32\n", idClient);
+        VGSvcVerbose(1, "Using client ID=%RU32, g_fControlHostFeatures0=%#x\n", idClient, g_fControlHostFeatures0);
 
         /*
          * Report started status.
@@ -2299,12 +2320,6 @@ int VGSvcGstCtrlSessionThreadCreate(PRTLISTANCHOR pList, const PVBOXSERVICECTRLS
 
     /* Static counter to help tracking session thread <-> process relations. */
     static uint32_t s_uCtrlSessionThread = 0;
-#if 1
-    if (++s_uCtrlSessionThread == 100000)
-#else /* This must be some joke, right? ;-) */
-    if (s_uCtrlSessionThread++ == UINT32_MAX)
-#endif
-        s_uCtrlSessionThread = 0; /* Wrap around to not let IPRT freak out. */
 
     /*
      * Allocate and initialize the session thread structure.
@@ -2346,6 +2361,8 @@ int VGSvcGstCtrlSessionThreadCreate(PRTLISTANCHOR pList, const PVBOXSERVICECTRLS
             }
             if (RT_SUCCESS(rc))
             {
+                s_uCtrlSessionThread++;
+
                 /*
                  * Start the session child process.
                  */
@@ -2356,7 +2373,7 @@ int VGSvcGstCtrlSessionThreadCreate(PRTLISTANCHOR pList, const PVBOXSERVICECTRLS
                      * Start the session thread.
                      */
                     rc = RTThreadCreateF(&pSessionThread->Thread, vgsvcGstCtrlSessionThread, pSessionThread /*pvUser*/, 0 /*cbStack*/,
-                                         RTTHREADTYPE_DEFAULT, RTTHREADFLAGS_WAITABLE, "CtrlSess%u", s_uCtrlSessionThread);
+                                         RTTHREADTYPE_DEFAULT, RTTHREADFLAGS_WAITABLE, "gctls%RU32", s_uCtrlSessionThread);
                     if (RT_SUCCESS(rc))
                     {
                         /* Wait for the thread to initialize. */
@@ -2606,12 +2623,14 @@ RTEXITCODE VGSvcGstCtrlSessionSpawnInit(int argc, char **argv)
                 break;
 
             case VINF_GETOPT_NOT_OPTION:
-                /* Ignore; might be "guestsession" main command. */
-                /** @todo r=bird: We DO NOT ignore stuff on the command line! */
-                break;
-
+            {
+                if (!RTStrICmp(ValueUnion.psz, VBOXSERVICECTRLSESSION_GETOPT_PREFIX))
+                    break;
+                /* else fall through and bail out. */
+                RT_FALL_THROUGH();
+            }
             default:
-                return RTMsgErrorExit(RTEXITCODE_SYNTAX, "Unknown command '%s'", ValueUnion.psz);
+                return RTMsgErrorExit(RTEXITCODE_SYNTAX, "Unknown argument '%s'", ValueUnion.psz);
         }
     }
 

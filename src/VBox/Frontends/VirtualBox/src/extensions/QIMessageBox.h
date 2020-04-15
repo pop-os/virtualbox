@@ -34,7 +34,7 @@ class QLabel;
 class QPushButton;
 class QIArrowSplitter;
 class QIDialogButtonBox;
-class QILabel;
+class QIRichTextLabel;
 
 
 /** Button types. */
@@ -155,6 +155,9 @@ private:
     /** Generates standard pixmap for passed @a iconType using @a pWidget as hint. */
     static QPixmap standardPixmap(AlertIconType iconType, QWidget *pWidget = 0);
 
+    /** Compresses @a strText with ellipsis on the basis of certain logic. */
+    static QString compressLongWords(QString strText);
+
     /** Holds the title. */
     QString m_strTitle;
 
@@ -166,7 +169,7 @@ private:
     /** Holds the message. */
     QString m_strMessage;
     /** Holds the message-label instance. */
-    QILabel *m_pLabelText;
+    QIRichTextLabel *m_pLabelText;
 
     /** Holds the flag check-box instance. */
     QCheckBox *m_pFlagCheckBox;
