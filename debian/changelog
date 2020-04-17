@@ -1,3 +1,10 @@
+virtualbox (6.1.6-dfsg-2) unstable; urgency=medium
+
+  * Add proposed patch on ticket https://www.virtualbox.org/ticket/19494
+    to fix compilation on 32bit guests
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 17 Apr 2020 10:10:03 +0200
+
 virtualbox (6.1.6-dfsg-1) unstable; urgency=medium
 
   * New upstream version 6.1.6-dfsg
