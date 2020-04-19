@@ -19,10 +19,10 @@ REAL_TARBALL=`readlink -f ${ORIG_TARBALL}`
 
 WORKING_DIR=`dirname ${ORIG_TARBALL}`
 
-ORIG_TARBALL_DFSG=`echo ${ORIG_TARBALL} | sed -e "s/\(${UPSTREAM_VERSION}\)\(\.orig\)/\1-dfsg/g"`
+ORIG_TARBALL_DFSG=`echo ${ORIG_TARBALL} | sed -e "s/\(${UPSTREAM_VERSION}\)\(\.orig\)/\1-dfsg/g" | sed -e "s/VirtualBox/virtualbox/g"`
 ORIG_TARBALL_DIR=`echo ${ORIG_TARBALL_DFSG} | sed -e "s/_\(${UPSTREAM_VERSION}\)/-\1/g" -e "s/\.tar\.bz2//g"`
 ORIG_TARBALL_DIR_STRIP=`basename ${ORIG_TARBALL_DIR}`
-DEST_TARBALL_NAME=`echo ${ORIG_TARBALL_DIR} | sed -e "s#-\(${UPSTREAM_VERSION}\)#_\1#g"`.orig.tar.xz
+DEST_TARBALL_NAME=`echo ${ORIG_TARBALL_DIR} | sed -e "s#-\(${UPSTREAM_VERSION}\)#_\1#g"`-dfsg.orig.tar.xz
 
 mkdir -p ${ORIG_TARBALL_DIR}
 tar --directory=${ORIG_TARBALL_DIR} --strip 1 -xjf ${REAL_TARBALL} || exit 1
