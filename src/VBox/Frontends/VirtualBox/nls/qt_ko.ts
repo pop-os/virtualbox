@@ -771,51 +771,51 @@ to
     </message>
     <message>
         <source>Scroll Left</source>
-        <translation type="unfinished">왼쪽으로 스크롤</translation>
+        <translation>왼쪽으로 스크롤</translation>
     </message>
     <message>
         <source>Scroll Right</source>
-        <translation type="unfinished">오른쪽으로 스크롤</translation>
+        <translation>오른쪽으로 스크롤</translation>
     </message>
     <message>
         <source>Scroll Up</source>
-        <translation type="unfinished"></translation>
+        <translation>위로 스크롤</translation>
     </message>
     <message>
         <source>Scroll Down</source>
-        <translation type="unfinished"></translation>
+        <translation>아래로 스크롤</translation>
     </message>
     <message>
         <source>Previous Page</source>
-        <translation type="unfinished"></translation>
+        <translation>이전 쪽</translation>
     </message>
     <message>
         <source>Next Page</source>
-        <translation type="unfinished"></translation>
+        <translation>다음 쪽</translation>
     </message>
     <message>
         <source>Scrolls to the left</source>
-        <translation type="unfinished"></translation>
+        <translation>왼쪽으로 스크롤</translation>
     </message>
     <message>
         <source>Scrolls to the right</source>
-        <translation type="unfinished"></translation>
+        <translation>오른쪽으로 스크롤</translation>
     </message>
     <message>
         <source>Scrolls up</source>
-        <translation type="unfinished"></translation>
+        <translation>위로 스크롤</translation>
     </message>
     <message>
         <source>Scrolls down</source>
-        <translation type="unfinished"></translation>
+        <translation>아래로 스크롤</translation>
     </message>
     <message>
         <source>Goes back a page</source>
-        <translation type="unfinished"></translation>
+        <translation>이전 쪽으로 이동</translation>
     </message>
     <message>
         <source>Goes to the next page</source>
-        <translation type="unfinished"></translation>
+        <translation>다음 쪽으로 이동</translation>
     </message>
 </context>
 <context>
@@ -1005,11 +1005,12 @@ ESC 키를 누르면 취소합니다</translation>
     <message>
         <source>Cursor at %1, %2
 Press ESC to cancel</source>
-        <translation type="unfinished"></translation>
+        <translation>커서 위치: %1, %2, 색: %3
+ESC 키를 누르면 취소합니다</translation>
     </message>
     <message>
         <source>&amp;Pick Screen Color</source>
-        <translation type="unfinished"></translation>
+        <translation>화면 색상 선택(&amp;P)</translation>
     </message>
 </context>
 <context>
@@ -1275,7 +1276,7 @@ Press ESC to cancel</source>
     <name>QDBusTrayIcon</name>
     <message>
         <source>OK</source>
-        <translation type="unfinished">확인</translation>
+        <translation>확인</translation>
     </message>
 </context>
 <context>
@@ -1301,19 +1302,19 @@ Press ESC to cancel</source>
     <name>QDateTimeParser</name>
     <message>
         <source>AM</source>
-        <translation type="unfinished">오전</translation>
+        <translation>오전</translation>
     </message>
     <message>
         <source>am</source>
-        <translation type="unfinished">오전</translation>
+        <translation>오전</translation>
     </message>
     <message>
         <source>PM</source>
-        <translation type="unfinished">오후</translation>
+        <translation>오후</translation>
     </message>
     <message>
         <source>pm</source>
-        <translation type="unfinished">오후</translation>
+        <translation>오후</translation>
     </message>
 </context>
 <context>
@@ -1553,15 +1554,15 @@ Press ESC to cancel</source>
     </message>
     <message>
         <source>IPv6 addresses for nameservers are currently not supported</source>
-        <translation type="unfinished"></translation>
+        <translation>네임 서버 IPv6 주소는 아직 지원되지 않음</translation>
     </message>
     <message>
         <source>Host %1 could not be found.</source>
-        <translation type="unfinished"></translation>
+        <translation>호스트 %1을(를) 찾을 수 없음</translation>
     </message>
     <message>
         <source>Unknown error</source>
-        <translation type="unfinished">알 수 없는 오류</translation>
+        <translation>알 수 없는 오류</translation>
     </message>
 </context>
 <context>
@@ -1923,7 +1924,7 @@ Do you want to delete it anyway?</source>
     <message>
         <source>Alias</source>
         <comment>OS X Finder</comment>
-        <translation type="unfinished">별명</translation>
+        <translation>별명</translation>
     </message>
 </context>
 <context>
@@ -2165,7 +2166,7 @@ Do you want to delete it anyway?</source>
     <message>
         <source>Normal</source>
         <comment>The Normal or Regular font weight</comment>
-        <translation type="unfinished">일반</translation>
+        <translation>일반</translation>
     </message>
     <message>
         <source>Medium</source>
@@ -2511,11 +2512,11 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Too many redirects</source>
-        <translation type="unfinished"></translation>
+        <translation>너무 많은 전환 발생</translation>
     </message>
     <message>
         <source>Insecure redirect</source>
-        <translation type="unfinished"></translation>
+        <translation>안전하지 않은 전환</translation>
     </message>
 </context>
 <context>
@@ -2925,7 +2926,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Failed to extract plugin meta data from &apos;%1&apos;</source>
-        <translation type="unfinished"></translation>
+        <translation>&apos;%1&apos;에서 플러그인 메타데이터를 추출할 수 없음</translation>
     </message>
 </context>
 <context>
@@ -3065,7 +3066,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Unable to allocate a MYSQL object</source>
-        <translation type="unfinished"></translation>
+        <translation>MYSQL 객체를 할당할 수 없음</translation>
     </message>
 </context>
 <context>
@@ -3389,11 +3390,11 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Network dropped connection on reset</source>
-        <translation type="unfinished"></translation>
+        <translation>네트워크에서 초기화 시 연결을 끊음</translation>
     </message>
     <message>
         <source>Connection reset by peer</source>
-        <translation type="unfinished"></translation>
+        <translation>원격지에서 연결을 초기화함</translation>
     </message>
 </context>
 <context>
@@ -3506,7 +3507,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Error transferring %1 - server replied: %2</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 전송 오류 - 서버 응답: %2</translation>
     </message>
 </context>
 <context>
@@ -4849,7 +4850,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Printer Properties</source>
-        <translation type="unfinished"></translation>
+        <translation>프린터 속성</translation>
     </message>
 </context>
 <context>
@@ -5033,7 +5034,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Process failed to start</source>
-        <translation type="unfinished"></translation>
+        <translation>프로세스를 시작할 수 없음</translation>
     </message>
 </context>
 <context>
@@ -5462,7 +5463,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>digits missing in \x{} or \o{}</source>
-        <translation type="unfinished"></translation>
+        <translation>\x{} 또는 \o{} 다음에 숫자가 없음</translation>
     </message>
 </context>
 <context>
@@ -5723,7 +5724,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>%1: bad name</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: 잘못된 이름</translation>
     </message>
 </context>
 <context>
@@ -6712,15 +6713,15 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>Touchpad Toggle</source>
-        <translation type="unfinished"></translation>
+        <translation>터치패드 전환</translation>
     </message>
     <message>
         <source>Touchpad On</source>
-        <translation type="unfinished"></translation>
+        <translation>터치패드 켜기</translation>
     </message>
     <message>
         <source>Touchpad Off</source>
-        <translation type="unfinished"></translation>
+        <translation>터치패드 끄기</translation>
     </message>
 </context>
 <context>
@@ -7387,11 +7388,11 @@ Role of an accessible object</extracomment>
     </message>
     <message>
         <source>Error when setting the elliptic curves (%1)</source>
-        <translation type="unfinished"></translation>
+        <translation>타원 곡선을 설정하는 중 오류 발생(%1)</translation>
     </message>
     <message>
         <source>OpenSSL version too old, need at least v1.0.2</source>
-        <translation type="unfinished"></translation>
+        <translation>OpenSSL이 너무 오래됨, 최소 v1.0.2가 필요함</translation>
     </message>
 </context>
 <context>
@@ -7466,7 +7467,7 @@ Role of an accessible object</extracomment>
     </message>
     <message>
         <source>Application Configuration</source>
-        <translation type="unfinished"></translation>
+        <translation>프로그램 설정</translation>
     </message>
 </context>
 <context>

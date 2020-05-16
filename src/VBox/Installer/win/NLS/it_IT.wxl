@@ -174,7 +174,7 @@ Questo è il tipo predefinito per le nuove versioni di Windows (Vista e successi
     <String Id="OutOfRbDiskDlg_InstallationExceeds">Lo spazio su disco richiesto per l'installazione supera lo spazio disponibile.</String>
     <String Id="OutOfRbDiskDlg_NotEnoughDiskSpace">I volumi evidenziati non hanno spazio disco sufficiente per le funzionalità attualmente selezionate. Puoi rimuovere alcuni file dai volumi evidenziati, scegliere di installare meno funzionalità sul disco locale o seleziona un disco di destinazione diverso.</String>
     <String Id="OutOfRbDiskDlg_OutOfDiskSpace">Spazio su disco insufficiente</String>
-    <String Id="OutOfRbDiskDlg_Desc">In alternativa, puoi scegliere di disabilitare la funzionalità di rollback dell'installatore. Questo consente all'installatore di ripristinare lo stato originale del tuo computer qualore l'installazione venisse interrotta in qualsiasi modo. Fai clic su Sì se desideri rischiare di disabilitare il rollback.</String>
+    <String Id="OutOfRbDiskDlg_Desc">In alternativa, puoi scegliere di disabilitare la funzionalità di rollback dell'installatore. Questo consente all'installatore di ripristinare lo stato originale del tuo computer qualora l'installazione venisse interrotta in qualsiasi modo. Fai clic su Sì se desideri rischiare di disabilitare il rollback.</String>
     <!---->
     <String Id="VerifyRemoveDlg_Header">Rimuovi [ProductName]</String>
     <String Id="VerifyRemoveDlg_Desc">Hai scelto di rimuovere il programma dal tuo computer.</String>

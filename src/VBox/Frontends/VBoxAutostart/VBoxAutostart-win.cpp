@@ -97,6 +97,7 @@ static int autostartGetProcessDomainUser(com::Utf8Str &aUser)
         return RTErrConvertFromWin32(GetLastError());
     rc = RTUtf16ToUtf8(wszUsername, &pszUser);
     aUser = pszUser;
+    aUser.toLower();
     RTStrFree(pszUser);
     return rc;
 }
@@ -110,6 +111,7 @@ static int autostartGetLocalDomain(com::Utf8Str &aDomain)
     char *pszDomain = NULL;
     int rc = RTUtf16ToUtf8(pwszDomain, &pszDomain);
     aDomain = pszDomain;
+    aDomain.toLower();
     RTStrFree(pszDomain);
     return rc;
 }
@@ -131,6 +133,8 @@ static int autostartGetDomainAndUser(const com::Utf8Str &aDomainAndUser, com::Ut
         }
         aDomain = aDomainAndUser.substr(0, offDelim);
         aUser   = aDomainAndUser.substr(offDelim + 1);
+        aDomain.toLower();
+        aUser.toLower();
         return VINF_SUCCESS;
     }
 
@@ -150,12 +154,16 @@ static int autostartGetDomainAndUser(const com::Utf8Str &aDomainAndUser, com::Ut
         }
         aDomain = aDomainAndUser.substr(offDelim + 1);
         aUser   = aDomainAndUser.substr(0, offDelim);
+        aDomain.toLower();
+        aUser.toLower();
         return VINF_SUCCESS;
     }
 
     // only user is specified
     int rc = autostartGetLocalDomain(aDomain);
     aUser = aDomainAndUser;
+    aDomain.toLower();
+    aUser.toLower();
     return rc;
 }
 
@@ -778,9 +786,11 @@ static DWORD WINAPI autostartSvcWinServiceCtrlHandlerEx(DWORD dwControl, DWORD d
     /* not reached */
 }
 
-static int autostartStartVMs()
+static RTEXITCODE autostartStartVMs()
 {
     int rc = autostartSetup();
+    if (RT_FAILURE(rc))
+        return RTEXITCODE_FAILURE;
 
     const char *pszConfigFile = RTEnvGet("VBOXAUTOSTART_CONFIG");
     if (!pszConfigFile)
@@ -864,12 +874,12 @@ static int autostartStartVMs()
         return autostartSvcLogError("User is not allowed to autostart VMs.\n");
     }
 
-    rc = autostartStartMain(pCfgAstUser);
+    RTEXITCODE ec = autostartStartMain(pCfgAstUser);
     autostartConfigAstDestroy(pCfgAst);
-    if (RT_FAILURE(rc))
-        autostartSvcLogError("Starting VMs failed, rc=%Rrc\n", rc);
+    if (ec != RTEXITCODE_SUCCESS)
+        autostartSvcLogError("Starting VMs failed\n");
 
-    return rc;
+    return ec;
 }
 
 /**
@@ -911,8 +921,8 @@ static VOID WINAPI autostartSvcWinServiceMain(DWORD cArgs, LPWSTR *papwszArgs)
                     if (autostartSvcWinSetServiceStatus(SERVICE_RUNNING, 0, 0))
                     {
                         LogFlow(("autostartSvcWinServiceMain: calling autostartStartVMs\n"));
-                        rc = autostartStartVMs();
-                        if (RT_SUCCESS(rc))
+                        RTEXITCODE ec = autostartStartVMs();
+                        if (ec == RTEXITCODE_SUCCESS)
                         {
                             LogFlow(("autostartSvcWinServiceMain: done string VMs\n"));
                             err = NO_ERROR;

@@ -3394,7 +3394,7 @@
     <message>
         <source>Held</source>
         <comment>USBDeviceState</comment>
-        <translation type="unfinished">PrzyPrzechowujene</translation>
+        <translation type="unfinished">Przytrzymane</translation>
     </message>
     <message>
         <source>Captured</source>
@@ -4344,6 +4344,22 @@
     <message>
         <source>PCnet-ISA (Am79C960)</source>
         <comment>NetworkAdapterType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Acquire cloud instances ...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Acquire cloud instance info ...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pause instance ...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Start instance ...</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -5332,7 +5348,7 @@
     <name>UIErrorPane</name>
     <message>
         <source>The selected virtual machine is &lt;i&gt;inaccessible&lt;/i&gt;. Please inspect the error message shown below and press the &lt;b&gt;Refresh&lt;/b&gt; button if you want to repeat the accessibility check:</source>
-        <translation type="unfinished">Wybrana maszyna wirtualna jest &lt;i&gt;niedostępna&lt;/i&gt;. Proszę prześledzić poniższą wiadomość błędu i wcisnąć przycisk &lt;b&gt;Odśwież&lt;/b&gt; w celu powtórzenia sprawdzenia dostępności:</translation>
+        <translation type="obsolete">Wybrana maszyna wirtualna jest &lt;i&gt;niedostępna&lt;/i&gt;. Proszę prześledzić poniższą wiadomość błędu i wcisnąć przycisk &lt;b&gt;Odśwież&lt;/b&gt; w celu powtórzenia sprawdzenia dostępności:</translation>
     </message>
 </context>
 <context>
@@ -6128,7 +6144,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;p&gt;Select the media which contains the setup program of the operating system you want to install. This media must be bootable, otherwise the setup program will not be able to start.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Proszę wskazać nośnik Przechowujejący program instalacyjny instalowanego systemu operacyjnego. Nośnik musi być uruchamialny, w przeciwnym razie program instalacyjny nie wystartuje.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Proszę wskazać nośnik zawierający program instalacyjny instalowanego systemu operacyjnego. Nośnik musi być uruchamialny, w przeciwnym razie program instalacyjny nie wystartuje.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Media Source</source>
@@ -6196,7 +6212,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;p&gt;Select the media that contains the operating system you want to work with. This media must be bootable, otherwise the operating system will not be able to start.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Proszę wskazać nośnik Przechowujejący system operacyjny, który ma zostać uruchomiony. Nośnik musi być uruchamialny, w przeciwnym razie system operacyjny nie wystartuje.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Proszę wskazać nośnik zawierający system operacyjny, który ma zostać uruchomiony. Nośnik musi być uruchamialny, w przeciwnym razie system operacyjny nie wystartuje.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;You have selected the following media to boot an operating system from:&lt;/p&gt;</source>
@@ -6267,11 +6283,11 @@ p, li { white-space: pre-wrap; }
     <name>UIFirstRunWzdPage2</name>
     <message>
         <source>&lt;p&gt;Select the media which contains the setup program of the operating system you want to install. This media must be bootable, otherwise the setup program will not be able to start.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Proszę wskazać nośnik Przechowujejący program instalacyjny instalowanego systemu operacyjnego. Nośnik musi być uruchamialny, w przeciwnym razie program instalacyjny nie wystartuje.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Proszę wskazać nośnik zawierający program instalacyjny instalowanego systemu operacyjnego. Nośnik musi być uruchamialny, w przeciwnym razie program instalacyjny nie wystartuje.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Select the media that contains the operating system you want to work with. This media must be bootable, otherwise the operating system will not be able to start.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Proszę wskazać nośnik Przechowujejący system operacyjny, który ma zostać uruchomiony. Nośnik musi być uruchamialny, w przeciwnym razie system operacyjny nie wystartuje.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Proszę wskazać nośnik zawierający system operacyjny, który ma zostać uruchomiony. Nośnik musi być uruchamialny, w przeciwnym razie system operacyjny nie wystartuje.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Media Source</source>
@@ -12533,7 +12549,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Defines an action performed by the host computer when a matching device is attached: give it up to the host OS (&lt;i&gt;Ignore&lt;/i&gt;) or grab it for later usage by virtual machines (&lt;i&gt;Hold&lt;/i&gt;).</source>
-        <translation type="obsolete">Decyduje o tym co zostanie zrobione, jeśli podłączone zostanie urządzenie USB pasujące do filtra: pozostawienie jego obsługi systemowi operacyjnemu gospodarza (&lt;i&gt;Ignoruj&lt;/i&gt;), czy przechwycenie go do użytku przez maszyny wirtualne użytkownika (&lt;i&gt;PrzyPrzechowujej&lt;/i&gt;).</translation>
+        <translation type="obsolete">Decyduje o tym co zostanie zrobione, jeśli podłączone zostanie urządzenie USB pasujące do filtra: pozostawienie jego obsługi systemowi operacyjnemu gospodarza (&lt;i&gt;Ignoruj&lt;/i&gt;), czy przechwycenie go do użytku przez maszyny wirtualne użytkownika (&lt;i&gt;Przytrzymaj&lt;/i&gt;).</translation>
     </message>
     <message>
         <source>USB Filter Details</source>
@@ -13485,7 +13501,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;p&gt;A critical error has occurred while running the virtual machine and the machine execution has been stopped.&lt;/p&gt;&lt;p&gt;For help, please see the Community section on &lt;a href=https://www.virtualbox.org&gt;https://www.virtualbox.org&lt;/a&gt; or your support contract. Please provide the contents of the log file &lt;tt&gt;VBox.log&lt;/tt&gt; and the image file &lt;tt&gt;VBox.png&lt;/tt&gt;, which you can find in the &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; directory, as well as a description of what you were doing when this error happened. Note that you can also access the above files by selecting &lt;b&gt;Show Log&lt;/b&gt; from the &lt;b&gt;Machine&lt;/b&gt; menu of the main VirualBox window.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;OK&lt;/b&gt; if you want to power off the machine or press &lt;b&gt;Ignore&lt;/b&gt; if you want to leave it as is for debugging. Please note that debugging requires special knowledge and tools, so it is recommended to press &lt;b&gt;OK&lt;/b&gt; now.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Wystąpił błąd krytyczny podczas pracy maszyny wirtualnej i została ona zaPrzechowujena.&lt;/p&gt;&lt;p&gt;Pomoc można uzyskać korzystając z forum na stronie &lt;a href=https://www.virtualbox.org&gt;https://www.virtualbox.org&lt;/a&gt; (sekcja Community) lub kontaktując się bezpośrednio z nami. Proszę pamiętać, aby do opisu problemu dołączyć zawartość pliku z logiem &lt;tt&gt;VBox.log&lt;/tt&gt; oraz plik obrazu &lt;tt&gt;VBox.png&lt;/tt&gt;, które można znaleźć w folderu &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;, jak również informację o tym co było robione bezpośrednio przed wystąpieniem błędu. Dostęp do powyższych plików można także uzyskać wybierając opcję &lt;b&gt;Pokaż log&lt;/b&gt; z menu &lt;b&gt;Maszyna&lt;/b&gt; w oknie głównym programu VirualBox.&lt;/p&gt;&lt;p&gt;Proszę wcisnąć &lt;b&gt;OK&lt;/b&gt;, aby wyłączyć maszynę lub &lt;b&gt;Ignoruj&lt;/b&gt;, jeśli należy pozostawić ją nienaruszoną w celu debugowania. &lt;b&gt;Uwaga&lt;/b&gt;: debugowanie wymaga odpowiedniej wiedzy i narzędzi, zalecane więc jest wciśnięcie &lt;b&gt;OK&lt;/b&gt;.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Wystąpił błąd krytyczny podczas pracy maszyny wirtualnej i została ona zatrzymana.&lt;/p&gt;&lt;p&gt;Pomoc można uzyskać korzystając z forum na stronie &lt;a href=https://www.virtualbox.org&gt;https://www.virtualbox.org&lt;/a&gt; (sekcja Community) lub kontaktując się bezpośrednio z nami. Proszę pamiętać, aby do opisu problemu dołączyć zawartość pliku z logiem &lt;tt&gt;VBox.log&lt;/tt&gt; oraz plik obrazu &lt;tt&gt;VBox.png&lt;/tt&gt;, które można znaleźć w folderu &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;, jak również informację o tym co było robione bezpośrednio przed wystąpieniem błędu. Dostęp do powyższych plików można także uzyskać wybierając opcję &lt;b&gt;Pokaż log&lt;/b&gt; z menu &lt;b&gt;Maszyna&lt;/b&gt; w oknie głównym programu VirualBox.&lt;/p&gt;&lt;p&gt;Proszę wcisnąć &lt;b&gt;OK&lt;/b&gt;, aby wyłączyć maszynę lub &lt;b&gt;Ignoruj&lt;/b&gt;, jeśli należy pozostawić ją nienaruszoną w celu debugowania. &lt;b&gt;Uwaga&lt;/b&gt;: debugowanie wymaga odpowiedniej wiedzy i narzędzi, zalecane więc jest wciśnięcie &lt;b&gt;OK&lt;/b&gt;.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;You didn&apos;t attach a hard disk to the new virtual machine. The machine will not be able to boot unless you attach a hard disk with a guest operating system or some other bootable media to it later using the machine settings window or the First Run Wizard.&lt;/p&gt;&lt;p&gt;Do you wish to continue?&lt;/p&gt;</source>
@@ -13617,7 +13633,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;p&gt;The following VirtualBox settings files have been automatically converted to the new settings file format version &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;However, the results of the conversion were not saved back to disk yet. Please press:&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;Save&lt;/b&gt; to save all auto-converted files now (it will not be possible to use these settings files with an older version of VirtualBox in the future);&lt;/li&gt;&lt;li&gt;&lt;b&gt;Backup&lt;/b&gt; to create backup copies of the settings files in the old format before saving them in the new format;&lt;/li&gt;&lt;li&gt;&lt;b&gt;Cancel&lt;/b&gt; to not save the auto-converted settings files now.&lt;li&gt;&lt;/ul&gt;&lt;p&gt;Note that if you select &lt;b&gt;Cancel&lt;/b&gt;, the auto-converted settings files will be implicitly saved in the new format anyway once you change a setting or start a virtual machine, but &lt;b&gt;no&lt;/b&gt; backup copies will be created in this case.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Następujące pliki konfiguracyjne programu VirtualBox zostały automatycznie skonwertowane do nowej wersji &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Wyniki konwersji nie zostały jednak jeszcze zapisane na dysk. Proszę wcisnąć: &lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;Zapisz&lt;/b&gt;, aby teraz zapisać wszystkie skonwertowane pliki (nie będzie możliwe używanie tych plików ze starszą wersją programu VirtualBox);&lt;/li&gt;&lt;li&gt;&lt;b&gt;Utwórz kopię zapasową&lt;/b&gt;, aby utworzyć kopie zapasowe starych wersji plików ustawień przed zastąpieniem ich nowszą wersją;&lt;/li&gt;&lt;li&gt;&lt;b&gt;Anuluj&lt;/b&gt;, aby anulować zapis nowych wersji plików.&lt;li&gt;&lt;/ul&gt;&lt;p&gt;Uwaga: po wybraniu &lt;b&gt;Anuluj&lt;/b&gt; pliki konfiguracyjne zostaną mimo wszystko skonwertowane do nowej wersji i zapisane, jeśli zostaną dokonane jakieś zmiany w ustawieniach albo jeśli maszyna wirtualna zostanie uruchomiona lub zaPrzechowujena. W takim przypadku jednak kopie zapasowe plików &lt;b&gt;nie zostaną&lt;/b&gt; utworzone.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Następujące pliki konfiguracyjne programu VirtualBox zostały automatycznie skonwertowane do nowej wersji &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Wyniki konwersji nie zostały jednak jeszcze zapisane na dysk. Proszę wcisnąć: &lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;Zapisz&lt;/b&gt;, aby teraz zapisać wszystkie skonwertowane pliki (nie będzie możliwe używanie tych plików ze starszą wersją programu VirtualBox);&lt;/li&gt;&lt;li&gt;&lt;b&gt;Utwórz kopię zapasową&lt;/b&gt;, aby utworzyć kopie zapasowe starych wersji plików ustawień przed zastąpieniem ich nowszą wersją;&lt;/li&gt;&lt;li&gt;&lt;b&gt;Anuluj&lt;/b&gt;, aby anulować zapis nowych wersji plików.&lt;li&gt;&lt;/ul&gt;&lt;p&gt;Uwaga: po wybraniu &lt;b&gt;Anuluj&lt;/b&gt; pliki konfiguracyjne zostaną mimo wszystko skonwertowane do nowej wersji i zapisane, jeśli zostaną dokonane jakieś zmiany w ustawieniach albo jeśli maszyna wirtualna zostanie uruchomiona lub zatrzymana. W takim przypadku jednak kopie zapasowe plików &lt;b&gt;nie zostaną&lt;/b&gt; utworzone.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Save</source>
@@ -13881,7 +13897,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;p&gt;The following VirtualBox settings files have been automatically converted to the new settings file format version &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;However, the results of the conversion were not saved back to disk yet. Please press:&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;Backup&lt;/b&gt; to create backup copies of the settings files in the old format before saving them in the new format;&lt;/li&gt;&lt;li&gt;&lt;b&gt;Overwrite&lt;/b&gt; to save all auto-converted files without creating backup copies (it will not be possible to use these settings files with an older version of VirtualBox afterwards);&lt;/li&gt;%2&lt;/ul&gt;&lt;p&gt;It is recommended to always select &lt;b&gt;Backup&lt;/b&gt; because in this case it will be possible to go back to the previous version of VirtualBox (if necessary) without losing your current settings. See the VirtualBox Manual for more information about downgrading.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Następujące pliki konfiguracyjne programu VirtualBox zostały automatycznie skonwertowane do nowej wersji &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Wyniki konwersji nie zostały jednak jeszcze zapisane na dysk. Proszę wcisnąć:&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;Utwórz kopię zapasową&lt;/b&gt;, aby stworzyć kopie zapasowe starych wersji plików ustawień przed zastąpieniem ich nowszą wersją;&lt;/li&gt;&lt;li&gt;&lt;b&gt;Nadpisz&lt;/b&gt;, aby zapisać wszystkie skonwertowane pliki bez robienia kopii zapasowych (nie będzie możliwe używanie tych plików ze starszą wersją programu VirtualBox);&lt;/li&gt;%2&lt;/ul&gt;&lt;p&gt;Zalecane jest zawsze wybranie &lt;b&gt;Utwórz kopię zapasową&lt;/b&gt;, ponieważ dzięki temu będzie możliwy powrót do poprzedniej wersji VirtualBox (jeśli potrzeba), bez utraty aktualnych ustawień. Proszę sprawdzić dokumentację VirtualBox Przechowujejącą informacje na temat powrotu do poprzedniej wersji programu.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Następujące pliki konfiguracyjne programu VirtualBox zostały automatycznie skonwertowane do nowej wersji &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Wyniki konwersji nie zostały jednak jeszcze zapisane na dysk. Proszę wcisnąć:&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;Utwórz kopię zapasową&lt;/b&gt;, aby stworzyć kopie zapasowe starych wersji plików ustawień przed zastąpieniem ich nowszą wersją;&lt;/li&gt;&lt;li&gt;&lt;b&gt;Nadpisz&lt;/b&gt;, aby zapisać wszystkie skonwertowane pliki bez robienia kopii zapasowych (nie będzie możliwe używanie tych plików ze starszą wersją programu VirtualBox);&lt;/li&gt;%2&lt;/ul&gt;&lt;p&gt;Zalecane jest zawsze wybranie &lt;b&gt;Utwórz kopię zapasową&lt;/b&gt;, ponieważ dzięki temu będzie możliwy powrót do poprzedniej wersji VirtualBox (jeśli potrzeba), bez utraty aktualnych ustawień. Proszę sprawdzić dokumentację VirtualBox zawierającą informacje na temat powrotu do poprzedniej wersji programu.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;li&gt;&lt;b&gt;Exit&lt;/b&gt; to terminate VirtualBox without saving the results of the conversion to disk.&lt;/li&gt;</source>
@@ -13894,7 +13910,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;p&gt;A critical error has occurred while running the virtual machine and the machine execution has been stopped.&lt;/p&gt;&lt;p&gt;For help, please see the Community section on &lt;a href=https://www.virtualbox.org&gt;https://www.virtualbox.org&lt;/a&gt; or your support contract. Please provide the contents of the log file &lt;tt&gt;VBox.log&lt;/tt&gt; and the image file &lt;tt&gt;VBox.png&lt;/tt&gt;, which you can find in the &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; directory, as well as a description of what you were doing when this error happened. Note that you can also access the above files by selecting &lt;b&gt;Show Log&lt;/b&gt; from the &lt;b&gt;Machine&lt;/b&gt; menu of the main VirtualBox window.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;OK&lt;/b&gt; if you want to power off the machine or press &lt;b&gt;Ignore&lt;/b&gt; if you want to leave it as is for debugging. Please note that debugging requires special knowledge and tools, so it is recommended to press &lt;b&gt;OK&lt;/b&gt; now.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Wystąpił błąd krytyczny podczas pracy maszyny wirtualnej i została ona zaPrzechowujena.&lt;/p&gt;&lt;p&gt;Pomoc można uzyskać korzystając z forum na stronie &lt;a href=https://www.virtualbox.org&gt;https://www.virtualbox.org&lt;/a&gt; (sekcja Community) lub kontaktując się bezpośrednio z nami. Proszę pamiętać, aby do opisu problemu dołączyć zawartość pliku z logiem &lt;tt&gt;VBox.log&lt;/tt&gt; oraz plik obrazu &lt;tt&gt;VBox.png&lt;/tt&gt;, które można znaleźć w folderu &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;, jak również informację o tym co było robione bezpośrednio przed wystąpieniem błędu. Dostęp do powyższych plików można także uzyskać wybierając opcję &lt;b&gt;Pokaż log&lt;/b&gt; z menu &lt;b&gt;Maszyna&lt;/b&gt; w oknie głównym programu VirualBox.&lt;/p&gt;&lt;p&gt;Proszę wcisnąć &lt;b&gt;OK&lt;/b&gt;, aby wyłączyć maszynę lub &lt;b&gt;Ignoruj&lt;/b&gt;, jeśli należy pozostawić ją nienaruszoną w celu debugowania. &lt;b&gt;Uwaga&lt;/b&gt;: debugowanie wymaga odpowiedniej wiedzy i narzędzi, zalecane więc jest wciśnięcie &lt;b&gt;OK&lt;/b&gt;.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Wystąpił błąd krytyczny podczas pracy maszyny wirtualnej i została ona zatrzymana.&lt;/p&gt;&lt;p&gt;Pomoc można uzyskać korzystając z forum na stronie &lt;a href=https://www.virtualbox.org&gt;https://www.virtualbox.org&lt;/a&gt; (sekcja Community) lub kontaktując się bezpośrednio z nami. Proszę pamiętać, aby do opisu problemu dołączyć zawartość pliku z logiem &lt;tt&gt;VBox.log&lt;/tt&gt; oraz plik obrazu &lt;tt&gt;VBox.png&lt;/tt&gt;, które można znaleźć w folderu &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;, jak również informację o tym co było robione bezpośrednio przed wystąpieniem błędu. Dostęp do powyższych plików można także uzyskać wybierając opcję &lt;b&gt;Pokaż log&lt;/b&gt; z menu &lt;b&gt;Maszyna&lt;/b&gt; w oknie głównym programu VirualBox.&lt;/p&gt;&lt;p&gt;Proszę wcisnąć &lt;b&gt;OK&lt;/b&gt;, aby wyłączyć maszynę lub &lt;b&gt;Ignoruj&lt;/b&gt;, jeśli należy pozostawić ją nienaruszoną w celu debugowania. &lt;b&gt;Uwaga&lt;/b&gt;: debugowanie wymaga odpowiedniej wiedzy i narzędzi, zalecane więc jest wciśnięcie &lt;b&gt;OK&lt;/b&gt;.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>hard disk</source>
@@ -17688,52 +17704,10 @@ Będzie ona używana przez wszystkie moduły VirtualBox, aby móc rozróżnić t
     </message>
 </context>
 <context>
-    <name>UIVirtualMachineItem</name>
+    <name>UIVMListView</name>
     <message>
         <source>Inaccessible</source>
-        <translation>Niedostępna</translation>
-    </message>
-    <message>
-        <source>&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 since %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Session %4&lt;/nobr&gt;</source>
-        <comment>VM tooltip (name, last state change, session state)</comment>
-        <translation>&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 od %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Sesja %4&lt;/nobr&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Inaccessible since %2&lt;/nobr&gt;</source>
-        <comment>Inaccessible VM tooltip (name, last state change)</comment>
-        <translation>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Niedostępna od %2&lt;/nobr&gt;</translation>
-    </message>
-    <message>
-        <source>S&amp;how</source>
-        <translation type="obsolete">Po&amp;każ</translation>
-    </message>
-    <message>
-        <source>Switch to the window of the selected virtual machine</source>
-        <translation type="obsolete">Przełącza do okna wybranej maszyny wirtualnej</translation>
-    </message>
-    <message>
-        <source>S&amp;tart</source>
-        <translation type="obsolete">Uru&amp;chom</translation>
-    </message>
-    <message>
-        <source>Start the selected virtual machine</source>
-        <translation type="obsolete">Uruchamia wybraną maszynę wirtualną</translation>
-    </message>
-    <message>
-        <source>R&amp;esume</source>
-        <translation type="obsolete">Wz&amp;nów</translation>
-    </message>
-    <message>
-        <source>Resume the execution of the virtual machine</source>
-        <translation type="obsolete">Wznawia pracę maszyny wirtualnej</translation>
-    </message>
-    <message>
-        <source>&amp;Pause</source>
-        <translation type="obsolete">&amp;Pauza</translation>
-    </message>
-    <message>
-        <source>Suspend the execution of the virtual machine</source>
-        <translation type="obsolete">Wstrzymuje pracę maszyny wirtualnej</translation>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -18001,6 +17975,92 @@ Będzie ona używana przez wszystkie moduły VirtualBox, aby móc rozróżnić t
     </message>
     <message>
         <source>Show Toolbar Text</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UIVirtualMachineItem</name>
+    <message>
+        <source>Inaccessible</source>
+        <translation type="vanished">Niedostępna</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 since %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Session %4&lt;/nobr&gt;</source>
+        <comment>VM tooltip (name, last state change, session state)</comment>
+        <translation type="vanished">&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 od %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Sesja %4&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Inaccessible since %2&lt;/nobr&gt;</source>
+        <comment>Inaccessible VM tooltip (name, last state change)</comment>
+        <translation type="vanished">&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Niedostępna od %2&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>S&amp;how</source>
+        <translation type="obsolete">Po&amp;każ</translation>
+    </message>
+    <message>
+        <source>Switch to the window of the selected virtual machine</source>
+        <translation type="obsolete">Przełącza do okna wybranej maszyny wirtualnej</translation>
+    </message>
+    <message>
+        <source>S&amp;tart</source>
+        <translation type="obsolete">Uru&amp;chom</translation>
+    </message>
+    <message>
+        <source>Start the selected virtual machine</source>
+        <translation type="obsolete">Uruchamia wybraną maszynę wirtualną</translation>
+    </message>
+    <message>
+        <source>R&amp;esume</source>
+        <translation type="obsolete">Wz&amp;nów</translation>
+    </message>
+    <message>
+        <source>Resume the execution of the virtual machine</source>
+        <translation type="obsolete">Wznawia pracę maszyny wirtualnej</translation>
+    </message>
+    <message>
+        <source>&amp;Pause</source>
+        <translation type="obsolete">&amp;Pauza</translation>
+    </message>
+    <message>
+        <source>Suspend the execution of the virtual machine</source>
+        <translation type="obsolete">Wstrzymuje pracę maszyny wirtualnej</translation>
+    </message>
+</context>
+<context>
+    <name>UIVirtualMachineItemCloud</name>
+    <message>
+        <source>Loading ...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Up-To-Date</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Inaccessible&lt;/nobr&gt;</source>
+        <comment>Inaccessible VM tooltip (name)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Inaccessible</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UIVirtualMachineItemLocal</name>
+    <message>
+        <source>&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 since %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Session %4&lt;/nobr&gt;</source>
+        <comment>VM tooltip (name, last state change, session state)</comment>
+        <translation type="unfinished">&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 od %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Sesja %4&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Inaccessible since %2&lt;/nobr&gt;</source>
+        <comment>Inaccessible VM tooltip (name, last state change)</comment>
+        <translation type="unfinished">&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Niedostępna od %2&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>Inaccessible</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -19381,7 +19441,7 @@ Wersja %1</translation>
 &lt;p&gt;If the machine doesn&apos;t respond to this action then the guest operating system may be misconfigured or doesn&apos;t understand ACPI Power Button events at all. In this case you should select the &lt;b&gt;Power off the machine&lt;/b&gt; action to stop virtual machine execution.&lt;/p&gt;</source>
         <translation type="obsolete">&lt;p&gt;Wysyła sygnał przycisku zasilania ACPI do maszyny wirtualnej.&lt;/p&gt;
 &lt;p&gt;Goszczony system operacyjny uruchomiony wewnątrz maszyny wirtualnej zazwyczaj powinien rozpoznać ten sygnał i automatycznie przeprowadzić bezpieczną procedurę zamknięcia. Jest to rekomendowany sposób wyłączenia maszyny, ponieważ wszystkie aplikacje uruchomione w maszynie będą mogły przed zamknięciem systemu zapisać swój stan i dane użytkownika.&lt;/p&gt;
-&lt;p&gt;Jeśli maszyna nie odpowiada na ten sygnał, goszczony system operacyjny może nie być poprawnie skonfigurowany lub w ogóle nie rozpoznawać sygnału przycisku zasilania ACPI. W takim przypadku należy ręcznie zapisać dane, zamknąć goszczony system operacyjny w odpowiedni dla niego sposób, a następnie zaPrzechowujeć pracę maszyny wirtualnej poprzez wybranie opcji &lt;b&gt;Wyłączenie maszyny&lt;b&gt;.&lt;/p&gt;</translation>
+&lt;p&gt;Jeśli maszyna nie odpowiada na ten sygnał, goszczony system operacyjny może nie być poprawnie skonfigurowany lub w ogóle nie rozpoznawać sygnału przycisku zasilania ACPI. W takim przypadku należy ręcznie zapisać dane, zamknąć goszczony system operacyjny w odpowiedni dla niego sposób, a następnie zatrzymać pracę maszyny wirtualnej poprzez wybranie opcji &lt;b&gt;Wyłączenie maszyny&lt;b&gt;.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Turns off the virtual machine.&lt;/p&gt;
@@ -19399,7 +19459,7 @@ Wersja %1</translation>
     </message>
     <message>
         <source>&lt;p&gt;Sends the ACPI Power Button press event to the virtual machine.&lt;/p&gt;&lt;p&gt;Normally, the guest operating system running inside the virtual machine will detect this event and perform a clean shutdown procedure. This is a recommended way to turn off the virtual machine because all applications running inside it will get a chance to save their data and state.&lt;/p&gt;&lt;p&gt;If the machine doesn&apos;t respond to this action then the guest operating system may be misconfigured or doesn&apos;t understand ACPI Power Button events at all. In this case you should select the &lt;b&gt;Power off the machine&lt;/b&gt; action to stop virtual machine execution.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Wysyła sygnał przycisku zasilania ACPI do maszyny wirtualnej.&lt;/p&gt;&lt;p&gt;Goszczony system operacyjny uruchomiony wewnątrz maszyny wirtualnej zazwyczaj powinien rozpoznać ten sygnał i automatycznie przeprowadzić bezpieczną procedurę zamknięcia. Jest to rekomendowany sposób wyłączenia maszyny, ponieważ wszystkie aplikacje uruchomione w maszynie będą mogły przed zamknięciem systemu zapisać swój stan i dane użytkownika.&lt;/p&gt;&lt;p&gt;Jeśli maszyna nie odpowiada na ten sygnał, goszczony system operacyjny może nie być poprawnie skonfigurowany lub w ogóle nie rozpoznawać sygnału przycisku zasilania ACPI. W takim przypadku należy ręcznie zapisać dane, zamknąć goszczony system operacyjny w odpowiedni dla niego sposób, a następnie zaPrzechowujeć pracę maszyny wirtualnej poprzez wybranie opcji &lt;b&gt;Wyłączenie maszyny&lt;b&gt;.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Wysyła sygnał przycisku zasilania ACPI do maszyny wirtualnej.&lt;/p&gt;&lt;p&gt;Goszczony system operacyjny uruchomiony wewnątrz maszyny wirtualnej zazwyczaj powinien rozpoznać ten sygnał i automatycznie przeprowadzić bezpieczną procedurę zamknięcia. Jest to rekomendowany sposób wyłączenia maszyny, ponieważ wszystkie aplikacje uruchomione w maszynie będą mogły przed zamknięciem systemu zapisać swój stan i dane użytkownika.&lt;/p&gt;&lt;p&gt;Jeśli maszyna nie odpowiada na ten sygnał, goszczony system operacyjny może nie być poprawnie skonfigurowany lub w ogóle nie rozpoznawać sygnału przycisku zasilania ACPI. W takim przypadku należy ręcznie zapisać dane, zamknąć goszczony system operacyjny w odpowiedni dla niego sposób, a następnie zatrzymać pracę maszyny wirtualnej poprzez wybranie opcji &lt;b&gt;Wyłączenie maszyny&lt;b&gt;.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Turns off the virtual machine.&lt;/p&gt;&lt;p&gt;Note that this action will stop machine execution immediately so that the guest operating system running inside it will not be able to perform a clean shutdown procedure which may result in &lt;i&gt;data loss&lt;/i&gt; inside the virtual machine. Selecting this action is recommended only if the virtual machine does not respond to the &lt;b&gt;Send the shutdown signal&lt;/b&gt; action.&lt;/p&gt;</source>
@@ -20864,7 +20924,7 @@ Wersja %1</translation>
     <message>
         <source>Hold</source>
         <comment>USBFilterActionType</comment>
-        <translation type="obsolete">PrzyPrzechowujej</translation>
+        <translation type="obsolete">Przytrzymaj</translation>
     </message>
     <message>
         <source>Master</source>
@@ -20954,7 +21014,7 @@ Wersja %1</translation>
     <message>
         <source>Held</source>
         <comment>USBDeviceState</comment>
-        <translation type="vanished">PrzyPrzechowujene</translation>
+        <translation type="vanished">Przytrzymane</translation>
     </message>
     <message>
         <source>Captured</source>
@@ -24493,7 +24553,7 @@ computer when a matching device is attached: give it up to the host OS
         <translation type="obsolete">&lt;qt&gt;Decyduje o tym co zostanie zrobione, jeśli podłączone zostanie
 urządzenie USB pasujące do filtra: pozostawienie jego obsługi systemowi
 operacyjnemu gospodarza (&lt;i&gt;Ignoruj&lt;/i&gt;), czy przechwycenie go do
-użytku przez maszyny wirtualne użytkownika (&lt;i&gt;PrzyPrzechowujej&lt;/i&gt;).&lt;/qt&gt;</translation>
+użytku przez maszyny wirtualne użytkownika (&lt;i&gt;Przytrzymaj&lt;/i&gt;).&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>&lt;qt&gt;Defines the manufacturer filter as an

@@ -3772,6 +3772,22 @@
         <comment>NetworkAdapterType</comment>
         <translation>PCnet-ISA (Am79C960)</translation>
     </message>
+    <message>
+        <source>Acquire cloud instances ...</source>
+        <translation type="unfinished">Adquireix les instàncies del núvol...</translation>
+    </message>
+    <message>
+        <source>Acquire cloud instance info ...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pause instance ...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Start instance ...</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UICustomFileSystemModel</name>
@@ -4306,7 +4322,7 @@
     <name>UIErrorPane</name>
     <message>
         <source>The selected virtual machine is &lt;i&gt;inaccessible&lt;/i&gt;. Please inspect the error message shown below and press the &lt;b&gt;Refresh&lt;/b&gt; button if you want to repeat the accessibility check:</source>
-        <translation>&lt;i&gt;No es pot accedir&lt;/i&gt; a la màquina virtual seleccionada. Comproveu el missatge d&apos;error que es mostra i premeu el botó &lt;b&gt;Actualitza&lt;/b&gt; si voleu tornar a comprovar l&apos;accessibilitat:</translation>
+        <translation type="vanished">&lt;i&gt;No es pot accedir&lt;/i&gt; a la màquina virtual seleccionada. Comproveu el missatge d&apos;error que es mostra i premeu el botó &lt;b&gt;Actualitza&lt;/b&gt; si voleu tornar a comprovar l&apos;accessibilitat:</translation>
     </message>
 </context>
 <context>
@@ -10644,7 +10660,7 @@
     </message>
 </context>
 <context>
-    <name>UIVirtualMachineItem</name>
+    <name>UIVMListView</name>
     <message>
         <source>Inaccessible</source>
         <translation>No s&apos;hi pot accedir</translation>
@@ -10652,12 +10668,12 @@
     <message>
         <source>&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 since %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Session %4&lt;/nobr&gt;</source>
         <comment>VM tooltip (name, last state change, session state)</comment>
-        <translation>&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 des de %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Sessió %4&lt;/nobr&gt;</translation>
+        <translation type="vanished">&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 des de %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Sessió %4&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Inaccessible since %2&lt;/nobr&gt;</source>
         <comment>Inaccessible VM tooltip (name, last state change)</comment>
-        <translation>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;No s&apos;hi pot accedir des de %2&lt;/nobr&gt;</translation>
+        <translation type="vanished">&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;No s&apos;hi pot accedir des de %2&lt;/nobr&gt;</translation>
     </message>
 </context>
 <context>
@@ -10843,6 +10859,43 @@
     <message>
         <source>Show Toolbar Text</source>
         <translation>Mostra el text de la barra d&apos;eines</translation>
+    </message>
+</context>
+<context>
+    <name>UIVirtualMachineItemCloud</name>
+    <message>
+        <source>Loading ...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Up-To-Date</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Inaccessible&lt;/nobr&gt;</source>
+        <comment>Inaccessible VM tooltip (name)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Inaccessible</source>
+        <translation type="unfinished">No s&apos;hi pot accedir</translation>
+    </message>
+</context>
+<context>
+    <name>UIVirtualMachineItemLocal</name>
+    <message>
+        <source>&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 since %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Session %4&lt;/nobr&gt;</source>
+        <comment>VM tooltip (name, last state change, session state)</comment>
+        <translation type="unfinished">&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 des de %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Sessió %4&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Inaccessible since %2&lt;/nobr&gt;</source>
+        <comment>Inaccessible VM tooltip (name, last state change)</comment>
+        <translation type="unfinished">&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;No s&apos;hi pot accedir des de %2&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>Inaccessible</source>
+        <translation type="unfinished">No s&apos;hi pot accedir</translation>
     </message>
 </context>
 <context>

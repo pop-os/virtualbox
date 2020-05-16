@@ -106,6 +106,7 @@ bool                        g_fControlSupportsOptimizations = true;
 *********************************************************************************************************************************/
 static int  vgsvcGstCtrlHandleSessionOpen(PVBGLR3GUESTCTRLCMDCTX pHostCtx);
 static int  vgsvcGstCtrlHandleSessionClose(PVBGLR3GUESTCTRLCMDCTX pHostCtx);
+static int  vgsvcGstCtrlInvalidate(void);
 static void vgsvcGstCtrlShutdown(void);
 
 
@@ -204,30 +205,9 @@ static DECLCALLBACK(int) vgsvcGstCtrlInit(void)
     rc = VbglR3GuestCtrlConnect(&g_idControlSvcClient);
     if (RT_SUCCESS(rc))
     {
-        g_fControlSupportsOptimizations = VbglR3GuestCtrlSupportsOptimizations(g_idControlSvcClient);
-        if (g_fControlSupportsOptimizations)
-            rc = VbglR3GuestCtrlMakeMeMaster(g_idControlSvcClient);
+        rc = vgsvcGstCtrlInvalidate();
         if (RT_SUCCESS(rc))
-        {
-            VGSvcVerbose(3, "Guest control service client ID=%RU32%s\n",
-                         g_idControlSvcClient, g_fControlSupportsOptimizations ? " w/ optimizations" : "");
-
-            /*
-             * Report features to the host.
-             */
-            const uint64_t fGuestFeatures = VBOX_GUESTCTRL_GF_0_SET_SIZE
-                                          | VBOX_GUESTCTRL_GF_0_PROCESS_ARGV0;
-
-            rc = VbglR3GuestCtrlReportFeatures(g_idControlSvcClient, fGuestFeatures, &g_fControlHostFeatures0);
-            if (RT_SUCCESS(rc))
-                VGSvcVerbose(3, "Host features: %#RX64\n", g_fControlHostFeatures0);
-            else
-                VGSvcVerbose(1, "Warning! Feature reporing failed: %Rrc\n", rc);
-
-            return VINF_SUCCESS;
-        }
-        VGSvcError("Failed to become guest control master: %Rrc\n", rc);
-        VbglR3GuestCtrlDisconnect(g_idControlSvcClient);
+            return rc;
     }
     else
     {
@@ -247,6 +227,40 @@ static DECLCALLBACK(int) vgsvcGstCtrlInit(void)
     return rc;
 }
 
+static int vgsvcGstCtrlInvalidate(void)
+{
+    VGSvcVerbose(1, "Invalidating configuration ...\n");
+
+    int rc = VINF_SUCCESS;
+
+    g_fControlSupportsOptimizations = VbglR3GuestCtrlSupportsOptimizations(g_idControlSvcClient);
+    if (g_fControlSupportsOptimizations)
+        rc = VbglR3GuestCtrlMakeMeMaster(g_idControlSvcClient);
+    if (RT_SUCCESS(rc))
+    {
+        VGSvcVerbose(3, "Guest control service client ID=%RU32%s\n",
+                     g_idControlSvcClient, g_fControlSupportsOptimizations ? " w/ optimizations" : "");
+
+        /*
+         * Report features to the host.
+         */
+        const uint64_t fGuestFeatures = VBOX_GUESTCTRL_GF_0_SET_SIZE
+                                      | VBOX_GUESTCTRL_GF_0_PROCESS_ARGV0
+                                      | VBOX_GUESTCTRL_GF_0_PROCESS_DYNAMIC_SIZES;
+
+        rc = VbglR3GuestCtrlReportFeatures(g_idControlSvcClient, fGuestFeatures, &g_fControlHostFeatures0);
+        if (RT_SUCCESS(rc))
+            VGSvcVerbose(3, "Host features: %#RX64\n", g_fControlHostFeatures0);
+        else
+            VGSvcVerbose(1, "Warning! Feature reporing failed: %Rrc\n", rc);
+
+        return VINF_SUCCESS;
+    }
+    VGSvcError("Failed to become guest control master: %Rrc\n", rc);
+    VbglR3GuestCtrlDisconnect(g_idControlSvcClient);
+
+    return rc;
+}
 
 /**
  * @interface_method_impl{VBOXSERVICE,pfnWorker}
@@ -326,8 +340,15 @@ static DECLCALLBACK(int) vgsvcGstCtrlWorker(bool volatile *pfShutdown)
          */
         else if (rc == VERR_VM_RESTORED)
         {
-            VGSvcVerbose(1, "The VM session ID changed (i.e. restored).\n");
+            VGSvcVerbose(1, "The VM session ID changed (i.e. restored)\n");
             int rc2 = VGSvcGstCtrlSessionClose(&g_Session);
+            AssertRC(rc2);
+
+            rc2 = VbglR3GuestCtrlSessionHasChanged(g_idControlSvcClient, g_idControlSession);
+            AssertRC(rc2);
+
+            /* Invalidate the internal state to match the current host we got restored from. */
+            rc2 = vgsvcGstCtrlInvalidate();
             AssertRC(rc2);
         }
         else
@@ -394,30 +415,25 @@ static int vgsvcGstCtrlHandleSessionOpen(PVBGLR3GUESTCTRLCMDCTX pHostCtx)
     /*
      * Retrieve the message parameters.
      */
-    VBOXSERVICECTRLSESSIONSTARTUPINFO ssInfo = { 0 };
-    int rc = VbglR3GuestCtrlSessionGetOpen(pHostCtx,
-                                           &ssInfo.uProtocol,
-                                           ssInfo.szUser,     sizeof(ssInfo.szUser),
-                                           ssInfo.szPassword, sizeof(ssInfo.szPassword),
-                                           ssInfo.szDomain,   sizeof(ssInfo.szDomain),
-                                           &ssInfo.fFlags,    &ssInfo.uSessionID);
+    PVBGLR3GUESTCTRLSESSIONSTARTUPINFO pStartupInfo;
+    int rc = VbglR3GuestCtrlSessionGetOpen(pHostCtx, &pStartupInfo);
     if (RT_SUCCESS(rc))
     {
         /*
          * Flat out refuse to work with protocol v1 hosts.
          */
-        if (ssInfo.uProtocol == 2)
+        if (pStartupInfo->uProtocol == 2)
         {
-            pHostCtx->uProtocol = ssInfo.uProtocol;
+            pHostCtx->uProtocol = pStartupInfo->uProtocol;
             VGSvcVerbose(3, "Client ID=%RU32 now is using protocol %RU32\n", pHostCtx->uClientID, pHostCtx->uProtocol);
 
 /** @todo Someone explain why this code isn't in this file too?  v1 support? */
-            rc = VGSvcGstCtrlSessionThreadCreate(&g_lstControlSessionThreads, &ssInfo, NULL /* ppSessionThread */);
+            rc = VGSvcGstCtrlSessionThreadCreate(&g_lstControlSessionThreads, pStartupInfo, NULL /* ppSessionThread */);
             /* Report failures to the host (successes are taken care of by the session thread). */
         }
         else
         {
-            VGSvcError("The host wants to use protocol v%u, we only support v2!\n", ssInfo.uProtocol);
+            VGSvcError("The host wants to use protocol v%u, we only support v2!\n", pStartupInfo->uProtocol);
             rc = VERR_VERSION_MISMATCH;
         }
         if (RT_FAILURE(rc))
@@ -432,6 +448,10 @@ static int vgsvcGstCtrlHandleSessionOpen(PVBGLR3GUESTCTRLCMDCTX pHostCtx)
         VGSvcError("Error fetching parameters for opening guest session: %Rrc\n", rc);
         VbglR3GuestCtrlMsgSkip(pHostCtx->uClientID, rc, UINT32_MAX);
     }
+
+    VbglR3GuestCtrlSessionStartupInfoFree(pStartupInfo);
+    pStartupInfo = NULL;
+
     VGSvcVerbose(3, "Opening a new guest session returned rc=%Rrc\n", rc);
     return rc;
 }
@@ -451,7 +471,8 @@ static int vgsvcGstCtrlHandleSessionClose(PVBGLR3GUESTCTRLCMDCTX pHostCtx)
         PVBOXSERVICECTRLSESSIONTHREAD pThread;
         RTListForEach(&g_lstControlSessionThreads, pThread, VBOXSERVICECTRLSESSIONTHREAD, Node)
         {
-            if (pThread->StartupInfo.uSessionID == idSession)
+            if (   pThread->pStartupInfo
+                && pThread->pStartupInfo->uSessionID == idSession)
             {
                 rc = VGSvcGstCtrlSessionThreadDestroy(pThread, fFlags);
                 break;
@@ -563,9 +584,9 @@ VBOXSERVICE g_Control =
     "Host-driven Guest Control",
     /* pszUsage. */
 #ifdef DEBUG
-    "              [--control-dump-stderr] [--control-dump-stdout]\n"
+    "           [--control-dump-stderr] [--control-dump-stdout]\n"
 #endif
-    "              [--control-interval <ms>]"
+    "           [--control-interval <ms>]"
     ,
     /* pszOptions. */
 #ifdef DEBUG

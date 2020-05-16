@@ -4611,6 +4611,22 @@
         <comment>NetworkAdapterType</comment>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Acquire cloud instances ...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Acquire cloud instance info ...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pause instance ...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Start instance ...</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UICustomFileSystemModel</name>
@@ -5774,7 +5790,7 @@
     <name>UIErrorPane</name>
     <message>
         <source>The selected virtual machine is &lt;i&gt;inaccessible&lt;/i&gt;. Please inspect the error message shown below and press the &lt;b&gt;Refresh&lt;/b&gt; button if you want to repeat the accessibility check:</source>
-        <translation type="unfinished">Vybraný virtuální počítač je &lt;i&gt;nedostupný&lt;/i&gt;. Prosím prohlédněte si chybovou zprávu zobrazenou níže a stiskněte tlačítko &lt;b&gt;Obnovit&lt;/b&gt;, pokud chcete zopakovat test dostupnosti:</translation>
+        <translation type="obsolete">Vybraný virtuální počítač je &lt;i&gt;nedostupný&lt;/i&gt;. Prosím prohlédněte si chybovou zprávu zobrazenou níže a stiskněte tlačítko &lt;b&gt;Obnovit&lt;/b&gt;, pokud chcete zopakovat test dostupnosti:</translation>
     </message>
 </context>
 <context>
@@ -18958,52 +18974,10 @@ krok a připojit pevné disky později použitím dialogu Nastavení VM.&lt;/p&g
     </message>
 </context>
 <context>
-    <name>UIVirtualMachineItem</name>
+    <name>UIVMListView</name>
     <message>
         <source>Inaccessible</source>
-        <translation>Nedostupný</translation>
-    </message>
-    <message>
-        <source>&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 since %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Session %4&lt;/nobr&gt;</source>
-        <comment>VM tooltip (name, last state change, session state)</comment>
-        <translation>&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 od %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Sezení %4&lt;/nobr&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Inaccessible since %2&lt;/nobr&gt;</source>
-        <comment>Inaccessible VM tooltip (name, last state change)</comment>
-        <translation>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Nedostupné od %2&lt;/nobr&gt;</translation>
-    </message>
-    <message>
-        <source>S&amp;how</source>
-        <translation type="obsolete">&amp;Zobrazit</translation>
-    </message>
-    <message>
-        <source>Switch to the window of the selected virtual machine</source>
-        <translation type="obsolete">Přepne do okna vybraného virtuálního počítače</translation>
-    </message>
-    <message>
-        <source>S&amp;tart</source>
-        <translation type="obsolete">&amp;Spustit</translation>
-    </message>
-    <message>
-        <source>Start the selected virtual machine</source>
-        <translation type="obsolete">Spustí vybraný virtuální počítač</translation>
-    </message>
-    <message>
-        <source>R&amp;esume</source>
-        <translation type="obsolete">Ob&amp;novit</translation>
-    </message>
-    <message>
-        <source>Resume the execution of the virtual machine</source>
-        <translation type="obsolete">Obnoví chod virtuálního počítače</translation>
-    </message>
-    <message>
-        <source>&amp;Pause</source>
-        <translation type="obsolete">&amp;Pauza</translation>
-    </message>
-    <message>
-        <source>Suspend the execution of the virtual machine</source>
-        <translation type="obsolete">Pozastaví chod virtuálního počítače</translation>
+        <translation type="unfinished">Nedostupný</translation>
     </message>
 </context>
 <context>
@@ -19303,6 +19277,92 @@ krok a připojit pevné disky později použitím dialogu Nastavení VM.&lt;/p&g
     <message>
         <source>Show Toolbar Text</source>
         <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UIVirtualMachineItem</name>
+    <message>
+        <source>Inaccessible</source>
+        <translation type="vanished">Nedostupný</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 since %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Session %4&lt;/nobr&gt;</source>
+        <comment>VM tooltip (name, last state change, session state)</comment>
+        <translation type="vanished">&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 od %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Sezení %4&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Inaccessible since %2&lt;/nobr&gt;</source>
+        <comment>Inaccessible VM tooltip (name, last state change)</comment>
+        <translation type="vanished">&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Nedostupné od %2&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>S&amp;how</source>
+        <translation type="obsolete">&amp;Zobrazit</translation>
+    </message>
+    <message>
+        <source>Switch to the window of the selected virtual machine</source>
+        <translation type="obsolete">Přepne do okna vybraného virtuálního počítače</translation>
+    </message>
+    <message>
+        <source>S&amp;tart</source>
+        <translation type="obsolete">&amp;Spustit</translation>
+    </message>
+    <message>
+        <source>Start the selected virtual machine</source>
+        <translation type="obsolete">Spustí vybraný virtuální počítač</translation>
+    </message>
+    <message>
+        <source>R&amp;esume</source>
+        <translation type="obsolete">Ob&amp;novit</translation>
+    </message>
+    <message>
+        <source>Resume the execution of the virtual machine</source>
+        <translation type="obsolete">Obnoví chod virtuálního počítače</translation>
+    </message>
+    <message>
+        <source>&amp;Pause</source>
+        <translation type="obsolete">&amp;Pauza</translation>
+    </message>
+    <message>
+        <source>Suspend the execution of the virtual machine</source>
+        <translation type="obsolete">Pozastaví chod virtuálního počítače</translation>
+    </message>
+</context>
+<context>
+    <name>UIVirtualMachineItemCloud</name>
+    <message>
+        <source>Loading ...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Up-To-Date</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Inaccessible&lt;/nobr&gt;</source>
+        <comment>Inaccessible VM tooltip (name)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Inaccessible</source>
+        <translation type="unfinished">Nedostupný</translation>
+    </message>
+</context>
+<context>
+    <name>UIVirtualMachineItemLocal</name>
+    <message>
+        <source>&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 since %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Session %4&lt;/nobr&gt;</source>
+        <comment>VM tooltip (name, last state change, session state)</comment>
+        <translation type="unfinished">&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 od %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Sezení %4&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Inaccessible since %2&lt;/nobr&gt;</source>
+        <comment>Inaccessible VM tooltip (name, last state change)</comment>
+        <translation type="unfinished">&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Nedostupné od %2&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>Inaccessible</source>
+        <translation type="unfinished">Nedostupný</translation>
     </message>
 </context>
 <context>

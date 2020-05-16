@@ -4010,6 +4010,22 @@
         <comment>NetworkAdapterType</comment>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Acquire cloud instances ...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Acquire cloud instance info ...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pause instance ...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Start instance ...</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UICustomFileSystemModel</name>
@@ -4555,13 +4571,6 @@
     <message>
         <source>Choose...</source>
         <translation type="unfinished">בחר...</translation>
-    </message>
-</context>
-<context>
-    <name>UIErrorPane</name>
-    <message>
-        <source>The selected virtual machine is &lt;i&gt;inaccessible&lt;/i&gt;. Please inspect the error message shown below and press the &lt;b&gt;Refresh&lt;/b&gt; button if you want to repeat the accessibility check:</source>
-        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -12323,20 +12332,10 @@
     </message>
 </context>
 <context>
-    <name>UIVirtualMachineItem</name>
+    <name>UIVMListView</name>
     <message>
         <source>Inaccessible</source>
-        <translation>לא נגיש</translation>
-    </message>
-    <message>
-        <source>&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 since %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Session %4&lt;/nobr&gt;</source>
-        <comment>VM tooltip (name, last state change, session state)</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Inaccessible since %2&lt;/nobr&gt;</source>
-        <comment>Inaccessible VM tooltip (name, last state change)</comment>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">לא נגיש</translation>
     </message>
 </context>
 <context>
@@ -12569,6 +12568,50 @@
     <message>
         <source>Show Toolbar Text</source>
         <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UIVirtualMachineItem</name>
+    <message>
+        <source>Inaccessible</source>
+        <translation type="vanished">לא נגיש</translation>
+    </message>
+</context>
+<context>
+    <name>UIVirtualMachineItemCloud</name>
+    <message>
+        <source>Loading ...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Up-To-Date</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Inaccessible&lt;/nobr&gt;</source>
+        <comment>Inaccessible VM tooltip (name)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Inaccessible</source>
+        <translation type="unfinished">לא נגיש</translation>
+    </message>
+</context>
+<context>
+    <name>UIVirtualMachineItemLocal</name>
+    <message>
+        <source>&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 since %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Session %4&lt;/nobr&gt;</source>
+        <comment>VM tooltip (name, last state change, session state)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Inaccessible since %2&lt;/nobr&gt;</source>
+        <comment>Inaccessible VM tooltip (name, last state change)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Inaccessible</source>
+        <translation type="unfinished">לא נגיש</translation>
     </message>
 </context>
 <context>

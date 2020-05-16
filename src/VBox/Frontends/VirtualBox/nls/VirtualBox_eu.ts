@@ -37,7 +37,7 @@
 <context>
     <name>QApplication</name>
     <message>
-        <location filename="../src/main.cpp" line="+515"/>
+        <location filename="../src/main.cpp" line="+787"/>
         <source>Executable &lt;b&gt;%1&lt;/b&gt; requires Qt %2.x, found Qt %3.</source>
         <translation>Exekutagarria &lt;b&gt;%1&lt;/b&gt; behar du Qt %2.x, aurkituta Qt %3.</translation>
     </message>
@@ -47,7 +47,7 @@
         <translation>Bateraezintasun Qt Liburutegi Akatsa</translation>
     </message>
     <message>
-        <location line="+283"/>
+        <location line="+332"/>
         <source>VirtualBox - Error In %1</source>
         <translation>VirtualBox - Akatsa Hemen %1</translation>
     </message>
@@ -57,7 +57,7 @@
         <translation>&lt;html&gt;&lt;b&gt;%1 (rc=%2)&lt;/b&gt;&lt;br/&gt;&lt;br/&gt;</translation>
     </message>
     <message>
-        <location line="-663"/>
+        <location line="-977"/>
         <source>The VirtualBox Linux kernel driver is either not loaded or not set up correctly. Please try setting it up again by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root.&lt;br/&gt;&lt;br/&gt;If your system has EFI Secure Boot enabled you may also need to sign the kernel modules (vboxdrv, vboxnetflt, vboxnetadp, vboxpci) before you can load them. Please see your Linux system&apos;s documentation for more information.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -77,7 +77,7 @@
         <translation>Zihurtu kernel moduloa ongi gertatu dela.</translation>
     </message>
     <message>
-        <location line="+526"/>
+        <location line="+840"/>
         <source>VirtualBox - Runtime Error</source>
         <translation>VirtualBox - Jarduera Akatsa</translation>
     </message>
@@ -97,7 +97,7 @@
         <translation>Kernel gidagailua ez dago eskuragarri</translation>
     </message>
     <message>
-        <location line="-561"/>
+        <location line="-875"/>
         <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Please try completely uninstalling and reinstalling VirtualBox.</source>
         <translation>VirtualBox kernel moduloak ez datoz bat VirtualBox-en bertsio honekin. VirtualBox-en ezarpenak dirudienez ez da ongi egin. Mesedez saiatu osorik kentzen eta VirtualBox berriro ezartzen.</translation>
     </message>
@@ -179,7 +179,7 @@
 <context>
     <name>QIMessageBox</name>
     <message>
-        <location filename="../src/extensions/QIMessageBox.cpp" line="+318"/>
+        <location filename="../src/extensions/QIMessageBox.cpp" line="+310"/>
         <location filename="../src/globals/UIMessageCenter.cpp" line="+2220"/>
         <location filename="../src/widgets/UIPopupPaneButtonPane.cpp" line="+194"/>
         <source>OK</source>
@@ -302,7 +302,7 @@
 <context>
     <name>UIActionPool</name>
     <message>
-        <location filename="../src/globals/UIActionPoolManager.cpp" line="+542"/>
+        <location filename="../src/globals/UIActionPoolManager.cpp" line="+544"/>
         <location filename="../src/globals/UIActionPoolRuntime.cpp" line="+72"/>
         <source>&amp;Machine</source>
         <translation>&amp;Makina</translation>
@@ -1530,7 +1530,7 @@
         <translation type="obsolete">T&amp;xertatu Ctrl-Alt-Atzera</translation>
     </message>
     <message>
-        <location filename="../src/globals/UIActionPoolManager.cpp" line="-1272"/>
+        <location filename="../src/globals/UIActionPoolManager.cpp" line="-1274"/>
         <source>&amp;File</source>
         <comment>Mac OS X version</comment>
         <translation>&amp;Agiria</translation>
@@ -1596,7 +1596,7 @@
         <translation>Erakutsi Gain Datu Kudeatzailea leihoa</translation>
     </message>
     <message>
-        <location line="+132"/>
+        <location line="+134"/>
         <location line="+179"/>
         <source>Add existing virtual machine</source>
         <translation>Gehitu badagoen makina birtual bat</translation>
@@ -1840,7 +1840,7 @@
         <translation>Antolatu hautaturiko lehen makinaren taldea alfabetikoki</translation>
     </message>
     <message>
-        <location line="-730"/>
+        <location line="-732"/>
         <source>&amp;Host Network Manager...</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1861,7 +1861,7 @@
     </message>
     <message>
         <location line="+35"/>
-        <location line="+2395"/>
+        <location line="+2397"/>
         <source>Import</source>
         <translation type="unfinished">Inportatu</translation>
     </message>
@@ -1917,7 +1917,7 @@
         <translation type="obsolete">Erakutsi ezarpen orokor elkarrizketa</translation>
     </message>
     <message>
-        <location line="-1046"/>
+        <location line="-1048"/>
         <source>E&amp;xit</source>
         <translation>I&amp;rten</translation>
     </message>
@@ -1944,7 +1944,7 @@
         <translation type="obsolete">Berrizendatu hautaturiko makina birtual taldea</translation>
     </message>
     <message>
-        <location line="+563"/>
+        <location line="+565"/>
         <source>S&amp;tart</source>
         <translation>&amp;Hasi</translation>
     </message>
@@ -2352,12 +2352,13 @@
         <translation type="obsolete">Erakutsi VirtualBox Makina Adiera agiria Agiri Kudeatzailean</translation>
     </message>
     <message>
-        <location line="-2186"/>
+        <location line="-2366"/>
+        <location line="+180"/>
         <source>&amp;New...</source>
         <translation>&amp;Berria...</translation>
     </message>
     <message>
-        <location line="-483"/>
+        <location line="-485"/>
         <source>Display the Virtual Media Manager window</source>
         <translation>Erakutsi Multimedia Birtual Kudeatzaile leihoa</translation>
     </message>
@@ -2366,7 +2367,7 @@
         <translation type="obsolete">Erakutsi ezarpen orokorren leihoa</translation>
     </message>
     <message>
-        <location line="+520"/>
+        <location line="+522"/>
         <location line="+1319"/>
         <source>&amp;Add...</source>
         <translation>&amp;Gehitu...</translation>
@@ -3057,7 +3058,7 @@
 <context>
     <name>UIAudioControllerEditor</name>
     <message>
-        <location filename="../src/widgets/UIAudioControllerEditor.cpp" line="+56"/>
+        <location filename="../src/widgets/UIAudioControllerEditor.cpp" line="+70"/>
         <source>Audio &amp;Controller:</source>
         <translation type="unfinished">&amp;Audio Kontrolatzailea:</translation>
     </message>
@@ -3065,7 +3066,7 @@
 <context>
     <name>UIAudioHostDriverEditor</name>
     <message>
-        <location filename="../src/widgets/UIAudioHostDriverEditor.cpp" line="+56"/>
+        <location filename="../src/widgets/UIAudioHostDriverEditor.cpp" line="+70"/>
         <source>Host Audio &amp;Driver:</source>
         <translation type="unfinished">&amp;Hostalariko Audio Gidagailua:</translation>
     </message>
@@ -3110,7 +3111,7 @@
 <context>
     <name>UIChooserAbstractModel</name>
     <message>
-        <location filename="../src/manager/chooser/UIChooserAbstractModel.cpp" line="+89"/>
+        <location filename="../src/manager/chooser/UIChooserAbstractModel.cpp" line="+105"/>
         <source>New group</source>
         <translation type="unfinished">Talde berria</translation>
     </message>
@@ -3126,7 +3127,7 @@
         <translation type="obsolete">Atera taldetik</translation>
     </message>
     <message>
-        <location filename="../src/manager/chooser/UIChooserItemGroup.cpp" line="+301"/>
+        <location filename="../src/manager/chooser/UIChooserItemGroup.cpp" line="+302"/>
         <source>&lt;b&gt;%1&lt;/b&gt;</source>
         <comment>Group item tool-tip / Group name</comment>
         <translation type="unfinished">&lt;b&gt;%1&lt;/b&gt;</translation>
@@ -3197,7 +3198,7 @@
 <context>
     <name>UIChooserNodeGlobal</name>
     <message>
-        <location filename="../src/manager/chooser/UIChooserNodeGlobal.cpp" line="+148"/>
+        <location filename="../src/manager/chooser/UIChooserNodeGlobal.cpp" line="+153"/>
         <source>Tools</source>
         <translation type="unfinished"></translation>
     </message>
@@ -3205,7 +3206,7 @@
 <context>
     <name>UIChooserNodeGroup</name>
     <message>
-        <location filename="../src/manager/chooser/UIChooserNodeGroup.cpp" line="+243"/>
+        <location filename="../src/manager/chooser/UIChooserNodeGroup.cpp" line="+259"/>
         <source>Virtual Machine group</source>
         <translation type="unfinished"></translation>
     </message>
@@ -3213,7 +3214,7 @@
 <context>
     <name>UIChooserNodeMachine</name>
     <message>
-        <location filename="../src/manager/chooser/UIChooserNodeMachine.cpp" line="+163"/>
+        <location filename="../src/manager/chooser/UIChooserNodeMachine.cpp" line="+211"/>
         <source>Virtual Machine</source>
         <translation type="unfinished"></translation>
     </message>
@@ -5333,6 +5334,26 @@
         <source>Please choose a location for new virtual hard disk file</source>
         <translation type="unfinished">Mesedez hautatu diska gogor birtual agiri berriarentzako kokaleku bat</translation>
     </message>
+    <message>
+        <location filename="../src/manager/UICloudNetworkingStuff.cpp" line="+58"/>
+        <source>Acquire cloud instances ...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+84"/>
+        <source>Acquire cloud instance info ...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/manager/UIVirtualMachineItemCloud.cpp" line="+108"/>
+        <source>Pause instance ...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>Start instance ...</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UICustomFileSystemModel</name>
@@ -5864,7 +5885,7 @@
         <translation type="unfinished">%1 (%2 gaituta)</translation>
     </message>
     <message>
-        <location filename="../src/manager/details/UIDetailsElement.cpp" line="+838"/>
+        <location filename="../src/manager/details/UIDetailsElement.cpp" line="+839"/>
         <location filename="../src/snapshots/UISnapshotDetailsWidget.cpp" line="-403"/>
         <location filename="../src/globals/UIDetailsGenerator.cpp" line="+7"/>
         <source>Disabled</source>
@@ -6391,9 +6412,8 @@
 <context>
     <name>UIErrorPane</name>
     <message>
-        <location filename="../src/manager/UIErrorPane.cpp" line="+56"/>
         <source>The selected virtual machine is &lt;i&gt;inaccessible&lt;/i&gt;. Please inspect the error message shown below and press the &lt;b&gt;Refresh&lt;/b&gt; button if you want to repeat the accessibility check:</source>
-        <translation type="unfinished">Hautaturiko makina birtuala &lt;i&gt;eskuraezina&lt;/i&gt; da. Mesedez aztertu behean erakusten den akats mezua eta sakatu &lt;b&gt;Berritu&lt;/b&gt; botoia sarbidetasun egiaztapena berregitea nahi baduzu:</translation>
+        <translation type="obsolete">Hautaturiko makina birtuala &lt;i&gt;eskuraezina&lt;/i&gt; da. Mesedez aztertu behean erakusten den akats mezua eta sakatu &lt;b&gt;Berritu&lt;/b&gt; botoia sarbidetasun egiaztapena berregitea nahi baduzu:</translation>
     </message>
 </context>
 <context>
@@ -10634,12 +10654,12 @@
         <translation>handia</translation>
     </message>
     <message>
-        <location line="+533"/>
+        <location line="+530"/>
         <source>&lt;i&gt;About %1MB per 5 minute video&lt;/i&gt;</source>
         <translation>&lt;i&gt;%1MB 5 minutuko bideo inguru&lt;/i&gt;</translation>
     </message>
     <message>
-        <location line="-542"/>
+        <location line="-539"/>
         <source>kbps</source>
         <translation>kbs-ko</translation>
     </message>
@@ -10662,17 +10682,17 @@
         <translation type="vanished">MB</translation>
     </message>
     <message>
-        <location line="+264"/>
+        <location line="+278"/>
         <source>Extended Features:</source>
         <translation>Ezaugarri Hedatuak:</translation>
     </message>
     <message>
-        <location line="-144"/>
+        <location line="-156"/>
         <source>When checked, the virtual machine will be given access to the 3D graphics capabilities available on the host.</source>
         <translation>Hautatutakoan, makina birtualak sarbidea emango du hostalarian eskuragarri dauden 3D grafika gaitasunetara.</translation>
     </message>
     <message>
-        <location line="-139"/>
+        <location line="-141"/>
         <source>&amp;Screen</source>
         <translation>&amp;Ikusleihoa</translation>
     </message>
@@ -10708,12 +10728,12 @@
         <translation>Bizkorpena:</translation>
     </message>
     <message>
-        <location line="+19"/>
+        <location line="+21"/>
         <source>Enable &amp;3D Acceleration</source>
         <translation>Gaitu &amp;3D Bideo Bizkorpena</translation>
     </message>
     <message>
-        <location line="+40"/>
+        <location line="+52"/>
         <source>&amp;Remote Display</source>
         <translation>&amp;Hurruneko Erakuspena</translation>
     </message>
@@ -10907,12 +10927,12 @@
         <translation>&amp;Ikusleihoak:</translation>
     </message>
     <message>
-        <location line="-500"/>
+        <location line="-505"/>
         <source>When checked, the virtual machine will be given access to the Video Acceleration capabilities available on the host.</source>
         <translation>Hautatutakoan, makina birtualak hostalarian eskuragarri dauden Bideo Bizkorpen gaitasunetarako sarbidea emango du.</translation>
     </message>
     <message>
-        <location line="-49"/>
+        <location line="-58"/>
         <source>&amp;Graphics Controller:</source>
         <translation type="unfinished"></translation>
     </message>
@@ -10922,7 +10942,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location line="+42"/>
+        <location line="+51"/>
         <source>Enable &amp;2D Video Acceleration</source>
         <translation>Gaitu &amp;2D Bideo Bizkorpena</translation>
     </message>
@@ -10931,7 +10951,7 @@
         <translation type="obsolete">VRDP Zerbitzari ataka zenbakia. Adierazi dezakezu &lt;tt&gt;0&lt;/tt&gt; (huts), 3389 ataka hautatzeko, RDP-rako ataka estandarra.</translation>
     </message>
     <message>
-        <location line="-132"/>
+        <location line="-141"/>
         <source>Mo&amp;nitor Count:</source>
         <translation>&amp;Monitore Zenbatekoa:</translation>
     </message>
@@ -10950,7 +10970,7 @@
         <translation type="obsolete">Makina Birtualera zenbat elkarketa aldiberean baimentzen diren adierazten du.</translation>
     </message>
     <message>
-        <location line="+227"/>
+        <location line="+241"/>
         <source>&amp;Allow Multiple Connections</source>
         <translation>&amp;Ahalbidetu Elkarketa Anitz</translation>
     </message>
@@ -11805,13 +11825,13 @@
 <context>
     <name>UIMachineSettingsSerial</name>
     <message>
-        <location filename="../src/settings/machine/UIMachineSettingsSerial.cpp" line="+247"/>
+        <location filename="../src/settings/machine/UIMachineSettingsSerial.cpp" line="+255"/>
         <source>Port %1</source>
         <comment>serial ports</comment>
         <translation>Ataka %1</translation>
     </message>
     <message>
-        <location line="+232"/>
+        <location line="+260"/>
         <source>No IRQ is currently specified.</source>
         <translation>Ez dago IRQ-rik adierazita.</translation>
     </message>
@@ -11964,7 +11984,7 @@
 <context>
     <name>UIMachineSettingsStorage</name>
     <message>
-        <location filename="../src/settings/machine/UIMachineSettingsStorage.cpp" line="+1424"/>
+        <location filename="../src/settings/machine/UIMachineSettingsStorage.cpp" line="+1420"/>
         <source>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Bus:&amp;nbsp;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Type:&amp;nbsp;&amp;nbsp;%3&lt;/nobr&gt;</source>
         <translation>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Busa:&amp;nbsp;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Mota:&amp;nbsp;&amp;nbsp;%3&lt;/nobr&gt;</translation>
     </message>
@@ -12981,7 +13001,7 @@
         <translation type="obsolete">Hautaturiko USB iragazkia behera mugitzen du.</translation>
     </message>
     <message>
-        <location filename="../src/settings/machine/UIMachineSettingsUSB.cpp" line="+555"/>
+        <location filename="../src/settings/machine/UIMachineSettingsUSB.cpp" line="+567"/>
         <source>New Filter %1</source>
         <comment>usb</comment>
         <translation>Iragazki Berria %1</translation>
@@ -15916,7 +15936,7 @@
         <translation type="vanished">Makina birtualaren izena zehazten du.</translation>
     </message>
     <message>
-        <location filename="../src/widgets/UINameAndSystemEditor.cpp" line="+222"/>
+        <location filename="../src/widgets/UINameAndSystemEditor.cpp" line="+252"/>
         <source>Name:</source>
         <translation type="unfinished"></translation>
     </message>
@@ -16694,7 +16714,7 @@
 <context>
     <name>UISnapshotItem</name>
     <message>
-        <location filename="../src/snapshots/UISnapshotPane.cpp" line="+275"/>
+        <location filename="../src/snapshots/UISnapshotPane.cpp" line="+287"/>
         <source>Current State (changed)</source>
         <comment>Current State (Modified)</comment>
         <translation type="unfinished">Oraingo Egoera (aldatuta)</translation>
@@ -16842,7 +16862,7 @@
 <context>
     <name>UISoftKeyboard</name>
     <message>
-        <location filename="../src/softkeyboard/UISoftKeyboard.cpp" line="+1110"/>
+        <location filename="../src/softkeyboard/UISoftKeyboard.cpp" line="+1113"/>
         <source>Layout Editor</source>
         <translation type="unfinished"></translation>
     </message>
@@ -16958,18 +16978,18 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+2144"/>
+        <location line="+2148"/>
         <source>Layout List</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location line="-2141"/>
-        <location line="+2286"/>
+        <location line="-2145"/>
+        <location line="+2290"/>
         <source>Close the layout list</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location line="-1304"/>
+        <location line="-1303"/>
         <source>Web browser go back</source>
         <translation type="unfinished"></translation>
     </message>
@@ -17110,7 +17130,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location line="+854"/>
+        <location line="+853"/>
         <source>Settings</source>
         <translation type="unfinished">Ezarpenak</translation>
     </message>
@@ -17275,37 +17295,37 @@
 <context>
     <name>UIToolsModel</name>
     <message>
-        <location filename="../src/manager/tools/UIToolsModel.cpp" line="+460"/>
+        <location filename="../src/manager/tools/UIToolsModel.cpp" line="+450"/>
         <source>Welcome</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location line="+4"/>
+        <location line="+1"/>
         <source>Media</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location line="+4"/>
+        <location line="+1"/>
         <source>Network</source>
         <translation type="unfinished">Sarea</translation>
     </message>
     <message>
-        <location line="+5"/>
+        <location line="+1"/>
         <source>Cloud</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location line="+4"/>
+        <location line="+1"/>
         <source>Details</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location line="+4"/>
+        <location line="+1"/>
         <source>Snapshots</source>
         <translation type="unfinished">Berehalakoak</translation>
     </message>
     <message>
-        <location line="+4"/>
+        <location line="+1"/>
         <source>Logs</source>
         <translation type="unfinished"></translation>
     </message>
@@ -17321,7 +17341,7 @@
 <context>
     <name>UIUSBFilterItem</name>
     <message>
-        <location filename="../src/settings/machine/UIMachineSettingsUSB.cpp" line="-274"/>
+        <location filename="../src/settings/machine/UIMachineSettingsUSB.cpp" line="-286"/>
         <source>%1, Active</source>
         <comment>col.1 text, col.1 state</comment>
         <translation type="unfinished"></translation>
@@ -17945,25 +17965,11 @@
     </message>
 </context>
 <context>
-    <name>UIVirtualMachineItem</name>
+    <name>UIVMListView</name>
     <message>
-        <location filename="../src/manager/UIVirtualMachineItem.cpp" line="+56"/>
-        <location line="+12"/>
         <location filename="../src/manager/details/UIMachinePreview.cpp" line="-19"/>
         <source>Inaccessible</source>
-        <translation>Eskuraezina</translation>
-    </message>
-    <message>
-        <location line="+16"/>
-        <source>&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 since %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Session %4&lt;/nobr&gt;</source>
-        <comment>VM tooltip (name, last state change, session state)</comment>
-        <translation>&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 -&gt; %3-tik&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Saioa %4&lt;/nobr&gt;</translation>
-    </message>
-    <message>
-        <location line="+12"/>
-        <source>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Inaccessible since %2&lt;/nobr&gt;</source>
-        <comment>Inaccessible VM tooltip (name, last state change)</comment>
-        <translation>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Eskuraezina %2-tik&lt;/nobr&gt;</translation>
+        <translation type="unfinished">Eskuraezina</translation>
     </message>
 </context>
 <context>
@@ -18272,13 +18278,13 @@
 <context>
     <name>UIVirtualBoxManager</name>
     <message>
-        <location filename="../src/manager/UIVirtualBoxManager.cpp" line="+160"/>
+        <location filename="../src/manager/UIVirtualBoxManager.cpp" line="+161"/>
         <source>Manager</source>
         <comment>Note: main window title which is prepended by the product name.</comment>
         <translation type="unfinished">Kudeatzailea</translation>
     </message>
     <message>
-        <location line="+431"/>
+        <location line="+436"/>
         <source>Select a virtual machine file</source>
         <translation type="unfinished">Hautatu makina birtual agiria</translation>
     </message>
@@ -18288,14 +18294,76 @@
         <translation type="unfinished">Makina birtual agiriak (%1)</translation>
     </message>
     <message>
-        <location line="+123"/>
+        <location line="+126"/>
         <source>Select a destination folder to move the selected virtual machine</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/manager/UIVirtualBoxManagerWidget.cpp" line="+174"/>
+        <location filename="../src/manager/UIVirtualBoxManagerWidget.cpp" line="+177"/>
         <source>Show Toolbar Text</source>
         <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UIVirtualMachineItem</name>
+    <message>
+        <source>Inaccessible</source>
+        <translation type="vanished">Eskuraezina</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 since %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Session %4&lt;/nobr&gt;</source>
+        <comment>VM tooltip (name, last state change, session state)</comment>
+        <translation type="vanished">&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 -&gt; %3-tik&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Saioa %4&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Inaccessible since %2&lt;/nobr&gt;</source>
+        <comment>Inaccessible VM tooltip (name, last state change)</comment>
+        <translation type="vanished">&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Eskuraezina %2-tik&lt;/nobr&gt;</translation>
+    </message>
+</context>
+<context>
+    <name>UIVirtualMachineItemCloud</name>
+    <message>
+        <location filename="../src/manager/UIVirtualMachineItemCloud.cpp" line="+151"/>
+        <source>Loading ...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>Up-To-Date</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+23"/>
+        <source>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Inaccessible&lt;/nobr&gt;</source>
+        <comment>Inaccessible VM tooltip (name)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+6"/>
+        <source>Inaccessible</source>
+        <translation type="unfinished">Eskuraezina</translation>
+    </message>
+</context>
+<context>
+    <name>UIVirtualMachineItemLocal</name>
+    <message>
+        <location filename="../src/manager/UIVirtualMachineItemLocal.cpp" line="+295"/>
+        <source>&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 since %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Session %4&lt;/nobr&gt;</source>
+        <comment>VM tooltip (name, last state change, session state)</comment>
+        <translation type="unfinished">&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 -&gt; %3-tik&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Saioa %4&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <location line="+13"/>
+        <source>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Inaccessible since %2&lt;/nobr&gt;</source>
+        <comment>Inaccessible VM tooltip (name, last state change)</comment>
+        <translation type="unfinished">&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Eskuraezina %2-tik&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <location line="+7"/>
+        <location line="+1"/>
+        <source>Inaccessible</source>
+        <translation type="unfinished">Eskuraezina</translation>
     </message>
 </context>
 <context>

@@ -5336,6 +5336,22 @@
         <comment>NetworkAdapterType</comment>
         <translation>PCnet-ISA (Am79C960)</translation>
     </message>
+    <message>
+        <source>Acquire cloud instances ...</source>
+        <translation>Acquisisci istanze cloud...</translation>
+    </message>
+    <message>
+        <source>Acquire cloud instance info ...</source>
+        <translation>Acquisisci informazioni istanza cloud...</translation>
+    </message>
+    <message>
+        <source>Pause instance ...</source>
+        <translation>Sospendi istanza...</translation>
+    </message>
+    <message>
+        <source>Start instance ...</source>
+        <translation>Avvia istanza...</translation>
+    </message>
 </context>
 <context>
     <name>UICustomFileSystemModel</name>
@@ -6540,7 +6556,7 @@
     <name>UIErrorPane</name>
     <message>
         <source>The selected virtual machine is &lt;i&gt;inaccessible&lt;/i&gt;. Please inspect the error message shown below and press the &lt;b&gt;Refresh&lt;/b&gt; button if you want to repeat the accessibility check:</source>
-        <translation>La macchina virtuale selezionata è &lt;i&gt;inaccessibile&lt;/i&gt;. Controlla il messaggio d&apos;errore sottostante e premi il pulsante &lt;b&gt;Aggiorna&lt;/b&gt; se vuoi ripetere il controllo di accessibilità:</translation>
+        <translation type="vanished">La macchina virtuale selezionata è &lt;i&gt;inaccessibile&lt;/i&gt;. Controlla il messaggio d&apos;errore sottostante e premi il pulsante &lt;b&gt;Aggiorna&lt;/b&gt; se vuoi ripetere il controllo di accessibilità:</translation>
     </message>
 </context>
 <context>
@@ -21160,52 +21176,10 @@ questo passo e collegare hard disk più tardi tramite Impostazioni della MV.&lt;
     </message>
 </context>
 <context>
-    <name>UIVirtualMachineItem</name>
+    <name>UIVMListView</name>
     <message>
         <source>Inaccessible</source>
         <translation>Inaccessibile</translation>
-    </message>
-    <message>
-        <source>&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 since %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Session %4&lt;/nobr&gt;</source>
-        <comment>VM tooltip (name, last state change, session state)</comment>
-        <translation>&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 da %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Sessione %4&lt;/nobr&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Inaccessible since %2&lt;/nobr&gt;</source>
-        <comment>Inaccessible VM tooltip (name, last state change)</comment>
-        <translation>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Inaccessibile da %2&lt;/nobr&gt;</translation>
-    </message>
-    <message>
-        <source>S&amp;how</source>
-        <translation type="obsolete">&amp;Mostra</translation>
-    </message>
-    <message>
-        <source>Switch to the window of the selected virtual machine</source>
-        <translation type="obsolete">Passa alla finestra della macchina virtuale selezionata</translation>
-    </message>
-    <message>
-        <source>S&amp;tart</source>
-        <translation type="obsolete">A&amp;vvia</translation>
-    </message>
-    <message>
-        <source>Start the selected virtual machine</source>
-        <translation type="obsolete">Avvia la macchina virtuale selezionata</translation>
-    </message>
-    <message>
-        <source>R&amp;esume</source>
-        <translation type="obsolete">Ripr&amp;endi</translation>
-    </message>
-    <message>
-        <source>Resume the execution of the virtual machine</source>
-        <translation type="obsolete">Riprendi l&apos;esecuzione della macchina virtuale</translation>
-    </message>
-    <message>
-        <source>&amp;Pause</source>
-        <translation type="obsolete">&amp;Pausa</translation>
-    </message>
-    <message>
-        <source>Suspend the execution of the virtual machine</source>
-        <translation type="obsolete">Sospendi l&apos;esecuzione della macchina virtuale</translation>
     </message>
 </context>
 <context>
@@ -21568,6 +21542,92 @@ questo passo e collegare hard disk più tardi tramite Impostazioni della MV.&lt;
     <message>
         <source>Show Toolbar Text</source>
         <translation type="vanished">Mostra testo della barra degli strumenti</translation>
+    </message>
+</context>
+<context>
+    <name>UIVirtualMachineItem</name>
+    <message>
+        <source>Inaccessible</source>
+        <translation type="vanished">Inaccessibile</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 since %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Session %4&lt;/nobr&gt;</source>
+        <comment>VM tooltip (name, last state change, session state)</comment>
+        <translation type="vanished">&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 da %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Sessione %4&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Inaccessible since %2&lt;/nobr&gt;</source>
+        <comment>Inaccessible VM tooltip (name, last state change)</comment>
+        <translation type="vanished">&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Inaccessibile da %2&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>S&amp;how</source>
+        <translation type="obsolete">&amp;Mostra</translation>
+    </message>
+    <message>
+        <source>Switch to the window of the selected virtual machine</source>
+        <translation type="obsolete">Passa alla finestra della macchina virtuale selezionata</translation>
+    </message>
+    <message>
+        <source>S&amp;tart</source>
+        <translation type="obsolete">A&amp;vvia</translation>
+    </message>
+    <message>
+        <source>Start the selected virtual machine</source>
+        <translation type="obsolete">Avvia la macchina virtuale selezionata</translation>
+    </message>
+    <message>
+        <source>R&amp;esume</source>
+        <translation type="obsolete">Ripr&amp;endi</translation>
+    </message>
+    <message>
+        <source>Resume the execution of the virtual machine</source>
+        <translation type="obsolete">Riprendi l&apos;esecuzione della macchina virtuale</translation>
+    </message>
+    <message>
+        <source>&amp;Pause</source>
+        <translation type="obsolete">&amp;Pausa</translation>
+    </message>
+    <message>
+        <source>Suspend the execution of the virtual machine</source>
+        <translation type="obsolete">Sospendi l&apos;esecuzione della macchina virtuale</translation>
+    </message>
+</context>
+<context>
+    <name>UIVirtualMachineItemCloud</name>
+    <message>
+        <source>Loading ...</source>
+        <translation>Caricamento in corso...</translation>
+    </message>
+    <message>
+        <source>Up-To-Date</source>
+        <translation>Aggiornato</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Inaccessible&lt;/nobr&gt;</source>
+        <comment>Inaccessible VM tooltip (name)</comment>
+        <translation>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Inaccessibile&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>Inaccessible</source>
+        <translation>Inaccessibile</translation>
+    </message>
+</context>
+<context>
+    <name>UIVirtualMachineItemLocal</name>
+    <message>
+        <source>&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 since %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Session %4&lt;/nobr&gt;</source>
+        <comment>VM tooltip (name, last state change, session state)</comment>
+        <translation>&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 da %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Sessione %4&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Inaccessible since %2&lt;/nobr&gt;</source>
+        <comment>Inaccessible VM tooltip (name, last state change)</comment>
+        <translation>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Inaccessibile da %2&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>Inaccessible</source>
+        <translation>Inaccessibile</translation>
     </message>
 </context>
 <context>

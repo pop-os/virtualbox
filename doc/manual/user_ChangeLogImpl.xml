@@ -36,6 +36,64 @@ technical terms if no non-technical ones are clear enough.
 
 
   <sect1>
+    <title>Version 6.1.8 (2020-05-15)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+        <listitem>
+          <para>GUI: Fix several layout and mouse position handling bugs with
+            soft keyboard</para>
+        </listitem>
+
+        <listitem>
+          <para>GUI: Fixed crash on last VM removed (6.1.4 regression; bug #19568, #19525, #19506,
+            #19490, #19481, #19397)</para>
+        </listitem>
+
+        <listitem>
+          <para>GUI and API: Allow renaming VMs which are in saved state</para>
+        </listitem>
+
+        <listitem>
+          <para>Serial: Fixed slow guest output when using the TCP server mode
+            without anyone being connected</para>
+        </listitem>
+
+        <listitem>
+          <para>Guest Additions: Restored 'VBoxClient--checkhostversion'
+            functionality (6.1.0 regression; bug #19470)</para>
+        </listitem>
+
+        <listitem>
+          <para>Guest Additions: Fixed resizing and multi monitor handling for X11 guests.
+            (6.1.0 regression; bug #19496)</para>
+        </listitem>
+
+        <listitem>
+          <para>Guest Additions: Build problems fix with Oracle Linux 8.2
+	    (Red Hat compatible kernel) / Red Hat Enterprise Linux 8.2 / CentOS 8.2 (bug #19391)</para>
+        </listitem>
+
+        <listitem>
+          <para>Guest Control/VBoxManage: Fixed handling of multiple environment variables
+            supplied to 'VBoxManage guestcontrol VM run' (6.1.6/6.0.20 regression; bug #19518)</para>
+        </listitem>
+
+        <listitem>
+          <para>Guest Control: Implemented support for long(er) command lines</para>
+        </listitem>
+
+        <listitem>
+          <para>Guest Control: Various stability improvements</para>
+        </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 6.1.6 (2020-04-14)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
@@ -48,8 +106,8 @@ technical terms if no non-technical ones are clear enough.
         </listitem>
 
         <listitem>
-          <para>Graphics: Fixed multi-monitor handling bugs on X11 guests with
-              VMSVGA graphics adapter</para>
+            <para>Graphics: Fixed monitor resizing and multi-monitor handling bugs on X11 guests with
+                VMSVGA graphics adapter</para>
         </listitem>
 
         <listitem>
