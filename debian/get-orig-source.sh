@@ -40,6 +40,7 @@ rm -f  ${ORIG_TARBALL_DIR}/include/VBox/VBoxGuest.mac
 rm -f  ${ORIG_TARBALL_DIR}/src/libs/xpcom18a4/xpcom/MoreFiles/FSCopyObject.c
 rm -f  ${ORIG_TARBALL_DIR}/src/libs/xpcom18a4/xpcom/MoreFiles/FSCopyObject.h
 rm -fr ${ORIG_TARBALL_DIR}/src/libs/libpng*
+rm -fr ${ORIG_TARBALL_DIR}/src/libs/openssl*
 rm -fr ${ORIG_TARBALL_DIR}/src/libs/libxml2*
 rm -fr ${ORIG_TARBALL_DIR}/src/libs/libxslt*
 rm -fr ${ORIG_TARBALL_DIR}/src/libs/zlib*
