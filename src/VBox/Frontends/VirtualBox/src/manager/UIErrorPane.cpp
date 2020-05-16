@@ -36,7 +36,6 @@ UIErrorPane::UIErrorPane(QAction *pRefreshAction /* = 0 */, QWidget *pParent /* 
     : QIWithRetranslateUI<QWidget>(pParent)
     , m_pActionRefresh(pRefreshAction)
     , m_pButtonRefresh(0)
-    , m_pLabel(0)
     , m_pBrowserDetails(0)
 {
     /* Prepare: */
@@ -51,12 +50,6 @@ void UIErrorPane::setErrorDetails(const QString &strDetails)
 
 void UIErrorPane::retranslateUi()
 {
-    /* Translate label: */
-    if (m_pLabel)
-        m_pLabel->setText(tr("The selected virtual machine is <i>inaccessible</i>. "
-                             "Please inspect the error message shown below and press the "
-                             "<b>Refresh</b> button if you want to repeat the accessibility check:"));
-
     /* Translate refresh button: */
     if (m_pActionRefresh && m_pButtonRefresh)
     {
@@ -73,26 +66,7 @@ void UIErrorPane::prepare()
     if (pMainLayout)
     {
         /* Configure layout: */
-#ifdef VBOX_WS_MAC
-        pMainLayout->setContentsMargins(4, 5, 5, 5);
-#else
-        const int iL = qApp->style()->pixelMetric(QStyle::PM_LayoutLeftMargin) / 3;
-        const int iT = qApp->style()->pixelMetric(QStyle::PM_LayoutTopMargin) / 3;
-        const int iR = qApp->style()->pixelMetric(QStyle::PM_LayoutRightMargin) / 3;
-        pMainLayout->setContentsMargins(iL, iT, iR, 0);
-#endif
-
-        /* Create label: */
-        m_pLabel = new QLabel;
-        if (m_pLabel)
-        {
-            /* Configure label: */
-            m_pLabel->setWordWrap(true);
-            m_pLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-
-            /* Add into layout: */
-            pMainLayout->addWidget(m_pLabel);
-        }
+        pMainLayout->setContentsMargins(0, 0, 0, 0);
 
         /* Create details browser: */
         m_pBrowserDetails = new QTextBrowser;

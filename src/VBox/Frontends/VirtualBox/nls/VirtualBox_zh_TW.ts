@@ -1897,14 +1897,6 @@
         <translation>為所有網路卡產生新的 MAC 位址</translation>
     </message>
     <message>
-        <source>Include only NAT network adapter MAC addresses during cloning.</source>
-        <translation type="vanished">再製期間只包含 NAT 網路卡 MAC 位址。</translation>
-    </message>
-    <message>
-        <source>Generate new MAC addresses for all network adapters during cloning.</source>
-        <translation type="vanished">再製期間為所有網路卡產生新的 MAC 位址。</translation>
-    </message>
-    <message>
         <source>Additional Options:</source>
         <translation>額外選項:</translation>
     </message>
@@ -1913,24 +1905,20 @@
         <translation>勾選時，屬於這個應用裝置的所有硬碟磁碟機都將以 VDI 格式匯入。</translation>
     </message>
     <message>
-        <source>Include all network adapter MAC addresses during cloning.</source>
-        <translation type="vanished">再製期間包含所有網路卡 MAC 位址。</translation>
-    </message>
-    <message>
         <source>&amp;Machine Base Folder:</source>
         <translation>機器基礎資料夾(&amp;M):</translation>
     </message>
     <message>
         <source>Include all network adapter MAC addresses during importing.</source>
-        <translation type="unfinished"></translation>
+        <translation>在匯入期間包含所有網路介面卡 MAC 位址。</translation>
     </message>
     <message>
         <source>Include only NAT network adapter MAC addresses during importing.</source>
-        <translation type="unfinished"></translation>
+        <translation>在匯入期間只包含 NAT 網路介面卡 MAC 位址。</translation>
     </message>
     <message>
         <source>Generate new MAC addresses for all network adapters during importing.</source>
-        <translation type="unfinished"></translation>
+        <translation>在匯入期間為所有網路介面卡產生新的 MAC 位址。</translation>
     </message>
 </context>
 <context>
@@ -2305,7 +2293,7 @@
     <message>
         <source>Active</source>
         <comment>details report (Nested Paging)</comment>
-        <translation>啟動</translation>
+        <translation>啟用</translation>
     </message>
     <message>
         <source>Inactive</source>
@@ -2315,7 +2303,7 @@
     <message>
         <source>Active</source>
         <comment>details report (Unrestricted Execution)</comment>
-        <translation>啟動</translation>
+        <translation>啟用</translation>
     </message>
     <message>
         <source>Inactive</source>
@@ -3051,111 +3039,6 @@
         <translation>TCP</translation>
     </message>
     <message>
-        <source>Undefined</source>
-        <comment>GuestSessionStatus</comment>
-        <translation type="vanished">未定義</translation>
-    </message>
-    <message>
-        <source>Starting</source>
-        <comment>GuestSessionStatus</comment>
-        <translation type="vanished">正在開始</translation>
-    </message>
-    <message>
-        <source>Started</source>
-        <comment>GuestSessionStatus</comment>
-        <translation type="vanished">已開始</translation>
-    </message>
-    <message>
-        <source>Terminating</source>
-        <comment>GuestSessionStatus</comment>
-        <translation type="vanished">正在終止</translation>
-    </message>
-    <message>
-        <source>Terminated</source>
-        <comment>GuestSessionStatus</comment>
-        <translation type="vanished">終止</translation>
-    </message>
-    <message>
-        <source>TimedOutKilled</source>
-        <comment>GuestSessionStatus</comment>
-        <translation type="vanished">TimedOutKilled</translation>
-    </message>
-    <message>
-        <source>TimedOutAbnormally</source>
-        <comment>GuestSessionStatus</comment>
-        <translation type="vanished">TimedOutAbnormally</translation>
-    </message>
-    <message>
-        <source>Down</source>
-        <comment>GuestSessionStatus</comment>
-        <translation type="vanished">下鍵</translation>
-    </message>
-    <message>
-        <source>Error</source>
-        <comment>GuestSessionStatus</comment>
-        <translation type="vanished">錯誤</translation>
-    </message>
-    <message>
-        <source>Undefined</source>
-        <comment>ProcessStatus</comment>
-        <translation type="vanished">未定義</translation>
-    </message>
-    <message>
-        <source>Starting</source>
-        <comment>ProcessStatus</comment>
-        <translation type="vanished">正在開始</translation>
-    </message>
-    <message>
-        <source>Started</source>
-        <comment>ProcessStatus</comment>
-        <translation type="vanished">已開始</translation>
-    </message>
-    <message>
-        <source>Paused</source>
-        <comment>ProcessStatus</comment>
-        <translation type="vanished">已暫停</translation>
-    </message>
-    <message>
-        <source>Terminating</source>
-        <comment>ProcessStatus</comment>
-        <translation type="vanished">正在終止</translation>
-    </message>
-    <message>
-        <source>TerminatedNormally</source>
-        <comment>ProcessStatus</comment>
-        <translation type="vanished">正常終止</translation>
-    </message>
-    <message>
-        <source>TerminatedSignal</source>
-        <comment>ProcessStatus</comment>
-        <translation type="vanished">終止信號</translation>
-    </message>
-    <message>
-        <source>TerminatedAbnormally</source>
-        <comment>ProcessStatus</comment>
-        <translation type="vanished">異常終止</translation>
-    </message>
-    <message>
-        <source>TimedOutKilled</source>
-        <comment>ProcessStatus</comment>
-        <translation type="vanished">TimedOutKilled</translation>
-    </message>
-    <message>
-        <source>TimedOutAbnormally</source>
-        <comment>ProcessStatus</comment>
-        <translation type="vanished">TimedOutAbnormally</translation>
-    </message>
-    <message>
-        <source>Down</source>
-        <comment>ProcessStatus</comment>
-        <translation type="vanished">下鍵</translation>
-    </message>
-    <message>
-        <source>Error</source>
-        <comment>ProcessStatus</comment>
-        <translation type="vanished">錯誤</translation>
-    </message>
-    <message>
         <source>B</source>
         <comment>size suffix Bytes</comment>
         <translation>B</translation>
@@ -3871,11 +3754,27 @@
     <message>
         <source>Paravirtualized Network (virtio-net 1.0)</source>
         <comment>NetworkAdapterType</comment>
-        <translation type="unfinished"></translation>
+        <translation>Paravirtualized Network (virtio-net 1.0)</translation>
     </message>
     <message>
         <source>PCnet-ISA (Am79C960)</source>
         <comment>NetworkAdapterType</comment>
+        <translation>PCnet-ISA (Am79C960)</translation>
+    </message>
+    <message>
+        <source>Acquire cloud instances ...</source>
+        <translation type="unfinished">獲取雲端實例 ...</translation>
+    </message>
+    <message>
+        <source>Acquire cloud instance info ...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pause instance ...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Start instance ...</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -3902,24 +3801,16 @@
         <translation>權限</translation>
     </message>
     <message>
-        <source>LocalPath</source>
-        <translation type="vanished">本機路徑</translation>
-    </message>
-    <message>
         <source>Path</source>
         <translation>路徑</translation>
     </message>
     <message>
-        <source>NewDirectory</source>
-        <translation type="vanished">新目錄</translation>
-    </message>
-    <message>
         <source>New Directory</source>
-        <translation type="unfinished">新增目錄</translation>
+        <translation>新目錄</translation>
     </message>
     <message>
         <source>Local Path</source>
-        <translation type="unfinished">本機路徑</translation>
+        <translation>本機路徑</translation>
     </message>
 </context>
 <context>
@@ -4420,7 +4311,7 @@
     <name>UIErrorPane</name>
     <message>
         <source>The selected virtual machine is &lt;i&gt;inaccessible&lt;/i&gt;. Please inspect the error message shown below and press the &lt;b&gt;Refresh&lt;/b&gt; button if you want to repeat the accessibility check:</source>
-        <translation>選取的虛擬機器是 &lt;i&gt;不可存取&lt;/i&gt;。 請核閱下方顯示的錯誤訊息，如果您想要重複檢查可存取性，請按下 [&lt;b&gt;重新整理&lt;/b&gt;] 按鈕:</translation>
+        <translation type="vanished">選取的虛擬機器是 &lt;i&gt;不可存取&lt;/i&gt;。 請核閱下方顯示的錯誤訊息，如果您想要重複檢查可存取性，請按下 [&lt;b&gt;重新整理&lt;/b&gt;] 按鈕:</translation>
     </message>
 </context>
 <context>
@@ -4790,16 +4681,8 @@
         <translation>主機檔案系統</translation>
     </message>
     <message>
-        <source>No Guest Session
-Please use the Session Panel to start 
-a guest session</source>
-        <translation type="vanished">沒有客體工作階段
-請使用工作階段面板開始
-客體工作階段</translation>
-    </message>
-    <message>
         <source>No Guest Session found!&lt;br&gt;Please use the Session Panel to start a new guest session</source>
-        <translation type="unfinished"></translation>
+        <translation>找不到客體工作階段!&lt;br&gt;請使用「工作階段面板」開始新的客體工作階段</translation>
     </message>
 </context>
 <context>
@@ -4864,10 +4747,6 @@ a guest session</source>
         <translation>編輯...</translation>
     </message>
     <message>
-        <source>Assign value...</source>
-        <translation type="vanished">分配值...</translation>
-    </message>
-    <message>
         <source>Name</source>
         <translation>名稱</translation>
     </message>
@@ -4877,7 +4756,7 @@ a guest session</source>
     </message>
     <message>
         <source>Assign value ...</source>
-        <translation type="unfinished"></translation>
+        <translation>分配值 ...</translation>
     </message>
 </context>
 <context>
@@ -4958,7 +4837,7 @@ a guest session</source>
     </message>
     <message>
         <source>Active</source>
-        <translation>啟動</translation>
+        <translation>啟用</translation>
     </message>
     <message>
         <source>Name</source>
@@ -5119,7 +4998,7 @@ a guest session</source>
     <message>
         <source>Active</source>
         <comment>NAT network</comment>
-        <translation>啟動</translation>
+        <translation>啟用</translation>
     </message>
     <message>
         <source>Name</source>
@@ -5732,20 +5611,12 @@ a guest session</source>
         <translation>關閉視窗 (%1)</translation>
     </message>
     <message>
-        <source>Adding network...</source>
-        <translation type="vanished">正在加入網路...</translation>
-    </message>
-    <message>
-        <source>Removing network...</source>
-        <translation type="vanished">正在移除網路...</translation>
-    </message>
-    <message>
         <source>Adding network ...</source>
-        <translation type="unfinished"></translation>
+        <translation>正在加入網路 ...</translation>
     </message>
     <message>
         <source>Removing network ...</source>
-        <translation type="unfinished"></translation>
+        <translation>正在移除網路 ...</translation>
     </message>
 </context>
 <context>
@@ -7196,16 +7067,6 @@ a guest session</source>
         <translation>從虛擬磁碟機中移除磁碟</translation>
     </message>
     <message>
-        <source>Choose/Create a disk image...</source>
-        <comment>This is used for hard disks, optical media and floppies</comment>
-        <translation type="vanished">選擇/建立磁碟映像...</translation>
-    </message>
-    <message>
-        <source>Choose a disk file...</source>
-        <comment>This is used for selecting an existing disk file</comment>
-        <translation type="vanished">選擇磁碟檔...</translation>
-    </message>
-    <message>
         <source>PIIX3 (IDE)</source>
         <translation>PIIX3 (IDE)</translation>
     </message>
@@ -7279,7 +7140,7 @@ a guest session</source>
     </message>
     <message>
         <source>Choose/Create a disk image...</source>
-        <translation type="unfinished">選擇/建立磁碟映像...</translation>
+        <translation>選擇/建立磁碟映像...</translation>
     </message>
 </context>
 <context>
@@ -7821,10 +7682,6 @@ a guest session</source>
         <translation>選擇這個媒體的位置</translation>
     </message>
     <message>
-        <source>Moving medium...</source>
-        <translation type="vanished">移動媒體...</translation>
-    </message>
-    <message>
         <source>%1, %2: %3, %4: %5</source>
         <comment>col.1 text, col.2 name: col.2 text, col.3 name: col.3 text</comment>
         <translation>%1, %2: %3, %4: %5</translation>
@@ -7863,16 +7720,12 @@ a guest session</source>
         <translation>--</translation>
     </message>
     <message>
-        <source>Removing medium...</source>
-        <translation type="vanished">正在移除媒體...</translation>
-    </message>
-    <message>
         <source>Moving medium ...</source>
-        <translation type="unfinished"></translation>
+        <translation>正在移動媒體 ...</translation>
     </message>
     <message>
         <source>Removing medium ...</source>
-        <translation type="unfinished"></translation>
+        <translation>正在移除媒體 ...</translation>
     </message>
 </context>
 <context>
@@ -7908,10 +7761,6 @@ a guest session</source>
     <message>
         <source>Checking accessibility</source>
         <translation>正在檢查可存取性</translation>
-    </message>
-    <message>
-        <source>Moving medium...</source>
-        <translation type="vanished">移動媒體...</translation>
     </message>
     <message>
         <source>Virtual Media Manager</source>
@@ -7962,16 +7811,12 @@ a guest session</source>
         <translation>選擇這個媒體的位置</translation>
     </message>
     <message>
-        <source>Resizing medium...</source>
-        <translation type="vanished">調整媒體大小...</translation>
-    </message>
-    <message>
         <source>Moving medium ...</source>
-        <translation type="unfinished"></translation>
+        <translation>正在移動媒體 ...</translation>
     </message>
     <message>
         <source>Resizing medium ...</source>
-        <translation type="unfinished"></translation>
+        <translation>正在調整媒體大小 ...</translation>
     </message>
 </context>
 <context>
@@ -10186,12 +10031,6 @@ a guest session</source>
         <translation>提供檔案名稱</translation>
     </message>
     <message>
-        <source>The file will be saved under:
-</source>
-        <translation type="vanished">檔案將儲存在:
-</translation>
-    </message>
-    <message>
         <source> is an invalid file name</source>
         <translation> 是無效檔案名稱</translation>
     </message>
@@ -10293,7 +10132,7 @@ a guest session</source>
     </message>
     <message>
         <source>The file will be saved under:&lt;br&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>將儲存檔案在:&lt;br&gt;</translation>
     </message>
 </context>
 <context>
@@ -10614,10 +10453,6 @@ a guest session</source>
         <translation>效能監視器(&amp;M)</translation>
     </message>
     <message>
-        <source>Guest Control &amp;Session Information</source>
-        <translation type="vanished">客體控制工作機段資訊(&amp;S)</translation>
-    </message>
-    <message>
         <source>No guest additions! This metric requires guest additions to work properly.</source>
         <translation>沒有 Guest Additions! 這個指標需要 Guest Additions 才能正常工作。</translation>
     </message>
@@ -10663,7 +10498,7 @@ a guest session</source>
     </message>
     <message>
         <source>Used</source>
-        <translation>使用</translation>
+        <translation>已使用</translation>
     </message>
     <message>
         <source>Network Rate</source>
@@ -10722,10 +10557,6 @@ a guest session</source>
         <translation>螢幕解析度</translation>
     </message>
     <message>
-        <source>turned off</source>
-        <translation type="vanished">關閉</translation>
-    </message>
-    <message>
         <source>VM Uptime</source>
         <translation>VM 正常執行時間</translation>
     </message>
@@ -10754,18 +10585,6 @@ a guest session</source>
         <translation>半虛擬化介面</translation>
     </message>
     <message>
-        <source>Active</source>
-        <translation type="vanished">啟動</translation>
-    </message>
-    <message>
-        <source>Inactive</source>
-        <translation type="vanished">停用</translation>
-    </message>
-    <message>
-        <source>Not Available</source>
-        <translation type="vanished">不可用</translation>
-    </message>
-    <message>
         <source>Guest Additions</source>
         <translation>Guest Additions</translation>
     </message>
@@ -10778,65 +10597,57 @@ a guest session</source>
         <translation>遠端桌面伺服器連接埠</translation>
     </message>
     <message>
-        <source>not set</source>
-        <translation type="vanished">未設定</translation>
-    </message>
-    <message>
-        <source>Not Detected</source>
-        <translation type="vanished">未偵測到</translation>
-    </message>
-    <message>
         <source>&amp;Guest Control</source>
-        <translation type="unfinished"></translation>
+        <translation>客體控制(&amp;G)</translation>
     </message>
     <message>
         <source>turned off</source>
         <comment>Screen</comment>
-        <translation type="unfinished">關閉</translation>
+        <translation>關閉</translation>
     </message>
     <message>
         <source>Active</source>
         <comment>Nested Paging</comment>
-        <translation type="unfinished">啟動</translation>
+        <translation>啟用</translation>
     </message>
     <message>
         <source>Inactive</source>
         <comment>Nested Paging</comment>
-        <translation type="unfinished">停用</translation>
+        <translation>停用</translation>
     </message>
     <message>
         <source>Active</source>
         <comment>Unrestricted Execution</comment>
-        <translation type="unfinished">啟動</translation>
+        <translation>啟用</translation>
     </message>
     <message>
         <source>Inactive</source>
         <comment>Unrestricted Execution</comment>
-        <translation type="unfinished">停用</translation>
+        <translation>停用</translation>
     </message>
     <message>
         <source>Not Available</source>
         <comment>VRDE Port</comment>
-        <translation type="unfinished">不可用</translation>
+        <translation>不可用</translation>
     </message>
     <message>
         <source>not set</source>
         <comment>Execution Engine</comment>
-        <translation type="unfinished">未設定</translation>
+        <translation>未設定</translation>
     </message>
     <message>
         <source>Not Detected</source>
         <comment>Guest OS Type</comment>
-        <translation type="unfinished">未偵測到</translation>
+        <translation>未偵測到</translation>
     </message>
     <message>
         <source>Not Detected</source>
         <comment>Guest Additions Version</comment>
-        <translation type="unfinished">未偵測到</translation>
+        <translation>未偵測到</translation>
     </message>
 </context>
 <context>
-    <name>UIVirtualMachineItem</name>
+    <name>UIVMListView</name>
     <message>
         <source>Inaccessible</source>
         <translation>不可存取</translation>
@@ -10844,12 +10655,12 @@ a guest session</source>
     <message>
         <source>&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 since %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Session %4&lt;/nobr&gt;</source>
         <comment>VM tooltip (name, last state change, session state)</comment>
-        <translation>&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 自從 %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;工作階段 %4&lt;/nobr&gt;</translation>
+        <translation type="vanished">&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 自從 %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;工作階段 %4&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Inaccessible since %2&lt;/nobr&gt;</source>
         <comment>Inaccessible VM tooltip (name, last state change)</comment>
-        <translation>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;不可存取自從 %2&lt;/nobr&gt;</translation>
+        <translation type="vanished">&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;不可存取自從 %2&lt;/nobr&gt;</translation>
     </message>
 </context>
 <context>
@@ -11035,6 +10846,43 @@ a guest session</source>
     <message>
         <source>Show Toolbar Text</source>
         <translation>顯示工具列文字</translation>
+    </message>
+</context>
+<context>
+    <name>UIVirtualMachineItemCloud</name>
+    <message>
+        <source>Loading ...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Up-To-Date</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Inaccessible&lt;/nobr&gt;</source>
+        <comment>Inaccessible VM tooltip (name)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Inaccessible</source>
+        <translation type="unfinished">不可存取</translation>
+    </message>
+</context>
+<context>
+    <name>UIVirtualMachineItemLocal</name>
+    <message>
+        <source>&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 since %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Session %4&lt;/nobr&gt;</source>
+        <comment>VM tooltip (name, last state change, session state)</comment>
+        <translation type="unfinished">&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 自從 %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;工作階段 %4&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Inaccessible since %2&lt;/nobr&gt;</source>
+        <comment>Inaccessible VM tooltip (name, last state change)</comment>
+        <translation type="unfinished">&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;不可存取自從 %2&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>Inaccessible</source>
+        <translation type="unfinished">不可存取</translation>
     </message>
 </context>
 <context>
@@ -11596,10 +11444,6 @@ a guest session</source>
         <translation>&lt;p&gt;請選擇要將虛擬機器匯出的已註冊雲端服務帳戶之一。 請確認基礎資料表中反映的設定檔設定有效。 它們用於建立將虛擬機器檔上傳到遠端雲端設施所需的網路連線。&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>Acquire export form...</source>
-        <translation type="vanished">獲取匯出表單...</translation>
-    </message>
-    <message>
         <source>Machine Creation:</source>
         <translation>機器建立:</translation>
     </message>
@@ -11621,7 +11465,7 @@ a guest session</source>
     </message>
     <message>
         <source>Acquire export form ...</source>
-        <translation type="unfinished"></translation>
+        <translation>獲取匯出表單 ...</translation>
     </message>
 </context>
 <context>
@@ -11718,22 +11562,6 @@ a guest session</source>
         <translation>正在匯入應用裝置 ...</translation>
     </message>
     <message>
-        <source>Acquire cloud instances...</source>
-        <translation type="vanished">獲取雲端實例...</translation>
-    </message>
-    <message>
-        <source>Read appliance...</source>
-        <translation type="vanished">讀取應用裝置...</translation>
-    </message>
-    <message>
-        <source>Acquire import form...</source>
-        <translation type="vanished">獲取匯入表單...</translation>
-    </message>
-    <message>
-        <source>Please choose the source to import appliance from.  This can be a local file system to import OVF archive or one of known  cloud service providers to import cloud VM from.</source>
-        <translation type="vanished">請選擇匯入虛擬應用裝置的來源。 這可以是本機檔案系統，用於匯入 OVF 存檔，也可以是一個已知的雲端服務提供商，用於匯入雲端虛擬機器。</translation>
-    </message>
-    <message>
         <source>Local File System</source>
         <translation>本機檔案系統</translation>
     </message>
@@ -11779,38 +11607,27 @@ a guest session</source>
     </message>
     <message>
         <source>Acquire cloud instances ...</source>
-        <translation type="unfinished"></translation>
+        <translation>獲取雲端實例 ...</translation>
     </message>
     <message>
         <source>Read appliance ...</source>
-        <translation type="unfinished"></translation>
+        <translation>讀取設應用裝置 ...</translation>
     </message>
     <message>
         <source>Acquire import form ...</source>
-        <translation type="unfinished"></translation>
+        <translation>獲取匯入表單 ...</translation>
     </message>
     <message>
         <source>Please choose the source to import appliance from.  This can be a local file system to import OVF archive or one of known cloud service providers to import cloud VM from.</source>
-        <translation type="unfinished"></translation>
+        <translation>請選擇要從中匯入應用裝置的來源。 這可以是本機檔案系統，用於匯入 OVF 存檔，也可以是一個已知的雲端服務提供商，用於匯入雲端虛擬機器。</translation>
     </message>
     <message>
         <source>&amp;Source:</source>
-        <translation type="unfinished">來源(&amp;S):</translation>
-    </message>
-</context>
-<context>
-    <name>UIWizardImportAppPageBasic1</name>
-    <message>
-        <source>&amp;Source:</source>
-        <translation type="vanished">來源(&amp;S):</translation>
+        <translation>來源(&amp;S):</translation>
     </message>
 </context>
 <context>
     <name>UIWizardNewCloudVM</name>
-    <message>
-        <source>Acquire launch form...</source>
-        <translation type="vanished">獲取啟動表單...</translation>
-    </message>
     <message>
         <source>Create Cloud Machine ...</source>
         <translation>建立雲端電腦...</translation>
@@ -11822,10 +11639,6 @@ a guest session</source>
     <message>
         <source>Create</source>
         <translation>建立</translation>
-    </message>
-    <message>
-        <source>Acquire cloud images...</source>
-        <translation type="vanished">獲取雲端映像...</translation>
     </message>
     <message>
         <source>Destination to create</source>
@@ -11869,22 +11682,15 @@ a guest session</source>
     </message>
     <message>
         <source>Acquire launch form ...</source>
-        <translation type="unfinished"></translation>
+        <translation>獲取啟動表單 ...</translation>
     </message>
     <message>
         <source>Acquire cloud images ...</source>
-        <translation type="unfinished"></translation>
+        <translation>獲取雲端映像 ...</translation>
     </message>
     <message>
         <source>&amp;Destination:</source>
-        <translation type="unfinished">目的地(&amp;D):</translation>
-    </message>
-</context>
-<context>
-    <name>UIWizardNewCloudVMPageBasic1</name>
-    <message>
-        <source>&amp;Destination:</source>
-        <translation type="vanished">目的地(&amp;D):</translation>
+        <translation>目的地(&amp;D):</translation>
     </message>
 </context>
 <context>

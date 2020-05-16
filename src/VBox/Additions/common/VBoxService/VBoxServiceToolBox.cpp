@@ -519,14 +519,7 @@ static RTEXITCODE vgsvcToolboxCat(int argc, char **argv)
                     RTFileClose(hInput);
                 }
                 else
-                {
-                    PCRTSTATUSMSG pMsg = RTErrGet(rc);
-                    if (pMsg)
-                        RTMsgError("Could not open input file '%s': %s\n", pNodeIt->pszName, pMsg->pszMsgFull);
-                    else
-                        RTMsgError("Could not open input file '%s', rc=%Rrc\n", pNodeIt->pszName, rc);
-                }
-
+                    RTMsgError("Could not open input file '%s': %Rrc\n", pNodeIt->pszName, rc);
                 if (RT_FAILURE(rc))
                     break;
             }
@@ -1637,6 +1630,9 @@ static RTEXITCODE vgsvcToolboxStat(int argc, char **argv)
 
             case VERR_NET_PATH_NOT_FOUND:
                 return (RTEXITCODE)VBOXSERVICETOOLBOX_STAT_EXITCODE_NET_PATH_NOT_FOUND;
+
+            case VERR_INVALID_NAME:
+                return (RTEXITCODE)VBOXSERVICETOOLBOX_STAT_EXITCODE_INVALID_NAME;
 
             default:
 #ifdef DEBUG_andy

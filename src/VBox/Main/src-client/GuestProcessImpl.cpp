@@ -1057,12 +1057,12 @@ int GuestProcess::i_startProcessInner(uint32_t cMsTimeout, AutoWriteLock &rLock,
 
     const GuestCredentials &sessionCreds = pSession->i_getCredentials();
 
-
     /* Prepare arguments. */
     size_t cArgs = mData.mProcess.mArguments.size();
     if (cArgs >= 128*1024)
         return VERR_BUFFER_OVERFLOW;
 
+    size_t cbArgs = 0;
     char *pszArgs = NULL;
     int vrc = VINF_SUCCESS;
     if (cArgs)
@@ -1092,20 +1092,22 @@ int GuestProcess::i_startProcessInner(uint32_t cMsTimeout, AutoWriteLock &rLock,
         if (RT_FAILURE(vrc))
             return vrc;
 
-        /* Note! No returns after this. */
+        /* Note! No direct returns after this. */
     }
 
     /* Calculate arguments size (in bytes). */
-    size_t cbArgs = pszArgs ? strlen(pszArgs) + 1 : 0; /* Include terminating zero. */
+    AssertPtr(pszArgs);
+    cbArgs = strlen(pszArgs) + 1; /* Include terminating zero. */
 
     /* Prepare environment.  The guest service dislikes the empty string at the end, so drop it. */
-    size_t  cbEnvBlock;
-    char   *pszzEnvBlock;
+    size_t  cbEnvBlock   = 0;    /* Shut up MSVC. */
+    char   *pszzEnvBlock = NULL; /* Ditto. */
     vrc = mData.mProcess.mEnvironmentChanges.queryUtf8Block(&pszzEnvBlock, &cbEnvBlock);
     if (RT_SUCCESS(vrc))
     {
         Assert(cbEnvBlock > 0);
         cbEnvBlock--;
+        AssertPtr(pszzEnvBlock);
 
         /* Prepare HGCM call. */
         VBOXHGCMSVCPARM paParms[16];
