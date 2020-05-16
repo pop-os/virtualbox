@@ -1,3 +1,14 @@
+virtualbox (6.1.8-dfsg-1) unstable; urgency=medium
+
+  * Drop --display VBoxClient option
+  * Correctly call the generated and downloaded tarball
+  * Also drop openssl from upstream tarball
+  * New upstream version 6.1.8-dfsg
+  * Drop x86 patch now upstream
+  * Patch refresh for 06-xsession
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Sat, 16 May 2020 15:02:33 +0200
+
 virtualbox (6.1.6-dfsg-2) unstable; urgency=medium
 
   * Add proposed patch on ticket https://www.virtualbox.org/ticket/19494
