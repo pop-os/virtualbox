@@ -1,3 +1,10 @@
+virtualbox (6.1.8-dfsg-2) unstable; urgency=medium
+
+  * debian/patches/19590.patch:
+    - upstream proposed patch for x11/wayland resize issues.
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 04 Jun 2020 14:31:41 +0200
+
 virtualbox (6.1.8-dfsg-1) unstable; urgency=medium
 
   * Drop --display VBoxClient option
