@@ -5009,19 +5009,19 @@
     </message>
     <message>
         <source>Acquire cloud instances ...</source>
-        <translation type="unfinished">Bulut örneklerini al ...</translation>
+        <translation>Bulut örneklerini al ...</translation>
     </message>
     <message>
         <source>Acquire cloud instance info ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Bulut örneği bilgisini al ...</translation>
     </message>
     <message>
         <source>Pause instance ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Örneği duraklat ...</translation>
     </message>
     <message>
         <source>Start instance ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Örneği başlat ...</translation>
     </message>
 </context>
 <context>
@@ -19252,7 +19252,7 @@ bu basamağı atlayarak sabit diskleri Sanal Makine Ayarları penceresinden ekle
     <name>UIVMListView</name>
     <message>
         <source>Inaccessible</source>
-        <translation type="unfinished"></translation>
+        <translation>Erişilemez</translation>
     </message>
 </context>
 <context>
@@ -19638,20 +19638,20 @@ bu basamağı atlayarak sabit diskleri Sanal Makine Ayarları penceresinden ekle
     <name>UIVirtualMachineItemCloud</name>
     <message>
         <source>Loading ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Yükleniyor ...</translation>
     </message>
     <message>
         <source>Up-To-Date</source>
-        <translation type="unfinished"></translation>
+        <translation>Güncel</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Inaccessible&lt;/nobr&gt;</source>
         <comment>Inaccessible VM tooltip (name)</comment>
-        <translation type="unfinished"></translation>
+        <translation>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Erişilemez&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>Inaccessible</source>
-        <translation type="unfinished"></translation>
+        <translation>Erişilemez</translation>
     </message>
 </context>
 <context>
@@ -19659,16 +19659,16 @@ bu basamağı atlayarak sabit diskleri Sanal Makine Ayarları penceresinden ekle
     <message>
         <source>&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 since %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Session %4&lt;/nobr&gt;</source>
         <comment>VM tooltip (name, last state change, session state)</comment>
-        <translation type="unfinished"></translation>
+        <translation>&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%3 tarihinden/saatinden bu yana %2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Oturum %4&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Inaccessible since %2&lt;/nobr&gt;</source>
         <comment>Inaccessible VM tooltip (name, last state change)</comment>
-        <translation type="unfinished"></translation>
+        <translation>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 tarihinden/saatinden bu yana erişilemez&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>Inaccessible</source>
-        <translation type="unfinished"></translation>
+        <translation>Erişilemez</translation>
     </message>
 </context>
 <context>
