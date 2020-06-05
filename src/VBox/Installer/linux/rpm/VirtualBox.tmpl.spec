@@ -220,6 +220,11 @@ if [ -f $RPM_BUILD_ROOT/usr/lib/virtualbox/VBoxVolInfo ]; then
 fi
 test -f $RPM_BUILD_ROOT/usr/lib/virtualbox/VBoxSDL && \
   chmod 4511 $RPM_BUILD_ROOT/usr/lib/virtualbox/VBoxSDL
+%if %{?with_python:1}%{!?with_python:0}
+if [ -x /usr/bin/pathfix.py ]; then
+  /usr/bin/pathfix.py -pni "%{__python3} %{py3_shbang_opts}" $RPM_BUILD_ROOT/usr/lib/virtualbox/vboxshell.py
+fi
+%endif
 
 
 %pre

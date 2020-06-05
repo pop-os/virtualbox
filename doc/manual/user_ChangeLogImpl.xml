@@ -36,6 +36,51 @@ technical terms if no non-technical ones are clear enough.
 
 
   <sect1>
+    <title>Version 6.1.10 (2020-06-05)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>GUI: Fixed crash when using Qt on Xwayland sessions
+	  (bug #19583)</para>
+      </listitem>
+
+      <listitem>
+         <para>GUI: Fixed mouse pointer doesn't work properly in Windows guests
+           when scaling is on (bug #19597)</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: Fixed crash of 'VBoxManage internalcommands repairhd'
+	  when processing invalid input (bug #19579)</para>
+      </listitem>
+
+      <listitem>
+        <para>Settings: disable audio input and audio output by default for new VMs
+	  (bug #19527)</para>
+      </listitem>
+
+      <listitem>
+         <para>Guest Additions: Fixed resizing and multi monitor handling for
+           Wayland guests. (bug #19496)</para>
+      </listitem>
+
+      <listitem>
+        <para>Guest Additions: Fixed VBoxClient error: The parent session seems
+          to be non-X11. (bug #19590)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux host and guest: Linux kernel version 5.7 support. (bug #19516)</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 6.1.8 (2020-05-15)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
