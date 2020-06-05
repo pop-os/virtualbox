@@ -13,10 +13,10 @@ Index: virtualbox/src/VBox/Additions/x11/Installer/98vboxadd-xclient
 -  /usr/bin/VBoxClient --checkhostversion
 -  /usr/bin/VBoxClient --seamless
 -  /usr/bin/VBoxClient --draganddrop
--  /usr/bin/VBoxClient --vmsvga-x11  # In case VMSVGA emulation is enabled
+-  /usr/bin/VBoxClient --vmsvga  # In case VMSVGA emulation is enabled
 +  /usr/bin/VBoxClient --clipboard || true
 +  /usr/bin/VBoxClient --checkhostversion || true
 +  /usr/bin/VBoxClient --seamless || true
 +  /usr/bin/VBoxClient --draganddrop || true
-+  /usr/bin/VBoxClient --vmsvga-x11  || true # In case VMSVGA emulation is enabled
++  /usr/bin/VBoxClient --vmsvga  || true # In case VMSVGA emulation is enabled
  fi
