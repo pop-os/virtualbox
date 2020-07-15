@@ -1,8 +1,9 @@
-virtualbox (6.1.12-dfsg-1) UNRELEASED; urgency=medium
+virtualbox (6.1.12-dfsg-1) unstable; urgency=medium
 
   * New upstream version 6.1.12-dfsg (Closes: #964509)
+  * Patch refresh
 
- -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 08 Jul 2020 12:03:08 +0200
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 15 Jul 2020 10:20:42 +0200
 
 virtualbox (6.1.10-dfsg-1) unstable; urgency=medium
 
