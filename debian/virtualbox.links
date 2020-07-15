@@ -9,6 +9,7 @@
 /usr/share/virtualbox/VBox.sh /usr/bin/VBoxBalloonCtrl
 
 /usr/lib/virtualbox/vbox-img /usr/bin/vbox-img
+/usr/lib/virtualbox/vboximg-mount /usr/bin/vboximg-mount
 
 /usr/share/man/man1/VBoxHeadless.1 /usr/share/man/man1/vboxheadless.1
 /usr/share/man/man1/VBoxManage.1 /usr/share/man/man1/vboxmanage.1

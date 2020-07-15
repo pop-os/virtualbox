@@ -29,6 +29,7 @@ out/bin/vbox-img /usr/lib/virtualbox
 out/bin/webtest /usr/lib/virtualbox
 out/bin/libvboxjxpcom.so /usr/lib/virtualbox
 out/bin/vboxweb-service.sh /usr/lib/virtualbox
+out/bin/vboximg-mount /usr/lib/virtualbox
 
 out/bin/sdk/bindings/xpcom/java /usr/lib/virtualbox/sdk/bindings/xpcom
 out/bin/sdk/bindings/xpcom/python /usr/lib/virtualbox/sdk/bindings/xpcom
@@ -39,6 +40,5 @@ out/bin/UnattendedTemplates /usr/share/virtualbox
 
 debian/vboxweb.service /lib/systemd/system/
 
-out/bin/vboximg-mount /usr/bin
 out/bin/rdesktop-vrdp /usr/bin
 out/bin/rdesktop-vrdp-keymaps /usr/share/virtualbox
