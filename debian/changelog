@@ -1,3 +1,10 @@
+virtualbox (6.1.12-dfsg-2) unstable; urgency=medium
+
+  * Fix build failure, due to cloud net being enabled without corresponding
+    sources.
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 15 Jul 2020 11:08:27 +0200
+
 virtualbox (6.1.12-dfsg-1) unstable; urgency=medium
 
   * New upstream version 6.1.12-dfsg (Closes: #964509)

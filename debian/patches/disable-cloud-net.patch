@@ -1,0 +1,16 @@
+Description: Fix build failure due to missing upstream file:
+kmk: *** No rule to make target '/<<PKGBUILDDIR>>/src/VBox/Main/src-client/CloudGateway.cpp', needed by '/<<PKGBUILDDIR>>/out/obj/VBoxC/src-client/CloudGateway.o'.  Stop.
+Author: Gianfranco Costamagna <locutusofborg@debian.org>
+Last-Update: 2020-07-15
+
+--- virtualbox-6.1.12-dfsg.orig/Config.kmk
++++ virtualbox-6.1.12-dfsg/Config.kmk
+@@ -802,7 +802,7 @@ endif
+ # Use new VBoxNetDhcpd instead of old VBoxNetDHCP
+ VBOX_WITH_DHCPD = 1
+ # Experimental suport for cloud network integration
+-VBOX_WITH_CLOUD_NET = 1
++#VBOX_WITH_CLOUD_NET = 1
+ ## @}
+ 
+ 
