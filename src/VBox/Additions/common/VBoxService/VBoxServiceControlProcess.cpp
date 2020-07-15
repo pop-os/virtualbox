@@ -252,40 +252,43 @@ int VGSvcGstCtrlProcessWait(const PVBOXSERVICECTRLPROCESS pProcess, RTMSINTERVAL
     AssertPtrNullReturn(prc, VERR_INVALID_POINTER);
 
     int rc = vgsvcGstCtrlProcessLock(pProcess);
-    if (   RT_SUCCESS(rc)
-        && pProcess->Thread != NIL_RTTHREAD) /* Is there a thread we can wait for? */
+    if (RT_SUCCESS(rc))
     {
-        VGSvcVerbose(2, "[PID %RU32]: Waiting for shutdown (%RU32ms) ...\n", pProcess->uPID, msTimeout);
-
-        AssertMsgReturn(pProcess->fStarted,
-                        ("Tried to wait on guest process=%p (PID %RU32) which has not been started yet\n",
-                         pProcess, pProcess->uPID), VERR_INVALID_PARAMETER);
-
-        /* Unlock process before waiting. */
-        rc = vgsvcGstCtrlProcessUnlock(pProcess);
-        AssertRC(rc);
-
-        /* Do the actual waiting. */
-        int rcThread;
-        Assert(pProcess->Thread != NIL_RTTHREAD);
-        rc = RTThreadWait(pProcess->Thread, msTimeout, &rcThread);
-
-        int rc2 = vgsvcGstCtrlProcessLock(pProcess);
-        AssertRC(rc2);
-
-        if (RT_SUCCESS(rc))
+        if (RTThreadGetState(pProcess->Thread) != RTTHREADSTATE_INVALID) /* Is there a thread we can wait for? */
         {
-            pProcess->Thread = NIL_RTTHREAD;
-            VGSvcVerbose(3, "[PID %RU32]: Thread shutdown complete, thread rc=%Rrc\n", pProcess->uPID, rcThread);
-            if (prc)
-                *prc = rcThread;
-        }
-        else
-            VGSvcError("[PID %RU32]: Waiting for shutting down thread returned error rc=%Rrc\n", pProcess->uPID, rc);
+            VGSvcVerbose(2, "[PID %RU32]: Waiting for shutdown (%RU32ms) ...\n", pProcess->uPID, msTimeout);
 
-        rc2 = vgsvcGstCtrlProcessUnlock(pProcess);
+            AssertMsgReturn(pProcess->fStarted,
+                            ("Tried to wait on guest process=%p (PID %RU32) which has not been started yet\n",
+                             pProcess, pProcess->uPID), VERR_INVALID_PARAMETER);
+
+            /* Unlock process before waiting. */
+            rc = vgsvcGstCtrlProcessUnlock(pProcess);
+            AssertRC(rc);
+
+            /* Do the actual waiting. */
+            int rcThread;
+            Assert(pProcess->Thread != NIL_RTTHREAD);
+            rc = RTThreadWait(pProcess->Thread, msTimeout, &rcThread);
+
+            int rc2 = vgsvcGstCtrlProcessLock(pProcess);
+            AssertRC(rc2);
+
+            if (RT_SUCCESS(rc))
+            {
+                pProcess->Thread = NIL_RTTHREAD;
+                VGSvcVerbose(3, "[PID %RU32]: Thread shutdown complete, thread rc=%Rrc\n", pProcess->uPID, rcThread);
+                if (prc)
+                    *prc = rcThread;
+            }
+        }
+
+        int rc2 = vgsvcGstCtrlProcessUnlock(pProcess);
         AssertRC(rc2);
     }
+
+    if (RT_FAILURE(rc))
+        VGSvcError("[PID %RU32]: Waiting for shutting down thread returned error rc=%Rrc\n", pProcess->uPID, rc);
 
     VGSvcVerbose(3, "[PID %RU32]: Waiting resulted in rc=%Rrc\n", pProcess->uPID, rc);
     return rc;
@@ -1851,6 +1854,7 @@ int VGSvcGstCtrlProcessStart(const PVBOXSERVICECTRLSESSION pSession,
             VGSvcError("Creating thread for guest process '%s' failed: rc=%Rrc, pProcess=%p\n",
                        pStartupInfo->pszCmd, rc, pProcess);
 
+            /* Process has not been added to the session's process list yet, so skip VGSvcGstCtrlSessionProcessRemove() here. */
             VGSvcGstCtrlProcessFree(pProcess);
         }
         else
@@ -1868,6 +1872,8 @@ int VGSvcGstCtrlProcessStart(const PVBOXSERVICECTRLSESSION pSession,
                 int rc2 = RTThreadWait(pProcess->Thread, RT_MS_1SEC * 30, NULL);
                 if (RT_SUCCESS(rc2))
                     pProcess->Thread = NIL_RTTHREAD;
+
+                VGSvcGstCtrlSessionProcessRemove(pSession, pProcess);
                 VGSvcGstCtrlProcessFree(pProcess);
             }
             else

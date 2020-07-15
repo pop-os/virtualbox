@@ -4765,7 +4765,7 @@ static DECLCALLBACK(void *) vgaR3PortQueryInterface(PPDMIBASE pInterface, const 
     PVGASTATECC pThisCC = RT_FROM_MEMBER(pInterface, VGASTATECC, IBase);
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pThisCC->IBase);
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMIDISPLAYPORT, &pThisCC->IPort);
-# if defined(VBOX_WITH_HGSMI) && (defined(VBOX_WITH_VIDEOHWACCEL) || defined(VBOX_WITH_CRHGSMI))
+# if defined(VBOX_WITH_HGSMI) && defined(VBOX_WITH_VIDEOHWACCEL)
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMIDISPLAYVBVACALLBACKS, &pThisCC->IVBVACallbacks);
 # endif
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMILEDPORTS, &pThisCC->ILeds);
@@ -6186,6 +6186,20 @@ static DECLCALLBACK(void) vgaR3PowerOn(PPDMDEVINS pDevIns)
 
 
 /**
+ * @interface_method_impl{PDMDEVREG,pfnPowerOff}
+ */
+static DECLCALLBACK(void) vgaR3PowerOff(PPDMDEVINS pDevIns)
+{
+    PVGASTATE   pThis = PDMDEVINS_2_DATA(pDevIns, PVGASTATE);
+    PVGASTATECC pThisCC = PDMDEVINS_2_DATA_CC(pDevIns, PVGASTATECC);
+    RT_NOREF(pThis, pThisCC);
+# ifdef VBOX_WITH_VMSVGA
+    vmsvgaR3PowerOff(pDevIns);
+# endif
+}
+
+
+/**
  * @interface_method_impl{PDMDEVREG,pfnRelocate}
  */
 static DECLCALLBACK(void) vgaR3Relocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta)
@@ -6590,20 +6604,18 @@ static DECLCALLBACK(int)   vgaR3Construct(PPDMDEVINS pDevIns, int iInstance, PCF
     pThisCC->IPort.pfnUpdateDisplayRect = vgaR3PortUpdateDisplayRect;
     pThisCC->IPort.pfnCopyRect          = vgaR3PortCopyRect;
     pThisCC->IPort.pfnSetRenderVRAM     = vgaR3PortSetRenderVRAM;
-# ifdef VBOX_WITH_VMSVGA
-    pThisCC->IPort.pfnSetViewport       = vmsvgaR3PortSetViewport;
-# else
     pThisCC->IPort.pfnSetViewport       = NULL;
+    pThisCC->IPort.pfnReportMonitorPositions = NULL;
+# ifdef VBOX_WITH_VMSVGA
+    if (pThis->fVMSVGAEnabled)
+    {
+        pThisCC->IPort.pfnSetViewport = vmsvgaR3PortSetViewport;
+        pThisCC->IPort.pfnReportMonitorPositions = vmsvgaR3PortReportMonitorPositions;
+    }
 # endif
     pThisCC->IPort.pfnSendModeHint      = vbvaR3PortSendModeHint;
     pThisCC->IPort.pfnReportHostCursorCapabilities = vgaR3PortReportHostCursorCapabilities;
     pThisCC->IPort.pfnReportHostCursorPosition = vgaR3PortReportHostCursorPosition;
-# ifdef VBOX_WITH_VMSVGA
-    pThisCC->IPort.pfnReportMonitorPositions = vmsvgaR3PortReportMonitorPositions;
-# else
-    pThisCC->IPort.pfnReportMonitorPositions = NULL;
-# endif
-
 
 # if defined(VBOX_WITH_HGSMI) && defined(VBOX_WITH_VIDEOHWACCEL)
     pThisCC->IVBVACallbacks.pfnVHWACommandCompleteAsync = vbvaR3VHWACommandCompleteAsync;
@@ -7445,7 +7457,7 @@ const PDMDEVREG g_DeviceVga =
     /* .pfnDetach = */              vgaDetach,
     /* .pfnQueryInterface = */      NULL,
     /* .pfnInitComplete = */        NULL,
-    /* .pfnPowerOff = */            NULL,
+    /* .pfnPowerOff = */            vgaR3PowerOff,
     /* .pfnSoftReset = */           NULL,
     /* .pfnReserved0 = */           NULL,
     /* .pfnReserved1 = */           NULL,

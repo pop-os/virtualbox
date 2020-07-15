@@ -12,6 +12,7 @@
  *  - LogRel for the usual important stuff.
  *  - LogRel2 for cursor.
  *  - LogRel3 for 3D performance data.
+ *  - LogRel4 for HW accelerated graphics output.
  */
 
 /*
@@ -167,6 +168,11 @@
 # include "DevVGA-SVGA3d.h"
 # ifdef RT_OS_DARWIN
 #  include "DevVGA-SVGA3d-cocoa.h"
+# endif
+# ifdef RT_OS_LINUX
+#  ifdef IN_RING3
+#include "DevVGA-SVGA3d-glLdr.h"
+#  endif
 # endif
 #endif
 
@@ -567,6 +573,20 @@ VMSVGASCREENOBJECT *vmsvgaR3GetScreenObject(PVGASTATECC pThisCC, uint32_t idScre
     }
     return NULL;
 }
+
+void vmsvgaR3ResetScreens(PVGASTATECC pThisCC)
+{
+# ifdef VBOX_WITH_VMSVGA3D
+    for (uint32_t idScreen = 0; idScreen < (uint32_t)RT_ELEMENTS(pThisCC->svga.pSvgaR3State->aScreens); ++idScreen)
+    {
+        VMSVGASCREENOBJECT *pScreen = vmsvgaR3GetScreenObject(pThisCC, idScreen);
+        if (pScreen)
+            vmsvga3dDestroyScreen(pThisCC, pScreen);
+    }
+# else
+    RT_NOREF(pThisCC);
+# endif
+}
 #endif /* IN_RING3 */
 
 #ifdef LOG_ENABLED
@@ -842,9 +862,8 @@ DECLCALLBACK(void) vmsvgaR3PortReportMonitorPositions(PPDMIDISPLAYPORT pInterfac
 {
     PVGASTATECC pThisCC = RT_FROM_MEMBER(pInterface, VGASTATECC, IPort);
     PVGASTATE   pThis   = PDMDEVINS_2_DATA(pThisCC->pDevIns, PVGASTATE);
-
-
     PVMSVGAR3STATE  pSVGAState = pThisCC->svga.pSvgaR3State;
+    AssertReturnVoid(pSVGAState);
     size_t cScreenCount = RT_ELEMENTS(pSVGAState->aScreens);
 
     VMSVGASCREENOBJECT *pScreens = pSVGAState->aScreens;
@@ -2955,6 +2974,8 @@ static void vmsvgaR3FifoHandleExtCmd(PPDMDEVINS pDevIns, PVGASTATE pThis, PVGAST
         case VMSVGA_FIFO_EXTCMD_RESET:
             Log(("vmsvgaR3FifoLoop: reset the fifo thread.\n"));
             Assert(pThisCC->svga.pvFIFOExtCmdParam == NULL);
+
+            vmsvgaR3ResetScreens(pThisCC);
 # ifdef VBOX_WITH_VMSVGA3D
             if (pThis->svga.f3DEnabled)
             {
@@ -2962,6 +2983,14 @@ static void vmsvgaR3FifoHandleExtCmd(PPDMDEVINS pDevIns, PVGASTATE pThis, PVGAST
                 vmsvga3dReset(pThisCC);
             }
 # endif
+            break;
+
+        case VMSVGA_FIFO_EXTCMD_POWEROFF:
+            Log(("vmsvgaR3FifoLoop: power off.\n"));
+            Assert(pThisCC->svga.pvFIFOExtCmdParam == NULL);
+
+            /* The screens must be reset on the FIFO thread, because they may use 3D resources. */
+            vmsvgaR3ResetScreens(pThisCC);
             break;
 
         case VMSVGA_FIFO_EXTCMD_TERMINATE:
@@ -3095,7 +3124,7 @@ static int vmsvgaR3RunExtCmdOnFifoThread(PPDMDEVINS pDevIns, PVGASTATE pThis, PV
          * We ASSUME not racing code here, both wrt thread state and ext commands.
          */
         Log(("vmsvgaR3RunExtCmdOnFifoThread: uExtCmd=%d enmState=RUNNING\n", uExtCmd));
-        Assert(uExtCmd == VMSVGA_FIFO_EXTCMD_RESET || uExtCmd == VMSVGA_FIFO_EXTCMD_UPDATE_SURFACE_HEAP_BUFFERS);
+        Assert(uExtCmd == VMSVGA_FIFO_EXTCMD_RESET || uExtCmd == VMSVGA_FIFO_EXTCMD_UPDATE_SURFACE_HEAP_BUFFERS || uExtCmd == VMSVGA_FIFO_EXTCMD_POWEROFF);
 
         /* Post the request. */
         pThisCC->svga.pvFIFOExtCmdParam = pvParam;
@@ -3482,6 +3511,14 @@ static DECLCALLBACK(int) vmsvgaR3FifoLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread
     PVGASTATER3     pThisCC    = PDMDEVINS_2_DATA_CC(pDevIns, PVGASTATECC);
     PVMSVGAR3STATE  pSVGAState = pThisCC->svga.pSvgaR3State;
     int             rc;
+
+# if defined(VBOX_WITH_VMSVGA3D) && defined(RT_OS_LINUX)
+    if (pThis->svga.f3DEnabled)
+    {
+        /* The FIFO thread may use X API for accelerated screen output. */
+        XInitThreads();
+    }
+# endif
 
     if (pThread->enmState == PDMTHREADSTATE_INITIALIZING)
         return VINF_SUCCESS;
@@ -4164,6 +4201,11 @@ static DECLCALLBACK(int) vmsvgaR3FifoLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread
 
                 pThis->svga.fGFBRegisters = false;
                 vmsvgaR3ChangeMode(pThis, pThisCC);
+
+# ifdef VBOX_WITH_VMSVGA3D
+                if (RT_LIKELY(pThis->svga.f3DEnabled))
+                    vmsvga3dDefineScreen(pThisCC, pScreen);
+# endif
                 break;
             }
 
@@ -4184,6 +4226,10 @@ static DECLCALLBACK(int) vmsvgaR3FifoLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread
                 pScreen->fDefined  = false;
                 pScreen->idScreen  = idScreen;
 
+# ifdef VBOX_WITH_VMSVGA3D
+                if (RT_LIKELY(pThis->svga.f3DEnabled))
+                    vmsvga3dDestroyScreen(pThisCC, pScreen);
+# endif
                 vmsvgaR3ChangeMode(pThis, pThisCC);
                 break;
             }
@@ -4498,6 +4544,9 @@ static DECLCALLBACK(int) vmsvgaR3FifoLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread
                         VMSVGAFIFO_CHECK_3D_CMD_MIN_SIZE_BREAK(sizeof(*pCmd));
                         STAM_REL_COUNTER_INC(&pSVGAState->StatR3Cmd3dSurfaceScreen);
 
+                        static uint64_t u64FrameStartNanoTS = 0;
+                        static uint64_t u64ElapsedPerSecNano = 0;
+                        static int cFrames = 0;
                         uint64_t u64NanoTS = 0;
                         if (LogRelIs3Enabled())
                             u64NanoTS = RTTimeNanoTS();
@@ -4508,11 +4557,24 @@ static DECLCALLBACK(int) vmsvgaR3FifoLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread
                         STAM_REL_PROFILE_STOP(&pSVGAState->StatR3Cmd3dBlitSurfaceToScreenProf, a);
                         if (LogRelIs3Enabled())
                         {
+                            uint64_t u64ElapsedNano = RTTimeNanoTS() - u64NanoTS;
+                            u64ElapsedPerSecNano += u64ElapsedNano;
+
                             SVGASignedRect *pFirstRect = cRects ? (SVGASignedRect *)(pCmd + 1) : &pCmd->destRect;
                             LogRel3(("VMSVGA: SURFACE_TO_SCREEN: %d us %d rects %d,%d %dx%d\n",
-                                (RTTimeNanoTS() - u64NanoTS) / 1000ULL, cRects,
+                                (u64ElapsedNano) / 1000ULL, cRects,
                                 pFirstRect->left, pFirstRect->top,
                                 pFirstRect->right - pFirstRect->left, pFirstRect->bottom - pFirstRect->top));
+
+                            ++cFrames;
+                            if (u64NanoTS - u64FrameStartNanoTS >= UINT64_C(1000000000))
+                            {
+                                LogRel3(("VMSVGA: SURFACE_TO_SCREEN: FPS %d, elapsed %llu us\n",
+                                         cFrames, u64ElapsedPerSecNano / 1000ULL));
+                                u64FrameStartNanoTS = u64NanoTS;
+                                cFrames = 0;
+                                u64ElapsedPerSecNano = 0;
+                            }
                         }
                         break;
                     }
@@ -6575,6 +6637,29 @@ DECLCALLBACK(void) vmsvgaR3PowerOn(PPDMDEVINS pDevIns)
 # else  /* !VBOX_WITH_VMSVGA3D */
     RT_NOREF(pDevIns);
 # endif /* !VBOX_WITH_VMSVGA3D */
+}
+
+/**
+ * Power Off notification.
+ *
+ * @param   pDevIns     The device instance data.
+ *
+ * @remarks Caller enters the device critical section.
+ */
+DECLCALLBACK(void) vmsvgaR3PowerOff(PPDMDEVINS pDevIns)
+{
+    PVGASTATE   pThis   = PDMDEVINS_2_DATA(pDevIns, PVGASTATE);
+    PVGASTATECC pThisCC = PDMDEVINS_2_DATA_CC(pDevIns, PVGASTATECC);
+
+    /*
+     * Notify the FIFO thread.
+     */
+    if (pThisCC->svga.pFIFOIOThread)
+    {
+        int rc = vmsvgaR3RunExtCmdOnFifoThread(pDevIns, pThis, pThisCC,  VMSVGA_FIFO_EXTCMD_POWEROFF,
+                                               NULL /*pvParam*/, 30000 /*ms*/);
+        AssertLogRelRC(rc);
+    }
 }
 
 #endif /* IN_RING3 */

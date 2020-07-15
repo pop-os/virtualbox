@@ -1926,8 +1926,13 @@ int vmsvga3dBackCreateTexture(PVMSVGA3DSTATE pState, PVMSVGA3DCONTEXT pContext, 
                                                   D3DPOOL_SYSTEMMEM,
                                                   &pSurface->bounce.pTexture,
                                                   NULL);
-            AssertMsgReturn(hr == D3D_OK, ("CreateTexture (systemmem) failed with %x\n", hr), VERR_INTERNAL_ERROR);
+
+            AssertMsgReturnStmt(hr == D3D_OK,
+                ("CreateTexture (systemmem) failed with %x\n", hr),
+                D3D_RELEASE(pSurface->u.pTexture),
+                VERR_INTERNAL_ERROR);
         }
+
         AssertMsgReturn(hr == D3D_OK, ("CreateTexture INTZ failed with %x\n", hr), VERR_INTERNAL_ERROR);
 
         pSurface->fStencilAsTexture = true;
@@ -2788,6 +2793,26 @@ int vmsvga3dContextDestroy(PVGASTATECC pThisCC, uint32_t cid)
         AssertFailed();
 
     return VINF_SUCCESS;
+}
+
+int vmsvga3dBackDefineScreen(PVGASTATECC pThisCC, VMSVGASCREENOBJECT *pScreen)
+{
+    RT_NOREF(pThisCC, pScreen);
+    return VERR_NOT_IMPLEMENTED;
+}
+
+int vmsvga3dBackDestroyScreen(PVGASTATECC pThisCC, VMSVGASCREENOBJECT *pScreen)
+{
+    RT_NOREF(pThisCC, pScreen);
+    return VERR_NOT_IMPLEMENTED;
+}
+
+int vmsvga3dBackSurfaceBlitToScreen(PVGASTATECC pThisCC, VMSVGASCREENOBJECT *pScreen,
+                                    SVGASignedRect destRect, SVGA3dSurfaceImageId srcImage,
+                                    SVGASignedRect srcRect, uint32_t cRects, SVGASignedRect *paRects)
+{
+    RT_NOREF(pThisCC, pScreen, destRect, srcImage, srcRect, cRects, paRects);
+    return VERR_NOT_IMPLEMENTED;
 }
 
 static int vmsvga3dContextTrackUsage(PVGASTATECC pThisCC, PVMSVGA3DCONTEXT pContext)
