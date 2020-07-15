@@ -39,5 +39,6 @@ out/bin/UnattendedTemplates /usr/share/virtualbox
 
 debian/vboxweb.service /lib/systemd/system/
 
+out/bin/vboximg-mount /usr/bin
 out/bin/rdesktop-vrdp /usr/bin
 out/bin/rdesktop-vrdp-keymaps /usr/share/virtualbox

@@ -1,3 +1,9 @@
+virtualbox (6.1.12-dfsg-3) unstable; urgency=medium
+
+  * Enable vboximg-mount builds
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 15 Jul 2020 13:37:52 +0200
+
 virtualbox (6.1.12-dfsg-2) unstable; urgency=medium
 
   * Fix build failure, due to cloud net being enabled without corresponding
