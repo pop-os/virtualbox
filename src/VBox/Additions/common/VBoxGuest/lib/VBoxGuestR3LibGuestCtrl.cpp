@@ -507,6 +507,13 @@ VBGLR3DECL(int) VbglR3GuestCtrlMsgFilterSet(uint32_t idClient, uint32_t uValue, 
 }
 
 
+/**
+ * Replies to a message from the host.
+ *
+ * @returns VBox status code.
+ * @param   pCtx                Guest control command context to use.
+ * @param   rc                  Guest rc to reply.
+ */
 VBGLR3DECL(int) VbglR3GuestCtrlMsgReply(PVBGLR3GUESTCTRLCMDCTX pCtx,
                                         int rc)
 {
@@ -515,6 +522,16 @@ VBGLR3DECL(int) VbglR3GuestCtrlMsgReply(PVBGLR3GUESTCTRLCMDCTX pCtx,
 }
 
 
+/**
+ * Replies to a message from the host, extended version.
+ *
+ * @returns VBox status code.
+ * @param   pCtx                Guest control command context to use.
+ * @param   rc                  Guest rc to reply.
+ * @param   uType               Reply type; not used yet and must be 0.
+ * @param   pvPayload           Pointer to data payload to reply. Optional.
+ * @param   cbPayload           Size of data payload (in bytes) to reply.
+ */
 VBGLR3DECL(int) VbglR3GuestCtrlMsgReplyEx(PVBGLR3GUESTCTRLCMDCTX pCtx,
                                           int rc, uint32_t uType,
                                           void *pvPayload, uint32_t cbPayload)
@@ -687,9 +704,8 @@ VBGLR3DECL(int) VbglR3GuestCtrlSessionHasChanged(uint32_t idClient, uint64_t idN
  * Asks a specific guest session to close.
  *
  * @return  IPRT status code.
- * @param   pCtx                    Host context.
+ * @param   pCtx                    Guest control command context to use.
  * @param   fFlags                  Some kind of flag. Figure it out yourself.
- ** @todo Docs!
  */
 VBGLR3DECL(int) VbglR3GuestCtrlSessionClose(PVBGLR3GUESTCTRLCMDCTX pCtx, uint32_t fFlags)
 {
@@ -705,6 +721,14 @@ VBGLR3DECL(int) VbglR3GuestCtrlSessionClose(PVBGLR3GUESTCTRLCMDCTX pCtx, uint32_
 }
 
 
+/**
+ * Notifies a guest session.
+ *
+ * @returns VBox status code.
+ * @param   pCtx                    Guest control command context to use.
+ * @param   uType                   Notification type of type GUEST_SESSION_NOTIFYTYPE_XXX.
+ * @param   iResult                 Result code (rc) to notify.
+ */
 VBGLR3DECL(int) VbglR3GuestCtrlSessionNotify(PVBGLR3GUESTCTRLCMDCTX pCtx, uint32_t uType, int32_t iResult)
 {
     AssertPtrReturn(pCtx, VERR_INVALID_POINTER);
@@ -767,8 +791,8 @@ VBGLR3DECL(int)  VbglR3GuestCtrlSessionStartupInfoInitEx(PVBGLR3GUESTCTRLSESSION
 VBGLR3DECL(int) VbglR3GuestCtrlSessionStartupInfoInit(PVBGLR3GUESTCTRLSESSIONSTARTUPINFO pStartupInfo)
 {
     return VbglR3GuestCtrlSessionStartupInfoInitEx(pStartupInfo,
-                                                   GUESTPROCESS_MAX_USER_LEN, GUESTPROCESS_MAX_PASSWORD_LEN,
-                                                   GUESTPROCESS_MAX_DOMAIN_LEN);
+                                                   GUESTPROCESS_DEFAULT_USER_LEN, GUESTPROCESS_DEFAULT_PASSWORD_LEN,
+                                                   GUESTPROCESS_DEFAULT_DOMAIN_LEN);
 }
 
 /**
@@ -1087,10 +1111,11 @@ VBGLR3DECL(int) VbglR3GuestCtrlProcStartupInfoInitEx(PVBGLR3GUESTCTRLPROCSTARTUP
 VBGLR3DECL(int) VbglR3GuestCtrlProcStartupInfoInit(PVBGLR3GUESTCTRLPROCSTARTUPINFO pStartupInfo)
 {
     return VbglR3GuestCtrlProcStartupInfoInitEx(pStartupInfo,
-                                                GUESTPROCESS_MAX_CMD_LEN,
-                                                GUESTPROCESS_MAX_USER_LEN,  GUESTPROCESS_MAX_PASSWORD_LEN,
-                                                GUESTPROCESS_MAX_DOMAIN_LEN,
-                                                GUESTPROCESS_MAX_ARGS_LEN, GUESTPROCESS_MAX_ENV_LEN);
+                                                GUESTPROCESS_DEFAULT_CMD_LEN,
+                                                GUESTPROCESS_DEFAULT_USER_LEN     /* Deprecated, now handled via session creation. */,
+                                                GUESTPROCESS_DEFAULT_PASSWORD_LEN /* Ditto. */,
+                                                GUESTPROCESS_DEFAULT_DOMAIN_LEN   /* Ditto. */,
+                                                GUESTPROCESS_DEFAULT_ARGS_LEN, GUESTPROCESS_DEFAULT_ENV_LEN);
 }
 
 /**
@@ -1214,8 +1239,9 @@ VBGLR3DECL(int) VbglR3GuestCtrlProcGetStart(PVBGLR3GUESTCTRLCMDCTX pCtx, PVBGLR3
         return rc;
     }
 
-    unsigned cRetries = 0;
-    unsigned cGrowthFactor = 2;
+    unsigned       cRetries      = 0;
+    const unsigned cMaxRetries   = 32; /* Should be enough for now. */
+    const unsigned cGrowthFactor = 2;  /* By how much the buffers will grow if they're too small yet. */
 
     do
     {
@@ -1247,20 +1273,20 @@ VBGLR3DECL(int) VbglR3GuestCtrlProcGetStart(PVBGLR3GUESTCTRLCMDCTX pCtx, PVBGLR3
         if (RT_FAILURE(rc))
         {
             if (   rc == VERR_BUFFER_OVERFLOW
-                && cRetries++ < 4)
+                && cRetries++ < cMaxRetries)
             {
 #define GROW_STR(a_Str, a_cbMax) \
         pStartupInfo->psz##a_Str = (char *)RTMemRealloc(pStartupInfo->psz##a_Str, \
-           RT_MAX(pStartupInfo->cb##a_Str * cGrowthFactor, a_cbMax)); \
+           RT_MIN(pStartupInfo->cb##a_Str * cGrowthFactor, a_cbMax)); \
         AssertPtrBreakStmt(pStartupInfo->psz##a_Str, VERR_NO_MEMORY); \
-        pStartupInfo->cb##a_Str  = RT_MAX(pStartupInfo->cb##a_Str * cGrowthFactor, a_cbMax);
+        pStartupInfo->cb##a_Str  = RT_MIN(pStartupInfo->cb##a_Str * cGrowthFactor, a_cbMax);
 
+                /* We can't tell which parameter doesn't fit, so we have to resize all. */
                 GROW_STR(Cmd , GUESTPROCESS_MAX_CMD_LEN);
                 GROW_STR(Args, GUESTPROCESS_MAX_ARGS_LEN);
                 GROW_STR(Env,  GUESTPROCESS_MAX_ENV_LEN);
 
 #undef GROW_STR
-                cGrowthFactor *= cGrowthFactor;
             }
             else
                 break;
@@ -1281,7 +1307,8 @@ VBGLR3DECL(int) VbglR3GuestCtrlProcGetStart(PVBGLR3GUESTCTRLCMDCTX pCtx, PVBGLR3
                 Msg.u.v2.num_affinity.GetUInt32(&pStartupInfo->cAffinity);
             }
         }
-    } while (rc == VERR_INTERRUPTED && g_fVbglR3GuestCtrlHavePeekGetCancel);
+    } while ((   rc == VERR_INTERRUPTED
+              || rc == VERR_BUFFER_OVERFLOW) && g_fVbglR3GuestCtrlHavePeekGetCancel);
 
     if (RT_SUCCESS(rc))
     {
@@ -1295,12 +1322,15 @@ VBGLR3DECL(int) VbglR3GuestCtrlProcGetStart(PVBGLR3GUESTCTRLCMDCTX pCtx, PVBGLR3
 }
 
 /**
- * Allocates and gets host data, based on the message id.
+ * Allocates and gets host data, based on the message ID.
  *
  * This will block until data becomes available.
  *
  * @returns VBox status code.
- ** @todo Docs!
+ * @param   pCtx                    Guest control command context to use.
+ * @param   puPID                   Where to return the guest PID to retrieve output from on success.
+ * @param   puHandle                Where to return the guest process handle to retrieve output from on success.
+ * @param   pfFlags                 Where to return the output flags on success.
  */
 VBGLR3DECL(int) VbglR3GuestCtrlProcGetOutput(PVBGLR3GUESTCTRLCMDCTX pCtx,
                                              uint32_t *puPID, uint32_t *puHandle, uint32_t *pfFlags)
@@ -1804,6 +1834,14 @@ VBGLR3DECL(int) VbglR3GuestCtrlProcGetWaitFor(PVBGLR3GUESTCTRLCMDCTX pCtx,
 }
 
 
+/**
+ * Replies to a HOST_MSG_FILE_OPEN message.
+ *
+ * @returns VBox status code.
+ * @param   pCtx                Guest control command context to use.
+ * @param   uRc                 Guest rc of operation (note: IPRT-style signed int).
+ * @param   uFileHandle         File handle of opened file on success.
+ */
 VBGLR3DECL(int) VbglR3GuestCtrlFileCbOpen(PVBGLR3GUESTCTRLCMDCTX pCtx,
                                           uint32_t uRc, uint32_t uFileHandle)
 {
@@ -1820,6 +1858,13 @@ VBGLR3DECL(int) VbglR3GuestCtrlFileCbOpen(PVBGLR3GUESTCTRLCMDCTX pCtx,
 }
 
 
+/**
+ * Replies to a HOST_MSG_FILE_CLOSE message.
+ *
+ * @returns VBox status code.
+ * @param   pCtx                Guest control command context to use.
+ * @param   uRc                 Guest rc of operation (note: IPRT-style signed int).
+ */
 VBGLR3DECL(int) VbglR3GuestCtrlFileCbClose(PVBGLR3GUESTCTRLCMDCTX pCtx,
                                            uint32_t uRc)
 {
@@ -1835,6 +1880,13 @@ VBGLR3DECL(int) VbglR3GuestCtrlFileCbClose(PVBGLR3GUESTCTRLCMDCTX pCtx,
 }
 
 
+/**
+ * Sends an unexpected file handling error to the host.
+ *
+ * @returns VBox status code.
+ * @param   pCtx                Guest control command context to use.
+ * @param   uRc                 Guest rc of operation (note: IPRT-style signed int).
+ */
 VBGLR3DECL(int) VbglR3GuestCtrlFileCbError(PVBGLR3GUESTCTRLCMDCTX pCtx, uint32_t uRc)
 {
     AssertPtrReturn(pCtx, VERR_INVALID_POINTER);
@@ -1849,6 +1901,15 @@ VBGLR3DECL(int) VbglR3GuestCtrlFileCbError(PVBGLR3GUESTCTRLCMDCTX pCtx, uint32_t
 }
 
 
+/**
+ * Replies to a HOST_MSG_FILE_READ message.
+ *
+ * @returns VBox status code.
+ * @param   pCtx                Guest control command context to use.
+ * @param   uRc                 Guest rc of operation (note: IPRT-style signed int).
+ * @param   pvData              Pointer to read file data from guest on success.
+ * @param   cbData              Size (in bytes) of read file data from guest on success.
+ */
 VBGLR3DECL(int) VbglR3GuestCtrlFileCbRead(PVBGLR3GUESTCTRLCMDCTX pCtx,
                                           uint32_t uRc,
                                           void *pvData, uint32_t cbData)
@@ -1866,6 +1927,16 @@ VBGLR3DECL(int) VbglR3GuestCtrlFileCbRead(PVBGLR3GUESTCTRLCMDCTX pCtx,
 }
 
 
+/**
+ * Replies to a HOST_MSG_FILE_READ_AT message.
+ *
+ * @returns VBox status code.
+ * @param   pCtx                Guest control command context to use.
+ * @param   uRc                 Guest rc of operation (note: IPRT-style signed int).
+ * @param   pvData              Pointer to read file data from guest on success.
+ * @param   cbData              Size (in bytes) of read file data from guest on success.
+ * @param   offNew              New offset (in bytes) the guest file pointer points at on success.
+ */
 VBGLR3DECL(int) VbglR3GuestCtrlFileCbReadOffset(PVBGLR3GUESTCTRLCMDCTX pCtx, uint32_t uRc,
                                                 void *pvData, uint32_t cbData, int64_t offNew)
 {
@@ -1883,6 +1954,14 @@ VBGLR3DECL(int) VbglR3GuestCtrlFileCbReadOffset(PVBGLR3GUESTCTRLCMDCTX pCtx, uin
 }
 
 
+/**
+ * Replies to a HOST_MSG_FILE_WRITE message.
+ *
+ * @returns VBox status code.
+ * @param   pCtx                Guest control command context to use.
+ * @param   uRc                 Guest rc of operation (note: IPRT-style signed int).
+ * @param   cbWritten           Size (in bytes) of file data successfully written to guest file. Can be partial.
+ */
 VBGLR3DECL(int) VbglR3GuestCtrlFileCbWrite(PVBGLR3GUESTCTRLCMDCTX pCtx, uint32_t uRc, uint32_t cbWritten)
 {
     AssertPtrReturn(pCtx, VERR_INVALID_POINTER);
@@ -1898,6 +1977,15 @@ VBGLR3DECL(int) VbglR3GuestCtrlFileCbWrite(PVBGLR3GUESTCTRLCMDCTX pCtx, uint32_t
 }
 
 
+/**
+ * Replies to a HOST_MSG_FILE_WRITE_AT message.
+ *
+ * @returns VBox status code.
+ * @param   pCtx                Guest control command context to use.
+ * @param   uRc                 Guest rc of operation (note: IPRT-style signed int).
+ * @param   cbWritten           Size (in bytes) of file data successfully written to guest file. Can be partial.
+ * @param   offNew              New offset (in bytes) the guest file pointer points at on success.
+ */
 VBGLR3DECL(int) VbglR3GuestCtrlFileCbWriteOffset(PVBGLR3GUESTCTRLCMDCTX pCtx, uint32_t uRc, uint32_t cbWritten, int64_t offNew)
 {
     AssertPtrReturn(pCtx, VERR_INVALID_POINTER);
@@ -1914,6 +2002,14 @@ VBGLR3DECL(int) VbglR3GuestCtrlFileCbWriteOffset(PVBGLR3GUESTCTRLCMDCTX pCtx, ui
 }
 
 
+/**
+ * Replies to a HOST_MSG_FILE_SEEK message.
+ *
+ * @returns VBox status code.
+ * @param   pCtx                Guest control command context to use.
+ * @param   uRc                 Guest rc of operation (note: IPRT-style signed int).
+ * @param   offCurrent          New offset (in bytes) the guest file pointer points at on success.
+ */
 VBGLR3DECL(int) VbglR3GuestCtrlFileCbSeek(PVBGLR3GUESTCTRLCMDCTX pCtx, uint32_t uRc, uint64_t offCurrent)
 {
     AssertPtrReturn(pCtx, VERR_INVALID_POINTER);
@@ -1929,6 +2025,14 @@ VBGLR3DECL(int) VbglR3GuestCtrlFileCbSeek(PVBGLR3GUESTCTRLCMDCTX pCtx, uint32_t 
 }
 
 
+/**
+ * Replies to a HOST_MSG_FILE_TELL message.
+ *
+ * @returns VBox status code.
+ * @param   pCtx                Guest control command context to use.
+ * @param   uRc                 Guest rc of operation (note: IPRT-style signed int).
+ * @param   offCurrent          Current offset (in bytes) the guest file pointer points at on success.
+ */
 VBGLR3DECL(int) VbglR3GuestCtrlFileCbTell(PVBGLR3GUESTCTRLCMDCTX pCtx, uint32_t uRc, uint64_t offCurrent)
 {
     AssertPtrReturn(pCtx, VERR_INVALID_POINTER);
@@ -1944,6 +2048,14 @@ VBGLR3DECL(int) VbglR3GuestCtrlFileCbTell(PVBGLR3GUESTCTRLCMDCTX pCtx, uint32_t 
 }
 
 
+/**
+ * Replies to a HOST_MSG_FILE_SET_SIZE message.
+ *
+ * @returns VBox status code.
+ * @param   pCtx                Guest control command context to use.
+ * @param   uRc                 Guest rc of operation (note: IPRT-style signed int).
+ * @param   cbNew               New file size (in bytes) of the guest file on success.
+ */
 VBGLR3DECL(int) VbglR3GuestCtrlFileCbSetSize(PVBGLR3GUESTCTRLCMDCTX pCtx, uint32_t uRc, uint64_t cbNew)
 {
     AssertPtrReturn(pCtx, VERR_INVALID_POINTER);
@@ -1963,7 +2075,12 @@ VBGLR3DECL(int) VbglR3GuestCtrlFileCbSetSize(PVBGLR3GUESTCTRLCMDCTX pCtx, uint32
  * Callback for reporting a guest process status (along with some other stuff) to the host.
  *
  * @returns VBox status code.
- ** @todo Docs!
+ * @param   pCtx                Guest control command context to use.
+ * @param   uPID                Guest process PID to report status for.
+ * @param   uStatus             Status to report. Of type PROC_STS_XXX.
+ * @param   fFlags              Additional status flags, depending on the reported status. See RTPROCSTATUS.
+ * @param   pvData              Pointer to additional status data. Optional.
+ * @param   cbData              Size (in bytes) of additional status data.
  */
 VBGLR3DECL(int) VbglR3GuestCtrlProcCbStatus(PVBGLR3GUESTCTRLCMDCTX pCtx,
                                             uint32_t uPID, uint32_t uStatus, uint32_t fFlags,
@@ -1987,7 +2104,12 @@ VBGLR3DECL(int) VbglR3GuestCtrlProcCbStatus(PVBGLR3GUESTCTRLCMDCTX pCtx,
  * Sends output (from stdout/stderr) from a running process.
  *
  * @returns VBox status code.
- ** @todo Docs!
+ * @param   pCtx                Guest control command context to use.
+ * @param   uPID                Guest process PID to report status for.
+ * @param   uHandle             Guest process handle the output belong to.
+ * @param   fFlags              Additional output flags.
+ * @param   pvData              Pointer to actual output data.
+ * @param   cbData              Size (in bytes) of output data.
  */
 VBGLR3DECL(int) VbglR3GuestCtrlProcCbOutput(PVBGLR3GUESTCTRLCMDCTX pCtx,
                                             uint32_t uPID,uint32_t uHandle, uint32_t fFlags,
@@ -2011,7 +2133,11 @@ VBGLR3DECL(int) VbglR3GuestCtrlProcCbOutput(PVBGLR3GUESTCTRLCMDCTX pCtx,
  * Callback for reporting back the input status of a guest process to the host.
  *
  * @returns VBox status code.
- ** @todo Docs!
+ * @param   pCtx                Guest control command context to use.
+ * @param   uPID                Guest process PID to report status for.
+ * @param   uStatus             Status to report. Of type INPUT_STS_XXX.
+ * @param   fFlags              Additional input flags.
+ * @param   cbWritten           Size (in bytes) of input data handled.
  */
 VBGLR3DECL(int) VbglR3GuestCtrlProcCbStatusInput(PVBGLR3GUESTCTRLCMDCTX pCtx,
                                                  uint32_t uPID, uint32_t uStatus,

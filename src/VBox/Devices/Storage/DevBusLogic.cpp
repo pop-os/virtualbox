@@ -1033,7 +1033,11 @@ static int buslogicR3RegisterISARange(PPDMDEVINS pDevIns, PBUSLOGIC pThis, uint8
 
 
 /**
- * Assert IRQ line of the BusLogic adapter.
+ * Assert IRQ line of the BusLogic adapter. Rather than using
+ * the more modern method of the guest explicitly only clearing
+ * the interrupt causes it handled, BusLogic never reports all
+ * interrupts at once. Instead, new interrupts are postponed if
+ * an interrupt of a different type is still pending.
  *
  * @returns nothing.
  * @param   pDevIns         The device instance.
@@ -1043,26 +1047,40 @@ static int buslogicR3RegisterISARange(PPDMDEVINS pDevIns, PBUSLOGIC pThis, uint8
  */
 static void buslogicSetInterrupt(PPDMDEVINS pDevIns, PBUSLOGIC pThis, bool fSuppressIrq, uint8_t uIrqType)
 {
-    LogFlowFunc(("pThis=%#p\n", pThis));
+    LogFlowFunc(("pThis=%#p, setting %#02x (current %#02x, pending %#02x)\n",
+                 pThis, uIrqType, pThis->regInterrupt, pThis->uPendingIntr));
 
-    /* The CMDC interrupt has priority over IMBL and OMBR. */
-    if (uIrqType & (BL_INTR_IMBL | BL_INTR_OMBR))
+    /* A CMDC interrupt overrides other pending interrupts. The documentation may claim
+     * otherwise, but a real BT-958 replaces a pending IMBL with a CMDC; the IMBL simply
+     * vanishes. However, if there's a CMDC already active, another CMDC is latched and
+     * reported once the first CMDC is cleared.
+     */
+    if (uIrqType & BL_INTR_CMDC)
     {
+        Assert(uIrqType == BL_INTR_CMDC);
+        if ((pThis->regInterrupt & BL_INTR_INTV) && !(pThis->regInterrupt & BL_INTR_CMDC))
+            Log(("CMDC overriding pending interrupt! (was %02x)\n", pThis->regInterrupt));
         if (!(pThis->regInterrupt & BL_INTR_CMDC))
-            pThis->regInterrupt |= uIrqType;    /* Report now. */
+            pThis->regInterrupt |= uIrqType | BL_INTR_INTV; /* Report now. */
         else
-            pThis->uPendingIntr |= uIrqType;    /* Report later. */
+            pThis->uPendingIntr |= uIrqType;                /* Report later. */
     }
-    else if (uIrqType & BL_INTR_CMDC)
+    else if (uIrqType & (BL_INTR_IMBL | BL_INTR_OMBR))
     {
-        AssertMsg(pThis->regInterrupt == 0 || pThis->regInterrupt == (BL_INTR_INTV | BL_INTR_CMDC),
-                  ("regInterrupt=%02X\n", pThis->regInterrupt));
-        pThis->regInterrupt |= uIrqType;
+        /* If the CMDC interrupt is pending, store IMBL/OMBR for later. Note that IMBL
+         * and OMBR can be reported together even if an interrupt of the other type is
+         * already pending.
+         */
+        if (!(pThis->regInterrupt & BL_INTR_CMDC))
+            pThis->regInterrupt |= uIrqType | BL_INTR_INTV; /* Report now. */
+        else
+            pThis->uPendingIntr |= uIrqType;                /* Report later. */
     }
-    else
-        AssertMsgFailed(("Invalid interrupt state!\n"));
+    else    /* We do not expect to see BL_INTR_RSTS at this point. */
+        AssertMsgFailed(("Invalid interrupt state (unknown interrupt cause)!\n"));
+    AssertMsg(pThis->regInterrupt, ("Invalid interrupt state (interrupt not set)!\n"));
+    AssertMsg(pThis->regInterrupt != BL_INTR_INTV, ("Invalid interrupt state (set but no cause)!\n"));
 
-    pThis->regInterrupt |= BL_INTR_INTV;
     if (pThis->fIRQEnabled && !fSuppressIrq)
     {
         if (!pThis->uIsaIrq)
@@ -1136,6 +1154,8 @@ static void buslogicR3InitializeLocalRam(PBUSLOGIC pThis)
     pThis->LocalRam.structured.autoSCSIData.u16DisconnectPermittedMask = UINT16_MAX;
     pThis->LocalRam.structured.autoSCSIData.fStrictRoundRobinMode = pThis->fStrictRoundRobinMode;
     pThis->LocalRam.structured.autoSCSIData.u16UltraPermittedMask = UINT16_MAX;
+    pThis->LocalRam.structured.autoSCSIData.uSCSIId = 7;
+    pThis->LocalRam.structured.autoSCSIData.uHostAdapterIoPortAddress = pThis->uDefaultISABaseCode == ISA_BASE_DISABLED ? 2 : pThis->uDefaultISABaseCode;
     /** @todo calculate checksum? */
 }
 
@@ -1182,26 +1202,28 @@ static int buslogicR3HwReset(PPDMDEVINS pDevIns, PBUSLOGIC pThis, PBUSLOGICCC pT
 
 /**
  * Resets the command state machine for the next command and notifies the guest.
+ * Note that suppressing CMDC also suppresses the interrupt, but not vice versa.
  *
  * @returns nothing.
  * @param   pDevIns         The device instance.
  * @param   pThis           Pointer to the shared BusLogic instance data.
  * @param   fSuppressIrq    Flag to suppress IRQ generation regardless of current state
+ * @param   fSuppressCMDC   Flag to suppress command completion status as well
  */
-static void buslogicCommandComplete(PPDMDEVINS pDevIns, PBUSLOGIC pThis, bool fSuppressIrq)
+static void buslogicCommandComplete(PPDMDEVINS pDevIns, PBUSLOGIC pThis, bool fSuppressIrq, bool fSuppressCMDC)
 {
     LogFlowFunc(("pThis=%#p\n", pThis));
     Assert(pThis->uOperationCode != BUSLOGICCOMMAND_EXECUTE_MAILBOX_COMMAND);
 
     pThis->fUseLocalRam = false;
     pThis->regStatus |= BL_STAT_HARDY;
+    pThis->regStatus &= ~BL_STAT_DIRRDY;
     pThis->iReply = 0;
 
-    /* The Enable OMBR command does not set CMDC when successful. */
-    if (pThis->uOperationCode != BUSLOGICCOMMAND_ENABLE_OUTGOING_MAILBOX_AVAILABLE_INTERRUPT)
+    /* Some commands do not set CMDC when successful. */
+    if (!fSuppressCMDC)
     {
         /* Notify that the command is complete. */
-        pThis->regStatus &= ~BL_STAT_DIRRDY;
         buslogicSetInterrupt(pDevIns, pThis, fSuppressIrq, BL_INTR_CMDC);
     }
 
@@ -1277,6 +1299,7 @@ static void buslogicR3SendIncomingMailbox(PPDMDEVINS pDevIns, PBUSLOGIC pThis, R
     MbxIn.u32PhysAddrCCB           = (uint32_t)GCPhysAddrCCB;
     MbxIn.u.in.uHostAdapterStatus  = uHostAdapterStatus;
     MbxIn.u.in.uTargetDeviceStatus = uDeviceStatus;
+    MbxIn.u.in.uReserved           = 0;
     MbxIn.u.in.uCompletionCode     = uMailboxCompletionCode;
 
     int rc = PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSectIntr, VINF_SUCCESS);
@@ -1809,6 +1832,7 @@ static int buslogicProcessCommand(PPDMDEVINS pDevIns, PBUSLOGIC pThis)
 {
     int rc = VINF_SUCCESS;
     bool fSuppressIrq = false;
+    bool fSuppressCMDC = false;
 
     LogFlowFunc(("pThis=%#p\n", pThis));
     AssertMsg(pThis->uOperationCode != 0xff, ("There is no command to execute\n"));
@@ -1824,8 +1848,11 @@ static int buslogicProcessCommand(PPDMDEVINS pDevIns, PBUSLOGIC pThis)
             PReplyInquirePCIHostAdapterInformation pReply = (PReplyInquirePCIHostAdapterInformation)pThis->aReplyBuffer;
             memset(pReply, 0, sizeof(ReplyInquirePCIHostAdapterInformation));
 
-            /* It seems VMware does not provide valid information here too, lets do the same :) */
-            pReply->InformationIsValid = 0;
+            /* Modeled after a real BT-958(D) */
+            pReply->HighByteTerminated = 1;
+            pReply->LowByteTerminated = 1;
+            pReply->JP1 = 1;    /* Closed; "Factory configured - do not alter" */
+            pReply->InformationIsValid = 1;
             pReply->IsaIOPort = pThis->uISABaseCode;
             pReply->IRQ = PCIDevGetInterruptLine(pDevIns->apPciDevs[0]);
             pThis->cbReplyParametersLeft = sizeof(ReplyInquirePCIHostAdapterInformation);
@@ -1848,6 +1875,7 @@ static int buslogicProcessCommand(PPDMDEVINS pDevIns, PBUSLOGIC pThis)
             buslogicR3RegisterISARange(pDevIns, pThis, pThis->aCommandBuffer[0]);
             pThis->cbReplyParametersLeft = 0;
             fSuppressIrq = true;
+            fSuppressCMDC = true;
             break;
 #else
             AssertMsgFailed(("Must never get here!\n"));
@@ -2231,7 +2259,7 @@ static int buslogicProcessCommand(PPDMDEVINS pDevIns, PBUSLOGIC pThis)
                 pThis->fIRQEnabled = false;
             else
                 pThis->fIRQEnabled = true;
-            /* No interrupt signaled regardless of enable/disable. */
+            /* No interrupt signaled regardless of enable/disable. NB: CMDC is still signaled! */
             fSuppressIrq = true;
             break;
         }
@@ -2254,6 +2282,7 @@ static int buslogicProcessCommand(PPDMDEVINS pDevIns, PBUSLOGIC pThis)
             {
                 pThis->LocalRam.structured.autoSCSIData.uReserved6 = uEnable;
                 fSuppressIrq = true;
+                fSuppressCMDC = true;
             }
             break;
         }
@@ -2338,7 +2367,7 @@ static int buslogicProcessCommand(PPDMDEVINS pDevIns, PBUSLOGIC pThis)
     if (pThis->cbReplyParametersLeft)
         pThis->regStatus |= BL_STAT_DIRRDY;
     else if (!pThis->cbCommandParametersLeft)
-        buslogicCommandComplete(pDevIns, pThis, fSuppressIrq);
+        buslogicCommandComplete(pDevIns, pThis, fSuppressIrq, fSuppressCMDC);
 
     return rc;
 }
@@ -2388,10 +2417,23 @@ static int buslogicRegisterRead(PPDMDEVINS pDevIns, PBUSLOGIC pThis, unsigned iR
         }
         case BUSLOGIC_REGISTER_DATAIN:
         {
+            AssertCompileSize(pThis->LocalRam, 256);
+            AssertCompileSize(pThis->iReply, sizeof(uint8_t));
+            AssertCompileSize(pThis->cbReplyParametersLeft, sizeof(uint8_t));
+
             if (pThis->fUseLocalRam)
                 *pu32 = pThis->LocalRam.u8View[pThis->iReply];
             else
-                *pu32 = pThis->aReplyBuffer[pThis->iReply];
+            {
+                /*
+                 * Real adapters seem to pad the reply with zeroes and allow up to 255 bytes even
+                 * if the real reply is shorter.
+                 */
+                if (pThis->iReply >= sizeof(pThis->aReplyBuffer))
+                    *pu32 = 0;
+                else
+                    *pu32 = pThis->aReplyBuffer[pThis->iReply];
+            }
 
             /* Careful about underflow - guest can read data register even if
              * no data is available.
@@ -2408,9 +2450,9 @@ static int buslogicRegisterRead(PPDMDEVINS pDevIns, PBUSLOGIC pThis, unsigned iR
                      * NB: Some commands do not set the CMDC bit / raise completion interrupt.
                      */
                     if (pThis->uOperationCode == BUSLOGICCOMMAND_FETCH_HOST_ADAPTER_LOCAL_RAM)
-                        buslogicCommandComplete(pDevIns, pThis, true /* fSuppressIrq */);
+                        buslogicCommandComplete(pDevIns, pThis, true /* fSuppressIrq */, true /* fSuppressCMDC */);
                     else
-                        buslogicCommandComplete(pDevIns, pThis, false);
+                        buslogicCommandComplete(pDevIns, pThis, false, false);
                 }
             }
             LogFlowFunc(("data=%02x, iReply=%d, cbReplyParametersLeft=%u\n", *pu32,
@@ -4370,22 +4412,15 @@ static DECLCALLBACK(int) buslogicRZConstruct(PPDMDEVINS pDevIns)
 
     if (!pThis->uIsaIrq)
     {
-        Assert(pThis->hIoPortsIsa == NIL_IOMIOPORTHANDLE);
-
         int rc = PDMDevHlpIoPortSetUpContext(pDevIns, pThis->hIoPortsPci, buslogicIOPortWrite, buslogicIOPortRead, NULL /*pvUser*/);
         AssertRCReturn(rc, rc);
 
         rc = PDMDevHlpMmioSetUpContext(pDevIns, pThis->hMmio, buslogicMMIOWrite, buslogicMMIORead, NULL /*pvUser*/);
         AssertRCReturn(rc, rc);
     }
-    else
-    {
-        Assert(pThis->hIoPortsPci == NIL_IOMIOPORTHANDLE);
-        Assert(pThis->hMmio       == NIL_IOMMMIOHANDLE);
 
-        int rc = PDMDevHlpIoPortSetUpContext(pDevIns, pThis->hIoPortsIsa, buslogicIOPortWrite, buslogicIOPortRead, NULL /*pvUser*/);
-        AssertRCReturn(rc, rc);
-    }
+    int rc = PDMDevHlpIoPortSetUpContext(pDevIns, pThis->hIoPortsIsa, buslogicIOPortWrite, buslogicIOPortRead, NULL /*pvUser*/);
+    AssertRCReturn(rc, rc);
 
     return VINF_SUCCESS;
 }

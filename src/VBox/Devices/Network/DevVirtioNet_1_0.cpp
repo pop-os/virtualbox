@@ -1342,14 +1342,22 @@ static int virtioNetR3HandleRxPacket(PPDMDEVINS pDevIns, PVIRTIONET pThis, PVIRT
             default:
                 return VERR_INVALID_PARAMETER;
         }
-        rxPktHdr.uHdrLen = pGso->cbHdrsTotal;
-        rxPktHdr.uGsoSize = pGso->cbMaxSeg;
+        rxPktHdr.uHdrLen       = pGso->cbHdrsTotal;
+        rxPktHdr.uGsoSize      = pGso->cbMaxSeg;
         rxPktHdr.uChksumOffset = pGso->offHdr2;
+        rxPktHdr.u16NumBufs    = 0;
+
     }
     else
     {
-        rxPktHdr.uFlags = 0;
-        rxPktHdr.uGsoType = VIRTIONET_HDR_GSO_NONE;
+        rxPktHdr.uFlags            = 0;
+        rxPktHdr.uGsoType          = VIRTIONET_HDR_GSO_NONE;
+        rxPktHdr.u16HdrLen         = 0;
+        rxPktHdr.u16GSOSize        = 0;
+        rxPktHdr.u16CSumStart      = 0;
+        rxPktHdr.u16CSumOffset     = 0;
+        rxPktHdr.16NumBufs         = 0;
+
     }
 
     virtioNetR3PacketDump(pThis, (const uint8_t *)pvBuf, cb, "<-- Incoming");
@@ -1899,6 +1907,8 @@ static int virtioNetR3TransmitFrame(PVIRTIONET pThis, PVIRTIONETCC pThisCC, PPDM
                 case PDMNETWORKGSOTYPE_IPV6_TCP:
                     pGso->cbHdrsTotal = pPktHdr->uChksumStart +
                         ((PRTNETTCP)(((uint8_t*)pSgBuf->aSegs[0].pvSeg) + pPktHdr->uChksumStart))->th_off * 4;
+                    AssertMsgReturn(pSgBuf->cbUsed > pGso->cbHdrsTotal,
+                        ("cbHdrsTotal exceeds size of frame"), VERR_BUFFER_OVERFLOW);
                     pGso->cbHdrsSeg   = pGso->cbHdrsTotal;
                     break;
                 case PDMNETWORKGSOTYPE_IPV4_UDP:

@@ -307,17 +307,14 @@ public:
     EventSource            *i_getEventSource(void) { return mEventSource; }
     Utf8Str                 i_getName(void);
     ULONG                   i_getId(void) { return mData.mSession.mID; }
-    static Utf8Str          i_guestErrorToString(int guestRc);
     bool                    i_isStarted(void) const;
     HRESULT                 i_isStartedExternal(void);
-    static bool             i_isTerminated(GuestSessionStatus_T enmStatus);
     bool                    i_isTerminated(void) const;
     int                     i_onRemove(void);
     int                     i_onSessionStatusChange(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLHOSTCALLBACK pSvcCbData);
     PathStyle_T             i_getPathStyle(void);
     int                     i_startSession(int *pGuestRc);
     int                     i_startSessionAsync(void);
-    static int              i_startSessionThreadTask(GuestSessionTaskInternalStart *pTask);
     Guest                  *i_getParent(void) { return mParent; }
     uint32_t                i_getProtocolVersion(void) { return mData.mProtocolVersion; }
     int                     i_objectRegister(GuestObject *pObject, SESSIONOBJECTTYPE enmType, uint32_t *pidObject);
@@ -333,13 +330,21 @@ public:
     inline int              i_processGetByPID(ULONG uPID, ComObjPtr<GuestProcess> *pProcess);
     int                     i_sendMessage(uint32_t uFunction, uint32_t uParms, PVBOXHGCMSVCPARM paParms,
                                           uint64_t fDst = VBOX_GUESTCTRL_DST_SESSION);
-    static HRESULT          i_setErrorExternal(VirtualBoxBase *pInterface, int guestRc);
     int                     i_setSessionStatus(GuestSessionStatus_T sessionStatus, int sessionRc);
     int                     i_signalWaiters(GuestSessionWaitResult_T enmWaitResult, int rc /*= VINF_SUCCESS */);
     int                     i_determineProtocolVersion(void);
     int                     i_waitFor(uint32_t fWaitFlags, ULONG uTimeoutMS, GuestSessionWaitResult_T &waitResult, int *pGuestRc);
     int                     i_waitForStatusChange(GuestWaitEvent *pEvent, uint32_t fWaitFlags, uint32_t uTimeoutMS,
                                                   GuestSessionStatus_T *pSessionStatus, int *pGuestRc);
+    /** @}  */
+
+public:
+
+    /** @name Static helper methods.
+     * @{ */
+    static Utf8Str          i_guestErrorToString(int guestRc);
+    static bool             i_isTerminated(GuestSessionStatus_T enmStatus);
+    static int              i_startSessionThreadTask(GuestSessionTaskInternalStart *pTask);
     /** @}  */
 
 private:

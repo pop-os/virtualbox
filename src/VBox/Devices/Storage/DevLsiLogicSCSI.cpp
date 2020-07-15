@@ -742,8 +742,10 @@ static void lsilogicFinishAddressReply(PPDMDEVINS pDevIns, PLSILOGICSCSI pThis, 
         PDMDevHlpCritSectLeave(pDevIns, &pThis->ReplyFreeQueueCritSect);
 
         /* Build 64bit physical address. */
-        RTGCPHYS GCPhysReplyMessage = LSILOGIC_RTGCPHYS_FROM_U32(pThis->u32HostMFAHighAddr, u32ReplyFrameAddressLow);
-        size_t cbReplyCopied = (pThis->cbReplyFrame < sizeof(MptReplyUnion)) ? pThis->cbReplyFrame : sizeof(MptReplyUnion);
+        RTGCPHYS const GCPhysReplyMessage = LSILOGIC_RTGCPHYS_FROM_U32(pThis->u32HostMFAHighAddr, u32ReplyFrameAddressLow);
+        uint32_t const cbReplyFrame = pThis->cbReplyFrame; /* Can be changed from EMT */
+        RT_UNTRUSTED_NONVOLATILE_COPY_FENCE();
+        size_t cbReplyCopied = RT_MIN(cbReplyFrame, sizeof(MptReplyUnion));
 
         /* Write reply to guest memory. */
         PDMDevHlpPCIPhysWrite(pDevIns, GCPhysReplyMessage, pReply, cbReplyCopied);
@@ -1375,8 +1377,12 @@ static VBOXSTRICTRC lsilogicRegisterWrite(PPDMDEVINS pDevIns, PLSILOGICSCSI pThi
                     {
                         pThis->cMessage = LSILOGIC_REG_DOORBELL_GET_SIZE(u32);
                         pThis->iMessage = 0;
-                        AssertMsg(pThis->cMessage <= RT_ELEMENTS(pThis->aMessage),
-                                  ("Message doesn't fit into the buffer, cMessage=%u", pThis->cMessage));
+
+                        /* This is not supposed to happen and the result is undefined, just stay in the current state. */
+                        AssertMsgReturn(pThis->cMessage <= RT_ELEMENTS(pThis->aMessage),
+                                        ("Message doesn't fit into the buffer, cMessage=%u", pThis->cMessage),
+                                        VINF_SUCCESS);
+
                         pThis->enmDoorbellState = LSILOGICDOORBELLSTATE_FN_HANDSHAKE;
                         /* Update the interrupt status to notify the guest that a doorbell function was started. */
                         lsilogicSetInterrupt(pDevIns, pThis, LSILOGIC_REG_HOST_INTR_STATUS_SYSTEM_DOORBELL);
@@ -1391,15 +1397,19 @@ static VBOXSTRICTRC lsilogicRegisterWrite(PPDMDEVINS pDevIns, PLSILOGICSCSI pThi
                     }
                     default:
                         AssertMsgFailed(("Unknown function %u to perform\n", uFunction));
+                        break;
                 }
             }
             else if (pThis->enmDoorbellState == LSILOGICDOORBELLSTATE_FN_HANDSHAKE)
             {
                 /*
                  * We are already performing a doorbell function.
-                 * Get the remaining parameters.
+                 * Get the remaining parameters, ignore any excess writes.
                  */
-                AssertMsg(pThis->iMessage < RT_ELEMENTS(pThis->aMessage), ("Message is too big to fit into the buffer\n"));
+                AssertMsgReturn(pThis->iMessage < pThis->cMessage,
+                                ("Guest is trying to write more than was indicated in the handshake\n"),
+                                VINF_SUCCESS);
+
                 /*
                  * If the last byte of the message is written, force a switch to R3 because some requests might force
                  * a reply through the FIFO which cannot be handled in GC or R0.
@@ -1977,7 +1987,7 @@ static size_t lsilogicSgBufWalker(PPDMDEVINS pDevIns, PLSILOGICREQ pLsiReq,
                 && SGEntry.Simple32.fEndOfBuffer)
                 return cbCopied - RT_MIN(cbSkip, cbCopied);
 
-            uint32_t cbCopyThis           = SGEntry.Simple32.u24Length;
+            size_t   cbCopyThis           = RT_MIN(SGEntry.Simple32.u24Length, cbCopy);
             RTGCPHYS GCPhysAddrDataBuffer = SGEntry.Simple32.u32DataBufferAddressLow;
 
             if (SGEntry.Simple32.f64BitAddress)
@@ -5284,11 +5294,7 @@ static DECLCALLBACK(int) lsilogicR3Construct(PPDMDEVINS pDevIns, int iInstance, 
 
     /*
      * Create critical sections protecting the reply post and free queues.
-     * Note! We do our own syncronization, so NOP the default crit sect for the device.
      */
-    rc = PDMDevHlpSetDeviceCritSect(pDevIns, PDMDevHlpCritSectGetNop(pDevIns));
-    AssertRCReturn(rc, rc);
-
     rc = PDMDevHlpCritSectInit(pDevIns, &pThis->ReplyFreeQueueCritSect, RT_SRC_POS, "%sRFQ", szDevTag);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc, N_("LsiLogic: cannot create critical section for reply free queue"));
@@ -5546,12 +5552,8 @@ static DECLCALLBACK(int) lsilogicRZConstruct(PPDMDEVINS pDevIns)
     PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
     PLSILOGICSCSI pThis = PDMDEVINS_2_DATA(pDevIns, PLSILOGICSCSI);
 
-    /* Replicate the critsect configuration: */
-    int rc = PDMDevHlpSetDeviceCritSect(pDevIns, PDMDevHlpCritSectGetNop(pDevIns));
-    AssertRCReturn(rc, rc);
-
     /* Setup callbacks for this context: */
-    rc = PDMDevHlpIoPortSetUpContext(pDevIns, pThis->hIoPortsReg, lsilogicIOPortWrite, lsilogicIOPortRead, NULL /*pvUser*/);
+    int rc = PDMDevHlpIoPortSetUpContext(pDevIns, pThis->hIoPortsReg, lsilogicIOPortWrite, lsilogicIOPortRead, NULL /*pvUser*/);
     AssertRCReturn(rc, rc);
 
     rc = PDMDevHlpMmioSetUpContext(pDevIns, pThis->hMmioReg, lsilogicMMIOWrite, lsilogicMMIORead, NULL /*pvUser*/);

@@ -445,6 +445,9 @@ RTDECL(RTEXITCODE) RTZipUnzipCmd(unsigned cArgs, char **papszArgs)
         }
     }
 
+    if (!Opts.pszFile)
+        return RTMsgErrorExit(RTEXITCODE_FAILURE, "No input archive specified");
+
     RTFOFF cBytes = 0;
     uint32_t cFiles = 0;
     switch (Opts.iOperation)

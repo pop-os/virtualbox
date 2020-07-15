@@ -522,13 +522,11 @@ int GuestProcessStreamBlock::SetValue(const char *pszKey, const char *pszValue)
 ///////////////////////////////////////////////////////////////////////////////
 
 GuestProcessStream::GuestProcessStream(void)
-    : m_cbAllocated(0),
-      m_cbUsed(0),
-      m_offBuffer(0),
-      m_pbBuffer(NULL)
-{
-
-}
+    : m_cbMax(_32M)
+    , m_cbAllocated(0)
+    , m_cbUsed(0)
+    , m_offBuffer(0)
+    , m_pbBuffer(NULL) { }
 
 GuestProcessStream::~GuestProcessStream(void)
 {
@@ -539,7 +537,7 @@ GuestProcessStream::~GuestProcessStream(void)
  * Adds data to the internal parser buffer. Useful if there
  * are multiple rounds of adding data needed.
  *
- * @return  VBox status code.
+ * @return  VBox status code. Will return VERR_TOO_MUCH_DATA if the buffer's maximum (limit) has been reached.
  * @param   pbData              Pointer to data to add.
  * @param   cbData              Size (in bytes) of data to add.
  */
@@ -578,17 +576,21 @@ int GuestProcessStream::AddData(const BYTE *pbData, size_t cbData)
         /* Do we need to grow the buffer? */
         if (cbData + m_cbUsed > m_cbAllocated)
         {
-/** @todo Put an upper limit on the allocation?   */
             size_t cbAlloc = m_cbUsed + cbData;
-            cbAlloc = RT_ALIGN_Z(cbAlloc, _64K);
-            void *pvNew = RTMemRealloc(m_pbBuffer, cbAlloc);
-            if (pvNew)
+            if (cbAlloc <= m_cbMax)
             {
-                m_pbBuffer = (uint8_t *)pvNew;
-                m_cbAllocated = cbAlloc;
+                cbAlloc = RT_ALIGN_Z(cbAlloc, _64K);
+                void *pvNew = RTMemRealloc(m_pbBuffer, cbAlloc);
+                if (pvNew)
+                {
+                    m_pbBuffer = (uint8_t *)pvNew;
+                    m_cbAllocated = cbAlloc;
+                }
+                else
+                    rc = VERR_NO_MEMORY;
             }
             else
-                rc = VERR_NO_MEMORY;
+                rc = VERR_TOO_MUCH_DATA;
         }
 
         /* Finally, copy the data. */
@@ -854,8 +856,15 @@ int GuestBase::dispatchGeneric(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTRLHOS
                     vrc = HGCMSvcGetPv(&pSvcCb->mpaParms[idx++], &dataCb.pvPayload, &dataCb.cbPayload);
                     AssertRCReturn(vrc, vrc);
 
-                    GuestWaitEventPayload evPayload(dataCb.uType, dataCb.pvPayload, dataCb.cbPayload); /* This bugger throws int. */
-                    vrc = signalWaitEventInternal(pCtxCb, dataCb.rc, &evPayload);
+                    try
+                    {
+                        GuestWaitEventPayload evPayload(dataCb.uType, dataCb.pvPayload, dataCb.cbPayload);
+                        vrc = signalWaitEventInternal(pCtxCb, dataCb.rc, &evPayload);
+                    }
+                    catch (int rcEx) /* Thrown by GuestWaitEventPayload constructor. */
+                    {
+                        vrc = rcEx;
+                    }
                 }
                 else
                     vrc = VERR_INVALID_PARAMETER;
@@ -1300,6 +1309,92 @@ int GuestBase::waitForEvent(GuestWaitEvent *pWaitEvt, uint32_t msTimeout, VBoxEv
 
     return vrc;
 }
+
+#ifndef VBOX_GUESTCTRL_TEST_CASE
+/**
+ * Convenience function to return a pre-formatted string using an action description and a guest error information.
+ *
+ * @returns Pre-formatted string with a user-friendly error string.
+ * @param   strAction           Action of when the error occurred.
+ * @param   guestErrorInfo      Related guest error information to use.
+ */
+/* static */ Utf8Str GuestBase::getErrorAsString(const Utf8Str& strAction, const GuestErrorInfo& guestErrorInfo)
+{
+    Assert(strAction.isNotEmpty());
+    return Utf8StrFmt("%s: %s", strAction.c_str(), getErrorAsString(guestErrorInfo).c_str());
+}
+
+/**
+ * Returns a user-friendly error message from a given GuestErrorInfo object.
+ *
+ * @returns Error message string.
+ * @param   guestErrorInfo      Guest error info to return error message for.
+ */
+/* static */ Utf8Str GuestBase::getErrorAsString(const GuestErrorInfo& guestErrorInfo)
+{
+    AssertMsg(RT_FAILURE(guestErrorInfo.getRc()), ("Guest rc does not indicate a failure\n"));
+
+    Utf8Str strErr;
+
+#define CASE_TOOL_ERROR(a_eType, a_strTool) \
+    case a_eType: \
+    { \
+        strErr = GuestProcessTool::guestErrorToString(a_strTool, guestErrorInfo); \
+        break; \
+    }
+
+    switch (guestErrorInfo.getType())
+    {
+        case GuestErrorInfo::Type_Session:
+            strErr = GuestSession::i_guestErrorToString(guestErrorInfo.getRc());
+            break;
+
+        case GuestErrorInfo::Type_Process:
+            strErr = GuestProcess::i_guestErrorToString(guestErrorInfo.getRc(), guestErrorInfo.getWhat().c_str());
+            break;
+
+        case GuestErrorInfo::Type_File:
+            strErr = GuestFile::i_guestErrorToString(guestErrorInfo.getRc(), guestErrorInfo.getWhat().c_str());
+            break;
+
+        case GuestErrorInfo::Type_Directory:
+            strErr = GuestDirectory::i_guestErrorToString(guestErrorInfo.getRc(), guestErrorInfo.getWhat().c_str());
+            break;
+
+        CASE_TOOL_ERROR(GuestErrorInfo::Type_ToolCat,    VBOXSERVICE_TOOL_CAT);
+        CASE_TOOL_ERROR(GuestErrorInfo::Type_ToolLs,     VBOXSERVICE_TOOL_LS);
+        CASE_TOOL_ERROR(GuestErrorInfo::Type_ToolMkDir,  VBOXSERVICE_TOOL_MKDIR);
+        CASE_TOOL_ERROR(GuestErrorInfo::Type_ToolMkTemp, VBOXSERVICE_TOOL_MKTEMP);
+        CASE_TOOL_ERROR(GuestErrorInfo::Type_ToolRm,     VBOXSERVICE_TOOL_RM);
+        CASE_TOOL_ERROR(GuestErrorInfo::Type_ToolStat,   VBOXSERVICE_TOOL_STAT);
+
+        default:
+            AssertMsgFailed(("Type not implemented (type=%RU32, rc=%Rrc)\n", guestErrorInfo.getType(), guestErrorInfo.getRc()));
+            strErr = Utf8StrFmt("Unknown / Not implemented -- Please file a bug report (type=%RU32, rc=%Rrc)\n",
+                                guestErrorInfo.getType(), guestErrorInfo.getRc());
+            break;
+    }
+
+    return strErr;
+}
+
+/**
+ * Sets a guest error as error info, needed for API clients.
+ *
+ * @returns HRESULT COM error.
+ * @param   pInterface          Interface to set error for.
+ * @param   strAction           What action was involved causing this error.
+ * @param   guestErrorInfo      Guest error info to use.
+ */
+/* static */ HRESULT GuestBase::setErrorExternal(VirtualBoxBase *pInterface,
+                                                 const Utf8Str &strAction, const GuestErrorInfo &guestErrorInfo)
+{
+    AssertPtrReturn(pInterface, E_POINTER);
+    return pInterface->setErrorBoth(VBOX_E_IPRT_ERROR,
+                                    guestErrorInfo.getRc(),
+                                    "%s", Utf8StrFmt("%s: %s", strAction.c_str(), GuestBase::getErrorAsString(guestErrorInfo).c_str()).c_str());
+}
+#endif /* VBOX_GUESTCTRL_TEST_CASE */
 
 /**
  * Converts RTFMODE to FsObjType_T.

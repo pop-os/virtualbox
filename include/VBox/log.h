@@ -364,6 +364,8 @@ typedef enum VBOXLOGGROUP
     LOG_GROUP_MAIN_CLOUDCLIENT,
     /** Main group, ICloudNetwork. */
     LOG_GROUP_MAIN_CLOUDNETWORK,
+    /** Main group, ICloudNetworkEnvironmentInfo */
+    LOG_GROUP_MAIN_CLOUDNETWORKENVIRONMENTINFO,
     /** Main group, ICloudNetworkGatewayInfo */
     LOG_GROUP_MAIN_CLOUDNETWORKGATEWAYINFO,
     /** Main group, ICloudProfile. */
@@ -914,6 +916,7 @@ typedef enum VBOXLOGGROUP
     "MAIN_CHOICEFORMVALUE", \
     "MAIN_CLOUDCLIENT", \
     "MAIN_CLOUDNETWORK", \
+    "MAIN_CLOUDNETWORKENVIRONMENTINFO", \
     "MAIN_CLOUDNETWORKGATEWAYINFO", \
     "MAIN_CLOUDPROFILE", \
     "MAIN_CLOUDPROVIDER", \

@@ -27,9 +27,13 @@
 #include <iprt/getopt.h>
 #include <iprt/stream.h>
 #include <iprt/string.h>
+#include <iprt/thread.h>
 #include <iprt/uuid.h>
 #include <iprt/file.h>
+#include <iprt/http.h>
 #include <VBox/log.h>
+
+#include <iprt/cpp/path.h>
 
 #include "VBoxManage.h"
 
@@ -428,9 +432,9 @@ static RTEXITCODE handleCloudLists(HandlerArg *a, int iFirst, PCLOUDCOMMONOPT pC
 
     /* check for required options */
     if (bstrProvider.isEmpty())
-        return errorSyntax(USAGE_S_NEWCMD, "Parameter --provider is required");
+        return errorSyntax("Parameter --provider is required");
     if (bstrProfile.isEmpty())
-        return errorSyntax(USAGE_S_NEWCMD, "Parameter --profile is required");
+        return errorSyntax("Parameter --profile is required");
 
     RTGETOPTSTATE GetState;
     int vrc = RTGetOptInit(&GetState, a->argc, a->argv, s_aOptions, RT_ELEMENTS(s_aOptions), iFirst, 0);
@@ -1598,6 +1602,901 @@ static RTEXITCODE handleCloudImage(HandlerArg *a, int iFirst, PCLOUDCOMMONOPT pC
     return errorNoSubcommand();
 }
 
+#ifdef VBOX_WITH_CLOUD_NET
+struct CloudNetworkOptions
+{
+    BOOL fEnable;
+    BOOL fDisable;
+    Bstr strNetworkId;
+    Bstr strNetworkName;
+};
+typedef struct CloudNetworkOptions CLOUDNETOPT;
+typedef CLOUDNETOPT *PCLOUDNETOPT;
+
+static RTEXITCODE createUpdateCloudNetworkCommon(ComPtr<ICloudNetwork> cloudNetwork, CLOUDNETOPT& options, PCLOUDCOMMONOPT pCommonOpts)
+{
+    HRESULT hrc = S_OK;
+
+    Bstr strProvider = pCommonOpts->provider.pszProviderName;
+    Bstr strProfile = pCommonOpts->profile.pszProfileName;
+
+    if (options.fEnable)
+    {
+        CHECK_ERROR2_RET(hrc, cloudNetwork, COMSETTER(Enabled)(TRUE), RTEXITCODE_FAILURE);
+    }
+    if (options.fDisable)
+    {
+        CHECK_ERROR2_RET(hrc, cloudNetwork, COMSETTER(Enabled)(FALSE), RTEXITCODE_FAILURE);
+    }
+    if (options.strNetworkId.isNotEmpty())
+    {
+        CHECK_ERROR2_RET(hrc, cloudNetwork, COMSETTER(NetworkId)(options.strNetworkId.raw()), RTEXITCODE_FAILURE);
+    }
+    if (strProvider.isNotEmpty())
+    {
+        CHECK_ERROR2_RET(hrc, cloudNetwork, COMSETTER(Provider)(strProvider.raw()), RTEXITCODE_FAILURE);
+    }
+    if (strProfile.isNotEmpty())
+    {
+        CHECK_ERROR2_RET(hrc, cloudNetwork, COMSETTER(Profile)(strProfile.raw()), RTEXITCODE_FAILURE);
+    }
+
+    return RTEXITCODE_SUCCESS;
+}
+
+
+static RTEXITCODE createCloudNetwork(HandlerArg *a, int iFirst, PCLOUDCOMMONOPT pCommonOpts)
+{
+    HRESULT hrc = S_OK;
+    hrc = checkAndSetCommonOptions(a, pCommonOpts);
+    if (FAILED(hrc))
+        return RTEXITCODE_FAILURE;
+
+    /* Required parameters, the rest is handled in update */
+    static const RTGETOPTDEF s_aOptions[] =
+    {
+        { "--disable",        'd', RTGETOPT_REQ_NOTHING },
+        { "--enable",         'e', RTGETOPT_REQ_NOTHING },
+        { "--network-id",     'i', RTGETOPT_REQ_STRING },
+        { "--name",           'n', RTGETOPT_REQ_STRING },
+    };
+
+    RTGETOPTSTATE GetState;
+    RTGETOPTUNION ValueUnion;
+    int vrc = RTGetOptInit(&GetState, a->argc, a->argv, s_aOptions, RT_ELEMENTS(s_aOptions), iFirst, 0);
+    AssertRCReturn(vrc, RTEXITCODE_FAILURE);
+
+    CLOUDNETOPT options;
+    options.fEnable = FALSE;
+    options.fDisable = FALSE;
+
+    int c;
+    while ((c = RTGetOpt(&GetState, &ValueUnion)) != 0)
+    {
+        switch (c)
+        {
+            case 'd':
+                options.fDisable = TRUE;
+                break;
+            case 'e':
+                options.fEnable = TRUE;
+                break;
+            case 'i':
+                options.strNetworkId=ValueUnion.psz;
+                break;
+            case 'n':
+                options.strNetworkName=ValueUnion.psz;
+                break;
+            case VINF_GETOPT_NOT_OPTION:
+                return errorUnknownSubcommand(ValueUnion.psz);
+            default:
+                return errorGetOpt(c, &ValueUnion);
+        }
+    }
+
+    if (options.strNetworkName.isEmpty())
+        return errorArgument("Missing --name parameter");
+    if (options.strNetworkId.isEmpty())
+        return errorArgument("Missing --network-id parameter");
+
+    ComPtr<IVirtualBox> pVirtualBox = a->virtualBox;
+
+    ComPtr<ICloudNetwork> cloudNetwork;
+    CHECK_ERROR2_RET(hrc, pVirtualBox,
+                     CreateCloudNetwork(options.strNetworkName.raw(), cloudNetwork.asOutParam()),
+                     RTEXITCODE_FAILURE);
+
+    /* Fill out the created network */
+    RTEXITCODE rc = createUpdateCloudNetworkCommon(cloudNetwork, options, pCommonOpts);
+    if (RT_SUCCESS(rc))
+        RTPrintf("Cloud network was created successfully\n");
+
+    return rc;
+}
+
+
+static RTEXITCODE showCloudNetworkInfo(HandlerArg *a, int iFirst, PCLOUDCOMMONOPT pCommonOpts)
+{
+    RT_NOREF(pCommonOpts);
+    HRESULT hrc = S_OK;
+    static const RTGETOPTDEF s_aOptions[] =
+    {
+        { "--name",           'n', RTGETOPT_REQ_STRING },
+    };
+    RTGETOPTSTATE GetState;
+    RTGETOPTUNION ValueUnion;
+    int vrc = RTGetOptInit(&GetState, a->argc, a->argv, s_aOptions, RT_ELEMENTS(s_aOptions), iFirst, 0);
+    AssertRCReturn(vrc, RTEXITCODE_FAILURE);
+
+    Bstr strNetworkName;
+
+    int c;
+    while ((c = RTGetOpt(&GetState, &ValueUnion)) != 0)
+    {
+        switch (c)
+        {
+            case 'n':
+                strNetworkName=ValueUnion.psz;
+                break;
+            case VINF_GETOPT_NOT_OPTION:
+                return errorUnknownSubcommand(ValueUnion.psz);
+            default:
+                return errorGetOpt(c, &ValueUnion);
+        }
+    }
+
+    if (strNetworkName.isEmpty())
+        return errorArgument("Missing --name parameter");
+
+    ComPtr<IVirtualBox> pVirtualBox = a->virtualBox;
+    ComPtr<ICloudNetwork> cloudNetwork;
+    CHECK_ERROR2_RET(hrc, pVirtualBox,
+                     FindCloudNetworkByName(strNetworkName.raw(), cloudNetwork.asOutParam()),
+                     RTEXITCODE_FAILURE);
+
+    RTPrintf("Name:            %ls\n", strNetworkName.raw());
+    BOOL fEnabled = FALSE;
+    cloudNetwork->COMGETTER(Enabled)(&fEnabled);
+    RTPrintf("State:           %s\n", fEnabled ? "Enabled" : "Disabled");
+    Bstr Provider;
+    cloudNetwork->COMGETTER(Provider)(Provider.asOutParam());
+    RTPrintf("CloudProvider:   %ls\n", Provider.raw());
+    Bstr Profile;
+    cloudNetwork->COMGETTER(Profile)(Profile.asOutParam());
+    RTPrintf("CloudProfile:    %ls\n", Profile.raw());
+    Bstr NetworkId;
+    cloudNetwork->COMGETTER(NetworkId)(NetworkId.asOutParam());
+    RTPrintf("CloudNetworkId:  %ls\n", NetworkId.raw());
+    Bstr netName = BstrFmt("cloud-%ls", strNetworkName.raw());
+    RTPrintf("VBoxNetworkName: %ls\n\n", netName.raw());
+
+    return RTEXITCODE_SUCCESS;
+}
+
+
+static RTEXITCODE updateCloudNetwork(HandlerArg *a, int iFirst, PCLOUDCOMMONOPT pCommonOpts)
+{
+    HRESULT hrc = S_OK;
+
+    static const RTGETOPTDEF s_aOptions[] =
+    {
+        { "--disable",        'd', RTGETOPT_REQ_NOTHING },
+        { "--enable",         'e', RTGETOPT_REQ_NOTHING },
+        { "--network-id",     'i', RTGETOPT_REQ_STRING },
+        { "--name",           'n', RTGETOPT_REQ_STRING },
+    };
+
+    RTGETOPTSTATE GetState;
+    RTGETOPTUNION ValueUnion;
+    int vrc = RTGetOptInit(&GetState, a->argc, a->argv, s_aOptions, RT_ELEMENTS(s_aOptions), iFirst, 0);
+    AssertRCReturn(vrc, RTEXITCODE_FAILURE);
+
+    CLOUDNETOPT options;
+    options.fEnable = FALSE;
+    options.fDisable = FALSE;
+
+    int c;
+    while ((c = RTGetOpt(&GetState, &ValueUnion)) != 0)
+    {
+        switch (c)
+        {
+            case 'd':
+                options.fDisable = TRUE;
+                break;
+            case 'e':
+                options.fEnable = TRUE;
+                break;
+            case 'i':
+                options.strNetworkId=ValueUnion.psz;
+                break;
+            case 'n':
+                options.strNetworkName=ValueUnion.psz;
+                break;
+            case VINF_GETOPT_NOT_OPTION:
+                return errorUnknownSubcommand(ValueUnion.psz);
+            default:
+                return errorGetOpt(c, &ValueUnion);
+        }
+    }
+
+    if (options.strNetworkName.isEmpty())
+        return errorArgument("Missing --name parameter");
+
+    ComPtr<IVirtualBox> pVirtualBox = a->virtualBox;
+    ComPtr<ICloudNetwork> cloudNetwork;
+    CHECK_ERROR2_RET(hrc, pVirtualBox,
+                     FindCloudNetworkByName(options.strNetworkName.raw(), cloudNetwork.asOutParam()),
+                     RTEXITCODE_FAILURE);
+
+    RTEXITCODE rc = createUpdateCloudNetworkCommon(cloudNetwork, options, pCommonOpts);
+    if (RT_SUCCESS(rc))
+        RTPrintf("Cloud network %ls was updated successfully\n", options.strNetworkName.raw());
+
+    return rc;
+}
+
+
+static RTEXITCODE deleteCloudNetwork(HandlerArg *a, int iFirst, PCLOUDCOMMONOPT pCommonOpts)
+{
+    RT_NOREF(pCommonOpts);
+    HRESULT hrc = S_OK;
+    static const RTGETOPTDEF s_aOptions[] =
+    {
+        { "--name",           'n', RTGETOPT_REQ_STRING },
+    };
+    RTGETOPTSTATE GetState;
+    RTGETOPTUNION ValueUnion;
+    int vrc = RTGetOptInit(&GetState, a->argc, a->argv, s_aOptions, RT_ELEMENTS(s_aOptions), iFirst, 0);
+    AssertRCReturn(vrc, RTEXITCODE_FAILURE);
+
+    Bstr strNetworkName;
+
+    int c;
+    while ((c = RTGetOpt(&GetState, &ValueUnion)) != 0)
+    {
+        switch (c)
+        {
+            case 'n':
+                strNetworkName=ValueUnion.psz;
+                break;
+            case VINF_GETOPT_NOT_OPTION:
+                return errorUnknownSubcommand(ValueUnion.psz);
+            default:
+                return errorGetOpt(c, &ValueUnion);
+        }
+    }
+
+    if (strNetworkName.isEmpty())
+        return errorArgument("Missing --name parameter");
+
+    ComPtr<IVirtualBox> pVirtualBox = a->virtualBox;
+    ComPtr<ICloudNetwork> cloudNetwork;
+    CHECK_ERROR2_RET(hrc, pVirtualBox,
+                     FindCloudNetworkByName(strNetworkName.raw(), cloudNetwork.asOutParam()),
+                     RTEXITCODE_FAILURE);
+
+    CHECK_ERROR2_RET(hrc, pVirtualBox,
+                     RemoveCloudNetwork(cloudNetwork),
+                     RTEXITCODE_FAILURE);
+
+    if (SUCCEEDED(hrc))
+        RTPrintf("Cloud network %ls was deleted successfully\n", strNetworkName.raw());
+
+    return SUCCEEDED(hrc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
+}
+
+
+static bool errorOccured(HRESULT hrc, const char *pszFormat, ...)
+{
+    if (FAILED(hrc))
+    {
+        va_list va;
+        va_start(va, pszFormat);
+        Utf8Str strError(pszFormat, va);
+        va_end(va);
+        RTStrmPrintf(g_pStdErr, "%s (rc=%x)\n", strError.c_str(), hrc);
+        RTStrmFlush(g_pStdErr);
+        return true;
+    }
+    return false;
+}
+
+
+static int composeTemplatePath(const char *pcszTemplate, Bstr& strFullPath)
+{
+    com::Utf8Str strTemplatePath;
+    int rc = RTPathAppPrivateNoArchCxx(strTemplatePath);
+    if (RT_SUCCESS(rc))
+        rc = RTPathAppendCxx(strTemplatePath, "UnattendedTemplates");
+    if (RT_SUCCESS(rc))
+        rc = RTPathAppendCxx(strTemplatePath, pcszTemplate);
+    if (RT_FAILURE(rc))
+    {
+        RTStrmPrintf(g_pStdErr, "Failed to compose path to the unattended installer script templates (%Rrc)", rc);
+        RTStrmFlush(g_pStdErr);
+    }
+    else
+        strFullPath = strTemplatePath;
+
+    return rc;
+}
+
+static bool getSystemProxyForUrl(const com::Utf8Str &strUrl, Bstr &strProxy)
+{
+#ifndef VBOX_WITH_PROXY_INFO
+    RT_NOREF(strUrl, strProxy);
+    LogRel(("OCI-NET: Proxy support is disabled. Using direct connection.\n"));
+    return false;
+#else /* VBOX_WITH_PROXY_INFO */
+    RTHTTP hHttp;
+    int rc = RTHttpCreate(&hHttp);
+    if (RT_FAILURE(rc))
+    {
+        LogRel(("OCI-NET: Failed to create HTTP context (rc=%d)\n", rc));
+        return false;
+    }
+    rc = RTHttpUseSystemProxySettings(hHttp);
+    if (RT_FAILURE(rc))
+    {
+        LogRel(("OCI-NET: Failed to use system proxy (rc=%d)\n", rc));
+        RTHttpDestroy(hHttp);
+        return false;
+    }
+
+    RTHTTPPROXYINFO proxy;
+    RT_ZERO(proxy);
+    rc = RTHttpGetProxyInfoForUrl(hHttp, strUrl.c_str(), &proxy);
+    if (RT_FAILURE(rc))
+    {
+        LogRel(("OCI-NET: Failed to get proxy for %s (rc=%d)\n", strUrl.c_str(), rc));
+        RTHttpDestroy(hHttp);
+        return false;
+    }
+    const char *pcszProxyScheme = "";
+    switch (proxy.enmProxyType)
+    {
+        case RTHTTPPROXYTYPE_HTTP:
+            pcszProxyScheme = "http://";
+            break;
+        case RTHTTPPROXYTYPE_HTTPS:
+            pcszProxyScheme = "https://";
+            break;
+        case RTHTTPPROXYTYPE_SOCKS4:
+            pcszProxyScheme = "socks4://";
+            break;
+        case RTHTTPPROXYTYPE_SOCKS5:
+            pcszProxyScheme = "socks://";
+            break;
+        case RTHTTPPROXYTYPE_UNKNOWN:
+            LogRel(("OCI-NET: Unknown proxy type. Using direct connecton."));
+            RTHttpDestroy(hHttp);
+            return false;
+    }
+    strProxy = BstrFmt("%s%s:%d", pcszProxyScheme, proxy.pszProxyHost, proxy.uProxyPort);
+    RTHttpFreeProxyInfo(&proxy);
+    RTHttpDestroy(hHttp);
+    return true;
+#endif /* VBOX_WITH_PROXY_INFO */
+}
+
+static HRESULT createLocalGatewayImage(ComPtr<IVirtualBox> virtualBox, const Bstr& aGatewayIso, const Bstr& aGuestAdditionsIso, const Bstr& aProxy)
+{
+    /* Check if the image already exists. */
+    HRESULT hrc;
+
+    Bstr strGatewayVM = "lgw";
+    Bstr strUser = "vbox";
+    Bstr strPassword = "vbox";
+
+    Bstr strInstallerScript;
+    Bstr strPostInstallScript;
+
+    if (RT_FAILURE(composeTemplatePath("lgw_ks.cfg", strInstallerScript)))
+        return E_FAIL;
+    if (RT_FAILURE(composeTemplatePath("lgw_postinstall.sh", strPostInstallScript)))
+        return E_FAIL;
+
+    ComPtr<ISystemProperties> systemProperties;
+    ProxyMode_T enmProxyMode;
+    Bstr strProxy;
+    ComPtr<IMedium> hd;
+    Bstr defaultMachineFolder;
+    Bstr guestAdditionsISO;
+    hrc = virtualBox->COMGETTER(SystemProperties)(systemProperties.asOutParam());
+    if (errorOccured(hrc, "Failed to obtain system properties."))
+        return hrc;
+    if (aProxy.isNotEmpty())
+        strProxy = aProxy;
+    else
+    {
+        hrc = systemProperties->COMGETTER(ProxyMode)(&enmProxyMode);
+        if (errorOccured(hrc, "Failed to obtain proxy mode."))
+            return hrc;
+        switch (enmProxyMode)
+        {
+            case ProxyMode_NoProxy:
+                strProxy.setNull();
+                break;
+            case ProxyMode_Manual:
+                hrc = systemProperties->COMGETTER(ProxyURL)(strProxy.asOutParam());
+                if (errorOccured(hrc, "Failed to obtain proxy URL."))
+                    return hrc;
+                break;
+            case ProxyMode_System:
+                if (!getSystemProxyForUrl("https://dl.fedoraproject.org", strProxy))
+                    errorOccured(E_FAIL, "Failed to get system proxy for https://dl.fedoraproject.org. Will use direct connection.");
+                break;
+            default: /* To get rid of ProxyMode_32BitHack 'warning' */
+                RTAssertPanic();
+                break;
+        }
+
+    }
+    hrc = systemProperties->COMGETTER(DefaultMachineFolder)(defaultMachineFolder.asOutParam());
+    if (errorOccured(hrc, "Failed to obtain default machine folder."))
+        return hrc;
+    if (aGuestAdditionsIso.isEmpty())
+    {
+        hrc = systemProperties->COMGETTER(DefaultAdditionsISO)(guestAdditionsISO.asOutParam());
+        if (errorOccured(hrc, "Failed to obtain default guest additions ISO path."))
+            return hrc;
+        if (guestAdditionsISO.isEmpty())
+        {
+            errorOccured(E_INVALIDARG, "The default guest additions ISO path is empty nor it is provided as --guest-additions-iso parameter. Cannot proceed without it.");
+            return E_INVALIDARG;
+        }
+    }
+    else
+        guestAdditionsISO = aGuestAdditionsIso;
+
+    BstrFmt strGatewayImage("%ls\\gateways\\lgw.vdi", defaultMachineFolder.raw());
+    hrc = virtualBox->OpenMedium(strGatewayImage.raw(), DeviceType_HardDisk, AccessMode_ReadWrite, FALSE, hd.asOutParam());
+    /* If the image is already in place, there is nothing for us to do. */
+    if (SUCCEEDED(hrc))
+    {
+        RTPrintf("Local gateway image already exists, skipping image preparation step.\n");
+        return hrc;
+    }
+
+    RTPrintf("Preparing unattended install of temporary local gateway machine from %ls...\n", aGatewayIso.raw());
+    /* The image does not exist, let's try to open the provided ISO file. */
+    ComPtr<IMedium> iso;
+    hrc = virtualBox->OpenMedium(aGatewayIso.raw(), DeviceType_DVD, AccessMode_ReadOnly, FALSE, iso.asOutParam());
+    if (errorOccured(hrc, "Failed to open %ls.", aGatewayIso.raw()))
+        return hrc;
+
+    ComPtr<IMachine> machine;
+    SafeArray<IN_BSTR> groups;
+    groups.push_back(Bstr("/gateways").mutableRaw());
+    hrc = virtualBox->CreateMachine(NULL, strGatewayVM.raw(), ComSafeArrayAsInParam(groups), Bstr("Oracle_64").raw(), Bstr("").raw(), machine.asOutParam());
+    if (errorOccured(hrc, "Failed to create '%ls'.", strGatewayVM.raw()))
+        return hrc;
+    /* Initial configuration */
+    hrc = machine->ApplyDefaults(NULL);
+    if (errorOccured(hrc, "Failed to apply defaults to '%ls'.", strGatewayVM.raw()))
+        return hrc;
+
+    hrc = machine->COMSETTER(CPUCount)(2);
+    if (errorOccured(hrc, "Failed to adjust CPU count for '%ls'.", strGatewayVM.raw()))
+        return hrc;
+
+    hrc = machine->COMSETTER(MemorySize)(512/*MB*/);
+    if (errorOccured(hrc, "Failed to adjust memory size for '%ls'.", strGatewayVM.raw()))
+        return hrc;
+
+    /* No need for audio -- disable it. */
+    ComPtr<IAudioAdapter> audioAdapter;
+    hrc = machine->COMGETTER(AudioAdapter)(audioAdapter.asOutParam());
+    if (errorOccured(hrc, "Failed to set attachment type for the second network adapter."))
+        return hrc;
+
+    hrc = audioAdapter->COMSETTER(Enabled)(FALSE);
+    if (errorOccured(hrc, "Failed to disable the audio adapter."))
+        return hrc;
+    audioAdapter.setNull();
+
+    hrc = virtualBox->RegisterMachine(machine);
+    if (errorOccured(hrc, "Failed to register '%ls'.", strGatewayVM.raw()))
+        return hrc;
+
+    hrc = virtualBox->CreateMedium(Bstr("VDI").raw(), strGatewayImage.raw(), AccessMode_ReadWrite, DeviceType_HardDisk, hd.asOutParam());
+    if (errorOccured(hrc, "Failed to create %ls.", strGatewayImage.raw()))
+        return hrc;
+
+    ComPtr<IProgress> progress;
+    com::SafeArray<MediumVariant_T>  mediumVariant;
+    mediumVariant.push_back(MediumVariant_Standard);
+
+    /* Kick off the creation of a dynamic growing disk image with the given capacity. */
+    hrc = hd->CreateBaseStorage(8ll * 1000 * 1000 * 1000 /* 8GB */,
+                                ComSafeArrayAsInParam(mediumVariant),
+                                progress.asOutParam());
+    if (errorOccured(hrc, "Failed to create base storage for local gateway image."))
+        return hrc;
+
+    hrc = showProgress(progress);
+    CHECK_PROGRESS_ERROR_RET(progress, ("Failed to create base storage for local gateway image."), hrc);
+
+    ComPtr<ISession> session;
+    hrc = session.createInprocObject(CLSID_Session);
+    hrc = machine->LockMachine(session, LockType_Write);
+    if (errorOccured(hrc, "Failed to lock '%ls' for modifications.", strGatewayVM.raw()))
+        return hrc;
+
+    ComPtr<IMachine> sessionMachine;
+    hrc = session->COMGETTER(Machine)(sessionMachine.asOutParam());
+    if (errorOccured(hrc, "Failed to obtain a mutable machine."))
+        return hrc;
+
+    hrc = sessionMachine->AttachDevice(Bstr("SATA").raw(), 0, 0, DeviceType_HardDisk, hd);
+    if (errorOccured(hrc, "Failed to attach HD to '%ls'.", strGatewayVM.raw()))
+        return hrc;
+
+    hrc = sessionMachine->AttachDevice(Bstr("IDE").raw(), 0, 0, DeviceType_DVD, iso);
+    if (errorOccured(hrc, "Failed to attach ISO to '%ls'.", strGatewayVM.raw()))
+        return hrc;
+
+    /* Save settings */
+    hrc = sessionMachine->SaveSettings();
+    if (errorOccured(hrc, "Failed to save '%ls' settings.", strGatewayVM.raw()))
+        return hrc;
+    session->UnlockMachine();
+
+    /* Prepare unattended install */
+    ComPtr<IUnattended> unattended;
+    hrc = virtualBox->CreateUnattendedInstaller(unattended.asOutParam());
+    if (errorOccured(hrc, "Failed to create unattended installer."))
+        return hrc;
+
+    hrc = unattended->COMSETTER(Machine)(machine);
+    if (errorOccured(hrc, "Failed to set machine for the unattended installer."))
+        return hrc;
+
+    hrc = unattended->COMSETTER(IsoPath)(aGatewayIso.raw());
+    if (errorOccured(hrc, "Failed to set machine for the unattended installer."))
+        return hrc;
+
+    hrc = unattended->COMSETTER(User)(strUser.raw());
+    if (errorOccured(hrc, "Failed to set user for the unattended installer."))
+        return hrc;
+
+    hrc = unattended->COMSETTER(Password)(strPassword.raw());
+    if (errorOccured(hrc, "Failed to set password for the unattended installer."))
+        return hrc;
+
+    hrc = unattended->COMSETTER(FullUserName)(strUser.raw());
+    if (errorOccured(hrc, "Failed to set full user name for the unattended installer."))
+        return hrc;
+
+    hrc = unattended->COMSETTER(InstallGuestAdditions)(TRUE);
+    if (errorOccured(hrc, "Failed to enable guest addtions for the unattended installer."))
+        return hrc;
+
+    hrc = unattended->COMSETTER(AdditionsIsoPath)(guestAdditionsISO.raw());
+    if (errorOccured(hrc, "Failed to set guest addtions ISO path for the unattended installer."))
+        return hrc;
+
+    hrc = unattended->COMSETTER(ScriptTemplatePath)(strInstallerScript.raw());
+    if (errorOccured(hrc, "Failed to set script template for the unattended installer."))
+        return hrc;
+
+    hrc = unattended->COMSETTER(PostInstallScriptTemplatePath)(strPostInstallScript.raw());
+    if (errorOccured(hrc, "Failed to set post install script template for the unattended installer."))
+        return hrc;
+
+    if (strProxy.isNotEmpty())
+    {
+        hrc = unattended->COMSETTER(Proxy)(strProxy.raw());
+        if (errorOccured(hrc, "Failed to set post install script template for the unattended installer."))
+            return hrc;
+    }
+
+    hrc = unattended->Prepare();
+    if (errorOccured(hrc, "Failed to prepare unattended installation."))
+        return hrc;
+
+    hrc = unattended->ConstructMedia();
+    if (errorOccured(hrc, "Failed to construct media for unattended installation."))
+        return hrc;
+
+    hrc = unattended->ReconfigureVM();
+    if (errorOccured(hrc, "Failed to reconfigure %ls for unattended installation.", strGatewayVM.raw()))
+        return hrc;
+
+#define SHOW_ATTR(a_Attr, a_szText, a_Type, a_szFmt) do { \
+            a_Type Value; \
+            HRESULT hrc2 = unattended->COMGETTER(a_Attr)(&Value); \
+            if (SUCCEEDED(hrc2)) \
+                RTPrintf("  %32s = " a_szFmt "\n", a_szText, Value); \
+            else \
+                RTPrintf("  %32s = failed: %Rhrc\n", a_szText, hrc2); \
+        } while (0)
+#define SHOW_STR_ATTR(a_Attr, a_szText) do { \
+            Bstr bstrString; \
+            HRESULT hrc2 = unattended->COMGETTER(a_Attr)(bstrString.asOutParam()); \
+            if (SUCCEEDED(hrc2)) \
+                RTPrintf("  %32s = %ls\n", a_szText, bstrString.raw()); \
+            else \
+                RTPrintf("  %32s = failed: %Rhrc\n", a_szText, hrc2); \
+        } while (0)
+
+    SHOW_STR_ATTR(IsoPath,                       "isoPath");
+    SHOW_STR_ATTR(User,                          "user");
+    SHOW_STR_ATTR(Password,                      "password");
+    SHOW_STR_ATTR(FullUserName,                  "fullUserName");
+    SHOW_STR_ATTR(ProductKey,                    "productKey");
+    SHOW_STR_ATTR(AdditionsIsoPath,              "additionsIsoPath");
+    SHOW_ATTR(    InstallGuestAdditions,         "installGuestAdditions",    BOOL, "%RTbool");
+    SHOW_STR_ATTR(ValidationKitIsoPath,          "validationKitIsoPath");
+    SHOW_ATTR(    InstallTestExecService,        "installTestExecService",   BOOL, "%RTbool");
+    SHOW_STR_ATTR(Locale,                        "locale");
+    SHOW_STR_ATTR(Country,                       "country");
+    SHOW_STR_ATTR(TimeZone,                      "timeZone");
+    SHOW_STR_ATTR(Proxy,                         "proxy");
+    SHOW_STR_ATTR(Hostname,                      "hostname");
+    SHOW_STR_ATTR(PackageSelectionAdjustments,   "packageSelectionAdjustments");
+    SHOW_STR_ATTR(AuxiliaryBasePath,             "auxiliaryBasePath");
+    SHOW_ATTR(    ImageIndex,                    "imageIndex",               ULONG, "%u");
+    SHOW_STR_ATTR(ScriptTemplatePath,            "scriptTemplatePath");
+    SHOW_STR_ATTR(PostInstallScriptTemplatePath, "postInstallScriptTemplatePath");
+    SHOW_STR_ATTR(PostInstallCommand,            "postInstallCommand");
+    SHOW_STR_ATTR(ExtraInstallKernelParameters,  "extraInstallKernelParameters");
+    SHOW_STR_ATTR(Language,                      "language");
+    SHOW_STR_ATTR(DetectedOSTypeId,              "detectedOSTypeId");
+    SHOW_STR_ATTR(DetectedOSVersion,             "detectedOSVersion");
+    SHOW_STR_ATTR(DetectedOSFlavor,              "detectedOSFlavor");
+    SHOW_STR_ATTR(DetectedOSLanguages,           "detectedOSLanguages");
+    SHOW_STR_ATTR(DetectedOSHints,               "detectedOSHints");
+
+#undef SHOW_STR_ATTR
+#undef SHOW_ATTR
+
+    /* 'unattended' is no longer needed. */
+    unattended.setNull();
+
+    RTPrintf("Performing unattended install of temporary local gateway...\n");
+
+    hrc = machine->LaunchVMProcess(session, Bstr("gui").raw(), ComSafeArrayNullInParam(), progress.asOutParam());
+    if (errorOccured(hrc, "Failed to launch '%ls'.", strGatewayVM.raw()))
+        return hrc;
+
+    hrc = progress->WaitForCompletion(-1);
+    if (errorOccured(hrc, "Failed to launch '%ls'.", strGatewayVM.raw()))
+        return hrc;
+
+    unsigned i = 0;
+    const char progressChars[] = { '|', '/', '-', '\\'};
+    MachineState_T machineState;
+    uint64_t u64Started = RTTimeMilliTS();
+    do
+    {
+        RTThreadSleep(1000); /* One second */
+        hrc = machine->COMGETTER(State)(&machineState);
+        if (errorOccured(hrc, "Failed to get machine state."))
+            break;
+        RTPrintf("\r%c", progressChars[i++ % sizeof(progressChars)]);
+        if (machineState == MachineState_Aborted)
+        {
+            errorOccured(E_ABORT, "Temporary local gateway VM has aborted.");
+            return E_ABORT;
+        }
+    }
+    while (machineState != MachineState_PoweredOff && RTTimeMilliTS() - u64Started < 40 * 60 * 1000);
+
+    if (machineState != MachineState_PoweredOff)
+    {
+        errorOccured(E_ABORT, "Timed out (40min) while waiting for unattended install to finish.");
+        return E_ABORT;
+    }
+    /* Machine will still be immutable for a short while after powering off, let's wait a little. */
+    RTThreadSleep(5000); /* Five seconds */
+
+    RTPrintf("\rDone.\n");
+
+    hrc = machine->LockMachine(session, LockType_Write);
+    if (errorOccured(hrc, "Failed to lock '%ls' for modifications.", strGatewayVM.raw()))
+        return hrc;
+
+    RTPrintf("Detaching local gateway image...\n");
+    hrc = session->COMGETTER(Machine)(sessionMachine.asOutParam());
+    if (errorOccured(hrc, "Failed to obtain a mutable machine."))
+        return hrc;
+
+    hrc = sessionMachine->DetachDevice(Bstr("SATA").raw(), 0, 0);
+    if (errorOccured(hrc, "Failed to detach HD to '%ls'.", strGatewayVM.raw()))
+        return hrc;
+
+    /* Remove the image from the media registry. */
+    hd->Close();
+
+    /* Save settings */
+    hrc = sessionMachine->SaveSettings();
+    if (errorOccured(hrc, "Failed to save '%ls' settings.", strGatewayVM.raw()))
+        return hrc;
+    session->UnlockMachine();
+
+#if 0
+    /** @todo Unregistering the temporary VM makes the image mutable again. Find out the way around it! */
+    RTPrintf("Unregistering temporary local gateway machine...\n");
+    SafeIfaceArray<IMedium> media;
+    hrc = machine->Unregister(CleanupMode_DetachAllReturnNone, ComSafeArrayAsOutParam(media));
+    if (errorOccured(hrc, "Failed to unregister '%ls'.", strGatewayVM.raw()))
+        return hrc;
+    hrc = machine->DeleteConfig(ComSafeArrayAsInParam(media), progress.asOutParam());
+    if (errorOccured(hrc, "Failed to delete config for '%ls'.", strGatewayVM.raw()))
+        return hrc;
+    hrc = progress->WaitForCompletion(-1);
+    if (errorOccured(hrc, "Failed to delete config for '%ls'.", strGatewayVM.raw()))
+        return hrc;
+#endif
+
+    RTPrintf("Making local gateway image immutable...\n");
+    hrc = virtualBox->OpenMedium(strGatewayImage.raw(), DeviceType_HardDisk, AccessMode_ReadWrite, FALSE, hd.asOutParam());
+    if (errorOccured(hrc, "Failed to open '%ls'.", strGatewayImage.raw()))
+        return hrc;
+    hd->COMSETTER(Type)(MediumType_Immutable);
+    if (errorOccured(hrc, "Failed to make '%ls' immutable.", strGatewayImage.raw()))
+        return hrc;
+
+    return S_OK;
+}
+
+
+static RTEXITCODE setupCloudNetworkEnv(HandlerArg *a, int iFirst, PCLOUDCOMMONOPT pCommonOpts)
+{
+    RT_NOREF(pCommonOpts);
+    HRESULT hrc = S_OK;
+    static const RTGETOPTDEF s_aOptions[] =
+    {
+        { "--gateway-os-name",      'n', RTGETOPT_REQ_STRING },
+        { "--gateway-os-version",   'v', RTGETOPT_REQ_STRING },
+        { "--gateway-shape",        's', RTGETOPT_REQ_STRING },
+        { "--tunnel-network-name",  't', RTGETOPT_REQ_STRING },
+        { "--tunnel-network-range", 'r', RTGETOPT_REQ_STRING },
+        { "--guest-additions-iso",  'a', RTGETOPT_REQ_STRING },
+        { "--local-gateway-iso",    'l', RTGETOPT_REQ_STRING },
+        { "--proxy",                'p', RTGETOPT_REQ_STRING }
+    };
+    RTGETOPTSTATE GetState;
+    RTGETOPTUNION ValueUnion;
+    int vrc = RTGetOptInit(&GetState, a->argc, a->argv, s_aOptions, RT_ELEMENTS(s_aOptions), iFirst, 0);
+    AssertRCReturn(vrc, RTEXITCODE_FAILURE);
+
+    Bstr strGatewayOsName;
+    Bstr strGatewayOsVersion;
+    Bstr strGatewayShape;
+    Bstr strTunnelNetworkName;
+    Bstr strTunnelNetworkRange;
+    Bstr strLocalGatewayIso;
+    Bstr strGuestAdditionsIso;
+    Bstr strProxy;
+
+    int c;
+    while ((c = RTGetOpt(&GetState, &ValueUnion)) != 0)
+    {
+        switch (c)
+        {
+            case 'n':
+                strGatewayOsName=ValueUnion.psz;
+                break;
+            case 'v':
+                strGatewayOsVersion=ValueUnion.psz;
+                break;
+            case 's':
+                strGatewayShape=ValueUnion.psz;
+                break;
+            case 't':
+                strTunnelNetworkName=ValueUnion.psz;
+                break;
+            case 'r':
+                strTunnelNetworkRange=ValueUnion.psz;
+                break;
+            case 'l':
+                strLocalGatewayIso=ValueUnion.psz;
+                break;
+            case 'a':
+                strGuestAdditionsIso=ValueUnion.psz;
+                break;
+            case 'p':
+                strProxy=ValueUnion.psz;
+                break;
+            case VINF_GETOPT_NOT_OPTION:
+                return errorUnknownSubcommand(ValueUnion.psz);
+            default:
+                return errorGetOpt(c, &ValueUnion);
+        }
+    }
+
+    /* Delayed check. It allows us to print help information.*/
+    hrc = checkAndSetCommonOptions(a, pCommonOpts);
+    if (FAILED(hrc))
+        return RTEXITCODE_FAILURE;
+
+    if (strLocalGatewayIso.isEmpty())
+        return errorArgument("Missing --local-gateway-iso parameter");
+
+    ComPtr<IVirtualBox> pVirtualBox = a->virtualBox;
+
+    hrc = createLocalGatewayImage(pVirtualBox, strLocalGatewayIso, strGuestAdditionsIso, strProxy);
+    if (FAILED(hrc))
+        return RTEXITCODE_FAILURE;
+
+    RTPrintf("Setting up tunnel network in the cloud...\n");
+
+    ComPtr<ICloudProfile> pCloudProfile = pCommonOpts->profile.pCloudProfile;
+
+    ComObjPtr<ICloudClient> oCloudClient;
+    CHECK_ERROR2_RET(hrc, pCloudProfile,
+                     CreateCloudClient(oCloudClient.asOutParam()),
+                     RTEXITCODE_FAILURE);
+
+    ComPtr<ICloudNetworkEnvironmentInfo> cloudNetworkEnv;
+    ComPtr<IProgress> progress;
+    CHECK_ERROR2_RET(hrc, oCloudClient,
+                     SetupCloudNetworkEnvironment(strTunnelNetworkName.raw(), strTunnelNetworkRange.raw(),
+                                                  strGatewayOsName.raw(), strGatewayOsVersion.raw(), strGatewayShape.raw(),
+                                                  cloudNetworkEnv.asOutParam(), progress.asOutParam()),
+                     RTEXITCODE_FAILURE);
+
+    hrc = showProgress(progress);
+    CHECK_PROGRESS_ERROR_RET(progress, ("Setting up cloud network environment failed"), RTEXITCODE_FAILURE);
+
+    Bstr tunnelNetworkId;
+    hrc = cloudNetworkEnv->COMGETTER(TunnelNetworkId)(tunnelNetworkId.asOutParam());
+    RTPrintf("Cloud network environment was set up successfully. Tunnel network id is: %ls\n", tunnelNetworkId.raw());
+
+    return SUCCEEDED(hrc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
+}
+
+
+static RTEXITCODE handleCloudNetwork(HandlerArg *a, int iFirst, PCLOUDCOMMONOPT pCommonOpts)
+{
+    if (a->argc < 1)
+        return errorNoSubcommand();
+
+    static const RTGETOPTDEF s_aOptions[] =
+    {
+        { "create",         1000, RTGETOPT_REQ_NOTHING },
+        { "info",           1001, RTGETOPT_REQ_NOTHING },
+        { "update",         1002, RTGETOPT_REQ_NOTHING },
+        { "delete",         1003, RTGETOPT_REQ_NOTHING },
+        { "setup",          1004, RTGETOPT_REQ_NOTHING }
+    };
+
+    RTGETOPTSTATE GetState;
+    int vrc = RTGetOptInit(&GetState, a->argc, a->argv, s_aOptions, RT_ELEMENTS(s_aOptions), iFirst, 0);
+    AssertRCReturn(vrc, RTEXITCODE_FAILURE);
+
+    int c;
+    RTGETOPTUNION ValueUnion;
+    while ((c = RTGetOpt(&GetState, &ValueUnion)) != 0)
+    {
+        switch (c)
+        {
+            /* Sub-commands: */
+            case 1000:
+                return createCloudNetwork(a, GetState.iNext, pCommonOpts);
+            case 1001:
+                return showCloudNetworkInfo(a, GetState.iNext, pCommonOpts);
+            case 1002:
+                return updateCloudNetwork(a, GetState.iNext, pCommonOpts);
+            case 1003:
+                return deleteCloudNetwork(a, GetState.iNext, pCommonOpts);
+            case 1004:
+                return setupCloudNetworkEnv(a, GetState.iNext, pCommonOpts);
+            case VINF_GETOPT_NOT_OPTION:
+                return errorUnknownSubcommand(ValueUnion.psz);
+
+            default:
+                return errorGetOpt(c, &ValueUnion);
+        }
+    }
+
+    return errorNoSubcommand();
+}
+#endif /* VBOX_WITH_CLOUD_NET */
+
+
 RTEXITCODE handleCloud(HandlerArg *a)
 {
     if (a->argc < 1)
@@ -1640,6 +2539,10 @@ RTEXITCODE handleCloud(HandlerArg *a)
                 return handleCloudImage(a, GetState.iNext, &commonOpts);
             case 1002:
                 return handleCloudInstance(a, GetState.iNext, &commonOpts);
+#ifdef VBOX_WITH_CLOUD_NET
+            case 1003:
+                return handleCloudNetwork(a, GetState.iNext, &commonOpts);
+#endif /* VBOX_WITH_CLOUD_NET */
             case VINF_GETOPT_NOT_OPTION:
                 return errorUnknownSubcommand(ValueUnion.psz);
 

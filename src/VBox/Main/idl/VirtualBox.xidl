@@ -18874,7 +18874,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       </desc>
 
       <param name="type" type="unsigned long" dir="in">
-        <desc>event type. Currently only VBOX3D_NOTIFY_EVENT_TYPE_VISIBLE_3DDATA is supported.</desc>
+        <desc>event type. VBOX3D_NOTIFY_TYPE_* in VBoxVideo3D.h</desc>
       </param>
       <param name="data" type="octet" dir="in" safearray="yes">
         <desc>event-specific data, depends on the supplied event type</desc>
@@ -26670,8 +26670,19 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
   <interface name="ICloudNetworkGatewayInfo" extends="$unknown"
              uuid="89a63ace-0c65-11ea-ad23-0ff257c71a7f"
              wsmap="managed"
-             reservedAttributes="8">
+             reservedAttributes="5">
     <attribute name="publicIP" type="wstring" readonly="yes"/>
+    <attribute name="secondaryPublicIP" type="wstring" readonly="yes"/>
+    <attribute name="macAddress" type="wstring" readonly="yes"/>
+    <attribute name="instanceId" type="wstring" readonly="yes"/>
+  </interface>
+
+
+  <interface name="ICloudNetworkEnvironmentInfo" extends="$unknown"
+             uuid="181dfb55-394d-44d3-9edb-af2c4472c40a"
+             wsmap="managed"
+             reservedAttributes="7">
+    <attribute name="tunnelNetworkId" type="wstring" readonly="yes"/>
   </interface>
 
 
@@ -26682,7 +26693,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
   <interface
     name="ICloudClient" extends="$unknown"
     uuid="435b66a2-0c60-11ea-a0ea-07eb0d1c4ead"
-    wsmap="managed" reservedMethods="16" reservedAttributes="8"
+    wsmap="managed" reservedMethods="15" reservedAttributes="8"
     >
 
     <method name="getExportDescriptionForm">
@@ -26967,6 +26978,34 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       </param>
       <param name="gatewayInfo" type="ICloudNetworkGatewayInfo" dir="out">
         <desc>Information about the started gateway.</desc>
+      </param>
+      <param name="progress" type="IProgress" dir="return">
+        <desc>Progress object to track the operation completion.</desc>
+      </param>
+    </method>
+
+    <method name="setupCloudNetworkEnvironment">
+      <param name="tunnelNetworkName" type="wstring" dir="in">
+        <desc>The name of tunnelling network to be created in the Cloud. If this parameter
+          is empty the default value "VirtualBox Tunneling Network" is assumed.</desc>
+      </param>
+      <param name="tunnelNetworkRange" type="wstring" dir="in">
+        <desc>The IP address range of tunnelling network to be created in the Cloud. If this
+          parameter is empty the default value "10.0.0.0/16" is assumed.</desc>
+      </param>
+      <param name="gatewayOsName" type="wstring" dir="in">
+        <desc>The name of the operating system to be used for cloud gateway instances.
+          The default value is "Oracle Linux".</desc>
+      </param>
+      <param name="gatewayOsVersion" type="wstring" dir="in">
+        <desc>The version of the operating system to be used for cloud gateway instances.
+          The default value is "7.8".</desc>
+      </param>
+      <param name="gatewayShape" type="wstring" dir="in">
+        <desc>The shape of cloud gateway instance. The default value is "VM.Standard2.1".</desc>
+      </param>
+      <param name="networkEnvironmentInfo" type="ICloudNetworkEnvironmentInfo" dir="out">
+        <desc>Information about the created network environment.</desc>
       </param>
       <param name="progress" type="IProgress" dir="return">
         <desc>Progress object to track the operation completion.</desc>

@@ -34,6 +34,81 @@ technical terms if no non-technical ones are clear enough.
 <!-- HACK ALERT! Seems we must have a single top level element for xi:include to work.
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
 
+  <sect1>
+    <title>Version 6.1.12 (2020-07-14)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+         <para>UI: Fixes for Log-Viewer search-backward icon</para>
+      </listitem>
+
+      <listitem>
+         <para>Devices: Fixes and improvements for the BusLogic SCSI controller emulation</para>
+      </listitem>
+
+      <listitem>
+         <para>Serial Port: Regression fixes in FIFO data handling</para>
+      </listitem>
+
+      <listitem>
+         <para>Oracle Cloud Infrastructure integration: Experimental new type of
+           network attachment, allowing local VM to act as if it was run in cloud</para>
+      </listitem>
+
+      <listitem>
+         <para>API: improved resource management in the guest control functionality</para>
+      </listitem>
+
+      <listitem>
+         <para>VBoxManage: fixed command option parsing for the "snapshot edit"
+           sub-command</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: Fix crash of 'VBoxManage internalcommands repairhd'
+          when processing invalid input (bug #19579)</para>
+      </listitem>
+
+      <listitem>
+         <para>Guest Additions, 3D: New experimental GLX graphics output</para>
+      </listitem>
+
+      <listitem>
+         <para>Guest Additions, 3D: Fixed releasing texture objects, which could cause
+             guest crashes</para>
+      </listitem>
+
+      <listitem>
+         <para>Guest Additions: Fixed writes to a file on a shared folder not being
+           reflected on the host when the file is mmap'ed and the used Linux kernel is
+           between version 4.10.0 and 4.11.x</para>
+      </listitem>
+
+      <listitem>
+         <para>Guest Additions: Fixed the shared folder driver on 32bit Windows 8 and newer
+           returning an error when flushing writes to a file which is mapped into memory under
+           rare circumstances
+         </para>
+      </listitem>
+
+      <listitem>
+        <para>Guest Additions: Improve resize coverage for VMSVGA graphics controller</para>
+      </listitem>
+
+      <listitem>
+        <para>Guest Additions: Fix issues detecting guest additions ISO at runtime</para>
+      </listitem>
+
+      <listitem>
+        <para>Guest Additions: Fixed German translation encoding for Windows GA installer</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
 
   <sect1>
     <title>Version 6.1.10 (2020-06-05)</title>
