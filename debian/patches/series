@@ -14,6 +14,5 @@
 35-libvdeplug-soname.patch
 36-fix-vnc-version-string.patch
 37-do-not-run-if-not-in-vm.patch
-disable-cloud-net.patch
-38-enable-vboxmount-img.patch
 liblzf.patch
+0001-new-tarball.patch
