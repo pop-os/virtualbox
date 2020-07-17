@@ -1,3 +1,9 @@
+virtualbox (6.1.12-dfsg-5) unstable; urgency=medium
+
+  * Add missing liblzf-dev dependency
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 17 Jul 2020 18:32:52 +0200
+
 virtualbox (6.1.12-dfsg-4) unstable; urgency=medium
 
   * Also ship VirtualboxVM (LP: #1884363)
