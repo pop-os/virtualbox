@@ -1,3 +1,10 @@
+virtualbox (6.1.12-dfsg-4) unstable; urgency=medium
+
+  * Also ship VirtualboxVM (LP: #1884363)
+  * Unbundle liblz (Closes: #958323)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 15 Jul 2020 20:02:41 +0200
+
 virtualbox (6.1.12-dfsg-3) unstable; urgency=medium
 
   * Enable vboximg-mount builds
