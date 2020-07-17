@@ -16,3 +16,4 @@
 37-do-not-run-if-not-in-vm.patch
 disable-cloud-net.patch
 38-enable-vboxmount-img.patch
+liblzf.patch

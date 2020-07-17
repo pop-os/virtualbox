@@ -1,0 +1,82 @@
+Description: Use the packaged liblzf library
+Author: Gianfranco Costamagna <locutusofborg@debian.org>
+
+Index: virtualbox/src/libs/Makefile.kmk
+===================================================================
+--- virtualbox.orig/src/libs/Makefile.kmk
++++ virtualbox/src/libs/Makefile.kmk
+@@ -24,8 +24,6 @@
+ #       include path specific to the lib has been changed.
+ #
+ 
+-# Compression libs used by IPRT and <what was it again?>.
+-include $(PATH_SUB_CURRENT)/liblzf-3.4/Makefile.kmk
+ if  !defined(VBOX_ONLY_SDK) \
+  && "$(SDK_VBOX_ZLIB_INCS)" == "$(PATH_ROOT)/src/libs/zlib-1.2.11"
+  include $(PATH_SUB_CURRENT)/zlib-1.2.11/Makefile.kmk
+Index: virtualbox/src/VBox/Runtime/Makefile.kmk
+===================================================================
+--- virtualbox.orig/src/VBox/Runtime/Makefile.kmk
++++ virtualbox/src/VBox/Runtime/Makefile.kmk
+@@ -299,7 +299,7 @@
+ 	include \
+ 	$(SDK_VBOX_ZLIB_INCS)
+ RuntimeR3_INCS         += \
+-	$(PATH_ROOT)/src/libs/liblzf-3.4
++	/usr/include/liblzf
+ 
+ # RuntimeR3_INCS.solaris  = \
+ #    /usr/include
+@@ -2204,7 +2204,7 @@
+ VBoxRT_INCS.$(KBUILD_TARGET)  := $(RuntimeR3_INCS.$(KBUILD_TARGET))
+ VBoxRT_INCS.$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH) := $(RuntimeR3_INCS.$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH))
+ VBoxRT_LIBS                    = \
+-	$(PATH_STAGE_LIB)/VBox-liblzf$(VBOX_SUFF_LIB)
++	lzf
+ if1of ($(KBUILD_TARGET_ARCH), amd64 x86)
+ VBoxRT_LIBS                   += \
+ 	$(PATH_STAGE_LIB)/SUPR3$(VBOX_SUFF_LIB)
+@@ -2351,7 +2351,7 @@
+ VBoxRT-x86_SDKS  += VBOX_OPENSSL-x86
+ 
+ VBoxRT-x86_LIBS = \
+-	$(PATH_STAGE_LIB)/VBox-liblzf-x86$(VBOX_SUFF_LIB)
++	lzf
+ if1of ($(KBUILD_TARGET_ARCH), amd64 x86)
+ VBoxRT-x86_LIBS += \
+ 	$(PATH_STAGE_LIB)/SUPR3-x86$(VBOX_SUFF_LIB)
+Index: virtualbox/src/VBox/Storage/testcase/Makefile.kmk
+===================================================================
+--- virtualbox.orig/src/VBox/Storage/testcase/Makefile.kmk
++++ virtualbox/src/VBox/Storage/testcase/Makefile.kmk
+@@ -139,7 +139,7 @@
+ 	$(PATH_STAGE_LIB)/VBox-zlib-static$(VBOX_SUFF_LIB)
+  else
+   vbox-img_LIBS += \
+-	$(PATH_STAGE_LIB)/VBox-liblzf$(VBOX_SUFF_LIB) \
++	lzf \
+ 	$(SDK_VBOX_ZLIB_LIBS)
+  endif
+  ifeq ($(KBUILD_TARGET),linux)
+@@ -185,7 +185,7 @@
+ 	$(PATH_STAGE_LIB)/VBox-zlib-static$(VBOX_SUFF_LIB)
+  else
+   vdkeystoremgr_LIBS += \
+-	$(PATH_STAGE_LIB)/VBox-liblzf$(VBOX_SUFF_LIB) \
++	lzf \
+ 	$(SDK_VBOX_ZLIB_LIBS)
+  endif
+  ifeq ($(KBUILD_TARGET),linux)
+Index: virtualbox/Config.kmk
+===================================================================
+--- virtualbox.orig/Config.kmk
++++ virtualbox/Config.kmk
+@@ -5431,7 +5431,7 @@
+  	$(PATH_STAGE_LIB)/VBox-zlib-static$(VBOX_SUFF_LIB)
+ else
+  TEMPLATE_VBoxR3Static_LIBS        += \
+- 	$(PATH_STAGE_LIB)/VBox-liblzf$(VBOX_SUFF_LIB) \
++ 	lzf \
+  	$(SDK_VBOX_ZLIB_LIBS)
+  if1of ($(KBUILD_TARGET),darwin freebsd)
+   TEMPLATE_VBoxR3Static_LIBS       += iconv
