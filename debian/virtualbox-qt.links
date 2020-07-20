@@ -2,5 +2,6 @@
 /usr/share/virtualbox/VBox.sh /usr/bin/VirtualBox
 
 /usr/lib/virtualbox/VirtualBoxVM /usr/bin/virtualboxvm
+/usr/lib/virtualbox/VirtualBoxVM /usr/bin/VirtualBoxVM
 
 /usr/share/man/man1/VirtualBox.1 /usr/share/man/man1/virtualbox.1
