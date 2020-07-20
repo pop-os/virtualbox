@@ -1,3 +1,10 @@
+virtualbox (6.1.12-dfsg-6) unstable; urgency=medium
+
+  * Also add VirtualboxVM new binary (symlink to virtualboxvm)
+  * Add nasm dependency, thanks enyc for the hint!
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Mon, 20 Jul 2020 09:02:45 +0200
+
 virtualbox (6.1.12-dfsg-5) unstable; urgency=medium
 
   * Add missing liblzf-dev dependency
