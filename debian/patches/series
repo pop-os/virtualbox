@@ -16,3 +16,4 @@
 37-do-not-run-if-not-in-vm.patch
 liblzf.patch
 0001-new-tarball.patch
+new-gsoap.patch
