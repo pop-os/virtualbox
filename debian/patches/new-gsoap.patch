@@ -8,7 +8,7 @@ Author: Gianfranco Costamagna <locutusofborg@debian.org>
                  if (rv == 0)
                      continue; // timeout, not necessary to bother gsoap
                  // r < 0, errno
-+#if GSOAP_VERSION >= 208104
++#if GSOAP_VERSION >= 208103
 +                if (soap_socket_errno == SOAP_EINTR)
 +#else
                  if (soap_socket_errno(soap.master) == SOAP_EINTR)
