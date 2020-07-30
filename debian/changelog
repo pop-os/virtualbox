@@ -1,3 +1,14 @@
+virtualbox (6.1.12-dfsg-8) unstable; urgency=medium
+
+  * debian/patches/kernel-5.8-1.patch:
+  * debian/patches/kernel-5.8-2.patch:
+  * debian/patches/kernel-5.8-3.patch:
+    - apply upstream proposed patches to fix a build failure with kernel 5.8
+      (note, this requires also a kernel patch)
+      https://www.virtualbox.org/ticket/19644
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 30 Jul 2020 18:58:32 +0200
+
 virtualbox (6.1.12-dfsg-7) unstable; urgency=medium
 
   * Fix build with new gsoap (Closes: #966182)
