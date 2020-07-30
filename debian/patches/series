@@ -17,3 +17,6 @@
 liblzf.patch
 0001-new-tarball.patch
 new-gsoap.patch
+kernel-5.8-1.patch
+kernel-5.8-2.patch
+kernel-5.8-3.patch
