@@ -1,3 +1,9 @@
+virtualbox (6.1.12-dfsg-9) unstable; urgency=medium
+
+  * Try to fix another kernel 5.8 change LP: #1884652
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Mon, 10 Aug 2020 14:37:08 +0200
+
 virtualbox (6.1.12-dfsg-8) unstable; urgency=medium
 
   * debian/patches/kernel-5.8-1.patch:
