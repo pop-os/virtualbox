@@ -1,11 +1,9 @@
 Description: Correctly check build architecture.
 Author: Michael Meskes <meskes@debian.org>
 
-Index: virtualbox/configure
-===================================================================
---- virtualbox.orig/configure	2013-11-19 03:40:50.133475296 -0500
-+++ virtualbox/configure	2013-11-19 03:40:50.129475296 -0500
-@@ -354,7 +354,7 @@
+--- a/configure
++++ b/configure
+@@ -356,7 +356,7 @@ test_execute_path()
  check_environment()
  {
    test_header environment

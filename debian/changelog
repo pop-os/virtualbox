@@ -1,3 +1,28 @@
+virtualbox (6.1.14-dfsg-1) unstable; urgency=medium
+
+  * Include the source code in the upload...
+
+ -- Christian Marillat <marillat@debian.org>  Sun, 06 Sep 2020 09:32:50 +0200
+
+virtualbox (6.1.14-dfsg-0.1) unstable; urgency=medium
+
+  * Non-maintainer upload.
+  * Support for 5.8 kernel has been added (Closes: #968660)
+    and thus remove the following patches : 0001-new-tarball.patch,
+    kernel-5.8-1.patch, kernel-5.8-2.patch, kernel-5.8-2.patch and
+    kernel-5.8-4.patch
+  * Added a new patch (disable-cloud.patch) to disable CLoud (Apparently
+    this doesn't work).
+  * Build with 'VBOX_WITH_VIRTIO='
+
+ -- Christian Marillat <marillat@debian.org>  Sun, 06 Sep 2020 09:32:28 +0200
+
+virtualbox (6.1.14-dfsg-0.0) unstable; urgency=medium
+
+  * New upstream release.
+
+ -- Christian Marillat <marillat@deb-multimedia.org>  Sat, 05 Sep 2020 21:02:05 +0200
+
 virtualbox (6.1.12-dfsg-9) unstable; urgency=medium
 
   * Try to fix another kernel 5.8 change LP: #1884652

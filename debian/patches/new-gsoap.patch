@@ -2,8 +2,8 @@ Description: fix build failure with new gsoap
 Bug-Debian: https://bugs.debian.org/966182
 Forwarded: https://www.virtualbox.org/ticket/19634
 Author: Gianfranco Costamagna <locutusofborg@debian.org>
---- virtualbox-6.1.12-dfsg.orig/src/VBox/Main/webservice/vboxweb.cpp
-+++ virtualbox-6.1.12-dfsg/src/VBox/Main/webservice/vboxweb.cpp
+--- a/src/VBox/Main/webservice/vboxweb.cpp
++++ b/src/VBox/Main/webservice/vboxweb.cpp
 @@ -944,7 +944,11 @@ static void doQueuesLoop()
                  if (rv == 0)
                      continue; // timeout, not necessary to bother gsoap

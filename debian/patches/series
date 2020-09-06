@@ -15,9 +15,5 @@
 36-fix-vnc-version-string.patch
 37-do-not-run-if-not-in-vm.patch
 liblzf.patch
-0001-new-tarball.patch
 new-gsoap.patch
-kernel-5.8-1.patch
-kernel-5.8-2.patch
-kernel-5.8-3.patch
-kernel-5.8-4.patch
+disable-cloud.patch
