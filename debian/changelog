@@ -1,12 +1,21 @@
+virtualbox (6.1.14-dfsg-2) unstable; urgency=medium
+
+  * Ack previous wrong NMU, not sure why it has been uploaded.
+  * Rebase previous changelog entries
+  * Don't use curl from upstream tarball (will be used from
+    the next dfsg repack)
+  * Re-enable virtionet (Closes: #969731, #969732)
+  * Drop patch disable-cloud, useless
+  * Drop liblzf patch: upstream and not needed anymore
+    - Add debian/patches/changeset_86042.patch:
+      new upstream patch for liblzf link failure
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Mon, 07 Sep 2020 18:11:33 +0200
+
 virtualbox (6.1.14-dfsg-1) unstable; urgency=medium
 
-  * Include the source code in the upload...
-
- -- Christian Marillat <marillat@debian.org>  Sun, 06 Sep 2020 09:32:50 +0200
-
-virtualbox (6.1.14-dfsg-0.1) unstable; urgency=medium
-
   * Non-maintainer upload.
+  * Include the source code in the upload...
   * Support for 5.8 kernel has been added (Closes: #968660)
     and thus remove the following patches : 0001-new-tarball.patch,
     kernel-5.8-1.patch, kernel-5.8-2.patch, kernel-5.8-2.patch and
@@ -14,11 +23,6 @@ virtualbox (6.1.14-dfsg-0.1) unstable; urgency=medium
   * Added a new patch (disable-cloud.patch) to disable CLoud (Apparently
     this doesn't work).
   * Build with 'VBOX_WITH_VIRTIO='
-
- -- Christian Marillat <marillat@debian.org>  Sun, 06 Sep 2020 09:32:28 +0200
-
-virtualbox (6.1.14-dfsg-0.0) unstable; urgency=medium
-
   * New upstream release.
 
  -- Christian Marillat <marillat@deb-multimedia.org>  Sat, 05 Sep 2020 21:02:05 +0200
