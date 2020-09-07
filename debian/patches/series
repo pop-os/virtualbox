@@ -17,3 +17,4 @@
 liblzf.patch
 new-gsoap.patch
 disable-cloud.patch
+virtio-core.patch

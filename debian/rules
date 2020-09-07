@@ -73,8 +73,7 @@ override_dh_auto_build:
 	    VBOX_WITH_REGISTRATION_REQUEST= \
 	    VBOX_WITH_UPDATE_REQUEST= \
 	    KBUILD_VERBOSE=2 \
-	    VBOX_WITH_EXTPACK_VBOXDTRACE= \
-	    VBOX_WITH_VIRTIO=
+	    VBOX_WITH_EXTPACK_VBOXDTRACE=
 
 	xsltproc --nonet --stringparam section.autolabel 1 \
 	    -o debian/README.Debian.html \
