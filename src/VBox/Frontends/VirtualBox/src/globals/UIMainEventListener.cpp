@@ -228,7 +228,6 @@ STDMETHODIMP UIMainEventListener::HandleEvent(VBoxEventType_T, IEvent *pEvent)
         return S_OK;
 
     CEvent comEvent(pEvent);
-    //printf("Event received: %d\n", comEvent.GetType());
     switch (comEvent.GetType())
     {
         case KVBoxEventType_OnVBoxSVCAvailabilityChanged:

@@ -2726,7 +2726,7 @@
     <message>
         <source>Cloud Network</source>
         <comment>NetworkAttachmentType</comment>
-        <translation>雲端網路</translation>
+        <translation type="vanished">雲端網路</translation>
     </message>
     <message>
         <source>PCnet-PCI II (Am79C970A)</source>
@@ -3776,6 +3776,11 @@
     <message>
         <source>Start instance ...</source>
         <translation>啟動實例 ...</translation>
+    </message>
+    <message>
+        <source>Cloud Network [EXPERIMENTAL]</source>
+        <comment>NetworkAttachmentType</comment>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

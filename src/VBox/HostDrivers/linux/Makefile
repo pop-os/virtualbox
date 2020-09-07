@@ -45,8 +45,10 @@ else # ! KERNELRELEASE
 
 KBUILD_VERBOSE ?=
 KERN_VER ?= $(shell uname -r)
-.PHONY: all install clean check unload load vboxdrv vboxnetflt vboxnetadp \
-    vboxpci
+.PHONY: all install clean check unload load \
+    vboxdrv vboxnetflt vboxnetadp vboxpci \
+    install-vboxdrv install-vboxnetflt install-vboxnetadp install-vboxpci \
+    clean-vboxdrv clean-vboxnetflt clean-vboxnetadp clean-vboxpci
 
 all: vboxdrv vboxnetflt vboxnetadp vboxpci
 
@@ -55,12 +57,12 @@ ifneq ($(filter-out 1.% 2.0.% 2.1.% 2.2.% 2.3.% 2.4.% 2.5.%,$(KERN_VER)),)
 
 vboxdrv:
 	@echo "=== Building 'vboxdrv' module ==="
-	@$(MAKE) KBUILD_VERBOSE=$(KBUILD_VERBOSE) -C vboxdrv
+	+@$(MAKE) KBUILD_VERBOSE=$(KBUILD_VERBOSE) -C vboxdrv
 	@cp vboxdrv/vboxdrv.ko .
 	@echo
 
 vboxnetflt: vboxdrv
-	@if [ -d vboxnetflt ]; then \
+	+@if [ -d vboxnetflt ]; then \
 	    if [ -f vboxdrv/Module.symvers ]; then \
 	        cp vboxdrv/Module.symvers vboxnetflt; \
 	    fi; \
@@ -71,7 +73,7 @@ vboxnetflt: vboxdrv
 	fi
 
 vboxnetadp: vboxdrv
-	@if [ -d vboxnetadp ]; then \
+	+@if [ -d vboxnetadp ]; then \
 	    if [ -f vboxdrv/Module.symvers ]; then \
 	        cp vboxdrv/Module.symvers vboxnetadp; \
 	    fi; \
@@ -82,7 +84,7 @@ vboxnetadp: vboxdrv
 	fi
 
 vboxpci: vboxdrv
-	@if [ -d vboxpci ]; then \
+	+@if [ -d vboxpci ]; then \
 	    if [ -f vboxdrv/Module.symvers ]; then \
 	        cp vboxdrv/Module.symvers vboxpci; \
 	    fi; \
@@ -92,17 +94,25 @@ vboxpci: vboxdrv
 	    echo; \
 	fi
 
-install:
-	@$(MAKE) KBUILD_VERBOSE=$(KBUILD_VERBOSE) -C vboxdrv install
-	@if [ -d vboxnetflt ]; then \
+install-vboxdrv:
+	+@$(MAKE) KBUILD_VERBOSE=$(KBUILD_VERBOSE) -C vboxdrv install
+
+install-vboxnetflt:
+	+@if [ -d vboxnetflt ]; then \
 	    $(MAKE) KBUILD_VERBOSE=$(KBUILD_VERBOSE) -C vboxnetflt install; \
 	fi
-	@if [ -d vboxnetadp ]; then \
+
+install-vboxnetadp:
+	+@if [ -d vboxnetadp ]; then \
 	    $(MAKE) KBUILD_VERBOSE=$(KBUILD_VERBOSE) -C vboxnetadp install; \
 	fi
-	@if [ -d vboxpci ]; then \
+
+install-vboxpci:
+	+@if [ -d vboxpci ]; then \
 	    $(MAKE) KBUILD_VERBOSE=$(KBUILD_VERBOSE) -C vboxpci install; \
 	fi
+
+install: install-vboxdrv install-vboxnetflt install-vboxnetadp install-vboxpci
 
 else
 
@@ -114,21 +124,32 @@ install:
 
 endif
 
-clean:
-	@$(MAKE) -C vboxdrv clean
-	@if [ -d vboxnetflt ]; then \
+clean-vboxdrv:
+	+@$(MAKE) -C vboxdrv clean
+	rm -rf vboxdrv.ko
+
+clean-vboxnetflt:
+	+@if [ -d vboxnetflt ]; then \
 	    $(MAKE) -C vboxnetflt clean; \
 	fi
-	@if [ -d vboxnetadp ]; then \
+	rm -rf vboxnetflt.ko
+
+clean-vboxnetadp:
+	+@if [ -d vboxnetadp ]; then \
 	    $(MAKE) -C vboxnetadp clean; \
 	fi
-	@if [ -d vboxpci ]; then \
+	rm -rf vboxnetadp.ko
+
+clean-vboxpci:
+	+@if [ -d vboxpci ]; then \
 	    $(MAKE) -C vboxpci clean; \
 	fi
-	rm -f vboxdrv.ko vboxnetflt.ko vboxnetadp.ko vboxpci.ko
+	rm -f vboxpci.ko
+
+clean: clean-vboxdrv clean-vboxnetflt clean-vboxnetadp clean-vboxpci
 
 check:
-	@$(MAKE) KBUILD_VERBOSE=$(KBUILD_VERBOSE) -C vboxdrv check
+	+@$(MAKE) KBUILD_VERBOSE=$(KBUILD_VERBOSE) -C vboxdrv check
 
 unload:
 	@for module in vboxpci vboxnetadp vboxnetflt vboxdrv; do \

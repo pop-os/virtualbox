@@ -167,8 +167,17 @@ Qt::DropAction UIDnDHandler::dragDrop(ulong screenID, int x, int y,
     if (   m_dndTarget.isOk()
         && enmResult != KDnDAction_Ignore)
     {
-        LogFlowFunc(("strFormat=%s ...\n", strFormat.toUtf8().constData()));
+        LogRel2(("DnD: Guest requested format '%s'\n", strFormat.toUtf8().constData()));
+        LogRel2(("DnD: The host offered %d formats:\n", pMimeData->formats().size()));
 
+#if 0
+        QStringList::const_iterator itFmt = pMimeData->formats().constBegin();
+        while (itFmt != pMimeData->formats().constEnd())
+        {
+            LogRel2(("DnD:\t'%s'\n", (*itFmt).toUtf8().constData()));
+            itFmt++;
+        }
+#endif
         QByteArray arrBytes;
 
         /*
@@ -192,25 +201,15 @@ Qt::DropAction UIDnDHandler::dragDrop(ulong screenID, int x, int y,
          **/
         else
         {
-            LogRel3(("DnD: Guest requested a different format '%s'\n", strFormat.toUtf8().constData()));
-            LogRel3(("DnD: The host offered:\n"));
-#if 0
-            for (QStringList::iterator itFmt  = pMimeData->formats().begin();
-                                       itFmt != pMimeData->formats().end(); itFmt++)
-            {
-                QString strTemp = *itFmt;
-                LogRel3(("DnD: \t%s\n", strTemp.toUtf8().constData()));
-            }
-#endif
             if (pMimeData->hasText())
             {
-                LogRel3(("DnD: Converting data to text ...\n"));
+                LogRel2(("DnD: Converting data to text ...\n"));
                 arrBytes  = pMimeData->text().toUtf8();
                 strFormat = "text/plain;charset=utf-8";
             }
             else
             {
-                LogRel(("DnD: Error: Could not convert host format to guest format\n"));
+                LogRel(("DnD: Host formats did not offer a matching format for the guest, skipping\n"));
                 enmResult = KDnDAction_Ignore;
             }
         }
@@ -223,7 +222,7 @@ Qt::DropAction UIDnDHandler::dragDrop(ulong screenID, int x, int y,
             memcpy(vecData.data(), arrBytes.constData(), arrBytes.size());
 
             /* Send data to the guest. */
-            LogRel3(("DnD: Host is sending %d bytes of data as '%s'\n", vecData.size(), strFormat.toUtf8().constData()));
+            LogRel2(("DnD: Host is sending %d bytes of data as '%s'\n", vecData.size(), strFormat.toUtf8().constData()));
             CProgress progress = m_dndTarget.SendData(screenID, strFormat, vecData);
 
             if (m_dndTarget.isOk())
@@ -601,6 +600,8 @@ int UIDnDHandler::retrieveData(Qt::DropAction          dropAction,
                                const QString          &strMIMEType,
                                      QVector<uint8_t> &vecData)
 {
+    /** @todo r=andy Locking required? */
+
     if (!strMIMEType.compare("application/x-qt-mime-type-name", Qt::CaseInsensitive))
         return VINF_SUCCESS;
 
@@ -713,9 +714,19 @@ int UIDnDHandler::retrieveDataInternal(      Qt::DropAction    dropAction,
     return rc;
 }
 
+/**
+ * Sets the current DnD operation mode.
+ *
+ * Note: Only one mode (guest->host *or* host->guest) can be active at the same time.
+ *
+ * @param   enmMode             Current operation mode to set.
+ */
 void UIDnDHandler::setOpMode(DNDOPMODE enmMode)
 {
     QMutexLocker AutoWriteLock(&m_WriteLock);
+
+    /** @todo r=andy Check for old (current) mode and refuse new mode? */
+
     m_enmOpMode = enmMode;
     LogFunc(("Operation mode is now: %RU32\n", m_enmOpMode));
 }
@@ -734,6 +745,12 @@ int UIDnDHandler::sltGetData(      Qt::DropAction  dropAction,
  * Drag and Drop helper methods
  */
 
+/**
+ * Static helper function to convert a Qt drop action to an internal DnD drop action.
+ *
+ * @returns Converted internal drop action.
+ * @param   action              Qt drop action to convert.
+ */
 /* static */
 KDnDAction UIDnDHandler::toVBoxDnDAction(Qt::DropAction action)
 {
@@ -747,6 +764,12 @@ KDnDAction UIDnDHandler::toVBoxDnDAction(Qt::DropAction action)
     return KDnDAction_Ignore;
 }
 
+/**
+ * Static helper function to convert Qt drop actions to internal DnD drop actions.
+ *
+ * @returns Vector of converted internal drop actions.
+ * @param   actions             Qt drop actions to convert.
+ */
 /* static */
 QVector<KDnDAction> UIDnDHandler::toVBoxDnDActions(Qt::DropActions actions)
 {
@@ -763,6 +786,12 @@ QVector<KDnDAction> UIDnDHandler::toVBoxDnDActions(Qt::DropActions actions)
     return vbActions;
 }
 
+/**
+ * Static helper function to convert an internal drop action to a Qt drop action.
+ *
+ * @returns Converted Qt drop action.
+ * @param   actions             Internal drop action to convert.
+ */
 /* static */
 Qt::DropAction UIDnDHandler::toQtDnDAction(KDnDAction action)
 {
@@ -778,6 +807,12 @@ Qt::DropAction UIDnDHandler::toQtDnDAction(KDnDAction action)
     return dropAct;
 }
 
+/**
+ * Static helper function to convert a vector of internal drop actions to Qt drop actions.
+ *
+ * @returns Converted Qt drop actions.
+ * @param   vecActions          Internal drop actions to convert.
+ */
 /* static */
 Qt::DropActions UIDnDHandler::toQtDnDActions(const QVector<KDnDAction> &vecActions)
 {

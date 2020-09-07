@@ -37,7 +37,7 @@
 <context>
     <name>QApplication</name>
     <message>
-        <location filename="../src/main.cpp" line="+787"/>
+        <location filename="../src/main.cpp" line="+792"/>
         <source>Executable &lt;b&gt;%1&lt;/b&gt; requires Qt %2.x, found Qt %3.</source>
         <translation>Izvedljiva datoteka &lt;b&gt;%1&lt;/b&gt; zahteva Qt %2.x, najden Qt %3.</translation>
     </message>
@@ -57,7 +57,7 @@
         <translation>&lt;html&gt;&lt;b&gt;%1 (rc=%2)&lt;/b&gt;&lt;br/&gt;&lt;br/&gt;</translation>
     </message>
     <message>
-        <location line="-945"/>
+        <location line="-950"/>
         <source>Please try reinstalling VirtualBox.</source>
         <translation>Poizkusite ponovno namestiti VirtualBox.</translation>
     </message>
@@ -77,7 +77,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location line="+849"/>
+        <location line="+854"/>
         <source>VirtualBox - Runtime Error</source>
         <translation>VirtualBox - napaka izvajanja</translation>
     </message>
@@ -97,7 +97,7 @@
         <translation>Gonilnik jedra ni dostopen</translation>
     </message>
     <message>
-        <location line="-875"/>
+        <location line="-880"/>
         <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Please try completely uninstalling and reinstalling VirtualBox.</source>
         <translation>Moduli jedra VirtualBox se ne ujemajo s to različico VirtualBoxa.Namestitev VirtualBoxa očitno ni bila uspešna. Poizkusite ga popolnoma odstraniti in ponovno namestiti.</translation>
     </message>
@@ -1551,7 +1551,7 @@
         <translation>Spremeni velikost na %1x%2</translation>
     </message>
     <message>
-        <location filename="../src/runtime/UIMachineLogic.cpp" line="+918"/>
+        <location filename="../src/runtime/UIMachineLogic.cpp" line="+933"/>
         <location line="+495"/>
         <source>Preview Monitor %1</source>
         <translation>Predogled zaslona %1</translation>
@@ -3729,7 +3729,7 @@
     </message>
     <message>
         <location line="+2"/>
-        <source>Cloud Network</source>
+        <source>Cloud Network [EXPERIMENTAL]</source>
         <comment>NetworkAttachmentType</comment>
         <translation type="unfinished"></translation>
     </message>
@@ -4879,7 +4879,7 @@
         </translation>
     </message>
     <message>
-        <location line="+1797"/>
+        <location line="+1803"/>
         <source>Please choose a virtual hard disk file</source>
         <translation type="unfinished">Izberite datoteko navideznega trdega diska</translation>
     </message>
@@ -5821,12 +5821,12 @@
 <context>
     <name>UIDnDHandler</name>
     <message>
-        <location filename="../src/runtime/UIDnDHandler.cpp" line="+232"/>
+        <location filename="../src/runtime/UIDnDHandler.cpp" line="+231"/>
         <source>Dropping data ...</source>
         <translation>Opuščanje podatkov …</translation>
     </message>
     <message>
-        <location line="+439"/>
+        <location line="+441"/>
         <source>Retrieving data ...</source>
         <translation>Pridobivanje podatkov …</translation>
     </message>
@@ -11953,7 +11953,7 @@
 <context>
     <name>UIMachineWindow</name>
     <message>
-        <location filename="../src/runtime/UIMachineWindow.cpp" line="+248"/>
+        <location filename="../src/runtime/UIMachineWindow.cpp" line="+250"/>
         <source> EXPERIMENTAL build %1r%2 - %3</source>
         <translation>PREIZKUSNA izgradnja %1r%2 - %3</translation>
     </message>
@@ -14392,7 +14392,7 @@
 <context>
     <name>UIMiniToolBar</name>
     <message>
-        <location filename="../src/widgets/UIMiniToolBar.cpp" line="+293"/>
+        <location filename="../src/widgets/UIMiniToolBar.cpp" line="+295"/>
         <source>Always show the toolbar</source>
         <translation>Vedno prikaži orodno vrstico</translation>
     </message>

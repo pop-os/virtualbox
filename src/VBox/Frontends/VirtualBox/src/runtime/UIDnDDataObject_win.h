@@ -39,14 +39,14 @@ class UIDnDDataObject : public IDataObject
 {
 public:
 
-    enum DnDDataObjectStatus
+    enum Status
     {
-        DnDDataObjectStatus_Uninitialized = 0,
-        DnDDataObjectStatus_Initialized,
-        DnDDataObjectStatus_Dropping,
-        DnDDataObjectStatus_Dropped,
-        DnDDataObjectStatus_Aborted,
-        DnDDataObjectStatus_32Bit_Hack = 0x7fffffff
+        Status_Uninitialized = 0,
+        Status_Initialized,
+        Status_Dropping,
+        Status_Dropped,
+        Status_Aborted,
+        Status_32Bit_Hack = 0x7fffffff
     };
 
 public:
@@ -82,7 +82,7 @@ public:
 
 protected:
 
-    void SetStatus(DnDDataObjectStatus enmStatus);
+    void SetStatus(Status enmStatus);
 
     bool LookupFormatEtc(LPFORMATETC pFormatEtc, ULONG *puIndex);
     void RegisterFormat(LPFORMATETC pFormatEtc, CLIPFORMAT clipFormat, TYMED tyMed = TYMED_HGLOBAL,
@@ -91,15 +91,20 @@ protected:
     /** Pointe rto drag and drop handler. */
     UIDnDHandler           *m_pDnDHandler;
     /** Current drag and drop status. */
-    DnDDataObjectStatus     m_enmStatus;
+    Status                  m_enmStatus;
     /** Internal reference count of this object. */
     LONG                    m_cRefs;
-    /** Number of native formats registered. This can be a different number than supplied with mlstFormats. */
+    /** Number of native formats registered. This can be a different number than supplied with m_lstFormats. */
     ULONG                   m_cFormats;
+    /** Array of registered FORMATETC structs. Matches m_cFormats. */
     FORMATETC              *m_pFormatEtc;
+    /** Array of registered STGMEDIUM structs. Matches m_cFormats. */
     STGMEDIUM              *m_pStgMedium;
+    /** Event semaphore used for waiting on status changes. */
     RTSEMEVENT              m_SemEvent;
+    /** List of supported formats. */
     QStringList             m_lstFormats;
+    /** Format of currently retrieved data. */
     QString                 m_strFormat;
     /** The retrieved data as a QVariant. Needed for buffering in case a second format needs the same data,
      *  e.g. CF_TEXT and CF_UNICODETEXT. */

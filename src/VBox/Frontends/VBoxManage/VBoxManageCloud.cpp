@@ -1925,20 +1925,20 @@ static bool getSystemProxyForUrl(const com::Utf8Str &strUrl, Bstr &strProxy)
 {
 #ifndef VBOX_WITH_PROXY_INFO
     RT_NOREF(strUrl, strProxy);
-    LogRel(("OCI-NET: Proxy support is disabled. Using direct connection.\n"));
+    LogRel(("CLOUD-NET: Proxy support is disabled. Using direct connection.\n"));
     return false;
 #else /* VBOX_WITH_PROXY_INFO */
     RTHTTP hHttp;
     int rc = RTHttpCreate(&hHttp);
     if (RT_FAILURE(rc))
     {
-        LogRel(("OCI-NET: Failed to create HTTP context (rc=%d)\n", rc));
+        LogRel(("CLOUD-NET: Failed to create HTTP context (rc=%d)\n", rc));
         return false;
     }
     rc = RTHttpUseSystemProxySettings(hHttp);
     if (RT_FAILURE(rc))
     {
-        LogRel(("OCI-NET: Failed to use system proxy (rc=%d)\n", rc));
+        LogRel(("CLOUD-NET: Failed to use system proxy (rc=%d)\n", rc));
         RTHttpDestroy(hHttp);
         return false;
     }
@@ -1948,7 +1948,7 @@ static bool getSystemProxyForUrl(const com::Utf8Str &strUrl, Bstr &strProxy)
     rc = RTHttpGetProxyInfoForUrl(hHttp, strUrl.c_str(), &proxy);
     if (RT_FAILURE(rc))
     {
-        LogRel(("OCI-NET: Failed to get proxy for %s (rc=%d)\n", strUrl.c_str(), rc));
+        LogRel(("CLOUD-NET: Failed to get proxy for %s (rc=%d)\n", strUrl.c_str(), rc));
         RTHttpDestroy(hHttp);
         return false;
     }
@@ -1968,7 +1968,7 @@ static bool getSystemProxyForUrl(const com::Utf8Str &strUrl, Bstr &strProxy)
             pcszProxyScheme = "socks://";
             break;
         case RTHTTPPROXYTYPE_UNKNOWN:
-            LogRel(("OCI-NET: Unknown proxy type. Using direct connecton."));
+            LogRel(("CLOUD-NET: Unknown proxy type. Using direct connecton."));
             RTHttpDestroy(hHttp);
             return false;
     }

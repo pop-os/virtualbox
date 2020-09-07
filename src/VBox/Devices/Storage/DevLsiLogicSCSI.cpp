@@ -2157,11 +2157,12 @@ static void lsilogicR3ReqComplete(PPDMDEVINS pDevIns, PLSILOGICSCSI pThis, PLSIL
         GCPhysAddrSenseBuffer |= ((uint64_t)pThis->u32SenseBufferHighAddr << 32);
 
         /* Copy the sense buffer over. */
-        PDMDevHlpPCIPhysWrite(pDevIns, GCPhysAddrSenseBuffer, pReq->abSenseBuffer,
-                              RT_UNLIKELY(  pReq->GuestRequest.SCSIIO.u8SenseBufferLength
-                                          < sizeof(pReq->abSenseBuffer))
-                              ? pReq->GuestRequest.SCSIIO.u8SenseBufferLength
-                              : sizeof(pReq->abSenseBuffer));
+        if (pReq->GuestRequest.SCSIIO.u8SenseBufferLength > 0)
+            PDMDevHlpPCIPhysWrite(pDevIns, GCPhysAddrSenseBuffer, pReq->abSenseBuffer,
+                                  RT_UNLIKELY(  pReq->GuestRequest.SCSIIO.u8SenseBufferLength
+                                              < sizeof(pReq->abSenseBuffer))
+                                  ? pReq->GuestRequest.SCSIIO.u8SenseBufferLength
+                                  : sizeof(pReq->abSenseBuffer));
 
         if (RT_SUCCESS(rcReq) && RT_LIKELY(pReq->u8ScsiSts == SCSI_STATUS_OK))
         {

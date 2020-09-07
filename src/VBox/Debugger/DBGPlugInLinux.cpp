@@ -181,6 +181,8 @@ typedef LNXPRINTKHDR const *PCLNXPRINTKHDR;
 
 /** The max kernel size. */
 #define LNX_MAX_KERNEL_SIZE                 UINT32_C(0x0f000000)
+/** Maximum kernel log buffer size. */
+#define LNX_MAX_KERNEL_LOG_SIZE             (16 * _1M)
 
 /** The maximum size we expect for kallsyms_names. */
 #define LNX_MAX_KALLSYMS_NAMES_SIZE         UINT32_C(0x200000)
@@ -222,6 +224,94 @@ static uint64_t g_au64LnxKernelAddresses[] =
 };
 
 static const uint8_t g_abLinuxVersion[] = "Linux version ";
+/** The needle for searching for the kernel log area (the value is observed in pretty much all 32bit and 64bit x86 kernels).
+ * This needle should appear only once in the memory due to the address being filled in by a format string. */
+static const uint8_t g_abKrnlLogNeedle[] = "BIOS-e820: [mem 0x0000000000000000";
+
+
+/**
+ * Tries to resolve the kernel log buffer start and end by searching for needle.
+ *
+ * @returns VBox status code.
+ * @param   pThis               The Linux digger data.
+ * @param   pUVM                The VM handle.
+ * @param   pGCPtrLogBuf        Where to store the start of the kernel log buffer on success.
+ * @param   pcbLogBuf           Where to store the size of the kernel log buffer on success.
+ */
+static int dbgDiggerLinuxKrnlLogBufFindByNeedle(PDBGDIGGERLINUX pThis, PUVM pUVM, RTGCPTR *pGCPtrLogBuf, uint32_t *pcbLogBuf)
+{
+    int rc = VINF_SUCCESS;
+
+    /* Try to find the needle, it should be very early in the kernel log buffer. */
+    DBGFADDRESS AddrScan;
+    DBGFADDRESS AddrHit;
+    DBGFR3AddrFromFlat(pUVM, &AddrScan, pThis->f64Bit ? LNX64_KERNEL_ADDRESS_START : LNX32_KERNEL_ADDRESS_START);
+
+    rc = DBGFR3MemScan(pUVM, 0 /*idCpu*/, &AddrScan, ~(RTGCUINTPTR)0, 1 /*uAlign*/,
+                       g_abKrnlLogNeedle, sizeof(g_abKrnlLogNeedle) - 1, &AddrHit);
+    if (RT_SUCCESS(rc))
+    {
+        uint32_t cbLogBuf = 0;
+        uint64_t tsLastNs = 0;
+        DBGFADDRESS AddrCur;
+
+        DBGFR3AddrSub(&AddrHit, sizeof(LNXPRINTKHDR));
+        AddrCur = AddrHit;
+
+        /* Try to find the end of the kernel log buffer. */
+        for (;;)
+        {
+            if (cbLogBuf >= LNX_MAX_KERNEL_LOG_SIZE)
+                break;
+
+            LNXPRINTKHDR Hdr;
+            rc = DBGFR3MemRead(pUVM, 0 /*idCpu*/, &AddrCur, &Hdr, sizeof(Hdr));
+            if (RT_SUCCESS(rc))
+            {
+                uint32_t const cbLogAlign = 4;
+
+                /*
+                 * If the header does not look valid anymore we stop.
+                 * Timestamps are monotonically increasing.
+                 */
+                if (   !Hdr.cbTotal /* Zero entry size means there is no record anymore, doesn't make sense to look futher. */
+                    || Hdr.cbText + Hdr.cbDict + sizeof(Hdr) > Hdr.cbTotal
+                    || (Hdr.cbTotal & (cbLogAlign - 1)) != 0
+                    || tsLastNs > Hdr.nsTimestamp)
+                    break;
+
+                /** @todo Maybe read text part and verify it is all ASCII. */
+
+                cbLogBuf += Hdr.cbTotal;
+                DBGFR3AddrAdd(&AddrCur, Hdr.cbTotal);
+            }
+
+            if (RT_FAILURE(rc))
+                break;
+        }
+
+        /** @todo Go back to find the start address of the kernel log (or we loose potential kernel log messages). */
+
+        if (   RT_SUCCESS(rc)
+            && cbLogBuf)
+        {
+            /* Align log buffer size to a power of two. */
+            uint32_t idxBitLast = ASMBitLastSetU32(cbLogBuf);
+            idxBitLast--; /* There is at least one bit set, see check above. */
+
+            if (cbLogBuf & (RT_BIT_32(idxBitLast) - 1))
+                idxBitLast++;
+
+            *pGCPtrLogBuf = AddrHit.FlatPtr;
+            *pcbLogBuf    = RT_MIN(RT_BIT_32(idxBitLast), LNX_MAX_KERNEL_LOG_SIZE);
+        }
+        else if (RT_SUCCESS(rc))
+            rc = VERR_NOT_FOUND;
+    }
+
+    return rc;
+}
+
 
 /**
  * Converts a given offset into an absolute address if relative kernel offsets are used for
@@ -757,6 +847,203 @@ static int dbgDiggerLinuxLogBufferQueryAscii(PDBGDIGGERLINUX pThis, PUVM pUVM, R
     return cbBuf <= cchLength ? VERR_BUFFER_OVERFLOW : VINF_SUCCESS;
 }
 
+
+/**
+ * Worker to process a given record based kernel log.
+ *
+ * @returns VBox status code.
+ * @param   pThis       The Linux digger data.
+ * @param   pUVM        The VM user mode handle.
+ * @param   GCPtrLogBuf Flat guest address of the start of the log buffer.
+ * @param   cbLogBuf    Power of two aligned size of the log buffer.
+ * @param   idxFirst    Index in the log bfufer of the first message.
+ * @param   idxNext     Index where to write hte next message in the log buffer.
+ * @param   fFlags      Flags reserved for future use, MBZ.
+ * @param   cMessages   The number of messages to retrieve, counting from the
+ *                      end of the log (i.e. like tail), use UINT32_MAX for all.
+ * @param   pszBuf      The output buffer.
+ * @param   cbBuf       The buffer size.
+ * @param   pcbActual   Where to store the number of bytes actually returned,
+ *                      including zero terminator.  On VERR_BUFFER_OVERFLOW this
+ *                      holds the necessary buffer size.  Optional.
+ */
+static int dbgDiggerLinuxKrnLogBufferProcess(PDBGDIGGERLINUX pThis, PUVM pUVM, RTGCPTR GCPtrLogBuf,
+                                             uint32_t cbLogBuf, uint32_t idxFirst, uint32_t idxNext,
+                                             uint32_t fFlags, uint32_t cMessages, char *pszBuf, size_t cbBuf,
+                                             size_t *pcbActual)
+{
+    RT_NOREF(fFlags);
+
+    /*
+     * Check if the values make sense.
+     */
+    if (pThis->f64Bit ? !LNX64_VALID_ADDRESS(GCPtrLogBuf) : !LNX32_VALID_ADDRESS(GCPtrLogBuf))
+    {
+        LogRel(("dbgDiggerLinuxIDmsg_QueryKernelLog: 'log_buf' value %RGv is not valid.\n", GCPtrLogBuf));
+        return VERR_NOT_FOUND;
+    }
+    if (   cbLogBuf < _4K
+        || !RT_IS_POWER_OF_TWO(cbLogBuf)
+        || cbLogBuf > LNX_MAX_KERNEL_LOG_SIZE)
+    {
+        LogRel(("dbgDiggerLinuxIDmsg_QueryKernelLog: 'log_buf_len' value %#x is not valid.\n", cbLogBuf));
+        return VERR_NOT_FOUND;
+    }
+    uint32_t const cbLogAlign = 4;
+    if (   idxFirst > cbLogBuf - sizeof(LNXPRINTKHDR)
+        || (idxFirst & (cbLogAlign - 1)) != 0)
+    {
+        LogRel(("dbgDiggerLinuxIDmsg_QueryKernelLog: 'log_first_idx' value %#x is not valid.\n", idxFirst));
+        return VERR_NOT_FOUND;
+    }
+    if (   idxNext > cbLogBuf - sizeof(LNXPRINTKHDR)
+        || (idxNext & (cbLogAlign - 1)) != 0)
+    {
+        LogRel(("dbgDiggerLinuxIDmsg_QueryKernelLog: 'log_next_idx' value %#x is not valid.\n", idxNext));
+        return VERR_NOT_FOUND;
+    }
+
+    /*
+     * Read the whole log buffer.
+     */
+    uint8_t *pbLogBuf = (uint8_t *)RTMemAlloc(cbLogBuf);
+    if (!pbLogBuf)
+    {
+        LogRel(("dbgDiggerLinuxIDmsg_QueryKernelLog: Failed to allocate %#x bytes for log buffer\n", cbLogBuf));
+        return VERR_NO_MEMORY;
+    }
+    DBGFADDRESS Addr;
+    int rc = DBGFR3MemRead(pUVM, 0 /*idCpu*/, DBGFR3AddrFromFlat(pUVM, &Addr, GCPtrLogBuf), pbLogBuf, cbLogBuf);
+    if (RT_FAILURE(rc))
+    {
+        LogRel(("dbgDiggerLinuxIDmsg_QueryKernelLog: Error reading %#x bytes of log buffer at %RGv: %Rrc\n",
+                cbLogBuf, Addr.FlatPtr, rc));
+        RTMemFree(pbLogBuf);
+        return VERR_NOT_FOUND;
+    }
+
+    /*
+     * Count the messages in the buffer while doing some basic validation.
+     */
+    uint32_t const cbUsed = idxFirst == idxNext ? cbLogBuf /* could be empty... */
+                          : idxFirst < idxNext  ? idxNext - idxFirst : cbLogBuf - idxFirst + idxNext;
+    uint32_t cbLeft    = cbUsed;
+    uint32_t offCur    = idxFirst;
+    uint32_t cLogMsgs  = 0;
+
+    while (cbLeft > 0)
+    {
+        PCLNXPRINTKHDR pHdr = (PCLNXPRINTKHDR)&pbLogBuf[offCur];
+        if (!pHdr->cbTotal)
+        {
+            /* Wrap around packet, most likely... */
+            if (cbLogBuf - offCur >= cbLeft)
+                break;
+            offCur = 0;
+            pHdr = (PCLNXPRINTKHDR)&pbLogBuf[offCur];
+        }
+        if (RT_UNLIKELY(   pHdr->cbTotal > cbLogBuf - sizeof(*pHdr) - offCur
+                        || pHdr->cbTotal > cbLeft
+                        || (pHdr->cbTotal & (cbLogAlign - 1)) != 0
+                        || pHdr->cbTotal < (uint32_t)pHdr->cbText + (uint32_t)pHdr->cbDict + sizeof(*pHdr) ))
+        {
+            LogRel(("dbgDiggerLinuxIDmsg_QueryKernelLog: Invalid printk_log record at %#x: cbTotal=%#x cbText=%#x cbDict=%#x cbLogBuf=%#x cbLeft=%#x\n",
+                    offCur, pHdr->cbTotal, pHdr->cbText, pHdr->cbDict, cbLogBuf, cbLeft));
+            break;
+        }
+
+        if (pHdr->cbText > 0)
+            cLogMsgs++;
+
+        /* next */
+        offCur += pHdr->cbTotal;
+        cbLeft -= pHdr->cbTotal;
+    }
+    if (!cLogMsgs)
+    {
+        RTMemFree(pbLogBuf);
+        return VERR_NOT_FOUND;
+    }
+
+    /*
+     * Copy the messages into the output buffer.
+     */
+    offCur = idxFirst;
+    cbLeft = cbUsed - cbLeft;
+
+    /* Skip messages that the caller doesn't want. */
+    if (cMessages < cLogMsgs)
+    {
+        uint32_t cToSkip = cLogMsgs - cMessages;
+        cLogMsgs -= cToSkip;
+
+        while (cToSkip > 0)
+        {
+            PCLNXPRINTKHDR pHdr = (PCLNXPRINTKHDR)&pbLogBuf[offCur];
+            if (!pHdr->cbTotal)
+            {
+                offCur = 0;
+                pHdr = (PCLNXPRINTKHDR)&pbLogBuf[offCur];
+            }
+            if (pHdr->cbText > 0)
+                cToSkip--;
+
+            /* next */
+            offCur += pHdr->cbTotal;
+            cbLeft -= pHdr->cbTotal;
+        }
+    }
+
+    /* Now copy the messages. */
+    size_t offDst = 0;
+    while (cbLeft > 0)
+    {
+        PCLNXPRINTKHDR pHdr = (PCLNXPRINTKHDR)&pbLogBuf[offCur];
+        if (   !pHdr->cbTotal
+            || !cLogMsgs)
+        {
+            if (cbLogBuf - offCur >= cbLeft)
+                break;
+            offCur = 0;
+            pHdr = (PCLNXPRINTKHDR)&pbLogBuf[offCur];
+        }
+
+        if (pHdr->cbText > 0)
+        {
+            char  *pchText = (char *)(pHdr + 1);
+            size_t cchText = RTStrNLen(pchText, pHdr->cbText);
+            if (offDst + cchText < cbBuf)
+            {
+                memcpy(&pszBuf[offDst], pHdr + 1, cchText);
+                pszBuf[offDst + cchText] = '\n';
+            }
+            else if (offDst < cbBuf)
+                memcpy(&pszBuf[offDst], pHdr + 1, cbBuf - offDst);
+            offDst += cchText + 1;
+        }
+
+        /* next */
+        offCur += pHdr->cbTotal;
+        cbLeft -= pHdr->cbTotal;
+    }
+
+    /* Done with the buffer. */
+    RTMemFree(pbLogBuf);
+
+    /* Make sure we've reserved a char for the terminator. */
+    if (!offDst)
+        offDst = 1;
+
+    /* Set return size value. */
+    if (pcbActual)
+        *pcbActual = offDst;
+
+    if (offDst <= cbBuf)
+        return VINF_SUCCESS;
+    return VERR_BUFFER_OVERFLOW;
+}
+
+
 /**
  * Worker to get at the kernel log for post 3.4 kernels where the log buffer contains records.
  *
@@ -777,7 +1064,6 @@ static int dbgDiggerLinuxLogBufferQueryRecords(PDBGDIGGERLINUX pThis, PUVM pUVM,
                                                uint32_t fFlags, uint32_t cMessages,
                                                char *pszBuf, size_t cbBuf, size_t *pcbActual)
 {
-    RT_NOREF1(fFlags);
     int rc = VINF_SUCCESS;
     RTGCPTR  GCPtrLogBuf;
     uint32_t cbLogBuf;
@@ -825,174 +1111,18 @@ static int dbgDiggerLinuxLogBufferQueryRecords(PDBGDIGGERLINUX pThis, PUVM pUVM,
         idxNext = 0;
         rc = dbgDiggerLinuxQueryLogBufferPtrs(pThis, pUVM, hMod, &GCPtrLogBuf, &cbLogBuf);
         if (RT_FAILURE(rc))
+        {
+            /*
+             * Last resort, scan for a known value which should appear only once in the kernel log buffer
+             * and try to deduce the boundaries from there.
+             */
+            rc = dbgDiggerLinuxKrnlLogBufFindByNeedle(pThis, pUVM, &GCPtrLogBuf, &cbLogBuf);
             return rc;
-    }
-
-    /*
-     * Check if the values make sense.
-     */
-    if (pThis->f64Bit ? !LNX64_VALID_ADDRESS(GCPtrLogBuf) : !LNX32_VALID_ADDRESS(GCPtrLogBuf))
-    {
-        LogRel(("dbgDiggerLinuxIDmsg_QueryKernelLog: 'log_buf' value %RGv is not valid.\n", GCPtrLogBuf));
-        return VERR_NOT_FOUND;
-    }
-    if (   cbLogBuf < 4096
-        || !RT_IS_POWER_OF_TWO(cbLogBuf)
-        || cbLogBuf > 16*_1M)
-    {
-        LogRel(("dbgDiggerLinuxIDmsg_QueryKernelLog: 'log_buf_len' value %#x is not valid.\n", cbLogBuf));
-        return VERR_NOT_FOUND;
-    }
-    uint32_t const cbLogAlign = 4;
-    if (   idxFirst > cbLogBuf - sizeof(LNXPRINTKHDR)
-        || (idxFirst & (cbLogAlign - 1)) != 0)
-    {
-        LogRel(("dbgDiggerLinuxIDmsg_QueryKernelLog: 'log_first_idx' value %#x is not valid.\n", idxFirst));
-        return VERR_NOT_FOUND;
-    }
-    if (   idxNext > cbLogBuf - sizeof(LNXPRINTKHDR)
-        || (idxNext & (cbLogAlign - 1)) != 0)
-    {
-        LogRel(("dbgDiggerLinuxIDmsg_QueryKernelLog: 'log_next_idx' value %#x is not valid.\n", idxNext));
-        return VERR_NOT_FOUND;
-    }
-
-    /*
-     * Read the whole log buffer.
-     */
-    uint8_t *pbLogBuf = (uint8_t *)RTMemAlloc(cbLogBuf);
-    if (!pbLogBuf)
-    {
-        LogRel(("dbgDiggerLinuxIDmsg_QueryKernelLog: Failed to allocate %#x bytes for log buffer\n", cbLogBuf));
-        return VERR_NO_MEMORY;
-    }
-    DBGFADDRESS Addr;
-    rc = DBGFR3MemRead(pUVM, 0 /*idCpu*/, DBGFR3AddrFromFlat(pUVM, &Addr, GCPtrLogBuf), pbLogBuf, cbLogBuf);
-    if (RT_FAILURE(rc))
-    {
-        LogRel(("dbgDiggerLinuxIDmsg_QueryKernelLog: Error reading %#x bytes of log buffer at %RGv: %Rrc\n",
-                cbLogBuf, Addr.FlatPtr, rc));
-        RTMemFree(pbLogBuf);
-        return VERR_NOT_FOUND;
-    }
-
-    /*
-     * Count the messages in the buffer while doing some basic validation.
-     */
-    uint32_t const cbUsed = idxFirst == idxNext ? cbLogBuf /* could be empty... */
-                          : idxFirst < idxNext  ? idxNext - idxFirst : cbLogBuf - idxFirst + idxNext;
-    uint32_t cbLeft    = cbUsed;
-    uint32_t offCur    = idxFirst;
-    uint32_t cLogMsgs  = 0;
-
-    while (cbLeft > 0)
-    {
-        PCLNXPRINTKHDR pHdr = (PCLNXPRINTKHDR)&pbLogBuf[offCur];
-        if (!pHdr->cbTotal)
-        {
-            /* Wrap around packet, most likely... */
-            if (cbLogBuf - offCur >= cbLeft)
-                break;
-            offCur = 0;
-            pHdr = (PCLNXPRINTKHDR)&pbLogBuf[offCur];
-        }
-        if (RT_UNLIKELY(   pHdr->cbTotal > cbLogBuf - sizeof(*pHdr) - offCur
-                        || pHdr->cbTotal > cbLeft
-                        || (pHdr->cbTotal & (cbLogAlign - 1)) != 0
-                        || pHdr->cbTotal < (uint32_t)pHdr->cbText + (uint32_t)pHdr->cbDict + sizeof(*pHdr) ))
-        {
-            LogRel(("dbgDiggerLinuxIDmsg_QueryKernelLog: Invalid printk_log record at %#x: cbTotal=%#x cbText=%#x cbDict=%#x cbLogBuf=%#x cbLeft=%#x\n",
-                    offCur, pHdr->cbTotal, pHdr->cbText, pHdr->cbDict, cbLogBuf, cbLeft));
-            rc = VERR_INVALID_STATE;
-            break;
-        }
-
-        if (pHdr->cbText > 0)
-            cLogMsgs++;
-
-        /* next */
-        offCur += pHdr->cbTotal;
-        cbLeft -= pHdr->cbTotal;
-    }
-    if (RT_FAILURE(rc))
-    {
-        RTMemFree(pbLogBuf);
-        return rc;
-    }
-
-    /*
-     * Copy the messages into the output buffer.
-     */
-    offCur = idxFirst;
-    cbLeft = cbUsed;
-
-    /* Skip messages that the caller doesn't want. */
-    if (cMessages < cLogMsgs)
-    {
-        uint32_t cToSkip = cLogMsgs - cMessages;
-        while (cToSkip > 0)
-        {
-            PCLNXPRINTKHDR pHdr = (PCLNXPRINTKHDR)&pbLogBuf[offCur];
-            if (!pHdr->cbTotal)
-            {
-                offCur = 0;
-                pHdr = (PCLNXPRINTKHDR)&pbLogBuf[offCur];
-            }
-            if (pHdr->cbText > 0)
-                cToSkip--;
-
-            /* next */
-            offCur += pHdr->cbTotal;
-            cbLeft -= pHdr->cbTotal;
         }
     }
 
-    /* Now copy the messages. */
-    size_t offDst = 0;
-    while (cbLeft > 0)
-    {
-        PCLNXPRINTKHDR pHdr = (PCLNXPRINTKHDR)&pbLogBuf[offCur];
-        if (!pHdr->cbTotal)
-        {
-            if (cbLogBuf - offCur >= cbLeft)
-                break;
-            offCur = 0;
-            pHdr = (PCLNXPRINTKHDR)&pbLogBuf[offCur];
-        }
-
-        if (pHdr->cbText > 0)
-        {
-            char  *pchText = (char *)(pHdr + 1);
-            size_t cchText = RTStrNLen(pchText, pHdr->cbText);
-            if (offDst + cchText < cbBuf)
-            {
-                memcpy(&pszBuf[offDst], pHdr + 1, cchText);
-                pszBuf[offDst + cchText] = '\n';
-            }
-            else if (offDst < cbBuf)
-                memcpy(&pszBuf[offDst], pHdr + 1, cbBuf - offDst);
-            offDst += cchText + 1;
-        }
-
-        /* next */
-        offCur += pHdr->cbTotal;
-        cbLeft -= pHdr->cbTotal;
-    }
-
-    /* Done with the buffer. */
-    RTMemFree(pbLogBuf);
-
-    /* Make sure we've reserved a char for the terminator. */
-    if (!offDst)
-        offDst = 1;
-
-    /* Set return size value. */
-    if (pcbActual)
-        *pcbActual = offDst;
-
-    if (offDst <= cbBuf)
-        return VINF_SUCCESS;
-    return VERR_BUFFER_OVERFLOW;
+    return dbgDiggerLinuxKrnLogBufferProcess(pThis, pUVM, GCPtrLogBuf, cbLogBuf, idxFirst, idxNext,
+                                             fFlags, cMessages, pszBuf, cbBuf, pcbActual);
 }
 
 /**
@@ -1013,23 +1143,43 @@ static DECLCALLBACK(int) dbgDiggerLinuxIDmsg_QueryKernelLog(PDBGFOSIDMESG pThis,
     RTDBGMOD hMod;
     int rc = RTDbgAsModuleByName(hAs, "vmlinux", 0, &hMod);
     RTDbgAsRelease(hAs);
-    if (RT_FAILURE(rc))
-        return VERR_NOT_FOUND;
 
-    /*
-     * Check whether the kernel log buffer is a simple char buffer or the newer
-     * record based implementation.
-     * The record based implementation was presumably introduced with kernel 3.4,
-     * see: http://thread.gmane.org/gmane.linux.kernel/1284184
-     */
-    size_t cbActual;
-    if (dbgDiggerLinuxLogBufferIsAsciiBuffer(pData, pUVM))
-        rc = dbgDiggerLinuxLogBufferQueryAscii(pData, pUVM, hMod, fFlags, cMessages, pszBuf, cbBuf, &cbActual);
+    size_t cbActual = 0;
+    if (RT_SUCCESS(rc))
+    {
+        /*
+         * Check whether the kernel log buffer is a simple char buffer or the newer
+         * record based implementation.
+         * The record based implementation was presumably introduced with kernel 3.4,
+         * see: http://thread.gmane.org/gmane.linux.kernel/1284184
+         */
+        if (dbgDiggerLinuxLogBufferIsAsciiBuffer(pData, pUVM))
+            rc = dbgDiggerLinuxLogBufferQueryAscii(pData, pUVM, hMod, fFlags, cMessages, pszBuf, cbBuf, &cbActual);
+        else
+            rc = dbgDiggerLinuxLogBufferQueryRecords(pData, pUVM, hMod, fFlags, cMessages, pszBuf, cbBuf, &cbActual);
+
+        /* Release the module in any case. */
+        RTDbgModRelease(hMod);
+    }
     else
-        rc = dbgDiggerLinuxLogBufferQueryRecords(pData, pUVM, hMod, fFlags, cMessages, pszBuf, cbBuf, &cbActual);
+    {
+        /*
+         * For the record based kernel versions we have a last resort heuristic which doesn't
+         * require any symbols, try that here.
+         */
+        if (!dbgDiggerLinuxLogBufferIsAsciiBuffer(pData, pUVM))
+        {
+            RTGCPTR GCPtrLogBuf = 0;
+            uint32_t cbLogBuf = 0;
 
-    /* Release the module in any case. */
-    RTDbgModRelease(hMod);
+            rc = dbgDiggerLinuxKrnlLogBufFindByNeedle(pData, pUVM, &GCPtrLogBuf, &cbLogBuf);
+            if (RT_SUCCESS(rc))
+                rc = dbgDiggerLinuxKrnLogBufferProcess(pData, pUVM, GCPtrLogBuf, cbLogBuf, 0 /*idxFirst*/, 0 /*idxNext*/,
+                                                       fFlags, cMessages, pszBuf, cbBuf, &cbActual);
+        }
+        else
+            rc = VERR_NOT_FOUND;
+    }
 
     if (RT_FAILURE(rc) && rc != VERR_BUFFER_OVERFLOW)
         return rc;
@@ -2670,9 +2820,8 @@ static bool dbgDiggerLinuxProbeWithAddr(PDBGDIGGERLINUX pThis, PUVM pUVM, RTGCUI
  * @returns Flag whether a possible candidate location was found.
  * @param   pThis               The Linux digger data.
  * @param   pUVM                The user mode VM handle.
- * @param   uAddrKernelStart    The first address the kernel is expected at.
  */
-static bool dbgDiggerLinuxProbeKaslr(PDBGDIGGERLINUX pThis, PUVM pUVM, RTGCUINTPTR uAddrKernelStart)
+static bool dbgDiggerLinuxProbeKaslr(PDBGDIGGERLINUX pThis, PUVM pUVM)
 {
     /**
      * With KASLR the kernel is loaded at a different address at each boot making detection
@@ -2699,7 +2848,16 @@ static bool dbgDiggerLinuxProbeKaslr(PDBGDIGGERLINUX pThis, PUVM pUVM, RTGCUINTP
      *
      * So the highest offset the kernel can start is 0x40000000 which is 1GB (plus the maximum kernel size we defined).
      */
-    if (dbgDiggerLinuxProbeWithAddr(pThis, pUVM, uAddrKernelStart, _1G + LNX_MAX_KERNEL_SIZE))
+    if (dbgDiggerLinuxProbeWithAddr(pThis, pUVM, LNX64_KERNEL_ADDRESS_START, _1G + LNX_MAX_KERNEL_SIZE))
+        return true;
+
+    /*
+     * 32bit variant, makes sure we don't exceed the 4GB address space or DBGFR3MemScan() returns VERR_DBGF_MEM_NOT_FOUND immediately
+     * without searching the remainder of the address space.
+     *
+     * The default split is 3GB userspace and 1GB kernel, so we just search the entire upper 1GB kernel space.
+     */
+    if (dbgDiggerLinuxProbeWithAddr(pThis, pUVM, LNX32_KERNEL_ADDRESS_START, _4G - LNX32_KERNEL_ADDRESS_START))
         return true;
 
     return false;
@@ -2763,10 +2921,7 @@ static DECLCALLBACK(bool)  dbgDiggerLinuxProbe(PUVM pUVM, void *pvData)
     }
 
     /* Maybe the kernel uses KASLR. */
-    if (dbgDiggerLinuxProbeKaslr(pThis, pUVM, LNX32_KERNEL_ADDRESS_START))
-        return true;
-
-    if (dbgDiggerLinuxProbeKaslr(pThis, pUVM, LNX64_KERNEL_ADDRESS_START))
+    if (dbgDiggerLinuxProbeKaslr(pThis, pUVM))
         return true;
 
     return false;

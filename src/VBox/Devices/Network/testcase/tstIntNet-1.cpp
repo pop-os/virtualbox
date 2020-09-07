@@ -808,7 +808,7 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                 return 1;
 
             case 'V':
-                RTPrintf("$Revision: 135976 $\n");
+                RTPrintf("$Revision: 139685 $\n");
                 return 0;
 
             default:
@@ -846,7 +846,7 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         return 1;
     }
 
-    rc = SUPR3LoadVMM(szAbsPath);
+    rc = SUPR3LoadVMM(szAbsPath, NULL);
     if (RT_FAILURE(rc))
     {
         RTPrintf("tstIntNet-1: SUPR3LoadVMM(\"%s\") -> %Rrc\n", szAbsPath, rc);

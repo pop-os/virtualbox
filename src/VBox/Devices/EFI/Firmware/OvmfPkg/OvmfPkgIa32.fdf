@@ -231,6 +231,9 @@ INF  OvmfPkg/XenIoPciDxe/XenIoPciDxe.inf
 INF  OvmfPkg/XenBusDxe/XenBusDxe.inf
 INF  OvmfPkg/XenPvBlkDxe/XenPvBlkDxe.inf
 !endif
+!if $(MPT_SCSI_ENABLE) == TRUE
+INF  OvmfPkg/MptScsiDxe/MptScsiDxe.inf
+!endif
 
 !if $(SECURE_BOOT_ENABLE) == TRUE
   INF  SecurityPkg/VariableAuthenticated/SecureBootConfigDxe/SecureBootConfigDxe.inf
@@ -275,6 +278,7 @@ INF  OvmfPkg/SmbiosPlatformDxe/SmbiosPlatformDxe.inf
 !ifdef $(VBOX)
 INF VBoxPkg/VBoxVgaMiniPortDxe/VBoxVgaMiniPortDxe.inf
 INF VBoxPkg/VBoxVgaDxe/VBoxVgaDxe.inf
+INF VBoxPkg/VBoxFsDxe/VBoxIso9660.inf
 INF VBoxPkg/VBoxFsDxe/VBoxHfs.inf
 INF VBoxPkg/VBoxSysTables/VBoxSysTables.inf
 INF VBoxPkg/VBoxAppleSim/VBoxAppleSim.inf

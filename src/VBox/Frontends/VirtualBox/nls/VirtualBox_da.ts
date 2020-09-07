@@ -2913,11 +2913,6 @@
         <translation type="unfinished">NAT-netværk</translation>
     </message>
     <message>
-        <source>Cloud Network</source>
-        <comment>NetworkAttachmentType</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>PCnet-PCI II (Am79C970A)</source>
         <comment>NetworkAdapterType</comment>
         <translation type="unfinished">PCnet-PCI II (Am79C970A)</translation>
@@ -3985,6 +3980,11 @@
     </message>
     <message>
         <source>Start instance ...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cloud Network [EXPERIMENTAL]</source>
+        <comment>NetworkAttachmentType</comment>
         <translation type="unfinished"></translation>
     </message>
 </context>

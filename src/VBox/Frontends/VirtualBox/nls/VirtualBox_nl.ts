@@ -2990,7 +2990,7 @@
     <message>
         <source>Cloud Network</source>
         <comment>NetworkAttachmentType</comment>
-        <translation>Cloudnetwerk</translation>
+        <translation type="vanished">Cloudnetwerk</translation>
     </message>
     <message>
         <source>PCnet-PCI II (Am79C970A)</source>
@@ -4062,6 +4062,11 @@
     <message>
         <source>Start instance ...</source>
         <translation>Starten instance ...</translation>
+    </message>
+    <message>
+        <source>Cloud Network [EXPERIMENTAL]</source>
+        <comment>NetworkAttachmentType</comment>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

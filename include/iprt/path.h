@@ -520,6 +520,43 @@ RTDECL(char *) RTPathFilenameEx(const char *pszPath, uint32_t fFlags);
 RTDECL(PRTUTF16) RTPathFilenameExUtf16(PCRTUTF16 pwszPath, uint32_t fFlags);
 
 /**
+ * Finds the common path in a given set of paths.
+ *
+ * The paths are not made absolute or real, they are taken as given.
+ *
+ * @returns The common path length as represented by \a papszPaths[0], 0 if not
+ *          found or invalid input.
+ * @param   cPaths      Number of paths in \a papszPaths.
+ * @param   papszPaths  Array of paths to find common path for.  The paths must
+ *                      not contains ".." sequences, as that's too complicated
+ *                      to handle.
+ */
+RTDECL(size_t) RTPathFindCommon(size_t cPaths, const char * const *papszPaths);
+
+/**
+ * Finds the common path in a given set of paths, extended version.
+ *
+ * The paths are not made absolute or real, they are taken as given.
+ *
+ * @returns The common path length as represented by \a papszPaths[0], 0 if not
+ *          found or invalid input.
+ * @param   cPaths      Number of paths in \a papszPaths.
+ * @param   papszPaths  Array of paths to find common path for.  The paths must
+ *                      not contains ".." sequences, as that's too complicated
+ *                      to handle.
+ * @param   fFlags      RTPATH_STR_F_STYLE_XXX, RTPATH_STR_F_NO_START, and
+ *                      RTPATHFINDCOMMON_F_IGNORE_DOTDOT as desired.   Other
+ *                      RTPATH_STR_F_XXX flags will be ignored.
+ */
+RTDECL(size_t) RTPathFindCommonEx(size_t cPaths, const char * const *papszPaths, uint32_t fFlags);
+
+/** @name RTPATHFINDCOMMON_F_XXX - Flags for RTPathFindCommonEx.
+ * @{ */
+/** Ignore the dangers of '..' components. */
+#define RTPATHFINDCOMMON_F_IGNORE_DOTDOT    RT_BIT_32(16)
+/** @} */
+
+/**
  * Finds the suffix part of in a path (last dot and onwards).
  *
  * @returns Pointer to suffix within pszPath.

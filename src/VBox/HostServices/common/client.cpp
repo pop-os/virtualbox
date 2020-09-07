@@ -28,7 +28,6 @@ using namespace HGCM;
 
 Client::Client(uint32_t uClientID)
     : m_uClientID(uClientID)
-    , m_uProtocolVer(0)
     , m_fDeferred(false)
 {
     RT_ZERO(m_Deferred);
@@ -147,16 +146,6 @@ uint32_t Client::GetClientID(void) const
 }
 
 /**
- * Returns the client's used protocol version.
- *
- * @returns Protocol version, or 0 if not set.
- */
-uint32_t Client::GetProtocolVer(void) const
-{
-    return m_uProtocolVer;
-}
-
-/**
  * Returns whether the client currently is in deferred mode or not.
  *
  * @returns \c True if in deferred mode, \c False if not.
@@ -169,31 +158,23 @@ bool Client::IsDeferred(void) const
 /**
  * Set the client's status to deferred, meaning that it does not return to the caller
  * until CompleteDeferred() has been called.
+ *
+ * @returns VBox status code.
+ * @param   hHandle             Call handle to save.
+ * @param   u32Function         Function number to save.
+ * @param   cParms              Number of HGCM parameters to save.
+ * @param   paParms             HGCM parameters to save.
  */
 void Client::SetDeferred(VBOXHGCMCALLHANDLE hHandle, uint32_t u32Function, uint32_t cParms, VBOXHGCMSVCPARM paParms[])
 {
     LogFlowThisFunc(("uClient=%RU32\n", m_uClientID));
 
-#ifndef DEBUG_bird /** r=bird: This bugger triggers in the DnD service when restoring saved state.  Not tested?  */
-    AssertMsg(m_fDeferred == false, ("Client already in deferred mode\n"));
-#endif
     m_fDeferred = true;
 
     m_Deferred.hHandle = hHandle;
     m_Deferred.uType   = u32Function;
     m_Deferred.cParms  = cParms;
     m_Deferred.paParms = paParms;
-}
-
-/**
- * Sets the client's protocol version. The protocol version is purely optional and bound
- * to a specific HGCM service.
- *
- * @param   uVersion            Version number to set.
- */
-void Client::SetProtocolVer(uint32_t uVersion)
-{
-    m_uProtocolVer = uVersion;
 }
 
 /**

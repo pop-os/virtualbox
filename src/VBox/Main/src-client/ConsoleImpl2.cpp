@@ -3165,7 +3165,7 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
             {
                 rc = HGCMHostRegisterServiceExtension(&m_hHgcmSvcExtDragAndDrop, "VBoxDragAndDropSvc",
                                                       &GuestDnD::notifyDnDDispatcher,
-                                                      GUESTDNDINST());
+                                                      GuestDnDInst());
                 if (RT_FAILURE(rc))
                     Log(("Cannot register VBoxDragAndDropSvc extension, rc=%Rrc\n", rc));
                 else
@@ -5840,6 +5840,23 @@ int Console::i_configNetwork(const char *pszDevice,
 #ifdef VBOX_WITH_CLOUD_NET
             case NetworkAttachmentType_Cloud:
             {
+                static const char *s_pszCloudExtPackName = "Oracle VM VirtualBox Extension Pack";
+                /*
+                 * Cloud network attachments do not work wihout installed extpack.
+                 * Without extpack support they won't work either.
+                 */
+# ifdef VBOX_WITH_EXTPACK
+                if (!mptrExtPackManager->i_isExtPackUsable(s_pszCloudExtPackName))
+# endif
+                {
+                    return VMSetError(VMR3GetVM(mpUVM), VERR_NOT_FOUND, RT_SRC_POS,
+                            N_("Implementation of the cloud network attachment not found!\n"
+                                "To fix this problem, either install the '%s' or switch to "
+                                "another network attachment type in the VM settings.\n"
+                                ),
+                            s_pszCloudExtPackName);
+                }
+
                 ComPtr<ICloudNetwork> network;
                 hrc = aNetworkAdapter->COMGETTER(CloudNetwork)(bstr.asOutParam());            H();
                 hrc = pMachine->COMGETTER(Name)(mGateways.mTargetVM.asOutParam());            H();

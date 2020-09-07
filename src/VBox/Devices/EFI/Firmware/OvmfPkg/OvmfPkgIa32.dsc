@@ -48,6 +48,11 @@
 !include NetworkPkg/NetworkDefines.dsc.inc
 
   #
+  # Device drivers
+  #
+  DEFINE MPT_SCSI_ENABLE         = TRUE
+
+  #
   # Flash size selection. Setting FD_SIZE_IN_KB on the command line directly to
   # one of the supported values, in place of any of the convenience macros, is
   # permitted.
@@ -817,6 +822,9 @@
   OvmfPkg/XenBusDxe/XenBusDxe.inf
   OvmfPkg/XenPvBlkDxe/XenPvBlkDxe.inf
 !endif
+!if $(MPT_SCSI_ENABLE) == TRUE
+  OvmfPkg/MptScsiDxe/MptScsiDxe.inf
+!endif
   MdeModulePkg/Universal/WatchdogTimerDxe/WatchdogTimer.inf
   MdeModulePkg/Universal/MonotonicCounterRuntimeDxe/MonotonicCounterRuntimeDxe.inf
   MdeModulePkg/Universal/CapsuleRuntimeDxe/CapsuleRuntimeDxe.inf
@@ -865,6 +873,7 @@
     <LibraryClasses>
       PcdLib|MdePkg/Library/DxePcdLib/DxePcdLib.inf
  }
+ VBoxPkg/VBoxFsDxe/VBoxIso9660.inf
  VBoxPkg/VBoxFsDxe/VBoxHfs.inf
  VBoxPkg/VBoxSysTables/VBoxSysTables.inf
  VBoxPkg/VBoxAppleSim/VBoxAppleSim.inf

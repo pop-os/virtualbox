@@ -24,12 +24,16 @@
 # terms and conditions of either the GPL or the CDDL or both.
 #
 
-# Find the directory of this makefile.
-VBOXNETADPT_DIR := $(dir $(word $(words $(MAKEFILE_LIST)),$(MAKEFILE_LIST)))
-
 # Linux kbuild sets this to our source directory if we are called from there
 obj ?= $(CURDIR)
 include $(obj)/Makefile-header.gmk
+VBOXNETADP_DIR := $(VBOX_MODULE_SRC_DIR)
+
+# Allow building directly from the subdirectory without assuming the toplevel
+# makefile has done the copying. Not the default use case, but can be handy.
+ifndef KBUILD_EXTRA_SYMBOLS
+KBUILD_EXTRA_SYMBOLS=$(abspath $(VBOXNETADP_DIR)/../vboxdrv/Module.symvers)
+endif
 
 VBOXMOD_NAME = vboxnetadp
 VBOXMOD_OBJS = \
@@ -46,9 +50,9 @@ VBOXMOD_OBJS += \
 	math/gcc/umoddi3.o
 endif
 VBOXMOD_INCL = \
-	$(VBOXNETADPT_DIR) \
-	$(VBOXNETADPT_DIR)include \
-	$(VBOXNETADPT_DIR)r0drv/linux
+	$(VBOXNETADP_DIR) \
+	$(VBOXNETADP_DIR)include \
+	$(VBOXNETADP_DIR)r0drv/linux
 VBOXMOD_DEFS = \
 	RT_OS_LINUX \
 	IN_RING0 \
@@ -58,7 +62,7 @@ VBOXMOD_DEFS = \
 	RT_WITH_VBOX \
 	VBOX_WITH_HARDENING \
 	VBOX_WITH_64_BITS_GUESTS # <-- must be consistent with Config.kmk!
-VBOXMOD_CFLAGS = -include $(VBOXNETADPT_DIR)include/VBox/SUPDrvMangling.h -fno-pie -Wno-declaration-after-statement
+VBOXMOD_CFLAGS = -include $(VBOXNETADP_DIR)include/VBox/SUPDrvMangling.h -fno-pie -Wno-declaration-after-statement
 
 include $(obj)/Makefile-footer.gmk
 

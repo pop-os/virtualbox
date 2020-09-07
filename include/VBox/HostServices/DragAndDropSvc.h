@@ -43,22 +43,25 @@
  *           Guest Additions version as indicator which protocol to use for communicating with the guest.
  *           The guest itself uses VBOXDNDCONNECTMSG to report its supported protocol version to the DnD service.
  *
- *     Protocol v3 (VBox 5.0.10 and up, current):
+ *     Protocol v3 (VBox 5.0.10 and up, deprecated):
  *         + Added VBOXDNDDISCONNECTMSG for being able to track client disconnects on host side (Main).
  *         + Added context IDs for every HGCM message. Not used yet and must be 0.
  *         + Added VBOXDNDSNDDATAHDR and VBOXDNDCBSNDDATAHDRDATA to support (simple) accounting of objects
  *           being transferred, along with supplying separate meta data size (which is part of the total size being sent).
- *         + Added new HOST_DND_HG_SND_DATA_HDR + GUEST_DND_GH_SND_DATA_HDR commands which now allow specifying an optional
+ *         + Added new HOST_DND_FN_HG_SND_DATA_HDR + GUEST_DND_FN_GH_SND_DATA_HDR commands which now allow specifying an optional
  *           compression type and defining a checksum for the overall data transfer.
  *         + Enhannced VBOXDNDGHSENDDATAMSG to support (rolling) checksums for the supplied data block.
  *         + VBOXDNDHGSENDDATAMSG and VBOXDNDGHSENDDATAMSG can now contain an optional checksum for the current data block.
  *         | VBOXDNDHGSENDFILEDATAMSG and VBOXDNDGHSENDFILEDATAMSG are now sharing the same HGCM mesasge.
- *         - Removed unused HOST_DND_GH_RECV_DIR, HOST_DND_GH_RECV_FILE_DATA and HOST_DND_GH_RECV_FILE_HDR commands.
+ *         - Removed unused HOST_DND_FN_GH_RECV_DIR, HOST_DND_FN_GH_RECV_FILE_DATA and HOST_DND_FN_GH_RECV_FILE_HDR commands.
  *
- * Protocol TODO:
+ *     VBox 6.1.x and up, current:
+ *         + Added GUEST_DND_FN_QUERY_FEATURES + GUEST_DND_FN_REPORT_FEATURES.
+ *         - Protocol versioning support in VBOXDNDCONNECTMSG is now marked as being deprecated.
  *
- *     - Split up messages which use VBOXDNDHGACTIONMSG into own functions and remove parameters which
- *       are not actually needed / used by a function. Why does HOST_DND_HG_EVT_MOVE need all the format stuff, for example?
+ ** @todo:
+ * - Split up messages which use VBOXDNDHGACTIONMSG into own functions and remove parameters which
+ *   are not actually needed / used by a function. Why does HOST_DND_FN_HG_EVT_MOVE need all the format stuff, for example?
  */
 
 #ifndef VBOX_INCLUDED_HostServices_DragAndDropSvc_h
@@ -87,7 +90,7 @@ namespace DragAndDropSvc {
 enum eHostFn
 {
     /** The host sets a new DnD mode. */
-    HOST_DND_SET_MODE                  = 100,
+    HOST_DND_FN_SET_MODE                  = 100,
     /** The host requests to cancel the current DnD operation on
      *  the guest side. This can happen on user request on the host's
      *  UI side or due to some host error which has happened.
@@ -95,7 +98,7 @@ enum eHostFn
      *  Note: This is a fire-and-forget message, as the host should
      *        not rely on an answer from the guest side in order to
      *        properly cancel the operation. */
-    HOST_DND_CANCEL                    = 204,
+    HOST_DND_FN_CANCEL                    = 204,
 
     /*
      * Host -> Guest messages
@@ -103,39 +106,39 @@ enum eHostFn
 
     /** The host enters the VM window for starting an actual
      *  DnD operation. */
-    HOST_DND_HG_EVT_ENTER              = 200,
+    HOST_DND_FN_HG_EVT_ENTER              = 200,
     /** The host's DnD cursor moves within the VM window. */
-    HOST_DND_HG_EVT_MOVE               = 201,
+    HOST_DND_FN_HG_EVT_MOVE               = 201,
     /** The host leaves the guest VM window. */
-    HOST_DND_HG_EVT_LEAVE              = 202,
+    HOST_DND_FN_HG_EVT_LEAVE              = 202,
     /** The host issues a "drop" event, meaning that the host is
      *  ready to transfer data over to the guest. */
-    HOST_DND_HG_EVT_DROPPED            = 203,
+    HOST_DND_FN_HG_EVT_DROPPED            = 203,
     /** The host sends the data header at the beginning of a (new)
      *  data transfer. */
-    HOST_DND_HG_SND_DATA_HDR           = 210,
+    HOST_DND_FN_HG_SND_DATA_HDR           = 210,
     /**
      * The host sends the actual meta data, based on
-     * the format(s) specified by HOST_DND_HG_EVT_ENTER.
+     * the format(s) specified by HOST_DND_FN_HG_EVT_ENTER.
      *
      * Protocol v1/v2: If the guest supplied buffer too small to send
-     *                 the actual data, the host will send a HOST_DND_HG_SND_MORE_DATA
+     *                 the actual data, the host will send a HOST_DND_FN_HG_SND_MORE_DATA
      *                 message as follow-up.
      * Protocol v3+:   The incoming meta data size is specified upfront in the
-     *                 HOST_DND_HG_SND_DATA_HDR message and must be handled accordingly.
+     *                 HOST_DND_FN_HG_SND_DATA_HDR message and must be handled accordingly.
      */
-    HOST_DND_HG_SND_DATA               = 205,
+    HOST_DND_FN_HG_SND_DATA               = 205,
     /** The host sends more data in case the data did not entirely fit in
-     *  the HOST_DND_HG_SND_DATA message. */
+     *  the HOST_DND_FN_HG_SND_DATA message. */
     /** @todo Deprecated function; do not use anymore. */
-    HOST_DND_HG_SND_MORE_DATA          = 206,
+    HOST_DND_FN_HG_SND_MORE_DATA          = 206,
     /** The host sends a directory entry to the guest. */
-    HOST_DND_HG_SND_DIR                = 207,
+    HOST_DND_FN_HG_SND_DIR                = 207,
     /** The host sends a file data chunk to the guest. */
-    HOST_DND_HG_SND_FILE_DATA          = 208,
+    HOST_DND_FN_HG_SND_FILE_DATA          = 208,
     /** The host sends a file header to the guest.
      *  Note: Only for protocol version 2 and up (>= VBox 5.0). */
-    HOST_DND_HG_SND_FILE_HDR           = 209,
+    HOST_DND_FN_HG_SND_FILE_HDR           = 209,
 
     /*
      * Guest -> Host messages
@@ -143,13 +146,13 @@ enum eHostFn
 
     /** The host asks the guest whether a DnD operation
      *  is in progress when the mouse leaves the guest window. */
-    HOST_DND_GH_REQ_PENDING            = 600,
+    HOST_DND_FN_GH_REQ_PENDING            = 600,
     /** The host informs the guest that a DnD drop operation
      *  has been started and that the host wants the data in
      *  a specific MIME type. */
-    HOST_DND_GH_EVT_DROPPED            = 601,
+    HOST_DND_FN_GH_EVT_DROPPED            = 601,
     /** Blow the type up to 32-bit. */
-    HOST_DND_32BIT_HACK                = 0x7fffffff
+    HOST_DND_FN_32BIT_HACK                = 0x7fffffff
 };
 
 /**
@@ -164,16 +167,44 @@ enum eGuestFn
      * along with some additional information like supported
      * protocol version and flags.
      * Note: New since protocol version 2. */
-    GUEST_DND_CONNECT                  = 10,
+    GUEST_DND_FN_CONNECT                  = 10,
 
     /** The guest client disconnects from the HGCM service. */
-    GUEST_DND_DISCONNECT               = 11,
+    GUEST_DND_FN_DISCONNECT               = 11,
+
+    /** Report guest side feature flags and retrieve the host ones.
+     *
+     * Two 64-bit parameters are passed in from the guest with the guest features
+     * (VBOX_DND_GF_XXX), the host replies by replacing the parameter values with
+     * the host ones (VBOX_DND_HF_XXX).
+     *
+     * @retval  VINF_SUCCESS on success.
+     * @retval  VERR_INVALID_CLIENT_ID
+     * @retval  VERR_WRONG_PARAMETER_COUNT
+     * @retval  VERR_WRONG_PARAMETER_TYPE
+     * @since   6.1.x
+     */
+    GUEST_DND_FN_REPORT_FEATURES          = 12,
+
+    /** Query the host ones feature masks.
+     *
+     * That way the guest (client) can get hold of the features from the host.
+     * Again, it is prudent to set the 127 bit and observe it being cleared on
+     * success, as older hosts might return success without doing anything.
+     *
+     * @retval  VINF_SUCCESS on success.
+     * @retval  VERR_INVALID_CLIENT_ID
+     * @retval  VERR_WRONG_PARAMETER_COUNT
+     * @retval  VERR_WRONG_PARAMETER_TYPE
+     * @since   6.1.x
+     */
+    GUEST_DND_FN_QUERY_FEATURES           = 13,
 
     /**
      * The guest waits for a new message the host wants to process
      * on the guest side. This can be a blocking call.
      */
-    GUEST_DND_GET_NEXT_HOST_MSG        = 300,
+    GUEST_DND_FN_GET_NEXT_HOST_MSG        = 300,
 
     /*
      * Host -> Guest operation messages.
@@ -181,11 +212,11 @@ enum eGuestFn
 
     /** The guest acknowledges that a pending DnD operation from the host
      *  can be dropped on the currently selected area on the guest. */
-    GUEST_DND_HG_ACK_OP                = 400,
+    GUEST_DND_FN_HG_ACK_OP                = 400,
     /** The guest requests the actual DnD data to be sent from the host. */
-    GUEST_DND_HG_REQ_DATA              = 401,
+    GUEST_DND_FN_HG_REQ_DATA              = 401,
     /** The guest reports back its progress back to the host. */
-    GUEST_DND_HG_EVT_PROGRESS          = 402,
+    GUEST_DND_FN_HG_EVT_PROGRESS          = 402,
 
     /*
      * Guest -> Host operation messages.
@@ -196,31 +227,48 @@ enum eGuestFn
      * operation in progress on the guest, which eventually could be
      * dragged over to the host.
      */
-    GUEST_DND_GH_ACK_PENDING           = 500,
+    GUEST_DND_FN_GH_ACK_PENDING           = 500,
     /** The guest sends the data header at the beginning of a (new)
      *  data transfer. */
-    GUEST_DND_GH_SND_DATA_HDR          = 503,
+    GUEST_DND_FN_GH_SND_DATA_HDR          = 503,
     /**
      * The guest sends data of the requested format to the host. There can
      * be more than one message if the actual data does not fit
      * into one.
      */
-    GUEST_DND_GH_SND_DATA              = 501,
+    GUEST_DND_FN_GH_SND_DATA              = 501,
     /** The guest reports an error back to the host. */
-    GUEST_DND_GH_EVT_ERROR             = 502,
+    GUEST_DND_FN_GH_EVT_ERROR             = 502,
     /** The guest sends a directory entry to the host. */
-    GUEST_DND_GH_SND_DIR               = 700,
+    GUEST_DND_FN_GH_SND_DIR               = 700,
     /** The guest sends file data to the host.
      *  Note: On protocol version 1 this also contains the file name
      *        and other attributes. */
-    GUEST_DND_GH_SND_FILE_DATA         = 701,
+    GUEST_DND_FN_GH_SND_FILE_DATA         = 701,
     /** The guest sends a file header to the host, marking the
      *  beginning of a (new) file transfer.
      *  Note: Available since protocol version 2 (VBox 5.0). */
-    GUEST_DND_GH_SND_FILE_HDR          = 702,
+    GUEST_DND_FN_GH_SND_FILE_HDR          = 702,
     /** Blow the type up to 32-bit. */
-    GUEST_DND_32BIT_HACK               = 0x7fffffff
+    GUEST_DND_FN_32BIT_HACK               = 0x7fffffff
 };
+
+/** @name VBOX_DND_GF_XXX - Guest features.
+ * @sa GUEST_DND_FN_REPORT_FEATURES
+ * @{ */
+/** No flags set. */
+#define VBOX_DND_GF_NONE                          0
+/** Bit that must be set in the 2nd parameter, will be cleared if the host reponds
+ * correctly (old hosts might not). */
+#define VBOX_DND_GF_1_MUST_BE_ONE                 RT_BIT_64(63)
+/** @} */
+
+/** @name VBOX_DND_HF_XXX - Host features.
+ * @sa DND_GUEST_REPORT_FEATURES
+ * @{ */
+/** No flags set. */
+#define VBOX_DND_HF_NONE                          0
+/** @} */
 
 /**
  * DnD operation progress states.
@@ -248,9 +296,9 @@ typedef enum DNDPROGRESS
  * and dropping content into it from the host.
  *
  * Used by:
- * HOST_DND_HG_EVT_ENTER
- * HOST_DND_HG_EVT_MOVE
- * HOST_DND_HG_EVT_DROPPED
+ * HOST_DND_FN_HG_EVT_ENTER
+ * HOST_DND_FN_HG_EVT_MOVE
+ * HOST_DND_FN_HG_EVT_DROPPED
  */
 typedef struct HGCMMsgHGAction
 {
@@ -287,7 +335,7 @@ typedef struct HGCMMsgHGAction
  * Tells the guest that the host has left its drag and drop area on the guest.
  *
  * Used by:
- * HOST_DND_HG_EVT_LEAVE
+ * HOST_DND_FN_HG_EVT_LEAVE
  */
 typedef struct HGCMMsgHGLeave
 {
@@ -306,7 +354,7 @@ typedef struct HGCMMsgHGLeave
  * Tells the guest that the host wants to cancel the current drag and drop operation.
  *
  * Used by:
- * HOST_DND_HG_EVT_CANCEL
+ * HOST_DND_FN_HG_EVT_CANCEL
  */
 typedef struct HGCMMsgHGCancel
 {
@@ -325,8 +373,8 @@ typedef struct HGCMMsgHGCancel
  * Sends the header of an incoming (meta) data block.
  *
  * Used by:
- * HOST_DND_HG_SND_DATA_HDR
- * GUEST_DND_GH_SND_DATA_HDR
+ * HOST_DND_FN_HG_SND_DATA_HDR
+ * GUEST_DND_FN_GH_SND_DATA_HDR
  *
  * New since protocol v3.
  */
@@ -369,7 +417,7 @@ typedef struct HGCMMsgHGSendDataHdr
  * Sends a (meta) data block to the guest.
  *
  * Used by:
- * HOST_DND_HG_SND_DATA
+ * HOST_DND_FN_HG_SND_DATA
  */
 typedef struct HGCMMsgHGSendData
 {
@@ -410,7 +458,7 @@ typedef struct HGCMMsgHGSendData
  ** @todo Deprecated since protocol v3. Don't use! Will be removed.
  *
  * Used by:
- * HOST_DND_HG_SND_MORE_DATA
+ * HOST_DND_FN_HG_SND_MORE_DATA
  */
 typedef struct HGCMMsgHGSendMoreData
 {
@@ -424,8 +472,8 @@ typedef struct HGCMMsgHGSendMoreData
  * Directory entry event.
  *
  * Used by:
- * HOST_DND_HG_SND_DIR
- * GUEST_DND_GH_SND_DIR
+ * HOST_DND_FN_HG_SND_DIR
+ * GUEST_DND_FN_GH_SND_DIR
  */
 typedef struct HGCMMsgHGSendDir
 {
@@ -461,8 +509,8 @@ typedef struct HGCMMsgHGSendDir
  * Note: Only for protocol version 2 and up.
  *
  * Used by:
- * HOST_DND_HG_SND_FILE_HDR
- * GUEST_DND_GH_SND_FILE_HDR
+ * HOST_DND_FN_HG_SND_FILE_HDR
+ * GUEST_DND_FN_GH_SND_FILE_HDR
  */
 typedef struct HGCMMsgHGSendFileHdr
 {
@@ -486,7 +534,7 @@ typedef struct HGCMMsgHGSendFileHdr
  * HG: File data (chunk) event.
  *
  * Used by:
- * HOST_DND_HG_SND_FILE
+ * HOST_DND_FN_HG_SND_FILE
  */
 typedef struct HGCMMsgHGSendFileData
 {
@@ -542,7 +590,7 @@ typedef struct HGCMMsgHGSendFileData
  * Asks the guest if a guest->host DnD operation is in progress.
  *
  * Used by:
- * HOST_DND_GH_REQ_PENDING
+ * HOST_DND_FN_GH_REQ_PENDING
  */
 typedef struct HGCMMsgGHReqPending
 {
@@ -570,7 +618,7 @@ typedef struct HGCMMsgGHReqPending
  * DnD operation on a valid target on the host.
  *
  * Used by:
- * HOST_DND_GH_EVT_DROPPED
+ * HOST_DND_FN_GH_EVT_DROPPED
  */
 typedef struct HGCMMsgGHDropped
 {
@@ -611,7 +659,7 @@ typedef struct HGCMMsgGHDropped
  * flag.
  *
  * Used by:
- * GUEST_DND_GET_NEXT_HOST_MSG
+ * GUEST_DND_FN_GET_NEXT_HOST_MSG
  */
 typedef struct HGCMMsgGetNext
 {
@@ -631,7 +679,7 @@ typedef struct HGCMMsgGetNext
  * version to the (host) service.
  *
  * Used by:
- * GUEST_DND_CONNECT
+ * GUEST_DND_FN_CONNECT
  */
 typedef struct HGCMMsgConnect
 {
@@ -641,7 +689,8 @@ typedef struct HGCMMsgConnect
     {
         struct
         {
-            /** Protocol version to use. */
+            /** Protocol version to use.
+             *  Deprecated since VBox 6.1.x. Do not use / rely on it anymore. */
             HGCMFunctionParameter uProtocol;     /* OUT uint32_t */
             /** Connection flags. Optional. */
             HGCMFunctionParameter uFlags;        /* OUT uint32_t */
@@ -650,7 +699,8 @@ typedef struct HGCMMsgConnect
         {
             /** Context ID. Unused at the moment. */
             HGCMFunctionParameter uContext;     /* OUT uint32_t */
-            /** Protocol version to use. */
+            /** Protocol version to use.
+             *  Deprecated since VBox 6.1.x. Do not use / rely on it anymore. */
             HGCMFunctionParameter uProtocol;     /* OUT uint32_t */
             /** Connection flags. Optional. */
             HGCMFunctionParameter uFlags;        /* OUT uint32_t */
@@ -663,7 +713,7 @@ typedef struct HGCMMsgConnect
  * action(s) on the guest.
  *
  * Used by:
- * GUEST_DND_HG_ACK_OP
+ * GUEST_DND_FN_HG_ACK_OP
  */
 typedef struct HGCMMsgHGAck
 {
@@ -688,7 +738,7 @@ typedef struct HGCMMsgHGAck
  * Requests data to be sent to the guest.
  *
  * Used by:
- * GUEST_DND_HG_REQ_DATA
+ * GUEST_DND_FN_HG_REQ_DATA
  */
 typedef struct HGCMMsgHGReqData
 {
@@ -737,7 +787,7 @@ typedef struct HGCMMsgHGProgress
  * Acknowledges a pending guest drag and drop event to the host.
  *
  * Used by:
- * GUEST_DND_GH_ACK_PENDING
+ * GUEST_DND_FN_GH_ACK_PENDING
  */
 typedef struct HGCMMsgGHAckPending
 {
@@ -768,7 +818,7 @@ typedef struct HGCMMsgGHAckPending
  * to the host.
  *
  * Used by:
- * GUEST_DND_GH_SND_DATA_HDR
+ * GUEST_DND_FN_GH_SND_DATA_HDR
  *
  * New since protocol v3.
  */
@@ -778,7 +828,7 @@ typedef struct HGCMMsgHGSendDataHdr HGCMMsgGHSendDataHdr;
  * Sends a (meta) data block to the host.
  *
  * Used by:
- * GUEST_DND_GH_SND_DATA
+ * GUEST_DND_FN_GH_SND_DATA
  */
 typedef struct HGCMMsgGHSendData
 {
@@ -814,7 +864,7 @@ typedef struct HGCMMsgGHSendData
  * Sends a directory entry to the host.
  *
  * Used by:
- * GUEST_DND_GH_SND_DIR
+ * GUEST_DND_FN_GH_SND_DIR
  */
 typedef struct HGCMMsgHGSendDir HGCMMsgGHSendDir;
 
@@ -822,7 +872,7 @@ typedef struct HGCMMsgHGSendDir HGCMMsgGHSendDir;
  * Sends a file header to the host.
  *
  * Used by:
- * GUEST_DND_GH_SND_FILE_HDR
+ * GUEST_DND_FN_GH_SND_FILE_HDR
  *
  * New since protocol v2.
  */
@@ -832,7 +882,7 @@ typedef struct HGCMMsgHGSendFileHdr HGCMMsgGHSendFileHdr;
  * Sends file data to the host.
  *
  * Used by:
- * GUEST_DND_GH_SND_FILE_DATA
+ * GUEST_DND_FN_GH_SND_FILE_DATA
  */
 typedef struct HGCMMsgHGSendFileData HGCMMsgGHSendFileData;
 
@@ -840,7 +890,7 @@ typedef struct HGCMMsgHGSendFileData HGCMMsgGHSendFileData;
  * Sends a guest error event to the host.
  *
  * Used by:
- * GUEST_DND_GH_EVT_ERROR
+ * GUEST_DND_FN_GH_EVT_ERROR
  */
 typedef struct HGCMMsgGHError
 {
@@ -873,18 +923,19 @@ typedef struct HGCMMsgGHError
  */
 enum eDnDCallbackMagics
 {
-    CB_MAGIC_DND_CONNECT                   = VBOX_DND_CB_MAGIC_MAKE(GUEST_DND_CONNECT, 0),
-    CB_MAGIC_DND_HG_GET_NEXT_HOST_MSG      = VBOX_DND_CB_MAGIC_MAKE(GUEST_DND_GET_NEXT_HOST_MSG, 0),
-    CB_MAGIC_DND_HG_ACK_OP                 = VBOX_DND_CB_MAGIC_MAKE(GUEST_DND_HG_ACK_OP, 0),
-    CB_MAGIC_DND_HG_REQ_DATA               = VBOX_DND_CB_MAGIC_MAKE(GUEST_DND_HG_REQ_DATA, 0),
-    CB_MAGIC_DND_HG_EVT_PROGRESS           = VBOX_DND_CB_MAGIC_MAKE(GUEST_DND_HG_EVT_PROGRESS, 0),
-    CB_MAGIC_DND_GH_ACK_PENDING            = VBOX_DND_CB_MAGIC_MAKE(GUEST_DND_GH_ACK_PENDING, 0),
-    CB_MAGIC_DND_GH_SND_DATA               = VBOX_DND_CB_MAGIC_MAKE(GUEST_DND_GH_SND_DATA, 0),
-    CB_MAGIC_DND_GH_SND_DATA_HDR           = VBOX_DND_CB_MAGIC_MAKE(GUEST_DND_GH_SND_DATA_HDR, 0),
-    CB_MAGIC_DND_GH_SND_DIR                = VBOX_DND_CB_MAGIC_MAKE(GUEST_DND_GH_SND_DIR, 0),
-    CB_MAGIC_DND_GH_SND_FILE_HDR           = VBOX_DND_CB_MAGIC_MAKE(GUEST_DND_GH_SND_FILE_HDR, 0),
-    CB_MAGIC_DND_GH_SND_FILE_DATA          = VBOX_DND_CB_MAGIC_MAKE(GUEST_DND_GH_SND_FILE_DATA, 0),
-    CB_MAGIC_DND_GH_EVT_ERROR              = VBOX_DND_CB_MAGIC_MAKE(GUEST_DND_GH_EVT_ERROR, 0)
+    CB_MAGIC_DND_CONNECT                   = VBOX_DND_CB_MAGIC_MAKE(GUEST_DND_FN_CONNECT, 0),
+    CB_MAGIC_DND_REPORT_FEATURES           = VBOX_DND_CB_MAGIC_MAKE(GUEST_DND_FN_REPORT_FEATURES, 0),
+    CB_MAGIC_DND_HG_GET_NEXT_HOST_MSG      = VBOX_DND_CB_MAGIC_MAKE(GUEST_DND_FN_GET_NEXT_HOST_MSG, 0),
+    CB_MAGIC_DND_HG_ACK_OP                 = VBOX_DND_CB_MAGIC_MAKE(GUEST_DND_FN_HG_ACK_OP, 0),
+    CB_MAGIC_DND_HG_REQ_DATA               = VBOX_DND_CB_MAGIC_MAKE(GUEST_DND_FN_HG_REQ_DATA, 0),
+    CB_MAGIC_DND_HG_EVT_PROGRESS           = VBOX_DND_CB_MAGIC_MAKE(GUEST_DND_FN_HG_EVT_PROGRESS, 0),
+    CB_MAGIC_DND_GH_ACK_PENDING            = VBOX_DND_CB_MAGIC_MAKE(GUEST_DND_FN_GH_ACK_PENDING, 0),
+    CB_MAGIC_DND_GH_SND_DATA               = VBOX_DND_CB_MAGIC_MAKE(GUEST_DND_FN_GH_SND_DATA, 0),
+    CB_MAGIC_DND_GH_SND_DATA_HDR           = VBOX_DND_CB_MAGIC_MAKE(GUEST_DND_FN_GH_SND_DATA_HDR, 0),
+    CB_MAGIC_DND_GH_SND_DIR                = VBOX_DND_CB_MAGIC_MAKE(GUEST_DND_FN_GH_SND_DIR, 0),
+    CB_MAGIC_DND_GH_SND_FILE_HDR           = VBOX_DND_CB_MAGIC_MAKE(GUEST_DND_FN_GH_SND_FILE_HDR, 0),
+    CB_MAGIC_DND_GH_SND_FILE_DATA          = VBOX_DND_CB_MAGIC_MAKE(GUEST_DND_FN_GH_SND_FILE_DATA, 0),
+    CB_MAGIC_DND_GH_EVT_ERROR              = VBOX_DND_CB_MAGIC_MAKE(GUEST_DND_FN_GH_EVT_ERROR, 0)
 };
 
 typedef struct VBOXDNDCBHEADERDATA
@@ -895,13 +946,23 @@ typedef struct VBOXDNDCBHEADERDATA
     uint32_t                    uContextID;
 } VBOXDNDCBHEADERDATA, *PVBOXDNDCBHEADERDATA;
 
-typedef struct VBOXDNDCBCONNECTMSGDATA
+typedef struct VBOXDNDCBCONNECTDATA
 {
     /** Callback data header. */
     VBOXDNDCBHEADERDATA         hdr;
-    uint32_t                    uProtocol;
-    uint32_t                    uFlags;
-} VBOXDNDCBCONNECTMSGDATA, *PVBOXDNDCBCONNECTMSGDATA;
+    /** Protocol version to use.
+     *  Deprecated since VBox 6.1.x. Do not use / rely on it anymore. */
+    uint32_t                    uProtocolVersion;
+    /** Connection flags; currently unused. */
+    uint32_t                    fFlags;
+} VBOXDNDCBCONNECTDATA, *PVBOXDNDCBCONNECTDATA;
+
+typedef struct VBOXDNDCBREPORTFEATURESDATA
+{
+    /** Callback data header. */
+    VBOXDNDCBHEADERDATA         hdr;
+    uint32_t                    fGuestFeatures0;
+} VBOXDNDCBREPORTFEATURESDATA, *PVBOXDNDCBREPORTFEATURESDATA;
 
 typedef struct VBOXDNDCBDISCONNECTMSGDATA
 {

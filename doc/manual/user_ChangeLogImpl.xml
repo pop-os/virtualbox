@@ -35,6 +35,60 @@ technical terms if no non-technical ones are clear enough.
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
 
   <sect1>
+    <title>Version 6.1.14 (2020-09-04)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>GUI: Fixes file name changes in the File location field when creating Virtual Hard Disk (bug #19286)
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: Fixed running VMs which failed to start with VERR_NEM_MISSING_KERNEL_API_2 when Hyper-V
+          is used (bug #19779 and #19804)</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: fix regression in HDA emulation introduced in 6.1.0</para>
+      </listitem>
+
+      <listitem>
+        <para>macOS host: Fixed webcam passthrough and audio input on Mojave and newer by requesting
+          authorization from the user (bug #19758)</para>
+      </listitem>
+
+      <listitem>
+        <para>macOS host: VBoxHeadless no longer able to start VMs (6.1.4/6.0.18 regression; bug #19706)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows host: Fixes in serial port implementation</para>
+      </listitem>
+
+      <listitem>
+        <para>Shared Clipboard: Fixed a potential crash when copying HTML data (6.1.2 regression; bug #19226)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux host and guest: Linux kernel version 5.8 support</para>
+      </listitem>
+
+      <listitem>
+        <para>EFI: Fixed reading ISO9660 filesystems on attached media (6.1.0 regression; bug #19682)</para>
+      </listitem>
+
+      <listitem>
+        <para>EFI: Support booting from drives attached to the LsiLogic SCSI and SAS controller emulations</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 6.1.12 (2020-07-14)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
@@ -43,7 +97,7 @@ technical terms if no non-technical ones are clear enough.
     <itemizedlist>
 
       <listitem>
-         <para>UI: Fixes for Log-Viewer search-backward icon</para>
+         <para>UI: Fixed Log-Viewer search-backward icon</para>
       </listitem>
 
       <listitem>
@@ -60,16 +114,16 @@ technical terms if no non-technical ones are clear enough.
       </listitem>
 
       <listitem>
-         <para>API: improved resource management in the guest control functionality</para>
+         <para>API: Improved resource management in the guest control functionality</para>
       </listitem>
 
       <listitem>
-         <para>VBoxManage: fixed command option parsing for the "snapshot edit"
+         <para>VBoxManage: Fixed command option parsing for the "snapshot edit"
            sub-command</para>
       </listitem>
 
       <listitem>
-        <para>VBoxManage: Fix crash of 'VBoxManage internalcommands repairhd'
+        <para>VBoxManage: Fixed crash of 'VBoxManage internalcommands repairhd'
           when processing invalid input (bug #19579)</para>
       </listitem>
 
@@ -96,11 +150,11 @@ technical terms if no non-technical ones are clear enough.
       </listitem>
 
       <listitem>
-        <para>Guest Additions: Improve resize coverage for VMSVGA graphics controller</para>
+        <para>Guest Additions: Improved resize coverage for VMSVGA graphics controller</para>
       </listitem>
 
       <listitem>
-        <para>Guest Additions: Fix issues detecting guest additions ISO at runtime</para>
+        <para>Guest Additions: Fixed issues detecting guest additions ISO at runtime</para>
       </listitem>
 
       <listitem>

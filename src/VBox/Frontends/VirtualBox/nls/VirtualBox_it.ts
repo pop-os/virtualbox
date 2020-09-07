@@ -4190,7 +4190,7 @@
     <message>
         <source>Cloud Network</source>
         <comment>NetworkAttachmentType</comment>
-        <translation>Rete Cloud</translation>
+        <translation type="vanished">Rete Cloud</translation>
     </message>
     <message>
         <source>PCnet-PCI II (Am79C970A)</source>
@@ -5351,6 +5351,11 @@
     <message>
         <source>Start instance ...</source>
         <translation>Avvia istanza...</translation>
+    </message>
+    <message>
+        <source>Cloud Network [EXPERIMENTAL]</source>
+        <comment>NetworkAttachmentType</comment>
+        <translation>Rete cloud [SPERIMENTALE]</translation>
     </message>
 </context>
 <context>

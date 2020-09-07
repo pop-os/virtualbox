@@ -210,10 +210,10 @@ void UIWizardNewVDPageExpert::sltMediumFormatChanged()
     if (!m_pLocationEditor->text().isEmpty() && !m_strDefaultExtension.isEmpty())
     {
         QFileInfo fileInfo(m_pLocationEditor->text());
-        if (fileInfo.completeSuffix() != m_strDefaultExtension)
+        if (fileInfo.suffix() != m_strDefaultExtension)
         {
-            QString strNewFilePath = QString("%1/%2.%3").arg(fileInfo.absoluteDir().absolutePath()).arg(fileInfo.fileName()).arg(m_strDefaultExtension);
-            m_pLocationEditor->setText(strNewFilePath);
+            QFileInfo newFileInfo(fileInfo.absolutePath(), QString("%1.%2").arg(fileInfo.completeBaseName()).arg(m_strDefaultExtension));
+            m_pLocationEditor->setText(newFileInfo.absoluteFilePath());
         }
     }
 
