@@ -2731,7 +2731,7 @@
     <message>
         <source>Cloud Network</source>
         <comment>NetworkAttachmentType</comment>
-        <translation>Xarxa al núvol</translation>
+        <translation type="vanished">Xarxa al núvol</translation>
     </message>
     <message>
         <source>PCnet-PCI II (Am79C970A)</source>
@@ -3787,6 +3787,11 @@
     <message>
         <source>Start instance ...</source>
         <translation>Engega la instància</translation>
+    </message>
+    <message>
+        <source>Cloud Network [EXPERIMENTAL]</source>
+        <comment>NetworkAttachmentType</comment>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

@@ -26,74 +26,151 @@
 #include <iprt/dir.h>
 #include <iprt/err.h>
 #include <iprt/file.h>
+#include <iprt/mem.h>
 #include <iprt/path.h>
 #include <iprt/string.h>
 
-
 #include <VBox/log.h>
 
-DnDDroppedFiles::DnDDroppedFiles(void)
-    : m_fOpen(0)
-    , m_hDir(NULL) { }
 
-DnDDroppedFiles::DnDDroppedFiles(const char *pszPath, DNDURIDROPPEDFILEFLAGS fFlags /* = DNDURIDROPPEDFILE_FLAGS_NONE */)
-    : m_fOpen(0)
-    , m_hDir(NULL)
+/*********************************************************************************************************************************
+*   Prototypes                                                                                                                   *
+*********************************************************************************************************************************/
+static int dndDroppedFilesCloseInternal(PDNDDROPPEDFILES pDF);
+
+
+/**
+ * Initializes a DnD Dropped Files struct, internal version.
+ *
+ * @returns VBox status code.
+ * @param   pDF                 DnD Dropped Files to initialize.
+ */
+static int dndDroppedFilesInitInternal(PDNDDROPPEDFILES pDF)
 {
-    OpenEx(pszPath, fFlags);
+    pDF->m_fOpen    = 0;
+    pDF->m_hDir     = NIL_RTDIR;
+    pDF->pszPathAbs = NULL;
+
+    RTListInit(&pDF->m_lstDirs);
+    RTListInit(&pDF->m_lstFiles);
+
+    return VINF_SUCCESS;
 }
 
-DnDDroppedFiles::~DnDDroppedFiles(void)
+/**
+ * Initializes a DnD Dropped Files struct, extended version.
+ *
+ * @returns VBox status code.
+ * @param   pDF                 DnD Dropped Files to initialize.
+ * @param   fFlags              Dropped Files flags to use for initialization.
+ */
+int DnDDroppedFilesInitEx(PDNDDROPPEDFILES pDF,
+                          const char *pszPath, DNDURIDROPPEDFILEFLAGS fFlags /* = DNDURIDROPPEDFILE_FLAGS_NONE */)
+{
+    int rc = dndDroppedFilesInitInternal(pDF);
+    if (RT_FAILURE(rc))
+        return rc;
+
+    return DnDDroppedFilesOpenEx(pDF, pszPath, fFlags);
+}
+
+/**
+ * Initializes a DnD Dropped Files struct.
+ *
+ * @returns VBox status code.
+ * @param   pDF                 DnD Dropped Files to initialize.
+ */
+int DnDDroppedFilesInit(PDNDDROPPEDFILES pDF)
+{
+    return dndDroppedFilesInitInternal(pDF);
+}
+
+/**
+ * Destroys a DnD Dropped Files struct.
+ *
+ * Note: This does *not* (physically) delete any added content.
+ *       Make sure to call DnDDroppedFilesReset() then.
+ *
+ * @param   pDF                 DnD Dropped Files to destroy.
+ */
+void DnDDroppedFilesDestroy(PDNDDROPPEDFILES pDF)
 {
     /* Only make sure to not leak any handles and stuff, don't delete any
      * directories / files here. */
-    closeInternal();
+    dndDroppedFilesCloseInternal(pDF);
+
+    RTStrFree(pDF->pszPathAbs);
+    pDF->pszPathAbs = NULL;
 }
 
 /**
- * Adds a file reference to a dropped files directory.
+ * Adds a file reference to a Dropped Files directory.
  *
  * @returns VBox status code.
+ * @param   pDF                 DnD Dropped Files to add file to.
  * @param   pszFile             Path of file entry to add.
  */
-int DnDDroppedFiles::AddFile(const char *pszFile)
+int DnDDroppedFilesAddFile(PDNDDROPPEDFILES pDF, const char *pszFile)
 {
     AssertPtrReturn(pszFile, VERR_INVALID_POINTER);
 
-    if (!this->m_lstFiles.contains(pszFile))
-        this->m_lstFiles.append(pszFile);
-    return VINF_SUCCESS;
+    PDNDDROPPEDFILESENTRY pEntry = (PDNDDROPPEDFILESENTRY)RTMemAlloc(sizeof(DNDDROPPEDFILESENTRY));
+    if (!pEntry)
+        return VERR_NO_MEMORY;
+
+    pEntry->pszPath = RTStrDup(pszFile);
+    if (pEntry->pszPath)
+    {
+        RTListAppend(&pDF->m_lstFiles, &pEntry->Node);
+        return VINF_SUCCESS;
+    }
+
+    RTMemFree(pEntry);
+    return VERR_NO_MEMORY;
 }
 
 /**
- * Adds a directory reference to a dropped files directory.
+ * Adds a directory reference to a Dropped Files directory.
+ *
  * Note: This does *not* (recursively) add sub entries.
  *
  * @returns VBox status code.
+ * @param   pDF                 DnD Dropped Files to add directory to.
  * @param   pszDir              Path of directory entry to add.
  */
-int DnDDroppedFiles::AddDir(const char *pszDir)
+int DnDDroppedFilesAddDir(PDNDDROPPEDFILES pDF, const char *pszDir)
 {
     AssertPtrReturn(pszDir, VERR_INVALID_POINTER);
 
-    if (!this->m_lstDirs.contains(pszDir))
-        this->m_lstDirs.append(pszDir);
-    return VINF_SUCCESS;
+    PDNDDROPPEDFILESENTRY pEntry = (PDNDDROPPEDFILESENTRY)RTMemAlloc(sizeof(DNDDROPPEDFILESENTRY));
+    if (!pEntry)
+        return VERR_NO_MEMORY;
+
+    pEntry->pszPath = RTStrDup(pszDir);
+    if (pEntry->pszPath)
+    {
+        RTListAppend(&pDF->m_lstDirs, &pEntry->Node);
+        return VINF_SUCCESS;
+    }
+
+    RTMemFree(pEntry);
+    return VERR_NO_MEMORY;
 }
 
 /**
  * Closes the dropped files directory handle, internal version.
  *
  * @returns VBox status code.
+ * @param   pDF                 DnD Dropped Files to close.
  */
-int DnDDroppedFiles::closeInternal(void)
+static int dndDroppedFilesCloseInternal(PDNDDROPPEDFILES pDF)
 {
     int rc;
-    if (this->m_hDir != NULL)
+    if (pDF->m_hDir != NULL)
     {
-        rc = RTDirClose(this->m_hDir);
+        rc = RTDirClose(pDF->m_hDir);
         if (RT_SUCCESS(rc))
-            this->m_hDir = NULL;
+            pDF->m_hDir = NULL;
     }
     else
         rc = VINF_SUCCESS;
@@ -106,40 +183,45 @@ int DnDDroppedFiles::closeInternal(void)
  * Closes the dropped files directory handle.
  *
  * @returns VBox status code.
+ * @param   pDF                 DnD Dropped Files to close.
  */
-int DnDDroppedFiles::Close(void)
+int DnDDroppedFilesClose(PDNDDROPPEDFILES pDF)
 {
-    return closeInternal();
+    return dndDroppedFilesCloseInternal(pDF);
 }
 
 /**
  * Returns the absolute path of the dropped files directory.
  *
  * @returns Pointer to absolute path of the dropped files directory.
+ * @param   pDF                 DnD Dropped Files return absolute path of the dropped files directory for.
  */
-const char *DnDDroppedFiles::GetDirAbs(void) const
+const char *DnDDroppedFilesGetDirAbs(PDNDDROPPEDFILES pDF)
 {
-    return this->m_strPathAbs.c_str();
+    return pDF->pszPathAbs;
 }
 
 /**
  * Returns whether the dropped files directory has been opened or not.
  *
  * @returns \c true if open, \c false if not.
+ * @param   pDF                 DnD Dropped Files to return open status for.
  */
-bool DnDDroppedFiles::IsOpen(void) const
+bool DnDDroppedFilesIsOpen(PDNDDROPPEDFILES pDF)
 {
-    return (this->m_hDir != NULL);
+    return (pDF->m_hDir != NULL);
 }
 
 /**
  * Opens (creates) the dropped files directory.
  *
  * @returns VBox status code.
+ * @param   pDF                 DnD Dropped Files to open.
  * @param   pszPath             Absolute path where to create the dropped files directory.
  * @param   fFlags              Dropped files flags to use for this directory.
  */
-int DnDDroppedFiles::OpenEx(const char *pszPath, DNDURIDROPPEDFILEFLAGS fFlags /* = DNDURIDROPPEDFILE_FLAGS_NONE */)
+int DnDDroppedFilesOpenEx(PDNDDROPPEDFILES pDF,
+                          const char *pszPath, DNDURIDROPPEDFILEFLAGS fFlags /* = DNDURIDROPPEDFILE_FLAGS_NONE */)
 {
     AssertPtrReturn(pszPath, VERR_INVALID_POINTER);
     AssertReturn(fFlags == 0, VERR_INVALID_PARAMETER); /* Flags not supported yet. */
@@ -148,55 +230,56 @@ int DnDDroppedFiles::OpenEx(const char *pszPath, DNDURIDROPPEDFILEFLAGS fFlags /
 
     do
     {
-        char pszDropDir[RTPATH_MAX];
-        RTStrPrintf(pszDropDir, sizeof(pszDropDir), "%s", pszPath);
+        char szDropDir[RTPATH_MAX];
+        RTStrPrintf(szDropDir, sizeof(szDropDir), "%s", pszPath);
 
         /** @todo On Windows we also could use the registry to override
          *        this path, on Posix a dotfile and/or a guest property
          *        can be used. */
 
         /* Append our base drop directory. */
-        rc = RTPathAppend(pszDropDir, sizeof(pszDropDir), "VirtualBox Dropped Files"); /** @todo Make this tag configurable? */
+        rc = RTPathAppend(szDropDir, sizeof(szDropDir), "VirtualBox Dropped Files"); /** @todo Make this tag configurable? */
         if (RT_FAILURE(rc))
             break;
 
         /* Create it when necessary. */
-        if (!RTDirExists(pszDropDir))
+        if (!RTDirExists(szDropDir))
         {
-            rc = RTDirCreateFullPath(pszDropDir, RTFS_UNIX_IRWXU);
+            rc = RTDirCreateFullPath(szDropDir, RTFS_UNIX_IRWXU);
             if (RT_FAILURE(rc))
                 break;
         }
 
         /* The actually drop directory consist of the current time stamp and a
          * unique number when necessary. */
-        char pszTime[64];
+        char szTime[64];
         RTTIMESPEC time;
-        if (!RTTimeSpecToString(RTTimeNow(&time), pszTime, sizeof(pszTime)))
+        if (!RTTimeSpecToString(RTTimeNow(&time), szTime, sizeof(szTime)))
         {
             rc = VERR_BUFFER_OVERFLOW;
             break;
         }
 
-        rc = DnDPathSanitizeFilename(pszTime, sizeof(pszTime));
+        rc = DnDPathSanitizeFileName(szTime, sizeof(szTime));
         if (RT_FAILURE(rc))
             break;
 
-        rc = RTPathAppend(pszDropDir, sizeof(pszDropDir), pszTime);
+        rc = RTPathAppend(szDropDir, sizeof(szDropDir), szTime);
         if (RT_FAILURE(rc))
             break;
 
         /* Create it (only accessible by the current user) */
-        rc = RTDirCreateUniqueNumbered(pszDropDir, sizeof(pszDropDir), RTFS_UNIX_IRWXU, 3, '-');
+        rc = RTDirCreateUniqueNumbered(szDropDir, sizeof(szDropDir), RTFS_UNIX_IRWXU, 3, '-');
         if (RT_SUCCESS(rc))
         {
             RTDIR hDir;
-            rc = RTDirOpen(&hDir, pszDropDir);
+            rc = RTDirOpen(&hDir, szDropDir);
             if (RT_SUCCESS(rc))
             {
-                this->m_hDir       = hDir;
-                this->m_strPathAbs = pszDropDir;
-                this->m_fOpen      = fFlags;
+                pDF->pszPathAbs = RTStrDup(szDropDir);
+                AssertPtrBreakStmt(pDF->pszPathAbs, rc = VERR_NO_MEMORY);
+                pDF->m_hDir     = hDir;
+                pDF->m_fOpen    = fFlags;
             }
         }
 
@@ -210,9 +293,10 @@ int DnDDroppedFiles::OpenEx(const char *pszPath, DNDURIDROPPEDFILEFLAGS fFlags /
  * Opens (creates) the dropped files directory in the system's temp directory.
  *
  * @returns VBox status code.
+ * @param   pDF                 DnD Dropped Files to open.
  * @param   fFlags              Dropped files flags to use for this directory.
  */
-int DnDDroppedFiles::OpenTemp(DNDURIDROPPEDFILEFLAGS fFlags /* = DNDURIDROPPEDFILE_FLAGS_NONE */)
+int DnDDroppedFilesOpenTemp(PDNDDROPPEDFILES pDF, DNDURIDROPPEDFILEFLAGS fFlags)
 {
     AssertReturn(fFlags == 0, VERR_INVALID_PARAMETER); /* Flags not supported yet. */
 
@@ -224,31 +308,59 @@ int DnDDroppedFiles::OpenTemp(DNDURIDROPPEDFILEFLAGS fFlags /* = DNDURIDROPPEDFI
     char szTemp[RTPATH_MAX];
     int rc = RTPathTemp(szTemp, sizeof(szTemp));
     if (RT_SUCCESS(rc))
-        rc = OpenEx(szTemp, fFlags);
+        rc = DnDDroppedFilesOpenEx(pDF, szTemp, fFlags);
 
     return rc;
+}
+
+/**
+ * Free's an internal DnD Dropped Files entry.
+ *
+ * @param   pEntry              Pointer to entry to free. The pointer will be invalid after calling.
+ */
+static void dndDroppedFilesEntryFree(PDNDDROPPEDFILESENTRY pEntry)
+{
+    if (!pEntry)
+        return;
+    RTStrFree(pEntry->pszPath);
+    RTListNodeRemove(&pEntry->Node);
+    RTMemFree(pEntry);
+}
+
+/**
+ * Resets an internal DnD Dropped Files list.
+ *
+ * @param   pListAnchor         Pointer to list (anchor) to reset.
+ */
+static void dndDroppedFilesResetList(PRTLISTANCHOR pListAnchor)
+{
+    PDNDDROPPEDFILESENTRY pEntryCur, pEntryNext;
+    RTListForEachSafe(pListAnchor, pEntryCur, pEntryNext, DNDDROPPEDFILESENTRY, Node)
+        dndDroppedFilesEntryFree(pEntryCur);
+    Assert(RTListIsEmpty(pListAnchor));
 }
 
 /**
  * Resets a droppped files directory.
  *
  * @returns VBox status code.
+ * @param   pDF                 DnD Dropped Files to reset.
  * @param   fDelete             Whether to physically delete the directory and its content
  *                              or just clear the internal references.
  */
-int DnDDroppedFiles::Reset(bool fDelete)
+int DnDDroppedFilesReset(PDNDDROPPEDFILES pDF, bool fDelete)
 {
-    int rc = closeInternal();
+    int rc = dndDroppedFilesCloseInternal(pDF);
     if (RT_SUCCESS(rc))
     {
         if (fDelete)
         {
-            rc = Rollback();
+            rc = DnDDroppedFilesRollback(pDF);
         }
         else
         {
-            this->m_lstDirs.clear();
-            this->m_lstFiles.clear();
+            dndDroppedFilesResetList(&pDF->m_lstDirs);
+            dndDroppedFilesResetList(&pDF->m_lstFiles);
         }
     }
 
@@ -260,13 +372,14 @@ int DnDDroppedFiles::Reset(bool fDelete)
  * Re-opens a droppes files directory.
  *
  * @returns VBox status code, or VERR_NOT_FOUND if the dropped files directory has not been opened before.
+ * @param   pDF                 DnD Dropped Files to re-open.
  */
-int DnDDroppedFiles::Reopen(void)
+int DnDDroppedFilesReopen(PDNDDROPPEDFILES pDF)
 {
-    if (this->m_strPathAbs.isEmpty())
+    if (!pDF->pszPathAbs)
         return VERR_NOT_FOUND;
 
-    return OpenEx(this->m_strPathAbs.c_str(), this->m_fOpen);
+    return DnDDroppedFilesOpenEx(pDF, pDF->pszPathAbs, pDF->m_fOpen);
 }
 
 /**
@@ -274,10 +387,11 @@ int DnDDroppedFiles::Reopen(void)
  * This cleans the directory by physically deleting all files / directories which have been added before.
  *
  * @returns VBox status code.
+ * @param   pDF                 DnD Dropped Files to roll back.
  */
-int DnDDroppedFiles::Rollback(void)
+int DnDDroppedFilesRollback(PDNDDROPPEDFILES pDF)
 {
-    if (this->m_strPathAbs.isEmpty())
+    if (!pDF->pszPathAbs)
         return VINF_SUCCESS;
 
     int rc = VINF_SUCCESS;
@@ -286,21 +400,22 @@ int DnDDroppedFiles::Rollback(void)
      * Note: Only remove empty directories, never ever delete
      *       anything recursive here! Steam (tm) knows best ... :-) */
     int rc2;
-    for (size_t i = 0; i < this->m_lstFiles.size(); i++)
+    PDNDDROPPEDFILESENTRY pEntryCur, pEntryNext;
+    RTListForEachSafe(&pDF->m_lstFiles, pEntryCur, pEntryNext, DNDDROPPEDFILESENTRY, Node)
     {
-        rc2 = RTFileDelete(this->m_lstFiles.at(i).c_str());
+        rc2 = RTFileDelete(pEntryCur->pszPath);
         if (RT_SUCCESS(rc2))
-            this->m_lstFiles.removeAt(i);
+            dndDroppedFilesEntryFree(pEntryCur);
         else if (RT_SUCCESS(rc))
            rc = rc2;
         /* Keep going. */
     }
 
-    for (size_t i = 0; i < this->m_lstDirs.size(); i++)
+    RTListForEachSafe(&pDF->m_lstDirs, pEntryCur, pEntryNext, DNDDROPPEDFILESENTRY, Node)
     {
-        rc2 = RTDirRemove(this->m_lstDirs.at(i).c_str());
+        rc2 = RTDirRemove(pEntryCur->pszPath);
         if (RT_SUCCESS(rc2))
-            this->m_lstDirs.removeAt(i);
+            dndDroppedFilesEntryFree(pEntryCur);
         else if (RT_SUCCESS(rc))
             rc = rc2;
         /* Keep going. */
@@ -308,15 +423,12 @@ int DnDDroppedFiles::Rollback(void)
 
     if (RT_SUCCESS(rc))
     {
-        Assert(this->m_lstFiles.isEmpty());
-        Assert(this->m_lstDirs.isEmpty());
-
-        rc2 = closeInternal();
+        rc2 = dndDroppedFilesCloseInternal(pDF);
         if (RT_SUCCESS(rc2))
         {
             /* Try to remove the empty root dropped files directory as well.
              * Might return VERR_DIR_NOT_EMPTY or similar. */
-            rc2 = RTDirRemove(this->m_strPathAbs.c_str());
+            rc2 = RTDirRemove(pDF->pszPathAbs);
         }
         if (RT_SUCCESS(rc))
             rc = rc2;

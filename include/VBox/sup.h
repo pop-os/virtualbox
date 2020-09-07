@@ -143,8 +143,10 @@ typedef struct SUPHWVIRTMSRS
         struct
         {
             uint64_t        u64MsrHwcr;
-            uint64_t        u64Padding[27];
-        }svm;
+            uint64_t        u64MsrSmmAddr;
+            uint64_t        u64MsrSmmMask;
+            uint64_t        u64Padding[25];
+        } svm;
     } u;
 } SUPHWVIRTMSRS;
 AssertCompileSize(SUPHWVIRTMSRS, 224);
@@ -1553,8 +1555,11 @@ SUPR3DECL(int) SUPR3GetSymbolR0(void *pvImageBase, const char *pszSymbol, void *
  *
  * @returns VBox status code.
  * @deprecated  Use SUPR3LoadModule(pszFilename, "VMMR0.r0", &pvImageBase)
+ * @param   pszFilename     Full path to the VMMR0.r0 file (silly).
+ * @param   pErrInfo        Where to return extended error information.
+ *                          Optional.
  */
-SUPR3DECL(int) SUPR3LoadVMM(const char *pszFilename);
+SUPR3DECL(int) SUPR3LoadVMM(const char *pszFilename, PRTERRINFO pErrInfo);
 
 /**
  * Unloads R0 HC VMM code.

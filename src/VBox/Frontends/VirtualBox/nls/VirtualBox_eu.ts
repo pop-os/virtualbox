@@ -37,7 +37,7 @@
 <context>
     <name>QApplication</name>
     <message>
-        <location filename="../src/main.cpp" line="+787"/>
+        <location filename="../src/main.cpp" line="+792"/>
         <source>Executable &lt;b&gt;%1&lt;/b&gt; requires Qt %2.x, found Qt %3.</source>
         <translation>Exekutagarria &lt;b&gt;%1&lt;/b&gt; behar du Qt %2.x, aurkituta Qt %3.</translation>
     </message>
@@ -57,7 +57,7 @@
         <translation>&lt;html&gt;&lt;b&gt;%1 (rc=%2)&lt;/b&gt;&lt;br/&gt;&lt;br/&gt;</translation>
     </message>
     <message>
-        <location line="-977"/>
+        <location line="-982"/>
         <source>The VirtualBox Linux kernel driver is either not loaded or not set up correctly. Please try setting it up again by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root.&lt;br/&gt;&lt;br/&gt;If your system has EFI Secure Boot enabled you may also need to sign the kernel modules (vboxdrv, vboxnetflt, vboxnetadp, vboxpci) before you can load them. Please see your Linux system&apos;s documentation for more information.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -77,7 +77,7 @@
         <translation>Zihurtu kernel moduloa ongi gertatu dela.</translation>
     </message>
     <message>
-        <location line="+840"/>
+        <location line="+845"/>
         <source>VirtualBox - Runtime Error</source>
         <translation>VirtualBox - Jarduera Akatsa</translation>
     </message>
@@ -97,7 +97,7 @@
         <translation>Kernel gidagailua ez dago eskuragarri</translation>
     </message>
     <message>
-        <location line="-875"/>
+        <location line="-880"/>
         <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Please try completely uninstalling and reinstalling VirtualBox.</source>
         <translation>VirtualBox kernel moduloak ez datoz bat VirtualBox-en bertsio honekin. VirtualBox-en ezarpenak dirudienez ez da ongi egin. Mesedez saiatu osorik kentzen eta VirtualBox berriro ezartzen.</translation>
     </message>
@@ -2627,7 +2627,7 @@
         <translation>Oharleiho Menua</translation>
     </message>
     <message>
-        <location filename="../src/runtime/UIMachineLogic.cpp" line="+918"/>
+        <location filename="../src/runtime/UIMachineLogic.cpp" line="+933"/>
         <location line="+495"/>
         <source>Preview Monitor %1</source>
         <translation>Aurreikuspen Monitorea %1</translation>
@@ -3955,7 +3955,7 @@
     </message>
     <message>
         <location line="+2"/>
-        <source>Cloud Network</source>
+        <source>Cloud Network [EXPERIMENTAL]</source>
         <comment>NetworkAttachmentType</comment>
         <translation type="unfinished"></translation>
     </message>
@@ -5093,7 +5093,7 @@
         </translation>
     </message>
     <message>
-        <location line="+1797"/>
+        <location line="+1803"/>
         <source>Please choose a virtual hard disk file</source>
         <translation type="unfinished">Mesedez hautatu diska gogor agiri birtual bat</translation>
     </message>
@@ -6327,12 +6327,12 @@
 <context>
     <name>UIDnDHandler</name>
     <message>
-        <location filename="../src/runtime/UIDnDHandler.cpp" line="+232"/>
+        <location filename="../src/runtime/UIDnDHandler.cpp" line="+231"/>
         <source>Dropping data ...</source>
         <translation>Datuak erortzen...</translation>
     </message>
     <message>
-        <location line="+439"/>
+        <location line="+441"/>
         <source>Retrieving data ...</source>
         <translation>Datuak eskuratzen...</translation>
     </message>
@@ -13334,7 +13334,7 @@
 <context>
     <name>UIMachineWindow</name>
     <message>
-        <location filename="../src/runtime/UIMachineWindow.cpp" line="+248"/>
+        <location filename="../src/runtime/UIMachineWindow.cpp" line="+250"/>
         <source> EXPERIMENTAL build %1r%2 - %3</source>
         <translation> ESPERIMENTALA eraiketa %1r%2 - %3</translation>
     </message>
@@ -15887,7 +15887,7 @@
 <context>
     <name>UIMiniToolBar</name>
     <message>
-        <location filename="../src/widgets/UIMiniToolBar.cpp" line="+293"/>
+        <location filename="../src/widgets/UIMiniToolBar.cpp" line="+295"/>
         <source>Always show the toolbar</source>
         <translation>Betik erakutsi tresnabarra</translation>
     </message>

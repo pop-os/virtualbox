@@ -47,8 +47,9 @@
 # endif
 #endif
 
-#include <linux/version.h>
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 33)
+
+#include <iprt/linux/version.h>
+#if RTLNX_VER_MIN(2,6,33)
 # include <generated/autoconf.h>
 #else
 # ifndef AUTOCONF_INCLUDED
@@ -57,45 +58,45 @@
 #endif
 
 /* We only support 2.4 and 2.6 series kernels */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 4, 0)
-# error We only support 2.4 and 2.6 series kernels
+#if RTLNX_VER_MAX(2,4,0)
+# error Sorry, we do not support 2.3 and earlier kernels.
 #endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 5, 0) && LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 0)
-# error We only support 2.4 and 2.6 series kernels
+#if RTLNX_VER_MIN(2,5,0) && RTLNX_VER_MAX(2,6,0)
+# error Sorry, we do not support 2.5 series kernels (might work though).
 #endif
 
 #if defined(CONFIG_MODVERSIONS) && !defined(MODVERSIONS)
 # define MODVERSIONS
-# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 5, 71)
+# if RTLNX_VER_MAX(2,5,71)
 #  include <linux/modversions.h>
 # endif
 #endif
 #ifndef KBUILD_STR
-# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 16)
+# if RTLNX_VER_MAX(2,6,16)
 #  define KBUILD_STR(s) s
 # else
 #  define KBUILD_STR(s) #s
 # endif
 #endif
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 3, 0)
+# if RTLNX_VER_MIN(3,3,0)
 #  include <linux/kconfig.h> /* for macro IS_ENABLED */
 # endif
 #include <linux/string.h>
 #include <linux/spinlock.h>
 #include <linux/slab.h>
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
+#if RTLNX_VER_MIN(2,6,27)
 # include <linux/semaphore.h>
 #else /* older kernels */
 # include <asm/semaphore.h>
 #endif /* older kernels */
 #include <linux/module.h>
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 0)
+#if RTLNX_VER_MIN(2,6,0)
 # include <linux/moduleparam.h>
 #endif
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/fs.h>
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 0)
+#if RTLNX_VER_MIN(2,6,0)
 # include <linux/namei.h>
 #endif
 #include <linux/mm.h>
@@ -104,31 +105,30 @@
 #include <linux/time.h>
 #include <linux/sched.h>
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 23) && \
-    LINUX_VERSION_CODE < KERNEL_VERSION(3, 9, 31)
-#include  <linux/splice.h>
+#if RTLNX_VER_RANGE(3,9,23,  3,9,31)
+# include  <linux/splice.h>
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
+#if RTLNX_VER_MIN(3,9,0)
 # include <linux/sched/rt.h>
 #endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+#if RTLNX_VER_MIN(4,11,0)
 # include <linux/sched/signal.h>
 # include <linux/sched/types.h>
 #endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 7)
+#if RTLNX_VER_MIN(2,6,7)
 # include <linux/jiffies.h>
 #endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 16)
+#if RTLNX_VER_MIN(2,6,16)
 # include <linux/ktime.h>
 # include <linux/hrtimer.h>
 #endif
 #include <linux/wait.h>
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 5, 71)
+#if RTLNX_VER_MIN(2,5,71)
 # include <linux/cpu.h>
 # include <linux/notifier.h>
 #endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0)
+#if RTLNX_VER_MIN(5,1,0)
 # include <uapi/linux/mman.h>
 #endif
 /* For the basic additions module */
@@ -151,39 +151,44 @@
 #include <asm/div64.h>
 
 /* For thread-context hooks. */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 18) && defined(CONFIG_PREEMPT_NOTIFIERS)
+#if RTLNX_VER_MIN(2,6,18) && defined(CONFIG_PREEMPT_NOTIFIERS)
 # include <linux/preempt.h>
 #endif
 
 /* for workqueue / task queues. */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 5, 41)
+#if RTLNX_VER_MIN(2,5,41)
 # include <linux/workqueue.h>
 #else
 # include <linux/tqueue.h>
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 4)
+#if RTLNX_VER_MIN(2,6,4)
 # include <linux/kthread.h>
 #endif
 
 /* for cr4_init_shadow() / cpu_tlbstate. */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 20, 0)
+#if RTLNX_VER_MIN(3,20,0)
 # include <asm/tlbflush.h>
 #endif
 
 /* for set_pages_x() */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
+#if RTLNX_VER_MIN(4,12,0)
 # include <asm/set_memory.h>
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 7, 0)
+/* for __flush_tlb_all() */
+#if RTLNX_VER_MIN(2,6,28) && (defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86))
+# include <asm/tlbflush.h>
+#endif
+
+#if RTLNX_VER_MIN(3,7,0)
 # include <asm/smap.h>
 #else
 static inline void clac(void) { }
 static inline void stac(void) { }
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 0)
+#if RTLNX_VER_MAX(2,6,0)
 # ifndef page_to_pfn
 #  define page_to_pfn(page) ((page) - mem_map)
 # endif
@@ -200,13 +205,13 @@ static inline void stac(void) { }
 /*
  * 2.4 / early 2.6 compatibility wrappers
  */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 7)
+#if RTLNX_VER_MAX(2,6,7)
 
 # ifndef MAX_JIFFY_OFFSET
 #  define MAX_JIFFY_OFFSET ((~0UL >> 1)-1)
 # endif
 
-# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 4, 29) || LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 0)
+# if RTLNX_VER_MAX(2,4,29) || RTLNX_VER_MIN(2,6,0)
 
 DECLINLINE(unsigned int) jiffies_to_msecs(unsigned long cJiffies)
 {
@@ -241,7 +246,7 @@ DECLINLINE(unsigned long) msecs_to_jiffies(unsigned int cMillies)
 /*
  * 2.4 compatibility wrappers
  */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 0)
+#if RTLNX_VER_MAX(2,6,0)
 
 # define prepare_to_wait(q, wait, state) \
     do { \
@@ -275,9 +280,9 @@ DECLINLINE(unsigned long) msecs_to_jiffies(unsigned int cMillies)
 /*
  * This sucks soooo badly on x86! Why don't they export __PAGE_KERNEL_EXEC so PAGE_KERNEL_EXEC would be usable?
  */
-#if   LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 8) && defined(RT_ARCH_AMD64)
+#if   RTLNX_VER_MIN(2,6,8) && defined(RT_ARCH_AMD64)
 # define MY_PAGE_KERNEL_EXEC    PAGE_KERNEL_EXEC
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 8) && defined(PAGE_KERNEL_EXEC) && defined(CONFIG_X86_PAE)
+#elif RTLNX_VER_MIN(2,6,8) && defined(PAGE_KERNEL_EXEC) && defined(CONFIG_X86_PAE)
 # ifdef __PAGE_KERNEL_EXEC
    /* >= 2.6.27 */
 #  define MY_PAGE_KERNEL_EXEC   __pgprot(boot_cpu_has(X86_FEATURE_PGE) ? __PAGE_KERNEL_EXEC | _PAGE_GLOBAL : __PAGE_KERNEL_EXEC)
@@ -295,14 +300,14 @@ DECLINLINE(unsigned long) msecs_to_jiffies(unsigned int cMillies)
  */
 #ifndef NO_REDHAT_HACKS
 /* accounting. */
-# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 0)
+# if RTLNX_VER_MAX(2,6,0)
 #  ifdef VM_ACCOUNT
 #   define USE_RHEL4_MUNMAP
 #  endif
 # endif
 
 /* backported remap_page_range. */
-# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 0)
+# if RTLNX_VER_MAX(2,6,0)
 #  include <asm/tlb.h>
 #  ifdef tlb_vma /* probably not good enough... */
 #   define HAVE_26_STYLE_REMAP_PAGE_RANGE 1
@@ -336,8 +341,8 @@ DECLINLINE(unsigned long) msecs_to_jiffies(unsigned int cMillies)
 # endif
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
-# if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0) /* The interface was removed, but we only need it for < 2.4.22, so who cares. */
+#if RTLNX_VER_MIN(2,6,25)
+# if RTLNX_VER_MAX(5,4,0) /* The interface was removed, but we only need it for < 2.4.22, so who cares. */
 #  define MY_SET_PAGES_EXEC(pPages, cPages)     set_pages_x(pPages, cPages)
 #  define MY_SET_PAGES_NOEXEC(pPages, cPages)   set_pages_nx(pPages, cPages)
 # endif
@@ -448,14 +453,14 @@ DECLINLINE(unsigned long) msecs_to_jiffies(unsigned int cMillies)
 /** @def IPRT_LINUX_HAS_HRTIMER
  * Whether the kernel support high resolution timers (Linux kernel versions
  * 2.6.28 and later (hrtimer_add_expires_ns() & schedule_hrtimeout). */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 28)
+#if RTLNX_VER_MIN(2,6,28)
 # define IPRT_LINUX_HAS_HRTIMER
 #endif
 
 /*
  * Workqueue stuff, see initterm-r0drv-linux.c.
  */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 5, 41)
+#if RTLNX_VER_MIN(2,5,41)
 typedef struct work_struct  RTR0LNXWORKQUEUEITEM;
 #else
 typedef struct tq_struct    RTR0LNXWORKQUEUEITEM;
@@ -467,17 +472,5 @@ DECLHIDDEN(void) rtR0LnxWorkqueueFlush(void);
  * Memory hacks from memobj-r0drv-linux.c that shared folders need.
  */
 RTDECL(struct page *) rtR0MemObjLinuxVirtToPage(void *pv);
-
-/*
- * Guest Additions changes specific to Red Hat 8.1 and later.
- */
-#ifdef RHEL_RELEASE_CODE
-# if RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(8, 1)
-#  define RHEL_81
-# endif
-# if RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(8, 2)
-#  define RHEL_82
-# endif
-#endif
 
 #endif /* !IPRT_INCLUDED_SRC_r0drv_linux_the_linux_kernel_h */

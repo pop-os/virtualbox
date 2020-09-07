@@ -130,13 +130,9 @@ public:
 
     uint32_t GetMsgParamCount(void) const;
 
-    uint32_t GetProtocolVer(void) const;
-
     bool IsDeferred(void) const;
 
     void SetDeferred(VBOXHGCMCALLHANDLE hHandle, uint32_t u32Function, uint32_t cParms, VBOXHGCMSVCPARM paParms[]);
-
-    void SetProtocolVer(uint32_t uVersion);
 
     void SetSvcContext(const VBOXHGCMSVCTX &SvcCtx);
 
@@ -156,8 +152,6 @@ protected:
 
     /** The client's HGCM client ID. */
     uint32_t           m_uClientID;
-    /** Optional protocol version the client uses. Set to 0 by default. */
-    uint32_t           m_uProtocolVer;
     /** The HGCM service context this client is bound to. */
     VBOXHGCMSVCTX      m_SvcCtx;
     /** Flag indicating whether this client currently is deferred mode,

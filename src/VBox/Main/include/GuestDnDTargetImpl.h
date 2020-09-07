@@ -27,9 +27,8 @@
 #include <VBox/GuestHost/DragAndDrop.h>
 #include <VBox/HostServices/DragAndDropSvc.h>
 
-struct SENDDATACTX;
-typedef struct SENDDATACTX *PSENDDATACTX;
-class SendDataTask;
+struct GuestDnDSendCtx;
+class GuestDnDSendDataTask;
 
 class ATL_NO_VTABLE GuestDnDTarget :
     public GuestDnDTargetWrap,
@@ -40,7 +39,7 @@ public:
      * @{ */
     DECLARE_EMPTY_CTOR_DTOR(GuestDnDTarget)
 
-    int     init(const ComObjPtr<Guest>& pGuest);
+    HRESULT init(const ComObjPtr<Guest>& pGuest);
     void    uninit(void);
 
     HRESULT FinalConstruct(void);
@@ -74,38 +73,41 @@ protected:
     static Utf8Str i_guestErrorToString(int guestRc);
     static Utf8Str i_hostErrorToString(int hostRc);
 
-    /** @name Thread task workers.
-     * @{ */
-    static void i_sendDataThreadTask(SendDataTask *pTask);
-    /** @}  */
-
     /** @name Callbacks for dispatch handler.
      * @{ */
-    static DECLCALLBACK(int) i_sendURIDataCallback(uint32_t uMsg, void *pvParms, size_t cbParms, void *pvUser);
+    static DECLCALLBACK(int) i_sendTransferDataCallback(uint32_t uMsg, void *pvParms, size_t cbParms, void *pvUser);
     /** @}  */
 
 protected:
 
-    int i_sendData(PSENDDATACTX pCtx, RTMSINTERVAL msTimeout);
-    int i_sendDataBody(PSENDDATACTX pCtx, GuestDnDData *pData);
-    int i_sendDataHeader(PSENDDATACTX pCtx, GuestDnDData *pData, GuestDnDURIData *pURIData /* = NULL */);
-    int i_sendDirectory(PSENDDATACTX pCtx, GuestDnDURIObjCtx *pObjCtx, GuestDnDMsg *pMsg);
-    int i_sendFile(PSENDDATACTX pCtx, GuestDnDURIObjCtx *pObjCtx, GuestDnDMsg *pMsg);
-    int i_sendFileData(PSENDDATACTX pCtx, GuestDnDURIObjCtx *pObjCtx, GuestDnDMsg *pMsg);
-    int i_sendRawData(PSENDDATACTX pCtx, RTMSINTERVAL msTimeout);
-    int i_sendURIData(PSENDDATACTX pCtx, RTMSINTERVAL msTimeout);
-    int i_sendURIDataLoop(PSENDDATACTX pCtx, GuestDnDMsg *pMsg);
+    void i_reset(void);
+
+    int i_sendData(GuestDnDSendCtx *pCtx, RTMSINTERVAL msTimeout);
+
+    int i_sendMetaDataBody(GuestDnDSendCtx *pCtx);
+    int i_sendMetaDataHeader(GuestDnDSendCtx *pCtx);
+
+    int i_sendTransferData(GuestDnDSendCtx *pCtx, RTMSINTERVAL msTimeout);
+    int i_sendTransferListObject(GuestDnDSendCtx *pCtx,  PDNDTRANSFERLIST pList, GuestDnDMsg *pMsg);
+
+    int i_sendDirectory(GuestDnDSendCtx *pCtx, PDNDTRANSFEROBJECT pObj, GuestDnDMsg *pMsg);
+    int i_sendFile(GuestDnDSendCtx *pCtx, PDNDTRANSFEROBJECT pObj, GuestDnDMsg *pMsg);
+    int i_sendFileData(GuestDnDSendCtx *pCtx, PDNDTRANSFEROBJECT pObj, GuestDnDMsg *pMsg);
+
+    int i_sendRawData(GuestDnDSendCtx *pCtx, RTMSINTERVAL msTimeout);
 
 protected:
 
     struct
     {
-        bool     mfTransferIsPending;
         /** Maximum data block size (in bytes) the target can handle. */
-        uint32_t mcbBlockSize;
+        uint32_t        mcbBlockSize;
+        /** The context for sending data to the guest.
+         *  At the moment only one transfer at a time is supported. */
+        GuestDnDSendCtx mSendCtx;
     } mData;
 
-    friend class SendDataTask;
+    friend class GuestDnDSendDataTask;
 };
 
 #endif /* !MAIN_INCLUDED_GuestDnDTargetImpl_h */

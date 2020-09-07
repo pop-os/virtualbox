@@ -3744,7 +3744,7 @@
     <message>
         <source>Cloud Network</source>
         <comment>NetworkAttachmentType</comment>
-        <translation>Jaringan Cloud</translation>
+        <translation type="vanished">Jaringan Cloud</translation>
     </message>
     <message>
         <source>PCnet-PCI II (Am79C970A)</source>
@@ -4796,18 +4796,23 @@
     </message>
     <message>
         <source>Acquire cloud instances ...</source>
-        <translation type="unfinished">Mengambil instansi cloud ...</translation>
+        <translation>Mengambil instansi cloud ...</translation>
     </message>
     <message>
         <source>Acquire cloud instance info ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Mengambil info instansi cloud ...</translation>
     </message>
     <message>
         <source>Pause instance ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Istirahatkan instance ...</translation>
     </message>
     <message>
         <source>Start instance ...</source>
+        <translation>Memulai instance ...</translation>
+    </message>
+    <message>
+        <source>Cloud Network [EXPERIMENTAL]</source>
+        <comment>NetworkAttachmentType</comment>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -19005,20 +19010,20 @@ langkah ini dan memasang hard disk pada waktu lain menggunakan dialog Setting Me
     <name>UIVirtualMachineItemCloud</name>
     <message>
         <source>Loading ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Memuat ...</translation>
     </message>
     <message>
         <source>Up-To-Date</source>
-        <translation type="unfinished"></translation>
+        <translation>Mutakhir</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Inaccessible&lt;/nobr&gt;</source>
         <comment>Inaccessible VM tooltip (name)</comment>
-        <translation type="unfinished"></translation>
+        <translation>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Tidak dapat diakses&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>Inaccessible</source>
-        <translation type="unfinished">Tidak dapat diakses</translation>
+        <translation>Tidak dapat diakses</translation>
     </message>
 </context>
 <context>
@@ -19026,16 +19031,16 @@ langkah ini dan memasang hard disk pada waktu lain menggunakan dialog Setting Me
     <message>
         <source>&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 since %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Session %4&lt;/nobr&gt;</source>
         <comment>VM tooltip (name, last state change, session state)</comment>
-        <translation type="unfinished">&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 sejak %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Sesi %4&lt;/nobr&gt;</translation>
+        <translation>&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 sejak %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Sesi %4&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Inaccessible since %2&lt;/nobr&gt;</source>
         <comment>Inaccessible VM tooltip (name, last state change)</comment>
-        <translation type="unfinished">&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Tidak dapat diakses sejak %2&lt;/nobr&gt;</translation>
+        <translation>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Tidak dapat diakses sejak %2&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>Inaccessible</source>
-        <translation type="unfinished">Tidak dapat diakses</translation>
+        <translation>Tidak dapat diakses</translation>
     </message>
 </context>
 <context>

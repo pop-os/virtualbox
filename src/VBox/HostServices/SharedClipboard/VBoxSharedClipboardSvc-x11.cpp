@@ -175,9 +175,10 @@ struct CLIPREADCBREQ
 int ShClSvcImplReadData(PSHCLCLIENT pClient,
                         PSHCLCLIENTCMDCTX pCmdCtx, SHCLFORMAT uFormat, void *pvData, uint32_t cbData, uint32_t *pcbActual)
 {
-    AssertPtrReturn(pClient, VERR_INVALID_POINTER);
-    AssertPtrReturn(pCmdCtx, VERR_INVALID_POINTER);
-    AssertPtrReturn(pvData,  VERR_INVALID_POINTER);
+    AssertPtrReturn(pClient,   VERR_INVALID_POINTER);
+    AssertPtrReturn(pCmdCtx,   VERR_INVALID_POINTER);
+    AssertPtrReturn(pvData,    VERR_INVALID_POINTER);
+    AssertPtrReturn(pcbActual, VERR_INVALID_POINTER);
 
     RT_NOREF(pCmdCtx);
 
@@ -196,6 +197,7 @@ int ShClSvcImplReadData(PSHCLCLIENT pClient,
         pReq->idEvent    = idEvent;
         if (idEvent != NIL_SHCLEVENTID)
         {
+            /* Note: ShClX11ReadDataFromX11() will consume pReq on success. */
             rc = ShClX11ReadDataFromX11(&pClient->State.pCtx->X11, uFormat, pReq);
             if (RT_SUCCESS(rc))
             {
@@ -203,21 +205,26 @@ int ShClSvcImplReadData(PSHCLCLIENT pClient,
                 rc = ShClEventWait(&pClient->EventSrc, idEvent, 30 * 1000, &pPayload);
                 if (RT_SUCCESS(rc))
                 {
-                    memcpy(pvData, pPayload->pvData, RT_MIN(cbData, pPayload->cbData));
+                    if (pPayload)
+                    {
+                        memcpy(pvData, pPayload->pvData, RT_MIN(cbData, pPayload->cbData));
 
-                    *pcbActual = (uint32_t)pPayload->cbData;
+                        *pcbActual = (uint32_t)pPayload->cbData;
 
-                    ShClPayloadFree(pPayload);
+                        ShClPayloadFree(pPayload);
+                    }
+                    else /* No payload given; could happen on invalid / not-expected formats. */
+                        *pcbActual = 0;
                 }
             }
 
             ShClEventUnregister(&pClient->EventSrc, idEvent);
         }
         else
-        {
-            RTMemFree(pReq);
             rc = VERR_SHCLPB_MAX_EVENTS_REACHED;
-        }
+
+        if (RT_FAILURE(rc))
+            RTMemFree(pReq);
     }
     else
         rc = VERR_NO_MEMORY;
@@ -308,17 +315,17 @@ DECLCALLBACK(void) ShClX11RequestFromX11CompleteCallback(PSHCLCONTEXT pCtx, int 
 }
 
 /**
- * Reads clipboard data from the guest and passes it to the X11 clipboard.
+ * Callback implementation for reading clipboard data from the guest.
  *
  * @note   Runs in Xt event thread.
  *
- * @param  pCtx      Pointer to the host clipboard structure.
- * @param  fFormat   The format in which the data should be transferred
- *                   (VBOX_SHCL_FMT_XXX).
- * @param  ppv       On success and if pcb > 0, this will point to a buffer
- *                   to be freed with RTMemFree containing the data read.
- * @param  pcb       On success, this contains the number of bytes of data
- *                   returned.
+ * @returns VBox status code. VERR_NO_DATA if no data available.
+ * @param   pCtx                Pointer to the host clipboard structure.
+ * @param   fFormat             The format in which the data should be transferred
+ *                              (VBOX_SHCL_FMT_XXX).
+ * @param   ppv                 On success and if pcb > 0, this will point to a buffer
+ *                              to be freed with RTMemFree containing the data read.
+ * @param   pcb                 On success, this contains the number of bytes of data returned.
  */
 DECLCALLBACK(int) ShClX11RequestDataForX11Callback(PSHCLCONTEXT pCtx, SHCLFORMAT fFormat, void **ppv, uint32_t *pcb)
 {
@@ -348,8 +355,16 @@ DECLCALLBACK(int) ShClX11RequestDataForX11Callback(PSHCLCONTEXT pCtx, SHCLFORMAT
             rc = ShClEventWait(&pCtx->pClient->EventSrc, idEvent, 30 * 1000, &pPayload);
             if (RT_SUCCESS(rc))
             {
-                *ppv = pPayload ? pPayload->pvData : NULL;
-                *pcb = pPayload ? pPayload->cbData : 0;
+                if (   !pPayload
+                    || !pPayload->cbData)
+                {
+                    rc = VERR_NO_DATA;
+                }
+                else
+                {
+                    *ppv = pPayload->pvData;
+                    *pcb = pPayload->cbData;
+                }
             }
 
             ShClEventRelease(&pCtx->pClient->EventSrc, idEvent);

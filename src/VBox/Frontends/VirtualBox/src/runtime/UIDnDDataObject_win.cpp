@@ -39,7 +39,7 @@
 
 UIDnDDataObject::UIDnDDataObject(UIDnDHandler *pDnDHandler, const QStringList &lstFormats)
     : m_pDnDHandler(pDnDHandler)
-    , m_enmStatus(DnDDataObjectStatus_Uninitialized)
+    , m_enmStatus(Status_Uninitialized)
     , m_cRefs(1)
     , m_cFormats(0)
     , m_pFormatEtc(NULL)
@@ -127,7 +127,7 @@ UIDnDDataObject::UIDnDDataObject(UIDnDHandler *pDnDHandler, const QStringList &l
                        RegisterClipboardFormat(CFSTR_SHELLIDLISTOFFSET));
 #endif
         m_cFormats  = cRegisteredFormats;
-        m_enmStatus = DnDDataObjectStatus_Dropping;
+        m_enmStatus = Status_Dropping;
     }
 
     LogFlowFunc(("hr=%Rhrc\n", hr));
@@ -187,15 +187,6 @@ STDMETHODIMP UIDnDDataObject::QueryInterface(REFIID iid, void **ppvObject)
     return E_NOINTERFACE;
 }
 
-/**
- * Retrieves the data stored in this object and store the result in
- * pMedium.
- *
- * @return  IPRT status code.
- * @return  HRESULT
- * @param   pFormatEtc
- * @param   pMedium
- */
 STDMETHODIMP UIDnDDataObject::GetData(LPFORMATETC pFormatEtc, LPSTGMEDIUM pMedium)
 {
     AssertPtrReturn(pFormatEtc, DV_E_FORMATETC);
@@ -222,7 +213,7 @@ STDMETHODIMP UIDnDDataObject::GetData(LPFORMATETC pFormatEtc, LPSTGMEDIUM pMediu
         LogFlowThisFunc(("mStatus=%RU32\n", m_enmStatus));
         switch (m_enmStatus)
         {
-            case DnDDataObjectStatus_Dropping:
+            case Status_Dropping:
             {
 #if 0
                 LogRel3(("DnD: Dropping\n"));
@@ -233,7 +224,7 @@ STDMETHODIMP UIDnDDataObject::GetData(LPFORMATETC pFormatEtc, LPSTGMEDIUM pMediu
                 break;
             }
 
-            case DnDDataObjectStatus_Dropped:
+            case Status_Dropped:
             {
                 LogRel3(("DnD: Dropped\n"));
                 LogRel3(("DnD: cfFormat=%RI16, sFormat=%s, tyMed=%RU32, dwAspect=%RU32\n",
@@ -287,7 +278,7 @@ STDMETHODIMP UIDnDDataObject::GetData(LPFORMATETC pFormatEtc, LPSTGMEDIUM pMediu
                     pMedium->tymed = TYMED_HGLOBAL;
                 }
 #endif
-                LogRel3(("DnD: strMIMEType=%s, vaType=%ld\n", strMIMEType.toUtf8().constData(), vaType));
+                LogRel3(("DnD: strMIMEType=%s\n", strMIMEType.toUtf8().constData()));
 
                 int rc;
 
@@ -333,7 +324,7 @@ STDMETHODIMP UIDnDDataObject::GetData(LPFORMATETC pFormatEtc, LPSTGMEDIUM pMediu
                         }
 
                         int cFiles = lstFiles.size();
-                        LogFlowThisFunc(("Files (%zu)\n", cFiles));
+                        LogFlowThisFunc(("Files (%d)\n", cFiles));
                         if (   RT_SUCCESS(rc)
                             && cFiles)
                         {
@@ -385,7 +376,7 @@ STDMETHODIMP UIDnDDataObject::GetData(LPFORMATETC pFormatEtc, LPSTGMEDIUM pMediu
                                     *pCurFile = L'\0';
                                     pCurFile += sizeof(RTUTF16);
 
-                                    LogFlowThisFunc(("\t#%zu: cchCurFile=%zu\n", i, cchCurFile));
+                                    LogFlowThisFunc(("\t#%d: cchCurFile=%zu\n", i, cchCurFile));
                                 }
 
                                 if (RT_SUCCESS(rc))
@@ -511,14 +502,6 @@ STDMETHODIMP UIDnDDataObject::GetData(LPFORMATETC pFormatEtc, LPSTGMEDIUM pMediu
     return hr;
 }
 
-/**
- * Only required for IStream / IStorage interfaces.
- *
- * @return  IPRT status code.
- * @return  HRESULT
- * @param   pFormatEtc
- * @param   pMedium
- */
 STDMETHODIMP UIDnDDataObject::GetDataHere(LPFORMATETC pFormatEtc, LPSTGMEDIUM pMedium)
 {
     RT_NOREF(pFormatEtc, pMedium);
@@ -526,13 +509,6 @@ STDMETHODIMP UIDnDDataObject::GetDataHere(LPFORMATETC pFormatEtc, LPSTGMEDIUM pM
     return DATA_E_FORMATETC;
 }
 
-/**
- * Query if this objects supports a specific format.
- *
- * @return  IPRT status code.
- * @return  HRESULT
- * @param   pFormatEtc
- */
 STDMETHODIMP UIDnDDataObject::QueryGetData(LPFORMATETC pFormatEtc)
 {
     return LookupFormatEtc(pFormatEtc, NULL /* puIndex */) ? S_OK : DV_E_FORMATETC;
@@ -593,13 +569,24 @@ STDMETHODIMP UIDnDDataObject::EnumDAdvise(IEnumSTATDATA **ppEnumAdvise)
  * Own stuff.
  */
 
+/**
+ * Aborts waiting for data being "dropped".
+ *
+ * @returns VBox status code.
+ */
 int UIDnDDataObject::Abort(void)
 {
     LogFlowFunc(("Aborting ...\n"));
-    m_enmStatus = DnDDataObjectStatus_Aborted;
+    m_enmStatus = Status_Aborted;
     return RTSemEventSignal(m_SemEvent);
 }
 
+/**
+ * Static helper function to convert a CLIPFORMAT to a string and return it.
+ *
+ * @returns Pointer to converted stringified CLIPFORMAT, or "unknown" if not found / invalid.
+ * @param   fmt                 CLIPFORMAT to return string for.
+ */
 /* static */
 const char* UIDnDDataObject::ClipboardFormatToString(CLIPFORMAT fmt)
 {
@@ -681,6 +668,13 @@ const char* UIDnDDataObject::ClipboardFormatToString(CLIPFORMAT fmt)
     return "unknown";
 }
 
+/**
+ * Checks whether a given FORMATETC is supported by this data object and returns its index.
+ *
+ * @returns \c true if format is supported, \c false if not.
+ * @param   pFormatEtc          Pointer to FORMATETC to check for.
+ * @param   puIndex             Where to store the index if format is supported.
+ */
 bool UIDnDDataObject::LookupFormatEtc(LPFORMATETC pFormatEtc, ULONG *puIndex)
 {
     AssertReturn(pFormatEtc, false);
@@ -711,6 +705,16 @@ bool UIDnDDataObject::LookupFormatEtc(LPFORMATETC pFormatEtc, ULONG *puIndex)
     return false;
 }
 
+/**
+ * Registers a new format with this data object.
+ *
+ * @param   pFormatEtc          Where to store the new format into.
+ * @param   clipFormat          Clipboard format to register.
+ * @param   tyMed               Format medium type to register.
+ * @param   lIndex              Format index to register.
+ * @param   dwAspect            Format aspect to register.
+ * @param   pTargetDevice       Format target device to register.
+ */
 void UIDnDDataObject::RegisterFormat(LPFORMATETC pFormatEtc, CLIPFORMAT clipFormat,
                                      TYMED tyMed, LONG lIndex, DWORD dwAspect,
                                      DVTARGETDEVICE *pTargetDevice)
@@ -727,17 +731,33 @@ void UIDnDDataObject::RegisterFormat(LPFORMATETC pFormatEtc, CLIPFORMAT clipForm
                  pFormatEtc->cfFormat, UIDnDDataObject::ClipboardFormatToString(pFormatEtc->cfFormat)));
 }
 
-void UIDnDDataObject::SetStatus(DnDDataObjectStatus enmStatus)
+/**
+ * Sets the current status of this data object.
+ *
+ * @param   enmStatus           New status to set.
+ */
+void UIDnDDataObject::SetStatus(Status enmStatus)
 {
     LogFlowFunc(("Setting status to %RU32\n", enmStatus));
     m_enmStatus = enmStatus;
 }
 
+/**
+ * Signals that data has been "dropped".
+ */
 void UIDnDDataObject::Signal(void)
 {
-    SetStatus(DnDDataObjectStatus_Dropped);
+    SetStatus(Status_Dropped);
 }
 
+/**
+ * Signals that data has been "dropped".
+ *
+ * @returns VBox status code.
+ * @param   strFormat           Format of data (MIME string).
+ * @param   pvData              Pointer to data.
+ * @param   cbData              Size (in bytes) of data.
+ */
 int UIDnDDataObject::Signal(const QString &strFormat,
                             const void *pvData, uint32_t cbData)
 {
@@ -763,10 +783,10 @@ int UIDnDDataObject::Signal(const QString &strFormat,
     if (RT_SUCCESS(rc))
     {
         m_strFormat = strFormat;
-        SetStatus(DnDDataObjectStatus_Dropped);
+        SetStatus(Status_Dropped);
     }
     else
-        SetStatus(DnDDataObjectStatus_Aborted);
+        SetStatus(Status_Aborted);
 
     /* Signal in any case. */
     int rc2 = RTSemEventSignal(m_SemEvent);

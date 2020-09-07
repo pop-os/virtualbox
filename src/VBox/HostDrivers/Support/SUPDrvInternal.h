@@ -54,8 +54,8 @@
 #   include <memory.h>
 
 #elif defined(RT_OS_LINUX)
-#   include <linux/version.h>
-#   if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 33)
+#   include <iprt/linux/version.h>
+#   if RTLNX_VER_MIN(2,6,33)
 #    include <generated/autoconf.h>
 #   else
 #    ifndef AUTOCONF_INCLUDED
@@ -64,12 +64,12 @@
 #   endif
 #   if defined(CONFIG_MODVERSIONS) && !defined(MODVERSIONS)
 #       define MODVERSIONS
-#       if LINUX_VERSION_CODE < KERNEL_VERSION(2, 5, 71)
+#       if RTLNX_VER_MAX(2,5,71)
 #           include <linux/modversions.h>
 #       endif
 #   endif
 #   ifndef KBUILD_STR
-#       if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 16)
+#       if RTLNX_VER_MAX(2,6,16)
 #            define KBUILD_STR(s) s
 #       else
 #            define KBUILD_STR(s) #s
@@ -78,7 +78,7 @@
 #   include <linux/string.h>
 #   include <linux/spinlock.h>
 #   include <linux/slab.h>
-#   if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
+#   if RTLNX_VER_MIN(2,6,27)
 #       include <linux/semaphore.h>
 #   else /* older kernels */
 #       include <asm/semaphore.h>
@@ -143,6 +143,12 @@
  * taking it.
  * @todo fix the mutex implementation on linux and make this the default. */
 # define SUPDRV_USE_MUTEX_FOR_GIP
+#endif
+
+#if defined(RT_OS_LINUX) /** @todo make everyone do this */
+/** Use the RTR0MemObj API rather than the RTMemExecAlloc for the images.
+ * This is a good idea in general, but a necessity for @bugref{9801}. */
+# define SUPDRV_USE_MEMOBJ_FOR_LDR_IMAGE
 #endif
 
 
@@ -326,15 +332,20 @@ typedef struct SUPDRVLDRIMAGE
     struct SUPDRVLDRIMAGE * volatile pNext;
     /** Pointer to the image. */
     void                           *pvImage;
+#ifdef SUPDRV_USE_MEMOBJ_FOR_LDR_IMAGE
+    /** The memory object for the module allocation. */
+    RTR0MEMOBJ                      hMemObjImage;
+#else
     /** Pointer to the allocated image buffer.
      * pvImage is 32-byte aligned or it may governed by the native loader (this
      * member is NULL then). */
     void                           *pvImageAlloc;
+#endif
     /** Magic value (SUPDRVLDRIMAGE_MAGIC). */
     uint32_t                        uMagic;
     /** Size of the image including the tables. This is mainly for verification
      * of the load request. */
-    uint32_t                        cbImageWithTabs;
+    uint32_t                        cbImageWithEverything;
     /** Size of the image. */
     uint32_t                        cbImageBits;
     /** The number of entries in the symbol table. */
@@ -345,6 +356,10 @@ typedef struct SUPDRVLDRIMAGE
     char                           *pachStrTab;
     /** Size of the string table. */
     uint32_t                        cbStrTab;
+    /** Number of segments. */
+    uint32_t                        cSegments;
+    /** Segments (for memory protection). */
+    PSUPLDRSEG                      paSegments;
     /** Pointer to the optional module initialization callback. */
     PFNR0MODULEINIT                 pfnModuleInit;
     /** Pointer to the optional module termination callback. */

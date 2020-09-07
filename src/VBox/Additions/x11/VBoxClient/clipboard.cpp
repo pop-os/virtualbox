@@ -79,15 +79,14 @@ static SHCLCONTEXT g_Ctx;
 
 
 /**
- * Get clipboard data from the host.
+ * Callback implementation for getting clipboard data from the host.
  *
- * @returns VBox result code
+ * @returns VBox status code. VERR_NO_DATA if no data available.
  * @param   pCtx                Our context information.
  * @param   Format              The format of the data being requested.
  * @param   ppv                 On success and if pcb > 0, this will point to a buffer
  *                              to be freed with RTMemFree containing the data read.
- * @param   pcb                 On success, this contains the number of bytes of data
- *                              returned.
+ * @param   pcb                 On success, this contains the number of bytes of data returned.
  */
 DECLCALLBACK(int) ShClX11RequestDataForX11Callback(PSHCLCONTEXT pCtx, SHCLFORMAT Format, void **ppv, uint32_t *pcb)
 {
@@ -137,20 +136,24 @@ DECLCALLBACK(int) ShClX11RequestDataForX11Callback(PSHCLCONTEXT pCtx, SHCLFORMAT
                 rc = VERR_NO_MEMORY;
         }
 
+        if (!cbRead)
+            rc = VERR_NO_DATA;
+
         if (RT_SUCCESS(rc))
         {
             *pcb = cbRead; /* Actual bytes read. */
             *ppv = pvData;
         }
-
-        /*
-         * Catch other errors. This also catches the case in which the buffer was
-         * too small a second time, possibly because the clipboard contents
-         * changed half-way through the operation.  Since we can't say whether or
-         * not this is actually an error, we just return size 0.
-         */
-        if (RT_FAILURE(rc))
+        else
+        {
+            /*
+             * Catch other errors. This also catches the case in which the buffer was
+             * too small a second time, possibly because the clipboard contents
+             * changed half-way through the operation.  Since we can't say whether or
+             * not this is actually an error, we just return size 0.
+             */
             RTMemFree(pvData);
+        }
     }
 
     LogFlowFuncLeaveRC(rc);
@@ -190,24 +193,28 @@ DECLCALLBACK(void) ShClX11ReportFormatsCallback(PSHCLCONTEXT pCtx, SHCLFORMATS f
  * X11 has completed.
  *
  * @param  pCtx                 Our context information.
- * @param  rc                   The IPRT result code of the request.
+ * @param  rcCompletion         The completion status of the request.
  * @param  pReq                 The request structure that we passed in when we started
  *                              the request.  We RTMemFree() this in this function.
  * @param  pv                   The clipboard data returned from X11 if the request succeeded (see @a rc).
  * @param  cb                   The size of the data in @a pv.
  */
-DECLCALLBACK(void) ShClX11RequestFromX11CompleteCallback(PSHCLCONTEXT pCtx, int rc, CLIPREADCBREQ *pReq, void *pv, uint32_t cb)
+DECLCALLBACK(void) ShClX11RequestFromX11CompleteCallback(PSHCLCONTEXT pCtx,
+                                                         int rcCompletion, CLIPREADCBREQ *pReq, void *pv, uint32_t cb)
 {
-    RT_NOREF(pCtx, rc);
+    LogFlowFunc(("rcCompletion=%Rrc, Format=0x%x, pv=%p, cb=%RU32\n", rcCompletion, pReq->Format, pv, cb));
 
-    LogFlowFunc(("rc=%Rrc, Format=0x%x, pv=%p, cb=%RU32\n", rc, pReq->Format, pv, cb));
+    if (RT_SUCCESS(rcCompletion)) /* Only write data if the request succeeded. */
+    {
+        AssertPtrReturnVoid(pv);
+        AssertReturnVoid(pv);
 
-    int rc2 = VbglR3ClipboardWriteDataEx(&pCtx->CmdCtx, pReq->Format, pv, cb);
-    RT_NOREF(rc2);
+        rcCompletion = VbglR3ClipboardWriteDataEx(&pCtx->CmdCtx, pReq->Format, pv, cb);
+    }
 
     RTMemFree(pReq);
 
-    LogFlowFuncLeaveRC(rc2);
+    LogFlowFuncLeaveRC(rcCompletion);
 }
 
 /**

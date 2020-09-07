@@ -221,7 +221,9 @@ typedef struct VMSVGAState
     /** The legacy GFB mode registers. If used, they correspond to screen 0. */
     /** True when the guest modifies the GFB mode registers. */
     bool                        fGFBRegisters;
-    bool                        afPadding[2];
+    /** SVGA 3D overlay enabled or not. */
+    bool                        f3DOverlayEnabled;
+    bool                        afPadding[1];
     uint32_t                    uWidth;
     uint32_t                    uHeight;
     uint32_t                    uBpp;

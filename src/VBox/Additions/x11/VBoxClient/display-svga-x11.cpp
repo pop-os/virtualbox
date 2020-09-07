@@ -55,6 +55,7 @@
 #include <iprt/assert.h>
 #include <iprt/err.h>
 #include <iprt/file.h>
+#include <iprt/mem.h>
 #include <iprt/path.h>
 #include <iprt/string.h>
 #include <iprt/thread.h>
@@ -676,11 +677,81 @@ static bool isXwayland(void)
     return false;
 }
 
+/**
+ * An abbreviated copy of the VGSvcReadProp from VBoxServiceUtils.cpp
+ */
+static int readGuestProperty(uint32_t u32ClientId, const char *pszPropName)
+{
+    AssertPtrReturn(pszPropName, VERR_INVALID_POINTER);
+
+    uint32_t    cbBuf = _1K;
+    void       *pvBuf = NULL;
+    int         rc    = VINF_SUCCESS;  /* MSC can't figure out the loop */
+
+    for (unsigned cTries = 0; cTries < 10; cTries++)
+    {
+        /*
+         * (Re-)Allocate the buffer and try read the property.
+         */
+        RTMemFree(pvBuf);
+        pvBuf = RTMemAlloc(cbBuf);
+        if (!pvBuf)
+        {
+            VBClLogError("Guest Property: Failed to allocate %zu bytes\n", cbBuf);
+            rc = VERR_NO_MEMORY;
+            break;
+        }
+        char    *pszValue;
+        char    *pszFlags;
+        uint64_t uTimestamp;
+        rc = VbglR3GuestPropRead(u32ClientId, pszPropName, pvBuf, cbBuf, &pszValue, &uTimestamp, &pszFlags, NULL);
+        if (RT_FAILURE(rc))
+        {
+            if (rc == VERR_BUFFER_OVERFLOW)
+            {
+                /* try again with a bigger buffer. */
+                cbBuf *= 2;
+                continue;
+            }
+            else
+                break;
+        }
+        else
+            break;
+    }
+
+    if (pvBuf)
+        RTMemFree(pvBuf);
+    return rc;
+}
+
+/**
+ * We start VBoxDRMClient from VBoxService in case  some guest property is set.
+ * We check the same guest property here and dont start this service in case
+ * it (guest property) is set.
+ */
+static bool checkDRMClient()
+{
+   uint32_t uGuestPropSvcClientID;
+   int rc = VbglR3GuestPropConnect(&uGuestPropSvcClientID);
+   if (RT_FAILURE(rc))
+       return false;
+   rc = readGuestProperty(uGuestPropSvcClientID, "/VirtualBox/GuestAdd/DRMResize" /*pszPropName*/);
+   if (RT_FAILURE(rc))
+       return false;
+   return true;
+}
+
 static bool init()
 {
+    /* If DRM client is already running don't start this service. */
+    if (checkDRMClient())
+    {
+        VBClLogFatalError("DRM resizing is already running. Exiting this service\n");
+        return false;
+    }
     if (isXwayland())
     {
-        VBClLogInfo("The parent session seems to be running on Wayland. Starting DRM client\n");
         char* argv[] = {NULL};
         char* env[] = {NULL};
         char szDRMClientPath[RTPATH_MAX];
@@ -1253,17 +1324,16 @@ static const char *getPidFilePath()
 static int run(struct VBCLSERVICE **ppInterface, bool fDaemonised)
 {
     RT_NOREF(ppInterface, fDaemonised);
-    int rc;
-    uint32_t events;
+    if (!init())
+        return VERR_NOT_AVAILABLE;
+
     /* Do not acknowledge the first event we query for to pick up old events,
      * e.g. from before a guest reboot. */
     bool fAck = false;
     bool fFirstRun = true;
-    if (!init())
-        return VERR_NOT_AVAILABLE;
     static struct VMMDevDisplayDef aMonitors[VMW_MAX_HEADS];
 
-    rc = VbglR3CtlFilterMask(VMMDEV_EVENT_DISPLAY_CHANGE_REQUEST, 0);
+    int rc = VbglR3CtlFilterMask(VMMDEV_EVENT_DISPLAY_CHANGE_REQUEST, 0);
     if (RT_FAILURE(rc))
         VBClLogFatalError("Failed to request display change events, rc=%Rrc\n", rc);
     rc = VbglR3AcquireGuestCaps(VMMDEV_GUEST_SUPPORTS_GRAPHICS, 0, false);
@@ -1336,6 +1406,7 @@ static int run(struct VBCLSERVICE **ppInterface, bool fDaemonised)
                 fFirstRun = false;
             }
         }
+        uint32_t events;
         do
         {
             rc = VbglR3WaitEvent(VMMDEV_EVENT_DISPLAY_CHANGE_REQUEST, RT_INDEFINITE_WAIT, &events);

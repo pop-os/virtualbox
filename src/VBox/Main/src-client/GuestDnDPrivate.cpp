@@ -54,24 +54,33 @@
  * The following components are involved:
  *
  * 1. GUI: Uses the Qt classes for Drag and Drop and mainly forward the content
- *    of it to the Main IGuest interface (see UIDnDHandler.cpp).
+ *    of it to the Main IGuest / IGuestDnDSource / IGuestDnDTarget interfaces.
  * 2. Main: Public interface for doing Drag and Drop. Also manage the IProgress
  *    interfaces for blocking the caller by showing a progress dialog (see
  *    this file).
  * 3. HGCM service: Handle all messages from the host to the guest at once and
  *    encapsulate the internal communication details (see dndmanager.cpp and
  *    friends).
- * 4. Guest additions: Split into the platform neutral part (see
+ * 4. Guest Additions: Split into the platform neutral part (see
  *    VBoxGuestR3LibDragAndDrop.cpp) and the guest OS specific parts.
  *    Receive/send message from/to the HGCM service and does all guest specific
- *    operations. Currently only X11 is supported (see draganddrop.cpp within
- *    VBoxClient).
+ *    operations. For Windows guests VBoxTray is in charge, whereas on UNIX-y guests
+ *    VBoxClient will be used.
+ *
+ * Terminology:
+ *
+ * All transfers contain a MIME format and according meta data. This meta data then can
+ * be interpreted either as raw meta data or something else. When raw meta data is
+ * being handled, this gets passed through to the destination (guest / host) without
+ * modification. Other meta data (like URI lists) can and will be modified by the
+ * receiving side before passing to OS. How and when modifications will be applied
+ * depends on the MIME format.
  *
  * Host -> Guest:
  * 1. There are DnD Enter, Move, Leave events which are send exactly like this
- *    to the guest. The info includes the pos, mimetypes and allowed actions.
+ *    to the guest. The info includes the position, MIME types and allowed actions.
  *    The guest has to respond with an action it would accept, so the GUI could
- *    change the cursor.
+ *    change the cursor accordingly.
  * 2. On drop, first a drop event is sent. If this is accepted a drop data
  *    event follows. This blocks the GUI and shows some progress indicator.
  *
@@ -84,7 +93,7 @@
  * 3. On drop the host request the data from the guest. This blocks the GUI and
  *    shows some progress indicator.
  *
- * Some hints:
+ * Implementation hints:
  * m_strSupportedFormats here in this file defines the allowed mime-types.
  * This is necessary because we need special handling for some of the
  * mime-types. E.g. for URI lists we need to transfer the actual dirs and
@@ -103,13 +112,15 @@
  * tray icon hint (and maybe the possibility to clean this up instantly). The
  * same has to be done in the G->H direction when it is implemented.
  *
- * Of course only regularly files are supported. Symlinks are resolved and
- * transfered as regularly files. First we don't know if the other side support
- * symlinks at all and second they could point to somewhere in a directory tree
- * which not exists on the other side.
+ * Only regular files are supported; symlinks are not allowed.
  *
- * The code tries to preserve the file modes of the transfered dirs/files. This
- * is useful (and maybe necessary) for two things:
+ * Transfers currently are an all-succeed or all-fail operation (see todos).
+ *
+ * On MacOS hosts we had to implement own DnD "promises" support for file transfers,
+ * as Qt does not support this out-of-the-box.
+ *
+ * The code tries to preserve the file modes of the transfered directories / files.
+ * This is useful (and maybe necessary) for two things:
  * 1. If a file is executable, it should be also after the transfer, so the
  *    user can just execute it, without manually tweaking the modes first.
  * 2. If a dir/file is not accessible by group/others in the host, it shouldn't
@@ -117,76 +128,171 @@
  * In any case, the user mode is always set to rwx (so that we can access it
  * ourself, in e.g. for a cleanup case after cancel).
  *
- * Cancel is supported in both directions and cleans up all previous steps
- * (thats is: deleting already transfered dirs/files).
+ * ACEs / ACLs currently are not supported.
  *
- * In general I propose the following changes in the VBox HGCM infrastructure
- * for the future:
- * - Currently it isn't really possible to send messages to the guest from the
- *   host. The host informs the guest just that there is something, the guest
- *   than has to ask which message and depending on that send the appropriate
- *   message to the host, which is filled with the right data.
- * - There is no generic interface for sending bigger memory blocks to/from the
- *   guest. This is now done here, but I guess was also necessary for e.g.
- *   guest execution. So something generic which brake this up into smaller
- *   blocks and send it would be nice (with all the error handling and such
- *   ofc).
- * - I developed a "protocol" for the DnD communication here. So the host and
- *   the guest have always to match in the revision. This is ofc bad, because
- *   the additions could be outdated easily. So some generic protocol number
- *   support in HGCM for asking the host and the guest of the support version,
- *   would be nice. Ofc at least the host should be able to talk to the guest,
- *   even when the version is below the host one.
- * All this stuff would be useful for the current services, but also for future
- * onces.
+ * Cancelling ongoing transfers is supported in both directions by the guest
+ * and/or host side and cleans up all previous steps. This also involves
+ * removing partially transferred directories / files in the temporary directory.
  *
  ** @todo
  * - ESC doesn't really work (on Windows guests it's already implemented)
- *   ... in any case it seems a little bit difficult to handle from the Qt
- *   side. Maybe also a host specific implementation becomes necessary ...
- *   this would be really worst ofc.
- * - Add support for more mime-types (especially images, csv)
+ *   ... in any case it seems a little bit difficult to handle from the Qt side.
+ * - Transfers currently do not have any interactive (UI) callbacks / hooks which
+ *   e.g. would allow to skip / replace / rename and entry, or abort the operation on failure.
+ * - Add support for more MIME types (especially images, csv)
  * - Test unusual behavior:
  *   - DnD service crash in the guest during a DnD op (e.g. crash of VBoxClient or X11)
  *   - Not expected order of the events between HGCM and the guest
  * - Security considerations: We transfer a lot of memory between the guest and
  *   the host and even allow the creation of dirs/files. Maybe there should be
- *   limits introduced to preventing DOS attacks or filling up all the memory
+ *   limits introduced to preventing DoS attacks or filling up all the memory
  *   (both in the host and the guest).
  */
 
-GuestDnDCallbackEvent::~GuestDnDCallbackEvent(void)
+
+/*********************************************************************************************************************************
+ * Internal macros.                                                                                                              *
+ ********************************************************************************************************************************/
+
+/** Tries locking the GuestDnD object and returns on failure. */
+#define GUESTDND_LOCK() \
+    { \
+        int rcLock = RTCritSectEnter(&m_CritSect); \
+        if (RT_FAILURE(rcLock)) \
+            return rcLock; \
+    }
+
+/** Tries locking the GuestDnD object and returns a_Ret failure. */
+#define GUESTDND_LOCK_RET(a_Ret) \
+    { \
+        int rcLock = RTCritSectEnter(&m_CritSect); \
+        if (RT_FAILURE(rcLock)) \
+            return a_Ret; \
+    }
+
+/** Unlocks a formerly locked GuestDnD object. */
+#define GUESTDND_UNLOCK() \
+    { \
+        int rcUnlock = RTCritSectLeave(&m_CritSect); RT_NOREF(rcUnlock); \
+        AssertRC(rcUnlock); \
+    }
+
+/*********************************************************************************************************************************
+ * GuestDnDSendCtx implementation.                                                                                               *
+ ********************************************************************************************************************************/
+
+GuestDnDSendCtx::GuestDnDSendCtx(void)
+    : pTarget(NULL)
+    , pState(NULL)
 {
-    if (NIL_RTSEMEVENT != mSemEvent)
-        RTSemEventDestroy(mSemEvent);
+    reset();
 }
 
+/**
+ * Resets a GuestDnDSendCtx object.
+ */
+void GuestDnDSendCtx::reset(void)
+{
+    if (pState)
+        pState->reset();
+
+    uScreenID  = 0;
+
+    Transfer.reset();
+
+    int rc2 = EventCallback.Reset();
+    AssertRC(rc2);
+
+    GuestDnDData::reset();
+}
+
+/*********************************************************************************************************************************
+ * GuestDnDRecvCtx implementation.                                                                                               *
+ ********************************************************************************************************************************/
+
+GuestDnDRecvCtx::GuestDnDRecvCtx(void)
+    : pSource(NULL)
+    , pState(NULL)
+{
+    reset();
+}
+
+/**
+ * Resets a GuestDnDRecvCtx object.
+ */
+void GuestDnDRecvCtx::reset(void)
+{
+    if (pState)
+        pState->reset();
+
+    lstFmtOffered.clear();
+    strFmtReq  = "";
+    strFmtRecv = "";
+    enmAction  = 0;
+
+    Transfer.reset();
+
+    int rc2 = EventCallback.Reset();
+    AssertRC(rc2);
+
+    GuestDnDData::reset();
+}
+
+/*********************************************************************************************************************************
+ * GuestDnDCallbackEvent implementation.                                                                                         *
+ ********************************************************************************************************************************/
+
+GuestDnDCallbackEvent::~GuestDnDCallbackEvent(void)
+{
+    if (NIL_RTSEMEVENT != m_SemEvent)
+        RTSemEventDestroy(m_SemEvent);
+}
+
+/**
+ * Resets a GuestDnDCallbackEvent object.
+ */
 int GuestDnDCallbackEvent::Reset(void)
 {
     int rc = VINF_SUCCESS;
 
-    if (NIL_RTSEMEVENT == mSemEvent)
-        rc = RTSemEventCreate(&mSemEvent);
+    if (NIL_RTSEMEVENT == m_SemEvent)
+        rc = RTSemEventCreate(&m_SemEvent);
 
-    mRc = VINF_SUCCESS;
+    m_Rc = VINF_SUCCESS;
     return rc;
 }
 
+/**
+ * Completes a callback event by notifying the waiting side.
+ *
+ * @returns VBox status code.
+ * @param   rc                  Result code to use for the event completion.
+ */
 int GuestDnDCallbackEvent::Notify(int rc /* = VINF_SUCCESS */)
 {
-    mRc = rc;
-    return RTSemEventSignal(mSemEvent);
+    m_Rc = rc;
+    return RTSemEventSignal(m_SemEvent);
 }
 
+/**
+ * Waits on a callback event for being notified.
+ *
+ * @returns VBox status code.
+ * @param   msTimeout           Timeout (in ms) to wait for callback event.
+ */
 int GuestDnDCallbackEvent::Wait(RTMSINTERVAL msTimeout)
 {
-    return RTSemEventWait(mSemEvent, msTimeout);
+    return RTSemEventWait(m_SemEvent, msTimeout);
 }
 
-///////////////////////////////////////////////////////////////////////////////
+/********************************************************************************************************************************
+ *
+ ********************************************************************************************************************************/
 
-GuestDnDResponse::GuestDnDResponse(const ComObjPtr<Guest>& pGuest)
-    : m_EventSem(NIL_RTSEMEVENT)
+GuestDnDState::GuestDnDState(const ComObjPtr<Guest>& pGuest)
+    : m_uProtocolVersion(0)
+    , m_fGuestFeatures0(VBOX_DND_GF_NONE)
+    , m_EventSem(NIL_RTSEMEVENT)
     , m_dndActionDefault(0)
     , m_dndLstActionsAllowed(0)
     , m_pParent(pGuest)
@@ -196,7 +302,7 @@ GuestDnDResponse::GuestDnDResponse(const ComObjPtr<Guest>& pGuest)
         throw rc;
 }
 
-GuestDnDResponse::~GuestDnDResponse(void)
+GuestDnDState::~GuestDnDState(void)
 {
     reset();
 
@@ -204,12 +310,18 @@ GuestDnDResponse::~GuestDnDResponse(void)
     AssertRC(rc);
 }
 
-int GuestDnDResponse::notifyAboutGuestResponse(void) const
+/**
+ * Notifies the waiting side about a guest notification response.
+ */
+int GuestDnDState::notifyAboutGuestResponse(void) const
 {
     return RTSemEventSignal(m_EventSem);
 }
 
-void GuestDnDResponse::reset(void)
+/**
+ * Resets a GuestDnDResponse object.
+ */
+void GuestDnDState::reset(void)
 {
     LogFlowThisFuncEnter();
 
@@ -219,7 +331,13 @@ void GuestDnDResponse::reset(void)
     m_lstFormats.clear();
 }
 
-HRESULT GuestDnDResponse::resetProgress(const ComObjPtr<Guest>& pParent)
+/**
+ * Resets the progress object.
+ *
+ * @returns HRESULT
+ * @param   pParent             Parent to set for the progress object.
+ */
+HRESULT GuestDnDState::resetProgress(const ComObjPtr<Guest>& pParent)
 {
     m_pProgress.setNull();
 
@@ -234,7 +352,12 @@ HRESULT GuestDnDResponse::resetProgress(const ComObjPtr<Guest>& pParent)
     return hr;
 }
 
-bool GuestDnDResponse::isProgressCanceled(void) const
+/**
+ * Returns whether the progress object has been canceled or not.
+ *
+ * @returns \c true if canceled, \c false if not.
+ */
+bool GuestDnDState::isProgressCanceled(void) const
 {
     BOOL fCanceled;
     if (!m_pProgress.isNull())
@@ -248,7 +371,15 @@ bool GuestDnDResponse::isProgressCanceled(void) const
     return RT_BOOL(fCanceled);
 }
 
-int GuestDnDResponse::setCallback(uint32_t uMsg, PFNGUESTDNDCALLBACK pfnCallback, void *pvUser /* = NULL */)
+/**
+ * Sets a callback for a specific HGCM message.
+ *
+ * @returns VBox status code.
+ * @param   uMsg                HGCM message ID to set callback for.
+ * @param   pfnCallback         Callback function pointer to use.
+ * @param   pvUser              User-provided arguments for the callback function. Optional and can be NULL.
+ */
+int GuestDnDState::setCallback(uint32_t uMsg, PFNGUESTDNDCALLBACK pfnCallback, void *pvUser /* = NULL */)
 {
     GuestDnDCallbackMap::iterator it = m_mapCallbacks.find(uMsg);
 
@@ -272,111 +403,168 @@ int GuestDnDResponse::setCallback(uint32_t uMsg, PFNGUESTDNDCALLBACK pfnCallback
     return VINF_SUCCESS;
 }
 
-int GuestDnDResponse::setProgress(unsigned uPercentage,
-                                  uint32_t uStatus,
-                                  int rcOp /* = VINF_SUCCESS */, const Utf8Str &strMsg /* = "" */)
+/**
+ * Sets the progress object to a new state.
+ *
+ * @returns VBox status code.
+ * @param   uPercentage         Percentage (0-100) to set.
+ * @param   uStatus             Status (of type DND_PROGRESS_XXX) to set.
+ * @param   rcOp                IPRT-style result code to set. Optional.
+ * @param   strMsg              Message to set. Optional.
+ */
+int GuestDnDState::setProgress(unsigned uPercentage, uint32_t uStatus,
+                               int rcOp /* = VINF_SUCCESS */, const Utf8Str &strMsg /* = "" */)
 {
-    RT_NOREF(rcOp);
-    LogFlowFunc(("uStatus=%RU32, uPercentage=%RU32, rcOp=%Rrc, strMsg=%s\n",
-                 uStatus, uPercentage, rcOp, strMsg.c_str()));
+    LogFlowFunc(("uPercentage=%u, uStatus=%RU32, , rcOp=%Rrc, strMsg=%s\n",
+                 uPercentage, uStatus, rcOp, strMsg.c_str()));
+
+    HRESULT hr = S_OK;
+
+    BOOL fCompleted = FALSE;
+    BOOL fCanceled  = FALSE;
 
     int rc = VINF_SUCCESS;
+
     if (!m_pProgress.isNull())
     {
-        BOOL fCompleted;
-        HRESULT hr = m_pProgress->COMGETTER(Completed)(&fCompleted);
+        hr = m_pProgress->COMGETTER(Completed)(&fCompleted);
         AssertComRC(hr);
 
-        BOOL fCanceled;
         hr = m_pProgress->COMGETTER(Canceled)(&fCanceled);
         AssertComRC(hr);
 
-        LogFlowFunc(("Current: fCompleted=%RTbool, fCanceled=%RTbool\n", fCompleted, fCanceled));
+        LogFlowFunc(("Progress fCompleted=%RTbool, fCanceled=%RTbool\n", fCompleted, fCanceled));
+    }
 
-        if (!fCompleted)
+    switch (uStatus)
+    {
+        case DragAndDropSvc::DND_PROGRESS_ERROR:
         {
-            switch (uStatus)
-            {
-                case DragAndDropSvc::DND_PROGRESS_ERROR:
-                {
-                    hr = m_pProgress->i_notifyComplete(VBOX_E_IPRT_ERROR,
-                                                       COM_IIDOF(IGuest),
-                                                       m_pParent->getComponentName(), strMsg.c_str());
-                    reset();
-                    break;
-                }
+            LogRel(("DnD: Guest reported error %Rrc\n", rcOp));
 
-                case DragAndDropSvc::DND_PROGRESS_CANCELLED:
-                {
-                    hr = m_pProgress->Cancel();
-                    AssertComRC(hr);
-                    hr = m_pProgress->i_notifyComplete(S_OK);
-                    AssertComRC(hr);
-
-                    reset();
-                    break;
-                }
-
-                case DragAndDropSvc::DND_PROGRESS_RUNNING:
-                case DragAndDropSvc::DND_PROGRESS_COMPLETE:
-                {
-                    if (!fCanceled)
-                    {
-                        hr = m_pProgress->SetCurrentOperationProgress(uPercentage);
-                        AssertComRC(hr);
-                        if (   uStatus     == DragAndDropSvc::DND_PROGRESS_COMPLETE
-                            || uPercentage >= 100)
-                        {
-                            hr = m_pProgress->i_notifyComplete(S_OK);
-                            AssertComRC(hr);
-                        }
-                    }
-                    break;
-                }
-
-                default:
-                    break;
-            }
+            if (   !m_pProgress.isNull()
+                && !fCompleted)
+                hr = m_pProgress->i_notifyComplete(VBOX_E_IPRT_ERROR,
+                                                   COM_IIDOF(IGuest),
+                                                   m_pParent->getComponentName(), strMsg.c_str());
+            reset();
+            break;
         }
 
+        case DragAndDropSvc::DND_PROGRESS_CANCELLED:
+        {
+            LogRel2(("DnD: Guest cancelled operation\n"));
+
+            if (   !m_pProgress.isNull()
+                && !fCompleted)
+            {
+                hr = m_pProgress->Cancel();
+                AssertComRC(hr);
+                hr = m_pProgress->i_notifyComplete(S_OK);
+                AssertComRC(hr);
+            }
+
+            reset();
+            break;
+        }
+
+        case DragAndDropSvc::DND_PROGRESS_RUNNING:
+            RT_FALL_THROUGH();
+        case DragAndDropSvc::DND_PROGRESS_COMPLETE:
+        {
+            LogRel2(("DnD: Guest reporting running/completion status with %u%%\n", uPercentage));
+
+            if (   !m_pProgress.isNull()
+                && !fCompleted)
+            {
+                hr = m_pProgress->SetCurrentOperationProgress(uPercentage);
+                AssertComRC(hr);
+                if (   uStatus     == DragAndDropSvc::DND_PROGRESS_COMPLETE
+                    || uPercentage >= 100)
+                {
+                    hr = m_pProgress->i_notifyComplete(S_OK);
+                    AssertComRC(hr);
+                }
+            }
+            break;
+        }
+
+        default:
+            break;
+    }
+
+    if (!m_pProgress.isNull())
+    {
         hr = m_pProgress->COMGETTER(Completed)(&fCompleted);
         AssertComRC(hr);
         hr = m_pProgress->COMGETTER(Canceled)(&fCanceled);
         AssertComRC(hr);
 
-        LogFlowFunc(("New: fCompleted=%RTbool, fCanceled=%RTbool\n", fCompleted, fCanceled));
+        LogFlowFunc(("Progress fCompleted=%RTbool, fCanceled=%RTbool\n", fCompleted, fCanceled));
     }
 
     LogFlowFuncLeaveRC(rc);
     return rc;
 }
 
-int GuestDnDResponse::onDispatch(uint32_t u32Function, void *pvParms, uint32_t cbParms)
+/**
+ * Dispatching function for handling the host service service callback.
+ *
+ * @returns VBox status code.
+ * @param   u32Function         HGCM message ID to handle.
+ * @param   pvParms             Pointer to optional data provided for a particular message. Optional.
+ * @param   cbParms             Size (in bytes) of \a pvParms.
+ */
+int GuestDnDState::onDispatch(uint32_t u32Function, void *pvParms, uint32_t cbParms)
 {
     LogFlowFunc(("u32Function=%RU32, pvParms=%p, cbParms=%RU32\n", u32Function, pvParms, cbParms));
 
     int rc = VERR_WRONG_ORDER; /* Play safe. */
+
+    /* Whether or not to try calling host-installed callbacks after successfully processing the message. */
     bool fTryCallbacks = false;
 
     switch (u32Function)
     {
-        case DragAndDropSvc::GUEST_DND_CONNECT:
+        case DragAndDropSvc::GUEST_DND_FN_CONNECT:
         {
-            LogThisFunc(("Client connected\n"));
+            DragAndDropSvc::PVBOXDNDCBCONNECTDATA pCBData = reinterpret_cast<DragAndDropSvc::PVBOXDNDCBCONNECTDATA>(pvParms);
+            AssertPtr(pCBData);
+            AssertReturn(sizeof(DragAndDropSvc::VBOXDNDCBCONNECTDATA) == cbParms, VERR_INVALID_PARAMETER);
+            AssertReturn(DragAndDropSvc::CB_MAGIC_DND_CONNECT == pCBData->hdr.uMagic, VERR_INVALID_PARAMETER);
 
-            /* Nothing to do here (yet). */
+            m_uProtocolVersion = pCBData->uProtocolVersion;
+            /** @todo Handle flags. */
+
+            LogThisFunc(("Client connected, using protocol v%RU32\n", m_uProtocolVersion));
+
             rc = VINF_SUCCESS;
             break;
         }
 
-        case DragAndDropSvc::GUEST_DND_DISCONNECT:
+        case DragAndDropSvc::GUEST_DND_FN_REPORT_FEATURES:
+        {
+            DragAndDropSvc::PVBOXDNDCBREPORTFEATURESDATA pCBData = reinterpret_cast<DragAndDropSvc::PVBOXDNDCBREPORTFEATURESDATA>(pvParms);
+            AssertPtr(pCBData);
+            AssertReturn(sizeof(DragAndDropSvc::VBOXDNDCBREPORTFEATURESDATA) == cbParms, VERR_INVALID_PARAMETER);
+            AssertReturn(DragAndDropSvc::CB_MAGIC_DND_REPORT_FEATURES == pCBData->hdr.uMagic, VERR_INVALID_PARAMETER);
+
+            m_fGuestFeatures0 = pCBData->fGuestFeatures0;
+
+            LogThisFunc(("Client reported features: %#RX64\n", m_fGuestFeatures0));
+
+            rc = VINF_SUCCESS;
+            break;
+        }
+
+        case DragAndDropSvc::GUEST_DND_FN_DISCONNECT:
         {
             LogThisFunc(("Client disconnected\n"));
             rc = setProgress(100, DND_PROGRESS_CANCELLED, VINF_SUCCESS);
             break;
         }
 
-        case DragAndDropSvc::GUEST_DND_HG_ACK_OP:
+        case DragAndDropSvc::GUEST_DND_FN_HG_ACK_OP:
         {
             DragAndDropSvc::PVBOXDNDCBHGACKOPDATA pCBData = reinterpret_cast<DragAndDropSvc::PVBOXDNDCBHGACKOPDATA>(pvParms);
             AssertPtr(pCBData);
@@ -388,7 +576,7 @@ int GuestDnDResponse::onDispatch(uint32_t u32Function, void *pvParms, uint32_t c
             break;
         }
 
-        case DragAndDropSvc::GUEST_DND_HG_REQ_DATA:
+        case DragAndDropSvc::GUEST_DND_FN_HG_REQ_DATA:
         {
             DragAndDropSvc::PVBOXDNDCBHGREQDATADATA pCBData = reinterpret_cast<DragAndDropSvc::PVBOXDNDCBHGREQDATADATA>(pvParms);
             AssertPtr(pCBData);
@@ -417,7 +605,7 @@ int GuestDnDResponse::onDispatch(uint32_t u32Function, void *pvParms, uint32_t c
             break;
         }
 
-        case DragAndDropSvc::GUEST_DND_HG_EVT_PROGRESS:
+        case DragAndDropSvc::GUEST_DND_FN_HG_EVT_PROGRESS:
         {
             DragAndDropSvc::PVBOXDNDCBHGEVTPROGRESSDATA pCBData =
                reinterpret_cast<DragAndDropSvc::PVBOXDNDCBHGEVTPROGRESSDATA>(pvParms);
@@ -431,7 +619,7 @@ int GuestDnDResponse::onDispatch(uint32_t u32Function, void *pvParms, uint32_t c
             break;
         }
 #ifdef VBOX_WITH_DRAG_AND_DROP_GH
-        case DragAndDropSvc::GUEST_DND_GH_ACK_PENDING:
+        case DragAndDropSvc::GUEST_DND_FN_GH_ACK_PENDING:
         {
             DragAndDropSvc::PVBOXDNDCBGHACKPENDINGDATA pCBData =
                reinterpret_cast<DragAndDropSvc::PVBOXDNDCBGHACKPENDINGDATA>(pvParms);
@@ -492,12 +680,24 @@ int GuestDnDResponse::onDispatch(uint32_t u32Function, void *pvParms, uint32_t c
     return rc;
 }
 
-HRESULT GuestDnDResponse::queryProgressTo(IProgress **ppProgress)
+/**
+ * Helper function to query the internal progress object to an IProgress interface.
+ *
+ * @returns HRESULT
+ * @param   ppProgress          Where to query the progress object to.
+ */
+HRESULT GuestDnDState::queryProgressTo(IProgress **ppProgress)
 {
     return m_pProgress.queryInterfaceTo(ppProgress);
 }
 
-int GuestDnDResponse::waitForGuestResponse(RTMSINTERVAL msTimeout /*= 500 */) const
+/**
+ * Waits for a guest response to happen.
+ *
+ * @returns VBox status code.
+ * @param   msTimeout           Timeout (in ms) for waiting. Optional, waits 500 ms if not specified.
+ */
+int GuestDnDState::waitForGuestResponse(RTMSINTERVAL msTimeout /*= 500 */) const
 {
     int rc = RTSemEventWait(m_EventSem, msTimeout);
 #ifdef DEBUG_andy
@@ -506,16 +706,31 @@ int GuestDnDResponse::waitForGuestResponse(RTMSINTERVAL msTimeout /*= 500 */) co
     return rc;
 }
 
-///////////////////////////////////////////////////////////////////////////////
+/*********************************************************************************************************************************
+ * GuestDnD implementation.                                                                                                      *
+ ********************************************************************************************************************************/
 
+/** Static (Singleton) instance of the GuestDnD object. */
 GuestDnD* GuestDnD::s_pInstance = NULL;
 
 GuestDnD::GuestDnD(const ComObjPtr<Guest> &pGuest)
     : m_pGuest(pGuest)
+    , m_cTransfersPending(0)
 {
     LogFlowFuncEnter();
 
-    m_pResponse = new GuestDnDResponse(pGuest);
+    try
+    {
+        m_pState = new GuestDnDState(pGuest);
+    }
+    catch (std::bad_alloc &)
+    {
+        throw VERR_NO_MEMORY;
+    }
+
+    int rc = RTCritSectInit(&m_CritSect);
+    if (RT_FAILURE(rc))
+        throw rc;
 
     /* List of supported default MIME types. */
     LogRel2(("DnD: Supported default host formats:\n"));
@@ -531,14 +746,26 @@ GuestDnD::~GuestDnD(void)
 {
     LogFlowFuncEnter();
 
-    if (m_pResponse)
-        delete m_pResponse;
+    Assert(m_cTransfersPending == 0); /* Sanity. */
+
+    RTCritSectDelete(&m_CritSect);
+
+    if (m_pState)
+        delete m_pState;
 }
 
+/**
+ * Adjusts coordinations to a given screen.
+ *
+ * @returns HRESULT
+ * @param   uScreenId           ID of screen to adjust coordinates to.
+ * @param   puX                 Pointer to X coordinate to adjust. Will return the adjusted value on success.
+ * @param   puY                 Pointer to Y coordinate to adjust. Will return the adjusted value on success.
+ */
 HRESULT GuestDnD::adjustScreenCoordinates(ULONG uScreenId, ULONG *puX, ULONG *puY) const
 {
     /** @todo r=andy Save the current screen's shifting coordinates to speed things up.
-     *               Only query for new offsets when the screen ID has changed. */
+     *               Only query for new offsets when the screen ID or the screen's resolution has changed. */
 
     /* For multi-monitor support we need to add shift values to the coordinates
      * (depending on the screen number). */
@@ -565,6 +792,27 @@ HRESULT GuestDnD::adjustScreenCoordinates(ULONG uScreenId, ULONG *puX, ULONG *pu
     return S_OK;
 }
 
+/**
+ * Returns a DnD guest state.
+ *
+ * @returns Pointer to DnD guest state, or NULL if not found / invalid.
+ * @param   uID                 ID of DnD guest state to return.
+ */
+GuestDnDState *GuestDnD::getState(uint32_t uID /* = 0 */) const
+{
+    AssertMsgReturn(uID == 0, ("Only one state (0) is supported at the moment\n"), NULL);
+
+    return m_pState;
+}
+
+/**
+ * Sends a (blocking) message to the host side of the host service.
+ *
+ * @returns VBox status code.
+ * @param   u32Function         HGCM message ID to send.
+ * @param   cParms              Number of parameters to send.
+ * @param   paParms             Array of parameters to send. Must match \c cParms.
+ */
 int GuestDnD::hostCall(uint32_t u32Function, uint32_t cParms, PVBOXHGCMSVCPARM paParms) const
 {
     Assert(!m_pGuest.isNull());
@@ -579,6 +827,119 @@ int GuestDnD::hostCall(uint32_t u32Function, uint32_t cParms, PVBOXHGCMSVCPARM p
     return pVMMDev->hgcmHostCall("VBoxDragAndDropSvc", u32Function, cParms, paParms);
 }
 
+/**
+ * Registers a GuestDnDSource object with the GuestDnD manager.
+ *
+ * Currently only one source is supported at a time.
+ *
+ * @returns VBox status code.
+ * @param   Source              Source to register.
+ */
+int GuestDnD::registerSource(const ComObjPtr<GuestDnDSource> &Source)
+{
+    GUESTDND_LOCK();
+
+    Assert(m_lstSrc.size() == 0); /* We only support one source at a time at the moment. */
+    m_lstSrc.push_back(Source);
+
+    GUESTDND_UNLOCK();
+    return VINF_SUCCESS;
+}
+
+/**
+ * Unregisters a GuestDnDSource object from the GuestDnD manager.
+ *
+ * @returns VBox status code.
+ * @param   Source              Source to unregister.
+ */
+int GuestDnD::unregisterSource(const ComObjPtr<GuestDnDSource> &Source)
+{
+    GUESTDND_LOCK();
+
+    GuestDnDSrcList::iterator itSrc = std::find(m_lstSrc.begin(), m_lstSrc.end(), Source);
+    if (itSrc != m_lstSrc.end())
+        m_lstSrc.erase(itSrc);
+
+    GUESTDND_UNLOCK();
+    return VINF_SUCCESS;
+}
+
+/**
+ * Returns the current number of registered sources.
+ *
+ * @returns Current number of registered sources.
+ */
+size_t GuestDnD::getSourceCount(void)
+{
+    GUESTDND_LOCK_RET(0);
+
+    size_t cSources = m_lstSrc.size();
+
+    GUESTDND_UNLOCK();
+    return cSources;
+}
+
+/**
+ * Registers a GuestDnDTarget object with the GuestDnD manager.
+ *
+ * Currently only one target is supported at a time.
+ *
+ * @returns VBox status code.
+ * @param   Target              Target to register.
+ */
+int GuestDnD::registerTarget(const ComObjPtr<GuestDnDTarget> &Target)
+{
+    GUESTDND_LOCK();
+
+    Assert(m_lstTgt.size() == 0); /* We only support one target at a time at the moment. */
+    m_lstTgt.push_back(Target);
+
+    GUESTDND_UNLOCK();
+    return VINF_SUCCESS;
+}
+
+/**
+ * Unregisters a GuestDnDTarget object from the GuestDnD manager.
+ *
+ * @returns VBox status code.
+ * @param   Target              Target to unregister.
+ */
+int GuestDnD::unregisterTarget(const ComObjPtr<GuestDnDTarget> &Target)
+{
+    GUESTDND_LOCK();
+
+    GuestDnDTgtList::iterator itTgt = std::find(m_lstTgt.begin(), m_lstTgt.end(), Target);
+    if (itTgt != m_lstTgt.end())
+        m_lstTgt.erase(itTgt);
+
+    GUESTDND_UNLOCK();
+    return VINF_SUCCESS;
+}
+
+/**
+ * Returns the current number of registered targets.
+ *
+ * @returns Current number of registered targets.
+ */
+size_t GuestDnD::getTargetCount(void)
+{
+    GUESTDND_LOCK_RET(0);
+
+    size_t cTargets = m_lstTgt.size();
+
+    GUESTDND_UNLOCK();
+    return cTargets;
+}
+
+/**
+ * Static main dispatcher function to handle callbacks from the DnD host service.
+ *
+ * @returns VBox status code.
+ * @param   pvExtension         Pointer to service extension.
+ * @param   u32Function         Callback HGCM message ID.
+ * @param   pvParms             Pointer to optional data provided for a particular message. Optional.
+ * @param   cbParms             Size (in bytes) of \a pvParms.
+ */
 /* static */
 DECLCALLBACK(int) GuestDnD::notifyDnDDispatcher(void *pvExtension, uint32_t u32Function,
                                                 void *pvParms, uint32_t cbParms)
@@ -592,24 +953,37 @@ DECLCALLBACK(int) GuestDnD::notifyDnDDispatcher(void *pvExtension, uint32_t u32F
     /** @todo In case we need to handle multiple guest DnD responses at a time this
      *        would be the place to lookup and dispatch to those. For the moment we
      *        only have one response -- simple. */
-    GuestDnDResponse *pResp = pGuestDnD->m_pResponse;
-    if (pResp)
-        return pResp->onDispatch(u32Function, pvParms, cbParms);
+    if (pGuestDnD->m_pState)
+        return pGuestDnD->m_pState->onDispatch(u32Function, pvParms, cbParms);
 
     return VERR_NOT_SUPPORTED;
 }
 
+/**
+ * Static helper function to determine whether a format is part of a given MIME list.
+ *
+ * @returns \c true if found, \c false if not.
+ * @param   strFormat           Format to search for.
+ * @param   lstFormats          MIME list to search in.
+ */
 /* static */
 bool GuestDnD::isFormatInFormatList(const com::Utf8Str &strFormat, const GuestDnDMIMEList &lstFormats)
 {
     return std::find(lstFormats.begin(), lstFormats.end(), strFormat) != lstFormats.end();
 }
 
+/**
+ * Static helper function to create a GuestDnDMIMEList out of a format list string.
+ *
+ * @returns MIME list object.
+ * @param   strFormats          List of formats to convert.
+ * @param   strSep              Separator to use. If not specified, DND_FORMATS_SEPARATOR_STR will be used.
+ */
 /* static */
-GuestDnDMIMEList GuestDnD::toFormatList(const com::Utf8Str &strFormats)
+GuestDnDMIMEList GuestDnD::toFormatList(const com::Utf8Str &strFormats, const com::Utf8Str &strSep /* = DND_FORMATS_SEPARATOR_STR */)
 {
     GuestDnDMIMEList lstFormats;
-    RTCList<RTCString> lstFormatsTmp = strFormats.split("\r\n");
+    RTCList<RTCString> lstFormatsTmp = strFormats.split(strSep);
 
     for (size_t i = 0; i < lstFormatsTmp.size(); i++)
         lstFormats.push_back(com::Utf8Str(lstFormatsTmp.at(i)));
@@ -617,6 +991,12 @@ GuestDnDMIMEList GuestDnD::toFormatList(const com::Utf8Str &strFormats)
     return lstFormats;
 }
 
+/**
+ * Static helper function to create a format list string from a given GuestDnDMIMEList object.
+ *
+ * @returns Format list string.
+ * @param   lstFormats          GuestDnDMIMEList to convert.
+ */
 /* static */
 com::Utf8Str GuestDnD::toFormatString(const GuestDnDMIMEList &lstFormats)
 {
@@ -624,12 +1004,19 @@ com::Utf8Str GuestDnD::toFormatString(const GuestDnDMIMEList &lstFormats)
     for (size_t i = 0; i < lstFormats.size(); i++)
     {
         const com::Utf8Str &f = lstFormats.at(i);
-        strFormat += f + "\r\n";
+        strFormat += f + DND_FORMATS_SEPARATOR_STR;
     }
 
     return strFormat;
 }
 
+/**
+ * Static helper function to create a filtered GuestDnDMIMEList object from supported and wanted formats.
+ *
+ * @returns Filtered MIME list object.
+ * @param   lstFormatsSupported     MIME list of supported formats.
+ * @param   lstFormatsWanted        MIME list of wanted formats in returned object.
+ */
 /* static */
 GuestDnDMIMEList GuestDnD::toFilteredFormatList(const GuestDnDMIMEList &lstFormatsSupported, const GuestDnDMIMEList &lstFormatsWanted)
 {
@@ -648,12 +1035,19 @@ GuestDnDMIMEList GuestDnD::toFilteredFormatList(const GuestDnDMIMEList &lstForma
     return lstFormats;
 }
 
+/**
+ * Static helper function to create a filtered GuestDnDMIMEList object from supported and wanted formats.
+ *
+ * @returns Filtered MIME list object.
+ * @param   lstFormatsSupported     MIME list of supported formats.
+ * @param   strFormatsWanted        Format list string of wanted formats in returned object.
+ */
 /* static */
 GuestDnDMIMEList GuestDnD::toFilteredFormatList(const GuestDnDMIMEList &lstFormatsSupported, const com::Utf8Str &strFormatsWanted)
 {
     GuestDnDMIMEList lstFmt;
 
-    RTCList<RTCString> lstFormats = strFormatsWanted.split("\r\n");
+    RTCList<RTCString> lstFormats = strFormatsWanted.split(DND_FORMATS_SEPARATOR_STR);
     size_t i = 0;
     while (i < lstFormats.size())
     {
@@ -669,6 +1063,12 @@ GuestDnDMIMEList GuestDnD::toFilteredFormatList(const GuestDnDMIMEList &lstForma
     return lstFmt;
 }
 
+/**
+ * Static helper function to convert a Main DnD action an internal DnD action.
+ *
+ * @returns Internal DnD action, or VBOX_DND_ACTION_IGNORE if not found / supported.
+ * @param   enmAction               Main DnD action to convert.
+ */
 /* static */
 VBOXDNDACTION GuestDnD::toHGCMAction(DnDAction_T enmAction)
 {
@@ -695,6 +1095,15 @@ VBOXDNDACTION GuestDnD::toHGCMAction(DnDAction_T enmAction)
     return dndAction;
 }
 
+/**
+ * Static helper function to convert a Main DnD default action and allowed Main actions to their
+ * corresponding internal representations.
+ *
+ * @param   enmDnDActionDefault     Default Main action to convert.
+ * @param   pDnDActionDefault       Where to store the converted default action.
+ * @param   vecDnDActionsAllowed    Allowed Main actions to convert.
+ * @param   pDnDLstActionsAllowed   Where to store the converted allowed actions.
+ */
 /* static */
 void GuestDnD::toHGCMActions(DnDAction_T                    enmDnDActionDefault,
                              VBOXDNDACTION                 *pDnDActionDefault,
@@ -729,6 +1138,12 @@ void GuestDnD::toHGCMActions(DnDAction_T                    enmDnDActionDefault,
         *pDnDLstActionsAllowed = dndLstActionsAllowed;
 }
 
+/**
+ * Static helper function to convert an internal DnD action to its Main representation.
+ *
+ * @returns Converted Main DnD action.
+ * @param   dndAction           DnD action to convert.
+ */
 /* static */
 DnDAction_T GuestDnD::toMainAction(VBOXDNDACTION dndAction)
 {
@@ -739,6 +1154,12 @@ DnDAction_T GuestDnD::toMainAction(VBOXDNDACTION dndAction)
          :                              DnDAction_Ignore;
 }
 
+/**
+ * Static helper function to convert an internal DnD action list to its Main representation.
+ *
+ * @returns Converted Main DnD action list.
+ * @param   dndActionList       DnD action list to convert.
+ */
 /* static */
 std::vector<DnDAction_T> GuestDnD::toMainActions(VBOXDNDACTIONLIST dndActionList)
 {
@@ -758,33 +1179,44 @@ std::vector<DnDAction_T> GuestDnD::toMainActions(VBOXDNDACTIONLIST dndActionList
     return vecActions;
 }
 
-///////////////////////////////////////////////////////////////////////////////
+/*********************************************************************************************************************************
+ * GuestDnDBase implementation.                                                                                                  *
+ ********************************************************************************************************************************/
 
 GuestDnDBase::GuestDnDBase(void)
+    : m_fIsPending(false)
 {
     /* Initialize public attributes. */
-    m_lstFmtSupported = GUESTDNDINST()->defaultFormats();
-
-    /* Initialzie private stuff. */
-    mDataBase.m_cTransfersPending = 0;
-    mDataBase.m_uProtocolVersion  = 0;
+    m_lstFmtSupported = GuestDnDInst()->defaultFormats();
 }
 
-HRESULT GuestDnDBase::i_isFormatSupported(const com::Utf8Str &aFormat, BOOL *aSupported)
+/**
+ * Checks whether a given DnD format is supported or not.
+ *
+ * @returns \c true if supported, \c false if not.
+ * @param   aFormat             DnD format to check.
+ */
+bool GuestDnDBase::i_isFormatSupported(const com::Utf8Str &aFormat) const
 {
-    *aSupported = std::find(m_lstFmtSupported.begin(),
-                            m_lstFmtSupported.end(), aFormat) != m_lstFmtSupported.end()
-                ? TRUE : FALSE;
-    return S_OK;
+    return std::find(m_lstFmtSupported.begin(), m_lstFmtSupported.end(), aFormat) != m_lstFmtSupported.end();
 }
 
-HRESULT GuestDnDBase::i_getFormats(GuestDnDMIMEList &aFormats)
+/**
+ * Returns the currently supported DnD formats.
+ *
+ * @returns List of the supported DnD formats.
+ */
+const GuestDnDMIMEList &GuestDnDBase::i_getFormats(void) const
 {
-    aFormats = m_lstFmtSupported;
-
-    return S_OK;
+    return m_lstFmtSupported;
 }
 
+/**
+ * Adds DnD formats to the supported formats list.
+ *
+ * @returns HRESULT
+ * @param   aFormats            List of DnD formats to add.
+ */
 HRESULT GuestDnDBase::i_addFormats(const GuestDnDMIMEList &aFormats)
 {
     for (size_t i = 0; i < aFormats.size(); ++i)
@@ -800,6 +1232,12 @@ HRESULT GuestDnDBase::i_addFormats(const GuestDnDMIMEList &aFormats)
     return S_OK;
 }
 
+/**
+ * Removes DnD formats from tehh supported formats list.
+ *
+ * @returns HRESULT
+ * @param   aFormats            List of DnD formats to remove.
+ */
 HRESULT GuestDnDBase::i_removeFormats(const GuestDnDMIMEList &aFormats)
 {
     for (size_t i = 0; i < aFormats.size(); ++i)
@@ -814,100 +1252,53 @@ HRESULT GuestDnDBase::i_removeFormats(const GuestDnDMIMEList &aFormats)
     return S_OK;
 }
 
-HRESULT GuestDnDBase::i_getProtocolVersion(ULONG *puVersion)
-{
-    int rc = getProtocolVersion((uint32_t *)puVersion);
-    return RT_SUCCESS(rc) ? S_OK : E_FAIL;
-}
-
 /**
- * Tries to guess the DnD protocol version to use on the guest, based on the
- * installed Guest Additions version + revision.
+ * Adds a new guest DnD message to the internal message queue.
  *
- * If unable to retrieve the protocol version, VERR_NOT_FOUND is returned along
- * with protocol version 1.
- *
- * @return  IPRT status code.
- * @param   puProto                 Where to store the protocol version.
+ * @returns VBox status code.
+ * @param   pMsg                Pointer to message to add.
  */
-int GuestDnDBase::getProtocolVersion(uint32_t *puProto)
-{
-    AssertPtrReturn(puProto, VERR_INVALID_POINTER);
-
-    int rc;
-
-    uint32_t uProto = 0;
-    uint32_t uVerAdditions;
-    uint32_t uRevAdditions;
-    if (   m_pGuest
-        && (uVerAdditions = m_pGuest->i_getAdditionsVersion())  > 0
-        && (uRevAdditions = m_pGuest->i_getAdditionsRevision()) > 0)
-    {
-#if 0 && defined(DEBUG)
-        /* Hardcode the to-used protocol version; nice for testing side effects. */
-        if (true)
-            uProto = 3;
-        else
-#endif
-        if (uVerAdditions >= VBOX_FULL_VERSION_MAKE(5, 0, 0))
-        {
-/** @todo
- *  r=bird: This is just too bad for anyone using an OSE additions build...
- */
-            if (uRevAdditions >= 103344) /* Since r103344: Protocol v3. */
-                uProto = 3;
-            else
-                uProto = 2; /* VBox 5.0.0 - 5.0.8: Protocol v2. */
-        }
-        /* else: uProto: 0 */
-
-        LogFlowFunc(("uVerAdditions=%RU32 (%RU32.%RU32.%RU32), r%RU32\n",
-                     uVerAdditions, VBOX_FULL_VERSION_GET_MAJOR(uVerAdditions), VBOX_FULL_VERSION_GET_MINOR(uVerAdditions),
-                                    VBOX_FULL_VERSION_GET_BUILD(uVerAdditions), uRevAdditions));
-        rc = VINF_SUCCESS;
-    }
-    else
-    {
-        uProto = 1; /* Fallback. */
-        rc = VERR_NOT_FOUND;
-    }
-
-    LogRel2(("DnD: Guest is using protocol v%RU32, rc=%Rrc\n", uProto, rc));
-
-    *puProto = uProto;
-    return rc;
-}
-
 int GuestDnDBase::msgQueueAdd(GuestDnDMsg *pMsg)
 {
-    mDataBase.m_lstMsgOut.push_back(pMsg);
+    m_DataBase.lstMsgOut.push_back(pMsg);
     return VINF_SUCCESS;
 }
 
+/**
+ * Returns the next guest DnD message in the internal message queue (FIFO).
+ *
+ * @returns Pointer to guest DnD message, or NULL if none found.
+ */
 GuestDnDMsg *GuestDnDBase::msgQueueGetNext(void)
 {
-    if (mDataBase.m_lstMsgOut.empty())
+    if (m_DataBase.lstMsgOut.empty())
         return NULL;
-    return mDataBase.m_lstMsgOut.front();
+    return m_DataBase.lstMsgOut.front();
 }
 
+/**
+ * Removes the next guest DnD message from the internal message queue.
+ */
 void GuestDnDBase::msgQueueRemoveNext(void)
 {
-    if (!mDataBase.m_lstMsgOut.empty())
+    if (!m_DataBase.lstMsgOut.empty())
     {
-        GuestDnDMsg *pMsg = mDataBase.m_lstMsgOut.front();
+        GuestDnDMsg *pMsg = m_DataBase.lstMsgOut.front();
         if (pMsg)
             delete pMsg;
-        mDataBase.m_lstMsgOut.pop_front();
+        m_DataBase.lstMsgOut.pop_front();
     }
 }
 
+/**
+ * Clears the internal message queue.
+ */
 void GuestDnDBase::msgQueueClear(void)
 {
-    LogFlowFunc(("cMsg=%zu\n", mDataBase.m_lstMsgOut.size()));
+    LogFlowFunc(("cMsg=%zu\n", m_DataBase.lstMsgOut.size()));
 
-    GuestDnDMsgList::iterator itMsg = mDataBase.m_lstMsgOut.begin();
-    while (itMsg != mDataBase.m_lstMsgOut.end())
+    GuestDnDMsgList::iterator itMsg = m_DataBase.lstMsgOut.begin();
+    while (itMsg != m_DataBase.lstMsgOut.end())
     {
         GuestDnDMsg *pMsg = *itMsg;
         if (pMsg)
@@ -916,50 +1307,79 @@ void GuestDnDBase::msgQueueClear(void)
         itMsg++;
     }
 
-    mDataBase.m_lstMsgOut.clear();
+    m_DataBase.lstMsgOut.clear();
 }
 
+/**
+ * Sends a request to the guest side to cancel the current DnD operation.
+ *
+ * @returns VBox status code.
+ */
 int GuestDnDBase::sendCancel(void)
 {
     GuestDnDMsg Msg;
-    Msg.setType(HOST_DND_CANCEL);
-    if (mDataBase.m_uProtocolVersion >= 3)
-        Msg.setNextUInt32(0); /** @todo ContextID not used yet. */
+    Msg.setType(HOST_DND_FN_CANCEL);
+    if (m_pState->m_uProtocolVersion >= 3)
+        Msg.appendUInt32(0); /** @todo ContextID not used yet. */
 
-    LogRel2(("DnD: Cancelling operation on guest ..."));
+    LogRel2(("DnD: Cancelling operation on guest ...\n"));
 
-    return GUESTDNDINST()->hostCall(Msg.getType(), Msg.getCount(), Msg.getParms());
+    int rc = GuestDnDInst()->hostCall(Msg.getType(), Msg.getCount(), Msg.getParms());
+    if (RT_FAILURE(rc))
+        LogRel(("DnD: Cancelling operation on guest failed with %Rrc\n", rc));
+
+    return rc;
 }
 
-int GuestDnDBase::updateProgress(GuestDnDData *pData, GuestDnDResponse *pResp,
-                                 uint32_t cbDataAdd /* = 0 */)
+/**
+ * Helper function to update the progress based on given a GuestDnDData object.
+ *
+ * @returns VBox status code.
+ * @param   pData               GuestDnDData object to use for accounting.
+ * @param   pState              Guest state to update its progress object for.
+ * @param   cbDataAdd           By how much data (in bytes) to update the progress.
+ */
+int GuestDnDBase::updateProgress(GuestDnDData *pData, GuestDnDState *pState,
+                                 size_t cbDataAdd /* = 0 */)
 {
     AssertPtrReturn(pData, VERR_INVALID_POINTER);
-    AssertPtrReturn(pResp, VERR_INVALID_POINTER);
+    AssertPtrReturn(pState, VERR_INVALID_POINTER);
     /* cbDataAdd is optional. */
 
-    LogFlowFunc(("cbTotal=%RU64, cbProcessed=%RU64, cbRemaining=%RU64, cbDataAdd=%RU32\n",
-                 pData->getTotal(), pData->getProcessed(), pData->getRemaining(), cbDataAdd));
+    LogFlowFunc(("cbExtra=%zu, cbProcessed=%zu, cbRemaining=%zu, cbDataAdd=%zu\n",
+                 pData->cbExtra, pData->cbProcessed, pData->getRemaining(), cbDataAdd));
 
-    if (!pResp)
+    if (   !pState
+        || !cbDataAdd) /* Only update if something really changes. */
         return VINF_SUCCESS;
 
     if (cbDataAdd)
         pData->addProcessed(cbDataAdd);
 
-    int rc = pResp->setProgress(pData->getPercentComplete(),
-                                  pData->isComplete()
-                                ? DND_PROGRESS_COMPLETE
-                                : DND_PROGRESS_RUNNING);
+    const uint8_t uPercent = pData->getPercentComplete();
+
+    LogRel2(("DnD: Transfer %RU8%% complete\n", uPercent));
+
+    int rc = pState->setProgress(uPercent,
+                                   pData->isComplete()
+                                 ? DND_PROGRESS_COMPLETE
+                                 : DND_PROGRESS_RUNNING);
     LogFlowFuncLeaveRC(rc);
     return rc;
 }
 
-/** @todo GuestDnDResponse *pResp needs to go. */
-int GuestDnDBase::waitForEvent(GuestDnDCallbackEvent *pEvent, GuestDnDResponse *pResp, RTMSINTERVAL msTimeout)
+/**
+ * Waits for a specific guest callback event to get signalled.
+ *
+ * @returns VBox status code. Will return VERR_CANCELLED if the user has cancelled the progress object.
+ * @param   pEvent                  Callback event to wait for.
+ * @param   pState                  Guest state to update.
+ * @param   msTimeout               Timeout (in ms) to wait.
+ */
+int GuestDnDBase::waitForEvent(GuestDnDCallbackEvent *pEvent, GuestDnDState *pState, RTMSINTERVAL msTimeout)
 {
     AssertPtrReturn(pEvent, VERR_INVALID_POINTER);
-    AssertPtrReturn(pResp, VERR_INVALID_POINTER);
+    AssertPtrReturn(pState, VERR_INVALID_POINTER);
 
     int rc;
 
@@ -989,7 +1409,7 @@ int GuestDnDBase::waitForEvent(GuestDnDCallbackEvent *pEvent, GuestDnDResponse *
             rc = VERR_TIMEOUT;
             LogRel2(("DnD: Error: Guest did not respond within time\n"));
         }
-        else if (pResp->isProgressCanceled()) /** @todo GuestDnDResponse *pResp needs to go. */
+        else if (pState->isProgressCanceled())
         {
             LogRel2(("DnD: Operation was canceled by user\n"));
             rc = VERR_CANCELLED;

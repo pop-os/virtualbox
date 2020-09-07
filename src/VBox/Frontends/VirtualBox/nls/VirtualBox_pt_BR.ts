@@ -4033,7 +4033,7 @@
     <message>
         <source>Cloud Network</source>
         <comment>NetworkAttachmentType</comment>
-        <translation>Rede em Nuvem</translation>
+        <translation type="vanished">Rede em Nuvem</translation>
     </message>
     <message>
         <source>PCnet-PCI II (Am79C970A)</source>
@@ -5181,18 +5181,23 @@
     </message>
     <message>
         <source>Acquire cloud instances ...</source>
-        <translation type="unfinished">Adquirir instâncias na nuvem...</translation>
+        <translation>Adquirir instâncias na nuvem...</translation>
     </message>
     <message>
         <source>Acquire cloud instance info ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Adquirir informações sobre instância na nuvem...</translation>
     </message>
     <message>
         <source>Pause instance ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Pausar instância...</translation>
     </message>
     <message>
         <source>Start instance ...</source>
+        <translation>Iniciar instância...</translation>
+    </message>
+    <message>
+        <source>Cloud Network [EXPERIMENTAL]</source>
+        <comment>NetworkAttachmentType</comment>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -5658,17 +5663,17 @@
     <message>
         <source>USB 1.1 (OHCI) Controller</source>
         <comment>details (usb)</comment>
-        <translation>Controladora USB &amp;1.1 (OHCI)</translation>
+        <translation>Controladora USB 1.1 (OHCI)</translation>
     </message>
     <message>
         <source>USB 2.0 (OHCI + EHCI) Controller</source>
         <comment>details (usb)</comment>
-        <translation>Controladora USB &amp;2.0 (OHCI + EHCI)</translation>
+        <translation>Controladora USB 2.0 (OHCI + EHCI)</translation>
     </message>
     <message>
         <source>USB 3.0 (xHCI) Controller</source>
         <comment>details (usb)</comment>
-        <translation>Controladora USB &amp;3.0 (xHCI)</translation>
+        <translation>Controladora USB 3.0 (xHCI)</translation>
     </message>
     <message>
         <source>%1 MB</source>
@@ -21244,20 +21249,20 @@ utilizando o diálogo de Configurações da MV.&lt;/p&gt;</translation>
     <name>UIVirtualMachineItemCloud</name>
     <message>
         <source>Loading ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Carregando...</translation>
     </message>
     <message>
         <source>Up-To-Date</source>
-        <translation type="unfinished"></translation>
+        <translation>Atualizado</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Inaccessible&lt;/nobr&gt;</source>
         <comment>Inaccessible VM tooltip (name)</comment>
-        <translation type="unfinished"></translation>
+        <translation>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Inacessível&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>Inaccessible</source>
-        <translation type="unfinished">Inacessível</translation>
+        <translation>Inacessível</translation>
     </message>
 </context>
 <context>
@@ -21265,16 +21270,16 @@ utilizando o diálogo de Configurações da MV.&lt;/p&gt;</translation>
     <message>
         <source>&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 since %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Session %4&lt;/nobr&gt;</source>
         <comment>VM tooltip (name, last state change, session state)</comment>
-        <translation type="unfinished">&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 desde %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Sessão %4&lt;/nobr&gt;</translation>
+        <translation>&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 desde %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Sessão %4&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Inaccessible since %2&lt;/nobr&gt;</source>
         <comment>Inaccessible VM tooltip (name, last state change)</comment>
-        <translation type="unfinished">&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Inacessível desde %2&lt;/nobr&gt;</translation>
+        <translation>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Inacessível desde %2&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>Inaccessible</source>
-        <translation type="unfinished">Inacessível</translation>
+        <translation>Inacessível</translation>
     </message>
 </context>
 <context>

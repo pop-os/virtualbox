@@ -1108,13 +1108,9 @@ static VBOXSTRICTRC hdaRegWriteCORBRP(PPDMDEVINS pDevIns, PHDASTATE pThis, uint3
     {
         /* Do a CORB reset. */
         if (pThis->cbCorbBuf)
-        {
             RT_ZERO(pThis->au32CorbBuf);
-            return VINF_IOM_R3_MMIO_WRITE;
-        }
 
         LogRel2(("HDA: CORB reset\n"));
-
         HDA_REG(pThis, CORBRP) = HDA_CORBRP_RST;    /* Clears the pointer. */
     }
     else

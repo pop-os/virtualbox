@@ -1540,7 +1540,7 @@ static int  kldrModMachOParseLoadCommands(PRTLDRMODMACHO pThis, char *pbStringPo
             {
                 cSegmentsToAdjust--;
                 pThis->aSegments[cSegmentsToAdjust].SegInfo.RVA = NIL_RTLDRADDR;
-                pThis->aSegments[cSegmentsToAdjust].SegInfo.cbMapped = 0;
+                pThis->aSegments[cSegmentsToAdjust].SegInfo.cbMapped = NIL_RTLDRADDR;
                 continue;
             }
 
@@ -1552,8 +1552,8 @@ static int  kldrModMachOParseLoadCommands(PRTLDRMODMACHO pThis, char *pbStringPo
                 && !strcmp(pThis->aSegments[cSegmentsToAdjust - 1].SegInfo.pszName, "__LINKEDIT"))
             {
                 cSegmentsToAdjust--;
-                pThis->aSegments[cSegmentsToAdjust].SegInfo.RVA = NIL_RTLDRADDR;
-                pThis->aSegments[cSegmentsToAdjust].SegInfo.cbMapped = 0;
+                pThis->aSegments[cSegmentsToAdjust].SegInfo.RVA      = NIL_RTLDRADDR;
+                pThis->aSegments[cSegmentsToAdjust].SegInfo.cbMapped = NIL_RTLDRADDR;
                 continue;
             }
             break;
@@ -4447,16 +4447,18 @@ static DECLCALLBACK(int) rtldrMachO_LinkAddressToSegOffset(PRTLDRMODINTERNAL pMo
     PRTLDRMODMACHO  pThis = RT_FROM_MEMBER(pMod, RTLDRMODMACHO, Core);
     uint32_t const cSegments  = pThis->cSegments;
     for (uint32_t iSeg = 0; iSeg < cSegments; iSeg++)
-    {
-        RTLDRADDR offSeg = LinkAddress - pThis->aSegments[iSeg].SegInfo.LinkAddress;
-        if (   offSeg < pThis->aSegments[iSeg].SegInfo.cbMapped
-            || offSeg < pThis->aSegments[iSeg].SegInfo.cb)
+        if (pThis->aSegments[iSeg].SegInfo.RVA != NIL_RTLDRADDR)
         {
-            *piSeg = iSeg;
-            *poffSeg = offSeg;
-            return VINF_SUCCESS;
+            Assert(pThis->aSegments[iSeg].SegInfo.cbMapped != NIL_RTLDRADDR);
+            RTLDRADDR offSeg = LinkAddress - pThis->aSegments[iSeg].SegInfo.LinkAddress;
+            if (   offSeg < pThis->aSegments[iSeg].SegInfo.cbMapped
+                || offSeg < pThis->aSegments[iSeg].SegInfo.cb)
+            {
+                *piSeg = iSeg;
+                *poffSeg = offSeg;
+                return VINF_SUCCESS;
+            }
         }
-    }
 
     return VERR_LDR_INVALID_LINK_ADDRESS;
 }
@@ -4470,15 +4472,17 @@ static DECLCALLBACK(int) rtldrMachO_LinkAddressToRva(PRTLDRMODINTERNAL pMod, RTL
     PRTLDRMODMACHO  pThis = RT_FROM_MEMBER(pMod, RTLDRMODMACHO, Core);
     uint32_t const cSegments  = pThis->cSegments;
     for (uint32_t iSeg = 0; iSeg < cSegments; iSeg++)
-    {
-        RTLDRADDR offSeg = LinkAddress - pThis->aSegments[iSeg].SegInfo.LinkAddress;
-        if (   offSeg < pThis->aSegments[iSeg].SegInfo.cbMapped
-            || offSeg < pThis->aSegments[iSeg].SegInfo.cb)
+        if (pThis->aSegments[iSeg].SegInfo.RVA != NIL_RTLDRADDR)
         {
-            *pRva = pThis->aSegments[iSeg].SegInfo.RVA + offSeg;
-            return VINF_SUCCESS;
+            Assert(pThis->aSegments[iSeg].SegInfo.cbMapped != NIL_RTLDRADDR);
+            RTLDRADDR offSeg = LinkAddress - pThis->aSegments[iSeg].SegInfo.LinkAddress;
+            if (   offSeg < pThis->aSegments[iSeg].SegInfo.cbMapped
+                || offSeg < pThis->aSegments[iSeg].SegInfo.cb)
+            {
+                *pRva = pThis->aSegments[iSeg].SegInfo.RVA + offSeg;
+                return VINF_SUCCESS;
+            }
         }
-    }
 
     return VERR_LDR_INVALID_RVA;
 }
@@ -4494,6 +4498,9 @@ static DECLCALLBACK(int) rtldrMachO_SegOffsetToRva(PRTLDRMODINTERNAL pMod, uint3
     if (iSeg >= pThis->cSegments)
         return VERR_LDR_INVALID_SEG_OFFSET;
     RTLDRMODMACHOSEG const *pSegment = &pThis->aSegments[iSeg];
+
+    if (pSegment->SegInfo.RVA == NIL_RTLDRADDR)
+        return VERR_LDR_INVALID_SEG_OFFSET;
 
     if (   offSeg > pSegment->SegInfo.cbMapped
         && offSeg > pSegment->SegInfo.cb
@@ -4514,16 +4521,18 @@ static DECLCALLBACK(int) rtldrMachO_RvaToSegOffset(PRTLDRMODINTERNAL pMod, RTLDR
     PRTLDRMODMACHO  pThis = RT_FROM_MEMBER(pMod, RTLDRMODMACHO, Core);
     uint32_t const cSegments  = pThis->cSegments;
     for (uint32_t iSeg = 0; iSeg < cSegments; iSeg++)
-    {
-        RTLDRADDR offSeg = Rva - pThis->aSegments[iSeg].SegInfo.RVA;
-        if (   offSeg < pThis->aSegments[iSeg].SegInfo.cbMapped
-            || offSeg < pThis->aSegments[iSeg].SegInfo.cb)
+        if (pThis->aSegments[iSeg].SegInfo.RVA != NIL_RTLDRADDR)
         {
-            *piSeg = iSeg;
-            *poffSeg = offSeg;
-            return VINF_SUCCESS;
+            Assert(pThis->aSegments[iSeg].SegInfo.cbMapped != NIL_RTLDRADDR);
+            RTLDRADDR offSeg = Rva - pThis->aSegments[iSeg].SegInfo.RVA;
+            if (   offSeg < pThis->aSegments[iSeg].SegInfo.cbMapped
+                || offSeg < pThis->aSegments[iSeg].SegInfo.cb)
+            {
+                *piSeg = iSeg;
+                *poffSeg = offSeg;
+                return VINF_SUCCESS;
+            }
         }
-    }
 
     return VERR_LDR_INVALID_RVA;
 }

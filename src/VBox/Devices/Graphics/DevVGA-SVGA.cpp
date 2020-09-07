@@ -574,17 +574,20 @@ VMSVGASCREENOBJECT *vmsvgaR3GetScreenObject(PVGASTATECC pThisCC, uint32_t idScre
     return NULL;
 }
 
-void vmsvgaR3ResetScreens(PVGASTATECC pThisCC)
+void vmsvgaR3ResetScreens(PVGASTATE pThis, PVGASTATECC pThisCC)
 {
 # ifdef VBOX_WITH_VMSVGA3D
-    for (uint32_t idScreen = 0; idScreen < (uint32_t)RT_ELEMENTS(pThisCC->svga.pSvgaR3State->aScreens); ++idScreen)
+    if (pThis->svga.f3DEnabled)
     {
-        VMSVGASCREENOBJECT *pScreen = vmsvgaR3GetScreenObject(pThisCC, idScreen);
-        if (pScreen)
-            vmsvga3dDestroyScreen(pThisCC, pScreen);
+        for (uint32_t idScreen = 0; idScreen < (uint32_t)RT_ELEMENTS(pThisCC->svga.pSvgaR3State->aScreens); ++idScreen)
+        {
+            VMSVGASCREENOBJECT *pScreen = vmsvgaR3GetScreenObject(pThisCC, idScreen);
+            if (pScreen)
+                vmsvga3dDestroyScreen(pThisCC, pScreen);
+        }
     }
 # else
-    RT_NOREF(pThisCC);
+    RT_NOREF(pThis, pThisCC);
 # endif
 }
 #endif /* IN_RING3 */
@@ -2975,7 +2978,7 @@ static void vmsvgaR3FifoHandleExtCmd(PPDMDEVINS pDevIns, PVGASTATE pThis, PVGAST
             Log(("vmsvgaR3FifoLoop: reset the fifo thread.\n"));
             Assert(pThisCC->svga.pvFIFOExtCmdParam == NULL);
 
-            vmsvgaR3ResetScreens(pThisCC);
+            vmsvgaR3ResetScreens(pThis, pThisCC);
 # ifdef VBOX_WITH_VMSVGA3D
             if (pThis->svga.f3DEnabled)
             {
@@ -2990,7 +2993,7 @@ static void vmsvgaR3FifoHandleExtCmd(PPDMDEVINS pDevIns, PVGASTATE pThis, PVGAST
             Assert(pThisCC->svga.pvFIFOExtCmdParam == NULL);
 
             /* The screens must be reset on the FIFO thread, because they may use 3D resources. */
-            vmsvgaR3ResetScreens(pThisCC);
+            vmsvgaR3ResetScreens(pThis, pThisCC);
             break;
 
         case VMSVGA_FIFO_EXTCMD_TERMINATE:
@@ -4204,7 +4207,7 @@ static DECLCALLBACK(int) vmsvgaR3FifoLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread
 
 # ifdef VBOX_WITH_VMSVGA3D
                 if (RT_LIKELY(pThis->svga.f3DEnabled))
-                    vmsvga3dDefineScreen(pThisCC, pScreen);
+                    vmsvga3dDefineScreen(pThis, pThisCC, pScreen);
 # endif
                 break;
             }
@@ -5465,7 +5468,7 @@ DECLCALLBACK(int) vmsvgaR3PciIORegionFifoMapUnmap(PPDMDEVINS pDevIns, PPDMPCIDEV
             pThis->svga.GCPhysFIFO = GCPhysAddress;
             Log(("vmsvgaR3IORegionMap: GCPhysFIFO=%RGp cbFIFO=%#x\n", GCPhysAddress, pThis->svga.cbFIFO));
         }
-        rc = VINF_PCI_MAPPING_DONE; /* caller only cares about this status, so it is okay that we overwrite erros here. */
+        rc = VINF_PCI_MAPPING_DONE; /* caller only cares about this status, so it is okay that we overwrite errors here. */
     }
     else
     {

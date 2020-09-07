@@ -36,7 +36,7 @@ all: vboxguest vboxsf vboxvideo
 
 vboxguest:
 	@echo "=== Building 'vboxguest' module ==="
-	$(VBOX_QUIET)$(MAKE) KBUILD_VERBOSE=$(KBUILD_VERBOSE) -C vboxguest
+	+ $(VBOX_QUIET)$(MAKE) KBUILD_VERBOSE=$(KBUILD_VERBOSE) -C vboxguest
 	$(VBOX_QUIET_SH)if [ -f vboxguest/vboxguest.ko ]; then \
 	    cp vboxguest/vboxguest.ko .; \
 	 else \
@@ -45,7 +45,7 @@ vboxguest:
 	@echo
 
 vboxsf: vboxguest
-	$(VBOX_QUIET_SH)if [ -d vboxsf ]; then \
+	+ $(VBOX_QUIET_SH)if [ -d vboxsf ]; then \
 	    if [ -f vboxguest/Module.symvers ]; then \
 	        cp vboxguest/Module.symvers vboxsf; \
 	    fi; \
@@ -60,12 +60,9 @@ vboxsf: vboxguest
 	fi
 
 vboxvideo:
-	$(VBOX_QUIET_SH)if [ -d vboxvideo ]; then \
-	    if [ -f vboxguest/Module.symvers ]; then \
-	        cp vboxguest/Module.symvers vboxvideo; \
-	    fi; \
+	+ $(VBOX_QUIET_SH)if [ -d vboxvideo ]; then \
 	    echo "=== Building 'vboxvideo' module ==="; \
-	    $(MAKE) KBUILD_VERBOSE=$(KBUILD_VERBOSE) KBUILD_EXTRA_SYMBOLS=$(abspath vboxvideo/Module.symvers) -C vboxvideo || exit 1; \
+	    $(MAKE) KBUILD_VERBOSE=$(KBUILD_VERBOSE) -C vboxvideo || exit 1; \
 	    if [ -f vboxvideo/vboxvideo.ko ]; then \
 	        cp vboxvideo/vboxvideo.ko .; \
 	    elif [ -f vboxvideo/vboxvideo.o ]; then \
@@ -74,37 +71,56 @@ vboxvideo:
 	    echo; \
 	fi
 
-install:
-	$(VBOX_QUIET)$(MAKE) KBUILD_VERBOSE=$(KBUILD_VERBOSE) -C vboxguest install
-	$(VBOX_QUIET_SH)if [ -d vboxsf ]; then \
+install-vboxguest:
+	+ $(VBOX_QUIET)$(MAKE) KBUILD_VERBOSE=$(KBUILD_VERBOSE) -C vboxguest install
+
+install-vboxsf:
+	+ $(VBOX_QUIET_SH)if [ -d vboxsf ]; then \
 	    $(MAKE) KBUILD_VERBOSE=$(KBUILD_VERBOSE) -C vboxsf install; \
 	fi
-	$(VBOX_QUIET_SH)if [ -d vboxvideo ]; then \
+
+install-vboxvideo:
+	+ $(VBOX_QUIET_SH)if [ -d vboxvideo ]; then \
 	    $(MAKE) KBUILD_VERBOSE=$(KBUILD_VERBOSE) -C vboxvideo install; \
 	fi
 
-clean:
-	$(VBOX_QUIET)$(MAKE) -C vboxguest clean
-	$(VBOX_QUIET_SH)if [ -d vboxsf ]; then \
+install: install-vboxguest install-vboxsf install-vboxvideo
+
+clean-vboxguest:
+	+ $(VBOX_QUIET)$(MAKE) -C vboxguest clean
+	rm -f vboxguest.*o
+
+clean-vboxsf:
+	+ $(VBOX_QUIET_SH)if [ -d vboxsf ]; then \
 	    $(MAKE) -C vboxsf clean; \
 	fi
-	$(VBOX_QUIET_SH)if [ -d vboxvideo ]; then \
+	rm -f vboxsf.*o
+
+clean-vboxvideo:
+	+ $(VBOX_QUIET_SH)if [ -d vboxvideo ]; then \
 	    $(MAKE) -C vboxvideo clean; \
 	fi
-	rm -f vboxguest.*o vboxsf.*o vboxvideo.*o
+	rm -f vboxvideo.*o
+
+clean: clean-vboxguest clean-vboxsf clean-vboxvideo
 
 check:
 	$(VBOX_QUIET)$(MAKE) KBUILD_VERBOSE=$(KBUILD_VERBOSE) -C vboxguest check
 
-load:
+unload:
 	$(VBOX_QUIET)/sbin/rmmod vboxvideo || true
 	$(VBOX_QUIET)/sbin/rmmod vboxvfs || true
 	$(VBOX_QUIET)/sbin/rmmod vboxsf || true
 	$(VBOX_QUIET)/sbin/rmmod vboxguest || true
+
+load: unload
 	$(VBOX_QUIET)/sbin/insmod vboxguest.ko
 	$(VBOX_QUIET)if [ -f vboxsf.ko ]; then /sbin/insmod vboxsf.ko; fi
 	$(VBOX_QUIET)if [ -f vboxvideo.ko ]; then /sbin/insmod vboxvideo.ko; fi
 
-.PHONY: vboxguest vboxsf vboxvideo all install clean check load
+.PHONY: all install clean check unload load \
+    vboxguest vboxsf vboxvideo \
+    install-vboxguest install-vboxsf install-vboxvideo \
+    clean-vboxguest clean-vboxsf clean-vboxvideo
 
 endif # ! KERNELRELEASE
