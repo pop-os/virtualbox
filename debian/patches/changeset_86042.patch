@@ -1,0 +1,12 @@
+Origin: https://www.virtualbox.org/changeset/86042
+Index: /trunk/Config.kmk
+===================================================================
+--- /Config.kmk	(revision 86022)
++++ /Config.kmk	(revision 86042)
+@@ -5690,5 +5690,5 @@
+ else
+  TEMPLATE_VBoxR3Static_LIBS        += \
+- 	$(PATH_STAGE_LIB)/VBox-liblzf$(VBOX_SUFF_LIB) \
++ 	$(SDK_VBOX_LZF_LIBS) \
+  	$(SDK_VBOX_ZLIB_LIBS)
+  if1of ($(KBUILD_TARGET),darwin freebsd)

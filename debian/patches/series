@@ -14,7 +14,6 @@
 35-libvdeplug-soname.patch
 36-fix-vnc-version-string.patch
 37-do-not-run-if-not-in-vm.patch
-liblzf.patch
 new-gsoap.patch
-disable-cloud.patch
+changeset_86042.patch
 virtio-core.patch
