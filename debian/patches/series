@@ -17,3 +17,4 @@
 new-gsoap.patch
 changeset_86042.patch
 virtio-core.patch
+no-vboxrem.patch
