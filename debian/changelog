@@ -1,3 +1,11 @@
+virtualbox (6.1.14-dfsg-4) unstable; urgency=medium
+
+  [ Lorenzo Puliti <plorenzo@disroot.org> ]
+  * Also take care of unsigned kernel modules when installing the
+    virtualbox*source packages (Closes: #970262)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 16 Sep 2020 11:58:39 +0200
+
 virtualbox (6.1.14-dfsg-3) unstable; urgency=medium
 
   * Don't add VBoxREM symlink (Closes: #969793)
