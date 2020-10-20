@@ -54,50 +54,118 @@ DECLHIDDEN(int) rtThreadNativeInit(void)
 
 DECLHIDDEN(int) rtThreadNativeSetPriority(PRTTHREADINT pThread, RTTHREADTYPE enmType)
 {
-#if RTLNX_VER_MIN(2,6,11)
-    /* See comment near MAX_RT_PRIO in linux/sched.h for details on
-       sched_priority. */
+#if RTLNX_VER_MIN(2,5,2)
+    /*
+     * Assignments are partially based on g_aTypesLinuxFree but
+     * scaled up in the high priority end.
+     *
+     * 5.9.0 - :
+     *      The sched_set_normal interfaces does not really check the input,
+     *      whereas sched_set_fifo & sched_set_fifo_low have fixed assignments.
+     * 2.6.11 - 5.9.0:
+     *      Use sched_setscheduler to try effect FIFO scheduling
+     *      for IO and TIMER threads, otherwise use set_user_nice.
+     * 2.5.2 - 5.9.0:
+     *      Use set_user_nice to renice the thread.
+     */
+    int                 iNice       = 0;
+# if RTLNX_VER_MAX(5,9,0)
+    int                 rc;
+#  if RTLNX_VER_MIN(2,6,11)
     int                 iSchedClass = SCHED_NORMAL;
-    struct sched_param  Param       = { .sched_priority = MAX_PRIO - 1 };
+    struct sched_param  Param       = { .sched_priority = 0 };
+#  endif
+# endif
     switch (enmType)
     {
         case RTTHREADTYPE_INFREQUENT_POLLER:
-            Param.sched_priority = MAX_RT_PRIO + 5;
+            iNice = +3;
+            break;
+
+        case RTTHREADTYPE_MAIN_HEAVY_WORKER:
+            iNice = +2;
             break;
 
         case RTTHREADTYPE_EMULATION:
-            Param.sched_priority = MAX_RT_PRIO + 4;
+            iNice = +1;
             break;
 
         case RTTHREADTYPE_DEFAULT:
-            Param.sched_priority = MAX_RT_PRIO + 3;
+        case RTTHREADTYPE_GUI:
+        case RTTHREADTYPE_MAIN_WORKER:
+            iNice =  0;
+            break;
+
+        case RTTHREADTYPE_VRDP_IO:
+        case RTTHREADTYPE_DEBUGGER:
+            iNice = -1;
             break;
 
         case RTTHREADTYPE_MSG_PUMP:
-            Param.sched_priority = MAX_RT_PRIO + 2;
+            iNice = -2;
             break;
 
         case RTTHREADTYPE_IO:
+# if RTLNX_VER_MIN(5,9,0)
+            sched_set_fifo_low(current);
+            return VINF_SUCCESS;
+# else
+            iNice = -12;
+#  if RTLNX_VER_MIN(2,6,11)
             iSchedClass = SCHED_FIFO;
-            Param.sched_priority = MAX_RT_PRIO - 1;
+            Param.sched_priority = 1; /* => prio=98; */
+#  endif
             break;
+# endif
 
         case RTTHREADTYPE_TIMER:
+# if RTLNX_VER_MIN(5,9,0)
+            sched_set_fifo(current);
+            return VINF_SUCCESS;
+# else
+            iNice = -19;
+#  if RTLNX_VER_MIN(2,6,11)
             iSchedClass = SCHED_FIFO;
-            Param.sched_priority = 1; /* not 0 just in case */
+            Param.sched_priority = MAX_RT_PRIO / 2; /* => prio=49 */
+#  endif
             break;
-
+# endif
         default:
-            AssertMsgFailed(("enmType=%d\n", enmType));
-            return VERR_INVALID_PARAMETER;
+            AssertMsgFailedReturn(("enmType=%d\n", enmType), VERR_INVALID_PARAMETER);
     }
 
-    sched_setscheduler(current, iSchedClass, &Param);
-#else
-    RT_NOREF_PV(enmType);
-#endif
-    RT_NOREF_PV(pThread);
+# if RTLNX_VER_MIN(5,9,0)
+    /*
+     * We only get here for renice work.
+     */
+    sched_set_normal(current, iNice);
 
+# else  /* < 5.9.0 */
+#  if RTLNX_VER_MIN(2,6,11)
+    /*
+     * Try set scheduler parameters.
+     * Fall back on normal + nice if this fails for FIFO policy.*
+     */
+    rc = sched_setscheduler(current, iSchedClass, &Param);
+    if (rc)
+    {
+        Param.sched_priority = 0;
+        iSchedClass = SCHED_NORMAL;
+        rc = sched_setscheduler(current, iSchedClass, &Param);
+    }
+
+    /*
+     * Renice if using normal scheduling class.
+     */
+    if (iSchedClass == SCHED_NORMAL)
+#  endif /* >= 2.6.11 */
+        set_user_nice(current, iNice);
+
+# endif /* < 5.9.0 */
+#else  /* < 2.5.2 */
+    RT_NOREF_PV(enmType);
+#endif /* < 2.5.2 */
+    RT_NOREF_PV(pThread);
     return VINF_SUCCESS;
 }
 

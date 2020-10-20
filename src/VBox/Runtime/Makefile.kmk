@@ -953,7 +953,6 @@ RuntimeR3_SOURCES.linux = \
 	r3/generic/RTLocaleQueryLocaleName-r3-generic.cpp \
 	r3/generic/RTLocaleQueryNormalizedBaseLocaleName-r3-generic.cpp \
 	r3/generic/RTLocaleQueryUserCountryCode-r3-generic.cpp \
-	r3/generic/RTTimeZoneGetCurrent-generic.cpp \
 	r3/generic/dirrel-r3-generic.cpp \
 	r3/posix/allocex-r3-posix.cpp \
 	r3/linux/RTThreadGetNativeState-linux.cpp \
@@ -980,6 +979,7 @@ RuntimeR3_SOURCES.linux = \
 	r3/linux/systemmem-linux.cpp \
 	r3/posix/RTTimeNow-posix.cpp \
 	r3/posix/RTTimeSet-posix.cpp \
+	r3/posix/RTTimeZoneGetCurrent-posix.cpp \
 	r3/posix/rtmempage-exec-mmap-heap-posix.cpp \
 	r3/posix/dir-posix.cpp \
 	r3/posix/env-posix.cpp \
@@ -1168,7 +1168,6 @@ RuntimeR3_SOURCES.darwin = \
 	r3/generic/RTLocaleQueryLocaleName-r3-generic.cpp \
 	r3/generic/RTLocaleQueryNormalizedBaseLocaleName-r3-generic.cpp \
 	r3/generic/RTLocaleQueryUserCountryCode-r3-generic.cpp \
-	r3/generic/RTTimeZoneGetCurrent-generic.cpp \
 	r3/generic/dirrel-r3-generic.cpp \
 	r3/posix/RTFileQueryFsSizes-posix.cpp \
 	r3/posix/RTHandleGetStandard-posix.cpp \
@@ -1176,6 +1175,7 @@ RuntimeR3_SOURCES.darwin = \
 	r3/posix/RTPathUserHome-posix.cpp \
 	r3/posix/RTSystemQueryOSInfo-posix.cpp \
 	r3/posix/RTTimeSet-posix.cpp \
+	r3/posix/RTTimeZoneGetCurrent-posix.cpp \
 	r3/posix/dir-posix.cpp \
 	r3/posix/env-posix.cpp \
 	r3/posix/errvars-posix.cpp \
@@ -1253,7 +1253,6 @@ RuntimeR3_SOURCES.freebsd = \
 	r3/generic/RTLocaleQueryLocaleName-r3-generic.cpp \
 	r3/generic/RTLocaleQueryNormalizedBaseLocaleName-r3-generic.cpp \
 	r3/generic/RTLocaleQueryUserCountryCode-r3-generic.cpp \
-	r3/generic/RTTimeZoneGetCurrent-generic.cpp \
 	r3/generic/dirrel-r3-generic.cpp \
 	r3/posix/RTFileQueryFsSizes-posix.cpp \
 	r3/posix/RTHandleGetStandard-posix.cpp \
@@ -1262,6 +1261,7 @@ RuntimeR3_SOURCES.freebsd = \
 	r3/posix/RTSystemQueryOSInfo-posix.cpp \
 	r3/posix/RTTimeNow-posix.cpp \
 	r3/posix/RTTimeSet-posix.cpp \
+	r3/posix/RTTimeZoneGetCurrent-posix.cpp \
 	r3/posix/dir-posix.cpp \
 	r3/posix/env-posix.cpp \
 	r3/posix/errvars-posix.cpp \
@@ -1335,7 +1335,6 @@ RuntimeR3_SOURCES.netbsd = \
 	r3/generic/RTLocaleQueryLocaleName-r3-generic.cpp \
 	r3/generic/RTLocaleQueryNormalizedBaseLocaleName-r3-generic.cpp \
 	r3/generic/RTLocaleQueryUserCountryCode-r3-generic.cpp \
-	r3/generic/RTTimeZoneGetCurrent-generic.cpp \
 	r3/generic/dirrel-r3-generic.cpp \
 	r3/posix/RTFileQueryFsSizes-posix.cpp \
 	r3/posix/RTFileSetAllocationSize-posix.cpp \
@@ -1346,6 +1345,7 @@ RuntimeR3_SOURCES.netbsd = \
 	r3/posix/RTSystemQueryTotalRam-posix.cpp \
 	r3/posix/RTTimeNow-posix.cpp \
 	r3/posix/RTTimeSet-posix.cpp \
+	r3/posix/RTTimeZoneGetCurrent-posix.cpp \
 	r3/posix/dir-posix.cpp \
 	r3/posix/env-posix.cpp \
 	r3/posix/errvars-posix.cpp \
@@ -1411,7 +1411,6 @@ RuntimeR3_SOURCES.solaris = \
 	r3/generic/RTLocaleQueryLocaleName-r3-generic.cpp \
 	r3/generic/RTLocaleQueryNormalizedBaseLocaleName-r3-generic.cpp \
 	r3/generic/RTLocaleQueryUserCountryCode-r3-generic.cpp \
-	r3/generic/RTTimeZoneGetCurrent-generic.cpp \
 	r3/generic/dirrel-r3-generic.cpp \
 	r3/posix/RTFileQueryFsSizes-posix.cpp \
 	r3/posix/RTFileSetAllocationSize-posix.cpp \
@@ -1421,6 +1420,7 @@ RuntimeR3_SOURCES.solaris = \
 	r3/posix/RTSystemQueryOSInfo-posix.cpp \
 	r3/posix/RTTimeNow-posix.cpp \
 	r3/posix/RTTimeSet-posix.cpp \
+	r3/posix/RTTimeZoneGetCurrent-posix.cpp \
 	r3/posix/dir-posix.cpp \
 	r3/posix/env-posix.cpp \
 	r3/posix/errvars-posix.cpp \
@@ -3010,7 +3010,8 @@ RuntimeR0Drv_SOURCES.win = \
 
 RuntimeR0Drv_SOURCES.win.amd64 := $(RuntimeWin64ASM_SOURCES)
 RuntimeR0Drv_SOURCES.win.x86   := $(RuntimeWin32ASM_SOURCES) \
-	r0drv/nt/nt3fakes-stub-r0drv-nt.cpp
+	r0drv/nt/nt3fakes-stub-r0drv-nt.cpp \
+	r0drv/nt/alloca-x86-r0drv-nt.asm
 
 
 RuntimeR0Drv_SOURCES.darwin = \

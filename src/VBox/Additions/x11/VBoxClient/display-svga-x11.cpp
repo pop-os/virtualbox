@@ -128,6 +128,7 @@ struct X11CONTEXT
     int hRandREventBase;
     int hRandRErrorBase;
     int hEventMask;
+    bool fMonitorInfoAvailable;
     /** The number of outputs (monitors, including disconnect ones) xrandr reports. */
     int hOutputCount;
     void *pRandLibraryHandle;
@@ -742,6 +743,21 @@ static bool checkDRMClient()
    return true;
 }
 
+static bool startDRMClient()
+{
+    char* argv[] = {NULL};
+    char* env[] = {NULL};
+    char szDRMClientPath[RTPATH_MAX];
+    RTPathExecDir(szDRMClientPath, RTPATH_MAX);
+    RTPathAppend(szDRMClientPath, RTPATH_MAX, "VBoxDRMClient");
+    VBClLogInfo("Starting DRM client.\n");
+    int rc = execve(szDRMClientPath, argv, env);
+    if (rc == -1)
+        VBClLogFatalError("execve for % returns the following error %d %s\n", szDRMClientPath, errno, strerror(errno));
+    /* This is reached only when execve fails. */
+    return false;
+}
+
 static bool init()
 {
     /* If DRM client is already running don't start this service. */
@@ -751,23 +767,15 @@ static bool init()
         return false;
     }
     if (isXwayland())
-    {
-        char* argv[] = {NULL};
-        char* env[] = {NULL};
-        char szDRMClientPath[RTPATH_MAX];
-        RTPathExecDir(szDRMClientPath, RTPATH_MAX);
-        RTPathAppend(szDRMClientPath, RTPATH_MAX, "VBoxDRMClient");
-        int rc = execve(szDRMClientPath, argv, env);
-        if (rc == -1)
-            VBClLogFatalError("execve for % returns the following error %d %s\n", szDRMClientPath, errno, strerror(errno));
-        /* This is reached only when execve fails. */
-        return false;
-    }
+        return startDRMClient();
+
     x11Connect();
     if (x11Context.pDisplay == NULL)
         return false;
-    if (RT_FAILURE(startX11MonitorThread()))
-        return false;
+    /* don't start the monitoring thread if related randr functionality is not available. */
+    if (x11Context.fMonitorInfoAvailable)
+        if (RT_FAILURE(startX11MonitorThread()))
+            return false;
     return true;
 }
 
@@ -827,6 +835,8 @@ static int openLibRandR()
 
     *(void **)(&x11Context.pXRRFreeMonitors) = dlsym(x11Context.pRandLibraryHandle, "XRRFreeMonitors");
     checkFunctionPtr(x11Context.pXRRFreeMonitors);
+
+    x11Context.fMonitorInfoAvailable = x11Context.pXRRGetMonitors && x11Context.pXRRFreeMonitors;
 
     *(void **)(&x11Context.pXRRGetScreenResources) = dlsym(x11Context.pRandLibraryHandle, "XRRGetScreenResources");
     checkFunctionPtrReturn(x11Context.pXRRGetScreenResources);
@@ -890,6 +900,9 @@ static void x11Connect()
     x11Context.pXRRGetCrtcInfo = NULL;
     x11Context.pXRRAddOutputMode = NULL;
     x11Context.fWmwareCtrlExtention = false;
+    x11Context.fMonitorInfoAvailable = false;
+    x11Context.hRandRMajor = 0;
+    x11Context.hRandRMinor = 0;
 
     int dummy;
     if (x11Context.pDisplay != NULL)
@@ -935,6 +948,13 @@ static void x11Connect()
 #endif
         if (!fSuccess)
         {
+            XCloseDisplay(x11Context.pDisplay);
+            x11Context.pDisplay = NULL;
+            return;
+        }
+        if (x11Context.hRandRMajor < 1 || x11Context.hRandRMinor <= 3)
+        {
+            VBClLogFatalError("Resizing service requires libXrandr Version >= 1.4. Detected version is %d.%d\n", x11Context.hRandRMajor, x11Context.hRandRMinor);
             XCloseDisplay(x11Context.pDisplay);
             x11Context.pDisplay = NULL;
             return;
@@ -1011,6 +1031,7 @@ static bool disableCRTC(RRCrtc crtcID)
         ret = x11Context.pXRRSetCrtcConfig(x11Context.pDisplay, x11Context.pScreenResources, crtcID,
                                            CurrentTime, 0, 0, None, RR_Rotate_0, NULL, 0);
 #endif
+    /** @todo  In case of unsuccesful crtc config set  we have to revert frame buffer size and crtc sizes. */
     if (ret == Success)
         return true;
     else
@@ -1085,7 +1106,7 @@ static bool resizeFrameBuffer(struct RANDROUTPUT *paOutputs)
         x11Context.pXRRSelectInput(x11Context.pDisplay, x11Context.rootWindow, 0);
 #endif
     XRRScreenSize newSize = currentSize();
-    /** @todo  In case of unsuccesful frame buffer resize we have to revert frame buffer size and crtc sizes. */
+
     if (!event || newSize.width != (int)iXRes || newSize.height != (int)iYRes)
     {
         VBClLogError("Resizing frame buffer to %d %d has failed\n", iXRes, iYRes);
@@ -1223,12 +1244,9 @@ static bool configureOutput(int iOutputIndex, struct RANDROUTPUT *paOutputs)
 static void setXrandrTopology(struct RANDROUTPUT *paOutputs)
 {
     XGrabServer(x11Context.pDisplay);
-    /* In 32-bit guests GAs build on our release machines causes an xserver lock during vmware_ctrl extention
-     * if we do the call withing XGrab. So we disabled this call for 32-bit GAs. */
-#if ARCH_BITS != 32
     if (x11Context.fWmwareCtrlExtention)
         callVMWCTRL(paOutputs);
-#endif
+
 #ifdef WITH_DISTRO_XRAND_XINERAMA
     x11Context.pScreenResources = XRRGetScreenResources(x11Context.pDisplay, x11Context.rootWindow);
 #else
@@ -1324,6 +1342,14 @@ static const char *getPidFilePath()
 static int run(struct VBCLSERVICE **ppInterface, bool fDaemonised)
 {
     RT_NOREF(ppInterface, fDaemonised);
+
+    /* In 32-bit guests GAs build on our release machines causes an xserver hang.
+     * So for 32-bit GAs we use our DRM client. */
+#if ARCH_BITS == 32
+    startDRMClient();
+    return VERR_NOT_AVAILABLE;
+#endif
+
     if (!init())
         return VERR_NOT_AVAILABLE;
 

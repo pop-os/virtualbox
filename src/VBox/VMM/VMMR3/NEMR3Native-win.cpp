@@ -1257,6 +1257,8 @@ int nemR3NativeInit(PVM pVM, bool fFallback, bool fForced)
                             STAMR3RegisterF(pVM, &pNemCpu->StatExitException,       STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES, "Number of exception exits",              "/NEM/CPU%u/ExitException", idCpu);
                             STAMR3RegisterF(pVM, &pNemCpu->StatExitExceptionBp,     STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES, "Number of #BP exits",                    "/NEM/CPU%u/ExitExceptionBp", idCpu);
                             STAMR3RegisterF(pVM, &pNemCpu->StatExitExceptionDb,     STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES, "Number of #DB exits",                    "/NEM/CPU%u/ExitExceptionDb", idCpu);
+                            STAMR3RegisterF(pVM, &pNemCpu->StatExitExceptionGp,     STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES, "Number of #GP exits",                    "/NEM/CPU%u/ExitExceptionGp", idCpu);
+                            STAMR3RegisterF(pVM, &pNemCpu->StatExitExceptionGpMesa, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES, "Number of #GP exits from mesa driver",   "/NEM/CPU%u/ExitExceptionGpMesa", idCpu);
                             STAMR3RegisterF(pVM, &pNemCpu->StatExitExceptionUd,     STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES, "Number of #UD exits",                    "/NEM/CPU%u/ExitExceptionUd", idCpu);
                             STAMR3RegisterF(pVM, &pNemCpu->StatExitExceptionUdHandled, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES, "Number of handled #UD exits",         "/NEM/CPU%u/ExitExceptionUdHandled", idCpu);
                             STAMR3RegisterF(pVM, &pNemCpu->StatExitUnrecoverable,   STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES, "Number of unrecoverable exits",          "/NEM/CPU%u/ExitUnrecoverable", idCpu);
@@ -1356,6 +1358,12 @@ int nemR3NativeInitAfterCPUM(PVM pVM)
     Property.ExceptionExitBitmap = RT_BIT_64(WHvX64ExceptionTypeDebugTrapOrFault)
                                  | RT_BIT_64(WHvX64ExceptionTypeBreakpointTrap)
                                  | RT_BIT_64(WHvX64ExceptionTypeInvalidOpcodeFault);
+
+    /* Intercept #GP to workaround the buggy mesa vmwgfx driver. */
+    PVMCPU pVCpu = pVM->apCpusR3[0]; /** @todo In theory per vCPU, in practice same for all. */
+    if (pVCpu->nem.s.fTrapXcptGpForLovelyMesaDrv)
+        Property.ExceptionExitBitmap |= RT_BIT_64(WHvX64ExceptionTypeGeneralProtectionFault);
+
     hrc = WHvSetPartitionProperty(hPartition, WHvPartitionPropertyCodeExceptionExitBitmap, &Property, sizeof(Property));
     if (FAILED(hrc))
         return VMSetError(pVM, VERR_NEM_VM_CREATE_FAILED, RT_SRC_POS,
@@ -1418,7 +1426,7 @@ int nemR3NativeInitAfterCPUM(PVM pVM)
      */
     for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
     {
-        PVMCPU pVCpu = pVM->apCpusR3[idCpu];
+        pVCpu = pVM->apCpusR3[idCpu];
 
         pVCpu->nem.s.hNativeThreadHandle = (RTR3PTR)RTThreadGetNativeHandle(VMR3GetThreadHandle(pVCpu->pUVCpu));
         Assert((HANDLE)pVCpu->nem.s.hNativeThreadHandle != INVALID_HANDLE_VALUE);
