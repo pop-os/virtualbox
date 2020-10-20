@@ -1,3 +1,16 @@
+virtualbox (6.1.16-dfsg-1) unstable; urgency=medium
+
+  * New upstream version 6.1.16-dfsg
+  * Refresh patches:
+    - 27-hide-host-cache-warning.patch
+    - 36-fix-vnc-version-string.patch
+  * Drop upstream patches:
+    - changeset_86042.patch
+    - new-gsoap.patch
+    - virtio-core.patch
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 21 Oct 2020 00:32:31 +0200
+
 virtualbox (6.1.14-dfsg-4) unstable; urgency=medium
 
   [ Lorenzo Puliti <plorenzo@disroot.org> ]
