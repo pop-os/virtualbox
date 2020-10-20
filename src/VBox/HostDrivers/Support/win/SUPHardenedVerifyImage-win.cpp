@@ -951,6 +951,51 @@ static DECLCALLBACK(void) supHardNtViAsn1DumpToErrInfo(void *pvUser, const char 
 
 
 /**
+ * Attempts to locate a root certificate in the specified store.
+ *
+ * @returns IPRT status code.
+ * @retval  VINF_SUCCESS if found.
+ * @retval  VWRN_NOT_FOUND if not found.
+ *
+ * @param   hRootStore      The root certificate store to search.
+ * @param   pSubject        The root certificate subject.
+ * @param   pPublicKeyInfo  The public key of the root certificate to find.
+ */
+static int supHardNtViCertVerifyFindRootCert(RTCRSTORE hRootStore, PCRTCRX509NAME pSubject,
+                                             PCRTCRX509SUBJECTPUBLICKEYINFO pPublicKeyInfo)
+{
+    RTCRSTORECERTSEARCH Search;
+    int rc = RTCrStoreCertFindBySubjectOrAltSubjectByRfc5280(hRootStore, pSubject, &Search);
+    AssertRCReturn(rc, rc);
+
+    rc = VWRN_NOT_FOUND;
+    PCRTCRCERTCTX pCertCtx;
+    while ((pCertCtx = RTCrStoreCertSearchNext(hRootStore, &Search)) != NULL)
+    {
+        PCRTCRX509SUBJECTPUBLICKEYINFO pCertPubKeyInfo = NULL;
+        if (pCertCtx->pCert)
+            pCertPubKeyInfo = &pCertCtx->pCert->TbsCertificate.SubjectPublicKeyInfo;
+        else if (pCertCtx->pTaInfo)
+            pCertPubKeyInfo = &pCertCtx->pTaInfo->PubKey;
+        else
+            pCertPubKeyInfo = NULL;
+        if (   pCertPubKeyInfo
+            && RTCrX509SubjectPublicKeyInfo_Compare(pCertPubKeyInfo, pPublicKeyInfo) == 0)
+        {
+            RTCrCertCtxRelease(pCertCtx);
+            rc = VINF_SUCCESS;
+            break;
+        }
+        RTCrCertCtxRelease(pCertCtx);
+    }
+
+    int rc2 = RTCrStoreCertSearchDestroy(hRootStore, &Search);
+    AssertRC(rc2);
+    return rc;
+}
+
+
+/**
  * @callback_method_impl{FNRTCRPKCS7VERIFYCERTCALLBACK,
  * Standard code signing.  Use this for Microsoft SPC.}
  */
@@ -988,8 +1033,10 @@ static DECLCALLBACK(int) supHardNtViCertVerifyCallback(PCRTCRX509CERTIFICATE pCe
         && (fFlags & RTCRPKCS7VCC_F_SIGNED_DATA))
     {
         /*
-         * If kernel signing, a valid certificate path must be anchored by the
-         * microsoft kernel signing root certificate.
+         * For kernel code signing there are two options for a valid certificate path:
+         *  1. Anchored by the microsoft kernel signing root certificate (g_hNtKernelRootStore).
+         *  2. Anchored by an SPC root and signing entity including a 1.3.6.1.4.1.311.10.3.5 (WHQL)
+         *     or 1.3.6.1.4.1.311.10.3.5.1 (WHQL attestation) extended usage key.
          */
         if (pNtViRdr->fFlags & SUPHNTVI_F_REQUIRE_KERNEL_CODE_SIGNING)
         {
@@ -1012,36 +1059,37 @@ static DECLCALLBACK(int) supHardNtViCertVerifyCallback(PCRTCRX509CERTIFICATE pCe
                     cValid++;
 
                     /*
-                     * Search the kernel signing root store for a matching anchor.
+                     * 1. Search the kernel signing root store for a matching anchor.
                      */
-                    RTCRSTORECERTSEARCH Search;
-                    rc = RTCrStoreCertFindBySubjectOrAltSubjectByRfc5280(g_hNtKernelRootStore, pSubject, &Search);
-                    AssertRCBreak(rc);
-
-                    PCRTCRCERTCTX pCertCtx;
-                    while ((pCertCtx = RTCrStoreCertSearchNext(g_hNtKernelRootStore, &Search)) != NULL)
+                    rc = supHardNtViCertVerifyFindRootCert(g_hNtKernelRootStore, pSubject, pPublicKeyInfo);
+                    if (rc == VINF_SUCCESS)
+                        cFound++;
+                    /*
+                     * 2. Check for WHQL EKU and make sure it has a SPC root.
+                     */
+                    else if (   rc == VWRN_NOT_FOUND
+                             && (  pCert->TbsCertificate.T3.fExtKeyUsage
+                                 & (RTCRX509CERT_EKU_F_MS_ATTEST_WHQL_CRYPTO | RTCRX509CERT_EKU_F_MS_WHQL_CRYPTO)))
                     {
-                        PCRTCRX509SUBJECTPUBLICKEYINFO pCertPubKeyInfo = NULL;
-                        if (pCertCtx->pCert)
-                            pCertPubKeyInfo = &pCertCtx->pCert->TbsCertificate.SubjectPublicKeyInfo;
-                        else if (pCertCtx->pTaInfo)
-                            pCertPubKeyInfo = &pCertCtx->pTaInfo->PubKey;
-                        else
-                            pCertPubKeyInfo = NULL;
-                        if (   pCertPubKeyInfo
-                            && RTCrX509SubjectPublicKeyInfo_Compare(pCertPubKeyInfo, pPublicKeyInfo) == 0)
+                        rc = supHardNtViCertVerifyFindRootCert(g_hSpcRootStore, pSubject, pPublicKeyInfo);
+                        if (rc == VINF_SUCCESS)
                             cFound++;
-                        RTCrCertCtxRelease(pCertCtx);
                     }
-
-                    int rc2 = RTCrStoreCertSearchDestroy(g_hNtKernelRootStore, &Search); AssertRC(rc2);
+                    AssertRCBreak(rc);
                 }
             }
             if (RT_SUCCESS(rc) && cFound == 0)
-                rc = RTErrInfoSetF(pErrInfo, VERR_SUP_VP_NOT_VALID_KERNEL_CODE_SIGNATURE, "Not valid kernel code signature.");
+                rc = RTErrInfoSetF(pErrInfo, VERR_SUP_VP_NOT_VALID_KERNEL_CODE_SIGNATURE,
+                                   "Signature #%u/%u: Not valid kernel code signature.",
+                                   pNtViRdr->iCurSignature + 1, pNtViRdr->cTotalSignatures);
+
+
             if (RT_SUCCESS(rc) && cValid < 2 && g_fHaveOtherRoots)
                 rc = RTErrInfoSetF(pErrInfo, VERR_SUP_VP_UNEXPECTED_VALID_PATH_COUNT,
-                                   "Expected at least %u valid paths, not %u.", 2, cValid);
+                                   "Signature #%u/%u: Expected at least %u valid paths, not %u.",
+                                   pNtViRdr->iCurSignature + 1, pNtViRdr->cTotalSignatures, 2, cValid);
+            if (rc == VWRN_NOT_FOUND)
+                rc = VINF_SUCCESS;
         }
     }
 
@@ -1050,67 +1098,6 @@ static DECLCALLBACK(int) supHardNtViCertVerifyCallback(PCRTCRX509CERTIFICATE pCe
      */
 
     return rc;
-}
-
-
-static DECLCALLBACK(int) supHardNtViCallback(RTLDRMOD hLdrMod, RTLDRSIGNATURETYPE enmSignature,
-                                             void const *pvSignature, size_t cbSignature,
-                                             void const *pvExternalData, size_t cbExternalData,
-                                             PRTERRINFO pErrInfo, void *pvUser)
-{
-    RT_NOREF(hLdrMod, enmSignature, pvExternalData, cbExternalData);
-
-    /*
-     * Check out the input.
-     */
-    PSUPHNTVIRDR pNtViRdr = (PSUPHNTVIRDR)pvUser;
-    Assert(pNtViRdr->Core.uMagic == RTLDRREADER_MAGIC);
-
-    AssertReturn(cbSignature == sizeof(RTCRPKCS7CONTENTINFO), VERR_INTERNAL_ERROR_5);
-    PCRTCRPKCS7CONTENTINFO pContentInfo = (PCRTCRPKCS7CONTENTINFO)pvSignature;
-    AssertReturn(RTCrPkcs7ContentInfo_IsSignedData(pContentInfo), VERR_INTERNAL_ERROR_5);
-    AssertReturn(pContentInfo->u.pSignedData->SignerInfos.cItems == 1, VERR_INTERNAL_ERROR_5);
-    PCRTCRPKCS7SIGNERINFO pSignerInfo = pContentInfo->u.pSignedData->SignerInfos.papItems[0];
-
-    AssertReturn(!pvExternalData, VERR_INTERNAL_ERROR_5);
-
-    /*
-     * If special certificate requirements, check them out before validating
-     * the signature.
-     */
-    if (pNtViRdr->fFlags & SUPHNTVI_F_REQUIRE_BUILD_CERT)
-    {
-        if (!RTCrX509Certificate_MatchIssuerAndSerialNumber(&g_BuildX509Cert,
-                                                            &pSignerInfo->IssuerAndSerialNumber.Name,
-                                                            &pSignerInfo->IssuerAndSerialNumber.SerialNumber))
-            return RTErrInfoSetF(pErrInfo, VERR_SUP_VP_NOT_SIGNED_WITH_BUILD_CERT,
-                                 "Not signed with the build certificate (serial %.*Rhxs, expected %.*Rhxs)",
-                                 pSignerInfo->IssuerAndSerialNumber.SerialNumber.Asn1Core.cb,
-                                 pSignerInfo->IssuerAndSerialNumber.SerialNumber.Asn1Core.uData.pv,
-                                 g_BuildX509Cert.TbsCertificate.SerialNumber.Asn1Core.cb,
-                                 g_BuildX509Cert.TbsCertificate.SerialNumber.Asn1Core.uData.pv);
-    }
-
-    /*
-     * Verify the signature.  We instruct the verifier to use the signing time
-     * counter signature present when present, falling back on the timestamp
-     * planted by the linker when absent.  In ring-0 we don't have all the
-     * necessary timestamp server root certificate info, so we have to allow
-     * using counter signatures unverified there.  Ditto for the early period
-     * of ring-3 hardened stub execution.
-     */
-    RTTIMESPEC ValidationTime;
-    RTTimeSpecSetSeconds(&ValidationTime, pNtViRdr->uTimestamp);
-
-    uint32_t fFlags = RTCRPKCS7VERIFY_SD_F_ALWAYS_USE_SIGNING_TIME_IF_PRESENT
-                    | RTCRPKCS7VERIFY_SD_F_ALWAYS_USE_MS_TIMESTAMP_IF_PRESENT
-                    | RTCRPKCS7VERIFY_SD_F_COUNTER_SIGNATURE_SIGNING_TIME_ONLY;
-#ifndef IN_RING0
-    if (!g_fHaveOtherRoots)
-#endif
-        fFlags |= RTCRPKCS7VERIFY_SD_F_USE_SIGNING_TIME_UNVERIFIED | RTCRPKCS7VERIFY_SD_F_USE_MS_TIMESTAMP_UNVERIFIED;
-    return RTCrPkcs7VerifySignedData(pContentInfo, fFlags, g_hSpcAndNtKernelSuppStore, g_hSpcAndNtKernelRootStore,
-                                     &ValidationTime, supHardNtViCertVerifyCallback, pNtViRdr, pErrInfo);
 }
 
 
@@ -1143,6 +1130,160 @@ static PRTTIMESPEC supHardNtTimeNow(PRTTIMESPEC pNow)
 #else  /* IN_RING0 */
     return RTTimeNow(pNow);
 #endif /* IN_RING0 */
+}
+
+
+/**
+ * @callback_method_impl{FNRTLDRVALIDATESIGNEDDATA}
+ */
+static DECLCALLBACK(int) supHardNtViCallback(RTLDRMOD hLdrMod, PCRTLDRSIGNATUREINFO pInfo, PRTERRINFO pErrInfo, void *pvUser)
+{
+    RT_NOREF(hLdrMod);
+
+    /*
+     * Check out the input.
+     */
+    PSUPHNTVIRDR pNtViRdr = (PSUPHNTVIRDR)pvUser;
+    Assert(pNtViRdr->Core.uMagic == RTLDRREADER_MAGIC);
+    pNtViRdr->cTotalSignatures = pInfo->cSignatures;
+    pNtViRdr->iCurSignature    = pInfo->iSignature;
+
+    AssertReturn(pInfo->enmType == RTLDRSIGNATURETYPE_PKCS7_SIGNED_DATA, VERR_INTERNAL_ERROR_5);
+    AssertReturn(!pInfo->pvExternalData, VERR_INTERNAL_ERROR_5);
+    AssertReturn(pInfo->cbSignature == sizeof(RTCRPKCS7CONTENTINFO), VERR_INTERNAL_ERROR_5);
+    PCRTCRPKCS7CONTENTINFO pContentInfo = (PCRTCRPKCS7CONTENTINFO)pInfo->pvSignature;
+    AssertReturn(RTCrPkcs7ContentInfo_IsSignedData(pContentInfo), VERR_INTERNAL_ERROR_5);
+    AssertReturn(pContentInfo->u.pSignedData->SignerInfos.cItems == 1, VERR_INTERNAL_ERROR_5);
+    PCRTCRPKCS7SIGNERINFO pSignerInfo = pContentInfo->u.pSignedData->SignerInfos.papItems[0];
+
+
+    /*
+     * If special certificate requirements, check them out before validating
+     * the signature.  These only apply to the first signature (for now).
+     */
+    if (   (pNtViRdr->fFlags & SUPHNTVI_F_REQUIRE_BUILD_CERT)
+        && pInfo->iSignature == 0)
+    {
+        if (!RTCrX509Certificate_MatchIssuerAndSerialNumber(&g_BuildX509Cert,
+                                                            &pSignerInfo->IssuerAndSerialNumber.Name,
+                                                            &pSignerInfo->IssuerAndSerialNumber.SerialNumber))
+            return RTErrInfoSetF(pErrInfo, VERR_SUP_VP_NOT_SIGNED_WITH_BUILD_CERT,
+                                 "Signature #%u/%u: Not signed with the build certificate (serial %.*Rhxs, expected %.*Rhxs)",
+                                 pInfo->iSignature + 1, pInfo->cSignatures,
+                                 pSignerInfo->IssuerAndSerialNumber.SerialNumber.Asn1Core.cb,
+                                 pSignerInfo->IssuerAndSerialNumber.SerialNumber.Asn1Core.uData.pv,
+                                 g_BuildX509Cert.TbsCertificate.SerialNumber.Asn1Core.cb,
+                                 g_BuildX509Cert.TbsCertificate.SerialNumber.Asn1Core.uData.pv);
+    }
+
+    /*
+     * We instruction the verifier to use the signing time counter signature
+     * when present, but provides the linker time then the current time as
+     * fallbacks should the timestamp be missing or unusable.
+     *
+     * Update: Save the first timestamp we validate with build cert and
+     *         use this as a minimum timestamp for further build cert
+     *         validations.  This works around issues with old DLLs that
+     *         we sign against with our certificate (crt, sdl, qt).
+     *
+     * Update: If the validation fails, retry with the current timestamp. This
+     *         is a workaround for NTDLL.DLL in build 14971 having a weird
+     *         timestamp: 0xDF1E957E (Sat Aug 14 14:05:18 2088).
+     */
+    uint32_t fFlags = RTCRPKCS7VERIFY_SD_F_ALWAYS_USE_SIGNING_TIME_IF_PRESENT
+                    | RTCRPKCS7VERIFY_SD_F_ALWAYS_USE_MS_TIMESTAMP_IF_PRESENT
+                    | RTCRPKCS7VERIFY_SD_F_COUNTER_SIGNATURE_SIGNING_TIME_ONLY;
+
+    /* In ring-0 we don't have all the necessary timestamp server root certificate
+     * info, so we have to allow using counter signatures unverified there.
+     * Ditto for the early period of ring-3 hardened stub execution. */
+#ifndef IN_RING0
+    if (!g_fHaveOtherRoots)
+#endif
+        fFlags |= RTCRPKCS7VERIFY_SD_F_USE_SIGNING_TIME_UNVERIFIED | RTCRPKCS7VERIFY_SD_F_USE_MS_TIMESTAMP_UNVERIFIED;
+
+    /* Fallback timestamps to try: */
+    struct { RTTIMESPEC TimeSpec; const char *pszDesc; } aTimes[2];
+    unsigned cTimes = 0;
+
+    /* 1. The linking timestamp: */
+    uint64_t uTimestamp = 0;
+    int rc = RTLdrQueryProp(hLdrMod, RTLDRPROP_TIMESTAMP_SECONDS, &uTimestamp, sizeof(uTimestamp));
+    if (RT_SUCCESS(rc))
+    {
+#ifdef IN_RING3 /* Hack alert! (see above) */
+        if (   (pNtViRdr->fFlags & SUPHNTVI_F_REQUIRE_KERNEL_CODE_SIGNING)
+            && (pNtViRdr->fFlags & SUPHNTVI_F_REQUIRE_SIGNATURE_ENFORCEMENT)
+            && uTimestamp < g_uBuildTimestampHack)
+            uTimestamp = g_uBuildTimestampHack;
+#endif
+        RTTimeSpecSetSeconds(&aTimes[0].TimeSpec, uTimestamp);
+        aTimes[0].pszDesc = "link";
+        cTimes++;
+    }
+    else
+        SUP_DPRINTF(("RTLdrQueryProp/RTLDRPROP_TIMESTAMP_SECONDS failed on %s: %Rrc", pNtViRdr->szFilename, rc));
+
+    /* 2. Current time. */
+    supHardNtTimeNow(&aTimes[cTimes].TimeSpec);
+    aTimes[cTimes].pszDesc = "now";
+    cTimes++;
+
+    /* Make the verfication attempts. */
+    for (unsigned i = 0; ; i++)
+    {
+        Assert(i < cTimes);
+        rc = RTCrPkcs7VerifySignedData(pContentInfo, fFlags, g_hSpcAndNtKernelSuppStore, g_hSpcAndNtKernelRootStore,
+                                       &aTimes[i].TimeSpec, supHardNtViCertVerifyCallback, pNtViRdr, pErrInfo);
+        if (RT_SUCCESS(rc))
+        {
+            if (rc != VINF_SUCCESS)
+            {
+                SUP_DPRINTF(("%s: Signature #%u/%u: info status: %d\n", pNtViRdr->szFilename, pInfo->iSignature + 1, pInfo->cSignatures, rc));
+                if (pNtViRdr->rcLastSignatureFailure == VINF_SUCCESS)
+                    pNtViRdr->rcLastSignatureFailure = rc;
+            }
+            pNtViRdr->cOkaySignatures++;
+
+#ifdef IN_RING3 /* Hack alert! (see above) */
+            if ((pNtViRdr->fFlags & SUPHNTVI_F_REQUIRE_BUILD_CERT) && g_uBuildTimestampHack == 0 && cTimes > 1)
+                g_uBuildTimestampHack = uTimestamp;
+#endif
+            return VINF_SUCCESS;
+        }
+
+        if (rc == VERR_CR_X509_CPV_NOT_VALID_AT_TIME && i + 1 < cTimes)
+            SUP_DPRINTF(("%s: Signature #%u/%u: VERR_CR_X509_CPV_NOT_VALID_AT_TIME for %#RX64; retrying against current time: %#RX64.\n",
+                         pNtViRdr->szFilename, pInfo->iSignature + 1, pInfo->cSignatures,
+                         RTTimeSpecGetSeconds(&aTimes[0].TimeSpec), RTTimeSpecGetSeconds(&aTimes[1].TimeSpec)));
+        else
+        {
+            /* There are a couple of failures we can tollerate if there are more than
+               one signature and one of them works out fine.  The RTLdrVerifySignature
+               caller will have to check the failure counts though to make sure
+               something succeeded. */
+            pNtViRdr->rcLastSignatureFailure = rc;
+            if (   rc == VERR_CR_X509_CPV_NOT_VALID_AT_TIME
+                || rc == VERR_CR_X509_CPV_NO_TRUSTED_PATHS)
+            {
+                SUP_DPRINTF(("%s: Signature #%u/%u: %s (%d) w/ timestamp=%#RX64/%s.\n", pNtViRdr->szFilename, pInfo->iSignature + 1, pInfo->cSignatures,
+                             rc == VERR_CR_X509_CPV_NOT_VALID_AT_TIME ? "VERR_CR_X509_CPV_NOT_VALID_AT_TIME" : "VERR_CR_X509_CPV_NO_TRUSTED_PATHS", rc,
+                             RTTimeSpecGetSeconds(&aTimes[i].TimeSpec), aTimes[i].pszDesc));
+
+                /* This leniency is not applicable to build certificate requirements (signature #1 only). */
+                if (  !(pNtViRdr->fFlags & SUPHNTVI_F_REQUIRE_BUILD_CERT)
+                    || pInfo->iSignature != 0)
+                {
+                    pNtViRdr->cNokSignatures++;
+                    rc = VINF_SUCCESS;
+                }
+            }
+            else
+                SUP_DPRINTF(("%s: Signature #%u/%u: %Rrc w/ timestamp=%#RX64/%s.\n", pNtViRdr->szFilename, pInfo->iSignature + 1, pInfo->cSignatures,
+                             rc, RTTimeSpecGetSeconds(&aTimes[i].TimeSpec), aTimes[i].pszDesc));
+            return rc;
+        }
+    }
 }
 
 
@@ -1216,73 +1357,48 @@ DECLHIDDEN(int) supHardenedWinVerifyImageByLdrMod(RTLDRMOD hLdrMod, PCRTUTF16 pw
      *
      * The PKCS #7 SignedData signature is checked in the callback. Any
      * signing certificate restrictions are also enforced there.
-     *
-     * For the time being, we use the executable timestamp as the
-     * certificate validation date.  We must query that first to avoid
-     * potential issues re-entering the loader code from the callback.
-     *
-     * Update: Save the first timestamp we validate with build cert and
-     *         use this as a minimum timestamp for further build cert
-     *         validations.  This works around issues with old DLLs that
-     *         we sign against with our certificate (crt, sdl, qt).
-     *
-     * Update: If the validation fails, retry with the current timestamp. This
-     *         is a workaround for NTDLL.DLL in build 14971 having a weird
-     *         timestamp: 0xDF1E957E (Sat Aug 14 14:05:18 2088).
      */
-    int rc = RTLdrQueryProp(hLdrMod, RTLDRPROP_TIMESTAMP_SECONDS, &pNtViRdr->uTimestamp, sizeof(pNtViRdr->uTimestamp));
+    pNtViRdr->cOkaySignatures        = 0;
+    pNtViRdr->cNokSignatures         = 0;
+    pNtViRdr->cTotalSignatures       = 0;
+    pNtViRdr->rcLastSignatureFailure = VINF_SUCCESS;
+    int rc = RTLdrVerifySignature(hLdrMod, supHardNtViCallback, pNtViRdr, pErrInfo);
     if (RT_SUCCESS(rc))
     {
-#ifdef IN_RING3 /* Hack alert! (see above) */
-        if (   (pNtViRdr->fFlags & SUPHNTVI_F_REQUIRE_KERNEL_CODE_SIGNING)
-            && (pNtViRdr->fFlags & SUPHNTVI_F_REQUIRE_SIGNATURE_ENFORCEMENT)
-            && pNtViRdr->uTimestamp < g_uBuildTimestampHack)
-            pNtViRdr->uTimestamp = g_uBuildTimestampHack;
-#endif
-
-        rc = RTLdrVerifySignature(hLdrMod, supHardNtViCallback, pNtViRdr, pErrInfo);
-
-#ifdef IN_RING3 /* Hack alert! (see above) */
-        if ((pNtViRdr->fFlags & SUPHNTVI_F_REQUIRE_BUILD_CERT) && g_uBuildTimestampHack == 0 && RT_SUCCESS(rc))
-            g_uBuildTimestampHack = pNtViRdr->uTimestamp;
-#endif
-
-        if (rc == VERR_CR_X509_CPV_NOT_VALID_AT_TIME)
+        Assert(pNtViRdr->cOkaySignatures + pNtViRdr->cNokSignatures == pNtViRdr->cTotalSignatures);
+        if (   !pNtViRdr->cOkaySignatures
+            || pNtViRdr->cOkaySignatures + pNtViRdr->cNokSignatures < pNtViRdr->cTotalSignatures /* paranoia */)
         {
-            RTTIMESPEC Now;
-            uint64_t uOld = pNtViRdr->uTimestamp;
-            pNtViRdr->uTimestamp = RTTimeSpecGetSeconds(supHardNtTimeNow(&Now));
-            SUP_DPRINTF(("%ls: VERR_CR_X509_CPV_NOT_VALID_AT_TIME for %#RX64; retrying against current time: %#RX64.\n",
-                         pwszName, uOld, pNtViRdr->uTimestamp)); NOREF(uOld);
-            rc = RTLdrVerifySignature(hLdrMod, supHardNtViCallback, pNtViRdr, pErrInfo);
+            rc = pNtViRdr->rcLastSignatureFailure;
+            AssertStmt(RT_FAILURE_NP(rc), rc = VERR_INTERNAL_ERROR_3);
         }
-
-        /*
-         * Microsoft doesn't sign a whole bunch of DLLs, so we have to
-         * ASSUME that a bunch of system DLLs are fine.
-         */
-        if (rc == VERR_LDRVI_NOT_SIGNED)
-            rc = supHardNtViCheckIfNotSignedOk(hLdrMod, pwszName, pNtViRdr->fFlags, pNtViRdr->hFile, rc);
-        if (RT_FAILURE(rc))
-            RTErrInfoAddF(pErrInfo, rc, ": %ls", pwszName);
-
-        /*
-         * Check for the signature checking enforcement, if requested to do so.
-         */
-        if (RT_SUCCESS(rc) && (pNtViRdr->fFlags & SUPHNTVI_F_REQUIRE_SIGNATURE_ENFORCEMENT))
-        {
-            bool fEnforced = false;
-            int rc2 = RTLdrQueryProp(hLdrMod, RTLDRPROP_SIGNATURE_CHECKS_ENFORCED, &fEnforced, sizeof(fEnforced));
-            if (RT_FAILURE(rc2))
-                rc = RTErrInfoSetF(pErrInfo, rc2, "Querying RTLDRPROP_SIGNATURE_CHECKS_ENFORCED failed on %ls: %Rrc.",
-                                   pwszName, rc2);
-            else if (!fEnforced)
-                rc = RTErrInfoSetF(pErrInfo, VERR_SUP_VP_SIGNATURE_CHECKS_NOT_ENFORCED,
-                                   "The image '%ls' was not linked with /IntegrityCheck.", pwszName);
-        }
+        else if (rc == VINF_SUCCESS && RT_SUCCESS(pNtViRdr->rcLastSignatureFailure))
+            rc = pNtViRdr->rcLastSignatureFailure;
     }
-    else
-        RTErrInfoSetF(pErrInfo, rc, "RTLdrQueryProp/RTLDRPROP_TIMESTAMP_SECONDS failed on %ls: %Rrc", pwszName, rc);
+
+    /*
+     * Microsoft doesn't sign a whole bunch of DLLs, so we have to
+     * ASSUME that a bunch of system DLLs are fine.
+     */
+    if (rc == VERR_LDRVI_NOT_SIGNED)
+        rc = supHardNtViCheckIfNotSignedOk(hLdrMod, pwszName, pNtViRdr->fFlags, pNtViRdr->hFile, rc);
+    if (RT_FAILURE(rc))
+        RTErrInfoAddF(pErrInfo, rc, ": %ls", pwszName);
+
+    /*
+     * Check for the signature checking enforcement, if requested to do so.
+     */
+    if (RT_SUCCESS(rc) && (pNtViRdr->fFlags & SUPHNTVI_F_REQUIRE_SIGNATURE_ENFORCEMENT))
+    {
+        bool fEnforced = false;
+        int rc2 = RTLdrQueryProp(hLdrMod, RTLDRPROP_SIGNATURE_CHECKS_ENFORCED, &fEnforced, sizeof(fEnforced));
+        if (RT_FAILURE(rc2))
+            rc = RTErrInfoSetF(pErrInfo, rc2, "Querying RTLDRPROP_SIGNATURE_CHECKS_ENFORCED failed on %ls: %Rrc.",
+                               pwszName, rc2);
+        else if (!fEnforced)
+            rc = RTErrInfoSetF(pErrInfo, VERR_SUP_VP_SIGNATURE_CHECKS_NOT_ENFORCED,
+                               "The image '%ls' was not linked with /IntegrityCheck.", pwszName);
+    }
 
 #ifdef IN_RING3
     /*

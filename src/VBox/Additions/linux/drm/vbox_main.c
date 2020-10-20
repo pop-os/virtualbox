@@ -46,7 +46,11 @@ static void vbox_user_framebuffer_destroy(struct drm_framebuffer *fb)
 	struct vbox_framebuffer *vbox_fb = to_vbox_framebuffer(fb);
 
 	if (vbox_fb->obj)
+#if RTLNX_VER_MIN(5,9,0)
+		drm_gem_object_put(vbox_fb->obj);
+#else
 		drm_gem_object_put_unlocked(vbox_fb->obj);
+#endif
 
 	drm_framebuffer_cleanup(fb);
 	kfree(fb);
@@ -221,7 +225,11 @@ static struct drm_framebuffer *vbox_user_framebuffer_create(
 err_free_vbox_fb:
 	kfree(vbox_fb);
 err_unref_obj:
+#if RTLNX_VER_MIN(5,9,0)
+	drm_gem_object_put(obj);
+#else
 	drm_gem_object_put_unlocked(obj);
+#endif
 	return ERR_PTR(ret);
 }
 
@@ -447,10 +455,10 @@ static void vbox_hw_fini(struct vbox_private *vbox)
 	pci_iounmap(vbox->dev->pdev, vbox->guest_heap);
 }
 
-#if RTLNX_VER_MAX(4,19,0)
-int vbox_driver_load(struct drm_device *dev, unsigned long flags)
-#else
+#if RTLNX_VER_MIN(4,19,0) || RTLNX_RHEL_MIN(8,3)
 int vbox_driver_load(struct drm_device *dev)
+#else
+int vbox_driver_load(struct drm_device *dev, unsigned long flags)
 #endif
 {
 	struct vbox_private *vbox;
@@ -588,7 +596,11 @@ int vbox_dumb_create(struct drm_file *file,
 		return ret;
 
 	ret = drm_gem_handle_create(file, gobj, &handle);
+#if RTLNX_VER_MIN(5,9,0)
+	drm_gem_object_put(gobj);
+#else
 	drm_gem_object_put_unlocked(gobj);
+#endif
 	if (ret)
 		return ret;
 
@@ -621,7 +633,7 @@ void vbox_gem_free_object(struct drm_gem_object *obj)
 
 static inline u64 vbox_bo_mmap_offset(struct vbox_bo *bo)
 {
-#if RTLNX_VER_MIN(5,4,0)
+#if RTLNX_VER_MIN(5,4,0) || RTLNX_RHEL_MIN(8,3)
         return drm_vma_node_offset_addr(&bo->bo.base.vma_node);
 #elif RTLNX_VER_MAX(3,12,0) && !RTLNX_RHEL_MAJ_PREREQ(7,0)
 	return bo->bo.addr_space_offset;

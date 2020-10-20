@@ -2042,11 +2042,7 @@ endif
 
 
 # Intel ASL compiler for ACPI
-if "$(KBUILD_HOST)" == "darwin" && "$(KBUILD_HOST_VERSION_MAJOR)" >= 19  # Temp hack! Catalina needs 64-bit binary
-VBOX_IASLCMD   ?= /opt/local/bin/iasl$(HOSTSUFF_EXE)
-else
 VBOX_IASLCMD   ?= $(firstword $(wildcard $(KBUILD_DEVTOOLS_HST)/bin/iasl$(HOSTSUFF_EXE)) iasl$(HOSTSUFF_EXE))
-endif
 
 # libxslt XSLT processor. (see PATH_TOOL_YASM for explanation why it's temporarily located in bin.)
 ifeq ($(VBOX_XSLTPROC),)
@@ -3670,10 +3666,10 @@ ifdef VBOX_SIGNING_MODE
    ## @todo cannot handle $(2), the identifier.
    ## @todo $(3) is hopefully either empty, --deep or --entitlements=...
    VBOX_SIGN_BUNDLE_FN = $(call MSG_TOOL,SIGNTOOL,,$(1),$(2))$(NLTAB) \
-	ditto -c -k --keepParent "$(1)" "$(1).zip"$(NLTAB) \
+	ditto -c -k -V --keepParent "$(1)" "$(1).zip"$(NLTAB) \
 	$(call VBOX_CCS_SIGN_CMD,apple,$(1).zip,,$(subst --entitlements=,-entitlement_file_path ,$(subst --deep,-deep,$(3))) \
 		$(if $(VBOX_WITH_MACOS_HARDENED_RUNTIME),-hardened_runtime))$(NLTAB) \
-	ditto -x -k "$(1).zip" "$(1)/../"$(NLTAB) \
+	ditto -x -k -V "$(1).zip" "$(1)/../"$(NLTAB) \
 	$(RM) -f -- "$(1).zip"
   else
    VBOX_SIGN_BUNDLE_FN = $(call MSG_TOOL,SIGNTOOL,,$(1),$(2))$(NLTAB)$(VBOX_CODESIGN) \
@@ -5457,7 +5453,7 @@ if1of ($(KBUILD_TARGET),os2 win)
  	$(SDK_VBOX_ZLIB_STATIC_LIBS)
 else
  TEMPLATE_VBoxR3Static_LIBS        += \
- 	$(PATH_STAGE_LIB)/VBox-liblzf$(VBOX_SUFF_LIB) \
+ 	$(SDK_VBOX_LZF_LIBS) \
  	$(SDK_VBOX_ZLIB_LIBS)
  if1of ($(KBUILD_TARGET),darwin freebsd)
   TEMPLATE_VBoxR3Static_LIBS       += iconv
@@ -7668,7 +7664,7 @@ endif
 SVN                    ?= svn$(HOSTSUFF_EXE)
 VBOX_SVN_REV_KMK        = $(PATH_OUT)/revision.kmk
 ifndef VBOX_SVN_REV
- VBOX_SVN_REV_CONFIG_FALLBACK := $(patsubst %:,,  $Rev: 139685 $  )
+ VBOX_SVN_REV_CONFIG_FALLBACK := $(patsubst %:,,  $Rev: 140381 $  )
  VBOX_SVN_REV_FALLBACK := $(if-expr $(VBOX_SVN_REV_CONFIG_FALLBACK) > $(VBOX_SVN_REV_VERSION_FALLBACK),$(VBOX_SVN_REV_CONFIG_FALLBACK),$(VBOX_SVN_REV_VERSION_FALLBACK))
  VBOX_SVN_DEP          := $(firstword $(wildcard $(PATH_ROOT)/.svn/wc.db $(abspath $(PATH_ROOT)/../.svn/wc.db) $(abspath $(PATH_ROOT)/../../.svn/wc.db) $(PATH_ROOT)/.svn/entries))
  ifeq ($(which $(SVN)),)

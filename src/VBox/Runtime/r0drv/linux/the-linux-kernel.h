@@ -137,7 +137,10 @@
 #include <linux/interrupt.h>
 #include <linux/completion.h>
 #include <linux/compiler.h>
-#ifndef HAVE_UNLOCKED_IOCTL /* linux/fs.h defines this */
+#if RTLNX_VER_MIN(5,9,0) /* linux/fs.h defined HAVE_UNLOCKED_IOCTL from 2.6.11 up to 5.9, when it became an implicit assumption. */
+# define HAVE_UNLOCKED_IOCTL 1 /* We use this in a couple of places, so for now just define it for 5.9+ too. */
+#endif
+#if !defined(HAVE_UNLOCKED_IOCTL) && RTLNX_VER_MAX(2,6,38)
 # include <linux/smp_lock.h>
 #endif
 /* For the shared folders module */
