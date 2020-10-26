@@ -1,3 +1,11 @@
+virtualbox (6.1.16-dfsg-2) unstable; urgency=medium
+
+  * Fixup wrong patch refresh for vnc patch
+    - LP: #1901310
+    - thanks Gordon Lack for the report
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Mon, 26 Oct 2020 19:08:44 +0100
+
 virtualbox (6.1.16-dfsg-1) unstable; urgency=medium
 
   * New upstream version 6.1.16-dfsg
