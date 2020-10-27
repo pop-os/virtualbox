@@ -1,3 +1,9 @@
+virtualbox (6.1.16-dfsg-3) unstable; urgency=medium
+
+  * Add patch to support python3.9 (Closes: #972918)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Tue, 27 Oct 2020 08:28:19 +0100
+
 virtualbox (6.1.16-dfsg-2) unstable; urgency=medium
 
   * Fixup wrong patch refresh for vnc patch
