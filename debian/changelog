@@ -1,3 +1,12 @@
+virtualbox (6.1.16-dfsg-4) unstable; urgency=medium
+
+  [ Sam Van den Eynde ]
+  * Fix vboxweb.service startup script, from Sam Van den Eynde (LP: #1904123, LP: #1825598)
+  * Now the script also sources /etc/vbox/vbox.cfg that can contain all the
+    required variables.
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Mon, 16 Nov 2020 14:12:27 +0100
+
 virtualbox (6.1.16-dfsg-3) unstable; urgency=medium
 
   * Add patch to support python3.9 (Closes: #972918)
