@@ -1,3 +1,9 @@
+virtualbox (6.1.16-dfsg-5) unstable; urgency=medium
+
+  * Use /run instead of /var/run, from Steve Langasek
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 04 Dec 2020 22:12:38 +0100
+
 virtualbox (6.1.16-dfsg-4) unstable; urgency=medium
 
   [ Sam Van den Eynde ]
