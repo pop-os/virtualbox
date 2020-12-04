@@ -16,3 +16,4 @@
 37-do-not-run-if-not-in-vm.patch
 no-vboxrem.patch
 python3.9.patch
+linux-5.10-r0drv-memobj-fix-r0.patch
