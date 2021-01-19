@@ -1,3 +1,14 @@
+virtualbox (6.1.16-dfsg-7) UNRELEASED; urgency=medium
+
+  * debian/patches/linux-5.10-TASK_SIZE_MAX-replaces-USER_DS.patch:
+    - upstream patch to fix build failure of virtualbox-guest-dkms with linux
+      5.10 (LP: #1908734)
+  * debian/patches/linux-5.10-drm-fixes.patch:
+    - upstream patch to fix multiple virtualbox-guest-dkms drm's build
+      failures with linux 5.10 (LP: #1908734)
+
+ -- Andrea Righi <andrea.righi@canonical.com>  Mon, 18 Jan 2021 16:03:00 +0000
+
 virtualbox (6.1.16-dfsg-6) unstable; urgency=medium
 
   * debian/patches/linux-5.10-r0drv-memobj-fix-r0.patch:

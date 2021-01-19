@@ -17,3 +17,5 @@
 no-vboxrem.patch
 python3.9.patch
 linux-5.10-r0drv-memobj-fix-r0.patch
+linux-5.10-TASK_SIZE_MAX-replaces-USER_DS.patch
+linux-5.10-drm-fixes.patch
