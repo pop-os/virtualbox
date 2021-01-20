@@ -121,7 +121,7 @@ int vmsvga3dSurfaceDefine(PVGASTATECC pThisCC, uint32_t sid, uint32_t surfaceFla
         vmsvga3dSurfaceDestroy(pThisCC, sid);
 
     RT_ZERO(*pSurface);
-    pSurface->id                    = sid;
+    pSurface->id                    = SVGA3D_INVALID_ID; /* Keep this value until the surface init completes */
 #ifdef VMSVGA3D_OPENGL
     pSurface->idWeakContextAssociation = SVGA3D_INVALID_ID;
     pSurface->oglId.buffer          = OPENGL_INVALID_ID;
@@ -322,6 +322,8 @@ int vmsvga3dSurfaceDefine(PVGASTATECC pThisCC, uint32_t sid, uint32_t surfaceFla
 
         cbMemRemaining -= cbSurface;
     }
+
+    pSurface->id = sid;
     return VINF_SUCCESS;
 }
 

@@ -35,6 +35,81 @@ technical terms if no non-technical ones are clear enough.
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
 
   <sect1>
+    <title>Version 6.1.18 (2021-01-19)</title>
+
+    <para>This is a maintenance release. The following items were fixed
+      and/or added:</para>
+
+    <itemizedlist>
+      <listitem>
+         <para>Nested VM: Fixed hangs when executing SMP nested-guests under certain
+           conditions on Intel hosts (bug #19315, #19561)</para>
+      </listitem>
+
+      <listitem>
+         <para>OCI integration: Cloud Instance parameters parsing is improved
+            on import (bug #19156)</para>
+      </listitem>
+
+      <listitem>
+         <para>Network: UDP checksum offloading in e1000 no longer produces
+           zero checksums (bug #19930)</para>
+      </listitem>
+
+      <listitem>
+         <para>Network: Fixed Host-Only Ethernet Adapter DHCP, guest os can not
+             get IP on host resume (bug #19620)</para>
+      </listitem>
+
+      <listitem>
+         <para>NAT: Fixed mss parameter handing (bug #15256)</para>
+      </listitem>
+
+      <listitem>
+          <para>macOS host: Multiple optimizations for BigSur</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: Fixed issues with audio playback after host goes to
+          sleep (bug #18594)</para>
+      </listitem>
+
+      <listitem>
+        <para>Documentation: Some content touch-up and table formatting fixes</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux host and guest: Support kernel version 5.10 (bug
+          #20055)</para>
+      </listitem>
+
+      <listitem>
+        <para>Solaris host: Fix regression breaking VGA text mode since version 6.1.0</para>
+      </listitem>
+
+      <listitem>
+          <para>Guest Additions: Fixed a build failure affecting CentOS
+            8.2-2004 and later (bug #20091)</para>
+      </listitem>
+
+      <listitem>
+          <para>Guest Additions: Fixed a build failure affecting Linux
+	    kernels 3.2.0 through 3.2.50 (bug #20006)</para>
+      </listitem>
+
+      <listitem>
+          <para>Guest Additions: Fixed a VM segfault on copy with shared clipboard
+             with X11 (bug #19226)</para>
+      </listitem>
+
+      <listitem>
+          <para>Shared Folder: Fixed error with remounting on Linux guests</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 6.1.16 (2020-10-16)</title>
 
     <para>This is a maintenance release. The following items were fixed
@@ -262,7 +337,7 @@ technical terms if no non-technical ones are clear enough.
 
       <listitem>
         <para>GUI: Fixed crash when using Qt on Xwayland sessions
-	  (bug #19583)</para>
+          (bug #19583)</para>
       </listitem>
 
       <listitem>
@@ -272,12 +347,12 @@ technical terms if no non-technical ones are clear enough.
 
       <listitem>
         <para>VBoxManage: Fixed crash of 'VBoxManage internalcommands repairhd'
-	  when processing invalid input (bug #19579)</para>
+          when processing invalid input (bug #19579)</para>
       </listitem>
 
       <listitem>
         <para>Settings: disable audio input and audio output by default for new VMs
-	  (bug #19527)</para>
+          (bug #19527)</para>
       </listitem>
 
       <listitem>
@@ -336,7 +411,7 @@ technical terms if no non-technical ones are clear enough.
 
         <listitem>
           <para>Guest Additions: Build problems fix with Oracle Linux 8.2
-	    (Red Hat compatible kernel) / Red Hat Enterprise Linux 8.2 / CentOS 8.2 (bug #19391)</para>
+            (Red Hat compatible kernel) / Red Hat Enterprise Linux 8.2 / CentOS 8.2 (bug #19391)</para>
         </listitem>
 
         <listitem>

@@ -947,12 +947,14 @@ static int vusbUrbSubmitCtrl(PVUSBURB pUrb)
              * will be no status stage.
              */
             uint8_t *pbData = (uint8_t *)(pExtra->pMsg + 1);
-            if (&pExtra->pbCur[pUrb->cbData] > &pbData[pSetup->wLength])
+            if ((uintptr_t)&pExtra->pbCur[pUrb->cbData] > (uintptr_t)&pbData[pSetup->wLength])
             {
+                /** @todo r=bird: This code stinks, esp. the iPhone carp.  @bugref{9899} */
                 if (!pSetup->wLength) /* happens during iPhone detection with iTunes (correct?) */
                 {
-                    Log(("%s: vusbUrbSubmitCtrl: pSetup->wLength == 0!! (iPhone)\n", pUrb->pszDesc));
-                    pSetup->wLength = pUrb->cbData;
+                    Log(("%s: vusbUrbSubmitCtrl: pSetup->wLength == 0!! Changing it to RT_MIN(cbData=%u, cbMax=%u) (iPhone hack)\n",
+                         pUrb->pszDesc, pUrb->cbData, pExtra->cbMax));
+                    pSetup->wLength = RT_MIN(pUrb->cbData, pExtra->cbMax); /** @todo resize? */
                 }
 
                 /* Variable length data transfers */
@@ -960,10 +962,9 @@ static int vusbUrbSubmitCtrl(PVUSBURB pUrb)
                     ||  pSetup->wLength == 0
                     ||  (pUrb->cbData % pSetup->wLength) == 0)  /* magic which need explaining... */
                 {
-                    uint8_t *pbEnd = pbData + pSetup->wLength;
-                    int cbLeft = pbEnd - pExtra->pbCur;
+                    ssize_t const cbLeft = &pbData[pSetup->wLength] - pExtra->pbCur;
                     LogFlow(("%s: vusbUrbSubmitCtrl: Var DATA, pUrb->cbData %d -> %d\n", pUrb->pszDesc, pUrb->cbData, cbLeft));
-                    pUrb->cbData = cbLeft;
+                    pUrb->cbData = cbLeft >= 0 ? (uint32_t)cbLeft : 0;
                 }
                 else
                 {
@@ -995,6 +996,8 @@ static int vusbUrbSubmitCtrl(PVUSBURB pUrb)
             else
             {
                 /* get data for sending when completed. */
+                AssertStmt((ssize_t)pUrb->cbData <= pExtra->cbMax - (pExtra->pbCur - pbData), /* paranoia: checked above */
+                           pUrb->cbData = pExtra->cbMax - (uint32_t)RT_MIN(pExtra->pbCur - pbData, pExtra->cbMax));
                 memcpy(pExtra->pbCur, pUrb->abData, pUrb->cbData);
 
                 /* advance */

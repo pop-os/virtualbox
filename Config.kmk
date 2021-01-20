@@ -1425,7 +1425,7 @@ VBOX_JAVA_PACKAGE           = org.virtualbox$(VBOX_API_SUFFIX)
 # Derived / helper config indicators.  Not configurable.
 #
 
-# Use the OpenGL module in qt when the video hardware acceleartion feature
+# Use the OpenGL module in qt when the video hardware acceleration feature
 # is enabled.
 if defined(VBOX_WITH_VIDEOHWACCEL) && defined(VBOX_WITH_QTGUI)
  VBOX_GUI_USE_QGL = 1
@@ -2800,6 +2800,8 @@ endif
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_Wno-stringop-overflow          ?= $(call VBOX_GCC_CHECK_CXX,-Wno-stringop-overflow,)'
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_Wno-stringop-truncation        ?= $(call VBOX_GCC_CHECK_CXX,-Wno-stringop-truncation,)'
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_Wno-cast-function-type         ?= $(call VBOX_GCC_CHECK_CC,-Wno-cast-function-type,)'
+	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_Wno-deprecated-declarations    ?= $(call VBOX_GCC_CHECK_CC,-Wno-deprecated-declarations,)'
+	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_Wno-implicit-fallthrough       ?= $(call VBOX_GCC_CHECK_CC,-Wno-implicit-fallthrough,)'
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_fno-stack-protector   ?= $(call VBOX_GCC_CHECK_CC,-fno-stack-protector,)'
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_fno-dwarf2-cfi-asm    ?= $(call VBOX_GCC_CHECK_CC,-fno-dwarf2-cfi-asm,)'
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_m64                   ?= $(call VBOX_GCC_CHECK_CC,-m64,)'
@@ -3379,6 +3381,8 @@ ifdef VBOX_SIGNING_MODE
   $(error VBOX_SIGNING_MODE must be either 'test' or 'release'. The value '$(VBOX_SIGNING_MODE)' is not recognized.)
  endif
  VBOX_RETRY    ?= $(ASH) $(KBUILD_DEVTOOLS)/bin/retry.sh
+ # temporary solution for a $(dir ...) equivalent which assumes that it gets a single path, possibly with spaces.
+ VBOX_DIRX = $(subst ?,$(SP),$(dir $(subst $(SP),?,$1)))
  # Corp code signing client.
  VBOX_CCS_CLIENT_JAR := $(firstword $(rsort \
  	$(wildcard $(KBUILD_DEVTOOLS)/common/ccs/v*/Client.jar)) \
@@ -3395,7 +3399,7 @@ ifdef VBOX_SIGNING_MODE
  VBOX_CCS_SIGN_CMD    = $(VBOX_RETRY) $(VBOX_JAVA) -jar "$(VBOX_CCS_CLIENT_JAR)" \
  	sign -user "$(VBOX_CCS_USER)" -global_uid "$(VBOX_CCS_GLOBAL_UID)" \
 		-job_timeout 90 -server_timeout 75 -server "$(VBOX_CCS_SERVER)" \
- 		-sign_method "$1" -file_to_sign "$2" -signed_location "$(if $3,$3,$(dir $2))" $4
+ 		-sign_method "$1" -file_to_sign "$2" -signed_location "$(if $3,$3,$(call VBOX_DIRX,$2))" $4
 
  ifeq ($(KBUILD_HOST),win)
   #
@@ -3435,7 +3439,8 @@ ifdef VBOX_SIGNING_MODE
    VBOX_CERTIFICATE_FINGERPRINT ?= 6f 47 42 06 bc bb 39 1b b8 2b a9 e5 dc 03 02 de f3 7a eb be
    #VBOX_CROSS_CERTIFICATE_FILE ?= $(VBOX_PATH_SELFSIGN)/VeriSign Class 3 Public Primary Certification Authority - G5.cer
    VBOX_CROSS_CERTIFICATE_FILE ?= $(VBOX_PATH_SELFSIGN)/DigiCert Assured ID Root CA.crt
-   VBOX_TSA_URL ?= http://timestamp.verisign.com/scripts/timstamp.dll
+   #VBOX_TSA_URL ?= http://timestamp.verisign.com/scripts/timstamp.dll - Appears to be broken between 2020-12-25 and 2020-12-30 (bugref:9849).
+   VBOX_TSA_URL ?= http://timestamp.digicert.com
   endif
   if !defined(VBOX_CROSS_CERTIFICATE_FILE_ARGS) && defined(VBOX_CROSS_CERTIFICATE_FILE)
    VBOX_CROSS_CERTIFICATE_FILE_ARGS = /ac "$(VBOX_CROSS_CERTIFICATE_FILE)"
@@ -3487,10 +3492,10 @@ ifdef VBOX_SIGNING_MODE
   # @param 6  non-zero for alternative command separator.  This is used for generating repacking scripts.
   ifndef VBOX_SIGN_FILE_FN
    if $(intersects win all 1,$(VBOX_WITH_CORP_CODE_SIGNING))
-    VBOX_SIGN_FILE_FN     = $(call VBOX_CCS_SIGN_CMD,driver$(if-expr "$3" == "/ph",_pagehash,),$1,$(dir $1),-digest_algo SHA1) \
+    VBOX_SIGN_FILE_FN     = $(call VBOX_CCS_SIGN_CMD,driver$(if-expr "$3" == "/ph",_pagehash,),$1,,-digest_algo SHA1) \
         $(if-expr "$5" == "",\
          $(if-expr "$6" == "",$(if-expr "$4" == "2",$$(NLTAB),$(NLTAB)),$6) \
-         $(call VBOX_CCS_SIGN_CMD,driver$(if-expr "$3" == "/ph",_pagehash,),$1,$(dir $1),-dual_sign -digest_algo SHA2))
+         $(call VBOX_CCS_SIGN_CMD,driver$(if-expr "$3" == "/ph",_pagehash,),$1,,-dual_sign -digest_algo SHA2))
    else ifdef VBOX_CERTIFICATE_SHA2_SUBJECT_NAME
     VBOX_SIGN_FILE_FN     = $(VBOX_SIGNTOOL) \
     	sign /fd sha1\
@@ -3531,7 +3536,7 @@ ifdef VBOX_SIGNING_MODE
   # @param 2  The directory to put the signed file in. Defaults to $(dir $1).
   ifndef VBOX_SIGN_EV_FILE_FN
    if $(intersects win_ev all 1,$(VBOX_WITH_CORP_CODE_SIGNING))
-    VBOX_SIGN_EV_FILE_FN  = $(call VBOX_CCS_SIGN_CMD,microsoftev,$1,$(if $2,$2,$(dir $1)))
+    VBOX_SIGN_EV_FILE_FN  = $(call VBOX_CCS_SIGN_CMD,microsoftev,$1,$(if $2,$2,))
    else ifdef VBOX_CERTIFICATE_EV_SUBJECT_NAME
     VBOX_SIGN_EV_FILE_FN  = $(VBOX_SIGNTOOL) \
     	sign /as /fd sha256 \
@@ -3573,7 +3578,7 @@ ifdef VBOX_SIGNING_MODE
   	$(if-expr "$5" == "",\
 	$(if-expr "$4" == "2",$$(NLTAB),$(NLTAB))$(RM) -f -- "$1.ccs" \
   	$(if-expr "$4" == "2",$$(NLTAB),$(NLTAB))$(CP) -- "$1" "$1.ccs" \
-  	$(if-expr "$4" == "2",$$(NLTAB),$(NLTAB))$(call VBOX_CCS_SIGN_CMD,driver$(if-expr "$3" == "/ph",_pagehash,),$1.ccs,$(dir $1.ccs),-digest_algo SHA2) \
+  	$(if-expr "$4" == "2",$$(NLTAB),$(NLTAB))$(call VBOX_CCS_SIGN_CMD,driver$(if-expr "$3" == "/ph",_pagehash,),$1.ccs,,-digest_algo SHA2) \
   	$(if-expr "$4" == "2",$$(NLTAB),$(NLTAB))$(VBOX_RTSIGNTOOL) add-nested-$(if-expr "$(suffix $1)" == ".cat",cat,exe)-signature -v "$1" "$1.ccs" \
   	$(if-expr "$4" == "2",$$(NLTAB),$(NLTAB))$(RM) -f -- "$1.ccs" \
   	,)
@@ -3656,7 +3661,7 @@ ifdef VBOX_SIGNING_MODE
  VBOX_CCS_NOTARIZE_CMD = $(VBOX_RETRY) $(VBOX_JAVA) -jar "$(VBOX_CCS_CLIENT_JAR)" \
  	mac_notarize -user "$(VBOX_CCS_USER)" -global_uid "$(VBOX_CCS_GLOBAL_UID)" \
 		-job_timeout 90 -server_timeout 75 -server "$(VBOX_CCS_SERVER)" \
- 		-file_to_notarize "$1" -bundle_id "$2" -download_location "$(if $3,$3,$(dir $1))"
+ 		-file_to_notarize "$1" -bundle_id "$2" -download_location "$(if $3,$3,$(call VBOX_DIRX,$1))"
 
   ## Sign an application bundle, framework or kernel extension.
   # @param 1  The bundle to sign.
@@ -6663,6 +6668,9 @@ ifdef VBOX_WITH_QTGUI
   ifdef VBOX_WITH_NO_GCC_WARNING_POLICY
    TEMPLATE_VBOXQTGUIEXE_CXXFLAGS += $(VBOX_GCC_WERR)
   endif
+  ifn1of ($(USERNAME),dsen serkan) # Bunch of stuff deprecated after 5.6.*. These guys knows how to deal with it. :)
+   TEMPLATE_VBOXQTGUIEXE_CXXFLAGS += $(VBOX_GCC_Wno-deprecated-declarations)
+  endif
   TEMPLATE_VBOXQTGUIEXE_CXXFLAGS.x86 = -m32
   TEMPLATE_VBOXQTGUIEXE_CXXFLAGS.amd64 = -m64
   TEMPLATE_VBOXQTGUIEXE_CXXFLAGS.linux = -pthread
@@ -7664,7 +7672,7 @@ endif
 SVN                    ?= svn$(HOSTSUFF_EXE)
 VBOX_SVN_REV_KMK        = $(PATH_OUT)/revision.kmk
 ifndef VBOX_SVN_REV
- VBOX_SVN_REV_CONFIG_FALLBACK := $(patsubst %:,,  $Rev: 140381 $  )
+ VBOX_SVN_REV_CONFIG_FALLBACK := $(patsubst %:,,  $Rev: 142123 $  )
  VBOX_SVN_REV_FALLBACK := $(if-expr $(VBOX_SVN_REV_CONFIG_FALLBACK) > $(VBOX_SVN_REV_VERSION_FALLBACK),$(VBOX_SVN_REV_CONFIG_FALLBACK),$(VBOX_SVN_REV_VERSION_FALLBACK))
  VBOX_SVN_DEP          := $(firstword $(wildcard $(PATH_ROOT)/.svn/wc.db $(abspath $(PATH_ROOT)/../.svn/wc.db) $(abspath $(PATH_ROOT)/../../.svn/wc.db) $(PATH_ROOT)/.svn/entries))
  ifeq ($(which $(SVN)),)
@@ -7677,8 +7685,10 @@ $(VBOX_SVN_REV_KMK).ts +| $(VBOX_SVN_REV_KMK): $(if $(VBOX_SVN_DEP), $(VBOX_SVN_
 	$(QUIET)$(RM) -f $@ $@.tmp
 	$(QUIET)$(MKDIR) -p $(@D)
  ifneq ($(VBOX_SVN_DEP),)
-	$(REDIRECT) -E 'LC_ALL=C' -wo $@.tmp -- $(SVN) info $(PATH_ROOT)
-	$(SED) -e '/^Last Changed Rev/!d'  -e 's/Last Changed Rev\: */export VBOX_SVN_REV=/' --output $@ $@.tmp
+	-$(REDIRECT) -E 'LC_ALL=C' -wo $@.tmp -- $(SVN) info $(PATH_ROOT)
+	# Append fallback. Will be ignored if "svn info" provides meaningful data.
+	$(QUIET)$(APPEND) $@.tmp 'Last Changed Rev: $(VBOX_SVN_REV_FALLBACK)'
+	$(SED) -e '/^Last Changed Rev/!d'  -e 's/Last Changed Rev\: */export VBOX_SVN_REV=/; t a; :a q' --output $@ $@.tmp
 	$(QUIET)$(RM) -f $@.tmp
  else
 	$(QUIET)$(APPEND) $@ 'export VBOX_SVN_REV=$(VBOX_SVN_REV_FALLBACK)'

@@ -1212,6 +1212,8 @@ typedef struct PDMAUDIOSTREAM
     /** Number of references to this stream.
      *  Only can be destroyed when the reference count reaches 0. */
     uint32_t                cRefs;
+    /** Number of (re-)tries while re-initializing the stream. */
+    uint32_t                cTriesReInit;
     /** Stream status flag. */
     PDMAUDIOSTREAMSTS       fStatus;
     /** Audio direction of this stream. */
@@ -1232,6 +1234,9 @@ typedef struct PDMAUDIOSTREAM
         PDMAUDIOSTREAMIN    In;
         PDMAUDIOSTREAMOUT   Out;
     } RT_UNION_NM(u);
+    /** Timestamp (in ns) since last trying to re-initialize.
+     *  Might be 0 if has not been tried yet. */
+    uint64_t                tsLastReInitNs;
     /** Timestamp (in ns) since last iteration. */
     uint64_t                tsLastIteratedNs;
     /** Timestamp (in ns) since last playback / capture. */
@@ -1389,6 +1394,9 @@ typedef struct PDMIAUDIOCONNECTOR
      * @param   pInterface      Pointer to the interface structure containing the called function pointer.
      * @param   enmDir          Audio direction to enable or disable driver for.
      * @param   fEnable         Whether to enable or disable the specified audio direction.
+     *
+     * @note    Be very careful when using this function, as this could
+     *          violate / run against the (global) VM settings.  See @bugref{9882}.
      */
     DECLR3CALLBACKMEMBER(int, pfnEnable, (PPDMIAUDIOCONNECTOR pInterface, PDMAUDIODIR enmDir, bool fEnable));
 
