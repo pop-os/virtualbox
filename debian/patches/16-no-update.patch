@@ -6,7 +6,7 @@ Index: virtualbox/doc/manual/en_US/user_Introduction.xml
 ===================================================================
 --- virtualbox.orig/doc/manual/en_US/user_Introduction.xml
 +++ virtualbox/doc/manual/en_US/user_Introduction.xml
-@@ -3793,14 +3793,14 @@
+@@ -4405,14 +4405,14 @@
            <xref linkend="specialcharacters"/>.
          </para>
        </listitem>
