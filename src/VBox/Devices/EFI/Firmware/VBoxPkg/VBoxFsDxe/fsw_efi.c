@@ -320,12 +320,9 @@ FindUdfVolumeIdentifiers (
       break;
     }
 
-    if ((CompareMem ((VOID *)VolDescriptor.Unknown.Id,
-                     (VOID *)CDVOL_ID,
-                     sizeof (VolDescriptor.Unknown.Id)) != 0) ||
-        (CompareMem ((VOID *)&VolDescriptor,
+    if (CompareMem ((VOID *)&VolDescriptor,
                      (VOID *)&TerminatingVolDescriptor,
-                     sizeof (CDROM_VOLUME_DESCRIPTOR)) == 0)) {
+                     sizeof (CDROM_VOLUME_DESCRIPTOR)) == 0) {
       return EFI_NOT_FOUND;
     }
   }

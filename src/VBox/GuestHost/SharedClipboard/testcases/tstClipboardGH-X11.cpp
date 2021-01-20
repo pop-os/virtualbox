@@ -35,11 +35,12 @@
 extern SHCLX11FMTTABLE g_aFormats[];
 
 extern void clipUpdateX11Targets(PSHCLX11CTX pCtx, SHCLX11FMTIDX *pTargets, size_t cTargets);
-extern void clipReportEmptyX11CB(PSHCLX11CTX pCtx);
-extern void clipConvertDataFromX11CallbackWorker(void *pClient, void *pvSrc, unsigned cbSrc);
+extern void clipReportEmpty(PSHCLX11CTX pCtx);
+extern void clipConvertDataFromX11Worker(void *pClient, void *pvSrc, unsigned cbSrc);
 extern SHCLX11FMTIDX clipGetTextFormatFromTargets(PSHCLX11CTX pCtx, SHCLX11FMTIDX *pTargets, size_t cTargets);
 extern SHCLX11FMT clipRealFormatForX11Format(SHCLX11FMTIDX uFmtIdx);
 extern Atom clipGetAtom(PSHCLX11CTX pCtx, const char *pcszName);
+extern void clipQueryX11Formats(PSHCLX11CTX pCtx);
 extern size_t clipReportMaxX11Formats(void);
 
 
@@ -54,13 +55,12 @@ static SHCLX11FMTIDX tstClipFindX11FormatByAtomText(const char *pcszAtom);
 *********************************************************************************************************************************/
 void tstRequestTargets(SHCLX11CTX* pCtx);
 void tstClipRequestData(PSHCLX11CTX pCtx, SHCLX11FMTIDX target, void *closure);
-void tstClipQueueToEventThread(void (*proc)(void *, void *), void *client_data);
+void tstThreadScheduleCall(void (*proc)(void *, void *), void *client_data);
 
 
 /*********************************************************************************************************************************
 *   Own callback implementations                                                                                                 *
 *********************************************************************************************************************************/
-extern DECLCALLBACK(void) clipQueryX11FormatsCallback(PSHCLX11CTX pCtx);
 extern DECLCALLBACK(void) clipConvertX11TargetsCallback(Widget widget, XtPointer pClient,
                                                         Atom * /* selection */, Atom *atomType,
                                                         XtPointer pValue, long unsigned int *pcLen,
@@ -75,7 +75,7 @@ extern DECLCALLBACK(void) clipConvertX11TargetsCallback(Widget widget, XtPointer
 
 /* For the purpose of the test case, we just execute the procedure to be
  * scheduled, as we are running single threaded. */
-void tstClipQueueToEventThread(void (*proc)(void *, void *), void *client_data)
+void tstThreadScheduleCall(void (*proc)(void *, void *), void *client_data)
 {
     proc(client_data, NULL);
 }
@@ -224,7 +224,7 @@ void tstClipRequestData(PSHCLX11CTX pCtx, SHCLX11FMTIDX target, void *closure)
     int format = 0;
     if (target != g_tst_aSelTargetsIdx[0])
     {
-        clipConvertDataFromX11CallbackWorker(closure, NULL, 0); /* Could not convert to target. */
+        clipConvertDataFromX11Worker(closure, NULL, 0); /* Could not convert to target. */
         return;
     }
     void *pValue = NULL;
@@ -236,7 +236,7 @@ void tstClipRequestData(PSHCLX11CTX pCtx, SHCLX11FMTIDX target, void *closure)
         count = 0;
         format = 0;
     }
-    clipConvertDataFromX11CallbackWorker(closure, pValue, count * format / 8);
+    clipConvertDataFromX11Worker(closure, pValue, count * format / 8);
     if (pValue)
         RTMemFree(pValue);
 }
@@ -339,7 +339,7 @@ static void tstClipSetSelectionValues(const char *pcszTarget, Atom type,
 
 static void tstClipSendTargetUpdate(PSHCLX11CTX pCtx)
 {
-    clipQueryX11FormatsCallback(pCtx);
+    clipQueryX11Formats(pCtx);
 }
 
 /* Configure if and how the X11 TARGETS clipboard target will fail. */
@@ -670,13 +670,12 @@ int main()
      * Run the tests.
      */
     SHCLX11CTX X11Ctx;
-    rc = ShClX11Init(&X11Ctx, NULL, false);
+    rc = ShClX11Init(&X11Ctx, NULL /* pParent */, false /* fHeadless */);
     AssertRCReturn(rc, RTEXITCODE_FAILURE);
+
     char *pc;
     uint32_t cbActual;
     CLIPREADCBREQ *pReq = (CLIPREADCBREQ *)&pReq, *pReqRet = NULL;
-    rc = ShClX11ThreadStart(&X11Ctx, false /* fGrab */);
-    AssertRCReturn(rc, RTEXITCODE_FAILURE);
 
     /* UTF-8 from X11 */
     RTTestSub(hTest, "reading UTF-8 from X11");
@@ -772,7 +771,7 @@ int main()
      */
     RTTestSub(hTest, "notification of switch to X11 clipboard");
     tstClipInvalidateFormats();
-    clipReportEmptyX11CB(&X11Ctx);
+    clipReportEmpty(&X11Ctx);
     RTTEST_CHECK_MSG(hTest, tstClipQueryFormats() == 0,
                      (hTest, "Failed to send a format update (release) notification\n"));
 
@@ -889,16 +888,12 @@ int main()
     RTTestSub(hTest, "recovery from a bad format request");
     tstBadFormatRequestFromHost(hTest, &X11Ctx);
 
-    rc = ShClX11ThreadStop(&X11Ctx);
-    AssertRCReturn(rc, RTEXITCODE_FAILURE);
     ShClX11Destroy(&X11Ctx);
 
     /*
      * Headless clipboard tests
      */
-    rc = ShClX11Init(&X11Ctx, NULL, true);
-    AssertRCReturn(rc, RTEXITCODE_FAILURE);
-    rc = ShClX11ThreadStart(&X11Ctx, false /* fGrab */);
+    rc = ShClX11Init(&X11Ctx, NULL /* pParent */, true /* fHeadless */);
     AssertRCReturn(rc, RTEXITCODE_FAILURE);
 
     /* Read from X11 */
@@ -918,9 +913,6 @@ int main()
     tstClipSetVBoxUtf16(&X11Ctx, VINF_SUCCESS, "hello world",
                         sizeof("hello world") * 2);
     tstNoSelectionOwnership(&X11Ctx, "reading from VBox, headless clipboard");
-
-    rc = ShClX11ThreadStop(&X11Ctx);
-    AssertRCReturn(rc, RTEXITCODE_FAILURE);
 
     ShClX11Destroy(&X11Ctx);
 

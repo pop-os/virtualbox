@@ -45,7 +45,7 @@
 #include "version-generated.h"
 #include "revision-generated.h"
 #include "product-generated.h"
-#if RTLNX_VER_MIN(5,0,0)
+#if RTLNX_VER_MIN(5,0,0) || RTLNX_RHEL_MIN(8,4)
 # include <uapi/linux/mount.h> /* for MS_REMOUNT */
 #elif RTLNX_VER_MAX(3,3,0)
 # include <linux/mount.h>
@@ -763,7 +763,8 @@ static int vbsf_remount_fs(struct super_block *sb, int *flags, char *data)
         }
     }
 
-    iroot = ilookup(sb, 0);
+    /* '.' and '..' entries are st_ino == 0 so root is #1 */
+    iroot = ilookup(sb, 1);
     if (!iroot)
         return -ENOSYS;
 
@@ -771,7 +772,7 @@ static int vbsf_remount_fs(struct super_block *sb, int *flags, char *data)
     err = vbsf_stat(__func__, pSuperInfo, sf_i->path, &fsinfo, 0);
     BUG_ON(err != 0);
     vbsf_init_inode(iroot, sf_i, &fsinfo, pSuperInfo);
-    /*unlock_new_inode(iroot); */
+    iput(iroot);
     return 0;
 #else  /* < 2.4.23 */
     return -ENOSYS;

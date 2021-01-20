@@ -8908,12 +8908,20 @@ static VBOXSTRICTRC hmR0VmxEvaluatePendingEvent(PVMCPUCC pVCpu, PCVMXTRANSIENT p
             int rc = hmR0VmxImportGuestState(pVCpu, pVmcsInfo, CPUMCTX_EXTRN_RFLAGS);
             AssertRC(rc);
 
-            if (pCtx->eflags.u32 & X86_EFL_IF)
+            /*
+             * We must not check EFLAGS directly when executing a nested-guest, use
+             * CPUMIsGuestPhysIntrEnabled() instead as EFLAGS.IF does not control the blocking of
+             * external interrupts when "External interrupt exiting" is set. This fixes a nasty
+             * SMP hang while executing nested-guest VCPUs on spinlocks which aren't rescued by
+             * other VM-exits (like a preemption timer), see @bugref{9562#c18}.
+             *
+             * See Intel spec. 25.4.1 "Event Blocking".
+             */
+            if (CPUMIsGuestPhysIntrEnabled(pVCpu))
             {
 #ifdef VBOX_WITH_NESTED_HWVIRT_VMX
-                if (    fIsNestedGuest
-                    &&  CPUMIsGuestVmxPinCtlsSet(pCtx, VMX_PIN_CTLS_EXT_INT_EXIT)
-                    && !CPUMIsGuestVmxExitCtlsSet(pCtx, VMX_EXIT_CTLS_ACK_EXT_INT))
+                if (   fIsNestedGuest
+                    && CPUMIsGuestVmxPinCtlsSet(pCtx, VMX_PIN_CTLS_EXT_INT_EXIT))
                 {
                     VBOXSTRICTRC rcStrict = IEMExecVmxVmexitExtInt(pVCpu, 0 /* uVector */, true /* fIntPending */);
                     Assert(rcStrict != VINF_VMX_INTERCEPT_NOT_ACTIVE);
@@ -8926,8 +8934,7 @@ static VBOXSTRICTRC hmR0VmxEvaluatePendingEvent(PVMCPUCC pVCpu, PCVMXTRANSIENT p
                 {
 #ifdef VBOX_WITH_NESTED_HWVIRT_VMX
                     if (   fIsNestedGuest
-                        && CPUMIsGuestVmxPinCtlsSet(pCtx, VMX_PIN_CTLS_EXT_INT_EXIT)
-                        && CPUMIsGuestVmxExitCtlsSet(pCtx, VMX_EXIT_CTLS_ACK_EXT_INT))
+                        && CPUMIsGuestVmxPinCtlsSet(pCtx, VMX_PIN_CTLS_EXT_INT_EXIT))
                     {
                         VBOXSTRICTRC rcStrict = IEMExecVmxVmexitExtInt(pVCpu, u8Interrupt, false /* fIntPending */);
                         Assert(rcStrict != VINF_VMX_INTERCEPT_NOT_ACTIVE);

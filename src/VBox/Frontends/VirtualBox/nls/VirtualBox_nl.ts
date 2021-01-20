@@ -3344,24 +3344,24 @@
         <translation>PB</translation>
     </message>
     <message>
-        <source>IDE Primary Master</source>
+        <source>IDE Primary Device 0</source>
         <comment>StorageSlot</comment>
-        <translation>IDE Primaire Master</translation>
+        <translation type="unfinished">IDE Primaire Master</translation>
     </message>
     <message>
-        <source>IDE Primary Slave</source>
+        <source>IDE Primary Device 1</source>
         <comment>StorageSlot</comment>
-        <translation>IDE Primaire Slave</translation>
+        <translation type="unfinished">IDE Primaire Slave</translation>
     </message>
     <message>
-        <source>IDE Secondary Master</source>
+        <source>IDE Secondary Device 0</source>
         <comment>StorageSlot</comment>
-        <translation>IDE tweede Master</translation>
+        <translation type="unfinished">IDE tweede Master</translation>
     </message>
     <message>
-        <source>IDE Secondary Slave</source>
+        <source>IDE Secondary Device 1</source>
         <comment>StorageSlot</comment>
-        <translation>IDE tweede Slave</translation>
+        <translation type="unfinished">IDE tweede Slave</translation>
     </message>
     <message>
         <source>SATA Port %1</source>
