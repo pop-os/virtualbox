@@ -1,3 +1,10 @@
+virtualbox (6.1.18-dfsg-2) unstable; urgency=medium
+
+  * debian/patches/kernel-5.10.patch:
+    - fix 32bit guest kernel builds
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 21 Jan 2021 12:01:33 +0100
+
 virtualbox (6.1.18-dfsg-1) unstable; urgency=medium
 
   [ Andrea Righi ]
