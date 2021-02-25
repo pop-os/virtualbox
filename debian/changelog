@@ -1,3 +1,10 @@
+virtualbox (6.1.18-dfsg-3) unstable; urgency=medium
+
+  * Support linux 5.11 (LP: #1915900):
+    - debian/patches/50-kernel-5.11.patch
+
+ -- Andrea Righi <andrea.righi@canonical.com>  Thu, 25 Feb 2021 15:32:11 +0000
+
 virtualbox (6.1.18-dfsg-2) unstable; urgency=medium
 
   * debian/patches/kernel-5.10.patch:

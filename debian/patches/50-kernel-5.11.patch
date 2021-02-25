@@ -1,0 +1,23 @@
+Subject: [PATCH] fix undefined struct ethtool_ops build error
+From: Andrea Righi <andrea.righi@canonical.com>
+
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/1915900
+---
+
+Index: virtualbox-6.1.18-dfsg/src/VBox/HostDrivers/VBoxNetFlt/linux/VBoxNetFlt-linux.c
+===================================================================
+--- virtualbox-6.1.18-dfsg.orig/src/VBox/HostDrivers/VBoxNetFlt/linux/VBoxNetFlt-linux.c
++++ virtualbox-6.1.18-dfsg/src/VBox/HostDrivers/VBoxNetFlt/linux/VBoxNetFlt-linux.c
+@@ -328,10 +328,10 @@ static void __exit VBoxNetFltLinuxUnload
+ 
+ #ifdef VBOXNETFLT_WITH_HOST2WIRE_FILTER
+ 
+-# if RTLNX_VER_MAX(2,6,29)
+-
+ # include <linux/ethtool.h>
+ 
++# if RTLNX_VER_MAX(2,6,29)
++
+ typedef struct ethtool_ops OVR_OPSTYPE;
+ # define OVR_OPS  ethtool_ops
+ # define OVR_XMIT pfnStartXmit
