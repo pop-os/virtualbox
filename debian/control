@@ -172,7 +172,7 @@ Description: x86 virtualization solution - kernel module source
 
 Package: virtualbox-guest-x11
 Section: contrib/x11
-Architecture: amd64 i386
+Architecture: amd64
 Depends: libnotify-bin,
          x11-xserver-utils,
          virtualbox-guest-utils (= ${binary:Version}),
@@ -191,7 +191,7 @@ Description: x86 virtualization solution - X11 guest utilities
  They provide closer integration and improve the interactive performance.
 
 Package: virtualbox-guest-utils
-Architecture: amd64 i386
+Architecture: amd64
 Depends: adduser,
          pciutils,
          ${misc:Depends},
