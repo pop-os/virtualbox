@@ -12,7 +12,7 @@ Vcs-Git: https://salsa.debian.org/pkg-virtualbox-team/virtualbox.git
 
 Package: virtualbox-modules-_KVERS_
 Section: contrib/kernel
-Architecture: amd64 i386
+Architecture: amd64
 Depends: linux-modules-_KVERS_ | linux-image-_KVERS_ | linux-image-_KVERS_-unsigned
 Recommends: virtualbox
 Provides: virtualbox-modules
