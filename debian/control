@@ -175,7 +175,7 @@ Package: virtualbox-guest-x11
 Section: contrib/x11
 Replaces: virtualbox-guest-x11-hwe (<< 7.0.16-dfsg-5)
 Breaks: virtualbox-guest-x11-hwe (<< 7.0.16-dfsg-5)
-Architecture: amd64 i386
+Architecture: amd64
 Depends: libnotify-bin,
          x11-xserver-utils,
          virtualbox-guest-utils (= ${binary:Version}),
@@ -194,7 +194,7 @@ Description: x86 virtualization solution - X11 guest utilities
  They provide closer integration and improve the interactive performance.
 
 Package: virtualbox-guest-utils
-Architecture: amd64 i386
+Architecture: amd64
 Replaces: virtualbox-guest-utils-hwe (<< 7.0.16-dfsg-5)
 Breaks: virtualbox-guest-utils-hwe (<< 7.0.16-dfsg-5)
 Depends: adduser,
@@ -217,7 +217,7 @@ Description: x86 virtualization solution - non-X11 guest utilities
 
 Package: virtualbox-guest-x11-hwe
 Section: contrib/oldlibs
-Architecture: amd64 i386
+Architecture: amd64
 Depends: virtualbox-guest-x11,
          ${misc:Depends}
 Description: transitional package for virtualbox-guest-x11
@@ -226,7 +226,7 @@ Description: transitional package for virtualbox-guest-x11
 
 Package: virtualbox-guest-utils-hwe
 Section: contrib/oldlibs
-Architecture: amd64 i386
+Architecture: amd64
 Depends: virtualbox-guest-utils,
          ${misc:Depends}
 Description: transitional package for virtualbox-guest-utils
