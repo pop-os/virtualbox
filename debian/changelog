@@ -1,3 +1,10 @@
+virtualbox (6.1.18-dfsg-4) UNRELEASED; urgency=medium
+
+  * Drop vboxweb.service.
+    Never worked, needs too much customization (LP: #1894862)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 02 Apr 2021 18:47:07 +0200
+
 virtualbox (6.1.18-dfsg-3) unstable; urgency=medium
 
   * Support linux 5.11 (LP: #1915900):
