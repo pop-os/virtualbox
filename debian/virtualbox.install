@@ -38,7 +38,5 @@ out/bin/VBoxCreateUSBNode.sh /lib/udev
 out/bin/VBoxSysInfo.sh /usr/share/virtualbox
 out/bin/UnattendedTemplates /usr/share/virtualbox
 
-debian/vboxweb.service /lib/systemd/system/
-
 out/bin/rdesktop-vrdp /usr/bin
 out/bin/rdesktop-vrdp-keymaps /usr/share/virtualbox
