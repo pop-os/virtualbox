@@ -18,3 +18,5 @@ no-vboxrem.patch
 python3.9.patch
 kernel-5.10.patch
 50-kernel-5.11.patch
+88207-kernel-5.11.patch
+88212-kernel-5.11.patch
