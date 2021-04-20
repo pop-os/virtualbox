@@ -1,3 +1,20 @@
+virtualbox (6.1.20-dfsg-1) unstable; urgency=medium
+
+  * New upstream version 6.1.20-dfsg
+  * Drop patches now upstream:
+    - 50-kernel-5.11.patch
+    - 88207-kernel-5.11.patch
+    - 88212-kernel-5.11.patch
+    - kernel-5.10.patch
+    - python3.9.patch
+  * Refresh patches:
+    - 27-hide-host-cache-warning.patch
+    - 36-fix-vnc-version-string.patch
+    - no-vboxrem.patch
+  * Add R^3: no
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Tue, 20 Apr 2021 22:38:00 +0200
+
 virtualbox (6.1.18-dfsg-5) unstable; urgency=medium
 
   * Drop vboxweb.service too
