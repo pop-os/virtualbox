@@ -75,6 +75,7 @@ Build-Depends: bzip2,
                zlib1g-dev
 X-Python-Version: >= 2.5
 Standards-Version: 4.5.0
+Rules-Requires-Root: no
 Homepage: https://www.virtualbox.org
 Vcs-Browser: https://salsa.debian.org/pkg-virtualbox-team/virtualbox
 Vcs-Git: https://salsa.debian.org/pkg-virtualbox-team/virtualbox.git
