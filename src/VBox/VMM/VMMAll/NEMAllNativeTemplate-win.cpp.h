@@ -442,6 +442,7 @@ NEM_TMPL_STATIC int nemHCWinCopyStateToHyperV(PVMCC pVM, PVMCPUCC pVCpu)
         || pVCpu->nem.s.fCurrentInterruptWindows != fDesiredIntWin)
     {
         pVCpu->nem.s.fCurrentInterruptWindows = pVCpu->nem.s.fDesiredInterruptWindows;
+        Log8(("Setting WHvX64RegisterDeliverabilityNotifications, fDesiredIntWin=%X\n", fDesiredIntWin));
         ADD_REG64(WHvX64RegisterDeliverabilityNotifications, fDesiredIntWin);
         Assert(aValues[iReg - 1].DeliverabilityNotifications.NmiNotification == RT_BOOL(fDesiredIntWin & NEM_WIN_INTW_F_NMI));
         Assert(aValues[iReg - 1].DeliverabilityNotifications.InterruptNotification == RT_BOOL(fDesiredIntWin & NEM_WIN_INTW_F_REGULAR));
@@ -1896,7 +1897,9 @@ DECLINLINE(void) nemHCWinCopyStateFromX64Header(PVMCPUCC pVCpu, HV_X64_INTERCEPT
     else
         EMSetInhibitInterruptsPC(pVCpu, pHdr->Rip);
 
-    pVCpu->cpum.GstCtx.fExtrn &= ~(CPUMCTX_EXTRN_RIP | CPUMCTX_EXTRN_RFLAGS | CPUMCTX_EXTRN_CS | CPUMCTX_EXTRN_NEM_WIN_INHIBIT_INT);
+    APICSetTpr(pVCpu, pHdr->Cr8 << 4);
+
+    pVCpu->cpum.GstCtx.fExtrn &= ~(CPUMCTX_EXTRN_RIP | CPUMCTX_EXTRN_RFLAGS | CPUMCTX_EXTRN_CS | CPUMCTX_EXTRN_NEM_WIN_INHIBIT_INT | CPUMCTX_EXTRN_APIC_TPR);
 }
 #elif defined(IN_RING3)
 /**
@@ -1927,7 +1930,9 @@ DECLINLINE(void) nemR3WinCopyStateFromX64Header(PVMCPUCC pVCpu, WHV_VP_EXIT_CONT
     else
         EMSetInhibitInterruptsPC(pVCpu, pExitCtx->Rip);
 
-    pVCpu->cpum.GstCtx.fExtrn &= ~(CPUMCTX_EXTRN_RIP | CPUMCTX_EXTRN_RFLAGS | CPUMCTX_EXTRN_CS | CPUMCTX_EXTRN_NEM_WIN_INHIBIT_INT);
+    APICSetTpr(pVCpu, pExitCtx->Cr8 << 4);
+
+    pVCpu->cpum.GstCtx.fExtrn &= ~(CPUMCTX_EXTRN_RIP | CPUMCTX_EXTRN_RFLAGS | CPUMCTX_EXTRN_CS | CPUMCTX_EXTRN_NEM_WIN_INHIBIT_INT | CPUMCTX_EXTRN_APIC_TPR);
 }
 #endif /* IN_RING3 && !NEM_WIN_TEMPLATE_MODE_OWN_RUN_API */
 
@@ -2596,10 +2601,10 @@ NEM_TMPL_STATIC VBOXSTRICTRC nemR3WinHandleExitInterruptWindow(PVMCC pVM, PVMCPU
                      pExit->VpContext.Rip + pExit->VpContext.Cs.Base, ASMReadTSC());
 
     nemR3WinCopyStateFromX64Header(pVCpu, &pExit->VpContext);
-    Log4(("IntWinExit/%u: %04x:%08RX64/%s: %u IF=%d InterruptShadow=%d\n",
+    Log4(("IntWinExit/%u: %04x:%08RX64/%s: %u IF=%d InterruptShadow=%d CR8=%#x\n",
           pVCpu->idCpu, pExit->VpContext.Cs.Selector, pExit->VpContext.Rip,  nemR3WinExecStateToLogStr(&pExit->VpContext),
           pExit->InterruptWindow.DeliverableType, RT_BOOL(pExit->VpContext.Rflags & X86_EFL_IF),
-          pExit->VpContext.ExecutionState.InterruptShadow));
+          pExit->VpContext.ExecutionState.InterruptShadow, pExit->VpContext.Cr8));
 
     /** @todo call nemHCWinHandleInterruptFF   */
     RT_NOREF(pVM);
@@ -3778,10 +3783,11 @@ NEM_TMPL_STATIC VBOXSTRICTRC nemR3WinHandleExit(PVMCC pVM, PVMCPUCC pVCpu, WHV_R
             STAM_REL_COUNTER_INC(&pVCpu->nem.s.StatExitHalt);
             EMHistoryAddExit(pVCpu, EMEXIT_MAKE_FT(EMEXIT_F_KIND_NEM, NEMEXITTYPE_HALT),
                              pExit->VpContext.Rip + pExit->VpContext.Cs.Base, ASMReadTSC());
-            Log4(("HaltExit\n"));
+            Log4(("HaltExit/%u\n", pVCpu->idCpu));
             return VINF_EM_HALT;
 
         case WHvRunVpExitReasonCanceled:
+            Log4(("CanceledExit/%u\n", pVCpu->idCpu));
             return VINF_SUCCESS;
 
         case WHvRunVpExitReasonX64InterruptWindow:
@@ -4117,13 +4123,24 @@ NEM_TMPL_STATIC VBOXSTRICTRC nemHCWinHandleInterruptFF(PVMCC pVM, PVMCPUCC pVCpu
                 }
                 else if (rc == VERR_APIC_INTR_MASKED_BY_TPR)
                 {
-                    *pfInterruptWindows |= (bInterrupt >> 4 /*??*/) << NEM_WIN_INTW_F_PRIO_SHIFT;
+                    *pfInterruptWindows |= ((bInterrupt >> 4) << NEM_WIN_INTW_F_PRIO_SHIFT) | NEM_WIN_INTW_F_REGULAR;
                     Log8(("VERR_APIC_INTR_MASKED_BY_TPR: *pfInterruptWindows=%#x\n", *pfInterruptWindows));
                 }
                 else
                     Log8(("PDMGetInterrupt failed -> %d\n", rc));
             }
             return rcStrict;
+        }
+        else if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INTERRUPT_APIC) && !VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INTERRUPT_PIC))
+        {
+            /* If only an APIC interrupt is pending, we need to know its priority. Otherwise we'll
+             * likely get pointless deliverability notifications with IF=1 but TPR still too high.
+             */
+            bool fPendingIntr;
+            uint8_t u8Tpr, u8PendingIntr;
+            int rc = APICGetTpr(pVCpu, &u8Tpr, &fPendingIntr, &u8PendingIntr);
+            AssertRC(rc);
+            *pfInterruptWindows |= (u8PendingIntr >> 4) << NEM_WIN_INTW_F_PRIO_SHIFT;
         }
         *pfInterruptWindows |= NEM_WIN_INTW_F_REGULAR;
         Log8(("Interrupt window pending on %u\n", pVCpu->idCpu));
@@ -4327,8 +4344,12 @@ NEM_TMPL_STATIC VBOXSTRICTRC nemHCWinRunGC(PVMCC pVM, PVMCPUCC pVCpu)
 # else
                 WHV_RUN_VP_EXIT_CONTEXT ExitReason;
                 RT_ZERO(ExitReason);
+                LogFlow(("NEM/%u: Entry @ %04X:%08RX64 IF=%d (~~may be stale~~)\n", pVCpu->idCpu, pVCpu->cpum.GstCtx.cs.Sel, pVCpu->cpum.GstCtx.rip, pVCpu->cpum.GstCtx.rflags.Bits.u1IF));
+                TMNotifyStartOfExecution(pVM, pVCpu);
                 HRESULT hrc = WHvRunVirtualProcessor(pVM->nem.s.hPartition, pVCpu->idCpu, &ExitReason, sizeof(ExitReason));
                 VMCPU_CMPXCHG_STATE(pVCpu, VMCPUSTATE_STARTED_EXEC_NEM, VMCPUSTATE_STARTED_EXEC_NEM_WAIT);
+                TMNotifyEndOfExecution(pVM, pVCpu);
+                LogFlow(("NEM/%u: Exit  @ %04X:%08RX64 IF=%d CR8=%#x \n", pVCpu->idCpu, ExitReason.VpContext.Cs.Selector, ExitReason.VpContext.Rip, RT_BOOL(ExitReason.VpContext.Rflags & X86_EFL_IF), ExitReason.VpContext.Cr8));
                 if (SUCCEEDED(hrc))
 # endif
                 {
