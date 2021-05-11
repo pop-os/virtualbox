@@ -1,3 +1,9 @@
+virtualbox (6.1.22-dfsg-1) unstable; urgency=medium
+
+  * New upstream version 6.1.22-dfsg
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Tue, 11 May 2021 12:07:27 +0200
+
 virtualbox (6.1.20-dfsg-1) unstable; urgency=medium
 
   * New upstream version 6.1.20-dfsg
