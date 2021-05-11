@@ -35,6 +35,37 @@ technical terms if no non-technical ones are clear enough.
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
 
   <sect1>
+    <title>Version 6.1.22 (2021-04-29)</title>
+
+    <para>This is a maintenance release. The following items were fixed
+      and/or added:</para>
+
+    <itemizedlist>
+      <listitem>
+         <para></para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: Improved performance of 64-bit Windows and Solaris guests when Hyper-V
+          is used on recent Windows 10 hosts</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: Fixed frequent crashes of 64-bit Windows Vista and Server 2003 guests when Hyper-V
+          is used</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: Fixed regression where user was not able to save unset default shortcuts (bug #20305)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: Fixed regression in LsiLogic SAS controller emulation caused VM crash (bug #20323)</para>
+      </listitem>
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 6.1.20 (2021-04-20)</title>
 
     <para>This is a maintenance release. The following items were fixed
@@ -127,6 +158,10 @@ technical terms if no non-technical ones are clear enough.
 
       <listitem>
          <para>Linux Guest Additions: Fixed kernel module build for RHEL 8.4 beta and CentOS Stream (bug #20289)</para>
+      </listitem>
+
+      <listitem>
+         <para>Linux Guest Additions: Fixed issue when it was not possible to run executables from mounted share (bug #20320)</para>
       </listitem>
 
     </itemizedlist>
