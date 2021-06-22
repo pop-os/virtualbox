@@ -1,3 +1,9 @@
+virtualbox (6.1.18-dfsg-5pop0) focal; urgency=medium
+
+  * Pop!_OS backport
+
+ -- Jeremy Soller <jeremy@system76.com>  Tue, 22 Jun 2021 14:10:16 -0600
+
 virtualbox (6.1.18-dfsg-5) unstable; urgency=medium
 
   * Drop vboxweb.service too
