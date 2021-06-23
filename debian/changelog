@@ -1,3 +1,11 @@
+virtualbox (6.1.22-dfsg-2) unstable; urgency=medium
+
+  [ Andrea Righi ]
+  * Support linux 5.13 with vbox-guest drivers (LP: #1929193):
+    - debian/patches/40-linux-5.13-support.patch
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 23 Jun 2021 15:45:42 +0200
+
 virtualbox (6.1.22-dfsg-1) unstable; urgency=medium
 
   * New upstream version 6.1.22-dfsg

@@ -15,3 +15,4 @@
 36-fix-vnc-version-string.patch
 37-do-not-run-if-not-in-vm.patch
 no-vboxrem.patch
+40-linux-5.13-support.patch
