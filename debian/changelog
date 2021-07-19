@@ -1,3 +1,13 @@
+virtualbox (6.1.22-dfsg-3) unstable; urgency=medium
+
+  [ Dimitri John Ledkov ]
+  * Drop virtualbox guest modules dkms and sources, as in Ubuntu and Debian,
+    all kernel flavours provide those from the upstream kernel since at least
+    focal 20.04 LTS.
+    Thus these are not needed anymore. LP: #1933248
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Mon, 19 Jul 2021 09:28:22 +0200
+
 virtualbox (6.1.22-dfsg-2) unstable; urgency=medium
 
   [ Andrea Righi ]

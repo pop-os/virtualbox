@@ -165,44 +165,6 @@ Description: x86 virtualization solution - kernel module source
  be built to produce a virtualbox-modules-_KVERS_ providing
  "virtualbox-modules" package.
 
-Package: virtualbox-guest-dkms
-Section: contrib/kernel
-Architecture: all
-Depends: ${misc:Depends}
-XB-Modaliases: ${modaliases}
-Provides: virtualbox-guest-modules
-Description: x86 virtualization solution - guest addition module source for dkms
- VirtualBox is a free x86 virtualization solution allowing a wide range
- of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
- Linux system.
- .
- This package provides the source code for the virtualbox guest addition kernel
- modules to be build with dkms. Kernel sources or headers are required to
- compile these modules.
-
-Package: virtualbox-guest-source
-Section: contrib/kernel
-Architecture: all
-Depends: build-essential,
-         bzip2,
-         debhelper-compat (= 12),
-         kbuild,
-         module-assistant,
-         ${misc:Depends}
-Description: x86 virtualization solution - guest addition module source
- VirtualBox is a free x86 virtualization solution allowing a wide range
- of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
- Linux system.
- .
- This package provides the source code for the virtualbox guest addition kernel
- modules. The virtualbox-guest-utils package is also required in order to
- make use of these modules. Kernel sources or headers are required to compile
- these modules.
- .
- The source is placed under /usr/src, and after decompression it can
- be built to produce a virtualbox-guest-modules-_KVERS_ providing
- "virtualbox-guest-modules" package.
-
 Package: virtualbox-guest-x11
 Section: contrib/x11
 Architecture: amd64 i386
@@ -227,7 +189,6 @@ Package: virtualbox-guest-utils
 Architecture: amd64 i386
 Depends: adduser,
          pciutils,
-         virtualbox-guest-dkms (= ${source:Version}) | virtualbox-guest-source (= ${source:Version}) | virtualbox-guest-modules,
          ${misc:Depends},
          ${shlibs:Depends}
 #Conflicts: time-daemon, ntp

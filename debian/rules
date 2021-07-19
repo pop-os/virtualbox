@@ -2,9 +2,7 @@
 
 # Name of the source packages
 psource:=virtualbox-source
-gsource:=virtualbox-guest-source
 pdkms:=virtualbox-dkms
-gdkms:=virtualbox-guest-dkms
 
 # The short upstream name
 sname:=virtualbox
@@ -98,12 +96,10 @@ endif
 
 	# Build install files for the dkms'ified sources
 	sed -e 's/CVERSION/$(VERSION)/g' < debian/$(pdkms).install.in > debian/$(pdkms).install
-	sed -e 's/CVERSION/$(VERSION)/g' < debian/$(gdkms).install.in > debian/$(gdkms).install
 
 	echo "xserver:Depends=$(SERVER_DEPENDS)" >> debian/$(uxname).substvars
 
 ifeq ($(DIST_NAME),Ubuntu)
-	echo "modaliases=vboxguest(pci:v000080EEd0000CAFEsv00000000sd00000000bc*sc*i*)" >> debian/$(gdkms).substvars
 	echo "modaliases=vboxx11(pci:v000080EEd0000BEEFsv00000000sd00000000bc*sc*i*)" >> debian/$(uxname).substvars
 endif
 
@@ -120,8 +116,6 @@ endif
 ifeq ($(DIST_NAME),Ubuntu)
 	install -m 644 -p -D debian/apport-hook.py \
 	    debian/$(sname)/usr/share/apport/package-hooks/source_$(sname).py
-	install -m 644 -p -D debian/apport-hook.py \
-	    debian/$(gdkms)/usr/share/apport/package-hooks/$(gdkms).py
 endif
 
 override_dh_fixperms:
@@ -163,19 +157,6 @@ ifneq (,$(filter $(psource), $(shell dh_listpackages)))
 	    rm -rf modules
 
 	chmod 644 debian/$(psource)/usr/src/$(sname).tar.bz2
-endif
-
-# check if arch-all packages are being built
-ifneq (,$(filter $(gsource), $(shell dh_listpackages)))
-	# These files have incorrect permissions, fixing it.
-	chmod 755 debian/$(gsource)/usr/src/modules/$(gname)/debian/rules
-
-	# this needs all prior work to be finished
-	cd debian/$(gsource)/usr/src && \
-	    tar -cjf $(gname).tar.bz2 modules && \
-	    rm -rf modules
-
-	chmod 644 debian/$(gsource)/usr/src/$(gname).tar.bz2
 endif
 
 override_dh_installinit:
@@ -221,9 +202,7 @@ override_dh_auto_clean:
 	rm -f build-stamp
 	rm -f debian/virtualbox.README.Debian debian/README.Debian.html
 	rm -f debian/$(pdkms).install
-	rm -f debian/$(gdkms).install
 	rm -f debian/$(pdkms).links
-	rm -f debian/$(gdkms).links
 
 	find . -name "*.pyc" -exec rm -f {} \;
 

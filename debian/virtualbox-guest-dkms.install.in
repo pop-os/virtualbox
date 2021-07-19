@@ -1,7 +1,0 @@
-out/bin/additions/src/vboxguest/* /usr/src/virtualbox-guest-CVERSION/vboxguest
-
-out/bin/additions/src/vboxsf/* /usr/src/virtualbox-guest-CVERSION/vboxsf
-
-out/bin/additions/src/vboxvideo/* /usr/src/virtualbox-guest-CVERSION/vboxvideo
-
-debian/virtualbox-guest-dkms.files/Makefile /usr/src/virtualbox-guest-CVERSION
