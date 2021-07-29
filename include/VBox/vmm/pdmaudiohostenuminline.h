@@ -61,21 +61,29 @@
  *                  size of PDMAUDIOHOSTDEV.  The idea is that the caller extends
  *                  the PDMAUDIOHOSTDEV structure and appends additional data
  *                  after it in its private structure.
+ * @param   cbName  The number of bytes to allocate for the name field
+ *                  (including the terminator). Pass zero if RTStrAlloc and
+ *                  friends will be used.
+ * @param   cbId    The number of bytes to allocate for the ID field. Pass
+ *                  zero if RTStrAlloc and friends will be used.
  */
-DECLINLINE(PPDMAUDIOHOSTDEV) PDMAudioHostDevAlloc(size_t cb)
+DECLINLINE(PPDMAUDIOHOSTDEV) PDMAudioHostDevAlloc(size_t cb, size_t cbName, size_t cbId)
 {
     AssertReturn(cb >= sizeof(PDMAUDIOHOSTDEV), NULL);
     AssertReturn(cb < _4M, NULL);
+    AssertReturn(cbName < _4K, NULL);
+    AssertReturn(cbId < _16K, NULL);
 
-    PPDMAUDIOHOSTDEV pDev = (PPDMAUDIOHOSTDEV)RTMemAllocZ(RT_ALIGN_Z(cb, 64));
+    PPDMAUDIOHOSTDEV pDev = (PPDMAUDIOHOSTDEV)RTMemAllocZ(RT_ALIGN_Z(cb + cbName + cbId, 64));
     if (pDev)
     {
-        pDev->uMagic = PDMAUDIOHOSTDEV_MAGIC;
-        pDev->cbSelf = (uint32_t)cb;
+        pDev->uMagic  = PDMAUDIOHOSTDEV_MAGIC;
+        pDev->cbSelf  = (uint32_t)cb;
         RTListInit(&pDev->ListEntry);
-
-        //pDev->cMaxInputChannels  = 0;
-        //pDev->cMaxOutputChannels = 0;
+        if (cbName)
+            pDev->pszName = (char *)pDev + cb;
+        if (cbId)
+            pDev->pszId   = (char *)pDev + cb + cbName;
     }
     return pDev;
 }
@@ -90,9 +98,20 @@ DECLINLINE(void) PDMAudioHostDevFree(PPDMAUDIOHOSTDEV pDev)
     if (pDev)
     {
         Assert(pDev->uMagic == PDMAUDIOHOSTDEV_MAGIC);
-        Assert(pDev->cRefCount == 0);
         pDev->uMagic = ~PDMAUDIOHOSTDEV_MAGIC;
         pDev->cbSelf = 0;
+
+        if (pDev->fFlags & PDMAUDIOHOSTDEV_F_NAME_ALLOC)
+        {
+            RTStrFree(pDev->pszName);
+            pDev->pszName = NULL;
+        }
+
+        if (pDev->fFlags & PDMAUDIOHOSTDEV_F_ID_ALLOC)
+        {
+            RTStrFree(pDev->pszId);
+            pDev->pszId = NULL;
+        }
 
         RTMemFree(pDev);
     }
@@ -114,12 +133,40 @@ DECLINLINE(PPDMAUDIOHOSTDEV) PDMAudioHostDevDup(PCPDMAUDIOHOSTDEV pDev, bool fOn
     uint32_t cbToDup = fOnlyCoreData ? sizeof(PDMAUDIOHOSTDEV) : pDev->cbSelf;
     AssertReturn(cbToDup >= sizeof(*pDev), NULL);
 
-    PPDMAUDIOHOSTDEV pDevDup = PDMAudioHostDevAlloc(cbToDup);
+    PPDMAUDIOHOSTDEV pDevDup = PDMAudioHostDevAlloc(cbToDup, 0, 0);
     if (pDevDup)
     {
         memcpy(pDevDup, pDev, cbToDup);
         RTListInit(&pDevDup->ListEntry);
         pDevDup->cbSelf = cbToDup;
+
+        if (pDev->pszName)
+        {
+            uintptr_t off;
+            if (   (pDevDup->fFlags & PDMAUDIOHOSTDEV_F_NAME_ALLOC)
+                || (off = (uintptr_t)pDev->pszName - (uintptr_t)pDev) >= pDevDup->cbSelf)
+            {
+                pDevDup->fFlags |= PDMAUDIOHOSTDEV_F_NAME_ALLOC;
+                pDevDup->pszName = RTStrDup(pDev->pszName);
+                AssertReturnStmt(pDevDup->pszName, PDMAudioHostDevFree(pDevDup), NULL);
+            }
+            else
+                pDevDup->pszName = (char *)pDevDup + off;
+        }
+
+        if (pDev->pszId)
+        {
+            uintptr_t off;
+            if (   (pDevDup->fFlags & PDMAUDIOHOSTDEV_F_ID_ALLOC)
+                || (off = (uintptr_t)pDev->pszId - (uintptr_t)pDev) >= pDevDup->cbSelf)
+            {
+                pDevDup->fFlags |= PDMAUDIOHOSTDEV_F_ID_ALLOC;
+                pDevDup->pszId   = RTStrDup(pDev->pszId);
+                AssertReturnStmt(pDevDup->pszId, PDMAudioHostDevFree(pDevDup), NULL);
+            }
+            else
+                pDevDup->pszId = (char *)pDevDup + off;
+        }
     }
 
     return pDevDup;
@@ -191,7 +238,7 @@ DECLINLINE(void) PDMAudioHostEnumAppend(PPDMAUDIOHOSTENUM pDevEnm, PPDMAUDIOHOST
 /**
  * Appends copies of matching host device entries from one to another enumeration.
  *
- * @returns IPRT status code.
+ * @returns VBox status code.
  * @param   pDstDevEnm      The target to append copies of matching device to.
  * @param   pSrcDevEnm      The source to copy matching devices from.
  * @param   enmUsage        The usage to match for copying.
@@ -226,6 +273,37 @@ DECLINLINE(int) PDMAudioHostEnumCopy(PPDMAUDIOHOSTENUM pDstDevEnm, PCPDMAUDIOHOS
 }
 
 /**
+ * Moves all the device entries from one enumeration to another, destroying the
+ * former.
+ *
+ * @returns VBox status code.
+ * @param   pDstDevEnm          The target to put move @a pSrcDevEnm to.  This
+ *                              does not need to be initialized, but if it is it
+ *                              must not have any device entries.
+ * @param   pSrcDevEnm          The source to move from.  This will be empty
+ *                              upon successful return.
+ */
+DECLINLINE(int) PDMAudioHostEnumMove(PPDMAUDIOHOSTENUM pDstDevEnm, PPDMAUDIOHOSTENUM pSrcDevEnm)
+{
+    AssertPtrReturn(pDstDevEnm, VERR_INVALID_POINTER);
+    AssertReturn(pDstDevEnm->uMagic != PDMAUDIOHOSTENUM_MAGIC || pDstDevEnm->cDevices == 0, VERR_WRONG_ORDER);
+
+    AssertPtrReturn(pSrcDevEnm, VERR_INVALID_POINTER);
+    AssertReturn(pSrcDevEnm->uMagic == PDMAUDIOHOSTENUM_MAGIC, VERR_WRONG_ORDER);
+
+    pDstDevEnm->uMagic   = PDMAUDIOHOSTENUM_MAGIC;
+    RTListInit(&pDstDevEnm->LstDevices);
+    pDstDevEnm->cDevices = pSrcDevEnm->cDevices;
+    if (pSrcDevEnm->cDevices)
+    {
+        PPDMAUDIOHOSTDEV pCur;
+        while ((pCur = RTListRemoveFirst(&pSrcDevEnm->LstDevices, PDMAUDIOHOSTDEV, ListEntry)) != NULL)
+            RTListAppend(&pDstDevEnm->LstDevices, &pCur->ListEntry);
+    }
+    return VINF_SUCCESS;
+}
+
+/**
  * Get the default device with the given usage.
  *
  * This assumes that only one default device per usage is set, if there should
@@ -235,21 +313,27 @@ DECLINLINE(int) PDMAudioHostEnumCopy(PPDMAUDIOHOSTENUM pDstDevEnm, PCPDMAUDIOHOS
  * @param   pDevEnm     Device enumeration to get default device for.
  * @param   enmUsage    Usage to get default device for.
  *                      Pass PDMAUDIODIR_INVALID to get the first device with
- *                      PDMAUDIOHOSTDEV_F_DEFAULT set.
+ *                      either PDMAUDIOHOSTDEV_F_DEFAULT_OUT or
+ *                      PDMAUDIOHOSTDEV_F_DEFAULT_IN set.
  */
 DECLINLINE(PPDMAUDIOHOSTDEV) PDMAudioHostEnumGetDefault(PCPDMAUDIOHOSTENUM pDevEnm, PDMAUDIODIR enmUsage)
 {
     AssertPtrReturn(pDevEnm, NULL);
     AssertReturn(pDevEnm->uMagic == PDMAUDIOHOSTENUM_MAGIC, NULL);
 
+    Assert(enmUsage == PDMAUDIODIR_IN || enmUsage == PDMAUDIODIR_OUT || enmUsage == PDMAUDIODIR_INVALID);
+    uint32_t const fFlags = enmUsage == PDMAUDIODIR_IN      ? PDMAUDIOHOSTDEV_F_DEFAULT_IN
+                          : enmUsage == PDMAUDIODIR_OUT     ? PDMAUDIOHOSTDEV_F_DEFAULT_OUT
+                          : enmUsage == PDMAUDIODIR_INVALID ? PDMAUDIOHOSTDEV_F_DEFAULT_IN | PDMAUDIOHOSTDEV_F_DEFAULT_OUT
+                          : 0;
+
     PPDMAUDIOHOSTDEV pDev;
     RTListForEach(&pDevEnm->LstDevices, pDev, PDMAUDIOHOSTDEV, ListEntry)
     {
-        if (pDev->fFlags & PDMAUDIOHOSTDEV_F_DEFAULT)
+        if (pDev->fFlags & fFlags)
         {
-            if (   enmUsage == pDev->enmUsage
-                || enmUsage == PDMAUDIODIR_INVALID)
-                return pDev;
+            Assert(pDev->enmUsage == enmUsage || pDev->enmUsage == PDMAUDIODIR_DUPLEX || enmUsage == PDMAUDIODIR_INVALID);
+            return pDev;
         }
     }
 
@@ -285,7 +369,7 @@ DECLINLINE(uint32_t) PDMAudioHostEnumCountMatching(PCPDMAUDIOHOSTENUM pDevEnm, P
 
 /** The max string length for all PDMAUDIOHOSTDEV_F_XXX.
  * @sa PDMAudioHostDevFlagsToString */
-#define PDMAUDIOHOSTDEV_MAX_FLAGS_STRING_LEN    (7 * 8)
+#define PDMAUDIOHOSTDEV_MAX_FLAGS_STRING_LEN sizeof("DEFAULT_OUT DEFAULT_IN HOTPLUG BUGGY IGNORE LOCKED DEAD NAME_ALLOC ID_ALLOC NO_DUP ")
 
 /**
  * Converts an audio device flags to a string.
@@ -300,13 +384,16 @@ DECLINLINE(const char *) PDMAudioHostDevFlagsToString(char pszDst[PDMAUDIOHOSTDE
 {
     static const struct { const char *pszMnemonic; uint32_t cchMnemonic; uint32_t fFlag; } s_aFlags[] =
     {
-        { RT_STR_TUPLE("DEFAULT "), PDMAUDIOHOSTDEV_F_DEFAULT },
-        { RT_STR_TUPLE("HOTPLUG "), PDMAUDIOHOSTDEV_F_HOTPLUG },
-        { RT_STR_TUPLE("BUGGY "),   PDMAUDIOHOSTDEV_F_BUGGY   },
-        { RT_STR_TUPLE("IGNORE "),  PDMAUDIOHOSTDEV_F_IGNORE  },
-        { RT_STR_TUPLE("LOCKED "),  PDMAUDIOHOSTDEV_F_LOCKED  },
-        { RT_STR_TUPLE("DEAD "),    PDMAUDIOHOSTDEV_F_DEAD    },
-        { RT_STR_TUPLE("NO_DUP "),  PDMAUDIOHOSTDEV_F_NO_DUP  },
+        { RT_STR_TUPLE("DEFAULT_OUT "), PDMAUDIOHOSTDEV_F_DEFAULT_OUT },
+        { RT_STR_TUPLE("DEFAULT_IN "),  PDMAUDIOHOSTDEV_F_DEFAULT_IN },
+        { RT_STR_TUPLE("HOTPLUG "),     PDMAUDIOHOSTDEV_F_HOTPLUG },
+        { RT_STR_TUPLE("BUGGY "),       PDMAUDIOHOSTDEV_F_BUGGY   },
+        { RT_STR_TUPLE("IGNORE "),      PDMAUDIOHOSTDEV_F_IGNORE  },
+        { RT_STR_TUPLE("LOCKED "),      PDMAUDIOHOSTDEV_F_LOCKED  },
+        { RT_STR_TUPLE("DEAD "),        PDMAUDIOHOSTDEV_F_DEAD    },
+        { RT_STR_TUPLE("NAME_ALLOC "),  PDMAUDIOHOSTDEV_F_NAME_ALLOC },
+        { RT_STR_TUPLE("ID_ALLOC "),    PDMAUDIOHOSTDEV_F_ID_ALLOC },
+        { RT_STR_TUPLE("NO_DUP "),      PDMAUDIOHOSTDEV_F_NO_DUP  },
     };
     size_t offDst = 0;
     for (uint32_t i = 0; i < RT_ELEMENTS(s_aFlags); i++)
@@ -347,7 +434,8 @@ DECLINLINE(void) PDMAudioHostEnumLog(PCPDMAUDIOHOSTENUM pDevEnm, const char *psz
         RTListForEach(&pDevEnm->LstDevices, pDev, PDMAUDIOHOSTDEV, ListEntry)
         {
             char szFlags[PDMAUDIOHOSTDEV_MAX_FLAGS_STRING_LEN];
-            LogFunc(("Device '%s':\n", pDev->szName));
+            LogFunc(("Device '%s':\n", pDev->pszName));
+            LogFunc(("  ID              = %s\n",             pDev->pszId ? pDev->pszId : "<none>"));
             LogFunc(("  Usage           = %s\n",             PDMAudioDirGetName(pDev->enmUsage)));
             LogFunc(("  Flags           = %s\n",             PDMAudioHostDevFlagsToString(szFlags, pDev->fFlags)));
             LogFunc(("  Input channels  = %RU8\n",           pDev->cMaxInputChannels));

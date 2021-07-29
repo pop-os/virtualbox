@@ -26,6 +26,7 @@
 #include <VBox/vmm/ssm.h>
 #include <VBox/vmm/stam.h>
 #include <VBox/sup.h>
+#include <VBox/AssertGuest.h>
 
 #include <iprt/alloc.h>
 #include <iprt/avl.h>
@@ -72,6 +73,8 @@ struct _HGCMSVCEXTHANDLEDATA
     /* The service name follows. */
 };
 
+class HGCMClient;
+
 /** Internal helper service object. HGCM code would use it to
  *  hold information about services and communicate with services.
  *  The HGCMService is an (in future) abstract class that implements
@@ -105,6 +108,7 @@ class HGCMService
 
         VBOXHGCMSVCFNTABLE m_fntable;
 
+        uint32_t m_acClients[HGCM_CLIENT_CATEGORY_MAX]; /**< Clients per category. */
         uint32_t m_cClients;
         uint32_t m_cClientsAllocated;
 
@@ -118,6 +122,8 @@ class HGCMService
         /** @name Statistics
          * @{ */
         STAMPROFILE m_StatHandleMsg;
+        STAMCOUNTER m_StatTooManyClients;
+        STAMCOUNTER m_StatTooManyCalls;
         /** @} */
 
         int loadServiceDLL(void);
@@ -169,7 +175,7 @@ class HGCMService
         static int LoadState(PSSMHANDLE pSSM, uint32_t uVersion);
 
         int CreateAndConnectClient(uint32_t *pu32ClientIdOut, uint32_t u32ClientIdIn, uint32_t fRequestor, bool fRestoring);
-        int DisconnectClient(uint32_t u32ClientId, bool fFromService);
+        int DisconnectClient(uint32_t u32ClientId, bool fFromService, HGCMClient *pClient);
 
         int HostCall(uint32_t u32Function, uint32_t cParms, VBOXHGCMSVCPARM *paParms);
         static void BroadcastNotify(HGCMNOTIFYEVENT enmEvent);
@@ -184,7 +190,7 @@ class HGCMService
          * The service thread methods.
          */
 
-        int GuestCall(PPDMIHGCMPORT pHGCMPort, PVBOXHGCMCMD pCmd, uint32_t u32ClientId,
+        int GuestCall(PPDMIHGCMPORT pHGCMPort, PVBOXHGCMCMD pCmd, uint32_t u32ClientId, HGCMClient *pClient,
                       uint32_t u32Function, uint32_t cParms, VBOXHGCMSVCPARM aParms[], uint64_t tsArrival);
         void GuestCancelled(PPDMIHGCMPORT pHGCMPort, PVBOXHGCMCMD pCmd, uint32_t idClient);
 };
@@ -193,12 +199,16 @@ class HGCMService
 class HGCMClient: public HGCMObject
 {
     public:
-        HGCMClient(uint32_t a_fRequestor)
+        HGCMClient(uint32_t a_fRequestor, uint32_t a_idxCategory)
             : HGCMObject(HGCMOBJ_CLIENT)
             , pService(NULL)
             , pvData(NULL)
             , fRequestor(a_fRequestor)
-        {}
+            , idxCategory(a_idxCategory)
+            , cPendingCalls(0)
+        {
+            Assert(idxCategory < HGCM_CLIENT_CATEGORY_MAX);
+        }
         ~HGCMClient();
 
         int Init(HGCMService *pSvc);
@@ -212,6 +222,12 @@ class HGCMClient: public HGCMObject
         /** The requestor flags this client was created with.
          * @sa VMMDevRequestHeader::fRequestor */
         uint32_t fRequestor;
+
+        /** The client category (HGCM_CLIENT_CATEGORY_XXX). */
+        uint32_t idxCategory;
+
+        /** Number of pending calls. */
+        uint32_t volatile cPendingCalls;
 
     private: /* none of this: */
         HGCMClient();
@@ -272,6 +288,7 @@ HGCMService::HGCMService()
     m_pUVM       (NULL),
     m_pHgcmPort  (NULL)
 {
+    RT_ZERO(m_acClients);
     RT_ZERO(m_fntable);
 }
 
@@ -331,17 +348,45 @@ int HGCMService::loadServiceDLL(void)
             m_fntable.u32Version = VBOX_HGCM_SVC_VERSION;
             m_fntable.pHelpers   = &m_svcHelpers;
 
+            /*  Total max calls: (2048 + 1024 + 1024) * 8192 = 33 554 432 */
+            m_fntable.idxLegacyClientCategory = HGCM_CLIENT_CATEGORY_KERNEL;
+            m_fntable.acMaxClients[HGCM_CLIENT_CATEGORY_KERNEL] = _2K;
+            m_fntable.acMaxClients[HGCM_CLIENT_CATEGORY_ROOT]   = _1K;
+            m_fntable.acMaxClients[HGCM_CLIENT_CATEGORY_USER]   = _1K;
+            m_fntable.acMaxCallsPerClient[HGCM_CLIENT_CATEGORY_KERNEL] = _8K;
+            m_fntable.acMaxCallsPerClient[HGCM_CLIENT_CATEGORY_ROOT]   = _4K;
+            m_fntable.acMaxCallsPerClient[HGCM_CLIENT_CATEGORY_USER]   = _2K;
+            /** @todo provide way to configure different values via extra data.   */
+
             rc = m_pfnLoad(&m_fntable);
 
             LogFlowFunc(("m_pfnLoad rc = %Rrc\n", rc));
 
             if (RT_SUCCESS(rc))
             {
-                if (   m_fntable.pfnUnload == NULL
-                    || m_fntable.pfnConnect == NULL
-                    || m_fntable.pfnDisconnect == NULL
-                    || m_fntable.pfnCall == NULL
+                if (   m_fntable.pfnUnload != NULL
+                    && m_fntable.pfnConnect != NULL
+                    && m_fntable.pfnDisconnect != NULL
+                    && m_fntable.pfnCall != NULL
                    )
+                {
+                    Assert(m_fntable.idxLegacyClientCategory < RT_ELEMENTS(m_fntable.acMaxClients));
+                    LogRel2(("HGCMService::loadServiceDLL: acMaxClients={%u,%u,%u} acMaxCallsPerClient={%u,%u,%u} => %RU64 calls; idxLegacyClientCategory=%d; %s\n",
+                             m_fntable.acMaxClients[HGCM_CLIENT_CATEGORY_KERNEL],
+                             m_fntable.acMaxClients[HGCM_CLIENT_CATEGORY_ROOT],
+                             m_fntable.acMaxClients[HGCM_CLIENT_CATEGORY_USER],
+                             m_fntable.acMaxCallsPerClient[HGCM_CLIENT_CATEGORY_KERNEL],
+                             m_fntable.acMaxCallsPerClient[HGCM_CLIENT_CATEGORY_ROOT],
+                             m_fntable.acMaxCallsPerClient[HGCM_CLIENT_CATEGORY_USER],
+                                 (uint64_t)m_fntable.acMaxClients[HGCM_CLIENT_CATEGORY_KERNEL]
+                               *    m_fntable.acMaxCallsPerClient[HGCM_CLIENT_CATEGORY_KERNEL]
+                             +   (uint64_t)m_fntable.acMaxClients[HGCM_CLIENT_CATEGORY_ROOT]
+                               *    m_fntable.acMaxCallsPerClient[HGCM_CLIENT_CATEGORY_ROOT]
+                             +   (uint64_t)m_fntable.acMaxClients[HGCM_CLIENT_CATEGORY_USER]
+                               *    m_fntable.acMaxCallsPerClient[HGCM_CLIENT_CATEGORY_USER],
+                             m_fntable.idxLegacyClientCategory, m_pszSvcName));
+                }
+                else
                 {
                     Log(("HGCMService::loadServiceDLL: at least one of function pointers is NULL\n"));
 
@@ -431,8 +476,10 @@ class HGCMMsgSvcConnect: public HGCMMsgCore
 class HGCMMsgSvcDisconnect: public HGCMMsgCore
 {
     public:
-        /* client identifier */
+        /** client identifier */
         uint32_t u32ClientId;
+        /** The client instance. */
+        HGCMClient *pClient;
 };
 
 class HGCMMsgHeader: public HGCMMsgCore
@@ -450,14 +497,23 @@ class HGCMMsgHeader: public HGCMMsgCore
 class HGCMMsgCall: public HGCMMsgHeader
 {
     public:
-        HGCMMsgCall() {}
+        HGCMMsgCall() : pcCounter(NULL)
+        { }
 
         HGCMMsgCall(HGCMThread *pThread)
+            : pcCounter(NULL)
         {
             InitializeCore(SVC_MSG_GUESTCALL, pThread);
             Initialize();
         }
-        ~HGCMMsgCall() { Log(("~HGCMMsgCall %p\n", this)); }
+        ~HGCMMsgCall()
+        {
+            Log(("~HGCMMsgCall %p\n", this));
+            Assert(!pcCounter);
+        }
+
+        /** Points to HGCMClient::cPendingCalls if it needs to be decremented. */
+        uint32_t volatile *pcCounter;
 
         /* client identifier */
         uint32_t u32ClientId;
@@ -631,16 +687,12 @@ DECLCALLBACK(void) hgcmServiceThread(HGCMThread *pThread, void *pvUser)
             {
                 HGCMMsgSvcDisconnect *pMsg = (HGCMMsgSvcDisconnect *)pMsgCore;
 
-                LogFlowFunc(("SVC_MSG_DISCONNECT u32ClientId = %d\n", pMsg->u32ClientId));
+                LogFlowFunc(("SVC_MSG_DISCONNECT u32ClientId = %d, pClient = %p\n", pMsg->u32ClientId, pMsg->pClient));
 
-                HGCMClient *pClient = (HGCMClient *)hgcmObjReference(pMsg->u32ClientId, HGCMOBJ_CLIENT);
-
-                if (pClient)
+                if (pMsg->pClient)
                 {
                     rc = pSvc->m_fntable.pfnDisconnect(pSvc->m_fntable.pvService, pMsg->u32ClientId,
-                                                       HGCM_CLIENT_DATA(pSvc, pClient));
-
-                    hgcmObjDereference(pClient);
+                                                       HGCM_CLIENT_DATA(pSvc, pMsg->pClient));
                 }
                 else
                 {
@@ -860,6 +912,7 @@ DECLCALLBACK(void) hgcmServiceThread(HGCMThread *pThread, void *pvUser)
    return hgcmMsgComplete(pMsgCore, rc);
 }
 
+#if 0 /* not thread safe */
 /**
  * @interface_method_impl{VBOXHGCMSVCHELPERS,pfnDisconnectClient}
  */
@@ -867,11 +920,15 @@ DECLCALLBACK(void) hgcmServiceThread(HGCMThread *pThread, void *pvUser)
 {
      HGCMService *pService = static_cast <HGCMService *> (pvInstance);
 
+     AssertMsgFailed(("This is unused code with a serialization issue.\n"
+                      "It touches data which is normally serialized by only running on the HGCM thread!\n"));
+
      if (pService)
      {
-         pService->DisconnectClient(u32ClientId, true);
+         pService->DisconnectClient(u32ClientId, true, NULL);
      }
 }
+#endif
 
 /**
  * @interface_method_impl{VBOXHGCMSVCHELPERS,pfnIsCallRestored}
@@ -1047,11 +1104,39 @@ int HGCMService::instanceCreate(const char *pszServiceLibrary, const char *pszSe
             /* Register statistics: */
             STAMR3RegisterFU(pUVM, &m_StatHandleMsg, STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,
                              "Message handling", "/HGCM/%s/Msg", pszServiceName);
+            STAMR3RegisterFU(pUVM, &m_StatTooManyCalls, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,
+                             "Too many calls (per client)", "/HGCM/%s/TooManyCalls", pszServiceName);
+            STAMR3RegisterFU(pUVM, &m_StatTooManyClients, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,
+                             "Too many clients", "/HGCM/%s/TooManyClients", pszServiceName);
+            STAMR3RegisterFU(pUVM, &m_cClients, STAMTYPE_U32, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,
+                             "Number of clients", "/HGCM/%s/Clients", pszServiceName);
+            STAMR3RegisterFU(pUVM, &m_acClients[HGCM_CLIENT_CATEGORY_KERNEL], STAMTYPE_U32, STAMVISIBILITY_ALWAYS,
+                             STAMUNIT_OCCURENCES, "Number of kernel clients", "/HGCM/%s/Clients/Kernel", pszServiceName);
+            STAMR3RegisterFU(pUVM, &m_acClients[HGCM_CLIENT_CATEGORY_ROOT], STAMTYPE_U32, STAMVISIBILITY_ALWAYS,
+                             STAMUNIT_OCCURENCES, "Number of root/admin clients", "/HGCM/%s/Clients/Root", pszServiceName);
+            STAMR3RegisterFU(pUVM, &m_acClients[HGCM_CLIENT_CATEGORY_USER], STAMTYPE_U32, STAMVISIBILITY_ALWAYS,
+                             STAMUNIT_OCCURENCES, "Number of regular user clients", "/HGCM/%s/Clients/User", pszServiceName);
+            STAMR3RegisterFU(pUVM, &m_fntable.acMaxClients[HGCM_CLIENT_CATEGORY_KERNEL], STAMTYPE_U32, STAMVISIBILITY_ALWAYS,
+                             STAMUNIT_OCCURENCES, "Max number of kernel clients", "/HGCM/%s/Clients/KernelMax", pszServiceName);
+            STAMR3RegisterFU(pUVM, &m_fntable.acMaxClients[HGCM_CLIENT_CATEGORY_ROOT], STAMTYPE_U32, STAMVISIBILITY_ALWAYS,
+                             STAMUNIT_OCCURENCES, "Max number of root clients", "/HGCM/%s/Clients/RootMax", pszServiceName);
+            STAMR3RegisterFU(pUVM, &m_fntable.acMaxClients[HGCM_CLIENT_CATEGORY_USER], STAMTYPE_U32, STAMVISIBILITY_ALWAYS,
+                             STAMUNIT_OCCURENCES, "Max number of user clients", "/HGCM/%s/Clients/UserMax", pszServiceName);
+            STAMR3RegisterFU(pUVM, &m_fntable.idxLegacyClientCategory, STAMTYPE_U32, STAMVISIBILITY_ALWAYS,
+                             STAMUNIT_OCCURENCES, "Legacy client mapping", "/HGCM/%s/Clients/LegacyClientMapping", pszServiceName);
+            STAMR3RegisterFU(pUVM, &m_fntable.acMaxCallsPerClient[HGCM_CLIENT_CATEGORY_KERNEL], STAMTYPE_U32, STAMVISIBILITY_ALWAYS,
+                             STAMUNIT_OCCURENCES, "Max number of call per kernel client", "/HGCM/%s/MaxCallsKernelClient", pszServiceName);
+            STAMR3RegisterFU(pUVM, &m_fntable.acMaxCallsPerClient[HGCM_CLIENT_CATEGORY_ROOT], STAMTYPE_U32, STAMVISIBILITY_ALWAYS,
+                             STAMUNIT_OCCURENCES, "Max number of call per root client", "/HGCM/%s/MaxCallsRootClient", pszServiceName);
+            STAMR3RegisterFU(pUVM, &m_fntable.acMaxCallsPerClient[HGCM_CLIENT_CATEGORY_USER], STAMTYPE_U32, STAMVISIBILITY_ALWAYS,
+                             STAMUNIT_OCCURENCES, "Max number of call per user client", "/HGCM/%s/MaxCallsUserClient", pszServiceName);
 
             /* Initialize service helpers table. */
             m_svcHelpers.pfnCallComplete       = svcHlpCallComplete;
             m_svcHelpers.pvInstance            = this;
+#if 0 /* not thread safe */
             m_svcHelpers.pfnDisconnectClient   = svcHlpDisconnectClient;
+#endif
             m_svcHelpers.pfnIsCallRestored     = svcHlpIsCallRestored;
             m_svcHelpers.pfnIsCallCancelled    = svcHlpIsCallCancelled;
             m_svcHelpers.pfnStamRegisterV      = svcHlpStamRegisterV;
@@ -1379,8 +1464,14 @@ void HGCMService::ReleaseService(void)
     {
         while (pSvc->m_cClients && pSvc->m_paClientIds)
         {
-            LogFlowFunc(("handle %d\n", pSvc->m_paClientIds[0]));
-            pSvc->DisconnectClient(pSvc->m_paClientIds[0], false);
+            uint32_t const     idClient = pSvc->m_paClientIds[0];
+            HGCMClient * const pClient  = (HGCMClient *)hgcmObjReference(idClient, HGCMOBJ_CLIENT);
+            Assert(pClient);
+            LogFlowFunc(("handle %d/%p\n", pSvc->m_paClientIds[0], pClient));
+
+            pSvc->DisconnectClient(pSvc->m_paClientIds[0], false, pClient);
+
+            hgcmObjDereference(pClient);
         }
 
         pSvc = pSvc->m_pSvcNext;
@@ -1547,8 +1638,45 @@ int HGCMService::CreateAndConnectClient(uint32_t *pu32ClientIdOut, uint32_t u32C
     LogFlowFunc(("pu32ClientIdOut = %p, u32ClientIdIn = %d, fRequestor = %#x, fRestoring = %d\n",
                  pu32ClientIdOut, u32ClientIdIn, fRequestor, fRestoring));
 
+    /*
+     * Categorize the client (compress VMMDEV_REQUESTOR_USR_MASK)
+     * and check the respective client limit.
+     */
+    uint32_t idxClientCategory;
+    if (fRequestor == VMMDEV_REQUESTOR_LEGACY)
+    {
+        idxClientCategory = m_fntable.idxLegacyClientCategory;
+        AssertStmt(idxClientCategory < RT_ELEMENTS(m_acClients), idxClientCategory = HGCM_CLIENT_CATEGORY_KERNEL);
+    }
+    else
+        switch (fRequestor & VMMDEV_REQUESTOR_USR_MASK)
+        {
+            case VMMDEV_REQUESTOR_USR_DRV:
+            case VMMDEV_REQUESTOR_USR_DRV_OTHER:
+                idxClientCategory = HGCM_CLIENT_CATEGORY_KERNEL;
+                break;
+            case VMMDEV_REQUESTOR_USR_ROOT:
+            case VMMDEV_REQUESTOR_USR_SYSTEM:
+                idxClientCategory = HGCM_CLIENT_CATEGORY_ROOT;
+                break;
+            default:
+                idxClientCategory = HGCM_CLIENT_CATEGORY_USER;
+                break;
+        }
+
+    if (   m_acClients[idxClientCategory] < m_fntable.acMaxClients[idxClientCategory]
+        || fRestoring)
+    { }
+    else
+    {
+        LogRel2(("Too many concurrenct clients for HGCM service '%s': %u, max %u; category %u\n",
+                 m_pszSvcName, m_cClients, m_fntable.acMaxClients[idxClientCategory], idxClientCategory));
+        STAM_REL_COUNTER_INC(&m_StatTooManyClients);
+        return VERR_HGCM_TOO_MANY_CLIENTS;
+    }
+
     /* Allocate a client information structure. */
-    HGCMClient *pClient = new (std::nothrow) HGCMClient(fRequestor);
+    HGCMClient *pClient = new (std::nothrow) HGCMClient(fRequestor, idxClientCategory);
 
     if (!pClient)
     {
@@ -1623,17 +1751,19 @@ int HGCMService::CreateAndConnectClient(uint32_t *pu32ClientIdOut, uint32_t u32C
                     }
                 }
 
-                m_paClientIds[m_cClients] = handle;
-                m_cClients++;
+                if (RT_SUCCESS(rc))
+                {
+                    m_paClientIds[m_cClients] = handle;
+                    m_cClients++;
+                    m_acClients[idxClientCategory]++;
+                    LogFunc(("idClient=%u m_cClients=%u m_acClients[%u]=%u %s\n",
+                             handle, m_cClients, idxClientCategory, m_acClients[idxClientCategory], m_pszSvcName));
+                }
             }
         }
     }
 
-    if (RT_FAILURE(rc))
-    {
-        hgcmObjDeleteHandle(handle);
-    }
-    else
+    if (RT_SUCCESS(rc))
     {
         if (pu32ClientIdOut != NULL)
         {
@@ -1642,22 +1772,80 @@ int HGCMService::CreateAndConnectClient(uint32_t *pu32ClientIdOut, uint32_t u32C
 
         ReferenceService();
     }
+    else
+    {
+        hgcmObjDeleteHandle(handle);
+    }
 
     LogFlowFunc(("rc = %Rrc\n", rc));
     return rc;
 }
 
-/* Disconnect the client from the service and delete the client handle.
+/**
+ * Disconnect the client from the service and delete the client handle.
  *
- * @param u32ClientId  The handle of the client.
- * @return VBox rc.
+ * @param   u32ClientId     The handle of the client.
+ * @param   fFromService    Set if called by the service via
+ *                          svcHlpDisconnectClient().  pClient can be NULL when
+ *                          this is @c true.
+ * @param   pClient         The client disconnecting.  NULL if from service.
+ * @return  VBox status code.
  */
-int HGCMService::DisconnectClient(uint32_t u32ClientId, bool fFromService)
+int HGCMService::DisconnectClient(uint32_t u32ClientId, bool fFromService, HGCMClient *pClient)
 {
-    int rc = VINF_SUCCESS;
+    Assert(pClient || !fFromService);
 
-    LogFlowFunc(("client id = %d, fFromService = %d\n", u32ClientId, fFromService));
+    LogFlowFunc(("client id = %d, fFromService = %d, pClient = %p\n", u32ClientId, fFromService, pClient));
 
+    /*
+     * Destroy the client handle prior to the disconnecting to avoid creating
+     * a race with other messages from the same client.  See @bugref{10038}
+     * for further details.
+     */
+    Assert(pClient->idxCategory < HGCM_CLIENT_CATEGORY_MAX);
+    Assert(m_acClients[pClient->idxCategory] > 0);
+
+    bool fReleaseService = false;
+    int  rc              = VERR_NOT_FOUND;
+    for (uint32_t i = 0; i < m_cClients; i++)
+    {
+        if (m_paClientIds[i] == u32ClientId)
+        {
+            if (m_acClients[pClient->idxCategory] > 0)
+                m_acClients[pClient->idxCategory]--;
+
+            m_cClients--;
+
+            if (m_cClients > i)
+                memmove(&m_paClientIds[i], &m_paClientIds[i + 1], sizeof(m_paClientIds[0]) * (m_cClients - i));
+
+            /* Delete the client handle. */
+            hgcmObjDeleteHandle(u32ClientId);
+            fReleaseService = true;
+
+            rc = VINF_SUCCESS;
+            break;
+        }
+    }
+
+    /* Some paranoia wrt to not trusting the client ID array. */
+    Assert(rc == VINF_SUCCESS || fFromService);
+    if (rc == VERR_NOT_FOUND && !fFromService)
+    {
+        if (m_acClients[pClient->idxCategory] > 0)
+            m_acClients[pClient->idxCategory]--;
+
+        hgcmObjDeleteHandle(u32ClientId);
+        fReleaseService = true;
+    }
+
+    if (pClient)
+        LogFunc(("idClient=%u m_cClients=%u m_acClients[%u]=%u %s (cPendingCalls=%u) rc=%Rrc\n", u32ClientId, m_cClients,
+                 pClient->idxCategory, m_acClients[pClient->idxCategory], m_pszSvcName, pClient->cPendingCalls, rc));
+
+    /*
+     * Call the service.
+     */
     if (!fFromService)
     {
         /* Call the service. */
@@ -1670,6 +1858,7 @@ int HGCMService::DisconnectClient(uint32_t u32ClientId, bool fFromService)
             HGCMMsgSvcDisconnect *pMsg = (HGCMMsgSvcDisconnect *)pCoreMsg;
 
             pMsg->u32ClientId = u32ClientId;
+            pMsg->pClient = pClient;
 
             rc = hgcmMsgSend(pMsg);
         }
@@ -1680,27 +1869,12 @@ int HGCMService::DisconnectClient(uint32_t u32ClientId, bool fFromService)
         }
     }
 
-    /* Remove the client id from the array in any case, rc does not matter. */
-    uint32_t i;
 
-    for (i = 0; i < m_cClients; i++)
-    {
-        if (m_paClientIds[i] == u32ClientId)
-        {
-            m_cClients--;
-
-            if (m_cClients > i)
-                memmove(&m_paClientIds[i], &m_paClientIds[i + 1], sizeof(m_paClientIds[0]) * (m_cClients - i));
-
-            /* Delete the client handle. */
-            hgcmObjDeleteHandle(u32ClientId);
-
-            /* The service must be released. */
-            ReleaseService();
-
-            break;
-        }
-    }
+    /*
+     * Release the pClient->pService reference.
+     */
+    if (fReleaseService)
+        ReleaseService();
 
     LogFlowFunc(("rc = %Rrc\n", rc));
     return rc;
@@ -1749,11 +1923,34 @@ void HGCMService::UnregisterExtension(HGCMSVCEXTHANDLE handle)
     LogFlowFunc(("rc = %Rrc\n", rc));
 }
 
+/** @callback_method_impl{FNHGCMMSGCALLBACK}   */
+static DECLCALLBACK(int) hgcmMsgCallCompletionCallback(int32_t result, HGCMMsgCore *pMsgCore)
+{
+    /*
+     * Do common message completion then decrement the call counter
+     * for the client if necessary.
+     */
+    int rc = hgcmMsgCompletionCallback(result, pMsgCore);
+
+    HGCMMsgCall *pMsg = (HGCMMsgCall *)pMsgCore;
+    if (pMsg->pcCounter)
+    {
+        uint32_t cCalls = ASMAtomicDecU32(pMsg->pcCounter);
+        AssertStmt(cCalls < UINT32_MAX / 2, ASMAtomicWriteU32(pMsg->pcCounter, 0));
+        pMsg->pcCounter = NULL;
+        Log3Func(("pMsg=%p cPendingCalls=%u / %u (fun %u, %u parms)\n",
+                  pMsg, cCalls, pMsg->u32ClientId, pMsg->u32Function, pMsg->cParms));
+    }
+
+    return rc;
+}
+
 /** Perform a guest call to the service.
  *
  * @param pHGCMPort      The port to be used for completion confirmation.
  * @param pCmd           The VBox HGCM context.
  * @param u32ClientId    The client handle to be disconnected and deleted.
+ * @param pClient        The client data.
  * @param u32Function    The function number.
  * @param cParms         Number of parameters.
  * @param paParms        Pointer to array of parameters.
@@ -1761,26 +1958,54 @@ void HGCMService::UnregisterExtension(HGCMSVCEXTHANDLE handle)
  * @return VBox rc.
  * @retval VINF_HGCM_ASYNC_EXECUTE on success.
  */
-int HGCMService::GuestCall(PPDMIHGCMPORT pHGCMPort, PVBOXHGCMCMD pCmd, uint32_t u32ClientId, uint32_t u32Function,
-                           uint32_t cParms, VBOXHGCMSVCPARM paParms[], uint64_t tsArrival)
+int HGCMService::GuestCall(PPDMIHGCMPORT pHGCMPort, PVBOXHGCMCMD pCmd, uint32_t u32ClientId, HGCMClient *pClient,
+                           uint32_t u32Function, uint32_t cParms, VBOXHGCMSVCPARM paParms[], uint64_t tsArrival)
 {
     LogFlow(("MAIN::HGCMService::GuestCall\n"));
 
     int rc;
-    HGCMMsgCall *pMsg = new (std::nothrow) HGCMMsgCall(m_pThread);
+    HGCMMsgCall *pMsg = new(std::nothrow) HGCMMsgCall(m_pThread);
     if (pMsg)
     {
         pMsg->Reference(); /** @todo starts out with zero references. */
 
-        pMsg->pCmd        = pCmd;
-        pMsg->pHGCMPort   = pHGCMPort;
-        pMsg->u32ClientId = u32ClientId;
-        pMsg->u32Function = u32Function;
-        pMsg->cParms      = cParms;
-        pMsg->paParms     = paParms;
-        pMsg->tsArrival   = tsArrival;
+        uint32_t cCalls = ASMAtomicIncU32(&pClient->cPendingCalls);
+        Assert(pClient->idxCategory < RT_ELEMENTS(m_fntable.acMaxCallsPerClient));
+        if (cCalls < m_fntable.acMaxCallsPerClient[pClient->idxCategory])
+        {
+            pMsg->pcCounter   = &pClient->cPendingCalls;
+            Log3(("MAIN::HGCMService::GuestCall: pMsg=%p cPendingCalls=%u / %u / %s (fun %u, %u parms)\n",
+                  pMsg, cCalls, u32ClientId, m_pszSvcName, u32Function, cParms));
 
-        rc = hgcmMsgPost(pMsg, hgcmMsgCompletionCallback);
+            pMsg->pCmd        = pCmd;
+            pMsg->pHGCMPort   = pHGCMPort;
+            pMsg->u32ClientId = u32ClientId;
+            pMsg->u32Function = u32Function;
+            pMsg->cParms      = cParms;
+            pMsg->paParms     = paParms;
+            pMsg->tsArrival   = tsArrival;
+
+            rc = hgcmMsgPost(pMsg, hgcmMsgCallCompletionCallback);
+
+            if (RT_SUCCESS(rc))
+            { /* Reference donated on success. */ }
+            else
+            {
+                ASMAtomicDecU32(&pClient->cPendingCalls);
+                pMsg->pcCounter = NULL;
+                Log(("MAIN::HGCMService::GuestCall: hgcmMsgPost failed: %Rrc\n", rc));
+                pMsg->Dereference();
+            }
+        }
+        else
+        {
+            ASMAtomicDecU32(&pClient->cPendingCalls);
+            LogRel2(("HGCM: Too many calls to '%s' from client %u: %u, max %u; category %u\n", m_pszSvcName, u32ClientId,
+                     cCalls, m_fntable.acMaxCallsPerClient[pClient->idxCategory], pClient->idxCategory));
+            pMsg->Dereference();
+            STAM_REL_COUNTER_INC(&m_StatTooManyCalls);
+            rc = VERR_HGCM_TOO_MANY_CLIENT_CALLS;
+        }
     }
     else
     {
@@ -1794,7 +2019,7 @@ int HGCMService::GuestCall(PPDMIHGCMPORT pHGCMPort, PVBOXHGCMCMD pCmd, uint32_t 
 
 /** Guest cancelled a request (call, connection attempt, disconnect attempt).
  *
- * @param   pHGCMPort      The port to be used for completion confirmation.
+ * @param   pHGCMPort      The port to be used for completion confirmation
  * @param   pCmd           The VBox HGCM context.
  * @param   idClient       The client handle to be disconnected and deleted.
  * @return  VBox rc.
@@ -2088,7 +2313,7 @@ static DECLCALLBACK(void) hgcmThread(HGCMThread *pThread, void *pvUser)
                 HGCMService *pService = pClient->pService;
 
                 /* Call the service instance to disconnect the client. */
-                rc = pService->DisconnectClient(pMsg->u32ClientId, false);
+                rc = pService->DisconnectClient(pMsg->u32ClientId, false, pClient);
 
                 hgcmObjDereference(pClient);
             } break;
@@ -2535,7 +2760,7 @@ int HGCMGuestCall(PPDMIHGCMPORT pHGCMPort,
         AssertRelease(pClient->pService);
 
         /* Forward the message to the service thread. */
-        rc = pClient->pService->GuestCall(pHGCMPort, pCmd, u32ClientId, u32Function, cParms, paParms, tsArrival);
+        rc = pClient->pService->GuestCall(pHGCMPort, pCmd, u32ClientId, pClient, u32Function, cParms, paParms, tsArrival);
 
         hgcmObjDereference(pClient);
     }

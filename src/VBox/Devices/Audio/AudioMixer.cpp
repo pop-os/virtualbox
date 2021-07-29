@@ -1,59 +1,6 @@
 /* $Id: AudioMixer.cpp $ */
 /** @file
  * Audio mixing routines for multiplexing audio sources in device emulations.
- *
- * Overview
- * ========
- *
- * This mixer acts as a layer between the audio connector interface and
- * the actual device emulation, providing mechanisms for audio sources (input)
- * and audio sinks (output).
- *
- * Think of this mixer as kind of a high(er) level interface for the audio
- * connector interface, abstracting common tasks such as creating and managing
- * various audio sources and sinks. This mixer class is purely optional and can
- * be left out when implementing a new device emulation, using only the audi
- * connector interface instead.  For example, the SB16 emulation does not use
- * this mixer and does all its stream management on its own.
- *
- * As audio driver instances are handled as LUNs on the device level, this
- * audio mixer then can take care of e.g. mixing various inputs/outputs to/from
- * a specific source/sink.
- *
- * How and which audio streams are connected to sinks/sources depends on how
- * the audio mixer has been set up.
- *
- * A sink can connect multiple output streams together, whereas a source
- * does this with input streams. Each sink / source consists of one or more
- * so-called mixer streams, which then in turn have pointers to the actual
- * PDM audio input/output streams.
- *
- * Playback
- * ========
- *
- * For output sinks there can be one or more mixing stream attached.
- * As the host sets the overall pace for the device emulation (virtual time
- * in the guest OS vs. real time on the host OS), an output mixing sink
- * needs to make sure that all connected output streams are able to accept
- * all the same amount of data at a time.
- *
- * This is called synchronous multiplexing.
- *
- * A mixing sink employs an own audio mixing buffer, which in turn can convert
- * the audio (output) data supplied from the device emulation into the sink's
- * audio format. As all connected mixing streams in theory could have the same
- * audio format as the mixing sink (parent), this can save processing time when
- * it comes to serving a lot of mixing streams at once. That way only one
- * conversion must be done, instead of each stream having to iterate over the
- * data.
- *
- * Recording
- * =========
- *
- * For input sinks only one mixing stream at a time can be the recording
- * source currently. A recording source is optional, e.g. it is possible to
- * have no current recording source set. Switching to a different recording
- * source at runtime is possible.
  */
 
 /*
@@ -66,6 +13,56 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ */
+
+/** @page pg_audio_mixer    Audio Mixer
+ *
+ * @section sec_audio_mixer_overview    Overview
+ *
+ * This mixer acts as a layer between the audio connector interface and the
+ * actual device emulation, providing mechanisms for audio input sinks (sometime
+ * referred to as audio sources) and audio output sinks.
+ *
+ * Think of this mixer as kind of a higher level interface for the audio device
+ * to use in steado of PDMIAUDIOCONNECTOR, where it works with sinks rather than
+ * individual PDMAUDIOSTREAM instances.
+ *
+ * How and which audio streams are connected to the sinks depends on how the
+ * audio mixer has been set up by the device.  Though, generally, each driver
+ * chain (LUN) has a mixer stream for each sink.
+ *
+ * An output sink can connect multiple output streams together, whereas an input
+ * sink (source) does this with input streams.  Each of these mixer stream will
+ * in turn point to actual PDMAUDIOSTREAM instances.
+ *
+ * A mixing sink employs an own audio mixing buffer in a standard format (32-bit
+ * signed) with the virtual device's rate and channel configuration.  The mixer
+ * streams will convert to/from this as they write and read from it.
+ *
+ *
+ * @section sec_audio_mixer_playback    Playback
+ *
+ * For output sinks there can be one or more mixing stream attached.
+ *
+ * The backends are the consumers here and if they don't get samples when then
+ * need them we'll be having cracles, distortion and/or bits of silence in the
+ * actual output.  The guest runs independently at it's on speed (see @ref
+ * sec_pdm_audio_timing for more details) and we're just inbetween trying to
+ * shuffle the data along as best as we can.  If one or more of the backends
+ * for some reason isn't able to process data at a nominal speed (as defined by
+ * the others), we'll try detect this, mark it as bad and disregard it when
+ * calculating how much we can write to the backends in a buffer update call.
+ *
+ * This is called synchronous multiplexing.
+ *
+ *
+ * @section sec_audio_mixer_recording   Recording
+ *
+ * For input sinks (sources) we blend the samples of all mixing streams
+ * together, however ignoring silent ones to avoid too much of a hit on the
+ * volume level.  It is otherwise very similar to playback, only the direction
+ * is different and we don't multicast but blend.
+ *
  */
 
 
@@ -87,190 +84,161 @@
 #include <iprt/alloc.h>
 #include <iprt/asm-math.h>
 #include <iprt/assert.h>
+#include <iprt/semaphore.h>
 #include <iprt/string.h>
+#include <iprt/thread.h>
+
+#ifdef VBOX_WITH_DTRACE
+# include "dtrace/VBoxDD.h"
+#endif
 
 
 /*********************************************************************************************************************************
 *   Internal Functions                                                                                                           *
 *********************************************************************************************************************************/
-static int audioMixerAddSinkInternal(PAUDIOMIXER pMixer, PAUDMIXSINK pSink);
 static int audioMixerRemoveSinkInternal(PAUDIOMIXER pMixer, PAUDMIXSINK pSink);
 
-static int audioMixerSinkInit(PAUDMIXSINK pSink, PAUDIOMIXER pMixer, const char *pcszName, AUDMIXSINKDIR enmDir);
-static void audioMixerSinkDestroyInternal(PAUDMIXSINK pSink);
-static int audioMixerSinkUpdateVolume(PAUDMIXSINK pSink, const PPDMAUDIOVOLUME pVolMaster);
-static void audioMixerSinkRemoveAllStreamsInternal(PAUDMIXSINK pSink);
+static void audioMixerSinkDestroyInternal(PAUDMIXSINK pSink, PPDMDEVINS pDevIns);
+static int audioMixerSinkUpdateVolume(PAUDMIXSINK pSink, PCPDMAUDIOVOLUME pVolMaster);
 static int audioMixerSinkRemoveStreamInternal(PAUDMIXSINK pSink, PAUDMIXSTREAM pStream);
-static void audioMixerSinkReset(PAUDMIXSINK pSink);
-static int audioMixerSinkSetRecSourceInternal(PAUDMIXSINK pSink, PAUDMIXSTREAM pStream);
-static int audioMixerSinkUpdateInternal(PAUDMIXSINK pSink);
-static int audioMixerSinkMultiplexSync(PAUDMIXSINK pSink, AUDMIXOP enmOp, const void *pvBuf, uint32_t cbBuf, uint32_t *pcbWrittenMin);
-static int audioMixerSinkWriteToStream(PAUDMIXSINK pSink, PAUDMIXSTREAM pMixStream);
-static int audioMixerSinkWriteToStreamEx(PAUDMIXSINK pSink, PAUDMIXSTREAM pMixStream, uint32_t cbToWrite, uint32_t *pcbWritten);
+static void audioMixerSinkResetInternal(PAUDMIXSINK pSink);
 
-static int audioMixerStreamCtlInternal(PAUDMIXSTREAM pMixStream, PDMAUDIOSTREAMCMD enmCmd, uint32_t fCtl);
-static void audioMixerStreamDestroyInternal(PAUDMIXSTREAM pStream);
+static int audioMixerStreamCtlInternal(PAUDMIXSTREAM pMixStream, PDMAUDIOSTREAMCMD enmCmd);
+static void audioMixerStreamDestroyInternal(PAUDMIXSTREAM pStream, PPDMDEVINS pDevIns, bool fImmediate);
 static int audioMixerStreamUpdateStatus(PAUDMIXSTREAM pMixStream);
 
+
+/** size of output buffer for dbgAudioMixerSinkStatusToStr.   */
+#define AUDIOMIXERSINK_STATUS_STR_MAX sizeof("RUNNING DRAINING DRAINED_DMA DRAINED_MIXBUF DIRTY 0x12345678")
 
 /**
  * Converts a mixer sink status to a string.
  *
- * @returns Stringified mixer sink status flags. Must be free'd with RTStrFree().
- *          "NONE" if no flags set.
- * @param   fStatus             Mixer sink status to convert.
+ * @returns pszDst
+ * @param   fStatus     The mixer sink status.
+ * @param   pszDst      The output buffer.  Must be at least
+ *                      AUDIOMIXERSINK_STATUS_STR_MAX in length.
  */
-static char *dbgAudioMixerSinkStatusToStr(AUDMIXSINKSTS fStatus)
+static const char *dbgAudioMixerSinkStatusToStr(uint32_t fStatus, char pszDst[AUDIOMIXERSINK_STATUS_STR_MAX])
 {
-#define APPEND_FLAG_TO_STR(_aFlag)              \
-    if (fStatus & AUDMIXSINK_STS_##_aFlag)      \
-    {                                           \
-        if (pszFlags)                           \
-        {                                       \
-            rc2 = RTStrAAppend(&pszFlags, " "); \
-            if (RT_FAILURE(rc2))                \
-                break;                          \
-        }                                       \
-                                                \
-        rc2 = RTStrAAppend(&pszFlags, #_aFlag); \
-        if (RT_FAILURE(rc2))                    \
-            break;                              \
-    }                                           \
-
-    char *pszFlags = NULL;
-    int rc2 = VINF_SUCCESS;
-
-    if (fStatus == AUDMIXSINK_STS_NONE) /* This is special, as this is value 0. */
+    if (!fStatus)
+        return strcpy(pszDst, "NONE");
+    static const struct
     {
-        rc2 = RTStrAAppend(&pszFlags, "NONE");
-    }
-    else
+        const char *pszMnemonic;
+        uint32_t    cchMnemonic;
+        uint32_t    fStatus;
+    } s_aFlags[] =
     {
-        do
+        { RT_STR_TUPLE("RUNNING "),         AUDMIXSINK_STS_RUNNING },
+        { RT_STR_TUPLE("DRAINING "),        AUDMIXSINK_STS_DRAINING },
+        { RT_STR_TUPLE("DRAINED_DMA "),     AUDMIXSINK_STS_DRAINED_DMA },
+        { RT_STR_TUPLE("DRAINED_MIXBUF "),  AUDMIXSINK_STS_DRAINED_MIXBUF },
+        { RT_STR_TUPLE("DIRTY "),           AUDMIXSINK_STS_DIRTY },
+    };
+    char *psz = pszDst;
+    for (size_t i = 0; i < RT_ELEMENTS(s_aFlags); i++)
+        if (fStatus & s_aFlags[i].fStatus)
         {
-            APPEND_FLAG_TO_STR(RUNNING);
-            APPEND_FLAG_TO_STR(PENDING_DISABLE);
-            APPEND_FLAG_TO_STR(DIRTY);
-
-        } while (0);
-    }
-
-    if (   RT_FAILURE(rc2)
-        && pszFlags)
-    {
-        RTStrFree(pszFlags);
-        pszFlags = NULL;
-    }
-
-#undef APPEND_FLAG_TO_STR
-
-    return pszFlags;
-}
-
-/**
- * Creates an audio sink and attaches it to the given mixer.
- *
- * @returns IPRT status code.
- * @param   pMixer              Mixer to attach created sink to.
- * @param   pszName             Name of the sink to create.
- * @param   enmDir              Direction of the sink to create.
- * @param   ppSink              Pointer which returns the created sink on success.
- */
-int AudioMixerCreateSink(PAUDIOMIXER pMixer, const char *pszName, AUDMIXSINKDIR enmDir, PAUDMIXSINK *ppSink)
-{
-    AssertPtrReturn(pMixer, VERR_INVALID_POINTER);
-    AssertPtrReturn(pszName, VERR_INVALID_POINTER);
-    /* ppSink is optional. */
-
-    int rc = RTCritSectEnter(&pMixer->CritSect);
-    if (RT_FAILURE(rc))
-        return rc;
-
-    PAUDMIXSINK pSink = (PAUDMIXSINK)RTMemAllocZ(sizeof(AUDMIXSINK));
-    if (pSink)
-    {
-        rc = audioMixerSinkInit(pSink, pMixer, pszName, enmDir);
-        if (RT_SUCCESS(rc))
-        {
-            rc = audioMixerAddSinkInternal(pMixer, pSink);
-            if (RT_SUCCESS(rc))
+            memcpy(psz, s_aFlags[i].pszMnemonic, s_aFlags[i].cchMnemonic);
+            psz += s_aFlags[i].cchMnemonic;
+            fStatus &= ~s_aFlags[i].fStatus;
+            if (!fStatus)
             {
-                if (ppSink)
-                    *ppSink = pSink;
+                psz[-1] = '\0';
+                return pszDst;
             }
         }
-
-        if (RT_FAILURE(rc))
-        {
-            audioMixerSinkDestroyInternal(pSink);
-
-            RTMemFree(pSink);
-            pSink = NULL;
-        }
-    }
-    else
-        rc = VERR_NO_MEMORY;
-
-    int rc2 = RTCritSectLeave(&pMixer->CritSect);
-    AssertRC(rc2);
-
-    return rc;
+    RTStrPrintf(psz, AUDIOMIXERSINK_STATUS_STR_MAX - (psz - pszDst), "%#x", fStatus);
+    return pszDst;
 }
+
 
 /**
  * Creates an audio mixer.
  *
- * @returns IPRT status code.
- * @param   pcszName            Name of the audio mixer.
- * @param   fFlags              Creation flags.
- * @param   ppMixer             Pointer which returns the created mixer object.
+ * @returns VBox status code.
+ * @param   pszName     Name of the audio mixer.
+ * @param   fFlags      Creation flags - AUDMIXER_FLAGS_XXX.
+ * @param   ppMixer     Pointer which returns the created mixer object.
  */
-int AudioMixerCreate(const char *pcszName, uint32_t fFlags, PAUDIOMIXER *ppMixer)
+int AudioMixerCreate(const char *pszName, uint32_t fFlags, PAUDIOMIXER *ppMixer)
 {
-    AssertPtrReturn(pcszName, VERR_INVALID_POINTER);
-    AssertReturn   (!(fFlags & ~AUDMIXER_FLAGS_VALID_MASK), VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pszName, VERR_INVALID_POINTER);
+    size_t const cchName = strlen(pszName);
+    AssertReturn(cchName > 0 && cchName < 128, VERR_INVALID_NAME);
+    AssertReturn  (!(fFlags & ~AUDMIXER_FLAGS_VALID_MASK), VERR_INVALID_FLAGS);
     AssertPtrReturn(ppMixer, VERR_INVALID_POINTER);
 
-    int rc = VINF_SUCCESS;
-
-    PAUDIOMIXER pMixer = (PAUDIOMIXER)RTMemAllocZ(sizeof(AUDIOMIXER));
+    int         rc;
+    PAUDIOMIXER pMixer = (PAUDIOMIXER)RTMemAllocZVar(sizeof(AUDIOMIXER) + cchName + 1);
     if (pMixer)
     {
-        pMixer->pszName = RTStrDup(pcszName);
-        if (!pMixer->pszName)
-            rc = VERR_NO_MEMORY;
-
-        if (RT_SUCCESS(rc))
-            rc = RTCritSectInit(&pMixer->CritSect);
-
+        rc = RTCritSectInit(&pMixer->CritSect);
         if (RT_SUCCESS(rc))
         {
+            pMixer->pszName = (const char *)memcpy(pMixer + 1, pszName, cchName + 1);
+
             pMixer->cSinks = 0;
             RTListInit(&pMixer->lstSinks);
 
             pMixer->fFlags = fFlags;
+            pMixer->uMagic = AUDIOMIXER_MAGIC;
 
             if (pMixer->fFlags & AUDMIXER_FLAGS_DEBUG)
                 LogRel(("Audio Mixer: Debug mode enabled\n"));
 
             /* Set master volume to the max. */
-            pMixer->VolMaster.fMuted = false;
-            pMixer->VolMaster.uLeft  = PDMAUDIO_VOLUME_MAX;
-            pMixer->VolMaster.uRight = PDMAUDIO_VOLUME_MAX;
+            PDMAudioVolumeInitMax(&pMixer->VolMaster);
 
             LogFlowFunc(("Created mixer '%s'\n", pMixer->pszName));
-
             *ppMixer = pMixer;
+            return VINF_SUCCESS;
         }
-        else
-            RTMemFree(pMixer);
+        RTMemFree(pMixer);
     }
     else
         rc = VERR_NO_MEMORY;
-
     LogFlowFuncLeaveRC(rc);
     return rc;
 }
+
+
+/**
+ * Destroys an audio mixer.
+ *
+ * @param   pMixer      Audio mixer to destroy.  NULL is ignored.
+ * @param   pDevIns     The device instance the statistics are associated with.
+ */
+void AudioMixerDestroy(PAUDIOMIXER pMixer, PPDMDEVINS pDevIns)
+{
+    if (!pMixer)
+        return;
+    AssertPtrReturnVoid(pMixer);
+    AssertReturnVoid(pMixer->uMagic == AUDIOMIXER_MAGIC);
+
+    int rc2 = RTCritSectEnter(&pMixer->CritSect);
+    AssertRCReturnVoid(rc2);
+    Assert(pMixer->uMagic == AUDIOMIXER_MAGIC);
+
+    LogFlowFunc(("Destroying %s ...\n", pMixer->pszName));
+    pMixer->uMagic = AUDIOMIXER_MAGIC_DEAD;
+
+    PAUDMIXSINK pSink, pSinkNext;
+    RTListForEachSafe(&pMixer->lstSinks, pSink, pSinkNext, AUDMIXSINK, Node)
+    {
+        audioMixerRemoveSinkInternal(pMixer, pSink);
+        audioMixerSinkDestroyInternal(pSink, pDevIns);
+    }
+    Assert(pMixer->cSinks == 0);
+
+    rc2 = RTCritSectLeave(&pMixer->CritSect);
+    AssertRC(rc2);
+
+    RTCritSectDelete(&pMixer->CritSect);
+    RTMemFree(pMixer);
+}
+
 
 /**
  * Helper function for the internal debugger to print the mixer's current
@@ -283,85 +251,62 @@ int AudioMixerCreate(const char *pcszName, uint32_t fFlags, PAUDIOMIXER *ppMixer
 void AudioMixerDebug(PAUDIOMIXER pMixer, PCDBGFINFOHLP pHlp, const char *pszArgs)
 {
     RT_NOREF(pszArgs);
+    AssertReturnVoid(pMixer->uMagic == AUDIOMIXER_MAGIC);
+
+    int rc = RTCritSectEnter(&pMixer->CritSect);
+    AssertRCReturnVoid(rc);
+
+    /* Determin max sink name length for pretty formatting: */
+    size_t cchMaxName = strlen(pMixer->pszName);
     PAUDMIXSINK pSink;
-    unsigned    iSink = 0;
-
-    int rc2 = RTCritSectEnter(&pMixer->CritSect);
-    if (RT_FAILURE(rc2))
-        return;
-
-    pHlp->pfnPrintf(pHlp, "[Master] %s: lVol=%u, rVol=%u, fMuted=%RTbool\n", pMixer->pszName,
-                    pMixer->VolMaster.uLeft, pMixer->VolMaster.uRight, pMixer->VolMaster.fMuted);
-
     RTListForEach(&pMixer->lstSinks, pSink, AUDMIXSINK, Node)
     {
-        pHlp->pfnPrintf(pHlp, "[Sink %u] %s: lVol=%u, rVol=%u, fMuted=%RTbool\n", iSink, pSink->pszName,
-                        pSink->Volume.uLeft, pSink->Volume.uRight, pSink->Volume.fMuted);
+        size_t const cchMixer = strlen(pSink->pszName);
+        cchMaxName = RT_MAX(cchMixer, cchMaxName);
+    }
+
+    /* Do the displaying. */
+    pHlp->pfnPrintf(pHlp, "[Master] %*s: fMuted=%#RTbool auChannels=%.*Rhxs\n", cchMaxName, pMixer->pszName,
+                    pMixer->VolMaster.fMuted, sizeof(pMixer->VolMaster.auChannels), pMixer->VolMaster.auChannels);
+    unsigned iSink = 0;
+    RTListForEach(&pMixer->lstSinks, pSink, AUDMIXSINK, Node)
+    {
+        pHlp->pfnPrintf(pHlp, "[Sink %u] %*s: fMuted=%#RTbool auChannels=%.*Rhxs\n", iSink, cchMaxName, pSink->pszName,
+                        pSink->Volume.fMuted, sizeof(pSink->Volume.auChannels), pSink->Volume.auChannels);
         ++iSink;
     }
 
-    rc2 = RTCritSectLeave(&pMixer->CritSect);
-    AssertRC(rc2);
+    RTCritSectLeave(&pMixer->CritSect);
 }
 
-/**
- * Destroys an audio mixer.
- *
- * @param   pMixer              Audio mixer to destroy.
- */
-void AudioMixerDestroy(PAUDIOMIXER pMixer)
-{
-    if (!pMixer)
-        return;
-
-    int rc2 = RTCritSectEnter(&pMixer->CritSect);
-    AssertRC(rc2);
-
-    LogFlowFunc(("Destroying %s ...\n", pMixer->pszName));
-
-    PAUDMIXSINK pSink, pSinkNext;
-    RTListForEachSafe(&pMixer->lstSinks, pSink, pSinkNext, AUDMIXSINK, Node)
-    {
-        /* Save a pointer to the sink to remove, as pSink
-         * will not be valid anymore after calling audioMixerRemoveSinkInternal(). */
-        PAUDMIXSINK pSinkToRemove = pSink;
-
-        audioMixerSinkDestroyInternal(pSinkToRemove);
-        audioMixerRemoveSinkInternal(pMixer, pSinkToRemove);
-
-        RTMemFree(pSinkToRemove);
-    }
-
-    Assert(pMixer->cSinks == 0);
-
-    if (pMixer->pszName)
-    {
-        RTStrFree(pMixer->pszName);
-        pMixer->pszName = NULL;
-    }
-
-    rc2 = RTCritSectLeave(&pMixer->CritSect);
-    AssertRC(rc2);
-
-    RTCritSectDelete(&pMixer->CritSect);
-
-    RTMemFree(pMixer);
-    pMixer = NULL;
-}
 
 /**
- * Invalidates all internal data, internal version.
+ * Sets the mixer's master volume.
  *
- * @returns IPRT status code.
- * @param   pMixer              Mixer to invalidate data for.
+ * @returns VBox status code.
+ * @param   pMixer              Mixer to set master volume for.
+ * @param   pVol                Volume to set.
  */
-int audioMixerInvalidateInternal(PAUDIOMIXER pMixer)
+int AudioMixerSetMasterVolume(PAUDIOMIXER pMixer, PCPDMAUDIOVOLUME pVol)
 {
     AssertPtrReturn(pMixer, VERR_INVALID_POINTER);
+    AssertReturn(pMixer->uMagic == AUDIOMIXER_MAGIC, VERR_INVALID_MAGIC);
+    AssertPtrReturn(pVol, VERR_INVALID_POINTER);
 
-    LogFlowFunc(("[%s]\n", pMixer->pszName));
+    int rc = RTCritSectEnter(&pMixer->CritSect);
+    AssertRCReturn(rc, rc);
 
-    /* Propagate new master volume to all connected sinks. */
+    /*
+     * Make a copy.
+     */
+    LogFlowFunc(("[%s] fMuted=%RTbool auChannels=%.*Rhxs => fMuted=%RTbool auChannels=%.*Rhxs\n", pMixer->pszName,
+                 pMixer->VolMaster.fMuted, sizeof(pMixer->VolMaster.auChannels), pMixer->VolMaster.auChannels,
+                 pVol->fMuted, sizeof(pVol->auChannels), pVol->auChannels ));
+    memcpy(&pMixer->VolMaster, pVol, sizeof(PDMAUDIOVOLUME));
+
+    /*
+     * Propagate new master volume to all sinks.
+     */
     PAUDMIXSINK pSink;
     RTListForEach(&pMixer->lstSinks, pSink, AUDMIXSINK, Node)
     {
@@ -369,73 +314,28 @@ int audioMixerInvalidateInternal(PAUDIOMIXER pMixer)
         AssertRC(rc2);
     }
 
-    return VINF_SUCCESS;
+    RTCritSectLeave(&pMixer->CritSect);
+    return rc;
 }
 
+
 /**
- * Invalidates all internal data.
+ * Removes an audio sink from the given audio mixer, internal version.
  *
- * @returns IPRT status code.
- * @param   pMixer              Mixer to invalidate data for.
- */
-void AudioMixerInvalidate(PAUDIOMIXER pMixer)
-{
-    AssertPtrReturnVoid(pMixer);
-
-    int rc2 = RTCritSectEnter(&pMixer->CritSect);
-    AssertRC(rc2);
-
-    LogFlowFunc(("[%s]\n", pMixer->pszName));
-
-    rc2 = audioMixerInvalidateInternal(pMixer);
-    AssertRC(rc2);
-
-    rc2 = RTCritSectLeave(&pMixer->CritSect);
-    AssertRC(rc2);
-}
-
-/**
- * Adds sink to an existing mixer.
+ * Used by AudioMixerDestroy and AudioMixerSinkDestroy.
+ *
+ * Caller must hold the mixer lock.
  *
  * @returns VBox status code.
- * @param   pMixer              Mixer to add sink to.
- * @param   pSink               Sink to add.
- */
-static int audioMixerAddSinkInternal(PAUDIOMIXER pMixer, PAUDMIXSINK pSink)
-{
-    AssertPtrReturn(pMixer, VERR_INVALID_POINTER);
-    AssertPtrReturn(pSink,  VERR_INVALID_POINTER);
-
-    /** @todo Check upper sink limit? */
-    /** @todo Check for double-inserted sinks? */
-
-    RTListAppend(&pMixer->lstSinks, &pSink->Node);
-    pMixer->cSinks++;
-
-    LogFlowFunc(("pMixer=%p, pSink=%p, cSinks=%RU8\n",
-                 pMixer, pSink, pMixer->cSinks));
-
-    return VINF_SUCCESS;
-}
-
-/**
- * Removes a formerly attached audio sink for an audio mixer, internal version.
- *
- * @returns IPRT status code.
  * @param   pMixer              Mixer to remove sink from.
  * @param   pSink               Sink to remove.
  */
 static int audioMixerRemoveSinkInternal(PAUDIOMIXER pMixer, PAUDMIXSINK pSink)
 {
-    AssertPtrReturn(pMixer, VERR_INVALID_POINTER);
-    if (!pSink)
-        return VERR_NOT_FOUND;
-
-    AssertMsgReturn(pSink->pParent == pMixer, ("%s: Is not part of mixer '%s'\n",
-                                               pSink->pszName, pMixer->pszName), VERR_NOT_FOUND);
-
-    LogFlowFunc(("[%s] pSink=%s, cSinks=%RU8\n",
-                 pMixer->pszName, pSink->pszName, pMixer->cSinks));
+    LogFlowFunc(("[%s] pSink=%s, cSinks=%RU8\n", pMixer->pszName, pSink->pszName, pMixer->cSinks));
+    Assert(RTCritSectIsOwner(&pMixer->CritSect));
+    AssertMsgReturn(pSink->pParent == pMixer,
+                    ("%s: Is not part of mixer '%s'\n", pSink->pszName, pMixer->pszName), VERR_INTERNAL_ERROR_4);
 
     /* Remove sink from mixer. */
     RTListNodeRemove(&pSink->Node);
@@ -449,975 +349,565 @@ static int audioMixerRemoveSinkInternal(PAUDIOMIXER pMixer, PAUDMIXSINK pSink)
     return VINF_SUCCESS;
 }
 
-/**
- * Removes a formerly attached audio sink for an audio mixer.
- *
- * @returns IPRT status code.
- * @param   pMixer              Mixer to remove sink from.
- * @param   pSink               Sink to remove.
- */
-void AudioMixerRemoveSink(PAUDIOMIXER pMixer, PAUDMIXSINK pSink)
-{
-    int rc2 = RTCritSectEnter(&pMixer->CritSect);
-    AssertRC(rc2);
-
-    audioMixerSinkRemoveAllStreamsInternal(pSink);
-    audioMixerRemoveSinkInternal(pMixer, pSink);
-
-    rc2 = RTCritSectLeave(&pMixer->CritSect);
-}
-
-/**
- * Sets the mixer's master volume.
- *
- * @returns IPRT status code.
- * @param   pMixer              Mixer to set master volume for.
- * @param   pVol                Volume to set.
- */
-int AudioMixerSetMasterVolume(PAUDIOMIXER pMixer, PPDMAUDIOVOLUME pVol)
-{
-    AssertPtrReturn(pMixer, VERR_INVALID_POINTER);
-    AssertPtrReturn(pVol,   VERR_INVALID_POINTER);
-
-    int rc = RTCritSectEnter(&pMixer->CritSect);
-    if (RT_FAILURE(rc))
-        return rc;
-
-    memcpy(&pMixer->VolMaster, pVol, sizeof(PDMAUDIOVOLUME));
-
-    LogFlowFunc(("[%s] lVol=%RU32, rVol=%RU32 => fMuted=%RTbool, lVol=%RU32, rVol=%RU32\n",
-                 pMixer->pszName, pVol->uLeft, pVol->uRight,
-                 pMixer->VolMaster.fMuted, pMixer->VolMaster.uLeft, pMixer->VolMaster.uRight));
-
-    rc = audioMixerInvalidateInternal(pMixer);
-
-    int rc2 = RTCritSectLeave(&pMixer->CritSect);
-    AssertRC(rc2);
-
-    return rc;
-}
 
 /*********************************************************************************************************************************
- * Mixer Sink implementation.
- ********************************************************************************************************************************/
+*   Mixer Sink implementation.                                                                                                   *
+*********************************************************************************************************************************/
 
 /**
- * Adds an audio stream to a specific audio sink.
- *
- * @returns IPRT status code.
- * @param   pSink               Sink to add audio stream to.
- * @param   pStream             Stream to add.
- */
-int AudioMixerSinkAddStream(PAUDMIXSINK pSink, PAUDMIXSTREAM pStream)
-{
-    AssertPtrReturn(pSink,   VERR_INVALID_POINTER);
-    AssertPtrReturn(pStream, VERR_INVALID_POINTER);
-
-    int rc = RTCritSectEnter(&pSink->CritSect);
-    if (RT_FAILURE(rc))
-        return rc;
-
-    if (pSink->cStreams == UINT8_MAX) /* 255 streams per sink max. */
-    {
-        int rc2 = RTCritSectLeave(&pSink->CritSect);
-        AssertRC(rc2);
-
-        return VERR_NO_MORE_HANDLES;
-    }
-
-    LogFlowFuncEnter();
-
-    /** @todo Check if stream already is assigned to (another) sink. */
-
-    /* If the sink is running and not in pending disable mode,
-     * make sure that the added stream also is enabled. */
-    if (    (pSink->fStatus & AUDMIXSINK_STS_RUNNING)
-        && !(pSink->fStatus & AUDMIXSINK_STS_PENDING_DISABLE))
-    {
-        rc = audioMixerStreamCtlInternal(pStream, PDMAUDIOSTREAMCMD_ENABLE, AUDMIXSTRMCTL_F_NONE);
-        if (rc == VERR_AUDIO_STREAM_NOT_READY)
-            rc = VINF_SUCCESS; /* Not fatal here, stream can become available at some later point in time. */
-    }
-
-    if (RT_SUCCESS(rc))
-    {
-        /* Apply the sink's combined volume to the stream. */
-        rc = pStream->pConn->pfnStreamSetVolume(pStream->pConn, pStream->pStream, &pSink->VolumeCombined);
-        AssertRC(rc);
-    }
-
-    if (RT_SUCCESS(rc))
-    {
-        /* Save pointer to sink the stream is attached to. */
-        pStream->pSink = pSink;
-
-        /* Append stream to sink's list. */
-        RTListAppend(&pSink->lstStreams, &pStream->Node);
-        pSink->cStreams++;
-    }
-
-    LogFlowFunc(("[%s] cStreams=%RU8, rc=%Rrc\n", pSink->pszName, pSink->cStreams, rc));
-
-    int rc2 = RTCritSectLeave(&pSink->CritSect);
-    AssertRC(rc2);
-
-    return rc;
-}
-
-/**
- * Creates an audio mixer stream.
- *
- * @returns IPRT status code.
- * @param   pSink               Sink to use for creating the stream.
- * @param   pConn               Audio connector interface to use.
- * @param   pCfg                Audio stream configuration to use.
- * @param   fFlags              Stream flags. Currently unused, set to 0.
- * @param   ppStream            Pointer which receives the newly created audio stream.
- */
-int AudioMixerSinkCreateStream(PAUDMIXSINK pSink,
-                               PPDMIAUDIOCONNECTOR pConn, PPDMAUDIOSTREAMCFG pCfg, AUDMIXSTREAMFLAGS fFlags, PAUDMIXSTREAM *ppStream)
-{
-    AssertPtrReturn(pSink, VERR_INVALID_POINTER);
-    AssertPtrReturn(pConn, VERR_INVALID_POINTER);
-    AssertPtrReturn(pCfg,  VERR_INVALID_POINTER);
-    /** @todo Validate fFlags. */
-    /* ppStream is optional. */
-
-    if (pConn->pfnGetStatus(pConn, PDMAUDIODIR_DUPLEX) == PDMAUDIOBACKENDSTS_NOT_ATTACHED)
-        return VERR_AUDIO_BACKEND_NOT_ATTACHED;
-
-    PAUDMIXSTREAM pMixStream = (PAUDMIXSTREAM)RTMemAllocZ(sizeof(AUDMIXSTREAM));
-    if (!pMixStream)
-        return VERR_NO_MEMORY;
-
-    PDMAUDIOBACKENDCFG BackendCfg;
-    int rc = pConn->pfnGetConfig(pConn, &BackendCfg);
-    if (RT_FAILURE(rc))
-    {
-        RTMemFree(pMixStream);
-        return rc;
-    }
-
-    /* Assign the backend's name to the mixer stream's name for easier identification in the (release) log. */
-    pMixStream->pszName = RTStrAPrintf2("[%s] %s", pCfg->szName, BackendCfg.szName);
-    if (!pMixStream->pszName)
-    {
-        RTMemFree(pMixStream);
-        return VERR_NO_MEMORY;
-    }
-
-    rc = RTCritSectEnter(&pSink->CritSect);
-    if (RT_FAILURE(rc))
-        return rc;
-
-    LogFlowFunc(("[%s] fFlags=0x%x (enmDir=%ld, %u bits, %RU8 channels, %RU32Hz)\n",
-                 pSink->pszName, fFlags, pCfg->enmDir, pCfg->Props.cbSample * 8, pCfg->Props.cChannels, pCfg->Props.uHz));
-
-    /*
-     * Initialize the host-side configuration for the stream to be created.
-     * Always use the sink's PCM audio format as the host side when creating a stream for it.
-     */
-    AssertMsg(AudioHlpPcmPropsAreValid(&pSink->PCMProps),
-              ("%s: Does not (yet) have a format set when it must\n", pSink->pszName));
-
-    PDMAUDIOSTREAMCFG CfgHost;
-    rc = PDMAudioStrmCfgInitWithProps(&CfgHost, &pSink->PCMProps);
-    AssertRCReturn(rc, rc);
-
-    /* Apply the sink's direction for the configuration to use to
-     * create the stream. */
-    if (pSink->enmDir == AUDMIXSINKDIR_INPUT)
-    {
-        CfgHost.enmDir      = PDMAUDIODIR_IN;
-        CfgHost.u.enmSrc    = pCfg->u.enmSrc;
-        CfgHost.enmLayout   = pCfg->enmLayout;
-    }
-    else
-    {
-        CfgHost.enmDir      = PDMAUDIODIR_OUT;
-        CfgHost.u.enmDst    = pCfg->u.enmDst;
-        CfgHost.enmLayout   = pCfg->enmLayout;
-    }
-
-    RTStrPrintf(CfgHost.szName, sizeof(CfgHost.szName), "%s", pCfg->szName);
-
-    rc = RTCritSectInit(&pMixStream->CritSect);
-    if (RT_SUCCESS(rc))
-    {
-        PPDMAUDIOSTREAM pStream;
-        rc = pConn->pfnStreamCreate(pConn, &CfgHost, pCfg, &pStream);
-        if (RT_SUCCESS(rc))
-        {
-            /* Save the audio stream pointer to this mixing stream. */
-            pMixStream->pStream = pStream;
-
-            /* Increase the stream's reference count to let others know
-             * we're reyling on it to be around now. */
-            pConn->pfnStreamRetain(pConn, pStream);
-        }
-    }
-
-    if (RT_SUCCESS(rc))
-    {
-        rc = RTCircBufCreate(&pMixStream->pCircBuf, PDMAudioPropsMilliToBytes(&pSink->PCMProps, 100 /*ms*/)); /** @todo Make this configurable. */
-        AssertRC(rc);
-    }
-
-    if (RT_SUCCESS(rc))
-    {
-        pMixStream->fFlags = fFlags;
-        pMixStream->pConn  = pConn;
-
-        if (ppStream)
-            *ppStream = pMixStream;
-    }
-    else if (pMixStream)
-    {
-        int rc2 = RTCritSectDelete(&pMixStream->CritSect);
-        AssertRC(rc2);
-
-        if (pMixStream->pszName)
-        {
-            RTStrFree(pMixStream->pszName);
-            pMixStream->pszName = NULL;
-        }
-
-        RTMemFree(pMixStream);
-        pMixStream = NULL;
-    }
-
-    int rc2 = RTCritSectLeave(&pSink->CritSect);
-    AssertRC(rc2);
-
-    return rc;
-}
-
-/**
- * Static helper function to translate a sink command
- * to a PDM audio stream command.
- *
- * @returns PDM audio stream command, or PDMAUDIOSTREAMCMD_UNKNOWN if not found.
- * @param   enmCmd              Mixer sink command to translate.
- */
-static PDMAUDIOSTREAMCMD audioMixerSinkToStreamCmd(AUDMIXSINKCMD enmCmd)
-{
-    switch (enmCmd)
-    {
-        case AUDMIXSINKCMD_ENABLE:   return PDMAUDIOSTREAMCMD_ENABLE;
-        case AUDMIXSINKCMD_DISABLE:  return PDMAUDIOSTREAMCMD_DISABLE;
-        case AUDMIXSINKCMD_PAUSE:    return PDMAUDIOSTREAMCMD_PAUSE;
-        case AUDMIXSINKCMD_RESUME:   return PDMAUDIOSTREAMCMD_RESUME;
-        case AUDMIXSINKCMD_DROP:     return PDMAUDIOSTREAMCMD_DROP;
-        default:                     break;
-    }
-
-    AssertMsgFailed(("Unsupported sink command %d\n", enmCmd));
-    return PDMAUDIOSTREAMCMD_UNKNOWN;
-}
-
-/**
- * Controls a mixer sink.
- *
- * @returns IPRT status code.
- * @param   pSink               Mixer sink to control.
- * @param   enmSinkCmd          Sink command to set.
- */
-int AudioMixerSinkCtl(PAUDMIXSINK pSink, AUDMIXSINKCMD enmSinkCmd)
-{
-    AssertPtrReturn(pSink, VERR_INVALID_POINTER);
-
-    PDMAUDIOSTREAMCMD enmCmdStream = audioMixerSinkToStreamCmd(enmSinkCmd);
-    if (enmCmdStream == PDMAUDIOSTREAMCMD_UNKNOWN)
-        return VERR_NOT_SUPPORTED;
-
-    int rc = RTCritSectEnter(&pSink->CritSect);
-    if (RT_FAILURE(rc))
-        return rc;
-
-    /* Input sink and no recording source set? Bail out early. */
-    if (   pSink->enmDir == AUDMIXSINKDIR_INPUT
-        && pSink->In.pStreamRecSource == NULL)
-    {
-        int rc2 = RTCritSectLeave(&pSink->CritSect);
-        AssertRC(rc2);
-
-        return rc;
-    }
-
-    PAUDMIXSTREAM pStream;
-    if (   pSink->enmDir == AUDMIXSINKDIR_INPUT
-        && pSink->In.pStreamRecSource) /* Any recording source set? */
-    {
-        RTListForEach(&pSink->lstStreams, pStream, AUDMIXSTREAM, Node)
-        {
-            if (pStream == pSink->In.pStreamRecSource)
-            {
-                int rc2 = audioMixerStreamCtlInternal(pStream, enmCmdStream, AUDMIXSTRMCTL_F_NONE);
-                if (rc2 == VERR_NOT_SUPPORTED)
-                    rc2 = VINF_SUCCESS;
-
-                if (RT_SUCCESS(rc))
-                    rc = rc2;
-                /* Keep going. Flag? */
-            }
-        }
-    }
-    else if (pSink->enmDir == AUDMIXSINKDIR_OUTPUT)
-    {
-        RTListForEach(&pSink->lstStreams, pStream, AUDMIXSTREAM, Node)
-        {
-            int rc2 = audioMixerStreamCtlInternal(pStream, enmCmdStream, AUDMIXSTRMCTL_F_NONE);
-            if (rc2 == VERR_NOT_SUPPORTED)
-                rc2 = VINF_SUCCESS;
-
-            if (RT_SUCCESS(rc))
-                rc = rc2;
-            /* Keep going. Flag? */
-        }
-    }
-
-    switch (enmSinkCmd)
-    {
-        case AUDMIXSINKCMD_ENABLE:
-        {
-            /* Make sure to clear any other former flags again by assigning AUDMIXSINK_STS_RUNNING directly. */
-            pSink->fStatus = AUDMIXSINK_STS_RUNNING;
-            break;
-        }
-
-        case AUDMIXSINKCMD_DISABLE:
-        {
-            if (pSink->fStatus & AUDMIXSINK_STS_RUNNING)
-            {
-                /* Set the sink in a pending disable state first.
-                 * The final status (disabled) will be set in the sink's iteration. */
-                pSink->fStatus |= AUDMIXSINK_STS_PENDING_DISABLE;
-            }
-            break;
-        }
-
-        case AUDMIXSINKCMD_DROP:
-        {
-            AudioMixBufReset(&pSink->MixBuf);
-
-            /* Clear dirty bit, keep others. */
-            pSink->fStatus &= ~AUDMIXSINK_STS_DIRTY;
-            break;
-        }
-
-        default:
-            AssertFailedStmt(rc = VERR_NOT_IMPLEMENTED);
-            break;
-    }
-
-    char *pszStatus = dbgAudioMixerSinkStatusToStr(pSink->fStatus);
-    LogRel2(("Audio Mixer: Set new status of sink '%s' to %s\n", pSink->pszName, pszStatus));
-    LogFlowFunc(("[%s] enmCmd=%RU32, fStatus=%s, rc=%Rrc\n", pSink->pszName, enmSinkCmd, pszStatus, rc));
-    RTStrFree(pszStatus);
-
-    int rc2 = RTCritSectLeave(&pSink->CritSect);
-    AssertRC(rc2);
-
-    return rc;
-}
-
-/**
- * Initializes a sink.
+ * Creates an audio sink and attaches it to the given mixer.
  *
  * @returns VBox status code.
- * @param   pSink               Sink to initialize.
- * @param   pMixer              Mixer the sink is assigned to.
- * @param   pcszName            Name of the sink.
- * @param   enmDir              Direction of the sink.
+ * @param   pMixer      Mixer to attach created sink to.
+ * @param   pszName     Name of the sink to create.
+ * @param   enmDir      Direction of the sink to create.
+ * @param   pDevIns     The device instance to register statistics under.
+ * @param   ppSink      Pointer which returns the created sink on success.
  */
-static int audioMixerSinkInit(PAUDMIXSINK pSink, PAUDIOMIXER pMixer, const char *pcszName, AUDMIXSINKDIR enmDir)
+int AudioMixerCreateSink(PAUDIOMIXER pMixer, const char *pszName, PDMAUDIODIR enmDir, PPDMDEVINS pDevIns, PAUDMIXSINK *ppSink)
 {
-    pSink->pszName = RTStrDup(pcszName);
-    if (!pSink->pszName)
-        return VERR_NO_MEMORY;
+    AssertPtrReturn(pMixer, VERR_INVALID_POINTER);
+    AssertPtrReturn(pszName, VERR_INVALID_POINTER);
+    size_t const cchName = strlen(pszName);
+    AssertReturn(cchName > 0 && cchName < 64, VERR_INVALID_NAME);
+    AssertPtrNullReturn(ppSink, VERR_INVALID_POINTER);
 
-    int rc = RTCritSectInit(&pSink->CritSect);
-    if (RT_SUCCESS(rc))
+    int rc = RTCritSectEnter(&pMixer->CritSect);
+    AssertRCReturn(rc, rc);
+
+    /** @todo limit the number of sinks? */
+
+    /*
+     * Allocate the data and initialize the critsect.
+     */
+    PAUDMIXSINK pSink = (PAUDMIXSINK)RTMemAllocZVar(sizeof(AUDMIXSINK) + cchName + 1);
+    if (pSink)
     {
-        pSink->pParent  = pMixer;
-        pSink->enmDir   = enmDir;
+        rc = RTCritSectInit(&pSink->CritSect);
+        if (RT_SUCCESS(rc))
+        {
+            /*
+             * Initialize it.
+             */
+            pSink->uMagic   = AUDMIXSINK_MAGIC;
+            pSink->pParent  = NULL;
+            pSink->enmDir   = enmDir;
+            pSink->pszName  = (const char *)memcpy(pSink + 1, pszName, cchName + 1);
+            RTListInit(&pSink->lstStreams);
 
-        RTListInit(&pSink->lstStreams);
+            /* Set initial volume to max. */
+            PDMAudioVolumeInitMax(&pSink->Volume);
 
-        /* Set initial volume to max. */
-        pSink->Volume.fMuted = false;
-        pSink->Volume.uLeft  = PDMAUDIO_VOLUME_MAX;
-        pSink->Volume.uRight = PDMAUDIO_VOLUME_MAX;
+            /* Ditto for the combined volume. */
+            PDMAudioVolumeInitMax(&pSink->VolumeCombined);
 
-        /* Ditto for the combined volume. */
-        pSink->VolumeCombined.fMuted = false;
-        pSink->VolumeCombined.uLeft  = PDMAUDIO_VOLUME_MAX;
-        pSink->VolumeCombined.uRight = PDMAUDIO_VOLUME_MAX;
+            /* AIO */
+            AssertPtr(pDevIns);
+            pSink->AIO.pDevIns     = pDevIns;
+            pSink->AIO.hThread     = NIL_RTTHREAD;
+            pSink->AIO.hEvent      = NIL_RTSEMEVENT;
+            pSink->AIO.fStarted    = false;
+            pSink->AIO.fShutdown   = false;
+            pSink->AIO.cUpdateJobs = 0;
 
-        const size_t cbScratchBuf = _1K; /** @todo Make this configurable? */
+            /*
+             * Add it to the mixer.
+             */
+            RTListAppend(&pMixer->lstSinks, &pSink->Node);
+            pMixer->cSinks++;
+            pSink->pParent = pMixer;
 
-        pSink->pabScratchBuf = (uint8_t *)RTMemAlloc(cbScratchBuf);
-        AssertPtrReturn(pSink->pabScratchBuf, VERR_NO_MEMORY);
-        pSink->cbScratchBuf  = cbScratchBuf;
+            RTCritSectLeave(&pMixer->CritSect);
+
+            /*
+             * Register stats and return.
+             */
+            char szPrefix[128];
+            RTStrPrintf(szPrefix, sizeof(szPrefix), "MixerSink-%s/", pSink->pszName);
+            PDMDevHlpSTAMRegisterF(pDevIns, &pSink->MixBuf.cFrames, STAMTYPE_U32, STAMVISIBILITY_USED, STAMUNIT_NONE,
+                                   "Sink mixer buffer size in frames.",         "%sMixBufSize", szPrefix);
+            PDMDevHlpSTAMRegisterF(pDevIns, &pSink->MixBuf.cUsed, STAMTYPE_U32, STAMVISIBILITY_USED, STAMUNIT_NONE,
+                                   "Sink mixer buffer fill size in frames.",    "%sMixBufUsed", szPrefix);
+            PDMDevHlpSTAMRegisterF(pDevIns, &pSink->cStreams, STAMTYPE_U8, STAMVISIBILITY_USED, STAMUNIT_NONE,
+                                   "Number of streams attached to the sink.",   "%sStreams", szPrefix);
+
+            if (ppSink)
+                *ppSink = pSink;
+            return VINF_SUCCESS;
+        }
+
+        RTMemFree(pSink);
     }
+    else
+        rc = VERR_NO_MEMORY;
 
-    LogFlowFuncLeaveRC(rc);
+    RTCritSectLeave(&pMixer->CritSect);
+    if (ppSink)
+        *ppSink = NULL;
     return rc;
 }
 
+
 /**
- * Destroys a mixer sink and removes it from the attached mixer (if any).
+ * Starts playback/capturing on the mixer sink.
  *
- * @param   pSink               Mixer sink to destroy.
+ * @returns VBox status code.  Generally always VINF_SUCCESS unless the input
+ *          is invalid.  Individual driver errors are suppressed and ignored.
+ * @param   pSink       Mixer sink to control.
  */
-void AudioMixerSinkDestroy(PAUDMIXSINK pSink)
+int AudioMixerSinkStart(PAUDMIXSINK pSink)
 {
-    if (!pSink)
-        return;
+    AssertPtrReturn(pSink, VERR_INVALID_POINTER);
+    Assert(pSink->uMagic == AUDMIXSINK_MAGIC);
+    int rc = RTCritSectEnter(&pSink->CritSect);
+    AssertRCReturn(rc, rc);
+    char szStatus[AUDIOMIXERSINK_STATUS_STR_MAX];
+    LogFunc(("Starting '%s'. Old status: %s\n", pSink->pszName, dbgAudioMixerSinkStatusToStr(pSink->fStatus, szStatus)));
 
-    int rc2 = RTCritSectEnter(&pSink->CritSect);
-    AssertRC(rc2);
+    AssertReturnStmt(pSink->enmDir == PDMAUDIODIR_IN || pSink->enmDir == PDMAUDIODIR_OUT,
+                     RTCritSectLeave(&pSink->CritSect), VERR_INTERNAL_ERROR_3);
 
-    if (pSink->pParent)
+    /*
+     * Make sure the sink and its streams are all stopped.
+     */
+    if (!(pSink->fStatus & AUDMIXSINK_STS_RUNNING))
+        Assert(pSink->fStatus == AUDMIXSINK_STS_NONE);
+    else
     {
-        /* Save mixer pointer, as after audioMixerRemoveSinkInternal() the
-         * pointer will be gone from the stream. */
-        PAUDIOMIXER pMixer = pSink->pParent;
-        AssertPtr(pMixer);
+        LogFunc(("%s: This sink is still running!! Stop it before starting it again.\n", pSink->pszName));
 
-        audioMixerRemoveSinkInternal(pMixer, pSink);
+        PAUDMIXSTREAM pStream;
+        RTListForEach(&pSink->lstStreams, pStream, AUDMIXSTREAM, Node)
+        {
+            /** @todo PDMAUDIOSTREAMCMD_STOP_NOW   */
+            audioMixerStreamCtlInternal(pStream, PDMAUDIOSTREAMCMD_DISABLE);
+        }
+        audioMixerSinkResetInternal(pSink);
     }
 
-    rc2 = RTCritSectLeave(&pSink->CritSect);
-    AssertRC(rc2);
+    /*
+     * Send the command to the streams.
+     */
+    PAUDMIXSTREAM pStream;
+    RTListForEach(&pSink->lstStreams, pStream, AUDMIXSTREAM, Node)
+    {
+        audioMixerStreamCtlInternal(pStream, PDMAUDIOSTREAMCMD_ENABLE);
+    }
 
-    audioMixerSinkDestroyInternal(pSink);
+    /*
+     * Update the sink status.
+     */
+    pSink->fStatus = AUDMIXSINK_STS_RUNNING;
 
-    RTMemFree(pSink);
-    pSink = NULL;
+    LogRel2(("Audio Mixer: Started sink '%s': %s\n", pSink->pszName, dbgAudioMixerSinkStatusToStr(pSink->fStatus, szStatus)));
+
+    RTCritSectLeave(&pSink->CritSect);
+    return VINF_SUCCESS;
 }
 
+
 /**
- * Destroys a mixer sink.
+ * Helper for AudioMixerSinkDrainAndStop that calculates the max length a drain
+ * operation should take.
  *
- * @param   pSink               Mixer sink to destroy.
+ * @returns The drain deadline (relative to RTTimeNanoTS).
+ * @param   pSink               The sink.
+ * @param   cbDmaLeftToDrain    The number of bytes in the DMA buffer left to
+ *                              transfer into the mixbuf.
  */
-static void audioMixerSinkDestroyInternal(PAUDMIXSINK pSink)
+static uint64_t audioMixerSinkDrainDeadline(PAUDMIXSINK pSink, uint32_t cbDmaLeftToDrain)
+{
+    /*
+     * Calculate the max backend buffer size in mixbuf frames.
+     * (This is somewhat similar to audioMixerSinkUpdateOutputCalcFramesToRead.)
+     */
+    uint32_t      cFramesStreamMax = 0;
+    PAUDMIXSTREAM pMixStream;
+    RTListForEach(&pSink->lstStreams, pMixStream, AUDMIXSTREAM, Node)
+    {
+        /*LogFunc(("Stream '%s': %#x (%u frames)\n", pMixStream->pszName, pMixStream->fStatus, pMixStream->cFramesBackendBuffer));*/
+        if (pMixStream->fStatus & AUDMIXSTREAM_STATUS_CAN_WRITE)
+        {
+            uint32_t cFrames = pMixStream->cFramesBackendBuffer;
+            if (PDMAudioPropsHz(&pMixStream->pStream->Cfg.Props) == PDMAudioPropsHz(&pSink->MixBuf.Props))
+            { /* likely */ }
+            else
+                cFrames = cFrames * PDMAudioPropsHz(&pSink->MixBuf.Props) / PDMAudioPropsHz(&pMixStream->pStream->Cfg.Props);
+            if (cFrames > cFramesStreamMax)
+            {
+                Log4Func(("%s: cFramesStreamMax %u -> %u; %s\n", pSink->pszName, cFramesStreamMax, cFrames, pMixStream->pszName));
+                cFramesStreamMax = cFrames;
+            }
+        }
+    }
+
+    /*
+     * Combine that with the pending DMA and mixbuf content, then convert
+     * to nanoseconds and apply a fudge factor to get a generous deadline.
+     */
+    uint32_t const cFramesDmaAndMixBuf = PDMAudioPropsBytesToFrames(&pSink->MixBuf.Props, cbDmaLeftToDrain)
+                                       + AudioMixBufUsed(&pSink->MixBuf);
+    uint64_t const cNsToDrainMax       = PDMAudioPropsFramesToNano(&pSink->MixBuf.Props, cFramesDmaAndMixBuf + cFramesStreamMax);
+    uint64_t const nsDeadline          = cNsToDrainMax * 2;
+    LogFlowFunc(("%s: cFramesStreamMax=%#x cFramesDmaAndMixBuf=%#x -> cNsToDrainMax=%RU64 -> %RU64\n",
+                 pSink->pszName, cFramesStreamMax, cFramesDmaAndMixBuf, cNsToDrainMax, nsDeadline));
+    return nsDeadline;
+}
+
+
+/**
+ * Kicks off the draining and stopping playback/capture on the mixer sink.
+ *
+ * For input streams this causes an immediate stop, as draining only makes sense
+ * to output stream in the VBox device context.
+ *
+ * @returns VBox status code.  Generally always VINF_SUCCESS unless the input
+ *          is invalid.  Individual driver errors are suppressed and ignored.
+ * @param   pSink       Mixer sink to control.
+ * @param   cbComming   The number of bytes still left in the device's DMA
+ *                      buffers that the update job has yet to transfer.  This
+ *                      is ignored for input streams.
+ */
+int AudioMixerSinkDrainAndStop(PAUDMIXSINK pSink, uint32_t cbComming)
+{
+    AssertPtrReturn(pSink, VERR_INVALID_POINTER);
+    Assert(pSink->uMagic == AUDMIXSINK_MAGIC);
+
+    int rc = RTCritSectEnter(&pSink->CritSect);
+    AssertRCReturn(rc, rc);
+    char szStatus[AUDIOMIXERSINK_STATUS_STR_MAX];
+    LogFunc(("Draining '%s' with %#x bytes left. Old status: %s\n",
+             pSink->pszName, cbComming, dbgAudioMixerSinkStatusToStr(pSink->fStatus, szStatus) ));
+
+    AssertReturnStmt(pSink->enmDir == PDMAUDIODIR_IN || pSink->enmDir == PDMAUDIODIR_OUT,
+                     RTCritSectLeave(&pSink->CritSect), VERR_INTERNAL_ERROR_3);
+
+    if (pSink->fStatus & AUDMIXSINK_STS_RUNNING)
+    {
+        /*
+         * Output streams will be drained then stopped (all by the AIO thread).
+         *
+         * For streams we define that they shouldn't not be written to after we start draining,
+         * so we have to hold back sending the command to them till we've processed all the
+         * cbComming remaining bytes in the DMA buffer.
+         */
+        if (pSink->enmDir == PDMAUDIODIR_OUT)
+        {
+            if (!(pSink->fStatus & AUDMIXSINK_STS_DRAINING))
+            {
+                Assert(!(pSink->fStatus & (AUDMIXSINK_STS_DRAINED_DMA | AUDMIXSINK_STS_DRAINED_MIXBUF)));
+
+                /* Update the status and draining member. */
+                pSink->cbDmaLeftToDrain = cbComming;
+                pSink->nsDrainDeadline  = audioMixerSinkDrainDeadline(pSink, cbComming);
+                if (pSink->nsDrainDeadline > 0)
+                {
+                    pSink->nsDrainStarted   = RTTimeNanoTS();
+                    pSink->nsDrainDeadline += pSink->nsDrainStarted;
+                    pSink->fStatus         |= AUDMIXSINK_STS_DRAINING;
+
+                    /* Kick the AIO thread so it can keep pushing data till we're out of this
+                       status. (The device's DMA timer won't kick it any more, so we must.) */
+                    AudioMixerSinkSignalUpdateJob(pSink);
+                }
+                else
+                {
+                    LogFunc(("%s: No active streams, doing an immediate stop.\n", pSink->pszName));
+                    PAUDMIXSTREAM pStream;
+                    RTListForEach(&pSink->lstStreams, pStream, AUDMIXSTREAM, Node)
+                    {
+                        audioMixerStreamCtlInternal(pStream, PDMAUDIOSTREAMCMD_DISABLE);
+                    }
+                    audioMixerSinkResetInternal(pSink);
+                }
+            }
+            else
+                AssertMsgFailed(("Already draining '%s': %s\n",
+                                 pSink->pszName, dbgAudioMixerSinkStatusToStr(pSink->fStatus, szStatus)));
+        }
+        /*
+         * Input sinks are stopped immediately.
+         *
+         * It's the guest giving order here and we can't force it to accept data that's
+         * already in the buffer pipeline or anything.  So, there can be no draining here.
+         */
+        else
+        {
+            PAUDMIXSTREAM pStream;
+            RTListForEach(&pSink->lstStreams, pStream, AUDMIXSTREAM, Node)
+            {
+                audioMixerStreamCtlInternal(pStream, PDMAUDIOSTREAMCMD_DISABLE);
+            }
+            audioMixerSinkResetInternal(pSink);
+        }
+    }
+    else
+        LogFunc(("%s: Not running\n", pSink->pszName));
+
+    LogRel2(("Audio Mixer: Started draining sink '%s': %s\n", pSink->pszName, dbgAudioMixerSinkStatusToStr(pSink->fStatus, szStatus)));
+    RTCritSectLeave(&pSink->CritSect);
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Destroys and frees a mixer sink.
+ *
+ * Worker for AudioMixerSinkDestroy(), AudioMixerCreateSink() and
+ * AudioMixerDestroy().
+ *
+ * @param   pSink       Mixer sink to destroy.
+ * @param   pDevIns     The device instance statistics are registered with.
+ */
+static void audioMixerSinkDestroyInternal(PAUDMIXSINK pSink, PPDMDEVINS pDevIns)
 {
     AssertPtrReturnVoid(pSink);
 
     LogFunc(("%s\n", pSink->pszName));
 
+    /*
+     * Invalidate the sink instance.
+     */
+    Assert(pSink->uMagic == AUDMIXSINK_MAGIC);
+    pSink->uMagic = AUDMIXSINK_MAGIC_DEAD;
+
+    /*
+     * Destroy all streams.
+     */
     PAUDMIXSTREAM pStream, pStreamNext;
     RTListForEachSafe(&pSink->lstStreams, pStream, pStreamNext, AUDMIXSTREAM, Node)
     {
-        /* Save a pointer to the stream to remove, as pStream
-         * will not be valid anymore after calling audioMixerSinkRemoveStreamInternal(). */
-        PAUDMIXSTREAM pStreamToRemove = pStream;
-
-        audioMixerSinkRemoveStreamInternal(pSink, pStreamToRemove);
-        audioMixerStreamDestroyInternal(pStreamToRemove);
+        audioMixerSinkRemoveStreamInternal(pSink, pStream);
+        audioMixerStreamDestroyInternal(pStream, pDevIns, true /*fImmediate*/);
     }
 
-    if (   pSink->pParent
-        && pSink->pParent->fFlags & AUDMIXER_FLAGS_DEBUG)
+    /*
+     * Destroy debug file and statistics.
+     */
+    if (!pSink->Dbg.pFile)
+    { /* likely */ }
+    else
     {
         AudioHlpFileDestroy(pSink->Dbg.pFile);
         pSink->Dbg.pFile = NULL;
     }
 
-    if (pSink->pszName)
+    char szPrefix[128];
+    RTStrPrintf(szPrefix, sizeof(szPrefix), "MixerSink-%s/", pSink->pszName);
+    PDMDevHlpSTAMDeregisterByPrefix(pDevIns, szPrefix);
+
+    /*
+     * Shutdown the AIO thread if started:
+     */
+    ASMAtomicWriteBool(&pSink->AIO.fShutdown, true);
+    if (pSink->AIO.hEvent != NIL_RTSEMEVENT)
     {
-        RTStrFree(pSink->pszName);
-        pSink->pszName = NULL;
+        int rc2 = RTSemEventSignal(pSink->AIO.hEvent);
+        AssertRC(rc2);
+    }
+    if (pSink->AIO.hThread != NIL_RTTHREAD)
+    {
+        LogFlowFunc(("Waiting for AIO thread for %s...\n", pSink->pszName));
+        int rc2 = RTThreadWait(pSink->AIO.hThread, RT_MS_30SEC, NULL);
+        AssertRC(rc2);
+        pSink->AIO.hThread = NIL_RTTHREAD;
+    }
+    if (pSink->AIO.hEvent != NIL_RTSEMEVENT)
+    {
+        int rc2 = RTSemEventDestroy(pSink->AIO.hEvent);
+        AssertRC(rc2);
+        pSink->AIO.hEvent = NIL_RTSEMEVENT;
     }
 
-    if (pSink->pabScratchBuf)
-    {
-        Assert(pSink->cbScratchBuf);
-
-        RTMemFree(pSink->pabScratchBuf);
-        pSink->pabScratchBuf = NULL;
-
-        pSink->cbScratchBuf = 0;
-    }
-
-    AudioMixBufDestroy(&pSink->MixBuf);
+    /*
+     * Mixing buffer, critsect and the structure itself.
+     */
+    AudioMixBufTerm(&pSink->MixBuf);
     RTCritSectDelete(&pSink->CritSect);
+    RTMemFree(pSink);
 }
 
+
 /**
- * Returns the amount of bytes ready to be read from a sink since the last call
- * to AudioMixerSinkUpdate().
+ * Destroys a mixer sink and removes it from the attached mixer (if any).
  *
- * @returns Amount of bytes ready to be read from the sink.
- * @param   pSink               Sink to return number of available bytes for.
+ * @param   pSink       Mixer sink to destroy.  NULL is ignored.
+ * @param   pDevIns     The device instance that statistics are registered with.
+ */
+void AudioMixerSinkDestroy(PAUDMIXSINK pSink, PPDMDEVINS pDevIns)
+{
+    if (!pSink)
+        return;
+    AssertReturnVoid(pSink->uMagic == AUDMIXSINK_MAGIC);
+
+    /*
+     * Serializing paranoia.
+     */
+    int rc = RTCritSectEnter(&pSink->CritSect);
+    AssertRCReturnVoid(rc);
+    RTCritSectLeave(&pSink->CritSect);
+
+    /*
+     * Unlink from parent.
+     */
+    PAUDIOMIXER pMixer = pSink->pParent;
+    if (   RT_VALID_PTR(pMixer)
+        && pMixer->uMagic == AUDIOMIXER_MAGIC)
+    {
+        RTCritSectEnter(&pMixer->CritSect);
+        audioMixerRemoveSinkInternal(pMixer, pSink);
+        RTCritSectLeave(&pMixer->CritSect);
+    }
+    else if (pMixer)
+        AssertFailed();
+
+    /*
+     * Actually destroy it.
+     */
+    audioMixerSinkDestroyInternal(pSink, pDevIns);
+}
+
+
+/**
+ * Get the number of bytes that can be read from the sink.
+ *
+ * @returns Number of bytes.
+ * @param   pSink   The mixer sink.
+ *
+ * @note    Only applicable to input sinks, will assert and return zero for
+ *          other sink directions.
  */
 uint32_t AudioMixerSinkGetReadable(PAUDMIXSINK pSink)
 {
     AssertPtrReturn(pSink, 0);
-
-    AssertMsg(pSink->enmDir == AUDMIXSINKDIR_INPUT, ("%s: Can't read from a non-input sink\n", pSink->pszName));
+    AssertReturn(pSink->uMagic == AUDMIXSINK_MAGIC, 0);
+    AssertMsgReturn(pSink->enmDir == PDMAUDIODIR_IN, ("%s: Can't read from a non-input sink\n", pSink->pszName), 0);
 
     int rc = RTCritSectEnter(&pSink->CritSect);
-    if (RT_FAILURE(rc))
-        return 0;
+    AssertRCReturn(rc, 0);
 
     uint32_t cbReadable = 0;
-
     if (pSink->fStatus & AUDMIXSINK_STS_RUNNING)
-    {
-#ifdef VBOX_AUDIO_MIXER_WITH_MIXBUF_IN
-# error "Implement me!"
-#else
-        PAUDMIXSTREAM pStreamRecSource = pSink->In.pStreamRecSource;
-        if (!pStreamRecSource)
-        {
-            Log3Func(("[%s] No recording source specified, skipping ...\n", pSink->pszName));
-        }
-        else
-        {
-            AssertPtr(pStreamRecSource->pConn);
-            cbReadable = pStreamRecSource->pConn->pfnStreamGetReadable(pStreamRecSource->pConn, pStreamRecSource->pStream);
-        }
-#endif
-    }
+        cbReadable = AudioMixBufUsedBytes(&pSink->MixBuf);
 
-    Log3Func(("[%s] cbReadable=%RU32\n", pSink->pszName, cbReadable));
-
-    int rc2 = RTCritSectLeave(&pSink->CritSect);
-    AssertRC(rc2);
-
+    RTCritSectLeave(&pSink->CritSect);
+    Log3Func(("[%s] cbReadable=%#x\n", pSink->pszName, cbReadable));
     return cbReadable;
 }
 
-/**
- * Returns the sink's current recording source.
- *
- * @return  Mixer stream which currently is set as current recording source, NULL if none is set.
- * @param   pSink               Audio mixer sink to return current recording source for.
- */
-PAUDMIXSTREAM AudioMixerSinkGetRecordingSource(PAUDMIXSINK pSink)
-{
-    int rc = RTCritSectEnter(&pSink->CritSect);
-    if (RT_FAILURE(rc))
-        return NULL;
-
-    AssertMsg(pSink->enmDir == AUDMIXSINKDIR_INPUT, ("Specified sink is not an input sink\n"));
-
-    PAUDMIXSTREAM pStream = pSink->In.pStreamRecSource;
-
-    int rc2 = RTCritSectLeave(&pSink->CritSect);
-    AssertRC(rc2);
-
-    return pStream;
-}
 
 /**
- * Returns the amount of bytes ready to be written to a sink since the last call
- * to AudioMixerSinkUpdate().
+ * Get the number of bytes that can be written to be sink.
  *
- * @returns Amount of bytes ready to be written to the sink.
- * @param   pSink               Sink to return number of available bytes for.
+ * @returns Number of bytes.
+ * @param   pSink   The mixer sink.
+ *
+ * @note    Only applicable to output sinks, will assert and return zero for
+ *          other sink directions.
  */
 uint32_t AudioMixerSinkGetWritable(PAUDMIXSINK pSink)
 {
     AssertPtrReturn(pSink, 0);
-
-    AssertMsg(pSink->enmDir == AUDMIXSINKDIR_OUTPUT, ("%s: Can't write to a non-output sink\n", pSink->pszName));
+    AssertReturn(pSink->uMagic == AUDMIXSINK_MAGIC, 0);
+    AssertMsgReturn(pSink->enmDir == PDMAUDIODIR_OUT, ("%s: Can't write to a non-output sink\n", pSink->pszName), 0);
 
     int rc = RTCritSectEnter(&pSink->CritSect);
-    if (RT_FAILURE(rc))
-        return 0;
+    AssertRCReturn(rc, 0);
 
     uint32_t cbWritable = 0;
-
-    if (    (pSink->fStatus & AUDMIXSINK_STS_RUNNING)
-        && !(pSink->fStatus & AUDMIXSINK_STS_PENDING_DISABLE))
-    {
+    if ((pSink->fStatus & (AUDMIXSINK_STS_RUNNING | AUDMIXSINK_STS_DRAINING)) == AUDMIXSINK_STS_RUNNING)
         cbWritable = AudioMixBufFreeBytes(&pSink->MixBuf);
-    }
 
-    Log3Func(("[%s] cbWritable=%RU32 (%RU64ms)\n",
-              pSink->pszName, cbWritable, PDMAudioPropsBytesToMilli(&pSink->PCMProps, cbWritable)));
-
-    int rc2 = RTCritSectLeave(&pSink->CritSect);
-    AssertRC(rc2);
-
+    RTCritSectLeave(&pSink->CritSect);
+    Log3Func(("[%s] cbWritable=%#x (%RU64ms)\n", pSink->pszName, cbWritable,
+              PDMAudioPropsBytesToMilli(&pSink->PCMProps, cbWritable) ));
     return cbWritable;
 }
 
+
 /**
- * Returns the sink's mixing direction.
+ * Get the sink's mixing direction.
  *
  * @returns Mixing direction.
- * @param   pSink               Sink to return direction for.
+ * @param   pSink   The mixer sink.
  */
-AUDMIXSINKDIR AudioMixerSinkGetDir(PAUDMIXSINK pSink)
+PDMAUDIODIR AudioMixerSinkGetDir(PCAUDMIXSINK pSink)
 {
-    AssertPtrReturn(pSink, AUDMIXSINKDIR_UNKNOWN);
+    AssertPtrReturn(pSink, PDMAUDIODIR_INVALID);
+    AssertReturn(pSink->uMagic == AUDMIXSINK_MAGIC, PDMAUDIODIR_INVALID);
+
+    /* The sink direction cannot be changed after creation, so no need for locking here.  */
+    return pSink->enmDir;
+}
+
+
+/**
+ * Get the sink status.
+ *
+ * @returns AUDMIXSINK_STS_XXX
+ * @param   pSink   The mixer sink.
+ */
+uint32_t AudioMixerSinkGetStatus(PAUDMIXSINK pSink)
+{
+    AssertPtrReturn(pSink, AUDMIXSINK_STS_NONE);
+    AssertReturn(pSink->uMagic == AUDMIXSINK_MAGIC, AUDMIXSINK_STS_NONE);
 
     int rc = RTCritSectEnter(&pSink->CritSect);
-    if (RT_FAILURE(rc))
-        return AUDMIXSINKDIR_UNKNOWN;
+    AssertRCReturn(rc, AUDMIXSINK_STS_NONE);
 
-    const AUDMIXSINKDIR enmDir = pSink->enmDir;
+    uint32_t const fStsSink = pSink->fStatus;
 
-    int rc2 = RTCritSectLeave(&pSink->CritSect);
-    AssertRC(rc2);
-
-    return enmDir;
+    RTCritSectLeave(&pSink->CritSect);
+    return fStsSink;
 }
 
-/**
- * Returns the sink's (friendly) name.
- *
- * @returns The sink's (friendly) name.
- */
-const char *AudioMixerSinkGetName(const PAUDMIXSINK pSink)
-{
-    AssertPtrReturn(pSink, "<Unknown>");
-
-    return pSink->pszName;
-}
 
 /**
- * Returns a specific mixer stream from a sink, based on its index.
+ * Checks if the sink is active not.
  *
- * @returns Mixer stream if found, or NULL if not found.
- * @param   pSink               Sink to retrieve mixer stream from.
- * @param   uIndex              Index of the mixer stream to return.
- */
-PAUDMIXSTREAM AudioMixerSinkGetStream(PAUDMIXSINK pSink, uint8_t uIndex)
-{
-    AssertPtrReturn(pSink, NULL);
-
-    int rc = RTCritSectEnter(&pSink->CritSect);
-    if (RT_FAILURE(rc))
-        return NULL;
-
-    AssertMsgReturn(uIndex < pSink->cStreams,
-                    ("Index %RU8 exceeds stream count (%RU8)", uIndex, pSink->cStreams), NULL);
-
-    /* Slow lookup, d'oh. */
-    PAUDMIXSTREAM pStream = RTListGetFirst(&pSink->lstStreams, AUDMIXSTREAM, Node);
-    while (uIndex)
-    {
-        pStream = RTListGetNext(&pSink->lstStreams, pStream, AUDMIXSTREAM, Node);
-        uIndex--;
-    }
-
-    /** @todo Do we need to raise the stream's reference count here? */
-
-    int rc2 = RTCritSectLeave(&pSink->CritSect);
-    AssertRC(rc2);
-
-    AssertPtr(pStream);
-    return pStream;
-}
-
-/**
- * Returns the current status of a mixer sink.
+ * @note    The pending disable state also counts as active.
  *
- * @returns The sink's current status.
- * @param   pSink               Mixer sink to return status for.
- */
-AUDMIXSINKSTS AudioMixerSinkGetStatus(PAUDMIXSINK pSink)
-{
-    if (!pSink)
-        return AUDMIXSINK_STS_NONE;
-
-    int rc2 = RTCritSectEnter(&pSink->CritSect);
-    if (RT_FAILURE(rc2))
-        return AUDMIXSINK_STS_NONE;
-
-    /* If the dirty flag is set, there is unprocessed data in the sink. */
-    AUDMIXSINKSTS stsSink = pSink->fStatus;
-
-    rc2 = RTCritSectLeave(&pSink->CritSect);
-    AssertRC(rc2);
-
-    return stsSink;
-}
-
-/**
- * Returns the number of attached mixer streams to a mixer sink.
- *
- * @returns The number of attached mixer streams.
- * @param   pSink               Mixer sink to return number for.
- */
-uint8_t AudioMixerSinkGetStreamCount(PAUDMIXSINK pSink)
-{
-    if (!pSink)
-        return 0;
-
-    int rc2 = RTCritSectEnter(&pSink->CritSect);
-    if (RT_FAILURE(rc2))
-        return 0;
-
-    const uint8_t cStreams = pSink->cStreams;
-
-    rc2 = RTCritSectLeave(&pSink->CritSect);
-    AssertRC(rc2);
-
-    return cStreams;
-}
-
-/**
- * Returns whether the sink is in an active state or not.
- * Note: The pending disable state also counts as active.
- *
- * @returns True if active, false if not.
- * @param   pSink               Sink to return active state for.
+ * @retval  true if active.
+ * @retval  false if not active.
+ * @param   pSink   The mixer sink.  NULL is okay (returns false).
  */
 bool AudioMixerSinkIsActive(PAUDMIXSINK pSink)
 {
     if (!pSink)
         return false;
+    AssertPtr(pSink);
+    AssertReturn(pSink->uMagic == AUDMIXSINK_MAGIC, false);
 
-    int rc2 = RTCritSectEnter(&pSink->CritSect);
-    if (RT_FAILURE(rc2))
-        return false;
+    int rc = RTCritSectEnter(&pSink->CritSect);
+    AssertRCReturn(rc, false);
 
-    const bool fIsActive = pSink->fStatus & AUDMIXSINK_STS_RUNNING;
-    /* Note: AUDMIXSINK_STS_PENDING_DISABLE implies AUDMIXSINK_STS_RUNNING. */
+    bool const fIsActive = RT_BOOL(pSink->fStatus & AUDMIXSINK_STS_RUNNING);
 
-    Log3Func(("[%s] fActive=%RTbool\n", pSink->pszName, fIsActive));
-
-    rc2 = RTCritSectLeave(&pSink->CritSect);
-    AssertRC(rc2);
-
+    RTCritSectLeave(&pSink->CritSect);
+    Log3Func(("[%s] returns %RTbool\n", pSink->pszName, fIsActive));
     return fIsActive;
 }
 
-/**
- * Reads audio data from a mixer sink.
- *
- * @returns IPRT status code.
- * @param   pSink               Mixer sink to read data from.
- * @param   enmOp               Mixer operation to use for reading the data.
- * @param   pvBuf               Buffer where to store the read data.
- * @param   cbBuf               Buffer size (in bytes) where to store the data.
- * @param   pcbRead             Number of bytes read. Optional.
- */
-int AudioMixerSinkRead(PAUDMIXSINK pSink, AUDMIXOP enmOp, void *pvBuf, uint32_t cbBuf, uint32_t *pcbRead)
-{
-    AssertPtrReturn(pSink, VERR_INVALID_POINTER);
-    RT_NOREF(enmOp);
-    AssertPtrReturn(pvBuf, VERR_INVALID_POINTER);
-    AssertReturn(cbBuf,    VERR_INVALID_PARAMETER);
-    /* pcbRead is optional. */
-
-    /** @todo Handle mixing operation enmOp! */
-
-    int rc = RTCritSectEnter(&pSink->CritSect);
-    if (RT_FAILURE(rc))
-        return rc;
-
-    AssertMsg(pSink->enmDir == AUDMIXSINKDIR_INPUT,
-              ("Can't read from a sink which is not an input sink\n"));
-
-    uint32_t cbRead = 0;
-
-    /* Flag indicating whether this sink is in a 'clean' state,
-     * e.g. there is no more data to read from. */
-    bool fClean = true;
-
-    PAUDMIXSTREAM pStreamRecSource = pSink->In.pStreamRecSource;
-    if (!pStreamRecSource)
-    {
-        Log3Func(("[%s] No recording source specified, skipping ...\n", pSink->pszName));
-    }
-    else if (!(pStreamRecSource->fStatus & AUDMIXSTREAM_STATUS_ENABLED))
-    {
-        Log3Func(("[%s] Stream '%s' disabled, skipping ...\n", pSink->pszName, pStreamRecSource->pszName));
-    }
-    else
-    {
-        uint32_t cbToRead = cbBuf;
-        while (cbToRead)
-        {
-            uint32_t cbReadStrm;
-            AssertPtr(pStreamRecSource->pConn);
-#ifdef VBOX_AUDIO_MIXER_WITH_MIXBUF_IN
-# error "Implement me!"
-#else
-            rc = pStreamRecSource->pConn->pfnStreamRead(pStreamRecSource->pConn, pStreamRecSource->pStream,
-                                                        (uint8_t *)pvBuf + cbRead, cbToRead, &cbReadStrm);
-#endif
-            if (RT_FAILURE(rc))
-                LogFunc(("[%s] Failed reading from stream '%s': %Rrc\n", pSink->pszName, pStreamRecSource->pszName, rc));
-
-            Log3Func(("[%s] Stream '%s': Read %RU32 bytes\n", pSink->pszName, pStreamRecSource->pszName, cbReadStrm));
-
-            if (   RT_FAILURE(rc)
-                || !cbReadStrm)
-                break;
-
-            AssertBreakStmt(cbReadStrm <= cbToRead, rc = VERR_BUFFER_OVERFLOW);
-            cbToRead -= cbReadStrm;
-            cbRead   += cbReadStrm;
-            Assert(cbRead <= cbBuf);
-        }
-
-        uint32_t cbReadable = pStreamRecSource->pConn->pfnStreamGetReadable(pStreamRecSource->pConn, pStreamRecSource->pStream);
-
-        /* Still some data available? Then sink is not clean (yet). */
-        if (cbReadable)
-            fClean = false;
-
-        if (RT_SUCCESS(rc))
-        {
-            if (fClean)
-                pSink->fStatus &= ~AUDMIXSINK_STS_DIRTY;
-
-            /* Update our last read time stamp. */
-            pSink->tsLastReadWrittenNs = RTTimeNanoTS();
-
-            if (pSink->pParent->fFlags & AUDMIXER_FLAGS_DEBUG)
-            {
-                int rc2 = AudioHlpFileWrite(pSink->Dbg.pFile, pvBuf, cbRead, 0 /* fFlags */);
-                AssertRC(rc2);
-            }
-        }
-    }
-
-#ifdef LOG_ENABLED
-    char *pszStatus = dbgAudioMixerSinkStatusToStr(pSink->fStatus);
-    Log2Func(("[%s] cbRead=%RU32, fClean=%RTbool, fStatus=%s, rc=%Rrc\n", pSink->pszName, cbRead, fClean, pszStatus, rc));
-    RTStrFree(pszStatus);
-#endif
-
-    if (pcbRead)
-        *pcbRead = cbRead;
-
-    int rc2 = RTCritSectLeave(&pSink->CritSect);
-    AssertRC(rc2);
-
-    return rc;
-}
-
-/**
- * Removes a mixer stream from a mixer sink, internal version.
- *
- * @returns IPRT status code.
- * @param   pSink               Sink to remove mixer stream from.
- * @param   pStream             Stream to remove.
- */
-static int audioMixerSinkRemoveStreamInternal(PAUDMIXSINK pSink, PAUDMIXSTREAM pStream)
-{
-    AssertPtrReturn(pSink, VERR_INVALID_PARAMETER);
-    if (   !pStream
-        || !pStream->pSink) /* Not part of a sink anymore? */
-    {
-        return VERR_NOT_FOUND;
-    }
-
-    AssertMsgReturn(pStream->pSink == pSink, ("Stream '%s' is not part of sink '%s'\n",
-                                              pStream->pszName, pSink->pszName), VERR_NOT_FOUND);
-
-    LogFlowFunc(("[%s] (Stream = %s), cStreams=%RU8\n",
-                 pSink->pszName, pStream->pStream->szName, pSink->cStreams));
-
-    /* Remove stream from sink. */
-    RTListNodeRemove(&pStream->Node);
-
-    int rc = VINF_SUCCESS;
-
-    if (pSink->enmDir == AUDMIXSINKDIR_INPUT)
-    {
-        /* Make sure to also un-set the recording source if this stream was set
-         * as the recording source before. */
-        if (pStream == pSink->In.pStreamRecSource)
-            rc = audioMixerSinkSetRecSourceInternal(pSink, NULL);
-    }
-
-    /* Set sink to NULL so that we know we're not part of any sink anymore. */
-    pStream->pSink = NULL;
-
-    return rc;
-}
-
-/**
- * Removes a mixer stream from a mixer sink.
- *
- * @param   pSink               Sink to remove mixer stream from.
- * @param   pStream             Stream to remove.
- */
-void AudioMixerSinkRemoveStream(PAUDMIXSINK pSink, PAUDMIXSTREAM pStream)
-{
-    int rc2 = RTCritSectEnter(&pSink->CritSect);
-    AssertRC(rc2);
-
-    rc2 = audioMixerSinkRemoveStreamInternal(pSink, pStream);
-    if (RT_SUCCESS(rc2))
-    {
-        Assert(pSink->cStreams);
-        pSink->cStreams--;
-    }
-
-    rc2 = RTCritSectLeave(&pSink->CritSect);
-    AssertRC(rc2);
-}
-
-/**
- * Removes all attached streams from a given sink.
- *
- * @param pSink                 Sink to remove attached streams from.
- */
-static void audioMixerSinkRemoveAllStreamsInternal(PAUDMIXSINK pSink)
-{
-    if (!pSink)
-        return;
-
-    LogFunc(("%s\n", pSink->pszName));
-
-    PAUDMIXSTREAM pStream, pStreamNext;
-    RTListForEachSafe(&pSink->lstStreams, pStream, pStreamNext, AUDMIXSTREAM, Node)
-        audioMixerSinkRemoveStreamInternal(pSink, pStream);
-}
 
 /**
  * Resets the sink's state.
  *
- * @param   pSink               Sink to reset.
+ * @param   pSink       The sink to reset.
+ * @note    Must own sink lock.
  */
-static void audioMixerSinkReset(PAUDMIXSINK pSink)
+static void audioMixerSinkResetInternal(PAUDMIXSINK pSink)
 {
-    if (!pSink)
-        return;
-
+    Assert(RTCritSectIsOwner(&pSink->CritSect));
     LogFunc(("[%s]\n", pSink->pszName));
 
-    AudioMixBufReset(&pSink->MixBuf);
-
-    /* Update last updated timestamp. */
-    pSink->tsLastUpdatedMs = 0;
+    /* Drop mixing buffer content. */
+    AudioMixBufDrop(&pSink->MixBuf);
 
     /* Reset status. */
-    pSink->fStatus = AUDMIXSINK_STS_NONE;
+    pSink->fStatus         = AUDMIXSINK_STS_NONE;
+    pSink->tsLastUpdatedMs = 0;
 }
 
-/**
- * Removes all attached streams from a given sink.
- *
- * @param pSink                 Sink to remove attached streams from.
- */
-void AudioMixerSinkRemoveAllStreams(PAUDMIXSINK pSink)
-{
-    if (!pSink)
-        return;
-
-    int rc2 = RTCritSectEnter(&pSink->CritSect);
-    AssertRC(rc2);
-
-    audioMixerSinkRemoveAllStreamsInternal(pSink);
-
-    pSink->cStreams = 0;
-
-    rc2 = RTCritSectLeave(&pSink->CritSect);
-    AssertRC(rc2);
-}
 
 /**
  * Resets a sink. This will immediately stop all processing.
@@ -1428,719 +918,1572 @@ void AudioMixerSinkReset(PAUDMIXSINK pSink)
 {
     if (!pSink)
         return;
+    AssertReturnVoid(pSink->uMagic == AUDMIXSINK_MAGIC);
 
-    int rc2 = RTCritSectEnter(&pSink->CritSect);
-    AssertRC(rc2);
+    int rc = RTCritSectEnter(&pSink->CritSect);
+    AssertRCReturnVoid(rc);
 
     LogFlowFunc(("[%s]\n", pSink->pszName));
 
-    audioMixerSinkReset(pSink);
+    /*
+     * Stop any stream that's enabled before resetting the state.
+     */
+    PAUDMIXSTREAM pStream;
+    RTListForEach(&pSink->lstStreams, pStream, AUDMIXSTREAM, Node)
+    {
+        if (pStream->fStatus & AUDMIXSTREAM_STATUS_ENABLED)
+            audioMixerStreamCtlInternal(pStream, PDMAUDIOSTREAMCMD_DISABLE);
+    }
 
-    rc2 = RTCritSectLeave(&pSink->CritSect);
-    AssertRC(rc2);
+    /*
+     * Reset the state.
+     */
+    audioMixerSinkResetInternal(pSink);
+
+    RTCritSectLeave(&pSink->CritSect);
 }
 
-/**
- * Returns the audio format of a mixer sink.
- *
- * @param   pSink               Sink to retrieve audio format for.
- * @param   pPCMProps           Where to the returned audio format.
- */
-void AudioMixerSinkGetFormat(PAUDMIXSINK pSink, PPDMAUDIOPCMPROPS pPCMProps)
-{
-    AssertPtrReturnVoid(pSink);
-    AssertPtrReturnVoid(pPCMProps);
-
-    int rc2 = RTCritSectEnter(&pSink->CritSect);
-    if (RT_FAILURE(rc2))
-        return;
-
-    memcpy(pPCMProps, &pSink->PCMProps, sizeof(PDMAUDIOPCMPROPS));
-
-    rc2 = RTCritSectLeave(&pSink->CritSect);
-    AssertRC(rc2);
-}
 
 /**
  * Sets the audio format of a mixer sink.
  *
- * @returns IPRT status code.
- * @param   pSink               Sink to set audio format for.
- * @param   pPCMProps           Audio format (PCM properties) to set.
+ * @returns VBox status code.
+ * @param   pSink               The sink to set audio format for.
+ * @param   pProps              The properties of the new audio format (guest side).
+ * @param   cMsSchedulingHint   Scheduling hint for mixer buffer sizing.
  */
-int AudioMixerSinkSetFormat(PAUDMIXSINK pSink, PPDMAUDIOPCMPROPS pPCMProps)
+int AudioMixerSinkSetFormat(PAUDMIXSINK pSink, PCPDMAUDIOPCMPROPS pProps, uint32_t cMsSchedulingHint)
 {
-    AssertPtrReturn(pSink,     VERR_INVALID_POINTER);
-    AssertPtrReturn(pPCMProps, VERR_INVALID_POINTER);
-    AssertReturn(AudioHlpPcmPropsAreValid(pPCMProps), VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pSink, VERR_INVALID_POINTER);
+    AssertReturn(pSink->uMagic == AUDMIXSINK_MAGIC, VERR_INVALID_MAGIC);
+    AssertPtrReturn(pProps, VERR_INVALID_POINTER);
+    AssertReturn(AudioHlpPcmPropsAreValid(pProps), VERR_INVALID_PARAMETER);
+
+    /*
+     * Calculate the mixer buffer size so we can force a recreation if it changes.
+     *
+     * This used to be fixed at 100ms, however that's usually too generous and can
+     * in theory be too small.  Generally, we size the buffer at 3 DMA periods as
+     * that seems reasonable.  Now, since the we don't quite trust the scheduling
+     * hint we're getting, make sure we're got a minimum of 30ms buffer space, but
+     * no more than 500ms.
+     */
+    if (cMsSchedulingHint <= 10)
+        cMsSchedulingHint = 30;
+    else
+    {
+        cMsSchedulingHint *= 3;
+        if (cMsSchedulingHint > 500)
+            cMsSchedulingHint = 500;
+    }
+    uint32_t const cBufferFrames = PDMAudioPropsMilliToFrames(pProps, cMsSchedulingHint);
+     /** @todo configuration override on the buffer size? */
 
     int rc = RTCritSectEnter(&pSink->CritSect);
-    if (RT_FAILURE(rc))
-        return rc;
+    AssertRCReturn(rc, rc);
 
-    if (PDMAudioPropsAreEqual(&pSink->PCMProps, pPCMProps)) /* Bail out early if PCM properties are equal. */
+    /*
+     * Do nothing unless the format actually changed.
+     * The buffer size must not match exactly, within +/- 2% is okay.
+     */
+    uint32_t cOldBufferFrames;
+    if (   !PDMAudioPropsAreEqual(&pSink->PCMProps, pProps)
+        || (   cBufferFrames != (cOldBufferFrames = AudioMixBufSize(&pSink->MixBuf))
+            && (uint32_t)RT_ABS((int32_t)(cBufferFrames - cOldBufferFrames)) > cBufferFrames / 50) )
     {
-        rc = RTCritSectLeave(&pSink->CritSect);
-        AssertRC(rc);
+#ifdef LOG_ENABLED
+        char szTmp[PDMAUDIOPROPSTOSTRING_MAX];
+#endif
+        if (PDMAudioPropsHz(&pSink->PCMProps) != 0)
+            LogFlowFunc(("[%s] Old format: %s; buffer: %u frames\n", pSink->pszName,
+                         PDMAudioPropsToString(&pSink->PCMProps, szTmp, sizeof(szTmp)), AudioMixBufSize(&pSink->MixBuf) ));
+        pSink->PCMProps = *pProps;
+        LogFlowFunc(("[%s] New format: %s; buffer: %u frames\n", pSink->pszName,
+                     PDMAudioPropsToString(&pSink->PCMProps, szTmp, sizeof(szTmp)), cBufferFrames ));
 
-        return rc;
-    }
+        /*
+         * Also update the sink's mixing buffer format.
+         */
+        AudioMixBufTerm(&pSink->MixBuf);
 
-    if (pSink->PCMProps.uHz)
-        LogFlowFunc(("[%s] Old format: %u bit, %RU8 channels, %RU32Hz\n",
-                     pSink->pszName, pSink->PCMProps.cbSample * 8, pSink->PCMProps.cChannels, pSink->PCMProps.uHz));
-
-    memcpy(&pSink->PCMProps, pPCMProps, sizeof(PDMAUDIOPCMPROPS));
-
-    LogFlowFunc(("[%s] New format %u bit, %RU8 channels, %RU32Hz\n",
-                 pSink->pszName, pSink->PCMProps.cbSample * 8, pSink->PCMProps.cChannels, pSink->PCMProps.uHz));
-
-    /* Also update the sink's mixing buffer format. */
-    AudioMixBufDestroy(&pSink->MixBuf);
-    rc = AudioMixBufInit(&pSink->MixBuf, pSink->pszName, &pSink->PCMProps,
-                         PDMAudioPropsMilliToFrames(&pSink->PCMProps, 100 /*ms*/)); /** @todo Make this configurable? */
-    if (RT_SUCCESS(rc))
-    {
-        PAUDMIXSTREAM pStream;
-        RTListForEach(&pSink->lstStreams, pStream, AUDMIXSTREAM, Node)
+        rc = AudioMixBufInit(&pSink->MixBuf, pSink->pszName, &pSink->PCMProps, cBufferFrames);
+        if (RT_SUCCESS(rc))
         {
-            /** @todo Invalidate mix buffers! */
+            /*
+             * Input sinks must init their (mostly dummy) peek state.
+             */
+            if (pSink->enmDir == PDMAUDIODIR_IN)
+                rc = AudioMixBufInitPeekState(&pSink->MixBuf, &pSink->In.State, &pSink->PCMProps);
+            else
+                rc = AudioMixBufInitWriteState(&pSink->MixBuf, &pSink->Out.State, &pSink->PCMProps);
+            if (RT_SUCCESS(rc))
+            {
+                /*
+                 * Re-initialize the peek/write states as the frequency, channel count
+                 * and other things may have changed now.
+                 */
+                PAUDMIXSTREAM pMixStream;
+                if (pSink->enmDir == PDMAUDIODIR_IN)
+                {
+                    RTListForEach(&pSink->lstStreams, pMixStream, AUDMIXSTREAM, Node)
+                    {
+                        int rc2 = AudioMixBufInitWriteState(&pSink->MixBuf, &pMixStream->WriteState, &pMixStream->pStream->Cfg.Props);
+                        /** @todo remember this. */
+                        AssertLogRelRC(rc2);
+                    }
+                }
+                else
+                {
+                    RTListForEach(&pSink->lstStreams, pMixStream, AUDMIXSTREAM, Node)
+                    {
+                        int rc2 = AudioMixBufInitPeekState(&pSink->MixBuf, &pMixStream->PeekState, &pMixStream->pStream->Cfg.Props);
+                        /** @todo remember this. */
+                        AssertLogRelRC(rc2);
+                    }
+                }
+
+                /*
+                 * Debug.
+                 */
+                if (!(pSink->pParent->fFlags & AUDMIXER_FLAGS_DEBUG))
+                { /* likely */ }
+                else
+                {
+                    AudioHlpFileClose(pSink->Dbg.pFile);
+
+                    char szName[64];
+                    RTStrPrintf(szName, sizeof(szName), "MixerSink-%s", pSink->pszName);
+                    AudioHlpFileCreateAndOpen(&pSink->Dbg.pFile, NULL /*pszDir - use temp dir*/, szName,
+                                              0 /*iInstance*/, &pSink->PCMProps);
+                }
+            }
+            else
+                LogFunc(("%s failed: %Rrc\n",
+                         pSink->enmDir == PDMAUDIODIR_IN ? "AudioMixBufInitPeekState" : "AudioMixBufInitWriteState", rc));
         }
+        else
+            LogFunc(("AudioMixBufInit failed: %Rrc\n", rc));
     }
 
-    if (   RT_SUCCESS(rc)
-        && (pSink->pParent->fFlags & AUDMIXER_FLAGS_DEBUG))
-    {
-        AudioHlpFileClose(pSink->Dbg.pFile);
-
-        char szName[64];
-        RTStrPrintf(szName, sizeof(szName), "MixerSink-%s", pSink->pszName);
-
-        char szFile[RTPATH_MAX];
-        int rc2 = AudioHlpFileNameGet(szFile, RT_ELEMENTS(szFile), NULL /* Use temporary directory */, szName,
-                                      0 /* Instance */, PDMAUDIOFILETYPE_WAV, PDMAUDIOFILENAME_FLAGS_NONE);
-        if (RT_SUCCESS(rc2))
-        {
-            rc2 = AudioHlpFileCreate(PDMAUDIOFILETYPE_WAV, szFile, PDMAUDIOFILE_FLAGS_NONE, &pSink->Dbg.pFile);
-            if (RT_SUCCESS(rc2))
-                rc2 = AudioHlpFileOpen(pSink->Dbg.pFile, PDMAUDIOFILE_DEFAULT_OPEN_FLAGS, &pSink->PCMProps);
-        }
-    }
-
-    int rc2 = RTCritSectLeave(&pSink->CritSect);
-    AssertRC(rc2);
-
+    RTCritSectLeave(&pSink->CritSect);
     LogFlowFuncLeaveRC(rc);
     return rc;
 }
 
+
 /**
- * Set the current recording source of an input mixer sink, internal version.
+ * Updates the combined volume (sink + mixer) of a mixer sink.
  *
- * @return  IPRT status code.
- * @param   pSink               Input mixer sink to set recording source for.
- * @param   pStream             Mixer stream to set as current recording source. Must be an input stream.
- *                              Specify NULL to un-set the current recording source.
+ * @returns VBox status code.
+ * @param   pSink       The mixer sink to update volume for (valid).
+ * @param   pVolMaster  The master (mixer) volume (valid).
  */
-static int audioMixerSinkSetRecSourceInternal(PAUDMIXSINK pSink, PAUDMIXSTREAM pStream)
+static int audioMixerSinkUpdateVolume(PAUDMIXSINK pSink, PCPDMAUDIOVOLUME pVolMaster)
 {
-    AssertMsg(pSink->enmDir == AUDMIXSINKDIR_INPUT, ("Specified sink is not an input sink\n"));
+    AssertPtr(pSink);
+    Assert(pSink->uMagic == AUDMIXSINK_MAGIC);
+    AssertPtr(pVolMaster);
+    LogFlowFunc(("[%s] Master fMuted=%RTbool auChannels=%.*Rhxs\n",
+                  pSink->pszName, pVolMaster->fMuted, sizeof(pVolMaster->auChannels), pVolMaster->auChannels));
 
-    int rc;
+    PDMAudioVolumeCombine(&pSink->VolumeCombined, &pSink->Volume, pVolMaster);
 
-    /*
-     * Warning: Do *not* use pfnConn->pfnEnable() for enabling/disabling streams here, as this will unconditionally (re-)enable
-     *          streams, which would violate / run against the (global) VM settings. See @bugref{9882}.
-     */
+    LogFlowFunc(("[%s] fMuted=%RTbool auChannels=%.*Rhxs -> fMuted=%RTbool auChannels=%.*Rhxs\n", pSink->pszName,
+                 pSink->Volume.fMuted, sizeof(pSink->Volume.auChannels), pSink->Volume.auChannels,
+                 pSink->VolumeCombined.fMuted, sizeof(pSink->VolumeCombined.auChannels), pSink->VolumeCombined.auChannels ));
 
-    /* Get pointers of current recording source to make code easier to read below. */
-    PAUDMIXSTREAM       pCurRecSrc       = pSink->In.pStreamRecSource; /* Can be NULL. */
-    PPDMIAUDIOCONNECTOR pCurRecSrcConn   = NULL;
-    PPDMAUDIOSTREAM     pCurRecSrcStream = NULL;
-
-    if (pCurRecSrc) /* First, disable old recording source, if any is set. */
-    {
-        pCurRecSrcConn   = pSink->In.pStreamRecSource->pConn;
-        AssertPtrReturn(pCurRecSrcConn, VERR_INVALID_POINTER);
-        pCurRecSrcStream = pCurRecSrc->pStream;
-        AssertPtrReturn(pCurRecSrcStream, VERR_INVALID_POINTER);
-
-        rc = pCurRecSrcConn->pfnStreamControl(pCurRecSrcConn, pCurRecSrcStream, PDMAUDIOSTREAMCMD_DISABLE);
-    }
-    else
-        rc = VINF_SUCCESS;
-
-    if (RT_SUCCESS(rc))
-    {
-        if (pStream)
-        {
-            AssertPtr(pStream->pStream);
-            AssertMsg(pStream->pStream->enmDir == PDMAUDIODIR_IN, ("Specified stream is not an input stream\n"));
-            AssertPtr(pStream->pConn);
-            rc = pStream->pConn->pfnStreamControl(pStream->pConn, pStream->pStream, PDMAUDIOSTREAMCMD_ENABLE);
-            if (RT_SUCCESS(rc))
-            {
-                pCurRecSrc = pStream;
-            }
-            else if (pCurRecSrc) /* Stay with the current recording source (if any) and re-enable it. */
-            {
-                rc = pCurRecSrcConn->pfnStreamControl(pCurRecSrcConn, pCurRecSrcStream, PDMAUDIOSTREAMCMD_ENABLE);
-            }
-        }
-        else
-            pCurRecSrc = NULL; /* Unsetting, see audioMixerSinkRemoveStreamInternal. */
-    }
-
-    /* Invalidate pointers. */
-    pSink->In.pStreamRecSource = pCurRecSrc;
-
-    LogFunc(("[%s] Recording source is now '%s', rc=%Rrc\n",
-             pSink->pszName, pSink->In.pStreamRecSource ? pSink->In.pStreamRecSource->pszName : "<None>", rc));
-
-    if (RT_SUCCESS(rc))
-        LogRel(("Audio Mixer: Setting recording source of sink '%s' to '%s'\n",
-                pSink->pszName, pSink->In.pStreamRecSource ? pSink->In.pStreamRecSource->pszName : "<None>"));
-    else if (rc != VERR_AUDIO_STREAM_NOT_READY)
-        LogRel(("Audio Mixer: Setting recording source of sink '%s' to '%s' failed with %Rrc\n",
-                pSink->pszName, pSink->In.pStreamRecSource ? pSink->In.pStreamRecSource->pszName : "<None>", rc));
-
-    return rc;
+    AudioMixBufSetVolume(&pSink->MixBuf, &pSink->VolumeCombined);
+    return VINF_SUCCESS;
 }
 
-/**
- * Set the current recording source of an input mixer sink.
- *
- * @return  IPRT status code.
- * @param   pSink               Input mixer sink to set recording source for.
- * @param   pStream             Mixer stream to set as current recording source. Must be an input stream.
- *                              Set to NULL to un-set the current recording source.
- */
-int AudioMixerSinkSetRecordingSource(PAUDMIXSINK pSink, PAUDMIXSTREAM pStream)
-{
-    AssertPtrReturn(pSink, VERR_INVALID_POINTER);
-
-    int rc = RTCritSectEnter(&pSink->CritSect);
-    if (RT_FAILURE(rc))
-        return rc;
-
-    rc = audioMixerSinkSetRecSourceInternal(pSink, pStream);
-
-    int rc2 = RTCritSectLeave(&pSink->CritSect);
-    AssertRC(rc2);
-
-    return rc;
-}
 
 /**
- * Sets the volume of an individual sink.
+ * Sets the volume a mixer sink.
  *
- * @returns IPRT status code.
- * @param   pSink               Sink to set volume for.
- * @param   pVol                Volume to set.
+ * @returns VBox status code.
+ * @param   pSink       The sink to set volume for.
+ * @param   pVol        New volume settings.
  */
-int AudioMixerSinkSetVolume(PAUDMIXSINK pSink, PPDMAUDIOVOLUME pVol)
+int AudioMixerSinkSetVolume(PAUDMIXSINK pSink, PCPDMAUDIOVOLUME pVol)
 {
     AssertPtrReturn(pSink, VERR_INVALID_POINTER);
-    AssertPtrReturn(pVol,  VERR_INVALID_POINTER);
+    AssertReturn(pSink->uMagic == AUDMIXSINK_MAGIC, VERR_INVALID_MAGIC);
+    AssertPtrReturn(pVol, VERR_INVALID_POINTER);
 
     int rc = RTCritSectEnter(&pSink->CritSect);
-    if (RT_FAILURE(rc))
-        return rc;
+    AssertRCReturn(rc, rc);
 
     memcpy(&pSink->Volume, pVol, sizeof(PDMAUDIOVOLUME));
 
-    LogFlowFunc(("[%s] fMuted=%RTbool, lVol=%RU8, rVol=%RU8\n",
-                 pSink->pszName, pSink->Volume.fMuted, pSink->Volume.uLeft, pSink->Volume.uRight));
+    LogRel2(("Audio Mixer: Setting volume of sink '%s' to fMuted=%RTbool auChannels=%.*Rhxs\n",
+              pSink->pszName, pVol->fMuted, sizeof(pVol->auChannels), pVol->auChannels));
 
-    LogRel2(("Audio Mixer: Setting volume of sink '%s' to %RU8/%RU8 (%s)\n",
-             pSink->pszName, pVol->uLeft, pVol->uRight, pVol->fMuted ? "Muted" : "Unmuted"));
+    Assert(pSink->pParent);
+    if (pSink->pParent)
+        rc = audioMixerSinkUpdateVolume(pSink, &pSink->pParent->VolMaster);
 
-    AssertPtr(pSink->pParent);
-    rc = audioMixerSinkUpdateVolume(pSink, &pSink->pParent->VolMaster);
-
-    int rc2 = RTCritSectLeave(&pSink->CritSect);
-    AssertRC(rc2);
+    RTCritSectLeave(&pSink->CritSect);
 
     return rc;
 }
 
+
 /**
- * Updates a mixer sink, internal version.
+ * Helper for audioMixerSinkUpdateInput that determins now many frames it can
+ * transfer from the drivers and into the sink's mixer buffer.
  *
- * @returns IPRT status code.
- * @param   pSink               Mixer sink to update.
+ * This also updates the mixer stream status, which may involve stream re-inits.
+ *
+ * @returns Number of frames.
+ * @param   pSink               The sink.
+ * @param   pcReadableStreams   Where to return the number of readable streams.
  */
-static int audioMixerSinkUpdateInternal(PAUDMIXSINK pSink)
+static uint32_t audioMixerSinkUpdateInputCalcFramesToTransfer(PAUDMIXSINK pSink, uint32_t *pcReadableStreams)
 {
-    AssertPtrReturn(pSink, VERR_INVALID_POINTER);
-
-    int rc = VINF_SUCCESS;
-
-#ifdef LOG_ENABLED
-    char *pszStatus = dbgAudioMixerSinkStatusToStr(pSink->fStatus);
-    Log3Func(("[%s] fStatus=%s\n", pSink->pszName, pszStatus));
-    RTStrFree(pszStatus);
-#endif
-
-    /* Sink disabled? Take a shortcut. */
-    if (!(pSink->fStatus & AUDMIXSINK_STS_RUNNING))
-        return rc;
-
-    /* Input sink and no recording source set? Bail out early. */
-    if (   pSink->enmDir == AUDMIXSINKDIR_INPUT
-        && pSink->In.pStreamRecSource == NULL)
-        return rc;
-
-    /* Sanity. */
-    AssertPtr(pSink->pabScratchBuf);
-    Assert(pSink->cbScratchBuf);
-
-    /* Update each mixing sink stream's status. */
+    uint32_t      cFramesToRead    = AudioMixBufFree(&pSink->MixBuf);
+    uint32_t      cReadableStreams = 0;
     PAUDMIXSTREAM pMixStream;
     RTListForEach(&pSink->lstStreams, pMixStream, AUDMIXSTREAM, Node)
     {
         int rc2 = audioMixerStreamUpdateStatus(pMixStream);
         AssertRC(rc2);
-    }
 
-    /* Number of disabled streams of this sink. */
-    uint8_t cStreamsDisabled = pSink->cStreams;
-
-    /* Next, try to write (multiplex) as much audio data as possible to all connected mixer streams. */
-    uint32_t cbToWriteToStreams = AudioMixBufUsedBytes(&pSink->MixBuf);
-
-    while (cbToWriteToStreams)
-    {
-        uint32_t cfChunk;
-        rc  = AudioMixBufAcquireReadBlock(&pSink->MixBuf, pSink->pabScratchBuf, RT_MIN(cbToWriteToStreams, (uint32_t)pSink->cbScratchBuf),
-                                          &cfChunk);
-        if (RT_FAILURE(rc))
-            break;
-
-        const uint32_t cbChunk = PDMAudioPropsFramesToBytes(&pSink->PCMProps, cfChunk);
-        Assert(cbChunk <= pSink->cbScratchBuf);
-
-        /* Multiplex the current chunk in a synchronized fashion to all connected streams. */
-        uint32_t cbChunkWrittenMin = 0;
-        rc = audioMixerSinkMultiplexSync(pSink, AUDMIXOP_COPY, pSink->pabScratchBuf, cbChunk, &cbChunkWrittenMin);
-        if (RT_SUCCESS(rc))
+        if (pMixStream->fStatus & AUDMIXSTREAM_STATUS_CAN_READ)
         {
-            RTListForEach(&pSink->lstStreams, pMixStream, AUDMIXSTREAM, Node)
-            {
-                int rc2 = audioMixerSinkWriteToStream(pSink, pMixStream);
-                AssertRC(rc2);
-            }
-        }
+            PPDMIAUDIOCONNECTOR const pIConnector = pMixStream->pConn;
+            PPDMAUDIOSTREAM const     pStream     = pMixStream->pStream;
+            pIConnector->pfnStreamIterate(pIConnector, pStream);
 
-        Log3Func(("[%s] cbChunk=%RU32, cbChunkWrittenMin=%RU32\n", pSink->pszName, cbChunk, cbChunkWrittenMin));
-
-        AudioMixBufReleaseReadBlock(&pSink->MixBuf, AUDIOMIXBUF_B2F(&pSink->MixBuf, cbChunkWrittenMin));
-
-        if (   RT_FAILURE(rc)
-            || cbChunkWrittenMin == 0)
-            break;
-
-        Assert(cbToWriteToStreams >= cbChunkWrittenMin);
-        cbToWriteToStreams -= cbChunkWrittenMin;
-    }
-
-    if (   !(pSink->fStatus & AUDMIXSINK_STS_DIRTY)
-        && AudioMixBufUsed(&pSink->MixBuf)) /* Still audio output data left? Consider the sink as being "dirty" then. */
-    {
-        /* Set dirty bit. */
-        pSink->fStatus |= AUDMIXSINK_STS_DIRTY;
-    }
-
-    RTListForEach(&pSink->lstStreams, pMixStream, AUDMIXSTREAM, Node)
-    {
-        /* Input sink and not the recording source? Skip. */
-        if (   pSink->enmDir == AUDMIXSINKDIR_INPUT
-            && pSink->In.pStreamRecSource != pMixStream)
-            continue;
-
-        PPDMAUDIOSTREAM pStream   = pMixStream->pStream;
-        AssertPtr(pStream);
-
-        PPDMIAUDIOCONNECTOR pConn = pMixStream->pConn;
-        AssertPtr(pConn);
-
-        uint32_t cfProc = 0;
-
-        if (!(pMixStream->fStatus & AUDMIXSTREAM_STATUS_ENABLED))
-            continue;
-
-        int rc2 = pConn->pfnStreamIterate(pConn, pStream);
-        if (RT_SUCCESS(rc2))
-        {
-            if (pSink->enmDir == AUDMIXSINKDIR_INPUT)
-            {
-                rc2 = pConn->pfnStreamCapture(pConn, pStream, &cfProc);
-                if (RT_FAILURE(rc2))
-                {
-                    LogFunc(("%s: Failed capturing stream '%s', rc=%Rrc\n", pSink->pszName, pStream->szName, rc2));
-                    continue;
-                }
-
-                if (cfProc)
-                    pSink->fStatus |= AUDMIXSINK_STS_DIRTY;
-            }
-            else if (pSink->enmDir == AUDMIXSINKDIR_OUTPUT)
-            {
-                rc2 = pConn->pfnStreamPlay(pConn, pStream, &cfProc);
-                if (RT_FAILURE(rc2))
-                {
-                    LogFunc(("%s: Failed playing stream '%s', rc=%Rrc\n", pSink->pszName, pStream->szName, rc2));
-                    continue;
-                }
-            }
+            uint32_t const cbReadable = pIConnector->pfnStreamGetReadable(pIConnector, pStream);
+            uint32_t cFrames = PDMAudioPropsBytesToFrames(&pStream->Cfg.Props, cbReadable);
+            pMixStream->cFramesLastAvail = cFrames;
+            if (PDMAudioPropsHz(&pStream->Cfg.Props) == PDMAudioPropsHz(&pSink->MixBuf.Props))
+            { /* likely */ }
             else
             {
-                AssertFailedStmt(rc = VERR_NOT_IMPLEMENTED);
-                continue;
+                cFrames = cFrames * PDMAudioPropsHz(&pSink->MixBuf.Props) / PDMAudioPropsHz(&pStream->Cfg.Props);
+                cFrames = cFrames > 2 ? cFrames - 2 : 0; /* rounding safety fudge */
+            }
+            if (cFramesToRead > cFrames && !pMixStream->fUnreliable)
+            {
+                Log4Func(("%s: cFramesToRead %u -> %u; %s (%u bytes readable)\n",
+                          pSink->pszName, cFramesToRead, cFrames, pMixStream->pszName, cbReadable));
+                cFramesToRead = cFrames;
+            }
+            cReadableStreams++;
+        }
+    }
+
+    *pcReadableStreams = cReadableStreams;
+    return cFramesToRead;
+}
+
+
+/**
+ * Updates an input mixer sink.
+ *
+ * @returns VBox status code.
+ * @param   pSink       Mixer sink to update.
+ * @param   cbDmaBuf    The number of bytes in the DMA buffer.  For detecting
+ *                      underruns.  Zero if we don't know.
+ * @param   cbDmaPeriod The minimum number of bytes required for reliable DMA
+ *                      operation.  Zero if we don't know.
+ */
+static int audioMixerSinkUpdateInput(PAUDMIXSINK pSink, uint32_t cbDmaBuf, uint32_t cbDmaPeriod)
+{
+    PAUDMIXSTREAM pMixStream;
+    Assert(!(pSink->fStatus & AUDMIXSINK_STS_DRAINED_MIXBUF)); /* (can't drain input sink) */
+
+    /*
+     * Iterate, update status and check each mixing sink stream for how much
+     * we can transfer.
+     *
+     * We're currently using the minimum size of all streams, however this
+     * isn't a smart approach as it means one disfunctional stream can block
+     * working ones.  So, if we end up with zero frames and a full mixer
+     * buffer we'll disregard the stream that accept the smallest amount and
+     * try again.
+     */
+    uint32_t cReadableStreams  = 0;
+    uint32_t cFramesToXfer     = audioMixerSinkUpdateInputCalcFramesToTransfer(pSink, &cReadableStreams);
+    if (   cFramesToXfer != 0
+        || cReadableStreams <= 1
+        || cbDmaPeriod == 0 /* Insufficient info to decide. The update function will call us again, at least for HDA. */
+        || cbDmaBuf + PDMAudioPropsFramesToBytes(&pSink->PCMProps, AudioMixBufUsed(&pSink->MixBuf)) >= cbDmaPeriod)
+        Log3Func(("%s: cFreeFrames=%#x cFramesToXfer=%#x cReadableStreams=%#x\n", pSink->pszName,
+                  AudioMixBufFree(&pSink->MixBuf), cFramesToXfer, cReadableStreams));
+    else
+    {
+        Log3Func(("%s: MixBuf is underrunning but one or more streams only provides zero frames.  Try disregarding those...\n", pSink->pszName));
+        uint32_t        cReliableStreams  = 0;
+        uint32_t        cMarkedUnreliable = 0;
+        PAUDMIXSTREAM   pMixStreamMin     = NULL;
+        RTListForEach(&pSink->lstStreams, pMixStream, AUDMIXSTREAM, Node)
+        {
+            if (pMixStream->fStatus & AUDMIXSTREAM_STATUS_CAN_READ)
+            {
+                if (!pMixStream->fUnreliable)
+                {
+                    if (pMixStream->cFramesLastAvail == 0)
+                    {
+                        cMarkedUnreliable++;
+                        pMixStream->fUnreliable = true;
+                        Log3Func(("%s: Marked '%s' as unreliable.\n", pSink->pszName, pMixStream->pszName));
+                        pMixStreamMin = pMixStream;
+                    }
+                    else
+                    {
+                        if (!pMixStreamMin || pMixStream->cFramesLastAvail < pMixStreamMin->cFramesLastAvail)
+                            pMixStreamMin = pMixStream;
+                        cReliableStreams++;
+                    }
+                }
             }
         }
 
-        const PDMAUDIOSTREAMSTS fStreamStatusNew = pConn->pfnStreamGetStatus(pConn, pStream);
+        if (cMarkedUnreliable == 0 && cReliableStreams > 1 && pMixStreamMin != NULL)
+        {
+            cReliableStreams--;
+            cMarkedUnreliable++;
+            pMixStreamMin->fUnreliable = true;
+            Log3Func(("%s: Marked '%s' as unreliable (%u frames).\n",
+                      pSink->pszName, pMixStreamMin->pszName, pMixStreamMin->cFramesLastAvail));
+        }
 
-        /* Is the stream enabled or in pending disable state?
-         * Don't consider this stream as being disabled then. */
-        if (fStreamStatusNew & (PDMAUDIOSTREAMSTS_FLAGS_ENABLED | PDMAUDIOSTREAMSTS_FLAGS_PENDING_DISABLE))
-            cStreamsDisabled--;
-        /* Note: The mixer stream's internal status will be updated in the next iteration of this function. */
+        if (cMarkedUnreliable > 0)
+        {
+            cReadableStreams = 0;
+            cFramesToXfer = audioMixerSinkUpdateInputCalcFramesToTransfer(pSink, &cReadableStreams);
+        }
 
-        Log3Func(("\t%s: cPlayed/cCaptured=%RU32, rc2=%Rrc\n", pStream->szName, cfProc, rc2));
+        Log3Func(("%s: cFreeFrames=%#x cFramesToXfer=%#x cReadableStreams=%#x cMarkedUnreliable=%#x cReliableStreams=%#x\n",
+                  pSink->pszName, AudioMixBufFree(&pSink->MixBuf), cFramesToXfer,
+                  cReadableStreams, cMarkedUnreliable, cReliableStreams));
     }
 
-    Log3Func(("[%s] fPendingDisable=%RTbool, %RU8/%RU8 streams disabled\n",
-              pSink->pszName, RT_BOOL(pSink->fStatus & AUDMIXSINK_STS_PENDING_DISABLE), cStreamsDisabled, pSink->cStreams));
+    if (cReadableStreams > 0)
+    {
+        if (cFramesToXfer > 0)
+        {
+/*#define ELECTRIC_INPUT_BUFFER*/ /* if buffer code is misbehaving, enable this to catch overflows. */
+#ifndef ELECTRIC_INPUT_BUFFER
+            union
+            {
+                uint8_t  ab[8192];
+                uint64_t au64[8192 / sizeof(uint64_t)]; /* Use uint64_t to ensure good alignment. */
+            } Buf;
+            void * const   pvBuf = &Buf;
+            uint32_t const cbBuf = sizeof(Buf);
+#else
+            uint32_t const cbBuf = 0x2000 - 16;
+            void * const   pvBuf = RTMemEfAlloc(cbBuf, RTMEM_TAG, RT_SRC_POS);
+#endif
+
+            /*
+             * For each of the enabled streams, read cFramesToXfer frames worth
+             * of samples from them and merge that into the mixing buffer.
+             */
+            bool fAssign = true;
+            RTListForEach(&pSink->lstStreams, pMixStream, AUDMIXSTREAM, Node)
+            {
+                if (pMixStream->fStatus & AUDMIXSTREAM_STATUS_CAN_READ)
+                {
+                    PPDMIAUDIOCONNECTOR const pIConnector = pMixStream->pConn;
+                    PPDMAUDIOSTREAM const     pStream     = pMixStream->pStream;
+
+                    /* Calculate how many bytes we should read from this stream. */
+                    bool const     fResampleSrc = PDMAudioPropsHz(&pStream->Cfg.Props) != PDMAudioPropsHz(&pSink->MixBuf.Props);
+                    uint32_t const cbSrcToXfer  = !fResampleSrc
+                                                ? PDMAudioPropsFramesToBytes(&pStream->Cfg.Props, cFramesToXfer)
+                                                : PDMAudioPropsFramesToBytes(&pStream->Cfg.Props, /** @todo check rounding errors here... */
+                                                                             cFramesToXfer * PDMAudioPropsHz(&pSink->MixBuf.Props)
+                                                                             / PDMAudioPropsHz(&pStream->Cfg.Props));
+
+                    /* Do the reading. */
+                    uint32_t offSrc      = 0;
+                    uint32_t offDstFrame = 0;
+                    do
+                    {
+                        /*
+                         * Read a chunk from the backend.
+                         */
+                        uint32_t const cbSrcToRead = RT_MIN(cbBuf, cbSrcToXfer - offSrc);
+                        uint32_t       cbSrcRead   = 0;
+                        if (cbSrcToRead > 0)
+                        {
+                            int rc2 = pIConnector->pfnStreamCapture(pIConnector, pStream, pvBuf, cbSrcToRead, &cbSrcRead);
+                            Log3Func(("%s: %#x L %#x => %#x bytes; rc2=%Rrc %s\n",
+                                      pSink->pszName, offSrc, cbSrcToRead, cbSrcRead, rc2, pMixStream->pszName));
+
+                            if (RT_SUCCESS(rc2))
+                                AssertLogRelMsg(cbSrcRead == cbSrcToRead || pMixStream->fUnreliable,
+                                                ("cbSrcRead=%#x cbSrcToRead=%#x - (sink '%s')\n",
+                                                 cbSrcRead, cbSrcToRead, pSink->pszName));
+                            else if (rc2 == VERR_AUDIO_STREAM_NOT_READY)
+                            {
+                                LogRel2(("Audio Mixer: '%s' (sink '%s'): Stream not ready - skipping.\n",
+                                         pMixStream->pszName, pSink->pszName)); /* must've changed status, stop processing */
+                                break;
+                            }
+                            else
+                            {
+                                Assert(rc2 != VERR_BUFFER_OVERFLOW);
+                                LogRel2(("Audio Mixer: Reading from mixer stream '%s' (sink '%s') failed, rc=%Rrc\n",
+                                         pMixStream->pszName, pSink->pszName, rc2));
+                                break;
+                            }
+                            offSrc += cbSrcRead;
+                        }
+                        else
+                            Assert(fResampleSrc); /** @todo test this case */
+
+                        /*
+                         * Assign or blend it into the mixer buffer.
+                         */
+                        uint32_t cFramesDstTransferred = 0;
+                        if (fAssign)
+                        {
+                            /** @todo could complicate this by detecting silence here too and stay in
+                             *        assign mode till we get a stream with non-silence... */
+                            AudioMixBufWrite(&pSink->MixBuf, &pMixStream->WriteState, pvBuf, cbSrcRead,
+                                             offDstFrame, cFramesToXfer - offDstFrame, &cFramesDstTransferred);
+                        }
+                        /* We don't need to blend silence buffers.  For simplicity, always blend
+                           when we're resampling (for rounding). */
+                        else if (fResampleSrc || !PDMAudioPropsIsBufferSilence(&pStream->Cfg.Props, pvBuf, cbSrcRead))
+                        {
+                            AudioMixBufBlend(&pSink->MixBuf, &pMixStream->WriteState, pvBuf, cbSrcRead,
+                                             offDstFrame, cFramesToXfer - offDstFrame, &cFramesDstTransferred);
+                        }
+                        else
+                        {
+                            cFramesDstTransferred = PDMAudioPropsBytesToFrames(&pStream->Cfg.Props, cbSrcRead);
+                            AudioMixBufBlendGap(&pSink->MixBuf, &pMixStream->WriteState, cFramesDstTransferred);
+                        }
+                        AssertBreak(cFramesDstTransferred > 0);
+
+                        /* Advance. */
+                        offDstFrame += cFramesDstTransferred;
+                    } while (offDstFrame < cFramesToXfer);
+
+                    /*
+                     * In case the first stream is misbehaving, make sure we written the entire area.
+                     */
+                    if (offDstFrame >= cFramesToXfer)
+                    { /* likely */ }
+                    else if (fAssign)
+                        AudioMixBufSilence(&pSink->MixBuf, &pMixStream->WriteState, offDstFrame, cFramesToXfer - offDstFrame);
+                    else
+                        AudioMixBufBlendGap(&pSink->MixBuf, &pMixStream->WriteState, cFramesToXfer - offDstFrame);
+                    fAssign = false;
+                }
+            }
+
+            /*
+             * Commit the buffer area we've written and blended into.
+             */
+            AudioMixBufCommit(&pSink->MixBuf, cFramesToXfer);
+
+#ifdef ELECTRIC_INPUT_BUFFER
+            RTMemEfFree(pvBuf, RT_SRC_POS);
+#endif
+        }
+
+        /*
+         * Set the dirty flag for what it's worth.
+         */
+        pSink->fStatus |= AUDMIXSINK_STS_DIRTY;
+    }
+    else
+    {
+        /*
+         * No readable stream. Clear the dirty flag if empty (pointless flag).
+         */
+        if (!AudioMixBufUsed(&pSink->MixBuf))
+            pSink->fStatus &= ~AUDMIXSINK_STS_DIRTY;
+    }
 
     /* Update last updated timestamp. */
     pSink->tsLastUpdatedMs = RTTimeMilliTS();
 
-    /* All streams disabled and the sink is in pending disable mode? */
-    if (   cStreamsDisabled == pSink->cStreams
-        && (pSink->fStatus & AUDMIXSINK_STS_PENDING_DISABLE))
-    {
-        audioMixerSinkReset(pSink);
-    }
-
-    return rc;
+    return VINF_SUCCESS;
 }
 
-/**
- * Updates (invalidates) a mixer sink.
- *
- * @returns IPRT status code.
- * @param   pSink               Mixer sink to update.
- */
-int AudioMixerSinkUpdate(PAUDMIXSINK pSink)
-{
-    AssertPtrReturn(pSink, VERR_INVALID_POINTER);
-
-    int rc = RTCritSectEnter(&pSink->CritSect);
-    if (RT_FAILURE(rc))
-        return rc;
-
-    rc = audioMixerSinkUpdateInternal(pSink);
-
-    int rc2 = RTCritSectLeave(&pSink->CritSect);
-    AssertRC(rc2);
-
-    return rc;
-}
 
 /**
- * Updates the (master) volume of a mixer sink.
+ * Helper for audioMixerSinkUpdateOutput that determins now many frames it
+ * can transfer from the sink's mixer buffer and to the drivers.
  *
- * @returns IPRT status code.
- * @param   pSink               Mixer sink to update volume for.
- * @param   pVolMaster          Master volume to set.
+ * This also updates the mixer stream status, which may involve stream re-inits.
+ *
+ * @returns Number of frames.
+ * @param   pSink               The sink.
+ * @param   pcWritableStreams   Where to return the number of writable streams.
  */
-static int audioMixerSinkUpdateVolume(PAUDMIXSINK pSink, const PPDMAUDIOVOLUME pVolMaster)
+static uint32_t audioMixerSinkUpdateOutputCalcFramesToRead(PAUDMIXSINK pSink, uint32_t *pcWritableStreams)
 {
-    AssertPtrReturn(pSink,      VERR_INVALID_POINTER);
-    AssertPtrReturn(pVolMaster, VERR_INVALID_POINTER);
-
-    LogFlowFunc(("[%s] Master fMuted=%RTbool, lVol=%RU32, rVol=%RU32\n",
-                  pSink->pszName, pVolMaster->fMuted, pVolMaster->uLeft, pVolMaster->uRight));
-    LogFlowFunc(("[%s] fMuted=%RTbool, lVol=%RU32, rVol=%RU32 ",
-                  pSink->pszName, pSink->Volume.fMuted, pSink->Volume.uLeft, pSink->Volume.uRight));
-
-    /** @todo Very crude implementation for now -- needs more work! */
-
-    pSink->VolumeCombined.fMuted  = pVolMaster->fMuted || pSink->Volume.fMuted;
-
-    pSink->VolumeCombined.uLeft   = (  (pSink->Volume.uLeft ? pSink->Volume.uLeft : 1)
-                                     * (pVolMaster->uLeft   ? pVolMaster->uLeft   : 1)) / PDMAUDIO_VOLUME_MAX;
-
-    pSink->VolumeCombined.uRight  = (  (pSink->Volume.uRight ? pSink->Volume.uRight : 1)
-                                     * (pVolMaster->uRight   ? pVolMaster->uRight   : 1)) / PDMAUDIO_VOLUME_MAX;
-
-    LogFlow(("-> fMuted=%RTbool, lVol=%RU32, rVol=%RU32\n",
-             pSink->VolumeCombined.fMuted, pSink->VolumeCombined.uLeft, pSink->VolumeCombined.uRight));
-
-    /* Propagate new sink volume to all streams in the sink. */
+    uint32_t      cFramesToRead    = AudioMixBufUsed(&pSink->MixBuf); /* (to read from the mixing buffer) */
+    uint32_t      cWritableStreams = 0;
     PAUDMIXSTREAM pMixStream;
     RTListForEach(&pSink->lstStreams, pMixStream, AUDMIXSTREAM, Node)
     {
-        int rc2 = pMixStream->pConn->pfnStreamSetVolume(pMixStream->pConn, pMixStream->pStream, &pSink->VolumeCombined);
+#if 0 /** @todo this conceptually makes sense, but may mess up the pending-disable logic ... */
+        if (pMixStream->fStatus & AUDMIXSTREAM_STATUS_ENABLED)
+            pConn->pfnStreamIterate(pConn, pStream);
+#endif
+
+        int rc2 = audioMixerStreamUpdateStatus(pMixStream);
         AssertRC(rc2);
+
+        if (pMixStream->fStatus & AUDMIXSTREAM_STATUS_CAN_WRITE)
+        {
+            uint32_t const cbWritable = pMixStream->pConn->pfnStreamGetWritable(pMixStream->pConn, pMixStream->pStream);
+            uint32_t cFrames = PDMAudioPropsBytesToFrames(&pMixStream->pStream->Cfg.Props, cbWritable);
+            pMixStream->cFramesLastAvail = cFrames;
+            if (PDMAudioPropsHz(&pMixStream->pStream->Cfg.Props) == PDMAudioPropsHz(&pSink->MixBuf.Props))
+            { /* likely */ }
+            else
+            {
+                cFrames = cFrames * PDMAudioPropsHz(&pSink->MixBuf.Props) / PDMAudioPropsHz(&pMixStream->pStream->Cfg.Props);
+                cFrames = cFrames > 2 ? cFrames - 2 : 0; /* rounding safety fudge */
+            }
+            if (cFramesToRead > cFrames && !pMixStream->fUnreliable)
+            {
+                Log4Func(("%s: cFramesToRead %u -> %u; %s (%u bytes writable)\n",
+                          pSink->pszName, cFramesToRead, cFrames, pMixStream->pszName, cbWritable));
+                cFramesToRead = cFrames;
+            }
+            cWritableStreams++;
+        }
+    }
+
+    *pcWritableStreams = cWritableStreams;
+    return cFramesToRead;
+}
+
+
+/**
+ * Updates an output mixer sink.
+ *
+ * @returns VBox status code.
+ * @param   pSink               Mixer sink to update.
+ */
+static int audioMixerSinkUpdateOutput(PAUDMIXSINK pSink)
+{
+    PAUDMIXSTREAM pMixStream;
+    Assert(!(pSink->fStatus & AUDMIXSINK_STS_DRAINED_MIXBUF) || AudioMixBufUsed(&pSink->MixBuf) == 0);
+
+    /*
+     * Update each mixing sink stream's status and check how much we can
+     * write into them.
+     *
+     * We're currently using the minimum size of all streams, however this
+     * isn't a smart approach as it means one disfunctional stream can block
+     * working ones.  So, if we end up with zero frames and a full mixer
+     * buffer we'll disregard the stream that accept the smallest amount and
+     * try again.
+     */
+    uint32_t cWritableStreams  = 0;
+    uint32_t cFramesToRead     = audioMixerSinkUpdateOutputCalcFramesToRead(pSink, &cWritableStreams);
+    if (   cFramesToRead != 0
+        || cWritableStreams <= 1
+        || AudioMixBufFree(&pSink->MixBuf) > 2)
+        Log3Func(("%s: cLiveFrames=%#x cFramesToRead=%#x cWritableStreams=%#x\n", pSink->pszName,
+                  AudioMixBufUsed(&pSink->MixBuf), cFramesToRead, cWritableStreams));
+    else
+    {
+        Log3Func(("%s: MixBuf is full but one or more streams only want zero frames.  Try disregarding those...\n", pSink->pszName));
+        uint32_t        cReliableStreams  = 0;
+        uint32_t        cMarkedUnreliable = 0;
+        PAUDMIXSTREAM   pMixStreamMin     = NULL;
+        RTListForEach(&pSink->lstStreams, pMixStream, AUDMIXSTREAM, Node)
+        {
+            if (pMixStream->fStatus & AUDMIXSTREAM_STATUS_CAN_WRITE)
+            {
+                if (!pMixStream->fUnreliable)
+                {
+                    if (pMixStream->cFramesLastAvail == 0)
+                    {
+                        cMarkedUnreliable++;
+                        pMixStream->fUnreliable = true;
+                        Log3Func(("%s: Marked '%s' as unreliable.\n", pSink->pszName, pMixStream->pszName));
+                        pMixStreamMin = pMixStream;
+                    }
+                    else
+                    {
+                        if (!pMixStreamMin || pMixStream->cFramesLastAvail < pMixStreamMin->cFramesLastAvail)
+                            pMixStreamMin = pMixStream;
+                        cReliableStreams++;
+                    }
+                }
+            }
+        }
+
+        if (cMarkedUnreliable == 0 && cReliableStreams > 1 && pMixStreamMin != NULL)
+        {
+            cReliableStreams--;
+            cMarkedUnreliable++;
+            pMixStreamMin->fUnreliable = true;
+            Log3Func(("%s: Marked '%s' as unreliable (%u frames).\n",
+                      pSink->pszName, pMixStreamMin->pszName, pMixStreamMin->cFramesLastAvail));
+        }
+
+        if (cMarkedUnreliable > 0)
+        {
+            cWritableStreams = 0;
+            cFramesToRead = audioMixerSinkUpdateOutputCalcFramesToRead(pSink, &cWritableStreams);
+        }
+
+        Log3Func(("%s: cLiveFrames=%#x cFramesToRead=%#x cWritableStreams=%#x cMarkedUnreliable=%#x cReliableStreams=%#x\n",
+                  pSink->pszName, AudioMixBufUsed(&pSink->MixBuf), cFramesToRead,
+                  cWritableStreams, cMarkedUnreliable, cReliableStreams));
+    }
+
+    if (cWritableStreams > 0)
+    {
+        if (cFramesToRead > 0)
+        {
+            /*
+             * For each of the enabled streams, convert cFramesToRead frames from
+             * the mixing buffer and write that to the downstream driver.
+             */
+            RTListForEach(&pSink->lstStreams, pMixStream, AUDMIXSTREAM, Node)
+            {
+                if (pMixStream->fStatus & AUDMIXSTREAM_STATUS_CAN_WRITE)
+                {
+                    uint32_t offSrcFrame = 0;
+                    do
+                    {
+                        /* Convert a chunk from the mixer buffer.  */
+/*#define ELECTRIC_PEEK_BUFFER*/ /* if buffer code is misbehaving, enable this to catch overflows. */
+#ifndef ELECTRIC_PEEK_BUFFER
+                        union
+                        {
+                            uint8_t  ab[8192];
+                            uint64_t au64[8192 / sizeof(uint64_t)]; /* Use uint64_t to ensure good alignment. */
+                        } Buf;
+                        void * const   pvBuf = &Buf;
+                        uint32_t const cbBuf = sizeof(Buf);
+#else
+                        uint32_t const cbBuf = 0x2000 - 16;
+                        void * const   pvBuf = RTMemEfAlloc(cbBuf, RTMEM_TAG, RT_SRC_POS);
+#endif
+                        uint32_t cbDstPeeked      = cbBuf;
+                        uint32_t cSrcFramesPeeked = cFramesToRead - offSrcFrame;
+                        AudioMixBufPeek(&pSink->MixBuf, offSrcFrame, cSrcFramesPeeked, &cSrcFramesPeeked,
+                                        &pMixStream->PeekState, pvBuf, cbBuf, &cbDstPeeked);
+                        offSrcFrame += cSrcFramesPeeked;
+
+                        /* Write it to the backend.  Since've checked that there is buffer
+                           space available, this should always write the whole buffer unless
+                           it's an unreliable stream. */
+                        uint32_t cbDstWritten = 0;
+                        int rc2 = pMixStream->pConn->pfnStreamPlay(pMixStream->pConn, pMixStream->pStream,
+                                                                   pvBuf, cbDstPeeked, &cbDstWritten);
+                        Log3Func(("%s: %#x L %#x => %#x bytes; wrote %#x rc2=%Rrc %s\n", pSink->pszName, offSrcFrame,
+                                  cSrcFramesPeeked - cSrcFramesPeeked, cbDstPeeked, cbDstWritten, rc2, pMixStream->pszName));
+#ifdef ELECTRIC_PEEK_BUFFER
+                        RTMemEfFree(pvBuf, RT_SRC_POS);
+#endif
+                        if (RT_SUCCESS(rc2))
+                            AssertLogRelMsg(cbDstWritten == cbDstPeeked || pMixStream->fUnreliable,
+                                            ("cbDstWritten=%#x cbDstPeeked=%#x - (sink '%s')\n",
+                                             cbDstWritten, cbDstPeeked, pSink->pszName));
+                        else if (rc2 == VERR_AUDIO_STREAM_NOT_READY)
+                        {
+                            LogRel2(("Audio Mixer: '%s' (sink '%s'): Stream not ready - skipping.\n",
+                                     pMixStream->pszName, pSink->pszName));
+                            break; /* must've changed status, stop processing */
+                        }
+                        else
+                        {
+                            Assert(rc2 != VERR_BUFFER_OVERFLOW);
+                            LogRel2(("Audio Mixer: Writing to mixer stream '%s' (sink '%s') failed, rc=%Rrc\n",
+                                     pMixStream->pszName, pSink->pszName, rc2));
+                            break;
+                        }
+                    } while (offSrcFrame < cFramesToRead);
+                }
+            }
+
+            AudioMixBufAdvance(&pSink->MixBuf, cFramesToRead);
+        }
+
+        /*
+         * Update the dirty flag for what it's worth.
+         */
+        if (AudioMixBufUsed(&pSink->MixBuf) > 0)
+            pSink->fStatus |= AUDMIXSINK_STS_DIRTY;
+        else
+            pSink->fStatus &= ~AUDMIXSINK_STS_DIRTY;
+    }
+    else
+    {
+        /*
+         * If no writable streams, just drop the mixer buffer content.
+         */
+        AudioMixBufDrop(&pSink->MixBuf);
+        pSink->fStatus &= ~AUDMIXSINK_STS_DIRTY;
+    }
+
+    /*
+     * Iterate buffers.
+     */
+    RTListForEach(&pSink->lstStreams, pMixStream, AUDMIXSTREAM, Node)
+    {
+        if (pMixStream->fStatus & AUDMIXSTREAM_STATUS_ENABLED)
+            pMixStream->pConn->pfnStreamIterate(pMixStream->pConn, pMixStream->pStream);
+    }
+
+    /* Update last updated timestamp. */
+    uint64_t const nsNow   = RTTimeNanoTS();
+    pSink->tsLastUpdatedMs = nsNow / RT_NS_1MS;
+
+    /*
+     * Deal with pending disable.
+     * We reset the sink when all streams have been disabled.
+     */
+    if (!(pSink->fStatus & AUDMIXSINK_STS_DRAINING))
+    { /* likely, till we get to the end */ }
+    else if (nsNow <= pSink->nsDrainDeadline)
+    {
+        /* Have we drained the mixbuf now?  If so, update status and send drain
+           command to streams.  (As mentioned elsewhere we don't want to confuse
+           driver code by sending drain command while there is still data to write.) */
+        Assert((pSink->fStatus & AUDMIXSINK_STS_DIRTY) == (AudioMixBufUsed(&pSink->MixBuf) > 0 ? AUDMIXSINK_STS_DIRTY : 0));
+        if ((pSink->fStatus & (AUDMIXSINK_STS_DRAINED_MIXBUF | AUDMIXSINK_STS_DIRTY)) == 0)
+        {
+            LogFunc(("Sink '%s': Setting AUDMIXSINK_STS_DRAINED_MIXBUF and sending drain command to streams (after %RU64 ns).\n",
+                     pSink->pszName, nsNow - pSink->nsDrainStarted));
+            pSink->fStatus |= AUDMIXSINK_STS_DRAINED_MIXBUF;
+
+            RTListForEach(&pSink->lstStreams, pMixStream, AUDMIXSTREAM, Node)
+            {
+                pMixStream->pConn->pfnStreamControl(pMixStream->pConn, pMixStream->pStream, PDMAUDIOSTREAMCMD_DRAIN);
+            }
+        }
+
+        /* Check if all streams has stopped, and if so we stop the sink. */
+        uint32_t const  cStreams         = pSink->cStreams;
+        uint32_t        cStreamsDisabled = pSink->cStreams;
+        RTListForEach(&pSink->lstStreams, pMixStream, AUDMIXSTREAM, Node)
+        {
+            if (pMixStream->fStatus & AUDMIXSTREAM_STATUS_ENABLED)
+            {
+                PDMAUDIOSTREAMSTATE const enmState = pMixStream->pConn->pfnStreamGetState(pMixStream->pConn, pMixStream->pStream);
+                if (enmState >= PDMAUDIOSTREAMSTATE_ENABLED)
+                    cStreamsDisabled--;
+            }
+        }
+
+        if (cStreamsDisabled != cStreams)
+            Log3Func(("Sink '%s': %u out of %u streams disabled (after %RU64 ns).\n",
+                      pSink->pszName, cStreamsDisabled, cStreams, nsNow - pSink->nsDrainStarted));
+        else
+        {
+            LogFunc(("Sink '%s': All %u streams disabled. Drain done after %RU64 ns.\n",
+                     pSink->pszName, cStreamsDisabled, nsNow - pSink->nsDrainStarted));
+            audioMixerSinkResetInternal(pSink); /* clears the status */
+        }
+    }
+    else
+    {
+        /* Draining timed out. Just do an instant stop. */
+        LogFunc(("Sink '%s': pending disable timed out after %RU64 ns!\n", pSink->pszName, nsNow - pSink->nsDrainStarted));
+        RTListForEach(&pSink->lstStreams, pMixStream, AUDMIXSTREAM, Node)
+        {
+            pMixStream->pConn->pfnStreamControl(pMixStream->pConn, pMixStream->pStream, PDMAUDIOSTREAMCMD_DISABLE);
+        }
+        audioMixerSinkResetInternal(pSink); /* clears the status */
     }
 
     return VINF_SUCCESS;
 }
 
 /**
- * Writes (buffered) output data of a sink's stream to the bound audio connector stream.
+ * Updates (invalidates) a mixer sink.
  *
- * @returns IPRT status code.
- * @param   pSink               Sink of stream that contains the mixer stream.
- * @param   pMixStream          Mixer stream to write output data for.
+ * @returns VBox status code.
+ * @param   pSink           Mixer sink to update.
+ * @param   cbDmaUsed       The DMA buffer fill for input stream, ignored for
+ *                          output sinks.
+ * @param   cbDmaPeriod     The DMA period in bytes for input stream, ignored
+ *                          for output sinks.
  */
-static int audioMixerSinkWriteToStream(PAUDMIXSINK pSink, PAUDMIXSTREAM pMixStream)
-{
-    if (!pMixStream->pCircBuf)
-        return VINF_SUCCESS;
-
-    return audioMixerSinkWriteToStreamEx(pSink, pMixStream, (uint32_t)RTCircBufUsed(pMixStream->pCircBuf), NULL /* pcbWritten */);
-}
-
-/**
- * Writes (buffered) output data of a sink's stream to the bound audio connector stream, extended version.
- *
- * @returns IPRT status code.
- * @param   pSink               Sink of stream that contains the mixer stream.
- * @param   pMixStream          Mixer stream to write output data for.
- * @param   cbToWrite           Size (in bytes) to write.
- * @param   pcbWritten          Size (in bytes) written on success. Optional.
- */
-static int audioMixerSinkWriteToStreamEx(PAUDMIXSINK pSink, PAUDMIXSTREAM pMixStream, uint32_t cbToWrite, uint32_t *pcbWritten)
-{
-    /* pcbWritten is optional. */
-
-    if (   !cbToWrite
-        || !(pMixStream->fStatus & AUDMIXSTREAM_STATUS_ENABLED))
-    {
-        if (pcbWritten)
-            *pcbWritten = 0;
-
-        return VINF_SUCCESS;
-    }
-
-    PRTCIRCBUF pCircBuf = pMixStream->pCircBuf;
-
-    const uint32_t cbWritableStream = pMixStream->pConn->pfnStreamGetWritable(pMixStream->pConn, pMixStream->pStream);
-                   cbToWrite        = RT_MIN(cbToWrite, RT_MIN((uint32_t)RTCircBufUsed(pCircBuf), cbWritableStream));
-
-    Log3Func(("[%s] cbWritableStream=%RU32, cbToWrite=%RU32\n",
-              pMixStream->pszName, cbWritableStream, cbToWrite));
-
-    uint32_t cbWritten = 0;
-
-    int rc = VINF_SUCCESS;
-
-    while (cbToWrite)
-    {
-        void *pvChunk;
-        size_t cbChunk;
-        RTCircBufAcquireReadBlock(pCircBuf, cbToWrite, &pvChunk, &cbChunk);
-
-        Log3Func(("[%s] cbChunk=%RU32\n", pMixStream->pszName, cbChunk));
-
-        uint32_t cbChunkWritten = 0;
-        if (cbChunk)
-        {
-            rc = pMixStream->pConn->pfnStreamWrite(pMixStream->pConn, pMixStream->pStream, pvChunk, (uint32_t)cbChunk,
-                                                   &cbChunkWritten);
-            if (RT_FAILURE(rc))
-            {
-                if (rc == VERR_BUFFER_OVERFLOW)
-                {
-                    LogRel2(("Audio Mixer: Buffer overrun for mixer stream '%s' (sink '%s')\n", pMixStream->pszName, pSink->pszName));
-                    break;
-                }
-                else if (rc == VERR_AUDIO_STREAM_NOT_READY)
-                {
-                    /* Stream is not enabled, just skip. */
-                    rc = VINF_SUCCESS;
-                }
-                else
-                    LogRel2(("Audio Mixer: Writing to mixer stream '%s' (sink '%s') failed, rc=%Rrc\n",
-                             pMixStream->pszName, pSink->pszName, rc));
-
-                if (RT_FAILURE(rc))
-                    LogFunc(("[%s] Failed writing to stream '%s': %Rrc\n", pSink->pszName, pMixStream->pszName, rc));
-            }
-        }
-
-        RTCircBufReleaseReadBlock(pCircBuf, cbChunkWritten);
-
-        if (   RT_FAILURE(rc)
-            || !cbChunkWritten)
-            break;
-
-        Assert(cbToWrite >= cbChunkWritten);
-        cbToWrite -= (uint32_t)cbChunkWritten;
-
-        cbWritten += (uint32_t)cbChunkWritten;
-    }
-
-    Log3Func(("[%s] cbWritten=%RU32\n", pMixStream->pszName, cbWritten));
-
-    if (pcbWritten)
-        *pcbWritten = cbWritten;
-
-#ifdef DEBUG_andy
-    AssertRC(rc);
-#endif
-
-    return rc;
-}
-
-/**
- * Multiplexes audio output data to all connected mixer streams in a synchronized fashion, e.g.
- * only multiplex as much data as all streams can handle at this time.
- *
- * @returns IPRT status code.
- * @param   pSink               Sink to write audio output to.
- * @param   enmOp               What mixing operation to use. Currently not implemented.
- * @param   pvBuf               Pointer to audio data to write.
- * @param   cbBuf               Size (in bytes) of audio data to write.
- * @param   pcbWrittenMin       Returns minimum size (in bytes) successfully written to all mixer streams. Optional.
- */
-static int audioMixerSinkMultiplexSync(PAUDMIXSINK pSink, AUDMIXOP enmOp, const void *pvBuf, uint32_t cbBuf,
-                                       uint32_t *pcbWrittenMin)
-{
-    AssertReturn(cbBuf, VERR_INVALID_PARAMETER);
-    RT_NOREF(enmOp);
-
-    AssertMsg(pSink->enmDir == AUDMIXSINKDIR_OUTPUT,
-              ("%s: Can't multiplex to a sink which is not an output sink\n", pSink->pszName));
-
-    int rc = VINF_SUCCESS;
-
-    uint32_t cbToWriteMin = UINT32_MAX;
-
-    Log3Func(("[%s] cbBuf=%RU32\n", pSink->pszName, cbBuf));
-
-    PAUDMIXSTREAM pMixStream;
-    RTListForEach(&pSink->lstStreams, pMixStream, AUDMIXSTREAM, Node)
-    {
-        if (!(pMixStream->fStatus & AUDMIXSTREAM_STATUS_ENABLED)) /* Mixing stream not enabled? Skip handling. */
-        {
-            Log3Func(("[%s] Stream '%s' disabled, skipping ...\n", pSink->pszName, pMixStream->pszName));
-            continue;
-        }
-
-        cbToWriteMin = RT_MIN(cbBuf, RT_MIN(cbToWriteMin, (uint32_t)RTCircBufFree(pMixStream->pCircBuf)));
-    }
-
-    if (cbToWriteMin == UINT32_MAX) /* No space at all? */
-        cbToWriteMin = 0;
-
-    if (cbToWriteMin)
-    {
-        RTListForEach(&pSink->lstStreams, pMixStream, AUDMIXSTREAM, Node)
-        {
-            if (!(pMixStream->fStatus & AUDMIXSTREAM_STATUS_ENABLED)) /* Mixing stream not enabled? Skip handling. */
-                continue;
-
-            PRTCIRCBUF pCircBuf = pMixStream->pCircBuf;
-            void *pvChunk;
-            size_t cbChunk;
-
-            uint32_t cbWrittenBuf = 0;
-            uint32_t cbToWriteBuf = cbToWriteMin;
-
-            while (cbToWriteBuf)
-            {
-                RTCircBufAcquireWriteBlock(pCircBuf, cbToWriteBuf, &pvChunk, &cbChunk);
-
-                if (cbChunk)
-                    memcpy(pvChunk, (uint8_t *)pvBuf + cbWrittenBuf, cbChunk);
-
-                RTCircBufReleaseWriteBlock(pCircBuf, cbChunk);
-
-                cbWrittenBuf += (uint32_t)cbChunk;
-                Assert(cbWrittenBuf <= cbBuf);
-
-                Assert(cbToWriteBuf >= cbChunk);
-                cbToWriteBuf -= (uint32_t)cbChunk;
-            }
-
-            if (cbWrittenBuf) /* Update the mixer stream's last written time stamp. */
-                pMixStream->tsLastReadWrittenNs = RTTimeNanoTS();
-
-            Log3Func(("[%s] Mixer stream '%s' -> cbWrittenBuf=%RU32\n", pSink->pszName, pMixStream->pszName, cbWrittenBuf));
-        }
-    }
-
-    Log3Func(("[%s] cbBuf=%RU32, cbToWriteMin=%RU32\n", pSink->pszName, cbBuf, cbToWriteMin));
-
-    if (pcbWrittenMin)
-        *pcbWrittenMin = cbToWriteMin;
-
-    return rc;
-}
-
-/**
- * Writes data to a mixer sink.
- *
- * @returns IPRT status code.
- * @param   pSink               Sink to write data to.
- * @param   enmOp               Mixer operation to use when writing data to the sink.
- * @param   pvBuf               Buffer containing the audio data to write.
- * @param   cbBuf               Size (in bytes) of the buffer containing the audio data.
- * @param   pcbWritten          Number of bytes written. Optional.
- */
-int AudioMixerSinkWrite(PAUDMIXSINK pSink, AUDMIXOP enmOp, const void *pvBuf, uint32_t cbBuf, uint32_t *pcbWritten)
+int AudioMixerSinkUpdate(PAUDMIXSINK pSink, uint32_t cbDmaUsed, uint32_t cbDmaPeriod)
 {
     AssertPtrReturn(pSink, VERR_INVALID_POINTER);
-    RT_NOREF(enmOp);
-    AssertPtrReturn(pvBuf, VERR_INVALID_POINTER);
-    AssertReturn   (cbBuf, VERR_INVALID_PARAMETER);
-    /* pcbWritten is optional. */
-
+    Assert(pSink->uMagic == AUDMIXSINK_MAGIC);
     int rc = RTCritSectEnter(&pSink->CritSect);
-    if (RT_FAILURE(rc))
-        return rc;
+    AssertRCReturn(rc, rc);
 
-    AssertMsg(pSink->fStatus & AUDMIXSINK_STS_RUNNING,
-              ("%s: Can't write to a sink which is not running (anymore) (status 0x%x)\n", pSink->pszName, pSink->fStatus));
-    AssertMsg(pSink->enmDir == AUDMIXSINKDIR_OUTPUT,
-              ("%s: Can't write to a sink which is not an output sink\n", pSink->pszName));
+#ifdef LOG_ENABLED
+    char szStatus[AUDIOMIXERSINK_STATUS_STR_MAX];
+#endif
+    Log3Func(("[%s] fStatus=%s\n", pSink->pszName, dbgAudioMixerSinkStatusToStr(pSink->fStatus, szStatus)));
 
-    uint32_t cbWritten = 0;
-    uint32_t cbToWrite = RT_MIN(AudioMixBufFreeBytes(&pSink->MixBuf), cbBuf);
-    while (cbToWrite)
+    /* Only process running sinks. */
+    if (pSink->fStatus & AUDMIXSINK_STS_RUNNING)
     {
-        /* First, write the data to the mixer sink's own mixing buffer.
-         * Here the audio data can be transformed into the mixer sink's format. */
-        uint32_t cfWritten = 0;
-        rc = AudioMixBufWriteCirc(&pSink->MixBuf, (uint8_t *)pvBuf + cbWritten, cbToWrite, &cfWritten);
-        if (RT_FAILURE(rc))
-            break;
+        /* Do separate processing for input and output sinks. */
+        if (pSink->enmDir == PDMAUDIODIR_OUT)
+            rc = audioMixerSinkUpdateOutput(pSink);
+        else if (pSink->enmDir == PDMAUDIODIR_IN)
+            rc = audioMixerSinkUpdateInput(pSink, cbDmaUsed, cbDmaPeriod);
+        else
+            AssertFailedStmt(rc = VERR_INTERNAL_ERROR_3);
+    }
+    else
+        rc = VINF_SUCCESS; /* disabled */
 
-        const uint32_t cbWrittenChunk = PDMAudioPropsFramesToBytes(&pSink->PCMProps, cfWritten);
+    RTCritSectLeave(&pSink->CritSect);
+    return rc;
+}
 
-        Assert(cbToWrite >= cbWrittenChunk);
-        cbToWrite -= cbWrittenChunk;
-        cbWritten += cbWrittenChunk;
+
+/**
+ * @callback_method_impl{FNRTTHREAD, Audio Mixer Sink asynchronous I/O thread}
+ */
+static DECLCALLBACK(int) audioMixerSinkAsyncIoThread(RTTHREAD hThreadSelf, void *pvUser)
+{
+    PAUDMIXSINK pSink = (PAUDMIXSINK)pvUser;
+    AssertPtr(pSink);
+    Assert(pSink->uMagic == AUDMIXSINK_MAGIC);
+    RT_NOREF(hThreadSelf);
+
+    /*
+     * The run loop.
+     */
+    LogFlowFunc(("%s: Entering run loop...\n", pSink->pszName));
+    while (!pSink->AIO.fShutdown)
+    {
+        RTMSINTERVAL cMsSleep = RT_INDEFINITE_WAIT;
+
+        RTCritSectEnter(&pSink->CritSect);
+        if (pSink->fStatus & (AUDMIXSINK_STS_RUNNING | AUDMIXSINK_STS_DRAINING))
+        {
+            /*
+             * Before doing jobs, always update input sinks.
+             */
+            if (pSink->enmDir == PDMAUDIODIR_IN)
+                audioMixerSinkUpdateInput(pSink, 0 /*cbDmaUsed*/, 0 /*cbDmaPeriod*/);
+
+            /*
+             * Do the device specific updating.
+             */
+            uintptr_t const cUpdateJobs = RT_MIN(pSink->AIO.cUpdateJobs, RT_ELEMENTS(pSink->AIO.aUpdateJobs));
+            for (uintptr_t iJob = 0; iJob < cUpdateJobs; iJob++)
+                pSink->AIO.aUpdateJobs[iJob].pfnUpdate(pSink->AIO.pDevIns, pSink, pSink->AIO.aUpdateJobs[iJob].pvUser);
+
+            /*
+             * Update output sinks after the updating.
+             */
+            if (pSink->enmDir == PDMAUDIODIR_OUT)
+                audioMixerSinkUpdateOutput(pSink);
+
+            /*
+             * If we're in draining mode, we use the smallest typical interval of the
+             * jobs for the next wait as we're unlikly to be woken up again by any
+             * DMA timer as it has normally stopped running at this point.
+             */
+            if (!(pSink->fStatus & AUDMIXSINK_STS_DRAINING))
+            { /* likely */ }
+            else
+            {
+                /** @todo Also do some kind of timeout here and do a forced stream disable w/o
+                 *        any draining if we exceed it. */
+                cMsSleep = pSink->AIO.cMsMinTypicalInterval;
+            }
+
+        }
+        RTCritSectLeave(&pSink->CritSect);
+
+        /*
+         * Now block till we're signalled or
+         */
+        if (!pSink->AIO.fShutdown)
+        {
+            int rc = RTSemEventWait(pSink->AIO.hEvent, cMsSleep);
+            AssertLogRelMsgReturn(RT_SUCCESS(rc) || rc == VERR_TIMEOUT, ("%s: RTSemEventWait -> %Rrc\n", pSink->pszName, rc), rc);
+        }
     }
 
-    Log3Func(("[%s] cbBuf=%RU32 -> cbWritten=%RU32\n", pSink->pszName, cbBuf, cbWritten));
+    LogFlowFunc(("%s: returnining normally.\n", pSink->pszName));
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Adds an AIO update job to the sink.
+ *
+ * @returns VBox status code.
+ * @retval  VERR_ALREADY_EXISTS if already registered job with same @a pvUser
+ *          and @a pfnUpdate.
+ *
+ * @param   pSink               The mixer sink to remove the AIO job from.
+ * @param   pfnUpdate           The update callback for the job.
+ * @param   pvUser              The user parameter to pass to @a pfnUpdate.  This should
+ *                              identify the job unique together with @a pfnUpdate.
+ * @param   cMsTypicalInterval  A typical interval between jobs in milliseconds.
+ *                              This is used when draining.
+ */
+int AudioMixerSinkAddUpdateJob(PAUDMIXSINK pSink, PFNAUDMIXSINKUPDATE pfnUpdate, void *pvUser, uint32_t cMsTypicalInterval)
+{
+    AssertPtrReturn(pSink, VERR_INVALID_POINTER);
+    Assert(pSink->uMagic == AUDMIXSINK_MAGIC);
+    int rc = RTCritSectEnter(&pSink->CritSect);
+    AssertRCReturn(rc, rc);
+
+    /*
+     * Check that the job hasn't already been added.
+     */
+    uintptr_t const iEnd = pSink->AIO.cUpdateJobs;
+    for (uintptr_t i = 0; i < iEnd; i++)
+        AssertReturnStmt(   pvUser    != pSink->AIO.aUpdateJobs[i].pvUser
+                         || pfnUpdate != pSink->AIO.aUpdateJobs[i].pfnUpdate,
+                         RTCritSectLeave(&pSink->CritSect),
+                         VERR_ALREADY_EXISTS);
+
+    AssertReturnStmt(iEnd < RT_ELEMENTS(pSink->AIO.aUpdateJobs),
+                     RTCritSectLeave(&pSink->CritSect),
+                     VERR_ALREADY_EXISTS);
+
+    /*
+     * Create the thread if not already running or if it stopped.
+     */
+/** @todo move this to the sink "enable" code */
+    if (pSink->AIO.hThread != NIL_RTTHREAD)
+    {
+        int rcThread = VINF_SUCCESS;
+        rc = RTThreadWait(pSink->AIO.hThread, 0, &rcThread);
+        if (RT_FAILURE_NP(rc))
+        { /* likely */ }
+        else
+        {
+            LogRel(("Audio: AIO thread for '%s' died? rcThread=%Rrc\n", pSink->pszName, rcThread));
+            pSink->AIO.hThread = NIL_RTTHREAD;
+        }
+    }
+    if (pSink->AIO.hThread == NIL_RTTHREAD)
+    {
+        LogFlowFunc(("%s: Starting AIO thread...\n", pSink->pszName));
+        if (pSink->AIO.hEvent == NIL_RTSEMEVENT)
+        {
+            rc = RTSemEventCreate(&pSink->AIO.hEvent);
+            AssertRCReturnStmt(rc, RTCritSectLeave(&pSink->CritSect), rc);
+        }
+        static uint32_t volatile s_idxThread = 0;
+        uint32_t idxThread = ASMAtomicIncU32(&s_idxThread);
+        rc = RTThreadCreateF(&pSink->AIO.hThread, audioMixerSinkAsyncIoThread, pSink, 0 /*cbStack*/, RTTHREADTYPE_IO,
+                             RTTHREADFLAGS_WAITABLE | RTTHREADFLAGS_COM_MTA, "MixAIO-%u", idxThread);
+        AssertRCReturnStmt(rc, RTCritSectLeave(&pSink->CritSect), rc);
+    }
+
+    /*
+     * Finally, actually add the job.
+     */
+    pSink->AIO.aUpdateJobs[iEnd].pfnUpdate          = pfnUpdate;
+    pSink->AIO.aUpdateJobs[iEnd].pvUser             = pvUser;
+    pSink->AIO.aUpdateJobs[iEnd].cMsTypicalInterval = cMsTypicalInterval;
+    pSink->AIO.cUpdateJobs = (uint8_t)(iEnd + 1);
+    if (cMsTypicalInterval < pSink->AIO.cMsMinTypicalInterval)
+        pSink->AIO.cMsMinTypicalInterval = cMsTypicalInterval;
+    LogFlowFunc(("%s: [#%zu]: Added pfnUpdate=%p pvUser=%p typically every %u ms (min %u ms)\n",
+                 pSink->pszName, iEnd, pfnUpdate, pvUser, cMsTypicalInterval, pSink->AIO.cMsMinTypicalInterval));
+
+    RTCritSectLeave(&pSink->CritSect);
+    return VINF_SUCCESS;
+
+}
+
+
+/**
+ * Removes an update job previously registered via AudioMixerSinkAddUpdateJob().
+ *
+ * @returns VBox status code.
+ * @retval  VERR_NOT_FOUND if not found.
+ *
+ * @param   pSink       The mixer sink to remove the AIO job from.
+ * @param   pfnUpdate   The update callback of the job.
+ * @param   pvUser      The user parameter identifying the job.
+ */
+int AudioMixerSinkRemoveUpdateJob(PAUDMIXSINK pSink, PFNAUDMIXSINKUPDATE pfnUpdate, void *pvUser)
+{
+    AssertPtrReturn(pSink, VERR_INVALID_POINTER);
+    Assert(pSink->uMagic == AUDMIXSINK_MAGIC);
+    int rc = RTCritSectEnter(&pSink->CritSect);
+    AssertRCReturn(rc, rc);
+
+    rc = VERR_NOT_FOUND;
+    for (uintptr_t iJob = 0; iJob < pSink->AIO.cUpdateJobs; iJob++)
+        if (   pvUser    == pSink->AIO.aUpdateJobs[iJob].pvUser
+            && pfnUpdate == pSink->AIO.aUpdateJobs[iJob].pfnUpdate)
+        {
+            pSink->AIO.cUpdateJobs--;
+            if (iJob != pSink->AIO.cUpdateJobs)
+                memmove(&pSink->AIO.aUpdateJobs[iJob], &pSink->AIO.aUpdateJobs[iJob + 1],
+                        (pSink->AIO.cUpdateJobs - iJob) * sizeof(pSink->AIO.aUpdateJobs[0]));
+            LogFlowFunc(("%s: [#%zu]: Removed pfnUpdate=%p pvUser=%p => cUpdateJobs=%u\n",
+                         pSink->pszName, iJob, pfnUpdate, pvUser, pSink->AIO.cUpdateJobs));
+            rc = VINF_SUCCESS;
+            break;
+        }
+    AssertRC(rc);
+
+    /* Recalc the minimum sleep interval (do it always). */
+    pSink->AIO.cMsMinTypicalInterval = RT_MS_1SEC / 2;
+    for (uintptr_t iJob = 0; iJob < pSink->AIO.cUpdateJobs; iJob++)
+        if (pSink->AIO.aUpdateJobs[iJob].cMsTypicalInterval < pSink->AIO.cMsMinTypicalInterval)
+            pSink->AIO.cMsMinTypicalInterval = pSink->AIO.aUpdateJobs[iJob].cMsTypicalInterval;
+
+
+    RTCritSectLeave(&pSink->CritSect);
+    return rc;
+}
+
+
+/**
+ * Writes data to a mixer output sink.
+ *
+ * @param   pSink       The sink to write data to.
+ * @param   pvBuf       Buffer containing the audio data to write.
+ * @param   cbBuf       How many bytes to write.
+ * @param   pcbWritten  Number of bytes written.
+ *
+ * @todo merge with caller.
+ */
+static void audioMixerSinkWrite(PAUDMIXSINK pSink, const void *pvBuf, uint32_t cbBuf, uint32_t *pcbWritten)
+{
+    uint32_t cFrames   = AudioMixBufFree(&pSink->MixBuf);
+    uint32_t cbToWrite = PDMAudioPropsFramesToBytes(&pSink->PCMProps, cFrames);
+    cbToWrite = RT_MIN(cbToWrite, cbBuf);
+    AudioMixBufWrite(&pSink->MixBuf, &pSink->Out.State, pvBuf, cbToWrite, 0 /*offDstFrame*/, cFrames, &cFrames);
+    Assert(cbToWrite == PDMAudioPropsFramesToBytes(&pSink->PCMProps, cFrames));
+    AudioMixBufCommit(&pSink->MixBuf, cFrames);
+    *pcbWritten = cbToWrite;
 
     /* Update the sink's last written time stamp. */
     pSink->tsLastReadWrittenNs = RTTimeNanoTS();
 
-    if (pcbWritten)
-        *pcbWritten = cbWritten;
+    Log3Func(("[%s] cbBuf=%#x -> cbWritten=%#x\n", pSink->pszName, cbBuf, cbToWrite));
+}
 
-    int rc2 = RTCritSectLeave(&pSink->CritSect);
-    AssertRC(rc2);
 
+/**
+ * Transfer data from the device's DMA buffer and into the sink.
+ *
+ * The caller is already holding the mixer sink's critical section, either by
+ * way of being the AIO thread doing update jobs or by explicit locking calls.
+ *
+ * @returns The new stream offset.
+ * @param   pSink       The mixer sink to transfer samples to.
+ * @param   pCircBuf    The internal DMA buffer to move samples from.
+ * @param   offStream   The stream current offset (logging, dtrace, return).
+ * @param   idStream    Device specific audio stream identifier (logging, dtrace).
+ * @param   pDbgFile    Debug file, NULL if disabled.
+ */
+uint64_t AudioMixerSinkTransferFromCircBuf(PAUDMIXSINK pSink, PRTCIRCBUF pCircBuf, uint64_t offStream,
+                                           uint32_t idStream, PAUDIOHLPFILE pDbgFile)
+{
+    /*
+     * Sanity.
+     */
+    AssertReturn(pSink, offStream);
+    Assert(pSink->uMagic == AUDMIXSINK_MAGIC);
+    AssertReturn(pCircBuf, offStream);
+    Assert(RTCritSectIsOwner(&pSink->CritSect));
+    Assert(pSink->enmDir == PDMAUDIODIR_OUT);
+    RT_NOREF(idStream);
+
+    /*
+     * Figure how much that we can push down.
+     */
+    uint32_t const cbSinkWritable     = AudioMixerSinkGetWritable(pSink);
+    uint32_t const cbCircBufReadable  = (uint32_t)RTCircBufUsed(pCircBuf);
+    uint32_t       cbToTransfer       = RT_MIN(cbCircBufReadable, cbSinkWritable);
+    /* Make sure that we always align the number of bytes when reading to the stream's PCM properties. */
+    uint32_t const cbToTransfer2      = cbToTransfer = PDMAudioPropsFloorBytesToFrame(&pSink->PCMProps, cbToTransfer);
+
+    Log3Func(("idStream=%u: cbSinkWritable=%#RX32 cbCircBufReadable=%#RX32 -> cbToTransfer=%#RX32 @%#RX64\n",
+              idStream, cbSinkWritable, cbCircBufReadable, cbToTransfer, offStream));
+    AssertMsg(!(pSink->fStatus & AUDMIXSINK_STS_DRAINING) || cbCircBufReadable == pSink->cbDmaLeftToDrain,
+              ("cbCircBufReadable=%#x cbDmaLeftToDrain=%#x\n", cbCircBufReadable, pSink->cbDmaLeftToDrain));
+
+    /*
+     * Do the pushing.
+     */
+    while (cbToTransfer > 0)
+    {
+        void /*const*/ *pvSrcBuf;
+        size_t          cbSrcBuf;
+        RTCircBufAcquireReadBlock(pCircBuf, cbToTransfer, &pvSrcBuf, &cbSrcBuf);
+
+        uint32_t cbWritten = 0;
+        audioMixerSinkWrite(pSink, pvSrcBuf, (uint32_t)cbSrcBuf, &cbWritten);
+        Assert(cbWritten <= cbSrcBuf);
+
+        Log2Func(("idStream=%u: %#RX32/%#zx bytes read @%#RX64\n", idStream, cbWritten, cbSrcBuf, offStream));
+#ifdef VBOX_WITH_DTRACE
+        VBOXDD_AUDIO_MIXER_SINK_AIO_OUT(idStream, cbWritten, offStream);
+#endif
+        offStream += cbWritten;
+
+        if (!pDbgFile)
+        { /* likely */ }
+        else
+            AudioHlpFileWrite(pDbgFile, pvSrcBuf, cbSrcBuf);
+
+
+        RTCircBufReleaseReadBlock(pCircBuf, cbWritten);
+
+        /* advance */
+        cbToTransfer -= cbWritten;
+    }
+
+    /*
+     * Advance drain status.
+     */
+    if (!(pSink->fStatus & AUDMIXSINK_STS_DRAINING))
+    { /* likely for most of the playback time ... */ }
+    else if (!(pSink->fStatus & AUDMIXSINK_STS_DRAINED_DMA))
+    {
+        if (cbToTransfer2 >= pSink->cbDmaLeftToDrain)
+        {
+            Assert(cbToTransfer2 == pSink->cbDmaLeftToDrain);
+            Log3Func(("idStream=%u/'%s': Setting AUDMIXSINK_STS_DRAINED_DMA.\n", idStream, pSink->pszName));
+            pSink->cbDmaLeftToDrain = 0;
+            pSink->fStatus         |= AUDMIXSINK_STS_DRAINED_DMA;
+        }
+        else
+        {
+            pSink->cbDmaLeftToDrain -= cbToTransfer2;
+            Log3Func(("idStream=%u/'%s': still %#x bytes left in the DMA buffer\n",
+                      idStream, pSink->pszName, pSink->cbDmaLeftToDrain));
+        }
+    }
+    else
+        Assert(cbToTransfer2 == 0);
+
+    return offStream;
+}
+
+
+/**
+ * Transfer data to the device's DMA buffer from the sink.
+ *
+ * The caller is already holding the mixer sink's critical section, either by
+ * way of being the AIO thread doing update jobs or by explicit locking calls.
+ *
+ * @returns The new stream offset.
+ * @param   pSink       The mixer sink to transfer samples from.
+ * @param   pCircBuf    The internal DMA buffer to move samples to.
+ * @param   offStream   The stream current offset (logging, dtrace, return).
+ * @param   idStream    Device specific audio stream identifier (logging, dtrace).
+ * @param   pDbgFile    Debug file, NULL if disabled.
+ */
+uint64_t AudioMixerSinkTransferToCircBuf(PAUDMIXSINK pSink, PRTCIRCBUF pCircBuf, uint64_t offStream,
+                                         uint32_t idStream, PAUDIOHLPFILE pDbgFile)
+{
+    /*
+     * Sanity.
+     */
+    AssertReturn(pSink, offStream);
+    Assert(pSink->uMagic == AUDMIXSINK_MAGIC);
+    AssertReturn(pCircBuf, offStream);
+    Assert(RTCritSectIsOwner(&pSink->CritSect));
+
+    /*
+     * Figure out how much we can transfer.
+     */
+    const uint32_t cbSinkReadable    = AudioMixerSinkGetReadable(pSink);
+    const uint32_t cbCircBufWritable = (uint32_t)RTCircBufFree(pCircBuf);
+    uint32_t       cbToTransfer      = RT_MIN(cbCircBufWritable, cbSinkReadable);
+    uint32_t       cFramesToTransfer = PDMAudioPropsBytesToFrames(&pSink->PCMProps, cbToTransfer);
+    cbToTransfer = PDMAudioPropsFramesToBytes(&pSink->PCMProps, cFramesToTransfer);
+
+    Log3Func(("idStream=%u: cbSinkReadable=%#RX32 cbCircBufWritable=%#RX32 -> cbToTransfer=%#RX32 (%RU32 frames) @%#RX64\n",
+              idStream, cbSinkReadable, cbCircBufWritable, cbToTransfer, cFramesToTransfer, offStream));
+    RT_NOREF(idStream);
+
+    /** @todo should we throttle (read less) this if we're far ahead? */
+
+    /*
+     * Copy loop.
+     */
+    while (cbToTransfer > 0)
+    {
+/** @todo We should be able to read straight into the circular buffer here
+ *        as it should have a frame aligned size. */
+
+        /* Read a chunk of data. */
+        uint8_t  abBuf[4096];
+        uint32_t cbRead = 0;
+        uint32_t cFramesRead = 0;
+        AudioMixBufPeek(&pSink->MixBuf, 0, cFramesToTransfer, &cFramesRead,
+                        &pSink->In.State, abBuf, RT_MIN(cbToTransfer, sizeof(abBuf)), &cbRead);
+        AssertBreak(cFramesRead > 0);
+        Assert(cbRead > 0);
+
+        cFramesToTransfer -= cFramesRead;
+        AudioMixBufAdvance(&pSink->MixBuf, cFramesRead);
+
+        /* Write it to the internal DMA buffer. */
+        uint32_t off = 0;
+        while (off < cbRead)
+        {
+            void  *pvDstBuf;
+            size_t cbDstBuf;
+            RTCircBufAcquireWriteBlock(pCircBuf, cbRead - off, &pvDstBuf, &cbDstBuf);
+
+            memcpy(pvDstBuf, &abBuf[off], cbDstBuf);
+
+#ifdef VBOX_WITH_DTRACE
+            VBOXDD_AUDIO_MIXER_SINK_AIO_IN(idStream, (uint32_t)cbDstBuf, offStream);
+#endif
+            offStream += cbDstBuf;
+
+            RTCircBufReleaseWriteBlock(pCircBuf, cbDstBuf);
+
+            off += (uint32_t)cbDstBuf;
+        }
+        Assert(off == cbRead);
+
+        /* Write to debug file? */
+        if (RT_LIKELY(!pDbgFile))
+        { /* likely */ }
+        else
+            AudioHlpFileWrite(pDbgFile, abBuf, cbRead);
+
+        /* Advance. */
+        Assert(cbRead <= cbToTransfer);
+        cbToTransfer -= cbRead;
+    }
+
+    return offStream;
+}
+
+
+/**
+ * Signals the AIO thread to perform updates.
+ *
+ * @returns VBox status code.
+ * @param   pSink       The mixer sink which AIO thread needs to do chores.
+ */
+int AudioMixerSinkSignalUpdateJob(PAUDMIXSINK pSink)
+{
+    AssertPtrReturn(pSink, VERR_INVALID_POINTER);
+    Assert(pSink->uMagic == AUDMIXSINK_MAGIC);
+    return RTSemEventSignal(pSink->AIO.hEvent);
+}
+
+
+/**
+ * Locks the mixer sink for purposes of serializing with the AIO thread.
+ *
+ * @returns VBox status code.
+ * @param   pSink       The mixer sink to lock.
+ */
+int AudioMixerSinkLock(PAUDMIXSINK pSink)
+{
+    AssertPtrReturn(pSink, VERR_INVALID_POINTER);
+    Assert(pSink->uMagic == AUDMIXSINK_MAGIC);
+    return RTCritSectEnter(&pSink->CritSect);
+}
+
+
+/**
+ * Try to lock the mixer sink for purposes of serializing with the AIO thread.
+ *
+ * @returns VBox status code.
+ * @param   pSink       The mixer sink to lock.
+ */
+int AudioMixerSinkTryLock(PAUDMIXSINK pSink)
+{
+    AssertPtrReturn(pSink, VERR_INVALID_POINTER);
+    Assert(pSink->uMagic == AUDMIXSINK_MAGIC);
+    return RTCritSectTryEnter(&pSink->CritSect);
+}
+
+
+/**
+ * Unlocks the sink.
+ *
+ * @returns VBox status code.
+ * @param   pSink       The mixer sink to unlock.
+ */
+int     AudioMixerSinkUnlock(PAUDMIXSINK pSink)
+{
+    AssertPtrReturn(pSink, VERR_INVALID_POINTER);
+    return RTCritSectLeave(&pSink->CritSect);
+}
+
+
+/**
+ * Creates an audio mixer stream.
+ *
+ * @returns VBox status code.
+ * @param   pSink       Sink to use for creating the stream.
+ * @param   pConn       Audio connector interface to use.
+ * @param   pCfg        Audio stream configuration to use.  This may be modified
+ *                      in some unspecified way (see
+ *                      PDMIAUDIOCONNECTOR::pfnStreamCreate).
+ * @param   pDevIns     The device instance to register statistics with.
+ * @param   ppStream    Pointer which receives the newly created audio stream.
+ */
+int AudioMixerSinkCreateStream(PAUDMIXSINK pSink, PPDMIAUDIOCONNECTOR pConn, PCPDMAUDIOSTREAMCFG pCfg,
+                               PPDMDEVINS pDevIns, PAUDMIXSTREAM *ppStream)
+{
+    AssertPtrReturn(pSink, VERR_INVALID_POINTER);
+    Assert(pSink->uMagic == AUDMIXSINK_MAGIC);
+    AssertPtrReturn(pConn, VERR_INVALID_POINTER);
+    AssertPtrReturn(pCfg, VERR_INVALID_POINTER);
+    AssertPtrNullReturn(ppStream, VERR_INVALID_POINTER);
+    Assert(pSink->AIO.pDevIns == pDevIns); RT_NOREF(pDevIns); /* we'll probably be adding more statistics */
+    AssertReturn(pCfg->enmDir == pSink->enmDir, VERR_MISMATCH);
+
+    /*
+     * Check status and get the host driver config.
+     */
+    if (pConn->pfnGetStatus(pConn, PDMAUDIODIR_DUPLEX) == PDMAUDIOBACKENDSTS_NOT_ATTACHED)
+        return VERR_AUDIO_BACKEND_NOT_ATTACHED;
+
+    PDMAUDIOBACKENDCFG BackendCfg;
+    int rc = pConn->pfnGetConfig(pConn, &BackendCfg);
+    AssertRCReturn(rc, rc);
+
+    /*
+     * Allocate the instance.
+     */
+    PAUDMIXSTREAM pMixStream = (PAUDMIXSTREAM)RTMemAllocZ(sizeof(AUDMIXSTREAM));
+    AssertReturn(pMixStream, VERR_NO_MEMORY);
+
+    /* Assign the backend's name to the mixer stream's name for easier identification in the (release) log. */
+    pMixStream->pszName = RTStrAPrintf2("[%s] %s", pCfg->szName, BackendCfg.szName);
+    pMixStream->pszStatPrefix = RTStrAPrintf2("MixerSink-%s/%s/", pSink->pszName, BackendCfg.szName);
+    if (pMixStream->pszName && pMixStream->pszStatPrefix)
+    {
+        rc = RTCritSectInit(&pMixStream->CritSect);
+        if (RT_SUCCESS(rc))
+        {
+            /*
+             * Lock the sink so we can safely get it's properties and call
+             * down into the audio driver to create that end of the stream.
+             */
+            rc = RTCritSectEnter(&pSink->CritSect);
+            AssertRC(rc);
+            if (RT_SUCCESS(rc))
+            {
+                LogFlowFunc(("[%s] (enmDir=%ld, %u bits, %RU8 channels, %RU32Hz)\n", pSink->pszName, pCfg->enmDir,
+                             PDMAudioPropsSampleBits(&pCfg->Props), PDMAudioPropsChannels(&pCfg->Props), pCfg->Props.uHz));
+
+                /*
+                 * Initialize the host-side configuration for the stream to be created,
+                 * this is the sink format & direction with the src/dir, layout, name
+                 * and device specific config copied from the guest side config (pCfg).
+                 * We disregard any Backend settings here.
+                 *
+                 * (Note! pfnStreamCreate used to get both CfgHost and pCfg (aka pCfgGuest)
+                 *        passed in, but that became unnecessary with DrvAudio stoppping
+                 *        mixing.  The mixing is done here and we bridge guest & host configs.)
+                 */
+                AssertMsg(AudioHlpPcmPropsAreValid(&pSink->PCMProps),
+                          ("%s: Does not (yet) have a format set when it must\n", pSink->pszName));
+
+                PDMAUDIOSTREAMCFG CfgHost;
+                rc = PDMAudioStrmCfgInitWithProps(&CfgHost, &pSink->PCMProps);
+                AssertRC(rc); /* cannot fail */
+                CfgHost.enmDir    = pSink->enmDir;
+                CfgHost.enmPath   = pCfg->enmPath;
+                CfgHost.Device    = pCfg->Device;
+                RTStrCopy(CfgHost.szName, sizeof(CfgHost.szName), pCfg->szName);
+
+                /*
+                 * Create the stream.
+                 *
+                 * Output streams are not using any mixing buffers in DrvAudio.  This will
+                 * become the norm after we move the input mixing here and convert DevSB16
+                 * to use this mixer code too.
+                 */
+                PPDMAUDIOSTREAM pStream;
+                rc = pConn->pfnStreamCreate(pConn, 0 /*fFlags*/, &CfgHost, &pStream);
+                if (RT_SUCCESS(rc))
+                {
+                    pMixStream->cFramesBackendBuffer = pStream->Cfg.Backend.cFramesBufferSize;
+
+                    /* Set up the mixing buffer conversion state. */
+                    if (pSink->enmDir == PDMAUDIODIR_IN)
+                        rc = AudioMixBufInitWriteState(&pSink->MixBuf, &pMixStream->WriteState, &pStream->Cfg.Props);
+                    else
+                        rc = AudioMixBufInitPeekState(&pSink->MixBuf, &pMixStream->PeekState, &pStream->Cfg.Props);
+                    if (RT_SUCCESS(rc))
+                    {
+                        /* Save the audio stream pointer to this mixing stream. */
+                        pMixStream->pStream = pStream;
+
+                        /* Increase the stream's reference count to let others know
+                         * we're relying on it to be around now. */
+                        pConn->pfnStreamRetain(pConn, pStream);
+                        pMixStream->pConn  = pConn;
+                        pMixStream->uMagic = AUDMIXSTREAM_MAGIC;
+
+                        RTCritSectLeave(&pSink->CritSect);
+
+                        if (ppStream)
+                            *ppStream = pMixStream;
+                        return VINF_SUCCESS;
+                    }
+
+                    rc = pConn->pfnStreamDestroy(pConn, pStream, true /*fImmediate*/);
+                }
+
+                /*
+                 * Failed.  Tear down the stream.
+                 */
+                int rc2 = RTCritSectLeave(&pSink->CritSect);
+                AssertRC(rc2);
+            }
+            RTCritSectDelete(&pMixStream->CritSect);
+        }
+    }
+    else
+        rc = VERR_NO_STR_MEMORY;
+
+    RTStrFree(pMixStream->pszStatPrefix);
+    pMixStream->pszStatPrefix = NULL;
+    RTStrFree(pMixStream->pszName);
+    pMixStream->pszName = NULL;
+    RTMemFree(pMixStream);
     return rc;
 }
+
+
+/**
+ * Adds an audio stream to a specific audio sink.
+ *
+ * @returns VBox status code.
+ * @param   pSink               Sink to add audio stream to.
+ * @param   pStream             Stream to add.
+ */
+int AudioMixerSinkAddStream(PAUDMIXSINK pSink, PAUDMIXSTREAM pStream)
+{
+    LogFlowFuncEnter();
+    AssertPtrReturn(pSink,   VERR_INVALID_POINTER);
+    Assert(pSink->uMagic == AUDMIXSINK_MAGIC);
+    AssertPtrReturn(pStream, VERR_INVALID_POINTER);
+    Assert(pStream->uMagic == AUDMIXSTREAM_MAGIC);
+    AssertPtrReturn(pStream->pConn, VERR_AUDIO_STREAM_NOT_READY);
+    AssertReturn(pStream->pSink == NULL, VERR_ALREADY_EXISTS);
+
+    int rc = RTCritSectEnter(&pSink->CritSect);
+    AssertRCReturn(rc, rc);
+
+    AssertLogRelMsgReturnStmt(pSink->cStreams < UINT8_MAX, ("too many streams!\n"), RTCritSectLeave(&pSink->CritSect),
+                              VERR_TOO_MANY_OPEN_FILES);
+
+    /*
+     * If the sink is running and not in pending disable mode, make sure that
+     * the added stream also is enabled.   Ignore any failure to enable it.
+     */
+    if (    (pSink->fStatus & AUDMIXSINK_STS_RUNNING)
+        && !(pSink->fStatus & AUDMIXSINK_STS_DRAINING))
+    {
+        audioMixerStreamCtlInternal(pStream, PDMAUDIOSTREAMCMD_ENABLE);
+    }
+
+    /* Save pointer to sink the stream is attached to. */
+    pStream->pSink = pSink;
+
+    /* Append stream to sink's list. */
+    RTListAppend(&pSink->lstStreams, &pStream->Node);
+    pSink->cStreams++;
+
+    LogFlowFunc(("[%s] cStreams=%RU8, rc=%Rrc\n", pSink->pszName, pSink->cStreams, rc));
+    RTCritSectLeave(&pSink->CritSect);
+    return rc;
+}
+
+
+/**
+ * Removes a mixer stream from a mixer sink, internal version.
+ *
+ * @returns VBox status code.
+ * @param   pSink       The mixer sink (valid).
+ * @param   pStream     The stream to remove (valid).
+ *
+ * @note    Caller must own the sink lock.
+ */
+static int audioMixerSinkRemoveStreamInternal(PAUDMIXSINK pSink, PAUDMIXSTREAM pStream)
+{
+    AssertPtr(pSink);
+    AssertPtr(pStream);
+    AssertMsgReturn(pStream->pSink == pSink, ("Stream '%s' is not part of sink '%s'\n",
+                                              pStream->pszName, pSink->pszName), VERR_NOT_FOUND);
+    Assert(RTCritSectIsOwner(&pSink->CritSect));
+    LogFlowFunc(("[%s] (Stream = %s), cStreams=%RU8\n", pSink->pszName, pStream->pStream->Cfg.szName, pSink->cStreams));
+
+    /*
+     * Remove stream from sink, update the count and set the pSink member to NULL.
+     */
+    RTListNodeRemove(&pStream->Node);
+
+    Assert(pSink->cStreams > 0);
+    pSink->cStreams--;
+
+    pStream->pSink = NULL;
+
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Removes a mixer stream from a mixer sink.
+ *
+ * @param   pSink       The mixer sink.
+ * @param   pStream     The stream to remove.
+ */
+void AudioMixerSinkRemoveStream(PAUDMIXSINK pSink, PAUDMIXSTREAM pStream)
+{
+    AssertPtrReturnVoid(pSink);
+    AssertReturnVoid(pSink->uMagic == AUDMIXSINK_MAGIC);
+    AssertPtrReturnVoid(pStream);
+    AssertReturnVoid(pStream->uMagic == AUDMIXSTREAM_MAGIC);
+
+    int rc = RTCritSectEnter(&pSink->CritSect);
+    AssertRCReturnVoid(rc);
+
+    audioMixerSinkRemoveStreamInternal(pSink, pStream);
+
+    RTCritSectLeave(&pSink->CritSect);
+}
+
+
+/**
+ * Removes all streams from a given sink.
+ *
+ * @param   pSink       The mixer sink. NULL is ignored.
+ */
+void AudioMixerSinkRemoveAllStreams(PAUDMIXSINK pSink)
+{
+    if (!pSink)
+        return;
+    AssertReturnVoid(pSink->uMagic == AUDMIXSINK_MAGIC);
+
+    int rc = RTCritSectEnter(&pSink->CritSect);
+    AssertRCReturnVoid(rc);
+
+    LogFunc(("%s\n", pSink->pszName));
+
+    PAUDMIXSTREAM pStream, pStreamNext;
+    RTListForEachSafe(&pSink->lstStreams, pStream, pStreamNext, AUDMIXSTREAM, Node)
+    {
+        audioMixerSinkRemoveStreamInternal(pSink, pStream);
+    }
+    AssertStmt(pSink->cStreams == 0, pSink->cStreams = 0);
+
+    RTCritSectLeave(&pSink->CritSect);
+}
+
+
 
 /*********************************************************************************************************************************
  * Mixer Stream implementation.
@@ -2149,21 +2492,19 @@ int AudioMixerSinkWrite(PAUDMIXSINK pSink, AUDMIXOP enmOp, const void *pvBuf, ui
 /**
  * Controls a mixer stream, internal version.
  *
- * @returns IPRT status code.
+ * @returns VBox status code (generally ignored).
  * @param   pMixStream          Mixer stream to control.
  * @param   enmCmd              Mixer stream command to use.
- * @param   fCtl                Additional control flags. Pass 0.
  */
-static int audioMixerStreamCtlInternal(PAUDMIXSTREAM pMixStream, PDMAUDIOSTREAMCMD enmCmd, uint32_t fCtl)
+static int audioMixerStreamCtlInternal(PAUDMIXSTREAM pMixStream, PDMAUDIOSTREAMCMD enmCmd)
 {
-    AssertPtr(pMixStream->pConn);
-    AssertPtr(pMixStream->pStream);
-
-    RT_NOREF(fCtl);
+    Assert(pMixStream->uMagic == AUDMIXSTREAM_MAGIC);
+    AssertPtrReturn(pMixStream->pConn, VERR_AUDIO_STREAM_NOT_READY);
+    AssertPtrReturn(pMixStream->pStream, VERR_AUDIO_STREAM_NOT_READY);
 
     int rc = pMixStream->pConn->pfnStreamControl(pMixStream->pConn, pMixStream->pStream, enmCmd);
 
-    LogFlowFunc(("[%s] enmCmd=%ld, rc=%Rrc\n", pMixStream->pszName, enmCmd, rc));
+    LogFlowFunc(("[%s] enmCmd=%d, rc=%Rrc\n", pMixStream->pszName, enmCmd, rc));
 
     return rc;
 }
@@ -2171,35 +2512,82 @@ static int audioMixerStreamCtlInternal(PAUDMIXSTREAM pMixStream, PDMAUDIOSTREAMC
 /**
  * Updates a mixer stream's internal status.
  *
+ * This may perform a stream re-init if the driver requests it, in which case
+ * this may take a little while longer than usual...
+ *
  * @returns VBox status code.
  * @param   pMixStream          Mixer stream to to update internal status for.
  */
 static int audioMixerStreamUpdateStatus(PAUDMIXSTREAM pMixStream)
 {
+    Assert(pMixStream->uMagic == AUDMIXSTREAM_MAGIC);
+
+    /*
+     * Reset the mixer status to start with.
+     */
     pMixStream->fStatus = AUDMIXSTREAM_STATUS_NONE;
 
-    if (pMixStream->pConn) /* Audio connector available? */
+    PPDMIAUDIOCONNECTOR const pConn = pMixStream->pConn;
+    if (pConn) /* Audio connector available? */
     {
-        const uint32_t fStreamStatus = pMixStream->pConn->pfnStreamGetStatus(pMixStream->pConn, pMixStream->pStream);
+        PPDMAUDIOSTREAM const pStream = pMixStream->pStream;
 
-        if (PDMAudioStrmStatusIsReady(fStreamStatus))
-            pMixStream->fStatus |= AUDMIXSTREAM_STATUS_ENABLED;
-
-        AssertPtr(pMixStream->pSink);
-        switch (pMixStream->pSink->enmDir)
+        /*
+         * Get the stream status.
+         * Do re-init if needed and fetch the status again afterwards.
+         */
+        PDMAUDIOSTREAMSTATE enmState = pConn->pfnStreamGetState(pConn, pStream);
+        if (enmState != PDMAUDIOSTREAMSTATE_NEED_REINIT)
+        { /* likely */ }
+        else
         {
-            case AUDMIXSINKDIR_INPUT:
-                if (PDMAudioStrmStatusCanRead(fStreamStatus))
-                   pMixStream->fStatus |= AUDMIXSTREAM_STATUS_CAN_READ;
-                break;
+            LogFunc(("[%s] needs re-init...\n", pMixStream->pszName));
+            int rc = pConn->pfnStreamReInit(pConn, pStream);
+            enmState = pConn->pfnStreamGetState(pConn, pStream);
+            LogFunc(("[%s] re-init returns %Rrc and %s.\n", pMixStream->pszName, rc, PDMAudioStreamStateGetName(enmState)));
 
-            case AUDMIXSINKDIR_OUTPUT:
-                if (PDMAudioStrmStatusCanWrite(fStreamStatus))
-                   pMixStream->fStatus |= AUDMIXSTREAM_STATUS_CAN_WRITE;
-                break;
+            PAUDMIXSINK const pSink = pMixStream->pSink;
+            AssertPtr(pSink);
+            if (pSink->enmDir == PDMAUDIODIR_OUT)
+            {
+                rc = AudioMixBufInitPeekState(&pSink->MixBuf, &pMixStream->PeekState, &pStream->Cfg.Props);
+                /** @todo we need to remember this, don't we? */
+                AssertLogRelRCReturn(rc, VINF_SUCCESS);
+            }
+            else
+            {
+                rc = AudioMixBufInitWriteState(&pSink->MixBuf, &pMixStream->WriteState, &pStream->Cfg.Props);
+                /** @todo we need to remember this, don't we? */
+                AssertLogRelRCReturn(rc, VINF_SUCCESS);
+            }
+        }
 
-            default:
-                AssertFailedReturn(VERR_NOT_IMPLEMENTED);
+        /*
+         * Translate the status to mixer speak.
+         */
+        AssertMsg(enmState > PDMAUDIOSTREAMSTATE_INVALID && enmState < PDMAUDIOSTREAMSTATE_END, ("%d\n", enmState));
+        switch (enmState)
+        {
+            case PDMAUDIOSTREAMSTATE_NOT_WORKING:
+            case PDMAUDIOSTREAMSTATE_NEED_REINIT:
+            case PDMAUDIOSTREAMSTATE_INACTIVE:
+                pMixStream->fStatus = AUDMIXSTREAM_STATUS_NONE;
+                break;
+            case PDMAUDIOSTREAMSTATE_ENABLED:
+                pMixStream->fStatus = AUDMIXSTREAM_STATUS_ENABLED;
+                break;
+            case PDMAUDIOSTREAMSTATE_ENABLED_READABLE:
+                Assert(pMixStream->pSink->enmDir == PDMAUDIODIR_IN);
+                pMixStream->fStatus = AUDMIXSTREAM_STATUS_ENABLED | AUDMIXSTREAM_STATUS_CAN_READ;
+                break;
+            case PDMAUDIOSTREAMSTATE_ENABLED_WRITABLE:
+                Assert(pMixStream->pSink->enmDir == PDMAUDIODIR_OUT);
+                pMixStream->fStatus = AUDMIXSTREAM_STATUS_ENABLED | AUDMIXSTREAM_STATUS_CAN_WRITE;
+                break;
+            /* no default */
+            case PDMAUDIOSTREAMSTATE_INVALID:
+            case PDMAUDIOSTREAMSTATE_END:
+            case PDMAUDIOSTREAMSTATE_32BIT_HACK:
                 break;
         }
     }
@@ -2208,50 +2596,38 @@ static int audioMixerStreamUpdateStatus(PAUDMIXSTREAM pMixStream)
     return VINF_SUCCESS;
 }
 
-/**
- * Controls a mixer stream.
- *
- * @returns IPRT status code.
- * @param   pMixStream          Mixer stream to control.
- * @param   enmCmd              Mixer stream command to use.
- * @param   fCtl                Additional control flags. Pass 0.
- */
-int AudioMixerStreamCtl(PAUDMIXSTREAM pMixStream, PDMAUDIOSTREAMCMD enmCmd, uint32_t fCtl)
-{
-    RT_NOREF(fCtl);
-    AssertPtrReturn(pMixStream, VERR_INVALID_POINTER);
-    /** @todo Validate fCtl. */
-
-    int rc = RTCritSectEnter(&pMixStream->CritSect);
-    if (RT_FAILURE(rc))
-        return rc;
-
-    rc = audioMixerStreamCtlInternal(pMixStream, enmCmd, fCtl);
-
-    int rc2 = RTCritSectLeave(&pMixStream->CritSect);
-    if (RT_SUCCESS(rc))
-        rc = rc2;
-
-    return rc;
-}
 
 /**
- * Destroys a mixer stream, internal version.
+ * Destroys & frees a mixer stream, internal version.
  *
- * @param   pMixStream          Mixer stream to destroy.
+ * Worker for audioMixerSinkDestroyInternal and AudioMixerStreamDestroy.
+ *
+ * @param   pMixStream  Mixer stream to destroy.
+ * @param   pDevIns     The device instance the statistics are registered with.
+ * @param   fImmediate  How to handle still draining streams, whether to let
+ *                      them complete (@c false) or destroy them immediately (@c
+ *                      true).
  */
-static void audioMixerStreamDestroyInternal(PAUDMIXSTREAM pMixStream)
+static void audioMixerStreamDestroyInternal(PAUDMIXSTREAM pMixStream, PPDMDEVINS pDevIns, bool fImmediate)
 {
-    AssertPtrReturnVoid(pMixStream);
-
+    AssertPtr(pMixStream);
     LogFunc(("%s\n", pMixStream->pszName));
+    Assert(pMixStream->uMagic == AUDMIXSTREAM_MAGIC);
 
+    /*
+     * Invalidate it.
+     */
+    pMixStream->uMagic = AUDMIXSTREAM_MAGIC_DEAD;
+
+    /*
+     * Destroy the driver stream (if any).
+     */
     if (pMixStream->pConn) /* Stream has a connector interface present? */
     {
         if (pMixStream->pStream)
         {
             pMixStream->pConn->pfnStreamRelease(pMixStream->pConn, pMixStream->pStream);
-            pMixStream->pConn->pfnStreamDestroy(pMixStream->pConn, pMixStream->pStream);
+            pMixStream->pConn->pfnStreamDestroy(pMixStream->pConn, pMixStream->pStream, fImmediate);
 
             pMixStream->pStream = NULL;
         }
@@ -2259,128 +2635,70 @@ static void audioMixerStreamDestroyInternal(PAUDMIXSTREAM pMixStream)
         pMixStream->pConn = NULL;
     }
 
-    if (pMixStream->pszName)
+    /*
+     * Stats.  Doing it by prefix is soo much faster than individually, btw.
+     */
+    if (pMixStream->pszStatPrefix)
     {
-        RTStrFree(pMixStream->pszName);
-        pMixStream->pszName = NULL;
+        PDMDevHlpSTAMDeregisterByPrefix(pDevIns, pMixStream->pszStatPrefix);
+        RTStrFree(pMixStream->pszStatPrefix);
+        pMixStream->pszStatPrefix = NULL;
     }
 
-    if (pMixStream->pCircBuf)
-    {
-        RTCircBufDestroy(pMixStream->pCircBuf);
-        pMixStream->pCircBuf = NULL;
-    }
-
+    /*
+     * Delete the critsect and free the memory.
+     */
     int rc2 = RTCritSectDelete(&pMixStream->CritSect);
     AssertRC(rc2);
 
+    RTStrFree(pMixStream->pszName);
+    pMixStream->pszName = NULL;
+
     RTMemFree(pMixStream);
-    pMixStream = NULL;
 }
+
 
 /**
  * Destroys a mixer stream.
  *
- * @param   pMixStream          Mixer stream to destroy.
+ * @param   pMixStream  Mixer stream to destroy.
+ * @param   pDevIns     The device instance statistics are registered with.
+ * @param   fImmediate  How to handle still draining streams, whether to let
+ *                      them complete (@c false) or destroy them immediately (@c
+ *                      true).
  */
-void AudioMixerStreamDestroy(PAUDMIXSTREAM pMixStream)
+void AudioMixerStreamDestroy(PAUDMIXSTREAM pMixStream, PPDMDEVINS pDevIns, bool fImmediate)
 {
     if (!pMixStream)
         return;
-
-    int rc2 = RTCritSectEnter(&pMixStream->CritSect);
-    AssertRC(rc2);
-
+    AssertReturnVoid(pMixStream->uMagic == AUDMIXSTREAM_MAGIC);
     LogFunc(("%s\n", pMixStream->pszName));
 
-    if (pMixStream->pSink) /* Is the stream part of a sink? */
+    /*
+     * Serializing paranoia.
+     */
+    int rc = RTCritSectEnter(&pMixStream->CritSect);
+    AssertRCReturnVoid(rc);
+    RTCritSectLeave(&pMixStream->CritSect);
+
+    /*
+     * Unlink from sink if associated with one.
+     */
+    PAUDMIXSINK pSink = pMixStream->pSink;
+    if (   RT_VALID_PTR(pSink)
+        && pSink->uMagic == AUDMIXSINK_MAGIC)
     {
-        /* Save sink pointer, as after audioMixerSinkRemoveStreamInternal() the
-         * pointer will be gone from the stream. */
-        PAUDMIXSINK pSink = pMixStream->pSink;
-
-        rc2 = audioMixerSinkRemoveStreamInternal(pSink, pMixStream);
-        if (RT_SUCCESS(rc2))
-        {
-            Assert(pSink->cStreams);
-            pSink->cStreams--;
-        }
+        RTCritSectEnter(&pSink->CritSect);
+        audioMixerSinkRemoveStreamInternal(pMixStream->pSink, pMixStream);
+        RTCritSectLeave(&pSink->CritSect);
     }
-    else
-        rc2 = VINF_SUCCESS;
+    else if (pSink)
+        AssertFailed();
 
-    int rc3 = RTCritSectLeave(&pMixStream->CritSect);
-    AssertRC(rc3);
-
-    if (RT_SUCCESS(rc2))
-    {
-        audioMixerStreamDestroyInternal(pMixStream);
-        pMixStream = NULL;
-    }
-
-    LogFlowFunc(("Returning %Rrc\n", rc2));
+    /*
+     * Do the actual stream destruction.
+     */
+    audioMixerStreamDestroyInternal(pMixStream, pDevIns, fImmediate);
+    LogFlowFunc(("returns\n"));
 }
 
-/**
- * Returns whether a mixer stream currently is active (playing/recording) or not.
- *
- * @returns @c true if playing/recording, @c false if not.
- * @param   pMixStream          Mixer stream to return status for.
- */
-bool AudioMixerStreamIsActive(PAUDMIXSTREAM pMixStream)
-{
-    int rc2 = RTCritSectEnter(&pMixStream->CritSect);
-    if (RT_FAILURE(rc2))
-        return false;
-
-    AssertPtr(pMixStream->pConn);
-    AssertPtr(pMixStream->pStream);
-
-    bool fIsActive;
-
-    if (   pMixStream->pConn
-        && pMixStream->pStream
-        && RT_BOOL(pMixStream->pConn->pfnStreamGetStatus(pMixStream->pConn, pMixStream->pStream) & PDMAUDIOSTREAMSTS_FLAGS_ENABLED))
-    {
-        fIsActive = true;
-    }
-    else
-        fIsActive = false;
-
-    rc2 = RTCritSectLeave(&pMixStream->CritSect);
-    AssertRC(rc2);
-
-    return fIsActive;
-}
-
-/**
- * Returns whether a mixer stream is valid (e.g. initialized and in a working state) or not.
- *
- * @returns @c true if valid, @c false if not.
- * @param   pMixStream          Mixer stream to return status for.
- */
-bool AudioMixerStreamIsValid(PAUDMIXSTREAM pMixStream)
-{
-    if (!pMixStream)
-        return false;
-
-    int rc2 = RTCritSectEnter(&pMixStream->CritSect);
-    if (RT_FAILURE(rc2))
-        return false;
-
-    bool fIsValid;
-
-    if (   pMixStream->pConn
-        && pMixStream->pStream
-        && RT_BOOL(pMixStream->pConn->pfnStreamGetStatus(pMixStream->pConn, pMixStream->pStream) & PDMAUDIOSTREAMSTS_FLAGS_INITIALIZED))
-    {
-        fIsValid = true;
-    }
-    else
-        fIsValid = false;
-
-    rc2 = RTCritSectLeave(&pMixStream->CritSect);
-    AssertRC(rc2);
-
-    return fIsValid;
-}

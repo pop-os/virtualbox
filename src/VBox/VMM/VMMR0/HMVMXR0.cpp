@@ -4061,7 +4061,8 @@ static void hmR0VmxSetupVmcsXcptBitmap(PVMCPUCC pVCpu, PVMXVMCSINFO pVmcsInfo)
     /*
      * The following exceptions are always intercepted:
      *
-     * #AC - To prevent the guest from hanging the CPU.
+     * #AC - To prevent the guest from hanging the CPU and for dealing with
+     *       split-lock detecting host configs.
      * #DB - To maintain the DR6 state even when intercepting DRx reads/writes and
      *       recursive #DBs can cause a CPU hang.
      * #PF - To sync our shadow page tables when nested-paging is not used.
@@ -13956,7 +13957,94 @@ static VBOXSTRICTRC hmR0VmxExitXcptBP(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransien
 static VBOXSTRICTRC hmR0VmxExitXcptAC(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
 {
     HMVMX_VALIDATE_EXIT_XCPT_HANDLER_PARAMS(pVCpu, pVmxTransient);
-    STAM_COUNTER_INC(&pVCpu->hm.s.StatExitGuestAC);
+
+    /*
+     * Detect #ACs caused by host having enabled split-lock detection.
+     * Emulate such instructions.
+     */
+    int rc = hmR0VmxImportGuestState(pVCpu, pVmxTransient->pVmcsInfo,
+                                     CPUMCTX_EXTRN_CR0 | CPUMCTX_EXTRN_RFLAGS | CPUMCTX_EXTRN_SS | CPUMCTX_EXTRN_CS);
+    AssertRCReturn(rc, rc);
+    /** @todo detect split lock in cpu feature?   */
+    if (   /* 1. If 486-style alignment checks aren't enabled, then this must be a split-lock exception */
+           !(pVCpu->cpum.GstCtx.cr0 & X86_CR0_AM)
+           /* 2. #AC cannot happen in rings 0-2 except for split-lock detection. */
+        || CPUMGetGuestCPL(pVCpu) != 3
+           /* 3. When the EFLAGS.AC != 0 this can only be a split-lock case. */
+        || !(pVCpu->cpum.GstCtx.eflags.u & X86_EFL_AC) )
+    {
+        /*
+         * Check for debug/trace events and import state accordingly.
+         */
+        STAM_REL_COUNTER_INC(&pVCpu->hm.s.StatExitGuestACSplitLock);
+        PVMCC pVM = pVCpu->pVMR0;
+        if (   !DBGF_IS_EVENT_ENABLED(pVM, DBGFEVENT_VMX_SPLIT_LOCK)
+            && !VBOXVMM_VMX_SPLIT_LOCK_ENABLED())
+        {
+            if (pVM->cCpus == 1)
+            {
+#if 0 /** @todo r=bird: This is potentially wrong.  Might have to just do a whole state sync above and mark everything changed to be safe... */
+                rc = hmR0VmxImportGuestState(pVCpu, pVmxTransient->pVmcsInfo, IEM_CPUMCTX_EXTRN_MUST_MASK);
+#else
+                rc = hmR0VmxImportGuestState(pVCpu, pVmxTransient->pVmcsInfo, HMVMX_CPUMCTX_EXTRN_ALL);
+#endif
+                AssertRCReturn(rc, rc);
+            }
+        }
+        else
+        {
+            rc = hmR0VmxImportGuestState(pVCpu, pVmxTransient->pVmcsInfo, HMVMX_CPUMCTX_EXTRN_ALL);
+            AssertRCReturn(rc, rc);
+
+            VBOXVMM_XCPT_DF(pVCpu, &pVCpu->cpum.GstCtx);
+
+            if (DBGF_IS_EVENT_ENABLED(pVM, DBGFEVENT_VMX_SPLIT_LOCK))
+            {
+                VBOXSTRICTRC rcStrict = DBGFEventGenericWithArgs(pVM, pVCpu, DBGFEVENT_VMX_SPLIT_LOCK, DBGFEVENTCTX_HM, 0);
+                if (rcStrict != VINF_SUCCESS)
+                    return rcStrict;
+            }
+        }
+
+        /*
+         * Emulate the instruction.
+         *
+         * We have to ignore the LOCK prefix here as we must not retrigger the
+         * detection on the host.  This isn't all that satisfactory, though...
+         */
+        if (pVM->cCpus == 1)
+        {
+            Log8Func(("cs:rip=%#04x:%#RX64 rflags=%#RX64 cr0=%#RX64 split-lock #AC\n", pVCpu->cpum.GstCtx.cs.Sel,
+                      pVCpu->cpum.GstCtx.rip, pVCpu->cpum.GstCtx.rflags, pVCpu->cpum.GstCtx.cr0));
+
+            /** @todo For SMP configs we should do a rendezvous here. */
+            VBOXSTRICTRC rcStrict = IEMExecOneIgnoreLock(pVCpu);
+            if (rcStrict == VINF_SUCCESS)
+#if 0 /** @todo r=bird: This is potentially wrong.  Might have to just do a whole state sync above and mark everything changed to be safe... */
+                ASMAtomicUoOrU64(&pVCpu->hm.s.fCtxChanged,
+                                   HM_CHANGED_GUEST_RIP
+                                 | HM_CHANGED_GUEST_RFLAGS
+                                 | HM_CHANGED_GUEST_GPRS_MASK
+                                 | HM_CHANGED_GUEST_CS
+                                 | HM_CHANGED_GUEST_SS);
+#else
+                ASMAtomicUoOrU64(&pVCpu->hm.s.fCtxChanged, HM_CHANGED_ALL_GUEST);
+#endif
+            else if (rcStrict == VINF_IEM_RAISED_XCPT)
+            {
+                ASMAtomicUoOrU64(&pVCpu->hm.s.fCtxChanged, HM_CHANGED_RAISED_XCPT_MASK);
+                rcStrict = VINF_SUCCESS;
+            }
+            return rcStrict;
+        }
+        Log8Func(("cs:rip=%#04x:%#RX64 rflags=%#RX64 cr0=%#RX64 split-lock #AC -> VINF_EM_EMULATE_SPLIT_LOCK\n",
+                  pVCpu->cpum.GstCtx.cs.Sel, pVCpu->cpum.GstCtx.rip, pVCpu->cpum.GstCtx.rflags, pVCpu->cpum.GstCtx.cr0));
+        return VINF_EM_EMULATE_SPLIT_LOCK;
+    }
+
+    STAM_REL_COUNTER_INC(&pVCpu->hm.s.StatExitGuestAC);
+    Log8Func(("cs:rip=%#04x:%#RX64 rflags=%#RX64 cr0=%#RX64 cpl=%d -> #AC\n", pVCpu->cpum.GstCtx.cs.Sel, pVCpu->cpum.GstCtx.rip,
+              pVCpu->cpum.GstCtx.rflags, pVCpu->cpum.GstCtx.cr0, CPUMGetGuestCPL(pVCpu) ));
 
     /* Re-inject it. We'll detect any nesting before getting here. */
     hmR0VmxSetPendingEvent(pVCpu, VMX_ENTRY_INT_INFO_FROM_EXIT_INT_INFO(pVmxTransient->uExitIntInfo),

@@ -32,6 +32,15 @@
 
 #include <linux/version.h>
 
+/* We need utsrelease.h in order to detect Ubuntu kernel,
+ * i.e. check if UTS_UBUNTU_RELEASE_ABI is defined. Support kernels
+ * starting from Ubuntu 14.04 Trusty which is based on upstream
+ * kernel 3.13.x. */
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,13,0))
+# include <generated/utsrelease.h>
+# include <iprt/cdefs.h>
+#endif
+
 /** @def RTLNX_VER_MIN
  * Evaluates to true if the linux kernel version is equal or higher to the
  * one specfied. */
@@ -114,6 +123,73 @@
 # define RTLNX_SUSE_MAJ_PREREQ(a_iMajor, a_iMinor) (0)
 #endif
 
+
+#if defined(UTS_UBUNTU_RELEASE_ABI) || defined(DOXYGEN_RUNNING)
+
+/** Hack to make the UTS_UBUNTU_RELEASE_ABI palatable by the C preprocesor.
+ *
+ * While the Ubuntu kernel ABI version looks like a decimal number, some
+ * kernels has a leading zero (e.g. 050818) that makes the preprocessor think
+ * it's an octal number.  To work around that, we turn it into an hexadecimal
+ * number by prefixing it with '0x'. */
+# define RTLNX_UBUNTU_ABI(a_iAbi)   (RT_CONCAT(0x,a_iAbi))
+
+/** @def RTLNX_UBUNTU_ABI_MIN
+ * Require Ubuntu release ABI to be equal or newer than specified version.
+ *
+ * The kernel version should exactly match the specified @a a_iMajor, @a
+ * a_iMinor and @a a_iPatch.  The @a a_iAbi number should be equal to or greater
+ * than the current ABI version.
+ *
+ * @param a_iMajor      The major kernel version number.
+ * @param a_iMinor      The minor kernel version number.
+ * @param a_iPatch      The kernel patch level.
+ * @param a_iAbi        Ubuntu kernel ABI version number (inclusive).
+ */
+# define RTLNX_UBUNTU_ABI_MIN(a_iMajor, a_iMinor, a_iPatch, a_iAbi) \
+    (   KERNEL_VERSION(a_iMajor, a_iMinor, a_iPatch) == LINUX_VERSION_CODE \
+     && RTLNX_UBUNTU_ABI(UTS_UBUNTU_RELEASE_ABI) >= RTLNX_UBUNTU_ABI(a_iAbi))
+
+/** @def RTLNX_UBUNTU_ABI_MAX
+ * Require Ubuntu release ABI to be older than specified version.
+ *
+ * The kernel version should exactly match the specified @a a_iMajor, @a
+ * a_iMinor and @a a_iPatch.  The @a a_iAbi number should be less than the
+ * current ABI version.
+ *
+ * @param a_iMajor      The major kernel version number.
+ * @param a_iMinor      The minor kernel version number.
+ * @param a_iPatch      The kernel patch level.
+ * @param a_iAbi        Ubuntu kernel ABI version number (exclusive).
+ */
+# define RTLNX_UBUNTU_ABI_MAX(a_iMajor, a_iMinor, a_iPatch, a_iAbi) \
+    (   KERNEL_VERSION(a_iMajor, a_iMinor, a_iPatch) == LINUX_VERSION_CODE \
+     && RTLNX_UBUNTU_ABI(UTS_UBUNTU_RELEASE_ABI) < RTLNX_UBUNTU_ABI(a_iAbi))
+
+/** @def RTLNX_UBUNTU_ABI_RANGE
+ * Require Ubuntu release ABI to be in specified range.
+ *
+ * The kernel version should exactly match the specified @a a_iMajor, @a
+ * a_iMinor and @a a_iPatch.  The numbers @a a_iAbiMin and @a a_iAbiMax specify
+ * ABI versions range.  The max ABI version is exclusive, the minimum inclusive.
+ *
+ * @param a_iMajor      The major kernel version number.
+ * @param a_iMinor      The minor kernel version number.
+ * @param a_iPatch      The kernel patch level.
+ * @param a_iAbiMin     The minimum Ubuntu kernel ABI version number (inclusive).
+ * @param a_iAbiMax     The maximum Ubuntu kernel ABI version number (exclusive).
+ */
+# define RTLNX_UBUNTU_ABI_RANGE(a_iMajor, a_iMinor, a_iPatch, a_iAbiMin, a_iAbiMax) \
+    (   RTLNX_UBUNTU_ABI_MIN(a_iMajor, a_iMinor, a_iPatch, a_iAbiMin) \
+     && RTLNX_UBUNTU_ABI_MAX(a_iMajor, a_iMinor, a_iPatch, a_iAbiMax))
+
+#else /* !UTS_UBUNTU_RELEASE_ABI */
+
+# define RTLNX_UBUNTU_ABI_MIN(a_iMajor, a_iMinor, a_iPatch, a_iAbi) (0)
+# define RTLNX_UBUNTU_ABI_MAX(a_iMajor, a_iMinor, a_iPatch, a_iAbi) (0)
+# define RTLNX_UBUNTU_ABI_RANGE(a_iMajorMin, a_iMinorMin, a_iPatchMin, a_iAbiMin, a_iAbiMax) (0)
+
+#endif /* !UTS_UBUNTU_RELEASE_ABI */
 
 #endif /* !IPRT_INCLUDED_linux_version_h */
 

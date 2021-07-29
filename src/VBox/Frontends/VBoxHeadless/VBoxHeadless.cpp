@@ -35,6 +35,8 @@ using namespace com;
 #include <iprt/buildconfig.h>
 #include <iprt/ctype.h>
 #include <iprt/initterm.h>
+#include <iprt/message.h>
+#include <iprt/semaphore.h>
 #include <iprt/path.h>
 #include <iprt/stream.h>
 #include <iprt/ldr.h>
@@ -55,9 +57,9 @@ using namespace com;
 # include <sys/mman.h>
 #endif
 
-//#define VBOX_WITH_SAVESTATE_ON_SIGNAL
-#ifdef VBOX_WITH_SAVESTATE_ON_SIGNAL
+#if !defined(RT_OS_WINDOWS)
 #include <signal.h>
+static void HandleSignal(int sig);
 #endif
 
 #include "PasswordInput.h"
@@ -75,6 +77,10 @@ using namespace com;
 /* global weak references (for event handlers) */
 static IConsole *gConsole = NULL;
 static NativeEventQueue *gEventQ = NULL;
+
+/* keep this handy for messages */
+static com::Utf8Str g_strVMName;
+static com::Utf8Str g_strVMUUID;
 
 /* flag whether frontend should terminate */
 static volatile bool g_fTerminateFE = false;
@@ -388,64 +394,15 @@ typedef ListenerImpl<ConsoleEventListener> ConsoleEventListenerImpl;
 VBOX_LISTENER_DECLARE(VirtualBoxClientEventListenerImpl)
 VBOX_LISTENER_DECLARE(ConsoleEventListenerImpl)
 
-#ifdef VBOX_WITH_SAVESTATE_ON_SIGNAL
-static void SaveState(int sig)
+#if !defined(RT_OS_WINDOWS)
+static void
+HandleSignal(int sig)
 {
-    ComPtr <IProgress> progress = NULL;
-
-/** @todo Deal with nested signals, multithreaded signal dispatching (esp. on windows),
- * and multiple signals (both SIGINT and SIGTERM in some order).
- * Consider processing the signal request asynchronously since there are lots of things
- * which aren't safe (like RTPrintf and printf IIRC) in a signal context. */
-
-    RTPrintf("Signal received, saving state.\n");
-
-    HRESULT rc = gConsole->SaveState(progress.asOutParam());
-    if (FAILED(rc))
-    {
-        RTPrintf("Error saving state! rc = 0x%x\n", rc);
-        return;
-    }
-    Assert(progress);
-    LONG cPercent = 0;
-
-    RTPrintf("0%%");
-    RTStrmFlush(g_pStdOut);
-    for (;;)
-    {
-        BOOL fCompleted = false;
-        rc = progress->COMGETTER(Completed)(&fCompleted);
-        if (FAILED(rc) || fCompleted)
-            break;
-        ULONG cPercentNow;
-        rc = progress->COMGETTER(Percent)(&cPercentNow);
-        if (FAILED(rc))
-            break;
-        if ((cPercentNow / 10) != (cPercent / 10))
-        {
-            cPercent = cPercentNow;
-            RTPrintf("...%d%%", cPercentNow);
-            RTStrmFlush(g_pStdOut);
-        }
-
-        /* wait */
-        rc = progress->WaitForCompletion(100);
-    }
-
-    HRESULT lrc;
-    rc = progress->COMGETTER(ResultCode)(&lrc);
-    if (FAILED(rc))
-        lrc = ~0;
-    if (!lrc)
-    {
-        RTPrintf(" -- Saved the state successfully.\n");
-        RTThreadYield();
-    }
-    else
-        RTPrintf("-- Error saving state, lrc=%d (%#x)\n", lrc, lrc);
-
+    RT_NOREF(sig);
+    LogRel(("VBoxHeadless: received singal %d\n", sig));
+    g_fTerminateFE = true;
 }
-#endif /* VBOX_WITH_SAVESTATE_ON_SIGNAL */
+#endif /* !RT_OS_WINDOWS */
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -797,6 +754,310 @@ static void hideSetUidRootFromAppKit()
 
 #endif /* RT_OS_DARWIN */
 
+
+#ifdef RT_OS_WINDOWS
+
+#define MAIN_WND_CLASS L"VirtualBox Headless Interface"
+
+HINSTANCE g_hInstance = NULL;
+HWND g_hWindow = NULL;
+RTSEMEVENT g_hCanQuit;
+
+static DECLCALLBACK(int) windowsMessageMonitor(RTTHREAD ThreadSelf, void *pvUser);
+static int createWindow();
+static LRESULT CALLBACK WinMainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
+static void destroyWindow();
+
+
+static DECLCALLBACK(int)
+windowsMessageMonitor(RTTHREAD ThreadSelf, void *pvUser)
+{
+    RT_NOREF(ThreadSelf, pvUser);
+    int rc;
+
+    rc = createWindow();
+    if (RT_FAILURE(rc))
+        return rc;
+
+    RTSemEventCreate(&g_hCanQuit);
+
+    MSG msg;
+    BOOL b;
+    while ((b = ::GetMessage(&msg, 0, 0, 0)) > 0)
+    {
+        ::TranslateMessage(&msg);
+        ::DispatchMessage(&msg);
+    }
+
+    if (b < 0)
+        LogRel(("VBoxHeadless: GetMessage failed\n"));
+    LogRel(("VBoxHeadless: stopping windows message loop\n"));
+
+    destroyWindow();
+    return VINF_SUCCESS;
+}
+
+
+static int
+createWindow()
+{
+    /* program instance handle */
+    g_hInstance = (HINSTANCE)::GetModuleHandle(NULL);
+    if (g_hInstance == NULL)
+    {
+        LogRel(("VBoxHeadless: failed to obtain module handle\n"));
+        return VERR_GENERAL_FAILURE;
+    }
+
+    /* window class */
+    WNDCLASS wc;
+    RT_ZERO(wc);
+
+    wc.style = CS_NOCLOSE;
+    wc.lpfnWndProc = WinMainWndProc;
+    wc.hInstance = g_hInstance;
+    wc.hbrBackground = (HBRUSH)(COLOR_BACKGROUND + 1);
+    wc.lpszClassName = MAIN_WND_CLASS;
+
+    ATOM atomWindowClass = ::RegisterClass(&wc);
+    if (atomWindowClass == 0)
+    {
+        LogRel(("VBoxHeadless: failed to register window class\n"));
+        return VERR_GENERAL_FAILURE;
+    }
+
+    /* secret window, secret garden */
+    g_hWindow = ::CreateWindowEx(0, MAIN_WND_CLASS, MAIN_WND_CLASS, 0,
+                                 0, 0, 1, 1, NULL, NULL, g_hInstance, NULL);
+    if (g_hWindow == NULL)
+    {
+        LogRel(("VBoxHeadless: failed to create window\n"));
+        return VERR_GENERAL_FAILURE;
+    }
+
+    return VINF_SUCCESS;
+}
+
+
+static void
+destroyWindow()
+{
+    if (g_hWindow == NULL)
+        return;
+
+    ::DestroyWindow(g_hWindow);
+    g_hWindow = NULL;
+
+    if (g_hInstance == NULL)
+        return;
+
+    ::UnregisterClass(MAIN_WND_CLASS, g_hInstance);
+    g_hInstance = NULL;
+}
+
+
+static LRESULT CALLBACK
+WinMainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    int rc;
+
+    LRESULT lResult = 0;
+    switch (msg)
+    {
+        case WM_QUERYENDSESSION:
+            LogRel(("VBoxHeadless: WM_QUERYENDSESSION:%s%s%s%s (0x%08lx)\n",
+                    lParam == 0                  ? " shutdown" : "",
+                    lParam & ENDSESSION_CRITICAL ? " critical" : "",
+                    lParam & ENDSESSION_LOGOFF   ? " logoff"   : "",
+                    lParam & ENDSESSION_CLOSEAPP ? " close"    : "",
+                    (unsigned long)lParam));
+
+            /* do not block windows session termination */
+            lResult = TRUE;
+            break;
+
+        case WM_ENDSESSION:
+            lResult = 0;
+            LogRel(("WM_ENDSESSION:%s%s%s%s%s (%s/0x%08lx)\n",
+                    lParam == 0                  ? " shutdown"  : "",
+                    lParam & ENDSESSION_CRITICAL ? " critical"  : "",
+                    lParam & ENDSESSION_LOGOFF   ? " logoff"    : "",
+                    lParam & ENDSESSION_CLOSEAPP ? " close"     : "",
+                    wParam == FALSE              ? " cancelled" : "",
+                    wParam ? "TRUE" : "FALSE",
+                    (unsigned long)lParam));
+            if (wParam == FALSE)
+                break;
+
+            /* tell the user what we are doing */
+            ::ShutdownBlockReasonCreate(hwnd,
+                com::BstrFmt("%s saving state",
+                             g_strVMName.c_str()).raw());
+
+            /* tell the VM to save state/power off */
+            g_fTerminateFE = true;
+            gEventQ->interruptEventQueueProcessing();
+
+            if (g_hCanQuit != NIL_RTSEMEVENT)
+            {
+                LogRel(("VBoxHeadless: WM_ENDSESSION: waiting for VM termination...\n"));
+
+                rc = RTSemEventWait(g_hCanQuit, RT_INDEFINITE_WAIT);
+                if (RT_SUCCESS(rc))
+                    LogRel(("VBoxHeadless: WM_ENDSESSION: done\n"));
+                else
+                    LogRel(("VBoxHeadless: WM_ENDSESSION: failed to wait for VM termination: %Rrc\n", rc));
+            }
+            else
+            {
+                LogRel(("VBoxHeadless: WM_ENDSESSION: cannot wait for VM termination\n"));
+            }
+            break;
+
+        default:
+            lResult = ::DefWindowProc(hwnd, msg, wParam, lParam);
+            break;
+    }
+    return lResult;
+}
+
+
+static const char * const ctrl_event_names[] = {
+    "CTRL_C_EVENT",
+    "CTRL_BREAK_EVENT",
+    "CTRL_CLOSE_EVENT",
+    /* reserved, not used */
+    "<console control event 3>",
+    "<console control event 4>",
+    /* not sent to processes that load gdi32.dll or user32.dll */
+    "CTRL_LOGOFF_EVENT",
+    "CTRL_SHUTDOWN_EVENT",
+};
+
+
+BOOL WINAPI
+ConsoleCtrlHandler(DWORD dwCtrlType) /* RT_NOTHROW_DEF */
+{
+    const char *signame;
+    char namebuf[48];
+    int rc;
+
+    if (dwCtrlType < RT_ELEMENTS(ctrl_event_names))
+        signame = ctrl_event_names[dwCtrlType];
+    else
+    {
+        /* should not happen, but be prepared */
+        RTStrPrintf(namebuf, sizeof(namebuf),
+                    "<console control event %lu>", (unsigned long)dwCtrlType);
+        signame = namebuf;
+    }
+    LogRel(("VBoxHeadless: got %s\n", signame));
+    RTMsgInfo("Got %s\n", signame);
+    RTMsgInfo("");
+
+    /* tell the VM to save state/power off */
+    g_fTerminateFE = true;
+    gEventQ->interruptEventQueueProcessing();
+
+    /*
+     * We don't need to wait for Ctrl-C / Ctrl-Break, but we must wait
+     * for Close, or we will be killed before the VM is saved.
+     */
+    if (g_hCanQuit != NIL_RTSEMEVENT)
+    {
+        LogRel(("VBoxHeadless: waiting for VM termination...\n"));
+
+        rc = RTSemEventWait(g_hCanQuit, RT_INDEFINITE_WAIT);
+        if (RT_FAILURE(rc))
+            LogRel(("VBoxHeadless: Failed to wait for VM termination: %Rrc\n", rc));
+    }
+
+    /* tell the system we handled it */
+    LogRel(("VBoxHeadless: ConsoleCtrlHandler: return\n"));
+    return TRUE;
+}
+#endif /* RT_OS_WINDOWS */
+
+
+/*
+ * Simplified version of showProgress() borrowed from VBoxManage.
+ * Note that machine power up/down operations are not cancelable, so
+ * we don't bother checking for signals.
+ */
+HRESULT
+showProgress(const ComPtr<IProgress> &progress)
+{
+    BOOL fCompleted = FALSE;
+    ULONG ulLastPercent = 0;
+    ULONG ulCurrentPercent = 0;
+    HRESULT hrc;
+
+    com::Bstr bstrDescription;
+    hrc = progress->COMGETTER(Description(bstrDescription.asOutParam()));
+    if (FAILED(hrc))
+    {
+        RTStrmPrintf(g_pStdErr, "Failed to get progress description: %Rhrc\n", hrc);
+        return hrc;
+    }
+
+    RTStrmPrintf(g_pStdErr, "%ls: ", bstrDescription.raw());
+    RTStrmFlush(g_pStdErr);
+
+    hrc = progress->COMGETTER(Completed(&fCompleted));
+    while (SUCCEEDED(hrc))
+    {
+        progress->COMGETTER(Percent(&ulCurrentPercent));
+
+        /* did we cross a 10% mark? */
+        if (ulCurrentPercent / 10  >  ulLastPercent / 10)
+        {
+            /* make sure to also print out missed steps */
+            for (ULONG curVal = (ulLastPercent / 10) * 10 + 10; curVal <= (ulCurrentPercent / 10) * 10; curVal += 10)
+            {
+                if (curVal < 100)
+                {
+                    RTStrmPrintf(g_pStdErr, "%u%%...", curVal);
+                    RTStrmFlush(g_pStdErr);
+                }
+            }
+            ulLastPercent = (ulCurrentPercent / 10) * 10;
+        }
+
+        if (fCompleted)
+            break;
+
+        gEventQ->processEventQueue(500);
+        hrc = progress->COMGETTER(Completed(&fCompleted));
+    }
+
+    /* complete the line. */
+    LONG iRc = E_FAIL;
+    hrc = progress->COMGETTER(ResultCode)(&iRc);
+    if (SUCCEEDED(hrc))
+    {
+        if (SUCCEEDED(iRc))
+            RTStrmPrintf(g_pStdErr, "100%%\n");
+#if 0
+        else if (g_fCanceled)
+            RTStrmPrintf(g_pStdErr, "CANCELED\n");
+#endif
+        else
+        {
+            RTStrmPrintf(g_pStdErr, "\n");
+            RTStrmPrintf(g_pStdErr, "Operation failed: %Rhrc\n", iRc);
+        }
+        hrc = iRc;
+    }
+    else
+    {
+        RTStrmPrintf(g_pStdErr, "\n");
+        RTStrmPrintf(g_pStdErr, "Failed to obtain operation result: %Rhrc\n", hrc);
+    }
+    RTStrmFlush(g_pStdErr);
+    return hrc;
+}
+
+
 /**
  *  Entry point.
  */
@@ -1043,6 +1304,7 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
     }
 
     HRESULT rc;
+    int irc;
 
     rc = com::Initialize();
 #ifdef VBOX_WITH_XPCOM
@@ -1120,14 +1382,23 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             LogError("Invalid machine name or UUID!\n", rc);
             break;
         }
-        Bstr id;
-        m->COMGETTER(Id)(id.asOutParam());
+
+        Bstr bstrVMId;
+        rc = m->COMGETTER(Id)(bstrVMId.asOutParam());
         AssertComRC(rc);
         if (FAILED(rc))
             break;
+        g_strVMUUID = bstrVMId;
+
+        Bstr bstrVMName;
+        rc = m->COMGETTER(Name)(bstrVMName.asOutParam());
+        AssertComRC(rc);
+        if (FAILED(rc))
+            break;
+        g_strVMName = bstrVMName;
 
         Log(("VBoxHeadless: Opening a session with machine (id={%s})...\n",
-              Utf8Str(id).c_str()));
+             g_strVMUUID.c_str()));
 
         // set session name
         CHECK_ERROR_BREAK(session, COMSETTER(Name)(Bstr("headless").raw()));
@@ -1352,65 +1623,94 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 
         Log(("VBoxHeadless: Powering up the machine...\n"));
 
+
+        /**
+         * @todo We should probably install handlers earlier so that
+         * we can undo any temporary settings we do above in case of
+         * an early signal and use RAII to ensure proper cleanup.
+         */
+#if !defined(RT_OS_WINDOWS)
+        signal(SIGPIPE, SIG_IGN);
+        signal(SIGTTOU, SIG_IGN);
+
+        struct sigaction sa;
+        RT_ZERO(sa);
+        sa.sa_handler = HandleSignal;
+        sigaction(SIGHUP,  &sa, NULL);
+        sigaction(SIGINT,  &sa, NULL);
+        sigaction(SIGTERM, &sa, NULL);
+        sigaction(SIGUSR1, &sa, NULL);
+        sigaction(SIGUSR2, &sa, NULL);
+#else /* RT_OS_WINDOWS */
+        /*
+         * Register windows console signal handler to react to Ctrl-C,
+         * Ctrl-Break, Close, non-interactive session termination.
+         */
+        ::SetConsoleCtrlHandler(ConsoleCtrlHandler, TRUE);
+#endif
+
+
         ComPtr <IProgress> progress;
         if (!fPaused)
             CHECK_ERROR_BREAK(console, PowerUp(progress.asOutParam()));
         else
             CHECK_ERROR_BREAK(console, PowerUpPaused(progress.asOutParam()));
 
-        /*
-         * Wait for the result because there can be errors.
-         *
-         * It's vital to process events while waiting (teleportation deadlocks),
-         * so we'll poll for the completion instead of waiting on it.
-         */
-        for (;;)
+        rc = showProgress(progress);
+        if (FAILED(rc))
         {
-            BOOL fCompleted;
-            rc = progress->COMGETTER(Completed)(&fCompleted);
-            if (FAILED(rc) || fCompleted)
-                break;
-
-            /* Process pending events, then wait for new ones. Note, this
-             * processes NULL events signalling event loop termination. */
-            gEventQ->processEventQueue(0);
-            if (!g_fTerminateFE)
-                gEventQ->processEventQueue(500);
+            com::ProgressErrorInfo info(progress);
+            if (info.isBasicAvailable())
+            {
+                RTPrintf("Error: failed to start machine. Error message: %ls\n", info.getText().raw());
+            }
+            else
+            {
+                RTPrintf("Error: failed to start machine. No error message available!\n");
+            }
+            break;
         }
 
-        if (SUCCEEDED(progress->WaitForCompletion(-1)))
+#ifdef RT_OS_WINDOWS
+        /*
+         * Spawn windows message pump to monitor session events.
+         */
+        RTTHREAD hThrMsg;
+        irc = RTThreadCreate(&hThrMsg,
+                            windowsMessageMonitor, NULL,
+                            0, /* :cbStack */
+                            RTTHREADTYPE_MSG_PUMP, 0,
+                            "MSG");
+        if (RT_FAILURE(irc))    /* not fatal */
+            LogRel(("VBoxHeadless: failed to start windows message monitor: %Rrc\n", irc));
+#endif /* RT_OS_WINDOWS */
+
+
+        /*
+         * Pump vbox events forever
+         */
+        LogRel(("VBoxHeadless: starting event loop\n"));
+        for (;;)
         {
-            /* Figure out if the operation completed with a failed status
-             * and print the error message. Terminate immediately, and let
-             * the cleanup code take care of potentially pending events. */
-            LONG progressRc;
-            progress->COMGETTER(ResultCode)(&progressRc);
-            rc = progressRc;
-            if (FAILED(rc))
+            irc = gEventQ->processEventQueue(RT_INDEFINITE_WAIT);
+
+            /*
+             * interruptEventQueueProcessing from another thread is
+             * reported as VERR_INTERRUPTED, so check the flag first.
+             */
+            if (g_fTerminateFE)
             {
-                com::ProgressErrorInfo info(progress);
-                if (info.isBasicAvailable())
-                {
-                    RTPrintf("Error: failed to start machine. Error message: %ls\n", info.getText().raw());
-                }
-                else
-                {
-                    RTPrintf("Error: failed to start machine. No error message available!\n");
-                }
+                LogRel(("VBoxHeadless: processEventQueue: %Rrc, termination requested\n", irc));
+                break;
+            }
+
+            if (RT_FAILURE(irc))
+            {
+                LogRel(("VBoxHeadless: processEventQueue: %Rrc\n", irc));
+                RTMsgError("event loop: %Rrc", irc);
                 break;
             }
         }
-
-#ifdef VBOX_WITH_SAVESTATE_ON_SIGNAL
-        signal(SIGINT, SaveState);
-        signal(SIGTERM, SaveState);
-#endif
-
-        Log(("VBoxHeadless: Waiting for PowerDown...\n"));
-
-        while (   !g_fTerminateFE
-               && RT_SUCCESS(gEventQ->processEventQueue(RT_INDEFINITE_WAIT)))
-            /* nothing */ ;
 
         Log(("VBoxHeadless: event loop has terminated...\n"));
 
@@ -1435,7 +1735,17 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
      */
     MachineState_T machineState = MachineState_Aborted;
     if (!machine.isNull())
-        machine->COMGETTER(State)(&machineState);
+    {
+        rc = machine->COMGETTER(State)(&machineState);
+        if (SUCCEEDED(rc))
+            Log(("machine state = %RU32\n", machineState));
+        else
+            Log(("IMachine::getState: %Rhrc\n", rc));
+    }
+    else
+    {
+        Log(("machine == NULL\n"));
+    }
 
     /*
      * Turn off the VM if it's running
@@ -1450,22 +1760,21 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
     do
     {
         consoleListener->getWrapped()->ignorePowerOffEvents(true);
+
         ComPtr<IProgress> pProgress;
-        CHECK_ERROR_BREAK(gConsole, PowerDown(pProgress.asOutParam()));
-        CHECK_ERROR_BREAK(pProgress, WaitForCompletion(-1));
-        BOOL completed;
-        CHECK_ERROR_BREAK(pProgress, COMGETTER(Completed)(&completed));
-        ASSERT(completed);
-        LONG hrc;
-        CHECK_ERROR_BREAK(pProgress, COMGETTER(ResultCode)(&hrc));
-        if (FAILED(hrc))
+        if (!machine.isNull())
+            CHECK_ERROR_BREAK(machine, SaveState(pProgress.asOutParam()));
+        else
+            CHECK_ERROR_BREAK(gConsole, PowerDown(pProgress.asOutParam()));
+
+        rc = showProgress(pProgress);
+        if (FAILED(rc))
         {
-            RTPrintf("VBoxHeadless: ERROR: Failed to power down VM!");
             com::ErrorInfo info;
             if (!info.isFullAvailable() && !info.isBasicAvailable())
-                com::GluePrintRCMessage(hrc);
+                com::GluePrintRCMessage(rc);
             else
-                GluePrintErrorInfo(info);
+                com::GluePrintErrorInfo(info);
             break;
         }
     } while (0);
@@ -1521,8 +1830,21 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 
     com::Shutdown();
 
-    LogFlow(("VBoxHeadless FINISHED.\n"));
+#ifdef RT_OS_WINDOWS
+    /* tell the session monitor it can ack WM_ENDSESSION */
+    if (g_hCanQuit != NIL_RTSEMEVENT)
+    {
+        RTSemEventSignal(g_hCanQuit);
+    }
 
+    /* tell the session monitor to quit */
+    if (g_hWindow != NULL)
+    {
+        ::PostMessage(g_hWindow, WM_QUIT, 0, 0);
+    }
+#endif
+
+    LogRel(("VBoxHeadless: exiting\n"));
     return FAILED(rc) ? 1 : 0;
 }
 

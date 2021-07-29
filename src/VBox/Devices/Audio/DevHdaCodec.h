@@ -21,39 +21,29 @@
 # pragma once
 #endif
 
-#include <iprt/list.h>
+#ifndef VBOX_INCLUDED_SRC_Audio_DevHda_h
+# error "Only include DevHda.h!"
+#endif
 
+#include <iprt/list.h>
 #include "AudioMixer.h"
 
-/** Pointer to a shared HDA device state.  */
-typedef struct HDASTATE *PHDASTATE;
-/** Pointer to a ring-3 HDA device state.  */
-typedef struct HDASTATER3 *PHDASTATER3;
 
-/** The ICH HDA (Intel) common codec state. */
-typedef struct HDACODEC *PHDACODEC;
-/** The ICH HDA (Intel) ring-0 codec state. */
-typedef struct HDACODECR0 *PHDACODECR0;
 /** The ICH HDA (Intel) ring-3 codec state. */
 typedef struct HDACODECR3 *PHDACODECR3;
-/** The ICH HDA (Intel) current context codec state. */
-typedef CTX_SUFF(PHDACODEC) PHDACODECCC;
-
-/** The HDA host driver backend. */
-typedef struct HDADRIVER *PHDADRIVER;
 
 /**
  * Enumeration specifying the codec type to use.
  */
-typedef enum CODEC_TYPE
+typedef enum CODECTYPE
 {
     /** Invalid, do not use. */
-    CODEC_TYPE_INVALID = 0,
+    CODECTYPE_INVALID = 0,
     /** SigmaTel 9220 (922x). */
-    CODEC_TYPE_STAC9220,
+    CODECTYPE_STAC9220,
     /** Hack to blow the type up to 32-bit. */
-    CODEC_TYPE__32BIT_HACK = 0x7fffffff
-} CODEC_TYPE;
+    CODECTYPE_32BIT_HACK = 0x7fffffff
+} CODECTYPE;
 
 /* PRM 5.3.1 */
 /** Codec address mask. */
@@ -562,29 +552,6 @@ typedef enum CODEC_TYPE
 /* PRM 5.3.1 */
 #define CODEC_RESPONSE_UNSOLICITED RT_BIT_64(34)
 
-/**
- * A codec verb descriptor.
- */
-typedef struct CODECVERB
-{
-    /** Verb. */
-    uint32_t                   uVerb;
-    /** Verb mask. */
-    uint32_t                   fMask;
-    /**
-     * Function pointer for implementation callback.
-     *
-     * This is always a valid  pointer in ring-3, while elsewhere a NULL indicates
-     * that we must return to ring-3 to process it.
-     */
-    DECLCALLBACKMEMBER(int,    pfn)(PHDACODEC pThis, PHDACODECCC pThisCC, uint32_t uCmd, uint64_t *puResp);
-    /** Friendly name, for debugging. */
-    const char                *pszName;
-} CODECVERB;
-/** Pointer to a const codec verb descriptor. */
-typedef CODECVERB const *PCCODECVERB;
-
-
 #define AMPLIFIER_SIZE 60
 
 typedef uint32_t AMPLIFIER[AMPLIFIER_SIZE];
@@ -822,169 +789,110 @@ AssertNodeSize(CODECNODE, 60 + 6);
 
 #define CODEC_NODES_MAX     32
 
+/** @name CODEC_NODE_CLS_XXX - node classification flags.
+ * @{ */
+#define CODEC_NODE_CLS_Port         UINT16_C(0x0001)
+#define CODEC_NODE_CLS_Dac          UINT16_C(0x0002)
+#define CODEC_NODE_CLS_AdcVol       UINT16_C(0x0004)
+#define CODEC_NODE_CLS_Adc          UINT16_C(0x0008)
+#define CODEC_NODE_CLS_AdcMux       UINT16_C(0x0010)
+#define CODEC_NODE_CLS_Pcbeep       UINT16_C(0x0020)
+#define CODEC_NODE_CLS_SpdifIn      UINT16_C(0x0040)
+#define CODEC_NODE_CLS_SpdifOut     UINT16_C(0x0080)
+#define CODEC_NODE_CLS_DigInPin     UINT16_C(0x0100)
+#define CODEC_NODE_CLS_DigOutPin    UINT16_C(0x0200)
+#define CODEC_NODE_CLS_Cd           UINT16_C(0x0400)
+#define CODEC_NODE_CLS_VolKnob      UINT16_C(0x0800)
+#define CODEC_NODE_CLS_Reserved     UINT16_C(0x1000)
+/** @} */
+
 /**
- * HDA codec state (shared).
+ * Codec configuration.
+ *
+ * This will not change after construction and is therefore kept in a const
+ * member of HDACODECR3 to encourage compiler optimizations and avoid accidental
+ * modification.
  */
-typedef struct HDACODEC
+typedef struct HDACODECCFG
 {
     /** Codec implementation type. */
-    CODEC_TYPE enmType;
+    CODECTYPE       enmType;
     /** Codec ID. */
-    uint16_t   id;
-    uint16_t   u16VendorId;
-    uint16_t   u16DeviceId;
-    uint8_t    u8BSKU;
-    uint8_t    u8AssemblyId;
+    uint16_t        id;
+    uint16_t        idVendor;
+    uint16_t        idDevice;
+    uint8_t         bBSKU;
+    uint8_t         idAssembly;
 
-    CODECNODE  aNodes[CODEC_NODES_MAX];
-    uint32_t   cNodes;
+    uint8_t         cTotalNodes;
+    uint8_t         idxAdcVolsLineIn;
+    uint8_t         idxDacLineOut;
 
-    bool       fInReset;
-    uint8_t    abPadding1[3]; /**< @todo r=bird: Merge with bPadding2 and eliminate both */
+    /** Align the lists below so they don't cross cache lines (assumes
+     *  CODEC_NODES_MAX is 32). */
+    uint8_t const   abPadding1[CODEC_NODES_MAX - 15];
 
-    uint8_t    cTotalNodes;
-    uint8_t    u8AdcVolsLineIn;
-    uint8_t    u8DacLineOut;
-    uint8_t    bPadding2;
-
-    uint8_t    au8Ports[CODEC_NODES_MAX];
-    uint8_t    au8Dacs[CODEC_NODES_MAX];
-    uint8_t    au8AdcVols[CODEC_NODES_MAX];
-    uint8_t    au8Adcs[CODEC_NODES_MAX];
-    uint8_t    au8AdcMuxs[CODEC_NODES_MAX];
-    uint8_t    au8Pcbeeps[CODEC_NODES_MAX];
-    uint8_t    au8SpdifIns[CODEC_NODES_MAX];
-    uint8_t    au8SpdifOuts[CODEC_NODES_MAX];
-    uint8_t    au8DigInPins[CODEC_NODES_MAX];
-    uint8_t    au8DigOutPins[CODEC_NODES_MAX];
-    uint8_t    au8Cds[CODEC_NODES_MAX];
-    uint8_t    au8VolKnobs[CODEC_NODES_MAX];
-    uint8_t    au8Reserveds[CODEC_NODES_MAX];
-
-    STAMCOUNTER StatLookupsR3;
-#if 0 /* Codec is not yet kosher enough for ring-0.  @bugref{9890c64} */
-    STAMCOUNTER StatLookupsR0;
-#endif
-} HDACODEC;
-
-/**
- * HDA codec state (ring-0).
- */
-typedef struct HDACODECR0
-{
-    /** @name Public codec functions.
-     *  @{  */
-#if 0 /** @todo r=bird: why can I just disable these and not get compile errors?  Unfinished code?  No comments.  Not at all amused! */
-    DECLR0CALLBACKMEMBER(void, pfnReset, (PHDACODEC pThis, PHDACODECR0 pThisCC));
-    DECLR0CALLBACKMEMBER(int,  pfnNodeReset, (PHDACODEC pThis, uint8_t nID, PCODECNODE pNode));
-#endif
-    DECLR0CALLBACKMEMBER(int,  pfnLookup, (PHDACODEC pThis, PHDACODECR0 pThisCC, uint32_t uVerb, uint64_t *puResp));
+    /** @name Node classifications.
+     * @note These are copies of the g_abStac9220Xxxx arrays in DevHdaCodec.cpp.
+     *       They are used both for classifying a node and for processing a class of
+     *       nodes.
+     * @{ */
+    uint8_t         abPorts[CODEC_NODES_MAX];
+    uint8_t         abDacs[CODEC_NODES_MAX];
+    uint8_t         abAdcVols[CODEC_NODES_MAX];
+    uint8_t         abAdcs[CODEC_NODES_MAX];
+    uint8_t         abAdcMuxs[CODEC_NODES_MAX];
+    uint8_t         abPcbeeps[CODEC_NODES_MAX];
+    uint8_t         abSpdifIns[CODEC_NODES_MAX];
+    uint8_t         abSpdifOuts[CODEC_NODES_MAX];
+    uint8_t         abDigInPins[CODEC_NODES_MAX];
+    uint8_t         abDigOutPins[CODEC_NODES_MAX];
+    uint8_t         abCds[CODEC_NODES_MAX];
+    uint8_t         abVolKnobs[CODEC_NODES_MAX];
+    uint8_t         abReserveds[CODEC_NODES_MAX];
     /** @} */
-} HDACODECR0;
 
-int hdaR0CodecConstruct(PPDMDEVINS pDevIns, PHDACODEC pThis, PHDACODECR0 pThisCC);
+    /** The CODEC_NODE_CLS_XXX flags for each node. */
+    uint16_t        afNodeClassifications[CODEC_NODES_MAX];
+} HDACODECCFG;
+AssertCompileMemberAlignment(HDACODECCFG, abPorts, CODEC_NODES_MAX);
+AssertCompileSizeAlignment(HDACODECCFG, 64);
+
 
 /**
- * HDA codec state (ring-3).
+ * HDA codec state (ring-3, no shared state).
  */
 typedef struct HDACODECR3
 {
-    /** @name Public codec functions.
-     *  @{  */
-    DECLR3CALLBACKMEMBER(int,  pfnLookup, (PHDACODEC pThis, PHDACODECR3 pThisCC, uint32_t uVerb, uint64_t *puResp));
-    DECLR3CALLBACKMEMBER(void, pfnDbgListNodes, (PHDACODEC pThis, PHDACODECR3 pThisCC, PCDBGFINFOHLP pHlp, const char *pszArgs));
-    DECLR3CALLBACKMEMBER(void, pfnDbgSelector, (PHDACODEC pThis, PHDACODECR3 pThisCC, PCDBGFINFOHLP pHlp, const char *pszArgs));
-    /** @} */
-
-    /** The parent device instance. */
-    PPDMDEVINS              pDevIns;
-
-    /** @name Callbacks to the HDA controller, mostly used for multiplexing to the
-     *        various host backends.
-     * @{ */
-    /**
-     *
-     * Adds a new audio stream to a specific mixer control.
-     *
-     * Depending on the mixer control the stream then gets assigned to one of the
-     * internal mixer sinks, which in turn then handle the mixing of all connected
-     * streams to that sink.
-     *
-     * @return  VBox status code.
-     * @param   pDevIns             The device instance.
-     * @param   enmMixerCtl         Mixer control to assign new stream to.
-     * @param   pCfg                Stream configuration for the new stream.
-     */
-    DECLR3CALLBACKMEMBER(int,  pfnCbMixerAddStream, (PPDMDEVINS pDevIns, PDMAUDIOMIXERCTL enmMixerCtl, PPDMAUDIOSTREAMCFG pCfg));
-    /**
-     * Removes a specified mixer control from the HDA's mixer.
-     *
-     * @return  VBox status code.
-     * @param   pDevIns             The device instance.
-     * @param   enmMixerCtl         Mixer control to remove.
-     */
-    DECLR3CALLBACKMEMBER(int,  pfnCbMixerRemoveStream, (PPDMDEVINS pDevIns, PDMAUDIOMIXERCTL enmMixerCtl));
-    /**
-     * Controls an input / output converter widget, that is, which converter is
-     * connected to which stream (and channel).
-     *
-     * @return  VBox status code.
-     * @param   pDevIns             The device instance.
-     * @param   enmMixerCtl         Mixer control to set SD stream number and channel for.
-     * @param   uSD                 SD stream number (number + 1) to set. Set to 0 for unassign.
-     * @param   uChannel            Channel to set. Only valid if a valid SD stream number is specified.
-     */
-    DECLR3CALLBACKMEMBER(int,  pfnCbMixerControl, (PPDMDEVINS pDevIns, PDMAUDIOMIXERCTL enmMixerCtl, uint8_t uSD, uint8_t uChannel));
-    /**
-     * Sets the volume of a specified mixer control.
-     *
-     * @return  IPRT status code.
-     * @param   pDevIns             The device instance.
-     * @param   enmMixerCtl         Mixer control to set volume for.
-     * @param   pVol                Pointer to volume data to set.
-     */
-    DECLR3CALLBACKMEMBER(int,  pfnCbMixerSetVolume, (PPDMDEVINS pDevIns, PDMAUDIOMIXERCTL enmMixerCtl, PPDMAUDIOVOLUME pVol));
-    /** @} */
+    /** The codec configuration - initialized at construction time. */
+    HDACODECCFG const   Cfg;
+    /** The state data for each node. */
+    CODECNODE           aNodes[CODEC_NODES_MAX];
+    /** Statistics. */
+    STAMCOUNTER         StatLookupsR3;
+    /** Size alignment padding. */
+    uint64_t const      au64Padding1[7];
 } HDACODECR3;
+AssertCompile(RT_IS_POWER_OF_TWO(CODEC_NODES_MAX));
+AssertCompileMemberAlignment(HDACODECR3, aNodes, 64);
+AssertCompileSizeAlignment(HDACODECR3, 64);
 
-int hdaR3CodecConstruct(PPDMDEVINS pDevIns, PHDACODEC pThis, PHDACODECR3 pThisCC, uint16_t uLUN, PCFGMNODE pCfg);
-void hdaR3CodecPowerOff(PHDACODECR3 pThisCC);
-int hdaR3CodecLoadState(PPDMDEVINS pDevIns, PHDACODEC pThis, PHDACODECR3 pThisCC, PSSMHANDLE pSSM, uint32_t uVersion);
-int hdaR3CodecAddStream(PHDACODECR3 pThisCC, PDMAUDIOMIXERCTL enmMixerCtl, PPDMAUDIOSTREAMCFG pCfg);
-int hdaR3CodecRemoveStream(PHDACODECR3 pThisCC, PDMAUDIOMIXERCTL enmMixerCtl);
 
-int hdaCodecSaveState(PPDMDEVINS pDevIns, PHDACODEC pThis, PSSMHANDLE pSSM);
-void hdaCodecDestruct(PHDACODEC pThis);
-void hdaCodecReset(PHDACODEC pThis);
-
-/** @name DevHDA saved state versions
+/** @name HDA Codec API used by the device emulation.
  * @{ */
-/** The current staved state version. */
-#define HDA_SAVED_STATE_VERSION  HDA_SAVED_STATE_WITHOUT_PERIOD
+int     hdaR3CodecConstruct(PPDMDEVINS pDevIns, PHDACODECR3 pThis, uint16_t uLUN, PCFGMNODE pCfg);
+void    hdaR3CodecPowerOff(PHDACODECR3 pThis);
+int     hdaR3CodecLoadState(PPDMDEVINS pDevIns, PHDACODECR3 pThis, PSSMHANDLE pSSM, uint32_t uVersion);
+int     hdaR3CodecAddStream(PHDACODECR3 pThis, PDMAUDIOMIXERCTL enmMixerCtl, PPDMAUDIOSTREAMCFG pCfg);
+int     hdaR3CodecRemoveStream(PHDACODECR3 pThis, PDMAUDIOMIXERCTL enmMixerCtl, bool fImmediate);
 
-/** Removed period and redefined wall clock. */
-#define HDA_SAVED_STATE_WITHOUT_PERIOD 8
-/** Added (Controller):              Current wall clock value (this independent from WALCLK register value).
-  * Added (Controller):              Current IRQ level.
-  * Added (Per stream):              Ring buffer. This is optional and can be skipped if (not) needed.
-  * Added (Per stream):              Struct g_aSSMStreamStateFields7.
-  * Added (Per stream):              Struct g_aSSMStreamPeriodFields7.
-  * Added (Current BDLE per stream): Struct g_aSSMBDLEDescFields7.
-  * Added (Current BDLE per stream): Struct g_aSSMBDLEStateFields7. */
-#define HDA_SAVED_STATE_VERSION_7 7
-/** Saves the current BDLE state.
- * @since 5.0.14 (r104839) */
-#define HDA_SAVED_STATE_VERSION_6 6
-/** Introduced dynamic number of streams + stream identifiers for serialization.
- *  Bug: Did not save the BDLE states correctly.
- *  Those will be skipped on load then.
- * @since 5.0.12 (r104520)  */
-#define HDA_SAVED_STATE_VERSION_5 5
-/** Since this version the number of MMIO registers can be flexible. */
-#define HDA_SAVED_STATE_VERSION_4 4
-#define HDA_SAVED_STATE_VERSION_3 3
-#define HDA_SAVED_STATE_VERSION_2 2
-#define HDA_SAVED_STATE_VERSION_1 1
+int     hdaCodecSaveState(PPDMDEVINS pDevIns, PHDACODECR3 pThis, PSSMHANDLE pSSM);
+void    hdaCodecDestruct(PHDACODECR3 pThis);
+void    hdaCodecReset(PHDACODECR3 pThis);
+
+DECLHIDDEN(int)  hdaR3CodecLookup(PHDACODECR3 pThis, uint32_t uCmd, uint64_t *puResp);
+DECLHIDDEN(void) hdaR3CodecDbgListNodes(PHDACODECR3 pThis, PCDBGFINFOHLP pHlp, const char *pszArgs);
+DECLHIDDEN(void) hdaR3CodecDbgSelector(PHDACODECR3 pThis, PCDBGFINFOHLP pHlp, const char *pszArgs);
 /** @} */
 
 #endif /* !VBOX_INCLUDED_SRC_Audio_DevHdaCodec_h */

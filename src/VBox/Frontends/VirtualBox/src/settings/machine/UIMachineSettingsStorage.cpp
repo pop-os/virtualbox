@@ -5443,6 +5443,12 @@ bool UIMachineSettingsStorage::updateStorageAttachment(const UISettingsCacheMach
                                                newAttachmentData.m_fTempEject);
                 fSuccess = m_machine.isOk();
             }
+            /* Disable First RUN Wizard: */
+            if (fSuccess)
+            {
+                if (gEDataManager->machineFirstTimeStarted(m_machine.GetId()))
+                    gEDataManager->setMachineFirstTimeStarted(false, m_machine.GetId());
+            }
         }
         else if (newAttachmentData.m_enmDeviceType == KDeviceType_HardDisk)
         {

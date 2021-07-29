@@ -254,8 +254,15 @@ typedef enum RTTHREADFLAGS
     /** The bit number corresponding to the RTTHREADFLAGS_WAITABLE mask. */
     RTTHREADFLAGS_WAITABLE_BIT = 0,
 
+    /** Call CoInitializeEx w/ COINIT_MULTITHREADED, COINIT_DISABLE_OLE1DDE and
+     * COINIT_SPEED_OVER_MEMORY.  Ignored on non-windows platforms. */
+    RTTHREADFLAGS_COM_MTA = RT_BIT(1),
+    /** Call CoInitializeEx w/ COINIT_APARTMENTTHREADED and
+     *  COINIT_SPEED_OVER_MEMORY.   Ignored on non-windows platforms.  */
+    RTTHREADFLAGS_COM_STA = RT_BIT(2),
+
     /** Mask of valid flags, use for validation. */
-    RTTHREADFLAGS_MASK = RT_BIT(0)
+    RTTHREADFLAGS_MASK = UINT32_C(0x7)
 } RTTHREADFLAGS;
 
 
@@ -280,8 +287,8 @@ RTDECL(int) RTThreadCreate(PRTTHREAD pThread, PFNRTTHREAD pfnThread, void *pvUse
                            RTTHREADTYPE enmType, unsigned fFlags, const char *pszName);
 #ifndef RT_OS_LINUX /* XXX crashes genksyms at least on 32-bit Linux hosts */
 /** Pointer to a RTThreadCreate function. */
-typedef DECLCALLBACKPTR(int, PFNRTTHREADCREATE)(PRTTHREAD pThread, PFNRTTHREAD pfnThread, void *pvUser, size_t cbStack,
-                                                RTTHREADTYPE enmType, unsigned fFlags, const char *pszName);
+typedef DECLCALLBACKPTR(int, PFNRTTHREADCREATE,(PRTTHREAD pThread, PFNRTTHREAD pfnThread, void *pvUser, size_t cbStack,
+                                                RTTHREADTYPE enmType, unsigned fFlags, const char *pszName));
 #endif
 
 

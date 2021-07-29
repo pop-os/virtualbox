@@ -61,8 +61,7 @@ public:
 
     static DECLCALLBACK(int) drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags);
     static DECLCALLBACK(void) drvDestruct(PPDMDRVINS pDrvIns);
-    static DECLCALLBACK(int) drvAttach(PPDMDRVINS pDrvIns, uint32_t fFlags);
-    static DECLCALLBACK(void) drvDetach(PPDMDRVINS pDrvIns, uint32_t fFlags);
+    static DECLCALLBACK(void) drvPowerOff(PPDMDRVINS pDrvIns);
 
 private:
 
@@ -70,6 +69,8 @@ private:
 
     /** Pointer to the associated VRDE audio driver. */
     struct DRVAUDIOVRDE *mpDrv;
+    /** Protects accesses to mpDrv from racing driver destruction. */
+    RTCRITSECT mCritSect;
 };
 
 #endif /* !MAIN_INCLUDED_DrvAudioVRDE_h */

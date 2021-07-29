@@ -23,35 +23,22 @@
 
 #include <iprt/critsect.h>
 #include <iprt/win/windows.h>
-
-/* Should fix warning in include\ks.h. */
-#ifndef _WIN64
-# ifdef RT_ARCH_X86
-#  define _WIN64 1
-# else
-#  define _WIN64 0
-# endif
-#endif
-
-#include <Mmdeviceapi.h>
+#include <mmdeviceapi.h>
 
 #include <VBox/vmm/pdmaudioifs.h>
 
 
-class DrvHostAudioDSoundMMNotifClient : IMMNotificationClient
+class DrvHostAudioDSoundMMNotifClient : public IMMNotificationClient
 {
 public:
 
-    DrvHostAudioDSoundMMNotifClient();
+    DrvHostAudioDSoundMMNotifClient(PPDMIHOSTAUDIOPORT pInterface, bool fDefaultIn, bool fDefaultOut);
     virtual ~DrvHostAudioDSoundMMNotifClient();
 
     HRESULT Initialize();
 
     HRESULT Register(void);
     void    Unregister(void);
-
-    int     RegisterCallback(PPDMDRVINS pDrvIns, PFNPDMHOSTAUDIOCALLBACK pfnCallback);
-    void    UnregisterCallback(void);
 
     /** @name IUnknown interface
      * @{ */
@@ -60,19 +47,15 @@ public:
 
 private:
 
+    bool                        m_fDefaultIn;
+    bool                        m_fDefaultOut;
     bool                        m_fRegisteredClient;
     IMMDeviceEnumerator        *m_pEnum;
     IMMDevice                  *m_pEndpoint;
 
     long                        m_cRef;
 
-    PPDMDRVINS                  m_pDrvIns;
-    PFNPDMHOSTAUDIOCALLBACK     m_pfnCallback;
-
-    HRESULT AttachToDefaultEndpoint();
-    void    DetachFromEndpoint();
-
-    void    doCallback(void);
+    PPDMIHOSTAUDIOPORT          m_pIAudioNotifyFromHost;
 
     /** @name IMMNotificationClient interface
      * @{ */
@@ -81,9 +64,6 @@ private:
     IFACEMETHODIMP OnDeviceRemoved(LPCWSTR pwstrDeviceId);
     IFACEMETHODIMP OnDefaultDeviceChanged(EDataFlow flow, ERole role, LPCWSTR pwstrDefaultDeviceId);
     IFACEMETHODIMP OnPropertyValueChanged(LPCWSTR /*pwstrDeviceId*/, const PROPERTYKEY /*key*/) { return S_OK; }
-    IFACEMETHODIMP OnDeviceQueryRemove() { return S_OK; }
-    IFACEMETHODIMP OnDeviceQueryRemoveFailed() { return S_OK; }
-    IFACEMETHODIMP OnDeviceRemovePending() { return S_OK; }
     /** @} */
 
     /** @name IUnknown interface
@@ -92,5 +72,6 @@ private:
     IFACEMETHODIMP_(ULONG) AddRef();
     /** @} */
 };
+
 #endif /* !VBOX_INCLUDED_SRC_Audio_DrvHostAudioDSoundMMNotifClient_h */
 

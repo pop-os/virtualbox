@@ -1024,7 +1024,15 @@ int VBoxNetLwipNAT::parseOpt(int rc, const RTGETOPTUNION& Val)
 int VBoxNetLwipNAT::processFrame(void *pvFrame, size_t cbFrame)
 {
     AssertPtrReturn(pvFrame, VERR_INVALID_PARAMETER);
-    AssertReturn(cbFrame != 0, VERR_INVALID_PARAMETER);
+
+    /* shouldn't happen, but if it does, don't even bother */
+    if (RT_UNLIKELY(cbFrame < sizeof(RTNETETHERHDR)))
+        return VERR_INVALID_PARAMETER;
+
+    /* we expect normal ethernet frame including .1Q and FCS */
+    if (cbFrame > 1522)
+        return VERR_TOO_MUCH_DATA;
+
 
     struct pbuf *p = pbuf_alloc(PBUF_RAW, (u16_t)cbFrame + ETH_PAD_SIZE, PBUF_POOL);
     if (RT_UNLIKELY(p == NULL))

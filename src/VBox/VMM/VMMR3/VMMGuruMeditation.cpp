@@ -320,6 +320,8 @@ VMMR3DECL(void) VMMR3FatalDump(PVM pVM, PVMCPU pVCpu, int rcErr)
         case VERR_VMM_RING0_ASSERTION:
         case VINF_EM_DBG_HYPER_ASSERTION:
         case VERR_VMM_RING3_CALL_DISABLED:
+        case VERR_VMM_WRONG_HM_VMCPU_STATE:
+        case VERR_VMM_CONTEXT_HOOK_STILL_ENABLED:
         {
             const char *pszMsg1 = VMMR3GetRZAssertMsg1(pVM);
             while (pszMsg1 && *pszMsg1 == '\n')
@@ -346,6 +348,10 @@ VMMR3DECL(void) VMMR3FatalDump(PVM pVM, PVMCPU pVCpu, int rcErr)
         case VINF_EM_DBG_HYPER_STEPPED:
         case VINF_EM_TRIPLE_FAULT:
         case VERR_VMM_HYPER_CR3_MISMATCH:
+        case VERR_VMM_SET_JMP_ERROR:
+        case VERR_VMM_SET_JMP_ABORTED_RESUME:
+        case VERR_VMM_SET_JMP_STACK_OVERFLOW:
+        case VERR_VMM_LONG_JMP_ERROR:
         {
             /*
              * Active trap? This is only of partial interest when in hardware
@@ -403,6 +409,11 @@ VMMR3DECL(void) VMMR3FatalDump(PVM pVM, PVMCPU pVCpu, int rcErr)
                                 pVCpu->vmm.s.CallRing3JmpBufR0.cbUsedAvg,
                                 pVCpu->vmm.s.CallRing3JmpBufR0.cbUsedTotal,
                                 pVCpu->vmm.s.CallRing3JmpBufR0.cUsedTotal);
+                pHlp->pfnPrintf(pHlp,
+                                "pfn=%RHv pvUser1=%RHv pvUser2=%RHv\n",
+                                pVCpu->vmm.s.CallRing3JmpBufR0.pfn,
+                                pVCpu->vmm.s.CallRing3JmpBufR0.pvUser1,
+                                pVCpu->vmm.s.CallRing3JmpBufR0.pvUser2);
 
                 /* Dump the resume register frame on the stack. */
                 PRTHCUINTPTR pBP;
@@ -606,8 +617,23 @@ VMMR3DECL(void) VMMR3FatalDump(PVM pVM, PVMCPU pVCpu, int rcErr)
             break;
         }
 
+        /*
+         * For some problems (e.g. VERR_INVALID_STATE in VMMR0.cpp), there could be
+         * additional details in the assertion messages.
+         */
         default:
         {
+            const char *pszMsg1 = VMMR3GetRZAssertMsg1(pVM);
+            while (pszMsg1 && *pszMsg1 == '\n')
+                pszMsg1++;
+            if (pszMsg1 && *pszMsg1 != '\0')
+                pHlp->pfnPrintf(pHlp, "AssertMsg1: %s\n", pszMsg1);
+
+            const char *pszMsg2 = VMMR3GetRZAssertMsg2(pVM);
+            while (pszMsg2 && *pszMsg2 == '\n')
+                pszMsg2++;
+            if (pszMsg2 && *pszMsg2 != '\0')
+                pHlp->pfnPrintf(pHlp, "AssertMsg2: %s\n", pszMsg2);
             break;
         }
 
@@ -673,7 +699,7 @@ VMMR3DECL(void) VMMR3FatalDump(PVM pVM, PVMCPU pVCpu, int rcErr)
     vmmR3FatalDumpInfoHlpFlushStdErr(&Hlp);
     if (Hlp.szSummary[0])
         RTStrmPrintf(g_pStdErr,
-                     "%s"
+                     "%s\n"
                      "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n",
                      Hlp.szSummary);
 

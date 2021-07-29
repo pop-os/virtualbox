@@ -307,7 +307,7 @@ int main(int argc, char *argv[])
     return RTTestSummaryAndDestroy(hTest);
 }
 
-int ShClSvcImplInit() { return VINF_SUCCESS; }
+int ShClSvcImplInit(VBOXHGCMSVCFNTABLE *) { return VINF_SUCCESS; }
 void ShClSvcImplDestroy() { }
 int ShClSvcImplDisconnect(PSHCLCLIENT) { return VINF_SUCCESS; }
 int ShClSvcImplConnect(PSHCLCLIENT, bool) { return VINF_SUCCESS; }

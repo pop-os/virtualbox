@@ -480,9 +480,6 @@ endif
 # Enable building debugging backend.
 # Only will be used at runtime when "VBoxInternal2/Audio/Debug/Enabled" (VM / global) is set.
 VBOX_WITH_AUDIO_DEBUG = 1
-ifdef VBOX_WITH_VALIDATIONKIT ## @todo r=bird: test is too early!
- VBOX_WITH_AUDIO_VALIDATIONKIT = 1
-endif
 # Enables the audio endpoint detection on Windows hosts.
 VBOX_WITH_AUDIO_MMNOTIFICATION_CLIENT = 1
 # Enable PCI passthrough support.
@@ -766,6 +763,9 @@ if1of ($(KBUILD_TARGET), darwin linux solaris win)
 endif
 # Enable audio support for VRDE.
 VBOX_WITH_AUDIO_VRDE = 1
+ifdef VBOX_WITH_VALIDATIONKIT
+ VBOX_WITH_AUDIO_VALIDATIONKIT = 1
+endif
 # Use the VRDE external authentication library from VBoxSVC.
 if1of ($(KBUILD_TARGET), win)
  VBOX_WITH_VRDEAUTH_IN_VBOXSVC = 1
@@ -1049,6 +1049,7 @@ ifdef VBOX_QUICK
  VBOX_WITH_VBOXSDL=
  VBOX_WITH_HEADLESS=
  VBOX_WITH_VRDP=
+ VBOX_WITH_VRDP_RDESKTOP=
  VBOX_WITH_DOCS=
  VBOX_WITH_WEBSERVICES=
  VBOX_WITH_32_ON_64_MAIN_API=
@@ -2668,17 +2669,17 @@ VBOX_PYLINT_FIGURE_VERSION = $(shell $(1) --version 2> /dev/null \
 
 # Java stuff.
 ifeq ($(KBUILD_TARGET), darwin)
- VBOX_JAVA_COMMANDS = $(firstword $(wildcard \
+ VBOX_JAVA_BIN_PATH = $(firstword $(wildcard \
         /System/Library/Java/JavaVirtualMachines/1.6.0.jdk/Contents/Commands \
         /System/Library/Frameworks/JavaVM.framework/Versions/1.6.0/Commands \
         $(if-expr $(VBOX_XCODE_VERSION_MAJOR) >= 4,/System/Library/Frameworks/JavaVM.framework/Versions/A/Commands,) \
         ) /System/Library/Frameworks/JavaVM.framework/Versions/1.6.0/Commands)
- VBOX_JAVA      = $(VBOX_JAVA_COMMANDS)/java
- VBOX_JAVAC     = $(VBOX_JAVA_COMMANDS)/javac
- VBOX_JAVAH     = $(VBOX_JAVA_COMMANDS)/javah
- VBOX_JAR       = $(VBOX_JAVA_COMMANDS)/jar
- VBOX_JAVADOC   = $(VBOX_JAVA_COMMANDS)/javadoc
- VBOX_WSIMPORT  = $(VBOX_JAVA_COMMANDS)/wsimport
+ VBOX_JAVA      = $(VBOX_JAVA_BIN_PATH)/java
+ VBOX_JAVAC     = $(VBOX_JAVA_BIN_PATH)/javac
+ VBOX_JAVAH     = $(VBOX_JAVA_BIN_PATH)/javah
+ VBOX_JAR       = $(VBOX_JAVA_BIN_PATH)/jar
+ VBOX_JAVADOC   = $(VBOX_JAVA_BIN_PATH)/javadoc
+ VBOX_WSIMPORT  = $(VBOX_JAVA_BIN_PATH)/wsimport
  if $(VBOX_XCODE_VERSION_MAJOR) >= 4 # Lion (4.1-preview 5) has a broken CurrentJDK link.  Blindly applying it to 4.0.
   VBOX_JAVA_INC  = $(VBOX_PATH_MACOSX_SDK)/System/Library/Frameworks/JavaVM.framework/Versions/A/Headers
  else
@@ -2720,21 +2721,25 @@ else # !darwin
   VBOX_JAVA_HOME ?= c:/jdk
  endif
 
- VBOX_JAVA     ?= "$(VBOX_JAVA_HOME)/bin/java$(HOSTSUFF_EXE)"
- VBOX_JAVAC     = "$(VBOX_JAVA_HOME)/bin/javac$(HOSTSUFF_EXE)"
- VBOX_JAVAH     = "$(VBOX_JAVA_HOME)/bin/javah$(HOSTSUFF_EXE)"
- VBOX_JAR       = "$(VBOX_JAVA_HOME)/bin/jar$(HOSTSUFF_EXE)"
- VBOX_JAVADOC   = "$(VBOX_JAVA_HOME)/bin/javadoc$(HOSTSUFF_EXE)"
+ VBOX_JAVA_BIN_PATH ?= $(VBOX_JAVA_HOME)/bin
+ VBOX_JAVA          ?= "$(VBOX_JAVA_BIN_PATH)/java$(HOSTSUFF_EXE)"
+ VBOX_JAVAC          = "$(VBOX_JAVA_BIN_PATH)/javac$(HOSTSUFF_EXE)"
+ VBOX_JAVAH          = "$(VBOX_JAVA_BIN_PATH)/javah$(HOSTSUFF_EXE)"
+ VBOX_JAR            = "$(VBOX_JAVA_BIN_PATH)/jar$(HOSTSUFF_EXE)"
+ VBOX_JAVADOC        = "$(VBOX_JAVA_BIN_PATH)/javadoc$(HOSTSUFF_EXE)"
  # With Java 11 wsimport was removed, usually part of a separate install now.
- VBOX_WSIMPORT  = $(firstword $(wildcard $(VBOX_JAVA_HOME)/bin/wsimport$(HOSTSUFF_EXE)) wsimport$(HOSTSUFF_EXE))
+ VBOX_WSIMPORT       = $(firstword $(wildcard $(VBOX_JAVA_BIN_PATH)/wsimport$(HOSTSUFF_EXE)) wsimport$(HOSTSUFF_EXE))
  # correct for targets we care about
- VBOX_MD_OS     = $(KBUILD_TARGET)
- VBOX_JAVA_INC  = \
+ VBOX_MD_OS          = $(KBUILD_TARGET)
+ VBOX_JAVA_INC       = \
  	$(VBOX_JAVA_HOME)/include \
  	$(VBOX_JAVA_HOME)/include/$(VBOX_MD_OS)
 endif # !darwin
+# The first transform the almost usless openjdk versions like "javac 9-Ubuntu" into something the 2nd expression groks.
 VBOX_JAVA_FIGURE_VERSION = $(shell $(1) -version 2>&1 \
-	| $(SED_EXT) -n -e 's|^[^ ]* *\([0-9][0-9]*\)\.\([0-9][0-9]*\)\.\([0-9][0-9]*\).*$(DOLLAR)|$$(expr \1 * 10000 + \2 * 100 + \3)|p' )
+	| $(SED_EXT) -n \
+	-e 's/ \([0-9][0-9]*\)\(-[[:alpha:]][[:alpha:]]\)/ \1.0.0\2/' \
+	-e 's|^[^ ]* *\([0-9][0-9]*\)\.\([0-9][0-9]*\)\.\([0-9][0-9]*\).*$(DOLLAR)|$$(expr \1 * 10000 + \2 * 100 + \3)|p' )
 
 # Test C and C++ files.
 $(PATH_OUT)/DynamicConfig.c $(PATH_OUT)/DynamicConfig.cpp:
@@ -7689,7 +7694,7 @@ endif
 SVN                    ?= svn$(HOSTSUFF_EXE)
 VBOX_SVN_REV_KMK        = $(PATH_OUT)/revision.kmk
 ifndef VBOX_SVN_REV
- VBOX_SVN_REV_CONFIG_FALLBACK := $(patsubst %:,,  $Rev: 143633 $  )
+ VBOX_SVN_REV_CONFIG_FALLBACK := $(patsubst %:,,  $Rev: 145920 $  )
  VBOX_SVN_REV_FALLBACK := $(if-expr $(VBOX_SVN_REV_CONFIG_FALLBACK) > $(VBOX_SVN_REV_VERSION_FALLBACK),$(VBOX_SVN_REV_CONFIG_FALLBACK),$(VBOX_SVN_REV_VERSION_FALLBACK))
  VBOX_SVN_DEP          := $(firstword $(wildcard $(PATH_ROOT)/.svn/wc.db $(abspath $(PATH_ROOT)/../.svn/wc.db) $(abspath $(PATH_ROOT)/../../.svn/wc.db) $(PATH_ROOT)/.svn/entries))
  ifeq ($(which $(SVN)),)
@@ -7765,7 +7770,7 @@ else if defined(VBOX_JAVA_VERSION) && $(VBOX_JAVA_VERSION) >= 10900
 endif
 if defined(VBOX_JAVA_VERSION) && $(VBOX_JAVA_VERSION) >= 110000
  VBOX_JAVAC_OPTS   = -encoding UTF-8 -source 9 -target 9 -Xlint:unchecked
-else if defined(VBOX_JAVA_VERSION) && $(VBOX_JAVA_VERSION) >= 100000
+else if defined(VBOX_JAVA_VERSION) && $(VBOX_JAVA_VERSION) >= 90000
  VBOX_JAVAC_OPTS   = -encoding UTF-8 -source 6 -target 6 -Xlint:unchecked
 else
  VBOX_JAVAC_OPTS   = -encoding UTF-8 -source 1.5 -target 1.5 -Xlint:unchecked

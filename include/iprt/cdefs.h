@@ -155,6 +155,17 @@
 # error "Exactly one RT_ARCH_XXX macro shall be defined"
 #endif
 
+/** @def RT_CPLUSPLUS_PREREQ
+ * Require a minimum __cplusplus value, simplifying dealing with non-C++ code.
+ *
+ * @param   a_Min           The minimum version, e.g. 201100.
+ */
+#ifdef __cplusplus
+# define RT_CPLUSPLUS_PREREQ(a_Min)      (__cplusplus >= (a_Min))
+#else
+# define RT_CPLUSPLUS_PREREQ(a_Min)      (0)
+#endif
+
 /** @def RT_GNUC_PREREQ
  * Shorter than fiddling with __GNUC__ and __GNUC_MINOR__.
  *
@@ -1280,6 +1291,17 @@
 # define DECLHIDDEN(type)       __attribute__((visibility("hidden"))) type
 #endif
 
+/** @def DECL_HIDDEN_DATA
+ * How to declare a non-exported variable.
+ * @param   a_Type  The data type of the variable.
+ * @sa      DECL_HIDDEN_CONST
+ */
+#if !defined(RT_GCC_SUPPORTS_VISIBILITY_HIDDEN) || defined(RT_NO_VISIBILITY_HIDDEN)
+# define DECL_HIDDEN_DATA(a_Type)       a_Type
+#else
+# define DECL_HIDDEN_DATA(a_Type)       __attribute__((visibility("hidden"))) a_Type
+#endif
+
 /** @def DECL_HIDDEN_CONST
  * Workaround for g++ warnings when applying the hidden attribute to a const
  * definition.  Use DECLHIDDEN for the declaration.
@@ -1392,16 +1414,41 @@
  */
 #define DECLCALLBACK(type)      type RT_FAR_CODE RTCALL
 
-/** @def DECLCALLBACKPTR
+/** @def DECLCALLBACKTYPE_EX
+ * How to declare an call back function type.
+ * @param   a_RetType   The return type of the function declaration.
+ * @param   a_CallConv  Calling convention.
+ * @param   a_Name      The name of the typedef
+ * @param   a_Args      The argument list enclosed in parentheses.
+ */
+#define DECLCALLBACKTYPE_EX(a_RetType, a_CallConv, a_Name, a_Args) a_RetType a_CallConv a_Name a_Args
+/** @def DECLCALLBACKTYPE
+ * How to declare an call back function type.
+ * @param   a_RetType   The return type of the function declaration.
+ * @param   a_Name      The name of the typedef
+ * @param   a_Args      The argument list enclosed in parentheses.
+ */
+#define DECLCALLBACKTYPE(a_RetType, a_Name, a_Args) DECLCALLBACKTYPE_EX(a_RetType, RT_FAR_CODE RTCALL, a_Name, a_Args)
+
+/** @def DECLCALLBACKPTR_EX
  * How to declare an call back function pointer.
- * @param   type    The return type of the function declaration.
- * @param   name    The name of the variable member.
+ * @param   a_RetType   The return type of the function declaration.
+ * @param   a_CallConv  Calling convention.
+ * @param   a_Name      The name of the variable member.
+ * @param   a_Args      The argument list enclosed in parentheses.
  */
 #if defined(__IBMC__) || defined(__IBMCPP__)
-# define DECLCALLBACKPTR(type, name)    type (* RTCALL name)
+# define DECLCALLBACKPTR_EX(a_RetType, a_CallConv, a_Name, a_Args) a_RetType (* a_CallConv a_Name) a_Args
 #else
-# define DECLCALLBACKPTR(type, name)    type (RT_FAR_CODE RTCALL * name)
+# define DECLCALLBACKPTR_EX(a_RetType, a_CallConv, a_Name, a_Args) a_RetType (a_CallConv * a_Name) a_Args
 #endif
+/** @def DECLCALLBACKPTR
+ * How to declare an call back function pointer.
+ * @param   a_RetType   The return type of the function declaration.
+ * @param   a_Name      The name of the variable member.
+ * @param   a_Args      The argument list enclosed in parentheses.
+ */
+#define DECLCALLBACKPTR(a_RetType, a_Name, a_Args) DECLCALLBACKPTR_EX(a_RetType, RT_FAR_CODE RTCALL, a_Name, a_Args)
 
 /** @def DECLCALLBACKMEMBER
  * How to declare an call back function pointer member.
@@ -3752,14 +3799,23 @@
 #   define RT_VALID_PTR(ptr)    (   (uintptr_t)(ptr) + 0x1000U >= 0x2000U \
                                  && (   ((uintptr_t)(ptr) & 0xffff800000000000ULL) == 0xffff800000000000ULL \
                                      || ((uintptr_t)(ptr) & 0xffff800000000000ULL) == 0) )
+#  elif defined(RT_OS_LINUX) /* May use 5-level paging  (see Documentation/x86/x86_64/mm.rst). */
+#   define RT_VALID_PTR(ptr)    (   (uintptr_t)(ptr) >= 0x1000U /* one invalid page at the bottom */ \
+                                 && !((uintptr_t)(ptr) & 0xff00000000000000ULL) )
 #  else
-#   define RT_VALID_PTR(ptr)    (   (uintptr_t)(ptr) + 0x1000U >= 0x2000U \
+#   define RT_VALID_PTR(ptr)    (   (uintptr_t)(ptr) >= 0x1000U \
                                  && !((uintptr_t)(ptr) & 0xffff800000000000ULL) )
 #  endif
 # else /* !IN_RING3 */
-#  define RT_VALID_PTR(ptr)     (   (uintptr_t)(ptr) + 0x1000U >= 0x2000U \
+#  if defined(RT_OS_LINUX) /* May use 5-level paging (see Documentation/x86/x86_64/mm.rst). */
+#   define RT_VALID_PTR(ptr)    (   (uintptr_t)(ptr) + 0x200000 >= 0x201000U /* one invalid page at the bottom and 2MB at the top */ \
+                                 && (   ((uintptr_t)(ptr) & 0xff00000000000000ULL) == 0xff00000000000000ULL \
+                                     || ((uintptr_t)(ptr) & 0xff00000000000000ULL) == 0) )
+#  else
+#   define RT_VALID_PTR(ptr)    (   (uintptr_t)(ptr) + 0x1000U >= 0x2000U \
                                  && (   ((uintptr_t)(ptr) & 0xffff800000000000ULL) == 0xffff800000000000ULL \
                                      || ((uintptr_t)(ptr) & 0xffff800000000000ULL) == 0) )
+#  endif
 # endif /* !IN_RING3 */
 
 #elif defined(RT_ARCH_X86)

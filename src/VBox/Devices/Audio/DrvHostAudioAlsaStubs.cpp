@@ -17,11 +17,13 @@
 
 #define LOG_GROUP LOG_GROUP_DRV_HOST_AUDIO
 #include <iprt/assert.h>
+#include <iprt/err.h>
 #include <iprt/ldr.h>
 #include <VBox/log.h>
-#include <iprt/errcore.h>
+#include <iprt/once.h>
 
 #include <alsa/asoundlib.h>
+#include <errno.h>
 
 #include "DrvHostAudioAlsaStubs.h"
 
@@ -50,15 +52,35 @@ PROXY_STUB(snd_device_name_get_hint, char *,
            (const void *hint, const char *id),
            (hint, id))
 
+static int fallback_snd_device_name_hint(int card, const char *iface, void ***hints)
+{
+    RT_NOREF(card, iface);
+    *hints = NULL;
+    return -ENOSYS;
+}
+
+static int   fallback_snd_device_name_free_hint(void **hints)
+{
+    RT_NOREF(hints);
+    return 0;
+}
+
+static char *fallback_snd_device_name_get_hint(const void *hint, const char *id)
+{
+    RT_NOREF(hint, id);
+    return NULL;
+}
+
 /*
  * PCM
  */
 
-PROXY_STUB(snd_pcm_avail_update, snd_pcm_sframes_t, (snd_pcm_t *pcm),
-           (pcm))
+PROXY_STUB(snd_pcm_avail_update, snd_pcm_sframes_t, (snd_pcm_t *pcm), (pcm))
+PROXY_STUB(snd_pcm_avail_delay, int,
+           (snd_pcm_t *pcm, snd_pcm_sframes_t *availp, snd_pcm_sframes_t *delayp),
+           (pcm, availp, delayp))
 PROXY_STUB(snd_pcm_close, int, (snd_pcm_t *pcm), (pcm))
-PROXY_STUB(snd_pcm_delay, int, (snd_pcm_t *pcm, snd_pcm_sframes_t *frames),
-           (pcm, frames))
+PROXY_STUB(snd_pcm_delay, int, (snd_pcm_t *pcm, snd_pcm_sframes_t *delayp), (pcm, delayp))
 PROXY_STUB(snd_pcm_nonblock, int, (snd_pcm_t *pcm, int *onoff),
            (pcm, onoff))
 PROXY_STUB(snd_pcm_drain, int, (snd_pcm_t *pcm),
@@ -72,12 +94,28 @@ PROXY_STUB(snd_pcm_readi, snd_pcm_sframes_t,
            (snd_pcm_t *pcm, void *buffer, snd_pcm_uframes_t size),
            (pcm, buffer, size))
 PROXY_STUB(snd_pcm_resume, int, (snd_pcm_t *pcm), (pcm))
+PROXY_STUB(snd_pcm_set_chmap, int, (snd_pcm_t *pcm, snd_pcm_chmap_t const *map), (pcm, map))
 PROXY_STUB(snd_pcm_state, snd_pcm_state_t, (snd_pcm_t *pcm), (pcm))
 PROXY_STUB(snd_pcm_state_name, const char *, (snd_pcm_state_t state), (state))
 PROXY_STUB(snd_pcm_writei, snd_pcm_sframes_t,
            (snd_pcm_t *pcm, const void *buffer, snd_pcm_uframes_t size),
            (pcm, buffer, size))
 PROXY_STUB(snd_pcm_start, int, (snd_pcm_t *pcm), (pcm))
+
+static int fallback_snd_pcm_avail_delay(snd_pcm_t *pcm, snd_pcm_sframes_t *availp, snd_pcm_sframes_t *delayp)
+{
+    *availp = pfn_snd_pcm_avail_update(pcm);
+    int ret = pfn_snd_pcm_delay(pcm, delayp);
+    if (ret >= 0 && *availp < 0)
+        ret = (int)*availp;
+    return ret;
+}
+
+static int fallback_snd_pcm_set_chmap(snd_pcm_t *pcm, snd_pcm_chmap_t const *map)
+{
+    RT_NOREF(pcm, map);
+    return 0;
+}
 
 /*
  * HW
@@ -151,20 +189,23 @@ PROXY_STUB(snd_pcm_sw_params_sizeof, size_t, (void), ())
 typedef struct
 {
     const char *name;
-    void (**fn)(void);
+    void (**pfn)(void);
+    void (*pfnFallback)(void);
 } SHARED_FUNC;
 
-#define ELEMENT(function) { #function , (void (**)(void)) & pfn_ ## function }
+#define ELEMENT(function) { #function , (void (**)(void)) & pfn_ ## function, NULL }
+#define ELEMENT_FALLBACK(function) { #function , (void (**)(void)) & pfn_ ## function, (void (*)(void))fallback_ ## function }
 static SHARED_FUNC SharedFuncs[] =
 {
     ELEMENT(snd_lib_error_set_handler),
     ELEMENT(snd_strerror),
 
-    ELEMENT(snd_device_name_hint),
-    ELEMENT(snd_device_name_get_hint),
-    ELEMENT(snd_device_name_free_hint),
+    ELEMENT_FALLBACK(snd_device_name_hint),
+    ELEMENT_FALLBACK(snd_device_name_get_hint),
+    ELEMENT_FALLBACK(snd_device_name_free_hint),
 
     ELEMENT(snd_pcm_avail_update),
+    ELEMENT_FALLBACK(snd_pcm_avail_delay),
     ELEMENT(snd_pcm_close),
     ELEMENT(snd_pcm_delay),
     ELEMENT(snd_pcm_drain),
@@ -173,6 +214,7 @@ static SHARED_FUNC SharedFuncs[] =
     ELEMENT(snd_pcm_open),
     ELEMENT(snd_pcm_prepare),
     ELEMENT(snd_pcm_resume),
+    ELEMENT_FALLBACK(snd_pcm_set_chmap),
     ELEMENT(snd_pcm_state),
     ELEMENT(snd_pcm_state_name),
 
@@ -205,42 +247,48 @@ static SHARED_FUNC SharedFuncs[] =
 };
 #undef ELEMENT
 
+/** Init once. */
+static RTONCE g_AlsaLibInitOnce = RTONCE_INITIALIZER;
+
+
+/** @callback_method_impl{FNRTONCE} */
+static DECLCALLBACK(int32_t) drvHostAudioAlsaLibInitOnce(void *pvUser)
+{
+    RT_NOREF(pvUser);
+    LogFlowFunc(("\n"));
+
+    RTLDRMOD hMod = NIL_RTLDRMOD;
+    int rc = RTLdrLoadSystemEx(VBOX_ALSA_LIB, RTLDRLOAD_FLAGS_NO_UNLOAD, &hMod);
+    if (RT_SUCCESS(rc))
+    {
+        for (uintptr_t i = 0; i < RT_ELEMENTS(SharedFuncs); i++)
+        {
+            rc = RTLdrGetSymbol(hMod, SharedFuncs[i].name, (void **)SharedFuncs[i].pfn);
+            if (RT_SUCCESS(rc))
+            { /* likely */ }
+            else if (SharedFuncs[i].pfnFallback && rc == VERR_SYMBOL_NOT_FOUND)
+                *SharedFuncs[i].pfn = SharedFuncs[i].pfnFallback;
+            else
+            {
+                LogRelFunc(("Failed to load library %s: Getting symbol %s failed: %Rrc\n", VBOX_ALSA_LIB, SharedFuncs[i].name, rc));
+                return rc;
+            }
+        }
+    }
+    else
+        LogRelFunc(("Failed to load library %s (%Rrc)\n", VBOX_ALSA_LIB, rc));
+    return rc;
+}
+
+
 /**
- * Try to dynamically load the ALSA libraries.  This function is not
- * thread-safe, and should be called before attempting to use any of the
- * ALSA functions.
+ * Try to dynamically load the ALSA libraries.
  *
- * @returns iprt status code
+ * @returns VBox status code.
  */
 int audioLoadAlsaLib(void)
 {
-    int rc = VINF_SUCCESS;
-    unsigned i;
-    static enum { NO = 0, YES, FAIL } isLibLoaded = NO;
-    RTLDRMOD hLib;
-
     LogFlowFunc(("\n"));
-    /* If this is not NO then the function has obviously been called twice,
-       which is likely to be a bug. */
-    if (NO != isLibLoaded)
-    {
-        AssertMsgFailed(("isLibLoaded == %s\n", YES == isLibLoaded ? "YES" : "NO"));
-        return YES == isLibLoaded ? VINF_SUCCESS : VERR_NOT_SUPPORTED;
-    }
-    isLibLoaded = FAIL;
-    rc = RTLdrLoad(VBOX_ALSA_LIB, &hLib);
-    if (RT_FAILURE(rc))
-    {
-        LogRelFunc(("Failed to load library %s\n", VBOX_ALSA_LIB));
-        return rc;
-    }
-    for (i=0; i<RT_ELEMENTS(SharedFuncs); i++)
-    {
-        rc = RTLdrGetSymbol(hLib, SharedFuncs[i].name, (void**)SharedFuncs[i].fn);
-        if (RT_FAILURE(rc))
-            return rc;
-    }
-    isLibLoaded = YES;
-    return rc;
+    return RTOnce(&g_AlsaLibInitOnce, drvHostAudioAlsaLibInitOnce, NULL);
 }
 

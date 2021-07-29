@@ -152,6 +152,7 @@ struct X11CONTEXT
     RRMode (*pXRRCreateMode) (Display *, Window, XRRModeInfo *);
     XRROutputInfo* (*pXRRGetOutputInfo) (Display *, XRRScreenResources *, RROutput);
     XRRCrtcInfo* (*pXRRGetCrtcInfo) (Display *, XRRScreenResources *, RRCrtc crtc);
+    void (*pXRRFreeCrtcInfo)(XRRCrtcInfo *);
     void (*pXRRAddOutputMode)(Display *, RROutput, RRMode);
 };
 
@@ -498,7 +499,7 @@ static void sendMonitorPositions(RTPOINT *pPositions, size_t cPositions)
     }
     int rc = VbglR3SeamlessSendMonitorPositions(cPositions, pPositions);
     if (RT_SUCCESS(rc))
-        VBClLogError("Sending monitor positions (%u of them)  to the host: %Rrc\n", cPositions, rc);
+        VBClLogInfo("Sending monitor positions (%u of them)  to the host: %Rrc\n", cPositions, rc);
     else
         VBClLogError("Error during sending monitor positions (%u of them)  to the host: %Rrc\n", cPositions, rc);
 }
@@ -537,9 +538,26 @@ static void queryMonitorPositions()
         }
         for (int i = 0; i < iMonitorCount; ++i)
         {
-            int iMonitorID = getMonitorIdFromName(XGetAtomName(x11Context.pDisplayRandRMonitoring, pMonitorInfo[i].name)) - 1;
-            if (iMonitorID >= x11Context.hOutputCount || iMonitorID == -1)
+            char *pszMonitorName = XGetAtomName(x11Context.pDisplayRandRMonitoring, pMonitorInfo[i].name);
+            if (!pszMonitorName)
+            {
+                VBClLogError("queryMonitorPositions: skip monitor with unknown name %d\n", i);
                 continue;
+            }
+
+            int iMonitorID = getMonitorIdFromName(pszMonitorName) - 1;
+            XFree((void *)pszMonitorName);
+            pszMonitorName = NULL;
+
+            if (iMonitorID >= x11Context.hOutputCount || iMonitorID == -1)
+            {
+                VBClLogInfo("queryMonitorPositions: skip monitor %d (id %d) (w,h)=(%d,%d) (x,y)=(%d,%d)\n",
+                        i, iMonitorID,
+                        pMonitorInfo[i].width, pMonitorInfo[i].height,
+                        pMonitorInfo[i].x, pMonitorInfo[i].y);
+                continue;
+            }
+
             VBClLogInfo("Monitor %d (w,h)=(%d,%d) (x,y)=(%d,%d)\n",
                         i,
                         pMonitorInfo[i].width, pMonitorInfo[i].height,
@@ -871,6 +889,9 @@ static int openLibRandR()
     *(void **)(&x11Context.pXRRGetCrtcInfo) = dlsym(x11Context.pRandLibraryHandle, "XRRGetCrtcInfo");
     checkFunctionPtrReturn(x11Context.pXRRGetCrtcInfo);
 
+    *(void **)(&x11Context.pXRRFreeCrtcInfo) = dlsym(x11Context.pRandLibraryHandle, "XRRFreeCrtcInfo");
+    checkFunctionPtrReturn(x11Context.pXRRFreeCrtcInfo);
+
     *(void **)(&x11Context.pXRRAddOutputMode) = dlsym(x11Context.pRandLibraryHandle, "XRRAddOutputMode");
     checkFunctionPtrReturn(x11Context.pXRRAddOutputMode);
 
@@ -898,6 +919,7 @@ static void x11Connect()
     x11Context.pXRRCreateMode = NULL;
     x11Context.pXRRGetOutputInfo = NULL;
     x11Context.pXRRGetCrtcInfo = NULL;
+    x11Context.pXRRFreeCrtcInfo = NULL;
     x11Context.pXRRAddOutputMode = NULL;
     x11Context.fWmwareCtrlExtention = false;
     x11Context.fMonitorInfoAvailable = false;
@@ -1031,6 +1053,14 @@ static bool disableCRTC(RRCrtc crtcID)
         ret = x11Context.pXRRSetCrtcConfig(x11Context.pDisplay, x11Context.pScreenResources, crtcID,
                                            CurrentTime, 0, 0, None, RR_Rotate_0, NULL, 0);
 #endif
+
+#ifdef WITH_DISTRO_XRAND_XINERAMA
+    XRRFreeCrtcInfo(pCrctInfo);
+#else
+    if (x11Context.pXRRFreeCrtcInfo)
+        x11Context.pXRRFreeCrtcInfo(pCrctInfo);
+#endif
+
     /** @todo  In case of unsuccesful crtc config set  we have to revert frame buffer size and crtc sizes. */
     if (ret == Success)
         return true;
@@ -1109,7 +1139,8 @@ static bool resizeFrameBuffer(struct RANDROUTPUT *paOutputs)
 
     if (!event || newSize.width != (int)iXRes || newSize.height != (int)iYRes)
     {
-        VBClLogError("Resizing frame buffer to %d %d has failed\n", iXRes, iYRes);
+        VBClLogError("Resizing frame buffer to %d %d has failed, current mode %d %d\n",
+            iXRes, iYRes, newSize.width, newSize.height);
         return false;
     }
     return true;
@@ -1258,6 +1289,7 @@ static void setXrandrTopology(struct RANDROUTPUT *paOutputs)
     if (!x11Context.pScreenResources)
     {
         XUngrabServer(x11Context.pDisplay);
+        XFlush(x11Context.pDisplay);
         return;
     }
 
@@ -1280,12 +1312,14 @@ static void setXrandrTopology(struct RANDROUTPUT *paOutputs)
         {
             VBClLogFatalError("Crtc disable failed %lu\n", pOutputInfo->crtc);
             XUngrabServer(x11Context.pDisplay);
+            XSync(x11Context.pDisplay, False);
 #ifdef WITH_DISTRO_XRAND_XINERAMA
             XRRFreeScreenResources(x11Context.pScreenResources);
 #else
             if (x11Context.pXRRFreeScreenResources)
                 x11Context.pXRRFreeScreenResources(x11Context.pScreenResources);
 #endif
+            XFlush(x11Context.pDisplay);
             return;
         }
 #ifdef WITH_DISTRO_XRAND_XINERAMA
@@ -1299,12 +1333,14 @@ static void setXrandrTopology(struct RANDROUTPUT *paOutputs)
     if (!resizeFrameBuffer(paOutputs))
     {
         XUngrabServer(x11Context.pDisplay);
+        XSync(x11Context.pDisplay, False);
 #ifdef WITH_DISTRO_XRAND_XINERAMA
         XRRFreeScreenResources(x11Context.pScreenResources);
 #else
         if (x11Context.pXRRFreeScreenResources)
             x11Context.pXRRFreeScreenResources(x11Context.pScreenResources);
 #endif
+        XFlush(x11Context.pDisplay);
         return;
     }
 

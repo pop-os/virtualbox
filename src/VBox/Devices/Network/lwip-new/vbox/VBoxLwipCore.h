@@ -23,7 +23,7 @@
 #endif
 
 
-typedef DECLCALLBACKPTR(void, PFNRT1)(void *);
+typedef DECLCALLBACKPTR(void, PFNRT1,(void *));
 
 /**
  * initiliazes LWIP core, and do callback on tcp/ip thread

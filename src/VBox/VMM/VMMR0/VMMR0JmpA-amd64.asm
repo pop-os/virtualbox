@@ -32,10 +32,17 @@
 %define STACK_PADDING   0eeeeeeeeeeeeeeeeh
 
 ;; Workaround for linux 4.6 fast/slow syscall stack depth difference.
+;; Update: This got worse with linux 5.13 and CONFIG_RANDOMIZE_KSTACK_OFFSET_DEFAULT.
+;;         The x86 arch_exit_to_user_mode_prepare code limits the offset to 255,
+;;         while the generic limit is 1023.  See bugref:10064 for details.
 %ifdef VMM_R0_SWITCH_STACK
  %define STACK_FUZZ_SIZE 0
 %else
- %define STACK_FUZZ_SIZE 128
+ %ifdef RT_OS_LINUX
+  %define STACK_FUZZ_SIZE 384
+ %else
+  %define STACK_FUZZ_SIZE 128
+ %endif
 %endif
 
 
@@ -119,6 +126,11 @@ SEH64_END_PROLOGUE
     ;
     test    byte [xDX + VMMR0JMPBUF.fInRing3Call], 1
     jnz     .resume
+
+.different_call_continue:
+    mov     [xDX + VMMR0JMPBUF.pfn], r11
+    mov     [xDX + VMMR0JMPBUF.pvUser1], r8
+    mov     [xDX + VMMR0JMPBUF.pvUser2], r9
 
  %ifdef VMM_R0_SWITCH_STACK
     mov     r15, [xDX + VMMR0JMPBUF.pvSavedStack]
@@ -216,9 +228,26 @@ SEH64_END_PROLOGUE
     ret
 
     ;
+    ; Not the same call as went to ring-3.
+    ;
+.different_call:
+    mov     byte [xDX + VMMR0JMPBUF.fInRing3Call], 0
+    ;; @todo or should we fail here instead?
+    jmp     .different_call_continue
+
+    ;
     ; Resume VMMRZCallRing3 the call.
     ;
 .resume:
+    ; Check if it's actually the same call, if not just continue with it
+    ; as a regular call (ring-0 assert, then VM destroy).
+    cmp     [xDX + VMMR0JMPBUF.pfn], r11
+    jne     .different_call
+    cmp     [xDX + VMMR0JMPBUF.pvUser1], r8
+    jne     .different_call
+    cmp     [xDX + VMMR0JMPBUF.pvUser2], r9
+    jne     .different_call
+
  %ifndef VMM_R0_SWITCH_STACK
     ; Sanity checks incoming stack, applying fuzz if needed.
     sub     r10, [xDX + VMMR0JMPBUF.SpCheck]

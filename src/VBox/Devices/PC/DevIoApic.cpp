@@ -33,7 +33,9 @@
 *   Defined Constants And Macros                                                                                                 *
 *********************************************************************************************************************************/
 /** The current IO APIC saved state version. */
-#define IOAPIC_SAVED_STATE_VERSION              2
+#define IOAPIC_SAVED_STATE_VERSION                  3
+/** The current IO APIC saved state version. */
+#define IOAPIC_SAVED_STATE_VERSION_NO_FLIPFLOP_MAP  2
 /** The saved state version used by VirtualBox 5.0 and
  *  earlier.  */
 #define IOAPIC_SAVED_STATE_VERSION_VBOX_50      1
@@ -208,6 +210,8 @@ typedef struct IOAPIC
     uint64_t                au64RedirTable[IOAPIC_NUM_INTR_PINS];
     /** The IRQ tags and source IDs for each pin (tracing purposes). */
     uint32_t                au32TagSrc[IOAPIC_NUM_INTR_PINS];
+    /** Bitmap keeping the flip-flop-ness of pending interrupts. */
+    uint64_t                bmFlipFlop[(IOAPIC_NUM_INTR_PINS + 63) / 64];
 
     /** The internal IRR reflecting state of the interrupt lines. */
     uint32_t                uIrr;
@@ -453,21 +457,33 @@ static void ioapicSignalIntrForRte(PPDMDEVINS pDevIns, PIOAPIC pThis, PIOAPICCC 
             AssertMsgFailed(("APIC: Interrupt discarded u8Vector=%#x (%u) u64Rte=%#RX64\n", u8Vector, u8Vector, u64Rte));
 #endif
 
-        /*
-         * For level-triggered interrupts, we set the remote IRR bit to indicate
-         * the local APIC has accepted the interrupt.
-         *
-         * For edge-triggered interrupts, we should not clear the IRR bit as it
-         * should remain intact to reflect the state of the interrupt line.
-         * The device will explicitly transition to inactive state via the
-         * ioapicSetIrq() callback.
-         */
-        if (   u8TriggerMode == IOAPIC_RTE_TRIGGER_MODE_LEVEL
-            && rc == VINF_SUCCESS)
+        if (rc == VINF_SUCCESS)
         {
-            Assert(u8TriggerMode == IOAPIC_RTE_TRIGGER_MODE_LEVEL);
-            pThis->au64RedirTable[idxRte] |= IOAPIC_RTE_REMOTE_IRR;
-            STAM_COUNTER_INC(&pThis->StatLevelIrqSent);
+            /*
+             * For level-triggered interrupts, we set the remote IRR bit to indicate
+             * the local APIC has accepted the interrupt.
+             *
+             * For edge-triggered interrupts, we should not clear the IRR bit as it
+             * should remain intact to reflect the state of the interrupt line.
+             * The device will explicitly transition to inactive state via the
+             * ioapicSetIrq() callback.
+             */
+            if (u8TriggerMode == IOAPIC_RTE_TRIGGER_MODE_LEVEL)
+            {
+                Assert(u8TriggerMode == IOAPIC_RTE_TRIGGER_MODE_LEVEL);
+                pThis->au64RedirTable[idxRte] |= IOAPIC_RTE_REMOTE_IRR;
+                STAM_COUNTER_INC(&pThis->StatLevelIrqSent);
+            }
+            /*
+             * Edge-triggered flip-flops gets cleaned up here as the device code will
+             * not do any explicit ioapicSetIrq and we won't receive any EOI either.
+             */
+            else if (ASMBitTest(pThis->bmFlipFlop, idxRte))
+            {
+                Log2(("IOAPIC: Clearing IRR for edge flip-flop %#x uTagSrc=%#x\n", idxRte, pThis->au32TagSrc[idxRte]));
+                pThis->au32TagSrc[idxRte] = 0;
+                pThis->uIrr &= ~RT_BIT_32(idxRte);
+            }
         }
     }
 }
@@ -645,7 +661,15 @@ static DECLCALLBACK(VBOXSTRICTRC) ioapicSetEoi(PPDMDEVINS pDevIns, uint8_t u8Vec
         for (uint8_t idxRte = 0; idxRte < RT_ELEMENTS(pThis->au64RedirTable); idxRte++)
         {
             uint64_t const u64Rte = pThis->au64RedirTable[idxRte];
-            if (IOAPIC_RTE_GET_VECTOR(u64Rte) == u8Vector)
+            /** @todo r=bird: bugref:10073: I've changed it to ignore edge triggered
+             * entries here since the APIC will only call us for those?  Not doing so
+             * confuses ended up with spurious HPET/RTC IRQs in SMP linux because of it
+             * sharing the vector with a level-triggered IRQ (like vboxguest) delivered on a
+             * different CPU.
+             *
+             * Maybe we should also/instead filter on the source APIC number? */
+            if (   IOAPIC_RTE_GET_VECTOR(u64Rte) == u8Vector
+                && IOAPIC_RTE_GET_TRIGGER_MODE(u64Rte) != IOAPIC_RTE_TRIGGER_MODE_EDGE)
             {
 #ifdef DEBUG_ramshankar
                 /* This assertion may trigger when restoring saved-states created using the old, incorrect I/O APIC code. */
@@ -680,8 +704,8 @@ static DECLCALLBACK(VBOXSTRICTRC) ioapicSetEoi(PPDMDEVINS pDevIns, uint8_t u8Vec
  */
 static DECLCALLBACK(void) ioapicSetIrq(PPDMDEVINS pDevIns, int iIrq, int iLevel, uint32_t uTagSrc)
 {
-#define IOAPIC_ASSERT_IRQ(a_idxRte, a_PinMask) do { \
-        pThis->au32TagSrc[(a_idxRte)] = !pThis->au32TagSrc[(a_idxRte)] ? uTagSrc : RT_BIT_32(31); \
+#define IOAPIC_ASSERT_IRQ(a_idxRte, a_PinMask, a_fForceTag) do { \
+        pThis->au32TagSrc[(a_idxRte)] = (a_fForceTag) || !pThis->au32TagSrc[(a_idxRte)] ? uTagSrc : RT_BIT_32(31); \
         pThis->uIrr |= a_PinMask; \
         ioapicSignalIntrForRte(pDevIns, pThis, pThisCC, (a_idxRte)); \
     } while (0)
@@ -712,14 +736,17 @@ static DECLCALLBACK(void) ioapicSetIrq(PPDMDEVINS pDevIns, int iIrq, int iLevel,
         if (!fActive)
         {
             pThis->uIrr &= ~uPinMask;
+            pThis->au32TagSrc[idxRte] = 0;
             IOAPIC_UNLOCK(pDevIns, pThis, pThisCC);
             return;
         }
 
-        bool const     fFlipFlop = ((iLevel & PDM_IRQ_LEVEL_FLIP_FLOP) == PDM_IRQ_LEVEL_FLIP_FLOP);
-        uint32_t const uPrevIrr  = pThis->uIrr & uPinMask;
+        bool const fFlipFlop = ((iLevel & PDM_IRQ_LEVEL_FLIP_FLOP) == PDM_IRQ_LEVEL_FLIP_FLOP);
         if (!fFlipFlop)
         {
+            ASMBitClear(pThis->bmFlipFlop, idxRte);
+
+            uint32_t const uPrevIrr = pThis->uIrr & uPinMask;
             if (u8TriggerMode == IOAPIC_RTE_TRIGGER_MODE_EDGE)
             {
                 /*
@@ -727,7 +754,7 @@ static DECLCALLBACK(void) ioapicSetIrq(PPDMDEVINS pDevIns, int iIrq, int iLevel,
                  * See ICH9 spec. 13.5.7 "REDIR_TBL: Redirection Table (LPC I/F-D31:F0)".
                  */
                 if (!uPrevIrr)
-                    IOAPIC_ASSERT_IRQ(idxRte, uPinMask);
+                    IOAPIC_ASSERT_IRQ(idxRte, uPinMask, false);
                 else
                 {
                     STAM_COUNTER_INC(&pThis->StatRedundantEdgeIntr);
@@ -751,7 +778,7 @@ static DECLCALLBACK(void) ioapicSetIrq(PPDMDEVINS pDevIns, int iIrq, int iLevel,
                     Log2(("IOAPIC: Redundant level-triggered interrupt %#x (%u)\n", idxRte, idxRte));
                 }
 
-                IOAPIC_ASSERT_IRQ(idxRte, uPinMask);
+                IOAPIC_ASSERT_IRQ(idxRte, uPinMask, false);
             }
         }
         else
@@ -762,7 +789,8 @@ static DECLCALLBACK(void) ioapicSetIrq(PPDMDEVINS pDevIns, int iIrq, int iLevel,
              * after a flip-flop request. The de-assert is a NOP wrts to signaling an interrupt
              * hence just the assert is done.
              */
-            IOAPIC_ASSERT_IRQ(idxRte, uPinMask);
+            ASMBitSet(pThis->bmFlipFlop, idxRte);
+            IOAPIC_ASSERT_IRQ(idxRte, uPinMask, true);
         }
 
         IOAPIC_UNLOCK(pDevIns, pThis, pThisCC);
@@ -777,7 +805,7 @@ static DECLCALLBACK(void) ioapicSetIrq(PPDMDEVINS pDevIns, int iIrq, int iLevel,
 static DECLCALLBACK(void) ioapicSendMsi(PPDMDEVINS pDevIns, RTGCPHYS GCPhys, uint32_t uValue, uint32_t uTagSrc)
 {
     PIOAPICCC pThisCC = PDMDEVINS_2_DATA_CC(pDevIns, PIOAPICCC);
-    LogFlow(("IOAPIC: ioapicSendMsi: GCPhys=%#RGp uValue=%#RX32\n", GCPhys, uValue));
+    LogFlow(("IOAPIC: ioapicSendMsi: GCPhys=%#RGp uValue=%#RX32 uTagSrc=%#x\n", GCPhys, uValue, uTagSrc));
 
     /*
      * Parse the message from the physical address.
@@ -1117,6 +1145,9 @@ static DECLCALLBACK(int) ioapicR3SaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
     for (uint8_t idxRte = 0; idxRte < RT_ELEMENTS(pThis->au64RedirTable); idxRte++)
         pHlp->pfnSSMPutU64(pSSM, pThis->au64RedirTable[idxRte]);
 
+    for (uint8_t idx = 0; idx < RT_ELEMENTS(pThis->bmFlipFlop); idx++)
+        pHlp->pfnSSMPutU64(pSSM, pThis->bmFlipFlop[idx]);
+
     return VINF_SUCCESS;
 }
 
@@ -1135,19 +1166,24 @@ static DECLCALLBACK(int) ioapicR3LoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, u
 
     /* Weed out invalid versions. */
     if (   uVersion != IOAPIC_SAVED_STATE_VERSION
+        && uVersion != IOAPIC_SAVED_STATE_VERSION_NO_FLIPFLOP_MAP
         && uVersion != IOAPIC_SAVED_STATE_VERSION_VBOX_50)
     {
         LogRel(("IOAPIC: ioapicR3LoadExec: Invalid/unrecognized saved-state version %u (%#x)\n", uVersion, uVersion));
         return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
     }
 
-    if (uVersion == IOAPIC_SAVED_STATE_VERSION)
+    if (uVersion >= IOAPIC_SAVED_STATE_VERSION_NO_FLIPFLOP_MAP)
         pHlp->pfnSSMGetU32(pSSM, &pThis->uIrr);
 
     pHlp->pfnSSMGetU8V(pSSM, &pThis->u8Id);
     pHlp->pfnSSMGetU8V(pSSM, &pThis->u8Index);
     for (uint8_t idxRte = 0; idxRte < RT_ELEMENTS(pThis->au64RedirTable); idxRte++)
         pHlp->pfnSSMGetU64(pSSM, &pThis->au64RedirTable[idxRte]);
+
+    if (uVersion > IOAPIC_SAVED_STATE_VERSION_NO_FLIPFLOP_MAP)
+        for (uint8_t idx = 0; idx < RT_ELEMENTS(pThis->bmFlipFlop); idx++)
+            pHlp->pfnSSMGetU64(pSSM, &pThis->bmFlipFlop[idx]);
 
     return VINF_SUCCESS;
 }

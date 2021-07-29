@@ -263,6 +263,8 @@
 #define VINF_EM_PENDING_R3_IOPORT_WRITE      1160
 /** Trick for resuming EMHistoryExec after a VMCPU_FF_IOM is handled. */
 #define VINF_EM_RESUME_R3_HISTORY_EXEC       1161
+/** Emulate split-lock access on SMP. */
+#define VINF_EM_EMULATE_SPLIT_LOCK           1162
 /** @} */
 
 
@@ -1231,6 +1233,8 @@
 #define VERR_VMM_SMAP_BUT_AC_CLEAR          (-2717)
 /** NEM returned in the wrong state. */
 #define VERR_VMM_WRONG_NEM_VMCPU_STATE      (-2718)
+/** Got back from vmmR0CallRing3SetJmp with the context hook still enabled. */
+#define VERR_VMM_CONTEXT_HOOK_STILL_ENABLED (-2719)
 /** @} */
 
 
@@ -1552,7 +1556,10 @@
 #define VINF_HGCM_SAVE_STATE                        (2906)
 /** Requested service already exists. */
 #define VERR_HGCM_SERVICE_EXISTS                    (-2907)
-
+/** Too many clients for the service. */
+#define VERR_HGCM_TOO_MANY_CLIENTS                  (-2908)
+/** Too many calls to the service from a client. */
+#define VERR_HGCM_TOO_MANY_CLIENT_CALLS             (-2909)
 /** @} */
 
 
@@ -2847,6 +2854,13 @@
  *  required hardware, or that the requested stream configuration
  *  is not supported by the host backend. */
 #define VERR_AUDIO_STREAM_COULD_NOT_CREATE          (-6606)
+/** Generic audio device enumeration error. */
+#define VERR_AUDIO_ENUMERATION_FAILED               (-6607)
+/** Asynchronous stream initialization still on-going. */
+#define VERR_AUDIO_STREAM_INIT_IN_PROGRESS          (-6608)
+/** Special PDMIHOSTAUDIO::pfnStreamCreate return value for triggering
+ * calling of PDMIHOSTAUDIO::pfnStreamInitAsync on a worker thread. */
+#define VINF_AUDIO_STREAM_ASYNC_INIT_NEEDED         (6609)
 /** @} */
 
 
