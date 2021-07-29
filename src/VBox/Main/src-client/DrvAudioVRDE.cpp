@@ -43,7 +43,28 @@
 *   Structures and Typedefs                                                                                                      *
 *********************************************************************************************************************************/
 /**
- * Audio VRDE driver instance data.
+ * VRDE stream.
+ */
+typedef struct VRDESTREAM
+{
+    /** Common part. */
+    PDMAUDIOBACKENDSTREAM   Core;
+    /** The stream's acquired configuration. */
+    PDMAUDIOSTREAMCFG       Cfg;
+    union
+    {
+        struct
+        {
+            /** Circular buffer for holding the recorded audio frames from the host. */
+            PRTCIRCBUF      pCircBuf;
+        } In;
+    };
+} VRDESTREAM;
+/** Pointer to a VRDE stream. */
+typedef VRDESTREAM *PVRDESTREAM;
+
+/**
+ * VRDE (host) audio driver instance data.
  */
 typedef struct DRVAUDIOVRDE
 {
@@ -51,553 +72,41 @@ typedef struct DRVAUDIOVRDE
     AudioVRDE           *pAudioVRDE;
     /** Pointer to the driver instance structure. */
     PPDMDRVINS           pDrvIns;
-    /** Pointer to host audio interface. */
-    PDMIHOSTAUDIO        IHostAudio;
     /** Pointer to the VRDP's console object. */
     ConsoleVRDPServer   *pConsoleVRDPServer;
-    /** Pointer to the DrvAudio port interface that is above us. */
-    PPDMIAUDIOCONNECTOR  pDrvAudio;
     /** Number of connected clients to this VRDE instance. */
     uint32_t             cClients;
-} DRVAUDIOVRDE, *PDRVAUDIOVRDE;
-
-typedef struct VRDESTREAM
-{
-    /** The stream's acquired configuration. */
-    PPDMAUDIOSTREAMCFG pCfg;
-    union
-    {
-        struct
-        {
-            /** Circular buffer for holding the recorded audio frames from the host. */
-            PRTCIRCBUF  pCircBuf;
-        } In;
-    };
-} VRDESTREAM, *PVRDESTREAM;
-
-/* Sanity. */
-AssertCompileSize(PDMAUDIOFRAME, sizeof(int64_t) * 2 /* st_sample_t using by VRDP server */);
-
-static int vrdeCreateStreamIn(PVRDESTREAM pStreamVRDE, PPDMAUDIOSTREAMCFG pCfgReq, PPDMAUDIOSTREAMCFG pCfgAcq)
-{
-    RT_NOREF(pCfgReq);
-    AssertPtrReturn(pCfgAcq, VERR_INVALID_POINTER);
-
-    pCfgAcq->Props.uHz         = 22050; /* The VRDP server's internal frequency. */
-    pCfgAcq->Props.cChannels   = 2;
-    pCfgAcq->Props.cbSample    = 2; /* 16 bit. */
-    pCfgAcq->Props.fSigned     = true;
-    pCfgAcq->Props.fSwapEndian = false;
-    pCfgAcq->Props.cShift      = PDMAUDIOPCMPROPS_MAKE_SHIFT_PARMS(pCfgAcq->Props.cbSample, pCfgAcq->Props.cChannels);
-
-    /* According to the VRDP docs, the VRDP server stores audio in 200ms chunks. */
-    const uint32_t cFramesVrdpServer = PDMAudioPropsMilliToFrames(&pCfgAcq->Props, 200 /*ms*/);
-
-    int rc = RTCircBufCreate(&pStreamVRDE->In.pCircBuf, PDMAudioPropsFramesToBytes(&pCfgAcq->Props, cFramesVrdpServer));
-    if (RT_SUCCESS(rc))
-    {
-        /*
-         * Because of historical reasons the VRDP server operates on st_sample_t structures internally,
-         * which is 2 * int64_t for left/right (stereo) channels.
-         *
-         * As the audio connector also uses this format, set the layout to "raw" and just let pass through
-         * the data without any layout modification needed.
-         */
-        pCfgAcq->enmLayout                      = PDMAUDIOSTREAMLAYOUT_RAW;
-        pCfgAcq->Backend.cFramesPeriod          = cFramesVrdpServer;
-        pCfgAcq->Backend.cFramesBufferSize      = pCfgAcq->Backend.cFramesPeriod * 2; /* Use "double buffering". */
-        pCfgAcq->Backend.cFramesPreBuffering    = pCfgAcq->Backend.cFramesPeriod;
-    }
-
-    return rc;
-}
-
-
-static int vrdeCreateStreamOut(PVRDESTREAM pStreamVRDE, PPDMAUDIOSTREAMCFG pCfgReq, PPDMAUDIOSTREAMCFG pCfgAcq)
-{
-    RT_NOREF(pStreamVRDE, pCfgReq);
-
-    if (pCfgAcq)
-    {
-        /*
-         * Because of historical reasons the VRDP server operates on st_sample_t structures internally,
-         * which is 2 * int64_t for left/right (stereo) channels.
-         *
-         * As the audio connector also uses this format, set the layout to "raw" and just let pass through
-         * the data without any layout modification needed.
-         */
-        pCfgAcq->enmLayout = PDMAUDIOSTREAMLAYOUT_RAW;
-
-        pCfgAcq->Props.uHz       = 22050; /* The VRDP server's internal frequency. */
-        pCfgAcq->Props.cChannels = 2;
-        pCfgAcq->Props.cbSample  = 2; /* 16 bit. */
-        pCfgAcq->Props.fSigned   = true;
-        pCfgAcq->Props.cShift    = PDMAUDIOPCMPROPS_MAKE_SHIFT_PARMS(pCfgAcq->Props.cbSample, pCfgAcq->Props.cChannels);
-
-        /* According to the VRDP docs, the VRDP server stores audio in 200ms chunks. */
-        pCfgAcq->Backend.cFramesPeriod       = PDMAudioPropsMilliToFrames(&pCfgAcq->Props, 20  /*ms*/);
-        pCfgAcq->Backend.cFramesBufferSize   = PDMAudioPropsMilliToFrames(&pCfgAcq->Props, 100 /*ms*/);
-        pCfgAcq->Backend.cFramesPreBuffering = pCfgAcq->Backend.cFramesPeriod * 2;
-    }
-
-    return VINF_SUCCESS;
-}
-
-
-static int vrdeControlStreamOut(PDRVAUDIOVRDE pDrv, PVRDESTREAM pStreamVRDE, PDMAUDIOSTREAMCMD enmStreamCmd)
-{
-    RT_NOREF(pDrv, pStreamVRDE, enmStreamCmd);
-
-    LogFlowFunc(("enmStreamCmd=%ld\n", enmStreamCmd));
-
-    return VINF_SUCCESS;
-}
-
-
-static int vrdeControlStreamIn(PDRVAUDIOVRDE pDrv, PVRDESTREAM pStreamVRDE, PDMAUDIOSTREAMCMD enmStreamCmd)
-{
-    LogFlowFunc(("enmStreamCmd=%ld\n", enmStreamCmd));
-
-    if (!pDrv->pConsoleVRDPServer)
-    {
-        LogRel(("Audio: VRDP console not ready yet\n"));
-        return VERR_AUDIO_STREAM_NOT_READY;
-    }
-
-    int rc;
-
-    /* Initialize only if not already done. */
-    switch (enmStreamCmd)
-    {
-        case PDMAUDIOSTREAMCMD_ENABLE:
-        {
-            rc = pDrv->pConsoleVRDPServer->SendAudioInputBegin(NULL, pStreamVRDE,
-                                                               PDMAudioPropsMilliToFrames(&pStreamVRDE->pCfg->Props, 200 /*ms*/),
-                                                               pStreamVRDE->pCfg->Props.uHz, pStreamVRDE->pCfg->Props.cChannels,
-                                                               pStreamVRDE->pCfg->Props.cbSample * 8 /* Bit */);
-            if (rc == VERR_NOT_SUPPORTED)
-            {
-                LogRel(("Audio: No VRDE client connected, so no input recording available\n"));
-                rc = VERR_AUDIO_STREAM_NOT_READY;
-            }
-
-            break;
-        }
-
-        case PDMAUDIOSTREAMCMD_DISABLE:
-        {
-            pDrv->pConsoleVRDPServer->SendAudioInputEnd(NULL /* pvUserCtx */);
-            rc = VINF_SUCCESS;
-
-            break;
-        }
-
-        case PDMAUDIOSTREAMCMD_PAUSE:
-        {
-            rc = VINF_SUCCESS;
-            break;
-        }
-
-        case PDMAUDIOSTREAMCMD_RESUME:
-        {
-            rc = VINF_SUCCESS;
-            break;
-        }
-
-        default:
-        {
-            rc = VERR_NOT_SUPPORTED;
-            break;
-        }
-    }
-
-    if (RT_FAILURE(rc))
-        LogFunc(("Failed with %Rrc\n", rc));
-
-    return rc;
-}
-
-
-/**
- * @interface_method_impl{PDMIHOSTAUDIO,pfnInit}
- */
-static DECLCALLBACK(int) drvAudioVrdeHA_Init(PPDMIHOSTAUDIO pInterface)
-{
-    RT_NOREF(pInterface);
-    LogFlowFuncEnter();
-
-    return VINF_SUCCESS;
-}
-
-
-/**
- * @interface_method_impl{PDMIHOSTAUDIO,pfnStreamCapture}
- */
-static DECLCALLBACK(int) drvAudioVrdeHA_StreamCapture(PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDSTREAM pStream,
-                                                      void *pvBuf, uint32_t uBufSize, uint32_t *puRead)
-{
-    AssertPtrReturn(pInterface, VERR_INVALID_POINTER);
-    AssertPtrReturn(pStream,    VERR_INVALID_POINTER);
-    AssertPtrReturn(pvBuf,      VERR_INVALID_POINTER);
-    AssertReturn(uBufSize,         VERR_INVALID_PARAMETER);
-    /* puRead is optional. */
-
-    PVRDESTREAM pStreamVRDE = (PVRDESTREAM)pStream;
-
-    size_t cbData = 0;
-
-    if (RTCircBufUsed(pStreamVRDE->In.pCircBuf))
-    {
-        void *pvData;
-
-        RTCircBufAcquireReadBlock(pStreamVRDE->In.pCircBuf, uBufSize, &pvData, &cbData);
-
-        if (cbData)
-            memcpy(pvBuf, pvData, cbData);
-
-        RTCircBufReleaseReadBlock(pStreamVRDE->In.pCircBuf, cbData);
-    }
-
-    if (puRead)
-        *puRead = (uint32_t)cbData;
-
-    return VINF_SUCCESS;
-}
-
-
-/**
- * @interface_method_impl{PDMIHOSTAUDIO,pfnStreamPlay}
- */
-static DECLCALLBACK(int) drvAudioVrdeHA_StreamPlay(PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDSTREAM pStream,
-                                                   const void *pvBuf, uint32_t uBufSize, uint32_t *puWritten)
-{
-    AssertPtrReturn(pInterface, VERR_INVALID_POINTER);
-    AssertPtrReturn(pStream,    VERR_INVALID_POINTER);
-    AssertPtrReturn(pvBuf,      VERR_INVALID_POINTER);
-    AssertReturn(uBufSize,         VERR_INVALID_PARAMETER);
-    /* puWritten is optional. */
-
-    PDRVAUDIOVRDE pDrv        = RT_FROM_MEMBER(pInterface, DRVAUDIOVRDE, IHostAudio);
-    PVRDESTREAM   pStreamVRDE = (PVRDESTREAM)pStream;
-
-    if (!pDrv->pConsoleVRDPServer)
-        return VERR_NOT_AVAILABLE;
-
-    /* Note: We get the number of *frames* in uBufSize
-     *       (since we specified PDMAUDIOSTREAMLAYOUT_RAW as the audio data layout) on stream creation. */
-    uint32_t cFramesLive = uBufSize;
-
-    PPDMAUDIOPCMPROPS pProps = &pStreamVRDE->pCfg->Props;
-
-    VRDEAUDIOFORMAT format = VRDE_AUDIO_FMT_MAKE(pProps->uHz,
-                                                 pProps->cChannels,
-                                                 pProps->cbSample * 8 /* Bit */,
-                                                 pProps->fSigned);
-
-    /* Use the internal counter to track if we (still) can write to the VRDP server
-     * or if we need to wait another round (time slot). */
-    uint32_t cFramesToWrite = cFramesLive;
-
-    Log3Func(("cFramesLive=%RU32, cFramesToWrite=%RU32\n", cFramesLive, cFramesToWrite));
-
-    /* Don't play more than available. */
-    if (cFramesToWrite > cFramesLive)
-        cFramesToWrite = cFramesLive;
-
-    int rc = VINF_SUCCESS;
-
-    PPDMAUDIOFRAME paSampleBuf = (PPDMAUDIOFRAME)pvBuf;
-    AssertPtr(paSampleBuf);
-
-    /*
-     * Call the VRDP server with the data.
-     */
-    uint32_t cfWritten = 0;
-    while (cFramesToWrite)
-    {
-        uint32_t cfChunk = cFramesToWrite; /** @todo For now write all at once. */
-
-        if (!cfChunk) /* Nothing to send. Bail out. */
-            break;
-
-        /* Note: The VRDP server expects int64_t samples per channel, regardless of the actual
-         *       sample bits (e.g 8 or 16 bits). */
-        pDrv->pConsoleVRDPServer->SendAudioSamples(paSampleBuf + cfWritten, cfChunk /* Frames */, format);
-
-        cfWritten += cfChunk;
-        Assert(cfWritten <= cFramesLive);
-
-        Assert(cFramesToWrite >= cfChunk);
-        cFramesToWrite -= cfChunk;
-    }
-
-    if (RT_SUCCESS(rc))
-    {
-        /* Return frames instead of bytes here
-         * (since we specified PDMAUDIOSTREAMLAYOUT_RAW as the audio data layout). */
-        if (puWritten)
-            *puWritten = cfWritten;
-    }
-
-    return rc;
-}
-
-
-static int vrdeDestroyStreamIn(PDRVAUDIOVRDE pDrv, PVRDESTREAM pStreamVRDE)
-{
-    if (pDrv->pConsoleVRDPServer)
-        pDrv->pConsoleVRDPServer->SendAudioInputEnd(NULL);
-
-    if (pStreamVRDE->In.pCircBuf)
-    {
-        RTCircBufDestroy(pStreamVRDE->In.pCircBuf);
-        pStreamVRDE->In.pCircBuf = NULL;
-    }
-
-    return VINF_SUCCESS;
-}
-
-
-static int vrdeDestroyStreamOut(PDRVAUDIOVRDE pDrv, PVRDESTREAM pStreamVRDE)
-{
-    RT_NOREF(pDrv, pStreamVRDE);
-
-    return VINF_SUCCESS;
-}
-
-
-/**
- * @interface_method_impl{PDMIHOSTAUDIO,pfnGetConfig}
- */
-static DECLCALLBACK(int) drvAudioVrdeHA_GetConfig(PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDCFG pBackendCfg)
-{
-    RT_NOREF(pInterface);
-    AssertPtrReturn(pBackendCfg, VERR_INVALID_POINTER);
-
-    RTStrPrintf2(pBackendCfg->szName, sizeof(pBackendCfg->szName), "VRDE");
-
-    pBackendCfg->cbStreamOut    = sizeof(VRDESTREAM);
-    pBackendCfg->cbStreamIn     = sizeof(VRDESTREAM);
-    pBackendCfg->cMaxStreamsIn  = UINT32_MAX;
-    pBackendCfg->cMaxStreamsOut = UINT32_MAX;
-
-    return VINF_SUCCESS;
-}
-
-
-/**
- * @interface_method_impl{PDMIHOSTAUDIO,pfnShutdown}
- */
-static DECLCALLBACK(void) drvAudioVrdeHA_Shutdown(PPDMIHOSTAUDIO pInterface)
-{
-    PDRVAUDIOVRDE pDrv = RT_FROM_MEMBER(pInterface, DRVAUDIOVRDE, IHostAudio);
-    AssertPtrReturnVoid(pDrv);
-
-    if (pDrv->pConsoleVRDPServer)
-        pDrv->pConsoleVRDPServer->SendAudioInputEnd(NULL);
-}
-
-
-/**
- * @interface_method_impl{PDMIHOSTAUDIO,pfnGetStatus}
- */
-static DECLCALLBACK(PDMAUDIOBACKENDSTS) drvAudioVrdeHA_GetStatus(PPDMIHOSTAUDIO pInterface, PDMAUDIODIR enmDir)
-{
-    PDRVAUDIOVRDE pDrv = RT_FROM_MEMBER(pInterface, DRVAUDIOVRDE, IHostAudio);
-    AssertPtrReturn(pDrv, PDMAUDIOBACKENDSTS_ERROR);
-
-    RT_NOREF(enmDir);
-
-    return PDMAUDIOBACKENDSTS_RUNNING;
-}
-
-
-/**
- * @interface_method_impl{PDMIHOSTAUDIO,pfnStreamCreate}
- */
-static DECLCALLBACK(int) drvAudioVrdeHA_StreamCreate(PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDSTREAM pStream,
-                                                     PPDMAUDIOSTREAMCFG pCfgReq, PPDMAUDIOSTREAMCFG pCfgAcq)
-{
-    AssertPtrReturn(pInterface, VERR_INVALID_POINTER);
-    AssertPtrReturn(pStream,    VERR_INVALID_POINTER);
-    AssertPtrReturn(pCfgReq,    VERR_INVALID_POINTER);
-    AssertPtrReturn(pCfgAcq,    VERR_INVALID_POINTER);
-
-    RT_NOREF(pInterface);
-
-    PVRDESTREAM pStreamVRDE = (PVRDESTREAM)pStream;
-
-    int rc;
-    if (pCfgReq->enmDir == PDMAUDIODIR_IN)
-        rc = vrdeCreateStreamIn( pStreamVRDE, pCfgReq, pCfgAcq);
-    else
-        rc = vrdeCreateStreamOut(pStreamVRDE, pCfgReq, pCfgAcq);
-
-    if (RT_SUCCESS(rc))
-    {
-        pStreamVRDE->pCfg = PDMAudioStrmCfgDup(pCfgAcq);
-        if (!pStreamVRDE->pCfg)
-            rc = VERR_NO_MEMORY;
-    }
-
-    return rc;
-}
-
-
-/**
- * @interface_method_impl{PDMIHOSTAUDIO,pfnStreamDestroy}
- */
-static DECLCALLBACK(int) drvAudioVrdeHA_StreamDestroy(PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDSTREAM pStream)
-{
-    RT_NOREF(pInterface);
-    AssertPtrReturn(pStream,    VERR_INVALID_POINTER);
-
-    PDRVAUDIOVRDE pDrv        = RT_FROM_MEMBER(pInterface, DRVAUDIOVRDE, IHostAudio);
-    PVRDESTREAM   pStreamVRDE = (PVRDESTREAM)pStream;
-
-    if (!pStreamVRDE->pCfg) /* Not (yet) configured? Skip. */
-        return VINF_SUCCESS;
-
-    int rc;
-    if (pStreamVRDE->pCfg->enmDir == PDMAUDIODIR_IN)
-        rc = vrdeDestroyStreamIn(pDrv, pStreamVRDE);
-    else
-        rc = vrdeDestroyStreamOut(pDrv, pStreamVRDE);
-
-    if (RT_SUCCESS(rc))
-    {
-        PDMAudioStrmCfgFree(pStreamVRDE->pCfg);
-        pStreamVRDE->pCfg = NULL;
-    }
-
-    return rc;
-}
-
-
-/**
- * @interface_method_impl{PDMIHOSTAUDIO,pfnStreamControl}
- */
-static DECLCALLBACK(int) drvAudioVrdeHA_StreamControl(PPDMIHOSTAUDIO pInterface,
-                                                      PPDMAUDIOBACKENDSTREAM pStream, PDMAUDIOSTREAMCMD enmStreamCmd)
-{
-    AssertPtrReturn(pInterface, VERR_INVALID_POINTER);
-    AssertPtrReturn(pStream,    VERR_INVALID_POINTER);
-
-    PDRVAUDIOVRDE pDrv        = RT_FROM_MEMBER(pInterface, DRVAUDIOVRDE, IHostAudio);
-    PVRDESTREAM   pStreamVRDE = (PVRDESTREAM)pStream;
-
-    if (!pStreamVRDE->pCfg) /* Not (yet) configured? Skip. */
-        return VINF_SUCCESS;
-
-    int rc;
-    if (pStreamVRDE->pCfg->enmDir == PDMAUDIODIR_IN)
-        rc = vrdeControlStreamIn(pDrv, pStreamVRDE, enmStreamCmd);
-    else
-        rc = vrdeControlStreamOut(pDrv, pStreamVRDE, enmStreamCmd);
-
-    return rc;
-}
-
-
-/**
- * @interface_method_impl{PDMIHOSTAUDIO,pfnStreamGetReadable}
- */
-static DECLCALLBACK(uint32_t) drvAudioVrdeHA_StreamGetReadable(PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDSTREAM pStream)
-{
-    RT_NOREF(pInterface);
-
-    PVRDESTREAM pStreamVRDE = (PVRDESTREAM)pStream;
-
-    if (pStreamVRDE->pCfg->enmDir == PDMAUDIODIR_IN)
-    {
-        /* Return frames instead of bytes here
-         * (since we specified PDMAUDIOSTREAMLAYOUT_RAW as the audio data layout). */
-        return (uint32_t)PDMAUDIOSTREAMCFG_B2F(pStreamVRDE->pCfg, RTCircBufUsed(pStreamVRDE->In.pCircBuf));
-    }
-
-    return 0;
-}
-
-
-/**
- * @interface_method_impl{PDMIHOSTAUDIO,pfnStreamGetWritable}
- */
-static DECLCALLBACK(uint32_t) drvAudioVrdeHA_StreamGetWritable(PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDSTREAM pStream)
-{
-    PDRVAUDIOVRDE pDrv        = RT_FROM_MEMBER(pInterface, DRVAUDIOVRDE, IHostAudio);
-    PVRDESTREAM   pStreamVRDE = (PVRDESTREAM)pStream;
-
-    PPDMAUDIOPCMPROPS pProps  = &pStreamVRDE->pCfg->Props;
-
-    RT_NOREF(pDrv,  pProps);
-
-    /* Return frames instead of bytes here
-     * (since we specified PDMAUDIOSTREAMLAYOUT_RAW as the audio data layout). */
-    if (pDrv->cClients)
-        return _16K; /** @todo Find some sane value here. We probably need a VRDE API VRDE to specify this. */
-
-    return 0;
-}
-
-
-/**
- * @interface_method_impl{PDMIHOSTAUDIO,pfnStreamGetStatus}
- */
-static DECLCALLBACK(PDMAUDIOSTREAMSTS) drvAudioVrdeHA_StreamGetStatus(PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDSTREAM pStream)
-{
-    PDRVAUDIOVRDE pDrv = RT_FROM_MEMBER(pInterface, DRVAUDIOVRDE, IHostAudio);
-    RT_NOREF(pStream);
-
-    PDMAUDIOSTREAMSTS fStrmStatus = PDMAUDIOSTREAMSTS_FLAGS_INITIALIZED;
-
-    if (pDrv->cClients) /* If any clients are connected, flag the stream as enabled. */
-       fStrmStatus |= PDMAUDIOSTREAMSTS_FLAGS_ENABLED;
-
-    return fStrmStatus;
-}
-
-
-/**
- * @interface_method_impl{PDMIHOSTAUDIO,pfnStreamIterate}
- */
-static DECLCALLBACK(int) drvAudioVrdeHA_StreamIterate(PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDSTREAM pStream)
-{
-    AssertPtrReturn(pInterface, VERR_INVALID_POINTER);
-    AssertPtrReturn(pStream,    VERR_INVALID_POINTER);
-
-    /* Nothing to do here for VRDE. */
-    return VINF_SUCCESS;
-}
-
-
-/**
- * @interface_method_impl{PDMIBASE,pfnQueryInterface}
- */
-static DECLCALLBACK(void *) drvAudioVrdeQueryInterface(PPDMIBASE pInterface, const char *pszIID)
-{
-    PPDMDRVINS pDrvIns = PDMIBASE_2_PDMDRV(pInterface);
-    PDRVAUDIOVRDE pThis = PDMINS_2_DATA(pDrvIns, PDRVAUDIOVRDE);
-
-    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pDrvIns->IBase);
-    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIHOSTAUDIO, &pThis->IHostAudio);
-    return NULL;
-}
-
+    /** Interface to the driver above us (DrvAudio).   */
+    PDMIHOSTAUDIOPORT   *pIHostAudioPort;
+    /** Pointer to host audio interface. */
+    PDMIHOSTAUDIO        IHostAudio;
+} DRVAUDIOVRDE;
+/** Pointer to the instance data for an VRDE audio driver. */
+typedef DRVAUDIOVRDE *PDRVAUDIOVRDE;
+
+
+/*********************************************************************************************************************************
+*   Class AudioVRDE                                                                                                              *
+*********************************************************************************************************************************/
 
 AudioVRDE::AudioVRDE(Console *pConsole)
     : AudioDriver(pConsole)
     , mpDrv(NULL)
 {
+    RTCritSectInit(&mCritSect);
 }
 
 
 AudioVRDE::~AudioVRDE(void)
 {
+    RTCritSectEnter(&mCritSect);
     if (mpDrv)
     {
         mpDrv->pAudioVRDE = NULL;
         mpDrv = NULL;
     }
+    RTCritSectLeave(&mCritSect);
+    RTCritSectDelete(&mCritSect);
 }
 
 
@@ -619,9 +128,34 @@ void AudioVRDE::onVRDEClientConnect(uint32_t uClientID)
 {
     RT_NOREF(uClientID);
 
-    LogRel2(("Audio: VRDE client connected\n"));
+    RTCritSectEnter(&mCritSect);
     if (mpDrv)
+    {
         mpDrv->cClients++;
+        LogRel2(("Audio: VRDE client connected (#%u)\n", mpDrv->cClients));
+
+#if 0 /* later, maybe */
+        /*
+         * The first client triggers a device change event in both directions
+         * so that can start talking to the audio device.
+         *
+         * Note! Should be okay to stay in the critical section here, as it's only
+         *       used at construction and destruction time.
+         */
+        if (mpDrv->cClients == 1)
+        {
+            VMSTATE enmState = PDMDrvHlpVMState(mpDrv->pDrvIns);
+            if (enmState <= VMSTATE_POWERING_OFF)
+            {
+                PDMIHOSTAUDIOPORT *pIHostAudioPort = mpDrv->pIHostAudioPort;
+                AssertPtr(pIHostAudioPort);
+                pIHostAudioPort->pfnNotifyDeviceChanged(pIHostAudioPort, PDMAUDIODIR_OUT, NULL /*pvUser*/);
+                pIHostAudioPort->pfnNotifyDeviceChanged(pIHostAudioPort, PDMAUDIODIR_IN,  NULL /*pvUser*/);
+            }
+        }
+#endif
+    }
+    RTCritSectLeave(&mCritSect);
 }
 
 
@@ -629,10 +163,33 @@ void AudioVRDE::onVRDEClientDisconnect(uint32_t uClientID)
 {
     RT_NOREF(uClientID);
 
-    LogRel2(("Audio: VRDE client disconnected\n"));
-    Assert(mpDrv->cClients);
+    RTCritSectEnter(&mCritSect);
     if (mpDrv)
+    {
+        Assert(mpDrv->cClients > 0);
         mpDrv->cClients--;
+        LogRel2(("Audio: VRDE client disconnected (%u left)\n", mpDrv->cClients));
+#if 0 /* later maybe */
+        /*
+         * The last client leaving triggers a device change event in both
+         * directions so the audio devices can stop wasting time trying to
+         * talk to us.  (There is an additional safeguard in
+         * drvAudioVrdeHA_StreamGetStatus.)
+         */
+        if (mpDrv->cClients == 0)
+        {
+            VMSTATE enmState = PDMDrvHlpVMState(mpDrv->pDrvIns);
+            if (enmState <= VMSTATE_POWERING_OFF)
+            {
+                PDMIHOSTAUDIOPORT *pIHostAudioPort = mpDrv->pIHostAudioPort;
+                AssertPtr(pIHostAudioPort);
+                pIHostAudioPort->pfnNotifyDeviceChanged(pIHostAudioPort, PDMAUDIODIR_OUT, NULL /*pvUser*/);
+                pIHostAudioPort->pfnNotifyDeviceChanged(pIHostAudioPort, PDMAUDIODIR_IN,  NULL /*pvUser*/);
+            }
+        }
+#endif
+    }
+    RTCritSectLeave(&mCritSect);
 }
 
 
@@ -652,7 +209,7 @@ int AudioVRDE::onVRDEControl(bool fEnable, uint32_t uFlags)
  * Marks the beginning of sending captured audio data from a connected
  * RDP client.
  *
- * @return  IPRT status code.
+ * @returns VBox status code.
  * @param   pvContext               The context; in this case a pointer to a
  *                                  VRDESTREAMIN structure.
  * @param   pVRDEAudioBegin         Pointer to a VRDEAUDIOINBEGIN structure.
@@ -661,19 +218,15 @@ int AudioVRDE::onVRDEInputBegin(void *pvContext, PVRDEAUDIOINBEGIN pVRDEAudioBeg
 {
     AssertPtrReturn(pvContext, VERR_INVALID_POINTER);
     AssertPtrReturn(pVRDEAudioBegin, VERR_INVALID_POINTER);
-
     PVRDESTREAM pVRDEStrmIn = (PVRDESTREAM)pvContext;
     AssertPtrReturn(pVRDEStrmIn, VERR_INVALID_POINTER);
 
-    VRDEAUDIOFORMAT audioFmt = pVRDEAudioBegin->fmt;
-
-    int iSampleHz  = VRDE_AUDIO_FMT_SAMPLE_FREQ(audioFmt);     RT_NOREF(iSampleHz);
-    int cChannels  = VRDE_AUDIO_FMT_CHANNELS(audioFmt);        RT_NOREF(cChannels);
-    int cBits      = VRDE_AUDIO_FMT_BITS_PER_SAMPLE(audioFmt); RT_NOREF(cBits);
-    bool fUnsigned = VRDE_AUDIO_FMT_SIGNED(audioFmt);          RT_NOREF(fUnsigned);
-
+#ifdef LOG_ENABLED
+    VRDEAUDIOFORMAT const audioFmt = pVRDEAudioBegin->fmt;
     LogFlowFunc(("cbSample=%RU32, iSampleHz=%d, cChannels=%d, cBits=%d, fUnsigned=%RTbool\n",
-                 VRDE_AUDIO_FMT_BYTES_PER_SAMPLE(audioFmt), iSampleHz, cChannels, cBits, fUnsigned));
+                 VRDE_AUDIO_FMT_BYTES_PER_SAMPLE(audioFmt), VRDE_AUDIO_FMT_SAMPLE_FREQ(audioFmt),
+                 VRDE_AUDIO_FMT_CHANNELS(audioFmt), VRDE_AUDIO_FMT_BITS_PER_SAMPLE(audioFmt), VRDE_AUDIO_FMT_SIGNED(audioFmt)));
+#endif
 
     return VINF_SUCCESS;
 }
@@ -683,10 +236,10 @@ int AudioVRDE::onVRDEInputData(void *pvContext, const void *pvData, uint32_t cbD
 {
     PVRDESTREAM pStreamVRDE = (PVRDESTREAM)pvContext;
     AssertPtrReturn(pStreamVRDE, VERR_INVALID_POINTER);
+    LogFlowFunc(("cbData=%#x\n", cbData));
 
-    void  *pvBuf;
-    size_t cbBuf;
-
+    void  *pvBuf = NULL;
+    size_t cbBuf = 0;
     RTCircBufAcquireWriteBlock(pStreamVRDE->In.pCircBuf, cbData, &pvBuf, &cbBuf);
 
     if (cbBuf)
@@ -695,7 +248,7 @@ int AudioVRDE::onVRDEInputData(void *pvContext, const void *pvData, uint32_t cbD
     RTCircBufReleaseWriteBlock(pStreamVRDE->In.pCircBuf, cbBuf);
 
     if (cbBuf < cbData)
-        LogRel(("VRDE: Capturing audio data lost %zu bytes\n", cbData - cbBuf)); /** @todo Use an error counter. */
+        LogRelMax(999, ("VRDE: Capturing audio data lost %zu bytes\n", cbData - cbBuf)); /** @todo Use an error counter. */
 
     return VINF_SUCCESS; /** @todo r=andy How to tell the caller if we were not able to handle *all* input data? */
 }
@@ -704,7 +257,6 @@ int AudioVRDE::onVRDEInputData(void *pvContext, const void *pvData, uint32_t cbD
 int AudioVRDE::onVRDEInputEnd(void *pvContext)
 {
     RT_NOREF(pvContext);
-
     return VINF_SUCCESS;
 }
 
@@ -713,6 +265,425 @@ int AudioVRDE::onVRDEInputIntercept(bool fEnabled)
 {
     RT_NOREF(fEnabled);
     return VINF_SUCCESS; /* Never veto. */
+}
+
+
+
+/*********************************************************************************************************************************
+*   PDMIHOSTAUDIO                                                                                                                *
+*********************************************************************************************************************************/
+
+/**
+ * @interface_method_impl{PDMIHOSTAUDIO,pfnGetConfig}
+ */
+static DECLCALLBACK(int) drvAudioVrdeHA_GetConfig(PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDCFG pBackendCfg)
+{
+    RT_NOREF(pInterface);
+    AssertPtrReturn(pBackendCfg, VERR_INVALID_POINTER);
+
+    RTStrCopy(pBackendCfg->szName, sizeof(pBackendCfg->szName), "VRDE");
+    pBackendCfg->cbStream       = sizeof(VRDESTREAM);
+    pBackendCfg->fFlags         = 0;
+    pBackendCfg->cMaxStreamsIn  = UINT32_MAX;
+    pBackendCfg->cMaxStreamsOut = UINT32_MAX;
+
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * @interface_method_impl{PDMIHOSTAUDIO,pfnGetStatus}
+ */
+static DECLCALLBACK(PDMAUDIOBACKENDSTS) drvAudioVrdeHA_GetStatus(PPDMIHOSTAUDIO pInterface, PDMAUDIODIR enmDir)
+{
+    RT_NOREF(pInterface, enmDir);
+    return PDMAUDIOBACKENDSTS_RUNNING;
+}
+
+
+/**
+ * @interface_method_impl{PDMIHOSTAUDIO,pfnStreamCreate}
+ */
+static DECLCALLBACK(int) drvAudioVrdeHA_StreamCreate(PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDSTREAM pStream,
+                                                     PCPDMAUDIOSTREAMCFG pCfgReq, PPDMAUDIOSTREAMCFG pCfgAcq)
+{
+    PDRVAUDIOVRDE pThis       = RT_FROM_MEMBER(pInterface, DRVAUDIOVRDE, IHostAudio);
+    PVRDESTREAM   pStreamVRDE = (PVRDESTREAM)pStream;
+    AssertPtrReturn(pStreamVRDE, VERR_INVALID_POINTER);
+    AssertPtrReturn(pCfgReq, VERR_INVALID_POINTER);
+    AssertPtrReturn(pCfgAcq, VERR_INVALID_POINTER);
+
+    /*
+     * Only create a stream if we have clients.
+     */
+    int rc;
+    NOREF(pThis);
+#if 0 /* later maybe */
+    if (pThis->cClients == 0)
+    {
+        LogFunc(("No clients, failing with VERR_AUDIO_STREAM_COULD_NOT_CREATE.\n"));
+        rc = VERR_AUDIO_STREAM_COULD_NOT_CREATE;
+    }
+    else
+#endif
+    {
+        /*
+         * The VRDP server does its own mixing and resampling because it may be
+         * sending the audio to any number of different clients all with different
+         * formats (including clients which hasn't yet connected).  So, it desires
+         * the raw data from the mixer (somewhat akind to stereo signed 64-bit,
+         * see st_sample_t and PDMAUDIOFRAME).
+         */
+        PDMAudioPropsInitEx(&pCfgAcq->Props, 8 /*64-bit*/, true /*fSigned*/, 2 /*stereo*/,
+                            22050 /*Hz - VRDP_AUDIO_CHUNK_INTERNAL_FREQ_HZ*/,
+                            true /*fLittleEndian*/, true /*fRaw*/);
+
+        /* According to the VRDP docs (VRDP_AUDIO_CHUNK_TIME_MS), the VRDP server
+           stores audio in 200ms chunks. */
+        const uint32_t cFramesVrdpServer = PDMAudioPropsMilliToFrames(&pCfgAcq->Props, 200 /*ms*/);
+
+        if (pCfgReq->enmDir == PDMAUDIODIR_IN)
+        {
+            pCfgAcq->Backend.cFramesBufferSize      = cFramesVrdpServer;
+            pCfgAcq->Backend.cFramesPeriod          = cFramesVrdpServer / 4; /* This is utter non-sense, but whatever. */
+            pCfgAcq->Backend.cFramesPreBuffering    = pCfgReq->Backend.cFramesPreBuffering * cFramesVrdpServer
+                                                    / RT_MAX(pCfgReq->Backend.cFramesBufferSize, 1);
+
+            rc = RTCircBufCreate(&pStreamVRDE->In.pCircBuf, PDMAudioPropsFramesToBytes(&pCfgAcq->Props, cFramesVrdpServer));
+        }
+        else
+        {
+            /** @todo r=bird: So, if VRDP does 200ms chunks, why do we report 100ms
+             *        buffer and 20ms period?  How does these parameters at all correlate
+             *        with the above comment?!? */
+            pCfgAcq->Backend.cFramesPeriod       = PDMAudioPropsMilliToFrames(&pCfgAcq->Props, 20  /*ms*/);
+            pCfgAcq->Backend.cFramesBufferSize   = PDMAudioPropsMilliToFrames(&pCfgAcq->Props, 100 /*ms*/);
+            pCfgAcq->Backend.cFramesPreBuffering = pCfgAcq->Backend.cFramesPeriod * 2;
+            rc = VINF_SUCCESS;
+        }
+
+        PDMAudioStrmCfgCopy(&pStreamVRDE->Cfg, pCfgAcq);
+    }
+    return rc;
+}
+
+
+/**
+ * @interface_method_impl{PDMIHOSTAUDIO,pfnStreamDestroy}
+ */
+static DECLCALLBACK(int) drvAudioVrdeHA_StreamDestroy(PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDSTREAM pStream,
+                                                      bool fImmediate)
+{
+    PDRVAUDIOVRDE pDrv        = RT_FROM_MEMBER(pInterface, DRVAUDIOVRDE, IHostAudio);
+    PVRDESTREAM   pStreamVRDE = (PVRDESTREAM)pStream;
+    AssertPtrReturn(pStreamVRDE, VERR_INVALID_POINTER);
+    RT_NOREF(fImmediate);
+
+    if (pStreamVRDE->Cfg.enmDir == PDMAUDIODIR_IN)
+    {
+        LogFlowFunc(("Calling SendAudioInputEnd\n"));
+        if (pDrv->pConsoleVRDPServer)
+            pDrv->pConsoleVRDPServer->SendAudioInputEnd(NULL);
+
+        if (pStreamVRDE->In.pCircBuf)
+        {
+            RTCircBufDestroy(pStreamVRDE->In.pCircBuf);
+            pStreamVRDE->In.pCircBuf = NULL;
+        }
+    }
+
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * @interface_method_impl{PDMIHOSTAUDIO,pfnStreamEnable}
+ */
+static DECLCALLBACK(int) drvAudioVrdeHA_StreamEnable(PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDSTREAM pStream)
+{
+    PDRVAUDIOVRDE pDrv        = RT_FROM_MEMBER(pInterface, DRVAUDIOVRDE, IHostAudio);
+    PVRDESTREAM   pStreamVRDE = (PVRDESTREAM)pStream;
+
+    int rc;
+    if (!pDrv->pConsoleVRDPServer)
+    {
+        LogRelMax(32, ("Audio: VRDP console not ready (enable)\n"));
+        rc = VERR_AUDIO_STREAM_NOT_READY;
+    }
+    else if (pStreamVRDE->Cfg.enmDir == PDMAUDIODIR_IN)
+    {
+        rc = pDrv->pConsoleVRDPServer->SendAudioInputBegin(NULL, pStreamVRDE,
+                                                           PDMAudioPropsMilliToFrames(&pStreamVRDE->Cfg.Props, 200 /*ms*/),
+                                                           PDMAudioPropsHz(&pStreamVRDE->Cfg.Props),
+                                                           PDMAudioPropsChannels(&pStreamVRDE->Cfg.Props),
+                                                           PDMAudioPropsSampleBits(&pStreamVRDE->Cfg.Props));
+        LogFlowFunc(("SendAudioInputBegin returns %Rrc\n", rc));
+        if (rc == VERR_NOT_SUPPORTED)
+        {
+            LogRelMax(64, ("Audio: No VRDE client connected, so no input recording available\n"));
+            rc = VERR_AUDIO_STREAM_NOT_READY;
+        }
+    }
+    else
+        rc = VINF_SUCCESS;
+    LogFlowFunc(("returns %Rrc\n", rc));
+    return rc;
+}
+
+
+/**
+ * @interface_method_impl{PDMIHOSTAUDIO,pfnStreamDisable}
+ */
+static DECLCALLBACK(int) drvAudioVrdeHA_StreamDisable(PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDSTREAM pStream)
+{
+    PDRVAUDIOVRDE pDrv        = RT_FROM_MEMBER(pInterface, DRVAUDIOVRDE, IHostAudio);
+    PVRDESTREAM   pStreamVRDE = (PVRDESTREAM)pStream;
+
+    int rc;
+    if (!pDrv->pConsoleVRDPServer)
+    {
+        LogRelMax(32, ("Audio: VRDP console not ready (disable)\n"));
+        rc = VERR_AUDIO_STREAM_NOT_READY;
+    }
+    else if (pStreamVRDE->Cfg.enmDir == PDMAUDIODIR_IN)
+    {
+        LogFlowFunc(("Calling SendAudioInputEnd\n"));
+        pDrv->pConsoleVRDPServer->SendAudioInputEnd(NULL /* pvUserCtx */);
+        rc = VINF_SUCCESS;
+    }
+    else
+        rc = VINF_SUCCESS;
+    LogFlowFunc(("returns %Rrc\n", rc));
+    return rc;
+}
+
+
+/**
+ * @interface_method_impl{PDMIHOSTAUDIO,pfnStreamPause}
+ */
+static DECLCALLBACK(int) drvAudioVrdeHA_StreamPause(PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDSTREAM pStream)
+{
+    PDRVAUDIOVRDE pDrv = RT_FROM_MEMBER(pInterface, DRVAUDIOVRDE, IHostAudio);
+    RT_NOREF(pStream);
+
+    if (!pDrv->pConsoleVRDPServer)
+    {
+        LogRelMax(32, ("Audio: VRDP console not ready (pause)\n"));
+        return VERR_AUDIO_STREAM_NOT_READY;
+    }
+    LogFlowFunc(("returns VINF_SUCCESS\n"));
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * @interface_method_impl{PDMIHOSTAUDIO,pfnStreamResume}
+ */
+static DECLCALLBACK(int) drvAudioVrdeHA_StreamResume(PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDSTREAM pStream)
+{
+    PDRVAUDIOVRDE pDrv = RT_FROM_MEMBER(pInterface, DRVAUDIOVRDE, IHostAudio);
+    RT_NOREF(pStream);
+
+    if (!pDrv->pConsoleVRDPServer)
+    {
+        LogRelMax(32, ("Audio: VRDP console not ready (resume)\n"));
+        return VERR_AUDIO_STREAM_NOT_READY;
+    }
+    LogFlowFunc(("returns VINF_SUCCESS\n"));
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * @interface_method_impl{PDMIHOSTAUDIO,pfnStreamDrain}
+ */
+static DECLCALLBACK(int) drvAudioVrdeHA_StreamDrain(PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDSTREAM pStream)
+{
+    RT_NOREF(pInterface, pStream);
+    LogFlowFunc(("returns VINF_SUCCESS\n"));
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * @interface_method_impl{PDMIHOSTAUDIO,pfnStreamGetState}
+ */
+static DECLCALLBACK(PDMHOSTAUDIOSTREAMSTATE) drvAudioVrdeHA_StreamGetState(PPDMIHOSTAUDIO pInterface,
+                                                                           PPDMAUDIOBACKENDSTREAM pStream)
+{
+    PDRVAUDIOVRDE pDrv = RT_FROM_MEMBER(pInterface, DRVAUDIOVRDE, IHostAudio);
+    AssertPtrReturn(pStream, PDMHOSTAUDIOSTREAMSTATE_INVALID);
+
+    return pDrv->cClients > 0 ? PDMHOSTAUDIOSTREAMSTATE_OKAY : PDMHOSTAUDIOSTREAMSTATE_INACTIVE;
+}
+
+
+/**
+ * @interface_method_impl{PDMIHOSTAUDIO,pfnStreamGetWritable}
+ */
+static DECLCALLBACK(uint32_t) drvAudioVrdeHA_StreamGetWritable(PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDSTREAM pStream)
+{
+    PDRVAUDIOVRDE pDrv        = RT_FROM_MEMBER(pInterface, DRVAUDIOVRDE, IHostAudio);
+    PVRDESTREAM   pStreamVRDE = (PVRDESTREAM)pStream;
+
+    /** @todo Find some sane value here. We probably need a VRDE API VRDE to specify this. */
+    if (pDrv->cClients)
+        return PDMAudioPropsFramesToBytes(&pStreamVRDE->Cfg.Props, pStreamVRDE->Cfg.Backend.cFramesBufferSize);
+    return 0;
+}
+
+
+/**
+ * @interface_method_impl{PDMIHOSTAUDIO,pfnStreamPlay}
+ */
+static DECLCALLBACK(int) drvAudioVrdeHA_StreamPlay(PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDSTREAM pStream,
+                                                   const void *pvBuf, uint32_t cbBuf, uint32_t *pcbWritten)
+{
+    PDRVAUDIOVRDE pDrv = RT_FROM_MEMBER(pInterface, DRVAUDIOVRDE, IHostAudio);
+    AssertPtr(pDrv);
+    AssertPtrReturn(pStream, VERR_INVALID_POINTER);
+    PVRDESTREAM pStreamVRDE = (PVRDESTREAM)pStream;
+    if (cbBuf)
+        AssertPtrReturn(pvBuf, VERR_INVALID_POINTER);
+    AssertPtrReturn(pcbWritten, VERR_INVALID_POINTER);
+
+    if (!pDrv->pConsoleVRDPServer)
+        return VERR_NOT_AVAILABLE;
+
+    /* Prepate the format. */
+    PPDMAUDIOPCMPROPS pProps = &pStreamVRDE->Cfg.Props;
+    VRDEAUDIOFORMAT const uVrdpFormat = VRDE_AUDIO_FMT_MAKE(PDMAudioPropsHz(pProps),
+                                                            PDMAudioPropsChannels(pProps),
+                                                            PDMAudioPropsSampleBits(pProps),
+                                                            pProps->fSigned);
+    Assert(uVrdpFormat == VRDE_AUDIO_FMT_MAKE(PDMAudioPropsHz(pProps), 2, 64, true));
+
+    /** @todo r=bird: there was some incoherent mumbling about "using the
+     *        internal counter to track if we (still) can write to the VRDP
+     *        server or if need to wait another round (time slot)".  However it
+     *        wasn't accessing any internal counter nor doing anything else
+     *        sensible, so I've removed it. */
+
+    uint32_t cFrames = PDMAudioPropsBytesToFrames(&pStream->pStream->Cfg.Props, cbBuf);
+    Assert(cFrames == cbBuf / (sizeof(uint64_t) * 2));
+    pDrv->pConsoleVRDPServer->SendAudioSamples(pvBuf, cFrames, uVrdpFormat);
+
+    Log3Func(("cFramesWritten=%RU32\n", cFrames));
+    *pcbWritten = PDMAudioPropsFramesToBytes(&pStream->pStream->Cfg.Props, cFrames);
+    Assert(*pcbWritten == cbBuf);
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * @interface_method_impl{PDMIHOSTAUDIO,pfnStreamGetReadable}
+ */
+static DECLCALLBACK(uint32_t) drvAudioVrdeHA_StreamGetReadable(PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDSTREAM pStream)
+{
+    RT_NOREF(pInterface);
+    PVRDESTREAM pStreamVRDE = (PVRDESTREAM)pStream;
+
+    AssertReturn(pStreamVRDE->Cfg.enmDir == PDMAUDIODIR_IN, 0);
+    uint32_t cbRet = (uint32_t)RTCircBufUsed(pStreamVRDE->In.pCircBuf);
+    Log4Func(("returns %#x\n", cbRet));
+    return cbRet;
+}
+
+
+/**
+ * @interface_method_impl{PDMIHOSTAUDIO,pfnStreamCapture}
+ */
+static DECLCALLBACK(int) drvAudioVrdeHA_StreamCapture(PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDSTREAM pStream,
+                                                      void *pvBuf, uint32_t cbBuf, uint32_t *pcbRead)
+{
+    RT_NOREF(pInterface);
+    PVRDESTREAM pStreamVRDE = (PVRDESTREAM)pStream;
+    AssertPtrReturn(pStreamVRDE, VERR_INVALID_POINTER);
+    AssertPtrReturn(pvBuf, VERR_INVALID_POINTER);
+    AssertReturn(cbBuf, VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pcbRead, VERR_INVALID_PARAMETER);
+
+    *pcbRead = 0;
+    while (cbBuf > 0 && RTCircBufUsed(pStreamVRDE->In.pCircBuf) > 0)
+    {
+        size_t cbData = 0;
+        void  *pvData = NULL;
+        RTCircBufAcquireReadBlock(pStreamVRDE->In.pCircBuf, cbBuf, &pvData, &cbData);
+
+        memcpy(pvBuf, pvData, cbData);
+
+        RTCircBufReleaseReadBlock(pStreamVRDE->In.pCircBuf, cbData);
+
+        *pcbRead += (uint32_t)cbData;
+        cbBuf    -= (uint32_t)cbData;
+        pvData    = (uint8_t *)pvData + cbData;
+    }
+
+    LogFlowFunc(("returns %#x bytes\n", *pcbRead));
+    return VINF_SUCCESS;
+}
+
+
+/*********************************************************************************************************************************
+*   PDMIBASE                                                                                                                     *
+*********************************************************************************************************************************/
+
+/**
+ * @interface_method_impl{PDMIBASE,pfnQueryInterface}
+ */
+static DECLCALLBACK(void *) drvAudioVrdeQueryInterface(PPDMIBASE pInterface, const char *pszIID)
+{
+    PPDMDRVINS pDrvIns = PDMIBASE_2_PDMDRV(pInterface);
+    PDRVAUDIOVRDE pThis = PDMINS_2_DATA(pDrvIns, PDRVAUDIOVRDE);
+
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pDrvIns->IBase);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIHOSTAUDIO, &pThis->IHostAudio);
+    return NULL;
+}
+
+
+/*********************************************************************************************************************************
+*   PDMDRVREG                                                                                                                    *
+*********************************************************************************************************************************/
+
+/**
+ * @interface_method_impl{PDMDRVREG,pfnPowerOff}
+ */
+/*static*/ DECLCALLBACK(void) AudioVRDE::drvPowerOff(PPDMDRVINS pDrvIns)
+{
+    PDRVAUDIOVRDE pThis = PDMINS_2_DATA(pDrvIns, PDRVAUDIOVRDE);
+    LogFlowFuncEnter();
+
+    if (pThis->pConsoleVRDPServer)
+        pThis->pConsoleVRDPServer->SendAudioInputEnd(NULL);
+}
+
+
+/**
+ * @interface_method_impl{PDMDRVREG,pfnDestruct}
+ */
+/*static*/ DECLCALLBACK(void) AudioVRDE::drvDestruct(PPDMDRVINS pDrvIns)
+{
+    PDMDRV_CHECK_VERSIONS_RETURN_VOID(pDrvIns);
+    PDRVAUDIOVRDE pThis = PDMINS_2_DATA(pDrvIns, PDRVAUDIOVRDE);
+    LogFlowFuncEnter();
+
+    /** @todo For runtime detach maybe:
+    if (pThis->pConsoleVRDPServer)
+        pThis->pConsoleVRDPServer->SendAudioInputEnd(NULL); */
+
+    /*
+     * If the AudioVRDE object is still alive, we must clear it's reference to
+     * us since we'll be invalid when we return from this method.
+     */
+    AudioVRDE *pAudioVRDE = pThis->pAudioVRDE;
+    if (pAudioVRDE)
+    {
+        RTCritSectEnter(&pAudioVRDE->mCritSect);
+        pAudioVRDE->mpDrv = NULL;
+        pThis->pAudioVRDE = NULL;
+        RTCritSectLeave(&pAudioVRDE->mCritSect);
+    }
 }
 
 
@@ -745,22 +716,33 @@ DECLCALLBACK(int) AudioVRDE::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, ui
     /* IBase */
     pDrvIns->IBase.pfnQueryInterface = drvAudioVrdeQueryInterface;
     /* IHostAudio */
-    pThis->IHostAudio.pfnInit              = drvAudioVrdeHA_Init;
-    pThis->IHostAudio.pfnShutdown          = drvAudioVrdeHA_Shutdown;
-    pThis->IHostAudio.pfnGetConfig         = drvAudioVrdeHA_GetConfig;
-    pThis->IHostAudio.pfnGetDevices        = NULL;
-    pThis->IHostAudio.pfnGetStatus         = drvAudioVrdeHA_GetStatus;
-    pThis->IHostAudio.pfnSetCallback       = NULL;
-    pThis->IHostAudio.pfnStreamCreate      = drvAudioVrdeHA_StreamCreate;
-    pThis->IHostAudio.pfnStreamDestroy     = drvAudioVrdeHA_StreamDestroy;
-    pThis->IHostAudio.pfnStreamControl     = drvAudioVrdeHA_StreamControl;
-    pThis->IHostAudio.pfnStreamGetReadable = drvAudioVrdeHA_StreamGetReadable;
-    pThis->IHostAudio.pfnStreamGetWritable = drvAudioVrdeHA_StreamGetWritable;
-    pThis->IHostAudio.pfnStreamGetPending  = NULL;
-    pThis->IHostAudio.pfnStreamGetStatus   = drvAudioVrdeHA_StreamGetStatus;
-    pThis->IHostAudio.pfnStreamIterate     = drvAudioVrdeHA_StreamIterate;
-    pThis->IHostAudio.pfnStreamPlay        = drvAudioVrdeHA_StreamPlay;
-    pThis->IHostAudio.pfnStreamCapture     = drvAudioVrdeHA_StreamCapture;
+    pThis->IHostAudio.pfnGetConfig                  = drvAudioVrdeHA_GetConfig;
+    pThis->IHostAudio.pfnGetDevices                 = NULL;
+    pThis->IHostAudio.pfnSetDevice                  = NULL;
+    pThis->IHostAudio.pfnGetStatus                  = drvAudioVrdeHA_GetStatus;
+    pThis->IHostAudio.pfnDoOnWorkerThread           = NULL;
+    pThis->IHostAudio.pfnStreamConfigHint           = NULL;
+    pThis->IHostAudio.pfnStreamCreate               = drvAudioVrdeHA_StreamCreate;
+    pThis->IHostAudio.pfnStreamInitAsync            = NULL;
+    pThis->IHostAudio.pfnStreamDestroy              = drvAudioVrdeHA_StreamDestroy;
+    pThis->IHostAudio.pfnStreamNotifyDeviceChanged  = NULL;
+    pThis->IHostAudio.pfnStreamEnable               = drvAudioVrdeHA_StreamEnable;
+    pThis->IHostAudio.pfnStreamDisable              = drvAudioVrdeHA_StreamDisable;
+    pThis->IHostAudio.pfnStreamPause                = drvAudioVrdeHA_StreamPause;
+    pThis->IHostAudio.pfnStreamResume               = drvAudioVrdeHA_StreamResume;
+    pThis->IHostAudio.pfnStreamDrain                = drvAudioVrdeHA_StreamDrain;
+    pThis->IHostAudio.pfnStreamGetState             = drvAudioVrdeHA_StreamGetState;
+    pThis->IHostAudio.pfnStreamGetPending           = NULL;
+    pThis->IHostAudio.pfnStreamGetWritable          = drvAudioVrdeHA_StreamGetWritable;
+    pThis->IHostAudio.pfnStreamPlay                 = drvAudioVrdeHA_StreamPlay;
+    pThis->IHostAudio.pfnStreamGetReadable          = drvAudioVrdeHA_StreamGetReadable;
+    pThis->IHostAudio.pfnStreamCapture              = drvAudioVrdeHA_StreamCapture;
+
+    /*
+     * Resolve the interface to the driver above us.
+     */
+    pThis->pIHostAudioPort = PDMIBASE_QUERY_INTERFACE(pDrvIns->pUpBase, PDMIHOSTAUDIOPORT);
+    AssertPtrReturn(pThis->pIHostAudioPort, VERR_PDM_MISSING_INTERFACE_ABOVE);
 
     /*
      * Get the ConsoleVRDPServer object pointer.
@@ -771,6 +753,8 @@ DECLCALLBACK(int) AudioVRDE::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, ui
 
     /* CFGM tree saves the pointer to ConsoleVRDPServer in the Object node of AudioVRDE. */
     pThis->pConsoleVRDPServer = (ConsoleVRDPServer *)pvUser;
+    AssertLogRelMsgReturn(RT_VALID_PTR(pThis->pConsoleVRDPServer) || !pThis->pConsoleVRDPServer,
+                          ("pConsoleVRDPServer=%p\n", pThis->pConsoleVRDPServer), VERR_INVALID_POINTER);
     pThis->cClients = 0;
 
     /*
@@ -781,62 +765,12 @@ DECLCALLBACK(int) AudioVRDE::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, ui
     AssertMsgRCReturn(rc, ("Confguration error: No/bad \"Object\" value, rc=%Rrc\n", rc), rc);
 
     pThis->pAudioVRDE = (AudioVRDE *)pvUser;
+    AssertLogRelMsgReturn(RT_VALID_PTR(pThis->pAudioVRDE), ("pAudioVRDE=%p\n", pThis->pAudioVRDE), VERR_INVALID_POINTER);
+    RTCritSectEnter(&pThis->pAudioVRDE->mCritSect);
     pThis->pAudioVRDE->mpDrv = pThis;
-
-    /*
-     * Get the interface for the above driver (DrvAudio) to make mixer/conversion calls.
-     * Described in CFGM tree.
-     */
-    pThis->pDrvAudio = PDMIBASE_QUERY_INTERFACE(pDrvIns->pUpBase, PDMIAUDIOCONNECTOR);
-    AssertMsgReturn(pThis->pDrvAudio, ("Configuration error: No upper interface specified!\n"), VERR_PDM_MISSING_INTERFACE_ABOVE);
+    RTCritSectLeave(&pThis->pAudioVRDE->mCritSect);
 
     return VINF_SUCCESS;
-}
-
-
-/**
- * @interface_method_impl{PDMDRVREG,pfnDestruct}
- */
-/* static */
-DECLCALLBACK(void) AudioVRDE::drvDestruct(PPDMDRVINS pDrvIns)
-{
-    PDMDRV_CHECK_VERSIONS_RETURN_VOID(pDrvIns);
-    PDRVAUDIOVRDE pThis = PDMINS_2_DATA(pDrvIns, PDRVAUDIOVRDE);
-    LogFlowFuncEnter();
-
-    /*
-     * If the AudioVRDE object is still alive, we must clear it's reference to
-     * us since we'll be invalid when we return from this method.
-     */
-    if (pThis->pAudioVRDE)
-    {
-        pThis->pAudioVRDE->mpDrv = NULL;
-        pThis->pAudioVRDE = NULL;
-    }
-}
-
-/**
- * @interface_method_impl{PDMDRVREG,pfnAttach}
- */
-/* static */
-DECLCALLBACK(int) AudioVRDE::drvAttach(PPDMDRVINS pDrvIns, uint32_t fFlags)
-{
-    RT_NOREF(pDrvIns, fFlags);
-
-    LogFlowFuncEnter();
-
-    return VINF_SUCCESS;
-}
-
-/**
- * @interface_method_impl{PDMDRVREG,pfnDetach}
- */
-/* static */
-DECLCALLBACK(void) AudioVRDE::drvDetach(PPDMDRVINS pDrvIns, uint32_t fFlags)
-{
-    RT_NOREF(pDrvIns, fFlags);
-
-    LogFlowFuncEnter();
 }
 
 
@@ -879,11 +813,11 @@ const PDMDRVREG AudioVRDE::DrvReg =
     /* pfnResume */
     NULL,
     /* pfnAttach */
-    AudioVRDE::drvAttach,
-    /* pfnDetach */
-    AudioVRDE::drvDetach,
-    /* pfnPowerOff */
     NULL,
+    /* pfnDetach */
+    NULL,
+    /* pfnPowerOff */
+    AudioVRDE::drvPowerOff,
     /* pfnSoftReset */
     NULL,
     /* u32EndVersion */

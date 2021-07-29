@@ -1318,18 +1318,25 @@ static DECLCALLBACK(uint64_t) pdmR3DrvHlp_TMGetVirtualTime(PPDMDRVINS pDrvIns)
 
 
 /** @interface_method_impl{PDMDRVHLPR3,pfnTMTimerCreate} */
-static DECLCALLBACK(int) pdmR3DrvHlp_TMTimerCreate(PPDMDRVINS pDrvIns, TMCLOCK enmClock, PFNTMTIMERDRV pfnCallback, void *pvUser, uint32_t fFlags, const char *pszDesc, PPTMTIMERR3 ppTimer)
+static DECLCALLBACK(int) pdmR3DrvHlp_TMTimerCreate(PPDMDRVINS pDrvIns, TMCLOCK enmClock, PFNTMTIMERDRV pfnCallback, void *pvUser, uint32_t fFlags, const char *pszDesc, PTMTIMERHANDLE phTimer)
 {
     PDMDRV_ASSERT_DRVINS(pDrvIns);
-    LogFlow(("pdmR3DrvHlp_TMTimerCreate: caller='%s'/%d: enmClock=%d pfnCallback=%p pvUser=%p fFlags=%#x pszDesc=%p:{%s} ppTimer=%p\n",
-             pDrvIns->pReg->szName, pDrvIns->iInstance, enmClock, pfnCallback, pvUser, fFlags, pszDesc, pszDesc, ppTimer));
+    LogFlow(("pdmR3DrvHlp_TMTimerCreate: caller='%s'/%d: enmClock=%d pfnCallback=%p pvUser=%p fFlags=%#x pszDesc=%p:{%s} phTimer=%p\n",
+             pDrvIns->pReg->szName, pDrvIns->iInstance, enmClock, pfnCallback, pvUser, fFlags, pszDesc, pszDesc, phTimer));
 
-    int rc = TMR3TimerCreateDriver(pDrvIns->Internal.s.pVMR3, pDrvIns, enmClock, pfnCallback, pvUser, fFlags, pszDesc, ppTimer);
+    int rc = TMR3TimerCreateDriver(pDrvIns->Internal.s.pVMR3, pDrvIns, enmClock, pfnCallback, pvUser, fFlags, pszDesc, (PPTMTIMERR3)phTimer);
 
-    LogFlow(("pdmR3DrvHlp_TMTimerCreate: caller='%s'/%d: returns %Rrc *ppTimer=%p\n", pDrvIns->pReg->szName, pDrvIns->iInstance, rc, *ppTimer));
+    LogFlow(("pdmR3DrvHlp_TMTimerCreate: caller='%s'/%d: returns %Rrc *phTimer=%p\n", pDrvIns->pReg->szName, pDrvIns->iInstance, rc, *phTimer));
     return rc;
 }
 
+
+/** @interface_method_impl{PDMDRVHLPR3,pfnTimerSetMillies} */
+static DECLCALLBACK(int) pdmR3DrvHlp_TimerSetMillies(PPDMDRVINS pDrvIns, TMTIMERHANDLE hTimer, uint64_t cMilliesToNext)
+{
+    PDMDRV_ASSERT_DRVINS(pDrvIns); RT_NOREF(pDrvIns);
+    return TMTimerSetMillies((PTMTIMER)hTimer, cMilliesToNext);
+}
 
 
 /** @interface_method_impl{PDMDRVHLPR3,pfnSSMRegister} */
@@ -1420,27 +1427,18 @@ static DECLCALLBACK(void) pdmR3DrvHlp_STAMRegister(PPDMDRVINS pDrvIns, void *pvS
                                                    STAMUNIT enmUnit, const char *pszDesc)
 {
     PDMDRV_ASSERT_DRVINS(pDrvIns);
-    VM_ASSERT_EMT(pDrvIns->Internal.s.pVMR3);
+    PVM pVM = pDrvIns->Internal.s.pVMR3;
+    VM_ASSERT_EMT(pVM);
 
-    STAM_REG(pDrvIns->Internal.s.pVMR3, pvSample, enmType, pszName, enmUnit, pszDesc);
-    RT_NOREF6(pDrvIns, pvSample, enmType, pszName, enmUnit, pszDesc);
-    /** @todo track the samples so they can be dumped & deregistered when the driver instance is destroyed.
-     * For now we just have to be careful not to use this call for drivers which can be unloaded. */
-}
-
-
-/** @interface_method_impl{PDMDRVHLPR3,pfnSTAMRegisterF} */
-static DECLCALLBACK(void) pdmR3DrvHlp_STAMRegisterF(PPDMDRVINS pDrvIns, void *pvSample, STAMTYPE enmType, STAMVISIBILITY enmVisibility,
-                                                    STAMUNIT enmUnit, const char *pszDesc, const char *pszName, ...)
-{
-    PDMDRV_ASSERT_DRVINS(pDrvIns);
-    VM_ASSERT_EMT(pDrvIns->Internal.s.pVMR3);
-
-    va_list args;
-    va_start(args, pszName);
-    int rc = STAMR3RegisterV(pDrvIns->Internal.s.pVMR3, pvSample, enmType, enmVisibility, enmUnit, pszDesc, pszName, args);
-    va_end(args);
-    AssertRC(rc);
+#ifdef VBOX_WITH_STATISTICS /** @todo rework this to always be compiled in */
+    if (*pszName == '/')
+        STAM_REG(pDrvIns->Internal.s.pVMR3, pvSample, enmType, pszName, enmUnit, pszDesc);
+    else
+        STAMR3RegisterF(pVM, pvSample, enmType, STAMVISIBILITY_ALWAYS, enmUnit, pszDesc,
+                        "/Drivers/%s-%u/%s", pDrvIns->pReg->szName, pDrvIns->iInstance, pszName);
+#else
+    RT_NOREF(pDrvIns, pvSample, enmType, pszName, enmUnit, pszDesc, pVM);
+#endif
 }
 
 
@@ -1449,10 +1447,39 @@ static DECLCALLBACK(void) pdmR3DrvHlp_STAMRegisterV(PPDMDRVINS pDrvIns, void *pv
                                                     STAMUNIT enmUnit, const char *pszDesc, const char *pszName, va_list args)
 {
     PDMDRV_ASSERT_DRVINS(pDrvIns);
-    VM_ASSERT_EMT(pDrvIns->Internal.s.pVMR3);
+    PVM pVM = pDrvIns->Internal.s.pVMR3;
+    VM_ASSERT_EMT(pVM);
 
-    int rc = STAMR3RegisterV(pDrvIns->Internal.s.pVMR3, pvSample, enmType, enmVisibility, enmUnit, pszDesc, pszName, args);
+    int rc;
+    if (*pszName == '/')
+        rc = STAMR3RegisterV(pVM, pvSample, enmType, enmVisibility, enmUnit, pszDesc, pszName, args);
+    else
+    {
+        /* We need to format it to check whether it starts with a
+           slash or not (will rework this later). */
+        char szFormatted[2048];
+        ssize_t cchBase = RTStrPrintf2(szFormatted, sizeof(szFormatted) - 1024, "/Drivers/%s-%u/",
+                                       pDrvIns->pReg->szName, pDrvIns->iInstance);
+        AssertReturnVoid(cchBase > 0);
+
+        ssize_t cch2 = RTStrPrintf2V(&szFormatted[cchBase], sizeof(szFormatted) - cchBase, pszName, args);
+        AssertReturnVoid(cch2 > 0);
+
+        rc = STAMR3Register(pVM, pvSample, enmType, enmVisibility,
+                            &szFormatted[szFormatted[cchBase] == '/' ? cchBase : 0], enmUnit, pszDesc);
+    }
     AssertRC(rc);
+}
+
+
+/** @interface_method_impl{PDMDRVHLPR3,pfnSTAMRegisterF} */
+static DECLCALLBACK(void) pdmR3DrvHlp_STAMRegisterF(PPDMDRVINS pDrvIns, void *pvSample, STAMTYPE enmType, STAMVISIBILITY enmVisibility,
+                                                    STAMUNIT enmUnit, const char *pszDesc, const char *pszName, ...)
+{
+    va_list va;
+    va_start(va, pszName);
+    pdmR3DrvHlp_STAMRegisterV(pDrvIns, pvSample, enmType, enmVisibility, enmUnit, pszDesc, pszName, va);
+    va_end(va);
 }
 
 
@@ -1463,6 +1490,21 @@ static DECLCALLBACK(int) pdmR3DrvHlp_STAMDeregister(PPDMDRVINS pDrvIns, void *pv
     VM_ASSERT_EMT(pDrvIns->Internal.s.pVMR3);
 
     return STAMR3DeregisterByAddr(pDrvIns->Internal.s.pVMR3->pUVM, pvSample);
+}
+
+
+/** @interface_method_impl{PDMDRVHLPR3,pfnSTAMDeregisterByPrefix} */
+static DECLCALLBACK(int) pdmR3DrvHlp_STAMDeregisterByPrefix(PPDMDRVINS pDrvIns, const char *pszPrefix)
+{
+    PDMDRV_ASSERT_DRVINS(pDrvIns);
+
+    if (*pszPrefix == '/')
+        return STAMR3DeregisterByPrefix(pDrvIns->Internal.s.pVMR3->pUVM, pszPrefix);
+
+    char szTmp[2048];
+    ssize_t cch = RTStrPrintf2(szTmp, sizeof(szTmp), "/Drivers/%s-%u/%s", pDrvIns->pReg->szName, pDrvIns->iInstance, pszPrefix);
+    AssertReturn(cch > 0, VERR_BUFFER_OVERFLOW);
+    return STAMR3DeregisterByPrefix(pDrvIns->Internal.s.pVMR3->pUVM, szTmp);
 }
 
 
@@ -1861,8 +1903,8 @@ const PDMDRVHLPR3 g_pdmR3DrvHlp =
     pdmR3DrvHlp_BlkCacheRetain,
     pdmR3DrvHlp_VMGetSuspendReason,
     pdmR3DrvHlp_VMGetResumeReason,
-    NULL,
-    NULL,
+    pdmR3DrvHlp_TimerSetMillies,
+    pdmR3DrvHlp_STAMDeregisterByPrefix,
     NULL,
     NULL,
     NULL,

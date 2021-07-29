@@ -34,6 +34,7 @@
 
 #define snd_pcm_avail_update                    ALSA_MANGLER(snd_pcm_avail_update)
 #define snd_pcm_close                           ALSA_MANGLER(snd_pcm_close)
+#define snd_pcm_avail_delay                     ALSA_MANGLER(snd_pcm_avail_delay)
 #define snd_pcm_delay                           ALSA_MANGLER(snd_pcm_delay)
 #define snd_pcm_drain                           ALSA_MANGLER(snd_pcm_drain)
 #define snd_pcm_drop                            ALSA_MANGLER(snd_pcm_drop)
@@ -42,6 +43,7 @@
 #define snd_pcm_prepare                         ALSA_MANGLER(snd_pcm_prepare)
 #define snd_pcm_readi                           ALSA_MANGLER(snd_pcm_readi)
 #define snd_pcm_resume                          ALSA_MANGLER(snd_pcm_resume)
+#define snd_pcm_set_chmap                       ALSA_MANGLER(snd_pcm_set_chmap)
 #define snd_pcm_start                           ALSA_MANGLER(snd_pcm_start)
 #define snd_pcm_state                           ALSA_MANGLER(snd_pcm_state)
 #define snd_pcm_state_name                      ALSA_MANGLER(snd_pcm_state_name)

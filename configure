@@ -70,8 +70,8 @@ esac
 OSE=1
 ODIR="`pwd`/"
 ODIR_OVERRIDE=0
-OUT_PATH=""
-OUT_PATH_OVERRIDE=0
+OUT_BASE_PATH=""
+OUT_BASE_PATH_OVERRIDE=0
 SETUP_WINE=
 ONLY_ADDITIONS=0
 TARGET_MACHINE=""
@@ -81,7 +81,6 @@ WITH_PYTHON=1
 WITH_JAVA=1
 WITH_VMMRAW=1
 WITH_LIBIDL=1
-WITH_GSOAP=0
 WITH_QT5=1
 WITH_SDL=1
 WITH_SDL_TTF=1
@@ -549,7 +548,7 @@ check_open_watcom()
   test_header "Open Watcom"
 
   if [ -z "$WATCOM" ]; then
-    WATCOM=`/bin/ls -rd1 $PWD/tools/common/openwatcom/* 2> /dev/null | head -1`
+    WATCOM=`/bin/ls -rd1 $DEVDIR/common/openwatcom/* 2> /dev/null | head -1`
     if [ -z "$WATCOM" ]; then
       if [ $OSE -eq 0 -a $OS = "linux" ]; then
         log_failure "Open Watcom was not found"
@@ -1529,7 +1528,7 @@ EOF
   if [ "$OS" = "darwin" ]; then
     # First check if there is the internal version of Qt. If yes nothing else
     # has to be done.
-    QT_INTERNAL=`/bin/ls -rd1 $PWD/tools/$BUILD_TARGET.$BUILD_PLATFORM_ARCH/qt/* 2> /dev/null`
+    QT_INTERNAL=`/bin/ls -rd1 $DEVDIR/$BUILD_TARGET.$BUILD_PLATFORM_ARCH/qt/* 2> /dev/null`
     for t in $QT_INTERNAL; do
       if [ -f "$t/Frameworks/QtCoreVBox.framework/QtCoreVBox" ]; then
         cnf_append "VBOX_WITH_ORACLE_QT" "1"
@@ -1562,12 +1561,12 @@ EOF
         qt5_ver=`pkg-config Qt5Core --modversion 2>> $LOG`
         if [ $? -eq 0 ]; then
           echo "(Qt5 from pkg-config)" >> $LOG
-          FLGQT5=`pkg-config Qt5Core --cflags`
+          FLGQT5=`pkg-config Qt5Core Qt5Gui --cflags`
           # gcc 4.8 is able to compile with C++11 (see also VBOX_GCC_std in Config.kmk)
-          [ $cc_maj -eq 4 -a $cc_min -eq 8 ] && FLGQT5="$FLGQT5 -std=c++11"
+          [ $(($cc_maj * 100 + $cc_min)) -ge 408 ] && FLGQT5="$FLGQT5 -std=c++11"
           INCQT5=`strip_I "$FLGQT5"`
           LIBDIR5=`pkg-config Qt5Core --variable=libdir`
-          LIBQT5=`pkg-config Qt5Core --libs`
+          LIBQT5=`pkg-config Qt5Core Qt5Gui --libs`
           LIBQT5="-L$LIBDIR5 $LIBQT5"
           TOOLQT5=`pkg-config Qt5Core --variable=prefix`
           TOOLQT5BIN=`pkg-config Qt5Core --variable=host_bins`
@@ -1582,19 +1581,19 @@ EOF
     fi
     if [ -z "$foundqt5" ]; then
       # Do it the old way (e.g. user has specified QT5DIR):
-      for q in $QT5DIR "$PWD/tools/linux.$TARGET_MACHINE"/qt/v5.*; do
+      for q in $QT5DIR "$DEVDIR/linux.$TARGET_MACHINE"/qt/v5.*; do
         echo "(Qt5 from '$q')" >> $LOG
         INCQT5="$q/include $q/include/QtCore"
         FLGQT5="-DQT_SHARED"
         I_INCQT5=`prefix_I "$INCQT5"`
-        LIBQT5="-L$q/lib -lQt5CoreVBox"
+        LIBQT5="-L$q/lib -lQt5CoreVBox -lQt5GuiVBox"
         TOOLQT5="$q"
         if test_compile "$LIBQT5 $LIBPTHREAD $I_INCQT5 $FLGQT5" qt5 qt5 nofatal &&
             test_execute_path "`L_to_PATH "$LIBQT5"`" nofatal; then
           foundqt5=2 # internal
           break;
         fi
-        LIBQT5="-L$q/lib -lQt5Core"
+        LIBQT5="-L$q/lib -lQt5Core -lQt5Gui"
         if test_compile "$LIBQT5 $LIBPTHREAD $I_INCQT5 $FLGQT5" qt5 qt5 nofatal &&
             test_execute_path "`L_to_PATH "$LIBQT5"`" nofatal; then
           foundqt5=1 # no pkg-config, Qt directory
@@ -2371,7 +2370,6 @@ EOF
 [ $WITH_KMODS   -eq 1 ] && echo "  --disable-kmods          don't build Linux kernel modules (host and guest)"
 [ $WITH_OPENGL  -eq 1 ] && echo "  --disable-opengl         disable OpenGL support (2D & 3D)"
 [ $WITH_QT5     -eq 0 ] && echo "  --enable-qt5             enable Qt5 detection"
-[ $WITH_GSOAP   -eq 0 ] && echo "  --enable-webservice      enable the webservice stuff"
 [ $OSE          -eq 1 ] && echo "  --enable-vnc             enable the VNC server"
 [ $OSE          -eq 0 ] && echo "  --disable-extpack        don't build the extpack"
 [ $WITH_DOCS    -eq 1 ] && echo "  --disable-docs           don't build the documentation"
@@ -2405,14 +2403,14 @@ EOF
 [ "$OS"   = "darwin" ] && echo "                           only, ignored for the rest)"
 [ "$OS"    = "linux" ] && echo "  --with-linux=DIR         Linux kernel source directory [$LINUX]"
 [ $WITH_QT5    -eq 1 ] && echo "  --with-qt-dir=DIR        directory for Qt headers/libraries [pkgconfig]"
-[ $WITH_GSOAP  -eq 1 ] && echo "  --with-gsoap-dir=PATH    directory for gSOAP compiler/headers/libraries"
-[ $WITH_GSOAP  -eq 1 ] && echo "                           (soapcpp2 and wsdl2h, soapstd2.h, libgsoap++.a/so)"
-[ $WITH_GSOAP  -eq 1 ] && echo "  --with-gsoap-import=PATH directory for gSOAP import files (stlvector.h)"
 cat << EOF
+  --with-gsoap-dir=PATH    directory for gSOAP compiler/headers/libraries
+                           (soapcpp2 and wsdl2h, soapstd2.h, libgsoap++.a/so)
+  --with-gsoap-import=PATH directory for gSOAP import files (stlvector.h)
   --with-openssl-dir=DIR   directory for OpenSSL headers/libraries
   --with-ow-dir=DIR        directory where Open Watcom can be found [$WATCOM]
-  --out-path=PATH          the folder to which configuration and build output
-                           should go
+  --out-base-dir=DIR       directory where configuration and build output
+                           should go, in subdirectory out
 
 Build type:
   -d, --build-debug        build with debugging symbols and assertions
@@ -2582,7 +2580,6 @@ for option in "$@"; do
       [ $WITH_OPENGL -eq 1 ] && WITH_OPENGL=0
       ;;
     --enable-webservice)
-      [ $WITH_GSOAP -eq 0 ] && WITH_GSOAP=1
       ;;
     --enable-vnc)
       WITH_VNC=1
@@ -2653,20 +2650,20 @@ for option in "$@"; do
       ODIR="`echo $option | cut -d'=' -f2`/"
       ODIR_OVERRIDE=1
       ;;
-    --out-path=*)
-      out_path="`echo $option | cut -d'=' -f2`/"
-      if [ -d $out_path ]; then
-        saved_path="`pwd`"
-        cd $out_path
-        OUT_PATH="`pwd`"
-        cd $saved_path
-        OUT_PATH_OVERRIDE=1
+    --out-base-dir=*)
+      out_base_dir="`echo $option | cut -d'=' -f2`/"
+      if [ -d $out_base_dir ]; then
+        saved_pwd="$PWD"
+        cd $out_base_dir
+        OUT_BASE_PATH="`pwd`"
+        cd $saved_pwd
+        OUT_BASE_PATH_OVERRIDE=1
         if [ $ODIR_OVERRIDE -eq 0 ]; then
           # This variable has not *yet* been overridden.  That can still happen.
-          ODIR=$OUT_PATH/
+          ODIR=$OUT_BASE_PATH/
         fi
       else
-        echo "Error: invalid folder \"$out_path\" in option \"$option\""
+        echo "Error: invalid folder \"$out_base_dir\" in option \"$option\""
         exit 1
       fi
       ;;
@@ -2745,12 +2742,12 @@ echo "$PATH" | grep -q "$DEVDIR_BIN" || PATH="$PATH:$DEVDIR_BIN"
 export PATH
 
 # if we will be writing to a different out directory then set this up now
-if [ $OUT_PATH_OVERRIDE -eq 1 ]; then
-  echo "AUTOCFG=$OUT_PATH/AutoConfig.kmk" >> $ENV
+if [ $ODIR_OVERRIDE -eq 1 ]; then
+  echo "AUTOCFG=$CFG" >> $ENV
   echo "export AUTOCFG" >> $ENV
-  echo "LOCALCFG=$OUT_PATH/LocalConfig.kmk" >> $ENV
-  echo "export LOCALCFG" >> $ENV
-  echo "PATH_OUT_BASE=$OUT_PATH" >> $ENV
+fi
+if [ $OUT_BASE_PATH_OVERRIDE -eq 1 ]; then
+  echo "PATH_OUT_BASE=$OUT_BASE_PATH" >> $ENV
   echo "export PATH_OUT_BASE" >> $ENV
 fi
 
@@ -2901,12 +2898,10 @@ fi
 
 [ -n "$SETUP_WINE" ] && setup_wine
 
-if [ $ONLY_ADDITIONS -eq 0 -a $WITH_GSOAP -eq 1 ]; then
+if [ $ONLY_ADDITIONS -eq 0 ]; then
   check_gsoap
 else
-  if [ $OSE -ge 1 ]; then
-    cnf_append "VBOX_WITH_WEBSERVICES" ""
-  fi
+  cnf_append "VBOX_WITH_WEBSERVICES" ""
 fi
 
 # UDPTUNNEL
@@ -2949,14 +2944,14 @@ echo "  source $ENV"
 echo "  kmk"
 echo ""
 if [ "$OS" = "linux" ]; then
-    if [ $OUT_PATH_OVERRIDE -eq 1 ]; then
-      vbox_out_path=$OUT_PATH
+    if [ $OUT_BASE_PATH_OVERRIDE -eq 1 ]; then
+      out_base_dir=$OUT_BASE_PATH
     else
-      vbox_out_path=./out
+      out_base_dir=.
     fi
     echo "To compile the kernel modules, do:"
     echo ""
-    echo "  cd $vbox_out_path/$OS.$TARGET_MACHINE/$BUILD_TYPE/bin/src"
+    echo "  cd $out_base_dir/out/$OS.$TARGET_MACHINE/$BUILD_TYPE/bin/src"
     echo "  make"
     echo ""
 fi

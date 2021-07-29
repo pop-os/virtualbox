@@ -26,6 +26,7 @@
 #include <iprt/mem.h>
 #include <iprt/semaphore.h>
 #include <iprt/string.h>
+#include <iprt/asm.h>
 
 #include <VBox/GuestHost/SharedClipboard.h>
 #include <VBox/GuestHost/SharedClipboard-x11.h>
@@ -33,6 +34,9 @@
 #include <iprt/errcore.h>
 
 #include "VBoxSharedClipboardSvc-internal.h"
+
+/* Number of currently extablished connections. */
+static volatile uint32_t g_cShClConnections;
 
 
 /*********************************************************************************************************************************
@@ -56,9 +60,14 @@ struct SHCLCONTEXT
 };
 
 
-int ShClSvcImplInit(void)
+int ShClSvcImplInit(VBOXHGCMSVCFNTABLE *pTable)
 {
     LogFlowFuncEnter();
+
+    /* Override the connection limit. */
+    for (uintptr_t i = 0; i < RT_ELEMENTS(pTable->acMaxClients); i++)
+        pTable->acMaxClients[i] = RT_MIN(VBOX_SHARED_CLIPBOARD_X11_CONNECTIONS_MAX, pTable->acMaxClients[i]);
+
     return VINF_SUCCESS;
 }
 
@@ -74,6 +83,14 @@ void ShClSvcImplDestroy(void)
 int ShClSvcImplConnect(PSHCLCLIENT pClient, bool fHeadless)
 {
     int rc;
+
+    /* Check if maximum allowed connections count has reached. */
+    if (ASMAtomicIncU32(&g_cShClConnections) > VBOX_SHARED_CLIPBOARD_X11_CONNECTIONS_MAX)
+    {
+        ASMAtomicDecU32(&g_cShClConnections);
+        LogRel(("Shared Clipboard: maximum amount for client connections reached\n"));
+        return VERR_OUT_OF_RESOURCES;
+    }
 
     PSHCLCONTEXT pCtx = (PSHCLCONTEXT)RTMemAllocZ(sizeof(SHCLCONTEXT));
     if (pCtx)
@@ -95,11 +112,21 @@ int ShClSvcImplConnect(PSHCLCLIENT pClient, bool fHeadless)
             if (RT_FAILURE(rc))
                 RTCritSectDelete(&pCtx->CritSect);
         }
-        else
+
+        if (RT_FAILURE(rc))
+        {
+            pClient->State.pCtx = NULL;
             RTMemFree(pCtx);
+        }
     }
     else
         rc = VERR_NO_MEMORY;
+
+    if (RT_FAILURE(rc))
+    {
+        /* Restore active connections count. */
+        ASMAtomicDecU32(&g_cShClConnections);
+    }
 
     LogFlowFuncLeaveRC(rc);
     return rc;
@@ -140,6 +167,9 @@ int ShClSvcImplDisconnect(PSHCLCLIENT pClient)
     RTCritSectDelete(&pCtx->CritSect);
 
     RTMemFree(pCtx);
+
+    /* Decrease active connections count. */
+    ASMAtomicDecU32(&g_cShClConnections);
 
     LogFlowFuncLeaveRC(rc);
     return rc;

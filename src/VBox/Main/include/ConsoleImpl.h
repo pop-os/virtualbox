@@ -100,8 +100,8 @@ typedef struct VUSBIRHCONFIG *PVUSBIRHCONFIG;
  */
 #define CHECK_CONSOLE_DRV(drv) \
     do { \
-        if (!(drv)) \
-            return setError(E_ACCESSDENIED, tr("The console is not powered up")); \
+        if (!!(drv)) {} \
+        else return setError(E_ACCESSDENIED, tr("The console is not powered up (%Rfn)"), __FUNCTION__); \
     } while (0)
 
 // Console
@@ -672,8 +672,8 @@ private:
     void    i_resumeAfterConfigChange(PUVM pUVM);
 
     static DECLCALLBACK(int) i_configConstructor(PUVM pUVM, PVM pVM, void *pvConsole);
-    void i_configAudioDriver(IAudioAdapter *pAudioAdapter, IVirtualBox *pVirtualBox, IMachine *pMachine,
-                             PCFGMNODE pLUN, const char *pszDriverName);
+    void i_configAudioDriver(IVirtualBox *pVirtualBox, IMachine *pMachine, PCFGMNODE pLUN, const char *pszDriverName,
+                             bool fAudioEnabledIn, bool fAudioEnabledOut);
     int i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock);
     int i_configCfgmOverlay(PCFGMNODE pRoot, IVirtualBox *pVirtualBox, IMachine *pMachine);
     int i_configDumpAPISettingsTweaks(IVirtualBox *pVirtualBox, IMachine *pMachine);
@@ -1003,7 +1003,7 @@ private:
         iLedNvme    = iLedUsb + cLedUsb,
         cLedNvme    = 30,
         iLedVirtio  = iLedNvme + cLedNvme,
-        cLedVirtio  = 16,
+        cLedVirtio  = 255,
         cLedStorage = cLedFloppy + cLedIde + cLedSata + cLedScsi + cLedSas + cLedUsb + cLedNvme + cLedVirtio
     };
     DeviceType_T maStorageDevType[cLedStorage];

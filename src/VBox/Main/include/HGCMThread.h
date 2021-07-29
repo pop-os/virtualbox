@@ -54,7 +54,9 @@ typedef FNHGCMNEWMSGALLOC *PFNHGCMNEWMSGALLOC;
  * @retval VERR_NOT_AVAILABLE if HGCM has been disconnected from the VMMDev
  *         (shouldn't happen).
  */
-typedef DECLCALLBACK(int) HGCMMSGCALLBACK(int32_t result, HGCMMsgCore *pMsgCore);
+typedef DECLCALLBACK(int) FNHGCMMSGCALLBACK(int32_t result, HGCMMsgCore *pMsgCore);
+/** @copydoc FNHGCMMSGCALLBACK */
+typedef FNHGCMMSGCALLBACK HGCMMSGCALLBACK;
 /** Pointer to a message completeion callback function. */
 typedef HGCMMSGCALLBACK *PHGCMMSGCALLBACK;
 

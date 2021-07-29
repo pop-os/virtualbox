@@ -881,16 +881,20 @@ $(VBOX_CORE_DOXYFILE_OUTPUT)/Doxyfile.Core: Doxyfile.Core \
 	$(QUIET)$(APPEND) $@.tmp "PREDEFINED += $(DEFS) $(DEFS.$(KBUILD_TARGET)) $(DEFS.$(KBUILD_TARGET_ARCH)) $(ARCH_BITS_DEFS)"
 	$(QUIET)$(APPEND) $@.tmp "PREDEFINED += ARCH_BITS=HC_ARCH_BITS R3_ARCH_BITS=HC_ARCH_BITS R0_ARCH_BITS=HC_ARCH_BITS "
 	$(QUIET)$(APPEND) $@.tmp
+	$(QUIET)$(APPEND) $@.tmp "PLANTUML_JAR_PATH = $(firstword $(rsort $(wildcard $(KBUILD_DEVTOOLS)/common/plantuml/v*/plantuml*.jar)))"
+	$(QUIET)$(APPEND) $@.tmp
 	$(QUIET)$(MV) -f $@.tmp $@
 	@$(APPEND) $@.dep "DOXYGEN_CORE_OUTPUT_PREV = $(VBOX_CORE_DOXYFILE_OUTPUT)"
 	@$(APPEND) $@.dep "DOXYGEN_CORE_INPUT_PREV = $(VBOX_CORE_DOXYFILE_INPUT)"
 
 # Do the actual job.
+# Note! We must add the VBOX_JAVA dir to the path so doxygen can run plantuml.jar.
 $(VBOX_CORE_DOXYFILE_OUTPUT)/docs.Core: $(VBOX_CORE_DOXYFILE_OUTPUT)/Doxyfile.Core $$(VBOX_CORE_DOXYFILE_INPUT) \
 		| $(VBOX_CORE_DOXYFILE_OUTPUT)/
 	$(QUIET)$(RM) -f $@
 	$(QUIET)$(RM) -Rf $(VBOX_CORE_DOXYFILE_OUTPUT)/html/
-	doxygen $(VBOX_CORE_DOXYFILE_OUTPUT)/Doxyfile.Core
+	$(if-expr $(VBOX_JAVA_VERSION)+0 >= 70000, $(REDIRECT) -E "PATH=$(VBOX_JAVA_BIN_PATH)$(HOST_PATH_SEP)$(PATH)" --,) \
+		doxygen $(VBOX_CORE_DOXYFILE_OUTPUT)/Doxyfile.Core
 	$(SED) -n \
                -e ':nextwarning' \
                -e '/^ *$(DOLLAR)/d' \

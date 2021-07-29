@@ -363,15 +363,10 @@ static LRESULT CALLBACK vboxClipboardSvcWinWndProcMain(PSHCLCONTEXT pCtx,
             else
             {
 #endif
-                int rc = SharedClipboardWinOpen(hWnd);
-                if (RT_SUCCESS(rc))
-                {
-                    SharedClipboardWinClear();
+                int rc = SharedClipboardWinClearAndAnnounceFormats(pWinCtx, fFormats, hWnd);
+                if (RT_FAILURE(rc))
+                    LogRel(("Shared Clipboard: Reporting clipboard formats %#x to Windows host failed with %Rrc\n", fFormats, rc));
 
-                    rc = SharedClipboardWinAnnounceFormats(pWinCtx, fFormats);
-
-                    SharedClipboardWinClose();
-                }
 #ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
             }
 #endif
@@ -391,11 +386,12 @@ static LRESULT CALLBACK vboxClipboardSvcWinWndProcMain(PSHCLCONTEXT pCtx,
         }
 
         default:
+            lresultRc = DefWindowProc(hWnd, uMsg, wParam, lParam);
             break;
     }
 
-    LogFlowFunc(("LEAVE hWnd=%p, WM_ %u\n", hWnd, uMsg));
-    return DefWindowProc(hWnd, uMsg, wParam, lParam);
+    LogFlowFunc(("LEAVE hWnd=%p, WM_ %u -> %#zx\n", hWnd, uMsg, lresultRc));
+    return lresultRc;
 }
 
 /**
@@ -589,8 +585,9 @@ static int vboxClipboardSvcWinSyncInternal(PSHCLCONTEXT pCtx)
  * Public platform dependent functions.
  */
 
-int ShClSvcImplInit(void)
+int ShClSvcImplInit(VBOXHGCMSVCFNTABLE *pTable)
 {
+    RT_NOREF(pTable);
 #ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
     HRESULT hr = OleInitialize(NULL);
     if (FAILED(hr))

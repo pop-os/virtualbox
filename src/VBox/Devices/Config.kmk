@@ -103,14 +103,6 @@ VBOX_AUDIO_DEFS  += VBOX_WITH_AUDIO_ENUM
 # Enable backend callback support.
 VBOX_AUDIO_DEFS += VBOX_WITH_AUDIO_CALLBACKS
 
-# Disable one-time audio stream initialization at device creation (VM startup) instead
-# of creating the stream when needed at some later point in time.
-#
-# This was the default behavior ever since.
-#
-# We now go with the new behavior by default now.
-#VBOX_AUDIO_DEFS += VBOX_WITH_AUDIO_SB16_ONETIME_INIT
-
 ifdef VBOX_WITH_HP_HDA
  VBOX_AUDIO_DEFS += VBOX_WITH_HP_HDA
 endif
@@ -120,15 +112,6 @@ endif
 ifdef VBOX_WITH_NVIDIA_HDA
  VBOX_AUDIO_DEFS += VBOX_WITH_NVIDIA_HDA
 endif
-
-#
-# Enables asynchronous audio data handling
-# to speed up the actual DMA data routines and keeping up
-# audio processing out of EMT as much as possible.
-#
-# Disabled for AC'97 for now.
-#VBOX_AUDIO_DEFS  += VBOX_WITH_AUDIO_AC97_ASYNC_IO
-VBOX_AUDIO_DEFS += VBOX_WITH_AUDIO_HDA_ASYNC_IO
 
 # Not yet enabled: Callbacks for the device emulation to let the backends
 #                  tell the emulation when and how to process data.

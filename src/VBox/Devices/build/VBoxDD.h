@@ -138,8 +138,10 @@ extern const PDMDRVREG g_DrvHostDebugAudio;
 extern const PDMDRVREG g_DrvHostValidationKitAudio;
 #endif
 extern const PDMDRVREG g_DrvHostNullAudio;
+extern DECL_HIDDEN_DATA(struct PDMIHOSTAUDIO) const g_DrvHostAudioNull;
 #if defined(RT_OS_WINDOWS)
 extern const PDMDRVREG g_DrvHostDSound;
+extern const PDMDRVREG g_DrvHostAudioWas;
 #endif
 #if defined(RT_OS_DARWIN)
 extern const PDMDRVREG g_DrvHostCoreAudio;

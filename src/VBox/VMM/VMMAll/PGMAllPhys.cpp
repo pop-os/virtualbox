@@ -2213,10 +2213,10 @@ VMMDECL(void) PGMPhysBulkReleasePageMappingLocks(PVMCC pVM, uint32_t cPages, PPG
             }
 
             /* Yield the lock: */
-            if ((i & 1023) == 1023)
+            if ((i & 1023) == 1023 && i + 1 < cPages)
             {
-                pgmLock(pVM);
                 pgmUnlock(pVM);
+                pgmLock(pVM);
             }
         }
     }
@@ -2248,10 +2248,10 @@ VMMDECL(void) PGMPhysBulkReleasePageMappingLocks(PVMCC pVM, uint32_t cPages, PPG
             }
 
             /* Yield the lock: */
-            if ((i & 1023) == 1023)
+            if ((i & 1023) == 1023 && i + 1 < cPages)
             {
-                pgmLock(pVM);
                 pgmUnlock(pVM);
+                pgmLock(pVM);
             }
         }
     }

@@ -18,6 +18,7 @@
 %define %SPEC% 1
 %define %OSE% 1
 %define %PYTHON% 1
+%define %CHM% 1
 %define VBOXDOCDIR %{_defaultdocdir}/%NAME%
 %global __requires_exclude_from ^/usr/lib/virtualbox/VBoxPython.*$|^/usr/lib/python.*$|^.*\\.py$
 %{!?python_sitelib: %define python_sitelib %(%{__python} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")}
@@ -180,7 +181,7 @@ ln -s VBox $RPM_BUILD_ROOT/usr/bin/VBoxBalloonCtrl
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/vboxballoonctrl
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/VBoxAutostart
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/vboxautostart
-ln -s VBox $RPM_BUILD_ROOT/usr/bin/vboxwebsrv
+test -f vboxwebsrv && ln -s VBox $RPM_BUILD_ROOT/usr/bin/vboxwebsrv
 ln -s /usr/lib/virtualbox/vbox-img $RPM_BUILD_ROOT/usr/bin/vbox-img
 ln -s /usr/lib/virtualbox/vboximg-mount $RPM_BUILD_ROOT/usr/bin/vboximg-mount
 ln -s /usr/share/virtualbox/src/vboxhost $RPM_BUILD_ROOT/usr/src/vboxhost-%VER%
@@ -188,7 +189,7 @@ mv virtualbox.desktop $RPM_BUILD_ROOT/usr/share/applications/virtualbox.desktop
 mv VBox.png $RPM_BUILD_ROOT/usr/share/pixmaps/VBox.png
 %{!?is_ose: mv LICENSE $RPM_BUILD_ROOT%{VBOXDOCDIR}}
 mv UserManual*.pdf $RPM_BUILD_ROOT%{VBOXDOCDIR}
-%{!?is_ose: mv VirtualBox*.chm $RPM_BUILD_ROOT%{VBOXDOCDIR}}
+%{?with_chm: mv VirtualBox*.chm $RPM_BUILD_ROOT%{VBOXDOCDIR}}
 install -m 755 -d $RPM_BUILD_ROOT/usr/lib/debug/usr/lib/virtualbox
 %if %{?rpm_suse:1}%{!?rpm_suse:0}
 rm *.debug
@@ -203,12 +204,12 @@ if [ -f $RPM_BUILD_ROOT/usr/lib/virtualbox/libQt5CoreVBox.so.5 ]; then
     $RPM_BUILD_ROOT/usr/lib/virtualbox/plugins/xcbglintegrations/*.so || true
   echo "[Paths]" > $RPM_BUILD_ROOT/usr/lib/virtualbox/qt.conf
   echo "Plugins = /usr/lib/virtualbox/plugins" >> $RPM_BUILD_ROOT/usr/lib/virtualbox/qt.conf
-  rm $RPM_BUILD_ROOT/usr/lib/virtualbox/chrpath
 fi
 if [ -d $RPM_BUILD_ROOT/usr/lib/virtualbox/legacy ]; then
   mv $RPM_BUILD_ROOT/usr/lib/virtualbox/legacy/* $RPM_BUILD_ROOT/usr/lib/virtualbox
   rmdir $RPM_BUILD_ROOT/usr/lib/virtualbox/legacy
 fi
+rm -f $RPM_BUILD_ROOT/usr/lib/virtualbox/chrpath
 ln -s ../VBoxVMM.so $RPM_BUILD_ROOT/usr/lib/virtualbox/components/VBoxVMM.so
 for i in VBoxHeadless VBoxNetDHCP VBoxNetNAT VBoxNetAdpCtl; do
   chmod 4511 $RPM_BUILD_ROOT/usr/lib/virtualbox/$i; done

@@ -37,9 +37,12 @@
 #include "VBoxSharedClipboardSvc-internal.h"
 
 
-/** Initialise the host side of the shared clipboard - called by the hgcm layer. */
-int ShClSvcImplInit(void)
+/*
+ * Initialise the host side of the shared clipboard - called by the hgcm layer.
+ */
+int ShClSvcImplInit(VBOXHGCMSVCFNTABLE *pTable)
 {
+    RT_NOREF(pTable);
     LogFlowFunc(("called, returning VINF_SUCCESS\n"));
     return VINF_SUCCESS;
 }

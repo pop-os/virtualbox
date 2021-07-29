@@ -1238,6 +1238,35 @@ static DECLCALLBACK(void) pdmR3DevHlp_STAMRegisterV(PPDMDEVINS pDevIns, void *pv
 
 
 /**
+ * @interface_method_impl{PDMDEVHLPR3,pfnSTAMDeregisterByPrefix}
+ */
+static DECLCALLBACK(int) pdmR3DevHlp_STAMDeregisterByPrefix(PPDMDEVINS pDevIns, const char *pszPrefix)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    PVM pVM = pDevIns->Internal.s.pVMR3;
+    VM_ASSERT_EMT(pVM);
+
+    int rc;
+    if (*pszPrefix == '/')
+        rc = STAMR3DeregisterByPrefix(pVM->pUVM, pszPrefix);
+    else
+    {
+        char    szQualifiedPrefix[1024];
+        ssize_t cch;
+        if (pDevIns->pReg->cMaxInstances == 1)
+            cch = RTStrPrintf2(szQualifiedPrefix, sizeof(szQualifiedPrefix), "/Devices/%s/%s", pDevIns->pReg->szName, pszPrefix);
+        else
+            cch = RTStrPrintf2(szQualifiedPrefix, sizeof(szQualifiedPrefix), "/Devices/%s#%u/%s",
+                               pDevIns->pReg->szName, pDevIns->iInstance, pszPrefix);
+        AssertReturn(cch > 0, VERR_OUT_OF_RANGE);
+        rc = STAMR3DeregisterByPrefix(pVM->pUVM, szQualifiedPrefix);
+    }
+    AssertRC(rc);
+    return rc;
+}
+
+
+/**
  * @interface_method_impl{PDMDEVHLPR3,pfnPCIRegister}
  */
 static DECLCALLBACK(int) pdmR3DevHlp_PCIRegister(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t fFlags,
@@ -2029,7 +2058,7 @@ static DECLCALLBACK(int) pdmR3DevHlp_DriverReconfigure(PPDMDEVINS pDevIns, uint3
     {
         AssertPtrReturn(papszDrivers[i], VERR_INVALID_POINTER);
         size_t cchDriver = strlen(papszDrivers[i]);
-        AssertPtrReturn(cchDriver > 0 && cchDriver < RT_SIZEOFMEMB(PDMDRVREG, szName), VERR_OUT_OF_RANGE);
+        AssertReturn(cchDriver > 0 && cchDriver < RT_SIZEOFMEMB(PDMDRVREG, szName), VERR_OUT_OF_RANGE);
 
         if (papConfigs)
             AssertPtrNullReturn(papConfigs[i], VERR_INVALID_POINTER);
@@ -4147,7 +4176,7 @@ const PDMDEVHLPR3 g_pdmR3DevHlpTrusted =
     pdmR3DevHlp_PhysBulkGCPhys2CCPtr,
     pdmR3DevHlp_PhysBulkGCPhys2CCPtrReadOnly,
     pdmR3DevHlp_PhysBulkReleasePageMappingLocks,
-    0,
+    pdmR3DevHlp_STAMDeregisterByPrefix,
     0,
     0,
     0,
@@ -4631,7 +4660,7 @@ const PDMDEVHLPR3 g_pdmR3DevHlpUnTrusted =
     pdmR3DevHlp_PhysBulkGCPhys2CCPtr,
     pdmR3DevHlp_PhysBulkGCPhys2CCPtrReadOnly,
     pdmR3DevHlp_PhysBulkReleasePageMappingLocks,
-    0,
+    pdmR3DevHlp_STAMDeregisterByPrefix,
     0,
     0,
     0,

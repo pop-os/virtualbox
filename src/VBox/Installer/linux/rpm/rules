@@ -24,8 +24,8 @@
 #  DEBUG=1          debug build
 #  NOSUBVER=1       disable generation of the sub-version field (which is
 #                   either the subversion rev [if available] or the build date)
-#  NODOCS=1         don't build docs, use precompiled UserManual.pdf and
-#                   VirtualBox.chm from $(vboxroot)/prebuild
+#  NODOCS=1         don't build docs, use precompiled UserManual*.pdf and
+#                   VirtualBox*.chm from $(vboxroot)/prebuild
 #  NOMODS=1         don't build any module
 #  NOQT=1           don't build the Qt GUI
 #  NOSDL=1          don't build VBoxSDL
@@ -33,40 +33,50 @@
 #  VERSUFFIX=<suffix> set a particular package version suffix (e.g. _customer)
 #  HEADLESS=1       build the headless version
 #  VNC=1            build VNC code
-#  NOWEBSVC=1       don't build the webservice API, default for OSE
+#  NOWEBSVC=1       don't build the webservice API
 #  STAGEDISO=<path> don't build the VBoxAdditions, use the precompiled .iso
 #  PKGDIR=<path>    where to store the final package(s)
 #  svn_revision=xxx do not depend on subversion being available, but use this
 #                   hard-coded revision number instead
 #
-# NODOCS will also be set if UserManual*.pdf and VirtualBox*.chm are placed in
-# $(vboxroot)/prebuild.  STAGEDISO will be set if VBoxGuestAdditions.iso is
-# placed there.  Wine will not be required to be available if both NODOCS and
-# STAGEDISO are set.
+# NODOCS will be set if UserManual*.pdf and VirtualBox*.chm are placed in
+# $(vboxroot)/prebuild.
+# STAGEDISO will be set if VBoxGuestAdditions.iso is placed there.
+#
+# Wine will not be required if both NODOCS and STAGEDISO are set.
+
+verpkg   := VirtualBox-6.1
+vboxroot := $(shell while ! test -r configure && ! test "$$PWD" = "/"; do cd ..; done; pwd)
+instlin  := $(vboxroot)/src/VBox/Installer/linux
+pkgdir   := $(if $(PKGDIR),$(PKGDIR),$(shell cd $(vboxroot)/..; pwd))
+outdir   := $(if $(PATH_OUT_BASE),$(PATH_OUT_BASE),$(vboxroot))/out
+bldbase  := $(outdir)/rpm
+builddir := $(bldbase)/builddir
+stagedir := $(bldbase)/rpmbuild
+rpmlib   := $(shell if [ `uname -m` = "x86_64" ]; then echo "lib64"; else echo "lib"; fi)
+verfile  := $(builddir)/version-generated.mk
+ose      := $(if $(OSE),1,$(if $(wildcard $(vboxroot)/src/VBox/RDP/server),,1))
+chrarch  := $(shell if [ `uname -m` = "x86_64" ]; then echo "amd64"; else echo "x86"; fi)
+-include $(vboxroot)/SVN_REVISION
+
+NOMODS   ?= $(ose)
+NOQT     ?= $(HEADLESS)
+NOSDL    ?= $(HEADLESS)
+NOWEBSVC ?=
+EFI      ?= $(if $(wildcard $(vboxroot)/prebuild/VBoxEFI32.fd $(vboxroot)/prebuild/VBoxEFI64.fd),1,)
+NODOCS   ?= $(if $(wildcard $(vboxroot)/prebuild/UserManual*.pdf),$(if $(wildcard $(vboxroot)/prebuild/VirtualBox*.chm),1,),)
+STAGEDISO ?= $(if $(wildcard $(vboxroot)/prebuild/VBoxGuestAdditions.iso),$(vboxroot)/prebuild,)
+NOWINE   := $(if $(NODOCS),1,$(if $(STAGEDISO),1,$(ose)))
+
+ifneq ($(STAGEDISO),)
+ ifeq ($(wildcard $(STAGEDISO)/VBoxGuestAdditions.iso),)
+  $(error STAGEDISO='$(STAGEDISO)/VBoxGuestAdditions.iso' not found)
+ endif
+endif
 
 ifeq ($(wildcard rpm/rules),)
 $(error call rpm/rules from src/VBox/Installer/linux)
 endif
-
-verpkg   := VirtualBox-6.1
-current  := $(shell pwd)
-vboxroot := $(shell while ! test -r configure && ! test "$PWD" = "/"; do cd ..; done; pwd)
-pkgdir   := $(if $(PKGDIR),$(PKGDIR),$(shell cd $(vboxroot)/..; pwd))
-builddir := $(vboxroot)/rpm/builddir
-stagedir := $(vboxroot)/src/VBox/Installer/linux/rpmbuild
-rpmlib   := $(shell if [ `uname -m` = "x86_64" ]; then echo "lib64"; else echo "lib"; fi)
-chrarch  := $(shell if [ `uname -m` = "x86_64" ]; then echo "amd64"; else echo "x86"; fi)
-verfile  := $(builddir)/version-generated.mk
-ose      := $(if $(OSE),1,$(if $(wildcard $(vboxroot)/src/VBox/RDP/server),,1))
--include $(vboxroot)/SVN_REVISION
-svnrev   :=$(if $(svn_revision),$(svn_revision),)
-
-NOMODS   ?= $(ose)
-NOQT     ?= $(HEADLESS)
-NOWEBSVC ?= $(ose)
-NODOCS   ?= $(if $(wildcard $(vboxroot)/prebuild/UserManual*.pdf),$(if $(wildcard $(vboxroot)/prebuild/VirtualBox*.chm),1,),)
-STAGEDISO ?= $(if $(wildcard $(vboxroot)/prebuild/VBoxGuestAdditions.iso),$(vboxroot)/prebuild,)
-NOWINE   := $(if $(NODOCS),$(if $(STAGEDISO),1,),)$(ose)
 
 ifneq ($(MAKECMDGOALS),clean)
  # look for fedora
@@ -99,7 +109,7 @@ ifneq ($(MAKECMDGOALS),clean)
   $(error failed to detect the release type.  Hack the detection.)
  endif
 
- rpmdist := $(strip $(shell grep $(rpmrel) $(current)/distributions_rpm | cut -d'=' -f2))
+ rpmdist := $(strip $(shell grep $(rpmrel) $(instlin)/distributions_rpm | cut -d'=' -f2))
  ifeq ($(rpmdist),)
   $(error Cannot detect package distribution (rpmrel=$(rpmrel)))
  endif
@@ -113,27 +123,22 @@ ifneq ($(MAKECMDGOALS),clean)
  ifeq ($(rpmspec),)
   $(error failed to detect the .spec file (rpmrel=$(rpmrel)))
  endif
-
- # contrary to debian we need the verfile earlier to get the correct rpmname into the bld_flags
- include $(verfile)
-$(verfile): rpm/configure-stamp
-	. rpm/env.sh && kmk -C $(vboxroot) $(verfile) $(bld_flags)
-
 endif
 
+ifneq ($(wildcard $(verfile)),)
+include $(verfile)
 ver      := $(VBOX_VERSION_STRING)
-rpmver   :=$(ver)$(if $(NOSUBVER),,$(if $(svn_revision),_$(svn_revision),)$(VERSUFFIX)$(if $(HEADLESS),_headless,)$(if $(DEBUG),_dbg,))
-archdir  := $(current)/rpm/VirtualBox-$(ver)
+svnver   := $(if $(NOSUBVER),,$(if $(svn_revision),-$(svn_revision),$(shell if \
+		svn info $(vboxroot) > /dev/null 2>&1; then \
+		svn info $(vboxroot)|sed -e "s/^Revision: \(.*\)/-\1/;t;d"; else \
+		date +"-%Y%m%d"; fi)))
+rpmver   := $(ver)$(subst -,_,$(svnver))$(VERSUFFIX)$(if $(HEADLESS),_headless,)$(if $(DEBUG),_dbg,)
+archdir  := $(bldbase)/VirtualBox-$(ver)
 rpmname  := $(verpkg)-$(rpmver)_$(rpmrel)
+endif
 
 # never ship any modules
 instmod  :=
-
-ifneq ($(STAGEDISO),)
- ifeq ($(wildcard $(STAGEDISO)/VBoxGuestAdditions.iso),)
-  $(error STAGEDISO='$(STAGEDISO)/VBoxGuestAdditions.iso' not found)
- endif
-endif
 
 ifeq ($(wildcard /usr/share/doc/packages/bash),)
  doc_dir := VBOX_PATH_PACKAGE_DOCS="\"/usr/share/doc/$(verpkg)\""
@@ -144,109 +149,112 @@ endif
 
 # EL5 ships Python 2.4 while our Python support requires Python 2.6 or later
 cfg_flags := $(if $(NOQT),--disable-qt,) \
-	     $(if $(NOSDL),--disable-vboxsdl,) \
-	     $(if $(filter el5 el6,$(rpmrel)),--build-libvpx,) \
-	     $(if $(filter el5 el6,$(rpmrel)),--build-libopus,) \
-	     $(if $(filter el5 el6,$(rpmrel)),--build-libssl,) \
-	     $(if $(filter el5,$(rpmrel)),--build-libcurl,) \
-	     $(if $(filter el5,$(rpmrel)),--disable-sdl-ttf,) \
-	     $(if $(filter el5,$(rpmrel)),--disable-pulse,) \
-	     $(if $(filter el5,$(rpmrel)),--disable-python,) \
-	     $(if $(ose),--ose,) $(if $(LINUX),--with-linux=$(LINUX),) \
-	     $(if $(HEADLESS),--build-headless,) \
-	     $(if $(DEBUG),--build-debug,) \
-	     $(if $(NOWINE),,--setup-wine) \
-	     $(if $(NOWEBSVC),,$(if $(ose),--enable-webservice,)) \
-	     $(if $(VNC),--enable-vnc,) \
-	     --disable-extpack
+    $(if $(NOSDL),--disable-vboxsdl,) \
+    $(if $(filter el5 el6,$(rpmrel)),--build-libvpx,) \
+    $(if $(filter el5 el6,$(rpmrel)),--build-libopus,) \
+    $(if $(filter el5 el6,$(rpmrel)),--build-libssl,) \
+    $(if $(filter el5,$(rpmrel)),--build-libcurl,) \
+    $(if $(filter el5,$(rpmrel)),--disable-sdl-ttf,) \
+    $(if $(filter el5,$(rpmrel)),--disable-pulse,) \
+    $(if $(filter el5,$(rpmrel)),--disable-python,) \
+    $(if $(ose),--ose,) $(if $(LINUX),--with-linux=$(LINUX),) \
+    $(if $(HEADLESS),--build-headless,) \
+    $(if $(DEBUG),--build-debug,) \
+    $(if $(NOWINE),,--setup-wine) \
+    $(if $(VNC),--enable-vnc,) \
+    $(if $(PATH_OUT_BASE),--out-base-dir=$(PATH_OUT_BASE),) \
+    --disable-extpack
 
-bld_flags := AUTOCFG=$(current)/rpm/AutoConfig.kmk \
-	     LOCALCFG=$(current)/rpm/LocalConfig.kmk \
-	     PATH_OUT=$(builddir) \
-	     VBOX_WITHOUT_EXTPACK_PUEL_PACKING=1 \
-	     VBOX_WITHOUT_EXTPACK_VNC_PACKING=1 \
-	     $(if $(filter el5 el6,$(rpmrel)),,VBOX_WITH_VMSVGA3D=1) \
-	     VBOX_DO_STRIP= \
-	     $(if $(filter el5,$(rpmrel)),VBOX_BLD_PYTHON=$(strip \
-		$(firstword $(wildcard /usr/local/bin/python2.7) $(wildcard /usr/bin/python2.7) \
-		$(wildcard /usr/bin/python2.6) $(wildcard /usr/bin/python2) $(wildcard /usr/bin/python))),) \
-	     $(doc_dir) \
-	     $(if $(ose),,VBOX_WITH_DOCS_CHM=1) \
-	     VBOX_PACKAGE_DIST=$(rpmdist) \
-	     $(if $(svnrev),VBOX_SVN_REV=$(svnrev),) \
-	     $(if $(NODOCS),VBOX_WITH_DOCS= ,) \
-	     $(if $(VERBOSE),--print-directory KBUILD_VERBOSE=2,--no-print-directory) \
-	     $(if $(STAGEDISO),VBOX_WITHOUT_ADDITIONS=1,) \
-	     $(if $(filter el5,$(rpmrel)),,VBOX_WITH_SYSFS_BY_DEFAULT=1)
+bld_flags := AUTOCFG=$(bldbase)/AutoConfig.kmk \
+    LOCALCFG=$(instlin)/rpm/LocalConfig.kmk \
+    PATH_OUT=$(builddir) \
+    VBOX_WITHOUT_EXTPACK_PUEL_PACKING=1 \
+    VBOX_WITHOUT_EXTPACK_VNC_PACKING=1 \
+    $(if $(filter el5 el6,$(rpmrel)),,VBOX_WITH_VMSVGA3D=1) \
+    VBOX_DO_STRIP= \
+    $(if $(filter el5,$(rpmrel)),VBOX_BLD_PYTHON=$(firstword $(wildcard \
+      /usr/local/bin/python2.7 /usr/bin/python2.7 /usr/bin/python2.6 /usr/bin/python2 /usr/bin/python)),) \
+    $(if $(filter el5,$(rpmrel)),,VBOX_WITH_SYSFS_BY_DEFAULT=1) \
+    $(doc_dir) \
+    VBOX_PACKAGE_DIST=$(rpmdist) \
+    $(if $(svn_revision),VBOX_SVN_REV=$(svn_revision),) \
+    $(if $(NODOCS),VBOX_WITH_DOCS= VBOX_WITH_DOCS_CHM=1,VBOX_WITH_KCHMVIEWER=) \
+    $(if $(VERBOSE),--print-directory KBUILD_VERBOSE=2,--no-print-directory) \
+    $(if $(STAGEDISO),VBOX_WITHOUT_ADDITIONS=1,)
 
-rpm/configure-stamp:
-	cd $(vboxroot) && ./configure --odir=$(current)/rpm $(cfg_flags)
-	touch rpm/configure-stamp
+configure: $(bldbase)/configure-stamp
+$(bldbase)/configure-stamp:
+	mkdir -p $(bldbase)
+	cd $(vboxroot) && ./configure --odir=$(bldbase) $(cfg_flags)
+	touch $@
 
-rpm/build-stamp: rpm/configure-stamp
-	. rpm/env.sh && kmk -C $(vboxroot) $(bld_flags) $(if $(NOPARALLEL),-j1,) all
-	$(if $(NODOCS),cp $(vboxroot)/prebuild/UserManual*.pdf $(builddir)/bin,)
-	$(if $(NODOCS),cp $(vboxroot)/prebuild/VirtualBox*.chm $(builddir)/bin,)
+build: $(bldbase)/configure-stamp $(bldbase)/build-stamp
+$(bldbase)/build-stamp $(verfile): $(bldbase)/configure-stamp
+	. $(bldbase)/env.sh && kmk -C $(vboxroot) $(bld_flags) $(if $(NOPARALLEL),-j1,) all
+	# Files from prebuild go to (builddir)/bin to be used during the
+	# packing stage, overriding what the build did/would produce.
+	$(if $(NODOCS),cp $(addprefix $(vboxroot)/prebuild/,UserManual*.pdf VirtualBox*.chm) $(builddir)/bin,)
 	$(if $(EFI),cp $(vboxroot)/prebuild/VBoxEFI32.fd $(builddir)/bin,)
 	$(if $(EFI),cp $(vboxroot)/prebuild/VBoxEFI64.fd $(builddir)/bin,)
 	mkdir -p $(builddir)/bin/additions
 	$(if $(STAGEDISO),cp $(STAGEDISO)/VBoxGuestAdditions.iso $(builddir)/bin/additions,)
-	. rpm/env.sh && kmk -C $(vboxroot) $(bld_flags) \
+	. $(bldbase)/env.sh && kmk -C $(vboxroot) $(bld_flags) \
 	    VBOX_NO_LINUX_RUN_INSTALLER=1 \
 	    VBOX_LNX_ADD_ARCHIVE.x86=$(builddir)/bin/additions/VBoxGuestAdditions-x86.tar.bz2 \
 	    VBOX_LNX_ADD_ARCHIVE.amd64=$(builddir)/bin/additions/VBoxGuestAdditions-amd64.tar.bz2 \
 	    VBOX_PATH_ADDITIONS.linux.x86=$(builddir)/bin/additions \
 	    VBOX_PATH_ADDITIONS.linux.amd64=$(builddir)/bin/additions \
 	    packing
-	touch rpm/build-stamp
+	touch $(bldbase)/build-stamp
 
 clean:
 	rm -rf $(archdir)
 	rm -rf $(stagedir)
 	rm -rf $(builddir)
-	rm -rf $(vboxroot)/rpm
-	rm -rf rpm/VirtualBox-*
-	rm -f rpm/VirtualBox.tar rpm/VirtualBox.tar.bz2
-	rm -f rpm/VirtualBox.spec
-	rm -f rpm/build-stamp rpm/configure-stamp rpm/configure.log
-	rm -f rpm/AutoConfig.kmk rpm/env.sh
+	rm -rf $(bldbase)/wine.*
+	rm -rf $(bldbase)/VirtualBox-*
+	rm -f $(bldbase)/VirtualBox.tar $(bldbase)/VirtualBox.tar.bz2
+	rm -f $(bldbase)/build-stamp $(bldbase)/configure-stamp
+	rm -f $(bldbase)/AutoConfig.kmk $(bldbase)/configure.log $(bldbase)/env.sh
+	rm -f $(bldbase)/VirtualBox.spec
+	if [ -d $(bldbase) ]; then rmdir $(bldbase); fi
 
 ifeq ($(VBOX_VERSION_MAJOR),)
-binary: rpm/build-stamp $(verfile)
-	$(MAKE) -f rpm/rules binary
+binary: build $(verfile)
+	+$(MAKE) -f rpm/rules binary
+
 else
-binary: rpm/build-stamp
-	rm -rf rpm/VirtualBox-*
-	tar -xf $(builddir)/bin/VirtualBox.tar -C rpm
+binary: build
+	rm -rf $(bldbase)/VirtualBox-*
+	tar -xf $(builddir)/bin/VirtualBox.tar -C $(bldbase)
 	sed \
 	    -e 's|%VER%|$(ver)|g' \
 	    -e 's|%NAME%|$(verpkg)|g' \
 	    -e 's|%BUILDVER%|$(rpmver)|g' \
 	    -e 's|%BUILDREL%|$(rpmrel)|g' \
-	    -e 's|%BUILDROOT%|$(current)/rpm/buildroot|g' \
-	    -e 's|%LIB%|$(rpmlib)|g' \
+	    -e 's|%BUILDROOT%|$(bldbase)/buildroot|g' \
 	    -e 's|%OSE%|$(if $(ose),is_ose,not_ose)|g' \
 	    -e 's|%SPEC%|$(rpmspec)|g' \
-	    -e 's|%PYTHON%|$(if $(filter el5,$(rpmrel)),,with_python)|g' \
+	    -e 's|%CHM%|$(if $(NODOCS),with_chm,without_chm)|g' \
+	    -e 's|%PYTHON%|$(if $(filter el5,$(rpmrel)),without_python,with_python)|g' \
 	    -e 's|%MACROSPYTHON%|$(if $(wildcard /usr/lib/rpm/macros.d/macros.python3),,$(if $(wildcard /usr/lib/rpm/macros.python),%include /usr/lib/rpm/macros.python,))|g' \
 	    -e 's|%INSTMOD%|$(instmod)|g' \
 	    -e 's|%LIBASOUND%|$(if $(filter lib64,$(rpmlib)),libasound.so.2()(64bit),libasound.so.2)|g' \
 	    -e 's|%INITSCRIPTS%|$(if $(filter fedora,$(rpmspec)),initscripts,)|g' \
-	    -e 's|%WEBSVC%|$(if $(NOWEBSVC),false,true)|g' \
 	    -e 's|%NETTOOLS%|$(if $(filter fedora18 fedora19 fedora20 fedora21 el5 openSUSE110 openSUSE111 openSUSE112 openSUSE113 openSUSE114,$(rpmrel)),net-tools,iproute)|g' \
-	    rpm/VirtualBox.tmpl.spec > $(archdir)/VirtualBox.spec
-	mv rpm/VirtualBox-$(ver) rpm/$(rpmname)
-	cp ../../../../tools/linux.$(chrarch)/bin/chrpath rpm/$(rpmname) || true
-	tar -cf rpm/VirtualBox.tar -C rpm $(rpmname)
-	rm -f rpmbuild/RPMS/*/VirtualBox*rpm
-	rm -f rpmbuild/SPECS/*
-	mkdir -p rpmbuild/BUILD rpmbuild/RPMS/i386 rpmbuild/RPMS/x86_64 rpmbuild/SOURCES rpmbuild/SPECS rpmbuild/SRPMS
-	(cd rpm; rpmbuild --define '_topdir $(current)/rpmbuild' -tb --clean VirtualBox.tar)
-	mv rpmbuild/RPMS/*/$(verpkg)-debug* $(pkgdir) || true
-	file=`find rpmbuild/RPMS -name $(verpkg)*rpm -print`; \
+	    $(instlin)/rpm/VirtualBox.tmpl.spec > $(archdir)/VirtualBox.spec
+	mv $(bldbase)/VirtualBox-$(ver) $(bldbase)/$(rpmname)
+	cp $(vboxroot)/tools/linux.$(chrarch)/bin/chrpath $(bldbase)/$(rpmname) || true
+	tar -cf $(bldbase)/VirtualBox.tar -C $(bldbase) $(rpmname)
+	rm -f $(stagedir)/RPMS/*/VirtualBox*rpm
+	rm -f $(stagedir)/SPECS/*
+	mkdir -p $(stagedir)/BUILD $(stagedir)/RPMS/i386 $(stagedir)/RPMS/x86_64 $(stagedir)/SOURCES $(stagedir)/SPECS $(stagedir)/SRPMS
+	(cd $(bldbase); rpmbuild --define '_topdir $(stagedir)' -tb --clean VirtualBox.tar)
+	mv $(stagedir)/RPMS/*/$(verpkg)-debug* $(pkgdir) || true
+	file=`find $(stagedir)/RPMS -name $(verpkg)*rpm -print`; \
 	    mv $$file $(pkgdir)
 # Note! if rpmbuild fails: sudo chmod a+rw /usr/src/redhat/* /usr/src/redhat/RPMS/*
 # Note! if find/mv fails:  sudo ln -s redhat/ /usr/src/packages
 endif
 
-.PHONY: binary clean
+.PHONY: binary configure build clean

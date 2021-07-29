@@ -3946,8 +3946,9 @@ static int vbeR3ParseBitmap(PVGASTATECC pThisCC)
     /*
      * Get bitmap header data
      */
-    PBMPINFO pBmpInfo = (PBMPINFO)(pThisCC->pbLogo + sizeof(LOGOHDR));
-    PWINHDR  pWinHdr  = (PWINHDR)(pThisCC->pbLogo + sizeof(LOGOHDR) + sizeof(BMPINFO));
+    PCLOGOHDR   pLogoHdr = (PCLOGOHDR)pThisCC->pbLogo;
+    PBMPINFO    pBmpInfo = (PBMPINFO)(pThisCC->pbLogo + sizeof(LOGOHDR));
+    PWINHDR     pWinHdr  = (PWINHDR)(pThisCC->pbLogo + sizeof(LOGOHDR) + sizeof(BMPINFO));
 
     if (pBmpInfo->Type == BMP_ID)
     {
@@ -4009,28 +4010,27 @@ static int vbeR3ParseBitmap(PVGASTATECC pThisCC)
                               VERR_INVALID_PARAMETER);
 
         AssertLogRelMsgReturn(pThisCC->LogoCompression == BMP_COMPRESS_NONE,
-                               ("Unsupported %u compression.\n", pThisCC->LogoCompression),
-                               VERR_INVALID_PARAMETER);
+                              ("Unsupported %u compression.\n", pThisCC->LogoCompression),
+                              VERR_INVALID_PARAMETER);
 
-        AssertLogRelMsgReturn(pBmpInfo->FileSize > pBmpInfo->Offset,
-                               ("Wrong bitmap data offset %u.\n", pBmpInfo->Offset),
-                               VERR_INVALID_PARAMETER);
+        AssertLogRelMsgReturn(pLogoHdr->cbLogo > pBmpInfo->Offset,
+                              ("Wrong bitmap data offset %u, cbLogo=%u.\n", pBmpInfo->Offset, pLogoHdr->cbLogo),
+                              VERR_INVALID_PARAMETER);
 
-        uint32_t cbFileData = pBmpInfo->FileSize - pBmpInfo->Offset;
-        uint32_t cbImageData = pThisCC->cxLogo * pThisCC->cyLogo * pThisCC->cLogoPlanes;
-
-        /* TBD: Take 32bit rows padding into account */
+        uint32_t const cbFileData  = pLogoHdr->cbLogo - pBmpInfo->Offset;
+        uint32_t       cbImageData = (uint32_t)pThisCC->cxLogo * pThisCC->cyLogo * pThisCC->cLogoPlanes;
         if (pThisCC->cLogoBits == 4)
-        {
             cbImageData /= 2;
-        } else if (pThisCC->cLogoBits == 24)
-        {
+        else if (pThisCC->cLogoBits == 24)
             cbImageData *= 3;
-        }
 
         AssertLogRelMsgReturn(cbImageData <= cbFileData,
-            ("Wrong BMP header data %d\n", cbImageData),
-            VERR_INVALID_PARAMETER);
+                              ("Wrong BMP header data %u (cbLogo=%u offBits=%u)\n", cbImageData, pBmpInfo->Offset, pLogoHdr->cbLogo),
+                              VERR_INVALID_PARAMETER);
+
+        AssertLogRelMsgReturn(pLogoHdr->cbLogo == pBmpInfo->FileSize,
+                              ("Wrong bitmap file size %u, cbLogo=%u.\n", pBmpInfo->FileSize, pLogoHdr->cbLogo),
+                              VERR_INVALID_PARAMETER);
 
         /*
          * Read bitmap palette
@@ -7224,10 +7224,10 @@ static DECLCALLBACK(int)   vgaR3Construct(PPDMDEVINS pDevIns, int iInstance, PCF
      */
     pThisCC->cbLogo = LogoHdr.cbLogo;
     if (g_cbVgaDefBiosLogo)
-        pThisCC->cbLogo = g_cbVgaDefBiosLogo;
+        pThisCC->cbLogo = RT_MAX(pThisCC->cbLogo, g_cbVgaDefBiosLogo);
 # ifndef VBOX_OSE
     if (g_cbVgaDefBiosLogoNY)
-        pThisCC->cbLogo = g_cbVgaDefBiosLogoNY;
+        pThisCC->cbLogo = RT_MAX(pThisCC->cbLogo, g_cbVgaDefBiosLogoNY);
 # endif
     pThisCC->cbLogo += sizeof(LogoHdr);
 

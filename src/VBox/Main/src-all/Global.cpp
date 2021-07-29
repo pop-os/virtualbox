@@ -28,7 +28,10 @@ const Global::OSType Global::sOSTypes[] =
 {
     /* NOTE1: we assume that unknown is always the first two entries!
      * NOTE2: please use powers of 2 when specifying the size of harddisks since
-     *        '2GB' looks better than '1.95GB' (= 2000MB) */
+     *        '2GB' looks better than '1.95GB' (= 2000MB)
+     * NOTE3: if you add new guest OS types please check if the code in
+     *        Machine::getEffectiveParavirtProvider and Console::i_configConstructorInner
+     *        are still covering the relevant cases. */
     { "Other",   "Other",             "Other",              "Other/Unknown",
       VBOXOSTYPE_Unknown,         VBOXOSHINT_NONE,
         64,   4,  2 * _1G64, GraphicsControllerType_VBoxVGA, NetworkAdapterType_Am79C973, 0, StorageControllerType_PIIX4, StorageBus_IDE,
@@ -338,27 +341,27 @@ const Global::OSType Global::sOSTypes[] =
 
     { "Solaris", "Solaris",           "Solaris",            "Oracle Solaris 10 5/09 and earlier (32-bit)",
       VBOXOSTYPE_Solaris,         VBOXOSHINT_NONE,
-       768,  16, 16 * _1G64, GraphicsControllerType_VBoxVGA, NetworkAdapterType_I82540EM, 0, StorageControllerType_PIIX4, StorageBus_IDE,
+      1024,  16, 32 * _1G64, GraphicsControllerType_VBoxVGA, NetworkAdapterType_I82540EM, 0, StorageControllerType_PIIX4, StorageBus_IDE,
         StorageControllerType_PIIX4, StorageBus_IDE, ChipsetType_PIIX3, AudioControllerType_AC97, AudioCodecType_STAC9700  },
 
     { "Solaris", "Solaris",           "Solaris_64",         "Oracle Solaris 10 5/09 and earlier (64-bit)",
       VBOXOSTYPE_Solaris_x64,     VBOXOSHINT_64BIT | VBOXOSHINT_HWVIRTEX | VBOXOSHINT_IOAPIC,
-      1536,  16, 16 * _1G64, GraphicsControllerType_VBoxVGA, NetworkAdapterType_I82540EM, 0, StorageControllerType_PIIX4, StorageBus_IDE,
+      2048,  16, 32 * _1G64, GraphicsControllerType_VBoxVGA, NetworkAdapterType_I82540EM, 0, StorageControllerType_PIIX4, StorageBus_IDE,
         StorageControllerType_PIIX4, StorageBus_IDE, ChipsetType_PIIX3, AudioControllerType_AC97, AudioCodecType_STAC9700  },
 
     { "Solaris", "Solaris",           "OpenSolaris",        "Oracle Solaris 10 10/09 and later (32-bit)",
       VBOXOSTYPE_OpenSolaris,     VBOXOSHINT_USBTABLET,
-       768,  16, 16 * _1G64, GraphicsControllerType_VBoxVGA, NetworkAdapterType_I82540EM, 0, StorageControllerType_IntelAhci, StorageBus_SATA,
+      1024,  16, 32 * _1G64, GraphicsControllerType_VBoxVGA, NetworkAdapterType_I82540EM, 0, StorageControllerType_IntelAhci, StorageBus_SATA,
         StorageControllerType_IntelAhci, StorageBus_SATA, ChipsetType_PIIX3, AudioControllerType_AC97, AudioCodecType_STAC9700  },
 
     { "Solaris", "Solaris",           "OpenSolaris_64",     "Oracle Solaris 10 10/09 and later (64-bit)",
       VBOXOSTYPE_OpenSolaris_x64, VBOXOSHINT_64BIT | VBOXOSHINT_HWVIRTEX | VBOXOSHINT_IOAPIC | VBOXOSHINT_USBTABLET,
-      1536,  16, 16 * _1G64, GraphicsControllerType_VBoxVGA, NetworkAdapterType_I82540EM, 0, StorageControllerType_IntelAhci, StorageBus_SATA,
+      2048,  16, 32 * _1G64, GraphicsControllerType_VBoxVGA, NetworkAdapterType_I82540EM, 0, StorageControllerType_IntelAhci, StorageBus_SATA,
         StorageControllerType_IntelAhci, StorageBus_SATA, ChipsetType_PIIX3, AudioControllerType_AC97, AudioCodecType_STAC9700  },
 
     { "Solaris", "Solaris",           "Solaris11_64",       "Oracle Solaris 11 (64-bit)",
       VBOXOSTYPE_Solaris11_x64, VBOXOSHINT_64BIT | VBOXOSHINT_HWVIRTEX | VBOXOSHINT_IOAPIC | VBOXOSHINT_USBTABLET | VBOXOSHINT_RTCUTC,
-      1536,  16, 16 * _1G64, GraphicsControllerType_VMSVGA, NetworkAdapterType_I82540EM, 0, StorageControllerType_IntelAhci, StorageBus_SATA,
+      4096,  16, 32 * _1G64, GraphicsControllerType_VMSVGA, NetworkAdapterType_I82540EM, 0, StorageControllerType_IntelAhci, StorageBus_SATA,
         StorageControllerType_IntelAhci, StorageBus_SATA, ChipsetType_PIIX3, AudioControllerType_AC97, AudioCodecType_STAC9700  },
 
     { "BSD",     "BSD",               "FreeBSD",            "FreeBSD (32-bit)",

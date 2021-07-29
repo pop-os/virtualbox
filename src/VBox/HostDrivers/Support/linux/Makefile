@@ -120,6 +120,7 @@ VBOXMOD_OBJS = \
 ifeq ($(BUILD_TARGET_ARCH),x86)
 VBOXMOD_OBJS += \
 	math/gcc/divdi3.o \
+	math/gcc/divmoddi4.o \
 	math/gcc/moddi3.o \
 	math/gcc/qdivrem.o \
 	math/gcc/udivdi3.o \

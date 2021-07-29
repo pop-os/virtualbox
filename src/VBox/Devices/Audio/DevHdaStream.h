@@ -21,33 +21,10 @@
 # pragma once
 #endif
 
-#include "DevHdaCommon.h"
-#include "DevHdaStreamMap.h"
-
-
-#ifdef VBOX_WITH_AUDIO_HDA_ASYNC_IO
-/**
- * HDA stream's state for asynchronous I/O.
- */
-typedef struct HDASTREAMSTATEAIO
-{
-    /** Thread handle for the actual I/O thread. */
-    RTTHREAD                hThread;
-    /** Event for letting the thread know there is some data to process. */
-    RTSEMEVENT              hEvent;
-    /** Critical section for synchronizing access. */
-    RTCRITSECT              CritSect;
-    /** Started indicator. */
-    volatile bool           fStarted;
-    /** Shutdown indicator. */
-    volatile bool           fShutdown;
-    /** Whether the thread should do any data processing or not. */
-    volatile bool           fEnabled;
-    bool                    afPadding[1+4];
-} HDASTREAMSTATEAIO;
-/** Pointer to a HDA stream's asynchronous I/O state. */
-typedef HDASTREAMSTATEAIO *PHDASTREAMSTATEAIO;
+#ifndef VBOX_INCLUDED_SRC_Audio_DevHda_h
+# error "Only include DevHda.h!"
 #endif
+
 
 /**
  * Structure containing HDA stream debug stuff, configurable at runtime.
@@ -60,13 +37,13 @@ typedef struct HDASTREAMDEBUGRT
     /** File for dumping stream reads / writes.
      *  For input streams, this dumps data being written to the device FIFO,
      *  whereas for output streams this dumps data being read from the device FIFO. */
-    R3PTRTYPE(PPDMAUDIOFILE) pFileStream;
+    R3PTRTYPE(PAUDIOHLPFILE) pFileStream;
     /** File for dumping raw DMA reads / writes.
      *  For input streams, this dumps data being written to the device DMA,
      *  whereas for output streams this dumps data being read from the device DMA. */
-    R3PTRTYPE(PPDMAUDIOFILE) pFileDMARaw;
+    R3PTRTYPE(PAUDIOHLPFILE) pFileDMARaw;
     /** File for dumping mapped (that is, extracted) DMA reads / writes. */
-    R3PTRTYPE(PPDMAUDIOFILE) pFileDMAMapped;
+    R3PTRTYPE(PAUDIOHLPFILE) pFileDMAMapped;
 } HDASTREAMDEBUGRT;
 
 /**
@@ -76,38 +53,8 @@ typedef struct HDASTREAMDEBUG
 {
     /** Runtime debug info. */
     HDASTREAMDEBUGRT        Runtime;
-#ifdef DEBUG
-    /** Critical section to serialize access if needed. */
-    RTCRITSECT              CritSect;
-    uint32_t                Padding0[2];
-    /** Number of total read accesses. */
-    uint64_t                cReadsTotal;
-    /** Number of total DMA bytes read. */
-    uint64_t                cbReadTotal;
-    /** Timestamp (in ns) of last read access. */
-    uint64_t                tsLastReadNs;
-    /** Number of total write accesses. */
-    uint64_t                cWritesTotal;
-    /** Number of total DMA bytes written. */
-    uint64_t                cbWrittenTotal;
-    /** Number of total write accesses since last iteration (Hz). */
-    uint64_t                cWritesHz;
-    /** Number of total DMA bytes written since last iteration (Hz). */
-    uint64_t                cbWrittenHz;
-    /** Timestamp (in ns) of beginning a new write slot. */
-    uint64_t                tsWriteSlotBegin;
-    /** Number of current silence samples in a (consecutive) row. */
-    uint64_t                csSilence;
-    /** Number of silent samples in a row to consider an audio block as audio gap (silence). */
-    uint64_t                cSilenceThreshold;
-    /** How many bytes to skip in an audio stream before detecting silence.
-     *  (useful for intros and silence at the beginning of a song). */
-    uint64_t                cbSilenceReadMin;
-#else
     uint64_t                au64Alignment[2];
-#endif
 } HDASTREAMDEBUG;
-typedef HDASTREAMDEBUG *PHDASTREAMDEBUG;
 
 /**
  * Internal state of a HDA stream.
@@ -119,35 +66,18 @@ typedef struct HDASTREAMSTATE
     volatile bool           fInReset;
     /** Flag indicating if the stream is in running state or not. */
     volatile bool           fRunning;
-    /** The stream's I/O timer Hz rate. */
-    uint16_t                uTimerIoHz;
     /** How many interrupts are pending due to
      *  BDLE interrupt-on-completion (IOC) bits set. */
     uint8_t                 cTransferPendingInterrupts;
-    /** Unused, padding. */
-    uint8_t                 abPadding1[2];
     /** Input streams only: Set when we switch from feeding the guest silence and
      *  commits to proving actual audio input bytes. */
     bool                    fInputPreBuffered;
     /** Input streams only: The number of bytes we need to prebuffer. */
     uint32_t                cbInputPreBuffer;
-    uint32_t                u32Padding2;
     /** Timestamp (absolute, in timer ticks) of the last DMA data transfer.
      * @note This is used for wall clock (WALCLK) calculations.  */
     uint64_t volatile       tsTransferLast;
-    /** Timestamp (absolute, in timer ticks) of the next DMA data transfer.
-     *  Next for determining the next scheduling window.
-     *  Can be 0 if no next transfer is scheduled. */
-    uint64_t                tsTransferNext;
-    /** Total transfer size (in bytes) of a transfer period.
-     * @note This is in host side frames, in case we're doing any mapping. */
-    uint32_t                cbTransferSize;
-    /** The size of an average transfer. */
-    uint32_t                cbAvgTransfer;
-    /** The stream's current host side configuration.
-     * This should match the SDnFMT in all respects but maybe the channel count as
-     * we may need to expand mono or into/from into stereo.  The unmodified SDnFMT
-     * properties can be found in HDASTREAMR3::Mapping::PCMProps. */
+    /** The stream's current configuration (matches SDnFMT). */
     PDMAUDIOSTREAMCFG       Cfg;
     /** Timestamp (real time, in ns) of last DMA transfer. */
     uint64_t                tsLastTransferNs;
@@ -156,14 +86,25 @@ typedef struct HDASTREAMSTATE
      *  because reading / processing will be done in a separate stream. */
     uint64_t                tsLastReadNs;
 
-    /** This is set to the timer clock time when the msInitialDelay period is over.
-     * Once reached, this is set to zero to avoid unnecessary time queries. */
-    uint64_t                tsAioDelayEnd;
     /** The start time for the playback (on the timer clock). */
     uint64_t                tsStart;
 
     /** @name DMA engine
      * @{ */
+    /** Timestamp (absolute, in timer ticks) of the next DMA data transfer.
+     *  Next for determining the next scheduling window.
+     *  Can be 0 if no next transfer is scheduled. */
+    uint64_t                tsTransferNext;
+    /** The size of the current DMA transfer period. */
+    uint32_t                cbCurDmaPeriod;
+    /** The size of an average transfer. */
+    uint32_t                cbAvgTransfer;
+
+    /** Current circular buffer read offset (for tracing & logging). */
+    uint64_t                offRead;
+    /** Current circular buffer write offset (for tracing & logging). */
+    uint64_t                offWrite;
+
     /** The offset into the current BDLE. */
     uint32_t                offCurBdle;
     /** LVI + 1 */
@@ -209,9 +150,20 @@ typedef struct HDASTREAMSTATE
         uint8_t             cEntries;
         uint8_t             abPadding[2];
     }                       aSchedule[512+8];
+
+#ifdef VBOX_HDA_WITH_ON_REG_ACCESS_DMA
+    /** Number of valid bytes in abDma.
+     * @note Volatile to prevent the compiler from re-reading it after we've
+     *       validated the value in ring-0. */
+    uint32_t volatile       cbDma;
+    /** Total number of bytes going via abDma this timer period. */
+    uint32_t                cbDmaTotal;
+    /** DMA bounce buffer for ring-0 register reads (LPIB). */
+    uint8_t                 abDma[2048 - 8];
+#endif
     /** @} */
 } HDASTREAMSTATE;
-AssertCompileSizeAlignment(HDASTREAMSTATE, 8);
+AssertCompileSizeAlignment(HDASTREAMSTATE, 16);
 AssertCompileMemberAlignment(HDASTREAMSTATE, aBdl, 8);
 AssertCompileMemberAlignment(HDASTREAMSTATE, aBdl, 16);
 AssertCompileMemberAlignment(HDASTREAMSTATE, aSchedule, 16);
@@ -223,9 +175,6 @@ AssertCompileMemberAlignment(HDASTREAMSTATE, aSchedule, 16);
  *       by the audio connector or the audio mixer. This HDA stream is a serial
  *       data in/out stream (SDI/SDO) defined in hardware and can contain
  *       multiple audio streams in one single SDI/SDO (interleaving streams).
- *
- * How a specific SDI/SDO is mapped to our internal audio streams relies on the
- * stream channel mappings.
  *
  * Contains only register values which do *not* change until a stream reset
  * occurs.
@@ -267,13 +216,8 @@ typedef struct HDASTREAM
     /** The timer for pumping data thru the attached LUN drivers. */
     TMTIMERHANDLE               hTimer;
 
-#ifdef VBOX_WITH_AUDIO_HDA_ASYNC_IO
     /** Pad the structure size to a 64 byte alignment. */
-    uint64_t                    au64Padding1[4];
-    /** Critical section for serialize access to the stream state between the async
-     * I/O thread and (basically) the guest. */
-    PDMCRITSECT                 CritSect;
-#endif
+    uint64_t                    au64Padding1[2];
 } HDASTREAM;
 AssertCompileMemberAlignment(HDASTREAM, State.aBdl, 16);
 AssertCompileMemberAlignment(HDASTREAM, State.aSchedule, 16);
@@ -299,42 +243,47 @@ typedef struct HDASTREAMR3
     /** Internal state of this stream. */
     struct
     {
-        /** This stream's data mapping. */
-        HDASTREAMMAP            Mapping;
         /** Circular buffer (FIFO) for holding DMA'ed data. */
         R3PTRTYPE(PRTCIRCBUF)   pCircBuf;
-        /** Current circular buffer read offset (for tracing & logging). */
-        uint64_t                offRead;
-        /** Current circular buffer write offset (for tracing & logging). */
-        uint64_t                offWrite;
-#ifdef HDA_USE_DMA_ACCESS_HANDLER
-        /** List of DMA handlers. */
-        RTLISTANCHORR3          lstDMAHandlers;
-#endif
-#ifdef VBOX_WITH_AUDIO_HDA_ASYNC_IO
-        /** Asynchronous I/O state members. */
-        HDASTREAMSTATEAIO       AIO;
-#endif
+        /** The mixer sink this stream has registered AIO update callback with.
+         * This is NULL till we register it, typically in hdaR3StreamEnable.
+         * (The problem with following the pMixSink assignment is that hdaR3StreamReset
+         * sets it without updating the HDA sink structure, so things get out of
+         * wack in hdaR3MixerControl later in the initial device reset.) */
+        PAUDMIXSINK             pAioRegSink;
+
+        /** Size of the DMA buffer (pCircBuf) in bytes. */
+        uint32_t                StatDmaBufSize;
+        /** Number of used bytes in the DMA buffer (pCircBuf). */
+        uint32_t                StatDmaBufUsed;
         /** Counter for all under/overflows problems. */
         STAMCOUNTER             StatDmaFlowProblems;
         /** Counter for unresovled under/overflows problems. */
         STAMCOUNTER             StatDmaFlowErrors;
         /** Number of bytes involved in unresolved flow errors. */
         STAMCOUNTER             StatDmaFlowErrorBytes;
+        /** DMA skipped because buffer interrupt pending. */
+        STAMCOUNTER             StatDmaSkippedPendingBcis;
+
+        STAMPROFILE             StatStart;
+        STAMPROFILE             StatReset;
+        STAMPROFILE             StatStop;
     } State;
     /** Debug bits. */
     HDASTREAMDEBUG              Dbg;
-    uint64_t                    au64Alignment[2];
+    uint64_t                    au64Alignment[3];
 } HDASTREAMR3;
 AssertCompileSizeAlignment(HDASTREAMR3, 64);
 /** Pointer to an HDA stream (SDI / SDO).  */
 typedef HDASTREAMR3 *PHDASTREAMR3;
 
-/** @name Stream functions (shared).
+/** @name Stream functions (all contexts).
  * @{
  */
-void                hdaStreamLock(PHDASTREAM pStreamShared);
-void                hdaStreamUnlock(PHDASTREAM pStreamShared);
+VBOXSTRICTRC        hdaStreamDoOnAccessDmaOutput(PPDMDEVINS pDevIns, PHDASTATE pThis, PHDASTREAM pStreamShared,
+                                                 uint64_t tsNow, uint32_t cbToTransfer);
+VBOXSTRICTRC        hdaStreamMaybeDoOnAccessDmaOutput(PPDMDEVINS pDevIns, PHDASTATE pThis,
+                                                      PHDASTREAM pStreamShared, uint64_t tsNow);
 /** @} */
 
 #ifdef IN_RING3
@@ -344,37 +293,26 @@ void                hdaStreamUnlock(PHDASTREAM pStreamShared);
  */
 int                 hdaR3StreamConstruct(PHDASTREAM pStreamShared, PHDASTREAMR3 pStreamR3, PHDASTATE pThis,
                                          PHDASTATER3 pThisCC, uint8_t uSD);
-void                hdaR3StreamDestroy(PHDASTREAM pStreamShared, PHDASTREAMR3 pStreamR3);
+void                hdaR3StreamDestroy(PHDASTREAMR3 pStreamR3);
 int                 hdaR3StreamSetUp(PPDMDEVINS pDevIns, PHDASTATE pThis, PHDASTREAM pStreamShared,
                                      PHDASTREAMR3 pStreamR3, uint8_t uSD);
 void                hdaR3StreamReset(PHDASTATE pThis, PHDASTATER3 pThisCC,
                                      PHDASTREAM pStreamShared, PHDASTREAMR3 pStreamR3, uint8_t uSD);
-int                 hdaR3StreamEnable(PHDASTREAM pStreamShared, PHDASTREAMR3 pStreamR3, bool fEnable);
+int                 hdaR3StreamEnable(PHDASTATE pThis, PHDASTREAM pStreamShared, PHDASTREAMR3 pStreamR3, bool fEnable);
 void                hdaR3StreamMarkStarted(PPDMDEVINS pDevIns, PHDASTATE pThis, PHDASTREAM pStreamShared, uint64_t tsNow);
 void                hdaR3StreamMarkStopped(PHDASTREAM pStreamShared);
 
-void                hdaR3StreamSetPositionAdd(PHDASTREAM pStreamShared, PPDMDEVINS pDevIns, PHDASTATE pThis, uint32_t uToAdd);
 uint64_t            hdaR3StreamTimerMain(PPDMDEVINS pDevIns, PHDASTATE pThis, PHDASTATER3 pThisCC,
                                          PHDASTREAM pStreamShared, PHDASTREAMR3 pStreamR3);
-void                hdaR3StreamUpdate(PPDMDEVINS pDevIns, PHDASTATE pThis, PHDASTATER3 pThisCC,
-                                      PHDASTREAM pStreamShared, PHDASTREAMR3 pStreamR3, bool fInTimer);
-PHDASTREAM          hdaR3StreamR3ToShared(PHDASTREAMR3 pStreamCC);
-# ifdef HDA_USE_DMA_ACCESS_HANDLER
-bool                hdaR3StreamRegisterDMAHandlers(PHDASTREAM pStream);
-void                hdaR3StreamUnregisterDMAHandlers(PHDASTREAM pStream);
-# endif
+DECLCALLBACK(void)  hdaR3StreamUpdateAsyncIoJob(PPDMDEVINS pDevIns, PAUDMIXSINK pSink, void *pvUser);
 /** @} */
 
-/** @name Async I/O stream functions (ring-3).
- * @{
- */
-# ifdef VBOX_WITH_AUDIO_HDA_ASYNC_IO
-int                 hdaR3StreamAsyncIOCreate(PHDASTREAMR3 pStreamR3);
-void                hdaR3StreamAsyncIOLock(PHDASTREAMR3 pStreamR3);
-void                hdaR3StreamAsyncIOUnlock(PHDASTREAMR3 pStreamR3);
-void                hdaR3StreamAsyncIOEnable(PHDASTREAMR3 pStreamR3, bool fEnable);
-int                 hdaR3StreamAsyncIONotify(PHDASTREAMR3 pStreamR3);
-# endif /* VBOX_WITH_AUDIO_HDA_ASYNC_IO */
+/** @name Helper functions associated with the stream code.
+ * @{ */
+int                 hdaR3SDFMTToPCMProps(uint16_t u16SDFMT, PPDMAUDIOPCMPROPS pProps);
+# ifdef LOG_ENABLED
+void                hdaR3BDLEDumpAll(PPDMDEVINS pDevIns, PHDASTATE pThis, uint64_t u64BDLBase, uint16_t cBDLE);
+# endif
 /** @} */
 
 #endif /* IN_RING3 */

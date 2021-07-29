@@ -68,7 +68,7 @@
 *********************************************************************************************************************************/
 struct VBOXVDMATHREAD;
 
-typedef DECLCALLBACKPTR(void, PFNVBOXVDMATHREAD_CHANGED)(struct VBOXVDMATHREAD *pThread, int rc, void *pvThreadContext, void *pvChangeContext);
+typedef DECLCALLBACKPTR(void, PFNVBOXVDMATHREAD_CHANGED,(struct VBOXVDMATHREAD *pThread, int rc, void *pvThreadContext, void *pvChangeContext));
 
 typedef struct VBOXVDMATHREAD
 {

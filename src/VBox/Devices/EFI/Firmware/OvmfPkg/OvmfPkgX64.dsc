@@ -928,6 +928,9 @@
   }
 !endif
   OvmfPkg/VirtioNetDxe/VirtioNet.inf
+!ifdef $(VBOX)
+  VBoxPkg/E1kNetDxe/E1kNet.inf
+!endif
 
   #
   # Usb Support

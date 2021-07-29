@@ -6902,10 +6902,10 @@ Value: 2006.01.01</screen>
         </para>
 
 <screen>VBoxManage --nologo guestcontrol "My VM" run --exe "/bin/ls"
-          --username foo --passwordfile bar.txt --wait-exit --wait-stdout -- -l /usr</screen>
+          --username foo --passwordfile bar.txt --wait-stdout -- -l /usr</screen>
 
 <screen>VBoxManage --nologo guestcontrol "My VM" run --exe "c:\\windows\\system32\\ipconfig.exe"
-          --username foo --passwordfile bar.txt --wait-exit --wait-stdout</screen>
+          --username foo --passwordfile bar.txt --wait-stdout</screen>
 
         <para>
           Note that the double backslashes in the second example are
@@ -7119,10 +7119,10 @@ Value: 2006.01.01</screen>
         </para>
 
 <screen>VBoxManage --nologo guestcontrol "My VM" start --exe "/bin/ls"
-          --username foo --passwordfile bar.txt --wait-exit --wait-stdout -- -l /usr</screen>
+          --username foo --passwordfile bar.txt -- -l /usr</screen>
 
 <screen>VBoxManage --nologo guestcontrol "My VM" start --exe "c:\\windows\\system32\\ipconfig.exe"
-          --username foo --passwordfile bar.txt --wait-exit --wait-stdout</screen>
+          --username foo --passwordfile bar.txt</screen>
 
         <para>
           Note that the double backslashes in the second example are

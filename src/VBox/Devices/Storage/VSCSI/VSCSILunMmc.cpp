@@ -43,14 +43,14 @@ typedef enum MMCEVENTSTATUSTYPE
 {
     /** Medium event status not changed. */
     MMCEVENTSTATUSTYPE_UNCHANGED = 0,
+    /** Medium eject requested (eject button pressed). */
+    MMCEVENTSTATUSTYPE_MEDIA_EJECT_REQUESTED,
     /** New medium inserted. */
     MMCEVENTSTATUSTYPE_MEDIA_NEW,
     /** Medium removed. */
     MMCEVENTSTATUSTYPE_MEDIA_REMOVED,
     /** Medium was removed + new medium was inserted. */
     MMCEVENTSTATUSTYPE_MEDIA_CHANGED,
-    /** Medium eject requested (eject button pressed). */
-    MMCEVENTSTATUSTYPE_MEDIA_EJECT_REQUESTED,
     /** 32bit hack. */
     MMCEVENTSTATUSTYPE_32BIT_HACK = 0x7fffffff
 } MMCEVENTSTATUSTYPE;
@@ -859,7 +859,7 @@ static int vscsiLunMmcGetEventStatusNotification(PVSCSILUNMMC pVScsiLunMmc, PVSC
                 scsiH2BE_U16(&aReply[0], 6);
                 aReply[2] = 0x04; /* media */
                 aReply[3] = 0x5e; /* supported = busy|media|external|power|operational */
-                aReply[4] = 0x03; /* media removal */
+                aReply[4] = (OldStatus == MMCEVENTSTATUSTYPE_MEDIA_CHANGED) ? 0x04 /* media changed */ : 0x03; /* media removed */
                 aReply[5] = 0x00; /* medium absent / door closed */
                 aReply[6] = 0x00;
                 aReply[7] = 0x00;

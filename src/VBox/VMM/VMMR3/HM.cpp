@@ -677,6 +677,7 @@ static int hmR3InitFinalizeR3(PVM pVM)
     /*
      * Statistics.
      */
+    bool const fCpuSupportsVmx = ASMIsIntelCpu() || ASMIsViaCentaurCpu() || ASMIsShanghaiCpu();
     for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
     {
         PVMCPU pVCpu  = pVM->apCpusR3[idCpu];
@@ -730,7 +731,11 @@ static int hmR3InitFinalizeR3(PVM pVM)
         HM_REG_COUNTER(&pHmCpu->StatExitGuestDE,            "/HM/CPU%u/Exit/Trap/Gst/#DE", "Guest #DE (divide error) exception.");
         HM_REG_COUNTER(&pHmCpu->StatExitGuestDF,            "/HM/CPU%u/Exit/Trap/Gst/#DF", "Guest #DF (double fault) exception.");
         HM_REG_COUNTER(&pHmCpu->StatExitGuestBR,            "/HM/CPU%u/Exit/Trap/Gst/#BR", "Guest #BR (boundary range exceeded) exception.");
+#endif
         HM_REG_COUNTER(&pHmCpu->StatExitGuestAC,            "/HM/CPU%u/Exit/Trap/Gst/#AC", "Guest #AC (alignment check) exception.");
+        if (fCpuSupportsVmx)
+            HM_REG_COUNTER(&pHmCpu->StatExitGuestACSplitLock, "/HM/CPU%u/Exit/Trap/Gst/#AC-split-lock", "Guest triggered #AC due to split-lock being enabled on the host (interpreted).");
+#ifdef VBOX_WITH_STATISTICS
         HM_REG_COUNTER(&pHmCpu->StatExitGuestDB,            "/HM/CPU%u/Exit/Trap/Gst/#DB", "Guest #DB (debug) exception.");
         HM_REG_COUNTER(&pHmCpu->StatExitGuestMF,            "/HM/CPU%u/Exit/Trap/Gst/#MF", "Guest #MF (x87 FPU error, math fault) exception.");
         HM_REG_COUNTER(&pHmCpu->StatExitGuestBP,            "/HM/CPU%u/Exit/Trap/Gst/#BP", "Guest #BP (breakpoint) exception.");
@@ -833,8 +838,6 @@ static int hmR3InitFinalizeR3(PVM pVM)
         HM_REG_COUNTER(&pHmCpu->StatVmxCheckBadSel,         "/HM/CPU%u/VMXCheck/Selector", "Could not use VMX due to unsuitable selector.");
         HM_REG_COUNTER(&pHmCpu->StatVmxCheckBadRpl,         "/HM/CPU%u/VMXCheck/RPL", "Could not use VMX due to unsuitable RPL.");
         HM_REG_COUNTER(&pHmCpu->StatVmxCheckPmOk,           "/HM/CPU%u/VMXCheck/VMX_PM", "VMX execution in protected mode OK.");
-
-        bool const fCpuSupportsVmx = ASMIsIntelCpu() || ASMIsViaCentaurCpu() || ASMIsShanghaiCpu();
 
         /*
          * Guest Exit reason stats.

@@ -949,10 +949,10 @@ typedef struct PDMDRVHLPR3
      * @param   fFlags          Timer creation flags, see grp_tm_timer_flags.
      * @param   pszDesc         Pointer to description string which must stay around
      *                          until the timer is fully destroyed (i.e. a bit after TMTimerDestroy()).
-     * @param   ppTimer         Where to store the timer on success.
+     * @param   phTimer         Where to store the timer handle on success.
      * @thread  EMT
      */
-    DECLR3CALLBACKMEMBER(int, pfnTMTimerCreate,(PPDMDRVINS pDrvIns, TMCLOCK enmClock, PFNTMTIMERDRV pfnCallback, void *pvUser, uint32_t fFlags, const char *pszDesc, PPTMTIMERR3 ppTimer));
+    DECLR3CALLBACKMEMBER(int, pfnTMTimerCreate,(PPDMDRVINS pDrvIns, TMCLOCK enmClock, PFNTMTIMERDRV pfnCallback, void *pvUser, uint32_t fFlags, const char *pszDesc, PTMTIMERHANDLE phTimer));
 
     /**
      * Register a save state data unit.
@@ -1033,7 +1033,9 @@ typedef struct PDMDRVHLPR3
      * @param   pvSample    Pointer to the sample.
      * @param   enmType     Sample type. This indicates what pvSample is pointing at.
      * @param   pszName     Sample name. The name is on this form "/<component>/<sample>".
-     *                      Further nesting is possible.
+     *                      Further nesting is possible.  If this does not start
+     *                      with a '/', the default prefix will be prepended,
+     *                      otherwise it will be used as-is.
      * @param   enmUnit     Sample unit.
      * @param   pszDesc     Sample description.
      */
@@ -1050,7 +1052,9 @@ typedef struct PDMDRVHLPR3
      * @param   enmVisibility  Visibility type specifying whether unused statistics should be visible or not.
      * @param   enmUnit     Sample unit.
      * @param   pszDesc     Sample description.
-     * @param   pszName     The sample name format string.
+     * @param   pszName     The sample name format string.  If this does not start
+     *                      with a '/', the default prefix will be prepended,
+     *                      otherwise it will be used as-is.
      * @param   ...         Arguments to the format string.
      */
     DECLR3CALLBACKMEMBER(void, pfnSTAMRegisterF,(PPDMDRVINS pDrvIns, void *pvSample, STAMTYPE enmType, STAMVISIBILITY enmVisibility,
@@ -1067,7 +1071,9 @@ typedef struct PDMDRVHLPR3
      * @param   enmVisibility   Visibility type specifying whether unused statistics should be visible or not.
      * @param   enmUnit         Sample unit.
      * @param   pszDesc         Sample description.
-     * @param   pszName         The sample name format string.
+     * @param   pszName         The sample name format string.  If this does not
+     *                          start with a '/', the default prefix will be prepended,
+     *                          otherwise it will be used as-is.
      * @param   args            Arguments to the format string.
      */
     DECLR3CALLBACKMEMBER(void, pfnSTAMRegisterV,(PPDMDRVINS pDrvIns, void *pvSample, STAMTYPE enmType, STAMVISIBILITY enmVisibility,
@@ -1311,8 +1317,19 @@ typedef struct PDMDRVHLPR3
 
     /** @name Space reserved for minor interface changes.
      * @{ */
-    DECLR3CALLBACKMEMBER(void, pfnReserved0,(PPDMDRVINS pDrvIns));
-    DECLR3CALLBACKMEMBER(void, pfnReserved1,(PPDMDRVINS pDrvIns));
+    DECLR3CALLBACKMEMBER(int,  pfnTimerSetMillies,(PPDMDRVINS pDrvIns, TMTIMERHANDLE hTimer, uint64_t cMilliesToNext));
+
+    /**
+     * Deregister zero or more samples given their name prefix.
+     *
+     * @returns VBox status code.
+     * @param   pDrvIns     The driver instance.
+     * @param   pszPrefix   The name prefix of the samples to remove.  If this does
+     *                      not start with a '/', the default prefix will be
+     *                      prepended, otherwise it will be used as-is.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnSTAMDeregisterByPrefix,(PPDMDRVINS pDrvIns, const char *pszPrefix));
+
     DECLR3CALLBACKMEMBER(void, pfnReserved2,(PPDMDRVINS pDrvIns));
     DECLR3CALLBACKMEMBER(void, pfnReserved3,(PPDMDRVINS pDrvIns));
     DECLR3CALLBACKMEMBER(void, pfnReserved4,(PPDMDRVINS pDrvIns));
@@ -1327,7 +1344,7 @@ typedef struct PDMDRVHLPR3
     uint32_t                        u32TheEnd;
 } PDMDRVHLPR3;
 /** Current DRVHLP version number. */
-#define PDM_DRVHLPR3_VERSION                    PDM_VERSION_MAKE(0xf0fb, 5, 0)
+#define PDM_DRVHLPR3_VERSION                    PDM_VERSION_MAKE(0xf0fb, 5, 2)
 
 #endif /* IN_RING3 */
 
@@ -1508,9 +1525,18 @@ DECLINLINE(uint64_t) PDMDrvHlpTMGetVirtualTime(PPDMDRVINS pDrvIns)
 /**
  * @copydoc PDMDRVHLPR3::pfnTMTimerCreate
  */
-DECLINLINE(int) PDMDrvHlpTMTimerCreate(PPDMDRVINS pDrvIns, TMCLOCK enmClock, PFNTMTIMERDRV pfnCallback, void *pvUser, uint32_t fFlags, const char *pszDesc, PPTMTIMERR3 ppTimer)
+DECLINLINE(int) PDMDrvHlpTMTimerCreate(PPDMDRVINS pDrvIns, TMCLOCK enmClock, PFNTMTIMERDRV pfnCallback, void *pvUser, uint32_t fFlags, const char *pszDesc, PTMTIMERHANDLE phTimer)
 {
-    return pDrvIns->pHlpR3->pfnTMTimerCreate(pDrvIns, enmClock, pfnCallback, pvUser, fFlags, pszDesc, ppTimer);
+    return pDrvIns->pHlpR3->pfnTMTimerCreate(pDrvIns, enmClock, pfnCallback, pvUser, fFlags, pszDesc, phTimer);
+}
+
+/**
+ * @copydoc PDMDRVHLPR3::pfnTimerSetMillies
+ */
+DECLINLINE(int) PDMDrvHlpTimerSetMillies(PPDMDRVINS pDrvIns, TMTIMERHANDLE hTimer, uint64_t cMilliesToNext)
+
+{
+    return pDrvIns->pHlpR3->pfnTimerSetMillies(pDrvIns, hTimer, cMilliesToNext);
 }
 
 /**
@@ -1707,6 +1733,14 @@ DECLINLINE(void) PDMDrvHlpSTAMRegProfileAdv(PPDMDRVINS pDrvIns, PSTAMPROFILEADV 
 DECLINLINE(int) PDMDrvHlpSTAMDeregister(PPDMDRVINS pDrvIns, void *pvSample)
 {
     return pDrvIns->pHlpR3->pfnSTAMDeregister(pDrvIns, pvSample);
+}
+
+/**
+ * @copydoc PDMDRVHLPR3::pfnSTAMDeregisterByPrefix
+ */
+DECLINLINE(int) PDMDrvHlpSTAMDeregisterByPrefix(PPDMDRVINS pDrvIns, const char *pszPrefix)
+{
+    return pDrvIns->pHlpR3->pfnSTAMDeregisterByPrefix(pDrvIns, pszPrefix);
 }
 
 /**
