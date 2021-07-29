@@ -1,3 +1,10 @@
+virtualbox (6.1.26-dfsg-2) unstable; urgency=medium
+
+  * debian/patches/90377.patch:
+    - cherry-pick upstream build fix
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 29 Jul 2021 11:31:03 +0200
+
 virtualbox (6.1.26-dfsg-1) unstable; urgency=medium
 
   * New upstream version 6.1.26-dfsg
