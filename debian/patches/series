@@ -16,3 +16,4 @@
 37-do-not-run-if-not-in-vm.patch
 no-vboxrem.patch
 90377.patch
+new-mesa.patch

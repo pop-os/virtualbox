@@ -1,3 +1,11 @@
+virtualbox (6.1.26-dfsg-4) unstable; urgency=medium
+
+  * debian/patches/new-mesa.patch
+    - add new upstream proposed patch to fix whitescreens with new
+      mesa. (thanks Klaus for the patch)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 03 Sep 2021 08:29:58 +0200
+
 virtualbox (6.1.26-dfsg-3) unstable; urgency=medium
 
   * Drop broken old symlinks (Closes: #991901)
