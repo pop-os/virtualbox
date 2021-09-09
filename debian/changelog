@@ -1,3 +1,9 @@
+virtualbox (6.1.26-dfsg-4pop0) impish; urgency=medium
+
+  * Pop!_OS backport
+
+ -- Jeremy Soller <jeremy@system76.com>  Thu, 09 Sep 2021 08:40:50 -0600
+
 virtualbox (6.1.26-dfsg-4) unstable; urgency=medium
 
   * debian/patches/new-mesa.patch
