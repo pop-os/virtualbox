@@ -1,3 +1,12 @@
+virtualbox (6.1.28-dfsg-1) unstable; urgency=medium
+
+  * New upstream version 6.1.28-dfsg
+  * Bump std-version to 4.6.0
+  * Drop patches now upstream or coming from upstream: new-mesa, 90377, no-vboxrem
+  * Patch refresh
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 20 Oct 2021 10:01:31 +0200
+
 virtualbox (6.1.26-dfsg-4) unstable; urgency=medium
 
   * debian/patches/new-mesa.patch
