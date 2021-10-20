@@ -51,8 +51,6 @@
 
 #include "VBox/com/ErrorInfo.h"
 
-#include <iprt/file.h>
-#include <iprt/thread.h>
 #include <iprt/time.h>
 
 #include <list>
@@ -627,7 +625,7 @@ protected:
 
     Machine *i_getMachine();
 
-    void i_ensureNoStateDependencies();
+    void i_ensureNoStateDependencies(AutoWriteLock &alock);
 
     virtual HRESULT i_setMachineState(MachineState_T aMachineState);
 
@@ -677,7 +675,7 @@ protected:
     };
 
     HRESULT i_prepareSaveSettings(bool *pfNeedsGlobalSaveSettings);
-    HRESULT i_saveSettings(bool *pfNeedsGlobalSaveSettings, int aFlags = 0);
+    HRESULT i_saveSettings(bool *pfNeedsGlobalSaveSettings, AutoWriteLock &alock, int aFlags = 0);
 
     void i_copyMachineDataToSettings(settings::MachineConfigFile &config);
     HRESULT i_saveAllSnapshots(settings::MachineConfigFile &config);

@@ -35,7 +35,19 @@ $b footer
 /SED: END/,$d
 
 # Drop all lines not specifying an export.
-/^    { "/!d
+/^    SUPEXP_/!d
+
+# Extract the export name from these type of statements:
+#    SUPEXP_CUSTOM(  0,  g_pSUPGlobalInfoPage,     &g_pSUPGlobalInfoPage),            /* SED: DATA */
+#    SUPEXP_STK_OKAY(0,  SUPGetGIP),
+#    SUPEXP_STK_BACK(22, SUPReadTscWithDelta),
+# Will be transformed to:
+#    _g_pSUPGlobalInfoPage /* SED: DATA */
+#    _SUPGetGIP
+#    _SUPReadTscWithDelta
+s/SUPEXP_CUSTOM( *[0-9][0-9]* *, *\([^),][^),]*\), [^)]*), */_\1 /
+s/SUPEXP_STK_OKAY( *[0-9][0-9]* *, *\([^)][^)]*\)), */_\1 /
+s/SUPEXP_STK_BACKF*( *[0-9][0-9]* *, *\([^)][^)]*\)), */_\1 /
 
 # Handle trailing selection comment (/* solaris-only, os2-only */).
 /\*\/ *$/!b transform
@@ -43,13 +55,10 @@ $b footer
 /only-/!b transform
 d
 
+# Remove trailing comments.
 :transform
-# Transform the export line, the format is like this:
-#    { "g_pSUPGlobalInfoPage",                   (void *)&g_pSUPGlobalInfoPage },            /* SED: DATA */
-
-s/^    { "\([^"]*\)",[^}]*}[,].*$/    _\1/
-
 s, */\*.*\*/ *$,,
+s, *$,,
 b end
 
 :header

@@ -95,10 +95,12 @@ SRCS += \
 	RTStrCopyEx.c \
 	RTStrCopyP.c \
 	strformat.c \
+	RTStrFormat.c \
 	strformatnum.c \
 	strformatrt.c \
 	strformattype.c \
 	strprintf.c \
+	strprintf-ellipsis.c \
 	strtonum.c \
 	memchr.c \
 	stringalloc.c

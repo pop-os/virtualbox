@@ -250,11 +250,20 @@ DECLEXPORT(int) ModuleInit(void *hMod)
                                         if (RT_SUCCESS(rc))
 #endif
                                         {
-                                            VMM_CHECK_SMAP_CHECK(rc = VERR_VMM_SMAP_BUT_AC_CLEAR);
+#ifdef VBOX_WITH_NEM_R0
+                                            rc = NEMR0Init();
                                             if (RT_SUCCESS(rc))
+#endif
                                             {
-                                                LogFlow(("ModuleInit: returns success\n"));
-                                                return VINF_SUCCESS;
+                                                VMM_CHECK_SMAP_CHECK(rc = VERR_VMM_SMAP_BUT_AC_CLEAR);
+                                                if (RT_SUCCESS(rc))
+                                                {
+                                                    LogFlow(("ModuleInit: returns success\n"));
+                                                    return VINF_SUCCESS;
+                                                }
+#ifdef VBOX_WITH_NEM_R0
+                                                NEMR0Term();
+#endif
                                             }
                                         }
 
@@ -343,6 +352,9 @@ DECLEXPORT(void) ModuleTerm(void *hMod)
     HMR0Term();
 #ifdef VBOX_WITH_TRIPLE_FAULT_HACK
     vmmR0TripleFaultHackTerm();
+#endif
+#ifdef VBOX_WITH_NEM_R0
+    NEMR0Term();
 #endif
 
     /*
@@ -2329,7 +2341,7 @@ DECL_NO_INLINE(static, int) vmmR0EntryExWorker(PGVM pGVM, VMCPUID idCpu, VMMR0OP
     return rc;
 }
 
-
+#ifndef VMM_R0_SWITCH_STACK /* Not safe unless we disable preemption first. */
 /**
  * This is just a longjmp wrapper function for VMMR0EntryEx calls.
  *
@@ -2346,6 +2358,7 @@ static DECLCALLBACK(int) vmmR0EntryExWrapper(void *pvArgs)
                               pGVCpu->vmmr0.s.u64Arg,
                               pGVCpu->vmmr0.s.pSession);
 }
+#endif
 
 
 /**
@@ -2365,6 +2378,7 @@ static DECLCALLBACK(int) vmmR0EntryExWrapper(void *pvArgs)
 VMMR0DECL(int) VMMR0EntryEx(PGVM pGVM, PVMCC pVM, VMCPUID idCpu, VMMR0OPERATION enmOperation,
                             PSUPVMMR0REQHDR pReq, uint64_t u64Arg, PSUPDRVSESSION pSession)
 {
+#ifndef VMM_R0_SWITCH_STACK /* Not safe unless we disable preemption first. */
     /*
      * Requests that should only happen on the EMT thread will be
      * wrapped in a setjmp so we can assert without causing trouble.
@@ -2418,6 +2432,9 @@ VMMR0DECL(int) VMMR0EntryEx(PGVM pGVM, PVMCC pVM, VMCPUID idCpu, VMMR0OPERATION 
                 break;
         }
     }
+#else
+    RT_NOREF(pVM);
+#endif
     return vmmR0EntryExWorker(pGVM, idCpu, enmOperation, pReq, u64Arg, pSession);
 }
 

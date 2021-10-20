@@ -319,11 +319,14 @@ typedef struct VBOXEXTPACKHLP
     DECLR3CALLBACKMEMBER(int, pfnReserved5,(PCVBOXEXTPACKHLP pHlp)); /**< Reserved for minor structure revisions. */
     DECLR3CALLBACKMEMBER(int, pfnReserved6,(PCVBOXEXTPACKHLP pHlp)); /**< Reserved for minor structure revisions. */
 
+    /** Reserved for minor structure revisions. */
+    uint32_t                    uReserved7;
+
     /** End of structure marker (VBOXEXTPACKHLP_VERSION). */
     uint32_t                    u32EndMarker;
 } VBOXEXTPACKHLP;
 /** Current version of the VBOXEXTPACKHLP structure.  */
-#define VBOXEXTPACKHLP_VERSION          RT_MAKE_U32(3, 0)
+#define VBOXEXTPACKHLP_VERSION          RT_MAKE_U32(0, 3)
 
 
 /** Pointer to the extension pack callback table. */
@@ -424,7 +427,7 @@ typedef struct VBOXEXTPACKREG
     uint32_t                    u32EndMarker;
 } VBOXEXTPACKREG;
 /** Current version of the VBOXEXTPACKREG structure.  */
-#define VBOXEXTPACKREG_VERSION        RT_MAKE_U32(2, 0)
+#define VBOXEXTPACKREG_VERSION        RT_MAKE_U32(0, 2)
 
 
 /**
@@ -537,7 +540,7 @@ typedef struct VBOXEXTPACKVMREG
     uint32_t                    u32EndMarker;
 } VBOXEXTPACKVMREG;
 /** Current version of the VBOXEXTPACKVMREG structure.  */
-#define VBOXEXTPACKVMREG_VERSION      RT_MAKE_U32(2, 0)
+#define VBOXEXTPACKVMREG_VERSION      RT_MAKE_U32(0, 2)
 
 
 /**

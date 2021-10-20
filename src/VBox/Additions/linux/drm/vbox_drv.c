@@ -43,6 +43,10 @@
 # include <drm/drm_probe_helper.h>
 #endif
 
+#if RTLNX_VER_MIN(5,14,0)
+# include <drm/drm_aperture.h>
+#endif
+
 #include "version-generated.h"
 #include "revision-generated.h"
 
@@ -65,12 +69,27 @@ static int vbox_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	struct drm_device *dev = NULL;
 	int ret = 0;
 
+# if RTLNX_VER_MIN(5,14,0)
+#  if RTLNX_VER_MIN(5,15,0)
+	ret = drm_aperture_remove_conflicting_pci_framebuffers(pdev, &driver);
+#  else
+	ret = drm_aperture_remove_conflicting_pci_framebuffers(pdev, "vboxvideofb");
+#  endif
+	if (ret)
+	{
+		printk("unable to remove conflicting framebuffer devices\n");
+		return ret;
+	}
+# endif /* >= 5.14. */
+
 	dev = drm_dev_alloc(&driver, &pdev->dev);
 	if (IS_ERR(dev)) {
 		ret = PTR_ERR(dev);
 		goto err_drv_alloc;
 	}
+# if RTLNX_VER_MAX(5,14,0)
 	dev->pdev = pdev;
+# endif
 	pci_set_drvdata(pdev, dev);
 
 	ret = vbox_driver_load(dev);
@@ -125,7 +144,7 @@ static int vbox_drm_freeze(struct drm_device *dev)
 
 	drm_kms_helper_poll_disable(dev);
 
-	pci_save_state(dev->pdev);
+	pci_save_state(VBOX_DRM_TO_PCI_DEV(dev));
 
 	drm_fb_helper_set_suspend_unlocked(&vbox->fbdev->helper, true);
 
@@ -147,7 +166,7 @@ static int vbox_drm_resume(struct drm_device *dev)
 {
 	int ret;
 
-	if (pci_enable_device(dev->pdev))
+	if (pci_enable_device(VBOX_DRM_TO_PCI_DEV(dev)))
 		return -EIO;
 
 	ret = vbox_drm_thaw(dev);
@@ -335,7 +354,9 @@ static struct drm_driver driver = {
 #endif
 
 	.fops = &vbox_fops,
+#if RTLNX_VER_MAX(5,15,0)
 	.irq_handler = vbox_irq_handler,
+#endif
 	.name = DRIVER_NAME,
 	.desc = DRIVER_DESC,
 	.date = DRIVER_DATE,
@@ -350,7 +371,7 @@ static struct drm_driver driver = {
 	.dumb_map_offset = vbox_dumb_mmap_offset,
 #if RTLNX_VER_MAX(3,12,0) && !RTLNX_RHEL_MAJ_PREREQ(7,3)
 	.dumb_destroy = vbox_dumb_destroy,
-#elif RTLNX_VER_MAX(5,12,0)
+#elif RTLNX_VER_MAX(5,12,0) && !RTLNX_RHEL_MAJ_PREREQ(8,5)
 	.dumb_destroy = drm_gem_dumb_destroy,
 #endif
 	.prime_handle_to_fd = drm_gem_prime_handle_to_fd,
@@ -360,7 +381,7 @@ static struct drm_driver driver = {
 	.gem_prime_import_sg_table = vbox_gem_prime_import_sg_table,
 	.gem_prime_mmap = vbox_gem_prime_mmap,
 
-#if RTLNX_VER_MAX(5,11,0)
+#if RTLNX_VER_MAX(5,11,0) && !RTLNX_RHEL_MAJ_PREREQ(8,5)
 	.dev_priv_size = 0,
 # if RTLNX_VER_MIN(4,7,0)
 	.gem_free_object_unlocked = vbox_gem_free_object,

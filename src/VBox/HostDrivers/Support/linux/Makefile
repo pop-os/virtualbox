@@ -94,10 +94,12 @@ VBOXMOD_OBJS = \
 	common/string/RTStrNLen.o \
 	common/string/stringalloc.o \
 	common/string/strformat.o \
+	common/string/RTStrFormat.o \
 	common/string/strformatnum.o \
 	common/string/strformatrt.o \
 	common/string/strformattype.o \
 	common/string/strprintf.o \
+	common/string/strprintf-ellipsis.o \
 	common/string/strtonum.o \
 	common/table/avlpv.o \
 	common/time/time.o \

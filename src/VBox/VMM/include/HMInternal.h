@@ -559,6 +559,8 @@ typedef struct HM
         uint64_t                    u64HostSmmMonitorCtl;
         /** Host EFER value (set by ring-0 VMX init) */
         uint64_t                    u64HostMsrEfer;
+        /** Host IA32_FEATURE_CONTROL MSR (set by ring-0 VMX init, for logging). */
+        uint64_t                    u64HostFeatCtrl;
         /** Whether the CPU supports VMCS fields for swapping EFER. */
         bool                        fSupportsVmcsEfer;
         /** Whether to use VMCS shadowing. */

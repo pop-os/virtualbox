@@ -1639,7 +1639,7 @@ static DECLCALLBACK(int) vhdWrite(void *pBackendData, uint64_t uOffset, size_t c
     Assert(!(uOffset % VHD_SECTOR_SIZE));
     Assert(!(cbToWrite % VHD_SECTOR_SIZE));
     AssertReturn((VALID_PTR(pIoCtx) && cbToWrite), VERR_INVALID_PARAMETER);
-    AssertReturn(uOffset + cbToWrite <= pImage->cbSize, VERR_INVALID_PARAMETER);
+    AssertReturn(uOffset + cbToWrite <= RT_ALIGN_64(pImage->cbSize, pImage->cbDataBlock), VERR_INVALID_PARAMETER); /* The image size might not be on a data block size boundary. */
 
     if (pImage->pBlockAllocationTable)
     {

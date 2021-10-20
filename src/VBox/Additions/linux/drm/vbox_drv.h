@@ -157,7 +157,9 @@
 # include <drm/drm_device.h>
 # include <drm/drm_ioctl.h>
 # include <drm/drm_fourcc.h>
-# include <drm/drm_irq.h>
+# if RTLNX_VER_MAX(5,15,0)
+#  include <drm/drm_irq.h>
+# endif
 # include <drm/drm_vblank.h>
 #else /* < 5.5.0 || RHEL < 8.3 || SLES < 15-SP3 */
 # include <drm/drmP.h>
@@ -176,7 +178,7 @@
 #if RTLNX_VER_MAX(5,13,0)
 # include <drm/ttm/ttm_memory.h>
 #endif
-#if RTLNX_VER_MAX(5,12,0)
+#if RTLNX_VER_MAX(5,12,0) && !RTLNX_RHEL_MAJ_PREREQ(8,5)
 # include <drm/ttm/ttm_module.h>
 #endif
 #if RTLNX_VER_MIN(5,10,0)
@@ -226,6 +228,15 @@ static inline void drm_gem_object_put(struct drm_gem_object *obj)
 #define GUEST_HEAP_USABLE_SIZE (VBVA_ADAPTER_INFORMATION_SIZE - \
 				sizeof(HGSMIHOSTFLAGS))
 #define HOST_FLAGS_OFFSET GUEST_HEAP_USABLE_SIZE
+
+/** Field "pdev" of struct drm_device was removed in 5.14. This macro
+ * transparently handles this change. Input argument is a pointer
+ * to struct drm_device. */
+#if RTLNX_VER_MIN(5,14,0)
+# define VBOX_DRM_TO_PCI_DEV(_dev) to_pci_dev(_dev->dev)
+#else
+# define VBOX_DRM_TO_PCI_DEV(_dev) _dev->pdev
+#endif
 
 /** How frequently we refresh if the guest is not providing dirty rectangles. */
 #define VBOX_REFRESH_PERIOD (HZ / 2)
@@ -508,7 +519,9 @@ int vbox_gem_prime_mmap(struct drm_gem_object *obj,
 int vbox_irq_init(struct vbox_private *vbox);
 void vbox_irq_fini(struct vbox_private *vbox);
 void vbox_report_hotplug(struct vbox_private *vbox);
+#if RTLNX_VER_MAX(5,15,0)
 irqreturn_t vbox_irq_handler(int irq, void *arg);
+#endif
 
 /* vbox_hgsmi.c */
 void *hgsmi_buffer_alloc(struct gen_pool *guest_pool, size_t size,

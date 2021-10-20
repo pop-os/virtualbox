@@ -1752,7 +1752,7 @@ DECLINLINE(void) ohciR3WriteITd(PPDMDEVINS pDevIns, POHCI pThis, uint32_t ITdAdd
 DECLINLINE(void) ohciR3DumpTdQueueCore(PPDMDEVINS pDevIns, POHCICC pThisCC, uint32_t GCPhysHead, uint32_t GCPhysTail, bool fFull)
 {
     uint32_t GCPhys = GCPhysHead;
-    int cMax = 100;
+    int cIterations = 128;
     for (;;)
     {
         OHCITD Td;
@@ -1779,7 +1779,8 @@ DECLINLINE(void) ohciR3DumpTdQueueCore(PPDMDEVINS pDevIns, POHCICC pThisCC, uint
             Log4((" -> "));
         GCPhys = Td.NextTD & ED_PTR_MASK;
         Assert(GCPhys != GCPhysHead);
-        Assert(cMax-- > 0); NOREF(cMax);
+        if (!--cIterations)
+            break;
     }
 }
 
@@ -1801,7 +1802,7 @@ DECLINLINE(void) ohciR3DumpITdQueueCore(PPDMDEVINS pDevIns, POHCICC pThisCC, uin
 {
     RT_NOREF(fFull);
     uint32_t GCPhys = GCPhysHead;
-    int cMax = 100;
+    int cIterations = 100;
     for (;;)
     {
         OHCIITD ITd;
@@ -1828,7 +1829,8 @@ DECLINLINE(void) ohciR3DumpITdQueueCore(PPDMDEVINS pDevIns, POHCICC pThisCC, uin
             Log4((" -> "));
         GCPhys = ITd.NextTD & ED_PTR_MASK;
         Assert(GCPhys != GCPhysHead);
-        Assert(cMax-- > 0); NOREF(cMax);
+        if (!--cIterations)
+            break;
     }
 }
 
@@ -2220,10 +2222,10 @@ static bool ohciR3UnlinkIsochronousTdInList(PPDMDEVINS pDevIns, POHCI pThis, uin
          TdAddr, pEd->HeadP & ED_PTR_MASK, LastTdAddr));
     AssertMsgReturn(LastTdAddr != TdAddr, ("TdAddr=%#010RX32\n", TdAddr), false);
 
-    uint32_t cMax = 256;
+    uint32_t cIterations = 256;
     uint32_t CurTdAddr = pEd->HeadP & ED_PTR_MASK;
     while (     CurTdAddr != LastTdAddr
-           &&   cMax-- > 0)
+           &&   cIterations-- > 0)
     {
         OHCIITD ITd;
         ohciR3ReadITd(pDevIns, pThis, CurTdAddr, &ITd);
@@ -2239,7 +2241,7 @@ static bool ohciR3UnlinkIsochronousTdInList(PPDMDEVINS pDevIns, POHCI pThis, uin
         CurTdAddr = ITd.NextTD & ED_PTR_MASK;
     }
 
-    Log(("ohciUnlinkIsocTdInList: TdAddr=%#010RX32 wasn't found in the list!!! (cMax=%d)\n", TdAddr, cMax));
+    Log(("ohciUnlinkIsocTdInList: TdAddr=%#010RX32 wasn't found in the list!!! (cIterations=%d)\n", TdAddr, cIterations));
     return false;
 }
 
@@ -2252,10 +2254,10 @@ static bool ohciR3UnlinkGeneralTdInList(PPDMDEVINS pDevIns, uint32_t TdAddr, POH
          TdAddr, pEd->HeadP & ED_PTR_MASK, LastTdAddr));
     AssertMsgReturn(LastTdAddr != TdAddr, ("TdAddr=%#010RX32\n", TdAddr), false);
 
-    uint32_t cMax = 256;
+    uint32_t cIterations = 256;
     uint32_t CurTdAddr = pEd->HeadP & ED_PTR_MASK;
     while (     CurTdAddr != LastTdAddr
-           &&   cMax-- > 0)
+           &&   cIterations-- > 0)
     {
         OHCITD Td;
         ohciR3ReadTd(pDevIns, CurTdAddr, &Td);
@@ -2271,7 +2273,7 @@ static bool ohciR3UnlinkGeneralTdInList(PPDMDEVINS pDevIns, uint32_t TdAddr, POH
         CurTdAddr = Td.NextTD & ED_PTR_MASK;
     }
 
-    Log(("ohciR3UnlinkGeneralTdInList: TdAddr=%#010RX32 wasn't found in the list!!! (cMax=%d)\n", TdAddr, cMax));
+    Log(("ohciR3UnlinkGeneralTdInList: TdAddr=%#010RX32 wasn't found in the list!!! (cIterations=%d)\n", TdAddr, cIterations));
     return false;
 }
 
@@ -3712,7 +3714,10 @@ static void ohciR3ServiceBulkList(PPDMDEVINS pDevIns, POHCI pThis, POHCICC pThis
     pThis->bulk_cur = 0;
 
     uint32_t EdAddr = pThis->bulk_head;
-    while (EdAddr)
+    uint32_t cIterations = 256;
+    while (EdAddr
+        && (pThis->ctl & OHCI_CTL_BLE)
+        && (cIterations-- > 0))
     {
         OHCIED Ed;
 
@@ -3812,7 +3817,9 @@ static void ohciR3UndoBulkList(PPDMDEVINS pDevIns, POHCI pThis, POHCICC pThisCC)
     pThis->fBulkNeedsCleaning = false;
 
     uint32_t EdAddr = pThis->bulk_head;
-    while (EdAddr)
+    uint32_t cIterations = 256;
+    while (EdAddr
+        && (cIterations-- > 0))
     {
         OHCIED Ed;
 
@@ -3859,7 +3866,10 @@ static void ohciR3ServiceCtrlList(PPDMDEVINS pDevIns, POHCI pThis, POHCICC pThis
     pThis->ctrl_cur = 0;
 
     uint32_t EdAddr = pThis->ctrl_head;
-    while (EdAddr)
+    uint32_t cIterations = 256;
+    while ( EdAddr
+        && (pThis->ctl & OHCI_CTL_CLE)
+        && (cIterations-- > 0))
     {
         OHCIED Ed;
 
@@ -3935,7 +3945,10 @@ static void ohciR3ServicePeriodicList(PPDMDEVINS pDevIns, POHCI pThis, POHCICC p
     /*
      * Iterate the endpoint list.
      */
-    while (EdAddr)
+    unsigned cIterations = 128;
+    while (EdAddr
+        && (pThis->ctl & OHCI_CTL_PLE)
+        && (cIterations-- > 0))
     {
         OHCIED Ed;
 
@@ -4105,7 +4118,10 @@ static void ohciR3CancelOrphanedURBs(PPDMDEVINS pDevIns, POHCI pThis, POHCICC pT
 # endif
             break;
         }
-        while (EdAddr)
+
+        unsigned cIterED = 128;
+        while ( EdAddr
+            && (cIterED-- > 0))
         {
             OHCIED Ed;
             OHCITD Td;
@@ -4113,7 +4129,7 @@ static void ohciR3CancelOrphanedURBs(PPDMDEVINS pDevIns, POHCI pThis, POHCICC pT
             ohciR3ReadEd(pDevIns, EdAddr, &Ed);
             uint32_t TdAddr = Ed.HeadP & ED_PTR_MASK;
             uint32_t TailP  = Ed.TailP & ED_PTR_MASK;
-            unsigned k = 0;
+            unsigned cIterTD = 0;
             if (  !(Ed.hwinfo & ED_HWINFO_SKIP)
                 && (TdAddr != TailP))
             {
@@ -4137,7 +4153,7 @@ static void ohciR3CancelOrphanedURBs(PPDMDEVINS pDevIns, POHCI pThis, POHCICC pT
                     if (TdAddr == 0)
                         break;
                     /* Failsafe for temporarily looped lists. */
-                    if (++k == 128)
+                    if (++cIterTD == 128)
                         break;
                 } while (TdAddr != (Ed.TailP & ED_PTR_MASK));
             }

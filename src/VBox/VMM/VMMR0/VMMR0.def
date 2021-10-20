@@ -48,6 +48,7 @@ EXPORTS
     RTLogLogger
     RTLogLoggerEx
     RTLogLoggerExV
+    RTStrPrintf
     RTTimeMilliTS
     RTTraceBufAddMsgF
     RTTraceBufAddPos

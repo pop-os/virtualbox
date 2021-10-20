@@ -135,7 +135,8 @@ int vboxscsiReadRegister(PVBOXSCSI pVBoxSCSI, uint8_t iRegister, uint32_t *pu32V
         {
             /* If we're not in the 'command ready' state, there may not even be a buffer yet. */
             if (   pVBoxSCSI->enmState == VBOXSCSISTATE_COMMAND_READY
-                && pVBoxSCSI->cbBufLeft > 0)
+                && pVBoxSCSI->cbBufLeft > 0
+                && pVBoxSCSI->pbBuf)
             {
                 AssertMsg(pVBoxSCSI->pbBuf, ("pBuf is NULL\n"));
                 Assert(!pVBoxSCSI->fBusy);
@@ -239,17 +240,20 @@ int vboxscsiWriteRegister(PVBOXSCSI pVBoxSCSI, uint8_t iRegister, uint8_t uVal)
                 {
                     Log(("%s: Command ready for processing\n", __FUNCTION__));
                     pVBoxSCSI->enmState = VBOXSCSISTATE_COMMAND_READY;
-                    pVBoxSCSI->cbBufLeft = pVBoxSCSI->cbBuf;
+                    Assert(!pVBoxSCSI->cbBufLeft);
+                    Assert(!pVBoxSCSI->pbBuf);
                     if (pVBoxSCSI->uTxDir == VBOXSCSI_TXDIR_TO_DEVICE)
                     {
                         /* This is a write allocate buffer. */
                         pVBoxSCSI->pbBuf = (uint8_t *)RTMemAllocZ(pVBoxSCSI->cbBuf);
                         if (!pVBoxSCSI->pbBuf)
                             return VERR_NO_MEMORY;
+                        pVBoxSCSI->cbBufLeft = pVBoxSCSI->cbBuf;
                     }
                     else
                     {
                         /* This is a read from the device. */
+                        pVBoxSCSI->cbBufLeft = pVBoxSCSI->cbBuf;
                         ASMAtomicXchgBool(&pVBoxSCSI->fBusy, true);
                         rc = VERR_MORE_DATA; /** @todo Better return value to indicate ready command? */
                     }
