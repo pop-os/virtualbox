@@ -28,6 +28,14 @@ SUB_DEPTH = ../../../..
 include $(KBUILD_PATH)/subheader.kmk
 
 #
+# Globals.
+#
+VBOX_PATH_SUP_SRC            := $(PATH_SUB_CURRENT)
+VBOX_PATH_SUPR3_CERTIFICATES := $(PATH_SUB_CURRENT)/Certificates
+VBOX_PATH_RUNTIME_SRC        ?= $(PATH_ROOT)/src/VBox/Runtime
+
+
+#
 # Targets
 #
 LIBRARIES += SUPR3 SUPR3Static
@@ -39,8 +47,8 @@ DLLS.win += VBoxSupLib
 ifdef VBOX_WITH_32_ON_64_MAIN_API
  LIBRARIES += SUPR3-x86
 endif
-if   !defined(VBOX_ONLY_DOCS)
- if1of ($(VBOX_LDR_FMT), pe lx)
+if !defined(VBOX_ONLY_DOCS)
+ if1of ($(VBOX_LDR_FMT), pe lx macho)
   LIBRARIES += SUPR0
  endif
 endif
@@ -89,7 +97,8 @@ VBOX_SUP_WIN_CERTS := \
        SpcRootMicrosoft4=SpcRoot-MicrosoftRootCertificateAuthority2011-3f8bc8b5fc9fb29643b569d66c42e144.taf \
        SpcRootMicrosoft5=SpcRoot-MicrosoftDigitalMediaAuthority2005-6eff330eb6e7569740680870104baaba.taf \
        SpcRootMicrosoft6=SpcRoot-MicrosoftDevelopmentRootCertificateAuthority2014-078f0a9d03df119e434e4fec1bf0235a.taf \
-       NtRootMicrosoft7=NtRoot-MicrosoftCodeVerificationRoot-729404101f3e0ca347837fca175a8438.taf \
+       SpcRootMicrosoft7=SpcRoot-MicrosoftTestingRootCertificateAuthority2010-8a334aa8052dd244a647306a76b8178fa215f344.taf \
+       NtRootMicrosoft8=NtRoot-MicrosoftCodeVerificationRoot-729404101f3e0ca347837fca175a8438.taf \
        TimeRootMicrosoft0=Timestamp-CopyrightC1997MicrosoftCorp-01.taf \
        TrustedCertVBox0=Trusted-OracleCorporationVirtualBox-05308b76ac2e15b29720fb4395f65f38.taf \
        AppleRoot0=AppleRoot-2bd06947947609fef46b8d2e40a6f7474d7f085e.taf \
@@ -101,7 +110,6 @@ VBOX_SUP_WIN_CERTS += NtRootDigiCert8=NtRoot-CrossSign-DigiCertAssuredIDRootCA-5
 VBOX_SUP_WIN_CERTS += NtRootDigiCert9=NtRoot-CrossSign-DigiCertHighAssuranceEVRootCA-f4a38dbe86386c554d25f1ce2557a4fe.taf
 
 VBOX_SUP_WIN_CERT_NAMES := $(foreach cert,$(VBOX_SUP_WIN_CERTS),$(firstword $(subst =,$(SPACE) ,$(cert))))
-VBOX_PATH_SUPR3_CERTIFICATES := $(PATH_SUB_CURRENT)/Certificates
 
 # 1=name, 2=filter, 3=buildcert?.
 if "$(KBUILD_TARGET)" == "win" && defined(VBOX_WITH_HARDENING)
@@ -196,7 +204,6 @@ SUPR3Static_SOURCES.win = $(filter-out win/SUPHardenedVerifyImage-win.cpp, $(SUP
 #
 # The static part of the hardened support library (ring-3).
 #
-VBOX_PATH_RUNTIME_SRC ?= $(PATH_ROOT)/src/VBox/Runtime
 SUPR3HardenedStatic_TEMPLATE = VBOXR3HARDENEDLIB
 SUPR3HardenedStatic_DEFS     = IN_SUP_HARDENED_R3
 SUPR3HardenedStatic_DEFS    += \
@@ -366,6 +373,7 @@ if "$(KBUILD_TARGET)" == "win" && defined(VBOX_WITH_HARDENING) ## @todo some of 
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/strcmp.asm \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/strcpy.asm \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/strformat.cpp \
+	$(VBOX_PATH_RUNTIME_SRC)/common/string/RTStrFormat.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/strformatrt.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/strformattype.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/strformatnum.cpp \
@@ -374,6 +382,7 @@ if "$(KBUILD_TARGET)" == "win" && defined(VBOX_WITH_HARDENING) ## @todo some of 
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/strncmp.asm \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/strncpy.asm \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/strprintf.cpp \
+	$(VBOX_PATH_RUNTIME_SRC)/common/string/strprintf-ellipsis.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/strtonum.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/utf-16.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/utf-8.cpp \
@@ -548,6 +557,37 @@ $$(SUPR0_0_OUTDIR)/SUPR0.def: \
    SUPR0_POST_CMDS = $(KLIBTWEAKER_EXT) --clear-timestamps --fill-null_thunk_data $(out)
   endif
  endif
+
+else ifeq ($(VBOX_LDR_FMT),macho)
+ $(call KB_FN_DO_PASS0_ON_TARGET,SUPR0) # Defines SUPR0_0_OUTDIR so we can use it in SUPR0_VBOX_FILES w/o needing $$.
+ SUPR0_VBOX_KMK_FILE = $(SUPR0_0_OUTDIR)/files.kmk
+ include $(SUPR0_VBOX_KMK_FILE)
+ SUPR0_SOURCES       = $(SUPR0_VBOX_FILES)
+ SUPR0_CLEAN         = $(SUPR0_VBOX_FILES) $(SUPR0_0_OUTDIR)/SUPR0.asm $(SUPR0_VBOX_KMK_FILE) $(SUPR0_VBOX_KMK_FILE).ts
+
+ # Generate a make include file which lists the wrapper source files.
+# $ (call KB_FN_AUTO_CMD_DEPS,$(SUPR0_VBOX_KMK_FILE).ts)
+ $(SUPR0_VBOX_KMK_FILE).ts \
+ +| $(SUPR0_VBOX_KMK_FILE): \
+		$(PATH_SUB_CURRENT)/SUPDrv.cpp \
+		$(PATH_SUB_CURRENT)/SUPR0-asm-files.sed
+#	$(call KB_FN_AUTO_CMD_DEPS_COMMANDS)
+	$(call MSG_GENERATE,,$(SUPR0_VBOX_KMK_FILE))
+	$(QUIET)$(RM) -f -- "$@"
+	$(QUIET)$(MKDIR) -p -- "$(@D)"
+	$(QUIET)$(SED) --output "$@" -f "$(VBOX_PATH_SUP_SRC)/SUPR0-asm-files.sed" "$(VBOX_PATH_SUP_SRC)/SUPDrv.cpp"
+	$(QUIET)$(CP) --changed -fv "$@" $(SUPR0_VBOX_KMK_FILE)
+
+ $(SUPR0_0_OUTDIR)/SUPR0.asm +| $(SUPR0_VBOX_FILES): \
+		$(PATH_SUB_CURRENT)/SUPDrv.cpp \
+		$(PATH_SUB_CURRENT)/SUPR0-asm.sed \
+               | $$(dir $$@) $(VBOX_FILESPLIT)
+#	$(call KB_FN_AUTO_CMD_DEPS_COMMANDS)
+	$(call MSG_GENERATE,,SUPR0.asm and friends)
+	$(QUIET)$(RM) -f -- "$@"
+	$(QUIET)$(SED) --output "$@" -f "$(VBOX_PATH_SUP_SRC)/SUPR0-asm.sed" "$(VBOX_PATH_SUP_SRC)/SUPDrv.cpp"
+	$(VBOX_FILESPLIT) "$@" "$(dir $@)"
+
 endif
 
 

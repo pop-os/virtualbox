@@ -1420,15 +1420,12 @@ SUPR0DECL(int) SUPR0HCPhysToVirt(RTHCPHYS HCPhys, void **ppv)
 }
 
 
-RTDECL(int) SUPR0Printf(const char *pszFormat, ...)
+RTDECL(int) SUPR0PrintfV(const char *pszFormat, va_list va)
 {
-    va_list va;
     char    szMsg[512];
     IPRT_LINUX_SAVE_EFL_AC();
 
-    va_start(va, pszFormat);
     RTStrPrintfV(szMsg, sizeof(szMsg) - 1, pszFormat, va);
-    va_end(va);
     szMsg[sizeof(szMsg) - 1] = '\0';
 
     printk("%s", szMsg);

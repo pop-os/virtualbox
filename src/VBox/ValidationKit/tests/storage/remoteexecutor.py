@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 135976 $"
+__version__ = "$Revision: 146365 $"
 
 
 # Standard Python imports.
@@ -63,7 +63,10 @@ class StdInOutBuffer(object):
         """
         if isinstance(sText, array.array):
             try:
-                return str(sText.tostring()); # tostring() returns bytes with python3.
+                if sys.version_info < (3, 9, 0):
+                    # Removed since Python 3.9.
+                    return str(sText.tostring()); # pylint: disable=no-member
+                return str(sText.tobytes());
             except:
                 pass;
         elif isinstance(sText, bytes):
@@ -300,4 +303,3 @@ class RemoteExecutor(object):
                 fRc = False;
 
         return fRc;
-

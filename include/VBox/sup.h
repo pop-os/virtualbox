@@ -2093,6 +2093,18 @@ SUPR0DECL(int)  SUPR0IoCtlPerform(PSUPR0IOCTLCTX pCtx, uintptr_t uFunction,
                                   int32_t *piNativeRc);
 
 /**
+ * Writes to the debugger and/or kernel log, va_list version.
+ *
+ * The length of the formatted message is somewhat limited, so keep things short
+ * and to the point.
+ *
+ * @returns Number of bytes written, mabye.
+ * @param   pszFormat       IPRT format string.
+ * @param   va              Arguments referenced by the format string.
+ */
+SUPR0DECL(int)  SUPR0PrintfV(const char *pszFormat, va_list va) RT_IPRT_FORMAT_ATTR(1, 0);
+
+/**
  * Writes to the debugger and/or kernel log.
  *
  * The length of the formatted message is somewhat limited, so keep things short
@@ -2102,7 +2114,26 @@ SUPR0DECL(int)  SUPR0IoCtlPerform(PSUPR0IOCTLCTX pCtx, uintptr_t uFunction,
  * @param   pszFormat       IPRT format string.
  * @param   ...             Arguments referenced by the format string.
  */
-SUPR0DECL(int)  SUPR0Printf(const char *pszFormat, ...) RT_IPRT_FORMAT_ATTR(1, 2);
+#if defined(__GNUC__) && defined(__inline__)
+/* Define it as static for GCC as it cannot inline functions using va_start() anyway,
+   and linux redefines __inline__ to always inlining forcing gcc to issue an error. */
+static int __attribute__((__unused__))
+#else
+DECLINLINE(int)
+#endif
+RT_IPRT_FORMAT_ATTR(1, 2) SUPR0Printf(const char *pszFormat, ...)
+{
+    va_list va;
+    va_start(va, pszFormat);
+    SUPR0PrintfV(pszFormat, va);
+    va_end(va);
+    return 0;
+}
+
+/* HACK ALERT! See above. */
+#ifdef SUPR0PRINTF_UNDO_INLINE_HACK
+# define __inline__ inline
+#endif
 
 /**
  * Returns configuration flags of the host kernel.

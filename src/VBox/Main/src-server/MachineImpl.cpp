@@ -820,7 +820,7 @@ void Machine::uninit()
         if (SUCCEEDED(autoCaller.rc()))
         {
             AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-            i_saveSettings(NULL, Machine::SaveS_Force);
+            i_saveSettings(NULL, alock, Machine::SaveS_Force);
         }
     }
 
@@ -1567,7 +1567,7 @@ HRESULT Machine::setCPUExecutionCap(ULONG aCPUExecutionCap)
 
     /** Save settings if online - @todo why is this required? -- @bugref{6818} */
     if (Global::IsOnline(mData->mMachineState))
-        i_saveSettings(NULL);
+        i_saveSettings(NULL, alock);
 
     return S_OK;
 }
@@ -2596,7 +2596,7 @@ HRESULT Machine::setClipboardMode(ClipboardMode_T aClipboardMode)
 
     /** Save settings if online - @todo why is this required? -- @bugref{6818} */
     if (Global::IsOnline(mData->mMachineState))
-        i_saveSettings(NULL);
+        i_saveSettings(NULL, alock);
 
     return S_OK;
 }
@@ -2627,7 +2627,7 @@ HRESULT Machine::setClipboardFileTransfersEnabled(BOOL aEnabled)
 
     /** Save settings if online - @todo why is this required? -- @bugref{6818} */
     if (Global::IsOnline(mData->mMachineState))
-        i_saveSettings(NULL);
+        i_saveSettings(NULL, alock);
 
     return S_OK;
 }
@@ -2659,7 +2659,7 @@ HRESULT Machine::setDnDMode(DnDMode_T aDnDMode)
 
     /** Save settings if online - @todo why is this required? -- @bugref{6818} */
     if (Global::IsOnline(mData->mMachineState))
-        i_saveSettings(NULL);
+        i_saveSettings(NULL, alock);
 
     return S_OK;
 }
@@ -3510,7 +3510,7 @@ HRESULT Machine::attachDevice(const com::Utf8Str &aName,
     if (    (pAttachTemp = i_findAttachment(*mMediumAttachments.data(), medium))
          && !medium.isNull()
          && (   medium->i_getType() != MediumType_Readonly
- 	         || medium->i_getDeviceType() != DeviceType_DVD)
+             || medium->i_getDeviceType() != DeviceType_DVD)
        )
         return setError(VBOX_E_OBJECT_IN_USE,
                         tr("Medium '%s' is already attached to this virtual machine"),
@@ -4742,7 +4742,7 @@ HRESULT Machine::setExtraData(const com::Utf8Str &aKey, const com::Utf8Str &aVal
         // This saving of settings is tricky: there is no "old state" for the
         // extradata items at all (unlike all other settings), so the old/new
         // settings comparison would give a wrong result!
-        i_saveSettings(&fNeedsGlobalSaveSettings, SaveS_Force);
+        i_saveSettings(&fNeedsGlobalSaveSettings, alock, SaveS_Force);
 
         if (fNeedsGlobalSaveSettings)
         {
@@ -4779,7 +4779,7 @@ HRESULT Machine::saveSettings()
 
     /* save all VM data excluding snapshots */
     bool fNeedsGlobalSaveSettings = false;
-    rc = i_saveSettings(&fNeedsGlobalSaveSettings);
+    rc = i_saveSettings(&fNeedsGlobalSaveSettings, mlock);
     mlock.release();
 
     if (SUCCEEDED(rc) && fNeedsGlobalSaveSettings)
@@ -4872,7 +4872,7 @@ HRESULT Machine::unregister(AutoCaller &autoCaller,
                         mUserData->s.strName.c_str());
 
     // wait for state dependents to drop to zero
-    i_ensureNoStateDependencies();
+    i_ensureNoStateDependencies(alock);
 
     if (!mData->mAccessible)
     {
@@ -6359,7 +6359,7 @@ HRESULT Machine::hotPlugCPU(ULONG aCpu)
 
     /** Save settings if online - @todo why is this required? -- @bugref{6818} */
     if (Global::IsOnline(mData->mMachineState))
-        i_saveSettings(NULL);
+        i_saveSettings(NULL, alock);
 
     return S_OK;
 }
@@ -6396,7 +6396,7 @@ HRESULT Machine::hotUnplugCPU(ULONG aCpu)
 
     /** Save settings if online - @todo why is this required? -- @bugref{6818} */
     if (Global::IsOnline(mData->mMachineState))
-        i_saveSettings(NULL);
+        i_saveSettings(NULL, alock);
 
     return S_OK;
 }
@@ -7825,7 +7825,7 @@ HRESULT Machine::i_prepareRegister()
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     /* wait for state dependents to drop to zero */
-    i_ensureNoStateDependencies();
+    i_ensureNoStateDependencies(alock);
 
     if (!mData->mAccessible)
         return setError(VBOX_E_INVALID_OBJECT_STATE,
@@ -7849,7 +7849,7 @@ HRESULT Machine::i_prepareRegister()
          || (!mData->pMachineConfigFile->fileExists())
        )
     {
-        rc = i_saveSettings(NULL);
+        rc = i_saveSettings(NULL, alock);
                 // no need to check whether VirtualBox.xml needs saving too since
                 // we can't have a machine XML file rename pending
         if (FAILED(rc)) return rc;
@@ -8340,16 +8340,14 @@ Machine *Machine::i_getMachine()
  * guarantee that no new dependents may be added when this method returns
  * control to the caller.
  *
- * @note Locks this object for writing. The lock will be released while waiting
- *       (if necessary).
+ * @note Receives a lock to this object for writing. The lock will be released
+ *       while waiting (if necessary).
  *
  * @warning To be used only in methods that change the machine state!
  */
-void Machine::i_ensureNoStateDependencies()
+void Machine::i_ensureNoStateDependencies(AutoWriteLock &alock)
 {
     AssertReturnVoid(isWriteLockOnCurrentThread());
-
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     /* Wait for all state dependents if necessary */
     if (mData->mMachineStateDeps != 0)
@@ -8397,7 +8395,7 @@ HRESULT Machine::i_setMachineState(MachineState_T aMachineState)
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     /* wait for state dependents to drop to zero */
-    i_ensureNoStateDependencies();
+    i_ensureNoStateDependencies(alock);
 
     MachineState_T const enmOldState = mData->mMachineState;
     if (enmOldState != aMachineState)
@@ -9771,9 +9769,11 @@ HRESULT Machine::i_prepareSaveSettings(bool *pfNeedsGlobalSaveSettings)
  *          settings have changed. This will happen if a machine rename has been
  *          saved and the global machine and media registries will therefore need
  *          updating.
+ * @param   alock   Reference to the lock for this machine object.
  * @param   aFlags  Flags.
  */
 HRESULT Machine::i_saveSettings(bool *pfNeedsGlobalSaveSettings,
+                                AutoWriteLock &alock,
                                 int  aFlags /*= 0*/)
 {
     LogFlowThisFuncEnter();
@@ -9782,7 +9782,7 @@ HRESULT Machine::i_saveSettings(bool *pfNeedsGlobalSaveSettings,
 
     /* make sure child objects are unable to modify the settings while we are
      * saving them */
-    i_ensureNoStateDependencies();
+    i_ensureNoStateDependencies(alock);
 
     AssertReturn(!i_isSnapshotMachine(),
                  E_FAIL);
@@ -12558,8 +12558,14 @@ void SessionMachine::uninit(Uninit::Reason aReason)
     {
         Log1WarningThisFunc(("ABNORMAL client termination! (wasBusy=%d)\n", Global::IsOnlineOrTransient(lastState)));
 
-        /* reset the state to Aborted */
-        if (mData->mMachineState != MachineState_Aborted)
+        /*
+         * Reset the machine state to Aborted unless we crashed when restoring
+         * a VM in the Saved state before it reached the Restoring state. In that
+         * case we maintain the Saved state so that the saved state file remains
+         * intact and the VM can be restored in the future.
+         */
+        if (   mData->mMachineState != MachineState_Aborted
+            && mData->mMachineState != MachineState_Saved)
             i_setMachineState(MachineState_Aborted);
     }
 
@@ -12867,7 +12873,7 @@ void SessionMachine::i_saveStateHandler(SaveStateTask &task)
             mSSData->strStateFilePath = task.m_strStateFilePath;
 
             /* save all VM settings */
-            rc = i_saveSettings(NULL);
+            rc = i_saveSettings(NULL, alock);
                     // no need to check whether VirtualBox.xml needs saving also since
                     // we can't have a name change pending at this point
         }
@@ -14667,27 +14673,11 @@ HRESULT SessionMachine::i_setMachineState(MachineState_T aMachineState)
     }
     else if (   oldMachineState == MachineState_Saved
              && (   aMachineState == MachineState_PoweredOff
-                 || aMachineState == MachineState_Aborted
                  || aMachineState == MachineState_Teleported
                 )
             )
     {
-        /*
-         *  delete the saved state after SessionMachine::ForgetSavedState() is called
-         *  or if the VM process (owning a direct VM session) crashed while the
-         *  VM was Saved
-         */
-
-        /// @todo (dmik)
-        //      Not sure that deleting the saved state file just because of the
-        //      client death before it attempted to restore the VM is a good
-        //      thing. But when it crashes we need to go to the Aborted state
-        //      which cannot have the saved state file associated... The only
-        //      way to fix this is to make the Aborted condition not a VM state
-        //      but a bool flag: i.e., when a crash occurs, set it to true and
-        //      change the state to PoweredOff or Saved depending on the
-        //      saved state presence.
-
+        /* delete the saved state after SessionMachine::discardSavedState() is called */
         deleteSavedState = true;
         mData->mCurrentStateModified = TRUE;
         stsFlags |= SaveSTS_CurStateModified;
@@ -15180,6 +15170,9 @@ HRESULT Machine::applyDefaults(const com::Utf8Str &aFlags)
     mHWData->mHWVirtExEnabled = true;
 
     rc = osType->COMGETTER(RecommendedRAM)(&mHWData->mMemorySize);
+    if (FAILED(rc)) return rc;
+
+    rc = osType->COMGETTER(RecommendedCPUCount)(&mHWData->mCPUCount);
     if (FAILED(rc)) return rc;
 
     /* Graphics stuff. */

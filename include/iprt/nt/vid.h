@@ -123,6 +123,9 @@ typedef VID_IOCTL_INPUT_MESSAGE_SLOT_HANDLE_AND_GET_NEXT const *PCVID_IOCTL_INPU
 #define VID_MSHAGN_F_CANCEL             RT_BIT_32(2)
 /** @} */
 
+/** A 64-bit version of HV_PARTITION_PROPERTY_CODE. */
+typedef int64_t VID_PARTITION_PROPERTY_CODE;
+
 
 #ifdef IN_RING3
 RT_C_DECLS_BEGIN
@@ -146,8 +149,35 @@ typedef HANDLE VID_PARTITION_HANDLE;
  *
  * The partition ID is the numeric identifier used when making hypercalls to the
  * hypervisor.
+ *
+ * @note Starting with Windows 11 (or possibly earlier), this does not work on
+ *       Exo partition as created by WHvCreatePartition.  It returns a
+ *       STATUS_NOT_IMPLEMENTED as the I/O control code is not allowed through.
+ *       All partitions has an ID though, so just pure annoying blockheadedness
+ *       sprung upon us w/o any chance of doing a memory managment rewrite in
+ *       time.
  */
 DECLIMPORT(BOOL) VIDAPI VidGetHvPartitionId(VID_PARTITION_HANDLE hPartition, HV_PARTITION_ID *pidPartition);
+
+/**
+ * Get a partition property.
+ *
+ * @returns Success indicator (details in LastErrorValue).
+ * @param   hPartition  The partition handle.
+ * @param   enmProperty The property to get.  Is a HV_PARTITION_PROPERTY_CODE
+ *                      type, but seems to be passed around as a 64-bit integer
+ *                      for some reason.
+ * @param   puValue     Where to return the property value.
+ */
+DECLIMPORT(BOOL) VIDAPI VidGetPartitionProperty(VID_PARTITION_HANDLE hPartition, VID_PARTITION_PROPERTY_CODE enmProperty,
+                                                PHV_PARTITION_PROPERTY puValue);
+
+/**
+ * @copydoc VidGetPartitionProperty
+ * @note Currently (Windows 11 GA) identical to VidGetPartitionProperty.
+ */
+DECLIMPORT(BOOL) VIDAPI VidGetExoPartitionProperty(VID_PARTITION_HANDLE hPartition, VID_PARTITION_PROPERTY_CODE enmProperty,
+                                                   PHV_PARTITION_PROPERTY puValue);
 
 /**
  * Starts asynchronous execution of a virtual CPU.

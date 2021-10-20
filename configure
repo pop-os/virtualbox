@@ -1561,7 +1561,7 @@ EOF
         qt5_ver=`pkg-config Qt5Core --modversion 2>> $LOG`
         if [ $? -eq 0 ]; then
           echo "(Qt5 from pkg-config)" >> $LOG
-          FLGQT5=`pkg-config Qt5Core Qt5Gui --cflags`
+          FLGQT5=`pkg-config Qt5Core --cflags`
           # gcc 4.8 is able to compile with C++11 (see also VBOX_GCC_std in Config.kmk)
           [ $(($cc_maj * 100 + $cc_min)) -ge 408 ] && FLGQT5="$FLGQT5 -std=c++11"
           INCQT5=`strip_I "$FLGQT5"`
@@ -2157,6 +2157,15 @@ check_gsoap()
         return
       fi
     fi
+    if [ -d "$DEVDIR/common/gsoap" ]; then
+      GSOAP_DIR=`ls -d1 "$DEVDIR"/common/gsoap/v* 2>/dev/null | tail -1`
+      if [ -n "$GSOAP_DIR" -a -d "$GSOAP_DIR" ]; then
+        gsoap_version=`echo "$GSOAP_DIR" | sed -ne 's/^.*\/v\([1-9][0-9.]*\).*$/\1/p'`
+        log_success "found gSOAP tool version $gsoap_version"
+        # No need to configure anything, the build system knows what to do.
+        return
+      fi
+    fi
   fi
   if [ -z "$GSOAP" ]; then
     GSOAP="/usr"
@@ -2510,7 +2519,9 @@ for option in "$@"; do
     --with-openssl-dir=*)
       OPENSSLDIR=`echo $option | cut -d'=' -f2`
       INCCRYPTO="-I${OPENSSLDIR}/include"
-      LIBCRYPTO="${OPENSSLDIR}/lib/libcrypto.a ${OPENSSLDIR}/lib/libssl.a"
+      LIBCRYPTO="${OPENSSLDIR}/lib/libssl.a ${OPENSSLDIR}/lib/libcrypto.a"
+      # On Linux static OpenSSL typically needs a few additional libraries.
+      [ "$OS" = "linux" ] && LIBCRYPTO="-ldl $LIBPTHREAD -lm"
       ;;
     --with-ow-dir=*)
       WATCOM=`echo $option | cut -d'=' -f2`

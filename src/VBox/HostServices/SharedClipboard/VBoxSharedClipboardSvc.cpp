@@ -1332,6 +1332,10 @@ int ShClSvcDataReadSignal(PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCtx,
 /**
  * Reports available VBox clipboard formats to the guest.
  *
+ * @note    Host backend callers must check if it's active (use
+ *          ShClSvcIsBackendActive) before calling to prevent mixing up the
+ *          VRDE clipboard.
+ *
  * @returns VBox status code.
  * @param   pClient             Client to request to read data form.
  * @param   fFormats            The formats to report (VBOX_SHCL_FMT_XXX), zero
@@ -1339,7 +1343,22 @@ int ShClSvcDataReadSignal(PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCtx,
  */
 int ShClSvcHostReportFormats(PSHCLCLIENT pClient, SHCLFORMATS fFormats)
 {
+    uint32_t uMode = ShClSvcGetMode();
+
     LogFlowFunc(("fFormats=%#x\n", fFormats));
+
+    /*
+     * Check if the service mode allows this operation and whether the guest is
+     * supposed to be reading from the host. Otherwise, silently ignore reporting
+     * formats and return VINF_SUCCESS in order to do not trigger client
+     * termination in svcConnect().
+     */
+    if (   uMode == VBOX_SHCL_MODE_BIDIRECTIONAL
+        || uMode == VBOX_SHCL_MODE_HOST_TO_GUEST)
+    { /* likely */ }
+    else
+        return VINF_SUCCESS;
+
     AssertPtrReturn(pClient, VERR_INVALID_POINTER);
 
 #ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
@@ -1454,16 +1473,31 @@ static int shClSvcClientReportFormats(PSHCLCLIENT pClient, uint32_t cParms, VBOX
         rc = shClSvcSetSource(pClient, SHCLSOURCE_REMOTE);
         if (RT_SUCCESS(rc))
         {
-            if (g_ExtState.pfnExtension)
+            rc = RTCritSectEnter(&g_CritSect);
+            if (RT_SUCCESS(rc))
             {
-                SHCLEXTPARMS parms;
-                RT_ZERO(parms);
-                parms.uFormat = fFormats;
+                if (g_ExtState.pfnExtension)
+                {
+                    SHCLEXTPARMS parms;
+                    RT_ZERO(parms);
+                    parms.uFormat = fFormats;
 
-                g_ExtState.pfnExtension(g_ExtState.pvExtension, VBOX_CLIPBOARD_EXT_FN_FORMAT_ANNOUNCE, &parms, sizeof(parms));
+                    g_ExtState.pfnExtension(g_ExtState.pvExtension, VBOX_CLIPBOARD_EXT_FN_FORMAT_ANNOUNCE, &parms, sizeof(parms));
+                }
+                else
+                {
+#ifdef LOG_ENABLED
+                    LogRel2(("Shared Clipboard: Guest reported formats %RU32 to host\n", fFormats));
+#endif
+                    rc = ShClSvcImplFormatAnnounce(pClient, fFormats);
+                    if (RT_FAILURE(rc))
+                        LogRel(("Shared Clipboard: Reporting guest clipboard formats to the host failed with %Rrc\n", rc));
+                }
+
+                RTCritSectLeave(&g_CritSect);
             }
             else
-                rc = ShClSvcImplFormatAnnounce(pClient, fFormats);
+                LogRel2(("Shared Clipboard: Unable to take internal lock while receiving guest clipboard announcement: %Rrc\n", rc));
         }
     }
 
@@ -1556,8 +1590,10 @@ static int shClSvcClientReadData(PSHCLCLIENT pClient, uint32_t cParms, VBOXHGCMS
     /*
      * Do the reading.
      */
-    int rc;
     uint32_t cbActual = 0;
+
+    int rc = RTCritSectEnter(&g_CritSect);
+    AssertRCReturn(rc, rc);
 
     /* If there is a service extension active, try reading data from it first. */
     if (g_ExtState.pfnExtension)
@@ -1610,6 +1646,8 @@ static int shClSvcClientReadData(PSHCLCLIENT pClient, uint32_t cParms, VBOXHGCMS
         if (cbActual >= cbData)
             rc = VINF_BUFFER_OVERFLOW;
     }
+
+    RTCritSectLeave(&g_CritSect);
 
     LogFlowFuncLeaveRC(rc);
     return rc;
@@ -1700,7 +1738,9 @@ int shClSvcClientWriteData(PSHCLCLIENT pClient, uint32_t cParms, VBOXHGCMSVCPARM
     /*
      * Write the data to the active host side clipboard.
      */
-    int rc;
+    int rc = RTCritSectEnter(&g_CritSect);
+    AssertRCReturn(rc, rc);
+
     if (g_ExtState.pfnExtension)
     {
         SHCLEXTPARMS parms;
@@ -1714,6 +1754,8 @@ int shClSvcClientWriteData(PSHCLCLIENT pClient, uint32_t cParms, VBOXHGCMSVCPARM
     }
     else
         rc = ShClSvcImplWriteData(pClient, &cmdCtx, uFormat, pvData, cbData);
+
+    RTCritSectLeave(&g_CritSect);
 
     LogFlowFuncLeaveRC(rc);
     return rc;
@@ -1807,12 +1849,20 @@ static DECLCALLBACK(int) svcUnload(void *)
 
 static DECLCALLBACK(int) svcDisconnect(void *, uint32_t u32ClientID, void *pvClient)
 {
-    RT_NOREF(u32ClientID);
-
     LogFunc(("u32ClientID=%RU32\n", u32ClientID));
 
     PSHCLCLIENT pClient = (PSHCLCLIENT)pvClient;
     AssertPtr(pClient);
+
+    /* In order to communicate with guest service, HGCM VRDP clipboard extension
+     * needs to know its connection client ID. Currently, in svcConnect() we always
+     * cache ID of the first ever connected client. When client disconnects,
+     * we need to forget its ID and let svcConnect() to pick up the next ID when a new
+     * connection will be requested by guest service (see #10115). */
+    if (g_ExtState.uClientID == u32ClientID)
+    {
+        g_ExtState.uClientID = 0;
+    }
 
 #ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
     shClSvcClientTransfersReset(pClient);
@@ -2482,6 +2532,14 @@ static DECLCALLBACK(int) svcRegisterExtension(void *, PFNHGCMSVCEXT pfnExtension
     SHCLEXTPARMS parms;
     RT_ZERO(parms);
 
+    /*
+     * Reference counting for service extension registration is done a few
+     * layers up (in ConsoleVRDPServer::ClipboardCreate()).
+     */
+
+    int rc = RTCritSectEnter(&g_CritSect);
+    AssertLogRelRCReturn(rc, rc);
+
     if (pfnExtension)
     {
         /* Install extension. */
@@ -2489,8 +2547,9 @@ static DECLCALLBACK(int) svcRegisterExtension(void *, PFNHGCMSVCEXT pfnExtension
         g_ExtState.pvExtension  = pvExtension;
 
         parms.u.pfnCallback = extCallback;
-
         g_ExtState.pfnExtension(g_ExtState.pvExtension, VBOX_CLIPBOARD_EXT_FN_SET_CALLBACK, &parms, sizeof(parms));
+
+        LogRel2(("Shared Clipboard: registered service extension\n"));
     }
     else
     {
@@ -2498,9 +2557,13 @@ static DECLCALLBACK(int) svcRegisterExtension(void *, PFNHGCMSVCEXT pfnExtension
             g_ExtState.pfnExtension(g_ExtState.pvExtension, VBOX_CLIPBOARD_EXT_FN_SET_CALLBACK, &parms, sizeof(parms));
 
         /* Uninstall extension. */
+        g_ExtState.pvExtension  = NULL;
         g_ExtState.pfnExtension = NULL;
-        g_ExtState.pvExtension = NULL;
+
+        LogRel2(("Shared Clipboard: de-registered service extension\n"));
     }
+
+    RTCritSectLeave(&g_CritSect);
 
     return VINF_SUCCESS;
 }

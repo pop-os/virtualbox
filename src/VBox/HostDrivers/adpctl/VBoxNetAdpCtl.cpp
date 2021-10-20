@@ -22,6 +22,7 @@
 *********************************************************************************************************************************/
 #include <list>
 #include <errno.h>
+#include <getopt.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdlib.h>
@@ -31,6 +32,14 @@
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+
+#include <iprt/errcore.h>
+#include <iprt/initterm.h>
+#include <iprt/message.h>
+#include <iprt/net.h>
+#include <iprt/string.h>
+#include <iprt/uint128.h>
+
 #ifdef RT_OS_LINUX
 # include <arpa/inet.h>
 # include <net/if.h>
@@ -47,8 +56,6 @@ typedef __uint8_t u8;
 #ifdef RT_OS_SOLARIS
 # include <sys/ioccom.h>
 #endif
-
-#define NOREF(x) (void)x
 
 /** @todo Error codes must be moved to some header file */
 #define ADPCTLERR_BAD_NAME         2
@@ -72,12 +79,16 @@ typedef VBOXNETADPREQ *PVBOXNETADPREQ;
 #define VBOXADPCTL_IFCONFIG_PATH1 "/sbin/ifconfig"
 #define VBOXADPCTL_IFCONFIG_PATH2 "/bin/ifconfig"
 
+bool verbose;
+bool dry_run;
 
-static void showUsage(void)
+
+static int usage(void)
 {
     fprintf(stderr, "Usage: VBoxNetAdpCtl <adapter> <address> ([netmask <address>] | remove)\n");
     fprintf(stderr, "     | VBoxNetAdpCtl [<adapter>] add\n");
     fprintf(stderr, "     | VBoxNetAdpCtl <adapter> remove\n");
+    return EXIT_FAILURE;
 }
 
 
@@ -237,8 +248,14 @@ public:
     virtual int set(const char *pcszAdapter, const char *pcszAddress, const char *pcszNetmask = 0)
         {
             const char *pcszFamily = isAddrV6(pcszAddress) ? "inet6" : "inet";
-            if (execute(CmdList(pcszAdapter) << pcszFamily))
-                execute(CmdList(pcszAdapter) << pcszFamily << "plumb" << "up");
+            int status;
+
+            status = execute(CmdList(pcszAdapter) << pcszFamily);
+            if (status != EXIT_SUCCESS)
+                status = execute(CmdList(pcszAdapter) << pcszFamily << "plumb" << "up");
+            if (status != EXIT_SUCCESS)
+                return status;
+
             return CmdIfconfig::set(pcszAdapter, pcszAddress, pcszNetmask);
         };
 protected:
@@ -246,6 +263,8 @@ protected:
     virtual int removeV4(const char *pcszAdapter, const char *pcszAddress)
         {
             int rc = CmdIfconfig::removeV4(pcszAdapter, pcszAddress);
+
+            /** @todo Do we really need to unplumb inet here? */
             execute(CmdList(pcszAdapter) << "inet" << "unplumb");
             return rc;
         };
@@ -425,21 +444,57 @@ int AddressCommand::execute(CmdList& list)
     if (argv == NULL)
         return EXIT_FAILURE;
 
-    int rc = EXIT_SUCCESS;
+    if (verbose)
+    {
+        const char *sep = "";
+        for (const char * const *pArg = argv; *pArg != NULL; ++pArg)
+        {
+            printf("%s%s", sep, *pArg);
+            sep = " ";
+        }
+        printf("\n");
+    }
+    if (dry_run)
+        return EXIT_SUCCESS;
+
+    int rc = EXIT_FAILURE; /* o/~ hope for the best, expect the worst */
     pid_t childPid = fork();
     switch (childPid)
     {
         case -1: /* Something went wrong. */
-            perror("fork() failed");
-            rc = EXIT_FAILURE;
+            perror("fork");
             break;
+
         case 0: /* Child process. */
             if (execve(argv[0], argv, pEnv) == -1)
-                rc = EXIT_FAILURE;
+            {
+                perror("execve");
+                exit(EXIT_FAILURE);
+                /* NOTREACHED */
+            }
             break;
+
         default: /* Parent process. */
-            waitpid(childPid, &rc, 0);
+        {
+            int status;
+            pid_t waited = waitpid(childPid, &status, 0);
+            if (waited == childPid) /* likely*/
+            {
+                if (WIFEXITED(status) && WEXITSTATUS(status) == EXIT_SUCCESS)
+                    rc = EXIT_SUCCESS;
+            }
+            else if (waited == (pid_t)-1)
+            {
+                perror("waitpid");
+            }
+            else
+            {
+                /* should never happen */
+                fprintf(stderr, "waitpid: unexpected pid %lld\n",
+                        (long long int)waited);
+            }
             break;
+        }
     }
 
     free((void*)argv);
@@ -679,6 +734,272 @@ int Adapter::doIOCtl(unsigned long iCmd, VBOXNETADPREQ *pReq)
 
 
 /*********************************************************************************************************************************
+*   Global config file implementation                                                                                            *
+*********************************************************************************************************************************/
+
+#define VBOX_GLOBAL_NETWORK_CONFIG_PATH "/etc/vbox/networks.conf"
+#define VBOXNET_DEFAULT_IPV4MASK "255.255.255.0"
+
+class NetworkAddress
+{
+    public:
+        bool isValidString(const char *pcszNetwork);
+        bool isValid() { return m_fValid; };
+        virtual bool matches(const char *pcszNetwork) = 0;
+        virtual const char *defaultNetwork() = 0;
+    protected:
+        bool m_fValid;
+
+        int RTNetStrToIPv4CidrWithZeroPrefixAllowed(const char *pcszAddr, PRTNETADDRIPV4 pAddr, int *piPrefix);
+        int RTNetStrToIPv6CidrWithZeroPrefixAllowed(const char *pcszAddr, PRTNETADDRIPV6 pAddr, int *piPrefix);
+};
+
+int NetworkAddress::RTNetStrToIPv4CidrWithZeroPrefixAllowed(const char *pcszAddr, PRTNETADDRIPV4 pAddr, int *piPrefix)
+{
+    RTNETADDRIPV4 addr;
+    char *pszNext;
+
+    AssertPtrReturn(pcszAddr, VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pAddr, VERR_INVALID_PARAMETER);
+    AssertPtrReturn(piPrefix, VERR_INVALID_PARAMETER);
+
+    pcszAddr = RTStrStripL(pcszAddr);
+    int rc = RTNetStrToIPv4AddrEx(pcszAddr, &addr, &pszNext);
+    if (RT_FAILURE(rc))
+        return rc;
+
+    /*
+     * If the prefix is missing, treat is as exact (/32) address
+     * specification.
+     */
+    if (*pszNext == '\0' || rc == VWRN_TRAILING_SPACES)
+    {
+        *pAddr = addr;
+        *piPrefix = 32;
+        return VINF_SUCCESS;
+    }
+
+    if (*pszNext == '/')
+        ++pszNext;
+    else
+        return VERR_INVALID_PARAMETER;
+
+    uint32_t prefix;
+    rc = RTStrToUInt32Ex(pszNext, &pszNext, 0, &prefix);
+    if ((rc == VINF_SUCCESS || rc == VWRN_TRAILING_SPACES) && prefix == 0)
+    {
+        *pAddr = addr;
+        *piPrefix = 0;
+        return VINF_SUCCESS;
+    }
+    return RTNetStrToIPv4Cidr(pcszAddr, pAddr, piPrefix);
+}
+
+int NetworkAddress::RTNetStrToIPv6CidrWithZeroPrefixAllowed(const char *pcszAddr, PRTNETADDRIPV6 pAddr, int *piPrefix)
+{
+    RTNETADDRIPV6 Addr;
+    uint8_t u8Prefix;
+    char *pszNext;
+    int rc;
+
+    AssertPtrReturn(pcszAddr, VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pAddr, VERR_INVALID_PARAMETER);
+    AssertPtrReturn(piPrefix, VERR_INVALID_PARAMETER);
+
+    pcszAddr = RTStrStripL(pcszAddr);
+    rc = RTNetStrToIPv6AddrEx(pcszAddr, &Addr, &pszNext);
+    if (RT_FAILURE(rc))
+        return rc;
+
+    /*
+     * If the prefix is missing, treat is as exact (/128) address
+     * specification.
+     */
+    if (*pszNext == '\0' || rc == VWRN_TRAILING_SPACES)
+    {
+        *pAddr = Addr;
+        *piPrefix = 128;
+        return VINF_SUCCESS;
+    }
+
+    if (*pszNext != '/')
+        return VERR_INVALID_PARAMETER;
+
+    ++pszNext;
+    rc = RTStrToUInt8Ex(pszNext, &pszNext, 10, &u8Prefix);
+    if (RT_FAILURE(rc) || rc == VWRN_TRAILING_CHARS)
+        return VERR_INVALID_PARAMETER;
+
+    if (u8Prefix > 128)
+        return VERR_INVALID_PARAMETER;
+
+    *pAddr = Addr;
+    *piPrefix = u8Prefix;
+    return VINF_SUCCESS;
+}
+
+bool NetworkAddress::isValidString(const char *pcszNetwork)
+{
+    RTNETADDRIPV4 addrv4;
+    RTNETADDRIPV6 addrv6;
+    int prefix;
+    int rc = RTNetStrToIPv4CidrWithZeroPrefixAllowed(pcszNetwork, &addrv4, &prefix);
+    if (RT_SUCCESS(rc))
+        return true;
+    rc = RTNetStrToIPv6CidrWithZeroPrefixAllowed(pcszNetwork, &addrv6, &prefix);
+    return RT_SUCCESS(rc);
+}
+
+class NetworkAddressIPv4 : public NetworkAddress
+{
+    public:
+        NetworkAddressIPv4(const char *pcszIpAddress, const char *pcszNetMask = VBOXNET_DEFAULT_IPV4MASK);
+        virtual bool matches(const char *pcszNetwork);
+        virtual const char *defaultNetwork() { return "192.168.56.1/21"; }; /* Matches defaults in VBox/Main/include/netif.h, see @bugref{10077}. */
+
+    private:
+        RTNETADDRIPV4 m_address;
+        int m_prefix;
+};
+
+NetworkAddressIPv4::NetworkAddressIPv4(const char *pcszIpAddress, const char *pcszNetMask)
+{
+    int rc = RTNetStrToIPv4Addr(pcszIpAddress, &m_address);
+    if (RT_SUCCESS(rc))
+    {
+        RTNETADDRIPV4 mask;
+        rc = RTNetStrToIPv4Addr(pcszNetMask, &mask);
+        if (RT_FAILURE(rc))
+            m_fValid = false;
+        else
+            rc = RTNetMaskToPrefixIPv4(&mask, &m_prefix);
+    }
+#if 0 /* cmd.set() does not support CIDR syntax */
+    else
+        rc = RTNetStrToIPv4Cidr(pcszIpAddress, &m_address, &m_prefix);
+#endif
+    m_fValid = RT_SUCCESS(rc);
+}
+
+bool NetworkAddressIPv4::matches(const char *pcszNetwork)
+{
+    RTNETADDRIPV4 allowedNet, allowedMask;
+    int allowedPrefix;
+    int rc = RTNetStrToIPv4CidrWithZeroPrefixAllowed(pcszNetwork, &allowedNet, &allowedPrefix);
+    if (RT_SUCCESS(rc))
+        rc = RTNetPrefixToMaskIPv4(allowedPrefix, &allowedMask);
+    if (RT_FAILURE(rc))
+        return false;
+    return m_prefix >= allowedPrefix && (m_address.au32[0] & allowedMask.au32[0]) == (allowedNet.au32[0] & allowedMask.au32[0]);
+}
+
+class NetworkAddressIPv6 : public NetworkAddress
+{
+    public:
+        NetworkAddressIPv6(const char *pcszIpAddress);
+        virtual bool matches(const char *pcszNetwork);
+        virtual const char *defaultNetwork() { return "FE80::/10"; };
+    private:
+        RTNETADDRIPV6 m_address;
+        int m_prefix;
+};
+
+NetworkAddressIPv6::NetworkAddressIPv6(const char *pcszIpAddress)
+{
+    int rc = RTNetStrToIPv6CidrWithZeroPrefixAllowed(pcszIpAddress, &m_address, &m_prefix);
+    m_fValid = RT_SUCCESS(rc);
+}
+
+bool NetworkAddressIPv6::matches(const char *pcszNetwork)
+{
+    RTNETADDRIPV6 allowedNet, allowedMask;
+    int allowedPrefix;
+    int rc = RTNetStrToIPv6CidrWithZeroPrefixAllowed(pcszNetwork, &allowedNet, &allowedPrefix);
+    if (RT_SUCCESS(rc))
+        rc = RTNetPrefixToMaskIPv6(allowedPrefix, &allowedMask);
+    if (RT_FAILURE(rc))
+        return false;
+    RTUINT128U u128Provided, u128Allowed;
+    return m_prefix >= allowedPrefix
+        && RTUInt128Compare(RTUInt128And(&u128Provided, &m_address, &allowedMask), RTUInt128And(&u128Allowed, &allowedNet, &allowedMask)) == 0;
+}
+
+
+class GlobalNetworkPermissionsConfig
+{
+    public:
+        bool forbids(const char *pcszIpAddress); /* address or address with mask in cidr */
+        bool forbids(const char *pcszIpAddress, const char *pcszNetMask);
+
+    private:
+        bool forbids(NetworkAddress& address);
+};
+
+bool GlobalNetworkPermissionsConfig::forbids(const char *pcszIpAddress)
+{
+    NetworkAddressIPv6 addrv6(pcszIpAddress);
+
+    if (addrv6.isValid())
+        return forbids(addrv6);
+
+    NetworkAddressIPv4 addrv4(pcszIpAddress);
+
+    if (addrv4.isValid())
+        return forbids(addrv4);
+
+    fprintf(stderr, "Error: invalid address '%s'\n", pcszIpAddress);
+    return true;
+}
+
+bool GlobalNetworkPermissionsConfig::forbids(const char *pcszIpAddress, const char *pcszNetMask)
+{
+    NetworkAddressIPv4 addrv4(pcszIpAddress, pcszNetMask);
+
+    if (addrv4.isValid())
+        return forbids(addrv4);
+
+    fprintf(stderr, "Error: invalid address '%s' with mask '%s'\n", pcszIpAddress, pcszNetMask);
+    return true;
+}
+
+bool GlobalNetworkPermissionsConfig::forbids(NetworkAddress& address)
+{
+    FILE *fp = fopen(VBOX_GLOBAL_NETWORK_CONFIG_PATH, "r");
+    if (!fp)
+    {
+        if (verbose)
+            fprintf(stderr, "Info: matching against default '%s' => %s\n", address.defaultNetwork(),
+                address.matches(address.defaultNetwork()) ? "MATCH" : "no match");
+        return !address.matches(address.defaultNetwork());
+    }
+
+    char *pszToken, szLine[1024];
+    for (int line = 1; fgets(szLine, sizeof(szLine), fp); ++line)
+    {
+        /* Skip anything except '*' lines */
+        if (strcmp("*", strtok(szLine, " \t\n")))
+            continue;
+        /* Match the specified address against each network */
+        while ((pszToken = strtok(NULL, " \t\n")) != NULL)
+        {
+            if (!address.isValidString(pszToken))
+            {
+                fprintf(stderr, "Warning: %s(%d) invalid network '%s'\n", VBOX_GLOBAL_NETWORK_CONFIG_PATH, line, pszToken);
+                continue;
+            }
+            if (verbose)
+                fprintf(stderr, "Info: %s(%d) matching against '%s' => %s\n", VBOX_GLOBAL_NETWORK_CONFIG_PATH, line, pszToken,
+                    address.matches(pszToken) ? "MATCH" : "no match");
+            if (address.matches(pszToken))
+                return false;
+        }
+    }
+    fclose(fp);
+    return true;
+}
+
+
+/*********************************************************************************************************************************
 *   Main logic, argument parsing, etc.                                                                                           *
 *********************************************************************************************************************************/
 
@@ -706,102 +1027,196 @@ static AddressCommand& chooseAddressCommand()
 int main(int argc, char *argv[])
 {
     char szAdapterName[VBOXNETADP_MAX_NAME_LEN];
-    int rc = EXIT_SUCCESS;
+    int rc = RTR3InitExe(argc, &argv, 0 /*fFlags*/);
+    if (RT_FAILURE(rc))
+        return RTMsgInitFailure(rc);
+
 
     AddressCommand& cmd = chooseAddressCommand();
 
-    if (argc < 2)
+
+    static const struct option options[] = {
+        { "dry-run", no_argument, NULL, 'n' },
+        { "verbose", no_argument, NULL, 'v' },
+        { NULL, 0, NULL, 0 }
+    };
+
+    int ch;
+    while ((ch = getopt_long(argc, argv, "nv", options, NULL)) != -1)
     {
-        fprintf(stderr, "Insufficient number of arguments\n\n");
-        showUsage();
-        return 1;
+        switch (ch)
+        {
+            case 'n':
+                dry_run = true;
+                verbose = true;
+                break;
+
+            case 'v':
+                verbose = true;
+                break;
+
+            case '?':
+            default:
+                return usage();
+        }
     }
-    else if (argc == 2 && !strcmp("add", argv[1]))
+    argc -= optind;
+    argv += optind;
+
+    if (argc == 0)
+        return usage();
+
+
+    /*
+     * VBoxNetAdpCtl add
+     */
+    if (strcmp(argv[0], "add") == 0)
     {
-        /* Create a new interface */
+        if (argc > 1)           /* extraneous args */
+            return usage();
+
+        /* Create a new interface, print its name. */
         *szAdapterName = '\0';
         rc = g_adapter.add(szAdapterName);
-        if (rc == 0)
+        if (rc == EXIT_SUCCESS)
             puts(szAdapterName);
+
         return rc;
     }
+
+
+    /*
+     * All other variants are of the form:
+     *   VBoxNetAdpCtl if0 ...action...
+     */
+    const char * const ifname = argv[0];
+    const char * const action = argv[1];
+    if (argc < 2)
+        return usage();
+
+
 #ifdef RT_OS_LINUX
-    else if (argc == 3 && !strcmp("speed", argv[2]))
+    /*
+     * VBoxNetAdpCtl iface42 speed
+     *
+     * This ugly hack is needed for retrieving the link speed on
+     * pre-2.6.33 kernels (see @bugref{6345}).
+     *
+     * This variant is used with any interface, not just host-only.
+     */
+    if (strcmp(action, "speed") == 0)
     {
-        /*
-         * This ugly hack is needed for retrieving the link speed on
-         * pre-2.6.33 kernels (see @bugref{6345}).
-         */
-        if (strlen(argv[1]) >= IFNAMSIZ)
+        if (argc > 2)           /* extraneous args */
+            return usage();
+
+        if (strlen(ifname) >= IFNAMSIZ)
         {
-            showUsage();
-            return -1;
+            fprintf(stderr, "Interface name too long\n");
+            return EXIT_FAILURE;
         }
+
         unsigned uSpeed = 0;
-        rc = g_adapter.getSpeed(argv[1], &uSpeed);
-        if (!rc)
+        rc = g_adapter.getSpeed(ifname, &uSpeed);
+        if (rc == EXIT_SUCCESS)
             printf("%u", uSpeed);
+
         return rc;
     }
-#endif
+#endif  /* RT_OS_LINUX */
 
-    rc = g_adapter.checkName(argv[1], szAdapterName, sizeof(szAdapterName));
-    if (rc)
+
+    /*
+     * The rest of the actions only operate on host-only interfaces.
+     */
+    /** @todo Why the code below uses both ifname and szAdapterName? */
+    rc = g_adapter.checkName(ifname, szAdapterName, sizeof(szAdapterName));
+    if (rc != EXIT_SUCCESS)
         return rc;
 
-    switch (argc)
+
+    /*
+     * VBoxNetAdpCtl vboxnetN remove
+     */
+    if (strcmp(action, "remove") == 0)
     {
-        case 5:
-        {
-            /* Add a netmask to existing interface */
-            if (strcmp("netmask", argv[3]))
-            {
-                fprintf(stderr, "Invalid argument: %s\n\n", argv[3]);
-                showUsage();
-                return 1;
-            }
-            rc = cmd.set(argv[1], argv[2], argv[4]);
-            break;
-        }
+        if (argc > 2)           /* extraneous args */
+            return usage();
 
-        case 4:
-        {
-            /* Remove a single address from existing interface */
-            if (strcmp("remove", argv[3]))
-            {
-                fprintf(stderr, "Invalid argument: %s\n\n", argv[3]);
-                showUsage();
-                return 1;
-            }
-            rc = cmd.remove(argv[1], argv[2]);
-            break;
-        }
-
-        case 3:
-        {
-            if (strcmp("remove", argv[2]) == 0)
-            {
-                /* Remove an existing interface */
-                rc = g_adapter.remove(argv[1]);
-            }
-            else if (strcmp("add", argv[2]) == 0)
-            {
-                /* Create an interface with given name */
-                rc = g_adapter.add(szAdapterName);
-                if (rc == 0)
-                    puts(szAdapterName);
-            }
-            else
-                rc = cmd.set(argv[1], argv[2]);
-            break;
-        }
-
-        default:
-            fprintf(stderr, "Invalid number of arguments.\n\n");
-            showUsage();
-            return 1;
+        /* Remove an existing interface */
+        return g_adapter.remove(ifname);
     }
 
-    return rc;
-}
+    /*
+     * VBoxNetAdpCtl vboxnetN add
+     */
+    if (strcmp(action, "add") == 0)
+    {
+        if (argc > 2)           /* extraneous args */
+            return usage();
 
+        /* Create an interface with the given name, print its name. */
+        rc = g_adapter.add(szAdapterName);
+        if (rc == EXIT_SUCCESS)
+            puts(szAdapterName);
+
+        return rc;
+    }
+
+
+    /*
+     * The rest of the actions are of the form
+     *     VBoxNetAdpCtl vboxnetN $addr [...]
+     *
+     * Use the argument after the address to select the action.
+     */
+    /** @todo Do early verification of addr format here? */
+    const char * const addr = argv[1];
+    const char * const keyword = argv[2];
+
+    GlobalNetworkPermissionsConfig config;
+
+    /*
+     * VBoxNetAdpCtl vboxnetN 1.2.3.4
+     */
+    if (keyword == NULL)
+    {
+        if (config.forbids(addr))
+        {
+            fprintf(stderr, "Error: permission denied\n");
+            return -VERR_ACCESS_DENIED;
+        }
+
+        return cmd.set(ifname, addr);
+    }
+
+    /*
+     * VBoxNetAdpCtl vboxnetN 1.2.3.4 netmask 255.255.255.0
+     */
+    if (strcmp(keyword, "netmask") == 0)
+    {
+        if (argc != 4)          /* too few or too many args */
+            return usage();
+
+        const char * const mask = argv[3];
+        if (config.forbids(addr, mask))
+        {
+            fprintf(stderr, "Error: permission denied\n");
+            return -VERR_ACCESS_DENIED;
+        }
+
+        return cmd.set(ifname, addr, mask);
+    }
+
+    /*
+     * VBoxNetAdpCtl vboxnetN 1.2.3.4 remove
+     */
+    if (strcmp(keyword, "remove") == 0)
+    {
+        if (argc > 3)           /* extraneous args */
+            return usage();
+
+        return cmd.remove(ifname, addr);
+    }
+
+    return usage();
+}

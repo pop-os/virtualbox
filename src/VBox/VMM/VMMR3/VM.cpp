@@ -81,6 +81,9 @@
 #include <iprt/asm.h>
 #include <iprt/env.h>
 #include <iprt/string.h>
+#ifdef RT_OS_DARWIN
+# include <iprt/system.h>
+#endif
 #include <iprt/time.h>
 #include <iprt/semaphore.h>
 #include <iprt/thread.h>

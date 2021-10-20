@@ -1274,6 +1274,12 @@ static bool configureOutput(int iOutputIndex, struct RANDROUTPUT *paOutputs)
 /** Construct the xrandr command which sets the whole monitor topology each time. */
 static void setXrandrTopology(struct RANDROUTPUT *paOutputs)
 {
+    if (!x11Context.pDisplay)
+    {
+        VBClLogInfo("not connected to X11\n");
+        return;
+    }
+
     XGrabServer(x11Context.pDisplay);
     if (x11Context.fWmwareCtrlExtention)
         callVMWCTRL(paOutputs);
@@ -1412,9 +1418,9 @@ static int run(struct VBCLSERVICE **ppInterface, bool fDaemonised)
         rc = VbglR3GetDisplayChangeRequestMulti(VMW_MAX_HEADS, &cDisplaysOut, aDisplays, fAck);
         fAck = true;
         if (RT_FAILURE(rc))
-            VBClLogFatalError("Failed to get display change request, rc=%Rrc\n", rc);
+            VBClLogError("Failed to get display change request, rc=%Rrc\n", rc);
         if (cDisplaysOut > VMW_MAX_HEADS)
-            VBClLogFatalError("Display change request contained, rc=%Rrc\n", rc);
+            VBClLogError("Display change request contained, rc=%Rrc\n", rc);
         if (cDisplaysOut > 0)
         {
             for (unsigned i = 0; i < cDisplaysOut && i < VMW_MAX_HEADS; ++i)

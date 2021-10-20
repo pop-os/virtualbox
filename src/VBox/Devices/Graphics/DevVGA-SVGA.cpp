@@ -876,8 +876,8 @@ DECLCALLBACK(void) vmsvgaR3PortReportMonitorPositions(PPDMIDISPLAYPORT pInterfac
         /* Stop walking the array once we go thru all the monitors. */
         if (i >= cScreenCount)
             break;
-        if ( pScreens[i].xOrigin == -1
-          || pScreens[i].yOrigin == -1)
+        if ( pPosition[i].x == -1
+          || pPosition[i].y == -1)
             continue;
         if (   pScreens[i].xOrigin == pPosition[i].x
             && pScreens[i].yOrigin == pPosition[i].y)

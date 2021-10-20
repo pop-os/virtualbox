@@ -331,7 +331,7 @@ static int hmR0InitIntel(void)
         g_HmR0.hwvirt.u.vmx.u64HostCr4     = ASMGetCR4();
         g_HmR0.hwvirt.u.vmx.u64HostMsrEfer = ASMRdMsr(MSR_K6_EFER);
 
-        /* Get VMX MSRs for determining VMX features we can ultimately use. */
+        /* Get VMX MSRs (and feature control MSR) for determining VMX features we can ultimately use. */
         SUPR0GetHwvirtMsrs(&g_HmR0.hwvirt.Msrs, SUPVTCAPS_VT_X, false /* fForce */);
 
         /*
@@ -1136,6 +1136,7 @@ VMMR0_INT_DECL(int) HMR0InitVM(PVMCC pVM)
         pVM->hm.s.vmx.u64HostCr4            = g_HmR0.hwvirt.u.vmx.u64HostCr4;
         pVM->hm.s.vmx.u64HostMsrEfer        = g_HmR0.hwvirt.u.vmx.u64HostMsrEfer;
         pVM->hm.s.vmx.u64HostSmmMonitorCtl  = g_HmR0.hwvirt.u.vmx.u64HostSmmMonitorCtl;
+        pVM->hm.s.vmx.u64HostFeatCtrl       = g_HmR0.hwvirt.Msrs.u.vmx.u64FeatCtrl;
         HMGetVmxMsrsFromHwvirtMsrs(&g_HmR0.hwvirt.Msrs, &pVM->hm.s.vmx.Msrs);
         /* If you need to tweak host MSRs for testing VMX R0 code, do it here. */
 

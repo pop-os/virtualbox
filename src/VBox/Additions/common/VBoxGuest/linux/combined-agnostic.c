@@ -107,11 +107,15 @@
 #undef LOG_GROUP
 #include "common/string/strformat.c"
 #undef LOG_GROUP
+#include "common/string/RTStrFormat.c"
+#undef LOG_GROUP
 #include "common/string/strformatnum.c"
 #undef LOG_GROUP
 #include "common/string/strformattype.c"
 #undef LOG_GROUP
 #include "common/string/strprintf.c"
+#undef LOG_GROUP
+#include "common/string/strprintf-ellipsis.c"
 #undef LOG_GROUP
 #include "common/string/strtonum.c"
 #undef LOG_GROUP

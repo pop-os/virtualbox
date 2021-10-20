@@ -64,7 +64,6 @@ typedef struct TFPTPSESSIONOPTDESC
 typedef struct TFTPSESSION
 {
     int         fInUse;
-    unsigned char pszFilename[TFTP_FILENAME_MAX];
     struct      in_addr IpClientAddress;
     uint16_t    u16ClientPort;
     int         iTimestamp;
@@ -74,6 +73,9 @@ typedef struct TFTPSESSION
     TFPTPSESSIONOPTDESC OptionBlkSize;
     TFPTPSESSIONOPTDESC OptionTSize;
     TFPTPSESSIONOPTDESC OptionTimeout;
+
+    const char *pcszFilenameHost;
+    char szFilename[TFTP_FILENAME_MAX];
 } TFTPSESSION, *PTFTPSESSION, **PPTFTPSESSION;
 
 #pragma pack(1)
@@ -133,31 +135,49 @@ DECLINLINE(struct mbuf *) slirpTftpMbufAlloc(PNATState pData)
 
 
 /**
- * This function evaluate file name.
- * @param pu8Payload
- * @param cbPayload
- * @param cbFileName
- * @return VINF_SUCCESS -
- *         VERR_INVALID_PARAMETER -
+ * This function resolves file name relative to tftp prefix.
+ * @param pData
+ * @param pTftpSession
  */
-DECLINLINE(int) tftpSecurityFilenameCheck(PNATState pData, PCTFTPSESSION pcTftpSession)
+DECLINLINE(int) tftpSecurityFilenameCheck(PNATState pData, PTFTPSESSION pTftpSession)
 {
-    int rc = VINF_SUCCESS;
-    AssertPtrReturn(pcTftpSession, VERR_INVALID_PARAMETER);
+    int rc = VERR_FILE_NOT_FOUND; /* guilty until proved innocent */
 
-    /* only allow exported prefixes */
-    if (!tftp_prefix)
-        rc = VERR_INTERNAL_ERROR;
-    else
-    {
-        char *pszFullPathAbs = RTPathAbsExDup(tftp_prefix, (const char *)pcTftpSession->pszFilename, RTPATH_STR_F_STYLE_HOST);
+    char *s;
+    const char *dotdot;
+    char *pszPathHostAbs;
+    int cbLen;
 
-        if (   !pszFullPathAbs
-            || !RTPathStartsWith(pszFullPathAbs, tftp_prefix))
-            rc = VERR_FILE_NOT_FOUND;
+    AssertPtrReturn(pTftpSession, VERR_INVALID_PARAMETER);
+    AssertReturn(pTftpSession->pcszFilenameHost == NULL, VERR_INVALID_PARAMETER);
 
-        RTStrFree(pszFullPathAbs);
-    }
+    /* prefix must be set to an absolute pathname.  assert? */
+    if (tftp_prefix == NULL || RTPathSkipRootSpec(tftp_prefix) == tftp_prefix)
+        goto done;
+
+    /* replace backslashes with forward slashes */
+    s = pTftpSession->szFilename;
+    while ((s = strchr(s, '\\')) != NULL)
+        *s++ = '/';
+
+    /* deny attempts to break out of tftp dir */
+    if (RTStrStartsWith(pTftpSession->szFilename, "../"))
+        goto done;
+
+    dotdot = RTStrStr(pTftpSession->szFilename, "/..");
+    if (dotdot != NULL && (dotdot[3] == '/' || dotdot[3] == '\0'))
+        goto done;
+
+    cbLen = RTStrAPrintf(&pszPathHostAbs, "%s/%s",
+                         tftp_prefix, pTftpSession->szFilename);
+    if (cbLen == -1)
+        goto done;
+
+    LogRel2(("NAT: TFTP: %s\n", pszPathHostAbs));
+    pTftpSession->pcszFilenameHost = pszPathHostAbs;
+    rc = VINF_SUCCESS;
+
+  done:
     LogFlowFuncLeaveRC(rc);
     return rc;
 }
@@ -252,6 +272,12 @@ DECLINLINE(void) tftpSessionUpdate(PNATState pData, PTFTPSESSION pTftpSession)
 
 DECLINLINE(void) tftpSessionTerminate(PTFTPSESSION pTftpSession)
 {
+    if (pTftpSession->pcszFilenameHost != NULL)
+    {
+        RTStrFree((char *)pTftpSession->pcszFilenameHost);
+        pTftpSession->pcszFilenameHost = NULL;
+    }
+
     pTftpSession->fInUse = 0;
 }
 
@@ -288,9 +314,9 @@ DECLINLINE(int) tftpSessionOptionParse(PTFTPSESSION pTftpSession, PCTFTPIPHDR pc
         else
             break;
 
-        if (RTStrNLen((char *)pTftpSession->pszFilename, TFTP_FILENAME_MAX) == 0)
+        if (RTStrNLen(pTftpSession->szFilename, TFTP_FILENAME_MAX) == 0)
         {
-            rc = RTStrCopy((char *)pTftpSession->pszFilename, TFTP_FILENAME_MAX, pszTftpRRQRaw);
+            rc = RTStrCopy(pTftpSession->szFilename, TFTP_FILENAME_MAX, pszTftpRRQRaw);
             if (RT_FAILURE(rc))
             {
                 LogFlowFuncLeaveRC(rc);
@@ -357,6 +383,8 @@ static int tftpAllocateSession(PNATState pData, PCTFTPIPHDR pcTftpIpHeader, PPTF
     PTFTPSESSION pTftpSession = NULL;
     int rc = VINF_SUCCESS;
     int idxSession;
+    const char *pszPrefix;
+
     AssertPtrReturn(pData, VERR_INVALID_PARAMETER);
     AssertPtrReturn(pcTftpIpHeader, VERR_INVALID_PARAMETER);
     AssertPtrReturn(ppTftpSession, VERR_INVALID_PARAMETER);
@@ -376,12 +404,39 @@ static int tftpAllocateSession(PNATState pData, PCTFTPIPHDR pcTftpIpHeader, PPTF
     return VERR_NOT_FOUND;
 
  found:
-    memset(pTftpSession, 0, sizeof(*pTftpSession));
+    if (pTftpSession->pcszFilenameHost != NULL)
+    {
+        RTStrFree((char *)pTftpSession->pcszFilenameHost);
+#if 0
+        pTftpSession->pcszFilenameHost = NULL; /* will be zeroed out below */
+#endif
+    }
+    RT_ZERO(*pTftpSession);
+
     memcpy(&pTftpSession->IpClientAddress, &pcTftpIpHeader->IPv4Hdr.ip_src, sizeof(pTftpSession->IpClientAddress));
     pTftpSession->u16ClientPort = pcTftpIpHeader->UdpHdr.uh_sport;
     rc = tftpSessionOptionParse(pTftpSession, pcTftpIpHeader);
     AssertRCReturn(rc, VERR_INTERNAL_ERROR);
     *ppTftpSession = pTftpSession;
+
+    LogRel(("NAT: TFTP RRQ %s", pTftpSession->szFilename));
+    pszPrefix = " ";
+    if (pTftpSession->OptionBlkSize.fRequested)
+    {
+        LogRel(("%s" "blksize=%RU64", pszPrefix, pTftpSession->OptionBlkSize.u64Value));
+        pszPrefix = ", ";
+    }
+    if (pTftpSession->OptionTSize.fRequested)
+    {
+        LogRel(("%s" "tsize=%RU64", pszPrefix, pTftpSession->OptionTSize.u64Value));
+        pszPrefix = ", ";
+    }
+    if (pTftpSession->OptionTimeout.fRequested)
+    {
+        LogRel(("%s" "timeout=%RU64", pszPrefix, pTftpSession->OptionTimeout.u64Value));
+        pszPrefix = ", ";
+    }
+    LogRel(("\n"));
 
     tftpSessionUpdate(pData, pTftpSession);
 
@@ -416,33 +471,28 @@ static int tftpSessionFind(PNATState pData, PCTFTPIPHDR pcTftpIpHeader, PPTFTPSE
     return VERR_NOT_FOUND;
 }
 
-DECLINLINE(int) pftpSessionOpenFile(PNATState pData, PTFTPSESSION pTftpSession, bool fVerbose, PRTFILE pSessionFile)
+DECLINLINE(int) pftpSessionOpenFile(PTFTPSESSION pTftpSession, PRTFILE pSessionFile)
 {
-    char szSessionFilename[TFTP_FILENAME_MAX];
-    ssize_t cchSessionFilename;
     int rc;
     LogFlowFuncEnter();
 
-    cchSessionFilename = RTStrPrintf2(szSessionFilename, TFTP_FILENAME_MAX, "%s/%s", tftp_prefix, pTftpSession->pszFilename);
-    if (cchSessionFilename > 0)
+    if (pTftpSession->pcszFilenameHost == NULL)
     {
-        LogFunc(("szSessionFilename: %s\n", szSessionFilename));
-        if (RTFileExists(szSessionFilename))
-        {
-            rc = RTFileOpen(pSessionFile, szSessionFilename, RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_WRITE);
-        }
-        else
-            rc = VERR_FILE_NOT_FOUND;
+        rc = VERR_FILE_NOT_FOUND;
     }
     else
-        rc = VERR_FILENAME_TOO_LONG;
-    if (fVerbose)
-        LogRel(("NAT TFTP: %s/%s -> %Rrc\n", tftp_prefix, pTftpSession->pszFilename, rc));
+    {
+        rc = RTFileOpen(pSessionFile, pTftpSession->pcszFilenameHost,
+                        RTFILE_O_OPEN | RTFILE_O_READ | RTFILE_O_DENY_WRITE);
+        if (RT_FAILURE(rc))
+            rc = VERR_FILE_NOT_FOUND;
+    }
+
     LogFlowFuncLeaveRC(rc);
     return rc;
 }
 
-DECLINLINE(int) tftpSessionEvaluateOptions(PNATState pData, PTFTPSESSION pTftpSession)
+DECLINLINE(int) tftpSessionEvaluateOptions(PTFTPSESSION pTftpSession)
 {
     int rc;
     RTFILE hSessionFile;
@@ -450,7 +500,7 @@ DECLINLINE(int) tftpSessionEvaluateOptions(PNATState pData, PTFTPSESSION pTftpSe
     int cOptions;
     LogFlowFunc(("pTftpSession:%p\n", pTftpSession));
 
-    rc = pftpSessionOpenFile(pData, pTftpSession, true /*fVerbose*/, &hSessionFile);
+    rc = pftpSessionOpenFile(pTftpSession, &hSessionFile);
     if (RT_FAILURE(rc))
     {
         LogFlowFuncLeaveRC(rc);
@@ -549,7 +599,7 @@ DECLINLINE(int) tftpReadDataBlock(PNATState pData,
                     pcbReadData));
 
     u16BlkSize = (uint16_t)pcTftpSession->OptionBlkSize.u64Value;
-    rc = pftpSessionOpenFile(pData, pcTftpSession, false /*fVerbose*/, &hSessionFile);
+    rc = pftpSessionOpenFile(pcTftpSession, &hSessionFile);
     if (RT_FAILURE(rc))
     {
         LogFlowFuncLeaveRC(rc);
@@ -619,10 +669,10 @@ DECLINLINE(int) tftpSendOACK(PNATState pData,
     PTFTPIPHDR pTftpIpHeader;
     int rc;
 
-    rc = tftpSessionEvaluateOptions(pData, pTftpSession);
+    rc = tftpSessionEvaluateOptions(pTftpSession);
     if (RT_FAILURE(rc))
     {
-        tftpSendError(pData, pTftpSession, 2, "Option negotiation failure (file not found or inaccessible?)", pcTftpIpHeaderRecv);
+        tftpSendError(pData, pTftpSession, TFTP_EACCESS, "Option negotiation failure (file not found or inaccessible?)", pcTftpIpHeaderRecv);
         LogFlowFuncLeave();
         return rc;
     }
@@ -708,7 +758,7 @@ static int tftpSendData(PNATState pData,
         pTftpSession->cTftpAck++;
     else
     {
-        tftpSendError(pData, pTftpSession, 6, "ACK is wrong", pcTftpIpHeaderRecv);
+        tftpSendError(pData, pTftpSession, TFTP_EEXIST, "ACK is wrong", pcTftpIpHeaderRecv);
         return -1;
     }
 
@@ -745,7 +795,7 @@ static int tftpSendData(PNATState pData,
     else
     {
         m_freem(pData, m);
-        tftpSendError(pData, pTftpSession, 1, "File not found", pcTftpIpHeaderRecv);
+        tftpSendError(pData, pTftpSession, TFTP_ENOENT, "File not found", pcTftpIpHeaderRecv);
         /* send "file not found" error back */
         return -1;
     }
@@ -788,7 +838,7 @@ DECLINLINE(void) tftpProcessRRQ(PNATState pData, PCTFTPIPHDR pTftpIpHeader, int 
     /* Dont't bother with rest processing in case of invalid access */
     if (RT_FAILURE(tftpSecurityFilenameCheck(pData, pTftpSession)))
     {
-        tftpSendError(pData, pTftpSession, 2, "Access violation", pTftpIpHeader);
+        tftpSendError(pData, pTftpSession, TFTP_EACCESS, "Access violation", pTftpIpHeader);
         LogFlowFuncLeave();
         return;
     }
@@ -797,7 +847,7 @@ DECLINLINE(void) tftpProcessRRQ(PNATState pData, PCTFTPIPHDR pTftpIpHeader, int 
 
     if (RT_UNLIKELY(!tftpIsSupportedTransferMode(pTftpSession)))
     {
-        tftpSendError(pData, pTftpSession, 4, "Unsupported transfer mode", pTftpIpHeader);
+        tftpSendError(pData, pTftpSession, TFTP_ENOSYS, "Unsupported transfer mode", pTftpIpHeader);
         LogFlowFuncLeave();
         return;
     }
@@ -823,7 +873,7 @@ static void tftpProcessACK(PNATState pData, PTFTPIPHDR pTftpIpHeader)
     if (tftpSendData(pData, pTftpSession,
                      RT_N2H_U16(pTftpIpHeader->Core.u16TftpOpCode),
                      pTftpIpHeader))
-        LogRel(("NAT TFTP: failure\n"));
+        LogRel(("NAT: TFTP send failed\n"));
 }
 
 int slirpTftpInit(PNATState pData)

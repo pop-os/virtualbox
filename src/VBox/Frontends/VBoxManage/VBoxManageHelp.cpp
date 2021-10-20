@@ -790,7 +790,6 @@ void printUsage(USAGECATEGORY enmCommand, uint64_t fSubcommandScope, PRTSTREAM p
                            "%s export %s          <machines> --output|-o <name>.<ovf/ova/tar.gz>\n"
                      "                            [--legacy09|--ovf09|--ovf10|--ovf20|--opc10]\n"
                      "                            [--manifest]\n"
-                     "                            [--iso]\n"
                      "                            [--options manifest|iso|nomacs|nomacsbutnat]\n"
                      "                            [--vsys <number of virtual system>]\n"
                      "                                    [--vmname <name>]\n"

@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 135976 $"
+__version__ = "$Revision: 146372 $"
 
 # Standard Python imports.
 import array;
@@ -71,7 +71,12 @@ def getSZ(abData, off, sDefault = None):
     if cchStr >= 0:
         abStr = abData[off:(off + cchStr)];
         try:
-            return abStr.tostring().decode('utf_8');
+            if sys.version_info < (3, 9, 0):
+                # Removed since Python 3.9.
+                sStr = abStr.tostring(); # pylint: disable=no-member
+            else:
+                sStr = abStr.tobytes();
+            return sStr.decode('utf_8');
         except:
             reporter.errorXcpt('getSZ(,%u)' % (off));
     return sDefault;
@@ -306,7 +311,13 @@ class TransportBase(object):
         # Unpack and validate the header.
         cbMsg   = getU32(abHdr, 0);
         uCrc32  = getU32(abHdr, 4);
-        sOpcode = abHdr[8:16].tostring().decode('ascii');
+
+        if sys.version_info < (3, 9, 0):
+            # Removed since Python 3.9.
+            sOpcode = abHdr[8:16].tostring(); # pylint: disable=no-member
+        else:
+            sOpcode = abHdr[8:16].tobytes();
+        sOpcode = sOpcode.decode('ascii');
 
         if cbMsg < 16:
             reporter.fatal('recvMsg: message length is out of range: %s (min 16 bytes)' % (cbMsg));
@@ -502,7 +513,11 @@ class Session(TdTaskBase):
             return False;
 
         oThread.join(61.0);
-        return oThread.isAlive();
+
+        if sys.version_info < (3, 9, 0):
+            # Removed since Python 3.9.
+            return oThread.isAlive(); # pylint: disable=no-member
+        return oThread.is_alive();
 
     def taskThread(self):
         """
@@ -1247,7 +1262,12 @@ class Session(TdTaskBase):
 
                 # Finally, push the data to the file.
                 try:
-                    oLocalFile.write(abPayload[4:].tostring());
+                    if sys.version_info < (3, 9, 0):
+                        # Removed since Python 3.9.
+                        abData = abPayload[4:].tostring();
+                    else:
+                        abData = abPayload[4:].tobytes();
+                    oLocalFile.write(abData);
                 except:
                     reporter.errorXcpt('I/O error writing to "%s"' % (sRemoteFile));
                     rc = None;
@@ -2224,4 +2244,3 @@ def tryOpenTcpSession(cMsTimeout, sHostname, uPort = None, fReversedSetup = Fals
         reporter.errorXcpt(None, 15);
         return None;
     return oSession;
-

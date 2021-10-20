@@ -29,7 +29,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 135976 $"
+__version__ = "$Revision: 146365 $"
 
 
 # Standard Python imports.
@@ -1211,11 +1211,21 @@ class FileWrapper(object):
 
     def write(self, sText):
         """file.write"""
-        if isinstance(sText, array.array):
-            try:
-                sText = sText.tostring();
-            except:
-                pass;
+        if not utils.isString(sText):
+            if isinstance(sText, array.array):
+                try:
+                    if sys.version_info < (3, 9, 0):
+                        # Removed since Python 3.9.
+                        sText = sText.tostring(); # pylint: disable=no-member
+                    else:
+                        sText = sText.tobytes();
+                except:
+                    pass;
+            if hasattr(sText, 'decode'):
+                try:
+                    sText = sText.decode('utf-8', 'ignore');
+                except:
+                    pass;
         g_oLock.acquire();
         try:
             sTsPrf  = utils.getTimePrefix();
@@ -1268,8 +1278,14 @@ class FileWrapperTestPipe(object):
         # Turn non-string stuff into strings.
         if not utils.isString(sText):
             if isinstance(sText, array.array):
-                try:    sText = sText.tostring();
-                except: pass;
+                try:
+                    if sys.version_info < (3, 9, 0):
+                        # Removed since Python 3.9.
+                        sText = sText.tostring(); # pylint: disable=no-member
+                    else:
+                        sText = sText.tobytes();
+                except:
+                    pass;
             if not utils.isString(sText) and hasattr(sText, 'decode'):
                 try:    sText = sText.decode('utf-8', 'ignore');
                 except: pass;

@@ -361,11 +361,11 @@ typedef struct VIRTIOCORER3
     R3PTRTYPE(PVIRTIO_PCI_CAP_T)        pIsrCap;                   /**< Pointer to struct in PCI config area.     */
     R3PTRTYPE(PVIRTIO_PCI_CAP_T)        pDeviceCap;                /**< Pointer to struct in PCI config area.     */
 
-    uint32_t                    cbDevSpecificCfg;                  /**< Size of client's dev-specific config data */
-    R3PTRTYPE(uint8_t *)        pbDevSpecificCfg;                  /**< Pointer to client's struct                */
-    R3PTRTYPE(uint8_t *)        pbPrevDevSpecificCfg;              /**< Previous read dev-specific cfg of client  */
-    bool                        fGenUpdatePending;                 /**< If set, update cfg gen after driver reads */
-    char                        pcszMmioName[MAX_NAME];            /**< MMIO mapping name                         */
+    uint32_t                            cbDevSpecificCfg;          /**< Size of client's dev-specific config data */
+    R3PTRTYPE(uint8_t *)                pbDevSpecificCfg;          /**< Pointer to client's struct                */
+    R3PTRTYPE(uint8_t *)                pbPrevDevSpecificCfg;      /**< Previous read dev-specific cfg of client  */
+    bool                                fGenUpdatePending;         /**< If set, update cfg gen after driver reads */
+    char                                pcszMmioName[MAX_NAME];    /**< MMIO mapping name                         */
 } VIRTIOCORER3;
 
 /**

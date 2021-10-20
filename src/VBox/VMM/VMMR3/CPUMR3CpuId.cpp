@@ -4182,27 +4182,29 @@ static int cpumR3CpuIdReadConfig(PVM pVM, PCPUMCPUIDCONFIG pConfig, PCFGMNODE pC
          */
         rc = CFGMR3QueryBoolDef(pCpumCfg, "NestedHWVirt", &pConfig->fNestedHWVirt, false);
         AssertLogRelRCReturn(rc, rc);
-        if (   pConfig->fNestedHWVirt
-            && !fNestedPagingAndFullGuestExec)
-            return VMSetError(pVM, VERR_CPUM_INVALID_HWVIRT_CONFIG, RT_SRC_POS,
-                              "Cannot enable nested VT-x/AMD-V without nested-paging and unresricted guest execution!\n");
-
-        /** @todo Think about enabling this later with NEM/KVM. */
-        if (   pConfig->fNestedHWVirt
-            && VM_IS_NEM_ENABLED(pVM))
+        if (pConfig->fNestedHWVirt)
         {
-            LogRel(("CPUM: WARNING! Can't turn on nested VT-x/AMD-V when NEM is used!\n"));
-            pConfig->fNestedHWVirt = false;
+            /** @todo Think about enabling this later with NEM/KVM. */
+            if (VM_IS_NEM_ENABLED(pVM))
+            {
+                LogRel(("CPUM: WARNING! Can't turn on nested VT-x/AMD-V when NEM is used!\n"));
+                pConfig->fNestedHWVirt = false;
+            }
+            else if (!fNestedPagingAndFullGuestExec)
+                return VMSetError(pVM, VERR_CPUM_INVALID_HWVIRT_CONFIG, RT_SRC_POS,
+                                  "Cannot enable nested VT-x/AMD-V without nested-paging and unrestricted guest execution!\n");
+            else
+            {
+                /** @cfgm{/CPUM/NestedVmxPreemptTimer, bool, true}
+                 * Whether to expose the VMX-preemption timer feature to the guest (if also
+                 * supported by the host hardware). The default is true, and when disabled will
+                 * prevent exposing the VMX-preemption timer feature to the guest even if the host
+                 * supports it.
+                 */
+                rc = CFGMR3QueryBoolDef(pCpumCfg, "NestedVmxPreemptTimer", &pVM->cpum.s.fNestedVmxPreemptTimer, true);
+                AssertLogRelRCReturn(rc, rc);
+            }
         }
-
-        /** @cfgm{/CPUM/NestedVmxPreemptTimer, bool, true}
-         * Whether to expose the VMX-preemption timer feature to the guest (if also
-         * supported by the host hardware). The default is true, and when disabled will
-         * prevent exposing the VMX-preemption timer feature to the guest even if the host
-         * supports it.
-         */
-        rc = CFGMR3QueryBoolDef(pCpumCfg, "NestedVmxPreemptTimer", &pVM->cpum.s.fNestedVmxPreemptTimer, true);
-        AssertLogRelRCReturn(rc, rc);
     }
 
     /*

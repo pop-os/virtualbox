@@ -82,8 +82,9 @@
  * 7.1->8.1 Because pfnCancelled & pfnIsCallCancelled were added (VBox 6.0).
  * 8.1->9.1 Because pfnDisconnectClient was (temporarily) removed, and
  *          acMaxClients and acMaxCallsPerClient added (VBox 6.1.26).
+ * 9.1->10.1 Because pfnDisconnectClient was added back (VBox 6.1.28).
  */
-#define VBOX_HGCM_SVC_VERSION_MAJOR (0x0009)
+#define VBOX_HGCM_SVC_VERSION_MAJOR (0x000a)
 #define VBOX_HGCM_SVC_VERSION_MINOR (0x0001)
 #define VBOX_HGCM_SVC_VERSION ((VBOX_HGCM_SVC_VERSION_MAJOR << 16) + VBOX_HGCM_SVC_VERSION_MINOR)
 
@@ -100,10 +101,27 @@ typedef struct VBOXHGCMSVCHELPERS
 
     void *pvInstance;
 
-#if 0 /* Not thread safe. */
-    /** The service disconnects the client. */
-    DECLR3CALLBACKMEMBER(void, pfnDisconnectClient, (void *pvInstance, uint32_t u32ClientID));
-#endif
+    /**
+     * The service disconnects the client.
+     *
+     * This can only be used during VBOXHGCMSVCFNTABLE::pfnConnect or
+     * VBOXHGCMSVCFNTABLE::pfnDisconnect and will fail if called out side that
+     * context.  Using this on the new client during VBOXHGCMSVCFNTABLE::pfnConnect
+     * is not advisable, it would be better to just return a failure status for that
+     * and it will be done automatically.  (It is not possible to call this method
+     * on a client passed to VBOXHGCMSVCFNTABLE::pfnDisconnect.)
+     *
+     * There will be no VBOXHGCMSVCFNTABLE::pfnDisconnect callback for a client
+     * diconnected in this manner.
+     *
+     * @returns VBox status code.
+     * @retval  VERR_NOT_FOUND if the client ID was not found.
+     * @retval  VERR_INVALID_CONTEXT if not called during connect or disconnect.
+     *
+     * @remarks Used by external parties, so don't remove just because we don't use
+     *          it ourselves.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnDisconnectClient, (void *pvInstance, uint32_t idClient));
 
     /**
      * Check if the @a callHandle is for a call restored and re-submitted from saved state.

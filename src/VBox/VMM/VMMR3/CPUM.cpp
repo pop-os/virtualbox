@@ -1571,9 +1571,6 @@ static void cpumR3InitVmxGuestMsrs(PVM pVM, PCVMXMSRS pHostVmxMsrs, PCCPUMFEATUR
      *   - True VM-exit VM-execution controls.
      */
 
-    /* Feature control. */
-    pGuestVmxMsrs->u64FeatCtrl = MSR_IA32_FEATURE_CONTROL_LOCK | MSR_IA32_FEATURE_CONTROL_VMXON;
-
     /* Basic information. */
     {
         uint64_t const u64Basic = RT_BF_MAKE(VMX_BF_BASIC_VMCS_ID,         VMX_V_VMCS_REVISION_ID        )
@@ -2643,7 +2640,7 @@ static DECLCALLBACK(int) cpumR3SaveExec(PVM pVM, PSSMHANDLE pSSM)
             SSMR3PutU64(pSSM,      pGstCtx->hwvirt.vmx.uEntryTick);
             SSMR3PutU16(pSSM,      pGstCtx->hwvirt.vmx.offVirtApicWrite);
             SSMR3PutBool(pSSM,     pGstCtx->hwvirt.vmx.fVirtNmiBlocking);
-            SSMR3PutU64(pSSM,      pGstCtx->hwvirt.vmx.Msrs.u64FeatCtrl);
+            SSMR3PutU64(pSSM,      MSR_IA32_FEATURE_CONTROL_LOCK | MSR_IA32_FEATURE_CONTROL_VMXON); /* Deprecated since 2021/09/22. Value kept backwards compatibile with 6.1.26. */
             SSMR3PutU64(pSSM,      pGstCtx->hwvirt.vmx.Msrs.u64Basic);
             SSMR3PutU64(pSSM,      pGstCtx->hwvirt.vmx.Msrs.PinCtls.u);
             SSMR3PutU64(pSSM,      pGstCtx->hwvirt.vmx.Msrs.ProcCtls.u);
@@ -2695,7 +2692,7 @@ static DECLCALLBACK(int) cpumR3LoadExec(PVM pVM, PSSMHANDLE pSSM, uint32_t uVers
     /*
      * Validate version.
      */
-    if (    uVersion != CPUM_SAVED_STATE_VERSION_HWVIRT_VMX_IEM
+    if (    uVersion != CPUM_SAVED_STATE_VERSION_HWVIRT_VMX
         &&  uVersion != CPUM_SAVED_STATE_VERSION_HWVIRT_SVM
         &&  uVersion != CPUM_SAVED_STATE_VERSION_XSAVE
         &&  uVersion != CPUM_SAVED_STATE_VERSION_GOOD_CPUID_COUNT
@@ -2897,7 +2894,7 @@ static DECLCALLBACK(int) cpumR3LoadExec(PVM pVM, PSSMHANDLE pSSM, uint32_t uVers
                         SSMR3GetBool(pSSM,     &pGstCtx->hwvirt.fGif);
                     }
                 }
-                if (uVersion >= CPUM_SAVED_STATE_VERSION_HWVIRT_VMX_IEM)
+                if (uVersion >= CPUM_SAVED_STATE_VERSION_HWVIRT_VMX)
                 {
                     if (pVM->cpum.s.GuestFeatures.fVmx)
                     {
@@ -2923,7 +2920,7 @@ static DECLCALLBACK(int) cpumR3LoadExec(PVM pVM, PSSMHANDLE pSSM, uint32_t uVers
                         SSMR3GetU64(pSSM,      &pGstCtx->hwvirt.vmx.uEntryTick);
                         SSMR3GetU16(pSSM,      &pGstCtx->hwvirt.vmx.offVirtApicWrite);
                         SSMR3GetBool(pSSM,     &pGstCtx->hwvirt.vmx.fVirtNmiBlocking);
-                        SSMR3GetU64(pSSM,      &pGstCtx->hwvirt.vmx.Msrs.u64FeatCtrl);
+                        SSMR3Skip(pSSM,        sizeof(uint64_t)); /* Unused - used to be IA32_FEATURE_CONTROL, see @bugref{10106}. */
                         SSMR3GetU64(pSSM,      &pGstCtx->hwvirt.vmx.Msrs.u64Basic);
                         SSMR3GetU64(pSSM,      &pGstCtx->hwvirt.vmx.Msrs.PinCtls.u);
                         SSMR3GetU64(pSSM,      &pGstCtx->hwvirt.vmx.Msrs.ProcCtls.u);
