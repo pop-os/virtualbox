@@ -73,7 +73,7 @@ Build-Depends: bzip2,
                yasm,
                zlib1g-dev
 X-Python-Version: >= 2.5
-Standards-Version: 4.5.0
+Standards-Version: 4.6.0
 Rules-Requires-Root: binary-targets
 Homepage: https://www.virtualbox.org
 Vcs-Browser: https://salsa.debian.org/pkg-virtualbox-team/virtualbox
