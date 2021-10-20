@@ -5,7 +5,7 @@ Index: virtualbox/src/VBox/VMM/VMMR3/VM.cpp
 ===================================================================
 --- virtualbox.orig/src/VBox/VMM/VMMR3/VM.cpp
 +++ virtualbox/src/VBox/VMM/VMMR3/VM.cpp
-@@ -376,9 +376,11 @@
+@@ -379,9 +379,11 @@
                      break;
                  case VERR_VERSION_MISMATCH:
                  case VERR_VM_DRIVER_VERSION_MISMATCH:
