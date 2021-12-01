@@ -69,8 +69,15 @@ void UIFileManagerDialog::retranslateUi()
 {
     /* Translate window title: */
     setWindowTitle(UIFileManager::tr("%1 - File Manager").arg(m_strMachineName));
-    /* Translate buttons: */
-    button(ButtonType_Close)->setText(UIFileManager::tr("Close"));
+
+    /* Retranslate button box buttons: */
+    if (button(ButtonType_Close))
+    {
+        button(ButtonType_Close)->setText(UIFileManager::tr("Close"));
+        button(ButtonType_Close)->setStatusTip(UIFileManager::tr("Close dialog without saving"));
+        button(ButtonType_Close)->setShortcut(Qt::Key_Escape);
+        button(ButtonType_Close)->setToolTip(UIFileManager::tr("Reset Changes (%1)").arg(button(ButtonType_Close)->shortcut().toString()));
+    }
 }
 
 void UIFileManagerDialog::configure()

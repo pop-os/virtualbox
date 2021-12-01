@@ -178,7 +178,10 @@ void UIKeyboardHandler::cleanupListener(ulong uScreenId)
 {
     /* Check if we should release keyboard first: */
     if ((int)uScreenId == m_iKeyboardCaptureViewIndex)
+    {
+        LogRel(("GUI: Releasing keyboard on cleanup\n"));
         releaseKeyboard();
+    }
 
     /* If window still registered: */
     if (m_windows.contains(uScreenId))
@@ -478,6 +481,7 @@ void UIKeyboardHandler::setDebuggerActive(bool aActive /* = true*/)
     if (aActive)
     {
         m_fDebuggerActive = true;
+        LogRel(("GUI: Releasing keyboard on debugger activation\n"));
         releaseKeyboard();
     }
     else
@@ -907,6 +911,7 @@ void UIKeyboardHandler::sltMachineStateChanged()
         case KMachineState_Stuck:
         {
             /* Release the keyboard: */
+            LogRel(("GUI: Releasing keyboard on pause/stuck\n"));
             releaseKeyboard();
             /* And all pressed keys except the host-one : */
             releaseAllPressedKeys(false /* release host-key? */);
@@ -927,7 +932,10 @@ void UIKeyboardHandler::sltMachineStateChanged()
 #else /* !VBOX_WS_WIN */
                     if (!isAutoCaptureDisabled() && autoCaptureSetGlobally())
 #endif /* !VBOX_WS_WIN */
+                    {
+                        LogRel(("GUI: Capturing keyboard on resume\n"));
                         captureKeyboard(theListOfViewIds[i]);
+                    }
                     /* Reset the single-time disable capture flag: */
                     if (isAutoCaptureDisabled())
                         setAutoCaptureDisabled(false);
@@ -1161,7 +1169,10 @@ bool UIKeyboardHandler::eventFilter(QObject *pWatchedObject, QEvent *pEvent)
 #else /* !VBOX_WS_WIN */
                     if (!isAutoCaptureDisabled() && autoCaptureSetGlobally())
 #endif /* !VBOX_WS_WIN */
+                    {
+                        LogRel(("GUI: Capturing keyboard on focus in\n"));
                         captureKeyboard(uScreenId);
+                    }
                     /* Reset the single-time disable capture flag: */
                     if (isAutoCaptureDisabled())
                         setAutoCaptureDisabled(false);
@@ -1203,7 +1214,10 @@ bool UIKeyboardHandler::eventFilter(QObject *pWatchedObject, QEvent *pEvent)
 
                 /* Release keyboard: */
                 if (isSessionRunning() || isSessionStuck())
+                {
+                    LogRel(("GUI: Releasing keyboard on focus out\n"));
                     releaseKeyboard();
+                }
                 /* And all pressed keys: */
                 releaseAllPressedKeys(true);
 
@@ -1376,6 +1390,7 @@ bool UIKeyboardHandler::keyEventCADHandled(uint8_t uScan)
          * to send C-A-D to the guest using the Host+Del combination: */
         if (isSessionRunning() && m_fIsKeyboardCaptured)
         {
+            LogRel(("GUI: Releasing keyboard/mouse on CAD\n"));
             releaseKeyboard();
             if (!uisession()->isMouseSupportsAbsolute() || !uisession()->isMouseIntegrated())
                 machineLogic()->mouseHandler()->releaseMouse();
@@ -1512,12 +1527,14 @@ void UIKeyboardHandler::keyEventHandleHostComboRelease(ulong uScreenId)
 
                     if (m_fIsKeyboardCaptured)
                     {
+                        LogRel(("GUI: Releasing keyboard/mouse on Host Combo release\n"));
                         releaseKeyboard();
                         if (fCaptureMouse)
                             machineLogic()->mouseHandler()->releaseMouse();
                     }
                     else
                     {
+                        LogRel(("GUI: Capturing keyboard/mouse on Host Combo release\n"));
                         captureKeyboard(uScreenId);
 #ifdef VBOX_WS_X11
                         /* Make sure that pending FocusOut events from the

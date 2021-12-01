@@ -644,6 +644,7 @@ static void rtCrX509CertPathsAddIssuer(PRTCRX509CERTPATHSINT pThis, PRTCRX509CER
         pNew->uSrc     = uSrc;
         pNew->uDepth   = pParent->uDepth + 1;
         RTListAppend(&pParent->ChildListOrLeafEntry, &pNew->SiblingEntry);
+        Log2Func(("pNew=%p uSrc=%u uDepth=%u\n", pNew, uSrc, pNew->uDepth));
     }
     else
         RTCrCertCtxRelease(pCertCtx);
@@ -684,6 +685,16 @@ static void rtCrX509CertPathsGetIssuers(PRTCRX509CERTPATHSINT pThis, PRTCRX509CE
         return;
 
     PCRTCRX509NAME const pIssuer = &pNode->pCert->TbsCertificate.Issuer;
+#if defined(LOG_ENABLED) && defined(IN_RING3)
+    if (LogIs2Enabled())
+    {
+        char szIssuer[128] = {0};
+        RTCrX509Name_FormatAsString(pIssuer, szIssuer, sizeof(szIssuer), NULL);
+        char szSubject[128] = {0};
+        RTCrX509Name_FormatAsString(&pNode->pCert->TbsCertificate.Subject, szSubject, sizeof(szSubject), NULL);
+        Log2Func(("pNode=%p uSrc=%u uDepth=%u Issuer='%s' (Subject='%s')\n", pNode, pNode->uSrc, pNode->uDepth, szIssuer, szSubject));
+    }
+#endif
 
     /*
      * Trusted certificate.
@@ -2461,8 +2472,18 @@ static bool rtCrX509CpvCheckCriticalExtensions(PRTCRX509CERTPATHSINT pThis, PRTC
                 && RTAsn1ObjId_CompareWithString(&pCur->ExtnId, RTCR_APPLE_CS_DEVID_INSTALLER_OID) != 0
                 && RTAsn1ObjId_CompareWithString(&pCur->ExtnId, RTCR_APPLE_CS_DEVID_KEXT_OID) != 0
                )
-                return rtCrX509CpvFailed(pThis, VERR_CR_X509_CPV_UNKNOWN_CRITICAL_EXTENSION,
-                                         "Node #%u has an unknown critical extension: %s", pThis->v.iNode, pCur->ExtnId.szObjId);
+            {
+                /* @bugref{10130}: An IntelGraphicsPE2021 cert issued by iKG_AZSKGFDCS has a critical subjectKeyIdentifier
+                                   which we quietly ignore here. RFC-5280 conforming CAs should not mark this as critical.
+                                   On an end entity this extension can have relevance to path construction. */
+                if (   pNode->uSrc == RTCRX509CERTPATHNODE_SRC_TARGET
+                    && RTAsn1ObjId_CompareWithString(&pCur->ExtnId, RTCRX509_ID_CE_SUBJECT_KEY_IDENTIFIER_OID) == 0)
+                    LogFunc(("Ignoring non-standard subjectKeyIdentifier on target certificate.\n"));
+                else
+                    return rtCrX509CpvFailed(pThis, VERR_CR_X509_CPV_UNKNOWN_CRITICAL_EXTENSION,
+                                             "Node #%u has an unknown critical extension: %s",
+                                             pThis->v.iNode, pCur->ExtnId.szObjId);
+            }
         }
 
         ppCur++;

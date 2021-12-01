@@ -1543,7 +1543,10 @@ void UIMachineView::paintEvent(QPaintEvent *pPaintEvent)
         QRect rect = pPaintEvent->rect().intersected(viewport()->rect());
         QPainter painter(viewport());
         /* Take the scale-factor into account: */
-        if (frameBuffer()->scaleFactor() == 1.0 && !frameBuffer()->scaledSize().isValid())
+        UIFrameBuffer * const pFramebuffer = frameBuffer(); /* Can be NULL when the event arrive during COM cleanup. */
+        if (  pFramebuffer
+            ? pFramebuffer->scaleFactor() == 1.0 && !pFramebuffer->scaledSize().isValid()
+            : pausePixmapScaled().isNull())
             painter.drawPixmap(rect.topLeft(), pausePixmap());
         else
             painter.drawPixmap(rect.topLeft(), pausePixmapScaled());
@@ -1566,6 +1569,8 @@ void UIMachineView::paintEvent(QPaintEvent *pPaintEvent)
 
 void UIMachineView::focusInEvent(QFocusEvent *pEvent)
 {
+    LogRel(("GUI: Machine-view #%d focused, reason=%d\n", m_uScreenId, pEvent ? pEvent->reason() : -1));
+
     /* Call to base-class: */
     QAbstractScrollArea::focusInEvent(pEvent);
 
@@ -1591,6 +1596,8 @@ void UIMachineView::focusOutEvent(QFocusEvent *pEvent)
 
     /* Call to base-class: */
     QAbstractScrollArea::focusOutEvent(pEvent);
+
+    LogRel(("GUI: Machine-view #%d unfocused, reason=%d\n", m_uScreenId, pEvent ? pEvent->reason() : -1));
 }
 
 #ifdef VBOX_WITH_DRAG_AND_DROP

@@ -47,6 +47,100 @@ Rules for adding a changelog entry to make them look more uniform:
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
 
   <sect1>
+    <title>Version 6.1.30 (2021-11-22)</title>
+
+    <para>This is a maintenance release. The following items were fixed
+      and/or added:</para>
+
+    <itemizedlist>
+      <listitem>
+        <para>VMM: Fixed 6.1.28 regression preventing VMs starting when using Hyper-V mode
+        on Windows 10</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: Fixed inability to complete First Run wizard after browsing for an
+          external image</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: Fixed crash on macOS Big Sur while browsing for an external image from
+          First Run wizard</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: Fixed bug on Windows with inability to save taken screenshot under a folder with
+          native name (bug #15561)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: Fixed bug on X11 with drag and drop initiated on single mouse click in VM
+          storage settings</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: Fixed settings check on machines not supporting hardware
+          virtualization</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: Non critical media related errors should not cause modal pop-up error
+          messages</para>
+      </listitem>
+
+      <listitem>
+        <para>Host-only networking: Fixed crash parsing
+          /etc/vbox/networks.conf</para>
+      </listitem>
+
+      <listitem>
+        <para>DVD: Fixed drive lock handling across VM reset</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxHeadless: Fixed crash when running on macOS Monterey (bug #20636)</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: Fixed incorrect help text for "hostonlyif"</para>
+      </listitem>
+
+      <listitem>
+        <para>vboximg-mount: Error message if no image is specified</para>
+      </listitem>
+
+      <listitem>
+        <para>macOS host: fix multiple bugs specific to macOS Monterey in
+          installer and startup of kernel extensions</para>
+      </listitem>
+
+      <listitem>
+        <para>macOS host: show message indicating the unsupported CPU on M1
+          based Macs and abort installation</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux host: For all distribution specific packages (deb/rpm
+          format) fix the packaging so that the feature for unattended
+          installation of guest OSes works</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux host and guest: Introduced initial support for kernel 5.16</para>
+      </listitem>
+
+      <listitem>
+        <para>Shared Clipboard: Improved communication between guest and host
+          when guest has no clipboard data to report</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Guest Additions: Allow running only one VBoxDRMClient instance (bug #19373)</para>
+      </listitem>
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 6.1.28 (2021-10-19)</title>
 
     <para>This is a maintenance release. The following items were fixed
@@ -86,7 +180,7 @@ Rules for adding a changelog entry to make them look more uniform:
       </listitem>
 
       <listitem>
-        <para>Network: More administrative control over network ranges, see <xref linkend="network_hostonly" />
+        <para>Network: More administrative control over host-only network ranges to prevent trouble due to misconfiguration, see <xref linkend="network_hostonly" />. Check updated documentation or your VMs may stop working!
         </para>
       </listitem>
 
@@ -101,12 +195,12 @@ Rules for adding a changelog entry to make them look more uniform:
 
       <listitem>
         <para>Audio: Fixed setting the line-in volume of the HDA emulation on
-          modern Linux guests (bug oem2#53)</para>
+          modern Linux guests</para>
       </listitem>
 
       <listitem>
         <para>Audio: Fixed resuming playback of the AC'97 emulation while a
-          snapshot has been taken (bug oem2#52)</para>
+          snapshot has been taken</para>
       </listitem>
 
       <listitem>

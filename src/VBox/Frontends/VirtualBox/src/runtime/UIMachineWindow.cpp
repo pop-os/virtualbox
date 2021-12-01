@@ -266,8 +266,16 @@ bool UIMachineWindow::event(QEvent *pEvent)
     {
         case QEvent::WindowActivate:
         {
+            LogRel(("GUI: Machine-window #%d activated\n", m_uScreenId));
+
             /* Initiate registration in the modal window manager: */
             windowManager().setMainWindowShown(this);
+            break;
+        }
+        case QEvent::WindowDeactivate:
+        {
+            LogRel(("GUI: Machine-window #%d deactivated\n", m_uScreenId));
+
             break;
         }
         default:
