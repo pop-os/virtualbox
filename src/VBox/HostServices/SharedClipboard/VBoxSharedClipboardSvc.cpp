@@ -508,7 +508,7 @@ static int shClSvcMsgSetOldWaitReturn(PSHCLCLIENTMSG pMsg, PVBOXHGCMSVCPARM paDs
  */
 void shClSvcMsgAdd(PSHCLCLIENT pClient, PSHCLCLIENTMSG pMsg, bool fAppend)
 {
-    Assert(RTCritSectIsOwned(&pClient->CritSect));
+    Assert(RTCritSectIsOwner(&pClient->CritSect));
     AssertPtr(pMsg);
 
     LogFlowFunc(("idMsg=%s (%RU32) cParms=%RU32 fAppend=%RTbool\n",
@@ -534,7 +534,7 @@ void shClSvcMsgAdd(PSHCLCLIENT pClient, PSHCLCLIENTMSG pMsg, bool fAppend)
  */
 int shClSvcMsgAddAndWakeupClient(PSHCLCLIENT pClient, PSHCLCLIENTMSG pMsg)
 {
-    Assert(RTCritSectIsOwned(&pClient->CritSect));
+    Assert(RTCritSectIsOwner(&pClient->CritSect));
     AssertPtr(pMsg);
     AssertPtr(pClient);
     LogFlowFunc(("idMsg=%s (%u) cParms=%u\n", ShClHostMsgToStr(pMsg->idMsg), pMsg->idMsg, pMsg->cParms));
@@ -1289,16 +1289,30 @@ int ShClSvcDataReadRequest(PSHCLCLIENT pClient, SHCLFORMATS fFormats, PSHCLEVENT
     return rc;
 }
 
-int ShClSvcDataReadSignal(PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCtx,
-                          SHCLFORMAT uFormat, void *pvData, uint32_t cbData)
+/**
+ * Signals the host that clipboard data from the guest has been received.
+ *
+ * @returns VBox status code. Returns VERR_NOT_FOUND when related event ID was not found.
+ * @param   pClient             Client the guest clipboard data was received from.
+ * @param   pCmdCtx             Client command context.
+ * @param   uFormat             Clipboard format of data received.
+ * @param   pvData              Pointer to clipboard data received.  This can be
+ *                              NULL if @a cbData is zero.
+ * @param   cbData              Size (in bytes) of clipboard data received.
+ *                              This can be zero.
+ */
+int ShClSvcDataReadSignal(PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCtx, SHCLFORMAT uFormat, void *pvData, uint32_t cbData)
 {
-    AssertPtrReturn(pClient, VERR_INVALID_POINTER);
-    AssertPtrReturn(pCmdCtx, VERR_INVALID_POINTER);
-    AssertPtrReturn(pvData,  VERR_INVALID_POINTER);
-
+    LogFlowFuncEnter();
     RT_NOREF(uFormat);
 
-    LogFlowFuncEnter();
+    /*
+     * Validate intput.
+     */
+    AssertPtrReturn(pClient, VERR_INVALID_POINTER);
+    AssertPtrReturn(pCmdCtx, VERR_INVALID_POINTER);
+    if (cbData > 0)
+        AssertPtrReturn(pvData, VERR_INVALID_POINTER);
 
     SHCLEVENTID idEvent;
     if (!(pClient->State.fGuestFeatures0 & VBOX_SHCL_GF_0_CONTEXT_ID)) /* Legacy, Guest Additions < 6.1. */
@@ -1310,19 +1324,28 @@ int ShClSvcDataReadSignal(PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCtx,
     else
         idEvent = VBOX_SHCL_CONTEXTID_GET_EVENT(pCmdCtx->uContextID);
 
+    /*
+     * Make a copy of the data so we can attach it to the signal.
+     *
+     * Note! We still signal the waiter should we run out of memory,
+     *       because otherwise it will be stuck waiting.
+     */
     int rc = VINF_SUCCESS;
-
     PSHCLEVENTPAYLOAD pPayload = NULL;
-    if (cbData)
+    if (cbData > 0)
         rc = ShClPayloadAlloc(idEvent, pvData, cbData, &pPayload);
 
-    if (RT_SUCCESS(rc))
+    /*
+     * Signal the event.
+     */
+    RTCritSectEnter(&pClient->CritSect);
+    int rc2 = ShClEventSignal(&pClient->EventSrc, idEvent, pPayload);
+    RTCritSectLeave(&pClient->CritSect);
+    if (RT_FAILURE(rc2))
     {
-        RTCritSectEnter(&pClient->CritSect);
-        rc = ShClEventSignal(&pClient->EventSrc, idEvent, pPayload);
-        RTCritSectLeave(&pClient->CritSect);
-        if (RT_FAILURE(rc))
-            ShClPayloadFree(pPayload);
+        rc = rc2;
+        ShClPayloadFree(pPayload);
+        LogRel(("Shared Clipboard: Signalling of guest clipboard data to the host failed: %Rrc\n", rc));
     }
 
     LogFlowFuncLeaveRC(rc);
@@ -1908,22 +1931,26 @@ static DECLCALLBACK(int) svcConnect(void *, uint32_t u32ClientID, void *pvClient
 
             if (RT_SUCCESS(rc))
             {
-                /* For now we ASSUME that the first client ever connected is in charge for
-                 * communicating withe the service extension.
-                 *
-                 ** @todo This needs to be fixed ASAP w/o breaking older guest / host combos. */
+                /* For now we ASSUME that the first client that connects is in charge for
+                   communicating with the service extension. */
+                /** @todo This isn't optimal, but only the guest really knows which client is in
+                 *        focus on the console. See @bugref{10115} for details. */
                 if (g_ExtState.uClientID == 0)
                     g_ExtState.uClientID = u32ClientID;
+
+                LogFunc(("Successfully connected client %#x\n", u32ClientID));
+                return rc;
             }
-        }
 
-        if (RT_FAILURE(rc))
-        {
-            shClSvcClientDestroy(pClient);
+            LogFunc(("ShClSvcImplSync failed: %Rrc\n", rc));
+            ShClSvcImplDisconnect(pClient);
         }
-
+        else
+            LogFunc(("ShClSvcImplConnect failed: %Rrc\n", rc));
+        shClSvcClientDestroy(pClient);
     }
-
+    else
+        LogFunc(("shClSvcClientInit failed: %Rrc\n", rc));
     LogFlowFuncLeaveRC(rc);
     return rc;
 }

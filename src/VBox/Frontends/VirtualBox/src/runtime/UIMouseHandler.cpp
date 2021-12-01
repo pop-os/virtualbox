@@ -128,7 +128,10 @@ void UIMouseHandler::cleanupListener(ulong uIndex)
 {
     /* Check if we should release mouse first: */
     if ((int)uIndex == m_iMouseCaptureViewIndex)
+    {
+        LogRel(("GUI: Releasing mouse on cleanup\n"));
         releaseMouse();
+    }
 
     /* If that window still registered: */
     if (m_windows.contains(uIndex))
@@ -373,6 +376,7 @@ void UIMouseHandler::sltMachineStateChanged()
         case KMachineState_Stuck:
         {
             /* Release the mouse: */
+            LogRel(("GUI: Releasing mouse on pause/stuck\n"));
             releaseMouse();
             break;
         }
@@ -398,6 +402,7 @@ void UIMouseHandler::sltMouseCapabilityChanged()
     if (uisession()->isMouseSupportsAbsolute() && uisession()->isMouseIntegrated())
     {
         /* Release the mouse: */
+        LogRel(("GUI: Releasing mouse on capabilities lost\n"));
         releaseMouse();
         /* Also we should switch guest mouse to the absolute mode: */
         mouse().PutMouseEventAbsolute(-1, -1, 0, 0, 0);
@@ -603,6 +608,7 @@ bool UIMouseHandler::eventFilter(QObject *pWatched, QEvent *pEvent)
                     case QEvent::FocusOut:
                     {
                         /* Release the mouse: */
+                        LogRel(("GUI: Releasing mouse on focus out\n"));
                         releaseMouse();
                         break;
                     }
@@ -1159,6 +1165,7 @@ bool UIMouseHandler::mouseEvent(int iEventType, ulong uScreenId,
                          * otherwise the mouse is immediately ungrabbed again: */
                         qApp->processEvents();
 #endif /* VBOX_WS_X11 */
+                        LogRel(("GUI: Capturing keyboard/mouse on mouse click\n"));
                         machineLogic()->keyboardHandler()->captureKeyboard(uScreenId);
                         const MouseCapturePolicy mcp = gEDataManager->mouseCapturePolicy(uiCommon().managedVMUuid());
                         if (mcp == MouseCapturePolicy_Default)

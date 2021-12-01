@@ -4279,11 +4279,14 @@ void UIMachineSettingsStorage::sltHandleMouseClick(QMouseEvent *pEvent)
     /* Make sure event is valid: */
     AssertPtrReturnVoid(pEvent);
 
-    /* Remember last mouse press position: */
-    m_mousePressPosition = pEvent->globalPos();
-
+    /* Acquire indexes: */
+    const QModelIndex currentIndex = m_pTreeStorage->currentIndex();
     const QModelIndex index = m_pTreeStorage->indexAt(pEvent->pos());
     const QRect indexRect = m_pTreeStorage->visualRect(index);
+
+    /* Remember last mouse press position only if we pressed current index: */
+    if (index == currentIndex)
+        m_mousePressPosition = pEvent->globalPos();
 
     /* Expander icon: */
     if (m_pModelStorage->data(index, StorageModel::R_IsController).toBool())

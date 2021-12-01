@@ -512,16 +512,6 @@ bool UIMachineSettingsSystem::validate(QList<UIValidationMessage> &messages)
         UIValidationMessage message;
         message.first = UICommon::removeAccelMark(m_pTabWidgetSystem->tabText(2));
 
-        /* HW Virt Ex test: */
-        if (!isHWVirtExSupported() && isHWVirtExEnabled())
-        {
-            message.second << tr(
-                "The hardware virtualization is enabled in the Acceleration section of the System page although "
-                "it is not supported by the host system. It should be disabled in order to start the virtual system.");
-
-            fPass = false;
-        }
-
         /* Nested Paging: */
         if (isNestedPagingEnabled())
         {

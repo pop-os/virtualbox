@@ -4420,6 +4420,7 @@ static DECLCALLBACK(void) drvvdReset(PPDMDRVINS pDrvIns)
         pThis->cbDataValid      = 0;
         pThis->offDisk          = 0;
     }
+    pThis->fLocked = false;
 }
 
 /**

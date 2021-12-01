@@ -99,6 +99,7 @@ void UIWizardFirstRunPageBasic::sltOpenMediumWithFileOpenDialog()
 {
     /* Call to base-class: */
     onOpenMediumWithFileOpenDialog();
+    emit completeChanged();
 }
 
 void UIWizardFirstRunPageBasic::retranslateUi()
