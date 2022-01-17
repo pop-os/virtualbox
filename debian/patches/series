@@ -14,3 +14,4 @@
 35-libvdeplug-soname.patch
 36-fix-vnc-version-string.patch
 37-do-not-run-if-not-in-vm.patch
+python3.10.patch
