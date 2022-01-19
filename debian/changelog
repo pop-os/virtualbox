@@ -1,3 +1,9 @@
+virtualbox (6.1.30-dfsg-2pop0) focal; urgency=medium
+
+  * Backport to Pop
+
+ -- Jeremy Soller <jeremy@system76.com>  Wed, 19 Jan 2022 10:02:11 -0700
+
 virtualbox (6.1.30-dfsg-2) unstable; urgency=medium
 
   * Add support for Python3.10
