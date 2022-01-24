@@ -59,6 +59,11 @@
 #include <iprt/system.h>
 #include <iprt/utf16.h>
 
+#ifndef NTDDI_WIN10_VB /* Present in W10 2004 SDK, quite possibly earlier. */
+HRESULT WINAPI WHvQueryGpaRangeDirtyBitmap(WHV_PARTITION_HANDLE, WHV_GUEST_PHYSICAL_ADDRESS, UINT64, UINT64 *, UINT32);
+# define WHvMapGpaRangeFlagTrackDirtyPages      ((WHV_MAP_GPA_RANGE_FLAGS)0x00000008)
+#endif
+
 
 /*********************************************************************************************************************************
 *   Defined Constants And Macros                                                                                                 *
@@ -95,6 +100,7 @@ static decltype(WHvSetPartitionProperty) *          g_pfnWHvSetPartitionProperty
 static decltype(WHvMapGpaRange) *                   g_pfnWHvMapGpaRange;
 static decltype(WHvUnmapGpaRange) *                 g_pfnWHvUnmapGpaRange;
 static decltype(WHvTranslateGva) *                  g_pfnWHvTranslateGva;
+static decltype(WHvQueryGpaRangeDirtyBitmap) *      g_pfnWHvQueryGpaRangeDirtyBitmap;
 #ifndef NEM_WIN_USE_OUR_OWN_RUN_API
 static decltype(WHvCreateVirtualProcessor) *        g_pfnWHvCreateVirtualProcessor;
 static decltype(WHvDeleteVirtualProcessor) *        g_pfnWHvDeleteVirtualProcessor;
@@ -146,6 +152,7 @@ static const struct
     NEM_WIN_IMPORT(0, false, WHvMapGpaRange),
     NEM_WIN_IMPORT(0, false, WHvUnmapGpaRange),
     NEM_WIN_IMPORT(0, false, WHvTranslateGva),
+    NEM_WIN_IMPORT(0, true,  WHvQueryGpaRangeDirtyBitmap),
 #ifndef NEM_WIN_USE_OUR_OWN_RUN_API
     NEM_WIN_IMPORT(0, false, WHvCreateVirtualProcessor),
     NEM_WIN_IMPORT(0, false, WHvDeleteVirtualProcessor),
@@ -221,6 +228,7 @@ static const HV_X64_INTERCEPT_MESSAGE_HEADER *g_pX64MsgHdr;
 # define WHvMapGpaRange                             g_pfnWHvMapGpaRange
 # define WHvUnmapGpaRange                           g_pfnWHvUnmapGpaRange
 # define WHvTranslateGva                            g_pfnWHvTranslateGva
+# define WHvQueryGpaRangeDirtyBitmap                g_pfnWHvQueryGpaRangeDirtyBitmap
 # define WHvCreateVirtualProcessor                  g_pfnWHvCreateVirtualProcessor
 # define WHvDeleteVirtualProcessor                  g_pfnWHvDeleteVirtualProcessor
 # define WHvRunVirtualProcessor                     g_pfnWHvRunVirtualProcessor
@@ -521,7 +529,13 @@ static int nemR3WinInitProbeAndLoad(bool fForced, PRTERRINFO pErrInfo)
         for (unsigned i = 0; i < RT_ELEMENTS(g_aImports); i++)
         {
             int rc2 = RTLdrGetSymbol(ahMods[g_aImports[i].idxDll], g_aImports[i].pszName, (void **)g_aImports[i].ppfn);
-            if (RT_FAILURE(rc2))
+            if (RT_SUCCESS(rc2))
+            {
+                if (g_aImports[i].fOptional)
+                    LogRel(("NEM:  info: Found optional import %s!%s.\n",
+                            s_apszDllNames[g_aImports[i].idxDll], g_aImports[i].pszName));
+            }
+            else
             {
                 *g_aImports[i].ppfn = NULL;
 
@@ -1278,7 +1292,9 @@ int nemR3NativeInit(PVM pVM, bool fFallback, bool fForced)
     /*
      * Some state init.
      */
+#ifdef NEM_WIN_WITH_A20
     pVM->nem.s.fA20Enabled = true;
+#endif
 #if 0
     for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
     {
@@ -1312,6 +1328,7 @@ int nemR3NativeInit(PVM pVM, bool fFallback, bool fForced)
              * Discover the VID I/O control function numbers we need.
              */
             rc = nemR3WinInitDiscoverIoControlProperties(pVM, pErrInfo);
+#ifndef VBOX_WITH_PGM_NEM_MODE
             if (rc == VERR_NEM_RING3_ONLY)
             {
                 if (pVM->nem.s.fUseRing0Runloop)
@@ -1321,12 +1338,15 @@ int nemR3NativeInit(PVM pVM, bool fFallback, bool fForced)
                 }
                 rc = VINF_SUCCESS;
             }
+#endif
             if (RT_SUCCESS(rc))
             {
+#ifndef VBOX_WITH_PGM_NEM_MODE
                 /*
                  * Check out our ring-0 capabilities.
                  */
                 rc = SUPR3CallVMMR0Ex(VMCC_GET_VMR0_FOR_CALL(pVM), 0 /*idCpu*/, VMMR0_DO_NEM_INIT_VM, 0, NULL);
+#endif
                 if (RT_SUCCESS(rc))
                 {
                     /*
@@ -1335,11 +1355,19 @@ int nemR3NativeInit(PVM pVM, bool fFallback, bool fForced)
                     rc = nemR3WinInitCreatePartition(pVM, pErrInfo);
                     if (RT_SUCCESS(rc))
                     {
+                        /*
+                         * Set ourselves as the execution engine and make config adjustments.
+                         */
                         VM_SET_MAIN_EXECUTION_ENGINE(pVM, VM_EXEC_ENGINE_NATIVE_API);
                         Log(("NEM: Marked active!\n"));
                         nemR3WinDisableX2Apic(pVM);
+#if !defined(NEM_WIN_USE_HYPERCALLS_FOR_PAGES) && defined(VBOX_WITH_PGM_NEM_MODE)
+                        PGMR3EnableNemMode(pVM);
+#endif
 
-                        /* Register release statistics */
+                        /*
+                         * Register release statistics
+                         */
                         STAMR3Register(pVM, (void *)&pVM->nem.s.cMappedPages, STAMTYPE_U32, STAMVISIBILITY_ALWAYS,
                                        "/NEM/PagesCurrentlyMapped", STAMUNIT_PAGES, "Number guest pages currently mapped by the VM");
                         STAMR3Register(pVM, (void *)&pVM->nem.s.StatMapPage, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS,
@@ -1355,10 +1383,22 @@ int nemR3NativeInit(PVM pVM, bool fFallback, bool fForced)
                                        "/NEM/PagesRemapCalls", STAMUNIT_PAGES, "Calls to HvCallMapGpaPages for changing page protection");
                         STAMR3Register(pVM, (void *)&pVM->nem.s.StatRemapPage, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS,
                                        "/NEM/PagesRemapFails", STAMUNIT_PAGES, "Calls to HvCallMapGpaPages for changing page protection failed");
-#else
+#elif !defined(VBOX_WITH_PGM_NEM_MODE)
                         STAMR3Register(pVM, (void *)&pVM->nem.s.StatUnmapAllPages, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS,
                                        "/NEM/PagesUnmapAll", STAMUNIT_PAGES, "Times we had to unmap all the pages");
 #endif
+#ifdef VBOX_WITH_PGM_NEM_MODE
+                        STAMR3Register(pVM, &pVM->nem.s.StatProfMapGpaRange, STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS,
+                                       "/NEM/PagesMapGpaRange", STAMUNIT_TICKS_PER_CALL, "Profiling calls to WHvMapGpaRange for bigger stuff");
+                        STAMR3Register(pVM, &pVM->nem.s.StatProfUnmapGpaRange, STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS,
+                                       "/NEM/PagesUnmapGpaRange", STAMUNIT_TICKS_PER_CALL, "Profiling calls to WHvUnmapGpaRange for bigger stuff");
+#  endif
+#  ifndef NEM_WIN_USE_HYPERCALLS_FOR_PAGES
+                        STAMR3Register(pVM, &pVM->nem.s.StatProfMapGpaRangePage, STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS,
+                                       "/NEM/PagesMapGpaRangePage", STAMUNIT_TICKS_PER_CALL, "Profiling calls to WHvMapGpaRange for single pages");
+                        STAMR3Register(pVM, &pVM->nem.s.StatProfUnmapGpaRangePage, STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS,
+                                       "/NEM/PagesUnmapGpaRangePage", STAMUNIT_TICKS_PER_CALL, "Profiling calls to WHvUnmapGpaRange for single pages");
+#  endif
 
                         for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
                         {
@@ -1402,6 +1442,7 @@ int nemR3NativeInit(PVM pVM, bool fFallback, bool fForced)
                         STAMR3RegisterRefresh(pUVM, &pVM->nem.s.R0Stats.cPagesInUse,     STAMTYPE_U64, STAMVISIBILITY_ALWAYS,
                                               STAMUNIT_PAGES, STAM_REFRESH_GRP_NEM, "Pages in use by hypervisor",
                                               "/NEM/R0Stats/cPagesInUse");
+
                     }
                 }
                 else
@@ -1524,17 +1565,23 @@ int nemR3NativeInitAfterCPUM(PVM pVM)
         hrc = GetExceptionCode();
         hPartitionDevice = NULL;
     }
+#ifndef VBOX_WITH_PGM_NEM_MODE
     if (   hPartitionDevice == NULL
         || hPartitionDevice == (HANDLE)(intptr_t)-1)
         return VMSetError(pVM, VERR_NEM_VM_CREATE_FAILED, RT_SRC_POS,
                           "Failed to get device handle for partition %p: %Rhrc", hPartition, hrc);
+#endif
 
     /* Test the handle. */
     HV_PARTITION_PROPERTY uValue;
     if (!g_pfnVidGetPartitionProperty(hPartitionDevice, HvPartitionPropertyProcessorVendor, &uValue))
+#ifndef VBOX_WITH_PGM_NEM_MODE
         return VMSetError(pVM, VERR_NEM_VM_CREATE_FAILED, RT_SRC_POS,
                           "Failed to get device handle and/or partition ID for %p (hPartitionDevice=%p, Last=%#x/%u)",
                           hPartition, hPartitionDevice, RTNtLastStatusValue(), RTNtLastErrorValue());
+#else
+        hPartitionDevice = INVALID_HANDLE_VALUE;
+#endif
     LogRel(("NEM: HvPartitionPropertyProcessorVendor=%#llx (%lld)\n", uValue, uValue));
 
     /*
@@ -1549,11 +1596,13 @@ int nemR3NativeInitAfterCPUM(PVM pVM)
     HV_PARTITION_ID idHvPartition = HV_PARTITION_ID_INVALID;
     if (!g_pfnVidGetHvPartitionId(hPartitionDevice, &idHvPartition))
     {
+#ifndef VBOX_WITH_PGM_NEM_MODE
         if (RTNtLastErrorValue() != ERROR_INVALID_FUNCTION) /* Will try get it later in VMMR0_DO_NEM_INIT_VM_PART_2. */
             return VMSetError(pVM, VERR_NEM_VM_CREATE_FAILED, RT_SRC_POS,
                               "Failed to get device handle and/or partition ID for %p (hPartitionDevice=%p, Last=%#x/%u)",
                               hPartition, hPartitionDevice, RTNtLastStatusValue(), RTNtLastErrorValue());
         LogRel(("NEM: VidGetHvPartitionId failed with ERROR_NOT_SUPPORTED, will try again later from ring-0...\n"));
+#endif
         idHvPartition = HV_PARTITION_ID_INVALID;
     }
     pVM->nem.s.hPartitionDevice = hPartitionDevice;
@@ -1618,13 +1667,17 @@ int nemR3NativeInitAfterCPUM(PVM pVM)
     /*
      * Do some more ring-0 initialization now that we've got the partition handle.
      */
+#ifndef VBOX_WITH_PGM_NEM_MODE
     int rc = VMMR3CallR0Emt(pVM, pVM->apCpusR3[0], VMMR0_DO_NEM_INIT_VM_PART_2, 0, NULL);
+#else
+    int rc = VINF_SUCCESS;
+#endif
     if (RT_SUCCESS(rc))
     {
         LogRel(("NEM: Successfully set up partition (device handle %p, partition ID %#llx)\n",
                 hPartitionDevice, pVM->nem.s.idHvPartition));
 
-#if 1
+#ifndef VBOX_WITH_PGM_NEM_MODE
         VMMR3CallR0Emt(pVM, pVM->apCpusR3[0], VMMR0_DO_NEM_UPDATE_STATISTICS, 0, NULL);
         LogRel(("NEM: Memory balance: %#RX64 out of %#RX64 pages in use\n",
                 pVM->nem.s.R0Stats.cPagesInUse, pVM->nem.s.R0Stats.cPagesAvailable));
@@ -1804,8 +1857,12 @@ int nemR3NativeTerm(PVM pVM)
  */
 void nemR3NativeReset(PVM pVM)
 {
+#if 0
     /* Unfix the A20 gate. */
     pVM->nem.s.fA20Fixed = false;
+#else
+    RT_NOREF(pVM);
+#endif
 }
 
 
@@ -1818,6 +1875,7 @@ void nemR3NativeReset(PVM pVM)
  */
 void nemR3NativeResetCpu(PVMCPU pVCpu, bool fInitIpi)
 {
+#ifdef NEM_WIN_WITH_A20
     /* Lock the A20 gate if INIT IPI, make sure it's enabled.  */
     if (fInitIpi && pVCpu->idCpu > 0)
     {
@@ -1827,6 +1885,9 @@ void nemR3NativeResetCpu(PVMCPU pVCpu, bool fInitIpi)
         pVM->nem.s.fA20Enabled = true;
         pVM->nem.s.fA20Fixed   = true;
     }
+#else
+    RT_NOREF(pVCpu, fInitIpi);
+#endif
 }
 
 
@@ -1876,10 +1937,21 @@ VBOXSTRICTRC nemR3NativeRunGC(PVM pVM, PVMCPU pVCpu)
 }
 
 
-bool nemR3NativeCanExecuteGuest(PVM pVM, PVMCPU pVCpu)
+VMMR3_INT_DECL(bool) NEMR3CanExecuteGuest(PVM pVM, PVMCPU pVCpu)
 {
-    NOREF(pVM); NOREF(pVCpu);
+    Assert(VM_IS_NEM_ENABLED(pVM));
+
+#ifndef NEM_WIN_WITH_A20
+    /*
+     * Only execute when the A20 gate is enabled because this lovely Hyper-V
+     * blackbox does not seem to have any way to enable or disable A20.
+     */
+    RT_NOREF(pVM);
+    return PGMPhysIsA20Enabled(pVCpu);
+#else
+    RT_NOREF(pVM, pVCpu);
     return true;
+#endif
 }
 
 
@@ -1941,46 +2013,216 @@ DECLINLINE(int) nemR3NativeGCPhys2R3PtrWriteable(PVM pVM, RTGCPHYS GCPhys, void 
 }
 
 
-int nemR3NativeNotifyPhysRamRegister(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb)
+VMMR3_INT_DECL(int) NEMR3NotifyPhysRamRegister(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb, void *pvR3,
+                                               uint8_t *pu2State, uint32_t *puNemRange)
 {
-    Log5(("nemR3NativeNotifyPhysRamRegister: %RGp LB %RGp\n", GCPhys, cb));
-    NOREF(pVM); NOREF(GCPhys); NOREF(cb);
+    Log5(("NEMR3NotifyPhysRamRegister: %RGp LB %RGp, pvR3=%p pu2State=%p (%d) puNemRange=%p (%d)\n",
+          GCPhys, cb, pvR3, pu2State, pu2State, puNemRange, *puNemRange));
+
+    *pu2State = UINT8_MAX;
+    RT_NOREF(puNemRange);
+
+#if !defined(NEM_WIN_USE_HYPERCALLS_FOR_PAGES) && defined(VBOX_WITH_PGM_NEM_MODE)
+    if (pvR3)
+    {
+        STAM_REL_PROFILE_START(&pVM->nem.s.StatProfMapGpaRange, a);
+        HRESULT hrc = WHvMapGpaRange(pVM->nem.s.hPartition, pvR3, GCPhys, cb,
+                                     WHvMapGpaRangeFlagRead | WHvMapGpaRangeFlagWrite | WHvMapGpaRangeFlagExecute);
+        STAM_REL_PROFILE_STOP(&pVM->nem.s.StatProfMapGpaRange, a);
+        if (SUCCEEDED(hrc))
+            *pu2State = NEM_WIN_PAGE_STATE_WRITABLE;
+        else
+        {
+            LogRel(("NEMR3NotifyPhysRamRegister: GCPhys=%RGp LB %RGp pvR3=%p hrc=%Rhrc (%#x) Last=%#x/%u\n",
+                    GCPhys, cb, pvR3, hrc, hrc, RTNtLastStatusValue(), RTNtLastErrorValue()));
+            STAM_REL_COUNTER_INC(&pVM->nem.s.StatMapPageFailed);
+            return VERR_NEM_MAP_PAGES_FAILED;
+        }
+    }
+#else
+    RT_NOREF(pVM, GCPhys, cb, pvR3);
+#endif
     return VINF_SUCCESS;
 }
 
 
-int nemR3NativeNotifyPhysMmioExMap(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb, uint32_t fFlags, void *pvMmio2)
+VMMR3_INT_DECL(bool) NEMR3IsMmio2DirtyPageTrackingSupported(PVM pVM)
 {
-    Log5(("nemR3NativeNotifyPhysMmioExMap: %RGp LB %RGp fFlags=%#x pvMmio2=%p\n", GCPhys, cb, fFlags, pvMmio2));
-    NOREF(pVM); NOREF(GCPhys); NOREF(cb); NOREF(fFlags); NOREF(pvMmio2);
+    RT_NOREF(pVM);
+    return g_pfnWHvQueryGpaRangeDirtyBitmap != NULL;
+}
+
+
+VMMR3_INT_DECL(int) NEMR3NotifyPhysMmioExMapEarly(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb, uint32_t fFlags,
+                                                  void *pvRam, void *pvMmio2, uint8_t *pu2State, uint32_t *puNemRange)
+{
+    Log5(("NEMR3NotifyPhysMmioExMapEarly: %RGp LB %RGp fFlags=%#x pvRam=%p pvMmio2=%p pu2State=%p (%d) puNemRange=%p (%#x)\n",
+          GCPhys, cb, fFlags, pvRam, pvMmio2, pu2State, *pu2State, puNemRange, puNemRange ? *puNemRange : UINT32_MAX));
+    RT_NOREF(puNemRange);
+
+#if !defined(NEM_WIN_USE_HYPERCALLS_FOR_PAGES) && defined(VBOX_WITH_PGM_NEM_MODE)
+    /*
+     * Unmap the RAM we're replacing.
+     */
+    if (fFlags & NEM_NOTIFY_PHYS_MMIO_EX_F_REPLACE)
+    {
+        STAM_REL_PROFILE_START(&pVM->nem.s.StatProfUnmapGpaRange, a);
+        HRESULT hrc = WHvUnmapGpaRange(pVM->nem.s.hPartition, GCPhys, cb);
+        STAM_REL_PROFILE_STOP(&pVM->nem.s.StatProfUnmapGpaRange, a);
+        if (SUCCEEDED(hrc))
+        { /* likely */ }
+        else if (pvMmio2)
+            LogRel(("NEMR3NotifyPhysMmioExMapEarly: GCPhys=%RGp LB %RGp fFlags=%#x: Unmap -> hrc=%Rhrc (%#x) Last=%#x/%u (ignored)\n",
+                    GCPhys, cb, fFlags, hrc, hrc, RTNtLastStatusValue(), RTNtLastErrorValue()));
+        else
+        {
+            LogRel(("NEMR3NotifyPhysMmioExMapEarly: GCPhys=%RGp LB %RGp fFlags=%#x: Unmap -> hrc=%Rhrc (%#x) Last=%#x/%u\n",
+                    GCPhys, cb, fFlags, hrc, hrc, RTNtLastStatusValue(), RTNtLastErrorValue()));
+            STAM_REL_COUNTER_INC(&pVM->nem.s.StatUnmapPageFailed);
+            return VERR_NEM_UNMAP_PAGES_FAILED;
+        }
+    }
+
+    /*
+     * Map MMIO2 if any.
+     */
+    if (pvMmio2)
+    {
+        Assert(fFlags & NEM_NOTIFY_PHYS_MMIO_EX_F_MMIO2);
+        WHV_MAP_GPA_RANGE_FLAGS fWHvFlags = WHvMapGpaRangeFlagRead | WHvMapGpaRangeFlagWrite | WHvMapGpaRangeFlagExecute;
+        if ((fFlags & NEM_NOTIFY_PHYS_MMIO_EX_F_TRACK_DIRTY_PAGES) && g_pfnWHvQueryGpaRangeDirtyBitmap)
+            fWHvFlags |= WHvMapGpaRangeFlagTrackDirtyPages;
+        STAM_REL_PROFILE_START(&pVM->nem.s.StatProfMapGpaRange, a);
+        HRESULT hrc = WHvMapGpaRange(pVM->nem.s.hPartition, pvMmio2, GCPhys, cb, fWHvFlags);
+        STAM_REL_PROFILE_STOP(&pVM->nem.s.StatProfMapGpaRange, a);
+        if (SUCCEEDED(hrc))
+            *pu2State = NEM_WIN_PAGE_STATE_WRITABLE;
+        else
+        {
+            LogRel(("NEMR3NotifyPhysMmioExMapEarly: GCPhys=%RGp LB %RGp fFlags=%#x pvMmio2=%p fWHvFlags=%#x: Map -> hrc=%Rhrc (%#x) Last=%#x/%u\n",
+                    GCPhys, cb, fFlags, pvMmio2, fWHvFlags, hrc, hrc, RTNtLastStatusValue(), RTNtLastErrorValue()));
+            STAM_REL_COUNTER_INC(&pVM->nem.s.StatMapPageFailed);
+            return VERR_NEM_MAP_PAGES_FAILED;
+        }
+    }
+    else
+    {
+        Assert(!(fFlags & NEM_NOTIFY_PHYS_MMIO_EX_F_MMIO2));
+        *pu2State = NEM_WIN_PAGE_STATE_UNMAPPED;
+    }
+    RT_NOREF(pvRam);
+
+#else
+    RT_NOREF(pVM, GCPhys, cb, pvRam, pvMmio2);
+    *pu2State = (fFlags & NEM_NOTIFY_PHYS_MMIO_EX_F_REPLACE) ? UINT8_MAX : NEM_WIN_PAGE_STATE_UNMAPPED;
+#endif
     return VINF_SUCCESS;
 }
 
 
-int nemR3NativeNotifyPhysMmioExUnmap(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb, uint32_t fFlags)
+VMMR3_INT_DECL(int) NEMR3NotifyPhysMmioExMapLate(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb, uint32_t fFlags,
+                                                 void *pvRam, void *pvMmio2, uint32_t *puNemRange)
 {
-    Log5(("nemR3NativeNotifyPhysMmioExUnmap: %RGp LB %RGp fFlags=%#x\n", GCPhys, cb, fFlags));
-    NOREF(pVM); NOREF(GCPhys); NOREF(cb); NOREF(fFlags);
+    RT_NOREF(pVM, GCPhys, cb, fFlags, pvRam, pvMmio2, puNemRange);
     return VINF_SUCCESS;
 }
 
 
-/**
- * Called early during ROM registration, right after the pages have been
- * allocated and the RAM range updated.
- *
- * This will be succeeded by a number of NEMHCNotifyPhysPageProtChanged() calls
- * and finally a NEMR3NotifyPhysRomRegisterEarly().
- *
- * @returns VBox status code
- * @param   pVM             The cross context VM structure.
- * @param   GCPhys          The ROM address (page aligned).
- * @param   cb              The size (page aligned).
- * @param   fFlags          NEM_NOTIFY_PHYS_ROM_F_XXX.
- */
-int nemR3NativeNotifyPhysRomRegisterEarly(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb, uint32_t fFlags)
+VMMR3_INT_DECL(int) NEMR3NotifyPhysMmioExUnmap(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb, uint32_t fFlags, void *pvRam,
+                                               void *pvMmio2, uint8_t *pu2State)
 {
-    Log5(("nemR3NativeNotifyPhysRomRegisterEarly: %RGp LB %RGp fFlags=%#x\n", GCPhys, cb, fFlags));
+    Log5(("NEMR3NotifyPhysMmioExUnmap: %RGp LB %RGp fFlags=%#x pvRam=%p pvMmio2=%p pu2State=%p\n",
+          GCPhys, cb, fFlags, pvRam, pvMmio2, pu2State));
+
+    int rc = VINF_SUCCESS;
+#if !defined(NEM_WIN_USE_HYPERCALLS_FOR_PAGES) && defined(VBOX_WITH_PGM_NEM_MODE)
+    /*
+     * Unmap the MMIO2 pages.
+     */
+    /** @todo If we implement aliasing (MMIO2 page aliased into MMIO range),
+     *        we may have more stuff to unmap even in case of pure MMIO... */
+    if (fFlags & NEM_NOTIFY_PHYS_MMIO_EX_F_MMIO2)
+    {
+        STAM_REL_PROFILE_START(&pVM->nem.s.StatProfUnmapGpaRange, a);
+        HRESULT hrc = WHvUnmapGpaRange(pVM->nem.s.hPartition, GCPhys, cb);
+        STAM_REL_PROFILE_STOP(&pVM->nem.s.StatProfUnmapGpaRange, a);
+        if (FAILED(hrc))
+        {
+            LogRel2(("NEMR3NotifyPhysMmioExUnmap: GCPhys=%RGp LB %RGp fFlags=%#x: Unmap -> hrc=%Rhrc (%#x) Last=%#x/%u (ignored)\n",
+                     GCPhys, cb, fFlags, hrc, hrc, RTNtLastStatusValue(), RTNtLastErrorValue()));
+            rc = VERR_NEM_UNMAP_PAGES_FAILED;
+            STAM_REL_COUNTER_INC(&pVM->nem.s.StatUnmapPageFailed);
+        }
+    }
+
+    /*
+     * Restore the RAM we replaced.
+     */
+    if (fFlags & NEM_NOTIFY_PHYS_MMIO_EX_F_REPLACE)
+    {
+        AssertPtr(pvRam);
+        STAM_REL_PROFILE_START(&pVM->nem.s.StatProfMapGpaRange, a);
+        HRESULT hrc = WHvMapGpaRange(pVM->nem.s.hPartition, pvRam, GCPhys, cb,
+                                     WHvMapGpaRangeFlagRead | WHvMapGpaRangeFlagWrite | WHvMapGpaRangeFlagExecute);
+        STAM_REL_PROFILE_STOP(&pVM->nem.s.StatProfMapGpaRange, a);
+        if (SUCCEEDED(hrc))
+        { /* likely */ }
+        else
+        {
+            LogRel(("NEMR3NotifyPhysMmioExUnmap: GCPhys=%RGp LB %RGp pvMmio2=%p hrc=%Rhrc (%#x) Last=%#x/%u\n",
+                    GCPhys, cb, pvMmio2, hrc, hrc, RTNtLastStatusValue(), RTNtLastErrorValue()));
+            rc = VERR_NEM_MAP_PAGES_FAILED;
+            STAM_REL_COUNTER_INC(&pVM->nem.s.StatMapPageFailed);
+        }
+        if (pu2State)
+            *pu2State = NEM_WIN_PAGE_STATE_WRITABLE;
+    }
+    /* Mark the pages as unmapped if relevant. */
+    else if (pu2State)
+        *pu2State = NEM_WIN_PAGE_STATE_UNMAPPED;
+
+    RT_NOREF(pvMmio2);
+#else
+    RT_NOREF(pVM, GCPhys, cb, fFlags, pvRam, pvMmio2, pu2State);
+    if (pu2State)
+        *pu2State = UINT8_MAX;
+#endif
+    return rc;
+}
+
+
+VMMR3_INT_DECL(int) NEMR3PhysMmio2QueryAndResetDirtyBitmap(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb, uint32_t uNemRange,
+                                                           void *pvBitmap, size_t cbBitmap)
+{
+#if !defined(NEM_WIN_USE_HYPERCALLS_FOR_PAGES) && defined(VBOX_WITH_PGM_NEM_MODE)
+    Assert(VM_IS_NEM_ENABLED(pVM));
+    AssertReturn(g_pfnWHvQueryGpaRangeDirtyBitmap, VERR_INTERNAL_ERROR_2);
+    Assert(cbBitmap == (uint32_t)cbBitmap);
+    RT_NOREF(uNemRange);
+
+    /* This is being profiled by PGM, see /PGM/Mmio2QueryAndResetDirtyBitmap. */
+    HRESULT hrc = WHvQueryGpaRangeDirtyBitmap(pVM->nem.s.hPartition, GCPhys, cb, (UINT64 *)pvBitmap, (uint32_t)cbBitmap);
+    if (SUCCEEDED(hrc))
+        return VINF_SUCCESS;
+
+    AssertLogRelMsgFailed(("GCPhys=%RGp LB %RGp pvBitmap=%p LB %#zx hrc=%Rhrc (%#x) Last=%#x/%u\n",
+                           GCPhys, cb, pvBitmap, cbBitmap, hrc, hrc, RTNtLastStatusValue(), RTNtLastErrorValue()));
+    return VERR_NEM_QUERY_DIRTY_BITMAP_FAILED;
+
+#else
+    RT_NOREF(pVM, GCPhys, cb, uNemRange, pvBitmap, cbBitmap);
+    AssertFailed();
+    return VERR_NOT_IMPLEMENTED;
+#endif
+}
+
+
+VMMR3_INT_DECL(int)  NEMR3NotifyPhysRomRegisterEarly(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb, void *pvPages, uint32_t fFlags,
+                                                     uint8_t *pu2State)
+{
+    Log5(("nemR3NativeNotifyPhysRomRegisterEarly: %RGp LB %RGp pvPages=%p fFlags=%#x\n", GCPhys, cb, pvPages, fFlags));
+    *pu2State = UINT8_MAX;
+
 #if 0 /* Let's not do this after all.  We'll protection change notifications for each page and if not we'll map them lazily. */
     RTGCPHYS const cPages = cb >> X86_PAGE_SHIFT;
     for (RTGCPHYS iPage = 0; iPage < cPages; iPage++, GCPhys += X86_PAGE_SIZE)
@@ -2006,33 +2248,46 @@ int nemR3NativeNotifyPhysRomRegisterEarly(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb,
             return rc;
         }
     }
-#else
-    NOREF(pVM); NOREF(GCPhys); NOREF(cb);
-#endif
     RT_NOREF_PV(fFlags);
+#else
+    RT_NOREF(pVM, GCPhys, cb, pvPages, fFlags);
+#endif
     return VINF_SUCCESS;
 }
 
 
-/**
- * Called after the ROM range has been fully completed.
- *
- * This will be preceeded by a NEMR3NotifyPhysRomRegisterEarly() call as well a
- * number of NEMHCNotifyPhysPageProtChanged calls.
- *
- * @returns VBox status code
- * @param   pVM             The cross context VM structure.
- * @param   GCPhys          The ROM address (page aligned).
- * @param   cb              The size (page aligned).
- * @param   fFlags          NEM_NOTIFY_PHYS_ROM_F_XXX.
- */
-int nemR3NativeNotifyPhysRomRegisterLate(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb, uint32_t fFlags)
+VMMR3_INT_DECL(int)  NEMR3NotifyPhysRomRegisterLate(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb, void *pvPages,
+                                                    uint32_t fFlags, uint8_t *pu2State)
 {
-    Log5(("nemR3NativeNotifyPhysRomRegisterLate: %RGp LB %RGp fFlags=%#x\n", GCPhys, cb, fFlags));
-    NOREF(pVM); NOREF(GCPhys); NOREF(cb); NOREF(fFlags);
+    Log5(("nemR3NativeNotifyPhysRomRegisterLate: %RGp LB %RGp pvPages=%p fFlags=%#x pu2State=%p\n",
+          GCPhys, cb, pvPages, fFlags, pu2State));
+    *pu2State = UINT8_MAX;
+
+#if !defined(NEM_WIN_USE_HYPERCALLS_FOR_PAGES) && defined(VBOX_WITH_PGM_NEM_MODE)
+    /*
+     * (Re-)map readonly.
+     */
+    AssertPtrReturn(pvPages, VERR_INVALID_POINTER);
+    STAM_REL_PROFILE_START(&pVM->nem.s.StatProfMapGpaRange, a);
+    HRESULT hrc = WHvMapGpaRange(pVM->nem.s.hPartition, pvPages, GCPhys, cb, WHvMapGpaRangeFlagRead | WHvMapGpaRangeFlagExecute);
+    STAM_REL_PROFILE_STOP(&pVM->nem.s.StatProfMapGpaRange, a);
+    if (SUCCEEDED(hrc))
+        *pu2State = NEM_WIN_PAGE_STATE_READABLE;
+    else
+    {
+        LogRel(("nemR3NativeNotifyPhysRomRegisterEarly: GCPhys=%RGp LB %RGp pvPages=%p fFlags=%#x hrc=%Rhrc (%#x) Last=%#x/%u\n",
+                GCPhys, cb, pvPages, fFlags, hrc, hrc, RTNtLastStatusValue(), RTNtLastErrorValue()));
+        STAM_REL_COUNTER_INC(&pVM->nem.s.StatMapPageFailed);
+        return VERR_NEM_MAP_PAGES_FAILED;
+    }
+    RT_NOREF(fFlags);
+#else
+    RT_NOREF(pVM, GCPhys, cb, pvPages, fFlags);
+#endif
     return VINF_SUCCESS;
 }
 
+#ifdef NEM_WIN_WITH_A20
 
 /**
  * @callback_method_impl{FNPGMPHYSNEMCHECKPAGE}
@@ -2090,6 +2345,7 @@ static int nemR3WinUnmapPageForA20Gate(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys)
                                      nemR3WinUnsetForA20CheckerCallback, NULL);
 }
 
+#endif /* NEM_WIN_WITH_A20 */
 
 /**
  * Called when the A20 state changes.
@@ -2101,9 +2357,11 @@ static int nemR3WinUnmapPageForA20Gate(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys)
  * @param   pVCpu           The CPU the A20 state changed on.
  * @param   fEnabled        Whether it was enabled (true) or disabled.
  */
-void nemR3NativeNotifySetA20(PVMCPU pVCpu, bool fEnabled)
+VMMR3_INT_DECL(void) NEMR3NotifySetA20(PVMCPU pVCpu, bool fEnabled)
 {
     Log(("nemR3NativeNotifySetA20: fEnabled=%RTbool\n", fEnabled));
+    Assert(VM_IS_NEM_ENABLED(pVCpu->CTX_SUFF(pVM)));
+#ifdef NEM_WIN_WITH_A20
     PVM pVM = pVCpu->CTX_SUFF(pVM);
     if (!pVM->nem.s.fA20Fixed)
     {
@@ -2111,6 +2369,9 @@ void nemR3NativeNotifySetA20(PVMCPU pVCpu, bool fEnabled)
         for (RTGCPHYS GCPhys = _1M; GCPhys < _1M + _64K; GCPhys += X86_PAGE_SIZE)
             nemR3WinUnmapPageForA20Gate(pVM, pVCpu, GCPhys);
     }
+#else
+    RT_NOREF(pVCpu, fEnabled);
+#endif
 }
 
 
@@ -2179,7 +2440,7 @@ void nemR3NativeNotifySetA20(PVMCPU pVCpu, bool fEnabled)
  * do the actual stopping).  While there is certainly a race between cancelation
  * and the CPU causing a natural VMEXIT, it is not known whether this still
  * causes extra work on subsequent WHvRunVirtualProcessor calls (it did in and
- * earlier 17134).
+ * earlier than 17134).
  *
  * Registers are retrieved and set via WHvGetVirtualProcessorRegisters and
  * WHvSetVirtualProcessorRegisters.  In addition, several VMEXITs include
@@ -2315,9 +2576,11 @@ void nemR3NativeNotifySetA20(PVMCPU pVCpu, bool fEnabled)
  *   A20M# pin (present on 486 and later) is near impossible for SMP setups
  *   (e.g. possiblity of two CPUs with different A20 status).
  *
- *   Workaround: Only do A20 on CPU 0, restricting the emulation to HMA.  We
- *   unmap all pages related to HMA (0x100000..0x10ffff) when the A20 state
- *   changes, lazily syncing the right pages back when accessed.
+ *   Workaround #1 (obsolete): Only do A20 on CPU 0, restricting the emulation
+ *   to HMA. We unmap all pages related to HMA (0x100000..0x10ffff) when the A20
+ *   state changes, lazily syncing the right pages back when accessed.
+ *
+ *   Workaround #2 (used): Use IEM when the A20 gate is disabled.
  *
  *
  * - WHVRunVirtualProcessor wastes time converting VID/Hyper-V messages to its
@@ -2511,6 +2774,158 @@ void nemR3NativeNotifySetA20(PVMCPU pVCpu, bool fEnabled)
  *        getters.
  *
  *   Update: All concerns have been addressed in build 17110.
+ *
+ *
+ * @section sec_nem_win_large_pages     Large Pages
+ *
+ * We've got a standalone memory allocation and access testcase bs3-memalloc-1
+ * which was run with 48GiB of guest RAM configured on a NUC 11 box running
+ * Windows 11 GA.  In the simplified NEM memory mode no exits should be
+ * generated while the access tests are running.
+ *
+ * The bs3-memalloc-1 results kind of hints at some tiny speed-up if the guest
+ * RAM is allocated using the MEM_LARGE_PAGES flag, but only in the 3rd access
+ * check (typical 350 000 MiB/s w/o and around 400 000 MiB/s).  The result for
+ * the 2nd access varies a lot, perhaps hinting at some table optimizations
+ * going on.
+ *
+ * The initial access where the memory is locked/whatever has absolutely horrid
+ * results regardless of whether large pages are enabled or not. Typically
+ * bobbing close to 500 MiB/s, non-large pages a little faster.
+ *
+ * NEM w/ simplified memory and MEM_LARGE_PAGES:
+ * @verbatim
+bs3-memalloc-1: TESTING...
+bs3-memalloc-1: #0/0x0: 0x0000000000000000 LB 0x000000000009fc00 USABLE (1)
+bs3-memalloc-1: #1/0x1: 0x000000000009fc00 LB 0x0000000000000400 RESERVED (2)
+bs3-memalloc-1: #2/0x2: 0x00000000000f0000 LB 0x0000000000010000 RESERVED (2)
+bs3-memalloc-1: #3/0x3: 0x0000000000100000 LB 0x00000000dfef0000 USABLE (1)
+bs3-memalloc-1: #4/0x4: 0x00000000dfff0000 LB 0x0000000000010000 ACPI_RECLAIMABLE (3)
+bs3-memalloc-1: #5/0x5: 0x00000000fec00000 LB 0x0000000000001000 RESERVED (2)
+bs3-memalloc-1: #6/0x6: 0x00000000fee00000 LB 0x0000000000001000 RESERVED (2)
+bs3-memalloc-1: #7/0x7: 0x00000000fffc0000 LB 0x0000000000040000 RESERVED (2)
+bs3-memalloc-1: #8/0x9: 0x0000000100000000 LB 0x0000000b20000000 USABLE (1)
+bs3-memalloc-1: Found 1 interesting entries covering 0xb20000000 bytes (44 GB).
+bs3-memalloc-1: From 0x100000000 to 0xc20000000
+bs3-memalloc-1: INT15h/E820                                                 : PASSED
+bs3-memalloc-1: Mapping memory above 4GB                                    : PASSED
+bs3-memalloc-1:   Pages                                                     :       11 665 408 pages
+bs3-memalloc-1:   MiBs                                                      :           45 568 MB
+bs3-memalloc-1:   Alloc elapsed                                             :   90 925 263 996 ns
+bs3-memalloc-1:   Alloc elapsed in ticks                                    :  272 340 387 336 ticks
+bs3-memalloc-1:   Page alloc time                                           :            7 794 ns/page
+bs3-memalloc-1:   Page alloc time in ticks                                  :           23 345 ticks/page
+bs3-memalloc-1:   Alloc thruput                                             :          128 296 pages/s
+bs3-memalloc-1:   Alloc thruput in MiBs                                     :              501 MB/s
+bs3-memalloc-1: Allocation speed                                            : PASSED
+bs3-memalloc-1:   Access elapsed                                            :   85 074 483 467 ns
+bs3-memalloc-1:   Access elapsed in ticks                                   :  254 816 088 412 ticks
+bs3-memalloc-1:   Page access time                                          :            7 292 ns/page
+bs3-memalloc-1:   Page access time in ticks                                 :           21 843 ticks/page
+bs3-memalloc-1:   Access thruput                                            :          137 119 pages/s
+bs3-memalloc-1:   Access thruput in MiBs                                    :              535 MB/s
+bs3-memalloc-1: 2nd access                                                  : PASSED
+bs3-memalloc-1:   Access elapsed                                            :      112 963 925 ns
+bs3-memalloc-1:   Access elapsed in ticks                                   :      338 284 436 ticks
+bs3-memalloc-1:   Page access time                                          :                9 ns/page
+bs3-memalloc-1:   Page access time in ticks                                 :               28 ticks/page
+bs3-memalloc-1:   Access thruput                                            :      103 266 666 pages/s
+bs3-memalloc-1:   Access thruput in MiBs                                    :          403 385 MB/s
+bs3-memalloc-1: 3rd access                                                  : PASSED
+bs3-memalloc-1: SUCCESS
+ * @endverbatim
+ *
+ * NEM w/ simplified memory and but no MEM_LARGE_PAGES:
+ * @verbatim
+bs3-memalloc-1: From 0x100000000 to 0xc20000000
+bs3-memalloc-1:   Pages                                                     :       11 665 408 pages
+bs3-memalloc-1:   MiBs                                                      :           45 568 MB
+bs3-memalloc-1:   Alloc elapsed                                             :   90 062 027 900 ns
+bs3-memalloc-1:   Alloc elapsed in ticks                                    :  269 754 826 466 ticks
+bs3-memalloc-1:   Page alloc time                                           :            7 720 ns/page
+bs3-memalloc-1:   Page alloc time in ticks                                  :           23 124 ticks/page
+bs3-memalloc-1:   Alloc thruput                                             :          129 526 pages/s
+bs3-memalloc-1:   Alloc thruput in MiBs                                     :              505 MB/s
+bs3-memalloc-1: Allocation speed                                            : PASSED
+bs3-memalloc-1:   Access elapsed                                            :    3 596 017 220 ns
+bs3-memalloc-1:   Access elapsed in ticks                                   :   10 770 732 620 ticks
+bs3-memalloc-1:   Page access time                                          :              308 ns/page
+bs3-memalloc-1:   Page access time in ticks                                 :              923 ticks/page
+bs3-memalloc-1:   Access thruput                                            :        3 243 980 pages/s
+bs3-memalloc-1:   Access thruput in MiBs                                    :           12 671 MB/s
+bs3-memalloc-1: 2nd access                                                  : PASSED
+bs3-memalloc-1:   Access elapsed                                            :      133 060 160 ns
+bs3-memalloc-1:   Access elapsed in ticks                                   :      398 459 884 ticks
+bs3-memalloc-1:   Page access time                                          :               11 ns/page
+bs3-memalloc-1:   Page access time in ticks                                 :               34 ticks/page
+bs3-memalloc-1:   Access thruput                                            :       87 670 178 pages/s
+bs3-memalloc-1:   Access thruput in MiBs                                    :          342 461 MB/s
+bs3-memalloc-1: 3rd access                                                  : PASSED
+ * @endverbatim
+ *
+ * Same everything but native VT-x and VBox (stripped output a little):
+ * @verbatim
+bs3-memalloc-1: From 0x100000000 to 0xc20000000
+bs3-memalloc-1:   Pages                                                     :       11 665 408 pages
+bs3-memalloc-1:   MiBs                                                      :           45 568 MB
+bs3-memalloc-1:   Alloc elapsed                                             :      776 111 427 ns
+bs3-memalloc-1:   Alloc elapsed in ticks                                    :    2 323 267 035 ticks
+bs3-memalloc-1:   Page alloc time                                           :               66 ns/page
+bs3-memalloc-1:   Page alloc time in ticks                                  :              199 ticks/page
+bs3-memalloc-1:   Alloc thruput                                             :       15 030 584 pages/s
+bs3-memalloc-1:   Alloc thruput in MiBs                                     :           58 713 MB/s
+bs3-memalloc-1: Allocation speed                                            : PASSED
+bs3-memalloc-1:   Access elapsed                                            :      112 141 904 ns
+bs3-memalloc-1:   Access elapsed in ticks                                   :      335 751 077 ticks
+bs3-memalloc-1:   Page access time                                          :                9 ns/page
+bs3-memalloc-1:   Page access time in ticks                                 :               28 ticks/page
+bs3-memalloc-1:   Access thruput                                            :      104 023 630 pages/s
+bs3-memalloc-1:   Access thruput in MiBs                                    :          406 342 MB/s
+bs3-memalloc-1: 2nd access                                                  : PASSED
+bs3-memalloc-1:   Access elapsed                                            :      112 023 049 ns
+bs3-memalloc-1:   Access elapsed in ticks                                   :      335 418 343 ticks
+bs3-memalloc-1:   Page access time                                          :                9 ns/page
+bs3-memalloc-1:   Page access time in ticks                                 :               28 ticks/page
+bs3-memalloc-1:   Access thruput                                            :      104 133 998 pages/s
+bs3-memalloc-1:   Access thruput in MiBs                                    :          406 773 MB/s
+bs3-memalloc-1: 3rd access                                                  : PASSED
+ * @endverbatim
+ *
+ * VBox with large pages disabled:
+ * @verbatim
+bs3-memalloc-1: From 0x100000000 to 0xc20000000
+bs3-memalloc-1:   Pages                                                     :       11 665 408 pages
+bs3-memalloc-1:   MiBs                                                      :           45 568 MB
+bs3-memalloc-1:   Alloc elapsed                                             :   50 986 588 028 ns
+bs3-memalloc-1:   Alloc elapsed in ticks                                    :  152 714 862 044 ticks
+bs3-memalloc-1:   Page alloc time                                           :            4 370 ns/page
+bs3-memalloc-1:   Page alloc time in ticks                                  :           13 091 ticks/page
+bs3-memalloc-1:   Alloc thruput                                             :          228 793 pages/s
+bs3-memalloc-1:   Alloc thruput in MiBs                                     :              893 MB/s
+bs3-memalloc-1: Allocation speed                                            : PASSED
+bs3-memalloc-1:   Access elapsed                                            :    2 849 641 741 ns
+bs3-memalloc-1:   Access elapsed in ticks                                   :    8 535 372 249 ticks
+bs3-memalloc-1:   Page access time                                          :              244 ns/page
+bs3-memalloc-1:   Page access time in ticks                                 :              731 ticks/page
+bs3-memalloc-1:   Access thruput                                            :        4 093 640 pages/s
+bs3-memalloc-1:   Access thruput in MiBs                                    :           15 990 MB/s
+bs3-memalloc-1: 2nd access                                                  : PASSED
+bs3-memalloc-1:   Access elapsed                                            :    2 866 960 770 ns
+bs3-memalloc-1:   Access elapsed in ticks                                   :    8 587 097 799 ticks
+bs3-memalloc-1:   Page access time                                          :              245 ns/page
+bs3-memalloc-1:   Page access time in ticks                                 :              736 ticks/page
+bs3-memalloc-1:   Access thruput                                            :        4 068 910 pages/s
+bs3-memalloc-1:   Access thruput in MiBs                                    :           15 894 MB/s
+bs3-memalloc-1: 3rd access                                                  : PASSED
+ * @endverbatim
+ *
+ * Comparing large pages, therer is an allocation speed difference of two order
+ * of magnitude.  When disabling large pages in VBox the allocation numbers are
+ * closer, and the is clear from the 2nd and 3rd access tests that VBox doesn't
+ * spend enough memory on nested page tables as Hyper-V does.  The similar 2nd
+ * and 3rd access numbers the two large page testruns seems to hint strongly at
+ * Hyper-V eventually getting the large pages in place too, only that it sucks
+ * hundredfold in the setting up phase.
  *
  *
  *

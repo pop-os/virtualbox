@@ -61,19 +61,93 @@ VMMR3_INT_DECL(bool) NEMR3CanExecuteGuest(PVM pVM, PVMCPU pVCpu);
 VMMR3_INT_DECL(bool) NEMR3SetSingleInstruction(PVM pVM, PVMCPU pVCpu, bool fEnable);
 VMMR3_INT_DECL(void) NEMR3NotifyFF(PVM pVM, PVMCPU pVCpu, uint32_t fFlags);
 
-VMMR3_INT_DECL(int)  NEMR3NotifyPhysRamRegister(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb);
-VMMR3_INT_DECL(int)  NEMR3NotifyPhysMmioExMap(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb, uint32_t fFlags, void *pvMmio2);
-VMMR3_INT_DECL(int)  NEMR3NotifyPhysMmioExUnmap(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb, uint32_t fFlags);
+/**
+ * Checks if dirty page tracking for MMIO2 ranges is supported.
+ *
+ * If it is, PGM will not install a physical write access handler for the MMIO2
+ * region and instead just forward dirty bit queries NEMR3QueryMmio2DirtyBits.
+ * The enable/disable control of the tracking will be ignored, and PGM will
+ * always set NEM_NOTIFY_PHYS_MMIO_EX_F_TRACK_DIRTY_PAGES for such ranges.
+ *
+ * @retval  true if supported.
+ * @retval  false if not.
+ * @param   pVM     The cross context VM structure.
+ */
+VMMR3_INT_DECL(bool) NEMR3IsMmio2DirtyPageTrackingSupported(PVM pVM);
+
+/**
+ * Worker for PGMR3PhysMmio2QueryAndResetDirtyBitmap.
+ *
+ * @returns VBox status code.
+ * @param   pVM         The cross context VM structure.
+ * @param   GCPhys      The address of the MMIO2 range.
+ * @param   cb          The size of the MMIO2 range.
+ * @param   uNemRange   The NEM internal range number.
+ * @param   pvBitmap    The output bitmap.  Must be 8-byte aligned.  Ignored
+ *                      when @a cbBitmap is zero.
+ * @param   cbBitmap    The size of the bitmap.  Must be the size of the whole
+ *                      MMIO2 range, rounded up to the nearest 8 bytes.
+ *                      When zero only a reset is done.
+ */
+VMMR3_INT_DECL(int)  NEMR3PhysMmio2QueryAndResetDirtyBitmap(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb, uint32_t uNemRange,
+                                                            void *pvBitmap, size_t cbBitmap);
+
+VMMR3_INT_DECL(int)  NEMR3NotifyPhysRamRegister(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb, void *pvR3,
+                                                uint8_t *pu2State, uint32_t *puNemRange);
+VMMR3_INT_DECL(int)  NEMR3NotifyPhysMmioExMapEarly(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb, uint32_t fFlags,
+                                                   void *pvRam, void *pvMmio2, uint8_t *pu2State, uint32_t *puNemRange);
+VMMR3_INT_DECL(int)  NEMR3NotifyPhysMmioExMapLate(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb, uint32_t fFlags,
+                                                  void *pvRam, void *pvMmio2, uint32_t *puNemRange);
+VMMR3_INT_DECL(int)  NEMR3NotifyPhysMmioExUnmap(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb, uint32_t fFlags,
+                                                void *pvRam, void *pvMmio2, uint8_t *pu2State);
 /** @name Flags for NEMR3NotifyPhysMmioExMap and NEMR3NotifyPhysMmioExUnmap.
  * @{ */
-/** Set if it's MMIO2 being mapped or unmapped. */
-#define NEM_NOTIFY_PHYS_MMIO_EX_F_MMIO2     RT_BIT(0)
 /** Set if the range is replacing RAM rather that unused space. */
-#define NEM_NOTIFY_PHYS_MMIO_EX_F_REPLACE   RT_BIT(1)
+#define NEM_NOTIFY_PHYS_MMIO_EX_F_REPLACE               RT_BIT(0)
+/** Set if it's MMIO2 being mapped or unmapped. */
+#define NEM_NOTIFY_PHYS_MMIO_EX_F_MMIO2                 RT_BIT(1)
+/** Set if MMIO2 and dirty page tracking is configured. */
+#define NEM_NOTIFY_PHYS_MMIO_EX_F_TRACK_DIRTY_PAGES     RT_BIT(2)
 /** @} */
 
-VMMR3_INT_DECL(int)  NEMR3NotifyPhysRomRegisterEarly(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb, uint32_t fFlags);
-VMMR3_INT_DECL(int)  NEMR3NotifyPhysRomRegisterLate(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb, uint32_t fFlags);
+/**
+ * Called very early during ROM registration, basically so an existing RAM range
+ * can be adjusted if desired.
+ *
+ * It will be succeeded by a number of NEMHCNotifyPhysPageProtChanged()
+ * calls and finally a call to NEMR3NotifyPhysRomRegisterLate().
+ *
+ * @returns VBox status code
+ * @param   pVM             The cross context VM structure.
+ * @param   GCPhys          The ROM address (page aligned).
+ * @param   cb              The size (page aligned).
+ * @param   pvPages         Pointer to the ROM (RAM) pages in simplified mode
+ *                          when NEM_NOTIFY_PHYS_ROM_F_REPLACE is set, otherwise
+ *                          NULL.
+ * @param   fFlags          NEM_NOTIFY_PHYS_ROM_F_XXX.
+ * @param   pu2State        New page state or UINT8_MAX to leave as-is.
+ */
+VMMR3_INT_DECL(int)  NEMR3NotifyPhysRomRegisterEarly(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb, void *pvPages,
+                                                     uint32_t fFlags, uint8_t *pu2State);
+
+/**
+ * Called after the ROM range has been fully completed.
+ *
+ * This will be preceeded by a NEMR3NotifyPhysRomRegisterEarly() call as well a
+ * number of NEMHCNotifyPhysPageProtChanged calls.
+ *
+ * @returns VBox status code
+ * @param   pVM             The cross context VM structure.
+ * @param   GCPhys          The ROM address (page aligned).
+ * @param   cb              The size (page aligned).
+ * @param   pvPages         Pointer to the ROM pages.
+ * @param   fFlags          NEM_NOTIFY_PHYS_ROM_F_XXX.
+ * @param   pu2State        Where to return the new NEM page state, UINT8_MAX
+ *                          for unchanged.
+ */
+VMMR3_INT_DECL(int)  NEMR3NotifyPhysRomRegisterLate(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb, void *pvPages,
+                                                    uint32_t fFlags, uint8_t *pu2State);
+
 /** @name Flags for NEMR3NotifyPhysRomRegisterEarly and NEMR3NotifyPhysRomRegisterLate.
  * @{ */
 /** Set if the range is replacing RAM rather that unused space. */
@@ -116,16 +190,16 @@ VMM_INT_DECL(int)  NEMImportStateOnDemand(PVMCPUCC pVCpu, uint64_t fWhat);
 
 VMM_INT_DECL(void) NEMHCNotifyHandlerPhysicalRegister(PVMCC pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhys, RTGCPHYS cb);
 VMM_INT_DECL(void) NEMHCNotifyHandlerPhysicalDeregister(PVMCC pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhys, RTGCPHYS cb,
-                                                        int fRestoreAsRAM, bool fRestoreAsRAM2);
+                                                        RTR3PTR pvMemR3, uint8_t *pu2State);
 VMM_INT_DECL(void) NEMHCNotifyHandlerPhysicalModify(PVMCC pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhysOld,
                                                     RTGCPHYS GCPhysNew, RTGCPHYS cb, bool fRestoreAsRAM);
 
 VMM_INT_DECL(int)  NEMHCNotifyPhysPageAllocated(PVMCC pVM, RTGCPHYS GCPhys, RTHCPHYS HCPhys, uint32_t fPageProt,
                                                 PGMPAGETYPE enmType, uint8_t *pu2State);
-VMM_INT_DECL(void) NEMHCNotifyPhysPageProtChanged(PVMCC pVM, RTGCPHYS GCPhys, RTHCPHYS HCPhys, uint32_t fPageProt,
+VMM_INT_DECL(void) NEMHCNotifyPhysPageProtChanged(PVMCC pVM, RTGCPHYS GCPhys, RTHCPHYS HCPhys, RTR3PTR pvR3, uint32_t fPageProt,
                                                   PGMPAGETYPE enmType, uint8_t *pu2State);
 VMM_INT_DECL(void) NEMHCNotifyPhysPageChanged(PVMCC pVM, RTGCPHYS GCPhys, RTHCPHYS HCPhysPrev, RTHCPHYS HCPhysNew,
-                                              uint32_t fPageProt, PGMPAGETYPE enmType, uint8_t *pu2State);
+                                              RTR3PTR pvNewR3, uint32_t fPageProt, PGMPAGETYPE enmType, uint8_t *pu2State);
 /** @name NEM_PAGE_PROT_XXX - Page protection
  * @{ */
 #define NEM_PAGE_PROT_NONE      UINT32_C(0)     /**< All access causes VM exits. */

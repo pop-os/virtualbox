@@ -379,6 +379,9 @@
 #define VERR_EMPTY_STRING                   (-22422)
 /** Too many references to an object. */
 #define VERR_TOO_MANY_REFERENCES            (-22423)
+/** Unable to translate one or more of the arguments to the codeset the child
+ * process is expected to use. */
+#define VERR_PROC_NO_ARG_TRANSLATION        (-22425)
 /** @} */
 
 

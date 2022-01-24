@@ -733,8 +733,34 @@ static const DBGCCMD    g_aCmds[] =
 };
 #endif
 
+#ifdef VBOX_WITH_PGM_NEM_MODE
+
+/**
+ * Interface that NEM uses to switch PGM into simplified memory managment mode.
+ *
+ * This call occurs before PGMR3Init.
+ *
+ * @param   pVM     The cross context VM structure.
+ */
+VMMR3_INT_DECL(void) PGMR3EnableNemMode(PVM pVM)
+{
+    AssertFatal(!PDMCritSectIsInitialized(&pVM->pgm.s.CritSectX));
+    pVM->pgm.s.fNemMode = true;
+}
 
 
+/**
+ * Checks whether the simplificed memory management mode for NEM is enabled.
+ *
+ * @returns true if enabled, false if not.
+ * @param   pVM     The cross context VM structure.
+ */
+VMMR3_INT_DECL(bool)    PGMR3IsNemModeEnabled(PVM pVM)
+{
+    return pVM->pgm.s.fNemMode;
+}
+
+#endif /* VBOX_WITH_PGM_NEM_MODE */
 
 /**
  * Initiates the paging of VM.
@@ -819,7 +845,9 @@ VMMR3DECL(int) PGMR3Init(PVM pVM)
 
     pVM->pgm.s.enmHostMode      = SUPPAGINGMODE_INVALID;
     pVM->pgm.s.GCPhys4MBPSEMask = RT_BIT_64(32) - 1; /* default; checked later */
+#ifndef PGM_WITHOUT_MAPPINGS
     pVM->pgm.s.GCPtrPrevRamRangeMapping = MM_HYPER_AREA_ADDRESS;
+#endif
 
     rc = CFGMR3QueryBoolDef(CFGMR3GetRoot(pVM), "RamPreAlloc", &pVM->pgm.s.fRamPreAlloc,
 #ifdef VBOX_WITH_PREALLOC_RAM_BY_DEFAULT
@@ -970,12 +998,24 @@ VMMR3DECL(int) PGMR3Init(PVM pVM)
      * Register the physical access handler protecting ROMs.
      */
     if (RT_SUCCESS(rc))
-        rc = PGMR3HandlerPhysicalTypeRegister(pVM, PGMPHYSHANDLERKIND_WRITE,
+        /** @todo why isn't pgmPhysRomWriteHandler registered for ring-0?   */
+        rc = PGMR3HandlerPhysicalTypeRegister(pVM, PGMPHYSHANDLERKIND_WRITE, false /*fKeepPgmLock*/,
                                               pgmPhysRomWriteHandler,
                                               NULL, NULL, "pgmPhysRomWritePfHandler",
                                               NULL, NULL, "pgmPhysRomWritePfHandler",
                                               "ROM write protection",
                                               &pVM->pgm.s.hRomPhysHandlerType);
+
+    /*
+     * Register the physical access handler doing dirty MMIO2 tracing.
+     */
+    if (RT_SUCCESS(rc))
+        rc = PGMR3HandlerPhysicalTypeRegister(pVM, PGMPHYSHANDLERKIND_WRITE, true /*fKeepPgmLock*/,
+                                              pgmPhysMmio2WriteHandler,
+                                              NULL, "pgmPhysMmio2WriteHandler", "pgmPhysMmio2WritePfHandler",
+                                              NULL, "pgmPhysMmio2WriteHandler", "pgmPhysMmio2WritePfHandler",
+                                              "MMIO2 dirty page tracing",
+                                              &pVM->pgm.s.hMmio2DirtyPhysHandlerType);
 
     /*
      * Init the paging.
@@ -1275,6 +1315,7 @@ static int pgmR3InitStats(PVM pVM)
     STAM_REL_REG(pVM, &pPGM->StatLargePageRecheck,               STAMTYPE_COUNTER, "/PGM/LargePage/Recheck",             STAMUNIT_OCCURENCES, "The number of times we've rechecked a disabled large page.");
 
     STAM_REL_REG(pVM, &pPGM->StatShModCheck,                     STAMTYPE_PROFILE, "/PGM/ShMod/Check",                   STAMUNIT_TICKS_PER_CALL, "Profiles the shared module checking.");
+    STAM_REL_REG(pVM, &pPGM->StatMmio2QueryAndResetDirtyBitmap,  STAMTYPE_PROFILE, "/PGM/Mmio2QueryAndResetDirtyBitmap", STAMUNIT_TICKS_PER_CALL, "Profiles calls to PGMR3PhysMmio2QueryAndResetDirtyBitmap (sans locking).");
 
     /* Live save */
     STAM_REL_REG_USED(pVM, &pPGM->LiveSave.fActive,              STAMTYPE_U8,      "/PGM/LiveSave/fActive",              STAMUNIT_COUNT,     "Active or not.");

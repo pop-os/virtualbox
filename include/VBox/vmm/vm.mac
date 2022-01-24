@@ -128,7 +128,7 @@ struc VM
     .pdm                    resb 7808
     .iom                    resb 1152
     .em                     resb 256
-    .nem                    resb 256
+    .nem                    resb 512
     .tm                     resb 7872
     .dbgf                   resb 2432
     .ssm                    resb 128

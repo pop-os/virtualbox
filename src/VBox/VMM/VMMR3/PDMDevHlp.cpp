@@ -326,7 +326,7 @@ static DECLCALLBACK(RTGCPHYS) pdmR3DevHlp_Mmio2GetMappingAddress(PPDMDEVINS pDev
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
     PVM pVM = pDevIns->Internal.s.pVMR3;
-    LogFlow(("pdmR3DevHlp_Mmio2GetMappingAddress: caller='%s'/%d: hRegion=%#RX6r\n", pDevIns->pReg->szName, pDevIns->iInstance, hRegion));
+    LogFlow(("pdmR3DevHlp_Mmio2GetMappingAddress: caller='%s'/%d: hRegion=%#RX64\n", pDevIns->pReg->szName, pDevIns->iInstance, hRegion));
     VM_ASSERT_EMT0_RETURN(pVM, NIL_RTGCPHYS);
 
     RTGCPHYS GCPhys = PGMR3PhysMmio2GetMappingAddress(pVM, pDevIns, hRegion);
@@ -335,6 +335,38 @@ static DECLCALLBACK(RTGCPHYS) pdmR3DevHlp_Mmio2GetMappingAddress(PPDMDEVINS pDev
     return GCPhys;
 }
 
+
+/** @interface_method_impl{PDMDEVHLPR3,pfnMmio2QueryAndResetDirtyBitmap} */
+static DECLCALLBACK(int) pdmR3DevHlp_Mmio2QueryAndResetDirtyBitmap(PPDMDEVINS pDevIns, PGMMMIO2HANDLE hRegion,
+                                                                   void *pvBitmap, size_t cbBitmap)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    PVM pVM = pDevIns->Internal.s.pVMR3;
+    LogFlow(("pdmR3DevHlp_Mmio2QueryAndResetDirtyBitmap: caller='%s'/%d: hRegion=%#RX64 pvBitmap=%p cbBitmap=%#zx\n",
+             pDevIns->pReg->szName, pDevIns->iInstance, hRegion, pvBitmap, cbBitmap));
+
+    int rc = PGMR3PhysMmio2QueryAndResetDirtyBitmap(pVM, pDevIns, hRegion, pvBitmap, cbBitmap);
+
+    LogFlow(("pdmR3DevHlp_Mmio2QueryAndResetDirtyBitmap: caller='%s'/%d: returns %Rrc\n", pDevIns->pReg->szName, pDevIns->iInstance, rc));
+    return rc;
+}
+
+
+/** @interface_method_impl{PDMDEVHLPR3,pfnMmio2ControlDirtyPageTracking} */
+static DECLCALLBACK(int) pdmR3DevHlp_Mmio2ControlDirtyPageTracking(PPDMDEVINS pDevIns, PGMMMIO2HANDLE hRegion, bool fEnabled)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    PVM pVM = pDevIns->Internal.s.pVMR3;
+    LogFlow(("pdmR3DevHlp_Mmio2ControlDirtyPageTracking: caller='%s'/%d: hRegion=%#RX64 fEnabled=%RTbool\n",
+             pDevIns->pReg->szName, pDevIns->iInstance, hRegion, fEnabled));
+
+    int rc = PGMR3PhysMmio2ControlDirtyPageTracking(pVM, pDevIns, hRegion, fEnabled);
+
+    LogFlow(("pdmR3DevHlp_Mmio2ControlDirtyPageTracking: caller='%s'/%d: returns %Rrc\n", pDevIns->pReg->szName, pDevIns->iInstance, rc));
+    return rc;
+}
+
+
 /**
  * @copydoc PDMDEVHLPR3::pfnMmio2ChangeRegionNo
  */
@@ -342,7 +374,7 @@ static DECLCALLBACK(int) pdmR3DevHlp_Mmio2ChangeRegionNo(PPDMDEVINS pDevIns, PGM
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
     PVM pVM = pDevIns->Internal.s.pVMR3;
-    LogFlow(("pdmR3DevHlp_Mmio2ChangeRegionNo: caller='%s'/%d: hRegion=%#RX6r iNewRegion=%#x\n", pDevIns->pReg->szName, pDevIns->iInstance, hRegion, iNewRegion));
+    LogFlow(("pdmR3DevHlp_Mmio2ChangeRegionNo: caller='%s'/%d: hRegion=%#RX64 iNewRegion=%#x\n", pDevIns->pReg->szName, pDevIns->iInstance, hRegion, iNewRegion));
     VM_ASSERT_EMT0_RETURN(pVM, VERR_VM_THREAD_NOT_EMT);
 
     int rc = PGMR3PhysMmio2ChangeRegionNo(pVM, pDevIns, hRegion, iNewRegion);
@@ -3887,6 +3919,8 @@ const PDMDEVHLPR3 g_pdmR3DevHlpTrusted =
     pdmR3DevHlp_Mmio2Unmap,
     pdmR3DevHlp_Mmio2Reduce,
     pdmR3DevHlp_Mmio2GetMappingAddress,
+    pdmR3DevHlp_Mmio2QueryAndResetDirtyBitmap,
+    pdmR3DevHlp_Mmio2ControlDirtyPageTracking,
     pdmR3DevHlp_Mmio2ChangeRegionNo,
     pdmR3DevHlp_ROMRegister,
     pdmR3DevHlp_ROMProtectShadow,
@@ -4371,6 +4405,8 @@ const PDMDEVHLPR3 g_pdmR3DevHlpUnTrusted =
     pdmR3DevHlp_Mmio2Unmap,
     pdmR3DevHlp_Mmio2Reduce,
     pdmR3DevHlp_Mmio2GetMappingAddress,
+    pdmR3DevHlp_Mmio2QueryAndResetDirtyBitmap,
+    pdmR3DevHlp_Mmio2ControlDirtyPageTracking,
     pdmR3DevHlp_Mmio2ChangeRegionNo,
     pdmR3DevHlp_ROMRegister,
     pdmR3DevHlp_ROMProtectShadow,

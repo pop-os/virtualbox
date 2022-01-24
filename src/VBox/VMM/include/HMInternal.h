@@ -470,6 +470,10 @@ typedef struct HM
     bool                        fVirtApicRegs;
     /** Set if posted interrupt processing is enabled. */
     bool                        fPostedIntrs;
+    /** VM needs workaround for missing TLB flush in OS/2, see ticketref:20625.
+     * @note Currently only heeded by AMD-V.  */
+    bool                        fMissingOS2TlbFlushWorkaround;
+
     /** Set if indirect branch prediction barrier on VM exit. */
     bool                        fIbpbOnVmExit;
     /** Set if indirect branch prediction barrier on VM entry. */
@@ -485,7 +489,7 @@ typedef struct HM
     /** Set if MDS related buffers should be cleared on EMT scheduling. */
     bool                        fMdsClearOnSched;
     /** Alignment padding. */
-    bool                        afPaddingMinus1[6];
+    bool                        afPaddingMinus1[5];
 
     /** Maximum ASID allowed. */
     uint32_t                    uMaxAsid;

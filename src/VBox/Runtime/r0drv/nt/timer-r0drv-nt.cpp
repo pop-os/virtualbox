@@ -554,7 +554,7 @@ RTDECL(int) RTTimerCreateEx(PRTTIMER *ppTimer, uint64_t u64NanoInterval, uint32_
         if (g_pfnrtKeSetImportanceDpc)
             g_pfnrtKeSetImportanceDpc(&pTimer->aSubTimers[0].NtDpc, HighImportance);
         if (pTimer->fSpecificCpu)
-            rc = rtMpNtSetTargetProcessorDpc(&pTimer->aSubTimers[0].NtDpc, (int)pTimer->idCpu);
+            rc = rtMpNtSetTargetProcessorDpc(&pTimer->aSubTimers[0].NtDpc, fFlags & RTTIMER_FLAGS_CPU_MASK);
     }
     if (RT_SUCCESS(rc))
     {

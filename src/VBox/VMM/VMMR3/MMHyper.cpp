@@ -1116,7 +1116,7 @@ VMMR3DECL(int) MMR3HyperAllocOnceNoRelEx(PVM pVM, size_t cb, unsigned uAlignment
 
 
 /**
- * Lookus up a ring-3 pointer to HMA.
+ * Looks up a ring-3 pointer to HMA.
  *
  * @returns The lookup record on success, NULL on failure.
  * @param   pVM                 The cross context VM structure.

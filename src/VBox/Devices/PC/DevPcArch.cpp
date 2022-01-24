@@ -192,69 +192,6 @@ pcarchIOPortPS2SysControlPortAWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT o
 
 
 /**
- * @callback_method_impl{FNIOMMMIONEWWRITE, Ignores writes to the reserved memory.}
- * @note    off is an absolute address.
- */
-static DECLCALLBACK(VBOXSTRICTRC)
-pcarchReservedMemoryWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS off, void const *pv, unsigned cb)
-{
-    Log2(("pcarchReservedMemoryRead: %#RGp LB %#x %.*Rhxs\n", off, cb, RT_MIN(cb, 16), pv));
-    RT_NOREF(pDevIns, pvUser, off, pv, cb);
-    return VINF_SUCCESS;
-}
-
-
-/**
- * @callback_method_impl{FNIOMMMIONEWREAD, The reserved memory reads as 0xff.}
- * @note    off is an absolute address.
- */
-static DECLCALLBACK(VBOXSTRICTRC)
-pcarchReservedMemoryRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS off, void *pv, unsigned cb)
-{
-    Log2(("pcarchReservedMemoryRead: %#RGp LB %#x\n", off, cb));
-    RT_NOREF(pDevIns, pvUser, off);
-    memset(pv, 0xff, cb);
-    return VINF_SUCCESS;
-}
-
-
-/**
- * @interface_method_impl{PDMDEVREG,pfnInitComplete,
- *      Turn RAM pages between 0xa0000 and 0xfffff into reserved memory.}
- */
-static DECLCALLBACK(int) pcarchInitComplete(PPDMDEVINS pDevIns)
-{
-    PVM             pVM       = PDMDevHlpGetVM(pDevIns);
-    int             iRegion   = 0;
-    RTGCPHYS const  GCPhysEnd = 0x100000;
-    RTGCPHYS        GCPhysCur = 0x0a0000;
-    do
-    {
-        if (!PGMPhysIsGCPhysNormal(pVM, GCPhysCur))
-            GCPhysCur += X86_PAGE_SIZE;
-        else
-        {
-            RTGCPHYS const GCPhysStart = GCPhysCur;
-            do
-                GCPhysCur += X86_PAGE_SIZE;
-            while (GCPhysCur < GCPhysEnd && PGMPhysIsGCPhysNormal(pVM, GCPhysCur));
-
-            IOMMMIOHANDLE hMmioRegion;
-            int rc = PDMDevHlpMmioCreateAndMap(pDevIns, GCPhysStart, GCPhysCur - GCPhysStart,
-                                               pcarchReservedMemoryWrite, pcarchReservedMemoryRead,
-                                               IOMMMIO_FLAGS_READ_PASSTHRU | IOMMMIO_FLAGS_WRITE_PASSTHRU | IOMMMIO_FLAGS_ABS,
-                                               MMR3HeapAPrintf(pVM, MM_TAG_PGM_PHYS /* bad bird*/, "PC Arch Reserved #%u", iRegion),
-                                               &hMmioRegion);
-            AssertLogRelRCReturn(rc, rc);
-            iRegion++;
-        }
-    } while (GCPhysCur < GCPhysEnd);
-
-    return VINF_SUCCESS;
-}
-
-
-/**
  * @interface_method_impl{PDMDEVREG,pfnConstruct}
  */
 static DECLCALLBACK(int)  pcarchConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
@@ -324,7 +261,7 @@ const PDMDEVREG g_DevicePcArch =
     /* .pfnAttach = */              NULL,
     /* .pfnDetach = */              NULL,
     /* .pfnQueryInterface = */      NULL,
-    /* .pfnInitComplete = */        pcarchInitComplete,
+    /* .pfnInitComplete = */        NULL,
     /* .pfnPowerOff = */            NULL,
     /* .pfnSoftReset = */           NULL,
     /* .pfnReserved0 = */           NULL,

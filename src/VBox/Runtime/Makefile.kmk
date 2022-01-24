@@ -1793,6 +1793,7 @@ RuntimeBldProg_SOURCES         = \
 	common/string/RTStrCopyP.cpp \
 	common/string/RTStrIStartsWith.cpp \
 	common/string/RTStrNCmp.cpp \
+	common/string/RTStrNICmpAscii.cpp \
 	common/string/RTStrNLen.cpp \
 	common/string/RTStrPrintHexBytes.cpp \
 	common/string/RTStrStr.cpp \
@@ -1916,7 +1917,6 @@ RuntimeBldProg_SOURCES.darwin = $(filter-out \
 	r3/posix/RTTimeSet-posix.cpp \
 	r3/posix/serialport-posix.cpp \
 	r3/posix/localipc-posix.cpp \
-	r3/posix/ldrNative-posix.cpp \
 	r3/generic/allocex-r3-generic.cpp \
 	r3/generic/RTLocaleQueryLocaleName-r3-generic.cpp \
 	r3/generic/RTLocaleQueryNormalizedBaseLocaleName-r3-generic.cpp \

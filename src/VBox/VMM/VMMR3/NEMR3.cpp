@@ -121,18 +121,21 @@ VMMR3_INT_DECL(int) NEMR3InitConfig(PVM pVM)
     }
 
 #ifdef RT_OS_WINDOWS
+# ifndef VBOX_WITH_PGM_NEM_MODE
+
     /** @cfgm{/NEM/UseRing0Runloop, bool, true}
      * Whether to use the ring-0 runloop (if enabled in the build) or the ring-3 one.
      * The latter is generally slower.  This option serves as a way out in case
      * something breaks in the ring-0 loop. */
-# ifdef NEM_WIN_USE_RING0_RUNLOOP_BY_DEFAULT
+#  ifdef NEM_WIN_USE_RING0_RUNLOOP_BY_DEFAULT
     bool fUseRing0Runloop = true;
-# else
+#  else
     bool fUseRing0Runloop = false;
-# endif
+#  endif
     rc = CFGMR3QueryBoolDef(pCfgNem, "UseRing0Runloop", &fUseRing0Runloop, fUseRing0Runloop);
     AssertLogRelRCReturn(rc, rc);
     pVM->nem.s.fUseRing0Runloop = fUseRing0Runloop;
+# endif
 #endif
 
     return VINF_SUCCESS;
@@ -405,16 +408,13 @@ VMMR3_INT_DECL(VBOXSTRICTRC) NEMR3RunGC(PVM pVM, PVMCPU pVCpu)
 }
 
 
+#ifndef VBOX_WITH_NATIVE_NEM
 VMMR3_INT_DECL(bool) NEMR3CanExecuteGuest(PVM pVM, PVMCPU pVCpu)
 {
-    Assert(VM_IS_NEM_ENABLED(pVM));
-#ifdef VBOX_WITH_NATIVE_NEM
-    return nemR3NativeCanExecuteGuest(pVM, pVCpu);
-#else
-    NOREF(pVM); NOREF(pVCpu);
+    RT_NOREF(pVM, pVCpu);
     return false;
-#endif
 }
+#endif
 
 
 VMMR3_INT_DECL(bool) NEMR3SetSingleInstruction(PVM pVM, PVMCPU pVCpu, bool fEnable)
@@ -440,92 +440,10 @@ VMMR3_INT_DECL(void) NEMR3NotifyFF(PVM pVM, PVMCPU pVCpu, uint32_t fFlags)
 }
 
 
-
-
-VMMR3_INT_DECL(int)  NEMR3NotifyPhysRamRegister(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb)
-{
-    int rc = VINF_SUCCESS;
-#ifdef VBOX_WITH_NATIVE_NEM
-    if (pVM->bMainExecutionEngine == VM_EXEC_ENGINE_NATIVE_API)
-        rc = nemR3NativeNotifyPhysRamRegister(pVM, GCPhys, cb);
-#else
-    NOREF(pVM); NOREF(GCPhys); NOREF(cb);
-#endif
-    return rc;
-}
-
-
-VMMR3_INT_DECL(int)  NEMR3NotifyPhysMmioExMap(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb, uint32_t fFlags, void *pvMmio2)
-{
-    int rc = VINF_SUCCESS;
-#ifdef VBOX_WITH_NATIVE_NEM
-    if (pVM->bMainExecutionEngine == VM_EXEC_ENGINE_NATIVE_API)
-        rc = nemR3NativeNotifyPhysMmioExMap(pVM, GCPhys, cb, fFlags, pvMmio2);
-#else
-    NOREF(pVM); NOREF(GCPhys); NOREF(cb); NOREF(fFlags); NOREF(pvMmio2);
-#endif
-    return rc;
-}
-
-
-VMMR3_INT_DECL(int)  NEMR3NotifyPhysMmioExUnmap(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb, uint32_t fFlags)
-{
-    int rc = VINF_SUCCESS;
-#ifdef VBOX_WITH_NATIVE_NEM
-    if (pVM->bMainExecutionEngine == VM_EXEC_ENGINE_NATIVE_API)
-        rc = nemR3NativeNotifyPhysMmioExUnmap(pVM, GCPhys, cb, fFlags);
-#else
-    NOREF(pVM); NOREF(GCPhys); NOREF(cb); NOREF(fFlags);
-#endif
-    return rc;
-}
-
-
-VMMR3_INT_DECL(int)  NEMR3NotifyPhysRomRegisterEarly(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb, uint32_t fFlags)
-{
-    int rc = VINF_SUCCESS;
-#ifdef VBOX_WITH_NATIVE_NEM
-    if (pVM->bMainExecutionEngine == VM_EXEC_ENGINE_NATIVE_API)
-        rc = nemR3NativeNotifyPhysRomRegisterEarly(pVM, GCPhys, cb, fFlags);
-#else
-    NOREF(pVM); NOREF(GCPhys); NOREF(cb); NOREF(fFlags);
-#endif
-    return rc;
-}
-
-
-/**
- * Called after the ROM range has been fully completed.
- *
- * This will be preceeded by a NEMR3NotifyPhysRomRegisterEarly() call as well a
- * number of NEMHCNotifyPhysPageProtChanged calls.
- *
- * @returns VBox status code
- * @param   pVM             The cross context VM structure.
- * @param   GCPhys          The ROM address (page aligned).
- * @param   cb              The size (page aligned).
- * @param   fFlags          NEM_NOTIFY_PHYS_ROM_F_XXX.
- */
-VMMR3_INT_DECL(int)  NEMR3NotifyPhysRomRegisterLate(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb, uint32_t fFlags)
-{
-    int rc = VINF_SUCCESS;
-#ifdef VBOX_WITH_NATIVE_NEM
-    if (pVM->bMainExecutionEngine == VM_EXEC_ENGINE_NATIVE_API)
-        rc = nemR3NativeNotifyPhysRomRegisterLate(pVM, GCPhys, cb, fFlags);
-#else
-    NOREF(pVM); NOREF(GCPhys); NOREF(cb); NOREF(fFlags);
-#endif
-    return rc;
-}
-
-
+#ifndef VBOX_WITH_NATIVE_NEM
 VMMR3_INT_DECL(void) NEMR3NotifySetA20(PVMCPU pVCpu, bool fEnabled)
 {
-#ifdef VBOX_WITH_NATIVE_NEM
-    if (pVCpu->pVMR3->bMainExecutionEngine == VM_EXEC_ENGINE_NATIVE_API)
-        nemR3NativeNotifySetA20(pVCpu, fEnabled);
-#else
-    NOREF(pVCpu); NOREF(fEnabled);
-#endif
+    RT_NOREF(pVCpu, fEnabled);
 }
+#endif
 
