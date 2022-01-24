@@ -1,3 +1,10 @@
+virtualbox (6.1.32-dfsg-1) unstable; urgency=medium
+
+  * New upstream version 6.1.32-dfsg
+  * Refresh patches
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Mon, 24 Jan 2022 11:49:42 +0100
+
 virtualbox (6.1.30-dfsg-2) unstable; urgency=medium
 
   * Add support for Python3.10
