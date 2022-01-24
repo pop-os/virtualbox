@@ -6,7 +6,7 @@ Index: virtualbox/src/VBox/Main/src-client/ConsoleImpl2.cpp
 ===================================================================
 --- virtualbox.orig/src/VBox/Main/src-client/ConsoleImpl2.cpp
 +++ virtualbox/src/VBox/Main/src-client/ConsoleImpl2.cpp
-@@ -4162,34 +4162,12 @@
+@@ -4166,34 +4166,12 @@
              if (   enmFsTypeFile == RTFSTYPE_EXT4
                  || enmFsTypeFile == RTFSTYPE_XFS)
              {
