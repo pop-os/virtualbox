@@ -118,6 +118,7 @@ SHCL_X11_DECL(SHCLX11FMTTABLE) g_aFormats[] =
 
     { "text/html",                          SHCLX11FMT_HTML,        VBOX_SHCL_FMT_HTML },
     { "text/html;charset=utf-8",            SHCLX11FMT_HTML,        VBOX_SHCL_FMT_HTML },
+    { "application/x-moz-nativehtml",       SHCLX11FMT_HTML,        VBOX_SHCL_FMT_HTML },
 
     { "image/bmp",                          SHCLX11FMT_BMP,         VBOX_SHCL_FMT_BITMAP },
     { "image/x-bmp",                        SHCLX11FMT_BMP,         VBOX_SHCL_FMT_BITMAP },
@@ -1701,8 +1702,13 @@ static int clipConvertToX11Data(PSHCLX11CTX pCtx, Atom *atomTarget,
     }
 
     if (RT_FAILURE(rc))
-        LogRel(("Shared Clipboard: Converting VBox formats %#x to '%s' for X11 (idxFmtX11=%u, fmtX11=%u) failed, rc=%Rrc\n",
-                pCtx->vboxFormats, g_aFormats[idxFmtX11].pcszAtom, idxFmtX11, fmtX11, rc));
+    {
+        char *pszAtomName = XGetAtomName(XtDisplay(pCtx->pWidget), *atomTarget);
+        LogRel(("Shared Clipboard: Converting VBox formats %#x to '%s' for X11 (idxFmtX11=%u, fmtX11=%u, atomTarget='%s') failed, rc=%Rrc\n",
+                pCtx->vboxFormats, g_aFormats[idxFmtX11].pcszAtom, idxFmtX11, fmtX11, pszAtomName ? pszAtomName : "unknown", rc));
+        if (pszAtomName)
+            XFree(pszAtomName);
+    }
 
     LogFlowFuncLeaveRC(rc);
     return rc;
@@ -2008,17 +2014,17 @@ SHCL_X11_DECL(void) clipConvertDataFromX11Worker(void *pClient, void *pvSrc, uns
                 }
                 else /* Raw data. */
                 {
-                   pvDst = RTMemAlloc(cbSrc);
-                   if(pvDst)
-                   {
-                        memcpy(pvDst, pvSrc, cbSrc);
-                        cbDst = cbSrc;
-                   }
-                   else
-                   {
-                        rc = VERR_NO_MEMORY;
-                        break;
-                   }
+                    pvDst = RTMemAllocZ(cbSrc + 1 /* '\0' */);
+                    if(pvDst)
+                    {
+                         memcpy(pvDst, pvSrc, cbSrc);
+                         cbDst = cbSrc + 1 /* '\0' */;
+                    }
+                    else
+                    {
+                         rc = VERR_NO_MEMORY;
+                         break;
+                    }
                 }
 
                 rc = VINF_SUCCESS;

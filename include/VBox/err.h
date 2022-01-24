@@ -608,6 +608,8 @@
 #define VERR_PGM_MODE_IPE                       (-1686)
 /** Shadow mode 'none' internal error. */
 #define VERR_PGM_SHW_NONE_IPE                   (-1687)
+/** Attemted illegal operation in simplified memory management mode. */
+#define VERR_PGM_NOT_SUPPORTED_FOR_NEM_MODE     (-1689)
 /** @} */
 
 
@@ -2912,6 +2914,8 @@
 #define VERR_NEM_MISSING_KERNEL_API_4               (-6814)
 /** NEM init failed because of missing kernel API (\#5). */
 #define VERR_NEM_MISSING_KERNEL_API_5               (-6815)
+/** NEM failed to query dirty page bitmap. */
+#define VERR_NEM_QUERY_DIRTY_BITMAP_FAILED          (-6816)
 
 /** NEM internal processing error \#0. */
 #define VERR_NEM_IPE_0                              (-6890)

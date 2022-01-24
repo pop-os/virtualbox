@@ -36,6 +36,9 @@
 #if (defined(RT_OS_LINUX) || defined(RT_OS_OS2)) && !defined(_GNU_SOURCE)
 # define _GNU_SOURCE
 #endif
+#if defined(RT_OS_LINUX) && !defined(_XOPEN_SOURCE)
+# define _XOPEN_SOURCE 700 /* for newlocale */
+#endif
 
 #ifdef RT_OS_OS2
 # define crypt   unistd_crypt
@@ -50,6 +53,8 @@
 #endif
 #include <stdlib.h>
 #include <errno.h>
+#include <langinfo.h>
+#include <locale.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
@@ -79,18 +84,11 @@
 # include <spawn.h>
 #endif
 
-#if !defined(IPRT_USE_PAM) && ( defined(RT_OS_DARWIN) || defined(RT_OS_FREEBSD) || defined(RT_OS_NETBSD) || defined(RT_OS_OPENBSD) )
+#if !defined(IPRT_USE_PAM) \
+ && ( defined(RT_OS_DARWIN) || defined(RT_OS_FREEBSD) || defined(RT_OS_LINUX) || defined(RT_OS_NETBSD) || defined(RT_OS_OPENBSD) )
 # define IPRT_USE_PAM
 #endif
 #ifdef IPRT_USE_PAM
-# ifdef RT_OS_DARWIN
-#  include <mach-o/dyld.h>
-#  define IPRT_LIBPAM_FILE      "libpam.dylib"
-#  define IPRT_PAM_SERVICE_NAME "login"     /** @todo we've been abusing 'login' here, probably not needed? */
-# else
-#  define IPRT_LIBPAM_FILE      "libpam.so"
-#  define IPRT_PAM_SERVICE_NAME "iprt-as-user"
-# endif
 # include <security/pam_appl.h>
 # include <stdlib.h>
 # include <dlfcn.h>
@@ -111,16 +109,21 @@
 # define _PATH_DEFPATH "/usr/bin:/bin"
 # define _PATH_STDPATH "/sbin:/usr/sbin:/bin:/usr/bin"
 #endif
+#ifndef _PATH_BSHELL
+# define _PATH_BSHELL "/bin/sh"
+#endif
 
 
 #include <iprt/process.h>
 #include "internal/iprt.h"
 
+#include <iprt/alloca.h>
 #include <iprt/assert.h>
+#include <iprt/ctype.h>
 #include <iprt/env.h>
 #include <iprt/err.h>
 #include <iprt/file.h>
-#ifdef IPRT_WITH_DYNAMIC_CRYPT_R
+#if defined(IPRT_WITH_DYNAMIC_CRYPT_R) || defined(IPRT_USE_PAM)
 # include <iprt/ldr.h>
 #endif
 #include <iprt/log.h>
@@ -130,6 +133,43 @@
 #include <iprt/string.h>
 #include <iprt/mem.h>
 #include "internal/process.h"
+#include "internal/path.h"
+#include "internal/string.h"
+
+
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
+#ifdef IPRT_USE_PAM
+/*
+ * The PAM library names and version ranges to try.
+ */
+# ifdef RT_OS_DARWIN
+#  include <mach-o/dyld.h>
+/** @node libpam.2.dylib was introduced with 10.6.x (OpenPAM); we use
+ *        libpam.dylib as that's a symlink to the latest and greatest. */
+#  define IPRT_LIBPAM_FILE_1            "libpam.dylib"
+#  define IPRT_LIBPAM_FILE_1_FIRST_VER 0
+#  define IPRT_LIBPAM_FILE_1_END_VER   0
+#  define IPRT_LIBPAM_FILE_2            "libpam.2.dylib"
+#  define IPRT_LIBPAM_FILE_2_FIRST_VER 0
+#  define IPRT_LIBPAM_FILE_2_END_VER   0
+#  define IPRT_LIBPAM_FILE_3            "libpam.1.dylib"
+#  define IPRT_LIBPAM_FILE_3_FIRST_VER 0
+#  define IPRT_LIBPAM_FILE_3_END_VER   0
+# elif RT_OS_LINUX
+#  define IPRT_LIBPAM_FILE_1           "libpam.so.0"
+#  define IPRT_LIBPAM_FILE_1_FIRST_VER 0
+#  define IPRT_LIBPAM_FILE_1_END_VER   0
+#  define IPRT_LIBPAM_FILE_2           "libpam.so"
+#  define IPRT_LIBPAM_FILE_2_FIRST_VER 16
+#  define IPRT_LIBPAM_FILE_2_END_VER   1
+# else
+#  define IPRT_LIBPAM_FILE_1           "libpam.so"
+#  define IPRT_LIBPAM_FILE_1_MIN_VER   16
+#  define IPRT_LIBPAM_FILE_1_MAX_VER   0
+# endif
+#endif
 
 
 /*********************************************************************************************************************************
@@ -145,6 +185,23 @@ typedef struct RTPROCPAMARGS
 /** Pointer to rtPamConv argument package. */
 typedef RTPROCPAMARGS *PRTPROCPAMARGS;
 #endif
+
+
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
+/** Environment dump marker used with CSH.   */
+static const char g_szEnvMarkerBegin[] = "IPRT_EnvEnvEnv_Begin_EnvEnvEnv";
+/** Environment dump marker used with CSH.   */
+static const char g_szEnvMarkerEnd[]   = "IPRT_EnvEnvEnv_End_EnvEnvEnv";
+
+
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
+static int rtProcPosixCreateInner(const char *pszExec, const char * const *papszArgs, RTENV hEnv, RTENV hEnvToUse,
+                                  uint32_t fFlags, const char *pszAsUser, uid_t uid, gid_t gid,
+                                  unsigned cRedirFds, int *paRedirFds, PRTPROCESS phProcess);
 
 
 #ifdef IPRT_USE_PAM
@@ -192,10 +249,199 @@ static int rtPamConv(int cMessages, const struct pam_message **papMessages, stru
     *ppaResponses = paResponses;
     return PAM_SUCCESS;
 }
+
+
+/**
+ * Common PAM driver for rtCheckCredentials and the case where pszAsUser is NULL
+ * but RTPROC_FLAGS_PROFILE is set.
+ *
+ * @returns IPRT status code.
+ * @param   pszPamService   The PAM service to use for the run.
+ * @param   pszUser         The user.
+ * @param   pszPassword     The password.
+ * @param   ppapszEnv       Where to return PAM environment variables, NULL is
+ *                          fine if no variables to return. Call
+ *                          rtProcPosixFreePamEnv to free.  Optional, so NULL
+ *                          can be passed in.
+ * @param   pfMayFallBack   Where to return whether a fallback to crypt is
+ *                          acceptable or if the failure result is due to
+ *                          authentication failing.  Optional.
+ */
+static int rtProcPosixAuthenticateUsingPam(const char *pszPamService, const char *pszUser, const char *pszPassword,
+                                           char ***ppapszEnv, bool *pfMayFallBack)
+{
+    if (pfMayFallBack)
+        *pfMayFallBack = true;
+
+    /*
+     * Dynamically load pam the first time we go thru here.
+     */
+    static int     (*s_pfnPamStart)(const char *, const char *, struct pam_conv *, pam_handle_t **);
+    static int     (*s_pfnPamAuthenticate)(pam_handle_t *, int);
+    static int     (*s_pfnPamAcctMgmt)(pam_handle_t *, int);
+    static int     (*s_pfnPamSetItem)(pam_handle_t *, int, const void *);
+    static int     (*s_pfnPamSetCred)(pam_handle_t *, int);
+    static char ** (*s_pfnPamGetEnvList)(pam_handle_t *);
+    static int     (*s_pfnPamOpenSession)(pam_handle_t *, int);
+    static int     (*s_pfnPamCloseSession)(pam_handle_t *, int);
+    static int     (*s_pfnPamEnd)(pam_handle_t *, int);
+    if (   s_pfnPamStart == NULL
+        || s_pfnPamAuthenticate == NULL
+        || s_pfnPamAcctMgmt == NULL
+        || s_pfnPamSetItem == NULL
+        || s_pfnPamEnd == NULL)
+    {
+        RTLDRMOD hModPam = NIL_RTLDRMOD;
+        const char *pszLast;
+        int rc = RTLdrLoadSystemEx(pszLast = IPRT_LIBPAM_FILE_1, RTLDRLOAD_FLAGS_GLOBAL | RTLDRLOAD_FLAGS_NO_UNLOAD
+                                   | RTLDRLOAD_FLAGS_SO_VER_RANGE(IPRT_LIBPAM_FILE_1_FIRST_VER, IPRT_LIBPAM_FILE_1_END_VER),
+                                   &hModPam);
+# ifdef IPRT_LIBPAM_FILE_2
+        if (RT_FAILURE(rc))
+            rc = RTLdrLoadSystemEx(pszLast = IPRT_LIBPAM_FILE_2, RTLDRLOAD_FLAGS_GLOBAL | RTLDRLOAD_FLAGS_NO_UNLOAD
+                                   | RTLDRLOAD_FLAGS_SO_VER_RANGE(IPRT_LIBPAM_FILE_2_FIRST_VER, IPRT_LIBPAM_FILE_2_END_VER),
+                                   &hModPam);
+# endif
+# ifdef IPRT_LIBPAM_FILE_3
+        if (RT_FAILURE(rc))
+            rc = RTLdrLoadSystemEx(pszLast = IPRT_LIBPAM_FILE_3, RTLDRLOAD_FLAGS_GLOBAL | RTLDRLOAD_FLAGS_NO_UNLOAD
+                                   | RTLDRLOAD_FLAGS_SO_VER_RANGE(IPRT_LIBPAM_FILE_3_FIRST_VER, IPRT_LIBPAM_FILE_3_END_VER),
+                                   &hModPam);
+# endif
+        if (RT_FAILURE(rc))
+        {
+            LogRelMax(10, ("failed to load %s: %Rrc\n", pszLast, rc));
+            return VERR_AUTHENTICATION_FAILURE;
+        }
+
+        *(uintptr_t *)&s_pfnPamStart        = (uintptr_t)RTLdrGetFunction(hModPam, "pam_start");
+        *(uintptr_t *)&s_pfnPamAuthenticate = (uintptr_t)RTLdrGetFunction(hModPam, "pam_authenticate");
+        *(uintptr_t *)&s_pfnPamAcctMgmt     = (uintptr_t)RTLdrGetFunction(hModPam, "pam_acct_mgmt");
+        *(uintptr_t *)&s_pfnPamSetItem      = (uintptr_t)RTLdrGetFunction(hModPam, "pam_set_item");
+        *(uintptr_t *)&s_pfnPamSetCred      = (uintptr_t)RTLdrGetFunction(hModPam, "pam_setcred");
+        *(uintptr_t *)&s_pfnPamGetEnvList   = (uintptr_t)RTLdrGetFunction(hModPam, "pam_getenvlist");
+        *(uintptr_t *)&s_pfnPamOpenSession  = (uintptr_t)RTLdrGetFunction(hModPam, "pam_open_session");
+        *(uintptr_t *)&s_pfnPamCloseSession = (uintptr_t)RTLdrGetFunction(hModPam, "pam_close_session");
+        *(uintptr_t *)&s_pfnPamEnd          = (uintptr_t)RTLdrGetFunction(hModPam, "pam_end");
+        ASMCompilerBarrier();
+
+        RTLdrClose(hModPam);
+
+        if (   s_pfnPamStart == NULL
+            || s_pfnPamAuthenticate == NULL
+            || s_pfnPamAcctMgmt == NULL
+            || s_pfnPamSetItem == NULL
+            || s_pfnPamEnd == NULL)
+        {
+            LogRelMax(10, ("failed to resolve symbols: %p %p %p %p %p\n",
+                           s_pfnPamStart, s_pfnPamAuthenticate, s_pfnPamAcctMgmt, s_pfnPamSetItem, s_pfnPamEnd));
+            return VERR_AUTHENTICATION_FAILURE;
+        }
+    }
+
+# define pam_start           s_pfnPamStart
+# define pam_authenticate    s_pfnPamAuthenticate
+# define pam_acct_mgmt       s_pfnPamAcctMgmt
+# define pam_set_item        s_pfnPamSetItem
+# define pam_setcred         s_pfnPamSetCred
+# define pam_getenvlist      s_pfnPamGetEnvList
+# define pam_open_session    s_pfnPamOpenSession
+# define pam_close_session   s_pfnPamCloseSession
+# define pam_end             s_pfnPamEnd
+
+    /*
+     * Do the PAM stuff.
+     */
+    pam_handle_t   *hPam        = NULL;
+    RTPROCPAMARGS   PamConvArgs = { pszUser, pszPassword };
+    struct pam_conv PamConversation;
+    RT_ZERO(PamConversation);
+    PamConversation.appdata_ptr = &PamConvArgs;
+    PamConversation.conv        = rtPamConv;
+    int rc = pam_start(pszPamService, pszUser, &PamConversation, &hPam);
+    if (rc == PAM_SUCCESS)
+    {
+        rc = pam_set_item(hPam, PAM_RUSER, pszUser);
+        if (rc == PAM_SUCCESS)
+        {
+            if (pfMayFallBack)
+                *pfMayFallBack = false;
+            rc = pam_authenticate(hPam, 0);
+            if (rc == PAM_SUCCESS)
+            {
+                rc = pam_acct_mgmt(hPam, 0);
+                if (   rc == PAM_SUCCESS
+                    || rc == PAM_AUTHINFO_UNAVAIL /*??*/)
+                {
+                    if (   ppapszEnv
+                        && s_pfnPamGetEnvList
+                        && s_pfnPamSetCred)
+                    {
+                        /* pam_env.so creates the environment when pam_setcred is called,. */
+                        int rcSetCred = pam_setcred(hPam, PAM_ESTABLISH_CRED | PAM_SILENT);
+                        /** @todo check pam_setcred status code? */
+
+                        /* Unless it does it during session opening (Ubuntu 21.10).  This
+                           unfortunately means we might mount user dir and other crap: */
+                        /** @todo do session handling properly   */
+                        int rcOpenSession = PAM_ABORT;
+                        if (   s_pfnPamOpenSession
+                            && s_pfnPamCloseSession)
+                            rcOpenSession = pam_open_session(hPam, PAM_SILENT);
+
+                        *ppapszEnv = pam_getenvlist(hPam);
+                        LogFlowFunc(("pam_getenvlist -> %p ([0]=%p); rcSetCred=%d rcOpenSession=%d\n",
+                                     *ppapszEnv, *ppapszEnv ? **ppapszEnv : NULL, rcSetCred, rcOpenSession)); RT_NOREF(rcSetCred);
+
+                        if (rcOpenSession == PAM_SUCCESS)
+                            pam_close_session(hPam, PAM_SILENT);
+                        pam_setcred(hPam, PAM_DELETE_CRED);
+                    }
+
+                    pam_end(hPam, PAM_SUCCESS);
+                    LogFlowFunc(("pam auth (for %s) successful\n", pszPamService));
+                    return VINF_SUCCESS;
+                }
+                LogFunc(("pam_acct_mgmt -> %d\n", rc));
+            }
+            else
+                LogFunc(("pam_authenticate -> %d\n", rc));
+        }
+        else
+            LogFunc(("pam_set_item/PAM_RUSER -> %d\n", rc));
+        pam_end(hPam, rc);
+    }
+    else
+        LogFunc(("pam_start(%s) -> %d\n", pszPamService, rc));
+    return VERR_AUTHENTICATION_FAILURE;
+}
+
+
+/**
+ * Checks if the given service file is present in any of the pam.d directories.
+ */
+static bool rtProcPosixPamServiceExists(const char *pszService)
+{
+    char szPath[256];
+
+    /* PAM_CONFIG_D: */
+    int rc = RTPathJoin(szPath, sizeof(szPath), "/etc/pam.d/", pszService); AssertRC(rc);
+    if (RTFileExists(szPath))
+        return true;
+
+    /* PAM_CONFIG_DIST_D: */
+    rc = RTPathJoin(szPath, sizeof(szPath), "/usr/lib/pam.d/", pszService); AssertRC(rc);
+    if (RTFileExists(szPath))
+        return true;
+
+    /* No support for PAM_CONFIG_DIST2_D. */
+    return false;
+}
+
 #endif /* IPRT_USE_PAM */
 
 
-#if defined(IPRT_WITH_DYNAMIC_CRYPT_R) && !defined(IPRT_USE_PAM)
+#if defined(IPRT_WITH_DYNAMIC_CRYPT_R)
 /** Pointer to crypt_r(). */
 typedef char *(*PFNCRYPTR)(const char *, const char *, struct crypt_data *);
 
@@ -228,27 +474,45 @@ static char *rtProcDynamicCryptR(const char *pszKey, const char *pszSalt, struct
 #endif /* IPRT_WITH_DYNAMIC_CRYPT_R */
 
 
+/** Free the environment list returned by rtCheckCredentials. */
+static void rtProcPosixFreePamEnv(char **papszEnv)
+{
+    if (papszEnv)
+    {
+        for (size_t i = 0; papszEnv[i] != NULL; i++)
+            free(papszEnv[i]);
+        free(papszEnv);
+    }
+}
+
+
 /**
  * Check the credentials and return the gid/uid of user.
  *
- * @param    pszUser     username
- * @param    pszPasswd   password
- * @param    gid         where to store the GID of the user
- * @param    uid         where to store the UID of the user
+ * @param    pszUser    The username.
+ * @param    pszPasswd  The password to authenticate with.
+ * @param    gid        Where to store the GID of the user.
+ * @param    uid        Where to store the UID of the user.
+ * @param    ppapszEnv  Where to return PAM environment variables, NULL is fine
+ *                      if no variables to return. Call rtProcPosixFreePamEnv to
+ *                      free. Optional, so NULL can be passed in.
  * @returns IPRT status code
  */
-static int rtCheckCredentials(const char *pszUser, const char *pszPasswd, gid_t *pGid, uid_t *pUid)
+static int rtCheckCredentials(const char *pszUser, const char *pszPasswd, gid_t *pGid, uid_t *pUid, char ***ppapszEnv)
 {
-#ifdef IPRT_USE_PAM
-    RTLogPrintf("rtCheckCredentials\n");
+    Log(("rtCheckCredentials: pszUser=%s\n", pszUser));
+    int rc;
+
+    if (ppapszEnv)
+        *ppapszEnv = NULL;
 
     /*
      * Resolve user to UID and GID.
      */
-    char            szBuf[_4K];
+    char            achBuf[_4K];
     struct passwd   Pw;
     struct passwd  *pPw;
-    if (getpwnam_r(pszUser, &Pw, szBuf, sizeof(szBuf), &pPw) != 0)
+    if (getpwnam_r(pszUser, &Pw, achBuf, sizeof(achBuf), &pPw) != 0)
         return VERR_AUTHENTICATION_FAILURE;
     if (!pPw)
         return VERR_AUTHENTICATION_FAILURE;
@@ -256,120 +520,56 @@ static int rtCheckCredentials(const char *pszUser, const char *pszPasswd, gid_t 
     *pUid = pPw->pw_uid;
     *pGid = pPw->pw_gid;
 
+#ifdef IPRT_USE_PAM
     /*
-     * Use PAM for the authentication.
-     * Note! libpam.2.dylib was introduced with 10.6.x (OpenPAM).
+     * Try authenticate using PAM, and falling back on crypto if allowed.
      */
-    void *hModPam = dlopen(IPRT_LIBPAM_FILE, RTLD_LAZY | RTLD_GLOBAL);
-    if (hModPam)
+    const char *pszService = "iprt-as-user";
+    if (!rtProcPosixPamServiceExists("iprt-as-user"))
+# ifdef IPRT_PAM_NATIVE_SERVICE_NAME_AS_USER
+        pszService = IPRT_PAM_NATIVE_SERVICE_NAME_AS_USER;
+# else
+        pszService = "login";
+# endif
+    bool fMayFallBack = false;
+    rc = rtProcPosixAuthenticateUsingPam(pszService, pszUser, pszPasswd, ppapszEnv, &fMayFallBack);
+    if (RT_SUCCESS(rc) || !fMayFallBack)
     {
-        int (*pfnPamStart)(const char *, const char *, struct pam_conv *, pam_handle_t **);
-        int (*pfnPamAuthenticate)(pam_handle_t *, int);
-        int (*pfnPamAcctMgmt)(pam_handle_t *, int);
-        int (*pfnPamSetItem)(pam_handle_t *, int, const void *);
-        int (*pfnPamEnd)(pam_handle_t *, int);
-        *(void **)&pfnPamStart        = dlsym(hModPam, "pam_start");
-        *(void **)&pfnPamAuthenticate = dlsym(hModPam, "pam_authenticate");
-        *(void **)&pfnPamAcctMgmt     = dlsym(hModPam, "pam_acct_mgmt");
-        *(void **)&pfnPamSetItem      = dlsym(hModPam, "pam_set_item");
-        *(void **)&pfnPamEnd          = dlsym(hModPam, "pam_end");
-        ASMCompilerBarrier();
-        if (   pfnPamStart
-            && pfnPamAuthenticate
-            && pfnPamAcctMgmt
-            && pfnPamSetItem
-            && pfnPamEnd)
-        {
-# define pam_start           pfnPamStart
-# define pam_authenticate    pfnPamAuthenticate
-# define pam_acct_mgmt       pfnPamAcctMgmt
-# define pam_set_item        pfnPamSetItem
-# define pam_end             pfnPamEnd
-
-            /* Do the PAM stuff. */
-            pam_handle_t   *hPam        = NULL;
-            RTPROCPAMARGS   PamConvArgs = { pszUser, pszPasswd };
-            struct pam_conv PamConversation;
-            RT_ZERO(PamConversation);
-            PamConversation.appdata_ptr = &PamConvArgs;
-            PamConversation.conv        = rtPamConv;
-            int rc = pam_start(IPRT_PAM_SERVICE_NAME, pszUser, &PamConversation, &hPam);
-            if (rc == PAM_SUCCESS)
-            {
-                rc = pam_set_item(hPam, PAM_RUSER, pszUser);
-                if (rc == PAM_SUCCESS)
-                    rc = pam_authenticate(hPam, 0);
-                if (rc == PAM_SUCCESS)
-                {
-                    rc = pam_acct_mgmt(hPam, 0);
-                    if (   rc == PAM_SUCCESS
-                        || rc == PAM_AUTHINFO_UNAVAIL /*??*/)
-                    {
-                        pam_end(hPam, PAM_SUCCESS);
-                        dlclose(hModPam);
-                        return VINF_SUCCESS;
-                    }
-                    Log(("rtCheckCredentials: pam_acct_mgmt -> %d\n", rc));
-                }
-                else
-                    Log(("rtCheckCredentials: pam_authenticate -> %d\n", rc));
-                pam_end(hPam, rc);
-            }
-            else
-                Log(("rtCheckCredentials: pam_start -> %d\n", rc));
-        }
-        else
-            Log(("rtCheckCredentials: failed to resolve symbols: %p %p %p %p %p\n",
-                 pfnPamStart, pfnPamAuthenticate, pfnPamAcctMgmt, pfnPamSetItem, pfnPamEnd));
-        dlclose(hModPam);
+        RTMemWipeThoroughly(achBuf, sizeof(achBuf), 3);
+        return rc;
     }
-    else
-        Log(("rtCheckCredentials: Loading " IPRT_LIBPAM_FILE " failed\n"));
-    return VERR_AUTHENTICATION_FAILURE;
+#endif
 
-#else
-    /*
-     * Lookup the user in /etc/passwd first.
-     *
-     * Note! On FreeBSD and OS/2 the root user will open /etc/shadow here, so
-     *       the getspnam_r step is not necessary.
-     */
-    struct passwd  Pwd;
-    char           szBuf[_4K];
-    struct passwd *pPwd = NULL;
-    if (getpwnam_r(pszUser, &Pwd, szBuf, sizeof(szBuf), &pPwd) != 0)
-        return VERR_AUTHENTICATION_FAILURE;
-    if (pPwd == NULL)
-        return VERR_AUTHENTICATION_FAILURE;
-
+#if !defined(IPRT_USE_PAM) || defined(RT_OS_LINUX) || defined(RT_OS_SOLARIS) || defined(RT_OS_OS2)
 # if defined(RT_OS_LINUX) || defined(RT_OS_SOLARIS)
     /*
      * Ditto for /etc/shadow and replace pw_passwd from above if we can access it:
+     *
+     * Note! On FreeBSD and OS/2 the root user will open /etc/shadow above, so
+     *       this getspnam_r step is not necessary.
      */
     struct spwd  ShwPwd;
-    char         szBuf2[_4K];
+    char         achBuf2[_4K];
 #  if defined(RT_OS_LINUX)
     struct spwd *pShwPwd = NULL;
-    if (getspnam_r(pszUser, &ShwPwd, szBuf2, sizeof(szBuf2), &pShwPwd) != 0)
+    if (getspnam_r(pszUser, &ShwPwd, achBuf2, sizeof(achBuf2), &pShwPwd) != 0)
         pShwPwd = NULL;
 #  else
-    struct spwd *pShwPwd = getspnam_r(pszUser, &ShwPwd, szBuf2, sizeof(szBuf2));
+    struct spwd *pShwPwd = getspnam_r(pszUser, &ShwPwd, achBuf2, sizeof(achBuf2));
 #  endif
     if (pShwPwd != NULL)
-        pPwd->pw_passwd = pShwPwd->sp_pwdp;
+        pPw->pw_passwd = pShwPwd->sp_pwdp;
 # endif
 
     /*
      * Encrypt the passed in password and see if it matches.
      */
-# if !defined(RT_OS_LINUX)
-    int rc;
-# else
-    /* Default fCorrect=true if no password specified. In that case, pPwd->pw_passwd
+# if defined(RT_OS_LINUX)
+    /* Default fCorrect=true if no password specified. In that case, pPw->pw_passwd
        must be NULL (no password set for this user). Fail if a password is specified
        but the user does not have one assigned. */
-    int rc = !pszPasswd || !*pszPasswd ? VINF_SUCCESS : VERR_AUTHENTICATION_FAILURE;
-    if (pPwd->pw_passwd && *pPwd->pw_passwd)
+    rc = !pszPasswd || !*pszPasswd ? VINF_SUCCESS : VERR_AUTHENTICATION_FAILURE;
+    if (pPw->pw_passwd && *pPw->pw_passwd)
 # endif
     {
 # if defined(RT_OS_LINUX) || defined(RT_OS_OS2)
@@ -382,19 +582,19 @@ static int rtCheckCredentials(const char *pszUser, const char *pszPasswd, gid_t 
         if (pCryptData)
         {
 #  ifdef IPRT_WITH_DYNAMIC_CRYPT_R
-            char *pszEncPasswd = rtProcDynamicCryptR(pszPasswd, pPwd->pw_passwd, pCryptData);
+            char *pszEncPasswd = rtProcDynamicCryptR(pszPasswd, pPw->pw_passwd, pCryptData);
 #  else
-            char *pszEncPasswd = crypt_r(pszPasswd, pPwd->pw_passwd, pCryptData);
+            char *pszEncPasswd = crypt_r(pszPasswd, pPw->pw_passwd, pCryptData);
 #  endif
-            rc = pszEncPasswd && !strcmp(pszEncPasswd, pPwd->pw_passwd) ? VINF_SUCCESS : VERR_AUTHENTICATION_FAILURE;
+            rc = pszEncPasswd && !strcmp(pszEncPasswd, pPw->pw_passwd) ? VINF_SUCCESS : VERR_AUTHENTICATION_FAILURE;
             RTMemWipeThoroughly(pCryptData, cbCryptData, 3);
             RTMemTmpFree(pCryptData);
         }
         else
             rc = VERR_NO_TMP_MEMORY;
 # else
-        char *pszEncPasswd = crypt(pszPasswd, pPwd->pw_passwd);
-        rc = strcmp(pszEncPasswd, pPwd->pw_passwd) == 0 ? VINF_SUCCESS : VERR_AUTHENTICATION_FAILURE;
+        char *pszEncPasswd = crypt(pszPasswd, pPw->pw_passwd);
+        rc = strcmp(pszEncPasswd, pPw->pw_passwd) == 0 ? VINF_SUCCESS : VERR_AUTHENTICATION_FAILURE;
 # endif
     }
 
@@ -403,15 +603,15 @@ static int rtCheckCredentials(const char *pszUser, const char *pszPasswd, gid_t 
      */
     if (RT_SUCCESS(rc))
     {
-        *pGid = pPwd->pw_gid;
-        *pUid = pPwd->pw_uid;
+        *pGid = pPw->pw_gid;
+        *pUid = pPw->pw_uid;
     }
-    RTMemWipeThoroughly(szBuf, sizeof(szBuf), 3);
 # if defined(RT_OS_LINUX) || defined(RT_OS_SOLARIS)
-    RTMemWipeThoroughly(szBuf2, sizeof(szBuf2), 3);
+    RTMemWipeThoroughly(achBuf2, sizeof(achBuf2), 3);
 # endif
-    return rc;
 #endif
+    RTMemWipeThoroughly(achBuf, sizeof(achBuf), 3);
+    return rc;
 }
 
 #ifdef RT_OS_SOLARIS
@@ -541,7 +741,7 @@ static int rtProcPosixAdjustProfileEnvFromChild(RTENV hEnvToUse, uint32_t fFlags
     if (   RT_SUCCESS(rc)
         && (!(fFlags & RTPROC_FLAGS_ENV_CHANGE_RECORD) || RTEnvExistEx(hEnv, "TMPDIR")) )
     {
-        char szValue[_4K];
+        char szValue[RTPATH_MAX];
         size_t cbNeeded = confstr(_CS_DARWIN_USER_TEMP_DIR, szValue, sizeof(szValue));
         if (cbNeeded > 0 && cbNeeded < sizeof(szValue))
         {
@@ -564,72 +764,548 @@ static int rtProcPosixAdjustProfileEnvFromChild(RTENV hEnvToUse, uint32_t fFlags
 
 
 /**
- * Create a very very basic environment for a user.
+ * Undos quoting and escape sequences and looks for stop characters.
+ *
+ * @returns Where to continue scanning in @a pszString.  This points to the
+ *          next character after the stop character, but for the zero terminator
+ *          it points to the terminator character.
+ * @param   pszString           The string to undo quoting and escaping for.
+ *                              This is both input and output as the work is
+ *                              done in place.
+ * @param   pfStoppedOnEqual    Where to return whether we stopped work on a
+ *                              plain equal characater or not.  If this is NULL,
+ *                              then the equal character is not a stop
+ *                              character, then only newline and the zero
+ *                              terminator are.
+ */
+static char *rtProcPosixProfileEnvUnquoteAndUnescapeString(char *pszString, bool *pfStoppedOnEqual)
+{
+    if (pfStoppedOnEqual)
+        *pfStoppedOnEqual = false;
+
+    enum { kPlain, kSingleQ, kDoubleQ } enmState = kPlain;
+    char *pszDst = pszString;
+    for (;;)
+    {
+        char ch = *pszString++;
+        switch (ch)
+        {
+            default:
+                *pszDst++ = ch;
+                break;
+
+            case '\\':
+            {
+                char ch2;
+                if (   enmState == kSingleQ
+                    || (ch2 = *pszString) == '\0'
+                    || (enmState == kDoubleQ && strchr("\\$`\"\n", ch2) == NULL) )
+                    *pszDst++ = ch;
+                else
+                {
+                    *pszDst++ = ch2;
+                    pszString++;
+                }
+                break;
+            }
+
+            case '"':
+                if (enmState == kSingleQ)
+                    *pszDst++ = ch;
+                else
+                    enmState = enmState == kPlain ? kDoubleQ : kPlain;
+                break;
+
+            case '\'':
+                if (enmState == kDoubleQ)
+                    *pszDst++ = ch;
+                else
+                    enmState = enmState == kPlain ? kSingleQ : kPlain;
+                break;
+
+            case '\n':
+                if (enmState == kPlain)
+                {
+                    *pszDst = '\0';
+                    return pszString;
+                }
+                *pszDst++ = ch;
+                break;
+
+            case '=':
+                if (enmState == kPlain && pfStoppedOnEqual)
+                {
+                    *pszDst = '\0';
+                    *pfStoppedOnEqual = true;
+                    return pszString;
+                }
+                *pszDst++ = ch;
+                break;
+
+            case '\0':
+                Assert(enmState == kPlain);
+                *pszDst = '\0';
+                return pszString - 1;
+        }
+    }
+}
+
+
+/**
+ * Worker for rtProcPosixProfileEnvRunAndHarvest that parses the environment
+ * dump and loads it into hEnvToUse.
+ *
+ * @note    This isn't entirely correct should any of the profile setup scripts
+ *          unset any of the environment variables in the basic initial
+ *          enviornment, but since that's unlikely and it's very convenient to
+ *          have something half sensible as a basis if don't don't grok the dump
+ *          entirely and would skip central stuff like PATH or HOME.
+ *
+ * @returns IPRT status code.
+ * @retval  -VERR_PARSE_ERROR (positive, e.g. warning) if we run into trouble.
+ * @retval  -VERR_INVALID_UTF8_ENCODING (positive, e.g. warning) if there are
+ *          invalid UTF-8 in the environment.  This isn't unlikely if the
+ *          profile doesn't use UTF-8.  This is unfortunately not something we
+ *          can guess to accurately up front, so we don't do any guessing and
+ *          hope everyone is sensible and use UTF-8.
+ *
+ * @param   hEnvToUse       The basic environment to extend with what we manage
+ *                          to parse here.
+ * @param   pszEnvDump      The environment dump to parse.  Nominally in Bourne
+ *                          shell 'export -p' format.
+ * @param   fWithMarkers    Whether there are markers around the dump (C shell,
+ *                          tmux) or not.
+ */
+static int rtProcPosixProfileEnvHarvest(RTENV hEnvToUse, char *pszEnvDump, bool fWithMarkers)
+{
+    LogRel3(("**** pszEnvDump start ****\n%s**** pszEnvDump end ****\n", pszEnvDump));
+    if (!LogIs3Enabled())
+        LogFunc(("**** pszEnvDump start ****\n%s**** pszEnvDump end ****\n", pszEnvDump));
+
+    /*
+     * Clip dump at markers if we're using them (C shell).
+     */
+    if (fWithMarkers)
+    {
+        char *pszStart = strstr(pszEnvDump, g_szEnvMarkerBegin);
+        AssertReturn(pszStart, -VERR_PARSE_ERROR);
+        pszStart += sizeof(g_szEnvMarkerBegin) - 1;
+        if (*pszStart == '\n')
+            pszStart++;
+        pszEnvDump = pszStart;
+
+        char *pszEnd = strstr(pszStart, g_szEnvMarkerEnd);
+        AssertReturn(pszEnd, -VERR_PARSE_ERROR);
+        *pszEnd = '\0';
+    }
+
+    /*
+     * Since we're using /bin/sh -c "export -p" for all the dumping, we should
+     * always get lines on the format:
+     *     export VAR1="Value 1"
+     *     export VAR2=Value2
+     *
+     * However, just in case something goes wrong, like bash doesn't think it
+     * needs to be posixly correct, try deal with the alternative where
+     * "declare -x " replaces the "export".
+     */
+    const char *pszPrefix;
+    if (   strncmp(pszEnvDump, RT_STR_TUPLE("export")) == 0
+        && RT_C_IS_BLANK(pszEnvDump[6]))
+        pszPrefix = "export ";
+    else if (   strncmp(pszEnvDump, RT_STR_TUPLE("declare")) == 0
+             && RT_C_IS_BLANK(pszEnvDump[7])
+             && pszEnvDump[8] == '-')
+        pszPrefix = "declare -x "; /* We only need to care about the non-array, non-function lines. */
+    else
+        AssertFailedReturn(-VERR_PARSE_ERROR);
+    size_t const cchPrefix = strlen(pszPrefix);
+
+    /*
+     * Process the lines, ignoring stuff which we don't grok.
+     * The shell should quote problematic characters. Bash double quotes stuff
+     * by default, whereas almquist's shell does it as needed and only the value
+     * side.
+     */
+    int rc = VINF_SUCCESS;
+    while (pszEnvDump && *pszEnvDump != '\0')
+    {
+        /*
+         * Skip the prefixing command.
+         */
+        if (   cchPrefix == 0
+            || strncmp(pszEnvDump, pszPrefix, cchPrefix) == 0)
+        {
+            pszEnvDump += cchPrefix;
+            while (RT_C_IS_BLANK(*pszEnvDump))
+                pszEnvDump++;
+        }
+        else
+        {
+            /* Oops, must find our bearings for some reason... */
+            pszEnvDump = strchr(pszEnvDump, '\n');
+            rc = -VERR_PARSE_ERROR;
+            continue;
+        }
+
+        /*
+         * Parse out the variable name using typical bourne shell escaping
+         * and quoting rules.
+         */
+        /** @todo We should throw away lines that aren't propertly quoted, now we
+         *        just continue and use what we found. */
+        const char *pszVar               = pszEnvDump;
+        bool        fStoppedOnPlainEqual = false;
+        pszEnvDump = rtProcPosixProfileEnvUnquoteAndUnescapeString(pszEnvDump, &fStoppedOnPlainEqual);
+        const char *pszValue             = pszEnvDump;
+        if (fStoppedOnPlainEqual)
+            pszEnvDump = rtProcPosixProfileEnvUnquoteAndUnescapeString(pszEnvDump, NULL /*pfStoppedOnPlainEqual*/);
+        else
+            pszValue = "";
+
+        /*
+         * Add them if valid UTF-8, otherwise we simply drop them for now.
+         * The whole codeset stuff goes seriously wonky here as the environment
+         * we're harvesting probably contains it's own LC_CTYPE or LANG variables,
+         * so ignore the problem for now.
+         */
+        if (   RTStrIsValidEncoding(pszVar)
+            && RTStrIsValidEncoding(pszValue))
+        {
+            int rc2 = RTEnvSetEx(hEnvToUse, pszVar, pszValue);
+            AssertRCReturn(rc2, rc2);
+        }
+        else if (rc == VINF_SUCCESS)
+            rc = -VERR_INVALID_UTF8_ENCODING;
+    }
+
+    return rc;
+}
+
+
+/**
+ * Runs the user's shell in login mode with some environment dumping logic and
+ * harvests the dump, putting it into hEnvToUse.
+ *
+ * This is a bit hairy, esp. with regards to codesets.
+ *
+ * @returns IPRT status code.  Not all error statuses will be returned and the
+ *          caller should just continue with whatever is in hEnvToUse.
+ *
+ * @param   hEnvToUse   On input this is the basic user environment, on success
+ *                      in is fleshed out with stuff from the login shell dump.
+ * @param   pszAsUser   The user name for the profile.
+ * @param   uid         The UID corrsponding to @a pszAsUser, ~0 if current user.
+ * @param   gid         The GID corrsponding to @a pszAsUser, ~0 if current user.
+ * @param   pszShell    The login shell.  This is a writable string to avoid
+ *                      needing to make a copy of it when examining the path
+ *                      part, instead we make a temporary change to it which is
+ *                      always reverted before returning.
+ */
+static int rtProcPosixProfileEnvRunAndHarvest(RTENV hEnvToUse, const char *pszAsUser, uid_t uid, gid_t gid, char *pszShell)
+{
+    LogFlowFunc(("pszAsUser=%s uid=%u gid=%u pszShell=%s; hEnvToUse contains %u variables on entry\n",
+                 pszAsUser, uid, gid, pszShell, RTEnvCountEx(hEnvToUse) ));
+
+    /*
+     * The three standard handles should be pointed to /dev/null, the 3rd handle
+     * is used to dump the environment.
+     */
+    RTPIPE hPipeR, hPipeW;
+    int rc = RTPipeCreate(&hPipeR, &hPipeW, 0);
+    if (RT_SUCCESS(rc))
+    {
+        RTFILE hFileNull;
+        rc = RTFileOpenBitBucket(&hFileNull, RTFILE_O_READWRITE);
+        if (RT_SUCCESS(rc))
+        {
+            int aRedirFds[4];
+            aRedirFds[0] = aRedirFds[1] = aRedirFds[2] = RTFileToNative(hFileNull);
+            aRedirFds[3] = RTPipeToNative(hPipeW);
+
+            /*
+             * Allocate a buffer for receiving the environment dump.
+             *
+             * This is fixed sized for simplicity and safety (creative user script
+             * shouldn't be allowed to exhaust our memory or such, after all we're
+             * most likely running with root privileges in this code path).
+             */
+            size_t const  cbEnvDump  = _64K;
+            char  * const pszEnvDump = (char *)RTMemTmpAllocZ(cbEnvDump);
+            if (pszEnvDump)
+            {
+                /*
+                 * Our default approach is using /bin/sh:
+                 */
+                const char *pszExec = _PATH_BSHELL;
+                const char *apszArgs[8];
+                apszArgs[0] = "-sh";        /* First arg must start with a dash for login shells. */
+                apszArgs[1] = "-c";
+                apszArgs[2] = "POSIXLY_CORRECT=1;export -p >&3";
+                apszArgs[3] = NULL;
+
+                /*
+                 * But see if we can trust the shell to be a real usable shell.
+                 * This would be great as different shell typically has different profile setup
+                 * files and we'll endup with the wrong enviornment if we use a different shell.
+                 */
+                char        szDashShell[32];
+                char        szExportArg[128];
+                bool        fWithMarkers = false;
+                const char *pszShellNm   = RTPathFilename(pszShell);
+                if (   pszShellNm
+                    && access(pszShellNm, X_OK))
+                {
+                    /*
+                     * First the check that it's a known bin directory:
+                     */
+                    size_t const cchShellPath = pszShellNm - pszShell;
+                    char const   chSaved = pszShell[cchShellPath - 1];
+                    pszShell[cchShellPath - 1] = '\0';
+                    if (   RTPathCompare(pszShell, "/bin") == 0
+                        || RTPathCompare(pszShell, "/usr/bin") == 0
+                        || RTPathCompare(pszShell, "/usr/local/bin") == 0)
+                    {
+                        /*
+                         * Then see if we recognize the shell name.
+                         */
+                        RTStrCopy(&szDashShell[1], sizeof(szDashShell) - 1, pszShellNm);
+                        szDashShell[0] = '-';
+                        if (   strcmp(pszShellNm, "bash") == 0
+                            || strcmp(pszShellNm, "ksh") == 0
+                            || strcmp(pszShellNm, "ksh93") == 0
+                            || strcmp(pszShellNm, "zsh") == 0
+                            || strcmp(pszShellNm, "fish") == 0)
+                        {
+                            pszExec      = pszShell;
+                            apszArgs[0]  = szDashShell;
+
+                            /* Use /bin/sh for doing the environment dumping so we get the same kind
+                               of output from everyone and can limit our parsing + testing efforts. */
+                            RTStrPrintf(szExportArg, sizeof(szExportArg),
+                                        "%s -c 'POSIXLY_CORRECT=1;export -p >&3'", _PATH_BSHELL);
+                            apszArgs[2]  = szExportArg;
+                        }
+                        /* C shell is very annoying in that it closes fd 3 without regard to what
+                           we might have put there, so we must use stdout here but with markers so
+                           we can find the dump.
+                           Seems tmux have similar issues as it doesn't work above, but works fine here. */
+                        else if (   strcmp(pszShellNm, "csh") == 0
+                                 || strcmp(pszShellNm, "tcsh") == 0
+                                 || strcmp(pszShellNm, "tmux") == 0)
+                        {
+                            pszExec      = pszShell;
+                            apszArgs[0]  = szDashShell;
+
+                            fWithMarkers = true;
+                            size_t cch = RTStrPrintf(szExportArg, sizeof(szExportArg),
+                                                     "%s -c 'set -e;POSIXLY_CORRECT=1;echo %s;export -p;echo %s'",
+                                                     _PATH_BSHELL, g_szEnvMarkerBegin, g_szEnvMarkerEnd);
+                            Assert(cch < sizeof(szExportArg) - 1); RT_NOREF(cch);
+                            apszArgs[2]  = szExportArg;
+
+                            aRedirFds[1] = aRedirFds[3];
+                            aRedirFds[3] = -1;
+                        }
+                    }
+                    pszShell[cchShellPath - 1] = chSaved;
+                }
+
+                /*
+                 * Create the process and wait for the output.
+                 */
+                LogFunc(("Executing '%s': '%s', '%s', '%s'\n", pszExec, apszArgs[0], apszArgs[1], apszArgs[2]));
+                RTPROCESS hProcess = NIL_RTPROCESS;
+                rc = rtProcPosixCreateInner(pszExec, apszArgs, hEnvToUse, hEnvToUse, 0 /*fFlags*/,
+                                            pszAsUser, uid, gid, RT_ELEMENTS(aRedirFds), aRedirFds, &hProcess);
+                if (RT_SUCCESS(rc))
+                {
+                    RTPipeClose(hPipeW);
+                    hPipeW = NIL_RTPIPE;
+
+                    size_t         offEnvDump = 0;
+                    uint64_t const msStart    = RTTimeMilliTS();
+                    for (;;)
+                    {
+                        size_t cbRead = 0;
+                        if (offEnvDump < cbEnvDump - 1)
+                        {
+                            rc = RTPipeRead(hPipeR, &pszEnvDump[offEnvDump], cbEnvDump - 1 - offEnvDump, &cbRead);
+                            if (RT_SUCCESS(rc))
+                                offEnvDump += cbRead;
+                            else
+                            {
+                                LogFlowFunc(("Breaking out of read loop: %Rrc\n", rc));
+                                if (rc == VERR_BROKEN_PIPE)
+                                    rc = VINF_SUCCESS;
+                                break;
+                            }
+                            pszEnvDump[offEnvDump] = '\0';
+                        }
+                        else
+                        {
+                            LogFunc(("Too much data in environment dump, dropping it\n"));
+                            rc = VERR_TOO_MUCH_DATA;
+                            break;
+                        }
+
+                        /* Do the timout check. */
+                        uint64_t const cMsElapsed = RTTimeMilliTS() - msStart;
+                        if (cMsElapsed >= RT_MS_15SEC)
+                        {
+                            LogFunc(("Timed out after %RU64 ms\n", cMsElapsed));
+                            rc = VERR_TIMEOUT;
+                            break;
+                        }
+
+                        /* If we got no data in above wait for more to become ready. */
+                        if (!cbRead)
+                            RTPipeSelectOne(hPipeR, RT_MS_15SEC - cMsElapsed);
+                    }
+
+                    /*
+                     * Kill the process and wait for it to avoid leaving zombies behind.
+                     */
+                    /** @todo do we check the exit code? */
+                    int rc2 = RTProcWait(hProcess, RTPROCWAIT_FLAGS_NOBLOCK, NULL);
+                    if (RT_SUCCESS(rc2))
+                        LogFlowFunc(("First RTProcWait succeeded\n"));
+                    else
+                    {
+                        LogFunc(("First RTProcWait failed (%Rrc), terminating and doing a blocking wait\n", rc2));
+                        RTProcTerminate(hProcess);
+                        RTProcWait(hProcess, RTPROCWAIT_FLAGS_BLOCK, NULL);
+                    }
+
+                    /*
+                     * Parse the result.
+                     */
+                    if (RT_SUCCESS(rc))
+                        rc = rtProcPosixProfileEnvHarvest(hEnvToUse, pszEnvDump, fWithMarkers);
+                    else
+                    {
+                        LogFunc(("Ignoring rc=%Rrc from the pipe read loop and continues with basic environment\n", rc));
+                        rc = -rc;
+                    }
+                }
+                else
+                    LogFunc(("Failed to create process '%s': %Rrc\n", pszExec, rc));
+                RTMemTmpFree(pszEnvDump);
+            }
+            else
+            {
+                LogFunc(("Failed to allocate %#zx bytes for the dump\n", cbEnvDump));
+                rc = VERR_NO_TMP_MEMORY;
+            }
+            RTFileClose(hFileNull);
+        }
+        else
+            LogFunc(("Failed to open /dev/null: %Rrc\n", rc));
+        RTPipeClose(hPipeR);
+        RTPipeClose(hPipeW);
+    }
+    else
+        LogFunc(("Failed to create pipe: %Rrc\n", rc));
+    LogFlowFunc(("returns %Rrc (hEnvToUse contains %u variables now)\n", rc, RTEnvCountEx(hEnvToUse)));
+    return rc;
+}
+
+
+/**
+ * Create an environment for the given user.
+ *
+ * This starts by creating a very basic environment and then tries to do it
+ * properly by running the user's shell in login mode with some environment
+ * dumping attached.  The latter may fail and we'll ignore that for now and move
+ * ahead with the very basic environment.
  *
  * @returns IPRT status code.
  * @param   phEnvToUse  Where to return the created environment.
- * @param   pszUser     The user name for the profile.
+ * @param   pszAsUser   The user name for the profile.  NULL if the current
+ *                      user.
+ * @param   uid         The UID corrsponding to @a pszAsUser, ~0 if NULL.
+ * @param   gid         The GID corrsponding to @a pszAsUser, ~0 if NULL.
+ * @param   fFlags      RTPROC_FLAGS_XXX
+ * @param   papszPamEnv Array of environment variables returned by PAM, if
+ *                      it was used for authentication and produced anything.
+ *                      Otherwise NULL.
  */
-static int rtProcPosixCreateProfileEnv(PRTENV phEnvToUse, const char *pszUser)
+static int rtProcPosixCreateProfileEnv(PRTENV phEnvToUse, const char *pszAsUser, uid_t uid, gid_t gid,
+                                       uint32_t fFlags, char **papszPamEnv)
 {
+    /*
+     * Get the passwd entry for the user.
+     */
     struct passwd   Pwd;
     struct passwd  *pPwd = NULL;
     char            achBuf[_4K];
     int             rc;
     errno = 0;
-    if (pszUser)
-        rc = getpwnam_r(pszUser, &Pwd, achBuf, sizeof(achBuf), &pPwd);
+    if (pszAsUser)
+        rc = getpwnam_r(pszAsUser, &Pwd, achBuf, sizeof(achBuf), &pPwd);
     else
         rc = getpwuid_r(getuid(), &Pwd, achBuf, sizeof(achBuf), &pPwd);
     if (rc == 0 && pPwd)
     {
+        /*
+         * Convert stuff to UTF-8 since the environment is UTF-8.
+         */
         char *pszDir;
         rc = RTStrCurrentCPToUtf8(&pszDir, pPwd->pw_dir);
         if (RT_SUCCESS(rc))
         {
+#if 0 /* Enable and modify this to test shells other that your login shell. */
+            pPwd->pw_shell = (char *)"/bin/tmux";
+#endif
             char *pszShell;
             rc = RTStrCurrentCPToUtf8(&pszShell, pPwd->pw_shell);
             if (RT_SUCCESS(rc))
             {
-                char *pszUserFree = NULL;
-                if (!pszUser)
+                char *pszAsUserFree = NULL;
+                if (!pszAsUser)
                 {
-                    rc = RTStrCurrentCPToUtf8(&pszUserFree, pPwd->pw_name);
+                    rc = RTStrCurrentCPToUtf8(&pszAsUserFree, pPwd->pw_name);
                     if (RT_SUCCESS(rc))
-                        pszUser = pszUserFree;
+                        pszAsUser = pszAsUserFree;
                 }
                 if (RT_SUCCESS(rc))
                 {
+                    /*
+                     * Create and populate the environment.
+                     */
                     rc = RTEnvCreate(phEnvToUse);
                     if (RT_SUCCESS(rc))
                     {
                         RTENV hEnvToUse = *phEnvToUse;
-
                         rc = RTEnvSetEx(hEnvToUse, "HOME", pszDir);
                         if (RT_SUCCESS(rc))
                             rc = RTEnvSetEx(hEnvToUse, "SHELL", pszShell);
                         if (RT_SUCCESS(rc))
-                            rc = RTEnvSetEx(hEnvToUse, "USER", pszUser);
+                            rc = RTEnvSetEx(hEnvToUse, "USER", pszAsUser);
                         if (RT_SUCCESS(rc))
-                            rc = RTEnvSetEx(hEnvToUse, "LOGNAME", pszUser);
-
+                            rc = RTEnvSetEx(hEnvToUse, "LOGNAME", pszAsUser);
                         if (RT_SUCCESS(rc))
                             rc = RTEnvSetEx(hEnvToUse, "PATH", pPwd->pw_uid == 0 ? _PATH_STDPATH : _PATH_DEFPATH);
-
+                        char szTmpPath[RTPATH_MAX];
                         if (RT_SUCCESS(rc))
                         {
-                            RTStrPrintf(achBuf, sizeof(achBuf), "%s/%s", _PATH_MAILDIR, pszUser);
-                            rc = RTEnvSetEx(hEnvToUse, "MAIL", achBuf);
+                            RTStrPrintf(szTmpPath, sizeof(szTmpPath), "%s/%s", _PATH_MAILDIR, pszAsUser);
+                            rc = RTEnvSetEx(hEnvToUse, "MAIL", szTmpPath);
                         }
-
 #ifdef RT_OS_DARWIN
-                        if (RT_SUCCESS(rc) && !pszUserFree)
+                        if (RT_SUCCESS(rc))
                         {
-                            size_t cbNeeded = confstr(_CS_DARWIN_USER_TEMP_DIR, achBuf, sizeof(achBuf));
-                            if (cbNeeded > 0 && cbNeeded < sizeof(achBuf))
+                            /* TMPDIR is some unique per user directory under /var/folders on darwin,
+                               so get the one for the current user.  If we're launching the process as
+                               a different user, rtProcPosixAdjustProfileEnvFromChild will update it
+                               again for the actual child process user (provided we set it here). See
+                               https://opensource.apple.com/source/Libc/Libc-997.1.1/darwin/_dirhelper.c
+                               for the implementation of this query. */
+                            size_t cbNeeded = confstr(_CS_DARWIN_USER_TEMP_DIR, szTmpPath, sizeof(szTmpPath));
+                            if (cbNeeded > 0 && cbNeeded < sizeof(szTmpPath))
                             {
                                 char *pszTmp;
-                                rc = RTStrCurrentCPToUtf8(&pszTmp, achBuf);
+                                rc = RTStrCurrentCPToUtf8(&pszTmp, szTmpPath);
                                 if (RT_SUCCESS(rc))
                                 {
                                     rc = RTEnvSetEx(hEnvToUse, "TMPDIR", pszTmp);
@@ -640,13 +1316,45 @@ static int rtProcPosixCreateProfileEnv(PRTENV phEnvToUse, const char *pszUser)
                                 rc = VERR_BUFFER_OVERFLOW;
                         }
 #endif
-
-                        /** @todo load /etc/environment, /etc/profile.env and ~/.pam_environment? */
+                        /*
+                         * Add everything from the PAM environment.
+                         */
+                        if (RT_SUCCESS(rc) && papszPamEnv != NULL)
+                            for (size_t i = 0; papszPamEnv[i] != NULL && RT_SUCCESS(rc); i++)
+                            {
+                                char *pszEnvVar;
+                                rc = RTStrCurrentCPToUtf8(&pszEnvVar, papszPamEnv[i]);
+                                if (RT_SUCCESS(rc))
+                                {
+                                    char *pszValue = strchr(pszEnvVar, '=');
+                                    if (pszValue)
+                                        *pszValue++ = '\0';
+                                    rc = RTEnvSetEx(hEnvToUse, pszEnvVar, pszValue ? pszValue : "");
+                                    RTStrFree(pszEnvVar);
+                                }
+                                /* Ignore conversion issue, though LogRel them. */
+                                else if (rc != VERR_NO_STR_MEMORY && rc != VERR_NO_MEMORY)
+                                {
+                                    LogRelMax(256, ("RTStrCurrentCPToUtf8(,%.*Rhxs) -> %Rrc\n", strlen(pszEnvVar), pszEnvVar, rc));
+                                    rc = -rc;
+                                }
+                            }
+                        if (RT_SUCCESS(rc))
+                        {
+                            /*
+                             * Now comes the fun part where we need to try run a shell in login mode
+                             * and harvest its final environment to get the proper environment for
+                             * the user.  We ignore some failures here so buggy login scrips and
+                             * other weird stuff won't trip us up too badly.
+                             */
+                            if (!(fFlags & RTPROC_FLAGS_ONLY_BASIC_PROFILE))
+                                rc = rtProcPosixProfileEnvRunAndHarvest(hEnvToUse, pszAsUser, uid, gid, pszShell);
+                        }
 
                         if (RT_FAILURE(rc))
                             RTEnvDestroy(hEnvToUse);
                     }
-                    RTStrFree(pszUserFree);
+                    RTStrFree(pszAsUserFree);
                 }
                 RTStrFree(pszShell);
             }
@@ -660,30 +1368,177 @@ static int rtProcPosixCreateProfileEnv(PRTENV phEnvToUse, const char *pszUser)
 
 
 /**
+ * Converts the arguments to the child's LC_CTYPE charset if necessary.
+ *
+ * @returns IPRT status code.
+ * @param   papszArgs   The arguments (UTF-8).
+ * @param   hEnvToUse   The child process environment.
+ * @param   ppapszArgs  Where to return the converted arguments.  The array
+ *                      entries must be freed by RTStrFree and the array itself
+ *                      by RTMemFree.
+ */
+static int rtProcPosixConvertArgv(const char * const *papszArgs, RTENV hEnvToUse, char ***ppapszArgs)
+{
+    *ppapszArgs = (char **)papszArgs;
+
+    /*
+     * The first thing we need to do here is to try guess the codeset of the
+     * child process and check if it's UTF-8 or not.
+     */
+    const char *pszEncoding;
+    char        szEncoding[512];
+    if (hEnvToUse == RTENV_DEFAULT)
+    {
+        /* Same environment as us, assume setlocale is up to date: */
+        pszEncoding = rtStrGetLocaleCodeset();
+    }
+    else
+    {
+        /* LC_ALL overrides everything else.*/
+        /** @todo I don't recall now if this can do LC_XXX= inside it's value, like
+         *        what setlocale returns on some systems.  It's been 15-16 years
+         *        since I last worked on an setlocale implementation... */
+        const char *pszVar;
+        int rc = RTEnvGetEx(hEnvToUse, pszVar = "LC_ALL", szEncoding, sizeof(szEncoding), NULL);
+        if (rc == VERR_ENV_VAR_NOT_FOUND)
+            rc = RTEnvGetEx(hEnvToUse, pszVar = "LC_CTYPE", szEncoding, sizeof(szEncoding), NULL);
+        if (rc == VERR_ENV_VAR_NOT_FOUND)
+            rc = RTEnvGetEx(hEnvToUse, pszVar = "LANG", szEncoding, sizeof(szEncoding), NULL);
+        if (RT_SUCCESS(rc))
+        {
+            const char *pszDot = strchr(szEncoding, '.');
+            if (pszDot)
+                pszDot = RTStrStripL(pszDot + 1);
+            if (pszDot && *pszDot)
+            {
+                pszEncoding = pszDot;
+                Log2Func(("%s=%s -> %s (simple)\n", pszVar, szEncoding, pszEncoding));
+            }
+            else
+            {
+                 /* No charset is given, so the default of the locale should be
+                    used.  To get at that we have to use newlocale and nl_langinfo_l,
+                    which is there since ancient days on linux but no necessarily else
+                    where. */
+#ifdef LC_CTYPE_MASK
+                locale_t hLocale = newlocale(LC_CTYPE_MASK, szEncoding, (locale_t)0);
+                if (hLocale != (locale_t)0)
+                {
+                    const char *pszCodeset = nl_langinfo_l(CODESET, hLocale);
+                    Log2Func(("nl_langinfo_l(CODESET, %s=%s) -> %s\n", pszVar, szEncoding, pszCodeset));
+                    Assert(pszCodeset && *pszCodeset != '\0');
+
+                    rc = RTStrCopy(szEncoding, sizeof(szEncoding), pszCodeset);
+                    AssertRC(rc); /* cannot possibly overflow */
+
+                    freelocale(hLocale);
+                    pszEncoding = szEncoding;
+                }
+                else
+#endif
+                {
+                    /* This is mostly wrong, but I cannot think of anything better now: */
+                    pszEncoding = rtStrGetLocaleCodeset();
+                    LogFunc(("No newlocale or it failed (on '%s=%s', errno=%d), falling back on %s that we're using...\n",
+                             pszVar, szEncoding, errno, pszEncoding));
+                }
+            }
+            RT_NOREF_PV(pszVar);
+        }
+        else
+            pszEncoding = "ASCII";
+    }
+
+    /*
+     * Do nothing if it's UTF-8.
+     */
+    if (rtStrIsCodesetUtf8(pszEncoding))
+    {
+        LogFlowFunc(("No conversion needed (%s)\n", pszEncoding));
+        return VINF_SUCCESS;
+    }
+
+
+    /*
+     * Do the conversion.
+     */
+    size_t cArgs = 0;
+    while (papszArgs[cArgs] != NULL)
+        cArgs++;
+    LogFunc(("Converting #%u arguments to %s...\n", cArgs, pszEncoding));
+
+    char **papszArgsConverted = (char **)RTMemAllocZ(sizeof(papszArgsConverted[0]) * (cArgs + 2));
+    AssertReturn(papszArgsConverted, VERR_NO_MEMORY);
+
+    void *pvConversionCache = NULL;
+    rtStrLocalCacheInit(&pvConversionCache);
+    for (size_t i = 0; i < cArgs; i++)
+    {
+        int rc = rtStrLocalCacheConvert(papszArgs[i], strlen(papszArgs[i]), "UTF-8",
+                                        &papszArgsConverted[i], 0, pszEncoding, &pvConversionCache);
+        if (RT_SUCCESS(rc) && rc != VWRN_NO_TRANSLATION)
+        { /* likely */ }
+        else
+        {
+            LogRelMax(100, ("Failed to convert argument #%u '%s' to '%s': %Rrc\n", i, papszArgs[i], pszEncoding, rc));
+            while (i-- > 0)
+                RTStrFree(papszArgsConverted[i]);
+            RTMemFree(papszArgsConverted);
+            rtStrLocalCacheDelete(&pvConversionCache);
+            return rc == VWRN_NO_TRANSLATION || rc == VERR_NO_TRANSLATION ? VERR_PROC_NO_ARG_TRANSLATION : rc;
+        }
+    }
+
+    rtStrLocalCacheDelete(&pvConversionCache);
+    *ppapszArgs = papszArgsConverted;
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * The result structure for rtPathFindExec/RTPathTraverseList.
+ * @todo move to common path code?
+ */
+typedef struct RTPATHINTSEARCH
+{
+    /** For EACCES or EPERM errors that we continued on.
+     * @note Must be initialized to VINF_SUCCESS. */
+    int  rcSticky;
+    /** Buffer containing the filename. */
+    char szFound[RTPATH_MAX];
+} RTPATHINTSEARCH;
+/** Pointer to a rtPathFindExec/RTPathTraverseList result. */
+typedef RTPATHINTSEARCH *PRTPATHINTSEARCH;
+
+
+/**
  * RTPathTraverseList callback used by RTProcCreateEx to locate the executable.
  */
 static DECLCALLBACK(int) rtPathFindExec(char const *pchPath, size_t cchPath, void *pvUser1, void *pvUser2)
 {
-    const char *pszExec     = (const char *)pvUser1;
-    char       *pszRealExec = (char *)pvUser2;
-    int rc = RTPathJoinEx(pszRealExec, RTPATH_MAX, pchPath, cchPath, pszExec, RTSTR_MAX);
-    if (RT_FAILURE(rc))
-        return rc;
-    if (!access(pszRealExec, X_OK))
-        return VINF_SUCCESS;
-    if (   errno == EACCES
-        || errno == EPERM)
-        return RTErrConvertFromErrno(errno);
-    return VERR_TRY_AGAIN;
-}
-
-/**
- * Cleans up the environment on the way out.
- */
-static int rtProcPosixCreateReturn(int rc, RTENV hEnvToUse, RTENV hEnv)
-{
-    if (hEnvToUse != hEnv)
-        RTEnvDestroy(hEnvToUse);
+    const char      *pszExec = (const char *)pvUser1;
+    PRTPATHINTSEARCH pResult = (PRTPATHINTSEARCH)pvUser2;
+    int rc = RTPathJoinEx(pResult->szFound, sizeof(pResult->szFound), pchPath, cchPath, pszExec, RTSTR_MAX);
+    if (RT_SUCCESS(rc))
+    {
+        const char *pszNativeExec = NULL;
+        rc = rtPathToNative(&pszNativeExec, pResult->szFound, NULL);
+        if (RT_SUCCESS(rc))
+        {
+            if (!access(pszNativeExec, X_OK))
+                rc = VINF_SUCCESS;
+            else
+            {
+                if (   errno == EACCES
+                    || errno == EPERM)
+                    pResult->rcSticky = RTErrConvertFromErrno(errno);
+                rc = VERR_TRY_AGAIN;
+            }
+            rtPathFreeNative(pszNativeExec, pResult->szFound);
+        }
+        else
+            AssertRCStmt(rc, rc = VERR_TRY_AGAIN /* don't stop on this, whatever it is */);
+    }
     return rc;
 }
 
@@ -693,7 +1548,8 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
                                const char *pszPassword, void *pvExtraData, PRTPROCESS phProcess)
 {
     int rc;
-    LogFlow(("RTProcCreateEx: pszExec=%s pszAsUser=%s\n", pszExec, pszAsUser));
+    LogFlow(("RTProcCreateEx: pszExec=%s pszAsUser=%s fFlags=%#x phStdIn=%p phStdOut=%p phStdErr=%p\n",
+             pszExec, pszAsUser, fFlags, phStdIn, phStdOut, phStdErr));
 
     /*
      * Input validation
@@ -754,6 +1610,7 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
     for (int i = 0; i < 3; i++)
         if (aStdFds[i] == i)
             aStdFds[i] = -1;
+    LogFlowFunc(("aStdFds={%d, %d, %d}\n", aStdFds[0], aStdFds[1], aStdFds[2]));
 
     for (int i = 0; i < 3; i++)
         AssertMsgReturn(aStdFds[i] < 0 || aStdFds[i] > i,
@@ -761,16 +1618,51 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
                         VERR_NOT_SUPPORTED);
 
     /*
-     * Resolve the user id if specified.
+     * Validate the credentials if a user is specified.
      */
-    uid_t uid = ~(uid_t)0;
-    gid_t gid = ~(gid_t)0;
+    bool const  fNeedLoginEnv = (fFlags & RTPROC_FLAGS_PROFILE)
+                             && ((fFlags & RTPROC_FLAGS_ENV_CHANGE_RECORD) || hEnv == RTENV_DEFAULT);
+    uid_t       uid           = ~(uid_t)0;
+    gid_t       gid           = ~(gid_t)0;
+    char      **papszPamEnv   = NULL;
     if (pszAsUser)
     {
-        rc = rtCheckCredentials(pszAsUser, pszPassword, &gid, &uid);
+        rc = rtCheckCredentials(pszAsUser, pszPassword, &gid, &uid, fNeedLoginEnv ? &papszPamEnv : NULL);
         if (RT_FAILURE(rc))
             return rc;
     }
+#ifdef IPRT_USE_PAM
+    /*
+     * User unchanged, but if PROFILE is request we must try get the PAM
+     * environmnet variables.
+     *
+     * For this to work, we'll need a special PAM service profile which doesn't
+     * actually do any authentication, only concerns itself with the enviornment
+     * setup.  gdm-launch-environment is such one, and we use it if we haven't
+     * got an IPRT specific one there.
+     */
+    else if (fNeedLoginEnv)
+    {
+        const char *pszService;
+        if (rtProcPosixPamServiceExists("iprt-environment"))
+            pszService = "iprt-environment";
+# ifdef IPRT_PAM_NATIVE_SERVICE_NAME_ENVIRONMENT
+        else if (rtProcPosixPamServiceExists(IPRT_PAM_NATIVE_SERVICE_NAME_ENVIRONMENT))
+            pszService = IPRT_PAM_NATIVE_SERVICE_NAME_ENVIRONMENT;
+# endif
+        else if (rtProcPosixPamServiceExists("gdm-launch-environment"))
+            pszService = "gdm-launch-environment";
+        else
+            pszService = NULL;
+        if (pszService)
+        {
+            char szLoginName[512];
+            rc = getlogin_r(szLoginName, sizeof(szLoginName));
+            if (rc == 0)
+                rc = rtProcPosixAuthenticateUsingPam(pszService, szLoginName, "xxx", &papszPamEnv, NULL);
+        }
+    }
+#endif
 
     /*
      * Create the child environment if either RTPROC_FLAGS_PROFILE or
@@ -782,51 +1674,145 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
             || hEnv == RTENV_DEFAULT) )
     {
         if (fFlags & RTPROC_FLAGS_PROFILE)
-            rc = rtProcPosixCreateProfileEnv(&hEnvToUse, pszAsUser);
+            rc = rtProcPosixCreateProfileEnv(&hEnvToUse, pszAsUser, uid, gid, fFlags, papszPamEnv);
         else
             rc = RTEnvClone(&hEnvToUse, RTENV_DEFAULT);
-        if (RT_SUCCESS(rc))
-        {
-            if ((fFlags & RTPROC_FLAGS_ENV_CHANGE_RECORD) && hEnv != RTENV_DEFAULT)
-                rc = RTEnvApplyChanges(hEnvToUse, hEnv);
-            if (RT_FAILURE(rc))
-                RTEnvDestroy(hEnvToUse);
-        }
+        rtProcPosixFreePamEnv(papszPamEnv);
+        papszPamEnv = NULL;
         if (RT_FAILURE(rc))
             return rc;
+
+        if ((fFlags & RTPROC_FLAGS_ENV_CHANGE_RECORD) && hEnv != RTENV_DEFAULT)
+        {
+            rc = RTEnvApplyChanges(hEnvToUse, hEnv);
+            if (RT_FAILURE(rc))
+            {
+                RTEnvDestroy(hEnvToUse);
+                return rc;
+            }
+        }
     }
+    Assert(papszPamEnv == NULL);
 
     /*
-     * Check for execute access to the file.
+     * Check for execute access to the file, searching the PATH if needed.
      */
-    char szRealExec[RTPATH_MAX];
-    if (access(pszExec, X_OK))
+    const char *pszNativeExec = NULL;
+    rc = rtPathToNative(&pszNativeExec, pszExec, NULL);
+    if (RT_SUCCESS(rc))
     {
-        rc = errno;
-        if (   !(fFlags & RTPROC_FLAGS_SEARCH_PATH)
-            || rc != ENOENT
-            || RTPathHavePath(pszExec) )
-            rc = RTErrConvertFromErrno(rc);
+        if (access(pszNativeExec, X_OK) == 0)
+            rc = VINF_SUCCESS;
         else
         {
-            /* search */
-            char *pszPath = RTEnvDupEx(hEnvToUse, "PATH");
-            rc = RTPathTraverseList(pszPath, ':', rtPathFindExec, (void *)pszExec, &szRealExec[0]);
-            RTStrFree(pszPath);
-            if (RT_SUCCESS(rc))
-                pszExec = szRealExec;
+            rc = errno;
+            rtPathFreeNative(pszNativeExec, pszExec);
+
+            if (   !(fFlags & RTPROC_FLAGS_SEARCH_PATH)
+                || rc != ENOENT
+                || RTPathHavePath(pszExec) )
+                rc = RTErrConvertFromErrno(rc);
             else
-                rc = rc == VERR_END_OF_STRING ? VERR_FILE_NOT_FOUND : rc;
+            {
+                /* Search the PATH for it: */
+                char *pszPath = RTEnvDupEx(hEnvToUse, "PATH");
+                if (pszPath)
+                {
+                    PRTPATHINTSEARCH pResult = (PRTPATHINTSEARCH)alloca(sizeof(*pResult));
+                    pResult->rcSticky = VINF_SUCCESS;
+                    rc = RTPathTraverseList(pszPath, ':', rtPathFindExec, (void *)pszExec, pResult);
+                    RTStrFree(pszPath);
+                    if (RT_SUCCESS(rc))
+                    {
+                        /* Found it. Now, convert to native path: */
+                        pszExec = pResult->szFound;
+                        rc = rtPathToNative(&pszNativeExec, pszExec, NULL);
+                    }
+                    else
+                        rc = rc != VERR_END_OF_STRING ? rc
+                           : pResult->rcSticky == VINF_SUCCESS ? VERR_FILE_NOT_FOUND : pResult->rcSticky;
+                }
+                else
+                    rc = VERR_NO_STR_MEMORY;
+            }
         }
+        if (RT_SUCCESS(rc))
+        {
+            /*
+             * Convert arguments to child codeset if necessary.
+             */
+            char **papszArgsConverted = (char **)papszArgs;
+            if (!(fFlags & RTPROC_FLAGS_UTF8_ARGV))
+                rc = rtProcPosixConvertArgv(papszArgs, hEnvToUse, &papszArgsConverted);
+            if (RT_SUCCESS(rc))
+            {
+                /*
+                 * The rest of the process creation is reused internally by rtProcPosixCreateProfileEnv.
+                 */
+                rc = rtProcPosixCreateInner(pszNativeExec, papszArgsConverted, hEnv, hEnvToUse, fFlags, pszAsUser, uid, gid,
+                                            RT_ELEMENTS(aStdFds), aStdFds, phProcess);
 
-        if (RT_FAILURE(rc))
-            return rtProcPosixCreateReturn(rc, hEnvToUse, hEnv);
+            }
+
+            /* Free the translated argv copy, if needed. */
+            if (papszArgsConverted != (char **)papszArgs)
+            {
+                for (size_t i = 0; papszArgsConverted[i] != NULL; i++)
+                    RTStrFree(papszArgsConverted[i]);
+                RTMemFree(papszArgsConverted);
+            }
+            rtPathFreeNative(pszNativeExec, pszExec);
+        }
     }
+    if (hEnvToUse != hEnv)
+        RTEnvDestroy(hEnvToUse);
+    return rc;
+}
 
-    pid_t pid = -1;
+
+/**
+ * The inner 2nd half of RTProcCreateEx.
+ *
+ * This is also used by rtProcPosixCreateProfileEnv().
+ *
+ * @returns IPRT status code.
+ * @param   pszNativeExec   The executable to run (absolute path, X_OK).
+ *                          Native path.
+ * @param   papszArgs       The arguments.  Caller has done codeset conversions.
+ * @param   hEnv            The original enviornment request, needed for
+ *                          adjustments if starting as different user.
+ * @param   hEnvToUse       The environment we should use.
+ * @param   fFlags          The process creation flags, RTPROC_FLAGS_XXX.
+ * @param   pszAsUser       The user to start the process as, if requested.
+ * @param   uid             The UID corrsponding to @a pszAsUser, ~0 if NULL.
+ * @param   gid             The GID corrsponding to @a pszAsUser, ~0 if NULL.
+ * @param   cRedirFds       Number of redirection file descriptors.
+ * @param   paRedirFds      Pointer to redirection file descriptors.  Entries
+ *                          containing -1 are not modified (inherit from parent),
+ *                          -2 indicates that the descriptor should be closed in the
+ *                          child.
+ * @param   phProcess       Where to return the process ID on success.
+ */
+static int rtProcPosixCreateInner(const char *pszNativeExec, const char * const *papszArgs, RTENV hEnv, RTENV hEnvToUse,
+                                  uint32_t fFlags, const char *pszAsUser, uid_t uid, gid_t gid,
+                                  unsigned cRedirFds, int *paRedirFds, PRTPROCESS phProcess)
+{
+    /*
+     * Get the environment block.
+     */
     const char * const *papszEnv = RTEnvGetExecEnvP(hEnvToUse);
-    AssertPtrReturn(papszEnv, rtProcPosixCreateReturn(VERR_INVALID_HANDLE, hEnvToUse, hEnv));
+    AssertPtrReturn(papszEnv, VERR_INVALID_HANDLE);
 
+    /*
+     * Optimize the redirections.
+     */
+    while (cRedirFds > 0 && paRedirFds[cRedirFds - 1] == -1)
+        cRedirFds--;
+
+    /*
+     * Child PID.
+     */
+    pid_t pid = -1;
 
     /*
      * Take care of detaching the process.
@@ -846,7 +1832,7 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
         {
             templateFd = rtSolarisContractPreFork();
             if (templateFd == -1)
-                return rtProcPosixCreateReturn(VERR_OPEN_FAILED, hEnvToUse, hEnv);
+                return VERR_OPEN_FAILED;
         }
 # endif /* RT_OS_SOLARIS */
         pid = fork();
@@ -882,12 +1868,12 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
 
                 /* Assume that something wasn't found. No detailed info. */
                 if (status)
-                    return rtProcPosixCreateReturn(VERR_PROCESS_NOT_FOUND, hEnvToUse, hEnv);
+                    return VERR_PROCESS_NOT_FOUND;
                 if (phProcess)
                     *phProcess = 0;
-                return rtProcPosixCreateReturn(VINF_SUCCESS, hEnvToUse, hEnv);
+                return VINF_SUCCESS;
             }
-            return rtProcPosixCreateReturn(RTErrConvertFromErrno(errno), hEnvToUse, hEnv);
+            return RTErrConvertFromErrno(errno);
         }
     }
 #endif
@@ -902,6 +1888,7 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
      * is successfully run there is nothing which would prevent doing anything
      * silly with the (duplicated) file descriptors.
      */
+    int rc;
 #ifdef HAVE_POSIX_SPAWN
     /** @todo OS/2: implement DETACHED (BACKGROUND stuff), see VbglR3Daemonize.  */
     if (   uid == ~(uid_t)0
@@ -935,24 +1922,24 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
             /* File changes. */
             posix_spawn_file_actions_t  FileActions;
             posix_spawn_file_actions_t *pFileActions = NULL;
-            if ((aStdFds[0] != -1 || aStdFds[1] != -1 || aStdFds[2] != -1) && !rc)
+            if (!rc && cRedirFds > 0)
             {
                 rc = posix_spawn_file_actions_init(&FileActions);
                 if (!rc)
                 {
                     pFileActions = &FileActions;
-                    for (int i = 0; i < 3; i++)
+                    for (unsigned i = 0; i < cRedirFds; i++)
                     {
-                        int fd = aStdFds[i];
+                        int fd = paRedirFds[i];
                         if (fd == -2)
                             rc = posix_spawn_file_actions_addclose(&FileActions, i);
-                        else if (fd >= 0 && fd != i)
+                        else if (fd >= 0 && fd != (int)i)
                         {
                             rc = posix_spawn_file_actions_adddup2(&FileActions, fd, i);
                             if (!rc)
                             {
-                                for (int j = i + 1; j < 3; j++)
-                                    if (aStdFds[j] == fd)
+                                for (unsigned j = i + 1; j < cRedirFds; j++)
+                                    if (paRedirFds[j] == fd)
                                     {
                                         fd = -1;
                                         break;
@@ -968,7 +1955,7 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
             }
 
             if (!rc)
-                rc = posix_spawn(&pid, pszExec, pFileActions, &Attr, (char * const *)papszArgs,
+                rc = posix_spawn(&pid, pszNativeExec, pFileActions, &Attr, (char * const *)papszArgs,
                                  (char * const *)papszEnv);
 
             /* cleanup */
@@ -988,7 +1975,7 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
                     _Exit(0);
                 if (phProcess)
                     *phProcess = pid;
-                return rtProcPosixCreateReturn(VINF_SUCCESS, hEnvToUse, hEnv);
+                return VINF_SUCCESS;
             }
         }
         /* For a detached process this happens in the temp process, so
@@ -1005,7 +1992,7 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
         {
             templateFd = rtSolarisContractPreFork();
             if (templateFd == -1)
-                return rtProcPosixCreateReturn(VERR_OPEN_FAILED, hEnvToUse, hEnv);
+                return VERR_OPEN_FAILED;
         }
 #endif /* RT_OS_SOLARIS */
         pid = fork();
@@ -1086,23 +2073,23 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
             /*
              * Apply changes to the standard file descriptor and stuff.
              */
-            for (int i = 0; i < 3; i++)
+            for (unsigned i = 0; i < cRedirFds; i++)
             {
-                int fd = aStdFds[i];
+                int fd = paRedirFds[i];
                 if (fd == -2)
                     close(i);
                 else if (fd >= 0)
                 {
                     int rc2 = dup2(fd, i);
-                    if (rc2 != i)
+                    if (rc2 != (int)i)
                     {
                         if (fFlags & RTPROC_FLAGS_DETACHED)
                             _Exit(125);
                         else
                             exit(125);
                     }
-                    for (int j = i + 1; j < 3; j++)
-                        if (aStdFds[j] == fd)
+                    for (unsigned j = i + 1; j < cRedirFds; j++)
+                        if (paRedirFds[j] == fd)
                         {
                             fd = -1;
                             break;
@@ -1115,14 +2102,14 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
             /*
              * Finally, execute the requested program.
              */
-            rc = execve(pszExec, (char * const *)papszArgs, (char * const *)papszEnv);
+            rc = execve(pszNativeExec, (char * const *)papszArgs, (char * const *)papszEnv);
             if (errno == ENOEXEC)
             {
                 /* This can happen when trying to start a shell script without the magic #!/bin/sh */
                 RTAssertMsg2Weak("Cannot execute this binary format!\n");
             }
             else
-                RTAssertMsg2Weak("execve returns %d errno=%d\n", rc, errno);
+                RTAssertMsg2Weak("execve returns %d errno=%d (%s)\n", rc, errno, pszNativeExec);
             RTAssertReleasePanic();
             if (fFlags & RTPROC_FLAGS_DETACHED)
                 _Exit(127);
@@ -1141,16 +2128,16 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
                 _Exit(0);
             if (phProcess)
                 *phProcess = pid;
-            return rtProcPosixCreateReturn(VINF_SUCCESS, hEnvToUse, hEnv);
+            return VINF_SUCCESS;
         }
         /* For a detached process this happens in the temp process, so
          * it's not worth doing anything as this process must exit. */
         if (fFlags & RTPROC_FLAGS_DETACHED)
             _Exit(124);
-        return rtProcPosixCreateReturn(RTErrConvertFromErrno(errno), hEnvToUse, hEnv);
+        return RTErrConvertFromErrno(errno);
     }
 
-    return rtProcPosixCreateReturn(VERR_NOT_IMPLEMENTED, hEnvToUse, hEnv);
+    return VERR_NOT_IMPLEMENTED;
 }
 
 

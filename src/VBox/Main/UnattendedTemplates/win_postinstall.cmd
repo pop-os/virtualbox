@@ -108,20 +108,6 @@ echo *** Running: copy %MY_VBOX_VALIDATION_KIT%\win\%PROCESSOR_ARCHITECTURE%\* %
 copy %MY_VBOX_VALIDATION_KIT%\win\%PROCESSOR_ARCHITECTURE%\* %SystemDrive%\Apps >> %MY_LOG_FILE% 2>&1
 echo *** ERRORLEVEL: %ERRORLEVEL% >> %MY_LOG_FILE%
 
-rem Update the registry to autorun the service and make sure we've got autologon.
-echo *** Running: reg.exe ADD HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run /v NTConfiguration /d %SystemDrive%\Apps\vboxtxs.cmd >> %MY_LOG_FILE%
-reg.exe ADD HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run /v NTConfiguration /d %SystemDrive%\Apps\vboxtxs.cmd >> %MY_LOG_FILE% 2>&1
-echo *** ERRORLEVEL: %ERRORLEVEL% >> %MY_LOG_FILE%
-
-echo *** Running: reg.exe ADD HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon /v PowerdownAfterShutdown /d 1 >> %MY_LOG_FILE%
-reg.exe ADD HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon /v PowerdownAfterShutdown /d 1 >> %MY_LOG_FILE% 2>&1
-echo *** ERRORLEVEL: %ERRORLEVEL% >> %MY_LOG_FILE%
-
-echo *** Running: reg.exe ADD HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon /v ForceAutoLogon /d 1 >> %MY_LOG_FILE%
-reg.exe ADD HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon /v ForceAutoLogon /d 1 >> %MY_LOG_FILE% 2>&1
-echo *** ERRORLEVEL: %ERRORLEVEL% >> %MY_LOG_FILE%
-rem  AutoAdminLogon too if administrator?
-
 rem Configure the firewall to allow TXS to listen.
 echo *** Running: netsh firewall add portopening TCP 5048 "TestExecService 5048" >> %MY_LOG_FILE%
 netsh firewall add portopening TCP 5048 "TestExecService 5048" >> %MY_LOG_FILE% 2>&1
@@ -130,6 +116,20 @@ echo *** ERRORLEVEL: %ERRORLEVEL% >> %MY_LOG_FILE%
 echo *** Running: netsh firewall add portopening TCP 5042 "TestExecService 5042" >> %MY_LOG_FILE%
 netsh firewall add portopening TCP 5042 "TestExecService 5042" >> %MY_LOG_FILE% 2>&1
 echo *** ERRORLEVEL: %ERRORLEVEL% >> %MY_LOG_FILE%
+
+rem Update the registry to autorun the service and make sure we've got autologon.
+echo *** Running: reg.exe ADD HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run /v NTConfiguration /d %SystemDrive%\Apps\vboxtxs.cmd /f >> %MY_LOG_FILE%
+reg.exe ADD HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run /v NTConfiguration /d %SystemDrive%\Apps\vboxtxs.cmd /f >> %MY_LOG_FILE% 2>&1
+echo *** ERRORLEVEL: %ERRORLEVEL% >> %MY_LOG_FILE%
+
+echo *** Running: reg.exe ADD "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" /v PowerdownAfterShutdown /d 1 /f >> %MY_LOG_FILE%
+reg.exe ADD "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" /v PowerdownAfterShutdown /d 1 /f >> %MY_LOG_FILE% 2>&1
+echo *** ERRORLEVEL: %ERRORLEVEL% >> %MY_LOG_FILE%
+
+echo *** Running: reg.exe ADD "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" /v ForceAutoLogon /d 1 /f >> %MY_LOG_FILE%
+reg.exe ADD "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" /v ForceAutoLogon /d 1 /f >> %MY_LOG_FILE% 2>&1
+echo *** ERRORLEVEL: %ERRORLEVEL% >> %MY_LOG_FILE%
+rem  AutoAdminLogon too if administrator?
 
 @@VBOX_COND_END@@
 

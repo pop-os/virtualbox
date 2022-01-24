@@ -44,15 +44,7 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <sys/time.h>
-
-#ifdef RT_OS_DARWIN
-# define pthread_yield() pthread_yield_np()
-#endif
-
-#if defined(RT_OS_SOLARIS) || defined(RT_OS_HAIKU) || defined(RT_OS_FREEBSD) || defined(RT_OS_NETBSD)
-# include <sched.h>
-# define pthread_yield() sched_yield()
-#endif
+#include <sched.h>
 
 
 /*********************************************************************************************************************************
@@ -317,7 +309,7 @@ DECL_FORCE_INLINE(int) rtSemEventWait(RTSEMEVENT hEventSem, RTMSINTERVAL cMillie
         /* for fairness, yield before going to sleep. */
         if (    ASMAtomicIncU32(&pThis->cWaiters) > 1
             &&  pThis->u32State == EVENT_STATE_SIGNALED)
-            pthread_yield();
+            sched_yield();
 
          /* take mutex */
         int rc = pthread_mutex_lock(&pThis->Mutex);
@@ -405,7 +397,7 @@ DECL_FORCE_INLINE(int) rtSemEventWait(RTSEMEVENT hEventSem, RTMSINTERVAL cMillie
 
         /* for fairness, yield before going to sleep. */
         if (ASMAtomicIncU32(&pThis->cWaiters) > 1 && cMillies)
-            pthread_yield();
+            sched_yield();
 
         /* take mutex */
         int rc = pthread_mutex_lock(&pThis->Mutex);

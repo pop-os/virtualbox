@@ -1594,7 +1594,9 @@ nemHCWinUnmapOnePageCallback(PVMCC pVM, PVMCPUCC pVCpu, RTGCPHYS GCPhys, uint8_t
     if (RT_SUCCESS(rc))
 # else
     RT_NOREF_PV(pVCpu);
+    STAM_REL_PROFILE_START(&pVM->nem.s.StatProfUnmapGpaRangePage, a);
     HRESULT hrc = WHvUnmapGpaRange(pVM->nem.s.hPartition, GCPhys, X86_PAGE_SIZE);
+    STAM_REL_PROFILE_STOP(&pVM->nem.s.StatProfUnmapGpaRangePage, a);
     if (SUCCEEDED(hrc))
 # endif
     {
@@ -1650,9 +1652,12 @@ nemHCWinHandleMemoryAccessPageCheckerCallback(PVMCC pVM, PVMCPUCC pVCpu, RTGCPHY
        page to get the correct protection information. */
     uint8_t  u2State = pInfo->u2NemState;
     RTGCPHYS GCPhysSrc;
+# ifdef NEM_WIN_WITH_A20
     if (   pVM->nem.s.fA20Enabled
         || !NEM_WIN_IS_SUBJECT_TO_A20(GCPhys))
+# endif
         GCPhysSrc = GCPhys;
+# ifdef NEM_WIN_WITH_A20
     else
     {
         GCPhysSrc = GCPhys & ~(RTGCPHYS)RT_BIT_32(20);
@@ -1663,6 +1668,7 @@ nemHCWinHandleMemoryAccessPageCheckerCallback(PVMCC pVM, PVMCPUCC pVCpu, RTGCPHY
         *pInfo = Info2;
         pInfo->u2NemState = u2State;
     }
+# endif
 
     /*
      * Consolidate current page state with actual page protection and access type.
@@ -1785,7 +1791,9 @@ nemHCWinHandleMemoryAccessPageCheckerCallback(PVMCC pVM, PVMCPUCC pVCpu, RTGCPHY
     if (RT_SUCCESS(rc))
 # else
     /** @todo figure out whether we mess up the state or if it's WHv.   */
+    STAM_REL_PROFILE_START(&pVM->nem.s.StatProfUnmapGpaRangePage, a);
     HRESULT hrc = WHvUnmapGpaRange(pVM->nem.s.hPartition, GCPhys, X86_PAGE_SIZE);
+    STAM_REL_PROFILE_STOP(&pVM->nem.s.StatProfUnmapGpaRangePage, a);
     if (SUCCEEDED(hrc))
 # endif
     {
@@ -1801,6 +1809,10 @@ nemHCWinHandleMemoryAccessPageCheckerCallback(PVMCC pVM, PVMCPUCC pVCpu, RTGCPHY
 # ifdef NEM_WIN_USE_HYPERCALLS_FOR_PAGES
     LogRel(("nemHCWinHandleMemoryAccessPageCheckerCallback/unmap: GCPhysDst=%RGp rc=%Rrc\n", GCPhys, rc));
     return rc;
+# elif defined(VBOX_WITH_PGM_NEM_MODE)
+    LogRel(("nemHCWinHandleMemoryAccessPageCheckerCallback/unmap: GCPhysDst=%RGp %s hrc=%Rhrc (%#x)\n",
+            GCPhys, g_apszPageStates[u2State], hrc, hrc));
+    return VERR_NEM_UNMAP_PAGES_FAILED;
 # else
     LogRel(("nemHCWinHandleMemoryAccessPageCheckerCallback/unmap: GCPhysDst=%RGp %s hrc=%Rhrc (%#x) Last=%#x/%u (cMappedPages=%u)\n",
             GCPhys, g_apszPageStates[u2State], hrc, hrc, RTNtLastStatusValue(), RTNtLastErrorValue(),
@@ -4127,6 +4139,7 @@ NEM_TMPL_STATIC VBOXSTRICTRC nemHCWinHandleInterruptFF(PVMCC pVM, PVMCPUCC pVCpu
                 int rc = PDMGetInterrupt(pVCpu, &bInterrupt);
                 if (RT_SUCCESS(rc))
                 {
+                    Log8(("Injecting interrupt %#x on %u: %04x:%08RX64 efl=%#x\n", bInterrupt, pVCpu->idCpu, pVCpu->cpum.GstCtx.cs.Sel, pVCpu->cpum.GstCtx.rip, pVCpu->cpum.GstCtx.eflags));
                     rcStrict = IEMInjectTrap(pVCpu, bInterrupt, TRPM_HARDWARE_INT, 0, 0, 0);
                     Log8(("Injected interrupt %#x on %u (%d)\n", bInterrupt, pVCpu->idCpu, VBOXSTRICTRC_VAL(rcStrict) ));
                 }
@@ -4136,23 +4149,30 @@ NEM_TMPL_STATIC VBOXSTRICTRC nemHCWinHandleInterruptFF(PVMCC pVM, PVMCPUCC pVCpu
                     Log8(("VERR_APIC_INTR_MASKED_BY_TPR: *pfInterruptWindows=%#x\n", *pfInterruptWindows));
                 }
                 else
-                    Log8(("PDMGetInterrupt failed -> %d\n", rc));
+                    Log8(("PDMGetInterrupt failed -> %Rrc\n", rc));
             }
             return rcStrict;
         }
-        else if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INTERRUPT_APIC) && !VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INTERRUPT_PIC))
+
+        if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INTERRUPT_APIC) && !VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INTERRUPT_PIC))
         {
             /* If only an APIC interrupt is pending, we need to know its priority. Otherwise we'll
              * likely get pointless deliverability notifications with IF=1 but TPR still too high.
              */
-            bool fPendingIntr;
-            uint8_t u8Tpr, u8PendingIntr;
-            int rc = APICGetTpr(pVCpu, &u8Tpr, &fPendingIntr, &u8PendingIntr);
+            bool    fPendingIntr = false;
+            uint8_t bTpr = 0;
+            uint8_t bPendingIntr = 0;
+            int rc = APICGetTpr(pVCpu, &bTpr, &fPendingIntr, &bPendingIntr);
             AssertRC(rc);
-            *pfInterruptWindows |= (u8PendingIntr >> 4) << NEM_WIN_INTW_F_PRIO_SHIFT;
+            *pfInterruptWindows |= (bPendingIntr >> 4) << NEM_WIN_INTW_F_PRIO_SHIFT;
+            Log8(("Interrupt window pending on %u: %#x (bTpr=%#x fPendingIntr=%d bPendingIntr=%#x)\n",
+                  pVCpu->idCpu, *pfInterruptWindows, bTpr, fPendingIntr, bPendingIntr));
         }
-        *pfInterruptWindows |= NEM_WIN_INTW_F_REGULAR;
-        Log8(("Interrupt window pending on %u\n", pVCpu->idCpu));
+        else
+        {
+            *pfInterruptWindows |= NEM_WIN_INTW_F_REGULAR;
+            Log8(("Interrupt window pending on %u: %#x\n", pVCpu->idCpu, *pfInterruptWindows));
+        }
     }
 
     return VINF_SUCCESS;
@@ -4202,7 +4222,7 @@ NEM_TMPL_STATIC VBOXSTRICTRC nemHCWinRunGC(PVMCC pVM, PVMCPUCC pVCpu)
     VBOXSTRICTRC    rcStrict            = VINF_SUCCESS;
     for (unsigned iLoop = 0;; iLoop++)
     {
-# ifndef NEM_WIN_USE_HYPERCALLS_FOR_PAGES
+# if !defined(NEM_WIN_USE_HYPERCALLS_FOR_PAGES) && !defined(VBOX_WITH_PGM_NEM_MODE)
         /*
          * Hack alert!
          */
@@ -4253,6 +4273,20 @@ NEM_TMPL_STATIC VBOXSTRICTRC nemHCWinRunGC(PVMCC pVM, PVMCPUCC pVCpu)
                 break;
             }
         }
+
+# ifndef NEM_WIN_WITH_A20
+        /*
+         * Do not execute in hyper-V if the A20 isn't enabled.
+         */
+        if (PGMPhysIsA20Enabled(pVCpu))
+        { /* likely */ }
+        else
+        {
+            rcStrict = VINF_EM_RESCHEDULE_REM;
+            LogFlow(("NEM/%u: breaking: A20 disabled\n", pVCpu->idCpu));
+            break;
+        }
+# endif
 
         /*
          * Ensure that hyper-V has the whole state.
@@ -4354,14 +4388,30 @@ NEM_TMPL_STATIC VBOXSTRICTRC nemHCWinRunGC(PVMCC pVM, PVMCPUCC pVCpu)
                 if (fRet)
 #  endif
 # else
-                WHV_RUN_VP_EXIT_CONTEXT ExitReason;
-                RT_ZERO(ExitReason);
-                LogFlow(("NEM/%u: Entry @ %04X:%08RX64 IF=%d (~~may be stale~~)\n", pVCpu->idCpu, pVCpu->cpum.GstCtx.cs.Sel, pVCpu->cpum.GstCtx.rip, pVCpu->cpum.GstCtx.rflags.Bits.u1IF));
+#  ifdef LOG_ENABLED
+                if (LogIsFlowEnabled())
+                {
+                    static const WHV_REGISTER_NAME s_aNames[6] = { WHvX64RegisterCs, WHvX64RegisterRip, WHvX64RegisterRflags,
+                                                                   WHvX64RegisterSs, WHvX64RegisterRsp, WHvX64RegisterCr0 };
+                    WHV_REGISTER_VALUE aRegs[RT_ELEMENTS(s_aNames)] = {0};
+                    WHvGetVirtualProcessorRegisters(pVM->nem.s.hPartition, pVCpu->idCpu, s_aNames, RT_ELEMENTS(s_aNames), aRegs);
+                    LogFlow(("NEM/%u: Entry @ %04x:%08RX64 IF=%d EFL=%#RX64 SS:RSP=%04x:%08RX64 cr0=%RX64\n",
+                             pVCpu->idCpu, aRegs[0].Segment.Selector, aRegs[1].Reg64, RT_BOOL(aRegs[2].Reg64 & X86_EFL_IF),
+                             aRegs[2].Reg64, aRegs[3].Segment.Selector, aRegs[4].Reg64, aRegs[5].Reg64));
+                }
+#  endif
+                WHV_RUN_VP_EXIT_CONTEXT ExitReason = { WHvRunVpExitReasonNone, 0};
                 TMNotifyStartOfExecution(pVM, pVCpu);
+
                 HRESULT hrc = WHvRunVirtualProcessor(pVM->nem.s.hPartition, pVCpu->idCpu, &ExitReason, sizeof(ExitReason));
+
                 VMCPU_CMPXCHG_STATE(pVCpu, VMCPUSTATE_STARTED_EXEC_NEM, VMCPUSTATE_STARTED_EXEC_NEM_WAIT);
                 TMNotifyEndOfExecution(pVM, pVCpu);
-                LogFlow(("NEM/%u: Exit  @ %04X:%08RX64 IF=%d CR8=%#x \n", pVCpu->idCpu, ExitReason.VpContext.Cs.Selector, ExitReason.VpContext.Rip, RT_BOOL(ExitReason.VpContext.Rflags & X86_EFL_IF), ExitReason.VpContext.Cr8));
+#  ifdef LOG_ENABLED
+                LogFlow(("NEM/%u: Exit  @ %04X:%08RX64 IF=%d CR8=%#x Reason=%#x\n", pVCpu->idCpu, ExitReason.VpContext.Cs.Selector,
+                         ExitReason.VpContext.Rip, RT_BOOL(ExitReason.VpContext.Rflags & X86_EFL_IF), ExitReason.VpContext.Cr8,
+                         ExitReason.ExitReason));
+#  endif
                 if (SUCCEEDED(hrc))
 # endif
                 {
@@ -4585,12 +4635,30 @@ void nemHCNativeNotifyHandlerPhysicalRegister(PVMCC pVM, PGMPHYSHANDLERKIND enmK
 }
 
 
-void nemHCNativeNotifyHandlerPhysicalDeregister(PVMCC pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhys, RTGCPHYS cb,
-                                                int fRestoreAsRAM, bool fRestoreAsRAM2)
+VMM_INT_DECL(void) NEMHCNotifyHandlerPhysicalDeregister(PVMCC pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhys, RTGCPHYS cb,
+                                                        RTR3PTR pvMemR3, uint8_t *pu2State)
 {
-    Log5(("nemHCNativeNotifyHandlerPhysicalDeregister: %RGp LB %RGp enmKind=%d fRestoreAsRAM=%d fRestoreAsRAM2=%d\n",
-          GCPhys, cb, enmKind, fRestoreAsRAM, fRestoreAsRAM2));
-    NOREF(pVM); NOREF(enmKind); NOREF(GCPhys); NOREF(cb); NOREF(fRestoreAsRAM); NOREF(fRestoreAsRAM2);
+    Log5(("NEMHCNotifyHandlerPhysicalDeregister: %RGp LB %RGp enmKind=%d pvMemR3=%p pu2State=%p (%d)\n",
+          GCPhys, cb, enmKind, pvMemR3, pu2State, *pu2State));
+
+    *pu2State = UINT8_MAX;
+#if !defined(NEM_WIN_USE_HYPERCALLS_FOR_PAGES) && defined(VBOX_WITH_PGM_NEM_MODE) && defined(IN_RING3)
+    if (pvMemR3)
+    {
+        STAM_REL_PROFILE_START(&pVM->nem.s.StatProfMapGpaRange, a);
+        HRESULT hrc = WHvMapGpaRange(pVM->nem.s.hPartition, pvMemR3, GCPhys, cb,
+                                     WHvMapGpaRangeFlagRead | WHvMapGpaRangeFlagExecute | WHvMapGpaRangeFlagWrite);
+        STAM_REL_PROFILE_STOP(&pVM->nem.s.StatProfMapGpaRange, a);
+        if (SUCCEEDED(hrc))
+            *pu2State = NEM_WIN_PAGE_STATE_WRITABLE;
+        else
+            AssertLogRelMsgFailed(("NEMHCNotifyHandlerPhysicalDeregister: WHvMapGpaRange(,%p,%RGp,%RGp,) -> %Rhrc\n",
+                                   pvMemR3, GCPhys, cb, hrc));
+    }
+    RT_NOREF(enmKind);
+#else
+    RT_NOREF(pVM, enmKind, GCPhys, cb, pvMemR3);
+#endif
 }
 
 
@@ -4744,7 +4812,9 @@ NEM_TMPL_STATIC int nemHCNativeSetPhysPage(PVMCC pVM, PVMCPUCC pVCpu, RTGCPHYS G
                 return rc;
             }
 #  else
+            STAM_REL_PROFILE_START(&pVM->nem.s.StatProfUnmapGpaRangePage, a);
             HRESULT hrc = WHvUnmapGpaRange(pVM->nem.s.hPartition, GCPhysDst, X86_PAGE_SIZE);
+            STAM_REL_PROFILE_STOP(&pVM->nem.s.StatProfUnmapGpaRangePage, a);
             if (SUCCEEDED(hrc))
             {
                 *pu2State = NEM_WIN_PAGE_STATE_UNMAPPED;
@@ -4839,8 +4909,10 @@ NEM_TMPL_STATIC int nemHCNativeSetPhysPage(PVMCC pVM, PVMCPUCC pVCpu, RTGCPHYS G
         int rc = nemR3NativeGCPhys2R3PtrReadOnly(pVM, GCPhysSrc, &pvPage);
         if (RT_SUCCESS(rc))
         {
+            STAM_REL_PROFILE_START(&pVM->nem.s.StatProfMapGpaRangePage, a);
             HRESULT hrc = WHvMapGpaRange(pVM->nem.s.hPartition, (void *)pvPage, GCPhysDst, X86_PAGE_SIZE,
                                          WHvMapGpaRangeFlagRead | WHvMapGpaRangeFlagExecute);
+            STAM_REL_PROFILE_STOP(&pVM->nem.s.StatProfMapGpaRangePage, a);
             if (SUCCEEDED(hrc))
             {
                 *pu2State = NEM_WIN_PAGE_STATE_READABLE;
@@ -4894,7 +4966,9 @@ NEM_TMPL_STATIC int nemHCJustUnmapPageFromHyperV(PVMCC pVM, RTGCPHYS GCPhysDst, 
     return rc;
 
 #elif defined(IN_RING3)
+    STAM_REL_PROFILE_START(&pVM->nem.s.StatProfUnmapGpaRangePage, a);
     HRESULT hrc = WHvUnmapGpaRange(pVM->nem.s.hPartition, GCPhysDst & ~(RTGCPHYS)X86_PAGE_OFFSET_MASK, X86_PAGE_SIZE);
+    STAM_REL_PROFILE_STOP(&pVM->nem.s.StatProfUnmapGpaRangePage, a);
     if (SUCCEEDED(hrc))
     {
         STAM_REL_COUNTER_INC(&pVM->nem.s.StatUnmapPage);
@@ -4925,9 +4999,12 @@ int nemHCNativeNotifyPhysPageAllocated(PVMCC pVM, RTGCPHYS GCPhys, RTHCPHYS HCPh
     int rc;
 #ifdef NEM_WIN_USE_HYPERCALLS_FOR_PAGES
     PVMCPUCC pVCpu = VMMGetCpu(pVM);
+# ifdef NEM_WIN_WITH_A20
     if (   pVM->nem.s.fA20Enabled
         || !NEM_WIN_IS_RELEVANT_TO_A20(GCPhys))
+# endif
         rc = nemHCNativeSetPhysPage(pVM, pVCpu, GCPhys, GCPhys, fPageProt, pu2State, true /*fBackingChanged*/);
+# ifdef NEM_WIN_WITH_A20
     else
     {
         /* To keep effort at a minimum, we unmap the HMA page alias and resync it lazily when needed. */
@@ -4936,32 +5013,41 @@ int nemHCNativeNotifyPhysPageAllocated(PVMCC pVM, RTGCPHYS GCPhys, RTHCPHYS HCPh
             rc = nemHCNativeSetPhysPage(pVM, pVCpu, GCPhys, GCPhys, fPageProt, pu2State, true /*fBackingChanged*/);
 
     }
+# endif
 #else
     RT_NOREF_PV(fPageProt);
+# ifdef NEM_WIN_WITH_A20
     if (   pVM->nem.s.fA20Enabled
         || !NEM_WIN_IS_RELEVANT_TO_A20(GCPhys))
+# endif
         rc = nemHCJustUnmapPageFromHyperV(pVM, GCPhys, pu2State);
+# ifdef NEM_WIN_WITH_A20
     else if (!NEM_WIN_IS_SUBJECT_TO_A20(GCPhys))
         rc = nemHCJustUnmapPageFromHyperV(pVM, GCPhys, pu2State);
     else
         rc = VINF_SUCCESS; /* ignore since we've got the alias page at this address. */
+# endif
 #endif
     return rc;
 }
 
 
-void nemHCNativeNotifyPhysPageProtChanged(PVMCC pVM, RTGCPHYS GCPhys, RTHCPHYS HCPhys, uint32_t fPageProt,
-                                          PGMPAGETYPE enmType, uint8_t *pu2State)
+VMM_INT_DECL(void) NEMHCNotifyPhysPageProtChanged(PVMCC pVM, RTGCPHYS GCPhys, RTHCPHYS HCPhys, RTR3PTR pvR3, uint32_t fPageProt,
+                                                  PGMPAGETYPE enmType, uint8_t *pu2State)
 {
-    Log5(("nemHCNativeNotifyPhysPageProtChanged: %RGp HCPhys=%RHp fPageProt=%#x enmType=%d *pu2State=%d\n",
+    Log5(("NEMHCNotifyPhysPageProtChanged: %RGp HCPhys=%RHp fPageProt=%#x enmType=%d *pu2State=%d\n",
           GCPhys, HCPhys, fPageProt, enmType, *pu2State));
-    RT_NOREF_PV(HCPhys); RT_NOREF_PV(enmType);
+    Assert(VM_IS_NEM_ENABLED(pVM));
+    RT_NOREF(HCPhys, enmType, pvR3);
 
 #ifdef NEM_WIN_USE_HYPERCALLS_FOR_PAGES
     PVMCPUCC pVCpu = VMMGetCpu(pVM);
+# ifdef NEM_WIN_WITH_A20
     if (   pVM->nem.s.fA20Enabled
         || !NEM_WIN_IS_RELEVANT_TO_A20(GCPhys))
+# endif
         nemHCNativeSetPhysPage(pVM, pVCpu, GCPhys, GCPhys, fPageProt, pu2State, false /*fBackingChanged*/);
+# ifdef NEM_WIN_WITH_A20
     else
     {
         /* To keep effort at a minimum, we unmap the HMA page alias and resync it lazily when needed. */
@@ -4969,30 +5055,39 @@ void nemHCNativeNotifyPhysPageProtChanged(PVMCC pVM, RTGCPHYS GCPhys, RTHCPHYS H
         if (!NEM_WIN_IS_SUBJECT_TO_A20(GCPhys))
             nemHCNativeSetPhysPage(pVM, pVCpu, GCPhys, GCPhys, fPageProt, pu2State, false /*fBackingChanged*/);
     }
+# endif
 #else
     RT_NOREF_PV(fPageProt);
+# ifdef NEM_WIN_WITH_A20
     if (   pVM->nem.s.fA20Enabled
         || !NEM_WIN_IS_RELEVANT_TO_A20(GCPhys))
+# endif
         nemHCJustUnmapPageFromHyperV(pVM, GCPhys, pu2State);
+# ifdef NEM_WIN_WITH_A20
     else if (!NEM_WIN_IS_SUBJECT_TO_A20(GCPhys))
         nemHCJustUnmapPageFromHyperV(pVM, GCPhys, pu2State);
     /* else: ignore since we've got the alias page at this address. */
+# endif
 #endif
 }
 
 
-void nemHCNativeNotifyPhysPageChanged(PVMCC pVM, RTGCPHYS GCPhys, RTHCPHYS HCPhysPrev, RTHCPHYS HCPhysNew,
-                                     uint32_t fPageProt, PGMPAGETYPE enmType, uint8_t *pu2State)
+VMM_INT_DECL(void) NEMHCNotifyPhysPageChanged(PVMCC pVM, RTGCPHYS GCPhys, RTHCPHYS HCPhysPrev, RTHCPHYS HCPhysNew,
+                                              RTR3PTR pvNewR3, uint32_t fPageProt, PGMPAGETYPE enmType, uint8_t *pu2State)
 {
-    Log5(("nemHCNativeNotifyPhysPageChanged: %RGp HCPhys=%RHp->%RHp fPageProt=%#x enmType=%d *pu2State=%d\n",
-          GCPhys, HCPhysPrev, HCPhysNew, fPageProt, enmType, *pu2State));
-    RT_NOREF_PV(HCPhysPrev); RT_NOREF_PV(HCPhysNew); RT_NOREF_PV(enmType);
+    Log5(("nemHCNativeNotifyPhysPageChanged: %RGp HCPhys=%RHp->%RHp pvNewR3=%p fPageProt=%#x enmType=%d *pu2State=%d\n",
+          GCPhys, HCPhysPrev, HCPhysNew, pvNewR3, fPageProt, enmType, *pu2State));
+    Assert(VM_IS_NEM_ENABLED(pVM));
+    RT_NOREF(HCPhysPrev, HCPhysNew, pvNewR3, enmType);
 
 #ifdef NEM_WIN_USE_HYPERCALLS_FOR_PAGES
     PVMCPUCC pVCpu = VMMGetCpu(pVM);
+# ifdef NEM_WIN_WITH_A20
     if (   pVM->nem.s.fA20Enabled
         || !NEM_WIN_IS_RELEVANT_TO_A20(GCPhys))
+# endif
         nemHCNativeSetPhysPage(pVM, pVCpu, GCPhys, GCPhys, fPageProt, pu2State, true /*fBackingChanged*/);
+# ifdef NEM_WIN_WITH_A20
     else
     {
         /* To keep effort at a minimum, we unmap the HMA page alias and resync it lazily when needed. */
@@ -5000,14 +5095,19 @@ void nemHCNativeNotifyPhysPageChanged(PVMCC pVM, RTGCPHYS GCPhys, RTHCPHYS HCPhy
         if (!NEM_WIN_IS_SUBJECT_TO_A20(GCPhys))
             nemHCNativeSetPhysPage(pVM, pVCpu, GCPhys, GCPhys, fPageProt, pu2State, true /*fBackingChanged*/);
     }
+# endif
 #else
     RT_NOREF_PV(fPageProt);
+# ifdef NEM_WIN_WITH_A20
     if (   pVM->nem.s.fA20Enabled
         || !NEM_WIN_IS_RELEVANT_TO_A20(GCPhys))
+# endif
         nemHCJustUnmapPageFromHyperV(pVM, GCPhys, pu2State);
+# ifdef NEM_WIN_WITH_A20
     else if (!NEM_WIN_IS_SUBJECT_TO_A20(GCPhys))
         nemHCJustUnmapPageFromHyperV(pVM, GCPhys, pu2State);
     /* else: ignore since we've got the alias page at this address. */
+# endif
 #endif
 }
 

@@ -583,6 +583,27 @@ void UIMiniToolBar::sltHoverLeave()
     }
 }
 
+void UIMiniToolBar::sltCheckWindowActivationSanity()
+{
+    /* Do nothing if parent window is already active: */
+    if (   m_pParent
+        && QGuiApplication::focusWindow() == m_pParent->windowHandle())
+        return;
+
+    /* We can't touch window activation if have modal or popup
+     * window opened, otherwise internal Qt state get flawed: */
+    if (   QApplication::activeModalWidget()
+        || QApplication::activePopupWidget())
+    {
+        /* But we should recheck the state in let's say 300ms: */
+        QTimer::singleShot(300, this, SLOT(sltCheckWindowActivationSanity()));
+        return;
+    }
+
+    /* Notify listener about we have stole window activation: */
+    emit sigNotifyAboutWindowActivationStolen();
+}
+
 void UIMiniToolBar::sltHide()
 {
     LogRel(("GUI: Hide mini-toolbar for window #%d\n", m_iWindowIndex));
@@ -997,27 +1018,15 @@ bool UIMiniToolBar::eventFilter(QObject *pWatched, QEvent *pEvent)
     if (pWatched == this && pEvent->type() == QEvent::WindowActivate)
     {
 #if   defined(VBOX_WS_WIN)
-        emit sigNotifyAboutWindowActivationStolen();
+        /* Just call the method asynchronously, after possible popups opened: */
+        QTimer::singleShot(0, this, SLOT(sltCheckWindowActivationSanity()));
 #elif defined(VBOX_WS_X11)
-        switch (uiCommon().typeOfWindowManager())
-        {
-            case X11WMType_GNOMEShell:
-            case X11WMType_Mutter:
-            {
-                // WORKAROUND:
-                // Under certain WMs we can receive stolen activation event too early,
-                // returning activation to initial source immediately makes no sense.
-                // In fact, Qt is not become aware of actual window activation later,
-                // so we are going to return window activation in let's say 100ms.
-                QTimer::singleShot(100, this, SLOT(sltNotifyAboutWindowActivationStolen()));
-                break;
-            }
-            default:
-            {
-                emit sigNotifyAboutWindowActivationStolen();
-                break;
-            }
-        }
+        // WORKAROUND:
+        // Under certain WMs we can receive stolen activation event too early,
+        // returning activation to initial source immediately makes no sense.
+        // In fact, Qt is not become aware of actual window activation later,
+        // so we are going to check for window activation in let's say 100ms.
+        QTimer::singleShot(100, this, SLOT(sltCheckWindowActivationSanity()));
 #endif /* VBOX_WS_X11 */
     }
 

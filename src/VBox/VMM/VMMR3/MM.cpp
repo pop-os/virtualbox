@@ -382,7 +382,8 @@ VMMR3DECL(int) MMR3InitPaging(PVM pVM)
     /*
      * Make the initial memory reservation with GMM.
      */
-    uint64_t cBasePages = (cbRam >> PAGE_SHIFT) + pVM->mm.s.cBasePages;
+    uint32_t const cbUma      = _1M - 640*_1K;
+    uint64_t       cBasePages = ((cbRam - cbUma) >> PAGE_SHIFT) + pVM->mm.s.cBasePages;
     rc = GMMR3InitialReservation(pVM,
                                  RT_MAX(cBasePages + pVM->mm.s.cHandyPages, 1),
                                  RT_MAX(pVM->mm.s.cShadowPages, 1),
@@ -411,22 +412,25 @@ VMMR3DECL(int) MMR3InitPaging(PVM pVM)
     /*
      * Setup the base ram (PGM).
      */
-    pVM->mm.s.cbRamHole = cbRamHole;
-    if (cbRam > offRamHole)
+    pVM->mm.s.cbRamHole     = cbRamHole;
+    pVM->mm.s.cbRamBelow4GB = cbRam > offRamHole ? offRamHole         : cbRam;
+    pVM->mm.s.cbRamAbove4GB = cbRam > offRamHole ? cbRam - offRamHole : 0;
+
+    /* First the conventional memory: */
+    rc = PGMR3PhysRegisterRam(pVM, 0, RT_MIN(cbRam, 640*_1K), "Conventional RAM");
+    if (RT_SUCCESS(rc) && cbRam >= _1M)
     {
-        pVM->mm.s.cbRamBelow4GB = offRamHole;
-        rc = PGMR3PhysRegisterRam(pVM, 0, offRamHole, "Base RAM");
-        if (RT_SUCCESS(rc))
+        /* The extended memory from 1MiB to 2MiB to align better with large pages in NEM mode: */
+        rc = PGMR3PhysRegisterRam(pVM, _1M, RT_MIN(_1M, cbRam - _1M), "Extended RAM, 1-2MB");
+        if (cbRam > _2M)
         {
-            pVM->mm.s.cbRamAbove4GB = cbRam - offRamHole;
-            rc = PGMR3PhysRegisterRam(pVM, _4G, cbRam - offRamHole, "Above 4GB Base RAM");
+            /* The extended memory from 2MiB up to 4GiB: */
+            rc = PGMR3PhysRegisterRam(pVM, _2M, pVM->mm.s.cbRamBelow4GB - _2M, "Extended RAM, >2MB");
+
+            /* Then all the memory above 4GiB: */
+            if (RT_SUCCESS(rc) && pVM->mm.s.cbRamAbove4GB > 0)
+                rc = PGMR3PhysRegisterRam(pVM, _4G, cbRam - offRamHole, "Above 4GB Base RAM");
         }
-    }
-    else
-    {
-        pVM->mm.s.cbRamBelow4GB = cbRam;
-        pVM->mm.s.cbRamAbove4GB = 0;
-        rc = PGMR3PhysRegisterRam(pVM, 0, cbRam, "Base RAM");
     }
 
     /*
@@ -625,7 +629,7 @@ VMMR3DECL(int) MMR3IncreaseBaseReservation(PVM pVM, uint64_t cAddBasePages)
 {
     uint64_t cOld = pVM->mm.s.cBasePages;
     pVM->mm.s.cBasePages += cAddBasePages;
-    LogFlow(("MMR3IncreaseBaseReservation: +%RU64 (%RU64 -> %RU64\n", cAddBasePages, cOld, pVM->mm.s.cBasePages));
+    LogFlow(("MMR3IncreaseBaseReservation: +%RU64 (%RU64 -> %RU64)\n", cAddBasePages, cOld, pVM->mm.s.cBasePages));
     int rc = mmR3UpdateReservation(pVM);
     if (RT_FAILURE(rc))
     {

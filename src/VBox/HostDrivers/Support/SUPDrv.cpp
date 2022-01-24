@@ -2603,7 +2603,7 @@ static int supdrvIOCtlInnerRestricted(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, P
             pReq->u.Out.u32SessionCookie  = pSession->u32Cookie;
             pReq->u.Out.u32SessionVersion = SUPDRV_IOC_VERSION;
             pReq->u.Out.u32DriverVersion  = SUPDRV_IOC_VERSION;
-            pReq->u.Out.pSession          = pSession;
+            pReq->u.Out.pSession          = NULL;
             pReq->u.Out.cFunctions        = 0;
             pReq->Hdr.rc = VINF_SUCCESS;
             return 0;
@@ -3747,7 +3747,7 @@ SUPR0DECL(int) SUPR0PageAllocEx(PSUPDRVSESSION pSession, uint32_t cPages, uint32
      * Let IPRT do the work.
      */
     if (ppvR0)
-        rc = RTR0MemObjAllocPage(&Mem.MemObj, (size_t)cPages * PAGE_SIZE, true /* fExecutable */);
+        rc = RTR0MemObjAllocPage(&Mem.MemObj, (size_t)cPages * PAGE_SIZE, false /*fExecutable*/);
     else
         rc = RTR0MemObjAllocPhysNC(&Mem.MemObj, (size_t)cPages * PAGE_SIZE, NIL_RTHCPHYS);
     if (RT_SUCCESS(rc))

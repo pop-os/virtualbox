@@ -411,6 +411,7 @@ static FNSVMEXITHANDLER hmR0SvmExitXcptGP;
 #if defined(HMSVM_ALWAYS_TRAP_ALL_XCPTS) || defined(VBOX_WITH_NESTED_HWVIRT_SVM)
 static FNSVMEXITHANDLER hmR0SvmExitXcptGeneric;
 #endif
+static FNSVMEXITHANDLER hmR0SvmExitTrWrite;
 #ifdef VBOX_WITH_NESTED_HWVIRT_SVM
 static FNSVMEXITHANDLER hmR0SvmExitClgi;
 static FNSVMEXITHANDLER hmR0SvmExitStgi;
@@ -1058,6 +1059,10 @@ VMMR0DECL(int) SVMR0SetupVM(PVMCC pVM)
         /* Page faults must be intercepted to implement shadow paging. */
         pVmcbCtrl0->u32InterceptXcpt |= RT_BIT(X86_XCPT_PF);
     }
+
+    /* Workaround for missing OS/2 TLB flush, see ticketref:20625. */
+    if (pVM->hm.s.fMissingOS2TlbFlushWorkaround)
+        pVmcbCtrl0->u64InterceptCtrl |= SVM_CTRL_INTERCEPT_TR_WRITES;
 
     /* Setup Pause Filter for guest pause-loop (spinlock) exiting. */
     if (fUsePauseFilter)
@@ -5376,6 +5381,8 @@ static int hmR0SvmHandleExit(PVMCPUCC pVCpu, PSVMTRANSIENT pSvmTransient)
                     VMEXIT_CALL_RET(0, hmR0SvmExitXcptGeneric(pVCpu, pSvmTransient));
 #endif  /* HMSVM_ALWAYS_TRAP_ALL_XCPTS */
 
+                case SVM_EXIT_TR_WRITE: VMEXIT_CALL_RET(0, hmR0SvmExitTrWrite(pVCpu, pSvmTransient)); /* OS/2 TLB workaround. */
+
                 default:
                 {
                     AssertMsgFailed(("hmR0SvmHandleExit: Unknown exit code %#RX64\n", uExitCode));
@@ -5494,6 +5501,14 @@ static uint32_t hmR0SvmGetIemXcptFlags(PCSVMEVENT pEvent)
  */
 static int hmR0SvmCheckExitDueToEventDelivery(PVMCPUCC pVCpu, PSVMTRANSIENT pSvmTransient)
 {
+    /** @todo r=bird: Looks like this is called on many exits and we start by
+     * loading CR2 on the offchance that we actually have work to do here.
+     *
+     * HMSVM_CHECK_EXIT_DUE_TO_EVENT_DELIVERY can surely check
+     * pVmcb->ctrl.ExitIntInfo.n.u1Valid, can't it?
+     *
+     * Also, what's the deal with hmR0SvmGetCurrentVmcb() vs pSvmTransient->pVmcb?
+     */
     int rc = VINF_SUCCESS;
     PSVMVMCB pVmcb = hmR0SvmGetCurrentVmcb(pVCpu);
     HMSVM_CPUMCTX_IMPORT_STATE(pVCpu, CPUMCTX_EXTRN_CR2);
@@ -5711,8 +5726,8 @@ HMSVM_EXIT_DECL hmR0SvmExitWbinvd(PVMCPUCC pVCpu, PSVMTRANSIENT pSvmTransient)
 
     if (rcStrict == VINF_IEM_RAISED_XCPT)
     {
-        rcStrict = VINF_SUCCESS;
         ASMAtomicUoOrU64(&pVCpu->hm.s.fCtxChanged, HM_CHANGED_RAISED_XCPT_MASK);
+        rcStrict = VINF_SUCCESS;
     }
     HMSVM_CHECK_SINGLE_STEP(pVCpu, rcStrict);
     return VBOXSTRICTRC_TODO(rcStrict);
@@ -5743,8 +5758,8 @@ HMSVM_EXIT_DECL hmR0SvmExitInvd(PVMCPUCC pVCpu, PSVMTRANSIENT pSvmTransient)
 
     if (rcStrict == VINF_IEM_RAISED_XCPT)
     {
-        rcStrict = VINF_SUCCESS;
         ASMAtomicUoOrU64(&pVCpu->hm.s.fCtxChanged, HM_CHANGED_RAISED_XCPT_MASK);
+        rcStrict = VINF_SUCCESS;
     }
     HMSVM_CHECK_SINGLE_STEP(pVCpu, rcStrict);
     return VBOXSTRICTRC_TODO(rcStrict);
@@ -5780,8 +5795,8 @@ HMSVM_EXIT_DECL hmR0SvmExitCpuid(PVMCPUCC pVCpu, PSVMTRANSIENT pSvmTransient)
 
         if (rcStrict == VINF_IEM_RAISED_XCPT)
         {
-            rcStrict = VINF_SUCCESS;
             ASMAtomicUoOrU64(&pVCpu->hm.s.fCtxChanged, HM_CHANGED_RAISED_XCPT_MASK);
+            rcStrict = VINF_SUCCESS;
         }
         HMSVM_CHECK_SINGLE_STEP(pVCpu, rcStrict);
     }
@@ -5831,8 +5846,8 @@ HMSVM_EXIT_DECL hmR0SvmExitRdtsc(PVMCPUCC pVCpu, PSVMTRANSIENT pSvmTransient)
         pSvmTransient->fUpdateTscOffsetting = true;
     else if (rcStrict == VINF_IEM_RAISED_XCPT)
     {
-        rcStrict = VINF_SUCCESS;
         ASMAtomicUoOrU64(&pVCpu->hm.s.fCtxChanged, HM_CHANGED_RAISED_XCPT_MASK);
+        rcStrict = VINF_SUCCESS;
     }
     HMSVM_CHECK_SINGLE_STEP(pVCpu, rcStrict);
     return VBOXSTRICTRC_TODO(rcStrict);
@@ -5865,8 +5880,8 @@ HMSVM_EXIT_DECL hmR0SvmExitRdtscp(PVMCPUCC pVCpu, PSVMTRANSIENT pSvmTransient)
         pSvmTransient->fUpdateTscOffsetting = true;
     else if (rcStrict == VINF_IEM_RAISED_XCPT)
     {
-        rcStrict = VINF_SUCCESS;
         ASMAtomicUoOrU64(&pVCpu->hm.s.fCtxChanged, HM_CHANGED_RAISED_XCPT_MASK);
+        rcStrict = VINF_SUCCESS;
     }
     HMSVM_CHECK_SINGLE_STEP(pVCpu, rcStrict);
     return VBOXSTRICTRC_TODO(rcStrict);
@@ -5897,8 +5912,8 @@ HMSVM_EXIT_DECL hmR0SvmExitRdpmc(PVMCPUCC pVCpu, PSVMTRANSIENT pSvmTransient)
 
     if (rcStrict == VINF_IEM_RAISED_XCPT)
     {
-        rcStrict = VINF_SUCCESS;
         ASMAtomicUoOrU64(&pVCpu->hm.s.fCtxChanged, HM_CHANGED_RAISED_XCPT_MASK);
+        rcStrict = VINF_SUCCESS;
     }
     HMSVM_CHECK_SINGLE_STEP(pVCpu, rcStrict);
     return VBOXSTRICTRC_TODO(rcStrict);
@@ -5933,8 +5948,8 @@ HMSVM_EXIT_DECL hmR0SvmExitInvlpg(PVMCPUCC pVCpu, PSVMTRANSIENT pSvmTransient)
 
     if (rcStrict == VINF_IEM_RAISED_XCPT)
     {
-        rcStrict = VINF_SUCCESS;
         ASMAtomicUoOrU64(&pVCpu->hm.s.fCtxChanged, HM_CHANGED_RAISED_XCPT_MASK);
+        rcStrict = VINF_SUCCESS;
     }
     HMSVM_CHECK_SINGLE_STEP(pVCpu, rcStrict);
     return VBOXSTRICTRC_VAL(rcStrict);
@@ -5968,8 +5983,8 @@ HMSVM_EXIT_DECL hmR0SvmExitHlt(PVMCPUCC pVCpu, PSVMTRANSIENT pSvmTransient)
         rcStrict = EMShouldContinueAfterHalt(pVCpu, &pVCpu->cpum.GstCtx) ? VINF_SUCCESS : VINF_EM_HALT;
     else if (rcStrict == VINF_IEM_RAISED_XCPT)
     {
-        rcStrict = VINF_SUCCESS;
         ASMAtomicUoOrU64(&pVCpu->hm.s.fCtxChanged, HM_CHANGED_RAISED_XCPT_MASK);
+        rcStrict = VINF_SUCCESS;
     }
     HMSVM_CHECK_SINGLE_STEP(pVCpu, rcStrict);
     if (rcStrict != VINF_SUCCESS)
@@ -6007,8 +6022,8 @@ HMSVM_EXIT_DECL hmR0SvmExitMonitor(PVMCPUCC pVCpu, PSVMTRANSIENT pSvmTransient)
 
     if (rcStrict == VINF_IEM_RAISED_XCPT)
     {
-        rcStrict = VINF_SUCCESS;
         ASMAtomicUoOrU64(&pVCpu->hm.s.fCtxChanged, HM_CHANGED_RAISED_XCPT_MASK);
+        rcStrict = VINF_SUCCESS;
     }
     HMSVM_CHECK_SINGLE_STEP(pVCpu, rcStrict);
     return VBOXSTRICTRC_TODO(rcStrict);
@@ -6042,8 +6057,8 @@ HMSVM_EXIT_DECL hmR0SvmExitMwait(PVMCPUCC pVCpu, PSVMTRANSIENT pSvmTransient)
         rcStrict = VINF_SUCCESS;
     else if (rcStrict == VINF_IEM_RAISED_XCPT)
     {
-        rcStrict = VINF_SUCCESS;
         ASMAtomicUoOrU64(&pVCpu->hm.s.fCtxChanged, HM_CHANGED_RAISED_XCPT_MASK);
+        rcStrict = VINF_SUCCESS;
     }
     HMSVM_CHECK_SINGLE_STEP(pVCpu, rcStrict);
     return VBOXSTRICTRC_TODO(rcStrict);
@@ -6085,7 +6100,7 @@ HMSVM_EXIT_DECL hmR0SvmExitReadCRx(PVMCPUCC pVCpu, PSVMTRANSIENT pSvmTransient)
     HMSVM_VALIDATE_EXIT_HANDLER_PARAMS(pVCpu, pSvmTransient);
 
     PCPUMCTX pCtx = &pVCpu->cpum.GstCtx;
-    Log4Func(("CS:RIP=%04x:%#RX64\n", pCtx->cs.Sel, pCtx->rip));
+    Log4Func(("CS:RIP=%04x:%RX64\n", pCtx->cs.Sel, pCtx->rip));
 #ifdef VBOX_WITH_STATISTICS
     switch (pSvmTransient->u64ExitCode)
     {
@@ -6127,8 +6142,8 @@ HMSVM_EXIT_DECL hmR0SvmExitReadCRx(PVMCPUCC pVCpu, PSVMTRANSIENT pSvmTransient)
     Assert((pSvmTransient->u64ExitCode - SVM_EXIT_READ_CR0) <= 15);
     if (rcStrict == VINF_IEM_RAISED_XCPT)
     {
-        rcStrict = VINF_SUCCESS;
         ASMAtomicUoOrU64(&pVCpu->hm.s.fCtxChanged, HM_CHANGED_RAISED_XCPT_MASK);
+        rcStrict = VINF_SUCCESS;
     }
     HMSVM_CHECK_SINGLE_STEP(pVCpu, rcStrict);
     return VBOXSTRICTRC_TODO(rcStrict);
@@ -6219,9 +6234,9 @@ HMSVM_EXIT_DECL hmR0SvmExitWriteCRx(PVMCPUCC pVCpu, PSVMTRANSIENT pSvmTransient)
     }
     else if (rcStrict == VINF_IEM_RAISED_XCPT)
     {
-        rcStrict = VINF_SUCCESS;
         ASMAtomicUoOrU64(&pVCpu->hm.s.fCtxChanged, HM_CHANGED_RAISED_XCPT_MASK);
         HMSVM_CHECK_SINGLE_STEP(pVCpu, rcStrict);
+        rcStrict = VINF_SUCCESS;
     }
     else
         Assert(rcStrict == VERR_EM_INTERPRETER || rcStrict == VINF_PGM_SYNC_CR3);
@@ -6264,8 +6279,8 @@ static VBOXSTRICTRC hmR0SvmExitReadMsr(PVMCPUCC pVCpu, PSVMVMCB pVmcb)
 
     if (rcStrict == VINF_IEM_RAISED_XCPT)
     {
-        rcStrict = VINF_SUCCESS;
         ASMAtomicUoOrU64(&pVCpu->hm.s.fCtxChanged, HM_CHANGED_RAISED_XCPT_MASK);
+        rcStrict = VINF_SUCCESS;
     }
     HMSVM_CHECK_SINGLE_STEP(pVCpu, rcStrict);
     return rcStrict;
@@ -6376,8 +6391,8 @@ static VBOXSTRICTRC hmR0SvmExitWriteMsr(PVMCPUCC pVCpu, PSVMVMCB pVmcb, PSVMTRAN
     }
     else if (rcStrict == VINF_IEM_RAISED_XCPT)
     {
-        rcStrict = VINF_SUCCESS;
         ASMAtomicUoOrU64(&pVCpu->hm.s.fCtxChanged, HM_CHANGED_RAISED_XCPT_MASK);
+        rcStrict = VINF_SUCCESS;
     }
     HMSVM_CHECK_SINGLE_STEP(pVCpu, rcStrict);
     return rcStrict;
@@ -6505,8 +6520,8 @@ HMSVM_EXIT_DECL hmR0SvmExitXsetbv(PVMCPUCC pVCpu, PSVMTRANSIENT pSvmTransient)
     }
     else if (rcStrict == VINF_IEM_RAISED_XCPT)
     {
-        rcStrict = VINF_SUCCESS;
         ASMAtomicUoOrU64(&pVCpu->hm.s.fCtxChanged, HM_CHANGED_RAISED_XCPT_MASK);
+        rcStrict = VINF_SUCCESS;
     }
     HMSVM_CHECK_SINGLE_STEP(pVCpu, rcStrict);
     return VBOXSTRICTRC_TODO(rcStrict);
@@ -6529,7 +6544,7 @@ HMSVM_EXIT_DECL hmR0SvmExitIOInstr(PVMCPUCC pVCpu, PSVMTRANSIENT pSvmTransient)
     PCPUMCTX pCtx  = &pVCpu->cpum.GstCtx;
     PSVMVMCB pVmcb = hmR0SvmGetCurrentVmcb(pVCpu);
 
-    Log4Func(("CS:RIP=%04x:%#RX64\n", pCtx->cs.Sel, pCtx->rip));
+    Log4Func(("CS:RIP=%04x:%RX64\n", pCtx->cs.Sel, pCtx->rip));
 
     /* Refer AMD spec. 15.10.2 "IN and OUT Behaviour" and Figure 15-2. "EXITINFO1 for IOIO Intercept" for the format. */
     SVMIOIOEXITINFO IoExitInfo;
@@ -6621,6 +6636,11 @@ HMSVM_EXIT_DECL hmR0SvmExitIOInstr(PVMCPUCC pVCpu, PSVMTRANSIENT pSvmTransient)
                 rcStrict = IEMExecOne(pVCpu);
             }
             fUpdateRipAlready = true;
+            if (rcStrict == VINF_IEM_RAISED_XCPT)
+            {
+                ASMAtomicUoOrU64(&pVCpu->hm.s.fCtxChanged, HM_CHANGED_RAISED_XCPT_MASK);
+                rcStrict = VINF_SUCCESS;
+            }
         }
         else
         {
@@ -6703,7 +6723,6 @@ HMSVM_EXIT_DECL hmR0SvmExitIOInstr(PVMCPUCC pVCpu, PSVMTRANSIENT pSvmTransient)
 
             HMSVM_CHECK_SINGLE_STEP(pVCpu, rcStrict);
         }
-
 #ifdef VBOX_STRICT
         if (   rcStrict == VINF_IOM_R3_IOPORT_READ
             || rcStrict == VINF_EM_PENDING_R3_IOPORT_READ)
@@ -6771,7 +6790,7 @@ HMSVM_EXIT_DECL hmR0SvmExitNestedPF(PVMCPUCC pVCpu, PSVMTRANSIENT pSvmTransient)
     uint32_t u32ErrCode      = pVmcb->ctrl.u64ExitInfo1;    /* Note! High bits in EXITINFO1 may contain additional info and are
                                                                thus intentionally not copied into u32ErrCode. */
 
-    Log4Func(("#NPF at CS:RIP=%04x:%#RX64 GCPhysFaultAddr=%RGp ErrCode=%#x \n", pCtx->cs.Sel, pCtx->rip, GCPhysFaultAddr,
+    Log4Func(("#NPF at CS:RIP=%04x:%RX64 GCPhysFaultAddr=%RGp ErrCode=%#x \n", pCtx->cs.Sel, pCtx->rip, GCPhysFaultAddr,
               u32ErrCode));
 
     /*
@@ -6877,7 +6896,7 @@ HMSVM_EXIT_DECL hmR0SvmExitNestedPF(PVMCPUCC pVCpu, PSVMTRANSIENT pSvmTransient)
     int rc = PGMR0Trap0eHandlerNestedPaging(pVM, pVCpu, enmNestedPagingMode, u32ErrCode, CPUMCTX2CORE(pCtx), GCPhysFaultAddr);
     TRPMResetTrap(pVCpu);
 
-    Log4Func(("#NPF: PGMR0Trap0eHandlerNestedPaging returns %Rrc CS:RIP=%04x:%#RX64\n", rc, pCtx->cs.Sel, pCtx->rip));
+    Log4Func(("#NPF: PGMR0Trap0eHandlerNestedPaging returns %Rrc CS:RIP=%04x:%RX64\n", rc, pCtx->cs.Sel, pCtx->rip));
 
     /*
      * Same case as PGMR0Trap0eHandlerNPMisconfig(). See comment above, @bugref{6043}.
@@ -7517,7 +7536,6 @@ HMSVM_EXIT_DECL hmR0SvmExitXcptGP(PVMCPUCC pVCpu, PSVMTRANSIENT pSvmTransient)
 }
 
 
-#if defined(HMSVM_ALWAYS_TRAP_ALL_XCPTS) || defined(VBOX_WITH_NESTED_HWVIRT_SVM)
 /**
  * \#VMEXIT handler for generic exceptions. Conditional \#VMEXIT.
  */
@@ -7583,7 +7601,65 @@ HMSVM_EXIT_DECL hmR0SvmExitXcptGeneric(PVMCPUCC pVCpu, PSVMTRANSIENT pSvmTransie
     hmR0SvmSetPendingEvent(pVCpu, &Event, 0 /* GCPtrFaultAddress */);
     return VINF_SUCCESS;
 }
+
+
+/**
+ * Generic exit handler that interprets the current instruction
+ *
+ * Useful exit that only gets triggered by dtrace and the debugger.  Caller does
+ * the exit logging, and this function does the rest.
+ */
+static VBOXSTRICTRC hmR0SvmExitInterpretInstruction(PVMCPUCC pVCpu, PSVMTRANSIENT pSvmTransient,
+                                                    uint64_t fExtraImport, uint64_t fHmChanged)
+{
+#if 1
+    RT_NOREF(pSvmTransient);
+    HMSVM_CPUMCTX_IMPORT_STATE(pVCpu, IEM_CPUMCTX_EXTRN_MUST_MASK | fExtraImport);
+    VBOXSTRICTRC rcStrict = IEMExecOne(pVCpu);
+    if (rcStrict == VINF_SUCCESS)
+        ASMAtomicUoOrU64(&pVCpu->hm.s.fCtxChanged, fHmChanged | HM_CHANGED_GUEST_RFLAGS | HM_CHANGED_GUEST_RIP);
+    else
+    {
+        Log4Func(("IEMExecOne -> %Rrc\n", VBOXSTRICTRC_VAL(rcStrict) ));
+        if (rcStrict == VINF_IEM_RAISED_XCPT)
+        {
+            ASMAtomicUoOrU64(&pVCpu->hm.s.fCtxChanged, HM_CHANGED_RAISED_XCPT_MASK | fHmChanged);
+            rcStrict = VINF_SUCCESS;
+        }
+        else
+            ASMAtomicUoOrU64(&pVCpu->hm.s.fCtxChanged, fHmChanged);
+    }
+    return rcStrict;
+#else
+    RT_NOREF(pVCpu, pSvmTransient, fExtraImport, fHmChanged);
+    return VINF_EM_RAW_EMULATE_INSTR;
 #endif
+}
+
+
+/**
+ * \#VMEXIT handler for LTR. Conditional \#VMEXIT (OS/2 TLB workaround, debug).
+ */
+HMSVM_EXIT_DECL hmR0SvmExitTrWrite(PVMCPUCC pVCpu, PSVMTRANSIENT pSvmTransient)
+{
+    HMSVM_VALIDATE_EXIT_HANDLER_PARAMS(pVCpu, pSvmTransient);
+
+    /* Workaround for lack of TLB flushing in OS/2 when returning to protected
+       mode after a real mode call (like a BIOS call).  See ticketref:20625
+       comment 14. */
+    PVMCC pVM = pVCpu->CTX_SUFF(pVM);
+    if (pVM->hm.s.fMissingOS2TlbFlushWorkaround)
+    {
+        Log4Func(("%04x:%08RX64 TLB flush\n", pSvmTransient->pVmcb->guest.CS.u16Sel, pSvmTransient->pVmcb->guest.u64RIP));
+        VMCPU_FF_SET(pVCpu, VMCPU_FF_TLB_FLUSH);
+    }
+    else
+        Log4Func(("%04x:%08RX64\n", pSvmTransient->pVmcb->guest.CS.u16Sel, pSvmTransient->pVmcb->guest.u64RIP));
+
+    return VBOXSTRICTRC_TODO(hmR0SvmExitInterpretInstruction(pVCpu, pSvmTransient,
+                                                             CPUMCTX_EXTRN_TR | CPUMCTX_EXTRN_GDTR, HM_CHANGED_GUEST_TR));
+}
+
 
 #ifdef VBOX_WITH_NESTED_HWVIRT_SVM
 /**
@@ -7658,8 +7734,8 @@ HMSVM_EXIT_DECL hmR0SvmExitStgi(PVMCPUCC pVCpu, PSVMTRANSIENT pSvmTransient)
         ASMAtomicUoOrU64(&pVCpu->hm.s.fCtxChanged, HM_CHANGED_GUEST_HWVIRT);
     else if (rcStrict == VINF_IEM_RAISED_XCPT)
     {
-        rcStrict = VINF_SUCCESS;
         ASMAtomicUoOrU64(&pVCpu->hm.s.fCtxChanged, HM_CHANGED_RAISED_XCPT_MASK);
+        rcStrict = VINF_SUCCESS;
     }
     HMSVM_CHECK_SINGLE_STEP(pVCpu, rcStrict);
     return VBOXSTRICTRC_TODO(rcStrict);
@@ -7703,8 +7779,8 @@ HMSVM_EXIT_DECL hmR0SvmExitVmload(PVMCPUCC pVCpu, PSVMTRANSIENT pSvmTransient)
     }
     else if (rcStrict == VINF_IEM_RAISED_XCPT)
     {
-        rcStrict = VINF_SUCCESS;
         ASMAtomicUoOrU64(&pVCpu->hm.s.fCtxChanged, HM_CHANGED_RAISED_XCPT_MASK);
+        rcStrict = VINF_SUCCESS;
     }
     HMSVM_CHECK_SINGLE_STEP(pVCpu, rcStrict);
     return VBOXSTRICTRC_TODO(rcStrict);
@@ -7737,8 +7813,8 @@ HMSVM_EXIT_DECL hmR0SvmExitVmsave(PVMCPUCC pVCpu, PSVMTRANSIENT pSvmTransient)
 
     if (rcStrict == VINF_IEM_RAISED_XCPT)
     {
-        rcStrict = VINF_SUCCESS;
         ASMAtomicUoOrU64(&pVCpu->hm.s.fCtxChanged, HM_CHANGED_RAISED_XCPT_MASK);
+        rcStrict = VINF_SUCCESS;
     }
     HMSVM_CHECK_SINGLE_STEP(pVCpu, rcStrict);
     return VBOXSTRICTRC_TODO(rcStrict);
@@ -7769,8 +7845,8 @@ HMSVM_EXIT_DECL hmR0SvmExitInvlpga(PVMCPUCC pVCpu, PSVMTRANSIENT pSvmTransient)
 
     if (rcStrict == VINF_IEM_RAISED_XCPT)
     {
-        rcStrict = VINF_SUCCESS;
         ASMAtomicUoOrU64(&pVCpu->hm.s.fCtxChanged, HM_CHANGED_RAISED_XCPT_MASK);
+        rcStrict = VINF_SUCCESS;
     }
     HMSVM_CHECK_SINGLE_STEP(pVCpu, rcStrict);
     return VBOXSTRICTRC_TODO(rcStrict);
@@ -7813,8 +7889,8 @@ HMSVM_EXIT_DECL hmR0SvmExitVmrun(PVMCPUCC pVCpu, PSVMTRANSIENT pSvmTransient)
     }
     else if (rcStrict == VINF_IEM_RAISED_XCPT)
     {
-        rcStrict = VINF_SUCCESS;
         ASMAtomicUoOrU64(&pVCpu->hm.s.fCtxChanged, HM_CHANGED_RAISED_XCPT_MASK);
+        rcStrict = VINF_SUCCESS;
     }
     HMSVM_CHECK_SINGLE_STEP(pVCpu, rcStrict);
     return VBOXSTRICTRC_TODO(rcStrict);

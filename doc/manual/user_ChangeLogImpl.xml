@@ -47,6 +47,82 @@ Rules for adding a changelog entry to make them look more uniform:
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
 
   <sect1>
+    <title>Version 6.1.32 (2022-01-18)</title>
+
+    <para>This is a maintenance release. The following items were fixed
+      and/or added:</para>
+
+    <itemizedlist>
+      <listitem>
+        <para>VMM: Changed the guest RAM management when using Hyper-V to be
+          more compatible with HVCI (bug #20627 and #20694)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: Workaround for OS/2 guest unstability on newer AMD CPUs
+          due to a missing TLB flush in OS/2 (bug #20625)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: Fixed keyboard focus loss in rare circumstances when using
+          the mini toolbar in fullscreen mode</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: Fixed accidental creation of empty debug log file when
+          the OSS audio backend was configured</para>
+      </listitem>
+
+      <listitem>
+        <para>E1000: Fix link status reporting for certain Linux kernels
+          (some Oracle Linux ones, probably more)</para>
+      </listitem>
+
+      <listitem>
+        <para>Unattended installation: Fixed regression introduced in 6.1.28,
+         causing partitioning failure for Windows XP to 10 (bug #20769)</para>
+      </listitem>
+
+      <listitem>
+        <para>Solaris host: Fixed regression in installer, failed on Solaris 10</para>
+      </listitem>
+
+      <listitem>
+        <para>Solaris host: Fix packaging regression, make vboxshell.py executable</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux host: Fix access to some USB devices, device class was not correctly
+          handled (bug #20721)</para>
+      </listitem>
+
+      <listitem>
+        <para>Guest: Fixed wrong mouse position if guest is in text mode</para>
+      </listitem>
+
+      <listitem>
+        <para>Guest Control: Fixed folders copying from host to guest and
+          from guest to host</para>
+      </listitem>
+
+      <listitem>
+        <para>Guest Control: Fixes for UNICODE handling</para>
+      </listitem>
+
+      <listitem>
+        <para>Shared Clipboard: Improved HTML content exchange between X11 and Windows
+          guests and hosts</para>
+      </listitem>
+
+      <listitem>
+        <para>OS/2 Additions: Fixed some issues with extended attributes in the
+          shared folders (bug #19453)</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 6.1.30 (2021-11-22)</title>
 
     <para>This is a maintenance release. The following items were fixed

@@ -3338,7 +3338,7 @@ int VBoxVHWAImage::vhwaLoadOverlayData(VHWACommandList *pCmdList, struct SSMHAND
 
     VBOXQGL_LOAD_OVERLAYSTART(pSSM);
 
-    char *buf = new char[VBOXVHWACMD_SIZE(VBOXVHWACMD_SURF_CREATE)];
+    char *buf = (char *)malloc(VBOXVHWACMD_SIZE(VBOXVHWACMD_SURF_CREATE)); /** @todo r=andy Any reason not using the RTMem API? */
     memset(buf, 0, VBOXVHWACMD_SIZE(VBOXVHWACMD_SURF_CREATE));
     VBOXVHWACMD * pCmd = (VBOXVHWACMD*)buf;
     pCmd->enmCmd = VBOXVHWACMD_TYPE_SURF_OVERLAY_UPDATE;
