@@ -205,4 +205,3 @@ override_dh_auto_clean:
 	rm -f debian/$(pdkms).links
 
 	find . -name "*.pyc" -exec rm -f {} \;
-
