@@ -1,3 +1,14 @@
+virtualbox (6.1.34-dfsg-1) unstable; urgency=medium
+
+  * Fix udev rule:
+    - If there is a NAME, the line "Only network interfaces can be renamed,
+      ignoring NAME" is written in the log
+
+  [ Gianfranco Costamagna ]
+  * New upstream version 6.1.34-dfsg
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 20 Apr 2022 11:27:31 +0200
+
 virtualbox (6.1.32-dfsg-1) unstable; urgency=medium
 
   * New upstream version 6.1.32-dfsg
