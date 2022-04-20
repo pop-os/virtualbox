@@ -47,6 +47,143 @@ Rules for adding a changelog entry to make them look more uniform:
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
 
   <sect1>
+    <title>Version 6.1.34 (2022-03-22)</title>
+
+    <para>This is a maintenance release. The following items were fixed
+      and/or added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>VMM: Fix instruction emulation for "cmpxchg16b"</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: Improved GUI behavior on macOS Big Sur and later when kernel
+          extensions are not loaded</para>
+      </listitem>
+
+      <listitem>
+        <para>EHCI: Addressed an issue with handling short packets
+          (bug #20726)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: Fixed a potential hang during disk I/O when the host I/O
+          cache is disabled (bug #20875)</para>
+      </listitem>
+
+      <listitem>
+        <para>NVMe: Fixed loading saved state when nothing is attached to it
+          (bug #20791)</para>
+      </listitem>
+
+      <listitem>
+        <para>DevPcBios: Addressed an issue which resulted in rejecting the
+          detected LCHS geometry when the head count was above 16</para>
+      </listitem>
+
+      <listitem>
+        <para>virtio-scsi: Improvements</para>
+      </listitem>
+
+      <listitem>
+        <para>E1000: Improve descriptor handling</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: Fixed handling of command line arguments with
+          incomplete quotes (bug #20740)</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: Improved 'natnetwork list' output</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: NATNetwork: Provide an option (--ipv6-prefix) to set
+          IPv6 prefix</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: NATNetwork: Provide an option (--ipv6-default) to
+          advertise default IPv6 route (bug #20714)</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: Fix documentation of "usbdevsource add"
+          (bug #20849)</para>
+      </listitem>
+
+      <listitem>
+        <para>Networking: General improvements in IPv4 and IPv6 area
+          (bug #20714)</para>
+      </listitem>
+
+      <listitem>
+        <para>OVF Import: Allow users to specify a different storage
+          controller and/or controller port for hard disks when importing
+          a VM</para>
+      </listitem>
+
+      <listitem>
+        <para>Unattended install: Improvements</para>
+      </listitem>
+
+      <listitem>
+        <para>Shared Clipboard: Improved HTML clipboard handling for Windows
+          host</para>
+      </listitem>
+
+      <listitem>
+        <para>MacOS host: Fix handling of non-ASCII characters in the guest
+          control functionality (bug #20792)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux host and guest: Introduced initial support for kernel 5.17</para>
+      </listitem>
+
+      <listitem>
+        <para>Solaris package: Fixes for API access from Python</para>
+      </listitem>
+
+      <listitem>
+        <para>Solaris IPS package: Suppress dependency on libpython2.7.so.*</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux host and guest: Fixes for Linux kernel 5.14</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Guest Additions: Fixed guest screen resize for older guests
+          which are running libXrandr older than version 1.4</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Guest Additions: Introduced initial support for RHEL 8.6
+          kernels (bug #20877)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows guest: Make driver install smarter</para>
+      </listitem>
+
+      <listitem>
+        <para>Solaris guest: Addressed an issue which prevented VBox GAs
+          6.1.30 or 6.1.32 from being removed in Solaris 10 guests
+          (bug #20780)</para>
+      </listitem>
+
+      <listitem>
+        <para>EFI: Fixed booting from FreeBSD ISO images (bug #19910)</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 6.1.32 (2022-01-18)</title>
 
     <para>This is a maintenance release. The following items were fixed

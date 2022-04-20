@@ -47,6 +47,7 @@
 #define VBOXCLIENT_OPT_DRAGANDDROP          VBOXCLIENT_OPT_SERVICES + 2
 #define VBOXCLIENT_OPT_SEAMLESS             VBOXCLIENT_OPT_SERVICES + 3
 #define VBOXCLIENT_OPT_VMSVGA               VBOXCLIENT_OPT_SERVICES + 4
+#define VBOXCLIENT_OPT_DISPLAY              VBOXCLIENT_OPT_SERVICES + 5
 
 
 /*********************************************************************************************************************************
@@ -188,6 +189,7 @@ static void vboxClientUsage(const char *pcszFileName)
 #endif
     RTPrintf("  --seamless         starts the seamless windows service\n");
     RTPrintf("  --vmsvga           starts VMSVGA dynamic resizing for x11/Wayland guests\n");
+    RTPrintf("  --display          starts VMSVGA dynamic resizing for legacy guests\n");
     RTPrintf("  -f, --foreground   run in the foreground (no daemonizing)\n");
     RTPrintf("  -d, --nodaemon     continues running as a system service\n");
     RTPrintf("  -h, --help         shows this help text\n");
@@ -249,6 +251,7 @@ int main(int argc, char *argv[])
 #endif
         { "--seamless",                     VBOXCLIENT_OPT_SEAMLESS,                  RTGETOPT_REQ_NOTHING },
         { "--vmsvga",                       VBOXCLIENT_OPT_VMSVGA,                    RTGETOPT_REQ_NOTHING },
+        { "--display",                      VBOXCLIENT_OPT_DISPLAY,                   RTGETOPT_REQ_NOTHING },
     };
 
     int                     ch;
@@ -351,6 +354,14 @@ int main(int argc, char *argv[])
                 if (g_pService)
                     return vbclSyntaxOnlyOneService();
                 g_pService = VBClDisplaySVGAX11Service();
+                break;
+            }
+
+            case VBOXCLIENT_OPT_DISPLAY:
+            {
+                if (g_pService)
+                    return vbclSyntaxOnlyOneService();
+                g_pService = VBClGetDisplayService();
                 break;
             }
 

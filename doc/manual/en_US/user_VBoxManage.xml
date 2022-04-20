@@ -2753,21 +2753,23 @@ UUID="457af700-bc0a-4258-aa3c-13b03da171f2"
           (change with "--vsys 0 --cpus &lt;n&gt;")
        7: Guest memory: 956 MB (change with "--vsys 0 --memory &lt;MB&gt;")
        8: Sound card (appliance expects "ensoniq1371", can change on import)
-          (disable with "--vsys 0 --unit 5 --ignore")
+          (disable with "--vsys 0 --unit 8 --ignore")
        9: USB controller
-          (disable with "--vsys 0 --unit 6 --ignore")
+          (disable with "--vsys 0 --unit 9 --ignore")
       10: Network adapter: orig bridged, config 2, extra type=bridged
       11: Floppy
-          (disable with "--vsys 0 --unit 8 --ignore")
+          (disable with "--vsys 0 --unit 11 --ignore")
       12: SCSI controller, type BusLogic
-          (change with "--vsys 0 --unit 9 --scsitype {BusLogic|LsiLogic}";
-          disable with "--vsys 0 --unit 9 --ignore")
+          (change with "--vsys 0 --unit 12 --scsitype {BusLogic|LsiLogic}";
+          disable with "--vsys 0 --unit 12 --ignore")
       13: IDE controller, type PIIX4
-          (disable with "--vsys 0 --unit 10 --ignore")
+          (disable with "--vsys 0 --unit 13 --ignore")
       14: Hard disk image: source image=WindowsXp.vmdk,
-            target path=/home/user/disks/WindowsXp.vmdk, controller=9;channel=0
-          (change controller with "--vsys 0 --unit 11 --controller &lt;id&gt;";
-          disable with "--vsys 0 --unit 11 --ignore")</screen>
+            target path=/home/user/disks/WindowsXp.vmdk, controller=12;channel=0
+          (change target path with "--vsys 0 --unit 14 --disk &lt;path&gt;";
+          change controller with "--vsys 0 --unit 14 --controller &lt;index&gt;";
+          change controller port with "--vsys 0 --unit 14 --port &lt;n&gt;";
+          disable with "--vsys 0 --unit 14 --ignore")</screen>
 
       <para>
         The individual configuration items are numbered, and depending
@@ -2798,7 +2800,7 @@ UUID="457af700-bc0a-4258-aa3c-13b03da171f2"
         controller, use the following command:
       </para>
 
-<screen>VBoxManage import WindowsXp.ovf
+<screen>VBoxManage import WindowsXp.ovf \
   --vsys 0 --unit 8 --ignore --unit 9 --ignore --unit 14 --controller 13</screen>
 
     </sect2>
@@ -2945,8 +2947,8 @@ UUID="457af700-bc0a-4258-aa3c-13b03da171f2"
       <para>
         The import options <option>--disk</option>,
         <option>--controller</option>, <option>--scsitype</option>,
-        <option>--unit</option>, <option>--settingsfile</option> are not
-        valid for cloud import.
+        <option>--port</option>, <option>--unit</option>,
+        <option>--settingsfile</option> are not valid for cloud import.
       </para>
 
       <para>
@@ -2954,8 +2956,8 @@ UUID="457af700-bc0a-4258-aa3c-13b03da171f2"
         an instance from &oci;:
       </para>
 
-<screen># VBoxManage import OCI:// --cloud --vmname import_from_oci --memory 4000
-  --cpus 3 --ostype FreeBSD_64 --cloudprofile "standard user"
+<screen># VBoxManage import OCI:// --cloud --vmname import_from_oci --memory 4000 \
+  --cpus 3 --ostype FreeBSD_64 --cloudprofile "standard user" \
   --cloudinstanceid ocid1.instance.oc1.iad.abuwc... --cloudbucket myBucket</screen>
 
     </sect2>

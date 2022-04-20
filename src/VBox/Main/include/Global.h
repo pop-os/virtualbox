@@ -173,6 +173,14 @@ public:
     static const char *stringifyReason(Reason_T aReason);
 
     /**
+     * Stringify a storage controller type.
+     *
+     * @returns Pointer to a read only string.
+     * @param   aType       The storage controller type.
+     */
+    static const char *stringifyStorageControllerType(StorageControllerType_T aType);
+
+    /**
      * Try convert a COM status code to a VirtualBox status code (VBox/err.h).
      *
      * @returns VBox status code.

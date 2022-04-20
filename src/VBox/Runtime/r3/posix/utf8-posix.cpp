@@ -39,6 +39,9 @@
 
 #include <errno.h>
 #include <locale.h>
+#ifdef RT_OS_DARWIN
+# include <stdlib.h>
+#endif
 
 /* iconv prototype changed with 165+ (thanks to PSARC/2010/160 Bugster 7037400) */
 #if defined(RT_OS_SOLARIS)
@@ -106,6 +109,35 @@ AssertCompile(sizeof(iconv_t) <= sizeof(void *));
  */
 DECLHIDDEN(const char *) rtStrGetLocaleCodeset(void)
 {
+#ifdef RT_OS_DARWIN
+    /*
+     * @bugref{10153}: If no locale specified in the environment (typically the
+     *      case when launched via Finder, LaunchPad or similar) default to UTF-8.
+     */
+    static int8_t volatile s_fIsUtf8 = -1;
+    int8_t fIsUtf8 = s_fIsUtf8;
+    if (fIsUtf8)
+    {
+        if (fIsUtf8 == true)
+            return "UTF-8";
+
+        /* Initialize: */
+        fIsUtf8 = true;
+        static const char * const s_papszVariables[] = { "LC_ALL", "LC_CTYPE", "LANG" };
+        for (size_t i = 0; i < RT_ELEMENTS(s_papszVariables); i++)
+        {
+            const char *pszValue = getenv(s_papszVariables[i]);
+            if (pszValue && *pszValue)
+            {
+                fIsUtf8 = false;
+                break;
+            }
+        }
+        s_fIsUtf8 = fIsUtf8;
+        if (fIsUtf8 == true)
+            return "UTF-8";
+    }
+#endif
     return nl_langinfo(CODESET);
 }
 
@@ -256,7 +288,7 @@ static int rtstrConvertCached(const void *pvInput, size_t cbInput, const char *p
         iconv_t hIconv = (iconv_t)*phIconv;
         if (hIconv == (iconv_t)-1)
         {
-#if defined(RT_OS_SOLARIS) || defined(RT_OS_NETBSD)
+#if defined(RT_OS_SOLARIS) || defined(RT_OS_NETBSD) || /* @bugref{10153}: Default to UTF-8: */ defined(RT_OS_DARWIN)
             /* Some systems don't grok empty codeset strings, so help them find the current codeset. */
             if (!*pszInputCS)
                 pszInputCS = rtStrGetLocaleCodeset();
@@ -387,7 +419,7 @@ static int rtStrConvertUncached(const void *pvInput, size_t cbInput, const char 
         /*
          * Create conversion object.
          */
-#if defined(RT_OS_SOLARIS) || defined(RT_OS_NETBSD)
+#if defined(RT_OS_SOLARIS) || defined(RT_OS_NETBSD) || /* @bugref{10153}: Default to UTF-8: */ defined(RT_OS_DARWIN)
         /* Some systems don't grok empty codeset strings, so help them find the current codeset. */
         if (!*pszInputCS)
             pszInputCS = rtStrGetLocaleCodeset();

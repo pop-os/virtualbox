@@ -42,6 +42,56 @@ using namespace std;
 
 
 /*********************************************************************************************************************************
+*   Static Functions                                                                                                             *
+*********************************************************************************************************************************/
+
+/**
+ * Searches comparison operators'<', '<=', '>', '>=', or '=' in string.
+ *
+ * @returns true if detected, false if not.
+ * @param   pszComparisonOperator Comparison operators string array. Assumed to be of size 3,
+ * @param   pachPlaceholder       The string array in which we search the comparison operators,
+ * @param   startPos              The position with in the pachPlaceholder from where the seach starts. Required to be smaller then
+ *                                sizeof(pachPlaceholder) - 3
+ */
+
+static bool detectComparisonOperator(char *pszComparisonOperator, const char *pachPlaceholder, size_t &startPos)
+{
+    memset(pszComparisonOperator, '\0', 3);
+    /* Search for '>', '<', '>=', '<=', '='. */
+    if (pachPlaceholder[startPos] == '<')
+    {
+        pszComparisonOperator[0] = '<';
+        ++startPos;
+        if (pachPlaceholder[startPos] == '=')
+        {
+            pszComparisonOperator[1] = '=';
+            ++startPos;
+        }
+        return true;
+    }
+    if (pachPlaceholder[startPos] == '>')
+    {
+        pszComparisonOperator[0] = '>';
+        ++startPos;
+        if (pachPlaceholder[startPos] == '=')
+        {
+            pszComparisonOperator[1] = '=';
+            ++startPos;
+        }
+        return true;
+    }
+    else if (pachPlaceholder[startPos] == '=')
+    {
+        pszComparisonOperator[0] = '=';
+        ++startPos;
+        return true;
+    }
+    return false;
+}
+
+
+/*********************************************************************************************************************************
 *   UnattendedScriptTemplate Implementation                                                                                      *
 *********************************************************************************************************************************/
 
@@ -456,7 +506,7 @@ HRESULT UnattendedScriptTemplate::getConditional(const char *pachPlaceholder, si
         (   cchPlaceholder == sizeof("@@VBOX_COND_" a_szMatch "@@") - 1U \
          && memcmp(pachPlaceholder, "@@VBOX_COND_" a_szMatch "@@", sizeof("@@VBOX_COND_" a_szMatch "@@") - 1U) == 0)
 #define IS_PLACEHOLDER_PARTIALLY_MATCH(a_szMatch) \
- 		(memcmp(pachPlaceholder, "@@VBOX_COND_" a_szMatch, sizeof("@@VBOX_COND_" a_szMatch) - 1U) == 0)
+    (memcmp(pachPlaceholder, "@@VBOX_COND_" a_szMatch, sizeof("@@VBOX_COND_" a_szMatch) - 1U) == 0)
 
     /* Install guest additions: */
     if (IS_PLACEHOLDER_MATCH("IS_INSTALLING_ADDITIONS"))
@@ -500,37 +550,66 @@ HRESULT UnattendedScriptTemplate::getConditional(const char *pachPlaceholder, si
         *pfOutputting = !mpUnattended->i_isRtcUsingUtc();
     else if (IS_PLACEHOLDER_MATCH("HAS_PROXY"))
         *pfOutputting = mpUnattended->i_getProxy().isNotEmpty();
-    else if (IS_PLACEHOLDER_PARTIALLY_MATCH("GUEST_VERSION"))
+    else if (IS_PLACEHOLDER_PARTIALLY_MATCH("GUEST_VERSION["))
     {
-        //parse the placeholder and extract the OS version from there
-        RTCString strPlaceHolder(pachPlaceholder);
-        size_t startPos = sizeof("@@VBOX_COND_GUEST_VERSION") - 1;//-1 is for '\n'
-        size_t endPos = strPlaceHolder.find("@@", startPos + 2);
-        //next part should look like [>8.0.0] for example where:
-        // - "[,]" is just the brackets to wrap up the condition;
-        // - ">" is "greater". Also possible comparison is "<";
-        // - 8.0.0 is required guest OS version.
-        //The end of placeholder is "@@" like for others.
-
-        if ( strPlaceHolder[endPos] == '@'
-             && strPlaceHolder[endPos+1] == '@' )
+        /* Check the passed string against format @@VBOX_COND_GUEST_VERSION[>8.04.0]@@. Allowed comparison operators are:
+         *  '<', '<=', '>', '>=', or '=' in string. No spaces are allowed in anywhere of the expr. */
+        static const char s_szTail[] = "]@@";
+        size_t endLength = sizeof(s_szTail) - 1;
+        if (memcmp(&pachPlaceholder[cchPlaceholder - endLength], RT_STR_TUPLE(s_szTail)) != 0)
         {
-            if ( strPlaceHolder[startPos++] == '[' && strPlaceHolder[--endPos] == ']' )
+            *pfOutputting = false;
+            return mpSetError->setErrorBoth(E_FAIL, VERR_PARSE_ERROR, mpSetError->tr("Malformed @@VBOX_COND_GUEST_VERSION[expr]@@: Missing ']' (%.*s)"),
+                                            cchPlaceholder, pachPlaceholder);
+        }
+        size_t startPos = sizeof("@@VBOX_COND_GUEST_VERSION[") - 1;
+        size_t  endPos = cchPlaceholder - endLength;
+        if (startPos >= endPos)
+        {
+            *pfOutputting = false;
+            return mpSetError->setErrorBoth(E_FAIL, VERR_PARSE_ERROR, mpSetError->tr("Malformed @@VBOX_COND_GUEST_VERSION[expr]@@: Missing expr (%.*s)"),
+                                            cchPlaceholder, pachPlaceholder);
+        }
+        /* Parse for the comparison operator. Assuming the expression starts with one of the allowed operators. */
+        char pszComparisonOperator[3];
+        if (!detectComparisonOperator(pszComparisonOperator, pachPlaceholder, startPos))
+        {
+            *pfOutputting = false;
+            return mpSetError->setErrorBoth(E_FAIL, VERR_PARSE_ERROR, mpSetError->tr("Malformed @@VBOX_COND_GUEST_VERSION[expr]@@: Only space, '>', '>=', '<', <=', and '=' are allowed at the start. (%.*s)"),
+                                            cchPlaceholder, pachPlaceholder);
+        }
+        if (startPos >= endPos)
+        {
+            *pfOutputting = false;
+            return mpSetError->setErrorBoth(E_FAIL, VERR_PARSE_ERROR, mpSetError->tr("Malformed @@VBOX_COND_GUEST_VERSION[expr]@@: No version string found. (%.*s)"),
+                                            cchPlaceholder, pachPlaceholder);
+        }
+        /* Check if the version string includes any character other than '.' and digits. */
+        for (size_t i = startPos; i < endPos; ++i)
+        {
+            if ( (pachPlaceholder[i] < '0' || pachPlaceholder[i] > '9') && pachPlaceholder[i] != '.')
             {
-                char chComp = strPlaceHolder[startPos++];
-                RTCString strRequiredOSVersion = strPlaceHolder.substr(startPos, endPos - startPos);
-                RTCString strDetectedOSVersion = mpUnattended->i_getDetectedOSVersion();
-                int res = RTStrVersionCompare(strDetectedOSVersion.c_str(), strRequiredOSVersion.c_str());
-                if ( res >= 0 && chComp == '>' )
-                        *pfOutputting = true;
-                else if ( res < 0 && chComp == '<' )
-                        *pfOutputting = true;
-                else
-                    *pfOutputting = false;
+                *pfOutputting = false;
+                return mpSetError->setErrorBoth(E_FAIL, VERR_PARSE_ERROR, mpSetError->tr("Malformed @@VBOX_COND_GUEST_VERSION[expr]@@: Version string must be consist of only digits and '.', and no spaces. (%.*s)"),
+                                                cchPlaceholder, pachPlaceholder);
             }
         }
+
+        RTCString strRequiredOSVersion(pachPlaceholder, startPos, endPos - startPos);
+        RTCString strDetectedOSVersion = mpUnattended->i_getDetectedOSVersion();
+        int res = RTStrVersionCompare(strDetectedOSVersion.c_str(), strRequiredOSVersion.c_str());
+
+        if (   res == 0
+            && (   pszComparisonOperator[0] == '='
+                || memcmp(pszComparisonOperator, ">=", 2) == 0
+                || memcmp(pszComparisonOperator, "<=", 2) == 0))
+            *pfOutputting = true;
+        else if (res < 0 && pszComparisonOperator[0] == '<')
+            *pfOutputting = true;
+        else if (res > 0 && pszComparisonOperator[0] == '>')
+            *pfOutputting = true;
         else
-            *pfOutputting = false;//initially is set to "false"
+            *pfOutputting = false;
     }
     else
         return mpSetError->setErrorBoth(E_FAIL, VERR_NOT_FOUND, mpSetError->tr("Unknown conditional placeholder '%.*s'"),
@@ -683,4 +762,3 @@ Utf8Str UnattendedSUSEXMLScript::createProbableUserHomeDir(const xml::ElementNod
     return strCalcValue;
 }
 #endif /* just for reference */
-

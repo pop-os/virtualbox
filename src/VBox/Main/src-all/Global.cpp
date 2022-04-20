@@ -659,7 +659,6 @@ Global::stringifyDeviceType(DeviceType_T aType)
     }
 }
 
-
 /*static*/ const char *
 Global::stringifyReason(Reason_T aReason)
 {
@@ -675,6 +674,33 @@ Global::stringifyReason(Reason_T aReason)
             AssertMsgFailed(("%d (%#x)\n", aReason, aReason));
             static char s_szMsg[48];
             RTStrPrintf(s_szMsg, sizeof(s_szMsg), "invalid reason %#010x\n", aReason);
+            return s_szMsg;
+        }
+    }
+}
+
+/*static*/ const char *
+Global::stringifyStorageControllerType(StorageControllerType_T aType)
+{
+    switch (aType)
+    {
+        case StorageControllerType_Null:        return "Null";
+        case StorageControllerType_LsiLogic:    return "LsiLogic";
+        case StorageControllerType_BusLogic:    return "BusLogic";
+        case StorageControllerType_IntelAhci:   return "AHCI";
+        case StorageControllerType_PIIX3:       return "PIIX3";
+        case StorageControllerType_PIIX4 :      return "PIIX4";
+        case StorageControllerType_ICH6:        return "ICH6";
+        case StorageControllerType_I82078:      return "I82078";
+        case StorageControllerType_LsiLogicSas: return "LsiLogicSas";
+        case StorageControllerType_USB:         return "USB";
+        case StorageControllerType_NVMe:        return "NVMe";
+        case StorageControllerType_VirtioSCSI:  return "VirtioSCSI";
+        default:
+        {
+            AssertMsgFailed(("%d (%#x)\n", aType, aType));
+            static char s_szMsg[48];
+            RTStrPrintf(s_szMsg, sizeof(s_szMsg), "Invalid storage controller type: 0x%08x\n", aType);
             return s_szMsg;
         }
     }

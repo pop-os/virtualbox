@@ -198,7 +198,7 @@ RT_EXPORT_SYMBOL(RTNetPrefixToMaskIPv4);
 
 RTDECL(int) RTNetStrToIPv4Cidr(const char *pcszAddr, PRTNETADDRIPV4 pAddr, int *piPrefix)
 {
-    RTNETADDRIPV4 Addr;
+    RTNETADDRIPV4 Addr, Mask;
     uint8_t u8Prefix;
     char *pszNext;
     int rc;
@@ -212,7 +212,10 @@ RTDECL(int) RTNetStrToIPv4Cidr(const char *pcszAddr, PRTNETADDRIPV4 pAddr, int *
     if (RT_FAILURE(rc))
         return rc;
 
-    /* if prefix is missing, treat is as exact (/32) address specification */
+    /*
+     * If the prefix is missing, treat is as exact (/32) address
+     * specification.
+     */
     if (*pszNext == '\0' || rc == VWRN_TRAILING_SPACES)
     {
         *pAddr = Addr;
@@ -220,15 +223,74 @@ RTDECL(int) RTNetStrToIPv4Cidr(const char *pcszAddr, PRTNETADDRIPV4 pAddr, int *
         return VINF_SUCCESS;
     }
 
-    if (*pszNext != '/')
+    /*
+     * Be flexible about the way the prefix is specified after the
+     * slash: accept both the prefix length and the netmask, and for
+     * the latter accept both dotted-decimal and hex.  The inputs we
+     * convert here are likely coming from a user and people have
+     * different preferences.  Sometimes they just remember specific
+     * different networks in specific formats!
+     */
+    if (*pszNext == '/')
+        ++pszNext;
+    else
         return VERR_INVALID_PARAMETER;
 
-    ++pszNext;
-    rc = RTStrToUInt8Ex(pszNext, &pszNext, 10, &u8Prefix);
-    if (RT_FAILURE(rc) || rc == VWRN_TRAILING_CHARS)
-        return VERR_INVALID_PARAMETER;
+    /* .../0x... is a hex mask */
+    if (pszNext[0] == '0' && (pszNext[1] == 'x' || pszNext[1] == 'X'))
+    {
+        rc = RTStrToUInt32Ex(pszNext, &pszNext, 16, &Mask.u);
+        if (rc == VINF_SUCCESS || rc == VWRN_TRAILING_SPACES)
+            Mask.u = RT_H2N_U32(Mask.u);
+        else
+            return VERR_INVALID_PARAMETER;
 
-    if (u8Prefix == 0 || u8Prefix > 32)
+        int iPrefix;
+        rc = RTNetMaskToPrefixIPv4(&Mask, &iPrefix);
+        if (RT_SUCCESS(rc))
+            u8Prefix = (uint8_t)iPrefix;
+        else
+            return VERR_INVALID_PARAMETER;
+    }
+    else
+    {
+        char *pszLookAhead;
+        uint32_t u32;
+        rc = RTStrToUInt32Ex(pszNext, &pszLookAhead, 10, &u32);
+
+        /* single number after the slash is prefix length */
+        if (rc == VINF_SUCCESS || rc == VWRN_TRAILING_SPACES)
+        {
+            if (u32 <= 32)
+                u8Prefix = (uint8_t)u32;
+            else
+                return VERR_INVALID_PARAMETER;
+        }
+        /* a number followed by more stuff, may be a dotted-decimal */
+        else if (rc == VWRN_TRAILING_CHARS)
+        {
+            if (*pszLookAhead != '.') /* don't even bother checking */
+                return VERR_INVALID_PARAMETER;
+
+            rc = rtNetStrToIPv4AddrEx(pszNext, &Mask, &pszNext);
+            if (rc == VINF_SUCCESS || rc == VWRN_TRAILING_SPACES)
+            {
+                int iPrefix;
+                rc = RTNetMaskToPrefixIPv4(&Mask, &iPrefix);
+                if (RT_SUCCESS(rc))
+                    u8Prefix = (uint8_t)iPrefix;
+                else
+                    return VERR_INVALID_PARAMETER;
+            }
+            else
+                return VERR_INVALID_PARAMETER;
+        }
+        /* failed to convert to number */
+        else
+            return VERR_INVALID_PARAMETER;
+    }
+
+    if (u8Prefix > 32)
         return VERR_INVALID_PARAMETER;
 
     *pAddr = Addr;
@@ -616,3 +678,50 @@ RTDECL(int) RTNetPrefixToMaskIPv6(int iPrefix, PRTNETADDRIPV6 pMask)
     return VINF_SUCCESS;
 }
 RT_EXPORT_SYMBOL(RTNetPrefixToMaskIPv6);
+
+
+RTDECL(int) RTNetStrToIPv6Cidr(const char *pcszAddr, PRTNETADDRIPV6 pAddr, int *piPrefix)
+{
+    RTNETADDRIPV6 Addr;
+    uint8_t u8Prefix;
+    char *pszZone, *pszNext;
+    int rc;
+
+    AssertPtrReturn(pcszAddr, VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pAddr, VERR_INVALID_PARAMETER);
+    AssertPtrReturn(piPrefix, VERR_INVALID_PARAMETER);
+
+    pcszAddr = RTStrStripL(pcszAddr);
+    rc = rtNetStrToIPv6AddrEx(pcszAddr, &Addr, &pszZone, &pszNext);
+    if (RT_FAILURE(rc))
+        return rc;
+
+    RT_NOREF(pszZone);
+
+    /*
+     * If the prefix is missing, treat is as exact (/128) address
+     * specification.
+     */
+    if (*pszNext == '\0' || rc == VWRN_TRAILING_SPACES)
+    {
+        *pAddr = Addr;
+        *piPrefix = 128;
+        return VINF_SUCCESS;
+    }
+
+    if (*pszNext != '/')
+        return VERR_INVALID_PARAMETER;
+
+    ++pszNext;
+    rc = RTStrToUInt8Ex(pszNext, &pszNext, 10, &u8Prefix);
+    if (rc != VINF_SUCCESS && rc != VWRN_TRAILING_SPACES)
+        return VERR_INVALID_PARAMETER;
+
+    if (u8Prefix > 128)
+        return VERR_INVALID_PARAMETER;
+
+    *pAddr = Addr;
+    *piPrefix = u8Prefix;
+    return VINF_SUCCESS;
+}
+RT_EXPORT_SYMBOL(RTNetStrToIPv6Cidr);

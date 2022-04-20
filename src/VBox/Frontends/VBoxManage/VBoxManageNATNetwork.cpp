@@ -90,22 +90,32 @@ static HRESULT printNATNetwork(const ComPtr<INATNetwork> &pNATNet)
     do
     {
         Bstr strVal;
-        CHECK_ERROR_BREAK(pNATNet, COMGETTER(NetworkName)(strVal.asOutParam()));
-        RTPrintf("Name:        %ls\n", strVal.raw());
-        CHECK_ERROR_BREAK(pNATNet, COMGETTER(Network)(strVal.asOutParam()));
-        RTPrintf("Network:     %ls\n", strVal.raw());
-        CHECK_ERROR_BREAK(pNATNet, COMGETTER(Gateway)(strVal.asOutParam()));
-        RTPrintf("Gateway:     %ls\n", strVal.raw());
         BOOL fVal;
+
+        CHECK_ERROR_BREAK(pNATNet, COMGETTER(NetworkName)(strVal.asOutParam()));
+        RTPrintf("Name:         %ls\n", strVal.raw());
+
+        CHECK_ERROR_BREAK(pNATNet, COMGETTER(Network)(strVal.asOutParam()));
+        RTPrintf("Network:      %ls\n", strVal.raw());
+
+        CHECK_ERROR_BREAK(pNATNet, COMGETTER(Gateway)(strVal.asOutParam()));
+        RTPrintf("Gateway:      %ls\n", strVal.raw());
+
+        CHECK_ERROR_BREAK(pNATNet, COMGETTER(NeedDhcpServer)(&fVal));
+        RTPrintf("DHCP Server:  %s\n",  fVal ? "Yes" : "No");
+
         CHECK_ERROR_BREAK(pNATNet, COMGETTER(IPv6Enabled)(&fVal));
-        RTPrintf("IPv6:        %s\n",  fVal ? "Yes" : "No");
-        if (fVal)
-        {
-            CHECK_ERROR_BREAK(pNATNet, COMGETTER(IPv6Prefix)(strVal.asOutParam()));
-            RTPrintf("IPv6 Prefix: %ls\n", strVal.raw());
-        }
+        RTPrintf("IPv6:         %s\n",  fVal ? "Yes" : "No");
+
+        CHECK_ERROR_BREAK(pNATNet, COMGETTER(IPv6Prefix)(strVal.asOutParam()));
+        RTPrintf("IPv6 Prefix:  %ls\n", strVal.raw());
+
+        CHECK_ERROR_BREAK(pNATNet, COMGETTER(AdvertiseDefaultIPv6RouteEnabled)(&fVal));
+        RTPrintf("IPv6 Default: %s\n",  fVal ? "Yes" : "No");
+
+
         CHECK_ERROR_BREAK(pNATNet, COMGETTER(Enabled)(&fVal));
-        RTPrintf("Enabled:     %s\n",  fVal ? "Yes" : "No");
+        RTPrintf("Enabled:      %s\n",  fVal ? "Yes" : "No");
         /** @todo Add more information here. */
         RTPrintf("\n");
 
@@ -163,10 +173,12 @@ static RTEXITCODE handleOp(HandlerArg *a, OPCODE enmCode)
         return errorSyntax(USAGE_NATNETWORK, "Not enough parameters");
 
     const char *pNetName = NULL;
-    const char *pNetworkCidr = NULL;
+    const char *pPrefixIPv4 = NULL;
+    const char *pPrefixIPv6 = NULL;
     int enable = -1;
     int dhcp = -1;
     int ipv6 = -1;
+    int ipv6_default = -1;
 
     VPF2DELETE vPfName2Delete;
     VPF2ADD vPf2Add;
@@ -176,18 +188,29 @@ static RTEXITCODE handleOp(HandlerArg *a, OPCODE enmCode)
 
     LONG loopback6Offset = 0; /* ignore me */
 
+    enum
+    {
+        kNATNetworkIota = 1000,
+        kNATNetwork_IPv6Default,
+        kNATNetwork_IPv6Prefix,
+    };
+
     static const RTGETOPTDEF g_aNATNetworkIPOptions[] =
     {
-        { "--netname",          't', RTGETOPT_REQ_STRING  },
-        { "--network",          'n', RTGETOPT_REQ_STRING  },
-        { "--dhcp",             'h', RTGETOPT_REQ_BOOL    },
-        { "--ipv6",             '6', RTGETOPT_REQ_BOOL    },
-        { "--enable",           'e', RTGETOPT_REQ_NOTHING },
-        { "--disable",          'd', RTGETOPT_REQ_NOTHING },
-        { "--port-forward-4",   'p', RTGETOPT_REQ_STRING  },
-        { "--port-forward-6",   'P', RTGETOPT_REQ_STRING  },
-        { "--loopback-4",       'l', RTGETOPT_REQ_STRING  },
-        { "--loopback-6",       'L', RTGETOPT_REQ_STRING  },
+        { "--netname",          't',                            RTGETOPT_REQ_STRING  },
+        { "--network",          'n',                            RTGETOPT_REQ_STRING  }, /* old name */
+        { "--ipv4-prefix",      'n',                            RTGETOPT_REQ_STRING  }, /* new name */
+        { "--dhcp",             'h',                            RTGETOPT_REQ_BOOL    },
+        { "--ipv6",             '6',                            RTGETOPT_REQ_BOOL    }, /* old name */
+        { "--ipv6-default",     kNATNetwork_IPv6Default,        RTGETOPT_REQ_BOOL    },
+        { "--ipv6-enable",      '6',                            RTGETOPT_REQ_BOOL    }, /* new name */
+        { "--ipv6-prefix",      kNATNetwork_IPv6Prefix,         RTGETOPT_REQ_STRING  },
+        { "--enable",           'e',                            RTGETOPT_REQ_NOTHING },
+        { "--disable",          'd',                            RTGETOPT_REQ_NOTHING },
+        { "--port-forward-4",   'p',                            RTGETOPT_REQ_STRING  },
+        { "--port-forward-6",   'P',                            RTGETOPT_REQ_STRING  },
+        { "--loopback-4",       'l',                            RTGETOPT_REQ_STRING  },
+        { "--loopback-6",       'L',                            RTGETOPT_REQ_STRING  },
     };
 
     int c;
@@ -207,9 +230,9 @@ static RTEXITCODE handleOp(HandlerArg *a, OPCODE enmCode)
                 break;
 
             case 'n':   // --network
-                if (pNetworkCidr)
+                if (pPrefixIPv4)
                     return errorSyntax(USAGE_NATNETWORK, "You can only specify --network only once.");
-                pNetworkCidr = ValueUnion.psz;
+                pPrefixIPv4 = ValueUnion.psz;
                 break;
 
             case 'e':   // --enable
@@ -234,6 +257,18 @@ static RTEXITCODE handleOp(HandlerArg *a, OPCODE enmCode)
                 if (ipv6 != -1)
                     return errorSyntax(USAGE_NATNETWORK, "You can specify --ipv6 only once.");
                 ipv6 = ValueUnion.f;
+                break;
+
+            case kNATNetwork_IPv6Prefix:
+                if (pPrefixIPv6)
+                    return errorSyntax(USAGE_NATNETWORK, "You can specify --ipv6-prefix only once.");
+                pPrefixIPv6 = ValueUnion.psz;
+                break;
+
+            case kNATNetwork_IPv6Default: // XXX: uwe
+                if (ipv6_default != -1)
+                    return errorSyntax(USAGE_NATNETWORK, "You can specify --ipv6-default only once.");
+                ipv6_default = ValueUnion.f;
                 break;
 
             case 'L': /* ipv6 loopback */
@@ -319,7 +354,7 @@ static RTEXITCODE handleOp(HandlerArg *a, OPCODE enmCode)
     switch (enmCode)
     {
         case OP_ADD:
-            if (!pNetworkCidr)
+            if (!pPrefixIPv4)
                 return errorSyntax(USAGE_NATNETWORK, "You need to specify the --network option");
             break;
         case OP_MODIFY:
@@ -354,9 +389,9 @@ static RTEXITCODE handleOp(HandlerArg *a, OPCODE enmCode)
         case OP_ADD:
         case OP_MODIFY:
         {
-            if (pNetworkCidr)
+            if (pPrefixIPv4)
             {
-                CHECK_ERROR(net, COMSETTER(Network)(Bstr(pNetworkCidr).raw()));
+                CHECK_ERROR(net, COMSETTER(Network)(Bstr(pPrefixIPv4).raw()));
                 if (FAILED(rc))
                     return errorArgument("Failed to set configuration");
             }
@@ -367,9 +402,40 @@ static RTEXITCODE handleOp(HandlerArg *a, OPCODE enmCode)
                     return errorArgument("Failed to set configuration");
             }
 
-            if (ipv6 >= 0)
+            /*
+             * If we are asked to disable IPv6, do it early so that
+             * the same command can also set IPv6 prefix to empty if
+             * it so wishes.
+             */
+            if (ipv6 == 0)
             {
-                CHECK_ERROR(net, COMSETTER(IPv6Enabled) ((BOOL)ipv6));
+                CHECK_ERROR(net, COMSETTER(IPv6Enabled)(FALSE));
+                if (FAILED(rc))
+                    return errorArgument("Failed to set configuration");
+            }
+
+            if (pPrefixIPv6)
+            {
+                CHECK_ERROR(net, COMSETTER(IPv6Prefix)(Bstr(pPrefixIPv6).raw()));
+                if (FAILED(rc))
+                    return errorArgument("Failed to set configuration");
+            }
+
+            /*
+             * If we are asked to enable IPv6, do it late, so that the
+             * same command can also set IPv6 prefix.
+             */
+            if (ipv6 > 0)
+            {
+                CHECK_ERROR(net, COMSETTER(IPv6Enabled)(TRUE));
+                if (FAILED(rc))
+                    return errorArgument("Failed to set configuration");
+            }
+
+            if (ipv6_default != -1)
+            {
+                BOOL fIPv6Default = RT_BOOL(ipv6_default);
+                CHECK_ERROR(net, COMSETTER(AdvertiseDefaultIPv6RouteEnabled)(fIPv6Default));
                 if (FAILED(rc))
                     return errorArgument("Failed to set configuration");
             }
