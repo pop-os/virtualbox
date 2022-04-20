@@ -294,9 +294,10 @@ static int rtR3InitArgv(uint32_t fFlags, int cArgs, char ***ppapszArgs)
                 && (papwszArgs = CommandLineToArgvW(GetCommandLineW(), &cArgsW)) != NULL )
             {
                 AssertMsg(cArgsW == cArgs, ("%d vs %d\n", cArgsW, cArgs));
-                for (int i = 0; i < cArgs; i++)
+                for (int i = 0; i < RT_MIN(cArgs, cArgsW); i++)
                 {
-                    int rc = RTUtf16ToUtf8Tag(papwszArgs[i], &papszArgs[i], "will-leak:rtR3InitArgv");
+                    int rc = papwszArgs[i] != NULL ? RTUtf16ToUtf8Tag(papwszArgs[i], &papszArgs[i], "will-leak:rtR3InitArgv") :
+                                                     VERR_GENERAL_FAILURE;
                     if (RT_FAILURE(rc))
                     {
                         while (i--)

@@ -43,12 +43,25 @@
 # include <drm/drm_probe_helper.h>
 #endif
 
-#if RTLNX_VER_MIN(5,14,0)
+#if RTLNX_VER_MIN(5,14,0) || RTLNX_RHEL_RANGE(8,6, 8,99)
 # include <drm/drm_aperture.h>
 #endif
 
 #include "version-generated.h"
 #include "revision-generated.h"
+
+/** Detect whether kernel mode setting is OFF. */
+#if defined(CONFIG_VGA_CONSOLE)
+# if RTLNX_VER_MIN(5,17,0)
+#  define VBOX_VIDEO_NOMODESET() drm_firmware_drivers_only() && vbox_modeset == -1
+# elif RTLNX_VER_MIN(4,7,0)
+#  define VBOX_VIDEO_NOMODESET() vgacon_text_force() && vbox_modeset == -1
+# else /* < 4.7.0 */
+# define VBOX_VIDEO_NOMODESET() 0
+# endif /* < 4.7.0 */
+#else /* !CONFIG_VGA_CONSOLE */
+# define VBOX_VIDEO_NOMODESET() 0
+#endif /* !CONFIG_VGA_CONSOLE */
 
 static int vbox_modeset = -1;
 
@@ -69,7 +82,7 @@ static int vbox_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	struct drm_device *dev = NULL;
 	int ret = 0;
 
-# if RTLNX_VER_MIN(5,14,0)
+# if RTLNX_VER_MIN(5,14,0) || RTLNX_RHEL_RANGE(8,6, 8,99)
 #  if RTLNX_VER_MIN(5,15,0)
 	ret = drm_aperture_remove_conflicting_pci_framebuffers(pdev, &driver);
 #  else
@@ -87,7 +100,7 @@ static int vbox_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 		ret = PTR_ERR(dev);
 		goto err_drv_alloc;
 	}
-# if RTLNX_VER_MAX(5,14,0)
+# if RTLNX_VER_MAX(5,14,0) && !RTLNX_RHEL_RANGE(8,6, 8,99)
 	dev->pdev = pdev;
 # endif
 	pci_set_drvdata(pdev, dev);
@@ -398,15 +411,13 @@ static struct drm_driver driver = {
 static int __init vbox_init(void)
 {
 	printk("vboxvideo: loading version " VBOX_VERSION_STRING " r" __stringify(VBOX_SVN_REV) "\n");
-#if defined(CONFIG_VGA_CONSOLE) || RTLNX_VER_MIN(4,7,0)
-	if (vgacon_text_force() && vbox_modeset == -1)
+	if (VBOX_VIDEO_NOMODESET())
 	{
 		printk("vboxvideo: kernel is running with *nomodeset* parameter,\n");
 		printk("vboxvideo: please consider either to remove it or load driver\n");
 		printk("vboxvideo: with parameter modeset=1, unloading\n");
 		return -EINVAL;
 	}
-#endif
 
 	if (vbox_modeset == 0)
 	{

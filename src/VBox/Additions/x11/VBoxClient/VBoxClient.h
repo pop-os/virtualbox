@@ -80,5 +80,6 @@ extern struct VBCLSERVICE **VBClGetDragAndDropService();
 extern struct VBCLSERVICE **VBClCheck3DService();
 extern struct VBCLSERVICE **VBClDisplaySVGAService();
 extern struct VBCLSERVICE **VBClDisplaySVGAX11Service();
+extern struct VBCLSERVICE **VBClGetDisplayService();
 
 #endif /* !GA_INCLUDED_SRC_x11_VBoxClient_VBoxClient_h */

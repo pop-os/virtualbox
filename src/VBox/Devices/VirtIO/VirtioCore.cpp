@@ -317,7 +317,7 @@ uint16_t virtioCoreVirtqAvailBufCount(PPDMDEVINS pDevIns, PVIRTIOCORE pVirtio, u
     PVIRTQUEUE pVirtq = &pVirtio->aVirtqueues[uVirtq];
     if (!IS_DRIVER_OK(pVirtio) || !pVirtq->uEnable)
     {
-        LogRelFunc(("Driver not ready or queue not enabled\n"));
+        LogRelFunc(("Driver not ready or queue %s not enabled\n", VIRTQNAME(pVirtio, uVirtq)));
         return 0;
     }
 

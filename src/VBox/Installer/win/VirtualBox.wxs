@@ -201,6 +201,9 @@
     <CustomAction Id="ca_UninstallTAPInstances" BinaryKey="VBoxInstallHelper"
                   DllEntry="UninstallTAPInstances" Execute="deferred" Return="check" Impersonate="no"/>
 
+    <CustomAction Id="ca_UninstallVBoxDrv" BinaryKey="VBoxInstallHelper"
+                  DllEntry="UninstallVBoxDrv" Execute="deferred" Return="ignore" Impersonate="no"/>
+
     <Property Id="VBOXDEPENDENCY" Secure="yes">
         <DirectorySearch Id="VBoxInstallDir" Path="[EXISTINGINSTALLDIR]">
             <FileSearch Name="dependency.dep"/>
@@ -490,10 +493,10 @@
         <ComponentRef Id="cp_UnattendedTemplates" />
     <?endif ?>
     <?if $(env.VBOX_SIGNING_MODE) != none ?>
-        <ComponentRef Id="cp_VBoxDrvCat_PreW10" />
-        <ComponentRef Id="cp_VBoxDrvCat_W10" />
+        <ComponentRef Id="cp_VBoxSupCat_PreW10" />
+        <ComponentRef Id="cp_VBoxSupCat_W10" />
     <?endif ?>
-    <ComponentRef Id="cp_VBoxDrv" />
+    <ComponentRef Id="cp_VBoxSup" />
 <?endif ?>
 
 <?if $(env.VBOX_WITH_USB) = "yes" ?>
@@ -622,6 +625,9 @@
 
         <!-- Check + unininstall old TAP instances - we  don't need them anymore -->
         <Custom Action="ca_UninstallTAPInstances" Before="InstallFiles" >1</Custom>
+
+        <!-- Check + uninstall old VBoxDrv service - it was renamed to VBoxSup.  -->
+        <Custom Action="ca_UninstallVBoxDrv" Before="InstallFiles" >1</Custom>
 
         <Custom Action="ca_InstallBrandingArgs" Before="ca_InstallBranding" ><![CDATA[NOT REMOVE]]></Custom>
         <Custom Action="ca_InstallBranding" Before="InstallFinalize" ><![CDATA[NOT REMOVE]]></Custom>

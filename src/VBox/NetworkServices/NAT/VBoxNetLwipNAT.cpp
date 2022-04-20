@@ -172,6 +172,15 @@ class VBoxNetLwipNAT: public VBoxNetBaseService, public NATNetworkEventAdapter
     ComNatListenerPtr m_VBoxClientListener;
     static INTNETSEG aXmitSeg[64];
 
+    static void reportError(const char *a_pcszFormat, ...) RT_IPRT_FORMAT_ATTR(1, 2);
+
+    static HRESULT reportComError(ComPtr<IUnknown> iface,
+                                  const com::Utf8Str &strContext,
+                                  HRESULT hrc);
+    static void reportErrorInfoList(const com::ErrorInfo &info,
+                                    const com::Utf8Str &strContext);
+    static void reportErrorInfo(const com::ErrorInfo &info);
+
     HRESULT HandleEvent(VBoxEventType_T aEventType, IEvent *pEvent);
 
     const char **getHostNameservers();
@@ -564,20 +573,9 @@ HRESULT VBoxNetLwipNAT::HandleEvent(VBoxEventType_T aEventType, IEvent *pEvent)
         netif_create_ip6_linklocal_address(pNetif, /* :from_mac_48bit */ 1);
         netif_ip6_addr_set_state(pNetif, 0, IP6_ADDR_PREFERRED); // skip DAD
 
-        /*
-         * RFC 4193 Locally Assigned Global ID (ULA) in slot 1
-         * [fd17:625c:f037:XXXX::1] where XXXX, 16 bit Subnet ID, are two
-         * bytes from the middle of the IPv4 address, e.g. :dead: for
-         * 10.222.173.1
-         */
-        u8_t nethi = ip4_addr2(&pNetif->ip_addr);
-        u8_t netlo = ip4_addr3(&pNetif->ip_addr);
-
-        ip6_addr_t *paddr = netif_ip6_addr(pNetif, 1);
-        IP6_ADDR(paddr, 0,   0xFD, 0x17,   0x62, 0x5C);
-        IP6_ADDR(paddr, 1,   0xF0, 0x37,  nethi, netlo);
-        IP6_ADDR(paddr, 2,   0x00, 0x00,   0x00, 0x00);
-        IP6_ADDR(paddr, 3,   0x00, 0x00,   0x00, 0x01);
+        /* INATNetwork::IPv6Prefix in slot 1 */
+        memcpy(netif_ip6_addr(pNetif, 1),
+               &pNat->m_ProxyOptions.ipv6_addr, sizeof(ip6_addr_t));
         netif_ip6_addr_set_state(pNetif, 1, IP6_ADDR_PREFERRED);
 
 #if LWIP_IPV6_SEND_ROUTER_SOLICIT
@@ -641,6 +639,7 @@ VBoxNetLwipNAT::VBoxNetLwipNAT(SOCKET icmpsock4, SOCKET icmpsock6) : VBoxNetBase
 {
     LogFlowFuncEnter();
 
+    RT_ZERO(m_ProxyOptions.ipv6_addr);
     m_ProxyOptions.ipv6_enabled = 0;
     m_ProxyOptions.ipv6_defroute = 0;
     m_ProxyOptions.icmpsock4 = icmpsock4;
@@ -794,15 +793,24 @@ VBoxNetLwipNAT::~VBoxNetLwipNAT()
  */
 int VBoxNetLwipNAT::init()
 {
+    HRESULT hrc;
+    int rc;
+
     LogFlowFuncEnter();
 
     /* virtualbox initialized in super class */
-    int rc = ::VBoxNetBaseService::init();
-    AssertRCReturn(rc, rc);
+    rc = VBoxNetBaseService::init();
+    if (RT_FAILURE(rc))
+        return rc;
 
-    std::string networkName = getNetworkName();
-    rc = findNatNetwork(virtualbox, networkName, m_net);
-    AssertRCReturn(rc, rc);
+    const std::string &networkName = getNetworkName();
+    hrc = virtualbox->FindNATNetworkByName(com::Bstr(networkName.c_str()).raw(),
+                                           m_net.asOutParam());
+    if (FAILED(hrc))
+    {
+        reportComError(virtualbox, "FindNATNetworkByName", hrc);
+        return VERR_NOT_FOUND;
+    }
 
     {
         ComEventTypeArray eventTypes;
@@ -815,7 +823,7 @@ int VBoxNetLwipNAT::init()
 
     // resolver changes are reported on vbox but are retrieved from
     // host so stash a pointer for future lookups
-    HRESULT hrc = virtualbox->COMGETTER(Host)(m_host.asOutParam());
+    hrc = virtualbox->COMGETTER(Host)(m_host.asOutParam());
     AssertComRCReturn(hrc, VERR_INTERNAL_ERROR);
 
     {
@@ -836,6 +844,66 @@ int VBoxNetLwipNAT::init()
     BOOL fIPv6Enabled = FALSE;
     hrc = m_net->COMGETTER(IPv6Enabled)(&fIPv6Enabled);
     AssertComRCReturn(hrc, VERR_NOT_FOUND);
+
+    /*
+     * Get IPv6 address via the API.  Grafted from trunk.
+     *
+     * Trunk has this file rototilled a lot, tied in with other
+     * refactoring, which makes merging this is more or less
+     * impossible without backporting all the refactoring involved.
+     * So just rip this bit out.
+     */
+    if (fIPv6Enabled)
+    {
+        com::Bstr bstrIPv6Prefix;
+        hrc = m_net->COMGETTER(IPv6Prefix)(bstrIPv6Prefix.asOutParam());
+        if (FAILED(hrc))
+        {
+            reportComError(m_net, "IPv6Prefix", hrc);
+            return VERR_GENERAL_FAILURE;
+        }
+
+        RTNETADDRIPV6 Net6;
+        int iPrefixLength;
+        rc = RTNetStrToIPv6Cidr(com::Utf8Str(bstrIPv6Prefix).c_str(),
+                                &Net6, &iPrefixLength);
+        if (RT_FAILURE(rc))
+        {
+            reportError("Failed to parse IPv6 prefix %ls\n", bstrIPv6Prefix.raw());
+            return rc;
+        }
+
+        /* Allow both addr:: and addr::/64 */
+        if (iPrefixLength == 128)   /* no length was specified after the address? */
+            iPrefixLength = 64;     /*   take it to mean /64 which we require anyway */
+        else if (iPrefixLength != 64)
+        {
+            reportError("Invalid IPv6 prefix length %d,"
+                        " must be 64.\n", iPrefixLength);
+            return rc;
+        }
+
+        /* Verify the address is unicast. */
+        if (   ((Net6.au8[0] & 0xe0) != 0x20)  /* global 2000::/3 */
+            && ((Net6.au8[0] & 0xfe) != 0xfc)) /* local  fc00::/7 */
+        {
+            reportError("IPv6 prefix %RTnaipv6 is not unicast.\n", &Net6);
+            return VERR_INVALID_PARAMETER;
+        }
+
+        /* Verify the interfaces ID part is zero */
+        if (Net6.au64[1] != 0)
+        {
+            reportError("Non-zero bits in the interface ID part"
+                        " of the IPv6 prefix %RTnaipv6/64.\n", &Net6);
+            return VERR_INVALID_PARAMETER;
+        }
+
+        /* Use ...::1 as our address */
+        RTNETADDRIPV6 Addr6 = Net6;
+        Addr6.au8[15] = 0x01;
+        memcpy(&m_ProxyOptions.ipv6_addr, &Addr6, sizeof(ip6_addr_t));
+    }
 
     BOOL fIPv6DefaultRoute = FALSE;
     if (fIPv6Enabled)
@@ -1115,6 +1183,117 @@ int VBoxNetLwipNAT::run()
 
     return VINF_SUCCESS;
 }
+
+
+/* static */
+HRESULT VBoxNetLwipNAT::reportComError(ComPtr<IUnknown> iface,
+                                       const com::Utf8Str &strContext,
+                                       HRESULT hrc)
+{
+    const com::ErrorInfo info(iface, COM_IIDOF(IUnknown));
+    if (info.isFullAvailable() || info.isBasicAvailable())
+    {
+        reportErrorInfoList(info, strContext);
+    }
+    else
+    {
+        if (strContext.isNotEmpty())
+            reportError("%s: %Rhra", strContext.c_str(), hrc);
+        else
+            reportError("%Rhra", hrc);
+    }
+
+    return hrc;
+}
+
+
+/* static */
+void VBoxNetLwipNAT::reportErrorInfoList(const com::ErrorInfo &info,
+                                         const com::Utf8Str &strContext)
+{
+    if (strContext.isNotEmpty())
+        reportError("%s", strContext.c_str());
+
+    bool fFirst = true;
+    for (const com::ErrorInfo *pInfo = &info;
+         pInfo != NULL;
+         pInfo = pInfo->getNext())
+    {
+        if (fFirst)
+            fFirst = false;
+        else
+            reportError("--------");
+
+        reportErrorInfo(*pInfo);
+    }
+}
+
+
+/* static */
+void VBoxNetLwipNAT::reportErrorInfo(const com::ErrorInfo &info)
+{
+#if defined (RT_OS_WIN)
+    bool haveResultCode = info.isFullAvailable();
+    bool haveComponent = true;
+    bool haveInterfaceID = true;
+#else /* !RT_OS_WIN */
+    bool haveResultCode = true;
+    bool haveComponent = info.isFullAvailable();
+    bool haveInterfaceID = info.isFullAvailable();
+#endif
+    com::Utf8Str message;
+    if (info.getText().isNotEmpty())
+        message = info.getText();
+
+    const char *pcszDetails = "Details: ";
+    const char *pcszComma = ", ";
+    const char *pcszSeparator = pcszDetails;
+
+    if (haveResultCode)
+    {
+        message.appendPrintf("%s" "code %Rhrc (0x%RX32)",
+            pcszSeparator, info.getResultCode(), info.getResultCode());
+        pcszSeparator = pcszComma;
+    }
+
+    if (haveComponent)
+    {
+        message.appendPrintf("%s" "component %ls",
+            pcszSeparator, info.getComponent().raw());
+        pcszSeparator = pcszComma;
+    }
+
+    if (haveInterfaceID)
+    {
+        message.appendPrintf("%s" "interface %ls",
+            pcszSeparator, info.getInterfaceName().raw());
+        pcszSeparator = pcszComma;
+    }
+
+    if (info.getCalleeName().isNotEmpty())
+    {
+        message.appendPrintf("%s" "callee %ls",
+            pcszSeparator, info.getCalleeName().raw());
+        pcszSeparator = pcszComma;
+    }
+
+    reportError("%s", message.c_str());
+}
+
+
+/* static */
+void VBoxNetLwipNAT::reportError(const char *a_pcszFormat, ...)
+{
+    va_list ap;
+
+    va_start(ap, a_pcszFormat);
+    com::Utf8Str message(a_pcszFormat, ap);
+    va_end(ap);
+
+    RTMsgError("%s", message.c_str());
+    LogRel(("%s", message.c_str()));
+}
+
 
 
 /**
