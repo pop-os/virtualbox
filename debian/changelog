@@ -1,6 +1,7 @@
 virtualbox (6.1.34-dfsg-3) UNRELEASED; urgency=medium
 
   * Switch to dh-sequence-dkms.
+  * Declare Testsuite: autopkgtest-pkg-dkms.
 
  -- Andreas Beckmann <anbe@debian.org>  Fri, 03 Jun 2022 18:57:22 +0200
 
