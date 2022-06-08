@@ -1,3 +1,9 @@
+virtualbox (6.1.34-dfsg-3pop0) focal; urgency=medium
+
+  * Pop!_OS backport
+
+ -- Jeremy Soller <jeremy@system76.com>  Wed, 08 Jun 2022 09:42:08 -0600
+
 virtualbox (6.1.34-dfsg-3) unstable; urgency=medium
 
   * Add patch from archlinux to fix a build failure with kernel 5.18
