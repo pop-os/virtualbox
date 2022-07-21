@@ -137,11 +137,13 @@ inline PyObject *PyBool_FromLong(long ok)
 #  define PyInt_Check(o) PyLong_Check(o)
 #  define PyInt_AsLong(o) PyLong_AsLong(o)
 #  define PyNumber_Int(o) PyNumber_Long(o)
-#  ifndef PyUnicode_AsUTF8
-#   define PyUnicode_AsUTF8(o) _PyUnicode_AsString(o)
-#  endif
-#  ifndef PyUnicode_AsUTF8AndSize
-#   define PyUnicode_AsUTF8AndSize(o,s) _PyUnicode_AsStringAndSize(o,s)
+#  if PY_VERSION_HEX <= 0x03030000 /* 3.3 added PyUnicode_AsUTF8AndSize */
+#   ifndef PyUnicode_AsUTF8
+#    define PyUnicode_AsUTF8(o) _PyUnicode_AsString(o)
+#   endif
+#   ifndef PyUnicode_AsUTF8AndSize
+#    define PyUnicode_AsUTF8AndSize(o,s) _PyUnicode_AsStringAndSize(o,s)
+#   endif
 #  endif
 typedef struct PyMethodChain
 {

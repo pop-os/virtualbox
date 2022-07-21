@@ -34,6 +34,7 @@
 
 RT_C_DECLS_BEGIN
 
+struct RTCRX509CERTIFICATE;
 struct RTCRX509SUBJECTPUBLICKEYINFO;
 
 /** @defgroup grp_rt_crpkix RTCrPkix - Public Key Infrastructure APIs
@@ -92,6 +93,17 @@ RTDECL(int) RTCrPkixPubKeyVerifySignedDigestByCertPubKeyInfo(struct RTCRX509SUBJ
                                                              void const *pvSignedDigest, size_t cbSignedDigest,
                                                              RTCRDIGEST hDigest, PRTERRINFO pErrInfo);
 
+/**
+ * Checks if the hash size can be handled by the given public key.
+ */
+RTDECL(bool) RTCrPkixPubKeyCanHandleDigestType(struct RTCRX509SUBJECTPUBLICKEYINFO const *pPublicKeyInfo,
+                                               RTDIGESTTYPE enmDigestType, PRTERRINFO pErrInfo);
+
+/**
+ * Checks if the hash size can be handled by the given certificate's public key.
+ */
+RTDECL(bool) RTCrPkixCanCertHandleDigestType(struct RTCRX509CERTIFICATE const *pCertificate,
+                                             RTDIGESTTYPE enmDigestType, PRTERRINFO pErrInfo);
 
 /**
  * Signs a digest (@a hDigest) using the specified private key (@a pPrivateKey) and algorithm.
@@ -145,6 +157,8 @@ RTDECL(const char *) RTCrPkixGetCiperOidFromSignatureAlgorithm(PCRTASN1OBJID pAl
 #define RTCR_PKCS1_SHA384_WITH_RSA_OID              "1.2.840.113549.1.1.12"
 #define RTCR_PKCS1_SHA512_WITH_RSA_OID              "1.2.840.113549.1.1.13"
 #define RTCR_PKCS1_SHA224_WITH_RSA_OID              "1.2.840.113549.1.1.14"
+#define RTCR_PKCS1_SHA512T224_WITH_RSA_OID          "1.2.840.113549.1.1.15"
+#define RTCR_PKCS1_SHA512T256_WITH_RSA_OID          "1.2.840.113549.1.1.16"
 /** @}  */
 
 

@@ -350,6 +350,8 @@ typedef struct VGAState
     uint32_t                    cMilliesRefreshInterval;
     /** Bitmap tracking dirty pages. */
     uint64_t                    bmDirtyBitmap[VGA_VRAM_MAX / PAGE_SIZE / 64];
+    /** Bitmap tracking remapped pages (only needs 16 bits). */
+    uint64_t                    bmPageMapBitmap;
 
     /** Flag indicating that there are dirty bits. This is used to optimize the handler resetting. */
     bool                        fHasDirtyBits;
@@ -507,7 +509,8 @@ typedef struct VGAState
     STAMPROFILE                 StatR3MemoryRead;
     STAMPROFILE                 StatRZMemoryWrite;
     STAMPROFILE                 StatR3MemoryWrite;
-    STAMCOUNTER                 StatMapPage;            /**< Counts IOMMMIOMapMMIO2Page calls.  */
+    STAMCOUNTER                 StatMapPage;            /**< Counts IOMMmioMapMmio2Page calls.  */
+    STAMCOUNTER                 StatMapReset;           /**< Counts IOMMmioResetRegion calls.  */
     STAMCOUNTER                 StatUpdateDisp;         /**< Counts vgaPortUpdateDisplay calls.  */
 #ifdef VBOX_WITH_HGSMI
     STAMCOUNTER                 StatHgsmiMdaCgaAccesses;
@@ -522,6 +525,7 @@ AssertCompileMemberAlignment(VGASTATE, bank_offset, 8);
 AssertCompileMemberAlignment(VGASTATE, font_offsets, 8);
 AssertCompileMemberAlignment(VGASTATE, last_ch_attr, 8);
 AssertCompileMemberAlignment(VGASTATE, u32Marker, 8);
+AssertCompile(sizeof(uint64_t)/*bmPageMapBitmap*/ >= (_64K / PAGE_SIZE / 8));
 #endif
 
 

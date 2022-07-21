@@ -19,13 +19,14 @@ LIBRARY "VBoxInstallHelper"
 EXPORTS
     IsSerialCheckNeeded
     CheckSerial
+    IsWindows10
     InstallPythonAPI
     InstallBranding
     UninstallBranding
     InstallNetFlt
     UninstallNetFlt
-        UninstallNetAdp
-        InstallNetLwf
+    UninstallNetAdp
+    InstallNetLwf
     UninstallNetLwf
     UninstallTAPInstances
     UninstallVBoxDrv

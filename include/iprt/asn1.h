@@ -949,7 +949,7 @@ RTDECL(int) RTAsn1Integer_FromBigNum(PRTASN1INTEGER pThis, PCRTBIGNUM pBigNum, P
  *
  * @remarks Currently assume unsigned number.
  */
-RTDECL(int) RTAsn1Integer_ToString(PRTASN1INTEGER pThis, char *pszBuf, size_t cbBuf, uint32_t fFlags, size_t *pcbActual);
+RTDECL(int) RTAsn1Integer_ToString(PCRTASN1INTEGER pThis, char *pszBuf, size_t cbBuf, uint32_t fFlags, size_t *pcbActual);
 
 RTASN1_IMPL_GEN_SEQ_OF_TYPEDEFS_AND_PROTOS(RTASN1SEQOFINTEGERS, RTASN1INTEGER, RTDECL, RTAsn1SeqOfIntegers);
 RTASN1_IMPL_GEN_SET_OF_TYPEDEFS_AND_PROTOS(RTASN1SETOFINTEGERS, RTASN1INTEGER, RTDECL, RTAsn1SetOfIntegers);
@@ -1025,7 +1025,36 @@ RTASN1TYPE_STANDARD_PROTOTYPES(RTASN1TIME, RTDECL, RTAsn1GeneralizedTime, Asn1Co
  */
 RTDECL(int) RTAsn1Time_CompareWithTimeSpec(PCRTASN1TIME pLeft, PCRTTIMESPEC pTsRight);
 
+/**
+ * Extended init function that lets you select the kind of time object (UTC or
+ * generalized).
+ */
 RTDECL(int) RTAsn1Time_InitEx(PRTASN1TIME pThis, uint32_t uTag, PCRTASN1ALLOCATORVTABLE pAllocator);
+
+/**
+ * Combines RTAsn1Time_InitEx() and RTAsn1Time_SetTime().
+ */
+RTDECL(int) RTAsn1Time_InitWithTime(PRTASN1TIME pThis, uint32_t uTag, PCRTASN1ALLOCATORVTABLE pAllocator, PCRTTIME pTime);
+
+/**
+ * Sets the ASN.1 time value to @a pTime.
+ *
+ * @returns IPRT status code.
+ * @param   pThis               The ASN.1 time object to modify.
+ * @param   pAllocator          The allocator to use.
+ * @param   pTime               The time to set.
+ */
+RTDECL(int) RTAsn1Time_SetTime(PRTASN1TIME pThis, PCRTASN1ALLOCATORVTABLE pAllocator, PCRTTIME pTime);
+
+/**
+ * Sets the ASN.1 time value to @a pTimeSpec.
+ *
+ * @returns IPRT status code.
+ * @param   pThis               The ASN.1 time object to modify.
+ * @param   pAllocator          The allocator to use.
+ * @param   pTimeSpec           The time to set.
+ */
+RTDECL(int) RTAsn1Time_SetTimeSpec(PRTASN1TIME pThis, PCRTASN1ALLOCATORVTABLE pAllocator, PCRTTIMESPEC pTimeSpec);
 
 /** @name Predicate macros for determing the exact type of RTASN1TIME.
  * @{ */
@@ -1075,6 +1104,7 @@ extern RTDATADECL(RTASN1COREVTABLE const) g_RTAsn1ObjId_Vtable;
 RTASN1TYPE_STANDARD_PROTOTYPES(RTASN1OBJID, RTDECL, RTAsn1ObjId, Asn1Core);
 
 RTDECL(int) RTAsn1ObjId_InitFromString(PRTASN1OBJID pThis, const char *pszObjId, PCRTASN1ALLOCATORVTABLE pAllocator);
+RTDECL(int) RTAsn1ObjId_SetFromString(PRTASN1OBJID pThis, const char *pszObjId, PCRTASN1ALLOCATORVTABLE pAllocator);
 
 /**
  * Compares an ASN.1 object identifier with a dotted object identifier string.
@@ -1153,6 +1183,8 @@ RTASN1TYPE_STANDARD_PROTOTYPES(RTASN1BITSTRING, RTDECL, RTAsn1BitString, Asn1Cor
  */
 #define RTASN1BITSTRING_GET_BYTE_SIZE(a_pBitString)  ( ((a_pBitString)->cBits + 7U) >> 3 )
 
+RTDECL(int) RTAsn1BitString_InitWithData(PRTASN1BITSTRING pThis, void const *pvSrc, uint32_t cSrcBits,
+                                         PCRTASN1ALLOCATORVTABLE pAllocator);
 RTDECL(int) RTAsn1BitString_DecodeAsn1Ex(PRTASN1CURSOR pCursor, uint32_t fFlags, uint32_t cMaxBits, PRTASN1BITSTRING pThis,
                                          const char *pszErrorTag);
 RTDECL(uint64_t) RTAsn1BitString_GetAsUInt64(PCRTASN1BITSTRING pThis);
@@ -1190,6 +1222,10 @@ extern RTDATADECL(RTASN1COREVTABLE const) g_RTAsn1OctetString_Vtable;
 
 RTASN1TYPE_STANDARD_PROTOTYPES(RTASN1OCTETSTRING, RTDECL, RTAsn1OctetString, Asn1Core);
 
+RTDECL(int) RTAsn1OctetString_AllocContent(PRTASN1OCTETSTRING pThis, void const *pvSrc, size_t cb,
+                                           PCRTASN1ALLOCATORVTABLE pAllocator);
+RTDECL(int) RTAsn1OctetString_SetContent(PRTASN1OCTETSTRING pThis, void const *pvSrc, size_t cbSrc,
+                                         PCRTASN1ALLOCATORVTABLE pAllocator);
 RTDECL(bool) RTAsn1OctetString_AreContentBytesValid(PCRTASN1OCTETSTRING pThis, uint32_t fFlags);
 RTDECL(int) RTAsn1OctetString_RefreshContent(PRTASN1OCTETSTRING pThis, uint32_t fFlags,
                                              PCRTASN1ALLOCATORVTABLE pAllocator, PRTERRINFO pErrInfo);
@@ -1473,6 +1509,7 @@ typedef RTASN1DYNTYPE *PRTASN1DYNTYPE;
 /** Pointer to a const ASN.1 dynamic type record. */
 typedef RTASN1DYNTYPE const *PCRTASN1DYNTYPE;
 RTASN1TYPE_STANDARD_PROTOTYPES(RTASN1DYNTYPE, RTDECL, RTAsn1DynType, u.Core);
+RTDECL(int) RTAsn1DynType_SetToNull(PRTASN1DYNTYPE pThis);
 
 
 /** @name Virtual Method Table Based API
@@ -1629,6 +1666,28 @@ RTDECL(int) RTAsn1EncodeWrite(PCRTASN1CORE pRoot, uint32_t fFlags, FNRTASN1ENCOD
  *                              Optional.
  */
 RTDECL(int) RTAsn1EncodeToBuffer(PCRTASN1CORE pRoot, uint32_t fFlags, void *pvBuf, size_t cbBuf, PRTERRINFO pErrInfo);
+
+/**
+ * Helper for when DER encoded ASN.1 is needed for something.
+ *
+ * Handy when interfacing with OpenSSL and the many d2i_Xxxxx OpenSSL functions,
+ * but also handy when structures needs to be digested or similar during signing
+ * or verification.
+ *
+ * We sometimes can use the data we've decoded directly, but often we have
+ * encode it into a temporary heap buffer.
+ *
+ * @returns IPRT status code, details in @a pErrInfo if present.
+ * @param   pRoot       The ASN.1 root of the structure to be passed to OpenSSL.
+ * @param   ppbRaw      Where to return the pointer to raw encoded data.
+ * @param   pcbRaw      Where to return the size of the raw encoded data.
+ * @param   ppvFree     Where to return what to pass to RTMemTmpFree, i.e. NULL
+ *                      if we use the previously decoded data directly and
+ *                      non-NULL if we had to allocate heap and encode it.
+ * @param   pErrInfo    Where to return details about encoding issues. Optional.
+ */
+RTDECL(int) RTAsn1EncodeQueryRawBits(PRTASN1CORE pRoot, const uint8_t **ppbRaw, uint32_t *pcbRaw,
+                                     void **ppvFree, PRTERRINFO pErrInfo);
 
 /** @} */
 

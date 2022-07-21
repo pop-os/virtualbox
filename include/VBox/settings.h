@@ -554,17 +554,20 @@ struct RecordingScreenSettings
 
     bool isFeatureEnabled(RecordingFeature_T enmFeature) const;
 
+    static const char *getDefaultOptions(void);
+
     bool operator==(const RecordingScreenSettings &d) const;
 
     /** Whether to record this screen or not. */
     bool                   fEnabled;   // requires settings version 1.14 (VirtualBox 4.3)
     /** Destination to record to. */
-    RecordingDestination_T enmDest;    /** @todo Implement with next settings version bump. */
+    RecordingDestination_T enmDest;
     /** Which features are enable or not. */
     RecordingFeatureMap    featureMap; /** @todo Implement with next settings version bump. */
     /** Maximum time (in s) to record. If set to 0, no time limit is set. */
     uint32_t               ulMaxTimeS; // requires settings version 1.14 (VirtualBox 4.3)
-    /** Options string for hidden / advanced / experimental features. */
+    /** Options string for hidden / advanced / experimental features.
+     *  Use RecordingScreenSettings::getDefaultOptions(). */
     com::Utf8Str           strOptions; // new since VirtualBox 5.2.
 
     /**
@@ -621,16 +624,34 @@ struct RecordingScreenSettings
             : ulMaxSizeMB(0) { }
 
         /** Maximum size (in MB) the file is allowed to have.
-         *  When reaching the limit, recording will stop. */
+         *  When reaching the limit, recording will stop. 0 means no limit. */
         uint32_t     ulMaxSizeMB; // requires settings version 1.14 (VirtualBox 4.3)
-        /** Absolute file name path to use for recording. */
+        /** Absolute file name path to use for recording.
+         *  When empty, this is considered as being the default setting. */
         com::Utf8Str strName;     // requires settings version 1.14 (VirtualBox 4.3)
     } File;
 };
 
 /** Map for keeping settings per virtual screen.
  *  The key specifies the screen ID. */
-typedef std::map<uint32_t, RecordingScreenSettings> RecordingScreenMap;
+typedef std::map<uint32_t, RecordingScreenSettings> RecordingScreenSettingsMap;
+
+/**
+ * Common recording settings, shared among all per-screen recording settings.
+ */
+struct RecordingCommonSettings
+{
+    RecordingCommonSettings();
+
+    void applyDefaults(void);
+
+    bool areDefaultSettings(void) const;
+
+    bool operator==(const RecordingCommonSettings &d) const;
+
+    /** Whether recording as a whole is enabled or disabled. */
+    bool fEnabled;       // requires settings version 1.14 (VirtualBox 4.3)
+};
 
 /**
  * NOTE: If you add any fields in here, you must update a) the constructor and b)
@@ -645,13 +666,13 @@ struct RecordingSettings
 
     bool areDefaultSettings(void) const;
 
-    bool operator==(const RecordingSettings &d) const;
+    bool operator==(const RecordingSettings &that) const;
 
-    /** Whether recording as a whole is enabled or disabled. */
-    bool               fEnabled;       // requires settings version 1.14 (VirtualBox 4.3)
+    /** Common settings for all per-screen recording settings. */
+    RecordingCommonSettings    common;
     /** Map of handled recording screen settings.
      *  The key specifies the screen ID. */
-    RecordingScreenMap mapScreens;
+    RecordingScreenSettingsMap mapScreens;
 };
 
 /**
@@ -1145,7 +1166,6 @@ struct Hardware
     VRDESettings        vrdeSettings;
 
     BIOSSettings        biosSettings;
-    RecordingSettings   recordingSettings;
     GraphicsAdapter     graphicsAdapter;
     USB                 usbSettings;
     NetworkAdaptersList llNetworkAdapters;
@@ -1220,19 +1240,20 @@ struct Snapshot
 
     bool operator==(const Snapshot &s) const;
 
-    com::Guid       uuid;
-    com::Utf8Str    strName,
-                    strDescription;             // optional
-    RTTIMESPEC      timestamp;
+    com::Guid           uuid;
+    com::Utf8Str        strName,
+                        strDescription;             // optional
+    RTTIMESPEC          timestamp;
 
-    com::Utf8Str    strStateFile;               // for online snapshots only
+    com::Utf8Str        strStateFile;               // for online snapshots only
 
-    Hardware        hardware;
+    Hardware            hardware;
 
-    Debugging       debugging;
-    Autostart       autostart;
+    Debugging           debugging;
+    Autostart           autostart;
+    RecordingSettings   recordingSettings;
 
-    SnapshotsList   llChildSnapshots;
+    SnapshotsList       llChildSnapshots;
 
     static const struct Snapshot Empty;
 };
@@ -1291,6 +1312,7 @@ public:
     MediaRegistry           mediaRegistry;
     Debugging               debugging;
     Autostart               autostart;
+    RecordingSettings       recordingSettings;
 
     StringsMap              mapExtraDataItems;
 
@@ -1338,6 +1360,7 @@ private:
     void readTeleporter(const xml::ElementNode *pElmTeleporter, MachineUserData *pUserData);
     void readDebugging(const xml::ElementNode *pElmDbg, Debugging *pDbg);
     void readAutostart(const xml::ElementNode *pElmAutostart, Autostart *pAutostart);
+    void readRecordingSettings(const xml::ElementNode &elmRecording, RecordingSettings &recording);
     void readGroups(const xml::ElementNode *elmGroups, StringsList *pllGroups);
     bool readSnapshot(const com::Guid &curSnapshotUuid, uint32_t depth, const xml::ElementNode &elmSnapshot, Snapshot &snap);
     void convertOldOSType_pre1_5(com::Utf8Str &str);
@@ -1351,6 +1374,7 @@ private:
                                     std::list<xml::ElementNode*> *pllElementsWithUuidAttributes);
     void buildDebuggingXML(xml::ElementNode *pElmParent, const Debugging *pDbg);
     void buildAutostartXML(xml::ElementNode *pElmParent, const Autostart *pAutostart);
+    void buildRecordingXML(xml::ElementNode &elmParent, const RecordingSettings &recording);
     void buildGroupsXML(xml::ElementNode *pElmParent, const StringsList *pllGroups);
     void buildSnapshotXML(uint32_t depth, xml::ElementNode &elmParent, const Snapshot &snap);
 

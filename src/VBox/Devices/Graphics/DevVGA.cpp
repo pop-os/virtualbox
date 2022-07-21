@@ -390,6 +390,44 @@ static uint8_t expand4to8[16];
 
 
 /**
+ * Mark a page in VGA A0000-AFFFF range as remapped.
+ *
+ * @param   pThis       VGA instance data.
+ * @param   offVGAMem   The offset within VGA memory.
+ */
+DECLINLINE(void) vgaMarkRemapped(PVGASTATE pThis, RTGCPHYS offVGAMem)
+{
+    AssertMsg(offVGAMem < _64K, ("offVGAMem = %p > 64K\n", offVGAMem));
+    ASMBitSet(&pThis->bmPageMapBitmap, offVGAMem >> PAGE_SHIFT);
+    pThis->fRemappedVGA = true;
+}
+
+/**
+ * Checks if a page in VGA A0000-AFFFF range is remapped.
+ *
+ * @returns true if remapped.
+ * @returns false if not remapped (accesses will trap).
+ * @param   pThis       VGA instance data.
+ * @param   offVGAMem   The offset within VGA memory.
+ */
+DECLINLINE(bool) vgaIsRemapped(PVGASTATE pThis, RTGCPHYS offVGAMem)
+{
+    AssertMsg(offVGAMem < _64K, ("offVGAMem = %p > 64K\n", offVGAMem));
+    return ASMBitTest(&pThis->bmPageMapBitmap, offVGAMem >> PAGE_SHIFT);
+}
+
+/**
+ * Reset page remap tracking bits.
+ *
+ * @param   pThis           VGA instance data.
+ */
+DECLINLINE(void) vgaResetRemapped(PVGASTATE pThis)
+{
+    pThis->fRemappedVGA = false;
+    ASMBitClearRange(&pThis->bmPageMapBitmap, 0, _64K >> PAGE_SHIFT);
+}
+
+/**
  * Set a VRAM page dirty.
  *
  * @param   pThis       VGA instance data.
@@ -402,6 +440,8 @@ DECLINLINE(void) vgaR3MarkDirty(PVGASTATE pThis, RTGCPHYS offVRAM)
     pThis->fHasDirtyBits = true;
 }
 
+#ifdef IN_RING3
+
 /**
  * Tests if a VRAM page is dirty.
  *
@@ -410,13 +450,12 @@ DECLINLINE(void) vgaR3MarkDirty(PVGASTATE pThis, RTGCPHYS offVRAM)
  * @param   pThis       VGA instance data.
  * @param   offVRAM     The VRAM offset of the page to check.
  */
-DECLINLINE(bool) vgaIsDirty(PVGASTATE pThis, RTGCPHYS offVRAM)
+DECLINLINE(bool) vgaR3IsDirty(PVGASTATE pThis, RTGCPHYS offVRAM)
 {
     AssertMsg(offVRAM < pThis->vram_size, ("offVRAM = %p, pThis->vram_size = %p\n", offVRAM, pThis->vram_size));
     return ASMBitTest(&pThis->bmDirtyBitmap[0], offVRAM >> PAGE_SHIFT);
 }
 
-#ifdef IN_RING3
 
 /**
  * Reset dirty flags in a give range.
@@ -788,7 +827,8 @@ static void vga_ioport_write(PPDMDEVINS pDevIns, PVGASTATE pThis, uint32_t addr,
             if (pThis->fRemappedVGA)
             {
                 IOMMmioResetRegion(PDMDevHlpGetVM(pDevIns), pDevIns, pThis->hMmioLegacy);
-                pThis->fRemappedVGA = false;
+                STAM_COUNTER_INC(&pThis->StatMapReset);
+                vgaResetRemapped(pThis);
             }
         }
 #endif
@@ -827,7 +867,8 @@ static void vga_ioport_write(PPDMDEVINS pDevIns, PVGASTATE pThis, uint32_t addr,
             if (pThis->fRemappedVGA)
             {
                 IOMMmioResetRegion(PDMDevHlpGetVM(pDevIns), pDevIns, pThis->hMmioLegacy);
-                pThis->fRemappedVGA = false;
+                STAM_COUNTER_INC(&pThis->StatMapReset);
+                vgaResetRemapped(pThis);
             }
         }
 #endif
@@ -1084,7 +1125,8 @@ static VBOXSTRICTRC vbe_ioport_write_data(PPDMDEVINS pDevIns, PVGASTATE pThis, P
             if (pThis->fRemappedVGA)
             {
                 IOMMmioResetRegion(PDMDevHlpGetVM(pDevIns), pDevIns, pThis->hMmioLegacy);
-                pThis->fRemappedVGA = false;
+                STAM_COUNTER_INC(&pThis->StatMapReset);
+                vgaResetRemapped(pThis);
             }
 # endif
             break;
@@ -1193,7 +1235,8 @@ static VBOXSTRICTRC vbe_ioport_write_data(PPDMDEVINS pDevIns, PVGASTATE pThis, P
             if (pThis->fRemappedVGA)
             {
                 IOMMmioResetRegion(PDMDevHlpGetVM(pDevIns), pDevIns, pThis->hMmioLegacy);
-                pThis->fRemappedVGA = false;
+                STAM_COUNTER_INC(&pThis->StatMapReset);
+                vgaResetRemapped(pThis);
             }
             break;
         }
@@ -1288,7 +1331,7 @@ static uint32_t vga_mem_readb(PPDMDEVINS pDevIns, PVGASTATE pThis, PVGASTATECC p
 #ifndef IN_RC
         /* If all planes are accessible, then map the page to the frame buffer and make it writable. */
         if (   (pThis->sr[2] & 3) == 3
-            && !vgaIsDirty(pThis, addr)
+            && !vgaIsRemapped(pThis, GCPhys - 0xa0000)
             && pThis->GCPhysVRAM)
         {
             /** @todo only allow read access (doesn't work now) */
@@ -1297,7 +1340,7 @@ static uint32_t vga_mem_readb(PPDMDEVINS pDevIns, PVGASTATE pThis, PVGASTATECC p
                                 pThis->hMmio2VRam, addr, X86_PTE_RW | X86_PTE_P);
             /* Set as dirty as write accesses won't be noticed now. */
             vgaR3MarkDirty(pThis, addr);
-            pThis->fRemappedVGA = true;
+            vgaMarkRemapped(pThis, GCPhys - 0xa0000);
         }
 #endif /* !IN_RC */
         VERIFY_VRAM_READ_OFF_RETURN(pThis, addr, *prc);
@@ -1397,13 +1440,13 @@ static VBOXSTRICTRC vga_mem_writeb(PPDMDEVINS pDevIns, PVGASTATE pThis, PVGASTAT
 #ifndef IN_RC
             /* If all planes are accessible, then map the page to the frame buffer and make it writable. */
             if (   (pThis->sr[2] & 3) == 3
-                && !vgaIsDirty(pThis, addr)
+                && !vgaIsRemapped(pThis, GCPhys - 0xa0000)
                 && pThis->GCPhysVRAM)
             {
                 STAM_COUNTER_INC(&pThis->StatMapPage);
                 IOMMmioMapMmio2Page(PDMDevHlpGetVM(pDevIns), pDevIns, pThis->hMmioLegacy, GCPhys - 0xa0000,
                                     pThis->hMmio2VRam, addr, X86_PTE_RW | X86_PTE_P);
-                pThis->fRemappedVGA = true;
+                vgaMarkRemapped(pThis, GCPhys - 0xa0000);
             }
 #endif /* !IN_RC */
 
@@ -2351,10 +2394,10 @@ static int vmsvgaR3DrawGraphic(PVGASTATE pThis, PVGASTATER3 pThisCC, bool fFullU
          * irrespective of alignment. Not guaranteed for high res modes, i.e.
          * anything wider than 2050 pixels @32bpp. Need to check all pages
          * between the first and last one. */
-        bool     fUpdate    = fFullUpdate | vgaIsDirty(pThis, offPage0) | vgaIsDirty(pThis, offPage1);
+        bool     fUpdate    = fFullUpdate | vgaR3IsDirty(pThis, offPage0) | vgaR3IsDirty(pThis, offPage1);
         if (offPage1 - offPage0 > PAGE_SIZE)
             /* if wide line, can use another page */
-            fUpdate |= vgaIsDirty(pThis, offPage0 + PAGE_SIZE);
+            fUpdate |= vgaR3IsDirty(pThis, offPage0 + PAGE_SIZE);
         /* explicit invalidation for the hardware cursor */
         fUpdate |= (pThis->invalidated_y_table[y >> 5] >> (y & 0x1f)) & 1;
         if (fUpdate)
@@ -2550,10 +2593,10 @@ static int vgaR3DrawGraphic(PVGASTATE pThis, PVGASTATER3 pThisCC, bool full_upda
          * irrespective of alignment. Not guaranteed for high res modes, i.e.
          * anything wider than 2050 pixels @32bpp. Need to check all pages
          * between the first and last one. */
-        bool update = full_update | vgaIsDirty(pThis, page0) | vgaIsDirty(pThis, page1);
+        bool update = full_update | vgaR3IsDirty(pThis, page0) | vgaR3IsDirty(pThis, page1);
         if (page1 - page0 > PAGE_SIZE) {
             /* if wide line, can use another page */
-            update |= vgaIsDirty(pThis, page0 + PAGE_SIZE);
+            update |= vgaR3IsDirty(pThis, page0 + PAGE_SIZE);
         }
         /* explicit invalidation for the hardware cursor */
         update |= (pThis->invalidated_y_table[y >> 5] >> (y & 0x1f)) & 1;
@@ -4693,6 +4736,7 @@ static DECLCALLBACK(void) vgaR3InfoVBE(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, c
         pHlp->pfnPrintf(pHlp, " Linear scanline pitch: 0x%04x\n", pThis->vbe_line_offset);
         pHlp->pfnPrintf(pHlp, " Linear display start : 0x%04x\n", pThis->vbe_start_addr);
         pHlp->pfnPrintf(pHlp, " Selected bank: 0x%04x\n", pThis->vbe_regs[VBE_DISPI_INDEX_BANK]);
+        pHlp->pfnPrintf(pHlp, " DAC: %d-bit\n", pThis->vbe_regs[VBE_DISPI_INDEX_ENABLE] & VBE_DISPI_8BIT_DAC ? 8 : 6);
     }
 }
 
@@ -4847,7 +4891,8 @@ static DECLCALLBACK(int) vgaR3PortUpdateDisplay(PPDMIDISPLAYPORT pInterface)
     if (pThis->fRemappedVGA)
     {
         IOMMmioResetRegion(PDMDevHlpGetVM(pDevIns), pDevIns, pThis->hMmioLegacy);
-        pThis->fRemappedVGA = false;
+        STAM_COUNTER_INC(&pThis->StatMapReset);
+        vgaResetRemapped(pThis);
     }
 
     rc = vgaR3UpdateDisplay(pDevIns, pThis, pThisCC, false /*fUpdateAll*/, false /*fFailOnResize*/, true /*reset_dirty*/,
@@ -4875,7 +4920,8 @@ static int vgaR3UpdateDisplayAllInternal(PPDMDEVINS pDevIns, PVGASTATE pThis, PV
     if (pThis->fRemappedVGA)
     {
         IOMMmioResetRegion(PDMDevHlpGetVM(pDevIns), pDevIns, pThis->hMmioLegacy);
-        pThis->fRemappedVGA = false;
+        STAM_COUNTER_INC(&pThis->StatMapReset);
+        vgaResetRemapped(pThis);
     }
 
     pThis->graphic_mode = -1; /* force full update */
@@ -6092,7 +6138,8 @@ static DECLCALLBACK(void)  vgaR3Reset(PPDMDEVINS pDevIns)
     if (pThis->fRemappedVGA)
     {
         IOMMmioResetRegion(PDMDevHlpGetVM(pDevIns), pDevIns, pThis->hMmioLegacy);
-        pThis->fRemappedVGA = false;
+        STAM_COUNTER_INC(&pThis->StatMapReset);
+        vgaResetRemapped(pThis);
     }
 
     /*
@@ -7251,6 +7298,7 @@ static DECLCALLBACK(int)   vgaR3Construct(PPDMDEVINS pDevIns, int iInstance, PCF
     PDMDevHlpSTAMRegister(pDevIns, &pThis->StatRZMemoryWrite, STAMTYPE_PROFILE, "RZ/MMIO-Write", STAMUNIT_TICKS_PER_CALL, "Profiling of the VGAGCMemoryWrite() body.");
     PDMDevHlpSTAMRegister(pDevIns, &pThis->StatR3MemoryWrite, STAMTYPE_PROFILE, "R3/MMIO-Write", STAMUNIT_TICKS_PER_CALL, "Profiling of the VGAGCMemoryWrite() body.");
     PDMDevHlpSTAMRegister(pDevIns, &pThis->StatMapPage,       STAMTYPE_COUNTER, "MapPageCalls",  STAMUNIT_OCCURENCES,     "Calls to IOMMmioMapMmio2Page.");
+    PDMDevHlpSTAMRegister(pDevIns, &pThis->StatMapReset,      STAMTYPE_COUNTER, "MapPageReset",  STAMUNIT_OCCURENCES,     "Calls to IOMMmioResetRegion.");
     PDMDevHlpSTAMRegister(pDevIns, &pThis->StatUpdateDisp,    STAMTYPE_COUNTER, "UpdateDisplay", STAMUNIT_OCCURENCES,     "Calls to vgaR3PortUpdateDisplay().");
 # endif
 # ifdef VBOX_WITH_HGSMI

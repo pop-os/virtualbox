@@ -209,7 +209,6 @@ UIWizardImportAppPageExpert::UIWizardImportAppPageExpert(bool fImportFromOCIByDe
                         if (m_pApplianceWidget)
                         {
                             m_pApplianceWidget->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::MinimumExpanding);
-                            m_pApplianceWidget->setFile(strFileName);
 
                             /* Add into layout: */
                             pApplianceWidgetLayout->addWidget(m_pApplianceWidget);
@@ -284,6 +283,9 @@ UIWizardImportAppPageExpert::UIWizardImportAppPageExpert(bool fImportFromOCIByDe
     registerField("vsdForm", this, "vsdForm");
     registerField("machineId", this, "machineId");
     registerField("applianceWidget", this, "applianceWidget");
+
+    if (!strFileName.isEmpty() && m_pFileSelector)
+        m_pFileSelector->setPath(strFileName);
 }
 
 bool UIWizardImportAppPageExpert::event(QEvent *pEvent)

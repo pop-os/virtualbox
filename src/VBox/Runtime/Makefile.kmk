@@ -295,6 +295,9 @@ endif
 ifdef IPRT_WITH_FUTEX_BASED_SEMS
  RuntimeR3_DEFS.linux  += IPRT_WITH_FUTEX_BASED_SEMS
 endif
+ifdef IPRT_WITHOUT_PAM
+ RuntimeR3_DEFS        += IPRT_WITHOUT_PAM
+endif
 RuntimeR3_INCS          = \
 	include \
 	$(SDK_VBOX_ZLIB_INCS) \
@@ -347,6 +350,7 @@ RuntimeR3_SOURCES       = \
 	common/checksum/alt-sha1.cpp \
 	common/checksum/alt-sha256.cpp \
 	common/checksum/alt-sha512.cpp \
+	common/checksum/alt-sha3.cpp \
 	common/checksum/md2str.cpp \
 	common/checksum/md4str.cpp \
 	common/checksum/md5str.cpp \
@@ -379,11 +383,14 @@ RuntimeR3_SOURCES       = \
 	common/crypto/rsa-core.cpp \
 	common/crypto/rsa-init.cpp \
 	common/crypto/rsa-sanity.cpp \
-	common/crypto/pemfile.cpp \
+	common/crypto/pemfile-read.cpp \
+	common/crypto/pemfile-write.cpp \
 	common/crypto/pkcs7-asn1-decoder.cpp \
 	common/crypto/pkcs7-core.cpp \
+	common/crypto/pkcs7-file.cpp \
 	common/crypto/pkcs7-init.cpp \
 	common/crypto/pkcs7-sanity.cpp \
+	common/crypto/pkcs7-sign.cpp \
 	common/crypto/pkcs7-verify.cpp \
 	common/crypto/pkix-sign.cpp \
 	common/crypto/pkix-signature-builtin.cpp \
@@ -665,6 +672,7 @@ RuntimeR3_SOURCES       = \
 	common/vfs/vfsstddir.cpp \
 	common/vfs/vfsstdfile.cpp \
 	common/vfs/vfsstdpipe.cpp \
+	common/vfs/vfsprintf.cpp \
 	common/zip/tar.cpp \
 	common/zip/tarcmd.cpp \
 	common/zip/tarvfs.cpp \
@@ -913,6 +921,7 @@ RuntimeR3_SOURCES.win = \
 	r3/win/serialport-win.cpp \
 	r3/win/shmem-win.cpp \
 	r3/win/symlink-win.cpp \
+	r3/win/system-get-nt-xxx-win.cpp \
 	r3/win/thread-win.cpp \
 	r3/win/thread2-win.cpp \
 	$(if-expr 1,r3/win/time-win.cpp,r3/nt/time-nt.cpp) \
@@ -1659,7 +1668,7 @@ RuntimeBldProg_SOURCES         = \
 	common/checksum/sha256str.cpp \
 	common/checksum/sha512str.cpp \
 	common/crypto/digest-core.cpp \
-	common/crypto/pemfile.cpp \
+	common/crypto/pemfile-read.cpp \
 	common/crypto/pkcs7-asn1-decoder.cpp \
 	common/crypto/pkcs7-core.cpp \
 	common/crypto/pkcs7-init.cpp \
@@ -1976,6 +1985,7 @@ RuntimeBldProg_SOURCES.win = \
 	r3/win/semeventmulti-win.cpp \
 	r3/win/semmutex-win.cpp \
 	r3/win/symlink-win.cpp \
+	r3/win/system-get-nt-xxx-win.cpp \
 	r3/win/thread-win.cpp \
 	r3/win/thread2-win.cpp \
 	$(if-expr 1,r3/win/time-win.cpp,r3/nt/time-nt.cpp) \
@@ -2953,6 +2963,7 @@ RuntimeR0Drv_SOURCES.win = \
 	common/checksum/alt-sha1.cpp \
 	common/checksum/alt-sha256.cpp \
 	common/checksum/alt-sha512.cpp \
+	common/checksum/alt-sha3.cpp \
 	common/checksum/md2str.cpp \
 	common/checksum/md4str.cpp \
 	common/checksum/md5str.cpp \
@@ -3103,6 +3114,7 @@ RuntimeR0Drv_SOURCES.darwin = \
 	common/checksum/alt-sha1.cpp \
 	common/checksum/alt-sha256.cpp \
 	common/checksum/alt-sha512.cpp \
+	common/checksum/alt-sha3.cpp \
 	common/checksum/md2str.cpp \
 	common/checksum/md4str.cpp \
 	common/checksum/md5str.cpp \
@@ -3120,6 +3132,7 @@ RuntimeR0Drv_SOURCES.darwin = \
 	common/string/memchr.asm \
 	common/string/mempcpy.asm \
 	common/string/strpbrk.cpp \
+	common/string/strstrip.cpp \
 	common/string/RTStrPrintHexBytes.cpp \
 	darwin/RTErrConvertFromDarwin.cpp \
 	darwin/RTErrConvertFromDarwinIO.cpp \
