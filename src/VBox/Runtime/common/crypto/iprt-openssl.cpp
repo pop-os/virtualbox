@@ -33,6 +33,11 @@
 #ifdef IPRT_WITH_OPENSSL    /* Whole file. */
 # include <iprt/err.h>
 # include <iprt/string.h>
+# include <iprt/mem.h>
+# include <iprt/asn1.h>
+# include <iprt/crypto/digest.h>
+# include <iprt/crypto/pkcs7.h>
+# include <iprt/crypto/spc.h>
 
 # include "internal/iprt-openssl.h"
 # include <openssl/x509.h>
@@ -47,6 +52,24 @@ DECLHIDDEN(void) rtCrOpenSslInit(void)
         OpenSSL_add_all_algorithms();
         ERR_load_ERR_strings();
         ERR_load_crypto_strings();
+
+        /* Add some OIDs we might possibly want to use. */
+        static struct { const char *pszOid, *pszDesc; } const s_aOids[] =
+        {
+            { RTCRSPC_PE_IMAGE_HASHES_V1_OID,               "Ms-SpcPeImagePageHashesV1" },
+            { RTCRSPC_PE_IMAGE_HASHES_V2_OID,               "Ms-SpcPeImagePageHashesV2" },
+            { RTCRSPC_STMT_TYPE_INDIVIDUAL_CODE_SIGNING,    "Ms-SpcIndividualCodeSigning" },
+            { RTCRSPCPEIMAGEDATA_OID,                       "Ms-SpcPeImageData" },
+            { RTCRSPCINDIRECTDATACONTENT_OID,               "Ms-SpcIndirectDataContext" },
+            { RTCR_PKCS9_ID_MS_TIMESTAMP,                   "Ms-CounterSign" },
+            { RTCR_PKCS9_ID_MS_NESTED_SIGNATURE,            "Ms-SpcNestedSignature" },
+            { RTCR_PKCS9_ID_MS_STATEMENT_TYPE,              "Ms-SpcStatementType" },
+            { RTCR_PKCS9_ID_MS_SP_OPUS_INFO,                "Ms-SpcOpusInfo" },
+            { "1.3.6.1.4.1.311.3.2.1",                      "Ms-SpcTimeStampRequest" },     /** @todo define */
+            { "1.3.6.1.4.1.311.10.1",                       "Ms-CertTrustList" },           /** @todo define */
+        };
+        for (unsigned i = 0; i < RT_ELEMENTS(s_aOids); i++)
+            OBJ_create(s_aOids[i].pszOid, s_aOids[i].pszDesc, s_aOids[i].pszDesc);
 
         s_fOssInitalized = true;
     }
@@ -63,26 +86,105 @@ DECLHIDDEN(int) rtCrOpenSslErrInfoCallback(const char *pach, size_t cch, void *p
 }
 
 
-DECLHIDDEN(int) rtCrOpenSslAddX509CertToStack(void *pvOsslStack, PCRTCRX509CERTIFICATE pCert)
+DECLHIDDEN(int) rtCrOpenSslConvertX509Cert(void **ppvOsslCert, PCRTCRX509CERTIFICATE pCert, PRTERRINFO pErrInfo)
 {
-    int                  rc;
-    const unsigned char *pabEncoded = (const unsigned char *)RTASN1CORE_GET_RAW_ASN1_PTR(&pCert->SeqCore.Asn1Core);
-    uint32_t             cbEncoded  = RTASN1CORE_GET_RAW_ASN1_SIZE(&pCert->SeqCore.Asn1Core);
-    X509                *pOsslCert  = NULL;
-    if (d2i_X509(&pOsslCert, &pabEncoded, cbEncoded) == pOsslCert)
+    const unsigned char *pabEncoded;
+    uint32_t             cbEncoded;
+    void                *pvFree;
+    int rc = RTAsn1EncodeQueryRawBits(RTCrX509Certificate_GetAsn1Core(pCert),
+                                      (const uint8_t **)&pabEncoded, &cbEncoded, &pvFree, pErrInfo);
+    if (RT_SUCCESS(rc))
+    {
+        X509 *pOsslCert = NULL;
+        X509 *pOsslCertRet = d2i_X509(&pOsslCert, &pabEncoded, cbEncoded);
+        RTMemTmpFree(pvFree);
+        if (pOsslCertRet == pOsslCert)
+        {
+            *ppvOsslCert = pOsslCert;
+            return VINF_SUCCESS;
+        }
+        rc = RTErrInfoSet(pErrInfo, VERR_CR_X509_OSSL_D2I_FAILED, "d2i_X509");
+
+    }
+    *ppvOsslCert = NULL;
+    return rc;
+}
+
+
+DECLHIDDEN(void) rtCrOpenSslFreeConvertedX509Cert(void *pvOsslCert)
+{
+    X509_free((X509 *)pvOsslCert);
+}
+
+
+DECLHIDDEN(int) rtCrOpenSslAddX509CertToStack(void *pvOsslStack, PCRTCRX509CERTIFICATE pCert, PRTERRINFO pErrInfo)
+{
+    X509 *pOsslCert = NULL;
+    int rc = rtCrOpenSslConvertX509Cert((void **)&pOsslCert, pCert, pErrInfo);
+    if (RT_SUCCESS(rc))
     {
         if (sk_X509_push((STACK_OF(X509) *)pvOsslStack, pOsslCert))
             rc = VINF_SUCCESS;
         else
         {
-            rc = VERR_NO_MEMORY;
-            X509_free(pOsslCert);
+            rtCrOpenSslFreeConvertedX509Cert(pOsslCert);
+            rc = RTErrInfoSet(pErrInfo, VERR_NO_MEMORY, "sk_X509_push");
         }
     }
-    else
-        rc = VERR_CR_X509_OSSL_D2I_FAILED;
     return rc;
 }
+
+
+DECLHIDDEN(const void /*EVP_MD*/ *) rtCrOpenSslConvertDigestType(RTDIGESTTYPE enmDigestType, PRTERRINFO pErrInfo)
+{
+    const char *pszAlgoObjId = RTCrDigestTypeToAlgorithmOid(enmDigestType);
+    AssertReturnStmt(pszAlgoObjId, RTErrInfoSetF(pErrInfo, VERR_INVALID_PARAMETER, "Invalid type: %d", enmDigestType), NULL);
+
+    int iAlgoNid = OBJ_txt2nid(pszAlgoObjId);
+    AssertReturnStmt(iAlgoNid != NID_undef,
+                     RTErrInfoSetF(pErrInfo, VERR_CR_DIGEST_OSSL_DIGEST_INIT_ERROR,
+                                   "OpenSSL does not know: %s (%s)", pszAlgoObjId, RTCrDigestTypeToName(enmDigestType)),
+                     NULL);
+
+    const char   *pszAlgoSn  = OBJ_nid2sn(iAlgoNid);
+    const EVP_MD *pEvpMdType = EVP_get_digestbyname(pszAlgoSn);
+    AssertReturnStmt(pEvpMdType,
+                     RTErrInfoSetF(pErrInfo, VERR_CR_DIGEST_OSSL_DIGEST_INIT_ERROR, "OpenSSL/EVP does not know: %d (%s; %s; %s)",
+                                   iAlgoNid, pszAlgoSn, pszAlgoSn, RTCrDigestTypeToName(enmDigestType)),
+                     NULL);
+
+    return pEvpMdType;
+}
+
+DECLHIDDEN(int) rtCrOpenSslConvertPkcs7Attribute(void **ppvOsslAttrib, PCRTCRPKCS7ATTRIBUTE pAttrib, PRTERRINFO pErrInfo)
+{
+    const unsigned char *pabEncoded;
+    uint32_t             cbEncoded;
+    void                *pvFree;
+    int rc = RTAsn1EncodeQueryRawBits(RTCrPkcs7Attribute_GetAsn1Core(pAttrib),
+                                      (const uint8_t **)&pabEncoded, &cbEncoded, &pvFree, pErrInfo);
+    if (RT_SUCCESS(rc))
+    {
+        X509_ATTRIBUTE *pOsslAttrib = NULL;
+        X509_ATTRIBUTE *pOsslAttribRet = d2i_X509_ATTRIBUTE(&pOsslAttrib, &pabEncoded, cbEncoded);
+        RTMemTmpFree(pvFree);
+        if (pOsslAttribRet == pOsslAttrib)
+        {
+            *ppvOsslAttrib = pOsslAttrib;
+            return VINF_SUCCESS;
+        }
+        rc = RTErrInfoSet(pErrInfo, VERR_CR_X509_OSSL_D2I_FAILED, "d2i_X509_ATTRIBUTE");
+    }
+    *ppvOsslAttrib = NULL;
+    return rc;
+}
+
+
+DECLHIDDEN(void) rtCrOpenSslFreeConvertedPkcs7Attribute(void *pvOsslAttrib)
+{
+    X509_ATTRIBUTE_free((X509_ATTRIBUTE *)pvOsslAttrib);
+}
+
 
 #endif /* IPRT_WITH_OPENSSL */
 

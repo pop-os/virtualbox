@@ -100,6 +100,7 @@ VBOX_SUP_WIN_CERTS := \
        SpcRootMicrosoft7=SpcRoot-MicrosoftTestingRootCertificateAuthority2010-8a334aa8052dd244a647306a76b8178fa215f344.taf \
        NtRootMicrosoft8=NtRoot-MicrosoftCodeVerificationRoot-729404101f3e0ca347837fca175a8438.taf \
        TimeRootMicrosoft0=Timestamp-CopyrightC1997MicrosoftCorp-01.taf \
+       TimeRootOracle0=Timestamp-VBoxLegacyWinCA.taf \
        TrustedCertVBox0=Trusted-OracleCorporationVirtualBox-05308b76ac2e15b29720fb4395f65f38.taf \
        AppleRoot0=AppleRoot-2bd06947947609fef46b8d2e40a6f7474d7f085e.taf \
        AppleRoot1=AppleRoot-G2-c499136c1803c27bc0a3a00d7f72807a1c77268d.taf
@@ -123,12 +124,20 @@ else
 	'};' 'unsigned const g_cSUP$(1)TAs = RT_ELEMENTS(g_aSUP$(1)TAs);' '' ''
 endif
 
+if  ("$(KBUILD_TARGET)" == "win"    && defined(VBOX_SIGNING_MODE)) \
+ || ("$(KBUILD_TARGET)" == "darwin" && defined(VBOX_WITH_DARWIN_R0_DARWIN_IMAGE_VERIFICATION) && defined(VBOX_SIGNING_MODE))
+ BLDPROGS += bldSUPSignedDummy
+ bldSUPSignedDummy_TEMPLATE         = VBoxBldProg
+ bldSUPSignedDummy_SOURCES          = bldSUPSignedDummy.cpp
+ bldSUPSignedDummy_ORDERDEPS.win    = $(VBOX_SIGN_IMAGE_ORDERDEPS)
+ bldSUPSignedDummy_POST_CMDS.win    = $(call VBOX_SIGN_IMAGE_FN,$(out),,2)
+ bldSUPSignedDummy_POST_CMDS.darwin = $(call VBOX_SIGN_MACHO_FN,$(out),org.virtualbox.org.bldtool.$(target))
+endif
+
 $$(VBOX_SUP_WIN_CERTS_FILE): $(MAKEFILE_CURRENT) \
 		$(foreach cert,$(VBOX_SUP_WIN_CERTS),$(VBOX_PATH_SUPR3_CERTIFICATES)/$(lastword $(subst =,$(SPACE) ,$(cert)))) \
 		$(VBOX_BIN2C) \
-		$(if-expr  ("$(KBUILD_TARGET)" == "win" && defined(VBOX_WITH_HARDENING)) \
-		        || ("$(KBUILD_TARGET)" == "darwin" && defined(VBOX_WITH_DARWIN_R0_DARWIN_IMAGE_VERIFICATION) && defined(VBOX_SIGNING_MODE)) \
-		,$(VBOX_RTSIGNTOOL)) \
+		$(if-expr defined(bldSUPSignedDummy_SOURCES),$(VBOX_RTSIGNTOOL) $$(bldSUPSignedDummy_1_TARGET),) \
 		| $$(dir $$@)
 	$(QUIET)$(RM) -f -- $@ $@.cer
 	$(QUIET)$(APPEND) -n "$@" \
@@ -140,9 +149,8 @@ $$(VBOX_SUP_WIN_CERTS_FILE): $(MAKEFILE_CURRENT) \
 		"$(VBOX_PATH_SUPR3_CERTIFICATES)/$(lastword $(subst =,$(SP) ,$(cert)))" \
 		"$@")
 # The build certificate.
-if  ("$(KBUILD_TARGET)" == "win" && defined(VBOX_WITH_HARDENING) && defined(VBOX_SIGNING_MODE)) \
- || ("$(KBUILD_TARGET)" == "darwin" && defined(VBOX_WITH_DARWIN_R0_DARWIN_IMAGE_VERIFICATION) && defined(VBOX_SIGNING_MODE))
-	$(VBOX_RTSIGNTOOL) extract-exe-signer-cert --exe $(VBOX_RTSIGNTOOL) --output "$@.cer" --der
+ifdef bldSUPSignedDummy_SOURCES
+	$(VBOX_RTSIGNTOOL) extract-exe-signer-cert --exe "$(bldSUPSignedDummy_1_TARGET)" --output "$@.cer" --der
 	$(VBOX_BIN2C) -ascii --append SUPBuildCert "$@.cer" $@
 	$(QUIET)$(RM) -f -- $@.cer
 endif
@@ -325,6 +333,7 @@ if "$(KBUILD_TARGET)" == "win" && defined(VBOX_WITH_HARDENING) ## @todo some of 
 	$(VBOX_PATH_RUNTIME_SRC)/common/checksum/alt-sha1.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/checksum/alt-sha256.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/checksum/alt-sha512.cpp \
+	$(VBOX_PATH_RUNTIME_SRC)/common/checksum/alt-sha3.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/checksum/md2str.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/checksum/md5str.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/checksum/sha1str.cpp \

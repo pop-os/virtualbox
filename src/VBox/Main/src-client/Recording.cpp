@@ -150,7 +150,7 @@ int RecordingContext::createInternal(const settings::RecordingSettings &a_Settin
     if (RT_FAILURE(rc))
         return rc;
 
-    settings::RecordingScreenMap::const_iterator itScreen = a_Settings.mapScreens.begin();
+    settings::RecordingScreenSettingsMap::const_iterator itScreen = a_Settings.mapScreens.begin();
     while (itScreen != a_Settings.mapScreens.end())
     {
         RecordingStream *pStream = NULL;
@@ -201,21 +201,21 @@ int RecordingContext::startInternal(void)
 
     Assert(this->enmState == RECORDINGSTS_CREATED);
 
-    int rc = RTThreadCreate(&this->Thread, RecordingContext::threadMain, (void *)this, 0,
-                            RTTHREADTYPE_MAIN_WORKER, RTTHREADFLAGS_WAITABLE, "Record");
+    int vrc = RTThreadCreate(&this->Thread, RecordingContext::threadMain, (void *)this, 0,
+                             RTTHREADTYPE_MAIN_WORKER, RTTHREADFLAGS_WAITABLE, "Record");
 
-    if (RT_SUCCESS(rc)) /* Wait for the thread to start. */
-        rc = RTThreadUserWait(this->Thread, 30 * RT_MS_1SEC /* 30s timeout */);
+    if (RT_SUCCESS(vrc)) /* Wait for the thread to start. */
+        vrc = RTThreadUserWait(this->Thread, RT_MS_30SEC /* 30s timeout */);
 
-    if (RT_SUCCESS(rc))
+    if (RT_SUCCESS(vrc))
     {
         LogRel(("Recording: Started\n"));
         this->enmState = RECORDINGSTS_STARTED;
     }
     else
-        Log(("Recording: Failed to start (%Rrc)\n", rc));
+        Log(("Recording: Failed to start (%Rrc)\n", vrc));
 
-    return rc;
+    return vrc;
 }
 
 /**
@@ -234,24 +234,24 @@ int RecordingContext::stopInternal(void)
     ASMAtomicWriteBool(&this->fShutdown, true);
 
     /* Signal the thread and wait for it to shut down. */
-    int rc = threadNotify();
-    if (RT_SUCCESS(rc))
-        rc = RTThreadWait(this->Thread, 30 * 1000 /* 10s timeout */, NULL);
+    int vrc = threadNotify();
+    if (RT_SUCCESS(vrc))
+        vrc = RTThreadWait(this->Thread, RT_MS_30SEC /* 30s timeout */, NULL);
 
     lock();
 
-    if (RT_SUCCESS(rc))
+    if (RT_SUCCESS(vrc))
     {
         LogRel(("Recording: Stopped\n"));
         this->enmState = RECORDINGSTS_CREATED;
     }
     else
-        Log(("Recording: Failed to stop (%Rrc)\n", rc));
+        Log(("Recording: Failed to stop (%Rrc)\n", vrc));
 
     unlock();
 
-    LogFlowThisFunc(("%Rrc\n", rc));
-    return rc;
+    LogFlowThisFunc(("%Rrc\n", vrc));
+    return vrc;
 }
 
 /**
@@ -294,10 +294,7 @@ void RecordingContext::destroyInternal(void)
     unlock();
 
     if (RTCritSectIsInitialized(&this->CritSect))
-    {
-        Assert(RTCritSectGetWaiters(&this->CritSect) == -1);
         RTCritSectDelete(&this->CritSect);
-    }
 
     this->enmState = RECORDINGSTS_UNINITIALIZED;
 }

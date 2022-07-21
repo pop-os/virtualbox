@@ -83,11 +83,17 @@ static const osTypePattern gs_OSTypePattern[] =
     { QRegExp(  "Reac.*",                         Qt::CaseInsensitive), "Windows2003" },
 
     /* Solaris: */
-    { QRegExp("Sol.*11",                                                  Qt::CaseInsensitive), "Solaris11_64" },
-    { QRegExp("((Op.*Sol)|(os20[01][0-9])|(Sol.*10)|(India)|(Neva)).*64", Qt::CaseInsensitive), "OpenSolaris_64" },
-    { QRegExp("((Op.*Sol)|(os20[01][0-9])|(Sol.*10)|(India)|(Neva)).*32", Qt::CaseInsensitive), "OpenSolaris" },
-    { QRegExp("Sol.*64",                                                  Qt::CaseInsensitive), "Solaris_64" },
-    { QRegExp("Sol.*32",                                                  Qt::CaseInsensitive), "Solaris" },
+    { QRegExp("((Op.*Sol)|(os20[01][0-9])|(India)|(Illum)|(Neva)).*64",   Qt::CaseInsensitive), "OpenSolaris_64" },
+    { QRegExp("((Op.*Sol)|(os20[01][0-9])|(India)|(Illum)|(Neva)).*32",   Qt::CaseInsensitive), "OpenSolaris" },
+    { QRegExp("(Sol.*10.*(10/09)|(9/10)|(8/11)|(1/13)).*64",              Qt::CaseInsensitive), "Solaris10U8_or_later_64" },
+    { QRegExp("(Sol.*10.*(10/09)|(9/10)|(8/11)|(1/13)).*32",              Qt::CaseInsensitive), "Solaris10U8_or_later" },
+    { QRegExp("(Sol.*10.*(U[89])|(U1[01])).*64",                          Qt::CaseInsensitive), "Solaris10U8_or_later_64" },
+    { QRegExp("(Sol.*10.*(U[89])|(U1[01])).*32",                          Qt::CaseInsensitive), "Solaris10U8_or_later" },
+    { QRegExp("(Sol.*10.*(1/06)|(6/06)|(11/06)|(8/07)|(5/08)|(10/08)|(5/09)).*64",  Qt::CaseInsensitive), "Solaris_64" }, // Solaris 10U7 (5/09) or earlier
+    { QRegExp("(Sol.*10.*(1/06)|(6/06)|(11/06)|(8/07)|(5/08)|(10/08)|(5/09)).*32",  Qt::CaseInsensitive), "Solaris" }, // Solaris 10U7 (5/09) or earlier
+    { QRegExp("((Sol.*10.*U[1-7])|(Sol.*10)).*64",                        Qt::CaseInsensitive), "Solaris_64" }, // Solaris 10U7 (5/09) or earlier
+    { QRegExp("((Sol.*10.*U[1-7])|(Sol.*10)).*32",                        Qt::CaseInsensitive), "Solaris" }, // Solaris 10U7 (5/09) or earlier
+    { QRegExp("((Sol.*11)|(Sol.*)).*64",                                  Qt::CaseInsensitive), "Solaris11_64" },
 
     /* OS/2: */
     { QRegExp("OS[/|!-]{,1}2.*W.*4.?5", Qt::CaseInsensitive), "OS2Warp45" },
@@ -150,8 +156,8 @@ static const osTypePattern gs_OSTypePattern[] =
     { QRegExp("(Ub)|(Min).*32",                    Qt::CaseInsensitive), "Ubuntu" },
     { QRegExp("Xa.*64",                            Qt::CaseInsensitive), "Xandros_64" },
     { QRegExp("Xa.*32",                            Qt::CaseInsensitive), "Xandros" },
-    { QRegExp("((Or)|(oel)|(ol)).*64",             Qt::CaseInsensitive), "Oracle_64" },
-    { QRegExp("((Or)|(oel)|(ol)).*32",             Qt::CaseInsensitive), "Oracle" },
+    { QRegExp("((Or)|(oel)|(^ol)).*64",            Qt::CaseInsensitive), "Oracle_64" },
+    { QRegExp("((Or)|(oel)|(^ol)).*32",            Qt::CaseInsensitive), "Oracle" },
     { QRegExp("Knoppix",                           Qt::CaseInsensitive), "Linux26" },
     { QRegExp("Dsl",                               Qt::CaseInsensitive), "Linux24" },
     { QRegExp("((Lin)|(lnx)).*2.?2",               Qt::CaseInsensitive), "Linux22" },

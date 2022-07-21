@@ -154,7 +154,26 @@ typedef RTCRPKCS7ATTRIBUTE *PRTCRPKCS7ATTRIBUTE;
 typedef RTCRPKCS7ATTRIBUTE const *PCRTCRPKCS7ATTRIBUTE;
 RTASN1TYPE_STANDARD_PROTOTYPES(RTCRPKCS7ATTRIBUTE, RTDECL, RTCrPkcs7Attribute, SeqCore.Asn1Core);
 
+RTDECL(int) RTCrPkcs7Attribute_SetAppleMultiCdPlist(PRTCRPKCS7ATTRIBUTE pThis, PCRTASN1SETOFOCTETSTRINGS pToClone,
+                                                    PCRTASN1ALLOCATORVTABLE pAllocator);
+RTDECL(int) RTCrPkcs7Attribute_SetContentType(PRTCRPKCS7ATTRIBUTE pThis, PCRTASN1SETOFOBJIDS pToClone,
+                                              PCRTASN1ALLOCATORVTABLE pAllocator);
+RTDECL(int) RTCrPkcs7Attribute_SetCounterSignatures(PRTCRPKCS7ATTRIBUTE pThis, PCRTCRPKCS7SIGNERINFOS pToClone,
+                                                    PCRTASN1ALLOCATORVTABLE pAllocator);
+RTDECL(int) RTCrPkcs7Attribute_SetMessageDigest(PRTCRPKCS7ATTRIBUTE pThis, PCRTASN1SETOFOCTETSTRINGS pToClone,
+                                                PCRTASN1ALLOCATORVTABLE pAllocator);
+RTDECL(int) RTCrPkcs7Attribute_SetMsStatementType(PRTCRPKCS7ATTRIBUTE pThis, PCRTASN1SETOFOBJIDSEQS pToClone,
+                                                  PCRTASN1ALLOCATORVTABLE pAllocator);
+RTDECL(int) RTCrPkcs7Attribute_SetMsNestedSignature(PRTCRPKCS7ATTRIBUTE pThis, struct RTCRPKCS7SETOFCONTENTINFOS const *pToClone,
+                                                    PCRTASN1ALLOCATORVTABLE pAllocator);
+RTDECL(int) RTCrPkcs7Attribute_SetMsTimestamp(PRTCRPKCS7ATTRIBUTE pThis, struct RTCRPKCS7SETOFCONTENTINFOS const *pToClone,
+                                              PCRTASN1ALLOCATORVTABLE pAllocator);
+RTDECL(int) RTCrPkcs7Attribute_SetSigningTime(PRTCRPKCS7ATTRIBUTE pThis, PCRTASN1SETOFTIMES pToClone,
+                                              PCRTASN1ALLOCATORVTABLE pAllocator);
+
 RTASN1_IMPL_GEN_SET_OF_TYPEDEFS_AND_PROTOS(RTCRPKCS7ATTRIBUTES, RTCRPKCS7ATTRIBUTE, RTDECL, RTCrPkcs7Attributes);
+
+RTDECL(int) RTCrPkcs7Attributes_HashAttributes(PRTCRPKCS7ATTRIBUTES pAttributes, RTCRDIGEST hDigest, PRTERRINFO pErrInfo);
 
 
 /**
@@ -186,6 +205,11 @@ typedef struct RTCRPKCS7SIGNERINFO
     RTCRPKCS7ATTRIBUTES                 UnauthenticatedAttributes;
 } RTCRPKCS7SIGNERINFO;
 RTASN1TYPE_STANDARD_PROTOTYPES(RTCRPKCS7SIGNERINFO, RTDECL, RTCrPkcs7SignerInfo, SeqCore.Asn1Core);
+
+RTDECL(int) RTCrPkcs7SignerInfo_SetAuthenticatedAttributes(PRTCRPKCS7SIGNERINFO pThis, PCRTCRPKCS7ATTRIBUTES pAttributes,
+                                                           PCRTASN1ALLOCATORVTABLE pAllocator);
+RTDECL(int) RTCrPkcs7SignerInfo_SetUnauthenticatedAttributes(PRTCRPKCS7SIGNERINFO pThis, PCRTCRPKCS7ATTRIBUTES pAttributes,
+                                                             PCRTASN1ALLOCATORVTABLE pAllocator);
 
 /** RTCRPKCS7SIGNERINFO::Version value.  */
 #define RTCRPKCS7SIGNERINFO_V1    1
@@ -366,6 +390,12 @@ typedef RTCRPKCS7CERT const *PCRTCRPKCS7CERT;
 RTASN1TYPE_STANDARD_PROTOTYPES(RTCRPKCS7CERT, RTDECL, RTCrPkcs7Cert, Dummy.Asn1Core);
 RTASN1_IMPL_GEN_SET_OF_TYPEDEFS_AND_PROTOS(RTCRPKCS7SETOFCERTS, RTCRPKCS7CERT, RTDECL, RTCrPkcs7SetOfCerts);
 
+RTDECL(int) RTCrPkcs7Cert_SetX509Cert(PRTCRPKCS7CERT pThis, PCRTCRX509CERTIFICATE pToClone, PCRTASN1ALLOCATORVTABLE pAllocator);
+RTDECL(int) RTCrPkcs7Cert_SetExtendedCert(PRTCRPKCS7CERT pThis, PCRTASN1CORE pToClone, PCRTASN1ALLOCATORVTABLE pAllocator);
+RTDECL(int) RTCrPkcs7Cert_SetAcV1(PRTCRPKCS7CERT pThis, PCRTASN1CORE pToClone, PCRTASN1ALLOCATORVTABLE pAllocator);
+RTDECL(int) RTCrPkcs7Cert_SetAcV2(PRTCRPKCS7CERT pThis, PCRTASN1CORE pToClone, PCRTASN1ALLOCATORVTABLE pAllocator);
+RTDECL(int) RTCrPkcs7Cert_SetOtherCert(PRTCRPKCS7CERT pThis, PCRTASN1CORE pToClone, PCRTASN1ALLOCATORVTABLE pAllocator);
+
 RTDECL(PCRTCRX509CERTIFICATE) RTCrPkcs7SetOfCerts_FindX509ByIssuerAndSerialNumber(PCRTCRPKCS7SETOFCERTS pCertificates,
                                                                                   PCRTCRX509NAME pIssuer,
                                                                                   PCRTASN1INTEGER pSerialNumber);
@@ -419,6 +449,8 @@ RTASN1_IMPL_GEN_SET_OF_TYPEDEFS_AND_PROTOS(RTCRPKCS7SETOFSIGNEDDATA, RTCRPKCS7SI
  * OTHER type present (RFC-5652, section 5.1). */
 #define RTCRPKCS7SIGNEDDATA_V5    5
 
+RTDECL(int) RTCrPkcs7SignedData_SetCertificates(PRTCRPKCS7SIGNEDDATA pThis, PCRTCRPKCS7SETOFCERTS pCerts, PCRTASN1ALLOCATORVTABLE pAllocator);
+RTDECL(int) RTCrPkcs7SignedData_SetCrls(PRTCRPKCS7SIGNEDDATA pThis, PCRTASN1CORE pCerts, PCRTASN1ALLOCATORVTABLE pAllocator);
 
 /** @name RTCRPKCS7SIGNEDDATA_SANITY_F_XXX - Flags for RTPkcs7SignedDataCheckSantiy.
  * @{ */
@@ -429,6 +461,22 @@ RTASN1_IMPL_GEN_SET_OF_TYPEDEFS_AND_PROTOS(RTCRPKCS7SETOFSIGNEDDATA, RTCRPKCS7SI
 /** Require signing certificate to be present. */
 #define RTCRPKCS7SIGNEDDATA_SANITY_F_SIGNING_CERT_PRESENT RT_BIT_32(2)
 /** @} */
+
+/** PKCS\#7/CMS (content info) markers. */
+extern RTDATADECL(RTCRPEMMARKER const) g_aRTCrPkcs7Markers[];
+/** Number of entries in g_aRTCrPkcs7Markers. */
+extern RTDATADECL(uint32_t const)      g_cRTCrPkcs7Markers;
+
+/** @name Flags for RTCrPkcs7ContentInfo_ReadFromBuffer
+ * @{ */
+/** Only allow PEM certificates, not binary ones.
+ * @sa RTCRPEMREADFILE_F_ONLY_PEM  */
+#define RTCRPKCS7_READ_F_PEM_ONLY        RT_BIT(1)
+/** @} */
+
+RTDECL(int) RTCrPkcs7_ReadFromBuffer(PRTCRPKCS7CONTENTINFO pContentInfo, const void *pvBuf, size_t cbBuf,
+                                     uint32_t fFlags, PCRTASN1ALLOCATORVTABLE pAllocator,
+                                     bool *pfCmsLabeled, PRTERRINFO pErrInfo, const char *pszErrorTag);
 
 
 /**
@@ -551,16 +599,17 @@ RTDECL(int) RTCrPkcs7VerifySignedDataWithExternalData(PCRTCRPKCS7CONTENTINFO pCo
                                                       PFNRTCRPKCS7VERIFYCERTCALLBACK pfnVerifyCert, void *pvUser,
                                                       void const *pvData, size_t cbData, PRTERRINFO pErrInfo);
 
-/** @name RTCRPKCS7VERIFY_SD_F_XXX - Flags for RTCrPkcs7VerifySignedData
+/** @name RTCRPKCS7VERIFY_SD_F_XXX - Flags for RTCrPkcs7VerifySignedData and
+ *                                   RTCrPkcs7VerifySignedDataWithExternalData
  * @{ */
 /** Always use the signing time attribute if present, requiring it to be
  * verified as valid.  The default behavior is to ignore unverifiable
  * signing time attributes and use the @a pValidationTime instead. */
 #define RTCRPKCS7VERIFY_SD_F_ALWAYS_USE_SIGNING_TIME_IF_PRESENT     RT_BIT_32(0)
 /** Same as RTCRPKCS7VERIFY_SD_F_ALWAYS_USE_SIGNING_TIME_IF_PRESENT for the MS
- *  timestamp counter sigantures. */
+ *  timestamp counter signatures. */
 #define RTCRPKCS7VERIFY_SD_F_ALWAYS_USE_MS_TIMESTAMP_IF_PRESENT     RT_BIT_32(1)
-/** Only use signging time attributes from counter signatures. */
+/** Only use signing time attributes from counter signatures. */
 #define RTCRPKCS7VERIFY_SD_F_COUNTER_SIGNATURE_SIGNING_TIME_ONLY    RT_BIT_32(2)
 /** Don't validate the counter signature containing the signing time, just use
  * it unverified.  This is useful if we don't necessarily have the root
@@ -576,11 +625,37 @@ RTDECL(int) RTCrPkcs7VerifySignedDataWithExternalData(PCRTCRPKCS7CONTENTINFO pCo
  * usage bit present.  This is used for recursivly verifying MS timestamp
  * signatures. */
 #define RTCRPKCS7VERIFY_SD_F_USAGE_TIMESTAMPING                     RT_BIT_32(6)
+/** Skip the verification of the certificate trust paths, taking all
+ * certificates to be trustworthy. */
+#define RTCRPKCS7VERIFY_SD_F_TRUST_ALL_CERTS                        RT_BIT_32(7)
 
 /** Indicates internally that we're validating a counter signature and should
  * use different rules when checking out the authenticated attributes.
  * @internal  */
 #define RTCRPKCS7VERIFY_SD_F_COUNTER_SIGNATURE                      RT_BIT_32(31)
+/** @} */
+
+
+RTDECL(int) RTCrPkcs7SimpleSignSignedData(uint32_t fFlags, PCRTCRX509CERTIFICATE pSigner, RTCRKEY hPrivateKey,
+                                          void const *pvData, size_t cbData, RTDIGESTTYPE enmDigestType,
+                                          RTCRSTORE hAdditionalCerts, PCRTCRPKCS7ATTRIBUTES pAdditionalAuthenticatedAttribs,
+                                          void *pvResult, size_t *pcbResult, PRTERRINFO pErrInfo);
+
+/** @name RTCRPKCS7SIGN_SD_F_XXX - Flags for RTCrPkcs7SimpleSign.
+ * @{ */
+/** Detached data. */
+#define RTCRPKCS7SIGN_SD_F_DEATCHED         RT_BIT_32(0)
+/** No SMIME capabilities attribute. */
+#define RTCRPKCS7SIGN_SD_F_NO_SMIME_CAP     RT_BIT_32(1)
+/** Produce version 1 output (PKCS\#7), rather than version 3 (CMS). */
+#define RTCRPKCS7SIGN_SD_F_USE_V1           RT_BIT_32(2)
+/** Avoid extra OCTET STRING encapsulation around the data blob.
+ * This is needed for Authenticode signatures.  This requires that the
+ * content type is supplied via the additional authenticated attributes.
+ * @note Currently only works with RTCRPKCS7SIGN_SD_F_USE_V1.  */
+#define RTCRPKCS7SIGN_SD_F_NO_DATA_ENCAP    RT_BIT_32(3)
+/** Valid flag mask.   */
+#define RTCRPKCS7SIGN_SD_F_VALID_MASK       UINT32_C(0x0000000f)
 /** @} */
 
 /** @} */

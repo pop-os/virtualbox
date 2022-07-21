@@ -1431,6 +1431,9 @@ DECLINLINE(PPDMNETWORKGSO) virtioNetR3SetupGsoCtx(PPDMNETWORKGSO pGso, VIRTIONET
     pGso->offHdr1     = sizeof(RTNETETHERHDR);
     pGso->cbHdrsTotal = pPktHdr->uHdrLen;
     pGso->cbMaxSeg    = pPktHdr->uGsoSize;
+    /* Mark GSO frames with zero MSS as PDMNETWORKGSOTYPE_INVALID, so they will be ignored by send. */
+    if (pPktHdr->uGsoType != VIRTIONET_HDR_GSO_NONE && pPktHdr->uGsoSize == 0)
+        pGso->u8Type = PDMNETWORKGSOTYPE_INVALID;
     return pGso;
 }
 
@@ -2250,6 +2253,9 @@ static int virtioNetR3TransmitFrame(PVIRTIONET pThis, PVIRTIONETCC pThisCC, PPDM
             ((PPDMNETWORKGSO)pSgBuf->pvUser)->cbHdrsSeg   = pGso->cbHdrsSeg;
             Log4Func(("%s adjusted HdrLen to %d.\n",
                   pThis->szInst, pGso->cbHdrsTotal));
+            case PDMNETWORKGSOTYPE_INVALID:
+                LogFunc(("%s ignoring invalid GSO frame\n", pThis->szInst));
+                return VERR_INVALID_PARAMETER;
         }
         Log2Func(("%s gso type=%x cbHdrsTotal=%u cbHdrsSeg=%u mss=%u off1=0x%x off2=0x%x\n",
                   pThis->szInst, pGso->u8Type, pGso->cbHdrsTotal, pGso->cbHdrsSeg,

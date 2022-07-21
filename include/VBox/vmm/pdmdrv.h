@@ -1330,6 +1330,15 @@ typedef struct PDMDRVHLPR3
      */
     DECLR3CALLBACKMEMBER(int, pfnSTAMDeregisterByPrefix,(PPDMDRVINS pDrvIns, const char *pszPrefix));
 
+    /**
+     * Destroys a timer.
+     *
+     * @returns VBox status.
+     * @param   pDrvIns         Driver instance.
+     * @param   hTimer          The timer handle to destroy.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnTimerDestroy,(PPDMDRVINS pDrvIns, TMTIMERHANDLE hTimer));
+
     DECLR3CALLBACKMEMBER(void, pfnReserved2,(PPDMDRVINS pDrvIns));
     DECLR3CALLBACKMEMBER(void, pfnReserved3,(PPDMDRVINS pDrvIns));
     DECLR3CALLBACKMEMBER(void, pfnReserved4,(PPDMDRVINS pDrvIns));
@@ -1337,7 +1346,6 @@ typedef struct PDMDRVHLPR3
     DECLR3CALLBACKMEMBER(void, pfnReserved6,(PPDMDRVINS pDrvIns));
     DECLR3CALLBACKMEMBER(void, pfnReserved7,(PPDMDRVINS pDrvIns));
     DECLR3CALLBACKMEMBER(void, pfnReserved8,(PPDMDRVINS pDrvIns));
-    DECLR3CALLBACKMEMBER(void, pfnReserved9,(PPDMDRVINS pDrvIns));
     /** @}  */
 
     /** Just a safety precaution. */
@@ -1528,6 +1536,15 @@ DECLINLINE(uint64_t) PDMDrvHlpTMGetVirtualTime(PPDMDRVINS pDrvIns)
 DECLINLINE(int) PDMDrvHlpTMTimerCreate(PPDMDRVINS pDrvIns, TMCLOCK enmClock, PFNTMTIMERDRV pfnCallback, void *pvUser, uint32_t fFlags, const char *pszDesc, PTMTIMERHANDLE phTimer)
 {
     return pDrvIns->pHlpR3->pfnTMTimerCreate(pDrvIns, enmClock, pfnCallback, pvUser, fFlags, pszDesc, phTimer);
+}
+
+/**
+ * @copydoc PDMDRVHLPR3::pfnTimerDestroy
+ */
+DECLINLINE(int) PDMDrvHlpTimerDestroy(PPDMDRVINS pDrvIns, TMTIMERHANDLE hTimer)
+
+{
+    return pDrvIns->pHlpR3->pfnTimerDestroy(pDrvIns, hTimer);
 }
 
 /**

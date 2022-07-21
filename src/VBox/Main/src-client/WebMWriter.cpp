@@ -150,14 +150,7 @@ int WebMWriter::Close(void)
 
     close();
 
-    int rc = VINF_SUCCESS;
-
-    /* If no clusters (= data) was written, delete the file again. */
-    if (!CurSeg.cClusters)
-        rc = RTFileDelete(strFileName.c_str());
-
-    LogFlowFuncLeaveRC(rc);
-    return rc;
+    return VINF_SUCCESS;
 }
 
 /**

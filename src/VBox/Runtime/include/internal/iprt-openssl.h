@@ -31,6 +31,7 @@
 #endif
 
 #include <iprt/crypto/x509.h>
+#include <iprt/crypto/pkcs7.h>
 
 RT_C_DECLS_BEGIN
 struct evp_md_st;
@@ -38,10 +39,16 @@ struct evp_pkey_st;
 
 DECLHIDDEN(void) rtCrOpenSslInit(void);
 DECLHIDDEN(int)  rtCrOpenSslErrInfoCallback(const char *pach, size_t cch, void *pvUser);
-DECLHIDDEN(int)  rtCrOpenSslAddX509CertToStack(void *pvOsslStack, PCRTCRX509CERTIFICATE pCert);
+DECLHIDDEN(int)  rtCrOpenSslConvertX509Cert(void **ppvOsslCert, PCRTCRX509CERTIFICATE pCert, PRTERRINFO pErrInfo);
+DECLHIDDEN(void) rtCrOpenSslFreeConvertedX509Cert(void *pvOsslCert);
+DECLHIDDEN(int)  rtCrOpenSslAddX509CertToStack(void *pvOsslStack, PCRTCRX509CERTIFICATE pCert, PRTERRINFO pErrInfo);
+DECLHIDDEN(const void /*EVP_MD*/ *) rtCrOpenSslConvertDigestType(RTDIGESTTYPE enmDigestType, PRTERRINFO pErrInfo);
+DECLHIDDEN(int) rtCrOpenSslConvertPkcs7Attribute(void **ppvOsslAttrib, PCRTCRPKCS7ATTRIBUTE pAttrib, PRTERRINFO pErrInfo);
+DECLHIDDEN(void) rtCrOpenSslFreeConvertedPkcs7Attribute(void *pvOsslAttrib);
 
-DECLHIDDEN(int)  rtCrKeyToOpenSslKey(RTCRKEY hKey, bool fNeedPublic, const char *pszAlgoObjId,
-                                     void /*EVP_PKEY*/ **ppEvpKey, const void /*EVP_MD*/ **ppEvpMdType, PRTERRINFO pErrInfo);
+DECLHIDDEN(int)  rtCrKeyToOpenSslKey(RTCRKEY hKey, bool fNeedPublic, void /*EVP_PKEY*/ **ppEvpKey, PRTERRINFO pErrInfo);
+DECLHIDDEN(int)  rtCrKeyToOpenSslKeyEx(RTCRKEY hKey, bool fNeedPublic, const char *pszAlgoObjId,
+                                       void /*EVP_PKEY*/ **ppEvpKey, const void /*EVP_MD*/ **ppEvpMdType, PRTERRINFO pErrInfo);
 
 RT_C_DECLS_END
 

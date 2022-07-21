@@ -132,6 +132,12 @@ typedef enum RTCRSTOREID
     /** Open the certificate store of the system containg trusted CAs
      * and certificates. */
     RTCRSTOREID_SYSTEM_TRUSTED_CAS_AND_CERTIFICATES,
+    /** Open the certificate store of the current user containing intermediate CAs.
+     * @remarks This may or may not include all the certificates in the system
+     *          store, that's host dependent.  So, you better look in both. */
+    RTCRSTOREID_USER_INTERMEDIATE_CAS,
+    /** Open the certificate store of the system containg intermediate CAs. */
+    RTCRSTOREID_SYSTEM_INTERMEDIATE_CAS,
     /** End of valid values. */
     RTCRSTOREID_END,
     /** Traditional enum type compression prevention hack. */
@@ -145,8 +151,6 @@ typedef enum RTCRSTOREID
  * There will be no duplicates in this one.
  *
  * @returns IPRT status code.
- * @retval  VWRN_ALREADY_EXISTS if the certificate is already present and
- *          RTCRCERTCTX_F_ADD_IF_NOT_FOUND was specified.
  * @param   phStore             Where to return the store handle. Use
  *                              RTCrStoreRelease to release it.
  * @param   enmStoreId          The store to snapshot.
@@ -158,6 +162,7 @@ RTDECL(int) RTCrStoreCreateSnapshotById(PRTCRSTORE phStore, RTCRSTOREID enmStore
 RTDECL(int) RTCrStoreCreateSnapshotOfUserAndSystemTrustedCAsAndCerts(PRTCRSTORE phStore, PRTERRINFO pErrInfo);
 
 RTDECL(int) RTCrStoreCreateInMem(PRTCRSTORE phStore, uint32_t cSizeHint);
+RTDECL(int) RTCrStoreCreateInMemEx(PRTCRSTORE phStore, uint32_t cSizeHint, RTCRSTORE hParentStore);
 
 RTDECL(uint32_t) RTCrStoreRetain(RTCRSTORE hStore);
 RTDECL(uint32_t) RTCrStoreRelease(RTCRSTORE hStore);
@@ -179,6 +184,24 @@ RTDECL(PCRTCRCERTCTX) RTCrStoreCertByIssuerAndSerialNo(RTCRSTORE hStore, PCRTCRX
  *                              Optional.
  */
 RTDECL(int) RTCrStoreCertAddEncoded(RTCRSTORE hStore, uint32_t fFlags, void const *pvSrc, size_t cbSrc, PRTERRINFO pErrInfo);
+
+/**
+ * Add an X.509 packaged certificate to the store.
+ *
+ * @returns IPRT status code.
+ * @retval  VWRN_ALREADY_EXISTS if the certificate is already present and
+ *          RTCRCERTCTX_F_ADD_IF_NOT_FOUND was specified.
+ * @retval  VERR_WRITE_PROTECT if the store doesn't support adding.
+ * @param   hStore              The store to add the certificate to.
+ * @param   fFlags              RTCRCERTCTX_F_XXX. Encoding must is optional,
+ *                              but must be RTCRCERTCTX_F_ENC_X509_DER if given.
+ *                              RTCRCERTCTX_F_ADD_IF_NOT_FOUND is supported.
+ * @param   pCertificate        The certificate to add.  We may have to encode
+ *                              it, thus not const.
+ * @param   pErrInfo            Where to return additional error/warning info.
+ *                              Optional.
+ */
+RTDECL(int) RTCrStoreCertAddX509(RTCRSTORE hStore, uint32_t fFlags, PRTCRX509CERTIFICATE pCertificate, PRTERRINFO pErrInfo);
 
 /**
  * Adds certificates from files in the specified directory.
@@ -309,8 +332,8 @@ RTDECL(int) RTCrStoreCertFindBySubjectOrAltSubjectByRfc5280(RTCRSTORE hStore, PC
 RTDECL(PCRTCRCERTCTX) RTCrStoreCertSearchNext(RTCRSTORE hStore, PRTCRSTORECERTSEARCH pSearch);
 RTDECL(int) RTCrStoreCertSearchDestroy(RTCRSTORE hStore, PRTCRSTORECERTSEARCH pSearch);
 
-RTDECL(int) RTCrStoreConvertToOpenSslCertStore(RTCRSTORE hStore, uint32_t fFlags, void **ppvOpenSslStore);
-RTDECL(int) RTCrStoreConvertToOpenSslCertStack(RTCRSTORE hStore, uint32_t fFlags, void **ppvOpenSslStack);
+RTDECL(int) RTCrStoreConvertToOpenSslCertStore(RTCRSTORE hStore, uint32_t fFlags, void **ppvOpenSslStore, PRTERRINFO pErrInfo);
+RTDECL(int) RTCrStoreConvertToOpenSslCertStack(RTCRSTORE hStore, uint32_t fFlags, void **ppvOpenSslStack, PRTERRINFO pErrInfo);
 
 
 /** @} */

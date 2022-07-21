@@ -1129,12 +1129,19 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> pVirtualBox,
                                              mediumAttach.asOutParam());
                 BOOL fIsEjected = FALSE;
                 BOOL fTempEject = FALSE;
+                BOOL fHotPlug = FALSE;
+                BOOL fNonRotational = FALSE;
+                BOOL fDiscard = FALSE;
                 DeviceType_T devType = DeviceType_Null;
                 if (mediumAttach)
                 {
                     mediumAttach->COMGETTER(TemporaryEject)(&fTempEject);
                     mediumAttach->COMGETTER(IsEjected)(&fIsEjected);
                     mediumAttach->COMGETTER(Type)(&devType);
+                    mediumAttach->COMGETTER(HotPluggable)(&fHotPlug);
+                    mediumAttach->COMGETTER(NonRotational)(&fNonRotational);
+                    mediumAttach->COMGETTER(Discard)(&fDiscard);
+
                 }
                 rc = machine->GetMedium(storageCtlName.raw(), i, k,
                                         medium.asOutParam());
@@ -1165,6 +1172,15 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> pVirtualBox,
                             RTPrintf("\"%ls-IsEjected\"=\"%s\"\n", storageCtlName.raw(),
                                      fIsEjected ? "on" : "off");
                         }
+                        if (   storageCtlName.compare(Bstr("SATA"), Bstr::CaseInsensitive)== 0
+                            || storageCtlName.compare(Bstr("USB"), Bstr::CaseInsensitive)== 0)
+                            RTPrintf("\"%ls-hot-pluggable\"=\"%s\"\n", storageCtlName.raw(),
+                                     fHotPlug ? "on" : "off");
+
+                        RTPrintf("\"%ls-nonrotational\"=\"%s\"\n", storageCtlName.raw(),
+                                 fNonRotational ? "on" : "off");
+                        RTPrintf("\"%ls-discard\"=\"%s\"\n", storageCtlName.raw(),
+                                 fDiscard ? "on" : "off");
                     }
                     else
                     {
@@ -1177,6 +1193,12 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> pVirtualBox,
                             RTPrintf(" (temp eject)");
                         if (fIsEjected)
                             RTPrintf(" (ejected)");
+                        if (fHotPlug)
+                            RTPrintf(" (hot-pluggable)");
+                        if (fNonRotational)
+                            RTPrintf(" (non-rotational (SSD))");
+                        if (fDiscard)
+                            RTPrintf(" (discards unused blocks)");
                         RTPrintf("\n");
                     }
                 }
@@ -2483,74 +2505,93 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> pVirtualBox,
 
 #ifdef VBOX_WITH_RECORDING
     {
-        /* Video capture */
-        BOOL fCaptureVideo = FALSE;
+        BOOL fRecordVideo = FALSE;
 # ifdef VBOX_WITH_AUDIO_RECORDING
-        BOOL fCaptureAudio = FALSE;
+        BOOL fRecordAudio = FALSE;
 # endif
 
         ComPtr<IRecordingSettings> recordingSettings;
         CHECK_ERROR_RET(machine, COMGETTER(RecordingSettings)(recordingSettings.asOutParam()), rc);
 
-        SafeIfaceArray <IRecordingScreenSettings> saRecordingScreenScreens;
-        CHECK_ERROR_RET(recordingSettings, COMGETTER(Screens)(ComSafeArrayAsOutParam(saRecordingScreenScreens)), rc);
+        BOOL  fEnabled;
+        CHECK_ERROR_RET(recordingSettings, COMGETTER(Enabled)(&fEnabled), rc);
+        SHOW_BOOL_VALUE_EX("recording_enabled", "Recording enabled:", fEnabled, "yes", "no");
 
-        /* For now all screens have the same configuration; so take screen 0 and work with that. */
-        ULONG fFeatures;
-        CHECK_ERROR_RET(saRecordingScreenScreens[0], COMGETTER(Features)(&fFeatures), rc);
-        ULONG Width;
-        CHECK_ERROR_RET(saRecordingScreenScreens[0], COMGETTER(VideoWidth)(&Width), rc);
-        ULONG Height;
-        CHECK_ERROR_RET(saRecordingScreenScreens[0], COMGETTER(VideoHeight)(&Height), rc);
-        ULONG Rate;
-        CHECK_ERROR_RET(saRecordingScreenScreens[0], COMGETTER(VideoRate)(&Rate), rc);
-        ULONG Fps;
-        CHECK_ERROR_RET(saRecordingScreenScreens[0], COMGETTER(VideoFPS)(&Fps), rc);
-        Bstr  bstrFile;
-        CHECK_ERROR_RET(saRecordingScreenScreens[0], COMGETTER(Filename)(bstrFile.asOutParam()), rc);
-        Bstr  bstrOptions;
-        CHECK_ERROR_RET(saRecordingScreenScreens[0], COMGETTER(Options)(bstrOptions.asOutParam()), rc);
+        SafeIfaceArray <IRecordingScreenSettings> saScreenSettings;
+        CHECK_ERROR_RET(recordingSettings, COMGETTER(Screens)(ComSafeArrayAsOutParam(saScreenSettings)), rc);
 
-        Utf8Str strOptions(bstrOptions);
-        size_t pos = 0;
-        com::Utf8Str key, value;
-        while ((pos = strOptions.parseKeyValue(key, value, pos)) != com::Utf8Str::npos)
+        SHOW_ULONG_VALUE("recording_screens", "Recording screens:", saScreenSettings.size(), "");
+
+        for (size_t i = 0; i < saScreenSettings.size(); ++i)
         {
-            if (key.compare("vc_enabled", Utf8Str::CaseInsensitive) == 0)
-            {
-                fCaptureVideo = value.compare("true", Utf8Str::CaseInsensitive) == 0;
-            }
-            else if (key.compare("ac_enabled", Utf8Str::CaseInsensitive) == 0)
-            {
-# ifdef VBOX_WITH_AUDIO_RECORDING
-                fCaptureAudio = value.compare("true", Utf8Str::CaseInsensitive) == 0;
-# endif
-            }
-        }
+            ComPtr<IRecordingScreenSettings> screenSettings = saScreenSettings[i];
 
-        SHOW_BOOL_VALUE_EX("videocap", "Capturing:", fCaptureVideo, "active", "not active");
-# ifdef VBOX_WITH_AUDIO_RECORDING
-        SHOW_BOOL_VALUE_EX("videocapaudio", "Capture audio:", fCaptureAudio, "active", "not active");
-# endif
-        szValue[0] = '\0';
-        for (size_t i = 0, off = 0; i < saRecordingScreenScreens.size(); i++)
-        {
-            BOOL fEnabled;
-            CHECK_ERROR_RET(saRecordingScreenScreens[i], COMGETTER(Enabled)(&fEnabled), rc);
-            if (fEnabled && off < sizeof(szValue) - 3)
-                off += RTStrPrintf(&szValue[off], sizeof(szValue) - off, off ? ",%zu" : "%zu", i);
-        }
-        SHOW_UTF8_STRING("capturescreens", "Capture screens:", szValue);
-        SHOW_BSTR_STRING("capturefilename", "Capture file:", bstrFile);
-        RTStrPrintf(szValue, sizeof(szValue), "%ux%u", Width, Height);
-        SHOW_UTF8_STRING("captureres", "Capture dimensions:", szValue);
-        SHOW_ULONG_VALUE("capturevideorate", "Capture rate:", Rate, "kbps");
-        SHOW_ULONG_VALUE("capturevideofps", "Capture FPS:", Fps, "kbps");
-        SHOW_BSTR_STRING("captureopts", "Capture options:", bstrOptions);
+            FmtNm(szNm, details == VMINFO_MACHINEREADABLE ? "rec_screen%zu" : "Screen %u:", i);
+            RTPrintf(" %s\n", szNm);
 
-        if (details != VMINFO_MACHINEREADABLE)
-            RTPrintf("\n");
-        /** @todo Add more audio capturing profile / information here. */
+            CHECK_ERROR_RET(screenSettings, COMGETTER(Enabled)(&fEnabled), rc);
+            ULONG idScreen;
+            CHECK_ERROR_RET(screenSettings, COMGETTER(Id)(&idScreen), rc);
+            ULONG fFeatures;
+            CHECK_ERROR_RET(screenSettings, COMGETTER(Features)(&fFeatures), rc);
+            ULONG Width;
+            CHECK_ERROR_RET(screenSettings, COMGETTER(VideoWidth)(&Width), rc);
+            ULONG Height;
+            CHECK_ERROR_RET(screenSettings, COMGETTER(VideoHeight)(&Height), rc);
+            ULONG Rate;
+            CHECK_ERROR_RET(screenSettings, COMGETTER(VideoRate)(&Rate), rc);
+            ULONG Fps;
+            CHECK_ERROR_RET(screenSettings, COMGETTER(VideoFPS)(&Fps), rc);
+            RecordingDestination_T enmDst;
+            CHECK_ERROR_RET(screenSettings, COMGETTER(Destination)(&enmDst), rc);
+            Bstr  bstrFile;
+            CHECK_ERROR_RET(screenSettings, COMGETTER(Filename)(bstrFile.asOutParam()), rc);
+            Bstr  bstrOptions;
+            CHECK_ERROR_RET(screenSettings, COMGETTER(Options)(bstrOptions.asOutParam()), rc);
+
+            Utf8Str strOptions(bstrOptions);
+            size_t pos = 0;
+            com::Utf8Str key, value;
+            while ((pos = strOptions.parseKeyValue(key, value, pos)) != com::Utf8Str::npos)
+            {
+                if (key.compare("vc_enabled", Utf8Str::CaseInsensitive) == 0)
+                {
+                    fRecordVideo = value.compare("true", Utf8Str::CaseInsensitive) == 0;
+                }
+                else if (key.compare("ac_enabled", Utf8Str::CaseInsensitive) == 0)
+                {
+# ifdef VBOX_WITH_AUDIO_RECORDING
+                    fRecordAudio = value.compare("true", Utf8Str::CaseInsensitive) == 0;
+# endif
+                }
+            }
+
+            SHOW_BOOL_VALUE_EX("rec_screen_enabled",         "    Enabled:", fEnabled,
+                                                             "yes", "no");
+            SHOW_ULONG_VALUE  ("rec_screen_id",              "    ID:", idScreen, "");
+            SHOW_BOOL_VALUE_EX("rec_screen_video_enabled",   "    Record video:", fRecordVideo,
+                                                             "yes", "no");
+# ifdef VBOX_WITH_AUDIO_RECORDING
+            SHOW_BOOL_VALUE_EX("rec_screen_audio_enabled",   "    Record audio:", fRecordAudio,
+                                                             "yes", "no");
+# endif
+            SHOW_UTF8_STRING("rec_screen_dest",              "    Destination:",
+                                                               enmDst == RecordingDestination_File
+                                                             ? "File" : "Unknown");
+            /** @todo Implement other destinations. */
+            if (enmDst == RecordingDestination_File)
+                SHOW_BSTR_STRING("rec_screen_dest_filename", "    File:", bstrFile);
+
+            SHOW_BSTR_STRING  ("rec_screen_opts",            "    Options:", bstrOptions);
+
+            /* Video properties. */
+            RTStrPrintf(szValue, sizeof(szValue), "%ux%u", Width, Height);
+            SHOW_UTF8_STRING  ("rec_screen_video_res_xy",    "    Video dimensions:", szValue);
+            SHOW_ULONG_VALUE  ("rec_screen_video_rate_kbps", "    Video rate:", Rate, "kbps");
+            SHOW_ULONG_VALUE  ("rec_screen_video_fps",       "    Video FPS:", Fps, "fps");
+
+            /** @todo Add more audio capturing profile / information here. */
+        }
     }
 #endif /* VBOX_WITH_RECORDING */
 

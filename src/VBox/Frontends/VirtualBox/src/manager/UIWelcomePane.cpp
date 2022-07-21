@@ -23,6 +23,7 @@
 
 /* GUI includes */
 #include "QIWithRetranslateUI.h"
+#include "UICommon.h"
 #include "UIIconPool.h"
 #include "UIWelcomePane.h"
 
@@ -162,6 +163,11 @@ void UIWelcomePane::retranslateUi()
                              .arg(QKeySequence(QKeySequence::HelpContents).toString(QKeySequence::NativeText)));
 }
 
+void UIWelcomePane::sltHandleLinkActivated(const QString &strLink)
+{
+    uiCommon().openURL(strLink);
+}
+
 void UIWelcomePane::prepare()
 {
     /* Prepare default welcome icon: */
@@ -188,6 +194,7 @@ void UIWelcomePane::prepare()
                 m_pLabelText->setMinimumWidth(160); /// @todo make dynamic
                 m_pLabelText->setAlignment(Qt::AlignLeading | Qt::AlignTop);
                 m_pLabelText->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Minimum);
+                connect(m_pLabelText, &QLabel::linkActivated, this, &UIWelcomePane::sltHandleLinkActivated);
 
                 /* Add into layout: */
                 pLayoutWelcome->addWidget(m_pLabelText);
