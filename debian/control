@@ -204,7 +204,3 @@ Description: x86 virtualization solution - non-X11 guest utilities
  utilities are meant to be run inside the virtual machine.
  They provide closer integration and allow to share data through shared folders
  between the host system and the virtual machine.
- .
- Either the virtualbox-guest-dkms or the virtualbox-guest-source package is
- also required in order to compile the kernel modules needed for
- virtualbox-guest-utils.
