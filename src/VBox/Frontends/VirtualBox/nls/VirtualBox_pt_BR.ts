@@ -2990,6 +2990,10 @@
         <source>Primary Group</source>
         <translation>Grupo Primário</translation>
     </message>
+    <message>
+        <source>Storage Controller (VirtioSCSI)</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIApplianceImportEditorWidget</name>
@@ -4348,27 +4352,27 @@
     <message>
         <source>Undefined</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="vanished">Não Definido</translation>
+        <translation>Não Definido</translation>
     </message>
     <message>
         <source>Starting</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="vanished">Iniciando</translation>
+        <translation>Iniciando</translation>
     </message>
     <message>
         <source>Started</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="vanished">Iniciado</translation>
+        <translation>Iniciado</translation>
     </message>
     <message>
         <source>Terminating</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="vanished">Terminando</translation>
+        <translation>Terminando</translation>
     </message>
     <message>
         <source>Terminated</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="vanished">Terminado</translation>
+        <translation>Terminado</translation>
     </message>
     <message>
         <source>TimedOutKilled</source>
@@ -4383,12 +4387,12 @@
     <message>
         <source>Down</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="vanished">Inativo</translation>
+        <translation>Inativo</translation>
     </message>
     <message>
         <source>Error</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="vanished">Erro</translation>
+        <translation>Erro</translation>
     </message>
     <message>
         <source>Undefined</source>
@@ -4478,22 +4482,22 @@
     <message>
         <source>IDE Primary Device 0</source>
         <comment>StorageSlot</comment>
-        <translation type="unfinished">IDE Primário Master</translation>
+        <translation>Dispositivo IDE Primário 0</translation>
     </message>
     <message>
         <source>IDE Primary Device 1</source>
         <comment>StorageSlot</comment>
-        <translation type="unfinished">IDE Primário Slave</translation>
+        <translation>Dispositivo IDE Primário 1</translation>
     </message>
     <message>
         <source>IDE Secondary Device 0</source>
         <comment>StorageSlot</comment>
-        <translation type="unfinished">IDE Secundário Master</translation>
+        <translation>Dispositivo IDE Secundário 0</translation>
     </message>
     <message>
         <source>IDE Secondary Device 1</source>
         <comment>StorageSlot</comment>
-        <translation type="unfinished">IDE Secundário Slave</translation>
+        <translation>Dispositivo IDE Secundário 1</translation>
     </message>
     <message>
         <source>SATA Port %1</source>
@@ -4633,7 +4637,7 @@
     </message>
     <message>
         <source>Bridget Adapter</source>
-        <translation>Placa em modo Bridge</translation>
+        <translation type="vanished">Placa em modo Bridge</translation>
     </message>
     <message>
         <source>Internal Network</source>
@@ -5198,7 +5202,25 @@
     <message>
         <source>Cloud Network [EXPERIMENTAL]</source>
         <comment>NetworkAttachmentType</comment>
+        <translation>Rede Cloud [EXPERIMENTAL]</translation>
+    </message>
+    <message>
+        <source>Timed Out (Killed)</source>
+        <comment>GuestSessionStatus</comment>
         <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Timed Out (Abnormally)</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bridged Adapter</source>
+        <translation type="unfinished">Placa em modo Bridge</translation>
+    </message>
+    <message>
+        <source>Cloud Network</source>
+        <translation type="unfinished">Rede em Nuvem</translation>
     </message>
 </context>
 <context>
@@ -7158,6 +7180,14 @@ uma sessão com um convidado</translation>
     <message>
         <source>No Guest Session found!&lt;br&gt;Please use the Session Panel to start a new guest session</source>
         <translation>Nenhuma Sessão com Convidados encontrada&lt;br&gt;Utilize o Painel de Sessão para iniciar uma sessão com um convidado</translation>
+    </message>
+    <message>
+        <source>Close dialog without saving</source>
+        <translation type="unfinished">Fecha o diálogo sem salvar</translation>
+    </message>
+    <message>
+        <source>Reset Changes (%1)</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -14369,7 +14399,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>The hardware virtualization is enabled in the Acceleration section of the System page although it is not supported by the host system. It should be disabled in order to start the virtual system.</source>
-        <translation>A virtualização de hardware está habilitada na seção Aceleração na página Sistema, mesmo não sendo suportada pelo sistema hospedeiro. Esta opção deve ser desabilitada para poder iniciar o sistema virtual.</translation>
+        <translation type="vanished">A virtualização de hardware está habilitada na seção Aceleração na página Sistema, mesmo não sendo suportada pelo sistema hospedeiro. Esta opção deve ser desabilitada para poder iniciar o sistema virtual.</translation>
     </message>
     <message>
         <source>When checked, the nested hardware virtualization CPU feature will be exposed to the virtual machine.</source>
@@ -17663,15 +17693,15 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Failed to open the medium with following ID: &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
-        <translation>Falha ao abrir a mídia com o seguinte ID: &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</translation>
+        <translation type="vanished">Falha ao abrir a mídia com o seguinte ID: &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</translation>
     </message>
     <message>
         <source>Failed to acquire attachment parameter.</source>
-        <translation>Falha ao obter o parâmetro de conexão física.</translation>
+        <translation type="vanished">Falha ao obter o parâmetro de conexão física.</translation>
     </message>
     <message>
         <source>Failed to acquire medium attribute.</source>
-        <translation>Falha ao obter o atributo de mídia.</translation>
+        <translation type="vanished">Falha ao obter o atributo de mídia.</translation>
     </message>
     <message>
         <source>Failed to create cloud machine.</source>
@@ -21852,7 +21882,7 @@ utilizando o diálogo de Configurações da MV.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Keep &amp;Disk Names</source>
-        <translation>Manter Nomes dos &amp;Discos</translation>
+        <translation>Manger Nomes dos &amp;Discos</translation>
     </message>
     <message>
         <source>Don&apos;t change hardware UUIDs during cloning.</source>
@@ -21860,7 +21890,7 @@ utilizando o diálogo de Configurações da MV.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Keep &amp;Hardware UUIDs</source>
-        <translation>Manter UUIDs do &amp;Hardware</translation>
+        <translation>Manger UUIDs do &amp;Hardware</translation>
     </message>
     <message>
         <source>New machine &amp;name and path</source>

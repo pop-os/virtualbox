@@ -185,6 +185,7 @@ HRESULT Machine::exportTo(const ComPtr<IAppliance> &aAppliance, const com::Utf8S
         int32_t lIDEControllerSecondaryIndex = 0;
         int32_t lSATAControllerIndex = 0;
         int32_t lSCSIControllerIndex = 0;
+        int32_t lVirtioSCSIControllerIndex = 0;
 
         /* Fetch all available storage controllers */
         com::SafeIfaceArray<IStorageController> nwControllers;
@@ -194,6 +195,7 @@ HRESULT Machine::exportTo(const ComPtr<IAppliance> &aAppliance, const com::Utf8S
         ComPtr<IStorageController> pIDEController;
         ComPtr<IStorageController> pSATAController;
         ComPtr<IStorageController> pSCSIController;
+        ComPtr<IStorageController> pVirtioSCSIController;
         ComPtr<IStorageController> pSASController;
         for (size_t j = 0; j < nwControllers.size(); ++j)
         {
@@ -212,6 +214,9 @@ HRESULT Machine::exportTo(const ComPtr<IAppliance> &aAppliance, const com::Utf8S
             else if (   eType == StorageBus_SAS
                      && pSASController.isNull())
                 pSASController = nwControllers[j];
+            else if (   eType == StorageBus_VirtioSCSI
+                     && pVirtioSCSIController.isNull())
+                pVirtioSCSIController = nwControllers[j];
         }
 
 //     <const name="HardDiskControllerIDE" value="6" />
@@ -292,6 +297,28 @@ HRESULT Machine::exportTo(const ComPtr<IAppliance> &aAppliance, const com::Utf8S
                                  strVBox);
         }
 
+        if (!pVirtioSCSIController.isNull())
+        {
+            StorageControllerType_T ctlr;
+            rc = pVirtioSCSIController->COMGETTER(ControllerType)(&ctlr);
+            if (SUCCEEDED(rc))
+            {
+                Utf8Str strVBox = "VirtioSCSI";       // the default in VBox
+                switch (ctlr)
+                {
+                    case StorageControllerType_VirtioSCSI: strVBox = "VirtioSCSI"; break;
+                    default: break; /* Shut up MSC. */
+                }
+                lVirtioSCSIControllerIndex = (int32_t)pNewDesc->m->maDescriptions.size();
+                pNewDesc->i_addEntry(VirtualSystemDescriptionType_HardDiskControllerVirtioSCSI,
+                                     Utf8StrFmt("%d", lVirtioSCSIControllerIndex),
+                                     strVBox,
+                                     strVBox);
+            }
+            else
+                throw rc;
+        }
+
 //     <const name="HardDiskImage" value="9" />
 //     <const name="Floppy" value="18" />
 //     <const name="CDROM" value="19" />
@@ -337,13 +364,16 @@ HRESULT Machine::exportTo(const ComPtr<IAppliance> &aAppliance, const com::Utf8S
             {
                 Utf8Str strStBus;
                 if ( storageBus == StorageBus_IDE)
-                strStBus = "IDE";
+                    strStBus = "IDE";
                 else if ( storageBus == StorageBus_SATA)
-                strStBus = "SATA";
+                    strStBus = "SATA";
                 else if ( storageBus == StorageBus_SCSI)
-                strStBus = "SCSI";
+                    strStBus = "SCSI";
                 else if ( storageBus == StorageBus_SAS)
-                strStBus = "SAS";
+                    strStBus = "SAS";
+                else if ( storageBus == StorageBus_VirtioSCSI)
+                    strStBus = "VirtioSCSI";
+
                 LogRel(("Warning: skip the medium (bus: %s, slot: %d, port: %d). No storage device attached.\n",
                 strStBus.c_str(), lDevice, lChannel));
                 continue;
@@ -512,6 +542,11 @@ HRESULT Machine::exportTo(const ComPtr<IAppliance> &aAppliance, const com::Utf8S
                 case StorageBus_SATA:
                     lChannelVsys = lChannel;        // should be between 0 and 29
                     lControllerVsys = lSATAControllerIndex;
+                    break;
+
+                case StorageBus_VirtioSCSI:
+                    lChannelVsys = lChannel;        // should be between 0 and 255
+                    lControllerVsys = lVirtioSCSIControllerIndex;
                     break;
 
                 case StorageBus_SCSI:
@@ -894,8 +929,7 @@ HRESULT Appliance::i_writeCloudImpl(const LocationInfo &aLocInfo, ComObjPtr<Prog
         LogRel(("profile name: %s\n", profileName.front()->strVBoxCurrent.c_str()));
     }
 
-    // we need to do that as otherwise Task won't be created successfully
-    /// @todo r=bird: What's 'that' here exactly?
+    // Create a progress object here otherwise Task won't be created successfully
     HRESULT hrc = aProgress.createObject();
     if (SUCCEEDED(hrc))
     {
@@ -1477,6 +1511,8 @@ void Appliance::i_buildXMLForOneVirtualSystem(AutoWriteLockBase& writeLock,
     int32_t lSATAControllerIndex = 0;
     uint32_t idSCSIController = 0;
     int32_t lSCSIControllerIndex = 0;
+    uint32_t idVirtioSCSIController = 0;
+    int32_t lVirtioSCSIControllerIndex = 0;
 
     uint32_t ulInstanceID = 1;
 
@@ -1689,6 +1725,31 @@ void Appliance::i_buildXMLForOneVirtualSystem(AutoWriteLockBase& writeLock,
                     }
                     break;
 
+
+                case VirtualSystemDescriptionType_HardDiskControllerVirtioSCSI:
+                    /*  <Item>
+                            <rasd:Caption>VirtioSCSIController0</rasd:Caption>
+                            <rasd:Description>VirtioSCSI Controller</rasd:Description>
+                            <rasd:InstanceId>4</rasd:InstanceId>
+                            <rasd:ResourceType>20</rasd:ResourceType>
+                            <rasd:Address>0</rasd:Address>
+                            <rasd:BusNumber>0</rasd:BusNumber>
+                        </Item>
+                    */
+                    if (uLoop == 1)
+                    {
+                        strDescription = "VirtioSCSI Controller";
+                        strCaption = "virtioSCSIController0";
+                        type = ovf::ResourceType_OtherStorageDevice; // 20
+                        lAddress = 0;
+                        lBusNumber = 0;
+                        strResourceSubType = "VirtioSCSI";
+                        // remember this ID
+                        idVirtioSCSIController = ulInstanceID;
+                        lVirtioSCSIControllerIndex = lIndexThis;
+                    }
+                    break;
+
                 case VirtualSystemDescriptionType_HardDiskImage:
                     /*  <Item>
                             <rasd:Caption>disk1</rasd:Caption>
@@ -1725,6 +1786,8 @@ void Appliance::i_buildXMLForOneVirtualSystem(AutoWriteLockBase& writeLock,
                                 ulParent = idSCSIController;
                             else if (lControllerIndex == lSATAControllerIndex)
                                 ulParent = idSATAController;
+                            else if (lControllerIndex == lVirtioSCSIControllerIndex)
+                                ulParent = idVirtioSCSIController;
                         }
                         if (pos2 != Utf8Str::npos)
                             RTStrToInt32Ex(desc.strExtraConfigCurrent.c_str() + pos2 + 8, NULL, 0, &lAddressOnParent);

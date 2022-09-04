@@ -10733,27 +10733,37 @@ IEM_STATIC VBOXSTRICTRC iemMemStackPopBeginSpecial(PVMCPUCC pVCpu, size_t cbMem,
 
 
 /**
- * Continue a special stack pop (used by iret and retf).
+ * Continue a special stack pop (used by iret and retf), for the purpose of
+ * retrieving a new stack pointer.
  *
  * This will raise \#SS or \#PF if appropriate.
  *
  * @returns Strict VBox status code.
  * @param   pVCpu               The cross context virtual CPU structure of the calling thread.
+ * @param   off                 Offset from the top of the stack. This is zero
+ *                              except in the retf case.
  * @param   cbMem               The number of bytes to pop from the stack.
  * @param   ppvMem              Where to return the pointer to the stack memory.
- * @param   puNewRsp            Where to return the new RSP value.  This must be
- *                              assigned to CPUMCTX::rsp manually some time
- *                              after iemMemStackPopDoneSpecial() has been
- *                              called.
+ * @param   uCurNewRsp          The current uncommitted RSP value.  (No need to
+ *                              return this because all use of this function is
+ *                              to retrieve a new value and anything we return
+ *                              here would be discarded.)
  */
-IEM_STATIC VBOXSTRICTRC iemMemStackPopContinueSpecial(PVMCPUCC pVCpu, size_t cbMem, void const **ppvMem, uint64_t *puNewRsp)
+IEM_STATIC VBOXSTRICTRC iemMemStackPopContinueSpecial(PVMCPUCC pVCpu, size_t off, size_t cbMem,
+                                                      void const **ppvMem, uint64_t uCurNewRsp)
 {
     Assert(cbMem < UINT8_MAX);
-    RTUINT64U   NewRsp;
-    NewRsp.u = *puNewRsp;
-    RTGCPTR     GCPtrTop = iemRegGetRspForPopEx(pVCpu, &NewRsp, 8);
-    *puNewRsp = NewRsp.u;
-    return iemMemMap(pVCpu, (void **)ppvMem, cbMem, X86_SREG_SS, GCPtrTop, IEM_ACCESS_STACK_R);
+
+    /* The essense of iemRegGetRspForPopEx and friends: */ /** @todo put this into a inlined function? */
+    RTGCPTR GCPtrTop;
+    if (pVCpu->iem.s.enmCpuMode == IEMMODE_64BIT)
+        GCPtrTop = uCurNewRsp;
+    else if (pVCpu->cpum.GstCtx.ss.Attr.n.u1DefBig)
+        GCPtrTop = (uint32_t)uCurNewRsp;
+    else
+        GCPtrTop = (uint16_t)uCurNewRsp;
+
+    return iemMemMap(pVCpu, (void **)ppvMem, cbMem, X86_SREG_SS, GCPtrTop + off, IEM_ACCESS_STACK_R);
 }
 
 

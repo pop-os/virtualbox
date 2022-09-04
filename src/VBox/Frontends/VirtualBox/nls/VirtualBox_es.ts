@@ -2890,6 +2890,10 @@
         <source>Primary Group</source>
         <translation>Grupo primario</translation>
     </message>
+    <message>
+        <source>Storage Controller (VirtioSCSI)</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIApplianceImportEditorWidget</name>
@@ -4286,27 +4290,27 @@
     <message>
         <source>Undefined</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="vanished">Indefinido</translation>
+        <translation>Indefinido</translation>
     </message>
     <message>
         <source>Starting</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="vanished">Iniciando</translation>
+        <translation>Iniciando</translation>
     </message>
     <message>
         <source>Started</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="vanished">Iniciada</translation>
+        <translation>Iniciada</translation>
     </message>
     <message>
         <source>Terminating</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="vanished">Terminando</translation>
+        <translation>Terminando</translation>
     </message>
     <message>
         <source>Terminated</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="vanished">Terminada</translation>
+        <translation>Terminada</translation>
     </message>
     <message>
         <source>TimedOutKilled</source>
@@ -4321,12 +4325,12 @@
     <message>
         <source>Down</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="vanished">Parada</translation>
+        <translation>Parada</translation>
     </message>
     <message>
         <source>Error</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="vanished">Error</translation>
+        <translation>Error</translation>
     </message>
     <message>
         <source>Undefined</source>
@@ -4570,7 +4574,7 @@
         <translation>NAT</translation>
     </message>
     <message>
-        <source>Bridget Adapter</source>
+        <source>Bridged Adapter</source>
         <translation>Adaptador puente</translation>
     </message>
     <message>
@@ -5137,6 +5141,20 @@
         <source>Cloud Network [EXPERIMENTAL]</source>
         <comment>NetworkAttachmentType</comment>
         <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Timed Out (Killed)</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Timed Out (Abnormally)</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cloud Network</source>
+        <translation type="unfinished">Red en la nube</translation>
     </message>
 </context>
 <context>
@@ -7069,6 +7087,14 @@ una sesión invitado</translation>
     <message>
         <source>No Guest Session found!&lt;br&gt;Please use the Session Panel to start a new guest session</source>
         <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Close dialog without saving</source>
+        <translation type="unfinished">Cerrar diálogo sin guardar</translation>
+    </message>
+    <message>
+        <source>Reset Changes (%1)</source>
+        <translation type="unfinished">Restaurar cambios (%1)</translation>
     </message>
 </context>
 <context>
@@ -13966,7 +13992,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>The hardware virtualization is enabled in the Acceleration section of the System page although it is not supported by the host system. It should be disabled in order to start the virtual system.</source>
-        <translation>El hardware de virtualización está habilitado en la sección Aceleración de la página Sistema aunque no está soportado por el sistema anfitrión. Debería ser deshabilitado para iniciar la máquina virtual.</translation>
+        <translation type="vanished">El hardware de virtualización está habilitado en la sección Aceleración de la página Sistema aunque no está soportado por el sistema anfitrión. Debería ser deshabilitado para iniciar la máquina virtual.</translation>
     </message>
     <message>
         <source>When checked, the nested hardware virtualization CPU feature will be exposed to the virtual machine.</source>
@@ -17280,15 +17306,15 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Failed to open the medium with following ID: &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
-        <translation>Fallo al abrir el medio con el siguiente ID: &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</translation>
+        <translation type="vanished">Fallo al abrir el medio con el siguiente ID: &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</translation>
     </message>
     <message>
         <source>Failed to acquire attachment parameter.</source>
-        <translation>Fallo al obtener parámetro de conexión.</translation>
+        <translation type="vanished">Fallo al obtener parámetro de conexión.</translation>
     </message>
     <message>
         <source>Failed to acquire medium attribute.</source>
-        <translation>Fallo al obtener atributo de medio.</translation>
+        <translation type="vanished">Fallo al obtener atributo de medio.</translation>
     </message>
     <message>
         <source>Failed to create cloud machine.</source>
@@ -25969,7 +25995,7 @@ Versión %1</translation>
         <translation type="vanished">NAT</translation>
     </message>
     <message>
-        <source>Bridget Adapter</source>
+        <source>Bridged Adapter</source>
         <translation type="vanished">Adaptador puente</translation>
     </message>
     <message>

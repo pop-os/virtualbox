@@ -2918,6 +2918,10 @@
         <source>Primary Group</source>
         <translation>プライマリグループ</translation>
     </message>
+    <message>
+        <source>Storage Controller (VirtioSCSI)</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIApplianceImportEditorWidget</name>
@@ -4139,7 +4143,7 @@
     <message>
         <source>Starting</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="vanished">起動中</translation>
+        <translation>起動中</translation>
     </message>
     <message>
         <source>Starting</source>
@@ -4333,7 +4337,7 @@
         <translation>NAT</translation>
     </message>
     <message>
-        <source>Bridget Adapter</source>
+        <source>Bridged Adapter</source>
         <translation>ブリッジアダプター</translation>
     </message>
     <message>
@@ -4877,22 +4881,22 @@
     <message>
         <source>Undefined</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="vanished">未定義</translation>
+        <translation>未定義</translation>
     </message>
     <message>
         <source>Started</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="vanished">起動中</translation>
+        <translation>起動中</translation>
     </message>
     <message>
         <source>Terminating</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="vanished">実行中</translation>
+        <translation>実行中</translation>
     </message>
     <message>
         <source>Terminated</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="vanished">終了</translation>
+        <translation>終了</translation>
     </message>
     <message>
         <source>TimedOutKilled</source>
@@ -4908,12 +4912,12 @@
     <message>
         <source>Down</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="vanished">ダウン</translation>
+        <translation>ダウン</translation>
     </message>
     <message>
         <source>Error</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="vanished">エラー</translation>
+        <translation>エラー</translation>
     </message>
     <message>
         <source>Undefined</source>
@@ -4986,6 +4990,20 @@
         <source>Cloud Network [EXPERIMENTAL]</source>
         <comment>NetworkAttachmentType</comment>
         <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Timed Out (Killed)</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Timed Out (Abnormally)</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cloud Network</source>
+        <translation type="unfinished">クラウドネットワーク</translation>
     </message>
 </context>
 <context>
@@ -6920,6 +6938,14 @@ a guest session</source>
         <translation type="vanished">ゲストセッションがありません
 セッションパネルでゲストセッションを
 起動してください</translation>
+    </message>
+    <message>
+        <source>Close dialog without saving</source>
+        <translation type="unfinished">保存しないでダイアログを閉じる</translation>
+    </message>
+    <message>
+        <source>Reset Changes (%1)</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -13979,7 +14005,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>The hardware virtualization is enabled in the Acceleration section of the System page although it is not supported by the host system. It should be disabled in order to start the virtual system.</source>
-        <translation>システム設定ページのアクセラレーションセクションでハードウェア仮想化が有効になっていますが、このホストシステムではサポートされていません。仮想システムを起動するには無効にする必要があります。</translation>
+        <translation type="vanished">システム設定ページのアクセラレーションセクションでハードウェア仮想化が有効になっていますが、このホストシステムではサポートされていません。仮想システムを起動するには無効にする必要があります。</translation>
     </message>
     <message>
         <source>When checked, the nested hardware virtualization CPU feature will be exposed to the virtual machine.</source>
@@ -17176,15 +17202,15 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Failed to open the medium with following ID: &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
-        <translation>次のIDのメディアを開くことができませんでした: &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;。</translation>
+        <translation type="vanished">次のIDのメディアを開くことができませんでした: &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;。</translation>
     </message>
     <message>
         <source>Failed to acquire attachment parameter.</source>
-        <translation>属性パラメーターの確保に失敗しました。</translation>
+        <translation type="vanished">属性パラメーターの確保に失敗しました。</translation>
     </message>
     <message>
         <source>Failed to acquire medium attribute.</source>
-        <translation>メディア属性の確保に失敗しました。</translation>
+        <translation type="vanished">メディア属性の確保に失敗しました。</translation>
     </message>
     <message>
         <source>Failed to create cloud machine.</source>
@@ -25381,7 +25407,7 @@ Version %1</source>
         <translation type="vanished">NAT</translation>
     </message>
     <message>
-        <source>Bridget Adapter</source>
+        <source>Bridged Adapter</source>
         <translation type="vanished">ブリッジアダプター</translation>
     </message>
     <message>

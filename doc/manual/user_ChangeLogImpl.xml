@@ -46,6 +46,54 @@ Rules for adding a changelog entry to make them look more uniform:
 <!-- HACK ALERT! Seems we must have a single top level element for xi:include to work.
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
 
+   <sect1>
+     <title>Version 6.1.38 (2022-09-02)</title>
+
+     <para>This is a maintenance release. The following items were fixed
+       and/or added:</para>
+
+     <itemizedlist>
+
+       <listitem>
+         <para>GUI: Improvements in Native Language Support area</para>
+       </listitem>
+
+       <listitem>
+         <para>Main: OVF Export: Added support for exporting VMs containing
+           Virtio-SCSI controllers</para>
+       </listitem>
+
+       <listitem>
+         <para>Recording settings: Fixed a regression which could cause not starting the COM
+           server (VBoxSVC) under certain circumstances (bug #21034)</para>
+       </listitem>
+
+       <listitem>
+         <para>Recording: More deterministic naming for recorded files (will now
+           overwrite old .webm files if present)</para>
+       </listitem>
+
+       <listitem>
+         <para>Linux Host and Guest Additions installer: Improved check for systemd presence
+           in the system (bug #19033)</para>
+       </listitem>
+
+       <listitem>
+         <para>Linux Guest Additions: Introduced initial support for kernel 6.0</para>
+       </listitem>
+
+       <listitem>
+         <para>Linux Guest Additions: Additional fixes for kernel
+           RHEL 9.1 (bug #21065)</para>
+       </listitem>
+
+       <listitem>
+         <para>Windows Guest Additions: Improvements in Drag and Drop area</para>
+       </listitem>
+
+     </itemizedlist>
+   </sect1>
+
   <sect1>
     <title>Version 6.1.36 (2022-07-19)</title>
 

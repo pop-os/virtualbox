@@ -2099,6 +2099,10 @@
         <source>Primary Group</source>
         <translation>Primaire groep</translation>
     </message>
+    <message>
+        <source>Storage Controller (VirtioSCSI)</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIApplianceImportEditorWidget</name>
@@ -3306,7 +3310,7 @@
     <message>
         <source>Starting</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="obsolete">Starten</translation>
+        <translation type="unfinished">Starten</translation>
     </message>
     <message>
         <source>Starting</source>
@@ -3500,7 +3504,7 @@
         <translation>NAT</translation>
     </message>
     <message>
-        <source>Bridget Adapter</source>
+        <source>Bridged Adapter</source>
         <translation>Bridged adapter</translation>
     </message>
     <message>
@@ -4067,6 +4071,50 @@
         <source>Cloud Network [EXPERIMENTAL]</source>
         <comment>NetworkAttachmentType</comment>
         <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Undefined</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Started</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Terminating</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Terminated</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Timed Out (Killed)</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Timed Out (Abnormally)</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Down</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cloud Network</source>
+        <translation type="unfinished">Cloudnetwerk</translation>
     </message>
 </context>
 <context>
@@ -5013,6 +5061,14 @@
     <message>
         <source>No Guest Session found!&lt;br&gt;Please use the Session Panel to start a new guest session</source>
         <translation>Geen gastsessie gevonden!&lt;br&gt; Gebruik het venster Sessie om een nieuwe gastsessie te starten</translation>
+    </message>
+    <message>
+        <source>Close dialog without saving</source>
+        <translation type="unfinished">Sluit dialoog af zonder opslaan</translation>
+    </message>
+    <message>
+        <source>Reset Changes (%1)</source>
+        <translation type="unfinished">Reset veranderingen (%1)</translation>
     </message>
 </context>
 <context>
@@ -9597,7 +9653,7 @@
     </message>
     <message>
         <source>The hardware virtualization is enabled in the Acceleration section of the System page although it is not supported by the host system. It should be disabled in order to start the virtual system.</source>
-        <translation>De hardware-virtualisatie is in de sectie Acceleratie op pagina Systeem ingeschakeld hoewel het hostsysteem dit niet ondersteunt. Dit moet worden uitgeschakeld wil de virtuele machine starten.</translation>
+        <translation type="vanished">De hardware-virtualisatie is in de sectie Acceleratie op pagina Systeem ingeschakeld hoewel het hostsysteem dit niet ondersteunt. Dit moet worden uitgeschakeld wil de virtuele machine starten.</translation>
     </message>
     <message>
         <source>When checked, the nested hardware virtualization CPU feature will be exposed to the virtual machine.</source>
@@ -11815,15 +11871,15 @@
     </message>
     <message>
         <source>Failed to open the medium with following ID: &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
-        <translation>Het is niet gelukt medium met ID &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; te openen.</translation>
+        <translation type="vanished">Het is niet gelukt medium met ID &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; te openen.</translation>
     </message>
     <message>
         <source>Failed to acquire attachment parameter.</source>
-        <translation>Het is niet gelukt aansluitingsparameter te verkrijgen (attachment parameter).</translation>
+        <translation type="vanished">Het is niet gelukt aansluitingsparameter te verkrijgen (attachment parameter).</translation>
     </message>
     <message>
         <source>Failed to acquire medium attribute.</source>
-        <translation>Het is niet gelukt mediumparameter te verkrijgen.</translation>
+        <translation type="vanished">Het is niet gelukt mediumparameter te verkrijgen.</translation>
     </message>
     <message>
         <source>Failed to create cloud machine.</source>

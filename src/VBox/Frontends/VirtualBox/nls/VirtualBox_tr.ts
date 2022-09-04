@@ -2906,6 +2906,10 @@
         <source>Primary Group</source>
         <translation>Birincil Grup</translation>
     </message>
+    <message>
+        <source>Storage Controller (VirtioSCSI)</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIApplianceImportEditorWidget</name>
@@ -4182,27 +4186,27 @@
     <message>
         <source>Undefined</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="vanished">Tanımsız</translation>
+        <translation>Tanımsız</translation>
     </message>
     <message>
         <source>Starting</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="vanished">Başlatılıyor</translation>
+        <translation>Başlatılıyor</translation>
     </message>
     <message>
         <source>Started</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="vanished">Başlatıldı</translation>
+        <translation>Başlatıldı</translation>
     </message>
     <message>
         <source>Terminating</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="vanished">Sonlandırılıyor</translation>
+        <translation>Sonlandırılıyor</translation>
     </message>
     <message>
         <source>Terminated</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="vanished">Sonlandırıldı</translation>
+        <translation>Sonlandırıldı</translation>
     </message>
     <message>
         <source>TimedOutKilled</source>
@@ -4217,12 +4221,12 @@
     <message>
         <source>Down</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="vanished">Kapandı</translation>
+        <translation>Kapandı</translation>
     </message>
     <message>
         <source>Error</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="vanished">Hata</translation>
+        <translation>Hata</translation>
     </message>
     <message>
         <source>Undefined</source>
@@ -4466,7 +4470,7 @@
         <translation>NAT</translation>
     </message>
     <message>
-        <source>Bridget Adapter</source>
+        <source>Bridged Adapter</source>
         <translation>Köprü Bağdaştırıcısı</translation>
     </message>
     <message>
@@ -5027,6 +5031,20 @@
         <source>Cloud Network [EXPERIMENTAL]</source>
         <comment>NetworkAttachmentType</comment>
         <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Timed Out (Killed)</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Timed Out (Abnormally)</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cloud Network</source>
+        <translation type="unfinished">Bulut Ağı</translation>
     </message>
 </context>
 <context>
@@ -6566,6 +6584,14 @@ Oturum Panelini kullanın</translation>
     <message>
         <source>No Guest Session found!&lt;br&gt;Please use the Session Panel to start a new guest session</source>
         <translation>Bulunan Misafir Oturumu yok!&lt;br&gt;Yeni bir misafir oturumu başlatmak için lütfen Oturum Panelini kullanın</translation>
+    </message>
+    <message>
+        <source>Close dialog without saving</source>
+        <translation type="unfinished">İleti penceresini kaydetmeden kapat</translation>
+    </message>
+    <message>
+        <source>Reset Changes (%1)</source>
+        <translation type="unfinished">Değişiklikleri Sıfırla (%1)</translation>
     </message>
 </context>
 <context>
@@ -13508,7 +13534,7 @@ Oturum Panelini kullanın</translation>
     </message>
     <message>
         <source>The hardware virtualization is enabled in the Acceleration section of the System page although it is not supported by the host system. It should be disabled in order to start the virtual system.</source>
-        <translation>Donanım sanallaştırma, anamakine sistemi tarafından desteklenmemesine rağmen Sistem sayfasının Hızlandırma bölümünde etkinleştirildi. Sanal sistemi başlatmak için etkisizleştirilmelidir.</translation>
+        <translation type="vanished">Donanım sanallaştırma, anamakine sistemi tarafından desteklenmemesine rağmen Sistem sayfasının Hızlandırma bölümünde etkinleştirildi. Sanal sistemi başlatmak için etkisizleştirilmelidir.</translation>
     </message>
     <message>
         <source>When checked, the nested hardware virtualization CPU feature will be exposed to the virtual machine.</source>
@@ -16596,15 +16622,15 @@ Oturum Panelini kullanın</translation>
     </message>
     <message>
         <source>Failed to open the medium with following ID: &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
-        <translation>Şurada belirtilen kimliğe sahip ortamı açma başarısız: &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</translation>
+        <translation type="vanished">Şurada belirtilen kimliğe sahip ortamı açma başarısız: &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</translation>
     </message>
     <message>
         <source>Failed to acquire attachment parameter.</source>
-        <translation>Ek parametresini alma başarısız.</translation>
+        <translation type="vanished">Ek parametresini alma başarısız.</translation>
     </message>
     <message>
         <source>Failed to acquire medium attribute.</source>
-        <translation>Ortam parametresini alma başarısız.</translation>
+        <translation type="vanished">Ortam parametresini alma başarısız.</translation>
     </message>
     <message>
         <source>Failed to create cloud machine.</source>
@@ -24356,7 +24382,7 @@ Version %1</source>
         <translation type="vanished">NAT</translation>
     </message>
     <message>
-        <source>Bridget Adapter</source>
+        <source>Bridged Adapter</source>
         <translation type="vanished">Köprü Bağdaştırıcısı</translation>
     </message>
     <message>

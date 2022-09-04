@@ -2505,11 +2505,6 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> pVirtualBox,
 
 #ifdef VBOX_WITH_RECORDING
     {
-        BOOL fRecordVideo = FALSE;
-# ifdef VBOX_WITH_AUDIO_RECORDING
-        BOOL fRecordAudio = FALSE;
-# endif
-
         ComPtr<IRecordingSettings> recordingSettings;
         CHECK_ERROR_RET(machine, COMGETTER(RecordingSettings)(recordingSettings.asOutParam()), rc);
 
@@ -2549,6 +2544,10 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> pVirtualBox,
             Bstr  bstrOptions;
             CHECK_ERROR_RET(screenSettings, COMGETTER(Options)(bstrOptions.asOutParam()), rc);
 
+            BOOL fRecordVideo = FALSE;
+# ifdef VBOX_WITH_AUDIO_RECORDING
+            BOOL fRecordAudio = FALSE;
+# endif
             Utf8Str strOptions(bstrOptions);
             size_t pos = 0;
             com::Utf8Str key, value;

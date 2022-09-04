@@ -480,30 +480,51 @@ void parseGroups(const char *pcszGroups, com::SafeArray<BSTR> *pGroups)
 }
 
 #ifdef VBOX_WITH_RECORDING
-static int parseScreens(const char *pcszScreens, com::SafeArray<BOOL> *pScreens)
+/**
+ * Parses a string for a list of screen numbers.
+ *
+ * @returns VBox status code.
+ * @param   pcszScreens         String to parse.
+ *                              Can be a delimited list (e.g. "1,2,3") or ("all") all screens.
+ * @param   pScreens            Where to return to the parsed screens.
+ *                              The array needs to be pre-allocated by the maximum number of screens.
+ */
+int parseScreens(const char *pcszScreens, com::SafeArray<BOOL> *pScreens)
 {
+    if (!RTStrICmp(pcszScreens, "all"))
+    {
+        for (uint32_t i = 0; i < pScreens->size(); i++)
+            (*pScreens)[i] = TRUE;
+        return VINF_SUCCESS;
+    }
+    if (!RTStrICmp(pcszScreens, "none"))
+    {
+        for (uint32_t i = 0; i < pScreens->size(); i++)
+            (*pScreens)[i] = FALSE;
+        return VINF_SUCCESS;
+    }
     while (pcszScreens && *pcszScreens)
     {
         char *pszNext;
         uint32_t iScreen;
         int rc = RTStrToUInt32Ex(pcszScreens, &pszNext, 0, &iScreen);
         if (RT_FAILURE(rc))
-            return 1;
+            return VERR_PARSE_ERROR;
         if (iScreen >= pScreens->size())
-            return 1;
+            return VERR_PARSE_ERROR;
         if (pszNext && *pszNext)
         {
             pszNext = RTStrStripL(pszNext);
             if (*pszNext != ',')
-                return 1;
+                return VERR_PARSE_ERROR;
             pszNext++;
         }
-        (*pScreens)[iScreen] = true;
+        (*pScreens)[iScreen] = FALSE;
         pcszScreens = pszNext;
     }
-    return 0;
+    return VINF_SUCCESS;
 }
-#endif
+#endif /* VBOX_WITH_RECORDING */
 
 static int parseNum(uint32_t uIndex, unsigned cMaxIndex, const char *pszName)
 {
@@ -3035,7 +3056,7 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                         ULONG cMonitors = 64;
                         CHECK_ERROR(pGraphicsAdapter, COMGETTER(MonitorCount)(&cMonitors));
                         com::SafeArray<BOOL> screens(cMonitors);
-                        if (parseScreens(ValueUnion.psz, &screens))
+                        if (RT_FAILURE(parseScreens(ValueUnion.psz, &screens)))
                         {
                             errorArgument("Invalid list of screens specified\n");
                             rc = E_FAIL;

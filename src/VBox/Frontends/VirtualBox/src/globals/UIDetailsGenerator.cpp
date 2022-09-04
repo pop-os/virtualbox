@@ -591,7 +591,7 @@ UITextTable UIDetailsGenerator::generateMachineInformationNetwork(CMachine &comM
             }
             case KNetworkAttachmentType_Bridged:
             {
-                if (fOptions & UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_BridgetAdapter)
+                if (fOptions & UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_BridgedAdapter)
                 {
                     const QString strName = comAdapter.GetBridgedInterface();
                     strAttachmentType = strAttachmentTemplate

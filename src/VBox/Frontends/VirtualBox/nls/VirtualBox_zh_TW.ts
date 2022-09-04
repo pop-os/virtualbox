@@ -1865,6 +1865,10 @@
         <source>Primary Group</source>
         <translation>主要群組</translation>
     </message>
+    <message>
+        <source>Storage Controller (VirtioSCSI)</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIApplianceImportEditorWidget</name>
@@ -3220,7 +3224,7 @@
         <translation>NAT</translation>
     </message>
     <message>
-        <source>Bridget Adapter</source>
+        <source>Bridged Adapter</source>
         <translation>橋接介面卡</translation>
     </message>
     <message>
@@ -3781,6 +3785,55 @@
         <source>Cloud Network [EXPERIMENTAL]</source>
         <comment>NetworkAttachmentType</comment>
         <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Undefined</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Starting</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished">正在開始</translation>
+    </message>
+    <message>
+        <source>Started</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Terminating</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Terminated</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Timed Out (Killed)</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Timed Out (Abnormally)</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Down</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cloud Network</source>
+        <translation type="unfinished">雲端網路</translation>
     </message>
 </context>
 <context>
@@ -4681,6 +4734,14 @@
     <message>
         <source>No Guest Session found!&lt;br&gt;Please use the Session Panel to start a new guest session</source>
         <translation>找不到客體工作階段!&lt;br&gt;請使用「工作階段面板」開始新的客體工作階段</translation>
+    </message>
+    <message>
+        <source>Close dialog without saving</source>
+        <translation type="unfinished">關閉對話方塊而不儲存</translation>
+    </message>
+    <message>
+        <source>Reset Changes (%1)</source>
+        <translation type="unfinished">重設變更 (%1)</translation>
     </message>
 </context>
 <context>
@@ -7317,7 +7378,7 @@
     </message>
     <message>
         <source>The hardware virtualization is enabled in the Acceleration section of the System page although it is not supported by the host system. It should be disabled in order to start the virtual system.</source>
-        <translation>在「系統」頁的「加速」部分中啟用硬體虛擬化，儘管主機系統不支援。 它應該停用，以便啟動虛擬系統。</translation>
+        <translation type="vanished">在「系統」頁的「加速」部分中啟用硬體虛擬化，儘管主機系統不支援。 它應該停用，以便啟動虛擬系統。</translation>
     </message>
     <message>
         <source>%1 CPU</source>
@@ -9145,15 +9206,15 @@
     </message>
     <message>
         <source>Failed to open the medium with following ID: &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
-        <translation>無法開啟具有以下 ID 的媒體: &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;。</translation>
+        <translation type="vanished">無法開啟具有以下 ID 的媒體: &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;。</translation>
     </message>
     <message>
         <source>Failed to acquire attachment parameter.</source>
-        <translation>無法獲取附件參數。</translation>
+        <translation type="vanished">無法獲取附件參數。</translation>
     </message>
     <message>
         <source>Failed to acquire medium attribute.</source>
-        <translation>無法獲取媒體屬性。</translation>
+        <translation type="vanished">無法獲取媒體屬性。</translation>
     </message>
     <message>
         <source>Failed to create cloud machine.</source>

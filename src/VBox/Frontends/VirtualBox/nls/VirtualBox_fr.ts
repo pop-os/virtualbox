@@ -2750,6 +2750,10 @@
         <source>Primary Group</source>
         <translation>Groupe primaire</translation>
     </message>
+    <message>
+        <source>Storage Controller (VirtioSCSI)</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIApplianceImportEditorWidget</name>
@@ -4101,7 +4105,7 @@
     <message>
         <source>Starting</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="obsolete">Démarrage</translation>
+        <translation type="unfinished">Démarrage</translation>
     </message>
     <message>
         <source>Starting</source>
@@ -4295,7 +4299,7 @@
         <translation type="unfinished">NAT</translation>
     </message>
     <message>
-        <source>Bridget Adapter</source>
+        <source>Bridged Adapter</source>
         <translation type="unfinished">Interface pontée</translation>
     </message>
     <message>
@@ -4861,6 +4865,50 @@
     <message>
         <source>Cloud Network [EXPERIMENTAL]</source>
         <comment>NetworkAttachmentType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Undefined</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Started</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Terminating</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Terminated</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Timed Out (Killed)</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Timed Out (Abnormally)</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Down</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cloud Network</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -6591,6 +6639,14 @@
     <message>
         <source>No Guest Session found!&lt;br&gt;Please use the Session Panel to start a new guest session</source>
         <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Close dialog without saving</source>
+        <translation type="unfinished">Fermer le dialogue sans sauvegarder</translation>
+    </message>
+    <message>
+        <source>Reset Changes (%1)</source>
+        <translation type="unfinished">Réinitialiser les modifications (%1)</translation>
     </message>
 </context>
 <context>
@@ -12717,7 +12773,7 @@
     </message>
     <message>
         <source>The hardware virtualization is enabled in the Acceleration section of the System page although it is not supported by the host system. It should be disabled in order to start the virtual system.</source>
-        <translation>La virtualisation matérielle est activée dans la section Accélération de la page Système bien qu&apos;elle ne soit pas prise en charge par le système hôte. Elle doit être désactivée pour pouvoir démarrer le système virtuel.</translation>
+        <translation type="vanished">La virtualisation matérielle est activée dans la section Accélération de la page Système bien qu&apos;elle ne soit pas prise en charge par le système hôte. Elle doit être désactivée pour pouvoir démarrer le système virtuel.</translation>
     </message>
     <message>
         <source>The hardware virtualization is not currently enabled in the Acceleration section of the System page. This is needed for nested paging support. It will be enabled automatically if you confirm your changes.</source>
@@ -15581,18 +15637,6 @@
     </message>
     <message>
         <source>Failed to change network adapter attribute.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Failed to open the medium with following ID: &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Failed to acquire attachment parameter.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Failed to acquire medium attribute.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -22098,7 +22142,7 @@ And the size is not necessarily &quot;in megabytes&quot;, the slider chooses the
         <translation type="vanished">NAT</translation>
     </message>
     <message>
-        <source>Bridget Adapter</source>
+        <source>Bridged Adapter</source>
         <translatorcomment>Misspelling in source text?</translatorcomment>
         <translation type="vanished">Interface pontée</translation>
     </message>
