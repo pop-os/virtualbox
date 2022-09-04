@@ -1867,6 +1867,10 @@
         <source>Primary Group</source>
         <translation>Grup primari</translation>
     </message>
+    <message>
+        <source>Storage Controller (VirtioSCSI)</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIApplianceImportEditorWidget</name>
@@ -3225,7 +3229,7 @@
         <translation>NAT</translation>
     </message>
     <message>
-        <source>Bridget Adapter</source>
+        <source>Bridged Adapter</source>
         <translation>Adaptador pont</translation>
     </message>
     <message>
@@ -3792,6 +3796,55 @@
         <source>Cloud Network [EXPERIMENTAL]</source>
         <comment>NetworkAttachmentType</comment>
         <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Undefined</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Starting</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished">S&apos;està iniciant</translation>
+    </message>
+    <message>
+        <source>Started</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Terminating</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Terminated</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Timed Out (Killed)</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Timed Out (Abnormally)</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Down</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cloud Network</source>
+        <translation type="unfinished">Xarxa al núvol</translation>
     </message>
 </context>
 <context>
@@ -4692,6 +4745,14 @@
     <message>
         <source>No Guest Session found!&lt;br&gt;Please use the Session Panel to start a new guest session</source>
         <translation>No hi ha sessió de convidat!&lt;br&gt;Si us plau feu servir el tauler de sessions per a engegar una sessió de convidat nova</translation>
+    </message>
+    <message>
+        <source>Close dialog without saving</source>
+        <translation type="unfinished">Tanca el diàleg sense desar</translation>
+    </message>
+    <message>
+        <source>Reset Changes (%1)</source>
+        <translation type="unfinished">Reinicialitza els canvis (%1)</translation>
     </message>
 </context>
 <context>
@@ -7328,7 +7389,7 @@
     </message>
     <message>
         <source>The hardware virtualization is enabled in the Acceleration section of the System page although it is not supported by the host system. It should be disabled in order to start the virtual system.</source>
-        <translation>La virtualització del maquinari està activada a la secció d&apos;acceleració de la pàgina del sistema, tot i que no és compatible amb el sistema amfitrió. Cal desactivar-la per iniciar el sistema virtual.</translation>
+        <translation type="vanished">La virtualització del maquinari està activada a la secció d&apos;acceleració de la pàgina del sistema, tot i que no és compatible amb el sistema amfitrió. Cal desactivar-la per iniciar el sistema virtual.</translation>
     </message>
     <message>
         <source>%1 CPU</source>
@@ -9157,15 +9218,15 @@
     </message>
     <message>
         <source>Failed to open the medium with following ID: &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
-        <translation>Fallada en obrir el medi amb el següent ID: &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</translation>
+        <translation type="vanished">Fallada en obrir el medi amb el següent ID: &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</translation>
     </message>
     <message>
         <source>Failed to acquire attachment parameter.</source>
-        <translation>No s&apos;ha pogut adquirir el paràmetre de l&apos;adjunt</translation>
+        <translation type="vanished">No s&apos;ha pogut adquirir el paràmetre de l&apos;adjunt</translation>
     </message>
     <message>
         <source>Failed to acquire medium attribute.</source>
-        <translation>Fallada en adquirir els atributs del medi.</translation>
+        <translation type="vanished">Fallada en adquirir els atributs del medi.</translation>
     </message>
     <message>
         <source>Failed to create cloud machine.</source>

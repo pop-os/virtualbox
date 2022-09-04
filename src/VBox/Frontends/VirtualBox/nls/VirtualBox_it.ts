@@ -3094,6 +3094,10 @@
         <source>Primary Group</source>
         <translation>Gruppo primario</translation>
     </message>
+    <message>
+        <source>Storage Controller (VirtioSCSI)</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIApplianceImportEditorWidget</name>
@@ -4505,27 +4509,27 @@
     <message>
         <source>Undefined</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="vanished">Non definita</translation>
+        <translation>Non definita</translation>
     </message>
     <message>
         <source>Starting</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="vanished">In avvio</translation>
+        <translation>In avvio</translation>
     </message>
     <message>
         <source>Started</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="vanished">Avviata</translation>
+        <translation>Avviata</translation>
     </message>
     <message>
         <source>Terminating</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="vanished">In chiusura</translation>
+        <translation>In chiusura</translation>
     </message>
     <message>
         <source>Terminated</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="vanished">Terminata</translation>
+        <translation>Terminata</translation>
     </message>
     <message>
         <source>TimedOutKilled</source>
@@ -4540,12 +4544,12 @@
     <message>
         <source>Down</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="vanished">Giù</translation>
+        <translation>Giù</translation>
     </message>
     <message>
         <source>Error</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="vanished">Errore</translation>
+        <translation>Errore</translation>
     </message>
     <message>
         <source>Undefined</source>
@@ -4635,22 +4639,22 @@
     <message>
         <source>IDE Primary Device 0</source>
         <comment>StorageSlot</comment>
-        <translation type="unfinished">IDE master primario</translation>
+        <translation>Dispositivo IDE primario 0</translation>
     </message>
     <message>
         <source>IDE Primary Device 1</source>
         <comment>StorageSlot</comment>
-        <translation type="unfinished">IDE slave primario</translation>
+        <translation>Dispositivo IDE primario 1</translation>
     </message>
     <message>
         <source>IDE Secondary Device 0</source>
         <comment>StorageSlot</comment>
-        <translation type="unfinished">IDE master secondario</translation>
+        <translation>Dispositivo IDE secondario 0</translation>
     </message>
     <message>
         <source>IDE Secondary Device 1</source>
         <comment>StorageSlot</comment>
-        <translation type="unfinished">IDE slave secondario</translation>
+        <translation>Dispositivo IDE secondario 1</translation>
     </message>
     <message>
         <source>SATA Port %1</source>
@@ -4790,7 +4794,7 @@
     </message>
     <message>
         <source>Bridget Adapter</source>
-        <translation>Scheda con bridge</translation>
+        <translation type="vanished">Scheda con bridge</translation>
     </message>
     <message>
         <source>Internal Network</source>
@@ -5356,6 +5360,24 @@
         <source>Cloud Network [EXPERIMENTAL]</source>
         <comment>NetworkAttachmentType</comment>
         <translation>Rete cloud [SPERIMENTALE]</translation>
+    </message>
+    <message>
+        <source>Timed Out (Killed)</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Timed Out (Abnormally)</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bridged Adapter</source>
+        <translation type="unfinished">Scheda con bridge</translation>
+    </message>
+    <message>
+        <source>Cloud Network</source>
+        <translation type="unfinished">Rete Cloud</translation>
     </message>
 </context>
 <context>
@@ -7300,6 +7322,14 @@ una sessione del guest</translation>
     <message>
         <source>No Guest Session found!&lt;br&gt;Please use the Session Panel to start a new guest session</source>
         <translation>Nessuna sessione guest trovata!&lt;br&gt;Utilizza il pannello Sessioni per iniziare una nuova sessione del guest</translation>
+    </message>
+    <message>
+        <source>Close dialog without saving</source>
+        <translation type="unfinished">Chiudi la finestra senza salvare</translation>
+    </message>
+    <message>
+        <source>Reset Changes (%1)</source>
+        <translation type="unfinished">Ripristina modifiche (%1)</translation>
     </message>
 </context>
 <context>
@@ -14837,7 +14867,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>The hardware virtualization is enabled in the Acceleration section of the System page although it is not supported by the host system. It should be disabled in order to start the virtual system.</source>
-        <translation>La virtualizzazione hardware è abilitata nella sezione Accelerazione della pagina Sistema nonostante non sia supportata dal sistema guest. Dovrebbe essere disabilitata per avviare il sistema virtuale.</translation>
+        <translation type="vanished">La virtualizzazione hardware è abilitata nella sezione Accelerazione della pagina Sistema nonostante non sia supportata dal sistema guest. Dovrebbe essere disabilitata per avviare il sistema virtuale.</translation>
     </message>
     <message>
         <source>When checked, the nested hardware virtualization CPU feature will be exposed to the virtual machine.</source>
@@ -18158,15 +18188,15 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Failed to open the medium with following ID: &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
-        <translation>Apertura non riuscita del supporto con il seguente ID: &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</translation>
+        <translation type="vanished">Apertura non riuscita del supporto con il seguente ID: &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</translation>
     </message>
     <message>
         <source>Failed to acquire attachment parameter.</source>
-        <translation>Acquisizione del parametro del collegamento non riuscito.</translation>
+        <translation type="vanished">Acquisizione del parametro del collegamento non riuscito.</translation>
     </message>
     <message>
         <source>Failed to acquire medium attribute.</source>
-        <translation>Acquisizione del parametro del supporto non riuscito.</translation>
+        <translation type="vanished">Acquisizione del parametro del supporto non riuscito.</translation>
     </message>
     <message>
         <source>Failed to create cloud machine.</source>

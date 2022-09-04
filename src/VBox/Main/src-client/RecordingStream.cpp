@@ -63,6 +63,7 @@ RecordingStream::RecordingStream(RecordingContext *a_pCtx)
     : pCtx(a_pCtx)
     , enmState(RECORDINGSTREAMSTATE_UNINITIALIZED)
     , tsStartMs(0)
+    , ScreenSettings(UINT32_MAX)
 {
     File.pWEBM = NULL;
     File.hFile = NIL_RTFILE;
@@ -71,6 +72,7 @@ RecordingStream::RecordingStream(RecordingContext *a_pCtx)
 RecordingStream::RecordingStream(RecordingContext *a_pCtx, uint32_t uScreen, const settings::RecordingScreenSettings &Settings)
     : enmState(RECORDINGSTREAMSTATE_UNINITIALIZED)
     , tsStartMs(0)
+    , ScreenSettings(uScreen)
 {
     File.pWEBM = NULL;
     File.hFile = NIL_RTFILE;
@@ -89,76 +91,29 @@ RecordingStream::~RecordingStream(void)
 /**
  * Opens a recording stream.
  *
- * @returns IPRT status code.
+ * @returns VBox status code.
+ * @param   screenSettings      Recording settings to use.
  */
-int RecordingStream::open(const settings::RecordingScreenSettings &Settings)
+int RecordingStream::open(const settings::RecordingScreenSettings &screenSettings)
 {
     /* Sanity. */
-    Assert(Settings.enmDest != RecordingDestination_None);
+    Assert(screenSettings.enmDest != RecordingDestination_None);
 
-    int rc;
+    int vrc;
 
-    switch (Settings.enmDest)
+    switch (screenSettings.enmDest)
     {
         case RecordingDestination_File:
         {
-            Assert(Settings.File.strName.isNotEmpty());
+            Assert(screenSettings.File.strName.isNotEmpty());
 
-            char *pszAbsPath = RTPathAbsDup(Settings.File.strName.c_str());
-            AssertPtrReturn(pszAbsPath, VERR_NO_MEMORY);
+            const char *pszFile = screenSettings.File.strName.c_str();
 
-            RTPathStripSuffix(pszAbsPath);
-
-            char *pszSuff = RTStrDup(".webm");
-            if (!pszSuff)
+            RTFILE hFile = NIL_RTFILE;
+            vrc = RTFileOpen(&hFile, pszFile, RTFILE_O_CREATE_REPLACE | RTFILE_O_WRITE | RTFILE_O_DENY_WRITE);
+            if (RT_SUCCESS(vrc))
             {
-                RTStrFree(pszAbsPath);
-                rc = VERR_NO_MEMORY;
-                break;
-            }
-
-            char *pszFile = NULL;
-
-            if (this->uScreenID > 0)
-                rc = RTStrAPrintf(&pszFile, "%s-%u%s", pszAbsPath, this->uScreenID + 1, pszSuff);
-            else
-                rc = RTStrAPrintf(&pszFile, "%s%s", pszAbsPath, pszSuff);
-
-            if (RT_SUCCESS(rc))
-            {
-                uint64_t fOpen = RTFILE_O_WRITE | RTFILE_O_DENY_WRITE;
-
-                /* Play safe: the file must not exist, overwriting is potentially
-                 * hazardous as nothing prevents the user from picking a file name of some
-                 * other important file, causing unintentional data loss. */
-                fOpen |= RTFILE_O_CREATE;
-
-                RTFILE hFile;
-                rc = RTFileOpen(&hFile, pszFile, fOpen);
-                if (rc == VERR_ALREADY_EXISTS)
-                {
-                    RTStrFree(pszFile);
-                    pszFile = NULL;
-
-                    RTTIMESPEC ts;
-                    RTTimeNow(&ts);
-                    RTTIME time;
-                    RTTimeExplode(&time, &ts);
-
-                    if (this->uScreenID > 0)
-                        rc = RTStrAPrintf(&pszFile, "%s-%04d-%02u-%02uT%02u-%02u-%02u-%09uZ-%u%s",
-                                          pszAbsPath, time.i32Year, time.u8Month, time.u8MonthDay,
-                                          time.u8Hour, time.u8Minute, time.u8Second, time.u32Nanosecond,
-                                          this->uScreenID + 1, pszSuff);
-                    else
-                        rc = RTStrAPrintf(&pszFile, "%s-%04d-%02u-%02uT%02u-%02u-%02u-%09uZ%s",
-                                          pszAbsPath, time.i32Year, time.u8Month, time.u8MonthDay,
-                                          time.u8Hour, time.u8Minute, time.u8Second, time.u32Nanosecond,
-                                          pszSuff);
-
-                    if (RT_SUCCESS(rc))
-                        rc = RTFileOpen(&hFile, pszFile, fOpen);
-                }
+                LogRel2(("Recording: Opened file '%s'\n", pszFile));
 
                 try
                 {
@@ -167,36 +122,35 @@ int RecordingStream::open(const settings::RecordingScreenSettings &Settings)
                 }
                 catch (std::bad_alloc &)
                {
-                    rc = VERR_NO_MEMORY;
+                    vrc = VERR_NO_MEMORY;
                 }
 
-                if (RT_SUCCESS(rc))
+                if (RT_SUCCESS(vrc))
                 {
                     this->File.hFile = hFile;
                     this->ScreenSettings.File.strName = pszFile;
                 }
             }
+            else
+                LogRel(("Recording: Failed to open file '%s' for screen %RU32, vrc=%Rrc\n",
+                        pszFile ? pszFile : "<Unnamed>", uScreenID, vrc));
 
-            RTStrFree(pszSuff);
-            RTStrFree(pszAbsPath);
-
-            if (RT_FAILURE(rc))
+            if (RT_FAILURE(vrc))
             {
-                LogRel(("Recording: Failed to open file '%s' for screen %RU32, rc=%Rrc\n",
-                        pszFile ? pszFile : "<Unnamed>", this->uScreenID, rc));
+                if (hFile != NIL_RTFILE)
+                    RTFileClose(hFile);
             }
 
-            RTStrFree(pszFile);
             break;
         }
 
         default:
-            rc = VERR_NOT_IMPLEMENTED;
+            vrc = VERR_NOT_IMPLEMENTED;
             break;
     }
 
-    LogFlowFuncLeaveRC(rc);
-    return rc;
+    LogFlowFuncLeaveRC(vrc);
+    return vrc;
 }
 
 /**

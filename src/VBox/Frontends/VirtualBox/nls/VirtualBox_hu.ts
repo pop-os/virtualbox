@@ -2804,6 +2804,10 @@
         <source>Primary Group</source>
         <translation>Elsődleges csoport</translation>
     </message>
+    <message>
+        <source>Storage Controller (VirtioSCSI)</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIApplianceImportEditorWidget</name>
@@ -4158,7 +4162,7 @@
     <message>
         <source>Starting</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="obsolete">Indítás</translation>
+        <translation type="unfinished">Indítás</translation>
     </message>
     <message>
         <source>Starting</source>
@@ -4347,7 +4351,7 @@
         <translation>NAT</translation>
     </message>
     <message>
-        <source>Bridget Adapter</source>
+        <source>Bridged Adapter</source>
         <translation>Bridge-elt kártya</translation>
     </message>
     <message>
@@ -4908,6 +4912,50 @@
         <source>Cloud Network [EXPERIMENTAL]</source>
         <comment>NetworkAttachmentType</comment>
         <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Undefined</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Started</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Terminating</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Terminated</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Timed Out (Killed)</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Timed Out (Abnormally)</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Down</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cloud Network</source>
+        <translation type="unfinished">Felhő hálózat</translation>
     </message>
 </context>
 <context>
@@ -6810,6 +6858,14 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>No Guest Session found!&lt;br&gt;Please use the Session Panel to start a new guest session</source>
         <translation>Nem található vendég-munkamenet!&lt;br&gt;A Munkamenet panel használatával új vendég munkamenetet indíthatsz</translation>
+    </message>
+    <message>
+        <source>Close dialog without saving</source>
+        <translation type="unfinished">Ablak bezárása mentés nélkül</translation>
+    </message>
+    <message>
+        <source>Reset Changes (%1)</source>
+        <translation type="unfinished">Módosítások visszaállítása (%1)</translation>
     </message>
 </context>
 <context>
@@ -13469,7 +13525,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>The hardware virtualization is enabled in the Acceleration section of the System page although it is not supported by the host system. It should be disabled in order to start the virtual system.</source>
-        <translation>A hardveres virtualizáció jelenleg be van kapcsolva a Rendszer lap Gyorsítás részében, azonban a gazda rendszer nem támogatja. Ki kellene kapcsolni a virtuális rendszer elindításához.</translation>
+        <translation type="vanished">A hardveres virtualizáció jelenleg be van kapcsolva a Rendszer lap Gyorsítás részében, azonban a gazda rendszer nem támogatja. Ki kellene kapcsolni a virtuális rendszer elindításához.</translation>
     </message>
     <message>
         <source>When checked, the nested hardware virtualization CPU feature will be exposed to the virtual machine.</source>
@@ -16451,15 +16507,15 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Failed to open the medium with following ID: &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
-        <translation>A médium megnyitása sikertelen a következő azonosítóval: &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</translation>
+        <translation type="vanished">A médium megnyitása sikertelen a következő azonosítóval: &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</translation>
     </message>
     <message>
         <source>Failed to acquire attachment parameter.</source>
-        <translation>A csatlakozási paraméterek lekérése sikertelen.</translation>
+        <translation type="vanished">A csatlakozási paraméterek lekérése sikertelen.</translation>
     </message>
     <message>
         <source>Failed to acquire medium attribute.</source>
-        <translation>A médium attribútum lekérése sikertelen.</translation>
+        <translation type="vanished">A médium attribútum lekérése sikertelen.</translation>
     </message>
     <message>
         <source>Failed to create cloud machine.</source>
@@ -24575,7 +24631,7 @@ Verzió %1</translation>
         <translation type="vanished">NAT</translation>
     </message>
     <message>
-        <source>Bridget Adapter</source>
+        <source>Bridged Adapter</source>
         <translation type="vanished">Bridge-elt kártya</translation>
     </message>
     <message>

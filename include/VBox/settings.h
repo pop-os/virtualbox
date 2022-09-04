@@ -544,7 +544,7 @@ typedef std::map<RecordingFeature_T, bool> RecordingFeatureMap;
 
 struct RecordingScreenSettings
 {
-    RecordingScreenSettings();
+    RecordingScreenSettings(uint32_t idScreen = UINT32_MAX);
 
     virtual ~RecordingScreenSettings();
 
@@ -558,6 +558,9 @@ struct RecordingScreenSettings
 
     bool operator==(const RecordingScreenSettings &d) const;
 
+    /** Screen ID.
+     *  UINT32_MAX if not set. */
+    uint32_t               idScreen;
     /** Whether to record this screen or not. */
     bool                   fEnabled;   // requires settings version 1.14 (VirtualBox 4.3)
     /** Destination to record to. */
@@ -1360,7 +1363,7 @@ private:
     void readTeleporter(const xml::ElementNode *pElmTeleporter, MachineUserData *pUserData);
     void readDebugging(const xml::ElementNode *pElmDbg, Debugging *pDbg);
     void readAutostart(const xml::ElementNode *pElmAutostart, Autostart *pAutostart);
-    void readRecordingSettings(const xml::ElementNode &elmRecording, RecordingSettings &recording);
+    void readRecordingSettings(const xml::ElementNode &elmRecording, uint32_t cMonitors, RecordingSettings &recording);
     void readGroups(const xml::ElementNode *elmGroups, StringsList *pllGroups);
     bool readSnapshot(const com::Guid &curSnapshotUuid, uint32_t depth, const xml::ElementNode &elmSnapshot, Snapshot &snap);
     void convertOldOSType_pre1_5(com::Utf8Str &str);
