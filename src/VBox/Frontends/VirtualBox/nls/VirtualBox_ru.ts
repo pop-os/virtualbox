@@ -2843,6 +2843,10 @@
         <source>Primary Group</source>
         <translation>Основная группа</translation>
     </message>
+    <message>
+        <source>Storage Controller (VirtioSCSI)</source>
+        <translation>Контроллер (VirtioSCSI)</translation>
+    </message>
 </context>
 <context>
     <name>UIApplianceImportEditorWidget</name>
@@ -4282,22 +4286,22 @@
     <message>
         <source>IDE Primary Device 0</source>
         <comment>StorageSlot</comment>
-        <translation type="unfinished">Первичный мастер IDE</translation>
+        <translation>Первичное устройство IDE 0</translation>
     </message>
     <message>
         <source>IDE Primary Device 1</source>
         <comment>StorageSlot</comment>
-        <translation type="unfinished">Первичный слэйв IDE</translation>
+        <translation>Первичное устройство IDE 1</translation>
     </message>
     <message>
         <source>IDE Secondary Device 0</source>
         <comment>StorageSlot</comment>
-        <translation type="unfinished">Вторичный мастер IDE</translation>
+        <translation>Вторичное устройство IDE 0</translation>
     </message>
     <message>
         <source>IDE Secondary Device 1</source>
         <comment>StorageSlot</comment>
-        <translation type="unfinished">Вторичный слэйв IDE</translation>
+        <translation>Вторичное устройство IDE 1</translation>
     </message>
     <message>
         <source>SATA Port %1</source>
@@ -4436,7 +4440,7 @@
         <translation></translation>
     </message>
     <message>
-        <source>Bridget Adapter</source>
+        <source>Bridged Adapter</source>
         <translation>Сетевой мост</translation>
     </message>
     <message>
@@ -4991,24 +4995,73 @@
     </message>
     <message>
         <source>Acquire cloud instances ...</source>
-        <translation type="unfinished">Получение облачных экземпляров машин ...</translation>
+        <translation>Получение облачных экземпляров машин ...</translation>
     </message>
     <message>
         <source>Acquire cloud instance info ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Получение информации облачных экземпляров машин ...</translation>
     </message>
     <message>
         <source>Pause instance ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Приостановить машину ...</translation>
     </message>
     <message>
         <source>Start instance ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Запустить машину ...</translation>
     </message>
     <message>
         <source>Cloud Network [EXPERIMENTAL]</source>
         <comment>NetworkAttachmentType</comment>
-        <translation type="unfinished"></translation>
+        <translation>Облачная сеть [ЭКСПЕРИМЕНТАЛЬНО]</translation>
+    </message>
+    <message>
+        <source>Undefined</source>
+        <comment>GuestSessionStatus</comment>
+        <translation>Не определена</translation>
+    </message>
+    <message>
+        <source>Starting</source>
+        <comment>GuestSessionStatus</comment>
+        <translation>Запускается</translation>
+    </message>
+    <message>
+        <source>Started</source>
+        <comment>GuestSessionStatus</comment>
+        <translation>Запущена</translation>
+    </message>
+    <message>
+        <source>Terminating</source>
+        <comment>GuestSessionStatus</comment>
+        <translation>Завершение</translation>
+    </message>
+    <message>
+        <source>Terminated</source>
+        <comment>GuestSessionStatus</comment>
+        <translation>Завершена</translation>
+    </message>
+    <message>
+        <source>Timed Out (Killed)</source>
+        <comment>GuestSessionStatus</comment>
+        <translation>Нет ответа (Убита)</translation>
+    </message>
+    <message>
+        <source>Timed Out (Abnormally)</source>
+        <comment>GuestSessionStatus</comment>
+        <translation>Нет ответа (Ошибка)</translation>
+    </message>
+    <message>
+        <source>Down</source>
+        <comment>GuestSessionStatus</comment>
+        <translation>Завершена</translation>
+    </message>
+    <message>
+        <source>Error</source>
+        <comment>GuestSessionStatus</comment>
+        <translation>Ошибка</translation>
+    </message>
+    <message>
+        <source>Cloud Network</source>
+        <translation>Облачная сеть</translation>
     </message>
 </context>
 <context>
@@ -6900,6 +6953,14 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>No Guest Session found!&lt;br&gt;Please use the Session Panel to start a new guest session</source>
         <translation>Гостевая сессия не обнаружена!&lt;br&gt;Пожалуйста используйте панель сессий для запуска новой</translation>
+    </message>
+    <message>
+        <source>Close dialog without saving</source>
+        <translation>Закрыть диалог без сохранения</translation>
+    </message>
+    <message>
+        <source>Reset Changes (%1)</source>
+        <translation>Сбросить изменения (%1)</translation>
     </message>
 </context>
 <context>
@@ -13739,7 +13800,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>The hardware virtualization is enabled in the Acceleration section of the System page although it is not supported by the host system. It should be disabled in order to start the virtual system.</source>
-        <translation>Функция аппаратной виртуализации включена для данной машины, но не поддерживаются Вашим хостом. Для обеспечения работоспособности машины она должна быть выключена.</translation>
+        <translation type="vanished">Функция аппаратной виртуализации включена для данной машины, но не поддерживаются Вашим хостом. Для обеспечения работоспособности машины она должна быть выключена.</translation>
     </message>
     <message>
         <source>%1%</source>
@@ -16835,15 +16896,15 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Failed to open the medium with following ID: &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
-        <translation>Не удалось открыть носитель со следующим ИД: &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</translation>
+        <translation type="vanished">Не удалось открыть носитель со следующим ИД: &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</translation>
     </message>
     <message>
         <source>Failed to acquire attachment parameter.</source>
-        <translation>Не удалось запросить параметр подключения.</translation>
+        <translation type="vanished">Не удалось запросить параметр подключения.</translation>
     </message>
     <message>
         <source>Failed to acquire medium attribute.</source>
-        <translation>Не удалось запросить параметр носителя.</translation>
+        <translation type="vanished">Не удалось запросить параметр носителя.</translation>
     </message>
     <message>
         <source>Failed to create cloud machine.</source>
@@ -19627,7 +19688,7 @@ p, li { white-space: pre-wrap; }
     <name>UIVMListView</name>
     <message>
         <source>Inaccessible</source>
-        <translation type="unfinished"></translation>
+        <translation>Недоступна</translation>
     </message>
 </context>
 <context>
@@ -20009,20 +20070,20 @@ p, li { white-space: pre-wrap; }
     <name>UIVirtualMachineItemCloud</name>
     <message>
         <source>Loading ...</source>
-        <translation type="unfinished"></translation>
+        <translation>Загрузка ...</translation>
     </message>
     <message>
         <source>Up-To-Date</source>
-        <translation type="unfinished"></translation>
+        <translation>Обновлена</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Inaccessible&lt;/nobr&gt;</source>
         <comment>Inaccessible VM tooltip (name)</comment>
-        <translation type="unfinished"></translation>
+        <translation>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Недоступна&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>Inaccessible</source>
-        <translation type="unfinished"></translation>
+        <translation>Недоступна</translation>
     </message>
 </context>
 <context>
@@ -20030,16 +20091,16 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 since %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Session %4&lt;/nobr&gt;</source>
         <comment>VM tooltip (name, last state change, session state)</comment>
-        <translation type="unfinished">&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 с %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Сессия %4&lt;/nobr&gt;</translation>
+        <translation>&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 с %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Сессия %4&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Inaccessible since %2&lt;/nobr&gt;</source>
         <comment>Inaccessible VM tooltip (name, last state change)</comment>
-        <translation type="unfinished">&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Недоступна с %2&lt;/nobr&gt;</translation>
+        <translation>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Недоступна с %2&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>Inaccessible</source>
-        <translation type="unfinished"></translation>
+        <translation>Недоступна</translation>
     </message>
 </context>
 <context>
@@ -24448,7 +24509,7 @@ Home folders can also be individually (per virtual machine)  modified.</source>
         <translation type="vanished">Не подключен</translation>
     </message>
     <message>
-        <source>Bridget Adapter</source>
+        <source>Bridged Adapter</source>
         <translation type="vanished">Сетевой мост</translation>
     </message>
     <message>

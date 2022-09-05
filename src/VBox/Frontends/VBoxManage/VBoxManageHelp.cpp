@@ -751,7 +751,7 @@ void printUsage(USAGECATEGORY enmCommand, uint64_t fSubcommandScope, PRTSTREAM p
 #endif
 #ifdef VBOX_WITH_RECORDING
                      "                            [--recording on|off]\n"
-                     "                            [--recordingscreens all|<screen ID> [<screen ID> ...]]\n"
+                     "                            [--recordingscreens all|none|<screen ID> [<screen ID> ...]]\n"
                      "                            [--recordingfile <filename>]\n"
                      "                            [--recordingvideores <width> <height>]\n"
                      "                            [--recordingvideorate <rate>]\n"

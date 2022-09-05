@@ -1865,6 +1865,10 @@
         <source>Primary Group</source>
         <translation>주 그룹</translation>
     </message>
+    <message>
+        <source>Storage Controller (VirtioSCSI)</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIApplianceImportEditorWidget</name>
@@ -3220,7 +3224,7 @@
         <translation>NAT</translation>
     </message>
     <message>
-        <source>Bridget Adapter</source>
+        <source>Bridged Adapter</source>
         <translation>브리지 어댑터</translation>
     </message>
     <message>
@@ -3781,6 +3785,55 @@
         <source>Cloud Network [EXPERIMENTAL]</source>
         <comment>NetworkAttachmentType</comment>
         <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Undefined</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Starting</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished">시작하는 중</translation>
+    </message>
+    <message>
+        <source>Started</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Terminating</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Terminated</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Timed Out (Killed)</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Timed Out (Abnormally)</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Down</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cloud Network</source>
+        <translation type="unfinished">클라우드 네트워크</translation>
     </message>
 </context>
 <context>
@@ -4681,6 +4734,14 @@
     <message>
         <source>No Guest Session found!&lt;br&gt;Please use the Session Panel to start a new guest session</source>
         <translation>게스트 세션을 찾을 수 없습니다!&lt;br&gt;세션 패널에서 새 게스트 세션을 시작하십시오</translation>
+    </message>
+    <message>
+        <source>Close dialog without saving</source>
+        <translation type="unfinished">저장하지 않고 대화 상자 닫기</translation>
+    </message>
+    <message>
+        <source>Reset Changes (%1)</source>
+        <translation type="unfinished">변경 사항 초기화(%1)</translation>
     </message>
 </context>
 <context>
@@ -7331,7 +7392,7 @@
     </message>
     <message>
         <source>The hardware virtualization is enabled in the Acceleration section of the System page although it is not supported by the host system. It should be disabled in order to start the virtual system.</source>
-        <translation>호스트 시스템에서 하드웨어 가상화를 지원하지 않지만, 시스템 페이지의 가속 부분에서 활성화되어 있습니다. 가상 시스템을 시작하려면 해당 설정을 비활성화해야 합니다.</translation>
+        <translation type="vanished">호스트 시스템에서 하드웨어 가상화를 지원하지 않지만, 시스템 페이지의 가속 부분에서 활성화되어 있습니다. 가상 시스템을 시작하려면 해당 설정을 비활성화해야 합니다.</translation>
     </message>
     <message>
         <source>When checked, the nested hardware virtualization CPU feature will be exposed to the virtual machine.</source>
@@ -9145,15 +9206,15 @@
     </message>
     <message>
         <source>Failed to open the medium with following ID: &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
-        <translation>다음 ID를 사용하는 미디어를 열 수 없습니다: &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</translation>
+        <translation type="vanished">다음 ID를 사용하는 미디어를 열 수 없습니다: &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</translation>
     </message>
     <message>
         <source>Failed to acquire attachment parameter.</source>
-        <translation>연결 인자를 가져올 수 없습니다.</translation>
+        <translation type="vanished">연결 인자를 가져올 수 없습니다.</translation>
     </message>
     <message>
         <source>Failed to acquire medium attribute.</source>
-        <translation>미디어 속성을 가져올 수 없습니다.</translation>
+        <translation type="vanished">미디어 속성을 가져올 수 없습니다.</translation>
     </message>
     <message>
         <source>Failed to create cloud machine.</source>

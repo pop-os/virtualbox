@@ -3757,7 +3757,7 @@ void UIMachineSettingsStorage::sltGetInformation()
                 mCbNonRotational->setChecked(m_pModelStorage->data(index, StorageModel::R_AttIsNonRotational).toBool());
 
                 /* Fetch hot-pluggable state: */
-                m_pCheckBoxHotPluggable->setVisible((slt.bus == KStorageBus_SATA) || (slt.bus == KStorageBus_USB));
+                m_pCheckBoxHotPluggable->setVisible(slt.bus == KStorageBus_SATA);
                 m_pCheckBoxHotPluggable->setChecked(fIsHotPluggable);
 
                 /* Update optional widgets visibility: */
@@ -3958,7 +3958,7 @@ void UIMachineSettingsStorage::sltChooseDiskFile()
 {
     const QString strMachineFolder(QFileInfo(m_strMachineSettingsFilePath).absolutePath());
 
-    QUuid uMediumId = uiCommon().openMediumWithFileOpenDialog(m_pMediumIdHolder->type(), this, strMachineFolder);
+    QUuid uMediumId = uiCommon().openMediumWithFileOpenDialog(m_pMediumIdHolder->type(), QApplication::activeWindow(), strMachineFolder);
     if (uMediumId.isNull())
         return;
     m_pMediumIdHolder->setId(uMediumId);
@@ -5372,7 +5372,7 @@ bool UIMachineSettingsStorage::createStorageAttachment(const UISettingsCacheMach
             }
         }
 
-        if (newControllerData.m_enmBus == KStorageBus_SATA || newControllerData.m_enmBus == KStorageBus_USB)
+        if (newControllerData.m_enmBus == KStorageBus_SATA)
         {
             /* Save whether this device is hot-pluggable: */
             if (fSuccess && isMachineOffline())
@@ -5466,7 +5466,7 @@ bool UIMachineSettingsStorage::updateStorageAttachment(const UISettingsCacheMach
             }
         }
 
-        if (newControllerData.m_enmBus == KStorageBus_SATA || newControllerData.m_enmBus == KStorageBus_USB)
+        if (newControllerData.m_enmBus == KStorageBus_SATA)
         {
             /* Save whether this device is hot-pluggable: */
             if (fSuccess && isMachineOffline())

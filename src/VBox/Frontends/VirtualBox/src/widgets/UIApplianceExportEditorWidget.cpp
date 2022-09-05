@@ -49,6 +49,7 @@ public:
             << KVirtualSystemDescriptionType_HardDiskControllerIDE
             << KVirtualSystemDescriptionType_HardDiskControllerSATA
             << KVirtualSystemDescriptionType_HardDiskControllerSCSI
+            << KVirtualSystemDescriptionType_HardDiskControllerVirtioSCSI
             << KVirtualSystemDescriptionType_HardDiskControllerSAS
             << KVirtualSystemDescriptionType_CloudProfileName;
     }

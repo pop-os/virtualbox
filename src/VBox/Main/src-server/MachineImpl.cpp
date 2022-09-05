@@ -366,7 +366,7 @@ HRESULT Machine::init(VirtualBox *aParent,
         /* Apply BIOS defaults. */
         mBIOSSettings->i_applyDefaults(aOsType);
 
-        /* Apply record defaults. */
+        /* Apply recording defaults. */
         mRecordingSettings->i_applyDefaults();
 
         /* Apply network adapters defaults */
@@ -3479,15 +3479,19 @@ HRESULT Machine::attachDevice(const com::Utf8Str &aName,
         && strReconfig == "1")
         fSilent = true;
 
-    /* Check that the controller can do hotplugging if we detach the device while the VM is running. */
+    /* Check that the controller can do hot-plugging if we attach the device while the VM is running. */
     bool fHotplug = false;
     if (!fSilent && Global::IsOnlineOrTransient(mData->mMachineState))
         fHotplug = true;
 
     if (fHotplug && !i_isControllerHotplugCapable(ctrlType))
         return setError(VBOX_E_INVALID_VM_STATE,
-                        tr("Controller '%s' does not support hotplugging"),
+                        tr("Controller '%s' does not support hot-plugging"),
                         aName.c_str());
+
+    /* Attaching a USB device when a VM is powered off should default to being marked as hot-pluggable */
+    if (!fHotplug && !Global::IsOnlineOrTransient(mData->mMachineState) && ctrlType == StorageControllerType_USB)
+        fHotplug = true;
 
     // check that the port and device are not out of range
     rc = ctl->i_checkPortAndDeviceValid(aControllerPort, aDevice);
@@ -4057,14 +4061,14 @@ HRESULT Machine::detachDevice(const com::Utf8Str &aName, LONG aControllerPort,
         && strReconfig == "1")
         fSilent = true;
 
-    /* Check that the controller can do hotplugging if we detach the device while the VM is running. */
+    /* Check that the controller can do hot-plugging if we detach the device while the VM is running. */
     bool fHotplug = false;
     if (!fSilent && Global::IsOnlineOrTransient(mData->mMachineState))
         fHotplug = true;
 
     if (fHotplug && !i_isControllerHotplugCapable(ctrlType))
         return setError(VBOX_E_INVALID_VM_STATE,
-                        tr("Controller '%s' does not support hotplugging"),
+                        tr("Controller '%s' does not support hot-plugging"),
                         aName.c_str());
 
     MediumAttachment *pAttach = i_findAttachment(*mMediumAttachments.data(),
@@ -4078,7 +4082,7 @@ HRESULT Machine::detachDevice(const com::Utf8Str &aName, LONG aControllerPort,
 
     if (fHotplug && !pAttach->i_getHotPluggable())
         return setError(VBOX_E_NOT_SUPPORTED,
-                        tr("The device slot %d on port %d of controller '%s' does not support hotplugging"),
+                        tr("The device slot %d on port %d of controller '%s' does not support hot-plugging"),
                         aDevice, aControllerPort, aName.c_str());
 
     /*
@@ -4143,14 +4147,14 @@ HRESULT Machine::passthroughDevice(const com::Utf8Str &aName, LONG aControllerPo
         && strReconfig == "1")
         fSilent = true;
 
-    /* Check that the controller can do hotplugging if we detach the device while the VM is running. */
+    /* Check that the controller can do hot-plugging if we detach the device while the VM is running. */
     bool fHotplug = false;
     if (!fSilent && Global::IsOnlineOrTransient(mData->mMachineState))
         fHotplug = true;
 
     if (fHotplug && !i_isControllerHotplugCapable(ctrlType))
         return setError(VBOX_E_INVALID_VM_STATE,
-                        tr("Controller '%s' does not support hotplugging which is required to change the passthrough setting while the VM is running"),
+                        tr("Controller '%s' does not support hot-plugging which is required to change the passthrough setting while the VM is running"),
                         aName.c_str());
 
     MediumAttachment *pAttach = i_findAttachment(*mMediumAttachments.data(),
@@ -4348,9 +4352,13 @@ HRESULT Machine::setHotPluggableForDevice(const com::Utf8Str &aName, LONG aContr
                         aName.c_str());
 
     if (!i_isControllerHotplugCapable(ctrlType))
-    return setError(VBOX_E_NOT_SUPPORTED,
-                    tr("Controller '%s' does not support changing the hot-pluggable device flag"),
-                    aName.c_str());
+        return setError(VBOX_E_NOT_SUPPORTED,
+                        tr("Controller '%s' does not support changing the hot-pluggable device flag"),
+                        aName.c_str());
+
+    /* silently ignore attempts to modify the hot-plug status of USB devices */
+    if (ctrlType == StorageControllerType_USB)
+        return S_OK;
 
     i_setModified(IsModified_Storage);
     mMediumAttachments.backup();
@@ -8157,7 +8165,7 @@ HRESULT Machine::initDataAndChildObjects()
     unconst(mBIOSSettings).createObject();
     mBIOSSettings->init(this);
 
-    /* create associated record settings object */
+    /* create associated recording settings object */
     unconst(mRecordingSettings).createObject();
     mRecordingSettings->init(this);
 
@@ -8582,7 +8590,8 @@ HRESULT Machine::i_loadMachineDataFromSettings(const settings::MachineConfigFile
     }
 
     // hardware data
-    rc = i_loadHardware(puuidRegistry, NULL, config.hardwareMachine, &config.debugging, &config.autostart);
+    rc = i_loadHardware(puuidRegistry, NULL, config.hardwareMachine, &config.debugging, &config.autostart,
+                        config.recordingSettings);
     if (FAILED(rc)) return rc;
 
     /*
@@ -8648,6 +8657,7 @@ HRESULT Machine::i_loadSnapshot(const settings::Snapshot &data,
                                             data.hardware,
                                             &data.debugging,
                                             &data.autostart,
+                                            data.recordingSettings,
                                             data.uuid.ref(),
                                             strStateFile);
     if (FAILED(rc)) return rc;
@@ -8699,13 +8709,15 @@ HRESULT Machine::i_loadSnapshot(const settings::Snapshot &data,
  * @param puuidSnapshot Snapshot ID
  * @param data          Reference to the hardware settings.
  * @param pDbg          Pointer to the debugging settings.
- * @param pAutostart    Pointer to the autostart settings.
+ * @param pAutostart    Pointer to the autostart settings
+ * @param recording     Reference to recording settings.
  */
 HRESULT Machine::i_loadHardware(const Guid *puuidRegistry,
                                 const Guid *puuidSnapshot,
                                 const settings::Hardware &data,
                                 const settings::Debugging *pDbg,
-                                const settings::Autostart *pAutostart)
+                                const settings::Autostart *pAutostart,
+                                const settings::RecordingSettings &recording)
 {
     AssertReturn(!i_isSessionMachine(), E_FAIL);
 
@@ -8809,8 +8821,8 @@ HRESULT Machine::i_loadHardware(const Guid *puuidRegistry,
         rc = mBIOSSettings->i_loadSettings(data.biosSettings);
         if (FAILED(rc)) return rc;
 
-        /* Recording settings */
-        rc = mRecordingSettings->i_loadSettings(data.recordingSettings);
+        /* Recording */
+        rc = mRecordingSettings->i_loadSettings(recording);
         if (FAILED(rc)) return rc;
 
         // Bandwidth control (must come before network adapters)
@@ -9981,8 +9993,8 @@ void Machine::i_copyMachineDataToSettings(settings::MachineConfigFile &config)
     config.fAborted = (mData->mMachineState == MachineState_Aborted);
     /// @todo Live Migration:        config.fTeleported = (mData->mMachineState == MachineState_Teleported);
 
-    HRESULT rc = i_saveHardware(config.hardwareMachine, &config.debugging, &config.autostart);
-    if (FAILED(rc)) throw rc;
+    HRESULT hrc = i_saveHardware(config.hardwareMachine, &config.debugging, &config.autostart, config.recordingSettings);
+    if (FAILED(hrc)) throw hrc;
 
     // save machine's media registry if this is VirtualBox 4.0 or later
     if (config.canHaveOwnMediaRegistry())
@@ -9997,8 +10009,8 @@ void Machine::i_copyMachineDataToSettings(settings::MachineConfigFile &config)
     }
 
     // save snapshots
-    rc = i_saveAllSnapshots(config);
-    if (FAILED(rc)) throw rc;
+    hrc = i_saveAllSnapshots(config);
+    if (FAILED(hrc)) throw hrc;
 }
 
 /**
@@ -10054,9 +10066,10 @@ HRESULT Machine::i_saveAllSnapshots(settings::MachineConfigFile &config)
  *                        which happens to live in mHWData.
  *  @param pAutostart     Pointer to the settings object for the autostart config
  *                        which happens to live in mHWData.
+ *  @param recording      Reference to reecording settings.
  */
 HRESULT Machine::i_saveHardware(settings::Hardware &data, settings::Debugging *pDbg,
-                                settings::Autostart *pAutostart)
+                                settings::Autostart *pAutostart, settings::RecordingSettings &recording)
 {
     HRESULT rc = S_OK;
 
@@ -10156,8 +10169,8 @@ HRESULT Machine::i_saveHardware(settings::Hardware &data, settings::Debugging *p
         rc = mBIOSSettings->i_saveSettings(data.biosSettings);
         if (FAILED(rc)) throw rc;
 
-        /* Recording settings (required) */
-        rc = mRecordingSettings->i_saveSettings(data.recordingSettings);
+        /* Recording settings. */
+        rc = mRecordingSettings->i_saveSettings(recording);
         if (FAILED(rc)) throw rc;
 
         /* GraphicsAdapter settings (required) */

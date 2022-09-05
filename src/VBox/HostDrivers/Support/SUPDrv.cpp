@@ -98,6 +98,18 @@
 # endif
 #endif
 
+#if defined(RT_OS_LINUX) && !defined(__NO_FORTIFY) && defined(__OPTIMIZE__) && defined(CONFIG_FORTIFY_SOURCE)
+/* In Linux 5.18-rc1, memcpy became a wrapper which does fortify checks
+ * before triggering __underlying_memcpy() call. We do not pass these checks here,
+ * so bypass them for now.  */
+# if RTLNX_VER_MIN(5,18,0)
+#  define SUPDRV_MEMCPY __underlying_memcpy
+# else
+# define SUPDRV_MEMCPY  memcpy
+# endif
+#else
+# define SUPDRV_MEMCPY  memcpy
+#endif
 
 /*
  * Logging assignments:
@@ -266,6 +278,8 @@ static SUPFUNC g_aFunctions[] =
     SUPEXP_STK_BACK(    2,  SUPR0ContFree),
     SUPEXP_STK_BACK(    2,  SUPR0ChangeCR4),
     SUPEXP_STK_BACK(    1,  SUPR0EnableVTx),
+    SUPEXP_STK_OKAY(    1,  SUPR0FpuBegin),
+    SUPEXP_STK_OKAY(    1,  SUPR0FpuEnd),
     SUPEXP_STK_BACK(    0,  SUPR0SuspendVTxOnCpu),
     SUPEXP_STK_BACK(    1,  SUPR0ResumeVTxOnCpu),
     SUPEXP_STK_OKAY(    1,  SUPR0GetCurrentGdtRw),
@@ -1742,7 +1756,7 @@ static int supdrvIOCtlInnerUnrestricted(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt,
 
             /* execute */
             pReq->u.Out.cFunctions = RT_ELEMENTS(g_aFunctions);
-            memcpy(&pReq->u.Out.aFunctions[0], g_aFunctions, sizeof(g_aFunctions));
+            SUPDRV_MEMCPY(&pReq->u.Out.aFunctions[0], g_aFunctions, sizeof(g_aFunctions));
             pReq->Hdr.rc = VINF_SUCCESS;
             return 0;
         }

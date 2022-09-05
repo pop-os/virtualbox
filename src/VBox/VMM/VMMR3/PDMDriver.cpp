@@ -1854,6 +1854,20 @@ static DECLCALLBACK(VMRESUMEREASON) pdmR3DrvHlp_VMGetResumeReason(PPDMDRVINS pDr
 }
 
 
+/** @interface_method_impl{PDMDRVHLPR3,pfnTimerDestroy} */
+static DECLCALLBACK(int) pdmR3DrvHlp_TimerDestroy(PPDMDRVINS pDrvIns, TMTIMERHANDLE hTimer)
+{
+    PDMDRV_ASSERT_DRVINS(pDrvIns); RT_NOREF(pDrvIns);
+    LogFlow(("pdmR3DrvHlp_TimerDestroy: caller='%s'/%d: hTimer=%RX64\n",
+             pDrvIns->pReg->szName, pDrvIns->iInstance, hTimer));
+
+    int rc = TMR3TimerDestroy((PTMTIMERR3)hTimer);
+
+    LogFlow(("pdmR3DrvHlp_TimerDestroy: caller='%s'/%d: returns %Rrc\n", pDrvIns->pReg->szName, pDrvIns->iInstance, rc));
+    return rc;
+}
+
+
 /**
  * The driver helper structure.
  */
@@ -1905,7 +1919,7 @@ const PDMDRVHLPR3 g_pdmR3DrvHlp =
     pdmR3DrvHlp_VMGetResumeReason,
     pdmR3DrvHlp_TimerSetMillies,
     pdmR3DrvHlp_STAMDeregisterByPrefix,
-    NULL,
+    pdmR3DrvHlp_TimerDestroy,
     NULL,
     NULL,
     NULL,

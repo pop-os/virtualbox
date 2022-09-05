@@ -452,6 +452,7 @@
         </group></arg>
       <arg>--recordingscreens=<group choice="plain">
           <arg choice="plain">all</arg>
+          <arg choice="plain">none</arg>
           <arg choice="plain"><replaceable>screen-ID</replaceable> [<replaceable>screen-ID</replaceable>...]</arg>
         </group></arg>
       <arg>--recordingfile=<replaceable>filename</replaceable></arg>

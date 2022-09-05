@@ -32,6 +32,7 @@
 #include <iprt/crypto/pkcs7.h>
 
 #include <iprt/err.h>
+#include <iprt/mem.h>
 #include <iprt/string.h>
 #include <iprt/crypto/digest.h>
 #include <iprt/crypto/key.h>
@@ -58,16 +59,23 @@ static int rtCrPkcs7VerifySignedDataUsingOpenSsl(PCRTCRPKCS7CONTENTINFO pContent
     /*
      * Verify using OpenSSL.          ERR_PUT_error
      */
-    int rcOssl;
-    unsigned char const *pbRawContent = RTASN1CORE_GET_RAW_ASN1_PTR(&pContentInfo->SeqCore.Asn1Core);
-    uint32_t             cbRawContent = RTASN1CORE_GET_RAW_ASN1_SIZE(&pContentInfo->SeqCore.Asn1Core)
-                                      + (pContentInfo->SeqCore.Asn1Core.fFlags & RTASN1CORE_F_INDEFINITE_LENGTH ? 2 : 0);
-    PKCS7 *pOsslPkcs7 = NULL;
-    if (d2i_PKCS7(&pOsslPkcs7, &pbRawContent, cbRawContent) != NULL)
+    unsigned char const *pbRawContent;
+    uint32_t             cbRawContent;
+    void                *pvFree;
+    int rcOssl = RTAsn1EncodeQueryRawBits(RTCrPkcs7ContentInfo_GetAsn1Core(pContentInfo),
+                                          (const uint8_t **)&pbRawContent, &cbRawContent, &pvFree, pErrInfo);
+    AssertRCReturn(rcOssl, rcOssl);
+
+    PKCS7 *pOsslPkcs7   = NULL;
+    PKCS7 *pOsslPkcs7Ret = d2i_PKCS7(&pOsslPkcs7, &pbRawContent, cbRawContent);
+
+    RTMemTmpFree(pvFree);
+
+    if (pOsslPkcs7Ret != NULL)
     {
         STACK_OF(X509) *pAddCerts = NULL;
         if (hAdditionalCerts != NIL_RTCRSTORE)
-            rcOssl = RTCrStoreConvertToOpenSslCertStack(hAdditionalCerts, 0, (void **)&pAddCerts);
+            rcOssl = RTCrStoreConvertToOpenSslCertStack(hAdditionalCerts, 0, (void **)&pAddCerts, pErrInfo);
         else
         {
             pAddCerts = sk_X509_new_null();
@@ -78,11 +86,11 @@ static int rtCrPkcs7VerifySignedDataUsingOpenSsl(PCRTCRPKCS7CONTENTINFO pContent
             PCRTCRPKCS7SETOFCERTS pCerts = &pContentInfo->u.pSignedData->Certificates;
             for (uint32_t i = 0; i < pCerts->cItems; i++)
                 if (pCerts->papItems[i]->enmChoice == RTCRPKCS7CERTCHOICE_X509)
-                    rtCrOpenSslAddX509CertToStack(pAddCerts, pCerts->papItems[i]->u.pX509Cert);
+                    rtCrOpenSslAddX509CertToStack(pAddCerts, pCerts->papItems[i]->u.pX509Cert, NULL);
 
             X509_STORE *pTrustedCerts = NULL;
             if (hTrustedCerts != NIL_RTCRSTORE)
-                rcOssl = RTCrStoreConvertToOpenSslCertStore(hTrustedCerts, 0, (void **)&pTrustedCerts);
+                rcOssl = RTCrStoreConvertToOpenSslCertStore(hTrustedCerts, 0, (void **)&pTrustedCerts, pErrInfo);
             if (RT_SUCCESS(rcOssl))
             {
                 rtCrOpenSslInit();
@@ -315,15 +323,9 @@ static int rtCrPkcs7VerifySignerInfoAuthAttribs(PCRTCRPKCS7SIGNERINFO pSignerInf
         RTCrDigestRelease(*phDigest);
         *phDigest = hDigest;
 
-        /* ASSUMES that the attributes are encoded according to DER. */
-        uint8_t const  *pbData = (uint8_t const *)RTASN1CORE_GET_RAW_ASN1_PTR(&pSignerInfo->AuthenticatedAttributes.SetCore.Asn1Core);
-        uint32_t        cbData = RTASN1CORE_GET_RAW_ASN1_SIZE(&pSignerInfo->AuthenticatedAttributes.SetCore.Asn1Core);
-        uint8_t         bSetOfTag = ASN1_TAG_SET | ASN1_TAGCLASS_UNIVERSAL | ASN1_TAGFLAG_CONSTRUCTED;
-        rc = RTCrDigestUpdate(hDigest, &bSetOfTag, sizeof(bSetOfTag)); /* Replace the implict tag with a SET-OF tag. */
-        if (RT_SUCCESS(rc))
-            rc = RTCrDigestUpdate(hDigest, pbData + sizeof(bSetOfTag), cbData - sizeof(bSetOfTag)); /* Skip the implicit tag. */
-        if (RT_SUCCESS(rc))
-            rc = RTCrDigestFinal(hDigest, NULL, 0);
+        /** @todo The encoding step modifies the data, contradicting the const-ness
+         *        of the parameter. */
+        rc = RTCrPkcs7Attributes_HashAttributes((PRTCRPKCS7ATTRIBUTES)&pSignerInfo->AuthenticatedAttributes, hDigest, pErrInfo);
     }
     return rc;
 }
@@ -424,8 +426,9 @@ static int rtCrPkcs7VerifySignerInfo(PCRTCRPKCS7SIGNERINFO pSignerInfo, PCRTCRPK
      * and verify them.  If no valid paths are found, this step will fail.
      */
     int rc = VINF_SUCCESS;
-    if (   hSignerCertSrc == NIL_RTCRSTORE
-        || hSignerCertSrc != hTrustedCerts)
+    if (   (   hSignerCertSrc == NIL_RTCRSTORE
+            || hSignerCertSrc != hTrustedCerts)
+        && !(fFlags & RTCRPKCS7VERIFY_SD_F_TRUST_ALL_CERTS) )
     {
         RTCRX509CERTPATHS hCertPaths;
         rc = RTCrX509CertPathsCreate(&hCertPaths, pSignerCert);

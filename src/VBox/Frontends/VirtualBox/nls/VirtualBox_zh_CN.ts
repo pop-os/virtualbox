@@ -2727,6 +2727,10 @@
         <translatorcomment>TODO</translatorcomment>
         <translation>主要编组</translation>
     </message>
+    <message>
+        <source>Storage Controller (VirtioSCSI)</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIApplianceImportEditorWidget</name>
@@ -4096,7 +4100,7 @@
     <message>
         <source>Starting</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="obsolete">正在启动</translation>
+        <translation type="unfinished">正在启动</translation>
     </message>
     <message>
         <source>Starting</source>
@@ -4136,22 +4140,22 @@
     <message>
         <source>IDE Primary Device 0</source>
         <comment>StorageSlot</comment>
-        <translation type="unfinished">第一IDE控制器主通道</translation>
+        <translation>第一IDE控制器主通道</translation>
     </message>
     <message>
         <source>IDE Primary Device 1</source>
         <comment>StorageSlot</comment>
-        <translation type="unfinished">第一IDE控制器从通道</translation>
+        <translation>第一IDE控制器从通道</translation>
     </message>
     <message>
         <source>IDE Secondary Device 0</source>
         <comment>StorageSlot</comment>
-        <translation type="unfinished">第二IDE控制器主通道</translation>
+        <translation>第二IDE控制器主通道</translation>
     </message>
     <message>
         <source>IDE Secondary Device 1</source>
         <comment>StorageSlot</comment>
-        <translation type="unfinished">第二IDE控制器从通道</translation>
+        <translation>第二IDE控制器从通道</translation>
     </message>
     <message>
         <source>SATA Port %1</source>
@@ -4291,7 +4295,7 @@
     </message>
     <message>
         <source>Bridget Adapter</source>
-        <translation>桥接网卡</translation>
+        <translation type="vanished">桥接网卡</translation>
     </message>
     <message>
         <source>Internal Network</source>
@@ -4851,7 +4855,55 @@
     <message>
         <source>Cloud Network [EXPERIMENTAL]</source>
         <comment>NetworkAttachmentType</comment>
+        <translation>云网络 [试验功能]</translation>
+    </message>
+    <message>
+        <source>Undefined</source>
+        <comment>GuestSessionStatus</comment>
         <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Started</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Terminating</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Terminated</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Timed Out (Killed)</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Timed Out (Abnormally)</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Down</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bridged Adapter</source>
+        <translation type="unfinished">桥接网卡</translation>
+    </message>
+    <message>
+        <source>Cloud Network</source>
+        <translation type="unfinished">云网络</translation>
     </message>
 </context>
 <context>
@@ -6546,6 +6598,14 @@
     <message>
         <source>No Guest Session found!&lt;br&gt;Please use the Session Panel to start a new guest session</source>
         <translation>未找到虚拟机会话!&lt;br&gt;请用会话面板开启新会话</translation>
+    </message>
+    <message>
+        <source>Close dialog without saving</source>
+        <translation type="unfinished">关闭对话框而不保存</translation>
+    </message>
+    <message>
+        <source>Reset Changes (%1)</source>
+        <translation type="unfinished">重置更改 (%1)</translation>
     </message>
 </context>
 <context>
@@ -12664,7 +12724,7 @@
     </message>
     <message>
         <source>The hardware virtualization is enabled in the Acceleration section of the System page although it is not supported by the host system. It should be disabled in order to start the virtual system.</source>
-        <translation>硬件加速配置页中已启用硬件虚拟化，但主机并不支持。 需要禁用硬件虚拟化才能启动虚拟机。</translation>
+        <translation type="vanished">硬件加速配置页中已启用硬件虚拟化，但主机并不支持。 需要禁用硬件虚拟化才能启动虚拟机。</translation>
     </message>
     <message>
         <source>When checked, the nested hardware virtualization CPU feature will be exposed to the virtual machine.</source>
@@ -12681,7 +12741,7 @@
     </message>
     <message>
         <source>The nested paging is not currently enabled in the Acceleration section of the System page. This is needed to support nested hardware virtualization. It will be enabled automatically if you confirm your changes.</source>
-        <translation>尚未启用潜逃分页。支持嵌套虚拟化时需要启用。确认更改时此选项将被启用。</translation>
+        <translation>尚未启用嵌套分页。支持嵌套虚拟化时需要启用。确认更改时此选项将被启用。</translation>
     </message>
     <message>
         <source>The hardware virtualization is not currently enabled in the Acceleration section of the System page. This is needed for nested paging support. It will be enabled automatically if you confirm your changes.</source>
@@ -15518,15 +15578,15 @@
     </message>
     <message>
         <source>Failed to open the medium with following ID: &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
-        <translation>打开虚拟介质 &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; (ID) 失败.</translation>
+        <translation type="vanished">打开虚拟介质 &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; (ID) 失败.</translation>
     </message>
     <message>
         <source>Failed to acquire attachment parameter.</source>
-        <translation>未能获取相关参数.</translation>
+        <translation type="vanished">未能获取相关参数.</translation>
     </message>
     <message>
         <source>Failed to acquire medium attribute.</source>
-        <translation>未能获取介质属性。</translation>
+        <translation type="vanished">未能获取介质属性。</translation>
     </message>
     <message>
         <source>Failed to create cloud machine.</source>

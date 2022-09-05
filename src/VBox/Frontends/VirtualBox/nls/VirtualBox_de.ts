@@ -2211,6 +2211,10 @@
         <source>Primary Group</source>
         <translation>Primäre Gruppe</translation>
     </message>
+    <message>
+        <source>Storage Controller (VirtioSCSI)</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIApplianceImportEditorWidget</name>
@@ -3435,27 +3439,27 @@
     <message>
         <source>Undefined</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="vanished">Unbekannt</translation>
+        <translation>Unbekannt</translation>
     </message>
     <message>
         <source>Starting</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="vanished">wird gestartet</translation>
+        <translation>wird gestartet</translation>
     </message>
     <message>
         <source>Started</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="vanished">gestartet</translation>
+        <translation>gestartet</translation>
     </message>
     <message>
         <source>Terminating</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="vanished">wird beendet</translation>
+        <translation>wird beendet</translation>
     </message>
     <message>
         <source>Terminated</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="vanished">beendet</translation>
+        <translation>beendet</translation>
     </message>
     <message>
         <source>TimedOutKilled</source>
@@ -3470,12 +3474,12 @@
     <message>
         <source>Down</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="vanished">beendet (down)</translation>
+        <translation>beendet (down)</translation>
     </message>
     <message>
         <source>Error</source>
         <comment>GuestSessionStatus</comment>
-        <translation type="vanished">fehler</translation>
+        <translation>fehler</translation>
     </message>
     <message>
         <source>Undefined</source>
@@ -3719,7 +3723,7 @@
         <translation>NAT</translation>
     </message>
     <message>
-        <source>Bridget Adapter</source>
+        <source>Bridged Adapter</source>
         <translation>Netzwerkbrücke</translation>
     </message>
     <message>
@@ -4286,6 +4290,20 @@
         <source>Cloud Network [EXPERIMENTAL]</source>
         <comment>NetworkAttachmentType</comment>
         <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Timed Out (Killed)</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Timed Out (Abnormally)</source>
+        <comment>GuestSessionStatus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cloud Network</source>
+        <translation type="unfinished">Cloud-Netzwerk</translation>
     </message>
 </context>
 <context>
@@ -5289,6 +5307,14 @@ a guest session</source>
     <message>
         <source>No Guest Session found!&lt;br&gt;Please use the Session Panel to start a new guest session</source>
         <translation>Keine Gastsitzung vorhanden!&lt;br&gt;Bitte das Session-Panel nutzen um eine neue Gastsitzung zu starten</translation>
+    </message>
+    <message>
+        <source>Close dialog without saving</source>
+        <translation type="unfinished">Dialog schließen, ohne die Änderungen zu sichern</translation>
+    </message>
+    <message>
+        <source>Reset Changes (%1)</source>
+        <translation type="unfinished">Änderungen verwerfen (%1)</translation>
     </message>
 </context>
 <context>
@@ -9900,7 +9926,7 @@ a guest session</source>
     </message>
     <message>
         <source>The hardware virtualization is enabled in the Acceleration section of the System page although it is not supported by the host system. It should be disabled in order to start the virtual system.</source>
-        <translation>Die Hardware-Virtualisierung ist in den Systemeinstallungen aktiviert, obwohl dies vom Host-System nicht unterstützt wird. Deshalb sollte diese deaktiviert werden um ein virtuellen System starten zu können.</translation>
+        <translation type="vanished">Die Hardware-Virtualisierung ist in den Systemeinstallungen aktiviert, obwohl dies vom Host-System nicht unterstützt wird. Deshalb sollte diese deaktiviert werden um ein virtuellen System starten zu können.</translation>
     </message>
     <message>
         <source>%1 CPU</source>
@@ -12132,15 +12158,15 @@ a guest session</source>
     </message>
     <message>
         <source>Failed to open the medium with following ID: &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
-        <translation>Das Medium konnte nicht mit folgender ID geöffnet werden: &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</translation>
+        <translation type="vanished">Das Medium konnte nicht mit folgender ID geöffnet werden: &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</translation>
     </message>
     <message>
         <source>Failed to acquire attachment parameter.</source>
-        <translation>Der Parameter für die Anlage konnte nicht erfasst werden.</translation>
+        <translation type="vanished">Der Parameter für die Anlage konnte nicht erfasst werden.</translation>
     </message>
     <message>
         <source>Failed to acquire medium attribute.</source>
-        <translation>Der Parameter für das Medium konnte nicht erfasst werden.</translation>
+        <translation type="vanished">Der Parameter für das Medium konnte nicht erfasst werden.</translation>
     </message>
     <message>
         <source>Failed to create cloud machine.</source>
@@ -17129,7 +17155,7 @@ a guest session</source>
         <translation type="obsolete">nicht angeschlossen</translation>
     </message>
     <message>
-        <source>Bridget Adapter</source>
+        <source>Bridged Adapter</source>
         <translation type="vanished">Netzwerkbrücke</translation>
     </message>
     <message>

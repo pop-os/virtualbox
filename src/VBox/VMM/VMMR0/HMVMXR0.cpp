@@ -979,7 +979,6 @@ static uint64_t hmR0VmxGetFixedCr4Mask(PCVMCPUCC pVCpu)
      */
     PCVMCC pVM = pVCpu->CTX_SUFF(pVM);
     bool const fFsGsBase    = pVM->cpum.ro.GuestFeatures.fFsGsBase;
-    bool const fXSaveRstor  = pVM->cpum.ro.GuestFeatures.fXSaveRstor;
     bool const fFxSaveRstor = pVM->cpum.ro.GuestFeatures.fFxSaveRstor;
 
     /*
@@ -987,18 +986,16 @@ static uint64_t hmR0VmxGetFixedCr4Mask(PCVMCPUCC pVCpu)
      * Ensure features exposed to the guest are present on the host.
      */
     Assert(!fFsGsBase    || pVM->cpum.ro.HostFeatures.fFsGsBase);
-    Assert(!fXSaveRstor  || pVM->cpum.ro.HostFeatures.fXSaveRstor);
     Assert(!fFxSaveRstor || pVM->cpum.ro.HostFeatures.fFxSaveRstor);
 
-    uint64_t const fGstMask = (  X86_CR4_PVI
-                               | X86_CR4_TSD
-                               | X86_CR4_DE
-                               | X86_CR4_MCE
-                               | X86_CR4_PCE
-                               | X86_CR4_OSXMMEEXCPT
-                               | (fFsGsBase    ? X86_CR4_FSGSBASE : 0)
-                               | (fXSaveRstor  ? X86_CR4_OSXSAVE  : 0)
-                               | (fFxSaveRstor ? X86_CR4_OSFXSR   : 0));
+    uint64_t const fGstMask = X86_CR4_PVI
+                            | X86_CR4_TSD
+                            | X86_CR4_DE
+                            | X86_CR4_MCE
+                            | X86_CR4_PCE
+                            | X86_CR4_OSXMMEEXCPT
+                            | (fFsGsBase    ? X86_CR4_FSGSBASE : 0)
+                            | (fFxSaveRstor ? X86_CR4_OSFXSR   : 0);
     return ~fGstMask;
 }
 

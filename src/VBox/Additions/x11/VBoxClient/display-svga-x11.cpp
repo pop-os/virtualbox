@@ -80,6 +80,33 @@ RTTHREAD mX11MonitorThread = NIL_RTTHREAD;
 /** Shutdown indicator for the monitor thread. */
 static bool g_fMonitorThreadShutdown = false;
 
+#define X_VMwareCtrlSetRes  1
+
+typedef struct
+{
+   CARD8    reqType;
+   CARD8    VMwareCtrlReqType;
+   CARD16   length B16;
+   CARD32   screen B32;
+   CARD32   x B32;
+   CARD32   y B32;
+} xVMwareCtrlSetResReq;
+#define sz_xVMwareCtrlSetResReq 16
+
+typedef struct
+{
+   BYTE     type;
+   BYTE     pad1;
+   CARD16   sequenceNumber B16;
+   CARD32   length B32;
+   CARD32   screen B32;
+   CARD32   x B32;
+   CARD32   y B32;
+   CARD32   pad2 B32;
+   CARD32   pad3 B32;
+   CARD32   pad4 B32;
+} xVMwareCtrlSetResReply;
+#define sz_xVMwareCtrlSetResReply 32
 
 typedef struct {
    CARD8  reqType;           /* always X_VMwareCtrlReqCode */
@@ -156,6 +183,9 @@ struct X11CONTEXT
     XRRCrtcInfo* (*pXRRGetCrtcInfo) (Display *, XRRScreenResources *, RRCrtc crtc);
     void (*pXRRFreeCrtcInfo)(XRRCrtcInfo *);
     void (*pXRRAddOutputMode)(Display *, RROutput, RRMode);
+    void (*pXRRDeleteOutputMode)(Display *, RROutput, RRMode);
+    void (*pXRRDestroyMode)(Display *, RRMode);
+    void (*pXRRSetOutputPrimary)(Display *, Window, RROutput);
 };
 
 static X11CONTEXT x11Context;
@@ -167,6 +197,7 @@ struct RANDROUTPUT
     uint32_t width;
     uint32_t height;
     bool fEnabled;
+    bool fPrimary;
 };
 
 struct DisplayModeR {
@@ -433,6 +464,33 @@ DisplayModeR f86CVTMode(int HDisplay, int VDisplay, float VRefresh /* Herz */, B
     return Mode;
 }
 
+#ifdef RT_OS_SOLARIS
+static bool VMwareCtrlSetRes(
+    Display *dpy, int hExtensionMajorOpcode, int screen, int x, int y)
+{
+    xVMwareCtrlSetResReply rep;
+    xVMwareCtrlSetResReq *pReq;
+    bool fResult = false;
+
+    LockDisplay(dpy);
+
+    GetReq(VMwareCtrlSetRes, pReq);
+    AssertPtrReturn(pReq, false);
+
+    pReq->reqType = hExtensionMajorOpcode;
+    pReq->VMwareCtrlReqType = X_VMwareCtrlSetRes;
+    pReq->screen = screen;
+    pReq->x = x;
+    pReq->y = y;
+
+    fResult = !!_XReply(dpy, (xReply *)&rep, (SIZEOF(xVMwareCtrlSetResReply) - SIZEOF(xReply)) >> 2, xFalse);
+
+    UnlockDisplay(dpy);
+
+    return fResult;
+}
+#endif /* RT_OS_SOLARIS */
+
 /** Makes a call to vmwarectrl extension. This updates the
  * connection information and possible resolutions (modes)
  * of each monitor on the driver. Also sets the preferred mode
@@ -476,6 +534,10 @@ static int getMonitorIdFromName(const char *sMonitorName)
 {
     if (!sMonitorName)
         return -1;
+#ifdef RT_OS_SOLARIS
+    if (!strcmp(sMonitorName, "default"))
+        return 1;
+#endif
     int iLen = strlen(sMonitorName);
     if (iLen <= 0)
         return -1;
@@ -648,6 +710,11 @@ static bool callVMWCTRL(struct RANDROUTPUT *paOutputs)
 {
     int hHeight = 600;
     int hWidth = 800;
+    bool fResult = false;
+    int idxDefaultScreen = DefaultScreen(x11Context.pDisplay);
+
+    AssertReturn(idxDefaultScreen >= 0, false);
+    AssertReturn(idxDefaultScreen < x11Context.hOutputCount, false);
 
     xXineramaScreenInfo *extents = (xXineramaScreenInfo *)malloc(x11Context.hOutputCount * sizeof(xXineramaScreenInfo));
     if (!extents)
@@ -671,10 +738,17 @@ static bool callVMWCTRL(struct RANDROUTPUT *paOutputs)
         extents[i].height = hHeight;
         hRunningOffset += hWidth;
     }
-    return VMwareCtrlSetTopology(x11Context.pDisplay, x11Context.hVMWCtrlMajorOpCode,
-                                 DefaultScreen(x11Context.pDisplay),
-                                 extents, x11Context.hOutputCount);
+#ifdef RT_OS_SOLARIS
+    fResult = VMwareCtrlSetRes(x11Context.pDisplay, x11Context.hVMWCtrlMajorOpCode,
+                               idxDefaultScreen, extents[idxDefaultScreen].width,
+                               extents[idxDefaultScreen].height);
+#else
+    fResult = VMwareCtrlSetTopology(x11Context.pDisplay, x11Context.hVMWCtrlMajorOpCode,
+                                    idxDefaultScreen, extents, x11Context.hOutputCount);
+#endif
     free(extents);
+
+    return fResult;
 }
 
 /**
@@ -797,7 +871,7 @@ static bool init()
     /* If DRM client is already running don't start this service. */
     if (checkDRMClient())
     {
-        VBClLogFatalError("DRM resizing is already running. Exiting this service\n");
+        VBClLogInfo("DRM resizing is already running. Exiting this service\n");
         return false;
     }
     if (isXwayland())
@@ -911,6 +985,15 @@ static int openLibRandR()
     *(void **)(&x11Context.pXRRAddOutputMode) = dlsym(x11Context.pRandLibraryHandle, "XRRAddOutputMode");
     checkFunctionPtr(x11Context.pXRRAddOutputMode);
 
+    *(void **)(&x11Context.pXRRDeleteOutputMode) = dlsym(x11Context.pRandLibraryHandle, "XRRDeleteOutputMode");
+    checkFunctionPtr(x11Context.pXRRDeleteOutputMode);
+
+    *(void **)(&x11Context.pXRRDestroyMode) = dlsym(x11Context.pRandLibraryHandle, "XRRDestroyMode");
+    checkFunctionPtr(x11Context.pXRRDestroyMode);
+
+    *(void **)(&x11Context.pXRRSetOutputPrimary) = dlsym(x11Context.pRandLibraryHandle, "XRRSetOutputPrimary");
+    checkFunctionPtrReturn(x11Context.pXRRSetOutputPrimary);
+
     return VINF_SUCCESS;
 }
 #endif
@@ -937,6 +1020,9 @@ static void x11Connect()
     x11Context.pXRRGetCrtcInfo = NULL;
     x11Context.pXRRFreeCrtcInfo = NULL;
     x11Context.pXRRAddOutputMode = NULL;
+    x11Context.pXRRDeleteOutputMode = NULL;
+    x11Context.pXRRDestroyMode = NULL;
+    x11Context.pXRRSetOutputPrimary = NULL;
     x11Context.fWmwareCtrlExtention = false;
     x11Context.fMonitorInfoAvailable = false;
     x11Context.hRandRMajor = 0;
@@ -1022,9 +1108,7 @@ static void x11Connect()
     if (x11Context.pXRRGetScreenResources)
         x11Context.pScreenResources = x11Context.pXRRGetScreenResources(x11Context.pDisplay, x11Context.rootWindow);
 #endif
-    /* Currently without the VMWARE_CTRL extension we cannot connect outputs and set outputs' preferred mode.
-     * So we set the output count to 1 to get the 1st output position correct. */
-    x11Context.hOutputCount = x11Context.fWmwareCtrlExtention ? determineOutputCount() : 1;
+    x11Context.hOutputCount = RT_VALID_PTR(x11Context.pScreenResources) ? determineOutputCount() : 0;
 #ifdef WITH_DISTRO_XRAND_XINERAMA
     XRRFreeScreenResources(x11Context.pScreenResources);
 #else
@@ -1159,7 +1243,14 @@ static bool resizeFrameBuffer(struct RANDROUTPUT *paOutputs)
 #endif
     XRRScreenSize newSize = currentSize();
 
-    if (!event || newSize.width != (int)iXRes || newSize.height != (int)iYRes)
+    /* On Solaris guest, new screen size is not reported properly despite
+     * RRScreenChangeNotify event arrives. Hense, only check for event here.
+     * Linux guests do report new size correctly. */
+    if (   !event
+#ifndef RT_OS_SOLARIS
+        || newSize.width != (int)iXRes || newSize.height != (int)iYRes
+#endif
+       )
     {
         VBClLogError("Resizing frame buffer to %d %d has failed, current mode %d %d\n",
             iXRes, iYRes, newSize.width, newSize.height);
@@ -1184,7 +1275,10 @@ static XRRModeInfo *createMode(int iXRes, int iYRes)
 
     DisplayModeR mode = f86CVTMode(iXRes, iYRes, 60 /*VRefresh */, true /*Reduced */, false  /* Interlaced */);
 
-    pModeInfo->dotClock = mode.Clock;
+    /* Convert kHz to Hz: f86CVTMode returns clock value in units of kHz,
+     * XRRCreateMode will expect it in units of Hz. */
+    pModeInfo->dotClock = mode.Clock * 1000;
+
     pModeInfo->hSyncStart = mode.HSyncStart;
     pModeInfo->hSyncEnd = mode.HSyncEnd;
     pModeInfo->hTotal = mode.HTotal;
@@ -1221,6 +1315,14 @@ static bool configureOutput(int iOutputIndex, struct RANDROUTPUT *paOutputs)
         VBClLogError("Output index %d is greater than # of oputputs %d\n", iOutputIndex, x11Context.hOutputCount);
         return false;
     }
+
+    AssertReturn(iOutputIndex >= 0, false);
+    AssertReturn(iOutputIndex < VMW_MAX_HEADS, false);
+
+    /* Remember the last instantiated display mode ID here. This mode will be replaced with the
+     * new one on the next guest screen resize event. */
+    static RRMode aPrevMode[VMW_MAX_HEADS];
+
     RROutput outputId = x11Context.pScreenResources->outputs[iOutputIndex];
     XRROutputInfo *pOutputInfo = NULL;
 #ifdef WITH_DISTRO_XRAND_XINERAMA
@@ -1241,6 +1343,7 @@ static bool configureOutput(int iOutputIndex, struct RANDROUTPUT *paOutputs)
     {
         /* A mode with required size was not found. Create a new one. */
         pModeInfo = createMode(paOutputs[iOutputIndex].width, paOutputs[iOutputIndex].height);
+        VBClLogInfo("create mode %s (%u) on output %d\n", pModeInfo->name, pModeInfo->id, iOutputIndex);
         fNewMode = true;
     }
     if (!pModeInfo)
@@ -1256,6 +1359,41 @@ static bool configureOutput(int iOutputIndex, struct RANDROUTPUT *paOutputs)
     if (x11Context.pXRRAddOutputMode)
         x11Context.pXRRAddOutputMode(x11Context.pDisplay, outputId, pModeInfo->id);
 #endif
+
+    /* If mode has been newly created, destroy and forget mode created on previous guest screen resize event. */
+    if (   aPrevMode[iOutputIndex] > 0
+        && pModeInfo->id != aPrevMode[iOutputIndex]
+        && fNewMode)
+    {
+        VBClLogInfo("removing unused mode %u from output %d\n", aPrevMode[iOutputIndex], iOutputIndex);
+#ifdef WITH_DISTRO_XRAND_XINERAMA
+        XRRDeleteOutputMode(x11Context.pDisplay, outputId, aPrevMode[iOutputIndex]);
+        XRRDestroyMode(x11Context.pDisplay, aPrevMode[iOutputIndex]);
+#else
+        if (x11Context.pXRRDeleteOutputMode)
+            x11Context.pXRRDeleteOutputMode(x11Context.pDisplay, outputId, aPrevMode[iOutputIndex]);
+        if (x11Context.pXRRDestroyMode)
+            x11Context.pXRRDestroyMode(x11Context.pDisplay, aPrevMode[iOutputIndex]);
+#endif
+        /* Forget destroyed mode. */
+        aPrevMode[iOutputIndex] = 0;
+    }
+
+    /* Only cache modes created "by us". XRRDestroyMode will complain if provided mode
+     * was not created by XRRCreateMode call. */
+    if (fNewMode)
+        aPrevMode[iOutputIndex] = pModeInfo->id;
+
+    if (paOutputs[iOutputIndex].fPrimary)
+    {
+#ifdef WITH_DISTRO_XRAND_XINERAMA
+        XRRSetOutputPrimary(x11Context.pDisplay, x11Context.rootWindow, outputId);
+#else
+        if (x11Context.pXRRSetOutputPrimary)
+            x11Context.pXRRSetOutputPrimary(x11Context.pDisplay, x11Context.rootWindow, outputId);
+#endif
+    }
+
     /* Make sure outputs crtc is set. */
     pOutputInfo->crtc = pOutputInfo->crtcs[0];
 
@@ -1312,8 +1450,8 @@ static void setXrandrTopology(struct RANDROUTPUT *paOutputs)
     if (x11Context.pXRRGetScreenResources)
         x11Context.pScreenResources = x11Context.pXRRGetScreenResources(x11Context.pDisplay, x11Context.rootWindow);
 #endif
-    x11Context.hOutputCount = x11Context.fWmwareCtrlExtention ? determineOutputCount() : 1;
 
+    x11Context.hOutputCount = RT_VALID_PTR(x11Context.pScreenResources) ? determineOutputCount() : 0;
     if (!x11Context.pScreenResources)
     {
         XUngrabServer(x11Context.pDisplay);
@@ -1380,7 +1518,10 @@ static void setXrandrTopology(struct RANDROUTPUT *paOutputs)
             break;
         if (!paOutputs[i].fEnabled)
             continue;
-        configureOutput(i, paOutputs);
+        if (configureOutput(i, paOutputs))
+            VBClLogInfo("output[%d] successfully configured\n", i);
+        else
+            VBClLogError("failed to configure output[%d]\n", i);
     }
     XSync(x11Context.pDisplay, False);
 #ifdef WITH_DISTRO_XRAND_XINERAMA
@@ -1475,6 +1616,7 @@ static int run(struct VBCLSERVICE **ppInterface, bool fDaemonised)
                 aOutputs[j].width = aMonitors[j].cx;
                 aOutputs[j].height = aMonitors[j].cy;
                 aOutputs[j].fEnabled = !(aMonitors[j].fDisplayFlags & VMMDEV_DISPLAY_DISABLED);
+                aOutputs[j].fPrimary = (aMonitors[j].fDisplayFlags & VMMDEV_DISPLAY_PRIMARY);
                 if (aOutputs[j].fEnabled)
                     iRunningX += aOutputs[j].width;
             }

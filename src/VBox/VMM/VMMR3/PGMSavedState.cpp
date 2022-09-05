@@ -465,7 +465,12 @@ static int pgmR3SaveRomVirginPages(PVM pVM, PSSMHANDLE pSSM, bool fLiveSave)
                 &&  !PGM_PAGE_IS_BALLOONED(pPage))
             {
                 void const *pvPage;
-                rc = pgmPhysPageMapReadOnly(pVM, pPage, GCPhys, &pvPage);
+#ifdef VBOX_WITH_PGM_NEM_MODE
+                if (!PGMROMPROT_IS_ROM(enmProt) && pVM->pgm.s.fNemMode)
+                    pvPage = &pRom->pbR3Alternate[iPage << PAGE_SHIFT];
+                else
+#endif
+                    rc = pgmPhysPageMapReadOnly(pVM, pPage, GCPhys, &pvPage);
                 if (RT_SUCCESS(rc))
                     memcpy(abPage, pvPage, PAGE_SIZE);
             }
@@ -551,7 +556,12 @@ static int pgmR3SaveShadowedRomPages(PVM pVM, PSSMHANDLE pSSM, bool fLiveSave, b
                     if (!fZero)
                     {
                         void const *pvPage;
-                        rc = pgmPhysPageMapReadOnly(pVM, pPage, GCPhys, &pvPage);
+#ifdef VBOX_WITH_PGM_NEM_MODE
+                        if (PGMROMPROT_IS_ROM(enmProt) && pVM->pgm.s.fNemMode)
+                            pvPage = &pRom->pbR3Alternate[iPage << PAGE_SHIFT];
+                        else
+#endif
+                            rc = pgmPhysPageMapReadOnly(pVM, pPage, GCPhys, &pvPage);
                         if (RT_SUCCESS(rc))
                             memcpy(abPage, pvPage, PAGE_SIZE);
                     }
@@ -2880,6 +2890,9 @@ static int pgmR3LoadMemory(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t
 
                     default: AssertLogRelFailedReturn(VERR_IPE_NOT_REACHED_DEFAULT_CASE); /* shut up gcc */
                 }
+#ifdef VBOX_WITH_PGM_NEM_MODE
+                bool const fAltPage = pRealPage != NULL;
+#endif
                 if (!pRealPage)
                 {
                     rc = pgmPhysGetPageWithHintEx(pVM, GCPhys, &pRealPage, &pRamHint);
@@ -2900,11 +2913,16 @@ static int pgmR3LoadMemory(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t
                         RT_FALL_THRU();
                     case PGM_STATE_REC_ROM_VIRGIN:
                     case PGM_STATE_REC_ROM_SHW_RAW:
-                    {
-                        rc = pgmPhysPageMakeWritableAndMap(pVM, pRealPage, GCPhys, &pvDstPage);
-                        AssertLogRelMsgRCReturn(rc, ("GCPhys=%RGp rc=%Rrc\n", GCPhys, rc), rc);
+#ifdef VBOX_WITH_PGM_NEM_MODE
+                        if (fAltPage && pVM->pgm.s.fNemMode)
+                            pvDstPage = &pRom->pbR3Alternate[iPage << PAGE_SHIFT];
+                        else
+#endif
+                        {
+                            rc = pgmPhysPageMakeWritableAndMap(pVM, pRealPage, GCPhys, &pvDstPage);
+                            AssertLogRelMsgRCReturn(rc, ("GCPhys=%RGp rc=%Rrc\n", GCPhys, rc), rc);
+                        }
                         break;
-                    }
                 }
 
                 /*

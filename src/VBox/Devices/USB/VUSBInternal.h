@@ -3,7 +3,7 @@
  * Virtual USB - Internal header.
  *
  * This subsystem implements USB devices in a host controller independent
- * way.  All the host controller code has to do is use VUSBHUB for its
+ * way.  All the host controller code has to do is use VUSBROOTHUB for its
  * root hub implementation and any emulated USB device may be plugged into
  * the virtual bus.
  */
@@ -56,8 +56,6 @@ RT_C_DECLS_BEGIN
 
 /** Pointer to a Virtual USB device (core). */
 typedef struct VUSBDEV *PVUSBDEV;
-/** Pointer to a VUSB hub device. */
-typedef struct VUSBHUB *PVUSBHUB;
 /** Pointer to a VUSB root hub. */
 typedef struct VUSBROOTHUB *PVUSBROOTHUB;
 
@@ -219,19 +217,15 @@ AssertCompileSizeAlignment(VUSBURBPOOL, 8);
 typedef struct VUSBDEV
 {
     /** The device interface exposed to the HCI. */
-    VUSBIDEVICE         IDevice;
+    VUSBIDEVICE                 IDevice;
     /** Pointer to the PDM USB device instance. */
-    PPDMUSBINS          pUsbIns;
-    /** Next device in the chain maintained by the roothub. */
-    PVUSBDEV            pNext;
-    /** Pointer to the next device with the same address hash. */
-    PVUSBDEV            pNextHash;
-    /** Pointer to the hub this device is attached to. */
-    PVUSBHUB            pHub;
+    PPDMUSBINS                  pUsbIns;
+    /** Pointer to the roothub this device is attached to. */
+    PVUSBROOTHUB                pHub;
     /** The device state. */
-    VUSBDEVICESTATE volatile enmState;
+    VUSBDEVICESTATE volatile    enmState;
     /** Reference counter to protect the device structure from going away. */
-    uint32_t volatile        cRefs;
+    uint32_t volatile           cRefs;
 
     /** The device address. */
     uint8_t             u8Address;
@@ -294,16 +288,10 @@ AssertCompileSizeAlignment(VUSBDEV, 8);
 
 int vusbDevInit(PVUSBDEV pDev, PPDMUSBINS pUsbIns, const char *pszCaptureFilename);
 void vusbDevDestroy(PVUSBDEV pDev);
-
-DECLINLINE(bool) vusbDevIsRh(PVUSBDEV pDev)
-{
-    return (pDev->pHub == (PVUSBHUB)pDev);
-}
-
 bool vusbDevDoSelectConfig(PVUSBDEV dev, PCVUSBDESCCONFIGEX pCfg);
 void vusbDevMapEndpoint(PVUSBDEV dev, PCVUSBDESCENDPOINTEX ep);
 int vusbDevDetach(PVUSBDEV pDev);
-int vusbDevAttach(PVUSBDEV pDev, PVUSBHUB pHub);
+int vusbDevAttach(PVUSBDEV pDev, PVUSBROOTHUB pHub);
 DECLINLINE(PVUSBROOTHUB) vusbDevGetRh(PVUSBDEV pDev);
 size_t vusbDevMaxInterfaces(PVUSBDEV dev);
 
@@ -318,34 +306,6 @@ bool vusbDevStandardRequest(PVUSBDEV pDev, int EndPt, PVUSBSETUP pSetup, void *p
  * @{
  */
 
-
-/** Virtual method table for USB hub devices.
- * Hub and roothub drivers need to implement these functions in addition to the
- * vusb_dev_ops.
- */
-typedef struct VUSBHUBOPS
-{
-    int     (*pfnAttach)(PVUSBHUB pHub, PVUSBDEV pDev);
-    void    (*pfnDetach)(PVUSBHUB pHub, PVUSBDEV pDev);
-} VUSBHUBOPS;
-/** Pointer to a const HUB method table. */
-typedef const VUSBHUBOPS *PCVUSBHUBOPS;
-
-/** A VUSB Hub Device - Hub and roothub drivers need to use this struct
- * @todo eliminate this (PDM  / roothubs only).
- */
-typedef struct VUSBHUB
-{
-    VUSBDEV             Dev;
-    PCVUSBHUBOPS        pOps;
-    PVUSBROOTHUB        pRootHub;
-    uint16_t            cPorts;
-    uint16_t            cDevices;
-    /** Name of the hub. Used for logging. */
-    char               *pszName;
-} VUSBHUB;
-AssertCompileMemberAlignment(VUSBHUB, pOps, 8);
-AssertCompileSizeAlignment(VUSBHUB, 8);
 
 /** @} */
 
@@ -374,8 +334,8 @@ typedef struct VUSBROOTHUBTYPESTATS
 
 
 
-/** The address hash table size. */
-#define VUSB_ADDR_HASHSZ    5
+/** Pointer to a VUSBROOTHUBLOAD struct. */
+typedef struct VUSBROOTHUBLOAD *PVUSBROOTHUBLOAD;
 
 /**
  * The instance data of a root hub driver.
@@ -386,25 +346,32 @@ typedef struct VUSBROOTHUBTYPESTATS
  */
 typedef struct VUSBROOTHUB
 {
-    /** The HUB.
-     * @todo remove this? */
-    VUSBHUB                    Hub;
-    /** Address hash table. */
-    PVUSBDEV                   apAddrHash[VUSB_ADDR_HASHSZ];
-    /** The default address. */
-    PVUSBDEV                   pDefaultAddress;
-
     /** Pointer to the driver instance. */
-    PPDMDRVINS                 pDrvIns;
+    PPDMDRVINS                  pDrvIns;
     /** Pointer to the root hub port interface we're attached to. */
-    PVUSBIROOTHUBPORT          pIRhPort;
+    PVUSBIROOTHUBPORT           pIRhPort;
     /** Connector interface exposed upwards. */
-    VUSBIROOTHUBCONNECTOR      IRhConnector;
+    VUSBIROOTHUBCONNECTOR       IRhConnector;
 
-    /** Critical section protecting the device list. */
-    RTCRITSECT                 CritSectDevices;
-    /** Chain of devices attached to this hub. */
-    PVUSBDEV                   pDevices;
+    /** Critical section protecting the device arrays. */
+    RTCRITSECT                  CritSectDevices;
+    /** Array of pointers to USB devices indexed by the port the device is on. */
+    PVUSBDEV                    apDevByPort[VUSB_DEVICES_MAX];
+    /** Array of pointers to USB devices indexed by the address assigned. */
+    PVUSBDEV                    apDevByAddr[VUSB_DEVICES_MAX];
+    /** Structure after a saved state load to re-attach devices. */
+    PVUSBROOTHUBLOAD            pLoad;
+
+    /** Roothub device state. */
+    VUSBDEVICESTATE             enmState;
+    /** Number of ports this roothub offers. */
+    uint16_t                    cPorts;
+    /** Number of devices attached to this roothub currently. */
+    uint16_t                    cDevices;
+    /** Name of the roothub. Used for logging. */
+    char                        *pszName;
+    /** URB pool for URBs from the roothub. */
+    VUSBURBPOOL                 UrbPool;
 
 #if HC_ARCH_BITS == 32
     uint32_t                   Alignment0;
@@ -514,9 +481,9 @@ void vusbUrbDoReapAsyncDev(PVUSBDEV pDev, RTMSINTERVAL cMillies);
 void vusbUrbCancel(PVUSBURB pUrb, CANCELMODE mode);
 void vusbUrbCancelAsync(PVUSBURB pUrb, CANCELMODE mode);
 void vusbUrbRipe(PVUSBURB pUrb);
-void vusbUrbCompletionRh(PVUSBURB pUrb);
+void vusbUrbCompletionRhEx(PVUSBROOTHUB pRh, PVUSBURB pUrb);
 int vusbUrbSubmitHardError(PVUSBURB pUrb);
-int vusbUrbErrorRh(PVUSBURB pUrb);
+int vusbUrbErrorRhEx(PVUSBROOTHUB pRh, PVUSBURB pUrb);
 int vusbDevUrbIoThreadWakeup(PVUSBDEV pDev);
 int vusbDevUrbIoThreadCreate(PVUSBDEV pDev);
 int vusbDevUrbIoThreadDestroy(PVUSBDEV pDev);
@@ -607,6 +574,26 @@ DECLINLINE(void) vusbUrbUnlink(PVUSBURB pUrb)
     RTCritSectLeave(&pDev->CritSectAsyncUrbs);
 }
 
+
+DECLINLINE(int) vusbUrbErrorRh(PVUSBURB pUrb)
+{
+    PVUSBDEV pDev = pUrb->pVUsb->pDev;
+    PVUSBROOTHUB pRh = vusbDevGetRh(pDev);
+    AssertPtrReturn(pRh, VERR_VUSB_DEVICE_NOT_ATTACHED);
+
+    return vusbUrbErrorRhEx(pRh, pUrb);
+}
+
+
+DECLINLINE(void) vusbUrbCompletionRh(PVUSBURB pUrb)
+{
+    PVUSBROOTHUB pRh = vusbDevGetRh(pUrb->pVUsb->pDev);
+    AssertPtrReturnVoid(pRh);
+
+    vusbUrbCompletionRhEx(pRh, pUrb);
+}
+
+
 /** @def vusbUrbAssert
  * Asserts that a URB is valid.
  */
@@ -634,21 +621,6 @@ DECLINLINE(void) vusbUrbUnlink(PVUSBURB pUrb)
 /** @} */
 
 
-
-
-/**
- * Addresses are between 0 and 127 inclusive
- */
-DECLINLINE(uint8_t) vusbHashAddress(uint8_t Address)
-{
-    uint8_t u8Hash = Address;
-    u8Hash ^= (Address >> 2);
-    u8Hash ^= (Address >> 3);
-    u8Hash %= VUSB_ADDR_HASHSZ;
-    return u8Hash;
-}
-
-
 /**
  * Gets the roothub of a device.
  *
@@ -660,7 +632,7 @@ DECLINLINE(PVUSBROOTHUB) vusbDevGetRh(PVUSBDEV pDev)
 {
     if (!pDev->pHub)
         return NULL;
-    return pDev->pHub->pRootHub;
+    return pDev->pHub;
 }
 
 
@@ -715,12 +687,14 @@ DECLINLINE(bool) vusbDevSetStateCmp(PVUSBDEV pDev, VUSBDEVICESTATE enmStateNew, 
  *
  * @returns New reference count.
  * @param   pThis          The VUSB device pointer.
+ * @param   pszWho         Caller of the retaining.
  */
-DECLINLINE(uint32_t) vusbDevRetain(PVUSBDEV pThis)
+DECLINLINE(uint32_t) vusbDevRetain(PVUSBDEV pThis, const char *pszWho)
 {
     AssertPtrReturn(pThis, UINT32_MAX);
 
     uint32_t cRefs = ASMAtomicIncU32(&pThis->cRefs);
+    LogFlowFunc(("pThis=%p{.cRefs=%u}[%s]\n", pThis, cRefs, pszWho)); RT_NOREF(pszWho);
     AssertMsg(cRefs > 1 && cRefs < _1M, ("%#x %p\n", cRefs, pThis));
     return cRefs;
 }
@@ -730,12 +704,15 @@ DECLINLINE(uint32_t) vusbDevRetain(PVUSBDEV pThis)
  *
  * @returns New reference count.
  * @retval 0 if no onw is holding a reference anymore causing the device to be destroyed.
+ * @param   pThis          The VUSB device pointer.
+ * @param   pszWho         Caller of the retaining.
  */
-DECLINLINE(uint32_t) vusbDevRelease(PVUSBDEV pThis)
+DECLINLINE(uint32_t) vusbDevRelease(PVUSBDEV pThis, const char *pszWho)
 {
     AssertPtrReturn(pThis, UINT32_MAX);
 
     uint32_t cRefs = ASMAtomicDecU32(&pThis->cRefs);
+    LogFlowFunc(("pThis=%p{.cRefs=%u}[%s]\n", pThis, cRefs, pszWho)); RT_NOREF(pszWho);
     AssertMsg(cRefs < _1M, ("%#x %p\n", cRefs, pThis));
     if (cRefs == 0)
         vusbDevDestroy(pThis);

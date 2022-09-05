@@ -1229,6 +1229,9 @@ DECLINLINE(PPDMNETWORKGSO) vnetR3SetupGsoCtx(PPDMNETWORKGSO pGso, VNETHDR const 
     pGso->offHdr1     = sizeof(RTNETETHERHDR);
     pGso->cbHdrsTotal = pHdr->u16HdrLen;
     pGso->cbMaxSeg    = pHdr->u16GSOSize;
+    /* Mark GSO frames with zero MSS as PDMNETWORKGSOTYPE_INVALID, so they will be ignored by send. */
+    if (pHdr->u8GSOType != VNETHDR_GSO_NONE && pHdr->u16GSOSize == 0)
+        pGso->u8Type = PDMNETWORKGSOTYPE_INVALID;
     return pGso;
 }
 
@@ -1328,6 +1331,9 @@ static int vnetR3TransmitFrame(PVNETSTATE pThis, PVNETSTATECC pThisCC, PPDMSCATT
                     pGso->cbHdrsTotal = (uint8_t)(pHdr->u16CSumStart + sizeof(RTNETUDP));
                     pGso->cbHdrsSeg   = pHdr->u16CSumStart;
                     break;
+                case PDMNETWORKGSOTYPE_INVALID:
+                    LogFunc(("%s ignoring invalid GSO frame\n", INSTANCE(pThis)));
+                    return VERR_INVALID_PARAMETER;
             }
             /* Update GSO structure embedded into the frame */
             ((PPDMNETWORKGSO)pSgBuf->pvUser)->cbHdrsTotal = pGso->cbHdrsTotal;

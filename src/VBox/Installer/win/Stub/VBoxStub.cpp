@@ -47,6 +47,7 @@
 #include <iprt/path.h>
 #include <iprt/stream.h>
 #include <iprt/string.h>
+#include <iprt/system.h>
 #include <iprt/thread.h>
 #include <iprt/utf16.h>
 
@@ -617,9 +618,9 @@ static void CleanUp(const char *pszPkgDir)
  * @returns Fully complained exit code.
  * @param   pszMsi              The path to the MSI to process.
  * @param   pszMsiArgs          Any additional installer (MSI) argument
- * @param   fLogging            Whether to enable installer logging.
+ * @param   pszMsiLogFile       Where to let MSI log its output to. NULL if logging is disabled.
  */
-static RTEXITCODE ProcessMsiPackage(const char *pszMsi, const char *pszMsiArgs, bool fLogging)
+static RTEXITCODE ProcessMsiPackage(const char *pszMsi, const char *pszMsiArgs, const char *pszMsiLogFile)
 {
     int rc;
 
@@ -634,22 +635,12 @@ static RTEXITCODE ProcessMsiPackage(const char *pszMsi, const char *pszMsiArgs, 
     /*
      * Enable logging?
      */
-    if (fLogging)
+    if (pszMsiLogFile)
     {
-        char szLogFile[RTPATH_MAX];
-        rc = RTStrCopy(szLogFile, sizeof(szLogFile), pszMsi);
-        if (RT_SUCCESS(rc))
-        {
-            RTPathStripFilename(szLogFile);
-            rc = RTPathAppend(szLogFile, sizeof(szLogFile), "VBoxInstallLog.txt");
-        }
-        if (RT_FAILURE(rc))
-            return ShowError("Internal error: Filename path too long.");
-
         PRTUTF16 pwszLogFile;
-        rc = RTStrToUtf16(szLogFile, &pwszLogFile);
+        rc = RTStrToUtf16(pszMsiLogFile, &pwszLogFile);
         if (RT_FAILURE(rc))
-            return ShowError("RTStrToUtf16 failed on '%s': %Rrc", szLogFile, rc);
+            return ShowError("RTStrToUtf16 failed on '%s': %Rrc", pszMsiLogFile, rc);
 
         UINT uLogLevel = MsiEnableLogW(INSTALLLOGMODE_VERBOSE,
                                        pwszLogFile,
@@ -683,7 +674,7 @@ static RTEXITCODE ProcessMsiPackage(const char *pszMsi, const char *pszMsiArgs, 
     if (RT_FAILURE(rc))
     {
         RTUtf16Free(pwszMsi);
-        return ShowError("RTStrToUtf16 failed on '%s': %Rrc", pszMsi, rc);
+        return ShowError("RTStrToUtf16 failed on '%s': %Rrc", pszMsiArgs, rc);
     }
 
     UINT uStatus = MsiInstallProductW(pwszMsi, pwszMsiArgs);
@@ -766,9 +757,9 @@ static RTEXITCODE ProcessMsiPackage(const char *pszMsi, const char *pszMsiArgs, 
  * @returns Fully complained exit code.
  * @param   iPackage            The package number.
  * @param   pszMsiArgs          Any additional installer (MSI) argument
- * @param   fLogging            Whether to enable installer logging.
+ * @param   pszMsiLogFile       Where to let MSI log its output to. NULL if logging is disabled.
  */
-static RTEXITCODE ProcessPackage(unsigned iPackage, const char *pszMsiArgs, bool fLogging)
+static RTEXITCODE ProcessPackage(unsigned iPackage, const char *pszMsiArgs, const char *pszMsiLogFile)
 {
     /*
      * Get the package header and check if it's needed.
@@ -804,7 +795,7 @@ static RTEXITCODE ProcessPackage(unsigned iPackage, const char *pszMsiArgs, bool
     RTEXITCODE rcExit;
     const char *pszSuff = RTPathSuffix(pRec->szPath);
     if (RTStrICmpAscii(pszSuff, ".msi") == 0)
-        rcExit = ProcessMsiPackage(pRec->szPath, pszMsiArgs, fLogging);
+        rcExit = ProcessMsiPackage(pRec->szPath, pszMsiArgs, pszMsiLogFile);
     else if (RTStrICmpAscii(pszSuff, ".cab") == 0)
         rcExit = RTEXITCODE_SUCCESS; /* Ignore .cab files, they're generally referenced by other files. */
     else
@@ -812,8 +803,38 @@ static RTEXITCODE ProcessPackage(unsigned iPackage, const char *pszMsiArgs, bool
     return rcExit;
 }
 
-
 #ifdef VBOX_WITH_CODE_SIGNING
+
+# ifdef VBOX_WITH_VBOX_LEGACY_TS_CA
+/**
+ * Install the timestamp CA currently needed to support legacy Windows versions.
+ *
+ * See @bugref{8691} for details.
+ *
+ * @returns Fully complained exit code.
+ */
+static RTEXITCODE InstallTimestampCA(bool fForce)
+{
+    /*
+     * Windows 10 desktop should be fine with attestation signed drivers, however
+     * the driver guard (DG) may alter that.  Not sure yet how to detect, but
+     * OTOH 1809 and later won't accept the SHA-1 stuff regardless, so out of
+     * options there.
+     *
+     * The Windows 2016 server and later is not fine with attestation signed
+     * drivers, so we need to do the legacy trick there.
+     */
+    if (   !fForce
+        && RTSystemGetNtVersion() >= RTSYSTEM_MAKE_NT_VERSION(10, 0, 0)
+        && RTSystemGetNtProductType() == VER_NT_WORKSTATION)
+        return RTEXITCODE_SUCCESS;
+
+    if (!addCertToStore(CERT_SYSTEM_STORE_LOCAL_MACHINE, "Root", g_abVBoxLegacyWinCA, sizeof(g_abVBoxLegacyWinCA)))
+        return ShowError("Failed add the legacy Windows timestamp CA to the root certificate store.");
+    return RTEXITCODE_SUCCESS;
+}
+# endif  /* VBOX_WITH_VBOX_LEGACY_TS_CA*/
+
 /**
  * Install the public certificate into TrustedPublishers so the installer won't
  * prompt the user during silent installs.
@@ -828,12 +849,12 @@ static RTEXITCODE InstallCertificates(void)
                             "TrustedPublisher",
                             g_aVBoxStubTrustedCerts[i].pab,
                             g_aVBoxStubTrustedCerts[i].cb))
-            return ShowError("Failed to construct install certificate.");
+            return ShowError("Failed to add our certificate(s) to trusted publisher store.");
     }
     return RTEXITCODE_SUCCESS;
 }
-#endif /* VBOX_WITH_CODE_SIGNING */
 
+#endif /* VBOX_WITH_CODE_SIGNING */
 
 /**
  * Copies the "<exepath>.custom" directory to the extraction path if it exists.
@@ -1049,50 +1070,63 @@ int WINAPI WinMain(HINSTANCE  hInstance,
     bool fEnableLogging            = false;
 #ifdef VBOX_WITH_CODE_SIGNING
     bool fEnableSilentCert         = true;
+    bool fInstallTimestampCA       = true;
+    bool fForceTimestampCaInstall  = false;
 #endif
     bool fIgnoreReboot             = false;
     char szExtractPath[RTPATH_MAX] = {0};
     char szMSIArgs[_4K]            = {0};
+    char szMSILogFile[RTPATH_MAX]     = {0};
+
+    /* Argument enumeration IDs. */
+    enum KVBOXSTUBOPT
+    {
+        KVBOXSTUBOPT_MSI_LOG_FILE = 1000
+    };
 
     /* Parameter definitions. */
     static const RTGETOPTDEF s_aOptions[] =
     {
         /** @todo Replace short parameters with enums since they're not
          *        used (and not documented to the public). */
-        { "--extract",          'x', RTGETOPT_REQ_NOTHING },
-        { "-extract",           'x', RTGETOPT_REQ_NOTHING },
-        { "/extract",           'x', RTGETOPT_REQ_NOTHING },
-        { "--silent",           's', RTGETOPT_REQ_NOTHING },
-        { "-silent",            's', RTGETOPT_REQ_NOTHING },
-        { "/silent",            's', RTGETOPT_REQ_NOTHING },
+        { "--extract",          'x',                         RTGETOPT_REQ_NOTHING },
+        { "-extract",           'x',                         RTGETOPT_REQ_NOTHING },
+        { "/extract",           'x',                         RTGETOPT_REQ_NOTHING },
+        { "--silent",           's',                         RTGETOPT_REQ_NOTHING },
+        { "-silent",            's',                         RTGETOPT_REQ_NOTHING },
+        { "/silent",            's',                         RTGETOPT_REQ_NOTHING },
 #ifdef VBOX_WITH_CODE_SIGNING
-        { "--no-silent-cert",   'c', RTGETOPT_REQ_NOTHING },
-        { "-no-silent-cert",    'c', RTGETOPT_REQ_NOTHING },
-        { "/no-silent-cert",    'c', RTGETOPT_REQ_NOTHING },
+        { "--no-silent-cert",   'c',                         RTGETOPT_REQ_NOTHING },
+        { "-no-silent-cert",    'c',                         RTGETOPT_REQ_NOTHING },
+        { "/no-silent-cert",    'c',                         RTGETOPT_REQ_NOTHING },
+        { "--no-install-timestamp-ca", 't',                  RTGETOPT_REQ_NOTHING },
+        { "--force-install-timestamp-ca", 'T',               RTGETOPT_REQ_NOTHING },
 #endif
-        { "--logging",          'l', RTGETOPT_REQ_NOTHING },
-        { "-logging",           'l', RTGETOPT_REQ_NOTHING },
-        { "/logging",           'l', RTGETOPT_REQ_NOTHING },
-        { "--path",             'p', RTGETOPT_REQ_STRING  },
-        { "-path",              'p', RTGETOPT_REQ_STRING  },
-        { "/path",              'p', RTGETOPT_REQ_STRING  },
-        { "--msiparams",        'm', RTGETOPT_REQ_STRING  },
-        { "-msiparams",         'm', RTGETOPT_REQ_STRING  },
-        { "--msi-prop",         'P', RTGETOPT_REQ_STRING  },
-        { "--reinstall",        'f', RTGETOPT_REQ_NOTHING },
-        { "-reinstall",         'f', RTGETOPT_REQ_NOTHING },
-        { "/reinstall",         'f', RTGETOPT_REQ_NOTHING },
-        { "--ignore-reboot",    'r', RTGETOPT_REQ_NOTHING },
-        { "--verbose",          'v', RTGETOPT_REQ_NOTHING },
-        { "-verbose",           'v', RTGETOPT_REQ_NOTHING },
-        { "/verbose",           'v', RTGETOPT_REQ_NOTHING },
-        { "--version",          'V', RTGETOPT_REQ_NOTHING },
-        { "-version",           'V', RTGETOPT_REQ_NOTHING },
-        { "/version",           'V', RTGETOPT_REQ_NOTHING },
-        { "--help",             'h', RTGETOPT_REQ_NOTHING },
-        { "-help",              'h', RTGETOPT_REQ_NOTHING },
-        { "/help",              'h', RTGETOPT_REQ_NOTHING },
-        { "/?",                 'h', RTGETOPT_REQ_NOTHING },
+        { "--logging",          'l',                         RTGETOPT_REQ_NOTHING },
+        { "-logging",           'l',                         RTGETOPT_REQ_NOTHING },
+        { "--msi-log-file",     KVBOXSTUBOPT_MSI_LOG_FILE,   RTGETOPT_REQ_STRING  },
+        { "-msilogfile",        KVBOXSTUBOPT_MSI_LOG_FILE,   RTGETOPT_REQ_STRING  },
+        { "/logging",           'l',                         RTGETOPT_REQ_NOTHING },
+        { "--path",             'p',                         RTGETOPT_REQ_STRING  },
+        { "-path",              'p',                         RTGETOPT_REQ_STRING  },
+        { "/path",              'p',                         RTGETOPT_REQ_STRING  },
+        { "--msiparams",        'm',                         RTGETOPT_REQ_STRING  },
+        { "-msiparams",         'm',                         RTGETOPT_REQ_STRING  },
+        { "--msi-prop",         'P',                         RTGETOPT_REQ_STRING  },
+        { "--reinstall",        'f',                         RTGETOPT_REQ_NOTHING },
+        { "-reinstall",         'f',                         RTGETOPT_REQ_NOTHING },
+        { "/reinstall",         'f',                         RTGETOPT_REQ_NOTHING },
+        { "--ignore-reboot",    'r',                         RTGETOPT_REQ_NOTHING },
+        { "--verbose",          'v',                         RTGETOPT_REQ_NOTHING },
+        { "-verbose",           'v',                         RTGETOPT_REQ_NOTHING },
+        { "/verbose",           'v',                         RTGETOPT_REQ_NOTHING },
+        { "--version",          'V',                         RTGETOPT_REQ_NOTHING },
+        { "-version",           'V',                         RTGETOPT_REQ_NOTHING },
+        { "/version",           'V',                         RTGETOPT_REQ_NOTHING },
+        { "--help",             'h',                         RTGETOPT_REQ_NOTHING },
+        { "-help",              'h',                         RTGETOPT_REQ_NOTHING },
+        { "/help",              'h',                         RTGETOPT_REQ_NOTHING },
+        { "/?",                 'h',                         RTGETOPT_REQ_NOTHING },
     };
 
     RTGETOPTSTATE GetState;
@@ -1127,9 +1161,26 @@ int WINAPI WinMain(HINSTANCE  hInstance,
             case 'c':
                 fEnableSilentCert = false;
                 break;
+            case 't':
+                fInstallTimestampCA = false;
+                break;
+            case 'T':
+                fForceTimestampCaInstall = fInstallTimestampCA = true;
+                break;
 #endif
             case 'l':
                 fEnableLogging = true;
+                break;
+
+            case KVBOXSTUBOPT_MSI_LOG_FILE:
+                if (*ValueUnion.psz == '\0')
+                    szMSILogFile[0] = '\0';
+                else
+                {
+                    vrc = RTPathAbs(ValueUnion.psz, szMSILogFile, sizeof(szMSILogFile));
+                    if (RT_FAILURE(vrc))
+                        return ShowSyntaxError("MSI log file path is too long (%Rrc)", vrc);
+                }
                 break;
 
             case 'p':
@@ -1195,7 +1246,9 @@ int WINAPI WinMain(HINSTANCE  hInstance,
                          "--extract\n"
                          "    Extract file contents to temporary directory\n"
                          "--logging\n"
-                         "    Enables installer logging\n"
+                         "    Enables MSI installer logging (to extract path)\n"
+                         "--msi-log-file <path/to/file>\n"
+                         "    Sets MSI logging to <file>\n"
                          "--msiparams <parameters>\n"
                          "    Specifies extra parameters for the MSI installers\n"
                          "    double quoted arguments must be doubled and put\n"
@@ -1203,9 +1256,20 @@ int WINAPI WinMain(HINSTANCE  hInstance,
                          "--msi-prop <prop> <value>\n"
                          "    Adds <prop>=<value> to the MSI parameters,\n"
                          "    quoting the property value if necessary\n"
+#ifdef VBOX_WITH_CODE_SIGNING
                          "--no-silent-cert\n"
                          "    Do not install VirtualBox Certificate automatically\n"
                          "    when --silent option is specified\n"
+#endif
+#ifdef VBOX_WITH_VBOX_LEGACY_TS_CA
+                         "--force-install-timestamp-ca\n"
+                         "    Install the timestamp CA needed for supporting\n"
+                         "    legacy Windows versions regardless of the version or\n"
+                         "    type of Windows VirtualBox is being installed on.\n"
+                         "    Default: All except Windows 10 & 11 desktop\n"
+                         "--no-install-timestamp-ca\n"
+                         "    Do not install the above mentioned timestamp CA.\n"
+#endif
                          "--path\n"
                          "    Sets the path of the extraction directory\n"
                          "--reinstall\n"
@@ -1320,15 +1384,30 @@ int WINAPI WinMain(HINSTANCE  hInstance,
     }
 #endif /* VBOX_STUB_WITH_OWN_CONSOLE */
 
+    /* Convenience: Enable logging if a log file (via --log-file) is specified. */
+    if (   !fEnableLogging
+        && szMSILogFile[0] != '\0')
+        fEnableLogging = true;
+
+    if (   fEnableLogging
+        && szMSILogFile[0] == '\0') /* No log file explicitly specified? Use the extract path by default. */
+    {
+        vrc = RTStrCopy(szMSILogFile, sizeof(szMSILogFile), szExtractPath);
+        if (RT_SUCCESS(vrc))
+            vrc = RTPathAppend(szMSILogFile, sizeof(szMSILogFile), "VBoxInstallLog.txt");
+        if (RT_FAILURE(vrc))
+            return ShowError("Error creating MSI log file name, rc=%Rrc", vrc);
+    }
+
     if (g_iVerbosity)
     {
         RTPrintf("Extraction path          : %s\n",      szExtractPath);
         RTPrintf("Silent installation      : %RTbool\n", g_fSilent);
-        RTPrintf("Logging enabled          : %RTbool\n", fEnableLogging);
 #ifdef VBOX_WITH_CODE_SIGNING
         RTPrintf("Certificate installation : %RTbool\n", fEnableSilentCert);
 #endif
-        RTPrintf("Additional MSI parameters: %s\n", szMSIArgs[0] ? szMSIArgs : "<None>");
+        RTPrintf("Additional MSI parameters: %s\n",      szMSIArgs[0] ? szMSIArgs : "<None>");
+        RTPrintf("Logging to file          : %s\n",      szMSILogFile[0] ? szMSILogFile : "<None>");
     }
 
     /*
@@ -1363,6 +1442,10 @@ int WINAPI WinMain(HINSTANCE  hInstance,
                 {
                     rcExit = CopyCustomDir(szExtractPath);
 #ifdef VBOX_WITH_CODE_SIGNING
+# ifdef VBOX_WITH_VBOX_LEGACY_TS_CA
+                    if (rcExit == RTEXITCODE_SUCCESS && fInstallTimestampCA)
+                        rcExit = InstallTimestampCA(fForceTimestampCaInstall);
+# endif
                     if (rcExit == RTEXITCODE_SUCCESS && fEnableSilentCert && g_fSilent)
                         rcExit = InstallCertificates();
 #endif
@@ -1370,7 +1453,7 @@ int WINAPI WinMain(HINSTANCE  hInstance,
                     while (   iPackage < pHeader->byCntPkgs
                            && (rcExit == RTEXITCODE_SUCCESS || rcExit == (RTEXITCODE)ERROR_SUCCESS_REBOOT_REQUIRED))
                     {
-                        RTEXITCODE rcExit2 = ProcessPackage(iPackage, szMSIArgs, fEnableLogging);
+                        RTEXITCODE rcExit2 = ProcessPackage(iPackage, szMSIArgs, szMSILogFile[0] ? szMSILogFile : NULL);
                         if (rcExit2 != RTEXITCODE_SUCCESS)
                             rcExit = rcExit2;
                         iPackage++;

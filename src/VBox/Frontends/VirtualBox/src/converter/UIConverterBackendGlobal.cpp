@@ -1192,11 +1192,14 @@ template<> QString toString(const UIExtraDataMetaDefs::DetailsElementOptionTypeN
     {
         case UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_NotAttached:     strResult = QApplication::translate("UICommon", "Not Attached", "network adapter"); break;
         case UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_NAT:             strResult = QApplication::translate("UICommon", "NAT"); break;
-        case UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_BridgetAdapter:  strResult = QApplication::translate("UICommon", "Bridget Adapter"); break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_BridgedAdapter:  strResult = QApplication::translate("UICommon", "Bridged Adapter"); break;
         case UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_InternalNetwork: strResult = QApplication::translate("UICommon", "Internal Network"); break;
         case UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_HostOnlyAdapter: strResult = QApplication::translate("UICommon", "Host Only Adapter"); break;
         case UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_GenericDriver:   strResult = QApplication::translate("UICommon", "Generic Driver"); break;
         case UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_NATNetwork:      strResult = QApplication::translate("UICommon", "NAT Network"); break;
+#ifdef VBOX_WITH_CLOUD_NET
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_CloudNetwork:    strResult = QApplication::translate("UICommon", "Cloud Network"); break;
+#endif /* VBOX_WITH_CLOUD_NET */
         default:
         {
             AssertMsgFailed(("No text for details element option type=%d", enmDetailsElementOptionTypeNetwork));
@@ -1214,7 +1217,7 @@ template<> QString toInternalString(const UIExtraDataMetaDefs::DetailsElementOpt
     {
         case UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_NotAttached:     strResult = "NotAttached"; break;
         case UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_NAT:             strResult = "NAT"; break;
-        case UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_BridgetAdapter:  strResult = "BridgetAdapter"; break;
+        case UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_BridgedAdapter:  strResult = "BridgedAdapter"; break;
         case UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_InternalNetwork: strResult = "InternalNetwork"; break;
         case UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_HostOnlyAdapter: strResult = "HostOnlyAdapter"; break;
         case UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_GenericDriver:   strResult = "GenericDriver"; break;
@@ -1239,7 +1242,7 @@ template<> UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork fromInternalStri
     QStringList keys;          QList<UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork> values;
     keys << "NotAttached";     values << UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_NotAttached;
     keys << "NAT";             values << UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_NAT;
-    keys << "BridgetAdapter";  values << UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_BridgetAdapter;
+    keys << "BridgedAdapter";  values << UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_BridgedAdapter;
     keys << "InternalNetwork"; values << UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_InternalNetwork;
     keys << "HostOnlyAdapter"; values << UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_HostOnlyAdapter;
     keys << "GenericDriver";   values << UIExtraDataMetaDefs::DetailsElementOptionTypeNetwork_GenericDriver;

@@ -49,6 +49,11 @@ protected:
     /** Handles translation event. */
     virtual void retranslateUi() /* override */;
 
+private slots:
+
+    /** Handles activated @a strLink. */
+    void sltHandleLinkActivated(const QString &strLink);
+
 private:
 
     /** Prepares all. */

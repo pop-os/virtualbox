@@ -2095,6 +2095,12 @@ static ssize_t vbsf_reg_write(struct file *file, const char *buf, size_t size, l
 
 #endif /* < 5.10.0 */
 #if RTLNX_VER_MIN(2,6,19)
+/* See kernel 6.0.0 change eba2d3d798295dc43cae8fade102f9d083a2a741. */
+# if RTLNX_VER_MIN(6,0,0)
+#  define VBOX_IOV_GET_PAGES iov_iter_get_pages2
+# else
+#  define VBOX_IOV_GET_PAGES iov_iter_get_pages
+# endif
 
 /**
  * Companion to vbsf_iter_lock_pages().
@@ -2185,9 +2191,11 @@ static int vbsf_iter_lock_pages(struct iov_iter *iter, bool fWrite, struct vbsf_
                 while (!iov_iter_single_seg_count(iter)) /* Old code didn't skip empty segments which caused EFAULTs. */
                     iov_iter_advance(iter, 0);
 # endif
-                cbSegRet = iov_iter_get_pages(iter, papPages, iov_iter_count(iter), cMaxPages, &offPage0);
+                cbSegRet = VBOX_IOV_GET_PAGES(iter, papPages, iov_iter_count(iter), cMaxPages, &offPage0);
                 if (cbSegRet > 0) {
+# if RTLNX_VER_MAX(6,0,0)
                     iov_iter_advance(iter, cbSegRet);
+#endif
                     cbChunk    = (size_t)cbSegRet;
                     cPages     = RT_ALIGN_Z(offPage0 + cbSegRet, PAGE_SIZE) >> PAGE_SHIFT;
                     cMaxPages -= cPages;
@@ -2211,9 +2219,11 @@ static int vbsf_iter_lock_pages(struct iov_iter *iter, bool fWrite, struct vbsf_
                     iov_iter_advance(iter, 0);
                     cbSeg = iov_iter_single_seg_count(iter);
                 }
-                cbSegRet = iov_iter_get_pages(iter, &papPages[cPages], iov_iter_count(iter), 1, &offPgProbe);
+                cbSegRet = VBOX_IOV_GET_PAGES(iter, &papPages[cPages], iov_iter_count(iter), 1, &offPgProbe);
                 if (cbSegRet > 0) {
+# if RTLNX_VER_MAX(6,0,0)
                     iov_iter_advance(iter, cbSegRet); /** @todo maybe not do this if we stash the page? */
+#endif
                     Assert(offPgProbe + cbSegRet <= PAGE_SIZE);
                     if (offPgProbe == 0) {
                         cbChunk   += cbSegRet;
@@ -2229,11 +2239,13 @@ static int vbsf_iter_lock_pages(struct iov_iter *iter, bool fWrite, struct vbsf_
                          */
                         cbSeg -= cbSegRet;
                         if (cbSeg > 0) {
-                            cbSegRet = iov_iter_get_pages(iter, &papPages[cPages], iov_iter_count(iter), cMaxPages, &offPgProbe);
+                            cbSegRet = VBOX_IOV_GET_PAGES(iter, &papPages[cPages], iov_iter_count(iter), cMaxPages, &offPgProbe);
                             if (cbSegRet > 0) {
                                 size_t const cPgRet = RT_ALIGN_Z((size_t)cbSegRet, PAGE_SIZE) >> PAGE_SHIFT;
                                 Assert(offPgProbe == 0);
+# if RTLNX_VER_MAX(6,0,0)
                                 iov_iter_advance(iter, cbSegRet);
+# endif
                                 SFLOG3(("vbsf_iter_lock_pages: iov_iter_get_pages() -> %#zx; %#zx pages\n", cbSegRet, cPgRet));
                                 cPages    += cPgRet;
                                 cMaxPages -= cPgRet;
@@ -3581,8 +3593,14 @@ struct inode_operations vbsf_reg_iops = {
  * Needed for mmap and reads+writes when the file is mmapped in a
  * shared+writeable fashion.
  */
+#if RTLNX_VER_MIN(5,19,0)
+static int vbsf_read_folio(struct file *file, struct folio *folio)
+{
+    struct page *page = &folio->page;
+#else
 static int vbsf_readpage(struct file *file, struct page *page)
 {
+#endif
     struct inode *inode = VBSF_GET_F_DENTRY(file)->d_inode;
     int           err;
 
@@ -3728,8 +3746,7 @@ static int vbsf_writepage(struct page *page)
 /**
  * Called when writing thru the page cache (which we shouldn't be doing).
  */
-int vbsf_write_begin(struct file *file, struct address_space *mapping, loff_t pos,
-                     unsigned len, unsigned flags, struct page **pagep, void **fsdata)
+static inline void vbsf_write_begin_warn(loff_t pos, unsigned len, unsigned flags)
 {
     /** @todo r=bird: We shouldn't ever get here, should we?  Because we don't use
      *        the page cache for any writes AFAIK.  We could just as well use
@@ -3745,8 +3762,24 @@ int vbsf_write_begin(struct file *file, struct address_space *mapping, loff_t po
         WARN_ON(1);
 # endif
     }
+}
+
+# if RTLNX_VER_MIN(5,19,0)
+int vbsf_write_begin(struct file *file, struct address_space *mapping, loff_t pos,
+                     unsigned len, struct page **pagep, void **fsdata)
+{
+    vbsf_write_begin_warn(pos, len, 0);
+    return simple_write_begin(file, mapping, pos, len, pagep, fsdata);
+}
+# else
+int vbsf_write_begin(struct file *file, struct address_space *mapping, loff_t pos,
+                     unsigned len, unsigned flags, struct page **pagep, void **fsdata)
+{
+    vbsf_write_begin_warn(pos, len, flags);
     return simple_write_begin(file, mapping, pos, len, flags, pagep, fsdata);
 }
+# endif
+
 #endif /* KERNEL_VERSION >= 2.6.24 */
 
 #if RTLNX_VER_MIN(5,14,0)
@@ -3820,10 +3853,16 @@ static int vbsf_direct_IO(int rw, struct inode *inode, struct kiobuf *buf, unsig
  * @todo the FsPerf touch/flush (mmap) test fails on 4.4.0 (ubuntu 16.04 lts).
  */
 struct address_space_operations vbsf_reg_aops = {
+#if RTLNX_VER_MIN(5,19,0)
+    .read_folio     = vbsf_read_folio,
+#else
     .readpage       = vbsf_readpage,
+#endif
     .writepage      = vbsf_writepage,
     /** @todo Need .writepages if we want msync performance...  */
-#if RTLNX_VER_MIN(2,5,12)
+#if RTLNX_VER_MIN(5,18,0)
+    .dirty_folio = filemap_dirty_folio,
+#elif RTLNX_VER_MIN(2,5,12)
     .set_page_dirty = __set_page_dirty_buffers,
 #endif
 #if RTLNX_VER_MIN(5,14,0)
@@ -3840,4 +3879,3 @@ struct address_space_operations vbsf_reg_aops = {
     .direct_IO      = vbsf_direct_IO,
 #endif
 };
-

@@ -818,10 +818,7 @@ HRESULT Snapshot::i_saveSnapshotImplOne(settings::Snapshot &data) const
     else
         data.strStateFile.setNull();
 
-    HRESULT rc = m->pMachine->i_saveHardware(data.hardware, &data.debugging, &data.autostart);
-    if (FAILED(rc)) return rc;
-
-    return S_OK;
+    return m->pMachine->i_saveHardware(data.hardware, &data.debugging, &data.autostart, data.recordingSettings);
 }
 
 /**
@@ -1223,6 +1220,7 @@ HRESULT SnapshotMachine::init(SessionMachine *aSessionMachine,
  *  @param hardware         hardware settings
  *  @param pDbg             debuging settings
  *  @param pAutostart       autostart settings
+ *  @param recording        recording settings
  *  @param aSnapshotId      snapshot ID of this snapshot machine
  *  @param aStateFilePath   file where the execution state is saved
  *                          (or NULL for the offline snapshot)
@@ -1233,6 +1231,7 @@ HRESULT SnapshotMachine::initFromSettings(Machine *aMachine,
                                           const settings::Hardware &hardware,
                                           const settings::Debugging *pDbg,
                                           const settings::Autostart *pAutostart,
+                                          const settings::RecordingSettings &recording,
                                           IN_GUID aSnapshotId,
                                           const Utf8Str &aStateFilePath)
 {
@@ -1316,7 +1315,7 @@ HRESULT SnapshotMachine::initFromSettings(Machine *aMachine,
     mBandwidthControl->init(this);
 
     /* load hardware and storage settings */
-    HRESULT rc = i_loadHardware(NULL, &mSnapshotId, hardware, pDbg, pAutostart);
+    HRESULT rc = i_loadHardware(NULL, &mSnapshotId, hardware, pDbg, pAutostart, recording);
 
     if (SUCCEEDED(rc))
         /* commit all changes made during the initialization */
