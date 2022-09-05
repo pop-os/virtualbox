@@ -34,7 +34,7 @@ export DEB_BUILD_HARDENING_BINDNOW=0
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 
 %:
-	dh $@ --with python3,dkms
+	dh $@ --with python3
 
 override_dh_auto_configure:
 	@echo Building for $(DIST_RELEASE)
