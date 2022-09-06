@@ -1,0 +1,34 @@
+Description: For some reasons with latex 2022.20220722-1 we get failure to build with utf8x.
+If we remove utf8x it complains only for one symbol: ↔
+
+I think we can live without that symbol by using left arrow and right arrow.
+
+Author: Gianfranco Costamagna <locutusofborg@debian.org>
+
+diff --git a/doc/manual/docbook2latex.xsl b/doc/manual/docbook2latex.xsl
+index a76f8cbd6..60b29c694 100644
+--- a/doc/manual/docbook2latex.xsl
++++ b/doc/manual/docbook2latex.xsl
+@@ -94,7 +94,7 @@
+ \usepackage{geometry}
+ \geometry{top=3cm,bottom=4cm}
+ \usepackage{ucs}
+-\usepackage[utf8x]{inputenc}
++\usepackage{inputenc}
+ \usepackage[T1]{fontenc}
+ \usepackage{tabulary}
+ \usepackage[pdftex,
+
+diff --git a/doc/manual/en_US/user_Networking.xml b/doc/manual/en_US/user_Networking.xml
+index 0583a2664..05968b3e3 100644
+--- a/doc/manual/en_US/user_Networking.xml
++++ b/doc/manual/en_US/user_Networking.xml
+@@ -309,7 +309,7 @@
+                 <emphasis role="bold">VM&larr;Host</emphasis>
+               </para></entry>
+             <entry><para>
+-                <emphasis role="bold">VM1&harr;VM2</emphasis>
++                <emphasis role="bold">VM1&larr;&rarr;VM2</emphasis>
+               </para></entry>
+             <entry><para>
+                 <emphasis role="bold">VM&rarr;Net/LAN</emphasis>
