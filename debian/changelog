@@ -1,3 +1,9 @@
+virtualbox (6.1.38-dfsg-3) unstable; urgency=medium
+
+  * Switch to upstream approach to fix FTBFS
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Tue, 06 Sep 2022 22:01:06 +0200
+
 virtualbox (6.1.38-dfsg-2) unstable; urgency=medium
 
   [ Andreas Beckmann ]

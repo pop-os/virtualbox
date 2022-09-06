@@ -1,34 +1,46 @@
-Description: For some reasons with latex 2022.20220722-1 we get failure to build with utf8x.
-If we remove utf8x it complains only for one symbol: ↔
+Description: Cherry-pick upstream changes for LaTeX build fixes.
 
-I think we can live without that symbol by using left arrow and right arrow.
+Origin: https://www.virtualbox.org/changeset?reponame=vbox&new=96615%40trunk%2Fdoc%2Fmanual%2Fdocbook2latex.xsl&old=96407%40trunk%2Fdoc%2Fmanual%2Fdocbook2latex.xsl&format=diff
 
-Author: Gianfranco Costamagna <locutusofborg@debian.org>
-
-diff --git a/doc/manual/docbook2latex.xsl b/doc/manual/docbook2latex.xsl
-index a76f8cbd6..60b29c694 100644
---- a/doc/manual/docbook2latex.xsl
-+++ b/doc/manual/docbook2latex.xsl
-@@ -94,7 +94,7 @@
+Index: doc/manual/docbook2latex.xsl
+===================================================================
+--- a/doc/manual/docbook2latex.xsl	(revision 96407)
++++ b/doc/manual/docbook2latex.xsl	(revision 96615)
+@@ -94,6 +94,4 @@
  \usepackage{geometry}
  \geometry{top=3cm,bottom=4cm}
- \usepackage{ucs}
+-\usepackage{ucs}
 -\usepackage[utf8x]{inputenc}
-+\usepackage{inputenc}
  \usepackage[T1]{fontenc}
  \usepackage{tabulary}
- \usepackage[pdftex,
-
-diff --git a/doc/manual/en_US/user_Networking.xml b/doc/manual/en_US/user_Networking.xml
-index 0583a2664..05968b3e3 100644
---- a/doc/manual/en_US/user_Networking.xml
-+++ b/doc/manual/en_US/user_Networking.xml
-@@ -309,7 +309,7 @@
-                 <emphasis role="bold">VM&larr;Host</emphasis>
-               </para></entry>
-             <entry><para>
--                <emphasis role="bold">VM1&harr;VM2</emphasis>
-+                <emphasis role="bold">VM1&larr;&rarr;VM2</emphasis>
-               </para></entry>
-             <entry><para>
-                 <emphasis role="bold">VM&rarr;Net/LAN</emphasis>
+@@ -1246,5 +1244,29 @@
+           </xsl:call-template>
+         </xsl:variable>
+-        <xsl:value-of select="$subst13" />
++        <xsl:variable name="subst14">
++          <xsl:call-template name="str:subst">
++            <xsl:with-param name="text" select="$subst13" />
++            <xsl:with-param name="replace" select="'→'" />
++            <xsl:with-param name="with" select="'\ensuremath{\rightarrow}'" />
++            <xsl:with-param name="disable-output-escaping" select="no" />
++          </xsl:call-template>
++        </xsl:variable>
++        <xsl:variable name="subst15">
++          <xsl:call-template name="str:subst">
++            <xsl:with-param name="text" select="$subst14" />
++            <xsl:with-param name="replace" select="'←'" />
++            <xsl:with-param name="with" select="'\ensuremath{\leftarrow}'" />
++            <xsl:with-param name="disable-output-escaping" select="no" />
++          </xsl:call-template>
++        </xsl:variable>
++        <xsl:variable name="subst16">
++          <xsl:call-template name="str:subst">
++            <xsl:with-param name="text" select="$subst15" />
++            <xsl:with-param name="replace" select="'↔'" />
++            <xsl:with-param name="with" select="'\ensuremath{\leftrightarrow}'" />
++            <xsl:with-param name="disable-output-escaping" select="no" />
++          </xsl:call-template>
++        </xsl:variable>
++        <xsl:value-of select="$subst16" />
+       </xsl:otherwise>
+     </xsl:choose>
