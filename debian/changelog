@@ -1,3 +1,9 @@
+virtualbox (6.1.38-dfsg-4) UNRELEASED; urgency=medium
+
+  * Drop NAME also from source dkms files.
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 07 Sep 2022 13:18:09 +0200
+
 virtualbox (6.1.38-dfsg-3) unstable; urgency=medium
 
   * Switch to upstream approach to fix FTBFS
