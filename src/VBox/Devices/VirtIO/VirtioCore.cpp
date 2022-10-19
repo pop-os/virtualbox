@@ -1316,7 +1316,18 @@ static int virtioCommonCfgAccessed(PPDMDEVINS pDevIns, PVIRTIOCORE pVirtio, PVIR
         VIRTIO_DEV_CONFIG_ACCESS(         uConfigGeneration,          VIRTIO_PCI_COMMON_CFG_T, uOffsetOfAccess, pVirtio);
     else
     if (VIRTIO_DEV_CONFIG_MATCH_MEMBER(   uVirtqSelect,               VIRTIO_PCI_COMMON_CFG_T, uOffsetOfAccess))
-        VIRTIO_DEV_CONFIG_ACCESS(         uVirtqSelect,               VIRTIO_PCI_COMMON_CFG_T, uOffsetOfAccess, pVirtio);
+    {
+        if (fWrite) {
+            uint16_t uVirtqNew = *(uint16_t *)pv;
+
+            if (uVirtqNew < RT_ELEMENTS(pVirtio->aVirtqueues))
+                VIRTIO_DEV_CONFIG_ACCESS( uVirtqSelect,               VIRTIO_PCI_COMMON_CFG_T, uOffsetOfAccess, pVirtio);
+            else
+                LogFunc(("... WARNING: Guest attempted to write invalid virtq selector (ignoring)\n"));
+        }
+        else
+            VIRTIO_DEV_CONFIG_ACCESS(     uVirtqSelect,               VIRTIO_PCI_COMMON_CFG_T, uOffsetOfAccess, pVirtio);
+    }
     else
     if (VIRTIO_DEV_CONFIG_MATCH_MEMBER(   GCPhysVirtqDesc,            VIRTIO_PCI_COMMON_CFG_T, uOffsetOfAccess))
         VIRTIO_DEV_CONFIG_ACCESS_INDEXED( GCPhysVirtqDesc,   uVirtq,  VIRTIO_PCI_COMMON_CFG_T, uOffsetOfAccess, pVirtio->aVirtqueues);

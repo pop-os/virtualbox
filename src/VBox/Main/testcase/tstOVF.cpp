@@ -222,6 +222,18 @@ void importOVF(const char *pcszPrefix,
                     pcszType = "sound";
                 break;
 
+                case VirtualSystemDescriptionType_SettingsFile:
+                    pcszType = "settings";
+                break;
+
+                case VirtualSystemDescriptionType_BaseFolder:
+                    pcszType = "basefolder";
+                break;
+
+                case VirtualSystemDescriptionType_PrimaryGroup:
+                    pcszType = "primarygroup";
+                break;
+
                 default:
                     throw MyError(E_UNEXPECTED, "Invalid VirtualSystemDescriptionType\n");
                 break;
@@ -271,12 +283,20 @@ void copyDummyDiskImage(const char *pcszPrefix,
                         const char *pcszDest)
 {
     char szSrc[RTPATH_MAX];
-    char szDst[RTPATH_MAX];
     RTPathExecDir(szSrc, sizeof(szSrc));
     RTPathAppend(szSrc, sizeof(szSrc), "ovf-testcases/ovf-dummy.vmdk");
+
+    char szDst[RTPATH_MAX];
     RTPathExecDir(szDst, sizeof(szDst));
     RTPathAppend(szDst, sizeof(szDst), pcszDest);
     RTPrintf("%s: copying ovf-dummy.vmdk to \"%s\"...\n", pcszPrefix, pcszDest);
+
+    /* Delete the destination file if it exists or RTFileCopy will fail. */
+    if (RTFileExists(szDst))
+    {
+        RTPrintf("Deleting file %s...\n", szDst);
+        RTFileDelete(szDst);
+    }
 
     int vrc = RTFileCopy(szSrc, szDst);
     if (RT_FAILURE(vrc)) throw MyError(0, Utf8StrFmt("Cannot copy ovf-dummy.vmdk to %s: %Rra\n", pcszDest, vrc).c_str());

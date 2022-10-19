@@ -2729,6 +2729,10 @@
 #define VERR_SUP_VP_CREATE_READ_EVT_SEM_FAILED      (-5675)
 /** Undesirable module. */
 #define VERR_SUP_VP_UNDESIRABLE_MODULE              (-5676)
+/** NtQueryObject/Type failed. */
+#define VERR_SUP_VP_QUERY_HANDLE_TYPE               (-5677)
+/** NtSetInformationObject/NoInherit failed. */
+#define VERR_SUP_VP_SET_HANDLE_NOINHERIT            (-5678)
 
 /** @} */
 
