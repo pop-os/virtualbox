@@ -3,7 +3,7 @@ Author: Michael Meskes <meskes@debian.org>, Gianfranco Costamagna <locutusofborg
 
 --- a/src/VBox/Installer/linux/Makefile-header.gmk
 +++ b/src/VBox/Installer/linux/Makefile-header.gmk
-@@ -50,7 +50,7 @@
+@@ -60,7 +60,7 @@
  #
  
  # VBOX_KBUILD_TARGET_ARCH = amd64|x86

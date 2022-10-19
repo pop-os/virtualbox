@@ -1,3 +1,4 @@
+
 Description: Disable "Check for Updates" action.
 Bug-Ubuntu: https://bugs.launchpad.net/bugs/272212
 Author: Daniel Hahler <ubuntu@thequod.de>, Felix Geyer <fgeyer@debian.org>, Gianfranco Costamagna <locutusofborg@debian.org>
@@ -6,7 +7,7 @@ Index: virtualbox/doc/manual/en_US/user_Introduction.xml
 ===================================================================
 --- virtualbox.orig/doc/manual/en_US/user_Introduction.xml
 +++ virtualbox/doc/manual/en_US/user_Introduction.xml
-@@ -4405,14 +4405,14 @@
+@@ -6090,14 +6090,14 @@
            <xref linkend="specialcharacters"/>.
          </para>
        </listitem>
@@ -14,7 +15,7 @@ Index: virtualbox/doc/manual/en_US/user_Introduction.xml
 +      <!--
        <listitem>
          <para>
-           <emphasis role="bold">Update.</emphasis> Enables the user to
+           <emphasis role="bold">Update.</emphasis> Enables you to
            specify various settings for Automatic Updates.
          </para>
        </listitem>
@@ -22,12 +23,12 @@ Index: virtualbox/doc/manual/en_US/user_Introduction.xml
 +      -->
        <listitem>
          <para>
-           <emphasis role="bold">Language.</emphasis> Enables the user to
+           <emphasis role="bold">Language.</emphasis> Enables you to
 Index: virtualbox/src/VBox/Frontends/VirtualBox/src/extradata/UIExtraDataManager.cpp
 ===================================================================
 --- virtualbox.orig/src/VBox/Frontends/VirtualBox/src/extradata/UIExtraDataManager.cpp
 +++ virtualbox/src/VBox/Frontends/VirtualBox/src/extradata/UIExtraDataManager.cpp
-@@ -2349,7 +2349,7 @@
+@@ -2421,7 +2421,7 @@
  bool UIExtraDataManager::applicationUpdateEnabled()
  {
      /* 'True' unless 'restriction' feature allowed: */
@@ -40,10 +41,10 @@ Index: virtualbox/src/VBox/Frontends/VirtualBox/src/settings/UISettingsDialogSpe
 ===================================================================
 --- virtualbox.orig/src/VBox/Frontends/VirtualBox/src/settings/UISettingsDialogSpecific.cpp
 +++ virtualbox/src/VBox/Frontends/VirtualBox/src/settings/UISettingsDialogSpecific.cpp
-@@ -33,10 +33,10 @@
- #include "UIGlobalSettingsInput.h"
- #include "UIGlobalSettingsLanguage.h"
- #include "UIGlobalSettingsNetwork.h"
+@@ -47,10 +47,10 @@
+ #ifdef VBOX_WS_WIN
+ # include "UIGlobalSettingsInterface.h"
+ #endif
 -#ifdef VBOX_GUI_WITH_NETWORK_MANAGER
 -# include "UIGlobalSettingsProxy.h"
 -# include "UIGlobalSettingsUpdate.h"
@@ -55,7 +56,7 @@ Index: virtualbox/src/VBox/Frontends/VirtualBox/src/settings/UISettingsDialogSpe
  
  /* GUI includes: Machine Settings: */
  #include "UIMachineSettingsAudio.h"
-@@ -87,7 +87,7 @@
+@@ -102,7 +102,7 @@ void UISettingsDialogGlobal::retranslateUi()
  
  #ifdef VBOX_GUI_WITH_NETWORK_MANAGER
      /* Update page: */
@@ -64,7 +65,7 @@ Index: virtualbox/src/VBox/Frontends/VirtualBox/src/settings/UISettingsDialogSpe
  #endif
  
      /* Language page: */
-@@ -104,7 +104,7 @@
+@@ -113,7 +113,7 @@ void UISettingsDialogGlobal::retranslateUi()
  
  #ifdef VBOX_GUI_WITH_NETWORK_MANAGER
      /* Proxy page: */
@@ -72,8 +73,8 @@ Index: virtualbox/src/VBox/Frontends/VirtualBox/src/settings/UISettingsDialogSpe
 +    //m_pSelector->setItemText(GlobalSettingsPageType_Proxy, tr("Proxy"));
  #endif
  
-     /* Polish the selector: */
-@@ -205,13 +205,13 @@
+ #ifdef VBOX_WS_WIN
+@@ -229,14 +229,14 @@ void UISettingsDialogGlobal::prepare()
                  }
  #ifdef VBOX_GUI_WITH_NETWORK_MANAGER
                  /* Update page: */
@@ -83,13 +84,14 @@ Index: virtualbox/src/VBox/Frontends/VirtualBox/src/settings/UISettingsDialogSpe
                      pSettingsPage = new UIGlobalSettingsUpdate;
                      addItem(":/refresh_32px.png", ":/refresh_24px.png", ":/refresh_16px.png",
                              iPageIndex, "#update", pSettingsPage);
+                     addPageHelpKeyword(iPageIndex, "preferences");
                      break;
 -                }
 +                }*/
  #endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
                  /* Language page: */
                  case GlobalSettingsPageType_Language:
-@@ -247,13 +247,13 @@
+@@ -258,14 +258,14 @@ void UISettingsDialogGlobal::prepare()
                  }
  #ifdef VBOX_GUI_WITH_NETWORK_MANAGER
                  /* Proxy page: */
@@ -99,9 +101,10 @@ Index: virtualbox/src/VBox/Frontends/VirtualBox/src/settings/UISettingsDialogSpe
                      pSettingsPage = new UIGlobalSettingsProxy;
                      addItem(":/proxy_32px.png", ":/proxy_24px.png", ":/proxy_16px.png",
                              iPageIndex, "#proxy", pSettingsPage);
+                     addPageHelpKeyword(iPageIndex, "preferences");
                      break;
 -                }
 +                }*/
  #endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
-                 default:
-                     break;
+ #ifdef VBOX_WS_WIN
+                 /* Interface page: */

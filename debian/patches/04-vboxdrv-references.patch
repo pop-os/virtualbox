@@ -5,7 +5,7 @@ Index: virtualbox/src/VBox/VMM/VMMR3/VM.cpp
 ===================================================================
 --- virtualbox.orig/src/VBox/VMM/VMMR3/VM.cpp
 +++ virtualbox/src/VBox/VMM/VMMR3/VM.cpp
-@@ -264,12 +264,8 @@
+@@ -276,12 +276,8 @@
  
  #ifdef RT_OS_LINUX
                  case VERR_SUPDRV_COMPONENT_NOT_FOUND:
@@ -20,7 +20,7 @@ Index: virtualbox/src/VBox/VMM/VMMR3/VM.cpp
                      break;
  #endif
  
-@@ -332,12 +328,8 @@
+@@ -347,12 +343,8 @@
              {
                  case VERR_VM_DRIVER_LOAD_ERROR:
  #ifdef RT_OS_LINUX
@@ -35,7 +35,7 @@ Index: virtualbox/src/VBox/VMM/VMMR3/VM.cpp
  #else
                      pszError = N_("VirtualBox kernel driver not loaded");
  #endif
-@@ -376,12 +368,8 @@
+@@ -391,12 +383,8 @@
                  case VERR_INVALID_HANDLE: /** @todo track down and fix this error. */
                  case VERR_VM_DRIVER_NOT_INSTALLED:
  #ifdef RT_OS_LINUX
@@ -54,7 +54,7 @@ Index: virtualbox/src/VBox/Frontends/VirtualBox/src/main.cpp
 ===================================================================
 --- virtualbox.orig/src/VBox/Frontends/VirtualBox/src/main.cpp
 +++ virtualbox/src/VBox/Frontends/VirtualBox/src/main.cpp
-@@ -90,8 +90,9 @@
+@@ -98,8 +98,9 @@
  
  QString g_QStrHintLinuxNoDriver = QApplication::tr(
      "The VirtualBox Linux kernel driver is either not loaded or not set "
@@ -66,7 +66,7 @@ Index: virtualbox/src/VBox/Frontends/VirtualBox/src/main.cpp
      "as root.<br/><br/>"
      "If your system has EFI Secure Boot enabled you may also need to sign "
      "the kernel modules (vboxdrv, vboxnetflt, vboxnetadp, vboxpci) before "
-@@ -110,7 +111,7 @@
+@@ -118,7 +119,7 @@
      "The VirtualBox kernel modules do not match this version of "
      "VirtualBox. The installation of VirtualBox was apparently not "
      "successful. Executing<br/><br/>"

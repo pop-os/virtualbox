@@ -9,8 +9,8 @@ Index: virtualbox/src/VBox/Additions/x11/Installer/98vboxadd-xclient
 ===================================================================
 --- virtualbox.orig/src/VBox/Additions/x11/Installer/98vboxadd-xclient
 +++ virtualbox/src/VBox/Additions/x11/Installer/98vboxadd-xclient
-@@ -15,6 +15,17 @@
- # hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+@@ -25,6 +25,17 @@
+ # SPDX-License-Identifier: GPL-3.0-only
  #
  
 +in_virtual_machine()

@@ -13,7 +13,7 @@ Index: virtualbox/include/VBox/VDEPlugSymDefs.h
   */
  
  /*
-@@ -24,7 +24,7 @@
+@@ -34,7 +34,7 @@
   */
  
  /** The file name of the DBus library */

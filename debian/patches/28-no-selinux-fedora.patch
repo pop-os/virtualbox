@@ -5,7 +5,7 @@ Index: virtualbox/src/VBox/Additions/linux/Makefile.kmk
 ===================================================================
 --- virtualbox.orig/src/VBox/Additions/linux/Makefile.kmk
 +++ virtualbox/src/VBox/Additions/linux/Makefile.kmk
-@@ -287,9 +287,7 @@
+@@ -301,9 +301,7 @@
  lnx_add_inst-noexec_SOURCES  = \
  	$(VBOX_REL_X11_ADD_INST)vboxclient.desktop \
  	$(VBOX_REL_X11_ADD_INST)vboxvideo.ids \

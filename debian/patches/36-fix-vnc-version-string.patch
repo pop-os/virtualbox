@@ -1,14 +1,14 @@
 Description: fix version string for VNC plugin module.
 --- a/Config.kmk
 +++ b/Config.kmk
-@@ -3261,6 +3261,7 @@ VBOX_EDIT_VERSION_AND_BUILD_CMD_FN = $(S
- 	-e 's/@VBOX_VERSION_MINOR@/$(VBOX_VERSION_MINOR)/g' \
- 	-e 's/@VBOX_VERSION_BUILD@/$(VBOX_VERSION_BUILD)/g' \
- 	-e 's/@VBOX_VERSION_STRING@/$(VBOX_VERSION_STRING)/g' \
-+	-e 's/@VBOX_VERSION_STRING_RAW@/$(VBOX_VERSION_STRING_RAW)/g' \
- 	-e 's/@VBOX_SVN_REV@/$(VBOX_SVN_REV)/g' \
- 	-e 's/@VBOX_VENDOR@/$(VBOX_VENDOR)/g' \
- 	-e 's/@VBOX_VENDOR_SHORT@/$(VBOX_VENDOR_SHORT)/g' \
+@@ -3829,6 +3829,7 @@ VBOX_EDIT_VERSION_AND_BUILD_CMD_FN = $(SED) \
+ 	-e 's+@VBOX_VERSION_MINOR@+$(VBOX_VERSION_MINOR)+g' \
+ 	-e 's+@VBOX_VERSION_BUILD@+$(VBOX_VERSION_BUILD)+g' \
+ 	-e 's+@VBOX_VERSION_STRING@+$(VBOX_VERSION_STRING)+g' \
++	-e 's+@VBOX_VERSION_STRING_RAW@+$(VBOX_VERSION_STRING_RAW)+g' \
+ 	-e 's+@VBOX_SVN_REV@+$(VBOX_SVN_REV)+g' \
+ 	-e 's+@VBOX_VENDOR@+$(VBOX_VENDOR)+g' \
+ 	-e 's+@VBOX_VENDOR_SHORT@+$(VBOX_VENDOR_SHORT)+g' \
 --- a/src/VBox/ExtPacks/VNC/ExtPack.xml
 +++ b/src/VBox/ExtPacks/VNC/ExtPack.xml
 @@ -2,7 +2,7 @@
