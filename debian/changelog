@@ -1,8 +1,9 @@
-virtualbox (6.1.38-dfsg-4) UNRELEASED; urgency=medium
+virtualbox (6.1.40-dfsg-1) unstable; urgency=medium
 
   * Drop NAME also from source dkms files.
+  * New upstream version 6.1.40-dfsg
 
- -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 07 Sep 2022 13:18:09 +0200
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 19 Oct 2022 11:43:11 +0200
 
 virtualbox (6.1.38-dfsg-3) unstable; urgency=medium
 
